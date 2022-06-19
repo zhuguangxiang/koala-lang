@@ -1,11 +1,13 @@
 
 package foo
 
+let v = 100 >>> 2
+
 let s = "hello"
 
 let abc Int32 = Int8(+300)
 
-let num = UInt64(-300)
+let num = Int64(-300)
 
 let n = !false
 
@@ -13,4 +15,4 @@ let n2 = ~Int8(1)
 
 let n3 Int8 = -(-Int8(1))
 
-let n4 = UInt8(1)
+let n4 = Int8(500)

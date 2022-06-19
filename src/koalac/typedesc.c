@@ -10,41 +10,15 @@ extern "C" {
 #endif
 
 static TypeDesc bases[] = {
-    { TYPE_UNK_KIND },  { TYPE_ANY_KIND },  { TYPE_U8_KIND },
-    { TYPE_U16_KIND },  { TYPE_U32_KIND },  { TYPE_U64_KIND },
-    { TYPE_I8_KIND },   { TYPE_I16_KIND },  { TYPE_I32_KIND },
-    { TYPE_I64_KIND },  { TYPE_F32_KIND },  { TYPE_F64_KIND },
-    { TYPE_BOOL_KIND }, { TYPE_CHAR_KIND }, { TYPE_STR_KIND },
+    { TYPE_UNK_KIND },  { TYPE_ANY_KIND }, { TYPE_I8_KIND },
+    { TYPE_I16_KIND },  { TYPE_I32_KIND }, { TYPE_I64_KIND },
+    { TYPE_F32_KIND },  { TYPE_F64_KIND }, { TYPE_BOOL_KIND },
+    { TYPE_CHAR_KIND }, { TYPE_STR_KIND },
 };
-
-TypeDesc *desc_from_unk(void)
-{
-    return &bases[TYPE_UNK_KIND];
-}
 
 TypeDesc *desc_from_any(void)
 {
     return &bases[TYPE_ANY_KIND];
-}
-
-TypeDesc *desc_from_uint8(void)
-{
-    return &bases[TYPE_U8_KIND];
-}
-
-TypeDesc *desc_from_uint16(void)
-{
-    return &bases[TYPE_U16_KIND];
-}
-
-TypeDesc *desc_from_uint32(void)
-{
-    return &bases[TYPE_U32_KIND];
-}
-
-TypeDesc *desc_from_uint64(void)
-{
-    return &bases[TYPE_U64_KIND];
 }
 
 TypeDesc *desc_from_int8(void)
@@ -100,10 +74,6 @@ TypeDesc *desc_from_ptr(TypeDesc *ty)
     return (TypeDesc *)ptr;
 }
 
-static ArrayType uint8_array = { TYPE_ARRAY_KIND, &bases[TYPE_U8_KIND] };
-static ArrayType uint16_array = { TYPE_ARRAY_KIND, &bases[TYPE_U16_KIND] };
-static ArrayType uint32_array = { TYPE_ARRAY_KIND, &bases[TYPE_U32_KIND] };
-static ArrayType uint64_array = { TYPE_ARRAY_KIND, &bases[TYPE_U64_KIND] };
 static ArrayType int8_array = { TYPE_ARRAY_KIND, &bases[TYPE_I8_KIND] };
 static ArrayType int16_array = { TYPE_ARRAY_KIND, &bases[TYPE_I16_KIND] };
 static ArrayType int32_array = { TYPE_ARRAY_KIND, &bases[TYPE_I32_KIND] };
@@ -111,10 +81,6 @@ static ArrayType int64_array = { TYPE_ARRAY_KIND, &bases[TYPE_I64_KIND] };
 
 TypeDesc *desc_from_array(TypeDesc *ty)
 {
-    if (ty->kind == TYPE_U8_KIND) return (TypeDesc *)&uint8_array;
-    if (ty->kind == TYPE_U16_KIND) return (TypeDesc *)&uint16_array;
-    if (ty->kind == TYPE_U32_KIND) return (TypeDesc *)&uint32_array;
-    if (ty->kind == TYPE_U64_KIND) return (TypeDesc *)&uint64_array;
     if (ty->kind == TYPE_I8_KIND) return (TypeDesc *)&int8_array;
     if (ty->kind == TYPE_I16_KIND) return (TypeDesc *)&int16_array;
     if (ty->kind == TYPE_I32_KIND) return (TypeDesc *)&int32_array;
@@ -160,10 +126,6 @@ TypeDesc *desc_from_proto(TypeDesc *ret, Vector *params)
 
 int desc_is_numb(TypeDesc *ty)
 {
-    if (ty->kind == TYPE_U8_KIND) return 1;
-    if (ty->kind == TYPE_U16_KIND) return 1;
-    if (ty->kind == TYPE_U32_KIND) return 1;
-    if (ty->kind == TYPE_U64_KIND) return 1;
     if (ty->kind == TYPE_I8_KIND) return 1;
     if (ty->kind == TYPE_I16_KIND) return 1;
     if (ty->kind == TYPE_I32_KIND) return 1;
@@ -175,10 +137,6 @@ int desc_is_numb(TypeDesc *ty)
 
 int desc_is_int(TypeDesc *ty)
 {
-    if (ty->kind == TYPE_U8_KIND) return 1;
-    if (ty->kind == TYPE_U16_KIND) return 1;
-    if (ty->kind == TYPE_U32_KIND) return 1;
-    if (ty->kind == TYPE_U64_KIND) return 1;
     if (ty->kind == TYPE_I8_KIND) return 1;
     if (ty->kind == TYPE_I16_KIND) return 1;
     if (ty->kind == TYPE_I32_KIND) return 1;
@@ -235,9 +193,8 @@ void desc_to_str(TypeDesc *ty, Buffer *buf)
     if (!ty) return;
 
     static char *strs[] = {
-        "Unk",     "Any",     "UInt8", "UInt16", "UInt32",
-        "UInt64",  "Int8",    "Int16", "Int32",  "Int64",
-        "Float32", "Float64", "Bool",  "Char",   "String",
+        "Unk",     "Any",     "Int8", "Int16", "Int32",  "Int64",
+        "Float32", "Float64", "Bool", "Char",  "String",
     };
 
     if (ty->kind >= TYPE_ANY_KIND && ty->kind <= TYPE_STR_KIND) {

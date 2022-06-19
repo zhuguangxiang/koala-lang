@@ -188,7 +188,7 @@ void klm_write_llvm_bc(KLMPackage *pkg);
 void klm_write_file(KLMPackage *pkg, char *path);
 void klm_read_file(KLMPackage *pkg, char *filename);
 
-KLMFunc *klmc_add_func(KLMPackage *pkg, char *name, TypeDesc *ty);
+KLMFunc *klm_add_func(KLMPackage *pkg, char *name, TypeDesc *ty);
 KLMValue *klm_add_global(KLMPackage *pkg, char *name, TypeDesc *ty);
 KLMCodeBlock *klm_append_block(KLMFunc *func, char *name);
 KLMValue *klm_add_local(KLMFunc *func, char *name, TypeDesc *ty);

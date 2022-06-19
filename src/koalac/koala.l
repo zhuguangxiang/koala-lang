@@ -53,16 +53,11 @@
 "false"     { YY_RETURN(FALSE); }
 "null"      { YY_RETURN(NULL_TK); }
 
-("UInt8"|"uint8"|"u8")    {  printf("u8\n"); YY_RETURN(UINT8); }
-"UInt16"    { YY_RETURN(UINT16);  }
-"UInt32"    { YY_RETURN(UINT32);  }
-"UInt64"    { YY_RETURN(UINT64);  }
 "Int8"      { YY_RETURN(INT8);    }
 "Int16"     { YY_RETURN(INT16);   }
 "Int32"     { YY_RETURN(INT32);   }
 "Int64"     { YY_RETURN(INT64);   }
 "Int"       { YY_RETURN_INT();    }
-"UInt"      { YY_RETURN_UINT();   }
 "Float32"   { YY_RETURN(FLOAT32); }
 "Float64"   { YY_RETURN(FLOAT64); }
 "Bool"      { YY_RETURN(BOOL);    }
@@ -70,20 +65,6 @@
 "String"    { YY_RETURN(STRING);  }
 "Any"       { YY_RETURN(ANY);     }
 "Pointer"   { YY_RETURN(POINTER); }
-"uint16"    { YY_RETURN(UINT16);  }
-"uint32"    { YY_RETURN(UINT32);  }
-"uint64"    { YY_RETURN(UINT64);  }
-"int8"      { YY_RETURN(INT8);    }
-"int16"     { YY_RETURN(INT16);   }
-"int32"     { YY_RETURN(INT32);   }
-"int64"     { YY_RETURN(INT64);   }
-"int"       { YY_RETURN_INT();    }
-"uint"      { YY_RETURN_UINT();   }
-"float32"   { YY_RETURN(FLOAT32); }
-"float64"   { YY_RETURN(FLOAT64); }
-"bool"      { YY_RETURN(BOOL);    }
-"char"      { YY_RETURN(CHAR);    }
-"string"    { YY_RETURN(STRING);  }
 
 "sizeof"    { YY_RETURN(SIZEOF); }
 "inout"     { YY_RETURN(INOUT); }
@@ -149,6 +130,7 @@
 
 "<<"        { YY_RETURN(L_SHIFT); }
 ">"/">"     { YY_RETURN(R_ANGLE_SHIFT); }
+">>>"       { YY_RETURN(R_USHIFT); }
 
 \"          { BEGIN(STR); YY_STR_BEGIN;     }
 <STR>\"     { BEGIN(INITIAL); YY_STR_END;   }

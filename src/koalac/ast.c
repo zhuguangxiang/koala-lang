@@ -81,42 +81,6 @@ Expr *expr_from_int64(int64_t val)
     return (Expr *)exp;
 }
 
-Expr *expr_from_uint8(uint8_t val)
-{
-    LiteralExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_LITERAL_KIND;
-    exp->u8val = val;
-    exp->ty = desc_from_uint8();
-    return (Expr *)exp;
-}
-
-Expr *expr_from_uint16(uint16_t val)
-{
-    LiteralExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_LITERAL_KIND;
-    exp->u16val = val;
-    exp->ty = desc_from_uint16();
-    return (Expr *)exp;
-}
-
-Expr *expr_from_uint32(uint32_t val)
-{
-    LiteralExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_LITERAL_KIND;
-    exp->u32val = val;
-    exp->ty = desc_from_uint32();
-    return (Expr *)exp;
-}
-
-Expr *expr_from_uint64(uint64_t val)
-{
-    LiteralExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_LITERAL_KIND;
-    exp->u64val = val;
-    exp->ty = desc_from_uint64();
-    return (Expr *)exp;
-}
-
 Expr *expr_from_float32(float val)
 {
     LiteralExpr *exp = mm_alloc_obj(exp);
@@ -167,7 +131,7 @@ Expr *expr_from_sizeof(ExprType ty)
     SizeOfExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_SIZEOF_KIND;
     exp->sub_ty = ty;
-    exp->ty = desc_from_uint32();
+    exp->ty = desc_from_int32();
     return (Expr *)exp;
 }
 

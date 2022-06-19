@@ -4,19 +4,19 @@
 ///
 /// The `T` type is only value types without any meta info.
 /// There are primitive number types, and struct defined in extern "C" block.
-/// About `String` and `Array`, use `as_ptr()` method to get the raw Pointer<T>.
+/// About `String` and `Array`, use `to_ptr()` method to get the raw Pointer<T>.
 /// This is directly get memory pointer in GC. This is unsafe.
 ///
 /// How to use raw pointer, some examples are below:
 ///
 /// ```koala
 ///
-/// var val = UInt32(100); // val = 100
+/// var val = Int32(100); // val = 100
 /// let p = Pointer(val)
 /// p.write(200); // val = 200
-/// println(typeof(p)); // Pointer<UInt32>
+/// println(typeof(p)); // Pointer<Int32>
 ///
-/// let p2 = p as Pointer<UInt8>
+/// let p2 = p as Pointer<Int8>
 /// p2[0] = 1
 /// p2[1] = 2
 /// p2[2] = 3
@@ -26,7 +26,7 @@
 ///
 /// struct Foo {
 ///     str Pointer<Int8>
-///     len UInt32
+///     len Int32
 /// }
 /*
     func malloc(size u32) Pointer<Any>
@@ -89,19 +89,19 @@ public struct Pointer<T> {
     public func write(v T)
 
     @intrinsic
-    public func __get_item__(off UInt32) T
+    public func __get_item__(off Int32) T
 
     @intrinsic
-    public func __set_item__(off UInt32, val T)
-
-    @intrinsic
-    @indirectly
-    public func __get_field__<V>(off UInt32) V
+    public func __set_item__(off Int32, val T)
 
     @intrinsic
     @indirectly
-    public func __set_field__<V>(off UInt32, val V)
+    public func __get_field__<V>(off Int32) V
 
     @intrinsic
-    public func is_null() Bool
+    @indirectly
+    public func __set_field__<V>(off Int32, val V)
+
+    @intrinsic
+    public func isNull() Bool
 }

@@ -6,12 +6,12 @@ extern "C" {
 }
 
 public struct String : ToString & Hashable<String> {
-    let raw RawArray<uint8>
+    let raw RawArray
     var offset uint32
     var len uint32
 
     public func __init__(s Pointer<uint8>, len uint32) {
-        raw = raw_array_new(len)
+        raw = RawArray(len)
         memcpy(raw.as_ptr(), s, len);
     }
 

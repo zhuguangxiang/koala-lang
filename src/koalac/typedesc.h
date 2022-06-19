@@ -25,10 +25,6 @@ typedef struct _KlassType KlassType;
 enum _TypeKind {
     TYPE_UNK_KIND,
     TYPE_ANY_KIND,
-    TYPE_U8_KIND,
-    TYPE_U16_KIND,
-    TYPE_U32_KIND,
-    TYPE_U64_KIND,
     TYPE_I8_KIND,
     TYPE_I16_KIND,
     TYPE_I32_KIND,
@@ -83,12 +79,7 @@ struct _KlassType {
     Vector *type_params;
 };
 
-TypeDesc *desc_from_unk(void);
 TypeDesc *desc_from_any(void);
-TypeDesc *desc_from_uint8(void);
-TypeDesc *desc_from_uint16(void);
-TypeDesc *desc_from_uint32(void);
-TypeDesc *desc_from_uint64(void);
 TypeDesc *desc_from_int8(void);
 TypeDesc *desc_from_int16(void);
 TypeDesc *desc_from_int32(void);

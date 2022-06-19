@@ -8,5 +8,5 @@ public interface Hashable {
     /// returns a hash code as `UInt32` of this object.
     ///
     @abstract
-    public func hash_code() UInt32
+    public func hash_code() Int32
 }

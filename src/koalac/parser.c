@@ -291,23 +291,17 @@ static void merge_unary_neg_literal(ParserState *ps, UnaryExpr *exp)
 
     TypeDesc *ty = e->ty;
     switch (ty->kind) {
-        case TYPE_I64_KIND:
-            e->i64val = -e->i64val;
-            break;
-        case TYPE_I32_KIND:
-            e->i32val = -e->i32val;
+        case TYPE_I8_KIND:
+            e->i8val = -e->i8val;
             break;
         case TYPE_I16_KIND:
             e->i16val = -e->i16val;
             break;
-        case TYPE_I8_KIND:
-            e->i8val = -e->i8val;
+        case TYPE_I32_KIND:
+            e->i32val = -e->i32val;
             break;
-        case TYPE_U64_KIND:
-        case TYPE_U32_KIND:
-        case TYPE_U16_KIND:
-        case TYPE_U8_KIND:
-            parser_error(exp->loc, "wrong type argument to unary '-'");
+        case TYPE_I64_KIND:
+            e->i64val = -e->i64val;
             break;
         case TYPE_F64_KIND:
             e->f64val = -e->f64val;
@@ -335,29 +329,17 @@ static void merge_unary_bit_not_literal(ParserState *ps, UnaryExpr *exp)
 
     TypeDesc *ty = e->ty;
     switch (ty->kind) {
-        case TYPE_I64_KIND:
-            e->i64val = ~e->i64val;
-            break;
-        case TYPE_I32_KIND:
-            e->i32val = ~e->i32val;
+        case TYPE_I8_KIND:
+            e->i8val = ~e->i8val;
             break;
         case TYPE_I16_KIND:
             e->i16val = ~e->i16val;
             break;
-        case TYPE_I8_KIND:
-            e->i8val = ~e->i8val;
+        case TYPE_I32_KIND:
+            e->i32val = ~e->i32val;
             break;
-        case TYPE_U64_KIND:
-            e->u64val = ~e->u64val;
-            break;
-        case TYPE_U32_KIND:
-            e->u32val = ~e->u32val;
-            break;
-        case TYPE_U16_KIND:
-            e->u16val = ~e->u16val;
-            break;
-        case TYPE_U8_KIND:
-            e->u8val = ~e->u8val;
+        case TYPE_I64_KIND:
+            e->i64val = ~e->i64val;
             break;
         default:
             assert(0);
@@ -723,38 +705,14 @@ static void cast_i64_literal(ParserState *ps, TypeDesc *to, LiteralExpr *exp)
             }
             break;
         }
-        case TYPE_U8_KIND: {
-            if (ival > 255 || ival < 0) {
-                parser_error(exp->loc, "Int64(%ld) to UInt8(%d) is truncated",
-                             ival, exp->u8val);
-            } else {
-                exp->ty = to;
-            }
-            break;
-        }
         case TYPE_I16_KIND: {
-            break;
-        }
-        case TYPE_U16_KIND: {
             break;
         }
         case TYPE_I32_KIND: {
             break;
         }
-        case TYPE_U32_KIND: {
-            break;
-        }
         case TYPE_I64_KIND: {
             // i64 -> i64
-            break;
-        }
-        case TYPE_U64_KIND: {
-            if (ival < 0) {
-                parser_error(exp->loc, "Int64(%ld) to UInt64(%ld) is truncated",
-                             ival, exp->u64val);
-            } else {
-                exp->ty = to;
-            }
             break;
         }
         default:
@@ -769,8 +727,6 @@ static void cast_f64_literal(ParserState *ps, TypeDesc *to, LiteralExpr *exp)
 
     switch (to->kind) {
         case TYPE_I8_KIND:
-            break;
-        case TYPE_U8_KIND:
             break;
         default:
             break;
