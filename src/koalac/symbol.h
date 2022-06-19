@@ -15,7 +15,7 @@ extern "C" {
 
 typedef enum _SymKind SymKind;
 typedef struct _Symbol Symbol;
-typedef struct _Symbol VarSymbol;
+typedef struct _VarSymbol VarSymbol;
 typedef struct _PackSymbol PackSymbol;
 typedef struct _FuncSymbol FuncSymbol;
 typedef struct _ParamTypeSymbol ParamTypeSymbol;
@@ -38,12 +38,17 @@ enum _SymKind {
 
 #define SYMBOL_HEAD \
     HashMapEntry hnode; SymKind kind; char *name; \
-    TypeDesc *type; HashMap *owner;
+    TypeDesc *type; HashMap *parent;
 
 /* clang-format on */
 
 struct _Symbol {
     SYMBOL_HEAD
+};
+
+struct _VarSymbol {
+    SYMBOL_HEAD
+    int konst;
 };
 
 struct _PackSymbol {

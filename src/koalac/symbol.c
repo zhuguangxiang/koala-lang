@@ -41,7 +41,7 @@ void free_symbol(Symbol *sym)
 {
     Symbol key = { .name = sym->name };
     hashmap_entry_init(&key, str_hash(sym->name));
-    hashmap_remove(sym->owner, &key);
+    hashmap_remove(sym->parent, &key);
     symbol_free(sym, NULL);
 }
 
@@ -52,12 +52,12 @@ Symbol *stbl_add_let(HashMap *stbl, char *name, TypeDesc *desc)
     sym->kind = SYM_LET;
     sym->name = name;
     sym->type = desc;
-    sym->owner = stbl;
+    sym->parent = stbl;
     if (hashmap_put_absent(stbl, sym) < 0) {
         mm_free(sym);
         sym = NULL;
     }
-    return sym;
+    return (Symbol *)sym;
 }
 
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc)
@@ -67,12 +67,12 @@ Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc)
     sym->kind = SYM_VAR;
     sym->name = name;
     sym->type = desc;
-    sym->owner = stbl;
+    sym->parent = stbl;
     if (hashmap_put_absent(stbl, sym) < 0) {
         mm_free(sym);
         sym = NULL;
     }
-    return sym;
+    return (Symbol *)sym;
 }
 
 Symbol *stbl_add_func(HashMap *stbl, char *name)
@@ -81,7 +81,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name)
     hashmap_entry_init(sym, str_hash(name));
     sym->kind = SYM_FUNC;
     sym->name = name;
-    sym->owner = stbl;
+    sym->parent = stbl;
     if (hashmap_put_absent(stbl, sym) < 0) {
         mm_free(sym);
         sym = NULL;
@@ -97,7 +97,7 @@ Symbol *stbl_add_param_type(HashMap *stbl, char *name)
     hashmap_entry_init(sym, str_hash(name));
     sym->kind = SYM_PARAM_TYPE;
     sym->name = name;
-    sym->owner = stbl;
+    sym->parent = stbl;
     if (hashmap_put_absent(stbl, sym) < 0) {
         mm_free(sym);
         sym = NULL;
@@ -112,7 +112,7 @@ Symbol *stbl_add_package(HashMap *stbl, char *path, char *name)
     sym->kind = SYM_PACKAGE;
     sym->path = path;
     sym->name = name;
-    sym->owner = stbl;
+    sym->parent = stbl;
     if (hashmap_put_absent(stbl, sym) < 0) {
         mm_free(sym);
         sym = NULL;

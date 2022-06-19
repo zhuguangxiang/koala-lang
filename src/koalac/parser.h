@@ -46,17 +46,14 @@ struct _ParserScope {
 #define IF_BLOCK     2
 #define WHILE_BLOCK  3
 #define FOR_BLOCK    4
-#define MATCH_BLOCK  5
-#define MATCH_CASE   6
-#define MATCH_CLAUSE 7
+#define SWITCH_BLOCK 5
+#define CASE_BLOCK   6
 };
 
 /* per file one package */
 struct _ParserState {
     /* file name */
     char *filename;
-    /* file */
-    FILE *in;
     /* -> ParserPackage */
     ParserPackage *pkg;
     /* statements */
@@ -93,7 +90,7 @@ struct _ParserState {
     int in_angle;
 
     /* line buffer */
-    char linebuf[512][256];
+    char linebuf[64][150];
 
     /* errors */
     int errors;
@@ -102,13 +99,13 @@ struct _ParserState {
 /* one package is compiled unit, and has one meta file */
 struct _ParserPackage {
     /* imported packages */
-    HashMap *pkgs;
+    HashMap *ex_pkgs;
     /* package name */
     char *name;
     /* symbol table */
     HashMap *stbl;
     /* compiled files (ParserState) */
-    Vector files;
+    Vector pss;
 };
 
 /* one module is linked into one shared object */
@@ -119,32 +116,18 @@ struct _ParserModule {
 
 void init_parser(void);
 void fini_parser(void);
+ParserState *new_parser(char *filename, ParserPackage *pkg);
+void destroy_parser(ParserState *ps);
+void parser_set_pkg_name(ParserState *ps, char *name);
 void parser_enter_scope(ParserState *ps, ScopeKind kind, int block);
 void parser_exit_scope(ParserState *ps);
+void parser_eval_stmts(ParserState *ps);
 void parse_stmt(ParserState *ps, Stmt *stmt);
 void parser_append_stmt(ParserState *ps, Stmt *stmt);
 void parser_new_var(ParserState *ps, Stmt *Stmt);
 void parser_new_func(ParserState *ps, Stmt *stmt);
-static inline void ident_has_param_type(ParserState *ps, char *name)
-{
-    if (!strcmp(name, "Pointer")) {
-        ps->in_angle = 1;
-    } else {
-        ps->in_angle = 0;
-    }
-}
-
-static inline void parser_error_detail(ParserState *ps, int row, int col)
-{
-    char *line = ps->linebuf[row % 512];
-
-    printf("%5d | %s\n", row, line);
-    if (col - 1 == 0) {
-        printf("%5c | ^\n", ' ');
-    } else {
-        printf("%5c | %*c^\n", ' ', col - 1, ' ');
-    }
-}
+void check_type_param(ParserState *ps, char *name);
+void parser_error_detail(ParserState *ps, int row, int col);
 
 /* clang-format off */
 

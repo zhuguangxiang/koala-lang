@@ -127,6 +127,7 @@ enum _ExprOpKind {
     ExprOpKind op; \
     TypeDesc *ty;  \
     Expr *right;   \
+    Expr **parent; \
     Loc loc;
 
 struct _Expr {
@@ -249,7 +250,7 @@ struct _RangeExpr {
 
 struct _IsAsExpr {
     EXPR_HEAD
-    Expr *lhs;
+    Expr *exp;
     ExprType sub_ty;
 };
 
@@ -317,12 +318,12 @@ Expr *expr_from_pointer(void);
 #define expr_from_int(v)   expr_from_int32(v)
 #define expr_from_float(v) expr_from_float32(v)
 #else
-#error "Must define either 32 or 64 bits".
+#error "Must be either 32 or 64 bits".
 #endif
 
 Expr *expr_from_range(Expr *lhs, RangeOpKind op, Loc op_loc, Expr *rhs);
-Expr *expr_from_is(Expr *lhs, ExprType ty);
-Expr *expr_from_as(Expr *lhs, ExprType ty);
+Expr *expr_from_is(Expr *exp, ExprType ty);
+Expr *expr_from_as(Expr *exp, ExprType ty);
 Expr *expr_from_ident(Ident name);
 Expr *expr_from_unary(UnOpKind op, Loc op_loc, Expr *e);
 Expr *expr_from_binary(BinOpKind op, Loc op_loc, Expr *lhs, Expr *rhs);
@@ -335,8 +336,7 @@ Expr *expr_from_tuple_access(Expr *lhs, int index);
 void free_expr(Expr *e);
 
 enum _StmtKind {
-    /* package */
-    STMT_PACKAGE_KIND = 1,
+    STMT_UNK_KIND,
     /* import */
     STMT_IMPORT_KIND,
     /* type alias */
@@ -391,6 +391,11 @@ struct _VarDeclStmt {
     Ident id;
     ExprType ty;
     Expr *exp;
+    int where;
+#define VAR_DECL_GLOBAL 1
+#define VAR_DECL_LOCAL  2
+#define VAR_DECL_FIELD  3
+    int pub;
 };
 
 struct _FuncDeclStmt {
@@ -400,6 +405,7 @@ struct _FuncDeclStmt {
     Vector *args;
     ExprType ret;
     Vector *body;
+    int pub;
 };
 
 enum _AssignOpKind {

@@ -158,6 +158,34 @@ TypeDesc *desc_from_proto(TypeDesc *ret, Vector *params)
     return (TypeDesc *)pty;
 }
 
+int desc_is_numb(TypeDesc *ty)
+{
+    if (ty->kind == TYPE_U8_KIND) return 1;
+    if (ty->kind == TYPE_U16_KIND) return 1;
+    if (ty->kind == TYPE_U32_KIND) return 1;
+    if (ty->kind == TYPE_U64_KIND) return 1;
+    if (ty->kind == TYPE_I8_KIND) return 1;
+    if (ty->kind == TYPE_I16_KIND) return 1;
+    if (ty->kind == TYPE_I32_KIND) return 1;
+    if (ty->kind == TYPE_I64_KIND) return 1;
+    if (ty->kind == TYPE_F32_KIND) return 1;
+    if (ty->kind == TYPE_F64_KIND) return 1;
+    return 0;
+}
+
+int desc_is_int(TypeDesc *ty)
+{
+    if (ty->kind == TYPE_U8_KIND) return 1;
+    if (ty->kind == TYPE_U16_KIND) return 1;
+    if (ty->kind == TYPE_U32_KIND) return 1;
+    if (ty->kind == TYPE_U64_KIND) return 1;
+    if (ty->kind == TYPE_I8_KIND) return 1;
+    if (ty->kind == TYPE_I16_KIND) return 1;
+    if (ty->kind == TYPE_I32_KIND) return 1;
+    if (ty->kind == TYPE_I64_KIND) return 1;
+    return 0;
+}
+
 int desc_equal(TypeDesc *ty1, TypeDesc *ty2)
 {
     if (ty1 == ty2) return 1;
@@ -207,8 +235,9 @@ void desc_to_str(TypeDesc *ty, Buffer *buf)
     if (!ty) return;
 
     static char *strs[] = {
-        "any",     "int8",    "int16", "int32", "int64",
-        "float32", "float64", "bool",  "char",  "string",
+        "Unk",     "Any",     "UInt8", "UInt16", "UInt32",
+        "UInt64",  "Int8",    "Int16", "Int32",  "Int64",
+        "Float32", "Float64", "Bool",  "Char",   "String",
     };
 
     if (ty->kind >= TYPE_ANY_KIND && ty->kind <= TYPE_STR_KIND) {

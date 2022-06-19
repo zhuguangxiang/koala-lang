@@ -36,13 +36,14 @@ static void usage(void)
     printf(
         "Usage: koalac [options] <packages>|<files>...\n\n"
         "Options:\n"
-        "  -l <library>     Search the library named <library> when linking.\n"
-        "  -L <path>        Add a directory to package search path.\n"
+        "  -l <library>     Search the library when linking.\n"
+        "  -L <path>        Add a directory to search path when linking.\n"
+        "  --path=<package-path>\n"
+        "                   Add a directory to search path when compiling.\n"
         "  -o <file>        Place the output into <file>.\n"
-        "  -g, --debug      Generate debug information(DWARF-2).\n"
-        "  --pic            Generate position independent code.\n"
         "  --filetype=<llvm|asm|obj|shared|exe>\n"
         "                   Specify output file type.\n"
+        "  -g, --debug      Generate debug information(DWARF-2).\n"
         "  --verion         Print Koala version.\n"
         "  --help           Print this message.\n"
         "\n");
@@ -59,7 +60,7 @@ typedef struct _ParserOption {
 
 static void parse_command(int argc, char *argv[], ParserOption *parse_opt)
 {
-    struct option options[] = { { "pic", no_argument, NULL, 0 },
+    struct option options[] = { { "path", required_argument, NULL, 0 },
                                 { "debug", no_argument, NULL, 'g' },
                                 { "filetype", required_argument, NULL, 0 },
                                 { "version", no_argument, NULL, 0 },
@@ -79,7 +80,7 @@ static void parse_command(int argc, char *argv[], ParserOption *parse_opt)
                     if (optarg) {
                         // printf("filetype: %s\n", optarg);
                     }
-                } else if (!strcmp(name, "pic")) {
+                } else if (!strcmp(name, "path")) {
                     parse_opt->pic = 1;
                     // printf("pic: enabled\n");
                 } else if (!strcmp(name, "version")) {
@@ -141,17 +142,19 @@ static void build_ast(char *path)
         return;
     }
 
-    ParserState ps = { 0 };
-    ps.row = 1;
-    ps.col = 1;
-    ps.filename = path;
+    ParserPackage pkg = { 0 };
+
+    ParserState *ps = new_parser(path, &pkg);
 
     yyscan_t scanner;
-    yylex_init_extra(&ps, &scanner);
+    yylex_init_extra(ps, &scanner);
     yyset_in(in, scanner);
-    yyparse(&ps, scanner);
+    yyparse(ps, scanner);
     yylex_destroy(scanner);
 
+    parser_eval_stmts(ps);
+
+    destroy_parser(ps);
     fclose(in);
 }
 

@@ -1,36 +1,16 @@
 
-let s = "hello
-let "
+package foo
 
-let abc = (100)
+let s = "hello"
 
-let size = sizeof(s)
+let abc Int32 = Int8(+300)
 
-let arr [Int; 32] = [1,2,3]
+let num = UInt64(-300)
 
-let i UInt8 = 0
-let j uint8 = 0
-let k u8 = 0
+let n = !false
 
-/// let def = 200*1
+let n2 = ~Int8(1)
 
-// var2 abc Int32
+let n3 Int8 = -(-Int8(1))
 
-class A {
-    func add<T : Person<Person<T>>>() T {
-
-    }
-}
-
-struct Pointer {
-    var s Pointer<UInt8>
-    var len UInt32
-}
-
-/*
-func add(a Int, b Int) {
-    let c = a >> 10 + b << 20 - 1 > 2 + 1 < Person<B> > 2;
-    let p Person<Cat<Int32>, Cat> = io.Person<Cat<T>, Person<T>>();
-    let p	= Cat<T>()
-}
-*/
+let n4 = UInt8(1)

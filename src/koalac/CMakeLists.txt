@@ -20,6 +20,7 @@ set(KOALAC_SOURCES
     koala_yacc.c
     typedesc.c
     ast.c
+    parser.c
     symbol.c
     main.c)
 

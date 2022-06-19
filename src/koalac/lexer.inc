@@ -211,7 +211,7 @@ int file_input(YY_EXTRA_TYPE ps, char *buf, int size, FILE *in)
 #define YY_RETURN_INT()  YY_RETURN(INT32)
 #define YY_RETURN_UINT() YY_RETURN(UINT32)
 #else
-#error "Must define either 32 or 64 bits".
+#error "Must be either 32 or 64 bits".
 #endif
 
 #define YY_NEWLINE                                            \

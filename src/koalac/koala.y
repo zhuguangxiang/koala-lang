@@ -181,6 +181,7 @@ int keyword(int token)
 %type <expr> dot_expr
 %type <expr> index_expr
 %type <expr> angle_expr
+%type <expr> primitive_as_expr
 %type <exprlist> expr_list
 
 %type <type> type
@@ -232,15 +233,17 @@ top_decls
 package
     : PACKAGE ID ';'
     {
-
+        parser_set_pkg_name(ps, $2);
     }
     | PACKAGE error
     {
-
+        parser_error(loc(@2), "expected package name");
+        yyerrok;
     }
     | PACKAGE ID error
     {
-
+        parser_error(loc(@2), "expected ';'");
+        yyerrok;
     }
     ;
 
@@ -255,22 +258,25 @@ top_decl
     }
     | let_decl
     {
-        //printf("let_decl in top\n");
-        //parser_new_var(ps, $1);
-        //set_var_decl_where($1, VAR_DECL_GLOBAL);
+        parser_new_var(ps, $1);
+        ((VarDeclStmt *)$1)->where = VAR_DECL_GLOBAL;
     }
     | PUBLIC let_decl
     {
-
+        parser_new_var(ps, $2);
+        ((VarDeclStmt *)$2)->where = VAR_DECL_GLOBAL;
+        ((VarDeclStmt *)$2)->pub = 1;
     }
     | var_decl
     {
-        //parser_new_var(ps, $1);
-        //set_var_decl_where($1, VAR_DECL_GLOBAL);
+        parser_new_var(ps, $1);
+        ((VarDeclStmt *)$1)->where = VAR_DECL_GLOBAL;
     }
     | PUBLIC var_decl
     {
-
+        parser_new_var(ps, $2);
+        ((VarDeclStmt *)$2)->where = VAR_DECL_GLOBAL;
+        ((VarDeclStmt *)$2)->pub = 1;
     }
     | func_decl
     {
@@ -409,9 +415,7 @@ let_decl
     {
         // printf("let-decl\n");
         Ident id = {$2, loc(@2), NULL};
-        ExprType ty;
-        ty.loc = (Loc){0, 0};
-        ty.ty = desc_from_unk();
+        ExprType ty = {0};
         $$ = stmt_from_let_decl(id, ty, $4);
         $$->loc = loc(@1);
     }
@@ -468,9 +472,7 @@ var_decl
     | VAR ID '=' expr ';'
     {
         Ident id = {$2, loc(@2), NULL};
-        ExprType ty;
-        ty.loc = (Loc){0, 0};
-        ty.ty = desc_from_unk();
+        ExprType ty = {0};
         $$ = stmt_from_var_decl(id, ty, $4);
         $$->loc = loc(@1);
     }
@@ -1473,12 +1475,12 @@ range_expr
     ;
 
 is_expr
-    : primary_expr IS type
+    : or_expr IS type
     {
         $$ = expr_from_is($1, $3);
         $$->loc = loc(@1);
     }
-    | primary_expr IS error {
+    | or_expr IS error {
         parser_error(loc(@3), "expected 'TYPE'");
         yyerrok;
         $$ = NULL;
@@ -1486,12 +1488,12 @@ is_expr
     ;
 
 as_expr
-    : primary_expr AS type
+    : or_expr AS type
     {
         $$ = expr_from_as($1, $3);
         $$->loc = loc(@1);
     }
-    | primary_expr AS error {
+    | or_expr AS error {
         parser_error(loc(@3), "expected 'TYPE'");
         yyerrok;
         $$ = NULL;
@@ -1925,59 +1927,9 @@ atom_expr
         $$ = expr_from_int($1);
         $$->loc = loc(@1);
     }
-    | INT8 '(' INT_LITERAL ')'
-    {
-        $$ = expr_from_int8($3);
-        $$->loc = loc(@1);
-    }
-    | INT16 '(' INT_LITERAL ')'
-    {
-        $$ = expr_from_int16($3);
-        $$->loc = loc(@1);
-    }
-    | INT32 '(' INT_LITERAL ')'
-    {
-        $$ = expr_from_int32($3);
-        $$->loc = loc(@1);
-    }
-    | INT64 '(' INT_LITERAL ')'
-    {
-        $$ = expr_from_int64($3);
-        $$->loc = loc(@1);
-    }
-    | UINT8 '(' INT_LITERAL ')'
-    {
-        $$ = expr_from_uint8($3);
-        $$->loc = loc(@1);
-    }
-    | UINT16 '(' INT_LITERAL ')'
-    {
-        $$ = expr_from_uint16($3);
-        $$->loc = loc(@1);
-    }
-    | UINT32 '(' INT_LITERAL ')'
-    {
-        $$ = expr_from_uint32($3);
-        $$->loc = loc(@1);
-    }
-    | UINT64 '(' INT_LITERAL ')'
-    {
-        $$ = expr_from_uint64($3);
-        $$->loc = loc(@1);
-    }
     | FLOAT_LITERAL
     {
         $$ = expr_from_float($1);
-        $$->loc = loc(@1);
-    }
-    | FLOAT32 '(' FLOAT_LITERAL ')'
-    {
-        $$ = expr_from_float32($3);
-        $$->loc = loc(@1);
-    }
-    | FLOAT64 '(' FLOAT_LITERAL ')'
-    {
-        $$ = expr_from_float64($3);
         $$->loc = loc(@1);
     }
     | CHAR_LITERAL
@@ -1988,11 +1940,6 @@ atom_expr
     | STRING_LITERAL
     {
         $$ = expr_from_str($1);
-        $$->loc = loc(@1);
-    }
-    | STRING '(' STRING_LITERAL ')'
-    {
-        $$ = expr_from_str($3);
         $$->loc = loc(@1);
     }
     | TRUE
@@ -2080,6 +2027,117 @@ atom_expr
     | anony_object_expr
     {
         assert(0);
+    }
+    | primitive_as_expr
+    {
+        $$ = $1;
+    }
+    ;
+
+primitive_as_expr
+    : INT8 '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_int8();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | INT16 '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_int16();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | INT32 '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_int32();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | INT64 '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_int64();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | UINT8 '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_uint8();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | UINT16 '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_uint16();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | UINT32 '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_uint32();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | UINT64 '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_uint64();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | FLOAT32 '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_float32();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | FLOAT64 '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_float64();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | STRING '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_str();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | CHAR '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_char();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
+    }
+    | BOOL '(' expr ')'
+    {
+        ExprType ty = { 0 };
+        ty.loc = loc(@1);
+        ty.ty = desc_from_bool();
+        $$ = expr_from_as($3, ty);
+        $$->loc = loc(@1);
     }
     ;
 

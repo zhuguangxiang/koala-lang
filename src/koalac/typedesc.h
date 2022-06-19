@@ -83,8 +83,6 @@ struct _KlassType {
     Vector *type_params;
 };
 
-void init_desc(void);
-void fini_desc(void);
 TypeDesc *desc_from_unk(void);
 TypeDesc *desc_from_any(void);
 TypeDesc *desc_from_uint8(void);
@@ -117,6 +115,10 @@ static inline TypeDesc *proto_ret(TypeDesc *ty)
     ProtoType *proto = (ProtoType *)ty;
     return proto->ret;
 }
+
+int desc_is_numb(TypeDesc *ty);
+int desc_is_int(TypeDesc *ty);
+
 int desc_equal(TypeDesc *ty1, TypeDesc *ty2);
 void desc_to_str(TypeDesc *ty, Buffer *buf);
 void free_desc(TypeDesc *ty);

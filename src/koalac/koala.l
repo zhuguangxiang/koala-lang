@@ -172,7 +172,7 @@
 
 [A-Za-z_][A-Za-z0-9_]*  {
     YY_IDENT_VALUE(yytext, yyleng);
-    ident_has_param_type(yyps, yytext);
+    check_type_param(yyps, yytext);
     YY_RETURN(ID);
 }
 

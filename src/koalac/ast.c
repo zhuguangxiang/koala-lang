@@ -189,21 +189,22 @@ Expr *expr_from_range(Expr *lhs, RangeOpKind op, Loc op_loc, Expr *rhs)
     return (Expr *)exp;
 }
 
-Expr *expr_from_is(Expr *lhs, ExprType ty)
+Expr *expr_from_is(Expr *e, ExprType ty)
 {
     IsAsExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_IS_KIND;
-    exp->lhs = lhs;
+    exp->exp = e;
     exp->sub_ty = ty;
     return (Expr *)exp;
 }
 
-Expr *expr_from_as(Expr *lhs, ExprType ty)
+Expr *expr_from_as(Expr *e, ExprType ty)
 {
     IsAsExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_AS_KIND;
-    exp->lhs = lhs;
+    exp->exp = e;
     exp->sub_ty = ty;
+    e->parent = &exp->exp;
     return (Expr *)exp;
 }
 
@@ -222,6 +223,7 @@ Expr *expr_from_unary(UnOpKind op, Loc op_loc, Expr *e)
     exp->uop = op;
     exp->op_loc = op_loc;
     exp->exp = e;
+    e->parent = &exp->exp;
     return (Expr *)exp;
 }
 
@@ -233,6 +235,8 @@ Expr *expr_from_binary(BinOpKind op, Loc op_loc, Expr *le, Expr *re)
     exp->op_loc = op_loc;
     exp->lexp = le;
     exp->rexp = re;
+    le->parent = &exp->lexp;
+    re->parent = &exp->rexp;
     return (Expr *)exp;
 }
 
@@ -318,6 +322,7 @@ Stmt *stmt_from_let_decl(Ident name, ExprType ty, Expr *e)
     s->id = name;
     s->ty = ty;
     s->exp = e;
+    e->parent = &s->exp;
     return (Stmt *)s;
 }
 
@@ -328,6 +333,7 @@ Stmt *stmt_from_var_decl(Ident name, ExprType ty, Expr *e)
     s->id = name;
     s->ty = ty;
     s->exp = e;
+    e->parent = &s->exp;
     return (Stmt *)s;
 }
 

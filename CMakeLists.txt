@@ -19,20 +19,23 @@ configure_file(
     ${PROJECT_SOURCE_DIR}/src/version.h.in
     ${PROJECT_SOURCE_DIR}/src/version.h)
 
-set(ENABLE_TEST 0)
+set(ENABLE_TEST 1)
 
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.local/lib)
 add_definitions(-DMEM_MAXSIZE=512*1024)
 
 if(CMAKE_BUILD_TYPE STREQUAL Debug)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wextra -Wall -g")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu17 -g")
 else()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wextra -Werror -Wall -O2")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu17 -Wextra -Werror -Wall -O2")
 endif()
 
 include_directories(src)
+include_directories(src/koalac)
+include_directories(src/libkoalart)
 
 add_subdirectory(src/common)
+add_subdirectory(src/koalac/klc)
 add_subdirectory(src/koalac)
 #add_subdirectory(src/runtime)
 

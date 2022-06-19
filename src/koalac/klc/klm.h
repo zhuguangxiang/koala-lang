@@ -184,7 +184,11 @@ struct _KLMConst {
 
 void klm_init_pkg(KLMPackage *pkg, char *name);
 void klm_fini_pkg(KLMPackage *pkg);
-KLMFunc *klm_add_func(KLMPackage *pkg, char *name, TypeDesc *ty);
+void klm_write_llvm_bc(KLMPackage *pkg);
+void klm_write_file(KLMPackage *pkg, char *path);
+void klm_read_file(KLMPackage *pkg, char *filename);
+
+KLMFunc *klmc_add_func(KLMPackage *pkg, char *name, TypeDesc *ty);
 KLMValue *klm_add_global(KLMPackage *pkg, char *name, TypeDesc *ty);
 KLMCodeBlock *klm_append_block(KLMFunc *func, char *name);
 KLMValue *klm_add_local(KLMFunc *func, char *name, TypeDesc *ty);

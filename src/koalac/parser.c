@@ -17,9 +17,35 @@ void fini_parser(void)
 {
 }
 
-void ident_has_param_type(ParserState *ps, char *name)
+ParserState *new_parser(char *filename, ParserPackage *pkg)
 {
-    if (!strcmp(name, "Person") || !strcmp(name, "Comparable")) {
+    ParserState *ps = mm_alloc_obj(ps);
+    ps->filename = filename;
+    ps->pkg = pkg;
+    vector_init_ptr(&ps->stmts);
+    ps->row = 1;
+    ps->col = 1;
+    if (!pkg->stbl) {
+        // initialize package
+        pkg->stbl = stbl_new();
+        vector_init_ptr(&pkg->pss);
+    }
+    vector_push_back(&pkg->pss, &ps);
+    return ps;
+}
+
+void destroy_parser(ParserState *ps)
+{
+}
+
+void parser_set_pkg_name(ParserState *ps, char *name)
+{
+    ps->pkg->name = name;
+}
+
+void check_type_param(ParserState *ps, char *name)
+{
+    if (!strcmp(name, "Pointer") || !strcmp(name, "Comparable")) {
         ps->in_angle = 1;
     } else {
         ps->in_angle = 0;
@@ -28,21 +54,13 @@ void ident_has_param_type(ParserState *ps, char *name)
 
 void parser_error_detail(ParserState *ps, int row, int col)
 {
-    FILE *in = ps->in;
-    if (!in) {
-        in = fopen(ps->filename, "r");
-        ps->in = in;
-    }
-    fseek(in, ps->offset, SEEK_SET);
+    char *line = ps->linebuf[row % 512];
 
-    char buf[1024];
-    fread(buf, sizeof(buf), in);
-
-    printf("%5d | %s\n", row, buf);
+    printf("%5d | %s\n", row, line);
     if (col - 1 == 0) {
-        printf("%5c | " RED_COLOR("^") "\n", ' ');
+        printf("%5c | ^\n", ' ');
     } else {
-        printf("%5c | %*c" RED_COLOR("^") "\n", ' ', col - 1, ' ');
+        printf("%5c | %*c^\n", ' ', col - 1, ' ');
     }
 }
 
@@ -50,7 +68,7 @@ static ParserScope *new_scope(ScopeKind kind, int block)
 {
     ParserScope *scope = mm_alloc_obj(scope);
     scope->kind = kind;
-    scope->blocktype = block;
+    scope->block_type = block;
     scope->stbl = stbl_new();
     return scope;
 }
@@ -65,10 +83,9 @@ static const char *scopes[] = {
     "NULL", "TOP", "TYPE", "FUNC", "BLOCK", "ANONY",
 };
 
-static const char *blocks[] = {
-    "NULL",      "BLOCK",       "IF-BLOCK",   "WHILE-BLOCK",
-    "FOR-BLOCK", "MATCH-BLOCK", "MATCH-CASE", "MATCH-CLAUSE",
-};
+static const char *blocks[] = { "NULL",        "BLOCK",     "IF-BLOCK",
+                                "WHILE-BLOCK", "FOR-BLOCK", "SWITCH-BLOCK",
+                                "CASE-BLOCK" };
 #endif
 
 void parser_enter_scope(ParserState *ps, ScopeKind kind, int block)
@@ -82,12 +99,12 @@ void parser_enter_scope(ParserState *ps, ScopeKind kind, int block)
 
     /* log_debug show */
 #if !defined(NLOG)
-    const char *scopestr;
+    const char *scope_str;
     if (kind != SCOPE_BLOCK)
-        scopestr = scopes[kind];
+        scope_str = scopes[kind];
     else
-        scopestr = blocks[block];
-    log_debug("Enter scope-%d(%s)", ps->depth, scopestr);
+        scope_str = blocks[block];
+    log_debug("Enter scope-%d(%s)", ps->depth, scope_str);
 #endif
 }
 
@@ -95,22 +112,23 @@ void parser_exit_scope(ParserState *ps)
 {
     /* log_debug show */
 #if !defined(NLOG)
-    const char *scopestr;
+    const char *log_debug;
     if (ps->scope->kind != SCOPE_BLOCK)
-        scopestr = scopes[ps->scope->kind];
+        log_debug = scopes[ps->scope->kind];
     else
-        scopestr = blocks[ps->scope->blocktype];
-    log_debug("Exit scope-%d(%s)", ps->depth, scopestr);
+        log_debug = blocks[ps->scope->block_type];
+    log_debug("Exit scope-%d(%s)", ps->depth, log_debug);
 #endif
 
     free_scope(ps->scope);
-    ps->scope = null;
+    ps->scope = NULL;
     ps->depth--;
 
     /* restore ps->scope to top of ps->scope_stack */
     vector_pop_back(&ps->scope_stack, &ps->scope);
 }
 
+#if 0
 static Symbol *find_ident_symbol(ParserState *ps, IdExpr *exp)
 {
     Ident *id = &exp->id;
@@ -149,13 +167,14 @@ static Symbol *find_ident_symbol(ParserState *ps, IdExpr *exp)
 
     return null;
 }
+#endif
 
 static void parser_visit_expr(ParserState *ps, Expr *exp);
 
-static void parse_nil(ParserState *ps, Expr *exp)
+static void parse_null(ParserState *ps, Expr *exp)
 {
-    log_debug("parse nil");
-    exp->eop = EXPR_OP_RO;
+    log_debug("parse null");
+    exp->op = EXPR_OP_RO;
 }
 
 static void parse_self(ParserState *ps, Expr *exp)
@@ -166,44 +185,78 @@ static void parse_super(ParserState *ps, Expr *exp)
 {
 }
 
-static void parse_int(ParserState *ps, Expr *exp)
+static void parse_literal(ParserState *ps, Expr *exp)
 {
-    ConstExpr *kexp = (ConstExpr *)exp;
-    log_debug("parse integer '%ld'", kexp->ival);
-    exp->eop = EXPR_OP_RO;
+    LiteralExpr *lexp = (LiteralExpr *)exp;
+#if !defined(NLOG)
+    TypeDesc *ty = lexp->ty;
+    switch (ty->kind) {
+#if INTPTR_MAX == INT64_MAX
+        case TYPE_I64_KIND:
+            log_debug("parse i64 '%ld'", lexp->i64val);
+            break;
+        case TYPE_F64_KIND:
+            log_debug("parse f64 '%lf'", lexp->f64val);
+            break;
+#elif INTPTR_MAX == INT32_MAX
+        case TYPE_I32_KIND:
+            log_debug("parse i32 '%ld'", lexp->i32val);
+            break;
+        case TYPE_F32_KIND:
+            log_debug("parse f32 '%ld'", lexp->f32val);
+            break;
+#else
+#error "Must be either 32 or 64 bits".
+#endif
+        case TYPE_BOOL_KIND:
+            log_debug("parse bool '%s'", lexp->bval ? "true" : "false");
+            break;
+        case TYPE_CHAR_KIND:
+            log_debug("parse char '%s'", (char *)&lexp->cval);
+            break;
+        case TYPE_STR_KIND:
+            log_debug("parse string '%s'", lexp->sval);
+            break;
+        default:
+            assert(0);
+            break;
+    }
+#endif
+    exp->op = EXPR_OP_RO;
 }
 
 static void parse_float(ParserState *ps, Expr *exp)
 {
-    ConstExpr *kexp = (ConstExpr *)exp;
-    log_debug("parse float '%lf'", kexp->fval);
-    exp->eop = EXPR_OP_RO;
+    LiteralExpr *lexp = (LiteralExpr *)exp;
+    log_debug("parse float '%lf'", lexp->f64val);
+    exp->op = EXPR_OP_RO;
 }
 
 static void parse_bool(ParserState *ps, Expr *exp)
 {
-    ConstExpr *kexp = (ConstExpr *)exp;
-    log_debug("parse bool '%s'", kexp->bval ? "true" : "false");
-    exp->eop = EXPR_OP_RO;
+    LiteralExpr *lexp = (LiteralExpr *)exp;
+    log_debug("parse bool '%s'", lexp->bval ? "true" : "false");
+    exp->op = EXPR_OP_RO;
 }
 
 static void parse_char(ParserState *ps, Expr *exp)
 {
-    ConstExpr *kexp = (ConstExpr *)exp;
-    char *s = (char *)&kexp->cval;
+    LiteralExpr *lexp = (LiteralExpr *)exp;
+    char *s = (char *)&lexp->cval;
     log_debug("parse char '%s'", s);
-    exp->eop = EXPR_OP_RO;
+    exp->op = EXPR_OP_RO;
 }
 
 static void parse_str(ParserState *ps, Expr *exp)
 {
-    ConstExpr *kexp = (ConstExpr *)exp;
-    log_debug("parse str '%s'", kexp->sval);
-    exp->eop = EXPR_OP_RO;
+    LiteralExpr *lexp = (LiteralExpr *)exp;
+    log_debug("parse str '%s'", lexp->sval);
+    exp->op = EXPR_OP_RO;
 }
 
 static void parse_ident(ParserState *ps, Expr *exp)
 {
+#if 0
     IdExpr *idexp = (IdExpr *)exp;
     Ident *id = &idexp->id;
     log_debug("parse ident '%s'", id->str);
@@ -224,56 +277,178 @@ static void parse_ident(ParserState *ps, Expr *exp)
         idexp->type = expr_type_ref(sym->type);
         idexp->eop = EXPR_OP_RO;
     }
+#endif
 }
 
 static void parse_under(ParserState *ps, Expr *exp)
 {
 }
 
+static void merge_unary_neg_literal(ParserState *ps, UnaryExpr *exp)
+{
+    Expr *rexp = exp->exp;
+    LiteralExpr *e = (LiteralExpr *)rexp;
+
+    TypeDesc *ty = e->ty;
+    switch (ty->kind) {
+        case TYPE_I64_KIND:
+            e->i64val = -e->i64val;
+            break;
+        case TYPE_I32_KIND:
+            e->i32val = -e->i32val;
+            break;
+        case TYPE_I16_KIND:
+            e->i16val = -e->i16val;
+            break;
+        case TYPE_I8_KIND:
+            e->i8val = -e->i8val;
+            break;
+        case TYPE_U64_KIND:
+        case TYPE_U32_KIND:
+        case TYPE_U16_KIND:
+        case TYPE_U8_KIND:
+            parser_error(exp->loc, "wrong type argument to unary '-'");
+            break;
+        case TYPE_F64_KIND:
+            e->f64val = -e->f64val;
+            break;
+        case TYPE_F32_KIND:
+            e->f32val = -e->f32val;
+            break;
+        default:
+            assert(0);
+            break;
+    }
+}
+
+static void merge_unary_not_literal(ParserState *ps, UnaryExpr *exp)
+{
+    Expr *rexp = exp->exp;
+    LiteralExpr *e = (LiteralExpr *)rexp;
+    e->bval = !e->bval;
+}
+
+static void merge_unary_bit_not_literal(ParserState *ps, UnaryExpr *exp)
+{
+    Expr *rexp = exp->exp;
+    LiteralExpr *e = (LiteralExpr *)rexp;
+
+    TypeDesc *ty = e->ty;
+    switch (ty->kind) {
+        case TYPE_I64_KIND:
+            e->i64val = ~e->i64val;
+            break;
+        case TYPE_I32_KIND:
+            e->i32val = ~e->i32val;
+            break;
+        case TYPE_I16_KIND:
+            e->i16val = ~e->i16val;
+            break;
+        case TYPE_I8_KIND:
+            e->i8val = ~e->i8val;
+            break;
+        case TYPE_U64_KIND:
+            e->u64val = ~e->u64val;
+            break;
+        case TYPE_U32_KIND:
+            e->u32val = ~e->u32val;
+            break;
+        case TYPE_U16_KIND:
+            e->u16val = ~e->u16val;
+            break;
+        case TYPE_U8_KIND:
+            e->u8val = ~e->u8val;
+            break;
+        default:
+            assert(0);
+            break;
+    }
+}
+
 static void parse_unary(ParserState *ps, Expr *exp)
 {
     log_debug("parse unary");
+
     UnaryExpr *uexp = (UnaryExpr *)exp;
 
     // parse right expr
     Expr *rexp = uexp->exp;
     parser_visit_expr(ps, rexp);
-    if (!rexp || !rexp->type) return;
+    // re-get for expr tree maybe merged sub-tree.
+    rexp = uexp->exp;
+    if (!rexp || !rexp->ty) return;
 
     switch (uexp->uop) {
         case UNARY_PLUS:
-            if (!desc_is_number(rexp->type->ty)) {
-                yy_errmsg(uexp->oploc, "wrong type argument to unary plus");
+            if (!desc_is_numb(rexp->ty)) {
+                parser_error(rexp->loc, "wrong type argument to unary '+'");
                 return;
+            }
+
+            if (rexp->kind == EXPR_LITERAL_KIND) {
+                log_debug("update literal expr('+')");
+                *exp->parent = rexp;
+                uexp->exp = NULL;
+                free_expr(exp);
+            } else {
+                exp->ty = rexp->ty;
             }
             break;
         case UNARY_NEG:
-            if (!desc_is_number(rexp->type->ty)) {
-                yy_errmsg(uexp->oploc, "wrong type argument to unary minus");
+            if (!desc_is_numb(rexp->ty)) {
+                parser_error(rexp->loc, "wrong type argument to unary '-'");
                 return;
+            }
+
+            if (rexp->kind == EXPR_LITERAL_KIND) {
+                log_debug("update literal expr('-')");
+                merge_unary_neg_literal(ps, uexp);
+                *exp->parent = rexp;
+                uexp->exp = NULL;
+                free_expr(exp);
+            } else {
+                exp->ty = rexp->ty;
             }
             break;
         case UNARY_NOT:
-            if (!desc_is_bool(rexp->type->ty)) {
-                yy_errmsg(uexp->oploc, "wrong type argument to unary not");
+            if (rexp->ty->kind != TYPE_BOOL_KIND) {
+                parser_error(rexp->loc, "wrong type argument to unary '!'");
                 return;
+            }
+
+            if (rexp->kind == EXPR_LITERAL_KIND) {
+                log_debug("update literal expr('!')");
+                merge_unary_not_literal(ps, uexp);
+                *exp->parent = rexp;
+                uexp->exp = NULL;
+                free_expr(exp);
+            } else {
+                exp->ty = rexp->ty;
             }
             break;
         case UNARY_BIT_NOT:
-            if (!desc_is_integer(rexp->type->ty)) {
-                yy_errmsg(uexp->oploc, "wrong type argument to bit-complement");
+            if (!desc_is_int(rexp->ty)) {
+                parser_error(rexp->loc, "wrong type argument to unary '~'");
                 return;
+            }
+
+            if (rexp->kind == EXPR_LITERAL_KIND) {
+                log_debug("update literal expr('~')");
+                merge_unary_bit_not_literal(ps, uexp);
+                *exp->parent = rexp;
+                uexp->exp = NULL;
+                free_expr(exp);
+            } else {
+                exp->ty = rexp->ty;
             }
             break;
         default:
             assert(0);
             break;
     }
-
-    // set expr's type as right expr's type
-    exp->type = expr_type_ref(rexp->type->ty);
 }
 
+#if 0
 static void show_binary_error(ParserState *ps, BinaryExpr *bexp, char *opstr)
 {
     Expr *lexp = bexp->lexp;
@@ -288,22 +463,29 @@ static void show_binary_error(ParserState *ps, BinaryExpr *bexp, char *opstr)
     FINI_BUF(s1);
     FINI_BUF(s2);
 }
+#endif
 
 static void parse_binary(ParserState *ps, Expr *exp)
 {
     log_debug("parse binary");
+
     BinaryExpr *bexp = (BinaryExpr *)exp;
 
     // parse left expr
     Expr *lexp = bexp->lexp;
     parser_visit_expr(ps, lexp);
-    if (!lexp || !lexp->type) return;
+    // re-get for expr tree maybe merged sub-tree.
+    lexp = bexp->lexp;
+    if (!lexp || !lexp->ty) return;
 
     // parse right expr
     Expr *rexp = bexp->rexp;
     parser_visit_expr(ps, rexp);
-    if (!rexp || !rexp->type) return;
+    // re-get for expr tree maybe merged sub-tree.
+    rexp = bexp->rexp;
+    if (!rexp || !rexp->ty) return;
 
+#if 0
     TypeDesc *ty = null;
     switch (bexp->bop) {
         case BINARY_ADD:
@@ -359,40 +541,40 @@ static void parse_binary(ParserState *ps, Expr *exp)
             ty = lexp->type->ty;
             break;
         case BINARY_SHL:
-            if (!desc_is_integer(lexp->type->ty) ||
-                !desc_is_integer(rexp->type->ty)) {
+            if (!desc_is_int(lexp->type->ty) ||
+                !desc_is_int(rexp->type->ty)) {
                 show_binary_error(ps, bexp, "<<");
                 return;
             }
             ty = lexp->type->ty;
             break;
         case BINARY_SHR:
-            if (!desc_is_integer(lexp->type->ty) ||
-                !desc_is_integer(rexp->type->ty)) {
+            if (!desc_is_int(lexp->type->ty) ||
+                !desc_is_int(rexp->type->ty)) {
                 show_binary_error(ps, bexp, ">>");
                 return;
             }
             ty = lexp->type->ty;
             break;
         case BINARY_BIT_AND:
-            if (!desc_is_integer(lexp->type->ty) ||
-                !desc_is_integer(rexp->type->ty)) {
+            if (!desc_is_int(lexp->type->ty) ||
+                !desc_is_int(rexp->type->ty)) {
                 show_binary_error(ps, bexp, "&");
                 return;
             }
             ty = lexp->type->ty;
             break;
         case BINARY_BIT_OR:
-            if (!desc_is_integer(lexp->type->ty) ||
-                !desc_is_integer(rexp->type->ty)) {
+            if (!desc_is_int(lexp->type->ty) ||
+                !desc_is_int(rexp->type->ty)) {
                 show_binary_error(ps, bexp, "|");
                 return;
             }
             ty = lexp->type->ty;
             break;
         case BINARY_BIT_XOR:
-            if (!desc_is_integer(lexp->type->ty) ||
-                !desc_is_integer(rexp->type->ty)) {
+            if (!desc_is_int(lexp->type->ty) ||
+                !desc_is_int(rexp->type->ty)) {
                 show_binary_error(ps, bexp, "^");
                 return;
             }
@@ -483,6 +665,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
     // set expr's type as left expr's type
     exp->type = expr_type_ref(ty);
+#endif
 }
 
 static void parse_attr(ParserState *ps, Expr *exp)
@@ -526,8 +709,168 @@ static void parse_is(ParserState *ps, Expr *exp)
     log_debug("parse is");
 }
 
-static void parse_as(ParserState *ps, Expr *exp)
+static void cast_i64_literal(ParserState *ps, TypeDesc *to, LiteralExpr *exp)
 {
+    int64_t ival = exp->i64val;
+
+    switch (to->kind) {
+        case TYPE_I8_KIND: {
+            if (ival > 127 || ival < -128) {
+                parser_error(exp->loc, "Int64(%ld) to Int8(%d) is truncated",
+                             ival, exp->i8val);
+            } else {
+                exp->ty = to;
+            }
+            break;
+        }
+        case TYPE_U8_KIND: {
+            if (ival > 255 || ival < 0) {
+                parser_error(exp->loc, "Int64(%ld) to UInt8(%d) is truncated",
+                             ival, exp->u8val);
+            } else {
+                exp->ty = to;
+            }
+            break;
+        }
+        case TYPE_I16_KIND: {
+            break;
+        }
+        case TYPE_U16_KIND: {
+            break;
+        }
+        case TYPE_I32_KIND: {
+            break;
+        }
+        case TYPE_U32_KIND: {
+            break;
+        }
+        case TYPE_I64_KIND: {
+            // i64 -> i64
+            break;
+        }
+        case TYPE_U64_KIND: {
+            if (ival < 0) {
+                parser_error(exp->loc, "Int64(%ld) to UInt64(%ld) is truncated",
+                             ival, exp->u64val);
+            } else {
+                exp->ty = to;
+            }
+            break;
+        }
+        default:
+            assert(0);
+            break;
+    }
+}
+
+static void cast_f64_literal(ParserState *ps, TypeDesc *to, LiteralExpr *exp)
+{
+    double fval = exp->f64val;
+
+    switch (to->kind) {
+        case TYPE_I8_KIND:
+            break;
+        case TYPE_U8_KIND:
+            break;
+        default:
+            break;
+    }
+}
+
+int check_type_cast(TypeDesc *from, TypeDesc *to)
+{
+    if (desc_is_numb(from)) {
+        if (desc_is_numb(to)) return 0;
+        return -1;
+    }
+
+    if (from->kind == TYPE_STR_KIND) {
+        if (to->kind == TYPE_STR_KIND) return 0;
+        return -1;
+    }
+
+    if (from->kind == TYPE_BOOL_KIND) {
+        if (to->kind == TYPE_BOOL_KIND) return 0;
+        return -1;
+    }
+
+    if (from->kind == TYPE_CHAR_KIND) {
+        if (to->kind == TYPE_CHAR_KIND) return 0;
+        return -1;
+    }
+
+    // user defined type?
+    return -1;
+}
+
+static void parse_cast(ParserState *ps, Expr *exp)
+{
+    log_debug("parse as");
+    IsAsExpr *as = (IsAsExpr *)exp;
+    TypeDesc *ty = as->sub_ty.ty;
+
+    Expr *e = as->exp;
+    parser_visit_expr(ps, e);
+    // re-get for expr tree maybe merged sub-tree.
+    e = as->exp;
+    if (!e->ty) return;
+
+    if (check_type_cast(e->ty, ty)) {
+        BUF(s1);
+        BUF(s2);
+        desc_to_str(e->ty, &s1);
+        desc_to_str(ty, &s2);
+        parser_error(e->loc, "cannot cast type '%s' to '%s'", BUF_STR(s1),
+                     BUF_STR(s2));
+        FINI_BUF(s1);
+        FINI_BUF(s2);
+        return;
+    }
+
+    if (e->kind != EXPR_LITERAL_KIND) {
+        // expr type is casted type
+        exp->ty = ty;
+        return;
+    }
+
+    // literal cast to check value is truncated.
+    LiteralExpr *lexp = (LiteralExpr *)e;
+    TypeDesc *lty = lexp->ty;
+    switch (lty->kind) {
+#if INTPTR_MAX == INT64_MAX
+        case TYPE_I64_KIND:
+            cast_i64_literal(ps, ty, lexp);
+            *as->parent = e;
+            as->exp = NULL;
+            free_expr(exp);
+            break;
+        case TYPE_F64_KIND:
+            cast_f64_literal(ps, ty, lexp);
+            *as->parent = e;
+            as->exp = NULL;
+            free_expr(exp);
+            break;
+#elif INTPTR_MAX == INT32_MAX
+        case TYPE_I32_KIND:
+            cast_i32(ty, lexp->i32val);
+            break;
+        case TYPE_F32_KIND:
+            cast_f32(ty, lexp->f32val);
+            break;
+#else
+#error "Must be either 32 or 64 bits".
+#endif
+        case TYPE_CHAR_KIND:
+            // fall through
+        case TYPE_BOOL_KIND:
+            // fall through
+        case TYPE_STR_KIND:
+            // nothing to do
+            break;
+        default:
+            assert(0);
+            break;
+    }
 }
 
 static void parse_range(ParserState *ps, Expr *exp)
@@ -547,32 +890,29 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
 
     /* clang-format off */
     static void (*handlers[])(ParserState *, Expr *) = {
-        null,                   /* INVALID              */
-        parse_nil,              /* NIL_KIND             */
+        NULL,                   /* INVALID              */
+        parse_null,             /* NULL_KIND            */
         parse_self,             /* SELF_KIND            */
         parse_super,            /* SUPER_KIND           */
-        parse_int,              /* INT_KIND             */
-        parse_float,            /* FLOAT_KIND           */
-        parse_bool,             /* BOOL_KIND            */
-        parse_char,             /* CHAR_KIND            */
-        parse_str,              /* STR_KIND             */
+        parse_literal,          /* LITERAL_KIND         */
+        NULL,                   /* SIZEOF_KIND          */
         parse_ident,            /* ID_KIND              */
         parse_under,            /* UNDER_KIND           */
         parse_unary,            /* UNARY_KIND           */
         parse_binary,           /* BINARY_KIND          */
         parse_attr,             /* ATTRIBUTE_KIND       */
-        parse_subscr,           /* SUBSCRIPT_KIND       */
-        parse_call,             /* CALL_KIND            */
-        parse_slice,            /* SLICE_KIND           */
-        parse_dottuple,         /* DOT_TUPLE_KIND       */
-        parse_tuple,            /* TUPLE_KIND           */
-        parse_array,            /* ARRAY_KIND           */
-        parse_map,              /* MAP_KIND             */
-        parse_anony,            /* ANONY_KIND           */
+        NULL,                   /* INDEX_KIND           */
+        NULL,                   /* CALL_KIND            */
+        NULL,                   /* DOT_TUPLE_KIND       */
+        NULL,                   /* TUPLE_KIND           */
+        NULL,                   /* ARRAY_KIND           */
+        NULL,                   /* MAP_KIND             */
+        NULL,                   /* ANONY_KIND           */
+        NULL,                   /* POINTER_KIND         */
+        NULL,                   /* TYPE_PARAM_KIND      */
         parse_is,               /* IS_KIND              */
-        parse_as,               /* AS_KIND              */
+        parse_cast,             /* AS_KIND              */
         parse_range,            /* RANGE_KIND           */
-        parse_expr_type,        /* TYPE_KIND            */
     };
     /* clang-format on */
 
@@ -583,6 +923,7 @@ static void parse_import(ParserState *ps, Stmt *stmt)
 {
 }
 
+#if 0
 static void parse_initial_expr(ParserState *ps, Ident *id, Expr *exp)
 {
     Symbol *sym = id->sym;
@@ -595,7 +936,7 @@ static void parse_initial_expr(ParserState *ps, Ident *id, Expr *exp)
     }
 
     if (sym->type) {
-        // check types are compatiable
+        // check types are compatible
         if (!desc_equal(sym->type, exp->type->ty)) {
             BUF(s1);
             BUF(s2);
@@ -651,20 +992,50 @@ static void parse_letdecl_local(ParserState *ps, VarDeclStmt *s)
 static void parse_letdecl_field(ParserState *ps, VarDeclStmt *s)
 {
 }
+#endif
 
-static void parse_letdecl(ParserState *ps, Stmt *stmt)
+static void parse_let_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *s = (VarDeclStmt *)stmt;
-    if (s->where == VAR_DECL_GLOBAL) {
-        parse_letdecl_global(ps, s);
-    } else if (s->where == VAR_DECL_LOCAL) {
-        parse_letdecl_local(ps, s);
-    } else {
-        assert(s->where == VAR_DECL_FIELD);
-        parse_letdecl_field(ps, s);
+    if (s->where == VAR_DECL_LOCAL) {
+    }
+
+    Ident *id = &s->id;
+    Symbol *sym = id->sym;
+    Expr *rhs = s->exp;
+
+    // parse right expression
+    parser_visit_expr(ps, rhs);
+    // re-get for expr tree maybe merged sub-tree.
+    rhs = s->exp;
+
+    if (!rhs->ty) {
+        parser_error(rhs->loc, "cannot resolve expression type");
+        return;
+    }
+
+    if (!sym->type) {
+        // update symbol type
+        sym->type = rhs->ty;
+        return;
+    }
+
+    // check type compatible
+    if (!desc_equal(sym->type, rhs->ty)) {
+        BUF(s1);
+        BUF(s2);
+        desc_to_str(sym->type, &s1);
+        desc_to_str(rhs->ty, &s2);
+        parser_error(rhs->loc,
+                     "incompatible types when initializing type '%s' using "
+                     "type '%s'",
+                     BUF_STR(s1), BUF_STR(s2));
+        FINI_BUF(s1);
+        FINI_BUF(s2);
     }
 }
 
+#if 0
 static void parse_vardecl_global(ParserState *ps, VarDeclStmt *s)
 {
     Ident *id = &s->id;
@@ -701,10 +1072,12 @@ static void parse_vardecl_local(ParserState *ps, VarDeclStmt *s)
 static void parse_vardecl_field(ParserState *ps, VarDeclStmt *s)
 {
 }
+#endif
 
-static void parse_vardecl(ParserState *ps, Stmt *stmt)
+static void parse_var_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *s = (VarDeclStmt *)stmt;
+    /*
     if (s->where == VAR_DECL_GLOBAL) {
         parse_vardecl_global(ps, s);
     } else if (s->where == VAR_DECL_LOCAL) {
@@ -713,11 +1086,13 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
         assert(s->where == VAR_DECL_FIELD);
         parse_vardecl_field(ps, s);
     }
+    */
 }
 
 static void parse_assign(ParserState *ps, Stmt *stmt)
 {
     log_debug("parse assignment");
+    /*
     AssignStmt *s = (AssignStmt *)stmt;
 
     // parse left expr
@@ -741,12 +1116,10 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
         desc_to_str(lexp->type->ty, &s1);
         desc_to_str(rexp->type->ty, &s2);
         yy_errmsg(rexp->loc,
-                  "incompatible types when assigning to type '%s' from type "
-                  "type '%s'",
-                  BUF_STR(s1), BUF_STR(s2));
-        FINI_BUF(s1);
-        FINI_BUF(s2);
+                  "incompatible types when assigning to type '%s' from type
+    " "type '%s'", BUF_STR(s1), BUF_STR(s2)); FINI_BUF(s1); FINI_BUF(s2);
     }
+    */
 }
 
 static void parse_param_type_bound(ParserState *ps, Symbol *sym, Vector *bound)
@@ -764,6 +1137,7 @@ static void parse_param_type_bound(ParserState *ps, Symbol *sym, Vector *bound)
     log_debug("end");
 }
 
+#if 0
 static void parse_param_types(ParserState *ps, Vector *param_types)
 {
     ParserScope *scope = ps->scope;
@@ -784,10 +1158,12 @@ static void parse_param_types(ParserState *ps, Vector *param_types)
         parse_param_type_bound(ps, sym, bound);
     });
 }
+#endif
 
 static void parse_func_proto(ParserState *ps, Vector *args, ExprType *ret_type)
 {
     ParserScope *scope = ps->scope;
+    /*
     FuncSymbol *sym = (FuncSymbol *)scope->sym;
 
     Vector *params = null;
@@ -820,9 +1196,10 @@ static void parse_func_proto(ParserState *ps, Vector *args, ExprType *ret_type)
     log_debug("%s", BUF_STR(buf));
     FINI_BUF(buf);
 #endif
+    */
 }
 
-static void parse_funcdecl(ParserState *ps, Stmt *stmt)
+static void parse_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *func = (FuncDeclStmt *)stmt;
     Ident *id = &func->id;
@@ -834,7 +1211,7 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
     ParserScope *scope = ps->scope;
     scope->sym = (Symbol *)sym;
     scope->stbl = sym->stbl;
-
+#if 0
     // parse param_types
     parse_param_types(ps, func->param_types);
 
@@ -854,10 +1231,11 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
     if (proto && proto->ret && !topret) {
         yy_errmsg(func->loc, "control reaches end of non-return function");
     }
-
+#endif
     parser_exit_scope(ps);
 }
 
+#if 0
 static ParserScope *find_func_anony_scope(ParserState *ps)
 {
     ParserScope *scope = ps->scope;
@@ -872,9 +1250,11 @@ static ParserScope *find_func_anony_scope(ParserState *ps)
 
     return null;
 }
+#endif
 
 static void parse_return(ParserState *ps, Stmt *stmt)
 {
+    /*
     log_debug("parse return");
 
     ReturnStmt *ret = (ReturnStmt *)stmt;
@@ -896,7 +1276,8 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     if (!ret->exp) {
         if (proto->ret) {
             yy_errmsg(stmt->loc,
-                      "'return' with no value, but function returning value");
+                      "'return' with no value, but function returning
+    value");
         }
         return;
     }
@@ -919,6 +1300,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
         FINI_BUF(s1);
         FINI_BUF(s2);
     }
+    */
 }
 
 static void parse_expr(ParserState *ps, Stmt *stmt)
@@ -981,25 +1363,26 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
 
     /* clang-format off */
     static void (*handlers[])(ParserState *, Stmt *) = {
-        null,               /* INVALID          */
-        parse_import,       /* IMPORT_KIND      */
-        parse_letdecl,      /* LET_KIND         */
-        parse_vardecl,      /* VAR_KIND         */
-        parse_assign,       /* ASSIGN_KIND      */
-        parse_funcdecl,     /* FUNC_KIND        */
-        parse_return,       /* RETURN_KIND      */
-        parse_expr,         /* EXPR_KIND        */
-        parse_block,        /* BLOCK_KIND       */
-        parse_ifunc,        /* IFUNC_KIND       */
-        parse_class,        /* CLASS_KIND       */
-        parse_trait,        /* TRAIT_KIND       */
-        parse_enum,         /* ENUM_KIND        */
-        parse_break,        /* BREAK_KIND       */
-        parse_continue,     /* CONTINUE_KIND    */
-        parse_if,           /* IF_KIND          */
-        parse_while,        /* WHILE_KIND       */
-        parse_for,          /* FOR_KIND         */
-        parse_match,        /* MATCH_KIND       */
+        NULL,                   /* INVALID          */
+        parse_import,           /* IMPORT_KIND      */
+        NULL,                   /* TYPE_ALIAS_KIND  */
+        parse_let_decl,         /* LET_KIND         */
+        parse_var_decl,         /* VAR_KIND         */
+        parse_assign,           /* ASSIGN_KIND      */
+        parse_func_decl,        /* FUNC_KIND        */
+        parse_return,           /* RETURN_KIND      */
+        parse_expr,             /* EXPR_KIND        */
+        parse_block,            /* BLOCK_KIND       */
+        parse_ifunc,            /* IFUNC_KIND       */
+        parse_class,            /* CLASS_KIND       */
+        parse_trait,            /* TRAIT_KIND       */
+        parse_enum,             /* ENUM_KIND        */
+        parse_break,            /* BREAK_KIND       */
+        parse_continue,         /* CONTINUE_KIND    */
+        parse_if,               /* IF_KIND          */
+        parse_while,            /* WHILE_KIND       */
+        parse_for,              /* FOR_KIND         */
+        parse_match,            /* MATCH_KIND       */
     };
     /* clang-format on */
 
@@ -1028,39 +1411,44 @@ void parser_append_stmt(ParserState *ps, Stmt *stmt)
 void parser_new_var(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
-    ParserGroup *grp = ps->grp;
-    VarDeclStmt *vardecl = (VarDeclStmt *)stmt;
-    Ident *id = &vardecl->id;
-    TypeDesc *type = vardecl->type ? vardecl->type->ty : null;
 
-    Symbol *sym = null;
+    vector_push_back(&ps->stmts, &stmt);
+
+    ParserPackage *pkg = ps->pkg;
+    VarDeclStmt *var_decl = (VarDeclStmt *)stmt;
+    Ident *id = &var_decl->id;
+    TypeDesc *type = var_decl->ty.ty;
+
+    Symbol *sym = NULL;
     if (stmt->kind == STMT_LET_KIND) {
-        sym = stbl_add_let(grp->stbl, id->str, type);
+        sym = stbl_add_let(pkg->stbl, id->str, type);
     } else {
         assert(stmt->kind == STMT_VAR_KIND);
-        sym = stbl_add_var(grp->stbl, id->str, type);
+        sym = stbl_add_var(pkg->stbl, id->str, type);
     }
+    id->sym = sym;
 
     if (!sym) {
-        yy_errmsg(id->loc, "redefinition of '%s'", id->str);
-    } else {
-        id->sym = sym;
+        parser_error(id->loc, "redefinition of '%s'", id->str);
     }
 }
 
 void parser_new_func(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
-    ParserGroup *grp = ps->grp;
-    FuncDeclStmt *funcdecl = (FuncDeclStmt *)stmt;
-    Ident *id = &funcdecl->id;
-    // func's type and args are handled in parse_funcdecl.
+
+    vector_push_back(&ps->stmts, &stmt);
+
+    ParserPackage *pkg = ps->pkg;
+    FuncDeclStmt *func_decl = (FuncDeclStmt *)stmt;
+    Ident *id = &func_decl->id;
+    // func's type and args are handled in parse_func_decl.
     // some classes/traits may be defined after used.
-    Symbol *sym = stbl_add_func(grp->stbl, id->str);
+    Symbol *sym = stbl_add_func(pkg->stbl, id->str);
+    id->sym = sym;
+
     if (!sym) {
-        yy_errmsg(id->loc, "redefinition of '%s'", id->str);
-    } else {
-        id->sym = sym;
+        parser_error(id->loc, "redefinition of '%s'", id->str);
     }
 }
 
