@@ -7,8 +7,8 @@
 #define _KOALA_AST_H_
 
 #include "common/common.h"
-#include "symbol.h"
-#include "typedesc.h"
+#include "klm/klm.h"
+#include "klm/typedesc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,7 +73,7 @@ struct _ExprType {
 struct _Ident {
     char *str;
     Loc loc;
-    Symbol *sym;
+    KLMValue *sym;
 };
 
 enum _ExprKind {

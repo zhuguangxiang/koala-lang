@@ -11,7 +11,7 @@
 #include "common/buffer.h"
 #include "common/hashmap.h"
 #include "common/vector.h"
-#include "symbol.h"
+#include "klm/klm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +22,6 @@ extern "C" {
 typedef enum _ScopeKind ScopeKind;
 typedef struct _ParserScope ParserScope;
 typedef struct _ParserState ParserState;
-typedef struct _ParserPackage ParserPackage;
 
 enum _ScopeKind {
     SCOPE_INVALID,
@@ -37,8 +36,8 @@ struct _ParserScope {
     /* one of ScopeKind */
     ScopeKind kind;
     /* function, class, interface and method */
-    Symbol *sym;
-    /* symbol table for current scope */
+    KLMValue *sym;
+    /* symbol(KLMValue) table for current scope */
     HashMap *stbl;
     /* which block scope */
     int block_type;
@@ -50,12 +49,12 @@ struct _ParserScope {
 #define CASE_BLOCK   6
 };
 
-/* per file one package */
+/* per compiled file */
 struct _ParserState {
     /* file name */
     char *filename;
-    /* -> ParserPackage */
-    ParserPackage *pkg;
+    /* -> KLMPackage */
+    KLMPackage *pkg;
     /* statements */
     Vector stmts;
 
@@ -96,27 +95,9 @@ struct _ParserState {
     int errors;
 };
 
-/* one package is compiled unit, and has one meta file */
-struct _ParserPackage {
-    /* imported packages */
-    HashMap *ex_pkgs;
-    /* package name */
-    char *name;
-    /* symbol table */
-    HashMap *stbl;
-    /* compiled files (ParserState) */
-    Vector pss;
-};
-
-/* one module is linked into one shared object */
-struct _ParserModule {
-    char *so_name;
-    Vector packages;
-};
-
 void init_parser(void);
 void fini_parser(void);
-ParserState *new_parser(char *filename, ParserPackage *pkg);
+ParserState *new_parser(char *filename, KLMPackage *pkg);
 void destroy_parser(ParserState *ps);
 void parser_set_pkg_name(ParserState *ps, char *name);
 void parser_enter_scope(ParserState *ps, ScopeKind kind, int block);

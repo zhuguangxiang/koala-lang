@@ -35,7 +35,7 @@ include_directories(src/koalac)
 include_directories(src/libkoalart)
 
 add_subdirectory(src/common)
-add_subdirectory(src/koalac/klc)
+add_subdirectory(src/klm)
 add_subdirectory(src/koalac)
 #add_subdirectory(src/runtime)
 

@@ -17,7 +17,7 @@ void fini_parser(void)
 {
 }
 
-ParserState *new_parser(char *filename, ParserPackage *pkg)
+ParserState *new_parser(char *filename, KLMPackage *pkg)
 {
     ParserState *ps = mm_alloc_obj(ps);
     ps->filename = filename;
@@ -27,7 +27,7 @@ ParserState *new_parser(char *filename, ParserPackage *pkg)
     ps->col = 1;
     if (!pkg->stbl) {
         // initialize package
-        pkg->stbl = stbl_new();
+        pkg->stbl = NULL; // stbl_new();
         vector_init_ptr(&pkg->pss);
     }
     vector_push_back(&pkg->pss, &ps);
@@ -69,7 +69,7 @@ static ParserScope *new_scope(ScopeKind kind, int block)
     ParserScope *scope = mm_alloc_obj(scope);
     scope->kind = kind;
     scope->block_type = block;
-    scope->stbl = stbl_new();
+    // scope->stbl = stbl_new();
     return scope;
 }
 
@@ -957,7 +957,7 @@ static void parse_let_decl(ParserState *ps, Stmt *stmt)
     }
 
     Ident *id = &s->id;
-    Symbol *sym = id->sym;
+    KLMValue *sym = id->sym;
     Expr *rhs = s->exp;
 
     // parse right expression
@@ -970,17 +970,17 @@ static void parse_let_decl(ParserState *ps, Stmt *stmt)
         return;
     }
 
-    if (!sym->type) {
+    if (!sym->ty) {
         // update symbol type
-        sym->type = rhs->ty;
+        sym->ty = rhs->ty;
         return;
     }
 
     // check type compatible
-    if (!desc_equal(sym->type, rhs->ty)) {
+    if (!desc_equal(sym->ty, rhs->ty)) {
         BUF(s1);
         BUF(s2);
-        desc_to_str(sym->type, &s1);
+        desc_to_str(sym->ty, &s1);
         desc_to_str(rhs->ty, &s2);
         parser_error(rhs->loc,
                      "incompatible types when initializing type '%s' using "
@@ -1078,6 +1078,8 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
     */
 }
 
+#if 0
+
 static void parse_param_type_bound(ParserState *ps, Symbol *sym, Vector *bound)
 {
     log_debug("parse param type '%s'", sym->name);
@@ -1093,7 +1095,6 @@ static void parse_param_type_bound(ParserState *ps, Symbol *sym, Vector *bound)
     log_debug("end");
 }
 
-#if 0
 static void parse_param_types(ParserState *ps, Vector *param_types)
 {
     ParserScope *scope = ps->scope;
@@ -1159,14 +1160,14 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *func = (FuncDeclStmt *)stmt;
     Ident *id = &func->id;
-    FuncSymbol *sym = (FuncSymbol *)id->sym;
+    KLMFunc *sym = (KLMFunc *)id->sym;
     // add func failed in parser_new_func
     if (!sym) return;
 
     parser_enter_scope(ps, SCOPE_FUNC, 0);
     ParserScope *scope = ps->scope;
-    scope->sym = (Symbol *)sym;
-    scope->stbl = sym->stbl;
+    // scope->sym = (Symbol *)sym;
+    // scope->stbl = sym->stbl;
 #if 0
     // parse param_types
     parse_param_types(ps, func->param_types);
@@ -1370,19 +1371,20 @@ void parser_new_var(ParserState *ps, Stmt *stmt)
 
     vector_push_back(&ps->stmts, &stmt);
 
-    ParserPackage *pkg = ps->pkg;
+    KLMPackage *pkg = ps->pkg;
     VarDeclStmt *var_decl = (VarDeclStmt *)stmt;
     Ident *id = &var_decl->id;
     TypeDesc *type = var_decl->ty.ty;
 
-    Symbol *sym = NULL;
+    KLMVar *sym = NULL;
+
     if (stmt->kind == STMT_LET_KIND) {
-        sym = stbl_add_let(pkg->stbl, id->str, type);
+        sym = klm_add_global(pkg, id->str, type);
     } else {
         assert(stmt->kind == STMT_VAR_KIND);
-        sym = stbl_add_var(pkg->stbl, id->str, type);
+        sym = klm_add_global(pkg, id->str, type);
     }
-    id->sym = sym;
+    id->sym = (KLMValue *)sym;
 
     if (!sym) {
         parser_error(id->loc, "redefinition of '%s'", id->str);
@@ -1395,13 +1397,13 @@ void parser_new_func(ParserState *ps, Stmt *stmt)
 
     vector_push_back(&ps->stmts, &stmt);
 
-    ParserPackage *pkg = ps->pkg;
+    KLMPackage *pkg = ps->pkg;
     FuncDeclStmt *func_decl = (FuncDeclStmt *)stmt;
     Ident *id = &func_decl->id;
     // func's type and args are handled in parse_func_decl.
     // some classes/traits may be defined after used.
-    Symbol *sym = stbl_add_func(pkg->stbl, id->str);
-    id->sym = sym;
+    KLMFunc *sym = klm_add_func(pkg, id->str, NULL);
+    id->sym = (KLMValue *)sym;
 
     if (!sym) {
         parser_error(id->loc, "redefinition of '%s'", id->str);

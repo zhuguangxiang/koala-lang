@@ -67,7 +67,6 @@
 4. string: add
 5. literal no merge
 
-
 ## architecture
 
 1. klm_xx merged into symbol?

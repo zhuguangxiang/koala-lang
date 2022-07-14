@@ -142,7 +142,7 @@ static void build_ast(char *path)
         return;
     }
 
-    ParserPackage pkg = { 0 };
+    KLMPackage pkg = { 0 };
 
     ParserState *ps = new_parser(path, &pkg);
 

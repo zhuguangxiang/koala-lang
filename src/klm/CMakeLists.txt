@@ -4,6 +4,7 @@
 #
 
 set(KLM_SRC
+    typedesc.c
     klm.c
     )
 

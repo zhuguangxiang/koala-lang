@@ -21,6 +21,11 @@ void klm_fini_pkg(KLMPackage *pkg)
 {
 }
 
+KLMVar *klm_add_global(KLMPackage *pkg, char *name, TypeDesc *ty)
+{
+    return NULL;
+}
+
 KLMFunc *klm_add_func(KLMPackage *pkg, char *name, TypeDesc *ty)
 {
     KLMFunc *func = mm_alloc_obj(func);
@@ -35,7 +40,7 @@ KLMFunc *klm_add_func(KLMPackage *pkg, char *name, TypeDesc *ty)
 KLMCodeBlock *klm_append_block(KLMFunc *func, char *name)
 {
     KLMCodeBlock *block = mm_alloc_obj(block);
-    block->label = name;
+    block->name = name;
     init_list(&block->cb_node);
     vector_init_ptr(&block->insts);
     list_add(&func->cb_list, &block->cb_node);

@@ -18,14 +18,12 @@ run_bison(
 set(KOALAC_SOURCES
     koala_lex.c
     koala_yacc.c
-    typedesc.c
     ast.c
     parser.c
-    symbol.c
     main.c)
 
 add_executable(koalac_out ${KOALAC_SOURCES})
-target_link_libraries(koalac_out common)
+target_link_libraries(koalac_out common klm)
 set_target_properties(koalac_out PROPERTIES OUTPUT_NAME koalac)
 
 INSTALL(TARGETS koalac_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)

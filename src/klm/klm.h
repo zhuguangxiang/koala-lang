@@ -6,32 +6,65 @@
 #ifndef _KLM_H_
 #define _KLM_H_
 
+#include "common/hashmap.h"
 #include "common/list.h"
 #include "common/vector.h"
-#include "koalac/typedesc.h"
 #include "opcode.h"
+#include "typedesc.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef enum _KLMValueKind KLMValueKind;
+typedef struct _KLMModule KLMModule;
 typedef struct _KLMPackage KLMPackage;
 typedef struct _KLMFunc KLMFunc;
 typedef struct _KLMCodeBlock KLMCodeBlock;
 typedef struct _KLMType KLMType;
-typedef enum _KLMValueKind KLMValueKind;
 typedef struct _KLMValue KLMValue;
 typedef struct _KLMVar KLMVar;
 typedef struct _KLMInst KLMInst;
-typedef enum _KLMOperKind KLMOperKind;
-typedef struct _KLMOper KLMOper;
-typedef enum _KLMConstKind KLMConstKind;
 typedef struct _KLMConst KLMConst;
+
+enum _KLMValueKind {
+    KLM_VALUE_NONE,
+    KLM_VALUE_VAR,
+    KLM_VALUE_FUNC,
+    KLM_VALUE_STRUCT,
+    KLM_VALUE_CLASS,
+    KLM_VALUE_INTF,
+    KLM_VALUE_ENUM,
+    KLM_VALUE_CONST,
+    KLM_VALUE_CODE,
+    KLM_VALUE_PKG,
+    KLM_VALUE_MAX
+};
+
+#define KLM_VALUE_HEAD  \
+    HashMapEntry hnode; \
+    char *name;         \
+    KLMValueKind kind;  \
+    TypeDesc *ty;
+
+/* per shared object */
+struct _KLMModule {
+    char *name;
+    /* imported packages(KLMPackage) */
+    HashMap *ext_pkgs;
+    /* to be compiled pkgs */
+    Vector pkgs;
+};
 
 /* package */
 struct _KLMPackage {
-    /* package name */
-    char *name;
+    KLM_VALUE_HEAD
+    /* -> KLMModule */
+    KLMModule *module;
+    /* imported packages(KLMExtPkgNode) */
+    HashMap *ext_pkgs;
+    /* all symbols in current package */
+    HashMap *stbl;
     /* variables */
     Vector variables;
     /* functions */
@@ -39,16 +72,38 @@ struct _KLMPackage {
     /* types */
     Vector types;
     /* __init__ function */
-    KLMFunc *init;
+    KLMFunc *__init__;
+    /* compiled files(ParserState) */
+    Vector pss;
+};
+
+struct _KLMExtPkgNode {
+    HashMapEntry hnode;
+    KLMPackage *pkg;
+};
+
+/* value : var, const, func, type */
+struct _KLMValue {
+    KLM_VALUE_HEAD
+};
+
+/* global, local, temp variable */
+struct _KLMVar {
+    KLM_VALUE_HEAD
+    /* local index in func or global index in pkg */
+    int vreg;
+    /* global variable */
+    int8_t global;
+    /* no allocated, string, integer etc */
+    int8_t konst;
+    /* public or private */
+    int8_t pub;
 };
 
 /* function */
 struct _KLMFunc {
-    /* func name */
-    char *name;
-    /* func proto */
-    TypeDesc *ty;
-    /* func type parameters */
+    KLM_VALUE_HEAD
+    /* type parameters */
     Vector *type_params;
     /* code block list */
     List cb_list;
@@ -60,11 +115,42 @@ struct _KLMFunc {
     int num_locals;
     /* num of code blocks */
     int num_cbs;
+    /* public or private */
+    int8_t pub;
+};
+
+/* type */
+struct _KLMType {
+    KLM_VALUE_HEAD
+    /* type parameters */
+    Vector *type_params;
+    /* base class or interface */
+    Vector *bases;
+    /* fields */
+    Vector *fields;
+    /* functions */
+    Vector *functions;
+    /* public or private */
+    int8_t pub;
+};
+
+/* constant: char is int32_t, bool is int8_t */
+struct _KLMConst {
+    KLM_VALUE_HEAD
+    union {
+        int8_t i8val;
+        int16_t i16val;
+        int32_t i32val;
+        int64_t i64val;
+        float f32val;
+        double f64val;
+        char *str;
+    };
 };
 
 /* code block */
 struct _KLMCodeBlock {
-    char *label;
+    KLM_VALUE_HEAD
     /* linked in KLMFunc */
     List cb_node;
     /* ->KLMFunc */
@@ -79,107 +165,13 @@ struct _KLMCodeBlock {
     int ret;
 };
 
-/* type */
-struct _KLMType {
-    char *name;
-    /* type parameters */
-    Vector *type_params;
-    /* base class or interface */
-    Vector *bases;
-    /* fields */
-    Vector *fields;
-    /* functions */
-    Vector *functions;
-};
-
-enum _KLMValueKind {
-    KLM_VALUE_NONE,
-    KLM_VALUE_VAR,
-    KLM_VALUE_CONST,
-    KLM_VALUE_FUNC,
-    KLM_VALUE_BLOCK,
-    KLM_VALUE_MAX
-};
-
-#define KLM_VALUE_HEAD KLMValueKind kind;
-
-/* value : var, const, func, block */
-struct _KLMValue {
-    KLM_VALUE_HEAD
-};
-
-/* global, local, temp variable */
-struct _KLMVar {
-    KLM_VALUE_HEAD
-    char *name;
-    TypeDesc *ty;
-    int reg;
-    int global;
-};
-
-/* operand kind */
-enum _KLMOperKind {
-    KLM_OPER_NONE,
-    KLM_OPER_VAR,
-    KLM_OPER_FUNC,
-    KLM_OPER_BLOCK,
-};
-
-/* instruction operand */
-struct _KLMOper {
-    KLMOperKind kind;
-    union {
-        KLMValue *value;
-        KLMFunc *func;
-        KLMCodeBlock *block;
-    };
-};
-
 /* instruction */
 struct _KLMInst {
     KLMOpCode op;
     /* number of operands */
     int num_opers;
     /* operands */
-    KLMOper operands[0];
-};
-
-/* constant kind */
-enum _KLMConstKind {
-    KLM_CONST_NONE,
-    KLM_CONST_U8,
-    KLM_CONST_U16,
-    KLM_CONST_U32,
-    KLM_CONST_U64,
-    KLM_CONST_I8,
-    KLM_CONST_I16,
-    KLM_CONST_I32,
-    KLM_CONST_I64,
-    KLM_CONST_F32,
-    KLM_CONST_F64,
-    KLM_CONST_BOOL,
-    KLM_CONST_CHAR,
-    KLM_CONST_STR,
-    KLM_CONST_MAX,
-};
-
-/* constant */
-struct _KLMConst {
-    KLM_VALUE_HEAD
-    KLMConstKind const_kind;
-    union {
-        uint8_t u8val;
-        int8_t i8val;
-        uint16_t u16val;
-        int16_t i16val;
-        uint32_t u32val;
-        int32_t i32val;
-        uint64_t u64val;
-        int64_t i64val;
-        float f32val;
-        double f64val;
-        char *str;
-    };
+    KLMValue *opers[0];
 };
 
 void klm_init_pkg(KLMPackage *pkg, char *name);
@@ -188,8 +180,8 @@ void klm_write_llvm_bc(KLMPackage *pkg);
 void klm_write_file(KLMPackage *pkg, char *path);
 void klm_read_file(KLMPackage *pkg, char *filename);
 
+KLMVar *klm_add_global(KLMPackage *pkg, char *name, TypeDesc *ty);
 KLMFunc *klm_add_func(KLMPackage *pkg, char *name, TypeDesc *ty);
-KLMValue *klm_add_global(KLMPackage *pkg, char *name, TypeDesc *ty);
 KLMCodeBlock *klm_append_block(KLMFunc *func, char *name);
 KLMValue *klm_add_local(KLMFunc *func, char *name, TypeDesc *ty);
 KLMValue *klm_new_const();
