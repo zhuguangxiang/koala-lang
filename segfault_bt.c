@@ -1,13 +1,16 @@
-
+#define UNW_LOCAL_ONLY
 #include <assert.h>
 #include <errno.h>
 #include <execinfo.h>
+#include <inttypes.h>
+#include <libunwind.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <ucontext.h>
 #include <unistd.h>
 
 struct TLSData {
@@ -78,15 +81,69 @@ void mprotect_handler(int segno)
     print_backtrace();
 }
 
+void *thread_entry(void *arg);
+
+// Call this function to get a backtrace.
+void backtrace2(ucontext_t *uc)
+{
+    unsigned long pc2 = uc->uc_mcontext.gregs[16];
+    unsigned long pc3 = (unsigned long)thread_entry;
+    printf("pc3:%lx\n", pc3);
+
+    unw_cursor_t cursor;
+    unw_context_t context;
+
+    // Initialize cursor to current frame for local unwinding.
+    unw_getcontext(&context);
+    unw_init_local(&cursor, &context);
+
+    // unw_set_reg(&cursor, UNW_REG_IP, pc2);
+
+    printf("0x%lx\n", pc2);
+
+    int flags = 0;
+
+    // Unwind frames one by one, going up the frame stack.
+    while (unw_step(&cursor) > 0) {
+        unw_word_t offset, pc;
+        unw_get_reg(&cursor, UNW_REG_IP, &pc);
+        if (pc == 0) {
+            break;
+        }
+
+        if (flags == 0 && pc != pc2) {
+            continue;
+        }
+
+        flags = 1;
+
+        char sym[256];
+        if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0) {
+            if (pc - offset != pc3) {
+                printf("0x%lx:", pc);
+                printf(" (%s+0x%lx)\n", sym, offset);
+            } else {
+                break;
+            }
+
+        } else {
+            printf("0x%lx:", pc);
+            printf(" -- error: unable to obtain symbol name for this frame\n");
+        }
+    }
+}
+
 static void seg_fault_handler(int sig, siginfo_t *info, void *context)
 {
+    ucontext_t *uc = (ucontext_t *)context;
+
     if (info->si_addr == statepoint_page) {
         printf("safepoint handler\n");
         sleep(1);
         mprotect(statepoint_page, getpagesize(), PROT_READ);
         printf("fixup mprotect page fault in pthread:%ld\n", pthread_self());
         printf("get tls data: %d\n", data.val);
-        print_backtrace();
+        backtrace2(uc);
     } else {
         printf("BUG: not safepoint\n");
         abort();
@@ -154,7 +211,9 @@ int main(int argc, char *argv[])
     pthread_create(&pid, NULL, thread_entry, NULL);
 
     // test page fault
-    foo();
+    // foo();
+    while (1)
+        ;
 
     return 0;
 }
