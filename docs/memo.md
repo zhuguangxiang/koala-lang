@@ -1,6 +1,157 @@
-# Memo
+# 备忘
 
-## types
+## 类型
+
+整数，浮点数，字符，布尔，字符串，数组，Map，Any
+
+- 结构体
+  - 值类型
+- 类
+  - 引用类型
+- 接口
+  - 胖指针
+- 枚举
+- 元组
+
+## 指令集&虚拟机
+
+### 整型
+
+```go
+
+func foo(a int) int {
+   return a + 200
+}
+
+/*
+int32.const 200
+local.get 0
+int32.add
+ret 1
+*/
+
+var i = 100
+var r = foo(i)
+
+/*
+
+int32.const 100
+int32.store 0
+
+int32.load 0
+call index of func table
+
+int32.store 1
+*/
+
+/*
++---------+
+| module  |
++---------+
+|  name   |
++---------+
+| pointer |
++---------+
+*/
+
+```
+
+### 结构体
+
+```go
+struct Foo {
+   var a int
+   var b int
+
+   func __init__() {
+      a = 1
+      b = 2
+   }
+   /*
+      i32.const 1
+      local.get 0, 8
+      i32.store 0
+      -------------------
+
+
+      i32.const 2
+      local.get 0, 8
+      i32.store 4
+
+      ret 0
+   */
+
+   func add(o Foo) {
+      this.a += o.a
+      this.b += o.b
+   }
+   /*
+      local.get_ref 1
+      i32.load 0
+
+      local.get 0
+      i32.load 0
+
+      add
+
+      local.get 0, 8
+      i32.store 0
+
+      ref.load 8
+      field.i32.get 4
+      ref.load 0
+      field.i32.get 4
+      add
+      ref.load 0
+      field.i32.set 4
+   */
+}
+
+var foo = Foo()
+/*
+   local.get_ref 0
+   call index of func table
+*/
+
+var bar = Foo()
+foo.add(bar)
+
+/*
+   local.get_ref 0
+   local.get 8, 8
+   call index of func table
+*/
+
+```
+
+### 不可继承类
+
+abstract class 可继承的类
+class 不可继承的类（默认）
+
+### 可继承类和接口(trait)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 1. primitives
    1. integer: i8, i16, i32, i64

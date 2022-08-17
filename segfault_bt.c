@@ -95,7 +95,7 @@ void backtrace2(ucontext_t *uc)
 
     // Initialize cursor to current frame for local unwinding.
     unw_getcontext(&context);
-    unw_init_local(&cursor, &context);
+    unw_init_local(&cursor, uc);
 
     // unw_set_reg(&cursor, UNW_REG_IP, pc2);
 
@@ -104,33 +104,33 @@ void backtrace2(ucontext_t *uc)
     int flags = 0;
 
     // Unwind frames one by one, going up the frame stack.
-    while (unw_step(&cursor) > 0) {
+    do {
         unw_word_t offset, pc;
         unw_get_reg(&cursor, UNW_REG_IP, &pc);
         if (pc == 0) {
             break;
         }
 
-        if (flags == 0 && pc != pc2) {
-            continue;
-        }
+        // if (flags == 0 && pc != pc2) {
+        //     continue;
+        // }
 
-        flags = 1;
+        // flags = 1;
 
         char sym[256];
         if (unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0) {
-            if (pc - offset != pc3) {
-                printf("0x%lx:", pc);
-                printf(" (%s+0x%lx)\n", sym, offset);
-            } else {
-                break;
-            }
+            // if (pc - offset != pc3) {
+            printf("0x%lx:", pc);
+            printf(" (%s+0x%lx)\n", sym, offset);
+            // } else {
+            //     break;
+            // }
 
         } else {
             printf("0x%lx:", pc);
             printf(" -- error: unable to obtain symbol name for this frame\n");
         }
-    }
+    } while (unw_step(&cursor) > 0);
 }
 
 static void seg_fault_handler(int sig, siginfo_t *info, void *context)
