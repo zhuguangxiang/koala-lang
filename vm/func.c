@@ -12,10 +12,10 @@ extern "C" {
 
 void kl_func_update_stacksize(KlFunc *func)
 {
-    int size = 0;
-    KlLocal *item;
-    // vector_foreach(item, &func->locals, { size += item->size; });
-    func->stack_size = size;
+    // int size = 0;
+    //  KlLocal *item;
+    //   vector_foreach(item, &func->locals, { size += item->size; });
+    //  func->stack_size = size;
 }
 
 #ifdef __cplusplus

@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 /* forward declaration */
-typedef uintptr_t StkVal;
+typedef uint32_t StkVal;
 typedef struct _KlFrame KlFrame;
 typedef struct _KlState KlState;
 typedef struct _KlGlobal KlGlobal;

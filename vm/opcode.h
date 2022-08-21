@@ -17,114 +17,222 @@ typedef enum {
 
     OP_HALT,                /* halt VM */
 
-    /* (1) number constants */
+    /* (1) Int8/Int16 operations */
 
-    OP_I32_CONST,           /* push i32 value */
-    OP_I64_CONST,           /* push i64 value */
-    OP_F32_CONST,           /* push f32 value */
-    OP_F64_CONST,           /* push f64 value */
+    OP_I8_PUSH,            /* push i8(-128,127) */
+    OP_I16_PUSH,           /* push i8(-32768,32767) */
 
-    /* (2) arithmetic operations */
+    /* (2) int32 operations */
 
-    OP_I32_ADD,             /* pop two i32, add and push back */
-    OP_I32_SUB,             /* pop two i32, sub and push back */
-    OP_I32_MUL,             /* pop two i32, mul and push back */
-    OP_I32_DIV,             /* pop two i32, div and push back */
-    OP_I32_REM,             /* pop two i32, rem and push back */
+    OP_I32_CONST_M1,        /* push (i32)-1 */
+    OP_I32_CONST_0,         /* push (i32)0  */
+    OP_I32_CONST_1,         /* push (i32)1  */
+    OP_I32_CONST_2,         /* push (i32)2  */
+    OP_I32_CONST_3,         /* push (i32)3  */
+    OP_I32_CONST_4,         /* push (i32)4  */
+    OP_I32_CONST_5,         /* push (i32)5  */
 
-    OP_I64_ADD,             /* pop two i64, add and push back */
-    OP_I64_SUB,             /* pop two i64, sub and push back */
-    OP_I64_MUL,             /* pop two i64, mul and push back */
-    OP_I64_DIV,             /* pop two i64, div and push back */
-    OP_I64_REM,             /* pop two i64, rem and push back */
+    OP_I32_ADD,             /* add two i32 */
+    OP_I32_SUB,             /* sub two i32 */
+    OP_I32_MUL,             /* mul two i32 */
+    OP_I32_DIV,             /* div two i32 */
+    OP_I32_REM,             /* rem two i32 */
+    OP_I32_NEG,             /* negate i32  */
 
-    OP_F32_ADD,             /* pop two f32, add and push back */
-    OP_F32_SUB,             /* pop two f32, sub and push back */
-    OP_F32_MUL,             /* pop two f32, mul and push back */
-    OP_F32_DIV,             /* pop two f32, div and push back */
+    OP_I32_AND,             /* bitwise and i32 */
+    OP_I32_OR,              /* bitwise or i32  */
+    OP_I32_XOR,             /* bitwise xor i32 */
+    OP_I32_NOT,             /* bitwise not i32(-1 xor n) */
+    OP_I32_SHL,             /* bitwise shift left i32 */
+    OP_I32_SHR,             /* bitwise shift right i32 */
+    OP_I32_USHR,            /* bitwise logic shift right i32 */
 
-    OP_F64_ADD,             /* pop two f64, add and push back */
-    OP_F64_SUB,             /* pop two f64, sub and push back */
-    OP_F64_MUL,             /* pop two f64, mul and push back */
-    OP_F64_DIV,             /* pop two f64, div and push back */
+    OP_I32_EQ,              /* two i32 equal */
+    OP_I32_NE,              /* two i32 not equal */
+    OP_I32_GT,              /* two i32 greater than */
+    OP_I32_GE,              /* two i32 greater equal */
+    OP_I32_LT,              /* two i32 less than */
+    OP_I32_LE,              /* two i32 lses equal */
 
-    /* (3) bitwise operations */
+    OP_I32_RETURN,          /* return i32 value */
 
-    OP_I32_AND,             /* pop two i32, bit_and and push back */
-    OP_I32_OR,              /* pop two i32, bit_or  and push back */
-    OP_I32_XOR,             /* pop two i32, bit_xor and push back */
-    OP_I32_NOT,             /* pop two i32, bit_not and push back */
-    OP_I32_SHL,             /* pop two i32, bit_shl and push back */
-    OP_I32_SHR,             /* pop two i32, bit_shr and push back */
-    OP_I32_USHR,            /* pop two i32, bit_ushr and push back */
+    /* (3) int64 operations */
 
-    OP_I64_AND,             /* pop two i64, bit_and and push back */
-    OP_I64_OR,              /* pop two i64, bit_or  and push back */
-    OP_I64_XOR,             /* pop two i64, bit_xor and push back */
-    OP_I64_NOT,             /* pop two i64, bit_not and push back */
-    OP_I64_SHL,             /* pop two i64, bit_shl and push back */
-    OP_I64_SHR,             /* pop two i64, bit_shr and push back */
-    OP_I64_USHR,            /* pop two i64, bit_ushr and push back */
+    OP_I64_CONST_0,         /* push (i64)0  */
+    OP_I64_CONST_1,         /* push (i64)1  */
 
-    /* (4) compare operations */
+    OP_I64_ADD,             /* add two i64 */
+    OP_I64_SUB,             /* sub two i64 */
+    OP_I64_MUL,             /* mul two i64 */
+    OP_I64_DIV,             /* div two i64 */
+    OP_I64_REM,             /* rem two i64 */
+    OP_I64_NEG,             /* negate i64  */
 
-    OP_I32_EQ,              /* pop two i32, equal and push back */
-    OP_I32_NE,              /* pop two i32, not equal and push back */
-    OP_I32_GT,              /* pop two i32, greater than and push back */
-    OP_I32_GE,              /* pop two i32, greater equal and push back */
-    OP_I32_LT,              /* pop two i32, less than and push back */
-    OP_I32_LE,              /* pop two i32, less equal and push back */
+    OP_I64_AND,             /* bitwise and i64 */
+    OP_I64_OR,              /* bitwise or i64  */
+    OP_I64_XOR,             /* bitwise xor i64 */
+    OP_I64_NOT,             /* bitwise not i64(-1 xor n) */
+    OP_I64_SHL,             /* bitwise shift left i64 */
+    OP_I64_SHR,             /* bitwise shift right i64 */
+    OP_I64_USHR,            /* bitwise logic shift right i64 */
 
-    OP_I64_EQ,              /* pop two i64, equal and push back */
-    OP_I64_NE,              /* pop two i64, not equal and push back */
-    OP_I64_GT,              /* pop two i64, greater than and push back */
-    OP_I64_GE,              /* pop two i64, greater equal and push back */
-    OP_I64_LT,              /* pop two i64, less than and push back */
-    OP_I64_LE,              /* pop two i64, less equal and push back */
+    OP_I64_EQ,              /* two i64 equal */
+    OP_I64_NE,              /* two i64 not equal */
+    OP_I64_GT,              /* two i64 greater than */
+    OP_I64_GE,              /* two i64 greater equal */
+    OP_I64_LT,              /* two i64 less than */
+    OP_I64_LE,              /* two i64 lses equal */
 
-    OP_F32_EQ,              /* pop two f32, equal and push back */
-    OP_F32_NE,              /* pop two f32, not equal and push back */
-    OP_F32_GT,              /* pop two f32, greater than and push back */
-    OP_F32_GE,              /* pop two f32, greater equal and push back */
-    OP_F32_LT,              /* pop two f32, less than and push back */
-    OP_F32_LE,              /* pop two f32, less equal and push back */
+    OP_I64_RETURN,          /* return i64 value */
 
-    OP_F64_EQ,              /* pop two f64, equal and push back */
-    OP_F64_NE,              /* pop two f64, not equal and push back */
-    OP_F64_GT,              /* pop two f64, greater than and push back */
-    OP_F64_GE,              /* pop two f64, greater equal and push back */
-    OP_F64_LT,              /* pop two f64, less than and push back */
-    OP_F64_LE,              /* pop two f64, less equal and push back */
+    /* (4) float32/float64 operations */
 
-    /* (5) bool operations */
-    OP_BOOL_AND,            /* pop two bool, bool_and and push back */
-    OP_BOOL_OR,             /* pop two bool, bool_or and push back */
-    OP_BOOL_NOT,            /* pop two bool, bool_not and push back */
+    OP_F32_CONST_0,         /* push (f32)0.0  */
+    OP_F32_CONST_1,         /* push (f32)1.0  */
+    OP_F32_CONST_2,         /* push (f32)2.0  */
 
-    /* (6) variable access */
-    OP_LOCAL_GET,           /* push local variable value into stack */
-    OP_LOCAL_SET,           /* pop value and set to local variable */
-    OP_LOCAL_REF,           /* push local variable address into stack */
+    OP_F32_ADD,             /* add two f32 */
+    OP_F32_SUB,             /* sub two f32 */
+    OP_F32_MUL,             /* mul two f32 */
+    OP_F32_DIV,             /* div two f32 */
+    OP_F32_NEG,             /* negate f32  */
+
+    OP_F32_EQ,              /* two f32 equal */
+    OP_F32_NE,              /* two f32 not equal */
+    OP_F32_GT,              /* two f32 greater than */
+    OP_F32_GE,              /* two f32 greater equal */
+    OP_F32_LT,              /* two f32 less than */
+    OP_F32_LE,              /* two f32 less equal */
+
+    OP_F32_RETURN,          /* return f32 value */
+
+    OP_F64_CONST_0,         /* push (f64)0.0  */
+    OP_F64_CONST_1,         /* push (f64)1.0  */
+
+    OP_F64_ADD,             /* add two f64 */
+    OP_F64_SUB,             /* sub two f64 */
+    OP_F64_MUL,             /* mul two f64 */
+    OP_F64_DIV,             /* div two f64 */
+    OP_F64_NEG,             /* negate f64  */
+
+    OP_F64_EQ,              /* two f64 equal */
+    OP_F64_NE,              /* two f64 not equal */
+    OP_F64_GT,              /* two f64 greater than */
+    OP_F64_GE,              /* two f64 greater equal */
+    OP_F64_LT,              /* two f64 less than */
+    OP_F64_LE,              /* two f64 less equal */
+
+    OP_F64_RETURN,          /* return f64 value */
+
+    /* (5) control flow */
+
+    OP_JMP,                 // uncondition jump
+    OP_JMP_INT32_EQ,
+    OP_JMP_INT32_NE,
+    OP_JMP_INT32_GT,
+    OP_JMP_INT32_GE,
+    OP_JMP_INT32_LT,
+    OP_JMP_INT32_LE,
+    OP_JMP_TRUE,
+    OP_JMP_FALSE,
+
+    OP_CALL,
+    OP_CALL_ABSTRACT,
+    OP_RETURN,
+
+    /* (6) object/field operations */
+    OP_NEW,
+
+    OP_FIELD_I8_GET,
+    OP_FIELD_I16_GET,
+    OP_FIELD_I32_GET,
+    OP_FIELD_I64_GET,
+    OP_FIELD_F32_GET,
+    OP_FIELD_F64_GET,
+    OP_FIELD_SIZED_GET,
+    OP_FIELD_REF_GET,
+
+    OP_FIELD_I8_SET,
+    OP_FIELD_I16_SET,
+    OP_FIELD_I32_SET,
+    OP_FIELD_I64_SET,
+    OP_FIELD_F32_SET,
+    OP_FIELD_F64_SET,
+    OP_FIELD_SIZED_SET,
+    OP_FIELD_REF_SET,
+
+    OP_SIZED_RETURN,
+    OP_REF_RETURN,
+
+    /* (7) constants pool */
+    OP_CONST_LOAD_I32,
+    OP_CONST_LOAD_I64,
+
+    /* (8) variable access */
+
+    OP_LOCAL_I32_LOAD,
+    OP_LOCAL_I32_STORE,
+    OP_LOCAL_GET_I32,
+    OP_LOCAL_SET_I32,
+
+    OP_LOCAL_GET_I64,
+    OP_LOCAL_SET_I64,
+
+    OP_LOCAL_GET_F32,
+    OP_LOCAL_SET_F32,
+
+    OP_LOCAL_GET_F64,
+    OP_LOCAL_SET_F64,
+
+    OP_LOCAL_SIZED_GET,
+    OP_LOCAL_SIZED_SET,
+    OP_LOCAL_LABEL_GET,
+
+    OP_LOCAL_REF_GET,
+    OP_LOCAL_REF_SET,
 
     OP_GLOBAL_GET,
     OP_GLOBAL_SET,
     OP_GLOBAL_REF,
 
-    /* (7) control flow */
-    OP_JMP,
-    OP_JMP_TRUE,
-    OP_JMP_FALSE,
+    /* (9) array operations */
+    OP_ARRAY_I8_NEW,
+    OP_ARRAY_I8_GET,
+    OP_ARRAY_I8_SET,
 
-    OP_CALL,
-    OP_CALL_INDIRECT,
-    OP_RETURN,
-    OP_RETURN_VALUE,
+    OP_ARRAY_I16_NEW,
+    OP_ARRAY_I16_GET,
+    OP_ARRAY_I16_SET,
 
-    /* (8) memory operations */
-    OP_I32_LOAD,
-    OP_I32_STORE,
-    OP_I64_LOAD
+    OP_ARRAY_I32_NEW,
+    OP_ARRAY_I32_GET,
+    OP_ARRAY_I32_SET,
 
+    OP_ARRAY_I64_NEW,
+    OP_ARRAY_I64_GET,
+    OP_ARRAY_I64_SET,
+
+    OP_ARRAY_F32_NEW,
+    OP_ARRAY_F32_GET,
+    OP_ARRAY_F32_SET,
+
+    OP_ARRAY_F64_NEW,
+    OP_ARRAY_F64_GET,
+    OP_ARRAY_F64_SET,
+
+    OP_ARRAY_SIZED_NEW,
+    OP_ARRAY_SIZED_GET,
+    OP_ARRAY_SIZED_SET,
+
+    OP_ARRAY_REF_NEW,
+    OP_ARRAY_REF_GET,
+    OP_ARRAY_REF_SET,
+
+    /* (10) switch table */
+
+    /* (11) cast operations */
+    OP_CAST_I32_TO_I8,
+    OP_CAST_I32_TO_I16,
     // clang-format on
 } KlOpCode;
 
