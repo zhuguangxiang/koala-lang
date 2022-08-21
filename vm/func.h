@@ -25,16 +25,14 @@ struct _KlFunc {
     char *name;
     /* type */
     TypeDesc *proto;
-    /* number of parameters */
-    int num_params;
-    /* parameter size */
+    /* parameter size(align=4) */
     int param_size;
-    /* return size */
+    /* return size(align=4) */
     int ret_size;
     /* byte codes */
     int code_size;
     uint8_t *codes;
-    /* stack size(align=8) */
+    /* stack size(align=4) */
     int stack_size;
     /* local info */
     int num_locals;
@@ -47,9 +45,9 @@ struct _KlLocal {
     char *name;
     /* local type */
     TypeDesc *desc;
-    /* local offset(align=8) */
+    /* local offset(align=4) */
     int offset;
-    /* local size(align=8) */
+    /* local size(align=4) */
     int size;
 };
 

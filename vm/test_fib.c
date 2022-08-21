@@ -43,7 +43,7 @@ global_list:
 */
 
 uint8_t fib_codes[] = {
-    OP_LOCAL_GET_I32,
+    OP_LOCAL_I32_GET,
     0,
     0,
     OP_I32_CONST_2,
@@ -53,7 +53,7 @@ uint8_t fib_codes[] = {
     OP_I32_CONST_1,
     OP_I32_RETURN,
 
-    OP_LOCAL_GET_I32,
+    OP_LOCAL_I32_GET,
     0,
     0,
     OP_I32_CONST_1,
@@ -62,7 +62,7 @@ uint8_t fib_codes[] = {
     0,
     0,
 
-    OP_LOCAL_GET_I32,
+    OP_LOCAL_I32_GET,
     0,
     0,
     OP_I32_CONST_2,
@@ -82,7 +82,6 @@ KlLocal locals[10] = {
 
 KlFunc fib_meth = {
     .name = "fib",
-    .num_params = 1,
     .param_size = 1,
     .stack_size = 1,
     .ret_size = 1,
@@ -102,7 +101,7 @@ void kl_func_update_stacksize(KlFunc *func);
 void test_fib()
 {
     uint8_t codes[] = {
-        OP_I8_PUSH, 40, OP_CALL, 0, 0, OP_LOCAL_SET_I32, 0, 0, OP_RETURN,
+        OP_I8_PUSH, 40, OP_CALL, 0, 0, OP_LOCAL_I32_SET, 0, 0, OP_RETURN,
     };
 
     KlFunc meth = {

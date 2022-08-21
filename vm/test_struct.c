@@ -120,7 +120,6 @@ KlLocal locals[10] = {
 
 KlFunc point_add_meth = {
     .name = "Point.add",
-    .num_params = 2,
     .param_size = 3,
     .stack_size = 3,
     .ret_size = 0,
@@ -166,7 +165,7 @@ void test_struct()
         0,
         0,
         OP_I8_PUSH,
-        120,
+        48,
         OP_LOCAL_LABEL_GET,
         1,
         0,

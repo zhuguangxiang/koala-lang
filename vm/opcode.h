@@ -54,8 +54,6 @@ typedef enum {
     OP_I32_LT,              /* two i32 less than */
     OP_I32_LE,              /* two i32 lses equal */
 
-    OP_I32_RETURN,          /* return i32 value */
-
     /* (3) int64 operations */
 
     OP_I64_CONST_0,         /* push (i64)0  */
@@ -83,8 +81,6 @@ typedef enum {
     OP_I64_LT,              /* two i64 less than */
     OP_I64_LE,              /* two i64 lses equal */
 
-    OP_I64_RETURN,          /* return i64 value */
-
     /* (4) float32/float64 operations */
 
     OP_F32_CONST_0,         /* push (f32)0.0  */
@@ -104,8 +100,6 @@ typedef enum {
     OP_F32_LT,              /* two f32 less than */
     OP_F32_LE,              /* two f32 less equal */
 
-    OP_F32_RETURN,          /* return f32 value */
-
     OP_F64_CONST_0,         /* push (f64)0.0  */
     OP_F64_CONST_1,         /* push (f64)1.0  */
 
@@ -122,8 +116,6 @@ typedef enum {
     OP_F64_LT,              /* two f64 less than */
     OP_F64_LE,              /* two f64 less equal */
 
-    OP_F64_RETURN,          /* return f64 value */
-
     /* (5) control flow */
 
     OP_JMP,                 // uncondition jump
@@ -138,51 +130,62 @@ typedef enum {
 
     OP_CALL,
     OP_CALL_ABSTRACT,
-    OP_RETURN,
+
+    OP_RETURN,              /* return void */
+    OP_I32_RETURN,          /* return i32 value */
+    OP_I64_RETURN,          /* return i64 value */
+    OP_F32_RETURN,          /* return f32 value */
+    OP_F64_RETURN,          /* return f64 value */
+    OP_SIZED_RETURN,        /* return struct */
+    OP_REF_RETURN,          /* return reference */
 
     /* (6) object/field operations */
     OP_NEW,
 
     OP_FIELD_I8_GET,
-    OP_FIELD_I16_GET,
-    OP_FIELD_I32_GET,
-    OP_FIELD_I64_GET,
-    OP_FIELD_F32_GET,
-    OP_FIELD_F64_GET,
-    OP_FIELD_SIZED_GET,
-    OP_FIELD_REF_GET,
-
     OP_FIELD_I8_SET,
+
+    OP_FIELD_I16_GET,
     OP_FIELD_I16_SET,
+
+    OP_FIELD_I32_GET,
     OP_FIELD_I32_SET,
+
+    OP_FIELD_I64_GET,
     OP_FIELD_I64_SET,
+
+    OP_FIELD_F32_GET,
     OP_FIELD_F32_SET,
+
+    OP_FIELD_F64_GET,
     OP_FIELD_F64_SET,
+
+    OP_FIELD_SIZED_GET,
     OP_FIELD_SIZED_SET,
+
+    OP_FIELD_REF_GET,
     OP_FIELD_REF_SET,
 
-    OP_SIZED_RETURN,
-    OP_REF_RETURN,
-
     /* (7) constants pool */
-    OP_CONST_LOAD_I32,
-    OP_CONST_LOAD_I64,
 
-    /* (8) variable access */
+    OP_CONST_I32_GET,
+    OP_CONST_I64_GET,
+    OP_CONST_F32_GET,
+    OP_CONST_F64_GET,
 
-    OP_LOCAL_I32_LOAD,
-    OP_LOCAL_I32_STORE,
-    OP_LOCAL_GET_I32,
-    OP_LOCAL_SET_I32,
+    /* (8) local variable access */
 
-    OP_LOCAL_GET_I64,
-    OP_LOCAL_SET_I64,
+    OP_LOCAL_I32_GET,
+    OP_LOCAL_I32_SET,
 
-    OP_LOCAL_GET_F32,
-    OP_LOCAL_SET_F32,
+    OP_LOCAL_I64_GET,
+    OP_LOCAL_I64_SET,
 
-    OP_LOCAL_GET_F64,
-    OP_LOCAL_SET_F64,
+    OP_LOCAL_F32_GET,
+    OP_LOCAL_F32_SET,
+
+    OP_LOCAL_F64_GET,
+    OP_LOCAL_F64_SET,
 
     OP_LOCAL_SIZED_GET,
     OP_LOCAL_SIZED_SET,
@@ -191,9 +194,31 @@ typedef enum {
     OP_LOCAL_REF_GET,
     OP_LOCAL_REF_SET,
 
-    OP_GLOBAL_GET,
-    OP_GLOBAL_SET,
-    OP_GLOBAL_REF,
+    /* (8) global variable access */
+
+    OP_GLOBAL_I8_GET,
+    OP_GLOBAL_I8_SET,
+
+    OP_GLOBAL_I16_GET,
+    OP_GLOBAL_I16_SET,
+
+    OP_GLOBAL_I32_GET,
+    OP_GLOBAL_I32_SET,
+
+    OP_GLOBAL_I64_GET,
+    OP_GLOBAL_I64_SET,
+
+    OP_GLOBAL_F32_GET,
+    OP_GLOBAL_F32_SET,
+
+    OP_GLOBAL_F64_GET,
+    OP_GLOBAL_F64_SET,
+
+    OP_GLOBAL_SIZED_GET,
+    OP_GLOBAL_SIZED_SET,
+
+    OP_GLOBAL_REF_GET,
+    OP_GLOBAL_REF_SET,
 
     /* (9) array operations */
     OP_ARRAY_I8_NEW,
@@ -233,6 +258,22 @@ typedef enum {
     /* (11) cast operations */
     OP_CAST_I32_TO_I8,
     OP_CAST_I32_TO_I16,
+    OP_CAST_I32_TO_I64,
+    OP_CAST_I32_TO_F32,
+    OP_CAST_I32_TO_F64,
+
+    OP_CAST_I64_TO_I32,
+    OP_CAST_I64_TO_F32,
+    OP_CAST_I64_TO_F64,
+
+    OP_CAST_F32_TO_I32,
+    OP_CAST_F32_TO_I64,
+    OP_CAST_F32_TO_F64,
+
+    OP_CAST_F64_TO_I32,
+    OP_CAST_F64_TO_I64,
+    OP_CAST_F64_TO_F32,
+
     // clang-format on
 } KlOpCode;
 

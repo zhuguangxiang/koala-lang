@@ -68,6 +68,20 @@ KlFunc *psudo_get_method(int index);
 
 // clang-format on
 
+void show_locals(KlFrame *cf)
+{
+    KlLocal *local;
+    KlFunc *func = cf->func;
+    for (int i = 0; i < func->num_locals; i++) {
+        local = func->locals + i;
+        if (local->size == 1) {
+            printf("[%04d]: %d\n", i, cf->base[local->offset]);
+        } else {
+            assert(0);
+        }
+    }
+}
+
 #if 1
 void kl_evaluate(KlState *ks, KlFrame *cf)
 {
@@ -162,12 +176,12 @@ void kl_evaluate(KlState *ks, KlFrame *cf)
                 *(addr + offset) = v;
                 break;
             }
-            case OP_LOCAL_GET_I32: {
+            case OP_LOCAL_I32_GET: {
                 uint16_t offset = NEXT_U16();
                 PUSH_I32(cf->base[offset]);
                 break;
             }
-            case OP_LOCAL_SET_I32: {
+            case OP_LOCAL_I32_SET: {
                 uint16_t offset = NEXT_U16();
                 cf->base[offset] = POP_I32();
                 break;
@@ -206,9 +220,11 @@ void kl_evaluate(KlState *ks, KlFrame *cf)
                 break;
             }
             case OP_RETURN: {
+                // show_locals(cf);
                 return;
             }
             case OP_I32_RETURN: {
+                // show_locals(cf);
                 --ks->top;
                 cf->base[0] = ks->top[0];
                 return;
