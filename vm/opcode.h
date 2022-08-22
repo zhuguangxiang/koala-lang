@@ -136,35 +136,39 @@ typedef enum {
     OP_I64_RETURN,          /* return i64 value */
     OP_F32_RETURN,          /* return f32 value */
     OP_F64_RETURN,          /* return f64 value */
-    OP_SIZED_RETURN,        /* return struct */
     OP_REF_RETURN,          /* return reference */
+    OP_ARRAY_RETURN,        /* return array */
+    OP_SIZED_RETURN,        /* return struct */
 
-    /* (6) object/field operations */
+    /* (6) object/field/global operations */
     OP_NEW,
 
-    OP_FIELD_I8_GET,
-    OP_FIELD_I8_SET,
+    OP_MEM_LOAD_I8,
+    OP_MEM_STORE_I8,
 
-    OP_FIELD_I16_GET,
-    OP_FIELD_I16_SET,
+    OP_MEM_LOAD_I16,
+    OP_MEM_STORE_I16,
 
-    OP_FIELD_I32_GET,
-    OP_FIELD_I32_SET,
+    OP_MEM_LOAD_I32,
+    OP_MEM_STORE_I32,
 
-    OP_FIELD_I64_GET,
-    OP_FIELD_I64_SET,
+    OP_MEM_LOAD_I64,
+    OP_MEM_STORE_I64,
 
-    OP_FIELD_F32_GET,
-    OP_FIELD_F32_SET,
+    OP_MEM_LOAD_F32,
+    OP_MEM_STORE_F32,
 
-    OP_FIELD_F64_GET,
-    OP_FIELD_F64_SET,
+    OP_MEM_LOAD_F64,
+    OP_MEM_STORE_F64,
 
-    OP_FIELD_SIZED_GET,
-    OP_FIELD_SIZED_SET,
+    OP_MEM_LOAD_REF,
+    OP_MEM_STORE_REF,
 
-    OP_FIELD_REF_GET,
-    OP_FIELD_REF_SET,
+    OP_MEM_LOAD_ARRAY,
+    OP_MEM_STORE_ARRAY,
+
+    OP_MEM_LOAD_SIZED,
+    OP_MEM_STORE_SIZED,
 
     /* (7) constants pool */
 
@@ -187,40 +191,21 @@ typedef enum {
     OP_LOCAL_F64_GET,
     OP_LOCAL_F64_SET,
 
-    OP_LOCAL_SIZED_GET,
-    OP_LOCAL_SIZED_SET,
-    OP_LOCAL_LABEL_GET,
-
     OP_LOCAL_REF_GET,
     OP_LOCAL_REF_SET,
 
-    /* (8) global variable access */
+    OP_LOCAL_ARRAY_GET,
+    OP_LOCAL_ARRAY_SET,
 
-    OP_GLOBAL_I8_GET,
-    OP_GLOBAL_I8_SET,
+    OP_LOCAL_SIZED_GET,
+    OP_LOCAL_SIZED_SET,
 
-    OP_GLOBAL_I16_GET,
-    OP_GLOBAL_I16_SET,
+    OP_LOCAL_LABEL_GET,
 
-    OP_GLOBAL_I32_GET,
-    OP_GLOBAL_I32_SET,
-
-    OP_GLOBAL_I64_GET,
-    OP_GLOBAL_I64_SET,
-
-    OP_GLOBAL_F32_GET,
-    OP_GLOBAL_F32_SET,
-
-    OP_GLOBAL_F64_GET,
-    OP_GLOBAL_F64_SET,
-
-    OP_GLOBAL_SIZED_GET,
-    OP_GLOBAL_SIZED_SET,
-
-    OP_GLOBAL_REF_GET,
-    OP_GLOBAL_REF_SET,
+    OP_LOCAL_I32_INC,
 
     /* (9) array operations */
+
     OP_ARRAY_I8_NEW,
     OP_ARRAY_I8_GET,
     OP_ARRAY_I8_SET,
@@ -252,6 +237,8 @@ typedef enum {
     OP_ARRAY_REF_NEW,
     OP_ARRAY_REF_GET,
     OP_ARRAY_REF_SET,
+
+    OP_ARRAY_LENGTH,
 
     /* (10) switch table */
 

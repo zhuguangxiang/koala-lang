@@ -1,0 +1,37 @@
+
+public class MapEntry<K, V> {
+    next MapEntry
+    key K
+    value V
+
+    public func __init__(k K, v V) {
+        next = self
+        key = k
+        value = v
+    }
+}
+
+public struct Map<K : Hashable<K>, V> : ToString {
+    array [MapEntry<K, V>]
+
+    public func __init__() {
+        array = [MapEntry<K, V>; 64]
+    }
+
+    public func put(k K, v V) {
+        let e = MapEntry(k, v)
+
+    }
+
+    public func __setitem__(k K, v V) {
+        put(k, v)
+    }
+}
+
+
+let map = Map<String, String>()
+let map = [String : String]
+
+map.put("hello", "world")
+
+map["hello"] = "world"

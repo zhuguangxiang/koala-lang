@@ -47,6 +47,16 @@ KlFunc *psudo_get_method(int index);
 
 #define POP_REF() ({ ks->top -= 2; *(uintptr_t *)(ks->top); })
 
+#define PUSH_ARRAY(addr) do { \
+    memcpy(ks->top, (addr), 4 * sizeof(StkVal)); \
+    ks->top += 4; \
+} while (0)
+
+#define POP_ARRAY(addr) do { \
+    ks->top -= 4; \
+    memcpy((addr), ks->top, 4 * sizeof(StkVal)); \
+} while (0)
+
 #define PUSH_SIZED(addr, size) do { \
     memcpy(ks->top, (addr), (size) * sizeof(StkVal)); \
     ks->top += (size); \
@@ -81,6 +91,12 @@ void show_locals(KlFrame *cf)
         }
     }
 }
+
+struct Array {
+    int size;
+    char gc;
+    int8_t *data;
+};
 
 #if 1
 void kl_evaluate(KlState *ks, KlFrame *cf)
@@ -162,14 +178,14 @@ void kl_evaluate(KlState *ks, KlFrame *cf)
                 }
                 break;
             }
-            case OP_FIELD_I8_GET: {
+            case OP_MEM_LOAD_I8: {
                 uint16_t offset = NEXT_U16();
                 int8_t *addr = (int8_t *)POP_REF();
                 int8_t v = *(addr + offset);
                 PUSH_I8(v);
                 break;
             }
-            case OP_FIELD_I8_SET: {
+            case OP_MEM_STORE_I8: {
                 uint16_t offset = NEXT_U16();
                 int8_t *addr = (int8_t *)POP_REF();
                 int8_t v = POP_I8();
@@ -184,6 +200,12 @@ void kl_evaluate(KlState *ks, KlFrame *cf)
             case OP_LOCAL_I32_SET: {
                 uint16_t offset = NEXT_U16();
                 cf->base[offset] = POP_I32();
+                break;
+            }
+            case OP_LOCAL_I32_INC: {
+                uint16_t offset = NEXT_U16();
+                uint8_t inc = NEXT_U8();
+                cf->base[offset] += inc;
                 break;
             }
             case OP_LOCAL_LABEL_GET: {
@@ -214,6 +236,23 @@ void kl_evaluate(KlState *ks, KlFrame *cf)
                 }
                 break;
             }
+            case OP_JMP_INT32_GE: {
+                int16_t offset = NEXT_I16();
+                int32_t rhs = STACK_GET_I32(-1);
+                int32_t lhs = STACK_GET_I32(-2);
+                STACK_TOP_DEC(2);
+                if (lhs >= rhs) {
+                    pc += offset;
+                } else {
+                    // do nothing
+                }
+                break;
+            }
+            case OP_JMP: {
+                int16_t offset = NEXT_I16();
+                pc += offset;
+                break;
+            }
             case OP_CALL: {
                 KlFunc *f = psudo_get_method(NEXT_I16());
                 kl_do_call(ks, f);
@@ -228,6 +267,45 @@ void kl_evaluate(KlState *ks, KlFrame *cf)
                 --ks->top;
                 cf->base[0] = ks->top[0];
                 return;
+            }
+            case OP_ARRAY_RETURN: {
+                ks->top -= 4;
+                memcpy(cf->base, ks->top, 4 * sizeof(StkVal));
+                return;
+            }
+            case OP_ARRAY_I8_NEW: {
+                uint16_t size = NEXT_U16();
+                int8_t *data = malloc(size);
+                struct Array arr = { size, 1, data };
+                PUSH_ARRAY(&arr);
+                break;
+            }
+            case OP_ARRAY_I8_SET: {
+                struct Array *arr = (struct Array *)POP_REF();
+                int32_t index = POP_I32();
+                int8_t value = POP_I8();
+                if (index < 0 || index >= arr->size) {
+                    printf("error: array write overflow\n");
+                    exit(-1);
+                }
+                arr->data[index] = value;
+                break;
+            }
+            case OP_LOCAL_ARRAY_SET: {
+                uint16_t offset = NEXT_U16();
+                POP_ARRAY(cf->base + offset);
+                break;
+            }
+            case OP_LOCAL_ARRAY_GET: {
+                uint16_t offset = NEXT_U16();
+                struct Array *arr = (struct Array *)(cf->base + offset);
+                PUSH_ARRAY(arr);
+                break;
+            }
+            case OP_ARRAY_LENGTH: {
+                struct Array *arr = (struct Array *)POP_REF();
+                PUSH_I32(arr->size);
+                break;
             }
             default: {
                 assert(0);

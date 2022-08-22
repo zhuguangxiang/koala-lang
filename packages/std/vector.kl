@@ -1,0 +1,40 @@
+
+public struct Vector<T> : ToString {
+    offset int32
+    len int32
+    array [T]
+
+    public func __init__() {
+        offset = 0
+        len = 0
+        array = [T; 128]
+    }
+
+    public func __add__(o Vector<T>) Vector<T> {
+        for e in o {
+            append(e)
+        }
+        return self
+    }
+
+    public func __getitem__(index int32) T {
+        if (index < 0 || index >= len) {
+            panic("");
+        }
+        return array[offset + index]
+    }
+
+    pub func append(e T) Vector<T> {
+        if offset + len >= array.length {
+            array = [T; len * 2]
+            offset = 0
+        }
+        array[offset + len] = e
+        len += 1
+        return self
+    }
+
+    public func sort(cmp func(T, T) i8) {
+        qsort(ptr, sizeof(T), len, cmp)
+    }
+}

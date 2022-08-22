@@ -6,13 +6,14 @@ extern "C" {
 }
 
 public struct String : ToString & Hashable<String> {
-    let raw RawArray
-    var offset uint32
-    var len uint32
+    offset int32
+    len int32
+    array [int8]
 
-    public func __init__(s Pointer<uint8>, len uint32) {
-        raw = RawArray(len)
-        memcpy(raw.as_ptr(), s, len);
+    public func __init__(arr [int8]) {
+        offset = 0
+        len = arr.length
+        array = arr
     }
 
     public func sub_string(offset u32, len u32) String {
@@ -21,24 +22,17 @@ public struct String : ToString & Hashable<String> {
             panic("invalid offset")
         }
 
-        var s = String()
-        s.ptr = self.ptr
+        let s = String(self.array)
         s.offset = offset
         s.len = len
         return s
     }
 
     public func __add__(rhs String) String {
-        let s = String()
-        s.raw = raw_array_new(self.len + rhs.len);
-        memcpy(s.raw.as_ptr, self.raw.as_ptr, self.len);
-        let ptr = s.raw.as_ptr.offset(self.len);
-        memcpy(ptr, rhs.raw.as_ptr(), rhs.len);
+        let s = String([int8; self.len + rhs.len]);
+        array_copy(s.array, 0, self.array, self.offset, self.len)
+        array_copy(s.array, self.len, rhs.array, rhs.offset, rhs.len)
         return s;
-    }
-
-    public func as_ptr() Pointer<u8> {
-        return raw.as_ptr()
     }
 
     public override func to_str() String {
@@ -49,7 +43,7 @@ public struct String : ToString & Hashable<String> {
 
     }
 
-    public override func equals(other String) bool {
+    public override func equals(rhs String) bool {
 
     }
 }
