@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "linux",
+            "intelliSenseMode": "linux-gcc-x64",
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "gnu23",
+            "cppStandard": "c++17",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [
+                "__FILE_NAME__",
+                "LOG_COLOR",
+                "MAX_GC_MEM_SIZE"
+            ]
+        }
+    ],
+    "version": 4
+}

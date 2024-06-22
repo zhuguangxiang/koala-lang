@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "*.h": "c",
+        "cstdlib": "cpp",
+        "initializer_list": "c",
+        "array": "c",
+        "compare": "c",
+        "functional": "c",
+        "ratio": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "string_view": "c",
+        "typeinfo": "c"
+    }
+}

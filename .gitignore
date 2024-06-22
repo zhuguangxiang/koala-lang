@@ -1,0 +1,6 @@
+build/
+*.html
+*.pdf
+.ccls-cache/
+.txt
+.out

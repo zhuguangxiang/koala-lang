@@ -1,0 +1,25 @@
+/**
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+#ifndef _KOALA_VERSION_H_
+#define _KOALA_VERSION_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* clang-format off */
+/* version comes from CMakeLists.txt */
+#define KOALA_VERSION_MAJOR ${KOALA_VERSION_MAJOR}
+#define KOALA_VERSION_MINOR ${KOALA_VERSION_MINOR}
+#define KOALA_VERSION_PATCH ${KOALA_VERSION_PATCH}
+#define KOALA_VERSION "${KOALA_VERSION}"
+/* clang-format on */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* _KOALA_VERSION_H_ */
