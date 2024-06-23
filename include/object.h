@@ -7,16 +7,21 @@
 #define _KOALA_OBJECT_H_
 
 #include "common.h"
-
+#include "gc.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define OBJECT_HEAD struct _TypeObject *ob_type;
+/* clang-format off */
+#define OBJECT_HEAD GcHdr ob_gchdr; struct _TypeObject *ob_type;
+/* clang-format on */
 
 typedef struct _Object {
     OBJECT_HEAD
 } Object;
+
+#define OBJECT_HEAD_INIT(_type) \
+    GC_HEAD_INIT(ob_gchdr, NULL, 0, -1, GC_COLOR_BLACK), .ob_type = (_type),
 
 typedef struct _Value {
     /* value */
@@ -45,23 +50,17 @@ typedef struct _Value {
     +-------+--------------+-----------+
     |  0110 |  float54     |  invalid  |
     +-------+--------------+-----------+
-    |  1000 |  obj(no gc)  |  invalid  |
+    |  1001 |  obj         |  invalid  |
     +-------+--------------+-----------+
-    |  1001 |  obj(gc)     |  invalid  |
-    +-------+--------------+-----------+
-    |  1110 |  obj(no gc)  |  valid    |
-    +-------+--------------+-----------+
-    |  1111 |  obj(gc)     |  valid    |
+    |  1111 |  obj         |  valid    |
     +-------+--------------+-----------+
 */
-#define VAL_TAG_I32    0b0000
-#define VAL_TAG_I64    0b0010
-#define VAL_TAG_F32    0b0100
-#define VAL_TAG_F64    0b0110
-#define VAL_TAG_OBJ    0b1000
-#define VAL_TAG_GC_OBJ 0b1001
-#define VAL_TAG_VTL    0b1110
-#define VAL_TAG_GC_VTL 0b1111
+#define VAL_TAG_I32 0b0000
+#define VAL_TAG_I64 0b0010
+#define VAL_TAG_F32 0b0100
+#define VAL_TAG_F64 0b0110
+#define VAL_TAG_OBJ 0b1001
+#define VAL_TAG_VTL 0b1111
 
 typedef struct _TypeObject {
     OBJECT_HEAD

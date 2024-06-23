@@ -38,14 +38,10 @@ typedef struct _CallFrame {
     Value *cf_local_stack;
 } CallFrame;
 
-#define KS_RUNNING 1
-#define KS_SUSPEND 2
-#define KS_DONE    3
-
 /* per koala thread */
 typedef struct _KoalaState {
     /* link to _ThreadState or _GlobalState */
-    LLDqNode run_link;
+    LLDqNode link;
     /* point to _ThreadState */
     struct _ThreadState *ts;
     /* top call stack frame */
@@ -54,8 +50,6 @@ typedef struct _KoalaState {
     CallFrame *free_cf_list;
     /* depth of call frames */
     int depth;
-    /* state of this KoalaState */
-    int state;
     /* stack size */
     int stack_size;
     /* base stack pointer */
@@ -64,25 +58,7 @@ typedef struct _KoalaState {
     Value *stack_ptr;
 } KoalaState;
 
-/* per pthread, thread local storage */
-typedef struct _ThreadState {
-    /* local running KoalaState list */
-    LLDeque run_list;
-    /* current running KoalaState in this thread */
-    KoalaState *current;
-    /* id */
-    size_t id;
-    /* steal count */
-    size_t steal_count;
-    /* pthread id */
-    pthread_t pid;
-    /* state flag */
-    int state;
-#define TS_RUNNING 0
-#define TS_DONE    1
-#define TS_SUSPEND 2
-#define TS_GC_STW  3
-} ThreadState;
+void ks_free(KoalaState *ks);
 
 #ifdef __cplusplus
 }

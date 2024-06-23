@@ -28,12 +28,33 @@ typedef struct _LLDeque {
 
 int lldq_init(LLDeque *deque);
 int lldq_empty(LLDeque *deque);
-static inline void lldq_init_node(LLDqNode *node) { node->next = NULL; }
+static inline void lldq_node_init(LLDqNode *node) { node->next = NULL; }
 LLDqNode *lldq_pop_head(LLDeque *deque);
 LLDqNode *lldq_pop_tail(LLDeque *deque);
 void lldq_push_head(LLDeque *deque, void *node);
 void lldq_push_tail(LLDeque *deque, void *node);
 void lldq_fini(LLDeque *deque, void (*fini)(void *, void *), void *arg);
+
+/* clang-format off */
+
+#define lldq_entry(ptr, type, member) CONTAINER_OF(ptr, type, member)
+
+#define lldq_first(list, type, member) ({ \
+    LLDeque * head__ = (list); \
+    LLDqNode * pos__ = head__->head->next; \
+    pos__ ? lldq_entry(pos__, type, member) : NULL; \
+})
+
+#define lldq_next(pos, member, list) ({ \
+    LLDqNode * nxt__ = (pos)->member.next; \
+    nxt__ ? lldq_entry(nxt__, typeof(*(pos)), member) : NULL; \
+})
+
+#define lldq_foreach(v__, member, list) \
+    for (v__ = lldq_first(list, typeof(*(v__)), member); \
+         v__; v__ = lldq_next(v__, member, list))
+
+/* clang-format on */
 
 #ifdef __cplusplus
 }

@@ -10,7 +10,7 @@
 
 int lldq_init(LLDeque *deque)
 {
-    lldq_init_node(&deque->sentinel);
+    lldq_node_init(&deque->sentinel);
     deque->tail = &deque->sentinel;
     deque->head = deque->tail;
     deque->count = 0;
@@ -57,3 +57,5 @@ void lldq_push_tail(LLDeque *deque, void *node)
     deque->count++;
     pthread_spin_unlock(&deque->lock);
 }
+
+void lldq_fini(LLDeque *deque, void (*fini)(void *, void *), void *arg) {}

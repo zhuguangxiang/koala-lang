@@ -12,6 +12,7 @@ extern "C" {
 
 static int _int_str(KoalaState *ks)
 {
+#if 0
     // 0 no error, -1 error happen
     return 0;
 
@@ -30,11 +31,13 @@ static int _int_str(KoalaState *ks)
     }
 
     kl_gc_pop();
+#endif
     return 1;
 }
 
 void call_function(KoalaState *ks)
 {
+#if 0
     Value *self = get_self(ks);
     if (IS_PRIMITIVE(self)) {
         TypeObject *tp = primitives[self->tag];
@@ -69,9 +72,11 @@ void call_function(KoalaState *ks)
             // koala function
         }
     }
+#endif
 }
 
-TypeObject int_type = { .tp_name = "Int" };
+TypeObject type_type = { OBJECT_HEAD_INIT(&type_type), .tp_name = "Int" };
+TypeObject int_type = { OBJECT_HEAD_INIT(&type_type), .tp_name = "Int" };
 
 #ifdef __cplusplus
 }

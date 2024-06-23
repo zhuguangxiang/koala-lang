@@ -8,7 +8,7 @@
 
 int main(int argc, const char *argv[])
 {
-    init_log(LOG_DEBUG, "log.txt", 0);
+    init_log(LOG_INFO, NULL, 0);
     kl_init(argc, argv);
     kl_run(argv[1]);
     kl_fini();

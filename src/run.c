@@ -4,10 +4,8 @@
  */
 
 #include "run.h"
-#include <sys/mman.h>
 #include <unistd.h>
 #include "eval.h"
-#include "gc.h"
 #include "log.h"
 #include "mm.h"
 
@@ -22,6 +20,8 @@ int __nthreads;
 static ThreadState *_threads;
 pthread_key_t __local_key;
 
+/* all done KoalaState list */
+static LLDeque _gc_done_list;
 /* global running KoalaState list */
 static LLDeque _gs_run_list;
 /* arguments from prompt */
@@ -66,14 +66,14 @@ static void *koala_pthread_func(void *arg)
 
             if (node) {
                 /* got one thread */
-                ks = CONTAINER_OF(node, KoalaState, run_link);
+                ks = CONTAINER_OF(node, KoalaState, link);
                 ts->current = ks;
                 continue;
             }
 
             /* suspend at global list */
             log_info("Thread-%d is suspended.", ts->id);
-            ts->state = TS_SUSPEND;
+            ts->state = TS_WAIT;
             pthread_mutex_lock(&_gs_mutex);
             int empty = lldq_empty(&_gs_run_list);
             while (empty && ts->state != TS_DONE) {
@@ -87,7 +87,7 @@ static void *koala_pthread_func(void *arg)
                 node = lldq_pop_head(&_gs_run_list);
                 if (node) {
                     /* got one thread */
-                    ks = CONTAINER_OF(node, KoalaState, run_link);
+                    ks = CONTAINER_OF(node, KoalaState, link);
                     ts->current = ks;
                 }
                 ts->state = TS_RUNNING;
@@ -104,17 +104,14 @@ static void *koala_pthread_func(void *arg)
     ts->state = TS_RUNNING;
     int i = 0;
     while (1) {
+        // sleep(1);
         gc_check_stw();
-        sleep(1);
-        fprintf(stderr, "running:%d\n", i++);
-        if (i % 10 == 0) {
-            __gc_state = GC_WAIT_STW;
-            mprotect(__gc_stw_check_ptr, 4096, PROT_NONE);
-        }
-
-        if (i > 30) {
-            char *v = (char *)0x1;
-            printf("%c", *v);
+        i++;
+        log_info("Thread-%d is running %d", ts->id, i);
+        if (ts->id == 1) {
+            gc_alloc(50, NULL);
+        } else if (ts->id == 2) {
+            gc_alloc(80, NULL);
         }
     }
 }
@@ -148,6 +145,7 @@ void kl_init(int argc, const char *argv[])
     pthread_cond_init(&_gs_cond, NULL);
 
     /* init global koala state list */
+    lldq_init(&_gc_done_list);
     lldq_init(&_gs_run_list);
     _gs_argc = argc;
     _gs_argv = argv;
@@ -156,7 +154,7 @@ void kl_init(int argc, const char *argv[])
     pthread_key_create(&__local_key, NULL);
 
     /* init koala threads */
-    init_threads(2);
+    init_threads(3);
 
     /* init koala builtin module */
 }
@@ -168,7 +166,7 @@ static int done(void)
     // check all threads are in suspend state
     for (int i = 0; i < __nthreads; i++) {
         ThreadState *ts = _threads + i;
-        if (ts->state != TS_SUSPEND) {
+        if (ts->state != TS_WAIT) {
             done = 0;
             break;
         }
@@ -188,6 +186,16 @@ static int done(void)
     return done;
 }
 
+static void clear_done_state(void)
+{
+    LLDqNode *node = lldq_pop_head(&_gc_done_list);
+    while (node) {
+        KoalaState *ks = CONTAINER_OF(node, KoalaState, link);
+        ks_free(ks);
+        node = lldq_pop_head(&_gc_done_list);
+    }
+}
+
 /* monitor */
 void kl_run(const char *filename)
 {
@@ -198,25 +206,7 @@ void kl_run(const char *filename)
         // if (done()) break;
         done();
 
-        /* monitor gc */
-
-        if (__gc_state == GC_WAIT_STW || __gc_state == GC_WAIT_STW_2 ||
-            __gc_state == GC_FULL) {
-            int stw = 1;
-            for (int i = 0; i < __nthreads; i++) {
-                ThreadState *ts = _threads + i;
-                if (ts->state != TS_GC_STW) {
-                    stw = 0;
-                    break;
-                }
-            }
-            if (stw) {
-                /* let gc thread work */
-                printf("launch gc threads\n");
-                // launch_gc_threads();
-            }
-        }
-
+        clear_done_state();
         sleep(1);
     }
 
@@ -231,6 +221,61 @@ void kl_run(const char *filename)
 void kl_fini(void) {}
 
 void kl_run_ks(KoalaState *ks) {}
+
+int check_all_threads_stw(void)
+{
+    int yes = 1;
+
+    for (int i = 0; i < __nthreads; i++) {
+        ThreadState *ts = _threads + i;
+        if (ts->state != TS_GC_STW) {
+            yes = 0;
+            break;
+        }
+    }
+
+    return yes;
+}
+
+static void enum_koala_state(Queue *que, KoalaState *ks)
+{
+    if (!ks) return;
+
+    Value *v;
+    Object *obj;
+    for (int i = 0; i < ks->stack_size; i++) {
+        v = ks->base_stack_ptr + i;
+        if (v->tag & 0x1) {
+            obj = v->obj;
+            if (obj->ob_gchdr.age != -1) {
+                gc_mark(obj, GC_COLOR_GRAY);
+                queue_push(que, obj);
+            }
+        }
+    }
+}
+
+int enum_all_roots(Queue *que)
+{
+    /* enum global running list */
+    KoalaState *ks;
+    lldq_foreach(ks, link, &_gs_run_list) {
+        enum_koala_state(que, ks);
+    }
+
+    /* enum local running lists */
+    for (int i = 0; i < __nthreads; i++) {
+        ThreadState *ts = _threads + i;
+        enum_koala_state(que, ts->current);
+        lldq_foreach(ks, link, &ts->run_list) {
+            enum_koala_state(que, ks);
+        }
+    }
+
+    /* enum global variables */
+
+    return 0;
+}
 
 #ifdef __cplusplus
 }

@@ -2,5 +2,6 @@ build/
 *.html
 *.pdf
 .ccls-cache/
-.txt
-.out
+*.txt
+*.out
+cspell.json

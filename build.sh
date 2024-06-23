@@ -4,7 +4,7 @@ mkdir -p build/$1 && cd build/$1
 
 cmake -G Ninja ../.. \
     -DCMAKE_BUILD_TYPE=$1 \
-    -DCMAKE_VERBOSE_MAKEFILE=OFF \
+    -DCMAKE_VERBOSE_MAKEFILE=ON \
     -DSKIP_TESTS=OFF
 
 cmake --build . --target clean

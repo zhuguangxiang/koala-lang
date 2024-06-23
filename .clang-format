@@ -57,4 +57,4 @@ BreakBeforeBraces: Custom
 BraceWrapping:
     AfterFunction: true
     BeforeElse: false
-ForEachMacros: ["vm_dispatch", "vm_case", "vector_foreach_struct", "basic_block_foreach_safe", "klvm_block_foreach", "klvm_insn_foreach", "TEST", "operand_foreach", "bb_pred_foreach", "bb_succ_foreach", "list_foreach", "list_foreach_safe", "use_foreach", "edge_in_foreach", "edge_out_foreach", "basic_block_foreach", "insn_foreach", "use_foreach_safe", "insn_foreach_safe", "vector_foreach", "vector_foreach_reverse"]
+ForEachMacros: ["lldq_foreach", "vm_dispatch", "vm_case", "vector_foreach_struct", "basic_block_foreach_safe", "klvm_block_foreach", "klvm_insn_foreach", "TEST", "operand_foreach", "bb_pred_foreach", "bb_succ_foreach", "list_foreach", "list_foreach_safe", "use_foreach", "edge_in_foreach", "edge_out_foreach", "basic_block_foreach", "insn_foreach", "use_foreach_safe", "insn_foreach_safe", "vector_foreach", "vector_foreach_reverse"]
