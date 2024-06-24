@@ -8,6 +8,12 @@
 #include <time.h>
 #include "common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef NOLOG
+
 typedef struct _Logger {
     LogLevel level;
     int quiet;
@@ -98,3 +104,9 @@ void _log_log(LogLevel level, char *file, int line, char *fmt, ...)
         pthread_spin_unlock(&logger.flock);
     }
 }
+
+#endif
+
+#ifdef __cplusplus
+}
+#endif

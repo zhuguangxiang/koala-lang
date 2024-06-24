@@ -10,6 +10,8 @@
 extern "C" {
 #endif
 
+#ifndef NOLOG
+
 typedef enum _LogLevel {
     LOG_TRACE = 0,
     LOG_DEBUG,
@@ -28,6 +30,17 @@ void _log_log(LogLevel level, char *file, int line, char *fmt, ...);
 #define log_warn(...)  _log_log(LOG_WARN, __FILE_NAME__, __LINE__, __VA_ARGS__)
 #define log_error(...) _log_log(LOG_ERROR, __FILE_NAME__, __LINE__, __VA_ARGS__)
 #define log_fatal(...) _log_log(LOG_FATAL, __FILE_NAME__, __LINE__, __VA_ARGS__)
+
+#else
+
+#define log_trace(...) ((void)(0))
+#define log_debug(...) ((void)(0))
+#define log_info(...)  ((void)(0))
+#define log_warn(...)  ((void)(0))
+#define log_error(...) ((void)(0))
+#define log_fatal(...) ((void)(0))
+
+#endif
 
 #ifdef __cplusplus
 }
