@@ -12,5 +12,10 @@
         "utility": "c",
         "string_view": "c",
         "typeinfo": "c"
-    }
+    },
+    "cSpell.words": [
+        "getset",
+        "hashable",
+        "ucbuf"
+    ]
 }

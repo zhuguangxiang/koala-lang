@@ -38,7 +38,9 @@ elseif(CMAKE_BUILD_TYPE STREQUAL Release)
     # add_definitions(-DNOLOG)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wextra -Wno-unused-result -Wsign-compare -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden")
 elseif(CMAKE_BUILD_TYPE STREQUAL Coverage)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
+    # lcov --rc branch_coverage.=1 -c -d ./ -o app.info
+    # genhtml --rc branch_coverage.=1 app.info -o cc_result
+    set(CMAKE_C_FLAGS "-g -O0 ${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
 else()
     message("please specify CMAKE_BUILD_TYPE")
 endif()

@@ -5,3 +5,5 @@
 
 include(${CMAKE_SOURCE_DIR}/cmake/test.cmake)
 
+test(test_vector koala)
+test(test_hashmap koala)

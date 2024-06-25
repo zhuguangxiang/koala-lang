@@ -79,6 +79,8 @@ extern "C" {
 /* Smallest negative value of type ssize_t. */
 #define SSIZE_MIN (-SSIZE_MAX - 1)
 
+#define OUT(x) x
+
 #ifdef __cplusplus
 }
 #endif

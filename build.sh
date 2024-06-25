@@ -1,5 +1,7 @@
 #!/bin/bash
 
+rm -rf build/$1
+
 mkdir -p build/$1 && cd build/$1
 
 cmake -G Ninja ../.. \
@@ -9,5 +11,5 @@ cmake -G Ninja ../.. \
 
 cmake --build . --target clean
 cmake --build . --target all
-# cmake --build . --target test
+cmake --build . --target test
 # cmake --build . --target check

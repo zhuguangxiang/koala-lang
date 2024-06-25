@@ -75,8 +75,10 @@ void call_function(KoalaState *ks)
 #endif
 }
 
-TypeObject type_type = { OBJECT_HEAD_INIT(&type_type), .tp_name = "Int" };
-TypeObject int_type = { OBJECT_HEAD_INIT(&type_type), .tp_name = "Int" };
+TypeObject int_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "Int",
+};
 
 #ifdef __cplusplus
 }

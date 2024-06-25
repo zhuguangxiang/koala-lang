@@ -9,6 +9,9 @@ set(KOALA_SOURCES
     common/log.c
     common/mm.c
     common/lldq.c
+    common/vector.c
+    common/hash.c
+    common/hashmap.c
     gc.c
     run.c
     eval.c)
