@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 /* clang-format off */
-#define OBJECT_HEAD GcHdr ob_gchdr; struct _TypeObject *ob_type;
+#define OBJECT_HEAD GC_HEAD struct _TypeObject *ob_type;
 /* clang-format on */
 
 typedef struct _Object {
@@ -24,7 +24,13 @@ typedef struct _Object {
 } Object;
 
 #define OBJECT_HEAD_INIT(_type) \
-    GC_HEAD_INIT(ob_gchdr, NULL, 0, -1, GC_COLOR_BLACK), .ob_type = (_type)
+    GC_HEAD_INIT(NULL, 0, -1, GC_COLOR_BLACK), .ob_type = (_type)
+
+#define INIT_OBJECT_HEAD(_ob, _type) (_ob)->ob_type = (_type)
+
+#define OB_TYPE(_ob) ((_ob)->ob_type)
+
+#define IS_TYPE(ob, type) (OB_TYPE(ob) == type)
 
 typedef struct _Value {
     /* value */
@@ -49,9 +55,7 @@ typedef struct _Value {
     +-------+----------------+
     |  0110 |  float54       |
     +-------+----------------+
-    |  1000 |  End           |
-    +-------+----------------+
-    |  1010 |  error         |
+    |  1010 |  Error         |
     +-------+----------------+
     |  1110 |  None          |
     +-------+----------------+
@@ -62,17 +66,38 @@ typedef struct _Value {
 #define VAL_TAG_I64  0b0010
 #define VAL_TAG_F32  0b0100
 #define VAL_TAG_F64  0b0110
-#define VAL_TAG_END  0b1000
 #define VAL_TAG_ERR  0b1010
 #define VAL_TAG_NONE 0b1110
 #define VAL_TAG_OBJ  0b1111
+
+/* clang-format off */
+
+#define IS_INT32(val) ((val)->tag == VAL_TAG_I32)
+#define IS_INT64(val) ((val)->tag == VAL_TAG_I64)
+#define IS_INT(val) (IS_INT32(val) || IS_INT64(val))
+
+#define IS_FLOAT32(val) ((val)->tag == VAL_TAG_F32)
+#define IS_FLOAT64(val) ((val)->tag == VAL_TAG_F64)
+#define IS_FLOAT(val) (IS_FLOAT32(val) || IS_FLOAT64(val))
+
+#define IS_ERROR(val) ((val)->tag == VAL_TAG_ERR)
+#define IS_NONE(val) ((val)->tag == VAL_TAG_NONE)
+
+#define IS_OBJECT(val) ((val)->tag == VAL_TAG_OBJ)
+
+#define Int32Value()
+#define ObjectValue(_obj) (Value){.obj = _obj, .tag = VAL_TAG_OBJ}
+#define NoneValue() (Value){0, VAL_TAG_NONE}
+#define ErrorValue() (Value){0, VAL_TAG_ERR}
+
+/* clang-format on */
 
 typedef unsigned int (*HashFunc)(Value *self);
 typedef int (*CmpFunc)(Value *lhs, Value *rhs);
 typedef Value (*GetIterFunc)(Value *self);
 typedef Value (*IterNextFunc)(Value *self);
 typedef Value (*StrFunc)(Value *self);
-typedef Value (*CallFunc)(Value *self, Value *args, int nargs, Value *kwargs);
+typedef Value (*CallFunc)(Value *self, Value *args, int nargs, Object *kwargs);
 typedef int (*LenFunc)(Value *);
 typedef Value (*UnaryFunc)(Value *);
 typedef Value (*BinaryFunc)(Value *, Value *);
@@ -103,18 +128,20 @@ typedef struct _SequenceMethods {
     TernaryFunc setitem;
 } SequenceMethods;
 
-typedef struct _MethodDef {
+typedef struct _CFuncDef {
     /* The name of the built-in function/method */
     const char *name;
     /* The C function that implements it */
     void *cfunc;
     /* Combination of METH_xxx flags */
     int flags;
+    /* keywords arguments(dict) */
+    Object *kwargs;
     /* The koala arguments types */
     const char *args_types;
     /* The koala return type */
     const char *ret_type;
-} MethodDef;
+} CFuncDef;
 
 typedef Value (*GetterFunc)(Value *, void *);
 typedef int (*SetterFunc)(Value *, Value *, void *);
@@ -147,13 +174,23 @@ typedef struct _MemberDef {
     int offset;
 } MemberDef;
 
+typedef void (*MarkFunc)(Object **);
+
 typedef struct _TypeObject {
     OBJECT_HEAD
     /* the meta type's name */
     char *name;
 
-    /* object size with header */
-    size_t objsize;
+    int offset_kwargs;
+
+    /* gc mark function */
+    MarkFunc mark;
+
+    /* init function */
+    /* fini function */
+
+    /* enter function */
+    /* exit function */
 
     /* hashable */
     HashFunc hash;
@@ -165,6 +202,9 @@ typedef struct _TypeObject {
     /* callable */
     CallFunc call;
 
+    /* call with kwargs */
+    Object *kwargs;
+
     /* iterable */
     GetIterFunc iter;
     IterNextFunc next;
@@ -175,7 +215,7 @@ typedef struct _TypeObject {
     SequenceMethods *as_seq;
 
     /* method definitions */
-    MethodDef *methods;
+    CFuncDef *methods;
     /* getset definitions */
     GetSetDef *getsets;
     /* member definitions */
@@ -197,6 +237,16 @@ typedef struct _TypeObject {
 } TypeObject;
 
 extern TypeObject type_type;
+
+static inline Object *get_default_kwargs(Object *obj)
+{
+    TypeObject *tp = OB_TYPE(obj);
+    if (tp->offset_kwargs) {
+        return (Object *)((char *)obj + tp->offset_kwargs);
+    } else {
+        return NULL;
+    }
+}
 
 #ifdef __cplusplus
 }

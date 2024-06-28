@@ -58,6 +58,9 @@ typedef struct _KoalaState {
     Value *stack_ptr;
 } KoalaState;
 
+Value kl_eval_code(Object *code, Value *args, int nargs, Object *kwargs);
+
+KoalaState *ks_new(void);
 void ks_free(KoalaState *ks);
 
 #ifdef __cplusplus

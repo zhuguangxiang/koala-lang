@@ -35,7 +35,7 @@ typedef struct _ThreadState {
 } ThreadState;
 
 void kl_init(int argc, const char *argv[]);
-void kl_run(const char *filename);
+void kl_run_file(const char *filename);
 void kl_fini(void);
 
 extern int __nthreads;

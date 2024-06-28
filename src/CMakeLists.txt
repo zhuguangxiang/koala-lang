@@ -12,9 +12,13 @@ set(KOALA_SOURCES
     common/vector.c
     common/hash.c
     common/hashmap.c
+    abstract.c
     gc.c
     run.c
-    eval.c)
+    eval.c
+    typeobject.c
+    cfuncobject.c
+    codeobject.c)
 
 add_library(koala STATIC ${KOALA_SOURCES})
 target_link_libraries(koala pthread m dl ffi)

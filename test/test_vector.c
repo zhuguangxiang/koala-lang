@@ -11,43 +11,43 @@ extern "C" {
 
 void test_vector(void)
 {
-    Vector *vec = vector_create();
+    Vector *vec = vector_create_ptr();
 
     int *val;
 
     val = malloc(sizeof(int));
     *val = 100;
-    vector_push_back(vec, val);
+    vector_push_back(vec, &val);
 
     val = malloc(sizeof(int));
     *val = 200;
-    vector_push_back(vec, val);
+    vector_push_back(vec, &val);
 
     val = malloc(sizeof(int));
     *val = 300;
-    vector_push_back(vec, val);
+    vector_push_back(vec, &val);
 
-    int *v;
+    int **v;
     vector_foreach(v, vec) {
-        printf("v = %d\n", *v);
+        printf("v = %d\n", **v);
     }
 
     vector_foreach_reverse(v, vec) {
-        printf("v = %d\n", *v);
+        printf("v = %d\n", **v);
     }
 
     ASSERT(vector_size(vec) == 3);
     ASSERT(vector_capacity(vec) == 4);
 
-    val = vector_pop_back(vec);
+    vector_pop_back(vec, &val);
     ASSERT(*val == 300);
     free(val);
 
-    val = vector_pop_back(vec);
+    vector_pop_back(vec, &val);
     ASSERT(*val == 200);
     free(val);
 
-    val = vector_pop_back(vec);
+    vector_pop_back(vec, &val);
     ASSERT(*val == 100);
     free(val);
 
@@ -55,56 +55,56 @@ void test_vector(void)
 
     val = malloc(sizeof(int));
     *val = 1000;
-    vector_insert(vec, 0, val);
+    vector_insert(vec, 0, &val);
 
     val = malloc(sizeof(int));
     *val = 2000;
-    vector_insert(vec, 0, val);
+    vector_insert(vec, 0, &val);
 
     val = malloc(sizeof(int));
     *val = 3000;
-    vector_insert(vec, 0, val);
+    vector_insert(vec, 0, &val);
 
     val = malloc(sizeof(int));
     *val = 4000;
-    vector_insert(vec, 0, val);
+    vector_insert(vec, 0, &val);
 
     val = malloc(sizeof(int));
     *val = 5000;
-    vector_push_front(vec, val);
+    vector_push_front(vec, &val);
 
     vector_foreach(v, vec) {
-        printf("v = %d\n", *v);
+        printf("v = %d\n", **v);
     }
 
-    val = vector_top_back(vec);
-    ASSERT(*val == 1000);
+    int **val2 = vector_top_back(vec);
+    ASSERT(**val2 == 1000);
 
-    Vector *vec2 = vector_create();
+    Vector *vec2 = vector_create_ptr();
 
     vector_concat(vec2, vec);
 
     vector_foreach(v, vec2) {
-        printf("v = %d\n", *v);
+        printf("v = %d\n", **v);
     }
 
-    val = vector_pop_front(vec);
+    vector_pop_front(vec, &val);
     ASSERT(*val == 5000);
     free(val);
 
-    val = vector_pop_front(vec);
+    vector_pop_front(vec, &val);
     ASSERT(*val == 4000);
     free(val);
 
-    val = vector_pop_front(vec);
+    vector_pop_front(vec, &val);
     ASSERT(*val == 3000);
     free(val);
 
-    val = vector_pop_front(vec);
+    vector_pop_front(vec, &val);
     ASSERT(*val == 2000);
     free(val);
 
-    val = vector_pop_front(vec);
+    vector_pop_front(vec, &val);
     ASSERT(*val == 1000);
     free(val);
 

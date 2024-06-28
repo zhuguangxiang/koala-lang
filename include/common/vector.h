@@ -18,36 +18,44 @@ typedef struct _Vector {
     int capacity;
     /* used slots */
     int size;
+    /* object size */
+    int obj_size;
     /* object memory */
-    void **objs;
+    char *objs;
 } Vector;
 
 /* Initialize an empty vector */
-static inline void vector_init(Vector *vec)
+static inline void vector_init(Vector *vec, int obj_size)
 {
     vec->capacity = 0;
     vec->size = 0;
+    vec->obj_size = obj_size;
     vec->objs = NULL;
 }
+
+#define vector_init_ptr(vec) vector_init(vec, PTR_SIZE)
 
 /* Finalize an vector */
 static inline void vector_fini(Vector *vec)
 {
     if (!vec) return;
     mm_free(vec->objs);
-    vector_init(vec);
+    vector_init(vec, 0);
 }
 
 /* Clear a vector, no free memory */
 static inline void vector_clear(Vector *vec) { vec->size = 0; }
 
 /* Create a vector */
-static inline Vector *vector_create(void)
+static inline Vector *vector_create(int obj_size)
 {
     Vector *vec = mm_alloc_obj_fast(vec);
-    vector_init(vec);
+    vector_init(vec, obj_size);
     return vec;
 }
+
+/* Create a pointer vector */
+#define vector_create_ptr() vector_create(PTR_SIZE)
 
 /* Destroy a vector */
 static inline void vector_destroy(Vector *vec)
@@ -114,24 +122,24 @@ static inline void *vector_top_back(Vector *vec)
  * Remove an object from the in-bound of the vector.
  * This is relatively expensive operation.
  */
-void *vector_remove(Vector *vec, int index);
+int vector_remove(Vector *vec, int index, void *obj);
 
 /*
  * Remove an object at the end of the vector.
  * When used with 'vector_push_back', the vector can be as a `stack`.
  */
-static inline void *vector_pop_back(Vector *vec)
+static inline void vector_pop_back(Vector *vec, void *obj)
 {
-    return vector_remove(vec, vector_size(vec) - 1);
+    vector_remove(vec, vector_size(vec) - 1, obj);
 }
 
 /*
  * Remove an object at the front of the vector.
  * This is relatively expensive operation.
  */
-static inline void *vector_pop_front(Vector *vec)
+static inline void vector_pop_front(Vector *vec, void *obj)
 {
-    return vector_remove(vec, 0);
+    vector_remove(vec, 0, obj);
 }
 
 /* clang-format off */

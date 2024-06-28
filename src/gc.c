@@ -112,12 +112,12 @@ static inline void disable_stw_wakeup_threads(void)
     pthread_mutex_unlock(&_mutator_wait_mutex);
 }
 
-#define gc_incr_age(hdr) ++((GcHdr *)(hdr))->age
+#define gc_incr_age(hdr) ++((GcHdr *)(hdr))->gc_age
 
 static void *free_obj(GcHdr *hdr)
 {
     pthread_spin_lock(&_gc_spin_lock);
-    _gc_used_size -= hdr->size;
+    _gc_used_size -= hdr->gc_size;
     pthread_spin_unlock(&_gc_spin_lock);
     free(hdr);
 }
@@ -147,15 +147,15 @@ static GcHdr *alloc_obj(int size, int minor)
 
     GcHdr *hdr = malloc(size);
     ASSERT(hdr);
-    lldq_node_init(&hdr->link);
-    hdr->size = size;
-    hdr->age = 0;
+    lldq_node_init(&hdr->gc_link);
+    hdr->gc_size = size;
+    hdr->gc_age = 0;
     if (_gc_state == GC_DONE) {
-        hdr->color = GC_COLOR_WHITE;
-        lldq_push_tail(&_gc_list, &hdr->link);
+        hdr->gc_color = GC_COLOR_WHITE;
+        lldq_push_tail(&_gc_list, &hdr->gc_link);
     } else {
-        hdr->color = GC_COLOR_BLACK;
-        lldq_push_tail(&_gc_remark_list, &hdr->link);
+        hdr->gc_color = GC_COLOR_BLACK;
+        lldq_push_tail(&_gc_remark_list, &hdr->gc_link);
     }
 
     log_info("[Mutator]Thread-%d, successful, obj_size: %ld", ts->id, size);
@@ -173,7 +173,7 @@ void *gc_alloc(int size, GcMarkFunc mark)
     ASSERT(ts->state == TS_RUNNING);
 
     /* aligned pointer size */
-    int mm_size = ALIGN_PTR(sizeof(GcHdr) + size);
+    int mm_size = ALIGN_PTR(size);
     GcHdr *hdr = NULL;
 
     /* simple fsm */
@@ -213,8 +213,8 @@ void *gc_alloc(int size, GcMarkFunc mark)
     }
 
 done:
-    hdr->mark = mark;
-    return hdr + 1;
+    hdr->gc_mark = mark;
+    return hdr;
 }
 
 static void gc_segment_fault_handler(int sig, siginfo_t *si, void *unused)
@@ -244,7 +244,7 @@ static void gc_segment_fault_handler(int sig, siginfo_t *si, void *unused)
 
 static void *gc_pthread_func(void *arg)
 {
-    log_info("[GC-THREAD]running");
+    log_info("[Collector]running");
 
     QUEUE(que);
 
@@ -306,9 +306,9 @@ static void *gc_pthread_func(void *arg)
                 LLDqNode *node = lldq_pop_head(&_gc_list);
                 while (node) {
                     GcHdr *hdr = (GcHdr *)node;
-                    if (hdr->color == GC_COLOR_WHITE) {
+                    if (hdr->gc_color == GC_COLOR_WHITE) {
                         free_obj(hdr);
-                    } else if (hdr->color == GC_COLOR_BLACK) {
+                    } else if (hdr->gc_color == GC_COLOR_BLACK) {
                         gc_mark(hdr, GC_COLOR_WHITE);
                         gc_incr_age(hdr);
                     } else {
@@ -327,7 +327,7 @@ static void *gc_pthread_func(void *arg)
                 node = lldq_pop_head(&_gc_remark_list);
                 while (node) {
                     GcHdr *hdr = (GcHdr *)node;
-                    ASSERT(hdr->color == GC_COLOR_BLACK);
+                    ASSERT(hdr->gc_color == GC_COLOR_BLACK);
                     gc_mark(hdr, GC_COLOR_WHITE);
                     gc_incr_age(hdr);
                     lldq_push_tail(&_gc_list, node);
@@ -352,9 +352,9 @@ static void *gc_pthread_func(void *arg)
                 LLDqNode *node = lldq_pop_head(&_gc_list);
                 while (node) {
                     GcHdr *hdr = (GcHdr *)node;
-                    if (hdr->color == GC_COLOR_WHITE) {
+                    if (hdr->gc_color == GC_COLOR_WHITE) {
                         free_obj(hdr);
-                    } else if (hdr->color == GC_COLOR_BLACK) {
+                    } else if (hdr->gc_color == GC_COLOR_BLACK) {
                         gc_mark(hdr, GC_COLOR_WHITE);
                         gc_incr_age(hdr);
                     } else {
@@ -366,7 +366,7 @@ static void *gc_pthread_func(void *arg)
                 node = lldq_pop_head(&_gc_remark_list);
                 while (node) {
                     GcHdr *hdr = (GcHdr *)node;
-                    ASSERT(hdr->color == GC_COLOR_BLACK);
+                    ASSERT(hdr->gc_color == GC_COLOR_BLACK);
                     gc_mark(hdr, GC_COLOR_WHITE);
                     gc_incr_age(hdr);
                     lldq_push_tail(&_gc_list, node);
@@ -384,7 +384,7 @@ static void *gc_pthread_func(void *arg)
         }
     }
 
-    log_info("[GC-THREAD]done");
+    log_info("[Collector]done");
     return NULL;
 }
 

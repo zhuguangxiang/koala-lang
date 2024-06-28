@@ -32,6 +32,9 @@ static const char **_gs_argv;
 static pthread_mutex_t _gs_mutex;
 static pthread_cond_t _gs_cond;
 
+/* all loaded modules(dict) */
+static Object *_gc_modules;
+
 /*-------------------------------------API-----------------------------------*/
 
 void kl_run_ks(KoalaState *ks);
@@ -101,6 +104,7 @@ static void *koala_pthread_func(void *arg)
     log_info("Thread-%d is done.", ts->id);
 
     /* simulate gc(later delete) */
+#if 0
     ts->state = TS_RUNNING;
     int i = 0;
     while (1) {
@@ -114,6 +118,7 @@ static void *koala_pthread_func(void *arg)
             gc_alloc(80, NULL);
         }
     }
+#endif
 }
 
 static void init_threads(int nthreads)
@@ -123,8 +128,19 @@ static void init_threads(int nthreads)
     _threads = mm_alloc_fast(sizeof(ThreadState) * nthreads);
     ASSERT(_threads);
 
-    for (int i = 0; i < nthreads; i++) {
-        ThreadState *ts = _threads + i;
+    /* initialize main thread as koala thread */
+    ThreadState *ts = _threads;
+    lldq_init(&ts->run_list);
+    ts->current = NULL;
+    ts->id = 1;
+    ts->steal_count = 0;
+    ts->state = TS_RUNNING;
+    pthread_setspecific(__local_key, ts);
+    ts->current = ks_new();
+
+    /* initialize other koala threads */
+    for (int i = 1; i < nthreads; i++) {
+        ts = _threads + i;
         lldq_init(&ts->run_list);
         ts->current = NULL;
         ts->id = i + 1;
@@ -154,7 +170,7 @@ void kl_init(int argc, const char *argv[])
     pthread_key_create(&__local_key, NULL);
 
     /* init koala threads */
-    init_threads(3);
+    init_threads(2);
 
     /* init koala builtin module */
 }
@@ -197,14 +213,13 @@ static void clear_done_state(void)
 }
 
 /* monitor */
-void kl_run(const char *filename)
+void kl_run_file(const char *filename)
 {
     /* load klc and run */
 
     while (1) {
         /* monitor koala threads */
-        // if (done()) break;
-        done();
+        if (done()) break;
 
         clear_done_state();
         sleep(1);
@@ -247,7 +262,7 @@ static void enum_koala_state(Queue *que, KoalaState *ks)
         v = ks->base_stack_ptr + i;
         if (v->tag & 0x1) {
             obj = v->obj;
-            if (obj->ob_gchdr.age != -1) {
+            if (obj->gc_age != -1) {
                 gc_mark(obj, GC_COLOR_GRAY);
                 queue_push(que, obj);
             }

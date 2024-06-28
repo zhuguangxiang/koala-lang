@@ -6,9 +6,28 @@
 #ifndef _KOALA_CODE_OBJECT_H_
 #define _KOALA_CODE_OBJECT_H_
 
+#include "object.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct _CodeObject {
+    OBJECT_HEAD
+    /* positional arguments number */
+    int nargs;
+    /* all locals, include arguments */
+    int nlocals;
+    /* max number of call parameters */
+    int stack_size;
+    /* byte code instruction */
+    char *codes;
+    /* default keyword arguments */
+    Object *kwargs;
+} CodeObject;
+
+extern TypeObject code_type;
+#define IS_CODE(ob) IS_TYPE((ob), &code_type)
 
 #ifdef __cplusplus
 }

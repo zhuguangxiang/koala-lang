@@ -4,6 +4,8 @@
  */
 
 #include "eval.h"
+#include "cfuncobject.h"
+#include "codeobject.h"
 #include "mm.h"
 #include "run.h"
 
@@ -20,9 +22,6 @@ extern "C" {
 #define MAX_CALL_DEPTH 10000
 
 /*-------------------------------------API-----------------------------------*/
-
-/* forward declaration */
-int _eval_frame(KoalaState *ks, CallFrame *cf);
 
 static CallFrame *_new_frame(KoalaState *ks)
 {
@@ -80,7 +79,7 @@ void ks_free(KoalaState *ks)
     mm_free(ks);
 }
 
-int _eval_frame(KoalaState *ks, CallFrame *cf)
+static Value _eval_frame(KoalaState *ks, CallFrame *cf)
 {
     int retval = 0;
     int op;
@@ -126,7 +125,27 @@ main_loop:
     /* pop frame */
     ks->cf = cf->cf_back;
     --ks->depth;
-    return retval;
+    return NoneValue();
+}
+
+Value kl_eval_code(Object *code, Value *args, int nargs, Object *kwargs)
+{
+    ASSERT(IS_CODE(code));
+
+    KoalaState *ks = __ks();
+
+    /* build a call frame */
+    CallFrame *cf = _new_frame(ks);
+
+    /* copy arguments */
+
+    /* eval the call frame */
+    Value result = _eval_frame(ks, cf);
+
+    /* pop frame to free list */
+    _pop_frame(ks, cf);
+
+    return result;
 }
 
 #ifdef __cplusplus

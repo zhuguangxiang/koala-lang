@@ -19,18 +19,38 @@ typedef void (*GcMarkFunc)(void **);
 #define GC_COLOR_BLACK 3
 
 /* clang-format off */
-#define GC_OBJECT_HEAD LLDqNode link; GcMarkFunc mark; int size; \
-    short age; short color;
+#define GC_HEAD LLDqNode gc_link; GcMarkFunc gc_mark; int gc_size; \
+    short gc_color; short gc_age;
 /* clang-format on */
 
 typedef struct _GcHdr {
-    GC_OBJECT_HEAD
+    GC_HEAD
 } GcHdr;
 
 /* clang-format off */
-#define GC_HEAD_INIT(hdr, _mark, _size, _age, _color) \
-    .hdr = { .link = { NULL }, .mark = (_mark), .size = (_size), .age = (_age), .color = (_color), }
+#define GC_HEAD_INIT(_mark, _size, _color, _age) \
+    .gc_link = { NULL }, .gc_mark = (_mark), .gc_size = (_size), .gc_color = (_color), .gc_age = (_age)
+
+#define INIT_GC_HEAD(hdr, _size, _color, _age) \
+    (hdr).gc_size = (_size); (hdr).gc_color = (_color); (hdr).gc_age = (_age)
 /* clang-format on */
+
+#define GC_ARRAY_INT8    1
+#define GC_ARRAY_INT16   2
+#define GC_ARRAY_INT32   3
+#define GC_ARRAY_INT64   4
+#define GC_ARRAY_FLOAT32 5
+#define GC_ARRAY_FLOAT64 6
+#define GC_ARRAY_OBJECT  7
+#define GC_ARRAY_VALUE   8
+
+typedef struct _GcArray {
+    GC_HEAD
+    /* one of GC_ARRAY_XXX */
+    int kind;
+    /* real data */
+    char data[0];
+} GcArray;
 
 extern volatile char *__gc_check_ptr;
 
@@ -52,7 +72,8 @@ typedef enum _GcState {
 
 void init_gc_system(size_t max_mem_size, double load_factor);
 void *gc_alloc(int size, GcMarkFunc mark);
-#define gc_mark(obj, _color) ((GcHdr *)(obj))->color = (_color)
+#define gc_mark(obj, _color) ((GcHdr *)(obj))->gc_color = (_color)
+void *gc_alloc_perm(int size);
 
 #ifdef __cplusplus
 }

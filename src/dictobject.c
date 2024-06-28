@@ -3,22 +3,18 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "eval.h"
-#include "object.h"
+#include "dictobject.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-TypeObject type_type = {
-    OBJECT_HEAD_INIT(&type_type),
-    .name = "type",
-    .offset_kwargs = offsetof(TypeObject, kwargs),
-};
+static Value _dict_call(Value *self, Value *args, int nargs, Object *kwargs) {}
 
-TypeObject object_type = {
+TypeObject dict_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "object",
+    .name = "dict",
+    .call = _dict_call,
 };
 
 #ifdef __cplusplus
