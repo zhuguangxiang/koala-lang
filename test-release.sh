@@ -1,15 +1,12 @@
 #!/bin/bash
 
-rm -rf build/$1
-
-mkdir -p build/$1 && cd build/$1
+mkdir -p build/Release && cd build/Release
 
 cmake -G Ninja ../.. \
-    -DCMAKE_BUILD_TYPE=$1 \
-    -DCMAKE_VERBOSE_MAKEFILE=ON \
+    -DCMAKE_BUILD_TYPE=Release \
     -DSKIP_TESTS=OFF
 
 cmake --build . --target clean
 cmake --build . --target all
 cmake --build . --target test
-# cmake --build . --target check
+cmake --build . --target check

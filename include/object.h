@@ -24,7 +24,7 @@ typedef struct _Object {
 } Object;
 
 #define OBJECT_HEAD_INIT(_type) \
-    GC_HEAD_INIT(NULL, 0, -1, GC_COLOR_BLACK), .ob_type = (_type)
+    GC_HEAD_INIT(0, -1, GC_COLOR_BLACK), .ob_type = (_type)
 
 #define INIT_OBJECT_HEAD(_ob, _type) (_ob)->ob_type = (_type)
 
@@ -141,7 +141,7 @@ typedef struct _CFuncDef {
     const char *args_types;
     /* The koala return type */
     const char *ret_type;
-} CFuncDef;
+} MethodDef;
 
 typedef Value (*GetterFunc)(Value *, void *);
 typedef int (*SetterFunc)(Value *, Value *, void *);
@@ -162,8 +162,7 @@ typedef struct _GetSetDef {
 #define MT_INT64   2
 #define MT_FLOAT32 3
 #define MT_FLOAT64 4
-#define MT_STRING  5
-#define MT_OBJECT  6
+#define MT_OBJECT  5
 
 typedef struct _MemberDef {
     /* The name of the member */
@@ -174,17 +173,29 @@ typedef struct _MemberDef {
     int offset;
 } MemberDef;
 
-typedef void (*MarkFunc)(Object **);
+#define TP_FLAGS_CLASS    (1 << 0)
+#define TP_FLAGS_TRAIT    (1 << 1)
+#define TP_FLAGS_ABSTRACT (1 << 2)
+#define TP_FLAGS_PUBLIC   (1 << 3)
+#define TP_FLAGS_FINAL    (1 << 4)
+#define TP_FLAGS_HEAP     (1 << 5)
+
+/* clang-format off */
+#define KLASS_OBJECT_HEAD OBJECT_HEAD char *name; int flags;
+/* clang-format on */
+
+typedef struct _KlassObject {
+    KLASS_OBJECT_HEAD
+} KlassObject;
 
 typedef struct _TypeObject {
-    OBJECT_HEAD
-    /* the meta type's name */
-    char *name;
+    KLASS_OBJECT_HEAD
 
+    /* object with default kwargs */
     int offset_kwargs;
 
     /* gc mark function */
-    MarkFunc mark;
+    GcMarkFunc mark;
 
     /* init function */
     /* fini function */
@@ -215,7 +226,7 @@ typedef struct _TypeObject {
     SequenceMethods *as_seq;
 
     /* method definitions */
-    CFuncDef *methods;
+    MethodDef *methods;
     /* getset definitions */
     GetSetDef *getsets;
     /* member definitions */
@@ -223,7 +234,7 @@ typedef struct _TypeObject {
 
     /* base class and traits */
     struct _TypeObject *base;
-    Vector *traits;
+    struct _TraitObject **traits;
 
     /* attributes(fields, getsets and members) */
     Vector *attrs;
@@ -237,6 +248,14 @@ typedef struct _TypeObject {
 } TypeObject;
 
 extern TypeObject type_type;
+
+typedef struct _TraitObject {
+    KLASS_OBJECT_HEAD
+    /* abstract method definitions */
+    MethodDef *methods;
+    /* parent traits */
+    struct _TraitObject **traits;
+} TraitObject;
 
 static inline Object *get_default_kwargs(Object *obj)
 {

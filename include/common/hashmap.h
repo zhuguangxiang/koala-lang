@@ -40,34 +40,46 @@
 #define _KOALA_HASHMAP_H_
 
 #include "common.h"
-#include "hash.h"
+#include "hlist.h"
+#include "list.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/*
+ * Ready-to-use hash functions for strings, using the FNV-1 algorithm.
+ * (see http://www.isthe.com/chongo/tech/comp/fnv).
+ * `str_hash` takes 0-terminated strings.
+ * `mem_hash` operates on arbitrary-length memory.
+ */
+
+unsigned int str_hash(const char *buf);
+unsigned int mem_hash(const void *buf, int len);
 
 typedef int (*HashMapEqualFunc)(void *, void *);
 typedef void (*HashMapVisitFunc)(void *, void *);
 
 /* a hashmap entry is in the hashmap. */
 typedef struct _HashMapEntry {
-    /*
-     * pointer to the next entry in collision list,
-     * if multiple entries map to the same slots.
-     */
-    struct _HashMapEntry *next;
+    /* conflict list */
+    HListNode hnode;
     /* entry's hash code */
     unsigned int hash;
+    /* ordered list */
+    List ord_node;
 } HashMapEntry;
 
 /* a hashmap structure. */
 typedef struct _HashMap {
     /* collision list array */
-    HashMapEntry **entries;
-    /* entries array size */
-    int size;
+    HListHead *entries;
+    /* ordered list */
+    List ord_list;
     /* equal callback */
     HashMapEqualFunc equal;
+    /* entries array size */
+    int size;
     /* total number of entries */
     int count;
     /* expand entries point */
@@ -76,12 +88,34 @@ typedef struct _HashMap {
     int shrink_at;
 } HashMap;
 
+/* Hashmap iterator context */
+typedef struct _HashMapIter {
+    /* internal state */
+    int state;
+    /* current node */
+    HashMapEntry *entry;
+    /* next node */
+    HashMapEntry *next;
+    /* closure */
+    void *arg;
+} HashMapIter;
+
+/* next() iterator, 1 continue, 0 finished */
+int hashmap_next(HashMap *self, HashMapIter *it);
+
+/* prev() iterator, 1 continue, 0 finished */
+int hashmap_prev(HashMap *self, HashMapIter *it);
+
+/* get entry from iterator */
+#define hashmap_entry(it) ((it)->entry)
+
 /* Initialize a HashMapEntry structure. */
 static inline void hashmap_entry_init(void *entry, unsigned int hash)
 {
     HashMapEntry *e = (HashMapEntry *)entry;
     e->hash = hash;
-    e->next = NULL;
+    init_hlist_node(&e->hnode);
+    init_list(&e->ord_node);
 }
 
 /* Return the number of items in the map. */
@@ -121,9 +155,6 @@ void *hashmap_put(HashMap *self, void *entry);
 
 /* Removes a hashmap entry matching the specified key. */
 void *hashmap_remove(HashMap *self, void *key);
-
-/* Visit the hashmap, safely when `visit` removes entry, not suggest do it. */
-void hashmap_visit(HashMap *self, HashMapVisitFunc visit, void *arg);
 
 #ifdef __cplusplus
 }

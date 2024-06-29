@@ -10,16 +10,6 @@
 extern "C" {
 #endif
 
-/*
- * Ready-to-use hash functions for strings, using the FNV-1 algorithm.
- * (see http://www.isthe.com/chongo/tech/comp/fnv).
- * `str_hash` takes 0-terminated strings.
- * `mem_hash` operates on arbitrary-length memory.
- */
-
-unsigned int str_hash(const char *buf);
-unsigned int mem_hash(const void *buf, int len);
-
 #ifdef __cplusplus
 }
 #endif

@@ -22,7 +22,7 @@ static Value _hello(Value *self, Value *unused)
     return NoneValue();
 }
 
-CFuncDef method = {
+MethodDef method = {
     "hello",
     _hello,
     METH_NO_ARGS,

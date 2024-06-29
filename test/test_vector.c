@@ -121,6 +121,7 @@ void test_vector(void)
 int main(int argc, char *argv[])
 {
     test_vector();
+    printf("done\n");
     return 0;
 }
 

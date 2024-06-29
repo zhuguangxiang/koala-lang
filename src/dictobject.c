@@ -9,6 +9,7 @@
 extern "C" {
 #endif
 
+/* dict(iterable Iterable = None) */
 static Value _dict_call(Value *self, Value *args, int nargs, Object *kwargs) {}
 
 TypeObject dict_type = {

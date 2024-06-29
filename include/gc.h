@@ -19,8 +19,7 @@ typedef void (*GcMarkFunc)(void **);
 #define GC_COLOR_BLACK 3
 
 /* clang-format off */
-#define GC_HEAD LLDqNode gc_link; GcMarkFunc gc_mark; int gc_size; \
-    short gc_color; short gc_age;
+#define GC_HEAD LLDqNode gc_link; int gc_size; short gc_color; short gc_age;
 /* clang-format on */
 
 typedef struct _GcHdr {
@@ -28,8 +27,8 @@ typedef struct _GcHdr {
 } GcHdr;
 
 /* clang-format off */
-#define GC_HEAD_INIT(_mark, _size, _color, _age) \
-    .gc_link = { NULL }, .gc_mark = (_mark), .gc_size = (_size), .gc_color = (_color), .gc_age = (_age)
+#define GC_HEAD_INIT(_size, _color, _age) \
+    .gc_link = { NULL }, .gc_size = (_size), .gc_color = (_color), .gc_age = (_age)
 
 #define INIT_GC_HEAD(hdr, _size, _color, _age) \
     (hdr).gc_size = (_size); (hdr).gc_color = (_color); (hdr).gc_age = (_age)
@@ -70,10 +69,11 @@ typedef enum _GcState {
     GC_FULL,
 } GcState;
 
-void init_gc_system(size_t max_mem_size, double load_factor);
-void *gc_alloc(int size, GcMarkFunc mark);
+void init_gc_system(size_t max_mem_size, double factor);
+void *_gc_alloc(int size, int perm);
+static inline void *gc_alloc(int size) { return _gc_alloc(size, 0); }
+static inline void *gc_alloc_perm(int size) { return _gc_alloc(size, 1); }
 #define gc_mark(obj, _color) ((GcHdr *)(obj))->gc_color = (_color)
-void *gc_alloc_perm(int size);
 
 #ifdef __cplusplus
 }

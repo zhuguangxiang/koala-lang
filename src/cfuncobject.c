@@ -65,10 +65,10 @@ TypeObject cfunc_type = {
     .offset_kwargs = offsetof(CFuncObject, kwargs),
 };
 
-Object *kl_new_cfunc(CFuncDef *def)
+Object *kl_new_cfunc(MethodDef *def)
 {
     int msize = sizeof(CFuncObject);
-    Object *obj = gc_alloc(msize, NULL);
+    Object *obj = gc_alloc(msize);
     INIT_OBJECT_HEAD(obj, &cfunc_type);
     ((CFuncObject *)(obj))->def = def;
     return obj;

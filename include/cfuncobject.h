@@ -15,7 +15,7 @@ extern "C" {
 typedef struct _CFuncObject {
     OBJECT_HEAD
     /* cfunc definition */
-    CFuncDef *def;
+    MethodDef *def;
     /* default kwargs */
     Object *kwargs;
 } CFuncObject;
@@ -33,7 +33,7 @@ typedef Value (*CFuncFast)(Value *, Value *, int);
 typedef Value (*CFuncWithKeywords)(Value *, Value *, Object *);
 typedef Value (*CFuncFastWithKeywords)(Value *, Value *, int, Object *);
 
-Object *kl_new_cfunc(CFuncDef *def);
+Object *kl_new_cfunc(MethodDef *def);
 
 #ifdef __cplusplus
 }

@@ -66,6 +66,7 @@ void test_hashmap(void)
 int main(int argc, char *argv[])
 {
     test_hashmap();
+    printf("hashmap test done\n");
     return 0;
 }
 

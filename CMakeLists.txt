@@ -28,6 +28,9 @@ set(CMAKE_C_EXTENSIONS on)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
+set(ENV(KOALA_PATH) ${PROJECT_BINARY_DIR}/libs)
+set(ENV(LD_LIBRARY_PATH) ${PROJECT_BINARY_DIR}/lib)
+
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
@@ -57,4 +60,5 @@ option(SKIP_TESTS "running test" OFF)
 if(NOT SKIP_TESTS)
     enable_testing()
     add_subdirectory(test)
+    add_subdirectory(test-kl)
 endif()

@@ -122,7 +122,7 @@ static void *free_obj(GcHdr *hdr)
     free(hdr);
 }
 
-static GcHdr *alloc_obj(int size, int minor)
+static GcHdr *alloc_obj(int size, int minor, int perm)
 {
     ThreadState *ts = __ts();
     UNUSED(ts);
@@ -149,16 +149,24 @@ static GcHdr *alloc_obj(int size, int minor)
     ASSERT(hdr);
     lldq_node_init(&hdr->gc_link);
     hdr->gc_size = size;
-    hdr->gc_age = 0;
-    if (_gc_state == GC_DONE) {
+    if (perm) {
+        hdr->gc_age = -2;
         hdr->gc_color = GC_COLOR_WHITE;
-        lldq_push_tail(&_gc_list, &hdr->gc_link);
+        lldq_push_tail(&_gc_perm_list, &hdr->gc_link);
+        log_info("[Mutator]Thread-%d, permanent object, size: %ld", ts->id,
+                 size);
     } else {
-        hdr->gc_color = GC_COLOR_BLACK;
-        lldq_push_tail(&_gc_remark_list, &hdr->gc_link);
+        hdr->gc_age = 0;
+        if (_gc_state == GC_DONE) {
+            hdr->gc_color = GC_COLOR_WHITE;
+            lldq_push_tail(&_gc_list, &hdr->gc_link);
+        } else {
+            hdr->gc_color = GC_COLOR_BLACK;
+            lldq_push_tail(&_gc_remark_list, &hdr->gc_link);
+        }
     }
 
-    log_info("[Mutator]Thread-%d, successful, obj_size: %ld", ts->id, size);
+    log_info("[Mutator]Thread-%d, successful, size: %ld", ts->id, size);
 
     return hdr;
 
@@ -167,7 +175,7 @@ exit:
     return NULL;
 }
 
-void *gc_alloc(int size, GcMarkFunc mark)
+void *_gc_alloc(int size, int perm)
 {
     ThreadState *ts = __ts();
     ASSERT(ts->state == TS_RUNNING);
@@ -181,14 +189,14 @@ void *gc_alloc(int size, GcMarkFunc mark)
         switch (_gc_state) {
             case GC_DONE: {
                 /* normal case */
-                hdr = alloc_obj(mm_size, 1);
+                hdr = alloc_obj(mm_size, 1, perm);
                 if (!hdr) goto suspend;
                 goto done;
             }
             case GC_CO_MARK: /* fall-through */
             case GC_CO_SWEEP: {
                 /* normal case */
-                hdr = alloc_obj(mm_size, 0);
+                hdr = alloc_obj(mm_size, 0, perm);
                 if (!hdr) goto suspend;
                 goto done;
             }
@@ -213,7 +221,7 @@ void *gc_alloc(int size, GcMarkFunc mark)
     }
 
 done:
-    hdr->gc_mark = mark;
+
     return hdr;
 }
 
@@ -388,7 +396,7 @@ static void *gc_pthread_func(void *arg)
     return NULL;
 }
 
-void init_gc_system(size_t max_mem_size, double load_factor)
+void init_gc_system(size_t max_mem_size, double factor)
 {
     _pagesize = sysconf(_SC_PAGE_SIZE);
     char *addr =
@@ -424,7 +432,7 @@ void init_gc_system(size_t max_mem_size, double load_factor)
     _mutator_wait_flag = 0;
 
     _gc_max_size = max_mem_size;
-    _gc_minor_size = (size_t)(max_mem_size * load_factor);
+    _gc_minor_size = (size_t)(max_mem_size * factor);
     _gc_used_size = 0;
 
     pthread_spin_init(&_gc_spin_lock, 0);

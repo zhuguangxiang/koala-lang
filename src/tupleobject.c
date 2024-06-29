@@ -11,13 +11,13 @@ extern "C" {
 
 TypeObject tuple_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "tuple",
+    .name = "Tuple",
 };
 
 Object *kl_new_tuple(int size)
 {
     int msize = sizeof(TupleObject) + size * sizeof(Value);
-    Object *tuple = gc_alloc(msize, NULL);
+    Object *tuple = gc_alloc(msize);
     INIT_OBJECT_HEAD(tuple, &tuple_type);
     return tuple;
 }
