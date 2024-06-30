@@ -41,47 +41,28 @@ typedef struct _Value {
     int tag;
 } Value;
 
-#define VAL_TAG_NONE 1
-#define VAL_TAG_ERR  2
-#define VAL_TAG_I8   3
-#define VAL_TAG_I16  4
-#define VAL_TAG_I32  5
-#define VAL_TAG_I64  6
-#define VAL_TAG_F32  7
-#define VAL_TAG_F64  8
-#define VAL_TAG_OBJ  9
+#define VAL_TAG_OBJ  (1 << 0)
+#define VAL_TAG_NONE (1 << 1)
+#define VAL_TAG_ERR  (1 << 2)
+#define VAL_TAG_BOOL (1 << 3)
+#define VAL_TAG_INT  (1 << 4)
+#define VAL_TAG_FLT  (1 << 5)
+
+#define IS_OBJECT(x) ((x)->tag & VAL_TAG_OBJ)
+#define IS_NONE(x)   ((x)->tag & VAL_TAG_NONE)
+#define IS_ERROR(x)  ((x)->tag & VAL_TAG_ERR)
+#define IS_BOOL(x)   ((x)->tag & VAL_TAG_BOOL)
+#define IS_INT(x)    ((x)->tag & VAL_TAG_INT)
+#define IS_FLOAT(x)  ((x)->tag & VAL_TAG_FLT)
 
 /* clang-format off */
-
-#define IS_INT32(x) ((x)->tag == VAL_TAG_I32)
-#define IS_INT64(x) ((x)->tag == VAL_TAG_I64)
-#define IS_INT(x)   (IS_INT32(x) || IS_INT64(x))
-
-#define IS_FLOAT32(x) ((x)->tag == VAL_TAG_F32)
-#define IS_FLOAT64(x) ((x)->tag == VAL_TAG_F64)
-#define IS_FLOAT(x)   (IS_FLOAT32(x) || IS_FLOAT64(x))
-
-#define IS_ERROR(x) ((x)->tag == VAL_TAG_ERR)
-#define IS_NONE(x)  ((x)->tag == VAL_TAG_NONE)
-
-#define IS_OBJECT(x) ((x)->tag == VAL_TAG_OBJ)
-
-#define Int32Value(x) (Value){.ival = (x), .tag = VAL_TAG_I32}
-#define Int64Value(x) (Value){.ival = (x), .tag = VAL_TAG_I64}
-
-#if defined(ENV64BITS)
-    #define IntValue(x) Int64Value(x)
-#elif defined(ENV32BITS)
-    #define IntValue(x) Int32Value(x)
-#else
-    #error "Unknown CC bitwise."
-#endif
-
-#define ObjectValue(_obj) (Value){.obj = (_obj), .tag = VAL_TAG_OBJ}
-
-#define NoneValue()  (Value){0, VAL_TAG_NONE}
-#define ErrorValue() (Value){0, VAL_TAG_ERR}
-
+#define ObjectValue(x)  (Value){ .obj = (x),  .tag = VAL_TAG_OBJ  }
+#define NoneValue()     (Value){ .ival = 0,   .tag = VAL_TAG_NONE }
+#define ErrorValue()    (Value){ .ival = 0,   .tag = VAL_TAG_ERR  }
+#define TrueValue       (Value){ .ival = 1,   .tag = VAL_TAG_BOOL }
+#define FalseValue      (Value){ .ival = 0,   .tag = VAL_TAG_BOOL }
+#define IntValue(x)     (Value){ .ival = (x), .tag = VAL_TAG_INT  }
+#define FloatValue(x)   (Value){ .fval = (x), .tag = VAL_TAG_FLT  }
 /* clang-format on */
 
 typedef unsigned int (*HashFunc)(Value *self);
@@ -98,6 +79,7 @@ typedef Value (*GetItemFunc)(Value *, Value *);
 typedef int (*SetItemFunc)(Value *, Value *, Value *);
 typedef int (*ContainsFunc)(Value *, Value *);
 
+/* number protocol methods */
 typedef struct _NumberMethods {
     BinaryFunc add;
     BinaryFunc sub;
@@ -112,16 +94,18 @@ typedef struct _NumberMethods {
     UnaryFunc not;
     BinaryFunc shl;
     BinaryFunc shr;
-    BinaryFunc ushr;
     /* clang-format on */
 } NumberMethods;
 
+/* sequence protocol methods */
 typedef struct _SequenceMethods {
     LenFunc len;
     BinaryFunc concat;
     ContainsFunc contains;
-    GetItemFunc getitem;
-    SetItemFunc setitem;
+    GetItemFunc item;
+    SetItemFunc set_item;
+    GetItemFunc slice;
+    SetItemFunc set_slice;
 } SequenceMethods;
 
 typedef struct _CFuncDef {

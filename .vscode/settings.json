@@ -40,12 +40,12 @@
     "files.trimFinalNewlines": true,
     "files.insertFinalNewline": true,
     "notebook.insertFinalNewline": true,
-    "cmake.configureOnOpen": false,
-    "cmake.configureOnEdit": false,
-    "cmake.automaticReconfigure": false,
+    "cmake.configureOnOpen": true,
+    "cmake.configureOnEdit": true,
+    "cmake.automaticReconfigure": true,
     "editor.fontWeight": "normal",
     "debug.console.fontFamily": "'JetBrains Mono'",
-    "editor.fontSize": 14,
+    "editor.fontSize": 14.5,
     "editor.scrollbar.verticalScrollbarSize": 1,
     "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
@@ -61,4 +61,7 @@
             }
         ]
     },
+    "cmake.options.statusBarVisibility": "compact",
+    "cmake.useCMakePresets": "auto",
+    "terminal.integrated.fontSize": 14,
 }

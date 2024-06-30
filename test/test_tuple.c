@@ -20,11 +20,11 @@ void test_tuple(void)
 
     for (int i = 0; i < TUPLE_SIZE(x); i++) {
         ASSERT(IS_NONE(val + i));
-        val[i] = Int32Value(100 + i);
+        val[i] = IntValue(100 + i);
     }
 
     for (int i = 0; i < TUPLE_SIZE(x); i++) {
-        ASSERT(IS_INT32(val + i));
+        ASSERT(IS_INT(val + i));
     }
 }
 
