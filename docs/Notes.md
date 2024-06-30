@@ -30,3 +30,25 @@
 - [Koka](https://koka-lang.github.io/koka/doc/index.html, "A Functional Language with Effect Types and Handlers")
 - [mimalloc](https://github.com/microsoft/mimalloc)
 - handle SIGSEGV nostop noprint
+
+LISP有哪些抽象概念
+
+字符串模式匹配算法
+
+开发必备：
+
+- Java
+- clang/llvm
+- gcc/gdb/cmake
+- flex bison
+- git
+-  pip install -U cmake ninja clang-format lit FileCheck
+- tmux
+  - Ctrl + b
+- python
+  - python3 -m venv .venv
+  - source .venv/bin/activate
+  - pip install pysocks
+  - deactivate
+- proxy
+  - v2raya v2ray

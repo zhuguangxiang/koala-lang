@@ -119,7 +119,7 @@ static void *free_obj(GcHdr *hdr)
     pthread_spin_lock(&_gc_spin_lock);
     _gc_used_size -= hdr->gc_size;
     pthread_spin_unlock(&_gc_spin_lock);
-    free(hdr);
+    mm_free(hdr);
 }
 
 static GcHdr *alloc_obj(int size, int minor, int perm)
@@ -145,7 +145,7 @@ static GcHdr *alloc_obj(int size, int minor, int perm)
         pthread_spin_unlock(&_gc_spin_lock);
     }
 
-    GcHdr *hdr = malloc(size);
+    GcHdr *hdr = mm_alloc_fast(size);
     ASSERT(hdr);
     lldq_node_init(&hdr->gc_link);
     hdr->gc_size = size;

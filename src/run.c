@@ -26,7 +26,7 @@ static LLDeque _gc_done_list;
 static LLDeque _gs_run_list;
 /* arguments from prompt */
 static int _gs_argc;
-static const char **_gs_argv;
+static char **_gs_argv;
 
 /* waiting for available KoalaState */
 static pthread_mutex_t _gs_mutex;
@@ -151,7 +151,7 @@ static void init_threads(int nthreads)
     }
 }
 
-void kl_init(int argc, const char *argv[])
+void kl_init(int argc, char *argv[])
 {
     /* init garbage collection */
     init_gc_system(MAX_GC_MEM_SIZE, 0.8f);
@@ -260,7 +260,7 @@ static void enum_koala_state(Queue *que, KoalaState *ks)
     Object *obj;
     for (int i = 0; i < ks->stack_size; i++) {
         v = ks->base_stack_ptr + i;
-        if (v->tag & 0x1) {
+        if (v->tag & VAL_TAG_OBJ) {
             obj = v->obj;
             if (obj->gc_age != -1) {
                 gc_mark(obj, GC_COLOR_GRAY);

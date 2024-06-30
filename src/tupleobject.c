@@ -17,9 +17,14 @@ TypeObject tuple_type = {
 Object *kl_new_tuple(int size)
 {
     int msize = sizeof(TupleObject) + size * sizeof(Value);
-    Object *tuple = gc_alloc(msize);
-    INIT_OBJECT_HEAD(tuple, &tuple_type);
-    return tuple;
+    TupleObject *x = gc_alloc(msize);
+    INIT_OBJECT_HEAD(x, &tuple_type);
+    x->size = size;
+    for (int i = 0; i < size; i++) {
+        Value *val = (Value *)(x + 1);
+        val[i] = NoneValue();
+    }
+    return (Object *)x;
 }
 
 #ifdef __cplusplus

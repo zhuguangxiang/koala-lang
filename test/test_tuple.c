@@ -11,7 +11,22 @@
 extern "C" {
 #endif
 
-void test_tuple(void) {}
+void test_tuple(void)
+{
+    Object *x = kl_new_tuple(3);
+    ASSERT(TUPLE_SIZE(x) == 3);
+
+    Value *val = TUPLE_ITEMS(x);
+
+    for (int i = 0; i < TUPLE_SIZE(x); i++) {
+        ASSERT(IS_NONE(val + i));
+        val[i] = Int32Value(100 + i);
+    }
+
+    for (int i = 0; i < TUPLE_SIZE(x); i++) {
+        ASSERT(IS_INT32(val + i));
+    }
+}
 
 int main(int argc, char *argv[])
 {

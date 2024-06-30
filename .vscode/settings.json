@@ -15,8 +15,50 @@
         "vector": "c"
     },
     "cSpell.words": [
+        "ABCDEFGHIJKLMNOPQRSTUWXYZ",
+        "CMPG",
+        "getitem",
         "getset",
+        "getsets",
         "hashable",
-        "ucbuf"
-    ]
+        "hashset",
+        "lldq",
+        "mptr",
+        "oldentries",
+        "pprev",
+        "setitem",
+        "traceback",
+        "ucbuf",
+        "unhashed",
+        "USHR"
+    ],
+    "editor.fontFamily": "'JetBrains Mono'",
+    "terminal.integrated.fontFamily": "'JetBrains Mono'",
+    "editor.formatOnSave": true,
+    "notebook.formatOnSave.enabled": true,
+    "files.trimTrailingWhitespace": true,
+    "files.trimFinalNewlines": true,
+    "files.insertFinalNewline": true,
+    "notebook.insertFinalNewline": true,
+    "cmake.configureOnOpen": false,
+    "cmake.configureOnEdit": false,
+    "cmake.automaticReconfigure": false,
+    "editor.fontWeight": "normal",
+    "debug.console.fontFamily": "'JetBrains Mono'",
+    "editor.fontSize": 14,
+    "editor.scrollbar.verticalScrollbarSize": 1,
+    "editor.smoothScrolling": true,
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            {
+                "scope": [
+                    "comment",
+                    "punctuation.definition.comment",
+                ],
+                "settings": {
+                    "fontStyle": ""
+                }
+            }
+        ]
+    },
 }

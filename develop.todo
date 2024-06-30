@@ -1,0 +1,12 @@
+
+☐ 'Todo: Open' // Open or create your project's todo file
+✔ 'Todo: Open Embedded' // Open embedded todos @done(24-06-29 21:25)
+✘ 'Todo: Toggle Box' // Toggle todo's box symbol @cancelled(24-06-29 21:25)
+'Todo: Toggle Done' // Toggle todo's done symbol
+'Todo: Toggle Cancelled' // Toggle todo's cancelled symbol
+'Todo: Toggle Start' // Toggle a todo as started
+'Todo: Toggle Timer' // Toggle the timer
+'Todo: Archive' // Archive finished todos
+'Todo: Embedded View - Filter' // Filter the embedded todos view
+'Todo: Embedded View - Clear Filter' // Clear the filter in the embedded todos view
+☐ 'Embedded View - Toggle View All Files' // Toggle between viewing all files or only the current one

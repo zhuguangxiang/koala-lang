@@ -12,7 +12,8 @@
             "defines": [
                 "__FILE_NAME__",
                 "LOG_COLOR",
-                "MAX_GC_MEM_SIZE"
+                "MAX_GC_MEM_SIZE",
+                "ENV64BITS",
             ]
         }
     ],

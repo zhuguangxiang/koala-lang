@@ -34,7 +34,7 @@ typedef struct _ThreadState {
 #define TS_GC_STW  3 /* waiting for gc has more memory */
 } ThreadState;
 
-void kl_init(int argc, const char *argv[]);
+void kl_init(int argc, char *argv[]);
 void kl_run_file(const char *filename);
 void kl_fini(void);
 

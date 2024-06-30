@@ -33,61 +33,53 @@ typedef struct _Object {
 #define IS_TYPE(ob, type) (OB_TYPE(ob) == type)
 
 typedef struct _Value {
-    /* value */
     union {
         int64_t ival;
         double fval;
         Object *obj;
     };
-    /* tag */
-    uintptr_t tag : 4;
+    int tag;
 } Value;
 
-/*
-    +-------+----------------+
-    |  tag  |   value        |
-    +-------+----------------+
-    |  0000 |  int32         |
-    +-------+----------------+
-    |  0010 |  int64         |
-    +-------+----------------+
-    |  0100 |  float32       |
-    +-------+----------------+
-    |  0110 |  float54       |
-    +-------+----------------+
-    |  1010 |  Error         |
-    +-------+----------------+
-    |  1110 |  None          |
-    +-------+----------------+
-    |  1111 |  obj(gc)       |
-    +-------+----------------+
-*/
-#define VAL_TAG_I32  0b0000
-#define VAL_TAG_I64  0b0010
-#define VAL_TAG_F32  0b0100
-#define VAL_TAG_F64  0b0110
-#define VAL_TAG_ERR  0b1010
-#define VAL_TAG_NONE 0b1110
-#define VAL_TAG_OBJ  0b1111
+#define VAL_TAG_NONE 1
+#define VAL_TAG_ERR  2
+#define VAL_TAG_I8   3
+#define VAL_TAG_I16  4
+#define VAL_TAG_I32  5
+#define VAL_TAG_I64  6
+#define VAL_TAG_F32  7
+#define VAL_TAG_F64  8
+#define VAL_TAG_OBJ  9
 
 /* clang-format off */
 
-#define IS_INT32(val) ((val)->tag == VAL_TAG_I32)
-#define IS_INT64(val) ((val)->tag == VAL_TAG_I64)
-#define IS_INT(val) (IS_INT32(val) || IS_INT64(val))
+#define IS_INT32(x) ((x)->tag == VAL_TAG_I32)
+#define IS_INT64(x) ((x)->tag == VAL_TAG_I64)
+#define IS_INT(x)   (IS_INT32(x) || IS_INT64(x))
 
-#define IS_FLOAT32(val) ((val)->tag == VAL_TAG_F32)
-#define IS_FLOAT64(val) ((val)->tag == VAL_TAG_F64)
-#define IS_FLOAT(val) (IS_FLOAT32(val) || IS_FLOAT64(val))
+#define IS_FLOAT32(x) ((x)->tag == VAL_TAG_F32)
+#define IS_FLOAT64(x) ((x)->tag == VAL_TAG_F64)
+#define IS_FLOAT(x)   (IS_FLOAT32(x) || IS_FLOAT64(x))
 
-#define IS_ERROR(val) ((val)->tag == VAL_TAG_ERR)
-#define IS_NONE(val) ((val)->tag == VAL_TAG_NONE)
+#define IS_ERROR(x) ((x)->tag == VAL_TAG_ERR)
+#define IS_NONE(x)  ((x)->tag == VAL_TAG_NONE)
 
-#define IS_OBJECT(val) ((val)->tag == VAL_TAG_OBJ)
+#define IS_OBJECT(x) ((x)->tag == VAL_TAG_OBJ)
 
-#define Int32Value()
-#define ObjectValue(_obj) (Value){.obj = _obj, .tag = VAL_TAG_OBJ}
-#define NoneValue() (Value){0, VAL_TAG_NONE}
+#define Int32Value(x) (Value){.ival = (x), .tag = VAL_TAG_I32}
+#define Int64Value(x) (Value){.ival = (x), .tag = VAL_TAG_I64}
+
+#if defined(ENV64BITS)
+    #define IntValue(x) Int64Value(x)
+#elif defined(ENV32BITS)
+    #define IntValue(x) Int32Value(x)
+#else
+    #error "Unknown CC bitwise."
+#endif
+
+#define ObjectValue(_obj) (Value){.obj = (_obj), .tag = VAL_TAG_OBJ}
+
+#define NoneValue()  (Value){0, VAL_TAG_NONE}
 #define ErrorValue() (Value){0, VAL_TAG_ERR}
 
 /* clang-format on */
@@ -98,10 +90,13 @@ typedef Value (*GetIterFunc)(Value *self);
 typedef Value (*IterNextFunc)(Value *self);
 typedef Value (*StrFunc)(Value *self);
 typedef Value (*CallFunc)(Value *self, Value *args, int nargs, Object *kwargs);
-typedef int (*LenFunc)(Value *);
 typedef Value (*UnaryFunc)(Value *);
 typedef Value (*BinaryFunc)(Value *, Value *);
 typedef Value (*TernaryFunc)(Value *, Value *, Value *);
+typedef int (*LenFunc)(Value *);
+typedef Value (*GetItemFunc)(Value *, Value *);
+typedef int (*SetItemFunc)(Value *, Value *, Value *);
+typedef int (*ContainsFunc)(Value *, Value *);
 
 typedef struct _NumberMethods {
     BinaryFunc add;
@@ -124,8 +119,9 @@ typedef struct _NumberMethods {
 typedef struct _SequenceMethods {
     LenFunc len;
     BinaryFunc concat;
-    BinaryFunc getitem;
-    TernaryFunc setitem;
+    ContainsFunc contains;
+    GetItemFunc getitem;
+    SetItemFunc setitem;
 } SequenceMethods;
 
 typedef struct _CFuncDef {
@@ -180,16 +176,12 @@ typedef struct _MemberDef {
 #define TP_FLAGS_FINAL    (1 << 4)
 #define TP_FLAGS_HEAP     (1 << 5)
 
-/* clang-format off */
-#define KLASS_OBJECT_HEAD OBJECT_HEAD char *name; int flags;
-/* clang-format on */
-
-typedef struct _KlassObject {
-    KLASS_OBJECT_HEAD
-} KlassObject;
-
 typedef struct _TypeObject {
-    KLASS_OBJECT_HEAD
+    OBJECT_HEAD
+    /* type name */
+    char *name;
+    /* one of TP_FLAGS_XXX */
+    int flags;
 
     /* object with default kwargs */
     int offset_kwargs;
@@ -248,14 +240,6 @@ typedef struct _TypeObject {
 } TypeObject;
 
 extern TypeObject type_type;
-
-typedef struct _TraitObject {
-    KLASS_OBJECT_HEAD
-    /* abstract method definitions */
-    MethodDef *methods;
-    /* parent traits */
-    struct _TraitObject **traits;
-} TraitObject;
 
 static inline Object *get_default_kwargs(Object *obj)
 {

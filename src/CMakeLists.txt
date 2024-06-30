@@ -10,7 +10,6 @@ set(KOALA_SOURCES
     common/mm.c
     common/lldq.c
     common/vector.c
-    common/hash.c
     common/hashmap.c
     abstract.c
     gc.c
@@ -18,7 +17,8 @@ set(KOALA_SOURCES
     eval.c
     typeobject.c
     cfuncobject.c
-    codeobject.c)
+    codeobject.c
+    tupleobject.c)
 
 add_library(koala STATIC ${KOALA_SOURCES})
 target_link_libraries(koala pthread m dl ffi)

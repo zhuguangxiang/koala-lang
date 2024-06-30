@@ -6,7 +6,7 @@
 #include "log.h"
 #include "run.h"
 
-int main(int argc, const char *argv[])
+int main(int argc, char *argv[])
 {
     init_log(LOG_INFO, NULL, 0);
     kl_init(argc, argv);
