@@ -35,6 +35,13 @@ LISP有哪些抽象概念
 
 字符串模式匹配算法
 
+什么是接口?
+
+- golang
+- rust
+- Java
+- Python
+
 开发必备：
 
 - Java

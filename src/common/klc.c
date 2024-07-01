@@ -23,7 +23,10 @@ extern "C" {
 #define TYPE_CODE    'c'
 #define TYPE_BYTES   'b'
 #define TYPE_DESCR   'L'
-#define TYPE_TYPE    't'
+#define TYPE_CLASS   'C'
+#define TYPE_TRAIT   'I'
+#define TYPE_VAR     'v'
+#define TYPE_PROTO   'p'
 #define TYPE_NAME    'n'
 #define TYPE_REF     'r'
 
