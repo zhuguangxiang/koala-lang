@@ -104,7 +104,7 @@ static void *koala_pthread_func(void *arg)
     log_info("Thread-%d is done.", ts->id);
 
     /* simulate gc(later delete) */
-#if 0
+#if 1
     ts->state = TS_RUNNING;
     int i = 0;
     while (1) {
@@ -113,9 +113,9 @@ static void *koala_pthread_func(void *arg)
         i++;
         log_info("Thread-%d is running %d", ts->id, i);
         if (ts->id == 1) {
-            gc_alloc(50, NULL);
+            gc_alloc(50);
         } else if (ts->id == 2) {
-            gc_alloc(80, NULL);
+            gc_alloc(80);
         }
     }
 #endif
@@ -170,7 +170,7 @@ void kl_init(int argc, char *argv[])
     pthread_key_create(&__local_key, NULL);
 
     /* init koala threads */
-    init_threads(2);
+    init_threads(3);
 
     /* init koala builtin module */
 }
@@ -180,7 +180,7 @@ static int done(void)
     int done = 1;
 
     // check all threads are in suspend state
-    for (int i = 0; i < __nthreads; i++) {
+    for (int i = 1; i < __nthreads; i++) {
         ThreadState *ts = _threads + i;
         if (ts->state != TS_WAIT) {
             done = 0;
@@ -190,7 +190,7 @@ static int done(void)
 
     if (done) {
         // signal to all suspended pthread
-        for (int i = 0; i < __nthreads; i++) {
+        for (int i = 1; i < __nthreads; i++) {
             ThreadState *ts = _threads + i;
             ts->state = TS_DONE;
         }
@@ -222,11 +222,11 @@ void kl_run_file(const char *filename)
         if (done()) break;
 
         clear_done_state();
-        sleep(1);
+        // sleep(1);
     }
 
     /* join koala threads */
-    for (int i = 0; i < __nthreads; i++) {
+    for (int i = 1; i < __nthreads; i++) {
         ThreadState *ts = _threads + i;
         ASSERT(ts->state == TS_DONE);
         pthread_join(ts->pid, NULL);
@@ -241,7 +241,7 @@ int check_all_threads_stw(void)
 {
     int yes = 1;
 
-    for (int i = 0; i < __nthreads; i++) {
+    for (int i = 1; i < __nthreads; i++) {
         ThreadState *ts = _threads + i;
         if (ts->state != TS_GC_STW) {
             yes = 0;

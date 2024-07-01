@@ -72,9 +72,7 @@ static inline void clear_failed(void)
 #define _switch(new_state) do { \
     log_info("[Collector]%s -> %s", _gc_state_strs[_gc_state], \
              _gc_state_strs[new_state]); \
-    pthread_spin_lock(&_gc_spin_lock); \
     _gc_state = new_state; \
-    pthread_spin_unlock(&_gc_spin_lock); \
 } while (0)
 /* clang-format on */
 
@@ -95,8 +93,8 @@ static inline void enable_stw(void)
     pthread_mutex_lock(&_mutator_wait_mutex);
     _mutator_wait_flag = 1;
     mprotect((void *)__gc_check_ptr, _pagesize, PROT_NONE);
-    log_info("[Collector][%s]Enable STW", _gc_state_strs[_gc_state]);
     pthread_mutex_unlock(&_mutator_wait_mutex);
+    log_info("[Collector][%s]Enable STW", _gc_state_strs[_gc_state]);
 }
 
 static inline void disable_stw_wakeup_threads(void)

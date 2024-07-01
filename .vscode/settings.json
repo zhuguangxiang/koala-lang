@@ -40,9 +40,6 @@
     "files.trimFinalNewlines": true,
     "files.insertFinalNewline": true,
     "notebook.insertFinalNewline": true,
-    "cmake.configureOnOpen": false,
-    "cmake.configureOnEdit": false,
-    "cmake.automaticReconfigure": true,
     "editor.fontWeight": "normal",
     "debug.console.fontFamily": "'Ubuntu Mono', 'JetBrains Mono'",
     "editor.fontSize": 15,
@@ -61,10 +58,9 @@
             }
         ]
     },
-    "cmake.options.statusBarVisibility": "hidden",
-    "cmake.useCMakePresets": "never",
     "terminal.integrated.fontSize": 14,
-    "C_Cpp.default.compilerPath": "/usr/bin/gcc",
     "plantuml.render": "Local",
     "plantuml.server": "https://www.plantuml.com/plantuml",
+    "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}",
+    "cmake.options.statusBarVisibility": "icon"
 }
