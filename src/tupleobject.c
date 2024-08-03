@@ -22,7 +22,7 @@ Object *kl_new_tuple(int size)
     x->size = size;
     for (int i = 0; i < size; i++) {
         Value *val = (Value *)(x + 1);
-        val[i] = NoneValue();
+        val[i] = NoneValue;
     }
     return (Object *)x;
 }

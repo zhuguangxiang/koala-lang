@@ -60,6 +60,11 @@ static LLDeque _gc_perm_list;
 static sem_t _gc_worker_sema;
 static pthread_t _gc_pid;
 
+/* This is gc roots for global variables.
+ * For local variables, please reference shadowstack.h
+ */
+static void *_gc_roots;
+
 /*-------------------------------------API-----------------------------------*/
 
 static inline void clear_failed(void)

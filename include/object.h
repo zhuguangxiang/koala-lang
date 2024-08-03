@@ -33,50 +33,48 @@ typedef struct _Object {
 #define IS_TYPE(ob, type) (OB_TYPE(ob) == type)
 
 typedef struct _Value {
+    int8_t tag;
     union {
         int64_t ival;
         double fval;
         Object *obj;
     };
-    int tag;
 } Value;
 
 #define VAL_TAG_OBJ  (1 << 0)
-#define VAL_TAG_NONE (1 << 1)
-#define VAL_TAG_ERR  (1 << 2)
-#define VAL_TAG_BOOL (1 << 3)
-#define VAL_TAG_INT  (1 << 4)
-#define VAL_TAG_FLT  (1 << 5)
+#define VAL_TAG_ERR  (1 << 1)
+#define VAL_TAG_NONE (1 << 2)
+#define VAL_TAG_INT  (1 << 3)
+#define VAL_TAG_FLT  (1 << 4)
 
 #define IS_OBJECT(x) ((x)->tag & VAL_TAG_OBJ)
-#define IS_NONE(x)   ((x)->tag & VAL_TAG_NONE)
 #define IS_ERROR(x)  ((x)->tag & VAL_TAG_ERR)
-#define IS_BOOL(x)   ((x)->tag & VAL_TAG_BOOL)
+#define IS_NONE(x)   ((x)->tag & VAL_TAG_NONE)
 #define IS_INT(x)    ((x)->tag & VAL_TAG_INT)
 #define IS_FLOAT(x)  ((x)->tag & VAL_TAG_FLT)
 
 /* clang-format off */
-#define ObjectValue(x)  (Value){ .obj = (x),  .tag = VAL_TAG_OBJ  }
-#define NoneValue()     (Value){ .ival = 0,   .tag = VAL_TAG_NONE }
-#define ErrorValue()    (Value){ .ival = 0,   .tag = VAL_TAG_ERR  }
-#define TrueValue       (Value){ .ival = 1,   .tag = VAL_TAG_BOOL }
-#define FalseValue      (Value){ .ival = 0,   .tag = VAL_TAG_BOOL }
-#define IntValue(x)     (Value){ .ival = (x), .tag = VAL_TAG_INT  }
-#define FloatValue(x)   (Value){ .fval = (x), .tag = VAL_TAG_FLT  }
+#define ObjectValue(x)  (Value){ .tag = VAL_TAG_OBJ, .obj = (x)  }
+#define ErrorValue      (Value){ .tag = VAL_TAG_ERR  }
+#define NoneValue       (Value){ .tag = VAL_TAG_NONE }
+#define IntValue(x)     (Value){ .tag = VAL_TAG_INT, .ival = (x) }
+#define FloatValue(x)   (Value){ .tag = VAL_TAG_FLT, .fval = (x) }
 /* clang-format on */
 
 typedef unsigned int (*HashFunc)(Value *self);
-typedef int (*CmpFunc)(Value *lhs, Value *rhs);
+typedef Value (*CmpFunc)(Value *lhs, Value *rhs);
 typedef Value (*GetIterFunc)(Value *self);
 typedef Value (*IterNextFunc)(Value *self);
 typedef Value (*StrFunc)(Value *self);
-typedef Value (*CallFunc)(Value *self, Value *args, int nargs, Object *kwargs);
+typedef Value (*CallFunc)(Object *self, Value *args, int nargs, Object *kwargs);
 typedef Value (*UnaryFunc)(Value *);
 typedef Value (*BinaryFunc)(Value *, Value *);
 typedef Value (*TernaryFunc)(Value *, Value *, Value *);
 typedef int (*LenFunc)(Value *);
-typedef Value (*GetItemFunc)(Value *, Value *);
-typedef int (*SetItemFunc)(Value *, Value *, Value *);
+typedef Value (*GetItemFunc)(Value *, ssize_t);
+typedef int (*SetItemFunc)(Value *, ssize_t, Value *);
+typedef Value (*GetSliceFunc)(Value *, Object *);
+typedef int (*SetSliceFunc)(Value *, Object *, Value *);
 typedef int (*ContainsFunc)(Value *, Value *);
 
 /* number protocol methods */
@@ -104,23 +102,21 @@ typedef struct _SequenceMethods {
     ContainsFunc contains;
     GetItemFunc item;
     SetItemFunc set_item;
-    GetItemFunc slice;
-    SetItemFunc set_slice;
+    GetSliceFunc slice;
+    SetSliceFunc set_slice;
 } SequenceMethods;
 
-typedef struct _CFuncDef {
-    /* The name of the built-in function/method */
-    const char *name;
-    /* The C function that implements it */
+typedef struct _MethodDef {
+    /* The name of function/method */
+    char *name;
+    /* The c func */
     void *cfunc;
     /* Combination of METH_xxx flags */
     int flags;
-    /* keywords arguments(dict) */
-    Object *kwargs;
-    /* The koala arguments types */
-    const char *args_types;
-    /* The koala return type */
-    const char *ret_type;
+    /* The arguments types */
+    char *args_desc;
+    /* The return type */
+    char *ret_desc;
 } MethodDef;
 
 typedef Value (*GetterFunc)(Value *, void *);
@@ -164,15 +160,17 @@ typedef struct _TypeObject {
     OBJECT_HEAD
     /* type name */
     char *name;
+
     /* one of TP_FLAGS_XXX */
     int flags;
 
-    /* object with default kwargs */
-    int offset_kwargs;
+    /* object call defaults */
+    int kwargs_offset;
 
     /* gc mark function */
     GcMarkFunc mark;
 
+    /* new function */
     /* init function */
     /* fini function */
 
@@ -224,16 +222,21 @@ typedef struct _TypeObject {
 } TypeObject;
 
 extern TypeObject type_type;
+TypeObject *value_type(Value *val);
 
-static inline Object *get_default_kwargs(Object *obj)
+static inline CallFunc object_is_callable(Object *obj)
 {
-    TypeObject *tp = OB_TYPE(obj);
-    if (tp->offset_kwargs) {
-        return (Object *)((char *)obj + tp->offset_kwargs);
-    } else {
-        return NULL;
-    }
+    return OB_TYPE(obj)->call;
 }
+
+static inline CallFunc value_is_callable(Value *val)
+{
+    TypeObject *tp = value_type(val);
+    return tp->call;
+}
+
+Value object_call(Object *callable, Value *args, int nargs, Object *kwargs);
+Object *get_default_kwargs(Value *val);
 
 #ifdef __cplusplus
 }

@@ -14,8 +14,8 @@ extern "C" {
 
 typedef struct _ListObject {
     OBJECT_HEAD
-    int start;
-    int end;
+    ssize_t start;
+    ssize_t end;
     GcArray *array;
 } ListObject;
 

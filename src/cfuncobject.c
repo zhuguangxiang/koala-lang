@@ -9,52 +9,12 @@
 extern "C" {
 #endif
 
-static Value _cfunc_call(Value *self, Value *args, int nargs, Object *kwargs)
+static Value _cfunc_call(Object *self, Value *args, int nargs, Object *kwargs)
 {
-    ASSERT(IS_OBJECT(self));
-    CFuncObject *obj = (CFuncObject *)self->obj;
-    ASSERT(IS_CFUNC(obj));
-
-    Value ret = NoneValue();
-
-    switch (obj->def->flags) {
-        case METH_NO_ARGS: {
-            CFunc func = obj->def->cfunc;
-            ASSERT(nargs == 0);
-            ASSERT(args == NULL);
-            ASSERT(kwargs == NULL);
-            ret = func(self, NULL);
-            break;
-        }
-        case METH_ONE: {
-            CFunc func = obj->def->cfunc;
-            ASSERT(nargs == 1);
-            ASSERT(args != NULL);
-            ASSERT(kwargs == NULL);
-            ret = func(self, args);
-            break;
-        }
-        case METH_FASTCALL: {
-            CFuncFast func = obj->def->cfunc;
-            ASSERT(nargs != 0);
-            ASSERT(args != NULL);
-            ASSERT(kwargs == NULL);
-            ret = func(self, args, nargs);
-            break;
-        }
-        case METH_FASTCALL | METH_KEYWORDS: {
-            CFuncFastWithKeywords func = obj->def->cfunc;
-            ASSERT(nargs != 0);
-            ASSERT(args != NULL);
-            ASSERT(kwargs != NULL);
-            ret = func(self, args, nargs, kwargs);
-            break;
-        }
-        default: {
-            ASSERT(0);
-            break;
-        }
-    }
+    ASSERT(IS_CFUNC(self));
+    CFuncObject *cfunc = (CFuncObject *)self;
+    ASSERT(cfunc->call);
+    Value ret = cfunc->call(self, args, nargs, kwargs);
     return ret;
 }
 
@@ -62,16 +22,73 @@ TypeObject cfunc_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "cfunc",
     .call = _cfunc_call,
-    .offset_kwargs = offsetof(CFuncObject, kwargs),
 };
 
-Object *kl_new_cfunc(MethodDef *def)
+static Value _cfunc_call_noarg(Object *self, Value *args, int nargs,
+                               Object *kwargs)
 {
-    int msize = sizeof(CFuncObject);
-    Object *obj = gc_alloc(msize);
-    INIT_OBJECT_HEAD(obj, &cfunc_type);
-    ((CFuncObject *)(obj))->def = def;
-    return obj;
+    CFuncObject *cfunc = (CFuncObject *)self;
+    MethodDef *def = cfunc->def;
+    CFunc fn = def->cfunc;
+    return fn(self);
+}
+
+static Value _cfunc_call_one(Object *self, Value *args, int nargs,
+                             Object *kwargs)
+{
+    CFuncObject *cfunc = (CFuncObject *)self;
+    MethodDef *def = cfunc->def;
+    CFuncOne fn = def->cfunc;
+    return fn(self, args);
+}
+
+static Value _cfunc_call_fast(Object *self, Value *args, int nargs,
+                              Object *kwargs)
+{
+    CFuncObject *cfunc = (CFuncObject *)self;
+    MethodDef *def = cfunc->def;
+    CFuncFast fn = def->cfunc;
+    return fn(self, args, nargs);
+}
+
+static Value _cfunc_call_fast_keywords(Object *self, Value *args, int nargs,
+                                       Object *kwargs)
+{
+    CFuncObject *cfunc = (CFuncObject *)self;
+    MethodDef *def = cfunc->def;
+    CFuncFastWithKeywords fn = def->cfunc;
+    return fn(self, args, nargs, kwargs);
+}
+
+Object *kl_new_cfunc(MethodDef *def, Object *mod, TypeObject *cls)
+{
+    CFuncObject *cfunc = gc_alloc_obj_p(cfunc);
+    INIT_OBJECT_HEAD(cfunc, &cfunc_type);
+    cfunc->def = def;
+    cfunc->mod = mod;
+    cfunc->cls = cls;
+    CallFunc call = NULL;
+    int flags = def->flags;
+    flags &= (METH_NOARG | METH_ONE | METH_FASTCALL | METH_KEYWORDS);
+    switch (flags) {
+        case METH_NOARG:
+            call = _cfunc_call_noarg;
+            break;
+        case METH_ONE:
+            call = _cfunc_call_one;
+            break;
+        case METH_FASTCALL:
+            call = _cfunc_call_fast;
+            break;
+        case METH_FASTCALL | METH_KEYWORDS:
+            call = _cfunc_call_fast_keywords;
+            break;
+        default:
+            ASSERT(0);
+            break;
+    }
+    cfunc->call = call;
+    return (Object *)cfunc;
 }
 
 #ifdef __cplusplus

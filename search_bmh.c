@@ -89,8 +89,21 @@ void test(void)
         printf("Found %s at pos: %d\n", P.data, r);
     }
 }
+
+typedef struct _Value {
+    int tag;
+    union {
+        int64_t ival;
+        double fval;
+    };
+} Value;
+
 int main(int argc, char *argv[])
 {
     test();
+    // int v = __builtin_ffs(0b0010);
+    // printf("%d\n", v);
+    Value val = { .tag = 100 };
+    printf("%d, %ld\n", val.tag, val.ival);
     return 0;
 }

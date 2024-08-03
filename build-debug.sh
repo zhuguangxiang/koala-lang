@@ -1,6 +1,6 @@
 #!/bin/bash
 
-mkdir -p build/Debug && cd build/Debug
+mkdir -p build/debug && cd build/debug
 
 cmake -G Ninja ../.. \
     -DCMAKE_BUILD_TYPE=Debug \

@@ -11,14 +11,22 @@ set(KOALA_SOURCES
     common/lldq.c
     common/vector.c
     common/hashmap.c
-    abstract.c
+    object.c
     gc.c
     run.c
     eval.c
+    moduleobject.c
     typeobject.c
     cfuncobject.c
+    funcobject.c
     codeobject.c
-    tupleobject.c)
+    intobject.c
+    strobject.c
+    noneobject.c
+    tupleobject.c
+    listobject.c
+    dictobject.c
+    exception.c)
 
 add_library(koala STATIC ${KOALA_SOURCES})
 target_link_libraries(koala pthread m dl ffi)

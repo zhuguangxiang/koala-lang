@@ -39,7 +39,7 @@ if(CMAKE_BUILD_TYPE STREQUAL Debug)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -fvar-tracking")
 elseif(CMAKE_BUILD_TYPE STREQUAL Release)
     # add_definitions(-DNOLOG)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wextra -Wno-unused-result -Wsign-compare -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -flto -Wextra -Wno-unused-result -Wsign-compare -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden")
 elseif(CMAKE_BUILD_TYPE STREQUAL Coverage)
     # lcov --rc branch_coverage.=1 -c -d ./ -o app.info
     # genhtml --rc branch_coverage.=1 app.info -o cc_result

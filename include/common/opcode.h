@@ -12,35 +12,29 @@ extern "C" {
 
 /* clang-format off */
 typedef enum _OpCode {
-/*+----------------------+--------------------------------------------------+*/
-/*| name                 | arguments & comments                             |*/
-/*+----------------------+--------------------------------------------------+*/
-    OP_STOP,            /* stop the current koala state                      */
+/*+-------------------------+--------------------------------------------------+*/
+/*| name                    | arguments & comments                             |*/
+/*+-------------------------+--------------------------------------------------+*/
+    OP_NOP,                 /*                  NOP                             */
+    OP_MOV,                 /* A B              R(A) = R(B)                     */
+    OP_PUSH,                /* A                STK(top++) = R(A)               */
+    OP_POP,                 /* A                R(A) = STK(--top)               */
+    OP_PUSH_NONE,           /*                  STK(top++) = None               */
+    OP_PUSH_IMM8,
 
-    OP_EXT_TAG,         /* extend operands byte code                         */
-
-    OP_MOV,             /* A B              R(A) = R(B)                      */
-    OP_PUSH,            /* A                R(top++) = R(A)                  */
-
-    OP_CONST_LOAD,
-
-    OP_CONST_I32_M1,
-    OP_CONST_I32_0,
-    OP_CONST_I32_1,
-    OP_CONST_I32_2,
-    OP_CONST_I32_3,
-    OP_CONST_I32_4,
-    OP_CONST_I32_5,
-    OP_CONST_I32_IMM8,
-
-    OP_CONST_I64_M1,
-    OP_CONST_I64_0,
-    OP_CONST_I64_1,
-    OP_CONST_I64_2,
-    OP_CONST_I64_3,
-    OP_CONST_I64_4,
-    OP_CONST_I64_5,
-    OP_CONST_I64_IMM8,
+    OP_CONST_LOAD,          /* A K16            R(A) = CP(K16)                  */
+    OP_CONST_NONE,          /* A                R(A) = None                     */
+    OP_CONST_INT_M1,        /* A                R(A) = -1                       */
+    OP_CONST_INT_0,         /* A                R(A) = 0                        */
+    OP_CONST_INT_1,
+    OP_CONST_INT_2,
+    OP_CONST_INT_3,
+    OP_CONST_INT_4,
+    OP_CONST_INT_5,
+    OP_CONST_FLOAT_0,
+    OP_CONST_FLOAT_1,
+    OP_CONST_FLOAT_2,
+    OP_CONST_FLOAT_3,
 
     OP_INT_ADD,
     OP_INT_SUB,
@@ -84,75 +78,21 @@ typedef enum _OpCode {
     OP_FLOAT_CMPL,
     OP_FLOAT_CMPG,
 
-    OP_AS_INT8,
-    OP_AS_INT16,
-    OP_AS_INT32,
-    OP_AS_INT64,
-    OP_AS_FLOAT32,
-    OP_AS_FLOAT64,
+    OP_INT_AS_INT8,
+    OP_INT_AS_INT16,
+    OP_INT_AS_INT32,
+    OP_INT_AS_INT64,
+    OP_INT_AS_FLOAT32,
+    OP_INT_AS_FLOAT64,
 
-    OP_AS,
-    OP_IS,
+    OP_FLOAT_AS_INT8,
+    OP_FLOAT_AS_INT16,
+    OP_FLOAT_AS_INT32,
+    OP_FLOAT_AS_INT64,
+    OP_FLOAT_AS_FLOAT32,
+    OP_FLOAT_AS_FLOAT64,
 
-    /* logic operations */
-    OP_JUMP,
-    OP_JUMP_IF_TRUE,
-    OP_JUMP_IF_FALSE,
-
-    /* call */
-    OP_CALL,
-    OP_CALL_KW,
-    OP_CALL_METHOD,
-    OP_CALL_METHOD_KW,
-    OP_CALL_INTF,
-    OP_CALL_INTF_KW,
-
-    /* return */
-    OP_RETURN,
-    OP_RET_NONE,
-
-    /* attribute(fields, getset, member, ...) */
-    OP_ATTR_GET,
-    OP_ATTR_SET,
-
-    /* globals */
-    OP_GLOBAL_GET,
-    OP_GLOBAL_SET,
-
-    /* ARRAY */
-    OP_ARRAY_INT8_GET,
-    OP_ARRAY_INT8_SET,
-    OP_ARRAY_INT8_SLICE,
-
-    OP_ARRAY_INT16_GET,
-    OP_ARRAY_INT16_SET,
-    OP_ARRAY_INT16_SLICE,
-
-    OP_ARRAY_INT32_GET,
-    OP_ARRAY_INT32_SET,
-    OP_ARRAY_INT32_SLICE,
-
-    OP_ARRAY_INT64_GET,
-    OP_ARRAY_INT64_SET,
-    OP_ARRAY_INT64_SLICE,
-
-    OP_ARRAY_FLOAT32_GET,
-    OP_ARRAY_FLOAT32_SET,
-    OP_ARRAY_FLOAT32_SLICE,
-
-    OP_ARRAY_FLOAT64_GET,
-    OP_ARRAY_FLOAT64_SET,
-    OP_ARRAY_FLOAT64_SLICE,
-
-    OP_ARRAY_OBJECT_SET,
-    OP_ARRAY_OBJECT_GET,
-    OP_ARRAY_OBJECT_SLICE,
-
-    /* MAP */
-    OP_MAP_GET,
-    OP_MAP_SET,
-
-    /* number protocol */
+    /* number operations */
     OP_ADD,
     OP_SUB,
     OP_MUL,
@@ -166,24 +106,68 @@ typedef enum _OpCode {
     OP_NOT,
     OP_SHL,
     OP_SHR,
-    OP_USHR,
 
+    /* compare operation */
     OP_CMP,
 
-    /* sequence protocol (map, array, tuple, str, ...) */
-    OP_SEQ_GET,             /* seq[index] */
-    OP_SEQ_SET,             /* seq[index] = value */
-    OP_SEQ_CONCAT,          /* seq1 + seq2 */
-    OP_SEQ_SLICE,           /* seq[1...3] */
-    OP_SEQ_SLICE_SET,       /* seq[1...3] = seq2 */
+    /* cast operation */
+    OP_AS,
+    OP_IS,
 
-    /* iterator */
+    /* jump/logic operations */
+    OP_JMP,
+    OP_JMP_NONE,
+    OP_JMP_NOT_NONE,
+
+    OP_JMP_INT_CMP_EQ,
+    OP_JMP_INT_CMP_NE,
+    OP_JMP_INT_CMP_LT,
+    OP_JMP_INT_CMP_GT,
+    OP_JMP_INT_CMP_LE,
+    OP_JMP_INT_CMP_GE,
+
+    OP_JMP_INT_CMP_EQ_IMM8,
+    OP_JMP_INT_CMP_NE_IMM8,
+    OP_JMP_INT_CMP_LT_IMM8,
+    OP_JMP_INT_CMP_GT_IMM8,
+    OP_JMP_INT_CMP_LE_IMM8,
+    OP_JMP_INT_CMP_GE_IMM8,
+
+    OP_JMP_EQ,
+    OP_JMP_NE,
+    OP_JMP_LT,
+    OP_JMP_GT,
+    OP_JMP_LE,
+    OP_JMP_GE,
+
+    /* call */
+    OP_CALL,            /* A B C  A = mod index, B = obj index, C = nargs */
+    OP_CALL_METHOD,
+    OP_CALL_DYNAMIC,
+
+    /* return */
+    OP_RETURN,
+    OP_RETURN_NONE,
+
+    /* globals */
+    OP_GLOBAL_GET,
+    OP_GLOBAL_SET,
+
+    /* attribute(fields, getset, member, ...) */
+    OP_ATTR_GET,
+    OP_ATTR_SET,
+
+    /* map operations */
+    OP_MAP_GET,            /* A B C            R(A) = B[C] */
+    OP_MAP_SET,            /* A B C            A[B] = C    */
+
+    /* iterator operations */
     OP_GET_ITER,
     OP_FOR_ITER,
 
     /* dynamic attribute */
     OP_DYN_ATTR_GET,
-    OP_DNY_ATTR_SET,
+    OP_DYN_ATTR_SET,
 
     /* raise an error */
     OP_RAISE,

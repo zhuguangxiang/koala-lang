@@ -17,6 +17,7 @@
     "cSpell.words": [
         "ABCDEFGHIJKLMNOPQRSTUWXYZ",
         "CMPG",
+        "gcroots",
         "getitem",
         "getset",
         "getsets",
@@ -24,16 +25,20 @@
         "hashset",
         "lldq",
         "mptr",
+        "nstr",
         "oldentries",
+        "oparg",
         "pprev",
         "setitem",
+        "shadowstack",
+        "sobj",
         "traceback",
         "ucbuf",
         "unhashed",
         "USHR"
     ],
-    "editor.fontFamily": "'Ubuntu Mono','JetBrains Mono'",
-    "terminal.integrated.fontFamily": "'Ubuntu Mono', 'JetBrains Mono'",
+    "editor.fontFamily": "'JetBrains Mono'",
+    "terminal.integrated.fontFamily": "'JetBrains Mono'",
     "editor.formatOnSave": true,
     "notebook.formatOnSave.enabled": true,
     "files.trimTrailingWhitespace": true,
@@ -41,8 +46,8 @@
     "files.insertFinalNewline": true,
     "notebook.insertFinalNewline": true,
     "editor.fontWeight": "normal",
-    "debug.console.fontFamily": "'Ubuntu Mono', 'JetBrains Mono'",
-    "editor.fontSize": 15,
+    "debug.console.fontFamily": "'JetBrains Mono'",
+    "editor.fontSize": 13,
     "editor.scrollbar.verticalScrollbarSize": 1,
     "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
@@ -58,9 +63,10 @@
             }
         ]
     },
-    "terminal.integrated.fontSize": 14,
+    "terminal.integrated.fontSize": 13,
     "plantuml.render": "Local",
     "plantuml.server": "https://www.plantuml.com/plantuml",
     "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}",
-    "cmake.options.statusBarVisibility": "icon"
+    "cmake.options.statusBarVisibility": "icon",
+    "editor.cursorSurroundingLines": 0
 }

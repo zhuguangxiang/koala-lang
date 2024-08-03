@@ -3,9 +3,9 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "abstract.h"
 #include "cfuncobject.h"
 #include "log.h"
+#include "object.h"
 #include "run.h"
 
 #ifdef __cplusplus
@@ -19,20 +19,19 @@ static Value _hello(Value *self, Value *unused)
     ASSERT(IS_CFUNC(obj));
     ASSERT(unused == NULL);
     printf("hello, world\n");
-    return NoneValue();
+    return NoneValue;
 }
 
 MethodDef method = {
     "hello",
     _hello,
-    METH_NO_ARGS,
+    METH_NOARG,
 };
 
 void test_cfunc(void)
 {
-    Object *obj = kl_new_cfunc(&method);
-    Value obj_val = ObjectValue(obj);
-    Value ret = object_call(&obj_val, NULL, 0, NULL);
+    Object *obj = kl_new_cfunc(&method, NULL, NULL);
+    Value ret = object_call(obj, NULL, 0, NULL);
     ASSERT(IS_NONE(&ret));
 }
 

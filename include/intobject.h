@@ -12,6 +12,8 @@
 extern "C" {
 #endif
 
+Object *kl_new_nstr(const char *s, int len);
+
 #ifdef __cplusplus
 }
 #endif

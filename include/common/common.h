@@ -79,7 +79,9 @@ extern "C" {
 /* Smallest negative value of type ssize_t. */
 #define SSIZE_MIN (-SSIZE_MAX - 1)
 
-#define OUT(x) x
+/* clang-format off */
+#define FFS(x) {{ int v = __builtin_ffs(x); ASSERT(v > 0); v;})
+/* clang-format on */
 
 #ifdef __cplusplus
 }

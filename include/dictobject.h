@@ -22,6 +22,8 @@ typedef struct _DictObject {
 extern TypeObject dict_type;
 #define IS_DICT(ob) IS_TYPE((ob), &dict_type)
 
+Object *kl_new_dict(void);
+
 #ifdef __cplusplus
 }
 #endif

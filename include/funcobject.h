@@ -12,18 +12,23 @@
 extern "C" {
 #endif
 
-typedef struct _AbstractMethodObject {
+/* This represents koala function
+ * CFuncObject represents c-defined function
+ */
+typedef struct _FuncObject {
     OBJECT_HEAD
-    /* abstract method name */
-    char *name;
-    /* arguments types */
-    char *args_type;
-    /* return type */
-    char *ret_type;
-} AbstractMethodObject;
+    /* code object, if code is null, this is an abstract method. */
+    Object *code;
+    /* module */
+    Object *mod;
+    /* class, can be null */
+    TypeObject *cls;
+} FuncObject;
 
-extern TypeObject abstract_method_type;
-#define IS_ABSTRACT(ob) IS_TYPE((ob), &abstract_method_type)
+extern TypeObject func_type;
+#define IS_FUNC(ob) IS_TYPE((ob), &func_type)
+
+Object *kl_new_func(Object *code, Object *mod, TypeObject *cls);
 
 #ifdef __cplusplus
 }

@@ -3,16 +3,22 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "codeobject.h"
-#include "run.h"
+#include "strobject.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-TypeObject code_type = {
+static Value _none_str(Value *self)
+{
+    Object *s = kl_new_str("None");
+    return ObjectValue(s);
+}
+
+TypeObject none_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "code",
+    .name = "none",
+    .str = _none_str,
 };
 
 #ifdef __cplusplus

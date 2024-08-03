@@ -20,22 +20,31 @@ struct _ThreadState;
 /* call stack frame information */
 typedef struct _CallFrame {
     /* call stack back frame */
-    struct _CallFrame *cf_back;
+    struct _CallFrame *back;
     /* point back to KoalaState */
-    struct _KoalaState *cf_ks;
+    struct _KoalaState *ks;
 
     /* code for this call */
-    Object *cf_code;
-    /* value stack pointer */
-    Value *cf_stack;
+    Object *code;
+
+    /* module */
+    Object *module;
 
     /* locals + cells + frees */
-    int cf_local_size;
+    int local_size;
     /* value stack size */
-    int cf_stack_size;
+    int stack_size;
 
+    /* kwargs */
+    Object *kwargs;
+
+    /* value stack pointer */
+    Value *stack;
     /* locals and value stack */
-    Value *cf_local_stack;
+    Value *local_stack;
+
+    /* gc roots(c code) */
+    Vector gcroots;
 } CallFrame;
 
 /* per koala thread */
@@ -48,6 +57,8 @@ typedef struct _KoalaState {
     CallFrame *cf;
     /* free call frame list */
     CallFrame *free_cf_list;
+    /* exception */
+    Object *exc;
     /* depth of call frames */
     int depth;
     /* stack size */
@@ -58,7 +69,7 @@ typedef struct _KoalaState {
     Value *stack_ptr;
 } KoalaState;
 
-Value kl_eval_code(Object *code, Value *args, int nargs, Object *kwargs);
+Value kl_eval_func(Object *func, Value *args, int nargs, Object *kwargs);
 
 KoalaState *ks_new(void);
 void ks_free(KoalaState *ks);

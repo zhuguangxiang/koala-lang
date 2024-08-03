@@ -125,7 +125,7 @@ static void init_threads(int nthreads)
 {
     /* initialize koala threads */
     __nthreads = nthreads;
-    _threads = mm_alloc_fast(sizeof(ThreadState) * nthreads);
+    _threads = mm_alloc(sizeof(ThreadState) * nthreads);
     ASSERT(_threads);
 
     /* initialize main thread as koala thread */
@@ -170,7 +170,7 @@ void kl_init(int argc, char *argv[])
     pthread_key_create(&__local_key, NULL);
 
     /* init koala threads */
-    init_threads(3);
+    init_threads(2);
 
     /* init koala builtin module */
 }

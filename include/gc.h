@@ -47,7 +47,7 @@ typedef struct _GcArray {
     GC_HEAD
     /* one of GC_ARRAY_XXX */
     int kind;
-    /* real data */
+    /* real data below */
     char data[0];
 } GcArray;
 
@@ -71,8 +71,13 @@ typedef enum _GcState {
 
 void init_gc_system(size_t max_mem_size, double factor);
 void *_gc_alloc(int size, int perm);
-static inline void *gc_alloc(int size) { return _gc_alloc(size, 0); }
-static inline void *gc_alloc_perm(int size) { return _gc_alloc(size, 1); }
+
+#define gc_alloc(size)   _gc_alloc(size, 0)
+#define gc_alloc_p(size) _gc_alloc(size, 1)
+
+#define gc_alloc_obj(ptr)   _gc_alloc(OBJ_SIZE(ptr), 0)
+#define gc_alloc_obj_p(ptr) _gc_alloc(OBJ_SIZE(ptr), 1)
+
 #define gc_mark(obj, _color) ((GcHdr *)(obj))->gc_color = (_color)
 
 #ifdef __cplusplus

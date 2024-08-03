@@ -22,6 +22,13 @@ typedef struct _StrObject {
 extern TypeObject str_type;
 #define IS_STR(ob) IS_TYPE((ob), &str_type)
 
+Object *kl_new_nstr(const char *s, int len);
+
+static inline Object *kl_new_str(const char *s)
+{
+    return kl_new_nstr(s, strlen(s));
+}
+
 #ifdef __cplusplus
 }
 #endif

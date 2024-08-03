@@ -10,10 +10,16 @@
 extern "C" {
 #endif
 
+static Value type_call(Object *self, Value *args, int nargs, Object *kwargs)
+{
+    return NoneValue;
+}
+
 TypeObject type_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "type",
-    .offset_kwargs = offsetof(TypeObject, kwargs),
+    .kwargs_offset = offsetof(TypeObject, kwargs),
+    .call = type_call,
 };
 
 TypeObject object_type = {

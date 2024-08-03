@@ -14,14 +14,24 @@ extern "C" {
 
 typedef struct _CodeObject {
     OBJECT_HEAD
+    /* name */
+    char *name;
+    /* file name */
+    char *filename;
+    /* line table(addr2line) */
+    void *line_table;
     /* positional arguments number */
     int nargs;
     /* all locals, include arguments */
     int nlocals;
     /* max number of call parameters */
     int stack_size;
-    /* byte code instruction */
-    char *codes;
+    /* number of instructions */
+    int num_insns;
+    /* instructions */
+    char *insns;
+    /* constants */
+    Vector consts;
     /* default keyword arguments */
     Object *kwargs;
 } CodeObject;
