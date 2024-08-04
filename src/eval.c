@@ -8,7 +8,6 @@
 #include "codeobject.h"
 #include "dictobject.h"
 #include "exception.h"
-#include "funcobject.h"
 #include "mm.h"
 #include "moduleobject.h"
 #include "opcode.h"
@@ -27,35 +26,36 @@ extern "C" {
 
 /*-------------------------------------API-----------------------------------*/
 
-static CallFrame *_new_frame(KoalaState *ks, FuncObject *func)
+static void _copy_arguments(CallFrame *cf, Value *args, int nargs)
 {
-    CallFrame *cf;
-    if (ks->free_cf_list) {
-        cf = ks->free_cf_list;
-        ks->free_cf_list = cf->back;
-    } else {
-        cf = mm_alloc_obj_fast(cf);
+    ASSERT(cf->local_size >= nargs);
+
+    Value *p = cf->local_stack;
+    int total = cf->local_size + cf->stack_size;
+
+    for (int i = 0; i < nargs; i++) {
+        *(p + i) = *(args + i);
     }
 
-    vector_init_ptr(&cf->gcroots);
+    for (int i = nargs; i < total; i++) {
+        (p + i)->tag = 0;
+    }
+}
 
-    cf->code = func->code;
-    cf->module = func->mod;
+static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
+{
+    CallFrame *cf = (CallFrame *)ks->stack_ptr;
+    ks->stack_ptr = (Value *)((char *)ks->stack_ptr + sizeof(*cf));
 
-    CodeObject *code = (CodeObject *)func->code;
+    cf->code = code;
+    cf->module = code->module;
     int nlocals = code->nlocals;
     int stack_size = code->stack_size;
     cf->local_size = nlocals;
     cf->stack_size = stack_size;
-
-    cf->local_stack = ks->stack_ptr;
     cf->stack = cf->local_stack + nlocals;
     ks->stack_ptr += (nlocals + stack_size);
-    ASSERT(ks->stack_ptr < ks->base_stack_ptr + ks->stack_size);
-
-    for (int i = 0; i < (nlocals + stack_size); i++) {
-        (cf->local_stack + i)->tag = 0;
-    }
+    ASSERT((char *)ks->stack_ptr < (char *)ks->base_stack_ptr + ks->stack_size);
 
     return cf;
 }
@@ -63,38 +63,26 @@ static CallFrame *_new_frame(KoalaState *ks, FuncObject *func)
 static void _pop_frame(KoalaState *ks, CallFrame *cf)
 {
     /* shrink stack */
+    ks->stack_ptr = (Value *)((char *)ks->stack_ptr - sizeof(*cf));
     ks->stack_ptr -= (cf->stack_size + cf->local_size);
     ASSERT(ks->stack_ptr >= ks->base_stack_ptr);
-
-    /* save to cached free list */
-    cf->back = ks->free_cf_list;
-    ks->free_cf_list = cf;
 }
 
 KoalaState *ks_new(void)
 {
-    KoalaState *ks = mm_alloc_obj(ks);
+    int msize = sizeof(KoalaState) + MAX_STACK_SIZE;
+    KoalaState *ks = mm_alloc(msize);
     lldq_node_init(&ks->link);
     ks->ts = __ts();
-
-    ks->base_stack_ptr = mm_alloc_fast(MAX_STACK_SIZE * sizeof(Value));
+    vector_init_ptr(&ks->gcroots);
     ks->stack_ptr = ks->base_stack_ptr;
     ks->stack_size = MAX_STACK_SIZE;
-
     return ks;
 }
 
 void ks_free(KoalaState *ks)
 {
     ASSERT(!ks->cf);
-    CallFrame *cf = ks->free_cf_list;
-    CallFrame *next;
-    while (cf) {
-        next = cf->back;
-        mm_free(cf);
-        cf = next;
-    }
-    mm_free(ks->base_stack_ptr);
     mm_free(ks);
 }
 
@@ -142,11 +130,9 @@ void ks_free(KoalaState *ks)
 
 /* clang-format on */
 
-static Object *_get_symbol(CallFrame *cf, int mod_idx, int obj_idx)
+static Object *_get_symbol(CallFrame *cf, int m_idx, int o_idx)
 {
-    Object *m = module_get_reloc(cf->module, mod_idx);
-    ASSERT(m && IS_MODULE(m));
-    Object *r = module_get_symbol(m, obj_idx);
+    Object *r = module_get_symbol(cf->module, m_idx, o_idx);
     ASSERT(r && object_is_callable(r));
     return r;
 }
@@ -162,15 +148,14 @@ static void _call_function(Object *obj, Value *args, int nargs, CallFrame *cf,
     }
 
     /* process default key-value arguments */
-    Object *kwargs = NULL;
-    int kwargs_offset = tp->kwargs_offset;
-    if (kwargs_offset > 0) {
+    Object *kwds = NULL;
+    int kwds_offset = tp->kwds_offset;
+    if (kwds_offset > 0) {
         /* object has default kwargs */
-        kwargs = kl_new_dict();
+        kwds = kl_new_dict();
     }
-    cf->kwargs = NULL;
 
-    Value r = func(obj, args, nargs, kwargs);
+    Value r = func(obj, args, nargs, kwds);
     *result = r;
 }
 
@@ -206,9 +191,9 @@ main_loop:
                 int A = NEXT_REG();
                 int imm = NEXT_INT8();
                 int off = NEXT_INT16();
-                Value *va = GET_LOCAL(A);
-                ASSERT(IS_INT(va));
-                if (va->ival >= imm) {
+                Value *ra = GET_LOCAL(A);
+                ASSERT(IS_INT(ra));
+                if (ra->ival >= imm) {
                     // absolute offset
                     next_inst = first_inst + off;
                 }
@@ -220,10 +205,10 @@ main_loop:
                 int B = NEXT_REG();
                 int C = NEXT_REG();
 
-                Value *vb = GET_LOCAL(B);
-                Value *vc = GET_LOCAL(C);
-                ASSERT(IS_INT(vb) && IS_INT(vc));
-                int64_t r = vb->ival + vc->ival;
+                Value *rb = GET_LOCAL(B);
+                Value *rc = GET_LOCAL(C);
+                ASSERT(IS_INT(rb) && IS_INT(rc));
+                int64_t r = rb->ival + rc->ival;
                 SET_INT_LOCAL(A, r);
                 DISPATCH();
             }
@@ -232,17 +217,17 @@ main_loop:
                 int A = NEXT_REG();
                 int B = NEXT_REG();
                 int imm = NEXT_INT8();
-                Value *vb = GET_LOCAL(B);
-                ASSERT(IS_INT(vb));
-                int64_t r = vb->ival - imm;
+                Value *rb = GET_LOCAL(B);
+                ASSERT(IS_INT(rb));
+                int64_t r = rb->ival - imm;
                 SET_INT_LOCAL(A, r);
                 DISPATCH();
             }
 
             case OP_PUSH: {
                 int A = NEXT_REG();
-                Value *va = GET_LOCAL(A);
-                PUSH(va);
+                Value *ra = GET_LOCAL(A);
+                PUSH(ra);
                 DISPATCH();
             }
 
@@ -253,9 +238,9 @@ main_loop:
                 int A = NEXT_REG();
                 Object *callable = _get_symbol(cf, mod_idx, func_idx);
                 ASSERT(callable);
-                Value *va = GET_LOCAL(A);
-                _call_function(callable, cf->stack, nargs, cf, va);
-                if (IS_ERROR(va)) {
+                Value *ra = GET_LOCAL(A);
+                _call_function(callable, cf->stack, nargs, cf, ra);
+                if (IS_ERROR(ra)) {
                     ASSERT(_exc_occurred(ks));
                     goto error;
                 }
@@ -265,8 +250,8 @@ main_loop:
 
             case OP_RETURN: {
                 int A = NEXT_REG();
-                Value *r = GET_LOCAL(A);
-                SET(result, r);
+                Value *ra = GET_LOCAL(A);
+                SET(result, ra);
                 goto done;
             }
 
@@ -298,21 +283,15 @@ done:
     --ks->depth;
 }
 
-Value kl_eval_func(Object *func, Value *args, int nargs, Object *kwargs)
+Value kl_eval_code(Object *code, Value *args, int nargs, Object *kw)
 {
-    ASSERT(IS_FUNC(func));
-
     KoalaState *ks = __ks();
 
     /* build a call frame */
-    CallFrame *cf = _new_frame(ks, (FuncObject *)func);
+    CallFrame *cf = _new_frame(ks, (CodeObject *)code);
 
     /* copy arguments */
-    ASSERT(cf->local_size >= nargs);
-    for (int i = 0; i < nargs; i++) {
-        *(cf->local_stack + i) = *(args + i);
-    }
-    cf->kwargs = kwargs;
+    _copy_arguments(cf, args, nargs);
 
     /* eval the call frame */
     Value result = { 0 };
@@ -320,7 +299,6 @@ Value kl_eval_func(Object *func, Value *args, int nargs, Object *kwargs)
 
     /* pop frame to free list */
     _pop_frame(ks, cf);
-
     return result;
 }
 

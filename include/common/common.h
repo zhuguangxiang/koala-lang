@@ -71,7 +71,7 @@ extern "C" {
 #ifndef NDEBUG
 #define ASSERT(x) assert(x)
 #else
-#define ASSERT(x) ((void)(x))
+#define ASSERT(x) ((void)(0))
 #endif
 
 /* largest positive value of type ssize_t. */
@@ -80,7 +80,7 @@ extern "C" {
 #define SSIZE_MIN (-SSIZE_MAX - 1)
 
 /* clang-format off */
-#define FFS(x) {{ int v = __builtin_ffs(x); ASSERT(v > 0); v;})
+#define FFS(x) ({ int v = __builtin_ffs(x); ASSERT(v > 0); v; })
 /* clang-format on */
 
 #ifdef __cplusplus

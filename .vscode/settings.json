@@ -23,6 +23,7 @@
         "getsets",
         "hashable",
         "hashset",
+        "kwds",
         "lldq",
         "mptr",
         "nstr",

@@ -46,17 +46,17 @@ Object *get_default_kwargs(Value *val)
     if (!IS_OBJECT(val)) return NULL;
 
     TypeObject *tp = value_type(val);
-    if (tp->kwargs_offset) {
+    if (tp->kwds_offset) {
         Object *obj = val->obj;
-        return (Object *)((char *)obj + tp->kwargs_offset);
+        return (Object *)((char *)obj + tp->kwds_offset);
     } else {
         return NULL;
     }
 }
 
-Value object_call(Object *callable, Value *args, int nargs, Object *kwargs)
+Value object_call(Object *obj, Value *args, int nargs, Object *kwargs)
 {
-    TypeObject *tp = OB_TYPE(callable);
+    TypeObject *tp = OB_TYPE(obj);
     CallFunc call = tp->call;
     if (!call) {
         /* raise an error */
@@ -64,12 +64,7 @@ Value object_call(Object *callable, Value *args, int nargs, Object *kwargs)
         return ErrorValue;
     }
 
-    return call(callable, args, nargs, kwargs);
-}
-
-Value call_method(Value *self, Value *args, int nargs, Object *kwargs)
-{
-    return NoneValue;
+    return call(obj, args, nargs, kwargs);
 }
 
 #ifdef __cplusplus

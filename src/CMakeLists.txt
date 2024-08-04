@@ -18,7 +18,6 @@ set(KOALA_SOURCES
     moduleobject.c
     typeobject.c
     cfuncobject.c
-    funcobject.c
     codeobject.c
     intobject.c
     strobject.c

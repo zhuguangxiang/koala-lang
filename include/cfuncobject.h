@@ -32,10 +32,10 @@ extern TypeObject cfunc_type;
 #define METH_KEYWORDS 0x0004
 #define METH_FASTCALL 0x0008
 
-typedef Value (*CFunc)(Object *);
-typedef Value (*CFuncOne)(Object *, Value *);
-typedef Value (*CFuncFast)(Object *, Value *, int);
-typedef Value (*CFuncFastWithKeywords)(Object *, Value *, int, Object *);
+typedef Value (*CFunc)(Value *);
+typedef Value (*CFuncOne)(Value *, Value *);
+typedef Value (*CFuncFast)(Value *, Value *, int);
+typedef Value (*CFuncFastWithKeywords)(Value *, Value *, int, Object *);
 
 Object *kl_new_cfunc(MethodDef *def, Object *mod, TypeObject *cls);
 

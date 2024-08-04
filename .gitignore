@@ -4,5 +4,6 @@ build/
 .ccls-cache/
 *.txt
 *.out
+*.class
 cspell.json
 out/

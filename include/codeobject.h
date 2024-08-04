@@ -33,11 +33,17 @@ typedef struct _CodeObject {
     /* constants */
     Vector consts;
     /* default keyword arguments */
-    Object *kwargs;
+    Object *default_kwargs;
+    /* module */
+    Object *module;
+    /* class, can be null */
+    TypeObject *cls;
 } CodeObject;
 
 extern TypeObject code_type;
 #define IS_CODE(ob) IS_TYPE((ob), &code_type)
+
+Object *kl_new_code(char *name, Object *m, TypeObject *cls);
 
 #ifdef __cplusplus
 }

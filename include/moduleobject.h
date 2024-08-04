@@ -12,13 +12,6 @@
 extern "C" {
 #endif
 
-typedef struct _RelocInfo {
-    /* module name */
-    const char *name;
-    /* module object */
-    Object *module;
-} RelocInfo;
-
 typedef struct _ModuleObject {
     OBJECT_HEAD
     /* all symbols */
@@ -29,6 +22,13 @@ typedef struct _ModuleObject {
     Vector relocs;
 } ModuleObject;
 
+typedef struct _RelocInfo {
+    /* module name */
+    const char *name;
+    /* module object */
+    ModuleObject *module;
+} RelocInfo;
+
 extern TypeObject module_type;
 #define IS_MODULE(ob) IS_TYPE((ob), &module_type)
 
@@ -37,19 +37,20 @@ int module_add_code(Object *m, Object *code);
 int module_add_cfunc(Object *m, MethodDef *def);
 int module_add_type(Object *m, TypeObject *ty);
 
-static inline Object *module_get_symbol(Object *_m, int index)
-{
-    ModuleObject *m = (ModuleObject *)_m;
-    Object **item = vector_get(&m->symbols, index);
-    if (item) return *item;
-    return NULL;
-}
-
-static inline Object *module_get_reloc(Object *_m, int index)
+static inline ModuleObject *module_get_reloc(Object *_m, int index)
 {
     ModuleObject *m = (ModuleObject *)_m;
     RelocInfo *item = vector_get(&m->relocs, index);
     if (item) return item->module;
+    return NULL;
+}
+
+static inline Object *module_get_symbol(Object *_m, int m_idx, int index)
+{
+    ModuleObject *m = module_get_reloc(_m, m_idx);
+    if (!m) return NULL;
+    Object **item = vector_get(&m->symbols, index);
+    if (item) return *item;
     return NULL;
 }
 

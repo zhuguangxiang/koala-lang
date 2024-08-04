@@ -12,27 +12,21 @@
 extern "C" {
 #endif
 
-/**
- * gc shadow stack, defined in cfunc frame, not globals
- * roots[0] = num_roots,
- * roots[1] = previous root,
- * roots[2...n] = actual roots' objects
- */
+/* gc shadow stack */
 
 /* clang-format off */
 
-#define GC_STACK(nargs) \
-    KoalaState *__gc_ks__ = __ks(); \
-    int __gc_index__ = 2; \
-    void *__gc_stk__[2 + nargs] = { (void *)nargs, __gc_ks__->gcroots, NULL }; \
-    __gc_ks__->gcroots = __gc_stk__;
+#define INIT_GC_STACK() \
+    KoalaState *__gc_ks = __ks(); \
+    Vector *__gc_stk = vector_create_ptr(); \
+    vector_push_back(&__gc_ks->gcroots, &__gc_stk)
 
-#define kl_gc_push(arg) \
-    __gc_stk__[__gc_index__] = arg; \
-    ++__gc_index__;
+#define GC_STACK_PUSH(obj) vector_push_back(__gc_stk, (obj))
 
 /* remove traced objects from cfunc frame */
-#define kl_gc_pop() (__gc_ks__->gcroots = ((void **)__gc_ks__->gcroots)[1])
+#define FINI_GC_STACK() \
+    vector_pop_back(&__gc_ks->gcroots, NULL); \
+    vector_destroy(__gc_stk)
 
 /* clang-format on */
 

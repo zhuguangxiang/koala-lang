@@ -6,8 +6,8 @@
 #ifndef _KOALA_EVAL_H_
 #define _KOALA_EVAL_H_
 
+#include "codeobject.h"
 #include "lldq.h"
-#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,8 +25,7 @@ typedef struct _CallFrame {
     struct _KoalaState *ks;
 
     /* code for this call */
-    Object *code;
-
+    CodeObject *code;
     /* module */
     Object *module;
 
@@ -35,16 +34,10 @@ typedef struct _CallFrame {
     /* value stack size */
     int stack_size;
 
-    /* kwargs */
-    Object *kwargs;
-
     /* value stack pointer */
     Value *stack;
     /* locals and value stack */
-    Value *local_stack;
-
-    /* gc roots(c code) */
-    Vector gcroots;
+    Value local_stack[0];
 } CallFrame;
 
 /* per koala thread */
@@ -55,21 +48,21 @@ typedef struct _KoalaState {
     struct _ThreadState *ts;
     /* top call stack frame */
     CallFrame *cf;
-    /* free call frame list */
-    CallFrame *free_cf_list;
     /* exception */
     Object *exc;
+    /* gc shadow stack */
+    Vector gcroots;
+    /* stack pointer */
+    Value *stack_ptr;
     /* depth of call frames */
     int depth;
     /* stack size */
     int stack_size;
     /* base stack pointer */
-    Value *base_stack_ptr;
-    /* stack pointer */
-    Value *stack_ptr;
+    Value base_stack_ptr[0];
 } KoalaState;
 
-Value kl_eval_func(Object *func, Value *args, int nargs, Object *kwargs);
+Value kl_eval_code(Object *func, Value *args, int nargsf, Object *);
 
 KoalaState *ks_new(void);
 void ks_free(KoalaState *ks);

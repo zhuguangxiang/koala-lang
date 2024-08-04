@@ -5,7 +5,6 @@
 
 #include "moduleobject.h"
 #include "cfuncobject.h"
-#include "funcobject.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,7 +22,7 @@ Object *kl_new_module(const char *name)
     vector_init_ptr(&m->symbols);
     vector_init(&m->values, sizeof(Value));
     vector_init(&m->relocs, sizeof(RelocInfo));
-    RelocInfo self = { .name = name, .module = (Object *)m };
+    RelocInfo self = { .name = name, .module = m };
     vector_push_back(&m->relocs, &self);
     return (Object *)m;
 }
@@ -40,9 +39,7 @@ int module_add_cfunc(Object *_m, MethodDef *def)
 int module_add_code(Object *_m, Object *code)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    Object *func = kl_new_func(code, _m, NULL);
-    ASSERT(func);
-    vector_push_back(&m->symbols, &func);
+    vector_push_back(&m->symbols, &code);
     return 0;
 }
 

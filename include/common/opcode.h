@@ -153,7 +153,7 @@ typedef enum _OpCode {
     OP_GLOBAL_GET,
     OP_GLOBAL_SET,
 
-    /* attribute(fields, getset, member, ...) */
+    /* attribute(fields, getset, ...) */
     OP_ATTR_GET,
     OP_ATTR_SET,
 

@@ -9,12 +9,12 @@
 extern "C" {
 #endif
 
-static Value _cfunc_call(Object *self, Value *args, int nargs, Object *kwargs)
+static Value _cfunc_call(Object *obj, Value *args, int nargs, Object *kwargs)
 {
-    ASSERT(IS_CFUNC(self));
-    CFuncObject *cfunc = (CFuncObject *)self;
+    ASSERT(IS_CFUNC(obj));
+    CFuncObject *cfunc = (CFuncObject *)obj;
     ASSERT(cfunc->call);
-    Value ret = cfunc->call(self, args, nargs, kwargs);
+    Value ret = cfunc->call(obj, args, nargs, kwargs);
     return ret;
 }
 
@@ -24,40 +24,42 @@ TypeObject cfunc_type = {
     .call = _cfunc_call,
 };
 
-static Value _cfunc_call_noarg(Object *self, Value *args, int nargs,
-                               Object *kwargs)
+static Value _cfunc_call_noarg(Object *obj, Value *args, int nargs,
+                               Object *kwds)
 {
-    CFuncObject *cfunc = (CFuncObject *)self;
+    ASSERT(IS_CFUNC(obj));
+    CFuncObject *cfunc = (CFuncObject *)obj;
     MethodDef *def = cfunc->def;
     CFunc fn = def->cfunc;
-    return fn(self);
+    return fn(args);
 }
 
-static Value _cfunc_call_one(Object *self, Value *args, int nargs,
-                             Object *kwargs)
+static Value _cfunc_call_one(Object *obj, Value *args, int nargs, Object *kwds)
 {
-    CFuncObject *cfunc = (CFuncObject *)self;
+    ASSERT(IS_CFUNC(obj));
+    CFuncObject *cfunc = (CFuncObject *)obj;
     MethodDef *def = cfunc->def;
     CFuncOne fn = def->cfunc;
-    return fn(self, args);
+    return fn(args, args + 1);
 }
 
-static Value _cfunc_call_fast(Object *self, Value *args, int nargs,
-                              Object *kwargs)
+static Value _cfunc_call_fast(Object *obj, Value *args, int nargs, Object *kwds)
 {
-    CFuncObject *cfunc = (CFuncObject *)self;
+    ASSERT(IS_CFUNC(obj));
+    CFuncObject *cfunc = (CFuncObject *)obj;
     MethodDef *def = cfunc->def;
     CFuncFast fn = def->cfunc;
-    return fn(self, args, nargs);
+    return fn(args, args + 1, nargs - 1);
 }
 
-static Value _cfunc_call_fast_keywords(Object *self, Value *args, int nargs,
-                                       Object *kwargs)
+static Value _cfunc_call_fast_keywords(Object *obj, Value *args, int nargs,
+                                       Object *kwds)
 {
-    CFuncObject *cfunc = (CFuncObject *)self;
+    ASSERT(IS_CFUNC(obj));
+    CFuncObject *cfunc = (CFuncObject *)obj;
     MethodDef *def = cfunc->def;
     CFuncFastWithKeywords fn = def->cfunc;
-    return fn(self, args, nargs, kwargs);
+    return fn(args, args + 1, nargs - 1, kwds);
 }
 
 Object *kl_new_cfunc(MethodDef *def, Object *mod, TypeObject *cls)

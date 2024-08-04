@@ -33,7 +33,7 @@ typedef struct _Object {
 #define IS_TYPE(ob, type) (OB_TYPE(ob) == type)
 
 typedef struct _Value {
-    int8_t tag;
+    int tag;
     union {
         int64_t ival;
         double fval;
@@ -61,50 +61,14 @@ typedef struct _Value {
 #define FloatValue(x)   (Value){ .tag = VAL_TAG_FLT, .fval = (x) }
 /* clang-format on */
 
-typedef unsigned int (*HashFunc)(Value *self);
+typedef Value (*HashFunc)(Value *self);
 typedef Value (*CmpFunc)(Value *lhs, Value *rhs);
 typedef Value (*GetIterFunc)(Value *self);
 typedef Value (*IterNextFunc)(Value *self);
 typedef Value (*StrFunc)(Value *self);
-typedef Value (*CallFunc)(Object *self, Value *args, int nargs, Object *kwargs);
-typedef Value (*UnaryFunc)(Value *);
-typedef Value (*BinaryFunc)(Value *, Value *);
-typedef Value (*TernaryFunc)(Value *, Value *, Value *);
-typedef int (*LenFunc)(Value *);
-typedef Value (*GetItemFunc)(Value *, ssize_t);
-typedef int (*SetItemFunc)(Value *, ssize_t, Value *);
-typedef Value (*GetSliceFunc)(Value *, Object *);
-typedef int (*SetSliceFunc)(Value *, Object *, Value *);
-typedef int (*ContainsFunc)(Value *, Value *);
-
-/* number protocol methods */
-typedef struct _NumberMethods {
-    BinaryFunc add;
-    BinaryFunc sub;
-    BinaryFunc mul;
-    BinaryFunc div;
-    BinaryFunc mod;
-    UnaryFunc neg;
-    /* clang-format off */
-    BinaryFunc and;
-    BinaryFunc or;
-    BinaryFunc xor;
-    UnaryFunc not;
-    BinaryFunc shl;
-    BinaryFunc shr;
-    /* clang-format on */
-} NumberMethods;
-
-/* sequence protocol methods */
-typedef struct _SequenceMethods {
-    LenFunc len;
-    BinaryFunc concat;
-    ContainsFunc contains;
-    GetItemFunc item;
-    SetItemFunc set_item;
-    GetSliceFunc slice;
-    SetSliceFunc set_slice;
-} SequenceMethods;
+typedef Value (*InitFunc)(Value *self, Value *args, int nargs);
+typedef void (*FiniFunc)(Value *self);
+typedef Value (*CallFunc)(Object *obj, Value *args, int nargs, Object *kwds);
 
 typedef struct _MethodDef {
     /* The name of function/method */
@@ -119,8 +83,8 @@ typedef struct _MethodDef {
     char *ret_desc;
 } MethodDef;
 
-typedef Value (*GetterFunc)(Value *, void *);
-typedef int (*SetterFunc)(Value *, Value *, void *);
+typedef Value (*GetterFunc)(Value *);
+typedef int (*SetterFunc)(Value *, Value *);
 
 typedef struct _GetSetDef {
     /* The name of the attribute */
@@ -129,25 +93,7 @@ typedef struct _GetSetDef {
     GetterFunc get;
     /* The attribute setter function */
     SetterFunc set;
-    /* private closure */
-    void *closure;
 } GetSetDef;
-
-/* Types for MemberDef */
-#define MT_INT32   1
-#define MT_INT64   2
-#define MT_FLOAT32 3
-#define MT_FLOAT64 4
-#define MT_OBJECT  5
-
-typedef struct _MemberDef {
-    /* The name of the member */
-    const char *name;
-    /* The type of the member */
-    int type;
-    /* The offset of c struct */
-    int offset;
-} MemberDef;
 
 #define TP_FLAGS_CLASS    (1 << 0)
 #define TP_FLAGS_TRAIT    (1 << 1)
@@ -160,57 +106,44 @@ typedef struct _TypeObject {
     OBJECT_HEAD
     /* type name */
     char *name;
-
     /* one of TP_FLAGS_XXX */
     int flags;
+    /* object size */
+    size_t size;
 
     /* object call defaults */
-    int kwargs_offset;
+    int kwds_offset;
 
     /* gc mark function */
     GcMarkFunc mark;
 
-    /* new function */
     /* init function */
+    InitFunc init;
     /* fini function */
-
-    /* enter function */
-    /* exit function */
+    FiniFunc fini;
 
     /* hashable */
     HashFunc hash;
     CmpFunc cmp;
-
     /* printable */
     StrFunc str;
-
     /* callable */
     CallFunc call;
-
-    /* call with kwargs */
-    Object *kwargs;
 
     /* iterable */
     GetIterFunc iter;
     IterNextFunc next;
 
-    /* number protocol */
-    NumberMethods *as_num;
-    /* sequence protocol */
-    SequenceMethods *as_seq;
-
     /* method definitions */
     MethodDef *methods;
     /* getset definitions */
     GetSetDef *getsets;
-    /* member definitions */
-    MemberDef *members;
 
     /* base class and traits */
     struct _TypeObject *base;
     struct _TraitObject **traits;
 
-    /* attributes(fields, getsets and members) */
+    /* attributes(fields, getsets) */
     Vector *attrs;
 
     /* functions(parent and self methods) */
@@ -235,7 +168,7 @@ static inline CallFunc value_is_callable(Value *val)
     return tp->call;
 }
 
-Value object_call(Object *callable, Value *args, int nargs, Object *kwargs);
+Value object_call(Object *obj, Value *args, int nargs, Object *kwds);
 Object *get_default_kwargs(Value *val);
 
 #ifdef __cplusplus

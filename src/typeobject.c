@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-static Value type_call(Object *self, Value *args, int nargs, Object *kwargs)
+static Value type_call(Object *self, Value *args, int nargs, Object *kwds)
 {
     return NoneValue;
 }
@@ -18,8 +18,7 @@ static Value type_call(Object *self, Value *args, int nargs, Object *kwargs)
 TypeObject type_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "type",
-    .kwargs_offset = offsetof(TypeObject, kwargs),
-    .call = type_call,
+    .call = NULL,
 };
 
 TypeObject object_type = {

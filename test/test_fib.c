@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
         0,
     };
 
-    CodeObject *code = mm_alloc(sizeof(CodeObject));
+    CodeObject *code = (CodeObject *)kl_new_code("fib", m, NULL);
     code->insns = fib_insns;
     code->num_insns = sizeof(fib_insns);
     code->nargs = 1;
@@ -62,9 +62,10 @@ int main(int argc, char *argv[])
     code->stack_size = 1;
     module_add_code(m, (Object *)code);
 
-    Object *fn = module_get_symbol(m, 0);
+    Object *fn = module_get_symbol(m, 0, 0);
     Value args[] = { IntValue(40) };
     Value result = object_call(fn, args, 1, NULL);
+    printf("%ld\n", result.ival);
 
     kl_fini();
     return 0;
