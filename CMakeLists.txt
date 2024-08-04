@@ -45,7 +45,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL pgo1)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-generate=./profile -flto -O3 -DNDEBUG -Wextra -Wno-unused-result -Wsign-compare -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden")
 elseif(CMAKE_BUILD_TYPE STREQUAL pgo2)
     # add_definitions(-DNOLOG)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-use=./profile -Wno-missing-profile -fprofile-correction -flto -O3 -DNDEBUG -Wextra -Wno-unused-result -Wsign-compare -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-use=${CMAKE_BINARY_DIR}/test/profile -flto -O3 -DNDEBUG -Wextra -Wno-unused-result -Wsign-compare -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden")
 elseif(CMAKE_BUILD_TYPE STREQUAL coverage)
     # lcov --rc branch_coverage.=1 -c -d ./ -o app.info
     # genhtml --rc branch_coverage.=1 app.info -o cc_result

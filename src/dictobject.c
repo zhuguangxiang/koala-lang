@@ -10,7 +10,10 @@ extern "C" {
 #endif
 
 /* dict(iterable Iterable = None) */
-static Value _dict_call(Object *self, Value *args, int nargs, Object *kwds) {}
+static Value _dict_call(Object *self, Value *args, int nargs, Object *kwds)
+{
+    return NoneValue;
+}
 
 TypeObject dict_type = {
     OBJECT_HEAD_INIT(&type_type),
@@ -18,7 +21,7 @@ TypeObject dict_type = {
     .call = NULL,
 };
 
-Object *kl_new_dict(void) {}
+Object *kl_new_dict(void) { return NULL; }
 
 #ifdef __cplusplus
 }
