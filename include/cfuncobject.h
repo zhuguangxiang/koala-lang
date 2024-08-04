@@ -17,27 +17,15 @@ typedef struct _CFuncObject {
     /* cfunc definition */
     MethodDef *def;
     /* module */
-    Object *mod;
+    Object *module;
     /* class, can be null */
     TypeObject *cls;
-    /* object call */
-    CallFunc call;
 } CFuncObject;
 
 extern TypeObject cfunc_type;
 #define IS_CFUNC(ob) IS_TYPE((ob), &cfunc_type)
 
-#define METH_NOARG    0x0001
-#define METH_ONE      0x0002
-#define METH_KEYWORDS 0x0004
-#define METH_FASTCALL 0x0008
-
-typedef Value (*CFunc)(Value *);
-typedef Value (*CFuncOne)(Value *, Value *);
-typedef Value (*CFuncFast)(Value *, Value *, int);
-typedef Value (*CFuncFastWithKeywords)(Value *, Value *, int, Object *);
-
-Object *kl_new_cfunc(MethodDef *def, Object *mod, TypeObject *cls);
+Object *kl_new_cfunc(MethodDef *def, Object *m, TypeObject *cls);
 
 #ifdef __cplusplus
 }

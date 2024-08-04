@@ -1,9 +1,9 @@
 #!/bin/bash
 
-mkdir -p build/Release && cd build/Release
+mkdir -p build/release && cd build/release
 
 cmake -G Ninja ../.. \
-    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_BUILD_TYPE=release \
     -DSKIP_TESTS=OFF
 
 cmake --build . --target clean

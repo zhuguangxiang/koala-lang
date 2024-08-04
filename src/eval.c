@@ -148,14 +148,14 @@ static void _call_function(Object *obj, Value *args, int nargs, CallFrame *cf,
     }
 
     /* process default key-value arguments */
-    Object *kwds = NULL;
-    int kwds_offset = tp->kwds_offset;
-    if (kwds_offset > 0) {
-        /* object has default kwargs */
-        kwds = kl_new_dict();
-    }
+    // Object *kwds = NULL;
+    // int kwds_offset = tp->kwds_offset;
+    // if (kwds_offset > 0) {
+    //     /* object has default kwargs */
+    //     kwds = kl_new_dict();
+    // }
 
-    Value r = func(obj, args, nargs, kwds);
+    Value r = func(obj, args, nargs);
     *result = r;
 }
 
@@ -283,7 +283,7 @@ done:
     --ks->depth;
 }
 
-Value kl_eval_code(Object *code, Value *args, int nargs, Object *kw)
+Value kl_eval_code(Object *code, Value *args, int nargs)
 {
     KoalaState *ks = __ks();
 

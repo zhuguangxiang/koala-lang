@@ -41,24 +41,24 @@ typedef struct _Value {
     };
 } Value;
 
-#define VAL_TAG_OBJ  (1 << 0)
-#define VAL_TAG_ERR  (1 << 1)
-#define VAL_TAG_NONE (1 << 2)
-#define VAL_TAG_INT  (1 << 3)
-#define VAL_TAG_FLT  (1 << 4)
+#define VAL_TAG_OBJ  1
+#define VAL_TAG_INT  2
+#define VAL_TAG_FLT  3
+#define VAL_TAG_NONE 4
+#define VAL_TAG_ERR  5
 
-#define IS_OBJECT(x) ((x)->tag & VAL_TAG_OBJ)
-#define IS_ERROR(x)  ((x)->tag & VAL_TAG_ERR)
-#define IS_NONE(x)   ((x)->tag & VAL_TAG_NONE)
-#define IS_INT(x)    ((x)->tag & VAL_TAG_INT)
-#define IS_FLOAT(x)  ((x)->tag & VAL_TAG_FLT)
+#define IS_OBJECT(x) ((x)->tag == VAL_TAG_OBJ)
+#define IS_INT(x)    ((x)->tag == VAL_TAG_INT)
+#define IS_FLOAT(x)  ((x)->tag == VAL_TAG_FLT)
+#define IS_NONE(x)   ((x)->tag == VAL_TAG_NONE)
+#define IS_ERROR(x)  ((x)->tag == VAL_TAG_ERR)
 
 /* clang-format off */
 #define ObjectValue(x)  (Value){ .tag = VAL_TAG_OBJ, .obj = (x)  }
-#define ErrorValue      (Value){ .tag = VAL_TAG_ERR  }
-#define NoneValue       (Value){ .tag = VAL_TAG_NONE }
 #define IntValue(x)     (Value){ .tag = VAL_TAG_INT, .ival = (x) }
 #define FloatValue(x)   (Value){ .tag = VAL_TAG_FLT, .fval = (x) }
+#define NoneValue       (Value){ .tag = VAL_TAG_NONE }
+#define ErrorValue      (Value){ .tag = VAL_TAG_ERR  }
 /* clang-format on */
 
 typedef Value (*HashFunc)(Value *self);
@@ -68,15 +68,14 @@ typedef Value (*IterNextFunc)(Value *self);
 typedef Value (*StrFunc)(Value *self);
 typedef Value (*InitFunc)(Value *self, Value *args, int nargs);
 typedef void (*FiniFunc)(Value *self);
-typedef Value (*CallFunc)(Object *obj, Value *args, int nargs, Object *kwds);
+typedef Value (*CallFunc)(Object *obj, Value *args, int nargs);
+typedef Value (*CFunc)(Value *, Value *, int);
 
 typedef struct _MethodDef {
     /* The name of function/method */
     char *name;
     /* The c func */
-    void *cfunc;
-    /* Combination of METH_xxx flags */
-    int flags;
+    CFunc cfunc;
     /* The arguments types */
     char *args_desc;
     /* The return type */
@@ -168,7 +167,7 @@ static inline CallFunc value_is_callable(Value *val)
     return tp->call;
 }
 
-Value object_call(Object *obj, Value *args, int nargs, Object *kwds);
+Value object_call(Object *obj, Value *args, int nargs);
 Object *get_default_kwargs(Value *val);
 
 #ifdef __cplusplus

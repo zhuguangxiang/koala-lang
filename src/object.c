@@ -15,30 +15,16 @@ extern TypeObject exc_type;
 extern TypeObject int_type;
 extern TypeObject float_type;
 
+static TypeObject *mapping[] = {
+    NULL, NULL, &int_type, NULL, &none_type, NULL,
+};
+
 TypeObject *value_type(Value *val)
 {
-    TypeObject *tp = NULL;
-    switch (val->tag) {
-        case VAL_TAG_OBJ:
-            tp = OB_TYPE(val->obj);
-            break;
-        case VAL_TAG_NONE:
-            tp = &none_type;
-            break;
-        case VAL_TAG_ERR:
-            // tp = &exc_type;
-            break;
-        case VAL_TAG_INT:
-            tp = &int_type;
-            break;
-        case VAL_TAG_FLT:
-            // tp = &float_type;
-            break;
-        default:
-            UNREACHABLE();
-            break;
-    }
-    return tp;
+    TypeObject *tp = mapping[val->tag];
+    if (tp) return tp;
+    if (IS_OBJECT(val)) return OB_TYPE(val->obj);
+    return NULL;
 }
 
 Object *get_default_kwargs(Value *val)
@@ -54,7 +40,7 @@ Object *get_default_kwargs(Value *val)
     }
 }
 
-Value object_call(Object *obj, Value *args, int nargs, Object *kwargs)
+Value object_call(Object *obj, Value *args, int nargs)
 {
     TypeObject *tp = OB_TYPE(obj);
     CallFunc call = tp->call;
@@ -64,7 +50,7 @@ Value object_call(Object *obj, Value *args, int nargs, Object *kwargs)
         return ErrorValue;
     }
 
-    return call(obj, args, nargs, kwargs);
+    return call(obj, args, nargs);
 }
 
 #ifdef __cplusplus

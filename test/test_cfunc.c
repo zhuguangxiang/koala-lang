@@ -5,6 +5,7 @@
 
 #include "cfuncobject.h"
 #include "log.h"
+#include "moduleobject.h"
 #include "object.h"
 #include "run.h"
 
@@ -12,12 +13,13 @@
 extern "C" {
 #endif
 
-static Value _hello(Value *self, Value *unused)
+static Value _hello(Value *self, Value *args, int nargs)
 {
     ASSERT(IS_OBJECT(self));
     Object *obj = self->obj;
-    ASSERT(IS_CFUNC(obj));
-    ASSERT(unused == NULL);
+    ASSERT(IS_MODULE(obj));
+    ASSERT(args == NULL);
+    ASSERT(nargs == 0);
     printf("hello, world\n");
     return NoneValue;
 }
@@ -25,13 +27,14 @@ static Value _hello(Value *self, Value *unused)
 MethodDef method = {
     "hello",
     _hello,
-    METH_NOARG,
 };
 
 void test_cfunc(void)
 {
-    Object *obj = kl_new_cfunc(&method, NULL, NULL);
-    Value ret = object_call(obj, NULL, 0, NULL);
+    Object *m = kl_new_module("cfunc");
+    Object *obj = kl_new_cfunc(&method, m, NULL);
+    module_add_code(m, obj);
+    Value ret = object_call(obj, NULL, 0);
     ASSERT(IS_NONE(&ret));
 }
 

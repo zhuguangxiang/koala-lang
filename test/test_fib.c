@@ -62,9 +62,9 @@ int main(int argc, char *argv[])
     code->stack_size = 1;
     module_add_code(m, (Object *)code);
 
-    Object *fn = module_get_symbol(m, 0, 0);
+    // Object *fn = module_get_symbol(m, 0, 0);
     Value args[] = { IntValue(40) };
-    Value result = object_call(fn, args, 1, NULL);
+    Value result = object_call((Object *)code, args, 1);
     printf("%ld\n", result.ival);
 
     kl_fini();
