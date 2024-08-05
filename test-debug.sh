@@ -8,5 +8,5 @@ cmake -G Ninja ../.. \
 
 cmake --build . --target clean
 cmake --build . --target all
-cmake --build . --target test
+ctest -LE "^no_debug_test$"
 cmake --build . --target check

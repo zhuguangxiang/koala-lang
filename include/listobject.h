@@ -16,7 +16,7 @@ typedef struct _ListObject {
     OBJECT_HEAD
     ssize_t start;
     ssize_t end;
-    GcArray *array;
+    char *array;
 } ListObject;
 
 extern TypeObject list_type;

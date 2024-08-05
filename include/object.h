@@ -28,7 +28,7 @@ typedef struct _Object {
 
 #define INIT_OBJECT_HEAD(_ob, _type) (_ob)->ob_type = (_type)
 
-#define OB_TYPE(_ob) ((_ob)->ob_type)
+#define OB_TYPE(_ob) (((Object *)(_ob))->ob_type)
 
 #define IS_TYPE(ob, type) (OB_TYPE(ob) == type)
 
@@ -37,7 +37,7 @@ typedef struct _Value {
     union {
         int64_t ival;
         double fval;
-        Object *obj;
+        void *obj;
     };
 } Value;
 
@@ -61,6 +61,14 @@ typedef struct _Value {
 #define ErrorValue      (Value){ .tag = VAL_TAG_ERR  }
 /* clang-format on */
 
+static inline void gc_mark_value(Value *val, Queue *que)
+{
+    if (IS_OBJECT(val)) {
+        gc_mark_obj(val->obj, que);
+    }
+}
+
+typedef void (*GcMarkFunc)(Object *, Queue *);
 typedef Value (*HashFunc)(Value *self);
 typedef Value (*CmpFunc)(Value *lhs, Value *rhs);
 typedef Value (*GetIterFunc)(Value *self);
@@ -82,24 +90,13 @@ typedef struct _MethodDef {
     char *ret_desc;
 } MethodDef;
 
-typedef Value (*GetterFunc)(Value *);
-typedef int (*SetterFunc)(Value *, Value *);
-
-typedef struct _GetSetDef {
-    /* The name of the attribute */
-    const char *name;
-    /* The attribute getter function */
-    GetterFunc get;
-    /* The attribute setter function */
-    SetterFunc set;
-} GetSetDef;
-
 #define TP_FLAGS_CLASS    (1 << 0)
 #define TP_FLAGS_TRAIT    (1 << 1)
 #define TP_FLAGS_ABSTRACT (1 << 2)
 #define TP_FLAGS_PUBLIC   (1 << 3)
 #define TP_FLAGS_FINAL    (1 << 4)
-#define TP_FLAGS_HEAP     (1 << 5)
+#define TP_FLAGS_META     (1 << 5)
+#define TP_FLAGS_HEAP     (1 << 6)
 
 typedef struct _TypeObject {
     OBJECT_HEAD
@@ -112,6 +109,9 @@ typedef struct _TypeObject {
 
     /* object call defaults */
     int kwds_offset;
+
+    /* module */
+    Object *module;
 
     /* gc mark function */
     GcMarkFunc mark;
@@ -126,6 +126,7 @@ typedef struct _TypeObject {
     CmpFunc cmp;
     /* printable */
     StrFunc str;
+
     /* callable */
     CallFunc call;
 
@@ -135,14 +136,12 @@ typedef struct _TypeObject {
 
     /* method definitions */
     MethodDef *methods;
-    /* getset definitions */
-    GetSetDef *getsets;
 
     /* base class and traits */
     struct _TypeObject *base;
     struct _TraitObject **traits;
 
-    /* attributes(fields, getsets) */
+    /* attributes(fields) */
     Vector *attrs;
 
     /* functions(parent and self methods) */
@@ -155,6 +154,7 @@ typedef struct _TypeObject {
 
 extern TypeObject type_type;
 TypeObject *value_type(Value *val);
+extern TypeObject object_type;
 
 static inline CallFunc object_is_callable(Object *obj)
 {

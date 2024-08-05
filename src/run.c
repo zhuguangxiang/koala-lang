@@ -257,16 +257,9 @@ static void enum_koala_state(Queue *que, KoalaState *ks)
     if (!ks) return;
 
     Value *v;
-    Object *obj;
     for (int i = 0; i < ks->stack_size; i++) {
         v = ks->base_stack_ptr + i;
-        if (v->tag & VAL_TAG_OBJ) {
-            obj = v->obj;
-            if (obj->gc_age != -1) {
-                gc_mark(obj, GC_COLOR_GRAY);
-                queue_push(que, obj);
-            }
-        }
+        gc_mark_value(v, que);
     }
 }
 

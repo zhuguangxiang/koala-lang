@@ -152,8 +152,10 @@ static GcHdr *alloc_obj(int size, int minor, int perm)
     ASSERT(hdr);
     lldq_node_init(&hdr->gc_link);
     hdr->gc_size = size;
+    // default kind
+    hdr->gc_kind = GC_KIND_RAW;
     if (perm) {
-        hdr->gc_age = -2;
+        hdr->gc_age = -1;
         hdr->gc_color = GC_COLOR_WHITE;
         lldq_push_tail(&_gc_perm_list, &hdr->gc_link);
         log_info("[Mutator]Thread-%d, permanent object, size: %ld", ts->id,
@@ -225,6 +227,26 @@ void *_gc_alloc(int size, int perm)
 
 done:
 
+    return hdr;
+}
+
+void *gc_alloc_array(char kind, size_t len)
+{
+    static size_t sizes[] = {
+        0,
+        sizeof(int8_t),
+        sizeof(int16_t),
+        sizeof(int32_t),
+        sizeof(int64_t),
+        sizeof(float),
+        sizeof(double),
+        sizeof(Object *),
+        sizeof(Value),
+    };
+    ASSERT(kind >= GC_KIND_INT8 && kind <= GC_KIND_VALUE);
+    int size = sizeof(GcHdr) + len * sizes[kind];
+    GcHdr *hdr = gc_alloc(size);
+    hdr->gc_kind = kind;
     return hdr;
 }
 
@@ -320,7 +342,7 @@ static void *gc_pthread_func(void *arg)
                     if (hdr->gc_color == GC_COLOR_WHITE) {
                         free_obj(hdr);
                     } else if (hdr->gc_color == GC_COLOR_BLACK) {
-                        gc_mark(hdr, GC_COLOR_WHITE);
+                        _gc_mark(hdr, GC_COLOR_WHITE);
                         gc_incr_age(hdr);
                     } else {
                         ASSERT(0);
@@ -339,7 +361,7 @@ static void *gc_pthread_func(void *arg)
                 while (node) {
                     GcHdr *hdr = (GcHdr *)node;
                     ASSERT(hdr->gc_color == GC_COLOR_BLACK);
-                    gc_mark(hdr, GC_COLOR_WHITE);
+                    _gc_mark(hdr, GC_COLOR_WHITE);
                     gc_incr_age(hdr);
                     lldq_push_tail(&_gc_list, node);
 
@@ -366,7 +388,7 @@ static void *gc_pthread_func(void *arg)
                     if (hdr->gc_color == GC_COLOR_WHITE) {
                         free_obj(hdr);
                     } else if (hdr->gc_color == GC_COLOR_BLACK) {
-                        gc_mark(hdr, GC_COLOR_WHITE);
+                        _gc_mark(hdr, GC_COLOR_WHITE);
                         gc_incr_age(hdr);
                     } else {
                         ASSERT(0);
@@ -378,7 +400,7 @@ static void *gc_pthread_func(void *arg)
                 while (node) {
                     GcHdr *hdr = (GcHdr *)node;
                     ASSERT(hdr->gc_color == GC_COLOR_BLACK);
-                    gc_mark(hdr, GC_COLOR_WHITE);
+                    _gc_mark(hdr, GC_COLOR_WHITE);
                     gc_incr_age(hdr);
                     lldq_push_tail(&_gc_list, node);
                     node = lldq_pop_head(&_gc_remark_list);

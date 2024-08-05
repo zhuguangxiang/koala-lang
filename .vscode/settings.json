@@ -49,7 +49,7 @@
     "editor.fontWeight": "normal",
     "debug.console.fontFamily": "'JetBrains Mono'",
     "editor.fontSize": 13,
-    "editor.scrollbar.verticalScrollbarSize": 1,
+    "editor.scrollbar.verticalScrollbarSize": 5,
     "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
         "textMateRules": [

@@ -5,6 +5,8 @@
 
 #include "object.h"
 #include "exception.h"
+#include "moduleobject.h"
+#include "strobject.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,6 +54,56 @@ Value object_call(Object *obj, Value *args, int nargs)
 
     return call(obj, args, nargs);
 }
+
+static Value object_hash(Value *self)
+{
+    unsigned int v = mem_hash(self, sizeof(Value));
+    return IntValue(v);
+}
+
+static Value object_compare(Value *self, Value *rhs)
+{
+    int v = memcmp(self, rhs, sizeof(Value));
+    int r;
+    if (v > 0) {
+        r = 1;
+    } else if (v < 0) {
+        r = -1;
+    } else {
+        r = 0;
+    }
+    return IntValue(r);
+}
+
+static Value object_str(Value *self)
+{
+    TypeObject *tp = value_type(self);
+    const char *s = module_get_name(tp->module);
+    Object *result = kl_new_fmt_str("<%s.%s object>", s, tp->name);
+    return ObjectValue(result);
+}
+
+static Value object_get_class(Value *self, Value *args, int nargs)
+{
+    TypeObject *tp = value_type(self);
+    return ObjectValue(tp);
+}
+
+static MethodDef object_methods[] = {
+    { "__class__", object_get_class },
+    { NULL },
+};
+
+TypeObject object_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "Object",
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .size = sizeof(Object),
+    .hash = object_hash,
+    .cmp = object_compare,
+    .str = object_str,
+    .methods = object_methods,
+};
 
 #ifdef __cplusplus
 }

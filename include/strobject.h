@@ -16,7 +16,7 @@ typedef struct _StrObject {
     OBJECT_HEAD
     int start;
     int end;
-    GcArray *array;
+    char *array;
 } StrObject;
 
 extern TypeObject str_type;
@@ -28,6 +28,8 @@ static inline Object *kl_new_str(const char *s)
 {
     return kl_new_nstr(s, strlen(s));
 }
+
+Object *kl_new_fmt_str(const char *fmt, ...);
 
 #ifdef __cplusplus
 }

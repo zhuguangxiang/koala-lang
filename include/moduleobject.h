@@ -12,8 +12,23 @@
 extern "C" {
 #endif
 
+typedef int (*ModInitFunc)(Object *m);
+typedef void (*ModFiniFunc)(Object *m);
+
+typedef struct _ModuleDef {
+    char *name;
+    size_t size;
+    MethodDef *methods;
+    ModInitFunc init;
+    ModFiniFunc fini;
+} ModuleDef;
+
 typedef struct _ModuleObject {
     OBJECT_HEAD
+    /* module definition */
+    ModuleDef *def;
+    /* module state */
+    void *state;
     /* all symbols */
     Vector symbols;
     /* global values */
@@ -52,6 +67,12 @@ static inline Object *module_get_symbol(Object *_m, int m_idx, int index)
     Object **item = vector_get(&m->symbols, index);
     if (item) return *item;
     return NULL;
+}
+
+static inline const char *module_get_name(Object *_m)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    return m->def->name;
 }
 
 #ifdef __cplusplus
