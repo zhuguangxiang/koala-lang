@@ -15,7 +15,7 @@ extern "C" {
 
 static Value _hello(Value *self, Value *args, int nargs)
 {
-    ASSERT(IS_OBJECT(self));
+    ASSERT(IS_OBJ(self));
     Object *obj = self->obj;
     ASSERT(IS_MODULE(obj));
     ASSERT(args == NULL);

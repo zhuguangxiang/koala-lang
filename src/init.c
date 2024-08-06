@@ -3,9 +3,7 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#ifndef _KOALA_INT_OBJECT_H_
-#define _KOALA_INT_OBJECT_H_
-
+#include "eval.h"
 #include "object.h"
 
 #ifdef __cplusplus
@@ -14,8 +12,10 @@ extern "C" {
 
 extern TypeObject int_type;
 
+void init_bltin_module(KoalaState *ks) { init_types(); }
+
+void init_sys_module(KoalaState *ks) { init_types(); }
+
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* _KOALA_INT_OBJECT_H_ */

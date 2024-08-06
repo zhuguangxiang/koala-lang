@@ -17,7 +17,7 @@ extern "C" {
  */
 
 typedef struct _TraceBack {
-    struct _TraceBack *prev;
+    struct _TraceBack *back;
     const char *file;
     int lineno;
 } TraceBack;
@@ -25,7 +25,7 @@ typedef struct _TraceBack {
 typedef struct _Exception {
     OBJECT_HEAD
     const char *msg;
-    TraceBack *prev;
+    TraceBack *back;
 } Exception;
 
 extern TypeObject exc_type;

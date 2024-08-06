@@ -43,6 +43,13 @@ int module_add_code(Object *_m, Object *code)
     return 0;
 }
 
+int module_add_type(Object *_m, TypeObject *type)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    vector_push_back(&m->symbols, &type);
+    return 0;
+}
+
 #ifdef __cplusplus
 }
 #endif

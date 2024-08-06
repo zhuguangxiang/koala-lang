@@ -7,6 +7,7 @@
 #define _KOALA_COMMON_H_
 
 #include <assert.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>

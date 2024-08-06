@@ -72,9 +72,8 @@ void *_gc_alloc(int size, int perm);
 
 #define _gc_mark(obj, _color) ((GcHdr *)(obj))->gc_color = (_color)
 
-static inline void gc_mark_obj(void *obj, Queue *que)
+static inline void gc_mark_obj(GcHdr *hdr, Queue *que)
 {
-    GcHdr *hdr = obj;
     if (hdr->gc_age != -1) {
         _gc_mark(hdr, GC_COLOR_GRAY);
         queue_push(que, hdr);

@@ -12,14 +12,13 @@ extern "C" {
 
 static void str_gc_mark(StrObject *obj, Queue *que)
 {
-    void *hdr = obj->array - sizeof(GcHdr);
-    gc_mark_obj(hdr, que);
+    gc_mark_obj(obj->array, que);
 }
 
 TypeObject str_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "str",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_FINAL,
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
     .size = sizeof(StrObject),
     .mark = (GcMarkFunc)str_gc_mark,
 };
@@ -40,7 +39,7 @@ Object *kl_new_nstr(const char *s, int len)
     data[len] = '\0';
     FINI_GC_STACK();
 
-    sobj->array = data;
+    sobj->array = arr;
     return (Object *)sobj;
 }
 

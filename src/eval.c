@@ -118,6 +118,8 @@ void ks_free(KoalaState *ks)
 #define POP()       (*--top)
 #define SHRINK(n)   (top -= (n))
 
+#define PUSH_INT(v) ((top->tag = VAL_TAG_INT, top->ival = (v)), top++)
+
 #define GET_LOCAL(i)    ({ ASSERT((i) < nlocals); (locals + (i)); })
 #define SET_LOCAL(i, v) (ASSERT((i) < nlocals), SET(locals + (i), v))
 #define SET_INT_LOCAL(i, v) do { \
@@ -132,7 +134,12 @@ void ks_free(KoalaState *ks)
 
 static Object *_get_symbol(CallFrame *cf, int m_idx, int o_idx)
 {
-    Object *r = module_get_symbol(cf->module, m_idx, o_idx);
+    ModuleObject *m = (ModuleObject *)cf->module;
+    if (m_idx != 0) {
+        m = module_get_reloc((Object *)m, m_idx);
+    }
+
+    Object *r = module_get_symbol((Object *)m, o_idx);
     ASSERT(r && object_is_callable(r));
     return r;
 }
@@ -228,6 +235,12 @@ main_loop:
                 int A = NEXT_REG();
                 Value *ra = GET_LOCAL(A);
                 PUSH(ra);
+                DISPATCH();
+            }
+
+            case OP_PUSH_IMM8: {
+                int imm = NEXT_INT8();
+                PUSH_INT(imm);
                 DISPATCH();
             }
 

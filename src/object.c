@@ -25,13 +25,13 @@ TypeObject *value_type(Value *val)
 {
     TypeObject *tp = mapping[val->tag];
     if (tp) return tp;
-    if (IS_OBJECT(val)) return OB_TYPE(val->obj);
+    if (IS_OBJ(val)) return OB_TYPE(val->obj);
     return NULL;
 }
 
 Object *get_default_kwargs(Value *val)
 {
-    if (!IS_OBJECT(val)) return NULL;
+    if (!IS_OBJ(val)) return NULL;
 
     TypeObject *tp = value_type(val);
     if (tp->kwds_offset) {
@@ -64,14 +64,7 @@ static Value object_hash(Value *self)
 static Value object_compare(Value *self, Value *rhs)
 {
     int v = memcmp(self, rhs, sizeof(Value));
-    int r;
-    if (v > 0) {
-        r = 1;
-    } else if (v < 0) {
-        r = -1;
-    } else {
-        r = 0;
-    }
+    int r = _compare_result(v);
     return IntValue(r);
 }
 
@@ -80,13 +73,13 @@ static Value object_str(Value *self)
     TypeObject *tp = value_type(self);
     const char *s = module_get_name(tp->module);
     Object *result = kl_new_fmt_str("<%s.%s object>", s, tp->name);
-    return ObjectValue(result);
+    return ObjValue(result);
 }
 
 static Value object_get_class(Value *self, Value *args, int nargs)
 {
     TypeObject *tp = value_type(self);
-    return ObjectValue(tp);
+    return ObjValue(tp);
 }
 
 static MethodDef object_methods[] = {
@@ -104,6 +97,18 @@ TypeObject object_type = {
     .str = object_str,
     .methods = object_methods,
 };
+
+Value object_call_method_noarg(Object *obj, const char *name)
+{
+    TypeObject *tp = OB_TYPE(obj);
+    Object *fn = hashmap_get(tp->vtbl, NULL);
+    if (!fn) {
+        raise_exc("'%s' object has no method '%s'", tp->name, name);
+        return ErrorValue;
+    }
+    Value args[] = { ObjValue(obj) };
+    return object_call(fn, args, 1);
+}
 
 #ifdef __cplusplus
 }

@@ -48,6 +48,10 @@ typedef struct _KoalaState {
     struct _ThreadState *ts;
     /* top call stack frame */
     CallFrame *cf;
+    /* builtin module */
+    Object *bltin;
+    /* sys module */
+    Object *sym;
     /* exception */
     Object *exc;
     /* gc shadow stack */
@@ -62,7 +66,7 @@ typedef struct _KoalaState {
     Value base_stack_ptr[0];
 } KoalaState;
 
-Value kl_eval_code(Object *func, Value *args, int nargs);
+Value kl_eval_code(Object *code, Value *args, int nargs);
 
 KoalaState *ks_new(void);
 void ks_free(KoalaState *ks);

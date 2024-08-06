@@ -17,7 +17,7 @@ static Value _cfunc_call(Object *obj, Value *args, int nargs)
     CFunc fn = cfunc->def->cfunc;
     ASSERT(cfunc->module || cfunc->cls);
     if (cfunc->module) {
-        Value self = ObjectValue(cfunc->module);
+        Value self = ObjValue(cfunc->module);
         return fn(&self, args, nargs);
     } else if (cfunc->cls) {
         return fn(args, args + 1, nargs - 1);

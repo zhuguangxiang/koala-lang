@@ -60,10 +60,9 @@ static inline ModuleObject *module_get_reloc(Object *_m, int index)
     return NULL;
 }
 
-static inline Object *module_get_symbol(Object *_m, int m_idx, int index)
+static inline Object *module_get_symbol(Object *_m, int index)
 {
-    ModuleObject *m = module_get_reloc(_m, m_idx);
-    if (!m) return NULL;
+    ModuleObject *m = (ModuleObject *)_m;
     Object **item = vector_get(&m->symbols, index);
     if (item) return *item;
     return NULL;

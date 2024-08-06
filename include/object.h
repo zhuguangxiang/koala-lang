@@ -47,23 +47,23 @@ typedef struct _Value {
 #define VAL_TAG_NONE 4
 #define VAL_TAG_ERR  5
 
-#define IS_OBJECT(x) ((x)->tag == VAL_TAG_OBJ)
-#define IS_INT(x)    ((x)->tag == VAL_TAG_INT)
-#define IS_FLOAT(x)  ((x)->tag == VAL_TAG_FLT)
-#define IS_NONE(x)   ((x)->tag == VAL_TAG_NONE)
-#define IS_ERROR(x)  ((x)->tag == VAL_TAG_ERR)
+#define IS_OBJ(x)   ((x)->tag == VAL_TAG_OBJ)
+#define IS_INT(x)   ((x)->tag == VAL_TAG_INT)
+#define IS_FLOAT(x) ((x)->tag == VAL_TAG_FLT)
+#define IS_NONE(x)  ((x)->tag == VAL_TAG_NONE)
+#define IS_ERROR(x) ((x)->tag == VAL_TAG_ERR)
 
 /* clang-format off */
-#define ObjectValue(x)  (Value){ .tag = VAL_TAG_OBJ, .obj = (x)  }
-#define IntValue(x)     (Value){ .tag = VAL_TAG_INT, .ival = (x) }
-#define FloatValue(x)   (Value){ .tag = VAL_TAG_FLT, .fval = (x) }
-#define NoneValue       (Value){ .tag = VAL_TAG_NONE }
-#define ErrorValue      (Value){ .tag = VAL_TAG_ERR  }
+#define ObjValue(x) (Value){ .tag = VAL_TAG_OBJ, .obj = (x)  }
+#define IntValue(x) (Value){ .tag = VAL_TAG_INT, .ival = (x) }
+#define FltValue(x) (Value){ .tag = VAL_TAG_FLT, .fval = (x) }
+#define NoneValue   (Value){ .tag = VAL_TAG_NONE }
+#define ErrorValue  (Value){ .tag = VAL_TAG_ERR  }
 /* clang-format on */
 
 static inline void gc_mark_value(Value *val, Queue *que)
 {
-    if (IS_OBJECT(val)) {
+    if (IS_OBJ(val)) {
         gc_mark_obj(val->obj, que);
     }
 }
@@ -74,7 +74,7 @@ typedef Value (*CmpFunc)(Value *lhs, Value *rhs);
 typedef Value (*GetIterFunc)(Value *self);
 typedef Value (*IterNextFunc)(Value *self);
 typedef Value (*StrFunc)(Value *self);
-typedef Value (*InitFunc)(Value *self, Value *args, int nargs);
+typedef int (*InitFunc)(Value *self, Value *args, int nargs);
 typedef void (*FiniFunc)(Value *self);
 typedef Value (*CallFunc)(Object *obj, Value *args, int nargs);
 typedef Value (*CFunc)(Value *, Value *, int);
@@ -169,6 +169,19 @@ static inline CallFunc value_is_callable(Value *val)
 
 Value object_call(Object *obj, Value *args, int nargs);
 Object *get_default_kwargs(Value *val);
+
+/* clang-format off */
+#define _compare_result(v) ({   \
+    int r;                      \
+    if (v > 0) { r = 1;         \
+    } else if (v < 0) { r = -1; \
+    } else { r = 0;             \
+    }                           \
+    r;                          \
+})
+/* clang-format on */
+
+Value object_call_method_noarg(Object *obj, const char *name);
 
 #ifdef __cplusplus
 }

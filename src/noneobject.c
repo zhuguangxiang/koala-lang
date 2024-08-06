@@ -12,7 +12,7 @@ extern "C" {
 static Value _none_str(Value *self)
 {
     Object *s = kl_new_str("None");
-    return ObjectValue(s);
+    return ObjValue(s);
 }
 
 TypeObject none_type = {
