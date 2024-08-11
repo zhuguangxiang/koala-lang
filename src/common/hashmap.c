@@ -31,7 +31,7 @@ unsigned int mem_hash(const void *buf, int len)
     return hash;
 }
 
-#define HASHMAP_INITIAL_SIZE 32
+#define HASHMAP_INITIAL_SIZE 16
 #define HASHMAP_LOAD_FACTOR  65
 
 static void __alloc_entries(HashMap *self, int size)

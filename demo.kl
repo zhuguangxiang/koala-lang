@@ -1,0 +1,9 @@
+
+let NUM = 12345678901234567890
+let NUM2 = 100
+let NUM3 Int8 = 200
+let NUM4 Int8 = 100
+let f1 = 1.23
+let N Int = 1.23
+let O1 Object = 100
+let b = True

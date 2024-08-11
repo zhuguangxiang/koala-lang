@@ -12,8 +12,6 @@
 extern "C" {
 #endif
 
-#ifndef NOLOG
-
 typedef struct _Logger {
     LogLevel level;
     int quiet;
@@ -37,8 +35,7 @@ void init_log(LogLevel default_level, const char *file, int quiet)
     pthread_spin_init(&logger.flock, 0);
 }
 
-static char *level_names[] = { "TRACE", "DEBUG", "INFO",
-                               "WARN",  "ERROR", "FATAL" };
+static char *level_names[] = { "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL" };
 
 #ifdef LOG_COLOR
 static char *level_colors[] = { "\x1b[94m", "\x1b[36m", "\x1b[32m",
@@ -104,8 +101,6 @@ void _log_log(LogLevel level, char *file, int line, char *fmt, ...)
         pthread_spin_unlock(&logger.flock);
     }
 }
-
-#endif
 
 #ifdef __cplusplus
 }
