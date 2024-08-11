@@ -62,12 +62,15 @@ typedef struct _ParserState {
 
     /* token */
     int token;
-    /* multi-lines mode */
+    /* multi-lines */
     int multi;
     /* newline */
     int newline;
     /* errors */
     int errors;
+
+    /* string */
+    Buffer sbuf;
 
     /* string for print error */
     char *sval;

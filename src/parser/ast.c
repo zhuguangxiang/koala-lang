@@ -65,6 +65,14 @@ Type *bool_type(void)
     return ty;
 }
 
+Type *str_type(void)
+{
+    Type *ty = mm_alloc_obj(ty);
+    ty->desc = (TypeDesc *)&str_desc;
+    ty->stbl = NULL;
+    return ty;
+}
+
 Type *object_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
@@ -100,6 +108,76 @@ Expr *expr_from_lit_bool(int val)
     exp->which = LIT_EXPR_BOOL;
     exp->bval = val;
     exp->desc = (TypeDesc *)&bool_desc;
+    return (Expr *)exp;
+}
+
+static char esc_char(char ch)
+{
+    char val;
+    switch (ch) {
+        case 'a':
+            val = 7;
+            break;
+        case 'b':
+            val = 8;
+            break;
+        case 'f':
+            val = 12;
+            break;
+        case 'n':
+            val = 10;
+            break;
+        case 'r':
+            val = 13;
+            break;
+        case 't':
+            val = 9;
+            break;
+        case 'v':
+            val = 11;
+            break;
+        default:
+            val = ch;
+            break;
+    }
+    return val;
+}
+
+static void do_escape(Buffer *buf)
+{
+    char *s = buf->buf;
+    int len = buf->len;
+    if (len == 0) return;
+
+    int j = 0;
+    char ch;
+    for (int i = 0; i < len; ++i) {
+        ch = s[i];
+        if (ch == '\\') {
+            if (i + 1 < len) {
+                ch = s[++i];
+                s[j++] = esc_char(ch);
+            }
+        } else {
+            s[j++] = ch;
+        }
+    }
+    ASSERT(j <= len);
+    buf->len = j;
+    s[j] = '\0';
+}
+
+Expr *expr_from_lit_str(Buffer *buf)
+{
+    LitExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->which = LIT_EXPR_STR;
+    exp->sval = mm_alloc_fast(buf->len + 1);
+    memcpy(exp->sval, buf->buf, buf->len);
+    exp->sval[buf->len] = '\0';
+    exp->len = buf->len;
+    exp->desc = (TypeDesc *)&str_desc;
+    buf->len = 0;
     return (Expr *)exp;
 }
 

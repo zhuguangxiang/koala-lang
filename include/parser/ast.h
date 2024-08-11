@@ -51,6 +51,7 @@ Type *int64_type(void);
 Type *float32_type(void);
 Type *float64_type(void);
 Type *bool_type(void);
+Type *str_type(void);
 Type *object_type(void);
 
 #define type_set_loc(ty, _loc) (ty)->loc = (_loc)
@@ -106,6 +107,7 @@ typedef struct _LitExpr {
 #define LIT_EXPR_FLT  2
 #define LIT_EXPR_BOOL 3
 #define LIT_EXPR_STR  4
+    int len;
     union {
         int64_t ival;
         double fval;
@@ -118,6 +120,7 @@ typedef struct _LitExpr {
 Expr *expr_from_lit_int(int64_t val);
 Expr *expr_from_lit_float(double val);
 Expr *expr_from_lit_bool(int val);
+Expr *expr_from_lit_str(Buffer *buf);
 
 typedef enum _StmtKind {
     STMT_UNK_KIND,

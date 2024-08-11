@@ -18,6 +18,7 @@ NumberDesc float32_desc = { TYPE_FLOAT_KIND, 32 };
 NumberDesc float64_desc = { TYPE_FLOAT_KIND, 64 };
 NumberDesc float128_desc = { TYPE_FLOAT_KIND, 128 };
 TypeDesc bool_desc = { TYPE_BOOL_KIND };
+TypeDesc str_desc = { TYPE_STR_KIND };
 TypeDesc object_desc = { TYPE_OBJECT_KIND };
 
 int desc_equal(TypeDesc *a, TypeDesc *b)

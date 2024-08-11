@@ -233,7 +233,11 @@ static ParserState *build_ast(char *path)
     return ps;
 }
 
-static void free_parser(ParserState *ps) {}
+static void free_parser(ParserState *ps)
+{
+    FINI_BUF(ps->sbuf);
+    mm_free(ps);
+}
 
 int compile(int argc, char *argv[])
 {

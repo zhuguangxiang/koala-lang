@@ -7,6 +7,7 @@
 
 %{
 
+#include "buffer.h"
 #include "parser.h"
 #include "koala_yacc.h"
 
@@ -42,7 +43,6 @@ static int need_clear(int token)
     char *sval;
     __int128 ival;
     __float128 fval;
-    int ident;
     Stmt *stmt;
     Expr *expr;
     Type *type;
@@ -162,7 +162,7 @@ static int need_clear(int token)
 %token<sval> ID
 %token<ival> INT_LITERAL
 %token<fval> FLOAT_LITERAL
-%token<sval> STRING_LITERAL
+%token STRING_LITERAL
 
 %locations
 %parse-param {ParserState *ps}
@@ -369,8 +369,8 @@ atom_type
     }
     | STRING
     {
-        // $$ = expr_type_string();
-        // expr_type_set_loc($$, loc(@1));
+        $$ = str_type();
+        type_set_loc($$, loc(@1));
     }
     | OBJECT
     {
@@ -957,7 +957,7 @@ atom_expr
     {
         // $$ = $1;
     }
-    | atom_type_call
+    | atom_type
     {
         // $$ = expr_from_type($1);
         // expr_set_loc($$, loc(@1));
@@ -1000,8 +1000,8 @@ atom
     }
     | STRING_LITERAL
     {
-        // $$ = expr_from_lit_str($1);
-        // expr_set_loc($$, loc(@1));
+        $$ = expr_from_lit_str(&ps->sbuf);
+        expr_set_loc($$, loc(@1));
     }
     | TRUE
     {
@@ -1032,13 +1032,9 @@ array_expr
         // $$ = expr_from_array_expr($2);
         // expr_set_loc($$, lloc(@1, @3));
     }
-    | array_type '(' ')'
+    | array_type
     {
-        // $$ = NULL;
-    }
-    | array_type '(' array_expr ')'
-    {
-        // $$ = NULL;
+
     }
     | '[' error
     {
@@ -1060,11 +1056,7 @@ map_expr
         // $$ = expr_from_map($2);
         // expr_set_loc($$, lloc(@1, @3));
     }
-    | map_type '(' ')'
-    {
-        // $$ = NULL;
-    }
-    | map_type '(' map_expr ')'
+    | map_type
     {
         // $$ = NULL;
     }
@@ -1145,11 +1137,6 @@ tuple_expr
         // yy_clear_ok;
         // $$ = NULL;
     }
-    ;
-
-atom_type_call
-    : atom_type '(' ')'
-    | atom_type '(' expr_list ')'
     ;
 
 expr_list

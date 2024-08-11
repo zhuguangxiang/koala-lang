@@ -45,6 +45,7 @@ extern NumberDesc int64_desc;
 extern NumberDesc float32_desc;
 extern NumberDesc float64_desc;
 extern TypeDesc bool_desc;
+extern TypeDesc str_desc;
 extern TypeDesc object_desc;
 
 int desc_equal(TypeDesc *a, TypeDesc *b);

@@ -5,6 +5,7 @@
 
 #include "log.h"
 #include "parser.h"
+#include "utf8.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -99,10 +100,12 @@ static void parse_literal(ParserState *ps, Expr *exp)
             // do nothing
             break;
         }
-        // case LIT_EXPR_STR: {
-        //     exp->type = expr_type_dync(desc_from_str());
-        //     break;
-        // }
+        case LIT_EXPR_STR: {
+            if (check_utf8(lit->sval, lit->len) < 0) {
+                kl_error(exp->loc, "invalid utf8 string");
+            }
+            break;
+        }
         default: {
             UNREACHABLE();
             break;

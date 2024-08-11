@@ -10,6 +10,7 @@
 #include "parser.h"
 #include "koala_yacc.h"
 #include "atom.h"
+#include "buffer.h"
 
 #define YY_EXTRA_TYPE ParserState *
 
@@ -62,8 +63,8 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 
 #define YY_USER_ACTION {                  \
     if (yyps->newline) {                  \
-        ++loc_first_line;                 \
         ++loc_last_line;                  \
+        loc_first_line = loc_last_line;   \
         loc_first_col = 1;                \
         loc_last_col = 1;                 \
         yyps->newline = 0;                \
@@ -75,6 +76,11 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
         } else {                          \
             loc_first_col = loc_last_col; \
             loc_last_col += yyleng;       \
+        }                                 \
+    } else {                              \
+        if (yyps->multi) {                \
+            ++loc_last_line;              \
+            loc_last_col = 1;             \
         }                                 \
     }                                     \
 }
@@ -88,15 +94,13 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
     errno = 0; yyps->sval = atom_nstr(s, len); \
     yylval->fval = strtold(s, NULL)
 
-#define YY_STR_BEGIN yyps->multi = 1; /* RESET_BUF(yyps->strbuf) */
-#define YY_STR_WRITE(ch) /* buf_write_char(&yyps->strbuf, ch) */
-#define YY_STR_END yyps->multi = 0; /* do_esc(); */ \
-    /* RESET_BUF(yyps->strbuf); */ YY_RETURN(STRING_LITERAL);
+#define YY_STR_BEGIN yyps->multi = 1; BEGIN(STR);
+#define YY_STR_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
+#define YY_STR_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL)
 
-#define YY_TXT_BEGIN yyps->multi = 1; /* RESET_BUF(yyps->strbuf) */
-#define YY_TXT_WRITE(ch) /* buf_write_char(&yyps->strbuf, ch) */
-#define YY_TXT_END yyps->multi = 0; /* do_txt(); */ \
-    /* RESET_BUF(yyps->strbuf); */ YY_RETURN(STRING_LITERAL)
+#define YY_TXT_BEGIN yyps->multi = 1; BEGIN(TXT);
+#define YY_TXT_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
+#define YY_TXT_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL)
 
 %}
 
@@ -225,16 +229,23 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
     YY_FLOAT_VALUE(yytext, yyleng); YY_RETURN(FLOAT_LITERAL);
 }
 
-\"              { BEGIN(STR); YY_STR_BEGIN;   }
-<STR>\"         { BEGIN(INITIAL); YY_STR_END; }
+\"              { YY_STR_BEGIN;   }
+<STR>\"         { YY_STR_END; }
 <STR>\\\"       { YY_STR_WRITE('\"');         }
 <STR>\\\\       { YY_STR_WRITE('\\');         }
+<STR>\\\a       { YY_STR_WRITE('\a');         }
+<STR>\\\b       { YY_STR_WRITE('\b');         }
+<STR>\\\f       { YY_STR_WRITE('\f');         }
+<STR>\\\t       { YY_STR_WRITE('\t');         }
+<STR>\\\v       { YY_STR_WRITE('\v');         }
+<STR>\\\n       { YY_STR_WRITE('\n');         }
+<STR>\\\r       { /* omit */                  }
 <STR>\n         { /* omit */                  }
 <STR>\r         { /* omit */                  }
 <STR>.          { YY_STR_WRITE(yytext[0]);    }
 
-\"\"\"          { BEGIN(TXT); YY_TXT_BEGIN;   }
-<TXT>\"\"\"     { BEGIN(INITIAL); YY_TXT_END; }
+\"\"\"          { YY_TXT_BEGIN;   }
+<TXT>\"\"\"     { YY_TXT_END; }
 <TXT>\n         { YY_TXT_WRITE('\n');         }
 <TXT>\r         { /* omit */                  }
 <TXT>.          { YY_TXT_WRITE(yytext[0]);    }
@@ -243,8 +254,9 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 
 "\n"        { YY_NEWLINE; }
 [ \t\r]     { }
-"//"[^\n]*  { printf("comment:\n%s\n", yytext); }
-"/*"(([^\*]*(\*[^\/])?)*)"*/" { printf("multi-line comments\n"); }
+"#"[^\n]*   { printf("# comment\n"); }
+"//"[^\n]*  { }
+"/*"(([^\*]*(\*[^\/])?)*)"*/" { }
 .           { }
 
 %%

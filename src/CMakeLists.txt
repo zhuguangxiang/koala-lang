@@ -39,6 +39,7 @@ set(KOALA_SOURCES
     common/vector.c
     common/hashmap.c
     common/buffer.c
+    common/utf8.c
     object.c
     gc.c
     run.c
