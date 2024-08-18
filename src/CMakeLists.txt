@@ -18,16 +18,20 @@ run_bison(
 set(PARSER_SRC
     ${PROJECT_BINARY_DIR}/src/parser/koala_yacc.c
     ${PROJECT_BINARY_DIR}/src/parser/koala_lex.c
-    ${PROJECT_SOURCE_DIR}/src/parser/ast.c
-    ${PROJECT_SOURCE_DIR}/src/parser/parser.c
-    ${PROJECT_SOURCE_DIR}/src/parser/parser_expr.c
-    ${PROJECT_SOURCE_DIR}/src/parser/symbol.c
-    ${PROJECT_SOURCE_DIR}/src/parser/typedesc.c)
+    parser/ast.c
+    parser/parser.c
+    parser/parser_expr.c
+    parser/symbol.c
+    parser/typedesc.c
+    parser/ir.c
+    parser/insn.c
+    parser/printer.c)
 
-# add_library(parser STATIC ${PARSER_SRC})
-# target_link_libraries(parser)
-add_executable(koalac_out ${PARSER_SRC})
-target_link_libraries(koalac_out koala)
+add_library(parser STATIC ${PARSER_SRC})
+target_link_libraries(parser koala)
+
+add_executable(koalac_out parser/main.c)
+target_link_libraries(koalac_out parser)
 set_target_properties(koalac_out PROPERTIES
     OUTPUT_NAME koalac)
 
@@ -59,7 +63,7 @@ set(KOALA_SOURCES
 add_library(koala STATIC ${KOALA_SOURCES})
 target_link_libraries(koala pthread m dl ffi)
 
-add_executable(koala_out main.c)
+add_executable(koala_out ${PROJECT_SOURCE_DIR}/src/main.c)
 target_link_libraries(koala_out koala)
 set_target_properties(koala_out PROPERTIES
     OUTPUT_NAME koala)

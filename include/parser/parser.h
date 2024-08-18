@@ -115,6 +115,8 @@ void kl_error_detail(ParserState *, Loc *);
 void parse_expr(ParserState *ps, Expr *exp);
 void yyparse_top_decl(ParserState *ps, Stmt *stmt);
 
+int compile(int argc, char *argv[]);
+
 #ifdef __cplusplus
 }
 #endif

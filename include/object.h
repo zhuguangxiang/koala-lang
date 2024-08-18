@@ -23,8 +23,7 @@ typedef struct _Object {
     OBJECT_HEAD
 } Object;
 
-#define OBJECT_HEAD_INIT(_type) \
-    GC_HEAD_INIT(0, -1, GC_COLOR_BLACK), .ob_type = (_type)
+#define OBJECT_HEAD_INIT(_type) GC_HEAD_INIT(0, -1, GC_COLOR_BLACK), .ob_type = (_type)
 
 #define INIT_OBJECT_HEAD(_ob, _type) (_ob)->ob_type = (_type)
 
@@ -156,10 +155,7 @@ extern TypeObject type_type;
 TypeObject *value_type(Value *val);
 extern TypeObject object_type;
 
-static inline CallFunc object_is_callable(Object *obj)
-{
-    return OB_TYPE(obj)->call;
-}
+static inline CallFunc object_is_callable(Object *obj) { return OB_TYPE(obj)->call; }
 
 static inline CallFunc value_is_callable(Value *val)
 {

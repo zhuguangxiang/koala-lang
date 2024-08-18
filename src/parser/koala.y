@@ -46,7 +46,7 @@ static int need_clear(int token)
     Stmt *stmt;
     Expr *expr;
     Type *type;
-    void *vec;
+    Vector *vec;
 }
 
 %token IMPORT
@@ -1142,13 +1142,13 @@ tuple_expr
 expr_list
     : expr
     {
-        // $$ = vector_create_ptr();
-        // vector_push_back($$, &$1);
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
     }
     | expr_list ',' expr
     {
-        // $$ = $1;
-        // vector_push_back($$, &$3);
+        $$ = $1;
+        vector_push_back($$, &$3);
     }
     ;
 

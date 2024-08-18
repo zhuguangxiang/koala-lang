@@ -144,7 +144,7 @@ static inline List *list_pop_back(List *list)
          v__ && ({ n__ = list_next(v__, member, list); 1;}); v__ = n__)
 
 /* foreach executes sexp */
-#define list_foreach_exp(v__, ty__, member, list, sexp) \
+#define list_foreach_expr(v__, ty__, member, list, sexp) \
     for (ty__ *v__ = list_first(list, ty__, member); \
          v__ && (sexp, 1); sexp, v__ = list_next(v__, member, list))
 

@@ -279,13 +279,6 @@ void yyparse_top_decl(ParserState *ps, Stmt *stmt)
     }
 }
 
-int main(int argc, char *argv[])
-{
-    init_atom();
-    init_log(LOG_INFO, NULL, 0);
-    return compile(argc, argv);
-}
-
 #ifdef __cplusplus
 }
 #endif

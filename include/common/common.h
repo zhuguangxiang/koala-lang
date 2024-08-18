@@ -81,7 +81,14 @@ extern "C" {
 #define SSIZE_MIN (-SSIZE_MAX - 1)
 
 /* clang-format off */
+
 #define FFS(x) ({ int v = __builtin_ffs(x); ASSERT(v > 0); v; })
+
+#define panic(fmt, ...) do {    \
+    printf(fmt "\n", ##__VA_ARGS__); \
+    abort();                    \
+} while (0)
+
 /* clang-format on */
 
 #ifdef __cplusplus

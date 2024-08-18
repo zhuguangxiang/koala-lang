@@ -3,14 +3,14 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "atom.h"
 #include "log.h"
-#include "run.h"
+#include "parser.h"
 
 int main(int argc, char *argv[])
 {
+    init_atom();
     init_log(LOG_INFO, NULL, 0);
-    kl_init(argc, argv);
-    kl_run_file(argv[1]);
-    kl_fini();
+    compile(argc, argv);
     return 0;
 }

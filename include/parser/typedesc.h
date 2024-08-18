@@ -48,6 +48,11 @@ extern TypeDesc bool_desc;
 extern TypeDesc str_desc;
 extern TypeDesc object_desc;
 
+static inline TypeDesc *desc_int8(void) { return (TypeDesc *)&int8_desc; }
+static inline TypeDesc *desc_int16(void) { return (TypeDesc *)&int16_desc; }
+static inline TypeDesc *desc_int32(void) { return (TypeDesc *)&int32_desc; }
+static inline TypeDesc *desc_int64(void) { return (TypeDesc *)&int64_desc; }
+
 int desc_equal(TypeDesc *a, TypeDesc *b);
 void desc_to_str(TypeDesc *desc, Buffer *buf);
 

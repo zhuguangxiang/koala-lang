@@ -1,4 +1,4 @@
-/**
+/*
  * This file is part of the koala project with MIT License.
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
@@ -8,6 +8,10 @@
 #include "moduleobject.h"
 #include "opcode.h"
 #include "run.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -70,3 +74,7 @@ int main(int argc, char *argv[])
     kl_fini();
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

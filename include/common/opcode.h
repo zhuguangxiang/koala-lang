@@ -1,4 +1,4 @@
-/**
+/*
  * This file is part of the koala project with MIT License.
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
@@ -11,6 +11,7 @@ extern "C" {
 #endif
 
 /* clang-format off */
+
 typedef enum _OpCode {
 /*+-------------------------+--------------------------------------------------+*/
 /*| name                    | arguments & comments                             |*/
@@ -92,24 +93,6 @@ typedef enum _OpCode {
     OP_FLOAT_AS_FLOAT32,
     OP_FLOAT_AS_FLOAT64,
 
-    /* number operations */
-    OP_ADD,
-    OP_SUB,
-    OP_MUL,
-    OP_DIV,
-    OP_MOD,
-    OP_NEG,
-
-    OP_AND,
-    OP_OR,
-    OP_XOR,
-    OP_NOT,
-    OP_SHL,
-    OP_SHR,
-
-    /* compare operation */
-    OP_CMP,
-
     /* cast operation */
     OP_AS,
     OP_IS,
@@ -133,12 +116,19 @@ typedef enum _OpCode {
     OP_JMP_INT_CMP_LE_IMM8,
     OP_JMP_INT_CMP_GE_IMM8,
 
-    OP_JMP_EQ,
-    OP_JMP_NE,
-    OP_JMP_LT,
-    OP_JMP_GT,
-    OP_JMP_LE,
-    OP_JMP_GE,
+    OP_JMP_CMP_EQ,
+    OP_JMP_CMP_NE,
+    OP_JMP_CMP_LT,
+    OP_JMP_CMP_GT,
+    OP_JMP_CMP_LE,
+    OP_JMP_CMP_GE,
+
+    OP_JMP_EQZ,
+    OP_JMP_NEZ,
+    OP_JMP_LTZ,
+    OP_JMP_GTZ,
+    OP_JMP_LEZ,
+    OP_JMP_GEZ,
 
     /* call */
     OP_CALL,            /* A B C  A = mod index, B = obj index, C = nargs */
@@ -150,30 +140,72 @@ typedef enum _OpCode {
     OP_RETURN_NONE,
 
     /* globals */
-    OP_GLOBAL_GET,
-    OP_GLOBAL_SET,
+    OP_GLOBAL_LOAD,
+    OP_GLOBAL_STORE,
 
-    /* attribute(fields, getset, ...) */
-    OP_ATTR_GET,
-    OP_ATTR_SET,
+    /* fields */
+    OP_FIELD_LOAD,
+    OP_FIELD_STORE,
+
+    /* array operations */
+    OP_ARRAY_I8_LOAD,
+    OP_ARRAY_I8_STORE,
+    OP_ARRAY_I16_LOAD,
+    OP_ARRAY_I16_STORE,
+    OP_ARRAY_I32_LOAD,
+    OP_ARRAY_I32_STORE,
+    OP_ARRAY_I64_LOAD,
+    OP_ARRAY_I64_STORE,
+    OP_ARRAY_F32_LOAD,
+    OP_ARRAY_F32_STORE,
+    OP_ARRAY_F64_LOAD,
+    OP_ARRAY_F64_STORE,
 
     /* map operations */
-    OP_MAP_GET,            /* A B C            R(A) = B[C] */
-    OP_MAP_SET,            /* A B C            A[B] = C    */
+    OP_MAP_LOAD,            /* A B C            R(A) = B[C] */
+    OP_MAP_STORE,            /* A B C            A[B] = C    */
 
-    /* iterator operations */
+    /* generic arithmetic operators */
+    OP_BINARY_ADD,
+    OP_BINARY_SUB,
+    OP_BINARY_MUL,
+    OP_BINARY_DIV,
+    OP_BINARY_MOD,
+    OP_UNARY_NEG,
+
+    OP_BINARY_AND,
+    OP_BINARY_OR,
+    OP_BINARY_XOR,
+    OP_UNARY_NOT,
+    OP_BINARY_SHL,
+    OP_BINARY_SHR,
+    OP_BINARY_USHR,
+
+    /* generic compare operation */
+    OP_BINARY_CMP,
+
+    /* generic subscript operations */
+    OP_SUBSCR_LOAD,
+    OP_SUBSCR_STORE,
+
+    /* generic attribute operations */
+    OP_ATTR_LOAD,
+    OP_ATTR_STORE,
+
+    /* generic iterator operations */
     OP_GET_ITER,
-    OP_FOR_ITER,
-
-    /* dynamic attribute */
-    OP_DYN_ATTR_GET,
-    OP_DYN_ATTR_SET,
+    OP_ITER_NEXT,
 
     /* raise an error */
     OP_RAISE,
 
-    OP_MAX,
+    /* The below insns are only in IR */
+    OP_IR_LOAD,
+    OP_IR_STORE,
+    OP_IR_PHI,
+
 } OpCode;
+
 /* clang-format on */
 
 #ifdef __cplusplus
