@@ -25,7 +25,9 @@ set(PARSER_SRC
     parser/typedesc.c
     parser/ir.c
     parser/insn.c
-    parser/printer.c)
+    parser/printer.c
+    parser/pass.c
+    parser/passes/dot.c)
 
 add_library(parser STATIC ${PARSER_SRC})
 target_link_libraries(parser koala)

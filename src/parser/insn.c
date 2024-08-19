@@ -109,7 +109,7 @@ KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var)
 
     KlrInsn *insn = new_insn(OP_IR_LOAD, 1, "");
     init_oper(&insn->opers[0], insn, var);
-    // insn->type = var->type;
+    insn->desc = var->desc;
     append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -128,6 +128,8 @@ KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCod
     KlrInsn *insn = new_insn(op, 2, name);
     init_oper(&insn->opers[0], insn, lhs);
     init_oper(&insn->opers[1], insn, rhs);
+    TypeDesc *ty = lhs->desc;
+    insn->desc = ty;
     append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

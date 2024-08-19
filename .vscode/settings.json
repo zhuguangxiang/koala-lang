@@ -15,7 +15,8 @@
         "typeinfo": "c",
         "vector": "c",
         "numbers": "c",
-        "random": "c"
+        "random": "c",
+        "system_error": "c"
     },
     "cSpell.words": [
         "ABCDEFGHIJKLMNOPQRSTUWXYZ",
@@ -32,6 +33,8 @@
         "DOTDOTDOT",
         "DOTDOTEQ",
         "fgets",
+        "fontname",
+        "fontsize",
         "gcroots",
         "getitem",
         "getset",
@@ -45,8 +48,10 @@
         "kwds",
         "lldq",
         "LNOT",
+        "Monaspace",
         "mptr",
         "MULT",
+        "nodesep",
         "noinput",
         "nounput",
         "nstr",
@@ -56,6 +61,7 @@
         "outedges",
         "pprev",
         "preds",
+        "ranksep",
         "setitem",
         "shadowstack",
         "sobj",
@@ -63,7 +69,9 @@
         "strlen",
         "SUBSCR",
         "sval",
+        "Tpdf",
         "traceback",
+        "tsuccs",
         "TYPEDESC",
         "ucbuf",
         "unhashed",
@@ -115,4 +123,5 @@
     "editor.cursorSurroundingLines": 0,
     "cmake.setBuildTypeOnMultiConfig": true,
     "editor.accessibilityPageSize": 10,
+    "C_Cpp.errorSquiggles": "disabled",
 }

@@ -7,3 +7,4 @@ build/
 *.class
 cspell.json
 out/
+*.dot

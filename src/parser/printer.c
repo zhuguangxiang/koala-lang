@@ -336,7 +336,7 @@ static void print_bb_edges(KlrBasicBlock *bb, FILE *fp)
     else
         fprintf(fp, "%%bb%d:\n", bb->tag);
 
-    fprintf(fp, "\tpredecessors: ");
+    fprintf(fp, "\tpreds: ");
     if (edge_in_empty(bb)) {
         fprintf(fp, "\tno\n");
     } else {
@@ -361,7 +361,7 @@ static void print_bb_edges(KlrBasicBlock *bb, FILE *fp)
         if (i == 1) fprintf(fp, "\n");
     }
 
-    fprintf(fp, "\tsuccessors: ");
+    fprintf(fp, "\tsuccs: ");
     if (edge_out_empty(bb)) {
         fprintf(fp, "\tno\n");
     } else {

@@ -399,6 +399,7 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
 #define insn_foreach_safe(insn, next, bb) \
     list_foreach_safe(insn, next, bb_link, &(bb)->insn_list)
 #define insn_first(bb) list_first(&(bb)->insn_list, KlrInsn, bb_link)
+#define insn_last(bb)  list_last(&(bb)->insn_list, KlrInsn, bb_link)
 
 /* def-use iteration */
 #define use_foreach(use, val) list_foreach(use, use_link, &(val)->use_list)
@@ -459,6 +460,26 @@ void klr_print_module(KlrModule *m, FILE *fp);
 } while (0)
 
 /* clang-format on */
+
+/* <7> pass */
+
+typedef void (*KlrPassFunc)(KlrFunc *fn, void *arg);
+
+typedef struct _KlrPassGroup {
+    List passes;
+} KlrPassGroup;
+
+/* define a pass group */
+#define KLR_PASS_GROUP(name) KlrPassGroup name = { .passes = LIST_INIT(name.passes) };
+
+/* finalize a pass group */
+void klr_fini_pass_group(KlrPassGroup *grp);
+
+/* register one pass */
+void klr_add_pass(KlrPassGroup *grp, char *name, KlrPassFunc fn, void *arg);
+
+/* execute pass group */
+void klr_run_pass_group(KlrPassGroup *grp, KlrFunc *fn);
 
 #ifdef __cplusplus
 }
