@@ -137,6 +137,15 @@ static void print_phi(KlrInsn *insn, FILE *fp)
     }
 }
 
+static void print_cmp(KlrInsn *insn, FILE *fp)
+{
+    print_name_or_tag((KlrValue *)insn, fp);
+    fprintf(fp, " = cmp ");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+}
+
 static void print_jmp(KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "br ");
@@ -150,9 +159,9 @@ static void print_jmp(KlrInsn *insn, FILE *fp)
     if (insn->flags & KLR_INSN_FLAGS_LOOP) fprintf(fp, ", !klr.loop\n");
 }
 
-static void print_cond_jmp(KlrInsn *insn, FILE *fp)
+static void print_jmp_lt(KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "br");
+    fprintf(fp, "br_lt");
     fprintf(fp, " ");
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
@@ -170,50 +179,68 @@ static void print_cond_jmp(KlrInsn *insn, FILE *fp)
         fprintf(fp, ", label %%bb%d", _else->tag);
 }
 
+static void print_call(KlrInsn *insn, FILE *fp)
+{
+    print_name_or_tag((KlrValue *)insn, fp);
+    fprintf(fp, " = call ");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, "(");
+    KlrOper *oper;
+    for (int i = 1; i < insn->num_opers; i++) {
+        oper = &insn->opers[i];
+        print_operand(oper, fp);
+    }
+    fprintf(fp, ") ");
+    print_type(insn->desc, fp);
+}
+
 void klr_print_insn(KlrInsn *insn, FILE *fp)
 {
     switch (insn->code) {
         case OP_IR_LOAD:
             print_load(insn, fp);
             break;
+
         case OP_IR_STORE:
             print_store(insn, fp);
             break;
+
         case OP_IR_PHI:
             print_phi(insn, fp);
             break;
+
         case OP_BINARY_ADD:
             print_binary(insn, "add", fp);
             break;
+
         case OP_BINARY_SUB:
             print_binary(insn, "sub", fp);
             break;
 
-        // case OP_CMP_GT:
-        //     print_binary(insn, "cmpgt", fp);
-        //     break;
-        // case KLR_INSN_CMPGE:
-        //     print_binary(insn, "cmpge", fp);
-        //     break;
-        // case KLR_INSN_CMPLT:
-        //     print_binary(insn, "cmplt", fp);
-        //     break;
-        // case KLR_INSN_CMPLE:
-        //     print_binary(insn, "cmple", fp);
-        //     break;
+        case OP_CALL:
+            print_call(insn, fp);
+            break;
 
-        // case KLR_INSN_JMP:
-        //     print_jmp(insn, fp);
-        //     break;
-        // case KLR_INSN_COND_JMP:
-        //     print_condjmp(insn, fp);
-        //     break;
+        case OP_BINARY_CMP:
+            print_cmp(insn, fp);
+            break;
+
+        case OP_JMP:
+            print_jmp(insn, fp);
+            break;
+
+        case OP_JMP_LTZ:
+            print_jmp_lt(insn, fp);
+            break;
+
         case OP_RETURN:
             print_ret(insn, fp);
             break;
+
         case OP_RETURN_NONE:
             print_ret_void(insn, fp);
             break;
+
         default:
             assert(0);
             break;

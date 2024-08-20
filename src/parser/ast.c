@@ -12,7 +12,7 @@ extern "C" {
 Type *int8_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = (TypeDesc *)&int8_desc;
+    ty->desc = desc_int8();
     ty->stbl = NULL;
     return ty;
 }
@@ -20,7 +20,7 @@ Type *int8_type(void)
 Type *int16_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = (TypeDesc *)&int16_desc;
+    ty->desc = desc_int16();
     ty->stbl = NULL;
     return ty;
 }
@@ -28,7 +28,7 @@ Type *int16_type(void)
 Type *int32_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = (TypeDesc *)&int32_desc;
+    ty->desc = desc_int32();
     ty->stbl = NULL;
     return ty;
 }
@@ -36,7 +36,7 @@ Type *int32_type(void)
 Type *int64_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = (TypeDesc *)&int64_desc;
+    ty->desc = desc_int64();
     ty->stbl = NULL;
     return ty;
 }
@@ -44,7 +44,7 @@ Type *int64_type(void)
 Type *float32_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = (TypeDesc *)&float32_desc;
+    ty->desc = desc_float32();
     ty->stbl = NULL;
     return ty;
 }
@@ -52,7 +52,7 @@ Type *float32_type(void)
 Type *float64_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = (TypeDesc *)&float64_desc;
+    ty->desc = desc_float64();
     ty->stbl = NULL;
     return ty;
 }
@@ -60,7 +60,7 @@ Type *float64_type(void)
 Type *bool_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = (TypeDesc *)&bool_desc;
+    ty->desc = desc_bool();
     ty->stbl = NULL;
     return ty;
 }
@@ -68,7 +68,7 @@ Type *bool_type(void)
 Type *str_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = (TypeDesc *)&str_desc;
+    ty->desc = desc_str();
     ty->stbl = NULL;
     return ty;
 }
@@ -76,7 +76,7 @@ Type *str_type(void)
 Type *object_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = (TypeDesc *)&object_desc;
+    ty->desc = desc_object();
     ty->stbl = NULL;
     return ty;
 }

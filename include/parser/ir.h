@@ -384,12 +384,32 @@ void klr_build_store(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,
                            char *name);
 
-/* IR: %2 int = add %0, %1 or %2 int = add %0, 100 */
+/* IR: %2 int = add %0, %1 */
 static inline KlrValue *klr_build_add(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
                                       char *name)
 {
     return klr_build_binary(bldr, lhs, rhs, OP_BINARY_ADD, name);
 }
+
+/* IR: %2 int = sub %0, %1 */
+static inline KlrValue *klr_build_sub(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
+                                      char *name)
+{
+    return klr_build_binary(bldr, lhs, rhs, OP_BINARY_SUB, name);
+}
+
+/* IR: %2 int = cmp %0, %1 */
+KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, char *name);
+
+/* IR: br %0, %bb1, %bb2 */
+void klr_build_jmp_lt(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
+                      KlrBasicBlock *_else);
+
+/* IR: br %bb */
+void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target);
+
+/* IR: %0 int = call %func, %argument-list */
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrFunc *fn, KlrValue **args, char *name);
 
 /* IR: ret %var */
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
@@ -413,6 +433,9 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
     for (int i__ = 0; (i__ < (insn)->num_opers) && (oper = &(insn)->opers[i__], 1); i__++)
 
 /* <5> printer */
+
+/* get value name or tag */
+char *klr_name_tag(KlrValue *val);
 
 /* print an instruction */
 void klr_print_insn(KlrInsn *insn, FILE *fp);

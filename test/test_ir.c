@@ -67,8 +67,6 @@ func fib(n Int32) Int32 {
     return fib(n - 1) + fib(n - 2)
 }
 */
-
-#if 0
 void build_fib(KlrModule *m)
 {
     TypeDesc *param_types[] = {
@@ -90,7 +88,7 @@ void build_fib(KlrModule *m)
 
     /* entry basic block */
     KlrValue *val = klr_build_load(&bldr, param);
-    KlrValue *cond = klr_build_cmp(val, klr_const_int32(2));
+    KlrValue *cond = klr_build_cmp(&bldr, val, klr_const_int32(2), "");
     klr_build_jmp_lt(&bldr, cond, _then, _else);
 
     /* _then basic block */
@@ -108,25 +106,33 @@ void build_fib(KlrModule *m)
     klr_builder_end(&bldr, bb);
 
     val = klr_build_load(&bldr, param);
-    KlrValue *sub = klr_build_sub(&bldr, val, klr_const_int32(2));
+    KlrValue *sub = klr_build_sub(&bldr, val, klr_const_int32(1), "");
     KlrValue *args1[] = { sub, NULL };
-    KlrValue *ret1 = klr_build_call(&bldr, func, args1);
+    KlrValue *ret1 = klr_build_call(&bldr, (KlrFunc *)func, args1, "");
 
     val = klr_build_load(&bldr, param);
-    sub = klr_build_sub(&bldr, val, klr_const_int32(2));
+    sub = klr_build_sub(&bldr, val, klr_const_int32(2), "");
     KlrValue *args2[] = { sub, NULL };
-    KlrValue *ret2 = klr_build_call(&bldr, func, args2);
+    KlrValue *ret2 = klr_build_call(&bldr, (KlrFunc *)func, args2, "");
 
     KlrValue *ret = klr_build_add(&bldr, ret1, ret2, "");
     klr_build_ret(&bldr, ret);
+
+    klr_print_func((KlrFunc *)func, stdout);
+    klr_print_cfg((KlrFunc *)func, stdout);
+
+    KLR_PASS_GROUP(grp);
+    register_dot_passes(&grp);
+    klr_run_pass_group(&grp, (KlrFunc *)func);
+    klr_fini_pass_group(&grp);
 }
-#endif
 
 int main(int argc, char *argv[])
 {
     init_log(LOG_INFO, NULL, 0);
     KlrModule *m = klr_create_module("example");
     build_foo(m);
+    build_fib(m);
     return 0;
 }
 
