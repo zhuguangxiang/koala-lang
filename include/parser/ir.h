@@ -6,6 +6,7 @@
 #ifndef _KOALA_IR_H_
 #define _KOALA_IR_H_
 
+#include "hashmap.h"
 #include "list.h"
 #include "opcode.h"
 #include "typedesc.h"
@@ -50,6 +51,13 @@ typedef struct _KlrValue {
     init_list(&(val)->use_list); \
     (val)->name = _name ? _name : ""; \
     (val)->tag = -1;
+
+typedef union _KlrConstValue {
+    int64_t ival;
+    double fval;
+    int bval;
+    char *sval;
+} KlrConstValue;
 
 /* literal constant */
 typedef struct _KlrConst {
@@ -254,7 +262,7 @@ typedef struct _KlrInsn {
     KlrValue *phi;
 
     /* constant result of constant folding */
-    KlrConst *result;
+    KlrValue *result;
 
     /* number of operands */
     int num_opers;
@@ -271,13 +279,39 @@ typedef struct _KlrBuilder {
 /* APIs */
 
 /* <1> literal constants */
-KlrValue *klr_const_int8(int8_t v);
-KlrValue *klr_const_int16(int16_t v);
-KlrValue *klr_const_int32(int32_t v);
-KlrValue *klr_const_int64(int64_t v);
-KlrValue *klr_const_float32(float v);
-KlrValue *klr_const_float64(double v);
-KlrValue *klr_const_bool(int v);
+KlrValue *klr_const_int(TypeDesc *ty, int64_t val);
+
+static inline KlrValue *klr_const_int8(int8_t val)
+{
+    return klr_const_int(desc_int8(), val);
+}
+
+static inline KlrValue *klr_const_int16(int16_t val)
+{
+    return klr_const_int(desc_int16(), val);
+}
+
+static inline KlrValue *klr_const_int32(int32_t val)
+{
+    return klr_const_int(desc_int32(), val);
+}
+
+static inline KlrValue *klr_const_int64(int64_t val)
+{
+    return klr_const_int(desc_int64(), val);
+}
+
+static inline KlrValue *klr_const_float32(float val)
+{
+    return klr_const_int(desc_float32(), val);
+}
+
+static inline KlrValue *klr_const_float64(double val)
+{
+    return klr_const_int(desc_float64(), val);
+}
+
+KlrValue *klr_const_bool(int val);
 KlrValue *klr_const_string(char *s, int len);
 
 /* <2> module */
@@ -294,6 +328,8 @@ KlrValue *klr_add_func(KlrModule *m, TypeDesc *ret, TypeDesc **params, char *nam
 KlrValue *klr_get_param(KlrValue *fn, int index);
 KlrValue *klr_add_global(KlrModule *m, TypeDesc *ty, char *name);
 KlrValue *klr_add_local(KlrBuilder *bldr, TypeDesc *ty, char *name);
+
+#define local_foreach(local, func) vector_foreach(local, &(func)->locals)
 
 /* <3> basic block */
 
@@ -375,6 +411,8 @@ static inline int klr_get_nr_succ(KlrBasicBlock *bb)
 
 /* <4> instructions */
 
+void klr_delete_insn(KlrInsn *insn);
+
 /* IR: %0 int = load_local %foo */
 KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var);
 
@@ -433,9 +471,6 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
     for (int i__ = 0; (i__ < (insn)->num_opers) && (oper = &(insn)->opers[i__], 1); i__++)
 
 /* <5> printer */
-
-/* get value name or tag */
-char *klr_name_tag(KlrValue *val);
 
 /* print an instruction */
 void klr_print_insn(KlrInsn *insn, FILE *fp);
@@ -503,6 +538,12 @@ void klr_add_pass(KlrPassGroup *grp, char *name, KlrPassFunc fn, void *arg);
 
 /* execute pass group */
 void klr_run_pass_group(KlrPassGroup *grp, KlrFunc *fn);
+
+/* ir context */
+typedef struct _KlrContext {
+    HashMap passes;
+    Vector modules;
+} KlrContext;
 
 #ifdef __cplusplus
 }

@@ -141,21 +141,28 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 
 "self"      { YY_RETURN(SELF);      }
 "super"     { YY_RETURN(SUPER);     }
-"True"      { YY_RETURN(TRUE);      }
-"False"     { YY_RETURN(FALSE);     }
-"None"      { YY_RETURN(NONE);      }
+"true"      { YY_RETURN(TRUE);      }
+"false"     { YY_RETURN(FALSE);     }
+"none"      { YY_RETURN(NONE);      }
 
-"Int8"      { YY_RETURN(INT8);      }
-"Int16"     { YY_RETURN(INT16);     }
-"Int32"     { YY_RETURN(INT32);     }
-"Int64"     { YY_RETURN(INT64);     }
-"Int"       { YY_RETURN(INT64);     }
-"Float32"   { YY_RETURN(FLOAT32);   }
-"Float64"   { YY_RETURN(FLOAT64);   }
-"Float"     { YY_RETURN(FLOAT64);   }
-"Bool"      { YY_RETURN(BOOL);      }
-"String"    { YY_RETURN(STRING);    }
-"Object"    { YY_RETURN(OBJECT);    }
+"int8"      { YY_RETURN(INT8);      }
+"int16"     { YY_RETURN(INT16);     }
+"int32"     { YY_RETURN(INT32);     }
+"int64"     { YY_RETURN(INT64);     }
+"int"       { YY_RETURN(INT64);     }
+"float32"   { YY_RETURN(FLOAT32);   }
+"float64"   { YY_RETURN(FLOAT64);   }
+"float"     { YY_RETURN(FLOAT64);   }
+"bool"      { YY_RETURN(BOOL);      }
+"str"       { YY_RETURN(STRING);    }
+"object"    { YY_RETURN(OBJECT);    }
+"list"      { YY_RETURN(ARRAY);     }
+"dict"      { YY_RETURN(MAP);       }
+"set"       { YY_RETURN(MAP);       }
+"bytes"     { YY_RETURN(MAP);       }
+"type"      { YY_RETURN(MAP);       }
+"tuple"     { YY_RETURN(MAP);       }
+"range"     { YY_RETURN(MAP);       }
 
 "&&"        { YY_RETURN(AND);       }
 "||"        { YY_RETURN(OR);        }

@@ -19,6 +19,8 @@ static void init_use(KlrUse *use, KlrInsn *insn, KlrOper *oper, KlrValue *ref)
     use->ref = ref;
 }
 
+static void fini_use(KlrUse *use) { list_remove(&use->use_link); }
+
 static void init_oper(KlrOper *oper, KlrInsn *insn, KlrValue *ref)
 {
     init_use(&oper->use, insn, oper, ref);
@@ -33,6 +35,15 @@ static void init_oper(KlrOper *oper, KlrInsn *insn, KlrValue *ref)
         oper->kind = mappings[ref->kind];
     } else {
         panic("Invalid kind %d of Value", ref->kind);
+    }
+}
+
+static void fini_oper(KlrOper *oper)
+{
+    if (oper->kind != KLR_OPER_PHI) {
+        fini_use(&oper->use);
+    } else {
+        NIY();
     }
 }
 
@@ -53,6 +64,18 @@ static void append_insn(KlrBuilder *bldr, KlrInsn *insn)
     insn->bb = bb;
     bldr->it = &insn->bb_link;
     ++bb->num_insns;
+}
+
+void klr_delete_insn(KlrInsn *insn)
+{
+    KlrBasicBlock *bb = insn->bb;
+    list_remove(&insn->bb_link);
+    --bb->num_insns;
+    ASSERT(list_empty(&insn->use_list));
+    for (int i = 0; i < insn->num_opers; i++) {
+        fini_oper(&insn->opers[i]);
+    }
+    mm_free(insn);
 }
 
 /*

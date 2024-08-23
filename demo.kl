@@ -1,20 +1,20 @@
 
 let NUM1 = 12345678901234567890
 let NUM2 = 100
-let NUM3 Int8 = 200
-let NUM4 Int8 = 100
-let NUM5 Int8 = 0x200
+let NUM3 int8 = 200
+let NUM4 int8 = 100
+let NUM5 int8 = 0x200
 let f1 = 1.23
-let N Int = 1.23
-let O1 Object = 100
-let b = True
+let N int = 1.23
+let O1 object = 100
+let b = true
 let s1 = "hello"
 let s2 = "hi"
 let s3 = "he\"l\\lo
  world"
 let s4 = "汉"
 
-let b2 = False
+let b2 = false
 
 let ms = """
 {
@@ -22,5 +22,12 @@ let ms = """
 }
 """
 
+let v list[int] = [1,2,3]
+let m dict[int, int] = {k:v}
+
+array[int8]("hello")
+bytes("hello")
+
+type
 #
 #!

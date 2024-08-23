@@ -32,6 +32,7 @@
         "CMPNE",
         "DOTDOTDOT",
         "DOTDOTEQ",
+        "dvar",
         "fgets",
         "fontname",
         "fontsize",
@@ -99,7 +100,7 @@
     "notebook.insertFinalNewline": true,
     "editor.fontWeight": "400",
     "debug.console.fontFamily": "'JetBrains Mono'",
-    "editor.fontSize": 14,
+    "editor.fontSize": 15,
     "editor.scrollbar.verticalScrollbarSize": 5,
     "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {

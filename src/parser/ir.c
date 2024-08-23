@@ -10,63 +10,13 @@
 extern "C" {
 #endif
 
-KlrValue *klr_const_int8(int8_t v)
+KlrValue *klr_const_int(TypeDesc *ty, int64_t val)
 {
     KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, (TypeDesc *)&int8_desc, "");
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ty, "");
     lit->which = CONST_INT;
     lit->len = 0;
-    lit->ival = v;
-    return (KlrValue *)lit;
-}
-
-KlrValue *klr_const_int16(int16_t v)
-{
-    KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, (TypeDesc *)&int16_desc, "");
-    lit->which = CONST_INT;
-    lit->len = 0;
-    lit->ival = v;
-    return (KlrValue *)lit;
-}
-
-KlrValue *klr_const_int32(int32_t v)
-{
-    KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, (TypeDesc *)&int32_desc, "");
-    lit->which = CONST_INT;
-    lit->len = 0;
-    lit->ival = v;
-    return (KlrValue *)lit;
-}
-
-KlrValue *klr_const_int64(int64_t v)
-{
-    KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, (TypeDesc *)&int64_desc, "");
-    lit->which = CONST_INT;
-    lit->len = 0;
-    lit->ival = v;
-    return (KlrValue *)lit;
-}
-
-KlrValue *klr_const_float32(float v)
-{
-    KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, (TypeDesc *)&float32_desc, "");
-    lit->which = CONST_FLT;
-    lit->len = 0;
-    lit->fval = v;
-    return (KlrValue *)lit;
-}
-
-KlrValue *klr_const_float64(double v)
-{
-    KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, (TypeDesc *)&float64_desc, "");
-    lit->which = CONST_FLT;
-    lit->len = 0;
-    lit->fval = v;
+    lit->ival = val;
     return (KlrValue *)lit;
 }
 

@@ -1,4 +1,6 @@
 
+#include <float.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -98,6 +100,8 @@ typedef struct _Value {
     };
 } Value;
 
+#include <unistd.h>
+
 int main(int argc, char *argv[])
 {
     test();
@@ -105,5 +109,16 @@ int main(int argc, char *argv[])
     // printf("%d\n", v);
     Value val = { .tag = 100 };
     printf("%d, %ld\n", val.tag, val.ival);
+
+    // float f = 3.14111111111112222;
+    // printf("%g\n", f);
+    // printf("%.6g\n", 359.013);
+
+    double f = 359.01335;
+    printf("%g\n", round(f * 1000.0) / 1000.0);
+
+    char buf[2] = { 0, 0x38 };
+    write(1, buf, 2);
+    putchar('\n');
     return 0;
 }

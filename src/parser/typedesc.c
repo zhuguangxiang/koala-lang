@@ -34,7 +34,7 @@ int desc_equal(TypeDesc *a, TypeDesc *b)
 void desc_to_str(TypeDesc *desc, Buffer *buf)
 {
     if (!desc) {
-        buf_write_str(buf, "<No-Type>");
+        buf_write_str(buf, "unknown");
         return;
     }
 
@@ -42,31 +42,31 @@ void desc_to_str(TypeDesc *desc, Buffer *buf)
         case TYPE_INT_KIND: {
             NumberDesc *num = (NumberDesc *)desc;
             char s[8] = { 0 };
-            sprintf(s, "Int%d", num->width);
+            sprintf(s, "int%d", num->width);
             buf_write_str(buf, s);
             break;
         }
         case TYPE_FLOAT_KIND: {
             NumberDesc *num = (NumberDesc *)desc;
             char s[16] = { 0 };
-            sprintf(s, "Float%d", num->width);
+            sprintf(s, "float%d", num->width);
             buf_write_str(buf, s);
             break;
         }
         case TYPE_BOOL_KIND: {
-            buf_write_str(buf, "Bool");
+            buf_write_str(buf, "bool");
             break;
         }
         case TYPE_STR_KIND: {
-            buf_write_str(buf, "String");
+            buf_write_str(buf, "str");
             break;
         }
         case TYPE_OBJECT_KIND: {
-            buf_write_str(buf, "Object");
+            buf_write_str(buf, "object");
             break;
         }
         default: {
-            buf_write_str(buf, "Unk");
+            buf_write_str(buf, "unknown");
             break;
         }
     }
