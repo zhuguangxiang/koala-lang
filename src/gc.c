@@ -1,4 +1,4 @@
-/**
+/*
  * This file is part of the koala project with MIT License.
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
@@ -21,8 +21,7 @@ extern "C" {
 /* CMS algorithm */
 
 static const char *_gc_state_strs[] = {
-    "GC_DONE",   "GC_MARK_ROOTS", "GC_CO_MARK",
-    "GC_REMARK", "GC_CO_SWEEP",   "GC_FULL",
+    "GC_DONE", "GC_MARK_ROOTS", "GC_CO_MARK", "GC_REMARK", "GC_CO_SWEEP", "GC_FULL",
 };
 
 /* We use like JVM solution to stop the mutators. */
@@ -106,8 +105,7 @@ static inline void disable_stw_wakeup_threads(void)
 {
     pthread_mutex_lock(&_mutator_wait_mutex);
 
-    log_info("[Collector][%s]Disable STW and wakeup mutators",
-             _gc_state_strs[_gc_state]);
+    log_info("[Collector][%s]Disable STW and wakeup mutators", _gc_state_strs[_gc_state]);
     _mutator_wait_flag = 0;
     mprotect((void *)__gc_check_ptr, _pagesize, PROT_READ);
     pthread_cond_broadcast(&_mutator_wait_cond);
@@ -158,8 +156,7 @@ static GcHdr *alloc_obj(int size, int minor, int perm)
         hdr->gc_age = -1;
         hdr->gc_color = GC_COLOR_WHITE;
         lldq_push_tail(&_gc_perm_list, &hdr->gc_link);
-        log_info("[Mutator]Thread-%d, permanent object, size: %ld", ts->id,
-                 size);
+        log_info("[Mutator]Thread-%d, permanent object, size: %ld", ts->id, size);
     } else {
         hdr->gc_age = 0;
         if (_gc_state == GC_DONE) {
@@ -424,8 +421,7 @@ static void *gc_pthread_func(void *arg)
 void init_gc_system(size_t max_mem_size, double factor)
 {
     _pagesize = sysconf(_SC_PAGE_SIZE);
-    char *addr =
-        mmap(NULL, _pagesize, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    char *addr = mmap(NULL, _pagesize, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (!addr) {
         perror("mmap");
         exit(-1);

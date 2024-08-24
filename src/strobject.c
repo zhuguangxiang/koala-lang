@@ -1,4 +1,4 @@
-/**
+/*
  * This file is part of the koala project with MIT License.
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
@@ -10,10 +10,7 @@
 extern "C" {
 #endif
 
-static void str_gc_mark(StrObject *obj, Queue *que)
-{
-    gc_mark_obj(obj->array, que);
-}
+static void str_gc_mark(StrObject *obj, Queue *que) { gc_mark_obj(obj->array, que); }
 
 TypeObject str_type = {
     OBJECT_HEAD_INIT(&type_type),

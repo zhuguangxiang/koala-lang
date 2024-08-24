@@ -35,6 +35,8 @@ typedef enum _KlrValueKind {
     TypeDesc *desc;         \
     /* list of all Uses */  \
     List use_list;          \
+    /* virtual register */  \
+    int vreg;               \
     /* printable name */    \
     char *name;             \
     /* printable tag */     \
@@ -49,6 +51,7 @@ typedef struct _KlrValue {
     (val)->kind = (_kind); \
     (val)->desc = (_desc); \
     init_list(&(val)->use_list); \
+    (val)->vreg = -1; \
     (val)->name = _name ? _name : ""; \
     (val)->tag = -1;
 
@@ -415,6 +418,9 @@ void klr_append_insn(KlrBuilder *bldr, KlrInsn *insn);
 
 void klr_delete_insn(KlrInsn *insn);
 
+/* check an insn needs allocate register or not */
+int insn_has_value(KlrInsn *insn);
+
 /* IR: %0 int = load_local %foo */
 KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var);
 
@@ -522,6 +528,9 @@ void update_insn_operand(KlrInsn *insn, int i, KlrValue *val);
 
 /* get basic block name or tag */
 char *klr_block_name(KlrBasicBlock *bb);
+
+/* print a value's name */
+void klr_print_name_or_tag(KlrValue *val, FILE *fp);
 
 /* print an instruction */
 void klr_print_insn(KlrInsn *insn, FILE *fp);

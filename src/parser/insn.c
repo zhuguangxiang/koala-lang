@@ -102,6 +102,49 @@ void klr_delete_insn(KlrInsn *insn)
     mm_free(insn);
 }
 
+/* no allocate register codes */
+static OpCode no_regs_codes[] = {
+    OP_IR_STORE,
+    OP_IR_JMP_COND,
+    OP_PUSH,
+    OP_POP,
+    OP_PUSH_NONE,
+    OP_PUSH_IMM8,
+    OP_RETURN,
+    OP_RETURN_NONE,
+    OP_JMP,
+    OP_JMP_TRUE,
+    OP_JMP_FALSE,
+    OP_JMP_NONE,
+    OP_JMP_NOT_NONE,
+    OP_JMP_CMP_EQ,
+    OP_JMP_CMP_NE,
+    OP_JMP_CMP_LT,
+    OP_JMP_CMP_GT,
+    OP_JMP_CMP_LE,
+    OP_JMP_CMP_GE,
+    OP_JMP_INT_CMP_EQ,
+    OP_JMP_INT_CMP_NE,
+    OP_JMP_INT_CMP_LT,
+    OP_JMP_INT_CMP_GT,
+    OP_JMP_INT_CMP_LE,
+    OP_JMP_INT_CMP_GE,
+    OP_JMP_INT_CMP_EQ_IMM8,
+    OP_JMP_INT_CMP_NE_IMM8,
+    OP_JMP_INT_CMP_LT_IMM8,
+    OP_JMP_INT_CMP_GT_IMM8,
+    OP_JMP_INT_CMP_LE_IMM8,
+    OP_JMP_INT_CMP_GE_IMM8,
+};
+
+int insn_has_value(KlrInsn *insn)
+{
+    for (int i = 0; i < COUNT_OF(no_regs_codes); i++) {
+        if (insn->code == no_regs_codes[i]) return 0;
+    }
+    return 1;
+}
+
 /*
  * IR: store_local %var, %val
  *

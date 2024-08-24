@@ -18,6 +18,7 @@ void klr_constant_propagation_pass(KlrFunc *func, void *ctx);
 void klr_remove_unused_pass(KlrFunc *func, void *ctx);
 void klr_insn_remap(KlrFunc *func);
 void klr_remove_only_jump_block(KlrFunc *func);
+void klr_alloc_registers(KlrFunc *func);
 
 /*
 func foo(a int, b int) int {
@@ -151,6 +152,10 @@ void build_fib(KlrModule *m)
 
     printf("remove only jump basic block\n");
     klr_remove_only_jump_block((KlrFunc *)func);
+    klr_print_func((KlrFunc *)func, stdout);
+
+    printf("register allocation\n");
+    klr_alloc_registers((KlrFunc *)func);
     klr_print_func((KlrFunc *)func, stdout);
 }
 

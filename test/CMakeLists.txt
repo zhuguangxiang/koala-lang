@@ -7,6 +7,7 @@ include(${CMAKE_SOURCE_DIR}/cmake/test.cmake)
 
 test(test_vector koala)
 test(test_hashmap koala)
+test(test_bitset koala)
 test(test_cfunc koala)
 test(test_tuple koala)
 test(test_fib koala)

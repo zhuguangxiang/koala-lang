@@ -1,4 +1,4 @@
-/**
+/*
  * This file is part of the koala project with MIT License.
  * Copyright (c) 2023 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
@@ -42,10 +42,7 @@ extern int __nthreads;
 extern pthread_key_t __local_key;
 
 /* get current thread  */
-static inline ThreadState *__ts(void)
-{
-    return pthread_getspecific(__local_key);
-}
+static inline ThreadState *__ts(void) { return pthread_getspecific(__local_key); }
 
 /* get current koala state  */
 static inline KoalaState *__ks(void) { return __ts()->current; }

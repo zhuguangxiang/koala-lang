@@ -1,4 +1,4 @@
-/**
+/*
  * This file is part of the koala project with MIT License.
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
@@ -78,8 +78,7 @@ static inline int bucket(HashMap *self, HashMapEntry *e)
     return e->hash & (self->size - 1);
 }
 
-static inline int entry_equals(HashMap *self, HashMapEntry *e1,
-                               HashMapEntry *e2)
+static inline int entry_equals(HashMap *self, HashMapEntry *e1, HashMapEntry *e2)
 {
     return (e1 == e2) || (e1->hash == e2->hash && self->equal(e1, e2));
 }
