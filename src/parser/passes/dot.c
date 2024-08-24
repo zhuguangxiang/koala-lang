@@ -8,23 +8,14 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-static char *bb_name_or_tag(KlrBasicBlock *bb)
-{
-    if (bb->name[0]) return bb->name;
-    static char sbuf[32];
-    sprintf(sbuf, "bb%d", bb->tag);
-    return sbuf;
-}
-
 static void show_block(KlrBasicBlock *bb)
 {
-    printf("bb: %s, out edges: %d\n", bb_name_or_tag(bb), bb->num_outedges);
+    printf("bb: %s, out edges: %d\n", klr_block_name(bb), bb->num_outedges);
 
     int i = 0;
     KlrEdge *edge;
     edge_out_foreach(edge, bb) {
-        printf("out-bb-%d: %s\n", i++, bb_name_or_tag(edge->dst));
+        printf("out-bb-%d: %s\n", i++, klr_block_name(edge->dst));
     }
 
     edge_out_foreach(edge, bb) {
@@ -55,17 +46,17 @@ static void dot_print_edge(KlrBasicBlock *bb, FILE *fp)
         out = edge->dst;
         if (branch) {
             if (is_ebb(out)) {
-                fprintf(fp, "  %s:%c -> %s:h\n", bb_name_or_tag(bb), (i == 0) ? 't' : 'f',
-                        bb_name_or_tag(out));
+                fprintf(fp, "  %s:%c -> %s:h\n", klr_block_name(bb), (i == 0) ? 't' : 'f',
+                        klr_block_name(out));
             } else {
-                fprintf(fp, "  %s:%c -> %s\n", bb_name_or_tag(bb), (i == 0) ? 't' : 'f',
-                        bb_name_or_tag(out));
+                fprintf(fp, "  %s:%c -> %s\n", klr_block_name(bb), (i == 0) ? 't' : 'f',
+                        klr_block_name(out));
             }
         } else {
             if (is_ebb(out)) {
-                fprintf(fp, "  %s -> %s\n", bb_name_or_tag(bb), bb_name_or_tag(out));
+                fprintf(fp, "  %s -> %s\n", klr_block_name(bb), klr_block_name(out));
             } else {
-                fprintf(fp, "  %s -> %s:h\n", bb_name_or_tag(bb), bb_name_or_tag(out));
+                fprintf(fp, "  %s -> %s:h\n", klr_block_name(bb), klr_block_name(out));
             }
         }
         dot_print_edge(out, fp);
@@ -96,14 +87,14 @@ static void dot_graph_pass(KlrFunc *fn, void *data)
     KlrBasicBlock *bb;
     KlrInsn *insn;
     basic_block_foreach(bb, fn) {
-        fprintf(fp, "  %s", bb_name_or_tag(bb));
+        fprintf(fp, "  %s", klr_block_name(bb));
         insn = insn_last(bb);
         if (bb->has_branch) {
-            fprintf(fp, "[label=\"{<h>%%%s:", bb_name_or_tag(bb));
+            fprintf(fp, "[label=\"{<h>%%%s:", klr_block_name(bb));
             dot_print_block(bb, fp);
             fprintf(fp, "|{<t>T|<f>F}}\"]\n");
         } else {
-            fprintf(fp, "[label=\"{<h>%%%s:", bb_name_or_tag(bb));
+            fprintf(fp, "[label=\"{<h>%%%s:", klr_block_name(bb));
             dot_print_block(bb, fp);
             fprintf(fp, "\\l}\"]\n");
         }

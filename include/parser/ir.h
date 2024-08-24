@@ -148,6 +148,9 @@ typedef struct _KlrBasicBlock {
     /* instructions */
     List insn_list;
 
+    /* block visited flag */
+    int visited;
+
     /* number of in-edges */
     int num_inedges;
     /* number of out-edges */
@@ -408,6 +411,8 @@ static inline int klr_get_nr_succ(KlrBasicBlock *bb)
 
 /* <4> instructions */
 
+void klr_append_insn(KlrBuilder *bldr, KlrInsn *insn);
+
 void klr_delete_insn(KlrInsn *insn);
 
 /* IR: %0 int = load_local %foo */
@@ -417,20 +422,20 @@ KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var);
 void klr_build_store(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 
 KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,
-                           char *name);
+                           char *name, const char *op_name);
 
 /* IR: %2 int = add %0, %1 */
 static inline KlrValue *klr_build_add(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
                                       char *name)
 {
-    return klr_build_binary(bldr, lhs, rhs, OP_BINARY_ADD, name);
+    return klr_build_binary(bldr, lhs, rhs, OP_BINARY_ADD, name, "add");
 }
 
 /* IR: %2 int = sub %0, %1 */
 static inline KlrValue *klr_build_sub(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
                                       char *name)
 {
-    return klr_build_binary(bldr, lhs, rhs, OP_BINARY_SUB, name);
+    return klr_build_binary(bldr, lhs, rhs, OP_BINARY_SUB, name, "sub");
 }
 
 /* IR: %2 int = cmp %0, %1 */
@@ -468,6 +473,9 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrFunc *fn, KlrValue **args, int nar
 
 /* IR: ret %var */
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
+
+/* IR: push %var */
+KlrInsn *klr_new_push(KlrValue *val);
 
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)
@@ -511,6 +519,9 @@ void update_insn_operand(KlrInsn *insn, int i, KlrValue *val);
 #define klr_value_used(val) (!list_empty(&(val)->use_list))
 
 /* <5> printer */
+
+/* get basic block name or tag */
+char *klr_block_name(KlrBasicBlock *bb);
 
 /* print an instruction */
 void klr_print_insn(KlrInsn *insn, FILE *fp);

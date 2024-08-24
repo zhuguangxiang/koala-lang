@@ -31,7 +31,8 @@ set(PARSER_SRC
     parser/passes/dot.c
     parser/passes/remove_load_store.c
     parser/passes/constant_folding.c
-    parser/passes/unused_var_insn.c)
+    parser/passes/unused_var_insn.c
+    parser/passes/basic_block.c)
 
 add_library(parser STATIC ${PARSER_SRC})
 target_link_libraries(parser koala)

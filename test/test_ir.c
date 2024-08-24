@@ -17,6 +17,7 @@ void klr_constant_folding_pass(KlrFunc *func, void *ctx);
 void klr_constant_propagation_pass(KlrFunc *func, void *ctx);
 void klr_remove_unused_pass(KlrFunc *func, void *ctx);
 void klr_insn_remap(KlrFunc *func);
+void klr_remove_only_jump_block(KlrFunc *func);
 
 /*
 func foo(a int, b int) int {
@@ -146,6 +147,10 @@ void build_fib(KlrModule *m)
 
     printf("remap instructions\n");
     klr_insn_remap((KlrFunc *)func);
+    klr_print_func((KlrFunc *)func, stdout);
+
+    printf("remove only jump basic block\n");
+    klr_remove_only_jump_block((KlrFunc *)func);
     klr_print_func((KlrFunc *)func, stdout);
 }
 

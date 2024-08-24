@@ -136,6 +136,19 @@ static void remap_ir_branch(KlrInsn *insn, KlrBasicBlock *bb)
     }
 }
 
+static void remap_ir_call(KlrInsn *insn, KlrBasicBlock *bb)
+{
+    KlrBuilder bldr;
+    klr_builder_before(&bldr, insn);
+
+    KlrValue *val;
+    for (int i = 1; i < insn->num_opers; i++) {
+        val = insn_operand_value(insn, i);
+        KlrInsn *push_insn = klr_new_push(val);
+        klr_append_insn(&bldr, push_insn);
+    }
+}
+
 void klr_insn_remap(KlrFunc *func)
 {
     KlrBasicBlock *bb;
@@ -151,8 +164,11 @@ void klr_insn_remap(KlrFunc *func)
                     remap_ir_branch(insn, bb);
                     break;
                 }
+                case OP_CALL: {
+                    remap_ir_call(insn, bb);
+                    break;
+                }
                 default: {
-                    // NIY();
                     break;
                 }
             }

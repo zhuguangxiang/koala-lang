@@ -9,6 +9,14 @@
 extern "C" {
 #endif
 
+char *klr_block_name(KlrBasicBlock *bb)
+{
+    if (bb->name[0]) return bb->name;
+    static char sbuf[32];
+    sprintf(sbuf, "bb%d", bb->tag);
+    return sbuf;
+}
+
 static void print_type(TypeDesc *ty, FILE *fp)
 {
     BUF(buf);
@@ -149,6 +157,12 @@ static void print_binary_operands(const char *name, KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[1], fp);
 }
 
+static void print_push(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "push ");
+    print_operand(&insn->opers[0], fp);
+}
+
 static void print_cmp(const char *name, KlrInsn *insn, FILE *fp)
 {
     print_name_or_tag((KlrValue *)insn, fp);
@@ -233,6 +247,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary_operands("move", insn, fp);
             break;
 
+        case OP_PUSH:
+            print_push(insn, fp);
+            break;
+
         case OP_CONST_INT_M1:
             print_unary_operand("const_int_m1", insn, fp);
             break;
@@ -250,7 +268,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_JMP_INT_CMP_LT_IMM8:
-            print_jmp_cond("jmp_int_cmplt_imm8", insn, fp);
+            print_jmp_cond("jmp_icmplt_imm8", insn, fp);
             break;
 
         case OP_BINARY_ADD:
@@ -363,6 +381,10 @@ static int need_update_tag(KlrInsn *insn)
     static OpCode codes[] = {
         OP_IR_STORE,
         OP_IR_JMP_COND,
+        OP_PUSH,
+        OP_POP,
+        OP_PUSH_NONE,
+        OP_PUSH_IMM8,
         OP_RETURN,
         OP_RETURN_NONE,
         OP_JMP,

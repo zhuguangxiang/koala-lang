@@ -81,7 +81,7 @@ static KlrInsn *new_insn(OpCode op, int num_opers, char *name)
     return insn;
 }
 
-static void append_insn(KlrBuilder *bldr, KlrInsn *insn)
+void klr_append_insn(KlrBuilder *bldr, KlrInsn *insn)
 {
     KlrBasicBlock *bb = bldr->bb;
     list_add(bldr->it, &insn->bb_link);
@@ -139,7 +139,7 @@ void klr_build_store(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
     KlrInsn *insn = new_insn(OP_IR_STORE, 2, "");
     init_oper(&insn->opers[0], insn, var);
     init_oper(&insn->opers[1], insn, val);
-    append_insn(bldr, insn);
+    klr_append_insn(bldr, insn);
 }
 
 /*
@@ -156,19 +156,21 @@ KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var)
     KlrInsn *insn = new_insn(OP_IR_LOAD, 1, "");
     init_oper(&insn->opers[0], insn, var);
     insn->desc = var->desc;
-    append_insn(bldr, insn);
+    klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
 
 KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,
-                           char *name)
+                           char *name, const char *op_name)
 {
-    if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN) {
-        panic("'add %%x, %%y' requires both reg vars/consts");
+    if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
+        lhs->kind != KLR_VALUE_PARAM && lhs->kind != KLR_VALUE_LOCAL) {
+        panic("'%s %%x, %%y' requires both reg vars/consts", op_name);
     }
 
-    if (rhs->kind != KLR_VALUE_CONST && rhs->kind != KLR_VALUE_INSN) {
-        panic("'add %%x, %%y' requires both reg vars/consts");
+    if (rhs->kind != KLR_VALUE_CONST && rhs->kind != KLR_VALUE_INSN &&
+        rhs->kind != KLR_VALUE_PARAM && rhs->kind != KLR_VALUE_LOCAL) {
+        panic("'%s %%x, %%y' requires both reg vars/consts", op_name);
     }
 
     KlrInsn *insn = new_insn(op, 2, name);
@@ -176,7 +178,7 @@ KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCod
     init_oper(&insn->opers[1], insn, rhs);
     TypeDesc *ty = lhs->desc;
     insn->desc = ty;
-    append_insn(bldr, insn);
+    klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
 
@@ -195,7 +197,7 @@ KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode c
     init_oper(&insn->opers[0], insn, lhs);
     init_oper(&insn->opers[1], insn, rhs);
     insn->desc = desc_bool();
-    append_insn(bldr, insn);
+    klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
 
@@ -211,7 +213,7 @@ void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
     // opers[0] and opers[1] will be remapped ir to virtual machine opcode.
     init_oper(&insn->opers[2], insn, (KlrValue *)_then);
     init_oper(&insn->opers[3], insn, (KlrValue *)_else);
-    append_insn(bldr, insn);
+    klr_append_insn(bldr, insn);
 
     klr_link_edge(bldr->bb, _then);
     klr_link_edge(bldr->bb, _else);
@@ -221,7 +223,7 @@ void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target)
 {
     KlrInsn *insn = new_insn(OP_JMP, 1, "");
     init_oper(&insn->opers[0], insn, (KlrValue *)target);
-    append_insn(bldr, insn);
+    klr_append_insn(bldr, insn);
 
     klr_link_edge(bldr->bb, target);
 }
@@ -235,7 +237,7 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrFunc *fn, KlrValue **args, int nar
         init_oper(&insn->opers[j + 1], insn, (KlrValue *)args[j]);
     }
     insn->desc = fn->desc;
-    append_insn(bldr, insn);
+    klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
 
@@ -243,10 +245,17 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret)
 {
     KlrInsn *insn = new_insn(OP_RETURN, 1, "");
     init_oper(&insn->opers[0], insn, ret);
-    append_insn(bldr, insn);
+    klr_append_insn(bldr, insn);
 
     KlrFunc *fn = bldr->bb->func;
     klr_link_edge(bldr->bb, fn->ebb);
+}
+
+KlrInsn *klr_new_push(KlrValue *val)
+{
+    KlrInsn *insn = new_insn(OP_PUSH, 1, "");
+    init_oper(&insn->opers[0], insn, val);
+    return insn;
 }
 
 #ifdef __cplusplus

@@ -43,6 +43,7 @@
         "hashable",
         "hashset",
         "icmple",
+        "icmplt",
         "inedges",
         "KLASS",
         "KLVM",
@@ -102,7 +103,7 @@
     "notebook.insertFinalNewline": true,
     "editor.fontWeight": "400",
     "debug.console.fontFamily": "'JetBrains Mono'",
-    "editor.fontSize": 15,
+    "editor.fontSize": 17,
     "editor.scrollbar.verticalScrollbarSize": 5,
     "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
