@@ -148,9 +148,6 @@ typedef struct _KlrBasicBlock {
     /* instructions */
     List insn_list;
 
-    /* vm instructions */
-    List vm_insn_list;
-
     /* number of in-edges */
     int num_inedges;
     /* number of out-edges */
@@ -437,17 +434,37 @@ static inline KlrValue *klr_build_sub(KlrBuilder *bldr, KlrValue *lhs, KlrValue 
 }
 
 /* IR: %2 int = cmp %0, %1 */
-KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, char *name);
+KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code,
+                        char *name);
+
+#define klr_build_cmpeq(bldr, lhs, rhs, name) \
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_EQ, name)
+
+#define klr_build_cmpne(bldr, lhs, rhs, name) \
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_NE, name)
+
+#define klr_build_cmplt(bldr, lhs, rhs, name) \
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_LT, name)
+
+#define klr_build_cmpgt(bldr, lhs, rhs, name) \
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_GT, name)
+
+#define klr_build_cmple(bldr, lhs, rhs, name) \
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_LE, name)
+
+#define klr_build_cmpge(bldr, lhs, rhs, name) \
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_GE, name)
 
 /* IR: br %0, %bb1, %bb2 */
-void klr_build_jmp_lt(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
-                      KlrBasicBlock *_else);
+void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
+                        KlrBasicBlock *_else);
 
 /* IR: br %bb */
 void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target);
 
 /* IR: %0 int = call %func, %argument-list */
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrFunc *fn, KlrValue **args, char *name);
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrFunc *fn, KlrValue **args, int nargs,
+                         char *name);
 
 /* IR: ret %var */
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
@@ -469,6 +486,29 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
 /* operand iteration */
 #define operand_foreach(oper, insn) \
     for (int i__ = 0; (i__ < (insn)->num_opers) && (oper = &(insn)->opers[i__], 1); i__++)
+
+// clang-format off
+
+#define insn_operand(insn, i) ({ \
+    ASSERT((i) >= 0 && (i) < (insn)->num_opers); \
+    (insn)->opers + i; \
+})
+
+#define insn_operand_value(insn, i) ({ \
+    KlrOper *oper = insn_operand(insn, i); \
+    oper->use.ref; \
+})
+
+// clang-format on
+
+/* invalidate i-th operand and delete this value if it's not used */
+void invalidate_insn_operand(KlrInsn *insn, int i);
+
+/* update operand */
+void update_insn_operand(KlrInsn *insn, int i, KlrValue *val);
+
+/* check value is used or not */
+#define klr_value_used(val) (!list_empty(&(val)->use_list))
 
 /* <5> printer */
 

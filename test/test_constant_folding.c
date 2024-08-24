@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
 void register_constant_folding_pass(KlrPassGroup *grp);
+void klr_insn_remap(KlrFunc *func);
 
 /*
 func foo(a int, b int) int {
@@ -68,6 +69,9 @@ void build_foo(KlrModule *m)
     klr_run_pass_group(&grp, (KlrFunc *)func);
     klr_fini_pass_group(&grp);
 
+    klr_print_func((KlrFunc *)func, stdout);
+
+    klr_insn_remap((KlrFunc *)func);
     klr_print_func((KlrFunc *)func, stdout);
 }
 

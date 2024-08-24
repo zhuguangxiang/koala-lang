@@ -16,6 +16,7 @@ void klr_remove_store_pass(KlrFunc *func, void *ctx);
 void klr_constant_folding_pass(KlrFunc *func, void *ctx);
 void klr_constant_propagation_pass(KlrFunc *func, void *ctx);
 void klr_remove_unused_pass(KlrFunc *func, void *ctx);
+void klr_insn_remap(KlrFunc *func);
 
 /*
 func foo(a int, b int) int {
@@ -96,6 +97,9 @@ void build_foo(KlrModule *m)
     klr_print_func((KlrFunc *)func, stdout);
 
     klr_remove_unused_pass((KlrFunc *)func, NULL);
+
+    klr_insn_remap((KlrFunc *)func);
+    klr_print_func((KlrFunc *)func, stdout);
 }
 
 int main(int argc, char *argv[])

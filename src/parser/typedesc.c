@@ -34,7 +34,7 @@ int desc_equal(TypeDesc *a, TypeDesc *b)
 void desc_to_str(TypeDesc *desc, Buffer *buf)
 {
     if (!desc) {
-        buf_write_str(buf, "unknown");
+        buf_write_str(buf, "unk");
         return;
     }
 
@@ -66,7 +66,7 @@ void desc_to_str(TypeDesc *desc, Buffer *buf)
             break;
         }
         default: {
-            buf_write_str(buf, "unknown");
+            buf_write_str(buf, "unk");
             break;
         }
     }

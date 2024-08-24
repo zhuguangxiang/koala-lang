@@ -17,7 +17,7 @@ typedef enum _OpCode {
 /*| name                    | arguments & comments                             |*/
 /*+-------------------------+--------------------------------------------------+*/
     OP_NOP,                 /*                  NOP                             */
-    OP_MOV,                 /* A B              R(A) = R(B)                     */
+    OP_MOVE,                /* A B              R(A) = R(B)                     */
     OP_PUSH,                /* A                STK(top++) = R(A)               */
     OP_POP,                 /* A                R(A) = STK(--top)               */
     OP_PUSH_NONE,           /*                  STK(top++) = None               */
@@ -32,6 +32,7 @@ typedef enum _OpCode {
     OP_CONST_INT_3,
     OP_CONST_INT_4,
     OP_CONST_INT_5,
+    OP_CONST_INT_IMM8,
     OP_CONST_FLOAT_0,
     OP_CONST_FLOAT_1,
     OP_CONST_FLOAT_2,
@@ -52,7 +53,12 @@ typedef enum _OpCode {
     OP_INT_SHR,
     OP_INT_USHR,
 
-    OP_INT_CMP,
+    OP_INT_CMP_EQ,
+    OP_INT_CMP_NE,
+    OP_INT_CMP_LT,
+    OP_INT_CMP_GT,
+    OP_INT_CMP_LE,
+    OP_INT_CMP_GE,
 
     OP_INT_ADD_IMM8,
     OP_INT_SUB_IMM8,
@@ -67,7 +73,12 @@ typedef enum _OpCode {
     OP_INT_SHR_IMM8,
     OP_INT_USHR_IMM8,
 
-    OP_INT_CMP_IMM8,
+    OP_INT_CMP_EQ_IMM8,
+    OP_INT_CMP_NE_IMM8,
+    OP_INT_CMP_LT_IMM8,
+    OP_INT_CMP_GT_IMM8,
+    OP_INT_CMP_LE_IMM8,
+    OP_INT_CMP_GE_IMM8,
 
     OP_FLOAT_ADD,
     OP_FLOAT_SUB,
@@ -97,10 +108,24 @@ typedef enum _OpCode {
     OP_AS,
     OP_IS,
 
-    /* jump/logic operations */
+    /* logic operations */
+    OP_LOGIC_AND,
+    OP_LOGIC_OR,
+    OP_LOGIC_NOT,
+
+    /* jump operations */
     OP_JMP,
+    OP_JMP_TRUE,
+    OP_JMP_FALSE,
     OP_JMP_NONE,
     OP_JMP_NOT_NONE,
+
+    OP_JMP_CMP_EQ,
+    OP_JMP_CMP_NE,
+    OP_JMP_CMP_LT,
+    OP_JMP_CMP_GT,
+    OP_JMP_CMP_LE,
+    OP_JMP_CMP_GE,
 
     OP_JMP_INT_CMP_EQ,
     OP_JMP_INT_CMP_NE,
@@ -115,20 +140,6 @@ typedef enum _OpCode {
     OP_JMP_INT_CMP_GT_IMM8,
     OP_JMP_INT_CMP_LE_IMM8,
     OP_JMP_INT_CMP_GE_IMM8,
-
-    OP_JMP_CMP_EQ,
-    OP_JMP_CMP_NE,
-    OP_JMP_CMP_LT,
-    OP_JMP_CMP_GT,
-    OP_JMP_CMP_LE,
-    OP_JMP_CMP_GE,
-
-    OP_JMP_EQZ,
-    OP_JMP_NEZ,
-    OP_JMP_LTZ,
-    OP_JMP_GTZ,
-    OP_JMP_LEZ,
-    OP_JMP_GEZ,
 
     /* call */
     OP_CALL,            /* A B C  A = mod index, B = obj index, C = nargs */
@@ -182,7 +193,12 @@ typedef enum _OpCode {
     OP_BINARY_USHR,
 
     /* generic compare operation */
-    OP_BINARY_CMP,
+    OP_BINARY_CMP_EQ,
+    OP_BINARY_CMP_NE,
+    OP_BINARY_CMP_LT,
+    OP_BINARY_CMP_GT,
+    OP_BINARY_CMP_LE,
+    OP_BINARY_CMP_GE,
 
     /* generic subscript operations */
     OP_SUBSCR_LOAD,
@@ -203,6 +219,7 @@ typedef enum _OpCode {
     OP_IR_LOAD,
     OP_IR_STORE,
     OP_IR_PHI,
+    OP_IR_JMP_COND,
 
 } OpCode;
 

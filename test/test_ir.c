@@ -11,6 +11,13 @@
 extern "C" {
 #endif
 
+void klr_remove_load_pass(KlrFunc *func, void *ctx);
+void klr_remove_store_pass(KlrFunc *func, void *ctx);
+void klr_constant_folding_pass(KlrFunc *func, void *ctx);
+void klr_constant_propagation_pass(KlrFunc *func, void *ctx);
+void klr_remove_unused_pass(KlrFunc *func, void *ctx);
+void klr_insn_remap(KlrFunc *func);
+
 /*
 func foo(a int, b int) int {
     var c = 100
@@ -53,12 +60,15 @@ void build_foo(KlrModule *m)
     klr_build_ret(&bldr, ret);
 
     klr_print_func((KlrFunc *)func, stdout);
-    klr_print_cfg((KlrFunc *)func, stdout);
+    // klr_print_cfg((KlrFunc *)func, stdout);
 
-    KLR_PASS_GROUP(grp);
-    register_dot_passes(&grp);
-    klr_run_pass_group(&grp, (KlrFunc *)func);
-    klr_fini_pass_group(&grp);
+    // KLR_PASS_GROUP(grp);
+    // register_dot_passes(&grp);
+    // klr_run_pass_group(&grp, (KlrFunc *)func);
+    // klr_fini_pass_group(&grp);
+
+    klr_insn_remap((KlrFunc *)func);
+    klr_print_func((KlrFunc *)func, stdout);
 }
 
 /*
@@ -88,8 +98,8 @@ void build_fib(KlrModule *m)
 
     /* entry basic block */
     KlrValue *val = klr_build_load(&bldr, param);
-    KlrValue *cond = klr_build_cmp(&bldr, val, klr_const_int32(2), "");
-    klr_build_jmp_lt(&bldr, cond, _then, _else);
+    KlrValue *cond = klr_build_cmplt(&bldr, val, klr_const_int32(2), "");
+    klr_build_jmp_cond(&bldr, cond, _then, _else);
 
     /* _then basic block */
     klr_builder_end(&bldr, _then);
@@ -108,12 +118,12 @@ void build_fib(KlrModule *m)
     val = klr_build_load(&bldr, param);
     KlrValue *sub = klr_build_sub(&bldr, val, klr_const_int32(1), "");
     KlrValue *args1[] = { sub, NULL };
-    KlrValue *ret1 = klr_build_call(&bldr, (KlrFunc *)func, args1, "");
+    KlrValue *ret1 = klr_build_call(&bldr, (KlrFunc *)func, args1, 1, "");
 
     val = klr_build_load(&bldr, param);
     sub = klr_build_sub(&bldr, val, klr_const_int32(2), "");
     KlrValue *args2[] = { sub, NULL };
-    KlrValue *ret2 = klr_build_call(&bldr, (KlrFunc *)func, args2, "");
+    KlrValue *ret2 = klr_build_call(&bldr, (KlrFunc *)func, args2, 1, "");
 
     KlrValue *ret = klr_build_add(&bldr, ret1, ret2, "");
     klr_build_ret(&bldr, ret);
@@ -125,6 +135,18 @@ void build_fib(KlrModule *m)
     register_dot_passes(&grp);
     klr_run_pass_group(&grp, (KlrFunc *)func);
     klr_fini_pass_group(&grp);
+
+    printf("remove load instructions\n");
+    klr_remove_load_pass((KlrFunc *)func, NULL);
+    klr_print_func((KlrFunc *)func, stdout);
+
+    printf("remove store instructions\n");
+    klr_remove_store_pass((KlrFunc *)func, NULL);
+    klr_print_func((KlrFunc *)func, stdout);
+
+    printf("remap instructions\n");
+    klr_insn_remap((KlrFunc *)func);
+    klr_print_func((KlrFunc *)func, stdout);
 }
 
 int main(int argc, char *argv[])

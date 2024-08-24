@@ -13,11 +13,11 @@ static void print_type(TypeDesc *ty, FILE *fp)
 {
     BUF(buf);
     desc_to_str(ty, &buf);
-    fprintf(fp, "%s", BUF_STR(buf));
+    fprintf(fp, " %s", BUF_STR(buf));
     FINI_BUF(buf);
 }
 
-#define print_value_type(val, fp) print_type(val->desc, fp)
+#define print_value_type(val, fp) print_type((val)->desc, fp)
 
 static void print_name_or_tag(KlrValue *val, FILE *fp)
 {
@@ -76,7 +76,6 @@ static void print_operand(KlrOper *oper, FILE *fp)
         }
 
         if (val->desc) {
-            fprintf(fp, " ");
             print_value_type(val, fp);
         }
 
@@ -90,7 +89,6 @@ static void print_operand(KlrOper *oper, FILE *fp)
         } else {
             print_name_or_tag(val, fp);
         }
-        fprintf(fp, " ");
         print_value_type(val, fp);
     }
 }
@@ -137,10 +135,24 @@ static void print_phi(KlrInsn *insn, FILE *fp)
     }
 }
 
-static void print_cmp(KlrInsn *insn, FILE *fp)
+static void print_unary_operand(const char *name, KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "%s ", name);
+    print_operand(&insn->opers[0], fp);
+}
+
+static void print_binary_operands(const char *name, KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "%s ", name);
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+}
+
+static void print_cmp(const char *name, KlrInsn *insn, FILE *fp)
 {
     print_name_or_tag((KlrValue *)insn, fp);
-    fprintf(fp, " = cmp ");
+    fprintf(fp, " = %s ", name);
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
     print_operand(&insn->opers[1], fp);
@@ -148,7 +160,7 @@ static void print_cmp(KlrInsn *insn, FILE *fp)
 
 static void print_jmp(KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "br ");
+    fprintf(fp, "jmp ");
 
     KlrValue *val = insn->opers[0].use.ref;
     if (val->name[0])
@@ -159,20 +171,24 @@ static void print_jmp(KlrInsn *insn, FILE *fp)
     if (insn->flags & KLR_INSN_FLAGS_LOOP) fprintf(fp, ", !klr.loop\n");
 }
 
-static void print_jmp_lt(KlrInsn *insn, FILE *fp)
+static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "br_lt");
-    fprintf(fp, " ");
+    fprintf(fp, "%s ", name);
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
 
-    KlrValue *_then = insn->opers[1].use.ref;
+    if (insn->opers[1].kind != KLR_OPER_NONE) {
+        print_operand(&insn->opers[1], fp);
+        fprintf(fp, ", ");
+    }
+
+    KlrValue *_then = insn->opers[2].use.ref;
     if (_then->name[0])
         fprintf(fp, "label %%%s", _then->name);
     else
         fprintf(fp, "label %%bb%d", _then->tag);
 
-    KlrValue *_else = insn->opers[2].use.ref;
+    KlrValue *_else = insn->opers[3].use.ref;
     if (_else->name[0])
         fprintf(fp, ", label %%%s", _else->name);
     else
@@ -183,15 +199,15 @@ static void print_call(KlrInsn *insn, FILE *fp)
 {
     print_name_or_tag((KlrValue *)insn, fp);
     fprintf(fp, " = call ");
-    print_operand(&insn->opers[0], fp);
-    fprintf(fp, "(");
+    KlrValue *fn = insn->opers[0].use.ref;
+    fprintf(fp, "@%s", fn->name);
+    if (insn->num_opers > 0) fprintf(fp, ", ");
     KlrOper *oper;
     for (int i = 1; i < insn->num_opers; i++) {
+        if (i != 1) fprintf(fp, ", ");
         oper = &insn->opers[i];
         print_operand(oper, fp);
     }
-    fprintf(fp, ") ");
-    print_type(insn->desc, fp);
 }
 
 void klr_print_insn(KlrInsn *insn, FILE *fp)
@@ -209,6 +225,34 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_phi(insn, fp);
             break;
 
+        case OP_IR_JMP_COND:
+            print_jmp_cond("branch", insn, fp);
+            break;
+
+        case OP_MOVE:
+            print_binary_operands("move", insn, fp);
+            break;
+
+        case OP_CONST_INT_M1:
+            print_unary_operand("const_int_m1", insn, fp);
+            break;
+
+        case OP_CONST_INT_0:
+            print_unary_operand("const_int_0", insn, fp);
+            break;
+
+        case OP_CONST_INT_IMM8:
+            print_binary_operands("const_int_imm8", insn, fp);
+            break;
+
+        case OP_CONST_LOAD:
+            print_binary_operands("const_load", insn, fp);
+            break;
+
+        case OP_JMP_INT_CMP_LT_IMM8:
+            print_jmp_cond("jmp_int_cmplt_imm8", insn, fp);
+            break;
+
         case OP_BINARY_ADD:
             print_binary(insn, "add", fp);
             break;
@@ -221,16 +265,16 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_call(insn, fp);
             break;
 
-        case OP_BINARY_CMP:
-            print_cmp(insn, fp);
+        case OP_BINARY_CMP_LT:
+            print_cmp("cmplt", insn, fp);
             break;
 
         case OP_JMP:
             print_jmp(insn, fp);
             break;
 
-        case OP_JMP_LTZ:
-            print_jmp_lt(insn, fp);
+        case OP_JMP_TRUE:
+            print_jmp_cond("jmp_true", insn, fp);
             break;
 
         case OP_RETURN:
@@ -242,7 +286,8 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         default:
-            assert(0);
+            printf("%d\n", insn->code);
+            UNREACHABLE();
             break;
     }
 }
@@ -252,7 +297,6 @@ static void print_local(KlrLocal *local, FILE *fp)
     fprintf(fp, "\n        ");
     fprintf(fp, "local ");
     print_name_or_tag((KlrValue *)local, fp);
-    fprintf(fp, " ");
     print_value_type(local, fp);
 }
 
@@ -303,7 +347,7 @@ static void print_block(KlrBasicBlock *bb, FILE *fp)
         KlrLocal **local;
         Vector *vec = &func->locals;
         vector_foreach(local, vec) {
-            if (!list_empty(&(*local)->use_list)) print_local((*local), fp);
+            if (klr_value_used(*local)) print_local((*local), fp);
         }
     }
 
@@ -312,6 +356,45 @@ static void print_block(KlrBasicBlock *bb, FILE *fp)
         fprintf(fp, "\n        ");
         klr_print_insn(insn, fp);
     }
+}
+
+static int need_update_tag(KlrInsn *insn)
+{
+    static OpCode codes[] = {
+        OP_IR_STORE,
+        OP_IR_JMP_COND,
+        OP_RETURN,
+        OP_RETURN_NONE,
+        OP_JMP,
+        OP_JMP_TRUE,
+        OP_JMP_FALSE,
+        OP_JMP_NONE,
+        OP_JMP_NOT_NONE,
+        OP_JMP_CMP_EQ,
+        OP_JMP_CMP_NE,
+        OP_JMP_CMP_LT,
+        OP_JMP_CMP_GT,
+        OP_JMP_CMP_LE,
+        OP_JMP_CMP_GE,
+        OP_JMP_INT_CMP_EQ,
+        OP_JMP_INT_CMP_NE,
+        OP_JMP_INT_CMP_LT,
+        OP_JMP_INT_CMP_GT,
+        OP_JMP_INT_CMP_LE,
+        OP_JMP_INT_CMP_GE,
+        OP_JMP_INT_CMP_EQ_IMM8,
+        OP_JMP_INT_CMP_NE_IMM8,
+        OP_JMP_INT_CMP_LT_IMM8,
+        OP_JMP_INT_CMP_GT_IMM8,
+        OP_JMP_INT_CMP_LE_IMM8,
+        OP_JMP_INT_CMP_GE_IMM8,
+    };
+
+    for (int i = 0; i < COUNT_OF(codes); i++) {
+        if (insn->code == codes[i]) return 0;
+    }
+
+    return 1;
 }
 
 static void update_tags(KlrFunc *fn)
@@ -335,7 +418,7 @@ static void update_tags(KlrFunc *fn)
         if (!bb->name[0]) bb->tag = fn->bb_tag++;
         KlrInsn *insn;
         insn_foreach(insn, bb) {
-            if (insn->code == OP_IR_STORE || insn->code == OP_RETURN) continue;
+            if (!need_update_tag(insn)) continue;
             if (!insn->name[0]) insn->tag = fn->tag++;
         }
     }
@@ -442,16 +525,14 @@ void klr_print_func(KlrFunc *func, FILE *fp)
             fprintf(fp, ", param ");
         }
         print_name_or_tag(*(KlrValue **)param, fp);
-        fprintf(fp, " ");
         print_value_type((*param), fp);
     }
 
+    fprintf(fp, ")");
+
     TypeDesc *ret = func->desc;
     if (ret) {
-        fprintf(fp, ") ");
         print_type(ret, fp);
-    } else {
-        fprintf(fp, ")");
     }
 
     fprintf(fp, " {");

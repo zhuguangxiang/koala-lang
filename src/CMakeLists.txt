@@ -26,6 +26,7 @@ set(PARSER_SRC
     parser/ir.c
     parser/insn.c
     parser/printer.c
+    parser/insn_remap.c
     parser/pass.c
     parser/passes/dot.c
     parser/passes/remove_load_store.c

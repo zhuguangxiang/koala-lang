@@ -58,6 +58,8 @@ static inline TypeDesc *desc_str(void) { return &str_desc; }
 static inline TypeDesc *desc_bool(void) { return &bool_desc; }
 static inline TypeDesc *desc_object(void) { return &object_desc; }
 
+static inline int desc_is_int(TypeDesc *desc) { return desc->kind == TYPE_INT_KIND; }
+
 int desc_equal(TypeDesc *a, TypeDesc *b);
 void desc_to_str(TypeDesc *desc, Buffer *buf);
 

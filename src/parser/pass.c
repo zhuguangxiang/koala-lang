@@ -40,9 +40,7 @@ void klr_run_pass_group(KlrPassGroup *grp, KlrFunc *fn)
 {
     KlrPass *pass;
     list_foreach(pass, link, &grp->passes) {
-        log_info("running pass %s", pass->name);
         pass->callback(fn, pass->arg);
-        log_info("end of pass %s", pass->name);
     }
 }
 

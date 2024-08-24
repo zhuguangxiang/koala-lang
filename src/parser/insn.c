@@ -45,6 +45,30 @@ static void fini_oper(KlrOper *oper)
     } else {
         NIY();
     }
+    oper->kind = KLR_OPER_NONE;
+}
+
+void invalidate_insn_operand(KlrInsn *insn, int i)
+{
+    KlrOper *oper = insn_operand(insn, i);
+    KlrValue *ref = oper->use.ref;
+    fini_oper(oper);
+    if (!klr_value_used(ref)) {
+        printf("delete unused value\n");
+        if (ref->kind == KLR_VALUE_INSN) {
+            printf("delete unused instruction\n");
+            klr_delete_insn((KlrInsn *)ref);
+        }
+    }
+}
+
+void update_insn_operand(KlrInsn *insn, int i, KlrValue *val)
+{
+    KlrOper *oper = insn_operand(insn, i);
+    if (oper->kind != KLR_OPER_NONE) {
+        invalidate_insn_operand(insn, i);
+    }
+    init_oper(oper, insn, val);
 }
 
 static KlrInsn *new_insn(OpCode op, int num_opers, char *name)
@@ -156,7 +180,8 @@ KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCod
     return (KlrValue *)insn;
 }
 
-KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, char *name)
+KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code,
+                        char *name)
 {
     if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN) {
         panic("'add %%x, %%y' requires both reg vars/consts");
@@ -166,25 +191,26 @@ KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, char *na
         panic("'add %%x, %%y' requires both reg vars/consts");
     }
 
-    KlrInsn *insn = new_insn(OP_BINARY_CMP, 2, name);
+    KlrInsn *insn = new_insn(code, 2, name);
     init_oper(&insn->opers[0], insn, lhs);
     init_oper(&insn->opers[1], insn, rhs);
-    insn->desc = desc_int8();
+    insn->desc = desc_bool();
     append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
 
-void klr_build_jmp_lt(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
-                      KlrBasicBlock *_else)
+void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
+                        KlrBasicBlock *_else)
 {
-    if (!desc_equal(cond->desc, desc_int8())) {
-        panic("'br_lt %%cond, %%b1, %%b2' requires an int8 cond");
+    if (!desc_equal(cond->desc, desc_bool())) {
+        panic("'branch %%cond, %%b1, %%b2' requires a bool cond");
     }
 
-    KlrInsn *insn = new_insn(OP_JMP_LTZ, 3, "");
+    KlrInsn *insn = new_insn(OP_IR_JMP_COND, 4, "");
     init_oper(&insn->opers[0], insn, cond);
-    init_oper(&insn->opers[1], insn, (KlrValue *)_then);
-    init_oper(&insn->opers[2], insn, (KlrValue *)_else);
+    // opers[0] and opers[1] will be remapped ir to virtual machine opcode.
+    init_oper(&insn->opers[2], insn, (KlrValue *)_then);
+    init_oper(&insn->opers[3], insn, (KlrValue *)_else);
     append_insn(bldr, insn);
 
     klr_link_edge(bldr->bb, _then);
@@ -200,15 +226,15 @@ void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target)
     klr_link_edge(bldr->bb, target);
 }
 
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrFunc *fn, KlrValue **args, char *name)
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrFunc *fn, KlrValue **args, int nargs,
+                         char *name)
 {
-    int i = 0;
-    while (args[i]) ++i;
-
-    KlrInsn *insn = new_insn(OP_CALL, i, name);
-    for (int j = 0; j < i; j++) {
-        init_oper(&insn->opers[j], insn, (KlrValue *)args[j]);
+    KlrInsn *insn = new_insn(OP_CALL, nargs + 1, name);
+    init_oper(&insn->opers[0], insn, (KlrValue *)fn);
+    for (int j = 0; j < nargs; j++) {
+        init_oper(&insn->opers[j + 1], insn, (KlrValue *)args[j]);
     }
+    insn->desc = fn->desc;
     append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
