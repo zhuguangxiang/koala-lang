@@ -84,6 +84,7 @@ static int need_clear(int token)
 %token FLOAT32
 %token FLOAT64
 %token BOOL
+%token CHAR
 %token STRING
 %token OBJECT
 %token ARRAY
@@ -376,6 +377,10 @@ atom_type
     {
         $$ = object_type();
         type_set_loc($$, loc(@1));
+    }
+    | CHAR
+    {
+        $$ = NULL;
     }
     ;
 

@@ -22,12 +22,14 @@ let ms = """
 }
 """
 
+/*
 let v list[int] = [1,2,3]
 let m dict[int, int] = {k:v}
 
 array[int8]("hello")
 bytes("hello")
 
-type
+type(v)
+*/
 #
 #!

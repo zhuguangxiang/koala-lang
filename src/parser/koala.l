@@ -154,12 +154,13 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "float64"   { YY_RETURN(FLOAT64);   }
 "float"     { YY_RETURN(FLOAT64);   }
 "bool"      { YY_RETURN(BOOL);      }
+"char"      { YY_RETURN(CHAR);      }
 "str"       { YY_RETURN(STRING);    }
 "object"    { YY_RETURN(OBJECT);    }
 "list"      { YY_RETURN(ARRAY);     }
 "dict"      { YY_RETURN(MAP);       }
 "set"       { YY_RETURN(MAP);       }
-"bytes"     { YY_RETURN(MAP);       }
+"bytearray" { YY_RETURN(MAP);       }
 "type"      { YY_RETURN(MAP);       }
 "tuple"     { YY_RETURN(MAP);       }
 "range"     { YY_RETURN(MAP);       }
@@ -261,7 +262,7 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 
 "\n"        { YY_NEWLINE; }
 [ \t\r]     { }
-"#"[^\n]*   { printf("# comment\n"); }
+"#"[^\n]*   { }
 "//"[^\n]*  { }
 "/*"(([^\*]*(\*[^\/])?)*)"*/" { }
 .           { }
