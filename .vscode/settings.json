@@ -65,6 +65,7 @@
         "oparg",
         "opers",
         "outedges",
+        "pobj",
         "pprev",
         "preds",
         "ranksep",
@@ -94,7 +95,7 @@
         "yyset",
         "yytext"
     ],
-    "editor.fontFamily": "'Victor Mono Medium', 'JetBrains Mono', 'Monaspace Neon'",
+    "editor.fontFamily": "'Victor Mono', 'JetBrains Mono', 'Monaspace Neon'",
     "editor.fontLigatures": "'calt', 'ss01', 'ss02', 'ss03', 'ss04', 'ss05', 'ss06', 'ss07', 'ss08', 'ss09', 'liga'",
     "terminal.integrated.fontFamily": "'JetBrains Mono'",
     "editor.formatOnSave": true,
@@ -105,8 +106,8 @@
     "notebook.insertFinalNewline": true,
     "editor.fontWeight": "400",
     "debug.console.fontFamily": "'JetBrains Mono'",
-    "editor.fontSize": 19,
-    "editor.scrollbar.verticalScrollbarSize": 5,
+    "editor.fontSize": 17,
+    "editor.scrollbar.verticalScrollbarSize": 7,
     "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
         "textMateRules": [
@@ -122,8 +123,6 @@
         ]
     },
     "terminal.integrated.fontSize": 16,
-    "plantuml.render": "Local",
-    "plantuml.server": "https://www.plantuml.com/plantuml",
     "cmake.buildDirectory": "${workspaceFolder}/build/debug",
     "cmake.options.statusBarVisibility": "icon",
     "editor.cursorSurroundingLines": 0,

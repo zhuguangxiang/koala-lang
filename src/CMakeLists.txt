@@ -28,6 +28,8 @@ set(PARSER_SRC
     parser/printer.c
     parser/insn_remap.c
     parser/linear_scan.c
+    parser/simple_reg_alloc.c
+    parser/emit_code.c
     parser/pass.c
     parser/passes/dot.c
     parser/passes/remove_load_store.c
@@ -53,6 +55,7 @@ set(KOALA_SOURCES
     common/buffer.c
     common/bitset.c
     common/utf8.c
+    common/klc.c
     object.c
     gc.c
     run.c

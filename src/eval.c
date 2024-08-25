@@ -49,8 +49,8 @@ static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
 
     cf->code = code;
     cf->module = code->module;
-    int nlocals = code->nlocals;
-    int stack_size = code->stack_size;
+    int nlocals = code->cs.nlocals;
+    int stack_size = code->cs.stack_size;
     cf->local_size = nlocals;
     cf->stack_size = stack_size;
     cf->stack = cf->local_stack + nlocals;
@@ -169,7 +169,7 @@ static void _call_function(Object *obj, Value *args, int nargs, CallFrame *cf,
 static void _eval_frame(KoalaState *ks, CallFrame *cf, Value *result)
 {
     CodeObject *code = (CodeObject *)cf->code;
-    uint8_t *first_inst = (uint8_t *)code->insns; // Bytes_Buf(code->codes);
+    uint8_t *first_inst = (uint8_t *)code->cs.insns; // Bytes_Buf(code->codes);
     uint8_t *next_inst = first_inst;
     Value *top = cf->stack;
     Value *locals = cf->local_stack;
@@ -191,6 +191,19 @@ main_loop:
     dispatch_opcode:
         switch (opcode) {
             case OP_CONST_INT_0: {
+                DISPATCH();
+            }
+
+            case OP_JMP_INT_CMP_LT_IMM8: {
+                int A = NEXT_REG();
+                int imm = NEXT_INT8();
+                int off = NEXT_INT16();
+                Value *ra = GET_LOCAL(A);
+                ASSERT(IS_INT(ra));
+                if (ra->ival < imm) {
+                    // absolute offset
+                    next_inst = first_inst + off;
+                }
                 DISPATCH();
             }
 

@@ -28,11 +28,11 @@ void test_type_call(void)
     };
 
     CodeObject *code = (CodeObject *)kl_new_code("init", m, NULL);
-    code->insns = _insns;
-    code->num_insns = sizeof(_insns);
-    code->nargs = 0;
-    code->nlocals = 1;
-    code->stack_size = 1;
+    code->cs.insns = _insns;
+    code->cs.insns_size = sizeof(_insns);
+    code->cs.nargs = 0;
+    code->cs.nlocals = 1;
+    code->cs.stack_size = 1;
     module_add_code(m, (Object *)code);
 
     Value result = object_call((Object *)code, NULL, 0);

@@ -109,9 +109,9 @@ typedef enum _OpCode {
     OP_IS,
 
     /* logic operations */
-    OP_LOGIC_AND,
-    OP_LOGIC_OR,
-    OP_LOGIC_NOT,
+    OP_LAND,
+    OP_LOR,
+    OP_LNOT,
 
     /* jump operations */
     OP_JMP,

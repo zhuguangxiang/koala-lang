@@ -12,8 +12,8 @@ extern "C" {
 void bitset_show(BitSet *bs, FILE *fp)
 {
     for (int i = 0; i < bs->rows; i++) {
-        if (i % 4 == 0)
-            fprintf(fp, "\n[%2d] %X", i, bs->bits[i]);
+        if (i % 8 == 0)
+            fprintf(fp, "\n%X", bs->bits[i]);
         else
             fprintf(fp, " %X", bs->bits[i]);
     }
