@@ -35,13 +35,12 @@ typedef struct _Ident {
     void *scope;
 } Ident;
 
-/* clang-format off */
-#define TYPE_HEAD TypeDesc *desc; Loc loc; HashMap *stbl;
-/* clang-format on */
-
 /* type */
 typedef struct _type {
-    TYPE_HEAD
+    TypeDesc *desc;
+    Loc loc;
+    int optional;
+    HashMap *stbl;
 } Type;
 
 Type *int8_type(void);
@@ -54,6 +53,7 @@ Type *bool_type(void);
 Type *str_type(void);
 Type *object_type(void);
 
+#define type_set_optional(ty)  (ty)->optional = 1
 #define type_set_loc(ty, _loc) (ty)->loc = (_loc)
 
 typedef enum _ExprKind {
@@ -100,6 +100,8 @@ typedef struct _Expr {
     EXPR_HEAD
 } Expr;
 
+#define expr_set_loc(e, l) (e)->loc = (l)
+
 typedef struct _LitExpr {
     EXPR_HEAD
     int which;
@@ -116,11 +118,18 @@ typedef struct _LitExpr {
     };
 } LitExpr;
 
-#define expr_set_loc(e, l) (e)->loc = (l)
 Expr *expr_from_lit_int(int64_t val);
 Expr *expr_from_lit_float(double val);
 Expr *expr_from_lit_bool(int val);
 Expr *expr_from_lit_str(Buffer *buf);
+
+typedef struct _IdentExpr {
+    EXPR_HEAD
+    Ident id;
+} IdentExpr;
+
+#define IDENT(name, s, l) Ident name = { s, l, NULL, 0, NULL }
+Expr *expr_from_ident(Ident *id);
 
 typedef enum _StmtKind {
     STMT_UNK_KIND,
@@ -152,6 +161,9 @@ typedef enum _StmtKind {
     STMT_WHILE_KIND,
     STMT_FOR_KIND,
     STMT_MATCH_KIND,
+    /* if-let and guard-let */
+    STMT_IF_LET_KIND,
+    STMT_GUARD_LET_KIND,
     STMT_MAX_KIND
 } StmtKind;
 
@@ -163,6 +175,9 @@ typedef enum _StmtKind {
 typedef struct _Stmt {
     STMT_HEAD
 } Stmt;
+
+#define stmt_set_loc(s, l) (s)->loc = (l)
+void stmt_free(Stmt *stmt);
 
 typedef struct _VarDeclStmt {
     STMT_HEAD
@@ -177,10 +192,63 @@ typedef struct _VarDeclStmt {
     Expr *exp;
 } VarDeclStmt;
 
-#define stmt_set_loc(s, l) (s)->loc = (l)
-
-void stmt_free(Stmt *stmt);
 Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, int pub, Expr *e);
+
+typedef enum _AssignOpKind {
+    OP_ASSIGN = 1,
+    OP_PLUS_ASSIGN,
+    OP_MINUS_ASSIGN,
+    OP_MULT_ASSIGN,
+    OP_DIV_ASSIGN,
+    OP_MOD_ASSIGN,
+    OP_AND_ASSIGN,
+    OP_OR_ASSIGN,
+    OP_XOR_ASSIGN,
+    OP_SHL_ASSIGN,
+    OP_SHR_ASSIGN,
+    OP_USHR_ASSIGN,
+} AssignOpKind;
+
+typedef struct _AssignStmt {
+    STMT_HEAD
+    AssignOpKind op;
+    Loc op_loc;
+    Expr *lhs;
+    Expr *rhs;
+} AssignStmt;
+
+typedef struct _BlockStmt {
+    STMT_HEAD
+    Vector *stmts;
+} BlockStmt;
+
+Stmt *stmt_from_block(Vector *stmts);
+
+typedef struct _IfStmt {
+    STMT_HEAD
+    Expr *cond;
+    Vector *block;
+    Stmt *_else;
+} IfStmt;
+
+Stmt *stmt_from_if(Expr *cond, Vector *block, Stmt *_else);
+
+typedef struct {
+    STMT_HEAD
+    Ident id;
+    Expr *exp;
+    Vector *block;
+} IfLetStmt, GuardLetStmt;
+
+Stmt *stmt_from_if_let(Ident *id, Expr *exp, Vector *block);
+Stmt *stmt_from_guard_let(Ident *id, Expr *exp, Vector *block);
+
+typedef struct _ExprStmt {
+    STMT_HEAD
+    Expr *exp;
+} ExprStmt;
+
+Stmt *stmt_from_expr(Expr *exp);
 
 #ifdef __cplusplus
 }

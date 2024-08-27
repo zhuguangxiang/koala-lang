@@ -113,8 +113,7 @@ void kl_error_detail(ParserState *, Loc *);
 /* clang-format on */
 
 void parse_expr(ParserState *ps, Expr *exp);
-void yyparse_top_decl(ParserState *ps, Stmt *stmt);
-
+void yyparse_module(ParserState *ps, Vector *imports, Vector *stmts);
 int compile(int argc, char *argv[]);
 
 #ifdef __cplusplus

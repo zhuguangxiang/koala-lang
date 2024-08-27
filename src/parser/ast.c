@@ -87,7 +87,7 @@ Expr *expr_from_lit_int(int64_t val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_INT;
     exp->ival = val;
-    exp->desc = (TypeDesc *)&int64_desc;
+    exp->desc = desc_int64();
     return (Expr *)exp;
 }
 
@@ -97,7 +97,7 @@ Expr *expr_from_lit_float(double val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_FLT;
     exp->fval = val;
-    exp->desc = (TypeDesc *)&float64_desc;
+    exp->desc = desc_float64();
     return (Expr *)exp;
 }
 
@@ -107,7 +107,7 @@ Expr *expr_from_lit_bool(int val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_BOOL;
     exp->bval = val;
-    exp->desc = (TypeDesc *)&bool_desc;
+    exp->desc = desc_bool();
     return (Expr *)exp;
 }
 
@@ -176,8 +176,16 @@ Expr *expr_from_lit_str(Buffer *buf)
     memcpy(exp->sval, buf->buf, buf->len);
     exp->sval[buf->len] = '\0';
     exp->len = buf->len;
-    exp->desc = (TypeDesc *)&str_desc;
+    exp->desc = desc_str();
     buf->len = 0;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_ident(Ident *id)
+{
+    IdentExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_ID_KIND;
+    exp->id = *id;
     return (Expr *)exp;
 }
 
@@ -190,6 +198,52 @@ Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, int pub, Expr *e)
     s->pub = pub;
     s->type = ty;
     s->exp = e;
+    return (Stmt *)s;
+}
+
+Stmt *stmt_from_block(Vector *stmts)
+{
+    BlockStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_BLOCK_KIND;
+    s->stmts = stmts;
+    return (Stmt *)s;
+}
+
+Stmt *stmt_from_if(Expr *cond, Vector *block, Stmt *_else)
+{
+    IfStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_IF_KIND;
+    s->cond = cond;
+    s->block = block;
+    s->_else = _else;
+    return (Stmt *)s;
+}
+
+Stmt *stmt_from_if_let(Ident *id, Expr *exp, Vector *block)
+{
+    IfLetStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_IF_LET_KIND;
+    s->id = *id;
+    s->exp = exp;
+    s->block = block;
+    return (Stmt *)s;
+}
+
+Stmt *stmt_from_guard_let(Ident *id, Expr *exp, Vector *block)
+{
+    GuardLetStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_IF_LET_KIND;
+    s->id = *id;
+    s->exp = exp;
+    s->block = block;
+    return (Stmt *)s;
+}
+
+Stmt *stmt_from_expr(Expr *exp)
+{
+    ExprStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_IF_LET_KIND;
+    s->exp = exp;
     return (Stmt *)s;
 }
 

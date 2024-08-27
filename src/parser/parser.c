@@ -253,7 +253,7 @@ int compile(int argc, char *argv[])
     return 0;
 }
 
-void yyparse_top_decl(ParserState *ps, Stmt *stmt)
+void parse_top_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
 
@@ -276,6 +276,14 @@ void yyparse_top_decl(ParserState *ps, Stmt *stmt)
         vector_push_back(&ps->stmts, &stmt);
     } else {
         stmt_free(stmt);
+    }
+}
+
+void yyparse_module(ParserState *ps, Vector *imports, Vector *stmts)
+{
+    Stmt **stmt;
+    vector_foreach(stmt, stmts) {
+        parse_top_stmt(ps, *stmt);
     }
 }
 

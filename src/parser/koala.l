@@ -123,12 +123,12 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "func"      { YY_RETURN(FUNC);      }
 "class"     { YY_RETURN(CLASS);     }
 "trait"     { YY_RETURN(TRAIT);     }
-"enum"      { YY_RETURN(ENUM);      }
 "if"        { YY_RETURN(IF);        }
+"guard"     { YY_RETURN(GUARD);     }
 "else"      { YY_RETURN(ELSE);      }
 "while"     { YY_RETURN(WHILE);     }
 "for"       { YY_RETURN(FOR);       }
-"match"     { YY_RETURN(MATCH);     }
+"switch"    { YY_RETURN(MATCH);     }
 "case"      { YY_RETURN(CASE);      }
 "break"     { YY_RETURN(BREAK);     }
 "continue"  { YY_RETURN(CONTINUE);  }
@@ -159,11 +159,11 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "object"    { YY_RETURN(OBJECT);    }
 "list"      { YY_RETURN(ARRAY);     }
 "dict"      { YY_RETURN(MAP);       }
-"set"       { YY_RETURN(MAP);       }
-"bytearray" { YY_RETURN(MAP);       }
-"type"      { YY_RETURN(MAP);       }
-"tuple"     { YY_RETURN(MAP);       }
-"range"     { YY_RETURN(MAP);       }
+"set"       { YY_RETURN(SET);       }
+"bytes"     { YY_RETURN(BYTES);     }
+"type"      { YY_RETURN(TYPE);      }
+"tuple"     { YY_RETURN(TUPLE);     }
+"range"     { YY_RETURN(RANGE);     }
 
 "&&"        { YY_RETURN(AND);       }
 "||"        { YY_RETURN(OR);        }
@@ -237,35 +237,36 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
     YY_FLOAT_VALUE(yytext, yyleng); YY_RETURN(FLOAT_LITERAL);
 }
 
-\"              { YY_STR_BEGIN;   }
-<STR>\"         { YY_STR_END; }
-<STR>\\\"       { YY_STR_WRITE('\"');         }
-<STR>\\\\       { YY_STR_WRITE('\\');         }
-<STR>\\\a       { YY_STR_WRITE('\a');         }
-<STR>\\\b       { YY_STR_WRITE('\b');         }
-<STR>\\\f       { YY_STR_WRITE('\f');         }
-<STR>\\\t       { YY_STR_WRITE('\t');         }
-<STR>\\\v       { YY_STR_WRITE('\v');         }
-<STR>\\\n       { YY_STR_WRITE('\n');         }
-<STR>\\\r       { /* omit */                  }
-<STR>\n         { /* omit */                  }
-<STR>\r         { /* omit */                  }
-<STR>.          { YY_STR_WRITE(yytext[0]);    }
+\"              { YY_STR_BEGIN;             }
+<STR>\"         { YY_STR_END;               }
+<STR>\\\"       { YY_STR_WRITE('\"');       }
+<STR>\\\\       { YY_STR_WRITE('\\');       }
+<STR>\\\a       { YY_STR_WRITE('\a');       }
+<STR>\\\b       { YY_STR_WRITE('\b');       }
+<STR>\\\f       { YY_STR_WRITE('\f');       }
+<STR>\\\t       { YY_STR_WRITE('\t');       }
+<STR>\\\v       { YY_STR_WRITE('\v');       }
+<STR>\\\n       { YY_STR_WRITE('\n');       }
+<STR>\\\r       { /* omit */                }
+<STR>\n         { /* omit */                }
+<STR>\r         { /* omit */                }
+<STR>.          { YY_STR_WRITE(yytext[0]);  }
 
-\"\"\"          { YY_TXT_BEGIN;   }
-<TXT>\"\"\"     { YY_TXT_END; }
-<TXT>\n         { YY_TXT_WRITE('\n');         }
-<TXT>\r         { /* omit */                  }
-<TXT>.          { YY_TXT_WRITE(yytext[0]);    }
+\"\"\"          { YY_TXT_BEGIN;             }
+<TXT>\"\"\"     { YY_TXT_END;               }
+<TXT>\n         { YY_TXT_WRITE('\n');       }
+<TXT>\r         { /* omit */                }
+<TXT>.          { YY_TXT_WRITE(yytext[0]);  }
 
-"///"[^\n]*     { printf("doc:\n%s\n", yytext); /* return DOC; */ }
+"//!"[^\n]*     { YY_RETURN(MOD_DOC);       }
+"///"[^\n]*     { YY_RETURN(DOC);           }
 
-"\n"        { YY_NEWLINE; }
-[ \t\r]     { }
-"#"[^\n]*   { }
-"//"[^\n]*  { }
+"\n"            { YY_NEWLINE;               }
+[ \t\r]         { }
+"#"[^\n]*       { }
+"//"[^\n]*      { }
 "/*"(([^\*]*(\*[^\/])?)*)"*/" { }
-.           { }
+.               { }
 
 %%
 

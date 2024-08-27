@@ -22,6 +22,32 @@ let ms = """
 }
 """
 
+let v int? = 100
+
+/*
+if a > b {
+    print("hello");
+}
+[1,2]
+(1,)
+tuple[int, int]()
+{1:2}
+{1, 2, 3}
+list(1,2,3)
+set[int]({1,2,3})
+set({1,2})
+dict({1: 2})
+dict[str, int]()
+str("hello")
+int(100)
+int.abc
+//abc.int
+range(1,23)
+type()
+abc(type)
+if a > b { print("hello"); }
+*/
+
 /*
 let v list[int] = [1,2,3]
 let m dict[int, int] = {k:v}
