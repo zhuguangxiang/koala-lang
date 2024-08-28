@@ -21,6 +21,8 @@ TypeDesc bool_desc = { TYPE_BOOL_KIND };
 TypeDesc str_desc = { TYPE_STR_KIND };
 TypeDesc object_desc = { TYPE_OBJECT_KIND };
 
+TypeDesc *desc_enum(Vector *types) { NIY(); }
+
 int desc_equal(TypeDesc *a, TypeDesc *b)
 {
     if (a == b) return 1;

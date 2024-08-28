@@ -7,6 +7,7 @@
 #define _KOALA_TYPEDESC_H_
 
 #include "buffer.h"
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,6 +27,7 @@ typedef enum _DescKind {
     TYPE_SELF_KIND,
     TYPE_PARAM_KIND,
     TYPE_OBJECT_KIND,
+    TYPE_ENUM_KIND,
     TYPE_MAX_KIND,
 } DescKind;
 
@@ -57,6 +59,7 @@ static inline TypeDesc *desc_float64(void) { return (TypeDesc *)&float64_desc; }
 static inline TypeDesc *desc_str(void) { return &str_desc; }
 static inline TypeDesc *desc_bool(void) { return &bool_desc; }
 static inline TypeDesc *desc_object(void) { return &object_desc; }
+TypeDesc *desc_enum(Vector *types);
 
 static inline int desc_is_int(TypeDesc *desc) { return desc->kind == TYPE_INT_KIND; }
 

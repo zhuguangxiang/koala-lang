@@ -106,7 +106,7 @@
     "notebook.insertFinalNewline": true,
     "editor.fontWeight": "400",
     "debug.console.fontFamily": "'JetBrains Mono'",
-    "editor.fontSize": 17,
+    "editor.fontSize": 16.5,
     "editor.scrollbar.verticalScrollbarSize": 7,
     "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
@@ -122,7 +122,7 @@
             }
         ]
     },
-    "terminal.integrated.fontSize": 16,
+    "terminal.integrated.fontSize": 15.5,
     "cmake.buildDirectory": "${workspaceFolder}/build/debug",
     "cmake.options.statusBarVisibility": "icon",
     "editor.cursorSurroundingLines": 0,

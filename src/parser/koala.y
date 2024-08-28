@@ -139,6 +139,13 @@ static int need_clear(int token)
 %type<stmt> while_stmt
 %type<stmt> for_stmt
 %type<stmt> local
+%type<stmt> func_decl
+%type<stmt> field_decl
+%type<stmt> prefix_field_decl
+%type<stmt> prefix_method_decl
+%type<stmt> trait_decl
+%type<stmt> proto_decl
+%type<stmt> prefix_proto_decl
 
 %type<expr> expr
 %type<expr> or_expr
@@ -169,7 +176,6 @@ static int need_clear(int token)
 %type<expr> tuple_expr
 
 %type<type> optional_type
-%type<type> type_enum
 %type<type> type
 %type<type> array_type
 %type<type> map_type
@@ -184,6 +190,16 @@ static int need_clear(int token)
 %type<vec> local_list
 %type<vec> map_list
 %type<vec> expr_list
+%type<vec> param_list
+%type<vec> id_type_arg_list
+%type<vec> kw_arg_list
+%type<vec> klass_list
+%type<vec> class_members_or_empty
+%type<vec> field_list
+%type<vec> method_list
+%type<vec> trait_members_or_empty
+%type<vec> proto_list
+%type<vec> type_param_decl_list
 
 %token<sval> ID
 %token<ival> INT_LITERAL
@@ -240,12 +256,12 @@ import_stmts
     ;
 
 import_stmt
-    : IMPORT STRING_LITERAL semi
+    : IMPORT id_list semi
     {
         // $$ = stmt_from_import($2, NULL);
         // stmt_set_loc($$, lloc(@1, @3));
     }
-    | IMPORT STRING_LITERAL AS ID semi
+    | IMPORT id_list AS ID semi
     {
         // $$ = stmt_from_import($2, $4);
         // stmt_set_loc($$, lloc(@1, @5));
@@ -286,6 +302,30 @@ top_stmt
     {
         $$ = NULL;
     }
+    | func_decl
+    {
+
+    }
+    | prefix func_decl
+    {
+
+    }
+    | class_decl
+    {
+
+    }
+    | class_prefix class_decl
+    {
+
+    }
+    | trait_decl
+    {
+
+    }
+    | prefix trait_decl
+    {
+
+    }
     | assignment semi
     {
         $$ = NULL;
@@ -306,6 +346,10 @@ top_stmt
     {
         $$ = NULL;
     }
+    | match_stmt
+    {
+
+    }
     | semi
     {
         $$ = NULL;
@@ -320,6 +364,16 @@ semi
     : ';'
     ;
 
+class_prefix
+    : PUBLIC
+    | FINAL
+    | PUBLIC FINAL
+    | docs
+    | docs PUBLIC
+    | docs FINAL
+    | docs PUBLIC FINAL
+    ;
+
 prefix
     : PUBLIC
     | docs
@@ -332,33 +386,19 @@ docs
     ;
 
 optional_type
-    : type
-    {
-        $$ = $1;
-    }
-    | type '?'
-    {
-        $$ = $1;
-        type_set_optional($$);
-        type_set_loc($$, lloc(@1, @2));
-    }
-    | type_enum
+    : type_enumerate
     {
 
     }
-    | '(' type_enum ')'
-    {
-
-    }
-    | '(' type_enum ')' '?'
+    | type_enumerate '?'
     {
 
     }
     ;
 
-type_enum
-    : type '|' type
-    | type_enum '|' type
+type_enumerate
+    : type
+    | '(' type_enumerate '|' type ')'
     ;
 
 type
@@ -393,7 +433,7 @@ array_type
     {
         // $$ = NULL; // expr_type_array(lloc(@1, @4), $3);
     }
-    | ARRAY
+    | '[' optional_type ']'
     {
 
     }
@@ -404,7 +444,7 @@ map_type
     {
         // $$ = NULL; //expr_type_map(lloc(@1, @6), $3, $5);
     }
-    | MAP
+    | '[' type ':' optional_type ']'
     {
 
     }
@@ -416,7 +456,7 @@ tuple_type
         // vector_push_back($2, &$4);
         // $$ = expr_type_tuple(lloc(@1, @5), $2);
     }
-    | TUPLE
+    | '(' optional_type_list ')'
     {
 
     }
@@ -424,7 +464,6 @@ tuple_type
 
 set_type
     : SET '[' type ']'
-    | SET
     ;
 
 klass_type
@@ -568,7 +607,7 @@ let_decl
         $$ = stmt_from_var_decl(id, NULL, 1, 0, $4);
         stmt_set_loc($$, lloc(@1, @4));
     }
-    | LET ID optional_type '=' expr
+    | LET ID type '=' expr
     {
         Ident id = {$2, loc(@2)};
         $$ = stmt_from_var_decl(id, $3, 1, 0, $5);
@@ -592,13 +631,13 @@ let_decl
         // yy_clear_ok;
         $$ = NULL;
     }
-    | LET ID optional_type error
+    | LET ID type error
     {
         // kl_error(loc(@4), "expected '='.");
         // yy_clear_ok;
         $$ = NULL;
     }
-    | LET ID optional_type '=' error
+    | LET ID type '=' error
     {
         // kl_error(loc(@5), "expected an expression.");
         // yy_clear_ok;
@@ -607,19 +646,19 @@ let_decl
     ;
 
 var_decl
-    : VAR ID type ';'
+    : VAR ID optional_type
     {
         // IDENT(id, $2, @2);
         // TYPE(type, $3, @3);
         // $$ = stmt_from_vardecl(id, &type, NULL);
     }
-    | VAR ID type '=' expr ';'
+    | VAR ID optional_type '=' expr
     {
         // IDENT(id, $2, @2);
         // TYPE(type, $3, @3);
         // $$ = stmt_from_vardecl(id, &type, $5);
     }
-    | VAR ID '=' expr ';'
+    | VAR ID '=' expr
     {
         // IDENT(id, $2, @2);
         // $$ = stmt_from_vardecl(id, NULL, $4);
@@ -631,6 +670,281 @@ free_var_decl
     {
         // IDENT(id, $1, loc(@1));
         // $$ = stmt_from_vardecl(id, NULL, $3);
+    }
+    ;
+
+func_decl
+    : FUNC ID '(' param_list ')' optional_type block
+    {
+
+    }
+    ;
+
+param_list
+    : id_type_arg_list
+    {
+        // $$ = $1;
+    }
+    | kw_arg_list
+    {
+        // $$ = vector_create(sizeof(ParamDecl));
+        // vector_push_back($$, &$1);
+    }
+    | id_type_arg_list ',' kw_arg_list
+    {
+        // $$ = $1;
+        // vector_push_back($$, &$3);
+    }
+    ;
+
+id_type_arg_list
+    : ID optional_type
+    {
+        // Ident id = {$1, loc(@1)};
+        // ParamDecl param = {lloc(@1, @2), id, $2};
+        // $$ = vector_create(sizeof(ParamDecl));
+        // vector_push_back($$, &param);
+    }
+    | id_type_arg_list ',' ID optional_type
+    {
+        // $$ = $1;
+        // Ident id = {$3, loc(@3)};
+        // ParamDecl param = {lloc(@3, @4), id, $4};
+        // vector_push_back($$, &param);
+    }
+    ;
+
+kw_arg_list
+    : ID '=' expr
+    {
+
+    }
+    | ID optional_type '=' expr
+    {
+
+    }
+    ;
+
+class_decl
+    : CLASS name extends '{' class_members_or_empty '}'
+    ;
+
+name
+    : ID
+    {
+    }
+    | ID '[' type_param_decl_list ']'
+    {
+    }
+    ;
+
+type_param_decl_list
+    : type_param_decl
+    {
+        // $$ = vector_create(sizeof(TypeParamDecl));
+        // vector_push_back($$, &$1);
+    }
+    | type_param_decl_list ',' type_param_decl
+    {
+        // $$ = $1;
+        // vector_push_back($$, &$3);
+    }
+    ;
+
+type_param_decl
+    : ID
+    | ID optional_type
+    ;
+
+extends
+    : %empty
+    | ':' klass_list
+    ;
+
+klass_list
+    : klass_type
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | klass_list ',' klass_type
+    {
+        $$ = $1;
+        vector_push_back($$, &$3);
+    }
+    ;
+
+class_members_or_empty
+    : %empty
+    {
+        $$ = NULL;
+    }
+    | field_list
+    {
+        $$ = $1;
+    }
+    | method_list
+    {
+        $$ = $1;
+    }
+    | field_list method_list
+    {
+        $$ = $1;
+        vector_concat($$, $2);
+        vector_destroy($2);
+    }
+    ;
+
+field_list
+    : prefix_field_decl
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | field_list prefix_field_decl
+    {
+        $$ = $1;
+        vector_push_back($$, &$2);
+    }
+    ;
+
+prefix_field_decl
+    : field_decl
+    {
+        $$ = $1;
+    }
+    | prefix field_decl
+    {
+        $$ = $2;
+    }
+    ;
+
+field_decl
+    : var_decl semi
+    {
+        // $$ = $1;
+        // var_set_where($$, VAR_FIELD);
+    }
+    | let_decl semi
+    {
+        // $$ = $1;
+        // var_set_where($$, VAR_FIELD);
+    }
+    | ID optional_type semi
+    {
+
+    }
+    | ID optional_type '=' expr semi
+    {
+
+    }
+    | ID '=' expr semi
+    {
+
+    }
+    | ID error
+    {
+        // kl_error(loc(@3), "expected type or '='.");
+        // yy_clear_ok;
+        // $$ = NULL;
+    }
+    | ID optional_type error
+    {
+        // kl_error(loc(@4), "expected '='.");
+        // yy_clear_ok;
+        // $$ = NULL;
+    }
+    ;
+
+method_list
+    : prefix_method_decl
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | method_list prefix_method_decl
+    {
+        $$ = $1;
+        vector_push_back($$, &$2);
+    }
+    ;
+
+prefix_method_decl
+    : func_decl
+    {
+        $$ = $1;
+    }
+    | prefix func_decl
+    {
+        $$ = $2;
+    }
+    | proto_decl
+    {
+
+    }
+    | prefix proto_decl
+    {
+
+    }
+    ;
+
+trait_decl
+    : TRAIT name extends '{' trait_members_or_empty '}'
+    {
+        // $$ = stmt_from_type(STMT_TRAIT_KIND, $2.id, $2.tps, NULL, NULL);
+        // stmt_set_loc($$, lloc(@1, @6));
+    }
+    ;
+
+trait_members_or_empty
+    : %empty
+    {
+        $$ = NULL;
+    }
+    | proto_list
+    {
+        $$ = $1;
+    }
+    ;
+
+proto_list
+    : prefix_proto_decl
+    {
+
+    }
+    | proto_list prefix_proto_decl
+    {
+
+    }
+    ;
+
+prefix_proto_decl
+    : proto_decl
+    {
+        $$ = $1;
+    }
+    | prefix proto_decl
+    {
+        $$ = $2;
+    }
+    ;
+
+proto_decl
+    : FUNC ID '(' param_list ')' optional_type semi
+    {
+        $$ = NULL;
+    }
+    | FUNC ID '(' param_list ')' semi
+    {
+        $$ = NULL;
+    }
+    | FUNC ID '(' ')' optional_type semi
+    {
+        $$ = NULL;
+    }
+    | FUNC ID '(' ')' semi
+    {
+        $$ = NULL;
     }
     ;
 
@@ -785,6 +1099,10 @@ local
     {
 
     }
+    | match_stmt
+    {
+
+    }
     | semi
     {
         $$ = NULL;
@@ -848,6 +1166,43 @@ for_stmt
 id_list
     : ID
     | id_list ',' ID
+    ;
+
+match_stmt
+    : MATCH expr '{' case_list '}'
+    ;
+
+case_list
+    : case_stmt
+    | case_list case_stmt
+    ;
+
+case_stmt
+    : CASE case_pattern_list ':' case_block case_tail
+    ;
+
+case_pattern_list
+    : case_pattern
+    | case_pattern_list ',' case_pattern
+    ;
+
+case_pattern
+    : expr
+    | IN range_expr
+    | IS type
+    ;
+
+case_block
+    : block
+    | expr
+    | assignment
+    | return_stmt
+    ;
+
+case_tail
+    : %empty
+    | semi
+    | ','
     ;
 
 expr

@@ -20,7 +20,7 @@
 static int semicolon(ParserState *ps)
 {
     static int tokens[] = {
-        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, ID, SELF, SUPER,
+        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF, SUPER,
         TRUE, FALSE, INT8, INT16, INT32, INT64, FLOAT32, FLOAT64,
         STRING, BOOL, OBJECT, RETURN, BREAK, CONTINUE, ')', ']', '}',
         '_', NOT, DOTDOTDOT, DOTDOTEQ,

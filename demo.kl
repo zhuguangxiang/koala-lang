@@ -22,7 +22,7 @@ let ms = """
 }
 """
 
-let v int? = 100
+let v int = none
 
 /*
 if a > b {
@@ -56,6 +56,32 @@ array[int8]("hello")
 bytes("hello")
 
 type(v)
+*/
+
+/*
+func add(a (int | str | ?), b (int | str)) {
+    if let a1 = a {
+        if a1 is int {
+            if b is int {
+
+            } else if b is str {
+
+            }
+        } else if a1 is str {
+
+        } else {
+            unreachable()
+        }
+    }
+
+    guard let a1 = a else {
+        return
+    }
+
+    if (a1 is int) {
+
+    }
+}
 */
 #
 #!
