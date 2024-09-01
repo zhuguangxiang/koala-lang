@@ -2,6 +2,10 @@
 
 var opt int str
 
+class Foo[T : Foo[str?] & Bar] : Bar[Int?] {
+    a T?
+}
+
 /*
 let NUM1 = 12345678901234567890
 let NUM2 = 100

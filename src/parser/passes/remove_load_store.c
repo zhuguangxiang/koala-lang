@@ -29,7 +29,7 @@ static void update_load_insn_uses(KlrInsn *insn)
         } else if (val->kind == KLR_VALUE_PARAM) {
             use->oper->kind = KLR_OPER_PARAM;
         } else {
-            NIY();
+            NYI();
         }
     }
     klr_delete_insn(insn);

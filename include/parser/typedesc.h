@@ -27,6 +27,10 @@ typedef enum _DescKind {
     TYPE_SELF_KIND,
     TYPE_PARAM_KIND,
     TYPE_OBJECT_KIND,
+    TYPE_CHAR_KIND,
+    TYPE_BYTES_KIND,
+    TYPE_TYPE_KIND,
+    TYPE_RANGE_KIND,
     TYPE_OPTIONAL_KIND,
     TYPE_MAX_KIND,
 } DescKind;
@@ -69,6 +73,10 @@ extern NumberDesc float64_desc;
 extern TypeDesc bool_desc;
 extern TypeDesc str_desc;
 extern TypeDesc object_desc;
+extern TypeDesc char_desc;
+extern TypeDesc bytes_desc;
+extern TypeDesc type_desc;
+extern TypeDesc range_desc;
 
 static inline TypeDesc *desc_int8(void)
 {
@@ -110,6 +118,26 @@ static inline TypeDesc *desc_bool(void)
 static inline TypeDesc *desc_object(void)
 {
     return (TypeDesc *)DESC_INCREF_GET(&object_desc);
+}
+
+static inline TypeDesc *desc_char(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&char_desc);
+}
+
+static inline TypeDesc *desc_bytes(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&bytes_desc);
+}
+
+static inline TypeDesc *desc_type(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&type_desc);
+}
+
+static inline TypeDesc *desc_range(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&range_desc);
 }
 
 TypeDesc *desc_optional(TypeDesc *ty);

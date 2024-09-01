@@ -20,10 +20,15 @@ NumberDesc float128_desc = { 1, TYPE_FLOAT_KIND, 128 };
 TypeDesc bool_desc = { 1, TYPE_BOOL_KIND };
 TypeDesc str_desc = { 1, TYPE_STR_KIND };
 TypeDesc object_desc = { 1, TYPE_OBJECT_KIND };
+TypeDesc char_desc = { 1, TYPE_CHAR_KIND };
+TypeDesc bytes_desc = { 1, TYPE_BYTES_KIND };
+TypeDesc type_desc = { 1, TYPE_TYPE_KIND };
+TypeDesc range_desc = { 1, TYPE_RANGE_KIND };
 
 TypeDesc *desc_optional(TypeDesc *ty)
 {
     OptionalDesc *opt = mm_alloc_obj_fast(opt);
+    opt->refcnt = 1;
     opt->kind = TYPE_OPTIONAL_KIND;
     opt->type = DESC_INCREF_GET(ty);
     return (TypeDesc *)opt;
@@ -32,6 +37,7 @@ TypeDesc *desc_optional(TypeDesc *ty)
 TypeDesc *desc_array(TypeDesc *sub)
 {
     ArrayDesc *arr = mm_alloc_obj_fast(arr);
+    arr->refcnt = 1;
     arr->kind = TYPE_ARRAY_KIND;
     if (!sub) {
         arr->type = desc_object();

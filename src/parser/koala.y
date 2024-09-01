@@ -55,6 +55,15 @@ static void free_expr_list(Vector *vec)
     vector_destroy(vec);
 }
 
+static void free_map_list(Vector *vec)
+{
+    Expr **item;
+    vector_foreach(item, vec) {
+        expr_free(*item);
+    }
+    vector_destroy(vec);
+}
+
 %}
 
 %union {
@@ -188,6 +197,7 @@ static void free_expr_list(Vector *vec)
 %type<expr> map
 %type<expr> atom
 %type<expr> tuple_expr
+%type<expr> set_expr
 %type<expr> anony_expr
 
 %type<type> optional_type
@@ -315,14 +325,6 @@ top_stmt
     {
         $$ = $2;
     }
-    | free_var_decl semi
-    {
-        $$ = $1;
-    }
-    | prefix free_var_decl semi
-    {
-        $$ = $2;
-    }
     | func_decl
     {
         $$ = NULL;
@@ -344,30 +346,6 @@ top_stmt
         $$ = NULL;
     }
     | prefix trait_decl
-    {
-        $$ = NULL;
-    }
-    | assignment semi
-    {
-        $$ = $1;
-    }
-    | expr semi
-    {
-        $$ = stmt_from_expr($1);
-    }
-    | if_stmt
-    {
-        $$ = $1;
-    }
-    | while_stmt
-    {
-        $$ = NULL;
-    }
-    | for_stmt
-    {
-        $$ = NULL;
-    }
-    | match_stmt
     {
         $$ = NULL;
     }
@@ -476,93 +454,122 @@ array_type
 map_type
     : MAP '[' type ',' optional_type ']'
     {
-        // $$ = NULL; //expr_type_map(lloc(@1, @6), $3, $5);
+        $$ = map_type($3, $5);
+        type_set_loc($$, lloc(@1, @6));
     }
     | MAP
     {
-
+        $$ = map_type(NULL, NULL);
+        type_set_loc($$, loc(@1));
     }
     | MAP '[' error
     {
-
+        kl_error(loc(@3), "expected a type.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | MAP '[' type  error
     {
-
+        free_type($3);
+        kl_error(loc(@4), "expected a ','.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | MAP '[' type ',' error
     {
-
+        free_type($3);
+        kl_error(loc(@5), "expected a type.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | MAP '[' type ',' optional_type error
     {
-
+        free_type($3);
+        free_type($5);
+        kl_error(loc(@6), "expected a ']'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 tuple_type
     : TUPLE '[' optional_type_list ']'
     {
-        // vector_push_back($2, &$4);
-        // $$ = expr_type_tuple(lloc(@1, @5), $2);
+        $$ = tuple_type($3);
+        type_set_loc($$, lloc(@1, @4));
     }
     | TUPLE
     {
-
+        $$ = tuple_type(NULL);
+        type_set_loc($$, loc(@1));
     }
     | TUPLE '[' error
     {
-
+        kl_error(loc(@3), "expected a type or type-list.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | TUPLE '[' optional_type_list error
     {
-
+        free_optional_type_list($3);
+        kl_error(loc(@4), "expected ']'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 set_type
     : SET '[' type ']'
     {
-
+        $$ = set_type($3);
+        type_set_loc($$, lloc(@1, @4));
     }
     | SET
     {
-
+        $$ = set_type(NULL);
+        type_set_loc($$, loc(@1));
     }
     | SET '[' error
     {
-
+        kl_error(loc(@3), "expected a type.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | SET '[' type error
     {
-
+        free_type($3);
+        kl_error(loc(@4), "expected ']'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 klass_type
     : ID
     {
-        // Ident pkg = {NULL, {0, 0, 0, 0}, NULL};
-        // Ident name = {$1, loc(@1), NULL};
-        // $$ = expr_type_klass(loc(@1), pkg, name, NULL);
+        IDENT(id, $1, loc(@1));
+        $$ = klass_type(NULL, &id, NULL);
+        type_set_loc($$, loc(@1));
     }
     | ID '.' ID
     {
-        // Ident pkg = {$1, loc(@1), NULL};
-        // Ident name = {$3, loc(@3), NULL};
-        // $$ = expr_type_klass(lloc(@1, @3), pkg, name, NULL);
+        IDENT(mod, $1, loc(@1));
+        IDENT(id, $3, loc(@3));
+        $$ = klass_type(&mod, &id, NULL);
+        type_set_loc($$, lloc(@1, @3));
     }
     | ID '[' optional_type_list ']'
     {
-        // Ident pkg = {NULL, {0, 0, 0, 0}, NULL};
-        // Ident name = {$1, loc(@1), NULL};
-        // $$ = expr_type_klass(lloc(@1, @4), pkg, name, $3);
+        IDENT(id, $1, loc(@1));
+        $$ = klass_type(NULL, &id, $3);
+        type_set_loc($$, lloc(@1, @4));
     }
     | ID '.' ID '[' optional_type_list ']'
     {
-        // Ident pkg = {$1, loc(@1), NULL};
-        // Ident name = {$3, loc(@3), NULL};
-        // $$ = expr_type_klass(lloc(@1, @6), pkg, name, $5);
+        IDENT(mod, $1, loc(@1));
+        IDENT(id, $3, loc(@3));
+        $$ = klass_type(&mod, &id, $5);
+        type_set_loc($$, lloc(@1, @6));
     }
     | ID '.' error
     {
@@ -578,6 +585,7 @@ klass_type
     }
     | ID '[' optional_type_list error
     {
+        free_optional_type_list($3);
         kl_error(loc(@4), "expected ']'.");
         yy_clear_ok;
         $$ = NULL;
@@ -590,6 +598,7 @@ klass_type
     }
     | ID '.' ID '[' optional_type_list error
     {
+        free_optional_type_list($5);
         kl_error(loc(@6), "expected ']'.");
         yy_clear_ok;
         $$ = NULL;
@@ -644,19 +653,23 @@ atom_type
     }
     | CHAR
     {
-        NIY();
+        $$ = char_type();
+        type_set_loc($$, loc(@1));
     }
     | BYTES
     {
-        NIY();
+        $$ = bytes_type();
+        type_set_loc($$, loc(@1));
     }
     | TYPE
     {
-        NIY();
+        $$ = type_type();
+        type_set_loc($$, loc(@1));
     }
     | RANGE
     {
-        NIY();
+        $$ = range_type();
+        type_set_loc($$, loc(@1));
     }
     ;
 
@@ -775,20 +788,6 @@ var_decl
     {
         free_type($3);
         kl_error(loc(@5), "expected an expr.");
-        yy_clear_ok;
-        $$ = NULL;
-    }
-    ;
-
-free_var_decl
-    : ID FREE_ASSIGN expr
-    {
-        IDENT(id, $1, loc(@1));
-        $$ = stmt_from_var_decl(id, NULL, 0, $3);
-    }
-    | ID FREE_ASSIGN error
-    {
-        kl_error(loc(@3), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
     }
@@ -1081,93 +1080,6 @@ proto_decl
     }
     ;
 
-assignment
-    : primary_expr assign_operator expr
-    {
-        $$ = stmt_from_assignment($2, $1, $3);
-        stmt_set_loc($$, lloc(@1, @3));
-    }
-    | primary_expr assign_operator error
-    {
-        kl_error(loc(@3), "expected an expr.");
-        yy_clear_ok;
-        $$ = NULL;
-    }
-    ;
-
-assign_operator
-    : '='
-    {
-        $$ = OP_ASSIGN;
-    }
-    | PLUS_ASSIGN
-    {
-        $$ = OP_PLUS_ASSIGN;
-    }
-    | MINUS_ASSIGN
-    {
-        $$ = OP_MINUS_ASSIGN;
-    }
-    | MULT_ASSIGN
-    {
-        $$ = OP_MULT_ASSIGN;
-    }
-    | DIV_ASSIGN
-    {
-        $$ = OP_DIV_ASSIGN;
-    }
-    | MOD_ASSIGN
-    {
-        $$ = OP_MOD_ASSIGN;
-    }
-    | AND_ASSIGN
-    {
-        $$ = OP_AND_ASSIGN;
-    }
-    | OR_ASSIGN
-    {
-        $$ = OP_OR_ASSIGN;
-    }
-    | XOR_ASSIGN
-    {
-        $$ = OP_XOR_ASSIGN;
-    }
-    | SHL_ASSIGN
-    {
-        $$ = OP_SHL_ASSIGN;
-    }
-    | SHR_ASSIGN
-    {
-        $$ = OP_SHR_ASSIGN;
-    }
-    | USHR_ASSIGN
-    {
-        $$ = OP_USHR_ASSIGN;
-    }
-    ;
-
-return_stmt
-    : RETURN
-    {
-        // $$ = stmt_from_return(NULL);
-    }
-    | RETURN expr
-    {
-        // $$ = stmt_from_return($2);
-    }
-    ;
-
-jump_stmt
-    : BREAK
-    {
-        // $$ = stmt_from_break(row(@1), col(@1));
-    }
-    | CONTINUE
-    {
-        // $$ = stmt_from_continue(row(@1), col(@1));
-    }
-    ;
-
 block
     : '{' local_list '}'
     {
@@ -1246,6 +1158,108 @@ local
     | semi
     {
         $$ = NULL;
+    }
+    ;
+
+free_var_decl
+    : ID FREE_ASSIGN expr
+    {
+        IDENT(id, $1, loc(@1));
+        $$ = stmt_from_var_decl(id, NULL, 0, $3);
+    }
+    | ID FREE_ASSIGN error
+    {
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    ;
+
+assignment
+    : primary_expr assign_operator expr
+    {
+        $$ = stmt_from_assignment($2, $1, $3);
+        stmt_set_loc($$, lloc(@1, @3));
+    }
+    | primary_expr assign_operator error
+    {
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    ;
+
+assign_operator
+    : '='
+    {
+        $$ = OP_ASSIGN;
+    }
+    | PLUS_ASSIGN
+    {
+        $$ = OP_PLUS_ASSIGN;
+    }
+    | MINUS_ASSIGN
+    {
+        $$ = OP_MINUS_ASSIGN;
+    }
+    | MULT_ASSIGN
+    {
+        $$ = OP_MULT_ASSIGN;
+    }
+    | DIV_ASSIGN
+    {
+        $$ = OP_DIV_ASSIGN;
+    }
+    | MOD_ASSIGN
+    {
+        $$ = OP_MOD_ASSIGN;
+    }
+    | AND_ASSIGN
+    {
+        $$ = OP_AND_ASSIGN;
+    }
+    | OR_ASSIGN
+    {
+        $$ = OP_OR_ASSIGN;
+    }
+    | XOR_ASSIGN
+    {
+        $$ = OP_XOR_ASSIGN;
+    }
+    | SHL_ASSIGN
+    {
+        $$ = OP_SHL_ASSIGN;
+    }
+    | SHR_ASSIGN
+    {
+        $$ = OP_SHR_ASSIGN;
+    }
+    | USHR_ASSIGN
+    {
+        $$ = OP_USHR_ASSIGN;
+    }
+    ;
+
+return_stmt
+    : RETURN
+    {
+        // $$ = stmt_from_return(NULL);
+    }
+    | RETURN expr
+    {
+        // $$ = stmt_from_return($2);
+    }
+    ;
+
+jump_stmt
+    : BREAK
+    {
+        // $$ = stmt_from_break(row(@1), col(@1));
+    }
+    | CONTINUE
+    {
+        // $$ = stmt_from_continue(row(@1), col(@1));
     }
     ;
 
@@ -1352,49 +1366,61 @@ expr
     }
     | in_expr
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | is_expr
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | as_expr
     {
-        // $$ = $1;
+        $$ = $1;
     }
     ;
 
 is_expr
     : or_expr IS type
     {
-        // $$ = expr_from_is_expr($1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_is_expr($1, loc(@2), $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | or_expr IS error
     {
-        // kl_error(loc(@3), "expected a type.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected a type.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 as_expr
     : or_expr AS type
     {
-        // $$ = expr_from_as_expr($1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_as_expr($1, loc(@2), $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | or_expr AS error
     {
-        // kl_error(loc(@3), "expected a type.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected a type.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 in_expr
     : or_expr IN or_expr
+    {
+        $$ = expr_from_in_expr($1, loc(@2), $3);
+        expr_set_loc($$, lloc(@1, @3));
+    }
     | or_expr IN error
+    {
+        expr_free($1);
+        kl_error(loc(@3), "expected a type.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
     ;
 
 or_expr
@@ -1404,8 +1430,8 @@ or_expr
     }
     | or_expr OR and_expr
     {
-        // $$ = expr_from_binary(BINARY_OR, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_OR, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | or_expr OR error
     {
@@ -1423,8 +1449,8 @@ and_expr
     }
     | and_expr AND bit_or_expr
     {
-        // $$ = expr_from_binary(BINARY_AND, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_AND, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | and_expr AND error
     {
@@ -1442,8 +1468,8 @@ bit_or_expr
     }
     | bit_or_expr '|' bit_xor_expr
     {
-        // $$ = expr_from_binary(BINARY_BIT_OR, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_BIT_OR, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | bit_or_expr '|' error
     {
@@ -1461,8 +1487,8 @@ bit_xor_expr
     }
     | bit_xor_expr '^' bit_and_expr
     {
-        // $$ = expr_from_binary(BINARY_BIT_XOR, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_BIT_XOR, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | bit_xor_expr '^' error
     {
@@ -1480,8 +1506,8 @@ bit_and_expr
     }
     | bit_and_expr '&' equality_expr
     {
-        // $$ = expr_from_binary(BINARY_BIT_AND, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_BIT_AND, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | bit_and_expr '&' error
     {
@@ -1499,13 +1525,13 @@ equality_expr
     }
     | equality_expr EQ relation_expr
     {
-        // $$ = expr_from_binary(BINARY_EQ, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_EQ, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | equality_expr NE relation_expr
     {
-        // $$ = expr_from_binary(BINARY_NE, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_NE, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | equality_expr EQ error
     {
@@ -1530,23 +1556,23 @@ relation_expr
     }
     | relation_expr '<' shift_expr
     {
-        // $$ = expr_from_binary(BINARY_LT, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_LT, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | relation_expr '>' shift_expr
     {
-        // $$ = expr_from_binary(BINARY_GT, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_GT, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | relation_expr LE shift_expr
     {
-        // $$ = expr_from_binary(BINARY_LE, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_LE, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | relation_expr GE shift_expr
     {
-        // $$ = expr_from_binary(BINARY_GE, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_GE, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | relation_expr '<' error
     {
@@ -1585,18 +1611,18 @@ shift_expr
     }
     | shift_expr R_USHIFT add_expr
     {
-        // $$ = expr_from_binary(BINARY_USHR, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_USHR, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | shift_expr R_SHIFT add_expr
     {
-        // $$ = expr_from_binary(BINARY_SHR, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_SHR, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | shift_expr L_SHIFT add_expr
     {
-        // $$ = expr_from_binary(BINARY_SHL, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_SHL, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | shift_expr R_USHIFT error
     {
@@ -1628,13 +1654,13 @@ add_expr
     }
     | add_expr '+' multi_expr
     {
-        // $$ = expr_from_binary(BINARY_ADD, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_ADD, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | add_expr '-' multi_expr
     {
-        // $$ = expr_from_binary(BINARY_SUB, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_SUB, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | add_expr '+' error
     {
@@ -1659,18 +1685,18 @@ multi_expr
     }
     | multi_expr '*' unary_expr
     {
-        // $$ = expr_from_binary(BINARY_MUL, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_MUL, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | multi_expr '/' unary_expr
     {
-        // $$ = expr_from_binary(BINARY_DIV, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_DIV, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | multi_expr '%' unary_expr
     {
-        // $$ = expr_from_binary(BINARY_MOD, loc(@2), $1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_binary(BINARY_MOD, loc(@2), $1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | multi_expr '*' error
     {
@@ -1702,23 +1728,23 @@ unary_expr
     }
     | '+' unary_expr
     {
-        // $$ = expr_from_unary(UNARY_PLUS, loc(@1), $2);
-        // expr_set_loc($$, lloc(@1, @2));
+        $$ = expr_from_unary(UNARY_PLUS, loc(@1), $2);
+        expr_set_loc($$, lloc(@1, @2));
     }
     | '-' unary_expr
     {
-        // $$ = expr_from_unary(UNARY_NEG, loc(@1), $2);
-        // expr_set_loc($$, lloc(@1, @2));
+        $$ = expr_from_unary(UNARY_NEG, loc(@1), $2);
+        expr_set_loc($$, lloc(@1, @2));
     }
     | '~' unary_expr
     {
-        // $$ = expr_from_unary(UNARY_BIT_NOT, loc(@1), $2);
-        // expr_set_loc($$, lloc(@1, @2));
+        $$ = expr_from_unary(UNARY_BIT_NOT, loc(@1), $2);
+        expr_set_loc($$, lloc(@1, @2));
     }
     | NOT unary_expr
     {
-        // $$ = expr_from_unary(UNARY_NOT, loc(@1), $2);
-        // expr_set_loc($$, lloc(@1, @2));
+        $$ = expr_from_unary(UNARY_NOT, loc(@1), $2);
+        expr_set_loc($$, lloc(@1, @2));
     }
     | '+' error
     {
@@ -1749,15 +1775,15 @@ unary_expr
 primary_expr
     : call_expr
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | dot_expr
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | index_expr
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | atom_expr
     {
@@ -1768,13 +1794,13 @@ primary_expr
 call_expr
     : primary_expr '(' ')'
     {
-        // $$ = expr_from_call($1, NULL);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_call($1, NULL);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | primary_expr '(' expr_list ')'
     {
-        // $$ = expr_from_call($1, $3);
-        // expr_set_loc($$, lloc(@1, @4));
+        $$ = expr_from_call($1, $3);
+        expr_set_loc($$, lloc(@1, @4));
     }
     | primary_expr '(' error
     {
@@ -1796,9 +1822,9 @@ call_expr
 dot_expr
     : primary_expr '.' ID
     {
-        // Ident id = {$3, loc(@3)};
-        // $$ = expr_from_attr($1, id);
-        // expr_set_loc($$, lloc(@1, @3));
+        IDENT(id, $3, loc(@3));
+        $$ = expr_from_dot($1, &id);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | primary_expr '.' error
     {
@@ -1814,15 +1840,16 @@ index_expr
     {
         // Foo[100]
         // Foo["hello"]
-        // Foo[Bar]
-        // FOO[Bar?]
-        // Foo[Bar, Baz]
-        // $$ = expr_from_index($1, $3);
-        // expr_set_loc($$, lloc(@1, @4));
+        // Foo[Bar]()
+        // FOO[Bar?]()
+        // Foo[Bar, Baz]()
+        $$ = expr_from_index($1, $3);
+        expr_set_loc($$, lloc(@1, @4));
     }
     | primary_expr '[' slice_expr ']'
     {
-        $$ = NULL;
+        $$ = expr_from_index_slice($1, $3);
+        expr_set_loc($$, lloc(@1, @4));
     }
     | primary_expr '[' error
     {
@@ -1844,27 +1871,29 @@ index_expr
 slice_expr
     : expr ':' expr
     {
-        // $$.start = $1;
-        // $$.end = $3;
+        $$ = expr_from_slice($1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | ':' expr
     {
-        // $$.start = NULL;
-        // $$.end = $2;
+        $$ = expr_from_slice(NULL, $2);
+        expr_set_loc($$, lloc(@1, @2));
     }
     | expr ':'
     {
-        // $$.start = $1;
-        // $$.end = NULL;
+        $$ = expr_from_slice($1, NULL);
+        expr_set_loc($$, lloc(@1, @2));
     }
     | ':'
     {
-        // $$.start = NULL;
-        // $$.end = NULL;
+        $$ = expr_from_slice(NULL, NULL);
+        expr_set_loc($$, loc(@1));
     }
     | ':' error
     {
-
+        kl_error(loc(@2), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | expr ':' error
     {
@@ -1903,24 +1932,24 @@ atom_expr
     }
     | map_expr
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | tuple_expr
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | set_expr
     {
-
+        $$ = $1;
     }
     | atom_type
     {
-        // $$ = expr_from_type($1);
-        // expr_set_loc($$, loc(@1));
+        $$ = expr_from_type($1);
+        expr_set_loc($$, loc(@1));
     }
     | anony_expr
     {
-
+        NYI();
     }
     ;
 
@@ -1994,12 +2023,15 @@ array_expr
     : '[' expr_list ']'
     {
         // [1,2,3]
-        // $$ = expr_from_array($2);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_array($2);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | ARRAY
     {
-
+        Type *ty = array_type(NULL);
+        type_set_loc(ty, loc(@1));
+        $$ = expr_from_type(ty);
+        expr_set_loc($$, loc(@1));
     }
     | '[' error
     {
@@ -2009,6 +2041,7 @@ array_expr
     }
     | '[' expr_list error
     {
+        free_expr_list($2);
         kl_error(loc(@3), "expected ',' or ']'.");
         yy_clear_ok;
         $$ = NULL;
@@ -2018,104 +2051,122 @@ array_expr
 map_expr
     : '{' map_list '}'
     {
-        // $$ = expr_from_map($2);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_map($2);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | MAP
     {
-        // $$ = NULL;
+        Type *ty = map_type(NULL, NULL);
+        type_set_loc(ty, loc(@1));
+        $$ = expr_from_type(ty);
+        expr_set_loc($$, loc(@1));
     }
     | '{' error
     {
-        // kl_error(loc(@2), "expected key:value pairs.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@2), "expected key:value pairs.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | '{' map_list error
     {
-        // kl_error(loc(@3), "expected ',' or '}'.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        free_map_list($2);
+        kl_error(loc(@3), "expected ',' or '}'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 map_list
     : map
     {
-        // $$ = vector_create_ptr();
-        // vector_push_back($$, &$1);
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
     }
     | map_list ',' map
     {
-        // $$ = $1;
-        // vector_push_back($$, &$3);
+        $$ = $1;
+        vector_push_back($$, &$3);
     }
     | map_list ',' error
     {
-        // kl_error(loc(@3), "expected map key-value expr.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        free_map_list($1);
+        kl_error(loc(@3), "expected map key-value expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 map
     : expr ':' expr
     {
-        // $$ = expr_from_map_entry($1, $3);
-        // expr_set_loc($$, lloc(@1, @3));
+        $$ = expr_from_map_entry($1, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | expr error
     {
-        // kl_error(loc(@2), "expected ':'.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@2), "expected ':'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | expr ':' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 tuple_expr
     : '(' expr_list ',' ')'
     {
-        // (1, "hello", [1,2,3])
-        // vector_push_back($2, &$4);
-        // $$ = expr_from_tuple($2);
-        // expr_set_loc($$, lloc(@1, @5));
+        $$ = expr_from_tuple($2);
+        expr_set_loc($$, lloc(@1, @4));
     }
     | '(' expr_list ',' expr ')'
     {
-        // $$ = NULL;
+        // (1, "hello", [1,2,3])
+        vector_push_back($2, &$4);
+        $$ = expr_from_tuple($2);
+        expr_set_loc($$, lloc(@1, @5));
     }
     | TUPLE
     {
-
+        Type *ty = tuple_type(NULL);
+        type_set_loc(ty, loc(@1));
+        $$ = expr_from_type(ty);
+        expr_set_loc($$, loc(@1));
     }
     | '(' expr_list ',' error
     {
-        // kl_error(loc(@4), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        free_expr_list($2);
+        kl_error(loc(@4), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | '(' expr_list ',' expr error
     {
-        // kl_error(loc(@5), "expected ')'.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        free_expr_list($2);
+        expr_free($4);
+        kl_error(loc(@5), "expected ')'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 set_expr
     : '{' expr_list '}'
     {
-
+        $$ = expr_from_set($2);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | SET
     {
-
+        Type *ty = set_type(NULL);
+        type_set_loc(ty, loc(@1));
+        $$ = expr_from_type(ty);
+        expr_set_loc($$, loc(@1));
     }
     ;
 

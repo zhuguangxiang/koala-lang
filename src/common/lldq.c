@@ -44,9 +44,9 @@ LLDqNode *lldq_pop_head(LLDeque *deque)
     return first;
 }
 
-LLDqNode *lldq_pop_tail(LLDeque *deque) { NIY(); }
+LLDqNode *lldq_pop_tail(LLDeque *deque) { NYI(); }
 
-void lldq_push_head(LLDeque *deque, void *node) { NIY(); }
+void lldq_push_head(LLDeque *deque, void *node) { NYI(); }
 
 void lldq_push_tail(LLDeque *deque, void *node)
 {

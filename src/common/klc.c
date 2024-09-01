@@ -149,7 +149,7 @@ static void read_object(KlcObject *obj, KlcFile *klc)
             break;
         }
         case KLC_TYPE_INT: {
-            NIY();
+            NYI();
             break;
         }
         case KLC_TYPE_BYTES: {

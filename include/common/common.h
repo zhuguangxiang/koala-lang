@@ -62,7 +62,7 @@ extern "C" {
     abort(); \
 } while (0)
 
-#define NIY() do { \
+#define NYI() do { \
     fprintf(stderr, "%s:%d: Not Yet Implemented\n", __FILE_NAME__, __LINE__); \
     abort(); \
 } while (0)

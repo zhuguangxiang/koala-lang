@@ -43,7 +43,7 @@ static void fini_oper(KlrOper *oper)
     if (oper->kind != KLR_OPER_PHI) {
         fini_use(&oper->use);
     } else {
-        NIY();
+        NYI();
     }
     oper->kind = KLR_OPER_NONE;
 }

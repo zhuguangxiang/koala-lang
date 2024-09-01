@@ -72,6 +72,34 @@ Type *object_type(void)
     return ty;
 }
 
+Type *char_type(void)
+{
+    Type *ty = mm_alloc_obj(ty);
+    ty->desc = desc_char();
+    return ty;
+}
+
+Type *bytes_type(void)
+{
+    Type *ty = mm_alloc_obj(ty);
+    ty->desc = desc_bytes();
+    return ty;
+}
+
+Type *type_type(void)
+{
+    Type *ty = mm_alloc_obj(ty);
+    ty->desc = desc_type();
+    return ty;
+}
+
+Type *range_type(void)
+{
+    Type *ty = mm_alloc_obj(ty);
+    ty->desc = desc_range();
+    return ty;
+}
+
 Type *optional_type(Type *sub)
 {
     Type *ty = mm_alloc_obj(ty);
@@ -89,6 +117,31 @@ Type *array_type(Type *sub)
         ty->subs = vector_create_ptr();
         vector_push_back(ty->subs, &sub);
     }
+    return ty;
+}
+
+Type *map_type(Type *key, Type *val)
+{
+    Type *ty = mm_alloc_obj(ty);
+    // ty->desc = desc_map(key->desc, val->desc);
+    return ty;
+}
+
+Type *tuple_type(Vector *vec)
+{
+    Type *ty = mm_alloc_obj(ty);
+    return ty;
+}
+
+Type *set_type(Type *sub)
+{
+    Type *ty = mm_alloc_obj(ty);
+    return ty;
+}
+
+Type *klass_type(Ident *mod, Ident *id, Vector *vec)
+{
+    Type *ty = mm_alloc_obj(ty);
     return ty;
 }
 
@@ -241,6 +294,151 @@ Expr *expr_from_super(void)
     Expr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_SUPER_KIND;
     return exp;
+}
+
+Expr *expr_from_is_expr(Expr *exp, Loc op_loc, Type *type)
+{
+    IsExpr *e = mm_alloc_obj(e);
+    e->kind = EXPR_IS_KIND;
+    e->exp = exp;
+    e->op_loc = op_loc;
+    e->type = type;
+    return (Expr *)e;
+}
+
+Expr *expr_from_as_expr(Expr *exp, Loc op_loc, Type *type)
+{
+    AsExpr *e = mm_alloc_obj(e);
+    e->kind = EXPR_AS_KIND;
+    e->exp = exp;
+    e->op_loc = op_loc;
+    e->type = type;
+    return (Expr *)e;
+}
+
+Expr *expr_from_in_expr(Expr *lhs, Loc op_loc, Expr *rhs)
+{
+    InExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_IN_KIND;
+    exp->lhs = lhs;
+    exp->op_loc = op_loc;
+    exp->rhs = rhs;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_unary(UnOpKind kind, Loc op_loc, Expr *e)
+{
+    UnaryExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_UNARY_KIND;
+    exp->op = kind;
+    exp->exp = e;
+    exp->op_loc = op_loc;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_binary(BiOpKind op, Loc op_loc, Expr *lhs, Expr *rhs)
+{
+    BinaryExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_BINARY_KIND;
+    exp->op = op;
+    exp->op_loc = op_loc;
+    exp->lhs = lhs;
+    exp->rhs = rhs;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_type(Type *type)
+{
+    TypeExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_TYPE_KIND;
+    exp->type = type;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_array(Vector *vec)
+{
+    ArrayExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_ARRAY_KIND;
+    exp->vec = vec;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_map(Vector *vec)
+{
+    MapExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_MAP_KIND;
+    exp->vec = vec;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_map_entry(Expr *key, Expr *val)
+{
+    MapEntryExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_MAP_ENTRY_KIND;
+    exp->key = key;
+    exp->val = val;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_tuple(Vector *vec)
+{
+    TupleExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_TUPLE_KIND;
+    exp->vec = vec;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_set(Vector *vec)
+{
+    SetExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_SET_KIND;
+    exp->vec = vec;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_call(Expr *lhs, Vector *args)
+{
+    CallExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_CALL_KIND;
+    exp->lhs = lhs;
+    exp->args = args;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_dot(Expr *lhs, Ident *id)
+{
+    DotExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_DOT_KIND;
+    exp->lhs = lhs;
+    exp->id = *id;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_index(Expr *lhs, Vector *vec)
+{
+    IndexExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_INDEX_KIND;
+    exp->lhs = lhs;
+    exp->vec = vec;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_index_slice(Expr *lhs, Expr *slice)
+{
+    IndexSliceExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_INDEX_SLICE_KIND;
+    exp->lhs = lhs;
+    exp->slice = slice;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_slice(Expr *start, Expr *stop)
+{
+    SliceExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_SLICE_KIND;
+    exp->start = start;
+    exp->stop = stop;
+    return (Expr *)exp;
 }
 
 void expr_free(Expr *exp) { mm_free(exp); }

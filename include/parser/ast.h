@@ -51,9 +51,16 @@ Type *float64_type(void);
 Type *bool_type(void);
 Type *str_type(void);
 Type *object_type(void);
+Type *char_type(void);
+Type *bytes_type(void);
+Type *type_type(void);
+Type *range_type(void);
 Type *optional_type(Type *ty);
 Type *array_type(Type *sub);
-
+Type *map_type(Type *key, Type *val);
+Type *tuple_type(Vector *vec);
+Type *set_type(Type *sub);
+Type *klass_type(Ident *mod, Ident *id, Vector *vec);
 void free_type(Type *ty);
 #define type_set_loc(ty, _loc) (ty)->loc = (_loc)
 
@@ -68,17 +75,20 @@ typedef enum _ExprKind {
     EXPR_MAP_KIND,
     EXPR_MAP_ENTRY_KIND,
     EXPR_TUPLE_KIND,
+    EXPR_SET_KIND,
     EXPR_ANONY_KIND,
     EXPR_TYPE_KIND,
     EXPR_CALL_KIND,
-    EXPR_ATTR_KIND,
-    EXPR_TUPLE_GET_KIND,
+    EXPR_DOT_KIND,
     EXPR_INDEX_KIND,
+    EXPR_INDEX_SLICE_KIND,
+    EXPR_SLICE_KIND,
     EXPR_UNARY_KIND,
     EXPR_BINARY_KIND,
     EXPR_RANGE_KIND,
     EXPR_IS_KIND,
     EXPR_AS_KIND,
+    EXPR_IN_KIND,
     EXPR_MAX_KIND,
 } ExprKind;
 
@@ -138,6 +148,31 @@ Expr *expr_from_under(void);
 Expr *expr_from_self(void);
 Expr *expr_from_super(void);
 
+typedef struct _IsExpr {
+    EXPR_HEAD
+    Expr *exp;
+    Loc op_loc;
+    Type *type;
+} IsExpr;
+
+typedef struct _AsExpr {
+    EXPR_HEAD
+    Expr *exp;
+    Loc op_loc;
+    Type *type;
+} AsExpr;
+
+typedef struct _InExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Loc op_loc;
+    Expr *rhs;
+} InExpr;
+
+Expr *expr_from_is_expr(Expr *exp, Loc op_loc, Type *type);
+Expr *expr_from_as_expr(Expr *exp, Loc op_loc, Type *type);
+Expr *expr_from_in_expr(Expr *lhs, Loc op_loc, Expr *rhs);
+
 /* unary operator kind */
 typedef enum _UnOpKind {
     /* + */
@@ -194,6 +229,92 @@ typedef struct _BinaryExpr {
     Expr *lhs;
     Expr *rhs;
 } BinaryExpr;
+
+Expr *expr_from_unary(UnOpKind kind, Loc op_loc, Expr *e);
+Expr *expr_from_binary(BiOpKind op, Loc op_loc, Expr *lhs, Expr *rhs);
+
+typedef struct _TypeExpr {
+    EXPR_HEAD
+    Type *type;
+} TypeExpr;
+
+Expr *expr_from_type(Type *type);
+
+typedef struct _ArrayExpr {
+    EXPR_HEAD
+    Vector *vec;
+} ArrayExpr;
+
+Expr *expr_from_array(Vector *vec);
+
+typedef struct _MapExpr {
+    EXPR_HEAD
+    Vector *vec;
+} MapExpr;
+
+Expr *expr_from_map(Vector *vec);
+
+typedef struct _MapEntryExpr {
+    EXPR_HEAD
+    Expr *key;
+    Expr *val;
+} MapEntryExpr;
+
+Expr *expr_from_map_entry(Expr *key, Expr *val);
+
+typedef struct _TupleExpr {
+    EXPR_HEAD
+    Vector *vec;
+} TupleExpr;
+
+Expr *expr_from_tuple(Vector *vec);
+
+typedef struct _SetExpr {
+    EXPR_HEAD
+    Vector *vec;
+} SetExpr;
+
+Expr *expr_from_set(Vector *vec);
+
+typedef struct _CallExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Vector *args;
+} CallExpr;
+
+Expr *expr_from_call(Expr *lhs, Vector *args);
+
+typedef struct _DotExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Ident id;
+} DotExpr;
+
+Expr *expr_from_dot(Expr *lhs, Ident *id);
+
+typedef struct _IndexExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Vector *vec;
+} IndexExpr;
+
+Expr *expr_from_index(Expr *lhs, Vector *vec);
+
+typedef struct _IndexSliceExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Expr *slice;
+} IndexSliceExpr;
+
+Expr *expr_from_index_slice(Expr *lhs, Expr *slice);
+
+typedef struct _SliceExpr {
+    EXPR_HEAD
+    Expr *start;
+    Expr *stop;
+} SliceExpr;
+
+Expr *expr_from_slice(Expr *start, Expr *stop);
 
 typedef enum _StmtKind {
     STMT_UNK_KIND,

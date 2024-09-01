@@ -132,7 +132,7 @@ static void remap_ir_branch(KlrInsn *insn, KlrBasicBlock *bb)
         ASSERT((cond->code >= OP_BINARY_CMP_EQ) && (cond->code <= OP_BINARY_CMP_GE));
         try_combine_branch(cond, insn, bb);
     } else {
-        NIY();
+        NYI();
     }
 }
 
