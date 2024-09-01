@@ -23,7 +23,7 @@ static int semicolon(ParserState *ps)
         INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF, SUPER,
         TRUE, FALSE, INT8, INT16, INT32, INT64, FLOAT32, FLOAT64,
         STRING, BOOL, OBJECT, RETURN, BREAK, CONTINUE, ')', ']', '}',
-        '_', NOT, DOTDOTDOT, DOTDOTEQ,
+        '_', NOT,
     };
 
     int token = ps->token;
@@ -158,7 +158,7 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "str"       { YY_RETURN(STRING);    }
 "object"    { YY_RETURN(OBJECT);    }
 "list"      { YY_RETURN(ARRAY);     }
-"dict"      { YY_RETURN(MAP);       }
+"map"       { YY_RETURN(MAP);       }
 "set"       { YY_RETURN(SET);       }
 "bytes"     { YY_RETURN(BYTES);     }
 "type"      { YY_RETURN(TYPE);      }
@@ -186,9 +186,6 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "<<="       { YY_RETURN(SHL_ASSIGN);   }
 ">>="       { YY_RETURN(SHR_ASSIGN);   }
 ">>>="      { YY_RETURN(USHR_ASSIGN);  }
-
-"..."       { YY_RETURN(DOTDOTDOT); }
-"..="       { YY_RETURN(DOTDOTEQ);}
 
 "<<"        { YY_RETURN(L_SHIFT);   }
 ">>"        { YY_RETURN(R_SHIFT);   }

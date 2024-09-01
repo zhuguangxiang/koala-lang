@@ -13,7 +13,6 @@ Type *int8_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_int8();
-    ty->stbl = NULL;
     return ty;
 }
 
@@ -21,7 +20,6 @@ Type *int16_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_int16();
-    ty->stbl = NULL;
     return ty;
 }
 
@@ -29,7 +27,6 @@ Type *int32_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_int32();
-    ty->stbl = NULL;
     return ty;
 }
 
@@ -37,7 +34,6 @@ Type *int64_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_int64();
-    ty->stbl = NULL;
     return ty;
 }
 
@@ -45,7 +41,6 @@ Type *float32_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_float32();
-    ty->stbl = NULL;
     return ty;
 }
 
@@ -53,7 +48,6 @@ Type *float64_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_float64();
-    ty->stbl = NULL;
     return ty;
 }
 
@@ -61,7 +55,6 @@ Type *bool_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_bool();
-    ty->stbl = NULL;
     return ty;
 }
 
@@ -69,7 +62,6 @@ Type *str_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_str();
-    ty->stbl = NULL;
     return ty;
 }
 
@@ -77,8 +69,41 @@ Type *object_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_object();
-    ty->stbl = NULL;
     return ty;
+}
+
+Type *optional_type(Type *sub)
+{
+    Type *ty = mm_alloc_obj(ty);
+    ty->desc = desc_optional(sub->desc);
+    ty->subs = vector_create_ptr();
+    vector_push_back(ty->subs, &sub);
+    return ty;
+}
+
+Type *array_type(Type *sub)
+{
+    Type *ty = mm_alloc_obj(ty);
+    ty->desc = desc_array((sub ? sub->desc : NULL));
+    if (sub) {
+        ty->subs = vector_create_ptr();
+        vector_push_back(ty->subs, &sub);
+    }
+    return ty;
+}
+
+void free_type(Type *ty)
+{
+    if (!ty) return;
+
+    free_desc(ty->desc);
+
+    Type **item;
+    vector_foreach(item, ty->subs) {
+        free_type(*item);
+    }
+    vector_destroy(ty->subs);
+    mm_free(ty);
 }
 
 Expr *expr_from_lit_int(int64_t val)
@@ -181,6 +206,14 @@ Expr *expr_from_lit_str(Buffer *buf)
     return (Expr *)exp;
 }
 
+Expr *expr_from_lit_none(void)
+{
+    LitExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->which = LIT_EXPR_NONE;
+    return (Expr *)exp;
+}
+
 Expr *expr_from_ident(Ident *id)
 {
     IdentExpr *exp = mm_alloc_obj(exp);
@@ -189,15 +222,47 @@ Expr *expr_from_ident(Ident *id)
     return (Expr *)exp;
 }
 
-Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, int pub, Expr *e)
+Expr *expr_from_under(void)
+{
+    Expr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_UNDER_KIND;
+    return exp;
+}
+
+Expr *expr_from_self(void)
+{
+    Expr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_SELF_KIND;
+    return exp;
+}
+
+Expr *expr_from_super(void)
+{
+    Expr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_SUPER_KIND;
+    return exp;
+}
+
+void expr_free(Expr *exp) { mm_free(exp); }
+
+Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, Expr *e)
 {
     VarDeclStmt *s = mm_alloc_obj(s);
     s->kind = STMT_VAR_KIND;
     s->id = id;
     s->ro = ro;
-    s->pub = pub;
     s->type = ty;
     s->exp = e;
+    return (Stmt *)s;
+}
+
+Stmt *stmt_from_assignment(AssignOpKind op, Expr *lhs, Expr *rhs)
+{
+    AssignStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_ASSIGN_KIND;
+    s->op = op;
+    s->lhs = lhs;
+    s->rhs = rhs;
     return (Stmt *)s;
 }
 
@@ -247,7 +312,7 @@ Stmt *stmt_from_expr(Expr *exp)
     return (Stmt *)s;
 }
 
-void stmt_free(Stmt *stmt) {}
+void stmt_free(Stmt *stmt) { ASSERT(0); }
 
 #ifdef __cplusplus
 }

@@ -113,6 +113,16 @@ static void parse_literal(ParserState *ps, Expr *exp)
     }
 }
 
+static void parse_none(ParserState *ps, Expr *exp)
+{
+    if (exp->ctx != EXPR_CTX_LOAD) {
+        kl_error(exp->loc, "none is readonly.");
+        return;
+    }
+
+    TypeDesc *expected = exp->expected;
+}
+
 void parse_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -126,6 +136,7 @@ void parse_expr(ParserState *ps, Expr *exp)
         NULL, // parse_ident,                     /* ID         */
         NULL, // parse_under,                     /* UNDER      */
         parse_literal,                   /* LITERAL    */
+        parse_none,                         /* NONE       */
         // parse_self,                      /* SELF       */
         // parse_super,                     /* SUPER      */
         // parse_array_expr,                /* ARRAY      */

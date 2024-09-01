@@ -30,9 +30,16 @@ void init_log(LogLevel default_level, const char *file, int quiet)
 {
     logger.level = default_level;
     logger.quiet = quiet;
-    logger.filp = fopen(file, "wa");
+    if (file) {
+        logger.filp = fopen(file, "wa");
+    }
     pthread_spin_init(&logger.lock, 0);
     pthread_spin_init(&logger.flock, 0);
+}
+
+void fini_log(void)
+{
+    if (logger.filp) fclose(logger.filp);
 }
 
 static char *level_names[] = { "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL" };

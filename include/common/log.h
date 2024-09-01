@@ -20,6 +20,7 @@ typedef enum _LogLevel {
 } LogLevel;
 
 void init_log(LogLevel default_level, const char *file, int quiet);
+void fini_log(void);
 void _log_log(LogLevel level, char *file, int line, char *fmt, ...);
 
 #define log_error(...) _log_log(LOG_ERROR, __FILE_NAME__, __LINE__, __VA_ARGS__)

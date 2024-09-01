@@ -60,6 +60,7 @@ static inline Vector *vector_create(int obj_size)
 /* Destroy a vector */
 static inline void vector_destroy(Vector *vec)
 {
+    if (!vec) return;
     vector_fini(vec);
     mm_free(vec);
 }

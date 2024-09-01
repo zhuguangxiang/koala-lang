@@ -27,18 +27,38 @@ typedef enum _DescKind {
     TYPE_SELF_KIND,
     TYPE_PARAM_KIND,
     TYPE_OBJECT_KIND,
-    TYPE_ENUM_KIND,
+    TYPE_OPTIONAL_KIND,
     TYPE_MAX_KIND,
 } DescKind;
 
 typedef struct _TypeDesc {
+    int refcnt;
     DescKind kind;
 } TypeDesc;
 
+typedef struct _OptionalDesc {
+    int refcnt;
+    DescKind kind;
+    TypeDesc *type;
+} OptionalDesc;
+
 typedef struct _NumberDesc {
+    int refcnt;
     DescKind kind;
     int width;
 } NumberDesc;
+
+typedef struct _ArrayDesc {
+    int refcnt;
+    DescKind kind;
+    TypeDesc *type;
+} ArrayDesc;
+
+#define DESC_INCREF(ty) ++(ty)->refcnt
+
+// clang-format off
+#define DESC_INCREF_GET(ty) ({++(ty)->refcnt; (ty);})
+// clang-format on
 
 extern NumberDesc int8_desc;
 extern NumberDesc int16_desc;
@@ -50,19 +70,53 @@ extern TypeDesc bool_desc;
 extern TypeDesc str_desc;
 extern TypeDesc object_desc;
 
-static inline TypeDesc *desc_int8(void) { return (TypeDesc *)&int8_desc; }
-static inline TypeDesc *desc_int16(void) { return (TypeDesc *)&int16_desc; }
-static inline TypeDesc *desc_int32(void) { return (TypeDesc *)&int32_desc; }
-static inline TypeDesc *desc_int64(void) { return (TypeDesc *)&int64_desc; }
-static inline TypeDesc *desc_float32(void) { return (TypeDesc *)&float32_desc; }
-static inline TypeDesc *desc_float64(void) { return (TypeDesc *)&float64_desc; }
-static inline TypeDesc *desc_str(void) { return &str_desc; }
-static inline TypeDesc *desc_bool(void) { return &bool_desc; }
-static inline TypeDesc *desc_object(void) { return &object_desc; }
-TypeDesc *desc_enum(Vector *types);
+static inline TypeDesc *desc_int8(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&int8_desc);
+}
+
+static inline TypeDesc *desc_int16(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&int16_desc);
+}
+
+static inline TypeDesc *desc_int32(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&int32_desc);
+}
+
+static inline TypeDesc *desc_int64(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&int64_desc);
+}
+
+static inline TypeDesc *desc_float32(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&float32_desc);
+}
+
+static inline TypeDesc *desc_float64(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&float64_desc);
+}
+
+static inline TypeDesc *desc_str(void) { return (TypeDesc *)DESC_INCREF_GET(&str_desc); }
+
+static inline TypeDesc *desc_bool(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&bool_desc);
+}
+
+static inline TypeDesc *desc_object(void)
+{
+    return (TypeDesc *)DESC_INCREF_GET(&object_desc);
+}
+
+TypeDesc *desc_optional(TypeDesc *ty);
+TypeDesc *desc_array(TypeDesc *sub);
 
 static inline int desc_is_int(TypeDesc *desc) { return desc->kind == TYPE_INT_KIND; }
-
+void free_desc(TypeDesc *ty);
 int desc_equal(TypeDesc *a, TypeDesc *b);
 void desc_to_str(TypeDesc *desc, Buffer *buf);
 

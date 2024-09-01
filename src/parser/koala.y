@@ -37,6 +37,24 @@ static int need_clear(int token)
 
 #define yy_clear_ok if (need_clear(ps->token)) yyclearin; yyerrok
 
+static void free_optional_type_list(Vector *vec)
+{
+    Type **item;
+    vector_foreach(item, vec) {
+        free_type(*item);
+    }
+    vector_destroy(vec);
+}
+
+static void free_expr_list(Vector *vec)
+{
+    Expr **item;
+    vector_foreach(item, vec) {
+        expr_free(*item);
+    }
+    vector_destroy(vec);
+}
+
 %}
 
 %union {
@@ -117,9 +135,6 @@ static int need_clear(int token)
 %token SHR_ASSIGN
 %token USHR_ASSIGN
 
-%token DOTDOTDOT
-%token DOTDOTEQ
-
 %token L_SHIFT
 %token R_SHIFT
 %token R_USHIFT
@@ -152,7 +167,6 @@ static int need_clear(int token)
 %type<expr> is_expr
 %type<expr> as_expr
 %type<expr> in_expr
-%type<expr> range_expr
 %type<expr> and_expr
 %type<expr> bit_or_expr
 %type<expr> bit_xor_expr
@@ -174,11 +188,13 @@ static int need_clear(int token)
 %type<expr> map
 %type<expr> atom
 %type<expr> tuple_expr
+%type<expr> anony_expr
 
 %type<type> optional_type
 %type<type> type
 %type<type> array_type
 %type<type> map_type
+%type<type> set_type
 %type<type> tuple_type
 %type<type> klass_type
 %type<type> atom_type
@@ -190,6 +206,7 @@ static int need_clear(int token)
 %type<vec> local_list
 %type<vec> map_list
 %type<vec> expr_list
+%type<vec> optional_expr_list
 %type<vec> param_list
 %type<vec> id_type_arg_list
 %type<vec> kw_arg_list
@@ -292,47 +309,51 @@ top_stmt
     }
     | var_decl semi
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | prefix var_decl semi
     {
-        $$ = NULL;
+        $$ = $2;
     }
     | free_var_decl semi
     {
-        $$ = NULL;
+        $$ = $1;
+    }
+    | prefix free_var_decl semi
+    {
+        $$ = $2;
     }
     | func_decl
     {
-
+        $$ = NULL;
     }
     | prefix func_decl
     {
-
+        $$ = NULL;
     }
     | class_decl
     {
-
+        $$ = NULL;
     }
     | class_prefix class_decl
     {
-
+        $$ = NULL;
     }
     | trait_decl
     {
-
+        $$ = NULL;
     }
     | prefix trait_decl
     {
-
+        $$ = NULL;
     }
     | assignment semi
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | expr semi
     {
-        $$ = NULL;
+        $$ = stmt_from_expr($1);
     }
     | if_stmt
     {
@@ -348,14 +369,16 @@ top_stmt
     }
     | match_stmt
     {
-
+        $$ = NULL;
     }
     | semi
     {
         $$ = NULL;
     }
     | error {
-        printf("error\n");
+        kl_error(loc(@1), "syntax error.");
+        yyclearin; yyerrok;
+        $$ = NULL;
     }
     ;
 
@@ -386,41 +409,37 @@ docs
     ;
 
 optional_type
-    : type_enumerate
-    {
-
-    }
-    | type_enumerate '?'
-    {
-
-    }
-    ;
-
-type_enumerate
     : type
-    | '(' type_enumerate '|' type ')'
+    {
+        $$ = $1;
+    }
+    | type '?'
+    {
+        $$ = optional_type($1);
+        type_set_loc($$, lloc(@1, @2));
+    }
     ;
 
 type
     : array_type
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | map_type
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | tuple_type
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | set_type
     {
-
+        $$ = $1;
     }
     | klass_type
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | atom_type
     {
@@ -431,11 +450,26 @@ type
 array_type
     : ARRAY '[' optional_type ']'
     {
-        // $$ = NULL; // expr_type_array(lloc(@1, @4), $3);
+        $$ = array_type($3);
+        type_set_loc($$, lloc(@1, @4));
     }
-    | '[' optional_type ']'
+    | ARRAY
     {
-
+        $$ = array_type(NULL);
+        type_set_loc($$, loc(@1));
+    }
+    | ARRAY '[' error
+    {
+        kl_error(loc(@3), "expected type.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | ARRAY '[' optional_type error
+    {
+        free_type($3);
+        kl_error(loc(@4), "expected ']'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -444,7 +478,23 @@ map_type
     {
         // $$ = NULL; //expr_type_map(lloc(@1, @6), $3, $5);
     }
-    | '[' type ':' optional_type ']'
+    | MAP
+    {
+
+    }
+    | MAP '[' error
+    {
+
+    }
+    | MAP '[' type  error
+    {
+
+    }
+    | MAP '[' type ',' error
+    {
+
+    }
+    | MAP '[' type ',' optional_type error
     {
 
     }
@@ -456,7 +506,15 @@ tuple_type
         // vector_push_back($2, &$4);
         // $$ = expr_type_tuple(lloc(@1, @5), $2);
     }
-    | '(' optional_type_list ')'
+    | TUPLE
+    {
+
+    }
+    | TUPLE '[' error
+    {
+
+    }
+    | TUPLE '[' optional_type_list error
     {
 
     }
@@ -464,6 +522,21 @@ tuple_type
 
 set_type
     : SET '[' type ']'
+    {
+
+    }
+    | SET
+    {
+
+    }
+    | SET '[' error
+    {
+
+    }
+    | SET '[' type error
+    {
+
+    }
     ;
 
 klass_type
@@ -493,33 +566,33 @@ klass_type
     }
     | ID '.' error
     {
-        // kl_error(loc(@3), "expected ID.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@3), "expected and identifer.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | ID '[' error
     {
-        // kl_error(loc(@3), "expected type or type-list.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@3), "expected type or type-list.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | ID '[' optional_type_list error
     {
-        // kl_error(loc(@4), "expected ']'.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@4), "expected ']'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | ID '.' ID '[' error
     {
-        // kl_error(loc(@5), "expected type or type-list.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@5), "expected type or type-list.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | ID '.' ID '[' optional_type_list error
     {
-        // kl_error(loc(@6), "expected ']'.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@6), "expected ']'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -571,32 +644,39 @@ atom_type
     }
     | CHAR
     {
-        $$ = NULL;
+        NIY();
     }
     | BYTES
     {
-
+        NIY();
     }
     | TYPE
     {
-
+        NIY();
     }
     | RANGE
     {
-
+        NIY();
     }
     ;
 
 optional_type_list
     : optional_type
     {
-        // $$ = vector_create_ptr();
-        // vector_push_back($$, &$1);
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
     }
     | optional_type_list ',' optional_type
     {
-        // $$ = $1;
-        // vector_push_back($$, &$3);
+        $$ = $1;
+        vector_push_back($$, &$3);
+    }
+    | optional_type_list ',' error
+    {
+        free_optional_type_list($$);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -604,43 +684,45 @@ let_decl
     : LET ID '=' expr
     {
         Ident id = {$2, loc(@2)};
-        $$ = stmt_from_var_decl(id, NULL, 1, 0, $4);
+        $$ = stmt_from_var_decl(id, NULL, 1, $4);
         stmt_set_loc($$, lloc(@1, @4));
     }
     | LET ID type '=' expr
     {
         Ident id = {$2, loc(@2)};
-        $$ = stmt_from_var_decl(id, $3, 1, 0, $5);
+        $$ = stmt_from_var_decl(id, $3, 1, $5);
         stmt_set_loc($$, lloc(@1, @5));
     }
     | LET error
     {
-        // kl_error(loc(@2), "expected an identifier.");
-        // yy_clear_ok;
+        kl_error(loc(@2), "expected an identifier.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | LET ID error
     {
-        // kl_error(loc(@3), "expected type or '='.");
-        // yy_clear_ok;
+        kl_error(loc(@3), "expected type or '='.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | LET ID '=' error
     {
-        // kl_error(loc(@4), "expected an expression.");
-        // yy_clear_ok;
+        kl_error(loc(@4), "expected an expr.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | LET ID type error
     {
-        // kl_error(loc(@4), "expected '='.");
-        // yy_clear_ok;
+        free_type($3);
+        kl_error(loc(@4), "expected '='.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | LET ID type '=' error
     {
-        // kl_error(loc(@5), "expected an expression.");
-        // yy_clear_ok;
+        free_type($3);
+        kl_error(loc(@5), "expected an expr.");
+        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -648,33 +730,84 @@ let_decl
 var_decl
     : VAR ID optional_type
     {
-        // IDENT(id, $2, @2);
-        // TYPE(type, $3, @3);
-        // $$ = stmt_from_vardecl(id, &type, NULL);
+        IDENT(id, $2, loc(@2));
+        $$ = stmt_from_var_decl(id, $3, 0, NULL);
+        stmt_set_loc($$, lloc(@1, @3));
     }
     | VAR ID optional_type '=' expr
     {
-        // IDENT(id, $2, @2);
-        // TYPE(type, $3, @3);
-        // $$ = stmt_from_vardecl(id, &type, $5);
+        IDENT(id, $2, loc(@2));
+        $$ = stmt_from_var_decl(id, $3, 0, $5);
+        stmt_set_loc($$, lloc(@1, @5));
     }
     | VAR ID '=' expr
     {
-        // IDENT(id, $2, @2);
-        // $$ = stmt_from_vardecl(id, NULL, $4);
+        IDENT(id, $2, loc(@2));
+        $$ = stmt_from_var_decl(id, NULL, 0, $4);
+        stmt_set_loc($$, lloc(@1, @4));
+    }
+    | VAR error
+    {
+        kl_error(loc(@2), "expected an identifer.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | VAR ID error
+    {
+        kl_error(loc(@3), "expected a type or '='.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | VAR ID optional_type error
+    {
+        free_type($3);
+        kl_error(loc(@4), "expected ';' or '='.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | VAR ID '=' error
+    {
+        kl_error(loc(@4), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | VAR ID optional_type '=' error
+    {
+        free_type($3);
+        kl_error(loc(@5), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 free_var_decl
     : ID FREE_ASSIGN expr
     {
-        // IDENT(id, $1, loc(@1));
-        // $$ = stmt_from_vardecl(id, NULL, $3);
+        IDENT(id, $1, loc(@1));
+        $$ = stmt_from_var_decl(id, NULL, 0, $3);
+    }
+    | ID FREE_ASSIGN error
+    {
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
 func_decl
-    : FUNC ID '(' param_list ')' optional_type block
+    : FUNC name '(' param_list ')' optional_type block
+    {
+
+    }
+    | FUNC name '(' param_list ')' block
+    {
+
+    }
+    | FUNC name '(' ')' optional_type block
+    {
+
+    }
+    | FUNC name '(' ')' block
     {
 
     }
@@ -753,7 +886,7 @@ type_param_decl_list
 
 type_param_decl
     : ID
-    | ID optional_type
+    | ID ':' klass_list
     ;
 
 extends
@@ -767,7 +900,7 @@ klass_list
         $$ = vector_create_ptr();
         vector_push_back($$, &$1);
     }
-    | klass_list ',' klass_type
+    | klass_list '&' klass_type
     {
         $$ = $1;
         vector_push_back($$, &$3);
@@ -930,19 +1063,19 @@ prefix_proto_decl
     ;
 
 proto_decl
-    : FUNC ID '(' param_list ')' optional_type semi
+    : FUNC name '(' param_list ')' optional_type semi
     {
         $$ = NULL;
     }
-    | FUNC ID '(' param_list ')' semi
+    | FUNC name '(' param_list ')' semi
     {
         $$ = NULL;
     }
-    | FUNC ID '(' ')' optional_type semi
+    | FUNC name '(' ')' optional_type semi
     {
         $$ = NULL;
     }
-    | FUNC ID '(' ')' semi
+    | FUNC name '(' ')' semi
     {
         $$ = NULL;
     }
@@ -951,7 +1084,14 @@ proto_decl
 assignment
     : primary_expr assign_operator expr
     {
-        // $$ = stmt_from_assign($2, $1, $3);
+        $$ = stmt_from_assignment($2, $1, $3);
+        stmt_set_loc($$, lloc(@1, @3));
+    }
+    | primary_expr assign_operator error
+    {
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1188,7 +1328,7 @@ case_pattern_list
 
 case_pattern
     : expr
-    | IN range_expr
+    | IN expr
     | IS type
     ;
 
@@ -1222,35 +1362,6 @@ expr
     {
         // $$ = $1;
     }
-    | range_expr
-    {
-        // $$ = $1;
-    }
-    ;
-
-range_expr
-    : or_expr DOTDOTDOT or_expr
-    {
-        // printf("...\n");
-        // $$ = NULL;
-    }
-    | or_expr DOTDOTEQ or_expr
-    {
-        // printf("..<\n");
-        // $$ = NULL;
-    }
-    | or_expr DOTDOTDOT error
-    {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
-    }
-    | or_expr DOTDOTEQ error
-    {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
-    }
     ;
 
 is_expr
@@ -1283,6 +1394,7 @@ as_expr
 
 in_expr
     : or_expr IN or_expr
+    | or_expr IN error
     ;
 
 or_expr
@@ -1297,9 +1409,10 @@ or_expr
     }
     | or_expr OR error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1315,9 +1428,10 @@ and_expr
     }
     | and_expr AND error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1333,9 +1447,10 @@ bit_or_expr
     }
     | bit_or_expr '|' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1351,9 +1466,10 @@ bit_xor_expr
     }
     | bit_xor_expr '^' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1369,9 +1485,10 @@ bit_and_expr
     }
     | bit_and_expr '&' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1392,15 +1509,17 @@ equality_expr
     }
     | equality_expr EQ error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | equality_expr NE error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1431,27 +1550,31 @@ relation_expr
     }
     | relation_expr '<' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | relation_expr '>' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | relation_expr LE error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | relation_expr GE error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expression.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1477,21 +1600,24 @@ shift_expr
     }
     | shift_expr R_USHIFT error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | shift_expr R_SHIFT error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | shift_expr L_SHIFT error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1512,15 +1638,17 @@ add_expr
     }
     | add_expr '+' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | add_expr '-' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1546,21 +1674,24 @@ multi_expr
     }
     | multi_expr '*' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | multi_expr '/' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | multi_expr '%' error
     {
-        // kl_error(loc(@3), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1591,27 +1722,27 @@ unary_expr
     }
     | '+' error
     {
-        // kl_error(loc(@2), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@2), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | '-' error
     {
-        // kl_error(loc(@2), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@2), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | '~' error
     {
-        // kl_error(loc(@2), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@2), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | NOT error
     {
-        // kl_error(loc(@2), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@2), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1647,15 +1778,18 @@ call_expr
     }
     | primary_expr '(' error
     {
-        // kl_error(loc(@3), "expected expr, expr-list or ')'.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected expr, expr-list or ')'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | primary_expr '(' expr_list error
     {
-        // kl_error(loc(@4), "expected ')'.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        free_expr_list($3);
+        kl_error(loc(@4), "expected ')'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1668,9 +1802,10 @@ dot_expr
     }
     | primary_expr '.' error
     {
-        // kl_error(loc(@3), "expected ID or Index Number.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected an identifer.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1691,9 +1826,18 @@ index_expr
     }
     | primary_expr '[' error
     {
-        // kl_error(loc(@3), "expected expr-type-list.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($1);
+        kl_error(loc(@3), "expected expr-list.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | primary_expr '[' optional_expr_list error
+    {
+        expr_free($1);
+        free_expr_list($3);
+        kl_error(loc(@4), "expected ']'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1718,6 +1862,17 @@ slice_expr
         // $$.start = NULL;
         // $$.end = NULL;
     }
+    | ':' error
+    {
+
+    }
+    | expr ':' error
+    {
+        expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
     ;
 
 atom_expr
@@ -1727,23 +1882,24 @@ atom_expr
     }
     | '(' expr ')'
     {
-        // $$ = $2;
+        $$ = $2;
     }
     | '(' error
     {
-        // kl_error(loc(@2), "expected an expression.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@2), "expected an expr.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | '(' expr error
     {
-        // kl_error(loc(@3), "expected ')'.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        expr_free($2);
+        kl_error(loc(@3), "expected ')'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | array_expr
     {
-        // $$ = $1;
+        $$ = $1;
     }
     | map_expr
     {
@@ -1762,6 +1918,10 @@ atom_expr
         // $$ = expr_from_type($1);
         // expr_set_loc($$, loc(@1));
     }
+    | anony_expr
+    {
+
+    }
     ;
 
 atom
@@ -1773,8 +1933,8 @@ atom
     }
     | '_'
     {
-        // $$ = expr_from_under();
-        // expr_set_loc($$, loc(@1));
+        $$ = expr_from_under();
+        expr_set_loc($$, loc(@1));
     }
     | INT_LITERAL
     {
@@ -1815,27 +1975,26 @@ atom
     }
     | NONE
     {
-        $$ = NULL;
+        $$ = expr_from_lit_none();
+        expr_set_loc($$, loc(@1));
     }
     | SELF
     {
-        $$ = NULL;
-        // $$ = expr_from_self();
-        // expr_set_loc($$, loc(@1));
+        $$ = expr_from_self();
+        expr_set_loc($$, loc(@1));
     }
     | SUPER
     {
-        $$ = NULL;
-        // $$ = expr_from_super();
-        // expr_set_loc($$, loc(@1));
+        $$ = expr_from_super();
+        expr_set_loc($$, loc(@1));
     }
     ;
 
 array_expr
     : '[' expr_list ']'
     {
-        // // [1,2,3]
-        // $$ = expr_from_array_expr($2);
+        // [1,2,3]
+        // $$ = expr_from_array($2);
         // expr_set_loc($$, lloc(@1, @3));
     }
     | ARRAY
@@ -1844,15 +2003,15 @@ array_expr
     }
     | '[' error
     {
-        // kl_error(loc(@2), "expected expr-list.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@2), "expected expr-list.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | '[' expr_list error
     {
-        // kl_error(loc(@3), "expected ',' or ']'.");
-        // yy_clear_ok;
-        // $$ = NULL;
+        kl_error(loc(@3), "expected ',' or ']'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1960,6 +2119,25 @@ set_expr
     }
     ;
 
+anony_expr
+    : FUNC '(' param_list ')' optional_type block
+    {
+
+    }
+    | FUNC '(' param_list ')' block
+    {
+
+    }
+    | FUNC '(' ')' optional_type block
+    {
+
+    }
+    | FUNC '(' ')' block
+    {
+
+    }
+    ;
+
 expr_list
     : expr
     {
@@ -1977,7 +2155,13 @@ optional_expr
     : expr
     {
     }
-    | expr '?'
+    | dot_expr '?'
+    {
+    }
+    | index_expr '?'
+    {
+    }
+    | atom_expr '?'
     {
     }
     ;
@@ -1987,8 +2171,12 @@ optional_expr_list
     {
 
     }
-    | expr_list ',' optional_expr
+    | optional_expr_list ',' optional_expr
     {
+    }
+    | optional_expr_list ',' error
+    {
+
     }
     ;
 

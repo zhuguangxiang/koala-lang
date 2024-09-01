@@ -236,6 +236,7 @@ static ParserState *build_ast(char *path)
 static void free_parser(ParserState *ps)
 {
     FINI_BUF(ps->sbuf);
+    stbl_free(ps->stbl);
     mm_free(ps);
 }
 
@@ -253,7 +254,7 @@ int compile(int argc, char *argv[])
     return 0;
 }
 
-void parse_top_stmt(ParserState *ps, Stmt *stmt)
+static void parse_top_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
 
@@ -283,8 +284,10 @@ void yyparse_module(ParserState *ps, Vector *imports, Vector *stmts)
 {
     Stmt **stmt;
     vector_foreach(stmt, stmts) {
-        parse_top_stmt(ps, *stmt);
+        stmt_free(*stmt);
+        // parse_top_stmt(ps, *stmt);
     }
+    vector_destroy(stmts);
 }
 
 #ifdef __cplusplus

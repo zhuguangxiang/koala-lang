@@ -36,11 +36,10 @@ typedef struct _Ident {
 } Ident;
 
 /* type */
-typedef struct _type {
+typedef struct _Type {
     TypeDesc *desc;
     Loc loc;
-    int optional;
-    HashMap *stbl;
+    Vector *subs;
 } Type;
 
 Type *int8_type(void);
@@ -52,8 +51,10 @@ Type *float64_type(void);
 Type *bool_type(void);
 Type *str_type(void);
 Type *object_type(void);
+Type *optional_type(Type *ty);
+Type *array_type(Type *sub);
 
-#define type_set_optional(ty)  (ty)->optional = 1
+void free_type(Type *ty);
 #define type_set_loc(ty, _loc) (ty)->loc = (_loc)
 
 typedef enum _ExprKind {
@@ -100,6 +101,7 @@ typedef struct _Expr {
     EXPR_HEAD
 } Expr;
 
+void expr_free(Expr *exp);
 #define expr_set_loc(e, l) (e)->loc = (l)
 
 typedef struct _LitExpr {
@@ -109,6 +111,7 @@ typedef struct _LitExpr {
 #define LIT_EXPR_FLT  2
 #define LIT_EXPR_BOOL 3
 #define LIT_EXPR_STR  4
+#define LIT_EXPR_NONE 5
     int len;
     union {
         int64_t ival;
@@ -122,6 +125,7 @@ Expr *expr_from_lit_int(int64_t val);
 Expr *expr_from_lit_float(double val);
 Expr *expr_from_lit_bool(int val);
 Expr *expr_from_lit_str(Buffer *buf);
+Expr *expr_from_lit_none(void);
 
 typedef struct _IdentExpr {
     EXPR_HEAD
@@ -130,6 +134,66 @@ typedef struct _IdentExpr {
 
 #define IDENT(name, s, l) Ident name = { s, l, NULL, 0, NULL }
 Expr *expr_from_ident(Ident *id);
+Expr *expr_from_under(void);
+Expr *expr_from_self(void);
+Expr *expr_from_super(void);
+
+/* unary operator kind */
+typedef enum _UnOpKind {
+    /* + */
+    UNARY_PLUS = 1,
+    /* - */
+    UNARY_NEG,
+    /* ~ */
+    UNARY_BIT_NOT,
+    /* ! */
+    UNARY_NOT
+} UnOpKind;
+
+typedef struct _UnaryExpr {
+    EXPR_HEAD
+    UnOpKind op;
+    Loc op_loc;
+    Expr *exp;
+} UnaryExpr;
+
+/* binary operator kind */
+typedef enum _BiOpKind {
+    /* +, -, *, /, %, <<, >> */
+    BINARY_ADD = 1,
+    BINARY_SUB,
+    BINARY_MUL,
+    BINARY_DIV,
+    BINARY_MOD,
+    BINARY_SHL,
+    BINARY_SHR,
+    BINARY_USHR,
+
+    /* &, ^, | */
+    BINARY_BIT_AND,
+    BINARY_BIT_XOR,
+    BINARY_BIT_OR,
+
+    /* >, >=, <, <=, ==, != */
+    BINARY_GT,
+    BINARY_GE,
+    BINARY_LT,
+    BINARY_LE,
+    BINARY_EQ,
+    BINARY_NE,
+
+    /* &&, || */
+    BINARY_AND,
+    BINARY_OR,
+} BiOpKind;
+
+typedef struct _BinaryExpr {
+    EXPR_HEAD
+    BiOpKind op;
+    Loc op_loc;
+    Expr *lhs;
+    Expr *rhs;
+} BinaryExpr;
 
 typedef enum _StmtKind {
     STMT_UNK_KIND,
@@ -192,7 +256,7 @@ typedef struct _VarDeclStmt {
     Expr *exp;
 } VarDeclStmt;
 
-Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, int pub, Expr *e);
+Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, Expr *e);
 
 typedef enum _AssignOpKind {
     OP_ASSIGN = 1,
@@ -216,6 +280,8 @@ typedef struct _AssignStmt {
     Expr *lhs;
     Expr *rhs;
 } AssignStmt;
+
+Stmt *stmt_from_assignment(AssignOpKind op, Expr *lhs, Expr *rhs);
 
 typedef struct _BlockStmt {
     STMT_HEAD

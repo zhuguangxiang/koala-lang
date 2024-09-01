@@ -37,6 +37,8 @@ endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL debug)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -fvar-tracking")
+elseif(CMAKE_BUILD_TYPE STREQUAL Debug)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -fvar-tracking")
 elseif(CMAKE_BUILD_TYPE STREQUAL release)
     add_definitions(-DNOLOG)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -flto -O3 -DNDEBUG -Wextra -Wno-unused-result -Wsign-compare -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden")
