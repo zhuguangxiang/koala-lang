@@ -90,6 +90,11 @@ void test(void)
         int r = BMH(&T, &P);
         printf("Found %s at pos: %d\n", P.data, r);
     }
+
+    String T = { strlen("北京南京"), "北京南京" };
+    String P = { 1, "\n" };
+    int r = BMH(&T, &P);
+    printf("Found %s at pos: %d\n", P.data, r);
 }
 
 typedef struct _Value {

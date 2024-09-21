@@ -9,14 +9,8 @@
 extern "C" {
 #endif
 
-NumberDesc int8_desc = { 1, TYPE_INT_KIND, 8 };
-NumberDesc int16_desc = { 1, TYPE_INT_KIND, 16 };
-NumberDesc int32_desc = { 1, TYPE_INT_KIND, 32 };
-NumberDesc int64_desc = { 1, TYPE_INT_KIND, 64 };
-NumberDesc int128_desc = { 1, TYPE_INT_KIND, 128 };
-NumberDesc float32_desc = { 1, TYPE_FLOAT_KIND, 32 };
-NumberDesc float64_desc = { 1, TYPE_FLOAT_KIND, 64 };
-NumberDesc float128_desc = { 1, TYPE_FLOAT_KIND, 128 };
+TypeDesc int_desc = { 1, TYPE_INT_KIND };
+TypeDesc float_desc = { 1, TYPE_FLOAT_KIND };
 TypeDesc bool_desc = { 1, TYPE_BOOL_KIND };
 TypeDesc str_desc = { 1, TYPE_STR_KIND };
 TypeDesc object_desc = { 1, TYPE_OBJECT_KIND };
@@ -73,7 +67,32 @@ int desc_equal(TypeDesc *a, TypeDesc *b)
     return 1;
 }
 
-void desc_to_str(TypeDesc *desc, Buffer *buf)
+static void int_desc_to_str(TypeDesc *ty, Buffer *buf) { buf_write_char(buf, 'i'); }
+
+static void float_desc_to_str(TypeDesc *ty, Buffer *buf) { buf_write_char(buf, 'f'); }
+
+int desc_to_str(TypeDesc *ty, Buffer *buf)
+{
+    switch (ty->kind) {
+        case TYPE_INT_KIND:
+            int_desc_to_str(ty, buf);
+            break;
+        case TYPE_FLOAT_KIND:
+            float_desc_to_str(ty, buf);
+            break;
+        case TYPE_OPTIONAL_KIND: {
+            buf_write_char(buf, '?');
+            OptionalDesc *opt = (OptionalDesc *)ty;
+            desc_to_str(opt->type, buf);
+            break;
+        }
+        default:
+            UNREACHABLE();
+            break;
+    }
+}
+
+void desc_print(TypeDesc *desc, Buffer *buf)
 {
     if (!desc) {
         buf_write_str(buf, "unk");
@@ -82,17 +101,11 @@ void desc_to_str(TypeDesc *desc, Buffer *buf)
 
     switch (desc->kind) {
         case TYPE_INT_KIND: {
-            NumberDesc *num = (NumberDesc *)desc;
-            char s[8] = { 0 };
-            sprintf(s, "int%d", num->width);
-            buf_write_str(buf, s);
+            buf_write_str(buf, "int");
             break;
         }
         case TYPE_FLOAT_KIND: {
-            NumberDesc *num = (NumberDesc *)desc;
-            char s[16] = { 0 };
-            sprintf(s, "float%d", num->width);
-            buf_write_str(buf, s);
+            buf_write_str(buf, "float");
             break;
         }
         case TYPE_BOOL_KIND: {

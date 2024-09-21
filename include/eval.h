@@ -36,6 +36,9 @@ typedef struct _CallFrame {
 
     /* value stack pointer */
     Value *stack;
+    /* value stack base pointer */
+    Value *stack_base;
+
     /* locals and value stack */
     Value local_stack[0];
 } CallFrame;
@@ -46,20 +49,26 @@ typedef struct _KoalaState {
     LLDqNode link;
     /* point to _ThreadState */
     struct _ThreadState *ts;
+
     /* top call stack frame */
     CallFrame *cf;
+
     /* builtin module */
     Object *bltin;
     /* sys module */
     Object *sym;
+
     /* exception */
     Object *exc;
+
     /* gc shadow stack */
     Vector gcroots;
+
     /* stack pointer */
     Value *stack_ptr;
     /* depth of call frames */
     int depth;
+
     /* stack size */
     int stack_size;
     /* base stack pointer */
@@ -70,6 +79,19 @@ Value kl_eval_code(Object *code, Value *args, int nargs);
 
 KoalaState *ks_new(void);
 void ks_free(KoalaState *ks);
+
+/* c extension function call context */
+typedef struct _CallContext {
+    /* current task state */
+    KoalaState *ks;
+    /* all arguments passed by caller */
+    Value *args;
+    /* number of only positional arguments,
+    The kwargs are started at args + nargs */
+    int nargs;
+    /* keyword argument names */
+    Value *kwnames;
+} CallContext;
 
 #ifdef __cplusplus
 }

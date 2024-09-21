@@ -42,7 +42,7 @@ Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc)
 
 #ifndef NOLOG
     BUF(buf);
-    desc_to_str(desc, &buf);
+    desc_print(desc, &buf);
     char *s = BUF_STR(buf);
     if (sym) {
         log_info("add var '%s', type '%s' successfully", name, s ? s : "<NO-TYPE>");
@@ -64,7 +64,7 @@ void stbl_show(HashMap *stbl)
             case SYM_VAR: {
                 VarSymbol *var = (VarSymbol *)sym;
                 BUF(buf);
-                desc_to_str(var->desc, &buf);
+                desc_print(var->desc, &buf);
                 log_info("variable symbol:'%s', type: '%s'", sym->name, BUF_STR(buf));
                 FINI_BUF(buf);
                 break;

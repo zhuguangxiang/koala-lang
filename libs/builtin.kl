@@ -1,0 +1,93 @@
+
+//!
+//! The 'builtin' module of Koala language
+//! Most of implementations in 'builtin' module are native c implementations.
+//!
+
+trait iterator[T] {
+    public func __next__() T
+}
+
+trait iterable[T] {
+    public func __iter__() iterator[T]
+}
+
+public class object {
+    public func __hash__() int { ... }
+
+    public func __cmp__(rhs object) int { ... }
+
+    public func __str__() str { ... }
+}
+
+public class list[T] {
+    let DEFAULT_LEN = 256
+    var len int
+    var arr Array[T]
+
+    public func __init__(it iterable[T]) {
+        len = DEFAULT_LEN
+        arr = Array[T](DEFAULT_LEN)
+        for i, v in enumerate(it) {
+            if i < len {
+                arr[i] = v
+            } else {
+                len = len << 2
+                new_arr = Array[T](len)
+                copy_array(new_arr, arr)
+                arr = new_arr
+            }
+        }
+    }
+
+    public func __get_item__(index int) T {
+        if index < 0 || index >= len {
+            raise("Index out of range")
+        }
+
+        return arr[index]
+    }
+
+    public func __set_item__(index int, v T) {
+        if index < 0 || index >= len {
+            raise("Index out of range")
+        }
+
+        arr[index] = v
+    }
+}
+
+l = list([1,2,3])
+print(l[0])
+
+///
+///
+///
+@native(builtin_print)
+pub func print(objs ..., sep = ' ', end = '\n', file io.Writer = sys.stdout)
+{
+    for obj in objs {
+        s := obj.str()
+        sep.fmt(fmt)
+    }
+    file.write(end)
+}
+
+
+@native(Int)
+pub final class Int {
+
+    @native(kl_int_hash)
+    pub func hash() int
+
+    pub func __eq__(rhs Int) bool  {
+        return self == rhs
+    }
+
+    @native(kl_int_str)
+    pub func str() string
+}
+
+func Int:str() string {
+    return string(self + 100)
+}

@@ -29,19 +29,6 @@ TypeObject *value_type(Value *val)
     return NULL;
 }
 
-Object *get_default_kwargs(Value *val)
-{
-    if (!IS_OBJ(val)) return NULL;
-
-    TypeObject *tp = value_type(val);
-    if (tp->kwds_offset) {
-        Object *obj = val->obj;
-        return (Object *)((char *)obj + tp->kwds_offset);
-    } else {
-        return NULL;
-    }
-}
-
 Value object_call(Object *obj, Value *args, int nargs)
 {
     TypeObject *tp = OB_TYPE(obj);

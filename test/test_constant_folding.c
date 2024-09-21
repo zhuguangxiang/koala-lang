@@ -25,12 +25,12 @@ func foo(a int, b int) int {
 void build_foo(KlrModule *m)
 {
     TypeDesc *param_types[] = {
-        desc_int32(),
-        desc_int32(),
+        desc_int(),
+        desc_int(),
         NULL,
     };
 
-    KlrValue *func = klr_add_func(m, desc_int32(), param_types, "foo");
+    KlrValue *func = klr_add_func(m, desc_int(), param_types, "foo");
 
     KlrValue *pa = klr_get_param(func, 0);
     klr_set_name(pa, "a");
@@ -43,19 +43,19 @@ void build_foo(KlrModule *m)
     klr_builder_end(&bldr, bb);
 
     // var c = 100
-    KlrValue *cvar = klr_add_local(&bldr, desc_int32(), "c");
-    klr_build_store(&bldr, cvar, klr_const_int32(100));
+    KlrValue *cvar = klr_add_local(&bldr, desc_int(), "c");
+    klr_build_store(&bldr, cvar, klr_const_int(100));
 
     // c = 200 + 300;
-    KlrValue *a = klr_const_int32(200);
-    KlrValue *b = klr_const_int32(300);
+    KlrValue *a = klr_const_int(200);
+    KlrValue *b = klr_const_int(300);
     KlrValue *add = klr_build_add(&bldr, a, b, "add");
     klr_build_store(&bldr, cvar, add);
 
     // d = c + 100;
-    KlrValue *dvar = klr_add_local(&bldr, desc_int32(), "");
+    KlrValue *dvar = klr_add_local(&bldr, desc_int(), "");
     KlrValue *c = klr_build_load(&bldr, cvar);
-    add = klr_build_add(&bldr, c, klr_const_int32(100), "");
+    add = klr_build_add(&bldr, c, klr_const_int(100), "");
     klr_build_store(&bldr, dvar, add);
 
     // return c

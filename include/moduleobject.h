@@ -31,6 +31,14 @@ typedef struct _ModuleObject {
     void *state;
     /* all symbols */
     Vector symbols;
+    /* variables */
+    Vector vars;
+    /* functions */
+    Vector funcs;
+    /* types */
+    Vector types;
+    /* codes */
+    Vector codes;
     /* global values */
     Vector values;
     /* relocations */

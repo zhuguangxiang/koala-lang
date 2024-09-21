@@ -10,13 +10,23 @@
 extern "C" {
 #endif
 
-KlrValue *klr_const_int(TypeDesc *ty, int64_t val)
+KlrValue *klr_const_int(int64_t val)
 {
     KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ty, "");
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, &int_desc, "");
     lit->which = CONST_INT;
     lit->len = 0;
     lit->ival = val;
+    return (KlrValue *)lit;
+}
+
+KlrValue *klr_const_float(double val)
+{
+    KlrConst *lit = mm_alloc_obj_fast(lit);
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, &float_desc, "");
+    lit->which = CONST_FLT;
+    lit->len = 0;
+    lit->fval = val;
     return (KlrValue *)lit;
 }
 

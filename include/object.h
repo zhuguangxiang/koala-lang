@@ -89,6 +89,33 @@ typedef struct _MethodDef {
     char *ret_desc;
 } MethodDef;
 
+/*
+typedef struct _NumberMethods {
+    BinaryFunc nb_add;
+    BinaryFunc nb_sub;
+    BinaryFunc nb_mul;
+    BinaryFunc nb_div;
+    BinaryFunc nb_mod;
+
+    BinaryFunc nb_and;
+    BinaryFunc nb_or;
+    BinaryFunc nb_xor;
+
+    BinaryFunc nb_shl;
+    BinaryFunc nb_shr;
+    BinaryFunc nb_ushr;
+} NumberMethods;
+
+typedef struct _SeqMapMethods {
+    LenFunc sm_len;
+    BinaryFunc sm_add;
+    ContainFunc sm_contain;
+    RepeatFunc sm_repeat;
+    BinaryFunc sm_get;
+    BinaryFunc sm_set;
+} SeqMapMethods;
+*/
+
 #define TP_FLAGS_CLASS    (1 << 0)
 #define TP_FLAGS_TRAIT    (1 << 1)
 #define TP_FLAGS_ABSTRACT (1 << 2)
@@ -105,9 +132,6 @@ typedef struct _TypeObject {
     int flags;
     /* object size */
     size_t size;
-
-    /* object call defaults */
-    int kwds_offset;
 
     /* module */
     Object *module;
@@ -164,7 +188,6 @@ static inline CallFunc value_is_callable(Value *val)
 }
 
 Value object_call(Object *obj, Value *args, int nargs);
-Object *get_default_kwargs(Value *val);
 
 /* clang-format off */
 #define _compare_result(v) ({   \

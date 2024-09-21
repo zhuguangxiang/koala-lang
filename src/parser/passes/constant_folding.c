@@ -20,7 +20,7 @@ static int try_arith_compute(KlrInsn *insn)
                 KlrConst *rhs = (KlrConst *)oper2->use.ref;
                 if (lhs->which == CONST_INT && rhs->which == CONST_INT) {
                     int64_t val = lhs->ival + rhs->ival;
-                    insn->result = klr_const_int(lhs->desc, val);
+                    insn->result = klr_const_int(val);
                 }
                 return 1;
             }

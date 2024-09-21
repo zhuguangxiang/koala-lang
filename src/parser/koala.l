@@ -21,8 +21,8 @@ static int semicolon(ParserState *ps)
 {
     static int tokens[] = {
         INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF, SUPER,
-        TRUE, FALSE, INT8, INT16, INT32, INT64, FLOAT32, FLOAT64,
-        STRING, BOOL, OBJECT, RETURN, BREAK, CONTINUE, ')', ']', '}',
+        TRUE, FALSE, INT, FLOAT, CHAR, STRING, BOOL, OBJECT,
+        RETURN, BREAK, CONTINUE, ')', ']', '}',
         '_', NOT,
     };
 
@@ -145,20 +145,14 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "false"     { YY_RETURN(FALSE);     }
 "none"      { YY_RETURN(NONE);      }
 
-"int8"      { YY_RETURN(INT8);      }
-"int16"     { YY_RETURN(INT16);     }
-"int32"     { YY_RETURN(INT32);     }
-"int64"     { YY_RETURN(INT64);     }
-"int"       { YY_RETURN(INT64);     }
-"float32"   { YY_RETURN(FLOAT32);   }
-"float64"   { YY_RETURN(FLOAT64);   }
-"float"     { YY_RETURN(FLOAT64);   }
+"int"       { YY_RETURN(INT);     }
+"float"     { YY_RETURN(FLOAT);   }
 "bool"      { YY_RETURN(BOOL);      }
 "char"      { YY_RETURN(CHAR);      }
 "str"       { YY_RETURN(STRING);    }
 "object"    { YY_RETURN(OBJECT);    }
 "list"      { YY_RETURN(ARRAY);     }
-"map"       { YY_RETURN(MAP);       }
+"dict"      { YY_RETURN(MAP);       }
 "set"       { YY_RETURN(SET);       }
 "bytes"     { YY_RETURN(BYTES);     }
 "type"      { YY_RETURN(TYPE);      }

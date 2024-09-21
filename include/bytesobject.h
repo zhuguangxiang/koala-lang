@@ -3,8 +3,8 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#ifndef _KOALA_INT_OBJECT_H_
-#define _KOALA_INT_OBJECT_H_
+#ifndef _KOALA_BYTES_OBJECT_H_
+#define _KOALA_BYTES_OBJECT_H_
 
 #include "object.h"
 
@@ -12,10 +12,11 @@
 extern "C" {
 #endif
 
-Object *kl_new_nstr(const char *s, int len);
+typedef struct _BytesObject {
+} BytesObject;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_INT_OBJECT_H_ */
+#endif /* _KOALA_BYTES_OBJECT_H_ */

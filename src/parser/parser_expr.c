@@ -16,43 +16,6 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
     /* expected type from lhs */
     TypeDesc *desc = lit->expected;
     if (!desc) return;
-
-    int64_t val = lit->ival;
-    NumberDesc *num = (NumberDesc *)desc;
-    switch (num->width) {
-        case 8: {
-            if (val > INT8_MAX || val < INT8_MIN) {
-                kl_error(lit->loc, "Number %ld is out of Int8 range", val);
-            } else {
-                // update expr's type
-                lit->desc = (TypeDesc *)&int8_desc;
-            }
-            break;
-        }
-        case 16: {
-            if (val > INT16_MAX || val < INT16_MIN) {
-                kl_error(lit->loc, "Number %ld is out of Int16 range", val);
-            } else {
-                // update expr's type
-            }
-            break;
-        }
-        case 32: {
-            if (val > INT32_MAX || val < INT32_MIN) {
-                kl_error(lit->loc, "Number %ld is out of Int32 range", val);
-            } else {
-                // update expr's type
-            }
-            break;
-        }
-        case 64: {
-            // do nothing: the default type of literal integer is int64
-            break;
-        }
-        default: {
-            break;
-        }
-    }
 }
 
 static void parse_lit_float(ParserState *ps, LitExpr *lit)
@@ -60,23 +23,6 @@ static void parse_lit_float(ParserState *ps, LitExpr *lit)
     /* expected type from lhs */
     TypeDesc *desc = lit->expected;
     if (!desc) return;
-
-    // double val = lit->fval;
-    NumberDesc *num = (NumberDesc *)desc;
-    switch (num->width) {
-        case 32: {
-            // update expr's type
-            lit->desc = (TypeDesc *)&float32_desc;
-            break;
-        }
-        case 64: {
-            // do nothing: the default type of literal float is int64
-            break;
-        }
-        default: {
-            break;
-        }
-    }
 }
 
 static void parse_literal(ParserState *ps, Expr *exp)

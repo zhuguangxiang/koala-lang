@@ -20,7 +20,7 @@ char *klr_block_name(KlrBasicBlock *bb)
 static void print_type(TypeDesc *ty, FILE *fp)
 {
     BUF(buf);
-    desc_to_str(ty, &buf);
+    desc_print(ty, &buf);
     fprintf(fp, " %s", BUF_STR(buf));
     FINI_BUF(buf);
 }

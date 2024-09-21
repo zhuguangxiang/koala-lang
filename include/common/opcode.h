@@ -90,20 +90,6 @@ typedef enum _OpCode {
     OP_FLOAT_CMPL,
     OP_FLOAT_CMPG,
 
-    OP_INT_AS_INT8,
-    OP_INT_AS_INT16,
-    OP_INT_AS_INT32,
-    OP_INT_AS_INT64,
-    OP_INT_AS_FLOAT32,
-    OP_INT_AS_FLOAT64,
-
-    OP_FLOAT_AS_INT8,
-    OP_FLOAT_AS_INT16,
-    OP_FLOAT_AS_INT32,
-    OP_FLOAT_AS_INT64,
-    OP_FLOAT_AS_FLOAT32,
-    OP_FLOAT_AS_FLOAT64,
-
     /* cast operation */
     OP_AS,
     OP_IS,
@@ -157,20 +143,6 @@ typedef enum _OpCode {
     /* fields */
     OP_FIELD_LOAD,
     OP_FIELD_STORE,
-
-    /* array operations */
-    OP_ARRAY_I8_LOAD,
-    OP_ARRAY_I8_STORE,
-    OP_ARRAY_I16_LOAD,
-    OP_ARRAY_I16_STORE,
-    OP_ARRAY_I32_LOAD,
-    OP_ARRAY_I32_STORE,
-    OP_ARRAY_I64_LOAD,
-    OP_ARRAY_I64_STORE,
-    OP_ARRAY_F32_LOAD,
-    OP_ARRAY_F32_STORE,
-    OP_ARRAY_F64_LOAD,
-    OP_ARRAY_F64_STORE,
 
     /* map operations */
     OP_MAP_LOAD,            /* A B C            R(A) = B[C] */

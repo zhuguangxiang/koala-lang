@@ -282,38 +282,8 @@ typedef struct _KlrBuilder {
 /* APIs */
 
 /* <1> literal constants */
-KlrValue *klr_const_int(TypeDesc *ty, int64_t val);
-
-static inline KlrValue *klr_const_int8(int8_t val)
-{
-    return klr_const_int(desc_int8(), val);
-}
-
-static inline KlrValue *klr_const_int16(int16_t val)
-{
-    return klr_const_int(desc_int16(), val);
-}
-
-static inline KlrValue *klr_const_int32(int32_t val)
-{
-    return klr_const_int(desc_int32(), val);
-}
-
-static inline KlrValue *klr_const_int64(int64_t val)
-{
-    return klr_const_int(desc_int64(), val);
-}
-
-static inline KlrValue *klr_const_float32(float val)
-{
-    return klr_const_int(desc_float32(), val);
-}
-
-static inline KlrValue *klr_const_float64(double val)
-{
-    return klr_const_int(desc_float64(), val);
-}
-
+KlrValue *klr_const_int(int64_t val);
+KlrValue *klr_const_float(double val);
 KlrValue *klr_const_bool(int val);
 KlrValue *klr_const_string(char *s, int len);
 

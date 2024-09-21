@@ -42,12 +42,8 @@ typedef struct _Type {
     Vector *subs;
 } Type;
 
-Type *int8_type(void);
-Type *int16_type(void);
-Type *int32_type(void);
-Type *int64_type(void);
-Type *float32_type(void);
-Type *float64_type(void);
+Type *int_type(void);
+Type *float_type(void);
 Type *bool_type(void);
 Type *str_type(void);
 Type *object_type(void);

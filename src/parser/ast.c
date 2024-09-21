@@ -9,45 +9,17 @@
 extern "C" {
 #endif
 
-Type *int8_type(void)
+Type *int_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_int8();
+    ty->desc = desc_int();
     return ty;
 }
 
-Type *int16_type(void)
+Type *float_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_int16();
-    return ty;
-}
-
-Type *int32_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_int32();
-    return ty;
-}
-
-Type *int64_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_int64();
-    return ty;
-}
-
-Type *float32_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_float32();
-    return ty;
-}
-
-Type *float64_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_float64();
+    ty->desc = desc_float();
     return ty;
 }
 
@@ -103,7 +75,7 @@ Type *range_type(void)
 Type *optional_type(Type *sub)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_optional(sub->desc);
+    // ty->desc = desc_optional(sub->desc);
     ty->subs = vector_create_ptr();
     vector_push_back(ty->subs, &sub);
     return ty;
@@ -165,7 +137,7 @@ Expr *expr_from_lit_int(int64_t val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_INT;
     exp->ival = val;
-    exp->desc = desc_int64();
+    exp->desc = desc_int();
     return (Expr *)exp;
 }
 
@@ -175,7 +147,7 @@ Expr *expr_from_lit_float(double val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_FLT;
     exp->fval = val;
-    exp->desc = desc_float64();
+    exp->desc = desc_float();
     return (Expr *)exp;
 }
 

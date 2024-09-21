@@ -46,12 +46,6 @@ typedef struct _OptionalDesc {
     TypeDesc *type;
 } OptionalDesc;
 
-typedef struct _NumberDesc {
-    int refcnt;
-    DescKind kind;
-    int width;
-} NumberDesc;
-
 typedef struct _ArrayDesc {
     int refcnt;
     DescKind kind;
@@ -64,12 +58,8 @@ typedef struct _ArrayDesc {
 #define DESC_INCREF_GET(ty) ({++(ty)->refcnt; (ty);})
 // clang-format on
 
-extern NumberDesc int8_desc;
-extern NumberDesc int16_desc;
-extern NumberDesc int32_desc;
-extern NumberDesc int64_desc;
-extern NumberDesc float32_desc;
-extern NumberDesc float64_desc;
+extern TypeDesc int_desc;
+extern TypeDesc float_desc;
 extern TypeDesc bool_desc;
 extern TypeDesc str_desc;
 extern TypeDesc object_desc;
@@ -78,34 +68,11 @@ extern TypeDesc bytes_desc;
 extern TypeDesc type_desc;
 extern TypeDesc range_desc;
 
-static inline TypeDesc *desc_int8(void)
-{
-    return (TypeDesc *)DESC_INCREF_GET(&int8_desc);
-}
+static inline TypeDesc *desc_int(void) { return (TypeDesc *)DESC_INCREF_GET(&int_desc); }
 
-static inline TypeDesc *desc_int16(void)
+static inline TypeDesc *desc_float(void)
 {
-    return (TypeDesc *)DESC_INCREF_GET(&int16_desc);
-}
-
-static inline TypeDesc *desc_int32(void)
-{
-    return (TypeDesc *)DESC_INCREF_GET(&int32_desc);
-}
-
-static inline TypeDesc *desc_int64(void)
-{
-    return (TypeDesc *)DESC_INCREF_GET(&int64_desc);
-}
-
-static inline TypeDesc *desc_float32(void)
-{
-    return (TypeDesc *)DESC_INCREF_GET(&float32_desc);
-}
-
-static inline TypeDesc *desc_float64(void)
-{
-    return (TypeDesc *)DESC_INCREF_GET(&float64_desc);
+    return (TypeDesc *)DESC_INCREF_GET(&float_desc);
 }
 
 static inline TypeDesc *desc_str(void) { return (TypeDesc *)DESC_INCREF_GET(&str_desc); }
@@ -146,7 +113,9 @@ TypeDesc *desc_array(TypeDesc *sub);
 static inline int desc_is_int(TypeDesc *desc) { return desc->kind == TYPE_INT_KIND; }
 void free_desc(TypeDesc *ty);
 int desc_equal(TypeDesc *a, TypeDesc *b);
-void desc_to_str(TypeDesc *desc, Buffer *buf);
+int desc_to_str(TypeDesc *ty, Buffer *buf);
+TypeDesc *desc_from_str(const char *s);
+void desc_print(TypeDesc *desc, Buffer *buf);
 
 #ifdef __cplusplus
 }

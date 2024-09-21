@@ -1,9 +1,7 @@
 
+var a int? = 0
 
-var opt int str
-
-class Foo[T : Foo[str?] & Bar] : Bar[Int?] {
-    a T?
+class Foo : Bar[int] {
 }
 
 /*
@@ -100,6 +98,29 @@ func add(a (int | str)?, b (int | str)) tuple[int, str] {
     map := {"hello", 100}
     bs = bytes(100)
 }
+
+func main() {
+
+}
+
+a := list(1,2,3)
+a = [1,2,3]
+a = list([1,2,3])
+[v for v in range(1, 100)]
+
+@native(builtin_print)
+func print(objs: ..., sep = ' ', end = '\n', file io.Writer? = None, flush = false)
+
+print("hello", sep = '\t')
+
+print("hello", '\t')
+
+a = 100
+ccall say_y(a)
+bs = bytes(100)
+ccall snprintf(bs, 100, "hello, %s", "world")
+await foo(1, 2)
+
 */
 #
 #!

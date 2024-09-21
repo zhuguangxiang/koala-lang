@@ -104,12 +104,8 @@ static void free_map_list(Vector *vec)
 %token FALSE
 %token NONE
 
-%token INT8
-%token INT16
-%token INT32
-%token INT64
-%token FLOAT32
-%token FLOAT64
+%token INT
+%token FLOAT
 %token BOOL
 %token CHAR
 %token STRING
@@ -170,6 +166,7 @@ static void free_map_list(Vector *vec)
 %type<stmt> trait_decl
 %type<stmt> proto_decl
 %type<stmt> prefix_proto_decl
+%type<stmt> class_decl
 
 %type<expr> expr
 %type<expr> or_expr
@@ -241,7 +238,7 @@ static void free_map_list(Vector *vec)
 %define api.pure full
 %lex-param {void *scanner}
 %code provides {
-  int yylex(YYSTYPE *yylval_param, YYLTYPE *yylloc, void *yyscanner);
+    int yylex(YYSTYPE *yylval_param, YYLTYPE *yylloc, void *yyscanner);
 }
 
 %start program
@@ -325,6 +322,14 @@ top_stmt
     {
         $$ = $2;
     }
+    | free_var_decl semi
+    {
+        $$ = $1;
+    }
+    | prefix free_var_decl semi
+    {
+        $$ = $2;
+    }
     | func_decl
     {
         $$ = NULL;
@@ -335,6 +340,7 @@ top_stmt
     }
     | class_decl
     {
+        printf("top_class_decl\n");
         $$ = NULL;
     }
     | class_prefix class_decl
@@ -346,6 +352,30 @@ top_stmt
         $$ = NULL;
     }
     | prefix trait_decl
+    {
+        $$ = NULL;
+    }
+    | assignment semi
+    {
+        $$ = $1;
+    }
+    | expr semi
+    {
+        $$ = stmt_from_expr($1);
+    }
+    | if_stmt
+    {
+        $$ = $1;
+    }
+    | while_stmt
+    {
+        $$ = NULL;
+    }
+    | for_stmt
+    {
+        $$ = NULL;
+    }
+    | match_stmt
     {
         $$ = NULL;
     }
@@ -389,10 +419,12 @@ docs
 optional_type
     : type
     {
+        printf("type\n");
         $$ = $1;
     }
     | type '?'
     {
+        printf("optional_type\n");
         $$ = optional_type($1);
         type_set_loc($$, lloc(@1, @2));
     }
@@ -560,6 +592,7 @@ klass_type
     }
     | ID '[' optional_type_list ']'
     {
+        printf("klass_type ok\n");
         IDENT(id, $1, loc(@1));
         $$ = klass_type(NULL, &id, $3);
         type_set_loc($$, lloc(@1, @4));
@@ -606,34 +639,14 @@ klass_type
     ;
 
 atom_type
-    : INT8
+    : INT
     {
-        $$ = int8_type();
+        $$ = int_type();
         type_set_loc($$, loc(@1));
     }
-    | INT16
+    | FLOAT
     {
-        $$ = int16_type();
-        type_set_loc($$, loc(@1));
-    }
-    | INT32
-    {
-        $$ = int32_type();
-        type_set_loc($$, loc(@1));
-    }
-    | INT64
-    {
-        $$ = int64_type();
-        type_set_loc($$, loc(@1));
-    }
-    | FLOAT32
-    {
-        $$ = float32_type();
-        type_set_loc($$, loc(@1));
-    }
-    | FLOAT64
-    {
-        $$ = float64_type();
+        $$ = float_type();
         type_set_loc($$, loc(@1));
     }
     | BOOL
@@ -858,7 +871,30 @@ kw_arg_list
     ;
 
 class_decl
-    : CLASS name extends '{' class_members_or_empty '}'
+    : CLASS ID extends '{' class_members_or_empty '}'
+    {
+        printf("class_decl_1\n");
+        $$ = NULL;
+    }
+    | CLASS ID '{' class_members_or_empty '}'
+    {
+
+    }
+    | CLASS ID '[' type_param_decl_list ']' extends '{' class_members_or_empty '}'
+    {
+        $$ = NULL;
+    }
+    | CLASS ID '[' type_param_decl_list ']' '{' class_members_or_empty '}'
+    {
+
+    }
+    | CLASS error
+    {
+        printf("CLASS name extends error\n");
+        yy_clear_ok;
+        yyclearin;
+        $$ = NULL;
+    }
     ;
 
 name
@@ -881,21 +917,46 @@ type_param_decl_list
         // $$ = $1;
         // vector_push_back($$, &$3);
     }
+    | type_param_decl_list ',' error
+    {
+
+    }
+    | error
+    {
+
+    }
     ;
 
 type_param_decl
     : ID
     | ID ':' klass_list
+    | ID ':' error
+    {
+
+    }
+    | ID error
+    {
+
+    }
     ;
 
 extends
-    : %empty
-    | ':' klass_list
+    : ':' klass_list
+    {
+        printf("extends\n");
+    }
+    | ':' error
+    {
+        printf(": error\n");
+        yy_clear_ok;
+        yyclearin;
+    }
     ;
 
 klass_list
     : klass_type
     {
+        printf("klass_list\n");
         $$ = vector_create_ptr();
         vector_push_back($$, &$1);
     }
@@ -903,6 +964,16 @@ klass_list
     {
         $$ = $1;
         vector_push_back($$, &$3);
+    }
+    | klass_list '&' error
+    {
+
+    }
+    | klass_list error
+    {
+        kl_error(loc(@2), "expected '&' and type.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1838,6 +1909,8 @@ dot_expr
 index_expr
     : primary_expr '[' optional_expr_list ']'
     {
+        printf("index_expr\n");
+
         // Foo[100]
         // Foo["hello"]
         // Foo[Bar]()

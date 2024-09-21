@@ -16,6 +16,11 @@ extern "C" {
 typedef struct _KlcFile {
     uint8_t magic[4];
     uint32_t version;
+    uint8_t num_vars;
+    uint8_t num_funcs;
+    uint8_t num_types;
+    uint8_t num_relocs;
+    uint16_t num_codes;
     const char *path;
     FILE *filp;
     Vector objs;

@@ -37,7 +37,7 @@ static void free_scope(ParserScope *scope)
 /* clang-format off */
 #define print_desc(desc) do {           \
     BUF(buf);                           \
-    desc_to_str(desc, &buf);            \
+    desc_print(desc, &buf);            \
     log_info("  '%s'", BUF_STR(buf));   \
     FINI_BUF(buf);                      \
 } while (0)
