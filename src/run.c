@@ -104,7 +104,7 @@ static void *koala_pthread_func(void *arg)
     log_info("Thread-%d is done.", ts->id);
 
     /* simulate gc(later delete) */
-#if 1
+#if 0
     ts->state = TS_RUNNING;
     int i = 0;
     while (1) {
@@ -131,11 +131,10 @@ static void init_threads(int nthreads)
     /* initialize main thread as koala thread */
     ThreadState *ts = _threads;
     lldq_init(&ts->run_list);
-    ts->current = NULL;
+    ts->current = ks_new();
     ts->id = 1;
     ts->steal_count = 0;
     ts->state = TS_RUNNING;
-    ts->current = ks_new();
     __ts = ts;
 
     /* initialize other koala threads */
@@ -236,7 +235,38 @@ void kl_run_file(const char *filename)
     }
 }
 
-void kl_fini(void) {}
+void kl_fini(void)
+{
+    // signal to all suspended pthread
+    for (int i = 1; i < __nthreads; i++) {
+        ThreadState *ts = _threads + i;
+        ts->state = TS_DONE;
+    }
+    pthread_mutex_lock(&_gs_mutex);
+    pthread_cond_broadcast(&_gs_cond);
+    pthread_mutex_unlock(&_gs_mutex);
+
+    /* join koala threads */
+    for (int i = 1; i < __nthreads; i++) {
+        ThreadState *ts = _threads + i;
+        ASSERT(ts->state == TS_DONE);
+        pthread_join(ts->pid, NULL);
+    }
+
+    ASSERT(lldq_empty(&_gs_run_list));
+    ASSERT(lldq_empty(&_gs_done_list));
+
+    __ts->state = TS_DONE;
+    for (int i = 0; i < __nthreads; i++) {
+        ThreadState *ts = _threads + i;
+        ASSERT(ts->state == TS_DONE);
+        ks_free(ts->current);
+    }
+
+    mm_free(_threads);
+
+    fini_gc_system();
+}
 
 void kl_run_ks(KoalaState *ks) {}
 

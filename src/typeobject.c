@@ -53,7 +53,7 @@ static Value type_call(TypeObject *type, Value *args, int nargs)
 
 TypeObject type_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "Type",
+    .name = "type",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL | TP_FLAGS_META,
     .size = sizeof(TypeObject),
     .str = type_str,

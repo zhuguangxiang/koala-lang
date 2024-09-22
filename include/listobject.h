@@ -16,11 +16,11 @@ typedef struct _ListObject {
     OBJECT_HEAD
     ssize_t start;
     ssize_t end;
-    char *array;
+    GcObject *array;
 } ListObject;
 
 extern TypeObject list_type;
-#define LIST_CHECK(ob) IS_TYPE((ob), &list_type)
+#define IS_LIST(ob) IS_TYPE((ob), &list_type)
 
 #ifdef __cplusplus
 }

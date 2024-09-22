@@ -70,7 +70,7 @@ static void _pop_frame(KoalaState *ks, CallFrame *cf)
 
 KoalaState *ks_new(void)
 {
-    int msize = sizeof(KoalaState) + MAX_STACK_SIZE;
+    int msize = sizeof(KoalaState) + sizeof(Value) * MAX_STACK_SIZE;
     KoalaState *ks = mm_alloc(msize);
     lldq_node_init(&ks->link);
     ks->ts = __ts;
@@ -82,7 +82,10 @@ KoalaState *ks_new(void)
 
 void ks_free(KoalaState *ks)
 {
+    if (!ks) return;
     ASSERT(!ks->cf);
+    ASSERT(vector_empty(&ks->trace_stacks));
+    vector_fini(&ks->trace_stacks);
     mm_free(ks);
 }
 

@@ -58,6 +58,7 @@ static LLDeque _gc_perm_list;
 /* gc worker thread */
 static sem_t _gc_worker_sema;
 static pthread_t _gc_pid;
+static int _gc_thread_done;
 
 /*-------------------------------------API-----------------------------------*/
 
@@ -275,6 +276,7 @@ static void *gc_pthread_func(void *arg)
     main_loop:
         gc_worker_wait();
     next:
+        if (_gc_thread_done) break;
         switch (_gc_state) {
             case GC_DONE: {
                 if (_failed_major) {
@@ -406,6 +408,7 @@ static void *gc_pthread_func(void *arg)
         }
     }
 
+    ASSERT(__ts == NULL);
     log_info("[Collector]done");
     return NULL;
 }
@@ -455,10 +458,86 @@ void init_gc_system(size_t max_mem_size, double factor)
     lldq_init(&_gc_perm_list);
 
     sem_init(&_gc_worker_sema, 0, 0);
+
     pthread_create(&_gc_pid, NULL, gc_pthread_func, NULL);
 }
 
-void fini_gc_system(void) {}
+void fini_gc_system(void)
+{
+    _gc_thread_done = 1;
+    while (_gc_state != GC_DONE);
+    gc_worker_wakeup();
+    pthread_join(_gc_pid, NULL);
+
+    munmap((void *)__gc_check_ptr, _pagesize);
+
+    GcObject *gc_obj = (GcObject *)lldq_pop_head(&_gc_list);
+    while (gc_obj) {
+        switch (gc_obj->gc_kind) {
+            case GC_KIND_ARRAY_OBJECT:
+                /* code */
+                break;
+            case GC_KIND_ARRAY_VALUE:
+                /* code */
+                break;
+            case GC_KIND_OBJECT: {
+                Object *obj = (Object *)gc_obj;
+                TypeObject *tp = OB_TYPE(obj);
+                Value v = ObjValue(obj);
+                if (tp->fini) tp->fini(&v);
+                log_debug("object '%s' is freed", tp->name);
+                break;
+            }
+            default:
+                break;
+        }
+        _gc_used_size -= gc_obj->gc_size;
+        free(gc_obj);
+        gc_obj = (GcObject *)lldq_pop_head(&_gc_list);
+    }
+
+    ASSERT(lldq_empty(&_gc_remark_list));
+
+    gc_obj = (GcObject *)lldq_pop_head(&_gc_perm_list);
+    while (gc_obj) {
+        switch (gc_obj->gc_kind) {
+            case GC_KIND_ARRAY_OBJECT: {
+                log_debug("gc object array is freed");
+                break;
+            }
+            case GC_KIND_ARRAY_VALUE: {
+                log_debug("gc value array is freed");
+                break;
+            }
+            case GC_KIND_OBJECT: {
+                Object *obj = (Object *)gc_obj;
+                TypeObject *tp = OB_TYPE(obj);
+                Value v = ObjValue(obj);
+                if (tp->fini) tp->fini(&v);
+                log_debug("object '%s' is freed", tp->name);
+                break;
+            }
+            case GC_KIND_ARRAY_INT8: {
+                log_debug("gc int8 array is freed");
+                break;
+            }
+            case GC_KIND_ARRAY_INT64: {
+                log_debug("gc int64 array is freed");
+                break;
+            }
+            default: {
+                UNREACHABLE();
+                break;
+            }
+        }
+        _gc_used_size -= gc_obj->gc_size;
+        free(gc_obj);
+        gc_obj = (GcObject *)lldq_pop_head(&_gc_perm_list);
+    }
+
+    log_debug("_gc_max_size: %ld", _gc_max_size);
+    log_debug("_gc_used_size: %ld", _gc_used_size);
+}
 
 #ifdef __cplusplus
 }

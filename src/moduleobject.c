@@ -10,9 +10,19 @@
 extern "C" {
 #endif
 
+static void module_fini(Value *self)
+{
+    ASSERT(IS_OBJ(self));
+    ModuleObject *m = self->obj;
+    ASSERT(IS_MODULE(m));
+    vector_fini(&m->symbols);
+    vector_fini(&m->relocs);
+}
+
 TypeObject module_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "module",
+    .fini = module_fini,
 };
 
 Object *kl_new_module(const char *name)

@@ -16,14 +16,15 @@ extern "C" {
 #endif
 
 /* clang-format off */
-#define OBJECT_HEAD GC_OBJECT_HEAD struct _TypeObject *ob_type;
+#define OBJECT_HEAD GcObject ob_gc_obj; struct _TypeObject *ob_type;
 /* clang-format on */
 
 typedef struct _Object {
     OBJECT_HEAD
 } Object;
 
-#define OBJECT_HEAD_INIT(_type) GC_OBJECT_INIT(0, -1, GC_COLOR_BLACK), .ob_type = (_type)
+#define OBJECT_HEAD_INIT(_type) \
+    .ob_gc_obj = { GC_OBJECT_INIT(0, -1, GC_COLOR_BLACK) }, .ob_type = (_type)
 
 #define INIT_OBJECT_HEAD(_ob, _type) (_ob)->ob_type = (_type)
 
@@ -204,6 +205,8 @@ Value object_call(Object *obj, Value *args, int nargs);
 /* clang-format on */
 
 Value object_call_method_noarg(Object *obj, const char *name);
+
+Object *object_generic_alloc(TypeObject *tp);
 
 #ifdef __cplusplus
 }

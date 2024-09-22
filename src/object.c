@@ -76,12 +76,13 @@ static MethodDef object_methods[] = {
 
 TypeObject object_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "Object",
+    .name = "object",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .size = sizeof(Object),
     .hash = object_hash,
     .cmp = object_compare,
     .str = object_str,
+    // .alloc = object_generic_alloc,
     .methods = object_methods,
 };
 
@@ -95,6 +96,14 @@ Value object_call_method_noarg(Object *obj, const char *name)
     }
     Value args[] = { ObjValue(obj) };
     return object_call(fn, args, 1);
+}
+
+Object *object_generic_alloc(TypeObject *tp)
+{
+    ASSERT(tp->size > 0);
+    Object *obj = gc_alloc(tp->size);
+    INIT_OBJECT_HEAD(obj, tp);
+    return obj;
 }
 
 #ifdef __cplusplus

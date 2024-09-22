@@ -60,6 +60,8 @@ typedef enum _GcState {
 } GcState;
 
 void init_gc_system(size_t max_mem_size, double factor);
+void fini_gc_system(void);
+
 void *_gc_alloc(int size, int perm);
 
 #define gc_alloc(size)   _gc_alloc(size, 0)

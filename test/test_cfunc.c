@@ -42,7 +42,7 @@ void test_cfunc(void)
 
 int main(int argc, char *argv[])
 {
-    init_log(LOG_INFO, NULL, 0);
+    init_log(LOG_DEBUG, NULL, 0);
     kl_init(argc, argv);
     test_cfunc();
     kl_fini();
