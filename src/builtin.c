@@ -11,10 +11,28 @@ extern "C" {
 
 static void object_print(BytesObject *buf, Value *val) {}
 
+typedef struct _MethodCache {
+    TypeObject *type;
+    const char *name;
+    Object *method;
+} MethodCache;
+
+typedef struct _CallSiteCache {
+    int avail;
+    MethodCache caches[8];
+} CallSiteCache;
+
+static Object *lookup_method_from_cache(CallSiteCache *cache, Object *self,
+                                        const char *name)
+{
+    if (!cache->avail) {
+    }
+}
+
 /*
-pub func print(objs ..., sep = ' ', end = '\n', file io.Writer = sys.stdout)
+pub func print(objs ..., sep = ' ', end = '\n', file io.Writer = none)
 */
-static Value builtin_print(Value *args, int nargs, Object *kwargs)
+static Value builtin_print(Value *module, Value *args, int nargs, Object *kwargs)
 {
     char *sep = " ";
     Value r = kl_dict_get(kwargs, "sep");
@@ -33,7 +51,14 @@ static Value builtin_print(Value *args, int nargs, Object *kwargs)
 
     object_print(buf, "\n");
 
-    object_call_method(writer, "write", buf);
+    Object *writer = sys_stdout;
+    r = kl_dict_get(kwargs, "file");
+    if (!IS_NONE(r)) {
+        writer = r.obj;
+    }
+
+    static CallSiteCache cache;
+    call_method_by_cache(&cache, writer, "write", buf);
 
     return NoneValue;
 }

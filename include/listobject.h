@@ -20,7 +20,7 @@ typedef struct _ListObject {
 } ListObject;
 
 extern TypeObject list_type;
-#define IS_LIST(ob) IS_TYPE((ob), &list_type)
+#define LIST_CHECK(ob) IS_TYPE((ob), &list_type)
 
 #ifdef __cplusplus
 }

@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-/* Koala does support catch exception.
+/* Koala does NOT support catch exception.
  * If an exception occurred, it must be fixed.
  */
 

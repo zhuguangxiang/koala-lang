@@ -122,9 +122,15 @@ int vector_remove(Vector *vec, int index, void *obj)
     /* valid range is (0 ..< size) */
     if (index < 0 || index >= vec->size) return -1;
 
-    char *offset = __offset(vec, index);
-    if (obj != NULL) memcpy(obj, offset, vec->obj_size);
-    __move_to_left(vec, index);
+    if (obj != NULL) {
+        char *offset = __offset(vec, index);
+        memcpy(obj, offset, vec->obj_size);
+    }
+
+    if ((index + 1) != vec->size) {
+        __move_to_left(vec, index);
+    }
+
     vec->size--;
     return 0;
 }

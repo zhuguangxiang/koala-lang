@@ -38,14 +38,11 @@ void kl_init(int argc, char *argv[]);
 void kl_run_file(const char *filename);
 void kl_fini(void);
 
-extern int __nthreads;
-extern pthread_key_t __local_key;
-
-/* get current thread  */
-static inline ThreadState *__ts(void) { return pthread_getspecific(__local_key); }
+/* get current thread */
+extern __thread ThreadState *__ts;
 
 /* get current koala state  */
-static inline KoalaState *__ks(void) { return __ts()->current; }
+static inline KoalaState *__ks(void) { return __ts->current; }
 
 int check_all_threads_stw(void);
 int enum_all_roots(Queue *que);

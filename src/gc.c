@@ -59,11 +59,6 @@ static LLDeque _gc_perm_list;
 static sem_t _gc_worker_sema;
 static pthread_t _gc_pid;
 
-/* This is gc roots for global variables.
- * For local variables, please reference shadowstack.h
- */
-static void *_gc_roots;
-
 /*-------------------------------------API-----------------------------------*/
 
 static inline void clear_failed(void)
@@ -113,19 +108,19 @@ static inline void disable_stw_wakeup_threads(void)
     pthread_mutex_unlock(&_mutator_wait_mutex);
 }
 
-#define gc_incr_age(hdr) ++((GcHdr *)(hdr))->gc_age
+#define gc_incr_age(obj) ++((GcObject *)(obj))->gc_age
 
-static void *free_obj(GcHdr *hdr)
+static void *free_obj(GcObject *obj)
 {
     pthread_spin_lock(&_gc_spin_lock);
-    _gc_used_size -= hdr->gc_size;
+    _gc_used_size -= obj->gc_size;
     pthread_spin_unlock(&_gc_spin_lock);
-    mm_free(hdr);
+    mm_free(obj);
 }
 
-static GcHdr *alloc_obj(int size, int minor, int perm)
+static GcObject *alloc_obj(int size, int minor, int perm)
 {
-    ThreadState *ts = __ts();
+    ThreadState *ts = __ts;
     UNUSED(ts);
 
     pthread_spin_lock(&_gc_spin_lock);
@@ -146,31 +141,31 @@ static GcHdr *alloc_obj(int size, int minor, int perm)
         pthread_spin_unlock(&_gc_spin_lock);
     }
 
-    GcHdr *hdr = mm_alloc_fast(size);
-    ASSERT(hdr);
-    lldq_node_init(&hdr->gc_link);
-    hdr->gc_size = size;
+    GcObject *obj = malloc(size);
+    ASSERT(obj);
+    lldq_node_init(&obj->gc_link);
+    obj->gc_size = size;
     // default kind
-    hdr->gc_kind = GC_KIND_RAW;
+    obj->gc_kind = GC_KIND_OBJECT;
     if (perm) {
-        hdr->gc_age = -1;
-        hdr->gc_color = GC_COLOR_WHITE;
-        lldq_push_tail(&_gc_perm_list, &hdr->gc_link);
+        obj->gc_age = -1;
+        obj->gc_color = GC_COLOR_WHITE;
+        lldq_push_tail(&_gc_perm_list, &obj->gc_link);
         log_info("[Mutator]Thread-%d, permanent object, size: %ld", ts->id, size);
     } else {
-        hdr->gc_age = 0;
+        obj->gc_age = 0;
         if (_gc_state == GC_DONE) {
-            hdr->gc_color = GC_COLOR_WHITE;
-            lldq_push_tail(&_gc_list, &hdr->gc_link);
+            obj->gc_color = GC_COLOR_WHITE;
+            lldq_push_tail(&_gc_list, &obj->gc_link);
         } else {
-            hdr->gc_color = GC_COLOR_BLACK;
-            lldq_push_tail(&_gc_remark_list, &hdr->gc_link);
+            obj->gc_color = GC_COLOR_BLACK;
+            lldq_push_tail(&_gc_remark_list, &obj->gc_link);
         }
     }
 
     log_info("[Mutator]Thread-%d, successful, size: %ld", ts->id, size);
 
-    return hdr;
+    return obj;
 
 exit:
     pthread_spin_unlock(&_gc_spin_lock);
@@ -179,27 +174,27 @@ exit:
 
 void *_gc_alloc(int size, int perm)
 {
-    ThreadState *ts = __ts();
+    ThreadState *ts = __ts;
     ASSERT(ts->state == TS_RUNNING);
 
     /* aligned pointer size */
     int mm_size = ALIGN_PTR(size);
-    GcHdr *hdr = NULL;
+    GcObject *obj = NULL;
 
     /* simple fsm */
     while (1) {
         switch (_gc_state) {
             case GC_DONE: {
                 /* normal case */
-                hdr = alloc_obj(mm_size, 1, perm);
-                if (!hdr) goto suspend;
+                obj = alloc_obj(mm_size, 1, perm);
+                if (!obj) goto suspend;
                 goto done;
             }
             case GC_CO_MARK: /* fall-through */
             case GC_CO_SWEEP: {
                 /* normal case */
-                hdr = alloc_obj(mm_size, 0, perm);
-                if (!hdr) goto suspend;
+                obj = alloc_obj(mm_size, 0, perm);
+                if (!obj) goto suspend;
                 goto done;
             }
             case GC_MARK_ROOTS: /* fall-through */
@@ -224,7 +219,7 @@ void *_gc_alloc(int size, int perm)
 
 done:
 
-    return hdr;
+    return obj;
 }
 
 void *gc_alloc_array(char kind, size_t len)
@@ -232,24 +227,21 @@ void *gc_alloc_array(char kind, size_t len)
     static size_t sizes[] = {
         0,
         sizeof(int8_t),
-        sizeof(int16_t),
-        sizeof(int32_t),
         sizeof(int64_t),
-        sizeof(float),
         sizeof(double),
         sizeof(Object *),
         sizeof(Value),
     };
-    ASSERT(kind >= GC_KIND_INT8 && kind <= GC_KIND_VALUE);
-    int size = sizeof(GcHdr) + len * sizes[kind];
-    GcHdr *hdr = gc_alloc(size);
-    hdr->gc_kind = kind;
-    return hdr;
+    ASSERT(kind >= GC_KIND_ARRAY_INT8 && kind <= GC_KIND_ARRAY_VALUE);
+    int size = sizeof(GcObject) + len * sizes[kind];
+    GcObject *obj = gc_alloc(size);
+    obj->gc_kind = kind;
+    return obj;
 }
 
 static void gc_segment_fault_handler(int sig, siginfo_t *si, void *unused)
 {
-    ThreadState *ts = __ts();
+    ThreadState *ts = __ts;
     ASSERT(ts->state == TS_RUNNING);
 
     if (!_mutator_wait_flag) return;
@@ -335,12 +327,12 @@ static void *gc_pthread_func(void *arg)
 
                 LLDqNode *node = lldq_pop_head(&_gc_list);
                 while (node) {
-                    GcHdr *hdr = (GcHdr *)node;
-                    if (hdr->gc_color == GC_COLOR_WHITE) {
-                        free_obj(hdr);
-                    } else if (hdr->gc_color == GC_COLOR_BLACK) {
-                        _gc_mark(hdr, GC_COLOR_WHITE);
-                        gc_incr_age(hdr);
+                    GcObject *obj = (GcObject *)node;
+                    if (obj->gc_color == GC_COLOR_WHITE) {
+                        free_obj(obj);
+                    } else if (obj->gc_color == GC_COLOR_BLACK) {
+                        _gc_mark(obj, GC_COLOR_WHITE);
+                        gc_incr_age(obj);
                     } else {
                         ASSERT(0);
                     }
@@ -356,10 +348,10 @@ static void *gc_pthread_func(void *arg)
 
                 node = lldq_pop_head(&_gc_remark_list);
                 while (node) {
-                    GcHdr *hdr = (GcHdr *)node;
-                    ASSERT(hdr->gc_color == GC_COLOR_BLACK);
-                    _gc_mark(hdr, GC_COLOR_WHITE);
-                    gc_incr_age(hdr);
+                    GcObject *obj = (GcObject *)node;
+                    ASSERT(obj->gc_color == GC_COLOR_BLACK);
+                    _gc_mark(obj, GC_COLOR_WHITE);
+                    gc_incr_age(obj);
                     lldq_push_tail(&_gc_list, node);
 
                     if (_failed_major) {
@@ -381,12 +373,12 @@ static void *gc_pthread_func(void *arg)
 
                 LLDqNode *node = lldq_pop_head(&_gc_list);
                 while (node) {
-                    GcHdr *hdr = (GcHdr *)node;
-                    if (hdr->gc_color == GC_COLOR_WHITE) {
-                        free_obj(hdr);
-                    } else if (hdr->gc_color == GC_COLOR_BLACK) {
-                        _gc_mark(hdr, GC_COLOR_WHITE);
-                        gc_incr_age(hdr);
+                    GcObject *obj = (GcObject *)node;
+                    if (obj->gc_color == GC_COLOR_WHITE) {
+                        free_obj(obj);
+                    } else if (obj->gc_color == GC_COLOR_BLACK) {
+                        _gc_mark(obj, GC_COLOR_WHITE);
+                        gc_incr_age(obj);
                     } else {
                         ASSERT(0);
                     }
@@ -395,10 +387,10 @@ static void *gc_pthread_func(void *arg)
 
                 node = lldq_pop_head(&_gc_remark_list);
                 while (node) {
-                    GcHdr *hdr = (GcHdr *)node;
-                    ASSERT(hdr->gc_color == GC_COLOR_BLACK);
-                    _gc_mark(hdr, GC_COLOR_WHITE);
-                    gc_incr_age(hdr);
+                    GcObject *obj = (GcObject *)node;
+                    ASSERT(obj->gc_color == GC_COLOR_BLACK);
+                    _gc_mark(obj, GC_COLOR_WHITE);
+                    gc_incr_age(obj);
                     lldq_push_tail(&_gc_list, node);
                     node = lldq_pop_head(&_gc_remark_list);
                 }
@@ -465,6 +457,8 @@ void init_gc_system(size_t max_mem_size, double factor)
     sem_init(&_gc_worker_sema, 0, 0);
     pthread_create(&_gc_pid, NULL, gc_pthread_func, NULL);
 }
+
+void fini_gc_system(void) {}
 
 #ifdef __cplusplus
 }

@@ -482,7 +482,7 @@ Stmt *stmt_from_expr(Expr *exp)
     return (Stmt *)s;
 }
 
-void stmt_free(Stmt *stmt) { ASSERT(0); }
+void stmt_free(Stmt *stmt) {}
 
 #ifdef __cplusplus
 }

@@ -8,6 +8,7 @@
 #include "moduleobject.h"
 #include "object.h"
 #include "run.h"
+#include "strobject.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,6 +22,7 @@ static Value _hello(Value *self, Value *args, int nargs)
     ASSERT(args == NULL);
     ASSERT(nargs == 0);
     printf("hello, world\n");
+    Object *v = kl_new_str("hello");
     return NoneValue;
 }
 

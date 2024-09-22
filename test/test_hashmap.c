@@ -24,24 +24,23 @@ static int __str_cmp_cb__(void *k1, void *k2)
 
 static void __str_free_cb__(void *entry, void *data) { free(entry); }
 
-static void random_string(char *data, int len)
+static void random_string(char *str, int length)
 {
-    static const char char_set[] =
-        "0123456789abcdefghijklmnopqrstuvwxyz"
-        "ABCDEFGHIJKLMNOPQRSTUWXYZ";
-    int i;
-    int idx;
+    static const char charset[] =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    int charset_length = strlen(charset);
 
-    for (i = 0; i < len; ++i) {
-        idx = rand() % (sizeof(char_set) / sizeof(char_set[0]) - 1);
-        data[i] = char_set[idx];
+    for (int i = 0; i < length; i++) {
+        int random_index = rand() % charset_length;
+        str[i] = charset[random_index];
     }
-    data[i] = 0;
+
+    str[length] = '\0'; // Null-terminate the string
 }
 
 void test_hashmap(void)
 {
-    srand(time(NULL));
+    srand(time(NULL)); // Seed the random number generator
 
     HashMap map;
     hashmap_init(&map, __str_cmp_cb__);
@@ -50,9 +49,9 @@ void test_hashmap(void)
     int ret;
     struct str *s2;
 
-    for (int i = 0; i < 10000; i++) {
-        s = malloc(sizeof(struct str) + 11);
-        random_string((char *)(s + 1), 10);
+    for (int i = 0; i < 20000; i++) {
+        s = malloc(sizeof(struct str) + 21);
+        random_string((char *)(s + 1), 20);
         hashmap_entry_init(s, str_hash((char *)(s + 1)));
         ret = hashmap_put_absent(&map, s);
         assert(!ret);
@@ -66,7 +65,7 @@ void test_hashmap(void)
 int main(int argc, char *argv[])
 {
     test_hashmap();
-    printf("hashmap test done\n");
+    // printf("hashmap test done\n");
     return 0;
 }
 

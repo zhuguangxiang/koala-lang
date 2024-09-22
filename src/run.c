@@ -16,12 +16,12 @@ extern "C" {
 /*------------------------------------DATA-----------------------------------*/
 
 /* pthread */
-int __nthreads;
+static int __nthreads;
 static ThreadState *_threads;
-pthread_key_t __local_key;
+__thread ThreadState *__ts;
 
 /* all done KoalaState list */
-static LLDeque _gc_done_list;
+static LLDeque _gs_done_list;
 /* global running KoalaState list */
 static LLDeque _gs_run_list;
 /* arguments from prompt */
@@ -33,7 +33,7 @@ static pthread_mutex_t _gs_mutex;
 static pthread_cond_t _gs_cond;
 
 /* all loaded modules(dict) */
-static Object *_gc_modules;
+static Object *_gs_modules;
 
 /*-------------------------------------API-----------------------------------*/
 
@@ -50,7 +50,7 @@ void resume(KoalaState *ks) {}
 static void *koala_pthread_func(void *arg)
 {
     ThreadState *ts = arg;
-    pthread_setspecific(__local_key, ts);
+    __ts = ts;
 
     while (ts->state == TS_RUNNING) {
         KoalaState *ks = ts->current;
@@ -135,8 +135,8 @@ static void init_threads(int nthreads)
     ts->id = 1;
     ts->steal_count = 0;
     ts->state = TS_RUNNING;
-    pthread_setspecific(__local_key, ts);
     ts->current = ks_new();
+    __ts = ts;
 
     /* initialize other koala threads */
     for (int i = 1; i < nthreads; i++) {
@@ -164,13 +164,10 @@ void kl_init(int argc, char *argv[])
     pthread_cond_init(&_gs_cond, NULL);
 
     /* init global koala state list */
-    lldq_init(&_gc_done_list);
+    lldq_init(&_gs_done_list);
     lldq_init(&_gs_run_list);
     _gs_argc = argc;
     _gs_argv = argv;
-
-    /* monitor main thread */
-    pthread_key_create(&__local_key, NULL);
 
     /* init koala threads */
     init_threads(2);
@@ -210,11 +207,11 @@ static int done(void)
 
 static void clear_done_state(void)
 {
-    LLDqNode *node = lldq_pop_head(&_gc_done_list);
+    LLDqNode *node = lldq_pop_head(&_gs_done_list);
     while (node) {
         KoalaState *ks = CONTAINER_OF(node, KoalaState, link);
         ks_free(ks);
-        node = lldq_pop_head(&_gc_done_list);
+        node = lldq_pop_head(&_gs_done_list);
     }
 }
 

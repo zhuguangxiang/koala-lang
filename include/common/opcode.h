@@ -144,10 +144,6 @@ typedef enum _OpCode {
     OP_FIELD_LOAD,
     OP_FIELD_STORE,
 
-    /* map operations */
-    OP_MAP_LOAD,            /* A B C            R(A) = B[C] */
-    OP_MAP_STORE,            /* A B C            A[B] = C    */
-
     /* generic arithmetic operators */
     OP_BINARY_ADD,
     OP_BINARY_SUB,

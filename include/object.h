@@ -16,14 +16,14 @@ extern "C" {
 #endif
 
 /* clang-format off */
-#define OBJECT_HEAD GC_HEAD struct _TypeObject *ob_type;
+#define OBJECT_HEAD GC_OBJECT_HEAD struct _TypeObject *ob_type;
 /* clang-format on */
 
 typedef struct _Object {
     OBJECT_HEAD
 } Object;
 
-#define OBJECT_HEAD_INIT(_type) GC_HEAD_INIT(0, -1, GC_COLOR_BLACK), .ob_type = (_type)
+#define OBJECT_HEAD_INIT(_type) GC_OBJECT_INIT(0, -1, GC_COLOR_BLACK), .ob_type = (_type)
 
 #define INIT_OBJECT_HEAD(_ob, _type) (_ob)->ob_type = (_type)
 
@@ -32,12 +32,12 @@ typedef struct _Object {
 #define IS_TYPE(ob, type) (OB_TYPE(ob) == type)
 
 typedef struct _Value {
-    int tag;
     union {
         int64_t ival;
         double fval;
         void *obj;
     };
+    int tag;
 } Value;
 
 #define VAL_TAG_OBJ  1
@@ -73,6 +73,7 @@ typedef Value (*CmpFunc)(Value *lhs, Value *rhs);
 typedef Value (*GetIterFunc)(Value *self);
 typedef Value (*IterNextFunc)(Value *self);
 typedef Value (*StrFunc)(Value *self);
+typedef Value (*AllocFunc)(Value *self, Value *args, int nargs);
 typedef int (*InitFunc)(Value *self, Value *args, int nargs);
 typedef void (*FiniFunc)(Value *self);
 typedef Value (*CallFunc)(Object *obj, Value *args, int nargs);
@@ -139,6 +140,8 @@ typedef struct _TypeObject {
     /* gc mark function */
     GcMarkFunc mark;
 
+    /* allocate function */
+    AllocFunc alloc;
     /* init function */
     InitFunc init;
     /* fini function */

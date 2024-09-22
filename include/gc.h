@@ -17,30 +17,28 @@ extern "C" {
 #define GC_COLOR_GRAY  2
 #define GC_COLOR_BLACK 3
 
-#define GC_KIND_INT8   1
-#define GC_KIND_INT16  2
-#define GC_KIND_INT32  3
-#define GC_KIND_INT64  4
-#define GC_KIND_FLT32  5
-#define GC_KIND_FLT64  6
-#define GC_KIND_OBJECT 7
-#define GC_KIND_VALUE  8
-#define GC_KIND_RAW    9
+#define GC_KIND_ARRAY_INT8   1
+#define GC_KIND_ARRAY_INT64  2
+#define GC_KIND_ARRAY_FLT64  3
+#define GC_KIND_ARRAY_OBJECT 4
+#define GC_KIND_ARRAY_VALUE  5
+#define GC_KIND_OBJECT       6
 
 /* clang-format off */
-#define GC_HEAD LLDqNode gc_link; int gc_size; short gc_age; char gc_color; char gc_kind;
+#define GC_OBJECT_HEAD LLDqNode gc_link; int gc_size; short gc_age; char gc_color; char gc_kind;
 /* clang-format on */
 
-typedef struct _GcHdr {
-    GC_HEAD
-} GcHdr;
+typedef struct _GcObject {
+    GC_OBJECT_HEAD
+} GcObject;
 
 /* clang-format off */
-#define GC_HEAD_INIT(_size, _age, _color) \
+#define GC_OBJECT_INIT(_size, _age, _color) \
     .gc_link = { NULL }, .gc_size = (_size), .gc_age = (_age), .gc_color = (_color)
 
-#define INIT_GC_HEAD(hdr, _size, _age, _color) \
-    (hdr)->gc_size = (_size); (hdr)->gc_age = (_age); (hdr)->gc_color = (_color)
+#define INIT_GC_OBJECT(_obj, _size, _age, _color) \
+    lldq_node_init(&(_obj)->gc_link); (_obj)->gc_size = (_size); \
+    (_obj)->gc_age = (_age); (_obj)->gc_color = (_color)
 /* clang-format on */
 
 extern volatile char *__gc_check_ptr;
@@ -70,13 +68,13 @@ void *_gc_alloc(int size, int perm);
 #define gc_alloc_obj(ptr)   gc_alloc(OBJ_SIZE(ptr))
 #define gc_alloc_obj_p(ptr) gc_alloc_p(OBJ_SIZE(ptr))
 
-#define _gc_mark(obj, _color) ((GcHdr *)(obj))->gc_color = (_color)
+#define _gc_mark(obj, _color) ((GcObject *)(obj))->gc_color = (_color)
 
-static inline void gc_mark_obj(GcHdr *hdr, Queue *que)
+static inline void gc_mark_obj(GcObject *obj, Queue *que)
 {
-    if (hdr->gc_age != -1) {
-        _gc_mark(hdr, GC_COLOR_GRAY);
-        queue_push(que, hdr);
+    if (obj->gc_age != -1) {
+        _gc_mark(obj, GC_COLOR_GRAY);
+        queue_push(que, obj);
     }
 }
 

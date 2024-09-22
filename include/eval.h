@@ -61,8 +61,8 @@ typedef struct _KoalaState {
     /* exception */
     Object *exc;
 
-    /* gc shadow stack */
-    Vector gcroots;
+    /* trace(shadow) stack */
+    Vector trace_stacks;
 
     /* stack pointer */
     Value *stack_ptr;

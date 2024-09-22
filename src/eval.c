@@ -73,8 +73,8 @@ KoalaState *ks_new(void)
     int msize = sizeof(KoalaState) + MAX_STACK_SIZE;
     KoalaState *ks = mm_alloc(msize);
     lldq_node_init(&ks->link);
-    ks->ts = __ts();
-    vector_init_ptr(&ks->gcroots);
+    ks->ts = __ts;
+    vector_init_ptr(&ks->trace_stacks);
     ks->stack_ptr = ks->base_stack_ptr;
     ks->stack_size = MAX_STACK_SIZE;
     return ks;

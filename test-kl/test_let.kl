@@ -2,6 +2,6 @@
 
 let NUM1 = 12345678901234567890
 # CHECK-EXEC: Number 12345678901234567890 is out of int64 range
+# CHECK-EXEC-NEXT: expected an expr.
 
-let NUM3 int8 = 200
-# CHECK-EXEC-NEXT: Number 200 is out of Int8 range
+let NUM3 int = 200

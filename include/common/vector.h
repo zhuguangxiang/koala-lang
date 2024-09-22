@@ -33,6 +33,8 @@ static inline void vector_init(Vector *vec, int obj_size)
     vec->objs = NULL;
 }
 
+#define VECTOR_INIT_PTR { 0, 0, PTR_SIZE, NULL }
+
 #define vector_init_ptr(vec) vector_init(vec, PTR_SIZE)
 
 /* Finalize an vector */

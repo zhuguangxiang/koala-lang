@@ -4,7 +4,7 @@
  */
 
 #include "strobject.h"
-#include "shadowstack.h"
+#include "tracestack.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,21 +22,23 @@ TypeObject str_type = {
 
 Object *kl_new_nstr(const char *s, int len)
 {
-    INIT_GC_STACK();
+    INIT_TRACE_STACK();
 
     StrObject *sobj = gc_alloc_obj(sobj);
     INIT_OBJECT_HEAD(sobj, &str_type);
     sobj->start = 0;
     sobj->end = len;
 
-    GC_STACK_PUSH(sobj);
-    GcHdr *arr = gc_alloc_array(GC_KIND_INT8, len + 1);
+    TRACE_STACK_PUSH(&sobj);
+
+    GcObject *arr = gc_alloc_array(GC_KIND_ARRAY_INT8, len + 1);
     char *data = (char *)(arr + 1);
     memcpy(data, s, len);
     data[len] = '\0';
-    FINI_GC_STACK();
-
     sobj->array = arr;
+
+    FINI_TRACE_STACK();
+
     return (Object *)sobj;
 }
 
@@ -47,7 +49,7 @@ Object *kl_new_fmt_str(const char *fmt, ...)
     va_start(args, fmt);
     int len = vsnprintf(buf, 255, fmt, args);
     va_end(args);
-    buf[255] = '\0';
+    buf[len] = '\0';
     return kl_new_nstr(buf, len);
 }
 
