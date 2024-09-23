@@ -24,9 +24,13 @@ __thread ThreadState *__ts;
 static LLDeque _gs_done_list;
 /* global running KoalaState list */
 static LLDeque _gs_run_list;
+
 /* arguments from prompt */
 static int _gs_argc;
 static char **_gs_argv;
+
+/* system state */
+static volatile int _gs_done;
 
 /* waiting for available KoalaState */
 static pthread_mutex_t _gs_mutex;
@@ -75,9 +79,9 @@ static void *koala_pthread_func(void *arg)
             }
 
             /* suspend at global list */
+            pthread_mutex_lock(&_gs_mutex);
             log_info("Thread-%d is suspended.", ts->id);
             ts->state = TS_WAIT;
-            pthread_mutex_lock(&_gs_mutex);
             int empty = lldq_empty(&_gs_run_list);
             while (empty && ts->state != TS_DONE) {
                 pthread_cond_wait(&_gs_cond, &_gs_mutex);
@@ -102,23 +106,6 @@ static void *koala_pthread_func(void *arg)
     }
 
     log_info("Thread-%d is done.", ts->id);
-
-    /* simulate gc(later delete) */
-#if 0
-    ts->state = TS_RUNNING;
-    int i = 0;
-    while (1) {
-        // sleep(1);
-        gc_check_stw();
-        i++;
-        log_info("Thread-%d is running %d", ts->id, i);
-        if (ts->id == 1) {
-            gc_alloc(50);
-        } else if (ts->id == 2) {
-            gc_alloc(80);
-        }
-    }
-#endif
 }
 
 static void init_threads(int nthreads)
@@ -238,31 +225,26 @@ void kl_run_file(const char *filename)
 void kl_fini(void)
 {
     // signal to all suspended pthread
+    pthread_mutex_lock(&_gs_mutex);
     for (int i = 1; i < __nthreads; i++) {
         ThreadState *ts = _threads + i;
         ts->state = TS_DONE;
     }
-    pthread_mutex_lock(&_gs_mutex);
     pthread_cond_broadcast(&_gs_cond);
     pthread_mutex_unlock(&_gs_mutex);
 
     /* join koala threads */
     for (int i = 1; i < __nthreads; i++) {
         ThreadState *ts = _threads + i;
-        ASSERT(ts->state == TS_DONE);
         pthread_join(ts->pid, NULL);
+        ASSERT(ts->state == TS_DONE);
+        ks_free(ts->current);
     }
 
     ASSERT(lldq_empty(&_gs_run_list));
     ASSERT(lldq_empty(&_gs_done_list));
 
-    __ts->state = TS_DONE;
-    for (int i = 0; i < __nthreads; i++) {
-        ThreadState *ts = _threads + i;
-        ASSERT(ts->state == TS_DONE);
-        ks_free(ts->current);
-    }
-
+    ks_free(__ts->current);
     mm_free(_threads);
 
     fini_gc_system();

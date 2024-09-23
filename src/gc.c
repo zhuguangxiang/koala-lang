@@ -271,142 +271,143 @@ static void *gc_pthread_func(void *arg)
 
     QUEUE(que);
 
-    /* simple fsm */
-    while (1) {
-    main_loop:
-        gc_worker_wait();
-    next:
-        if (_gc_thread_done) break;
-        switch (_gc_state) {
-            case GC_DONE: {
-                if (_failed_major) {
-                    clear_failed();
-                    _switch(GC_FULL);
-                    goto next;
-                } else if (_failed_minor) {
-                    clear_failed();
-                    _switch(GC_MARK_ROOTS);
-                    goto next;
-                } else {
-                    goto main_loop;
-                }
-            }
-            case GC_MARK_ROOTS: {
-                enable_stw();
+/* simple fsm */
+main_loop:
+    if (_gc_thread_done) goto done;
+    gc_worker_wait();
+next:
+    if (_gc_thread_done) goto done;
+    switch (_gc_state) {
+        case GC_DONE: {
+            if (_failed_major) {
                 clear_failed();
-                while (!check_all_threads_stw());
-                enum_all_roots(&que);
-                _switch(GC_CO_MARK);
+                _switch(GC_FULL);
                 goto next;
-            }
-            case GC_CO_MARK: {
-                disable_stw_wakeup_threads();
-                /* ignore minor failed */
-                if (_failed_major) {
-                    _switch(GC_FULL);
-                } else {
-                    _switch(GC_REMARK);
-                }
+            } else if (_failed_minor) {
                 clear_failed();
+                _switch(GC_MARK_ROOTS);
                 goto next;
-            }
-            case GC_REMARK: {
-                enable_stw();
-                clear_failed();
-                while (!check_all_threads_stw());
-                _switch(GC_CO_SWEEP);
-                goto next;
-            }
-            case GC_CO_SWEEP: {
-                disable_stw_wakeup_threads();
-
-                /* ignore minor failed */
-                if (_failed_major) {
-                    clear_failed();
-                    _switch(GC_FULL);
-                    goto next;
-                }
-
-                LLDqNode *node = lldq_pop_head(&_gc_list);
-                while (node) {
-                    GcObject *obj = (GcObject *)node;
-                    if (obj->gc_color == GC_COLOR_WHITE) {
-                        free_obj(obj);
-                    } else if (obj->gc_color == GC_COLOR_BLACK) {
-                        _gc_mark(obj, GC_COLOR_WHITE);
-                        gc_incr_age(obj);
-                    } else {
-                        ASSERT(0);
-                    }
-
-                    if (_failed_major) {
-                        clear_failed();
-                        _switch(GC_FULL);
-                        goto next;
-                    }
-
-                    node = lldq_pop_head(&_gc_list);
-                }
-
-                node = lldq_pop_head(&_gc_remark_list);
-                while (node) {
-                    GcObject *obj = (GcObject *)node;
-                    ASSERT(obj->gc_color == GC_COLOR_BLACK);
-                    _gc_mark(obj, GC_COLOR_WHITE);
-                    gc_incr_age(obj);
-                    lldq_push_tail(&_gc_list, node);
-
-                    if (_failed_major) {
-                        clear_failed();
-                        _switch(GC_FULL);
-                        goto next;
-                    }
-
-                    node = lldq_pop_head(&_gc_remark_list);
-                }
-
-                _switch(GC_DONE);
-                goto next;
-            }
-            case GC_FULL: {
-                enable_stw();
-                clear_failed();
-                while (!check_all_threads_stw());
-
-                LLDqNode *node = lldq_pop_head(&_gc_list);
-                while (node) {
-                    GcObject *obj = (GcObject *)node;
-                    if (obj->gc_color == GC_COLOR_WHITE) {
-                        free_obj(obj);
-                    } else if (obj->gc_color == GC_COLOR_BLACK) {
-                        _gc_mark(obj, GC_COLOR_WHITE);
-                        gc_incr_age(obj);
-                    } else {
-                        ASSERT(0);
-                    }
-                    node = lldq_pop_head(&_gc_list);
-                }
-
-                node = lldq_pop_head(&_gc_remark_list);
-                while (node) {
-                    GcObject *obj = (GcObject *)node;
-                    ASSERT(obj->gc_color == GC_COLOR_BLACK);
-                    _gc_mark(obj, GC_COLOR_WHITE);
-                    gc_incr_age(obj);
-                    lldq_push_tail(&_gc_list, node);
-                    node = lldq_pop_head(&_gc_remark_list);
-                }
-
-                _switch(GC_DONE);
-                disable_stw_wakeup_threads();
-                goto next;
-            }
-            default: {
-                ASSERT(0);
-                break;
+            } else {
+                goto main_loop;
             }
         }
+        case GC_MARK_ROOTS: {
+            enable_stw();
+            clear_failed();
+            while (!check_all_threads_stw());
+            enum_all_roots(&que);
+            _switch(GC_CO_MARK);
+            goto next;
+        }
+        case GC_CO_MARK: {
+            disable_stw_wakeup_threads();
+            /* ignore minor failed */
+            if (_failed_major) {
+                _switch(GC_FULL);
+            } else {
+                _switch(GC_REMARK);
+            }
+            clear_failed();
+            goto next;
+        }
+        case GC_REMARK: {
+            enable_stw();
+            clear_failed();
+            while (!check_all_threads_stw());
+            _switch(GC_CO_SWEEP);
+            goto next;
+        }
+        case GC_CO_SWEEP: {
+            disable_stw_wakeup_threads();
+
+            /* ignore minor failed */
+            if (_failed_major) {
+                clear_failed();
+                _switch(GC_FULL);
+                goto next;
+            }
+
+            LLDqNode *node = lldq_pop_head(&_gc_list);
+            while (node) {
+                GcObject *obj = (GcObject *)node;
+                if (obj->gc_color == GC_COLOR_WHITE) {
+                    free_obj(obj);
+                } else if (obj->gc_color == GC_COLOR_BLACK) {
+                    _gc_mark(obj, GC_COLOR_WHITE);
+                    gc_incr_age(obj);
+                } else {
+                    ASSERT(0);
+                }
+
+                if (_failed_major) {
+                    clear_failed();
+                    _switch(GC_FULL);
+                    goto next;
+                }
+
+                node = lldq_pop_head(&_gc_list);
+            }
+
+            node = lldq_pop_head(&_gc_remark_list);
+            while (node) {
+                GcObject *obj = (GcObject *)node;
+                ASSERT(obj->gc_color == GC_COLOR_BLACK);
+                _gc_mark(obj, GC_COLOR_WHITE);
+                gc_incr_age(obj);
+                lldq_push_tail(&_gc_list, node);
+
+                if (_failed_major) {
+                    clear_failed();
+                    _switch(GC_FULL);
+                    goto next;
+                }
+
+                node = lldq_pop_head(&_gc_remark_list);
+            }
+
+            _switch(GC_DONE);
+            goto next;
+        }
+        case GC_FULL: {
+            enable_stw();
+            clear_failed();
+            while (!check_all_threads_stw());
+
+            LLDqNode *node = lldq_pop_head(&_gc_list);
+            while (node) {
+                GcObject *obj = (GcObject *)node;
+                if (obj->gc_color == GC_COLOR_WHITE) {
+                    free_obj(obj);
+                } else if (obj->gc_color == GC_COLOR_BLACK) {
+                    _gc_mark(obj, GC_COLOR_WHITE);
+                    gc_incr_age(obj);
+                } else {
+                    ASSERT(0);
+                }
+                node = lldq_pop_head(&_gc_list);
+            }
+
+            node = lldq_pop_head(&_gc_remark_list);
+            while (node) {
+                GcObject *obj = (GcObject *)node;
+                ASSERT(obj->gc_color == GC_COLOR_BLACK);
+                _gc_mark(obj, GC_COLOR_WHITE);
+                gc_incr_age(obj);
+                lldq_push_tail(&_gc_list, node);
+                node = lldq_pop_head(&_gc_remark_list);
+            }
+
+            _switch(GC_DONE);
+            disable_stw_wakeup_threads();
+            goto next;
+        }
+        default: {
+            ASSERT(0);
+            break;
+        }
     }
+
+done:
 
     ASSERT(__ts == NULL);
     log_info("[Collector]done");
@@ -465,7 +466,6 @@ void init_gc_system(size_t max_mem_size, double factor)
 void fini_gc_system(void)
 {
     _gc_thread_done = 1;
-    while (_gc_state != GC_DONE);
     gc_worker_wakeup();
     pthread_join(_gc_pid, NULL);
 
