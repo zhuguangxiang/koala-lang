@@ -57,6 +57,7 @@
         "Ljava",
         "lldq",
         "LNOT",
+        "lptr",
         "LSRA",
         "Monaspace",
         "mptr",
@@ -111,7 +112,7 @@
     "notebook.insertFinalNewline": true,
     "editor.fontWeight": "400",
     "debug.console.fontFamily": "'JetBrains Mono'",
-    "editor.fontSize": 15.5,
+    "editor.fontSize": 15,
     "editor.scrollbar.verticalScrollbarSize": 7,
     "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
