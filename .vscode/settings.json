@@ -99,7 +99,8 @@
         "yyps",
         "yyscan",
         "yyset",
-        "yytext"
+        "yytext",
+        "zhuguangxiang"
     ],
     "editor.fontFamily": "'Victor Mono', 'JetBrains Mono', 'Monaspace Neon'",
     "editor.fontLigatures": "'calt', 'ss01', 'ss02', 'ss03', 'ss04', 'ss05', 'ss06', 'ss07', 'ss08', 'ss09', 'liga'",
@@ -112,7 +113,7 @@
     "notebook.insertFinalNewline": true,
     "editor.fontWeight": "400",
     "debug.console.fontFamily": "'JetBrains Mono'",
-    "editor.fontSize": 15,
+    "editor.fontSize": 13,
     "editor.scrollbar.verticalScrollbarSize": 7,
     "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
@@ -128,7 +129,7 @@
             }
         ]
     },
-    "terminal.integrated.fontSize": 15.5,
+    "terminal.integrated.fontSize": 13,
     "cmake.buildDirectory": "${workspaceFolder}/build/debug",
     "cmake.options.statusBarVisibility": "icon",
     "editor.cursorSurroundingLines": 0,

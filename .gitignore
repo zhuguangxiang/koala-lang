@@ -7,3 +7,5 @@ build/
 cspell.json
 out/
 *.dot
+*.klc
+*.tag
