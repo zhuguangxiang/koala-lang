@@ -3,7 +3,7 @@
 ## About Memory
 reference: https://en.wikipedia.org/wiki/Garbage_collection_(computer_science)
  - How to mange object's life cycle in c extension code?
- There is such scenario: 
+ There is such scenario:
  VM -> C -> VM -> C ....
  - Partial Mark Sweep in C for free memory quickly
 	 - which is root object?
@@ -48,7 +48,7 @@ reference: https://en.wikipedia.org/wiki/Garbage_collection_(computer_science)
 	a := b as Sub-Type
 	```
 	- for-in
-		- translate into for int i =0; i < len; i++ or 
+		- translate into for int i =0; i < len; i++ or
 		- slower iter() and next()
 	- if-let
 	```
@@ -150,12 +150,12 @@ classDiagram
 		<<interface>>
 		+__iter__() Iterator~T~
 	}
-	
+
 	class Iterator~T~ {
 		<<interface>>
 		+__next__() Option~T~
 	}
-	
+
 	class Collection~T~ {
 		<<interface>>
 		+__iter__() Iterator~T~
@@ -170,8 +170,8 @@ classDiagram
 	}
 ```
 ```
-Iterable  
-├── Collection  
+Iterable
+├── Collection
 │		├── List(ArrayList)
 │		├── LinkedList
 │		├── Set
@@ -188,8 +188,4 @@ reduce()
 ## fat pointer and virtual table
 ## hot methods and cache
 - call site cache
-- 
 ## tradeoff between static-typed and dynamic-typed language
-<!--stackedit_data:
-eyJoaXN0b3J5IjpbMTA1OTYyNzNdfQ==
--->
