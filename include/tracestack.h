@@ -13,26 +13,39 @@ extern "C" {
 #endif
 
 /* trace shadow stack */
-
 typedef struct _TraceStack {
+    struct _TraceStack *back;
     const char *fname;
-    Vector gc_stk;
+    int avail;
+    int size;
+    void **obj_p[0];
 } TraceStack;
 
 /* clang-format off */
 
-#define INIT_TRACE_STACK() \
-    KoalaState *__trace_ks = __ks(); \
-    TraceStack __trace_stk = {__FUNCTION__, VECTOR_INIT_PTR}; \
-    TraceStack *__trace_stk_p = &__trace_stk; \
-    vector_push_back(&__trace_ks->trace_stacks, &__trace_stk_p)
+#define TRACE_STACK(n) struct { \
+    TraceStack trace; \
+    void **obj_p[n]; \
+}
 
-#define TRACE_STACK_PUSH(obj) vector_push_back(&__trace_stk.gc_stk, (obj))
+#define INIT_TRACE_STACK(n) \
+    KoalaState *_ks = __ks(); \
+    TRACE_STACK(n) _stk = {{NULL, __FUNCTION__, 0, (n)}}; \
+    do { \
+        _stk.trace.back = _ks->trace_stacks; \
+        _ks->trace_stacks = &_stk.trace; \
+    } while (0)
 
-/* remove traced objects from cfunc frame */
-#define FINI_TRACE_STACK() \
-    vector_pop_back(&__trace_ks->trace_stacks, NULL); \
-    vector_fini(&__trace_stk.gc_stk)
+#define TRACE_STACK_PUSH(obj) do { \
+    TraceStack *_ts = &_stk.trace; \
+    ASSERT(_ts->avail < _ts->size); \
+    _ts->obj_p[_ts->avail++] = (void **)(obj); \
+} while (0)
+
+/* remove trace stack from cfunc frame */
+#define FINI_TRACE_STACK() do { \
+    _ks->trace_stacks = _stk.trace.back; \
+} while (0)
 
 /* clang-format on */
 

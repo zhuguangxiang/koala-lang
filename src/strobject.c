@@ -10,7 +10,10 @@
 extern "C" {
 #endif
 
-static void str_gc_mark(StrObject *obj, Queue *que) { gc_mark_obj(obj->array, que); }
+static void str_gc_mark(StrObject *obj, Queue *que)
+{
+    if (obj->array) gc_mark_obj((GcObject *)obj->array, que);
+}
 
 TypeObject str_type = {
     OBJECT_HEAD_INIT(&type_type),
@@ -22,7 +25,7 @@ TypeObject str_type = {
 
 Object *kl_new_nstr(const char *s, int len)
 {
-    INIT_TRACE_STACK();
+    INIT_TRACE_STACK(1);
 
     StrObject *sobj = gc_alloc_obj(sobj);
     INIT_OBJECT_HEAD(sobj, &str_type);
@@ -31,7 +34,7 @@ Object *kl_new_nstr(const char *s, int len)
 
     TRACE_STACK_PUSH(&sobj);
 
-    GcObject *arr = gc_alloc_array(GC_KIND_ARRAY_INT8, len + 1);
+    GcArrayObject *arr = gc_alloc_array(GC_KIND_ARRAY_INT8, len + 1);
     char *data = (char *)(arr + 1);
     memcpy(data, s, len);
     data[len] = '\0';

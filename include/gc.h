@@ -32,6 +32,11 @@ typedef struct _GcObject {
     GC_OBJECT_HEAD
 } GcObject;
 
+typedef struct _GcArrayObject {
+    GC_OBJECT_HEAD
+    int gc_num_objs;
+} GcArrayObject;
+
 /* clang-format off */
 #define GC_OBJECT_INIT(_size, _age, _color) \
     .gc_link = { NULL }, .gc_size = (_size), .gc_age = (_age), .gc_color = (_color)
@@ -41,12 +46,12 @@ typedef struct _GcObject {
     (_obj)->gc_age = (_age); (_obj)->gc_color = (_color)
 /* clang-format on */
 
-extern volatile char *__gc_check_ptr;
+extern volatile char *_gc_check_ptr;
 
 /* This will trigger segment fault, if gc has no memory. */
 static inline void gc_check_stw(void)
 {
-    char v = *__gc_check_ptr;
+    char v = *_gc_check_ptr;
     UNUSED(v);
 }
 
@@ -74,6 +79,8 @@ void *_gc_alloc(int size, int perm);
 
 static inline void gc_mark_obj(GcObject *obj, Queue *que)
 {
+    ASSERT(obj);
+
     if (obj->gc_age != -1) {
         _gc_mark(obj, GC_COLOR_GRAY);
         queue_push(que, obj);

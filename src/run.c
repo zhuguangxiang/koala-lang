@@ -8,6 +8,7 @@
 #include "eval.h"
 #include "log.h"
 #include "mm.h"
+#include "tracestack.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -156,7 +157,7 @@ void kl_init(int argc, char *argv[])
     _gs_argv = argv;
 
     /* init koala threads */
-    init_threads(2);
+    init_threads(1);
 
     /* init koala builtin & sys module */
     KoalaState *ks = __ks();
@@ -271,10 +272,26 @@ static void enum_koala_state(Queue *que, KoalaState *ks)
 {
     if (!ks) return;
 
-    Value *v;
-    for (int i = 0; i < ks->stack_size; i++) {
-        v = ks->base_stack_ptr + i;
-        gc_mark_value(v, que);
+    CallFrame *cf = ks->cf;
+    while (cf) {
+        int size = cf->local_size + cf->stack_size;
+        Value *v;
+        for (int i = 0; i < size; i++) {
+            v = cf->local_stack + i;
+            gc_mark_value(v, que);
+        }
+        cf = cf->back;
+    }
+
+    /* enumerate trace shadow stack */
+    TraceStack *trace = ks->trace_stacks;
+    while (trace) {
+        void **obj_p;
+        for (int i = 0; i < trace->avail; i++) {
+            obj_p = trace->obj_p[i];
+            gc_mark_obj(*obj_p, que);
+        }
+        trace = trace->back;
     }
 }
 

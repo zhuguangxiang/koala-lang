@@ -16,6 +16,7 @@ extern "C" {
 /* forward declaration */
 struct _KoalaState;
 struct _ThreadState;
+struct _TraceStack;
 
 /* call stack frame information */
 typedef struct _CallFrame {
@@ -62,17 +63,17 @@ typedef struct _KoalaState {
     Object *exc;
 
     /* trace(shadow) stack */
-    Vector trace_stacks;
+    struct _TraceStack *trace_stacks;
 
-    /* stack pointer */
-    Value *stack_ptr;
+    /* stack top pointer */
+    char *stack_top_ptr;
     /* depth of call frames */
     int depth;
 
     /* stack size */
     int stack_size;
     /* base stack pointer */
-    Value base_stack_ptr[0];
+    char base_stack_ptr[0];
 } KoalaState;
 
 Value kl_eval_code(Object *code, Value *args, int nargs);

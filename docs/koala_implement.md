@@ -17,9 +17,9 @@ reference: https://en.wikipedia.org/wiki/Garbage_collection_(computer_science)
  - C -> C
 	 - The caller is responsible for the arguments objects. The callee don't care about them.
  - escape objects
-	 - When an object is used only in current c function or limited called functions, this object can be allocaed in Trace Stack and is freed after current track stack freed automatically.
+	 - When an object is used only in current c function or limited called functions, this object can be allocated in Trace Stack and is freed after current track stack freed automatically.
  - Others
-## Concurent Execution and  Multi-Thread
+## Concurrent Execution and  Multi-Thread
  - Light-Weight Thread or User space thread
  - pthread time-sharing, like python?
 	- Global Lock for multi-pthread
@@ -110,7 +110,7 @@ reference: https://en.wikipedia.org/wiki/Garbage_collection_(computer_science)
 	- none
  - Error
 	- system will raise exception
-	- all exceptions are not catched, like rust panic
+	- all exceptions are not cached, like rust panic
 	- print traceback
  - Abstract Data Type
 	- Sequence

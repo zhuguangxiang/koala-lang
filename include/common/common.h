@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,9 +85,13 @@ extern "C" {
 
 #define FFS(x) ({ int v = __builtin_ffs(x); ASSERT(v > 0); v; })
 
-#define panic(fmt, ...) do {    \
-    printf(fmt "\n", ##__VA_ARGS__); \
-    abort();                    \
+#define panic(fmt, ...) do { \
+    if (isatty(fileno(stdout))) { \
+        printf("\x1b[31mpanic:\x1b[0m " fmt "\n", ##__VA_ARGS__); \
+    } else { \
+        printf("panic: " fmt "\n", ##__VA_ARGS__); \
+    } \
+    exit(-1); \
 } while (0)
 
 /* clang-format on */

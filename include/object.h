@@ -34,6 +34,7 @@ typedef struct _Object {
 
 typedef struct _Value {
     union {
+        uint32_t cval;
         int64_t ival;
         double fval;
         void *obj;
@@ -41,24 +42,27 @@ typedef struct _Value {
     int tag;
 } Value;
 
-#define VAL_TAG_OBJ  1
-#define VAL_TAG_INT  2
-#define VAL_TAG_FLT  3
-#define VAL_TAG_NONE 4
-#define VAL_TAG_ERR  5
+#define VAL_TAG_OBJ   1
+#define VAL_TAG_INT   2
+#define VAL_TAG_FLOAT 3
+#define VAL_TAG_CHAR  4
+#define VAL_TAG_NONE  5 // no value(null or void)
+#define VAL_TAG_ERROR 6 // nothing type
 
 #define IS_OBJ(x)   ((x)->tag == VAL_TAG_OBJ)
 #define IS_INT(x)   ((x)->tag == VAL_TAG_INT)
-#define IS_FLOAT(x) ((x)->tag == VAL_TAG_FLT)
+#define IS_FLOAT(x) ((x)->tag == VAL_TAG_FLOAT)
+#define IS_CHAR(x)  ((x)->tag == VAL_TAG_CHAR)
 #define IS_NONE(x)  ((x)->tag == VAL_TAG_NONE)
-#define IS_ERROR(x) ((x)->tag == VAL_TAG_ERR)
+#define IS_ERROR(x) ((x)->tag == VAL_TAG_ERROR)
 
 /* clang-format off */
-#define ObjValue(x) (Value){ .tag = VAL_TAG_OBJ, .obj = (x)  }
-#define IntValue(x) (Value){ .tag = VAL_TAG_INT, .ival = (x) }
-#define FltValue(x) (Value){ .tag = VAL_TAG_FLT, .fval = (x) }
-#define NoneValue   (Value){ .tag = VAL_TAG_NONE }
-#define ErrorValue  (Value){ .tag = VAL_TAG_ERR  }
+#define ObjValue(x)   (Value){ .tag = VAL_TAG_OBJ,   .obj  = (x) }
+#define IntValue(x)   (Value){ .tag = VAL_TAG_INT,   .ival = (x) }
+#define FloatValue(x) (Value){ .tag = VAL_TAG_FLOAT, .fval = (x) }
+#define CharValue(x)  (Value){ .tag = VAL_TAG_CHAR,  .cval = (x) }
+#define NoneValue     (Value){ .tag = VAL_TAG_NONE }
+#define ErrorValue    (Value){ .tag = VAL_TAG_ERROR }
 /* clang-format on */
 
 static inline void gc_mark_value(Value *val, Queue *que)
@@ -178,6 +182,12 @@ typedef struct _TypeObject {
     HashMap *vtbl;
 
 } TypeObject;
+
+typedef struct _Arguments {
+    Value *args;
+    int nargs;
+    Object *kwargs;
+} Arguments;
 
 extern TypeObject type_type;
 TypeObject *value_type(Value *val);

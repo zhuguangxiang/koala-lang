@@ -19,7 +19,7 @@ extern "C" {
 /*------------------------------------DATA-----------------------------------*/
 
 /* max stack size */
-#define MAX_STACK_SIZE (64 * 1024)
+#define MAX_STACK_SIZE (16 * 64 * 1024)
 
 /* max call depth, stop for this limit */
 #define MAX_CALL_DEPTH 10000
@@ -44,8 +44,8 @@ static void _copy_arguments(CallFrame *cf, Value *args, int nargs)
 
 static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
 {
-    CallFrame *cf = (CallFrame *)ks->stack_ptr;
-    ks->stack_ptr = (Value *)((char *)ks->stack_ptr + sizeof(*cf));
+    CallFrame *cf = (CallFrame *)ks->stack_top_ptr;
+    ks->stack_top_ptr = ks->stack_top_ptr + sizeof(*cf);
 
     cf->code = code;
     cf->module = code->module;
@@ -54,8 +54,8 @@ static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
     cf->local_size = nlocals;
     cf->stack_size = stack_size;
     cf->stack = cf->local_stack + nlocals;
-    ks->stack_ptr += (nlocals + stack_size);
-    ASSERT((char *)ks->stack_ptr < (char *)ks->base_stack_ptr + ks->stack_size);
+    ks->stack_top_ptr += sizeof(Value) * (nlocals + stack_size);
+    ASSERT(ks->stack_top_ptr <= ks->base_stack_ptr + ks->stack_size);
 
     return cf;
 }
@@ -63,19 +63,18 @@ static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
 static void _pop_frame(KoalaState *ks, CallFrame *cf)
 {
     /* shrink stack */
-    ks->stack_ptr = (Value *)((char *)ks->stack_ptr - sizeof(*cf));
-    ks->stack_ptr -= (cf->stack_size + cf->local_size);
-    ASSERT(ks->stack_ptr >= ks->base_stack_ptr);
+    ks->stack_top_ptr -= sizeof(*cf) + sizeof(Value) * (cf->stack_size + cf->local_size);
+    ASSERT(ks->stack_top_ptr >= ks->base_stack_ptr);
 }
 
 KoalaState *ks_new(void)
 {
-    int msize = sizeof(KoalaState) + sizeof(Value) * MAX_STACK_SIZE;
+    int msize = sizeof(KoalaState) + MAX_STACK_SIZE;
     KoalaState *ks = mm_alloc(msize);
     lldq_node_init(&ks->link);
     ks->ts = __ts;
-    vector_init_ptr(&ks->trace_stacks);
-    ks->stack_ptr = ks->base_stack_ptr;
+    ks->trace_stacks = NULL;
+    ks->stack_top_ptr = ks->base_stack_ptr;
     ks->stack_size = MAX_STACK_SIZE;
     return ks;
 }
@@ -84,8 +83,7 @@ void ks_free(KoalaState *ks)
 {
     if (!ks) return;
     ASSERT(!ks->cf);
-    ASSERT(vector_empty(&ks->trace_stacks));
-    vector_fini(&ks->trace_stacks);
+    ASSERT(ks->trace_stacks == NULL);
     mm_free(ks);
 }
 

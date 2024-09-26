@@ -16,7 +16,7 @@ typedef struct _StrObject {
     OBJECT_HEAD
     int start;
     int end;
-    GcObject *array;
+    GcArrayObject *array;
 } StrObject;
 
 extern TypeObject str_type;

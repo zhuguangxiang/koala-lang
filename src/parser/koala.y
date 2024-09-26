@@ -165,7 +165,6 @@ static void free_map_list(Vector *vec)
 %type<stmt> prefix_method_decl
 %type<stmt> trait_decl
 %type<stmt> proto_decl
-%type<stmt> prefix_proto_decl
 %type<stmt> class_decl
 
 %type<expr> expr
@@ -222,7 +221,6 @@ static void free_map_list(Vector *vec)
 %type<vec> field_list
 %type<vec> method_list
 %type<vec> trait_members_or_empty
-%type<vec> proto_list
 %type<vec> type_param_decl_list
 
 %token<sval> ID
@@ -1104,31 +1102,9 @@ trait_members_or_empty
     {
         $$ = NULL;
     }
-    | proto_list
+    | method_list
     {
-        $$ = $1;
-    }
-    ;
-
-proto_list
-    : prefix_proto_decl
-    {
-
-    }
-    | proto_list prefix_proto_decl
-    {
-
-    }
-    ;
-
-prefix_proto_decl
-    : proto_decl
-    {
-        $$ = $1;
-    }
-    | prefix proto_decl
-    {
-        $$ = $2;
+        $$ = NULL;
     }
     ;
 

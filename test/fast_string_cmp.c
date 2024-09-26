@@ -15,7 +15,7 @@ int fast_compare(const char *ptr0, const char *ptr1, int len)
     int offset = (fast - 1) * sizeof(size_t);
     int current_block = 0;
 
-    if (len <= sizeof(size_t)) {
+    if (len <= (int)sizeof(size_t)) {
         fast = 0;
     }
 

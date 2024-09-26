@@ -23,6 +23,13 @@ static Value _hello(Value *self, Value *args, int nargs)
     ASSERT(nargs == 0);
     printf("hello, world\n");
     Object *v = kl_new_str("hello");
+    printf("str: %p\n", v);
+    printf("again: hello, world\n");
+    v = kl_new_str("world");
+    StrObject *sobj = (StrObject *)v;
+    printf("str: %s\n", (char *)(sobj->array + 1));
+    // panic: no more memory for 330B
+    // v = kl_new_str("world121");
     return NoneValue;
 }
 

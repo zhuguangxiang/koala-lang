@@ -26,10 +26,11 @@ static const char *_gc_state_strs[] = {
 
 /* We use like JVM solution to stop the mutators. */
 static int _pagesize;
-volatile char *__gc_check_ptr;
+volatile char *_gc_check_ptr;
 
 /* gc state */
 static volatile GcState _gc_state;
+static int _full_gc;
 
 /* alloc failed reason */
 static volatile int _failed_minor;
@@ -92,7 +93,7 @@ static inline void enable_stw(void)
 {
     pthread_mutex_lock(&_mutator_wait_mutex);
     _mutator_wait_flag = 1;
-    mprotect((void *)__gc_check_ptr, _pagesize, PROT_NONE);
+    mprotect((void *)_gc_check_ptr, _pagesize, PROT_NONE);
     pthread_mutex_unlock(&_mutator_wait_mutex);
     log_info("[Collector][%s]Enable STW", _gc_state_strs[_gc_state]);
 }
@@ -103,7 +104,7 @@ static inline void disable_stw_wakeup_threads(void)
 
     log_info("[Collector][%s]Disable STW and wakeup mutators", _gc_state_strs[_gc_state]);
     _mutator_wait_flag = 0;
-    mprotect((void *)__gc_check_ptr, _pagesize, PROT_READ);
+    mprotect((void *)_gc_check_ptr, _pagesize, PROT_READ);
     pthread_cond_broadcast(&_mutator_wait_cond);
 
     pthread_mutex_unlock(&_mutator_wait_mutex);
@@ -116,7 +117,7 @@ static void *free_obj(GcObject *obj)
     pthread_spin_lock(&_gc_spin_lock);
     _gc_used_size -= obj->gc_size;
     pthread_spin_unlock(&_gc_spin_lock);
-    mm_free(obj);
+    free(obj);
 }
 
 static GcObject *alloc_obj(int size, int minor, int perm)
@@ -129,20 +130,23 @@ static GcObject *alloc_obj(int size, int minor, int perm)
     size_t used = _gc_used_size + size;
 
     if (used >= _gc_max_size) {
-        log_info("[Mutator]Thread-%d failed, Major, used: %ld", ts->id, used);
+        log_info("[Mutator]Thread-%d failed, Major, used: %ld(%ld), obj-size: %d", ts->id,
+                 _gc_used_size, _gc_max_size, size);
         ++_failed_major;
         goto exit;
-    } else if (minor && used >= _gc_minor_size) {
-        log_info("[Mutator]Thread-%d failed, Minor, used: %ld", ts->id, used);
-        ++_failed_minor;
-        goto exit;
+        // } else if (minor && used >= _gc_minor_size) {
+        //     log_info("[Mutator]Thread-%d failed, Minor, used: %ld(%ld-%ld), obj-size:
+        //     %d",
+        //              ts->id, _gc_used_size, _gc_minor_size, _gc_max_size, size);
+        //     ++_failed_minor;
+        //     goto exit;
     } else {
         /* use memory normally */
         _gc_used_size = used;
         pthread_spin_unlock(&_gc_spin_lock);
     }
 
-    GcObject *obj = malloc(size);
+    GcObject *obj = calloc(1, size);
     ASSERT(obj);
     lldq_node_init(&obj->gc_link);
     obj->gc_size = size;
@@ -152,23 +156,27 @@ static GcObject *alloc_obj(int size, int minor, int perm)
         obj->gc_age = -1;
         obj->gc_color = GC_COLOR_WHITE;
         lldq_push_tail(&_gc_perm_list, &obj->gc_link);
-        log_info("[Mutator]Thread-%d, permanent object, size: %ld", ts->id, size);
+        log_info("[Mutator]Thread-%d, successful, permanent, size: %ld", ts->id, size);
     } else {
         obj->gc_age = 0;
         if (_gc_state == GC_DONE) {
             obj->gc_color = GC_COLOR_WHITE;
             lldq_push_tail(&_gc_list, &obj->gc_link);
+            log_info("[Mutator]Thread-%d, successful, WHITE, size: %ld", ts->id, size);
         } else {
+            ASSERT(_gc_state == GC_CO_MARK || _gc_state == GC_CO_SWEEP);
             obj->gc_color = GC_COLOR_BLACK;
             lldq_push_tail(&_gc_remark_list, &obj->gc_link);
+            log_info("[Mutator]Thread-%d, successful, BLACK, size: %ld", ts->id, size);
         }
     }
-
-    log_info("[Mutator]Thread-%d, successful, size: %ld", ts->id, size);
 
     return obj;
 
 exit:
+    // TODO: STW firstly
+    ++_failed_major;
+    _failed_minor = 0;
     pthread_spin_unlock(&_gc_spin_lock);
     return NULL;
 }
@@ -188,7 +196,16 @@ void *_gc_alloc(int size, int perm)
             case GC_DONE: {
                 /* normal case */
                 obj = alloc_obj(mm_size, 1, perm);
-                if (!obj) goto suspend;
+                if (!obj) {
+                    if (_full_gc) {
+                        _full_gc = 0;
+                        panic(
+                            "gc memory(used: %ld/%ld, request: %d) is too small and "
+                            "cannot allocate more objects.",
+                            _gc_used_size, _gc_max_size, mm_size);
+                    }
+                    goto suspend;
+                }
                 goto done;
             }
             case GC_CO_MARK: /* fall-through */
@@ -234,9 +251,10 @@ void *gc_alloc_array(char kind, size_t len)
         sizeof(Value),
     };
     ASSERT(kind >= GC_KIND_ARRAY_INT8 && kind <= GC_KIND_ARRAY_VALUE);
-    int size = sizeof(GcObject) + len * sizes[kind];
-    GcObject *obj = gc_alloc(size);
+    int size = sizeof(GcArrayObject) + len * sizes[kind];
+    GcArrayObject *obj = gc_alloc(size);
     obj->gc_kind = kind;
+    obj->gc_num_objs = len;
     return obj;
 }
 
@@ -249,7 +267,7 @@ static void gc_segment_fault_handler(int sig, siginfo_t *si, void *unused)
 
     log_warn("[Mutator][Signal]Thread-%d got SIGSEGV at address: %p", ts->id,
              si->si_addr);
-    if (si->si_addr != __gc_check_ptr) {
+    if (si->si_addr != _gc_check_ptr) {
         log_fatal("Segmentation fault\n");
         abort();
     }
@@ -263,6 +281,22 @@ static void gc_segment_fault_handler(int sig, siginfo_t *si, void *unused)
 
     ts->state = TS_RUNNING;
     log_info("[Mutator][Signal]Thread-%d is running", ts->id);
+}
+
+static void _gc_mark_array_obj(GcObject *obj, Queue *que)
+{
+    GcArrayObject *arr = (GcArrayObject *)obj;
+    if (arr->gc_kind == GC_KIND_ARRAY_OBJECT) {
+        GcObject *objs = (GcObject *)(arr + 1);
+        for (int i = 0; i < arr->gc_num_objs; i++) {
+            gc_mark_obj(objs + i, que);
+        }
+    } else if (arr->gc_kind == GC_KIND_ARRAY_VALUE) {
+        Value *values = (Value *)(arr + 1);
+        for (int i = 0; i < arr->gc_num_objs; i++) {
+            gc_mark_value(values + i, que);
+        }
+    }
 }
 
 static void *gc_pthread_func(void *arg)
@@ -372,6 +406,19 @@ next:
             enable_stw();
             clear_failed();
             while (!check_all_threads_stw());
+            log_info("all mutators are stoped");
+            enum_all_roots(&que);
+            while (!queue_empty(&que)) {
+                GcObject *obj = queue_pop(&que);
+                _gc_mark(obj, GC_COLOR_BLACK);
+                if (obj->gc_kind == GC_KIND_OBJECT) {
+                    TypeObject *tp = OB_TYPE(obj);
+                    ASSERT(tp->mark);
+                    tp->mark((Object *)obj, &que);
+                } else {
+                    _gc_mark_array_obj(obj, &que);
+                }
+            }
 
             LLDqNode *node = lldq_pop_head(&_gc_list);
             while (node) {
@@ -386,17 +433,9 @@ next:
                 }
                 node = lldq_pop_head(&_gc_list);
             }
-
-            node = lldq_pop_head(&_gc_remark_list);
-            while (node) {
-                GcObject *obj = (GcObject *)node;
-                ASSERT(obj->gc_color == GC_COLOR_BLACK);
-                _gc_mark(obj, GC_COLOR_WHITE);
-                gc_incr_age(obj);
-                lldq_push_tail(&_gc_list, node);
-                node = lldq_pop_head(&_gc_remark_list);
-            }
-
+            log_info("used: %ld(%ld)", _gc_used_size, _gc_max_size);
+            ASSERT(lldq_empty(&_gc_remark_list));
+            _full_gc = 1;
             _switch(GC_DONE);
             disable_stw_wakeup_threads();
             goto next;
@@ -422,7 +461,7 @@ void init_gc_system(size_t max_mem_size, double factor)
         perror("mmap");
         exit(-1);
     }
-    __gc_check_ptr = addr;
+    _gc_check_ptr = addr;
 
     /* prepare segment fault handler */
     struct sigaction sa = { 0 };
@@ -469,7 +508,7 @@ void fini_gc_system(void)
     gc_worker_wakeup();
     pthread_join(_gc_pid, NULL);
 
-    munmap((void *)__gc_check_ptr, _pagesize);
+    munmap((void *)_gc_check_ptr, _pagesize);
 
     GcObject *gc_obj = (GcObject *)lldq_pop_head(&_gc_list);
     while (gc_obj) {
