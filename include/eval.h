@@ -81,19 +81,6 @@ Value kl_eval_code(Object *code, Value *args, int nargs);
 KoalaState *ks_new(void);
 void ks_free(KoalaState *ks);
 
-/* c extension function call context */
-typedef struct _CallContext {
-    /* current task state */
-    KoalaState *ks;
-    /* all arguments passed by caller */
-    Value *args;
-    /* number of only positional arguments,
-    The kwargs are started at args + nargs */
-    int nargs;
-    /* keyword argument names */
-    Value *kwnames;
-} CallContext;
-
 #ifdef __cplusplus
 }
 #endif

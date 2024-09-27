@@ -3,7 +3,8 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "eval.h"
+#include "object.h"
+#include "tracestack.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,6 +23,9 @@ typedef struct _CallSiteCache {
     MethodCache caches[8];
 } CallSiteCache;
 
+// kl_call_lookup
+// kl_call_cache
+// kl_call_index
 static Object *lookup_method_from_cache(CallSiteCache *cache, Object *self,
                                         const char *name)
 {
@@ -29,24 +33,42 @@ static Object *lookup_method_from_cache(CallSiteCache *cache, Object *self,
     }
 }
 
+Value object_call_index_method_arg(Object *self, int index, Object *arg)
+{
+    Value args[] = { self, arg };
+    object_call(meth, args, 2);
+}
+
+int object_format(Object *buf, const char *fmt, Object *obj)
+{
+    Object *fmt = kl_new_format(buf, fmt);
+    INIT_TRACE_STACK(1);
+    TRACE_STACK_PUSH(fmt);
+    Value r = object_call_index_method(obj, 2, fmt);
+    FINI_TRACE_STACK();
+    return 0;
+}
+
 /*
-pub func print(objs ..., sep = ' ', end = '\n', file io.Writer = none)
+public func print(objs ..., sep = ' ', end = '\n', file io.Writer = none)
 */
 static Value builtin_print(Value *module, Value *args, int nargs, Object *kwargs)
 {
     char *sep = " ";
     Value r = kl_dict_get(kwargs, "sep");
     if (!IS_NONE(r)) {
-        Object *s = r.obj;
+        Object *s = VALUE_AS_OBJECT(r);
         ASSERT(string_check(s));
         sep = STRING_DATA(s);
     }
+
+    Object *buf = kl_new_buf(0);
 
     for (int i = 0; i < nargs; i++) {
         if (i != 0) {
             object_print(buf, sep);
         }
-        object_format(buf, "", args + i);
+        object_format(buf, "%s", args + i);
     }
 
     object_print(buf, "\n");

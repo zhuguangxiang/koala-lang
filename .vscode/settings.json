@@ -57,6 +57,7 @@
         "klasses",
         "KLVM",
         "koalac",
+        "kwarg",
         "kwargs",
         "kwds",
         "kwnames",

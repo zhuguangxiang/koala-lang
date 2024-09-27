@@ -50,7 +50,11 @@ static volatile size_t _gc_used_size;
 static pthread_spinlock_t _gc_spin_lock;
 
 /* Objects are allocated in GC_DONE */
-static LLDeque _gc_list;
+static LLDeque _gc_lists[3];
+static LLDeque *_gc_list;
+static LLDeque *_gc_list_2;
+static LLDeque *_gc_old_list;
+
 /* Objects are allocated in GC_CO_MARK and GC_CO_SWEEP */
 static LLDeque _gc_remark_list;
 /* Objects are permanent, never reclaimed. */
@@ -161,7 +165,7 @@ static GcObject *alloc_obj(int size, int minor, int perm)
         obj->gc_age = 0;
         if (_gc_state == GC_DONE) {
             obj->gc_color = GC_COLOR_WHITE;
-            lldq_push_tail(&_gc_list, &obj->gc_link);
+            lldq_push_tail(_gc_list, &obj->gc_link);
             log_info("[Mutator]Thread-%d, successful, WHITE, size: %ld", ts->id, size);
         } else {
             ASSERT(_gc_state == GC_CO_MARK || _gc_state == GC_CO_SWEEP);
@@ -198,7 +202,6 @@ void *_gc_alloc(int size, int perm)
                 obj = alloc_obj(mm_size, 1, perm);
                 if (!obj) {
                     if (_full_gc) {
-                        _full_gc = 0;
                         panic(
                             "gc memory(used: %ld/%ld, request: %d) is too small and "
                             "cannot allocate more objects.",
@@ -361,7 +364,7 @@ next:
                 goto next;
             }
 
-            LLDqNode *node = lldq_pop_head(&_gc_list);
+            LLDqNode *node = lldq_pop_head(_gc_list);
             while (node) {
                 GcObject *obj = (GcObject *)node;
                 if (obj->gc_color == GC_COLOR_WHITE) {
@@ -379,7 +382,7 @@ next:
                     goto next;
                 }
 
-                node = lldq_pop_head(&_gc_list);
+                node = lldq_pop_head(_gc_list);
             }
 
             node = lldq_pop_head(&_gc_remark_list);
@@ -388,7 +391,7 @@ next:
                 ASSERT(obj->gc_color == GC_COLOR_BLACK);
                 _gc_mark(obj, GC_COLOR_WHITE);
                 gc_incr_age(obj);
-                lldq_push_tail(&_gc_list, node);
+                lldq_push_tail(_gc_list, node);
 
                 if (_failed_major) {
                     clear_failed();
@@ -420,7 +423,7 @@ next:
                 }
             }
 
-            LLDqNode *node = lldq_pop_head(&_gc_list);
+            LLDqNode *node = lldq_pop_head(_gc_list);
             while (node) {
                 GcObject *obj = (GcObject *)node;
                 if (obj->gc_color == GC_COLOR_WHITE) {
@@ -428,14 +431,25 @@ next:
                 } else if (obj->gc_color == GC_COLOR_BLACK) {
                     _gc_mark(obj, GC_COLOR_WHITE);
                     gc_incr_age(obj);
+                    if (obj->gc_age < 10) {
+                        lldq_push_tail(_gc_list_2, obj);
+                    } else {
+                        lldq_push_tail(_gc_old_list, obj);
+                    }
                 } else {
                     ASSERT(0);
                 }
-                node = lldq_pop_head(&_gc_list);
+                node = lldq_pop_head(_gc_list);
             }
+
+            LLDeque *swap = _gc_list;
+            _gc_list = _gc_list_2;
+            _gc_list_2 = swap;
+
             log_info("used: %ld(%ld)", _gc_used_size, _gc_max_size);
             ASSERT(lldq_empty(&_gc_remark_list));
             _full_gc = 1;
+
             _switch(GC_DONE);
             disable_stw_wakeup_threads();
             goto next;
@@ -493,7 +507,14 @@ void init_gc_system(size_t max_mem_size, double factor)
 
     pthread_spin_init(&_gc_spin_lock, 0);
 
-    lldq_init(&_gc_list);
+    lldq_init(&_gc_lists[0]);
+    lldq_init(&_gc_lists[1]);
+    lldq_init(&_gc_lists[2]);
+
+    _gc_list = &_gc_lists[0];
+    _gc_list_2 = &_gc_lists[1];
+    _gc_old_list = &_gc_lists[2];
+
     lldq_init(&_gc_remark_list);
     lldq_init(&_gc_perm_list);
 
@@ -510,7 +531,7 @@ void fini_gc_system(void)
 
     munmap((void *)_gc_check_ptr, _pagesize);
 
-    GcObject *gc_obj = (GcObject *)lldq_pop_head(&_gc_list);
+    GcObject *gc_obj = (GcObject *)lldq_pop_head(_gc_list);
     while (gc_obj) {
         switch (gc_obj->gc_kind) {
             case GC_KIND_ARRAY_OBJECT:
@@ -532,10 +553,12 @@ void fini_gc_system(void)
         }
         _gc_used_size -= gc_obj->gc_size;
         free(gc_obj);
-        gc_obj = (GcObject *)lldq_pop_head(&_gc_list);
+        gc_obj = (GcObject *)lldq_pop_head(_gc_list);
     }
 
+    ASSERT(lldq_empty(_gc_list_2));
     ASSERT(lldq_empty(&_gc_remark_list));
+    ASSERT(lldq_empty(_gc_old_list));
 
     gc_obj = (GcObject *)lldq_pop_head(&_gc_perm_list);
     while (gc_obj) {
