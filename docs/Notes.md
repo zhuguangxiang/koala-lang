@@ -2,6 +2,10 @@
 # 随手笔记
 ## 计算机语言
 
+参考：java/kotlin/go/rust/python/swift
+overloading: 重载函数
+override: 重写
+
 变量定义:
 
 ```
@@ -13,7 +17,7 @@ var (code, msg) = (200, "OK")
 var ret = (404, "Not Found")
 let arr : [int8] = [1,2,3]
 let m : [string : string] = {"name" : "Tump", ...}
-let l = list() 
+let l = list()
 // list[int8](), list(iterable), list((1,2,3))
 let t = tuple(1,2,3), tuple([1,2,3])
 let m = map[int, int]()

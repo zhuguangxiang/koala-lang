@@ -26,7 +26,7 @@ static Value type_call(TypeObject *type, Value *args, int nargs)
 {
     if (type == &type_type) {
         ASSERT(args);
-        TypeObject *tp = value_type(args);
+        TypeObject *tp = object_type(args);
         ASSERT(tp);
         return ObjValue(tp);
     }

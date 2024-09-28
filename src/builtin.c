@@ -3,6 +3,7 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "moduleobject.h"
 #include "object.h"
 #include "tracestack.h"
 
@@ -88,6 +89,14 @@ static Value builtin_print(Value *module, Value *args, int nargs, Object *kwargs
 static MethodDef builtin_methods[] = {
     { "print", builtin_print, "...|sep:s,end:s,file:Lio.Writer;", "" },
     { NULL },
+};
+
+static ModuleDef builtin_module = {
+    .name = "builtin",
+    .size = 0,
+    .methods = builtin_methods,
+    .init = builtin_module_init,
+    .fini = NULL,
 };
 
 #ifdef __cplusplus

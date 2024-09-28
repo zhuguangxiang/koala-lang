@@ -44,8 +44,8 @@ typedef struct _Value {
 #define VAL_TAG_OBJ   1
 #define VAL_TAG_INT   2
 #define VAL_TAG_FLOAT 3
-#define VAL_TAG_NONE  5 // no value(null or void)
-#define VAL_TAG_ERROR 6 // nothing type
+#define VAL_TAG_NONE  4 // no value(null or void)
+#define VAL_TAG_ERROR 5 // nothing type
 
 #define IS_OBJECT(x) ((x)->tag == VAL_TAG_OBJ)
 #define IS_INT(x)    ((x)->tag == VAL_TAG_INT)
@@ -54,13 +54,15 @@ typedef struct _Value {
 #define IS_ERROR(x)  ((x)->tag == VAL_TAG_ERROR)
 
 /* clang-format off */
-#define OBJECT_VALUE(x)   (Value){ .tag = VAL_TAG_OBJ,   .obj  = (x) }
-#define IntValue(x)   (Value){ .tag = VAL_TAG_INT,   .ival = (x) }
-#define FloatValue(x) (Value){ .tag = VAL_TAG_FLOAT, .fval = (x) }
-#define NoneValue     (Value){ .tag = VAL_TAG_NONE }
-#define ErrorValue    (Value){ .tag = VAL_TAG_ERROR }
+#define ObjectValue(x) (Value){ .tag = VAL_TAG_OBJ,   .obj  = (x) }
+#define IntValue(x)    (Value){ .tag = VAL_TAG_INT,   .ival = (x) }
+#define FloatValue(x)  (Value){ .tag = VAL_TAG_FLOAT, .fval = (x) }
+#define NoneValue      (Value){ .tag = VAL_TAG_NONE }
+#define ErrorValue     (Value){ .tag = VAL_TAG_ERROR }
 
-#define VALUE_AS_OBJECT(v) ({ ASSERT(IS_OBJECT(v)); (v).obj; })
+#define value_as_object(v) ({ ASSERT(IS_OBJECT(v)); (v)->obj; })
+#define value_as_int(v) ({ ASSERT(IS_INT(v)); (v)->ival; })
+#define value_as_float(v) ({ ASSERT(IS_INT(v)); (v)->fval; })
 
 /* clang-format on */
 
@@ -71,17 +73,25 @@ static inline void gc_mark_value(Value *val, Queue *que)
     }
 }
 
+typedef HashMap KeywordMap;
+
+typedef struct _KeywordEntry {
+    HashMapEntry hnode;
+    const char *key;
+    Value val;
+} KeywordEntry;
+
 typedef void (*GcMarkFunc)(Object *, Queue *);
 typedef Value (*HashFunc)(Value *self);
 typedef Value (*CmpFunc)(Value *lhs, Value *rhs);
 typedef Value (*GetIterFunc)(Value *self);
 typedef Value (*IterNextFunc)(Value *self);
 typedef Value (*StrFunc)(Value *self);
-typedef Value (*AllocFunc)(Value *self, Value *args, int nargs);
-typedef int (*InitFunc)(Value *self, Value *args, int nargs);
-typedef void (*FiniFunc)(Value *self);
-typedef Value (*CallFunc)(Object *obj, Value *args, int nargs);
-typedef Value (*CFunc)(Value *, Value *, int);
+typedef Object *(*AllocFunc)(TypeObject *tp);
+typedef int (*InitFunc)(Object *self, Value *args, int nargs, KeywordMap *kwargs);
+typedef void (*FiniFunc)(Object *self);
+typedef Value (*CallFunc)(Value *self, Value *args, int nargs, KeywordMap *kwargs);
+typedef Value (*CFunc)(Value *, Value *, int, KeywordMap *);
 
 typedef struct _MethodDef {
     /* The name of function/method */
@@ -116,8 +126,9 @@ typedef struct _SeqMapMethods {
     BinaryFunc sm_add;
     ContainFunc sm_contain;
     RepeatFunc sm_repeat;
-    BinaryFunc sm_get;
-    BinaryFunc sm_set;
+    BinaryFunc sm_get_item;
+    BinaryFunc sm_gets;
+    BinaryFunc sm_sets;
 } SeqMapMethods;
 */
 
@@ -128,6 +139,18 @@ typedef struct _SeqMapMethods {
 #define TP_FLAGS_FINAL    (1 << 4)
 #define TP_FLAGS_META     (1 << 5)
 #define TP_FLAGS_HEAP     (1 << 6)
+#define TP_FLAGS_READY    (1 << 7)
+
+typedef struct _TraitObject {
+    /* type name */
+    char *name;
+    /* one of TP_FLAGS_XXX */
+    int flags;
+    /* module */
+    Object *owner;
+    /* interfaces */
+    Vector *intfs;
+} TraitObject;
 
 typedef struct _TypeObject {
     OBJECT_HEAD
@@ -136,7 +159,7 @@ typedef struct _TypeObject {
     /* one of TP_FLAGS_XXX */
     int flags;
     /* object size */
-    size_t size;
+    int size;
 
     /* module */
     Object *module;
@@ -178,23 +201,24 @@ typedef struct _TypeObject {
     Vector *funcs;
 
     /* dynamic functions table */
-    HashMap *vtbl;
+    KeywordMap *vtbl;
 
 } TypeObject;
 
 extern TypeObject type_type;
-TypeObject *value_type(Value *val);
 extern TypeObject object_type;
 
-static inline CallFunc object_is_callable(Object *obj) { return OB_TYPE(obj)->call; }
+TypeObject *object_type(Value *val);
+Object *object_generic_alloc(TypeObject *tp);
 
-static inline CallFunc value_is_callable(Value *val)
+static inline CallFunc value_callable(Value *val)
 {
-    TypeObject *tp = value_type(val);
+    TypeObject *tp = object_type(val);
+    if (!tp) return NULL;
     return tp->call;
 }
 
-Value object_call(Object *obj, Value *args, int nargs);
+Value object_call(Value *self, Value *args, int nargs, KeywordMap *kwargs);
 
 /* clang-format off */
 #define _compare_result(v) ({   \
@@ -207,9 +231,18 @@ Value object_call(Object *obj, Value *args, int nargs);
 })
 /* clang-format on */
 
-Value object_call_method_noarg(Object *obj, const char *name);
+Object *object_lookup_method(Value *obj, const char *fname);
 
-Object *object_generic_alloc(TypeObject *tp);
+/* call site cache */
+// https://en.wikipedia.org/wiki/Inline_caching
+// https://bernsteinbear.com/blog/inline-caching/
+typedef struct _SiteMethod {
+    TypeObject *type;
+    const char *fname;
+    Object *method;
+} SiteMethod;
+
+Value object_call_site_method(SiteMethod *sm, Value *args, int nargs, KeywordMap *kwargs);
 
 #ifdef __cplusplus
 }

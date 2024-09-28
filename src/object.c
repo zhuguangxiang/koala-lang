@@ -4,7 +4,6 @@
  */
 
 #include "object.h"
-#include "exception.h"
 #include "moduleobject.h"
 #include "strobject.h"
 
@@ -13,25 +12,34 @@ extern "C" {
 #endif
 
 extern TypeObject none_type;
-extern TypeObject exc_type;
 extern TypeObject int_type;
 extern TypeObject float_type;
+extern TypeObject exc_type;
 
 static TypeObject *mapping[] = {
-    NULL, NULL, &int_type, NULL, &none_type, NULL,
+    NULL, NULL, &int_type, &float_type, &none_type, &exc_type,
 };
 
-TypeObject *value_type(Value *val)
+TypeObject *object_type(Value *val)
 {
     TypeObject *tp = mapping[val->tag];
     if (tp) return tp;
-    if (IS_OBJ(val)) return OB_TYPE(val->obj);
+    if (IS_OBJECT(val)) return OB_TYPE(val->obj);
     return NULL;
 }
 
-Value object_call(Object *obj, Value *args, int nargs)
+Object *object_generic_alloc(TypeObject *tp)
 {
-    TypeObject *tp = OB_TYPE(obj);
+    ASSERT(tp->size > 0);
+    Object *obj = gc_alloc(tp->size);
+    INIT_OBJECT_HEAD(obj, tp);
+    return obj;
+}
+
+Value object_call(Value *self, Value *args, int nargs, KeywordMap *kwargs)
+{
+    TypeObject *tp = object_type(self);
+    ASSERT(tp);
     CallFunc call = tp->call;
     if (!call) {
         /* raise an error */
@@ -39,7 +47,28 @@ Value object_call(Object *obj, Value *args, int nargs)
         return ErrorValue;
     }
 
-    return call(obj, args, nargs);
+    return call(self, args, nargs, kwargs);
+}
+
+Object *object_lookup_method(Value *obj, const char *fname)
+{
+    TypeObject *tp = object_type(obj);
+    Object *fn = hashmap_get(tp->vtbl, NULL);
+    return fn;
+}
+
+Value object_call_site_method(SiteMethod *sm, Value *args, int nargs, KeywordMap *kwargs)
+{
+    TypeObject *tp = object_type(args);
+    ASSERT(tp);
+    if (tp != sm->type) {
+        Object *meth = object_lookup_method(args, sm->fname);
+        ASSERT(meth);
+        sm->type = tp;
+        sm->method = meth;
+    }
+    Value v = ObjectValue(sm->method);
+    return object_call(&v, args, nargs, kwargs);
 }
 
 static Value object_hash(Value *self)
@@ -57,24 +86,14 @@ static Value object_compare(Value *self, Value *rhs)
 
 static Value object_str(Value *self)
 {
-    TypeObject *tp = value_type(self);
+    TypeObject *tp = &_object_type;
+    Object *obj = value_as_object(self);
     const char *s = module_get_name(tp->module);
-    Object *result = kl_new_fmt_str("<%s.%s object>", s, tp->name);
-    return ObjValue(result);
+    Object *result = kl_new_fmt_str("<%s.%s object at %p>", s, tp->name, obj);
+    return ObjectValue(result);
 }
 
-static Value object_get_class(Value *self, Value *args, int nargs)
-{
-    TypeObject *tp = value_type(self);
-    return ObjValue(tp);
-}
-
-static MethodDef object_methods[] = {
-    { "__class__", object_get_class },
-    { NULL },
-};
-
-TypeObject object_type = {
+TypeObject _object_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "object",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
@@ -82,29 +101,8 @@ TypeObject object_type = {
     .hash = object_hash,
     .cmp = object_compare,
     .str = object_str,
-    // .alloc = object_generic_alloc,
-    .methods = object_methods,
+    .alloc = object_generic_alloc,
 };
-
-Value object_call_method_noarg(Object *obj, const char *name)
-{
-    TypeObject *tp = OB_TYPE(obj);
-    Object *fn = hashmap_get(tp->vtbl, NULL);
-    if (!fn) {
-        raise_exc("'%s' object has no method '%s'", tp->name, name);
-        return ErrorValue;
-    }
-    Value args[] = { ObjValue(obj) };
-    return object_call(fn, args, 1);
-}
-
-Object *object_generic_alloc(TypeObject *tp)
-{
-    ASSERT(tp->size > 0);
-    Object *obj = gc_alloc(tp->size);
-    INIT_OBJECT_HEAD(obj, tp);
-    return obj;
-}
 
 #ifdef __cplusplus
 }

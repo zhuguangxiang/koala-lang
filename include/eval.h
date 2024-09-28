@@ -16,7 +16,7 @@ extern "C" {
 /* forward declaration */
 struct _KoalaState;
 struct _ThreadState;
-struct _TraceStack;
+struct _ShadowStack;
 
 /* call stack frame information */
 typedef struct _CallFrame {
@@ -63,7 +63,7 @@ typedef struct _KoalaState {
     Object *exc;
 
     /* trace(shadow) stack */
-    struct _TraceStack *trace_stacks;
+    struct _ShadowStack *shadow_stacks;
 
     /* stack top pointer */
     char *stack_top_ptr;

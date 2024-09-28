@@ -78,6 +78,13 @@ reference: https://en.wikipedia.org/wiki/Garbage_collection_(computer_science)
 	   // call a.__exit__
    }
 	```
+	- generic type vs enum types
+		why do we need generic type? how about using enum types to replace generic type?
+	- no type argument
+	If an argument of a method is `object` type, it can omit the type.
+	- no return type
+	If a method does not explicit a return type, this method can return none or exception.
+
  - Virtual Machine
 	- register-based vm
 	- byte codes are optimized by compiler
@@ -189,3 +196,19 @@ reduce()
 ## hot methods and cache
 - call site cache
 ## tradeoff between static-typed and dynamic-typed language
+
+## format and print
+
+- Formatter object
+The `Formatter` object with config settings and a inner buffer for print.
+	- methods
+		- format(fmt-str, args ...| arg dict | arg tuple)
+- separator for multi-objects
+- methods
+	- print(objs ...)
+	- printf(fmt-str, objs ...)
+- String object
+	The `str` object also has a format() method.
+	- "hello {}, age {}".format(name, age)
+	- "hello {1}, age {0}".format(age, name)
+	- "hello {name:-12s}, age {age: 012d}".format(dict)
