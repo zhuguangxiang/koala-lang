@@ -38,9 +38,7 @@ Object *object_generic_alloc(TypeObject *tp)
 
 Value object_call(Value *self, Value *args, int nargs, KeywordMap *kwargs)
 {
-    TypeObject *tp = object_type(self);
-    ASSERT(tp);
-    CallFunc call = tp->call;
+    CallFunc call = object_callable(self);
     if (!call) {
         /* raise an error */
         raise_exc("'%s' is not callable", tp->name);
@@ -86,14 +84,29 @@ static Value object_compare(Value *self, Value *rhs)
 
 static Value object_str(Value *self)
 {
-    TypeObject *tp = &_object_type;
-    Object *obj = value_as_object(self);
-    const char *s = module_get_name(tp->module);
-    Object *result = kl_new_fmt_str("<%s.%s object at %p>", s, tp->name, obj);
-    return ObjectValue(result);
+    TypeObject *tp = object_type(self);
+    Object *res = kl_new_fmt_str("<%s object>", tp->name);
+    return ObjectValue(res);
 }
 
-TypeObject _object_type = {
+static Value object_hash_code(Value *self) { return object_hash(self); }
+
+static Value object_equals(Value *self, Value *rhs)
+{
+    int v = memcmp(self, rhs, sizeof(Value));
+    return (v == 0) return IntValue(1) : IntValue(0);
+}
+
+static Value object_to_str(Value *self) { return object_str(self); }
+
+static MethodDef object_methods[] = {
+    { "hash_code", object_hash_code, METH_NO_ARGS, "", "i" },
+    { "equals", object_equals, METH_ONE_ARG, "Lbuiltin.object;", "b" },
+    { "to_str", object_to_str, METH_NO_ARGS, "", "s" },
+    { NULL },
+};
+
+TypeObject base_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "object",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
@@ -102,6 +115,7 @@ TypeObject _object_type = {
     .cmp = object_compare,
     .str = object_str,
     .alloc = object_generic_alloc,
+    .methods = object_methods,
 };
 
 #ifdef __cplusplus

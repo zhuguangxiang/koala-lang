@@ -91,18 +91,33 @@ typedef Object *(*AllocFunc)(TypeObject *tp);
 typedef int (*InitFunc)(Object *self, Value *args, int nargs, KeywordMap *kwargs);
 typedef void (*FiniFunc)(Object *self);
 typedef Value (*CallFunc)(Value *self, Value *args, int nargs, KeywordMap *kwargs);
-typedef Value (*CFunc)(Value *, Value *, int, KeywordMap *);
+
+typedef Value (*CFuncNoArgs)(Value *);
+typedef Value (*CFuncOneArg)(Value *, Value *);
+typedef Value (*CFuncVarArgs)(Value *, Value *, int);
+typedef Value (*CFuncVarArgsNames)(Value *, Value *, int, KeywordMap *);
 
 typedef struct _MethodDef {
     /* The name of function/method */
     char *name;
     /* The c func */
-    CFunc cfunc;
+    void *cfunc;
+    /* flags */
+    int flags;
     /* The arguments types */
     char *args_desc;
     /* The return type */
     char *ret_desc;
 } MethodDef;
+
+/* Value fn(Value *self) */
+#define METH_NO_ARGS 1
+/* Value fn(Value *self, Value *oth) */
+#define METH_ONE_ARG 2
+/* Value fn(Value *self, Value *args, int nargs) */
+#define METH_VAR_ARGS 3
+/* Value fn(Value *self, Value *args, int nargs, Tuple *names) */
+#define METH_VAR_NAMES 4
 
 /*
 typedef struct _NumberMethods {
@@ -206,12 +221,12 @@ typedef struct _TypeObject {
 } TypeObject;
 
 extern TypeObject type_type;
-extern TypeObject object_type;
+extern TypeObject base_type;
 
 TypeObject *object_type(Value *val);
 Object *object_generic_alloc(TypeObject *tp);
 
-static inline CallFunc value_callable(Value *val)
+static inline CallFunc object_callable(Value *val)
 {
     TypeObject *tp = object_type(val);
     if (!tp) return NULL;

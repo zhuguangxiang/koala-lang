@@ -13,7 +13,8 @@
                 "LOG_COLOR",
                 "MAX_GC_MEM_SIZE",
                 "ENV64BITS"
-            ]
+            ],
+            "configurationProvider": "ms-vscode.cmake-tools"
         }
     ],
     "version": 4
