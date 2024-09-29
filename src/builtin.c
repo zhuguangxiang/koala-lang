@@ -5,12 +5,15 @@
 
 #include "moduleobject.h"
 #include "object.h"
+#include "stringobject.h"
 #include "tracestack.h"
+#include "tupleobject.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#if 0
 static void object_print(BytesObject *buf, Value *val) {}
 
 typedef struct _MethodCache {
@@ -50,12 +53,20 @@ int object_format(Object *buf, const char *fmt, Object *obj)
     return 0;
 }
 
+#endif
+
 /*
 public func print(objs ..., sep = ' ', end = '\n', file io.Writer = none)
 */
-static Value builtin_print(Value *module, Value *args, int nargs, Object *kwargs)
+static Value builtin_print(Value *module, Value *args, int nargs, Object *names)
 {
     char *sep = " ";
+    char *end = "\n";
+    Object *file = NULL;
+
+    kl_parse_names(args, nargs, names, { "sep", "end", "file" }, "ssO", &sep, &end,
+                   &file);
+
     Value r = kl_dict_get(kwargs, "sep");
     if (!IS_NONE(r)) {
         Object *s = VALUE_AS_OBJECT(r);
@@ -87,7 +98,7 @@ static Value builtin_print(Value *module, Value *args, int nargs, Object *kwargs
 }
 
 static MethodDef builtin_methods[] = {
-    { "print", builtin_print, "...|sep:s,end:s,file:Lio.Writer;", "" },
+    { "print", builtin_print, METH_VAR_NAMES, "...|sep:s,end:s,file:Lio.Writer;", "" },
     { NULL },
 };
 

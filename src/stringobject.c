@@ -3,8 +3,8 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "strobject.h"
-#include "tracestack.h"
+#include "stringobject.h"
+#include "shadowstack.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,14 +25,14 @@ TypeObject str_type = {
 
 Object *kl_new_nstr(const char *s, int len)
 {
-    INIT_TRACE_STACK(1);
+    init_gc_stack(1);
 
     StrObject *sobj = gc_alloc_obj(sobj);
     INIT_OBJECT_HEAD(sobj, &str_type);
     sobj->start = 0;
-    sobj->end = len;
+    sobj->stop = len;
 
-    TRACE_STACK_PUSH(&sobj);
+    gc_stack_push(sobj);
 
     GcArrayObject *arr = gc_alloc_array(GC_KIND_ARRAY_INT8, len + 1);
     char *data = (char *)(arr + 1);
@@ -40,7 +40,7 @@ Object *kl_new_nstr(const char *s, int len)
     data[len] = '\0';
     sobj->array = arr;
 
-    FINI_TRACE_STACK();
+    fini_gc_stack();
 
     return (Object *)sobj;
 }

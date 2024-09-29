@@ -14,15 +14,16 @@ extern "C" {
 
 typedef struct _TupleObject {
     OBJECT_HEAD
-    int size;
-    Value values[0];
+    int start;
+    int stop;
+    GcArrayObject *array;
 } TupleObject;
 
 extern TypeObject tuple_type;
 #define IS_TUPLE(ob) IS_TYPE((ob), &tuple_type)
 
 #define TUPLE_ITEMS(x) (((TupleObject *)(x))->values)
-#define TUPLE_SIZE(x)  (((TupleObject *)(x))->size)
+#define TUPLE_SIZE(x)  (((TupleObject *)(x))->stop - ((TupleObject *)(x))->start)
 
 Object *kl_new_tuple(int size);
 

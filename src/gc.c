@@ -543,8 +543,7 @@ void fini_gc_system(void)
             case GC_KIND_OBJECT: {
                 Object *obj = (Object *)gc_obj;
                 TypeObject *tp = OB_TYPE(obj);
-                Value v = ObjValue(obj);
-                if (tp->fini) tp->fini(&v);
+                if (tp->fini) tp->fini(obj);
                 log_debug("object '%s' is freed", tp->name);
                 break;
             }
@@ -574,8 +573,7 @@ void fini_gc_system(void)
             case GC_KIND_OBJECT: {
                 Object *obj = (Object *)gc_obj;
                 TypeObject *tp = OB_TYPE(obj);
-                Value v = ObjValue(obj);
-                if (tp->fini) tp->fini(&v);
+                if (tp->fini) tp->fini(obj);
                 log_debug("object '%s' is freed", tp->name);
                 break;
             }

@@ -73,7 +73,7 @@ KoalaState *ks_new(void)
     KoalaState *ks = mm_alloc(msize);
     lldq_node_init(&ks->link);
     ks->ts = __ts;
-    ks->trace_stacks = NULL;
+    ks->shadow_stacks = NULL;
     ks->stack_top_ptr = ks->base_stack_ptr;
     ks->stack_size = MAX_STACK_SIZE;
     return ks;
@@ -83,7 +83,7 @@ void ks_free(KoalaState *ks)
 {
     if (!ks) return;
     ASSERT(!ks->cf);
-    ASSERT(ks->trace_stacks == NULL);
+    ASSERT(ks->shadow_stacks == NULL);
     mm_free(ks);
 }
 
@@ -141,7 +141,9 @@ static Object *_get_symbol(CallFrame *cf, int m_idx, int o_idx)
     }
 
     Object *r = module_get_symbol((Object *)m, o_idx);
-    ASSERT(r && object_is_callable(r));
+    // TODO:
+    // ASSERT(r && object_callable(r));
+    ASSERT(r);
     return r;
 }
 

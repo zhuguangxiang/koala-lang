@@ -41,11 +41,11 @@ typedef struct _Value {
     int tag;
 } Value;
 
-#define VAL_TAG_OBJ   1
-#define VAL_TAG_INT   2
-#define VAL_TAG_FLOAT 3
-#define VAL_TAG_NONE  4 // no value(null or void)
-#define VAL_TAG_ERROR 5 // nothing type
+#define VAL_TAG_NONE   0 // no value(null or void)
+#define VAL_TAG_INT    1
+#define VAL_TAG_FLOAT  2
+#define VAL_TAG_OBJECT 3
+#define VAL_TAG_ERROR  4 // nothing type
 
 #define IS_OBJECT(x) ((x)->tag == VAL_TAG_OBJ)
 #define IS_INT(x)    ((x)->tag == VAL_TAG_INT)
@@ -68,7 +68,7 @@ typedef struct _Value {
 
 static inline void gc_mark_value(Value *val, Queue *que)
 {
-    if (IS_OBJ(val)) {
+    if (IS_OBJECT(val)) {
         gc_mark_obj(val->obj, que);
     }
 }
@@ -87,27 +87,27 @@ typedef Value (*CmpFunc)(Value *lhs, Value *rhs);
 typedef Value (*GetIterFunc)(Value *self);
 typedef Value (*IterNextFunc)(Value *self);
 typedef Value (*StrFunc)(Value *self);
-typedef Object *(*AllocFunc)(TypeObject *tp);
-typedef int (*InitFunc)(Object *self, Value *args, int nargs, KeywordMap *kwargs);
+typedef Object *(*AllocFunc)(struct _TypeObject *tp);
+typedef int (*InitFunc)(Object *self, Value *args, int nargs, Object *names);
 typedef void (*FiniFunc)(Object *self);
-typedef Value (*CallFunc)(Value *self, Value *args, int nargs, KeywordMap *kwargs);
+typedef Value (*CallFunc)(Value *self, Value *args, int nargs, Object *names);
 
 typedef Value (*CFuncNoArgs)(Value *);
 typedef Value (*CFuncOneArg)(Value *, Value *);
 typedef Value (*CFuncVarArgs)(Value *, Value *, int);
-typedef Value (*CFuncVarArgsNames)(Value *, Value *, int, KeywordMap *);
+typedef Value (*CFuncVarArgsNames)(Value *, Value *, int, Object *);
 
 typedef struct _MethodDef {
     /* The name of function/method */
-    char *name;
+    const char *name;
     /* The c func */
     void *cfunc;
     /* flags */
     int flags;
     /* The arguments types */
-    char *args_desc;
+    const char *args_desc;
     /* The return type */
-    char *ret_desc;
+    const char *ret_desc;
 } MethodDef;
 
 /* Value fn(Value *self) */
@@ -116,7 +116,7 @@ typedef struct _MethodDef {
 #define METH_ONE_ARG 2
 /* Value fn(Value *self, Value *args, int nargs) */
 #define METH_VAR_ARGS 3
-/* Value fn(Value *self, Value *args, int nargs, Tuple *names) */
+/* Value fn(Value *self, Value *args, int nargs, Object *names) */
 #define METH_VAR_NAMES 4
 
 /*
@@ -155,6 +155,7 @@ typedef struct _SeqMapMethods {
 #define TP_FLAGS_META     (1 << 5)
 #define TP_FLAGS_HEAP     (1 << 6)
 #define TP_FLAGS_READY    (1 << 7)
+#define TP_FLAGS_READYING (1 << 8)
 
 typedef struct _TraitObject {
     /* type name */
@@ -223,6 +224,8 @@ typedef struct _TypeObject {
 extern TypeObject type_type;
 extern TypeObject base_type;
 
+int type_ready(TypeObject *tp, Object *module);
+
 TypeObject *object_type(Value *val);
 Object *object_generic_alloc(TypeObject *tp);
 
@@ -245,6 +248,17 @@ Value object_call(Value *self, Value *args, int nargs, KeywordMap *kwargs);
     r;                          \
 })
 /* clang-format on */
+
+/* common header of CFuncObject & CodeObject */
+
+#define FUNCTION_HEAD \
+    OBJECT_HEAD \
+    Object *module; /* module */ \
+    TypeObject *cls; /* class, can be null */
+
+typedef struct _FuncObject {
+    FUNCTION_HEAD
+} FuncObject;
 
 Object *object_lookup_method(Value *obj, const char *fname);
 

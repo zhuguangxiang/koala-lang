@@ -4,6 +4,7 @@
  */
 
 #include "object.h"
+#include "exception.h"
 #include "moduleobject.h"
 #include "strobject.h"
 
@@ -17,7 +18,7 @@ extern TypeObject float_type;
 extern TypeObject exc_type;
 
 static TypeObject *mapping[] = {
-    NULL, NULL, &int_type, &float_type, &none_type, &exc_type,
+    &none_type, NULL, &int_type, &float_type, &exc_type,
 };
 
 TypeObject *object_type(Value *val)
@@ -38,7 +39,9 @@ Object *object_generic_alloc(TypeObject *tp)
 
 Value object_call(Value *self, Value *args, int nargs, KeywordMap *kwargs)
 {
-    CallFunc call = object_callable(self);
+    TypeObject *tp = object_type(self);
+    ASSERT(tp);
+    CallFunc call = tp->call;
     if (!call) {
         /* raise an error */
         raise_exc("'%s' is not callable", tp->name);
@@ -69,6 +72,36 @@ Value object_call_site_method(SiteMethod *sm, Value *args, int nargs, KeywordMap
     return object_call(&v, args, nargs, kwargs);
 }
 
+int kl_parse_names(Value *args, Object *names, const char **kws, ...)
+{
+    int i = 0;
+    Value *item;
+    tuple_foreach(item, names) {
+        Object *sobj = value_as_object(item);
+        ASSERT(IS_STR(sobj));
+        const char *s = STR_BUF(sobj);
+
+        int j = 0;
+        while (*kws) {
+            const char *kw = *kws;
+            if (!strcmp(s, kw)) {
+                v = args + i;
+            }
+            ++kws;
+            ++j;
+        }
+
+        ++i;
+
+        if (!strcmp(s, "sep")) {
+        } else if (!strcmp(s, "end")) {
+        } else if (!strcmp(s, "file")) {
+        } else {
+            unreachable();
+        }
+    }
+}
+
 static Value object_hash(Value *self)
 {
     unsigned int v = mem_hash(self, sizeof(Value));
@@ -94,7 +127,7 @@ static Value object_hash_code(Value *self) { return object_hash(self); }
 static Value object_equals(Value *self, Value *rhs)
 {
     int v = memcmp(self, rhs, sizeof(Value));
-    return (v == 0) return IntValue(1) : IntValue(0);
+    return (v == 0) ? IntValue(1) : IntValue(0);
 }
 
 static Value object_to_str(Value *self) { return object_str(self); }

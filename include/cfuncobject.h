@@ -13,13 +13,9 @@ extern "C" {
 #endif
 
 typedef struct _CFuncObject {
-    OBJECT_HEAD
+    FUNCTION_HEAD
     /* cfunc definition */
     MethodDef *def;
-    /* module */
-    Object *module;
-    /* class, can be null */
-    TypeObject *cls;
 } CFuncObject;
 
 extern TypeObject cfunc_type;

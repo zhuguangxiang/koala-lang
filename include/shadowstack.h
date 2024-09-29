@@ -28,12 +28,16 @@ typedef struct _ShadowStack {
     void *objs[n]; \
 }
 
-#define INIT_GC_STACK(_ks, n) \
+#define _init_gc_stack(_ks, n) \
     SHADOW_STACK(n) _stk = {{NULL, __FUNCTION__, 0, (n)}}; \
     do { \
         _stk.ss.back = _ks->shadow_stacks; \
         _ks->shadow_stacks = &_stk.ss; \
     } while (0)
+
+#define init_gc_stack(n) \
+    KoalaState *ks = __ks(); \
+    _init_gc_stack(ks, n)
 
 #define gc_stack_push(obj) do { \
     ShadowStack *_ss = &_stk.ss; \
@@ -42,9 +46,14 @@ typedef struct _ShadowStack {
 } while (0)
 
 /* remove trace stack from cfunc frame */
-#define FINI_GC_STACK(_ks) do { \
+#define _fini_gc_stack(_ks) do { \
     _ks->shadow_stacks = _stk.ss.back; \
 } while (0)
+
+#define fini_gc_stack() _fini_gc_stack(ks)
+
+#define init_gc_stack_one(obj) \
+    init_gc_stack(1); gc_stack_push(obj)
 
 /* clang-format on */
 

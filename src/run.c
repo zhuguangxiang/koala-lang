@@ -8,7 +8,7 @@
 #include "eval.h"
 #include "log.h"
 #include "mm.h"
-#include "tracestack.h"
+#include "shadowstack.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -138,7 +138,7 @@ static void init_threads(int nthreads)
     }
 }
 
-void init_bltin_module(KoalaState *ks);
+void init_builtin_module(KoalaState *ks);
 void init_sys_module(KoalaState *ks);
 
 void kl_init(int argc, char *argv[])
@@ -161,8 +161,8 @@ void kl_init(int argc, char *argv[])
 
     /* init koala builtin & sys module */
     KoalaState *ks = __ks();
-    // init_bltin_module(ks);
-    // init_sys_module(ks);
+    init_builtin_module(ks);
+    init_sys_module(ks);
 }
 
 static int done(void)
@@ -284,12 +284,12 @@ static void enum_koala_state(Queue *que, KoalaState *ks)
     }
 
     /* enumerate trace shadow stack */
-    TraceStack *trace = ks->trace_stacks;
+    ShadowStack *trace = ks->shadow_stacks;
     while (trace) {
-        void **obj_p;
+        void *obj;
         for (int i = 0; i < trace->avail; i++) {
-            obj_p = trace->obj_p[i];
-            gc_mark_obj(*obj_p, que);
+            obj = trace->objs[i];
+            gc_mark_obj(obj, que);
         }
         trace = trace->back;
     }

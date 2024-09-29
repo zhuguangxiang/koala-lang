@@ -2,8 +2,8 @@
 # 随手笔记
 ## 计算机语言
 
-参考：java/kotlin/go/rust/python/swift
-overloading: 重载函数
+参考：python/java/go/rust/kotlin/swift
+overloading: 重载函数, 变量支持枚举类型?
 override: 重写
 
 变量定义:

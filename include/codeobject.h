@@ -14,13 +14,9 @@ extern "C" {
 #endif
 
 typedef struct _CodeObject {
-    OBJECT_HEAD
+    FUNCTION_HEAD
     /* code spec from klc */
     CodeSpec cs;
-    /* module */
-    Object *module;
-    /* class, can be null */
-    TypeObject *cls;
 } CodeObject;
 
 extern TypeObject code_type;

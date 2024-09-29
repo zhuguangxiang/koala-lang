@@ -4,6 +4,7 @@
  */
 
 #include "tupleobject.h"
+#include "shadowstack.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,18 +13,30 @@ extern "C" {
 TypeObject tuple_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "Tuple",
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_FINAL | TP_FLAGS_PUBLIC,
+    .size = sizeof(TupleObject),
+    .str = tuple_str,
 };
 
 Object *kl_new_tuple(int size)
 {
-    int msize = sizeof(TupleObject) + size * sizeof(Value);
-    TupleObject *x = gc_alloc(msize);
+    TupleObject *x = gc_alloc_obj(x);
     INIT_OBJECT_HEAD(x, &tuple_type);
-    x->size = size;
+    x->start = 0;
+    x->stop = size;
+
+    init_gc_stack_one(x);
+
+    GcArrayObject *arr = gc_alloc_array(GC_KIND_ARRAY_VALUE, size);
+
+    Value *values = (Value *)(arr + 1);
     for (int i = 0; i < size; i++) {
-        Value *val = (Value *)(x + 1);
+        Value *val = (Value *)(values + 1);
         val[i] = NoneValue;
     }
+
+    fini_gc_stack();
+
     return (Object *)x;
 }
 
