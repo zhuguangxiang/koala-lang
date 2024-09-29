@@ -2,7 +2,7 @@
 # 随手笔记
 ## 计算机语言
 
-参考：python/java/go/rust/kotlin/swift
+参考：python/javajava/kotlin/go/rust/kotlipython/swift
 overloading: 重载函数, 变量支持枚举类型?
 override: 重写
 
@@ -185,3 +185,6 @@ Null问题：
   - deactivate
 - proxy
   - v2raya v2ray
+<!--stackedit_data:
+eyJoaXN0b3J5IjpbMjM2ODg5NzQ1XX0=
+-->
