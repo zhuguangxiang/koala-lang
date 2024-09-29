@@ -212,3 +212,8 @@ The `Formatter` object with config settings and a inner buffer for print.
 	- "hello {}, age {}".format(name, age)
 	- "hello {1}, age {0}".format(age, name)
 	- "hello {name:-12s}, age {age: 012d}".format(dict)
+- Slice
+	Don't share memory, because 
+<!--stackedit_data:
+eyJoaXN0b3J5IjpbMzgzNzUwMjEwXX0=
+-->
