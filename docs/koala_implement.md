@@ -213,7 +213,8 @@ The `Formatter` object with config settings and a inner buffer for print.
 	- "hello {1}, age {0}".format(age, name)
 	- "hello {name:-12s}, age {age: 012d}".format(dict)
 - Slice
-	Don't share memory, because 
+	Don't share memory, because slice is triple(start, end, step).
+	This is unlike golang. Slices in Go are contiguous pieces of memory, so you can't really create a slice with "holes" like that.
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMzgzNzUwMjEwXX0=
+eyJoaXN0b3J5IjpbLTE4Mjk3MjM5MjBdfQ==
 -->
