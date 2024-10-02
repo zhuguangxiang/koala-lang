@@ -215,6 +215,8 @@ The `Formatter` object with config settings and a inner buffer for print.
 - Slice
 	Don't share memory, because slice is triple(start, end, step).
 	This is unlike golang. Slices in Go are contiguous pieces of memory, so you can't really create a slice with "holes" like that.
-<!--stackedit_data:
-eyJoaXN0b3J5IjpbLTE4Mjk3MjM5MjBdfQ==
--->
+	- for ready-only and immutable
+		- if there is no step, shared
+		- if there is step, duplicate one
+	- for mutable
+		- duplicate all the time

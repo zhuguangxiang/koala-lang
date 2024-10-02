@@ -31,14 +31,6 @@ typedef struct _ModuleObject {
     void *state;
     /* all symbols */
     Vector symbols;
-    /* variables */
-    Vector vars;
-    /* functions */
-    Vector funcs;
-    /* types */
-    Vector types;
-    /* codes */
-    Vector codes;
     /* global values */
     Vector values;
     /* relocations */
@@ -81,6 +73,8 @@ static inline const char *module_get_name(Object *_m)
     ModuleObject *m = (ModuleObject *)_m;
     return m->def->name;
 }
+
+int kl_module_def_init(ModuleDef *def);
 
 #ifdef __cplusplus
 }

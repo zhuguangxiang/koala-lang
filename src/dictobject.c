@@ -12,7 +12,7 @@ extern "C" {
 /* dict(iterable Iterable = None) */
 static Value _dict_call(Object *self, Value *args, int nargs, Object *kwds)
 {
-    return NoneValue;
+    return none_value;
 }
 
 TypeObject dict_type = {

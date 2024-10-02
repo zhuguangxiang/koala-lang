@@ -19,7 +19,6 @@ TypeObject str_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "str",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
-    .size = sizeof(StrObject),
     .mark = (GcMarkFunc)str_gc_mark,
 };
 

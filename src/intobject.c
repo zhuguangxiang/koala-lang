@@ -3,9 +3,8 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "intobject.h"
 #include "exception.h"
-#include "strobject.h"
+#include "stringobject.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,21 +13,21 @@ extern "C" {
 static Value int_hash(Value *self)
 {
     unsigned int v = mem_hash(&self->ival, sizeof(int64_t));
-    return IntValue(v);
+    return int_value(v);
 }
 
-static Value int_compare(Value *lhs, Value *rhs)
+static Value int_compare(Value *self, Value *rhs)
 {
     if (!IS_INT(rhs)) {
-        raise_exc("Unsupported");
-        return ErrorValue;
+        raise_exc_str("Unsupported");
+        return error_value;
     }
 
-    int64_t v1 = lhs->ival;
+    int64_t v1 = self->ival;
     int64_t v2 = rhs->ival;
     int64_t v = v1 - v2;
     int r = _compare_result(v);
-    return IntValue(r);
+    return int_value(r);
 }
 
 static Value int_str(Value *self)
@@ -37,62 +36,80 @@ static Value int_str(Value *self)
     snprintf(buf, 23, "%ld", self->ival);
     buf[23] = '\0';
     Object *sobj = kl_new_str(buf);
-    return ObjValue(sobj);
+    return object_value(sobj);
 }
+
+static MethodDef int_methods[] = {
+    { "__hash__", int_hash, METH_NO_ARGS, "", "i" },
+    { "__cmp__", int_compare, METH_ONE_ARG, "i", "b" },
+    { "__str__", int_str, METH_NO_ARGS, "", "s" },
+    { NULL },
+};
 
 /*
-func __init__(v ToInt = 0, base = 10) {
-    if v is Int {
-        self = v
-    } else if v is Float {
-        self = v.to_int()
-    } else if v is String {
-        self = v.to_int(base)
-    } else {
-        self = v.to_int(base)
-    }
-}
-
 int()
 int(12.3)
 int(100)
 int("100")
 int("0xface", 16)
+func int(x object = 0, base = 10) int;
 */
-static int int_init(Value *self, Value *args, int nargs)
+static int int_init(Value *self, Value *args, int nargs, Object *names)
 {
-    // ASSERT(nargs == 2);
-    self->tag = VAL_TAG_INT;
-    if (IS_INT(args)) {
-        self->ival = args->ival;
-    } else if (IS_FLOAT(args)) {
-        self->ival = (int64_t)args->fval;
-    } else if (IS_OBJ(args)) {
-        if (IS_STR(args->obj)) {
-            // char *s = STR_BUF(args->obj);
-            // errno = 0;
-            // int base = 10;
-            // long long v = strtoll(s, NULL, base);
-            // if (errno) {
-            // }
-            // self->ival = v;
-        } else {
-            // Value r = object_call_method_noarg(args->obj, "to_int");
-            // if (IS_ERROR(&r)) return -1;
-            // self->ival = r.ival;
+    Value _x = void_value;
+    Value _base = void_value;
+    const char *_kws[] = { "x", "base", NULL };
+    kl_parse_kwargs(args, nargs, names, 0, _kws, &_x, &_base);
+
+    const char *s = NULL;
+    int base = 10;
+
+    if (!IS_VOID(&_base)) {
+        // If `base` has value, check `x` MUST be string.
+        ASSERT(IS_INT(&_base));
+        if (!IS_STR_OBJ(&_x)) {
+            TypeObject *tp = object_type(&_x);
+            ASSERT(tp);
+            raise_exc_fmt("expect 'str', but got '%s'", tp->name);
+            return -1;
         }
+
+        s = STR_BUF(value_object(&_x));
+        base = value_int(&_base);
+        errno = 0;
+        long long v = strtoll(s, NULL, base);
+        if (errno) {
+            raise_exc_fmt("%s", strerror(errno));
+            return -1;
+        }
+
+        *self = int_value(v);
+        return 0;
     }
+
+    // `base` is not set, and `x` MUST be int or float
+    if (IS_INT(&_x)) {
+        *self = int_value(value_int(&_x));
+    } else if (IS_FLOAT(&_x)) {
+        *self = int_value(value_float(&_x));
+    } else {
+        TypeObject *tp = object_type(&_x);
+        raise_exc_fmt("expect 'int' or 'float', but got '%s'", tp->name);
+        return -1;
+    }
+
     return 0;
 }
 
 TypeObject int_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "Int",
+    .name = "int",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
-    .size = 0,
+    .desc = "|Oi",
     .hash = int_hash,
     .cmp = int_compare,
     .str = int_str,
+    .methods = int_methods,
     .init = int_init,
 };
 

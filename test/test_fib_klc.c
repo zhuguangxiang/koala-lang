@@ -88,8 +88,9 @@ int main(int argc, char *argv[])
     module_add_code(m, (Object *)code);
 
     // Object *fn = module_get_symbol(m, 0, 0);
-    Value args[] = { IntValue(40) };
-    Value result = object_call((Object *)code, args, 1);
+    Value self = object_value(code);
+    Value args[] = { int_value(40) };
+    Value result = object_call(&self, args, 1, NULL);
     printf("%ld\n", result.ival);
 
     kl_fini();

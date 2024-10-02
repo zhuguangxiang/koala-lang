@@ -56,6 +56,12 @@ void buf_nwrite(Buffer *self, int count, ...);
 /* Write a char into buffer. */
 void buf_write_char(Buffer *self, char ch);
 
+/* Write an int64 into buffer. */
+void buf_write_int64(Buffer *self, int64_t val);
+
+/* Write a double into buffer. */
+void buf_write_double(Buffer *self, double val);
+
 #ifdef __cplusplus
 }
 #endif

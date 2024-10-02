@@ -147,25 +147,20 @@ static Object *_get_symbol(CallFrame *cf, int m_idx, int o_idx)
     return r;
 }
 
-static void _call_function(Object *obj, Value *args, int nargs, CallFrame *cf,
-                           Value *result)
+static void _call_function(Object *obj, Value *args, int nargs, Object *names,
+                           CallFrame *cf, Value *result)
 {
     TypeObject *tp = OB_TYPE(obj);
     CallFunc func = tp->call;
     if (!func) {
-        _raise_exc(cf->ks, "object is not callable");
-        *result = ErrorValue;
+        _raise_exc_str(cf->ks, "object is not callable");
+        *result = error_value;
     }
 
     /* process default key-value arguments */
-    // Object *kwds = NULL;
-    // int kwds_offset = tp->kwds_offset;
-    // if (kwds_offset > 0) {
-    //     /* object has default kwargs */
-    //     kwds = kl_new_dict();
-    // }
 
-    Value r = func(obj, args, nargs);
+    Value callable = object_value(obj);
+    Value r = func(&callable, args, nargs, names);
     *result = r;
 }
 
@@ -268,9 +263,10 @@ main_loop:
                 Object *callable = _get_symbol(cf, mod_idx, func_idx);
                 ASSERT(callable);
                 Value *ra = GET_LOCAL(A);
-                _call_function(callable, cf->stack, nargs, cf, ra);
+                _call_function(callable, cf->stack, nargs, NULL, cf, ra);
                 if (IS_ERROR(ra)) {
                     ASSERT(_exc_occurred(ks));
+                    *result = *ra;
                     goto error;
                 }
                 SHRINK(nargs);
@@ -285,7 +281,7 @@ main_loop:
             }
 
             case OP_RETURN_NONE: {
-                *result = NoneValue;
+                *result = none_value;
                 goto done;
             }
 
@@ -302,19 +298,20 @@ main_loop:
 error:
 
     /* log traceback info */
+    kl_trace_here(cf);
 
     /* finish the loop as we have an error. */
-
 done:
-
     /* pop frame */
     ks->cf = cf->back;
     --ks->depth;
 }
 
-Value kl_eval_code(Object *code, Value *args, int nargs)
+Value kl_eval_code(Value *self, Value *args, int nargs, Object *names)
 {
     KoalaState *ks = __ks();
+
+    Object *code = value_as_object(self);
 
     /* build a call frame */
     CallFrame *cf = _new_frame(ks, (CodeObject *)code);

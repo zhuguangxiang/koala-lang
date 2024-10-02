@@ -10,10 +10,9 @@
 extern "C" {
 #endif
 
-static void module_fini(Value *self)
+static void module_fini(Object *self)
 {
-    ASSERT(IS_OBJ(self));
-    ModuleObject *m = self->obj;
+    ModuleObject *m = (ModuleObject *)self;
     ASSERT(IS_MODULE(m));
     vector_fini(&m->symbols);
     vector_fini(&m->relocs);
@@ -57,6 +56,13 @@ int module_add_type(Object *_m, TypeObject *type)
 {
     ModuleObject *m = (ModuleObject *)_m;
     vector_push_back(&m->symbols, &type);
+    return 0;
+}
+
+int kl_module_def_init(ModuleDef *def)
+{
+    Object *m = kl_new_module(def->name);
+    def->init(m);
     return 0;
 }
 

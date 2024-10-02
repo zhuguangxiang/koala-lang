@@ -60,17 +60,18 @@ set(KOALA_SOURCES
     gc.c
     run.c
     eval.c
+    typeready.c
     moduleobject.c
     typeobject.c
     cfuncobject.c
     codeobject.c
     intobject.c
-    strobject.c
+    floatobject.c
+    stringobject.c
     noneobject.c
     tupleobject.c
-    listobject.c
-    dictobject.c
-    exception.c)
+    exception.c
+    modules/builtin.c)
 
 add_library(koala STATIC ${KOALA_SOURCES})
 target_link_libraries(koala pthread m dl ffi)

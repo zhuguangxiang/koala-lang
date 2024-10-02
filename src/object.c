@@ -3,22 +3,16 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.call
  */
 
-#include "object.h"
 #include "exception.h"
-#include "moduleobject.h"
-#include "strobject.h"
+#include "stringobject.h"
+#include "tupleobject.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern TypeObject none_type;
-extern TypeObject int_type;
-extern TypeObject float_type;
-extern TypeObject exc_type;
-
 static TypeObject *mapping[] = {
-    &none_type, NULL, &int_type, &float_type, &exc_type,
+    &void_type, &none_type, &int_type, &float_type, NULL, &exc_type,
 };
 
 TypeObject *object_type(Value *val)
@@ -29,113 +23,177 @@ TypeObject *object_type(Value *val)
     return NULL;
 }
 
-Object *object_generic_alloc(TypeObject *tp)
-{
-    ASSERT(tp->size > 0);
-    Object *obj = gc_alloc(tp->size);
-    INIT_OBJECT_HEAD(obj, tp);
-    return obj;
-}
-
-Value object_call(Value *self, Value *args, int nargs, KeywordMap *kwargs)
+Value object_call(Value *self, Value *args, int nargs, Object *names)
 {
     TypeObject *tp = object_type(self);
     ASSERT(tp);
     CallFunc call = tp->call;
     if (!call) {
         /* raise an error */
-        raise_exc("'%s' is not callable", tp->name);
-        return ErrorValue;
+        raise_exc_fmt("'%s' is not callable", tp->name);
+        return error_value;
     }
 
-    return call(self, args, nargs, kwargs);
+    return call(self, args, nargs, names);
 }
 
-Object *object_lookup_method(Value *obj, const char *fname)
+Object *kl_lookup_method(Value *obj, const char *fname)
 {
     TypeObject *tp = object_type(obj);
     Object *fn = hashmap_get(tp->vtbl, NULL);
     return fn;
 }
 
-Value object_call_site_method(SiteMethod *sm, Value *args, int nargs, KeywordMap *kwargs)
+Value methodsite_call(MethodSite *ms, Value *args, int nargs, Object *names)
 {
     TypeObject *tp = object_type(args);
     ASSERT(tp);
-    if (tp != sm->type) {
-        Object *meth = object_lookup_method(args, sm->fname);
+    if (tp != ms->type) {
+        Object *meth = kl_lookup_method(args, ms->fname);
         ASSERT(meth);
-        sm->type = tp;
-        sm->method = meth;
+        ms->type = tp;
+        ms->method = meth;
     }
-    Value v = ObjectValue(sm->method);
-    return object_call(&v, args, nargs, kwargs);
+    Value v = object_value(ms->method);
+    return object_call(&v, args, nargs, names);
 }
 
-int kl_parse_names(Value *args, Object *names, const char **kws, ...)
+static int get_name_index(Object *names, const char *name)
 {
-    int i = 0;
-    Value *item;
-    tuple_foreach(item, names) {
-        Object *sobj = value_as_object(item);
+    Value *items = TUPLE_ITEMS(names);
+    int len = TUPLE_LEN(names);
+
+    for (int i = 0; i < len; i++) {
+        Object *sobj = value_as_object(items + i);
         ASSERT(IS_STR(sobj));
         const char *s = STR_BUF(sobj);
-
-        int j = 0;
-        while (*kws) {
-            const char *kw = *kws;
-            if (!strcmp(s, kw)) {
-                v = args + i;
-            }
-            ++kws;
-            ++j;
+        if (!strcmp(s, name)) {
+            return i;
         }
+    }
 
-        ++i;
+    return -1;
+}
 
-        if (!strcmp(s, "sep")) {
-        } else if (!strcmp(s, "end")) {
-        } else if (!strcmp(s, "file")) {
-        } else {
-            unreachable();
+static void save_value(Value *arg, va_list va_args)
+{
+    Object **obj_p;
+    switch (arg->tag) {
+        case VAL_TAG_NONE: {
+            Object **obj_p = va_arg(va_args, Object **);
+            *obj_p = NULL;
+            break;
+        }
+        case VAL_TAG_INT: {
+            int64_t *r = va_arg(va_args, int64_t *);
+            *r = arg->ival;
+            break;
+        }
+        case VAL_TAG_FLOAT: {
+            double *r = va_arg(va_args, double *);
+            *r = arg->fval;
+            break;
+        }
+        case VAL_TAG_OBJECT: {
+            Object *obj = arg->obj;
+            if (IS_STR(obj)) {
+                const char **r = va_arg(va_args, const char **);
+                *r = STR_BUF(obj);
+            } else {
+                Object **obj_p = va_arg(va_args, Object **);
+                *obj_p = obj;
+            }
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
         }
     }
 }
 
-static Value object_hash(Value *self)
+/**
+ * Parse optional keyword arguments of this function.
+ *
+ * @return 0 successful, -1 error
+ *
+ * @param args The base pointer of arguments passed to this function.
+ * @param nargs The number of positional arguments passed to this function.
+ * @param names The tuple of keyword arguments' names passed to this function.
+ * @param npos The number of positional arguments defined by this function.
+ * @param kws The string array of acceptable keyword arguments' names defined by this
+ * function.
+ *
+ * @note
+ * The value of `nargs - npos` is the number of keyword arguments which are passed by
+ * positional arguments.
+ *
+ * It will be checked by compiler if there are arguments both have positional values and
+ * keyword values.
+ */
+int kl_parse_kwargs(Value *args, int nargs, Object *names, int npos, const char **kws,
+                    ...)
 {
-    unsigned int v = mem_hash(self, sizeof(Value));
-    return IntValue(v);
+    ASSERT(nargs >= npos);
+    Value *v;
+    va_list va_args;
+    va_start(va_args, kws);
+
+    // Parse keyword arguments which are passed by position.
+    for (int i = npos; i < nargs; i++) {
+        v = va_arg(va_args, Value *);
+        *v = *(args + i);
+        ++kws;
+    }
+
+    // Parse keyword arguments which are passed by keyword.
+    if (names) {
+        ASSERT(IS_TUPLE(names));
+        const char *kw;
+        while ((kw = *kws)) {
+            int i = get_name_index(names, kw);
+            v = va_arg(va_args, Value *);
+            if (i >= 0) {
+                *v = *(args + nargs + i);
+            }
+            ++kws;
+        }
+    }
+
+    va_end(va_args);
 }
 
-static Value object_compare(Value *self, Value *rhs)
+Value object_str(Value *self)
+{
+    TypeObject *tp = object_type(self);
+    ASSERT(tp->str);
+    return tp->str(self);
+}
+
+static Value base_hash(Value *self)
+{
+    unsigned int v = mem_hash(self, sizeof(Value));
+    return int_value(v);
+}
+
+static Value base_compare(Value *self, Value *rhs)
 {
     int v = memcmp(self, rhs, sizeof(Value));
     int r = _compare_result(v);
-    return IntValue(r);
+    return int_value(r);
 }
 
-static Value object_str(Value *self)
+static Value base_str(Value *self)
 {
     TypeObject *tp = object_type(self);
     Object *res = kl_new_fmt_str("<%s object>", tp->name);
-    return ObjectValue(res);
+    return object_value(res);
 }
 
-static Value object_hash_code(Value *self) { return object_hash(self); }
-
-static Value object_equals(Value *self, Value *rhs)
-{
-    int v = memcmp(self, rhs, sizeof(Value));
-    return (v == 0) ? IntValue(1) : IntValue(0);
-}
-
-static Value object_to_str(Value *self) { return object_str(self); }
-
-static MethodDef object_methods[] = {
-    { "hash_code", object_hash_code, METH_NO_ARGS, "", "i" },
-    { "equals", object_equals, METH_ONE_ARG, "Lbuiltin.object;", "b" },
-    { "to_str", object_to_str, METH_NO_ARGS, "", "s" },
+static MethodDef base_methods[] = {
+    { "__hash__", base_hash, METH_NO_ARGS, "", "i" },
+    { "__cmp__", base_compare, METH_ONE_ARG, "O", "b" },
+    { "__str__", base_str, METH_NO_ARGS, "", "s" },
     { NULL },
 };
 
@@ -143,12 +201,36 @@ TypeObject base_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "object",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
-    .size = sizeof(Object),
-    .hash = object_hash,
-    .cmp = object_compare,
-    .str = object_str,
-    .alloc = object_generic_alloc,
-    .methods = object_methods,
+    .hash = base_hash,
+    .cmp = base_compare,
+    .str = base_str,
+    .methods = base_methods,
+};
+
+static Value none_str(Value *self)
+{
+    Object *s = kl_new_str("none");
+    return object_value(s);
+}
+
+TypeObject none_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "none",
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
+    .str = none_str,
+};
+
+static Value void_str(Value *self)
+{
+    Object *s = kl_new_str("void");
+    return object_value(s);
+}
+
+TypeObject void_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "void",
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
+    .str = void_str,
 };
 
 #ifdef __cplusplus

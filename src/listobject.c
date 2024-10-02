@@ -20,7 +20,7 @@ extern "C" {
 //         list->array = gc_alloc_array(GC_KIND_INT64, 64);
 //     }
 //     gc_stack_pop(list);
-//     return ObjValue(list);
+//     return object_value(list);
 // }
 
 /*

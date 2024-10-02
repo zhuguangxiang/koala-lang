@@ -29,14 +29,28 @@ typedef struct _Exception {
 } Exception;
 
 extern TypeObject exc_type;
-void _raise_exc(KoalaState *ks, const char *fmt, ...);
+void _raise_exc_fmt(KoalaState *ks, const char *fmt, ...);
+void _raise_exc_str(KoalaState *ks, const char *str);
 #define _exc_occurred(ks) ((ks)->exc != NULL)
+void kl_trace_here(CallFrame *cf);
+
+void _print_exc(KoalaState *ks);
 
 /* clang-format off */
 
-#define raise_exc(fmt, ...) do {        \
-    KoalaState *ks = __ks();            \
-    _raise_exc(ks, fmt, ##__VA_ARGS__); \
+#define print_exc() do {     \
+    KoalaState *ks = __ks(); \
+    _print_exc(ks);          \
+} while (0)
+
+#define raise_exc_fmt(fmt, args...) do {        \
+    KoalaState *ks = __ks();                \
+    _raise_exc_fmt(ks, fmt, args); \
+} while(0)
+
+#define raise_exc_str(str) do { \
+    KoalaState *ks = __ks();    \
+    _raise_exc_str(ks, str);    \
 } while(0)
 
 #define exc_occurred() ({       \

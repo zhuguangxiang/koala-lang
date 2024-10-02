@@ -4,7 +4,7 @@
  */
 
 #include "cfuncobject.h"
-#include "intobject.h"
+#include "exception.h"
 #include "log.h"
 #include "moduleobject.h"
 #include "object.h"
@@ -21,10 +21,10 @@ void test_type_call(void)
     module_add_type(m, &int_type);
 
     /*
-    int(100)
+    int(100, 16)
     */
     char _insns[] = {
-        OP_PUSH_IMM8, 100, OP_CALL, 0, 0, 1, 0, OP_RETURN, 0,
+        OP_PUSH_IMM8, 100, OP_PUSH_IMM8, 16, OP_CALL, 0, 0, 2, 0, OP_RETURN, 0,
     };
 
     CodeObject *code = (CodeObject *)kl_new_code("init", m, NULL);
@@ -35,8 +35,13 @@ void test_type_call(void)
     code->cs.stack_size = 1;
     module_add_code(m, (Object *)code);
 
-    Value result = object_call((Object *)code, NULL, 0);
-    printf("%ld\n", result.ival);
+    Value self = object_value(code);
+    Value result = object_call(&self, NULL, 0, NULL);
+    if (IS_ERROR(&result)) {
+        print_exc();
+    } else {
+        printf("%ld\n", result.ival);
+    }
 }
 
 int main(int argc, char *argv[])

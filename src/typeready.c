@@ -5,8 +5,7 @@
 
 #include "cfuncobject.h"
 #include "hashmap.h"
-#include "object.h"
-#include "strobject.h"
+#include "stringobject.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,37 +19,39 @@ static int _vtbl_func_equal_(void *e1, void *e2)
     return 0;
 }
 
-static void vtbl_add_cfunc(KeywordMap *map, Object *cfunc, const char *name)
+static void vtbl_add_cfunc(HashMap *map, Object *cfunc, const char *name)
 {
     KeywordEntry *e = mm_alloc_obj_fast(e);
     unsigned int hash = str_hash(name);
     hashmap_entry_init(e, hash);
+    e->key = name;
+    e->obj = cfunc;
     int r = hashmap_put_absent(map, e);
     ASSERT(!r);
 }
 
-static void *vtbl_find(KeywordMap *map, const char *name)
+static void *vtbl_find(HashMap *map, const char *name)
 {
     KeywordEntry entry;
     unsigned int hash = str_hash(name);
     hashmap_entry_init(&entry, hash);
     KeywordEntry *found = hashmap_get(map, &entry);
-    return found ? found->val.obj : NULL;
+    return found ? found->obj : NULL;
 }
 
 void type_add_code(TypeObject *tp, Object *code)
 {
     Vector *funcs = tp->funcs;
-    if (!func) {
+    if (!funcs) {
         funcs = vector_create_ptr();
         tp->funcs = funcs;
     }
     vector_push_back(funcs, &code);
 }
 
-static int _type_ready(TypeObject *tp)
+static int _type_ready(TypeObject *tp, Object *m)
 {
-    KeywordMap *map = mm_alloc_obj_fast(map);
+    HashMap *map = mm_alloc_obj_fast(map);
     hashmap_init(map, _vtbl_func_equal_);
 
     // add method to type
@@ -68,7 +69,11 @@ static int _type_ready(TypeObject *tp)
         tp->base = base;
     }
 
-    ASSERT(base->flags & TP_FLAGS_READY);
+    if (base != &base_type) {
+        if (!(base->flags & TP_FLAGS_READY)) {
+            if (type_ready(base, m)) return -1;
+        }
+    }
 
     // inherit base methods
     FuncObject **item;
@@ -78,7 +83,7 @@ static int _type_ready(TypeObject *tp)
             Object *r = vtbl_find(map, cfunc->def->name);
             if (!r) {
                 // not override, inherit it
-                type_add_code(tp, (Object *)cfunc));
+                type_add_code(tp, (Object *)cfunc);
             } else {
                 // override, add current function
                 type_add_code(tp, r);
@@ -110,7 +115,7 @@ int type_ready(TypeObject *tp, Object *module)
     // set module
     tp->module = module;
 
-    if (_type_ready(tp)) {
+    if (_type_ready(tp, module)) {
         tp->flags &= ~TP_FLAGS_READYING;
         return -1;
     }

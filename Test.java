@@ -1,11 +1,14 @@
 class Test {
-    public static boolean foo(int a, int b) {
-        return a > b;
-    }
+    public static boolean foo(int a, int b) { return a > b; }
 
-    public static void main(String[] args) {
+    public static void main(String[] args)
+    {
         boolean b = foo(1, 2);
         System.out.println(b);
+        int a = 100;
+        System.out.println(a);
+        Integer i = new Integer(100);
+        System.out.println(i.toString());
     }
 }
 
@@ -49,13 +52,9 @@ Test();
          1: iconst_2
          2: invokestatic  #7                  // Method foo:(II)Z
          5: istore_1
-         6: getstatic     #13                 // Field java/lang/System.out:Ljava/io/PrintStream;
-         9: iload_1
-        10: invokevirtual #19                 // Method java/io/PrintStream.println:(Z)V
-        13: return
-      LineNumberTable:
-        line 7: 0
-        line 8: 6
-        line 9: 13
+         6: getstatic     #13                 // Field
+java/lang/System.out:Ljava/io/PrintStream; 9: iload_1 10: invokevirtual #19 // Method
+java/io/PrintStream.println:(Z)V 13: return LineNumberTable: line 7: 0 line 8: 6 line 9:
+13
 }
 */

@@ -8,19 +8,16 @@
 #include "moduleobject.h"
 #include "object.h"
 #include "run.h"
-#include "strobject.h"
+#include "stringobject.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-static Value _hello(Value *self, Value *args, int nargs)
+static Value _hello(Value *self)
 {
-    ASSERT(IS_OBJ(self));
-    Object *obj = self->obj;
+    Object *obj = value_as_object(self);
     ASSERT(IS_MODULE(obj));
-    ASSERT(args == NULL);
-    ASSERT(nargs == 0);
     printf("hello, world\n");
     Object *v = kl_new_str("hello");
     printf("str: %p\n", v);
@@ -30,12 +27,13 @@ static Value _hello(Value *self, Value *args, int nargs)
     printf("str: %s\n", (char *)(sobj->array + 1));
     // panic: no more memory for 330B
     // v = kl_new_str("world121");
-    return NoneValue;
+    return none_value;
 }
 
-MethodDef method = {
+static MethodDef method = {
     "hello",
     _hello,
+    METH_NO_ARGS,
 };
 
 void test_cfunc(void)
@@ -43,7 +41,9 @@ void test_cfunc(void)
     Object *m = kl_new_module("cfunc");
     Object *obj = kl_new_cfunc(&method, m, NULL);
     module_add_code(m, obj);
-    Value ret = object_call(obj, NULL, 0);
+    Value self = object_value(obj);
+    Value arg = object_value(m);
+    Value ret = object_call(&self, &arg, 1, NULL);
     ASSERT(IS_NONE(&ret));
 }
 

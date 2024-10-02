@@ -10,27 +10,38 @@
 extern "C" {
 #endif
 
-static Value _cfunc_call(Object *obj, Value *args, int nargs)
+static Value cfunc_call(Value *self, Value *args, int nargs, Object *names)
 {
-    ASSERT(IS_CFUNC(obj));
-    CFuncObject *cfunc = (CFuncObject *)obj;
-    CFunc fn = cfunc->def->cfunc;
+    Object *callable = value_as_object(self);
+    ASSERT(IS_CFUNC(callable));
+    CFuncObject *cfunc = (CFuncObject *)callable;
+    void *fn = cfunc->def->cfunc;
+    int flags = cfunc->def->flags;
     ASSERT(cfunc->module || cfunc->cls);
-    if (cfunc->module) {
-        Value self = ObjValue(cfunc->module);
-        return fn(&self, args, nargs);
-    } else if (cfunc->cls) {
-        return fn(args, args + 1, nargs - 1);
+
+    Value r = none_value;
+
+    if (flags & METH_NO_ARGS) {
+        r = ((CFuncNoArgs)fn)(args);
+    } else if (flags & METH_ONE_ARG) {
+        r = ((CFuncOneArg)fn)(args, args + 1);
+    } else if (flags & METH_VAR_ARGS) {
+        r = ((CFuncVarArgs)fn)(args, args + 1, nargs - 1);
+    } else if (flags & METH_VAR_NAMES) {
+        r = ((CFuncVarArgsNames)fn)(args, args + 1, nargs - 1, names);
     } else {
-        raise_exc("'%s' is invalid cfunc", cfunc->def->name);
-        return ErrorValue;
+        ASSERT(0);
+        raise_exc_fmt("'%s' is invalid function", cfunc->def->name);
+        r = error_value;
     }
+
+    return r;
 }
 
 TypeObject cfunc_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "cfunc",
-    .call = _cfunc_call,
+    .call = cfunc_call,
 };
 
 Object *kl_new_cfunc(MethodDef *def, Object *m, TypeObject *cls)

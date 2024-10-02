@@ -138,8 +138,8 @@ static void init_threads(int nthreads)
     }
 }
 
-void init_builtin_module(KoalaState *ks);
-void init_sys_module(KoalaState *ks);
+void init_builtin_module(void);
+void init_sys_module(void);
 
 void kl_init(int argc, char *argv[])
 {
@@ -159,10 +159,9 @@ void kl_init(int argc, char *argv[])
     /* init koala threads */
     init_threads(1);
 
-    /* init koala builtin & sys module */
-    KoalaState *ks = __ks();
-    init_builtin_module(ks);
-    init_sys_module(ks);
+    /* init builtin & sys module */
+    init_builtin_module();
+    // init_sys_module(ks);
 }
 
 static int done(void)
