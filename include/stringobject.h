@@ -25,8 +25,6 @@ extern TypeObject str_type;
 #define STR_BUF(ob) (const char *)(((StrObject *)(ob))->array + 1)
 #define STR_LEN(ob) (((StrObject *)(ob))->stop - ((StrObject *)(ob))->start)
 
-#define IS_STR_OBJ(v) (IS_OBJECT(v) ? IS_STR(value_object(v)) : 0)
-
 Object *kl_new_nstr(const char *s, int len);
 static inline Object *kl_new_str(const char *s) { return kl_new_nstr(s, strlen(s)); }
 Object *kl_new_fmt_str(const char *fmt, ...);

@@ -12,7 +12,7 @@ extern "C" {
 
 static Value tuple_str(Value *self)
 {
-    TupleObject *obj = value_as_object(self);
+    TupleObject *obj = as_obj(self);
     Value r = none_value;
     return r;
 }

@@ -12,7 +12,7 @@ extern "C" {
 
 static Value int_hash(Value *self)
 {
-    unsigned int v = mem_hash(&self->ival, sizeof(int64_t));
+    unsigned int v = mem_hash(&to_int(self), sizeof(int64_t));
     return int_value(v);
 }
 
@@ -23,8 +23,8 @@ static Value int_compare(Value *self, Value *rhs)
         return error_value;
     }
 
-    int64_t v1 = self->ival;
-    int64_t v2 = rhs->ival;
+    int64_t v1 = to_int(self);
+    int64_t v2 = to_int(rhs);
     int64_t v = v1 - v2;
     int r = _compare_result(v);
     return int_value(r);
@@ -33,10 +33,10 @@ static Value int_compare(Value *self, Value *rhs)
 static Value int_str(Value *self)
 {
     char buf[24];
-    snprintf(buf, 23, "%ld", self->ival);
+    snprintf(buf, 23, "%ld", to_int(self));
     buf[23] = '\0';
     Object *sobj = kl_new_str(buf);
-    return object_value(sobj);
+    return obj_value(sobj);
 }
 
 static MethodDef int_methods[] = {
@@ -45,6 +45,61 @@ static MethodDef int_methods[] = {
     { "__str__", int_str, METH_NO_ARGS, "", "s" },
     { NULL },
 };
+
+static int str_to_int(const char *s, int base, Value *ret)
+{
+    errno = 0;
+    long long v = strtoll(s, NULL, base);
+    if (errno) {
+        raise_exc_fmt("%s", strerror(errno));
+        return -1;
+    }
+
+    *ret = int_value(v);
+    return 0;
+}
+
+static int int_init_impl(Value *self, Value *_x, Value *_base)
+{
+    if (IS_UNDEF(_base)) {
+        // `base` is not set, and `x` MUST be int, float or string
+        if (IS_INT(_x)) {
+            *self = *_x;
+            return 0;
+        } else if (IS_FLOAT(_x)) {
+            *self = int_value(to_float(_x));
+            return 0;
+        } else if (IS_OBJ(_x)) {
+            Object *obj = to_obj(_x);
+            if (!IS_STR(obj)) {
+                TypeObject *tp = OB_TYPE(obj);
+                ASSERT(tp);
+                raise_exc_fmt("expect 'str', but got '%s'", tp->name);
+                return -1;
+            }
+            const char *s = STR_BUF(obj);
+            return str_to_int(s, 10, self);
+        } else {
+            TypeObject *tp = object_type(_x);
+            raise_exc_fmt("expect 'int', 'float' or 'str', but got '%s'", tp->name);
+            return -1;
+        }
+    }
+
+    ASSERT(IS_INT(_base));
+    int base = to_int(_base);
+
+    // If `base` has value, check `x` MUST be string.
+    if (!IS_OBJ(_x) || !IS_STR(to_obj(_x))) {
+        TypeObject *tp = object_type(_x);
+        ASSERT(tp);
+        raise_exc_fmt("expect 'str', but got '%s'", tp->name);
+        return -1;
+    }
+
+    const char *s = STR_BUF(to_obj(_x));
+    return str_to_int(s, base, self);
+}
 
 /*
 int()
@@ -56,49 +111,12 @@ func int(x object = 0, base = 10) int;
 */
 static int int_init(Value *self, Value *args, int nargs, Object *names)
 {
-    Value _x = void_value;
-    Value _base = void_value;
+    Value _x = undef_value;
+    Value _base = undef_value;
     const char *_kws[] = { "x", "base", NULL };
     kl_parse_kwargs(args, nargs, names, 0, _kws, &_x, &_base);
 
-    const char *s = NULL;
-    int base = 10;
-
-    if (!IS_VOID(&_base)) {
-        // If `base` has value, check `x` MUST be string.
-        ASSERT(IS_INT(&_base));
-        if (!IS_STR_OBJ(&_x)) {
-            TypeObject *tp = object_type(&_x);
-            ASSERT(tp);
-            raise_exc_fmt("expect 'str', but got '%s'", tp->name);
-            return -1;
-        }
-
-        s = STR_BUF(value_object(&_x));
-        base = value_int(&_base);
-        errno = 0;
-        long long v = strtoll(s, NULL, base);
-        if (errno) {
-            raise_exc_fmt("%s", strerror(errno));
-            return -1;
-        }
-
-        *self = int_value(v);
-        return 0;
-    }
-
-    // `base` is not set, and `x` MUST be int or float
-    if (IS_INT(&_x)) {
-        *self = int_value(value_int(&_x));
-    } else if (IS_FLOAT(&_x)) {
-        *self = int_value(value_float(&_x));
-    } else {
-        TypeObject *tp = object_type(&_x);
-        raise_exc_fmt("expect 'int' or 'float', but got '%s'", tp->name);
-        return -1;
-    }
-
-    return 0;
+    return int_init_impl(self, &_x, &_base);
 }
 
 TypeObject int_type = {

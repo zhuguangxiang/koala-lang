@@ -19,8 +19,7 @@ TypeObject *object_type(Value *val)
 {
     TypeObject *tp = mapping[val->tag];
     if (tp) return tp;
-    if (IS_OBJECT(val)) return OB_TYPE(val->obj);
-    return NULL;
+    return OB_TYPE(to_obj(val));
 }
 
 Value object_call(Value *self, Value *args, int nargs, Object *names)
@@ -54,7 +53,7 @@ Value methodsite_call(MethodSite *ms, Value *args, int nargs, Object *names)
         ms->type = tp;
         ms->method = meth;
     }
-    Value v = object_value(ms->method);
+    Value v = obj_value(ms->method);
     return object_call(&v, args, nargs, names);
 }
 
@@ -64,7 +63,7 @@ static int get_name_index(Object *names, const char *name)
     int len = TUPLE_LEN(names);
 
     for (int i = 0; i < len; i++) {
-        Object *sobj = value_as_object(items + i);
+        Object *sobj = as_obj(items + i);
         ASSERT(IS_STR(sobj));
         const char *s = STR_BUF(sobj);
         if (!strcmp(s, name)) {
@@ -73,43 +72,6 @@ static int get_name_index(Object *names, const char *name)
     }
 
     return -1;
-}
-
-static void save_value(Value *arg, va_list va_args)
-{
-    Object **obj_p;
-    switch (arg->tag) {
-        case VAL_TAG_NONE: {
-            Object **obj_p = va_arg(va_args, Object **);
-            *obj_p = NULL;
-            break;
-        }
-        case VAL_TAG_INT: {
-            int64_t *r = va_arg(va_args, int64_t *);
-            *r = arg->ival;
-            break;
-        }
-        case VAL_TAG_FLOAT: {
-            double *r = va_arg(va_args, double *);
-            *r = arg->fval;
-            break;
-        }
-        case VAL_TAG_OBJECT: {
-            Object *obj = arg->obj;
-            if (IS_STR(obj)) {
-                const char **r = va_arg(va_args, const char **);
-                *r = STR_BUF(obj);
-            } else {
-                Object **obj_p = va_arg(va_args, Object **);
-                *obj_p = obj;
-            }
-            break;
-        }
-        default: {
-            UNREACHABLE();
-            break;
-        }
-    }
 }
 
 /**
@@ -161,6 +123,7 @@ int kl_parse_kwargs(Value *args, int nargs, Object *names, int npos, const char 
     }
 
     va_end(va_args);
+    return 0;
 }
 
 Value object_str(Value *self)
@@ -187,7 +150,7 @@ static Value base_str(Value *self)
 {
     TypeObject *tp = object_type(self);
     Object *res = kl_new_fmt_str("<%s object>", tp->name);
-    return object_value(res);
+    return obj_value(res);
 }
 
 static MethodDef base_methods[] = {
@@ -210,7 +173,7 @@ TypeObject base_type = {
 static Value none_str(Value *self)
 {
     Object *s = kl_new_str("none");
-    return object_value(s);
+    return obj_value(s);
 }
 
 TypeObject none_type = {
@@ -223,7 +186,7 @@ TypeObject none_type = {
 static Value void_str(Value *self)
 {
     Object *s = kl_new_str("void");
-    return object_value(s);
+    return obj_value(s);
 }
 
 TypeObject void_type = {

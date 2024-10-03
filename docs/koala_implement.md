@@ -220,3 +220,9 @@ The `Formatter` object with config settings and a inner buffer for print.
 		- if there is step, duplicate one
 	- for mutable
 		- duplicate all the time
+ - object
+	- can an object be none?
+	- can primitive be none?
+	- tradeoff:
+		- all type can be none.
+		- all type can NOT be none.

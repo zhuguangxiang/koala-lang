@@ -29,16 +29,29 @@ static void init_types(Object *m)
     type_ready(&tuple_type, m);
 }
 
-/*
-public func print(objs ..., sep = ' ', end = '\n', file io.Writer = none)
-*/
-static Value builtin_print(Value *module, Value *args, int nargs, Object *names)
+static void builtin_print_impl(Value *args, int nargs, Value *_sep, Value *_end,
+                               Value *_file)
 {
-    char *sep = " ";
-    char *end = "\n";
+    const char *sep = " ";
+    const char *end = "\n";
     Object *file = NULL;
-    const char *kws[] = { "sep", "end", "file", NULL };
-    kl_parse_kwargs(args, nargs, names, nargs, kws, &sep, &end, &file);
+
+    if (!IS_UNDEF(_sep)) {
+        Object *obj = as_obj(_sep);
+        ASSERT(IS_STR(obj));
+        sep = STR_BUF(obj);
+    }
+
+    if (!IS_UNDEF(_end)) {
+        Object *obj = as_obj(_end);
+        ASSERT(IS_STR(obj));
+        end = STR_BUF(obj);
+    }
+
+    if (IS_NONE(_file)) {
+        // TODO: sys.stdout
+        file = NULL;
+    }
 
     BUF(buf);
 
@@ -54,23 +67,22 @@ static Value builtin_print(Value *module, Value *args, int nargs, Object *names)
             buf_write_int64(&buf, arg->ival);
         } else if (IS_FLOAT(arg)) {
             buf_write_double(&buf, arg->fval);
-        } else if (IS_OBJECT(arg)) {
-            Object *obj = arg->obj;
+        } else if (IS_OBJ(arg)) {
+            Object *obj = to_obj(arg);
             const char *s;
             int len;
             if (IS_STR(obj)) {
                 s = STR_BUF(obj);
                 len = STR_LEN(obj);
                 buf_write_char(&buf, '\'');
-                buf_write_nstr(&buf, (char *)s, len);
+                buf_write_nstr(&buf, s, len);
                 buf_write_char(&buf, '\'');
             } else {
-                Value self = object_value(obj);
-                Value r = object_str(&self);
-                obj = value_as_object(&r);
+                Value r = object_str(arg);
+                obj = as_obj(&r);
                 s = STR_BUF(obj);
                 len = STR_LEN(obj);
-                buf_write_nstr(&buf, (char *)s, len);
+                buf_write_nstr(&buf, s, len);
             }
         } else {
             UNREACHABLE();
@@ -79,11 +91,24 @@ static Value builtin_print(Value *module, Value *args, int nargs, Object *names)
 
     buf_write_str(&buf, end);
 
-    // TODO:
+    // TODO: sys.stdout
     printf("%s", BUF_STR(buf));
 
     FINI_BUF(buf);
+}
 
+/*
+public func print(objs ..., sep = ' ', end = '\n', file io.Writer? = none)
+*/
+static Value builtin_print(Value *module, Value *args, int nargs, Object *names)
+{
+    Value _sep = undef_value;
+    Value _end = undef_value;
+    Value _file = none_value;
+    const char *_kws[] = { "sep", "end", "file", NULL };
+    kl_parse_kwargs(args, nargs, names, nargs, _kws, &_sep, &_end, &_file);
+
+    builtin_print_impl(args, nargs, &_sep, &_end, &_file);
     return none_value;
 }
 

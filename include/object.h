@@ -41,42 +41,43 @@ typedef struct _Value {
     int tag;
 } Value;
 
-#define VAL_TAG_VOID   0 // void(no value type)
+#define VAL_TAG_UNDEF  0 // undefined(like javascript `undefined`) value
 #define VAL_TAG_NONE   1 // none(null/nil) value
 #define VAL_TAG_INT    2
 #define VAL_TAG_FLOAT  3
 #define VAL_TAG_OBJECT 4
 #define VAL_TAG_ERROR  5 // nothing type
 
-#define IS_VOID(x)   ((x)->tag == VAL_TAG_VOID)
-#define IS_OBJECT(x) ((x)->tag == VAL_TAG_OBJECT)
-#define IS_INT(x)    ((x)->tag == VAL_TAG_INT)
-#define IS_FLOAT(x)  ((x)->tag == VAL_TAG_FLOAT)
-#define IS_NONE(x)   ((x)->tag == VAL_TAG_NONE)
-#define IS_ERROR(x)  ((x)->tag == VAL_TAG_ERROR)
+#define IS_UNDEF(x) ((x)->tag == VAL_TAG_UNDEF)
+#define IS_OBJ(x)   ((x)->tag == VAL_TAG_OBJECT)
+#define IS_INT(x)   ((x)->tag == VAL_TAG_INT)
+#define IS_FLOAT(x) ((x)->tag == VAL_TAG_FLOAT)
+#define IS_NONE(x)  ((x)->tag == VAL_TAG_NONE)
+#define IS_ERROR(x) ((x)->tag == VAL_TAG_ERROR)
 
 /* clang-format off */
-#define void_value      (Value){ .tag = VAL_TAG_VOID,   .ival = 0   }
-#define object_value(x) (Value){ .tag = VAL_TAG_OBJECT, .obj  = (x) }
-#define int_value(x)    (Value){ .tag = VAL_TAG_INT,    .ival = (int64_t)(x) }
-#define float_value(x)  (Value){ .tag = VAL_TAG_FLOAT,  .fval = (double)(x)  }
-#define none_value      (Value){ .tag = VAL_TAG_NONE,   .ival = 0   }
-#define error_value     (Value){ .tag = VAL_TAG_ERROR,  .ival = -1  }
+#define undef_value    (Value){ .tag = VAL_TAG_UNDEF,  .ival = 0   }
+#define obj_value(x)   (Value){ .tag = VAL_TAG_OBJECT, .obj  = (x) }
+#define int_value(x)   (Value){ .tag = VAL_TAG_INT,    .ival = (int64_t)(x) }
+#define float_value(x) (Value){ .tag = VAL_TAG_FLOAT,  .fval = (double)(x)  }
+#define none_value     (Value){ .tag = VAL_TAG_NONE,   .ival = 0   }
+#define error_value    (Value){ .tag = VAL_TAG_ERROR,  .ival = -1  }
 
-#define value_as_object(v) ({ ASSERT(IS_OBJECT(v)); (v)->obj; })
-#define value_as_int(v) ({ ASSERT(IS_INT(v)); (v)->ival; })
-#define value_as_float(v) ({ ASSERT(IS_INT(v)); (v)->fval; })
+// will throw exception, if type check failed.
+#define as_obj(v)   ({ ASSERT(IS_OBJ(v)); (v)->obj; })
+#define as_int(v)   ({ ASSERT(IS_INT(v)); (v)->ival; })
+#define as_float(v) ({ ASSERT(IS_INT(v)); (v)->fval; })
 
-#define value_object(v) ((v)->obj)
-#define value_int(v)    ((v)->ival)
-#define value_float(v)  ((v)->fval)
+#define to_obj(v)   ((v)->obj)
+#define to_int(v)   ((v)->ival)
+#define to_float(v) ((v)->fval)
 
 /* clang-format on */
 
 static inline void gc_mark_value(Value *val, Queue *que)
 {
-    if (IS_OBJECT(val)) {
-        gc_mark_obj(val->obj, que);
+    if (IS_OBJ(val)) {
+        gc_mark_obj(to_obj(val), que);
     }
 }
 

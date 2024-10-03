@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#define EXPAND_MIN_SIZE 32
+#define EXPAND_MIN_SIZE 4
 
 static int expand(Buffer *self, int min)
 {
@@ -21,7 +21,7 @@ static int expand(Buffer *self, int min)
     if (!newbuf) return -1;
 
     if (self->buf) {
-        strcpy(newbuf, self->buf);
+        memcpy(newbuf, self->buf, self->len);
         mm_free(self->buf);
     }
     self->buf = newbuf;
@@ -36,7 +36,7 @@ static int available(Buffer *self, int size)
     return self->size - self->len - 1 - size;
 }
 
-void buf_write_nstr(Buffer *self, char *s, int len)
+void buf_write_nstr(Buffer *self, const char *s, int len)
 {
     if (!s) return;
     if (len <= 0) return;
@@ -45,13 +45,11 @@ void buf_write_nstr(Buffer *self, char *s, int len)
     self->len += len;
 }
 
-void buf_write_str(Buffer *self, char *s)
+void buf_write_str(Buffer *self, const char *s)
 {
     if (!s) return;
     int len = strlen(s);
-    if (available(self, len) <= 0) return;
-    strcat(self->buf, s);
-    self->len += len;
+    return buf_write_nstr(self, s, len);
 }
 
 void buf_nwrite(Buffer *self, int count, ...)

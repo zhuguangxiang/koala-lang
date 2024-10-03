@@ -159,7 +159,7 @@ static void _call_function(Object *obj, Value *args, int nargs, Object *names,
 
     /* process default key-value arguments */
 
-    Value callable = object_value(obj);
+    Value callable = obj_value(obj);
     Value r = func(&callable, args, nargs, names);
     *result = r;
 }
@@ -311,7 +311,7 @@ Value kl_eval_code(Value *self, Value *args, int nargs, Object *names)
 {
     KoalaState *ks = __ks();
 
-    Object *code = value_as_object(self);
+    Object *code = as_obj(self);
 
     /* build a call frame */
     CallFrame *cf = _new_frame(ks, (CodeObject *)code);

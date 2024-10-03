@@ -35,7 +35,7 @@ void test_type_call(void)
     code->cs.stack_size = 1;
     module_add_code(m, (Object *)code);
 
-    Value self = object_value(code);
+    Value self = obj_value(code);
     Value result = object_call(&self, NULL, 0, NULL);
     if (IS_ERROR(&result)) {
         print_exc();

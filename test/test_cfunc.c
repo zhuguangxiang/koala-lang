@@ -16,7 +16,7 @@ extern "C" {
 
 static Value _hello(Value *self)
 {
-    Object *obj = value_as_object(self);
+    Object *obj = as_obj(self);
     ASSERT(IS_MODULE(obj));
     printf("hello, world\n");
     Object *v = kl_new_str("hello");
@@ -41,8 +41,8 @@ void test_cfunc(void)
     Object *m = kl_new_module("cfunc");
     Object *obj = kl_new_cfunc(&method, m, NULL);
     module_add_code(m, obj);
-    Value self = object_value(obj);
-    Value arg = object_value(m);
+    Value self = obj_value(obj);
+    Value arg = obj_value(m);
     Value ret = object_call(&self, &arg, 1, NULL);
     ASSERT(IS_NONE(&ret));
 }

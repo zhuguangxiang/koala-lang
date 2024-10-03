@@ -14,32 +14,31 @@ extern "C" {
 
 static Value type_str(Value *self)
 {
-    ASSERT(IS_OBJECT(self));
-    TypeObject *tp = self->obj;
+    TypeObject *tp = as_obj(self);
     ASSERT(IS_TYPE(tp, &type_type));
     const char *s = module_get_name(tp->module);
     Object *result = kl_new_fmt_str("<class %s.%s>", s, tp->name);
-    return object_value(result);
+    return obj_value(result);
 }
 
 static Value type_call(Value *self, Value *args, int nargs, Object *names)
 {
-    TypeObject *type = value_as_object(self);
+    TypeObject *type = as_obj(self);
 
     if (type == &type_type) {
         /* func typeof(obj object) type */
         ASSERT(args && nargs == 1);
         TypeObject *tp = object_type(args);
         ASSERT(tp);
-        return object_value(tp);
+        return obj_value(tp);
     }
 
     Value val;
     if (type->alloc) {
         Object *obj = type->alloc(type);
-        val = object_value(obj);
+        val = obj_value(obj);
     } else {
-        val = (Value){ 0 };
+        val = undef_value;
     }
 
     if (type->init) {

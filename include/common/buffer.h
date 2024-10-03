@@ -45,10 +45,10 @@ typedef struct _Buffer {
 #define BUF_LEN(name) (name).len
 
 /* Write a NULL-terminated string. */
-void buf_write_str(Buffer *self, char *s);
+void buf_write_str(Buffer *self, const char *s);
 
 /* Write string with len */
-void buf_write_nstr(Buffer *self, char *s, int len);
+void buf_write_nstr(Buffer *self, const char *s, int len);
 
 /* Write 'count' NULL-terminated strings. */
 void buf_nwrite(Buffer *self, int count, ...);

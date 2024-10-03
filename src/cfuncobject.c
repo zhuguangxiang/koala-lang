@@ -12,7 +12,7 @@ extern "C" {
 
 static Value cfunc_call(Value *self, Value *args, int nargs, Object *names)
 {
-    Object *callable = value_as_object(self);
+    Object *callable = as_obj(self);
     ASSERT(IS_CFUNC(callable));
     CFuncObject *cfunc = (CFuncObject *)callable;
     void *fn = cfunc->def->cfunc;
