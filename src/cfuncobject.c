@@ -24,7 +24,12 @@ static Value cfunc_call(Value *self, Value *args, int nargs, Object *names)
     if (flags & METH_NO_ARGS) {
         r = ((CFuncNoArgs)fn)(args);
     } else if (flags & METH_ONE_ARG) {
-        r = ((CFuncOneArg)fn)(args, args + 1);
+        if (cfunc->cls) {
+            r = ((CFuncOneArg)fn)(args, args + 1);
+        } else {
+            Value self = obj_value(cfunc->module);
+            r = ((CFuncOneArg)fn)(&self, args);
+        }
     } else if (flags & METH_VAR_ARGS) {
         r = ((CFuncVarArgs)fn)(args, args + 1, nargs - 1);
     } else if (flags & METH_VAR_NAMES) {

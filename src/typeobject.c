@@ -12,13 +12,26 @@
 extern "C" {
 #endif
 
+Object *type_lookup_object(Object *_tp, const char *name, int len)
+{
+    TypeObject *tp = (TypeObject *)_tp;
+    Object *obj = table_find(&tp->map, name, len);
+    ASSERT(obj);
+    return obj;
+}
+
 static Value type_str(Value *self)
 {
     TypeObject *tp = as_obj(self);
     ASSERT(IS_TYPE(tp, &type_type));
     const char *s = module_get_name(tp->module);
-    Object *result = kl_new_fmt_str("<class %s.%s>", s, tp->name);
-    return obj_value(result);
+    Object *ret;
+    if (!strcmp(s, "builtin")) {
+        ret = kl_new_fmt_str("<class '%s'>", tp->name);
+    } else {
+        ret = kl_new_fmt_str("<class '%s.%s'>", s, tp->name);
+    }
+    return obj_value(ret);
 }
 
 static Value type_call(Value *self, Value *args, int nargs, Object *names)
@@ -28,7 +41,7 @@ static Value type_call(Value *self, Value *args, int nargs, Object *names)
     if (type == &type_type) {
         /* func typeof(obj object) type */
         ASSERT(args && nargs == 1);
-        TypeObject *tp = object_type(args);
+        TypeObject *tp = object_typeof(args);
         ASSERT(tp);
         return obj_value(tp);
     }

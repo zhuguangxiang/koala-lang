@@ -15,13 +15,11 @@
 extern "C" {
 #endif
 
-extern TypeObject int_type;
-
 static void init_types(Object *m)
 {
     type_ready(&base_type, m);
     type_ready(&type_type, m);
-    type_ready(&void_type, m);
+    type_ready(&undef_type, m);
     type_ready(&none_type, m);
     type_ready(&exc_type, m);
     type_ready(&int_type, m);
@@ -74,9 +72,7 @@ static void builtin_print_impl(Value *args, int nargs, Value *_sep, Value *_end,
             if (IS_STR(obj)) {
                 s = STR_BUF(obj);
                 len = STR_LEN(obj);
-                buf_write_char(&buf, '\'');
                 buf_write_nstr(&buf, s, len);
-                buf_write_char(&buf, '\'');
             } else {
                 Value r = object_str(arg);
                 obj = as_obj(&r);
@@ -114,6 +110,7 @@ static Value builtin_print(Value *module, Value *args, int nargs, Object *names)
 
 static MethodDef builtin_methods[] = {
     { "print", builtin_print, METH_VAR_NAMES, "...|sep:s,end:s,file:Lio.Writer;", "" },
+    // { "format", builtin_format, METH_VAR_NAMES },
     { NULL },
 };
 

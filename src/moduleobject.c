@@ -126,11 +126,23 @@ int kl_module_link(Object *_m)
         if (dot) len = dot - ns;
         Object *obj = kl_lookup_module(ns, len);
         ASSERT(obj);
-        SymbolInfo *sym;
-        vector_foreach(sym, &rel->syms) {
-            Object *o = module_lookup_object(obj, sym->name, strlen(sym->name));
-            ASSERT(o);
-            sym->obj = o;
+
+        if (dot) {
+            // find from class, if dot exists.
+            obj = module_lookup_object(obj, dot + 1, strlen(dot + 1));
+            SymbolInfo *sym;
+            vector_foreach(sym, &rel->syms) {
+                Object *o = type_lookup_object(obj, sym->name, strlen(sym->name));
+                ASSERT(o);
+                sym->obj = o;
+            }
+        } else {
+            SymbolInfo *sym;
+            vector_foreach(sym, &rel->syms) {
+                Object *o = module_lookup_object(obj, sym->name, strlen(sym->name));
+                ASSERT(o);
+                sym->obj = o;
+            }
         }
     }
 
@@ -167,10 +179,16 @@ int module_add_int_const(Object *_m, int64_t val)
 
 int module_add_str_const(Object *_m, const char *s)
 {
-    ModuleObject *m = (ModuleObject *)_m;
     Object *sobj = kl_new_str(s);
     ASSERT(sobj);
-    Value v = obj_value(sobj);
+    module_add_obj_const(_m, sobj);
+    return 0;
+}
+
+int module_add_obj_const(Object *_m, Object *obj)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    Value v = obj_value(obj);
     vector_push_back(&m->consts, &v);
     return 0;
 }

@@ -69,7 +69,6 @@ set(KOALA_SOURCES
     intobject.c
     floatobject.c
     stringobject.c
-    noneobject.c
     tupleobject.c
     exception.c
     modules/builtin.c)

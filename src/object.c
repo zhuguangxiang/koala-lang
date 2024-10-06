@@ -12,10 +12,10 @@ extern "C" {
 #endif
 
 static TypeObject *mapping[] = {
-    &void_type, &none_type, &int_type, &float_type, NULL, &exc_type,
+    &undef_type, &none_type, &int_type, &float_type, NULL, &exc_type,
 };
 
-TypeObject *object_type(Value *val)
+TypeObject *object_typeof(Value *val)
 {
     TypeObject *tp = mapping[val->tag];
     if (tp) return tp;
@@ -24,7 +24,7 @@ TypeObject *object_type(Value *val)
 
 Value object_call(Value *self, Value *args, int nargs, Object *names)
 {
-    TypeObject *tp = object_type(self);
+    TypeObject *tp = object_typeof(self);
     ASSERT(tp);
     CallFunc call = tp->call;
     if (!call) {
@@ -38,14 +38,14 @@ Value object_call(Value *self, Value *args, int nargs, Object *names)
 
 Object *kl_lookup_method(Value *obj, const char *fname)
 {
-    TypeObject *tp = object_type(obj);
+    TypeObject *tp = object_typeof(obj);
     Object *fn = hashmap_get(&tp->map, NULL);
     return fn;
 }
 
 Value methodsite_call(MethodSite *ms, Value *args, int nargs, Object *names)
 {
-    TypeObject *tp = object_type(args);
+    TypeObject *tp = object_typeof(args);
     ASSERT(tp);
     if (tp != ms->type) {
         Object *meth = kl_lookup_method(args, ms->fname);
@@ -128,7 +128,7 @@ int kl_parse_kwargs(Value *args, int nargs, Object *names, int npos, const char 
 
 Value object_str(Value *self)
 {
-    TypeObject *tp = object_type(self);
+    TypeObject *tp = object_typeof(self);
     ASSERT(tp->str);
     return tp->str(self);
 }
@@ -180,7 +180,7 @@ static Value base_compare(Value *self, Value *rhs)
 
 static Value base_str(Value *self)
 {
-    TypeObject *tp = object_type(self);
+    TypeObject *tp = object_typeof(self);
     Object *res = kl_new_fmt_str("<%s object>", tp->name);
     return obj_value(res);
 }
@@ -210,22 +210,22 @@ static Value none_str(Value *self)
 
 TypeObject none_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "none",
+    .name = "NoneType",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
     .str = none_str,
 };
 
-static Value void_str(Value *self)
+static Value undef_str(Value *self)
 {
-    Object *s = kl_new_str("void");
+    Object *s = kl_new_str("undef");
     return obj_value(s);
 }
 
-TypeObject void_type = {
+TypeObject undef_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "void",
+    .name = "UndefType",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
-    .str = void_str,
+    .str = undef_str,
 };
 
 #ifdef __cplusplus

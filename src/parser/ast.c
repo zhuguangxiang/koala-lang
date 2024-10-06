@@ -37,7 +37,7 @@ Type *str_type(void)
     return ty;
 }
 
-Type *object_type(void)
+Type *object_typeof(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_object();

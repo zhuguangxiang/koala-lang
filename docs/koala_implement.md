@@ -279,3 +279,7 @@ The `Formatter` object with config settings and a inner buffer for print.
 	foo.name
 	fn = Foo.hello // unbound method
 	```
+- How to load/store global variable?
+	- use get_global/set_global instructions
+	- in __init__ function, how to do better?
+	- in other functions, how to do?

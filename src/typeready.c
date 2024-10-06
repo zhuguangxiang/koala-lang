@@ -5,6 +5,7 @@
 
 #include "cfuncobject.h"
 #include "hashmap.h"
+#include "moduleobject.h"
 #include "stringobject.h"
 
 #ifdef __cplusplus
@@ -84,6 +85,8 @@ int type_ready(TypeObject *tp, Object *module)
         tp->flags &= ~TP_FLAGS_READYING;
         return -1;
     }
+
+    module_add_object(module, tp->name, (Object *)tp);
 
     // mark the type is ready
     tp->flags |= TP_FLAGS_READY;

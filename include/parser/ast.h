@@ -46,7 +46,7 @@ Type *int_type(void);
 Type *float_type(void);
 Type *bool_type(void);
 Type *str_type(void);
-Type *object_type(void);
+Type *object_typeof(void);
 Type *char_type(void);
 Type *bytes_type(void);
 Type *type_type(void);

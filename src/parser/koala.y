@@ -659,7 +659,7 @@ atom_type
     }
     | OBJECT
     {
-        $$ = object_type();
+        $$ = object_typeof();
         type_set_loc($$, loc(@1));
     }
     | CHAR

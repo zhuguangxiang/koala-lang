@@ -132,6 +132,11 @@ typedef enum _OpCode {
     OP_CALL_METHOD,
     OP_CALL_DYNAMIC,
 
+    /* call with keywords */
+    OP_CALL_KW,
+    OP_CALL_METHOD_KW,
+    OP_CALL_DYNAMIC_KW,
+
     /* return */
     OP_RETURN,
     OP_RETURN_NONE,

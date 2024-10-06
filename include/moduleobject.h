@@ -91,6 +91,7 @@ int kl_module_def_init(ModuleDef *def);
 int kl_module_link(Object *_m);
 int module_add_int_const(Object *_m, int64_t val);
 int module_add_str_const(Object *_m, const char *s);
+int module_add_obj_const(Object *_m, Object *obj);
 int module_add_rel(Object *_m, const char *path, SymbolInfo *sym);
 
 #ifdef __cplusplus

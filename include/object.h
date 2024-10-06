@@ -280,7 +280,7 @@ typedef struct _TypeObject {
 
 extern TypeObject type_type;
 extern TypeObject base_type;
-extern TypeObject void_type;
+extern TypeObject undef_type;
 extern TypeObject none_type;
 extern TypeObject int_type;
 extern TypeObject float_type;
@@ -305,11 +305,11 @@ typedef struct _MethodSite {
 } MethodSite;
 
 int type_ready(TypeObject *tp, Object *module);
-TypeObject *object_type(Value *val);
+TypeObject *object_typeof(Value *val);
 
 static inline CallFunc object_callable(Value *val)
 {
-    TypeObject *tp = object_type(val);
+    TypeObject *tp = object_typeof(val);
     if (!tp) return NULL;
     return tp->call;
 }
@@ -331,6 +331,7 @@ Object *kl_lookup_method(Value *obj, const char *fname);
 int kl_parse_kwargs(Value *args, int nargs, Object *names, int npos, const char **kws,
                     ...);
 Value object_str(Value *self);
+Object *type_lookup_object(Object *tp, const char *name, int len);
 
 #ifdef __cplusplus
 }

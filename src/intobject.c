@@ -80,7 +80,7 @@ static int int_init_impl(Value *self, Value *_x, Value *_base)
             const char *s = STR_BUF(obj);
             return str_to_int(s, 10, self);
         } else {
-            TypeObject *tp = object_type(_x);
+            TypeObject *tp = object_typeof(_x);
             raise_exc_fmt("expect 'int', 'float' or 'str', but got '%s'", tp->name);
             return -1;
         }
@@ -91,7 +91,7 @@ static int int_init_impl(Value *self, Value *_x, Value *_base)
 
     // If `base` has value, check `x` MUST be string.
     if (!IS_OBJ(_x) || !IS_STR(to_obj(_x))) {
-        TypeObject *tp = object_type(_x);
+        TypeObject *tp = object_typeof(_x);
         ASSERT(tp);
         raise_exc_fmt("expect 'str', but got '%s'", tp->name);
         return -1;

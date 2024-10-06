@@ -31,8 +31,8 @@ typedef struct _ShadowStack {
 #define _init_gc_stack(_ks, n) \
     SHADOW_STACK(n) _stk = {{NULL, __FUNCTION__, 0, (n)}}; \
     do { \
-        _stk.ss.back = _ks->shadow_stacks; \
-        _ks->shadow_stacks = &_stk.ss; \
+        _stk.ss.back = (_ks)->shadow_stacks; \
+        (_ks)->shadow_stacks = &_stk.ss; \
     } while (0)
 
 #define init_gc_stack(n) \
@@ -59,7 +59,7 @@ typedef struct _ShadowStack {
 
 /* remove trace stack from cfunc frame */
 #define _fini_gc_stack(_ks) do { \
-    _ks->shadow_stacks = _stk.ss.back; \
+    (_ks)->shadow_stacks = _stk.ss.back; \
 } while (0)
 
 #define fini_gc_stack() _fini_gc_stack(ks)

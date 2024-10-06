@@ -11,6 +11,8 @@
 #include "mm.h"
 #include "moduleobject.h"
 #include "opcode.h"
+#include "shadowstack.h"
+#include "tupleobject.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -116,7 +118,7 @@ void ks_free(KoalaState *ks)
 
 #define SET(x, y)   ((x)->tag = (y)->tag, (x)->obj = (y)->obj)
 #define PUSH(x)     (SET(top, x), top++)
-#define POP()       (*--top)
+#define POP()       (--top)
 #define SHRINK(n)   (top -= (n))
 
 #define PUSH_INT(v) ((top->tag = VAL_TAG_INT, top->ival = (v)), top++)
@@ -161,9 +163,14 @@ static void _call_function(Object *obj, Value *args, int nargs, Object *names,
 
     /* process default key-value arguments */
 
+    _init_gc_stack(cf->ks, 1);
+    if (names) gc_stack_push(names);
+
     Value callable = obj_value(obj);
     Value r = func(&callable, args, nargs, names);
     *result = r;
+
+    _fini_gc_stack(cf->ks);
 }
 
 static void _eval_frame(KoalaState *ks, CallFrame *cf, Value *result)
@@ -291,6 +298,38 @@ main_loop:
                     goto error;
                 }
                 SHRINK(nargs);
+                DISPATCH();
+            }
+
+            case OP_CALL_KW: {
+                int rel = NEXT_INT8();
+                int sym = NEXT_INT8();
+                int nargs = NEXT_INT8();
+                int A = NEXT_REG();
+                Value *val = POP();
+                Object *names = as_obj(val);
+                ASSERT(IS_TUPLE(names));
+                Object *callable = _get_symbol(cf, rel, sym);
+                ASSERT(callable);
+                Value *ra = GET_LOCAL(A);
+                ASSERT(nargs >= TUPLE_LEN(names));
+                nargs -= TUPLE_LEN(names);
+                _call_function(callable, cf->stack, nargs, names, cf, ra);
+                if (IS_ERROR(ra)) {
+                    ASSERT(_exc_occurred(ks));
+                    *result = *ra;
+                    goto error;
+                }
+                SHRINK(nargs);
+                DISPATCH();
+            }
+
+            case OP_ATTR_LOAD: {
+                int A = NEXT_REG();
+                int B = NEXT_REG();
+                int offset = NEXT_INT16();
+                Value *val = vector_get(consts, offset);
+                ASSERT(val);
                 DISPATCH();
             }
 

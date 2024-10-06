@@ -15,9 +15,9 @@ static void str_gc_mark(StrObject *obj, Queue *que)
     if (obj->array) gc_mark_obj((GcObject *)obj->array, que);
 }
 
-TypeObject str_type = {
+TypeObject byte_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "str",
+    .name = "bytearray",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
     .size = sizeof(StrObject),
     .mark = (GcMarkFunc)str_gc_mark,
@@ -28,7 +28,7 @@ Object *kl_new_bytearray(const char *buf, int len)
     init_gc_stack(1);
 
     StrObject *sobj = gc_alloc_obj(sobj);
-    INIT_OBJECT_HEAD(sobj, &str_type);
+    INIT_OBJECT_HEAD(sobj, &byte_type);
     sobj->start = 0;
     sobj->end = len;
 
