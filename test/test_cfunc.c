@@ -40,7 +40,7 @@ void test_cfunc(void)
 {
     Object *m = kl_new_module("cfunc");
     Object *obj = kl_new_cfunc(&method, m, NULL);
-    module_add_code(m, obj);
+    module_add_object(m, "hello", obj);
     Value self = obj_value(obj);
     Value arg = obj_value(m);
     Value ret = object_call(&self, &arg, 1, NULL);

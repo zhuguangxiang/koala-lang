@@ -226,3 +226,56 @@ The `Formatter` object with config settings and a inner buffer for print.
 	- tradeoff:
 		- all type can be none.
 		- all type can NOT be none.
+
+## symbol and lookup
+
+- class and module
+	- all symbols list(var, func, types)
+	- hash map for external module linking
+- relocations
+	- two level relocation
+	```c
+	struct reloc {
+		// namespace
+		// for module: ./a/b; for class: ./a/b.Foo
+		const char *ns;
+		// symbols
+		vector syms;
+	};
+	struct symbol {
+		// symbol name
+		const char *name;
+		// Object: VarObject/CodeObject/CFuncObject
+		Object *obj;
+	};
+	```
+- instruction
+	All related with relocations instructions have the same arguments.
+	- get_global
+	OP_GET_GLOBAL 0, 1
+	- get_attr:
+	OP_GET_ATTR 0, 1
+	- call:
+	OP_CALL 0, 1
+	- call_method:
+	OP_CALL_METHOD 0, 1
+	```
+	i = int(100)
+	fn = i.__str__ => get_method
+	print(i.real)
+	import sys
+	fn = sys.print => get_function
+	encoding = sys.encoding => get_attr
+	tp = typeof(i)
+	let fields list[Fields] = tp.get_fields()
+
+	class Foo {
+
+	}
+
+	foo = Foo("hello")
+	foo.hello      // bound method
+	foo.hello()
+	foo.name
+	fn = Foo.hello // unbound method
+	```

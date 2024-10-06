@@ -6,6 +6,7 @@
 #ifndef _KOALA_MODULE_OBJECT_H_
 #define _KOALA_MODULE_OBJECT_H_
 
+#include "fieldobject.h"
 #include "object.h"
 
 #ifdef __cplusplus
@@ -18,6 +19,8 @@ typedef void (*ModFiniFunc)(Object *m);
 typedef struct _ModuleDef {
     char *name;
     size_t size;
+    MemberDef *members;
+    GetSetDef *getsets;
     MethodDef *methods;
     ModInitFunc init;
     ModFiniFunc fini;
@@ -31,33 +34,43 @@ typedef struct _ModuleObject {
     void *state;
     /* all symbols */
     Vector symbols;
-    /* global values */
-    Vector values;
-    /* relocations */
-    Vector relocs;
+    /* all symbols map for external module link */
+    HashMap map;
+    /* constants */
+    Vector consts;
+    /* relocations for external symbols */
+    Vector rels;
 } ModuleObject;
 
 typedef struct _RelocInfo {
-    /* module name */
-    const char *name;
-    /* module object */
-    ModuleObject *module;
+    /* namespace */
+    /* module: ./a/b; class: ./a/b.Foo */
+    const char *ns;
+    /* symbols */
+    Vector syms;
 } RelocInfo;
+
+typedef struct _SymbolInfo {
+    /* symbol name */
+    const char *name;
+    /* Object: FieldObject/CodeObject/CFuncObject */
+    Object *obj;
+} SymbolInfo;
 
 extern TypeObject module_type;
 #define IS_MODULE(ob) IS_TYPE((ob), &module_type)
 
 Object *kl_new_module(const char *name);
-int module_add_code(Object *m, Object *code);
+int module_add_member(Object *_m, MemberDef *member);
+int module_add_getset(Object *_m, GetSetDef *getset);
 int module_add_cfunc(Object *m, MethodDef *def);
-int module_add_type(Object *m, TypeObject *ty);
+int module_add_object(Object *_m, const char *name, Object *obj);
 
-static inline ModuleObject *module_get_reloc(Object *_m, int index)
+static inline RelocInfo *module_get_rel(Object *_m, int index)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    RelocInfo *item = vector_get(&m->relocs, index);
-    if (item) return item->module;
-    return NULL;
+    RelocInfo *item = vector_get(&m->rels, index);
+    return item;
 }
 
 static inline Object *module_get_symbol(Object *_m, int index)
@@ -75,6 +88,10 @@ static inline const char *module_get_name(Object *_m)
 }
 
 int kl_module_def_init(ModuleDef *def);
+int kl_module_link(Object *_m);
+int module_add_int_const(Object *_m, int64_t val);
+int module_add_str_const(Object *_m, const char *s);
+int module_add_rel(Object *_m, const char *path, SymbolInfo *sym);
 
 #ifdef __cplusplus
 }

@@ -133,18 +133,20 @@ void ks_free(KoalaState *ks)
 
 /* clang-format on */
 
-static Object *_get_symbol(CallFrame *cf, int m_idx, int o_idx)
+static Object *_get_symbol(CallFrame *cf, int rel, int sym)
 {
     ModuleObject *m = (ModuleObject *)cf->module;
-    if (m_idx != 0) {
-        m = module_get_reloc((Object *)m, m_idx);
+    if (!rel) {
+        void **item = vector_get(&m->symbols, sym);
+        ASSERT(item);
+        return (Object *)(*item);
     }
 
-    Object *r = module_get_symbol((Object *)m, o_idx);
-    // TODO:
-    // ASSERT(r && object_callable(r));
-    ASSERT(r);
-    return r;
+    RelocInfo *reloc = vector_get(&m->rels, rel);
+    ASSERT(reloc);
+    SymbolInfo *symbol = vector_get(&reloc->syms, sym);
+    ASSERT(symbol && symbol->obj);
+    return symbol->obj;
 }
 
 static void _call_function(Object *obj, Value *args, int nargs, Object *names,
@@ -167,6 +169,7 @@ static void _call_function(Object *obj, Value *args, int nargs, Object *names,
 static void _eval_frame(KoalaState *ks, CallFrame *cf, Value *result)
 {
     CodeObject *code = (CodeObject *)cf->code;
+    Vector *consts = &((ModuleObject *)(cf->module))->consts;
     uint8_t *first_inst = (uint8_t *)code->cs.insns; // Bytes_Buf(code->codes);
     uint8_t *next_inst = first_inst;
     Value *top = cf->stack;
@@ -189,6 +192,14 @@ main_loop:
     dispatch_opcode:
         switch (opcode) {
             case OP_CONST_INT_0: {
+                DISPATCH();
+            }
+
+            case OP_CONST_INT_IMM8: {
+                int A = NEXT_REG();
+                int imm = NEXT_INT8();
+                Value *ra = GET_LOCAL(A);
+                *ra = int_value((int8_t)imm);
                 DISPATCH();
             }
 
@@ -255,12 +266,22 @@ main_loop:
                 DISPATCH();
             }
 
+            case OP_CONST_LOAD: {
+                int A = NEXT_REG();
+                int offset = NEXT_INT16();
+                Value *val = vector_get(consts, offset);
+                ASSERT(val);
+                Value *ra = GET_LOCAL(A);
+                *ra = *val;
+                DISPATCH();
+            }
+
             case OP_CALL: {
-                int mod_idx = NEXT_INT8();
-                int func_idx = NEXT_INT8();
+                int rel = NEXT_INT8();
+                int sym = NEXT_INT8();
                 int nargs = NEXT_INT8();
                 int A = NEXT_REG();
-                Object *callable = _get_symbol(cf, mod_idx, func_idx);
+                Object *callable = _get_symbol(cf, rel, sym);
                 ASSERT(callable);
                 Value *ra = GET_LOCAL(A);
                 _call_function(callable, cf->stack, nargs, NULL, cf, ra);

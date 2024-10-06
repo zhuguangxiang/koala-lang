@@ -97,6 +97,45 @@ typedef Value (*CFuncOneArg)(Value *, Value *);
 typedef Value (*CFuncVarArgs)(Value *, Value *, int);
 typedef Value (*CFuncVarArgsNames)(Value *, Value *, int, Object *);
 
+#define FIELD_F_PUBLIC 1
+#define FIELD_F_READ   2
+#define FIELD_F_WRITE  4
+
+typedef struct _GetSetDef {
+    /* name */
+    const char *name;
+    /* type descriptor */
+    const char *desc;
+    /* flags */
+    int flags;
+    /* get callback */
+    Value (*get)(void);
+    /* set callback */
+    void (*set)(Value *);
+} GetSetDef;
+
+typedef struct _MemberDef {
+    /* name */
+    const char *name;
+    /* type descriptor */
+    const char *desc;
+    /* type */
+    int type;
+#define MBR_T_BYTE   1
+#define MBR_T_SHORT  2
+#define MBR_T_INT    3
+#define MER_T_LONG   4
+#define MER_T_FLOAT  5
+#define MER_T_DOUBLE 6
+#define MBR_T_STRING 7
+#define MBR_T_VALUE  8
+#define MBR_T_OBJECT 9
+    /* offset */
+    int offset;
+    /* flags */
+    int flags;
+} MemberDef;
+
 typedef struct _MethodDef {
     /* The name of function/method */
     const char *name;
@@ -147,11 +186,16 @@ typedef struct _SeqMapMethods {
 } SeqMapMethods;
 */
 
-typedef struct _KeywordEntry {
+typedef struct _SymbolEntry {
     HashMapEntry hnode;
     const char *key;
+    int len;
     Object *obj;
-} KeywordEntry;
+} SymbolEntry;
+
+void init_symbol_table(HashMap *map);
+Object *table_find(HashMap *map, const char *name, int len);
+void table_add_object(HashMap *map, const char *name, Object *obj);
 
 #define TP_FLAGS_CLASS    (1 << 0)
 #define TP_FLAGS_TRAIT    (1 << 1)
@@ -211,6 +255,14 @@ typedef struct _TypeObject {
     GetIterFunc iter;
     IterNextFunc next;
 
+    /* attribute get/set */
+    // AttrGetFunc attr_get;
+    // AttrSetFunc attr_set;
+
+    /* members */
+    MemberDef *members;
+    /* getsets */
+    GetSetDef *getsets;
     /* method definitions */
     MethodDef *methods;
 
@@ -218,15 +270,12 @@ typedef struct _TypeObject {
     struct _TypeObject *base;
     struct _TraitObject **traits;
 
-    /* attributes(fields) */
-    Vector *attrs;
-
+    /* fields(getset/member/var/value) */
+    Vector *fields;
     /* functions(parent and self methods) */
     Vector *funcs;
-
-    /* dynamic functions table */
-    HashMap *vtbl;
-
+    /* symbol table */
+    HashMap map;
 } TypeObject;
 
 extern TypeObject type_type;

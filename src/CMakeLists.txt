@@ -63,6 +63,7 @@ set(KOALA_SOURCES
     typeready.c
     moduleobject.c
     typeobject.c
+    fieldobject.c
     cfuncobject.c
     codeobject.c
     intobject.c

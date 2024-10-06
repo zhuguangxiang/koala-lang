@@ -37,8 +37,8 @@ static volatile int _gs_done;
 static pthread_mutex_t _gs_mutex;
 static pthread_cond_t _gs_cond;
 
-/* all loaded modules(dict) */
-static Object *_gs_modules;
+/* all loaded modules */
+HashMap _gs_modules;
 
 /*-------------------------------------API-----------------------------------*/
 
@@ -158,6 +158,8 @@ void kl_init(int argc, char *argv[])
 
     /* init koala threads */
     init_threads(1);
+
+    init_symbol_table(&_gs_modules);
 
     /* init builtin & sys module */
     init_builtin_module();

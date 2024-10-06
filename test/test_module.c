@@ -15,16 +15,22 @@
 extern "C" {
 #endif
 
-void test_type_call(void)
+void test_module(void)
 {
-    Object *m = kl_new_module("test_type_call");
-    module_add_object(m, "int", (Object *)&int_type);
+    Object *m = kl_new_module("main");
 
-    /*
-    int(100, 16)
-    */
+    module_add_int_const(m, 100);
+    module_add_str_const(m, "hello");
+
+    SymbolInfo sym = { .name = "print" };
+    module_add_rel(m, "builtin", &sym);
+
+    kl_module_link(m);
+
+    /* print(100, "hello") */
     char _insns[] = {
-        OP_PUSH_IMM8, 100, OP_PUSH_IMM8, 16, OP_CALL, 0, 0, 2, 0, OP_RETURN, 0,
+        OP_CONST_INT_IMM8, 0, 100, OP_PUSH, 0, OP_CONST_LOAD, 0, 1, 0, OP_PUSH, 0,
+        OP_CALL,           1, 0,   2,       0, OP_RETURN,     0,
     };
 
     CodeObject *code = (CodeObject *)kl_new_code("__init__", m, NULL);
@@ -32,23 +38,18 @@ void test_type_call(void)
     code->cs.insns_size = sizeof(_insns);
     code->cs.nargs = 0;
     code->cs.nlocals = 1;
-    code->cs.stack_size = 1;
-    module_add_object(m, "__init__", (Object *)code);
+    code->cs.stack_size = 2;
 
     Value self = obj_value(code);
     Value result = object_call(&self, NULL, 0, NULL);
-    if (IS_ERROR(&result)) {
-        print_exc();
-    } else {
-        printf("%ld\n", result.ival);
-    }
+    ASSERT(IS_NONE(&result));
 }
 
 int main(int argc, char *argv[])
 {
-    init_log(LOG_INFO, NULL, 0);
+    init_log(LOG_WARN, NULL, 0);
     kl_init(argc, argv);
-    test_type_call();
+    test_module();
     kl_fini();
     return 0;
 }

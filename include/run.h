@@ -41,6 +41,9 @@ void kl_fini(void);
 /* get current thread */
 extern __thread ThreadState *__ts;
 
+/* all loaded modules */
+extern HashMap _gs_modules;
+
 /* get current koala state  */
 static inline KoalaState *__ks(void) { return __ts->current; }
 

@@ -3,11 +3,6 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/*
- * An Atom is a null-terminated string cached in internal hashmap.
- * With null-terminated, it's convenient to operate it like c-string.
- */
-
 #ifndef _KOALA_CODE_SPEC_H_
 #define _KOALA_CODE_SPEC_H_
 

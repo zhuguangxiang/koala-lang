@@ -43,7 +43,6 @@ typedef struct _KlcObject {
     int len;
     union {
         int64_t ival;
-        float f32val;
         double f64val;
         void *val;
     };
@@ -132,6 +131,18 @@ static void read_object(KlcObject *obj, KlcFile *klc)
     obj->type = type;
 
     switch (type) {
+        case KLC_TYPE_VAR: {
+            // KlcObject names = { 0 };
+            // read_object(&names, klc);
+            // KlcObject desc = { 0 };
+            // read_object(&desc, klc);
+            // VarInfo *var = mm_alloc_obj(var);
+            // var->name = names.val;
+            // var->desc = desc.val;
+            // obj->len = 0;
+            // obj->val = var;
+            break;
+        }
         case KLC_TYPE_CODE: {
             int nargs = read_short(klc);
             int nlocals = read_short(klc);

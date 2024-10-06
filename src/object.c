@@ -39,7 +39,7 @@ Value object_call(Value *self, Value *args, int nargs, Object *names)
 Object *kl_lookup_method(Value *obj, const char *fname)
 {
     TypeObject *tp = object_type(obj);
-    Object *fn = hashmap_get(tp->vtbl, NULL);
+    Object *fn = hashmap_get(&tp->map, NULL);
     return fn;
 }
 
@@ -132,6 +132,38 @@ Value object_str(Value *self)
     ASSERT(tp->str);
     return tp->str(self);
 }
+
+static int _table_func_equal_(void *e1, void *e2)
+{
+    SymbolEntry *n1 = e1;
+    SymbolEntry *n2 = e2;
+    if (n1->len != n2->len) return 0;
+    if (!strncmp(n1->key, n2->key, n1->len)) return 1;
+    return 0;
+}
+
+void table_add_object(HashMap *map, const char *name, Object *obj)
+{
+    SymbolEntry *e = mm_alloc_obj_fast(e);
+    unsigned int hash = str_hash(name);
+    hashmap_entry_init(e, hash);
+    e->key = name;
+    e->len = strlen(name);
+    e->obj = obj;
+    int r = hashmap_put_absent(map, e);
+    ASSERT(!r);
+}
+
+Object *table_find(HashMap *map, const char *name, int len)
+{
+    SymbolEntry entry = { .key = name, .len = len };
+    unsigned int hash = mem_hash(name, len);
+    hashmap_entry_init(&entry, hash);
+    SymbolEntry *found = hashmap_get(map, &entry);
+    return found ? found->obj : NULL;
+}
+
+void init_symbol_table(HashMap *map) { hashmap_init(map, _table_func_equal_); }
 
 static Value base_hash(Value *self)
 {

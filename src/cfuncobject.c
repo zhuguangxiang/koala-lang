@@ -28,7 +28,12 @@ static Value cfunc_call(Value *self, Value *args, int nargs, Object *names)
     } else if (flags & METH_VAR_ARGS) {
         r = ((CFuncVarArgs)fn)(args, args + 1, nargs - 1);
     } else if (flags & METH_VAR_NAMES) {
-        r = ((CFuncVarArgsNames)fn)(args, args + 1, nargs - 1, names);
+        if (cfunc->cls) {
+            r = ((CFuncVarArgsNames)fn)(args, args + 1, nargs - 1, names);
+        } else {
+            Value self = obj_value(cfunc->module);
+            r = ((CFuncVarArgsNames)fn)(&self, args, nargs, names);
+        }
     } else {
         ASSERT(0);
         raise_exc_fmt("'%s' is invalid function", cfunc->def->name);

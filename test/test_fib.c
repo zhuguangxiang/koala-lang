@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     code->cs.nargs = 1;
     code->cs.nlocals = 4;
     code->cs.stack_size = 1;
-    module_add_code(m, (Object *)code);
+    module_add_object(m, "fib", (Object *)code);
 
     // Object *fn = module_get_symbol(m, 0, 0);
     Value self = obj_value(code);
