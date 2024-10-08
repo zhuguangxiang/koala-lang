@@ -176,7 +176,8 @@ static void _call_function(Object *obj, Value *args, int nargs, Object *names,
 static void _eval_frame(KoalaState *ks, CallFrame *cf, Value *result)
 {
     CodeObject *code = (CodeObject *)cf->code;
-    Vector *consts = &((ModuleObject *)(cf->module))->consts;
+    ModuleObject *module = (ModuleObject *)cf->module;
+    Vector *consts = &module->consts;
     uint8_t *first_inst = (uint8_t *)code->cs.insns; // Bytes_Buf(code->codes);
     uint8_t *next_inst = first_inst;
     Value *top = cf->stack;
@@ -328,8 +329,18 @@ main_loop:
                 int A = NEXT_REG();
                 int B = NEXT_REG();
                 int offset = NEXT_INT16();
-                Value *val = vector_get(consts, offset);
-                ASSERT(val);
+                NYI();
+                DISPATCH();
+            }
+
+            case OP_REL_LOAD: {
+                int A = NEXT_REG();
+                int rel = NEXT_INT8();
+                int sym = NEXT_INT8();
+                Object *obj = _get_symbol(cf, rel, sym);
+                ASSERT(obj);
+                Value *ra = GET_LOCAL(A);
+                *ra = obj_value(obj);
                 DISPATCH();
             }
 

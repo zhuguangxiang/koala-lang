@@ -5,6 +5,8 @@
 
 #include "cfuncobject.h"
 #include "exception.h"
+#include "moduleobject.h"
+#include "stringobject.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,10 +50,29 @@ static Value cfunc_call(Value *self, Value *args, int nargs, Object *names)
     return r;
 }
 
+static Value cfunc_str(Value *self)
+{
+    Object *callable = as_obj(self);
+    ASSERT(IS_CFUNC(callable));
+    CFuncObject *cfunc = (CFuncObject *)callable;
+    Object *r;
+    if (cfunc->cls) {
+        TypeObject *tp = cfunc->cls;
+        r = kl_new_fmt_str("<method '%s' of class '%s'>", cfunc->def->name, tp->name);
+    } else {
+        ModuleObject *m = (ModuleObject *)cfunc->module;
+        r = kl_new_fmt_str("<function '%s' in module '%s'>", cfunc->def->name,
+                           m->def->name);
+    }
+    ASSERT(r);
+    return obj_value(r);
+}
+
 TypeObject cfunc_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "cfunc",
     .call = cfunc_call,
+    .str = cfunc_str,
 };
 
 Object *kl_new_cfunc(MethodDef *def, Object *m, TypeObject *cls)

@@ -1,0 +1,4 @@
+# RUN: test_get_int_method 2>&1 | filecheck %s --match-full-lines --check-prefix=CHECK-EXEC
+
+# CHECK-EXEC: <method '__hash__' of class 'int'>
+# CHECK-EXEC-NEXT: <function 'print' in module 'builtin'>

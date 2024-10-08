@@ -178,8 +178,10 @@ typedef enum _OpCode {
     OP_SUBSCR_STORE,
 
     /* generic attribute operations */
-    OP_ATTR_LOAD,
+    OP_ATTR_LOAD,           /* A, B, K16    R(A) = Get(R(B), Field(REL(K16)))    */
     OP_ATTR_STORE,
+
+    OP_REL_LOAD,            /* A, K16,      R(A) = REL(K16)                      */
 
     /* generic iterator operations */
     OP_GET_ITER,

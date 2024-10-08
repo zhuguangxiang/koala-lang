@@ -108,8 +108,18 @@ static Value builtin_print(Value *module, Value *args, int nargs, Object *names)
     return none_value;
 }
 
+/*
+public func printf(fmt str, objs ..., sep = ' ', end = '\n', file io.Writer? = none)
+*/
+static Value builtin_printf(Value *module, Value *args, int nargs, Object *names)
+{
+    // Value r = kl_str_format(args, args + 1, nargs - 1);
+    return none_value;
+}
+
 static MethodDef builtin_methods[] = {
     { "print", builtin_print, METH_VAR_NAMES, "...|sep:s,end:s,file:Lio.Writer;", "" },
+    { "printf", builtin_printf, METH_VAR_NAMES, "s...|sep:s,end:s,file:Lio.Writer;", "" },
     // { "format", builtin_format, METH_VAR_NAMES },
     { NULL },
 };

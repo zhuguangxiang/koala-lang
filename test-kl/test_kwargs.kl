@@ -1,0 +1,3 @@
+# RUN: test_kwargs 2>&1 | filecheck %s --match-full-lines --check-prefix=CHECK-EXEC
+
+# CHECK-EXEC: 100, hello

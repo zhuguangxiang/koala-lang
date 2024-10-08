@@ -130,6 +130,7 @@ int kl_module_link(Object *_m)
         if (dot) {
             // find from class, if dot exists.
             obj = module_lookup_object(obj, dot + 1, strlen(dot + 1));
+            ASSERT(obj);
             SymbolInfo *sym;
             vector_foreach(sym, &rel->syms) {
                 Object *o = type_lookup_object(obj, sym->name, strlen(sym->name));

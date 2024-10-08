@@ -1,4 +1,5 @@
 class Test {
+    private String name = "hello";
     public static boolean foo(int a, int b) { return a > b; }
 
     public static void main(String[] args)
@@ -9,6 +10,8 @@ class Test {
         System.out.println(a);
         Integer i = new Integer(100);
         System.out.println(i.toString());
+        Test t = new Test();
+        String v = t.name;
     }
 }
 
