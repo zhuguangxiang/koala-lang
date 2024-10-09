@@ -21,17 +21,22 @@ typedef struct _KlcFile {
     uint8_t num_types;
     uint8_t num_relocs;
     uint16_t num_codes;
+    uint16_t num_consts;
     const char *path;
     FILE *filp;
     Vector objs;
 } KlcFile;
+
+void klc_add_var(KlcFile *klc, const char *name, const char *desc);
+void klc_add_func(KlcFile *klc, const char *name, const char *desc);
 
 void klc_add_int32(KlcFile *klc, int32_t val);
 void klc_add_code(KlcFile *klc, CodeSpec *cs);
 
 void init_klc_file(KlcFile *klc, const char *path);
 int write_klc_file(KlcFile *klc);
-int read_klc_file(KlcFile *klc);
+int read_klc_file(KlcFile *klc, int only_meta);
+void klc_dump(KlcFile *klc);
 
 #ifdef __cplusplus
 }

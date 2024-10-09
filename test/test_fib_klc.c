@@ -74,9 +74,9 @@ int main(int argc, char *argv[])
     klc_add_code(&klc, &cs);
     write_klc_file(&klc);
 
-    KlcFile klc2;
+    KlcFile klc2 = { 0 };
     init_klc_file(&klc2, "example.klc");
-    read_klc_file(&klc2);
+    read_klc_file(&klc2, 0);
 
     CodeObject *code = (CodeObject *)kl_new_code("fib", m, NULL);
     CodeSpec *cs2 = get_code_spec(&klc2);
