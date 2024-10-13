@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 static TypeObject *mapping[] = {
-    &undef_type, &none_type, &int_type, &float_type, NULL, &exc_type,
+    &none_type, &int_type, &float_type, NULL, &exc_type,
 };
 
 TypeObject *object_typeof(Value *val)
@@ -220,13 +220,6 @@ static Value undef_str(Value *self)
     Object *s = kl_new_str("undef");
     return obj_value(s);
 }
-
-TypeObject undef_type = {
-    OBJECT_HEAD_INIT(&type_type),
-    .name = "UndefType",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
-    .str = undef_str,
-};
 
 #ifdef __cplusplus
 }

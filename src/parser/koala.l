@@ -130,7 +130,6 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "trait"     { YY_RETURN(TRAIT);     }
 "if"        { YY_RETURN(IF);        }
 "guard"     { YY_RETURN(GUARD);     }
-"with"      { YY_RETURN(WITH);      }
 "else"      { YY_RETURN(ELSE);      }
 "while"     { YY_RETURN(WHILE);     }
 "for"       { YY_RETURN(FOR);       }
@@ -173,6 +172,7 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 ">="        { YY_RETURN(GE);        }
 "<="        { YY_RETURN(LE);        }
 
+":="        { YY_RETURN(FREE_ASSIGN);  }
 "+="        { YY_RETURN(PLUS_ASSIGN);  }
 "-="        { YY_RETURN(MINUS_ASSIGN); }
 "*="        { YY_RETURN(MULT_ASSIGN);  }

@@ -51,7 +51,7 @@ static Value type_call(Value *self, Value *args, int nargs, Object *names)
         Object *obj = type->alloc(type);
         val = obj_value(obj);
     } else {
-        val = undef_value;
+        val = none_value;
     }
 
     if (type->init) {

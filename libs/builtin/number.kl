@@ -1,0 +1,10 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+public class Number {
+    public func __to_int__() int
+    public func __to_float__() float
+    public func __to_complex__() complex
+}

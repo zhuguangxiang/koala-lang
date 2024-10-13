@@ -287,3 +287,32 @@ The `Formatter` object with config settings and a inner buffer for print.
 - range type
 	range(1,2,1) or 1...2 is half-open range.
 	slice(1,2,1) or 1:2:1 is half-open slice which is only used in []
+- can optional argument be none?
+- optional variable accesses its member, mandatory or optional?
+	```swift
+	class Foo {
+		var val = 100
+	}
+
+	var a Foo? = none
+	a.hello() // ok, a type is Optional[Foo], but it has risk to raise exception.
+	// if a == none { raise("none exception"); } else { a.hello(); }
+
+	if a {
+		// true: bool true, int no zero, float not zero, object not none
+		// if a is optional, in this branch, compiler will add the same symbol with no optional type.
+		// and don't generate protect codes.
+		a.hello()
+	} else {
+		return none
+	}
+
+	let b int = a.val // ok, but it has risk to raise exception.
+	let b int? = a.val // ok, but it also has risk to raise exception.
+
+	var b = Foo()
+	b.hello() // ok, and don't generate protect codes.
+	```
+	- Q: is it necessary for if let or guard let?
+	- A: koala has optional type, but it allows to access its member directly.
+	Optional will generate protect codes and other types will not.

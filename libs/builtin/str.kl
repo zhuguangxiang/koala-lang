@@ -1,0 +1,9 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+public final class str : Iterable[str] {
+    @native(kl_str_new)
+    public static func __new__(x object = '', encoding = 'utf-8')
+}

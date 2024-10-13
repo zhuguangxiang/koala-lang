@@ -19,7 +19,6 @@ static void init_types(Object *m)
 {
     type_ready(&base_type, m);
     type_ready(&type_type, m);
-    type_ready(&undef_type, m);
     type_ready(&none_type, m);
     type_ready(&exc_type, m);
     type_ready(&int_type, m);
@@ -34,13 +33,13 @@ static void builtin_print_impl(Value *args, int nargs, Value *_sep, Value *_end,
     const char *end = "\n";
     Object *file = NULL;
 
-    if (!IS_UNDEF(_sep)) {
+    if (!IS_NONE(_sep)) {
         Object *obj = as_obj(_sep);
         ASSERT(IS_STR(obj));
         sep = STR_BUF(obj);
     }
 
-    if (!IS_UNDEF(_end)) {
+    if (!IS_NONE(_end)) {
         Object *obj = as_obj(_end);
         ASSERT(IS_STR(obj));
         end = STR_BUF(obj);
@@ -98,8 +97,8 @@ public func print(objs ..., sep = ' ', end = '\n', file io.Writer? = none)
 */
 static Value builtin_print(Value *module, Value *args, int nargs, Object *names)
 {
-    Value _sep = undef_value;
-    Value _end = undef_value;
+    Value _sep = none_value;
+    Value _end = none_value;
     Value _file = none_value;
     const char *_kws[] = { "sep", "end", "file", NULL };
     kl_parse_kwargs(args, nargs, names, nargs, _kws, &_sep, &_end, &_file);

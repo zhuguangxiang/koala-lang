@@ -1,0 +1,42 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/*!
+The 'sys' module of koala standard library
+This module includes system related variables and functions.
+*/
+
+import io
+
+public var stdout = io.Stdout()
+public var stdin = io.Stdin()
+public var stderr = io.Stderr()
+
+public var path = [str]
+
+public var argc = 0
+public var argv = [str]
+
+
+public final class Stdout : Writer {
+    static let _stdout = Stdout()
+    let file = TextIO(0)
+
+    public static func __new__() Stdout {
+        return _stdout
+    }
+
+    public func write_str(s str) int {
+        return file.write_str(s)
+    }
+
+    public func write_(bs Bytes) int {
+        return file.write(bs)
+    }
+
+    public func flush() {
+        file.flush()
+    }
+}

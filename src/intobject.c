@@ -61,7 +61,7 @@ static int str_to_int(const char *s, int base, Value *ret)
 
 static int int_init_impl(Value *self, Value *_x, Value *_base)
 {
-    if (IS_UNDEF(_base)) {
+    if (IS_NONE(_base)) {
         // `base` is not set, and `x` MUST be int, float or string
         if (IS_INT(_x)) {
             *self = *_x;
@@ -111,8 +111,8 @@ func int(x object = 0, base = 10) int;
 */
 static int int_init(Value *self, Value *args, int nargs, Object *names)
 {
-    Value _x = undef_value;
-    Value _base = undef_value;
+    Value _x = none_value;
+    Value _base = none_value;
     const char *_kws[] = { "x", "base", NULL };
     kl_parse_kwargs(args, nargs, names, 0, _kws, &_x, &_base);
 

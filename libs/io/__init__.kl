@@ -1,0 +1,42 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/*!
+The 'io' module of koala standard library
+This module includes 'io' related variables and functions.
+*/
+
+public trait Writer {
+    func write(bs Bytes) int
+    func write_str(s str) int
+    func flush()
+}
+
+public final class Stdout : Writer {
+    static let _stdout = Stdout()
+    let file = File(0)
+
+    public static func __new__() Stdout {
+        return _stdout
+    }
+
+    public func write_str(s str) int {
+        return file.write_str(s)
+    }
+
+    public func write_(bs Bytes) int {
+        return file.write(bs)
+    }
+
+    public func flush() {
+        file.flush()
+    }
+}
+
+
+public final class File : Writer & Reader {
+    @native(kl_textio_read)
+    public func read(bs Bytes) {}
+}

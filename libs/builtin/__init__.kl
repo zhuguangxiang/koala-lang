@@ -1,0 +1,89 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/*!
+The 'builtin' module of koala standard library
+Most of them in 'builtin' module are native c implementations.
+This module is imported automatically.
+*/
+
+import io
+import sys
+
+/**
+Print `objs` to the stream file, separated by `sep`` and followed by `end`.
+
+All non-keyword arguments are converted to string and written to stream,
+separated by `sep` and followed by `end`. The default `file` is `sys.stdout` stream.
+*/
+@native(kl_builtin_print)
+public func print(objs ..., sep = ' ', end = '\n', file io.Writer? = none) {
+
+    // warning: not none object is always true.
+    // and remove this check by compiler
+    // if (!sep) {
+    //     ...
+    // }
+
+    let _f = file ?: sys.stdout
+    for i, o in enum(objs) {
+        s := str(o)
+        if i != 0 {
+            _f.write(sep)
+        }
+        _f.write(s)
+    }
+    _f.write(end)
+}
+
+public trait Iterable[T] {
+    public func __iter__() Iterator[T]
+}
+
+public trait Iterator[T] : Iterable[T] {
+    public func __next__() T?
+}
+
+class List {
+    next Node?
+    count int
+
+    public func __init__() {
+        self.next = none
+        self.count = 0
+    }
+}
+
+class Node {
+    next Node?
+    val int
+
+    func __init__(val int, next Node? = none) {
+        self.val = val
+        self.next = next
+    }
+}
+
+list := List()
+
+next := list.next
+node := Node(200, next)
+list.next = node
+
+head := list.next
+while r := head {
+    print(r.val)
+    head = r.next
+}
+
+var _f = file ?: sys.stdout
+
+if let r = opt {
+
+}
+
+guard let r = opt else {
+
+}

@@ -1,30 +1,29 @@
 
-// "hello"
-// 'hello'
+"hello"
+'hello'
+100
+200.2
+true
+false
+none
 
-// var a0 int = 0
-// var a1 int? = 0
-// var b0 int | str = 0
-// var b1 (int | str) = 0
-// var b2 (int | str) = "hello"
-// var b3 (int | str) ? = "hello"
+var a0 int = 0
+var a11 int? = 0
+var b0 int | str = 0
+var b1 (int | str) = 0
+var b2 (int | str) = "hello"
+var b3 (int | str) ? = "hello"
 // var b4 (int | str?) ? = "hello"
-// // var b5 (100) = 100
+// var b5 (100) = 100
 
 public func print(objs ..., sep = '\'ab\tcd', end = '\n', file io.Writer = none) {}
 public func __set_item__(index int, v T) { }
 public func __set_item__(index int?, v T) { }
 public func __set_item__(index int | str, v T) { }
 public func __set_item__(index (int | str), v T) { }
-// public func __set_item__(index int | str?, v T) { }
+public func __set_item__(index int | str, v T) { }
 public func __set_item__(index (int | str), v T | K | V | Int = none) { }
-// class Foo : Bar[int] {
-// }
-
-var i int = 100
-
-if b {
-
+class Foo : Bar[int] {
 }
 
 if a > b {
@@ -35,7 +34,15 @@ if a > b {
 
 }
 
-if a = b {
+if let a = b {
+
+}
+
+if var a = b {
+
+}
+
+if a := b {
 
 }
 
@@ -43,15 +50,15 @@ guard b else {
 
 }
 
-guard a = b else {
+guard let a = b else {
 
 }
 
-with b.f() {
+guard var a = b else {
 
 }
 
-with a = b.f() {
+guard a := b else {
 
 }
 
@@ -63,6 +70,14 @@ while true {
 
 }
 
+while a := b {
+
+}
+
+while var a = b {
+
+}
+
 for a, b in range(1, 2, 1) {
 
 }
@@ -71,7 +86,7 @@ for a in b {
 
 }
 
-if a is b {
+if a is Foo {
 
 }
 
@@ -80,6 +95,8 @@ for a in 1...2 {
 }
 
 let a = b as int
+let a1 = b!
+let a2 = b ?: c
 
 switch a {
     case 100: 100
@@ -100,8 +117,8 @@ a[1::]
 a[::]
 a[:]
 a[int]()
-a[int?]()
-list[int?]()
+a[int]()
+list[int]()
 
 /*
 let NUM1 = 12345678901234567890

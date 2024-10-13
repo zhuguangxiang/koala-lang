@@ -41,14 +41,12 @@ typedef struct _Value {
     int tag;
 } Value;
 
-#define VAL_TAG_UNDEF  0 // undefined(like javascript `undefined`) value
-#define VAL_TAG_NONE   1 // none(null/nil) value
-#define VAL_TAG_INT    2
-#define VAL_TAG_FLOAT  3
-#define VAL_TAG_OBJECT 4
-#define VAL_TAG_ERROR  5 // nothing type
+#define VAL_TAG_NONE   0 // none(null/nil) value
+#define VAL_TAG_INT    1
+#define VAL_TAG_FLOAT  2
+#define VAL_TAG_OBJECT 3
+#define VAL_TAG_ERROR  4 // nothing type
 
-#define IS_UNDEF(x) ((x)->tag == VAL_TAG_UNDEF)
 #define IS_OBJ(x)   ((x)->tag == VAL_TAG_OBJECT)
 #define IS_INT(x)   ((x)->tag == VAL_TAG_INT)
 #define IS_FLOAT(x) ((x)->tag == VAL_TAG_FLOAT)
@@ -56,7 +54,6 @@ typedef struct _Value {
 #define IS_ERROR(x) ((x)->tag == VAL_TAG_ERROR)
 
 /* clang-format off */
-#define undef_value    (Value){ .tag = VAL_TAG_UNDEF,  .ival = 0   }
 #define obj_value(x)   (Value){ .tag = VAL_TAG_OBJECT, .obj  = (x) }
 #define int_value(x)   (Value){ .tag = VAL_TAG_INT,    .ival = (int64_t)(x) }
 #define float_value(x) (Value){ .tag = VAL_TAG_FLOAT,  .fval = (double)(x)  }
@@ -280,7 +277,6 @@ typedef struct _TypeObject {
 
 extern TypeObject type_type;
 extern TypeObject base_type;
-extern TypeObject undef_type;
 extern TypeObject none_type;
 extern TypeObject int_type;
 extern TypeObject float_type;

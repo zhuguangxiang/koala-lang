@@ -1,0 +1,42 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/**
+The builtin primitive integer type. It is the sub-class of Number.
+Most of functions and operators are either intrinsic or implemented by runtime.
+
+usage:
+
+```koala
+let n = int(100)
+let n1 = int("0xface", base = 16)
+let n2 = int()
+let n3 = int(12.3)
+let n4 = int(x = "100")
+```
+
+The above usages are valid, and all of them will invoke `__int__`.
+*/
+@alias(Int)
+public final class int : Number {
+    /**
+    The `__init__` function of primitive `int` type.
+    */
+    @native(kl_int_init)
+    public func __init__(x int | str = 0, base = 10) int {}
+
+    /**
+    The intrinsic operator+ function. The second operand is a `Number`.
+    */
+    @intrinsic
+    public func __add__(rhs Number) Number {}
+
+    /**
+    The converted to string function, like java's `toString()`.
+    */
+    @native(kl_int_str)
+    public func __str__() str {}
+
+}

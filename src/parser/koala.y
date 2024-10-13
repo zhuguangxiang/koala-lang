@@ -85,7 +85,6 @@ static void free_map_list(Vector *vec)
 %token TRAIT
 %token IF
 %token GUARD
-%token WITH
 %token ELSE
 %token WHILE
 %token FOR
@@ -128,6 +127,7 @@ static void free_map_list(Vector *vec)
 %token GE
 %token LE
 
+%token FREE_ASSIGN
 %token PLUS_ASSIGN
 %token MINUS_ASSIGN
 %token MULT_ASSIGN
@@ -151,6 +151,7 @@ static void free_map_list(Vector *vec)
 %type<stmt> top_stmt
 %type<stmt> let_decl
 %type<stmt> var_decl
+%type<stmt> free_var_decl
 %type<stmt> assignment
 %type<stmt> return_stmt
 %type<stmt> jump_stmt
@@ -205,6 +206,8 @@ static void free_map_list(Vector *vec)
 %type<type> klass_type
 %type<type> atom_type
 
+%type<vec> id_dot_list
+%type<vec> id_as_list
 %type<vec> enum_type_list
 %type<vec> import_stmts
 %type<vec> top_stmts
@@ -213,7 +216,6 @@ static void free_map_list(Vector *vec)
 %type<vec> local_list
 %type<vec> map_list
 %type<vec> expr_list
-%type<vec> optional_expr_list
 %type<vec> param_list
 %type<vec> id_type_arg_list
 %type<vec> kw_arg_list
@@ -292,14 +294,32 @@ import_stmt
 
 id_dot_list
     : ID
+    {
+
+    }
     | id_dot_list '.' ID
+    {
+
+    }
     ;
 
 id_as_list
     : ID
+    {
+
+    }
     | ID AS ID
+    {
+
+    }
     | id_as_list ',' ID
+    {
+
+    }
     | id_as_list ',' ID AS ID
+    {
+
+    }
     ;
 
 top_stmts
@@ -329,6 +349,14 @@ top_stmt
         $$ = $1;
     }
     | prefix var_decl semi
+    {
+        $$ = $2;
+    }
+    | free_var_decl semi
+    {
+        $$ = $1;
+    }
+    | prefix free_var_decl semi
     {
         $$ = $2;
     }
@@ -1253,6 +1281,10 @@ local
     {
         $$ = NULL;
     }
+    | free_var_decl semi
+    {
+        $$ = NULL;
+    }
     | return_stmt semi
     {
 
@@ -1284,6 +1316,20 @@ local
     }
     | semi
     {
+        $$ = NULL;
+    }
+    ;
+
+free_var_decl
+    : ID FREE_ASSIGN expr
+    {
+        IDENT(id, $1, loc(@1));
+        $$ = stmt_from_var_decl(id, NULL, 0, $3);
+    }
+    | ID FREE_ASSIGN error
+    {
+        kl_error(loc(@3), "expected an expr.");
+        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -1382,11 +1428,21 @@ if_stmt
         $$ = stmt_from_if($2, $3, $4);
         stmt_set_loc($$, lloc(@1, @4));
     }
-    | IF ID '=' expr block
+    | IF LET ID '=' expr block
     {
-        IDENT(id, $2, loc(@2));
-        $$ = stmt_from_if_let(&id, $4, $5);
-        stmt_set_loc($$, lloc(@1, @5));
+        // IDENT(id, $3, loc(@2));
+        // $$ = stmt_from_guard_let(&id, $4, $6);
+        // stmt_set_loc($$, lloc(@1, @6));
+    }
+    | IF VAR ID '=' expr block
+    {
+        // IDENT(id, $2, loc(@2));
+        // $$ = stmt_from_guard_let(&id, $4, $6);
+        // stmt_set_loc($$, lloc(@1, @6));
+    }
+    | IF ID FREE_ASSIGN expr block
+    {
+
     }
     | GUARD expr ELSE block
     {
@@ -1394,17 +1450,17 @@ if_stmt
         // $$ = stmt_from_guard_let(&id, $4, $6);
         // stmt_set_loc($$, lloc(@1, @6));
     }
-    | GUARD ID '=' expr ELSE block
-    {
-        IDENT(id, $2, loc(@2));
-        $$ = stmt_from_guard_let(&id, $4, $6);
-        stmt_set_loc($$, lloc(@1, @6));
-    }
-    | WITH expr block
+    | GUARD LET ID '=' expr ELSE block
     {
 
     }
-    | WITH ID '=' expr block
+    | GUARD VAR ID '=' expr ELSE block
+    {
+        IDENT(id, $3, loc(@3));
+        $$ = stmt_from_guard_let(&id, $5, $7);
+        stmt_set_loc($$, lloc(@1, @7));
+    }
+    | GUARD ID FREE_ASSIGN expr ELSE block
     {
 
     }
@@ -1434,6 +1490,14 @@ while_stmt
     | WHILE block
     {
         // $$ = stmt_from_while(NULL, $2);
+    }
+    | WHILE VAR ID '=' expr block
+    {
+
+    }
+    | WHILE ID FREE_ASSIGN expr block
+    {
+
     }
     ;
 
@@ -1505,7 +1569,17 @@ expr
     }
     | or_expr DOTDOTDOT or_expr
     {
-
+        $$ = NULL;
+    }
+    | or_expr '?' ':'  expr
+    {
+        printf("optional object with default\n");
+        $$ = NULL;
+    }
+    | or_expr NOT
+    {
+        printf("optional object AS\n");
+        $$ = NULL;
     }
     ;
 
@@ -1967,7 +2041,7 @@ dot_expr
     ;
 
 index_expr
-    : primary_expr '[' optional_expr_list ']'
+    : primary_expr '[' expr_list ']'
     {
         printf("index_expr\n");
 
@@ -1991,7 +2065,7 @@ index_expr
         yy_clear_ok;
         $$ = NULL;
     }
-    | primary_expr '[' optional_expr_list error
+    | primary_expr '[' expr_list error
     {
         expr_free($1);
         free_expr_list($3);
@@ -2365,35 +2439,6 @@ expr_list
     {
         $$ = $1;
         vector_push_back($$, &$3);
-    }
-    ;
-
-optional_expr
-    : expr
-    {
-    }
-    | dot_expr '?'
-    {
-    }
-    | index_expr '?'
-    {
-    }
-    | atom_expr '?'
-    {
-    }
-    ;
-
-optional_expr_list
-    : optional_expr
-    {
-
-    }
-    | optional_expr_list ',' optional_expr
-    {
-    }
-    | optional_expr_list ',' error
-    {
-
     }
     ;
 
