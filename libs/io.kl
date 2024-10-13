@@ -1,0 +1,4 @@
+
+public trait Writer {
+    public func write(bs Bytes) int
+}

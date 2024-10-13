@@ -120,7 +120,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
 
     exp->ctx = EXPR_CTX_LOAD;
     exp->expected = desc;
-    parse_expr(ps, exp);
+    parser_visit_expr(ps, exp);
     if (!exp->desc) return;
 
     /*
@@ -148,6 +148,13 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     }
 }
 
+static void parse_expr(ParserState *ps, Stmt *stmt)
+{
+    ExprStmt *s = (ExprStmt *)stmt;
+    Expr *exp = s->exp;
+    parser_visit_expr(ps, exp);
+}
+
 static void parse_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -160,11 +167,11 @@ static void parse_stmt(ParserState *ps, Stmt *stmt)
         NULL,                       /* INVALID          */
         NULL, // parse_import,               /* IMPORT_KIND      */
         parse_var_decl,             /* VAR_KIND         */
-        // parse_tuple_var_decl,       /* TUPLE_VAR_KIND   */
-        // parse_assign,               /* ASSIGN_KIND      */
-        // parse_func_decl,            /* FUNC_KIND        */
-        // parse_return,               /* RETURN_KIND      */
-        // parse_expr,                 /* EXPR_KIND        */
+        NULL, // parse_tuple_var_decl,       /* TUPLE_VAR_KIND   */
+        NULL, // parse_assign,               /* ASSIGN_KIND      */
+        NULL, // parse_func_decl,            /* FUNC_KIND        */
+        NULL, // parse_return,               /* RETURN_KIND      */
+        parse_expr,                    /* EXPR_KIND        */
         // parse_block,                /* BLOCK_KIND       */
         // parse_class,                /* CLASS_KIND       */
         // parse_trait,                /* TRAIT_KIND       */
@@ -264,28 +271,27 @@ static void parse_top_stmt(ParserState *ps, Stmt *stmt)
         case STMT_VAR_KIND: {
             VarDeclStmt *var = (VarDeclStmt *)stmt;
             sym = _add_var(ps, ps->stbl, var);
+            if (!sym) goto failed;
             var->where = VAR_GLOBAL;
             break;
         }
         default: {
-            UNREACHABLE();
             break;
         }
     }
 
-    if (sym) {
-        vector_push_back(&ps->stmts, &stmt);
-    } else {
-        stmt_free(stmt);
-    }
+    vector_push_back(&ps->stmts, &stmt);
+    return;
+
+failed:
+    stmt_free(stmt);
 }
 
 void yyparse_module(ParserState *ps, Vector *imports, Vector *stmts)
 {
     Stmt **stmt;
     vector_foreach(stmt, stmts) {
-        stmt_free(*stmt);
-        // parse_top_stmt(ps, *stmt);
+        parse_top_stmt(ps, *stmt);
     }
     vector_destroy(stmts);
 }

@@ -44,13 +44,6 @@ Type *object_typeof(void)
     return ty;
 }
 
-Type *char_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_char();
-    return ty;
-}
-
 Type *bytes_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
@@ -69,6 +62,14 @@ Type *range_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
     ty->desc = desc_range();
+    return ty;
+}
+
+Type *enum_type(Vector *subs)
+{
+    Type *ty = mm_alloc_obj(ty);
+    ty->desc = desc_enum();
+    ty->subs = subs;
     return ty;
 }
 
@@ -228,6 +229,7 @@ Expr *expr_from_lit_str(Buffer *buf)
     exp->len = buf->len;
     exp->desc = desc_str();
     buf->len = 0;
+    printf("Lit-Str: %s\n", exp->sval);
     return (Expr *)exp;
 }
 
@@ -477,7 +479,7 @@ Stmt *stmt_from_guard_let(Ident *id, Expr *exp, Vector *block)
 Stmt *stmt_from_expr(Expr *exp)
 {
     ExprStmt *s = mm_alloc_obj(s);
-    s->kind = STMT_IF_LET_KIND;
+    s->kind = STMT_EXPR_KIND;
     s->exp = exp;
     return (Stmt *)s;
 }

@@ -1,0 +1,5 @@
+/*!
+The 'assert' module of koala standard library
+Most of them in 'assert' module are native c implementations.
+This is useful for testing.
+*/

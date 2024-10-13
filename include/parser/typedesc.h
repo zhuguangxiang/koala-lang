@@ -27,10 +27,10 @@ typedef enum _DescKind {
     TYPE_SELF_KIND,
     TYPE_PARAM_KIND,
     TYPE_OBJECT_KIND,
-    TYPE_CHAR_KIND,
     TYPE_BYTES_KIND,
     TYPE_TYPE_KIND,
     TYPE_RANGE_KIND,
+    TYPE_ENUM_KIND,
     TYPE_OPTIONAL_KIND,
     TYPE_MAX_KIND,
 } DescKind;
@@ -52,6 +52,12 @@ typedef struct _ArrayDesc {
     TypeDesc *type;
 } ArrayDesc;
 
+typedef struct _EnumDesc {
+    int refcnt;
+    DescKind kind;
+    Vector vec;
+} EnumDesc;
+
 #define DESC_INCREF(ty) ++(ty)->refcnt
 
 // clang-format off
@@ -63,7 +69,6 @@ extern TypeDesc float_desc;
 extern TypeDesc bool_desc;
 extern TypeDesc str_desc;
 extern TypeDesc object_desc;
-extern TypeDesc char_desc;
 extern TypeDesc bytes_desc;
 extern TypeDesc type_desc;
 extern TypeDesc range_desc;
@@ -87,11 +92,6 @@ static inline TypeDesc *desc_object(void)
     return (TypeDesc *)DESC_INCREF_GET(&object_desc);
 }
 
-static inline TypeDesc *desc_char(void)
-{
-    return (TypeDesc *)DESC_INCREF_GET(&char_desc);
-}
-
 static inline TypeDesc *desc_bytes(void)
 {
     return (TypeDesc *)DESC_INCREF_GET(&bytes_desc);
@@ -109,6 +109,7 @@ static inline TypeDesc *desc_range(void)
 
 TypeDesc *desc_optional(TypeDesc *ty);
 TypeDesc *desc_array(TypeDesc *sub);
+TypeDesc *desc_enum(void);
 
 static inline int desc_is_int(TypeDesc *desc) { return desc->kind == TYPE_INT_KIND; }
 void free_desc(TypeDesc *ty);

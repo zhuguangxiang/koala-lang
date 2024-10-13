@@ -14,7 +14,6 @@ TypeDesc float_desc = { 1, TYPE_FLOAT_KIND };
 TypeDesc bool_desc = { 1, TYPE_BOOL_KIND };
 TypeDesc str_desc = { 1, TYPE_STR_KIND };
 TypeDesc object_desc = { 1, TYPE_OBJECT_KIND };
-TypeDesc char_desc = { 1, TYPE_CHAR_KIND };
 TypeDesc bytes_desc = { 1, TYPE_BYTES_KIND };
 TypeDesc type_desc = { 1, TYPE_TYPE_KIND };
 TypeDesc range_desc = { 1, TYPE_RANGE_KIND };
@@ -39,6 +38,14 @@ TypeDesc *desc_array(TypeDesc *sub)
         arr->type = DESC_INCREF_GET(sub);
     }
     return (TypeDesc *)arr;
+}
+
+TypeDesc *desc_enum(void)
+{
+    EnumDesc *e = mm_alloc_obj_fast(e);
+    e->refcnt = 1;
+    e->kind = TYPE_ENUM_KIND;
+    return (TypeDesc *)e;
 }
 
 void free_desc(TypeDesc *ty)

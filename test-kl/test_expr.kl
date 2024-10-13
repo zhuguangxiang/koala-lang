@@ -1,0 +1,4 @@
+# RUN: koalac %s | filecheck %s --check-prefix=CHECK-EXEC
+
+print("hello world")
+# CHECK-EXEC: hello world

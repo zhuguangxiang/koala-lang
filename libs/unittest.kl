@@ -1,0 +1,24 @@
+/*!
+The 'unittest' module of koala standard library
+Most of them in 'unittest' module are native c implementations.
+This is for writing unittest
+
+example:
+---
+
+from assert import *
+from unittest import Test, main as Main
+
+@Test
+func testAdd() {
+    i = 100
+    j = 200
+    assertEqual(i + j, 300)
+}
+
+if __name__ == '__main__' {
+    Main(verbose = 1)
+}
+
+---
+*/

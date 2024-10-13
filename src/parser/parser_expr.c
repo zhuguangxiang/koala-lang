@@ -69,7 +69,13 @@ static void parse_none(ParserState *ps, Expr *exp)
     TypeDesc *expected = exp->expected;
 }
 
-void parse_expr(ParserState *ps, Expr *exp)
+static void parse_call(ParserState *ps, Expr *exp)
+{
+    CallExpr *call = (CallExpr *)exp;
+    // parser_visit_expr(call->lhs);
+}
+
+void parser_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
 
@@ -83,15 +89,15 @@ void parse_expr(ParserState *ps, Expr *exp)
         NULL, // parse_under,                     /* UNDER      */
         parse_literal,                   /* LITERAL    */
         parse_none,                         /* NONE       */
-        // parse_self,                      /* SELF       */
-        // parse_super,                     /* SUPER      */
-        // parse_array_expr,                /* ARRAY      */
-        // parse_map_expr,                  /* MAP        */
-        // NULL,                            /* MAP_ENTRY  */
-        // parse_tuple_expr,                /* TUPLE      */
-        // parse_anony,                     /* ANONY      */
-        // parse_type,                      /* TYPE       */
-        // parse_call,                      /* CALL       */
+        NULL,// parse_self,                      /* SELF       */
+        NULL,// parse_super,                     /* SUPER      */
+        NULL,// parse_array_expr,                /* ARRAY      */
+        NULL,// parse_map_expr,                  /* MAP        */
+        NULL,                            /* MAP_ENTRY  */
+        NULL,// parse_tuple_expr,                /* TUPLE      */
+        NULL,// parse_anony,                     /* ANONY      */
+        NULL,// parse_type,                      /* TYPE       */
+        parse_call,                      /* CALL       */
         // parse_attr,                      /* ATTR       */
         // parse_tuple_get,                 /* TUPLE_GET  */
         // parse_index,                     /* INDEX      */

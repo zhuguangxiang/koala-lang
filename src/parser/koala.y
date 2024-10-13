@@ -76,6 +76,7 @@ static void free_map_list(Vector *vec)
     Vector *vec;
 }
 
+%token FROM
 %token IMPORT
 %token LET
 %token VAR
@@ -84,6 +85,7 @@ static void free_map_list(Vector *vec)
 %token TRAIT
 %token IF
 %token GUARD
+%token WITH
 %token ELSE
 %token WHILE
 %token FOR
@@ -107,7 +109,6 @@ static void free_map_list(Vector *vec)
 %token INT
 %token FLOAT
 %token BOOL
-%token CHAR
 %token STRING
 %token OBJECT
 %token ARRAY
@@ -127,7 +128,6 @@ static void free_map_list(Vector *vec)
 %token GE
 %token LE
 
-%token FREE_ASSIGN
 %token PLUS_ASSIGN
 %token MINUS_ASSIGN
 %token MULT_ASSIGN
@@ -139,6 +139,7 @@ static void free_map_list(Vector *vec)
 %token SHL_ASSIGN
 %token SHR_ASSIGN
 %token USHR_ASSIGN
+%token DOTDOTDOT
 
 %token L_SHIFT
 %token R_SHIFT
@@ -150,7 +151,6 @@ static void free_map_list(Vector *vec)
 %type<stmt> top_stmt
 %type<stmt> let_decl
 %type<stmt> var_decl
-%type<stmt> free_var_decl
 %type<stmt> assignment
 %type<stmt> return_stmt
 %type<stmt> jump_stmt
@@ -205,6 +205,7 @@ static void free_map_list(Vector *vec)
 %type<type> klass_type
 %type<type> atom_type
 
+%type<vec> enum_type_list
 %type<vec> import_stmts
 %type<vec> top_stmts
 %type<vec> optional_type_list
@@ -278,16 +279,27 @@ import_stmts
     ;
 
 import_stmt
-    : IMPORT id_list semi
-    {
-        // $$ = stmt_from_import($2, NULL);
-        // stmt_set_loc($$, lloc(@1, @3));
-    }
-    | IMPORT id_list AS ID semi
+    : IMPORT id_as_list semi
     {
         // $$ = stmt_from_import($2, $4);
         // stmt_set_loc($$, lloc(@1, @5));
     }
+    | FROM id_dot_list IMPORT id_as_list semi
+    {
+
+    }
+    ;
+
+id_dot_list
+    : ID
+    | id_dot_list '.' ID
+    ;
+
+id_as_list
+    : ID
+    | ID AS ID
+    | id_as_list ',' ID
+    | id_as_list ',' ID AS ID
     ;
 
 top_stmts
@@ -317,14 +329,6 @@ top_stmt
         $$ = $1;
     }
     | prefix var_decl semi
-    {
-        $$ = $2;
-    }
-    | free_var_decl semi
-    {
-        $$ = $1;
-    }
-    | prefix free_var_decl semi
     {
         $$ = $2;
     }
@@ -381,6 +385,11 @@ top_stmt
     {
         $$ = NULL;
     }
+    | '?' {
+        kl_error(loc(@1), "unexpected '?'.");
+        yyclearin; yyerrok;
+        $$ = NULL;
+    }
     | error {
         kl_error(loc(@1), "syntax error.");
         yyclearin; yyerrok;
@@ -417,14 +426,68 @@ docs
 optional_type
     : type
     {
-        printf("type\n");
         $$ = $1;
     }
     | type '?'
     {
-        printf("optional_type\n");
         $$ = optional_type($1);
         type_set_loc($$, lloc(@1, @2));
+    }
+    | enum_type_list
+    {
+        $$ = enum_type($1);
+        type_set_loc($$, loc(@1));
+    }
+    | '(' enum_type_list ')'
+    {
+        $$ = enum_type($2);
+        type_set_loc($$, lloc(@1, @3));
+    }
+    | '(' enum_type_list ')' '?'
+    {
+        Type *tp = enum_type($2);
+        type_set_loc(tp, lloc(@1, @3));
+        $$ = optional_type(tp);
+        type_set_loc($$, lloc(@1, @4));
+    }
+    | '(' error
+    {
+        kl_error(loc(@2), "expected a type list.");
+        yyclearin; yyerrok;
+        $$ = NULL;
+    }
+    | '(' enum_type_list error
+    {
+        kl_error(loc(@3), "expected ')'.");
+        yyclearin; yyerrok;
+        $$ = NULL;
+    }
+    ;
+
+enum_type_list
+    : type '|' type
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+        vector_push_back($$, &$3);
+    }
+    | enum_type_list '|' type
+    {
+        $$ = $1;
+        vector_push_back($$, &$3);
+    }
+    | type '|' error
+    {
+        free_type($1);
+        kl_error(loc(@3), "expected type.");
+        yyclearin; yyerrok;
+        $$ = NULL;
+    }
+    | enum_type_list '|' error
+    {
+        kl_error(loc(@3), "expected type.");
+        yyclearin; yyerrok;
+        $$ = NULL;
     }
     ;
 
@@ -461,6 +524,10 @@ array_type
         $$ = array_type($3);
         type_set_loc($$, lloc(@1, @4));
     }
+    | '[' optional_type ']'
+    {
+
+    }
     | ARRAY
     {
         $$ = array_type(NULL);
@@ -486,6 +553,10 @@ map_type
     {
         $$ = map_type($3, $5);
         type_set_loc($$, lloc(@1, @6));
+    }
+    | '[' type ':' optional_type ']'
+    {
+
     }
     | MAP
     {
@@ -662,11 +733,6 @@ atom_type
         $$ = object_typeof();
         type_set_loc($$, loc(@1));
     }
-    | CHAR
-    {
-        $$ = char_type();
-        type_set_loc($$, loc(@1));
-    }
     | BYTES
     {
         $$ = bytes_type();
@@ -838,6 +904,16 @@ param_list
         // $$ = $1;
         // vector_push_back($$, &$3);
     }
+    | ID DOTDOTDOT ',' kw_arg_list
+    {
+
+    }
+    | id_type_arg_list error
+    {
+        printf("id_type_arg_list error\n");
+        yyclearin; yyerrok;
+        $$ = NULL;
+    }
     ;
 
 id_type_arg_list
@@ -855,9 +931,17 @@ id_type_arg_list
         // ParamDecl param = {lloc(@3, @4), id, $4};
         // vector_push_back($$, &param);
     }
+    | ID error {
+        printf("id error\n");
+    }
     ;
 
 kw_arg_list
+    : kw_arg
+    | kw_arg_list ',' kw_arg
+    ;
+
+kw_arg
     : ID '=' expr
     {
 
@@ -1165,10 +1249,6 @@ local
     {
         $$ = NULL;
     }
-    | free_var_decl semi
-    {
-        $$ = NULL;
-    }
     | assignment semi
     {
         $$ = NULL;
@@ -1204,20 +1284,6 @@ local
     }
     | semi
     {
-        $$ = NULL;
-    }
-    ;
-
-free_var_decl
-    : ID FREE_ASSIGN expr
-    {
-        IDENT(id, $1, loc(@1));
-        $$ = stmt_from_var_decl(id, NULL, 0, $3);
-    }
-    | ID FREE_ASSIGN error
-    {
-        kl_error(loc(@3), "expected an expr.");
-        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -1316,17 +1382,31 @@ if_stmt
         $$ = stmt_from_if($2, $3, $4);
         stmt_set_loc($$, lloc(@1, @4));
     }
-    | IF LET ID '=' expr block
+    | IF ID '=' expr block
     {
-        IDENT(id, $3, loc(@3));
-        $$ = stmt_from_if_let(&id, $5, $6);
+        IDENT(id, $2, loc(@2));
+        $$ = stmt_from_if_let(&id, $4, $5);
+        stmt_set_loc($$, lloc(@1, @5));
+    }
+    | GUARD expr ELSE block
+    {
+        // IDENT(id, $2, loc(@2));
+        // $$ = stmt_from_guard_let(&id, $4, $6);
+        // stmt_set_loc($$, lloc(@1, @6));
+    }
+    | GUARD ID '=' expr ELSE block
+    {
+        IDENT(id, $2, loc(@2));
+        $$ = stmt_from_guard_let(&id, $4, $6);
         stmt_set_loc($$, lloc(@1, @6));
     }
-    | GUARD LET ID '=' expr ELSE block
+    | WITH expr block
     {
-        IDENT(id, $3, loc(@3));
-        $$ = stmt_from_guard_let(&id, $5, $7);
-        stmt_set_loc($$, lloc(@1, @7));
+
+    }
+    | WITH ID '=' expr block
+    {
+
     }
     ;
 
@@ -1422,6 +1502,10 @@ expr
     | as_expr
     {
         $$ = $1;
+    }
+    | or_expr DOTDOTDOT or_expr
+    {
+
     }
     ;
 
@@ -1918,7 +2002,23 @@ index_expr
     ;
 
 slice_expr
-    : expr ':' expr
+    : expr ':' expr ':' expr
+    {
+
+    }
+    | ':' expr ':' expr
+    {
+
+    }
+    | expr ':' ':' expr
+    {
+
+    }
+    | expr ':' expr ':'
+    {
+
+    }
+    | expr ':' expr
     {
         $$ = expr_from_slice($1, $3);
         expr_set_loc($$, lloc(@1, @3));
@@ -1932,6 +2032,23 @@ slice_expr
     {
         $$ = expr_from_slice($1, NULL);
         expr_set_loc($$, lloc(@1, @2));
+    }
+    | ':' ':' expr
+    {
+
+    }
+    | ':' expr ':'
+    {
+
+    }
+    | expr ':' ':'
+    {
+
+    }
+    | ':' ':'
+    {
+        $$ = expr_from_slice(NULL, NULL);
+        expr_set_loc($$, loc(@1));
     }
     | ':'
     {

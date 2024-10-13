@@ -21,7 +21,7 @@ static int semicolon(ParserState *ps)
 {
     static int tokens[] = {
         INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF, SUPER,
-        TRUE, FALSE, INT, FLOAT, CHAR, STRING, BOOL, OBJECT,
+        TRUE, FALSE, INT, FLOAT, STRING, BOOL, OBJECT,
         RETURN, BREAK, CONTINUE, ')', ']', '}',
         '_', NOT,
     };
@@ -94,6 +94,10 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
     errno = 0; yyps->sval = atom_nstr(s, len); \
     yylval->fval = strtold(s, NULL)
 
+#define YY_S_BEGIN yyps->multi = 1; BEGIN(S);
+#define YY_S_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
+#define YY_S_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL)
+
 #define YY_STR_BEGIN yyps->multi = 1; BEGIN(STR);
 #define YY_STR_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
 #define YY_STR_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL)
@@ -111,12 +115,13 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 %option noinput
 %option never-interactive
 
-%x STR TXT
+%x S STR TXT
 
 /* rules */
 
 %%
 
+"from"      { YY_RETURN(FROM);      }
 "import"    { YY_RETURN(IMPORT);    }
 "let"       { YY_RETURN(LET);       }
 "var"       { YY_RETURN(VAR);       }
@@ -125,6 +130,7 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "trait"     { YY_RETURN(TRAIT);     }
 "if"        { YY_RETURN(IF);        }
 "guard"     { YY_RETURN(GUARD);     }
+"with"      { YY_RETURN(WITH);      }
 "else"      { YY_RETURN(ELSE);      }
 "while"     { YY_RETURN(WHILE);     }
 "for"       { YY_RETURN(FOR);       }
@@ -145,18 +151,17 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "false"     { YY_RETURN(FALSE);     }
 "none"      { YY_RETURN(NONE);      }
 
-"int"       { YY_RETURN(INT);     }
-"float"     { YY_RETURN(FLOAT);   }
+"int"       { YY_RETURN(INT);       }
+"float"     { YY_RETURN(FLOAT);     }
 "bool"      { YY_RETURN(BOOL);      }
-"char"      { YY_RETURN(CHAR);      }
 "str"       { YY_RETURN(STRING);    }
 "object"    { YY_RETURN(OBJECT);    }
 "list"      { YY_RETURN(ARRAY);     }
 "dict"      { YY_RETURN(MAP);       }
 "set"       { YY_RETURN(SET);       }
 "bytes"     { YY_RETURN(BYTES);     }
-"type"      { YY_RETURN(TYPE);      }
 "tuple"     { YY_RETURN(TUPLE);     }
+"type"      { YY_RETURN(TYPE);      }
 "range"     { YY_RETURN(RANGE);     }
 
 "&&"        { YY_RETURN(AND);       }
@@ -168,7 +173,6 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 ">="        { YY_RETURN(GE);        }
 "<="        { YY_RETURN(LE);        }
 
-":="        { YY_RETURN(FREE_ASSIGN);  }
 "+="        { YY_RETURN(PLUS_ASSIGN);  }
 "-="        { YY_RETURN(MINUS_ASSIGN); }
 "*="        { YY_RETURN(MULT_ASSIGN);  }
@@ -180,10 +184,10 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "<<="       { YY_RETURN(SHL_ASSIGN);   }
 ">>="       { YY_RETURN(SHR_ASSIGN);   }
 ">>>="      { YY_RETURN(USHR_ASSIGN);  }
-
-"<<"        { YY_RETURN(L_SHIFT);   }
-">>"        { YY_RETURN(R_SHIFT);   }
-">>>"       { YY_RETURN(R_USHIFT);  }
+"..."       { YY_RETURN(DOTDOTDOT);    }
+"<<"        { YY_RETURN(L_SHIFT);      }
+">>"        { YY_RETURN(R_SHIFT);      }
+">>>"       { YY_RETURN(R_USHIFT);     }
 
 "?"         { YY_RETURN('?'); }
 "@"         { YY_RETURN('@'); }
@@ -228,19 +232,33 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
     YY_FLOAT_VALUE(yytext, yyleng); YY_RETURN(FLOAT_LITERAL);
 }
 
-\"              { YY_STR_BEGIN;             }
-<STR>\"         { YY_STR_END;               }
-<STR>\\\"       { YY_STR_WRITE('\"');       }
-<STR>\\\\       { YY_STR_WRITE('\\');       }
+\'            { printf("s begin\n");YY_S_BEGIN;             }
+<S>\'         { printf("s end\n");YY_S_END;               }
+<S>\\\a       { YY_S_WRITE('\a');       }
+<S>\\\b       { YY_S_WRITE('\b');       }
+<S>\\\f       { YY_S_WRITE('\f');       }
+<S>\t       { printf("s: \\t\n"); YY_S_WRITE('\t');       }
+<S>\\\v       { YY_S_WRITE('\v');       }
+<S>\\\n       { printf("s-newlin\n"); YY_S_WRITE('\n');       }
+<S>\\\r       { /* omit */              }
+<S>\n         { printf("skip \\n\n"); /* omit */              }
+<S>\r         { /* omit */              }
+<S>\\\'       { printf("s: \\'\n"); YY_S_WRITE('\'');       }
+<S>.          { YY_S_WRITE(yytext[0]);  }
+
+\"              { printf("str begin\n");YY_STR_BEGIN;             }
+<STR>\"         { printf("str end\n");YY_STR_END;               }
 <STR>\\\a       { YY_STR_WRITE('\a');       }
 <STR>\\\b       { YY_STR_WRITE('\b');       }
 <STR>\\\f       { YY_STR_WRITE('\f');       }
 <STR>\\\t       { YY_STR_WRITE('\t');       }
 <STR>\\\v       { YY_STR_WRITE('\v');       }
-<STR>\\\n       { YY_STR_WRITE('\n');       }
+<STR>\\\n       { printf("str-newline\n");  YY_STR_WRITE('\n');       }
 <STR>\\\r       { /* omit */                }
 <STR>\n         { /* omit */                }
 <STR>\r         { /* omit */                }
+<STR>\\\"       { YY_STR_WRITE('\"');       }
+<STR>\\\\       { printf("str\\?\n"); YY_STR_WRITE('\\');       }
 <STR>.          { YY_STR_WRITE(yytext[0]);  }
 
 \"\"\"          { YY_TXT_BEGIN;             }

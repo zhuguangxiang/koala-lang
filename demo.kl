@@ -1,8 +1,107 @@
 
-var a int? = 0
+// "hello"
+// 'hello'
 
-class Foo : Bar[int] {
+// var a0 int = 0
+// var a1 int? = 0
+// var b0 int | str = 0
+// var b1 (int | str) = 0
+// var b2 (int | str) = "hello"
+// var b3 (int | str) ? = "hello"
+// var b4 (int | str?) ? = "hello"
+// // var b5 (100) = 100
+
+public func print(objs ..., sep = '\'ab\tcd', end = '\n', file io.Writer = none) {}
+public func __set_item__(index int, v T) { }
+public func __set_item__(index int?, v T) { }
+public func __set_item__(index int | str, v T) { }
+public func __set_item__(index (int | str), v T) { }
+// public func __set_item__(index int | str?, v T) { }
+public func __set_item__(index (int | str), v T | K | V | Int = none) { }
+// class Foo : Bar[int] {
+// }
+
+var i int = 100
+
+if b {
+
 }
+
+if a > b {
+
+} else if a == b {
+
+} else {
+
+}
+
+if a = b {
+
+}
+
+guard b else {
+
+}
+
+guard a = b else {
+
+}
+
+with b.f() {
+
+}
+
+with a = b.f() {
+
+}
+
+while {
+
+}
+
+while true {
+
+}
+
+for a, b in range(1, 2, 1) {
+
+}
+
+for a in b {
+
+}
+
+if a is b {
+
+}
+
+for a in 1...2 {
+
+}
+
+let a = b as int
+
+switch a {
+    case 100: 100
+    case 200: 2,
+    case 300: 2;
+    case _: "hello"
+    case 100,200: 100
+    case in range(1,100,3), 1000: 2;
+    case 1...2: ok
+    case in 1...2: ok
+}
+
+let good = a[1:2:]
+a.b
+arr[1:2:3]
+arr[1:2:]
+a[1::]
+a[::]
+a[:]
+a[int]()
+a[int?]()
+list[int?]()
 
 /*
 let NUM1 = 12345678901234567890

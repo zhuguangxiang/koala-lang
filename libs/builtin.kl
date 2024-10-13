@@ -1,18 +1,20 @@
+/*!
+The 'builtin' module of koala standard library
+Most of them in 'builtin' module are native c implementations.
+This module is imported automatically.
+*/
 
-//!
-//! The 'builtin' module of Koala language
-//! Most of implementations in 'builtin' module are native c implementations.
-//!
+public trait Iterable[T] {
+    public func __iter__() Iterator[T]
+}
 
-trait iterator[T] {
+public trait Iterator[T] : Iterable[T] {
     public func __next__() T
 }
 
-trait iterable[T] {
-    public func __iter__() iterator[T]
-}
+@runtime
+public class Object {
 
-public class object {
     public func __hash__() int { ... }
 
     public func __cmp__(rhs object) int { ... }
@@ -20,76 +22,42 @@ public class object {
     public func __str__() str { ... }
 }
 
-public class list[T] {
-    let DEFAULT_LEN = 256
-    var len int
-    var arr Array[T]
+public final class list[T] {
 
-    public func __init__(it iterable[T]) {
-        len = DEFAULT_LEN
-        arr = Array[T](DEFAULT_LEN)
-        for i, v in enumerate(it) {
-            if i < len {
-                arr[i] = v
-            } else {
-                len = len << 2
-                new_arr = Array[T](len)
-                copy_array(new_arr, arr)
-                arr = new_arr
-            }
-        }
-    }
+    @native(list___init__)
+    public func __init__(it iterable[T]) { ... }
 
-    public func __get_item__(index int) T {
-        if index < 0 || index >= len {
-            raise("Index out of range")
-        }
+    public func __get_item__(index int) T { ... }
 
-        return arr[index]
-    }
+    public func __set_item__(index int, v T) { ... }
 
-    public func __set_item__(index int, v T) {
-        if index < 0 || index >= len {
-            raise("Index out of range")
-        }
+    public func __get_slice__(index slice) list[T] { ... }
 
-        arr[index] = v
-    }
+    public func __set_slice__(index slice, v iterable[T]) { ... }
+
+    public func __len__() int { ... }
+
+    /**
+    This is one getset `len` of list
+
+    example:
+    ---
+    list = [1, 2, 3]
+    assert_eq(list.len, 3)
+    ---
+    */
+    @get(len)
+    public func getLen() int { ... }
 }
 
-l = list([1,2,3])
-print(l[0])
+@runtime
+public func print(objs ..., sep = ' ', end = '\n', file io.Writer = none) { ... }
 
-t tuple[str, int, ...int] = tuple[str, int, ...int]("hello", 1, 2, 3)
-
-///
-///
-///
-@native(builtin_print)
-pub func print(objs ..., sep = ' ', end = '\n', file io.Writer = sys.stdout)
-{
-    for obj in objs {
-        s := obj.str()
-        sep.fmt(fmt)
-    }
-    file.write(end)
+public final class int {
+    @native(int_init)
+    public func __init__(x int | str = 0, base = 10) { ... }
 }
 
-
-@native(Int)
-pub final class Int {
-
-    @native(kl_int_hash)
-    pub func hash() int
-
-    pub func __eq__(rhs Int) bool  {
-        return self == rhs
-    }
-
-    @native(kl_int_str)
-    pub func str() string
-}
-
-func Int:str() string {
-    return string(self + 100)
+public final class str {
+    
 }

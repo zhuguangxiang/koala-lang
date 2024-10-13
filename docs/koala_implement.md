@@ -283,3 +283,7 @@ The `Formatter` object with config settings and a inner buffer for print.
 	- use get_global/set_global instructions
 	- in __init__ function, how to do better?
 	- in other functions, how to do?
+
+- range type
+	range(1,2,1) or 1...2 is half-open range.
+	slice(1,2,1) or 1:2:1 is half-open slice which is only used in []
