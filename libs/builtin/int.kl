@@ -17,15 +17,15 @@ let n3 = int(12.3)
 let n4 = int(x = "100")
 ```
 
-The above usages are valid, and all of them will invoke `__int__`.
+The above usages are valid, and all of them will invoke `__new__`.
 */
 @alias(Int)
 public final class int : Number {
     /**
-    The `__init__` function of primitive `int` type.
+    The `__new__` function of primitive `int` type.
     */
-    @native(kl_int_init)
-    public func __init__(x int | str = 0, base = 10) int {}
+    @native(kl_int_new)
+    public static func __new__(x int | str = 0, base = 10) int {}
 
     /**
     The intrinsic operator+ function. The second operand is a `Number`.
@@ -38,5 +38,4 @@ public final class int : Number {
     */
     @native(kl_int_str)
     public func __str__() str {}
-
 }

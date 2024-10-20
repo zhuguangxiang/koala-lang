@@ -26,7 +26,6 @@ public func print(objs ..., sep = ' ', end = '\n', file io.Writer? = none) {
     // if (!sep) {
     //     ...
     // }
-
     let _f = file ?: sys.stdout
     for i, o in enum(objs) {
         s := str(o)
@@ -38,33 +37,22 @@ public func print(objs ..., sep = ' ', end = '\n', file io.Writer? = none) {
     _f.write(end)
 }
 
-public trait Iterable[T] {
-    public func __iter__() Iterator[T]
-}
-
-public trait Iterator[T] : Iterable[T] {
-    public func __next__() T?
-}
-
 class List {
-    next Node?
-    count int
+    var next Node?
+    var count int
 
     public func __init__() {
         self.next = none
         self.count = 0
     }
+
+    public static func __new__()
+    public func __str__()
 }
 
 class Node {
     next Node?
     val int
-
-    public static let K = 100
-
-    public static func __new__() {
-
-    }
 
     func __init__(val int, next Node? = none) {
         self.val = val
@@ -74,22 +62,22 @@ class Node {
 
 l := List()
 
-next := l.next
-node := Node(200, next)
-l.next = node
+// next := list.next
+// node := Node(200, next)
+// list.next = node
 
-head := l.next
-while r := head {
-    print(r.val)
-    head = r.next
-}
+// head := list.next
+// while r := head {
+//     print(r.val)
+//     head = r.next
+// }
 
-var _f = file ?: sys.stdout
+// var _f = file ?: sys.stdout
 
-if let r = opt {
+// if let r = opt {
 
-}
+// }
 
-guard let r = opt else {
+// guard let r = opt else {
 
-}
+// }

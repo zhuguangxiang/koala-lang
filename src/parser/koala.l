@@ -22,7 +22,7 @@ static int semicolon(ParserState *ps)
     static int tokens[] = {
         INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF, SUPER,
         TRUE, FALSE, INT, FLOAT, STRING, BOOL, OBJECT,
-        RETURN, BREAK, CONTINUE, ')', ']', '}',
+        RETURN, BREAK, CONTINUE, ')', ']', '}', '?',
         '_', NOT,
     };
 
@@ -143,6 +143,7 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "is"        { YY_RETURN(IS);        }
 "public"    { YY_RETURN(PUBLIC);    }
 "final"     { YY_RETURN(FINAL);     }
+"static"    { YY_RETURN(STATIC);    }
 
 "self"      { YY_RETURN(SELF);      }
 "super"     { YY_RETURN(SUPER);     }
@@ -237,7 +238,7 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 <S>\\\a       { YY_S_WRITE('\a');       }
 <S>\\\b       { YY_S_WRITE('\b');       }
 <S>\\\f       { YY_S_WRITE('\f');       }
-<S>\t       { printf("s: \\t\n"); YY_S_WRITE('\t');       }
+<S>\t         { printf("s: \\t\n"); YY_S_WRITE('\t');       }
 <S>\\\v       { YY_S_WRITE('\v');       }
 <S>\\\n       { printf("s-newlin\n"); YY_S_WRITE('\n');       }
 <S>\\\r       { /* omit */              }
@@ -268,7 +269,11 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 <TXT>.          { YY_TXT_WRITE(yytext[0]);  }
 
 "//!"[^\n]*     { YY_RETURN(MOD_DOC);       }
-"///"[^\n]*     { YY_RETURN(DOC);           }
+"/**"(([^\*]*(\*[^\/])?)*)"*/" {
+    RESET_BUF(yyps->sbuf);
+    buf_write_nstr(&yyps->sbuf, yytext + 3, yyleng - 5);
+    YY_RETURN(DOC);
+}
 
 "\n"            { YY_NEWLINE;               }
 [ \t\r]         { }

@@ -181,11 +181,12 @@ bytes("hello")
 type(v)
 */
 
-/*
+
 func new_bytes(v (int | str | list[int8])? = none) bytes {
 
 }
 
+/*
 func add(a (int | str)?, b (int | str)) tuple[int, str] {
     if let a1 = a {
         if a1 is int {

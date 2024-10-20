@@ -98,6 +98,7 @@ static void free_map_list(Vector *vec)
 %token IS
 %token PUBLIC
 %token FINAL
+%token STATIC
 
 %token SELF
 %token SUPER
@@ -285,10 +286,14 @@ import_stmt
     {
         // $$ = stmt_from_import($2, $4);
         // stmt_set_loc($$, lloc(@1, @5));
+        $$ = NULL;
     }
     | FROM id_dot_list IMPORT id_as_list semi
     {
 
+    }
+    | IMPORT id_as_list error
+    {
     }
     ;
 
@@ -306,7 +311,6 @@ id_dot_list
 id_as_list
     : ID
     {
-
     }
     | ID AS ID
     {
@@ -364,13 +368,12 @@ top_stmt
     {
         $$ = NULL;
     }
-    | prefix func_decl
+    | func_prefix func_decl
     {
         $$ = NULL;
     }
     | class_decl
     {
-        printf("top_class_decl\n");
         $$ = NULL;
     }
     | class_prefix class_decl
@@ -413,11 +416,6 @@ top_stmt
     {
         $$ = NULL;
     }
-    | '?' {
-        kl_error(loc(@1), "unexpected '?'.");
-        yyclearin; yyerrok;
-        $$ = NULL;
-    }
     | error {
         kl_error(loc(@1), "syntax error.");
         yyclearin; yyerrok;
@@ -431,13 +429,32 @@ semi
     ;
 
 class_prefix
+    : class_prefix_flags
+    | docs
+    | annotation
+    | docs class_prefix_flags
+    | annotation class_prefix_flags
+    | docs annotation class_prefix_flags
+    ;
+
+class_prefix_flags
     : PUBLIC
     | FINAL
     | PUBLIC FINAL
+    ;
+
+annotation
+    : '@' ID semi
+    | '@' ID '(' ID ')' semi
+    ;
+
+func_prefix
+    : PUBLIC
     | docs
+    | annotation
     | docs PUBLIC
-    | docs FINAL
-    | docs PUBLIC FINAL
+    | annotation PUBLIC
+    | docs annotation PUBLIC
     ;
 
 prefix
@@ -448,7 +465,11 @@ prefix
 
 docs
     : DOC
+    {
+    }
     | docs DOC
+    {
+    }
     ;
 
 optional_type
@@ -689,7 +710,6 @@ klass_type
     }
     | ID '[' optional_type_list ']'
     {
-        printf("klass_type ok\n");
         IDENT(id, $1, loc(@1));
         $$ = klass_type(NULL, &id, $3);
         type_set_loc($$, lloc(@1, @4));
@@ -913,7 +933,6 @@ func_decl
     }
     | FUNC name '(' ')' block
     {
-
     }
     ;
 
@@ -938,7 +957,6 @@ param_list
     }
     | id_type_arg_list error
     {
-        printf("id_type_arg_list error\n");
         yyclearin; yyerrok;
         $$ = NULL;
     }
@@ -960,13 +978,18 @@ id_type_arg_list
         // vector_push_back($$, &param);
     }
     | ID error {
-        printf("id error\n");
     }
     ;
 
 kw_arg_list
     : kw_arg
+    {
+
+    }
     | kw_arg_list ',' kw_arg
+    {
+
+    }
     ;
 
 kw_arg
@@ -981,30 +1004,33 @@ kw_arg
     ;
 
 class_decl
-    : CLASS ID extends '{' class_members_or_empty '}'
-    {
-        printf("class_decl_1\n");
-        $$ = NULL;
-    }
-    | CLASS ID '{' class_members_or_empty '}'
-    {
-
-    }
-    | CLASS ID '[' type_param_decl_list ']' extends '{' class_members_or_empty '}'
+    : CLASS class_name extends '{' class_members_or_empty '}'
     {
         $$ = NULL;
     }
-    | CLASS ID '[' type_param_decl_list ']' '{' class_members_or_empty '}'
+    | CLASS class_name '{' class_members_or_empty '}'
+    {
+    }
+    | CLASS class_name '[' type_param_decl_list ']' extends '{' class_members_or_empty '}'
+    {
+        $$ = NULL;
+    }
+    | CLASS class_name '[' type_param_decl_list ']' '{' class_members_or_empty '}'
     {
 
     }
-    | CLASS error
+    | CLASS class_name '{' error '}'
     {
-        printf("CLASS name extends error\n");
         yy_clear_ok;
         yyclearin;
         $$ = NULL;
     }
+    ;
+
+class_name
+    : ID
+    | OBJECT
+    | INT
     ;
 
 name
@@ -1039,7 +1065,13 @@ type_param_decl_list
 
 type_param_decl
     : ID
+    {
+
+    }
     | ID ':' klass_list
+    {
+
+    }
     | ID ':' error
     {
 
@@ -1053,11 +1085,10 @@ type_param_decl
 extends
     : ':' klass_list
     {
-        printf("extends\n");
+
     }
     | ':' error
     {
-        printf(": error\n");
         yy_clear_ok;
         yyclearin;
     }
@@ -1066,7 +1097,6 @@ extends
 klass_list
     : klass_type
     {
-        printf("klass_list\n");
         $$ = vector_create_ptr();
         vector_push_back($$, &$1);
     }
@@ -1126,7 +1156,7 @@ prefix_field_decl
     {
         $$ = $1;
     }
-    | prefix field_decl
+    | func_prefix field_decl
     {
         $$ = $2;
     }
@@ -1142,6 +1172,10 @@ field_decl
     {
         // $$ = $1;
         // var_set_where($$, VAR_FIELD);
+    }
+    | STATIC let_decl semi
+    {
+
     }
     | ID optional_type semi
     {
@@ -1187,7 +1221,7 @@ prefix_method_decl
     {
         $$ = $1;
     }
-    | prefix func_decl
+    | func_prefix func_decl
     {
         $$ = $2;
     }
@@ -1195,14 +1229,30 @@ prefix_method_decl
     {
 
     }
-    | prefix proto_decl
+    | func_prefix proto_decl
+    {
+
+    }
+    | STATIC func_decl
+    {
+
+    }
+    | func_prefix STATIC func_decl
+    {
+
+    }
+    | semi
     {
 
     }
     ;
 
 trait_decl
-    : TRAIT name extends '{' trait_members_or_empty '}'
+    : TRAIT name '{' trait_members_or_empty '}'
+    {
+
+    }
+    | TRAIT name extends '{' trait_members_or_empty '}'
     {
         // $$ = stmt_from_type(STMT_TRAIT_KIND, $2.id, $2.tps, NULL, NULL);
         // stmt_set_loc($$, lloc(@1, @6));
@@ -1573,12 +1623,10 @@ expr
     }
     | or_expr '?' ':'  expr
     {
-        printf("optional object with default\n");
         $$ = NULL;
     }
     | or_expr NOT
     {
-        printf("optional object AS\n");
         $$ = NULL;
     }
     ;
@@ -2043,8 +2091,6 @@ dot_expr
 index_expr
     : primary_expr '[' expr_list ']'
     {
-        printf("index_expr\n");
-
         // Foo[100]
         // Foo["hello"]
         // Foo[Bar]()
