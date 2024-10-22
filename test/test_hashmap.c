@@ -38,6 +38,16 @@ static void random_string(char *str, int length)
     str[length] = '\0'; // Null-terminate the string
 }
 
+#define FNV32_BASE  ((unsigned int)0x811c9dc5)
+#define FNV32_PRIME ((unsigned int)0x01000193)
+
+static inline unsigned int str_hash222(const char *str)
+{
+    unsigned int c, hash = FNV32_BASE;
+    while ((c = (unsigned char)*str++)) hash = (hash * FNV32_PRIME) ^ c;
+    return hash;
+}
+
 void test_hashmap(void)
 {
     srand(time(NULL)); // Seed the random number generator
@@ -49,10 +59,10 @@ void test_hashmap(void)
     int ret;
     struct str *s2;
 
-    for (int i = 0; i < 20000; i++) {
+    for (int i = 0; i < 200000; i++) {
         s = malloc(sizeof(struct str) + 21);
         random_string((char *)(s + 1), 20);
-        hashmap_entry_init(s, str_hash((char *)(s + 1)));
+        hashmap_entry_init(s, str_hash222((char *)(s + 1)));
         ret = hashmap_put_absent(&map, s);
         assert(!ret);
         s2 = hashmap_get(&map, s);
