@@ -29,7 +29,7 @@ set(PARSER_SRC
     parser/insn_remap.c
     parser/linear_scan.c
     parser/simple_reg_alloc.c
-    parser/emit_code.c
+    parser/code_gen.c
     parser/pass.c
     parser/passes/dot.c
     parser/passes/remove_load_store.c
@@ -38,14 +38,14 @@ set(PARSER_SRC
     parser/passes/basic_block.c)
 
 add_library(parser STATIC ${PARSER_SRC})
-target_link_libraries(parser koala)
+target_link_libraries(parser koala-common)
 
 add_executable(koalac_out parser/main.c)
 target_link_libraries(koalac_out parser)
 set_target_properties(koalac_out PROPERTIES
     OUTPUT_NAME koalac)
 
-set(KOALA_SOURCES
+set(COMMON_SOURCES
     common/sds.c
     common/atom.c
     common/log.c
@@ -56,7 +56,11 @@ set(KOALA_SOURCES
     common/buffer.c
     common/bitset.c
     common/utf8.c
-    common/klc.c
+    common/klc.c)
+
+add_library(koala-common STATIC ${COMMON_SOURCES})
+
+set(KOALA_SOURCES
     object.c
     gc.c
     run.c
@@ -75,7 +79,7 @@ set(KOALA_SOURCES
     modules/builtin.c)
 
 add_library(koala STATIC ${KOALA_SOURCES})
-target_link_libraries(koala pthread m dl ffi)
+target_link_libraries(koala koala-common pthread m dl ffi)
 
 add_executable(koala_out ${PROJECT_SOURCE_DIR}/src/main.c)
 target_link_libraries(koala_out koala)

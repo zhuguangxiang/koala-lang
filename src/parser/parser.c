@@ -131,11 +131,12 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         if (!_add_var(ps, ps->scope->stbl, var)) return;
     }
 
+    VarSymbol *sym = (VarSymbol *)id->sym;
+
     if (!desc) {
         /* update symbol type */
-        Symbol *sym = id->sym;
         sym->desc = exp->desc;
-        log_info("update '%s' type to:", sym->name);
+        log_info("update symbol '%s' type as:", sym->name);
         print_desc(sym->desc);
     } else {
         if (!desc_equal(desc, exp->desc)) {
@@ -188,6 +189,8 @@ static void parse_stmt(ParserState *ps, Stmt *stmt)
     handlers[stmt->kind](ps, stmt);
 }
 
+void kl_code_gen(ParserState *ps);
+
 static void parse_ast(ParserState *ps)
 {
     ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0);
@@ -208,7 +211,7 @@ static void parse_ast(ParserState *ps)
 #endif
 
     /* FIXME: codegen */
-    // kl_codegen_stmt(ps, stmt);
+    kl_code_gen(ps);
 }
 
 static void init_parser_state(ParserState *ps, char *filename)
@@ -255,6 +258,8 @@ int compile(int argc, char *argv[])
     }
 
     ParserState *ps = build_ast(argv[1]);
+    if (!ps) return -1;
+
     parse_ast(ps);
     free_parser(ps);
 

@@ -1,5 +1,6 @@
 {
     "files.associations": {
+        "*.kl": "swift",
         "*.y": "yacc",
         "*.h": "c",
         "cstdlib": "cpp",
@@ -19,7 +20,8 @@
         "system_error": "c",
         "bitset": "c",
         "optional": "c",
-        "deque": "c"
+        "deque": "c",
+        "climits": "c"
     },
     "cSpell.words": [
         "ABCDEFGHIJKLMNOPQRSTUWXYZ",
@@ -122,6 +124,7 @@
         "unhashed",
         "USHIFT",
         "USHR",
+        "xcafe",
         "yyextra",
         "yyin",
         "yyleng",

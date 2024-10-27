@@ -4,6 +4,7 @@
  */
 
 #include "klc.h"
+#include "atom.h"
 #include "buffer.h"
 #include "version.h"
 
@@ -11,24 +12,23 @@
 extern "C" {
 #endif
 
-#define KLC_TYPE_NONE   'N'
-#define KLC_TYPE_FALSE  'F'
-#define KLC_TYPE_TRUE   'T'
-#define KLC_TYPE_INT    'i'
-#define KLC_TYPE_FLOAT  'f'
-#define KLC_TYPE_ASCII  'A'
-#define KLC_TYPE_STRING 's'
-#define KLC_TYPE_TUPLE  '('
-#define KLC_TYPE_LIST   '['
-#define KLC_TYPE_MAP    '{'
-#define KLC_TYPE_SET    '<'
-#define KLC_TYPE_CODE   'c'
-#define KLC_TYPE_BYTES  'b'
-#define KLC_TYPE_CLASS  'C'
-#define KLC_TYPE_TRAIT  'I'
-#define KLC_TYPE_VAR    'v'
-#define KLC_TYPE_PROTO  'p'
-#define KLC_TYPE_FUNC   'q'
+#define KLC_TYPE_NONE    'N'
+#define KLC_TYPE_INT     'i'
+#define KLC_TYPE_FLOAT   'f'
+#define KLC_TYPE_ASCII   'A'
+#define KLC_TYPE_STRING  'S'
+#define KLC_TYPE_TUPLE   '('
+#define KLC_TYPE_LIST    '['
+#define KLC_TYPE_MAP     '{'
+#define KLC_TYPE_SET     '<'
+#define KLC_TYPE_CODE    'C'
+#define KLC_TYPE_BYTES   'B'
+#define KLC_TYPE_CLASS   'K'
+#define KLC_TYPE_TRAIT   'I'
+#define KLC_TYPE_VAR     'v'
+#define KLC_TYPE_VAR_VAL 'V'
+#define KLC_TYPE_PROTO   'p'
+#define KLC_TYPE_FUNC    'P'
 
 /* with a type, add obj to index */
 #define FLAG_REF '\x80'
@@ -37,7 +37,7 @@ extern "C" {
 #define KLC_TYPE_SMALL_TUPLE ')'
 
 typedef struct _KlcObject {
-    int type;
+    char type;
     int len;
     union {
         int64_t ival;
@@ -46,11 +46,11 @@ typedef struct _KlcObject {
     };
 } KlcObject;
 
-void klc_add_int32(KlcFile *klc, int32_t val)
+void klc_add_int(KlcFile *klc, int64_t val, int len)
 {
     KlcObject obj;
     obj.type = KLC_TYPE_INT;
-    obj.len = 4;
+    obj.len = len;
     obj.ival = val;
     vector_push_back(&klc->objs, &obj);
 }
@@ -64,11 +64,15 @@ void klc_add_bytes(KlcFile *klc, const char *insns, int insns_size)
     vector_push_back(&klc->objs, &obj);
 }
 
-void klc_add_var(KlcFile *klc, const char *name, const char *desc)
+void klc_add_var(KlcFile *klc, const char *name, const char *desc, int has_value)
 {
     KlcObject obj;
 
-    obj.type = KLC_TYPE_VAR;
+    if (has_value)
+        obj.type = KLC_TYPE_VAR_VAL;
+    else
+        obj.type = KLC_TYPE_VAR;
+
     obj.len = 0;
     obj.val = NULL;
     vector_push_back(&klc->objs, &obj);
@@ -86,8 +90,10 @@ void klc_add_var(KlcFile *klc, const char *name, const char *desc)
     else
         obj.type = KLC_TYPE_ASCII;
     obj.len = len;
-    obj.val = (void *)desc;
+    obj.val = atom((char *)desc);
     vector_push_back(&klc->objs, &obj);
+
+    ++klc->num_symbols;
 }
 
 void klc_add_func(KlcFile *klc, const char *name, const char *desc)
@@ -253,9 +259,7 @@ static void read_objects(KlcFile *klc, int only_meta)
 {
     int total = 0;
 
-    total += klc->num_vars;
-    total += klc->num_funcs;
-    total += klc->num_types;
+    total += klc->num_symbols;
 
     if (!only_meta) {
         total += klc->num_relocs;
@@ -288,10 +292,8 @@ static inline void read_check_version(KlcFile *klc)
 
 static inline void read_numbers(KlcFile *klc)
 {
-    fread(&klc->num_vars, sizeof(uint8_t), 1, klc->filp);
-    fread(&klc->num_funcs, sizeof(uint8_t), 1, klc->filp);
-    fread(&klc->num_types, sizeof(uint8_t), 1, klc->filp);
-    fread(&klc->num_relocs, sizeof(uint8_t), 1, klc->filp);
+    fread(&klc->num_symbols, sizeof(uint16_t), 1, klc->filp);
+    fread(&klc->num_relocs, sizeof(uint16_t), 1, klc->filp);
     fread(&klc->num_codes, sizeof(uint16_t), 1, klc->filp);
     fread(&klc->num_consts, sizeof(uint16_t), 1, klc->filp);
 }
@@ -346,6 +348,8 @@ static void write_object(KlcObject *obj, KlcFile *klc)
         }
         case KLC_TYPE_VAR:
         // fall-through
+        case KLC_TYPE_VAR_VAL:
+        // fall-through
         case KLC_TYPE_FUNC:
         // fall-through
         case KLC_TYPE_PROTO: {
@@ -384,10 +388,8 @@ static inline void write_version(KlcFile *klc)
 
 static inline void write_numbers(KlcFile *klc)
 {
-    fwrite(&klc->num_vars, sizeof(uint8_t), 1, klc->filp);
-    fwrite(&klc->num_funcs, sizeof(uint8_t), 1, klc->filp);
-    fwrite(&klc->num_types, sizeof(uint8_t), 1, klc->filp);
-    fwrite(&klc->num_relocs, sizeof(uint8_t), 1, klc->filp);
+    fwrite(&klc->num_symbols, sizeof(uint16_t), 1, klc->filp);
+    fwrite(&klc->num_relocs, sizeof(uint16_t), 1, klc->filp);
     fwrite(&klc->num_codes, sizeof(uint16_t), 1, klc->filp);
     fwrite(&klc->num_consts, sizeof(uint16_t), 1, klc->filp);
 }
@@ -419,8 +421,7 @@ void fini_klc_file(KlcFile *klc) {}
 
 void klc_dump(KlcFile *klc)
 {
-    printf("number of vars: %d\n", klc->num_vars);
-    printf("number of funcs: %d\n", klc->num_funcs);
+    printf("number of symbols: %d\n", klc->num_symbols);
 
     int i = 0;
     while (i < vector_size(&klc->objs)) {
@@ -431,6 +432,15 @@ void klc_dump(KlcFile *klc)
                 KlcObject *desc = vector_get(&klc->objs, i + 2);
                 printf("var %s:%s\n", (char *)name->val, (char *)desc->val);
                 i += 3;
+                break;
+            }
+            case KLC_TYPE_VAR_VAL: {
+                KlcObject *name = vector_get(&klc->objs, i + 1);
+                KlcObject *desc = vector_get(&klc->objs, i + 2);
+                KlcObject *val = vector_get(&klc->objs, i + 3);
+                printf("var %s: %s\n", (char *)name->val, (char *)desc->val);
+                printf("val: %ld\n", val->ival);
+                i += 4;
                 break;
             }
             case KLC_TYPE_FUNC: {

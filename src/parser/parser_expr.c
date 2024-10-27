@@ -15,7 +15,16 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
 {
     /* expected type from lhs */
     TypeDesc *desc = lit->expected;
-    if (!desc) return;
+    int64_t val = lit->ival;
+    if (val >= INT8_MIN && val <= INT8_MAX) {
+        lit->len = 1;
+    } else if (val >= INT16_MIN && val <= INT16_MAX) {
+        lit->len = 2;
+    } else if (val >= INT32_MIN && val <= INT32_MAX) {
+        lit->len = 4;
+    } else {
+        lit->len = 8;
+    }
 }
 
 static void parse_lit_float(ParserState *ps, LitExpr *lit)

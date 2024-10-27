@@ -11,15 +11,13 @@ typedef struct _String {
 } String;
 
 #define length(s)    ((s)->len)
-#define charAt(s, i) ((s)->data[i])
+#define charAt(s, i) ((char)((s)->data[i]))
 
-static int *computeLastOcc(String *P)
+static char *computeLastOcc(String *P)
 {
-    int *lastOcc = malloc(256 * sizeof(int)); // assume ASCII character set
+    char *lastOcc = malloc(256 * sizeof(char)); // assume ASCII character set
 
-    for (int i = 0; i < 256; i++) {
-        lastOcc[i] = -1; // initialize all elements to -1
-    }
+    memset(lastOcc, -1, 256);
 
     for (int i = 0; i < length(P) - 1; i++) {
         // Don't use the last char to compute lastOcc[]
@@ -31,7 +29,7 @@ static int *computeLastOcc(String *P)
 
 int BMH(String *T, String *P)
 {
-    int *lastOcc;
+    char *lastOcc;
     int i0, j, m, n;
 
     n = length(T);
@@ -92,7 +90,7 @@ void test(void)
     }
 
     String T = { strlen("北京南京"), "北京南京" };
-    String P = { 1, "\n" };
+    String P = { 3, "南" };
     int r = BMH(&T, &P);
     printf("Found %s at pos: %d\n", P.data, r);
 }

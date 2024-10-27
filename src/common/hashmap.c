@@ -87,8 +87,11 @@ static inline void *find_entry(HashMap *self, HashMapEntry *key)
 {
     int b = bucket(self, key);
 
+    HashMapEntry *entry;
     HListNode *node;
     hlist_for_each(node, self->entries + b) {
+        entry = (HashMapEntry *)node;
+        if (entry->hash != key->hash) continue;
         if (self->equal(node, key)) return node;
     }
 

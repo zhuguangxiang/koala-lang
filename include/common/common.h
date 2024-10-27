@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -75,11 +76,6 @@ extern "C" {
 #else
 #define ASSERT(x) ((void)(0))
 #endif
-
-/* largest positive value of type ssize_t. */
-#define SSIZE_MAX ((ssize_t)(((size_t) - 1) >> 1))
-/* Smallest negative value of type ssize_t. */
-#define SSIZE_MIN (-SSIZE_MAX - 1)
 
 /* clang-format off */
 

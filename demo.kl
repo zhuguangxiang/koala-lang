@@ -120,6 +120,35 @@ a[int]()
 a[int]()
 list[int]()
 
+[1,2,3]
+[int]
+[int]()
+[int]([1,2,3])
+[]([1,2,3])
+list()
+list[int]()
+
+{:}
+{1:2}
+{1:2, 2: true}
+map({1:2})
+map[K:V]()
+
+{1,2,3}
+
+let v1 list = 0
+let v2 [int] = 0
+let v3 [K:V] = none
+
+class Animal {
+
+}
+
+// short function definition:
+// func hello(name) = print(name)
+
+// f <- func(a int) int = a + 1
+
 /*
 let NUM1 = 12345678901234567890
 let NUM2 = 100

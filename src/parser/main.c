@@ -10,7 +10,7 @@
 int main(int argc, char *argv[])
 {
     init_atom();
-    init_log(LOG_INFO, NULL, 0);
+    init_log(LOG_DEBUG, NULL, 0);
     compile(argc, argv);
     fini_log();
     fini_atom();

@@ -10,3 +10,5 @@ out/
 *.klc
 *.tag
 *.tags
+perf.data
+perf.data.old

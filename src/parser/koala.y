@@ -575,7 +575,7 @@ array_type
     }
     | '[' optional_type ']'
     {
-
+        $$ = NULL;
     }
     | ARRAY
     {
@@ -605,7 +605,7 @@ map_type
     }
     | '[' type ':' optional_type ']'
     {
-
+        $$ = NULL;
     }
     | MAP
     {
@@ -1031,6 +1031,10 @@ class_name
     : ID
     | OBJECT
     | INT
+    | FLOAT
+    | ARRAY
+    | BYTES
+    | TUPLE
     ;
 
 name
@@ -2254,7 +2258,7 @@ atom
     | INT_LITERAL
     {
         if (errno != 0) {
-            kl_error(loc(@1), "Number %s is out of int64 range", ps->sval);
+            kl_error(loc(@1), "Number %s is out of int range", ps->sval);
             $$ = NULL;
             YYERROR;
         } else {
@@ -2312,6 +2316,10 @@ array_expr
         $$ = expr_from_array($2);
         expr_set_loc($$, lloc(@1, @3));
     }
+    | '[' ']'
+    {
+
+    }
     | ARRAY
     {
         Type *ty = array_type(NULL);
@@ -2339,6 +2347,10 @@ map_expr
     {
         $$ = expr_from_map($2);
         expr_set_loc($$, lloc(@1, @3));
+    }
+    | '{' ':' '}'
+    {
+
     }
     | MAP
     {

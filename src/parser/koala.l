@@ -45,6 +45,20 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
     return result;
 }
 
+static void replace_comma_under(int base, char *s, int len, Buffer *buf)
+{
+    if (base == 2 || base == 8) s += 2;
+    char *end = s + len;
+    while (s < end) {
+        char ch = *s;
+        if (ch != '_' && ch != ',') {
+            buf_write_char(buf, ch);
+        }
+        ++s;
+    }
+    return;
+}
+
 #define YY_INPUT(buf, ret, size) ret = file_input(yyps, buf, size, yyin)
 
 #define loc_first_line yylloc->first_line
@@ -89,7 +103,10 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 #define YY_IDENT_VALUE(s, len) yylval->sval = atom_nstr(s, len)
 #define YY_INT_VALUE(s, len, base) \
     errno = 0; yyps->sval = atom_nstr(s, len); \
-    yylval->ival = strtoll(s, NULL, base)
+    BUF(buf); \
+    replace_comma_under(base, s, len, &buf); \
+    yylval->ival = strtoll(BUF_STR(buf), NULL, base); \
+    FINI_BUF(buf);
 #define YY_FLOAT_VALUE(s, len) \
     errno = 0; yyps->sval = atom_nstr(s, len); \
     yylval->fval = strtold(s, NULL)
@@ -220,16 +237,15 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 "<"         { YY_RETURN('<'); }
 
 0[xX][0-9a-fA-F_]+  { YY_INT_VALUE(yytext, yyleng, 16); YY_RETURN(INT_LITERAL); }
-0[dD][0-9_]+        { YY_INT_VALUE(yytext, yyleng, 10); YY_RETURN(INT_LITERAL); }
 0[oO][0-7_]+        { YY_INT_VALUE(yytext, yyleng, 8);  YY_RETURN(INT_LITERAL); }
 0[bB][01_]+         { YY_INT_VALUE(yytext, yyleng, 2);  YY_RETURN(INT_LITERAL); }
-[0-9][0-9_]*        { YY_INT_VALUE(yytext, yyleng, 10); YY_RETURN(INT_LITERAL); }
+[+-]*[0-9][0-9_,]*  { YY_INT_VALUE(yytext, yyleng, 10); YY_RETURN(INT_LITERAL); }
 
 [A-Za-z_$][A-Za-z0-9_$]* {
     YY_IDENT_VALUE(yytext, yyleng); YY_RETURN(ID);
 }
 
-([0-9]+\.[0-9]+|[0-9]+)([eE][-+]?[0-9]+)? {
+[+-]*([0-9]+\.[0-9]+|[0-9]+)([eE][-+]?[0-9]+)? {
     YY_FLOAT_VALUE(yytext, yyleng); YY_RETURN(FLOAT_LITERAL);
 }
 

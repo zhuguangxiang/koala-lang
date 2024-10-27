@@ -316,3 +316,34 @@ The `Formatter` object with config settings and a inner buffer for print.
 	- Q: is it necessary for if let or guard let?
 	- A: koala has optional type, but it allows to access its member directly.
 	Optional will generate protect codes and other types will not.
+
+## Package & Module
+
+```bash
+libs/builtin
+	├── __m__.kl
+	├── int.kl
+	├── float.kl
+	├── bool.kl
+	├── list.kl
+	├── map.kl
+	└── set.kl
+libs/unittest.kl
+libs/regexp.kl
+```
+
+`koalac builtin` will generate below files and directories.
+
+```
+builtin
+	__klc__/builtin.klc
+```
+
+and not allow to compile one file if the directory has `__m__.kl` file.
+
+`koalac builtin/int.kl` will report error for this is a file in a module.
+
+when compiling a single file, it is regarded as a module.
+`koalac unittest.kl` will generate a file in `__klc__/unittest.klc`.
+
+when run a koala program, the vm will search the module(file or directory), and load it, then try to find `main` function. If there is no `main` function, the vm will exit with no errors.
