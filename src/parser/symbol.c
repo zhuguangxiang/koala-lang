@@ -55,6 +55,14 @@ Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc)
     return (Symbol *)sym;
 }
 
+Symbol *stbl_get(HashMap *stbl, char *name)
+{
+    if (stbl == NULL) return NULL;
+    Symbol key = { .name = name };
+    hashmap_entry_init(&key, str_hash(name));
+    return hashmap_get(stbl, &key);
+}
+
 void stbl_show(HashMap *stbl)
 {
     HashMapIter it = { 0 };

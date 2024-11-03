@@ -11,6 +11,12 @@
 extern "C" {
 #endif
 
+static void parse_ident(ParserState *ps, Expr *exp)
+{
+    IdentExpr *id = (IdentExpr *)exp;
+    Symbol *sym = find_symbol(ps, &id->id);
+}
+
 static void parse_lit_int(ParserState *ps, LitExpr *lit)
 {
     /* expected type from lhs */
@@ -32,6 +38,23 @@ static void parse_lit_float(ParserState *ps, LitExpr *lit)
     /* expected type from lhs */
     TypeDesc *desc = lit->expected;
     if (!desc) return;
+}
+
+static void parse_none(ParserState *ps, LitExpr *lit)
+{
+    if (lit->ctx != EXPR_CTX_LOAD) {
+        kl_error(lit->loc, "none is readonly.");
+        return;
+    }
+
+    TypeDesc *expected = lit->expected;
+    if (expected) {
+        if (expected->kind != TYPE_OPTIONAL_KIND) {
+            kl_error(lit->loc, "expected an optional type.");
+            return;
+        }
+        lit->desc = expected;
+    }
 }
 
 static void parse_literal(ParserState *ps, Expr *exp)
@@ -61,6 +84,10 @@ static void parse_literal(ParserState *ps, Expr *exp)
             }
             break;
         }
+        case LIT_EXPR_NONE: {
+            parse_none(ps, lit);
+            break;
+        }
         default: {
             UNREACHABLE();
             break;
@@ -68,20 +95,12 @@ static void parse_literal(ParserState *ps, Expr *exp)
     }
 }
 
-static void parse_none(ParserState *ps, Expr *exp)
-{
-    if (exp->ctx != EXPR_CTX_LOAD) {
-        kl_error(exp->loc, "none is readonly.");
-        return;
-    }
-
-    TypeDesc *expected = exp->expected;
-}
-
 static void parse_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
-    // parser_visit_expr(call->lhs);
+    Expr *lhs = call->lhs;
+    lhs->ctx = EXPR_CTX_CALL;
+    parser_visit_expr(ps, call->lhs);
 }
 
 void parser_visit_expr(ParserState *ps, Expr *exp)
@@ -94,10 +113,9 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     /* clang-format off */
     static void (*handlers[])(ParserState *, Expr *) = {
         NULL,                            /* UNKNOWN    */
-        NULL, // parse_ident,                     /* ID         */
+        parse_ident,                     /* ID         */
         NULL, // parse_under,                     /* UNDER      */
         parse_literal,                   /* LITERAL    */
-        parse_none,                         /* NONE       */
         NULL,// parse_self,                      /* SELF       */
         NULL,// parse_super,                     /* SUPER      */
         NULL,// parse_array_expr,                /* ARRAY      */
@@ -106,6 +124,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         NULL,// parse_tuple_expr,                /* TUPLE      */
         NULL,// parse_anony,                     /* ANONY      */
         NULL,// parse_type,                      /* TYPE       */
+        NULL,
         parse_call,                      /* CALL       */
         // parse_attr,                      /* ATTR       */
         // parse_tuple_get,                 /* TUPLE_GET  */

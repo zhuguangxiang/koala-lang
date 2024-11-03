@@ -24,6 +24,7 @@
         "climits": "c"
     },
     "cSpell.words": [
+        "AARCH",
         "ABCDEFGHIJKLMNOPQRSTUWXYZ",
         "ANONY",
         "bldr",
@@ -47,6 +48,7 @@
         "fgets",
         "filecheck",
         "filp",
+        "fini",
         "fontname",
         "fontsize",
         "gcroots",
@@ -102,7 +104,9 @@
         "preds",
         "pthread",
         "ranksep",
+        "rawfile",
         "reloc",
+        "sbuf",
         "sdsnew",
         "setitem",
         "shadowstack",

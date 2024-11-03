@@ -113,15 +113,15 @@ static void replace_comma_under(int base, char *s, int len, Buffer *buf)
 
 #define YY_S_BEGIN yyps->multi = 1; BEGIN(S);
 #define YY_S_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
-#define YY_S_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL)
+#define YY_S_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL);
 
 #define YY_STR_BEGIN yyps->multi = 1; BEGIN(STR);
 #define YY_STR_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
-#define YY_STR_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL)
+#define YY_STR_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL);
 
 #define YY_TXT_BEGIN yyps->multi = 1; BEGIN(TXT);
 #define YY_TXT_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
-#define YY_TXT_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL)
+#define YY_TXT_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL);
 
 %}
 
@@ -239,7 +239,7 @@ static void replace_comma_under(int base, char *s, int len, Buffer *buf)
 0[xX][0-9a-fA-F_]+  { YY_INT_VALUE(yytext, yyleng, 16); YY_RETURN(INT_LITERAL); }
 0[oO][0-7_]+        { YY_INT_VALUE(yytext, yyleng, 8);  YY_RETURN(INT_LITERAL); }
 0[bB][01_]+         { YY_INT_VALUE(yytext, yyleng, 2);  YY_RETURN(INT_LITERAL); }
-[+-]*[0-9][0-9_,]*  { YY_INT_VALUE(yytext, yyleng, 10); YY_RETURN(INT_LITERAL); }
+[+-]*[0-9][0-9_]*  { YY_INT_VALUE(yytext, yyleng, 10); YY_RETURN(INT_LITERAL); }
 
 [A-Za-z_$][A-Za-z0-9_$]* {
     YY_IDENT_VALUE(yytext, yyleng); YY_RETURN(ID);
@@ -249,49 +249,33 @@ static void replace_comma_under(int base, char *s, int len, Buffer *buf)
     YY_FLOAT_VALUE(yytext, yyleng); YY_RETURN(FLOAT_LITERAL);
 }
 
-\'            { printf("s begin\n");YY_S_BEGIN;             }
-<S>\'         { printf("s end\n");YY_S_END;               }
-<S>\\\a       { YY_S_WRITE('\a');       }
-<S>\\\b       { YY_S_WRITE('\b');       }
-<S>\\\f       { YY_S_WRITE('\f');       }
-<S>\t         { printf("s: \\t\n"); YY_S_WRITE('\t');       }
-<S>\\\v       { YY_S_WRITE('\v');       }
-<S>\\\n       { printf("s-newlin\n"); YY_S_WRITE('\n');       }
-<S>\\\r       { /* omit */              }
-<S>\n         { printf("skip \\n\n"); /* omit */              }
-<S>\r         { /* omit */              }
-<S>\\\'       { printf("s: \\'\n"); YY_S_WRITE('\'');       }
-<S>.          { YY_S_WRITE(yytext[0]);  }
+\'              { YY_S_BEGIN;              }
+<S>\'           { YY_S_END;                }
+<S>\\\'         { YY_S_WRITE('\'');        }
+<S>.            { YY_S_WRITE(yytext[0]);   }
 
-\"              { printf("str begin\n");YY_STR_BEGIN;             }
-<STR>\"         { printf("str end\n");YY_STR_END;               }
-<STR>\\\a       { YY_STR_WRITE('\a');       }
-<STR>\\\b       { YY_STR_WRITE('\b');       }
-<STR>\\\f       { YY_STR_WRITE('\f');       }
-<STR>\\\t       { YY_STR_WRITE('\t');       }
-<STR>\\\v       { YY_STR_WRITE('\v');       }
-<STR>\\\n       { printf("str-newline\n");  YY_STR_WRITE('\n');       }
-<STR>\\\r       { /* omit */                }
-<STR>\n         { /* omit */                }
-<STR>\r         { /* omit */                }
-<STR>\\\"       { YY_STR_WRITE('\"');       }
-<STR>\\\\       { printf("str\\?\n"); YY_STR_WRITE('\\');       }
-<STR>.          { YY_STR_WRITE(yytext[0]);  }
+\"              { YY_STR_BEGIN;            }
+<STR>\"         { YY_STR_END;              }
+<STR>\\\"       { YY_STR_WRITE('\"');      }
+<STR>.          { YY_STR_WRITE(yytext[0]); }
 
-\"\"\"          { YY_TXT_BEGIN;             }
-<TXT>\"\"\"     { YY_TXT_END;               }
-<TXT>\n         { YY_TXT_WRITE('\n');       }
-<TXT>\r         { /* omit */                }
-<TXT>.          { YY_TXT_WRITE(yytext[0]);  }
+\"\"\"          { YY_TXT_BEGIN;            }
+<TXT>\"\"\"     { YY_TXT_END;              }
+<TXT>.          { YY_TXT_WRITE(yytext[0]); }
 
-"//!"[^\n]*     { YY_RETURN(MOD_DOC);       }
+"/*!"(([^\*]*(\*[^\/])?)*)"*/" {
+    RESET_BUF(yyps->sbuf);
+    buf_write_nstr(&yyps->sbuf, yytext + 3, yyleng - 5);
+    YY_RETURN(MOD_DOC);
+}
+
 "/**"(([^\*]*(\*[^\/])?)*)"*/" {
     RESET_BUF(yyps->sbuf);
     buf_write_nstr(&yyps->sbuf, yytext + 3, yyleng - 5);
     YY_RETURN(DOC);
 }
 
-"\n"            { YY_NEWLINE;               }
+"\n"            { YY_NEWLINE; }
 [ \t\r]         { }
 "#"[^\n]*       { }
 "//"[^\n]*      { }

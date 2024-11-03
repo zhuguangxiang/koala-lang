@@ -70,6 +70,7 @@ static inline void stbl_free(HashMap *stbl)
 
 void stbl_show(HashMap *stbl);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc);
+Symbol *stbl_get(HashMap *stbl, char *name);
 
 #ifdef __cplusplus
 }

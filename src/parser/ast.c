@@ -76,7 +76,7 @@ Type *enum_type(Vector *subs)
 Type *optional_type(Type *sub)
 {
     Type *ty = mm_alloc_obj(ty);
-    // ty->desc = desc_optional(sub->desc);
+    ty->desc = desc_optional(sub->desc);
     ty->subs = vector_create_ptr();
     vector_push_back(ty->subs, &sub);
     return ty;
@@ -115,6 +115,18 @@ Type *set_type(Type *sub)
 Type *klass_type(Ident *mod, Ident *id, Vector *vec)
 {
     Type *ty = mm_alloc_obj(ty);
+    Vector *subs = NULL;
+    if (vec) {
+        subs = vector_create_ptr();
+        Type **item;
+        TypeDesc *sub;
+        vector_foreach(item, vec) {
+            sub = (*item)->desc;
+            DESC_INCREF(sub);
+            vector_push_back(subs, &sub);
+        }
+    }
+    ty->desc = desc_klass(mod ? mod->name : NULL, id->name, subs);
     return ty;
 }
 
@@ -229,7 +241,6 @@ Expr *expr_from_lit_str(Buffer *buf)
     exp->len = buf->len;
     exp->desc = desc_str();
     buf->len = 0;
-    printf("Lit-Str: %s\n", exp->sval);
     return (Expr *)exp;
 }
 
@@ -425,6 +436,16 @@ Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, Expr *e)
     s->ro = ro;
     s->type = ty;
     s->exp = e;
+    return (Stmt *)s;
+}
+
+Stmt *stmt_from_func_decl(Ident id, Vector *args, Type *ret, Vector *tps)
+{
+    FuncDeclStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_FUNC_KIND;
+    s->id = id;
+    s->args = args;
+    s->ret = ret;
     return (Stmt *)s;
 }
 

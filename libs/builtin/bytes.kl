@@ -1,0 +1,5 @@
+
+class bytes {
+
+    public static func __new__(source int | str | Iterator[int] = 64) bytes? {}
+}

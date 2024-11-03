@@ -43,11 +43,16 @@ static void codegen_var_decl(ParserState *ps, Stmt *stmt, KlcFile *klc)
         } else if (lit->which == LIT_EXPR_BOOL) {
             klc_add_int(klc, lit->bval, 1);
         } else if (lit->which == LIT_EXPR_FLT) {
-            klc_add_float(klc, lit->fval);
+            klc_add_float(klc, lit->fval, lit->len);
+        } else if (lit->which == LIT_EXPR_STR) {
+            klc_add_str(klc, lit->sval, lit->len);
+        } else if (lit->which == LIT_EXPR_NONE) {
+            klc_add_none(klc);
         } else {
             NYI();
         }
     }
+
     FINI_BUF(buf);
 }
 

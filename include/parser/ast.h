@@ -21,6 +21,27 @@ typedef struct _Loc {
     int last_col;
 } Loc;
 
+typedef struct _SimpleFlag {
+    int flag;
+    Loc loc;
+} SimpleFlag;
+
+typedef struct _AtFlag {
+    SimpleFlag flag;
+    Loc id_loc;
+    Loc assoc_id_loc;
+    char *ident;
+    char *assoc_ident;
+} AtFlag;
+
+typedef struct _PrefixFlags {
+    SimpleFlag doc;
+    SimpleFlag pub;
+    SimpleFlag stat;
+    SimpleFlag final;
+    AtFlag at;
+} PrefixFlags;
+
 /* identifier */
 typedef struct _Ident {
     /* name */
@@ -318,8 +339,6 @@ typedef enum _StmtKind {
     STMT_IMPORT_KIND,
     /* let/var */
     STMT_VAR_KIND,
-    /* tuple var */
-    STMT_TUPLE_VAR_KIND,
     /* assignment */
     STMT_ASSIGN_KIND,
     /* function */
@@ -349,7 +368,7 @@ typedef enum _StmtKind {
 } StmtKind;
 
 /* clang-format off */
-#define STMT_HEAD StmtKind kind; Loc loc;
+#define STMT_HEAD StmtKind kind; Loc loc; PrefixFlags flags;
 
 /* clang-format on */
 
@@ -358,6 +377,9 @@ typedef struct _Stmt {
 } Stmt;
 
 #define stmt_set_loc(s, l) (s)->loc = (l)
+
+#define stmt_set_prefix(s, prefix) (s)->flags = (prefix)
+
 void stmt_free(Stmt *stmt);
 
 typedef struct _VarDeclStmt {
@@ -374,6 +396,29 @@ typedef struct _VarDeclStmt {
 } VarDeclStmt;
 
 Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, Expr *e);
+
+typedef struct _TypeParamDecl {
+    Loc loc;
+    Ident id;
+    Vector *bound;
+} TypeParamDecl;
+
+typedef struct _ParamDecl {
+    Loc loc;
+    Ident id;
+    Type *type;
+} ParamDecl;
+
+typedef struct _FuncDeclStmt {
+    STMT_HEAD
+    Ident id;
+    Vector *tps;
+    Vector *args;
+    Type *ret;
+    Vector *body;
+} FuncDeclStmt;
+
+Stmt *stmt_from_func_decl(Ident id, Vector *args, Type *ret, Vector *tps);
 
 typedef enum _AssignOpKind {
     OP_ASSIGN = 1,

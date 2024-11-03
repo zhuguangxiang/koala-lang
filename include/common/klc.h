@@ -24,10 +24,14 @@ typedef struct _KlcFile {
     Vector objs;
 } KlcFile;
 
-void klc_add_var(KlcFile *klc, const char *name, const char *desc, int has_value);
-void klc_add_func(KlcFile *klc, const char *name, const char *desc);
+void klc_add_var(KlcFile *klc, char *name, char *desc, int has_value);
+void klc_add_func(KlcFile *klc, char *name, char *desc);
 
+void klc_add_none(KlcFile *klc);
 void klc_add_int(KlcFile *klc, int64_t val, int len);
+void klc_add_float(KlcFile *klc, double val, int len);
+void klc_add_str(KlcFile *klc, char *s, int len);
+void klc_add_utf8(KlcFile *klc, char *s, int len);
 void klc_add_code(KlcFile *klc, CodeSpec *cs);
 
 void init_klc_file(KlcFile *klc, const char *path);

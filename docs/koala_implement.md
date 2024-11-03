@@ -347,3 +347,19 @@ when compiling a single file, it is regarded as a module.
 `koalac unittest.kl` will generate a file in `__klc__/unittest.klc`.
 
 when run a koala program, the vm will search the module(file or directory), and load it, then try to find `main` function. If there is no `main` function, the vm will exit with no errors.
+
+## JIT compiler
+
+### profile loop/recursive call
+
+profile code and find hot spot byte codes sections
+
+### AOT compiler generates related information
+
+input and output variables
+
+### CPU
+
+#### X64
+
+#### AArch64

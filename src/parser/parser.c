@@ -94,6 +94,20 @@ static void exit_scope(ParserState *ps)
     --ps->depth;
 }
 
+Symbol *find_symbol(ParserState *ps, Ident *id)
+{
+    ParserScope *sc = ps->scope;
+
+    /* find id from current scope */
+    Symbol *sym = stbl_get(sc->stbl, id->name);
+    if (sym) {
+        log_info("find symbol '%s' in scope-%d(%s)", id->name, ps->depth,
+                 scopes[sc->kind]);
+    }
+
+    return NULL;
+}
+
 static Symbol *_add_var(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
 {
     Ident *id = &var->id;
@@ -149,10 +163,60 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     }
 }
 
+static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
+{
+    PrefixFlags *flags = &fn->flags;
+
+    if (flags->stat.flag) {
+        kl_error(flags->stat.loc, "'static' is not allowed in top func '%s'",
+                 fn->id.name);
+        return;
+    }
+
+    if (flags->final.flag) {
+        kl_error(flags->final.loc, "'final' is not allowed in top func '%s'",
+                 fn->id.name);
+        return;
+    }
+
+    AtFlag *at = &flags->at;
+    if (at->flag.flag) {
+        ASSERT(at->ident);
+        if (strcmp(at->ident, "native")) {
+            kl_error(at->id_loc, "only 'native' annotation is allowed in top func '%s'",
+                     fn->id.name);
+            return;
+        }
+
+        if (!at->assoc_ident) {
+            kl_error(at->id_loc,
+                     "'native' annotation needs a native func name in top func '%s'",
+                     fn->id.name);
+            return;
+        }
+
+        if (!vector_empty(fn->body)) {
+            kl_error(at->id_loc, "func '%s' with 'native' annotation needs empty body.",
+                     fn->id.name);
+            return;
+        }
+    }
+}
+
+static void parse_func_decl(ParserState *ps, Stmt *stmt)
+{
+    FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
+    ParserScope *sc = ps->scope;
+    if (sc->kind == SCOPE_TOP) {
+        check_top_func_flags(ps, fn);
+    }
+}
+
 static void parse_expr(ParserState *ps, Stmt *stmt)
 {
     ExprStmt *s = (ExprStmt *)stmt;
     Expr *exp = s->exp;
+    exp->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, exp);
 }
 
@@ -168,9 +232,8 @@ static void parse_stmt(ParserState *ps, Stmt *stmt)
         NULL,                       /* INVALID          */
         NULL, // parse_import,               /* IMPORT_KIND      */
         parse_var_decl,             /* VAR_KIND         */
-        NULL, // parse_tuple_var_decl,       /* TUPLE_VAR_KIND   */
         NULL, // parse_assign,               /* ASSIGN_KIND      */
-        NULL, // parse_func_decl,            /* FUNC_KIND        */
+        parse_func_decl,            /* FUNC_KIND        */
         NULL, // parse_return,               /* RETURN_KIND      */
         parse_expr,                    /* EXPR_KIND        */
         // parse_block,                /* BLOCK_KIND       */
@@ -210,7 +273,6 @@ static void parse_ast(ParserState *ps)
         // dump_stmt(stmt);
 #endif
 
-    /* FIXME: codegen */
     kl_code_gen(ps);
 }
 
@@ -278,6 +340,12 @@ static void parse_top_stmt(ParserState *ps, Stmt *stmt)
             sym = _add_var(ps, ps->stbl, var);
             if (!sym) goto failed;
             var->where = VAR_GLOBAL;
+            break;
+        }
+        case STMT_FUNC_KIND: {
+            FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
+            // sym = _add_func(ps, ps->stbl, fn);
+            // if (!sym) goto failed;
             break;
         }
         default: {

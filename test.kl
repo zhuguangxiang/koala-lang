@@ -1,21 +1,32 @@
 
 // const primitive types
-let v = 1
-let v2 = 31000
-let v3 = 33000
+// let v = 1
+// let v2 = 31000
+// let v3 = 33000
 
-let INT_MAX = 9_223_372_036_854_775_807
-let INT_MIN = -9,223,372,036,854,775,808
-let hex = 0xcafe_cafe
-let hex2 = 0Xcafecafe
-let n = 0b0101_0101
-let n1 = 0B01010101
-let n2 = 0o721_127
-let n3 = 0O721127
+// let INT_MAX = 9_223_372_036_854_775_807
+// let INT_MIN = -9_223_372_036_854_775_808
+// let hex = 0xcafe_cafe
+// let hex2 = 0Xcafecafe
+// let n = 0b0101_0101
+// let n1 = 0B01010101
+// let n2 = 0o721_127
+// let n3 = 0O721127
 
 // let f = -1.23
-// let b = true
-// let s = "hello, world"
+// // let b = true
+// let s = 'hello, \'\nworld'
+
+// var a int? = none
+
+// print(s, f, n3)
+
+// var r = 100.0
+
+// for i in 1...20 {
+//     r = r * 1.05
+// }
+// print(r)
 
 // const objects
 
@@ -39,6 +50,70 @@ let n3 = 0O721127
 
 // function definition
 
+// public trait Writer {
+//     func write(bs bytes)
+
+//     func write_str(s str) {
+//         bs := bytes(s)
+//         write(bs)
+//     }
+
+//     func flush() {}
+// }
+
+// @native(kl_builtin_print)
+// public func print(objs ..., sep = ' ', end = '\n', file io.Writer? = none) {}
+
+public trait AutoClosable {
+    public func close()
+}
+
+public trait Writer : AutoClosable {
+    public func write(bs Bytes, off int = 0, len int = -1) int
+    public func flush()
+}
+
+public trait Reader : AutoClosable {
+    public func read(bs Bytes, off int = 0, len int = -1) int
+    public func reset()
+}
+
+public class Splits : Iterator[bytes] {
+    @native(kl_split_new)
+    public static func __new__(r Reader) {}
+
+    @native(kl_split_next)
+    public func __next__() bytes? {}
+}
+
+public class BufferedReader : Reader & Iterable[bytes] {
+
+    public static func __new__(r Reader) {
+
+    }
+
+    @native(kl_buf_read_until)
+    public func read_until(sep int) bytes {}
+
+    @native(kl_buf_read_line)
+    public func read_line() bytes? {}
+
+    @native(kl_buf_read_lines)
+    public func __iter__() Iterator[bytes] {}
+
+    @native(ok)
+    public func split(sep int) Splits {}
+}
+
+/*
+ *
+ */
+
 // class definition
+
+// public trait Writer : AutoClosable {
+//     public func write(bs bytes, off int = 0, len int = -1) int
+//     public func flush()
+// }
 
 // trait definition

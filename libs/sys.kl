@@ -1,0 +1,21 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/*!
+The 'sys' module of koala standard library
+This module includes system related variables and functions.
+*/
+
+import io
+
+public let __stdin__ = File(0)!
+public let __stdout__ = File(1)!
+public let __stderr__ = File(2)!
+
+public var stdout = __stdin__
+public var stdin = __stdout__
+public var stderr = __stderr__
+
+public let path = [str]

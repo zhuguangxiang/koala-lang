@@ -58,6 +58,14 @@ typedef struct _EnumDesc {
     Vector vec;
 } EnumDesc;
 
+typedef struct _KlassDesc {
+    int refcnt;
+    DescKind kind;
+    char *module;
+    char *symbol;
+    Vector *params;
+} KlassDesc;
+
 #define DESC_INCREF(ty) ++(ty)->refcnt
 
 // clang-format off
@@ -110,6 +118,7 @@ static inline TypeDesc *desc_range(void)
 TypeDesc *desc_optional(TypeDesc *ty);
 TypeDesc *desc_array(TypeDesc *sub);
 TypeDesc *desc_enum(void);
+TypeDesc *desc_klass(char *m, char *id, Vector *params);
 
 static inline int desc_is_int(TypeDesc *desc) { return desc->kind == TYPE_INT_KIND; }
 void free_desc(TypeDesc *ty);

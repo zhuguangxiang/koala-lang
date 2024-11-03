@@ -16,7 +16,7 @@ extern "C" {
 #define KLC_TYPE_INT     'i'
 #define KLC_TYPE_FLOAT   'f'
 #define KLC_TYPE_ASCII   'A'
-#define KLC_TYPE_STRING  'S'
+#define KLC_TYPE_UTF8    'U'
 #define KLC_TYPE_TUPLE   '('
 #define KLC_TYPE_LIST    '['
 #define KLC_TYPE_MAP     '{'
@@ -34,6 +34,7 @@ extern "C" {
 #define FLAG_REF '\x80'
 
 #define KLC_TYPE_SHORT_ASCII 'a'
+#define KLC_TYPE_SHORT_UTF8  'u'
 #define KLC_TYPE_SMALL_TUPLE ')'
 
 typedef struct _KlcObject {
@@ -41,10 +42,19 @@ typedef struct _KlcObject {
     int len;
     union {
         int64_t ival;
-        double f64val;
+        double fval;
         void *val;
     };
 } KlcObject;
+
+void klc_add_none(KlcFile *klc)
+{
+    KlcObject obj;
+    obj.type = KLC_TYPE_NONE;
+    obj.len = 0;
+    obj.ival = 0;
+    vector_push_back(&klc->objs, &obj);
+}
 
 void klc_add_int(KlcFile *klc, int64_t val, int len)
 {
@@ -52,6 +62,41 @@ void klc_add_int(KlcFile *klc, int64_t val, int len)
     obj.type = KLC_TYPE_INT;
     obj.len = len;
     obj.ival = val;
+    vector_push_back(&klc->objs, &obj);
+}
+
+void klc_add_float(KlcFile *klc, double val, int len)
+{
+    KlcObject obj;
+    obj.type = KLC_TYPE_FLOAT;
+    obj.len = len;
+    obj.fval = val;
+    vector_push_back(&klc->objs, &obj);
+}
+
+void klc_add_str(KlcFile *klc, char *s, int len)
+{
+    KlcObject obj;
+    if (len <= 255) {
+        obj.type = KLC_TYPE_SHORT_ASCII;
+    } else {
+        obj.type = KLC_TYPE_ASCII;
+    }
+    obj.len = len;
+    obj.val = atom_nstr(s, len);
+    vector_push_back(&klc->objs, &obj);
+}
+
+void klc_add_utf8(KlcFile *klc, char *s, int len)
+{
+    KlcObject obj;
+    if (len <= 255) {
+        obj.type = KLC_TYPE_SHORT_UTF8;
+    } else {
+        obj.type = KLC_TYPE_UTF8;
+    }
+    obj.len = len;
+    obj.val = (void *)s;
     vector_push_back(&klc->objs, &obj);
 }
 
@@ -64,39 +109,30 @@ void klc_add_bytes(KlcFile *klc, const char *insns, int insns_size)
     vector_push_back(&klc->objs, &obj);
 }
 
-void klc_add_var(KlcFile *klc, const char *name, const char *desc, int has_value)
+void klc_add_var(KlcFile *klc, char *name, char *desc, int has_value)
 {
     KlcObject obj;
 
-    if (has_value)
+    if (has_value) {
         obj.type = KLC_TYPE_VAR_VAL;
-    else
+    } else {
         obj.type = KLC_TYPE_VAR;
-
+    }
     obj.len = 0;
     obj.val = NULL;
     vector_push_back(&klc->objs, &obj);
 
     int len = strlen(name);
     ASSERT(len <= 255);
-    obj.type = KLC_TYPE_SHORT_ASCII;
-    obj.len = len;
-    obj.val = (void *)name;
-    vector_push_back(&klc->objs, &obj);
+    klc_add_str(klc, name, len);
 
     len = strlen(desc);
-    if (len <= 255)
-        obj.type = KLC_TYPE_SHORT_ASCII;
-    else
-        obj.type = KLC_TYPE_ASCII;
-    obj.len = len;
-    obj.val = atom((char *)desc);
-    vector_push_back(&klc->objs, &obj);
+    klc_add_str(klc, (char *)desc, len);
 
     ++klc->num_symbols;
 }
 
-void klc_add_func(KlcFile *klc, const char *name, const char *desc)
+void klc_add_func(KlcFile *klc, char *name, char *desc)
 {
     KlcObject obj;
 
@@ -107,19 +143,10 @@ void klc_add_func(KlcFile *klc, const char *name, const char *desc)
 
     int len = strlen(name);
     ASSERT(len <= 255);
-    obj.type = KLC_TYPE_SHORT_ASCII;
-    obj.len = len;
-    obj.val = (void *)name;
-    vector_push_back(&klc->objs, &obj);
+    klc_add_str(klc, name, len);
 
     len = strlen(desc);
-    if (len <= 255)
-        obj.type = KLC_TYPE_SHORT_ASCII;
-    else
-        obj.type = KLC_TYPE_ASCII;
-    obj.len = len;
-    obj.val = (void *)desc;
-    vector_push_back(&klc->objs, &obj);
+    klc_add_str(klc, (char *)desc, len);
 }
 
 void klc_add_code(KlcFile *klc, CodeSpec *cs)
@@ -323,6 +350,10 @@ static void write_object(KlcObject *obj, KlcFile *klc)
     fwrite(&obj->type, 1, 1, fp);
 
     switch (obj->type) {
+        case KLC_TYPE_NONE: {
+            // nothing to do
+            break;
+        }
         case KLC_TYPE_CODE: {
             CodeSpec *cs = obj->val;
             fwrite(&cs->nargs, 2, 1, fp);
@@ -339,6 +370,11 @@ static void write_object(KlcObject *obj, KlcFile *klc)
         case KLC_TYPE_INT: {
             fwrite(&obj->len, 1, 1, fp);
             fwrite(&obj->ival, obj->len, 1, fp);
+            break;
+        }
+        case KLC_TYPE_FLOAT: {
+            fwrite(&obj->len, 1, 1, fp);
+            fwrite(&obj->fval, obj->len, 1, fp);
             break;
         }
         case KLC_TYPE_BYTES: {
@@ -439,7 +475,15 @@ void klc_dump(KlcFile *klc)
                 KlcObject *desc = vector_get(&klc->objs, i + 2);
                 KlcObject *val = vector_get(&klc->objs, i + 3);
                 printf("var %s: %s\n", (char *)name->val, (char *)desc->val);
-                printf("val: %ld\n", val->ival);
+                if (val->type == KLC_TYPE_INT) {
+                    printf("val: %ld\n", val->ival);
+                } else if (val->type == KLC_TYPE_FLOAT) {
+                    printf("val: %g\n", val->fval);
+                } else if (val->type == KLC_TYPE_SHORT_ASCII) {
+                    printf("val: %s\n", (char *)val->val);
+                } else if (val->type == KLC_TYPE_NONE) {
+                    printf("val: none\n");
+                }
                 i += 4;
                 break;
             }

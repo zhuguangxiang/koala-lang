@@ -1,0 +1,30 @@
+/*
+func copy(out Writer, in Reader) int {
+    bs := Bytes(64)
+    n := in.read(bs, 64)
+    while n {
+        out.write(bs)
+        bs.reset()
+        n = in.read(bs, 64)
+    }
+}
+
+func main(args [str]) {
+
+    f := File("./test.txt")
+    with let r = BufferedReader(f) {
+        for line in r.lines {
+
+        }
+        rdr.read_line()
+    }
+
+    s := StringReader("hello, world\nvery nice\n")
+    with let r = BufferedReader(s) {
+        for line in r.lines {
+
+        }
+        rdr.read_line()
+    }
+}
+*/

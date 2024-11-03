@@ -76,6 +76,8 @@ typedef struct _ParserState {
     char *sval;
 } ParserState;
 
+Symbol *find_symbol(ParserState *ps, Ident *id);
+
 /* more than MAX_ERRORS, discard remaining errors shown */
 #define MAX_ERRORS 8
 

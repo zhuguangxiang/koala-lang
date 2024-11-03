@@ -4,6 +4,7 @@
  */
 
 #include "typedesc.h"
+#include "atom.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +41,17 @@ TypeDesc *desc_array(TypeDesc *sub)
     return (TypeDesc *)arr;
 }
 
+TypeDesc *desc_klass(char *m, char *id, Vector *params)
+{
+    KlassDesc *kls = mm_alloc_obj_fast(kls);
+    kls->refcnt = 1;
+    kls->kind = TYPE_KLASS_KIND;
+    kls->module = m;
+    kls->symbol = id;
+    kls->params = params;
+    return (TypeDesc *)kls;
+}
+
 TypeDesc *desc_enum(void)
 {
     EnumDesc *e = mm_alloc_obj_fast(e);
@@ -74,28 +86,31 @@ int desc_equal(TypeDesc *a, TypeDesc *b)
     return 1;
 }
 
-static void int_desc_to_str(TypeDesc *ty, Buffer *buf) { buf_write_char(buf, 'i'); }
-
-static void float_desc_to_str(TypeDesc *ty, Buffer *buf) { buf_write_char(buf, 'f'); }
-
 int desc_to_str(TypeDesc *ty, Buffer *buf)
 {
     switch (ty->kind) {
-        case TYPE_INT_KIND:
-            int_desc_to_str(ty, buf);
+        case TYPE_INT_KIND: {
+            buf_write_char(buf, 'i');
             break;
-        case TYPE_FLOAT_KIND:
-            float_desc_to_str(ty, buf);
+        }
+        case TYPE_FLOAT_KIND: {
+            buf_write_char(buf, 'f');
             break;
+        }
+        case TYPE_STR_KIND: {
+            buf_write_char(buf, 's');
+            break;
+        }
         case TYPE_OPTIONAL_KIND: {
             buf_write_char(buf, '?');
             OptionalDesc *opt = (OptionalDesc *)ty;
             desc_to_str(opt->type, buf);
             break;
         }
-        default:
+        default: {
             UNREACHABLE();
             break;
+        }
     }
 }
 
@@ -125,6 +140,12 @@ void desc_print(TypeDesc *desc, Buffer *buf)
         }
         case TYPE_OBJECT_KIND: {
             buf_write_str(buf, "object");
+            break;
+        }
+        case TYPE_OPTIONAL_KIND: {
+            OptionalDesc *opt = (OptionalDesc *)desc;
+            desc_print(opt->type, buf);
+            buf_write_char(buf, '?');
             break;
         }
         default: {
