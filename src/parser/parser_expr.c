@@ -13,8 +13,12 @@ extern "C" {
 
 static void parse_ident(ParserState *ps, Expr *exp)
 {
-    IdentExpr *id = (IdentExpr *)exp;
-    Symbol *sym = find_symbol(ps, &id->id);
+    IdentExpr *e = (IdentExpr *)exp;
+    Ident *id = &((IdentExpr *)exp)->id;
+    Symbol *sym = find_symbol(ps, id);
+    if (!sym) {
+        kl_error(id->loc, "'%s' is not found", id->name);
+    }
 }
 
 static void parse_lit_int(ParserState *ps, LitExpr *lit)

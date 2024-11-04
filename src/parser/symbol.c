@@ -18,6 +18,10 @@ void __symbol_free__(Symbol *sym, void *arg)
             VarSymbol *var = (VarSymbol *)sym;
             break;
         }
+        case SYM_FUNC: {
+            FuncSymbol *fn = (FuncSymbol *)sym;
+            break;
+        }
         default: {
             UNREACHABLE();
             break;
@@ -55,6 +59,40 @@ Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc)
     return (Symbol *)sym;
 }
 
+Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
+                      Vector *params)
+{
+    FuncSymbol *sym = mm_alloc_obj(sym);
+    hashmap_entry_init(sym, str_hash(name));
+    sym->kind = SYM_FUNC;
+    sym->name = name;
+
+    if (hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    }
+
+    sym->ret = ret;
+    sym->params = params;
+    sym->tps = tps;
+    sym->desc = desc_proto(ret, params);
+    sym->stbl = stbl_new();
+
+#ifndef NOLOG
+    BUF(buf);
+    desc_print(sym->desc, &buf);
+    char *s = BUF_STR(buf);
+    if (sym) {
+        log_info("add func('%s' : '%s') OK", name, s ? s : "<NO-TYPE>");
+    } else {
+        log_info("add func('%s' : '%s') failed", name, s ? s : "<NO-TYPE>");
+    }
+    FINI_BUF(buf);
+#endif
+
+    return (Symbol *)sym;
+}
+
 Symbol *stbl_get(HashMap *stbl, char *name)
 {
     if (stbl == NULL) return NULL;
@@ -74,6 +112,15 @@ void stbl_show(HashMap *stbl)
                 BUF(buf);
                 desc_print(var->desc, &buf);
                 log_info("variable symbol: '%s', type: '%s'", sym->name, BUF_STR(buf));
+                FINI_BUF(buf);
+                break;
+            }
+            case SYM_FUNC: {
+                FuncSymbol *fn = (FuncSymbol *)sym;
+                BUF(buf);
+                desc_print(fn->ret, &buf);
+                log_info("function symbol: '%s', ret-type: '%s'", sym->name,
+                         BUF_STR(buf));
                 FINI_BUF(buf);
                 break;
             }

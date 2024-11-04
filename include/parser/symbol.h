@@ -47,6 +47,16 @@ typedef struct _VarSymbol {
 #define VAR_SCOPE_PARAM  3
 } VarSymbol;
 
+typedef struct _FuncSymbol {
+    SYMBOL_HEAD
+    /* return descriptor */
+    TypeDesc *ret;
+    /* parameter descriptors */
+    Vector *params;
+    /* type parameters */
+    Vector *tps;
+} FuncSymbol;
+
 static inline int __symbol_equal__(Symbol *s1, Symbol *s2)
 {
     return !strcmp(s1->name, s2->name);
@@ -70,6 +80,8 @@ static inline void stbl_free(HashMap *stbl)
 
 void stbl_show(HashMap *stbl);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc);
+Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
+                      Vector *params);
 Symbol *stbl_get(HashMap *stbl, char *name);
 
 #ifdef __cplusplus

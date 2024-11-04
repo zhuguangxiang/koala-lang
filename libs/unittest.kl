@@ -22,3 +22,17 @@ if __name__ == '__main__' {
 
 ---
 */
+
+func run() {
+    m := load("__main__")
+    syms := m.symbols()
+    errors := list[Error]
+    for sym in syms {
+        if has(sym, "Test") {
+            call(sym)
+            if (error()) {
+                errors.append(err)
+            }
+        }
+    }
+}

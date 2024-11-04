@@ -56,19 +56,24 @@ static void codegen_var_decl(ParserState *ps, Stmt *stmt, KlcFile *klc)
     FINI_BUF(buf);
 }
 
+static void codegen_func_decl(ParserState *ps, Stmt *stmt, KlcFile *klc) {}
+
+static void codegen_class(ParserState *ps, Stmt *stmt, KlcFile *klc) {}
+
+static void codegen_trait(ParserState *ps, Stmt *stmt, KlcFile *klc) {}
+
 /* clang-format off */
 static void (*handlers[])(ParserState *, Stmt *, KlcFile *klc) = {
     NULL,                       /* INVALID          */
     NULL, // parse_import,               /* IMPORT_KIND      */
     codegen_var_decl,             /* VAR_KIND         */
-    NULL, // parse_tuple_var_decl,       /* TUPLE_VAR_KIND   */
     NULL, // parse_assign,               /* ASSIGN_KIND      */
-    NULL, // parse_func_decl,            /* FUNC_KIND        */
+    codegen_func_decl,            /* FUNC_KIND        */
     NULL, // parse_return,               /* RETURN_KIND      */
     NULL,                    /* EXPR_KIND        */
-    // parse_block,                /* BLOCK_KIND       */
-    // parse_class,                /* CLASS_KIND       */
-    // parse_trait,                /* TRAIT_KIND       */
+    NULL, // parse_block,                /* BLOCK_KIND       */
+    codegen_class,                /* CLASS_KIND       */
+    codegen_trait,                /* TRAIT_KIND       */
     // parse_enum,                 /* ENUM_KIND        */
     // parse_break,                /* BREAK_KIND       */
     // parse_continue,             /* CONTINUE_KIND    */

@@ -52,6 +52,10 @@ typedef struct _Ident {
     Symbol *sym;
     /* where is this ident ? */
     int where;
+#define CURRENT_SCOPE 1
+#define UP_SCOPE      2
+#define EXT_SCOPE     3
+#define BLTIN_SCOPE   4
     /* scope pointer */
     void *scope;
 } Ident;
@@ -71,6 +75,7 @@ Type *object_typeof(void);
 Type *bytes_type(void);
 Type *type_type(void);
 Type *range_type(void);
+Type *va_list_type(void);
 Type *enum_type(Vector *subs);
 Type *optional_type(Type *ty);
 Type *array_type(Type *sub);
@@ -78,6 +83,7 @@ Type *map_type(Type *key, Type *val);
 Type *tuple_type(Vector *vec);
 Type *set_type(Type *sub);
 Type *klass_type(Ident *mod, Ident *id, Vector *vec);
+
 void free_type(Type *ty);
 #define type_set_loc(ty, _loc) (ty)->loc = (_loc)
 
@@ -403,11 +409,24 @@ typedef struct _TypeParamDecl {
     Vector *bound;
 } TypeParamDecl;
 
+TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound);
+
 typedef struct _ParamDecl {
     Loc loc;
     Ident id;
     Type *type;
+    Expr *value;
 } ParamDecl;
+
+ParamDecl *param_new(Loc loc, Ident id, Type *type, Expr *value);
+
+typedef struct _Argument {
+    Loc loc;
+    Ident id;
+    Expr *value;
+} Argument;
+
+Argument *arg_new(Loc loc, Ident id, Expr *value);
 
 typedef struct _FuncDeclStmt {
     STMT_HEAD
@@ -477,6 +496,21 @@ typedef struct _ExprStmt {
 } ExprStmt;
 
 Stmt *stmt_from_expr(Expr *exp);
+
+typedef struct _KlassStmt {
+    STMT_HEAD
+    Ident id;
+    Vector *tps;
+    Vector *bases;
+    Vector *stmts;
+} KlassDeclStmt;
+
+Stmt *stmt_from_type(StmtKind kind, Ident id, Vector *tps, Vector *bases, Vector *stmts);
+
+#define stmt_from_klass(id, tps, bases, stmts) \
+    stmt_from_type(STMT_CLASS_KIND, id, tps, bases, stmts)
+#define stmt_from_trait(id, tps, bases, stmts) \
+    stmt_from_type(STMT_TRAIT_KIND, id, tps, bases, stmts)
 
 #ifdef __cplusplus
 }

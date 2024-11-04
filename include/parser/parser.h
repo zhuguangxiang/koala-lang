@@ -57,6 +57,9 @@ typedef struct _ParserState {
     /* depth of scope */
     int depth;
 
+    /* builtin table */
+    HashMap *builtin;
+
     /* symbol table */
     HashMap *stbl;
 

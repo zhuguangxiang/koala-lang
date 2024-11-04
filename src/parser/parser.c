@@ -103,6 +103,34 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
     if (sym) {
         log_info("find symbol '%s' in scope-%d(%s)", id->name, ps->depth,
                  scopes[sc->kind]);
+        id->where = CURRENT_SCOPE;
+        id->scope = sc;
+        return sym;
+    }
+
+    /* find ident from up scope */
+    ParserScope *up = sc->next;
+    int depth = ps->depth - 1;
+    while (up) {
+        sym = stbl_get(up->stbl, id->name);
+        if (sym) {
+            log_info("find symbol '%s' in up scope-%d(%s)\n", id->name, depth,
+                     scopes[up->kind]);
+            id->where = UP_SCOPE;
+            id->scope = up;
+            return sym;
+        }
+        up = up->next;
+    }
+
+    /* find ident from external scope (imported) */
+    /* find ident from auto-imported(builtin) */
+    sym = stbl_get(ps->builtin, id->name);
+    if (sym) {
+        log_info("find symbol '%s' in builtin module\n", id->name);
+        id->where = BLTIN_SCOPE;
+        id->scope = NULL;
+        return sym;
     }
 
     return NULL;
@@ -117,7 +145,7 @@ static Symbol *_add_var(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     sym = stbl_add_var(stbl, id->name, ty);
 
     if (!sym) {
-        kl_error(var->id.loc, "redefinition of '%s'", id->name);
+        kl_error(id->loc, "redefinition of '%s'", id->name);
         return NULL;
     }
 
@@ -203,6 +231,51 @@ static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
     }
 }
 
+static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
+{
+    Ident *id = &fn->id;
+    TypeDesc *ty = fn->ret ? fn->ret->desc : NULL;
+    Symbol *sym;
+
+    sym = stbl_add_func(stbl, id->name, fn->tps, ty, fn->args);
+
+    if (!sym) {
+        kl_error(id->loc, "redefinition of '%s'", id->name);
+        return NULL;
+    }
+
+    fn->id.sym = sym;
+    return sym;
+}
+
+static void parse_stmt(ParserState *ps, Stmt *stmt);
+
+static void parse_body(ParserState *ps, Vector *stmts)
+{
+    int sz = vector_size(stmts);
+    int index = 0;
+    Stmt **s;
+    vector_foreach(s, stmts) {
+        parse_stmt(ps, *s);
+        if (ps->errors >= MAX_ERRORS) break;
+        ++index;
+
+        if ((*s)->kind == STMT_RETURN_KIND) {
+            if (index < sz) {
+                kl_error((*s)->loc, "statements after this are unreachable.");
+                return;
+            }
+        }
+
+        if (index == sz && (*s)->kind == STMT_EXPR_KIND) {
+            /*
+             * If last statement is expression in func body,
+             * the expr value can be func return value.
+             */
+        }
+    }
+}
+
 static void parse_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
@@ -210,6 +283,18 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     if (sc->kind == SCOPE_TOP) {
         check_top_func_flags(ps, fn);
     }
+
+    ParserScope *scope = enter_scope(ps, SCOPE_FUNC, 0);
+
+    /* add parameters into function symbol table */
+    ParamDecl *param;
+    vector_foreach(param, fn->args) {
+    }
+
+    /* parse body */
+    parse_body(ps, fn->body);
+
+    exit_scope(ps);
 }
 
 static void parse_expr(ParserState *ps, Stmt *stmt)
@@ -218,6 +303,70 @@ static void parse_expr(ParserState *ps, Stmt *stmt)
     Expr *exp = s->exp;
     exp->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, exp);
+}
+
+static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
+{
+    Ident *id = &kls->id;
+    // TypeDesc *ty = fn->ret ? fn->ret->desc : NULL;
+    Symbol *sym;
+
+    sym = stbl_add_func(stbl, id->name, NULL, NULL, NULL);
+
+    if (!sym) {
+        kl_error(id->loc, "redefinition of '%s'", id->name);
+        return NULL;
+    }
+
+    // fn->id.sym = sym;
+    return sym;
+}
+
+static Symbol *_add_trait(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
+{
+    Ident *id = &kls->id;
+    // TypeDesc *ty = fn->ret ? fn->ret->desc : NULL;
+    Symbol *sym;
+
+    sym = stbl_add_func(stbl, id->name, NULL, NULL, NULL);
+
+    if (!sym) {
+        kl_error(id->loc, "redefinition of '%s'", id->name);
+        return NULL;
+    }
+
+    // fn->id.sym = sym;
+    return sym;
+}
+
+static void parse_class(ParserState *ps, Stmt *stmt)
+{
+    KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
+
+    ParserScope *scope = enter_scope(ps, SCOPE_TYPE, 0);
+
+    /* parse class body */
+    Stmt **s;
+    vector_foreach(s, kls->stmts) {
+        parse_stmt(ps, *s);
+    }
+
+    exit_scope(ps);
+}
+
+static void parse_trait(ParserState *ps, Stmt *stmt)
+{
+    KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
+
+    ParserScope *scope = enter_scope(ps, SCOPE_TYPE, 0);
+
+    /* parse class body */
+    Stmt **s;
+    vector_foreach(s, kls->stmts) {
+        parse_stmt(ps, *s);
+    }
+
+    exit_scope(ps);
 }
 
 static void parse_stmt(ParserState *ps, Stmt *stmt)
@@ -236,9 +385,9 @@ static void parse_stmt(ParserState *ps, Stmt *stmt)
         parse_func_decl,            /* FUNC_KIND        */
         NULL, // parse_return,               /* RETURN_KIND      */
         parse_expr,                    /* EXPR_KIND        */
-        // parse_block,                /* BLOCK_KIND       */
-        // parse_class,                /* CLASS_KIND       */
-        // parse_trait,                /* TRAIT_KIND       */
+        NULL, // parse_block,                /* BLOCK_KIND       */
+        parse_class,                /* CLASS_KIND       */
+        parse_trait,                /* TRAIT_KIND       */
         // parse_enum,                 /* ENUM_KIND        */
         // parse_break,                /* BREAK_KIND       */
         // parse_continue,             /* CONTINUE_KIND    */
@@ -344,8 +493,20 @@ static void parse_top_stmt(ParserState *ps, Stmt *stmt)
         }
         case STMT_FUNC_KIND: {
             FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
-            // sym = _add_func(ps, ps->stbl, fn);
-            // if (!sym) goto failed;
+            sym = _add_func(ps, ps->stbl, fn);
+            if (!sym) goto failed;
+            break;
+        }
+        case STMT_CLASS_KIND: {
+            KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
+            sym = _add_klass(ps, ps->stbl, kls);
+            if (!sym) goto failed;
+            break;
+        }
+        case STMT_TRAIT_KIND: {
+            KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
+            sym = _add_trait(ps, ps->stbl, kls);
+            if (!sym) goto failed;
             break;
         }
         default: {

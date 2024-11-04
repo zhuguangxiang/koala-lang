@@ -66,6 +66,13 @@ typedef struct _KlassDesc {
     Vector *params;
 } KlassDesc;
 
+typedef struct _ProtoDesc {
+    int refcnt;
+    DescKind kind;
+    TypeDesc *ret;
+    Vector *params;
+} ProtoDesc;
+
 #define DESC_INCREF(ty) ++(ty)->refcnt
 
 // clang-format off
@@ -119,6 +126,7 @@ TypeDesc *desc_optional(TypeDesc *ty);
 TypeDesc *desc_array(TypeDesc *sub);
 TypeDesc *desc_enum(void);
 TypeDesc *desc_klass(char *m, char *id, Vector *params);
+TypeDesc *desc_proto(TypeDesc *ret, Vector *params);
 
 static inline int desc_is_int(TypeDesc *desc) { return desc->kind == TYPE_INT_KIND; }
 void free_desc(TypeDesc *ty);

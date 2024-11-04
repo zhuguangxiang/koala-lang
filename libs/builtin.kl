@@ -1,125 +1,75 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
 /*!
 The 'builtin' module of koala standard library
 Most of them in 'builtin' module are native c implementations.
 This module is imported automatically.
 */
 
+/**
+The 'object' class is the base class of all other classes and
+has some basic functions like java/kotlin. All functions are implemented by runtime.
+
+usage:
+
+```koala
+let o = object()
+```
+
+The example creates an object. The base object has very less functions, so it's useless.
+*/
+@alias(Object)
+public class object {
+    /**
+    The `object` type is builtin type and implemented by runtime, so
+    the static `__new__` function is defined here.
+
+    > Q: When does a class need `__new__`?
+    > A: If the class is implemented by runtime(c language), most of cases need it.
+    > And if the class is implemented by koala, it is NOT necessary.
+    >
+    > Q: When does a class need `__init__`?
+    > A: If the class is implemented by runtime(c language), it is optional.
+    > And if the class is implemented by koala, most of cases need it.
+    >
+    > The `__init__` function is like other language's constructor, but `__new__` does not.
+    > The `__new__` and `__init__` functions MUST have the same arguments.
+    > The `__new__` must be a static function,
+    > and `__init__` must be a common function and without returned type.
+    */
+    @native(object_new)
+    public static func __new__() object {}
+
+    @native(object_hash)
+    public func __hash__() int {}
+
+    @native(object_cmp)
+    public func __cmp__(rhs object) int {}
+
+    @native(object_str)
+    public func __str__() str {}
+}
+
+/**
+
+*/
 public trait Iterable[T] {
-    public func __iter__() Iterator[T]
+    @native(object_self_iter)
+    func __iter__() Iterator[T] {}
 }
 
 public trait Iterator[T] : Iterable[T] {
-    public func __next__() T
+    func __next__() T?
 }
 
+/**
+Print `objs` to the stream file, separated by `sep` and followed by `end`.
 
-public class object {
-    @native(kl_object_new)
-    public static func __new__() object
-
-    @native(kl_object_hash)
-    public func __hash__() int
-
-    @native(kl_object_cmp)
-    public func __cmp__() int
-
-    @native(kl_object_str)
-    public func __str__() str
-}
-
-public class Number {
-    public func __to_int__() int
-    public func __to_float__() float
-    public func __to_complex__() complex
-}
-
-public final class int : Number {
-
-    @native(kl_int_new)
-    public static func __new__() int
-
-    @native(kl_int_init)
-    public func __init__(x int | str = 0, base = 10)
-
-    @native(kl_object_hash)
-    public func __hash__() ints
-
-    @native(kl_object_cmp)
-    public func __cmp__() int
-
-    @native(kl_object_str)
-    public func __str__() str
-
-    public func __to_int__() int {
-        return self;
-    }
-
-    @native(kl_int_to_float)
-    public func __to_float__() float
-
-    @native(kl_int_to_complex)
-    public func __to_complex__() complex
-
-    @intrinsic
-    public func __add__(rhs Number) Number {}
-
-    @native(kl_int_sub)
-    public func __sub__(rhs Number) Number {}
-}
-
-public final class list[T] : Iterable[T] {
-
-    public func __init__(it iterable[T]) {
-        cap = DEFAULT_CAP
-        len = 0
-        arr = Pointer[T](cap)
-
-        i := 0
-        for v in it {
-            if i < cap {
-                arr[i] = v
-            } else {
-                cap <<= 1
-                arr = arr.extend(cap)
-            }
-            i += 1
-        }
-        len = i
-    }
-
-    @runtime(kl_list_get_item)
-    public func __get_item__(index int) T {}
-
-    public func __set_item__(index int, v T) {
-
-    }
-
-    public func __get_slice__(index slice) list[T] { ... }
-
-    public func __set_slice__(index slice, v iterable[T]) { ... }
-
-    /**
-    This is one getset `len` of list
-
-    example:
-    ---
-    list = [1, 2, 3]
-    assert_eq(list.len, 3)
-    ---
-    */
-    @native(list_len)
-    @get(len)
-    public func __len__() int { ... }
-}
-
-@runtime
-public func print(objs ..., sep = ' ', end = '\n', file io.Writer = none) { }
-
-public final class int {
-    @native(int_init)
-    public func __init__(x int | str = 0, base = 10) { ... }
-}
-
-public final class str {
-
-}
+All non-keyword arguments are converted to string and written to stream,
+separated by `sep` and followed by `end`. The default `file` is `sys.stdout` stream.
+*/
+@native(builtin_print)
+public func print(objs ..., sep = ' ', end = '\n') {}

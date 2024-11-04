@@ -52,6 +52,17 @@ TypeDesc *desc_klass(char *m, char *id, Vector *params)
     return (TypeDesc *)kls;
 }
 
+TypeDesc *desc_proto(TypeDesc *ret, Vector *params)
+{
+    ProtoDesc *proto = mm_alloc_obj_fast(proto);
+    proto->refcnt = 1;
+    proto->kind = TYPE_PROTO_KIND;
+    if (ret) DESC_INCREF(ret);
+    proto->ret = ret;
+    proto->params = params;
+    return (TypeDesc *)proto;
+}
+
 TypeDesc *desc_enum(void)
 {
     EnumDesc *e = mm_alloc_obj_fast(e);

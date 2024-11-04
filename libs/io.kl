@@ -13,7 +13,7 @@ public trait AutoClosable {
 }
 
 public trait Writer : AutoClosable {
-    public func write(bs bytes) int
+    public func write(bs bytes, offset = 0, len = -1) int
 
     @native(kl_write_str)
     public func write_str(s str) int {}
@@ -22,7 +22,7 @@ public trait Writer : AutoClosable {
 }
 
 public trait Reader : AutoClosable {
-    public func read(bs bytes, sz int = -1) int
+    public func read(bs bytes, offset = 0, size = -1) int
 }
 
 public trait Seeker {

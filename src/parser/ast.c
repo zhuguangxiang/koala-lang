@@ -65,6 +65,13 @@ Type *range_type(void)
     return ty;
 }
 
+Type *va_list_type(void)
+{
+    Type *ty = mm_alloc_obj(ty);
+    ty->desc = desc_range();
+    return ty;
+}
+
 Type *enum_type(Vector *subs)
 {
     Type *ty = mm_alloc_obj(ty);
@@ -439,6 +446,34 @@ Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, Expr *e)
     return (Stmt *)s;
 }
 
+TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound)
+{
+    TypeParamDecl *tp = mm_alloc_obj(tp);
+    tp->loc = loc;
+    tp->id = id;
+    tp->bound = bound;
+    return tp;
+}
+
+ParamDecl *param_new(Loc loc, Ident id, Type *type, Expr *value)
+{
+    ParamDecl *p = mm_alloc_obj(p);
+    p->loc = loc;
+    p->id = id;
+    p->type = type;
+    p->value = value;
+    return p;
+}
+
+Argument *arg_new(Loc loc, Ident id, Expr *value)
+{
+    Argument *arg = mm_alloc_obj(arg);
+    arg->loc = loc;
+    arg->id = id;
+    arg->value = value;
+    return arg;
+}
+
 Stmt *stmt_from_func_decl(Ident id, Vector *args, Type *ret, Vector *tps)
 {
     FuncDeclStmt *s = mm_alloc_obj(s);
@@ -502,6 +537,17 @@ Stmt *stmt_from_expr(Expr *exp)
     ExprStmt *s = mm_alloc_obj(s);
     s->kind = STMT_EXPR_KIND;
     s->exp = exp;
+    return (Stmt *)s;
+}
+
+Stmt *stmt_from_type(StmtKind kind, Ident id, Vector *tps, Vector *bases, Vector *stmts)
+{
+    KlassDeclStmt *s = mm_alloc_obj(s);
+    s->kind = kind;
+    s->id = id;
+    s->tps = tps;
+    s->bases = bases;
+    s->stmts = stmts;
     return (Stmt *)s;
 }
 
