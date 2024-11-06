@@ -24,8 +24,8 @@ typedef struct _KlcFile {
     Vector objs;
 } KlcFile;
 
-void klc_add_var(KlcFile *klc, char *name, char *desc, int has_value);
-void klc_add_func(KlcFile *klc, char *name, char *desc);
+void klc_add_var(KlcFile *klc, char *name, char *desc, int has_value, int flags);
+void klc_add_func(KlcFile *klc, char *name, char *desc, int flags);
 
 void klc_add_none(KlcFile *klc);
 void klc_add_int(KlcFile *klc, int64_t val, int len);

@@ -99,6 +99,8 @@ int desc_equal(TypeDesc *a, TypeDesc *b)
 
 int desc_to_str(TypeDesc *ty, Buffer *buf)
 {
+    if (!ty) return 0;
+
     switch (ty->kind) {
         case TYPE_INT_KIND: {
             buf_write_char(buf, 'i');
@@ -123,6 +125,8 @@ int desc_to_str(TypeDesc *ty, Buffer *buf)
             break;
         }
     }
+
+    return 0;
 }
 
 void desc_print(TypeDesc *desc, Buffer *buf)

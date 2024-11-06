@@ -20,6 +20,12 @@ write to klc file
 extern "C" {
 #endif
 
+#define SYMBOL_FLAGS_HAS_VALUE (1 << 0)
+#define SYMBOL_FLAGS_MUTABLE   (1 << 1)
+#define SYMBOL_FLAGS_PUBLIC    (1 << 2)
+#define SYMBOL_FLAGS_TAG_ONLY  (1 << 3)
+#define SYMBOL_FLAGS_TAG_VALUE (1 << 4)
+
 static void codegen_var_decl(ParserState *ps, Stmt *stmt, KlcFile *klc)
 {
     VarDeclStmt *var = (VarDeclStmt *)stmt;
@@ -34,7 +40,12 @@ static void codegen_var_decl(ParserState *ps, Stmt *stmt, KlcFile *klc)
 
     if (exp->kind == EXPR_LITERAL_KIND) has_value = 1;
 
-    klc_add_var(klc, sym->name, BUF_STR(buf), has_value);
+    int flags = 0;
+    if (has_value) flags |= SYMBOL_FLAGS_HAS_VALUE;
+    if (!var->ro) flags |= SYMBOL_FLAGS_MUTABLE;
+    if (var->pub) flags |= SYMBOL_FLAGS_PUBLIC;
+
+    klc_add_var(klc, sym->name, BUF_STR(buf), has_value, flags);
 
     if (exp->kind == EXPR_LITERAL_KIND) {
         LitExpr *lit = (LitExpr *)exp;
@@ -56,7 +67,41 @@ static void codegen_var_decl(ParserState *ps, Stmt *stmt, KlcFile *klc)
     FINI_BUF(buf);
 }
 
-static void codegen_func_decl(ParserState *ps, Stmt *stmt, KlcFile *klc) {}
+static void codegen_func_decl(ParserState *ps, Stmt *stmt, KlcFile *klc)
+{
+    FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
+    Ident *id = &fn->id;
+    FuncSymbol *sym = (FuncSymbol *)id->sym;
+
+    BUF(buf);
+    desc_to_str(sym->ret, &buf);
+
+    int flags = 0;
+    PrefixFlags *prefix = &fn->flags;
+    if (prefix->pub.flag) flags |= SYMBOL_FLAGS_PUBLIC;
+    if (prefix->at.flag.flag) {
+        if (prefix->at.assoc_ident) {
+            flags |= SYMBOL_FLAGS_TAG_VALUE;
+        } else {
+            flags |= SYMBOL_FLAGS_TAG_ONLY;
+        }
+    }
+
+    klc_add_func(klc, id->name, BUF_STR(buf), flags);
+
+    FINI_BUF(buf);
+
+    if (prefix->at.flag.flag) {
+        char *s = prefix->at.ident;
+        int len = strlen(s);
+        klc_add_str(klc, s, len);
+        if (prefix->at.assoc_ident) {
+            s = prefix->at.assoc_ident;
+            len = strlen(s);
+            klc_add_str(klc, s, len);
+        }
+    }
+}
 
 static void codegen_class(ParserState *ps, Stmt *stmt, KlcFile *klc) {}
 
@@ -87,8 +132,8 @@ static void (*handlers[])(ParserState *, Stmt *, KlcFile *klc) = {
 void kl_code_gen(ParserState *ps)
 {
     KlcFile klc = { 0 };
-    char *klc_filename = atom_concat(2, ps->filename, "c");
-    init_klc_file(&klc, klc_filename);
+    char *filename = atom_concat(2, ps->filename, "c");
+    init_klc_file(&klc, filename);
 
     Stmt **stmt;
     vector_foreach(stmt, &ps->stmts) {
@@ -98,6 +143,11 @@ void kl_code_gen(ParserState *ps)
     write_klc_file(&klc);
 
     klc_dump(&klc);
+
+    KlcFile klc2 = { 0 };
+    init_klc_file(&klc2, filename);
+    read_klc_file(&klc2, 1);
+    klc_dump(&klc2);
 }
 
 #ifdef __cplusplus

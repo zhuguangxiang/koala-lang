@@ -24,8 +24,8 @@ int main(int argc, char *argv[])
     KlcFile klc = { 0 };
     init_klc_file(&klc, "test_klc.klc");
     klc.num_symbols = 2;
-    klc_add_var(&klc, "hello", "s", 0);
-    klc_add_func(&klc, "foo", "s:i");
+    klc_add_var(&klc, "hello", "s", 0, 0);
+    klc_add_func(&klc, "foo", "s:i", 0);
     write_klc_file(&klc);
 
     KlcFile klc2 = { 0 };
