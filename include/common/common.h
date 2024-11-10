@@ -90,6 +90,14 @@ extern "C" {
     exit(-1); \
 } while (0)
 
+#define print_error(fmt, ...) do { \
+    if (isatty(fileno(stdout))) { \
+        printf("\x1b[31merror:\x1b[0m " fmt "\n", ##__VA_ARGS__); \
+    } else { \
+        printf("error: " fmt "\n", ##__VA_ARGS__); \
+    } \
+} while (0)
+
 /* clang-format on */
 
 #ifdef __cplusplus

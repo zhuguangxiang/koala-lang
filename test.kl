@@ -50,9 +50,9 @@ var na int? = none
 
 // function definition
 
-func main(args [str]) {
-    print("hello", sep = ',')
-}
+// func main(args [str]) {
+//     print("hello", sep = ',')
+// }
 
 /*
  *

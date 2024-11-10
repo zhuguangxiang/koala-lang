@@ -12,6 +12,16 @@
 extern "C" {
 #endif
 
+#define ITEM_STRING   0
+#define ITEM_DESC_STR 1
+#define ITEM_LITERAL  2
+#define ITEM_CODE     3
+#define ITEM_VAR      4
+#define ITEM_FUNC     5
+#define ITEM_KLASS    6
+#define ITEM_LOCAL    7
+#define ITEM_MAX      8
+
 #define KLC_TYPE_NONE    'N'
 #define KLC_TYPE_INT     'i'
 #define KLC_TYPE_FLOAT   'f'
@@ -37,13 +47,15 @@ extern "C" {
 #define KLC_TYPE_SHORT_UTF8  'u'
 #define KLC_TYPE_SMALL_TUPLE ')'
 
+typedef struct _ItemHdr {
+    uint32_t offset;
+    uint32_t size;
+} ItemHdr;
+
 typedef struct _KlcFileHeader {
     uint8_t magic[4];
     uint32_t version;
-    uint16_t num_symbols;
-    uint16_t num_relocs;
-    uint16_t num_consts;
-    uint16_t num_codes;
+    ItemHdr item_hdrs[ITEM_MAX];
 } KlcFileHeader;
 
 typedef struct _KlcObject {
@@ -66,10 +78,16 @@ static int read_byte(FILE *fp)
 int read_object(FILE *fp, KlcObject *obj);
 
 typedef struct _KlcFile {
+    /* file path */
     const char *path;
+    /* file pointer */
     FILE *filp;
+    /* header */
     KlcFileHeader hdr;
-    Vector objs;
+    /* unique */
+    HashMap map;
+    /* items */
+    Vector items[ITEM_MAX];
 } KlcFile;
 
 void klc_add_var(KlcFile *klc, char *name, char *desc, int has_value, int flags);

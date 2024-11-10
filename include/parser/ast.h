@@ -345,23 +345,23 @@ typedef enum _StmtKind {
     STMT_IMPORT_KIND,
     /* let/var */
     STMT_VAR_KIND,
-    /* assignment */
-    STMT_ASSIGN_KIND,
     /* function */
     STMT_FUNC_KIND,
-    /* return */
-    STMT_RETURN_KIND,
-    /* expression */
-    STMT_EXPR_KIND,
-    /* statements */
-    STMT_BLOCK_KIND,
     /* class */
     STMT_CLASS_KIND,
     /* trait */
     STMT_TRAIT_KIND,
+    /* return */
+    STMT_RETURN_KIND,
+    /* assignment */
+    STMT_ASSIGN_KIND,
     /* break, continue */
     STMT_BREAK_KIND,
     STMT_CONTINUE_KIND,
+    /* expression */
+    STMT_EXPR_KIND,
+    /* statements */
+    STMT_BLOCK_KIND,
     /* if, while, for, match */
     STMT_IF_KIND,
     STMT_WHILE_KIND,

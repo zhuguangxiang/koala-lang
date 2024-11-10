@@ -55,8 +55,7 @@ set(COMMON_SOURCES
     common/hashmap.c
     common/buffer.c
     common/bitset.c
-    common/utf8.c
-    common/klc.c)
+    common/utf8.c)
 
 add_library(koala-common STATIC ${COMMON_SOURCES})
 

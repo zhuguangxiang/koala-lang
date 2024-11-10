@@ -136,13 +136,33 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
     return NULL;
 }
 
+static int parse_flags(PrefixFlags *flags)
+{
+    int f = 0;
+
+    if (flags->pub.flag) f |= SYM_FLAGS_PUBLIC;
+    if (flags->stat.flag) f |= SYM_FLAGS_STATIC;
+    if (flags->final.flag) f |= SYM_FLAGS_FINAL;
+
+    if (flags->at.assoc_ident)
+        f |= SYM_FLAGS_TAG_VALUE;
+    else if (flags->at.ident)
+        f |= SYM_FLAGS_TAG_ONLY;
+
+    return f;
+}
+
 static Symbol *_add_var(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
 {
     Ident *id = &var->id;
     TypeDesc *ty = var->type ? var->type->desc : NULL;
     Symbol *sym;
 
-    sym = stbl_add_var(stbl, id->name, ty);
+    int flags = parse_flags(&var->flags);
+    if (!var->ro) flags |= SYM_FLAGS_MUTABLE;
+    if (var->exp && var->exp->kind == EXPR_LITERAL_KIND) flags |= SYM_FLAGS_VAR_VALUE;
+
+    sym = stbl_add_var(stbl, id->name, ty, flags);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -237,7 +257,9 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
     TypeDesc *ty = fn->ret ? fn->ret->desc : NULL;
     Symbol *sym;
 
-    sym = stbl_add_func(stbl, id->name, fn->tps, ty, fn->args);
+    int flags = parse_flags(&fn->flags);
+
+    sym = stbl_add_func(stbl, id->name, fn->tps, ty, fn->args, flags);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -311,7 +333,9 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
     // TypeDesc *ty = fn->ret ? fn->ret->desc : NULL;
     Symbol *sym;
 
-    sym = stbl_add_func(stbl, id->name, NULL, NULL, NULL);
+    int flags = parse_flags(&kls->flags);
+
+    sym = stbl_add_klass(stbl, id->name, NULL, NULL, flags);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -328,7 +352,8 @@ static Symbol *_add_trait(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
     // TypeDesc *ty = fn->ret ? fn->ret->desc : NULL;
     Symbol *sym;
 
-    sym = stbl_add_func(stbl, id->name, NULL, NULL, NULL);
+    int flags = parse_flags(&kls->flags);
+    sym = stbl_add_trait(stbl, id->name, NULL, NULL, flags);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -381,27 +406,24 @@ static void parse_stmt(ParserState *ps, Stmt *stmt)
         NULL,                       /* INVALID          */
         NULL, // parse_import,               /* IMPORT_KIND      */
         parse_var_decl,             /* VAR_KIND         */
-        NULL, // parse_assign,               /* ASSIGN_KIND      */
         parse_func_decl,            /* FUNC_KIND        */
-        NULL, // parse_return,               /* RETURN_KIND      */
-        parse_expr,                    /* EXPR_KIND        */
-        NULL, // parse_block,                /* BLOCK_KIND       */
         parse_class,                /* CLASS_KIND       */
         parse_trait,                /* TRAIT_KIND       */
-        // parse_enum,                 /* ENUM_KIND        */
-        // parse_break,                /* BREAK_KIND       */
-        // parse_continue,             /* CONTINUE_KIND    */
-        // parse_if,                   /* IF_KIND          */
-        // parse_while,                /* WHILE_KIND       */
-        // parse_for,                  /* FOR_KIND         */
-        // parse_match,                /* MATCH_KIND       */
+        NULL, // parse_return,               /* RETURN_KIND      */
+        NULL, // parse_assign,               /* ASSIGN_KIND      */
+        NULL, // parse_break,                /* BREAK_KIND       */
+        NULL, // parse_continue,             /* CONTINUE_KIND    */
+        parse_expr,                 /* EXPR_KIND        */
+        NULL, // parse_block,                /* BLOCK_KIND       */
+        NULL, // parse_if,                   /* IF_KIND          */
+        NULL, // parse_while,                /* WHILE_KIND       */
+        NULL, // parse_for,                  /* FOR_KIND         */
+        NULL, // parse_match,                /* MATCH_KIND       */
     };
     /* clang-format on */
 
     handlers[stmt->kind](ps, stmt);
 }
-
-void kl_code_gen(ParserState *ps);
 
 static void parse_ast(ParserState *ps)
 {
@@ -411,18 +433,15 @@ static void parse_ast(ParserState *ps)
     vector_foreach(stmt, &ps->stmts) {
         parse_stmt(ps, *stmt);
     }
-    stbl_show(scope->stbl);
     exit_scope(ps);
 
     /* If there are errors, stop doing codegen. */
     if (ps->errors) return;
 
 #ifndef NOLOG
-        /* dump AST */
-        // dump_stmt(stmt);
+    /* dump symbol tables */
+    stbl_show(ps->stbl);
 #endif
-
-    kl_code_gen(ps);
 }
 
 static void init_parser_state(ParserState *ps, char *filename)
@@ -470,8 +489,9 @@ int compile(int argc, char *argv[])
 
     ParserState *ps = build_ast(argv[1]);
     if (!ps) return -1;
-
     parse_ast(ps);
+    if (!ps->errors) kl_code_gen(ps);
+    // kl_write_to_klc(ps);
     free_parser(ps);
 
     return 0;

@@ -186,15 +186,14 @@ typedef struct _KlrEdge {
 typedef struct _KlrModule {
     /* module name */
     char *name;
-
     /* global variables */
     Vector globals;
-
     /* functions */
     Vector functions;
-
     /* __init__ function */
     KlrFunc *init;
+    /* symbol table */
+    HashMap *stbl;
 } KlrModule;
 
 /* def-use */

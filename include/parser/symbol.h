@@ -23,15 +23,23 @@ typedef enum _SymKind {
     SYM_CLASS,          /* class      */
     SYM_TRAIT,          /* trait      */
     SYM_FIELD,          /* field      */
-    SYM_PROTO,          /* func proto */
-    SYM_ANONY,          /* anony func */
+    SYM_PROTO,          /* proto      */
+    SYM_ANONY,          /* anonymous  */
     SYM_PACKAGE,        /* package    */
     SYM_TYPE_PARAM,     /* type param */
     SYM_MAX,
 } SymKind;
 
+#define SYM_FLAGS_VAR_VALUE (1 << 0)
+#define SYM_FLAGS_MUTABLE   (1 << 1)
+#define SYM_FLAGS_PUBLIC    (1 << 2)
+#define SYM_FLAGS_FINAL     (1 << 3)
+#define SYM_FLAGS_STATIC    (1 << 4)
+#define SYM_FLAGS_TAG_ONLY  (1 << 5)
+#define SYM_FLAGS_TAG_VALUE (1 << 6)
+
 #define SYMBOL_HEAD \
-    HashMapEntry hnode; SymKind kind; char *name; TypeDesc *desc; HashMap *stbl;
+    HashMapEntry hnode; SymKind kind; int flags; char *name; TypeDesc *desc; HashMap *stbl;
 
 /* clang-format on */
 
@@ -39,12 +47,29 @@ typedef struct _Symbol {
     SYMBOL_HEAD
 } Symbol;
 
+typedef struct _Literal {
+    int which;
+#define LIT_INT  1
+#define LIT_FLT  2
+#define LIT_BOOL 3
+#define LIT_STR  4
+#define LIT_NONE 5
+    int len;
+    union {
+        int64_t ival;
+        double fval;
+        int bval;
+        char *sval;
+    };
+} Literal;
+
 typedef struct _VarSymbol {
     SYMBOL_HEAD
     int scope;
 #define VAR_SCOPE_GLOBAL 1
 #define VAR_SCOPE_LOCAL  2
 #define VAR_SCOPE_PARAM  3
+    Literal *lit;
 } VarSymbol;
 
 typedef struct _FuncSymbol {
@@ -55,7 +80,29 @@ typedef struct _FuncSymbol {
     Vector *params;
     /* type parameters */
     Vector *tps;
+    /* local variables */
+    Vector *locals;
+    /* stack size */
+    int stack_size;
+    /* code size */
+    int code_size;
+    /* codes */
+    char *codes;
 } FuncSymbol;
+
+typedef struct _KlassSymbol {
+    SYMBOL_HEAD
+    /* type parameters */
+    Vector *tps;
+    /* bases */
+    Vector *bases;
+    /* fields */
+    Vector *fields;
+    /* functions */
+    Vector *funcs;
+    /* protos */
+    Vector *protos;
+} KlassSymbol;
 
 static inline int __symbol_equal__(Symbol *s1, Symbol *s2)
 {
@@ -78,11 +125,17 @@ static inline void stbl_free(HashMap *stbl)
     mm_free(stbl);
 }
 
-void stbl_show(HashMap *stbl);
-Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc);
+Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
-                      Vector *params);
+                      Vector *params, int flags);
+Symbol *stbl_add_klass(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags);
+Symbol *stbl_add_trait(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags);
+
 Symbol *stbl_get(HashMap *stbl, char *name);
+
+void stbl_show(HashMap *stbl);
+
+HashMap *stbl_from_klc(const char *path);
 
 #ifdef __cplusplus
 }

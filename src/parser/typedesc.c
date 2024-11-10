@@ -120,6 +120,10 @@ int desc_to_str(TypeDesc *ty, Buffer *buf)
             desc_to_str(opt->type, buf);
             break;
         }
+        case TYPE_BOOL_KIND: {
+            buf_write_char(buf, 'z');
+            break;
+        }
         default: {
             UNREACHABLE();
             break;

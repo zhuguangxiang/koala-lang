@@ -161,12 +161,14 @@ KlrValue *klr_add_func(KlrModule *m, TypeDesc *ret, TypeDesc **params, char *nam
     fn->ebb = new_block(fn, "end");
 
     /* add params */
-    TypeDesc **item = params;
-    while (*item) {
-        KlrParam *val = mm_alloc_obj(val);
-        INIT_KLR_VALUE(val, KLR_VALUE_PARAM, *item, "");
-        vector_push_back(&fn->params, &val);
-        ++item;
+    if (params) {
+        TypeDesc **item = params;
+        while (*item) {
+            KlrParam *val = mm_alloc_obj(val);
+            INIT_KLR_VALUE(val, KLR_VALUE_PARAM, *item, "");
+            vector_push_back(&fn->params, &val);
+            ++item;
+        }
     }
 
     vector_push_back(&m->functions, &fn);
