@@ -74,29 +74,91 @@ void klc_add_bytes(KlcFile *klc, const char *insns, int insns_size)
     vector_push_back(&klc->objs, &obj);
 }
 
-void klc_add_var(KlcFile *klc, char *name, char *desc, int has_value, int flags)
+/* hash node for data is unique */
+typedef struct _ItemEntry {
+    /* hash entry */
+    HashMapEntry entry;
+    /* index of vectors */
+    uint16_t index;
+    /* item data */
+    void *data;
+} ItemEntry;
+
+static unsigned int init_item_entry(ItemEntry *item, int type, void *data)
 {
-    KlcObject obj;
+    ASSERT(type >= ITEM_LIT_STR && type <= ITEM_RELOC);
 
-    if (has_value) {
-        obj.type = KLC_TYPE_VAR_VAL;
+    unsigned int hash;
+
+    if (type == ITEM_LITERAL) {
+        hash = 0;
+    } else if (type == ITEM_RELOC) {
+        hash = 0;
     } else {
-        obj.type = KLC_TYPE_VAR;
+        hash = str_hash(data);
     }
-    obj.len = 0;
-    obj.val = NULL;
-    vector_push_back(&klc->objs, &obj);
 
-    int len = strlen(name);
-    ASSERT(len <= 255);
-    klc_add_str(klc, name, len);
+    item->data = data;
+    hashmap_entry_init(item, hash);
+    return 0;
+}
 
-    len = strlen(desc);
-    klc_add_str(klc, (char *)desc, len);
+static uint16_t __index(KlcFile *klc, int type, void *data)
+{
+    UniItem *unique = klc->uniques + type;
+    init_item_entry(&key, type, data);
+    ItemEntry *res = hashmap_get(&unique->map, &key);
+    return res ? res->index : 0;
+}
 
-    klc_add_int(klc, flags, 2);
+static uint16_t __append(KlcFile *klc, int type, void *data, int unique)
+{
+    UniItem *unique = klc->uniques + type;
+    vector_push_back(&unique->value, &data);
+    uint16_t index = vector_size(&unique->value) - 1;
+    ASSERT(index >= 0);
+    if (unique) {
+        ItemEntry *e = mm_alloc_obj_fast(e);
+        e->index = index;
+        e->data = data;
+        init_item_entry(e, type, data);
+        int res = hashmap_put_absent(&unique->map, e);
+        ASSERT(res == 0);
+    }
+    return index;
+}
 
-    ++klc->hdr.num_symbols;
+static uint16_t __str_get(KlcFile *klc, int type, char *str)
+{
+    int len = strlen(str);
+    uint8_t data[sizeof(KlcString) + len + 1];
+    KlcString *item = (KlcString *)data;
+    item->len = len;
+    memcpy(item->data, str, len);
+    item->data[len] = 0;
+    return __index(image, type, item);
+}
+
+static uint16_t __str_set(KlcFile *klc, int type, char *str)
+{
+    uint16_t idx = sym_str_get(klc, str);
+    if (idx == 0) {
+        int len = strlen(str);
+        KlcString *item = mm_alloc(sizeof(KlcString) + len + 1);
+        item->len = len + 1;
+        memcpy(item->data, str, len);
+        item->data[len] = 0;
+        idx = __append(image, type, item, 1);
+    }
+    return idx;
+}
+
+void klc_add_var(KlcFile *klc, char *name, char *desc, int flags, uint16_t value_index)
+{
+    uint16_t name_index = __str_set(klc, ITEM_SYM_STR, name);
+    uint16_t desc_index = __str_set(klc, ITEM_DESC_STR, desc);
+    KlcVar var = { (uint16_t)flags, name_index, desc_index, value_index };
+    vector_push_back(&klc->vars, &var);
 }
 
 void klc_add_func(KlcFile *klc, char *name, char *desc, int flags)

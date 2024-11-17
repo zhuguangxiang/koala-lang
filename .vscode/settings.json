@@ -21,11 +21,14 @@
         "bitset": "c",
         "optional": "c",
         "deque": "c",
-        "climits": "c"
+        "climits": "c",
+        "string": "c"
     },
     "cSpell.words": [
         "AARCH",
         "ABCDEFGHIJKLMNOPQRSTUWXYZ",
+        "annots",
+        "anns",
         "ANONY",
         "bldr",
         "bltin",

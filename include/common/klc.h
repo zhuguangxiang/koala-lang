@@ -7,6 +7,7 @@
 #define _KOALA_KLC_H_
 
 #include "codespec.h"
+#include "hashmap.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,14 +66,90 @@ static int read_byte(FILE *fp)
 
 int read_object(FILE *fp, KlcObject *obj);
 
+#define ITEM_LIT_STR  0
+#define ITEM_DESC_STR 1
+#define ITEM_SYM_STR  2
+#define ITEM_LITERAL  3
+#define ITEM_RELOC    4
+#define ITEM_UNI_MAX  5
+
+typedef struct _UniItem {
+    HashMap map;
+    Vector value;
+} UniItem;
+
+typedef struct _KlcString {
+    int len;
+    char data[0];
+} KlcString;
+
+#define LIT_INT   1
+#define LIT_FLT   2
+#define LIT_STR   3
+#define LIT_TUPLE 4
+#define LIT_LIST  5
+
+typedef struct _KlcLiteral {
+    int type;
+    int len;
+    union {
+        /* integer */
+        int64_t ival;
+        /* float */
+        double fval;
+        /* str/tuple/list/dict/set */
+        void *val;
+    };
+} KlcLiteral;
+
+typedef struct _KlcVar {
+    /* flags */
+    uint16_t flags;
+    /* ITEM_SYM_STR */
+    uint16_t name_index;
+    /* ITEM_DESC_STR */
+    uint16_t type_index;
+    /* ITEM_LITERAL */
+    uint16_t literal_index;
+} KlcVar;
+
+typedef struct _KlcFunc {
+    /* flags */
+    uint16_t flags;
+    /* ITEM_SYM_STR */
+    uint16_t name_index;
+    /* ITEM_DESC_STR */
+    uint16_t desc_index;
+    /* ITEM_DESC_STR */
+    uint16_t tps_index;
+    /* number of annotations */
+    uint16_t num_anns;
+    /* code index */
+    uint16_t code_index;
+} KlcFunc;
+ 
+typedef struct _KlcAnnot {
+    /* ITEM_SYM_STR */
+    uint16_t name_index;
+    /* ITEM_SYM_STR */
+    uint16_t key_index;
+    /* ITEM_LITERAL */
+    uint16_t value_index;
+} KlcAnnot;
+
 typedef struct _KlcFile {
     const char *path;
     FILE *filp;
     KlcFileHeader hdr;
+    UniItem uniques[ITEM_UNI_MAX];
+    Vector vars;
+    Vector funcs;
+    Vector classes;
+    Vector codes;
     Vector objs;
 } KlcFile;
 
-void klc_add_var(KlcFile *klc, char *name, char *desc, int has_value, int flags);
+void klc_add_var(KlcFile *klc, char *name, char *desc, int flags);
 void klc_add_func(KlcFile *klc, char *name, char *desc, int flags);
 
 void klc_add_none(KlcFile *klc);
@@ -90,8 +167,6 @@ void init_klc_file_header(KlcFileHeader *hdr);
 FILE *open_klc_file(const char *path, char *mode);
 int read_klc_file_header(KlcFileHeader *hdr, FILE *filp);
 void klc_dump(KlcFile *klc);
-
-void kl_write_to_klc();
 
 #ifdef __cplusplus
 }
