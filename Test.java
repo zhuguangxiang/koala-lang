@@ -15,6 +15,10 @@ class Test {
     }
 }
 
+class Foo<T> {
+    public T foo(T a) { return a; }
+}
+
 /*
 Test();
     descriptor: ()V

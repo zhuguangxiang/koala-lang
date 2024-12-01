@@ -47,7 +47,7 @@ void *mm_alloc(int size)
         if (slot >= 0 && slot <= 15) {
             Heap *hp = &heaps[slot];
             if (hp->free_list) {
-                printf("mm_alloc from free list\n");
+                // printf("mm_alloc from free list\n");
                 BlockWrap *wrap = hp->free_list;
                 hp->free_list = wrap->ptr;
                 Block *blk = (Block *)wrap;
@@ -84,7 +84,7 @@ void *mm_alloc_fast(int size)
         if (slot >= 0 && slot <= 15) {
             Heap *hp = &heaps[slot];
             if (hp->free_list) {
-                printf("mm_alloc_fast from free list\n");
+                // printf("mm_alloc_fast from free list\n");
                 BlockWrap *wrap = hp->free_list;
                 hp->free_list = wrap->ptr;
                 Block *blk = (Block *)wrap;

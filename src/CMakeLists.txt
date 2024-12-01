@@ -30,6 +30,7 @@ set(PARSER_SRC
     parser/linear_scan.c
     parser/simple_reg_alloc.c
     parser/code_gen.c
+    parser/klc_dump.c
     parser/pass.c
     parser/passes/dot.c
     parser/passes/remove_load_store.c
@@ -55,7 +56,8 @@ set(COMMON_SOURCES
     common/hashmap.c
     common/buffer.c
     common/bitset.c
-    common/utf8.c)
+    common/utf8.c
+    common/klc.c)
 
 add_library(koala-common STATIC ${COMMON_SOURCES})
 

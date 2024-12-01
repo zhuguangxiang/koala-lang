@@ -13,83 +13,15 @@
 extern "C" {
 #endif
 
-#define KLC_TYPE_NONE    'N'
-#define KLC_TYPE_INT     'i'
-#define KLC_TYPE_FLOAT   'f'
-#define KLC_TYPE_ASCII   'A'
-#define KLC_TYPE_UTF8    'U'
-#define KLC_TYPE_TUPLE   '('
-#define KLC_TYPE_LIST    '['
-#define KLC_TYPE_MAP     '{'
-#define KLC_TYPE_SET     '<'
-#define KLC_TYPE_CODE    'C'
-#define KLC_TYPE_BYTES   'B'
-#define KLC_TYPE_CLASS   'K'
-#define KLC_TYPE_TRAIT   'I'
-#define KLC_TYPE_VAR     'v'
-#define KLC_TYPE_VAR_VAL 'V'
-#define KLC_TYPE_PROTO   'p'
-#define KLC_TYPE_FUNC    'P'
+#define ITEM_CONST 0
+#define ITEM_VAR   1
+#define ITEM_FUNC  2
+#define ITEM_CLASS 3
+#define ITEM_RELOC 4
+#define ITEM_CODES 5
+#define ITEM_MAX   6
 
-/* with a type, add obj to index */
-#define FLAG_REF '\x80'
-
-#define KLC_TYPE_SHORT_ASCII 'a'
-#define KLC_TYPE_SHORT_UTF8  'u'
-#define KLC_TYPE_SMALL_TUPLE ')'
-
-typedef struct _KlcFileHeader {
-    uint8_t magic[4];
-    uint32_t version;
-    uint16_t num_symbols;
-    uint16_t num_relocs;
-    uint16_t num_consts;
-    uint16_t num_codes;
-} KlcFileHeader;
-
-typedef struct _KlcObject {
-    char type;
-    int len;
-    union {
-        int64_t ival;
-        double fval;
-        void *val;
-    };
-} KlcObject;
-
-static int read_byte(FILE *fp)
-{
-    int val = 0;
-    fread(&val, 1, 1, fp);
-    return val;
-}
-
-int read_object(FILE *fp, KlcObject *obj);
-
-#define ITEM_LIT_STR  0
-#define ITEM_DESC_STR 1
-#define ITEM_SYM_STR  2
-#define ITEM_LITERAL  3
-#define ITEM_RELOC    4
-#define ITEM_UNI_MAX  5
-
-typedef struct _UniItem {
-    HashMap map;
-    Vector value;
-} UniItem;
-
-typedef struct _KlcString {
-    int len;
-    char data[0];
-} KlcString;
-
-#define LIT_INT   1
-#define LIT_FLT   2
-#define LIT_STR   3
-#define LIT_TUPLE 4
-#define LIT_LIST  5
-
-typedef struct _KlcLiteral {
+typedef struct _KlcConst {
     int type;
     int len;
     union {
@@ -97,75 +29,143 @@ typedef struct _KlcLiteral {
         int64_t ival;
         /* float */
         double fval;
-        /* str/tuple/list/dict/set */
+        /* string */
+        char *sval;
+        /* tuple/list/dict/set */
         void *val;
     };
-} KlcLiteral;
+} KlcConst;
+
+#define KLC_CONST_NONE  'N'
+#define KLC_CONST_INT   'i'
+#define KLC_CONST_FLT   'f'
+#define KLC_CONST_ASCII 'A'
+#define KLC_CONST_UTF8  'U'
+#define KLC_CONST_TUPLE '('
+#define KLC_CONST_LIST  '['
+#define KLC_CONST_DICT  '{'
+#define KLC_CONST_SET   '<'
+// object created in __init__
+#define KLC_CONST_OBJECT 'O'
+
+#define KLC_CONST_SHORT_ASCII 'a'
+#define KLC_CONST_SHORT_UTF8  'u'
+#define KLC_CONST_SHORT_TUPLE ')'
+#define KLC_CONST_SHORT_LIST  ']'
 
 typedef struct _KlcVar {
     /* flags */
     uint16_t flags;
-    /* ITEM_SYM_STR */
+    /* ITEM_CONST */
     uint16_t name_index;
-    /* ITEM_DESC_STR */
+    /* ITEM_CONST */
     uint16_t type_index;
-    /* ITEM_LITERAL */
-    uint16_t literal_index;
+    /* ITEM_CONST */
+    uint16_t const_index;
 } KlcVar;
 
 typedef struct _KlcFunc {
     /* flags */
     uint16_t flags;
-    /* ITEM_SYM_STR */
+    /* ITEM_CONST */
     uint16_t name_index;
-    /* ITEM_DESC_STR */
-    uint16_t desc_index;
-    /* ITEM_DESC_STR */
-    uint16_t tps_index;
-    /* number of annotations */
-    uint16_t num_anns;
+    /* ITEM_CONST */
+    uint16_t ret_type_index;
     /* code index */
     uint16_t code_index;
+    /* arguments */
+    Vector args;
+    /* type parameters */
+    Vector tps;
+    /* annotations */
+    Vector anns;
 } KlcFunc;
- 
-typedef struct _KlcAnnot {
-    /* ITEM_SYM_STR */
+
+typedef struct _KlcArgument {
+    /* ITEM_CONST */
     uint16_t name_index;
-    /* ITEM_SYM_STR */
+    /* ITEM_CONST */
+    uint16_t type_index;
+    /* ITEM_CONST */
+    uint16_t const_index;
+} KlcArgument;
+
+typedef struct _KlcTypePara {
+    /* ITEM_CONST */
+    uint16_t name_index;
+    /* ITEM_CONST */
+    uint16_t type_index;
+} KlcTypePara;
+
+typedef struct _KlcAnnot {
+    /* ITEM_CONST */
+    uint16_t name_index;
+    /* ITEM_CONST */
     uint16_t key_index;
-    /* ITEM_LITERAL */
+    /* ITEM_CONST */
     uint16_t value_index;
 } KlcAnnot;
+
+typedef struct _KlcKlass {
+    /* flags */
+    uint16_t flags;
+    /* ITEM_CONST */
+    uint16_t name_index;
+    /* ITEM_CONST */
+    uint16_t tps_index;
+    /* number of bases */
+    uint16_t num_bases;
+    /* number of fields */
+    uint16_t num_fields;
+    /* number of methods */
+    uint16_t num_methods;
+} KlcKlass;
+
+typedef struct _KlcCode {
+    /* number of locals */
+    uint16_t num_locals;
+    /* byte codes size */
+    uint16_t code_size;
+    /* codes */
+    char *codes;
+} KlcCode;
+
+typedef struct _KlcReloc {
+    /* ITEM_CONST */
+    uint16_t ns_index;
+    /* ITEM_CONST */
+    uint16_t sym_index;
+} KlcReloc;
 
 typedef struct _KlcFile {
     const char *path;
     FILE *filp;
-    KlcFileHeader hdr;
-    UniItem uniques[ITEM_UNI_MAX];
-    Vector vars;
-    Vector funcs;
-    Vector classes;
-    Vector codes;
-    Vector objs;
+    uint8_t magic[4];
+    uint32_t version;
+    HashMap map;
+    Vector objs[ITEM_MAX];
 } KlcFile;
 
-void klc_add_var(KlcFile *klc, char *name, char *desc, int flags);
-void klc_add_func(KlcFile *klc, char *name, char *desc, int flags);
+KlcVar *klc_add_var(KlcFile *klc, char *name, char *desc, uint16_t index, int flags);
+KlcFunc *klc_add_func(KlcFile *klc, char *name, char *ret_desc, int flags);
+int klc_func_add_arg(KlcFile *klc, KlcFunc *fn, char *name, char *desc, uint16_t index);
+int klc_func_add_tp(KlcFile *klc, KlcFunc *fn, char *name, char *desc);
+int klc_func_add_ann(KlcFile *klc, KlcFunc *fn, char *name, char *key, char *value);
 
-void klc_add_none(KlcFile *klc);
-void klc_add_int(KlcFile *klc, int64_t val, int len);
-void klc_add_float(KlcFile *klc, double val, int len);
-void klc_add_str(KlcFile *klc, char *s, int len);
-void klc_add_utf8(KlcFile *klc, char *s, int len);
-void klc_add_code(KlcFile *klc, CodeSpec *cs);
+uint16_t klc_add_none(KlcFile *klc);
+uint16_t klc_add_int(KlcFile *klc, int64_t val);
+uint16_t klc_add_float(KlcFile *klc, double val);
+uint16_t klc_add_str(KlcFile *klc, char *s, int len);
+uint16_t klc_add_utf8(KlcFile *klc, char *s, int len);
 
 void init_klc_file(KlcFile *klc, const char *path);
 void fini_klc_file(KlcFile *klc);
+
 int write_klc_file(KlcFile *klc);
-int read_klc_file(KlcFile *klc, int only_meta);
-void init_klc_file_header(KlcFileHeader *hdr);
-FILE *open_klc_file(const char *path, char *mode);
-int read_klc_file_header(KlcFileHeader *hdr, FILE *filp);
+int read_klc_file(KlcFile *klc, int all);
+
+KlcConst *klc_get_const(KlcFile *klc, uint16_t index);
+
 void klc_dump(KlcFile *klc);
 
 #ifdef __cplusplus

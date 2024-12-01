@@ -1,15 +1,24 @@
 
-def hello():
+# def hello():
+#     pass
+
+# a = [1, 2, 3, 4, 5, 6, 7, 8]
+
+# print(a[:5])        # prints [1, 2, 3, 4, 5]
+# print(a[2:])        # prints [3, 4, 5, 6, 7, 8]
+# print(a[2:5])       # prints [3, 4, 5]
+# print(a[2:7:2])     # prints [3, 5, 7]
+
+# b = a[:5]
+# b[0] = 100
+# print(b)
+# print(a)
+
+class BAR:
+    def __init__(self, i):
+        self.i = i
+
+def bar(a, b = BAR(100)):
     pass
 
-a = [1, 2, 3, 4, 5, 6, 7, 8]
-
-print(a[:5])        # prints [1, 2, 3, 4, 5]
-print(a[2:])        # prints [3, 4, 5, 6, 7, 8]
-print(a[2:5])       # prints [3, 4, 5]
-print(a[2:7:2])     # prints [3, 5, 7]
-
-b = a[:5]
-b[0] = 100
-print(b)
-print(a)
+bar(b = 200)
