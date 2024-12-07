@@ -125,7 +125,7 @@ void yyparse_module(ParserState *ps, Vector *imports, Vector *stmts);
 int compile(int argc, char *argv[]);
 void kl_code_gen(ParserState *ps);
 void kl_write_to_klc(ParserState *ps);
-void kl_read_to_klc(void);
+void kl_read_from_klc(HashMap *stbl, char *path);
 
 #ifdef __cplusplus
 }

@@ -19,7 +19,9 @@ let s = 'hello, \'\nworld'
 
 var na int? = none
 
-// print(s, f, n3)
+func main(args [str]) {
+    print(s, f, n3)
+}
 
 // var r = 100.0
 

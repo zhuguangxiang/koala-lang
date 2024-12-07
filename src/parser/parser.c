@@ -5,6 +5,7 @@
 
 #include "parser.h"
 #include "atom.h"
+#include "klc.h"
 #include "log.h"
 
 /* clang-format off */
@@ -449,6 +450,15 @@ static void init_parser_state(ParserState *ps, char *filename)
     ps->filename = filename;
     vector_init_ptr(&ps->stmts);
     ps->stbl = stbl_new();
+    ps->builtin = stbl_new();
+}
+
+static void read_builtin_module(ParserState *ps)
+{
+    KlcFile klc;
+    init_klc_file(&klc, "libs/builtin.klc");
+    read_klc_file(&klc, 0);
+    read_from_klc(&klc);
 }
 
 static ParserState *build_ast(char *path)
@@ -461,6 +471,9 @@ static ParserState *build_ast(char *path)
 
     ParserState *ps = mm_alloc_obj(ps);
     init_parser_state(ps, path);
+    if (!strstr(path, "builtin.kl")) {
+        read_builtin_module(ps);
+    }
 
     yyscan_t scanner;
     yylex_init_extra(ps, &scanner);
@@ -489,9 +502,13 @@ int compile(int argc, char *argv[])
 
     ParserState *ps = build_ast(argv[1]);
     if (!ps) return -1;
+
     parse_ast(ps);
-    if (!ps->errors) kl_code_gen(ps);
-    // kl_write_to_klc(ps);
+    if (!ps->errors) {
+        kl_code_gen(ps);
+        kl_write_to_klc(ps);
+    }
+
     free_parser(ps);
 
     return 0;
