@@ -343,6 +343,9 @@ and not allow to compile one file if the directory has `__m__.kl` file.
 
 `koalac builtin/int.kl` will report error for this is a file in a module.
 
+When compiling a directory with `__init__.kl`, it likes `Python`, and compile `__init__.kl` file only into
+`__klc__/builtin/__init__.klc`. If there is no `__init__.kl` and `__m__.kl`, report error.
+
 when compiling a single file, it is regarded as a module.
 `koalac unittest.kl` will generate a file in `__klc__/unittest.klc`.
 

@@ -21,6 +21,15 @@ extern "C" {
 #define ITEM_CODES 5
 #define ITEM_MAX   6
 
+typedef struct _KlcFile {
+    const char *path;
+    FILE *filp;
+    uint8_t magic[4];
+    uint32_t version;
+    HashMap map;
+    Vector objs[ITEM_MAX];
+} KlcFile;
+
 typedef struct _KlcConst {
     int type;
     int len;
@@ -53,6 +62,11 @@ typedef struct _KlcConst {
 #define KLC_CONST_SHORT_TUPLE ')'
 #define KLC_CONST_SHORT_LIST  ']'
 
+#define KLC_FLAGS_PUB     (1 << 0)
+#define KLC_FLAGS_MUTABLE (1 << 1)
+#define KLC_FLAGS_FINAL   (1 << 2)
+#define KLC_FLAGS_STATIC  (1 << 3)
+
 typedef struct _KlcVar {
     /* flags */
     uint16_t flags;
@@ -65,6 +79,8 @@ typedef struct _KlcVar {
 } KlcVar;
 
 typedef struct _KlcFunc {
+    /* point back to klc file */
+    KlcFile *filp;
     /* flags */
     uint16_t flags;
     /* ITEM_CONST */
@@ -75,7 +91,7 @@ typedef struct _KlcFunc {
     uint16_t code_index;
     /* arguments */
     Vector args;
-    /* type parameters */
+    /* type params */
     Vector tps;
     /* annotations */
     Vector anns;
@@ -107,18 +123,22 @@ typedef struct _KlcAnnot {
 } KlcAnnot;
 
 typedef struct _KlcKlass {
+    /* point back to klc file */
+    KlcFile *filp;
     /* flags */
     uint16_t flags;
     /* ITEM_CONST */
     uint16_t name_index;
-    /* ITEM_CONST */
-    uint16_t tps_index;
-    /* number of bases */
-    uint16_t num_bases;
-    /* number of fields */
-    uint16_t num_fields;
-    /* number of methods */
-    uint16_t num_methods;
+    /* type params */
+    Vector tps;
+    /* annotations */
+    Vector anns;
+    /* bases */
+    Vector bases;
+    /* fields */
+    Vector fields;
+    /* methods */
+    Vector methods;
 } KlcKlass;
 
 typedef struct _KlcCode {
@@ -137,20 +157,19 @@ typedef struct _KlcReloc {
     uint16_t sym_index;
 } KlcReloc;
 
-typedef struct _KlcFile {
-    const char *path;
-    FILE *filp;
-    uint8_t magic[4];
-    uint32_t version;
-    HashMap map;
-    Vector objs[ITEM_MAX];
-} KlcFile;
-
 KlcVar *klc_add_var(KlcFile *klc, char *name, char *desc, uint16_t index, int flags);
+
 KlcFunc *klc_add_func(KlcFile *klc, char *name, char *ret_desc, int flags);
-int klc_func_add_arg(KlcFile *klc, KlcFunc *fn, char *name, char *desc, uint16_t index);
-int klc_func_add_tp(KlcFile *klc, KlcFunc *fn, char *name, char *desc);
-int klc_func_add_ann(KlcFile *klc, KlcFunc *fn, char *name, char *key, char *value);
+int klc_func_add_arg(KlcFunc *fn, char *name, char *desc, uint16_t index);
+int klc_func_add_tp(KlcFunc *fn, char *name, char *desc);
+int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value);
+
+KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags);
+int klc_klass_add_tp(KlcKlass *kls, char *name, char *desc);
+int klc_klass_add_ann(KlcKlass *kls, char *name, char *key, char *value);
+int klc_klass_add_base(KlcKlass *kls, char *base_desc);
+KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *desc, int flags);
+KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_desc, int flags);
 
 uint16_t klc_add_none(KlcFile *klc);
 uint16_t klc_add_int(KlcFile *klc, int64_t val);

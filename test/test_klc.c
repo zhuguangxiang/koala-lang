@@ -32,10 +32,10 @@ int main(int argc, char *argv[])
     ASSERT(index == index2);
 
     KlcFunc *fn = klc_add_func(&klc, "print", NULL, 0);
-    klc_func_add_arg(&klc, fn, "objs", "Object", 0);
+    klc_func_add_arg(fn, "objs", "Object", 0);
     uint16_t sep_index = klc_add_str(&klc, " ", 1);
-    klc_func_add_arg(&klc, fn, "sep", "s", sep_index);
-    klc_func_add_ann(&klc, fn, "native", "builtin_print", NULL);
+    klc_func_add_arg(fn, "sep", "s", sep_index);
+    klc_func_add_ann(fn, "native", "builtin_print", NULL);
 
     write_klc_file(&klc);
     fini_klc_file(&klc);

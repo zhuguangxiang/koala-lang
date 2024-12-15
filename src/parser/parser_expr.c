@@ -18,7 +18,15 @@ static void parse_ident(ParserState *ps, Expr *exp)
     Symbol *sym = find_symbol(ps, id);
     if (!sym) {
         kl_error(id->loc, "'%s' is not found", id->name);
+        return;
     }
+    if (exp->ctx == EXPR_CTX_CALL) {
+        if (sym->kind != SYM_FUNC) {
+            kl_error(id->loc, "'%s' is not callable", id->name);
+            return;
+        }
+    }
+    exp->desc = DESC_INCREF_GET(sym->desc);
 }
 
 static void parse_lit_int(ParserState *ps, LitExpr *lit)
@@ -105,6 +113,17 @@ static void parse_call(ParserState *ps, Expr *exp)
     Expr *lhs = call->lhs;
     lhs->ctx = EXPR_CTX_CALL;
     parser_visit_expr(ps, call->lhs);
+    if (!lhs->desc) return;
+    exp->desc = DESC_INCREF_GET(lhs->desc);
+
+    Expr **arg_p;
+    Expr *arg;
+    vector_foreach(arg_p, call->args) {
+        arg = *arg_p;
+        lhs->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, arg);
+        if (!arg->desc) return;
+    }
 }
 
 void parser_visit_expr(ParserState *ps, Expr *exp)

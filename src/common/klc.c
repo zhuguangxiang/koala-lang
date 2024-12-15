@@ -173,14 +173,17 @@ uint16_t klc_add_float(KlcFile *klc, double val)
 
 uint16_t klc_add_str(KlcFile *klc, char *s, int len)
 {
+    if (len == 0) return 0;
+
     int type = STR_TYPE(len);
-    KlcConst k = { .type = type, .len = len, .sval = s };
+    char *_s = atom(s);
+    KlcConst k = { .type = type, .len = len, .sval = _s };
     uint16_t idx = __const_get(klc, &k);
     if (idx == 0) {
         KlcConst *item = mm_alloc_obj_fast(item);
         item->type = type;
         item->len = len;
-        item->sval = s;
+        item->sval = _s;
         idx = __append(klc, ITEM_CONST, item, 1);
     }
     return idx;
@@ -188,14 +191,17 @@ uint16_t klc_add_str(KlcFile *klc, char *s, int len)
 
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len)
 {
+    if (len == 0) return 0;
+
     int type = UTF8_TYPE(len);
-    KlcConst k = { .type = type, .len = len, .sval = s };
+    char *_s = atom(s);
+    KlcConst k = { .type = type, .len = len, .sval = _s };
     uint16_t idx = __const_get(klc, &k);
     if (idx == 0) {
         KlcConst *item = mm_alloc_obj_fast(item);
         item->type = type;
         item->len = len;
-        item->sval = s;
+        item->sval = _s;
         idx = __append(klc, ITEM_CONST, item, 1);
     }
     return idx;
@@ -216,13 +222,14 @@ KlcVar *klc_add_var(KlcFile *klc, char *name, char *desc, uint16_t index, int fl
     return var;
 }
 
-KlcFunc *klc_add_func(KlcFile *klc, char *name, char *ret_desc, int flags)
+static KlcFunc *new_func(KlcFile *klc, char *name, char *ret_desc, int flags)
 {
     int len = strlen(name);
     uint16_t name_index = klc_add_str(klc, name, len);
     len = ret_desc ? strlen(ret_desc) : 0;
     uint16_t ret_index = klc_add_str(klc, ret_desc, len);
     KlcFunc *fn = mm_alloc_obj_fast(fn);
+    fn->filp = klc;
     fn->flags = flags;
     fn->name_index = name_index;
     fn->ret_type_index = ret_index;
@@ -230,12 +237,19 @@ KlcFunc *klc_add_func(KlcFile *klc, char *name, char *ret_desc, int flags)
     vector_init_ptr(&fn->args);
     vector_init_ptr(&fn->tps);
     vector_init_ptr(&fn->anns);
+    return fn;
+}
+
+KlcFunc *klc_add_func(KlcFile *klc, char *name, char *ret_desc, int flags)
+{
+    KlcFunc *fn = new_func(klc, name, ret_desc, flags);
     vector_push_back(klc->objs + ITEM_FUNC, &fn);
     return fn;
 }
 
-int klc_func_add_arg(KlcFile *klc, KlcFunc *fn, char *name, char *desc, uint16_t index)
+int klc_func_add_arg(KlcFunc *fn, char *name, char *desc, uint16_t index)
 {
+    KlcFile *klc = fn->filp;
     int len = strlen(name);
     uint16_t name_index = klc_add_str(klc, name, len);
     len = strlen(desc);
@@ -248,8 +262,9 @@ int klc_func_add_arg(KlcFile *klc, KlcFunc *fn, char *name, char *desc, uint16_t
     return 0;
 }
 
-int klc_func_add_tp(KlcFile *klc, KlcFunc *fn, char *name, char *desc)
+int klc_func_add_tp(KlcFunc *fn, char *name, char *desc)
 {
+    KlcFile *klc = fn->filp;
     int len = strlen(name);
     uint16_t name_index = klc_add_str(klc, name, len);
     len = strlen(desc);
@@ -261,8 +276,9 @@ int klc_func_add_tp(KlcFile *klc, KlcFunc *fn, char *name, char *desc)
     return 0;
 }
 
-int klc_func_add_ann(KlcFile *klc, KlcFunc *fn, char *name, char *key, char *value)
+int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value)
 {
+    KlcFile *klc = fn->filp;
     int len = strlen(name);
     uint16_t name_index = klc_add_str(klc, name, len);
     len = strlen(key);
@@ -275,6 +291,31 @@ int klc_func_add_ann(KlcFile *klc, KlcFunc *fn, char *name, char *key, char *val
     ann->value_index = value_index;
     vector_push_back(&fn->anns, &ann);
     return 0;
+}
+
+KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags)
+{
+    int len = strlen(name);
+    uint16_t name_index = klc_add_str(klc, name, len);
+    KlcKlass *kls = mm_alloc_obj_fast(kls);
+    kls->filp = klc;
+    kls->flags = flags;
+    kls->name_index = name_index;
+    vector_init_ptr(&kls->tps);
+    vector_init_ptr(&kls->anns);
+    vector_init_ptr(&kls->bases);
+    vector_init_ptr(&kls->fields);
+    vector_init_ptr(&kls->methods);
+    vector_push_back(klc->objs + ITEM_CLASS, &kls);
+    return kls;
+}
+
+KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_desc, int flags)
+{
+    KlcFile *klc = kls->filp;
+    KlcFunc *fn = new_func(klc, name, ret_desc, flags);
+    vector_push_back(&kls->methods, &fn);
+    return fn;
 }
 
 static FILE *open_klc_file(const char *path, char *mode)
@@ -481,6 +522,14 @@ static void write_classes(KlcFile *klc, Vector *vec)
 {
     size_t size = vector_size(vec) - 1;
     write_uint16(klc, (uint16_t)size);
+    KlcKlass **item_p;
+    KlcKlass *item;
+    vector_foreach(item_p, vec) {
+        item = *item_p;
+        if (!item) continue;
+        write_uint16(klc, item->flags);
+        write_uint16(klc, item->name_index);
+    }
 }
 
 static void write_relocs(KlcFile *klc, Vector *vec)
@@ -710,6 +759,18 @@ static void read_classes(KlcFile *klc, Vector *vec)
 {
     int size = 0;
     read_uint16(klc, (uint16_t *)&size);
+    KlcKlass *kls;
+    for (int i = 0; i < size; i++) {
+        kls = mm_alloc_obj(kls);
+        vector_init_ptr(&kls->tps);
+        vector_init_ptr(&kls->anns);
+        vector_init_ptr(&kls->bases);
+        vector_init_ptr(&kls->fields);
+        vector_init_ptr(&kls->methods);
+        vector_push_back(vec, &kls);
+        read_uint16(klc, &kls->flags);
+        read_uint16(klc, &kls->name_index);
+    }
 }
 
 static void read_relocs(KlcFile *klc, Vector *vec)

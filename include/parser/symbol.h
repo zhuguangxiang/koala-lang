@@ -72,13 +72,20 @@ typedef struct _VarSymbol {
     Literal *lit;
 } VarSymbol;
 
+typedef struct _ArgInfo {
+    char *name;
+    TypeDesc *desc;
+    int dfl_val_idx;
+} ArgInfo;
+
 typedef struct _FuncSymbol {
     SYMBOL_HEAD
-    /* return descriptor */
-    TypeDesc *ret;
-    /* parameter descriptors */
+    /* annotation */
+    char *ann;
+    char *ann_key;
+    /* ArgInfo list */
     Vector *params;
-    /* type parameters */
+    /* type params */
     Vector *tps;
     /* local variables */
     Vector *locals;
@@ -92,7 +99,7 @@ typedef struct _FuncSymbol {
 
 typedef struct _KlassSymbol {
     SYMBOL_HEAD
-    /* type parameters */
+    /* type params */
     Vector *tps;
     /* bases */
     Vector *bases;
@@ -127,15 +134,13 @@ static inline void stbl_free(HashMap *stbl)
 
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
-                      Vector *params, int flags);
+                      Vector *params, int flags, char *ann, char *ann_key);
 Symbol *stbl_add_klass(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags);
 Symbol *stbl_add_trait(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags);
 
 Symbol *stbl_get(HashMap *stbl, char *name);
 
 void stbl_show(HashMap *stbl);
-
-HashMap *stbl_from_klc(const char *path);
 
 #ifdef __cplusplus
 }

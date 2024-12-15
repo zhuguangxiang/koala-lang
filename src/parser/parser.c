@@ -128,7 +128,7 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
     /* find ident from auto-imported(builtin) */
     sym = stbl_get(ps->builtin, id->name);
     if (sym) {
-        log_info("find symbol '%s' in builtin module\n", id->name);
+        log_info("find symbol '%s' in builtin module", id->name);
         id->where = BLTIN_SCOPE;
         id->scope = NULL;
         return sym;
@@ -196,6 +196,33 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
 
     VarSymbol *sym = (VarSymbol *)id->sym;
 
+    if (var->where == VAR_GLOBAL) {
+        if (exp && exp->kind == EXPR_LITERAL_KIND) {
+            LitExpr *lit_exp = (LitExpr *)exp;
+            sym->scope = VAR_SCOPE_GLOBAL;
+            Literal *lit = mm_alloc_obj_fast(lit);
+            if (lit_exp->which == LIT_EXPR_INT) {
+                lit->which = LIT_INT;
+                lit->ival = lit_exp->ival;
+            } else if (lit_exp->which == LIT_EXPR_FLT) {
+                lit->which = LIT_FLT;
+                lit->fval = lit_exp->fval;
+            } else if (lit_exp->which == LIT_EXPR_BOOL) {
+                lit->which = LIT_BOOL;
+                lit->bval = lit_exp->bval;
+            } else if (lit_exp->which == LIT_EXPR_STR) {
+                lit->which = LIT_STR;
+                lit->len = lit_exp->len;
+                lit->sval = lit_exp->sval;
+            } else if (lit_exp->which == LIT_EXPR_NONE) {
+                lit->which = LIT_NONE;
+            } else {
+                UNREACHABLE();
+            }
+            sym->lit = lit;
+        }
+    }
+
     if (!desc) {
         /* update symbol type */
         sym->desc = exp->desc;
@@ -255,12 +282,13 @@ static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
 static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
 {
     Ident *id = &fn->id;
-    TypeDesc *ty = fn->ret ? fn->ret->desc : NULL;
+    TypeDesc *ty = fn->ret ? fn->ret->desc : desc_no_type();
     Symbol *sym;
 
     int flags = parse_flags(&fn->flags);
-
-    sym = stbl_add_func(stbl, id->name, fn->tps, ty, fn->args, flags);
+    char *ann = fn->flags.at.ident;
+    char *ann_key = fn->flags.at.assoc_ident;
+    sym = stbl_add_func(stbl, id->name, fn->tps, ty, NULL, flags, ann, ann_key);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -307,12 +335,46 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
         check_top_func_flags(ps, fn);
     }
 
-    ParserScope *scope = enter_scope(ps, SCOPE_FUNC, 0);
+    if (ps->errors) return;
+
+    FuncSymbol *sym = (FuncSymbol *)fn->id.sym;
+
+    sc = enter_scope(ps, SCOPE_FUNC, 0);
+    sc->stbl = sym->stbl;
 
     /* add parameters into function symbol table */
+
+    Vector *args = vector_create_ptr();
+
+    ParamDecl **param_p;
     ParamDecl *param;
-    vector_foreach(param, fn->args) {
+    vector_foreach(param_p, fn->args) {
+        param = *param_p;
+
+        ArgInfo *arg = mm_alloc_obj_fast(arg);
+        arg->name = param->id.name;
+        arg->dfl_val_idx = 0;
+
+        TypeDesc *desc;
+        if (param->type) {
+            desc = param->type->desc;
+            DESC_INCREF(desc);
+        } else {
+            Expr *e = param->value;
+            e->ctx = EXPR_CTX_LOAD;
+            parser_visit_expr(ps, e);
+            if (!e->desc) return;
+            desc = e->desc;
+            DESC_INCREF(desc);
+        }
+        stbl_add_var(sc->stbl, param->id.name, desc, 0);
+
+        arg->desc = desc;
+        DESC_INCREF(desc);
+        vector_push_back(args, &arg);
     }
+
+    sym->params = args;
 
     /* parse body */
     parse_body(ps, fn->body);
@@ -374,7 +436,7 @@ static void parse_class(ParserState *ps, Stmt *stmt)
     /* parse class body */
     Stmt **s;
     vector_foreach(s, kls->stmts) {
-        parse_stmt(ps, *s);
+        // parse_stmt(ps, *s);
     }
 
     exit_scope(ps);
@@ -389,7 +451,7 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
     /* parse class body */
     Stmt **s;
     vector_foreach(s, kls->stmts) {
-        parse_stmt(ps, *s);
+        // parse_stmt(ps, *s);
     }
 
     exit_scope(ps);
@@ -453,14 +515,6 @@ static void init_parser_state(ParserState *ps, char *filename)
     ps->builtin = stbl_new();
 }
 
-static void read_builtin_module(ParserState *ps)
-{
-    KlcFile klc;
-    init_klc_file(&klc, "libs/builtin.klc");
-    read_klc_file(&klc, 0);
-    read_from_klc(&klc);
-}
-
 static ParserState *build_ast(char *path)
 {
     FILE *in = fopen(path, "r");
@@ -471,9 +525,7 @@ static ParserState *build_ast(char *path)
 
     ParserState *ps = mm_alloc_obj(ps);
     init_parser_state(ps, path);
-    if (!strstr(path, "builtin.kl")) {
-        read_builtin_module(ps);
-    }
+    kl_read_from_klc(ps->builtin, "libs/builtin.klc");
 
     yyscan_t scanner;
     yylex_init_extra(ps, &scanner);

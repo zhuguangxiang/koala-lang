@@ -10,6 +10,7 @@
 extern "C" {
 #endif
 
+TypeDesc no_type_desc = { 1, TYPE_NO_TYPE_KIND };
 TypeDesc int_desc = { 1, TYPE_INT_KIND };
 TypeDesc float_desc = { 1, TYPE_FLOAT_KIND };
 TypeDesc bool_desc = { 1, TYPE_BOOL_KIND };
@@ -18,6 +19,7 @@ TypeDesc object_desc = { 1, TYPE_OBJECT_KIND };
 TypeDesc bytes_desc = { 1, TYPE_BYTES_KIND };
 TypeDesc type_desc = { 1, TYPE_TYPE_KIND };
 TypeDesc range_desc = { 1, TYPE_RANGE_KIND };
+TypeDesc valist_desc = { 1, TYPE_VA_LIST_KIND };
 
 TypeDesc *desc_optional(TypeDesc *ty)
 {
@@ -124,6 +126,20 @@ int desc_to_str(TypeDesc *ty, Buffer *buf)
             buf_write_char(buf, 'z');
             break;
         }
+        case TYPE_VA_LIST_KIND: {
+            buf_write_str(buf, "...");
+            break;
+        }
+        case TYPE_NO_TYPE_KIND: {
+            // do-nothing
+            break;
+        }
+        case TYPE_ARRAY_KIND: {
+            buf_write_char(buf, '[');
+            ArrayDesc *arr = (ArrayDesc *)ty;
+            desc_to_str(arr->type, buf);
+            break;
+        }
         default: {
             UNREACHABLE();
             break;
@@ -131,6 +147,12 @@ int desc_to_str(TypeDesc *ty, Buffer *buf)
     }
 
     return 0;
+}
+
+TypeDesc *desc_from_str(const char *s)
+{
+    if (!s || s[0] == 0) return desc_no_type();
+    return NULL;
 }
 
 void desc_print(TypeDesc *desc, Buffer *buf)
@@ -167,11 +189,71 @@ void desc_print(TypeDesc *desc, Buffer *buf)
             buf_write_char(buf, '?');
             break;
         }
+        case TYPE_VA_LIST_KIND: {
+            buf_write_str(buf, "...");
+            break;
+        }
+        case TYPE_NO_TYPE_KIND: {
+            buf_write_str(buf, "no-type");
+            break;
+        }
+        case TYPE_ARRAY_KIND: {
+            buf_write_char(buf, '[');
+            ArrayDesc *arr = (ArrayDesc *)desc;
+            desc_print(arr->type, buf);
+            buf_write_char(buf, ']');
+            break;
+        }
         default: {
-            buf_write_str(buf, "unk");
+            UNREACHABLE();
             break;
         }
     }
+}
+
+void desc_str_print(char *s, Buffer *buf)
+{
+    if (!s || s[0] == 0) {
+        buf_write_str(buf, "unk");
+        return;
+    }
+
+    int len = strlen(s);
+    if (len == 1) {
+        char ch = s[0];
+        switch (ch) {
+            case 'i':
+                buf_write_str(buf, "int");
+                break;
+            case 'f':
+                buf_write_str(buf, "float");
+                break;
+            case 's':
+                buf_write_str(buf, "str");
+                break;
+            case 'z':
+                buf_write_str(buf, "bool");
+                break;
+            default:
+                break;
+        }
+        return;
+    }
+
+    if (s[0] == '?') {
+        buf_write_char(buf, '?');
+        desc_str_print(s + 1, buf);
+        return;
+    }
+
+    if (s[0] == '[') {
+        buf_write_char(buf, '[');
+        desc_str_print(s + 1, buf);
+        buf_write_char(buf, ']');
+        return;
+    }
+
+    buf_write_str(buf, s);
 }
 
 #ifdef __cplusplus

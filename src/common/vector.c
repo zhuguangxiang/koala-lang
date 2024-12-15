@@ -139,7 +139,7 @@ int vector_concat(Vector *to, Vector *from)
 {
     void *obj;
     vector_foreach(obj, from) {
-        vector_push_back(to, &obj);
+        vector_push_back(to, obj);
     }
     return 0;
 }

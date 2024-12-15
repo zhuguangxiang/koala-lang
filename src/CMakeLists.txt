@@ -30,7 +30,8 @@ set(PARSER_SRC
     parser/linear_scan.c
     parser/simple_reg_alloc.c
     parser/code_gen.c
-    parser/write_to_klc.c
+    parser/write_klc.c
+    parser/read_klc.c
     parser/klc_dump.c
     parser/pass.c
     parser/passes/dot.c

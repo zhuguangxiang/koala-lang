@@ -68,7 +68,7 @@ Type *range_type(void)
 Type *va_list_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_range();
+    ty->desc = desc_valist();
     return ty;
 }
 

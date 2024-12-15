@@ -68,7 +68,7 @@ Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc, int flags)
 }
 
 Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
-                      Vector *params, int flags)
+                      Vector *params, int flags, char *ann, char *ann_key)
 {
     FuncSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(name));
@@ -80,11 +80,12 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
         sym = NULL;
     } else {
         sym->flags = flags;
-        sym->ret = ret;
         sym->params = params;
         sym->tps = tps;
-        sym->desc = desc_proto(ret, params);
+        sym->desc = ret;
         sym->stbl = stbl_new();
+        sym->ann = ann;
+        sym->ann_key = ann_key;
     }
 
 #ifndef NOLOG
@@ -191,7 +192,7 @@ void stbl_show(HashMap *stbl)
             case SYM_FUNC: {
                 FuncSymbol *fn = (FuncSymbol *)sym;
                 BUF(buf);
-                desc_print(fn->ret, &buf);
+                desc_print(fn->desc, &buf);
                 log_info("function symbol: '%s', ret-type: '%s'", sym->name,
                          BUF_STR(buf));
                 FINI_BUF(buf);
