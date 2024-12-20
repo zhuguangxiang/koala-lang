@@ -21,12 +21,15 @@ static void parse_ident(ParserState *ps, Expr *exp)
         return;
     }
     if (exp->ctx == EXPR_CTX_CALL) {
-        if (sym->kind != SYM_FUNC) {
+        if (sym->kind != SYM_FUNC && sym->kind != SYM_PROTO) {
             kl_error(id->loc, "'%s' is not callable", id->name);
             return;
         }
     }
     exp->desc = DESC_INCREF_GET(sym->desc);
+    id->sym = sym;
+    exp->sym = sym;
+    exp->ir_val = sym->ir_val;
 }
 
 static void parse_lit_int(ParserState *ps, LitExpr *lit)
@@ -80,10 +83,12 @@ static void parse_literal(ParserState *ps, Expr *exp)
     switch (lit->which) {
         case LIT_EXPR_INT: {
             parse_lit_int(ps, lit);
+            exp->ir_val = klr_const_int(lit->ival);
             break;
         }
         case LIT_EXPR_FLT: {
             parse_lit_float(ps, lit);
+            exp->ir_val = klr_const_float(lit->fval);
             break;
         }
         case LIT_EXPR_BOOL: {
@@ -94,6 +99,7 @@ static void parse_literal(ParserState *ps, Expr *exp)
             if (check_utf8(lit->sval, lit->len) < 0) {
                 kl_error(exp->loc, "invalid utf8 string");
             }
+            exp->ir_val = klr_const_str(lit->sval, lit->len);
             break;
         }
         case LIT_EXPR_NONE: {
@@ -107,6 +113,15 @@ static void parse_literal(ParserState *ps, Expr *exp)
     }
 }
 
+static void check_call_args(Vector *params, Vector *exprs)
+{
+    ArgInfo **arg_p;
+    ArgInfo *arg;
+    vector_foreach(arg_p, params) {
+        arg = *arg_p;
+    }
+}
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
@@ -116,14 +131,40 @@ static void parse_call(ParserState *ps, Expr *exp)
     if (!lhs->desc) return;
     exp->desc = DESC_INCREF_GET(lhs->desc);
 
+    int size = vector_size(call->args);
+    KlrValue *args[size + 1];
+
     Expr **arg_p;
     Expr *arg;
     vector_foreach(arg_p, call->args) {
         arg = *arg_p;
-        lhs->ctx = EXPR_CTX_LOAD;
+        arg->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, arg);
         if (!arg->desc) return;
+        args[i__] = arg->ir_val;
     }
+
+    args[size] = NULL;
+
+    if (ps->errors > 0) return;
+
+    Symbol *lhs_sym = lhs->sym;
+    FuncSymbol *fn_sym = NULL;
+    if (lhs_sym->kind == SYM_FUNC) {
+        fn_sym = (FuncSymbol *)lhs_sym;
+        check_call_args(fn_sym->params, call->args);
+        if (ps->errors > 0) return;
+    }
+
+    // codegen
+
+    ParserScope *sc = ps->scope;
+    KlrValue *ir_val = lhs->ir_val;
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, sc->bb);
+
+    KlrValue *ret = klr_build_call(&bldr, ir_val, args, size, "");
+    exp->ir_val = ret;
 }
 
 void parser_visit_expr(ParserState *ps, Expr *exp)

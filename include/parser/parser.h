@@ -8,6 +8,7 @@
 
 #include "ast.h"
 #include "common.h"
+#include "ir.h"
 #include "vector.h"
 
 #ifdef __cplusplus
@@ -43,6 +44,8 @@ typedef struct _ParserScope {
     Symbol *sym;
     /* symbol table of this scope */
     HashMap *stbl;
+    /* basic block */
+    KlrBasicBlock *bb;
 } ParserScope;
 
 /* per compiled file */
@@ -64,7 +67,7 @@ typedef struct _ParserState {
     HashMap *stbl;
 
     /* IR module */
-    void *module;
+    KlrModule *module;
 
     /* token */
     int token;
@@ -123,9 +126,10 @@ void kl_error_detail(ParserState *, Loc *);
 void parser_visit_expr(ParserState *ps, Expr *exp);
 void yyparse_module(ParserState *ps, Vector *imports, Vector *stmts);
 int compile(int argc, char *argv[]);
-void kl_code_gen(ParserState *ps);
+
 void kl_write_to_klc(ParserState *ps);
 void kl_read_from_klc(HashMap *stbl, char *path);
+void kl_emit(ParserState *ps, KlrModule *m);
 
 #ifdef __cplusplus
 }

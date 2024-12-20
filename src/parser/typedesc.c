@@ -152,7 +152,44 @@ int desc_to_str(TypeDesc *ty, Buffer *buf)
 TypeDesc *desc_from_str(const char *s)
 {
     if (!s || s[0] == 0) return desc_no_type();
-    return NULL;
+
+    TypeDesc *ty = NULL;
+
+    int len = strlen(s);
+    if (len == 1) {
+        char ch = s[0];
+        switch (ch) {
+            case 'i':
+                ty = desc_int();
+                break;
+            case 'f':
+                ty = desc_float();
+                break;
+            case 's':
+                ty = desc_str();
+                break;
+            case 'z':
+                ty = desc_bool();
+                break;
+            default:
+                break;
+        }
+        return ty;
+    }
+
+    if (s[0] == '?') {
+        TypeDesc *sub = desc_from_str(s + 1);
+        ty = desc_optional(sub);
+        return ty;
+    }
+
+    if (s[0] == '[') {
+        TypeDesc *sub = desc_from_str(s + 1);
+        ty = desc_array(sub);
+        return ty;
+    }
+
+    return ty;
 }
 
 void desc_print(TypeDesc *desc, Buffer *buf)

@@ -789,7 +789,7 @@ klass_type
     }
     | ID '.' error
     {
-        kl_error(loc(@3), "expected and identifer.");
+        kl_error(loc(@3), "expected and identifier.");
         yy_clear_ok;
         $$ = NULL;
     }
@@ -952,7 +952,7 @@ var_decl
     }
     | VAR error
     {
-        kl_error(loc(@2), "expected an identifer.");
+        kl_error(loc(@2), "expected an identifier.");
         yy_clear_ok;
         $$ = NULL;
     }
@@ -1521,11 +1521,11 @@ local
     }
     | free_var_decl semi
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | return_stmt semi
     {
-
+        $$ = $1;
     }
     | jump_stmt semi
     {
@@ -1641,11 +1641,13 @@ assign_operator
 return_stmt
     : RETURN
     {
-        // $$ = stmt_from_return(NULL);
+        $$ = stmt_from_return(NULL);
+        stmt_set_loc($$, loc(@1));
     }
     | RETURN expr
     {
-        // $$ = stmt_from_return($2);
+        $$ = stmt_from_return($2);
+        stmt_set_loc($$, lloc(@1, @2));
     }
     ;
 

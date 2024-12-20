@@ -271,7 +271,7 @@ void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target)
     klr_link_edge(bldr->bb, target);
 }
 
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrFunc *fn, KlrValue **args, int nargs,
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs,
                          char *name)
 {
     KlrInsn *insn = new_insn(OP_CALL, nargs + 1, name);
@@ -288,6 +288,15 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret)
 {
     KlrInsn *insn = new_insn(OP_RETURN, 1, "");
     init_oper(&insn->opers[0], insn, ret);
+    klr_append_insn(bldr, insn);
+
+    KlrFunc *fn = bldr->bb->func;
+    klr_link_edge(bldr->bb, fn->ebb);
+}
+
+void klr_build_ret_void(KlrBuilder *bldr)
+{
+    KlrInsn *insn = new_insn(OP_RETURN_NONE, 0, "");
     klr_append_insn(bldr, insn);
 
     KlrFunc *fn = bldr->bb->func;

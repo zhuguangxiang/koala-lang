@@ -99,7 +99,8 @@ void klr_alloc_registers(KlrFunc *func)
         interval.val = (KlrValue *)(*param);
         interval.allocated = 0;
         interval.start = 0;
-        interval.end = val_last_use_pos((KlrValue *)(*param));
+        // interval.end = val_last_use_pos((KlrValue *)(*param));
+        interval.end = pos ? pos : 1;
         vector_push_back(&ctx.intervals, &interval);
 #ifndef NOLOG
         fprintf(stdout, "param: ");
@@ -149,7 +150,21 @@ void klr_alloc_registers(KlrFunc *func)
     int num_regs = vector_size(&ctx.intervals);
     ASSERT(num_regs < 256);
     for (int i = 0; i <= pos; i++) {
+        // sort intervals ?
         KlrInterval *interval;
+        // check register free
+        for (int j = 0; j < num_regs; j++) {
+            interval = vector_get(&ctx.intervals, j);
+            KlrValue *val = interval->val;
+            if (!in_range(i, interval)) {
+                if (interval->allocated) {
+                    __free_register(&ctx, val);
+                    interval->allocated = 0;
+                }
+            }
+        }
+
+        // check register alloc
         for (int j = 0; j < num_regs; j++) {
             interval = vector_get(&ctx.intervals, j);
             KlrValue *val = interval->val;
@@ -157,11 +172,6 @@ void klr_alloc_registers(KlrFunc *func)
                 if (!interval->allocated) {
                     __alloc_register(&ctx, val);
                     interval->allocated = 1;
-                }
-            } else {
-                if (interval->allocated) {
-                    __free_register(&ctx, val);
-                    interval->allocated = 0;
                 }
             }
         }

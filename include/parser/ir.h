@@ -25,6 +25,7 @@ typedef enum _KlrValueKind {
     KLR_VALUE_PARAM,
     KLR_VALUE_LOCAL,
     KLR_VALUE_INSN,
+    KLR_VALUE_EXT_FUNC,
     KLR_VALUE_MAX,
 } KlrValueKind;
 
@@ -99,6 +100,13 @@ typedef struct _KlrLocal {
 typedef struct _KlrParam {
     KLR_VALUE_HEAD
 } KlrParam;
+
+/* external function */
+typedef struct _KlrExtFunc {
+    KLR_VALUE_HEAD
+    /* module pointer */
+    struct _KlrModule *module;
+} KlrExtFunc;
 
 /* function */
 typedef struct _KlrFunc {
@@ -190,6 +198,8 @@ typedef struct _KlrModule {
     Vector globals;
     /* functions */
     Vector functions;
+    /* external functions */
+    Vector ext_funcs;
     /* __init__ function */
     KlrFunc *init;
     /* symbol table */
@@ -284,7 +294,7 @@ typedef struct _KlrBuilder {
 KlrValue *klr_const_int(int64_t val);
 KlrValue *klr_const_float(double val);
 KlrValue *klr_const_bool(int val);
-KlrValue *klr_const_string(char *s, int len);
+KlrValue *klr_const_str(char *s, int len);
 
 /* <2> module */
 
@@ -300,6 +310,8 @@ KlrValue *klr_add_func(KlrModule *m, TypeDesc *ret, TypeDesc **params, char *nam
 KlrValue *klr_get_param(KlrValue *fn, int index);
 KlrValue *klr_add_global(KlrModule *m, TypeDesc *ty, char *name);
 KlrValue *klr_add_local(KlrBuilder *bldr, TypeDesc *ty, char *name);
+// ir doesn't check external function's arguments
+KlrValue *klr_add_ext_func(KlrModule *m, TypeDesc *ret, char *name);
 
 #define local_foreach(local, func) vector_foreach(local, &(func)->locals)
 
@@ -443,11 +455,14 @@ void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
 void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target);
 
 /* IR: %0 int = call %func, %argument-list */
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrFunc *fn, KlrValue **args, int nargs,
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs,
                          char *name);
 
 /* IR: ret %var */
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
+
+/* IR: ret */
+void klr_build_ret_void(KlrBuilder *bldr);
 
 /* IR: push %var */
 KlrInsn *klr_new_push(KlrValue *val);
@@ -517,6 +532,11 @@ void klr_print_module(KlrModule *m, FILE *fp);
 #define klr_dump_module(m) \
     klr_print_module(m, stdout); \
     fflush(stdout);
+
+void klr_insn_remap(KlrFunc *func);
+void klr_alloc_registers(KlrFunc *func);
+void klr_constant_propagation_pass(KlrFunc *func, void *ctx);
+void klr_simple_alloc_registers(KlrFunc *func);
 
 /* <6> instruction builder */
 

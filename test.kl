@@ -1,26 +1,26 @@
 
 // const primitive types
-let v = 1
-let v2 = 31000
-let v3 = 33000
+// let v = 1
+// let v2 = 31000
+// let v3 = 33000
 
-let INT_MAX = 9_223_372_036_854_775_807
-let INT_MIN = -9_223_372_036_854_775_808
-let hex = 0xcafe_cafe
-let hex2 = 0Xcafecafe
-let n = 0b0101_0101
-let n1 = 0B01010101
-let n2 = 0o721_127
-let n3 = 0O721127
+// let INT_MAX = 9_223_372_036_854_775_807
+// let INT_MIN = -9_223_372_036_854_775_808
+// let hex = 0xcafe_cafe
+// let hex2 = 0Xcafecafe
+// let n = 0b0101_0101
+// let n1 = 0B01010101
+// let n2 = 0o721_127
+// let n3 = 0O721127
 
-let f = -1.23
-let b = true
-let s = 'hello, \'\nworld'
+// let f = -1.23
+// let b = true
+// let s = 'hello, \'\nworld'
 
-var na int? = none
+// var na int? = none
 
 func main(args [str]) {
-    print(s, f, n3)
+    print("hello world", 100)
 }
 
 // var r = 100.0

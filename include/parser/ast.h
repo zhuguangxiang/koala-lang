@@ -127,7 +127,7 @@ typedef enum _ExprCtx {
 
 /* clang-format off */
 #define EXPR_HEAD ExprKind kind; Loc loc; ExprCtx ctx; TypeDesc *desc; \
-    TypeDesc *expected; HashMap *stbl;
+    TypeDesc *expected; HashMap *stbl; Symbol *sym; KlrValue *ir_val;
 /* clang-format on */
 
 typedef struct _Expr {
@@ -493,7 +493,7 @@ Stmt *stmt_from_guard_let(Ident *id, Expr *exp, Vector *block);
 typedef struct _ExprStmt {
     STMT_HEAD
     Expr *exp;
-} ExprStmt;
+} ExprStmt, RetStmt;
 
 Stmt *stmt_from_expr(Expr *exp);
 
@@ -511,6 +511,8 @@ Stmt *stmt_from_type(StmtKind kind, Ident id, Vector *tps, Vector *bases, Vector
     stmt_from_type(STMT_CLASS_KIND, id, tps, bases, stmts)
 #define stmt_from_trait(id, tps, bases, stmts) \
     stmt_from_type(STMT_TRAIT_KIND, id, tps, bases, stmts)
+
+Stmt *stmt_from_return(Expr *exp);
 
 #ifdef __cplusplus
 }

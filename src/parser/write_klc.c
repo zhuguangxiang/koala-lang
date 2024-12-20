@@ -71,9 +71,11 @@ void kl_write_to_klc(ParserState *ps)
                 }
 
                 BUF(buf);
+
                 desc_to_str(fn->desc, &buf);
                 KlcFunc *f = klc_add_func(&klc, fn->name, BUF_STR(buf), flags);
 
+                // add argument info
                 ArgInfo **item_p;
                 ArgInfo *item;
                 vector_foreach(item_p, fn->params) {
@@ -83,10 +85,17 @@ void kl_write_to_klc(ParserState *ps)
                     klc_func_add_arg(f, item->name, BUF_STR(buf), item->dfl_val_idx);
                 }
 
+                FINI_BUF(buf);
+
+                // add annotations
                 if (fn->ann) {
                     klc_func_add_ann(f, fn->ann, fn->ann_key, NULL);
                 }
-                FINI_BUF(buf);
+
+                // add byte codes
+                if (fn->ir_val) {
+                    printf("byte codes: %p\n", fn->ir_val);
+                }
                 break;
             }
             case SYM_CLASS: {

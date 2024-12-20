@@ -35,9 +35,9 @@ void klr_print_name_or_tag(KlrValue *val, FILE *fp)
     }
 
     if (val->name[0]) {
-        fprintf(fp, "%%%s", val->name);
+        fprintf(fp, "%%%s(%d)", val->name, val->vreg);
     } else {
-        fprintf(fp, "%%%d", val->tag);
+        fprintf(fp, "%%%d(%d)", val->tag, val->vreg);
     }
 }
 

@@ -551,6 +551,14 @@ Stmt *stmt_from_type(StmtKind kind, Ident id, Vector *tps, Vector *bases, Vector
     return (Stmt *)s;
 }
 
+Stmt *stmt_from_return(Expr *exp)
+{
+    RetStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_RETURN_KIND;
+    s->exp = exp;
+    return (Stmt *)s;
+}
+
 void stmt_free(Stmt *stmt) {}
 
 #ifdef __cplusplus

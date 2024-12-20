@@ -123,6 +123,10 @@ TypeDesc *desc_proto(TypeDesc *ret, Vector *params);
 
 static inline int desc_is_int(TypeDesc *desc) { return desc->kind == TYPE_INT_KIND; }
 static inline int desc_is_proto(TypeDesc *desc) { return desc->kind == TYPE_PROTO_KIND; }
+static inline int desc_is_no_type(TypeDesc *desc)
+{
+    return desc->kind == TYPE_NO_TYPE_KIND;
+}
 void free_desc(TypeDesc *ty);
 int desc_equal(TypeDesc *a, TypeDesc *b);
 int desc_to_str(TypeDesc *ty, Buffer *buf);

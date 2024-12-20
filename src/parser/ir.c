@@ -40,7 +40,7 @@ KlrValue *klr_const_bool(int v)
     return (KlrValue *)lit;
 }
 
-KlrValue *klr_const_string(char *s, int len)
+KlrValue *klr_const_str(char *s, int len)
 {
     KlrConst *lit = mm_alloc_obj_fast(lit);
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, &str_desc, "");
@@ -140,6 +140,7 @@ KlrModule *klr_create_module(char *name)
     m->name = name;
     vector_init_ptr(&m->globals);
     vector_init_ptr(&m->functions);
+    vector_init_ptr(&m->ext_funcs);
     m->init = NULL;
     return m;
 }
@@ -208,6 +209,15 @@ KlrValue *klr_add_local(KlrBuilder *bldr, TypeDesc *ty, char *name)
     KlrFunc *func = bb->func;
     vector_push_back(&func->locals, &local);
     return (KlrValue *)local;
+}
+
+KlrValue *klr_add_ext_func(KlrModule *m, TypeDesc *ret, char *name)
+{
+    KlrExtFunc *fn = mm_alloc_obj(fn);
+    INIT_KLR_VALUE(fn, KLR_VALUE_EXT_FUNC, ret, name);
+    vector_push_back(&m->ext_funcs, &fn);
+    fn->module = m;
+    return (KlrValue *)fn;
 }
 
 #ifdef __cplusplus

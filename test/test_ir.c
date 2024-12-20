@@ -121,12 +121,12 @@ void build_fib(KlrModule *m)
     val = klr_build_load(&bldr, param);
     KlrValue *sub = klr_build_sub(&bldr, val, klr_const_int(1), "");
     KlrValue *args1[] = { sub, NULL };
-    KlrValue *ret1 = klr_build_call(&bldr, (KlrFunc *)func, args1, 1, "");
+    KlrValue *ret1 = klr_build_call(&bldr, func, args1, 1, "");
 
     val = klr_build_load(&bldr, param);
     sub = klr_build_sub(&bldr, val, klr_const_int(2), "");
     KlrValue *args2[] = { sub, NULL };
-    KlrValue *ret2 = klr_build_call(&bldr, (KlrFunc *)func, args2, 1, "");
+    KlrValue *ret2 = klr_build_call(&bldr, func, args2, 1, "");
 
     KlrValue *ret = klr_build_add(&bldr, ret1, ret2, "");
     klr_build_ret(&bldr, ret);

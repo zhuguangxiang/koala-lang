@@ -19,6 +19,8 @@ remap to VM byte codes
 extern "C" {
 #endif
 
+static void cgen_stmt(ParserState *ps, Stmt *s);
+
 static void cgen_var_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *var = (VarDeclStmt *)stmt;
@@ -27,18 +29,27 @@ static void cgen_var_decl(ParserState *ps, Stmt *stmt)
     if (exp->kind != EXPR_LITERAL_KIND) {
         // generate code in __init__()
         printf("generate code in __init__()\n");
-    } else {
-        printf("no need generate code for var decl\n");
     }
 }
 
 static void cgen_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
+
     if (!fn->body || vector_empty(fn->body)) {
         log_info("func '%s' no body", fn->id.name);
         return;
     }
+
+    KlrValue *fval = klr_add_func(ps->module, NULL, NULL, fn->id.name);
+    KlrBasicBlock *entry = klr_append_block(fval, "entry");
+
+    Stmt **s;
+    vector_foreach(s, fn->body) {
+        cgen_stmt(ps, *s);
+    }
+
+    klr_print_func((KlrFunc *)fval, stdout);
 }
 
 static void cgen_class(ParserState *ps, Stmt *stmt) {}
@@ -47,7 +58,7 @@ static void cgen_trait(ParserState *ps, Stmt *stmt) {}
 
 static void cgen_expr(ParserState *ps, Stmt *stmt) {}
 
-void kl_code_gen(ParserState *ps)
+static void cgen_stmt(ParserState *ps, Stmt *s)
 {
     /* clang-format off */
     static void (*handlers[])(ParserState *, Stmt *) = {
@@ -70,6 +81,11 @@ void kl_code_gen(ParserState *ps)
     };
     /* clang-format on */
 
+    handlers[s->kind](ps, s);
+}
+
+void kl_code_gen(ParserState *ps)
+{
     KlrModule *m = klr_create_module(ps->filename);
     if (!m) return;
     ps->module = m;
@@ -79,7 +95,7 @@ void kl_code_gen(ParserState *ps)
 
     Stmt **stmt;
     vector_foreach(stmt, &ps->stmts) {
-        handlers[(*stmt)->kind](ps, *stmt);
+        cgen_stmt(ps, *stmt);
     }
 
     klr_dump_module(m);

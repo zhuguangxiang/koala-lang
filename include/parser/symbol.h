@@ -8,6 +8,7 @@
 
 #include "common.h"
 #include "hashmap.h"
+#include "ir.h"
 #include "typedesc.h"
 #include "vector.h"
 
@@ -39,7 +40,8 @@ typedef enum _SymKind {
 #define SYM_FLAGS_TAG_VALUE (1 << 6)
 
 #define SYMBOL_HEAD \
-    HashMapEntry hnode; SymKind kind; int flags; char *name; TypeDesc *desc; HashMap *stbl;
+    HashMapEntry hnode; SymKind kind; int flags; char *name; TypeDesc *desc; \
+    HashMap *stbl; KlrValue *ir_val;
 
 /* clang-format on */
 

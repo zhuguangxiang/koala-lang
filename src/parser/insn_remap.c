@@ -6,13 +6,14 @@
 #include "ir.h"
 #include "mm.h"
 
-/* codegen: instruction selection */
+/* codegen: target instruction(byte code) selection */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* select better target machine opcode instruction */
+// remove load/store/branch and others which don't exist byte codes in virtual machine
 
 /*
 OP_IR_STORE     -->>        OP_LOAD/OP_MOVE

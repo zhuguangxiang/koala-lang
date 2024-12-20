@@ -95,6 +95,17 @@ static void exit_scope(ParserState *ps)
     --ps->depth;
 }
 
+static void update_ir_info(ParserState *ps, Symbol *sym)
+{
+    KlrValue *val = NULL;
+    if (sym->kind == SYM_FUNC) {
+        val = klr_add_ext_func(ps->module, DESC_INCREF_GET(sym->desc), sym->name);
+    } else {
+        NYI();
+    }
+    sym->ir_val = val;
+}
+
 Symbol *find_symbol(ParserState *ps, Ident *id)
 {
     ParserScope *sc = ps->scope;
@@ -131,6 +142,7 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         log_info("find symbol '%s' in builtin module", id->name);
         id->where = BLTIN_SCOPE;
         id->scope = NULL;
+        update_ir_info(ps, sym);
         return sym;
     }
 
@@ -191,7 +203,8 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
      * If var is local, it needs to be added into symbol table.
      */
     if (var->where != VAR_GLOBAL) {
-        if (!_add_var(ps, ps->scope->stbl, var)) return;
+        ParserScope *sc = ps->scope;
+        if (!_add_var(ps, sc->stbl, var)) return;
     }
 
     VarSymbol *sym = (VarSymbol *)id->sym;
@@ -236,6 +249,16 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
             log_info("rhs:");
             print_desc(exp->desc);
         }
+    }
+
+    // codegen
+    ParserScope *sc = ps->scope;
+    if (sc->kind == SCOPE_FUNC) {
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, sc->bb);
+        KlrValue *ir_var = klr_add_local(&bldr, sym->desc, id->name);
+        sym->ir_val = ir_var;
+        klr_build_store(&bldr, ir_var, exp->ir_val);
     }
 }
 
@@ -301,28 +324,57 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
 
 static void parse_stmt(ParserState *ps, Stmt *stmt);
 
-static void parse_body(ParserState *ps, Vector *stmts)
+static void parse_body(ParserState *ps, FuncSymbol *sym, Vector *stmts)
 {
     int sz = vector_size(stmts);
-    int index = 0;
-    Stmt **s;
-    vector_foreach(s, stmts) {
-        parse_stmt(ps, *s);
+    Stmt **s_p;
+    Stmt *s;
+    vector_foreach(s_p, stmts) {
+        s = *s_p;
+        parse_stmt(ps, s);
         if (ps->errors >= MAX_ERRORS) break;
-        ++index;
 
-        if ((*s)->kind == STMT_RETURN_KIND) {
-            if (index < sz) {
-                kl_error((*s)->loc, "statements after this are unreachable.");
+        if (i__ + 1 < sz) {
+            if (s->kind == STMT_RETURN_KIND) {
+                kl_error(s->loc, "statements after this are unreachable.");
                 return;
             }
         }
 
-        if (index == sz && (*s)->kind == STMT_EXPR_KIND) {
-            /*
-             * If last statement is expression in func body,
-             * the expr value can be func return value.
-             */
+        // last statement
+        if (i__ + 1 == sz) {
+            if (s->kind != STMT_RETURN_KIND) {
+                if (s->kind == STMT_EXPR_KIND) {
+                    /*
+                     * If last statement is expression in func body,
+                     * the expr value can be func return value.
+                     */
+                    ExprStmt *exp = (ExprStmt *)s;
+                    KlrBuilder bldr;
+                    ParserScope *sc = ps->scope;
+                    klr_builder_end(&bldr, sc->bb);
+                    if (desc_is_no_type(sym->desc)) {
+                        klr_build_ret_void(&bldr);
+                    } else {
+                        // check types
+                        // code gen
+                        klr_build_ret(&bldr, exp->exp->ir_val);
+                    }
+                } else {
+                    UNREACHABLE();
+                }
+            } else {
+                // last statement is return statement
+                RetStmt *ret = (RetStmt *)s;
+                if (desc_is_no_type(sym->desc)) {
+                    if (ret->exp) {
+                        kl_error(s->loc, "func '%s' has not return value.", sym->name);
+                        return;
+                    }
+                } else {
+                    // check types
+                }
+            }
         }
     }
 }
@@ -341,10 +393,15 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
 
     sc = enter_scope(ps, SCOPE_FUNC, 0);
     sc->stbl = sym->stbl;
+    sc->sym = (Symbol *)sym;
 
     /* add parameters into function symbol table */
 
     Vector *args = vector_create_ptr();
+
+    int size = vector_size(fn->args);
+    TypeDesc *params[(size + 1)];
+    Symbol *arg_syms[size];
 
     ParamDecl **param_p;
     ParamDecl *param;
@@ -367,17 +424,36 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
             desc = e->desc;
             DESC_INCREF(desc);
         }
-        stbl_add_var(sc->stbl, param->id.name, desc, 0);
+        Symbol *s = stbl_add_var(sc->stbl, param->id.name, desc, 0);
 
         arg->desc = desc;
         DESC_INCREF(desc);
         vector_push_back(args, &arg);
+
+        params[i__] = DESC_INCREF_GET(desc);
+        arg_syms[i__] = s;
     }
+
+    params[size] = 0;
 
     sym->params = args;
 
+    KlrValue *fval = klr_add_func(ps->module, sym->desc, params, fn->id.name);
+    sym->ir_val = fval;
+    KlrBasicBlock *entry = klr_append_block(fval, "entry");
+    sc->bb = entry;
+
+    for (int i = 0; i < size; i++) {
+        Symbol *s = arg_syms[i];
+        s->ir_val = klr_get_param(fval, i);
+    }
+
     /* parse body */
-    parse_body(ps, fn->body);
+    parse_body(ps, sym, fn->body);
+
+    klr_print_func((KlrFunc *)fval, stdout);
+    klr_alloc_registers((KlrFunc *)fval);
+    klr_print_func((KlrFunc *)fval, stdout);
 
     exit_scope(ps);
 }
@@ -457,6 +533,29 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
     exit_scope(ps);
 }
 
+static void parse_return(ParserState *ps, Stmt *stmt)
+{
+    RetStmt *ret = (RetStmt *)stmt;
+    Expr *exp = ret->exp;
+    KlrValue *ir_val = NULL;
+    if (exp) {
+        exp->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, exp);
+        if (!exp->desc) return;
+        ir_val = exp->ir_val;
+    }
+
+    // codegen
+    ParserScope *sc = ps->scope;
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, sc->bb);
+    if (ir_val)
+        klr_build_ret(&bldr, ir_val);
+    else
+        klr_build_ret_void(&bldr);
+}
+
 static void parse_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -466,22 +565,22 @@ static void parse_stmt(ParserState *ps, Stmt *stmt)
 
     /* clang-format off */
     static void (*handlers[])(ParserState *, Stmt *) = {
-        NULL,                       /* INVALID          */
-        NULL, // parse_import,               /* IMPORT_KIND      */
-        parse_var_decl,             /* VAR_KIND         */
-        parse_func_decl,            /* FUNC_KIND        */
-        parse_class,                /* CLASS_KIND       */
-        parse_trait,                /* TRAIT_KIND       */
-        NULL, // parse_return,               /* RETURN_KIND      */
-        NULL, // parse_assign,               /* ASSIGN_KIND      */
-        NULL, // parse_break,                /* BREAK_KIND       */
-        NULL, // parse_continue,             /* CONTINUE_KIND    */
-        parse_expr,                 /* EXPR_KIND        */
-        NULL, // parse_block,                /* BLOCK_KIND       */
-        NULL, // parse_if,                   /* IF_KIND          */
-        NULL, // parse_while,                /* WHILE_KIND       */
-        NULL, // parse_for,                  /* FOR_KIND         */
-        NULL, // parse_match,                /* MATCH_KIND       */
+        NULL,                               /* INVALID          */
+        NULL, // parse_import,              /* IMPORT_KIND      */
+        parse_var_decl,                     /* VAR_KIND         */
+        parse_func_decl,                    /* FUNC_KIND        */
+        parse_class,                        /* CLASS_KIND       */
+        parse_trait,                        /* TRAIT_KIND       */
+        parse_return,                       /* RETURN_KIND      */
+        NULL, // parse_assign,              /* ASSIGN_KIND      */
+        NULL, // parse_break,               /* BREAK_KIND       */
+        NULL, // parse_continue,            /* CONTINUE_KIND    */
+        parse_expr,                         /* EXPR_KIND        */
+        NULL, // parse_block,               /* BLOCK_KIND       */
+        NULL, // parse_if,                  /* IF_KIND          */
+        NULL, // parse_while,               /* WHILE_KIND       */
+        NULL, // parse_for,                 /* FOR_KIND         */
+        NULL, // parse_match,               /* MATCH_KIND       */
     };
     /* clang-format on */
 
@@ -555,9 +654,16 @@ int compile(int argc, char *argv[])
     ParserState *ps = build_ast(argv[1]);
     if (!ps) return -1;
 
+    KlrModule *m = klr_create_module(ps->filename);
+    if (!m) return -1;
+    ps->module = m;
+
+    KlrValue *fn = klr_add_func(m, NULL, NULL, "__init__");
+    m->init = (KlrFunc *)fn;
+
     parse_ast(ps);
+
     if (!ps->errors) {
-        kl_code_gen(ps);
         kl_write_to_klc(ps);
     }
 
