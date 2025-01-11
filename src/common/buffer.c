@@ -70,24 +70,18 @@ void buf_write_char(Buffer *self, char ch)
     self->buf[self->len++] = ch;
 }
 
-void buf_write_int(Buffer *self, int ch)
+void buf_write_byte(Buffer *self, uint8_t val)
 {
-    char buf[64];
-    if (ch < 255) {
-        snprintf(buf, 63, "'%c'", (char)ch);
-        buf_write_nstr(self, buf, 3);
-    } else {
-        buf_write_char(self, '\'');
-        buf_write_str(self, (char *)&ch);
-        buf_write_char(self, '\'');
-    }
+    if (available(self, 1) <= 0) return;
+    self->buf[self->len++] = val;
 }
 
-void buf_write_byte(Buffer *self, int val)
+void buf_write_word(Buffer *self, uint16_t val)
 {
-    char buf[64];
-    int sz = snprintf(buf, 63, "%d", val);
-    buf_write_nstr(self, buf, sz);
+    if (available(self, 2) <= 0) return;
+    uint16_t *ptr = (uint16_t *)(self->buf + self->len);
+    *ptr = val;
+    self->len += 2;
 }
 
 void buf_write_int64(Buffer *self, int64_t val)

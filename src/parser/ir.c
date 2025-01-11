@@ -15,8 +15,18 @@ KlrValue *klr_const_int(int64_t val)
     KlrConst *lit = mm_alloc_obj_fast(lit);
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, &int_desc, "");
     lit->which = CONST_INT;
-    lit->len = 0;
     lit->ival = val;
+
+    if (val >= INT8_MIN && val <= INT8_MAX) {
+        lit->len = 1;
+    } else if (val >= INT16_MIN && val <= INT16_MAX) {
+        lit->len = 2;
+    } else if (val >= INT32_MIN && val <= INT32_MAX) {
+        lit->len = 4;
+    } else {
+        lit->len = 8;
+    }
+
     return (KlrValue *)lit;
 }
 
@@ -211,12 +221,13 @@ KlrValue *klr_add_local(KlrBuilder *bldr, TypeDesc *ty, char *name)
     return (KlrValue *)local;
 }
 
-KlrValue *klr_add_ext_func(KlrModule *m, TypeDesc *ret, char *name)
+KlrValue *klr_add_ext_func(KlrModule *m, TypeDesc *ret, char *module, char *name)
 {
     KlrExtFunc *fn = mm_alloc_obj(fn);
     INIT_KLR_VALUE(fn, KLR_VALUE_EXT_FUNC, ret, name);
     vector_push_back(&m->ext_funcs, &fn);
     fn->module = m;
+    fn->owner = module;
     return (KlrValue *)fn;
 }
 

@@ -95,11 +95,11 @@ static void exit_scope(ParserState *ps)
     --ps->depth;
 }
 
-static void update_ir_info(ParserState *ps, Symbol *sym)
+static void update_ir_info(ParserState *ps, Symbol *sym, char *module)
 {
     KlrValue *val = NULL;
     if (sym->kind == SYM_FUNC) {
-        val = klr_add_ext_func(ps->module, DESC_INCREF_GET(sym->desc), sym->name);
+        val = klr_add_ext_func(ps->module, DESC_INCREF_GET(sym->desc), module, sym->name);
     } else {
         NYI();
     }
@@ -142,7 +142,7 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         log_info("find symbol '%s' in builtin module", id->name);
         id->where = BLTIN_SCOPE;
         id->scope = NULL;
-        update_ir_info(ps, sym);
+        update_ir_info(ps, sym, "builtin");
         return sym;
     }
 
@@ -450,10 +450,6 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
 
     /* parse body */
     parse_body(ps, sym, fn->body);
-
-    klr_print_func((KlrFunc *)fval, stdout);
-    klr_alloc_registers((KlrFunc *)fval);
-    klr_print_func((KlrFunc *)fval, stdout);
 
     exit_scope(ps);
 }

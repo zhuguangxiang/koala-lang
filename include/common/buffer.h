@@ -56,6 +56,12 @@ void buf_nwrite(Buffer *self, int count, ...);
 /* Write a char into buffer. */
 void buf_write_char(Buffer *self, char ch);
 
+/* Write a byte into buffer. */
+void buf_write_byte(Buffer *self, uint8_t val);
+
+/* Write a word into buffer. */
+void buf_write_word(Buffer *self, uint16_t val);
+
 /* Write an int64 into buffer. */
 void buf_write_int64(Buffer *self, int64_t val);
 

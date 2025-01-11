@@ -13,6 +13,8 @@
 extern "C" {
 #endif
 
+void kl_emit_func(ParserState *ps, KlrFunc *fn, KlcFunc *klc_fn);
+
 void kl_write_to_klc(ParserState *ps)
 {
     HashMap *stbl = ps->stbl;
@@ -95,6 +97,7 @@ void kl_write_to_klc(ParserState *ps)
                 // add byte codes
                 if (fn->ir_val) {
                     printf("byte codes: %p\n", fn->ir_val);
+                    kl_emit_func(ps, (KlrFunc *)fn->ir_val, f);
                 }
                 break;
             }
@@ -125,6 +128,14 @@ void kl_write_to_klc(ParserState *ps)
     klc_dump(&klc);
 
     fini_klc_file(&klc);
+
+    printf("read klc file: %s\n", BUF_STR(output));
+
+    KlcFile klc2;
+    init_klc_file(&klc2, BUF_STR(output));
+    read_klc_file(&klc2, 1);
+    klc_dump(&klc2);
+
     FINI_BUF(output);
 }
 

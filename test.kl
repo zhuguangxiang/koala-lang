@@ -20,7 +20,8 @@
 // var na int? = none
 
 func main(args [str]) {
-    print("hello world", 100)
+    print("hello world", -100)
+    print(100, true)
 }
 
 // var r = 100.0

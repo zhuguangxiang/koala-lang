@@ -18,7 +18,7 @@ extern "C" {
 #define ITEM_FUNC  2
 #define ITEM_CLASS 3
 #define ITEM_RELOC 4
-#define ITEM_CODES 5
+#define ITEM_CODE  5
 #define ITEM_MAX   6
 
 typedef struct _KlcFile {
@@ -176,6 +176,9 @@ uint16_t klc_add_int(KlcFile *klc, int64_t val);
 uint16_t klc_add_float(KlcFile *klc, double val);
 uint16_t klc_add_str(KlcFile *klc, char *s, int len);
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len);
+
+uint16_t klc_add_code(KlcFile *klc, int num_locals, int code_size, char *codes);
+uint16_t klc_add_reloc(KlcFile *klc, char *ns, char *sym);
 
 void init_klc_file(KlcFile *klc, const char *path);
 void fini_klc_file(KlcFile *klc);

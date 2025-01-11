@@ -29,7 +29,7 @@ set(PARSER_SRC
     parser/insn_remap.c
     parser/linear_scan.c
     parser/simple_reg_alloc.c
-    parser/code_gen.c
+    parser/emit_code.c
     parser/write_klc.c
     parser/read_klc.c
     parser/klc_dump.c

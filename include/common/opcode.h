@@ -22,9 +22,10 @@ typedef enum _OpCode {
     OP_POP,                 /* A                R(A) = STK(--top)               */
     OP_PUSH_NONE,           /*                  STK(top++) = None               */
     OP_PUSH_IMM8,           /* K(1)             STK(top++) = K                  */
+    OP_PUSH_IMM16,          /* K(2)             STK(top++) = K                  */
     OP_PUSH_CONST,          /* K(2)             STK(top++) = CP(K)              */
 
-    OP_CONST_LOAD,          /* A K16            R(A) = CP(K16)                  */
+    OP_CONST_LOAD,          /* A K(2)           R(A) = CP(K)                    */
     OP_CONST_NONE,          /* A                R(A) = None                     */
     OP_CONST_INT_M1,        /* A                R(A) = -1                       */
     OP_CONST_INT_0,         /* A                R(A) = 0                        */

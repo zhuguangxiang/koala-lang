@@ -106,6 +106,8 @@ typedef struct _KlrExtFunc {
     KLR_VALUE_HEAD
     /* module pointer */
     struct _KlrModule *module;
+    /* owner module name */
+    char *owner;
 } KlrExtFunc;
 
 /* function */
@@ -311,7 +313,7 @@ KlrValue *klr_get_param(KlrValue *fn, int index);
 KlrValue *klr_add_global(KlrModule *m, TypeDesc *ty, char *name);
 KlrValue *klr_add_local(KlrBuilder *bldr, TypeDesc *ty, char *name);
 // ir doesn't check external function's arguments
-KlrValue *klr_add_ext_func(KlrModule *m, TypeDesc *ret, char *name);
+KlrValue *klr_add_ext_func(KlrModule *m, TypeDesc *ret, char *module, char *name);
 
 #define local_foreach(local, func) vector_foreach(local, &(func)->locals)
 
