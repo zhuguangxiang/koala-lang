@@ -21,7 +21,8 @@ static int semicolon(ParserState *ps)
 {
     static int tokens[] = {
         INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF, SUPER,
-        TRUE, FALSE, INT, FLOAT, STRING, BOOL, OBJECT,
+        TRUE, FALSE, UINT8, UINT16, UINT32, UINT64, UINT, INT8, INT16, INT32, INT64, INT,
+        FLOAT16, FLOAT32, FLOAT64, BFLOAT16, STRING, BOOL, OBJECT,
         RETURN, BREAK, CONTINUE, ')', ']', '}', '?',
         '_', NOT,
     };
@@ -57,6 +58,68 @@ static void replace_comma_under(int base, char *s, int len, Buffer *buf)
         ++s;
     }
     return;
+}
+
+static void parse_decimal_int_literal(ParserState *ps, YYSTYPE *yylval, char *s)
+{
+    ps->bit_mode = 0;
+
+    // default is signed
+    ps->sign = 1;
+
+    int negative = 0;
+
+    if (s[0] == '-') {
+        negative = 1;
+        s += 1;
+    }
+
+    /* 0 ... INT64_MAX ... UINT64_MAX */
+    errno = 0;
+    yylval->ival = strtoll(s, NULL, 10);
+    if (errno) {
+        // [127 + 1, ...]
+        errno = 0;
+        yylval->ival = strtoull(s, NULL, 10);
+        if (errno == 0) {
+            if (negative) {
+                if (yylval->ival == 9223372036854775808ULL) {
+                    yylval->ival = (__int128_t)-9223372036854775807LL - 1;
+                } else {
+                    errno = 1;
+                }
+            } else {
+                // mark it as unsigned
+                ps->sign = 0;
+            }
+        }
+    } else {
+        // [0, 127]
+        if (negative) { yylval->ival = -yylval->ival; }
+    }
+}
+
+static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len, int base)
+{
+    ps->sval = atom_nstr(s, len);
+    BUF(buf);
+    replace_comma_under(base, s, len, &buf);
+    char *_s = BUF_STR(buf);
+    if (base != 10) {
+        errno = 0;
+        if (_s[0] == '-') {
+            ps->sign = 1;
+            _s += 1;
+        } else {
+            ps->sign = 0;
+        }
+        yyval->ival = strtoull(_s, NULL, base);
+        ps->bit_mode = 1;
+        if (ps->sign) { yyval->ival = -yyval->ival; }
+    } else {
+        parse_decimal_int_literal(ps, yyval, _s);
+    }
+    FINI_BUF(buf);
 }
 
 #define YY_INPUT(buf, ret, size) ret = file_input(yyps, buf, size, yyin)
@@ -101,12 +164,10 @@ static void replace_comma_under(int base, char *s, int len, Buffer *buf)
 
 #define YY_RETURN(x) yyps->token = x; return x
 #define YY_IDENT_VALUE(s, len) yylval->sval = atom_nstr(s, len)
+
 #define YY_INT_VALUE(s, len, base) \
-    errno = 0; yyps->sval = atom_nstr(s, len); \
-    BUF(buf); \
-    replace_comma_under(base, s, len, &buf); \
-    yylval->ival = strtoll(BUF_STR(buf), NULL, base); \
-    FINI_BUF(buf);
+    parse_int_literal(yyps, yylval, s, len, base)
+
 #define YY_FLOAT_VALUE(s, len) \
     errno = 0; yyps->sval = atom_nstr(s, len); \
     yylval->fval = strtold(s, NULL)
@@ -146,7 +207,6 @@ static void replace_comma_under(int base, char *s, int len, Buffer *buf)
 "class"     { YY_RETURN(CLASS);     }
 "trait"     { YY_RETURN(TRAIT);     }
 "if"        { YY_RETURN(IF);        }
-"guard"     { YY_RETURN(GUARD);     }
 "else"      { YY_RETURN(ELSE);      }
 "while"     { YY_RETURN(WHILE);     }
 "for"       { YY_RETURN(FOR);       }
@@ -160,23 +220,33 @@ static void replace_comma_under(int base, char *s, int len, Buffer *buf)
 "is"        { YY_RETURN(IS);        }
 "public"    { YY_RETURN(PUBLIC);    }
 "final"     { YY_RETURN(FINAL);     }
-"static"    { YY_RETURN(STATIC);    }
 
 "self"      { YY_RETURN(SELF);      }
 "super"     { YY_RETURN(SUPER);     }
 "true"      { YY_RETURN(TRUE);      }
 "false"     { YY_RETURN(FALSE);     }
-"none"      { YY_RETURN(NONE);      }
+"nil"       { YY_RETURN(NONE);      }
 
+"uint8"     { YY_RETURN(UINT8);     }
+"uint16"    { YY_RETURN(UINT16);    }
+"uint32"    { YY_RETURN(UINT32);    }
+"uint64"    { YY_RETURN(UINT64);    }
+"uint"      { YY_RETURN(UINT);      }
+"int8"      { YY_RETURN(INT8);      }
+"int16"     { YY_RETURN(INT16);     }
+"int32"     { YY_RETURN(INT32);     }
+"int64"     { YY_RETURN(INT64);     }
 "int"       { YY_RETURN(INT);       }
-"float"     { YY_RETURN(FLOAT);     }
+"float16"   { YY_RETURN(FLOAT16);   }
+"float32"   { YY_RETURN(FLOAT32);   }
+"float64"   { YY_RETURN(FLOAT64);   }
+"bfloat16"  { YY_RETURN(BFLOAT16);  }
 "bool"      { YY_RETURN(BOOL);      }
 "str"       { YY_RETURN(STRING);    }
 "object"    { YY_RETURN(OBJECT);    }
 "list"      { YY_RETURN(ARRAY);     }
 "dict"      { YY_RETURN(MAP);       }
 "set"       { YY_RETURN(SET);       }
-"bytes"     { YY_RETURN(BYTES);     }
 "tuple"     { YY_RETURN(TUPLE);     }
 "type"      { YY_RETURN(TYPE);      }
 "range"     { YY_RETURN(RANGE);     }
@@ -201,11 +271,10 @@ static void replace_comma_under(int base, char *s, int len, Buffer *buf)
 "^="        { YY_RETURN(XOR_ASSIGN);   }
 "<<="       { YY_RETURN(SHL_ASSIGN);   }
 ">>="       { YY_RETURN(SHR_ASSIGN);   }
-">>>="      { YY_RETURN(USHR_ASSIGN);  }
 "..."       { YY_RETURN(DOTDOTDOT);    }
+"..<"       { YY_RETURN(DOTDOTDOT);    }
 "<<"        { YY_RETURN(L_SHIFT);      }
 ">>"        { YY_RETURN(R_SHIFT);      }
-">>>"       { YY_RETURN(R_USHIFT);     }
 
 "?"         { YY_RETURN('?'); }
 "@"         { YY_RETURN('@'); }
@@ -236,10 +305,10 @@ static void replace_comma_under(int base, char *s, int len, Buffer *buf)
 ">"         { YY_RETURN('>'); }
 "<"         { YY_RETURN('<'); }
 
-0[xX][0-9a-fA-F_]+  { YY_INT_VALUE(yytext, yyleng, 16); YY_RETURN(INT_LITERAL); }
-0[oO][0-7_]+        { YY_INT_VALUE(yytext, yyleng, 8);  YY_RETURN(INT_LITERAL); }
-0[bB][01_]+         { YY_INT_VALUE(yytext, yyleng, 2);  YY_RETURN(INT_LITERAL); }
-[+-]*[0-9][0-9_]*  { YY_INT_VALUE(yytext, yyleng, 10); YY_RETURN(INT_LITERAL); }
+[+-]*0[xX][0-9a-fA-F_]+  { YY_INT_VALUE(yytext, yyleng, 16); YY_RETURN(INT_LITERAL); }
+[+-]*0[oO][0-7_]+        { YY_INT_VALUE(yytext, yyleng, 8);  YY_RETURN(INT_LITERAL); }
+[+-]*0[bB][01_]+         { YY_INT_VALUE(yytext, yyleng, 2);  YY_RETURN(INT_LITERAL); }
+[+-]*[0-9][0-9_]*   { YY_INT_VALUE(yytext, yyleng, 10); YY_RETURN(INT_LITERAL); }
 
 [A-Za-z_$][A-Za-z0-9_$]* {
     YY_IDENT_VALUE(yytext, yyleng); YY_RETURN(ID);

@@ -31,11 +31,12 @@ typedef struct _KlcFile {
 } KlcFile;
 
 typedef struct _KlcConst {
-    int type;
+    short type;
+    short sign;
     int len;
     union {
         /* integer */
-        int64_t ival;
+        uint64_t ival;
         /* float */
         double fval;
         /* string */
@@ -172,7 +173,7 @@ KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *desc, int flags);
 KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_desc, int flags);
 
 uint16_t klc_add_none(KlcFile *klc);
-uint16_t klc_add_int(KlcFile *klc, int64_t val);
+uint16_t klc_add_int(KlcFile *klc, uint64_t val, int sign, int width);
 uint16_t klc_add_float(KlcFile *klc, double val);
 uint16_t klc_add_str(KlcFile *klc, char *s, int len);
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len);

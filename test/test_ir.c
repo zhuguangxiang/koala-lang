@@ -50,7 +50,7 @@ void build_foo(KlrModule *m)
 
     // var c = 100
     KlrValue *cvar = klr_add_local(&bldr, desc_int(), "c");
-    klr_build_store(&bldr, cvar, klr_const_int(100));
+    klr_build_store(&bldr, cvar, klr_const_int(100, 1, 8));
 
     // c = a + b
     KlrValue *a = klr_build_load(&bldr, pa);
@@ -101,7 +101,7 @@ void build_fib(KlrModule *m)
 
     /* entry basic block */
     KlrValue *val = klr_build_load(&bldr, param);
-    KlrValue *cond = klr_build_cmplt(&bldr, val, klr_const_int(2), "");
+    KlrValue *cond = klr_build_cmplt(&bldr, val, klr_const_int(2, 1, 8), "");
     klr_build_jmp_cond(&bldr, cond, _then, _else);
 
     /* _then basic block */
@@ -119,12 +119,12 @@ void build_fib(KlrModule *m)
     klr_builder_end(&bldr, bb);
 
     val = klr_build_load(&bldr, param);
-    KlrValue *sub = klr_build_sub(&bldr, val, klr_const_int(1), "");
+    KlrValue *sub = klr_build_sub(&bldr, val, klr_const_int(1, 1, 8), "");
     KlrValue *args1[] = { sub, NULL };
     KlrValue *ret1 = klr_build_call(&bldr, func, args1, 1, "");
 
     val = klr_build_load(&bldr, param);
-    sub = klr_build_sub(&bldr, val, klr_const_int(2), "");
+    sub = klr_build_sub(&bldr, val, klr_const_int(2, 1, 8), "");
     KlrValue *args2[] = { sub, NULL };
     KlrValue *ret2 = klr_build_call(&bldr, func, args2, 1, "");
 

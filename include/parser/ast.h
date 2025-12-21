@@ -13,13 +13,7 @@
 extern "C" {
 #endif
 
-/* location */
-typedef struct _Loc {
-    int line;
-    int col;
-    int last_line;
-    int last_col;
-} Loc;
+#include "typespec.h"
 
 typedef struct _SimpleFlag {
     int flag;
@@ -67,7 +61,6 @@ typedef struct _Type {
     Vector *subs;
 } Type;
 
-Type *int_type(void);
 Type *float_type(void);
 Type *bool_type(void);
 Type *str_type(void);
@@ -126,8 +119,8 @@ typedef enum _ExprCtx {
 } ExprCtx;
 
 /* clang-format off */
-#define EXPR_HEAD ExprKind kind; Loc loc; ExprCtx ctx; TypeDesc *desc; \
-    TypeDesc *expected; HashMap *stbl; Symbol *sym; KlrValue *ir_val;
+#define EXPR_HEAD ExprKind kind; Loc loc; ExprCtx ctx; TypeDesc *desc; TypeSpec *ts; \
+    TypeSpec *expected; Symbol *sym; KlrValue *ir_val;
 /* clang-format on */
 
 typedef struct _Expr {
@@ -147,14 +140,21 @@ typedef struct _LitExpr {
 #define LIT_EXPR_NONE 5
     int len;
     union {
-        int64_t ival;
+        struct {
+            int sign;
+            // non-decimal literals
+            int bit_mode;
+            char *orginal;
+            uint64_t ival;
+            __int128_t ival_128;
+        };
         double fval;
         int bval;
         char *sval;
     };
 } LitExpr;
 
-Expr *expr_from_lit_int(int64_t val);
+Expr *expr_from_lit_int(char *orginal, __int128_t val, int sign, int bit_mode);
 Expr *expr_from_lit_float(double val);
 Expr *expr_from_lit_bool(int val);
 Expr *expr_from_lit_str(Buffer *buf);
@@ -258,10 +258,9 @@ Expr *expr_from_binary(BiOpKind op, Loc op_loc, Expr *lhs, Expr *rhs);
 
 typedef struct _TypeExpr {
     EXPR_HEAD
-    Type *type;
 } TypeExpr;
 
-Expr *expr_from_type(Type *type);
+Expr *expr_from_type(TypeSpec *type);
 
 typedef struct _ArrayExpr {
     EXPR_HEAD
@@ -397,11 +396,11 @@ typedef struct _VarDeclStmt {
     int ro;
     int pub;
     Ident id;
-    Type *type;
+    TypeSpec *type;
     Expr *exp;
 } VarDeclStmt;
 
-Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, Expr *e);
+Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int ro, Expr *e);
 
 typedef struct _TypeParamDecl {
     Loc loc;

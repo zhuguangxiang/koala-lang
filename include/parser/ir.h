@@ -72,8 +72,9 @@ typedef struct _KlrConst {
 #define CONST_BOOL 3
 #define CONST_STR  4
     int len;
+    int sign;
     union {
-        int64_t ival;
+        uint64_t ival;
         double fval;
         int bval;
         char *sval;
@@ -293,7 +294,7 @@ typedef struct _KlrBuilder {
 /* APIs */
 
 /* <1> literal constants */
-KlrValue *klr_const_int(int64_t val);
+KlrValue *klr_const_int(uint64_t val, int sign, int width);
 KlrValue *klr_const_float(double val);
 KlrValue *klr_const_bool(int val);
 KlrValue *klr_const_str(char *s, int len);

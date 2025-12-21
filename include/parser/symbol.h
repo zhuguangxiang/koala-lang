@@ -10,6 +10,7 @@
 #include "hashmap.h"
 #include "ir.h"
 #include "typedesc.h"
+#include "typespec.h"
 #include "vector.h"
 
 #ifdef __cplusplus
@@ -40,7 +41,7 @@ typedef enum _SymKind {
 #define SYM_FLAGS_TAG_VALUE (1 << 6)
 
 #define SYMBOL_HEAD \
-    HashMapEntry hnode; SymKind kind; int flags; char *name; TypeDesc *desc; \
+    HashMapEntry hnode; SymKind kind; int flags; char *name; TypeDesc *desc; TypeSpec *ts; \
     HashMap *stbl; KlrValue *ir_val;
 
 /* clang-format on */
@@ -57,8 +58,9 @@ typedef struct _Literal {
 #define LIT_STR  4
 #define LIT_NONE 5
     int len;
+    int sign;
     union {
-        int64_t ival;
+        uint64_t ival;
         double fval;
         int bval;
         char *sval;
@@ -134,7 +136,7 @@ static inline void stbl_free(HashMap *stbl)
     mm_free(stbl);
 }
 
-Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc, int flags);
+Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
                       Vector *params, int flags, char *ann, char *ann_key);
 Symbol *stbl_add_klass(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags);

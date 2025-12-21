@@ -1,43 +1,238 @@
 
 // const primitive types
-// let v = 1
-// let v2 = 31000
-// let v3 = 33000
+let v = 1
+let v2 = 31000
+let v3 = 33000
 
-// let INT_MAX = 9_223_372_036_854_775_807
-// let INT_MIN = -9_223_372_036_854_775_808
-// let hex = 0xcafe_cafe
-// let hex2 = 0Xcafecafe
-// let n = 0b0101_0101
-// let n1 = 0B01010101
-// let n2 = 0o721_127
-// let n3 = 0O721127
+let INT_MAX = 9_223_372_036_854_775_807
+let INT_MIN = -9_223_372_036_854_775_808
+let hex = 0xcafe_cafe
+let hex2 = 0Xcafecafe
+let n = 0b0101_0101
+let n1 = 0B01010101
+let n2 = 0o721_127
+let n3 = 0O721127
 
-// let f = -1.23
-// let b = true
-// let s = 'hello, \'\nworld'
+let f = -1.23
+let f1 = 0.5
+let b1 = true
+let s = 'hello, \'\nworld'
 
-// var na int? = none
+var na int? = nil
 
-func main(args [str]) {
+var na2 int? = 100
+
+func main(args list[str]) {
     print("hello world", -100)
     print(100, true)
 }
 
-// var r = 100.0
+func hello() tuple[int, int?] {
 
-// for i in 1...20 {
-//     r = r * 1.05
-// }
+}
+
+for v in hello() {
+    if v {
+
+    }
+}
+
+var r = 100.0
+
+for i in 1 ..< 20 {
+    r = r * 1.05
+}
 // print(r)
 
+if a > 0 {
+
+}
+
+if (a > 0) {
+
+}
+
+// hello() returns T?
+if a = hello() {
+    // here a is T
+    print(a)
+}
+
+// hello() returns T?
+a = hello().__iter__()
+while a.__has_next__() {
+    // here a is T
+    print(a)
+    a = a.__next__()
+}
+
+
+for a, b in hello {
+
+}
+
+for (a, b) in hello {
+
+}
+
+for i in range(1, 3) {
+
+}
+
+while i < 100 {
+    i += 1
+}
+
+while (i < 100) {
+    i += 1
+}
+
+public trait Indexable[T] {
+    func __getitem__(index object) T?
+    func __setitem__(index object, v T)
+}
+
+public class object {
+
+    @native(object_hash)
+    public func hash() int {}
+
+    @native(object_equals)
+    public func equals(rhs object) bool {}
+
+    @native(object_str)
+    public func to_str() str {}
+}
+
+public trait Iterator[T] {
+    func has_next() bool
+    func next() T
+}
+
+/**
+
+*/
+public trait Iterable[T] {
+    func iter() Iterator[T]
+}
+
+class Foo {
+    var name str
+    var age int
+
+    func bar() {
+        hello()
+    }
+}
+
+trait Foo {
+    func hello()
+    func bar()
+}
 // const objects
 
-// let l = [1,2,3]
+[]
+()
+{:}
+[1,2,3]
+{"k1" : 100, "k2" : 200}
+(1, "hello", false, [])
+{"hello", "world"}
+list[int]()
+dict[str, Foo[A[B]], 100]({"k1" : 100, "k2" : 200})
+dict()
+tuple()
+tuple[int]()
+set[int]()
+set()
+
+class List[T] : Iterable[T] {
+    public func __iter__() Iterator[T] {
+        return ListIter[T](self)
+    }
+}
+
+class ListIter[T] : Iterator[T] {
+    var l List[T]
+
+    public func __init__(l_ List[T]) {
+        self.l = l_
+    }
+
+    public func __next__() T {
+        return eof
+    }
+}
+
+l = List[Bar?]()
+
+for e in l {
+
+}
+
+func hello() list[tuple[int,int?]] {
+}
+
+func hello2() (int,int?, int) {
+}
+
+for i in hello2() {
+    // how to handle 2rd value???????
+}
+
+func hello3() tuple[int,int?] {
+}
+
+for v1, v2 in hello() {
+    // only item is tuple, iterate until nil
+	// v1 is int; v2 is int?
+}
+
+l22 = hello()
+it2 = l22.__iter__()
+while (it2.__has_next__()) {
+    e = it2.__next__()
+    v1 := e[0]
+    v2 := e[1]
+    if v2 {
+
+    }
+
+    if v2 != nil {
+
+    }
+
+    if v3 = e[1] {
+
+    }
+}
+
+// let l = [1,2,3,]
+// let l2 = []
+// let l3 = list()
+// let l6 = list([])
+// let l5 = list([1,2,3])
+
+// let l4 = list[int]()
+// let l7 = list[int]([])
+// let l8 = list[int]([1,2])
+
+// let a1 = ()
+// let a = []
+// let b =  {:}
+// // tuple()
 // let m = {"k1" : 100, "k2" : 200}
 // let t = (1, "hello", false, [])
 // let s1 = {"hello", "world"}
-// let r = 1..3
+// let r = 1...3
+
+// {
+//     "a" : 100,
+//     "b" : [
+//         1, 2,3,
+//     ],
+//     "c" : {"hello", "world"}
+// }
 
 // expression operations
 
@@ -53,8 +248,8 @@ func main(args [str]) {
 
 // function definition
 
-// func main(args [str]) {
-//     print("hello", sep = ',')
+// func main(args ...) {
+//     // print("hello", sep = ',')
 // }
 
 /*

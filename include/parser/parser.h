@@ -83,6 +83,10 @@ typedef struct _ParserState {
 
     /* string for print error */
     char *sval;
+    /* for literal integer */
+    int sign;
+    /* for non-decimal literals */
+    int bit_mode;
 } ParserState;
 
 Symbol *find_symbol(ParserState *ps, Ident *id);

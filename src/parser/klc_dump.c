@@ -3,11 +3,13 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <inttypes.h>
 #include "atom.h"
 #include "buffer.h"
 #include "klc.h"
 #include "opcode.h"
 #include "typedesc.h"
+#include "typespec.h"
 #include "version.h"
 
 #ifdef __cplusplus
@@ -22,7 +24,26 @@ static void dump_const(KlcConst *item)
             break;
         }
         case KLC_CONST_INT: {
-            fprintf(stdout, "int, %ld\n", item->ival);
+            fprintf(stdout, "%s%d, ", item->sign ? "int" : "uint", item->len * 8);
+            if (item->sign) {
+                if (item->len == 1)
+                    fprintf(stdout, "%d\n", (int8_t)item->ival);
+                else if (item->len == 2)
+                    fprintf(stdout, "%d\n", (int16_t)item->ival);
+                else if (item->len == 4)
+                    fprintf(stdout, "%d\n", (int32_t)item->ival);
+                else
+                    fprintf(stdout, "%ld\n", (int64_t)item->ival);
+            } else {
+                if (item->len == 1)
+                    fprintf(stdout, "%u\n", (uint8_t)item->ival);
+                else if (item->len == 2)
+                    fprintf(stdout, "%u\n", (uint16_t)item->ival);
+                else if (item->len == 4)
+                    fprintf(stdout, "%u\n", (uint32_t)item->ival);
+                else
+                    fprintf(stdout, "%" PRIu64 "\n", (uint64_t)item->ival);
+            }
             break;
         }
         case KLC_CONST_FLT: {
@@ -73,7 +94,7 @@ static void dump_vars(Vector *vec, KlcFile *klc)
         fprintf(stdout, "%s", (*k)->sval);
         k = vector_get(consts, item->type_index);
         RESET_BUF(buf);
-        desc_str_print((*k)->sval, &buf);
+        type_spec_str_print((*k)->sval, &buf);
         fprintf(stdout, " : %s = ", BUF_STR(buf));
         k = vector_get(consts, item->const_index);
         if (k && *k) dump_const(*k);

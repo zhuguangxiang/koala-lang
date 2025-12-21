@@ -36,15 +36,15 @@ static void free_scope(ParserScope *scope)
 
 #ifndef NOLOG
 /* clang-format off */
-#define print_desc(desc) do {           \
+#define print_type_spec(ts) do {        \
     BUF(buf);                           \
-    desc_print(desc, &buf);            \
+    type_spec_print(ts, &buf);          \
     log_info("  '%s'", BUF_STR(buf));   \
     FINI_BUF(buf);                      \
 } while (0)
 /* clang-format on */
 #else
-#define print_desc(desc) ((void *)(desc))
+#define print_type_spec(ts) ((void *)(ts))
 #endif
 
 #ifndef NOLOG
@@ -168,7 +168,7 @@ static int parse_flags(PrefixFlags *flags)
 static Symbol *_add_var(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
 {
     Ident *id = &var->id;
-    TypeDesc *ty = var->type ? var->type->desc : NULL;
+    TypeSpec *ty = var->type;
     Symbol *sym;
 
     int flags = parse_flags(&var->flags);
@@ -190,13 +190,13 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *var = (VarDeclStmt *)stmt;
     Ident *id = &var->id;
-    TypeDesc *desc = var->type ? var->type->desc : NULL;
+    TypeSpec *ts = var->type;
     Expr *exp = var->exp;
 
     exp->ctx = EXPR_CTX_LOAD;
-    exp->expected = desc;
+    exp->expected = ts;
     parser_visit_expr(ps, exp);
-    if (!exp->desc) return;
+    if (!exp->ts) return;
 
     /*
      * If var is global, it is already existed.
@@ -213,9 +213,11 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         if (exp && exp->kind == EXPR_LITERAL_KIND) {
             LitExpr *lit_exp = (LitExpr *)exp;
             sym->scope = VAR_SCOPE_GLOBAL;
-            Literal *lit = mm_alloc_obj_fast(lit);
+            Literal *lit = mm_alloc_obj(lit);
             if (lit_exp->which == LIT_EXPR_INT) {
                 lit->which = LIT_INT;
+                lit->sign = lit_exp->sign;
+                lit->len = lit_exp->len;
                 lit->ival = lit_exp->ival;
             } else if (lit_exp->which == LIT_EXPR_FLT) {
                 lit->which = LIT_FLT;
@@ -236,18 +238,19 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         }
     }
 
-    if (!desc) {
+    if (!ts) {
         /* update symbol type */
-        sym->desc = exp->desc;
+        sym->ts = exp->ts;
         log_info("update symbol '%s' type as:", sym->name);
-        print_desc(sym->desc);
+        print_type_spec(sym->ts);
     } else {
-        if (!desc_equal(desc, exp->desc)) {
+        if (!type_spec_is_compatible(exp->ts, ts)) {
             kl_error(id->loc, "Types of two sides are not matched.");
             log_info("lhs:");
-            print_desc(desc);
+            print_type_spec(ts);
             log_info("rhs:");
-            print_desc(exp->desc);
+            print_type_spec(exp->ts);
+            return;
         }
     }
 
@@ -412,26 +415,26 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
         arg->name = param->id.name;
         arg->dfl_val_idx = 0;
 
-        TypeDesc *desc;
-        if (param->type) {
-            desc = param->type->desc;
-            DESC_INCREF(desc);
-        } else {
-            Expr *e = param->value;
-            e->ctx = EXPR_CTX_LOAD;
-            parser_visit_expr(ps, e);
-            if (!e->desc) return;
-            desc = e->desc;
-            DESC_INCREF(desc);
-        }
-        Symbol *s = stbl_add_var(sc->stbl, param->id.name, desc, 0);
+        // TypeDesc *desc;
+        // if (param->type) {
+        //     desc = param->type->desc;
+        //     DESC_INCREF(desc);
+        // } else {
+        //     Expr *e = param->value;
+        //     e->ctx = EXPR_CTX_LOAD;
+        //     parser_visit_expr(ps, e);
+        //     if (!e->desc) return;
+        //     desc = e->desc;
+        //     DESC_INCREF(desc);
+        // }
+        // Symbol *s = stbl_add_var(sc->stbl, param->id.name, desc, 0);
 
-        arg->desc = desc;
-        DESC_INCREF(desc);
-        vector_push_back(args, &arg);
+        // arg->desc = desc;
+        // DESC_INCREF(desc);
+        // vector_push_back(args, &arg);
 
-        params[i__] = DESC_INCREF_GET(desc);
-        arg_syms[i__] = s;
+        // params[i__] = DESC_INCREF_GET(desc);
+        // arg_syms[i__] = s;
     }
 
     params[size] = 0;
@@ -620,7 +623,7 @@ static ParserState *build_ast(char *path)
 
     ParserState *ps = mm_alloc_obj(ps);
     init_parser_state(ps, path);
-    kl_read_from_klc(ps->builtin, "libs/builtin.klc");
+    // kl_read_from_klc(ps->builtin, "libs/builtin.klc");
 
     yyscan_t scanner;
     yylex_init_extra(ps, &scanner);

@@ -95,6 +95,11 @@ int desc_equal(TypeDesc *a, TypeDesc *b)
 
     if (a == &object_desc) return 1;
 
+    if (a->kind == TYPE_OPTIONAL_KIND) {
+        OptionalDesc *opt = (OptionalDesc *)a;
+        return desc_equal(opt->type, b);
+    }
+
     if (a->kind != b->kind) return 0;
     return 1;
 }

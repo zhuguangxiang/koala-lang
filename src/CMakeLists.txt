@@ -23,6 +23,7 @@ set(PARSER_SRC
     parser/parser_expr.c
     parser/symbol.c
     parser/typedesc.c
+    parser/typespec.c
     parser/ir.c
     parser/insn.c
     parser/printer.c

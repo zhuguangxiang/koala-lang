@@ -10,23 +10,14 @@
 extern "C" {
 #endif
 
-KlrValue *klr_const_int(int64_t val)
+KlrValue *klr_const_int(uint64_t val, int sign, int width)
 {
     KlrConst *lit = mm_alloc_obj_fast(lit);
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, &int_desc, "");
     lit->which = CONST_INT;
+    lit->len = width;
+    lit->sign = sign;
     lit->ival = val;
-
-    if (val >= INT8_MIN && val <= INT8_MAX) {
-        lit->len = 1;
-    } else if (val >= INT16_MIN && val <= INT16_MAX) {
-        lit->len = 2;
-    } else if (val >= INT32_MIN && val <= INT32_MAX) {
-        lit->len = 4;
-    } else {
-        lit->len = 8;
-    }
-
     return (KlrValue *)lit;
 }
 

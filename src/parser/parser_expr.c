@@ -26,7 +26,7 @@ static void parse_ident(ParserState *ps, Expr *exp)
             return;
         }
     }
-    exp->desc = DESC_INCREF_GET(sym->desc);
+    // exp->desc = DESC_INCREF_GET(sym->desc);
     id->sym = sym;
     exp->sym = sym;
     exp->ir_val = sym->ir_val;
@@ -35,24 +35,71 @@ static void parse_ident(ParserState *ps, Expr *exp)
 static void parse_lit_int(ParserState *ps, LitExpr *lit)
 {
     /* expected type from lhs */
-    TypeDesc *desc = lit->expected;
-    int64_t val = lit->ival;
-    if (val >= INT8_MIN && val <= INT8_MAX) {
-        lit->len = 1;
-    } else if (val >= INT16_MIN && val <= INT16_MAX) {
-        lit->len = 2;
-    } else if (val >= INT32_MIN && val <= INT32_MAX) {
-        lit->len = 4;
-    } else {
+    TypeSpec *ts = lit->expected;
+    if (!ts) {
         lit->len = 8;
+        lit->ival = (uint64_t)lit->ival_128;
+        return;
     }
+
+    if (ts->kind != TYPE_INT) {
+        return;
+    }
+
+    __int128 val = lit->ival_128;
+    int width = ts->int_flt_info.width;
+    int sign = ts->int_flt_info.sign;
+
+    unsigned __int128 phys_max = (width == 8) ? (unsigned __int128)0xFFFFFFFFFFFFFFFFULL
+                                              : ((unsigned __int128)1 << (width * 8)) - 1;
+
+    if (lit->bit_mode) {
+        /* non-decimal literals */
+        if (val < 0) {
+            __int128 min_s = -((__int128)1 << (width * 8 - 1));
+            if (val < min_s || sign == 0) {
+                kl_error(lit->loc, "Negative hex literal %s overflows '%s%d' range",
+                         lit->orginal, (sign ? "int" : "uint"), width * 8);
+                return;
+            }
+        } else {
+            if ((unsigned __int128)val > phys_max) {
+                kl_error(lit->loc, "Bit pattern exceeds the bit width of '%s%d'",
+                         (sign ? "int" : "uint"), width * 8);
+                return;
+            }
+        }
+        // notes: allow 0xFF to be assigned to int8 as -1.
+    } else {
+        __int128 min_limit, max_limit;
+        if (sign) {
+            max_limit = (__int128)(phys_max >> 1); // 2^(n-1) - 1
+            min_limit = -(max_limit + 1); // -2^(n-1)
+        } else {
+            min_limit = 0;
+            max_limit = (__int128)phys_max;
+        }
+
+        if (val < min_limit || val > max_limit) {
+            kl_error(lit->loc, "Value %s overflows '%s%d' range", lit->orginal,
+                     (sign ? "int" : "uint"), width * 8);
+            return;
+        }
+    }
+
+    // update literal integer's type as expected type
+    lit->ts->int_flt_info.width = width;
+    lit->ts->int_flt_info.sign = sign;
+    lit->sign = sign;
+    lit->len = width;
+    lit->ival = (uint64_t)val;
 }
 
 static void parse_lit_float(ParserState *ps, LitExpr *lit)
 {
     /* expected type from lhs */
-    TypeDesc *desc = lit->expected;
-    if (!desc) return;
+    // TypeDesc *desc = lit->expected;
+    // if (!desc) return;
 }
 
 static void parse_none(ParserState *ps, LitExpr *lit)
@@ -62,14 +109,14 @@ static void parse_none(ParserState *ps, LitExpr *lit)
         return;
     }
 
-    TypeDesc *expected = lit->expected;
-    if (expected) {
-        if (expected->kind != TYPE_OPTIONAL_KIND) {
-            kl_error(lit->loc, "expected an optional type.");
-            return;
-        }
-        lit->desc = expected;
-    }
+    // TypeDesc *expected = lit->expected;
+    // if (expected) {
+    //     if (expected->kind != TYPE_OPTIONAL_KIND) {
+    //         kl_error(lit->loc, "expected an optional type.");
+    //         return;
+    //     }
+    //     // lit->desc = expected;
+    // }
 }
 
 static void parse_literal(ParserState *ps, Expr *exp)
@@ -83,7 +130,7 @@ static void parse_literal(ParserState *ps, Expr *exp)
     switch (lit->which) {
         case LIT_EXPR_INT: {
             parse_lit_int(ps, lit);
-            exp->ir_val = klr_const_int(lit->ival);
+            exp->ir_val = klr_const_int(lit->ival, lit->sign, lit->len);
             break;
         }
         case LIT_EXPR_FLT: {
@@ -122,14 +169,18 @@ static void check_call_args(Vector *params, Vector *exprs)
     }
 }
 
+static void parse_type(ParserState *ps, Expr *exp) { TypeExpr *texp = (TypeExpr *)exp; }
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
+
     Expr *lhs = call->lhs;
     lhs->ctx = EXPR_CTX_CALL;
     parser_visit_expr(ps, call->lhs);
-    if (!lhs->desc) return;
-    exp->desc = DESC_INCREF_GET(lhs->desc);
+    if (!lhs->ts) return;
+
+    exp->ts = lhs->ts;
 
     int size = vector_size(call->args);
     KlrValue *args[size + 1];
@@ -140,7 +191,7 @@ static void parse_call(ParserState *ps, Expr *exp)
         arg = *arg_p;
         arg->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, arg);
-        if (!arg->desc) return;
+        if (!arg->ts) return;
         args[i__] = arg->ir_val;
     }
 
@@ -187,8 +238,8 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         NULL,                            /* MAP_ENTRY  */
         NULL,// parse_tuple_expr,                /* TUPLE      */
         NULL,// parse_anony,                     /* ANONY      */
-        NULL,// parse_type,                      /* TYPE       */
         NULL,
+        parse_type,                      /* TYPE       */
         parse_call,                      /* CALL       */
         // parse_attr,                      /* ATTR       */
         // parse_tuple_get,                 /* TUPLE_GET  */
@@ -205,7 +256,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
 
     handlers[exp->kind](ps, exp);
 
-    if (!exp->desc) {
+    if (!exp->ts) {
         kl_error(exp->loc, "cannot resolve expr's type.");
     }
 }

@@ -36,15 +36,15 @@ void kl_write_to_klc(ParserState *ps)
                 Literal *lit = var->lit;
                 if (lit) {
                     if (lit->which == LIT_INT) {
-                        def_val_idx = klc_add_int(&klc, lit->ival);
-                    } else if (lit->which == LIT_FLT) {
-                        def_val_idx = klc_add_float(&klc, lit->fval);
-                    } else if (lit->which == LIT_BOOL) {
-                        def_val_idx = klc_add_int(&klc, lit->bval);
-                    } else if (lit->which == LIT_STR) {
-                        def_val_idx = klc_add_str(&klc, lit->sval, lit->len);
-                    } else if (lit->which == LIT_NONE) {
-                        def_val_idx = klc_add_none(&klc);
+                        def_val_idx = klc_add_int(&klc, lit->ival, lit->sign, lit->len);
+                        // } else if (lit->which == LIT_FLT) {
+                        //     def_val_idx = klc_add_float(&klc, lit->fval);
+                        // } else if (lit->which == LIT_BOOL) {
+                        //     def_val_idx = klc_add_int(&klc, lit->bval);
+                        // } else if (lit->which == LIT_STR) {
+                        //     def_val_idx = klc_add_str(&klc, lit->sval, lit->len);
+                        // } else if (lit->which == LIT_NONE) {
+                        //     def_val_idx = klc_add_none(&klc);
                     } else {
                         UNREACHABLE();
                     }
@@ -59,7 +59,7 @@ void kl_write_to_klc(ParserState *ps)
                 }
 
                 BUF(buf);
-                desc_to_str(var->desc, &buf);
+                type_spec_to_str(var->ts, &buf);
                 klc_add_var(&klc, var->name, BUF_STR(buf), def_val_idx, flags);
                 FINI_BUF(buf);
                 break;

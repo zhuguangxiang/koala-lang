@@ -37,7 +37,7 @@ void __symbol_free__(Symbol *sym, void *arg)
     mm_free(sym);
 }
 
-Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc, int flags)
+Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags)
 {
     VarSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(name));
@@ -48,13 +48,13 @@ Symbol *stbl_add_var(HashMap *stbl, char *name, TypeDesc *desc, int flags)
         mm_free(sym);
         sym = NULL;
     } else {
-        sym->desc = desc;
+        sym->ts = ts;
         sym->flags = flags;
     }
 
 #ifndef NOLOG
     BUF(buf);
-    desc_print(desc, &buf);
+    type_spec_print(ts, &buf);
     char *s = BUF_STR(buf);
     if (sym) {
         log_info("add var('%s' : '%s') OK", name, s ? s : "<NO-TYPE>");
@@ -184,7 +184,7 @@ void stbl_show(HashMap *stbl)
             case SYM_VAR: {
                 VarSymbol *var = (VarSymbol *)sym;
                 BUF(buf);
-                desc_print(var->desc, &buf);
+                type_spec_print(var->ts, &buf);
                 log_info("variable symbol: '%s', type: '%s'", sym->name, BUF_STR(buf));
                 FINI_BUF(buf);
                 break;

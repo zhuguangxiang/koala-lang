@@ -9,13 +9,6 @@
 extern "C" {
 #endif
 
-Type *int_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_int();
-    return ty;
-}
-
 Type *float_type(void)
 {
     Type *ty = mm_alloc_obj(ty);
@@ -151,13 +144,17 @@ void free_type(Type *ty)
     mm_free(ty);
 }
 
-Expr *expr_from_lit_int(int64_t val)
+Expr *expr_from_lit_int(char *orginal, __int128_t val, int sign, int bit_mode)
 {
     LitExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_INT;
-    exp->ival = val;
-    exp->desc = desc_int();
+    exp->orginal = orginal; // atom str
+    exp->bit_mode = bit_mode;
+    exp->sign = sign;
+    exp->ival_128 = val;
+    exp->ival = 0;
+    exp->ts = int_type_spec(8, sign);
     return (Expr *)exp;
 }
 
@@ -167,7 +164,7 @@ Expr *expr_from_lit_float(double val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_FLT;
     exp->fval = val;
-    exp->desc = desc_float();
+    // exp->desc = desc_float();
     return (Expr *)exp;
 }
 
@@ -177,7 +174,7 @@ Expr *expr_from_lit_bool(int val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_BOOL;
     exp->bval = val;
-    exp->desc = desc_bool();
+    // exp->desc = desc_bool();
     return (Expr *)exp;
 }
 
@@ -339,11 +336,11 @@ Expr *expr_from_binary(BiOpKind op, Loc op_loc, Expr *lhs, Expr *rhs)
     return (Expr *)exp;
 }
 
-Expr *expr_from_type(Type *type)
+Expr *expr_from_type(TypeSpec *type)
 {
     TypeExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_TYPE_KIND;
-    exp->type = type;
+    exp->ts = type;
     return (Expr *)exp;
 }
 
@@ -435,7 +432,7 @@ Expr *expr_from_slice(Expr *start, Expr *stop)
 
 void expr_free(Expr *exp) { mm_free(exp); }
 
-Stmt *stmt_from_var_decl(Ident id, Type *ty, int ro, Expr *e)
+Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int ro, Expr *e)
 {
     VarDeclStmt *s = mm_alloc_obj(s);
     s->kind = STMT_VAR_KIND;

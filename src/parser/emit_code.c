@@ -38,7 +38,7 @@ static void emit_insn_operand(KlrOper *oper, Buffer *buf, KlcFile *filp)
                     EMIT_OP(OP_PUSH_IMM16);
                     EMIT_WORD_ARG(v->ival);
                 } else {
-                    uint16_t index = klc_add_int(filp, v->ival);
+                    uint16_t index = klc_add_int(filp, v->ival, v->sign, v->len);
                     EMIT_OP(OP_PUSH_CONST);
                     EMIT_WORD_ARG(index);
                 }

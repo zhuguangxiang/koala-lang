@@ -22,9 +22,9 @@ int main(int argc, char *argv[])
     KlcFile klc;
     init_klc_file(&klc, "test_klc.klc");
     KlcVar *var = klc_add_var(&klc, "hello", "s", 0, 0);
-    uint16_t index = klc_add_int(&klc, 100);
+    uint16_t index = klc_add_int(&klc, 100, 1, 2);
     var->const_index = index;
-    uint16_t index2 = klc_add_int(&klc, 100);
+    uint16_t index2 = klc_add_int(&klc, 100, 1, 2);
     ASSERT(index == index2);
 
     index = klc_add_float(&klc, 100.123);

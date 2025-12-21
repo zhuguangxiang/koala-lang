@@ -32,6 +32,7 @@ static int klc_const_equal(KlcConst *k1, KlcConst *k2)
             return 1;
         }
         case KLC_CONST_INT: {
+            if (k1->sign != k2->sign) return 0;
             if (k1->len != k2->len) return 0;
             return k1->ival == k2->ival;
         }
@@ -106,7 +107,7 @@ static uint16_t __append(KlcFile *klc, int type, void *data)
     uint16_t index = vector_size(objs) - 1;
     ASSERT(index > 0);
 
-    ItemEntry *e = mm_alloc_obj_fast(e);
+    ItemEntry *e = mm_alloc_obj(e);
     init_item_entry(e, type, data);
     e->index = index;
     int res = hashmap_put_absent(&klc->map, e);
@@ -135,25 +136,15 @@ uint16_t klc_add_none(KlcFile *klc)
     return idx;
 }
 
-uint16_t klc_add_int(KlcFile *klc, int64_t val)
+uint16_t klc_add_int(KlcFile *klc, uint64_t val, int sign, int width)
 {
-    int len = 0;
-
-    if (val >= INT8_MIN && val <= INT8_MAX)
-        len = 1;
-    else if (val >= INT16_MIN && val <= INT16_MAX)
-        len = 2;
-    else if (val >= INT32_MIN && val <= INT32_MAX)
-        len = 4;
-    else
-        len = 8;
-
-    KlcConst k = { .type = KLC_CONST_INT, .len = len, .ival = val };
+    KlcConst k = { .type = KLC_CONST_INT, .sign = sign, .len = width, .ival = val };
     uint16_t idx = __const_get(klc, &k);
     if (idx == 0) {
-        KlcConst *item = mm_alloc_obj_fast(item);
+        KlcConst *item = mm_alloc_obj(item);
         item->type = KLC_CONST_INT;
-        item->len = len;
+        item->sign = sign;
+        item->len = width;
         item->ival = val;
         idx = __append(klc, ITEM_CONST, item);
     }
@@ -165,7 +156,7 @@ uint16_t klc_add_float(KlcFile *klc, double val)
     KlcConst k = { .type = KLC_CONST_FLT, .len = 0, .fval = val };
     uint16_t idx = __const_get(klc, &k);
     if (idx == 0) {
-        KlcConst *item = mm_alloc_obj_fast(item);
+        KlcConst *item = mm_alloc_obj(item);
         item->type = KLC_CONST_FLT;
         item->len = 0;
         item->fval = val;
@@ -183,7 +174,7 @@ uint16_t klc_add_str(KlcFile *klc, char *s, int len)
     KlcConst k = { .type = type, .len = len, .sval = _s };
     uint16_t idx = __const_get(klc, &k);
     if (idx == 0) {
-        KlcConst *item = mm_alloc_obj_fast(item);
+        KlcConst *item = mm_alloc_obj(item);
         item->type = type;
         item->len = len;
         item->sval = _s;
@@ -201,7 +192,7 @@ uint16_t klc_add_utf8(KlcFile *klc, char *s, int len)
     KlcConst k = { .type = type, .len = len, .sval = _s };
     uint16_t idx = __const_get(klc, &k);
     if (idx == 0) {
-        KlcConst *item = mm_alloc_obj_fast(item);
+        KlcConst *item = mm_alloc_obj(item);
         item->type = type;
         item->len = len;
         item->sval = _s;
@@ -212,7 +203,7 @@ uint16_t klc_add_utf8(KlcFile *klc, char *s, int len)
 
 uint16_t klc_add_code(KlcFile *klc, int num_locals, int code_size, char *codes)
 {
-    KlcCode *code = mm_alloc_obj_fast(code);
+    KlcCode *code = mm_alloc_obj(code);
     code->num_locals = num_locals;
     code->code_size = code_size;
     code->codes = mm_alloc(code_size);
@@ -232,7 +223,7 @@ uint16_t klc_add_reloc(KlcFile *klc, char *ns, char *sym)
     KlcReloc k = { ns_index, sym_index };
     uint16_t idx = __index(klc, ITEM_RELOC, &k);
     if (idx == 0) {
-        KlcReloc *reloc = mm_alloc_obj_fast(reloc);
+        KlcReloc *reloc = mm_alloc_obj(reloc);
         reloc->ns_index = ns_index;
         reloc->sym_index = sym_index;
         idx = __append(klc, ITEM_RELOC, reloc);
@@ -246,7 +237,7 @@ KlcVar *klc_add_var(KlcFile *klc, char *name, char *desc, uint16_t index, int fl
     uint16_t name_index = klc_add_str(klc, name, len);
     len = strlen(desc);
     uint16_t desc_index = klc_add_str(klc, desc, len);
-    KlcVar *var = mm_alloc_obj_fast(var);
+    KlcVar *var = mm_alloc_obj(var);
     var->flags = flags;
     var->name_index = name_index;
     var->type_index = desc_index;
@@ -261,7 +252,7 @@ static KlcFunc *new_func(KlcFile *klc, char *name, char *ret_desc, int flags)
     uint16_t name_index = klc_add_str(klc, name, len);
     len = ret_desc ? strlen(ret_desc) : 0;
     uint16_t ret_index = klc_add_str(klc, ret_desc, len);
-    KlcFunc *fn = mm_alloc_obj_fast(fn);
+    KlcFunc *fn = mm_alloc_obj(fn);
     fn->filp = klc;
     fn->flags = flags;
     fn->name_index = name_index;
@@ -287,7 +278,7 @@ int klc_func_add_arg(KlcFunc *fn, char *name, char *desc, uint16_t index)
     uint16_t name_index = klc_add_str(klc, name, len);
     len = strlen(desc);
     uint16_t desc_index = klc_add_str(klc, desc, len);
-    KlcArgument *arg = mm_alloc_obj_fast(arg);
+    KlcArgument *arg = mm_alloc_obj(arg);
     arg->name_index = name_index;
     arg->type_index = desc_index;
     arg->const_index = index;
@@ -302,7 +293,7 @@ int klc_func_add_tp(KlcFunc *fn, char *name, char *desc)
     uint16_t name_index = klc_add_str(klc, name, len);
     len = strlen(desc);
     uint16_t desc_index = klc_add_str(klc, desc, len);
-    KlcTypePara *tp = mm_alloc_obj_fast(tp);
+    KlcTypePara *tp = mm_alloc_obj(tp);
     tp->name_index = name_index;
     tp->type_index = desc_index;
     vector_push_back(&fn->tps, &tp);
@@ -318,7 +309,7 @@ int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value)
     uint16_t key_index = klc_add_str(klc, key, len);
     len = value ? strlen(value) : 0;
     uint16_t value_index = klc_add_str(klc, value, len);
-    KlcAnnot *ann = mm_alloc_obj_fast(ann);
+    KlcAnnot *ann = mm_alloc_obj(ann);
     ann->name_index = name_index;
     ann->key_index = key_index;
     ann->value_index = value_index;
@@ -330,7 +321,7 @@ KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags)
 {
     int len = strlen(name);
     uint16_t name_index = klc_add_str(klc, name, len);
-    KlcKlass *kls = mm_alloc_obj_fast(kls);
+    KlcKlass *kls = mm_alloc_obj(kls);
     kls->filp = klc;
     kls->flags = flags;
     kls->name_index = name_index;
@@ -403,6 +394,7 @@ static void write_const(KlcFile *klc, KlcConst *item)
         }
         case KLC_CONST_INT: {
             write_uint8(klc, (uint8_t)item->len);
+            write_uint8(klc, (uint8_t)item->sign);
             if (item->len == 1) {
                 write_uint8(klc, (uint8_t)item->ival);
             } else if (item->len == 2) {
@@ -633,7 +625,8 @@ static void read_const(KlcFile *klc, Vector *vec)
 {
     int type;
     int len;
-    int64_t ival;
+    int sign = 0;
+    uint64_t ival;
     char *sval;
     double fval;
     KlcConst *item;
@@ -653,6 +646,8 @@ static void read_const(KlcFile *klc, Vector *vec)
             ival = 0;
             read_uint8(klc, (uint8_t *)&len);
             item->len = len;
+            read_uint8(klc, (uint8_t *)&sign);
+            item->sign = sign;
             if (len == 1) {
                 read_uint8(klc, (uint8_t *)&ival);
             } else if (len == 2) {
