@@ -17,7 +17,8 @@ extern "C" {
 
 typedef enum _ScopeKind {
     SCOPE_TOP,
-    SCOPE_TYPE,
+    SCOPE_CLASS,
+    SCOPE_TRAIT,
     SCOPE_FUNC,
     SCOPE_BLOCK,
     SCOPE_ANONY,

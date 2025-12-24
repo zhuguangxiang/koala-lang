@@ -57,3 +57,8 @@ var x int32 = -0x80000000 // 成功: -2147483648 (int32最小值的位模式)
 
 // --- 默认推导测试 ---
 var y = 0xFFFFFFFFFFFFFFFF // 成功: 默认推导为 uint64
+
+var z = -0x88 // 成功: 默认推到为int64
+
+var z1 int8 = 0x88 //成功: -120
+// var z2 int8 = -0x88 //报错

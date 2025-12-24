@@ -194,6 +194,7 @@ static void free_tp_list(Vector *vec)
 %type<stmt> trait_decl
 %type<stmt> class_decl
 %type<stmt> func_proto_decl
+%type<stmt> trait_method
 
 %type<expr> expr
 %type<expr> or_expr
@@ -251,6 +252,7 @@ static void free_tp_list(Vector *vec)
 %type<vec> field_list
 %type<vec> method_list
 %type<vec> trait_members_or_empty
+%type<vec> trait_method_list
 %type<vec> type_param_decl_list
 %type<vec> call_arg_list
 %type<vec> call_kw_arg_list
@@ -388,18 +390,22 @@ top_stmt
     : let_decl semi
     {
         $$ = $1;
+        var_set_where($$, VAR_GLOBAL);
     }
     | prefix let_decl semi
     {
         $$ = $2;
+        var_set_where($$, VAR_GLOBAL);
     }
     | var_decl semi
     {
         $$ = $1;
+        var_set_where($$, VAR_GLOBAL);
     }
     | prefix var_decl semi
     {
         $$ = $2;
+        var_set_where($$, VAR_GLOBAL);
     }
     | func_decl
     {
@@ -854,18 +860,18 @@ atom_type
     }
     | BOOL
     {
-        // $$ = bool_type();
-        // type_set_loc($$, loc(@1));
+        $$ = bool_type_spec();
+        type_spec_loc($$, loc(@1));
     }
     | STRING
     {
-        // $$ = str_type();
-        // type_set_loc($$, loc(@1));
+        $$ = str_type_spec();
+        type_spec_loc($$, loc(@1));
     }
     | OBJECT
     {
-        // $$ = object_typeof();
-        // type_set_loc($$, loc(@1));
+        $$ = object_type_spec();
+        type_spec_loc($$, loc(@1));
     }
     | TYPE
     {
@@ -1011,8 +1017,8 @@ func_proto_decl
     : FUNC ID '(' param_list ')' optional_type
     {
         IDENT(id, $2, loc(@2));
-        // $$ = stmt_from_func_decl(id, $4, $6, NULL);
-        // stmt_set_loc($$, lloc(@1, @6));
+        $$ = stmt_from_func_decl(id, $4, $6, NULL);
+        stmt_set_loc($$, lloc(@1, @6));
     }
     | FUNC ID '(' param_list ')'
     {
@@ -1023,8 +1029,8 @@ func_proto_decl
     | FUNC ID '(' ')' optional_type
     {
         IDENT(id, $2, loc(@2));
-        // $$ = stmt_from_func_decl(id, NULL, $5, NULL);
-        // stmt_set_loc($$, lloc(@1, @5));
+        $$ = stmt_from_func_decl(id, NULL, $5, NULL);
+        stmt_set_loc($$, lloc(@1, @5));
     }
     | FUNC ID '(' ')'
     {
@@ -1111,32 +1117,34 @@ id_type_arg_list
     : ID optional_type
     {
         Ident id = {$1, loc(@1)};
-        // ParamDecl *p = param_new(lloc(@1, @2), id, $2, NULL);
-        // $$ = vector_create_ptr();
-        // vector_push_back($$, &p);
+        ParamDecl *p = param_new(lloc(@1, @2), id, $2, NULL);
+        $$ = vector_create_ptr();
+        vector_push_back($$, &p);
     }
     | id_type_arg_list ',' ID optional_type
     {
         $$ = $1;
-        // Ident id = {$3, loc(@3)};
-        // ParamDecl *p = param_new(lloc(@3, @4), id, $4, NULL);
-        // vector_push_back($$, &p);
+        Ident id = {$3, loc(@3)};
+        ParamDecl *p = param_new(lloc(@3, @4), id, $4, NULL);
+        vector_push_back($$, &p);
     }
     | ID DOTDOTDOT
     {
         Ident id = {$1, loc(@1)};
-        Type *tp = va_list_type();
-        // ParamDecl *p = param_new(lloc(@1, @2), id, tp, NULL);
-        // $$ = vector_create_ptr();
-        // vector_push_back($$, &p);
+        TypeSpec *ts = va_list_type_spec();
+        type_spec_loc(ts, loc(@2));
+        ParamDecl *p = param_new(lloc(@1, @2), id, ts, NULL);
+        $$ = vector_create_ptr();
+        vector_push_back($$, &p);
     }
     | id_type_arg_list ',' ID DOTDOTDOT
     {
         $$ = $1;
         Ident id = {$3, loc(@3)};
-        // Type *tp = va_list_type();
-        // ParamDecl *p = param_new(lloc(@3, @4), id, tp, NULL);
-        // vector_push_back($$, &p);
+        TypeSpec *ts = va_list_type_spec();
+        type_spec_loc(ts, loc(@4));
+        ParamDecl *p = param_new(lloc(@3, @4), id, ts, NULL);
+        vector_push_back($$, &p);
     }
     ;
 
@@ -1161,8 +1169,8 @@ kw_arg
     }
     | ID optional_type '=' expr
     {
-        // Ident id = {$1, loc(@1)};
-        // $$ = param_new(lloc(@1, @4), id, $2, $4);
+        Ident id = {$1, loc(@1)};
+        $$ = param_new(lloc(@1, @4), id, $2, $4);
     }
     | ID '=' error
     {
@@ -1434,38 +1442,14 @@ prefix_field_decl
 field_decl
     : var_decl semi
     {
-        // $$ = $1;
-        // var_set_where($$, VAR_FIELD);
+        $$ = $1;
+        var_set_where($$, VAR_FIELD);
     }
     | let_decl semi
     {
-        // $$ = $1;
-        // var_set_where($$, VAR_FIELD);
+        $$ = $1;
+        var_set_where($$, VAR_FIELD);
     }
-    /* | ID optional_type semi
-    {
-
-    }
-    | ID optional_type '=' expr semi
-    {
-
-    }
-    | ID '=' expr semi
-    {
-
-    }
-    | ID error
-    {
-        // kl_error(loc(@3), "expected type or '='.");
-        // yy_clear_ok;
-        // $$ = NULL;
-    }
-    | ID optional_type error
-    {
-        // kl_error(loc(@4), "expected '='.");
-        // yy_clear_ok;
-        // $$ = NULL;
-    } */
     ;
 
 method_list
@@ -1531,19 +1515,36 @@ trait_members_or_empty
     }
     | trait_method_list
     {
-        $$ = NULL;
+        $$ = $1;
     }
     ;
 
 trait_method_list
     : trait_method
+    {
+        $$ = vector_create_ptr();
+        if ($1) vector_push_back($$, &$1);
+    }
     | trait_method_list trait_method
+    {
+        $$ = $1;
+        if ($2) vector_push_back($$, &$2);
+    }
     ;
 
 trait_method
     : func_proto_decl
+    {
+        $$ = $1;
+    }
     | prefix func_proto_decl
+    {
+        $$ = $2;
+    }
     | semi
+    {
+        $$ = NULL;
+    }
     ;
 
 block
@@ -1553,7 +1554,6 @@ block
     }
     | '{' '}'
     {
-        printf("empty block\n");
         $$ = vector_create_ptr();
     }
     ;
@@ -1580,10 +1580,12 @@ local
     | let_decl semi
     {
         $$ = $1;
+        var_set_where($$, VAR_LOCAL);
     }
     | var_decl semi
     {
-        $$ = NULL;
+        $$ = $1;
+        var_set_where($$, VAR_LOCAL);
     }
     | assignment semi
     {

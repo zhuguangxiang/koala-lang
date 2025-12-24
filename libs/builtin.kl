@@ -26,23 +26,23 @@ The example creates an object. The base object has very less functions, so it's 
 public class object {
 
     @native(object_hash)
-    public func hash() int {}
+    public func __hash__() int {}
 
     @native(object_equals)
-    public func equals(rhs object) bool {}
+    public func __eq__(rhs object) bool {}
 
     @native(object_str)
-    public func to_str() str {}
+    public func __str__() str {}
 }
 
 public trait Iterator[T] {
-    func has_next() bool
-    func next() T
+    func __has_next__() bool
+    func __next__() T
 }
 
-public trait Iterable[T] {
-    func iter() Iterator[T]
-}
+// public trait Iterable[T] {
+//     func __iter__() Iterator[T]
+// }
 
 /**
 Print `objs` to the stream file, separated by `sep` and followed by `end`.
@@ -53,60 +53,60 @@ separated by `sep` and followed by `end`. The default `file` is `sys.stdout` str
 @native(builtin_print)
 public func print(objs ..., sep = ' ', end = '\n') {}
 
-public trait Indexable[T] {
-    func __len__() int
-    func __getitem__(index object) T
-    func __setitem__(index object, v T)
-}
+// public trait Indexable[T] {
+//     func __len__() int
+//     func __getitem__(index object) T
+//     func __setitem__(index object, v T)
+// }
 
-public trait Seq[T] : Indexable[T] {
-    func __len__() int
-    func __contains__(v T) bool
-    func __concat__(seq Seq[T]) Seq[T]
-    func __repeat__(count int) Seq[T]
-}
+// public trait Seq[T] : Indexable[T] {
+//     func __len__() int
+//     func __contains__(v T) bool
+//     func __concat__(seq Seq[T]) Seq[T]
+//     func __repeat__(count int) Seq[T]
+// }
 
-public trait Number[T] {
-    func __add__(rhs T) T
-    func __sub__(rhs T) T
-    func __mul__(rhs T) T
-    func __div__(rhs T) T
-    func __mod__(rhs T) T
-    func __lsh__(rhs T) T
-    func __rsh__(rhs T) T
-    func __and__(rhs T) T
-    func __or__(rhs T) T
-    func __xor__(rhs T) T
-}
+// public trait Number[T] {
+//     func __add__(rhs T) T
+//     func __sub__(rhs T) T
+//     func __mul__(rhs T) T
+//     func __div__(rhs T) T
+//     func __mod__(rhs T) T
+//     func __lsh__(rhs T) T
+//     func __rsh__(rhs T) T
+//     func __and__(rhs T) T
+//     func __or__(rhs T) T
+//     func __xor__(rhs T) T
+// }
 
-public final class str : Seq[str] {
+// public final class str : Seq[str] {
 
-    @native
-    func __len__() int {}
+//     @native
+//     func __len__() int {}
 
-    @native
-    func __getitem__(index object) str {}
+//     @native
+//     func __getitem__(index object) str {}
 
-    @native
-    func __concat__(seq str) str {}
-}
+//     @native
+//     func __concat__(seq Seq[str]) str {}
+// }
 
-public final class list[T] : Seq[T] {
+// public final class list[T] : Seq[T] {
 
-    @native
-    func __len__() int {}
+//     @native
+//     func __len__() int {}
 
-    @native
-    func __getitem__(index object) T {}
+//     @native
+//     func __getitem__(index object) T {}
 
-    @native
-    func __concat__(seq list[T]) list[T] {}
-}
+//     @native
+//     func __concat__(seq Seq[T]) list[T] {}
+// }
 
-public final class int32 : Number[int32] {
-    @intrinsic
-    func __add__(rhs int32) int32 {}
-}
+// public final class int32 : Number[int32] {
+//     @intrinsic
+//     func __add__(rhs int32) int32 {}
+// }
 
 // public final class int64 : Number[int64] {
 //     @intrinsic

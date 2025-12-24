@@ -25,7 +25,7 @@ static void read_funcs(HashMap *stbl, KlcFile *klc)
 
         KlcConst *k = klc_get_const(klc, item->name_index);
         KlcConst *ret = klc_get_const(klc, item->ret_type_index);
-        TypeDesc *ret_desc = ret ? desc_from_str(ret->sval) : desc_no_type();
+        TypeSpec *ret_desc = ret ? type_spec_from_str(ret->sval) : NULL;
         KlcArgument **arg_p;
         KlcArgument *arg;
         Vector *params = vector_create_ptr();
@@ -34,9 +34,9 @@ static void read_funcs(HashMap *stbl, KlcFile *klc)
             ArgInfo *arg_info = mm_alloc_obj_fast(arg_info);
             KlcConst *name = klc_get_const(klc, arg->name_index);
             KlcConst *ty_k = klc_get_const(klc, arg->type_index);
-            TypeDesc *desc = desc_from_str(ty_k->sval);
+            TypeSpec *ts = type_spec_from_str(ty_k->sval);
             arg_info->name = name->sval;
-            arg_info->desc = desc;
+            arg_info->ts = ts;
             arg_info->dfl_val_idx = 0;
             vector_push_back(params, &arg_info);
         }

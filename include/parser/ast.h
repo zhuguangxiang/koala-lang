@@ -62,13 +62,9 @@ typedef struct _Type {
 } Type;
 
 Type *float_type(void);
-Type *bool_type(void);
-Type *str_type(void);
-Type *object_typeof(void);
 Type *bytes_type(void);
 Type *type_type(void);
 Type *range_type(void);
-Type *va_list_type(void);
 Type *enum_type(Vector *subs);
 Type *optional_type(Type *ty);
 Type *array_type(Type *sub);
@@ -401,6 +397,7 @@ typedef struct _VarDeclStmt {
 } VarDeclStmt;
 
 Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int ro, Expr *e);
+#define var_set_where(stmt, _where) ((VarDeclStmt *)stmt)->where = _where;
 
 typedef struct _TypeParamDecl {
     Loc loc;
@@ -413,11 +410,11 @@ TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound);
 typedef struct _ParamDecl {
     Loc loc;
     Ident id;
-    Type *type;
+    TypeSpec *type;
     Expr *value;
 } ParamDecl;
 
-ParamDecl *param_new(Loc loc, Ident id, Type *type, Expr *value);
+ParamDecl *param_new(Loc loc, Ident id, TypeSpec *type, Expr *value);
 
 typedef struct _Argument {
     Loc loc;
@@ -432,11 +429,11 @@ typedef struct _FuncDeclStmt {
     Ident id;
     Vector *tps;
     Vector *args;
-    Type *ret;
+    TypeSpec *ret;
     Vector *body;
 } FuncDeclStmt;
 
-Stmt *stmt_from_func_decl(Ident id, Vector *args, Type *ret, Vector *tps);
+Stmt *stmt_from_func_decl(Ident id, Vector *args, TypeSpec *ret, Vector *tps);
 
 typedef enum _AssignOpKind {
     OP_ASSIGN = 1,

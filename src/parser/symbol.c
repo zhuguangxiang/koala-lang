@@ -67,7 +67,7 @@ Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags)
     return (Symbol *)sym;
 }
 
-Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
+Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
                       Vector *params, int flags, char *ann, char *ann_key)
 {
     FuncSymbol *sym = mm_alloc_obj(sym);
@@ -82,7 +82,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
         sym->flags = flags;
         sym->params = params;
         sym->tps = tps;
-        sym->desc = ret;
+        sym->ts = ret;
         sym->stbl = stbl_new();
         sym->ann = ann;
         sym->ann_key = ann_key;
@@ -90,7 +90,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
 
 #ifndef NOLOG
     BUF(buf);
-    desc_print(sym->desc, &buf);
+    type_spec_print(sym->ts, &buf);
     char *s = BUF_STR(buf);
     if (sym) {
         log_info("add func('%s' : '%s') OK", name, s ? s : "<NO-TYPE>");
@@ -114,6 +114,9 @@ Symbol *stbl_add_klass(HashMap *stbl, char *name, Vector *tps, Vector *bases, in
         mm_free(sym);
         sym = NULL;
     } else {
+        sym->fields = vector_create_ptr();
+        sym->funcs = vector_create_ptr();
+        sym->protos = vector_create_ptr();
         sym->flags = flags;
         sym->bases = bases;
         sym->tps = tps;
@@ -146,6 +149,9 @@ Symbol *stbl_add_trait(HashMap *stbl, char *name, Vector *tps, Vector *bases, in
         mm_free(sym);
         sym = NULL;
     } else {
+        sym->fields = vector_create_ptr();
+        sym->funcs = vector_create_ptr();
+        sym->protos = vector_create_ptr();
         sym->flags = flags;
         sym->bases = bases;
         sym->tps = tps;
@@ -192,7 +198,7 @@ void stbl_show(HashMap *stbl)
             case SYM_FUNC: {
                 FuncSymbol *fn = (FuncSymbol *)sym;
                 BUF(buf);
-                desc_print(fn->desc, &buf);
+                type_spec_print(fn->ts, &buf);
                 log_info("function symbol: '%s', ret-type: '%s'", sym->name,
                          BUF_STR(buf));
                 FINI_BUF(buf);

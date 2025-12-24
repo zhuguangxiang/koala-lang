@@ -330,6 +330,9 @@ KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags)
     vector_init_ptr(&kls->bases);
     vector_init_ptr(&kls->fields);
     vector_init_ptr(&kls->methods);
+    void *empty = NULL;
+    vector_push_back(&kls->fields, &empty);
+    vector_push_back(&kls->methods, &empty);
     vector_push_back(klc->objs + ITEM_CLASS, &kls);
     return kls;
 }
@@ -558,6 +561,8 @@ static void write_classes(KlcFile *klc, Vector *vec)
         if (!item) continue;
         write_uint16(klc, item->flags);
         write_uint16(klc, item->name_index);
+        write_vars(klc, &item->fields);
+        write_funcs(klc, &item->methods);
     }
 }
 
@@ -824,6 +829,8 @@ static void read_classes(KlcFile *klc, Vector *vec)
         vector_push_back(vec, &kls);
         read_uint16(klc, &kls->flags);
         read_uint16(klc, &kls->name_index);
+        read_vars(klc, &kls->fields);
+        read_funcs(klc, &kls->methods);
     }
 }
 

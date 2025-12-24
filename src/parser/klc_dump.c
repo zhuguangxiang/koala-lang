@@ -76,6 +76,29 @@ static void dump_consts(Vector *vec)
     }
 }
 
+static void dump_var(KlcVar *var, KlcFile *klc)
+{
+    Vector *consts = klc->objs + ITEM_CONST;
+
+    BUF(buf);
+
+    KlcConst **k = vector_get(consts, var->name_index);
+    fprintf(stdout, "  var %s ", (*k)->sval);
+
+    k = vector_get(consts, var->type_index);
+    type_spec_str_print((*k)->sval, &buf);
+
+    k = vector_get(consts, var->const_index);
+    if (k && *k) {
+        fprintf(stdout, "%s = ", BUF_STR(buf));
+        dump_const(*k);
+    } else {
+        fprintf(stdout, "%s\n", BUF_STR(buf));
+    }
+
+    FINI_BUF(buf);
+}
+
 static void dump_vars(Vector *vec, KlcFile *klc)
 {
     fprintf(stdout, "variables:\n");
@@ -89,26 +112,19 @@ static void dump_vars(Vector *vec, KlcFile *klc)
     vector_foreach(item_p, vec) {
         item = *item_p;
         if (!item) continue;
-        fprintf(stdout, "  [%2d] = ", i__);
-        KlcConst **k = vector_get(consts, item->name_index);
-        fprintf(stdout, "%s", (*k)->sval);
-        k = vector_get(consts, item->type_index);
-        RESET_BUF(buf);
-        type_spec_str_print((*k)->sval, &buf);
-        fprintf(stdout, " : %s = ", BUF_STR(buf));
-        k = vector_get(consts, item->const_index);
-        if (k && *k) dump_const(*k);
+        dump_var(item, klc);
     }
     FINI_BUF(buf);
 }
 
-static void dump_anns(Vector *vec, KlcFile *klc)
+static void dump_anns(Vector *vec, KlcFile *klc, int leading_spaces)
 {
     KlcAnnot **item_p;
     KlcAnnot *item;
     vector_foreach(item_p, vec) {
         item = *item_p;
         if (!item) continue;
+        fprintf(stdout, "%*c", leading_spaces, ' ');
         KlcConst *k = klc_get_const(klc, item->name_index);
         fprintf(stdout, "@%s(", k->sval);
         k = klc_get_const(klc, item->key_index);
@@ -155,57 +171,83 @@ static void dump_code(KlcCode *code)
     }
 }
 
-static void dump_funcs(Vector *vec, KlcFile *klc)
+static void dump_func(KlcFunc *fn, KlcFile *klc, int leading_spaces)
 {
-    fprintf(stdout, "functions:\n");
-
-    BUF(buf);
-
     Vector *codes = klc->objs + ITEM_CODE;
     KlcCode **code_p;
     KlcCode *code;
+
+    dump_anns(&fn->anns, klc, leading_spaces);
+
+    fprintf(stdout, "%*c", leading_spaces, ' ');
+
+    if (fn->flags & KLC_FLAGS_PUB) {
+        fprintf(stdout, "public ");
+    }
+
+    BUF(buf);
+
+    KlcConst *k = klc_get_const(klc, fn->name_index);
+    fprintf(stdout, "func %s(", k->sval);
+    KlcConst *ty_k;
+    KlcArgument **arg_p;
+    KlcArgument *arg;
+    vector_foreach(arg_p, &fn->args) {
+        arg = *arg_p;
+        if (!arg) continue;
+        k = klc_get_const(klc, arg->name_index);
+        ty_k = klc_get_const(klc, arg->type_index);
+        RESET_BUF(buf);
+        type_spec_str_print(ty_k->sval, &buf);
+        if (i__ != 0) {
+            fprintf(stdout, ", %s %s", k->sval, BUF_STR(buf));
+        } else {
+            fprintf(stdout, "%s %s", k->sval, BUF_STR(buf));
+        }
+    }
+
+    fprintf(stdout, ") ");
+
+    RESET_BUF(buf);
+
+    ty_k = klc_get_const(klc, fn->ret_type_index);
+    if (ty_k) {
+        type_spec_str_print(ty_k->sval, &buf);
+        if (fn->flags & KLC_FLAGS_TRAIT) {
+            fprintf(stdout, "%s", BUF_STR(buf));
+        } else {
+            fprintf(stdout, "%s ", BUF_STR(buf));
+        }
+    }
+
+    FINI_BUF(buf);
+    if (fn->flags & KLC_FLAGS_TRAIT) {
+        fprintf(stdout, "\n");
+        return;
+    }
+
+    code_p = vector_get(codes, fn->code_index);
+    code = *code_p;
+    if (!code) {
+        fprintf(stdout, "{}\n");
+    } else {
+        fprintf(stdout, "{\n");
+        dump_code(code);
+        fprintf(stdout, "}\n");
+    }
+}
+
+static void dump_funcs(Vector *vec, KlcFile *klc)
+{
+    fprintf(stdout, "functions:\n");
 
     KlcFunc **item_p;
     KlcFunc *item;
     vector_foreach(item_p, vec) {
         item = *item_p;
         if (!item) continue;
-
-        dump_anns(&item->anns, klc);
-        if (item->flags & KLC_FLAGS_PUB) {
-            fprintf(stdout, "public ");
-        }
-
-        KlcConst *k = klc_get_const(klc, item->name_index);
-        fprintf(stdout, "func %s(", k->sval);
-        KlcConst *ty_k;
-        KlcArgument **arg_p;
-        KlcArgument *arg;
-        vector_foreach(arg_p, &item->args) {
-            arg = *arg_p;
-            if (!arg) continue;
-            k = klc_get_const(klc, arg->name_index);
-            ty_k = klc_get_const(klc, arg->type_index);
-            RESET_BUF(buf);
-            desc_str_print(ty_k->sval, &buf);
-            if (i__ != 0) {
-                fprintf(stdout, ", %s: %s", k->sval, BUF_STR(buf));
-            } else {
-                fprintf(stdout, "%s: %s", k->sval, BUF_STR(buf));
-            }
-        }
-
-        fprintf(stdout, ") {\n");
-
-        code_p = vector_get(codes, item->code_index);
-        if (code_p) {
-            code = *code_p;
-            dump_code(code);
-        }
-
-        fprintf(stdout, "}\n");
+        dump_func(item, klc, 2);
     }
-    FINI_BUF(buf);
 }
 
 static void dump_class(Vector *vec, KlcFile *klc)
@@ -217,8 +259,40 @@ static void dump_class(Vector *vec, KlcFile *klc)
     vector_foreach(item_p, vec) {
         item = *item_p;
         if (!item) continue;
+
+        fprintf(stdout, "%*c", 2, ' ');
+
         KlcConst *k = klc_get_const(klc, item->name_index);
-        fprintf(stdout, "class %s\n", k->sval);
+        if (item->flags & KLC_FLAGS_PUB) {
+            fprintf(stdout, "public ");
+        }
+        if (item->flags & KLC_FLAGS_FINAL) {
+            fprintf(stdout, "final ");
+        }
+
+        if (item->flags & KLC_FLAGS_TRAIT) {
+            fprintf(stdout, "trait %s {\n", k->sval);
+        } else {
+            fprintf(stdout, "class %s {\n", k->sval);
+        }
+
+        KlcVar **field_p;
+        KlcVar *field;
+        vector_foreach(field_p, &item->fields) {
+            field = *field_p;
+            if (!field) continue;
+            dump_var(field, klc);
+        }
+
+        KlcFunc **fn_p;
+        KlcFunc *fn;
+        vector_foreach(fn_p, &item->methods) {
+            fn = *fn_p;
+            if (!fn) continue;
+            dump_func(fn, klc, 4);
+        }
+
+        fprintf(stdout, "  }\n");
     }
 }
 

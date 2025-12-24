@@ -76,9 +76,14 @@ typedef struct _VarSymbol {
     Literal *lit;
 } VarSymbol;
 
+typedef struct _TypeParam {
+    SYMBOL_HEAD
+    vector *bound;
+} TypeParam;
+
 typedef struct _ArgInfo {
     char *name;
-    TypeDesc *desc;
+    TypeSpec *ts;
     int dfl_val_idx;
 } ArgInfo;
 
@@ -137,7 +142,7 @@ static inline void stbl_free(HashMap *stbl)
 }
 
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
-Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeDesc *ret,
+Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
                       Vector *params, int flags, char *ann, char *ann_key);
 Symbol *stbl_add_klass(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags);
 Symbol *stbl_add_trait(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags);

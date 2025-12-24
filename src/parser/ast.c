@@ -243,7 +243,7 @@ Expr *expr_from_lit_str(Buffer *buf)
     memcpy(exp->sval, buf->buf, buf->len);
     exp->sval[buf->len] = '\0';
     exp->len = buf->len;
-    exp->desc = desc_str();
+    exp->ts = str_type_spec();
     buf->len = 0;
     return (Expr *)exp;
 }
@@ -452,7 +452,7 @@ TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound)
     return tp;
 }
 
-ParamDecl *param_new(Loc loc, Ident id, Type *type, Expr *value)
+ParamDecl *param_new(Loc loc, Ident id, TypeSpec *type, Expr *value)
 {
     ParamDecl *p = mm_alloc_obj(p);
     p->loc = loc;
@@ -471,7 +471,7 @@ Argument *arg_new(Loc loc, Ident id, Expr *value)
     return arg;
 }
 
-Stmt *stmt_from_func_decl(Ident id, Vector *args, Type *ret, Vector *tps)
+Stmt *stmt_from_func_decl(Ident id, Vector *args, TypeSpec *ret, Vector *tps)
 {
     FuncDeclStmt *s = mm_alloc_obj(s);
     s->kind = STMT_FUNC_KIND;

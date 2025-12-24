@@ -74,7 +74,7 @@ void kl_write_to_klc(ParserState *ps)
 
                 BUF(buf);
 
-                desc_to_str(fn->desc, &buf);
+                type_spec_to_str(fn->ts, &buf);
                 KlcFunc *f = klc_add_func(&klc, fn->name, BUF_STR(buf), flags);
 
                 // add argument info
@@ -83,7 +83,7 @@ void kl_write_to_klc(ParserState *ps)
                 vector_foreach(item_p, fn->params) {
                     RESET_BUF(buf);
                     item = *item_p;
-                    desc_to_str(item->desc, &buf);
+                    type_spec_to_str(item->ts, &buf);
                     klc_func_add_arg(f, item->name, BUF_STR(buf), item->dfl_val_idx);
                 }
 
@@ -103,17 +103,89 @@ void kl_write_to_klc(ParserState *ps)
             }
             case SYM_CLASS: {
                 KlassSymbol *kls = (KlassSymbol *)sym;
-                KlcKlass *klass = klc_add_klass(&klc, kls->name, 0);
+
+                int flags = 0;
+                if (kls->flags & SYM_FLAGS_PUBLIC) {
+                    flags |= KLC_FLAGS_PUB;
+                }
+
+                if (kls->flags & SYM_FLAGS_FINAL) {
+                    flags |= KLC_FLAGS_FINAL;
+                }
+
+                KlcKlass *klass = klc_add_klass(&klc, kls->name, flags);
                 FuncSymbol **fn_p;
                 FuncSymbol *fn;
+                KlcFunc *klc_fn;
+                BUF(buf);
                 vector_foreach(fn_p, kls->funcs) {
                     fn = *fn_p;
-                    printf("%s\n", fn->name);
+
+                    int flags_ = 0;
+                    if (fn->flags & SYM_FLAGS_PUBLIC) {
+                        flags_ |= KLC_FLAGS_PUB;
+                    }
+
+                    type_spec_to_str(fn->ts, &buf);
+                    klc_fn = klc_klass_add_func(klass, fn->name, BUF_STR(buf), flags_);
+
+                    // add argument info
+                    ArgInfo **item_p;
+                    ArgInfo *item;
+                    vector_foreach(item_p, fn->params) {
+                        RESET_BUF(buf);
+                        item = *item_p;
+                        type_spec_to_str(item->ts, &buf);
+                        klc_func_add_arg(klc_fn, item->name, BUF_STR(buf),
+                                         item->dfl_val_idx);
+                    }
+
+                    // add annotations
+                    if (fn->ann) {
+                        klc_func_add_ann(klc_fn, fn->ann, fn->ann_key, NULL);
+                    }
+                    RESET_BUF(buf);
                 }
                 break;
             }
             case SYM_TRAIT: {
                 KlassSymbol *kls = (KlassSymbol *)sym;
+
+                int flags = KLC_FLAGS_PUB | KLC_FLAGS_TRAIT;
+
+                KlcKlass *klass = klc_add_klass(&klc, kls->name, flags);
+                FuncSymbol **fn_p;
+                FuncSymbol *fn;
+                KlcFunc *klc_fn;
+                BUF(buf);
+                vector_foreach(fn_p, kls->funcs) {
+                    fn = *fn_p;
+
+                    int flags_ = KLC_FLAGS_TRAIT;
+                    if (fn->flags & SYM_FLAGS_PUBLIC) {
+                        flags_ |= KLC_FLAGS_PUB;
+                    }
+
+                    type_spec_to_str(fn->ts, &buf);
+                    klc_fn = klc_klass_add_func(klass, fn->name, BUF_STR(buf), flags_);
+
+                    // add argument info
+                    ArgInfo **item_p;
+                    ArgInfo *item;
+                    vector_foreach(item_p, fn->params) {
+                        RESET_BUF(buf);
+                        item = *item_p;
+                        type_spec_to_str(item->ts, &buf);
+                        klc_func_add_arg(klc_fn, item->name, BUF_STR(buf),
+                                         item->dfl_val_idx);
+                    }
+
+                    // add annotations
+                    if (fn->ann) {
+                        klc_func_add_ann(klc_fn, fn->ann, fn->ann_key, NULL);
+                    }
+                    RESET_BUF(buf);
+                }
                 break;
             }
             default: {

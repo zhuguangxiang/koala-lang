@@ -68,11 +68,14 @@ ClassDef(Foo)
 typedef enum _TypeKind {
     TYPE_UNRESOLVED,
     TYPE_SPECIALIZED_UNRESOLVED,
+    TYPE_NO_TYPE,
     TYPE_INT,
     TYPE_FLOAT,
     TYPE_BFLOAT16,
     TYPE_BOOL,
     TYPE_STR,
+    TYPE_OBJECT,
+    TYPE_VA_LIST,
     TYPE_BASE,
     TYPE_CLASS,
     TYPE_TRAIT,
@@ -138,11 +141,17 @@ typedef struct _TypeSpec {
 
 #define type_spec_loc(ty, _loc) (ty)->loc = (_loc)
 
+TypeSpec *no_type_spec(void);
 TypeSpec *int_type_spec(int width, int sign);
+TypeSpec *bool_type_spec(void);
+TypeSpec *str_type_spec(void);
+TypeSpec *object_type_spec(void);
+TypeSpec *va_list_type_spec(void);
 
 int type_spec_is_compatible(TypeSpec *dst, TypeSpec *src);
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
+TypeSpec *type_spec_from_str(const char *s);
 
 void type_spec_print(TypeSpec *ts, Buffer *buf);
 void type_spec_str_print(char *s, Buffer *buf);

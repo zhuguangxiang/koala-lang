@@ -1,0 +1,34 @@
+
+Todos:
+  ☐ builtin.kl can be written into .klc and read it
+    ☐ read/write klc
+    ☐ annotation
+    ☐ func
+    ☐ trait
+    ☐ class
+    ☐ other
+  ☐ int8(100)
+    ☐ 100 as int8
+    ☐ as int8
+    ☐ int8(x)
+  ☐ binary expression
+    ☐ int binary expr
+    ☐ int8/int16 cast to int auto and then do binary ops
+    ☐ uint8/uint16 cast to uint auto and then do binary ops
+    ☐ int32 op int32
+    ☐ int32 op int64
+    ☐ int64 op int64
+    ☐ int op uint is not allowed
+  ☐ uary expression
+    ☐ remove [+|-]* in lex
+  ☐ add auto tests
+    ☐ release version
+    ☐ no log version
+  ☐ literal float
+  ☐ AST simple optimization
+    ☐ Constant Folding(BinaryExpr)
+    ☐ Constant Propagation
+    ☐ Visitor pattern
+
+Archive:
+  ✔ literal integer @done(25-12-21 23:13)

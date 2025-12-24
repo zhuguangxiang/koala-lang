@@ -13,12 +13,47 @@
 extern "C" {
 #endif
 
+TypeSpec *no_type_spec(void)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_NO_TYPE;
+    return ts;
+}
+
 TypeSpec *int_type_spec(int width, int sign)
 {
-    TypeSpec *ts = mm_alloc_obj_fast(ts);
+    TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_INT;
     ts->int_flt_info.width = width;
     ts->int_flt_info.sign = sign;
+    return ts;
+}
+
+TypeSpec *bool_type_spec(void)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_BOOL;
+    return ts;
+}
+
+TypeSpec *str_type_spec(void)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_STR;
+    return ts;
+}
+
+TypeSpec *object_type_spec(void)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_OBJECT;
+    return ts;
+}
+
+TypeSpec *va_list_type_spec(void)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_VA_LIST;
     return ts;
 }
 
@@ -55,21 +90,115 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
             char ch = ts->int_flt_info.sign ? 'j' : 'J';
             buf_write_char(buf, ch);
         }
+    } else if (ts->kind == TYPE_STR) {
+        buf_write_char(buf, 'u');
+    } else if (ts->kind == TYPE_VA_LIST) {
+        buf_write_str(buf, "...");
+    } else if (ts->kind == TYPE_NO_TYPE) {
+        // do-nothing
+    } else if (ts->kind == TYPE_BOOL) {
+        buf_write_char(buf, 'z');
+    } else if (ts->kind == TYPE_OBJECT) {
+        buf_write_char(buf, 'o');
+    } else {
+        UNREACHABLE();
     }
 
     return 0;
+}
+
+TypeSpec *type_spec_from_str(const char *s)
+{
+    if (!s || s[0] == 0) return NULL;
+
+    TypeSpec *ty = NULL;
+
+    int len = strlen(s);
+
+    if (len == 1) {
+        int width;
+        int sign;
+        char ch = s[0];
+        switch (ch) {
+            case 'c':
+                width = 1;
+                sign = 1;
+                break;
+            case 'C':
+                width = 1;
+                sign = 0;
+                break;
+            case 's':
+                width = 2;
+                sign = 1;
+                break;
+            case 'S':
+                width = 2;
+                sign = 0;
+                break;
+            case 'i':
+                width = 4;
+                sign = 1;
+                break;
+            case 'I':
+                width = 4;
+                sign = 0;
+                break;
+            case 'j':
+                width = 8;
+                sign = 1;
+                break;
+            case 'J':
+                width = 8;
+                sign = 0;
+                break;
+            case 'u':
+                return str_type_spec();
+                break;
+            case 'z':
+                return bool_type_spec();
+                break;
+            case 'o':
+                return object_type_spec();
+                break;
+            default:
+                UNREACHABLE();
+                break;
+        }
+        ty = int_type_spec(width, sign);
+        return ty;
+    }
+
+    if (!strcmp(s, "...")) {
+        return va_list_type_spec();
+    }
+
+    UNREACHABLE();
+    return NULL;
 }
 
 void type_spec_print(TypeSpec *ts, Buffer *buf)
 {
     if (!ts) return;
 
-    if (ts->kind == TYPE_INT) {
+    if (ts->kind == TYPE_NO_TYPE) {
+        buf_write_str(buf, "<NO-TYPE>");
+    } else if (ts->kind == TYPE_INT) {
         if (!ts->int_flt_info.sign) {
             buf_write_char(buf, 'u');
         }
         buf_write_str(buf, "int");
         buf_write_int64(buf, ts->int_flt_info.width * 8);
+    } else if (ts->kind == TYPE_STR) {
+        buf_write_str(buf, "str");
+    } else if (ts->kind == TYPE_VA_LIST) {
+        buf_write_str(buf, "...");
+    } else if (ts->kind == TYPE_BOOL) {
+        buf_write_str(buf, "bool");
+    } else if (ts->kind == TYPE_OBJECT) {
+        buf_write_str(buf, "object");
+    } else {
+        UNREACHABLE();
     }
 }
 
@@ -115,11 +244,24 @@ void type_spec_str_print(char *s, Buffer *buf)
             case 'z':
                 buf_write_str(buf, "bool");
                 break;
+            case 'u':
+                buf_write_str(buf, "str");
+                break;
+            case 'o':
+                buf_write_str(buf, "object");
+                break;
             default:
                 break;
         }
         return;
     }
+
+    if (!strcmp(s, "...")) {
+        buf_write_str(buf, "...");
+        return;
+    }
+
+    UNREACHABLE();
 }
 
 #ifdef __cplusplus

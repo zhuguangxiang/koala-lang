@@ -49,7 +49,7 @@ static void free_scope(ParserScope *scope)
 
 #ifndef NOLOG
 static const char *scopes[] = {
-    "TOP", "TYPE", "FUNC", "BLOCK", "ANONY",
+    "TOP", "CLASS", "TRAIT", "FUNC", "BLOCK", "ANONY",
 };
 
 static const char *blocks[] = {
@@ -308,7 +308,7 @@ static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
 static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
 {
     Ident *id = &fn->id;
-    TypeDesc *ty = fn->ret ? fn->ret->desc : desc_no_type();
+    TypeSpec *ty = fn->ret ?: no_type_spec();
     Symbol *sym;
 
     int flags = parse_flags(&fn->flags);
@@ -403,7 +403,7 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     Vector *args = vector_create_ptr();
 
     int size = vector_size(fn->args);
-    TypeDesc *params[(size + 1)];
+    TypeSpec *params[(size + 1)];
     Symbol *arg_syms[size];
 
     ParamDecl **param_p;
@@ -415,41 +415,40 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
         arg->name = param->id.name;
         arg->dfl_val_idx = 0;
 
-        // TypeDesc *desc;
-        // if (param->type) {
-        //     desc = param->type->desc;
-        //     DESC_INCREF(desc);
-        // } else {
-        //     Expr *e = param->value;
-        //     e->ctx = EXPR_CTX_LOAD;
-        //     parser_visit_expr(ps, e);
-        //     if (!e->desc) return;
-        //     desc = e->desc;
-        //     DESC_INCREF(desc);
-        // }
-        // Symbol *s = stbl_add_var(sc->stbl, param->id.name, desc, 0);
+        TypeSpec *ts;
+        if (param->type) {
+            ts = param->type;
+        } else {
+            Expr *e = param->value;
+            e->ctx = EXPR_CTX_LOAD;
+            parser_visit_expr(ps, e);
+            if (!e->ts) return;
+            ts = e->ts;
+        }
+        Symbol *s = stbl_add_var(sc->stbl, param->id.name, ts, 0);
 
-        // arg->desc = desc;
+        arg->ts = ts;
         // DESC_INCREF(desc);
-        // vector_push_back(args, &arg);
+        vector_push_back(args, &arg);
 
         // params[i__] = DESC_INCREF_GET(desc);
-        // arg_syms[i__] = s;
+        params[i__] = ts;
+        arg_syms[i__] = s;
     }
 
     params[size] = 0;
 
     sym->params = args;
 
-    KlrValue *fval = klr_add_func(ps->module, sym->desc, params, fn->id.name);
-    sym->ir_val = fval;
-    KlrBasicBlock *entry = klr_append_block(fval, "entry");
-    sc->bb = entry;
+    // KlrValue *fval = klr_add_func(ps->module, sym->desc, params, fn->id.name);
+    // sym->ir_val = fval;
+    // KlrBasicBlock *entry = klr_append_block(fval, "entry");
+    // sc->bb = entry;
 
-    for (int i = 0; i < size; i++) {
-        Symbol *s = arg_syms[i];
-        s->ir_val = klr_get_param(fval, i);
-    }
+    // for (int i = 0; i < size; i++) {
+    //     Symbol *s = arg_syms[i];
+    //     s->ir_val = klr_get_param(fval, i);
+    // }
 
     /* parse body */
     parse_body(ps, sym, fn->body);
@@ -468,7 +467,6 @@ static void parse_expr(ParserState *ps, Stmt *stmt)
 static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
 {
     Ident *id = &kls->id;
-    // TypeDesc *ty = fn->ret ? fn->ret->desc : NULL;
     Symbol *sym;
 
     int flags = parse_flags(&kls->flags);
@@ -480,14 +478,28 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
         return NULL;
     }
 
-    // fn->id.sym = sym;
+    KlassSymbol *kls_sym = (KlassSymbol *)sym;
+    Stmt **stmt_p;
+    Stmt *stmt;
+    vector_foreach(stmt_p, kls->stmts) {
+        stmt = *stmt_p;
+        if (stmt->kind == STMT_VAR_KIND) {
+            Symbol *var = _add_var(ps, sym->stbl, (VarDeclStmt *)stmt);
+            if (var) vector_push_back(kls_sym->fields, &var);
+        } else if (stmt->kind == STMT_FUNC_KIND) {
+            Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt);
+            if (fn) vector_push_back(kls_sym->funcs, &fn);
+        } else {
+            UNREACHABLE();
+        }
+    }
+
     return sym;
 }
 
 static Symbol *_add_trait(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
 {
     Ident *id = &kls->id;
-    // TypeDesc *ty = fn->ret ? fn->ret->desc : NULL;
     Symbol *sym;
 
     int flags = parse_flags(&kls->flags);
@@ -498,7 +510,19 @@ static Symbol *_add_trait(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
         return NULL;
     }
 
-    // fn->id.sym = sym;
+    KlassSymbol *kls_sym = (KlassSymbol *)sym;
+    Stmt **stmt_p;
+    Stmt *stmt;
+    vector_foreach(stmt_p, kls->stmts) {
+        stmt = *stmt_p;
+        if (stmt->kind == STMT_FUNC_KIND) {
+            Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt);
+            if (fn) vector_push_back(kls_sym->funcs, &fn);
+        } else {
+            UNREACHABLE();
+        }
+    }
+
     return sym;
 }
 
@@ -506,12 +530,12 @@ static void parse_class(ParserState *ps, Stmt *stmt)
 {
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
 
-    ParserScope *scope = enter_scope(ps, SCOPE_TYPE, 0);
+    ParserScope *scope = enter_scope(ps, SCOPE_CLASS, 0);
 
     /* parse class body */
     Stmt **s;
     vector_foreach(s, kls->stmts) {
-        // parse_stmt(ps, *s);
+        parse_stmt(ps, *s);
     }
 
     exit_scope(ps);
@@ -521,12 +545,12 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
 {
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
 
-    ParserScope *scope = enter_scope(ps, SCOPE_TYPE, 0);
+    ParserScope *scope = enter_scope(ps, SCOPE_TRAIT, 0);
 
     /* parse class body */
     Stmt **s;
     vector_foreach(s, kls->stmts) {
-        // parse_stmt(ps, *s);
+        parse_stmt(ps, *s);
     }
 
     exit_scope(ps);
@@ -623,7 +647,7 @@ static ParserState *build_ast(char *path)
 
     ParserState *ps = mm_alloc_obj(ps);
     init_parser_state(ps, path);
-    // kl_read_from_klc(ps->builtin, "libs/builtin.klc");
+    kl_read_from_klc(ps->builtin, "libs/builtin.klc");
 
     yyscan_t scanner;
     yylex_init_extra(ps, &scanner);
