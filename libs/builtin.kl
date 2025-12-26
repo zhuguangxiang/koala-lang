@@ -40,9 +40,9 @@ public trait Iterator[T] {
     func __next__() T
 }
 
-// public trait Iterable[T] {
-//     func __iter__() Iterator[T]
-// }
+public trait Iterable[T] {
+    func __iter__() Iterator[T]
+}
 
 /**
 Print `objs` to the stream file, separated by `sep` and followed by `end`.

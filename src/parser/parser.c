@@ -126,7 +126,7 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
     while (up) {
         sym = stbl_get(up->stbl, id->name);
         if (sym) {
-            log_info("find symbol '%s' in up scope-%d(%s)\n", id->name, depth,
+            log_info("find symbol '%s' in up scope-%d(%s)", id->name, depth,
                      scopes[up->kind]);
             id->where = UP_SCOPE;
             id->scope = up;
@@ -146,6 +146,18 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         return sym;
     }
 
+    return NULL;
+}
+
+Symbol *find_type_symbol(ParserState *ps, TypeIdent *pkg, TypeIdent *name)
+{
+    if (pkg->name == NULL) {
+        // find in current module
+        Ident id = { .name = name->name, .loc = name->loc };
+        return find_symbol(ps, &id);
+    }
+
+    // TODO: find package
     return NULL;
 }
 
@@ -400,6 +412,32 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
 
     /* add parameters into function symbol table */
 
+    // parse return type
+    if (sym->ts) {
+        TypeSpec *_ts = sym->ts;
+        if (_ts->kind == TYPE_UNRESOLVED) {
+            Symbol *type_sym =
+                find_type_symbol(ps, &_ts->unresolved.pkg, &_ts->unresolved.name);
+            if (!type_sym) {
+                kl_error(_ts->loc, "'%s' is not found", _ts->unresolved.name.name);
+                return;
+            }
+            if (type_sym->kind == SYM_TYPE_PARAM) {
+                // update return type
+                TypeParamSymbol *tp_sym = (TypeParamSymbol *)type_sym;
+                sym->ts = generic_var_type_spec(tp_sym->name, tp_sym->index);
+            } else if (type_sym->kind == SYM_TRAIT || type_sym->kind == SYM_CLASS) {
+                TypeSpec **tp_p;
+                TypeSpec *tp;
+                vector_foreach(tp_p, _ts->unresolved.args) {
+                    tp = *tp_p;
+                }
+            } else {
+                UNREACHABLE();
+            }
+        }
+    }
+
     Vector *args = vector_create_ptr();
 
     int size = vector_size(fn->args);
@@ -471,7 +509,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
 
     int flags = parse_flags(&kls->flags);
 
-    sym = stbl_add_klass(stbl, id->name, NULL, NULL, flags);
+    sym = stbl_add_klass(stbl, id->name, flags);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -479,6 +517,24 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
     }
 
     KlassSymbol *kls_sym = (KlassSymbol *)sym;
+
+    // add tps
+    Vector *vec = NULL;
+    if (vector_size(kls->tps) > 0) {
+        vec = vector_create_ptr();
+    }
+    kls_sym->tps = vec;
+
+    TypeParamDecl **tp_p;
+    TypeParamDecl *tp;
+    vector_foreach(tp_p, kls->tps) {
+        tp = *tp_p;
+        Symbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name);
+        vector_push_back(vec, &tp_sym);
+        ((TypeParamSymbol *)tp_sym)->index = i__;
+    }
+
+    // add fields & methods
     Stmt **stmt_p;
     Stmt *stmt;
     vector_foreach(stmt_p, kls->stmts) {
@@ -494,6 +550,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
         }
     }
 
+    kls->id.sym = sym;
     return sym;
 }
 
@@ -503,7 +560,7 @@ static Symbol *_add_trait(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
     Symbol *sym;
 
     int flags = parse_flags(&kls->flags);
-    sym = stbl_add_trait(stbl, id->name, NULL, NULL, flags);
+    sym = stbl_add_trait(stbl, id->name, flags);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -511,6 +568,24 @@ static Symbol *_add_trait(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
     }
 
     KlassSymbol *kls_sym = (KlassSymbol *)sym;
+
+    // add tps
+    Vector *vec = NULL;
+    if (vector_size(kls->tps) > 0) {
+        vec = vector_create_ptr();
+    }
+    kls_sym->tps = vec;
+
+    TypeParamDecl **tp_p;
+    TypeParamDecl *tp;
+    vector_foreach(tp_p, kls->tps) {
+        tp = *tp_p;
+        Symbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name);
+        vector_push_back(vec, &tp_sym);
+        ((TypeParamSymbol *)tp_sym)->index = i__;
+    }
+
+    // add method proto
     Stmt **stmt_p;
     Stmt *stmt;
     vector_foreach(stmt_p, kls->stmts) {
@@ -523,14 +598,18 @@ static Symbol *_add_trait(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
         }
     }
 
+    kls->id.sym = sym;
     return sym;
 }
 
 static void parse_class(ParserState *ps, Stmt *stmt)
 {
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
+    KlassSymbol *sym = (KlassSymbol *)kls->id.sym;
 
-    ParserScope *scope = enter_scope(ps, SCOPE_CLASS, 0);
+    ParserScope *sc = enter_scope(ps, SCOPE_CLASS, 0);
+    sc->stbl = sym->stbl;
+    sc->sym = (Symbol *)sym;
 
     /* parse class body */
     Stmt **s;
@@ -544,8 +623,11 @@ static void parse_class(ParserState *ps, Stmt *stmt)
 static void parse_trait(ParserState *ps, Stmt *stmt)
 {
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
+    KlassSymbol *sym = (KlassSymbol *)kls->id.sym;
 
-    ParserScope *scope = enter_scope(ps, SCOPE_TRAIT, 0);
+    ParserScope *sc = enter_scope(ps, SCOPE_TRAIT, 0);
+    sc->stbl = sym->stbl;
+    sc->sym = (Symbol *)sym;
 
     /* parse class body */
     Stmt **s;
@@ -647,7 +729,7 @@ static ParserState *build_ast(char *path)
 
     ParserState *ps = mm_alloc_obj(ps);
     init_parser_state(ps, path);
-    kl_read_from_klc(ps->builtin, "libs/builtin.klc");
+    // kl_read_from_klc(ps->builtin, "libs/builtin.klc");
 
     yyscan_t scanner;
     yylex_init_extra(ps, &scanner);

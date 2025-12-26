@@ -337,6 +337,8 @@ KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags)
     return kls;
 }
 
+int klc_klass_add_tp(KlcKlass *kls, char *name, Vector *bounds) {}
+
 KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_desc, int flags)
 {
     KlcFile *klc = kls->filp;

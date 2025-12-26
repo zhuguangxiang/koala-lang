@@ -76,10 +76,14 @@ typedef struct _VarSymbol {
     Literal *lit;
 } VarSymbol;
 
-typedef struct _TypeParam {
+typedef struct _TypeParamSymbol {
+    // ts is not used
     SYMBOL_HEAD
-    vector *bound;
-} TypeParam;
+    // list of TypeSpec
+    Vector *bound;
+    // index in type-param list
+    int index;
+} TypeParamSymbol;
 
 typedef struct _ArgInfo {
     char *name;
@@ -144,8 +148,9 @@ static inline void stbl_free(HashMap *stbl)
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
                       Vector *params, int flags, char *ann, char *ann_key);
-Symbol *stbl_add_klass(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags);
-Symbol *stbl_add_trait(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags);
+Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags);
+Symbol *stbl_add_trait(HashMap *stbl, char *name, int flags);
+Symbol *stbl_add_type_param(HashMap *stbl, char *name);
 
 Symbol *stbl_get(HashMap *stbl, char *name);
 

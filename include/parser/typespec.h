@@ -13,61 +13,7 @@
 extern "C" {
 #endif
 
-/*
-// 对应 class Foo[T] { T data; }
-
-// 1. 获取当前正在解析的类定义
-ClassDef *currentClass = ...; // 指向 Foo 的 ClassDef
-
-// 2. 为字段 'data' 创建 TypeSpec
-TypeSpec *dataType = malloc(sizeof(TypeSpec));
-dataType->kind = TYPE_GENERIC_VAR;
-dataType->as.generic_var.name = strdup("T");
-
-// 3. 核心关联：将此引用绑定回类定义的形参列表
-// 这样在语义分析时，你可以验证 "T" 是否确实存在于 Foo 的 type_params 中
-dataType->as.generic_var.owner = currentClass;
-
-// 4. 创建字段定义
-FieldDef *field = createField("data", dataType);
--------------------------------------------------------------------------
-class Foo[T] { Bar[T] data;}
-
-// 1. 定义 Foo 类
-ClassDef *fooDef = createClassDef("Foo", {"T"});
-
-// 2. 解析字段 Bar[T] data
-// 这对应一个嵌套的 TypeSpec 结构：
-TypeSpec *fieldTypespec = malloc(sizeof(TypeSpec));
-fieldTypespec->kind = TYPE_SPECIALIZED;
-fieldTypespec->as.specialized.base_class = findClass("Bar"); // 指向 Bar 的 ClassDef
-
-// 3. 关键点：Bar[T] 的参数 T
-TypeSpec *tArg = malloc(sizeof(TypeSpec));
-tArg->kind = TYPE_GENERIC_VAR;
-tArg->as.generic_var.name = "T";
-// 建立回溯关联：告诉编译器这个 T 是谁定义的
-tArg->as.generic_var.owner = fooDef;
-
-// 4. 将 T 放入 Bar 的参数列表
-fieldTypespec->as.specialized.args = malloc(sizeof(TypeSpec*));
-fieldTypespec->as.specialized.args[0] = tArg;
-fieldTypespec->as.specialized.count = 1;
-
-ClassDef(Foo)
-  |-- TypeParams: ["T"]
-  |-- Fields:
-        |-- FieldDef("data")
-              |-- TypeSpec(kind: SPECIALIZED)
-                    |-- base_class: ClassDef(Bar)
-                    |-- args:
-                          |-- [0]: TypeSpec(kind: GENERIC_VAR)
-                                     |-- name: "T"
-                                     |-- owner: ClassDef(Foo) <--- [反向引用]
-*/
 typedef enum _TypeKind {
-    TYPE_UNRESOLVED,
-    TYPE_SPECIALIZED_UNRESOLVED,
     TYPE_NO_TYPE,
     TYPE_INT,
     TYPE_FLOAT,
@@ -76,12 +22,18 @@ typedef enum _TypeKind {
     TYPE_STR,
     TYPE_OBJECT,
     TYPE_VA_LIST,
-    TYPE_BASE,
-    TYPE_CLASS,
-    TYPE_TRAIT,
+    TYPE_UNRESOLVED,
     TYPE_GENERIC_VAR,
     TYPE_SPECIALIZED,
 } TypeKind;
+
+typedef struct _TypeIdent {
+    char *name;
+    Loc loc;
+} TypeIdent;
+
+#define MOD_ID(_name, _s, _l)  TypeIdent _name = { _s, _l }
+#define NAME_ID(_name, _s, _l) TypeIdent _name = { _s, _l }
 
 typedef struct _TypeSpec {
     TypeKind kind;
@@ -93,49 +45,26 @@ typedef struct _TypeSpec {
             int sign;
         } int_flt_info;
 
-        char *base;
-
+        // T
         struct {
             char *name;
-            char *pkg_name;
-            char *class_trait_name;
-        } unresolved;
-
-        // T extends Animal
-        struct {
-            char *name;
-            struct _TypeSpec **bounds;
-            int count;
+            int index;
         } generic_var;
 
-        // class info
+        // List[int]
         struct {
-            char *pkg_name;
-            char *class_name;
-            // struct _ClassDef *def;
-            void *def;
-        } class_info;
-
-        // trait info
-        struct {
-            char *full_name;
-            // struct _TraitDef *def;
-            void *def;
-        } trait_info;
-
-        // List<int>
-        struct {
-            struct _TypeSpec *base_class;
-            struct _TypeSpec **args;
-            int count;
+            char *pkg;
+            char *name;
+            Vector *args;
+            int sym_id;
         } specialized;
 
-        // Bar[T]
+        // T, Bar, Bar[T], Bar[int]
         struct {
-            char *base_name;
-            struct _TypeSpec **args;
-            int count;
-        } specialized_unresolved;
+            TypeIdent pkg;
+            TypeIdent name;
+            Vector *args;
+        } unresolved;
     };
 } TypeSpec;
 
@@ -147,6 +76,9 @@ TypeSpec *bool_type_spec(void);
 TypeSpec *str_type_spec(void);
 TypeSpec *object_type_spec(void);
 TypeSpec *va_list_type_spec(void);
+TypeSpec *generic_var_type_spec(char *name, int index);
+TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args);
+TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args);
 
 int type_spec_is_compatible(TypeSpec *dst, TypeSpec *src);
 

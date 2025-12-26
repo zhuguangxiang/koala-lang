@@ -231,7 +231,7 @@ static void free_tp_list(Vector *vec)
 %type<type> map_type
 %type<type> set_type
 %type<type> tuple_type
-%type<type> klass_type
+%type<type_spec> klass_type
 %type<type_spec> atom_type
 
 %type<vec> id_dot_list
@@ -594,7 +594,7 @@ type
     }
     | klass_type
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | atom_type
     {
@@ -729,29 +729,29 @@ set_type
 klass_type
     : ID
     {
-        IDENT(id, $1, loc(@1));
-        $$ = klass_type(NULL, &id, NULL);
-        type_set_loc($$, loc(@1));
+        NAME_ID(id, $1, loc(@1));
+        $$ = unresolved_type_spec(NULL, id, NULL);
+        type_spec_loc($$, loc(@1));
     }
     | ID '.' ID
     {
-        IDENT(mod, $1, loc(@1));
-        IDENT(id, $3, loc(@3));
-        $$ = klass_type(&mod, &id, NULL);
-        type_set_loc($$, lloc(@1, @3));
+        MOD_ID(mod, $1, loc(@1));
+        NAME_ID(id, $3, loc(@3));
+        $$ = unresolved_type_spec(&mod, id, NULL);
+        type_spec_loc($$, lloc(@1, @3));
     }
     | ID '[' optional_type_list ']'
     {
-        IDENT(id, $1, loc(@1));
-        $$ = klass_type(NULL, &id, $3);
-        type_set_loc($$, lloc(@1, @4));
+        NAME_ID(id, $1, loc(@1));
+        $$ = unresolved_type_spec(NULL, id, $3);
+        type_spec_loc($$, lloc(@1, @4));
     }
     | ID '.' ID '[' optional_type_list ']'
     {
-        IDENT(mod, $1, loc(@1));
-        IDENT(id, $3, loc(@3));
-        $$ = klass_type(&mod, &id, $5);
-        type_set_loc($$, lloc(@1, @6));
+        MOD_ID(mod, $1, loc(@1));
+        NAME_ID(id, $3, loc(@3));
+        $$ = unresolved_type_spec(&mod, id, $5);
+        type_spec_loc($$, lloc(@1, @6));
     }
     | ID '.' error
     {
@@ -1309,7 +1309,7 @@ class_name
 type_param_decl_list
     : type_param_decl
     {
-        $$ = vector_create(sizeof(TypeParamDecl *));
+        $$ = vector_create_ptr();
         vector_push_back($$, &$1);
     }
     | type_param_decl_list ',' type_param_decl
@@ -1497,13 +1497,13 @@ trait_decl
     | TRAIT ID '[' type_param_decl_list ']' '{' trait_members_or_empty '}'
     {
         Ident id = {$2, loc(@2)};
-        $$ = stmt_from_trait(id, NULL, NULL, $7);
+        $$ = stmt_from_trait(id, $4, NULL, $7);
         stmt_set_loc($$, lloc(@1, @8));
     }
     | TRAIT ID '[' type_param_decl_list ']' extends '{' trait_members_or_empty '}'
     {
         Ident id = {$2, loc(@2)};
-        $$ = stmt_from_trait(id, NULL, NULL, $8);
+        $$ = stmt_from_trait(id, $4, NULL, $8);
         stmt_set_loc($$, lloc(@1, @9));
     }
     ;

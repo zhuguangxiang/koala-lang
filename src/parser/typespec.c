@@ -57,6 +57,37 @@ TypeSpec *va_list_type_spec(void)
     return ts;
 }
 
+TypeSpec *generic_var_type_spec(char *name, int index)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_GENERIC_VAR;
+    ts->generic_var.name = name;
+    ts->generic_var.index = index;
+    return ts;
+}
+
+TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_SPECIALIZED;
+    ts->specialized.pkg = full_pkg;
+    ts->specialized.name = name;
+    ts->specialized.args = args;
+    return ts;
+}
+
+TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_UNRESOLVED;
+    if (pkg) {
+        ts->unresolved.pkg = *pkg;
+    }
+    ts->unresolved.name = name;
+    ts->unresolved.args = args;
+    return ts;
+}
+
 // check dst is compatible with src
 int type_spec_is_compatible(TypeSpec *dst, TypeSpec *src)
 {
@@ -100,6 +131,10 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         buf_write_char(buf, 'z');
     } else if (ts->kind == TYPE_OBJECT) {
         buf_write_char(buf, 'o');
+    } else if (ts->kind == TYPE_GENERIC_VAR) {
+        buf_write_char(buf, '<');
+        buf_write_str(buf, ts->generic_var.name);
+        buf_write_char(buf, ';');
     } else {
         UNREACHABLE();
     }
@@ -197,6 +232,8 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         buf_write_str(buf, "bool");
     } else if (ts->kind == TYPE_OBJECT) {
         buf_write_str(buf, "object");
+    } else if (ts->kind == TYPE_UNRESOLVED) {
+        buf_write_str(buf, ts->unresolved.name.name);
     } else {
         UNREACHABLE();
     }
@@ -258,6 +295,13 @@ void type_spec_str_print(char *s, Buffer *buf)
 
     if (!strcmp(s, "...")) {
         buf_write_str(buf, "...");
+        return;
+    }
+
+    if (s[0] == '<') {
+        char *_s = s + 1;
+        while (*_s != ';') _s++;
+        buf_write_nstr(buf, s + 1, _s - (s + 1));
         return;
     }
 

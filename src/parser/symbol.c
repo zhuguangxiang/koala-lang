@@ -103,7 +103,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
     return (Symbol *)sym;
 }
 
-Symbol *stbl_add_klass(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags)
+Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags)
 {
     KlassSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(name));
@@ -118,8 +118,6 @@ Symbol *stbl_add_klass(HashMap *stbl, char *name, Vector *tps, Vector *bases, in
         sym->funcs = vector_create_ptr();
         sym->protos = vector_create_ptr();
         sym->flags = flags;
-        sym->bases = bases;
-        sym->tps = tps;
         sym->stbl = stbl_new();
     }
 
@@ -138,7 +136,7 @@ Symbol *stbl_add_klass(HashMap *stbl, char *name, Vector *tps, Vector *bases, in
     return (Symbol *)sym;
 }
 
-Symbol *stbl_add_trait(HashMap *stbl, char *name, Vector *tps, Vector *bases, int flags)
+Symbol *stbl_add_trait(HashMap *stbl, char *name, int flags)
 {
     KlassSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(name));
@@ -153,8 +151,6 @@ Symbol *stbl_add_trait(HashMap *stbl, char *name, Vector *tps, Vector *bases, in
         sym->funcs = vector_create_ptr();
         sym->protos = vector_create_ptr();
         sym->flags = flags;
-        sym->bases = bases;
-        sym->tps = tps;
         sym->stbl = stbl_new();
     }
 
@@ -168,6 +164,31 @@ Symbol *stbl_add_trait(HashMap *stbl, char *name, Vector *tps, Vector *bases, in
         log_info("add trait('%s') failed", name);
     }
     FINI_BUF(buf);
+#endif
+
+    return (Symbol *)sym;
+}
+
+Symbol *stbl_add_type_param(HashMap *stbl, char *name)
+{
+    TypeParamSymbol *sym = mm_alloc_obj(sym);
+    hashmap_entry_init(sym, str_hash(name));
+    sym->kind = SYM_TYPE_PARAM;
+    sym->name = name;
+
+    if (hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    } else {
+        sym->stbl = stbl_new();
+    }
+
+#ifndef NOLOG
+    if (sym) {
+        log_info("add type_param('%s') OK", name);
+    } else {
+        log_info("add type_param('%s') failed", name);
+    }
 #endif
 
     return (Symbol *)sym;

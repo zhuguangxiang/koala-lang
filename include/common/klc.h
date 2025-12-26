@@ -167,7 +167,7 @@ int klc_func_add_tp(KlcFunc *fn, char *name, char *desc);
 int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value);
 
 KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags);
-int klc_klass_add_tp(KlcKlass *kls, char *name, char *desc);
+int klc_klass_add_tp(KlcKlass *kls, char *name, Vector *bounds);
 int klc_klass_add_ann(KlcKlass *kls, char *name, char *key, char *value);
 int klc_klass_add_base(KlcKlass *kls, char *base_desc);
 KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *desc, int flags);
