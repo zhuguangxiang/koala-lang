@@ -261,6 +261,10 @@ static KlcFunc *new_func(KlcFile *klc, char *name, char *ret_desc, int flags)
     vector_init_ptr(&fn->args);
     vector_init_ptr(&fn->tps);
     vector_init_ptr(&fn->anns);
+    void *empty = NULL;
+    vector_push_back(&fn->args, &empty);
+    vector_push_back(&fn->tps, &empty);
+    vector_push_back(&fn->anns, &empty);
     return fn;
 }
 
@@ -293,9 +297,9 @@ int klc_func_add_tp(KlcFunc *fn, char *name, char *desc)
     uint16_t name_index = klc_add_str(klc, name, len);
     len = strlen(desc);
     uint16_t desc_index = klc_add_str(klc, desc, len);
-    KlcTypePara *tp = mm_alloc_obj(tp);
+    KlcTypeParam *tp = mm_alloc_obj(tp);
     tp->name_index = name_index;
-    tp->type_index = desc_index;
+    // tp->type_index = desc_index;
     vector_push_back(&fn->tps, &tp);
     return 0;
 }
@@ -331,13 +335,27 @@ KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags)
     vector_init_ptr(&kls->fields);
     vector_init_ptr(&kls->methods);
     void *empty = NULL;
+    vector_push_back(&kls->tps, &empty);
+    vector_push_back(&kls->anns, &empty);
+    vector_push_back(&kls->bases, &empty);
     vector_push_back(&kls->fields, &empty);
     vector_push_back(&kls->methods, &empty);
     vector_push_back(klc->objs + ITEM_CLASS, &kls);
     return kls;
 }
 
-int klc_klass_add_tp(KlcKlass *kls, char *name, Vector *bounds) {}
+KlcTypeParam *klc_klass_add_tp(KlcKlass *kls, char *name)
+{
+    KlcFile *klc = kls->filp;
+    KlcTypeParam *tp = mm_alloc_obj(tp);
+    int len = strlen(name);
+    tp->name_index = klc_add_str(klc, name, len);
+    vector_init_ptr(&tp->bounds);
+    void *empty = NULL;
+    vector_push_back(&tp->bounds, &empty);
+    vector_push_back(&kls->tps, &tp);
+    return tp;
+}
 
 KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_desc, int flags)
 {
@@ -480,10 +498,9 @@ static void write_vars(KlcFile *klc, Vector *vec)
 {
     size_t size = vector_size(vec) - 1;
     write_uint16(klc, (uint16_t)size);
-    KlcVar **item_p;
     KlcVar *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach_object(item, vec)
+    {
         if (!item) continue;
         write_uint16(klc, item->flags);
         write_uint16(klc, item->name_index);
@@ -494,12 +511,12 @@ static void write_vars(KlcFile *klc, Vector *vec)
 
 static void write_args(KlcFile *klc, Vector *vec)
 {
-    size_t size = vector_size(vec);
+    size_t size = vector_size(vec) - 1;
     write_uint8(klc, (uint8_t)size);
-    KlcArgument **item_p;
     KlcArgument *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach_object(item, vec)
+    {
+        if (!item) continue;
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->type_index);
         write_uint16(klc, item->const_index);
@@ -508,25 +525,26 @@ static void write_args(KlcFile *klc, Vector *vec)
 
 static void write_tps(KlcFile *klc, Vector *vec)
 {
-    size_t size = vector_size(vec);
+    size_t size = vector_size(vec) - 1;
     write_uint8(klc, (uint8_t)size);
-    KlcTypePara **item_p;
-    KlcTypePara *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+
+    KlcTypeParam *item;
+    vector_foreach_object(item, vec)
+    {
+        if (!item) continue;
         write_uint16(klc, item->name_index);
-        write_uint16(klc, item->type_index);
+        // write_uint16(klc, item->type_index);
     }
 }
 
 static void write_anns(KlcFile *klc, Vector *vec)
 {
-    size_t size = vector_size(vec);
+    size_t size = vector_size(vec) - 1;
     write_uint8(klc, (uint8_t)size);
-    KlcAnnot **item_p;
     KlcAnnot *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach_object(item, vec)
+    {
+        if (!item) continue;
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->key_index);
         write_uint16(klc, item->value_index);
@@ -558,11 +576,12 @@ static void write_classes(KlcFile *klc, Vector *vec)
     write_uint16(klc, (uint16_t)size);
     KlcKlass **item_p;
     KlcKlass *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach_object(item, vec)
+    {
         if (!item) continue;
         write_uint16(klc, item->flags);
         write_uint16(klc, item->name_index);
+        write_tps(klc, &item->tps);
         write_vars(klc, &item->fields);
         write_funcs(klc, &item->methods);
     }
@@ -771,12 +790,12 @@ static void read_tps(KlcFile *klc, Vector *vec)
     int size = 0;
     read_uint8(klc, (uint8_t *)&size);
 
-    KlcTypePara *tp;
+    KlcTypeParam *tp;
     for (int i = 0; i < size; i++) {
         tp = mm_alloc_obj(tp);
         vector_push_back(vec, &tp);
         read_uint16(klc, &tp->name_index);
-        read_uint16(klc, &tp->type_index);
+        // read_uint16(klc, &tp->type_index);
     }
 }
 
@@ -802,6 +821,7 @@ static void read_funcs(KlcFile *klc, Vector *vec)
     KlcFunc *fn;
     for (int i = 0; i < size; i++) {
         fn = mm_alloc_obj(fn);
+        vector_init_ptr(&fn->tps);
         vector_init_ptr(&fn->args);
         vector_init_ptr(&fn->tps);
         vector_init_ptr(&fn->anns);
@@ -831,6 +851,7 @@ static void read_classes(KlcFile *klc, Vector *vec)
         vector_push_back(vec, &kls);
         read_uint16(klc, &kls->flags);
         read_uint16(klc, &kls->name_index);
+        read_tps(klc, &kls->tps);
         read_vars(klc, &kls->fields);
         read_funcs(klc, &kls->methods);
     }

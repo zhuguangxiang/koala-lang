@@ -274,10 +274,29 @@ static void dump_class(Vector *vec, KlcFile *klc)
         }
 
         if (item->flags & KLC_FLAGS_TRAIT) {
-            fprintf(stdout, "trait %s {\n", k->sval);
+            fprintf(stdout, "trait %s", k->sval);
         } else {
-            fprintf(stdout, "class %s {\n", k->sval);
+            fprintf(stdout, "class %s", k->sval);
         }
+
+        if (vector_size(&item->tps) > 0) {
+            fprintf(stdout, "[");
+            KlcTypeParam *tp;
+            int index = 0;
+            vector_foreach_object(tp, &item->tps)
+            {
+                if (!tp) continue;
+                KlcConst *name = klc_get_const(klc, tp->name_index);
+                if (index != 0)
+                    fprintf(stdout, ", %s", name->sval);
+                else
+                    fprintf(stdout, "%s", name->sval);
+                index++;
+            }
+            fprintf(stdout, "]");
+        }
+
+        fprintf(stdout, " {\n");
 
         KlcVar **field_p;
         KlcVar *field;

@@ -1,12 +1,9 @@
 
 Todos:
-  ☐ builtin.kl can be written into .klc and read it
-    ☐ read/write klc
-    ☐ annotation
-    ☐ func
-    ☐ trait
-    ☐ class
-    ☐ other
+  ☐ reslove & check type
+  ☐ typespec to string
+  ☐ typespec interning
+  ☐ symbol global identifier
   ☐ int8(100)
     ☐ 100 as int8
     ☐ as int8
@@ -31,4 +28,11 @@ Todos:
     ☐ Visitor pattern
 
 Archive:
+  ✔ builtin.kl can be written into .klc and read it @done(25-12-28 19:17) @project(Todos)
+  ✔ read/write klc @done(25-12-28 19:17) @project(Todos)
+  ✔ annotation @done(25-12-28 19:17) @project(Todos)
+  ✔ func @done(25-12-28 19:17) @project(Todos)
+  ✔ trait @done(25-12-28 19:17) @project(Todos)
+  ✔ class @done(25-12-28 19:17) @project(Todos)
+  ✔ other @done(25-12-28 19:17) @project(Todos)
   ✔ literal integer @done(25-12-21 23:13)

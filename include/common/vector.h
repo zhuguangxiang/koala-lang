@@ -147,7 +147,10 @@ static inline void vector_pop_front(Vector *vec, void *obj)
 
 /* clang-format off */
 
-/* iterate vector(pointer saved), deletion is unsafe */
+/* iterate vector, deletion is unsafe
+item is pointer, return pointer's pointer
+item is structure, return pointer of this structure
+*/
 #define vector_foreach(obj, vec) \
     for (int i__ = 0; (obj = vector_get(vec, i__)); ++i__)
 
@@ -156,10 +159,31 @@ static inline void vector_pop_front(Vector *vec, void *obj)
     for (int i__ = vector_size(vec) - 1; \
         (obj = vector_get(vec, i__)); --i__)
 
+/* iterate vector, deletion is unsafe
+Only item is pointer, return item's self value(pointer)
+Here, object in C is a pointer, not a structure.
+if item is structure, please use vector_foreach
+usr must check obj is null or not, if vec has null.
+*/
+#define vector_foreach_object(obj, vec) \
+    for (int i__ = 0, keep__ = 1; \
+        keep__ && i__ < vector_size(vec); \
+        i__++, keep__ = 1) \
+    for (typeof(*obj) **obj_p; \
+            keep__ && (obj_p = vector_get(vec, i__)) && (obj = *obj_p) && obj; \
+            keep__ = 0)
+
 /* clang-format on */
 
 /* concat two vector(pointer saved) */
 int vector_concat(Vector *to, Vector *from);
+
+// see: vector_foreach_object
+static inline void *vector_get_object(Vector *vec, int index)
+{
+    void **obj_p = (void **)vector_get(vec, index);
+    return obj_p ? *obj_p : NULL;
+}
 
 #ifdef __cplusplus
 }

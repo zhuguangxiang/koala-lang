@@ -57,12 +57,13 @@ TypeSpec *va_list_type_spec(void)
     return ts;
 }
 
-TypeSpec *generic_var_type_spec(char *name, int index)
+TypeSpec *generic_var_type_spec(char *name, int index, void *sym_id)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_GENERIC_VAR;
     ts->generic_var.name = name;
     ts->generic_var.index = index;
+    ts->sym_id = (intptr_t)sym_id;
     return ts;
 }
 
@@ -86,129 +87,6 @@ TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args)
     ts->unresolved.name = name;
     ts->unresolved.args = args;
     return ts;
-}
-
-/**
- * Determines if a TypeSpec is a value type.
- * Value types (primitive types like int, float, bool) require exact
- * memory layout matching and are strictly invariant as generic parameters.
- */
-static int is_value_type(TypeSpec *type)
-{
-    if (!type) return 0;
-    switch (type->kind) {
-        case TYPE_INT:
-        case TYPE_FLOAT:
-        case TYPE_BFLOAT16:
-        case TYPE_BOOL:
-            return 1;
-        default:
-            return 0;
-    }
-}
-
-/**
- * Checks for strict identity between two types.
- * Required for value-type generic parameters to ensure binary compatibility.
- */
-static int type_spec_equal_strict(TypeSpec *a, TypeSpec *b)
-{
-    if (a == b) return 1;
-    if (a->kind != b->kind || a->sym_id != b->sym_id) return 0;
-
-    // Numerical values must have identical representation (sign and width)
-    if (a->kind == TYPE_INT || a->kind == TYPE_FLOAT || a->kind == TYPE_BFLOAT16) {
-        return a->int_flt_info.width == b->int_flt_info.width &&
-               a->int_flt_info.sign == b->int_flt_info.sign;
-    }
-    return 1;
-}
-
-/**
- * Checks if the 'src' type is compatible with the 'dst' type.
- *
- * Rules for High-Performance Type System:
- * 1. Top Type: TYPE_OBJECT is the root and accepts any type.
- * 2. Strict Kind Matching: Except for Object, kinds must match (e.g., no implicit
- * int-to-float).
- * 3. Numerical Widening: For INT/FLOAT, source width <= destination width is allowed.
- *    Note: Semantically compatible but requires explicit 'cast' instructions during
- * codegen due to binary representation (memory layout) mismatch.
- * 4. Generic Variance:
- *    - Reference Types (Classes): Covariant (e.g., List[Dog] -> List[Animal]).
- *    - Value Types (Primitives): Invariant (Generic parameters must be strictly
- * compatible).
- */
-int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
-{
-    if (!dst || !src) return 0;
-
-    if (dst == src) return 1;
-
-    // Rule 1: TYPE_OBJECT is the Top Type (Root of the type hierarchy)
-    if (dst->kind == TYPE_OBJECT) return 1;
-
-    // Rule 2: Strict kind matching (Semantic barrier)
-    if (dst->kind != src->kind) return 0;
-
-    // Rule 3: Numeric Widening Logic (INT/FLOAT/BFLOAT16)
-    // Semantically compatible, but memory layout is incompatible.
-    // Insert 'cast' instructions during code generation.
-    if (dst->kind == TYPE_INT || dst->kind == TYPE_FLOAT) {
-        if (dst->int_flt_info.sign != src->int_flt_info.sign) return 0;
-        if (dst->int_flt_info.width > src->int_flt_info.width) return 0;
-        return 1;
-    }
-
-    if (dst->kind == TYPE_FLOAT || dst->kind == TYPE_BFLOAT16) {
-        // float16/bfloat16 can be promoted to float32/64
-        return dst->int_flt_info.width >= src->int_flt_info.width;
-    }
-
-    // Rule 4: Symbol ID and Inheritance Check
-    if (dst->sym_id != src->sym_id) {
-        // Check if 'src' is a subtype of 'dst' in the symbol table
-        // return is_subtype_of(src->sym_id, dst->sym_id);
-        // TODO:
-        UNREACHABLE();
-        return 0;
-    }
-
-    if (dst->kind == TYPE_GENERIC_VAR) {
-        return dst->generic_var.index == src->generic_var.index;
-    }
-
-    // Rule 5: Structural Recursion for Specialized Types (Generics)
-
-    if (dst->kind == TYPE_SPECIALIZED) {
-        if (dst->sym_id != src->sym_id) return 0;
-        int d_args_size = vector_size(dst->specialized.args);
-        int s_args_size = vector_size(src->specialized.args);
-        if (d_args_size != s_args_size) return 0;
-
-        // Handle Variance based on storage model
-
-        for (int i = 0; i < d_args_size; i++) {
-            TypeSpec **d_arg_p = vector_get(dst->specialized.args, i);
-            TypeSpec **s_arg_p = vector_get(src->specialized.args, i);
-            TypeSpec *d_arg = *d_arg_p;
-            TypeSpec *s_arg = *s_arg_p;
-            // generic parameters must be strictly compatible(invariant).
-            // List[int32] and List[int64] are not compatible.
-            // List[Dog] and List[Animal] are compatible.
-            if (is_value_type(d_arg)) {
-                if (!type_spec_equal_strict(d_arg, s_arg)) return 0;
-            } else {
-                // reference type
-                if (!type_spec_compatible(d_arg, s_arg)) return 0;
-            }
-        }
-
-        return 1;
-    }
-
-    UNREACHABLE();
-    return 0;
 }
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf)

@@ -114,6 +114,29 @@ void kl_write_to_klc(ParserState *ps)
                 }
 
                 KlcKlass *klass = klc_add_klass(&klc, kls->name, flags);
+
+                if (vector_size(kls->tps) > 0) {
+                    TypeParamSymbol *tp;
+                    vector_foreach_object(tp, kls->tps)
+                    {
+                        KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
+
+                        if (vector_size(tp->bound) > 0) {
+                            BUF(buf);
+                            TypeSpec *ts;
+                            vector_foreach_object(ts, tp->bound)
+                            {
+                                type_spec_to_str(ts, &buf);
+                                uint16_t index =
+                                    klc_add_str(klass->filp, BUF_STR(buf), BUF_LEN(buf));
+                                vector_push_back(&klc_tp->bounds, &index);
+                                RESET_BUF(buf);
+                            }
+                            FINI_BUF(buf);
+                        }
+                    }
+                }
+
                 FuncSymbol **fn_p;
                 FuncSymbol *fn;
                 KlcFunc *klc_fn;
@@ -154,6 +177,29 @@ void kl_write_to_klc(ParserState *ps)
                 int flags = KLC_FLAGS_PUB | KLC_FLAGS_TRAIT;
 
                 KlcKlass *klass = klc_add_klass(&klc, kls->name, flags);
+
+                if (vector_size(kls->tps) > 0) {
+                    TypeParamSymbol *tp;
+                    vector_foreach_object(tp, kls->tps)
+                    {
+                        KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
+
+                        if (vector_size(tp->bound) > 0) {
+                            BUF(buf);
+                            TypeSpec *ts;
+                            vector_foreach_object(ts, tp->bound)
+                            {
+                                type_spec_to_str(ts, &buf);
+                                uint16_t index =
+                                    klc_add_str(klass->filp, BUF_STR(buf), BUF_LEN(buf));
+                                vector_push_back(&klc_tp->bounds, &index);
+                                RESET_BUF(buf);
+                            }
+                            FINI_BUF(buf);
+                        }
+                    }
+                }
+
                 FuncSymbol **fn_p;
                 FuncSymbol *fn;
                 KlcFunc *klc_fn;

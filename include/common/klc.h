@@ -108,12 +108,12 @@ typedef struct _KlcArgument {
     uint16_t const_index;
 } KlcArgument;
 
-typedef struct _KlcTypePara {
+typedef struct _KlcTypeParam {
     /* ITEM_CONST */
     uint16_t name_index;
-    /* ITEM_CONST */
-    uint16_t type_index;
-} KlcTypePara;
+    /* up-bounds(type_index) */
+    Vector bounds;
+} KlcTypeParam;
 
 typedef struct _KlcAnnot {
     /* ITEM_CONST */
@@ -167,7 +167,7 @@ int klc_func_add_tp(KlcFunc *fn, char *name, char *desc);
 int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value);
 
 KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags);
-int klc_klass_add_tp(KlcKlass *kls, char *name, Vector *bounds);
+KlcTypeParam *klc_klass_add_tp(KlcKlass *kls, char *name);
 int klc_klass_add_ann(KlcKlass *kls, char *name, char *key, char *value);
 int klc_klass_add_base(KlcKlass *kls, char *base_desc);
 KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *desc, int flags);

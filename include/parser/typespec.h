@@ -37,7 +37,7 @@ typedef struct _TypeIdent {
 
 typedef struct _TypeSpec {
     TypeKind kind;
-    int sym_id;
+    intptr_t sym_id;
     Loc loc;
     union {
         // int/float width
@@ -76,11 +76,9 @@ TypeSpec *bool_type_spec(void);
 TypeSpec *str_type_spec(void);
 TypeSpec *object_type_spec(void);
 TypeSpec *va_list_type_spec(void);
-TypeSpec *generic_var_type_spec(char *name, int index);
+TypeSpec *generic_var_type_spec(char *name, int index, void *sym_id);
 TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args);
 TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args);
-
-int type_spec_compatible(TypeSpec *dst, TypeSpec *src);
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);
