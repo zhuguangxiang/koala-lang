@@ -1222,59 +1222,59 @@ class_name
     }
     | UINT8
     {
-        $$ = (Ident){"int", loc(@1)};
+        $$ = (Ident){"uint8", loc(@1)};
     }
     | UINT16
     {
-        $$ = (Ident){"int", loc(@1)};
+        $$ = (Ident){"uint16", loc(@1)};
     }
     | UINT32
     {
-        $$ = (Ident){"int", loc(@1)};
+        $$ = (Ident){"uint32", loc(@1)};
     }
     | UINT64
     {
-        $$ = (Ident){"int", loc(@1)};
+        $$ = (Ident){"uint64", loc(@1)};
     }
     | UINT
     {
-        $$ = (Ident){"int", loc(@1)};
+        $$ = (Ident){"uint64", loc(@1)};
     }
     | INT8
     {
-        $$ = (Ident){"int", loc(@1)};
+        $$ = (Ident){"int8", loc(@1)};
     }
     | INT16
     {
-        $$ = (Ident){"int", loc(@1)};
+        $$ = (Ident){"int16", loc(@1)};
     }
     | INT32
     {
-        $$ = (Ident){"int", loc(@1)};
+        $$ = (Ident){"int32", loc(@1)};
     }
     | INT64
     {
-        $$ = (Ident){"int", loc(@1)};
+        $$ = (Ident){"int64", loc(@1)};
     }
     | INT
     {
-        $$ = (Ident){"int", loc(@1)};
+        $$ = (Ident){"int64", loc(@1)};
     }
     | FLOAT16
     {
-        $$ = (Ident){"float", loc(@1)};
+        $$ = (Ident){"float16", loc(@1)};
     }
     | FLOAT32
     {
-        $$ = (Ident){"float", loc(@1)};
+        $$ = (Ident){"float32", loc(@1)};
     }
     | FLOAT64
     {
-        $$ = (Ident){"float", loc(@1)};
+        $$ = (Ident){"float64", loc(@1)};
     }
     | BFLOAT16
     {
-        $$ = (Ident){"float", loc(@1)};
+        $$ = (Ident){"bfloat16", loc(@1)};
     }
     | STRING
     {

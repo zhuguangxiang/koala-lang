@@ -1,4 +1,11 @@
 
-func main() {
-    print("hello, world")
+public trait Seq[T, V] {
+    func __len__() int
+    func __contains__(v T) bool
+    func __concat__(seq Seq[T, int]) Seq[int, T]
+    func __repeat__(count int) Seq[V, V]
 }
+
+// func main() {
+//     print("hello, world")
+// }

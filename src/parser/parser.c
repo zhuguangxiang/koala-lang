@@ -161,6 +161,148 @@ Symbol *find_type_symbol(ParserState *ps, TypeIdent *pkg, TypeIdent *name)
     return NULL;
 }
 
+TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
+{
+    if (!_ts) return NULL;
+    if (_ts->kind != TYPE_UNRESOLVED) return _ts;
+
+    // parse arguments by bottom-to-up method
+
+    Vector *vec = NULL;
+    if (vector_size(_ts->unresolved.args) > 0) {
+        vec = vector_create_ptr();
+        TypeSpec **ts_p;
+        TypeSpec *ts;
+        TypeSpec *ret;
+        vector_foreach(ts_p, _ts->unresolved.args) {
+            ts = *ts_p;
+            ret = resolve_type(ps, ts);
+            vector_push_back(vec, &ret);
+        }
+    }
+
+    Symbol *sym = find_type_symbol(ps, &_ts->unresolved.pkg, &_ts->unresolved.name);
+    if (!sym) {
+        kl_error(_ts->loc, "'%s' is not found", _ts->unresolved.name.name);
+        goto error;
+    }
+
+    if (sym->kind == SYM_TYPE_PARAM) {
+        if (vec != NULL) {
+            kl_error(_ts->loc, "'%s' is a type parameter, not a generic type",
+                     _ts->unresolved.name.name);
+            goto error;
+        }
+        TypeParamSymbol *ts_sym = (TypeParamSymbol *)sym;
+        return generic_var_type_spec(ts_sym->name, ts_sym->index);
+
+    } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+        KlassSymbol *kls_sym = (KlassSymbol *)sym;
+        if (vector_size(kls_sym->tps) != vector_size(vec)) {
+            kl_error(_ts->loc,
+                     "Type argument mismatch: '%s' expects %d argument(s), but %d were "
+                     "provided",
+                     _ts->unresolved.name.name, vector_size(kls_sym->tps),
+                     vector_size(vec));
+            goto error;
+        }
+
+        return specialized_type_spec(_ts->unresolved.pkg.name, _ts->unresolved.name.name,
+                                     vec);
+    } else {
+        UNREACHABLE();
+    }
+
+error:
+    // TODO: free memroy
+    return NULL;
+}
+
+// check arg is satified by up-bounds.
+int check_type_constraints(Vector *bounds, TypeSpec *arg)
+{
+    // no up-bounds
+    if (!bounds || vector_size(bounds) == 0) return 1;
+
+    for (int i = 0; i < vector_size(bounds); i++) {
+        TypeSpec **bound_p = vector_get(bounds, i);
+        TypeSpec *bound = *bound_p;
+        if (!type_spec_compatible(bound, arg)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/**
+ * Performs semantic validation on a resolved TypeSpec.
+ * @return 1 (true) if valid, 0 (false) if any constraint is violated.
+ *
+ * Responsibilities:
+ * 1. Verify generic argument counts.
+ * 2. Validate bounds/constraints (e.g., T : Animal).
+ * 3. Recursively check nested types (e.g., List[Map[K, V]]).
+ */
+int check_type(ParserState *ps, TypeSpec *type)
+{
+    if (!type) return 1;
+
+    // Only TYPE_SPECIALIZED requires complex validation of its arguments.
+    if (type->kind != TYPE_SPECIALIZED) {
+        return 1;
+    }
+
+    // 1. Get the original symbol definition (e.g., the template for Foo[T])
+    Ident id = { .name = type->specialized.name };
+    Symbol *sym = find_symbol(ps, &id);
+    if (!sym) {
+        UNREACHABLE();
+        return 0; // Should not happen if resolve_type passed
+    }
+
+    if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) {
+        // should not happen
+        UNREACHABLE();
+        return 0;
+    }
+
+    KlassSymbol *kls_sym = (KlassSymbol *)sym;
+    Vector *tps = kls_sym->tps;
+
+    int arg_count = vector_size(type->specialized.args);
+
+    // 2. Validate each generic argument against its defined constraints
+    for (int i = 0; i < arg_count; i++) {
+        TypeSpec **arg_p = vector_get(type->specialized.args, i);
+        TypeSpec *arg = *arg_p;
+
+        // Get the required bounds for the i-th parameter (e.g., [Animal, Serializable])
+        TypeParamSymbol **tp_sym_p = vector_get(tps, i);
+        TypeParamSymbol *tp_sym = *tp_sym_p;
+        Vector *bounds = tp_sym->bound;
+
+        if (bounds && vector_size(bounds) > 0) {
+            // Check if the provided 'arg' satisfies all upper bounds.
+            // Since this is a constraint check, we use is_type_compatible.
+            if (!check_type_constraints(bounds, arg)) {
+                kl_error(
+                    arg->loc,
+                    "Type constraint violation: argument #%d does not satisfy bounds",
+                    i + 1);
+                return 0;
+            }
+        }
+
+        // 3. Core: Recursively validate the argument itself (for nested generics)
+        // This ensures Map[String, List[InvalidType]] is caught.
+        if (!check_type(ps, arg)) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 static int parse_flags(PrefixFlags *flags)
 {
     int f = 0;
@@ -256,7 +398,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         log_info("update symbol '%s' type as:", sym->name);
         print_type_spec(sym->ts);
     } else {
-        if (!type_spec_is_compatible(exp->ts, ts)) {
+        if (!type_spec_compatible(exp->ts, ts)) {
             kl_error(id->loc, "Types of two sides are not matched.");
             log_info("lhs:");
             print_type_spec(ts);
@@ -415,27 +557,8 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     // parse return type
     if (sym->ts) {
         TypeSpec *_ts = sym->ts;
-        if (_ts->kind == TYPE_UNRESOLVED) {
-            Symbol *type_sym =
-                find_type_symbol(ps, &_ts->unresolved.pkg, &_ts->unresolved.name);
-            if (!type_sym) {
-                kl_error(_ts->loc, "'%s' is not found", _ts->unresolved.name.name);
-                return;
-            }
-            if (type_sym->kind == SYM_TYPE_PARAM) {
-                // update return type
-                TypeParamSymbol *tp_sym = (TypeParamSymbol *)type_sym;
-                sym->ts = generic_var_type_spec(tp_sym->name, tp_sym->index);
-            } else if (type_sym->kind == SYM_TRAIT || type_sym->kind == SYM_CLASS) {
-                TypeSpec **tp_p;
-                TypeSpec *tp;
-                vector_foreach(tp_p, _ts->unresolved.args) {
-                    tp = *tp_p;
-                }
-            } else {
-                UNREACHABLE();
-            }
-        }
+        sym->ts = resolve_type(ps, _ts);
+        check_type(ps, sym->ts);
     }
 
     Vector *args = vector_create_ptr();
@@ -463,6 +586,14 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
             if (!e->ts) return;
             ts = e->ts;
         }
+
+        if (ts) {
+            ts = resolve_type(ps, ts);
+            // TODO: memory
+            assert(ts);
+            check_type(ps, ts);
+        }
+
         Symbol *s = stbl_add_var(sc->stbl, param->id.name, ts, 0);
 
         arg->ts = ts;

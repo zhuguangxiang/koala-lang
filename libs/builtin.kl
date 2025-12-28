@@ -53,72 +53,72 @@ separated by `sep` and followed by `end`. The default `file` is `sys.stdout` str
 @native(builtin_print)
 public func print(objs ..., sep = ' ', end = '\n') {}
 
-// public trait Indexable[T] {
-//     func __len__() int
-//     func __getitem__(index object) T
-//     func __setitem__(index object, v T)
-// }
+public trait Indexable[T] {
+    func __len__() int
+    func __getitem__(index object) T
+    func __setitem__(index object, v T)
+}
 
-// public trait Seq[T] : Indexable[T] {
-//     func __len__() int
-//     func __contains__(v T) bool
-//     func __concat__(seq Seq[T]) Seq[T]
-//     func __repeat__(count int) Seq[T]
-// }
+public trait Seq[T] : Indexable[T] {
+    func __len__() int
+    func __contains__(v T) bool
+    func __concat__(seq Seq[T]) Seq[T]
+    func __repeat__(count int) Seq[T]
+}
 
-// public trait Number[T] {
-//     func __add__(rhs T) T
-//     func __sub__(rhs T) T
-//     func __mul__(rhs T) T
-//     func __div__(rhs T) T
-//     func __mod__(rhs T) T
-//     func __lsh__(rhs T) T
-//     func __rsh__(rhs T) T
-//     func __and__(rhs T) T
-//     func __or__(rhs T) T
-//     func __xor__(rhs T) T
-// }
+public trait Number[T] {
+    func __add__(rhs T) T
+    func __sub__(rhs T) T
+    func __mul__(rhs T) T
+    func __div__(rhs T) T
+    func __mod__(rhs T) T
+    func __lsh__(rhs T) T
+    func __rsh__(rhs T) T
+    func __and__(rhs T) T
+    func __or__(rhs T) T
+    func __xor__(rhs T) T
+}
 
-// public final class str : Seq[str] {
+public final class str : Seq[str] {
 
-//     @native
-//     func __len__() int {}
+    @native(kl_str_len)
+    func __len__() int {}
 
-//     @native
-//     func __getitem__(index object) str {}
+    @native(kl_str_get_item)
+    func __getitem__(index object) str {}
 
-//     @native
-//     func __concat__(seq Seq[str]) str {}
-// }
+    @native(kl_str_concat)
+    func __concat__(seq Seq[str]) str {}
+}
 
-// public final class list[T] : Seq[T] {
+public final class list[T] : Seq[T] {
 
-//     @native
-//     func __len__() int {}
+    @native(kl_list_len)
+    func __len__() int {}
 
-//     @native
-//     func __getitem__(index object) T {}
+    @native(kl_list_get_item)
+    func __getitem__(index object) T {}
 
-//     @native
-//     func __concat__(seq Seq[T]) list[T] {}
-// }
+    @native(kl_list_concat)
+    func __concat__(seq Seq[T]) list[T] {}
+}
 
-// public final class int32 : Number[int32] {
-//     @intrinsic
-//     func __add__(rhs int32) int32 {}
-// }
+public final class int32 : Number[int32] {
+    @intrinsic
+    func __add__(rhs int32) int32 {}
+}
 
-// public final class int64 : Number[int64] {
-//     @intrinsic
-//     func __add__(rhs int64) int64 {}
-// }
+public final class int64 : Number[int64] {
+    @intrinsic
+    func __add__(rhs int64) int64 {}
+}
 
-// public final class uint32 : Number[uint32] {
-//     @intrinsic
-//     func __add__(rhs uint32) uint32 {}
-// }
+public final class uint32 : Number[uint32] {
+    @intrinsic
+    func __add__(rhs uint32) uint32 {}
+}
 
-// public final class uint64 : Number[uint64] {
-//     @intrinsic
-//     func __add__(rhs uint64) uint64 {}
-// }
+public final class uint64 : Number[uint64] {
+    @intrinsic
+    func __add__(rhs uint64) uint64 {}
+}

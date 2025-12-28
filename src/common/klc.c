@@ -305,7 +305,7 @@ int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value)
     KlcFile *klc = fn->filp;
     int len = strlen(name);
     uint16_t name_index = klc_add_str(klc, name, len);
-    len = strlen(key);
+    len = key ? strlen(key) : 0;
     uint16_t key_index = klc_add_str(klc, key, len);
     len = value ? strlen(value) : 0;
     uint16_t value_index = klc_add_str(klc, value, len);

@@ -126,9 +126,12 @@ static void dump_anns(Vector *vec, KlcFile *klc, int leading_spaces)
         if (!item) continue;
         fprintf(stdout, "%*c", leading_spaces, ' ');
         KlcConst *k = klc_get_const(klc, item->name_index);
-        fprintf(stdout, "@%s(", k->sval);
+        fprintf(stdout, "@%s", k->sval);
         k = klc_get_const(klc, item->key_index);
-        fprintf(stdout, "%s)\n", k->sval);
+        if (k) {
+            fprintf(stdout, "(%s)", k->sval);
+        }
+        fprintf(stdout, "\n");
     }
 }
 
