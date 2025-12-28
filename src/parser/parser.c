@@ -197,6 +197,33 @@ static int type_spec_equal_strict(TypeSpec *a, TypeSpec *b)
     return 1;
 }
 
+static int is_subtype_of(int child_id, int parent_id)
+{
+    if (child_id == parent_id) return 1;
+
+    Symbol *s = get_symbol_by_id(child_id);
+    if (!s) {
+        UNREACHABLE();
+        return 0;
+    }
+
+    if (s->kind != SYM_CLASS && s->kind != SYM_TRAIT) {
+        UNREACHABLE();
+        return 0;
+    }
+
+    KlassSymbol *sym = (KlassSymbol *)s;
+    if (!sym->bases) return 0;
+
+    Symbol *base;
+    vector_foreach_object(base, sym->bases)
+    {
+        if (is_subtype_of(base->id, parent_id)) return 1;
+    }
+
+    return 0;
+}
+
 /**
  * Checks if the 'src' type is compatible with the 'dst' type.
  *
@@ -225,7 +252,7 @@ static int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     if (dst->kind != src->kind) {
         if (src->kind == TYPE_GENERIC_VAR) {
             // check dst with src's upbound
-            TypeParamSymbol *sym = (void *)src->sym_id;
+            TypeParamSymbol *sym = get_symbol_by_id(src->sym_id);
             TypeSpec *bound;
             vector_foreach_object(bound, sym->bound)
             {
@@ -243,8 +270,7 @@ static int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     // Insert 'cast' instructions during code generation.
     if (dst->kind == TYPE_INT || dst->kind == TYPE_FLOAT) {
         if (dst->int_flt_info.sign != src->int_flt_info.sign) return 0;
-        if (dst->int_flt_info.width > src->int_flt_info.width) return 0;
-        return 1;
+        return dst->int_flt_info.width >= src->int_flt_info.width;
     }
 
     if (dst->kind == TYPE_FLOAT || dst->kind == TYPE_BFLOAT16) {
@@ -255,10 +281,7 @@ static int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     // Rule 4: Symbol ID and Inheritance Check
     if (dst->sym_id != src->sym_id) {
         // Check if 'src' is a subtype of 'dst' in the symbol table
-        // return is_subtype_of(src->sym_id, dst->sym_id);
-        // TODO:
-        UNREACHABLE();
-        return 0;
+        return is_subtype_of(src->sym_id, dst->sym_id);
     }
 
     if (dst->kind == TYPE_GENERIC_VAR) {
@@ -268,7 +291,6 @@ static int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     // Rule 5: Structural Recursion for Specialized Types (Generics)
 
     if (dst->kind == TYPE_SPECIALIZED) {
-        if (dst->sym_id != src->sym_id) return 0;
         int d_args_size = vector_size(dst->specialized.args);
         int s_args_size = vector_size(src->specialized.args);
         if (d_args_size != s_args_size) return 0;
@@ -276,10 +298,9 @@ static int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
         // Handle Variance based on storage model
 
         for (int i = 0; i < d_args_size; i++) {
-            TypeSpec **d_arg_p = vector_get(dst->specialized.args, i);
-            TypeSpec **s_arg_p = vector_get(src->specialized.args, i);
-            TypeSpec *d_arg = *d_arg_p;
-            TypeSpec *s_arg = *s_arg_p;
+            TypeSpec *d_arg = vector_get_object(dst->specialized.args, i);
+            TypeSpec *s_arg = vector_get_object(src->specialized.args, i);
+
             // generic parameters must be strictly compatible(invariant).
             // List[int32] and List[int64] are not compatible.
             // List[Dog] and List[Animal] are compatible.
@@ -300,19 +321,17 @@ static int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 
 TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
 {
-    if (!_ts) return NULL;
-    if (_ts->kind != TYPE_UNRESOLVED) return _ts;
+    if (!_ts || _ts->kind != TYPE_UNRESOLVED) return _ts;
 
     // parse arguments by bottom-to-up method
 
     Vector *vec = NULL;
     if (vector_size(_ts->unresolved.args) > 0) {
         vec = vector_create_ptr();
-        TypeSpec **ts_p;
         TypeSpec *ts;
         TypeSpec *ret;
-        vector_foreach(ts_p, _ts->unresolved.args) {
-            ts = *ts_p;
+        vector_foreach_object(ts, _ts->unresolved.args)
+        {
             ret = resolve_type(ps, ts);
             vector_push_back(vec, &ret);
         }
@@ -331,7 +350,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             goto error;
         }
         TypeParamSymbol *ts_sym = (TypeParamSymbol *)sym;
-        return generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym);
+        return generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id);
 
     } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
@@ -345,7 +364,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         }
 
         return specialized_type_spec(_ts->unresolved.pkg.name, _ts->unresolved.name.name,
-                                     vec);
+                                     vec, kls_sym->id);
     } else {
         UNREACHABLE();
     }
@@ -384,14 +403,16 @@ int check_type(ParserState *ps, TypeSpec *type)
 {
     if (!type) return 1;
 
+    if (type->checked) return 1;
+
     // Only TYPE_SPECIALIZED requires complex validation of its arguments.
     if (type->kind != TYPE_SPECIALIZED) {
+        type->checked = 1;
         return 1;
     }
 
     // 1. Get the original symbol definition (e.g., the template for Foo[T])
-    Ident id = { .name = type->specialized.name };
-    Symbol *sym = find_symbol(ps, &id);
+    KlassSymbol *sym = get_symbol_by_id(type->sym_id);
     if (!sym) {
         UNREACHABLE();
         return 0; // Should not happen if resolve_type passed
@@ -403,8 +424,7 @@ int check_type(ParserState *ps, TypeSpec *type)
         return 0;
     }
 
-    KlassSymbol *kls_sym = (KlassSymbol *)sym;
-    Vector *tps = kls_sym->tps;
+    Vector *tps = sym->tps;
 
     int arg_count = vector_size(type->specialized.args);
 
@@ -437,6 +457,7 @@ int check_type(ParserState *ps, TypeSpec *type)
         }
     }
 
+    type->checked = 1;
     return 1;
 }
 

@@ -7,6 +7,7 @@
 #define _KOALA_TYPESPEC_H_
 
 #include "buffer.h"
+#include "hashmap.h"
 #include "loc.h"
 
 #ifdef __cplusplus
@@ -37,7 +38,8 @@ typedef struct _TypeIdent {
 
 typedef struct _TypeSpec {
     TypeKind kind;
-    intptr_t sym_id;
+    int checked;
+    int sym_id;
     Loc loc;
     union {
         // int/float width
@@ -76,8 +78,8 @@ TypeSpec *bool_type_spec(void);
 TypeSpec *str_type_spec(void);
 TypeSpec *object_type_spec(void);
 TypeSpec *va_list_type_spec(void);
-TypeSpec *generic_var_type_spec(char *name, int index, void *sym_id);
-TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args);
+TypeSpec *generic_var_type_spec(char *name, int index, int sym_id);
+TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args, int sym_id);
 TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args);
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);

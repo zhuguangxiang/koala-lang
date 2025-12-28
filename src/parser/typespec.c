@@ -13,10 +13,16 @@
 extern "C" {
 #endif
 
+typedef struct _TypeIntern {
+    TypeSpec type;
+    HashMapEntry hnode;
+} TypeIntern;
+
 TypeSpec *no_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_NO_TYPE;
+    ts->sym_id = -1;
     return ts;
 }
 
@@ -26,6 +32,7 @@ TypeSpec *int_type_spec(int width, int sign)
     ts->kind = TYPE_INT;
     ts->int_flt_info.width = width;
     ts->int_flt_info.sign = sign;
+    ts->sym_id = -1;
     return ts;
 }
 
@@ -33,6 +40,7 @@ TypeSpec *bool_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_BOOL;
+    ts->sym_id = -1;
     return ts;
 }
 
@@ -40,6 +48,7 @@ TypeSpec *str_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_STR;
+    ts->sym_id = -1;
     return ts;
 }
 
@@ -47,6 +56,7 @@ TypeSpec *object_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_OBJECT;
+    ts->sym_id = -1;
     return ts;
 }
 
@@ -54,26 +64,28 @@ TypeSpec *va_list_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_VA_LIST;
+    ts->sym_id = -1;
     return ts;
 }
 
-TypeSpec *generic_var_type_spec(char *name, int index, void *sym_id)
+TypeSpec *generic_var_type_spec(char *name, int index, int sym_id)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_GENERIC_VAR;
     ts->generic_var.name = name;
     ts->generic_var.index = index;
-    ts->sym_id = (intptr_t)sym_id;
+    ts->sym_id = sym_id;
     return ts;
 }
 
-TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args)
+TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args, int sym_id)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_SPECIALIZED;
     ts->specialized.pkg = full_pkg;
     ts->specialized.name = name;
     ts->specialized.args = args;
+    ts->sym_id = sym_id;
     return ts;
 }
 
@@ -86,6 +98,7 @@ TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args)
     }
     ts->unresolved.name = name;
     ts->unresolved.args = args;
+    ts->sym_id = -1;
     return ts;
 }
 
@@ -124,6 +137,8 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
     } else if (ts->kind == TYPE_SPECIALIZED) {
         buf_write_char(buf, 'L');
         buf_write_str(buf, ts->specialized.name);
+        TypeSpec *_ts;
+        vector_foreach_object(_ts, ts->specialized.args) { type_spec_to_str(_ts, buf); }
         buf_write_char(buf, ';');
     } else {
         UNREACHABLE();
@@ -301,7 +316,7 @@ void type_spec_str_print(char *s, Buffer *buf)
 
     if (s[0] == 'L') {
         char *_s = s + 1;
-        while (*_s != ';') _s++;
+        while (*_s != ';' && *_s != '<') _s++;
         buf_write_nstr(buf, s + 1, _s - (s + 1));
         return;
     }

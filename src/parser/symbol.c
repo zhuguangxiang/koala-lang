@@ -11,6 +11,23 @@
 extern "C" {
 #endif
 
+Vector all_symbols = VECTOR_INIT_PTR;
+
+static void add_to_global(void *_sym)
+{
+    Vector *vec = &all_symbols;
+    Symbol *sym = _sym;
+    sym->id = vector_size(vec);
+    vector_push_back(vec, &sym);
+}
+
+void *get_symbol_by_id(int id)
+{
+    void **p = vector_get(&all_symbols, id);
+    if (!p) return NULL;
+    return *p;
+}
+
 void __symbol_free__(Symbol *sym, void *arg)
 {
     switch (sym->kind) {
@@ -50,6 +67,7 @@ Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags)
     } else {
         sym->ts = ts;
         sym->flags = flags;
+        add_to_global(sym);
     }
 
 #ifndef NOLOG
@@ -86,6 +104,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
         sym->stbl = stbl_new();
         sym->ann = ann;
         sym->ann_key = ann_key;
+        add_to_global(sym);
     }
 
 #ifndef NOLOG
@@ -119,6 +138,7 @@ Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags)
         sym->protos = vector_create_ptr();
         sym->flags = flags;
         sym->stbl = stbl_new();
+        add_to_global(sym);
     }
 
 #ifndef NOLOG
@@ -152,6 +172,7 @@ Symbol *stbl_add_trait(HashMap *stbl, char *name, int flags)
         sym->protos = vector_create_ptr();
         sym->flags = flags;
         sym->stbl = stbl_new();
+        add_to_global(sym);
     }
 
 #ifndef NOLOG
@@ -181,6 +202,7 @@ Symbol *stbl_add_type_param(HashMap *stbl, char *name)
         sym = NULL;
     } else {
         sym->stbl = stbl_new();
+        add_to_global(sym);
     }
 
 #ifndef NOLOG

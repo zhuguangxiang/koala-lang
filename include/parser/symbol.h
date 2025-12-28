@@ -41,7 +41,7 @@ typedef enum _SymKind {
 #define SYM_FLAGS_TAG_VALUE (1 << 6)
 
 #define SYMBOL_HEAD \
-    HashMapEntry hnode; SymKind kind; int flags; char *name; TypeDesc *desc; TypeSpec *ts; \
+    HashMapEntry hnode; SymKind kind; int flags; int id; char *name; TypeDesc *desc; TypeSpec *ts; \
     HashMap *stbl; KlrValue *ir_val;
 
 /* clang-format on */
@@ -151,10 +151,9 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
 Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags);
 Symbol *stbl_add_trait(HashMap *stbl, char *name, int flags);
 Symbol *stbl_add_type_param(HashMap *stbl, char *name);
-
 Symbol *stbl_get(HashMap *stbl, char *name);
-
 void stbl_show(HashMap *stbl);
+void *get_symbol_by_id(int id);
 
 #ifdef __cplusplus
 }
