@@ -3,11 +3,9 @@
  * Copyright (c) 2023 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-// clang-format off
+#include "atom.h"
 #include "symbol.h"
-#include "typespec.h"
-#include "mm.h"
-// clang-format on
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -131,14 +129,19 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
     } else if (ts->kind == TYPE_OBJECT) {
         buf_write_char(buf, 'o');
     } else if (ts->kind == TYPE_GENERIC_VAR) {
-        buf_write_char(buf, '<');
         buf_write_str(buf, ts->generic_var.name);
-        buf_write_char(buf, ';');
     } else if (ts->kind == TYPE_SPECIALIZED) {
         buf_write_char(buf, 'L');
         buf_write_str(buf, ts->specialized.name);
-        TypeSpec *_ts;
-        vector_foreach_object(_ts, ts->specialized.args) { type_spec_to_str(_ts, buf); }
+        if (vector_size(ts->specialized.args) > 0) {
+            buf_write_char(buf, '<');
+            TypeSpec *_ts;
+            vector_foreach_object(_ts, ts->specialized.args)
+            {
+                type_spec_to_str(_ts, buf);
+            }
+            buf_write_char(buf, '>');
+        }
         buf_write_char(buf, ';');
     } else {
         UNREACHABLE();
@@ -147,75 +150,128 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
     return 0;
 }
 
-TypeSpec *type_spec_from_str(const char *s)
+static void __add_arg(TypeSpec *ts, TypeSpec *arg)
 {
+    Vector *args = ts->unresolved.args;
+    if (args == NULL) {
+        args = vector_create_ptr();
+        ts->unresolved.args = args;
+    }
+    vector_push_back(args, arg);
+}
+
+static TypeSpec *__to_unresolved_type(char *s, int len)
+{
+    char *dot = strchr(s, '.');
+    ASSERT(dot != NULL);
+    char *path = atom_nstr(s, dot - s);
+    char *type = atom_nstr(dot + 1, len - (dot - s) - 1);
+    TypeIdent _pkg = { .name = path };
+    TypeIdent _name = { .name = type };
+    return unresolved_type_spec(&_pkg, _name, NULL);
+}
+
+static TypeSpec *__to_typespec(char **str)
+{
+    char *s = *str;
+
     if (!s || s[0] == 0) return NULL;
 
-    TypeSpec *ty = NULL;
+    char ch = *s;
+    char *k;
+    TypeSpec *ts;
+    TypeSpec *arg;
 
-    int len = strlen(s);
-
-    if (len == 1) {
-        int width;
-        int sign;
-        char ch = s[0];
-        switch (ch) {
-            case 'c':
-                width = 1;
-                sign = 1;
-                break;
-            case 'C':
-                width = 1;
-                sign = 0;
-                break;
-            case 's':
-                width = 2;
-                sign = 1;
-                break;
-            case 'S':
-                width = 2;
-                sign = 0;
-                break;
-            case 'i':
-                width = 4;
-                sign = 1;
-                break;
-            case 'I':
-                width = 4;
-                sign = 0;
-                break;
-            case 'j':
-                width = 8;
-                sign = 1;
-                break;
-            case 'J':
-                width = 8;
-                sign = 0;
-                break;
-            case 'u':
-                return str_type_spec();
-                break;
-            case 'z':
-                return bool_type_spec();
-                break;
-            case 'o':
-                return object_type_spec();
-                break;
-            default:
-                UNREACHABLE();
-                break;
+    switch (ch) {
+        case 'L': {
+            s++;
+            k = s;
+            while (*s != ';' && *s != '<' && *s != '\0') s++;
+            ts = __to_unresolved_type(k, s - k);
+            if (*s == '<') {
+                s++;
+                while (*s != '>' && *s != '\0') {
+                    arg = __to_typespec(&s);
+                    if (arg) __add_arg(ts, arg);
+                }
+                if (*s == '>') s++;
+            }
+            if (*s == ';') s++;
+            break;
         }
-        ty = int_type_spec(width, sign);
-        return ty;
+        case 'c': {
+            ts = int_type_spec(1, 1);
+            s++;
+            break;
+        }
+        case 'C': {
+            ts = int_type_spec(1, 0);
+            s++;
+            break;
+        }
+        case 's': {
+            ts = int_type_spec(2, 1);
+            s++;
+            break;
+        }
+        case 'S': {
+            ts = int_type_spec(2, 0);
+            s++;
+            break;
+        }
+        case 'i': {
+            ts = int_type_spec(4, 1);
+            s++;
+            break;
+        }
+        case 'I': {
+            ts = int_type_spec(4, 0);
+            s++;
+            break;
+        }
+        case 'j': {
+            ts = int_type_spec(8, 1);
+            s++;
+            break;
+        }
+        case 'J': {
+            ts = int_type_spec(8, 0);
+            s++;
+            break;
+        }
+        case 'u': {
+            ts = str_type_spec();
+            s++;
+            break;
+        }
+        case 'z': {
+            ts = bool_type_spec();
+            s++;
+            break;
+        }
+        case 'o': {
+            ts = object_type_spec();
+            s++;
+            break;
+        }
+        case '.': {
+            if (!strncmp(s, "...", 3)) {
+                ts = va_list_type_spec();
+                s += 3;
+            }
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
+        }
     }
 
-    if (!strcmp(s, "...")) {
-        return va_list_type_spec();
-    }
-
-    UNREACHABLE();
-    return NULL;
+    *str = s;
+    return ts;
 }
+
+TypeSpec *type_spec_from_str(const char *s) { return __to_typespec((char **)&s); }
 
 void type_spec_print(TypeSpec *ts, Buffer *buf)
 {
@@ -248,81 +304,116 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
     }
 }
 
-void type_spec_str_print(char *s, Buffer *buf)
+static void __typespec_str_print(char **str, Buffer *buf)
 {
+    char *s = *str;
+
     if (!s || s[0] == 0) {
         buf_write_str(buf, "unk");
         return;
     }
 
-    int len = strlen(s);
+    char ch = *s;
+    char *k;
+    TypeSpec *ts;
+    TypeSpec *arg;
 
-    if (len == 1) {
-        char ch = s[0];
-        switch (ch) {
-            case 'c':
-                buf_write_str(buf, "int8");
-                break;
-            case 'C':
-                buf_write_str(buf, "uint8");
-                break;
-            case 's':
-                buf_write_str(buf, "int16");
-                break;
-            case 'S':
-                buf_write_str(buf, "uint16");
-                break;
-            case 'i':
-                buf_write_str(buf, "int32");
-                break;
-            case 'I':
-                buf_write_str(buf, "uint32");
-                break;
-            case 'j':
-                buf_write_str(buf, "int64");
-                break;
-            case 'J':
-                buf_write_str(buf, "uint64");
-                break;
-            case 'f':
-                buf_write_str(buf, "float");
-                break;
-            case 'z':
-                buf_write_str(buf, "bool");
-                break;
-            case 'u':
-                buf_write_str(buf, "str");
-                break;
-            case 'o':
-                buf_write_str(buf, "object");
-                break;
-            default:
-                break;
+    switch (ch) {
+        case 'L': {
+            s++;
+            k = s;
+            while (*s != ';' && *s != '<' && *s != '\0') s++;
+            buf_write_nstr(buf, k, s - k);
+            if (*s == '<') {
+                buf_write_char(buf, '[');
+                s++;
+                int i = 0;
+                while (*s != '>' && *s != '\0') {
+                    if (i != 0) buf_write_str(buf, ", ");
+                    __typespec_str_print(&s, buf);
+                    i++;
+                }
+                if (*s == '>') {
+                    buf_write_char(buf, ']');
+                    s++;
+                }
+            }
+            if (*s == ';') s++;
+            break;
         }
-        return;
+        case 'c': {
+            buf_write_str(buf, "int8");
+            s++;
+            break;
+        }
+        case 'C': {
+            buf_write_str(buf, "uint8");
+            s++;
+            break;
+        }
+        case 's': {
+            buf_write_str(buf, "int16");
+            s++;
+            break;
+        }
+        case 'S': {
+            buf_write_str(buf, "uint16");
+            s++;
+            break;
+        }
+        case 'i': {
+            buf_write_str(buf, "int32");
+            s++;
+            break;
+        }
+        case 'I': {
+            buf_write_str(buf, "uint32");
+            s++;
+            break;
+        }
+        case 'j': {
+            buf_write_str(buf, "int64");
+            s++;
+            break;
+        }
+        case 'J': {
+            buf_write_str(buf, "uint64");
+            s++;
+            break;
+        }
+        case 'u': {
+            buf_write_str(buf, "str");
+            s++;
+            break;
+        }
+        case 'z': {
+            buf_write_str(buf, "bool");
+            s++;
+            break;
+        }
+        case 'o': {
+            buf_write_str(buf, "object");
+            s++;
+            break;
+        }
+        case '.': {
+            if (!strncmp(s, "...", 3)) {
+                buf_write_str(buf, "...");
+                s += 3;
+            }
+            break;
+        }
+        default: {
+            buf_write_char(buf, ch);
+            s++;
+            break;
+        }
     }
 
-    if (!strcmp(s, "...")) {
-        buf_write_str(buf, "...");
-        return;
-    }
-
-    if (s[0] == '<') {
-        char *_s = s + 1;
-        while (*_s != ';') _s++;
-        buf_write_nstr(buf, s + 1, _s - (s + 1));
-        return;
-    }
-
-    if (s[0] == 'L') {
-        char *_s = s + 1;
-        while (*_s != ';' && *_s != '<') _s++;
-        buf_write_nstr(buf, s + 1, _s - (s + 1));
-        return;
-    }
-
-    UNREACHABLE();
+    *str = s;
 }
+
+void type_spec_str_print(char *s, Buffer *buf) { __typespec_str_print(&s, buf); }
 
 #ifdef __cplusplus
 }

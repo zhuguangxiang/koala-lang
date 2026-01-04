@@ -163,15 +163,11 @@ item is structure, return pointer of this structure
 Only item is pointer, return item's self value(pointer)
 Here, object in C is a pointer, not a structure.
 if item is structure, please use vector_foreach
-usr must check obj is null or not, if vec has null.
+if there has null object, it will skip it.
 */
 #define vector_foreach_object(obj, vec) \
-    for (int i__ = 0, keep__ = 1; \
-        keep__ && i__ < vector_size(vec); \
-        i__++, keep__ = 1) \
-    for (typeof(*obj) **obj_p; \
-            keep__ && (obj_p = vector_get(vec, i__)) && (obj = *obj_p) && obj; \
-            keep__ = 0)
+    for (int i__ = 0, n__ = vector_size(vec); i__ < n__; i__++) \
+        if (({ typeof(obj) *p__ = vector_get(vec, i__); p__ && (obj = *p__); }))
 
 /* clang-format on */
 

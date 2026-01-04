@@ -195,6 +195,7 @@ static void dump_func(KlcFunc *fn, KlcFile *klc, int leading_spaces)
     KlcConst *ty_k;
     KlcArgument **arg_p;
     KlcArgument *arg;
+    int i = 0;
     vector_foreach(arg_p, &fn->args) {
         arg = *arg_p;
         if (!arg) continue;
@@ -202,11 +203,12 @@ static void dump_func(KlcFunc *fn, KlcFile *klc, int leading_spaces)
         ty_k = klc_get_const(klc, arg->type_index);
         RESET_BUF(buf);
         type_spec_str_print(ty_k->sval, &buf);
-        if (i__ != 0) {
+        if (i != 0) {
             fprintf(stdout, ", %s %s", k->sval, BUF_STR(buf));
         } else {
             fprintf(stdout, "%s %s", k->sval, BUF_STR(buf));
         }
+        i++;
     }
 
     fprintf(stdout, ") ");
@@ -279,7 +281,7 @@ static void dump_class(Vector *vec, KlcFile *klc)
             fprintf(stdout, "class %s", k->sval);
         }
 
-        if (vector_size(&item->tps) > 0) {
+        if (vector_size(&item->tps) > 1) {
             fprintf(stdout, "[");
             KlcTypeParam *tp;
             int index = 0;
@@ -291,6 +293,28 @@ static void dump_class(Vector *vec, KlcFile *klc)
                     fprintf(stdout, ", %s", name->sval);
                 else
                     fprintf(stdout, "%s", name->sval);
+
+                if (vector_size(&tp->bounds) > 1) {
+                    fprintf(stdout, ": ");
+                    BUF(buf);
+                    uint16_t bitem;
+                    int bindex = 0;
+                    vector_foreach_object(bitem, &tp->bounds)
+                    {
+                        if (bitem == 0) continue;
+
+                        KlcConst *bname = klc_get_const(klc, bitem);
+                        type_spec_str_print(bname->sval, &buf);
+                        if (bindex != 0)
+                            fprintf(stdout, " & %s", BUF_STR(buf));
+                        else
+                            fprintf(stdout, "%s", BUF_STR(buf));
+                        RESET_BUF(buf);
+                        bindex++;
+                    }
+                    FINI_BUF(buf);
+                }
+
                 index++;
             }
             fprintf(stdout, "]");
