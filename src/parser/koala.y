@@ -1011,6 +1011,13 @@ func_decl
         $$ = $1;
         ((FuncDeclStmt *)$$)->body = $2;
     }
+    | func_proto_decl semi
+    {
+        // free_type($3);
+        kl_error(loc(@2), "expected a function body.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
     ;
 
 func_proto_decl
@@ -1061,10 +1068,6 @@ func_proto_decl
         IDENT(id, $2, loc(@2));
         $$ = stmt_from_func_decl(id, NULL, NULL, $4);
         stmt_set_loc($$, lloc(@1, @7));
-    }
-    | FUNC error
-    {
-        $$ = NULL;
     }
     | FUNC ID error
     {
@@ -1491,7 +1494,7 @@ trait_decl
     | TRAIT ID extends '{' trait_members_or_empty '}'
     {
         Ident id = {$2, loc(@2)};
-        $$ = stmt_from_trait(id, NULL, NULL, $5);
+        $$ = stmt_from_trait(id, NULL, $3, $5);
         stmt_set_loc($$, lloc(@1, @6));
     }
     | TRAIT ID '[' type_param_decl_list ']' '{' trait_members_or_empty '}'
@@ -1503,7 +1506,7 @@ trait_decl
     | TRAIT ID '[' type_param_decl_list ']' extends '{' trait_members_or_empty '}'
     {
         Ident id = {$2, loc(@2)};
-        $$ = stmt_from_trait(id, $4, NULL, $8);
+        $$ = stmt_from_trait(id, $4, $6, $8);
         stmt_set_loc($$, lloc(@1, @9));
     }
     ;
@@ -1555,6 +1558,13 @@ block
     | '{' '}'
     {
         $$ = vector_create_ptr();
+    }
+    | '{' local_list error
+    {
+        // free_local_list($2);
+        kl_error(loc(@3), "expected '}'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 

@@ -137,6 +137,20 @@ void kl_write_to_klc(ParserState *ps)
                     }
                 }
 
+                if (vector_size(kls->bases) > 0) {
+                    BUF(buf);
+                    TypeSpec *ts;
+                    vector_foreach_object(ts, kls->bases)
+                    {
+                        type_spec_to_str(ts, &buf);
+                        uint16_t index =
+                            klc_add_str(klass->filp, BUF_STR(buf), BUF_LEN(buf));
+                        vector_push_back(&klass->bases, &index);
+                        RESET_BUF(buf);
+                    }
+                    FINI_BUF(buf);
+                }
+
                 FuncSymbol **fn_p;
                 FuncSymbol *fn;
                 KlcFunc *klc_fn;
@@ -198,6 +212,20 @@ void kl_write_to_klc(ParserState *ps)
                             FINI_BUF(buf);
                         }
                     }
+                }
+
+                if (vector_size(kls->bases) > 0) {
+                    BUF(buf);
+                    TypeSpec *ts;
+                    vector_foreach_object(ts, kls->bases)
+                    {
+                        type_spec_to_str(ts, &buf);
+                        uint16_t index =
+                            klc_add_str(klass->filp, BUF_STR(buf), BUF_LEN(buf));
+                        vector_push_back(&klass->bases, &index);
+                        RESET_BUF(buf);
+                    }
+                    FINI_BUF(buf);
                 }
 
                 FuncSymbol **fn_p;

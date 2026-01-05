@@ -922,6 +922,40 @@ static void parse_class(ParserState *ps, Stmt *stmt)
         }
     }
 
+    /* parse base class and traits */
+    if (vector_size(kls->bases) > 0) {
+        Vector *vec = vector_create_ptr();
+        TypeSpec *ts;
+        vector_foreach_object(ts, kls->bases)
+        {
+            TypeSpec *base_ts = resolve_type(ps, ts);
+            ASSERT(base_ts);
+            int r = check_type(ps, base_ts);
+            ASSERT(r);
+
+            Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
+            if (!base_sym) {
+                UNREACHABLE();
+            }
+
+            if (base_sym->kind == SYM_CLASS) {
+                if (i__ != 0) {
+                    kl_error(ts->loc, "class '%s' can have only first base class.",
+                             sym->name);
+                    continue;
+                }
+                vector_push_back(vec, &base_ts);
+            } else if (base_sym->kind == SYM_TRAIT) {
+                vector_push_back(vec, &base_ts);
+            } else {
+                kl_error(ts->loc,
+                         "only class or trait can be used as base of class '%s'.",
+                         sym->name);
+            }
+        }
+        sym->bases = vec;
+    }
+
     /* parse class body */
     Stmt **s;
     vector_foreach(s, kls->stmts) {
@@ -960,6 +994,32 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
             }
             tp_sym->bound = vec;
         }
+    }
+
+    /* parse base class and traits */
+    if (vector_size(kls->bases) > 0) {
+        Vector *vec = vector_create_ptr();
+        TypeSpec *ts;
+        vector_foreach_object(ts, kls->bases)
+        {
+            TypeSpec *base_ts = resolve_type(ps, ts);
+            ASSERT(base_ts);
+            int r = check_type(ps, base_ts);
+            ASSERT(r);
+
+            Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
+            if (!base_sym) {
+                UNREACHABLE();
+            }
+
+            if (base_sym->kind != SYM_TRAIT) {
+                kl_error(ts->loc, "only trait can be used as base of trait '%s'.",
+                         sym->name);
+                continue;
+            }
+            vector_push_back(vec, &base_ts);
+        }
+        sym->bases = vec;
     }
 
     /* parse class body */

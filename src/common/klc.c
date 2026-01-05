@@ -563,6 +563,14 @@ static void write_anns(KlcFile *klc, Vector *vec)
     }
 }
 
+static void write_bases(KlcFile *klc, Vector *vec)
+{
+    size_t size = vector_size(vec) - 1;
+    write_uint8(klc, (uint8_t)size);
+    uint16_t item;
+    vector_foreach_object(item, vec) { write_uint16(klc, item); }
+}
+
 static void write_funcs(KlcFile *klc, Vector *vec)
 {
     size_t size = vector_size(vec) - 1;
@@ -593,6 +601,7 @@ static void write_classes(KlcFile *klc, Vector *vec)
         write_uint16(klc, item->flags);
         write_uint16(klc, item->name_index);
         write_tps(klc, &item->tps);
+        write_bases(klc, &item->bases);
         write_vars(klc, &item->fields);
         write_funcs(klc, &item->methods);
     }
@@ -835,6 +844,18 @@ static void read_anns(KlcFile *klc, Vector *vec)
     }
 }
 
+static void read_bases(KlcFile *klc, Vector *vec)
+{
+    int size = 0;
+    read_uint8(klc, (uint8_t *)&size);
+
+    uint16_t item;
+    for (int i = 0; i < size; i++) {
+        read_uint16(klc, &item);
+        vector_push_back(vec, &item);
+    }
+}
+
 static void read_funcs(KlcFile *klc, Vector *vec)
 {
     int size = 0;
@@ -883,7 +904,7 @@ static void read_classes(KlcFile *klc, Vector *vec)
         vector_push_back(&kls->methods, &empty);
         read_tps(klc, &kls->tps);
         // read_anns(klc, &kls->anns);
-        // read_vars(klc, &kls->bases);
+        read_bases(klc, &kls->bases);
         read_vars(klc, &kls->fields);
         read_funcs(klc, &kls->methods);
     }

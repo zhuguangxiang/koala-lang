@@ -320,6 +320,27 @@ static void dump_class(Vector *vec, KlcFile *klc)
             fprintf(stdout, "]");
         }
 
+        if (vector_size(&item->bases) > 1) {
+            fprintf(stdout, " : ");
+            uint16_t bitem;
+            int index = 0;
+            BUF(buf);
+            vector_foreach_object(bitem, &item->bases)
+            {
+                if (bitem == 0) continue;
+
+                KlcConst *bname = klc_get_const(klc, bitem);
+                type_spec_str_print(bname->sval, &buf);
+                if (index != 0)
+                    fprintf(stdout, " & %s", BUF_STR(buf));
+                else
+                    fprintf(stdout, "%s", BUF_STR(buf));
+                RESET_BUF(buf);
+                index++;
+            }
+            FINI_BUF(buf);
+        }
+
         fprintf(stdout, " {\n");
 
         KlcVar **field_p;
