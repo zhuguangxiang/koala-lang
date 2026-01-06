@@ -154,7 +154,8 @@ Expr *expr_from_lit_int(char *orginal, __int128_t val, int sign, int bit_mode)
     exp->sign = sign;
     exp->ival_128 = val;
     exp->ival = 0;
-    exp->ts = int_type_spec(8, sign);
+    int id = sign ? 7 : 8; // int64/uint64
+    exp->ts = type_spec_get_by_id(id);
     return (Expr *)exp;
 }
 

@@ -18,6 +18,8 @@ extern "C" {
 /* New an atom string with null-terminated string. */
 char *atom(char *str);
 
+#define atom_str(s) atom(s)
+
 /* New an atom string with length-ed string. */
 char *atom_nstr(char *str, int len);
 

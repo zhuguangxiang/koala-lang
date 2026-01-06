@@ -1,4 +1,6 @@
 
+var i = 100
+
 public trait Fly {
 
 }

@@ -11,6 +11,7 @@ int main(int argc, char *argv[])
 {
     init_atom();
     init_log(LOG_DEBUG, NULL, 0);
+    typespec_init();
     compile(argc, argv);
     fini_log();
     fini_atom();

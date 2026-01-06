@@ -37,9 +37,12 @@ typedef struct _TypeIdent {
 #define NAME_ID(_name, _s, _l) TypeIdent _name = { _s, _l }
 
 typedef struct _TypeSpec {
+    HashMapEntry hnode;
     TypeKind kind;
     int checked;
     int sym_id;
+    int type_id;
+    char *signature;
     Loc loc;
     union {
         // int/float width
@@ -87,6 +90,12 @@ TypeSpec *type_spec_from_str(const char *s);
 
 void type_spec_print(TypeSpec *ts, Buffer *buf);
 void type_spec_str_print(char *s, Buffer *buf);
+
+void typespec_init(void);
+void typespec_fini(void);
+TypeSpec *type_spec_intern(TypeSpec *ts);
+TypeSpec *type_spec_get_by_id(int type_id);
+void type_spec_free(TypeSpec *ts);
 
 #ifdef __cplusplus
 }

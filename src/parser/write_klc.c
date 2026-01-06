@@ -58,10 +58,7 @@ void kl_write_to_klc(ParserState *ps)
                     flags |= KLC_FLAGS_PUB;
                 }
 
-                BUF(buf);
-                type_spec_to_str(var->ts, &buf);
-                klc_add_var(&klc, var->name, BUF_STR(buf), def_val_idx, flags);
-                FINI_BUF(buf);
+                klc_add_var(&klc, var->name, var->ts->signature, def_val_idx, flags);
                 break;
             }
             case SYM_FUNC: {

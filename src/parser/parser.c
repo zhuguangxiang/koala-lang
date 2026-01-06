@@ -350,7 +350,9 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             goto error;
         }
         TypeParamSymbol *ts_sym = (TypeParamSymbol *)sym;
-        return generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id);
+        TypeSpec *ret = generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id);
+        type_spec_free(_ts);
+        return ret;
 
     } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
@@ -363,14 +365,17 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             goto error;
         }
 
-        return specialized_type_spec(_ts->unresolved.pkg.name, _ts->unresolved.name.name,
-                                     vec, kls_sym->id);
+        TypeSpec *ret = specialized_type_spec(
+            _ts->unresolved.pkg.name, _ts->unresolved.name.name, vec, kls_sym->id);
+        type_spec_free(_ts);
+        return ret;
     } else {
         UNREACHABLE();
     }
 
 error:
     // TODO: free memroy
+    UNREACHABLE();
     return NULL;
 }
 
@@ -620,7 +625,7 @@ static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
 static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
 {
     Ident *id = &fn->id;
-    TypeSpec *ty = fn->ret ?: no_type_spec();
+    TypeSpec *ty = fn->ret ?: type_spec_get_by_id(0);
     Symbol *sym;
 
     int flags = parse_flags(&fn->flags);

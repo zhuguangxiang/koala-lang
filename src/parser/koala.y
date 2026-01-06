@@ -790,52 +790,52 @@ klass_type
 atom_type
     : UINT8
     {
-        $$ = int_type_spec(1, 0);
+        $$ = type_spec_get_by_id(2);
         type_spec_loc($$, loc(@1));
     }
     | UINT16
     {
-        $$ = int_type_spec(2, 0);
+        $$ = type_spec_get_by_id(4);
         type_spec_loc($$, loc(@1));
     }
     | UINT32
     {
-        $$ = int_type_spec(4, 0);
+        $$ = type_spec_get_by_id(6);
         type_spec_loc($$, loc(@1));
     }
     | UINT64
     {
-        $$ = int_type_spec(8, 0);
+        $$ = type_spec_get_by_id(8);
         type_spec_loc($$, loc(@1));
     }
     | UINT
     {
-        $$ = int_type_spec(8, 0);
+        $$ = type_spec_get_by_id(8);
         type_spec_loc($$, loc(@1));
     }
     | INT8
     {
-        $$ = int_type_spec(1, 1);
+        $$ = type_spec_get_by_id(1);
         type_spec_loc($$, loc(@1));
     }
     | INT16
     {
-        $$ = int_type_spec(2, 1);
+        $$ = type_spec_get_by_id(3);
         type_spec_loc($$, loc(@1));
     }
     | INT32
     {
-        $$ = int_type_spec(4, 1);
+        $$ = type_spec_get_by_id(5);
         type_spec_loc($$, loc(@1));
     }
     | INT64
     {
-        $$ = int_type_spec(8, 1);
+        $$ = type_spec_get_by_id(7);
         type_spec_loc($$, loc(@1));
     }
     | INT
     {
-        $$ = int_type_spec(8, 1);
+        $$ = type_spec_get_by_id(7);
         type_spec_loc($$, loc(@1));
     }
     | FLOAT16
@@ -860,17 +860,17 @@ atom_type
     }
     | BOOL
     {
-        $$ = bool_type_spec();
+        $$ = type_spec_get_by_id(9);
         type_spec_loc($$, loc(@1));
     }
     | STRING
     {
-        $$ = str_type_spec();
+        $$ = type_spec_get_by_id(10);
         type_spec_loc($$, loc(@1));
     }
     | OBJECT
     {
-        $$ = object_type_spec();
+        $$ = type_spec_get_by_id(11);
         type_spec_loc($$, loc(@1));
     }
     | TYPE
@@ -1134,7 +1134,7 @@ id_type_arg_list
     | ID DOTDOTDOT
     {
         Ident id = {$1, loc(@1)};
-        TypeSpec *ts = va_list_type_spec();
+        TypeSpec *ts = type_spec_get_by_id(12);
         type_spec_loc(ts, loc(@2));
         ParamDecl *p = param_new(lloc(@1, @2), id, ts, NULL);
         $$ = vector_create_ptr();
@@ -1144,7 +1144,7 @@ id_type_arg_list
     {
         $$ = $1;
         Ident id = {$3, loc(@3)};
-        TypeSpec *ts = va_list_type_spec();
+        TypeSpec *ts = type_spec_get_by_id(12);
         type_spec_loc(ts, loc(@4));
         ParamDecl *p = param_new(lloc(@3, @4), id, ts, NULL);
         vector_push_back($$, &p);
