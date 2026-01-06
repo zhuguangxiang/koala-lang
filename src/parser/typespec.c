@@ -129,7 +129,9 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
     } else if (ts->kind == TYPE_OBJECT) {
         buf_write_char(buf, 'o');
     } else if (ts->kind == TYPE_GENERIC_VAR) {
+        buf_write_char(buf, 'T');
         buf_write_str(buf, ts->generic_var.name);
+        buf_write_char(buf, ';');
     } else if (ts->kind == TYPE_SPECIALIZED) {
         buf_write_char(buf, 'L');
         buf_write_str(buf, ts->specialized.name);
@@ -196,6 +198,14 @@ static TypeSpec *__to_typespec(char **str)
                 }
                 if (*s == '>') s++;
             }
+            if (*s == ';') s++;
+            break;
+        }
+        case 'T': {
+            s++;
+            k = s;
+            while (*s != ';' && *s != '\0') s++;
+            ts = generic_var_type_spec(atom_nstr(k, s - k), -1, -1);
             if (*s == ';') s++;
             break;
         }
@@ -338,6 +348,14 @@ static void __typespec_str_print(char **str, Buffer *buf)
                     s++;
                 }
             }
+            if (*s == ';') s++;
+            break;
+        }
+        case 'T': {
+            s++;
+            k = s;
+            while (*s != ';' && *s != '\0') s++;
+            buf_write_nstr(buf, k, s - k);
             if (*s == ';') s++;
             break;
         }
