@@ -25,6 +25,7 @@ typedef enum _TypeKind {
     TYPE_VA_LIST,
     TYPE_TYPE,
     TYPE_RANGE,
+    TYPE_UNION,
     TYPE_UNRESOLVED,
     TYPE_GENERIC_VAR,
     TYPE_SPECIALIZED,
@@ -72,6 +73,11 @@ typedef struct _TypeSpec {
             TypeIdent name;
             Vector *args;
         } unresolved;
+
+        // A | B | C
+        struct {
+            Vector *args;
+        } union_type;
     };
 } TypeSpec;
 
@@ -80,6 +86,9 @@ typedef struct _TypeSpec {
 TypeSpec *generic_var_type_spec(char *name, int index, int sym_id);
 TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args, int sym_id);
 TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args);
+TypeSpec *union_type_spec(TypeSpec *first, TypeSpec *second);
+void union_type_spec_add_arg(TypeSpec *ts, TypeSpec *arg);
+TypeSpec *union_type_spec_intern(Vector *args);
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);

@@ -232,6 +232,8 @@ static void free_tp_list(Vector *vec)
 %type<type_spec> tuple_type
 %type<type_spec> klass_type
 %type<type_spec> atom_type
+%type<type_spec> enum_type;
+%type<type_spec> enum_opt_type;
 
 %type<vec> id_dot_list
 %type<vec> id_as_list
@@ -598,6 +600,47 @@ type
     | atom_type
     {
         $$ = $1;
+    }
+    ;
+
+enum_type
+    : type '|' type
+    {
+        $$ = union_type_spec($1, $3);
+    }
+    | enum_type '|' type
+    {
+        $$ = $1;
+        if ($1) {
+            union_type_spec_add_arg($1, $3);
+        } else {
+            // $$ = union_type_spec(NULL, $3);
+            // error
+        }
+    }
+    | type '|' error
+    {
+        // free_type($1);
+        kl_error(loc(@3), "expected type.");
+        yyclearin; yyerrok;
+        $$ = NULL;
+    }
+    | enum_type '|' error
+    {
+        kl_error(loc(@3), "expected type.");
+        yyclearin; yyerrok;
+        $$ = NULL;
+    }
+    ;
+
+enum_opt_type
+    : enum_type
+    {
+        $$ = $1;
+    }
+    | '(' enum_type ')' '?'
+    {
+        $$ = NULL;
     }
     ;
 
@@ -1148,6 +1191,20 @@ id_type_arg_list
         ParamDecl *p = param_new(lloc(@3, @4), id, ts, NULL);
         vector_push_back($$, &p);
     }
+    | ID enum_opt_type
+    {
+        Ident id = {$1, loc(@1)};
+        ParamDecl *p = param_new(lloc(@1, @2), id, $2, NULL);
+        $$ = vector_create_ptr();
+        vector_push_back($$, &p);
+    }
+    | id_type_arg_list ',' ID enum_opt_type
+    {
+        $$ = $1;
+        Ident id = {$3, loc(@3)};
+        ParamDecl *p = param_new(lloc(@3, @4), id, $4, NULL);
+        vector_push_back($$, &p);
+    }
     ;
 
 kw_arg_list
@@ -1173,6 +1230,12 @@ kw_arg
     {
         Ident id = {$1, loc(@1)};
         $$ = param_new(lloc(@1, @4), id, $2, $4);
+    }
+    | ID enum_opt_type '=' expr
+    {
+        // Ident id = {$1, loc(@1)};
+        // $$ = param_new(lloc(@1, @4), id, $2, $4);
+        $$ = NULL;
     }
     | ID '=' error
     {
@@ -1305,6 +1368,10 @@ class_name
     | TYPE
     {
         $$ = (Ident){"type", loc(@1)};
+    }
+    | BOOL
+    {
+        $$ = (Ident){"bool", loc(@1)};
     }
     ;
 

@@ -321,7 +321,21 @@ static int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 
 TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
 {
-    if (!_ts || _ts->kind != TYPE_UNRESOLVED) return _ts;
+    if (!_ts) return NULL;
+
+    if (_ts->kind == TYPE_UNION) {
+        TypeSpec *arg;
+        Vector *vec = vector_create_ptr();
+        vector_foreach_object(arg, _ts->union_type.args)
+        {
+            TypeSpec *ret = resolve_type(ps, arg);
+            vector_push_back(vec, &ret);
+        }
+        type_spec_free(_ts);
+        return union_type_spec_intern(vec);
+    }
+
+    if (_ts->kind != TYPE_UNRESOLVED) return _ts;
 
     // parse arguments by bottom-to-up method
 
@@ -409,6 +423,15 @@ int check_type(ParserState *ps, TypeSpec *type)
     if (!type) return 1;
 
     if (type->checked) return 1;
+
+    if (type->kind == TYPE_UNION) {
+        TypeSpec *arg;
+        vector_foreach_object(arg, type->union_type.args)
+        {
+            if (!check_type(ps, arg)) return 0;
+        }
+        return 1;
+    }
 
     // Only TYPE_SPECIALIZED requires complex validation of its arguments.
     if (type->kind != TYPE_SPECIALIZED) {

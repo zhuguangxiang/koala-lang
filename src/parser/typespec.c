@@ -296,10 +296,14 @@ TypeSpec *type_spec_intern(TypeSpec *ts)
 {
     TypeSpec *old_ts = hashmap_get(&type_map, ts);
     if (old_ts) {
+        ASSERT(old_ts->type_id >= 0);
         type_spec_free(ts);
         return old_ts;
     } else {
         hashmap_put(&type_map, ts);
+        // ASSERT(ts->type_id < 0);
+        ts->type_id = vector_size(&type_list);
+        vector_push_back(&type_list, &ts);
         return ts;
     }
 }
@@ -311,6 +315,7 @@ TypeSpec *generic_var_type_spec(char *name, int index, int sym_id)
     ts->generic_var.name = name;
     ts->generic_var.index = index;
     ts->sym_id = sym_id;
+    // ts->type_id = -1;
     BUF(buf);
     type_spec_to_str(ts, &buf);
     ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
@@ -332,6 +337,7 @@ TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args, int sy
         vector_foreach_object(arg, args) { vector_push_back(arg_copy, &arg); }
         ts->specialized.args = arg_copy;
     }
+    // ts->type_id = -1;
     ts->sym_id = sym_id;
     BUF(buf);
     type_spec_to_str(ts, &buf);
@@ -349,7 +355,55 @@ TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args)
     ts->unresolved.name = name;
     ts->unresolved.args = args;
     ts->sym_id = -1;
+    ts->type_id = -1;
     return ts;
+}
+
+TypeSpec *union_type_spec(TypeSpec *first, TypeSpec *second)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_UNION;
+    ts->union_type.args = vector_create_ptr();
+    if (first) vector_push_back(ts->union_type.args, &first);
+    if (second) vector_push_back(ts->union_type.args, &second);
+    ts->sym_id = -1;
+    ts->type_id = -1;
+    return ts;
+}
+
+void union_type_spec_add_arg(TypeSpec *ts, TypeSpec *arg)
+{
+    if (ts->kind != TYPE_UNION) {
+        return;
+    }
+    vector_push_back(ts->union_type.args, &arg);
+}
+
+static int cmp_typespec_by_type_id(const void *a, const void *b)
+{
+    TypeSpec **ts1 = (TypeSpec **)a;
+    TypeSpec **ts2 = (TypeSpec **)b;
+    return (*ts1)->type_id - (*ts2)->type_id;
+}
+
+TypeSpec *union_type_spec_intern(Vector *args)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_UNION;
+    ts->union_type.args = args;
+    ts->sym_id = -1;
+    ts->type_id = -1;
+
+    // sort args by type_id to ensure uniqueness
+    // so that Union[A, B] and Union[B, A] are the same
+
+    qsort(args->objs, args->size, args->obj_size, cmp_typespec_by_type_id);
+
+    BUF(buf);
+    type_spec_to_str(ts, &buf);
+    ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    return type_spec_intern(ts);
 }
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf)
@@ -406,6 +460,11 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
             }
             buf_write_char(buf, '>');
         }
+        buf_write_char(buf, ';');
+    } else if (ts->kind == TYPE_UNION) {
+        buf_write_char(buf, 'U');
+        TypeSpec *arg;
+        vector_foreach_object(arg, ts->union_type.args) { type_spec_to_str(arg, buf); }
         buf_write_char(buf, ';');
     } else {
         UNREACHABLE();
@@ -571,6 +630,24 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         buf_write_str(buf, ts->generic_var.name);
     } else if (ts->kind == TYPE_SPECIALIZED) {
         buf_write_str(buf, ts->specialized.name);
+    } else if (ts->kind == TYPE_FLOAT) {
+        buf_write_str(buf, "float");
+        buf_write_int64(buf, ts->int_flt_info.width * 8);
+    } else if (ts->kind == TYPE_BFLOAT16) {
+        buf_write_str(buf, "bfloat16");
+    } else if (ts->kind == TYPE_TYPE) {
+        buf_write_str(buf, "type");
+    } else if (ts->kind == TYPE_RANGE) {
+        buf_write_str(buf, "range");
+    } else if (ts->kind == TYPE_UNION) {
+        TypeSpec *arg;
+        int i = 0;
+        vector_foreach_object(arg, ts->union_type.args)
+        {
+            if (i != 0) buf_write_str(buf, " | ");
+            type_spec_print(arg, buf);
+            i++;
+        }
     } else {
         UNREACHABLE();
     }
@@ -618,6 +695,17 @@ static void __typespec_str_print(char **str, Buffer *buf)
             k = s;
             while (*s != ';' && *s != '\0') s++;
             buf_write_nstr(buf, k, s - k);
+            if (*s == ';') s++;
+            break;
+        }
+        case 'U': {
+            s++;
+            int i = 0;
+            while (*s != ';' && *s != '\0') {
+                if (i != 0) buf_write_str(buf, " | ");
+                __typespec_str_print(&s, buf);
+                i++;
+            }
             if (*s == ';') s++;
             break;
         }

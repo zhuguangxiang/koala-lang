@@ -103,14 +103,31 @@ public final class list[T] : Seq[T] {
     func __concat__(seq Seq[T]) list[T] {}
 }
 
+public final class int8 : Number[int8] {
+}
+
+public final class int16 : Number[int16] {
+}
+
 public final class int32 : Number[int32] {
     @intrinsic
     func __add__(rhs int32) int32 {}
 }
 
 public final class int64 : Number[int64] {
+    // the 'x' canbe int or string
+    // the 'base' is used when 'x' is string
+    @native(kl_int64_init)
+    public func __init__(x str | int, base str | int) {}
+
     @intrinsic
     func __add__(rhs int64) int64 {}
+}
+
+public final class uint8 : Number[uint8] {
+}
+
+public final class uint16 : Number[uint16] {
 }
 
 public final class uint32 : Number[uint32] {
@@ -121,4 +138,36 @@ public final class uint32 : Number[uint32] {
 public final class uint64 : Number[uint64] {
     @intrinsic
     func __add__(rhs uint64) uint64 {}
+}
+
+public final class float16 : Number[float16] {
+    @intrinsic
+    func __add__(rhs float16) float16 {}
+}
+
+public final class float32 : Number[float32] {
+    @intrinsic
+    func __add__(rhs float32) float32 {}
+}
+
+public final class float64 : Number[float64] {
+    @intrinsic
+    func __add__(rhs float64) float64 {}
+}
+
+public final class bool {
+}
+
+public final class type {
+    @native(kl_type_call)
+    public func __call__(o object) type {}
+}
+
+public final class range : Iterable[int] {
+
+    @native(kl_range_init)
+    public func __init__(start int, end int, step int = 1) {}
+
+    @native(kl_range_iter)
+    public func __iter__() Iterator[int] {}
 }
