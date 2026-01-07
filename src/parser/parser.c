@@ -625,7 +625,7 @@ static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
 static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
 {
     Ident *id = &fn->id;
-    TypeSpec *ty = fn->ret ?: type_spec_get_by_id(0);
+    TypeSpec *ty = fn->ret ?: no_type_spec();
     Symbol *sym;
 
     int flags = parse_flags(&fn->flags);
@@ -1044,7 +1044,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     if (exp) {
         exp->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, exp);
-        if (!exp->desc) return;
+        if (!exp->ts) return;
         ir_val = exp->ir_val;
     }
 

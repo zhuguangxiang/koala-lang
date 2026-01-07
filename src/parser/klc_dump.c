@@ -8,7 +8,6 @@
 #include "buffer.h"
 #include "klc.h"
 #include "opcode.h"
-#include "typedesc.h"
 #include "typespec.h"
 #include "version.h"
 

@@ -39,9 +39,9 @@ static int need_clear(int token)
 
 static void free_optional_type_list(Vector *vec)
 {
-    Type **item;
+    TypeSpec **item;
     vector_foreach(item, vec) {
-        free_type(*item);
+        type_spec_free(*item);
     }
     vector_destroy(vec);
 }
@@ -82,7 +82,6 @@ static void free_tp_list(Vector *vec)
     __float128 fval;
     Stmt *stmt;
     Expr *expr;
-    Type *type;
     TypeSpec *type_spec;
     Vector *vec;
     PrefixFlags prefix_flags;
@@ -227,10 +226,10 @@ static void free_tp_list(Vector *vec)
 
 %type<type_spec> optional_type
 %type<type_spec> type
-%type<type> array_type
-%type<type> map_type
-%type<type> set_type
-%type<type> tuple_type
+%type<type_spec> array_type
+%type<type_spec> map_type
+%type<type_spec> set_type
+%type<type_spec> tuple_type
 %type<type_spec> klass_type
 %type<type_spec> atom_type
 
@@ -610,8 +609,8 @@ array_type
     }
     | ARRAY
     {
-        $$ = array_type(NULL);
-        type_set_loc($$, loc(@1));
+        // $$ = array_type(NULL);
+        // type_set_loc($$, loc(@1));
     }
     | ARRAY '[' error
     {
@@ -636,8 +635,8 @@ map_type
     }
     | MAP
     {
-        $$ = map_type(NULL, NULL);
-        type_set_loc($$, loc(@1));
+        // $$ = map_type(NULL, NULL);
+        // type_set_loc($$, loc(@1));
     }
     | MAP '[' error
     {
@@ -678,8 +677,8 @@ tuple_type
     }
     | TUPLE
     {
-        $$ = tuple_type(NULL);
-        type_set_loc($$, loc(@1));
+        // $$ = tuple_type(NULL);
+        // type_set_loc($$, loc(@1));
     }
     | '(' optional_type_list ')'
     {
@@ -708,8 +707,8 @@ set_type
     }
     | SET
     {
-        $$ = set_type(NULL);
-        type_set_loc($$, loc(@1));
+        // $$ = set_type(NULL);
+        // type_set_loc($$, loc(@1));
     }
     | SET '[' error
     {
@@ -790,98 +789,98 @@ klass_type
 atom_type
     : UINT8
     {
-        $$ = type_spec_get_by_id(2);
+        $$ = uint8_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | UINT16
     {
-        $$ = type_spec_get_by_id(4);
+        $$ = uint16_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | UINT32
     {
-        $$ = type_spec_get_by_id(6);
+        $$ = uint32_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | UINT64
     {
-        $$ = type_spec_get_by_id(8);
+        $$ = uint64_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | UINT
     {
-        $$ = type_spec_get_by_id(8);
+        $$ = uint64_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | INT8
     {
-        $$ = type_spec_get_by_id(1);
+        $$ = int8_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | INT16
     {
-        $$ = type_spec_get_by_id(3);
+        $$ = int16_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | INT32
     {
-        $$ = type_spec_get_by_id(5);
+        $$ = int32_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | INT64
     {
-        $$ = type_spec_get_by_id(7);
+        $$ = int64_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | INT
     {
-        $$ = type_spec_get_by_id(7);
+        $$ = int64_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | FLOAT16
     {
-        // $$ = float_type();
-        // type_set_loc($$, loc(@1));
+        $$ = float16_type_spec();
+        type_spec_loc($$, loc(@1));
     }
     | FLOAT32
     {
-        // $$ = float_type();
-        // type_set_loc($$, loc(@1));
+        $$ = float32_type_spec();
+        type_spec_loc($$, loc(@1));
     }
     | FLOAT64
     {
-        // $$ = float_type();
-        // type_set_loc($$, loc(@1));
+        $$ = float64_type_spec();
+        type_spec_loc($$, loc(@1));
     }
     | BFLOAT16
     {
-        // $$ = float_type();
-        // type_set_loc($$, loc(@1));
+        $$ = bfloat16_type_spec();
+        type_spec_loc($$, loc(@1));
     }
     | BOOL
     {
-        $$ = type_spec_get_by_id(9);
+        $$ = bool_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | STRING
     {
-        $$ = type_spec_get_by_id(10);
+        $$ = str_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | OBJECT
     {
-        $$ = type_spec_get_by_id(11);
+        $$ = object_type_spec();
         type_spec_loc($$, loc(@1));
     }
     | TYPE
     {
-        // $$ = type_type();
-        // type_set_loc($$, loc(@1));
+        $$ = type_type_spec();
+        type_spec_loc($$, loc(@1));
     }
     | RANGE
     {
-        // $$ = range_type();
-        // type_set_loc($$, loc(@1));
+        $$ = range_type_spec();
+        type_spec_loc($$, loc(@1));
     }
     ;
 
@@ -1134,7 +1133,7 @@ id_type_arg_list
     | ID DOTDOTDOT
     {
         Ident id = {$1, loc(@1)};
-        TypeSpec *ts = type_spec_get_by_id(12);
+        TypeSpec *ts = va_list_type_spec();
         type_spec_loc(ts, loc(@2));
         ParamDecl *p = param_new(lloc(@1, @2), id, ts, NULL);
         $$ = vector_create_ptr();
@@ -1144,7 +1143,7 @@ id_type_arg_list
     {
         $$ = $1;
         Ident id = {$3, loc(@3)};
-        TypeSpec *ts = type_spec_get_by_id(12);
+        TypeSpec *ts = va_list_type_spec();
         type_spec_loc(ts, loc(@4));
         ParamDecl *p = param_new(lloc(@3, @4), id, ts, NULL);
         vector_push_back($$, &p);
@@ -2600,8 +2599,8 @@ array_expr
     }
     | ARRAY
     {
-        Type *ty = array_type(NULL);
-        type_set_loc(ty, loc(@1));
+        // Type *ty = array_type(NULL);
+        // type_set_loc(ty, loc(@1));
         // $$ = expr_from_type(ty);
         // expr_set_loc($$, loc(@1));
     }
@@ -2641,8 +2640,8 @@ map_expr
     }
     | MAP
     {
-        Type *ty = map_type(NULL, NULL);
-        type_set_loc(ty, loc(@1));
+        // Type *ty = map_type(NULL, NULL);
+        // type_set_loc(ty, loc(@1));
         // $$ = expr_from_type(ty);
         // expr_set_loc($$, loc(@1));
     }
@@ -2722,8 +2721,8 @@ tuple_expr
     }
     | TUPLE
     {
-        Type *ty = tuple_type(NULL);
-        type_set_loc(ty, loc(@1));
+        // Type *ty = tuple_type(NULL);
+        // type_set_loc(ty, loc(@1));
         // $$ = expr_from_type(ty);
         // expr_set_loc($$, loc(@1));
     }
@@ -2752,8 +2751,8 @@ set_expr
     }
     | SET
     {
-        Type *ty = set_type(NULL);
-        type_set_loc(ty, loc(@1));
+        // Type *ty = set_type(NULL);
+        // type_set_loc(ty, loc(@1));
         // $$ = expr_from_type(ty);
         // expr_set_loc($$, loc(@1));
     }

@@ -7,7 +7,6 @@
 #define _KOALA_AST_H_
 
 #include "symbol.h"
-#include "typedesc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,28 +53,6 @@ typedef struct _Ident {
     void *scope;
 } Ident;
 
-/* type */
-typedef struct _Type {
-    TypeDesc *desc;
-    Loc loc;
-    Vector *subs;
-} Type;
-
-Type *float_type(void);
-Type *bytes_type(void);
-Type *type_type(void);
-Type *range_type(void);
-Type *enum_type(Vector *subs);
-Type *optional_type(Type *ty);
-Type *array_type(Type *sub);
-Type *map_type(Type *key, Type *val);
-Type *tuple_type(Vector *vec);
-Type *set_type(Type *sub);
-Type *klass_type(Ident *mod, Ident *id, Vector *vec);
-
-void free_type(Type *ty);
-#define type_set_loc(ty, _loc) (ty)->loc = (_loc)
-
 typedef enum _ExprKind {
     EXPR_UNK_KIND,
     EXPR_ID_KIND,
@@ -115,7 +92,7 @@ typedef enum _ExprCtx {
 } ExprCtx;
 
 /* clang-format off */
-#define EXPR_HEAD ExprKind kind; Loc loc; ExprCtx ctx; TypeDesc *desc; TypeSpec *ts; \
+#define EXPR_HEAD ExprKind kind; Loc loc; ExprCtx ctx; TypeSpec *ts; \
     TypeSpec *expected; Symbol *sym; KlrValue *ir_val;
 /* clang-format on */
 
@@ -171,14 +148,14 @@ typedef struct _IsExpr {
     EXPR_HEAD
     Expr *exp;
     Loc op_loc;
-    Type *type;
+    TypeSpec *type;
 } IsExpr;
 
 typedef struct _AsExpr {
     EXPR_HEAD
     Expr *exp;
     Loc op_loc;
-    Type *type;
+    TypeSpec *type;
 } AsExpr;
 
 typedef struct _InExpr {
@@ -188,8 +165,8 @@ typedef struct _InExpr {
     Expr *rhs;
 } InExpr;
 
-Expr *expr_from_is_expr(Expr *exp, Loc op_loc, Type *type);
-Expr *expr_from_as_expr(Expr *exp, Loc op_loc, Type *type);
+Expr *expr_from_is_expr(Expr *exp, Loc op_loc, TypeSpec *type);
+Expr *expr_from_as_expr(Expr *exp, Loc op_loc, TypeSpec *type);
 Expr *expr_from_in_expr(Expr *lhs, Loc op_loc, Expr *rhs);
 
 /* unary operator kind */

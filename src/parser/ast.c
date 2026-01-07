@@ -9,141 +9,6 @@
 extern "C" {
 #endif
 
-Type *float_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_float();
-    return ty;
-}
-
-Type *bool_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_bool();
-    return ty;
-}
-
-Type *str_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_str();
-    return ty;
-}
-
-Type *object_typeof(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_object();
-    return ty;
-}
-
-Type *bytes_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_bytes();
-    return ty;
-}
-
-Type *type_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_type();
-    return ty;
-}
-
-Type *range_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_range();
-    return ty;
-}
-
-Type *va_list_type(void)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_valist();
-    return ty;
-}
-
-Type *enum_type(Vector *subs)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_enum();
-    ty->subs = subs;
-    return ty;
-}
-
-Type *optional_type(Type *sub)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_optional(sub->desc);
-    ty->subs = vector_create_ptr();
-    vector_push_back(ty->subs, &sub);
-    return ty;
-}
-
-Type *array_type(Type *sub)
-{
-    Type *ty = mm_alloc_obj(ty);
-    ty->desc = desc_array((sub ? sub->desc : NULL));
-    if (sub) {
-        ty->subs = vector_create_ptr();
-        vector_push_back(ty->subs, &sub);
-    }
-    return ty;
-}
-
-Type *map_type(Type *key, Type *val)
-{
-    Type *ty = mm_alloc_obj(ty);
-    // ty->desc = desc_map(key->desc, val->desc);
-    return ty;
-}
-
-Type *tuple_type(Vector *vec)
-{
-    Type *ty = mm_alloc_obj(ty);
-    return ty;
-}
-
-Type *set_type(Type *sub)
-{
-    Type *ty = mm_alloc_obj(ty);
-    return ty;
-}
-
-Type *klass_type(Ident *mod, Ident *id, Vector *vec)
-{
-    Type *ty = mm_alloc_obj(ty);
-    Vector *subs = NULL;
-    if (vec) {
-        subs = vector_create_ptr();
-        Type **item;
-        TypeDesc *sub;
-        vector_foreach(item, vec) {
-            sub = (*item)->desc;
-            DESC_INCREF(sub);
-            vector_push_back(subs, &sub);
-        }
-    }
-    ty->desc = desc_klass(mod ? mod->name : NULL, id->name, subs);
-    return ty;
-}
-
-void free_type(Type *ty)
-{
-    if (!ty) return;
-
-    free_desc(ty->desc);
-
-    Type **item;
-    vector_foreach(item, ty->subs) {
-        free_type(*item);
-    }
-    vector_destroy(ty->subs);
-    mm_free(ty);
-}
-
 Expr *expr_from_lit_int(char *orginal, __int128_t val, int sign, int bit_mode)
 {
     LitExpr *exp = mm_alloc_obj(exp);
@@ -286,7 +151,7 @@ Expr *expr_from_super(void)
     return exp;
 }
 
-Expr *expr_from_is_expr(Expr *exp, Loc op_loc, Type *type)
+Expr *expr_from_is_expr(Expr *exp, Loc op_loc, TypeSpec *type)
 {
     IsExpr *e = mm_alloc_obj(e);
     e->kind = EXPR_IS_KIND;
@@ -296,7 +161,7 @@ Expr *expr_from_is_expr(Expr *exp, Loc op_loc, Type *type)
     return (Expr *)e;
 }
 
-Expr *expr_from_as_expr(Expr *exp, Loc op_loc, Type *type)
+Expr *expr_from_as_expr(Expr *exp, Loc op_loc, TypeSpec *type)
 {
     AsExpr *e = mm_alloc_obj(e);
     e->kind = EXPR_AS_KIND;

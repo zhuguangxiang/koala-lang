@@ -69,22 +69,16 @@ void kl_write_to_klc(ParserState *ps)
                     flags |= KLC_FLAGS_PUB;
                 }
 
-                BUF(buf);
-
-                type_spec_to_str(fn->ts, &buf);
-                KlcFunc *f = klc_add_func(&klc, fn->name, BUF_STR(buf), flags);
+                KlcFunc *f = klc_add_func(&klc, fn->name, fn->ts->signature, flags);
 
                 // add argument info
                 ArgInfo **item_p;
                 ArgInfo *item;
                 vector_foreach(item_p, fn->params) {
-                    RESET_BUF(buf);
                     item = *item_p;
-                    type_spec_to_str(item->ts, &buf);
-                    klc_func_add_arg(f, item->name, BUF_STR(buf), item->dfl_val_idx);
+                    klc_func_add_arg(f, item->name, item->ts->signature,
+                                     item->dfl_val_idx);
                 }
-
-                FINI_BUF(buf);
 
                 // add annotations
                 if (fn->ann) {
@@ -119,39 +113,30 @@ void kl_write_to_klc(ParserState *ps)
                         KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
 
                         if (vector_size(tp->bound) > 0) {
-                            BUF(buf);
                             TypeSpec *ts;
                             vector_foreach_object(ts, tp->bound)
                             {
-                                type_spec_to_str(ts, &buf);
-                                uint16_t index =
-                                    klc_add_str(klass->filp, BUF_STR(buf), BUF_LEN(buf));
+                                uint16_t index = klc_add_str(klass->filp, ts->signature,
+                                                             strlen(ts->signature));
                                 vector_push_back(&klc_tp->bounds, &index);
-                                RESET_BUF(buf);
                             }
-                            FINI_BUF(buf);
                         }
                     }
                 }
 
                 if (vector_size(kls->bases) > 0) {
-                    BUF(buf);
                     TypeSpec *ts;
                     vector_foreach_object(ts, kls->bases)
                     {
-                        type_spec_to_str(ts, &buf);
-                        uint16_t index =
-                            klc_add_str(klass->filp, BUF_STR(buf), BUF_LEN(buf));
+                        uint16_t index = klc_add_str(klass->filp, ts->signature,
+                                                     strlen(ts->signature));
                         vector_push_back(&klass->bases, &index);
-                        RESET_BUF(buf);
                     }
-                    FINI_BUF(buf);
                 }
 
                 FuncSymbol **fn_p;
                 FuncSymbol *fn;
                 KlcFunc *klc_fn;
-                BUF(buf);
                 vector_foreach(fn_p, kls->funcs) {
                     fn = *fn_p;
 
@@ -160,17 +145,15 @@ void kl_write_to_klc(ParserState *ps)
                         flags_ |= KLC_FLAGS_PUB;
                     }
 
-                    type_spec_to_str(fn->ts, &buf);
-                    klc_fn = klc_klass_add_func(klass, fn->name, BUF_STR(buf), flags_);
+                    klc_fn =
+                        klc_klass_add_func(klass, fn->name, fn->ts->signature, flags_);
 
                     // add argument info
                     ArgInfo **item_p;
                     ArgInfo *item;
                     vector_foreach(item_p, fn->params) {
-                        RESET_BUF(buf);
                         item = *item_p;
-                        type_spec_to_str(item->ts, &buf);
-                        klc_func_add_arg(klc_fn, item->name, BUF_STR(buf),
+                        klc_func_add_arg(klc_fn, item->name, item->ts->signature,
                                          item->dfl_val_idx);
                     }
 
@@ -178,7 +161,6 @@ void kl_write_to_klc(ParserState *ps)
                     if (fn->ann) {
                         klc_func_add_ann(klc_fn, fn->ann, fn->ann_key, NULL);
                     }
-                    RESET_BUF(buf);
                 }
                 break;
             }
@@ -196,39 +178,30 @@ void kl_write_to_klc(ParserState *ps)
                         KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
 
                         if (vector_size(tp->bound) > 0) {
-                            BUF(buf);
                             TypeSpec *ts;
                             vector_foreach_object(ts, tp->bound)
                             {
-                                type_spec_to_str(ts, &buf);
-                                uint16_t index =
-                                    klc_add_str(klass->filp, BUF_STR(buf), BUF_LEN(buf));
+                                uint16_t index = klc_add_str(klass->filp, ts->signature,
+                                                             strlen(ts->signature));
                                 vector_push_back(&klc_tp->bounds, &index);
-                                RESET_BUF(buf);
                             }
-                            FINI_BUF(buf);
                         }
                     }
                 }
 
                 if (vector_size(kls->bases) > 0) {
-                    BUF(buf);
                     TypeSpec *ts;
                     vector_foreach_object(ts, kls->bases)
                     {
-                        type_spec_to_str(ts, &buf);
-                        uint16_t index =
-                            klc_add_str(klass->filp, BUF_STR(buf), BUF_LEN(buf));
+                        uint16_t index = klc_add_str(klass->filp, ts->signature,
+                                                     strlen(ts->signature));
                         vector_push_back(&klass->bases, &index);
-                        RESET_BUF(buf);
                     }
-                    FINI_BUF(buf);
                 }
 
                 FuncSymbol **fn_p;
                 FuncSymbol *fn;
                 KlcFunc *klc_fn;
-                BUF(buf);
                 vector_foreach(fn_p, kls->funcs) {
                     fn = *fn_p;
 
@@ -237,17 +210,15 @@ void kl_write_to_klc(ParserState *ps)
                         flags_ |= KLC_FLAGS_PUB;
                     }
 
-                    type_spec_to_str(fn->ts, &buf);
-                    klc_fn = klc_klass_add_func(klass, fn->name, BUF_STR(buf), flags_);
+                    klc_fn =
+                        klc_klass_add_func(klass, fn->name, fn->ts->signature, flags_);
 
                     // add argument info
                     ArgInfo **item_p;
                     ArgInfo *item;
                     vector_foreach(item_p, fn->params) {
-                        RESET_BUF(buf);
                         item = *item_p;
-                        type_spec_to_str(item->ts, &buf);
-                        klc_func_add_arg(klc_fn, item->name, BUF_STR(buf),
+                        klc_func_add_arg(klc_fn, item->name, item->ts->signature,
                                          item->dfl_val_idx);
                     }
 
@@ -255,7 +226,6 @@ void kl_write_to_klc(ParserState *ps)
                     if (fn->ann) {
                         klc_func_add_ann(klc_fn, fn->ann, fn->ann_key, NULL);
                     }
-                    RESET_BUF(buf);
                 }
                 break;
             }

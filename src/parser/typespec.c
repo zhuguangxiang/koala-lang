@@ -63,99 +63,7 @@ TypeSpec *type_spec_get_by_id(int type_id)
     return vector_get_object(&type_list, type_id);
 }
 
-void typespec_init(void)
-{
-    hashmap_init(&type_map, (HashMapEqualFunc)type_spec_equal);
-    vector_init_ptr(&type_list);
-    /*
-    0: TYPE_NO_TYPE
-    1: TYPE_INT
-    2: TYPE_BOOL
-    3: TYPE_STR
-    4: TYPE_OBJECT
-    5: TYPE_VA_LIST
-    */
-    TypeSpec *ts;
-
-    ts = no_type_spec();
-    ts->type_id = 0;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = int_type_spec(1, 1);
-    ts->type_id = 1;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = int_type_spec(1, 0);
-    ts->type_id = 2;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = int_type_spec(2, 1);
-    ts->type_id = 3;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = int_type_spec(2, 0);
-    ts->type_id = 4;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = int_type_spec(4, 1);
-    ts->type_id = 5;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = int_type_spec(4, 0);
-    ts->type_id = 6;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = int_type_spec(8, 1);
-    ts->type_id = 7;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = int_type_spec(8, 0);
-    ts->type_id = 8;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = bool_type_spec();
-    ts->type_id = 9;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = str_type_spec();
-    ts->type_id = 10;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = object_type_spec();
-    ts->type_id = 11;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = va_list_type_spec();
-    ts->type_id = 12;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-}
-
-TypeSpec *type_spec_intern(TypeSpec *ts)
-{
-    TypeSpec *old_ts = hashmap_get(&type_map, ts);
-    if (old_ts) {
-        type_spec_free(ts);
-        return old_ts;
-    } else {
-        hashmap_put(&type_map, ts);
-        return ts;
-    }
-}
-
-TypeSpec *no_type_spec(void)
+static TypeSpec *_no_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_NO_TYPE;
@@ -165,7 +73,7 @@ TypeSpec *no_type_spec(void)
     return ts;
 }
 
-TypeSpec *int_type_spec(int width, int sign)
+static TypeSpec *_int_type_spec(int width, int sign)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_INT;
@@ -185,7 +93,7 @@ TypeSpec *int_type_spec(int width, int sign)
     return ts;
 }
 
-TypeSpec *float_type_spec(int width)
+static TypeSpec *_float_type_spec(int width)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_FLOAT;
@@ -202,7 +110,7 @@ TypeSpec *float_type_spec(int width)
     return ts;
 }
 
-TypeSpec *bfloat16_type_spec(void)
+static TypeSpec *_bfloat16_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_BFLOAT16;
@@ -212,7 +120,7 @@ TypeSpec *bfloat16_type_spec(void)
     return ts;
 }
 
-TypeSpec *bool_type_spec(void)
+static TypeSpec *_bool_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_BOOL;
@@ -222,7 +130,7 @@ TypeSpec *bool_type_spec(void)
     return ts;
 }
 
-TypeSpec *str_type_spec(void)
+static TypeSpec *_str_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_STR;
@@ -232,7 +140,7 @@ TypeSpec *str_type_spec(void)
     return ts;
 }
 
-TypeSpec *object_type_spec(void)
+static TypeSpec *_object_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_OBJECT;
@@ -242,7 +150,7 @@ TypeSpec *object_type_spec(void)
     return ts;
 }
 
-TypeSpec *va_list_type_spec(void)
+static TypeSpec *_va_list_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_VA_LIST;
@@ -250,6 +158,150 @@ TypeSpec *va_list_type_spec(void)
     ts->sym_id = -1;
     hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
     return ts;
+}
+
+static TypeSpec *_type_type_spec(void)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_TYPE;
+    ts->signature = atom_str("Lbuiltin.type;");
+    ts->sym_id = -1;
+    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
+    return ts;
+}
+
+static TypeSpec *_range_type_spec(void)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_RANGE;
+    ts->signature = atom_str("Lbuiltin.range;");
+    ts->sym_id = -1;
+    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
+    return ts;
+}
+
+void typespec_init(void)
+{
+    hashmap_init(&type_map, (HashMapEqualFunc)type_spec_equal);
+    vector_init_ptr(&type_list);
+    /*
+    0: TYPE_NO_TYPE
+    1: TYPE_INT
+    2: TYPE_BOOL
+    3: TYPE_STR
+    4: TYPE_OBJECT
+    5: TYPE_VA_LIST
+    6: TYPE_FLOAT
+    7: TYPE_BFLOAT16
+    */
+    TypeSpec *ts;
+
+    ts = _no_type_spec();
+    ts->type_id = 0;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _int_type_spec(1, 1);
+    ts->type_id = 1;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _int_type_spec(1, 0);
+    ts->type_id = 2;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _int_type_spec(2, 1);
+    ts->type_id = 3;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _int_type_spec(2, 0);
+    ts->type_id = 4;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _int_type_spec(4, 1);
+    ts->type_id = 5;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _int_type_spec(4, 0);
+    ts->type_id = 6;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _int_type_spec(8, 1);
+    ts->type_id = 7;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _int_type_spec(8, 0);
+    ts->type_id = 8;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _bool_type_spec();
+    ts->type_id = 9;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _str_type_spec();
+    ts->type_id = 10;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _object_type_spec();
+    ts->type_id = 11;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _va_list_type_spec();
+    ts->type_id = 12;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _float_type_spec(2);
+    ts->type_id = 13;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _float_type_spec(4);
+    ts->type_id = 14;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _float_type_spec(8);
+    ts->type_id = 15;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _bfloat16_type_spec();
+    ts->type_id = 16;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _type_type_spec();
+    ts->type_id = 17;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+
+    ts = _range_type_spec();
+    ts->type_id = 18;
+    vector_push_back(&type_list, &ts);
+    hashmap_put(&type_map, ts);
+}
+
+TypeSpec *type_spec_intern(TypeSpec *ts)
+{
+    TypeSpec *old_ts = hashmap_get(&type_map, ts);
+    if (old_ts) {
+        type_spec_free(ts);
+        return old_ts;
+    } else {
+        hashmap_put(&type_map, ts);
+        return ts;
+    }
 }
 
 TypeSpec *generic_var_type_spec(char *name, int index, int sym_id)
@@ -420,42 +472,42 @@ static TypeSpec *__to_typespec(char **str)
             break;
         }
         case 'c': {
-            ts = int_type_spec(1, 1);
+            ts = int8_type_spec();
             s++;
             break;
         }
         case 'C': {
-            ts = int_type_spec(1, 0);
+            ts = uint8_type_spec();
             s++;
             break;
         }
         case 's': {
-            ts = int_type_spec(2, 1);
+            ts = int16_type_spec();
             s++;
             break;
         }
         case 'S': {
-            ts = int_type_spec(2, 0);
+            ts = uint16_type_spec();
             s++;
             break;
         }
         case 'i': {
-            ts = int_type_spec(4, 1);
+            ts = int32_type_spec();
             s++;
             break;
         }
         case 'I': {
-            ts = int_type_spec(4, 0);
+            ts = uint32_type_spec();
             s++;
             break;
         }
         case 'j': {
-            ts = int_type_spec(8, 1);
+            ts = int64_type_spec();
             s++;
             break;
         }
         case 'J': {
-            ts = int_type_spec(8, 0);
+            ts = uint64_type_spec();
             s++;
             break;
         }

@@ -9,7 +9,6 @@
 #include "common.h"
 #include "hashmap.h"
 #include "ir.h"
-#include "typedesc.h"
 #include "typespec.h"
 #include "vector.h"
 

@@ -146,7 +146,7 @@
         "yytext",
         "zhuguangxiang"
     ],
-    "editor.fontFamily": "'JetBrains Mono', 'Victor Mono', 'Monaspace Neon'",
+    "editor.fontFamily": "'JetBrains Mono', 'Victor Mono', 'Consolas', 'Monaspace Neon'",
     // "editor.fontLigatures": "'calt'",
     "terminal.integrated.fontFamily": "monospace",
     "editor.formatOnSave": true,
@@ -181,7 +181,7 @@
     "dateTime.use24HourClock": false,
     "dateTime.showAMPM": true,
     "C_Cpp.default.compilerPath": "/usr/bin/gcc",
-    "editor.fontSize": 13.5,
+    "editor.fontSize": 14,
     "editor.lineHeight": 1.5,
     "editor.letterSpacing": 0.5,
     "editor.fontWeight": "500",
