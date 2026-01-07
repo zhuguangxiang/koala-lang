@@ -364,7 +364,8 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             goto error;
         }
         TypeParamSymbol *ts_sym = (TypeParamSymbol *)sym;
-        TypeSpec *ret = generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id);
+        TypeSpec *ret = generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id,
+                                              ts_sym->owner->name);
         type_spec_free(_ts);
         return ret;
 
@@ -846,7 +847,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
     TypeParamDecl *tp;
     vector_foreach(tp_p, kls->tps) {
         tp = *tp_p;
-        Symbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name);
+        Symbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name, sym);
         vector_push_back(vec, &tp_sym);
         ((TypeParamSymbol *)tp_sym)->index = i__;
     }
@@ -897,7 +898,7 @@ static Symbol *_add_trait(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
     TypeParamDecl *tp;
     vector_foreach(tp_p, kls->tps) {
         tp = *tp_p;
-        Symbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name);
+        Symbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name, sym);
         vector_push_back(vec, &tp_sym);
         ((TypeParamSymbol *)tp_sym)->index = i__;
     }

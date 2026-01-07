@@ -190,12 +190,13 @@ Symbol *stbl_add_trait(HashMap *stbl, char *name, int flags)
     return (Symbol *)sym;
 }
 
-Symbol *stbl_add_type_param(HashMap *stbl, char *name)
+Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner)
 {
     TypeParamSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(name));
     sym->kind = SYM_TYPE_PARAM;
     sym->name = name;
+    sym->owner = owner;
 
     if (hashmap_put_absent(stbl, sym) < 0) {
         mm_free(sym);

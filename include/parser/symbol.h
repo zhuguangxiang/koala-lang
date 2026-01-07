@@ -78,6 +78,8 @@ typedef struct _VarSymbol {
 typedef struct _TypeParamSymbol {
     // ts is not used
     SYMBOL_HEAD
+    // owner symbol
+    Symbol *owner;
     // list of TypeSpec
     Vector *bound;
     // index in type-param list
@@ -149,7 +151,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
                       Vector *params, int flags, char *ann, char *ann_key);
 Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags);
 Symbol *stbl_add_trait(HashMap *stbl, char *name, int flags);
-Symbol *stbl_add_type_param(HashMap *stbl, char *name);
+Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_get(HashMap *stbl, char *name);
 void stbl_show(HashMap *stbl);
 void *get_symbol_by_id(int id);

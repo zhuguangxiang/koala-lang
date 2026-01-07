@@ -56,6 +56,7 @@ typedef struct _TypeSpec {
 
         // T
         struct {
+            char *owner;
             char *name;
             int index;
         } generic_var;
@@ -83,7 +84,7 @@ typedef struct _TypeSpec {
 
 #define type_spec_loc(ty, _loc) (ty)->loc = (_loc)
 
-TypeSpec *generic_var_type_spec(char *name, int index, int sym_id);
+TypeSpec *generic_var_type_spec(char *name, int index, int sym_id, char *owner);
 TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args, int sym_id);
 TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args);
 TypeSpec *union_type_spec(TypeSpec *first, TypeSpec *second);

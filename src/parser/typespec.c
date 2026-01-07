@@ -308,14 +308,15 @@ TypeSpec *type_spec_intern(TypeSpec *ts)
     }
 }
 
-TypeSpec *generic_var_type_spec(char *name, int index, int sym_id)
+TypeSpec *generic_var_type_spec(char *name, int index, int sym_id, char *owner)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_GENERIC_VAR;
     ts->generic_var.name = name;
     ts->generic_var.index = index;
     ts->sym_id = sym_id;
-    // ts->type_id = -1;
+    ts->generic_var.owner = owner;
+    ts->type_id = -1;
     BUF(buf);
     type_spec_to_str(ts, &buf);
     ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
@@ -446,6 +447,8 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         buf_write_char(buf, 'o');
     } else if (ts->kind == TYPE_GENERIC_VAR) {
         buf_write_char(buf, 'T');
+        buf_write_str(buf, ts->generic_var.owner);
+        buf_write_char(buf, ':');
         buf_write_str(buf, ts->generic_var.name);
         buf_write_char(buf, ';');
     } else if (ts->kind == TYPE_SPECIALIZED) {
@@ -525,8 +528,15 @@ static TypeSpec *__to_typespec(char **str)
         case 'T': {
             s++;
             k = s;
+            int len1 = 0;
+            while (*s != ':' && *s != '\0') s++;
+            len1 = s - k;
+            s++; // skip ':'
+            char *k2 = s;
             while (*s != ';' && *s != '\0') s++;
-            ts = generic_var_type_spec(atom_nstr(k, s - k), -1, -1);
+            char *owner = atom_nstr(k, len1);
+            char *name = atom_nstr(k2, s - k2);
+            ts = generic_var_type_spec(name, -1, -1, owner);
             if (*s == ';') s++;
             break;
         }
@@ -692,9 +702,11 @@ static void __typespec_str_print(char **str, Buffer *buf)
         }
         case 'T': {
             s++;
-            k = s;
+            while (*s != ':' && *s != '\0') s++;
+            s++;
+            char *k2 = s;
             while (*s != ';' && *s != '\0') s++;
-            buf_write_nstr(buf, k, s - k);
+            buf_write_nstr(buf, k2, s - k2);
             if (*s == ';') s++;
             break;
         }
@@ -761,6 +773,26 @@ static void __typespec_str_print(char **str, Buffer *buf)
         }
         case 'o': {
             buf_write_str(buf, "object");
+            s++;
+            break;
+        }
+        case 'h': {
+            buf_write_str(buf, "float16");
+            s++;
+            break;
+        }
+        case 'f': {
+            buf_write_str(buf, "float32");
+            s++;
+            break;
+        }
+        case 'd': {
+            buf_write_str(buf, "float64");
+            s++;
+            break;
+        }
+        case 'b': {
+            buf_write_str(buf, "bfloat16");
             s++;
             break;
         }
