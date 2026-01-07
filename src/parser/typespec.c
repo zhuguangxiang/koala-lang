@@ -301,7 +301,7 @@ TypeSpec *type_spec_intern(TypeSpec *ts)
         return old_ts;
     } else {
         hashmap_put(&type_map, ts);
-        // ASSERT(ts->type_id < 0);
+        ASSERT(ts->type_id < 0);
         ts->type_id = vector_size(&type_list);
         vector_push_back(&type_list, &ts);
         return ts;
@@ -338,7 +338,7 @@ TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args, int sy
         vector_foreach_object(arg, args) { vector_push_back(arg_copy, &arg); }
         ts->specialized.args = arg_copy;
     }
-    // ts->type_id = -1;
+    ts->type_id = -1;
     ts->sym_id = sym_id;
     BUF(buf);
     type_spec_to_str(ts, &buf);

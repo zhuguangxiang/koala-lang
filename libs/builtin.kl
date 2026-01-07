@@ -118,7 +118,7 @@ public final class int64 : Number[int64] {
     // the 'x' canbe int or string
     // the 'base' is used when 'x' is string
     @native(kl_int64_init)
-    public func __init__(x str | int, base str | int) {}
+    public func __init__(x int | str, base = 10) {}
 
     @intrinsic
     func __add__(rhs int64) int64 {}

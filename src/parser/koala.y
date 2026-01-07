@@ -232,8 +232,8 @@ static void free_tp_list(Vector *vec)
 %type<type_spec> tuple_type
 %type<type_spec> klass_type
 %type<type_spec> atom_type
-%type<type_spec> enum_type;
-%type<type_spec> enum_opt_type;
+%type<type_spec> union_type;
+%type<type_spec> union_opt_type;
 
 %type<vec> id_dot_list
 %type<vec> id_as_list
@@ -603,12 +603,12 @@ type
     }
     ;
 
-enum_type
+union_type
     : type '|' type
     {
         $$ = union_type_spec($1, $3);
     }
-    | enum_type '|' type
+    | union_type '|' type
     {
         $$ = $1;
         if ($1) {
@@ -625,7 +625,7 @@ enum_type
         yyclearin; yyerrok;
         $$ = NULL;
     }
-    | enum_type '|' error
+    | union_type '|' error
     {
         kl_error(loc(@3), "expected type.");
         yyclearin; yyerrok;
@@ -633,12 +633,16 @@ enum_type
     }
     ;
 
-enum_opt_type
-    : enum_type
+union_opt_type
+    : union_type
     {
         $$ = $1;
     }
-    | '(' enum_type ')' '?'
+    | '(' union_type ')'
+    {
+        $$ = $2;
+    }
+    | '(' union_type ')' '?'
     {
         $$ = NULL;
     }
@@ -1191,14 +1195,14 @@ id_type_arg_list
         ParamDecl *p = param_new(lloc(@3, @4), id, ts, NULL);
         vector_push_back($$, &p);
     }
-    | ID enum_opt_type
+    | ID union_opt_type
     {
         Ident id = {$1, loc(@1)};
         ParamDecl *p = param_new(lloc(@1, @2), id, $2, NULL);
         $$ = vector_create_ptr();
         vector_push_back($$, &p);
     }
-    | id_type_arg_list ',' ID enum_opt_type
+    | id_type_arg_list ',' ID union_opt_type
     {
         $$ = $1;
         Ident id = {$3, loc(@3)};
@@ -1231,7 +1235,7 @@ kw_arg
         Ident id = {$1, loc(@1)};
         $$ = param_new(lloc(@1, @4), id, $2, $4);
     }
-    | ID enum_opt_type '=' expr
+    | ID union_opt_type '=' expr
     {
         // Ident id = {$1, loc(@1)};
         // $$ = param_new(lloc(@1, @4), id, $2, $4);

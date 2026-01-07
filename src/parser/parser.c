@@ -324,6 +324,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
     if (!_ts) return NULL;
 
     if (_ts->kind == TYPE_UNION) {
+        ASSERT(_ts->type_id < 0);
         TypeSpec *arg;
         Vector *vec = vector_create_ptr();
         vector_foreach_object(arg, _ts->union_type.args)
@@ -349,6 +350,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             ret = resolve_type(ps, ts);
             vector_push_back(vec, &ret);
         }
+        vector_clear(_ts->unresolved.args);
     }
 
     Symbol *sym = find_type_symbol(ps, &_ts->unresolved.pkg, &_ts->unresolved.name);
@@ -426,6 +428,7 @@ int check_type(ParserState *ps, TypeSpec *type)
     if (type->checked) return 1;
 
     if (type->kind == TYPE_UNION) {
+        ASSERT(type->type_id >= 0);
         TypeSpec *arg;
         vector_foreach_object(arg, type->union_type.args)
         {
