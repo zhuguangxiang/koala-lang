@@ -41,8 +41,6 @@ typedef struct _Ident {
     char *name;
     /* location */
     Loc loc;
-    /* symbol */
-    Symbol *sym;
     /* where is this ident ? */
     int where;
 #define CURRENT_SCOPE 1
@@ -138,7 +136,7 @@ typedef struct _IdentExpr {
     Ident id;
 } IdentExpr;
 
-#define IDENT(name, s, l) Ident name = { s, l, NULL, 0, NULL }
+#define IDENT(name, s, l) Ident name = { s, l, 0, NULL }
 Expr *expr_from_ident(Ident *id);
 Expr *expr_from_under(void);
 Expr *expr_from_self(void);
@@ -369,6 +367,7 @@ typedef struct _VarDeclStmt {
     int ro;
     int pub;
     Ident id;
+    Symbol *sym;
     TypeSpec *type;
     Expr *exp;
 } VarDeclStmt;
@@ -404,6 +403,7 @@ Argument *arg_new(Loc loc, Ident id, Expr *value);
 typedef struct _FuncDeclStmt {
     STMT_HEAD
     Ident id;
+    Symbol *sym;
     Vector *tps;
     Vector *args;
     TypeSpec *ret;
@@ -473,6 +473,7 @@ Stmt *stmt_from_expr(Expr *exp);
 typedef struct _KlassStmt {
     STMT_HEAD
     Ident id;
+    Symbol *sym;
     Vector *tps;
     Vector *bases;
     Vector *stmts;

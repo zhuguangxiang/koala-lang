@@ -526,7 +526,7 @@ static Symbol *_add_var(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
         return NULL;
     }
 
-    var->id.sym = sym;
+    var->sym = sym;
     return sym;
 }
 
@@ -551,7 +551,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         if (!_add_var(ps, sc->stbl, var)) return;
     }
 
-    VarSymbol *sym = (VarSymbol *)id->sym;
+    VarSymbol *sym = (VarSymbol *)var->sym;
 
     if (var->where == VAR_GLOBAL) {
         if (exp && exp->kind == EXPR_LITERAL_KIND) {
@@ -665,7 +665,7 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
         return NULL;
     }
 
-    fn->id.sym = sym;
+    fn->sym = sym;
     return sym;
 }
 
@@ -736,7 +736,7 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
 
     if (ps->errors) return;
 
-    FuncSymbol *sym = (FuncSymbol *)fn->id.sym;
+    FuncSymbol *sym = (FuncSymbol *)fn->sym;
 
     sc = enter_scope(ps, SCOPE_FUNC, 0);
     sc->stbl = sym->stbl;
@@ -871,7 +871,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
         }
     }
 
-    kls->id.sym = sym;
+    kls->sym = sym;
     return sym;
 }
 
@@ -919,14 +919,14 @@ static Symbol *_add_trait(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
         }
     }
 
-    kls->id.sym = sym;
+    kls->sym = sym;
     return sym;
 }
 
 static void parse_class(ParserState *ps, Stmt *stmt)
 {
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
-    KlassSymbol *sym = (KlassSymbol *)kls->id.sym;
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
 
     ParserScope *sc = enter_scope(ps, SCOPE_CLASS, 0);
     sc->stbl = sym->stbl;
@@ -1000,7 +1000,7 @@ static void parse_class(ParserState *ps, Stmt *stmt)
 static void parse_trait(ParserState *ps, Stmt *stmt)
 {
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
-    KlassSymbol *sym = (KlassSymbol *)kls->id.sym;
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
 
     ParserScope *sc = enter_scope(ps, SCOPE_TRAIT, 0);
     sc->stbl = sym->stbl;
