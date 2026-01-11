@@ -40,7 +40,7 @@ typedef enum _SymKind {
 #define SYM_FLAGS_TAG_VALUE (1 << 6)
 
 #define SYMBOL_HEAD \
-    HashMapEntry hnode; SymKind kind; int flags; int id; char *name; TypeDesc *desc; TypeSpec *ts; \
+    HashMapEntry hnode; SymKind kind; int flags; int id; char *name; TypeSpec *ts; \
     HashMap *stbl; KlrValue *ir_val;
 
 /* clang-format on */

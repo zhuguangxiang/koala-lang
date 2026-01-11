@@ -1,0 +1,33 @@
+pub class TensorNode {
+    pub let id int = 0
+    pub var value float?
+}
+
+// TensorNode : Computable {
+//     fn __init__(id int, value float?) {
+//         self.id = id
+//         self.value = value
+//     }
+
+//     pub fn compute(factor float) -> float {
+//         // 1. 尝试解包，失败则返回 0.0
+//         let val = value ?: return 0.0
+
+//         // 2. 影子变量 val 现在是 Float，直接参与运算
+//         return val * factor
+//     }
+// }
+
+func main() {
+    let node = TensorNode(7, 0.95)
+
+    // 3. 点模式与符号化链路
+    if res = node.as(Computable)?.compute(1.1) {
+        print("Result: " + res.abc())
+    } else {
+        print("Compute failed or type mismatch")
+    }
+
+    // 4. 强力解包抛异常 (不可捕获)
+    let final_val = node.value!
+}

@@ -1,6 +1,29 @@
 
 var i = 100
 
+x?.foo()?.bar()!.baz()![1]?.qux()
+x + y!
+(x + y)!(100)
+
+if x.is(int) {
+
+}
+
+if y.as(str) {
+
+}
+
+if y = z.as(float) {
+}
+
+if x = y {
+
+}
+
+if x != nil {
+
+}
+
 public trait Fly {
 
 }

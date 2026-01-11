@@ -20,8 +20,8 @@
 static int semicolon(ParserState *ps)
 {
     static int tokens[] = {
-        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF, SUPER,
-        TRUE, FALSE, UINT8, UINT16, UINT32, UINT64, UINT, INT8, INT16, INT32, INT64, INT,
+        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF,
+        TRUE, FALSE, UINT8, UINT16, UINT32, UINT64, INT8, INT16, INT32, INT64,
         FLOAT16, FLOAT32, FLOAT64, BFLOAT16, STRING, BOOL, OBJECT,
         RETURN, BREAK, CONTINUE, ')', ']', '}', '?',
         '_', NOT,
@@ -218,32 +218,31 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 "in"        { YY_RETURN(IN);        }
 "as"        { YY_RETURN(AS);        }
 "is"        { YY_RETURN(IS);        }
-"public"    { YY_RETURN(PUBLIC);    }
-"final"     { YY_RETURN(FINAL);     }
+"pub"       { YY_RETURN(PUBLIC);    }
 
 "self"      { YY_RETURN(SELF);      }
-"super"     { YY_RETURN(SUPER);     }
 "true"      { YY_RETURN(TRUE);      }
 "false"     { YY_RETURN(FALSE);     }
-"nil"       { YY_RETURN(NONE);      }
+"null"      { YY_RETURN(NONE);      }
 
 "uint8"     { YY_RETURN(UINT8);     }
 "uint16"    { YY_RETURN(UINT16);    }
 "uint32"    { YY_RETURN(UINT32);    }
 "uint64"    { YY_RETURN(UINT64);    }
-"uint"      { YY_RETURN(UINT);      }
+"uint"      { YY_RETURN(UINT64);    }
 "int8"      { YY_RETURN(INT8);      }
 "int16"     { YY_RETURN(INT16);     }
 "int32"     { YY_RETURN(INT32);     }
 "int64"     { YY_RETURN(INT64);     }
-"int"       { YY_RETURN(INT);       }
+"int"       { YY_RETURN(INT64);     }
 "float16"   { YY_RETURN(FLOAT16);   }
 "float32"   { YY_RETURN(FLOAT32);   }
 "float64"   { YY_RETURN(FLOAT64);   }
+"float"     { YY_RETURN(FLOAT64);   }
 "bfloat16"  { YY_RETURN(BFLOAT16);  }
 "bool"      { YY_RETURN(BOOL);      }
 "str"       { YY_RETURN(STRING);    }
-"object"    { YY_RETURN(OBJECT);    }
+"any"       { YY_RETURN(OBJECT);    }
 "list"      { YY_RETURN(ARRAY);     }
 "dict"      { YY_RETURN(MAP);       }
 "set"       { YY_RETURN(SET);       }
@@ -275,6 +274,10 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 "..<"       { YY_RETURN(DOTDOTDOT);    }
 "<<"        { YY_RETURN(L_SHIFT);      }
 ">>"        { YY_RETURN(R_SHIFT);      }
+
+"?:"        { YY_RETURN(OPT_DEF);   }
+"?."        { YY_RETURN(OPT_DOT);   }
+"!."        { YY_RETURN(OPT_BANG);  }
 
 "?"         { YY_RETURN('?'); }
 "@"         { YY_RETURN('@'); }

@@ -110,10 +110,8 @@ static void free_tp_list(Vector *vec)
 %token AS
 %token IS
 %token PUBLIC
-%token FINAL
 
 %token SELF
-%token SUPER
 %token TRUE
 %token FALSE
 %token NONE
@@ -122,12 +120,10 @@ static void free_tp_list(Vector *vec)
 %token UINT16
 %token UINT32
 %token UINT64
-%token UINT
 %token INT8
 %token INT16
 %token INT32
 %token INT64
-%token INT
 
 %token FLOAT16
 %token FLOAT32
@@ -173,6 +169,10 @@ static void free_tp_list(Vector *vec)
 %token MOD_DOC
 %token DOC
 
+%token OPT_DEF
+%token OPT_DOT
+%token OPT_BANG
+
 %type<stmt> import_stmt
 %type<stmt> top_stmt
 %type<stmt> let_decl
@@ -197,8 +197,6 @@ static void free_tp_list(Vector *vec)
 
 %type<expr> expr
 %type<expr> or_expr
-%type<expr> is_expr
-%type<expr> as_expr
 %type<expr> in_expr
 %type<expr> and_expr
 %type<expr> bit_or_expr
@@ -267,6 +265,7 @@ static void free_tp_list(Vector *vec)
 %type<prefix_flags> access
 %type<ival> assign_operator
 %type<ident> class_name
+%type<ident> trait_name
 %type<tpval> type_param_decl
 %type<param> kw_arg
 
@@ -524,20 +523,6 @@ access
         $$.pub.flag = 1;
         $$.pub.loc = loc(@1);
     }
-    | FINAL
-    {
-        memset(&$$, 0, sizeof($$));
-        $$.final.flag = 1;
-        $$.final.loc = loc(@1);
-    }
-    | PUBLIC FINAL
-    {
-        memset(&$$, 0, sizeof($$));
-        $$.pub.flag = 1;
-        $$.final.flag = 1;
-        $$.pub.loc = loc(@1);
-        $$.final.loc = loc(@2);
-    }
     ;
 
 annotation
@@ -654,11 +639,6 @@ array_type
         // $$ = array_type($3);
         // type_set_loc($$, lloc(@1, @4));
     }
-    | ARRAY
-    {
-        // $$ = array_type(NULL);
-        // type_set_loc($$, loc(@1));
-    }
     | ARRAY '[' error
     {
         kl_error(loc(@3), "expected type.");
@@ -679,11 +659,6 @@ map_type
     {
         // $$ = map_type($3, $5);
         // type_set_loc($$, lloc(@1, @6));
-    }
-    | MAP
-    {
-        // $$ = map_type(NULL, NULL);
-        // type_set_loc($$, loc(@1));
     }
     | MAP '[' error
     {
@@ -722,11 +697,6 @@ tuple_type
         $$ = NULL;
         // type_set_loc($$, lloc(@1, @4));
     }
-    | TUPLE
-    {
-        // $$ = tuple_type(NULL);
-        // type_set_loc($$, loc(@1));
-    }
     | '(' optional_type_list ')'
     {
         $$ = NULL;
@@ -751,11 +721,6 @@ set_type
     {
         // $$ = set_type($3);
         // type_set_loc($$, lloc(@1, @4));
-    }
-    | SET
-    {
-        // $$ = set_type(NULL);
-        // type_set_loc($$, loc(@1));
     }
     | SET '[' error
     {
@@ -854,11 +819,6 @@ atom_type
         $$ = uint64_type_spec();
         type_spec_loc($$, loc(@1));
     }
-    | UINT
-    {
-        $$ = uint64_type_spec();
-        type_spec_loc($$, loc(@1));
-    }
     | INT8
     {
         $$ = int8_type_spec();
@@ -875,11 +835,6 @@ atom_type
         type_spec_loc($$, loc(@1));
     }
     | INT64
-    {
-        $$ = int64_type_spec();
-        type_spec_loc($$, loc(@1));
-    }
-    | INT
     {
         $$ = int64_type_spec();
         type_spec_loc($$, loc(@1));
@@ -1285,10 +1240,6 @@ class_name
     {
         $$ = (Ident){$1, loc(@1)};
     }
-    | OBJECT
-    {
-        $$ = (Ident){"object", loc(@1)};
-    }
     | UINT8
     {
         $$ = (Ident){"uint8", loc(@1)};
@@ -1305,10 +1256,6 @@ class_name
     {
         $$ = (Ident){"uint64", loc(@1)};
     }
-    | UINT
-    {
-        $$ = (Ident){"uint64", loc(@1)};
-    }
     | INT8
     {
         $$ = (Ident){"int8", loc(@1)};
@@ -1322,10 +1269,6 @@ class_name
         $$ = (Ident){"int32", loc(@1)};
     }
     | INT64
-    {
-        $$ = (Ident){"int64", loc(@1)};
-    }
-    | INT
     {
         $$ = (Ident){"int64", loc(@1)};
     }
@@ -1555,29 +1498,36 @@ method_decl
     ;
 
 trait_decl
-    : TRAIT ID '{' trait_members_or_empty '}'
+    : TRAIT trait_name '{' trait_members_or_empty '}'
     {
-        Ident id = {$2, loc(@2)};
-        $$ = stmt_from_trait(id, NULL, NULL, $4);
+        $$ = stmt_from_trait($2, NULL, NULL, $4);
         stmt_set_loc($$, lloc(@1, @5));
     }
-    | TRAIT ID extends '{' trait_members_or_empty '}'
+    | TRAIT trait_name extends '{' trait_members_or_empty '}'
     {
-        Ident id = {$2, loc(@2)};
-        $$ = stmt_from_trait(id, NULL, $3, $5);
+        $$ = stmt_from_trait($2, NULL, $3, $5);
         stmt_set_loc($$, lloc(@1, @6));
     }
-    | TRAIT ID '[' type_param_decl_list ']' '{' trait_members_or_empty '}'
+    | TRAIT trait_name '[' type_param_decl_list ']' '{' trait_members_or_empty '}'
     {
-        Ident id = {$2, loc(@2)};
-        $$ = stmt_from_trait(id, $4, NULL, $7);
+        $$ = stmt_from_trait($2, $4, NULL, $7);
         stmt_set_loc($$, lloc(@1, @8));
     }
-    | TRAIT ID '[' type_param_decl_list ']' extends '{' trait_members_or_empty '}'
+    | TRAIT trait_name '[' type_param_decl_list ']' extends '{' trait_members_or_empty '}'
     {
-        Ident id = {$2, loc(@2)};
-        $$ = stmt_from_trait(id, $4, $6, $8);
+        $$ = stmt_from_trait($2, $4, $6, $8);
         stmt_set_loc($$, lloc(@1, @9));
+    }
+    ;
+
+trait_name
+    : ID
+    {
+        $$ = (Ident){$1, loc(@1)};
+    }
+    | OBJECT
+    {
+        $$ = (Ident){"any", loc(@1)};
     }
     ;
 
@@ -1627,6 +1577,7 @@ block
     }
     | '{' '}'
     {
+        printf("empty block\n");
         $$ = vector_create_ptr();
     }
     | '{' local_list error
@@ -1820,13 +1771,13 @@ if_stmt
         $$ = stmt_from_if($2, $3, $4);
         stmt_set_loc($$, lloc(@1, @4));
     }
-    | IF ID '=' expr block
+    | IF ID '=' expr block elseif_stmt
     {
         // IDENT(id, $3, loc(@2));
         // $$ = stmt_from_guard_let(&id, $4, $6);
         // stmt_set_loc($$, lloc(@1, @6));
     }
-    | IF '(' ID '=' expr ')' block
+    | IF '(' ID '=' expr ')' block elseif_stmt
     {
 
     }
@@ -1921,50 +1872,25 @@ expr
     {
         $$ = $1;
     }
-    | is_expr
-    {
-        $$ = $1;
-    }
-    | as_expr
-    {
-        $$ = $1;
-    }
     | or_expr DOTDOTDOT or_expr
     {
         $$ = NULL;
     }
-    | or_expr '?'
+    /* | or_expr '!'
     {
         // only T?
+        printf("expr error1\n");
         $$ = NULL;
-    }
-    ;
-
-is_expr
-    : or_expr IS type
+    } */
+    | or_expr OPT_DEF or_expr
     {
         // $$ = expr_from_is_expr($1, loc(@2), $3);
         // expr_set_loc($$, lloc(@1, @3));
     }
-    | or_expr IS error
+    | or_expr OPT_DEF error
     {
-        expr_free($1);
-        kl_error(loc(@3), "expected a type.");
-        yy_clear_ok;
-        $$ = NULL;
-    }
-    ;
-
-as_expr
-    : or_expr AS type
-    {
-        // $$ = expr_from_as_expr($1, loc(@2), $3);
-        // expr_set_loc($$, lloc(@1, @3));
-    }
-    | or_expr AS error
-    {
-        expr_free($1);
-        kl_error(loc(@3), "expected a type.");
+        // expr_free($1);
+        kl_error(loc(@3), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
     }
@@ -2216,6 +2142,7 @@ add_expr
     }
     | add_expr '+' multi_expr
     {
+        printf("add_expr + multi_expr\n");
         $$ = expr_from_binary(BINARY_ADD, loc(@2), $1, $3);
         expr_set_loc($$, lloc(@1, @3));
     }
@@ -2351,6 +2278,11 @@ primary_expr
     {
         $$ = $1;
     }
+    | primary_expr NOT
+    {
+        printf("primary_expr NOT\n");
+        $$ = NULL;
+    }
     ;
 
 call_expr
@@ -2421,6 +2353,30 @@ dot_expr
         IDENT(id, $3, loc(@3));
         $$ = expr_from_dot($1, &id);
         expr_set_loc($$, lloc(@1, @3));
+    }
+    | primary_expr OPT_DOT ID
+    {
+        IDENT(id, $3, loc(@3));
+        $$ = expr_from_dot($1, &id);
+        expr_set_loc($$, lloc(@1, @3));
+    }
+    | primary_expr OPT_BANG ID
+    {
+        IDENT(id, $3, loc(@3));
+        $$ = expr_from_dot($1, &id);
+        expr_set_loc($$, lloc(@1, @3));
+    }
+    | primary_expr '.' AS '(' type ')'
+    {
+        // $$ = expr_from_as_cast($1, $5);
+        // expr_set_loc($$, lloc(@1, @6));
+        $$ = NULL;
+    }
+    | primary_expr '.' IS '(' type ')'
+    {
+        // $$ = expr_from_is_expr($1, $5);
+        // expr_set_loc($$, lloc(@1, @6));
+        $$ = NULL;
     }
     | primary_expr '.' error
     {
@@ -2641,11 +2597,6 @@ atom
         $$ = expr_from_self();
         expr_set_loc($$, loc(@1));
     }
-    | SUPER
-    {
-        $$ = expr_from_super();
-        expr_set_loc($$, loc(@1));
-    }
     ;
 
 array_expr
@@ -2818,6 +2769,11 @@ set_expr
     : '{' expr_list '}'
     {
         $$ = expr_from_set($2);
+        expr_set_loc($$, lloc(@1, @3));
+    }
+    | '{' ',' '}'
+    {
+        $$ = expr_from_set(NULL);
         expr_set_loc($$, lloc(@1, @3));
     }
     | SET

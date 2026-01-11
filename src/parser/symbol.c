@@ -143,7 +143,7 @@ Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags)
 
 #ifndef NOLOG
     BUF(buf);
-    desc_print(sym->desc, &buf);
+    type_spec_print(sym->ts, &buf);
     char *s = BUF_STR(buf);
     if (sym) {
         log_info("add class('%s') OK", name);
@@ -177,7 +177,7 @@ Symbol *stbl_add_trait(HashMap *stbl, char *name, int flags)
 
 #ifndef NOLOG
     BUF(buf);
-    desc_print(sym->desc, &buf);
+    type_spec_print(sym->ts, &buf);
     char *s = BUF_STR(buf);
     if (sym) {
         log_info("add trait('%s') OK", name);

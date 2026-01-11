@@ -11,36 +11,28 @@ Most of them are native C implementations and are automatically imported.
 */
 
 /**
-The 'object' class is the base class of all other classes and
-has some basic functions like java/kotlin. All functions are implemented by runtime.
-
-usage:
-
-```koala
-let o = object()
-```
-
-The example creates an object. The base object has very less functions, so it's useless.
+The 'any' trait is the root trait of all other classes and traits.
+All functions are implemented by runtime and inserted into vtable.
 */
 
-public class object {
+pub trait any {
 
     @native(object_hash)
-    public func __hash__() int {}
+    pub func __hash__() int
 
     @native(object_equals)
-    public func __eq__(rhs object) bool {}
+    pub func __eq__(rhs any) bool
 
     @native(object_str)
-    public func __str__() str {}
+    pub func __str__() str
 }
 
-public trait Iterator[T] {
+pub trait Iterator[T] {
     func __has_next__() bool
     func __next__() T
 }
 
-public trait Iterable[T] {
+pub trait Iterable[T] {
     func __iter__() Iterator[T]
 }
 
@@ -51,22 +43,22 @@ All non-keyword arguments are converted to string and written to stream,
 separated by `sep` and followed by `end`. The default `file` is `sys.stdout` stream.
 */
 @native(builtin_print)
-public func print(objs ..., sep = ' ', end = '\n') {}
+pub func print(objs ..., sep = ' ', end = '\n') {}
 
-public trait Indexable[T] {
+pub trait Indexable[T] {
     func __len__() int
-    func __getitem__(index object) T
-    func __setitem__(index object, v T)
+    func __getitem__(index any) T
+    func __setitem__(index any, v T)
 }
 
-public trait Seq[T] : Indexable[T] {
+pub trait Seq[T] : Indexable[T] {
     func __len__() int
     func __contains__(v T) bool
     func __concat__(seq Seq[T]) Seq[T]
     func __repeat__(count int) Seq[T]
 }
 
-public trait Number[T] {
+pub trait Number[T] {
     func __add__(rhs T) T
     func __sub__(rhs T) T
     func __mul__(rhs T) T
@@ -79,95 +71,107 @@ public trait Number[T] {
     func __xor__(rhs T) T
 }
 
-public final class str : Seq[str] {
+pub class str : Seq[str] {
 
     @native(kl_str_len)
     func __len__() int {}
 
     @native(kl_str_get_item)
-    func __getitem__(index object) str {}
+    func __getitem__(index any) str {}
 
     @native(kl_str_concat)
     func __concat__(seq Seq[str]) str {}
 }
 
-public final class list[T] : Seq[T] {
+pub class list[T] : Seq[T] {
 
     @native(kl_list_len)
     func __len__() int {}
 
     @native(kl_list_get_item)
-    func __getitem__(index object) T {}
+    func __getitem__(index any) T {}
 
     @native(kl_list_concat)
     func __concat__(seq Seq[T]) list[T] {}
 }
 
-public final class int8 : Number[int8] {
+pub class dict[K, V] : Indexable[V] {
+
+    @native(kl_dict_len)
+    func __len__() int {}
+
+    @native(kl_dict_get_item)
+    func __getitem__(index any) V {}
+
+    @native(kl_dict_set_item)
+    func __setitem__(index any, v V) {}
 }
 
-public final class int16 : Number[int16] {
+pub class int8 : Number[int8] {
 }
 
-public final class int32 : Number[int32] {
+pub class int16 : Number[int16] {
+}
+
+pub class int32 : Number[int32] {
     @intrinsic
     func __add__(rhs int32) int32 {}
 }
 
-public final class int64 : Number[int64] {
+pub class int64 : Number[int64] {
     // the 'x' canbe int or string
     // the 'base' is used when 'x' is string
     @native(kl_int64_init)
-    public func __init__(x int | str, base = 10) {}
+    pub func __init__(x int | str, base = 10) {}
 
     @intrinsic
     func __add__(rhs int64) int64 {}
 }
 
-public final class uint8 : Number[uint8] {
+pub class uint8 : Number[uint8] {
 }
 
-public final class uint16 : Number[uint16] {
+pub class uint16 : Number[uint16] {
 }
 
-public final class uint32 : Number[uint32] {
+pub class uint32 : Number[uint32] {
     @intrinsic
     func __add__(rhs uint32) uint32 {}
 }
 
-public final class uint64 : Number[uint64] {
+pub class uint64 : Number[uint64] {
     @intrinsic
     func __add__(rhs uint64) uint64 {}
 }
 
-public final class float16 : Number[float16] {
+pub class float16 : Number[float16] {
     @intrinsic
     func __add__(rhs float16) float16 {}
 }
 
-public final class float32 : Number[float32] {
+pub class float32 : Number[float32] {
     @intrinsic
     func __add__(rhs float32) float32 {}
 }
 
-public final class float64 : Number[float64] {
+pub class float64 : Number[float64] {
     @intrinsic
     func __add__(rhs float64) float64 {}
 }
 
-public final class bool {
+pub class bool {
 }
 
-public final class type {
+pub class type {
     @native(kl_type_call)
-    public func __call__(o object) type {}
+    pub func __call__(o any) type {}
 }
 
-public final class range : Iterable[int] {
+pub class range : Iterable[int] {
 
     @native(kl_range_init)
-    public func __init__(start int, end int, step int = 1) {}
+    pub func __init__(start int, end int, step int = 1) {}
 
     @native(kl_range_iter)
-    public func __iter__() Iterator[int] {}
+    pub func __iter__() Iterator[int] {}
 }

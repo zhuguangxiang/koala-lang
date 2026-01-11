@@ -97,13 +97,14 @@ static void exit_scope(ParserState *ps)
 
 static void update_ir_info(ParserState *ps, Symbol *sym, char *module)
 {
-    KlrValue *val = NULL;
-    if (sym->kind == SYM_FUNC) {
-        val = klr_add_ext_func(ps->module, DESC_INCREF_GET(sym->desc), module, sym->name);
-    } else {
-        NYI();
-    }
-    sym->ir_val = val;
+    // KlrValue *val = NULL;
+    // if (sym->kind == SYM_FUNC) {
+    //     val = klr_add_ext_func(ps->module, DESC_INCREF_GET(sym->desc), module,
+    //     sym->name);
+    // } else {
+    //     NYI();
+    // }
+    // sym->ir_val = val;
 }
 
 Symbol *find_symbol(ParserState *ps, Ident *id)
@@ -546,7 +547,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
      * If var is global, it is already existed.
      * If var is local, it needs to be added into symbol table.
      */
-    if (var->where != VAR_GLOBAL) {
+    if (var->where != VAR_GLOBAL && var->where != VAR_FIELD) {
         ParserScope *sc = ps->scope;
         if (!_add_var(ps, sc->stbl, var)) return;
     }
@@ -601,11 +602,11 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     // codegen
     ParserScope *sc = ps->scope;
     if (sc->kind == SCOPE_FUNC) {
-        KlrBuilder bldr;
-        klr_builder_end(&bldr, sc->bb);
-        KlrValue *ir_var = klr_add_local(&bldr, sym->desc, id->name);
-        sym->ir_val = ir_var;
-        klr_build_store(&bldr, ir_var, exp->ir_val);
+        // KlrBuilder bldr;
+        // klr_builder_end(&bldr, sc->bb);
+        // KlrValue *ir_var = klr_add_local(&bldr, sym->desc, id->name);
+        // sym->ir_val = ir_var;
+        // klr_build_store(&bldr, ir_var, exp->ir_val);
     }
 }
 
@@ -697,30 +698,30 @@ static void parse_body(ParserState *ps, FuncSymbol *sym, Vector *stmts)
                      * the expr value can be func return value.
                      */
                     ExprStmt *exp = (ExprStmt *)s;
-                    KlrBuilder bldr;
-                    ParserScope *sc = ps->scope;
-                    klr_builder_end(&bldr, sc->bb);
-                    if (desc_is_no_type(sym->desc)) {
-                        klr_build_ret_void(&bldr);
-                    } else {
-                        // check types
-                        // code gen
-                        klr_build_ret(&bldr, exp->exp->ir_val);
-                    }
+                    // KlrBuilder bldr;
+                    // ParserScope *sc = ps->scope;
+                    // klr_builder_end(&bldr, sc->bb);
+                    // if (desc_is_no_type(sym->desc)) {
+                    //     klr_build_ret_void(&bldr);
+                    // } else {
+                    //     // check types
+                    //     // code gen
+                    //     klr_build_ret(&bldr, exp->exp->ir_val);
+                    // }
                 } else {
                     UNREACHABLE();
                 }
             } else {
                 // last statement is return statement
                 RetStmt *ret = (RetStmt *)s;
-                if (desc_is_no_type(sym->desc)) {
-                    if (ret->exp) {
-                        kl_error(s->loc, "func '%s' has not return value.", sym->name);
-                        return;
-                    }
-                } else {
-                    // check types
-                }
+                // if (desc_is_no_type(sym->desc)) {
+                //     if (ret->exp) {
+                //         kl_error(s->loc, "func '%s' has not return value.", sym->name);
+                //         return;
+                //     }
+                // } else {
+                //     // check types
+                // }
             }
         }
     }

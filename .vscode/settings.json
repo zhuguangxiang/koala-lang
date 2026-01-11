@@ -147,7 +147,7 @@
         "zhuguangxiang"
     ],
     "editor.fontFamily": "'JetBrains Mono', 'Victor Mono', 'Consolas', 'Monaspace Neon'",
-    // "editor.fontLigatures": "'calt'",
+    "editor.fontLigatures": "'calt'",
     "terminal.integrated.fontFamily": "monospace",
     "editor.formatOnSave": true,
     "notebook.formatOnSave.enabled": true,
@@ -182,9 +182,9 @@
     "dateTime.showAMPM": true,
     "C_Cpp.default.compilerPath": "/usr/bin/gcc",
     "editor.fontSize": 14,
-    "editor.lineHeight": 1.5,
-    "editor.letterSpacing": 0.5,
-    "editor.fontWeight": "500",
-    "http.proxy": "http://127.0.0.1:20171",
-    "https.proxy": "http://127.0.0.1:20171"
+    // "editor.lineHeight": 1.3,
+    // "editor.letterSpacing": 0.5,
+    "editor.fontWeight": "100",
+    // "http.proxy": "http://127.0.0.1:20171",
+    // "https.proxy": "http://127.0.0.1:20171"
 }
