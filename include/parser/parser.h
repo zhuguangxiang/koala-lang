@@ -131,6 +131,10 @@ void kl_error_detail(ParserState *, Loc *);
 void parser_visit_expr(ParserState *ps, Expr *exp);
 void yyparse_module(ParserState *ps, Vector *imports, Vector *stmts);
 int compile(int argc, char *argv[]);
+void codegen_ast(ParserState *ps);
+
+ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block);
+void exit_scope(ParserState *ps);
 
 void kl_write_to_klc(ParserState *ps);
 void kl_read_from_klc(HashMap *stbl, char *path);

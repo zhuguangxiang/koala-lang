@@ -10,41 +10,39 @@
 extern "C" {
 #endif
 
-KlrValue *klr_const_int(uint64_t val, int sign, int width)
+KlrValue *klr_const_int(uint64_t val, TypeSpec *ts)
 {
-    KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, &int_desc, "");
+    KlrConst *lit = mm_alloc_obj(lit);
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_INT;
-    lit->len = width;
-    lit->sign = sign;
     lit->ival = val;
     return (KlrValue *)lit;
 }
 
-KlrValue *klr_const_float(double val)
+KlrValue *klr_const_float(double val, TypeSpec *ts)
 {
-    KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, &float_desc, "");
+    KlrConst *lit = mm_alloc_obj(lit);
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_FLT;
-    lit->len = 0;
     lit->fval = val;
     return (KlrValue *)lit;
 }
 
 KlrValue *klr_const_bool(int v)
 {
-    KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, &bool_desc, "");
+    KlrConst *lit = mm_alloc_obj(lit);
+    TypeSpec *ts = bool_type_spec();
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_BOOL;
-    lit->len = 0;
     lit->bval = v;
     return (KlrValue *)lit;
 }
 
 KlrValue *klr_const_str(char *s, int len)
 {
-    KlrConst *lit = mm_alloc_obj_fast(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, &str_desc, "");
+    KlrConst *lit = mm_alloc_obj(lit);
+    TypeSpec *ts = str_type_spec();
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_STR;
     lit->len = len;
     lit->sval = s;
@@ -148,7 +146,7 @@ KlrModule *klr_create_module(char *name)
 
 void klr_destroy_module(KlrModule *m) {}
 
-KlrValue *klr_add_func(KlrModule *m, TypeDesc *ret, TypeDesc **params, char *name)
+KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, TypeSpec **params, char *name)
 {
     KlrFunc *fn = mm_alloc_obj(fn);
     INIT_KLR_VALUE(fn, KLR_VALUE_FUNC, ret, name);
@@ -164,7 +162,7 @@ KlrValue *klr_add_func(KlrModule *m, TypeDesc *ret, TypeDesc **params, char *nam
 
     /* add params */
     if (params) {
-        TypeDesc **item = params;
+        TypeSpec **item = params;
         while (*item) {
             KlrParam *val = mm_alloc_obj(val);
             INIT_KLR_VALUE(val, KLR_VALUE_PARAM, *item, "");
@@ -191,7 +189,21 @@ KlrValue *klr_get_param(KlrValue *val, int index)
     return *item;
 }
 
-static KlrLocal *new_local(TypeDesc *ty, char *name)
+static KlrGlobal *new_global(TypeSpec *ty, char *name)
+{
+    KlrGlobal *global = mm_alloc_obj(global);
+    INIT_KLR_VALUE(global, KLR_VALUE_GLOBAL, ty, name);
+    return global;
+}
+
+KlrValue *klr_add_global(KlrModule *m, TypeSpec *ty, char *name)
+{
+    KlrGlobal *global = new_global(ty, name);
+    vector_push_back(&m->globals, &global);
+    return (KlrValue *)global;
+}
+
+static KlrLocal *new_local(TypeSpec *ty, char *name)
 {
     KlrLocal *local = mm_alloc_obj_fast(local);
     INIT_KLR_VALUE(local, KLR_VALUE_LOCAL, ty, name);
@@ -201,7 +213,7 @@ static KlrLocal *new_local(TypeDesc *ty, char *name)
     return local;
 }
 
-KlrValue *klr_add_local(KlrBuilder *bldr, TypeDesc *ty, char *name)
+KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ty, char *name)
 {
     KlrLocal *local = new_local(ty, name);
     KlrBasicBlock *bb = bldr->bb;
@@ -212,7 +224,7 @@ KlrValue *klr_add_local(KlrBuilder *bldr, TypeDesc *ty, char *name)
     return (KlrValue *)local;
 }
 
-KlrValue *klr_add_ext_func(KlrModule *m, TypeDesc *ret, char *module, char *name)
+KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *module, char *name)
 {
     KlrExtFunc *fn = mm_alloc_obj(fn);
     INIT_KLR_VALUE(fn, KLR_VALUE_EXT_FUNC, ret, name);

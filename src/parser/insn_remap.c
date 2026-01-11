@@ -102,7 +102,7 @@ static void try_combine_branch(KlrInsn *cond, KlrInsn *insn, KlrBasicBlock *bb)
 {
     KlrValue *lhs = insn_operand_value(cond, 0);
     KlrValue *rhs = insn_operand_value(cond, 1);
-    if (desc_is_int(lhs->desc)) {
+    if (lhs->ts->kind == TYPE_INT) {
         OpCode code = cond->code;
         if (rhs->kind == KLR_VALUE_CONST) {
             KlrConst *const_value = (KlrConst *)rhs;

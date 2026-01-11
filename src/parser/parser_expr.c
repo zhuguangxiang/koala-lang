@@ -128,12 +128,10 @@ static void parse_literal(ParserState *ps, Expr *exp)
     switch (lit->which) {
         case LIT_EXPR_INT: {
             parse_lit_int(ps, lit);
-            exp->ir_val = klr_const_int(lit->ival, lit->sign, lit->len);
             break;
         }
         case LIT_EXPR_FLT: {
             parse_lit_float(ps, lit);
-            exp->ir_val = klr_const_float(lit->fval);
             break;
         }
         case LIT_EXPR_BOOL: {
@@ -144,7 +142,6 @@ static void parse_literal(ParserState *ps, Expr *exp)
             if (check_utf8(lit->sval, lit->len) < 0) {
                 kl_error(exp->loc, "invalid utf8 string");
             }
-            exp->ir_val = klr_const_str(lit->sval, lit->len);
             break;
         }
         case LIT_EXPR_NONE: {

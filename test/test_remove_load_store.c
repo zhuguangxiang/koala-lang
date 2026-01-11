@@ -3,6 +3,7 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "atom.h"
 #include "ir.h"
 #include "log.h"
 #include "passes.h"
@@ -28,14 +29,13 @@ func foo(a int, b int) int {
 */
 void build_foo(KlrModule *m)
 {
-    TypeDesc *param_types[] = {
-        desc_int(),
-        desc_int(),
+    TypeSpec *param_types[] = {
+        int64_type_spec(),
+        int64_type_spec(),
         NULL,
     };
 
-    KlrValue *func = klr_add_func(m, desc_int(), param_types, "foo");
-
+    KlrValue *func = klr_add_func(m, int64_type_spec(), param_types, "foo");
     KlrValue *pa = klr_get_param(func, 0);
     klr_set_name(pa, "a");
 
@@ -47,19 +47,19 @@ void build_foo(KlrModule *m)
     klr_builder_end(&bldr, bb);
 
     // var c = 100
-    KlrValue *cvar = klr_add_local(&bldr, desc_int(), "c");
-    klr_build_store(&bldr, cvar, klr_const_int(100, 1, 8));
+    KlrValue *cvar = klr_add_local(&bldr, int64_type_spec(), "c");
+    klr_build_store(&bldr, cvar, klr_const_int(100, int64_type_spec()));
 
     // c = 200 + 300;
-    KlrValue *a = klr_const_int(200, 1, 8);
-    KlrValue *b = klr_const_int(300, 1, 8);
+    KlrValue *a = klr_const_int(200, int64_type_spec());
+    KlrValue *b = klr_const_int(300, int64_type_spec());
     KlrValue *add = klr_build_add(&bldr, a, b, "add");
     klr_build_store(&bldr, cvar, add);
 
     // d = c + 100;
-    KlrValue *dvar = klr_add_local(&bldr, desc_int(), "");
+    KlrValue *dvar = klr_add_local(&bldr, int64_type_spec(), "");
     KlrValue *c = klr_build_load(&bldr, cvar);
-    add = klr_build_add(&bldr, c, klr_const_int(100, 1, 8), "");
+    add = klr_build_add(&bldr, c, klr_const_int(100, int64_type_spec()), "");
     klr_build_store(&bldr, dvar, add);
 
     // return c
@@ -104,9 +104,13 @@ void build_foo(KlrModule *m)
 
 int main(int argc, char *argv[])
 {
+    init_atom();
     init_log(LOG_INFO, NULL, 0);
+    typespec_init();
     KlrModule *m = klr_create_module("example");
     build_foo(m);
+    fini_log();
+    fini_atom();
     return 0;
 }
 

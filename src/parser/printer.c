@@ -17,15 +17,15 @@ char *klr_block_name(KlrBasicBlock *bb)
     return sbuf;
 }
 
-static void print_type(TypeDesc *ty, FILE *fp)
+static void print_type(TypeSpec *ty, FILE *fp)
 {
     BUF(buf);
-    desc_print(ty, &buf);
+    type_spec_print(ty, &buf);
     fprintf(fp, " %s", BUF_STR(buf));
     FINI_BUF(buf);
 }
 
-#define print_value_type(val, fp) print_type((val)->desc, fp)
+#define print_value_type(val, fp) print_type((val)->ts, fp)
 
 void klr_print_name_or_tag(KlrValue *val, FILE *fp)
 {
@@ -35,7 +35,11 @@ void klr_print_name_or_tag(KlrValue *val, FILE *fp)
     }
 
     if (val->name[0]) {
-        fprintf(fp, "%%%s(%d)", val->name, val->vreg);
+        if (val->kind == KLR_VALUE_GLOBAL) {
+            fprintf(fp, "@%s(%d)", val->name, val->vreg);
+        } else {
+            fprintf(fp, "%%%s(%d)", val->name, val->vreg);
+        }
     } else {
         fprintf(fp, "%%%d(%d)", val->tag, val->vreg);
     }
@@ -83,7 +87,7 @@ static void print_operand(KlrOper *oper, FILE *fp)
             klr_print_name_or_tag(val, fp);
         }
 
-        if (val->desc) {
+        if (val->ts) {
             print_value_type(val, fp);
         }
 
@@ -511,7 +515,7 @@ void klr_print_func(KlrFunc *func, FILE *fp)
 
     fprintf(fp, ")");
 
-    TypeDesc *ret = func->desc;
+    TypeSpec *ret = func->ts;
     if (ret) {
         print_type(ret, fp);
     }
@@ -530,7 +534,30 @@ void klr_print_func(KlrFunc *func, FILE *fp)
     fprintf(fp, "  }\n");
 }
 
-void klr_print_module(KlrModule *m, FILE *fp) {}
+void klr_print_module(KlrModule *m, FILE *fp)
+{
+    fprintf(fp, "module @%s {\n", m->name);
+
+    KlrGlobal *g;
+    vector_foreach_object(g, &m->globals)
+    {
+        fprintf(fp, "  global @%s", g->name);
+        print_value_type(g, fp);
+        fprintf(fp, "\n");
+    }
+
+    KlrExtFunc **extf;
+    vector_foreach(extf, &m->ext_funcs) {
+        fprintf(fp, "  ext_func @%s from module \"%s\"\n", (*extf)->name, (*extf)->owner);
+    }
+
+    KlrFunc **fn;
+    vector_foreach(fn, &m->functions) {
+        klr_print_func(*fn, fp);
+    }
+
+    fprintf(fp, "}\n");
+}
 
 #ifdef __cplusplus
 }

@@ -31,3 +31,37 @@ func main() {
     // 4. 强力解包抛异常 (不可捕获)
     let final_val = node.value!
 }
+
+func hello(x int | str) {
+    // 1. 初始状态：x 是联合类型，只能调用 any 共有方法（如 str()）
+
+    if x.is(int) {
+        // 2. 编译器魔法：在此块内，x 自动影子化为 int
+        // 你可以狂飙 int 的特有运算
+        print("Got an integer: " + (x + 1).__str__())
+    } else {
+        // 3. 编译器推导：既然不是 int，那在 KL 的闭环逻辑里它一定是 str
+        // 此时 x 影子化为 str
+        print("Got a string: " + x.upper())
+    }
+}
+
+pub func set_lr(rate float | Strategy) {
+    if rate.is(float) {
+        // 静态处理
+    } else {
+        // 动态计算
+    }
+}
+
+func main() {
+    // KL 的强类型推导：T 被识别为 Bird，V 为 int
+    // 假设我们有一个实现了 Seq 的具体类 BirdSquad
+    if squad = get_squad().as(Seq[Bird, int]) {
+        let other_squad = get_other_squad()!
+
+        // 隐式调用 __concat__，点语法狂飙
+        let total = squad.__concat__(other_squad)
+        print("Total birds in formation: " + total.__str__())
+    }
+}

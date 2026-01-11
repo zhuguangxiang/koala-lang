@@ -175,9 +175,9 @@ void klr_build_store(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
         panic("'set_local %%x, %%v' requires a reg value.");
     }
 
-    if (!desc_equal(var->desc, val->desc)) {
-        panic("'set_local %%x, %%v' requires the same types.");
-    }
+    // if (!desc_equal(var->ts, val->ts)) {
+    //     panic("'set_local %%x, %%v' requires the same types.");
+    // }
 
     KlrInsn *insn = new_insn(OP_IR_STORE, 2, "");
     init_oper(&insn->opers[0], insn, var);
@@ -198,7 +198,7 @@ KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var)
 
     KlrInsn *insn = new_insn(OP_IR_LOAD, 1, "");
     init_oper(&insn->opers[0], insn, var);
-    insn->desc = var->desc;
+    insn->ts = var->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -219,8 +219,8 @@ KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCod
     KlrInsn *insn = new_insn(op, 2, name);
     init_oper(&insn->opers[0], insn, lhs);
     init_oper(&insn->opers[1], insn, rhs);
-    TypeDesc *ty = lhs->desc;
-    insn->desc = ty;
+    TypeSpec *ty = lhs->ts;
+    insn->ts = ty;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -239,7 +239,7 @@ KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode c
     KlrInsn *insn = new_insn(code, 2, name);
     init_oper(&insn->opers[0], insn, lhs);
     init_oper(&insn->opers[1], insn, rhs);
-    insn->desc = desc_bool();
+    insn->ts = bool_type_spec();
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -247,7 +247,7 @@ KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode c
 void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
                         KlrBasicBlock *_else)
 {
-    if (!desc_equal(cond->desc, desc_bool())) {
+    if (cond->ts->kind != TYPE_BOOL) {
         panic("'branch %%cond, %%b1, %%b2' requires a bool cond");
     }
 
@@ -279,7 +279,7 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int na
     for (int j = 0; j < nargs; j++) {
         init_oper(&insn->opers[j + 1], insn, (KlrValue *)args[j]);
     }
-    insn->desc = fn->desc;
+    insn->ts = fn->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

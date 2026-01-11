@@ -1,0 +1,6 @@
+
+let v = 100
+
+func hello() {
+    let v2 = 10
+}

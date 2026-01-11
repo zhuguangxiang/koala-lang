@@ -20,23 +20,23 @@ if x = y {
 
 }
 
-if x != nil {
+if x != null {
 
 }
 
-public trait Fly {
+pub trait Fly {
 
 }
 
-public trait Animal[T] {
+pub trait Animal[T] {
 
 }
 
-public class Bird : Fly & Animal[Bird] {
+pub class Bird : Fly & Animal[Bird] {
 
 }
 
-public trait Seq[T : Fly & Animal[T], V] : Fly & Animal[T] {
+pub trait Seq[T : Fly & Animal[T], V] : Fly & Animal[T] {
     func __concat__(seq Seq[T, int]) int
 }
 

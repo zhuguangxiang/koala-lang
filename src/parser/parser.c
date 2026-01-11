@@ -58,7 +58,7 @@ static const char *blocks[] = {
 };
 #endif
 
-static ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block)
+ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block)
 {
     ParserScope *scope = new_scope(kind, block);
     scope->next = ps->scope;
@@ -76,7 +76,7 @@ static ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block
     return scope;
 }
 
-static void exit_scope(ParserState *ps)
+void exit_scope(ParserState *ps)
 {
     ParserScope *scope = ps->scope;
 
@@ -709,7 +709,7 @@ static void parse_body(ParserState *ps, FuncSymbol *sym, Vector *stmts)
                     //     klr_build_ret(&bldr, exp->exp->ir_val);
                     // }
                 } else {
-                    UNREACHABLE();
+                    // UNREACHABLE();
                 }
             } else {
                 // last statement is return statement
@@ -1185,14 +1185,11 @@ int compile(int argc, char *argv[])
     ParserState *ps = build_ast(argv[1]);
     if (!ps) return -1;
 
-    KlrModule *m = klr_create_module(ps->filename);
-    if (!m) return -1;
-    ps->module = m;
-
-    KlrValue *fn = klr_add_func(m, NULL, NULL, "__init__");
-    m->init = (KlrFunc *)fn;
-
     parse_ast(ps);
+
+    if (!ps->errors) {
+        codegen_ast(ps);
+    }
 
     if (!ps->errors) {
         kl_write_to_klc(ps);

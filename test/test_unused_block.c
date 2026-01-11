@@ -3,6 +3,7 @@
  * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "atom.h"
 #include "ir.h"
 #include "log.h"
 #include "passes.h"
@@ -22,12 +23,12 @@ void klr_remove_unused_block(KlrFunc *func);
 
 static void build_unreach_block(KlrModule *m)
 {
-    TypeDesc *params[] = {
-        desc_int(),
-        desc_int(),
+    TypeSpec *params[] = {
+        int64_type_spec(),
+        int64_type_spec(),
         NULL,
     };
-    KlrValue *fn = klr_add_func(m, desc_int(), params, "add");
+    KlrValue *fn = klr_add_func(m, int64_type_spec(), params, "add");
     KlrValue *v1 = klr_get_param(fn, 0);
     KlrValue *v2 = klr_get_param(fn, 1);
     klr_set_name(v1, "v1");
@@ -38,13 +39,13 @@ static void build_unreach_block(KlrModule *m)
     klr_builder_head(&bldr, entry);
 
     KlrValue *t1 = klr_build_add(&bldr, v1, v2, "");
-    KlrValue *ret = klr_add_local(&bldr, desc_int(), "res");
+    KlrValue *ret = klr_add_local(&bldr, int64_type_spec(), "res");
     klr_build_store(&bldr, ret, t1);
     klr_build_ret(&bldr, ret);
 
     KlrBasicBlock *bb2 = klr_append_block(fn, "test_bb");
     klr_builder_head(&bldr, bb2);
-    KlrValue *t2 = klr_build_sub(&bldr, v1, klr_const_int(20, 1, 8), "");
+    KlrValue *t2 = klr_build_sub(&bldr, v1, klr_const_int(20, int64_type_spec()), "");
     klr_build_ret(&bldr, t2);
 
     klr_build_jmp(&bldr, bb2);
@@ -62,9 +63,13 @@ static void build_unreach_block(KlrModule *m)
 
 int main(int argc, char *argv[])
 {
+    init_atom();
     init_log(LOG_INFO, NULL, 0);
+    typespec_init();
     KlrModule *m = klr_create_module("example");
     build_unreach_block(m);
+    fini_log();
+    fini_atom();
     return 0;
 }
 

@@ -9,6 +9,7 @@
 #include "buffer.h"
 #include "hashmap.h"
 #include "loc.h"
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -9,7 +9,7 @@
 #include "hashmap.h"
 #include "list.h"
 #include "opcode.h"
-#include "typedesc.h"
+#include "typespec.h"
 #include "vector.h"
 
 #ifdef __cplusplus
@@ -33,7 +33,7 @@ typedef enum _KlrValueKind {
 #define KLR_VALUE_HEAD      \
     KlrValueKind kind;      \
     /* value type */        \
-    TypeDesc *desc;         \
+    TypeSpec *ts;           \
     /* list of all Uses */  \
     List use_list;          \
     /* virtual register */  \
@@ -48,9 +48,9 @@ typedef struct _KlrValue {
     KLR_VALUE_HEAD
 } KlrValue;
 
-#define INIT_KLR_VALUE(val, _kind, _desc, _name) \
+#define INIT_KLR_VALUE(val, _kind, _ts, _name) \
     (val)->kind = (_kind); \
-    (val)->desc = (_desc); \
+    (val)->ts = (_ts); \
     init_list(&(val)->use_list); \
     (val)->vreg = -1; \
     (val)->name = _name ? _name : ""; \
@@ -72,7 +72,6 @@ typedef struct _KlrConst {
 #define CONST_BOOL 3
 #define CONST_STR  4
     int len;
-    int sign;
     union {
         uint64_t ival;
         double fval;
@@ -294,8 +293,8 @@ typedef struct _KlrBuilder {
 /* APIs */
 
 /* <1> literal constants */
-KlrValue *klr_const_int(uint64_t val, int sign, int width);
-KlrValue *klr_const_float(double val);
+KlrValue *klr_const_int(uint64_t val, TypeSpec *ts);
+KlrValue *klr_const_float(double val, TypeSpec *ts);
 KlrValue *klr_const_bool(int val);
 KlrValue *klr_const_str(char *s, int len);
 
@@ -309,12 +308,12 @@ static inline void klr_set_name(KlrValue *val, char *name)
     val->name = name ? name : "";
 }
 
-KlrValue *klr_add_func(KlrModule *m, TypeDesc *ret, TypeDesc **params, char *name);
+KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, TypeSpec **params, char *name);
 KlrValue *klr_get_param(KlrValue *fn, int index);
-KlrValue *klr_add_global(KlrModule *m, TypeDesc *ty, char *name);
-KlrValue *klr_add_local(KlrBuilder *bldr, TypeDesc *ty, char *name);
+KlrValue *klr_add_global(KlrModule *m, TypeSpec *ty, char *name);
+KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ty, char *name);
 // ir doesn't check external function's arguments
-KlrValue *klr_add_ext_func(KlrModule *m, TypeDesc *ret, char *module, char *name);
+KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *module, char *name);
 
 #define local_foreach(local, func) vector_foreach(local, &(func)->locals)
 
