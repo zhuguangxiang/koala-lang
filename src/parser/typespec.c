@@ -180,6 +180,45 @@ static TypeSpec *_range_type_spec(void)
     return ts;
 }
 
+void update_builtin_type_specs(HashMap *stbl)
+{
+    // Update builtin type specs with the provided symbol table
+    TypeSpec *ts;
+    Symbol *sym;
+
+    ts = int8_type_spec();
+    sym = stbl_get(stbl, "int8");
+    if (sym) ts->sym_id = sym->id;
+
+    ts = uint8_type_spec();
+    sym = stbl_get(stbl, "uint8");
+    if (sym) ts->sym_id = sym->id;
+
+    ts = int16_type_spec();
+    sym = stbl_get(stbl, "int16");
+    if (sym) ts->sym_id = sym->id;
+
+    ts = uint16_type_spec();
+    sym = stbl_get(stbl, "uint16");
+    if (sym) ts->sym_id = sym->id;
+
+    ts = int32_type_spec();
+    sym = stbl_get(stbl, "int32");
+    if (sym) ts->sym_id = sym->id;
+
+    ts = uint32_type_spec();
+    sym = stbl_get(stbl, "uint32");
+    if (sym) ts->sym_id = sym->id;
+
+    ts = int64_type_spec();
+    sym = stbl_get(stbl, "int64");
+    if (sym) ts->sym_id = sym->id;
+
+    ts = uint64_type_spec();
+    sym = stbl_get(stbl, "uint64");
+    if (sym) ts->sym_id = sym->id;
+}
+
 void typespec_init(void)
 {
     hashmap_init(&type_map, (HashMapEqualFunc)type_spec_equal);
@@ -489,12 +528,21 @@ static void __add_arg(TypeSpec *ts, TypeSpec *arg)
 static TypeSpec *__to_unresolved_type(char *s, int len)
 {
     char *dot = strchr(s, '.');
-    ASSERT(dot != NULL);
-    char *path = atom_nstr(s, dot - s);
-    char *type = atom_nstr(dot + 1, len - (dot - s) - 1);
+    char *path = NULL;
+    char *type = NULL;
+    if (dot) {
+        path = atom_nstr(s, dot - s);
+        type = atom_nstr(dot + 1, len - (dot - s) - 1);
+    } else {
+        type = atom_nstr(s, len);
+    }
     TypeIdent _pkg = { .name = path };
     TypeIdent _name = { .name = type };
-    return unresolved_type_spec(&_pkg, _name, NULL);
+    if (dot) {
+        return unresolved_type_spec(&_pkg, _name, NULL);
+    } else {
+        return unresolved_type_spec(NULL, _name, NULL);
+    }
 }
 
 static TypeSpec *__to_typespec(char **str)
@@ -600,6 +648,36 @@ static TypeSpec *__to_typespec(char **str)
                 ts = va_list_type_spec();
                 s += 3;
             }
+            break;
+        }
+        case 'U': {
+            s++;
+            ts = union_type_spec(NULL, NULL);
+            while (*s != ';' && *s != '\0') {
+                arg = __to_typespec(&s);
+                if (arg) union_type_spec_add_arg(ts, arg);
+            }
+            if (*s == ';') s++;
+            break;
+        }
+        case 'h': {
+            ts = float16_type_spec();
+            s++;
+            break;
+        }
+        case 'f': {
+            ts = float32_type_spec();
+            s++;
+            break;
+        }
+        case 'd': {
+            ts = float64_type_spec();
+            s++;
+            break;
+        }
+        case 'b': {
+            ts = bfloat16_type_spec();
+            s++;
             break;
         }
         default: {

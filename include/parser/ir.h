@@ -405,7 +405,7 @@ void klr_delete_insn(KlrInsn *insn);
 int insn_has_value(KlrInsn *insn);
 
 /* IR: %0 int = load_local %foo */
-KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var);
+KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var, char *name);
 
 /* IR: store_local %var, %val */
 void klr_build_store(KlrBuilder *bldr, KlrValue *var, KlrValue *val);

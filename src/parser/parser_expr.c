@@ -213,6 +213,103 @@ static void parse_call(ParserState *ps, Expr *exp)
     exp->ir_val = ret;
 }
 
+static char *get_binary_op_name(BiOpKind op)
+{
+    switch (op) {
+        case BINARY_ADD:
+            return "__add__";
+        case BINARY_SUB:
+            return "__sub__";
+        case BINARY_MUL:
+            return "__mul__";
+        case BINARY_DIV:
+            return "__div__";
+        case BINARY_MOD:
+            return "__mod__";
+        default:
+            return "unknown_op";
+    }
+}
+
+static char *get_binary_op_char(BiOpKind op)
+{
+    switch (op) {
+        case BINARY_ADD:
+            return "+";
+        case BINARY_SUB:
+            return "-";
+        case BINARY_MUL:
+            return "*";
+        case BINARY_DIV:
+            return "/";
+        case BINARY_MOD:
+            return "%";
+        default:
+            UNREACHABLE();
+            return "";
+    }
+}
+
+static void parse_binary(ParserState *ps, Expr *exp)
+{
+    BinaryExpr *bin = (BinaryExpr *)exp;
+    BiOpKind op = bin->op;
+    Expr *lhs = bin->lhs;
+    Expr *rhs = bin->rhs;
+
+    lhs->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, lhs);
+    if (!lhs->ts) return;
+
+    rhs->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, rhs);
+    if (!rhs->ts) return;
+
+    Symbol *sym = get_symbol_by_id(lhs->ts->sym_id);
+    if (!sym) {
+        kl_error(bin->op_loc, "type is not found.");
+        return;
+    }
+
+    if (sym->kind != SYM_CLASS) {
+        kl_error(bin->op_loc, "type is not a class type.");
+        return;
+    }
+
+    char *op_name = get_binary_op_name(op);
+    HashMap *stbl = ((KlassSymbol *)sym)->stbl;
+    Symbol *fn = stbl_get(stbl, op_name);
+    if (!fn) {
+        kl_error(bin->op_loc, "operator '%s' is not defined for this type.",
+                 get_binary_op_char(op));
+        return;
+    }
+
+    Vector *args = ((FuncSymbol *)fn)->params;
+    if (vector_size(args) != 1) {
+        kl_error(bin->op_loc, "invalid operator '%s' definition.",
+                 get_binary_op_char(op));
+        return;
+    }
+
+    ArgInfo *arg_info = vector_get_object(args, 0);
+    if (!arg_info) {
+        kl_error(bin->op_loc, "invalid operator '%s' definition.",
+                 get_binary_op_char(op));
+        return;
+    }
+
+    TypeSpec *arg_ts = arg_info->ts;
+    if (arg_ts != rhs->ts) {
+        kl_error(bin->op_loc, "invalid operator '%s' definition.",
+                 get_binary_op_char(op));
+        return;
+    }
+    exp->ts = lhs->ts;
+}
+
+static void parse_keyword(ParserState *ps, Expr *exp) {}
+
 void parser_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -236,12 +333,14 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         NULL,
         parse_type,                      /* TYPE       */
         parse_call,                      /* CALL       */
-        // parse_attr,                      /* ATTR       */
-        // parse_tuple_get,                 /* TUPLE_GET  */
-        // parse_index,                     /* INDEX      */
-        // parse_unary,                     /* UNARY      */
-        // parse_binary,                    /* BINARY     */
-        // parse_range,                     /* RANGE      */
+        NULL,
+        NULL, // parse_attr,                      /* ATTR       */
+        NULL, // parse_tuple_get,                 /* TUPLE_GET  */
+        NULL, // parse_index,                     /* INDEX      */
+        NULL, // parse_unary,                     /* UNARY      */
+        parse_binary,                    /* BINARY     */
+        NULL, // parse_range,                     /* RANGE      */
+        parse_keyword,                   /* KW         */
         // parse_is_expr,                   /* IS         */
         // parse_as_expr,                   /* AS         */
         NULL,                 /* OPT        */

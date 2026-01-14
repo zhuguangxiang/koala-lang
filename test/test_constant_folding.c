@@ -55,12 +55,12 @@ void build_foo(KlrModule *m)
 
     // d = c + 100;
     KlrValue *dvar = klr_add_local(&bldr, int64_type_spec(), "");
-    KlrValue *c = klr_build_load(&bldr, cvar);
+    KlrValue *c = klr_build_load(&bldr, cvar, "");
     add = klr_build_add(&bldr, c, klr_const_int(100, int64_type_spec()), "");
     klr_build_store(&bldr, dvar, add);
 
     // return c
-    KlrValue *ret = klr_build_load(&bldr, dvar);
+    KlrValue *ret = klr_build_load(&bldr, dvar, "");
     klr_build_ret(&bldr, ret);
 
     klr_print_func((KlrFunc *)func, stdout);

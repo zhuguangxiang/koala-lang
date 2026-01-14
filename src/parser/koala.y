@@ -2334,14 +2334,14 @@ call_kw_arg_list
     : ID '=' expr
     {
         Ident id = {$1, loc(@1)};
-        Argument *arg = arg_new(lloc(@1, @3), id, $3);
+        Expr *arg = expr_from_keyword(lloc(@1, @3), id, $3);
         $$ = vector_create_ptr();
         vector_push_back($$, &arg);
     }
     | call_kw_arg_list ',' ID '=' expr
     {
         Ident id = {$3, loc(@3)};
-        Argument *arg = arg_new(lloc(@3, @5), id, $5);
+        Expr *arg = expr_from_keyword(lloc(@3, @5), id, $5);
         $$ = $1;
         vector_push_back($$, &arg);
     }
@@ -2368,15 +2368,13 @@ dot_expr
     }
     | primary_expr '.' AS '(' type ')'
     {
-        // $$ = expr_from_as_cast($1, $5);
-        // expr_set_loc($$, lloc(@1, @6));
-        $$ = NULL;
+        $$ = expr_from_as_expr($1, loc(@3), $5);
+        expr_set_loc($$, lloc(@1, @6));
     }
     | primary_expr '.' IS '(' type ')'
     {
-        // $$ = expr_from_is_expr($1, $5);
-        // expr_set_loc($$, lloc(@1, @6));
-        $$ = NULL;
+        $$ = expr_from_is_expr($1, loc(@3), $5);
+        expr_set_loc($$, lloc(@1, @6));
     }
     | primary_expr '.' error
     {

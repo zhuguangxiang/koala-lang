@@ -1,9 +1,9 @@
 
 Todos:
-  ☐ reslove & check type
-  ☐ typespec to string
-  ☐ typespec interning
-  ☐ symbol global identifier
+  ✔ reslove & check type @done(26-01-12 21:40)
+  ✔ typespec to string @done(26-01-12 21:40)
+  ✔ typespec interning @done(26-01-12 21:40)
+  ✔ symbol global identifier @done(26-01-12 21:40)
   ☐ int8(100)
     ☐ 100 as int8
     ☐ as int8
@@ -25,7 +25,7 @@ Todos:
   ☐ AST simple optimization
     ☐ Constant Folding(BinaryExpr)
     ☐ Constant Propagation
-    ☐ Visitor pattern
+    ✔ Visitor pattern @done(26-01-12 21:40)
 
 Archive:
   ✔ builtin.kl can be written into .klc and read it @done(25-12-28 19:17) @project(Todos)

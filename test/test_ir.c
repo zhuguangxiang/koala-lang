@@ -53,13 +53,13 @@ void build_foo(KlrModule *m)
     klr_build_store(&bldr, cvar, klr_const_int(100, int64_type_spec()));
 
     // c = a + b
-    KlrValue *a = klr_build_load(&bldr, pa);
-    KlrValue *b = klr_build_load(&bldr, pb);
+    KlrValue *a = klr_build_load(&bldr, pa, "");
+    KlrValue *b = klr_build_load(&bldr, pb, "");
     KlrValue *add = klr_build_add(&bldr, a, b, "add");
     klr_build_store(&bldr, cvar, add);
 
     // return c
-    KlrValue *ret = klr_build_load(&bldr, cvar);
+    KlrValue *ret = klr_build_load(&bldr, cvar, "");
     klr_build_ret(&bldr, ret);
 
     klr_print_func((KlrFunc *)func, stdout);
@@ -100,13 +100,13 @@ void build_fib(KlrModule *m)
     klr_builder_end(&bldr, entry);
 
     /* entry basic block */
-    KlrValue *val = klr_build_load(&bldr, param);
+    KlrValue *val = klr_build_load(&bldr, param, "");
     KlrValue *cond = klr_build_cmplt(&bldr, val, klr_const_int(2, int64_type_spec()), "");
     klr_build_jmp_cond(&bldr, cond, _then, _else);
 
     /* _then basic block */
     klr_builder_end(&bldr, _then);
-    val = klr_build_load(&bldr, param);
+    val = klr_build_load(&bldr, param, "");
     klr_build_ret(&bldr, val);
 
     KlrBasicBlock *bb = klr_append_block(func, "");
@@ -118,12 +118,12 @@ void build_fib(KlrModule *m)
     /* out of if-block */
     klr_builder_end(&bldr, bb);
 
-    val = klr_build_load(&bldr, param);
+    val = klr_build_load(&bldr, param, "");
     KlrValue *sub = klr_build_sub(&bldr, val, klr_const_int(1, int64_type_spec()), "");
     KlrValue *args1[] = { sub, NULL };
     KlrValue *ret1 = klr_build_call(&bldr, func, args1, 1, "");
 
-    val = klr_build_load(&bldr, param);
+    val = klr_build_load(&bldr, param, "");
     sub = klr_build_sub(&bldr, val, klr_const_int(2, int64_type_spec()), "");
     KlrValue *args2[] = { sub, NULL };
     KlrValue *ret2 = klr_build_call(&bldr, func, args2, 1, "");

@@ -202,6 +202,16 @@ Expr *expr_from_binary(BiOpKind op, Loc op_loc, Expr *lhs, Expr *rhs)
     return (Expr *)exp;
 }
 
+Expr *expr_from_keyword(Loc loc, Ident key, Expr *value)
+{
+    KeyWordExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_KW_KIND;
+    exp->loc = loc;
+    exp->key = key;
+    exp->value = value;
+    return (Expr *)exp;
+}
+
 Expr *expr_from_type(TypeSpec *type)
 {
     TypeExpr *exp = mm_alloc_obj(exp);
@@ -326,15 +336,6 @@ ParamDecl *param_new(Loc loc, Ident id, TypeSpec *type, Expr *value)
     p->type = type;
     p->value = value;
     return p;
-}
-
-Argument *arg_new(Loc loc, Ident id, Expr *value)
-{
-    Argument *arg = mm_alloc_obj(arg);
-    arg->loc = loc;
-    arg->id = id;
-    arg->value = value;
-    return arg;
 }
 
 Stmt *stmt_from_func_decl(Ident id, Vector *args, TypeSpec *ret, Vector *tps)

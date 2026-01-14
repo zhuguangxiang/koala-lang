@@ -11,7 +11,37 @@ extern "C" {
 
 static void codegen_visit_expr(ParserState *ps, Expr *exp);
 
-static void codegen_ident(ParserState *ps, Expr *exp) {}
+static void codegen_ident(ParserState *ps, Expr *exp)
+{
+    IdentExpr *ident = (IdentExpr *)exp;
+    Symbol *sym = ident->sym;
+    if (!sym) {
+        kl_error(ident->id.loc, "undefined symbol '%s'", ident->id.name);
+        return;
+    }
+
+    ParserScope *sc = ps->scope;
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, sc->bb);
+
+    switch (sym->kind) {
+        case SYM_VAR: {
+            VarSymbol *var_sym = (VarSymbol *)sym;
+            exp->ir_val = klr_build_load(&bldr, var_sym->ir_val, ident->id.name);
+            break;
+        }
+        case SYM_FUNC: {
+            FuncSymbol *func_sym = (FuncSymbol *)sym;
+            exp->ir_val = func_sym->ir_val;
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+}
 
 static void codegen_literal(ParserState *ps, Expr *exp)
 {
@@ -69,6 +99,70 @@ static void codegen_call(ParserState *ps, Expr *exp)
     // codegen
 }
 
+static OpCode get_binary_op_code(BiOpKind op)
+{
+    switch (op) {
+        case BINARY_ADD:
+            return OP_BINARY_ADD;
+        case BINARY_SUB:
+            return OP_BINARY_SUB;
+        case BINARY_MUL:
+            return OP_BINARY_MUL;
+        case BINARY_DIV:
+            return OP_BINARY_DIV;
+        case BINARY_MOD:
+            return OP_BINARY_MOD;
+        default:
+            UNREACHABLE();
+            return OP_NOP;
+    }
+}
+
+static char *get_binary_op_name(BiOpKind op)
+{
+    switch (op) {
+        case BINARY_ADD:
+            return "add";
+        case BINARY_SUB:
+            return "sub";
+        case BINARY_MUL:
+            return "mul";
+        case BINARY_DIV:
+            return "div";
+        case BINARY_MOD:
+            return "mod";
+        default:
+            UNREACHABLE();
+            return "";
+    }
+}
+
+static void codegen_binary(ParserState *ps, Expr *exp)
+{
+    BinaryExpr *bin = (BinaryExpr *)exp;
+    BiOpKind op = bin->op;
+    Expr *lhs = bin->lhs;
+    Expr *rhs = bin->rhs;
+
+    lhs->ctx = EXPR_CTX_LOAD;
+    codegen_visit_expr(ps, lhs);
+    if (!lhs->ir_val) return;
+
+    rhs->ctx = EXPR_CTX_LOAD;
+    codegen_visit_expr(ps, rhs);
+    if (!rhs->ir_val) return;
+
+    // codegen
+    ParserScope *sc = ps->scope;
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, sc->bb);
+
+    KlrValue *res = klr_build_binary(&bldr, lhs->ir_val, rhs->ir_val,
+                                     get_binary_op_code(op), "", get_binary_op_name(op));
+    exp->ir_val = res;
+}
+
 static void codegen_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -92,11 +186,12 @@ static void codegen_visit_expr(ParserState *ps, Expr *exp)
         NULL,
         codegen_type,                      /* TYPE       */
         codegen_call,                      /* CALL       */
-        // codegen_attr,                      /* ATTR       */
-        // codegen_tuple_get,                 /* TUPLE_GET  */
-        // codegen_index,                     /* INDEX      */
-        // codegen_unary,                     /* UNARY      */
-        // codegen_binary,                    /* BINARY     */
+        NULL,
+        NULL, // codegen_attr,                      /* ATTR       */
+        NULL, // codegen_tuple_get,                 /* TUPLE_GET  */
+        NULL, // codegen_index,                     /* INDEX      */
+        NULL, // codegen_unary,                     /* UNARY      */
+        codegen_binary,                    /* BINARY     */
         // codegen_range,                     /* RANGE      */
         // codegen_is_expr,                   /* IS         */
         // codegen_as_expr,                   /* AS         */

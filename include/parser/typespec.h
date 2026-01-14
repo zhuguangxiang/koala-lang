@@ -123,6 +123,8 @@ static inline TypeSpec *bfloat16_type_spec(void) { return type_spec_get_by_id(16
 static inline TypeSpec *type_type_spec(void) { return type_spec_get_by_id(17); }
 static inline TypeSpec *range_type_spec(void) { return type_spec_get_by_id(18); }
 
+void update_builtin_type_specs(HashMap *stbl);
+
 void type_spec_free(TypeSpec *ts);
 
 #ifdef __cplusplus

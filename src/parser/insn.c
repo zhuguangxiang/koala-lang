@@ -189,14 +189,14 @@ void klr_build_store(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
  * IR: %0 int = load_local %foo
  * %foo is a local or parameter of function
  */
-KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var)
+KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var, char *name)
 {
     if (var->kind != KLR_VALUE_GLOBAL && var->kind != KLR_VALUE_LOCAL &&
         var->kind != KLR_VALUE_PARAM) {
         panic("'get %%x, %%v' requires a local/param/global var.");
     }
 
-    KlrInsn *insn = new_insn(OP_IR_LOAD, 1, "");
+    KlrInsn *insn = new_insn(OP_IR_LOAD, 1, name);
     init_oper(&insn->opers[0], insn, var);
     insn->ts = var->ts;
     klr_append_insn(bldr, insn);

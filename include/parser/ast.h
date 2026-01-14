@@ -73,6 +73,7 @@ typedef enum _ExprKind {
     EXPR_UNARY_KIND,
     EXPR_BINARY_KIND,
     EXPR_RANGE_KIND,
+    EXPR_KW_KIND,
     EXPR_IS_KIND,
     EXPR_AS_KIND,
     EXPR_IN_KIND,
@@ -226,6 +227,14 @@ typedef struct _BinaryExpr {
 
 Expr *expr_from_unary(UnOpKind kind, Loc op_loc, Expr *e);
 Expr *expr_from_binary(BiOpKind op, Loc op_loc, Expr *lhs, Expr *rhs);
+
+typedef struct _KeyWordExpr {
+    EXPR_HEAD
+    Ident key;
+    Expr *value;
+} KeyWordExpr;
+
+Expr *expr_from_keyword(Loc loc, Ident key, Expr *value);
 
 typedef struct _TypeExpr {
     EXPR_HEAD
@@ -397,8 +406,6 @@ typedef struct _Argument {
     Ident id;
     Expr *value;
 } Argument;
-
-Argument *arg_new(Loc loc, Ident id, Expr *value);
 
 typedef struct _FuncDeclStmt {
     STMT_HEAD

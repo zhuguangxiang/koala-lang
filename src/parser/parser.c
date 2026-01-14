@@ -1145,6 +1145,12 @@ static void init_parser_state(ParserState *ps, char *filename)
     ps->builtin = stbl_new();
 }
 
+static void init_builtin_module(ParserState *ps)
+{
+    kl_read_from_klc(ps->builtin, "libs/builtin.klc");
+    update_builtin_type_specs(ps->builtin);
+}
+
 static ParserState *build_ast(char *path)
 {
     FILE *in = fopen(path, "r");
@@ -1155,7 +1161,8 @@ static ParserState *build_ast(char *path)
 
     ParserState *ps = mm_alloc_obj(ps);
     init_parser_state(ps, path);
-    // kl_read_from_klc(ps->builtin, "libs/builtin.klc");
+
+    init_builtin_module(ps);
 
     yyscan_t scanner;
     yylex_init_extra(ps, &scanner);

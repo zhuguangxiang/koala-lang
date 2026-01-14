@@ -1,5 +1,11 @@
 
 let v = 100
+var v1 = 20 + v
+
+let v3 int32 = 30
+
+// v := 100
+let v2 = v + v3
 
 func hello() {
     let v2 = 10
