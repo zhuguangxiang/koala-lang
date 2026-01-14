@@ -447,6 +447,10 @@ top_stmt
         yyclearin; yyerrok;
         $$ = NULL;
     }
+    | type_alias semi
+    {
+        $$ = NULL;
+    }
     | expr semi
     {
         $$ = NULL;
@@ -471,6 +475,16 @@ top_stmt
     {
         $$ = NULL;
     }
+    ;
+
+type_alias
+    : TYPE ID '=' type
+    /* {
+        // IDENT(id, $2, loc(@2));
+        // $$ = stmt_from_type_alias(id, $4);
+        // stmt_set_loc($$, lloc(@1, @4));
+    } */
+    | TYPE ID '=' anony_type
     ;
 
 semi
@@ -555,8 +569,13 @@ optional_type
     }
     | type '?'
     {
+        printf("optional type\n");
         // $$ = optional_type($1);
         // type_set_loc($$, lloc(@1, @2));
+        $$ = NULL;
+    }
+    | anony_type
+    {
         $$ = NULL;
     }
     ;
@@ -585,6 +604,25 @@ type
     | atom_type
     {
         $$ = $1;
+    }
+    ;
+
+anony_type
+    : FUNC '(' optional_type_list ')' optional_type
+    {
+        printf("optional func-type\n");
+    }
+    | FUNC '(' optional_type_list ')'
+    {
+        printf("no return func-type\n");
+    }
+    | FUNC '(' ')' optional_type
+    {
+        printf("no parameter func-type\n");
+    }
+    | FUNC '(' ')'
+    {
+        printf("no return no parameter func-type\n");
     }
     ;
 
@@ -1556,11 +1594,11 @@ trait_method_list
     ;
 
 trait_method
-    : func_proto_decl
+    : func_proto_decl semi
     {
         $$ = $1;
     }
-    | prefix func_proto_decl
+    | prefix func_proto_decl semi
     {
         $$ = $2;
     }
@@ -2532,7 +2570,7 @@ atom_expr
     }
     | anony_expr
     {
-        NYI();
+        $$ = NULL;
     }
     ;
 
