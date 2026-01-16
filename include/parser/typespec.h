@@ -30,6 +30,7 @@ typedef enum _TypeKind {
     TYPE_UNRESOLVED,
     TYPE_GENERIC_VAR,
     TYPE_SPECIALIZED,
+    TYPE_KLASS,
 } TypeKind;
 
 typedef struct _TypeIdent {
@@ -80,6 +81,13 @@ typedef struct _TypeSpec {
         struct {
             Vector *args;
         } union_type;
+
+        // klass type
+        // don't save parameter types here
+        struct {
+            char *pkg;
+            char *name;
+        } klass_type;
     };
 } TypeSpec;
 
@@ -122,6 +130,8 @@ static inline TypeSpec *float64_type_spec(void) { return type_spec_get_by_id(15)
 static inline TypeSpec *bfloat16_type_spec(void) { return type_spec_get_by_id(16); }
 static inline TypeSpec *type_type_spec(void) { return type_spec_get_by_id(17); }
 static inline TypeSpec *range_type_spec(void) { return type_spec_get_by_id(18); }
+
+TypeSpec *klass_type_spec(char *pkg, char *name);
 
 void update_builtin_type_specs(HashMap *stbl);
 

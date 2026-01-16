@@ -20,12 +20,7 @@ static void parse_ident(ParserState *ps, Expr *exp)
         kl_error(id->loc, "'%s' is not found", id->name);
         return;
     }
-    if (exp->ctx == EXPR_CTX_CALL) {
-        if (sym->kind != SYM_FUNC && sym->kind != SYM_PROTO) {
-            kl_error(id->loc, "'%s' is not callable", id->name);
-            return;
-        }
-    }
+
     exp->ts = sym->ts;
     exp->sym = sym;
 }
@@ -86,8 +81,7 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
     }
 
     // update literal integer's type as expected type
-    lit->ts->int_flt_info.width = width;
-    lit->ts->int_flt_info.sign = sign;
+    lit->ts = ts;
     lit->sign = sign;
     lit->len = width;
     lit->ival = (uint64_t)val;
@@ -155,16 +149,37 @@ static void parse_literal(ParserState *ps, Expr *exp)
     }
 }
 
-static void check_call_args(Vector *params, Vector *exprs)
+static void check_call_args(Vector *params, Vector *exprs, ParserState *ps)
 {
+    Expr *e;
     ArgInfo **arg_p;
     ArgInfo *arg;
     vector_foreach(arg_p, params) {
         arg = *arg_p;
+        e = vector_get_object(exprs, i__);
+        if (!e) {
+            // TODO: default value is not supported yet
+            // kl_error(ps->scope->sym->loc, "too few arguments in function call.");
+            return;
+        }
+        if (!type_spec_compatible(arg->ts, e->ts)) {
+            kl_error(e->loc, "argument type is not compatible.");
+            return;
+        }
     }
 }
 
-static void parse_type(ParserState *ps, Expr *exp) { TypeExpr *texp = (TypeExpr *)exp; }
+static void parse_type(ParserState *ps, Expr *exp)
+{
+    TypeSpec *ts = exp->ts;
+    ts = resolve_type(ps, ts);
+    if (!ts) return;
+    if (!check_type(ps, ts)) return;
+    exp->ts = ts;
+    ASSERT(ts->sym_id >= 0);
+    exp->sym = get_symbol_by_id(ts->sym_id);
+    return;
+}
 
 static void parse_call(ParserState *ps, Expr *exp)
 {
@@ -175,10 +190,7 @@ static void parse_call(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, call->lhs);
     if (!lhs->ts) return;
 
-    exp->ts = lhs->ts;
-
     int size = vector_size(call->args);
-    KlrValue *args[size + 1];
 
     Expr **arg_p;
     Expr *arg;
@@ -187,30 +199,69 @@ static void parse_call(ParserState *ps, Expr *exp)
         arg->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, arg);
         if (!arg->ts) return;
-        args[i__] = arg->ir_val;
     }
-
-    args[size] = NULL;
 
     if (ps->errors > 0) return;
 
     Symbol *lhs_sym = lhs->sym;
-    FuncSymbol *fn_sym = NULL;
-    if (lhs_sym->kind == SYM_FUNC) {
-        fn_sym = (FuncSymbol *)lhs_sym;
-        check_call_args(fn_sym->params, call->args);
-        if (ps->errors > 0) return;
+    Vector *params = NULL;
+    if (lhs_sym->kind == SYM_VAR) {
+        TypeSpec *ts = lhs_sym->ts;
+        Symbol *_sym = get_symbol_by_id(ts->sym_id);
+        if (!_sym) {
+            kl_error(lhs->loc, "'%s' is not callable", lhs_sym->name);
+            return;
+        }
+
+        if (_sym->kind == SYM_CLASS) {
+            // constructor call
+            KlassSymbol *cls_sym = (KlassSymbol *)_sym;
+            Symbol *call_fn_sym = stbl_get(cls_sym->stbl, "__call__");
+            if (!call_fn_sym) {
+                kl_error(lhs->loc, "'%s' is not callable.", lhs_sym->name);
+                return;
+            }
+            exp->ts = call_fn_sym->ts;
+            params = ((FuncSymbol *)call_fn_sym)->params;
+        } else {
+            kl_error(lhs->loc, "'%s' is not callable", lhs_sym->name);
+            return;
+        }
+    } else if (lhs_sym->kind == SYM_CLASS) {
+        // constructor call
+        KlassSymbol *cls_sym = (KlassSymbol *)lhs_sym;
+        Symbol *init_fn_sym = stbl_get(cls_sym->stbl, "__init__");
+        if (!init_fn_sym) {
+            kl_error(lhs->loc, "class '%s' has no constructor.", lhs_sym->name);
+            return;
+        }
+        exp->ts = cls_sym->ts;
+        // exp->sym = cls_sym;
+        params = ((FuncSymbol *)init_fn_sym)->params;
+    } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_PROTO) {
+        FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
+        exp->ts = fn_sym->ts;
+        params = fn_sym->params;
+    } else {
+        UNREACHABLE();
     }
 
-    // codegen
+    check_call_args(params, call->args, ps);
 
-    ParserScope *sc = ps->scope;
-    KlrValue *ir_val = lhs->ir_val;
-    KlrBuilder bldr;
-    klr_builder_end(&bldr, sc->bb);
+    // TODO:handle for builtin type(int, float, str etc) calls
+    if (exp->ts->kind == TYPE_INT) {
+    } else if (exp->ts->kind == TYPE_FLOAT) {
+    } else {
+    }
+    // // codegen
 
-    KlrValue *ret = klr_build_call(&bldr, ir_val, args, size, "");
-    exp->ir_val = ret;
+    // ParserScope *sc = ps->scope;
+    // KlrValue *ir_val = lhs->ir_val;
+    // KlrBuilder bldr;
+    // klr_builder_end(&bldr, sc->bb);
+
+    // KlrValue *ret = klr_build_call(&bldr, ir_val, args, size, "");
+    // exp->ir_val = ret;
 }
 
 static char *get_binary_op_name(BiOpKind op)
@@ -351,7 +402,9 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     handlers[exp->kind](ps, exp);
 
     if (!exp->ts) {
-        kl_error(exp->loc, "cannot resolve expr's type.");
+        if (ps->errors == 0) {
+            kl_error(exp->loc, "cannot resolve expr's type.");
+        }
     }
 }
 

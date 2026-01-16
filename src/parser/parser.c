@@ -240,7 +240,7 @@ static int is_subtype_of(int child_id, int parent_id)
  *    - Value Types (Primitives): Invariant (Generic parameters must be strictly
  * compatible).
  */
-static int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
+int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 {
     if (!dst || !src) return 0;
 
@@ -259,6 +259,16 @@ static int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
             {
                 if (type_spec_compatible(dst, bound)) {
                     // Only one bound is compatible, T is compatible with dst.
+                    return 1;
+                }
+            }
+        }
+
+        if (dst->kind == TYPE_UNION) {
+            TypeSpec *arg;
+            vector_foreach_object(arg, dst->union_type.args)
+            {
+                if (type_spec_compatible(arg, src)) {
                     return 1;
                 }
             }
@@ -871,6 +881,11 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
             UNREACHABLE();
         }
     }
+
+    // add typespec to class symbol
+    TypeSpec *ts = klass_type_spec(NULL, kls->id.name);
+    kls_sym->ts = ts;
+    ts->sym_id = kls_sym->id;
 
     kls->sym = sym;
     return sym;

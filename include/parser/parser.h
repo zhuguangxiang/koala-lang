@@ -136,6 +136,10 @@ void codegen_ast(ParserState *ps);
 ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block);
 void exit_scope(ParserState *ps);
 
+TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts);
+int check_type(ParserState *ps, TypeSpec *ts);
+int type_spec_compatible(TypeSpec *dst, TypeSpec *src);
+
 void kl_write_to_klc(ParserState *ps);
 void kl_read_from_klc(HashMap *stbl, char *path);
 void kl_emit(ParserState *ps, KlrModule *m);

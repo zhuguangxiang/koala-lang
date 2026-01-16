@@ -5,8 +5,30 @@ var v1 = 20 + v
 let v3 int32 = 30
 
 // v := 100
-let v2 = v + v3
+let v2 = v + 1
 
-func hello() {
-    let v2 = 10
+var v4 int64 = int64(100)
+
+
+func hello() str {
+    // return "hello"
 }
+
+var v5 = hello()
+
+// var v6 = int64("1A", 16)
+
+var v7 = int64("255")
+
+class Foo {
+    func __init__() {
+    }
+
+    func __call__() int32 {
+
+    }
+}
+
+var f = Foo()
+
+var f2 = f()

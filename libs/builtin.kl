@@ -17,13 +17,10 @@ All functions are implemented by runtime and inserted into vtable.
 
 pub trait any {
 
-    @native(object_hash)
     pub func __hash__() int
 
-    @native(object_equals)
     pub func __eq__(rhs any) bool
 
-    @native(object_str)
     pub func __str__() str
 }
 
@@ -36,15 +33,6 @@ pub trait Iterable[T] {
     func __iter__() Iterator[T]
 }
 
-/**
-Print `objs` to the stream file, separated by `sep` and followed by `end`.
-
-All non-keyword arguments are converted to string and written to stream,
-separated by `sep` and followed by `end`. The default `file` is `sys.stdout` stream.
-*/
-@native(builtin_print)
-pub func print(objs ..., sep = ' ', end = '\n') {}
-
 pub trait Indexable[T] {
     func __len__() int
     func __getitem__(index any) T
@@ -52,7 +40,6 @@ pub trait Indexable[T] {
 }
 
 pub trait Seq[T] : Indexable[T] {
-    func __len__() int
     func __contains__(v T) bool
     func __concat__(seq Seq[T]) Seq[T]
     func __repeat__(count int) Seq[T]
@@ -175,3 +162,13 @@ pub class range : Iterable[int] {
     @native(kl_range_iter)
     pub func __iter__() Iterator[int] {}
 }
+
+
+/**
+Print `objs` to the stream file, separated by `sep` and followed by `end`.
+
+All non-keyword arguments are converted to string and written to stream,
+separated by `sep` and followed by `end`. The default `file` is `sys.stdout` stream.
+*/
+@native(builtin_print)
+pub func print(objs ..., sep = ' ', end = '\n') {}

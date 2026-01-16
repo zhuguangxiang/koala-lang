@@ -188,35 +188,59 @@ void update_builtin_type_specs(HashMap *stbl)
 
     ts = int8_type_spec();
     sym = stbl_get(stbl, "int8");
-    if (sym) ts->sym_id = sym->id;
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = ts;
+    }
 
     ts = uint8_type_spec();
     sym = stbl_get(stbl, "uint8");
-    if (sym) ts->sym_id = sym->id;
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = ts;
+    }
 
     ts = int16_type_spec();
     sym = stbl_get(stbl, "int16");
-    if (sym) ts->sym_id = sym->id;
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = ts;
+    }
 
     ts = uint16_type_spec();
     sym = stbl_get(stbl, "uint16");
-    if (sym) ts->sym_id = sym->id;
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = ts;
+    }
 
     ts = int32_type_spec();
     sym = stbl_get(stbl, "int32");
-    if (sym) ts->sym_id = sym->id;
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = ts;
+    }
 
     ts = uint32_type_spec();
     sym = stbl_get(stbl, "uint32");
-    if (sym) ts->sym_id = sym->id;
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = ts;
+    }
 
     ts = int64_type_spec();
     sym = stbl_get(stbl, "int64");
-    if (sym) ts->sym_id = sym->id;
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = ts;
+    }
 
     ts = uint64_type_spec();
     sym = stbl_get(stbl, "uint64");
-    if (sym) ts->sym_id = sym->id;
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = ts;
+    }
 }
 
 void typespec_init(void)
@@ -345,6 +369,22 @@ TypeSpec *type_spec_intern(TypeSpec *ts)
         vector_push_back(&type_list, &ts);
         return ts;
     }
+}
+
+TypeSpec *klass_type_spec(char *pkg, char *name)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_KLASS;
+    ts->klass_type.pkg = pkg;
+    ts->klass_type.name = name;
+    ts->sym_id = -1;
+    ts->type_id = -1;
+    BUF(buf);
+    type_spec_to_str(ts, &buf);
+    ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
+    return type_spec_intern(ts);
 }
 
 TypeSpec *generic_var_type_spec(char *name, int index, int sym_id, char *owner)
@@ -507,6 +547,14 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         buf_write_char(buf, 'U');
         TypeSpec *arg;
         vector_foreach_object(arg, ts->union_type.args) { type_spec_to_str(arg, buf); }
+        buf_write_char(buf, ';');
+    } else if (ts->kind == TYPE_KLASS) {
+        buf_write_char(buf, 'L');
+        if (ts->klass_type.pkg) {
+            buf_write_str(buf, ts->klass_type.pkg);
+            buf_write_char(buf, '.');
+        }
+        buf_write_str(buf, ts->klass_type.name);
         buf_write_char(buf, ';');
     } else {
         UNREACHABLE();
@@ -736,6 +784,12 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
             type_spec_print(arg, buf);
             i++;
         }
+    } else if (ts->kind == TYPE_KLASS) {
+        if (ts->klass_type.pkg) {
+            buf_write_str(buf, ts->klass_type.pkg);
+            buf_write_char(buf, '.');
+        }
+        buf_write_str(buf, ts->klass_type.name);
     } else {
         UNREACHABLE();
     }
