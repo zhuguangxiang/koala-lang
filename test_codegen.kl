@@ -7,7 +7,7 @@ let v3 int32 = 30
 // v := 100
 let v2 = v + 1
 
-var v4 int64 = int64(100)
+// var v4 int = int(100)
 
 
 func hello() str {
@@ -16,19 +16,28 @@ func hello() str {
 
 var v5 = hello()
 
+var v6 = hello
+
+var v6_1 = v6()
+
 // var v6 = int64("1A", 16)
 
-var v7 = int64("255")
+// var v7 = int64("255")
 
 class Foo {
-    func __init__() {
+    func __init__(v str) {
     }
 
-    func __call__() int32 {
+    func __call__(v int) int {
 
     }
 }
 
-var f = Foo()
+var f = Foo("hello")
 
-var f2 = f()
+var f2 = f(10)
+
+// var v8 = f() + int(10)
+
+var v9 = type(f2)
+var v10 = int

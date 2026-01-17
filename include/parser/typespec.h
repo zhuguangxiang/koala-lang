@@ -31,6 +31,7 @@ typedef enum _TypeKind {
     TYPE_GENERIC_VAR,
     TYPE_SPECIALIZED,
     TYPE_KLASS,
+    TYPE_PROTO,
 } TypeKind;
 
 typedef struct _TypeIdent {
@@ -88,6 +89,12 @@ typedef struct _TypeSpec {
             char *pkg;
             char *name;
         } klass_type;
+
+        // proto type
+        struct {
+            Vector *args;
+            struct _TypeSpec *ret;
+        } proto_type;
     };
 } TypeSpec;
 
@@ -132,6 +139,7 @@ static inline TypeSpec *type_type_spec(void) { return type_spec_get_by_id(17); }
 static inline TypeSpec *range_type_spec(void) { return type_spec_get_by_id(18); }
 
 TypeSpec *klass_type_spec(char *pkg, char *name);
+TypeSpec *func_type_spec(Vector *args, TypeSpec *ret);
 
 void update_builtin_type_specs(HashMap *stbl);
 

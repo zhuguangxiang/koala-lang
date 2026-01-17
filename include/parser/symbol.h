@@ -88,6 +88,7 @@ typedef struct _TypeParamSymbol {
 
 typedef struct _ArgInfo {
     char *name;
+    Symbol *sym;
     TypeSpec *ts;
     int dfl_val_idx;
 } ArgInfo;
@@ -97,6 +98,8 @@ typedef struct _FuncSymbol {
     /* annotation */
     char *ann;
     char *ann_key;
+    /* return type */
+    TypeSpec *ret;
     /* ArgInfo list */
     Vector *params;
     /* type params */
@@ -123,6 +126,8 @@ typedef struct _KlassSymbol {
     Vector *funcs;
     /* protos */
     Vector *protos;
+    /* instance type */
+    TypeSpec *instance_ts;
 } KlassSymbol;
 
 static inline int __symbol_equal__(Symbol *s1, Symbol *s2)

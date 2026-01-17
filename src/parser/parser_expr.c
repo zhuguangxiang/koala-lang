@@ -11,6 +11,19 @@
 extern "C" {
 #endif
 
+#ifndef NOLOG
+/* clang-format off */
+#define print_type_spec(ts) do {        \
+    BUF(buf);                           \
+    type_spec_print(ts, &buf);          \
+    log_info("  '%s'", BUF_STR(buf));   \
+    FINI_BUF(buf);                      \
+} while (0)
+/* clang-format on */
+#else
+#define print_type_spec(ts) ((void *)(ts))
+#endif
+
 static void parse_ident(ParserState *ps, Expr *exp)
 {
     IdentExpr *id_exp = (IdentExpr *)exp;
@@ -23,6 +36,8 @@ static void parse_ident(ParserState *ps, Expr *exp)
 
     exp->ts = sym->ts;
     exp->sym = sym;
+    log_debug("ident resolved: %s", sym->name);
+    print_type_spec(sym->ts);
 }
 
 static void parse_lit_int(ParserState *ps, LitExpr *lit)
@@ -149,8 +164,13 @@ static void parse_literal(ParserState *ps, Expr *exp)
     }
 }
 
-static void check_call_args(Vector *params, Vector *exprs, ParserState *ps)
+static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc)
 {
+    if (vector_size(params) != vector_size(exprs)) {
+        kl_error(fn_loc, "argument count mismatch in function call.");
+        return;
+    }
+
     Expr *e;
     ArgInfo **arg_p;
     ArgInfo *arg;
@@ -159,7 +179,7 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps)
         e = vector_get_object(exprs, i__);
         if (!e) {
             // TODO: default value is not supported yet
-            // kl_error(ps->scope->sym->loc, "too few arguments in function call.");
+            kl_error(fn_loc, "too few arguments in function call.");
             return;
         }
         if (!type_spec_compatible(arg->ts, e->ts)) {
@@ -175,9 +195,14 @@ static void parse_type(ParserState *ps, Expr *exp)
     ts = resolve_type(ps, ts);
     if (!ts) return;
     if (!check_type(ps, ts)) return;
-    exp->ts = ts;
     ASSERT(ts->sym_id >= 0);
     exp->sym = get_symbol_by_id(ts->sym_id);
+    ASSERT(exp->sym->kind == SYM_CLASS);
+    // update expr type as symbol type
+    // int -> exp->ts is type type, symbol is int
+    // Foo -> exp->ts is type type, symbol is Foo
+    exp->ts = exp->sym->ts;
+    log_debug("type expr resolved: %s", exp->sym->name);
     return;
 }
 
@@ -207,13 +232,28 @@ static void parse_call(ParserState *ps, Expr *exp)
     Vector *params = NULL;
     if (lhs_sym->kind == SYM_VAR) {
         TypeSpec *ts = lhs_sym->ts;
-        Symbol *_sym = get_symbol_by_id(ts->sym_id);
-        if (!_sym) {
-            kl_error(lhs->loc, "'%s' is not callable", lhs_sym->name);
-            return;
-        }
 
-        if (_sym->kind == SYM_CLASS) {
+        log_debug("call lhs is variable of type:");
+        print_type_spec(ts);
+
+        if (ts->kind == TYPE_PROTO) {
+            log_debug("call lhs is proto variable.");
+            // proto variable call
+            exp->ts = ts->proto_type.ret;
+            params = ts->proto_type.args;
+        } else if (ts->kind == TYPE_KLASS) {
+            Symbol *_sym = get_symbol_by_id(ts->sym_id);
+            if (!_sym) {
+                UNREACHABLE();
+                kl_error(lhs->loc, "'%s' is not callable", lhs_sym->name);
+                return;
+            }
+
+            if (_sym->kind != SYM_CLASS) {
+                kl_error(lhs->loc, "'%s' is not callable", lhs_sym->name);
+                return;
+            }
+
             // constructor call
             KlassSymbol *cls_sym = (KlassSymbol *)_sym;
             Symbol *call_fn_sym = stbl_get(cls_sym->stbl, "__call__");
@@ -221,11 +261,10 @@ static void parse_call(ParserState *ps, Expr *exp)
                 kl_error(lhs->loc, "'%s' is not callable.", lhs_sym->name);
                 return;
             }
-            exp->ts = call_fn_sym->ts;
+            exp->ts = ((FuncSymbol *)call_fn_sym)->ret;
             params = ((FuncSymbol *)call_fn_sym)->params;
         } else {
-            kl_error(lhs->loc, "'%s' is not callable", lhs_sym->name);
-            return;
+            UNREACHABLE();
         }
     } else if (lhs_sym->kind == SYM_CLASS) {
         // constructor call
@@ -235,18 +274,19 @@ static void parse_call(ParserState *ps, Expr *exp)
             kl_error(lhs->loc, "class '%s' has no constructor.", lhs_sym->name);
             return;
         }
-        exp->ts = cls_sym->ts;
+        // func call type is instance type
+        exp->ts = cls_sym->instance_ts;
         // exp->sym = cls_sym;
         params = ((FuncSymbol *)init_fn_sym)->params;
     } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_PROTO) {
         FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
-        exp->ts = fn_sym->ts;
+        exp->ts = fn_sym->ret;
         params = fn_sym->params;
     } else {
         UNREACHABLE();
     }
 
-    check_call_args(params, call->args, ps);
+    check_call_args(params, call->args, ps, lhs->loc);
 
     // TODO:handle for builtin type(int, float, str etc) calls
     if (exp->ts->kind == TYPE_INT) {

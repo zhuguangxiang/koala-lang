@@ -756,17 +756,13 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     /* add parameters into function symbol table */
 
     // parse return type
-    if (sym->ts) {
-        TypeSpec *_ts = sym->ts;
-        sym->ts = resolve_type(ps, _ts);
-        check_type(ps, sym->ts);
+    if (sym->ret) {
+        TypeSpec *_ts = sym->ret;
+        sym->ret = resolve_type(ps, _ts);
+        check_type(ps, sym->ret);
     }
 
     Vector *args = vector_create_ptr();
-
-    int size = vector_size(fn->args);
-    TypeSpec *params[(size + 1)];
-    Symbol *arg_syms[size];
 
     ParamDecl **param_p;
     ParamDecl *param;
@@ -790,25 +786,30 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
 
         if (ts) {
             ts = resolve_type(ps, ts);
-            // TODO: memory
-            assert(ts);
+            ASSERT(ts);
             check_type(ps, ts);
         }
 
+        // TODO: add parameter symbol into function symbol table
         Symbol *s = stbl_add_var(sc->stbl, param->id.name, ts, 0);
+        if (!s) {
+            kl_error(param->id.loc, "redefinition of parameter '%s' in function '%s'",
+                     param->id.name, fn->id.name);
+            return;
+        }
 
+        arg->sym = s;
         arg->ts = ts;
-        // DESC_INCREF(desc);
         vector_push_back(args, &arg);
-
-        // params[i__] = DESC_INCREF_GET(desc);
-        params[i__] = ts;
-        arg_syms[i__] = s;
     }
 
-    params[size] = 0;
-
     sym->params = args;
+
+    // update func's type
+    TypeSpec *fn_ts = func_type_spec(args, sym->ret);
+    sym->ts = fn_ts;
+    log_info("update function '%s' type as:", sym->name);
+    print_type_spec(sym->ts);
 
     // KlrValue *fval = klr_add_func(ps->module, sym->desc, params, fn->id.name);
     // sym->ir_val = fval;
@@ -884,8 +885,11 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
 
     // add typespec to class symbol
     TypeSpec *ts = klass_type_spec(NULL, kls->id.name);
-    kls_sym->ts = ts;
+    kls_sym->instance_ts = ts;
     ts->sym_id = kls_sym->id;
+
+    ts = type_type_spec();
+    kls_sym->ts = ts;
 
     kls->sym = sym;
     return sym;

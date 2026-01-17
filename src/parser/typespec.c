@@ -184,62 +184,80 @@ void update_builtin_type_specs(HashMap *stbl)
 {
     // Update builtin type specs with the provided symbol table
     TypeSpec *ts;
-    Symbol *sym;
+    KlassSymbol *sym;
+
+    TypeSpec *type_ts;
+
+    type_ts = type_type_spec();
+    sym = (KlassSymbol *)stbl_get(stbl, "type");
+    if (sym) {
+        type_ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = type_ts;
+    }
 
     ts = int8_type_spec();
-    sym = stbl_get(stbl, "int8");
+    sym = (KlassSymbol *)stbl_get(stbl, "int8");
     if (sym) {
         ts->sym_id = sym->id;
-        sym->ts = ts;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
     }
 
     ts = uint8_type_spec();
-    sym = stbl_get(stbl, "uint8");
+    sym = (KlassSymbol *)stbl_get(stbl, "uint8");
     if (sym) {
         ts->sym_id = sym->id;
-        sym->ts = ts;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
     }
 
     ts = int16_type_spec();
-    sym = stbl_get(stbl, "int16");
+    sym = (KlassSymbol *)stbl_get(stbl, "int16");
     if (sym) {
         ts->sym_id = sym->id;
-        sym->ts = ts;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
     }
 
     ts = uint16_type_spec();
-    sym = stbl_get(stbl, "uint16");
+    sym = (KlassSymbol *)stbl_get(stbl, "uint16");
     if (sym) {
         ts->sym_id = sym->id;
-        sym->ts = ts;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
     }
 
     ts = int32_type_spec();
-    sym = stbl_get(stbl, "int32");
+    sym = (KlassSymbol *)stbl_get(stbl, "int32");
     if (sym) {
         ts->sym_id = sym->id;
-        sym->ts = ts;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
     }
 
     ts = uint32_type_spec();
-    sym = stbl_get(stbl, "uint32");
+    sym = (KlassSymbol *)stbl_get(stbl, "uint32");
     if (sym) {
         ts->sym_id = sym->id;
-        sym->ts = ts;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
     }
 
     ts = int64_type_spec();
-    sym = stbl_get(stbl, "int64");
+    sym = (KlassSymbol *)stbl_get(stbl, "int64");
     if (sym) {
         ts->sym_id = sym->id;
-        sym->ts = ts;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
     }
 
     ts = uint64_type_spec();
-    sym = stbl_get(stbl, "uint64");
+    sym = (KlassSymbol *)stbl_get(stbl, "uint64");
     if (sym) {
         ts->sym_id = sym->id;
-        sym->ts = ts;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
     }
 }
 
@@ -377,6 +395,37 @@ TypeSpec *klass_type_spec(char *pkg, char *name)
     ts->kind = TYPE_KLASS;
     ts->klass_type.pkg = pkg;
     ts->klass_type.name = name;
+    ts->sym_id = -1;
+    ts->type_id = -1;
+    BUF(buf);
+    type_spec_to_str(ts, &buf);
+    ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
+    return type_spec_intern(ts);
+}
+
+TypeSpec *func_type_spec(Vector *args, TypeSpec *ret)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_PROTO;
+
+    if (vector_size(args) != 0) {
+        Vector *arg_list = vector_create_ptr();
+        ArgInfo *arg;
+        vector_foreach_object(arg, args)
+        {
+            if (!arg->ts) {
+                // should not happen
+                UNREACHABLE();
+                continue;
+            }
+            vector_push_back(arg_list, &arg->ts);
+        }
+        ts->proto_type.args = arg_list;
+    }
+
+    ts->proto_type.ret = ret;
     ts->sym_id = -1;
     ts->type_id = -1;
     BUF(buf);
@@ -556,6 +605,12 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         }
         buf_write_str(buf, ts->klass_type.name);
         buf_write_char(buf, ';');
+    } else if (ts->kind == TYPE_PROTO) {
+        buf_write_char(buf, '(');
+        TypeSpec *arg;
+        vector_foreach_object(arg, ts->proto_type.args) { type_spec_to_str(arg, buf); }
+        buf_write_char(buf, ')');
+        type_spec_to_str(ts->proto_type.ret, buf);
     } else {
         UNREACHABLE();
     }
@@ -790,6 +845,16 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
             buf_write_char(buf, '.');
         }
         buf_write_str(buf, ts->klass_type.name);
+    } else if (ts->kind == TYPE_PROTO) {
+        buf_write_str(buf, "func(");
+        TypeSpec *arg;
+        vector_foreach_object(arg, ts->proto_type.args)
+        {
+            if (i__ != 0) buf_write_str(buf, ", ");
+            type_spec_print(arg, buf);
+        }
+        buf_write_char(buf, ')');
+        type_spec_print(ts->proto_type.ret, buf);
     } else {
         UNREACHABLE();
     }

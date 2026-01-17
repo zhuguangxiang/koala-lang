@@ -150,6 +150,10 @@ pub class bool {
 }
 
 pub class type {
+
+    @native(kl_type_init)
+    pub func __init__(o any) {}
+
     @native(kl_type_call)
     pub func __call__(o any) type {}
 }

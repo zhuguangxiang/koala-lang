@@ -100,7 +100,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
         sym->flags = flags;
         sym->params = params;
         sym->tps = tps;
-        sym->ts = ret;
+        sym->ret = ret;
         sym->stbl = stbl_new();
         sym->ann = ann;
         sym->ann_key = ann_key;
