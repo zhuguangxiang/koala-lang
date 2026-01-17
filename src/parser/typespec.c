@@ -409,22 +409,7 @@ TypeSpec *func_type_spec(Vector *args, TypeSpec *ret)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_PROTO;
-
-    if (vector_size(args) != 0) {
-        Vector *arg_list = vector_create_ptr();
-        ArgInfo *arg;
-        vector_foreach_object(arg, args)
-        {
-            if (!arg->ts) {
-                // should not happen
-                UNREACHABLE();
-                continue;
-            }
-            vector_push_back(arg_list, &arg->ts);
-        }
-        ts->proto_type.args = arg_list;
-    }
-
+    ts->proto_type.args = args;
     ts->proto_type.ret = ret;
     ts->sym_id = -1;
     ts->type_id = -1;
@@ -611,6 +596,10 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         vector_foreach_object(arg, ts->proto_type.args) { type_spec_to_str(arg, buf); }
         buf_write_char(buf, ')');
         type_spec_to_str(ts->proto_type.ret, buf);
+    } else if (ts->kind == TYPE_TYPE) {
+        buf_write_str(buf, "Lbuiltin.type;");
+    } else if (ts->kind == TYPE_RANGE) {
+        buf_write_str(buf, "Lbuiltin.range;");
     } else {
         UNREACHABLE();
     }
@@ -781,6 +770,18 @@ static TypeSpec *__to_typespec(char **str)
         case 'b': {
             ts = bfloat16_type_spec();
             s++;
+            break;
+        }
+        case '(': {
+            s++;
+            Vector *args = vector_create_ptr();
+            while (*s != ')' && *s != '\0') {
+                arg = __to_typespec(&s);
+                if (arg) vector_push_back(args, &arg);
+            }
+            if (*s == ')') s++;
+            TypeSpec *ret = __to_typespec(&s);
+            ts = func_type_spec(args, ret);
             break;
         }
         default: {
@@ -998,6 +999,22 @@ static void __typespec_str_print(char **str, Buffer *buf)
                 buf_write_str(buf, "...");
                 s += 3;
             }
+            break;
+        }
+        case '(': {
+            s++;
+            buf_write_str(buf, "func(");
+            int i = 0;
+            while (*s != ')' && *s != '\0') {
+                if (i != 0) buf_write_str(buf, ", ");
+                __typespec_str_print(&s, buf);
+                i++;
+            }
+            if (*s == ')') {
+                buf_write_char(buf, ')');
+                s++;
+            }
+            __typespec_str_print(&s, buf);
             break;
         }
         default: {

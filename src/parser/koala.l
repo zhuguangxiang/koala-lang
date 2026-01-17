@@ -172,15 +172,15 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
     errno = 0; yyps->sval = atom_nstr(s, len); \
     yylval->fval = strtold(s, NULL)
 
-#define YY_S_BEGIN yyps->multi = 1; BEGIN(S);
+#define YY_S_BEGIN yyps->multi = 1; RESET_BUF(yyps->sbuf); BEGIN(S);
 #define YY_S_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
 #define YY_S_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL);
 
-#define YY_STR_BEGIN yyps->multi = 1; BEGIN(STR);
+#define YY_STR_BEGIN yyps->multi = 1; RESET_BUF(yyps->sbuf); BEGIN(STR);
 #define YY_STR_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
 #define YY_STR_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL);
 
-#define YY_TXT_BEGIN yyps->multi = 1; BEGIN(TXT);
+#define YY_TXT_BEGIN yyps->multi = 1; RESET_BUF(yyps->sbuf); BEGIN(TXT);
 #define YY_TXT_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
 #define YY_TXT_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL);
 

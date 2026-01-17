@@ -62,6 +62,52 @@ static void dump_const(KlcConst *item)
     }
 }
 
+static void dump_const_value(KlcConst *item)
+{
+    switch (item->type) {
+        case KLC_CONST_NONE: {
+            fprintf(stdout, "null");
+            break;
+        }
+        case KLC_CONST_INT: {
+            if (item->sign) {
+                if (item->len == 1)
+                    fprintf(stdout, "%d", (int8_t)item->ival);
+                else if (item->len == 2)
+                    fprintf(stdout, "%d", (int16_t)item->ival);
+                else if (item->len == 4)
+                    fprintf(stdout, "%d", (int32_t)item->ival);
+                else
+                    fprintf(stdout, "%ld", (int64_t)item->ival);
+            } else {
+                if (item->len == 1)
+                    fprintf(stdout, "%u", (uint8_t)item->ival);
+                else if (item->len == 2)
+                    fprintf(stdout, "%u", (uint16_t)item->ival);
+                else if (item->len == 4)
+                    fprintf(stdout, "%u", (uint32_t)item->ival);
+                else
+                    fprintf(stdout, "%" PRIu64, (uint64_t)item->ival);
+            }
+            break;
+        }
+        case KLC_CONST_FLT: {
+            fprintf(stdout, "%lf", item->fval);
+            break;
+        }
+        case KLC_CONST_SHORT_ASCII:
+        case KLC_CONST_SHORT_UTF8:
+        case KLC_CONST_ASCII:
+        case KLC_CONST_UTF8: {
+            fprintf(stdout, "\"%s\"", item->sval);
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+}
+
 static void dump_consts(Vector *vec)
 {
     fprintf(stdout, "constants:\n");
@@ -191,6 +237,7 @@ static void dump_func(KlcFunc *fn, KlcFile *klc, int leading_spaces)
 
     KlcConst *k = klc_get_const(klc, fn->name_index);
     fprintf(stdout, "func %s(", k->sval);
+    KlcConst *def_val;
     KlcConst *ty_k;
     KlcArgument **arg_p;
     KlcArgument *arg;
@@ -199,13 +246,24 @@ static void dump_func(KlcFunc *fn, KlcFile *klc, int leading_spaces)
         arg = *arg_p;
         if (!arg) continue;
         k = klc_get_const(klc, arg->name_index);
-        ty_k = klc_get_const(klc, arg->type_index);
-        RESET_BUF(buf);
-        type_spec_str_print(ty_k->sval, &buf);
-        if (i != 0) {
-            fprintf(stdout, ", %s %s", k->sval, BUF_STR(buf));
+        def_val = klc_get_const(klc, arg->const_index);
+        if (def_val) {
+            if (i != 0) {
+                fprintf(stdout, ", %s", k->sval);
+            } else {
+                fprintf(stdout, "%s", k->sval);
+            }
+            fprintf(stdout, " = ");
+            dump_const_value(def_val);
         } else {
-            fprintf(stdout, "%s %s", k->sval, BUF_STR(buf));
+            ty_k = klc_get_const(klc, arg->type_index);
+            RESET_BUF(buf);
+            type_spec_str_print(ty_k->sval, &buf);
+            if (i != 0) {
+                fprintf(stdout, ", %s %s", k->sval, BUF_STR(buf));
+            } else {
+                fprintf(stdout, "%s %s", k->sval, BUF_STR(buf));
+            }
         }
         i++;
     }

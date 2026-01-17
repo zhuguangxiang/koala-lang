@@ -166,7 +166,7 @@ static void parse_literal(ParserState *ps, Expr *exp)
 
 static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc)
 {
-    if (vector_size(params) != vector_size(exprs)) {
+    if (vector_size(params) < vector_size(exprs)) {
         kl_error(fn_loc, "argument count mismatch in function call.");
         return;
     }
@@ -178,8 +178,9 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
         arg = *arg_p;
         e = vector_get_object(exprs, i__);
         if (!e) {
-            // TODO: default value is not supported yet
-            kl_error(fn_loc, "too few arguments in function call.");
+            if (arg->dfl_val_idx <= 0) {
+                kl_error(fn_loc, "too few arguments in function call.");
+            }
             return;
         }
         if (!type_spec_compatible(arg->ts, e->ts)) {

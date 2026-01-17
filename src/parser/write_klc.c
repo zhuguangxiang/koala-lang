@@ -15,6 +15,37 @@ extern "C" {
 
 void kl_emit_func(ParserState *ps, KlrFunc *fn, KlcFunc *klc_fn);
 
+static uint16_t klc_add_const(KlcFile *klc, Literal *lit)
+{
+    uint16_t index = 0;
+    switch (lit->which) {
+        case LIT_INT: {
+            index = klc_add_int(klc, lit->ival, lit->sign, lit->len);
+            break;
+        }
+        case LIT_FLT: {
+            index = klc_add_float(klc, lit->fval);
+            break;
+        }
+        case LIT_STR: {
+            index = klc_add_utf8(klc, lit->sval, lit->len);
+            break;
+        }
+        case LIT_BOOL: {
+            index = klc_add_int(klc, lit->bval ? 1 : 0, 0, 1);
+            break;
+        }
+        case LIT_NONE: {
+            index = klc_add_none(klc);
+            break;
+        }
+        default: {
+            UNREACHABLE();
+        }
+    }
+    return index;
+}
+
 void kl_write_to_klc(ParserState *ps)
 {
     HashMap *stbl = ps->stbl;
@@ -35,19 +66,7 @@ void kl_write_to_klc(ParserState *ps)
                 uint16_t def_val_idx = 0;
                 Literal *lit = var->lit;
                 if (lit) {
-                    if (lit->which == LIT_INT) {
-                        def_val_idx = klc_add_int(&klc, lit->ival, lit->sign, lit->len);
-                        // } else if (lit->which == LIT_FLT) {
-                        //     def_val_idx = klc_add_float(&klc, lit->fval);
-                        // } else if (lit->which == LIT_BOOL) {
-                        //     def_val_idx = klc_add_int(&klc, lit->bval);
-                        // } else if (lit->which == LIT_STR) {
-                        //     def_val_idx = klc_add_str(&klc, lit->sval, lit->len);
-                        // } else if (lit->which == LIT_NONE) {
-                        //     def_val_idx = klc_add_none(&klc);
-                    } else {
-                        UNREACHABLE();
-                    }
+                    def_val_idx = klc_add_const(&klc, lit);
                 }
 
                 int flags = 0;
@@ -69,15 +88,22 @@ void kl_write_to_klc(ParserState *ps)
                     flags |= KLC_FLAGS_PUB;
                 }
 
-                KlcFunc *f = klc_add_func(&klc, fn->name, fn->ts->signature, flags);
+                KlcFunc *f = klc_add_func(&klc, fn->name, fn->ret->signature, flags);
 
                 // add argument info
                 ArgInfo **item_p;
                 ArgInfo *item;
                 vector_foreach(item_p, fn->params) {
                     item = *item_p;
-                    klc_func_add_arg(f, item->name, item->ts->signature,
-                                     item->dfl_val_idx);
+                    ASSERT(item->sym->kind == SYM_VAR);
+                    VarSymbol *var_sym = (VarSymbol *)item->sym;
+                    ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
+                    uint16_t def_val_idx = 0;
+                    if (var_sym->lit) {
+                        // has default value
+                        def_val_idx = klc_add_const(&klc, var_sym->lit);
+                    }
+                    klc_func_add_arg(f, item->name, item->ts->signature, def_val_idx);
                 }
 
                 // add annotations
@@ -146,15 +172,23 @@ void kl_write_to_klc(ParserState *ps)
                     }
 
                     klc_fn =
-                        klc_klass_add_func(klass, fn->name, fn->ts->signature, flags_);
+                        klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
 
                     // add argument info
                     ArgInfo **item_p;
                     ArgInfo *item;
                     vector_foreach(item_p, fn->params) {
                         item = *item_p;
+                        ASSERT(item->sym->kind == SYM_VAR);
+                        VarSymbol *var_sym = (VarSymbol *)item->sym;
+                        ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
+                        uint16_t def_val_idx = 0;
+                        if (var_sym->lit) {
+                            // has default value
+                            def_val_idx = klc_add_const(&klc, var_sym->lit);
+                        }
                         klc_func_add_arg(klc_fn, item->name, item->ts->signature,
-                                         item->dfl_val_idx);
+                                         def_val_idx);
                     }
 
                     // add annotations
@@ -211,13 +245,21 @@ void kl_write_to_klc(ParserState *ps)
                     }
 
                     klc_fn =
-                        klc_klass_add_func(klass, fn->name, fn->ts->signature, flags_);
+                        klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
 
                     // add argument info
                     ArgInfo **item_p;
                     ArgInfo *item;
                     vector_foreach(item_p, fn->params) {
                         item = *item_p;
+                        ASSERT(item->sym->kind == SYM_VAR);
+                        VarSymbol *var_sym = (VarSymbol *)item->sym;
+                        ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
+                        uint16_t def_val_idx = 0;
+                        if (var_sym->lit) {
+                            // has default value
+                            def_val_idx = klc_add_const(&klc, var_sym->lit);
+                        }
                         klc_func_add_arg(klc_fn, item->name, item->ts->signature,
                                          item->dfl_val_idx);
                     }

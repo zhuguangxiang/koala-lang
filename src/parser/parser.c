@@ -769,15 +769,33 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     vector_foreach(param_p, fn->args) {
         param = *param_p;
 
-        ArgInfo *arg = mm_alloc_obj_fast(arg);
+        ArgInfo *arg = mm_alloc_obj(arg);
         arg->name = param->id.name;
         arg->dfl_val_idx = 0;
 
         TypeSpec *ts;
         if (param->type) {
             ts = param->type;
+            Expr *e = param->value;
+            if (e) {
+                if (e->kind != EXPR_LITERAL_KIND) {
+                    kl_error(param->id.loc,
+                             "parameter '%s' needs a literal default value",
+                             param->id.name);
+                    return;
+                }
+                e->ctx = EXPR_CTX_LOAD;
+                e->expected = ts;
+                parser_visit_expr(ps, e);
+                if (!e->ts) return;
+            }
         } else {
             Expr *e = param->value;
+            if (e->kind != EXPR_LITERAL_KIND) {
+                kl_error(param->id.loc, "parameter '%s' needs a literal default value",
+                         param->id.name);
+                return;
+            }
             e->ctx = EXPR_CTX_LOAD;
             parser_visit_expr(ps, e);
             if (!e->ts) return;
@@ -798,6 +816,35 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
             return;
         }
 
+        ((VarSymbol *)s)->scope = VAR_SCOPE_PARAM;
+        Expr *e = param->value;
+        if (e) {
+            LitExpr *lit_exp = (LitExpr *)e;
+            Literal *lit = mm_alloc_obj(lit);
+            if (lit_exp->which == LIT_EXPR_INT) {
+                lit->which = LIT_INT;
+                lit->sign = lit_exp->sign;
+                lit->len = lit_exp->len;
+                lit->ival = lit_exp->ival;
+            } else if (lit_exp->which == LIT_EXPR_FLT) {
+                lit->which = LIT_FLT;
+                lit->fval = lit_exp->fval;
+            } else if (lit_exp->which == LIT_EXPR_BOOL) {
+                lit->which = LIT_BOOL;
+                lit->bval = lit_exp->bval;
+            } else if (lit_exp->which == LIT_EXPR_STR) {
+                lit->which = LIT_STR;
+                lit->len = lit_exp->len;
+                lit->sval = lit_exp->sval;
+            } else if (lit_exp->which == LIT_EXPR_NONE) {
+                lit->which = LIT_NONE;
+            } else {
+                UNREACHABLE();
+            }
+            ((VarSymbol *)s)->lit = lit;
+            arg->dfl_val_idx = 1;
+        }
+
         arg->sym = s;
         arg->ts = ts;
         vector_push_back(args, &arg);
@@ -806,7 +853,22 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     sym->params = args;
 
     // update func's type
-    TypeSpec *fn_ts = func_type_spec(args, sym->ret);
+    Vector *arg_list = NULL;
+    if (vector_size(args) != 0) {
+        arg_list = vector_create_ptr();
+        ArgInfo *arg;
+        vector_foreach_object(arg, args)
+        {
+            if (!arg->ts) {
+                // should not happen
+                UNREACHABLE();
+                continue;
+            }
+            vector_push_back(arg_list, &arg->ts);
+        }
+    }
+
+    TypeSpec *fn_ts = func_type_spec(arg_list, sym->ret);
     sym->ts = fn_ts;
     log_info("update function '%s' type as:", sym->name);
     print_type_spec(sym->ts);
