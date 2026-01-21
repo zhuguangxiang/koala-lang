@@ -348,6 +348,8 @@ static void parse_call(ParserState *ps, Expr *exp)
     // exp->ir_val = ret;
 }
 
+static void parse_dot(ParserState *ps, Expr *exp) {}
+
 static void parse_index(ParserState *ps, Expr *exp)
 {
     IndexExpr *index = (IndexExpr *)exp;
@@ -490,7 +492,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         NULL,                            /* ANONY      */
         parse_type,                      /* TYPE       */
         parse_call,                      /* CALL       */
-        NULL,                            /* DOT        */
+        parse_dot,                       /* DOT        */
         parse_index,                     /* INDEX      */
         NULL,                            /* SLICE      */
         NULL,                            /* UNARY      */

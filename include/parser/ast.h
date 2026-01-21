@@ -30,8 +30,6 @@ typedef struct _AtFlag {
 typedef struct _PrefixFlags {
     SimpleFlag doc;
     SimpleFlag pub;
-    SimpleFlag stat;
-    SimpleFlag final;
     AtFlag at;
 } PrefixFlags;
 

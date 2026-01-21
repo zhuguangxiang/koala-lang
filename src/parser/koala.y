@@ -166,7 +166,6 @@ static void free_tp_list(Vector *vec)
 %token L_SHIFT
 %token R_SHIFT
 %token R_USHIFT
-%token MOD_DOC
 %token DOC
 
 %token OPT_DEF
@@ -233,9 +232,7 @@ static void free_tp_list(Vector *vec)
 %type<type_spec> union_type;
 %type<type_spec> union_opt_type;
 
-%type<vec> id_dot_list
 %type<vec> id_as_list
-%type<vec> import_stmts
 %type<vec> top_stmts
 %type<vec> optional_type_list
 %type<vec> block
@@ -286,79 +283,39 @@ static void free_tp_list(Vector *vec)
 %%
 
 program
-    : MOD_DOC
+    : top_stmts
     {
-
-    }
-    | top_stmts
-    {
-        yyparse_module(ps, NULL, $1);
-    }
-    | import_stmts
-    {
-        yyparse_module(ps, $1, NULL);
-    }
-    | MOD_DOC import_stmts
-    {
-
-    }
-    | import_stmts top_stmts
-    {
-        yyparse_module(ps, $1, $2);
-    }
-    | MOD_DOC top_stmts
-    {
-        yyparse_module(ps, NULL, $2);
-    }
-    | MOD_DOC import_stmts top_stmts
-    {
-        yyparse_module(ps, $2, $3);
-    }
-    ;
-
-import_stmts
-    : import_stmt
-    {
-        $$ = vector_create_ptr();
-        if ($1) vector_push_back($$, &$1);
-    }
-    | import_stmts import_stmt
-    {
-        $$ = $1;
-        if ($2) vector_push_back($$, &$2);
+        yyparse_module(ps, $1);
     }
     ;
 
 import_stmt
-    : IMPORT id_as_list semi
+    : IMPORT STRING_LITERAL semi
     {
         // $$ = stmt_from_import($2, $4);
         // stmt_set_loc($$, lloc(@1, @5));
         $$ = NULL;
     }
-    | FROM id_dot_list IMPORT id_as_list semi
+    | IMPORT STRING_LITERAL AS ID semi
     {
-
+        // $$ = stmt_from_import($2, $4);
+        // stmt_set_loc($$, lloc(@1, @5));
+        $$ = NULL;
     }
-    | IMPORT id_as_list error
+    | FROM STRING_LITERAL IMPORT id_as_list semi
     {
+        $$ = NULL;
     }
-    ;
-
-id_dot_list
-    : ID
+    | IMPORT STRING_LITERAL error
     {
-
-    }
-    | id_dot_list '.' ID
-    {
-
+        $$ = NULL;
     }
     ;
 
 id_as_list
     : ID
     {
+
     }
     | ID AS ID
     {
@@ -388,7 +345,11 @@ top_stmts
     ;
 
 top_stmt
-    : let_decl semi
+    : import_stmt
+    {
+        $$ = $1;
+    }
+    | let_decl semi
     {
         $$ = $1;
         var_set_where($$, VAR_GLOBAL);
@@ -458,7 +419,7 @@ top_stmt
     }
     | assignment semi
     {
-
+        $$ = NULL;
     }
     | if_stmt
     {
@@ -520,14 +481,12 @@ prefix
     {
         $$ = $1;
         $$.pub = $2.pub;
-        $$.stat = $2.stat;
     }
     | DOC annotation access
     {
         $$ = $2;
         $$.doc.flag = 1;
         $$.pub = $3.pub;
-        $$.stat = $3.stat;
     }
     ;
 
@@ -570,10 +529,9 @@ optional_type
     }
     | type '?'
     {
-        printf("optional type\n");
-        // $$ = optional_type($1);
-        // type_set_loc($$, lloc(@1, @2));
-        $$ = NULL;
+        $$ = $1;
+        $$->optional = 1;
+        type_spec_loc($$, lloc(@1, @2));
     }
     | anony_type
     {
@@ -668,7 +626,8 @@ union_opt_type
     }
     | '(' union_type ')' '?'
     {
-        $$ = NULL;
+        $$ = $2;
+        $$->optional = 1;
     }
     ;
 

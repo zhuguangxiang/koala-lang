@@ -34,10 +34,8 @@ typedef enum _SymKind {
 #define SYM_FLAGS_VAR_VALUE (1 << 0)
 #define SYM_FLAGS_MUTABLE   (1 << 1)
 #define SYM_FLAGS_PUBLIC    (1 << 2)
-#define SYM_FLAGS_FINAL     (1 << 3)
-#define SYM_FLAGS_STATIC    (1 << 4)
-#define SYM_FLAGS_TAG_ONLY  (1 << 5)
-#define SYM_FLAGS_TAG_VALUE (1 << 6)
+#define SYM_FLAGS_TAG_ONLY  (1 << 3)
+#define SYM_FLAGS_TAG_VALUE (1 << 4)
 
 #define SYMBOL_HEAD \
     HashMapEntry hnode; SymKind kind; int flags; int id; char *name; TypeSpec *ts; \

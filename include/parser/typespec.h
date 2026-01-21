@@ -48,6 +48,7 @@ typedef struct _TypeSpec {
     int checked;
     int sym_id;
     int type_id;
+    int optional;
     char *signature;
     Loc loc;
     union {

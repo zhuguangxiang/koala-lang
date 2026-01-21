@@ -126,10 +126,6 @@ void kl_write_to_klc(ParserState *ps)
                     flags |= KLC_FLAGS_PUB;
                 }
 
-                if (kls->flags & SYM_FLAGS_FINAL) {
-                    flags |= KLC_FLAGS_FINAL;
-                }
-
                 KlcKlass *klass = klc_add_klass(&klc, kls->name, flags);
 
                 if (vector_size(kls->tps) > 0) {

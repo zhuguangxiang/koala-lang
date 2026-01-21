@@ -132,7 +132,7 @@ void kl_error_detail(ParserState *, Loc *);
 /* clang-format on */
 
 void parser_visit_expr(ParserState *ps, Expr *exp);
-void yyparse_module(ParserState *ps, Vector *imports, Vector *stmts);
+void yyparse_module(ParserState *ps, Vector *stmts);
 int compile(int argc, char *argv[]);
 void codegen_ast(ParserState *ps);
 

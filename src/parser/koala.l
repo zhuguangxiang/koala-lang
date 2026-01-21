@@ -335,13 +335,7 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 <TXT>\"\"\"     { YY_TXT_END;              }
 <TXT>.          { YY_TXT_WRITE(yytext[0]); }
 
-"/*!"(([^\*]*(\*[^\/])?)*)"*/" {
-    RESET_BUF(yyps->sbuf);
-    buf_write_nstr(&yyps->sbuf, yytext + 3, yyleng - 5);
-    YY_RETURN(MOD_DOC);
-}
-
-"/**"(([^\*]*(\*[^\/])?)*)"*/" {
+"///"(([^\*]*(\*[^\/])?)*) {
     RESET_BUF(yyps->sbuf);
     buf_write_nstr(&yyps->sbuf, yytext + 3, yyleng - 5);
     YY_RETURN(DOC);

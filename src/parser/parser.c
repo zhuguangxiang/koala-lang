@@ -552,8 +552,6 @@ static int parse_flags(PrefixFlags *flags)
     int f = 0;
 
     if (flags->pub.flag) f |= SYM_FLAGS_PUBLIC;
-    if (flags->stat.flag) f |= SYM_FLAGS_STATIC;
-    if (flags->final.flag) f |= SYM_FLAGS_FINAL;
 
     if (flags->at.assoc_ident)
         f |= SYM_FLAGS_TAG_VALUE;
@@ -666,18 +664,6 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
 static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
 {
     PrefixFlags *flags = &fn->flags;
-
-    if (flags->stat.flag) {
-        kl_error(flags->stat.loc, "'static' is not allowed in top func '%s'",
-                 fn->id.name);
-        return;
-    }
-
-    if (flags->final.flag) {
-        kl_error(flags->final.loc, "'final' is not allowed in top func '%s'",
-                 fn->id.name);
-        return;
-    }
 
     AtFlag *at = &flags->at;
     if (at->flag.flag) {
@@ -1381,7 +1367,7 @@ failed:
     stmt_free(stmt);
 }
 
-void yyparse_module(ParserState *ps, Vector *imports, Vector *stmts)
+void yyparse_module(ParserState *ps, Vector *stmts)
 {
     Stmt **stmt;
     vector_foreach(stmt, stmts) {

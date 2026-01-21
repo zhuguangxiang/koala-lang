@@ -328,9 +328,6 @@ static void dump_class(Vector *vec, KlcFile *klc)
         if (item->flags & KLC_FLAGS_PUB) {
             fprintf(stdout, "public ");
         }
-        if (item->flags & KLC_FLAGS_FINAL) {
-            fprintf(stdout, "final ");
-        }
 
         if (item->flags & KLC_FLAGS_TRAIT) {
             fprintf(stdout, "trait %s", k->sval);

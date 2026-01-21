@@ -65,9 +65,7 @@ typedef struct _KlcConst {
 
 #define KLC_FLAGS_PUB     (1 << 0)
 #define KLC_FLAGS_MUTABLE (1 << 1)
-#define KLC_FLAGS_FINAL   (1 << 2)
-#define KLC_FLAGS_STATIC  (1 << 3)
-#define KLC_FLAGS_TRAIT   (1 << 4)
+#define KLC_FLAGS_TRAIT   (1 << 2)
 
 typedef struct _KlcVar {
     /* flags */
