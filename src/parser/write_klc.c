@@ -130,14 +130,12 @@ void kl_write_to_klc(ParserState *ps)
 
                 if (vector_size(kls->tps) > 0) {
                     TypeParamSymbol *tp;
-                    vector_foreach_object(tp, kls->tps)
-                    {
+                    vector_foreach_object(tp, kls->tps) {
                         KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
 
                         if (vector_size(tp->bound) > 0) {
                             TypeSpec *ts;
-                            vector_foreach_object(ts, tp->bound)
-                            {
+                            vector_foreach_object(ts, tp->bound) {
                                 uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                              strlen(ts->signature));
                                 vector_push_back(&klc_tp->bounds, &index);
@@ -148,19 +146,17 @@ void kl_write_to_klc(ParserState *ps)
 
                 if (vector_size(kls->bases) > 0) {
                     TypeSpec *ts;
-                    vector_foreach_object(ts, kls->bases)
-                    {
+                    vector_foreach_object(ts, kls->bases) {
                         uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                      strlen(ts->signature));
                         vector_push_back(&klass->bases, &index);
                     }
                 }
 
-                FuncSymbol **fn_p;
                 FuncSymbol *fn;
                 KlcFunc *klc_fn;
-                vector_foreach(fn_p, kls->funcs) {
-                    fn = *fn_p;
+                vector_foreach(fn, kls->funcs) {
+                    if (!fn) continue;
 
                     int flags_ = 0;
                     if (fn->flags & SYM_FLAGS_PUBLIC) {
@@ -171,10 +167,9 @@ void kl_write_to_klc(ParserState *ps)
                         klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
 
                     // add argument info
-                    ArgInfo **item_p;
                     ArgInfo *item;
-                    vector_foreach(item_p, fn->params) {
-                        item = *item_p;
+                    vector_foreach(item, fn->params) {
+                        if (!item) continue;
                         ASSERT(item->sym->kind == SYM_VAR);
                         VarSymbol *var_sym = (VarSymbol *)item->sym;
                         ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
@@ -203,14 +198,12 @@ void kl_write_to_klc(ParserState *ps)
 
                 if (vector_size(kls->tps) > 0) {
                     TypeParamSymbol *tp;
-                    vector_foreach_object(tp, kls->tps)
-                    {
+                    vector_foreach_object(tp, kls->tps) {
                         KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
 
                         if (vector_size(tp->bound) > 0) {
                             TypeSpec *ts;
-                            vector_foreach_object(ts, tp->bound)
-                            {
+                            vector_foreach_object(ts, tp->bound) {
                                 uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                              strlen(ts->signature));
                                 vector_push_back(&klc_tp->bounds, &index);
@@ -221,19 +214,17 @@ void kl_write_to_klc(ParserState *ps)
 
                 if (vector_size(kls->bases) > 0) {
                     TypeSpec *ts;
-                    vector_foreach_object(ts, kls->bases)
-                    {
+                    vector_foreach_object(ts, kls->bases) {
                         uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                      strlen(ts->signature));
                         vector_push_back(&klass->bases, &index);
                     }
                 }
 
-                FuncSymbol **fn_p;
                 FuncSymbol *fn;
                 KlcFunc *klc_fn;
-                vector_foreach(fn_p, kls->funcs) {
-                    fn = *fn_p;
+                vector_foreach(fn, kls->funcs) {
+                    if (!fn) continue;
 
                     int flags_ = KLC_FLAGS_TRAIT;
                     if (fn->flags & SYM_FLAGS_PUBLIC) {
@@ -244,10 +235,9 @@ void kl_write_to_klc(ParserState *ps)
                         klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
 
                     // add argument info
-                    ArgInfo **item_p;
                     ArgInfo *item;
-                    vector_foreach(item_p, fn->params) {
-                        item = *item_p;
+                    vector_foreach(item, fn->params) {
+                        if (!item) continue;
                         ASSERT(item->sym->kind == SYM_VAR);
                         VarSymbol *var_sym = (VarSymbol *)item->sym;
                         ASSERT(var_sym->scope == VAR_SCOPE_PARAM);

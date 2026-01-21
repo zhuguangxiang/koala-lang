@@ -31,11 +31,10 @@ typedef enum _SymKind {
     SYM_MAX,
 } SymKind;
 
-#define SYM_FLAGS_VAR_VALUE (1 << 0)
-#define SYM_FLAGS_MUTABLE   (1 << 1)
-#define SYM_FLAGS_PUBLIC    (1 << 2)
-#define SYM_FLAGS_TAG_ONLY  (1 << 3)
-#define SYM_FLAGS_TAG_VALUE (1 << 4)
+#define SYM_FLAGS_MUTABLE   (1 << 0)
+#define SYM_FLAGS_PUBLIC    (1 << 1)
+#define SYM_FLAGS_TAG_ONLY  (1 << 2)
+#define SYM_FLAGS_TAG_VALUE (1 << 3)
 
 #define SYMBOL_HEAD \
     HashMapEntry hnode; SymKind kind; int flags; int id; char *name; TypeSpec *ts; \
@@ -159,8 +158,7 @@ static inline void stbl_free(HashMap *stbl)
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
                       Vector *params, int flags, char *ann, char *ann_key);
-Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags);
-Symbol *stbl_add_trait(HashMap *stbl, char *name, int flags);
+Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_get(HashMap *stbl, char *name);
 void stbl_show(HashMap *stbl);

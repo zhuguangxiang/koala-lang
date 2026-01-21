@@ -37,8 +37,7 @@ static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item, Vector *vec)
 {
     KlcArgument *arg;
     Vector *params = vector_create_ptr();
-    vector_foreach_object(arg, &item->args)
-    {
+    vector_foreach_object(arg, &item->args) {
         if (!arg) continue;
         ArgInfo *arg_info = mm_alloc_obj(arg_info);
         KlcConst *name = klc_get_const(klc, arg->name_index);
@@ -87,15 +86,14 @@ static void add_klass(HashMap *stbl, KlcFile *klc, KlcKlass *kls, Vector *vec)
 
     Symbol *cls_sym;
     if (kls->flags & KLC_FLAGS_TRAIT) {
-        cls_sym = stbl_add_trait(stbl, k->sval, SYM_FLAGS_PUBLIC);
+        cls_sym = stbl_add_klass(stbl, k->sval, SYM_FLAGS_PUBLIC, 1);
     } else {
-        cls_sym = stbl_add_klass(stbl, k->sval, SYM_FLAGS_PUBLIC);
+        cls_sym = stbl_add_klass(stbl, k->sval, SYM_FLAGS_PUBLIC, 0);
     }
 
     // add type params
     KlcTypeParam *arg;
-    vector_foreach_object(arg, &kls->tps)
-    {
+    vector_foreach_object(arg, &kls->tps) {
         if (!arg) continue;
         KlcConst *name = klc_get_const(klc, arg->name_index);
         Symbol *tp_sym = stbl_add_type_param(cls_sym->stbl, name->sval, cls_sym);
@@ -106,8 +104,7 @@ static void add_klass(HashMap *stbl, KlcFile *klc, KlcKlass *kls, Vector *vec)
 
         // add bounds
         uint16_t bound;
-        vector_foreach_object(bound, &arg->bounds)
-        {
+        vector_foreach_object(bound, &arg->bounds) {
             if (!bound) continue;
             KlcConst *bound_k = klc_get_const(klc, bound);
             TypeSpec *ts = type_spec_from_str(bound_k->sval);
@@ -125,8 +122,7 @@ static void add_klass(HashMap *stbl, KlcFile *klc, KlcKlass *kls, Vector *vec)
 
     // read methods
     KlcFunc *fn;
-    vector_foreach_object(fn, &kls->methods)
-    {
+    vector_foreach_object(fn, &kls->methods) {
         if (!fn) continue;
         add_func(cls_sym->stbl, klc, fn, vec);
     }
@@ -153,8 +149,7 @@ static void read_klasses(HashMap *stbl, KlcFile *klc, Vector *vec)
     Vector *consts = klc->objs + ITEM_CONST;
 
     KlcKlass *kls;
-    vector_foreach_object(kls, klc->objs + ITEM_CLASS)
-    {
+    vector_foreach_object(kls, klc->objs + ITEM_CLASS) {
         if (!kls) continue;
         if (!(kls->flags & KLC_FLAGS_PUB)) {
             continue;
@@ -168,8 +163,7 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
 {
     TypeSpec **ts_ptr;
     TypeSpec *ts;
-    vector_foreach_object(ts_ptr, vec)
-    {
+    vector_foreach_object(ts_ptr, vec) {
         ts = *ts_ptr;
         if (ts->kind == TYPE_SPECIALIZED) {
             Symbol *sym = stbl_get(stbl, ts->specialized.name);

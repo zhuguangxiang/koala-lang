@@ -70,18 +70,6 @@ Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags)
         add_to_global(sym);
     }
 
-#ifndef NOLOG
-    BUF(buf);
-    type_spec_print(ts, &buf);
-    char *s = BUF_STR(buf);
-    if (sym) {
-        log_info("add var('%s' : '%s') OK", name, s ? s : "<NO-TYPE>");
-    } else {
-        log_info("add var('%s' : '%s') failed", name, s ? s : "<NO-TYPE>");
-    }
-    FINI_BUF(buf);
-#endif
-
     return (Symbol *)sym;
 }
 
@@ -107,45 +95,14 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
         add_to_global(sym);
     }
 
-    // update func's type
-    Vector *arg_list = NULL;
-    if (vector_size(params) != 0) {
-        arg_list = vector_create_ptr();
-        ArgInfo *arg;
-        vector_foreach_object(arg, params)
-        {
-            if (!arg->ts) {
-                // should not happen
-                UNREACHABLE();
-                continue;
-            }
-            vector_push_back(arg_list, &arg->ts);
-        }
-    }
-
-    TypeSpec *fn_ts = func_type_spec(arg_list, sym->ret);
-    sym->ts = fn_ts;
-
-#ifndef NOLOG
-    BUF(buf);
-    type_spec_print(sym->ret, &buf);
-    char *s = BUF_STR(buf);
-    if (sym) {
-        log_info("add func('%s' : '%s') OK", name, s ? s : "<NO-TYPE>");
-    } else {
-        log_info("add func('%s' : '%s') failed", name, s ? s : "<NO-TYPE>");
-    }
-    FINI_BUF(buf);
-#endif
-
     return (Symbol *)sym;
 }
 
-Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags)
+Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait)
 {
     KlassSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(name));
-    sym->kind = SYM_CLASS;
+    sym->kind = is_trait ? SYM_TRAIT : SYM_CLASS;
     sym->name = name;
 
     if (hashmap_put_absent(stbl, sym) < 0) {
@@ -159,52 +116,6 @@ Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags)
         sym->stbl = stbl_new();
         add_to_global(sym);
     }
-
-#ifndef NOLOG
-    BUF(buf);
-    type_spec_print(sym->ts, &buf);
-    char *s = BUF_STR(buf);
-    if (sym) {
-        log_info("add class('%s') OK", name);
-    } else {
-        log_info("add class('%s') failed", name);
-    }
-    FINI_BUF(buf);
-#endif
-
-    return (Symbol *)sym;
-}
-
-Symbol *stbl_add_trait(HashMap *stbl, char *name, int flags)
-{
-    KlassSymbol *sym = mm_alloc_obj(sym);
-    hashmap_entry_init(sym, str_hash(name));
-    sym->kind = SYM_TRAIT;
-    sym->name = name;
-
-    if (hashmap_put_absent(stbl, sym) < 0) {
-        mm_free(sym);
-        sym = NULL;
-    } else {
-        sym->fields = vector_create_ptr();
-        sym->funcs = vector_create_ptr();
-        sym->protos = vector_create_ptr();
-        sym->flags = flags;
-        sym->stbl = stbl_new();
-        add_to_global(sym);
-    }
-
-#ifndef NOLOG
-    BUF(buf);
-    type_spec_print(sym->ts, &buf);
-    char *s = BUF_STR(buf);
-    if (sym) {
-        log_info("add trait('%s') OK", name);
-    } else {
-        log_info("add trait('%s') failed", name);
-    }
-    FINI_BUF(buf);
-#endif
 
     return (Symbol *)sym;
 }

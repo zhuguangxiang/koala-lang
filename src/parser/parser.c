@@ -260,8 +260,7 @@ static int is_subtype_of(int child_id, int parent_id)
     if (!sym->bases) return 0;
 
     Symbol *base;
-    vector_foreach_object(base, sym->bases)
-    {
+    vector_foreach_object(base, sym->bases) {
         if (is_subtype_of(base->id, parent_id)) return 1;
     }
 
@@ -298,8 +297,7 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
             // check dst with src's upbound
             TypeParamSymbol *sym = get_symbol_by_id(src->sym_id);
             TypeSpec *bound;
-            vector_foreach_object(bound, sym->bound)
-            {
+            vector_foreach_object(bound, sym->bound) {
                 if (type_spec_compatible(dst, bound)) {
                     // Only one bound is compatible, T is compatible with dst.
                     return 1;
@@ -307,15 +305,27 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
             }
         }
 
+        if (dst->kind == TYPE_SPECIALIZED) {
+            if (src->kind == TYPE_KLASS) {
+                if (dst->sym_id == src->sym_id) {
+                    return 1;
+                } else {
+                    return 0;
+                }
+            }
+
+            UNREACHABLE();
+        }
+
         if (dst->kind == TYPE_UNION) {
             TypeSpec *arg;
-            vector_foreach_object(arg, dst->union_type.args)
-            {
+            vector_foreach_object(arg, dst->union_type.args) {
                 if (type_spec_compatible(arg, src)) {
                     return 1;
                 }
             }
         }
+
         return 0;
     }
 
@@ -381,8 +391,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         ASSERT(_ts->type_id < 0);
         TypeSpec *arg;
         Vector *vec = vector_create_ptr();
-        vector_foreach_object(arg, _ts->union_type.args)
-        {
+        vector_foreach_object(arg, _ts->union_type.args) {
             TypeSpec *ret = resolve_type(ps, arg);
             vector_push_back(vec, &ret);
         }
@@ -399,8 +408,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         vec = vector_create_ptr();
         TypeSpec *ts;
         TypeSpec *ret;
-        vector_foreach_object(ts, _ts->unresolved.args)
-        {
+        vector_foreach_object(ts, _ts->unresolved.args) {
             ret = resolve_type(ps, ts);
             vector_push_back(vec, &ret);
         }
@@ -484,8 +492,7 @@ int check_type(ParserState *ps, TypeSpec *type)
     if (type->kind == TYPE_UNION) {
         ASSERT(type->type_id >= 0);
         TypeSpec *arg;
-        vector_foreach_object(arg, type->union_type.args)
-        {
+        vector_foreach_object(arg, type->union_type.args) {
             if (!check_type(ps, arg)) return 0;
         }
         return 1;
@@ -564,14 +571,31 @@ static int parse_flags(PrefixFlags *flags)
 static Symbol *_add_var(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
 {
     Ident *id = &var->id;
-    TypeSpec *ty = var->type;
     Symbol *sym;
 
     int flags = parse_flags(&var->flags);
     if (!var->ro) flags |= SYM_FLAGS_MUTABLE;
-    if (var->exp && var->exp->kind == EXPR_LITERAL_KIND) flags |= SYM_FLAGS_VAR_VALUE;
 
-    sym = stbl_add_var(stbl, id->name, ty, flags);
+    sym = stbl_add_var(stbl, id->name, NULL, flags);
+
+    if (!sym) {
+        kl_error(id->loc, "redefinition of '%s'", id->name);
+        return NULL;
+    }
+
+    var->sym = sym;
+    return sym;
+}
+
+static Symbol *_add_local(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
+{
+    Ident *id = &var->id;
+    Symbol *sym;
+
+    int flags = parse_flags(&var->flags);
+    if (!var->ro) flags |= SYM_FLAGS_MUTABLE;
+
+    sym = stbl_add_var(stbl, id->name, var->type, flags);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -589,6 +613,12 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     TypeSpec *ts = var->type;
     Expr *exp = var->exp;
 
+    if (ts) {
+        ts = resolve_type(ps, ts);
+        if (!check_type(ps, ts)) return;
+        var->type = ts;
+    }
+
     exp->ctx = EXPR_CTX_LOAD;
     exp->expected = ts;
     parser_visit_expr(ps, exp);
@@ -600,7 +630,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
      */
     if (var->where != VAR_GLOBAL && var->where != VAR_FIELD) {
         ParserScope *sc = ps->scope;
-        if (!_add_var(ps, sc->stbl, var)) return;
+        if (!_add_local(ps, sc->stbl, var)) return;
     }
 
     VarSymbol *sym = (VarSymbol *)var->sym;
@@ -640,7 +670,8 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         log_info("update symbol '%s' type as:", sym->name);
         print_type_spec(sym->ts);
     } else {
-        if (!type_spec_compatible(exp->ts, ts)) {
+        if (!sym->ts) sym->ts = ts;
+        if (!type_spec_compatible(ts, exp->ts)) {
             kl_error(id->loc, "Types of two sides are not matched.");
             log_info("lhs:");
             print_type_spec(ts);
@@ -648,16 +679,6 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
             print_type_spec(exp->ts);
             return;
         }
-    }
-
-    // codegen
-    ParserScope *sc = ps->scope;
-    if (sc->kind == SCOPE_FUNC) {
-        // KlrBuilder bldr;
-        // klr_builder_end(&bldr, sc->bb);
-        // KlrValue *ir_var = klr_add_local(&bldr, sym->desc, id->name);
-        // sym->ir_val = ir_var;
-        // klr_build_store(&bldr, ir_var, exp->ir_val);
     }
 }
 
@@ -689,16 +710,16 @@ static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
     }
 }
 
+// only add function symbol and don't add parameters and return type.
 static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
 {
     Ident *id = &fn->id;
-    TypeSpec *ty = fn->ret ?: no_type_spec();
     Symbol *sym;
 
     int flags = parse_flags(&fn->flags);
     char *ann = fn->flags.at.ident;
     char *ann_key = fn->flags.at.assoc_ident;
-    sym = stbl_add_func(stbl, id->name, fn->tps, ty, NULL, flags, ann, ann_key);
+    sym = stbl_add_func(stbl, id->name, fn->tps, NULL, NULL, flags, ann, ann_key);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -714,11 +735,12 @@ static void parse_stmt(ParserState *ps, Stmt *stmt);
 static void parse_body(ParserState *ps, FuncSymbol *sym, Vector *stmts)
 {
     int sz = vector_size(stmts);
-    Stmt **s_p;
     Stmt *s;
-    vector_foreach(s_p, stmts) {
-        s = *s_p;
+    vector_foreach(s, stmts) {
+        if (!s) continue;
+
         parse_stmt(ps, s);
+
         if (ps->errors >= MAX_ERRORS) break;
 
         if (i__ + 1 < sz) {
@@ -782,22 +804,24 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
 
-    /* add parameters into function symbol table */
-
     // parse return type
-    if (sym->ret) {
-        TypeSpec *_ts = sym->ret;
-        sym->ret = resolve_type(ps, _ts);
-        check_type(ps, sym->ret);
+    if (fn->ret) {
+        TypeSpec *_ts = fn->ret;
+        _ts = resolve_type(ps, _ts);
+        check_type(ps, _ts);
+        sym->ret = _ts;
+    } else {
+        // default return type is 'None'
+        sym->ret = no_type_spec();
     }
 
     Vector *args = vector_create_ptr();
 
     int has_va_arg = 0;
-    ParamDecl **param_p;
     ParamDecl *param;
-    vector_foreach(param_p, fn->args) {
-        param = *param_p;
+    vector_foreach(param, fn->args) {
+        if (!param) continue;
+
         if (has_va_arg && !param->value) {
             kl_error(param->id.loc,
                      "after variadic parameter must be the kw parameters.");
@@ -851,7 +875,6 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
             check_type(ps, ts);
         }
 
-        // TODO: add parameter symbol into function symbol table
         Symbol *s = stbl_add_var(sc->stbl, param->id.name, ts, 0);
         if (!s) {
             kl_error(param->id.loc, "redefinition of parameter '%s' in function '%s'",
@@ -900,8 +923,7 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     if (vector_size(args) != 0) {
         arg_list = vector_create_ptr();
         ArgInfo *arg;
-        vector_foreach_object(arg, args)
-        {
+        vector_foreach_object(arg, args) {
             if (!arg->ts) {
                 // should not happen
                 UNREACHABLE();
@@ -915,16 +937,6 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     sym->ts = fn_ts;
     log_info("update function '%s' type as:", sym->name);
     print_type_spec(sym->ts);
-
-    // KlrValue *fval = klr_add_func(ps->module, sym->desc, params, fn->id.name);
-    // sym->ir_val = fval;
-    // KlrBasicBlock *entry = klr_append_block(fval, "entry");
-    // sc->bb = entry;
-
-    // for (int i = 0; i < size; i++) {
-    //     Symbol *s = arg_syms[i];
-    //     s->ir_val = klr_get_param(fval, i);
-    // }
 
     /* parse body */
     parse_body(ps, sym, fn->body);
@@ -940,14 +952,16 @@ static void parse_expr(ParserState *ps, Stmt *stmt)
     parser_visit_expr(ps, exp);
 }
 
-static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
+// only add klass/trait symbol and add tp, fields and methods
+static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls,
+                          int is_trait)
 {
     Ident *id = &kls->id;
     Symbol *sym;
 
     int flags = parse_flags(&kls->flags);
 
-    sym = stbl_add_klass(stbl, id->name, flags);
+    sym = stbl_add_klass(stbl, id->name, flags, is_trait);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -957,26 +971,23 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
     KlassSymbol *kls_sym = (KlassSymbol *)sym;
 
     // add tps
-    Vector *vec = NULL;
     if (vector_size(kls->tps) > 0) {
-        vec = vector_create_ptr();
+        Vector *vec = vector_create_ptr();
         kls_sym->tps = vec;
-    }
 
-    TypeParamDecl **tp_p;
-    TypeParamDecl *tp;
-    vector_foreach(tp_p, kls->tps) {
-        tp = *tp_p;
-        Symbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name, sym);
-        vector_push_back(vec, &tp_sym);
-        ((TypeParamSymbol *)tp_sym)->index = i__;
+        TypeParamDecl *tp;
+        vector_foreach(tp, kls->tps) {
+            if (!tp) continue;
+            Symbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name, sym);
+            ((TypeParamSymbol *)tp_sym)->index = vector_size(vec);
+            vector_push_back(vec, &tp_sym);
+        }
     }
 
     // add fields & methods
-    Stmt **stmt_p;
     Stmt *stmt;
-    vector_foreach(stmt_p, kls->stmts) {
-        stmt = *stmt_p;
+    vector_foreach(stmt, kls->stmts) {
+        if (!stmt) continue;
         if (stmt->kind == STMT_VAR_KIND) {
             Symbol *var = _add_var(ps, sym->stbl, (VarDeclStmt *)stmt);
             if (var) vector_push_back(kls_sym->fields, &var);
@@ -988,61 +999,13 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
         }
     }
 
-    // add typespec to class symbol
+    // add typespec to klass symbol
     TypeSpec *ts = klass_type_spec(NULL, kls->id.name);
     kls_sym->instance_ts = ts;
     ts->sym_id = kls_sym->id;
 
     ts = type_type_spec();
     kls_sym->ts = ts;
-
-    kls->sym = sym;
-    return sym;
-}
-
-static Symbol *_add_trait(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls)
-{
-    Ident *id = &kls->id;
-    Symbol *sym;
-
-    int flags = parse_flags(&kls->flags);
-    sym = stbl_add_trait(stbl, id->name, flags);
-
-    if (!sym) {
-        kl_error(id->loc, "redefinition of '%s'", id->name);
-        return NULL;
-    }
-
-    KlassSymbol *kls_sym = (KlassSymbol *)sym;
-
-    // add tps
-    Vector *vec = NULL;
-    if (vector_size(kls->tps) > 0) {
-        vec = vector_create_ptr();
-    }
-    kls_sym->tps = vec;
-
-    TypeParamDecl **tp_p;
-    TypeParamDecl *tp;
-    vector_foreach(tp_p, kls->tps) {
-        tp = *tp_p;
-        Symbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name, sym);
-        vector_push_back(vec, &tp_sym);
-        ((TypeParamSymbol *)tp_sym)->index = i__;
-    }
-
-    // add method proto
-    Stmt **stmt_p;
-    Stmt *stmt;
-    vector_foreach(stmt_p, kls->stmts) {
-        stmt = *stmt_p;
-        if (stmt->kind == STMT_FUNC_KIND) {
-            Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt);
-            if (fn) vector_push_back(kls_sym->funcs, &fn);
-        } else {
-            UNREACHABLE();
-        }
-    }
 
     kls->sym = sym;
     return sym;
@@ -1059,16 +1022,14 @@ static void parse_class(ParserState *ps, Stmt *stmt)
 
     // parse type parameter's bounds
     TypeParamDecl *tp;
-    vector_foreach_object(tp, kls->tps)
-    {
+    vector_foreach_object(tp, kls->tps) {
         TypeParamSymbol *tp_sym = vector_get_object(sym->tps, i__);
 
         if (vector_size(tp->bound) > 0) {
             Vector *vec = vector_create_ptr();
             TypeSpec *_ts;
             TypeSpec *ts;
-            vector_foreach_object(_ts, tp->bound)
-            {
+            vector_foreach_object(_ts, tp->bound) {
                 ts = resolve_type(ps, _ts);
                 assert(ts);
                 int r = check_type(ps, ts);
@@ -1083,8 +1044,7 @@ static void parse_class(ParserState *ps, Stmt *stmt)
     if (vector_size(kls->bases) > 0) {
         Vector *vec = vector_create_ptr();
         TypeSpec *ts;
-        vector_foreach_object(ts, kls->bases)
-        {
+        vector_foreach_object(ts, kls->bases) {
             TypeSpec *base_ts = resolve_type(ps, ts);
             ASSERT(base_ts);
             int r = check_type(ps, base_ts);
@@ -1114,9 +1074,10 @@ static void parse_class(ParserState *ps, Stmt *stmt)
     }
 
     /* parse class body */
-    Stmt **s;
+    Stmt *s;
     vector_foreach(s, kls->stmts) {
-        parse_stmt(ps, *s);
+        if (!s) continue;
+        parse_stmt(ps, s);
     }
 
     exit_scope(ps);
@@ -1133,16 +1094,14 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
 
     // parse type parameter's bounds
     TypeParamDecl *tp;
-    vector_foreach_object(tp, kls->tps)
-    {
+    vector_foreach_object(tp, kls->tps) {
         TypeParamSymbol *tp_sym = vector_get_object(sym->tps, i__);
 
         if (vector_size(tp->bound) > 0) {
             Vector *vec = vector_create_ptr();
             TypeSpec *_ts;
             TypeSpec *ts;
-            vector_foreach_object(_ts, tp->bound)
-            {
+            vector_foreach_object(_ts, tp->bound) {
                 ts = resolve_type(ps, _ts);
                 assert(ts);
                 int r = check_type(ps, ts);
@@ -1157,8 +1116,7 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
     if (vector_size(kls->bases) > 0) {
         Vector *vec = vector_create_ptr();
         TypeSpec *ts;
-        vector_foreach_object(ts, kls->bases)
-        {
+        vector_foreach_object(ts, kls->bases) {
             TypeSpec *base_ts = resolve_type(ps, ts);
             ASSERT(base_ts);
             int r = check_type(ps, base_ts);
@@ -1179,7 +1137,7 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
         sym->bases = vec;
     }
 
-    /* parse class body */
+    /* parse trait body */
     Stmt **s;
     vector_foreach(s, kls->stmts) {
         parse_stmt(ps, *s);
@@ -1246,9 +1204,10 @@ static void parse_ast(ParserState *ps)
 {
     ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0);
     scope->stbl = ps->stbl;
-    Stmt **stmt;
+    Stmt *stmt;
     vector_foreach(stmt, &ps->stmts) {
-        parse_stmt(ps, *stmt);
+        if (!stmt) continue;
+        parse_stmt(ps, stmt);
     }
     exit_scope(ps);
 
@@ -1310,9 +1269,9 @@ int compile(int argc, char *argv[])
 
     parse_ast(ps);
 
-    if (!ps->errors) {
-        codegen_ast(ps);
-    }
+    // if (!ps->errors) {
+    //     codegen_ast(ps);
+    // }
 
     if (!ps->errors) {
         kl_write_to_klc(ps);
@@ -1323,7 +1282,30 @@ int compile(int argc, char *argv[])
     return 0;
 }
 
-static void parse_top_stmt(ParserState *ps, Stmt *stmt)
+// only add symbol and do not add its type
+static Symbol *_add_global(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
+{
+    Ident *id = &var->id;
+    TypeSpec *ts = var->type;
+    Symbol *sym;
+
+    int flags = parse_flags(&var->flags);
+    if (!var->ro) flags |= SYM_FLAGS_MUTABLE;
+
+    // don't add unresolved type
+    if (ts && ts->kind == TYPE_UNRESOLVED) ts = NULL;
+    sym = stbl_add_var(stbl, id->name, ts, flags);
+
+    if (!sym) {
+        kl_error(id->loc, "redefinition of '%s'", id->name);
+        return NULL;
+    }
+
+    var->sym = sym;
+    return sym;
+}
+
+void parse_top_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
 
@@ -1332,27 +1314,27 @@ static void parse_top_stmt(ParserState *ps, Stmt *stmt)
     switch (stmt->kind) {
         case STMT_VAR_KIND: {
             VarDeclStmt *var = (VarDeclStmt *)stmt;
-            sym = _add_var(ps, ps->stbl, var);
-            if (!sym) goto failed;
+            sym = _add_global(ps, ps->stbl, var);
+            if (!sym) return;
             var->where = VAR_GLOBAL;
             break;
         }
         case STMT_FUNC_KIND: {
             FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
             sym = _add_func(ps, ps->stbl, fn);
-            if (!sym) goto failed;
+            if (!sym) return;
             break;
         }
         case STMT_CLASS_KIND: {
             KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
-            sym = _add_klass(ps, ps->stbl, kls);
-            if (!sym) goto failed;
+            sym = _add_klass(ps, ps->stbl, kls, 0);
+            if (!sym) return;
             break;
         }
         case STMT_TRAIT_KIND: {
             KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
-            sym = _add_trait(ps, ps->stbl, kls);
-            if (!sym) goto failed;
+            sym = _add_klass(ps, ps->stbl, kls, 1);
+            if (!sym) return;
             break;
         }
         default: {
@@ -1361,19 +1343,6 @@ static void parse_top_stmt(ParserState *ps, Stmt *stmt)
     }
 
     vector_push_back(&ps->stmts, &stmt);
-    return;
-
-failed:
-    stmt_free(stmt);
-}
-
-void yyparse_module(ParserState *ps, Vector *stmts)
-{
-    Stmt **stmt;
-    vector_foreach(stmt, stmts) {
-        parse_top_stmt(ps, *stmt);
-    }
-    vector_destroy(stmts);
 }
 
 #ifdef __cplusplus

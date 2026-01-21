@@ -150,9 +150,11 @@ static inline void vector_pop_front(Vector *vec, void *obj)
 /* iterate vector, deletion is unsafe
 item is pointer, return pointer's pointer
 item is structure, return pointer of this structure
+NOTE: obj maybe null
 */
 #define vector_foreach(obj, vec) \
-    for (int i__ = 0; (obj = vector_get(vec, i__)); ++i__)
+    for (int i__ = 0, n__ = vector_size(vec); i__ < n__; i__++) \
+        if (({ typeof(obj) *p__ = vector_get(vec, i__); (obj = *p__); 1; }))
 
 /* iterate vector(pointer saved) in reverse order, deletion is unsafe */
 #define vector_foreach_reverse(obj, vec) \

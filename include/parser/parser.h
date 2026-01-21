@@ -53,6 +53,7 @@ typedef struct _ParserScope {
 typedef struct _ParserState {
     /* src file name */
     char *filename;
+
     /* statements */
     Vector stmts;
 
@@ -132,7 +133,7 @@ void kl_error_detail(ParserState *, Loc *);
 /* clang-format on */
 
 void parser_visit_expr(ParserState *ps, Expr *exp);
-void yyparse_module(ParserState *ps, Vector *stmts);
+void parse_top_stmt(ParserState *ps, Stmt *stmt);
 int compile(int argc, char *argv[]);
 void codegen_ast(ParserState *ps);
 

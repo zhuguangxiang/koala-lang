@@ -458,10 +458,10 @@ static void write_const(KlcFile *klc, KlcConst *item)
             Vector *vec = item->val;
             int size = vector_size(vec);
             write_uint8(klc, (uint8_t)size);
-            KlcConst **item_p;
+
             KlcConst *item;
-            vector_foreach(item_p, vec) {
-                item = *item_p;
+            vector_foreach(item, vec) {
+                if (!item) continue;
                 write_const(klc, item);
             }
             break;
@@ -470,10 +470,10 @@ static void write_const(KlcFile *klc, KlcConst *item)
             Vector *vec = item->val;
             int size = vector_size(vec);
             write_uint32(klc, (uint32_t)size);
-            KlcConst **item_p;
+
             KlcConst *item;
-            vector_foreach(item_p, vec) {
-                item = *item_p;
+            vector_foreach(item, vec) {
+                if (!item) continue;
                 write_const(klc, item);
             }
             break;
@@ -492,10 +492,8 @@ static void write_consts(KlcFile *klc, Vector *vec)
     size_t size = vector_size(vec) - 1;
     write_uint16(klc, (uint16_t)size);
 
-    KlcConst **item_p;
     KlcConst *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         write_const(klc, item);
     }
@@ -506,8 +504,7 @@ static void write_vars(KlcFile *klc, Vector *vec)
     size_t size = vector_size(vec) - 1;
     write_uint16(klc, (uint16_t)size);
     KlcVar *item;
-    vector_foreach_object(item, vec)
-    {
+    vector_foreach_object(item, vec) {
         write_uint16(klc, item->flags);
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->type_index);
@@ -520,8 +517,7 @@ static void write_args(KlcFile *klc, Vector *vec)
     size_t size = vector_size(vec) - 1;
     write_uint8(klc, (uint8_t)size);
     KlcArgument *item;
-    vector_foreach_object(item, vec)
-    {
+    vector_foreach_object(item, vec) {
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->type_index);
         write_uint16(klc, item->const_index);
@@ -534,16 +530,14 @@ static void write_tps(KlcFile *klc, Vector *vec)
     write_uint8(klc, (uint8_t)size);
 
     KlcTypeParam *item;
-    vector_foreach_object(item, vec)
-    {
+    vector_foreach_object(item, vec) {
         write_uint16(klc, item->name_index);
 
         size_t bsize = vector_size(&item->bounds) - 1;
         write_uint8(klc, (uint8_t)bsize);
 
         uint16_t bitem;
-        vector_foreach_object(bitem, &item->bounds)
-        {
+        vector_foreach_object(bitem, &item->bounds) {
             if (!bitem) continue;
             write_uint16(klc, bitem);
         }
@@ -555,8 +549,7 @@ static void write_anns(KlcFile *klc, Vector *vec)
     size_t size = vector_size(vec) - 1;
     write_uint8(klc, (uint8_t)size);
     KlcAnnot *item;
-    vector_foreach_object(item, vec)
-    {
+    vector_foreach_object(item, vec) {
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->key_index);
         write_uint16(klc, item->value_index);
@@ -568,17 +561,18 @@ static void write_bases(KlcFile *klc, Vector *vec)
     size_t size = vector_size(vec) - 1;
     write_uint8(klc, (uint8_t)size);
     uint16_t item;
-    vector_foreach_object(item, vec) { write_uint16(klc, item); }
+    vector_foreach_object(item, vec) {
+        write_uint16(klc, item);
+    }
 }
 
 static void write_funcs(KlcFile *klc, Vector *vec)
 {
     size_t size = vector_size(vec) - 1;
     write_uint16(klc, (uint16_t)size);
-    KlcFunc **item_p;
+
     KlcFunc *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         write_uint16(klc, item->flags);
         write_uint16(klc, item->name_index);
@@ -596,8 +590,7 @@ static void write_classes(KlcFile *klc, Vector *vec)
     write_uint16(klc, (uint16_t)size);
     KlcKlass **item_p;
     KlcKlass *item;
-    vector_foreach_object(item, vec)
-    {
+    vector_foreach_object(item, vec) {
         write_uint16(klc, item->flags);
         write_uint16(klc, item->name_index);
         write_tps(klc, &item->tps);
@@ -612,10 +605,8 @@ static void write_relocs(KlcFile *klc, Vector *vec)
     size_t size = vector_size(vec) - 1;
     write_uint16(klc, (uint16_t)size);
 
-    KlcReloc **item_p;
     KlcReloc *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         write_uint16(klc, item->ns_index);
         write_uint16(klc, item->sym_index);
@@ -626,10 +617,9 @@ static void write_codes(KlcFile *klc, Vector *vec)
 {
     size_t size = vector_size(vec) - 1;
     write_uint16(klc, (uint16_t)size);
-    KlcCode **item_p;
+
     KlcCode *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         write_uint16(klc, item->num_locals);
         write_uint16(klc, item->code_size);
@@ -972,10 +962,8 @@ void init_klc_file(KlcFile *klc, const char *path)
 
 static void fini_consts(Vector *vec)
 {
-    KlcConst **item_p;
     KlcConst *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         mm_free(item);
     }
@@ -985,10 +973,8 @@ static void fini_consts(Vector *vec)
 
 static void fini_vars(Vector *vec)
 {
-    KlcVar **item_p;
     KlcVar *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         mm_free(item);
     }
@@ -998,10 +984,8 @@ static void fini_vars(Vector *vec)
 
 static void fini_funcs(Vector *vec)
 {
-    KlcConst **item_p;
     KlcConst *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
     }
 
@@ -1010,10 +994,8 @@ static void fini_funcs(Vector *vec)
 
 static void fini_class(Vector *vec)
 {
-    KlcConst **item_p;
     KlcConst *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
     }
 
@@ -1022,10 +1004,8 @@ static void fini_class(Vector *vec)
 
 static void fini_relocs(Vector *vec)
 {
-    KlcConst **item_p;
     KlcConst *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
     }
 
@@ -1034,10 +1014,8 @@ static void fini_relocs(Vector *vec)
 
 static void fini_codes(Vector *vec)
 {
-    KlcConst **item_p;
     KlcConst *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
     }
 

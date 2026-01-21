@@ -111,10 +111,8 @@ static void dump_const_value(KlcConst *item)
 static void dump_consts(Vector *vec)
 {
     fprintf(stdout, "constants:\n");
-    KlcConst **item_p;
     KlcConst *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         fprintf(stdout, "  [%2d] = ", i__);
         dump_const(item);
@@ -152,10 +150,8 @@ static void dump_vars(Vector *vec, KlcFile *klc)
 
     BUF(buf);
 
-    KlcVar **item_p;
     KlcVar *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         dump_var(item, klc);
     }
@@ -164,10 +160,8 @@ static void dump_vars(Vector *vec, KlcFile *klc)
 
 static void dump_anns(Vector *vec, KlcFile *klc, int leading_spaces)
 {
-    KlcAnnot **item_p;
     KlcAnnot *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         fprintf(stdout, "%*c", leading_spaces, ' ');
         KlcConst *k = klc_get_const(klc, item->name_index);
@@ -239,11 +233,10 @@ static void dump_func(KlcFunc *fn, KlcFile *klc, int leading_spaces)
     fprintf(stdout, "func %s(", k->sval);
     KlcConst *def_val;
     KlcConst *ty_k;
-    KlcArgument **arg_p;
+
     KlcArgument *arg;
     int i = 0;
-    vector_foreach(arg_p, &fn->args) {
-        arg = *arg_p;
+    vector_foreach(arg, &fn->args) {
         if (!arg) continue;
         k = klc_get_const(klc, arg->name_index);
         def_val = klc_get_const(klc, arg->const_index);
@@ -303,10 +296,8 @@ static void dump_funcs(Vector *vec, KlcFile *klc)
 {
     fprintf(stdout, "functions:\n");
 
-    KlcFunc **item_p;
     KlcFunc *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         dump_func(item, klc, 2);
     }
@@ -316,10 +307,8 @@ static void dump_class(Vector *vec, KlcFile *klc)
 {
     fprintf(stdout, "classes:\n");
 
-    KlcKlass **item_p;
     KlcKlass *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
 
         fprintf(stdout, "%*c", 2, ' ');
@@ -339,8 +328,7 @@ static void dump_class(Vector *vec, KlcFile *klc)
             fprintf(stdout, "[");
             KlcTypeParam *tp;
             int index = 0;
-            vector_foreach_object(tp, &item->tps)
-            {
+            vector_foreach_object(tp, &item->tps) {
                 if (!tp) continue;
                 KlcConst *name = klc_get_const(klc, tp->name_index);
                 if (index != 0)
@@ -353,8 +341,7 @@ static void dump_class(Vector *vec, KlcFile *klc)
                     BUF(buf);
                     uint16_t bitem;
                     int bindex = 0;
-                    vector_foreach_object(bitem, &tp->bounds)
-                    {
+                    vector_foreach_object(bitem, &tp->bounds) {
                         if (bitem == 0) continue;
 
                         KlcConst *bname = klc_get_const(klc, bitem);
@@ -379,8 +366,7 @@ static void dump_class(Vector *vec, KlcFile *klc)
             uint16_t bitem;
             int index = 0;
             BUF(buf);
-            vector_foreach_object(bitem, &item->bases)
-            {
+            vector_foreach_object(bitem, &item->bases) {
                 if (bitem == 0) continue;
 
                 KlcConst *bname = klc_get_const(klc, bitem);
@@ -397,18 +383,14 @@ static void dump_class(Vector *vec, KlcFile *klc)
 
         fprintf(stdout, " {\n");
 
-        KlcVar **field_p;
         KlcVar *field;
-        vector_foreach(field_p, &item->fields) {
-            field = *field_p;
+        vector_foreach(field, &item->fields) {
             if (!field) continue;
             dump_var(field, klc);
         }
 
-        KlcFunc **fn_p;
         KlcFunc *fn;
-        vector_foreach(fn_p, &item->methods) {
-            fn = *fn_p;
+        vector_foreach(fn, &item->methods) {
             if (!fn) continue;
             dump_func(fn, klc, 4);
         }
@@ -423,10 +405,8 @@ static void dump_relocs(Vector *vec, KlcFile *klc)
 
     Vector *consts = klc->objs + ITEM_CONST;
 
-    KlcReloc **item_p;
     KlcReloc *item;
-    vector_foreach(item_p, vec) {
-        item = *item_p;
+    vector_foreach(item, vec) {
         if (!item) continue;
         fprintf(stdout, "  [%2d] = ", i__);
         KlcConst **k = vector_get(consts, item->ns_index);
