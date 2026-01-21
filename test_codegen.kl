@@ -20,7 +20,9 @@ var v6 = hello
 
 var v6_1 = v6()
 
-var v6_2 = int64("1A", 16)
+var v6_2 = int64("1A", base = 16)
+
+var v6_3 = int64("1A", 16)
 
 var v7 = int64("255")
 
@@ -41,3 +43,16 @@ var v8 = f(1) + int(10)
 
 var v9 = type(f2)
 var v10 = int
+
+class List[T] {
+    func __init__() {
+    }
+
+    func add(item T) {
+    }
+
+    func get(index int) T {
+    }
+}
+
+var l = list[int]()

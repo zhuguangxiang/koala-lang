@@ -57,7 +57,6 @@ typedef enum _ExprKind {
     EXPR_UNDER_KIND,
     EXPR_LITERAL_KIND,
     EXPR_SELF_KIND,
-    EXPR_SUPER_KIND,
     EXPR_ARRAY_KIND,
     EXPR_MAP_KIND,
     EXPR_MAP_ENTRY_KIND,
@@ -68,7 +67,6 @@ typedef enum _ExprKind {
     EXPR_CALL_KIND,
     EXPR_DOT_KIND,
     EXPR_INDEX_KIND,
-    EXPR_INDEX_SLICE_KIND,
     EXPR_SLICE_KIND,
     EXPR_UNARY_KIND,
     EXPR_BINARY_KIND,
@@ -141,7 +139,6 @@ typedef struct _IdentExpr {
 Expr *expr_from_ident(Ident *id);
 Expr *expr_from_under(void);
 Expr *expr_from_self(void);
-Expr *expr_from_super(void);
 
 typedef struct _IsExpr {
     EXPR_HEAD
@@ -302,21 +299,14 @@ typedef struct _IndexExpr {
 
 Expr *expr_from_index(Expr *lhs, Vector *vec);
 
-typedef struct _IndexSliceExpr {
-    EXPR_HEAD
-    Expr *lhs;
-    Expr *slice;
-} IndexSliceExpr;
-
-Expr *expr_from_index_slice(Expr *lhs, Expr *slice);
-
 typedef struct _SliceExpr {
     EXPR_HEAD
     Expr *start;
     Expr *stop;
+    Expr *step;
 } SliceExpr;
 
-Expr *expr_from_slice(Expr *start, Expr *stop);
+Expr *expr_from_slice(Expr *start, Expr *stop, Expr *step);
 
 typedef enum _StmtKind {
     STMT_UNK_KIND,
@@ -387,6 +377,7 @@ Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int ro, Expr *e);
 typedef struct _TypeParamDecl {
     Loc loc;
     Ident id;
+    int covariant;
     Vector *bound;
 } TypeParamDecl;
 
@@ -395,6 +386,7 @@ TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound);
 typedef struct _ParamDecl {
     Loc loc;
     Ident id;
+    int va_arg;
     TypeSpec *type;
     Expr *value;
 } ParamDecl;

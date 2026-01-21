@@ -49,7 +49,7 @@ typedef struct _ParserScope {
     KlrBasicBlock *bb;
 } ParserScope;
 
-/* per compiled file */
+/* per source file */
 typedef struct _ParserState {
     /* src file name */
     char *filename;
@@ -60,6 +60,9 @@ typedef struct _ParserState {
     ParserScope *scope;
     /* depth of scope */
     int depth;
+
+    /* current file imported */
+    HashMap *imported;
 
     /* builtin table */
     HashMap *builtin;
@@ -133,6 +136,9 @@ void yyparse_module(ParserState *ps, Vector *imports, Vector *stmts);
 int compile(int argc, char *argv[]);
 void codegen_ast(ParserState *ps);
 
+void init_parser(void);
+void fini_parser(void);
+
 ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block);
 void exit_scope(ParserState *ps);
 
@@ -141,7 +147,7 @@ int check_type(ParserState *ps, TypeSpec *ts);
 int type_spec_compatible(TypeSpec *dst, TypeSpec *src);
 
 void kl_write_to_klc(ParserState *ps);
-void kl_read_from_klc(HashMap *stbl, char *path);
+void load_module(ModuleSymbol *mod_sym, char *path);
 void kl_emit(ParserState *ps, KlrModule *m);
 
 #ifdef __cplusplus

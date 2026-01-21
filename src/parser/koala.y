@@ -242,6 +242,7 @@ static void free_tp_list(Vector *vec)
 %type<vec> local_list
 %type<vec> map_list
 %type<vec> expr_list
+%type<vec> index_expr_list
 %type<vec> param_list
 %type<vec> id_type_arg_list
 %type<vec> kw_arg_list
@@ -1176,6 +1177,7 @@ id_type_arg_list
         TypeSpec *ts = va_list_type_spec();
         type_spec_loc(ts, loc(@2));
         ParamDecl *p = param_new(lloc(@1, @2), id, ts, NULL);
+        p->va_arg = 1;
         $$ = vector_create_ptr();
         vector_push_back($$, &p);
     }
@@ -1186,6 +1188,7 @@ id_type_arg_list
         TypeSpec *ts = va_list_type_spec();
         type_spec_loc(ts, loc(@4));
         ParamDecl *p = param_new(lloc(@3, @4), id, ts, NULL);
+        p->va_arg = 1;
         vector_push_back($$, &p);
     }
     | ID union_opt_type
@@ -1230,9 +1233,8 @@ kw_arg
     }
     | ID union_opt_type '=' expr
     {
-        // Ident id = {$1, loc(@1)};
-        // $$ = param_new(lloc(@1, @4), id, $2, $4);
-        $$ = NULL;
+        Ident id = {$1, loc(@1)};
+        $$ = param_new(lloc(@1, @4), id, $2, $4);
     }
     | ID '=' error
     {
@@ -2424,19 +2426,14 @@ dot_expr
     ;
 
 index_expr
-    : primary_expr '[' expr_list ']'
+    : primary_expr '[' index_expr_list ']'
     {
-        // Foo[100]
+        // Foo[1, 2]
         // Foo["hello"]
         // Foo[Bar]()
         // FOO[Bar?]()
         // Foo[Bar, Baz]()
         $$ = expr_from_index($1, $3);
-        expr_set_loc($$, lloc(@1, @4));
-    }
-    | primary_expr '[' slice_expr ']'
-    {
-        $$ = expr_from_index_slice($1, $3);
         expr_set_loc($$, lloc(@1, @4));
     }
     | primary_expr '[' error
@@ -2446,83 +2443,100 @@ index_expr
         yy_clear_ok;
         $$ = NULL;
     }
-    | primary_expr '[' expr_list error
+    | primary_expr '[' index_expr_list error
     {
-        expr_free($1);
-        free_expr_list($3);
+        // expr_free($1);
+        // free_expr_list($3);
         kl_error(loc(@4), "expected ']'.");
         yy_clear_ok;
         $$ = NULL;
     }
     ;
 
+index_expr_list
+    : expr
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | slice_expr
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | index_expr_list ',' expr
+    {
+        $$ = $1;
+        vector_push_back($$, &$3);
+    }
+    | index_expr_list ',' slice_expr
+    {
+        $$ = $1;
+        vector_push_back($$, &$3);
+    }
+    ;
+
 slice_expr
     : expr ':' expr ':' expr
     {
-
+        $$ = expr_from_slice($1, $3, $5);
+        expr_set_loc($$, lloc(@1, @5));
     }
     | ':' expr ':' expr
     {
-
+        $$ = expr_from_slice(NULL, $2, $4);
+        expr_set_loc($$, lloc(@1, @4));
     }
     | expr ':' ':' expr
     {
-
+        $$ = expr_from_slice($1, NULL, $4);
+        expr_set_loc($$, lloc(@1, @4));
     }
     | expr ':' expr ':'
     {
-
+        $$ = expr_from_slice($1, $3, NULL);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | expr ':' expr
     {
-        $$ = expr_from_slice($1, $3);
+        $$ = expr_from_slice($1, $3, NULL);
         expr_set_loc($$, lloc(@1, @3));
     }
     | ':' expr
     {
-        $$ = expr_from_slice(NULL, $2);
+        $$ = expr_from_slice(NULL, $2, NULL);
         expr_set_loc($$, lloc(@1, @2));
     }
     | expr ':'
     {
-        $$ = expr_from_slice($1, NULL);
+        $$ = expr_from_slice($1, NULL, NULL);
         expr_set_loc($$, lloc(@1, @2));
     }
     | ':' ':' expr
     {
-
+        $$ = expr_from_slice(NULL, NULL, $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | ':' expr ':'
     {
-
+        $$ = expr_from_slice(NULL, $2, NULL);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | expr ':' ':'
     {
-
+        $$ = expr_from_slice($1, NULL, NULL);
+        expr_set_loc($$, lloc(@1, @3));
     }
     | ':' ':'
     {
-        $$ = expr_from_slice(NULL, NULL);
+        $$ = expr_from_slice(NULL, NULL, NULL);
         expr_set_loc($$, loc(@1));
     }
     | ':'
     {
-        $$ = expr_from_slice(NULL, NULL);
+        $$ = expr_from_slice(NULL, NULL, NULL);
         expr_set_loc($$, loc(@1));
     }
-    /* | ':' error
-    {
-        kl_error(loc(@2), "expected an expr.");
-        yy_clear_ok;
-        $$ = NULL;
-    } */
-    /* | expr ':' error
-    {
-        expr_free($1);
-        kl_error(loc(@3), "expected an expr.");
-        yy_clear_ok;
-        $$ = NULL;
-    } */
     ;
 
 atom_expr
@@ -2549,7 +2563,7 @@ atom_expr
     }
     | array_expr
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | map_expr
     {
@@ -2657,10 +2671,10 @@ array_expr
     }
     | ARRAY
     {
-        // Type *ty = array_type(NULL);
-        // type_set_loc(ty, loc(@1));
-        // $$ = expr_from_type(ty);
-        // expr_set_loc($$, loc(@1));
+        TypeSpec *ty = klass_type_spec(NULL, "list");
+        type_spec_loc(ty, loc(@1));
+        $$ = expr_from_type(ty);
+        expr_set_loc($$, loc(@1));
     }
     | '[' error
     {

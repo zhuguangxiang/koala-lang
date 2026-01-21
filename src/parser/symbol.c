@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-Vector all_symbols = VECTOR_INIT_PTR;
+static Vector all_symbols = VECTOR_INIT_PTR;
 
 static void add_to_global(void *_sym)
 {
@@ -107,9 +107,28 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
         add_to_global(sym);
     }
 
+    // update func's type
+    Vector *arg_list = NULL;
+    if (vector_size(params) != 0) {
+        arg_list = vector_create_ptr();
+        ArgInfo *arg;
+        vector_foreach_object(arg, params)
+        {
+            if (!arg->ts) {
+                // should not happen
+                UNREACHABLE();
+                continue;
+            }
+            vector_push_back(arg_list, &arg->ts);
+        }
+    }
+
+    TypeSpec *fn_ts = func_type_spec(arg_list, sym->ret);
+    sym->ts = fn_ts;
+
 #ifndef NOLOG
     BUF(buf);
-    type_spec_print(sym->ts, &buf);
+    type_spec_print(sym->ret, &buf);
     char *s = BUF_STR(buf);
     if (sym) {
         log_info("add func('%s' : '%s') OK", name, s ? s : "<NO-TYPE>");
@@ -214,6 +233,30 @@ Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner)
     }
 #endif
 
+    return (Symbol *)sym;
+}
+
+Symbol *stbl_add_module(HashMap *stbl, char *path)
+{
+    ModuleSymbol *sym = mm_alloc_obj(sym);
+    hashmap_entry_init(sym, str_hash(path));
+    sym->kind = SYM_MODULE;
+    sym->name = path;
+
+    if (hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    } else {
+        sym->stbl = stbl_new();
+        add_to_global(sym);
+    }
+#ifndef NOLOG
+    if (sym) {
+        log_info("add module('%s') OK", path);
+    } else {
+        log_info("add module('%s') failed", path);
+    }
+#endif
     return (Symbol *)sym;
 }
 

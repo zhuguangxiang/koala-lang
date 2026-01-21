@@ -17,6 +17,49 @@
 extern "C" {
 #endif
 
+/* saved in ps->imported */
+typedef struct _Imported {
+    HashMapEntry hnode;
+    char *key;
+    /* module or others */
+    Symbol *sym;
+} Imported;
+
+/* saved symbols */
+static HashMap *imported;
+static HashMap *current;
+static HashMap *builtin;
+
+ModuleSymbol *import_module(char *path)
+{
+    Symbol *mod_sym = stbl_get(imported, path);
+    if (mod_sym) {
+        log_info("module '%s' already imported", path);
+        return (ModuleSymbol *)mod_sym;
+    }
+
+    mod_sym = stbl_add_module(imported, path);
+    load_module((ModuleSymbol *)mod_sym, path);
+    log_info("imported module '%s' successfully", path);
+    return (ModuleSymbol *)mod_sym;
+}
+
+static inline void load_builtin_module(void)
+{
+    ModuleSymbol *mod_sym = import_module("libs/builtin.klc");
+    builtin = mod_sym->stbl;
+    update_builtin_types(builtin);
+}
+
+void init_parser(void)
+{
+    imported = stbl_new();
+    current = stbl_new();
+    // load_builtin_module();
+}
+
+void fini_parser(void) {}
+
 void kl_error_detail(ParserState *ps, Loc *loc) {}
 
 static ParserScope *new_scope(ScopeKind kind, BlockType block)
@@ -764,10 +807,24 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
 
     Vector *args = vector_create_ptr();
 
+    int has_va_arg = 0;
     ParamDecl **param_p;
     ParamDecl *param;
     vector_foreach(param_p, fn->args) {
         param = *param_p;
+        if (has_va_arg && !param->value) {
+            kl_error(param->id.loc,
+                     "after variadic parameter must be the kw parameters.");
+            return;
+        }
+
+        if (param->va_arg) {
+            if (has_va_arg) {
+                kl_error(param->id.loc, "only one variadic parameter is allowed.");
+                return;
+            }
+            has_va_arg = 1;
+        }
 
         ArgInfo *arg = mm_alloc_obj(arg);
         arg->name = param->id.name;
@@ -1222,14 +1279,8 @@ static void init_parser_state(ParserState *ps, char *filename)
 {
     ps->filename = filename;
     vector_init_ptr(&ps->stmts);
-    ps->stbl = stbl_new();
-    ps->builtin = stbl_new();
-}
-
-static void init_builtin_module(ParserState *ps)
-{
-    kl_read_from_klc(ps->builtin, "libs/builtin.klc");
-    update_builtin_type_specs(ps->builtin);
+    ps->stbl = current;
+    ps->builtin = builtin;
 }
 
 static ParserState *build_ast(char *path)
@@ -1242,8 +1293,6 @@ static ParserState *build_ast(char *path)
 
     ParserState *ps = mm_alloc_obj(ps);
     init_parser_state(ps, path);
-
-    init_builtin_module(ps);
 
     yyscan_t scanner;
     yylex_init_extra(ps, &scanner);

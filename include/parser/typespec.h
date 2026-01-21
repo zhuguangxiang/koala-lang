@@ -83,7 +83,7 @@ typedef struct _TypeSpec {
             Vector *args;
         } union_type;
 
-        // klass type
+        // klass type for definition
         // don't save parameter types here
         struct {
             char *pkg;
@@ -138,10 +138,10 @@ static inline TypeSpec *bfloat16_type_spec(void) { return type_spec_get_by_id(16
 static inline TypeSpec *type_type_spec(void) { return type_spec_get_by_id(17); }
 static inline TypeSpec *range_type_spec(void) { return type_spec_get_by_id(18); }
 
-TypeSpec *klass_type_spec(char *pkg, char *name);
+TypeSpec *klass_type_spec(char *path, char *name);
 TypeSpec *func_type_spec(Vector *args, TypeSpec *ret);
 
-void update_builtin_type_specs(HashMap *stbl);
+void update_builtin_types(HashMap *stbl);
 
 void type_spec_free(TypeSpec *ts);
 

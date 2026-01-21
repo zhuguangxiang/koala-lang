@@ -144,13 +144,6 @@ Expr *expr_from_self(void)
     return exp;
 }
 
-Expr *expr_from_super(void)
-{
-    Expr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_SUPER_KIND;
-    return exp;
-}
-
 Expr *expr_from_is_expr(Expr *exp, Loc op_loc, TypeSpec *type)
 {
     IsExpr *e = mm_alloc_obj(e);
@@ -288,21 +281,13 @@ Expr *expr_from_index(Expr *lhs, Vector *vec)
     return (Expr *)exp;
 }
 
-Expr *expr_from_index_slice(Expr *lhs, Expr *slice)
-{
-    IndexSliceExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_INDEX_SLICE_KIND;
-    exp->lhs = lhs;
-    exp->slice = slice;
-    return (Expr *)exp;
-}
-
-Expr *expr_from_slice(Expr *start, Expr *stop)
+Expr *expr_from_slice(Expr *start, Expr *stop, Expr *step)
 {
     SliceExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_SLICE_KIND;
     exp->start = start;
     exp->stop = stop;
+    exp->step = step;
     return (Expr *)exp;
 }
 

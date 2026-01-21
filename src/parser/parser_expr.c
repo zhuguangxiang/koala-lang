@@ -40,6 +40,11 @@ static void parse_ident(ParserState *ps, Expr *exp)
     print_type_spec(sym->ts);
 }
 
+static void parse_under(ParserState *ps, Expr *exp)
+{
+    kl_error(exp->loc, "'_' cannot be used in this context.");
+}
+
 static void parse_lit_int(ParserState *ps, LitExpr *lit)
 {
     /* expected type from lhs */
@@ -164,28 +169,65 @@ static void parse_literal(ParserState *ps, Expr *exp)
     }
 }
 
+static void parse_self(ParserState *ps, Expr *exp) {}
+
 static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc)
 {
-    if (vector_size(params) < vector_size(exprs)) {
-        kl_error(fn_loc, "argument count mismatch in function call.");
-        return;
-    }
-
     Expr *e;
     ArgInfo **arg_p;
     ArgInfo *arg;
     vector_foreach(arg_p, params) {
         arg = *arg_p;
         e = vector_get_object(exprs, i__);
-        if (!e) {
-            if (arg->dfl_val_idx <= 0) {
-                kl_error(fn_loc, "too few arguments in function call.");
+        // if arg has default value, the caller can pass value, kw-arg or skip it
+        if (arg->dfl_val_idx > 0) {
+            if (!e) {
+                // skip this arg, use default value
+                log_debug("[check_call_args] kw-arg: %s, no value passed, skip left.",
+                          arg->name);
+                return;
             }
-            return;
-        }
-        if (!type_spec_compatible(arg->ts, e->ts)) {
-            kl_error(e->loc, "argument type is not compatible.");
-            return;
+
+            if (e->kind == EXPR_KW_KIND) {
+                // positional arg
+                int size = vector_size(exprs);
+                for (int i = i__; i < size; i++) {
+                    e = vector_get_object(exprs, i);
+                    ASSERT(e->kind == EXPR_KW_KIND);
+                    KeyWordExpr *kw = (KeyWordExpr *)e;
+                    if (strcmp(kw->key.name, arg->name) != 0) {
+                        continue;
+                    }
+                    log_debug(
+                        "[check_call_args] kw-arg: '%s', pass kw-arg, check kw-value "
+                        "type compatible",
+                        arg->name);
+                    if (!type_spec_compatible(arg->ts, e->ts)) {
+                        kl_error(e->loc, "argument type is not compatible.");
+                        return;
+                    }
+                }
+            } else {
+                log_debug(
+                    "[check_call_args] kw-arg: '%s', pass value only, check value type "
+                    "compatible",
+                    arg->name);
+                if (!type_spec_compatible(arg->ts, e->ts)) {
+                    kl_error(e->loc, "argument type is not compatible.");
+                    return;
+                }
+            }
+        } else {
+            if (!e) {
+                kl_error(fn_loc, "too few arguments in function call.");
+                return;
+            }
+
+            log_debug("[check_call_args] arg: '%s' check type compatible", arg->name);
+            if (!type_spec_compatible(arg->ts, e->ts)) {
+                kl_error(e->loc, "argument type is not compatible.");
+                return;
+            }
         }
     }
 }
@@ -203,7 +245,8 @@ static void parse_type(ParserState *ps, Expr *exp)
     // int -> exp->ts is type type, symbol is int
     // Foo -> exp->ts is type type, symbol is Foo
     exp->ts = exp->sym->ts;
-    log_debug("type expr resolved: %s", exp->sym->name);
+    log_debug("type '%s' is resolved as: ", exp->sym->name);
+    print_type_spec(exp->ts);
     return;
 }
 
@@ -305,6 +348,21 @@ static void parse_call(ParserState *ps, Expr *exp)
     // exp->ir_val = ret;
 }
 
+static void parse_index(ParserState *ps, Expr *exp)
+{
+    IndexExpr *index = (IndexExpr *)exp;
+
+    Expr *lhs = index->lhs;
+    lhs->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, lhs);
+    if (!lhs->ts) return;
+
+    // Expr *idx = index->index;
+    // idx->ctx = EXPR_CTX_LOAD;
+    // parser_visit_expr(ps, idx);
+    // if (!idx->ts) return;
+}
+
 static char *get_binary_op_name(BiOpKind op)
 {
     switch (op) {
@@ -400,7 +458,15 @@ static void parse_binary(ParserState *ps, Expr *exp)
     exp->ts = lhs->ts;
 }
 
-static void parse_keyword(ParserState *ps, Expr *exp) {}
+static void parse_keyword(ParserState *ps, Expr *exp)
+{
+    KeyWordExpr *kw = (KeyWordExpr *)exp;
+    Expr *value = kw->value;
+    value->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, value);
+    if (!value->ts) return;
+    exp->ts = value->ts;
+}
 
 void parser_visit_expr(ParserState *ps, Expr *exp)
 {
@@ -413,30 +479,27 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     static void (*handlers[])(ParserState *, Expr *) = {
         NULL,                            /* UNKNOWN    */
         parse_ident,                     /* ID         */
-        NULL, // parse_under,                     /* UNDER      */
+        parse_under,                     /* UNDER      */
         parse_literal,                   /* LITERAL    */
-        NULL,// parse_self,                      /* SELF       */
-        NULL,// parse_super,                     /* SUPER      */
-        NULL,// parse_array_expr,                /* ARRAY      */
-        NULL,// parse_map_expr,                  /* MAP        */
+        parse_self,                      /* SELF       */
+        NULL,                            /* ARRAY      */
+        NULL,                            /* MAP        */
         NULL,                            /* MAP_ENTRY  */
-        NULL,// parse_tuple_expr,                /* TUPLE      */
-        NULL,// parse_anony,                     /* ANONY      */
-        NULL,
+        NULL,                            /* TUPLE      */
+        NULL,                            /* SET        */
+        NULL,                            /* ANONY      */
         parse_type,                      /* TYPE       */
         parse_call,                      /* CALL       */
-        NULL,
-        NULL, // parse_attr,                      /* ATTR       */
-        NULL, // parse_tuple_get,                 /* TUPLE_GET  */
-        NULL, // parse_index,                     /* INDEX      */
-        NULL, // parse_unary,                     /* UNARY      */
+        NULL,                            /* DOT        */
+        parse_index,                     /* INDEX      */
+        NULL,                            /* SLICE      */
+        NULL,                            /* UNARY      */
         parse_binary,                    /* BINARY     */
-        NULL, // parse_range,                     /* RANGE      */
+        NULL,                            /* RANGE      */
         parse_keyword,                   /* KW         */
-        // parse_is_expr,                   /* IS         */
-        // parse_as_expr,                   /* AS         */
-        NULL,                 /* OPT        */
-        NULL,                   /* OPT_NOT    */
+        NULL,                            /* IS         */
+        NULL,                            /* AS         */
+        NULL,                            /* IN         */
     };
     /* clang-format on */
 

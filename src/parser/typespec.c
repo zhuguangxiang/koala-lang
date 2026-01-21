@@ -180,7 +180,7 @@ static TypeSpec *_range_type_spec(void)
     return ts;
 }
 
-void update_builtin_type_specs(HashMap *stbl)
+void update_builtin_types(HashMap *stbl)
 {
     // Update builtin type specs with the provided symbol table
     TypeSpec *ts;
@@ -254,6 +254,78 @@ void update_builtin_type_specs(HashMap *stbl)
 
     ts = uint64_type_spec();
     sym = (KlassSymbol *)stbl_get(stbl, "uint64");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
+
+    ts = bool_type_spec();
+    sym = (KlassSymbol *)stbl_get(stbl, "bool");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
+
+    ts = str_type_spec();
+    sym = (KlassSymbol *)stbl_get(stbl, "str");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
+
+    ts = object_type_spec();
+    sym = (KlassSymbol *)stbl_get(stbl, "any");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
+
+    ts = float16_type_spec();
+    sym = (KlassSymbol *)stbl_get(stbl, "float16");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
+
+    ts = float32_type_spec();
+    sym = (KlassSymbol *)stbl_get(stbl, "float32");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
+
+    ts = float64_type_spec();
+    sym = (KlassSymbol *)stbl_get(stbl, "float64");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
+
+    ts = bfloat16_type_spec();
+    sym = (KlassSymbol *)stbl_get(stbl, "bfloat16");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
+
+    // ts = klass_type_spec("builtin", "range");
+    // sym = (KlassSymbol *)stbl_get(stbl, "range");
+    // if (sym) {
+    //     ts->sym_id = sym->id;
+    //     sym->ts = type_ts;
+    //     sym->instance_ts = ts;
+    // }
+
+    ts = klass_type_spec(NULL, "list");
+    sym = (KlassSymbol *)stbl_get(stbl, "list");
     if (sym) {
         ts->sym_id = sym->id;
         sym->ts = type_ts;
@@ -389,11 +461,11 @@ TypeSpec *type_spec_intern(TypeSpec *ts)
     }
 }
 
-TypeSpec *klass_type_spec(char *pkg, char *name)
+TypeSpec *klass_type_spec(char *path, char *name)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_KLASS;
-    ts->klass_type.pkg = pkg;
+    ts->klass_type.pkg = path;
     ts->klass_type.name = name;
     ts->sym_id = -1;
     ts->type_id = -1;
@@ -607,17 +679,7 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
     return 0;
 }
 
-static void __add_arg(TypeSpec *ts, TypeSpec *arg)
-{
-    Vector *args = ts->unresolved.args;
-    if (args == NULL) {
-        args = vector_create_ptr();
-        ts->unresolved.args = args;
-    }
-    vector_push_back(args, arg);
-}
-
-static TypeSpec *__to_unresolved_type(char *s, int len)
+static TypeSpec *__to_specialized_type(char *s, int len, Vector *args)
 {
     char *dot = strchr(s, '.');
     char *path = NULL;
@@ -628,13 +690,7 @@ static TypeSpec *__to_unresolved_type(char *s, int len)
     } else {
         type = atom_nstr(s, len);
     }
-    TypeIdent _pkg = { .name = path };
-    TypeIdent _name = { .name = type };
-    if (dot) {
-        return unresolved_type_spec(&_pkg, _name, NULL);
-    } else {
-        return unresolved_type_spec(NULL, _name, NULL);
-    }
+    return specialized_type_spec(path, type, args, -1);
 }
 
 static TypeSpec *__to_typespec(char **str)
@@ -644,24 +700,28 @@ static TypeSpec *__to_typespec(char **str)
     if (!s || s[0] == 0) return NULL;
 
     char ch = *s;
-    char *k;
+    char *k, *k2;
     TypeSpec *ts;
     TypeSpec *arg;
+    Vector *args;
 
     switch (ch) {
         case 'L': {
             s++;
             k = s;
             while (*s != ';' && *s != '<' && *s != '\0') s++;
-            ts = __to_unresolved_type(k, s - k);
+            k2 = s;
+            args = NULL;
             if (*s == '<') {
+                args = vector_create_ptr();
                 s++;
                 while (*s != '>' && *s != '\0') {
                     arg = __to_typespec(&s);
-                    if (arg) __add_arg(ts, arg);
+                    if (arg) vector_push_back(args, &arg);
                 }
                 if (*s == '>') s++;
             }
+            ts = __to_specialized_type(k, k2 - k, args);
             if (*s == ';') s++;
             break;
         }

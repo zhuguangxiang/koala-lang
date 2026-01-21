@@ -13,12 +13,28 @@
 extern "C" {
 #endif
 
-static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item)
+static void add_unsolved_sym_id(TypeSpec **ts, Vector *vec)
 {
-    KlcConst *k = klc_get_const(klc, item->name_index);
-    KlcConst *ret = klc_get_const(klc, item->ret_type_index);
-    TypeSpec *ret_desc = ret ? type_spec_from_str(ret->sval) : NULL;
+    if (!ts || !*ts) return;
+    TypeSpec *t = *ts;
+    if (t->kind != TYPE_SPECIALIZED && t->kind != TYPE_GENERIC_VAR) {
+        return;
+    }
+    log_info("type needs update: %s", t->signature);
 
+    TypeSpec **ts_ptr = ts;
+    vector_push_back(vec, &ts_ptr);
+
+    if (t->kind == TYPE_SPECIALIZED) {
+        TypeSpec **arg_ts;
+        vector_foreach(arg_ts, t->specialized.args) {
+            add_unsolved_sym_id(arg_ts, vec);
+        }
+    }
+}
+
+static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item, Vector *vec)
+{
     KlcArgument *arg;
     Vector *params = vector_create_ptr();
     vector_foreach_object(arg, &item->args)
@@ -33,11 +49,90 @@ static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item)
         arg_info->ts = ts;
         arg_info->dfl_val_idx = def_val ? 1 : 0;
         vector_push_back(params, &arg_info);
+        if (ts->kind == TYPE_SPECIALIZED) {
+            log_info("specialized type in function argument: %s", ts->signature);
+            TypeSpec **ts_ptr = &arg_info->ts;
+            add_unsolved_sym_id(ts_ptr, vec);
+        } else if (ts->kind == TYPE_GENERIC_VAR) {
+            log_info("generic var type in function argument: %s", ts->signature);
+            TypeSpec **ts_ptr = &arg_info->ts;
+            add_unsolved_sym_id(ts_ptr, vec);
+        } else {
+            // nothing
+        }
     }
-    stbl_add_func(stbl, k->sval, NULL, ret_desc, params, 0, NULL, NULL);
+
+    KlcConst *k = klc_get_const(klc, item->name_index);
+    KlcConst *ret = klc_get_const(klc, item->ret_type_index);
+    TypeSpec *ret_ts = ret ? type_spec_from_str(ret->sval) : NULL;
+
+    Symbol *sym = stbl_add_func(stbl, k->sval, NULL, ret_ts, params, 0, NULL, NULL);
+
+    if (ret_ts && ret_ts->kind == TYPE_SPECIALIZED) {
+        log_info("specialized type in function return: %s", ret_ts->signature);
+        TypeSpec **ts_ptr = &((FuncSymbol *)sym)->ret;
+        add_unsolved_sym_id(ts_ptr, vec);
+    } else if (ret_ts && ret_ts->kind == TYPE_GENERIC_VAR) {
+        log_info("generic var type in function return: %s", ret_ts->signature);
+        TypeSpec **ts_ptr = &((FuncSymbol *)sym)->ret;
+        add_unsolved_sym_id(ts_ptr, vec);
+    } else {
+        // nothing
+    }
 }
 
-static void read_funcs(HashMap *stbl, KlcFile *klc)
+static void add_klass(HashMap *stbl, KlcFile *klc, KlcKlass *kls, Vector *vec)
+{
+    KlcConst *k = klc_get_const(klc, kls->name_index);
+
+    Symbol *cls_sym;
+    if (kls->flags & KLC_FLAGS_TRAIT) {
+        cls_sym = stbl_add_trait(stbl, k->sval, SYM_FLAGS_PUBLIC);
+    } else {
+        cls_sym = stbl_add_klass(stbl, k->sval, SYM_FLAGS_PUBLIC);
+    }
+
+    // add type params
+    KlcTypeParam *arg;
+    vector_foreach_object(arg, &kls->tps)
+    {
+        if (!arg) continue;
+        KlcConst *name = klc_get_const(klc, arg->name_index);
+        Symbol *tp_sym = stbl_add_type_param(cls_sym->stbl, name->sval, cls_sym);
+        // set index
+        // kls->tps index 0 is not used. So we use i__ - 1 here.
+        ((TypeParamSymbol *)tp_sym)->index = i__ - 1;
+        vector_push_back(((KlassSymbol *)cls_sym)->tps, &tp_sym);
+
+        // add bounds
+        uint16_t bound;
+        vector_foreach_object(bound, &arg->bounds)
+        {
+            if (!bound) continue;
+            KlcConst *bound_k = klc_get_const(klc, bound);
+            TypeSpec *ts = type_spec_from_str(bound_k->sval);
+            TypeParamSymbol *tp = (TypeParamSymbol *)tp_sym;
+            vector_push_back(tp->bound, &ts);
+            if (ts->kind == TYPE_SPECIALIZED) {
+                log_info("specialized type in type param bound: %s", ts->signature);
+                TypeSpec **ts_ptr = &ts;
+                add_unsolved_sym_id(ts_ptr, vec);
+            } else {
+                UNREACHABLE();
+            }
+        }
+    }
+
+    // read methods
+    KlcFunc *fn;
+    vector_foreach_object(fn, &kls->methods)
+    {
+        if (!fn) continue;
+        add_func(cls_sym->stbl, klc, fn, vec);
+    }
+}
+
+static void read_funcs(HashMap *stbl, KlcFile *klc, Vector *vec)
 {
     Vector *consts = klc->objs + ITEM_CONST;
 
@@ -46,12 +141,14 @@ static void read_funcs(HashMap *stbl, KlcFile *klc)
     vector_foreach(item_p, klc->objs + ITEM_FUNC) {
         item = *item_p;
         if (!item) continue;
-
-        add_func(stbl, klc, item);
+        if (!(item->flags & KLC_FLAGS_PUB)) {
+            continue;
+        }
+        add_func(stbl, klc, item, vec);
     }
 }
 
-static void read_classes(HashMap *stbl, KlcFile *klc)
+static void read_klasses(HashMap *stbl, KlcFile *klc, Vector *vec)
 {
     Vector *consts = klc->objs + ITEM_CONST;
 
@@ -59,39 +156,73 @@ static void read_classes(HashMap *stbl, KlcFile *klc)
     vector_foreach_object(kls, klc->objs + ITEM_CLASS)
     {
         if (!kls) continue;
-
-        // add class symbol
         if (!(kls->flags & KLC_FLAGS_PUB)) {
             continue;
         }
 
-        KlcConst *k = klc_get_const(klc, kls->name_index);
+        add_klass(stbl, klc, kls, vec);
+    }
+}
 
-        Symbol *cls_sym;
-        if (kls->flags & KLC_FLAGS_TRAIT) {
-            cls_sym = stbl_add_trait(stbl, k->sval, SYM_FLAGS_PUBLIC);
+static void update_types_sym_id(HashMap *stbl, Vector *vec)
+{
+    TypeSpec **ts_ptr;
+    TypeSpec *ts;
+    vector_foreach_object(ts_ptr, vec)
+    {
+        ts = *ts_ptr;
+        if (ts->kind == TYPE_SPECIALIZED) {
+            Symbol *sym = stbl_get(stbl, ts->specialized.name);
+            if (sym) {
+                log_debug("found symbol for specialized type: %s", ts->specialized.name);
+                ts->sym_id = sym->id;
+            } else {
+                log_error("cannot find symbol for specialized type: %s",
+                          ts->specialized.name);
+            }
+        } else if (ts->kind == TYPE_GENERIC_VAR) {
+            Symbol *owner = stbl_get(stbl, ts->generic_var.owner);
+            if (owner) {
+                log_debug("found owner symbol for generic var type: %s",
+                          ts->generic_var.owner);
+                Symbol *tp_sym = stbl_get(owner->stbl, ts->generic_var.name);
+                ASSERT(tp_sym && tp_sym->kind == SYM_TYPE_PARAM);
+                log_debug("found type param symbol for generic var type: %s",
+                          ts->generic_var.name);
+                ts->sym_id = tp_sym->id;
+                ts->generic_var.index = ((TypeParamSymbol *)tp_sym)->index;
+            } else {
+                log_error("cannot find owner symbol for generic var type: %s",
+                          ts->generic_var.owner);
+            }
         } else {
-            cls_sym = stbl_add_klass(stbl, k->sval, SYM_FLAGS_PUBLIC);
-        }
-
-        // read methods
-        KlcFunc *fn;
-        vector_foreach_object(fn, &kls->methods)
-        {
-            if (!fn) continue;
-            add_func(cls_sym->stbl, klc, fn);
+            UNREACHABLE();
         }
     }
 }
 
-void kl_read_from_klc(HashMap *stbl, char *path)
+void load_module(ModuleSymbol *mod_sym, char *path)
 {
-    printf("read klc file: %s\n", path);
+    log_debug("read klc file: %s\n", path);
+
     KlcFile klc;
+
     init_klc_file(&klc, path);
     read_klc_file(&klc, 0);
+
     klc_dump(&klc);
-    read_classes(stbl, &klc);
+
+    Vector vec = VECTOR_INIT_PTR;
+    HashMap *stbl = mod_sym->stbl;
+
+    // read_vars(stbl, &klc, vec);
+    read_funcs(stbl, &klc, &vec);
+    read_klasses(stbl, &klc, &vec);
+
+    update_types_sym_id(stbl, &vec);
+
+    vector_fini(&vec);
+
     fini_klc_file(&klc);
 }
 

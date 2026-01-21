@@ -72,6 +72,9 @@ pub class str : Seq[str] {
 
 pub class list[T] : Seq[T] {
 
+    @native(kl_list_init)
+    pub func __init__() {}
+
     @native(kl_list_len)
     func __len__() int {}
 

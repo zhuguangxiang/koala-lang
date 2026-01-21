@@ -26,8 +26,8 @@ typedef enum _SymKind {
     SYM_FIELD,          /* field      */
     SYM_PROTO,          /* proto      */
     SYM_ANONY,          /* anonymous  */
-    SYM_PACKAGE,        /* package    */
     SYM_TYPE_PARAM,     /* type param */
+    SYM_MODULE,         /* module     */
     SYM_MAX,
 } SymKind;
 
@@ -84,6 +84,8 @@ typedef struct _TypeParamSymbol {
     Vector *bound;
     // index in type-param list
     int index;
+    // invariant/covariant
+    int covariant;
 } TypeParamSymbol;
 
 typedef struct _ArgInfo {
@@ -130,6 +132,11 @@ typedef struct _KlassSymbol {
     TypeSpec *instance_ts;
 } KlassSymbol;
 
+typedef struct _ModuleSymbol {
+    SYMBOL_HEAD
+    char *pkgname;
+} ModuleSymbol;
+
 static inline int __symbol_equal__(Symbol *s1, Symbol *s2)
 {
     return !strcmp(s1->name, s2->name);
@@ -160,6 +167,8 @@ Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_get(HashMap *stbl, char *name);
 void stbl_show(HashMap *stbl);
 void *get_symbol_by_id(int id);
+
+Symbol *stbl_add_module(HashMap *stbl, char *path);
 
 #ifdef __cplusplus
 }
