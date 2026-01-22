@@ -249,6 +249,21 @@ static void parse_type(ParserState *ps, Expr *exp)
     return;
 }
 
+TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args)
+{
+    if (ts->kind != TYPE_GENERIC_VAR) {
+        return ts;
+    }
+
+    TypeSpec *inst_ts = vector_get_object(tp_args, ts->generic_var.index);
+    if (!inst_ts) {
+        UNREACHABLE();
+        return NULL;
+    }
+
+    return inst_ts;
+}
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
@@ -322,6 +337,36 @@ static void parse_call(ParserState *ps, Expr *exp)
         FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
         exp->ts = fn_sym->ret;
         params = fn_sym->params;
+    } else if (lhs_sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
+        Symbol *init_fn_sym = stbl_get(inst_sym->stbl, "__init__");
+        if (!init_fn_sym) {
+            KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+            Symbol *_init_fn_sym = stbl_get(origin->stbl, "__init__");
+            if (!_init_fn_sym) {
+                kl_error(lhs->loc, "class '%s' has no constructor.", origin->name);
+                return;
+            }
+
+            Vector *_args = vector_create_ptr();
+            Vector *_params = ((FuncSymbol *)_init_fn_sym)->params;
+            ArgInfo *arg;
+            vector_foreach(arg, _params) {
+                if (!arg) continue;
+                TypeSpec *ts = inst_type_spec(arg->ts, inst_sym->tp_args);
+                ArgInfo *_arg = mm_alloc_obj(_arg);
+                _arg->ts = ts;
+                _arg->name = arg->name;
+                vector_push_back(_args, &_arg);
+            }
+
+            init_fn_sym = stbl_add_func(inst_sym->stbl, "__init__", NULL, no_type_spec(),
+                                        _args, 0, NULL, NULL);
+        }
+
+        // func call type is instance type
+        exp->ts = inst_sym->instance_ts;
+        params = ((FuncSymbol *)init_fn_sym)->params;
     } else {
         UNREACHABLE();
     }
@@ -355,10 +400,58 @@ static void parse_index(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, lhs);
     if (!lhs->ts) return;
 
-    // Expr *idx = index->index;
-    // idx->ctx = EXPR_CTX_LOAD;
-    // parser_visit_expr(ps, idx);
-    // if (!idx->ts) return;
+    if (lhs->ts->kind == TYPE_TYPE) {
+        // generic types
+        KlassSymbol *kls_sym = (KlassSymbol *)lhs->sym;
+        if (kls_sym->kind != SYM_CLASS) {
+            kl_error(lhs->loc, "type '%s' is not a class type.", lhs->sym->name);
+            return;
+        }
+
+        int tp_size = vector_size(kls_sym->tps);
+        if (tp_size != vector_size(index->vec)) {
+            kl_error(exp->loc,
+                     "type '%s' expects %d type arguments, but %d were provided.",
+                     kls_sym->name, tp_size, vector_size(index->vec));
+            return;
+        }
+
+        Vector *tp_args = vector_create_ptr();
+        Expr *arg;
+        vector_foreach(arg, index->vec) {
+            if (!arg) continue;
+            arg->ctx = EXPR_CTX_LOAD;
+            parser_visit_expr(ps, arg);
+            if (!arg->ts) return;
+
+            ASSERT(arg->ts->kind == TYPE_TYPE);
+
+            KlassSymbol *arg_sym = (KlassSymbol *)arg->sym;
+            TypeParamSymbol *tp_sym =
+                (TypeParamSymbol *)vector_get_object(kls_sym->tps, i__);
+            TypeSpec *bound_ts;
+            vector_foreach(bound_ts, tp_sym->bound) {
+                if (!bound_ts) continue;
+                if (!type_spec_compatible(bound_ts, arg_sym->instance_ts)) {
+                    kl_error(arg->loc,
+                             "type argument '%s' is not compatible with bound type.",
+                             arg_sym->name);
+                    return;
+                }
+            }
+            vector_push_back(tp_args, &arg_sym->instance_ts);
+        }
+
+        // create or find instance symbol(List<int>)
+        Symbol *inst_sym = find_or_add_instance(ps->stbl, (Symbol *)kls_sym, tp_args);
+        exp->ts = inst_sym->ts;
+        exp->sym = inst_sym;
+        log_debug("generic type instance created: %s", inst_sym->name);
+        print_type_spec(inst_sym->ts);
+    } else {
+        kl_error(lhs->loc, "only generic types support type arguments.");
+        return;
+    }
 }
 
 static char *get_binary_op_name(BiOpKind op)

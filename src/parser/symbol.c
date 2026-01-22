@@ -4,6 +4,7 @@
  */
 
 #include "symbol.h"
+#include "atom.h"
 #include "buffer.h"
 #include "log.h"
 
@@ -43,6 +44,15 @@ void __symbol_free__(Symbol *sym, void *arg)
             break;
         }
         case SYM_TRAIT: {
+            break;
+        }
+        case SYM_TYPE_PARAM: {
+            break;
+        }
+        case SYM_MODULE: {
+            break;
+        }
+        case SYM_INSTANCE: {
             break;
         }
         default: {
@@ -171,6 +181,56 @@ Symbol *stbl_add_module(HashMap *stbl, char *path)
     return (Symbol *)sym;
 }
 
+static char *mangle_type_name(char *base_name, Vector *tp_args)
+{
+    BUF(buf);
+    buf_write_str(&buf, "_Z");
+    buf_write_int64(&buf, strlen(base_name));
+    buf_write_str(&buf, base_name);
+
+    TypeSpec *ts;
+    vector_foreach(ts, tp_args) {
+        type_spec_to_str(ts, &buf);
+    }
+
+    char *mangled_name = atom_str(BUF_STR(buf));
+    FINI_BUF(buf);
+    return mangled_name;
+}
+
+Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
+{
+    InstanceSymbol *sym = mm_alloc_obj(sym);
+    char *mangled_name = mangle_type_name(origin->name, tp_args);
+    hashmap_entry_init(sym, str_hash(mangled_name));
+    sym->kind = SYM_INSTANCE;
+    sym->name = mangled_name;
+
+    if (hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    } else {
+        add_to_global(sym); // get sym->id
+        sym->ts = type_type_spec();
+        sym->origin = origin;
+        sym->tp_args = tp_args;
+        sym->stbl = stbl_new();
+        sym->instance_ts = specialized_type_spec(NULL, origin->name, tp_args, sym->id);
+    }
+
+    return (Symbol *)sym;
+}
+
+Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
+{
+    char *mangled_name = mangle_type_name(origin->name, tp_args);
+    Symbol *sym = stbl_get(stbl, mangled_name);
+    if (sym) {
+        return sym;
+    }
+    return stbl_add_instance(stbl, origin, tp_args);
+}
+
 Symbol *stbl_get(HashMap *stbl, char *name)
 {
     if (stbl == NULL) return NULL;
@@ -210,6 +270,11 @@ void stbl_show(HashMap *stbl)
             case SYM_TRAIT: {
                 KlassSymbol *kls = (KlassSymbol *)sym;
                 log_info("trait symbol: '%s'", sym->name);
+                break;
+            }
+            case SYM_INSTANCE: {
+                InstanceSymbol *inst = (InstanceSymbol *)sym;
+                log_info("instance symbol: '%s'", sym->name);
                 break;
             }
             default: {

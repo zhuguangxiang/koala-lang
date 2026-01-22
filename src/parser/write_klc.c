@@ -263,6 +263,10 @@ void kl_write_to_klc(ParserState *ps)
                 }
                 break;
             }
+            case SYM_INSTANCE: {
+                // do nothing
+                break;
+            }
             default: {
                 UNREACHABLE();
                 break;

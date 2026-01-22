@@ -28,6 +28,7 @@ typedef enum _SymKind {
     SYM_ANONY,          /* anonymous  */
     SYM_TYPE_PARAM,     /* type param */
     SYM_MODULE,         /* module     */
+    SYM_INSTANCE,       /* instance   */
     SYM_MAX,
 } SymKind;
 
@@ -134,6 +135,17 @@ typedef struct _ModuleSymbol {
     char *pkgname;
 } ModuleSymbol;
 
+/* List[int] -> _Z4Listi */
+typedef struct _InstanceSymbol {
+    SYMBOL_HEAD
+    /* -> KlassSymbol */
+    Symbol *origin;
+    /* type param binding args (T: int) */
+    Vector *tp_args;
+    /* instance type(specialized) */
+    TypeSpec *instance_ts;
+} InstanceSymbol;
+
 static inline int __symbol_equal__(Symbol *s1, Symbol *s2)
 {
     return !strcmp(s1->name, s2->name);
@@ -165,6 +177,8 @@ void stbl_show(HashMap *stbl);
 void *get_symbol_by_id(int id);
 
 Symbol *stbl_add_module(HashMap *stbl, char *path);
+Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
+Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
 
 #ifdef __cplusplus
 }

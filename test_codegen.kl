@@ -55,12 +55,12 @@ var v10 = int
 //     }
 // }
 
-// var l = list[int]()
+
 
 // var l List = List()
 
-class List {
-    func __init__() {
+class List[T] {
+    func __init__(v T) {
     }
 
     func add(item int) {
@@ -69,6 +69,8 @@ class List {
     func get(index int) int {
     }
 }
+
+var l List[int] = List[int](10)
 
 // l.add(10)
 // var v11 int = l.get(0)

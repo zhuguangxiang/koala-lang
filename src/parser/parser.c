@@ -622,6 +622,21 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     if (ts) {
         ts = resolve_type(ps, ts);
         if (!check_type(ps, ts)) return;
+        if (ts->kind == TYPE_SPECIALIZED && vector_size(ts->specialized.args) > 0) {
+            Symbol *origin = get_symbol_by_id(ts->sym_id);
+            if (!origin) {
+                kl_error(id->loc, "failed to get origin for specialized type");
+                return;
+            }
+
+            Symbol *inst_sym =
+                find_or_add_instance(ps->stbl, origin, ts->specialized.args);
+            if (!inst_sym) {
+                kl_error(id->loc, "failed to get instance for specialized type");
+                return;
+            }
+            ts = ((InstanceSymbol *)inst_sym)->instance_ts;
+        }
         var->type = ts;
     }
 
