@@ -118,7 +118,7 @@ int kl_module_link(Object *_m)
     ModuleObject *m = (ModuleObject *)_m;
 
     RelocInfo *rel;
-    vector_foreach(rel, &m->rels) {
+    vector_foreach_ptr(rel, &m->rels) {
         const char *ns = rel->ns;
         if (!ns) continue;
         int len = strlen(rel->ns);
@@ -132,14 +132,14 @@ int kl_module_link(Object *_m)
             obj = module_lookup_object(obj, dot + 1, strlen(dot + 1));
             ASSERT(obj);
             SymbolInfo *sym;
-            vector_foreach(sym, &rel->syms) {
+            vector_foreach_ptr(sym, &rel->syms) {
                 Object *o = type_lookup_object(obj, sym->name, strlen(sym->name));
                 ASSERT(o);
                 sym->obj = o;
             }
         } else {
             SymbolInfo *sym;
-            vector_foreach(sym, &rel->syms) {
+            vector_foreach_ptr(sym, &rel->syms) {
                 Object *o = module_lookup_object(obj, sym->name, strlen(sym->name));
                 ASSERT(o);
                 sym->obj = o;
@@ -154,7 +154,7 @@ int module_add_rel(Object *_m, const char *path, SymbolInfo *sym)
 {
     ModuleObject *m = (ModuleObject *)_m;
     RelocInfo *rel = NULL;
-    vector_foreach(rel, &m->rels) {
+    vector_foreach_ptr(rel, &m->rels) {
         const char *ns = rel->ns;
         if (!ns) continue;
         if (!strcmp(ns, path)) {

@@ -504,7 +504,8 @@ static void write_vars(KlcFile *klc, Vector *vec)
     size_t size = vector_size(vec) - 1;
     write_uint16(klc, (uint16_t)size);
     KlcVar *item;
-    vector_foreach_object(item, vec) {
+    vector_foreach(item, vec) {
+        if (!item) continue;
         write_uint16(klc, item->flags);
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->type_index);
@@ -517,7 +518,8 @@ static void write_args(KlcFile *klc, Vector *vec)
     size_t size = vector_size(vec) - 1;
     write_uint8(klc, (uint8_t)size);
     KlcArgument *item;
-    vector_foreach_object(item, vec) {
+    vector_foreach(item, vec) {
+        if (!item) continue;
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->type_index);
         write_uint16(klc, item->const_index);
@@ -530,14 +532,16 @@ static void write_tps(KlcFile *klc, Vector *vec)
     write_uint8(klc, (uint8_t)size);
 
     KlcTypeParam *item;
-    vector_foreach_object(item, vec) {
+    vector_foreach(item, vec) {
+        if (!item) continue;
+
         write_uint16(klc, item->name_index);
 
         size_t bsize = vector_size(&item->bounds) - 1;
         write_uint8(klc, (uint8_t)bsize);
 
         uint16_t bitem;
-        vector_foreach_object(bitem, &item->bounds) {
+        vector_foreach(bitem, &item->bounds) {
             if (!bitem) continue;
             write_uint16(klc, bitem);
         }
@@ -549,7 +553,8 @@ static void write_anns(KlcFile *klc, Vector *vec)
     size_t size = vector_size(vec) - 1;
     write_uint8(klc, (uint8_t)size);
     KlcAnnot *item;
-    vector_foreach_object(item, vec) {
+    vector_foreach(item, vec) {
+        if (!item) continue;
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->key_index);
         write_uint16(klc, item->value_index);
@@ -561,7 +566,8 @@ static void write_bases(KlcFile *klc, Vector *vec)
     size_t size = vector_size(vec) - 1;
     write_uint8(klc, (uint8_t)size);
     uint16_t item;
-    vector_foreach_object(item, vec) {
+    vector_foreach(item, vec) {
+        if (!item) continue;
         write_uint16(klc, item);
     }
 }
@@ -590,7 +596,8 @@ static void write_classes(KlcFile *klc, Vector *vec)
     write_uint16(klc, (uint16_t)size);
     KlcKlass **item_p;
     KlcKlass *item;
-    vector_foreach_object(item, vec) {
+    vector_foreach(item, vec) {
+        if (!item) continue;
         write_uint16(klc, item->flags);
         write_uint16(klc, item->name_index);
         write_tps(klc, &item->tps);

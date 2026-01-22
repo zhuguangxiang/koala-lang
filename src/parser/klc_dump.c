@@ -328,7 +328,7 @@ static void dump_class(Vector *vec, KlcFile *klc)
             fprintf(stdout, "[");
             KlcTypeParam *tp;
             int index = 0;
-            vector_foreach_object(tp, &item->tps) {
+            vector_foreach(tp, &item->tps) {
                 if (!tp) continue;
                 KlcConst *name = klc_get_const(klc, tp->name_index);
                 if (index != 0)
@@ -341,7 +341,7 @@ static void dump_class(Vector *vec, KlcFile *klc)
                     BUF(buf);
                     uint16_t bitem;
                     int bindex = 0;
-                    vector_foreach_object(bitem, &tp->bounds) {
+                    vector_foreach(bitem, &tp->bounds) {
                         if (bitem == 0) continue;
 
                         KlcConst *bname = klc_get_const(klc, bitem);
@@ -366,7 +366,7 @@ static void dump_class(Vector *vec, KlcFile *klc)
             uint16_t bitem;
             int index = 0;
             BUF(buf);
-            vector_foreach_object(bitem, &item->bases) {
+            vector_foreach(bitem, &item->bases) {
                 if (bitem == 0) continue;
 
                 KlcConst *bname = klc_get_const(klc, bitem);

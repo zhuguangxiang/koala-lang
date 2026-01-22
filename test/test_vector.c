@@ -28,7 +28,7 @@ void test_vector(void)
     vector_push_back(vec, &val);
 
     int **v;
-    vector_foreach(v, vec) {
+    vector_foreach_ptr(v, vec) {
         printf("v = %d\n", **v);
     }
 
@@ -73,7 +73,7 @@ void test_vector(void)
     *val = 5000;
     vector_push_front(vec, &val);
 
-    vector_foreach(v, vec) {
+    vector_foreach_ptr(v, vec) {
         printf("v = %d\n", **v);
     }
 
@@ -84,7 +84,7 @@ void test_vector(void)
 
     vector_concat(vec2, vec);
 
-    vector_foreach(v, vec2) {
+    vector_foreach_ptr(v, vec2) {
         printf("v = %d\n", **v);
     }
 

@@ -41,7 +41,10 @@ void type_spec_free(TypeSpec *ts)
         Vector *args = ts->specialized.args;
         if (args) {
             TypeSpec *arg;
-            vector_foreach_object(arg, args) { type_spec_free(arg); }
+            vector_foreach(arg, args) {
+                if (!arg) continue;
+                type_spec_free(arg);
+            }
             vector_destroy(args);
             ts->specialized.args = NULL;
         }
@@ -49,7 +52,10 @@ void type_spec_free(TypeSpec *ts)
         Vector *args = ts->unresolved.args;
         if (args) {
             TypeSpec *arg;
-            vector_foreach_object(arg, args) { type_spec_free(arg); }
+            vector_foreach(arg, args) {
+                if (!arg) continue;
+                type_spec_free(arg);
+            }
             vector_destroy(args);
             ts->unresolved.args = NULL;
         }
@@ -520,7 +526,10 @@ TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args, int sy
     if (args != NULL) {
         Vector *arg_copy = vector_create_ptr();
         TypeSpec *arg;
-        vector_foreach_object(arg, args) { vector_push_back(arg_copy, &arg); }
+        vector_foreach(arg, args) {
+            if (!arg) continue;
+            vector_push_back(arg_copy, &arg);
+        }
         ts->specialized.args = arg_copy;
     }
     ts->type_id = -1;
@@ -642,8 +651,8 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         if (vector_size(ts->specialized.args) > 0) {
             buf_write_char(buf, '<');
             TypeSpec *_ts;
-            vector_foreach_object(_ts, ts->specialized.args)
-            {
+            vector_foreach(_ts, ts->specialized.args) {
+                if (!_ts) continue;
                 type_spec_to_str(_ts, buf);
             }
             buf_write_char(buf, '>');
@@ -652,7 +661,10 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
     } else if (ts->kind == TYPE_UNION) {
         buf_write_char(buf, 'U');
         TypeSpec *arg;
-        vector_foreach_object(arg, ts->union_type.args) { type_spec_to_str(arg, buf); }
+        vector_foreach(arg, ts->union_type.args) {
+            if (!arg) continue;
+            type_spec_to_str(arg, buf);
+        }
         buf_write_char(buf, ';');
     } else if (ts->kind == TYPE_KLASS) {
         buf_write_char(buf, 'L');
@@ -665,7 +677,10 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
     } else if (ts->kind == TYPE_PROTO) {
         buf_write_char(buf, '(');
         TypeSpec *arg;
-        vector_foreach_object(arg, ts->proto_type.args) { type_spec_to_str(arg, buf); }
+        vector_foreach(arg, ts->proto_type.args) {
+            if (!arg) continue;
+            type_spec_to_str(arg, buf);
+        }
         buf_write_char(buf, ')');
         type_spec_to_str(ts->proto_type.ret, buf);
     } else if (ts->kind == TYPE_TYPE) {
@@ -894,8 +909,8 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
     } else if (ts->kind == TYPE_UNION) {
         TypeSpec *arg;
         int i = 0;
-        vector_foreach_object(arg, ts->union_type.args)
-        {
+        vector_foreach(arg, ts->union_type.args) {
+            if (!arg) continue;
             if (i != 0) buf_write_str(buf, " | ");
             type_spec_print(arg, buf);
             i++;
@@ -909,8 +924,8 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
     } else if (ts->kind == TYPE_PROTO) {
         buf_write_str(buf, "func(");
         TypeSpec *arg;
-        vector_foreach_object(arg, ts->proto_type.args)
-        {
+        vector_foreach(arg, ts->proto_type.args) {
+            if (!arg) continue;
             if (i__ != 0) buf_write_str(buf, ", ");
             type_spec_print(arg, buf);
         }

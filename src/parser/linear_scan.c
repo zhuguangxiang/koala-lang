@@ -94,7 +94,7 @@ void klr_alloc_registers(KlrFunc *func)
 
     /* parameters */
     KlrParam **param;
-    vector_foreach(param, &func->params) {
+    vector_foreach_ptr(param, &func->params) {
         KlrInterval interval;
         interval.val = (KlrValue *)(*param);
         interval.allocated = 0;
@@ -111,7 +111,7 @@ void klr_alloc_registers(KlrFunc *func)
 
     /* local variables */
     KlrLocal **local;
-    vector_foreach(local, &func->locals) {
+    vector_foreach_ptr(local, &func->locals) {
         KlrInterval interval;
         interval.val = (KlrValue *)(*local);
         interval.allocated = 0;

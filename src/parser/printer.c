@@ -368,7 +368,7 @@ static void print_block(KlrBasicBlock *bb, FILE *fp)
     if (list_first(&func->bb_list, KlrBasicBlock, link) == bb) {
         KlrLocal **local;
         Vector *vec = &func->locals;
-        vector_foreach(local, vec) {
+        vector_foreach_ptr(local, vec) {
             if (klr_value_used(*local)) print_local((*local), fp);
         }
     }
@@ -388,13 +388,13 @@ static void update_tags(KlrFunc *fn)
     fn->bb_tag = 0;
 
     KlrParam **param;
-    vector_foreach(param, &fn->params) {
+    vector_foreach_ptr(param, &fn->params) {
         if (!(*param)->name[0]) (*param)->tag = fn->tag++;
     }
 
     KlrLocal **local;
     Vector *vec = &fn->locals;
-    vector_foreach(local, vec) {
+    vector_foreach_ptr(local, vec) {
         if (!(*local)->name[0]) (*local)->tag = fn->tag++;
     }
 
@@ -503,7 +503,7 @@ void klr_print_func(KlrFunc *func, FILE *fp)
 
     fprintf(fp, "(");
     KlrParam **param;
-    vector_foreach(param, &func->params) {
+    vector_foreach_ptr(param, &func->params) {
         if (i__ == 0) {
             fprintf(fp, "param ");
         } else {
@@ -539,20 +539,20 @@ void klr_print_module(KlrModule *m, FILE *fp)
     fprintf(fp, "module @%s {\n", m->name);
 
     KlrGlobal *g;
-    vector_foreach_object(g, &m->globals)
-    {
+    vector_foreach(g, &m->globals) {
+        if (!g) continue;
         fprintf(fp, "  global @%s", g->name);
         print_value_type(g, fp);
         fprintf(fp, "\n");
     }
 
     KlrExtFunc **extf;
-    vector_foreach(extf, &m->ext_funcs) {
+    vector_foreach_ptr(extf, &m->ext_funcs) {
         fprintf(fp, "  ext_func @%s from module \"%s\"\n", (*extf)->name, (*extf)->owner);
     }
 
     KlrFunc **fn;
-    vector_foreach(fn, &m->functions) {
+    vector_foreach_ptr(fn, &m->functions) {
         klr_print_func(*fn, fp);
     }
 

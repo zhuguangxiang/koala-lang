@@ -137,10 +137,8 @@ int vector_remove(Vector *vec, int index, void *obj)
 
 int vector_concat(Vector *to, Vector *from)
 {
-    void *obj;
-    vector_foreach(obj, from) {
-        vector_push_back(to, obj);
-    }
+    void **obj_p;
+    vector_foreach_ptr(obj_p, from) { vector_push_back(to, obj_p); }
     return 0;
 }
 

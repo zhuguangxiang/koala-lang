@@ -174,10 +174,9 @@ static void parse_self(ParserState *ps, Expr *exp) {}
 static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc)
 {
     Expr *e;
-    ArgInfo **arg_p;
     ArgInfo *arg;
-    vector_foreach(arg_p, params) {
-        arg = *arg_p;
+    vector_foreach(arg, params) {
+        if (!arg) continue;
         e = vector_get_object(exprs, i__);
         // if arg has default value, the caller can pass value, kw-arg or skip it
         if (arg->dfl_val_idx > 0) {
@@ -259,12 +258,9 @@ static void parse_call(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, call->lhs);
     if (!lhs->ts) return;
 
-    int size = vector_size(call->args);
-
-    Expr **arg_p;
     Expr *arg;
-    vector_foreach(arg_p, call->args) {
-        arg = *arg_p;
+    vector_foreach(arg, call->args) {
+        if (!arg) continue;
         arg->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, arg);
         if (!arg->ts) return;

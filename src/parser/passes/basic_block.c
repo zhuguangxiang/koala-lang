@@ -94,7 +94,7 @@ static void delete_unused_block(KlrFunc *fn)
     }
 
     KlrBasicBlock **p_bb;
-    vector_foreach(p_bb, &unused) {
+    vector_foreach_ptr(p_bb, &unused) {
         klr_delete_block(*p_bb);
     }
 

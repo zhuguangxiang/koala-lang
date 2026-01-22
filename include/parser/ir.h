@@ -315,7 +315,7 @@ KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ty, char *name);
 // ir doesn't check external function's arguments
 KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *module, char *name);
 
-#define local_foreach(local, func) vector_foreach(local, &(func)->locals)
+#define local_foreach(local, func) vector_foreach_ptr(local, &(func)->locals)
 
 /* <3> basic block */
 

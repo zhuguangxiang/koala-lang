@@ -22,7 +22,7 @@ void klr_simple_alloc_registers(KlrFunc *func)
 
     /* parameters */
     KlrParam **param;
-    vector_foreach(param, &func->params) {
+    vector_foreach_ptr(param, &func->params) {
         (*param)->vreg = num_regs++;
 #ifndef NOLOG
         fprintf(stdout, "name: ");
@@ -33,7 +33,7 @@ void klr_simple_alloc_registers(KlrFunc *func)
 
     /* local variables */
     KlrLocal **local;
-    vector_foreach(local, &func->locals) {
+    vector_foreach_ptr(local, &func->locals) {
         (*local)->vreg = num_regs++;
 #ifndef NOLOG
         fprintf(stdout, "name: ");

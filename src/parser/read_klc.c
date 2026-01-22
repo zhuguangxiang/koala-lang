@@ -27,7 +27,7 @@ static void add_unsolved_sym_id(TypeSpec **ts, Vector *vec)
 
     if (t->kind == TYPE_SPECIALIZED) {
         TypeSpec **arg_ts;
-        vector_foreach(arg_ts, t->specialized.args) {
+        vector_foreach_ptr(arg_ts, t->specialized.args) {
             add_unsolved_sym_id(arg_ts, vec);
         }
     }
@@ -37,7 +37,7 @@ static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item, Vector *vec)
 {
     KlcArgument *arg;
     Vector *params = vector_create_ptr();
-    vector_foreach_object(arg, &item->args) {
+    vector_foreach(arg, &item->args) {
         if (!arg) continue;
         ArgInfo *arg_info = mm_alloc_obj(arg_info);
         KlcConst *name = klc_get_const(klc, arg->name_index);
@@ -92,20 +92,21 @@ static void add_klass(HashMap *stbl, KlcFile *klc, KlcKlass *kls, Vector *vec)
     }
 
     // add type params
+    Vector *tps = vector_create_ptr();
     KlcTypeParam *arg;
-    vector_foreach_object(arg, &kls->tps) {
+    vector_foreach(arg, &kls->tps) {
         if (!arg) continue;
+
         KlcConst *name = klc_get_const(klc, arg->name_index);
         Symbol *tp_sym = stbl_add_type_param(cls_sym->stbl, name->sval, cls_sym);
-        // set index
-        // kls->tps index 0 is not used. So we use i__ - 1 here.
-        ((TypeParamSymbol *)tp_sym)->index = i__ - 1;
-        vector_push_back(((KlassSymbol *)cls_sym)->tps, &tp_sym);
+        ((TypeParamSymbol *)tp_sym)->index = vector_size(tps);
+        vector_push_back(tps, &tp_sym);
 
         // add bounds
         uint16_t bound;
-        vector_foreach_object(bound, &arg->bounds) {
+        vector_foreach(bound, &arg->bounds) {
             if (!bound) continue;
+            ASSERT(0);
             KlcConst *bound_k = klc_get_const(klc, bound);
             TypeSpec *ts = type_spec_from_str(bound_k->sval);
             TypeParamSymbol *tp = (TypeParamSymbol *)tp_sym;
@@ -119,10 +120,11 @@ static void add_klass(HashMap *stbl, KlcFile *klc, KlcKlass *kls, Vector *vec)
             }
         }
     }
+    ((KlassSymbol *)cls_sym)->tps = tps;
 
     // read methods
     KlcFunc *fn;
-    vector_foreach_object(fn, &kls->methods) {
+    vector_foreach(fn, &kls->methods) {
         if (!fn) continue;
         add_func(cls_sym->stbl, klc, fn, vec);
     }
@@ -132,10 +134,8 @@ static void read_funcs(HashMap *stbl, KlcFile *klc, Vector *vec)
 {
     Vector *consts = klc->objs + ITEM_CONST;
 
-    KlcFunc **item_p;
     KlcFunc *item;
-    vector_foreach(item_p, klc->objs + ITEM_FUNC) {
-        item = *item_p;
+    vector_foreach(item, klc->objs + ITEM_FUNC) {
         if (!item) continue;
         if (!(item->flags & KLC_FLAGS_PUB)) {
             continue;
@@ -149,7 +149,7 @@ static void read_klasses(HashMap *stbl, KlcFile *klc, Vector *vec)
     Vector *consts = klc->objs + ITEM_CONST;
 
     KlcKlass *kls;
-    vector_foreach_object(kls, klc->objs + ITEM_CLASS) {
+    vector_foreach(kls, klc->objs + ITEM_CLASS) {
         if (!kls) continue;
         if (!(kls->flags & KLC_FLAGS_PUB)) {
             continue;
@@ -163,7 +163,8 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
 {
     TypeSpec **ts_ptr;
     TypeSpec *ts;
-    vector_foreach_object(ts_ptr, vec) {
+    vector_foreach(ts_ptr, vec) {
+        if (!ts_ptr) continue;
         ts = *ts_ptr;
         if (ts->kind == TYPE_SPECIALIZED) {
             Symbol *sym = stbl_get(stbl, ts->specialized.name);

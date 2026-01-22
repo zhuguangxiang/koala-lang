@@ -55,7 +55,7 @@ void init_parser(void)
 {
     imported = stbl_new();
     current = stbl_new();
-    // load_builtin_module();
+    load_builtin_module();
 }
 
 void fini_parser(void) {}
@@ -260,7 +260,8 @@ static int is_subtype_of(int child_id, int parent_id)
     if (!sym->bases) return 0;
 
     Symbol *base;
-    vector_foreach_object(base, sym->bases) {
+    vector_foreach(base, sym->bases) {
+        if (!base) continue;
         if (is_subtype_of(base->id, parent_id)) return 1;
     }
 
@@ -297,7 +298,8 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
             // check dst with src's upbound
             TypeParamSymbol *sym = get_symbol_by_id(src->sym_id);
             TypeSpec *bound;
-            vector_foreach_object(bound, sym->bound) {
+            vector_foreach(bound, sym->bound) {
+                if (!bound) continue;
                 if (type_spec_compatible(dst, bound)) {
                     // Only one bound is compatible, T is compatible with dst.
                     return 1;
@@ -319,7 +321,8 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 
         if (dst->kind == TYPE_UNION) {
             TypeSpec *arg;
-            vector_foreach_object(arg, dst->union_type.args) {
+            vector_foreach(arg, dst->union_type.args) {
+                if (!arg) continue;
                 if (type_spec_compatible(arg, src)) {
                     return 1;
                 }
@@ -391,7 +394,8 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         ASSERT(_ts->type_id < 0);
         TypeSpec *arg;
         Vector *vec = vector_create_ptr();
-        vector_foreach_object(arg, _ts->union_type.args) {
+        vector_foreach(arg, _ts->union_type.args) {
+            if (!arg) continue;
             TypeSpec *ret = resolve_type(ps, arg);
             vector_push_back(vec, &ret);
         }
@@ -408,7 +412,8 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         vec = vector_create_ptr();
         TypeSpec *ts;
         TypeSpec *ret;
-        vector_foreach_object(ts, _ts->unresolved.args) {
+        vector_foreach(ts, _ts->unresolved.args) {
+            if (!ts) continue;
             ret = resolve_type(ps, ts);
             vector_push_back(vec, &ret);
         }
@@ -492,7 +497,8 @@ int check_type(ParserState *ps, TypeSpec *type)
     if (type->kind == TYPE_UNION) {
         ASSERT(type->type_id >= 0);
         TypeSpec *arg;
-        vector_foreach_object(arg, type->union_type.args) {
+        vector_foreach(arg, type->union_type.args) {
+            if (!arg) continue;
             if (!check_type(ps, arg)) return 0;
         }
         return 1;
@@ -923,7 +929,9 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     if (vector_size(args) != 0) {
         arg_list = vector_create_ptr();
         ArgInfo *arg;
-        vector_foreach_object(arg, args) {
+        vector_foreach(arg, args) {
+            if (!arg) continue;
+
             if (!arg->ts) {
                 // should not happen
                 UNREACHABLE();
@@ -1022,14 +1030,16 @@ static void parse_class(ParserState *ps, Stmt *stmt)
 
     // parse type parameter's bounds
     TypeParamDecl *tp;
-    vector_foreach_object(tp, kls->tps) {
+    vector_foreach(tp, kls->tps) {
+        if (!tp) continue;
         TypeParamSymbol *tp_sym = vector_get_object(sym->tps, i__);
 
         if (vector_size(tp->bound) > 0) {
             Vector *vec = vector_create_ptr();
             TypeSpec *_ts;
             TypeSpec *ts;
-            vector_foreach_object(_ts, tp->bound) {
+            vector_foreach(_ts, tp->bound) {
+                if (!_ts) continue;
                 ts = resolve_type(ps, _ts);
                 assert(ts);
                 int r = check_type(ps, ts);
@@ -1044,7 +1054,8 @@ static void parse_class(ParserState *ps, Stmt *stmt)
     if (vector_size(kls->bases) > 0) {
         Vector *vec = vector_create_ptr();
         TypeSpec *ts;
-        vector_foreach_object(ts, kls->bases) {
+        vector_foreach(ts, kls->bases) {
+            if (!ts) continue;
             TypeSpec *base_ts = resolve_type(ps, ts);
             ASSERT(base_ts);
             int r = check_type(ps, base_ts);
@@ -1094,14 +1105,16 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
 
     // parse type parameter's bounds
     TypeParamDecl *tp;
-    vector_foreach_object(tp, kls->tps) {
+    vector_foreach(tp, kls->tps) {
+        if (!tp) continue;
         TypeParamSymbol *tp_sym = vector_get_object(sym->tps, i__);
 
         if (vector_size(tp->bound) > 0) {
             Vector *vec = vector_create_ptr();
             TypeSpec *_ts;
             TypeSpec *ts;
-            vector_foreach_object(_ts, tp->bound) {
+            vector_foreach(_ts, tp->bound) {
+                if (!_ts) continue;
                 ts = resolve_type(ps, _ts);
                 assert(ts);
                 int r = check_type(ps, ts);
@@ -1116,7 +1129,8 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
     if (vector_size(kls->bases) > 0) {
         Vector *vec = vector_create_ptr();
         TypeSpec *ts;
-        vector_foreach_object(ts, kls->bases) {
+        vector_foreach(ts, kls->bases) {
+            if (!ts) continue;
             TypeSpec *base_ts = resolve_type(ps, ts);
             ASSERT(base_ts);
             int r = check_type(ps, base_ts);
@@ -1138,9 +1152,10 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
     }
 
     /* parse trait body */
-    Stmt **s;
+    Stmt *s;
     vector_foreach(s, kls->stmts) {
-        parse_stmt(ps, *s);
+        if (!s) continue;
+        parse_stmt(ps, s);
     }
 
     exit_scope(ps);

@@ -91,10 +91,9 @@ void kl_write_to_klc(ParserState *ps)
                 KlcFunc *f = klc_add_func(&klc, fn->name, fn->ret->signature, flags);
 
                 // add argument info
-                ArgInfo **item_p;
                 ArgInfo *item;
-                vector_foreach(item_p, fn->params) {
-                    item = *item_p;
+                vector_foreach(item, fn->params) {
+                    if (!item) continue;
                     ASSERT(item->sym->kind == SYM_VAR);
                     VarSymbol *var_sym = (VarSymbol *)item->sym;
                     ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
@@ -130,12 +129,15 @@ void kl_write_to_klc(ParserState *ps)
 
                 if (vector_size(kls->tps) > 0) {
                     TypeParamSymbol *tp;
-                    vector_foreach_object(tp, kls->tps) {
+                    vector_foreach(tp, kls->tps) {
+                        if (!tp) continue;
+
                         KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
 
                         if (vector_size(tp->bound) > 0) {
                             TypeSpec *ts;
-                            vector_foreach_object(ts, tp->bound) {
+                            vector_foreach(ts, tp->bound) {
+                                if (!ts) continue;
                                 uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                              strlen(ts->signature));
                                 vector_push_back(&klc_tp->bounds, &index);
@@ -146,7 +148,8 @@ void kl_write_to_klc(ParserState *ps)
 
                 if (vector_size(kls->bases) > 0) {
                     TypeSpec *ts;
-                    vector_foreach_object(ts, kls->bases) {
+                    vector_foreach(ts, kls->bases) {
+                        if (!ts) continue;
                         uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                      strlen(ts->signature));
                         vector_push_back(&klass->bases, &index);
@@ -198,12 +201,14 @@ void kl_write_to_klc(ParserState *ps)
 
                 if (vector_size(kls->tps) > 0) {
                     TypeParamSymbol *tp;
-                    vector_foreach_object(tp, kls->tps) {
+                    vector_foreach(tp, kls->tps) {
+                        if (!tp) continue;
                         KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
 
                         if (vector_size(tp->bound) > 0) {
                             TypeSpec *ts;
-                            vector_foreach_object(ts, tp->bound) {
+                            vector_foreach(ts, tp->bound) {
+                                if (!ts) continue;
                                 uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                              strlen(ts->signature));
                                 vector_push_back(&klc_tp->bounds, &index);
@@ -214,7 +219,8 @@ void kl_write_to_klc(ParserState *ps)
 
                 if (vector_size(kls->bases) > 0) {
                     TypeSpec *ts;
-                    vector_foreach_object(ts, kls->bases) {
+                    vector_foreach(ts, kls->bases) {
+                        if (!ts) continue;
                         uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                      strlen(ts->signature));
                         vector_push_back(&klass->bases, &index);

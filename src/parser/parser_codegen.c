@@ -277,8 +277,8 @@ void codegen_ast(ParserState *ps)
 
     // visit all global variables and add them to ir module
     Stmt *s;
-    vector_foreach_object(s, &ps->stmts)
-    {
+    vector_foreach(s, &ps->stmts) {
+        if (!s) continue;
         if (s->kind == STMT_VAR_KIND) {
             VarDeclStmt *var = (VarDeclStmt *)s;
             Ident *id = &var->id;
@@ -298,7 +298,10 @@ void codegen_ast(ParserState *ps)
     scope->bb = entry;
 
     // codegen all statements
-    vector_foreach_object(s, &ps->stmts) { codegen_stmt(ps, s); }
+    vector_foreach(s, &ps->stmts) {
+        if (!s) continue;
+        codegen_stmt(ps, s);
+    }
 
     exit_scope(ps);
 
