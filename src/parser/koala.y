@@ -381,22 +381,22 @@ top_stmt
     | let_decl semi
     {
         $$ = $1;
-        var_set_where($$, VAR_GLOBAL);
+        if ($$) var_set_where($$, VAR_GLOBAL);
     }
     | prefix let_decl semi
     {
         $$ = $2;
-        var_set_where($$, VAR_GLOBAL);
+        if ($$) var_set_where($$, VAR_GLOBAL);
     }
     | var_decl semi
     {
         $$ = $1;
-        var_set_where($$, VAR_GLOBAL);
+        if ($$) var_set_where($$, VAR_GLOBAL);
     }
     | prefix var_decl semi
     {
         $$ = $2;
-        var_set_where($$, VAR_GLOBAL);
+        if ($$) var_set_where($$, VAR_GLOBAL);
     }
     | func_decl
     {
@@ -1605,7 +1605,6 @@ block
     }
     | '{' '}'
     {
-        printf("empty block\n");
         $$ = vector_create_ptr();
     }
     | '{' local_list error
@@ -2170,7 +2169,6 @@ add_expr
     }
     | add_expr '+' multi_expr
     {
-        printf("add_expr + multi_expr\n");
         $$ = expr_from_binary(BINARY_ADD, loc(@2), $1, $3);
         expr_set_loc($$, lloc(@1, @3));
     }
@@ -2333,7 +2331,7 @@ call_expr
     }
     | primary_expr '(' call_arg_list error
     {
-        expr_free($1);
+        // expr_free($1);
         // free_call_arg_list($3);
         kl_error(loc(@4), "expected ')'.");
         yy_clear_ok;

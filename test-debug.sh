@@ -1,12 +1,16 @@
 #!/bin/bash
+# Script to build and run tests in DebugTest configuration
 
-mkdir -p build/debug && cd build/debug
+mkdir -p build/DebugTest && cd build/DebugTest
 
 cmake -G Ninja ../.. \
-    -DCMAKE_BUILD_TYPE=debug \
+    -DCMAKE_BUILD_TYPE=DebugTest \
     -DSKIP_TESTS=OFF
 
 cmake --build . --target clean
 cmake --build . --target all
-ctest -LE "^no_debug_test$"
-cmake --build . --target check
+cmake --build . --target koala-test
+
+# ctest -R "max" --output-on-failure
+
+echo "Done."

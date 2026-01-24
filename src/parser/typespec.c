@@ -897,6 +897,17 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         buf_write_str(buf, ts->generic_var.name);
     } else if (ts->kind == TYPE_SPECIALIZED) {
         buf_write_str(buf, ts->specialized.name);
+        if (vector_size(ts->specialized.args) > 0) {
+            buf_write_char(buf, '[');
+            TypeSpec *arg;
+            int i__ = 0;
+            vector_foreach(arg, ts->specialized.args) {
+                if (!arg) continue;
+                if (i__ != 0) buf_write_str(buf, ", ");
+                type_spec_print(arg, buf);
+            }
+            buf_write_char(buf, ']');
+        }
     } else if (ts->kind == TYPE_FLOAT) {
         buf_write_str(buf, "float");
         buf_write_int64(buf, ts->int_flt_info.width * 8);

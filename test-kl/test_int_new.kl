@@ -1,0 +1,11 @@
+// RUN: koalac %s 2>&1 | filecheck %s -match-full-lines
+
+var v1 = int(100)
+
+var v2 = int("1A", base = 16)
+
+var v3 = int("1A", 16)
+
+var v4 = int("1A", base = 16, 10)
+
+// CHECK: expected expr, expr-list or ')'.

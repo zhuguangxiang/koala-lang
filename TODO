@@ -7,7 +7,7 @@ Todos:
   ☐ int8(100)
     ☐ 100 as int8
     ☐ as int8
-    ☐ int8(x)
+    ✔ int8(x) @done(26-01-24 01:20)
   ☐ binary expression
     ☐ int binary expr
     ☐ int8/int16 cast to int auto and then do binary ops

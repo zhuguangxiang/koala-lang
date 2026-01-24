@@ -276,16 +276,21 @@ void kl_write_to_klc(ParserState *ps)
 
     write_klc_file(&klc);
 
+#ifndef NOLOG
     klc_dump(&klc);
+#endif
 
     fini_klc_file(&klc);
 
-    printf("read klc file: %s\n", BUF_STR(output));
+    log_info("read klc file: %s", BUF_STR(output));
 
     KlcFile klc2;
     init_klc_file(&klc2, BUF_STR(output));
     read_klc_file(&klc2, 1);
+
+#ifndef NOLOG
     klc_dump(&klc2);
+#endif
 
     FINI_BUF(output);
 }

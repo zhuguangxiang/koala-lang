@@ -1,0 +1,70 @@
+// RUN: koalac %s | filecheck %s --allow-empty
+
+func hello() str {
+    // return "hello"
+}
+
+var v = hello()
+
+var v1 = hello
+
+var v1_1 = v1()
+
+class Foo {
+    func __init__(v str) {
+    }
+
+    func __call__(v int) int {
+
+    }
+}
+
+var f = Foo("hello")
+
+var f2 = f(10)
+
+var v8 = f(1) + int(10)
+
+var v9 = type(f2)
+var v10 = int
+
+class List[T] {
+    func __init__(v T) {
+    }
+
+    func add(item int) {
+    }
+
+    func get(index int) int {
+    }
+}
+
+var l List[int] = List[int](10)
+
+class Bar {
+    func __init__() {
+    }
+
+    func compute(x int, y int) int {
+        // return x + y
+    }
+}
+
+class Baz : Bar {
+    func __init__() {
+    }
+
+    func process(b Bar, val int) int {
+        // return b.compute(val, val)
+    }
+}
+
+var l2 List[Bar];
+
+// var l5 List[Baz];
+
+var l3 List[Bar] = List[Baz](Baz())
+
+// CHECK: Types of two sides are not matched.
+
+var l4 List[Baz] = List[Baz](Baz())

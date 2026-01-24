@@ -308,17 +308,28 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 ">"         { YY_RETURN('>'); }
 "<"         { YY_RETURN('<'); }
 
-[+-]*0[xX][0-9a-fA-F_]+  { YY_INT_VALUE(yytext, yyleng, 16); YY_RETURN(INT_LITERAL); }
-[+-]*0[oO][0-7_]+        { YY_INT_VALUE(yytext, yyleng, 8);  YY_RETURN(INT_LITERAL); }
-[+-]*0[bB][01_]+         { YY_INT_VALUE(yytext, yyleng, 2);  YY_RETURN(INT_LITERAL); }
-[+-]*[0-9][0-9_]*   { YY_INT_VALUE(yytext, yyleng, 10); YY_RETURN(INT_LITERAL); }
+[+-]?0[bB][01]([01_]*[01])? {
+    YY_INT_VALUE(yytext, yyleng, 2); YY_RETURN(INT_LITERAL);
+}
+
+[+-]?0[oO][0-7]([0-7_]*[0-7])? {
+    YY_INT_VALUE(yytext, yyleng, 8); YY_RETURN(INT_LITERAL);
+}
+
+[+-]?0[xX][0-9a-fA-F]([0-9a-fA-F_]*[0-9a-fA-F])? {
+    YY_INT_VALUE(yytext, yyleng, 16); YY_RETURN(INT_LITERAL);
+}
 
 [A-Za-z_$][A-Za-z0-9_$]* {
     YY_IDENT_VALUE(yytext, yyleng); YY_RETURN(ID);
 }
 
-[+-]*([0-9]+\.[0-9]+|[0-9]+)([eE][-+]?[0-9]+)? {
+[+-]?(([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)([eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+) {
     YY_FLOAT_VALUE(yytext, yyleng); YY_RETURN(FLOAT_LITERAL);
+}
+
+[+-]?[0-9]([0-9_]*[0-9])? {
+    YY_INT_VALUE(yytext, yyleng, 10); YY_RETURN(INT_LITERAL);
 }
 
 \'              { YY_S_BEGIN;              }
@@ -335,9 +346,9 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 <TXT>\"\"\"     { YY_TXT_END;              }
 <TXT>.          { YY_TXT_WRITE(yytext[0]); }
 
-"///"(([^\*]*(\*[^\/])?)*) {
+"///"[^\n]* {
     RESET_BUF(yyps->sbuf);
-    buf_write_nstr(&yyps->sbuf, yytext + 3, yyleng - 5);
+    buf_write_nstr(&yyps->sbuf, yytext + 3, yyleng - 3);
     YY_RETURN(DOC);
 }
 

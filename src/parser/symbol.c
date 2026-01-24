@@ -216,6 +216,7 @@ Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
         sym->tp_args = tp_args;
         sym->stbl = stbl_new();
         sym->instance_ts = specialized_type_spec(NULL, origin->name, tp_args, sym->id);
+        sym->instance_ts->checked = 1;
     }
 
     return (Symbol *)sym;

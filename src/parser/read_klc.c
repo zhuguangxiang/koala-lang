@@ -198,14 +198,16 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
 
 void load_module(ModuleSymbol *mod_sym, char *path)
 {
-    log_debug("read klc file: %s\n", path);
+    log_debug("read klc file: %s", path);
 
     KlcFile klc;
 
     init_klc_file(&klc, path);
     read_klc_file(&klc, 0);
 
+#ifndef NOLOG
     klc_dump(&klc);
+#endif
 
     Vector vec = VECTOR_INIT_PTR;
     HashMap *stbl = mod_sym->stbl;

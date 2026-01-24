@@ -97,7 +97,7 @@ typedef struct _ParserState {
 Symbol *find_symbol(ParserState *ps, Ident *id);
 
 /* more than MAX_ERRORS, discard remaining errors shown */
-#define MAX_ERRORS 8
+#define MAX_ERRORS 32
 
 #define BOLD_SEQ     "\033[1m"
 #define COLOR_RED    "\x1b[31m"

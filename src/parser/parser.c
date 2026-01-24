@@ -346,10 +346,6 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     }
 
     // Rule 4: Symbol ID and Inheritance Check
-    if (dst->sym_id != src->sym_id) {
-        // Check if 'src' is a subtype of 'dst' in the symbol table
-        return is_subtype_of(src->sym_id, dst->sym_id);
-    }
 
     if (dst->kind == TYPE_GENERIC_VAR) {
         return dst->generic_var.index == src->generic_var.index;
@@ -370,16 +366,16 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 
             // generic parameters must be strictly compatible(invariant).
             // List[int32] and List[int64] are not compatible.
-            // List[Dog] and List[Animal] are compatible.
-            if (is_value_type(d_arg)) {
-                if (!type_spec_equal_strict(d_arg, s_arg)) return 0;
-            } else {
-                // reference type
-                if (!type_spec_compatible(d_arg, s_arg)) return 0;
-            }
+            // List[Dog] and List[Animal] are not compatible.
+            if (!type_spec_equal_strict(d_arg, s_arg)) return 0;
         }
 
         return 1;
+    }
+
+    if (dst->sym_id != src->sym_id) {
+        // Check if 'src' is a subtype of 'dst' in the symbol table
+        return is_subtype_of(src->sym_id, dst->sym_id);
     }
 
     UNREACHABLE();
@@ -638,6 +634,16 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
             ts = ((InstanceSymbol *)inst_sym)->instance_ts;
         }
         var->type = ts;
+    }
+
+    if (!exp) {
+        if (!ts) {
+            kl_error(id->loc, "variable '%s' needs a type or an initializer", id->name);
+            return;
+        }
+
+        ((VarSymbol *)var->sym)->ts = ts;
+        return;
     }
 
     exp->ctx = EXPR_CTX_LOAD;
