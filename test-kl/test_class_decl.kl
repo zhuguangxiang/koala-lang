@@ -11,8 +11,6 @@ trait Swim[U] {
 class Bar {
 }
 
-
-
 class Baz2[int] : Fly & Swim[int] {
 }
 
@@ -36,5 +34,14 @@ class Baz2 : Fly[int] & Swim[int] {
 }
 
 // CHECK-NEXT: Type argument mismatch: 'Fly' expects 0 argument(s), but 1 were provided
+
+let b Baz[int] = Baz[int]()
+
+class Baz3 : Fly & Swim[int] {
+}
+
+let b2 = Baz[T]()
+
+// CHECK-NEXT: 'T' is not found
 
 // CHECK-NOT: {{.}}

@@ -225,6 +225,34 @@ static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
     return (Symbol *)sym;
 }
 
+Symbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *tp_args)
+{
+    ASSERT(ts->kind == TYPE_SPECIALIZED);
+
+    Symbol *origin_sym = get_symbol_by_id(ts->sym_id);
+    ASSERT(origin_sym->kind == SYM_CLASS || origin_sym->kind == SYM_TRAIT);
+
+    Vector *base_tp_args = vector_create_ptr();
+    TypeSpec *spec_arg_ts;
+    TypeSpec *arg_ts;
+    vector_foreach(arg_ts, ts->specialized.args) {
+        if (!arg_ts) continue;
+        if (arg_ts->kind == TYPE_GENERIC_VAR) {
+            spec_arg_ts = vector_get_object(tp_args, arg_ts->generic_var.index);
+        } else if (arg_ts->kind == TYPE_SPECIALIZED) {
+            // nested specialized type
+            Symbol *spec_arg_sym = instance_type_spec(stbl, arg_ts, tp_args);
+            spec_arg_ts = ((InstanceSymbol *)spec_arg_sym)->instance_ts;
+        } else {
+            ASSERT(arg_ts->kind != TYPE_UNRESOLVED);
+            spec_arg_ts = arg_ts;
+        }
+        vector_push_back(base_tp_args, &spec_arg_ts);
+    }
+
+    return find_or_add_instance(stbl, origin_sym, base_tp_args);
+}
+
 Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
 {
     ASSERT(origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT);
@@ -243,6 +271,7 @@ Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
 
     // set instance bases
     if (!vector_empty(kls_sym->bases)) {
+        log_info("updating instance bases for '%s'", mangled_name);
         inst_sym->bases = vector_create_ptr();
         TypeSpec *base_ts;
         vector_foreach(base_ts, kls_sym->bases) {
@@ -250,18 +279,17 @@ Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
             if (base_ts->kind == TYPE_KLASS) {
                 vector_push_back(inst_sym->bases, &base_ts);
             } else {
-                // TODO: handle specialized base class/trait
+                // handle specialized base class/trait
                 ASSERT(base_ts->kind == TYPE_SPECIALIZED);
-                ASSERT(0);
                 // specialize base class/trait
-                // Symbol *origin_base_sym = get_symbol_by_id(base_ts->sym_id);
-                // Vector *base_tp_args = vector_create_ptr();
-                // TypeSpec *arg_ts;
-                // TypeSpec *spec_base_ts = specialize_type_spec(base_ts, tp_args);
-                // vector_push_back(inst_sym->bases, &spec_base_ts);
+                Symbol *base_sym = instance_type_spec(stbl, base_ts, tp_args);
+                base_ts = ((InstanceSymbol *)base_sym)->instance_ts;
+                vector_push_back(inst_sym->bases, &base_ts);
+                ASSERT(base_ts->kind == TYPE_KLASS);
             }
+            log_info("updated instance base '%s' for '%s'", base_ts->klass_type.name,
+                     mangled_name);
         }
-        log_info("set instance bases for '%s'", mangled_name);
     }
 
     return sym;

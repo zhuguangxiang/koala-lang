@@ -1181,6 +1181,7 @@ static void parse_class(ParserState *ps, Stmt *stmt)
 
             if (base_sym->kind == SYM_TRAIT) {
                 vector_push_back(vec, &base_ts);
+                log_info("base is trait symbol: %s", base_sym->name);
             } else if (base_sym->kind == SYM_INSTANCE) {
                 log_info("base is instance symbol: %s", base_sym->name);
                 Symbol *origin_sym = ((InstanceSymbol *)base_sym)->origin;
