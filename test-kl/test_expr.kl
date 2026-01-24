@@ -2,3 +2,5 @@
 
 print("hello world")
 // CHECK: hello world
+
+// CHECK-NOT: {{.}}

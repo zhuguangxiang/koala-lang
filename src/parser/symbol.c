@@ -198,7 +198,7 @@ static char *mangle_type_name(char *base_name, Vector *tp_args)
     return mangled_name;
 }
 
-Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
+static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
 {
     InstanceSymbol *sym = mm_alloc_obj(sym);
     char *mangled_name = mangle_type_name(origin->name, tp_args);
@@ -215,21 +215,56 @@ Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
         sym->origin = origin;
         sym->tp_args = tp_args;
         sym->stbl = stbl_new();
-        sym->instance_ts = specialized_type_spec(NULL, origin->name, tp_args, sym->id);
+        sym->instance_ts = klass_type_spec(NULL, mangled_name);
+        sym->instance_ts->sym_id = sym->id;
         sym->instance_ts->checked = 1;
     }
+
+    log_info("added instance symbol '%s' with id=%d", mangled_name, sym->id);
 
     return (Symbol *)sym;
 }
 
 Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
 {
+    ASSERT(origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT);
+
     char *mangled_name = mangle_type_name(origin->name, tp_args);
     Symbol *sym = stbl_get(stbl, mangled_name);
     if (sym) {
+        log_info("found existing instance symbol '%s'", mangled_name);
         return sym;
     }
-    return stbl_add_instance(stbl, origin, tp_args);
+
+    sym = stbl_add_instance(stbl, origin, tp_args);
+
+    InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+    KlassSymbol *kls_sym = (KlassSymbol *)origin;
+
+    // set instance bases
+    if (!vector_empty(kls_sym->bases)) {
+        inst_sym->bases = vector_create_ptr();
+        TypeSpec *base_ts;
+        vector_foreach(base_ts, kls_sym->bases) {
+            if (!base_ts) continue;
+            if (base_ts->kind == TYPE_KLASS) {
+                vector_push_back(inst_sym->bases, &base_ts);
+            } else {
+                // TODO: handle specialized base class/trait
+                ASSERT(base_ts->kind == TYPE_SPECIALIZED);
+                ASSERT(0);
+                // specialize base class/trait
+                // Symbol *origin_base_sym = get_symbol_by_id(base_ts->sym_id);
+                // Vector *base_tp_args = vector_create_ptr();
+                // TypeSpec *arg_ts;
+                // TypeSpec *spec_base_ts = specialize_type_spec(base_ts, tp_args);
+                // vector_push_back(inst_sym->bases, &spec_base_ts);
+            }
+        }
+        log_info("set instance bases for '%s'", mangled_name);
+    }
+
+    return sym;
 }
 
 Symbol *stbl_get(HashMap *stbl, char *name)

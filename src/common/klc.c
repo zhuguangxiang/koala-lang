@@ -336,13 +336,14 @@ KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags)
     kls->name_index = name_index;
     vector_init_ptr(&kls->tps);
     vector_init_ptr(&kls->anns);
-    vector_init_ptr(&kls->bases);
+    vector_init(&kls->bases, sizeof(uint16_t));
     vector_init_ptr(&kls->fields);
     vector_init_ptr(&kls->methods);
     void *empty = NULL;
     vector_push_back(&kls->tps, &empty);
     vector_push_back(&kls->anns, &empty);
-    vector_push_back(&kls->bases, &empty);
+    uint16_t _empty = 0;
+    vector_push_back(&kls->bases, &_empty);
     vector_push_back(&kls->fields, &empty);
     vector_push_back(&kls->methods, &empty);
     vector_push_back(klc->objs + ITEM_CLASS, &kls);
@@ -887,16 +888,18 @@ static void read_classes(KlcFile *klc, Vector *vec)
         kls = mm_alloc_obj(kls);
         vector_init_ptr(&kls->tps);
         vector_init_ptr(&kls->anns);
-        vector_init_ptr(&kls->bases);
+        vector_init(&kls->bases, sizeof(uint16_t));
         vector_init_ptr(&kls->fields);
         vector_init_ptr(&kls->methods);
         vector_push_back(vec, &kls);
+
         read_uint16(klc, &kls->flags);
         read_uint16(klc, &kls->name_index);
         void *empty = NULL;
         vector_push_back(&kls->tps, &empty);
         vector_push_back(&kls->anns, &empty);
-        vector_push_back(&kls->bases, &empty);
+        uint16_t _empty = 0;
+        vector_push_back(&kls->bases, &_empty);
         vector_push_back(&kls->fields, &empty);
         vector_push_back(&kls->methods, &empty);
         read_tps(klc, &kls->tps);

@@ -118,7 +118,7 @@ typedef struct _KlassSymbol {
     SYMBOL_HEAD
     /* type params */
     Vector *tps;
-    /* bases */
+    /* ->TypeSpec */
     Vector *bases;
     /* fields */
     Vector *fields;
@@ -144,6 +144,8 @@ typedef struct _InstanceSymbol {
     Vector *tp_args;
     /* instance type(specialized) */
     TypeSpec *instance_ts;
+    /* instance bases */
+    Vector *bases;
 } InstanceSymbol;
 
 static inline int __symbol_equal__(Symbol *s1, Symbol *s2)
@@ -177,7 +179,6 @@ void stbl_show(HashMap *stbl);
 void *get_symbol_by_id(int id);
 
 Symbol *stbl_add_module(HashMap *stbl, char *path);
-Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
 Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
 
 #ifdef __cplusplus

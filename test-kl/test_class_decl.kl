@@ -1,0 +1,40 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+trait Fly {
+    func fly() str
+}
+
+trait Swim[U] {
+    func swim(u U) str
+}
+
+class Bar {
+}
+
+
+
+class Baz2[int] : Fly & Swim[int] {
+}
+
+// CHECK: expected type-parameter decl-list.
+
+class Baz1 : Bar & Fly & Swim {
+}
+
+// CHECK-NEXT: 'Bar' is not trait, only trait can be used as base
+// CHECK-NEXT: Type argument mismatch: 'Swim' expects 1 argument(s), but 0 were provided
+
+class Baz[T] : Fly & Swim[T] {
+    func __init__() {
+    }
+
+    func hello(s str) Baz[T] {
+    }
+}
+
+class Baz2 : Fly[int] & Swim[int] {
+}
+
+// CHECK-NEXT: Type argument mismatch: 'Fly' expects 0 argument(s), but 1 were provided
+
+// CHECK-NOT: {{.}}

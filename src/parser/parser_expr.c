@@ -13,7 +13,7 @@ extern "C" {
 
 #ifndef NOLOG
 /* clang-format off */
-#define print_type_spec(ts) do {        \
+#define log_type_spec(ts) do {        \
     BUF(buf);                           \
     type_spec_print(ts, &buf);          \
     log_info("  '%s'", BUF_STR(buf));   \
@@ -21,7 +21,7 @@ extern "C" {
 } while (0)
 /* clang-format on */
 #else
-#define print_type_spec(ts) ((void *)(ts))
+#define log_type_spec(ts) ((void *)(ts))
 #endif
 
 static void parse_ident(ParserState *ps, Expr *exp)
@@ -37,7 +37,7 @@ static void parse_ident(ParserState *ps, Expr *exp)
     exp->ts = sym->ts;
     exp->sym = sym;
     log_debug("ident resolved: %s", sym->name);
-    print_type_spec(sym->ts);
+    log_type_spec(sym->ts);
 }
 
 static void parse_under(ParserState *ps, Expr *exp)
@@ -245,7 +245,7 @@ static void parse_type(ParserState *ps, Expr *exp)
     // Foo -> exp->ts is type type, symbol is Foo
     exp->ts = exp->sym->ts;
     log_debug("type '%s' is resolved as: ", exp->sym->name);
-    print_type_spec(exp->ts);
+    log_type_spec(exp->ts);
     return;
 }
 
@@ -281,15 +281,13 @@ static void parse_call(ParserState *ps, Expr *exp)
         if (!arg->ts) return;
     }
 
-    if (ps->errors > 0) return;
-
     Symbol *lhs_sym = lhs->sym;
     Vector *params = NULL;
     if (lhs_sym->kind == SYM_VAR) {
         TypeSpec *ts = lhs_sym->ts;
 
         log_debug("call lhs is variable of type:");
-        print_type_spec(ts);
+        log_type_spec(ts);
 
         if (ts->kind == TYPE_PROTO) {
             log_debug("call lhs is proto variable.");
@@ -426,28 +424,40 @@ static void parse_index(ParserState *ps, Expr *exp)
 
             ASSERT(arg->ts->kind == TYPE_TYPE);
 
-            KlassSymbol *arg_sym = (KlassSymbol *)arg->sym;
+            TypeSpec *arg_ts;
+            Symbol *arg_sym = arg->sym;
+            if (arg_sym->kind == SYM_CLASS || arg_sym->kind == SYM_TRAIT) {
+                arg_ts = ((KlassSymbol *)arg->sym)->instance_ts;
+            } else if (arg_sym->kind == SYM_INSTANCE) {
+                arg_ts = ((InstanceSymbol *)arg->sym)->instance_ts;
+            } else {
+                kl_error(arg->loc, "type argument must be a class/trait type.");
+                return;
+            }
+
             TypeParamSymbol *tp_sym =
                 (TypeParamSymbol *)vector_get_object(kls_sym->tps, i__);
             TypeSpec *bound_ts;
             vector_foreach(bound_ts, tp_sym->bound) {
                 if (!bound_ts) continue;
-                if (!type_spec_compatible(bound_ts, arg_sym->instance_ts)) {
+                if (!type_spec_compatible(bound_ts, arg_ts)) {
                     kl_error(arg->loc,
                              "type argument '%s' is not compatible with bound type.",
                              arg_sym->name);
+                    log_info("bound type is: ");
+                    log_type_spec(bound_ts);
                     return;
                 }
             }
-            vector_push_back(tp_args, &arg_sym->instance_ts);
+            vector_push_back(tp_args, &arg_ts);
         }
 
         // create or find instance symbol(List<int>)
         Symbol *inst_sym = find_or_add_instance(ps->stbl, (Symbol *)kls_sym, tp_args);
         exp->ts = inst_sym->ts;
         exp->sym = inst_sym;
-        log_debug("generic type instance created: %s", inst_sym->name);
-        print_type_spec(inst_sym->ts);
+        log_debug("generic type instance created/got: %s", inst_sym->name);
+        log_type_spec(inst_sym->ts);
     } else {
         kl_error(lhs->loc, "only generic types support type arguments.");
         return;

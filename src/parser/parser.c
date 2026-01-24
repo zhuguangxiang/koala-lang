@@ -79,7 +79,7 @@ static void free_scope(ParserScope *scope)
 
 #ifndef NOLOG
 /* clang-format off */
-#define print_type_spec(ts) do {        \
+#define log_type_spec(ts) do {        \
     BUF(buf);                           \
     type_spec_print(ts, &buf);          \
     log_info("  '%s'", BUF_STR(buf));   \
@@ -87,8 +87,17 @@ static void free_scope(ParserScope *scope)
 } while (0)
 /* clang-format on */
 #else
-#define print_type_spec(ts) ((void *)(ts))
+#define log_type_spec(ts) ((void *)(ts))
 #endif
+
+/* clang-format off */
+#define print_type_spec(ts) do {    \
+    BUF(buf);                       \
+    type_spec_print(ts, &buf);      \
+    printf(" %s", BUF_STR(buf));    \
+    FINI_BUF(buf);                  \
+} while (0)
+/* clang-format on */
 
 #ifndef NOLOG
 static const char *scopes[] = {
@@ -312,6 +321,14 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
                 if (dst->sym_id == src->sym_id) {
                     return 1;
                 } else {
+                    KlassSymbol *sym = get_symbol_by_id(src->sym_id);
+                    TypeSpec *base;
+                    vector_foreach(base, sym->bases) {
+                        if (!base) continue;
+                        if (type_spec_compatible(dst, base)) {
+                            return 1;
+                        }
+                    }
                     return 0;
                 }
             }
@@ -356,7 +373,35 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     if (dst->kind == TYPE_SPECIALIZED) {
         int d_args_size = vector_size(dst->specialized.args);
         int s_args_size = vector_size(src->specialized.args);
-        if (d_args_size != s_args_size) return 0;
+        if (d_args_size != s_args_size) {
+            Symbol *sym = get_symbol_by_id(src->sym_id);
+            if (sym->kind == SYM_CLASS) {
+                KlassSymbol *kls_sym = (KlassSymbol *)sym;
+                TypeSpec *base;
+                vector_foreach(base, kls_sym->bases) {
+                    if (!base) continue;
+                    if (type_spec_compatible(dst, base)) {
+                        return 1;
+                    }
+                }
+            } else if (sym->kind == SYM_INSTANCE) {
+                // TODO: bases instance
+                InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+                Symbol *origin_sym = inst_sym->origin;
+                if (origin_sym->kind == SYM_CLASS) {
+                    KlassSymbol *kls_sym = (KlassSymbol *)origin_sym;
+                    TypeSpec *base;
+                    vector_foreach(base, kls_sym->bases) {
+                        if (!base) continue;
+                        if (type_spec_compatible(dst, base)) {
+                            return 1;
+                        }
+                    }
+                }
+            }
+
+            return 0;
+        }
 
         // Handle Variance based on storage model
 
@@ -371,6 +416,32 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
         }
 
         return 1;
+    }
+
+    if (dst->kind == TYPE_KLASS) {
+        Symbol *sym = get_symbol_by_id(src->sym_id);
+        Vector *bases = NULL;
+        if (sym->kind == SYM_CLASS) {
+            KlassSymbol *kls_sym = (KlassSymbol *)sym;
+            bases = kls_sym->bases;
+        } else if (sym->kind == SYM_INSTANCE) {
+            InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+            bases = inst_sym->bases;
+        } else {
+            UNREACHABLE();
+            return 0;
+        }
+
+        TypeSpec *base;
+        vector_foreach(base, bases) {
+            if (!base) continue;
+            if (type_spec_compatible(dst, base)) {
+                return 1;
+            }
+        }
+
+        log_info("no compatible base found for klass type, compare directly by pointer");
+        return dst == src;
     }
 
     if (dst->sym_id != src->sym_id) {
@@ -402,7 +473,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
     if (_ts->kind != TYPE_UNRESOLVED) return _ts;
 
     // parse arguments by bottom-to-up method
-
+    int open = 0;
     Vector *vec = NULL;
     if (vector_size(_ts->unresolved.args) > 0) {
         vec = vector_create_ptr();
@@ -411,6 +482,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         vector_foreach(ts, _ts->unresolved.args) {
             if (!ts) continue;
             ret = resolve_type(ps, ts);
+            if (ret->kind == TYPE_GENERIC_VAR) open = 1;
             vector_push_back(vec, &ret);
         }
         vector_clear(_ts->unresolved.args);
@@ -428,6 +500,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
                      _ts->unresolved.name.name);
             goto error;
         }
+        log_info("resolve type-parameter '%s'", _ts->unresolved.name.name);
         TypeParamSymbol *ts_sym = (TypeParamSymbol *)sym;
         TypeSpec *ret = generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id,
                                               ts_sym->owner->name);
@@ -445,17 +518,46 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             goto error;
         }
 
-        TypeSpec *ret = specialized_type_spec(
-            _ts->unresolved.pkg.name, _ts->unresolved.name.name, vec, kls_sym->id);
-        type_spec_free(_ts);
-        return ret;
+        if (open) {
+            // open specialized type
+            log_info("resolve open specialized type '%s'", _ts->unresolved.name.name);
+            TypeSpec *ret = specialized_type_spec(
+                _ts->unresolved.pkg.name, _ts->unresolved.name.name, vec, kls_sym->id);
+            type_spec_free(_ts);
+            return ret;
+        }
+
+        log_info("resolve closed specialized type '%s'", _ts->unresolved.name.name);
+
+        // closed specialized type
+        if (vector_empty(vec)) {
+            log_info("resolve type '%s' without type-args", _ts->unresolved.name.name);
+            TypeSpec *ret =
+                klass_type_spec(_ts->unresolved.pkg.name, _ts->unresolved.name.name);
+            // sure this TypeSpec is already interned
+            ASSERT(ret->sym_id == kls_sym->id);
+            ASSERT(kls_sym->instance_ts == ret);
+            type_spec_free(_ts);
+            return ret;
+        } else {
+            // all args are concrete types
+            // create instance symbol
+            log_info("resolve type '%s' with type-args", _ts->unresolved.name.name);
+            Symbol *inst_sym = find_or_add_instance(ps->stbl, sym, vec);
+            if (!inst_sym) {
+                kl_error(_ts->loc, "failed to get instance for specialized type");
+                return NULL;
+            }
+            TypeSpec *ret = ((InstanceSymbol *)inst_sym)->instance_ts;
+            type_spec_free(_ts);
+            return ret;
+        }
     } else {
         UNREACHABLE();
     }
 
 error:
     // TODO: free memroy
-    UNREACHABLE();
     return NULL;
 }
 
@@ -520,17 +622,21 @@ int check_type(ParserState *ps, TypeSpec *type)
     }
 
     Vector *tps = sym->tps;
-
     int arg_count = vector_size(type->specialized.args);
+    if (vector_size(tps) != arg_count) {
+        kl_error(type->loc,
+                 "Type argument count mismatch: '%s' expects %d argument(s), but %d were "
+                 "provided",
+                 sym->name, vector_size(tps), arg_count);
+        return 0;
+    }
 
     // 2. Validate each generic argument against its defined constraints
     for (int i = 0; i < arg_count; i++) {
-        TypeSpec **arg_p = vector_get(type->specialized.args, i);
-        TypeSpec *arg = *arg_p;
+        TypeSpec *arg = vector_get_object(type->specialized.args, i);
 
         // Get the required bounds for the i-th parameter (e.g., [Animal, Serializable])
-        TypeParamSymbol **tp_sym_p = vector_get(tps, i);
-        TypeParamSymbol *tp_sym = *tp_sym_p;
+        TypeParamSymbol *tp_sym = vector_get_object(tps, i);
         Vector *bounds = tp_sym->bound;
 
         if (bounds && vector_size(bounds) > 0) {
@@ -618,21 +724,6 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     if (ts) {
         ts = resolve_type(ps, ts);
         if (!check_type(ps, ts)) return;
-        if (ts->kind == TYPE_SPECIALIZED && vector_size(ts->specialized.args) > 0) {
-            Symbol *origin = get_symbol_by_id(ts->sym_id);
-            if (!origin) {
-                kl_error(id->loc, "failed to get origin for specialized type");
-                return;
-            }
-
-            Symbol *inst_sym =
-                find_or_add_instance(ps->stbl, origin, ts->specialized.args);
-            if (!inst_sym) {
-                kl_error(id->loc, "failed to get instance for specialized type");
-                return;
-            }
-            ts = ((InstanceSymbol *)inst_sym)->instance_ts;
-        }
         var->type = ts;
     }
 
@@ -695,15 +786,16 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         /* update symbol type */
         sym->ts = exp->ts;
         log_info("update symbol '%s' type as:", sym->name);
-        print_type_spec(sym->ts);
+        log_type_spec(sym->ts);
     } else {
         if (!sym->ts) sym->ts = ts;
         if (!type_spec_compatible(ts, exp->ts)) {
             kl_error(id->loc, "Types of two sides are not matched.");
-            log_info("lhs:");
+            printf("lhs:");
             print_type_spec(ts);
-            log_info("rhs:");
+            printf(" =/= rhs:");
             print_type_spec(exp->ts);
+            printf("\n");
             return;
         }
     }
@@ -965,7 +1057,7 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     TypeSpec *fn_ts = func_type_spec(arg_list, sym->ret);
     sym->ts = fn_ts;
     log_info("update function '%s' type as:", sym->name);
-    print_type_spec(sym->ts);
+    log_type_spec(sym->ts);
 
     /* parse body */
     parse_body(ps, sym, fn->body);
@@ -1055,7 +1147,7 @@ static void parse_class(ParserState *ps, Stmt *stmt)
         if (!tp) continue;
         TypeParamSymbol *tp_sym = vector_get_object(sym->tps, i__);
 
-        if (vector_size(tp->bound) > 0) {
+        if (!vector_empty(tp->bound)) {
             Vector *vec = vector_create_ptr();
             TypeSpec *_ts;
             TypeSpec *ts;
@@ -1072,34 +1164,37 @@ static void parse_class(ParserState *ps, Stmt *stmt)
     }
 
     /* parse base class and traits */
-    if (vector_size(kls->bases) > 0) {
+    if (!vector_empty(kls->bases)) {
         Vector *vec = vector_create_ptr();
         TypeSpec *ts;
         vector_foreach(ts, kls->bases) {
             if (!ts) continue;
             TypeSpec *base_ts = resolve_type(ps, ts);
-            ASSERT(base_ts);
+            if (!base_ts) continue;
             int r = check_type(ps, base_ts);
-            ASSERT(r);
+            if (!r) continue;
 
             Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
             if (!base_sym) {
                 UNREACHABLE();
             }
 
-            if (base_sym->kind == SYM_CLASS) {
-                if (i__ != 0) {
-                    kl_error(ts->loc, "class '%s' can have only first base class.",
-                             sym->name);
-                    continue;
+            if (base_sym->kind == SYM_TRAIT) {
+                vector_push_back(vec, &base_ts);
+            } else if (base_sym->kind == SYM_INSTANCE) {
+                log_info("base is instance symbol: %s", base_sym->name);
+                Symbol *origin_sym = ((InstanceSymbol *)base_sym)->origin;
+                if (origin_sym->kind != SYM_TRAIT) {
+                    kl_error(
+                        ts->loc,
+                        "origin symbol '%s' is not trait, only trait can be used as base",
+                        origin_sym->name);
+                } else {
+                    vector_push_back(vec, &base_ts);
                 }
-                vector_push_back(vec, &base_ts);
-            } else if (base_sym->kind == SYM_TRAIT) {
-                vector_push_back(vec, &base_ts);
             } else {
-                kl_error(ts->loc,
-                         "only class or trait can be used as base of class '%s'.",
-                         sym->name);
+                kl_error(ts->loc, "'%s' is not trait, only trait can be used as base",
+                         base_sym->name);
             }
         }
         sym->bases = vec;

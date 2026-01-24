@@ -1,4 +1,4 @@
-// RUN: koalac %s 2>&1 | filecheck %s -match-full-lines
+// RUN: koalac %s 2>&1 | filecheck %s
 
 var v1 = int(100)
 
@@ -9,3 +9,6 @@ var v3 = int("1A", 16)
 var v4 = int("1A", base = 16, 10)
 
 // CHECK: expected expr, expr-list or ')'.
+// CHECK-NEXT: syntax error.
+
+// CHECK-NOT: {{.}}

@@ -65,7 +65,8 @@ typedef struct _TypeSpec {
             int index;
         } generic_var;
 
-        // List[int]
+        // Open: args include T
+        // List[T], not include List[int]
         struct {
             char *pkg;
             char *name;
@@ -84,8 +85,10 @@ typedef struct _TypeSpec {
             Vector *args;
         } union_type;
 
-        // klass type for definition
+        // Closed: klass type for definition
+        // don't have any T args, all args are concrete types
         // don't save parameter types here
+        // include List[int], not include List[T]
         struct {
             char *pkg;
             char *name;

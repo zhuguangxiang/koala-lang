@@ -1261,6 +1261,27 @@ class_decl
         yyclearin;
         $$ = NULL;
     }
+    | CLASS class_name '[' error ']' extends '{' class_members_or_empty '}'
+    {
+        kl_error(loc(@4), "expected type-parameter decl-list.");
+        yy_clear_ok;
+        yyclearin;
+        $$ = NULL;
+    }
+    | CLASS class_name '[' type_param_decl_list ']' extends '{' error '}'
+    {
+        kl_error(loc(@8), "expected field-decl or method-decl.");
+        yy_clear_ok;
+        yyclearin;
+        $$ = NULL;
+    }
+    | CLASS class_name '[' type_param_decl_list ']' '{' error '}'
+    {
+        kl_error(loc(@7), "expected field-decl or method-decl.");
+        yy_clear_ok;
+        yyclearin;
+        $$ = NULL;
+    }
     ;
 
 class_name
