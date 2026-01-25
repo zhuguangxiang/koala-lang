@@ -1605,6 +1605,7 @@ trait_method
     | prefix func_proto_decl semi
     {
         $$ = $2;
+        stmt_set_prefix($$, $1);
     }
     | func_decl
     {
@@ -1613,6 +1614,7 @@ trait_method
     | prefix func_decl
     {
         $$ = $2;
+        stmt_set_prefix($$, $1);
     }
     | semi
     {

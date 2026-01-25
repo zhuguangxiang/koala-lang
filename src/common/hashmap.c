@@ -161,21 +161,21 @@ static inline void *find_entry(HashMap *self, HashMapEntry *key)
 {
     int b = bucket(self, key);
 
-    int hint = 0;
+    // int hint = 0;
 
     HashMapEntry *entry;
     HListNode *node;
     hlist_for_each(node, self->entries + b) {
         entry = (HashMapEntry *)node;
-        hint++;
+        // hint++;
         if (entry->hash != key->hash) continue;
         if (self->equal(node, key)) {
-            printf("[hashmap] find entry hint=%d\n", hint);
+            // printf("[hashmap] find entry hint=%d\n", hint);
             return node;
         }
     }
 
-    printf("[hashmap] not found entry hint=%d\n", hint);
+    // printf("[hashmap] not found entry hint=%d\n", hint);
     return NULL;
 }
 

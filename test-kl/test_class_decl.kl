@@ -46,11 +46,11 @@ class Baz2 : Fly[int] & Swim[int] {
 
 // CHECK-NEXT: Type argument mismatch: 'Fly' expects 0 argument(s), but 1 were provided
 
-let b Baz[int] = Baz[int](100)
-let v = b.value
-let v2 int = b.value
+let b1 Baz[int] = Baz[int](100)
+let v = b1.value
+let v2 int = b1.value
 
-let r = b.hello("world")
+let r = b1.hello("world")
 let r2 = r.fly()
 let r3 = r.swim(200)
 let r3_1 = r.swim("test")
@@ -86,11 +86,11 @@ class Dog : Animal {
     }
 }
 
-let a Animal = Dog("Buddy")
-let s = a.sound() + " and more."
+let a1 Animal = Dog("Buddy")
+let s = a1.sound() + " and more."
 
-let d Dog = Dog("Max")
-let s2 = d.sound()
+let d1 Dog = Dog("Max")
+let s2 = d1.sound()
 
 trait A {
     func f() int
@@ -104,7 +104,10 @@ trait C[T] : A & B[T] {
     func h() int
 }
 
-class D : C[int] {
+class D : B[int] & C[int] {
+    func __init__() {
+    }
+
     func f() int {
         // return 1
     }
@@ -117,5 +120,21 @@ class D : C[int] {
         // return 3
     }
 }
+
+let d = D()
+let c C[int] = d
+let b B[int] = d
+let a A = d
+
+let bb B[int] = c
+let aa A = c
+
+let aa1 A = b
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: A =/= rhs: _Z1Bj
+
+let bb1 B[int] = a
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: _Z1Bj =/= rhs: A
 
 // CHECK-NOT: {{.}}

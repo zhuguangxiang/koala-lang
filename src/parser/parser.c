@@ -715,6 +715,63 @@ static Symbol *_add_local(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     return sym;
 }
 
+static void check_type_in_first_chain(ParserState *ps, TypeSpec *src, TypeSpec *dst)
+{
+    if (src->kind != TYPE_KLASS || dst->kind != TYPE_KLASS) return;
+
+    KlassSymbol *src_sym = get_symbol_by_id(src->sym_id);
+    KlassSymbol *dst_sym = get_symbol_by_id(dst->sym_id);
+
+    int index = 0;
+    TypeSpec *ts;
+    vector_foreach(ts, src_sym->bases) {
+        if (!ts) continue;
+        if (type_spec_compatible(dst, ts)) {
+            log_info("variable base type matched at index %d:", index);
+            log_type_spec(ts);
+        }
+        index++;
+    }
+}
+
+static void log_vtable_info(ParserState *ps, VarSymbol *sym, TypeSpec *src)
+{
+    TypeSpec *dst = sym->ts;
+    TypeSpec *ts = src;
+
+    while (1) {
+        if (dst == ts) {
+            log_info("variable '%s' is in first-vtable-chain.", sym->name);
+            log_info("  type is:");
+            log_type_spec(dst);
+            log_info("  src is:");
+            log_type_spec(src);
+            return;
+        }
+
+        Symbol *base = get_symbol_by_id(ts->sym_id);
+        Vector *base_vec = NULL;
+        if (base->kind == SYM_CLASS || base->kind == SYM_TRAIT) {
+            KlassSymbol *kls_sym = (KlassSymbol *)base;
+            base_vec = kls_sym->bases;
+        } else if (base->kind == SYM_INSTANCE) {
+            InstanceSymbol *inst_sym = (InstanceSymbol *)base;
+            base_vec = inst_sym->bases;
+        } else {
+            UNREACHABLE();
+        }
+
+        ts = vector_get_object(base_vec, 0);
+        if (!ts) break;
+    }
+
+    log_info("variable '%s' is NOT in first-vtable-chain.", sym->name);
+    log_info("  type is:");
+    log_type_spec(dst);
+    log_info("  src is:");
+    log_type_spec(src);
+}
+
 static void parse_var_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *var = (VarDeclStmt *)stmt;
@@ -806,6 +863,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
             log_type_spec(ts);
             log_info("  initializer type:");
             log_type_spec(exp->ts);
+            log_vtable_info(ps, sym, exp->ts);
         }
     }
 }
@@ -1123,143 +1181,98 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls,
     return sym;
 }
 
-static void parse_class(ParserState *ps, Stmt *stmt)
+static void parse_type_params(ParserState *ps, KlassDeclStmt *kls)
 {
-    KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
     KlassSymbol *sym = (KlassSymbol *)kls->sym;
 
-    ParserScope *sc = enter_scope(ps, SCOPE_CLASS, 0, sym->name);
-    sc->stbl = sym->stbl;
-    sc->sym = (Symbol *)sym;
-
     // parse type parameter's bounds
+    int index = 0;
+    TypeParamSymbol *tp_sym;
+
     TypeParamDecl *tp;
     vector_foreach(tp, kls->tps) {
         if (!tp) continue;
-        TypeParamSymbol *tp_sym = vector_get_object(sym->tps, i__);
 
-        if (!vector_empty(tp->bound)) {
-            Vector *vec = vector_create_ptr();
-            TypeSpec *_ts;
-            TypeSpec *ts;
-            vector_foreach(_ts, tp->bound) {
-                if (!_ts) continue;
-                ts = resolve_type(ps, _ts);
-                assert(ts);
-                int r = check_type(ps, ts);
-                assert(r);
-                vector_push_back(vec, &ts);
-            }
-            tp_sym->bound = vec;
-        }
-    }
+        tp_sym = vector_get_object(sym->tps, index);
+        index++;
 
-    /* parse base class and traits */
-    if (!vector_empty(kls->bases)) {
+        if (vector_empty(tp->bound)) continue;
+
         Vector *vec = vector_create_ptr();
         TypeSpec *ts;
-        vector_foreach(ts, kls->bases) {
+        vector_foreach(ts, tp->bound) {
             if (!ts) continue;
-            TypeSpec *base_ts = resolve_type(ps, ts);
-            if (!base_ts) continue;
-            int r = check_type(ps, base_ts);
-            if (!r) continue;
-
-            Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
-            if (!base_sym) {
-                UNREACHABLE();
-            }
-
-            if (base_sym->kind == SYM_TRAIT) {
-                vector_push_back(vec, &base_ts);
-                log_info("base is trait symbol: %s", base_sym->name);
-            } else if (base_sym->kind == SYM_INSTANCE) {
-                log_info("base is instance symbol: %s", base_sym->name);
-                Symbol *origin_sym = ((InstanceSymbol *)base_sym)->origin;
-                if (origin_sym->kind != SYM_TRAIT) {
-                    kl_error(
-                        ts->loc,
-                        "origin symbol '%s' is not trait, only trait can be used as base",
-                        origin_sym->name);
-                } else {
-                    vector_push_back(vec, &base_ts);
-                }
-            } else {
-                kl_error(ts->loc, "'%s' is not trait, only trait can be used as base",
-                         base_sym->name);
-            }
+            ts = resolve_type(ps, ts);
+            assert(ts);
+            int r = check_type(ps, ts);
+            assert(r);
+            vector_push_back(vec, &ts);
         }
-        sym->bases = vec;
+        tp_sym->bound = vec;
     }
-
-    /* parse class body */
-    Stmt *s;
-    vector_foreach(s, kls->stmts) {
-        if (!s) continue;
-        parse_stmt(ps, s);
-    }
-
-    exit_scope(ps, sym->name);
 }
 
-static void parse_trait(ParserState *ps, Stmt *stmt)
+static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
+{
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+
+    /* parse base class and traits */
+    if (vector_empty(kls->bases)) return;
+
+    Vector *vec = vector_create_ptr();
+    TypeSpec *ts;
+    vector_foreach(ts, kls->bases) {
+        if (!ts) continue;
+        TypeSpec *base_ts = resolve_type(ps, ts);
+        if (!base_ts) continue;
+        int r = check_type(ps, base_ts);
+        if (!r) continue;
+
+        Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
+        if (!base_sym) {
+            UNREACHABLE();
+        }
+
+        if (base_sym->kind == SYM_TRAIT) {
+            vector_push_back(vec, &base_ts);
+            log_info("base is trait symbol: %s", base_sym->name);
+        } else if (base_sym->kind == SYM_INSTANCE) {
+            log_info("base is instance symbol: %s", base_sym->name);
+            Symbol *origin_sym = ((InstanceSymbol *)base_sym)->origin;
+            if (origin_sym->kind != SYM_TRAIT) {
+                kl_error(
+                    ts->loc,
+                    "origin symbol '%s' is not trait, only trait can be used as base",
+                    origin_sym->name);
+            } else {
+                vector_push_back(vec, &base_ts);
+            }
+        } else {
+            kl_error(ts->loc, "'%s' is not trait, only trait can be used as base",
+                     base_sym->name);
+        }
+    }
+    sym->bases = vec;
+}
+
+static void parse_klass(ParserState *ps, Stmt *stmt)
 {
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
     KlassSymbol *sym = (KlassSymbol *)kls->sym;
 
-    ParserScope *sc = enter_scope(ps, SCOPE_TRAIT, 0, sym->name);
+    ScopeKind scope_kind = (kls->kind == STMT_CLASS_KIND) ? SCOPE_CLASS : SCOPE_TRAIT;
+
+    ParserScope *sc = enter_scope(ps, scope_kind, 0, sym->name);
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
 
     // parse type parameter's bounds
-    TypeParamDecl *tp;
-    vector_foreach(tp, kls->tps) {
-        if (!tp) continue;
-        TypeParamSymbol *tp_sym = vector_get_object(sym->tps, i__);
-
-        if (vector_size(tp->bound) > 0) {
-            Vector *vec = vector_create_ptr();
-            TypeSpec *_ts;
-            TypeSpec *ts;
-            vector_foreach(_ts, tp->bound) {
-                if (!_ts) continue;
-                ts = resolve_type(ps, _ts);
-                assert(ts);
-                int r = check_type(ps, ts);
-                assert(r);
-                vector_push_back(vec, &ts);
-            }
-            tp_sym->bound = vec;
-        }
-    }
+    parse_type_params(ps, kls);
 
     /* parse base class and traits */
-    if (vector_size(kls->bases) > 0) {
-        Vector *vec = vector_create_ptr();
-        TypeSpec *ts;
-        vector_foreach(ts, kls->bases) {
-            if (!ts) continue;
-            TypeSpec *base_ts = resolve_type(ps, ts);
-            ASSERT(base_ts);
-            int r = check_type(ps, base_ts);
-            ASSERT(r);
+    parse_bases(ps, kls);
 
-            Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
-            if (!base_sym) {
-                UNREACHABLE();
-            }
-
-            if (base_sym->kind != SYM_TRAIT) {
-                kl_error(ts->loc, "only trait can be used as base of trait '%s'.",
-                         sym->name);
-                continue;
-            }
-            vector_push_back(vec, &base_ts);
-        }
-        sym->bases = vec;
-    }
-
-    /* parse trait body */
+    /* parse class body */
     Stmt *s;
     vector_foreach(s, kls->stmts) {
         if (!s) continue;
@@ -1305,8 +1318,8 @@ static void parse_stmt(ParserState *ps, Stmt *stmt)
         NULL, // parse_import,              /* IMPORT_KIND      */
         parse_var_decl,                     /* VAR_KIND         */
         parse_func_decl,                    /* FUNC_KIND        */
-        parse_class,                        /* CLASS_KIND       */
-        parse_trait,                        /* TRAIT_KIND       */
+        parse_klass,                        /* CLASS_KIND       */
+        parse_klass,                        /* TRAIT_KIND       */
         parse_return,                       /* RETURN_KIND      */
         NULL, // parse_assign,              /* ASSIGN_KIND      */
         NULL, // parse_break,               /* BREAK_KIND       */
