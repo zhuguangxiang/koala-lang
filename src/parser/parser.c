@@ -110,7 +110,7 @@ static const char *blocks[] = {
 };
 #endif
 
-ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block)
+ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block, char *name)
 {
     ParserScope *scope = new_scope(kind, block);
     scope->next = ps->scope;
@@ -123,12 +123,12 @@ ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block)
         str = scopes[kind];
     else
         str = blocks[block];
-    log_info("====== Enter scope-%d(%s) ======", ps->depth, str);
+    log_info("====== Enter scope-%d(%s, %s) ======", ps->depth, str, name);
 #endif
     return scope;
 }
 
-void exit_scope(ParserState *ps)
+void exit_scope(ParserState *ps, char *name)
 {
     ParserScope *scope = ps->scope;
 
@@ -139,7 +139,7 @@ void exit_scope(ParserState *ps)
         str = scopes[scope->kind];
     else
         str = blocks[scope->block_type];
-    log_info("====== Exit scope-%d(%s) ======", ps->depth, str);
+    log_info("====== Exit scope-%d(%s, %s) ======", ps->depth, str, name);
 #endif
 
     ps->scope = scope->next;
@@ -281,14 +281,15 @@ static int is_subtype_of(int child_id, int parent_id)
  * Checks if the 'src' type is compatible with the 'dst' type.
  *
  * Rules for High-Performance Type System:
- * 1. Top Type: TYPE_OBJECT is the root and accepts any type.
+ * 1. Top Type: TYPE_ANY is the root and accepts any type.
  * 2. Strict Kind Matching: Except for Object, kinds must match (e.g., no implicit
  * int-to-float).
  * 3. Numerical Widening: For INT/FLOAT, source width <= destination width is allowed.
  *    Note: Semantically compatible but requires explicit 'cast' instructions during
  * codegen due to binary representation (memory layout) mismatch.
  * 4. Generic Variance:
- *    - Reference Types (Classes): Covariant (e.g., List[Dog] -> List[Animal]).
+ *    - Reference Types (Classes): Invariant (e.g., List[Dog] -> List[Animal] not
+ * allowed).
  *    - Value Types (Primitives): Invariant (Generic parameters must be strictly
  * compatible).
  */
@@ -298,8 +299,8 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 
     if (dst == src) return 1;
 
-    // Rule 1: TYPE_OBJECT is the Top Type (Root of the type hierarchy)
-    if (dst->kind == TYPE_OBJECT) return 1;
+    // Rule 1: TYPE_ANY is the Top Type (Root of the type hierarchy)
+    if (dst->kind == TYPE_ANY) return 1;
 
     // Rule 2: Strict kind matching (Semantic barrier)
     if (dst->kind != src->kind) {
@@ -421,7 +422,7 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     if (dst->kind == TYPE_KLASS) {
         Symbol *sym = get_symbol_by_id(src->sym_id);
         Vector *bases = NULL;
-        if (sym->kind == SYM_CLASS) {
+        if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
             KlassSymbol *kls_sym = (KlassSymbol *)sym;
             bases = kls_sym->bases;
         } else if (sym->kind == SYM_INSTANCE) {
@@ -734,6 +735,8 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         }
 
         ((VarSymbol *)var->sym)->ts = ts;
+        log_info("variable '%s' type set as:", id->name);
+        log_type_spec(ts);
         return;
     }
 
@@ -797,6 +800,12 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
             print_type_spec(exp->ts);
             printf("\n");
             return;
+        } else {
+            log_info("variable '%s' type check passed.", id->name);
+            log_info("  declared type:");
+            log_type_spec(ts);
+            log_info("  initializer type:");
+            log_type_spec(exp->ts);
         }
     }
 }
@@ -915,11 +924,9 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
         check_top_func_flags(ps, fn);
     }
 
-    if (ps->errors) return;
-
     FuncSymbol *sym = (FuncSymbol *)fn->sym;
 
-    sc = enter_scope(ps, SCOPE_FUNC, 0);
+    sc = enter_scope(ps, SCOPE_FUNC, 0, sym->name);
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
 
@@ -1038,23 +1045,7 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     sym->params = args;
 
     // update func's type
-    Vector *arg_list = NULL;
-    if (vector_size(args) != 0) {
-        arg_list = vector_create_ptr();
-        ArgInfo *arg;
-        vector_foreach(arg, args) {
-            if (!arg) continue;
-
-            if (!arg->ts) {
-                // should not happen
-                UNREACHABLE();
-                continue;
-            }
-            vector_push_back(arg_list, &arg->ts);
-        }
-    }
-
-    TypeSpec *fn_ts = func_type_spec(arg_list, sym->ret);
+    TypeSpec *fn_ts = func_type_spec_from_arginfo(args, sym->ret);
     sym->ts = fn_ts;
     log_info("update function '%s' type as:", sym->name);
     log_type_spec(sym->ts);
@@ -1062,7 +1053,7 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     /* parse body */
     parse_body(ps, sym, fn->body);
 
-    exit_scope(ps);
+    exit_scope(ps, sym->name);
 }
 
 static void parse_expr(ParserState *ps, Stmt *stmt)
@@ -1137,7 +1128,7 @@ static void parse_class(ParserState *ps, Stmt *stmt)
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
     KlassSymbol *sym = (KlassSymbol *)kls->sym;
 
-    ParserScope *sc = enter_scope(ps, SCOPE_CLASS, 0);
+    ParserScope *sc = enter_scope(ps, SCOPE_CLASS, 0, sym->name);
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
 
@@ -1208,7 +1199,7 @@ static void parse_class(ParserState *ps, Stmt *stmt)
         parse_stmt(ps, s);
     }
 
-    exit_scope(ps);
+    exit_scope(ps, sym->name);
 }
 
 static void parse_trait(ParserState *ps, Stmt *stmt)
@@ -1216,7 +1207,7 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
     KlassSymbol *sym = (KlassSymbol *)kls->sym;
 
-    ParserScope *sc = enter_scope(ps, SCOPE_TRAIT, 0);
+    ParserScope *sc = enter_scope(ps, SCOPE_TRAIT, 0, sym->name);
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
 
@@ -1275,7 +1266,7 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
         parse_stmt(ps, s);
     }
 
-    exit_scope(ps);
+    exit_scope(ps, sym->name);
 }
 
 static void parse_return(ParserState *ps, Stmt *stmt)
@@ -1334,14 +1325,14 @@ static void parse_stmt(ParserState *ps, Stmt *stmt)
 
 static void parse_ast(ParserState *ps)
 {
-    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0);
+    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
     scope->stbl = ps->stbl;
     Stmt *stmt;
     vector_foreach(stmt, &ps->stmts) {
         if (!stmt) continue;
         parse_stmt(ps, stmt);
     }
-    exit_scope(ps);
+    exit_scope(ps, "top");
 
     /* If there are errors, stop doing codegen. */
     if (ps->errors) return;

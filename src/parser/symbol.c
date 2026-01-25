@@ -225,7 +225,7 @@ static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
     return (Symbol *)sym;
 }
 
-Symbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *tp_args)
+static Symbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *tp_args)
 {
     ASSERT(ts->kind == TYPE_SPECIALIZED);
 

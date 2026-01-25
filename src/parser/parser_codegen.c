@@ -291,7 +291,7 @@ void codegen_ast(ParserState *ps)
     KlrValue *fn = klr_add_func(m, NULL, NULL, "__init__");
     m->init = (KlrFunc *)fn;
 
-    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0);
+    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
     scope->stbl = ps->stbl;
     scope->sym = NULL;
     KlrBasicBlock *entry = klr_append_block(fn, "entry");
@@ -303,7 +303,7 @@ void codegen_ast(ParserState *ps)
         codegen_stmt(ps, s);
     }
 
-    exit_scope(ps);
+    exit_scope(ps, "top");
 
     klr_print_module(m, stdout);
 }

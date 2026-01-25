@@ -68,6 +68,30 @@ pub class str : Seq[str] {
 
     @native(kl_str_concat)
     func __concat__(seq Seq[str]) str {}
+
+    @native(kl_str_repeat)
+    func __repeat__(count int) str {}
+
+    @native(kl_str_find)
+    pub func find(sub str) int {}
+
+    @native(kl_str_substr)
+    pub func substr(start int, length int) str {}
+
+    @native(kl_str_to_int)
+    pub func to_int() int {}
+
+    @native(kl_str_to_float)
+    pub func to_float() float64 {}
+
+    @native(kl_str_format)
+    pub func format(fmt str, args ...) str {}
+
+    @native(kl_str_init)
+    pub func __init__(s str) {}
+
+    @native(kl_str_add)
+    func __add__(rhs str) str {}
 }
 
 pub class list[T] : Seq[T] {

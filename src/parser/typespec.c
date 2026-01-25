@@ -149,7 +149,7 @@ static TypeSpec *_str_type_spec(void)
 static TypeSpec *_object_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
-    ts->kind = TYPE_OBJECT;
+    ts->kind = TYPE_ANY;
     ts->signature = atom_str("o");
     ts->sym_id = -1;
     hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
@@ -348,7 +348,7 @@ void typespec_init(void)
     1: TYPE_INT
     2: TYPE_BOOL
     3: TYPE_STR
-    4: TYPE_OBJECT
+    4: TYPE_ANY
     5: TYPE_VA_LIST
     6: TYPE_FLOAT
     7: TYPE_BFLOAT16
@@ -499,6 +499,17 @@ TypeSpec *func_type_spec(Vector *args, TypeSpec *ret)
     return type_spec_intern(ts);
 }
 
+TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret)
+{
+    Vector *arg_types = vector_create_ptr();
+    ArgInfo *arg_info;
+    vector_foreach(arg_info, arg_infos) {
+        if (!arg_info->ts) continue;
+        vector_push_back(arg_types, &arg_info->ts);
+    }
+    return func_type_spec(arg_types, ret);
+}
+
 TypeSpec *generic_var_type_spec(char *name, int index, int sym_id, char *owner)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
@@ -637,7 +648,7 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         // do-nothing
     } else if (ts->kind == TYPE_BOOL) {
         buf_write_char(buf, 'z');
-    } else if (ts->kind == TYPE_OBJECT) {
+    } else if (ts->kind == TYPE_ANY) {
         buf_write_char(buf, 'o');
     } else if (ts->kind == TYPE_GENERIC_VAR) {
         buf_write_char(buf, 'T');
@@ -889,7 +900,7 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         buf_write_str(buf, "...");
     } else if (ts->kind == TYPE_BOOL) {
         buf_write_str(buf, "bool");
-    } else if (ts->kind == TYPE_OBJECT) {
+    } else if (ts->kind == TYPE_ANY) {
         buf_write_str(buf, "object");
     } else if (ts->kind == TYPE_UNRESOLVED) {
         buf_write_str(buf, ts->unresolved.name.name);

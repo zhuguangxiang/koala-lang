@@ -23,8 +23,7 @@ typedef enum _SymKind {
     SYM_FUNC,           /* function   */
     SYM_CLASS,          /* class      */
     SYM_TRAIT,          /* trait      */
-    SYM_FIELD,          /* field      */
-    SYM_PROTO,          /* proto      */
+    SYM_INTF,           /* interface  */
     SYM_ANONY,          /* anonymous  */
     SYM_TYPE_PARAM,     /* type param */
     SYM_MODULE,         /* module     */

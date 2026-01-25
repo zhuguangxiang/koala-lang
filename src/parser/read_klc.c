@@ -63,7 +63,7 @@ static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item, Vector *vec)
 
     KlcConst *k = klc_get_const(klc, item->name_index);
     KlcConst *ret = klc_get_const(klc, item->ret_type_index);
-    TypeSpec *ret_ts = ret ? type_spec_from_str(ret->sval) : NULL;
+    TypeSpec *ret_ts = ret ? type_spec_from_str(ret->sval) : no_type_spec();
 
     Symbol *sym = stbl_add_func(stbl, k->sval, NULL, ret_ts, params, 0, NULL, NULL);
 

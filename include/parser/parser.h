@@ -140,8 +140,8 @@ void codegen_ast(ParserState *ps);
 void init_parser(void);
 void fini_parser(void);
 
-ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block);
-void exit_scope(ParserState *ps);
+ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block, char *name);
+void exit_scope(ParserState *ps, char *name);
 
 TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts);
 int check_type(ParserState *ps, TypeSpec *ts);

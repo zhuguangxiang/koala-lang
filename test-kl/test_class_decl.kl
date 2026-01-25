@@ -23,10 +23,21 @@ class Baz1 : Bar & Fly & Swim {
 // CHECK-NEXT: Type argument mismatch: 'Swim' expects 1 argument(s), but 0 were provided
 
 class Baz[T] : Fly & Swim[T] {
-    func __init__() {
+
+    var value T
+
+    func __init__(v T) {
     }
 
     func hello(s str) Baz[T] {
+    }
+
+    func fly() str {
+        // return "I'm flying!"
+    }
+
+    func swim(u T) str {
+        // return "I'm swimming with " + to_str(u)
     }
 }
 
@@ -35,7 +46,23 @@ class Baz2 : Fly[int] & Swim[int] {
 
 // CHECK-NEXT: Type argument mismatch: 'Fly' expects 0 argument(s), but 1 were provided
 
-let b Baz[int] = Baz[int]()
+let b Baz[int] = Baz[int](100)
+let v = b.value
+let v2 int = b.value
+
+let r = b.hello("world")
+let r2 = r.fly()
+let r3 = r.swim(200)
+let r3_1 = r.swim("test")
+// CHECK-NEXT: argument type is not compatible.
+
+let fly Fly = r
+let r4 = fly.fly()
+
+let swim Swim[int] = r
+let r5 = swim.swim(300)
+let r6 = swim.swim("hello")
+// CHECK-NEXT: argument type is not compatible.
 
 class Baz3 : Fly & Swim[int] {
 }
@@ -43,5 +70,26 @@ class Baz3 : Fly & Swim[int] {
 let b2 = Baz[T]()
 
 // CHECK-NEXT: 'T' is not found
+
+trait Animal {
+    func sound() str
+}
+
+class Dog : Animal {
+    var name str
+
+    func __init__(name str) {
+    }
+
+    func sound() str {
+        // return "Woof!"
+    }
+}
+
+let a Animal = Dog("Buddy")
+let s = a.sound() + " and more."
+
+let d Dog = Dog("Max")
+let s2 = d.sound()
 
 // CHECK-NOT: {{.}}

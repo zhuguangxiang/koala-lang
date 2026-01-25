@@ -222,11 +222,15 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                 return;
             }
 
-            log_debug("[check_call_args] arg: '%s' check type compatible", arg->name);
             if (!type_spec_compatible(arg->ts, e->ts)) {
                 kl_error(e->loc, "argument type is not compatible.");
                 return;
             }
+            log_debug("[check_call_args] arg: '%s' type is compatible", arg->name);
+            log_debug("lhs:");
+            log_type_spec(arg->ts);
+            log_debug("rhs:");
+            log_type_spec(e->ts);
         }
     }
 }
@@ -249,19 +253,37 @@ static void parse_type(ParserState *ps, Expr *exp)
     return;
 }
 
-TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args)
+static TypeSpec *instance_type_spec(TypeSpec *ts, Vector *tp_args, ParserState *ps)
 {
-    if (ts->kind != TYPE_GENERIC_VAR) {
-        return ts;
+    TypeSpec *inst_ts;
+    if (ts->kind == TYPE_GENERIC_VAR) {
+        inst_ts = vector_get_object(tp_args, ts->generic_var.index);
+    } else if (ts->kind == TYPE_SPECIALIZED) {
+        Symbol *sym = get_symbol_by_id(ts->sym_id);
+        sym = find_or_add_instance(ps->stbl, sym, tp_args);
+        ASSERT(sym->kind == SYM_INSTANCE);
+        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        inst_ts = inst_sym->instance_ts;
+    } else {
+        inst_ts = ts;
     }
-
-    TypeSpec *inst_ts = vector_get_object(tp_args, ts->generic_var.index);
-    if (!inst_ts) {
-        UNREACHABLE();
-        return NULL;
-    }
-
     return inst_ts;
+}
+
+static Vector *build_instance_params(Vector *params, Vector *tp_args, ParserState *ps)
+{
+    Vector *inst_params = vector_create_ptr();
+    ArgInfo *arg;
+    vector_foreach(arg, params) {
+        if (!arg) continue;
+        TypeSpec *ts = instance_type_spec(arg->ts, tp_args, ps);
+        ArgInfo *inst_arg = mm_alloc_obj(inst_arg);
+        inst_arg->name = arg->name;
+        inst_arg->ts = ts;
+        inst_arg->dfl_val_idx = arg->dfl_val_idx;
+        vector_push_back(inst_params, &inst_arg);
+    }
+    return inst_params;
 }
 
 static void parse_call(ParserState *ps, Expr *exp)
@@ -331,7 +353,7 @@ static void parse_call(ParserState *ps, Expr *exp)
         exp->ts = cls_sym->instance_ts;
         // exp->sym = cls_sym;
         params = ((FuncSymbol *)init_fn_sym)->params;
-    } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_PROTO) {
+    } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_INTF) {
         FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
         exp->ts = fn_sym->ret;
         params = fn_sym->params;
@@ -346,20 +368,12 @@ static void parse_call(ParserState *ps, Expr *exp)
                 return;
             }
 
-            Vector *_args = vector_create_ptr();
-            Vector *_params = ((FuncSymbol *)_init_fn_sym)->params;
-            ArgInfo *arg;
-            vector_foreach(arg, _params) {
-                if (!arg) continue;
-                TypeSpec *ts = inst_type_spec(arg->ts, inst_sym->tp_args);
-                ArgInfo *_arg = mm_alloc_obj(_arg);
-                _arg->ts = ts;
-                _arg->name = arg->name;
-                vector_push_back(_args, &_arg);
-            }
+            // params
+            Vector *inst_params = build_instance_params(
+                ((FuncSymbol *)_init_fn_sym)->params, inst_sym->tp_args, ps);
 
             init_fn_sym = stbl_add_func(inst_sym->stbl, "__init__", NULL, no_type_spec(),
-                                        _args, 0, NULL, NULL);
+                                        inst_params, 0, NULL, NULL);
         }
 
         // func call type is instance type
@@ -387,7 +401,87 @@ static void parse_call(ParserState *ps, Expr *exp)
     // exp->ir_val = ret;
 }
 
-static void parse_dot(ParserState *ps, Expr *exp) {}
+static void parse_dot(ParserState *ps, Expr *exp)
+{
+    DotExpr *dot = (DotExpr *)exp;
+
+    Expr *lhs = dot->lhs;
+    lhs->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, lhs);
+    if (!lhs->ts) return;
+
+    Symbol *lhs_ts_sym = get_symbol_by_id(lhs->ts->sym_id);
+    if (!lhs_ts_sym) {
+        kl_error(lhs->loc, "type is not found.");
+        return;
+    }
+
+    HashMap *lhs_stbl = lhs_ts_sym->stbl;
+    Ident *ident = &dot->id;
+    Symbol *sym = stbl_get(lhs_stbl, ident->name);
+    if (sym) {
+        exp->ts = sym->ts;
+        exp->sym = sym;
+        log_debug("dot member resolved: %s", sym->name);
+        log_type_spec(sym->ts);
+        return;
+    }
+
+    // instance field/method from origin klass
+    if (lhs_ts_sym->kind == SYM_INSTANCE) {
+        log_info("try to find instance member from origin klass.");
+        InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_ts_sym;
+        KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+        sym = stbl_get(origin->stbl, ident->name);
+        if (sym) {
+            // field/method of instance
+            if (sym->kind == SYM_VAR) {
+                log_info("found field '%s' from origin klass '%s'.", ident->name,
+                         origin->name);
+                VarSymbol *origin_var_sym = (VarSymbol *)sym;
+                TypeSpec *ts =
+                    instance_type_spec(origin_var_sym->ts, inst_sym->tp_args, ps);
+                Symbol *inst_var_sym = stbl_add_var(lhs_stbl, origin_var_sym->name, ts,
+                                                    origin_var_sym->flags);
+                exp->ts = inst_var_sym->ts;
+                exp->sym = inst_var_sym;
+                log_debug("dot member resolved: %s", inst_var_sym->name);
+                log_type_spec(inst_var_sym->ts);
+                return;
+            } else if (sym->kind == SYM_FUNC) {
+                log_info("found func '%s' from origin klass '%s'.", ident->name,
+                         origin->name);
+                // method of instance
+                FuncSymbol *origin_fn_sym = (FuncSymbol *)sym;
+
+                // params
+                Vector *inst_params =
+                    build_instance_params(origin_fn_sym->params, inst_sym->tp_args, ps);
+                // return type
+                TypeSpec *ret_ts =
+                    instance_type_spec(origin_fn_sym->ret, inst_sym->tp_args, ps);
+
+                // create function symbol for instance method
+                Symbol *inst_fn_sym =
+                    stbl_add_func(lhs_stbl, origin_fn_sym->name, NULL, ret_ts,
+                                  inst_params, origin_fn_sym->flags, NULL, NULL);
+                TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
+                inst_fn_sym->ts = fn_ts;
+                exp->ts = fn_ts;
+                exp->sym = inst_fn_sym;
+                log_debug("dot member resolved: %s", inst_fn_sym->name);
+                log_type_spec(inst_fn_sym->ts);
+                return;
+            } else {
+                // nothing
+                UNREACHABLE();
+            }
+        }
+    }
+
+    kl_error(ident->loc, "'%s' is not a member of '%s'", ident->name, lhs_ts_sym->name);
+    return;
+}
 
 static void parse_index(ParserState *ps, Expr *exp)
 {
@@ -556,7 +650,10 @@ static void parse_binary(ParserState *ps, Expr *exp)
                  get_binary_op_char(op));
         return;
     }
+
     exp->ts = lhs->ts;
+    log_info("binary operator '%s' resolved.", get_binary_op_char(op));
+    log_type_spec(exp->ts);
 }
 
 static void parse_keyword(ParserState *ps, Expr *exp)

@@ -22,7 +22,7 @@ typedef enum _TypeKind {
     TYPE_BFLOAT16,
     TYPE_BOOL,
     TYPE_STR,
-    TYPE_OBJECT,
+    TYPE_ANY,
     TYPE_VA_LIST,
     TYPE_TYPE,
     TYPE_RANGE,
@@ -144,6 +144,7 @@ static inline TypeSpec *range_type_spec(void) { return type_spec_get_by_id(18); 
 
 TypeSpec *klass_type_spec(char *path, char *name);
 TypeSpec *func_type_spec(Vector *args, TypeSpec *ret);
+TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret);
 
 void update_builtin_types(HashMap *stbl);
 
