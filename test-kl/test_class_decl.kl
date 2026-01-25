@@ -92,4 +92,30 @@ let s = a.sound() + " and more."
 let d Dog = Dog("Max")
 let s2 = d.sound()
 
+trait A {
+    func f() int
+}
+
+trait B[T] {
+    func g() int
+}
+
+trait C[T] : A & B[T] {
+    func h() int
+}
+
+class D : C[int] {
+    func f() int {
+        // return 1
+    }
+
+    func g() int {
+        // return 2
+    }
+
+    func h() int {
+        // return 3
+    }
+}
+
 // CHECK-NOT: {{.}}

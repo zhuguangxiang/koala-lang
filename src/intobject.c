@@ -12,7 +12,7 @@ extern "C" {
 
 static Value int_hash(Value *self)
 {
-    unsigned int v = mem_hash(&to_int(self), sizeof(int64_t));
+    uint64_t v = mem_hash(&to_int(self), sizeof(int64_t));
     return int_value(v);
 }
 

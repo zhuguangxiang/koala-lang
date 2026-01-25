@@ -24,7 +24,7 @@ static HashMap atom_tbl;
 
 char *atom_nstr(char *s, int len)
 {
-    unsigned int hash = mem_hash(s, len);
+    uint64_t hash = mem_hash(s, len);
     Atom key = { .len = len, .str = s };
     hashmap_entry_init(&key, hash);
     Atom *atom = hashmap_get(&atom_tbl, &key);

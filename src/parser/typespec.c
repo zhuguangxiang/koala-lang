@@ -25,7 +25,7 @@ static int type_spec_equal(TypeSpec *ts1, TypeSpec *ts2)
     return eq;
 }
 
-static unsigned int type_spec_hash(TypeSpec *ts) { return str_hash(ts->signature); }
+static uint64_t type_spec_hash(TypeSpec *ts) { return str_hash(ts->signature); }
 
 void type_spec_free(TypeSpec *ts)
 {

@@ -145,7 +145,7 @@ static int _table_func_equal_(void *e1, void *e2)
 void table_add_object(HashMap *map, const char *name, Object *obj)
 {
     SymbolEntry *e = mm_alloc_obj_fast(e);
-    unsigned int hash = str_hash(name);
+    uint64_t hash = str_hash(name);
     hashmap_entry_init(e, hash);
     e->key = name;
     e->len = strlen(name);
@@ -157,7 +157,7 @@ void table_add_object(HashMap *map, const char *name, Object *obj)
 Object *table_find(HashMap *map, const char *name, int len)
 {
     SymbolEntry entry = { .key = name, .len = len };
-    unsigned int hash = mem_hash(name, len);
+    uint64_t hash = mem_hash(name, len);
     hashmap_entry_init(&entry, hash);
     SymbolEntry *found = hashmap_get(map, &entry);
     return found ? found->obj : NULL;
@@ -167,7 +167,7 @@ void init_symbol_table(HashMap *map) { hashmap_init(map, _table_func_equal_); }
 
 static Value base_hash(Value *self)
 {
-    unsigned int v = mem_hash(self, sizeof(Value));
+    uint64_t v = mem_hash(self, sizeof(Value));
     return int_value(v);
 }
 

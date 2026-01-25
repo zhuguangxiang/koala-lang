@@ -1039,13 +1039,6 @@ func_decl
         $$ = $1;
         ((FuncDeclStmt *)$$)->body = $2;
     }
-    | func_proto_decl semi
-    {
-        // free_type($3);
-        kl_error(loc(@2), "expected a function body.");
-        yy_clear_ok;
-        $$ = NULL;
-    }
     ;
 
 func_proto_decl
@@ -1610,6 +1603,14 @@ trait_method
         $$ = $1;
     }
     | prefix func_proto_decl semi
+    {
+        $$ = $2;
+    }
+    | func_decl
+    {
+        $$ = $1;
+    }
+    | prefix func_decl
     {
         $$ = $2;
     }

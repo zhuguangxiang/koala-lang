@@ -37,7 +37,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL debug)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 -fvar-tracking")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 -fvar-tracking -DFNV32_HASH")
 elseif(CMAKE_BUILD_TYPE STREQUAL DebugTest)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 -fvar-tracking")
     add_definitions(-DNOLOG)

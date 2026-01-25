@@ -10,6 +10,8 @@
 extern "C" {
 #endif
 
+#if defined(FNV32_HASH)
+
 #define FNV32_BASE  ((unsigned int)0x811c9dc5)
 #define FNV32_PRIME ((unsigned int)0x01000193)
 
@@ -30,6 +32,78 @@ unsigned int mem_hash(const void *buf, int len)
     }
     return hash;
 }
+
+#else
+
+// XXH3 使用的素数常量
+static const uint64_t PRIME64_1 = 0x9E3779B185EBCA87ULL;
+static const uint64_t PRIME64_2 = 0xC2B2AE3D27D4EB4FULL;
+static const uint64_t PRIME64_3 = 0x165667B19E3779F9ULL;
+
+// 位混合函数 (Avalanche)
+static inline uint64_t xxh3_avalanche(uint64_t h)
+{
+    h ^= h >> 33;
+    h *= PRIME64_2;
+    h ^= h >> 29;
+    h *= PRIME64_3;
+    h ^= h >> 32;
+    return h;
+}
+
+uint64_t mem_hash(const void *buf, int len)
+{
+    const uint8_t *p = (const uint8_t *)buf;
+    uint64_t hash;
+
+    // 情况 A: 极短字符串 (0-8 字节)
+    if (len <= 8) {
+        uint64_t seed = PRIME64_1;
+        if (len >= 4) {
+            uint32_t low, high;
+            memcpy(&low, p, 4);
+            memcpy(&high, p + len - 4, 4);
+            seed ^= (uint64_t)low + ((uint64_t)high << 32);
+        } else if (len > 0) {
+            seed ^= (uint64_t)p[0] << 16;
+            seed ^= (uint64_t)p[len >> 1] << 8;
+            seed ^= (uint64_t)p[len - 1];
+        }
+        return xxh3_avalanche(seed ^ (len * PRIME64_1));
+    }
+
+    // 情况 B: 中短字符串 (9-16 字节)
+    if (len <= 16) {
+        uint64_t l, r;
+        memcpy(&l, p, 8);
+        memcpy(&r, p + len - 8, 8);
+        hash = (l ^ PRIME64_1) + (r ^ PRIME64_2) + len;
+        return xxh3_avalanche(hash);
+    }
+
+    // 情况 C: 较长字符串 (分块处理)
+    hash = len * PRIME64_1;
+    while (len >= 8) {
+        uint64_t v;
+        memcpy(&v, p, 8);
+        hash ^= xxh3_avalanche(v);
+        hash *= PRIME64_2;
+        p += 8;
+        len -= 8;
+    }
+
+    // 处理剩余字节
+    if (len > 0) {
+        uint64_t remaining = 0;
+        memcpy(&remaining, p, len);
+        hash ^= xxh3_avalanche(remaining);
+        hash *= PRIME64_1;
+    }
+
+    return xxh3_avalanche(hash);
+}
+
+#endif
 
 #define HASHMAP_INITIAL_SIZE 16
 #define HASHMAP_LOAD_FACTOR  65
@@ -87,14 +161,21 @@ static inline void *find_entry(HashMap *self, HashMapEntry *key)
 {
     int b = bucket(self, key);
 
+    int hint = 0;
+
     HashMapEntry *entry;
     HListNode *node;
     hlist_for_each(node, self->entries + b) {
         entry = (HashMapEntry *)node;
+        hint++;
         if (entry->hash != key->hash) continue;
-        if (self->equal(node, key)) return node;
+        if (self->equal(node, key)) {
+            printf("[hashmap] find entry hint=%d\n", hint);
+            return node;
+        }
     }
 
+    printf("[hashmap] not found entry hint=%d\n", hint);
     return NULL;
 }
 

@@ -54,8 +54,21 @@ extern "C" {
  * `mem_hash` operates on arbitrary-length memory.
  */
 
-unsigned int str_hash(const char *buf);
+#if defined(FNV32_HASH)
+
+unsigned int str_hash(const char *str);
 unsigned int mem_hash(const void *buf, int len);
+
+#else
+
+uint64_t mem_hash(const void *buf, int len);
+
+static inline uint64_t str_hash(const char *str)
+{
+    return mem_hash((const void *)str, strlen(str));
+}
+
+#endif
 
 typedef int (*HashMapEqualFunc)(void *, void *);
 typedef void (*HashMapVisitFunc)(void *, void *);
@@ -65,7 +78,7 @@ typedef struct _HashMapEntry {
     /* conflict list */
     HListNode hnode;
     /* entry's hash code */
-    unsigned int hash;
+    uint64_t hash;
     /* ordered list */
     List ord_node;
 } HashMapEntry;
@@ -110,7 +123,7 @@ int hashmap_prev(HashMap *self, HashMapIter *it);
 #define hashmap_entry(it) ((it)->entry)
 
 /* Initialize a HashMapEntry structure. */
-static inline void hashmap_entry_init(void *entry, unsigned int hash)
+static inline void hashmap_entry_init(void *entry, uint64_t hash)
 {
     HashMapEntry *e = (HashMapEntry *)entry;
     e->hash = hash;

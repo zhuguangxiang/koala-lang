@@ -73,7 +73,7 @@ static int __item_entry_equal(void *n1, void *n2)
 
 static unsigned int init_item_entry(ItemEntry *item, int type, void *data)
 {
-    unsigned int hash;
+    uint64_t hash;
     int size = 0;
 
     if (type == ITEM_CONST) {

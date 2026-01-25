@@ -12,16 +12,19 @@ Most of them are native C implementations and are automatically imported.
 
 /**
 The 'any' trait is the root trait of all other classes and traits.
-All functions are implemented by runtime and inserted into vtable.
+All functions are implemented by runtime and inserted into vtable automatically.
 */
 
 pub trait any {
 
-    pub func __hash__() int
+    @native(kl_any_hash)
+    func __hash__() int {}
 
-    pub func __eq__(rhs any) bool
+    @native(kl_any_eq)
+    func __eq__(rhs any) bool {}
 
-    pub func __str__() str
+    @native(kl_any_str)
+    func __str__() str {}
 }
 
 pub trait Iterator[T] {
@@ -61,16 +64,16 @@ pub trait Number[T] {
 pub class str : Seq[str] {
 
     @native(kl_str_len)
-    func __len__() int {}
+    pub func __len__() int {}
 
     @native(kl_str_get_item)
-    func __getitem__(index any) str {}
+    pub func __getitem__(index any) str {}
 
     @native(kl_str_concat)
-    func __concat__(seq Seq[str]) str {}
+    pub func __concat__(seq Seq[str]) str {}
 
     @native(kl_str_repeat)
-    func __repeat__(count int) str {}
+    pub func __repeat__(count int) str {}
 
     @native(kl_str_find)
     pub func find(sub str) int {}
@@ -91,7 +94,7 @@ pub class str : Seq[str] {
     pub func __init__(s str) {}
 
     @native(kl_str_add)
-    func __add__(rhs str) str {}
+    pub func __add__(rhs str) str {}
 }
 
 pub class list[T] : Seq[T] {
@@ -100,25 +103,25 @@ pub class list[T] : Seq[T] {
     pub func __init__() {}
 
     @native(kl_list_len)
-    func __len__() int {}
+    pub func __len__() int {}
 
     @native(kl_list_get_item)
-    func __getitem__(index any) T {}
+    pub func __getitem__(index any) T {}
 
     @native(kl_list_concat)
-    func __concat__(seq Seq[T]) list[T] {}
+    pub func __concat__(seq Seq[T]) list[T] {}
 }
 
 pub class dict[K, V] : Indexable[V] {
 
     @native(kl_dict_len)
-    func __len__() int {}
+    pub func __len__() int {}
 
     @native(kl_dict_get_item)
-    func __getitem__(index any) V {}
+    pub func __getitem__(index any) V {}
 
     @native(kl_dict_set_item)
-    func __setitem__(index any, v V) {}
+    pub func __setitem__(index any, v V) {}
 }
 
 pub class int8 : Number[int8] {
@@ -129,7 +132,7 @@ pub class int16 : Number[int16] {
 
 pub class int32 : Number[int32] {
     @intrinsic
-    func __add__(rhs int32) int32 {}
+    pub func __add__(rhs int32) int32 {}
 }
 
 pub class int64 : Number[int64] {
@@ -139,7 +142,7 @@ pub class int64 : Number[int64] {
     pub func __init__(x int | str, base = 10) {}
 
     @intrinsic
-    func __add__(rhs int64) int64 {}
+    pub func __add__(rhs int64) int64 {}
 }
 
 pub class uint8 : Number[uint8] {
@@ -150,27 +153,27 @@ pub class uint16 : Number[uint16] {
 
 pub class uint32 : Number[uint32] {
     @intrinsic
-    func __add__(rhs uint32) uint32 {}
+    pub func __add__(rhs uint32) uint32 {}
 }
 
 pub class uint64 : Number[uint64] {
     @intrinsic
-    func __add__(rhs uint64) uint64 {}
+    pub func __add__(rhs uint64) uint64 {}
 }
 
 pub class float16 : Number[float16] {
     @intrinsic
-    func __add__(rhs float16) float16 {}
+    pub func __add__(rhs float16) float16 {}
 }
 
 pub class float32 : Number[float32] {
     @intrinsic
-    func __add__(rhs float32) float32 {}
+    pub func __add__(rhs float32) float32 {}
 }
 
 pub class float64 : Number[float64] {
     @intrinsic
-    func __add__(rhs float64) float64 {}
+    pub func __add__(rhs float64) float64 {}
 }
 
 pub class bool {
