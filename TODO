@@ -26,7 +26,7 @@ Todos:
     ☐ Constant Folding(BinaryExpr)
     ☐ Constant Propagation
     ✔ Visitor pattern @done(26-01-12 21:40)
-
+  ☐ check function proto with trait
 Archive:
   ✔ builtin.kl can be written into .klc and read it @done(25-12-28 19:17) @project(Todos)
   ✔ read/write klc @done(25-12-28 19:17) @project(Todos)

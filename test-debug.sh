@@ -9,7 +9,8 @@ cmake -G Ninja ../.. \
 
 cmake --build . --target clean
 cmake --build . --target all
-cmake --build . --target koala-test
+cmake --build . --target koala-tests
+# cmake --build . --target lit-tests
 
 # ctest -R "max" --output-on-failure
 
