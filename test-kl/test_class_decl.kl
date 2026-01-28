@@ -131,10 +131,10 @@ let aa A = c
 
 let aa1 A = b
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: A =/= rhs: _Z1Bj
+// CHECK-NEXT: lhs: A =/= rhs: B<j>
 
 let bb1 B[int] = a
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: _Z1Bj =/= rhs: A
+// CHECK-NEXT: lhs: B<j> =/= rhs: A
 
 // CHECK-NOT: {{.}}

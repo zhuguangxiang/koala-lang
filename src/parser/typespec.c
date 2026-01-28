@@ -616,90 +616,124 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
 {
     if (!ts) return 0;
 
-    if (ts->kind == TYPE_INT) {
-        if (ts->int_flt_info.width == 1) {
-            char ch = ts->int_flt_info.sign ? 'c' : 'C';
-            buf_write_char(buf, ch);
-        } else if (ts->int_flt_info.width == 2) {
-            char ch = ts->int_flt_info.sign ? 's' : 'S';
-            buf_write_char(buf, ch);
-        } else if (ts->int_flt_info.width == 4) {
-            char ch = ts->int_flt_info.sign ? 'i' : 'I';
-            buf_write_char(buf, ch);
-        } else {
-            char ch = ts->int_flt_info.sign ? 'j' : 'J';
-            buf_write_char(buf, ch);
-        }
-    } else if (ts->kind == TYPE_FLOAT) {
-        if (ts->int_flt_info.width == 2) {
-            buf_write_char(buf, 'h');
-        } else if (ts->int_flt_info.width == 4) {
-            buf_write_char(buf, 'f');
-        } else {
-            buf_write_char(buf, 'd');
-        }
-    } else if (ts->kind == TYPE_BFLOAT16) {
-        buf_write_char(buf, 'b');
-    } else if (ts->kind == TYPE_STR) {
-        buf_write_char(buf, 'u');
-    } else if (ts->kind == TYPE_VA_LIST) {
-        buf_write_str(buf, "...");
-    } else if (ts->kind == TYPE_NO_TYPE) {
-        // do-nothing
-    } else if (ts->kind == TYPE_BOOL) {
-        buf_write_char(buf, 'z');
-    } else if (ts->kind == TYPE_ANY) {
-        buf_write_char(buf, 'o');
-    } else if (ts->kind == TYPE_GENERIC_VAR) {
-        buf_write_char(buf, 'T');
-        buf_write_str(buf, ts->generic_var.owner);
-        buf_write_char(buf, ':');
-        buf_write_str(buf, ts->generic_var.name);
-        buf_write_char(buf, ';');
-    } else if (ts->kind == TYPE_SPECIALIZED) {
-        buf_write_char(buf, 'L');
-        buf_write_str(buf, ts->specialized.name);
-        if (vector_size(ts->specialized.args) > 0) {
-            buf_write_char(buf, '<');
-            TypeSpec *_ts;
-            vector_foreach(_ts, ts->specialized.args) {
-                if (!_ts) continue;
-                type_spec_to_str(_ts, buf);
+    TypeKind kind = ts->kind;
+    switch (kind) {
+        case TYPE_INT: {
+            if (ts->int_flt_info.width == 1) {
+                char ch = ts->int_flt_info.sign ? 'c' : 'C';
+                buf_write_char(buf, ch);
+            } else if (ts->int_flt_info.width == 2) {
+                char ch = ts->int_flt_info.sign ? 's' : 'S';
+                buf_write_char(buf, ch);
+            } else if (ts->int_flt_info.width == 4) {
+                char ch = ts->int_flt_info.sign ? 'i' : 'I';
+                buf_write_char(buf, ch);
+            } else {
+                char ch = ts->int_flt_info.sign ? 'j' : 'J';
+                buf_write_char(buf, ch);
             }
-            buf_write_char(buf, '>');
+            break;
         }
-        buf_write_char(buf, ';');
-    } else if (ts->kind == TYPE_UNION) {
-        buf_write_char(buf, 'U');
-        TypeSpec *arg;
-        vector_foreach(arg, ts->union_type.args) {
-            if (!arg) continue;
-            type_spec_to_str(arg, buf);
+        case TYPE_FLOAT: {
+            if (ts->int_flt_info.width == 2) {
+                buf_write_char(buf, 'h');
+            } else if (ts->int_flt_info.width == 4) {
+                buf_write_char(buf, 'f');
+            } else {
+                buf_write_char(buf, 'd');
+            }
+            break;
         }
-        buf_write_char(buf, ';');
-    } else if (ts->kind == TYPE_KLASS) {
-        buf_write_char(buf, 'L');
-        if (ts->klass_type.pkg) {
-            buf_write_str(buf, ts->klass_type.pkg);
-            buf_write_char(buf, '.');
+        case TYPE_BFLOAT16: {
+            buf_write_char(buf, 'b');
+            break;
         }
-        buf_write_str(buf, ts->klass_type.name);
-        buf_write_char(buf, ';');
-    } else if (ts->kind == TYPE_PROTO) {
-        buf_write_char(buf, '(');
-        TypeSpec *arg;
-        vector_foreach(arg, ts->proto_type.args) {
-            if (!arg) continue;
-            type_spec_to_str(arg, buf);
+        case TYPE_STR: {
+            buf_write_char(buf, 'u');
+            break;
         }
-        buf_write_char(buf, ')');
-        type_spec_to_str(ts->proto_type.ret, buf);
-    } else if (ts->kind == TYPE_TYPE) {
-        buf_write_str(buf, "Lbuiltin.type;");
-    } else if (ts->kind == TYPE_RANGE) {
-        buf_write_str(buf, "Lbuiltin.range;");
-    } else {
-        UNREACHABLE();
+        case TYPE_VA_LIST: {
+            buf_write_str(buf, "...");
+            break;
+        }
+        case TYPE_NO_TYPE: {
+            // do-nothing
+            break;
+        }
+        case TYPE_BOOL: {
+            buf_write_char(buf, 'z');
+            break;
+        }
+        case TYPE_ANY: {
+            buf_write_char(buf, 'o');
+            break;
+        }
+        case TYPE_GENERIC_VAR: {
+            buf_write_char(buf, 'T');
+            buf_write_str(buf, ts->generic_var.owner);
+            buf_write_char(buf, ':');
+            buf_write_str(buf, ts->generic_var.name);
+            buf_write_char(buf, ';');
+            break;
+        }
+        case TYPE_SPECIALIZED: {
+            buf_write_char(buf, 'L');
+            buf_write_str(buf, ts->specialized.name);
+            if (vector_size(ts->specialized.args) > 0) {
+                buf_write_char(buf, '<');
+                TypeSpec *_ts;
+                vector_foreach(_ts, ts->specialized.args) {
+                    if (!_ts) continue;
+                    type_spec_to_str(_ts, buf);
+                }
+                buf_write_char(buf, '>');
+            }
+            buf_write_char(buf, ';');
+            break;
+        }
+        case TYPE_UNION: {
+            buf_write_char(buf, 'U');
+            TypeSpec *arg;
+            vector_foreach(arg, ts->union_type.args) {
+                if (!arg) continue;
+                type_spec_to_str(arg, buf);
+            }
+            buf_write_char(buf, ';');
+            break;
+        }
+        case TYPE_KLASS: {
+            buf_write_char(buf, 'L');
+            if (ts->klass_type.pkg) {
+                buf_write_str(buf, ts->klass_type.pkg);
+                buf_write_char(buf, '.');
+            }
+            buf_write_str(buf, ts->klass_type.name);
+            buf_write_char(buf, ';');
+            break;
+        }
+        case TYPE_PROTO: {
+            buf_write_char(buf, '(');
+            TypeSpec *arg;
+            vector_foreach(arg, ts->proto_type.args) {
+                if (!arg) continue;
+                type_spec_to_str(arg, buf);
+            }
+            buf_write_char(buf, ')');
+            type_spec_to_str(ts->proto_type.ret, buf);
+            break;
+        }
+        case TYPE_TYPE: {
+            buf_write_str(buf, "Lbuiltin.type;");
+            break;
+        }
+        case TYPE_RANGE: {
+            buf_write_str(buf, "Lbuiltin.range;");
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
+        }
     }
 
     return 0;
@@ -871,7 +905,7 @@ static TypeSpec *__to_typespec(char **str)
             break;
         }
         default: {
-            UNREACHABLE();
+            // UNREACHABLE();
             break;
         }
     }
@@ -1115,6 +1149,7 @@ static void __typespec_str_print(char **str, Buffer *buf)
             break;
         }
         default: {
+            // UNREACHABLE();
             buf_write_char(buf, ch);
             s++;
             break;

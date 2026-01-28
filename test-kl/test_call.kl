@@ -60,7 +60,7 @@ var l2_1 List[Baz];
 var l3 List[Bar] = List[Baz](Baz())
 
 // CHECK: Types of two sides are not matched.
-// CHECK-NEXT: lhs: _Z4ListLBar; =/= rhs: _Z4ListLBaz;
+// CHECK-NEXT: lhs: List<LBar;> =/= rhs: List<LBaz;>
 
 var l4 List[Baz] = List[Baz](Baz())
 
@@ -114,13 +114,13 @@ let fish2 Foo2[Flyable] = Foo2[Flyable](FlyFish())
 let fish3 Foo2[Flyable] = Foo2[FlyFish](FlyFish())
 
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: _Z4Foo2LFlyable; =/= rhs: _Z4Foo2LFlyFish;
+// CHECK-NEXT: lhs: Foo2<LFlyable;> =/= rhs: Foo2<LFlyFish;>
 
 let bird Foo2[Bird[int]] = Foo2[Bird[int]](Bird[int](0))
 
 let bird2 Foo2[Flyable] = Foo2[Bird[int]](Bird[int](0))
 
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: _Z4Foo2LFlyable; =/= rhs: _Z4Foo2L_Z4Birdj;
+// CHECK-NEXT: lhs: Foo2<LFlyable;> =/= rhs: Foo2<LBird<j>;>
 
 // CHECK-NOT: {{.}}

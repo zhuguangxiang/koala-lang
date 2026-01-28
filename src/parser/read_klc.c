@@ -13,13 +13,12 @@
 extern "C" {
 #endif
 
-static void add_unsolved_sym_id(TypeSpec **ts, Vector *vec)
+static void add_unsolved_type(TypeSpec **ts, Vector *vec)
 {
     if (!ts || !*ts) return;
     TypeSpec *t = *ts;
-    if (t->kind != TYPE_SPECIALIZED && t->kind != TYPE_GENERIC_VAR) {
-        return;
-    }
+    ASSERT(t->kind == TYPE_SPECIALIZED || t->kind == TYPE_GENERIC_VAR);
+
     log_info("type needs update: %s", t->signature);
 
     TypeSpec **ts_ptr = ts;
@@ -28,13 +27,56 @@ static void add_unsolved_sym_id(TypeSpec **ts, Vector *vec)
     if (t->kind == TYPE_SPECIALIZED) {
         TypeSpec **arg_ts;
         vector_foreach_ptr(arg_ts, t->specialized.args) {
-            add_unsolved_sym_id(arg_ts, vec);
+            add_unsolved_type(arg_ts, vec);
         }
     }
 }
 
-static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item, Vector *vec)
+static int type_has_generic_var(TypeSpec *ts)
 {
+    if (ts->kind == TYPE_SPECIALIZED) {
+        TypeSpec *_ts;
+        vector_foreach(_ts, ts->specialized.args) {
+            if (type_has_generic_var(_ts)) {
+                log_info("specialized type has generic var: %s", ts->signature);
+                return 1;
+            }
+        }
+        return 0;
+    } else if (ts->kind == TYPE_GENERIC_VAR) {
+        log_info("generic var type is unsolved: %s", ts->signature);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static void update_type_spec_no_generic_var(TypeSpec **ts_ptr, Vector *vec, HashMap *stbl)
+{
+    TypeSpec *ts = *ts_ptr;
+
+    if (vector_empty(ts->specialized.args)) {
+        log_info("no args in specialized type: %s", ts->signature);
+        TypeSpec *ret = klass_type_spec(ts->specialized.pkg, ts->specialized.name);
+        type_spec_free(ts);
+        *ts_ptr = ret;
+        vector_push_back(vec, &ts_ptr);
+    } else {
+        Symbol *origin = stbl_get(stbl, ts->specialized.name);
+        ASSERT(origin && (origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT));
+        Symbol *inst_sym = find_or_add_instance(stbl, origin, ts->specialized.args);
+        ASSERT(inst_sym);
+        ts->specialized.args = NULL;
+        type_spec_free(ts);
+    }
+
+    log_info("updated type spec: %s", (*ts_ptr)->signature);
+}
+
+static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item, Vector *vec,
+                     HashMap *mod_stbl)
+{
+    TypeSpec **ts_ptr = NULL;
     KlcArgument *arg;
     Vector *params = vector_create_ptr();
     vector_foreach(arg, &item->args) {
@@ -50,14 +92,23 @@ static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item, Vector *vec)
         vector_push_back(params, &arg_info);
         if (ts->kind == TYPE_SPECIALIZED) {
             log_info("specialized type in function argument: %s", ts->signature);
-            TypeSpec **ts_ptr = &arg_info->ts;
-            add_unsolved_sym_id(ts_ptr, vec);
+            ts_ptr = &arg_info->ts;
+            if (!type_has_generic_var(ts)) {
+                log_info("specialized type without generic var is resolved: %s",
+                         ts->signature);
+                update_type_spec_no_generic_var(ts_ptr, vec, mod_stbl);
+                ts_ptr = NULL;
+            }
         } else if (ts->kind == TYPE_GENERIC_VAR) {
             log_info("generic var type in function argument: %s", ts->signature);
-            TypeSpec **ts_ptr = &arg_info->ts;
-            add_unsolved_sym_id(ts_ptr, vec);
+            ts_ptr = &arg_info->ts;
         } else {
+            ts_ptr = NULL;
             // nothing
+        }
+
+        if (ts_ptr) {
+            add_unsolved_type(ts_ptr, vec);
         }
     }
 
@@ -69,14 +120,23 @@ static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item, Vector *vec)
 
     if (ret_ts && ret_ts->kind == TYPE_SPECIALIZED) {
         log_info("specialized type in function return: %s", ret_ts->signature);
-        TypeSpec **ts_ptr = &((FuncSymbol *)sym)->ret;
-        add_unsolved_sym_id(ts_ptr, vec);
+        ts_ptr = &((FuncSymbol *)sym)->ret;
+        if (!type_has_generic_var(ret_ts)) {
+            log_info("specialized type without generic var is resolved: %s",
+                     ret_ts->signature);
+            update_type_spec_no_generic_var(ts_ptr, vec, mod_stbl);
+            ts_ptr = NULL;
+        }
     } else if (ret_ts && ret_ts->kind == TYPE_GENERIC_VAR) {
         log_info("generic var type in function return: %s", ret_ts->signature);
-        TypeSpec **ts_ptr = &((FuncSymbol *)sym)->ret;
-        add_unsolved_sym_id(ts_ptr, vec);
+        ts_ptr = &((FuncSymbol *)sym)->ret;
     } else {
+        ts_ptr = NULL;
         // nothing
+    }
+
+    if (ts_ptr) {
+        add_unsolved_type(ts_ptr, vec);
     }
 }
 
@@ -114,7 +174,7 @@ static void add_klass(HashMap *stbl, KlcFile *klc, KlcKlass *kls, Vector *vec)
             if (ts->kind == TYPE_SPECIALIZED) {
                 log_info("specialized type in type param bound: %s", ts->signature);
                 TypeSpec **ts_ptr = &ts;
-                add_unsolved_sym_id(ts_ptr, vec);
+                add_unsolved_type(ts_ptr, vec);
             } else {
                 UNREACHABLE();
             }
@@ -126,11 +186,11 @@ static void add_klass(HashMap *stbl, KlcFile *klc, KlcKlass *kls, Vector *vec)
     KlcFunc *fn;
     vector_foreach(fn, &kls->methods) {
         if (!fn) continue;
-        add_func(cls_sym->stbl, klc, fn, vec);
+        add_func(cls_sym->stbl, klc, fn, vec, stbl);
     }
 }
 
-static void read_funcs(HashMap *stbl, KlcFile *klc, Vector *vec)
+static void read_funcs(HashMap *stbl, KlcFile *klc, Vector *vec, HashMap *mod_stbl)
 {
     Vector *consts = klc->objs + ITEM_CONST;
 
@@ -140,7 +200,7 @@ static void read_funcs(HashMap *stbl, KlcFile *klc, Vector *vec)
         if (!(item->flags & KLC_FLAGS_PUB)) {
             continue;
         }
-        add_func(stbl, klc, item, vec);
+        add_func(stbl, klc, item, vec, mod_stbl);
     }
 }
 
@@ -182,13 +242,19 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
                           ts->generic_var.owner);
                 Symbol *tp_sym = stbl_get(owner->stbl, ts->generic_var.name);
                 ASSERT(tp_sym && tp_sym->kind == SYM_TYPE_PARAM);
-                log_debug("found type param symbol for generic var type: %s",
-                          ts->generic_var.name);
                 ts->sym_id = tp_sym->id;
                 ts->generic_var.index = ((TypeParamSymbol *)tp_sym)->index;
             } else {
                 log_error("cannot find owner symbol for generic var type: %s",
                           ts->generic_var.owner);
+            }
+        } else if (ts->kind == TYPE_KLASS) {
+            Symbol *sym = stbl_get(stbl, ts->klass_type.name);
+            if (sym) {
+                log_debug("found symbol for klass type: %s", ts->klass_type.name);
+                ts->sym_id = sym->id;
+            } else {
+                log_error("cannot find symbol for klass type: %s", ts->klass_type.name);
             }
         } else {
             UNREACHABLE();
@@ -212,9 +278,9 @@ void load_module(ModuleSymbol *mod_sym, char *path)
     Vector vec = VECTOR_INIT_PTR;
     HashMap *stbl = mod_sym->stbl;
 
-    // read_vars(stbl, &klc, vec);
-    read_funcs(stbl, &klc, &vec);
     read_klasses(stbl, &klc, &vec);
+    // read_vars(stbl, &klc, vec);
+    read_funcs(stbl, &klc, &vec, stbl);
 
     update_types_sym_id(stbl, &vec);
 

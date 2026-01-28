@@ -1,0 +1,29 @@
+// SKIP: koalac %s 2>&1 | filecheck %s
+
+// trait A {}
+// trait E {}
+// trait F {}
+
+// trait B : A & F {}
+// trait C : A & E {}
+// trait D : B & C & A & E {}
+
+// tbl info for klass/trait 'D':
+// pip: A ->  B ->  D
+// lro: A ->  F ->  B ->  E ->  C ->  D
+// scm: F ->  E ->  C
+
+trait Flyable[T] {
+    func fly() str
+}
+
+class Foo : Flyable[int] {
+    func __init__() {
+    }
+
+    func fly() str {
+        // return "Flying!"
+    }
+}
+
+// CHECK-NOT: {{.}}

@@ -1255,6 +1255,167 @@ static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
     sym->bases = vec;
 }
 
+static KlassSymbol *_get_base_sym(TypeSpec *base_ts)
+{
+    Symbol *_sym = get_symbol_by_id(base_ts->sym_id);
+    if (!_sym) {
+        UNREACHABLE();
+        return NULL;
+    }
+
+    KlassSymbol *base_sym = NULL;
+
+    if (_sym->kind == SYM_TRAIT) {
+        base_sym = (KlassSymbol *)_sym;
+    } else if (_sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst_sym = (InstanceSymbol *)_sym;
+        Symbol *origin_sym = inst_sym->origin;
+        if (origin_sym->kind == SYM_TRAIT) {
+            base_sym = (KlassSymbol *)origin_sym;
+        } else {
+            UNREACHABLE();
+        }
+    } else {
+        UNREACHABLE();
+    }
+
+    return base_sym;
+}
+
+/* compute primary inheritance path */
+static void compute_pip(ParserState *ps, KlassSymbol *sym)
+{
+    Vector *pip = &sym->pip;
+    if (vector_size(pip) > 0) return;
+
+    TypeSpec *base_ts = vector_get_object(sym->bases, 0);
+    if (!base_ts) {
+        // add itself
+        vector_push_back(pip, &sym->instance_ts);
+        return;
+    }
+
+    KlassSymbol *base_sym = _get_base_sym(base_ts);
+
+    // compute base's pip first
+    compute_pip(ps, base_sym);
+
+    // inherit from base's pip
+    TypeSpec *ts;
+    vector_foreach(ts, &base_sym->pip) {
+        if (!ts) continue;
+        vector_push_back(pip, &ts);
+    }
+
+    // add itself
+    vector_push_back(pip, &sym->instance_ts);
+}
+
+static int type_in_vec(Vector *vec, TypeSpec *ts)
+{
+    TypeSpec *existing_ts;
+    vector_foreach(existing_ts, vec) {
+        if (!existing_ts) continue;
+        if (existing_ts == ts) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void compute_lro(ParserState *ps, KlassSymbol *sym)
+{
+    Vector *lro = &sym->lro;
+    if (vector_size(lro) > 0) return;
+
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, sym->bases) {
+        if (!base_ts) continue;
+
+        KlassSymbol *base_sym = _get_base_sym(base_ts);
+
+        // compute base's lro first
+        compute_lro(ps, base_sym);
+    }
+
+    vector_foreach(base_ts, sym->bases) {
+        if (!base_ts) continue;
+
+        KlassSymbol *base_sym = _get_base_sym(base_ts);
+
+        // inherit from base's lro
+        TypeSpec *ts;
+        vector_foreach(ts, &base_sym->lro) {
+            if (!ts) continue;
+
+            // check duplication
+            if (!type_in_vec(lro, ts)) {
+                vector_push_back(lro, &ts);
+            }
+        }
+    }
+
+    // add self
+    vector_push_back(lro, &sym->instance_ts);
+}
+
+static void compute_scm(ParserState *ps, KlassSymbol *sym)
+{
+    Vector *scm = &sym->scm;
+    if (vector_size(scm) > 0) return;
+
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, &sym->lro) {
+        if (!base_ts) continue;
+
+        if (!type_in_vec(&sym->pip, base_ts)) {
+            vector_push_back(scm, &base_ts);
+        }
+    }
+}
+
+#ifndef NOLOG
+static void print_vtbl_info(KlassSymbol *sym)
+{
+    printf("vtbl info for klass/trait '%s':", sym->name);
+
+    printf("\n  pip:");
+    TypeSpec *ts;
+    vector_foreach(ts, &sym->pip) {
+        if (!ts) continue;
+        if (i__ != 0) printf(" -> ");
+        print_type_spec(ts);
+    }
+
+    printf("\n  lro:");
+    vector_foreach(ts, &sym->lro) {
+        if (!ts) continue;
+        if (i__ != 0) printf(" -> ");
+        print_type_spec(ts);
+    }
+
+    printf("\n  scm:");
+    vector_foreach(ts, &sym->scm) {
+        if (!ts) continue;
+        if (i__ != 0) printf(" -> ");
+        print_type_spec(ts);
+    }
+    printf("\n");
+}
+#else
+#define print_vtbl_info(sym) \
+    do { \
+    } while (0)
+#endif
+
+static void compute_vtbl_info(ParserState *ps, KlassSymbol *sym)
+{
+    compute_pip(ps, sym);
+    compute_lro(ps, sym);
+    compute_scm(ps, sym);
+    print_vtbl_info(sym);
+}
+
 static void parse_klass(ParserState *ps, Stmt *stmt)
 {
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
@@ -1271,6 +1432,9 @@ static void parse_klass(ParserState *ps, Stmt *stmt)
 
     /* parse base class and traits */
     parse_bases(ps, kls);
+
+    /* compute vtbl info */
+    compute_vtbl_info(ps, sym);
 
     /* parse class body */
     Stmt *s;

@@ -127,6 +127,12 @@ typedef struct _KlassSymbol {
     Vector *protos;
     /* instance type */
     TypeSpec *instance_ts;
+    /* primary inheritance path */
+    Vector pip;
+    /* linear order */
+    Vector lro;
+    /* second chain map */
+    Vector scm;
 } KlassSymbol;
 
 typedef struct _ModuleSymbol {

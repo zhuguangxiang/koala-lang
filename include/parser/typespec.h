@@ -110,6 +110,9 @@ TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args);
 TypeSpec *union_type_spec(TypeSpec *first, TypeSpec *second);
 void union_type_spec_add_arg(TypeSpec *ts, TypeSpec *arg);
 TypeSpec *union_type_spec_intern(Vector *args);
+TypeSpec *klass_type_spec(char *path, char *name);
+TypeSpec *func_type_spec(Vector *args, TypeSpec *ret);
+TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret);
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);
@@ -141,10 +144,6 @@ static inline TypeSpec *float64_type_spec(void) { return type_spec_get_by_id(15)
 static inline TypeSpec *bfloat16_type_spec(void) { return type_spec_get_by_id(16); }
 static inline TypeSpec *type_type_spec(void) { return type_spec_get_by_id(17); }
 static inline TypeSpec *range_type_spec(void) { return type_spec_get_by_id(18); }
-
-TypeSpec *klass_type_spec(char *path, char *name);
-TypeSpec *func_type_spec(Vector *args, TypeSpec *ret);
-TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret);
 
 void update_builtin_types(HashMap *stbl);
 

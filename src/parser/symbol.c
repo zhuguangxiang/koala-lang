@@ -124,6 +124,9 @@ Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait)
         sym->protos = vector_create_ptr();
         sym->flags = flags;
         sym->stbl = stbl_new();
+        vector_init_ptr(&sym->pip);
+        vector_init_ptr(&sym->lro);
+        vector_init_ptr(&sym->scm);
         add_to_global(sym);
     }
 
@@ -184,13 +187,15 @@ Symbol *stbl_add_module(HashMap *stbl, char *path)
 static char *mangle_type_name(char *base_name, Vector *tp_args)
 {
     BUF(buf);
-    buf_write_str(&buf, "_Z");
-    buf_write_int64(&buf, strlen(base_name));
     buf_write_str(&buf, base_name);
 
-    TypeSpec *ts;
-    vector_foreach(ts, tp_args) {
-        type_spec_to_str(ts, &buf);
+    if (vector_size(tp_args) > 0) {
+        buf_write_char(&buf, '<');
+        TypeSpec *ts;
+        vector_foreach(ts, tp_args) {
+            type_spec_to_str(ts, &buf);
+        }
+        buf_write_char(&buf, '>');
     }
 
     char *mangled_name = atom_str(BUF_STR(buf));
@@ -198,10 +203,10 @@ static char *mangle_type_name(char *base_name, Vector *tp_args)
     return mangled_name;
 }
 
-static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
+static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, char *mangled_name,
+                                 Vector *tp_args)
 {
     InstanceSymbol *sym = mm_alloc_obj(sym);
-    char *mangled_name = mangle_type_name(origin->name, tp_args);
     hashmap_entry_init(sym, str_hash(mangled_name));
     sym->kind = SYM_INSTANCE;
     sym->name = mangled_name;
@@ -264,7 +269,7 @@ Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
         return sym;
     }
 
-    sym = stbl_add_instance(stbl, origin, tp_args);
+    sym = stbl_add_instance(stbl, origin, mangled_name, tp_args);
 
     InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
     KlassSymbol *kls_sym = (KlassSymbol *)origin;
