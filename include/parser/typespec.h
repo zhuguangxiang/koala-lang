@@ -32,6 +32,7 @@ typedef enum _TypeKind {
     TYPE_SPECIALIZED,
     TYPE_KLASS,
     TYPE_PROTO,
+    TYPE_MANGLED, // only for loading from klc
 } TypeKind;
 
 typedef struct _TypeIdent {
@@ -99,6 +100,12 @@ typedef struct _TypeSpec {
             Vector *args;
             struct _TypeSpec *ret;
         } proto_type;
+
+        // mangled type
+        struct {
+            char *name;
+            Vector *args;
+        } mangled;
     };
 } TypeSpec;
 

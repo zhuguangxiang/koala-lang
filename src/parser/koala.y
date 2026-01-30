@@ -444,7 +444,8 @@ top_stmt
     }
     | expr semi
     {
-        $$ = NULL;
+        $$ = stmt_from_expr($1);
+        stmt_set_loc($$, loc(@1));
     }
     | assignment semi
     {

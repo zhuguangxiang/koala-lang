@@ -110,6 +110,9 @@ pub class list[T] : Seq[T] {
 
     @native(kl_list_concat)
     pub func __concat__(seq Seq[T]) list[T] {}
+
+    @native(kl_list_add)
+    pub func add(item T) {}
 }
 
 pub class dict[K, V] : Indexable[V] {

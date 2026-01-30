@@ -347,6 +347,25 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
             }
         }
 
+        if (dst->kind == TYPE_KLASS) {
+            if (src->kind == TYPE_INT) {
+                // check Integer base class
+                Symbol *sym = get_symbol_by_id(src->sym_id);
+                if (sym->kind != SYM_CLASS) return 0;
+                KlassSymbol *kls_sym = (KlassSymbol *)sym;
+                TypeSpec *base;
+                vector_foreach(base, kls_sym->bases) {
+                    if (!base) continue;
+                    if (base->kind == TYPE_KLASS) {
+                        if (base == src) {
+                            return 1;
+                        }
+                    }
+                }
+                return 0;
+            }
+        }
+
         return 0;
     }
 
@@ -779,6 +798,15 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     TypeSpec *ts = var->type;
     Expr *exp = var->exp;
 
+    VarSymbol *sym = (VarSymbol *)var->sym;
+
+    if (sym->status != SYM_UNRESOLVED) {
+        log_info("variable '%s' is resolving or resolved.", id->name);
+        return;
+    }
+
+    sym->status = SYM_RESOLVING;
+
     if (ts) {
         ts = resolve_type(ps, ts);
         if (!check_type(ps, ts)) return;
@@ -810,8 +838,6 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         ParserScope *sc = ps->scope;
         if (!_add_local(ps, sc->stbl, var)) return;
     }
-
-    VarSymbol *sym = (VarSymbol *)var->sym;
 
     if (var->where == VAR_GLOBAL) {
         if (exp && exp->kind == EXPR_LITERAL_KIND) {
@@ -866,6 +892,8 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
             log_vtable_info(ps, sym, exp->ts);
         }
     }
+
+    sym->status = SYM_RESOLVED;
 }
 
 static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
@@ -915,8 +943,6 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
     fn->sym = sym;
     return sym;
 }
-
-static void parse_stmt(ParserState *ps, Stmt *stmt);
 
 static void parse_body(ParserState *ps, FuncSymbol *sym, Vector *stmts)
 {
@@ -1469,7 +1495,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
         klr_build_ret_void(&bldr);
 }
 
-static void parse_stmt(ParserState *ps, Stmt *stmt)
+void parse_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
 
@@ -1602,6 +1628,7 @@ static Symbol *_add_global(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     }
 
     var->sym = sym;
+    sym->arg = var;
     return sym;
 }
 

@@ -337,6 +337,15 @@ void update_builtin_types(HashMap *stbl)
         sym->ts = type_ts;
         sym->instance_ts = ts;
     }
+
+    vector_foreach(ts, &type_list) {
+        if (!ts) continue;
+        if (ts->kind == TYPE_NO_TYPE || ts->kind == TYPE_RANGE ||
+            ts->kind == TYPE_VA_LIST || ts->kind == TYPE_BFLOAT16) {
+            continue;
+        }
+        ASSERT(ts->type_id >= 0);
+    }
 }
 
 void typespec_init(void)
@@ -481,6 +490,18 @@ TypeSpec *klass_type_spec(char *path, char *name)
     FINI_BUF(buf);
     hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
     return type_spec_intern(ts);
+}
+
+TypeSpec *mangled_type_spec(char *name, Vector *args)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_MANGLED;
+    ts->mangled.name = name;
+    ts->mangled.args = args;
+    ts->sym_id = -1;
+    ts->type_id = -1;
+    // it's temporary type, do not intern
+    return ts;
 }
 
 TypeSpec *func_type_spec(Vector *args, TypeSpec *ret)
@@ -753,6 +774,25 @@ static TypeSpec *__to_specialized_type(char *s, int len, Vector *args)
     return specialized_type_spec(path, type, args, -1);
 }
 
+static TypeSpec *__to_mangled_type(char *s, int len, Vector *args)
+{
+    char *dot = strchr(s, '.');
+    char *path = NULL;
+    char *type = NULL;
+    if (dot) {
+        path = atom_nstr(s, dot - s);
+        type = atom_nstr(dot + 1, len - (dot - s) - 1);
+    } else {
+        type = atom_nstr(s, len);
+    }
+
+    if (args) {
+        return mangled_type_spec(type, args);
+    } else {
+        return klass_type_spec(path, type);
+    }
+}
+
 static TypeSpec *__to_typespec(char **str)
 {
     char *s = *str;
@@ -771,17 +811,32 @@ static TypeSpec *__to_typespec(char **str)
             k = s;
             while (*s != ';' && *s != '<' && *s != '\0') s++;
             k2 = s;
+
             args = NULL;
+            int open = 0;
             if (*s == '<') {
                 args = vector_create_ptr();
                 s++;
                 while (*s != '>' && *s != '\0') {
                     arg = __to_typespec(&s);
-                    if (arg) vector_push_back(args, &arg);
+                    if (arg) {
+                        vector_push_back(args, &arg);
+                        if (arg->kind == TYPE_GENERIC_VAR) open = 1;
+                    }
                 }
                 if (*s == '>') s++;
             }
-            ts = __to_specialized_type(k, k2 - k, args);
+
+            if (open) {
+                ts = __to_specialized_type(k, k2 - k, args);
+            } else {
+                if (vector_empty(args)) {
+                    if (args) vector_destroy(args);
+                    args = NULL;
+                }
+                ts = __to_mangled_type(k, k2 - k, args);
+            }
+
             if (*s == ';') s++;
             break;
         }

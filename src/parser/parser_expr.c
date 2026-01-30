@@ -36,6 +36,17 @@ static void parse_ident(ParserState *ps, Expr *exp)
 
     exp->ts = sym->ts;
     exp->sym = sym;
+
+    if (sym->status == SYM_UNRESOLVED) {
+        parse_stmt(ps, sym->arg);
+        exp->ts = sym->ts;
+    } else if (sym->status == SYM_RESOLVING) {
+        kl_error(id->loc, "circular reference detected for '%s'", id->name);
+        return;
+    } else {
+        // do nothing
+    }
+
     log_debug("ident resolved: %s", sym->name);
     log_type_spec(sym->ts);
 }

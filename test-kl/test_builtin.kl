@@ -1,0 +1,11 @@
+// RUN: koalac %s | filecheck %s
+
+let a = b + 10
+let b int = 20 + a
+
+// CHECK: circular reference detected for 'a'
+
+let l list[int] = list[int]()
+l.add(10)
+
+// let n Number[int] = int(10) + int(20)

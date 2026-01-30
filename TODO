@@ -27,6 +27,10 @@ Todos:
     ☐ Constant Propagation
     ✔ Visitor pattern @done(26-01-12 21:40)
   ☐ check function proto with trait
+  ☐ DAG class/trait/variable/type interning
+  ☐ mangling rules and runtime
+  ☐ load klc
+  ☐ import
 Archive:
   ✔ builtin.kl can be written into .klc and read it @done(25-12-28 19:17) @project(Todos)
   ✔ read/write klc @done(25-12-28 19:17) @project(Todos)
