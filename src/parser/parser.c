@@ -67,6 +67,7 @@ static ParserScope *new_scope(ScopeKind kind, BlockType block)
     ParserScope *scope = mm_alloc_obj(scope);
     scope->kind = kind;
     scope->block_type = block;
+    if (kind == SCOPE_BLOCK) scope->stbl = stbl_new();
     return scope;
 }
 
@@ -147,6 +148,18 @@ void exit_scope(ParserState *ps, char *name)
     --ps->depth;
 }
 
+static FuncSymbol *get_current_function(ParserState *ps)
+{
+    ParserScope *sc = ps->scope;
+    while (sc) {
+        if (sc->kind == SCOPE_FUNC) {
+            return (FuncSymbol *)sc->sym;
+        }
+        sc = sc->next;
+    }
+    return NULL;
+}
+
 static void update_ir_info(ParserState *ps, Symbol *sym, char *module)
 {
     // KlrValue *val = NULL;
@@ -170,6 +183,13 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
                  scopes[sc->kind]);
         id->where = CURRENT_SCOPE;
         id->scope = sc;
+
+        if (sym->kind == SYM_SHADOW_VAR) {
+            log_info("  note: symbol '%s' is a shadow variable.", id->name);
+            ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)sym;
+            log_info("  value is null: %s", shadow_sym->is_null ? "true" : "false");
+        }
+
         return sym;
     }
 
@@ -183,6 +203,13 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
                      scopes[up->kind]);
             id->where = UP_SCOPE;
             id->scope = up;
+
+            if (sym->kind == SYM_SHADOW_VAR) {
+                log_info("  note: symbol '%s' is a shadow variable.", id->name);
+                ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)sym;
+                log_info("  value is null: %s", shadow_sym->is_null ? "true" : "false");
+            }
+
             return sym;
         }
         up = up->next;
@@ -301,6 +328,25 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 
     // Rule 1: TYPE_ANY is the Top Type (Root of the type hierarchy)
     if (dst->kind == TYPE_ANY) return 1;
+
+    if (dst->kind == TYPE_OPTIONAL) {
+        ASSERT(dst->opt.src != NULL);
+        if (src->kind == TYPE_OPTIONAL) {
+            if (src->opt.src == NULL) {
+                // src is null type
+                return 1;
+            } else {
+                // both dst and src are optional
+                return type_spec_compatible(dst->opt.src, src->opt.src);
+            }
+        } else {
+            // dst is optional, src is not optional
+            return type_spec_compatible(dst->opt.src, src);
+        }
+    } else {
+        // dst is not optional
+        // fall through to normal type compatibility check
+    }
 
     // Rule 2: Strict kind matching (Semantic barrier)
     if (dst->kind != src->kind) {
@@ -753,44 +799,6 @@ static void check_type_in_first_chain(ParserState *ps, TypeSpec *src, TypeSpec *
     }
 }
 
-static void log_vtable_info(ParserState *ps, VarSymbol *sym, TypeSpec *src)
-{
-    TypeSpec *dst = sym->ts;
-    TypeSpec *ts = src;
-
-    while (1) {
-        if (dst == ts) {
-            log_info("variable '%s' is in first-vtable-chain.", sym->name);
-            log_info("  type is:");
-            log_type_spec(dst);
-            log_info("  src is:");
-            log_type_spec(src);
-            return;
-        }
-
-        Symbol *base = get_symbol_by_id(ts->sym_id);
-        Vector *base_vec = NULL;
-        if (base->kind == SYM_CLASS || base->kind == SYM_TRAIT) {
-            KlassSymbol *kls_sym = (KlassSymbol *)base;
-            base_vec = kls_sym->bases;
-        } else if (base->kind == SYM_INSTANCE) {
-            InstanceSymbol *inst_sym = (InstanceSymbol *)base;
-            base_vec = inst_sym->bases;
-        } else {
-            UNREACHABLE();
-        }
-
-        ts = vector_get_object(base_vec, 0);
-        if (!ts) break;
-    }
-
-    log_info("variable '%s' is NOT in first-vtable-chain.", sym->name);
-    log_info("  type is:");
-    log_type_spec(dst);
-    log_info("  src is:");
-    log_type_spec(src);
-}
-
 static void parse_var_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *var = (VarDeclStmt *)stmt;
@@ -798,7 +806,17 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     TypeSpec *ts = var->type;
     Expr *exp = var->exp;
 
+    /*
+     * If var is global, it is already existed.
+     * If var is local, it needs to be added into symbol table.
+     */
+    if (var->where != VAR_GLOBAL && var->where != VAR_FIELD) {
+        ParserScope *sc = ps->scope;
+        if (!_add_local(ps, sc->stbl, var)) return;
+    }
+
     VarSymbol *sym = (VarSymbol *)var->sym;
+    ASSERT(sym);
 
     if (sym->status != SYM_UNRESOLVED) {
         log_info("variable '%s' is resolving or resolved.", id->name);
@@ -830,42 +848,31 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     parser_visit_expr(ps, exp);
     if (!exp->ts) return;
 
-    /*
-     * If var is global, it is already existed.
-     * If var is local, it needs to be added into symbol table.
-     */
-    if (var->where != VAR_GLOBAL && var->where != VAR_FIELD) {
-        ParserScope *sc = ps->scope;
-        if (!_add_local(ps, sc->stbl, var)) return;
-    }
-
-    if (var->where == VAR_GLOBAL) {
-        if (exp && exp->kind == EXPR_LITERAL_KIND) {
-            LitExpr *lit_exp = (LitExpr *)exp;
-            sym->scope = VAR_SCOPE_GLOBAL;
-            Literal *lit = mm_alloc_obj(lit);
-            if (lit_exp->which == LIT_EXPR_INT) {
-                lit->which = LIT_INT;
-                lit->sign = lit_exp->sign;
-                lit->len = lit_exp->len;
-                lit->ival = lit_exp->ival;
-            } else if (lit_exp->which == LIT_EXPR_FLT) {
-                lit->which = LIT_FLT;
-                lit->fval = lit_exp->fval;
-            } else if (lit_exp->which == LIT_EXPR_BOOL) {
-                lit->which = LIT_BOOL;
-                lit->bval = lit_exp->bval;
-            } else if (lit_exp->which == LIT_EXPR_STR) {
-                lit->which = LIT_STR;
-                lit->len = lit_exp->len;
-                lit->sval = lit_exp->sval;
-            } else if (lit_exp->which == LIT_EXPR_NONE) {
-                lit->which = LIT_NONE;
-            } else {
-                UNREACHABLE();
-            }
-            sym->lit = lit;
+    if (exp->kind == EXPR_LITERAL_KIND) {
+        LitExpr *lit_exp = (LitExpr *)exp;
+        sym->scope = VAR_SCOPE_GLOBAL;
+        Literal *lit = mm_alloc_obj(lit);
+        if (lit_exp->which == LIT_EXPR_INT) {
+            lit->which = LIT_INT;
+            lit->sign = lit_exp->sign;
+            lit->len = lit_exp->len;
+            lit->ival = lit_exp->ival;
+        } else if (lit_exp->which == LIT_EXPR_FLT) {
+            lit->which = LIT_FLT;
+            lit->fval = lit_exp->fval;
+        } else if (lit_exp->which == LIT_EXPR_BOOL) {
+            lit->which = LIT_BOOL;
+            lit->bval = lit_exp->bval;
+        } else if (lit_exp->which == LIT_EXPR_STR) {
+            lit->which = LIT_STR;
+            lit->len = lit_exp->len;
+            lit->sval = lit_exp->sval;
+        } else if (lit_exp->which == LIT_EXPR_NONE) {
+            lit->which = LIT_NONE;
+        } else {
+            UNREACHABLE();
         }
+        sym->lit = lit;
     }
 
     if (!ts) {
@@ -882,14 +889,12 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
             printf(" =/= rhs:");
             print_type_spec(exp->ts);
             printf("\n");
-            return;
         } else {
             log_info("variable '%s' type check passed.", id->name);
             log_info("  declared type:");
             log_type_spec(ts);
-            log_info("  initializer type:");
+            log_info("  rhs type:");
             log_type_spec(exp->ts);
-            log_vtable_info(ps, sym, exp->ts);
         }
     }
 
@@ -1146,6 +1151,98 @@ static void parse_expr(ParserState *ps, Stmt *stmt)
     Expr *exp = s->exp;
     exp->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, exp);
+}
+
+static void parse_block(ParserState *ps, Stmt *stmt)
+{
+    BlockStmt *s = (BlockStmt *)stmt;
+
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "inner-block");
+
+    Stmt *_s;
+    vector_foreach(_s, s->stmts) {
+        parse_stmt(ps, _s);
+    }
+
+    exit_scope(ps, "inner-block");
+}
+
+static void unbox_optional(ParserState *ps, Expr *exp)
+{
+    if (!expr_is_binary(exp)) return;
+
+    BinaryExpr *bexp = (BinaryExpr *)exp;
+    BiOpKind op = bexp->op;
+
+    if (op != BINARY_EQ && op != BINARY_NEQ) return;
+
+    Expr *lhs = bexp->lhs;
+    Expr *rhs = bexp->rhs;
+
+    ParserScope *sc = ps->scope;
+    Symbol *lhs_sym = lhs->sym;
+    Symbol *rhs_sym = rhs->sym;
+
+    if (lhs_sym && (lhs_sym->kind == SYM_VAR) && type_is_optional(lhs->ts) &&
+        expr_is_literal_null(rhs)) {
+        log_info("lhs is var(optional) and rhs is null literal");
+        if (op == BINARY_NEQ) {
+            log_info("'%s' is optional, add shadow variable", lhs_sym->name);
+            log_type_spec(lhs->ts->opt.src);
+            stbl_add_shadow_var(sc->stbl, lhs->sym, 0);
+        } else if (op == BINARY_EQ) {
+            log_info("'%s' is optional, add shadow variable(null)", lhs_sym->name);
+            log_type_spec(lhs->ts);
+            stbl_add_shadow_var(sc->stbl, lhs->sym, 1);
+        } else {
+            UNREACHABLE();
+        }
+    } else if (expr_is_literal_null(lhs) && rhs_sym && (rhs_sym->kind == SYM_VAR) &&
+               type_is_optional(rhs->ts)) {
+        log_info("lhs is null literal and rhs is var(optional)");
+        if (op == BINARY_NEQ) {
+            log_info("'%s' is optional, add shadow variable", rhs_sym->name);
+            log_type_spec(rhs->ts->opt.src);
+            stbl_add_shadow_var(sc->stbl, rhs->sym, 0);
+        } else if (op == BINARY_EQ) {
+            log_info("'%s' is optional, add shadow variable(null)", rhs_sym->name);
+            log_type_spec(rhs->ts);
+            stbl_add_shadow_var(sc->stbl, rhs->sym, 1);
+        } else {
+            UNREACHABLE();
+        }
+    } else {
+        log_info("none side is var and null literal");
+    }
+}
+
+static void parse_if(ParserState *ps, Stmt *stmt)
+{
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "if-stmt");
+
+    IfStmt *s = (IfStmt *)stmt;
+    Expr *cond = s->cond;
+
+    cond->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, cond);
+    if (!cond->ts) return;
+
+    if (cond->ts->kind != TYPE_BOOL) {
+        kl_error(cond->loc, "if condition must be boolean type.");
+    }
+
+    unbox_optional(ps, cond);
+
+    Stmt *_s;
+    vector_foreach(_s, s->block) {
+        parse_stmt(ps, _s);
+    }
+
+    if (s->_else) {
+        parse_stmt(ps, s->_else);
+    }
+
+    exit_scope(ps, "if-stmt");
 }
 
 // only add klass/trait symbol and add tp, fields and methods
@@ -1476,23 +1573,33 @@ static void parse_return(ParserState *ps, Stmt *stmt)
 {
     RetStmt *ret = (RetStmt *)stmt;
     Expr *exp = ret->exp;
-    KlrValue *ir_val = NULL;
+    FuncSymbol *fn_sym = get_current_function(ps);
+    TypeSpec *fn_ret = fn_sym->ret;
+
     if (exp) {
         exp->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, exp);
         if (!exp->ts) return;
-        ir_val = exp->ir_val;
+
+        if (!fn_ret || fn_ret->kind == TYPE_NO_TYPE) {
+            kl_error(ret->loc, "function '%s' has no return value.", fn_sym->name);
+            return;
+        }
+
+        if (!type_spec_compatible(fn_sym->ret, exp->ts)) {
+            kl_error(ret->loc, "return type mismatch in function '%s'", fn_sym->name);
+            log_info("  expected type:");
+            log_type_spec(fn_sym->ret);
+            log_info("  actual type:");
+            log_type_spec(exp->ts);
+            return;
+        }
+    } else {
+        if (fn_ret && fn_ret->kind != TYPE_NO_TYPE) {
+            kl_error(ret->loc, "function '%s' needs a return value.", fn_sym->name);
+            return;
+        }
     }
-
-    // codegen
-    ParserScope *sc = ps->scope;
-
-    KlrBuilder bldr;
-    klr_builder_end(&bldr, sc->bb);
-    if (ir_val)
-        klr_build_ret(&bldr, ir_val);
-    else
-        klr_build_ret_void(&bldr);
 }
 
 void parse_stmt(ParserState *ps, Stmt *stmt)
@@ -1503,23 +1610,16 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     if (ps->errors >= MAX_ERRORS) return;
 
     /* clang-format off */
-    static void (*handlers[])(ParserState *, Stmt *) = {
-        NULL,                               /* INVALID          */
-        NULL, // parse_import,              /* IMPORT_KIND      */
-        parse_var_decl,                     /* VAR_KIND         */
-        parse_func_decl,                    /* FUNC_KIND        */
-        parse_klass,                        /* CLASS_KIND       */
-        parse_klass,                        /* TRAIT_KIND       */
-        parse_return,                       /* RETURN_KIND      */
-        NULL, // parse_assign,              /* ASSIGN_KIND      */
-        NULL, // parse_break,               /* BREAK_KIND       */
-        NULL, // parse_continue,            /* CONTINUE_KIND    */
-        parse_expr,                         /* EXPR_KIND        */
-        NULL, // parse_block,               /* BLOCK_KIND       */
-        NULL, // parse_if,                  /* IF_KIND          */
-        NULL, // parse_while,               /* WHILE_KIND       */
-        NULL, // parse_for,                 /* FOR_KIND         */
-        NULL, // parse_match,               /* MATCH_KIND       */
+    static void (*handlers[STMT_MAX_KIND])(ParserState *, Stmt *) = {
+        [STMT_VAR_KIND]    = parse_var_decl,
+        [STMT_FUNC_KIND]   = parse_func_decl,
+        [STMT_CLASS_KIND]  = parse_klass,
+        [STMT_TRAIT_KIND]  = parse_klass,
+        [STMT_RETURN_KIND] = parse_return,
+        [STMT_EXPR_KIND]   = parse_expr,
+        [STMT_BLOCK_KIND]  = parse_block,
+        [STMT_IF_KIND]     = parse_if,
+        // [STMT_IF_LET_KIND] = parse_if_let,
     };
     /* clang-format on */
 

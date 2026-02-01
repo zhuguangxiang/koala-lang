@@ -32,6 +32,7 @@ typedef enum _TypeKind {
     TYPE_SPECIALIZED,
     TYPE_KLASS,
     TYPE_PROTO,
+    TYPE_OPTIONAL,
     TYPE_MANGLED, // only for loading from klc
 } TypeKind;
 
@@ -49,7 +50,6 @@ typedef struct _TypeSpec {
     int checked;
     int sym_id;
     int type_id;
-    int optional;
     char *signature;
     Loc loc;
     union {
@@ -101,6 +101,11 @@ typedef struct _TypeSpec {
             struct _TypeSpec *ret;
         } proto_type;
 
+        // optional
+        struct {
+            struct _TypeSpec *src;
+        } opt;
+
         // mangled type
         struct {
             char *name;
@@ -120,6 +125,9 @@ TypeSpec *union_type_spec_intern(Vector *args);
 TypeSpec *klass_type_spec(char *path, char *name);
 TypeSpec *func_type_spec(Vector *args, TypeSpec *ret);
 TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret);
+TypeSpec *optional_type_spec(TypeSpec *src);
+
+static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);

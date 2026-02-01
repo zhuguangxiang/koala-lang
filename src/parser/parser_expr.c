@@ -37,14 +37,16 @@ static void parse_ident(ParserState *ps, Expr *exp)
     exp->ts = sym->ts;
     exp->sym = sym;
 
-    if (sym->status == SYM_UNRESOLVED) {
-        parse_stmt(ps, sym->arg);
-        exp->ts = sym->ts;
-    } else if (sym->status == SYM_RESOLVING) {
-        kl_error(id->loc, "circular reference detected for '%s'", id->name);
-        return;
-    } else {
-        // do nothing
+    if (sym->kind == SYM_VAR) {
+        if (sym->status == SYM_UNRESOLVED) {
+            parse_stmt(ps, sym->arg);
+            exp->ts = sym->ts;
+        } else if (sym->status == SYM_RESOLVING) {
+            kl_error(id->loc, "circular reference detected for '%s'", id->name);
+            return;
+        } else {
+            // do nothing
+        }
     }
 
     log_debug("ident resolved: %s", sym->name);
@@ -152,24 +154,29 @@ static void parse_literal(ParserState *ps, Expr *exp)
     LitExpr *lit = (LitExpr *)exp;
     switch (lit->which) {
         case LIT_EXPR_INT: {
+            log_info("literal integer");
             parse_lit_int(ps, lit);
             break;
         }
         case LIT_EXPR_FLT: {
+            log_info("literal float");
             parse_lit_float(ps, lit);
             break;
         }
         case LIT_EXPR_BOOL: {
+            log_info("literal bool");
             // do nothing
             break;
         }
         case LIT_EXPR_STR: {
+            log_info("literal string '%s'", lit->sval);
             if (check_utf8(lit->sval, lit->len) < 0) {
                 kl_error(exp->loc, "invalid utf8 string");
             }
             break;
         }
         case LIT_EXPR_NONE: {
+            log_info("literal null");
             parse_none(ps, lit);
             break;
         }
@@ -421,6 +428,11 @@ static void parse_dot(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, lhs);
     if (!lhs->ts) return;
 
+    if (type_is_optional(lhs->ts)) {
+        kl_error(lhs->loc, "optional cannot use dot operator.");
+        return;
+    }
+
     Symbol *lhs_ts_sym = get_symbol_by_id(lhs->ts->sym_id);
     if (!lhs_ts_sym) {
         kl_error(lhs->loc, "type is not found.");
@@ -434,7 +446,12 @@ static void parse_dot(ParserState *ps, Expr *exp)
         exp->ts = sym->ts;
         exp->sym = sym;
         log_debug("dot member resolved: %s", sym->name);
-        log_type_spec(sym->ts);
+        if (sym->kind == SYM_FUNC) {
+            log_info("ret type is:");
+            log_type_spec(((FuncSymbol *)sym)->ret);
+        } else {
+            log_type_spec(sym->ts);
+        }
         return;
     }
 
@@ -582,12 +599,24 @@ static char *get_binary_op_name(BiOpKind op)
             return "__div__";
         case BINARY_MOD:
             return "__mod__";
+        case BINARY_LT:
+            return "__lt__";
+        case BINARY_LE:
+            return "__le__";
+        case BINARY_GT:
+            return "__gt__";
+        case BINARY_GE:
+            return "__ge__";
+        case BINARY_EQ:
+            return "__eq__";
+        case BINARY_NEQ:
+            return "__neq__";
         default:
             return "unknown_op";
     }
 }
 
-static char *get_binary_op_char(BiOpKind op)
+static char *get_binary_op_str(BiOpKind op)
 {
     switch (op) {
         case BINARY_ADD:
@@ -600,9 +629,36 @@ static char *get_binary_op_char(BiOpKind op)
             return "/";
         case BINARY_MOD:
             return "%";
+        case BINARY_LT:
+            return "<";
+        case BINARY_LE:
+            return "<=";
+        case BINARY_GT:
+            return ">";
+        case BINARY_GE:
+            return ">=";
+        case BINARY_EQ:
+            return "==";
+        case BINARY_NEQ:
+            return "!=";
         default:
             UNREACHABLE();
             return "";
+    }
+}
+
+static int binary_op_iscmp(BiOpKind op)
+{
+    switch (op) {
+        case BINARY_GT:
+        case BINARY_GE:
+        case BINARY_LT:
+        case BINARY_LE:
+        case BINARY_EQ:
+        case BINARY_NEQ:
+            return 1;
+        default:
+            return 0;
     }
 }
 
@@ -617,9 +673,76 @@ static void parse_binary(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, lhs);
     if (!lhs->ts) return;
 
+    if (type_is_optional(lhs->ts) && (op != BINARY_EQ && op != BINARY_NEQ)) {
+        Symbol *opt_sym = lhs->sym;
+        if (opt_sym && opt_sym->kind == SYM_SHADOW_VAR) {
+            // check shadow variable null state
+            ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)opt_sym;
+            log_info("  note: symbol '%s' is a shadow variable.", opt_sym->name);
+            log_info("  value is null: %s", shadow_sym->is_null ? "true" : "false");
+            if (shadow_sym->is_null) {
+                kl_error(
+                    bin->op_loc,
+                    "optional type cannot be used with '%s' operator when value is null.",
+                    get_binary_op_str(op));
+                return;
+            }
+        }
+
+        kl_error(bin->op_loc, "optional type cannot be used with '%s' operator.",
+                 get_binary_op_str(op));
+        return;
+    }
+
     rhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, rhs);
     if (!rhs->ts) return;
+
+    if (op == BINARY_EQ || op == BINARY_NEQ) {
+        // special handling for optional and null comparison
+        if (type_is_optional(lhs->ts) && type_is_optional(rhs->ts)) {
+            if (expr_is_literal_null(lhs) || expr_is_literal_null(rhs)) {
+                // allow optional type compared with null literal
+                exp->ts = bool_type_spec();
+                log_info("binary operator '%s' resolved.", get_binary_op_str(op));
+                log_type_spec(exp->ts);
+                return;
+            }
+
+            if (!type_spec_compatible(lhs->ts, rhs->ts)) {
+                kl_error(lhs->loc,
+                         "two optional types are not compatible for '%s' operator.",
+                         get_binary_op_str(op));
+                log_info("lhs type:");
+                log_type_spec(lhs->ts);
+                log_info("rhs type:");
+                log_type_spec(rhs->ts);
+            } else {
+                exp->ts = bool_type_spec();
+                log_info("binary operator '%s' resolved.", get_binary_op_str(op));
+                log_type_spec(exp->ts);
+            }
+            return;
+        }
+
+        if (type_is_optional(lhs->ts) && !type_is_optional(rhs->ts)) {
+            kl_error(
+                bin->op_loc,
+                "cannot compare optional type with non-optional type for '%s' operator.",
+                get_binary_op_str(op));
+            return;
+        }
+
+        if (!type_is_optional(lhs->ts) && type_is_optional(rhs->ts)) {
+            kl_error(bin->op_loc,
+                     "cannot compare non-optional type with optional type for '%s' "
+                     "operator.",
+                     get_binary_op_str(op));
+            return;
+        }
+
+        // fall through to normal operator resolution
+    }
 
     Symbol *sym = get_symbol_by_id(lhs->ts->sym_id);
     if (!sym) {
@@ -637,33 +760,37 @@ static void parse_binary(ParserState *ps, Expr *exp)
     Symbol *fn = stbl_get(stbl, op_name);
     if (!fn) {
         kl_error(bin->op_loc, "operator '%s' is not defined for this type.",
-                 get_binary_op_char(op));
+                 get_binary_op_str(op));
         return;
     }
 
     Vector *args = ((FuncSymbol *)fn)->params;
     if (vector_size(args) != 1) {
-        kl_error(bin->op_loc, "invalid operator '%s' definition.",
-                 get_binary_op_char(op));
+        kl_error(bin->op_loc, "expected %d argument for operator '%s', but got 1.",
+                 vector_size(args), get_binary_op_str(op));
         return;
     }
 
     ArgInfo *arg_info = vector_get_object(args, 0);
-    if (!arg_info) {
-        kl_error(bin->op_loc, "invalid operator '%s' definition.",
-                 get_binary_op_char(op));
-        return;
-    }
+    ASSERT(arg_info);
 
     TypeSpec *arg_ts = arg_info->ts;
     if (arg_ts != rhs->ts) {
-        kl_error(bin->op_loc, "invalid operator '%s' definition.",
-                 get_binary_op_char(op));
+        kl_error(bin->op_loc, "argument type mismatch for operator '%s'.",
+                 get_binary_op_str(op));
+        log_info("expected type:");
+        log_type_spec(arg_ts);
+        log_info("actual type:");
+        log_type_spec(rhs->ts);
         return;
     }
 
-    exp->ts = lhs->ts;
-    log_info("binary operator '%s' resolved.", get_binary_op_char(op));
+    if (binary_op_iscmp(op))
+        exp->ts = bool_type_spec();
+    else
+        exp->ts = lhs->ts;
+
+    log_info("binary operator '%s' resolved.", get_binary_op_str(op));
     log_type_spec(exp->ts);
 }
 
@@ -685,30 +812,17 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     if (ps->errors >= MAX_ERRORS) return;
 
     /* clang-format off */
-    static void (*handlers[])(ParserState *, Expr *) = {
-        NULL,                            /* UNKNOWN    */
-        parse_ident,                     /* ID         */
-        parse_under,                     /* UNDER      */
-        parse_literal,                   /* LITERAL    */
-        parse_self,                      /* SELF       */
-        NULL,                            /* ARRAY      */
-        NULL,                            /* MAP        */
-        NULL,                            /* MAP_ENTRY  */
-        NULL,                            /* TUPLE      */
-        NULL,                            /* SET        */
-        NULL,                            /* ANONY      */
-        parse_type,                      /* TYPE       */
-        parse_call,                      /* CALL       */
-        parse_dot,                       /* DOT        */
-        parse_index,                     /* INDEX      */
-        NULL,                            /* SLICE      */
-        NULL,                            /* UNARY      */
-        parse_binary,                    /* BINARY     */
-        NULL,                            /* RANGE      */
-        parse_keyword,                   /* KW         */
-        NULL,                            /* IS         */
-        NULL,                            /* AS         */
-        NULL,                            /* IN         */
+    static void (*handlers[EXPR_MAX_KIND])(ParserState *, Expr *) = {
+        [EXPR_ID_KIND]      = parse_ident,
+        [EXPR_UNDER_KIND]   = parse_under,
+        [EXPR_LITERAL_KIND] = parse_literal,
+        [EXPR_SELF_KIND]    = parse_self,
+        [EXPR_TYPE_KIND]    = parse_type,
+        [EXPR_CALL_KIND]    = parse_call,
+        [EXPR_DOT_KIND]     = parse_dot,
+        [EXPR_INDEX_KIND]   = parse_index,
+        [EXPR_BINARY_KIND]  = parse_binary,
+        [EXPR_KW_KIND]      = parse_keyword,
     };
     /* clang-format on */
 

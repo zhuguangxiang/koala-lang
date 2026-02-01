@@ -146,6 +146,24 @@ pub class int64 : Number[int64] {
 
     @intrinsic
     pub func __add__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __gt__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __ge__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __lt__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __le__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __eq__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __neq__(rhs int64) bool {}
 }
 
 pub class uint8 : Number[uint8] {

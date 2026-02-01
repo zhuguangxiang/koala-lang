@@ -19,8 +19,7 @@ Expr *expr_from_lit_int(char *orginal, __int128_t val, int sign, int bit_mode)
     exp->sign = sign;
     exp->ival_128 = val;
     exp->ival = 0;
-    int id = sign ? 7 : 8; // int64/uint64
-    exp->ts = type_spec_get_by_id(id);
+    exp->ts = sign ? int64_type_spec() : uint64_type_spec();
     return (Expr *)exp;
 }
 
@@ -30,7 +29,7 @@ Expr *expr_from_lit_float(double val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_FLT;
     exp->fval = val;
-    // exp->desc = desc_float();
+    exp->ts = float64_type_spec();
     return (Expr *)exp;
 }
 
@@ -40,7 +39,7 @@ Expr *expr_from_lit_bool(int val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_BOOL;
     exp->bval = val;
-    // exp->desc = desc_bool();
+    exp->ts = bool_type_spec();
     return (Expr *)exp;
 }
 
@@ -119,6 +118,7 @@ Expr *expr_from_lit_none(void)
     LitExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_NONE;
+    exp->ts = optional_type_spec(NULL);
     return (Expr *)exp;
 }
 
@@ -370,17 +370,6 @@ Stmt *stmt_from_if_let(Ident *id, Expr *exp, Vector *block)
     s->block = block;
     return (Stmt *)s;
 }
-
-Stmt *stmt_from_guard_let(Ident *id, Expr *exp, Vector *block)
-{
-    GuardLetStmt *s = mm_alloc_obj(s);
-    s->kind = STMT_IF_LET_KIND;
-    s->id = *id;
-    s->exp = exp;
-    s->block = block;
-    return (Stmt *)s;
-}
-
 Stmt *stmt_from_expr(Expr *exp)
 {
     ExprStmt *s = mm_alloc_obj(s);

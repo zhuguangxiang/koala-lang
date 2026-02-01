@@ -1,0 +1,146 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+func fn1() {
+    return
+}
+
+func fn2() int {
+    return 100
+}
+
+func fn3() str {
+    return "hello"
+}
+
+func fn4() int {
+    return "test"
+    // CHECK: return type mismatch in function 'fn4'
+}
+
+func fn5() int {
+    return
+    // CHECK-NEXT: function 'fn5' needs a return value.
+}
+
+func println(s str) {
+}
+
+func fn6() int {
+    i := 200
+    if i < 100 {
+        j := "hello"
+        println("small")
+    } else {
+        j := true
+        println("big")
+    }
+    return 200
+}
+
+var opt int? = 100
+var val int = opt
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: int64 =/= rhs: int64?
+
+var val1 int = null
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: int64 =/= rhs: _?
+
+var val1_1 int? = null
+
+var val2 bool = opt == null
+var val3 bool = opt != null
+var val4 bool = null == opt
+var val5 bool = null != opt
+var val6 bool = null == null
+var val7 bool = null != null
+var val8 bool = 100 == null
+// CHECK-NEXT: cannot compare non-optional type with optional type for '==' operator.
+var val9 bool = null != 100
+// CHECK-NEXT: cannot compare optional type with non-optional type for '!=' operator.
+
+var val10 bool = opt == 100
+// CHECK-NEXT: cannot compare optional type with non-optional type for '==' operator.
+
+var val11 bool = 100 != opt
+// CHECK-NEXT: cannot compare non-optional type with optional type for '!=' operator.
+
+var val12 bool = opt == opt
+var val13 bool = opt != opt
+
+class Foo {
+    func __init__() {}
+    func fly() int? { return 100; }
+}
+
+let foo_fly = Foo().fly()
+
+func fn7(v int?) {
+    v + 100
+    // CHECK-NEXT: optional type cannot be used with '+' operator.
+
+    null + 100
+    // CHECK-NEXT: optional type cannot be used with '+' operator.
+
+    if v {
+        k := 100
+        k + 200
+    }
+    // CHECK-NEXT: if condition must be boolean type.
+
+    100 + v
+    // CHECK-NEXT: argument type mismatch for operator '+'.
+
+    if v != null {
+        v + 123
+    }
+
+    v + 123
+    // CHECK-NEXT: optional type cannot be used with '+' operator.
+
+    if null != v {
+        456 + v
+    }
+
+    if null != null {
+        789 + 100
+    }
+
+    if v == null {
+        v + 321
+        // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+    }
+
+    if v != null {
+        if v == 100 { // 这里 v 已经是 int 了，应该允许和 100 比较
+            // OK
+        }
+    }
+
+    if Foo().fly() {
+        // CHECK-NEXT: if condition must be boolean type.
+        foo_fly + 50
+        // CHECK-NEXT: optional type cannot be used with '+' operator.
+    }
+
+    if Foo().fly() != null {
+        Foo().fly() + 50
+        // CHECK-NEXT: optional type cannot be used with '+' operator.
+    }
+
+    foo_fly.__add__(100)
+    // CHECK-NEXT: ptional cannot use dot operator.
+
+    if let f = Foo().fly() {
+        f + 100
+    }
+
+    100 + f
+    // CHECK-NEXT: cannot find symbol 'f'.
+
+    // 100.__add__(foo_fly)
+}
+
+// 100.__add__(1)
+// 100.0.__add__(2.0)
+// CHECK-NOT: {{.}}

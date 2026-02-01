@@ -324,7 +324,7 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
     YY_IDENT_VALUE(yytext, yyleng); YY_RETURN(ID);
 }
 
-[+-]?(([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)([eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+) {
+[+-]?([0-9]+\.[0-9]+([eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+) {
     YY_FLOAT_VALUE(yytext, yyleng); YY_RETURN(FLOAT_LITERAL);
 }
 

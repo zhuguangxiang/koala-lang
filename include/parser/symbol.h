@@ -28,6 +28,7 @@ typedef enum _SymKind {
     SYM_TYPE_PARAM,     /* type param */
     SYM_MODULE,         /* module     */
     SYM_INSTANCE,       /* instance   */
+    SYM_SHADOW_VAR,     /* shadow var */
     SYM_MAX,
 } SymKind;
 
@@ -75,6 +76,12 @@ typedef struct _VarSymbol {
 #define VAR_SCOPE_PARAM  3
     Literal *lit;
 } VarSymbol;
+
+typedef struct _ShadowVarSymbol {
+    SYMBOL_HEAD
+    VarSymbol *origin;
+    int is_null;
+} ShadowVarSymbol;
 
 typedef struct _TypeParamSymbol {
     // ts is not used
@@ -183,6 +190,8 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
                       Vector *params, int flags, char *ann, char *ann_key);
 Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
+Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);
+
 Symbol *stbl_get(HashMap *stbl, char *name);
 void stbl_show(HashMap *stbl);
 void *get_symbol_by_id(int id);

@@ -205,7 +205,7 @@ typedef enum _BiOpKind {
     BINARY_LT,
     BINARY_LE,
     BINARY_EQ,
-    BINARY_NE,
+    BINARY_NEQ,
 
     /* &&, || */
     BINARY_AND,
@@ -306,6 +306,22 @@ typedef struct _SliceExpr {
 
 Expr *expr_from_slice(Expr *start, Expr *stop, Expr *step);
 
+static inline int expr_is_ident(Expr *e) { return e->kind == EXPR_ID_KIND; }
+
+static inline int expr_is_literal_null(Expr *e)
+{
+    if (e->kind != EXPR_LITERAL_KIND) return 0;
+    return ((LitExpr *)e)->which == LIT_EXPR_NONE;
+}
+
+static inline int expr_is_binary(Expr *e) { return e->kind == EXPR_BINARY_KIND; }
+
+static inline int expr_is_not(Expr *e)
+{
+    if (e->kind != EXPR_UNARY_KIND) return 0;
+    return ((UnaryExpr *)e)->op == UNARY_NOT;
+}
+
 typedef enum _StmtKind {
     STMT_UNK_KIND,
     /* import */
@@ -334,9 +350,8 @@ typedef enum _StmtKind {
     STMT_WHILE_KIND,
     STMT_FOR_KIND,
     STMT_MATCH_KIND,
-    /* if-let and guard-let */
+    /* if-let */
     STMT_IF_LET_KIND,
-    STMT_GUARD_LET_KIND,
     STMT_MAX_KIND
 } StmtKind;
 
@@ -455,10 +470,9 @@ typedef struct {
     Ident id;
     Expr *exp;
     Vector *block;
-} IfLetStmt, GuardLetStmt;
+} IfLetStmt;
 
 Stmt *stmt_from_if_let(Ident *id, Expr *exp, Vector *block);
-Stmt *stmt_from_guard_let(Ident *id, Expr *exp, Vector *block);
 
 typedef struct _ExprStmt {
     STMT_HEAD

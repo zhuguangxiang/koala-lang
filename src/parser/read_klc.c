@@ -20,8 +20,6 @@ static void add_unsolved_type(TypeSpec **ts, Vector *vec)
     ASSERT(t->kind == TYPE_SPECIALIZED || t->kind == TYPE_GENERIC_VAR ||
            t->kind == TYPE_MANGLED || t->kind == TYPE_KLASS);
 
-    log_info("type needs update: %s", t->signature);
-
     TypeSpec **ts_ptr = ts;
     vector_push_back(vec, &ts_ptr);
 
@@ -75,10 +73,8 @@ static void add_func(HashMap *stbl, KlcFile *klc, KlcFunc *item, Vector *vec,
     Symbol *sym = stbl_add_func(stbl, k->sval, NULL, ret_ts, params, 0, NULL, NULL);
 
     if (ret_ts && ret_ts->kind == TYPE_SPECIALIZED) {
-        log_info("specialized type in function return: %s", ret_ts->signature);
         ts_ptr = &((FuncSymbol *)sym)->ret;
     } else if (ret_ts && ret_ts->kind == TYPE_GENERIC_VAR) {
-        log_info("generic var type in function return: %s", ret_ts->signature);
         ts_ptr = &((FuncSymbol *)sym)->ret;
     } else if (ret_ts && ret_ts->kind == TYPE_MANGLED) {
         ts_ptr = &((FuncSymbol *)sym)->ret;
@@ -192,8 +188,6 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
         } else if (ts->kind == TYPE_GENERIC_VAR) {
             Symbol *owner = stbl_get(stbl, ts->generic_var.owner);
             if (owner) {
-                log_debug("found owner symbol for generic var type: %s",
-                          ts->generic_var.owner);
                 Symbol *tp_sym = stbl_get(owner->stbl, ts->generic_var.name);
                 ASSERT(tp_sym && tp_sym->kind == SYM_TYPE_PARAM);
                 ts->sym_id = tp_sym->id;
@@ -213,7 +207,7 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
         } else if (ts->kind == TYPE_MANGLED) {
             Symbol *origin = stbl_get(stbl, ts->mangled.name);
             ASSERT(origin && (origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT));
-            log_debug("found symbol for mangled type: %s", ts->mangled.name);
+            log_debug("found origin symbol for mangled type: %s", ts->mangled.name);
             Symbol *inst_sym = find_or_add_instance(stbl, origin, ts->mangled.args);
             ASSERT(inst_sym);
             type_spec_free(ts);

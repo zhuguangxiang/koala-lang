@@ -249,6 +249,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<expr> tuple_expr
 %type<expr> set_expr
 %type<expr> anony_expr
+%type<expr> assign_left_expr
 
 %type<type_spec> optional_type
 %type<type_spec> type
@@ -559,8 +560,7 @@ optional_type
     }
     | type '?'
     {
-        $$ = $1;
-        $$->optional = 1;
+        $$ = optional_type_spec($1);
         type_spec_loc($$, lloc(@1, @2));
     }
     | anony_type
@@ -656,8 +656,8 @@ union_opt_type
     }
     | '(' union_type ')' '?'
     {
-        $$ = $2;
-        $$->optional = 1;
+        $$ = optional_type_spec($2);
+        type_spec_loc($$, lloc(@1, @4));
     }
     ;
 
@@ -1693,7 +1693,7 @@ local
     }
     | if_stmt
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | while_stmt
     {
@@ -1728,17 +1728,36 @@ free_var_decl
     ;
 
 assignment
-    : primary_expr assign_operator expr
+    : assign_left_expr assign_operator expr
     {
         $$ = stmt_from_assignment($2, $1, $3);
         stmt_set_loc($$, lloc(@1, @3));
     }
-    | primary_expr assign_operator error
+    | assign_left_expr assign_operator error
     {
         expr_free($1);
         kl_error(loc(@3), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
+    }
+    ;
+
+assign_left_expr
+    : ID
+    {
+        IDENT(id, $1, loc(@1));
+        $$ = expr_from_ident(&id);
+        expr_set_loc($$, loc(@1));
+    }
+    | primary_expr '.' ID
+    {
+        IDENT(id, $3, loc(@3));
+        $$ = expr_from_dot($1, &id);
+        expr_set_loc($$, lloc(@1, @3));
+    }
+    | index_expr
+    {
+        $$ = $1;
     }
     ;
 
@@ -1823,15 +1842,17 @@ if_stmt
         $$ = stmt_from_if($2, $3, $4);
         stmt_set_loc($$, lloc(@1, @4));
     }
-    | IF ID '=' expr block elseif_stmt
+    | IF LET ID '=' expr block elseif_stmt
     {
-        // IDENT(id, $3, loc(@2));
-        // $$ = stmt_from_guard_let(&id, $4, $6);
-        // stmt_set_loc($$, lloc(@1, @6));
+        IDENT(id, $3, loc(@3));
+        $$ = stmt_from_if_let(&id, $5, $6);
+        stmt_set_loc($$, lloc(@1, @7));
     }
-    | IF '(' ID '=' expr ')' block elseif_stmt
+    | IF '(' LET ID '=' expr ')' block elseif_stmt
     {
-
+        IDENT(id, $4, loc(@4));
+        $$ = stmt_from_if_let(&id, $6, $8);
+        stmt_set_loc($$, lloc(@1, @9));
     }
     ;
 
@@ -2070,7 +2091,7 @@ equality_expr
     }
     | equality_expr NE relation_expr
     {
-        $$ = expr_from_binary(BINARY_NE, loc(@2), $1, $3);
+        $$ = expr_from_binary(BINARY_NEQ, loc(@2), $1, $3);
         expr_set_loc($$, lloc(@1, @3));
     }
     | equality_expr EQ error
@@ -2404,6 +2425,13 @@ dot_expr
         IDENT(id, $3, loc(@3));
         $$ = expr_from_dot($1, &id);
         expr_set_loc($$, lloc(@1, @3));
+    }
+    | primary_expr '.' INT_LITERAL
+    {
+        // IDENT(id, $3, loc(@3));
+        // $$ = expr_from_dot($1, &id);
+        // expr_set_loc($$, lloc(@1, @3));
+        $$ = NULL;
     }
     | primary_expr OPT_DOT ID
     {

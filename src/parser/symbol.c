@@ -55,6 +55,9 @@ void __symbol_free__(Symbol *sym, void *arg)
         case SYM_INSTANCE: {
             break;
         }
+        case SYM_SHADOW_VAR: {
+            break;
+        }
         default: {
             UNREACHABLE();
             break;
@@ -77,6 +80,29 @@ Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags)
     } else {
         sym->ts = ts;
         sym->flags = flags;
+        add_to_global(sym);
+    }
+
+    return (Symbol *)sym;
+}
+
+Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null)
+{
+    ASSERT(origin->kind == SYM_VAR);
+    ShadowVarSymbol *sym = mm_alloc_obj(sym);
+    hashmap_entry_init(sym, str_hash(origin->name));
+    sym->kind = SYM_SHADOW_VAR;
+    sym->name = origin->name;
+
+    if (hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    } else {
+        TypeSpec *ts = ((VarSymbol *)origin)->ts;
+        ASSERT(type_is_optional(ts));
+        sym->ts = is_null ? ts : ts->opt.src;
+        sym->origin = (VarSymbol *)origin;
+        sym->is_null = is_null;
         add_to_global(sym);
     }
 

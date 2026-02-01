@@ -531,6 +531,21 @@ TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret)
     return func_type_spec(arg_types, ret);
 }
 
+TypeSpec *optional_type_spec(TypeSpec *src)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_OPTIONAL;
+    ts->opt.src = src;
+    ts->sym_id = -1;
+    ts->type_id = -1;
+    BUF(buf);
+    type_spec_to_str(ts, &buf);
+    ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
+    return type_spec_intern(ts);
+}
+
 TypeSpec *generic_var_type_spec(char *name, int index, int sym_id, char *owner)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
@@ -749,6 +764,15 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         }
         case TYPE_RANGE: {
             buf_write_str(buf, "Lbuiltin.range;");
+            break;
+        }
+        case TYPE_OPTIONAL: {
+            if (!ts->opt.src) {
+                buf_write_str(buf, "_?");
+            } else {
+                type_spec_to_str(ts->opt.src, buf);
+                buf_write_char(buf, '?');
+            }
             break;
         }
         default: {
@@ -1042,6 +1066,13 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         }
         buf_write_char(buf, ')');
         type_spec_print(ts->proto_type.ret, buf);
+    } else if (ts->kind == TYPE_OPTIONAL) {
+        if (!ts->opt.src) {
+            buf_write_str(buf, "_?");
+        } else {
+            type_spec_print(ts->opt.src, buf);
+            buf_write_char(buf, '?');
+        }
     } else {
         UNREACHABLE();
     }
