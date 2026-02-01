@@ -106,7 +106,7 @@ static const char *scopes[] = {
 };
 
 static const char *blocks[] = {
-    "UNK",       "BLOCK",       "IF-BLOCK",   "WHILE-BLOCK",
+    "UNK",       "BLOCK",       "IF-BLOCK",   "ELSE-BLOCK",   "WHILE-BLOCK",
     "FOR-BLOCK", "MATCH-BLOCK", "MATCH-CASE", "MATCH-CLAUSE",
 };
 #endif
@@ -115,6 +115,7 @@ ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block, char 
 {
     ParserScope *scope = new_scope(kind, block);
     scope->next = ps->scope;
+    scope->name = name;
     ps->scope = scope;
     ++ps->depth;
 
@@ -124,12 +125,12 @@ ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block, char 
         str = scopes[kind];
     else
         str = blocks[block];
-    log_info("====== Enter scope-%d(%s, %s) ======", ps->depth, str, name);
+    log_info("====== Enter scope-%d(%s, %s) ======", ps->depth, str, scope->name);
 #endif
     return scope;
 }
 
-void exit_scope(ParserState *ps, char *name)
+void exit_scope(ParserState *ps)
 {
     ParserScope *scope = ps->scope;
 
@@ -140,7 +141,7 @@ void exit_scope(ParserState *ps, char *name)
         str = scopes[scope->kind];
     else
         str = blocks[scope->block_type];
-    log_info("====== Exit scope-%d(%s, %s) ======", ps->depth, str, name);
+    log_info("====== Exit scope-%d(%s, %s) ======", ps->depth, str, scope->name);
 #endif
 
     ps->scope = scope->next;
@@ -1142,7 +1143,7 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     /* parse body */
     parse_body(ps, sym, fn->body);
 
-    exit_scope(ps, sym->name);
+    exit_scope(ps);
 }
 
 static void parse_expr(ParserState *ps, Stmt *stmt)
@@ -1164,7 +1165,7 @@ static void parse_block(ParserState *ps, Stmt *stmt)
         parse_stmt(ps, _s);
     }
 
-    exit_scope(ps, "inner-block");
+    exit_scope(ps);
 }
 
 static void unbox_optional(ParserState *ps, Expr *exp)
@@ -1182,6 +1183,7 @@ static void unbox_optional(ParserState *ps, Expr *exp)
     ParserScope *sc = ps->scope;
     Symbol *lhs_sym = lhs->sym;
     Symbol *rhs_sym = rhs->sym;
+    Symbol *sym = NULL;
 
     if (lhs_sym && (lhs_sym->kind == SYM_VAR) && type_is_optional(lhs->ts) &&
         expr_is_literal_null(rhs)) {
@@ -1189,11 +1191,11 @@ static void unbox_optional(ParserState *ps, Expr *exp)
         if (op == BINARY_NEQ) {
             log_info("'%s' is optional, add shadow variable", lhs_sym->name);
             log_type_spec(lhs->ts->opt.src);
-            stbl_add_shadow_var(sc->stbl, lhs->sym, 0);
+            sym = stbl_add_shadow_var(sc->stbl, lhs->sym, 0);
         } else if (op == BINARY_EQ) {
             log_info("'%s' is optional, add shadow variable(null)", lhs_sym->name);
             log_type_spec(lhs->ts);
-            stbl_add_shadow_var(sc->stbl, lhs->sym, 1);
+            sym = stbl_add_shadow_var(sc->stbl, lhs->sym, 1);
         } else {
             UNREACHABLE();
         }
@@ -1203,25 +1205,33 @@ static void unbox_optional(ParserState *ps, Expr *exp)
         if (op == BINARY_NEQ) {
             log_info("'%s' is optional, add shadow variable", rhs_sym->name);
             log_type_spec(rhs->ts->opt.src);
-            stbl_add_shadow_var(sc->stbl, rhs->sym, 0);
+            sym = stbl_add_shadow_var(sc->stbl, rhs->sym, 0);
         } else if (op == BINARY_EQ) {
             log_info("'%s' is optional, add shadow variable(null)", rhs_sym->name);
             log_type_spec(rhs->ts);
-            stbl_add_shadow_var(sc->stbl, rhs->sym, 1);
+            sym = stbl_add_shadow_var(sc->stbl, rhs->sym, 1);
         } else {
             UNREACHABLE();
         }
     } else {
         log_info("none side is var and null literal");
     }
+
+    if (sym) {
+        log_info("added shadow variable '%s' in scope '%s'", sym->name, sc->name);
+        if (!sc->shadows) {
+            sc->shadows = vector_create_ptr();
+        }
+        vector_push_back(sc->shadows, &sym);
+    }
 }
 
 static void parse_if(ParserState *ps, Stmt *stmt)
 {
-    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "if-stmt");
-
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "if-block");
     IfStmt *s = (IfStmt *)stmt;
     Expr *cond = s->cond;
+    Vector *shadows = NULL;
 
     cond->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, cond);
@@ -1233,16 +1243,43 @@ static void parse_if(ParserState *ps, Stmt *stmt)
 
     unbox_optional(ps, cond);
 
+    shadows = sc->shadows;
+    sc->shadows = NULL;
+
     Stmt *_s;
     vector_foreach(_s, s->block) {
         parse_stmt(ps, _s);
     }
 
-    if (s->_else) {
-        parse_stmt(ps, s->_else);
-    }
+    exit_scope(ps);
 
-    exit_scope(ps, "if-stmt");
+    if (s->_else) {
+        sc = enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "else-block");
+        // inherit shadow vars from if-block
+        if (shadows) {
+            log_info("inherit shadow vars from if-block to else-block");
+            ShadowVarSymbol *sym;
+            vector_foreach(sym, shadows) {
+                ASSERT(sym->kind == SYM_SHADOW_VAR);
+                stbl_add_shadow_var(sc->stbl, (Symbol *)sym->origin, !sym->is_null);
+                log_info("added shadow variable '%s'(%s) in scope '%s'", sym->name,
+                         sym->is_null ? "null" : "non-null", sc->name);
+            }
+            // destroy vector only
+            vector_destroy(shadows);
+        } else {
+            log_info("no shadow vars in if-block to inherit");
+        }
+        parse_stmt(ps, s->_else);
+        exit_scope(ps);
+    } else {
+        // no else block, how to inherit shadow vars?
+        log_info("no else block, inherit shadow vars from if-block");
+        if (shadows) {
+            // destroy vector only
+            vector_destroy(shadows);
+        }
+    }
 }
 
 // only add klass/trait symbol and add tp, fields and methods
@@ -1566,7 +1603,7 @@ static void parse_klass(ParserState *ps, Stmt *stmt)
         parse_stmt(ps, s);
     }
 
-    exit_scope(ps, sym->name);
+    exit_scope(ps);
 }
 
 static void parse_return(ParserState *ps, Stmt *stmt)
@@ -1635,7 +1672,7 @@ static void parse_ast(ParserState *ps)
         if (!stmt) continue;
         parse_stmt(ps, stmt);
     }
-    exit_scope(ps, "top");
+    exit_scope(ps);
 
     /* If there are errors, stop doing codegen. */
     if (ps->errors) return;

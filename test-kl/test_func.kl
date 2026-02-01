@@ -131,12 +131,52 @@ func fn7(v int?) {
     foo_fly.__add__(100)
     // CHECK-NEXT: ptional cannot use dot operator.
 
-    if let f = Foo().fly() {
-        f + 100
+    if (v == null) {
+        v + 100
+        // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+    } else {
+        v + 200
     }
 
-    100 + f
-    // CHECK-NEXT: cannot find symbol 'f'.
+    if (v != null) {
+        v + 300
+    } else {
+        v + 400
+        // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+    }
+
+    if v == null {
+        500 + v
+        // CHECK-NEXT: argument type mismatch for operator '+'.
+    } else if v > 100 {
+        600 + v
+    } else {
+        700 + v
+    }
+
+    if v == null {
+        324 + v
+        // CHECK-NEXT: argument type mismatch for operator '+'.
+    } else {
+        if v > 1000 {
+            111 + v
+        } else {
+            222 + v
+        }
+    }
+
+    if v == null {
+       return
+    }
+
+    // how to handle the variable shadowing here?
+
+    // if let f = Foo().fly() {
+    //     f + 100
+    // }
+
+    // 100 + f
+    // // CHECK-NEXTxxxxxxxxxxxxx: cannot find symbol 'f'.
 
     // 100.__add__(foo_fly)
 }

@@ -28,6 +28,7 @@ typedef enum _BlockType {
     UNK_BLOCK,
     ONLY_BLOCK,
     IF_BLOCK,
+    ELSE_BLOCK,
     WHILE_BLOCK,
     FOR_BLOCK,
     SWITCH_BLOCK,
@@ -39,6 +40,8 @@ typedef struct _ParserScope {
     struct _ParserScope *next;
     /* one of ScopeKind */
     ScopeKind kind;
+    /* scope name */
+    char *name;
     /* which block scope */
     BlockType block_type;
     /* this scope's symbol(func, class and etc.) */
@@ -47,6 +50,8 @@ typedef struct _ParserScope {
     HashMap *stbl;
     /* basic block */
     KlrBasicBlock *bb;
+    /* shadow variables in this scope */
+    Vector *shadows;
 } ParserScope;
 
 /* per source file */
@@ -143,7 +148,7 @@ void fini_parser(void);
 void parse_stmt(ParserState *ps, Stmt *stmt);
 
 ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block, char *name);
-void exit_scope(ParserState *ps, char *name);
+void exit_scope(ParserState *ps);
 
 TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts);
 int check_type(ParserState *ps, TypeSpec *ts);

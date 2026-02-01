@@ -303,7 +303,7 @@ void codegen_ast(ParserState *ps)
         codegen_stmt(ps, s);
     }
 
-    exit_scope(ps, "top");
+    exit_scope(ps);
 
     klr_print_module(m, stdout);
 }

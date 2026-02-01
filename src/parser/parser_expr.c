@@ -154,7 +154,7 @@ static void parse_literal(ParserState *ps, Expr *exp)
     LitExpr *lit = (LitExpr *)exp;
     switch (lit->which) {
         case LIT_EXPR_INT: {
-            log_info("literal integer");
+            log_info("literal integer:%s", lit->orginal);
             parse_lit_int(ps, lit);
             break;
         }
