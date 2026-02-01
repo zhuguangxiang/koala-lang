@@ -263,12 +263,13 @@ Expr *expr_from_call(Expr *lhs, Vector *args)
     return (Expr *)exp;
 }
 
-Expr *expr_from_dot(Expr *lhs, Ident *id)
+Expr *expr_from_dot(Expr *lhs, Ident *id, int opt_or_bang)
 {
     DotExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_DOT_KIND;
     exp->lhs = lhs;
     exp->id = *id;
+    exp->opt_or_bang = opt_or_bang;
     return (Expr *)exp;
 }
 

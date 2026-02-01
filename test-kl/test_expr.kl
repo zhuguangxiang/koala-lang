@@ -1,6 +1,69 @@
-// SKIP: koalac %s | filecheck %s
+// RUN: koalac %s | filecheck %s
 
-print("hello world")
-// CHECK: hello world
+class Bar {
+    func bar() int {
+        return 10
+    }
+
+    func get_id() int? { return 42; }
+}
+
+class Foo {
+    func __init__() {}
+
+    func foo() Bar? {
+        return null
+    }
+
+    func test1() int { return 1; }
+
+    func test2() int? { return 1; }
+
+    func bar() int { return 1; }
+}
+
+let f = Foo()
+
+f!.foo()
+// CHECK: only optional type can use bang dot operator.
+
+f?.foo()
+// CHECK-NEXT: only optional type can use optional dot operator.
+
+f.foo()
+
+let v = Foo().foo().bar()
+// CHECK-NEXT: optional cannot use dot operator.
+
+let v2 = Foo().foo()?.bar()
+
+v2 + 5
+
+// CHECK-NEXT: optional type cannot be used with '+' operator.
+
+let v3 = Foo().foo()!.bar()
+
+v3 + 5
+
+let v4 = Foo().foo()?.get_id()
+
+
+var f1 Foo? = Foo()
+
+let a = f1?.test1() // 应推导为 int?
+
+let b = f1?.test2() // 应推导为 int? (由于你的扁平化逻辑，不再是 int??)
+
+let f2 Foo? = null // OK
+
+f2.bar()
+// CHECK-NEXT: optional cannot use dot operator.
+
+let f3 Foo = f2
+
+CHECK-NEXT: Types of two sides are not matched.
+CHECK-NEXT: lhs: Foo =/= rhs: Foo?
+
+// print("hello world")
 
 // CHECK-NOT: {{.}}

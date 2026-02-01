@@ -537,6 +537,16 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         return union_type_spec_intern(vec);
     }
 
+    if (_ts->kind == TYPE_OPTIONAL) {
+        if (_ts->type_id >= 0) {
+            return _ts;
+        }
+
+        TypeSpec *ret = resolve_type(ps, _ts->opt.src);
+        type_spec_free(_ts);
+        return optional_type_spec_intern(ret);
+    }
+
     if (_ts->kind != TYPE_UNRESOLVED) return _ts;
 
     // parse arguments by bottom-to-up method
@@ -830,6 +840,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         ts = resolve_type(ps, ts);
         if (!check_type(ps, ts)) return;
         var->type = ts;
+        sym->ts = ts;
     }
 
     if (!exp) {
@@ -882,7 +893,6 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         log_info("update symbol '%s' type as:", sym->name);
         log_type_spec(sym->ts);
     } else {
-        if (!sym->ts) sym->ts = ts;
         if (!type_spec_compatible(ts, exp->ts)) {
             kl_error(id->loc, "Types of two sides are not matched.");
             printf("lhs:");
@@ -1224,7 +1234,7 @@ static void unbox_optional(ParserState *ps, Expr *exp)
             UNREACHABLE();
         }
     } else {
-        log_info("none side is var and null literal");
+        // do nothing
     }
 
     if (sym) {
@@ -1265,6 +1275,7 @@ static void parse_if(ParserState *ps, Stmt *stmt)
 
     if (s->_else) {
         sc = enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "else-block");
+
         // inherit shadow vars from if-block
         if (shadows) {
             log_info("inherit shadow vars from if-block to else-block");
@@ -1280,11 +1291,12 @@ static void parse_if(ParserState *ps, Stmt *stmt)
         } else {
             log_info("no shadow vars in if-block to inherit");
         }
+
         parse_stmt(ps, s->_else);
         exit_scope(ps);
     } else {
         // no else block, how to inherit shadow vars?
-        log_info("no else block, inherit shadow vars from if-block");
+        log_info("no else block, destory shadow vars from if-block");
         if (shadows) {
             // destroy vector only
             vector_destroy(shadows);
@@ -1635,12 +1647,13 @@ static void parse_return(ParserState *ps, Stmt *stmt)
 
         if (!type_spec_compatible(fn_sym->ret, exp->ts)) {
             kl_error(ret->loc, "return type mismatch in function '%s'", fn_sym->name);
-            log_info("  expected type:");
-            log_type_spec(fn_sym->ret);
-            log_info("  actual type:");
-            log_type_spec(exp->ts);
-            return;
+        } else {
+            log_info("return type check passed in function '%s'", fn_sym->name);
         }
+        log_info("  expected type:");
+        log_type_spec(fn_sym->ret);
+        log_info("  actual type:");
+        log_type_spec(exp->ts);
     } else {
         if (fn_ret && fn_ret->kind != TYPE_NO_TYPE) {
             kl_error(ret->loc, "function '%s' needs a return value.", fn_sym->name);

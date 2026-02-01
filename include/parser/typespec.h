@@ -126,6 +126,7 @@ TypeSpec *klass_type_spec(char *path, char *name);
 TypeSpec *func_type_spec(Vector *args, TypeSpec *ret);
 TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret);
 TypeSpec *optional_type_spec(TypeSpec *src);
+TypeSpec *optional_type_spec_intern(TypeSpec *src);
 
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 

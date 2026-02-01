@@ -538,6 +538,16 @@ TypeSpec *optional_type_spec(TypeSpec *src)
     ts->opt.src = src;
     ts->sym_id = -1;
     ts->type_id = -1;
+    return ts;
+}
+
+TypeSpec *optional_type_spec_intern(TypeSpec *src)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_OPTIONAL;
+    ts->opt.src = src;
+    ts->sym_id = -1;
+    ts->type_id = -1;
     BUF(buf);
     type_spec_to_str(ts, &buf);
     ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));

@@ -373,7 +373,19 @@ static void parse_call(ParserState *ps, Expr *exp)
         params = ((FuncSymbol *)init_fn_sym)->params;
     } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_INTF) {
         FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
-        exp->ts = fn_sym->ret;
+        if (lhs->ts->kind == TYPE_OPTIONAL) {
+            log_info("call lhs is optional of proto.");
+            // optional proto function call
+            if (fn_sym->ret->kind == TYPE_OPTIONAL) {
+                exp->ts = fn_sym->ret;
+            } else {
+                exp->ts = optional_type_spec_intern(fn_sym->ret);
+            }
+        } else if (lhs->ts->kind == TYPE_PROTO) {
+            log_info("call lhs is proto.");
+            // proto function call
+            exp->ts = fn_sym->ret;
+        }
         params = fn_sym->params;
     } else if (lhs_sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
@@ -419,9 +431,18 @@ static void parse_call(ParserState *ps, Expr *exp)
     // exp->ir_val = ret;
 }
 
+static TypeSpec *opt_dot_type(TypeSpec *ts, int opt_or_bang)
+{
+    if (opt_or_bang == DOT_OPTIONAL && ts->kind != TYPE_OPTIONAL) {
+        return optional_type_spec_intern(ts);
+    }
+    return ts;
+}
+
 static void parse_dot(ParserState *ps, Expr *exp)
 {
     DotExpr *dot = (DotExpr *)exp;
+    int opt_or_bang = dot->opt_or_bang;
 
     Expr *lhs = dot->lhs;
     lhs->ctx = EXPR_CTX_LOAD;
@@ -429,11 +450,40 @@ static void parse_dot(ParserState *ps, Expr *exp)
     if (!lhs->ts) return;
 
     if (type_is_optional(lhs->ts)) {
-        kl_error(lhs->loc, "optional cannot use dot operator.");
-        return;
+        if (opt_or_bang == DOT_BANG) {
+            // force unwrap, error if nil
+            log_info("force unwrap optional type.");
+            TypeSpec *src_ts = lhs->ts->opt.src;
+            ASSERT(src_ts);
+            lhs->ts = src_ts;
+        } else if (opt_or_bang == DOT_OPTIONAL) {
+            // safe unwrap, don't change lhs type and pass next
+            log_info("safe unwrap optional type.");
+            TypeSpec *src_ts = lhs->ts->opt.src;
+            ASSERT(src_ts);
+        } else {
+            kl_error(lhs->loc, "optional cannot use dot operator.");
+            return;
+        }
+    } else {
+        if (opt_or_bang == DOT_OPTIONAL) {
+            kl_error(lhs->loc, "only optional type can use optional dot operator.");
+            return;
+        } else if (opt_or_bang == DOT_BANG) {
+            kl_error(lhs->loc, "only optional type can use bang dot operator.");
+            return;
+        }
     }
 
-    Symbol *lhs_ts_sym = get_symbol_by_id(lhs->ts->sym_id);
+    int sym_id = lhs->ts->sym_id;
+    if (type_is_optional(lhs->ts)) {
+        log_info("unwrap optional type for member access.");
+        ASSERT(lhs->ts->opt.src);
+        ASSERT(lhs->ts->opt.src->sym_id >= 0);
+        sym_id = lhs->ts->opt.src->sym_id;
+    }
+
+    Symbol *lhs_ts_sym = get_symbol_by_id(sym_id);
     if (!lhs_ts_sym) {
         kl_error(lhs->loc, "type is not found.");
         return;
@@ -443,14 +493,14 @@ static void parse_dot(ParserState *ps, Expr *exp)
     Ident *ident = &dot->id;
     Symbol *sym = stbl_get(lhs_stbl, ident->name);
     if (sym) {
-        exp->ts = sym->ts;
+        exp->ts = opt_dot_type(sym->ts, opt_or_bang);
         exp->sym = sym;
         log_debug("dot member resolved: %s", sym->name);
         if (sym->kind == SYM_FUNC) {
             log_info("ret type is:");
             log_type_spec(((FuncSymbol *)sym)->ret);
         } else {
-            log_type_spec(sym->ts);
+            log_type_spec(exp->ts);
         }
         return;
     }
@@ -471,10 +521,10 @@ static void parse_dot(ParserState *ps, Expr *exp)
                     instance_type_spec(origin_var_sym->ts, inst_sym->tp_args, ps);
                 Symbol *inst_var_sym = stbl_add_var(lhs_stbl, origin_var_sym->name, ts,
                                                     origin_var_sym->flags);
-                exp->ts = inst_var_sym->ts;
+                exp->ts = opt_dot_type(inst_var_sym->ts, opt_or_bang);
                 exp->sym = inst_var_sym;
                 log_debug("dot member resolved: %s", inst_var_sym->name);
-                log_type_spec(inst_var_sym->ts);
+                log_type_spec(exp->ts);
                 return;
             } else if (sym->kind == SYM_FUNC) {
                 log_info("found func '%s' from origin klass '%s'.", ident->name,
@@ -495,10 +545,10 @@ static void parse_dot(ParserState *ps, Expr *exp)
                                   inst_params, origin_fn_sym->flags, NULL, NULL);
                 TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
                 inst_fn_sym->ts = fn_ts;
-                exp->ts = fn_ts;
+                exp->ts = opt_dot_type(fn_ts, opt_or_bang);
                 exp->sym = inst_fn_sym;
                 log_debug("dot member resolved: %s", inst_fn_sym->name);
-                log_type_spec(inst_fn_sym->ts);
+                log_type_spec(exp->ts);
                 return;
             } else {
                 // nothing

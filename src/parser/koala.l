@@ -277,7 +277,7 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 
 "?:"        { YY_RETURN(OPT_DEF);   }
 "?."        { YY_RETURN(OPT_DOT);   }
-"!."        { YY_RETURN(OPT_BANG);  }
+"!."        { YY_RETURN(BANG_DOT);  }
 
 "?"         { YY_RETURN('?'); }
 "@"         { YY_RETURN('@'); }

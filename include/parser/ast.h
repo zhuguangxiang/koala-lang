@@ -285,9 +285,13 @@ typedef struct _DotExpr {
     EXPR_HEAD
     Expr *lhs;
     Ident id;
+    int opt_or_bang;
+#define DOT_NORMAL   0
+#define DOT_OPTIONAL 1
+#define DOT_BANG     2
 } DotExpr;
 
-Expr *expr_from_dot(Expr *lhs, Ident *id);
+Expr *expr_from_dot(Expr *lhs, Ident *id, int opt_or_bang);
 
 typedef struct _IndexExpr {
     EXPR_HEAD

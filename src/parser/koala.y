@@ -199,7 +199,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 
 %token OPT_DEF
 %token OPT_DOT
-%token OPT_BANG
+%token BANG_DOT
 
 %type<stmt> import_stmt
 %type<stmt> top_stmt
@@ -941,7 +941,7 @@ let_decl
         $$ = stmt_from_var_decl(id, NULL, 1, $4);
         stmt_set_loc($$, lloc(@1, @4));
     }
-    | LET ID type '=' expr
+    | LET ID optional_type '=' expr
     {
         Ident id = {$2, loc(@2)};
         $$ = stmt_from_var_decl(id, $3, 1, $5);
@@ -965,14 +965,14 @@ let_decl
         yy_clear_ok;
         $$ = NULL;
     }
-    | LET ID type error
+    | LET ID optional_type error
     {
         // free_type($3);
         kl_error(loc(@4), "expected '='.");
         yy_clear_ok;
         $$ = NULL;
     }
-    | LET ID type '=' error
+    | LET ID optional_type '=' error
     {
         // free_type($3);
         kl_error(loc(@5), "expected an expr.");
@@ -1752,7 +1752,7 @@ assign_left_expr
     | primary_expr '.' ID
     {
         IDENT(id, $3, loc(@3));
-        $$ = expr_from_dot($1, &id);
+        $$ = expr_from_dot($1, &id, DOT_NORMAL);
         expr_set_loc($$, lloc(@1, @3));
     }
     | index_expr
@@ -2423,7 +2423,7 @@ dot_expr
     : primary_expr '.' ID
     {
         IDENT(id, $3, loc(@3));
-        $$ = expr_from_dot($1, &id);
+        $$ = expr_from_dot($1, &id, DOT_NORMAL);
         expr_set_loc($$, lloc(@1, @3));
     }
     | primary_expr '.' INT_LITERAL
@@ -2436,13 +2436,13 @@ dot_expr
     | primary_expr OPT_DOT ID
     {
         IDENT(id, $3, loc(@3));
-        $$ = expr_from_dot($1, &id);
+        $$ = expr_from_dot($1, &id, DOT_OPTIONAL);
         expr_set_loc($$, lloc(@1, @3));
     }
-    | primary_expr OPT_BANG ID
+    | primary_expr BANG_DOT ID
     {
         IDENT(id, $3, loc(@3));
-        $$ = expr_from_dot($1, &id);
+        $$ = expr_from_dot($1, &id, DOT_BANG);
         expr_set_loc($$, lloc(@1, @3));
     }
     | primary_expr '.' AS '(' type ')'

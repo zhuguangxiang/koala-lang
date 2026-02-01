@@ -22,6 +22,10 @@ func fn5() int {
     // CHECK-NEXT: function 'fn5' needs a return value.
 }
 
+func fn5_1() int? {
+    return null
+}
+
 func println(s str) {
 }
 
@@ -165,10 +169,11 @@ func fn7(v int?) {
         }
     }
 
-    if v == null {
-       return
-    }
+    // if v == null {
+    //    return
+    // }
 
+    // v + 999
     // how to handle the variable shadowing here?
 
     // if let f = Foo().fly() {
