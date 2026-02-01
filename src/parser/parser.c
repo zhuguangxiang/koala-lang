@@ -1158,7 +1158,17 @@ static void parse_block(ParserState *ps, Stmt *stmt)
 {
     BlockStmt *s = (BlockStmt *)stmt;
 
-    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "inner-block");
+    ParserScope *sc = ps->scope;
+    if (sc->block_type == ELSE_BLOCK) {
+        // no need to create inner-block for else-block
+        Stmt *_s;
+        vector_foreach(_s, s->stmts) {
+            parse_stmt(ps, _s);
+        }
+        return;
+    }
+
+    sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "inner-block");
 
     Stmt *_s;
     vector_foreach(_s, s->stmts) {
