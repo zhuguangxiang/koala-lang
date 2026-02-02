@@ -144,6 +144,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token TRUE
 %token FALSE
 %token NONE
+%token PANIC
 
 %token UINT8
 %token UINT16
@@ -247,7 +248,6 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<expr> map
 %type<expr> atom
 %type<expr> tuple_expr
-%type<expr> set_expr
 %type<expr> anony_expr
 %type<expr> assign_left_expr
 
@@ -450,11 +450,12 @@ top_stmt
     }
     | assignment semi
     {
-        $$ = NULL;
+        $$ = $1;
+        stmt_set_loc($$, loc(@1));
     }
     | if_stmt
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | while_stmt
     {
@@ -1039,6 +1040,15 @@ func_decl
     {
         $$ = $1;
         ((FuncDeclStmt *)$$)->body = $2;
+    }
+    | func_proto_decl '=' expr semi
+    {
+        $$ = $1;
+        Vector *block = vector_create_ptr();
+        Stmt *s = stmt_from_expr($3);
+        stmt_set_loc(s, loc(@3));
+        vector_push_back(block, &s);
+        ((FuncDeclStmt *)$$)->body = block;
     }
     ;
 
@@ -1632,6 +1642,23 @@ block
     {
         $$ = vector_create_ptr();
     }
+    | '{' return_stmt '}'
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$2);
+    }
+    | '{' assignment '}'
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$2);
+    }
+    | '{' expr '}'
+    {
+        $$ = vector_create_ptr();
+        Stmt *s = stmt_from_expr($2);
+        stmt_set_loc(s, loc(@2));
+        vector_push_back($$, &s);
+    }
     | '{' local_list error
     {
         // free_local_list($2);
@@ -1672,7 +1699,7 @@ local
     }
     | assignment semi
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | free_var_decl semi
     {
@@ -1735,7 +1762,7 @@ assignment
     }
     | assign_left_expr assign_operator error
     {
-        expr_free($1);
+        // expr_free($1);
         kl_error(loc(@3), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
@@ -2612,10 +2639,6 @@ atom_expr
     {
         $$ = NULL;
     }
-    | set_expr
-    {
-        $$ = NULL;
-    }
     | atom_type
     {
         $$ = expr_from_type($1);
@@ -2686,6 +2709,11 @@ atom
         $$ = expr_from_self();
         expr_set_loc($$, loc(@1));
     }
+    | PANIC '(' expr ')'
+    {
+        $$ = expr_from_panic($3);
+        expr_set_loc($$, lloc(@1, @4));
+    }
     ;
 
 array_expr
@@ -2714,6 +2742,10 @@ array_expr
         type_spec_loc(ty, loc(@1));
         $$ = expr_from_type(ty);
         expr_set_loc($$, loc(@1));
+    }
+    | SET
+    {
+        $$ = NULL;
     }
     | '[' error
     {
@@ -2851,26 +2883,6 @@ tuple_expr
         kl_error(loc(@5), "expected ')'.");
         yy_clear_ok;
         $$ = NULL;
-    }
-    ;
-
-set_expr
-    : '{' expr_list '}'
-    {
-        $$ = expr_from_set($2);
-        expr_set_loc($$, lloc(@1, @3));
-    }
-    | '{' ',' '}'
-    {
-        $$ = expr_from_set(NULL);
-        expr_set_loc($$, lloc(@1, @3));
-    }
-    | SET
-    {
-        // Type *ty = set_type(NULL);
-        // type_set_loc(ty, loc(@1));
-        // $$ = expr_from_type(ty);
-        // expr_set_loc($$, loc(@1));
     }
     ;
 

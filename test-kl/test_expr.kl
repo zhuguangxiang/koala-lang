@@ -5,7 +5,7 @@ class Bar {
         return 10
     }
 
-    func get_id() int? { return 42; }
+    func get_id() int? { return 42 }
 }
 
 class Foo {
@@ -19,7 +19,7 @@ class Foo {
 
     func test2() int? { return 1; }
 
-    func bar() int { return 1; }
+    func bar() int = 1111
 }
 
 let f = Foo()
@@ -61,8 +61,8 @@ f2.bar()
 
 let f3 Foo = f2
 
-CHECK-NEXT: Types of two sides are not matched.
-CHECK-NEXT: lhs: Foo =/= rhs: Foo?
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: Foo =/= rhs: Foo?
 
 // print("hello world")
 

@@ -187,7 +187,33 @@ static void parse_literal(ParserState *ps, Expr *exp)
     }
 }
 
-static void parse_self(ParserState *ps, Expr *exp) {}
+static Symbol *get_current_klass(ParserState *ps)
+{
+    ParserScope *sc = ps->scope;
+    while (sc) {
+        if (sc->kind == SCOPE_CLASS) {
+            return sc->sym;
+        }
+        sc = sc->next;
+    }
+    return NULL;
+}
+
+static void parse_self(ParserState *ps, Expr *exp)
+{
+    ASSERT(exp->ctx == EXPR_CTX_LOAD);
+
+    Symbol *sym = get_current_klass(ps);
+    if (!sym || sym->kind != SYM_CLASS) {
+        kl_error(exp->loc, "'self' can only be used in class.");
+        return;
+    }
+
+    exp->ts = ((KlassSymbol *)sym)->instance_ts;
+    exp->sym = sym;
+    log_info("'self' resolved as class '%s'", sym->name);
+    log_type_spec(exp->ts);
+}
 
 static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc)
 {

@@ -292,6 +292,15 @@ Expr *expr_from_slice(Expr *start, Expr *stop, Expr *step)
     return (Expr *)exp;
 }
 
+Expr *expr_from_panic(Expr *exp)
+{
+    PanicExpr *e = mm_alloc_obj(e);
+    e->kind = EXPR_PANIC_KIND;
+    e->exp = exp;
+    e->ts = no_type_spec();
+    return (Expr *)e;
+}
+
 void expr_free(Expr *exp) { mm_free(exp); }
 
 Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int ro, Expr *e)

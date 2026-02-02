@@ -73,6 +73,7 @@ typedef enum _ExprKind {
     EXPR_IS_KIND,
     EXPR_AS_KIND,
     EXPR_IN_KIND,
+    EXPR_PANIC_KIND,
     EXPR_MAX_KIND,
 } ExprKind;
 
@@ -309,6 +310,13 @@ typedef struct _SliceExpr {
 } SliceExpr;
 
 Expr *expr_from_slice(Expr *start, Expr *stop, Expr *step);
+
+typedef struct _PanicExpr {
+    EXPR_HEAD
+    Expr *exp;
+} PanicExpr;
+
+Expr *expr_from_panic(Expr *exp);
 
 static inline int expr_is_ident(Expr *e) { return e->kind == EXPR_ID_KIND; }
 
