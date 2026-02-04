@@ -66,4 +66,62 @@ let f3 Foo = f2
 
 // print("hello world")
 
+
+func fn(v int?) int {
+    if v == null{
+        return 1
+    } else {
+        return 0
+    }
+
+    if v == null { return 1 }
+
+    v + 1
+
+    v == null
+    // CHECK-NEXT: cannot compare non-optional type with optional type for '==' operator.
+    return 100
+}
+
+func fn2(v int?) int {
+    if null != v {
+        return 1
+    } else {
+        return 0
+    }
+
+    if null != v { return 1 }
+
+    v + 1
+    // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+
+    null != v
+
+    return 100
+}
+
+func fn3(v int?, v2 int?) int {
+    if v == null {
+        if null == v2 {
+            return 1
+        }
+
+        return v2
+    }
+
+    return v
+}
+
+func fn4(v int?, v2 int?) int {
+    if v == null {
+        return 0
+    } else {
+        if null == v2 {
+            return 1
+        }
+
+        return v2 + v
+    }
+}
+
 // CHECK-NOT: {{.}}

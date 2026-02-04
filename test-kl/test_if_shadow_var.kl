@@ -1,0 +1,145 @@
+// RUN: koalac %s | filecheck %s
+
+// func fn1(v1 int?) {
+//     if v1 != null {
+//         v1 + 123
+//     }
+
+//     v1 + 200
+//     // CHECK: optional type cannot be used with '+' operator.
+// }
+
+// func fn2(v1 int?) {
+//     if v1 != null {
+//         v1 + 123
+
+//         let v2 int? = null
+
+//         if (v2 == null) {
+//             v2 + 456
+//             // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+//         }
+
+//         v1 + 456
+
+//         v2 + 789
+//         // CHECK-NEXT: optional type cannot be used with '+' operator.
+//     }
+
+//     v1 + 200
+//     // CHECK-NEXT: optional type cannot be used with '+' operator.
+// }
+
+// func fn3(v1 int?) {
+//     if v1 == null {
+//         return
+//     }
+
+//     v1 + 100
+// }
+
+// func fn4(v int?) int {
+//     if null != v {
+//         return 1
+//     } else {
+//         return 0
+//     }
+
+//     if null != v { return 1 }
+
+//     v + 1
+//     // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+
+//     null != v
+
+//     return 100
+// }
+
+// func fn5(v1 int?) {
+//     if v1 != null {
+//         v1 + 123
+
+//         let v2 int? = null
+//         if (v2 == null) {
+//             return
+//         }
+
+//         v1 + 456
+//         v2 + 789
+//     }
+
+//     v1 + 200
+//     // CHECK-NEXT: optional type cannot be used with '+' operator.
+// }
+
+// func fn6(v1 int?) {
+//     if v1 != null {
+//         v1 + 123
+
+//         let v2 int? = null
+//         {
+//             if (v2 == null) {
+//                 return
+//             }
+
+//             v1 + 456
+//         }
+//         v2 + 789
+//         // CHECK-NEXT: optional type cannot be used with '+' operator.
+
+//     }
+
+//     v1 + 200
+//     // CHECK-NEXT: optional type cannot be used with '+' operator.
+// }
+
+// func fn7(v1 int) {
+//     let v2 int? = null
+//     if (v1 > 0) {
+//         if (v2 == null) { return }
+//     }
+//     v2 + 1
+// }
+
+func fn8(v1 int?, v2 int?) {
+    if (v1 == null) { return }
+    // Shadow Scope A (v1: int)
+    if (v2 == null) { return }
+    // Shadow Scope B (v1: int, v2: int)
+    v1 + v2
+}
+// if () {
+//     let v1 int? = null
+
+//     if (v1 != null) {
+//         // in here, 'v' is non-null
+//     } else {
+//         // in here, 'v' is null
+//     }
+//     // no shadow
+
+//     v1 - 200
+
+//     if v1 == null {
+//         return
+//     }
+//     // shadow 'v1' as non-null here
+
+//     v1 + 200
+
+//     let v2 int? = 1
+
+//     if (v2 == null) {
+//         // in here, 'v2' is null
+//     }
+//     // no shadow
+
+//     if v2 == null {
+//         return
+//     }
+//     // shadow 'v2' as non-null here
+
+//     v2 + 100
+
+//     v1 - 123
+// }

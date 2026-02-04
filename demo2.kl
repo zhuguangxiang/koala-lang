@@ -1,47 +1,44 @@
-class LinkedList {
-    next Node?
-    count int
-
-    public func __init__() {
-        self.next = none
-        self.count = 0
-    }
-}
 
 class Node {
-    next Node?
-    val int
+    var next Node?
+    var val int
 
-    public static let K = 100
-
-    public static func __new__() {
-
-    }
-
-    func __init__(val int, next Node? = none) {
+    func __init__(val int) {
         self.val = val
-        self.next = next
+        self.next = null
     }
 }
 
-l := List()
+// class LinkedList {
+//     next Node?
+//     count int
 
-next := l.next
-node := Node(200, next)
-l.next = node
+//     public func __init__() {
+//         self.next = none
+//         self.count = 0
+//     }
+// }
 
-head := l.next
-while r := head {
-    print(r.val)
-    head = r.next
-}
 
-var _f = file ?: sys.stdout
 
-if let r = opt {
+// l := List()
 
-}
+// next := l.next
+// node := Node(200, next)
+// l.next = node
 
-guard let r = opt else {
+// head := l.next
+// while r := head {
+//     print(r.val)
+//     head = r.next
+// }
 
-}
+// var _f = file ?: sys.stdout
+
+// if let r = opt {
+
+// }
+
+// guard let r = opt else {
+
+// }

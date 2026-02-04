@@ -79,7 +79,7 @@ typedef struct _VarSymbol {
 
 typedef struct _ShadowVarSymbol {
     SYMBOL_HEAD
-    VarSymbol *origin;
+    Symbol *origin;
     int is_null;
 } ShadowVarSymbol;
 
@@ -185,6 +185,7 @@ static inline void stbl_free(HashMap *stbl)
     mm_free(stbl);
 }
 
+Symbol *stbl_add(HashMap *stbl, Symbol *sym);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
                       Vector *params, int flags, char *ann, char *ann_key);

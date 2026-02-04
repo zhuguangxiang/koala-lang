@@ -67,6 +67,27 @@ void __symbol_free__(Symbol *sym, void *arg)
     mm_free(sym);
 }
 
+Symbol *stbl_add(HashMap *stbl, Symbol *sym)
+{
+    if (hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    } else {
+        add_to_global(sym);
+    }
+    return sym;
+}
+
+Symbol *stbl_remove(HashMap *stbl, char *name)
+{
+    uint64_t hash = str_hash(name);
+    Symbol key = { .name = name };
+    hashmap_entry_init(&key, hash);
+
+    Symbol *sym = hashmap_remove(stbl, &key);
+    return sym;
+}
+
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags)
 {
     VarSymbol *sym = mm_alloc_obj(sym);
@@ -101,7 +122,7 @@ Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null)
         TypeSpec *ts = ((VarSymbol *)origin)->ts;
         ASSERT(type_is_optional(ts));
         sym->ts = is_null ? ts : ts->opt.src;
-        sym->origin = (VarSymbol *)origin;
+        sym->origin = origin;
         sym->is_null = is_null;
         add_to_global(sym);
     }

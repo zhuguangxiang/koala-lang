@@ -180,8 +180,8 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
     /* find id from current scope */
     Symbol *sym = stbl_get(sc->stbl, id->name);
     if (sym) {
-        log_info("find symbol '%s' in scope-%d(%s)", id->name, ps->depth,
-                 scopes[sc->kind]);
+        log_info("find symbol '%s' in scope-%d(%s-%s)", id->name, ps->depth,
+                 scopes[sc->kind], sc->name);
         id->where = CURRENT_SCOPE;
         id->scope = sc;
 
@@ -200,8 +200,8 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
     while (up) {
         sym = stbl_get(up->stbl, id->name);
         if (sym) {
-            log_info("find symbol '%s' in up scope-%d(%s)", id->name, depth,
-                     scopes[up->kind]);
+            log_info("find symbol '%s' in up scope-%d(%s-%s)", id->name, depth,
+                     scopes[up->kind], up->name);
             id->where = UP_SCOPE;
             id->scope = up;
 
@@ -960,59 +960,39 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
     return sym;
 }
 
-static void parse_body(ParserState *ps, FuncSymbol *sym, Vector *stmts)
+static void parse_block(ParserState *ps, Vector *stmts)
 {
-    int sz = vector_size(stmts);
+    ParserScope *sc = ps->scope;
+
     Stmt *s;
     vector_foreach(s, stmts) {
         if (!s) continue;
-
         parse_stmt(ps, s);
-
         if (ps->errors >= MAX_ERRORS) break;
 
-        if (i__ + 1 < sz) {
-            if (s->kind == STMT_RETURN_KIND) {
-                kl_error(s->loc, "statements after this are unreachable.");
-                return;
-            }
-        }
-
-        // last statement
-        if (i__ + 1 == sz) {
-            if (s->kind != STMT_RETURN_KIND) {
-                if (s->kind == STMT_EXPR_KIND) {
-                    /*
-                     * If last statement is expression in func body,
-                     * the expr value can be func return value.
-                     */
-                    ExprStmt *exp = (ExprStmt *)s;
-                    // KlrBuilder bldr;
-                    // ParserScope *sc = ps->scope;
-                    // klr_builder_end(&bldr, sc->bb);
-                    // if (desc_is_no_type(sym->desc)) {
-                    //     klr_build_ret_void(&bldr);
-                    // } else {
-                    //     // check types
-                    //     // code gen
-                    //     klr_build_ret(&bldr, exp->exp->ir_val);
-                    // }
+        // this is only for 'Early Return' case
+        if (sc->shadows) {
+            ParserScope *_sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "shadow_scope");
+            ShadowVarSymbol *_sym;
+            vector_foreach(_sym, sc->shadows) {
+                if (!_sym) continue;
+                if (_sym->is_null) {
+                    stbl_add_shadow_var(_sc->stbl, _sym->origin, 0);
+                    log_info("add shadow variable '%s' as non-null.", _sym->name);
                 } else {
-                    // UNREACHABLE();
+                    stbl_add_shadow_var(_sc->stbl, _sym->origin, 1);
+                    log_info("add shadow variable '%s' as null.", _sym->name);
                 }
-            } else {
-                // last statement is return statement
-                RetStmt *ret = (RetStmt *)s;
-                // if (desc_is_no_type(sym->desc)) {
-                //     if (ret->exp) {
-                //         kl_error(s->loc, "func '%s' has not return value.", sym->name);
-                //         return;
-                //     }
-                // } else {
-                //     // check types
-                // }
             }
+            vector_destroy(sc->shadows);
+            sc->shadows = NULL;
         }
+    }
+
+    ParserScope *_sc = ps->scope;
+    while (_sc && _sc != sc) {
+        exit_scope(ps);
+        _sc = ps->scope;
     }
 }
 
@@ -1151,7 +1131,7 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     log_type_spec(sym->ts);
 
     /* parse body */
-    parse_body(ps, sym, fn->body);
+    parse_block(ps, fn->body);
 
     exit_scope(ps);
 }
@@ -1164,7 +1144,7 @@ static void parse_expr(ParserState *ps, Stmt *stmt)
     parser_visit_expr(ps, exp);
 }
 
-static void parse_block(ParserState *ps, Stmt *stmt)
+static void parse_block_stmt(ParserState *ps, Stmt *stmt)
 {
     BlockStmt *s = (BlockStmt *)stmt;
 
@@ -1174,6 +1154,23 @@ static void parse_block(ParserState *ps, Stmt *stmt)
         Stmt *_s;
         vector_foreach(_s, s->stmts) {
             parse_stmt(ps, _s);
+
+            if (sc->shadows) {
+                ShadowVarSymbol *shadow_sym;
+                vector_foreach(shadow_sym, sc->shadows) {
+                    if (!shadow_sym) continue;
+                    if (shadow_sym->is_null) {
+                        stbl_add_shadow_var(sc->stbl, shadow_sym->origin, 0);
+                        log_info("add shadow variable '%s' as non-null.",
+                                 shadow_sym->name);
+                    } else {
+                        stbl_add_shadow_var(sc->stbl, shadow_sym->origin, 1);
+                        log_info("add shadow variable '%s' as null.", shadow_sym->name);
+                    }
+                }
+                vector_destroy(sc->shadows);
+                sc->shadows = NULL;
+            }
         }
         return;
     }
@@ -1209,11 +1206,12 @@ static void unbox_optional(ParserState *ps, Expr *exp)
         expr_is_literal_null(rhs)) {
         log_info("lhs is var(optional) and rhs is null literal");
         if (op == BINARY_NEQ) {
-            log_info("'%s' is optional, add shadow variable", lhs_sym->name);
+            log_info("'%s' is optional, add shadow variable to stbl", lhs_sym->name);
             log_type_spec(lhs->ts->opt.src);
             sym = stbl_add_shadow_var(sc->stbl, lhs->sym, 0);
         } else if (op == BINARY_EQ) {
-            log_info("'%s' is optional, add shadow variable(null)", lhs_sym->name);
+            log_info("'%s' is optional, add shadow variable(null) to stbl",
+                     lhs_sym->name);
             log_type_spec(lhs->ts);
             sym = stbl_add_shadow_var(sc->stbl, lhs->sym, 1);
         } else {
@@ -1223,11 +1221,12 @@ static void unbox_optional(ParserState *ps, Expr *exp)
                type_is_optional(rhs->ts)) {
         log_info("lhs is null literal and rhs is var(optional)");
         if (op == BINARY_NEQ) {
-            log_info("'%s' is optional, add shadow variable", rhs_sym->name);
+            log_info("'%s' is optional, add shadow variable to stbl", rhs_sym->name);
             log_type_spec(rhs->ts->opt.src);
             sym = stbl_add_shadow_var(sc->stbl, rhs->sym, 0);
         } else if (op == BINARY_EQ) {
-            log_info("'%s' is optional, add shadow variable(null)", rhs_sym->name);
+            log_info("'%s' is optional, add shadow variable(null) to stbl",
+                     rhs_sym->name);
             log_type_spec(rhs->ts);
             sym = stbl_add_shadow_var(sc->stbl, rhs->sym, 1);
         } else {
@@ -1238,7 +1237,8 @@ static void unbox_optional(ParserState *ps, Expr *exp)
     }
 
     if (sym) {
-        log_info("added shadow variable '%s' in scope '%s'", sym->name, sc->name);
+        // for merging to parent-scope
+        log_info("added shadow variable '%s' in scope '%s'(vector)", sym->name, sc->name);
         if (!sc->shadows) {
             sc->shadows = vector_create_ptr();
         }
@@ -1246,12 +1246,38 @@ static void unbox_optional(ParserState *ps, Expr *exp)
     }
 }
 
+static int last_stmt_is_terminal(Vector *stmts)
+{
+    if (vector_empty(stmts)) return 0;
+
+    Stmt *last_stmt = vector_get_object(stmts, vector_size(stmts) - 1);
+    if (!last_stmt) return 0;
+
+    switch (last_stmt->kind) {
+        case STMT_RETURN_KIND:
+        case STMT_BREAK_KIND:
+        case STMT_CONTINUE_KIND:
+            return 1;
+        case STMT_EXPR_KIND: {
+            ExprStmt *exp_stmt = (ExprStmt *)last_stmt;
+            Expr *exp = exp_stmt->exp;
+            if (exp->kind == EXPR_PANIC_KIND) {
+                return 1;
+            }
+            return 0;
+        }
+        default:
+            return 0;
+    }
+}
+
 static void parse_if(ParserState *ps, Stmt *stmt)
 {
     ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "if-block");
+
     IfStmt *s = (IfStmt *)stmt;
     Expr *cond = s->cond;
-    Vector *shadows = NULL;
+    Vector *shadows;
 
     cond->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, cond);
@@ -1266,10 +1292,14 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     shadows = sc->shadows;
     sc->shadows = NULL;
 
-    Stmt *_s;
-    vector_foreach(_s, s->block) {
-        parse_stmt(ps, _s);
-    }
+    // Stmt *_s;
+    // vector_foreach(_s, s->block) {
+    //     parse_stmt(ps, _s);
+    // }
+
+    parse_block(ps, s->block);
+
+    ASSERT(sc->shadows == NULL);
 
     exit_scope(ps);
 
@@ -1292,14 +1322,51 @@ static void parse_if(ParserState *ps, Stmt *stmt)
             log_info("no shadow vars in if-block to inherit");
         }
 
+        ASSERT(s->_else->kind == STMT_BLOCK_KIND || s->_else->kind == STMT_IF_KIND);
         parse_stmt(ps, s->_else);
+
         exit_scope(ps);
     } else {
-        // no else block, how to inherit shadow vars?
-        log_info("no else block, destory shadow vars from if-block");
+        // no else block
+        // only for 'Early Return' case
+        /*
+        func fn1() {
+            let v int? = 0
+            if v == null { return }
+            v + 100
+        }
+        */
+        log_info("NO ELSE BLOCK");
         if (shadows) {
-            // destroy vector only
-            vector_destroy(shadows);
+            if (last_stmt_is_terminal(s->block)) {
+                log_info("if-block is terminal, saved shadows to parent scope");
+                ParserScope *parent_sc = ps->scope;
+                if (!parent_sc->shadows) {
+                    log_info("parent scope '%s' has no shadow vars, copy from if-block",
+                             parent_sc->name);
+                    parent_sc->shadows = shadows;
+                } else {
+                    log_info("parent scope '%s' already has shadow vars, merge them",
+                             parent_sc->name);
+                    Symbol *sym;
+                    vector_foreach(sym, shadows) {
+                        vector_push_back(parent_sc->shadows, &sym);
+                    }
+                    // destroy vector only
+                    vector_destroy(shadows);
+                }
+            } else {
+                log_info(
+                    "if-block does not have terminal, discard shadow vars from if-block");
+#ifndef NDEBUG
+                Symbol *sym;
+                vector_foreach(sym, shadows) {
+                    log_info("discard shadow variable '%s'", sym->name);
+                }
+#endif
+                // destroy vector only
+                vector_destroy(shadows);
+            }
         }
     }
 }
@@ -1677,7 +1744,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_TRAIT_KIND]  = parse_klass,
         [STMT_RETURN_KIND] = parse_return,
         [STMT_EXPR_KIND]   = parse_expr,
-        [STMT_BLOCK_KIND]  = parse_block,
+        [STMT_BLOCK_KIND]  = parse_block_stmt,
         [STMT_IF_KIND]     = parse_if,
         // [STMT_IF_LET_KIND] = parse_if_let,
     };
