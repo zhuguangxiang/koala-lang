@@ -257,7 +257,7 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
         if (ts->kind == TYPE_SPECIALIZED) {
             Symbol *sym = stbl_get(stbl, ts->specialized.name);
             if (sym) {
-                log_debug("found symbol for specialized type: %s", ts->specialized.name);
+                log_info("found symbol for specialized type: %s", ts->specialized.name);
                 ts->sym_id = sym->id;
             } else {
                 log_error("cannot find symbol for specialized type: %s",
@@ -266,8 +266,8 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
         } else if (ts->kind == TYPE_GENERIC_VAR) {
             Symbol *owner = stbl_get(stbl, ts->generic_var.owner);
             if (owner) {
-                log_debug("found owner symbol for generic var type: %s",
-                          ts->generic_var.owner);
+                log_info("found owner symbol for generic var type: %s",
+                         ts->generic_var.owner);
                 Symbol *tp_sym = stbl_get(owner->stbl, ts->generic_var.name);
                 ASSERT(tp_sym && tp_sym->kind == SYM_TYPE_PARAM);
                 ts->sym_id = tp_sym->id;
@@ -279,7 +279,7 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
         } else if (ts->kind == TYPE_KLASS) {
             Symbol *sym = stbl_get(stbl, ts->klass_type.name);
             if (sym) {
-                log_debug("found symbol for klass type: %s", ts->klass_type.name);
+                log_info("found symbol for klass type: %s", ts->klass_type.name);
                 ts->sym_id = sym->id;
             } else {
                 log_error("cannot find symbol for klass type: %s", ts->klass_type.name);
@@ -292,7 +292,7 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
 
 void load_module(ModuleSymbol *mod_sym, char *path)
 {
-    log_debug("read klc file: %s", path);
+    log_info("read klc file: %s", path);
 
     KlcFile klc;
 

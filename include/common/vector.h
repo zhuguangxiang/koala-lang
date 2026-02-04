@@ -48,6 +48,12 @@ static inline void vector_fini(Vector *vec)
 /* Clear a vector, no free memory */
 static inline void vector_clear(Vector *vec) { vec->size = 0; }
 
+static inline void vector_clear_to_end(Vector *vec, int index)
+{
+    if (index < 0 || index >= vec->size) return;
+    vec->size = index;
+}
+
 /* Create a vector */
 static inline Vector *vector_create(int obj_size)
 {

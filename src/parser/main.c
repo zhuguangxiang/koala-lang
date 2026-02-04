@@ -10,7 +10,7 @@
 int main(int argc, char *argv[])
 {
     init_atom();
-    init_log(LOG_DEBUG, NULL, 0);
+    init_log(LOG_TRACE, NULL, 0);
     typespec_init();
     init_parser();
     compile(argc, argv);

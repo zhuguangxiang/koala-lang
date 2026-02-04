@@ -464,6 +464,7 @@ Stmt *stmt_from_assignment(AssignOpKind op, Expr *lhs, Expr *rhs);
 typedef struct _BlockStmt {
     STMT_HEAD
     Vector *stmts;
+    int has_terminal;
 } BlockStmt;
 
 Stmt *stmt_from_block(Vector *stmts);

@@ -179,7 +179,7 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
         if (ts->kind == TYPE_SPECIALIZED) {
             Symbol *sym = stbl_get(stbl, ts->specialized.name);
             if (sym) {
-                log_debug("found symbol for specialized type: %s", ts->specialized.name);
+                log_info("found symbol for specialized type: %s", ts->specialized.name);
                 ts->sym_id = sym->id;
             } else {
                 log_error("cannot find symbol for specialized type: %s",
@@ -199,7 +199,7 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
         } else if (ts->kind == TYPE_KLASS) {
             Symbol *sym = stbl_get(stbl, ts->klass_type.name);
             if (sym) {
-                log_debug("found symbol for klass type: %s", ts->klass_type.name);
+                log_info("found symbol for klass type: %s", ts->klass_type.name);
                 ts->sym_id = sym->id;
             } else {
                 log_error("cannot find symbol for klass type: %s", ts->klass_type.name);
@@ -207,7 +207,7 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
         } else if (ts->kind == TYPE_MANGLED) {
             Symbol *origin = stbl_get(stbl, ts->mangled.name);
             ASSERT(origin && (origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT));
-            log_debug("found origin symbol for mangled type: %s", ts->mangled.name);
+            log_info("found origin symbol for mangled type: %s", ts->mangled.name);
             Symbol *inst_sym = find_or_add_instance(stbl, origin, ts->mangled.args);
             ASSERT(inst_sym);
             type_spec_free(ts);
@@ -220,7 +220,7 @@ static void update_types_sym_id(HashMap *stbl, Vector *vec)
 
 void load_module(ModuleSymbol *mod_sym, char *path)
 {
-    log_debug("read klc file: %s", path);
+    log_info("read klc file: %s", path);
 
     KlcFile klc;
 

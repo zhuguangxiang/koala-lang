@@ -42,6 +42,8 @@ typedef struct _ParserScope {
     ScopeKind kind;
     /* scope name */
     char *name;
+    /* scope depth */
+    int depth;
     /* which block scope */
     BlockType block_type;
     /* this scope's symbol(func, class and etc.) */
@@ -50,8 +52,6 @@ typedef struct _ParserScope {
     HashMap *stbl;
     /* basic block */
     KlrBasicBlock *bb;
-    /* shadow variables in this scope */
-    Vector *shadows;
 } ParserScope;
 
 /* per source file */
@@ -66,6 +66,9 @@ typedef struct _ParserState {
     ParserScope *scope;
     /* depth of scope */
     int depth;
+
+    /* temperary shadows */
+    Vector shadows;
 
     /* current file imported */
     HashMap *imported;

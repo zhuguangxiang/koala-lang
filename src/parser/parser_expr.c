@@ -49,7 +49,7 @@ static void parse_ident(ParserState *ps, Expr *exp)
         }
     }
 
-    log_debug("ident resolved: %s", sym->name);
+    log_info("ident resolved: %s", sym->name);
     log_type_spec(sym->ts);
 }
 
@@ -226,8 +226,8 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
         if (arg->dfl_val_idx > 0) {
             if (!e) {
                 // skip this arg, use default value
-                log_debug("[check_call_args] kw-arg: %s, no value passed, skip left.",
-                          arg->name);
+                log_info("[check_call_args] kw-arg: %s, no value passed, skip left.",
+                         arg->name);
                 return;
             }
 
@@ -241,7 +241,7 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                     if (strcmp(kw->key.name, arg->name) != 0) {
                         continue;
                     }
-                    log_debug(
+                    log_info(
                         "[check_call_args] kw-arg: '%s', pass kw-arg, check kw-value "
                         "type compatible",
                         arg->name);
@@ -251,7 +251,7 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                     }
                 }
             } else {
-                log_debug(
+                log_info(
                     "[check_call_args] kw-arg: '%s', pass value only, check value type "
                     "compatible",
                     arg->name);
@@ -270,10 +270,10 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                 kl_error(e->loc, "argument type is not compatible.");
                 return;
             }
-            log_debug("[check_call_args] arg: '%s' type is compatible", arg->name);
-            log_debug("lhs:");
+            log_info("[check_call_args] arg: '%s' type is compatible", arg->name);
+            log_info("lhs:");
             log_type_spec(arg->ts);
-            log_debug("rhs:");
+            log_info("rhs:");
             log_type_spec(e->ts);
         }
     }
@@ -292,7 +292,7 @@ static void parse_type(ParserState *ps, Expr *exp)
     // int -> exp->ts is type type, symbol is int
     // Foo -> exp->ts is type type, symbol is Foo
     exp->ts = exp->sym->ts;
-    log_debug("type '%s' is resolved as: ", exp->sym->name);
+    log_info("type '%s' is resolved as: ", exp->sym->name);
     log_type_spec(exp->ts);
     return;
 }
@@ -352,11 +352,11 @@ static void parse_call(ParserState *ps, Expr *exp)
     if (lhs_sym->kind == SYM_VAR) {
         TypeSpec *ts = lhs_sym->ts;
 
-        log_debug("call lhs is variable of type:");
+        log_info("call lhs is variable of type:");
         log_type_spec(ts);
 
         if (ts->kind == TYPE_PROTO) {
-            log_debug("call lhs is proto variable.");
+            log_info("call lhs is proto variable.");
             // proto variable call
             exp->ts = ts->proto_type.ret;
             params = ts->proto_type.args;
@@ -521,7 +521,7 @@ static void parse_dot(ParserState *ps, Expr *exp)
     if (sym) {
         exp->ts = opt_dot_type(sym->ts, opt_or_bang);
         exp->sym = sym;
-        log_debug("dot member resolved: %s", sym->name);
+        log_info("dot member resolved: %s", sym->name);
         if (sym->kind == SYM_FUNC) {
             log_info("ret type is:");
             log_type_spec(((FuncSymbol *)sym)->ret);
@@ -549,7 +549,7 @@ static void parse_dot(ParserState *ps, Expr *exp)
                                                     origin_var_sym->flags);
                 exp->ts = opt_dot_type(inst_var_sym->ts, opt_or_bang);
                 exp->sym = inst_var_sym;
-                log_debug("dot member resolved: %s", inst_var_sym->name);
+                log_info("dot member resolved: %s", inst_var_sym->name);
                 log_type_spec(exp->ts);
                 return;
             } else if (sym->kind == SYM_FUNC) {
@@ -573,7 +573,7 @@ static void parse_dot(ParserState *ps, Expr *exp)
                 inst_fn_sym->ts = fn_ts;
                 exp->ts = opt_dot_type(fn_ts, opt_or_bang);
                 exp->sym = inst_fn_sym;
-                log_debug("dot member resolved: %s", inst_fn_sym->name);
+                log_info("dot member resolved: %s", inst_fn_sym->name);
                 log_type_spec(exp->ts);
                 return;
             } else {
@@ -654,7 +654,7 @@ static void parse_index(ParserState *ps, Expr *exp)
         Symbol *inst_sym = find_or_add_instance(ps->stbl, (Symbol *)kls_sym, tp_args);
         exp->ts = inst_sym->ts;
         exp->sym = inst_sym;
-        log_debug("generic type instance created/got: %s", inst_sym->name);
+        log_info("generic type instance created/got: %s", inst_sym->name);
         log_type_spec(inst_sym->ts);
     } else {
         kl_error(lhs->loc, "only generic types support type arguments.");
