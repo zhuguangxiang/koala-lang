@@ -123,12 +123,27 @@ func fn9() {
     // CHECK-NEXT: optional type cannot be used with '+' operator.
 }
 
-// func fn10(v int?) {
-//     if !(v != null) { // 嵌套取反
-//         return
-//     }
-//     v + 1 // 这里能认出来是 int 吗？
-// }
+func fn10(v int?) {
+    if !(v != null) {
+        return
+    }
+    v + 1
+}
+
+func fn10_1(v int?) {
+    if !!(v == null) {
+        return
+    }
+    v + 1
+}
+
+func fn10_2(v int?) {
+    if !!(!(v == null)) {
+        return
+    }
+    v + 1
+    // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+}
 
 func fn11(v int?) int {
     if (v == null) {
@@ -145,7 +160,7 @@ func fn12(v int?) int {
             return 1 // The return is inside a naked block
         }
 
-        v + 2 // // dead code
+        v + 2 // dead code
     }
 
     v + 1
@@ -170,47 +185,52 @@ func fn13(v int?) int {
 }
 
 // func fn14(v int?) int {
-//     if (v == null) { return }
+//     if (v == null) { return 0 }
 //     // v 是 int
 //     {
 //         v = null // 在内层块修改
 //     }
 //     // 这里的 v 是 int 还是 int?
-//     if (v == null) { ... }
+//     if (v == null) { return 1 }
 // }
 
-// if () {
-//     let v1 int? = null
+func fn15 () {
+    let v1 int? = null
 
-//     if (v1 != null) {
-//         // in here, 'v' is non-null
-//     } else {
-//         // in here, 'v' is null
-//     }
-//     // no shadow
+    if (v1 != null) {
+        // in here, 'v' is non-null
+    } else {
+        // in here, 'v' is null
+    }
+    // no shadow
 
-//     v1 - 200
+    v1 - 200
+    // CHECK-NEXT: optional type cannot be used with '-' operator.
 
-//     if v1 == null {
-//         return
-//     }
-//     // shadow 'v1' as non-null here
+    if v1 == null {
+        return
+    }
+    // shadow 'v1' as non-null here
 
-//     v1 + 200
+    v1 + 200
 
-//     let v2 int? = 1
+    let v2 int? = 1
 
-//     if (v2 == null) {
-//         // in here, 'v2' is null
-//     }
-//     // no shadow
+    if (v2 == null) {
+        // in here, 'v2' is null
+    }
+    // no shadow
 
-//     if v2 == null {
-//         return
-//     }
-//     // shadow 'v2' as non-null here
+    v2 - 100
+    // CHECK-NEXT: optional type cannot be used with '-' operator.
 
-//     v2 + 100
+    if v2 == null {
+        return
+    }
+    // shadow 'v2' as non-null here
 
-//     v1 - 123
-// }
+    v2 + 100
+    v1 + 123
+}
+
+// CHECK-NOT: {{.}}

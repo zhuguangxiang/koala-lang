@@ -738,6 +738,108 @@ static int binary_op_iscmp(BiOpKind op)
     }
 }
 
+static BiOpKind bin_op_reverse(BiOpKind op)
+{
+    BiOpKind neg_op = 0;
+    switch (op) {
+        case BINARY_EQ:
+            neg_op = BINARY_NEQ;
+            break;
+        case BINARY_NEQ:
+            neg_op = BINARY_EQ;
+            break;
+        case BINARY_LT:
+            neg_op = BINARY_GE;
+            break;
+        case BINARY_LE:
+            neg_op = BINARY_GT;
+            break;
+        case BINARY_GT:
+            neg_op = BINARY_LE;
+            break;
+        case BINARY_GE:
+            neg_op = BINARY_LT;
+            break;
+        default:
+            UNREACHABLE();
+            break;
+    }
+    return neg_op;
+}
+
+static void parse_unary(ParserState *ps, Expr *exp)
+{
+    UnaryExpr *unary = (UnaryExpr *)exp;
+    UnOpKind op = unary->op;
+
+    Expr *e = unary->exp;
+    e->ctx = EXPR_CTX_LOAD;
+
+    // optimize unary '!' on comparison operator
+    if (op == UNARY_NOT) {
+        int count = 1;
+        while (e->kind == EXPR_UNARY_KIND) {
+            UnaryExpr *inner_unary = (UnaryExpr *)e;
+            if (inner_unary->op != UNARY_NOT) {
+                // restore to original expression
+                e = unary->exp;
+                break;
+            }
+            // double negation elimination
+            e = inner_unary->exp;
+            count++;
+        }
+
+        if (e->kind == EXPR_BINARY_KIND) {
+            BinaryExpr *bin = (BinaryExpr *)e;
+            if (binary_op_iscmp(bin->op)) {
+                if (count % 2 == 1) {
+                    // change comparison operator to its negation
+                    bin->op = bin_op_reverse(bin->op);
+                    log_info(
+                        "optimize unary '!'(%d) on comparison operator to its negation.",
+                        count);
+                } else {
+                    log_info(
+                        "optimize unary '!'(%d) on comparison operator, double negation "
+                        "eliminated.",
+                        count);
+                }
+            }
+        }
+    }
+
+    parser_visit_expr(ps, e);
+    if (!e->ts) return;
+
+    if (op == UNARY_PLUS) {
+        if (e->ts->kind != TYPE_INT && e->ts->kind != TYPE_FLOAT) {
+            kl_error(unary->op_loc, "unary '+' operator requires int or float type.");
+            return;
+        }
+    } else if (op == UNARY_NEG) {
+        if (e->ts->kind != TYPE_INT && e->ts->kind != TYPE_FLOAT) {
+            kl_error(unary->op_loc, "unary '-' operator requires int or float type.");
+            return;
+        }
+    } else if (op == UNARY_BIT_NOT) {
+        if (e->ts->kind != TYPE_INT) {
+            kl_error(unary->op_loc, "unary '~' operator requires int type.");
+            return;
+        }
+    } else if (op == UNARY_NOT) {
+        if (e->ts->kind != TYPE_BOOL) {
+            kl_error(unary->op_loc, "unary '!' operator requires bool type.");
+            return;
+        }
+        exp->ts = bool_type_spec();
+        log_info("unary '!' operator resolved.");
+        log_type_spec(exp->ts);
+    } else {
+        UNREACHABLE();
+    }
+}
+
 static void parse_binary(ParserState *ps, Expr *exp)
 {
     BinaryExpr *bin = (BinaryExpr *)exp;
@@ -897,6 +999,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_CALL_KIND]    = parse_call,
         [EXPR_DOT_KIND]     = parse_dot,
         [EXPR_INDEX_KIND]   = parse_index,
+        [EXPR_UNARY_KIND]   = parse_unary,
         [EXPR_BINARY_KIND]  = parse_binary,
         [EXPR_KW_KIND]      = parse_keyword,
     };

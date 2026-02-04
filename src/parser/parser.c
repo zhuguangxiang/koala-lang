@@ -1203,9 +1203,21 @@ static void parse_block_stmt(ParserState *ps, Stmt *stmt)
 
 static void unbox_optional(ParserState *ps, Expr *exp, Vector *shadows)
 {
-    if (!expr_is_binary(exp)) return;
+    Expr *e = exp;
 
-    BinaryExpr *bexp = (BinaryExpr *)exp;
+    while (e->kind == EXPR_UNARY_KIND) {
+        UnaryExpr *unary = (UnaryExpr *)e;
+        if (unary->op != UNARY_NOT) {
+            // restore original expr
+            e = exp;
+            break;
+        }
+        e = unary->exp;
+    }
+
+    if (!expr_is_binary(e)) return;
+
+    BinaryExpr *bexp = (BinaryExpr *)e;
     BiOpKind op = bexp->op;
 
     if (op != BINARY_EQ && op != BINARY_NEQ) return;
