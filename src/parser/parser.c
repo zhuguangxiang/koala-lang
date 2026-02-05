@@ -106,8 +106,9 @@ static const char *scopes[] = {
 };
 
 static const char *blocks[] = {
-    "UNK",         "BLOCK",     "IF-BLOCK",    "ELSE-BLOCK", "IF-LET-BLOCK",
-    "WHILE-BLOCK", "FOR-BLOCK", "MATCH-BLOCK", "MATCH-CASE", "MATCH-CLAUSE",
+    "UNK",          "BLOCK",       "IF-BLOCK",        "ELSE-BLOCK",
+    "IF-LET-BLOCK", "WHILE-BLOCK", "WHILE-LET-BLOCK", "FOR-BLOCK",
+    "MATCH-BLOCK",  "MATCH-CASE",  "MATCH-CLAUSE",
 };
 #endif
 
@@ -1202,8 +1203,10 @@ static void parse_block_stmt(ParserState *ps, Stmt *stmt)
     exit_scope(ps);
 }
 
-static void unbox_optional(ParserState *ps, Expr *exp, Vector *shadows)
+static void unwrap_optional(ParserState *ps, Expr *exp, Vector *shadows)
 {
+    if (!exp) return;
+
     Expr *e = exp;
 
     while (e->kind == EXPR_UNARY_KIND) {
@@ -1267,9 +1270,11 @@ static void unbox_optional(ParserState *ps, Expr *exp, Vector *shadows)
 
     if (sym) {
         // for merging to parent-scope
-        log_trace("added shadow variable '%s' in scope '%s'(vector)", sym->name,
-                  sc->name);
-        vector_push_back(shadows, &sym);
+        if (shadows) {
+            log_trace("added shadow variable '%s' in scope '%s'(vector)", sym->name,
+                      sc->name);
+            vector_push_back(shadows, &sym);
+        }
     }
 }
 
@@ -1300,8 +1305,6 @@ static int last_stmt_is_terminal(Vector *stmts)
 
 static void parse_if(ParserState *ps, Stmt *stmt)
 {
-    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "if-block");
-
     IfStmt *s = (IfStmt *)stmt;
     Expr *cond = s->cond;
 
@@ -1313,16 +1316,12 @@ static void parse_if(ParserState *ps, Stmt *stmt)
         kl_error(cond->loc, "if condition must be boolean type.");
     }
 
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "if-block");
     Vector shadows = VECTOR_INIT_PTR;
-
-    unbox_optional(ps, cond, &shadows);
-
+    unwrap_optional(ps, cond, &shadows);
     int has_terminal = 0;
-
     parse_block(ps, s->block, &has_terminal);
-
     ASSERT(vector_empty(&ps->shadows));
-
     exit_scope(ps);
 
     if (s->_else) {
@@ -1406,7 +1405,6 @@ static void parse_if_let(ParserState *ps, Stmt *stmt)
 
     if (!type_is_optional(cond->ts)) {
         kl_error(cond->loc, "if-let condition must be optional type.");
-        return;
     }
 
     ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_LET_BLOCK, "if-let-block");
@@ -1450,6 +1448,54 @@ static void parse_if_let(ParserState *ps, Stmt *stmt)
 
         exit_scope(ps);
     }
+}
+
+static void parse_while(ParserState *ps, Stmt *stmt)
+{
+    WhileStmt *s = (WhileStmt *)stmt;
+    Expr *cond = s->cond;
+
+    if (cond != NULL) {
+        cond->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, cond);
+        if (!cond->ts) return;
+
+        if (!type_is_bool(cond->ts)) {
+            kl_error(cond->loc, "while condition must be boolean type.");
+        }
+    }
+
+    enter_scope(ps, SCOPE_BLOCK, WHILE_BLOCK, "while-block");
+    unwrap_optional(ps, cond, NULL);
+    parse_block(ps, s->block, NULL);
+    ASSERT(vector_empty(&ps->shadows));
+    exit_scope(ps);
+}
+
+static void parse_while_let(ParserState *ps, Stmt *stmt)
+{
+    WhileLetStmt *s = (WhileLetStmt *)stmt;
+    Ident *id = &s->id;
+    Expr *cond = s->cond;
+
+    cond->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, cond);
+    if (!cond->ts) return;
+
+    if (!type_is_optional(cond->ts)) {
+        kl_error(cond->loc, "while-let condition must be optional type.");
+    }
+
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, WHILE_LET_BLOCK, "while-let-block");
+    Symbol *sym = stbl_add_var(sc->stbl, id->name, cond->ts->opt.src, 0);
+    ASSERT(sym);
+    ((VarSymbol *)sym)->scope = VAR_SCOPE_LOCAL;
+    s->sym = sym;
+
+    parse_block(ps, s->block, NULL);
+    ASSERT(vector_empty(&ps->shadows));
+
+    exit_scope(ps);
 }
 
 // only add klass/trait symbol and add tp, fields and methods
@@ -1894,16 +1940,18 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
 
     /* clang-format off */
     static void (*handlers[STMT_MAX_KIND])(ParserState *, Stmt *) = {
-        [STMT_VAR_KIND]    = parse_var_decl,
-        [STMT_FUNC_KIND]   = parse_func_decl,
-        [STMT_CLASS_KIND]  = parse_klass,
-        [STMT_TRAIT_KIND]  = parse_klass,
-        [STMT_RETURN_KIND] = parse_return,
-        [STMT_ASSIGN_KIND] = parse_assign,
-        [STMT_EXPR_KIND]   = parse_expr,
-        [STMT_BLOCK_KIND]  = parse_block_stmt,
-        [STMT_IF_KIND]     = parse_if,
-        [STMT_IF_LET_KIND] = parse_if_let,
+        [STMT_VAR_KIND]       = parse_var_decl,
+        [STMT_FUNC_KIND]      = parse_func_decl,
+        [STMT_CLASS_KIND]     = parse_klass,
+        [STMT_TRAIT_KIND]     = parse_klass,
+        [STMT_RETURN_KIND]    = parse_return,
+        [STMT_ASSIGN_KIND]    = parse_assign,
+        [STMT_EXPR_KIND]      = parse_expr,
+        [STMT_BLOCK_KIND]     = parse_block_stmt,
+        [STMT_IF_KIND]        = parse_if,
+        [STMT_IF_LET_KIND]    = parse_if_let,
+        [STMT_WHILE_KIND]     = parse_while,
+        [STMT_WHILE_LET_KIND] = parse_while_let,
     };
     /* clang-format on */
 

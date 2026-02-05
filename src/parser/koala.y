@@ -459,7 +459,7 @@ top_stmt
     }
     | while_stmt
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | for_stmt
     {
@@ -1724,7 +1724,7 @@ local
     }
     | while_stmt
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | for_stmt
     {
@@ -1908,11 +1908,25 @@ elseif_stmt
 while_stmt
     : WHILE expr block
     {
-        // $$ = stmt_from_while($2, $3);
+        $$ = stmt_from_while($2, $3);
+        stmt_set_loc($$, lloc(@1, @3));
+    }
+    | WHILE LET ID '=' expr block
+    {
+        IDENT(id, $3, loc(@3));
+        $$ = stmt_from_while_let(&id, $5, $6);
+        stmt_set_loc($$, lloc(@1, @6));
+    }
+    | WHILE '(' LET ID '=' expr ')' block
+    {
+        IDENT(id, $4, loc(@4));
+        $$ = stmt_from_while_let(&id, $6, $8);
+        stmt_set_loc($$, lloc(@1, @8));
     }
     | WHILE block
     {
-        // $$ = stmt_from_while(NULL, $2);
+        $$ = stmt_from_while(NULL, $2);
+        stmt_set_loc($$, lloc(@1, @2));
     }
     ;
 

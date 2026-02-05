@@ -129,6 +129,7 @@ TypeSpec *optional_type_spec(TypeSpec *src);
 TypeSpec *optional_type_spec_intern(TypeSpec *src);
 
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
+static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);

@@ -1,0 +1,76 @@
+// RUN: koalac %s | filecheck %s
+
+class Node {
+    var next Node?
+    var value int
+
+    pub func __init__(v int) {
+        value = v
+        next = null
+    }
+}
+
+class List {
+    var head Node?
+    var tail Node?
+
+    func __init__() {
+        head = null
+        tail = null
+    }
+
+    func test() {
+        var curr = head
+        while (curr != null) {
+            curr.value + 1
+            curr = curr.next
+        }
+
+        var it = head
+        while let n = it {
+            n.value + 1
+            it = n.next
+            n = head
+            // CHECK: cannot assign to immutable variable 'n'
+        }
+    }
+
+    func test2() {
+        var curr = head
+        while (curr != null) {
+            curr.value + 1
+            curr = curr.next
+            curr.value + 2
+            // CHECK-NEXT: optional cannot use dot operator.
+        }
+    }
+
+    func get_opt() int? {
+        return null
+    }
+
+    func test3(v1 int?) {
+        var v = v1
+        if v == null { return }
+        while v > 0 {
+            v + 1
+            v = get_opt()
+            v + 2
+            // CHECK-NEXT: optional type cannot be used with '+' operator.
+        }
+        v + 3
+        // CHECK-NEXT: optional type cannot be used with '+' operator.
+    }
+
+    func test4() {
+        var curr = head
+        while (curr != null) {
+            curr.value + 1
+            curr = null
+            curr.value + 2
+            // CHECK-NEXT: optional cannot use dot operator.
+        }
+    }
+}
+
+// CHECK-NOT: {{.}}

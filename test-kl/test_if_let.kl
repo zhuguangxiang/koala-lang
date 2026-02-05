@@ -43,10 +43,12 @@ func fn1(f1 Foo?) int {
 
 func fn2(f1 Foo?) int {
     if let f = f1 {
+        f = f1
+        // CHECK-NEXT: cannot assign to immutable variable 'f'
         return f.bar()
     } else {
         f
-        // CHECK: 'f' is not found
+        // CHECK-NEXT: 'f' is not found
         return 0
     }
 
@@ -56,7 +58,7 @@ func fn2(f1 Foo?) int {
         return v.bar()
     } else {
         v
-        // CHECK: 'v' is not found
+        // CHECK-NEXT: 'v' is not found
         return 0
     }
 
@@ -71,7 +73,7 @@ func fn3(f Foo) {
     if let id = f.foo()?.get_id() {
         id + 1
         id = 100
-        // CHECK: cannot assign to immutable variable 'id'
+        // CHECK-NEXT: cannot assign to immutable variable 'id'
     }
 }
 

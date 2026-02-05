@@ -335,8 +335,6 @@ typedef struct _PanicExpr {
 
 Expr *expr_from_panic(Expr *exp);
 
-static inline int expr_is_ident(Expr *e) { return e->kind == EXPR_ID_KIND; }
-
 static inline int expr_is_literal_null(Expr *e)
 {
     if (e->kind != EXPR_LITERAL_KIND) return 0;
@@ -344,12 +342,6 @@ static inline int expr_is_literal_null(Expr *e)
 }
 
 static inline int expr_is_binary(Expr *e) { return e->kind == EXPR_BINARY_KIND; }
-
-static inline int expr_is_not(Expr *e)
-{
-    if (e->kind != EXPR_UNARY_KIND) return 0;
-    return ((UnaryExpr *)e)->op == UNARY_NOT;
-}
 
 typedef enum _StmtKind {
     STMT_UNK_KIND,
@@ -381,6 +373,7 @@ typedef enum _StmtKind {
     STMT_MATCH_KIND,
     /* if-let */
     STMT_IF_LET_KIND,
+    STMT_WHILE_LET_KIND,
     STMT_MAX_KIND
 } StmtKind;
 
@@ -512,6 +505,24 @@ typedef struct _ExprStmt {
 } ExprStmt, RetStmt;
 
 Stmt *stmt_from_expr(Expr *exp);
+
+typedef struct _WhileStmt {
+    STMT_HEAD
+    Expr *cond;
+    Vector *block;
+} WhileStmt;
+
+Stmt *stmt_from_while(Expr *cond, Vector *block);
+
+typedef struct _WhileLetStmt {
+    STMT_HEAD
+    Symbol *sym;
+    Ident id;
+    Expr *cond;
+    Vector *block;
+} WhileLetStmt;
+
+Stmt *stmt_from_while_let(Ident *id, Expr *cond, Vector *block);
 
 typedef struct _KlassStmt {
     STMT_HEAD

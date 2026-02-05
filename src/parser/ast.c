@@ -390,6 +390,25 @@ Stmt *stmt_from_if_let(Ident *id, Expr *exp, Vector *block, Stmt *_else)
     return (Stmt *)s;
 }
 
+Stmt *stmt_from_while(Expr *cond, Vector *block)
+{
+    WhileStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_WHILE_KIND;
+    s->cond = cond;
+    s->block = block;
+    return (Stmt *)s;
+}
+
+Stmt *stmt_from_while_let(Ident *id, Expr *exp, Vector *block)
+{
+    WhileLetStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_WHILE_LET_KIND;
+    s->id = *id;
+    s->cond = exp;
+    s->block = block;
+    return (Stmt *)s;
+}
+
 Stmt *stmt_from_expr(Expr *exp)
 {
     ExprStmt *s = mm_alloc_obj(s);

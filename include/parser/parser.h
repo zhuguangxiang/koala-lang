@@ -31,6 +31,7 @@ typedef enum _BlockType {
     ELSE_BLOCK,
     IF_LET_BLOCK,
     WHILE_BLOCK,
+    WHILE_LET_BLOCK,
     FOR_BLOCK,
     SWITCH_BLOCK,
     CASE_BLOCK
