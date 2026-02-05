@@ -114,6 +114,7 @@ Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null)
     hashmap_entry_init(sym, str_hash(origin->name));
     sym->kind = SYM_SHADOW_VAR;
     sym->name = origin->name;
+    sym->owner = stbl;
 
     if (hashmap_put_absent(stbl, sym) < 0) {
         mm_free(sym);

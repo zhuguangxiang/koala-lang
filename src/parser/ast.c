@@ -292,6 +292,14 @@ Expr *expr_from_slice(Expr *start, Expr *stop, Expr *step)
     return (Expr *)exp;
 }
 
+Expr *expr_from_bang(Expr *exp)
+{
+    BangExpr *e = mm_alloc_obj(e);
+    e->kind = EXPR_BANG_KIND;
+    e->exp = exp;
+    return (Expr *)e;
+}
+
 Expr *expr_from_panic(Expr *exp)
 {
     PanicExpr *e = mm_alloc_obj(e);

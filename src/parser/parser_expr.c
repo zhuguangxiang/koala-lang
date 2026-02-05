@@ -849,7 +849,11 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);
-    if (!lhs->ts) return;
+
+    rhs->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, rhs);
+
+    if (!lhs->ts || !rhs->ts) return;
 
     if (type_is_optional(lhs->ts) && (op != BINARY_EQ && op != BINARY_NEQ)) {
         Symbol *opt_sym = lhs->sym;
@@ -871,10 +875,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
                  get_binary_op_str(op));
         return;
     }
-
-    rhs->ctx = EXPR_CTX_LOAD;
-    parser_visit_expr(ps, rhs);
-    if (!rhs->ts) return;
 
     if (op == BINARY_EQ || op == BINARY_NEQ) {
         // special handling for optional and null comparison
@@ -975,11 +975,50 @@ static void parse_binary(ParserState *ps, Expr *exp)
 static void parse_keyword(ParserState *ps, Expr *exp)
 {
     KeyWordExpr *kw = (KeyWordExpr *)exp;
-    Expr *value = kw->value;
-    value->ctx = EXPR_CTX_LOAD;
-    parser_visit_expr(ps, value);
-    if (!value->ts) return;
-    exp->ts = value->ts;
+    Expr *e = kw->value;
+    e->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, e);
+    if (!e->ts) return;
+    exp->ts = e->ts;
+}
+
+static void parse_bang(ParserState *ps, Expr *exp)
+{
+    BangExpr *bang = (BangExpr *)exp;
+    Expr *e = bang->exp;
+    e->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, e);
+    if (!e->ts) return;
+    if (!type_is_optional(e->ts)) {
+        Symbol *sym = e->sym;
+        if (sym->kind == SYM_SHADOW_VAR) {
+            // check shadow variable null state
+            ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)sym;
+            log_info("  note: symbol '%s' is a shadow variable.", sym->name);
+            log_info("  value is null: %s", shadow_sym->is_null ? "true" : "false");
+            if (shadow_sym->is_null) {
+                kl_error(bang->loc,
+                         "bang operator cannot be applied when value is null.");
+                return;
+            } else {
+                kl_warn(bang->loc,
+                        "bang operator applied on non-nullable variable('%s').",
+                        sym->name);
+                log_info("bang operator resolved on shadow variable, value is not null.");
+                log_type_spec(exp->ts);
+                exp->ts = e->ts;
+                exp->sym = e->sym;
+                return;
+            }
+        } else {
+            kl_error(bang->loc, "only optional type can use bang operator.");
+            return;
+        }
+    }
+    exp->ts = e->ts->opt.src;
+    exp->sym = e->sym;
+    log_info("bang operator resolved, unwrap optional type.");
+    log_type_spec(exp->ts);
 }
 
 void parser_visit_expr(ParserState *ps, Expr *exp)
@@ -1002,6 +1041,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_UNARY_KIND]   = parse_unary,
         [EXPR_BINARY_KIND]  = parse_binary,
         [EXPR_KW_KIND]      = parse_keyword,
+        [EXPR_BANG_KIND]    = parse_bang,
     };
     /* clang-format on */
 

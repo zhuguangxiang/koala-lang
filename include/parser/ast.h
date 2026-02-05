@@ -73,6 +73,7 @@ typedef enum _ExprKind {
     EXPR_IS_KIND,
     EXPR_AS_KIND,
     EXPR_IN_KIND,
+    EXPR_BANG_KIND,
     EXPR_PANIC_KIND,
     EXPR_MAX_KIND,
 } ExprKind;
@@ -310,6 +311,22 @@ typedef struct _SliceExpr {
 } SliceExpr;
 
 Expr *expr_from_slice(Expr *start, Expr *stop, Expr *step);
+
+typedef struct _RangeExpr {
+    EXPR_HEAD
+    Expr *start;
+    Expr *stop;
+    int inclusive;
+} RangeExpr;
+
+Expr *expr_from_range(Expr *start, Expr *stop, int inclusive);
+
+typedef struct _BangExpr {
+    EXPR_HEAD
+    Expr *exp;
+} BangExpr;
+
+Expr *expr_from_bang(Expr *exp);
 
 typedef struct _PanicExpr {
     EXPR_HEAD

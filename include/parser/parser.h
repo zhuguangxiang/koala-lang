@@ -115,6 +115,7 @@ Symbol *find_symbol(ParserState *ps, Ident *id);
 
 #define BOLD(x)      BOLD_SEQ x COLOR_RESET
 #define ERROR_PREFIX BOLD_SEQ COLOR_RED "error: " COLOR_RESET
+#define WARN_PREFIX  BOLD_SEQ COLOR_YELLOW "warning: " COLOR_RESET
 
 /* clang-format off */
 
@@ -136,6 +137,13 @@ void kl_error_detail(ParserState *, Loc *);
             ps->filename, loc.line, loc.col, ##__VA_ARGS__); \
         kl_error_detail(ps, &loc); \
     } \
+} while (0)
+
+#define kl_warn(_loc, fmt, ...) do { \
+    Loc loc = _loc; \
+    printf(BOLD("%s:%d:%d: ") WARN_PREFIX fmt "\n", \
+        ps->filename, loc.line, loc.col, ##__VA_ARGS__); \
+    kl_error_detail(ps, &loc); \
 } while (0)
 
 /* clang-format on */

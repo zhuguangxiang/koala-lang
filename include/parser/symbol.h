@@ -79,6 +79,7 @@ typedef struct _VarSymbol {
 
 typedef struct _ShadowVarSymbol {
     SYMBOL_HEAD
+    HashMap *owner;
     Symbol *origin;
     int is_null;
 } ShadowVarSymbol;
@@ -192,6 +193,13 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
 Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);
+Symbol *stbl_remove(HashMap *stbl, char *name);
+
+static inline void remove_shadow_var(ShadowVarSymbol *sym)
+{
+    if (!sym || !sym->owner) return;
+    stbl_remove(sym->owner, sym->name);
+}
 
 Symbol *stbl_get(HashMap *stbl, char *name);
 void stbl_show(HashMap *stbl);

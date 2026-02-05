@@ -1751,6 +1751,81 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     }
 }
 
+static void parse_assign(ParserState *ps, Stmt *stmt)
+{
+    AssignStmt *assign = (AssignStmt *)stmt;
+    AssignOpKind op = assign->op;
+
+    Expr *lhs = assign->lhs;
+    Expr *rhs = assign->rhs;
+    lhs->ctx = EXPR_CTX_STORE;
+    rhs->ctx = EXPR_CTX_LOAD;
+
+    parser_visit_expr(ps, lhs);
+    parser_visit_expr(ps, rhs);
+    if (!lhs->ts || !rhs->ts) return;
+
+    if (op == OP_ASSIGN) {
+        log_info("simple assignment detected.");
+        Symbol *lhs_sym = lhs->sym;
+        if (lhs_sym->kind == SYM_VAR) {
+            if (!(lhs_sym->flags & SYM_FLAGS_MUTABLE)) {
+                kl_error(assign->loc, "cannot assign to immutable variable '%s'",
+                         lhs_sym->name);
+                return;
+            }
+        } else if (lhs_sym->kind == SYM_SHADOW_VAR) {
+            ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)lhs_sym;
+            Symbol *origin = shadow_sym->origin;
+            if (!(origin->flags & SYM_FLAGS_MUTABLE)) {
+                kl_error(assign->loc, "cannot assign to immutable variable '%s'",
+                         lhs_sym->name);
+                return;
+            }
+
+            if (type_is_optional(rhs->ts)) {
+                log_warn("type of shadow variable '%s' is changed to optional.",
+                         shadow_sym->name);
+                log_info("from:");
+                log_type_spec(lhs->ts);
+                log_info("to:");
+                log_type_spec(origin->ts);
+                lhs->ts = origin->ts;
+                lhs->sym = origin;
+                remove_shadow_var(shadow_sym);
+            } else {
+                log_info("type of shadow variable '%s' is not changed.",
+                         shadow_sym->name);
+            }
+        } else {
+            kl_error(assign->loc, "Cannot assign to non-variable.");
+            return;
+        }
+    } else {
+        log_info("compound assignment detected.");
+        NYI();
+    }
+
+    if (!type_spec_compatible(lhs->ts, rhs->ts)) {
+        if (!type_is_optional(lhs->ts) && expr_is_literal_null(rhs)) {
+            kl_error(assign->loc, "Cannot assign null to non-nullable type.");
+        } else {
+            kl_error(assign->loc, "Types of two sides are not matched.");
+        }
+        printf("lhs:");
+        print_type_spec(lhs->ts);
+        printf(" =/= rhs:");
+        print_type_spec(rhs->ts);
+        printf("\n");
+    } else {
+        log_info("assignment type check passed.");
+        log_info("  declared type:");
+        log_type_spec(lhs->ts);
+        log_info("  rhs type:");
+        log_type_spec(rhs->ts);
+    }
+}
+
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -1765,6 +1840,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_CLASS_KIND]  = parse_klass,
         [STMT_TRAIT_KIND]  = parse_klass,
         [STMT_RETURN_KIND] = parse_return,
+        [STMT_ASSIGN_KIND] = parse_assign,
         [STMT_EXPR_KIND]   = parse_expr,
         [STMT_BLOCK_KIND]  = parse_block_stmt,
         [STMT_IF_KIND]     = parse_if,

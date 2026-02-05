@@ -1782,6 +1782,12 @@ assign_left_expr
         $$ = expr_from_dot($1, &id, DOT_NORMAL);
         expr_set_loc($$, lloc(@1, @3));
     }
+    | primary_expr BANG_DOT ID
+    {
+        IDENT(id, $3, loc(@3));
+        $$ = expr_from_dot($1, &id, DOT_BANG);
+        expr_set_loc($$, lloc(@1, @3));
+    }
     | index_expr
     {
         $$ = $1;
@@ -1976,12 +1982,6 @@ expr
     {
         $$ = NULL;
     }
-    /* | or_expr '!'
-    {
-        // only T?
-        printf("expr error1\n");
-        $$ = NULL;
-    } */
     | or_expr OPT_DEF or_expr
     {
         // $$ = expr_from_is_expr($1, loc(@2), $3);
@@ -2379,8 +2379,9 @@ primary_expr
     }
     | primary_expr NOT
     {
-        printf("primary_expr NOT\n");
-        $$ = NULL;
+        // only optional type
+        $$ = expr_from_bang($1);
+        expr_set_loc($$, lloc(@1, @2));
     }
     ;
 
