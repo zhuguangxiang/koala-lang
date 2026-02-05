@@ -1,0 +1,54 @@
+// RUN: koalac %s | filecheck %s
+
+class Node {
+    var next Node?
+    var value int
+
+    pub func __init__(v int) {
+        value = v
+        next = null
+    }
+}
+
+class List {
+    var head Node?
+    var tail Node?
+
+    func __init__() {
+        head = null
+        tail = null
+    }
+
+    func append(v int) {
+        let n = Node(v)
+        if tail == null {
+            head = n
+            tail = n
+        } else {
+            tail!.next = n
+            // CHECK: variable 'tail' is non-nullable, but '!.' operator is used, which is redundant.
+            tail.next = n
+            tail = n
+        }
+
+        if head == null {
+            head = n
+            tail = n
+        } else {
+            tail!.next = n
+            tail.next = n
+            // CHECK-NEXT: optional cannot use dot operator.
+            tail = n
+        }
+
+        tail = n
+        tail.next = n
+        // CHECK-NEXT: optional cannot use dot operator.
+    }
+}
+
+let l = List()
+l.append(1)
+l.append(2)
+
+// CHECK-NOT: {{.}}

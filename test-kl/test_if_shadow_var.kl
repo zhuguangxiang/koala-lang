@@ -184,15 +184,38 @@ func fn13(v int?) int {
     }
 }
 
-// func fn14(v int?) int {
-//     if (v == null) { return 0 }
-//     // v 是 int
-//     {
-//         v = null // 在内层块修改
-//     }
-//     // 这里的 v 是 int 还是 int?
-//     if (v == null) { return 1 }
-// }
+func fn14(v1 int?) int {
+    var v int? = v1
+
+    if (v == null) { return 0 }
+
+    {
+        v = null
+    }
+
+    if (v == null) { return 1 }
+
+    return v
+}
+
+func fn14_1(v1 int?) int {
+    var v int? = v1
+
+    if (v == null) { return 0 }
+
+    {
+        v = 100
+    }
+
+    return v
+}
+
+func fn14_2(v1 int?) int {
+    var v int? = v1
+    v = 100
+    return v
+    // CHECK-NEXT: return type mismatch in function 'fn14_2'
+}
 
 func fn15 () {
     let v1 int? = null

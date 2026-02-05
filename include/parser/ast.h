@@ -497,12 +497,14 @@ Stmt *stmt_from_if(Expr *cond, Vector *block, Stmt *_else);
 
 typedef struct {
     STMT_HEAD
+    Symbol *sym;
     Ident id;
-    Expr *exp;
+    Expr *cond;
     Vector *block;
+    Stmt *_else;
 } IfLetStmt;
 
-Stmt *stmt_from_if_let(Ident *id, Expr *exp, Vector *block);
+Stmt *stmt_from_if_let(Ident *id, Expr *exp, Vector *block, Stmt *_else);
 
 typedef struct _ExprStmt {
     STMT_HEAD

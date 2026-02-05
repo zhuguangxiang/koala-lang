@@ -106,8 +106,8 @@ static const char *scopes[] = {
 };
 
 static const char *blocks[] = {
-    "UNK",       "BLOCK",       "IF-BLOCK",   "ELSE-BLOCK",   "WHILE-BLOCK",
-    "FOR-BLOCK", "MATCH-BLOCK", "MATCH-CASE", "MATCH-CLAUSE",
+    "UNK",         "BLOCK",     "IF-BLOCK",    "ELSE-BLOCK", "IF-LET-BLOCK",
+    "WHILE-BLOCK", "FOR-BLOCK", "MATCH-BLOCK", "MATCH-CASE", "MATCH-CLAUSE",
 };
 #endif
 
@@ -852,6 +852,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         ((VarSymbol *)var->sym)->ts = ts;
         log_info("variable '%s' type set as:", id->name);
         log_type_spec(ts);
+        sym->status = SYM_RESOLVED;
         return;
     }
 
@@ -1393,6 +1394,64 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     }
 }
 
+static void parse_if_let(ParserState *ps, Stmt *stmt)
+{
+    IfLetStmt *s = (IfLetStmt *)stmt;
+    Ident *id = &s->id;
+    Expr *cond = s->cond;
+
+    cond->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, cond);
+    if (!cond->ts) return;
+
+    if (!type_is_optional(cond->ts)) {
+        kl_error(cond->loc, "if-let condition must be optional type.");
+        return;
+    }
+
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_LET_BLOCK, "if-let-block");
+    Symbol *sym = stbl_add_var(sc->stbl, id->name, cond->ts->opt.src, 0);
+    ASSERT(sym);
+    ((VarSymbol *)sym)->scope = VAR_SCOPE_LOCAL;
+    s->sym = sym;
+
+    parse_block(ps, s->block, NULL);
+    ASSERT(vector_empty(&ps->shadows));
+
+    exit_scope(ps);
+
+    // desugar to if stmt with shadow variable
+    /*
+    if let v = opt {
+        // body can use 'v' which is non-optional type
+    }
+    -->
+    if opt != null {
+        shadow var v = opt // v is non-null
+        // body
+    }
+    else {
+        // there is no 'v' in else body
+    }
+    */
+
+    if (s->_else) {
+        sc = enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "else-block");
+        ASSERT(s->_else->kind == STMT_BLOCK_KIND || s->_else->kind == STMT_IF_KIND ||
+               s->_else->kind == STMT_IF_LET_KIND);
+
+        if (s->_else->kind == STMT_BLOCK_KIND) {
+            parse_block(ps, ((BlockStmt *)s->_else)->stmts, NULL);
+        } else if (s->_else->kind == STMT_IF_KIND) {
+            parse_if(ps, s->_else);
+        } else {
+            parse_if_let(ps, s->_else);
+        }
+
+        exit_scope(ps);
+    }
+}
+
 // only add klass/trait symbol and add tp, fields and methods
 static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls,
                           int is_trait)
@@ -1844,7 +1903,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_EXPR_KIND]   = parse_expr,
         [STMT_BLOCK_KIND]  = parse_block_stmt,
         [STMT_IF_KIND]     = parse_if,
-        // [STMT_IF_LET_KIND] = parse_if_let,
+        [STMT_IF_LET_KIND] = parse_if_let,
     };
     /* clang-format on */
 

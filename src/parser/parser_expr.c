@@ -492,12 +492,32 @@ static void parse_dot(ParserState *ps, Expr *exp)
             return;
         }
     } else {
-        if (opt_or_bang == DOT_OPTIONAL) {
-            kl_error(lhs->loc, "only optional type can use optional dot operator.");
-            return;
-        } else if (opt_or_bang == DOT_BANG) {
-            kl_error(lhs->loc, "only optional type can use bang dot operator.");
-            return;
+        Symbol *lhs_sym = lhs->sym;
+        if (lhs_sym && lhs_sym->kind == SYM_SHADOW_VAR) {
+            ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)lhs_sym;
+            if (!shadow_sym->is_null) {
+                if (opt_or_bang == DOT_OPTIONAL) {
+                    kl_warn(lhs->loc,
+                            "variable '%s' is non-nullable, but '?.' operator is used, "
+                            "which is redundant.",
+                            shadow_sym->name);
+                } else if (opt_or_bang == DOT_BANG) {
+                    kl_warn(lhs->loc,
+                            "variable '%s' is non-nullable, but '!.' operator is used, "
+                            "which is redundant.",
+                            shadow_sym->name);
+                }
+            } else {
+                UNREACHABLE();
+            }
+        } else {
+            if (opt_or_bang == DOT_OPTIONAL) {
+                kl_error(lhs->loc, "only optional type can use optional dot operator.");
+                return;
+            } else if (opt_or_bang == DOT_BANG) {
+                kl_error(lhs->loc, "only optional type can use bang dot operator.");
+                return;
+            }
         }
     }
 

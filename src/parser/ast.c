@@ -379,15 +379,17 @@ Stmt *stmt_from_if(Expr *cond, Vector *block, Stmt *_else)
     return (Stmt *)s;
 }
 
-Stmt *stmt_from_if_let(Ident *id, Expr *exp, Vector *block)
+Stmt *stmt_from_if_let(Ident *id, Expr *exp, Vector *block, Stmt *_else)
 {
     IfLetStmt *s = mm_alloc_obj(s);
     s->kind = STMT_IF_LET_KIND;
     s->id = *id;
-    s->exp = exp;
+    s->cond = exp;
     s->block = block;
+    s->_else = _else;
     return (Stmt *)s;
 }
+
 Stmt *stmt_from_expr(Expr *exp)
 {
     ExprStmt *s = mm_alloc_obj(s);
