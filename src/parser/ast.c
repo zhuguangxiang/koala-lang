@@ -436,6 +436,20 @@ Stmt *stmt_from_return(Expr *exp)
     return (Stmt *)s;
 }
 
+Stmt *stmt_from_continue(void)
+{
+    Stmt *s = mm_alloc_obj(s);
+    s->kind = STMT_CONTINUE_KIND;
+    return s;
+}
+
+Stmt *stmt_from_break(void)
+{
+    Stmt *s = mm_alloc_obj(s);
+    s->kind = STMT_BREAK_KIND;
+    return s;
+}
+
 void stmt_free(Stmt *stmt) {}
 
 #ifdef __cplusplus

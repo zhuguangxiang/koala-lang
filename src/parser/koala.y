@@ -1647,6 +1647,11 @@ block
         $$ = vector_create_ptr();
         vector_push_back($$, &$2);
     }
+    | '{' jump_stmt '}'
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$2);
+    }
     | '{' assignment '}'
     {
         $$ = vector_create_ptr();
@@ -1861,11 +1866,13 @@ return_stmt
 jump_stmt
     : BREAK
     {
-        // $$ = stmt_from_break(row(@1), col(@1));
+        $$ = stmt_from_break();
+        stmt_set_loc($$, loc(@1));
     }
     | CONTINUE
     {
-        // $$ = stmt_from_continue(row(@1), col(@1));
+        $$ = stmt_from_continue();
+        stmt_set_loc($$, loc(@1));
     }
     ;
 

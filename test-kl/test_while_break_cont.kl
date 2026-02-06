@@ -1,0 +1,135 @@
+// RUN: koalac %s | filecheck %s
+
+var i = 0
+
+while i < 10 {
+    if i == 5 {
+        break
+    }
+    i + 1
+}
+
+while i < 10 {
+    if i == 5 {
+        break
+        i + 2
+    }
+    i + 1
+}
+
+let v int? = null
+
+while i > 0 {
+    v + 1
+    // CHECK-NEXT: optional type cannot be used with '+' operator.
+    if v == null {
+        continue
+    }
+    v + 2
+}
+
+var v2 int? = null
+
+while i < 10 {
+    if v2 == null {
+        if v == null {
+            continue
+            v + 1
+            v2 + 1
+        }
+        v + 2
+        v2 + 2
+        // CHECK-NEXT: optional type cannot be used with '+' operator when value is null
+        continue
+    }
+    v + 3
+    // CHECK-NEXT: optional type cannot be used with '+' operator.
+    v2 + 3
+}
+
+func get_opt() int? {
+    return null
+}
+
+func test_basic_pollution(v1 int?) {
+    var v = v1
+    if v == null { return }
+
+    while (i < 10) {
+        v = get_opt()
+    }
+
+    v + 1
+    // CHECK-NEXT: optional type cannot be used with '+' operator.
+}
+
+func test_continue_shadow(v1 int?) {
+    var v = v1
+    if v == null { return }
+
+    while (i > 10) {
+        if (true) {
+            continue
+        }
+        v = get_opt()
+    }
+
+    v + 1
+    // CHECK: optional type cannot be used with '+' operator.
+}
+
+func test_break_pollution(v1 int?) {
+    var v = v1
+    if v == null { return }
+
+    while (true) {
+        v = get_opt()
+        break
+    }
+
+    v + 1
+    // CHECK: optional type cannot be used with '+' operator.
+}
+
+func test_nested_invalidation(v1 int?) {
+    var v = v1
+    if v == null { return }
+
+    while (i < 10) {
+        while (i < 10) {
+        }
+        v = get_opt()
+    }
+
+    v + 1
+    // CHECK: optional type cannot be used with '+' operator.
+}
+
+class Node {
+    var value int
+    var next Node?
+}
+
+func test_while_let_isolation(v1 Node?) {
+    var it = v1
+    while let it = it {
+        it.value + 1
+    }
+    it.value + 1
+    // CHECK-NEXT: optional cannot use dot operator.
+}
+
+func test_cond_side_effect(v1 int?) {
+    var v = v1
+    if v == null { return }
+
+    v = get_opt()
+
+    while (v != null) {
+        v + 1
+        v = get_opt()
+    }
+
+    v + 1
+    // CHECK: optional type cannot be used with '+' operator.
+}

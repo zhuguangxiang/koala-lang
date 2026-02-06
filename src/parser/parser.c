@@ -975,6 +975,29 @@ static void remove_unreachable(Vector *stmts, int from_index)
     vector_clear_to_end(stmts, from_index);
 }
 
+static int is_terminal(Stmt *stmt)
+{
+    if (!stmt) return 0;
+
+    if (stmt->kind == STMT_RETURN_KIND) return 1;
+    if (stmt->kind == STMT_BREAK_KIND) return 1;
+    if (stmt->kind == STMT_CONTINUE_KIND) return 1;
+
+    if (stmt->kind == STMT_BLOCK_KIND) {
+        BlockStmt *block = (BlockStmt *)stmt;
+        return block->has_terminal;
+    }
+
+    if (stmt->kind == STMT_EXPR_KIND) {
+        ExprStmt *exp_stmt = (ExprStmt *)stmt;
+        Expr *exp = exp_stmt->exp;
+        if (exp->kind == EXPR_PANIC_KIND) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void parse_block(ParserState *ps, Vector *stmts, int *has_terminal)
 {
     int depth = 0;
@@ -1012,10 +1035,10 @@ static void parse_block(ParserState *ps, Vector *stmts, int *has_terminal)
 
         index++;
 
-        if (s->kind == STMT_RETURN_KIND) {
+        if (is_terminal(s)) {
             if (has_terminal) *has_terminal = 1;
             if (index < vector_size(stmts)) {
-                log_trace("there are more statements after 'return'");
+                log_trace("there are more statements after a terminal statement");
                 remove_unreachable(stmts, index);
                 goto exit;
             }
@@ -1027,7 +1050,7 @@ static void parse_block(ParserState *ps, Vector *stmts, int *has_terminal)
                 if (has_terminal) *has_terminal = 1;
                 if (index < vector_size(stmts)) {
                     log_trace(
-                        "there are more statements after a block with terminal "
+                        "there are more statements after a block with a terminal "
                         "statement");
                     remove_unreachable(stmts, index);
                     goto exit;
@@ -1275,31 +1298,6 @@ static void unwrap_optional(ParserState *ps, Expr *exp, Vector *shadows)
                       sc->name);
             vector_push_back(shadows, &sym);
         }
-    }
-}
-
-static int last_stmt_is_terminal(Vector *stmts)
-{
-    if (vector_empty(stmts)) return 0;
-
-    Stmt *last_stmt = vector_get_object(stmts, vector_size(stmts) - 1);
-    if (!last_stmt) return 0;
-
-    switch (last_stmt->kind) {
-        case STMT_RETURN_KIND:
-        case STMT_BREAK_KIND:
-        case STMT_CONTINUE_KIND:
-            return 1;
-        case STMT_EXPR_KIND: {
-            ExprStmt *exp_stmt = (ExprStmt *)last_stmt;
-            Expr *exp = exp_stmt->exp;
-            if (exp->kind == EXPR_PANIC_KIND) {
-                return 1;
-            }
-            return 0;
-        }
-        default:
-            return 0;
     }
 }
 
@@ -1856,6 +1854,75 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     }
 }
 
+static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
+{
+    Expr *lhs = assign->lhs;
+    Expr *rhs = assign->rhs;
+    Symbol *lhs_sym = lhs->sym;
+
+    if (lhs_sym->kind == SYM_VAR) {
+        if (!(lhs_sym->flags & SYM_FLAGS_MUTABLE)) {
+            kl_error(assign->loc, "cannot assign to immutable variable '%s'",
+                     lhs_sym->name);
+            return -1;
+        }
+        return 0;
+    }
+
+    if (lhs_sym->kind == SYM_SHADOW_VAR) {
+        ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)lhs_sym;
+        Symbol *origin = shadow_sym->origin;
+        if (!(origin->flags & SYM_FLAGS_MUTABLE)) {
+            kl_error(assign->loc, "cannot assign to immutable variable '%s'",
+                     lhs_sym->name);
+            return -1;
+        }
+
+        if (type_is_optional(rhs->ts)) {
+            log_warn("type of shadow variable '%s' is changed to optional.",
+                     shadow_sym->name);
+            log_info("from:");
+            log_type_spec(lhs->ts);
+            log_info("to:");
+            log_type_spec(origin->ts);
+            lhs->ts = origin->ts;
+            lhs->sym = origin;
+            remove_shadow_var(shadow_sym);
+        } else {
+            log_info("type of shadow variable '%s' is not changed.", shadow_sym->name);
+        }
+
+        return 0;
+    }
+
+    kl_error(assign->loc, "Cannot assign to non-variable.");
+    return -1;
+}
+
+static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
+{
+    Expr *lhs = assign->lhs;
+    Expr *rhs = assign->rhs;
+
+    if (!type_spec_compatible(lhs->ts, rhs->ts)) {
+        kl_error(assign->loc,
+                 "Types of two sides are not matched in inplace assignment.");
+        printf("lhs:");
+        print_type_spec(lhs->ts);
+        printf(" =/= rhs:");
+        print_type_spec(rhs->ts);
+        printf("\n");
+        return -1;
+    } else {
+        log_info("inplace assignment type check passed.");
+        log_info("  lhs type:");
+        log_type_spec(lhs->ts);
+        log_info("  rhs type:");
+        log_type_spec(rhs->ts);
+        return 0;
+    }
+}
+
 static void parse_assign(ParserState *ps, Stmt *stmt)
 {
     AssignStmt *assign = (AssignStmt *)stmt;
@@ -1872,43 +1939,10 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
 
     if (op == OP_ASSIGN) {
         log_info("simple assignment detected.");
-        Symbol *lhs_sym = lhs->sym;
-        if (lhs_sym->kind == SYM_VAR) {
-            if (!(lhs_sym->flags & SYM_FLAGS_MUTABLE)) {
-                kl_error(assign->loc, "cannot assign to immutable variable '%s'",
-                         lhs_sym->name);
-                return;
-            }
-        } else if (lhs_sym->kind == SYM_SHADOW_VAR) {
-            ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)lhs_sym;
-            Symbol *origin = shadow_sym->origin;
-            if (!(origin->flags & SYM_FLAGS_MUTABLE)) {
-                kl_error(assign->loc, "cannot assign to immutable variable '%s'",
-                         lhs_sym->name);
-                return;
-            }
-
-            if (type_is_optional(rhs->ts)) {
-                log_warn("type of shadow variable '%s' is changed to optional.",
-                         shadow_sym->name);
-                log_info("from:");
-                log_type_spec(lhs->ts);
-                log_info("to:");
-                log_type_spec(origin->ts);
-                lhs->ts = origin->ts;
-                lhs->sym = origin;
-                remove_shadow_var(shadow_sym);
-            } else {
-                log_info("type of shadow variable '%s' is not changed.",
-                         shadow_sym->name);
-            }
-        } else {
-            kl_error(assign->loc, "Cannot assign to non-variable.");
-            return;
-        }
+        if (parse_simple_assign(ps, assign)) return;
     } else {
         log_info("compound assignment detected.");
-        NYI();
+        if (parse_inplace_assign(ps, assign)) return;
     }
 
     if (!type_spec_compatible(lhs->ts, rhs->ts)) {
@@ -1931,6 +1965,38 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
     }
 }
 
+static ParserScope *get_loop_scope(ParserState *ps)
+{
+    ParserScope *sc = ps->scope;
+    while (sc) {
+        if (sc->block_type == WHILE_BLOCK || sc->block_type == WHILE_LET_BLOCK ||
+            sc->block_type == FOR_BLOCK)
+            return sc;
+        sc = sc->next;
+    }
+    return NULL;
+}
+
+static void parse_break(ParserState *ps, Stmt *s)
+{
+    ParserScope *sc = get_loop_scope(ps);
+    if (!sc) {
+        kl_error(s->loc, "break statement must be inside a loop.");
+    } else {
+        log_info("scope-%d('%s') has break statement", sc->depth, sc->name);
+    }
+}
+
+static void parse_continue(ParserState *ps, Stmt *s)
+{
+    ParserScope *sc = get_loop_scope(ps);
+    if (!sc) {
+        kl_error(s->loc, "continue statement must be inside a loop.");
+    } else {
+        log_info("scope-%d('%s') has continue statement", sc->depth, sc->name);
+    }
+}
+
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -1946,6 +2012,8 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_TRAIT_KIND]     = parse_klass,
         [STMT_RETURN_KIND]    = parse_return,
         [STMT_ASSIGN_KIND]    = parse_assign,
+        [STMT_BREAK_KIND]     = parse_break,
+        [STMT_CONTINUE_KIND]  = parse_continue,
         [STMT_EXPR_KIND]      = parse_expr,
         [STMT_BLOCK_KIND]     = parse_block_stmt,
         [STMT_IF_KIND]        = parse_if,

@@ -541,6 +541,8 @@ Stmt *stmt_from_type(StmtKind kind, Ident id, Vector *tps, Vector *bases, Vector
     stmt_from_type(STMT_TRAIT_KIND, id, tps, bases, stmts)
 
 Stmt *stmt_from_return(Expr *exp);
+Stmt *stmt_from_continue(void);
+Stmt *stmt_from_break(void);
 
 #ifdef __cplusplus
 }
