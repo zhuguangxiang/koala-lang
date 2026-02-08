@@ -9,3 +9,5 @@ let l list[int] = list[int]()
 l.add(10)
 
 // let n Number[int] = int(10) + int(20)
+
+print("hello")

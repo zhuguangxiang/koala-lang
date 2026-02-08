@@ -4,8 +4,8 @@ class Node {
     var val int
 
     func __init__(val int) {
-        self.val = val
-        self.next = null
+        val = val
+        next = null
     }
 }
 

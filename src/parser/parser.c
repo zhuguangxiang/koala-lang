@@ -25,29 +25,39 @@ typedef struct _Imported {
     Symbol *sym;
 } Imported;
 
-/* saved symbols */
+/* all imported packages */
 static HashMap *imported;
+/* current package */
 static HashMap *current;
+/* builtin package */
 static HashMap *builtin;
 
-ModuleSymbol *import_module(char *path)
+// path without .klc suffix
+PkgSymbol *import_package(char *path)
 {
-    Symbol *mod_sym = stbl_get(imported, path);
-    if (mod_sym) {
+    Symbol *sym = stbl_get(imported, path);
+    if (sym) {
         log_info("module '%s' already imported", path);
-        return (ModuleSymbol *)mod_sym;
+        ASSERT(sym->kind == SYM_PACKAGE);
+        return (PkgSymbol *)sym;
     }
 
-    mod_sym = stbl_add_module(imported, path);
-    load_module((ModuleSymbol *)mod_sym, path);
+    HashMap *stbl = load_module(path);
+    if (!stbl) {
+        log_error("failed to import module '%s'", path);
+        return NULL;
+    }
+
+    PkgSymbol *pkg_sym = stbl_add_pkg(imported, path, stbl);
     log_info("imported module '%s' successfully", path);
-    return (ModuleSymbol *)mod_sym;
+    return pkg_sym;
 }
 
 static inline void load_builtin_module(void)
 {
-    ModuleSymbol *mod_sym = import_module("libs/builtin.klc");
-    builtin = mod_sym->stbl;
+    PkgSymbol *pkg_sym = import_package("std/builtin");
+    if (!pkg_sym) return;
+    builtin = pkg_sym->stbl;
     update_builtin_types(builtin);
 }
 
@@ -295,10 +305,10 @@ static int is_subtype_of(int child_id, int parent_id)
     }
 
     KlassSymbol *sym = (KlassSymbol *)s;
-    if (!sym->bases) return 0;
+    if (vector_empty(&sym->bases)) return 0;
 
     Symbol *base;
-    vector_foreach(base, sym->bases) {
+    vector_foreach(base, &sym->bases) {
         if (!base) continue;
         if (is_subtype_of(base->id, parent_id)) return 1;
     }
@@ -356,7 +366,7 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
             // check dst with src's upbound
             TypeParamSymbol *sym = get_symbol_by_id(src->sym_id);
             TypeSpec *bound;
-            vector_foreach(bound, sym->bound) {
+            vector_foreach(bound, &sym->bound) {
                 if (!bound) continue;
                 if (type_spec_compatible(dst, bound)) {
                     // Only one bound is compatible, T is compatible with dst.
@@ -365,14 +375,14 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
             }
         }
 
-        if (dst->kind == TYPE_SPECIALIZED) {
+        if (dst->kind == TYPE_GENERIC_REF) {
             if (src->kind == TYPE_KLASS) {
                 if (dst->sym_id == src->sym_id) {
                     return 1;
                 } else {
                     KlassSymbol *sym = get_symbol_by_id(src->sym_id);
                     TypeSpec *base;
-                    vector_foreach(base, sym->bases) {
+                    vector_foreach(base, &sym->bases) {
                         if (!base) continue;
                         if (type_spec_compatible(dst, base)) {
                             return 1;
@@ -402,7 +412,7 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
                 if (sym->kind != SYM_CLASS) return 0;
                 KlassSymbol *kls_sym = (KlassSymbol *)sym;
                 TypeSpec *base;
-                vector_foreach(base, kls_sym->bases) {
+                vector_foreach(base, &kls_sym->bases) {
                     if (!base) continue;
                     if (base->kind == TYPE_KLASS) {
                         if (base == src) {
@@ -438,15 +448,15 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 
     // Rule 5: Structural Recursion for Specialized Types (Generics)
 
-    if (dst->kind == TYPE_SPECIALIZED) {
-        int d_args_size = vector_size(dst->specialized.args);
-        int s_args_size = vector_size(src->specialized.args);
+    if (dst->kind == TYPE_GENERIC_REF) {
+        int d_args_size = vector_size(dst->generic_ref.args);
+        int s_args_size = vector_size(src->generic_ref.args);
         if (d_args_size != s_args_size) {
             Symbol *sym = get_symbol_by_id(src->sym_id);
             if (sym->kind == SYM_CLASS) {
                 KlassSymbol *kls_sym = (KlassSymbol *)sym;
                 TypeSpec *base;
-                vector_foreach(base, kls_sym->bases) {
+                vector_foreach(base, &kls_sym->bases) {
                     if (!base) continue;
                     if (type_spec_compatible(dst, base)) {
                         return 1;
@@ -459,7 +469,7 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
                 if (origin_sym->kind == SYM_CLASS) {
                     KlassSymbol *kls_sym = (KlassSymbol *)origin_sym;
                     TypeSpec *base;
-                    vector_foreach(base, kls_sym->bases) {
+                    vector_foreach(base, &kls_sym->bases) {
                         if (!base) continue;
                         if (type_spec_compatible(dst, base)) {
                             return 1;
@@ -474,8 +484,8 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
         // Handle Variance based on storage model
 
         for (int i = 0; i < d_args_size; i++) {
-            TypeSpec *d_arg = vector_get_object(dst->specialized.args, i);
-            TypeSpec *s_arg = vector_get_object(src->specialized.args, i);
+            TypeSpec *d_arg = vector_get_object(dst->generic_ref.args, i);
+            TypeSpec *s_arg = vector_get_object(src->generic_ref.args, i);
 
             // generic parameters must be strictly compatible(invariant).
             // List[int32] and List[int64] are not compatible.
@@ -491,7 +501,7 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
         Vector *bases = NULL;
         if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
             KlassSymbol *kls_sym = (KlassSymbol *)sym;
-            bases = kls_sym->bases;
+            bases = &kls_sym->bases;
         } else if (sym->kind == SYM_INSTANCE) {
             InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
             bases = inst_sym->bases;
@@ -587,27 +597,27 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
 
     } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
-        if (vector_size(kls_sym->tps) != vector_size(vec)) {
+        if (vector_size(&kls_sym->tps) != vector_size(vec)) {
             kl_error(_ts->loc,
                      "Type argument mismatch: '%s' expects %d argument(s), but %d were "
                      "provided",
-                     _ts->unresolved.name.name, vector_size(kls_sym->tps),
+                     _ts->unresolved.name.name, vector_size(&kls_sym->tps),
                      vector_size(vec));
             goto error;
         }
 
         if (open) {
-            // open specialized type
-            log_info("resolve open specialized type '%s'", _ts->unresolved.name.name);
-            TypeSpec *ret = specialized_type_spec(
+            // open generic_ref type
+            log_info("resolve open generic_ref type '%s'", _ts->unresolved.name.name);
+            TypeSpec *ret = generic_ref_type_spec(
                 _ts->unresolved.pkg.name, _ts->unresolved.name.name, vec, kls_sym->id);
             type_spec_free(_ts);
             return ret;
         }
 
-        log_info("resolve closed specialized type '%s'", _ts->unresolved.name.name);
+        log_info("resolve closed generic_ref type '%s'", _ts->unresolved.name.name);
 
-        // closed specialized type
+        // closed generic_ref type
         if (vector_empty(vec)) {
             log_info("resolve type '%s' without type-args", _ts->unresolved.name.name);
             TypeSpec *ret =
@@ -621,12 +631,12 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             // all args are concrete types
             // create instance symbol
             log_info("resolve type '%s' with type-args", _ts->unresolved.name.name);
-            Symbol *inst_sym = find_or_add_instance(ps->stbl, sym, vec);
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, sym, vec);
             if (!inst_sym) {
-                kl_error(_ts->loc, "failed to get instance for specialized type");
+                kl_error(_ts->loc, "failed to get instance for generic_ref type");
                 return NULL;
             }
-            TypeSpec *ret = ((InstanceSymbol *)inst_sym)->instance_ts;
+            TypeSpec *ret = inst_sym->instance_ts;
             type_spec_free(_ts);
             return ret;
         }
@@ -680,8 +690,8 @@ int check_type(ParserState *ps, TypeSpec *type)
         return 1;
     }
 
-    // Only TYPE_SPECIALIZED requires complex validation of its arguments.
-    if (type->kind != TYPE_SPECIALIZED) {
+    // Only TYPE_GENERIC_REF requires complex validation of its arguments.
+    if (type->kind != TYPE_GENERIC_REF) {
         type->checked = 1;
         return 1;
     }
@@ -699,8 +709,8 @@ int check_type(ParserState *ps, TypeSpec *type)
         return 0;
     }
 
-    Vector *tps = sym->tps;
-    int arg_count = vector_size(type->specialized.args);
+    Vector *tps = &sym->tps;
+    int arg_count = vector_size(type->generic_ref.args);
     if (vector_size(tps) != arg_count) {
         kl_error(type->loc,
                  "Type argument count mismatch: '%s' expects %d argument(s), but %d were "
@@ -711,11 +721,11 @@ int check_type(ParserState *ps, TypeSpec *type)
 
     // 2. Validate each generic argument against its defined constraints
     for (int i = 0; i < arg_count; i++) {
-        TypeSpec *arg = vector_get_object(type->specialized.args, i);
+        TypeSpec *arg = vector_get_object(type->generic_ref.args, i);
 
         // Get the required bounds for the i-th parameter (e.g., [Animal, Serializable])
         TypeParamSymbol *tp_sym = vector_get_object(tps, i);
-        Vector *bounds = tp_sym->bound;
+        Vector *bounds = &tp_sym->bound;
 
         if (bounds && vector_size(bounds) > 0) {
             // Check if the provided 'arg' satisfies all upper bounds.
@@ -801,7 +811,7 @@ static void check_type_in_first_chain(ParserState *ps, TypeSpec *src, TypeSpec *
 
     int index = 0;
     TypeSpec *ts;
-    vector_foreach(ts, src_sym->bases) {
+    vector_foreach(ts, &src_sym->bases) {
         if (!ts) continue;
         if (type_spec_compatible(dst, ts)) {
             log_info("variable base type matched at index %d:", index);
@@ -1067,6 +1077,33 @@ exit:
     }
 }
 
+static void check_param_name_with_field_name(ParserState *ps, Vector *params)
+{
+    if (!params || vector_size(params) == 0) return;
+
+    ParserScope *sc = ps->scope;
+    if (!sc || sc->kind != SCOPE_CLASS) return;
+
+    Symbol *sym = sc->sym;
+    if (!sym || sym->kind != SYM_CLASS) return;
+
+    KlassSymbol *kls_sym = (KlassSymbol *)sym;
+
+    VarSymbol *field;
+    vector_foreach(field, kls_sym->fields) {
+        if (!field) continue;
+        ParamDecl *param;
+        vector_foreach(param, params) {
+            if (!param) continue;
+            if (strcmp(field->name, param->id.name) == 0) {
+                kl_error(param->id.loc,
+                         "parameter '%s' conflicts with field name in class '%s'",
+                         param->id.name, kls_sym->name);
+            }
+        }
+    }
+}
+
 static void parse_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
@@ -1076,6 +1113,8 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     }
 
     FuncSymbol *sym = (FuncSymbol *)fn->sym;
+
+    check_param_name_with_field_name(ps, fn->args);
 
     sc = enter_scope(ps, SCOPE_FUNC, 0, sym->name);
     sc->stbl = sym->stbl;
@@ -1505,7 +1544,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls,
 
     int flags = parse_flags(&kls->flags);
 
-    sym = stbl_add_klass(stbl, id->name, flags, is_trait);
+    sym = (Symbol *)stbl_add_klass(stbl, id->name, flags, is_trait);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
@@ -1515,17 +1554,12 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls,
     KlassSymbol *kls_sym = (KlassSymbol *)sym;
 
     // add tps
-    if (vector_size(kls->tps) > 0) {
-        Vector *vec = vector_create_ptr();
-        kls_sym->tps = vec;
-
-        TypeParamDecl *tp;
-        vector_foreach(tp, kls->tps) {
-            if (!tp) continue;
-            Symbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name, sym);
-            ((TypeParamSymbol *)tp_sym)->index = vector_size(vec);
-            vector_push_back(vec, &tp_sym);
-        }
+    TypeParamDecl *tp;
+    vector_foreach(tp, kls->tps) {
+        if (!tp) continue;
+        TypeParamSymbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name, sym);
+        tp_sym->index = vector_size(&kls_sym->tps);
+        vector_push_back(&kls_sym->tps, &tp_sym);
     }
 
     // add fields & methods
@@ -1567,12 +1601,12 @@ static void parse_type_params(ParserState *ps, KlassDeclStmt *kls)
     vector_foreach(tp, kls->tps) {
         if (!tp) continue;
 
-        tp_sym = vector_get_object(sym->tps, index);
+        tp_sym = vector_get_object(&sym->tps, index);
         index++;
 
         if (vector_empty(tp->bound)) continue;
 
-        Vector *vec = vector_create_ptr();
+        Vector *vec = &tp_sym->bound;
         TypeSpec *ts;
         vector_foreach(ts, tp->bound) {
             if (!ts) continue;
@@ -1582,7 +1616,6 @@ static void parse_type_params(ParserState *ps, KlassDeclStmt *kls)
             assert(r);
             vector_push_back(vec, &ts);
         }
-        tp_sym->bound = vec;
     }
 }
 
@@ -1593,7 +1626,7 @@ static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
     /* parse base class and traits */
     if (vector_empty(kls->bases)) return;
 
-    Vector *vec = vector_create_ptr();
+    Vector *vec = &sym->bases;
     TypeSpec *ts;
     vector_foreach(ts, kls->bases) {
         if (!ts) continue;
@@ -1626,7 +1659,6 @@ static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
                      base_sym->name);
         }
     }
-    sym->bases = vec;
 }
 
 static KlassSymbol *_get_base_sym(TypeSpec *base_ts)
@@ -1662,7 +1694,7 @@ static void compute_pip(ParserState *ps, KlassSymbol *sym)
     Vector *pip = &sym->pip;
     if (vector_size(pip) > 0) return;
 
-    TypeSpec *base_ts = vector_get_object(sym->bases, 0);
+    TypeSpec *base_ts = vector_get_object(&sym->bases, 0);
     if (!base_ts) {
         // add itself
         vector_push_back(pip, &sym->instance_ts);
@@ -1703,7 +1735,7 @@ static void compute_lro(ParserState *ps, KlassSymbol *sym)
     if (vector_size(lro) > 0) return;
 
     TypeSpec *base_ts;
-    vector_foreach(base_ts, sym->bases) {
+    vector_foreach(base_ts, &sym->bases) {
         if (!base_ts) continue;
 
         KlassSymbol *base_sym = _get_base_sym(base_ts);
@@ -1712,7 +1744,7 @@ static void compute_lro(ParserState *ps, KlassSymbol *sym)
         compute_lro(ps, base_sym);
     }
 
-    vector_foreach(base_ts, sym->bases) {
+    vector_foreach(base_ts, &sym->bases) {
         if (!base_ts) continue;
 
         KlassSymbol *base_sym = _get_base_sym(base_ts);
@@ -1866,7 +1898,8 @@ static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
                      lhs_sym->name);
             return -1;
         }
-        return 0;
+
+        goto check_compatiable;
     }
 
     if (lhs_sym->kind == SYM_SHADOW_VAR) {
@@ -1892,21 +1925,19 @@ static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
             log_info("type of shadow variable '%s' is not changed.", shadow_sym->name);
         }
 
-        return 0;
+        goto check_compatiable;
     }
 
     kl_error(assign->loc, "Cannot assign to non-variable.");
     return -1;
-}
 
-static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
-{
-    Expr *lhs = assign->lhs;
-    Expr *rhs = assign->rhs;
-
+check_compatiable:
     if (!type_spec_compatible(lhs->ts, rhs->ts)) {
-        kl_error(assign->loc,
-                 "Types of two sides are not matched in inplace assignment.");
+        if (!type_is_optional(lhs->ts) && expr_is_literal_null(rhs)) {
+            kl_error(assign->loc, "Cannot assign null to non-nullable type.");
+        } else {
+            kl_error(assign->loc, "Types of two sides are not matched.");
+        }
         printf("lhs:");
         print_type_spec(lhs->ts);
         printf(" =/= rhs:");
@@ -1914,9 +1945,95 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
         printf("\n");
         return -1;
     } else {
+        log_info("assignment type check passed.");
+        log_info("  declared type:");
+        log_type_spec(lhs->ts);
+        log_info("  rhs type:");
+        log_type_spec(rhs->ts);
+        return 0;
+    }
+}
+
+static char *get_inplace_op_str(AssignOpKind op)
+{
+    switch (op) {
+        case OP_PLUS_ASSIGN:
+            return "__iadd__";
+        case OP_MINUS_ASSIGN:
+            return "__isub__";
+        case OP_MULT_ASSIGN:
+            return "__imul__";
+        case OP_DIV_ASSIGN:
+            return "__idiv__";
+        case OP_MOD_ASSIGN:
+            return "__imod__";
+        /* bit operator */
+        case OP_AND_ASSIGN:
+            return "__iand__";
+        case OP_OR_ASSIGN:
+            return "__ior__";
+        case OP_XOR_ASSIGN:
+            return "__ixor__";
+        case OP_SHL_ASSIGN:
+            return "__ishl__";
+        case OP_SHR_ASSIGN:
+            return "__ishr__";
+        default:
+            UNREACHABLE();
+            return NULL;
+    }
+}
+
+static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
+{
+    Expr *lhs = assign->lhs;
+    Expr *rhs = assign->rhs;
+    AssignOpKind op = assign->op;
+
+    Symbol *kls_sym = get_symbol_by_id(lhs->ts->sym_id);
+    if (kls_sym->kind != SYM_CLASS) {
+        kl_error(assign->loc, "inplace assignment is not supported for '%s' type.",
+                 kls_sym->name);
+        return -1;
+    }
+
+    Symbol *op_sym = stbl_get(((KlassSymbol *)kls_sym)->stbl, get_inplace_op_str(op));
+    if (!op_sym) {
+        kl_error(assign->loc, "inplace operator '%s' is not defined for class '%s'.",
+                 get_inplace_op_str(op), kls_sym->name);
+        return -1;
+    }
+
+    if (op_sym->kind != SYM_FUNC) {
+        kl_error(assign->loc, "'%s' in class '%s' is not a function.",
+                 get_inplace_op_str(op), kls_sym->name);
+        return -1;
+    }
+
+    FuncSymbol *fn_sym = (FuncSymbol *)op_sym;
+    if (vector_size(fn_sym->params) != 1) {
+        kl_error(assign->loc,
+                 "inplace operator '%s' in class '%s' must have exactly one parameter.",
+                 get_inplace_op_str(op), kls_sym->name);
+        return -1;
+    }
+
+    ArgInfo *arg_info = vector_get_object(fn_sym->params, 0);
+    TypeSpec *param_ts = arg_info->ts;
+
+    if (!type_spec_compatible(param_ts, rhs->ts)) {
+        kl_error(assign->loc,
+                 "Types of two sides are not matched in inplace assignment.");
+        printf("lhs:");
+        print_type_spec(param_ts);
+        printf(" =/= rhs:");
+        print_type_spec(rhs->ts);
+        printf("\n");
+        return -1;
+    } else {
         log_info("inplace assignment type check passed.");
         log_info("  lhs type:");
-        log_type_spec(lhs->ts);
+        log_type_spec(param_ts);
         log_info("  rhs type:");
         log_type_spec(rhs->ts);
         return 0;
@@ -1943,25 +2060,6 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
     } else {
         log_info("compound assignment detected.");
         if (parse_inplace_assign(ps, assign)) return;
-    }
-
-    if (!type_spec_compatible(lhs->ts, rhs->ts)) {
-        if (!type_is_optional(lhs->ts) && expr_is_literal_null(rhs)) {
-            kl_error(assign->loc, "Cannot assign null to non-nullable type.");
-        } else {
-            kl_error(assign->loc, "Types of two sides are not matched.");
-        }
-        printf("lhs:");
-        print_type_spec(lhs->ts);
-        printf(" =/= rhs:");
-        print_type_spec(rhs->ts);
-        printf("\n");
-    } else {
-        log_info("assignment type check passed.");
-        log_info("  declared type:");
-        log_type_spec(lhs->ts);
-        log_info("  rhs type:");
-        log_type_spec(rhs->ts);
     }
 }
 
@@ -2048,7 +2146,7 @@ static void parse_ast(ParserState *ps)
 
 static void init_parser_state(ParserState *ps, char *filename)
 {
-    ps->filename = filename;
+    ps->filename = str_dup(filename);
     vector_init_ptr(&ps->stmts);
     vector_init_ptr(&ps->shadows);
     INIT_BUF(ps->sbuf);
@@ -2056,7 +2154,7 @@ static void init_parser_state(ParserState *ps, char *filename)
     ps->builtin = builtin;
 }
 
-static ParserState *build_ast(char *path)
+ParserState *new_parser_state(char *path)
 {
     FILE *in = fopen(path, "r");
     if (in == NULL) {
@@ -2078,34 +2176,30 @@ static ParserState *build_ast(char *path)
     return ps;
 }
 
-static void free_parser(ParserState *ps)
+void free_parser_state(ParserState *ps)
 {
     FINI_BUF(ps->sbuf);
     stbl_free(ps->stbl);
     mm_free(ps);
 }
 
-int compile(int argc, char *argv[])
+int do_compile(Vector *pss, char *output)
 {
-    if (argc < 2) {
-        printf("Usage: koalac <source files>\n");
-        return 0;
+    int errors = 0;
+
+    ParserState *ps;
+    vector_foreach(ps, pss) {
+        if (!ps) continue;
+        parse_ast(ps);
+        if (!ps->errors) {
+            // codegen_ast(ps);
+        }
+        errors += ps->errors;
     }
 
-    ParserState *ps = build_ast(argv[1]);
-    if (!ps) return -1;
+    if (errors > 0) return -1;
 
-    parse_ast(ps);
-
-    // if (!ps->errors) {
-    //     codegen_ast(ps);
-    // }
-
-    if (!ps->errors) {
-        kl_write_to_klc(ps);
-    }
-
-    free_parser(ps);
+    write_to_klc(current, output);
 
     return 0;
 }

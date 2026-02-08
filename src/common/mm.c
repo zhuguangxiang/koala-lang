@@ -141,6 +141,61 @@ void mm_stat(void)
     puts("--------------------------");
 }
 
+char *str_ntrim(char *s, int len)
+{
+    if (s == NULL) return NULL;
+    if (len == 0) return NULL;
+
+    char *fp = s;
+    char *ep = s + len - 1;
+
+    while (isspace(*fp)) {
+        ++fp;
+    }
+    if (ep != fp) {
+        while (isspace(*ep) && ep != fp) {
+            --ep;
+        }
+    }
+
+    if (ep == fp) return NULL;
+    return strndup(fp, ep - fp + 1);
+}
+
+char *str_trim(char *s) { return str_ntrim(s, strlen(s)); }
+
+int mem_nrchr(char *s, int len, char ch)
+{
+    int count = len - 1;
+    char *end = s + count;
+    while (end != s) {
+        if (*end == ch) return count;
+        --end;
+        --count;
+    }
+    return -1;
+}
+
+int str_sep(char **str, char ch, char **out)
+{
+    if (*str == NULL) return 0;
+
+    char *s = *str;
+    int count = 0;
+    while (*s) {
+        if (*s == ch) {
+            *out = *str;
+            *str = s + 1;
+            return count;
+        }
+        s++;
+        count++;
+    }
+    *out = *str;
+    *str = NULL;
+    return count;
+}
+
 #ifdef __cplusplus
 }
 #endif

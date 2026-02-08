@@ -29,7 +29,7 @@ typedef enum _TypeKind {
     TYPE_UNION,
     TYPE_UNRESOLVED,
     TYPE_GENERIC_VAR,
-    TYPE_SPECIALIZED,
+    TYPE_GENERIC_REF,
     TYPE_KLASS,
     TYPE_PROTO,
     TYPE_OPTIONAL,
@@ -72,9 +72,9 @@ typedef struct _TypeSpec {
             char *pkg;
             char *name;
             Vector *args;
-        } specialized;
+        } generic_ref;
 
-        // T, Bar, Bar[T], Bar[int]
+        // T, Bar, Bar[T], Bar[int], only used during parsing stage.
         struct {
             TypeIdent pkg;
             TypeIdent name;
@@ -106,7 +106,8 @@ typedef struct _TypeSpec {
             struct _TypeSpec *src;
         } opt;
 
-        // mangled type
+        // mangled type, not interned, only used during loading from klc
+        // _Z4Listi -> List[int] (string -> struct)
         struct {
             char *name;
             Vector *args;
@@ -117,7 +118,7 @@ typedef struct _TypeSpec {
 #define type_spec_loc(ty, _loc) (ty)->loc = (_loc)
 
 TypeSpec *generic_var_type_spec(char *name, int index, int sym_id, char *owner);
-TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args, int sym_id);
+TypeSpec *generic_ref_type_spec(char *full_pkg, char *name, Vector *args, int sym_id);
 TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args);
 TypeSpec *union_type_spec(TypeSpec *first, TypeSpec *second);
 void union_type_spec_add_arg(TypeSpec *ts, TypeSpec *arg);
@@ -130,6 +131,7 @@ TypeSpec *optional_type_spec_intern(TypeSpec *src);
 
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
+static inline int type_is_valist(TypeSpec *ts) { return ts->kind == TYPE_VA_LIST; }
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);

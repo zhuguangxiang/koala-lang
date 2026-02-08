@@ -190,7 +190,6 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token XOR_ASSIGN
 %token SHL_ASSIGN
 %token SHR_ASSIGN
-%token USHR_ASSIGN
 %token DOTDOTDOT
 
 %token L_SHIFT
@@ -1140,11 +1139,49 @@ param_list
         vector_concat($$, $3);
         vector_destroy($3);
     }
-    | id_type_arg_list error
+    | ID DOTDOTDOT
     {
-        yyclearin;
-        yyerrok;
-        $$ = NULL;
+        Ident id = {$1, loc(@1)};
+        TypeSpec *ts = va_list_type_spec();
+        type_spec_loc(ts, loc(@2));
+        ParamDecl *p = param_new(lloc(@1, @2), id, ts, NULL);
+        p->va_arg = 1;
+        $$ = vector_create_ptr();
+        vector_push_back($$, &p);
+    }
+    | ID DOTDOTDOT ',' kw_arg_list
+    {
+        Ident id = {$1, loc(@1)};
+        TypeSpec *ts = va_list_type_spec();
+        type_spec_loc(ts, loc(@2));
+        ParamDecl *p = param_new(lloc(@1, @2), id, ts, NULL);
+        p->va_arg = 1;
+        $$ = vector_create_ptr();
+        vector_push_back($$, &p);
+        vector_concat($$, $4);
+        vector_destroy($4);
+    }
+    | id_type_arg_list ',' ID DOTDOTDOT
+    {
+        $$ = $1;
+        Ident id = {$3, loc(@3)};
+        TypeSpec *ts = va_list_type_spec();
+        type_spec_loc(ts, loc(@4));
+        ParamDecl *p = param_new(lloc(@3, @4), id, ts, NULL);
+        p->va_arg = 1;
+        vector_push_back($$, &p);
+    }
+    | id_type_arg_list ',' ID DOTDOTDOT ',' kw_arg_list
+    {
+        $$ = $1;
+        Ident id = {$3, loc(@3)};
+        TypeSpec *ts = va_list_type_spec();
+        type_spec_loc(ts, loc(@4));
+        ParamDecl *p = param_new(lloc(@3, @4), id, ts, NULL);
+        p->va_arg = 1;
+        vector_push_back($$, &p);
+        vector_concat($$, $6);
+        vector_destroy($6);
     }
     ;
 
@@ -1161,26 +1198,6 @@ id_type_arg_list
         $$ = $1;
         Ident id = {$3, loc(@3)};
         ParamDecl *p = param_new(lloc(@3, @4), id, $4, NULL);
-        vector_push_back($$, &p);
-    }
-    | ID DOTDOTDOT
-    {
-        Ident id = {$1, loc(@1)};
-        TypeSpec *ts = va_list_type_spec();
-        type_spec_loc(ts, loc(@2));
-        ParamDecl *p = param_new(lloc(@1, @2), id, ts, NULL);
-        p->va_arg = 1;
-        $$ = vector_create_ptr();
-        vector_push_back($$, &p);
-    }
-    | id_type_arg_list ',' ID DOTDOTDOT
-    {
-        $$ = $1;
-        Ident id = {$3, loc(@3)};
-        TypeSpec *ts = va_list_type_spec();
-        type_spec_loc(ts, loc(@4));
-        ParamDecl *p = param_new(lloc(@3, @4), id, ts, NULL);
-        p->va_arg = 1;
         vector_push_back($$, &p);
     }
     | ID union_opt_type
@@ -1843,10 +1860,6 @@ assign_operator
     | SHR_ASSIGN
     {
         $$ = OP_SHR_ASSIGN;
-    }
-    | USHR_ASSIGN
-    {
-        $$ = OP_USHR_ASSIGN;
     }
     ;
 

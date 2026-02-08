@@ -7,8 +7,10 @@
 #define _KOALA_COMMON_H_
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <float.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>

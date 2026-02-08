@@ -9,3 +9,4 @@ cmake -G Ninja ../.. \
 
 cmake --build . --target clean
 cmake --build . --target all
+cmake --build . --target install

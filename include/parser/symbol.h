@@ -26,7 +26,7 @@ typedef enum _SymKind {
     SYM_INTF,           /* interface  */
     SYM_ANONY,          /* anonymous  */
     SYM_TYPE_PARAM,     /* type param */
-    SYM_MODULE,         /* module     */
+    SYM_PACKAGE,        /* package    */
     SYM_INSTANCE,       /* instance   */
     SYM_SHADOW_VAR,     /* shadow var */
     SYM_MAX,
@@ -90,7 +90,7 @@ typedef struct _TypeParamSymbol {
     // owner symbol
     Symbol *owner;
     // list of TypeSpec
-    Vector *bound;
+    Vector bound;
     // index in type-param list
     int index;
     // invariant/covariant
@@ -128,9 +128,9 @@ typedef struct _FuncSymbol {
 typedef struct _KlassSymbol {
     SYMBOL_HEAD
     /* type params */
-    Vector *tps;
+    Vector tps;
     /* ->TypeSpec */
-    Vector *bases;
+    Vector bases;
     /* fields */
     Vector *fields;
     /* functions */
@@ -147,10 +147,10 @@ typedef struct _KlassSymbol {
     Vector scm;
 } KlassSymbol;
 
-typedef struct _ModuleSymbol {
+typedef struct _PkgSymbol {
     SYMBOL_HEAD
     char *pkgname;
-} ModuleSymbol;
+} PkgSymbol;
 
 /* List[int] -> _Z4Listi */
 typedef struct _InstanceSymbol {
@@ -159,7 +159,7 @@ typedef struct _InstanceSymbol {
     Symbol *origin;
     /* type param binding args (T: int) */
     Vector *tp_args;
-    /* instance type(specialized) */
+    /* instance type(generic_ref) */
     TypeSpec *instance_ts;
     /* instance bases */
     Vector *bases;
@@ -190,8 +190,8 @@ Symbol *stbl_add(HashMap *stbl, Symbol *sym);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
                       Vector *params, int flags, char *ann, char *ann_key);
-Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
-Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
+KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
+TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);
 Symbol *stbl_remove(HashMap *stbl, char *name);
 
@@ -205,8 +205,8 @@ Symbol *stbl_get(HashMap *stbl, char *name);
 void stbl_show(HashMap *stbl);
 void *get_symbol_by_id(int id);
 
-Symbol *stbl_add_module(HashMap *stbl, char *path);
-Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
+PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path, HashMap *_stbl);
+InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
 
 #ifdef __cplusplus
 }

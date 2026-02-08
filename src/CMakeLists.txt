@@ -33,7 +33,6 @@ set(PARSER_SRC
     parser/emit_code.c
     parser/write_klc.c
     parser/read_klc.c
-    parser/klc_dump.c
     parser/pass.c
     parser/passes/dot.c
     parser/passes/remove_load_store.c
@@ -48,6 +47,26 @@ add_executable(koalac_out parser/main.c)
 target_link_libraries(koalac_out parser)
 set_target_properties(koalac_out PROPERTIES
     OUTPUT_NAME koalac)
+
+install(TARGETS koalac_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
+
+install(DIRECTORY ${PROJECT_BINARY_DIR}/include/
+    DESTINATION koala-${KOALA_VERSION_MAIN}/include
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "koala_lex.h" EXCLUDE
+    PATTERN "koala_yacc.h" EXCLUDE)
+
+include(${PROJECT_SOURCE_DIR}/cmake/symlink.cmake)
+install_symlink(
+    ./koala-${KOALA_VERSION_MAIN}
+    ${CMAKE_INSTALL_PREFIX}/koala)
+install_symlink(
+    ../lib/koala/bin/koalac
+    ${CMAKE_INSTALL_PREFIX}/../bin/koalac)
+install_symlink(
+    ../lib/koala/include
+    ${CMAKE_INSTALL_PREFIX}/../include/koala)
 
 set(COMMON_SOURCES
     common/sds.c

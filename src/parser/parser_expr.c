@@ -34,9 +34,6 @@ static void parse_ident(ParserState *ps, Expr *exp)
         return;
     }
 
-    exp->ts = sym->ts;
-    exp->sym = sym;
-
     if (sym->kind == SYM_VAR) {
         if (sym->status == SYM_UNRESOLVED) {
             parse_stmt(ps, sym->arg);
@@ -48,6 +45,17 @@ static void parse_ident(ParserState *ps, Expr *exp)
             // do nothing
         }
     }
+
+    if (sym->kind == SYM_FUNC) {
+        FuncSymbol *fn_sym = (FuncSymbol *)sym;
+        if (!fn_sym->ts) {
+            log_info("update func '%s' proto", fn_sym->name);
+            fn_sym->ts = func_type_spec_from_arginfo(fn_sym->params, fn_sym->ret);
+        }
+    }
+
+    exp->ts = sym->ts;
+    exp->sym = sym;
 
     log_info("ident resolved: %s", sym->name);
     log_type_spec(sym->ts);
@@ -215,66 +223,121 @@ static void parse_self(ParserState *ps, Expr *exp)
     log_type_spec(exp->ts);
 }
 
-static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc)
+static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i__)
 {
-    Expr *e;
-    ArgInfo *arg;
-    vector_foreach(arg, params) {
-        if (!arg) continue;
-        e = vector_get_object(exprs, i__);
-        // if arg has default value, the caller can pass value, kw-arg or skip it
-        if (arg->dfl_val_idx > 0) {
-            if (!e) {
-                // skip this arg, use default value
-                log_info("[check_call_args] kw-arg: %s, no value passed, skip left.",
-                         arg->name);
+    log_info("check keyword argument: '%s' at %d", kw->key.name, i__);
+
+    int param_size = vector_size(params);
+    for (int i = i__; i < param_size; i++) {
+        ArgInfo *arg = vector_get_object(params, i);
+        if (!strcmp(arg->name, kw->key.name)) {
+            if (!type_spec_compatible(arg->ts, kw->value->ts)) {
+                kl_error(kw->loc, "argument type is not compatible.");
+            }
+            return;
+        }
+    }
+
+    kl_error(kw->loc, "unexpected keyword argument: '%s'", kw->key.name);
+}
+
+static void check_dfl_param(ParserState *ps, Vector *params, Vector *exprs, int i__,
+                            int j__)
+{
+    int expr_size = vector_size(exprs);
+    for (int j = j__; j < expr_size; j++) {
+        Expr *e = vector_get_object(exprs, j);
+        ArgInfo *arg = vector_get_object(params, i__);
+        if (!e) {
+            // use default values for the rest parameters
+            log_info("kw-param: %s, no value passed, skip the rest.", arg->name);
+            return;
+        }
+
+        if (e->kind == EXPR_KW_KIND) {
+            KeyWordExpr *kw = (KeyWordExpr *)e;
+            log_info("kw-arg: '%s', check kw-arg", kw->key.name);
+            check_kw_arg(ps, params, kw, i__);
+        } else {
+            if (!arg) {
+                kl_error(e->loc, "too many positional arguments in function call.");
                 return;
             }
+            log_info("kw-param: '%s', check value", arg->name);
+            if (!type_spec_compatible(arg->ts, e->ts)) {
+                kl_error(e->loc, "argument type is not compatible.");
+            }
+            ++i__;
+        }
+    }
+}
 
-            if (e->kind == EXPR_KW_KIND) {
-                // positional arg
-                int size = vector_size(exprs);
-                for (int i = i__; i < size; i++) {
-                    e = vector_get_object(exprs, i);
-                    ASSERT(e->kind == EXPR_KW_KIND);
-                    KeyWordExpr *kw = (KeyWordExpr *)e;
-                    if (strcmp(kw->key.name, arg->name) != 0) {
-                        continue;
-                    }
-                    log_info(
-                        "[check_call_args] kw-arg: '%s', pass kw-arg, check kw-value "
-                        "type compatible",
-                        arg->name);
-                    if (!type_spec_compatible(arg->ts, e->ts)) {
-                        kl_error(e->loc, "argument type is not compatible.");
-                        return;
-                    }
-                }
-            } else {
-                log_info(
-                    "[check_call_args] kw-arg: '%s', pass value only, check value type "
-                    "compatible",
-                    arg->name);
-                if (!type_spec_compatible(arg->ts, e->ts)) {
-                    kl_error(e->loc, "argument type is not compatible.");
+static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc fn_loc)
+{
+    Expr *e1;
+    vector_foreach(e1, exprs) {
+        Expr *e2;
+        vector_foreach(e2, exprs) {
+            if (e1 == e2) continue;
+            if (e1->kind == EXPR_KW_KIND && e2->kind == EXPR_KW_KIND) {
+                KeyWordExpr *kw1 = (KeyWordExpr *)e1;
+                KeyWordExpr *kw2 = (KeyWordExpr *)e2;
+                if (strcmp(kw1->key.name, kw2->key.name) == 0) {
+                    kl_error(kw2->loc, "duplicate keyword argument: '%s'", kw2->key.name);
                     return;
                 }
             }
-        } else {
+        }
+    }
+
+    int param_size = vector_size(params);
+    int i__ = 0;
+    int j__ = 0;
+    while (i__ < param_size) {
+        ArgInfo *arg = vector_get_object(params, i__);
+        // 1. kw-param: pass value with keyword argument, e.g. foo(x=10)
+        // 2. pass value only, e.g. foo(10)
+        // 3. skip it, e.g. foo() for foo(x=10)
+        if (arg->dfl_val_idx > 0) {
+            check_dfl_param(ps, params, exprs, i__, j__);
+            return;
+        }
+
+        Expr *e = vector_get_object(exprs, j__++);
+
+        if (!type_is_valist(arg->ts)) {
+            // required param, caller must pass value
             if (!e) {
                 kl_error(fn_loc, "too few arguments in function call.");
                 return;
             }
 
+            if (e->kind == EXPR_KW_KIND) {
+                KeyWordExpr *kw = (KeyWordExpr *)e;
+                kl_error(
+                    kw->loc,
+                    "require a positional argument, but got a keyword argument: '%s'",
+                    kw->key.name);
+            }
+
+            log_info("param '%s' is positional argument", arg->name);
+
             if (!type_spec_compatible(arg->ts, e->ts)) {
                 kl_error(e->loc, "argument type is not compatible.");
-                return;
             }
-            log_info("[check_call_args] arg: '%s' type is compatible", arg->name);
-            log_info("lhs:");
-            log_type_spec(arg->ts);
-            log_info("rhs:");
-            log_type_spec(e->ts);
+
+            ++i__;
+        } else {
+            // no more arguments passed.
+            if (!e) return;
+
+            if (e->kind == EXPR_KW_KIND) {
+                KeyWordExpr *kw = (KeyWordExpr *)e;
+                check_kw_arg(ps, params, kw, i__ + 1);
+            } else {
+                // var-arg, caller can pass 0 or more values
+                log_info("param '%s' is var-arg, no check for var-arg type", arg->name);
+            }
         }
     }
 }
@@ -302,11 +365,9 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, Vector *tp_args, ParserState *
     TypeSpec *inst_ts;
     if (ts->kind == TYPE_GENERIC_VAR) {
         inst_ts = vector_get_object(tp_args, ts->generic_var.index);
-    } else if (ts->kind == TYPE_SPECIALIZED) {
+    } else if (ts->kind == TYPE_GENERIC_REF) {
         Symbol *sym = get_symbol_by_id(ts->sym_id);
-        sym = find_or_add_instance(ps->stbl, sym, tp_args);
-        ASSERT(sym->kind == SYM_INSTANCE);
-        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, sym, tp_args);
         inst_ts = inst_sym->instance_ts;
     } else {
         inst_ts = ts;
@@ -624,7 +685,7 @@ static void parse_index(ParserState *ps, Expr *exp)
             return;
         }
 
-        int tp_size = vector_size(kls_sym->tps);
+        int tp_size = vector_size(&kls_sym->tps);
         if (tp_size != vector_size(index->vec)) {
             kl_error(exp->loc,
                      "type '%s' expects %d type arguments, but %d were provided.",
@@ -654,9 +715,9 @@ static void parse_index(ParserState *ps, Expr *exp)
             }
 
             TypeParamSymbol *tp_sym =
-                (TypeParamSymbol *)vector_get_object(kls_sym->tps, i__);
+                (TypeParamSymbol *)vector_get_object(&kls_sym->tps, i__);
             TypeSpec *bound_ts;
-            vector_foreach(bound_ts, tp_sym->bound) {
+            vector_foreach(bound_ts, &tp_sym->bound) {
                 if (!bound_ts) continue;
                 if (!type_spec_compatible(bound_ts, arg_ts)) {
                     kl_error(arg->loc,
@@ -671,9 +732,10 @@ static void parse_index(ParserState *ps, Expr *exp)
         }
 
         // create or find instance symbol(List<int>)
-        Symbol *inst_sym = find_or_add_instance(ps->stbl, (Symbol *)kls_sym, tp_args);
+        InstanceSymbol *inst_sym =
+            find_or_add_instance(ps->stbl, (Symbol *)kls_sym, tp_args);
         exp->ts = inst_sym->ts;
-        exp->sym = inst_sym;
+        exp->sym = (Symbol *)inst_sym;
         log_info("generic type instance created/got: %s", inst_sym->name);
         log_type_spec(inst_sym->ts);
     } else {
@@ -817,11 +879,13 @@ static void parse_unary(ParserState *ps, Expr *exp)
                     // change comparison operator to its negation
                     bin->op = bin_op_reverse(bin->op);
                     log_info(
-                        "optimize unary '!'(%d) on comparison operator to its negation.",
+                        "optimize unary '!'(%d) on comparison operator to its "
+                        "negation.",
                         count);
                 } else {
                     log_info(
-                        "optimize unary '!'(%d) on comparison operator, double negation "
+                        "optimize unary '!'(%d) on comparison operator, double "
+                        "negation "
                         "eliminated.",
                         count);
                 }
@@ -883,10 +947,10 @@ static void parse_binary(ParserState *ps, Expr *exp)
             log_info("  note: symbol '%s' is a shadow variable.", opt_sym->name);
             log_info("  value is null: %s", shadow_sym->is_null ? "true" : "false");
             if (shadow_sym->is_null) {
-                kl_error(
-                    bin->op_loc,
-                    "optional type cannot be used with '%s' operator when value is null.",
-                    get_binary_op_str(op));
+                kl_error(bin->op_loc,
+                         "optional type cannot be used with '%s' operator when value "
+                         "is null.",
+                         get_binary_op_str(op));
                 return;
             }
         }
@@ -924,10 +988,10 @@ static void parse_binary(ParserState *ps, Expr *exp)
         }
 
         if (type_is_optional(lhs->ts) && !type_is_optional(rhs->ts)) {
-            kl_error(
-                bin->op_loc,
-                "cannot compare optional type with non-optional type for '%s' operator.",
-                get_binary_op_str(op));
+            kl_error(bin->op_loc,
+                     "cannot compare optional type with non-optional type for '%s' "
+                     "operator.",
+                     get_binary_op_str(op));
             return;
         }
 

@@ -152,8 +152,10 @@ void kl_error_detail(ParserState *, Loc *);
 
 void parser_visit_expr(ParserState *ps, Expr *exp);
 void parse_top_stmt(ParserState *ps, Stmt *stmt);
-int compile(int argc, char *argv[]);
 void codegen_ast(ParserState *ps);
+ParserState *new_parser_state(char *path);
+void free_parser_state(ParserState *ps);
+int do_compile(Vector *pss, char *output);
 
 void init_parser(void);
 void fini_parser(void);
@@ -167,8 +169,8 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts);
 int check_type(ParserState *ps, TypeSpec *ts);
 int type_spec_compatible(TypeSpec *dst, TypeSpec *src);
 
-void kl_write_to_klc(ParserState *ps);
-void load_module(ModuleSymbol *mod_sym, char *path);
+void write_to_klc(HashMap *stbl, char *path);
+HashMap *load_module(char *path);
 void kl_emit(ParserState *ps, KlrModule *m);
 
 #ifdef __cplusplus

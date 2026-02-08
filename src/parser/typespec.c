@@ -37,8 +37,8 @@ void type_spec_free(TypeSpec *ts)
     }
 
     // free args
-    if (ts->kind == TYPE_SPECIALIZED) {
-        Vector *args = ts->specialized.args;
+    if (ts->kind == TYPE_GENERIC_REF) {
+        Vector *args = ts->generic_ref.args;
         if (args) {
             TypeSpec *arg;
             vector_foreach(arg, args) {
@@ -46,7 +46,7 @@ void type_spec_free(TypeSpec *ts)
                 type_spec_free(arg);
             }
             vector_destroy(args);
-            ts->specialized.args = NULL;
+            ts->generic_ref.args = NULL;
         }
     } else if (ts->kind == TYPE_UNRESOLVED) {
         Vector *args = ts->unresolved.args;
@@ -460,6 +460,13 @@ void typespec_init(void)
     hashmap_put(&type_map, ts);
 }
 
+void typespec_fini(void)
+{
+    // TODO: free type specs in type_list
+    hashmap_fini(&type_map, NULL, NULL);
+    vector_fini(&type_list);
+}
+
 TypeSpec *type_spec_intern(TypeSpec *ts)
 {
     TypeSpec *old_ts = hashmap_get(&type_map, ts);
@@ -573,13 +580,13 @@ TypeSpec *generic_var_type_spec(char *name, int index, int sym_id, char *owner)
     return type_spec_intern(ts);
 }
 
-TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args, int sym_id)
+TypeSpec *generic_ref_type_spec(char *full_pkg, char *name, Vector *args, int sym_id)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
-    ts->kind = TYPE_SPECIALIZED;
-    ts->specialized.pkg = full_pkg;
-    ts->specialized.name = name;
-    ts->specialized.args = NULL;
+    ts->kind = TYPE_GENERIC_REF;
+    ts->generic_ref.pkg = full_pkg;
+    ts->generic_ref.name = name;
+    ts->generic_ref.args = NULL;
     if (args != NULL) {
         Vector *arg_copy = vector_create_ptr();
         TypeSpec *arg;
@@ -587,7 +594,7 @@ TypeSpec *specialized_type_spec(char *full_pkg, char *name, Vector *args, int sy
             if (!arg) continue;
             vector_push_back(arg_copy, &arg);
         }
-        ts->specialized.args = arg_copy;
+        ts->generic_ref.args = arg_copy;
     }
     ts->type_id = -1;
     ts->sym_id = sym_id;
@@ -722,13 +729,13 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
             buf_write_char(buf, ';');
             break;
         }
-        case TYPE_SPECIALIZED: {
+        case TYPE_GENERIC_REF: {
             buf_write_char(buf, 'L');
-            buf_write_str(buf, ts->specialized.name);
-            if (vector_size(ts->specialized.args) > 0) {
+            buf_write_str(buf, ts->generic_ref.name);
+            if (vector_size(ts->generic_ref.args) > 0) {
                 buf_write_char(buf, '<');
                 TypeSpec *_ts;
-                vector_foreach(_ts, ts->specialized.args) {
+                vector_foreach(_ts, ts->generic_ref.args) {
                     if (!_ts) continue;
                     type_spec_to_str(_ts, buf);
                 }
@@ -805,7 +812,7 @@ static TypeSpec *__to_specialized_type(char *s, int len, Vector *args)
     } else {
         type = atom_nstr(s, len);
     }
-    return specialized_type_spec(path, type, args, -1);
+    return generic_ref_type_spec(path, type, args, -1);
 }
 
 static TypeSpec *__to_mangled_type(char *s, int len, Vector *args)
@@ -1029,13 +1036,13 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         buf_write_str(buf, ts->unresolved.name.name);
     } else if (ts->kind == TYPE_GENERIC_VAR) {
         buf_write_str(buf, ts->generic_var.name);
-    } else if (ts->kind == TYPE_SPECIALIZED) {
-        buf_write_str(buf, ts->specialized.name);
-        if (vector_size(ts->specialized.args) > 0) {
+    } else if (ts->kind == TYPE_GENERIC_REF) {
+        buf_write_str(buf, ts->generic_ref.name);
+        if (vector_size(ts->generic_ref.args) > 0) {
             buf_write_char(buf, '[');
             TypeSpec *arg;
             int i__ = 0;
-            vector_foreach(arg, ts->specialized.args) {
+            vector_foreach(arg, ts->generic_ref.args) {
                 if (!arg) continue;
                 if (i__ != 0) buf_write_str(buf, ", ");
                 type_spec_print(arg, buf);

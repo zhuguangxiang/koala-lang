@@ -458,7 +458,6 @@ typedef enum _AssignOpKind {
     OP_XOR_ASSIGN,
     OP_SHL_ASSIGN,
     OP_SHR_ASSIGN,
-    OP_USHR_ASSIGN,
 } AssignOpKind;
 
 typedef struct _AssignStmt {

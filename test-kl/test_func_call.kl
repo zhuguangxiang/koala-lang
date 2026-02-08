@@ -1,0 +1,94 @@
+// RUN: koalac %s | filecheck %s
+
+func fn1(v int, valist ...) int {
+    return v + 20
+}
+
+fn1(10)
+fn1(1, 2, 3)
+fn1(1, 2, v = 1, v2 = 2)
+// CHECK: unexpected keyword argument: 'v'
+// CHECK-NEXT: unexpected keyword argument: 'v2'
+
+func fn2(v int, v1 = 1, v2 = 2) int {
+    return v + 10
+}
+
+fn2(10)
+fn2(10, v1 = 100)
+fn2(10, v2 = 200)
+fn2(10, v1 = 100, v2 = 200)
+fn2(10, v2 = 100, v1 = 200)
+fn2(10, 100)
+fn2(10, 100, 200)
+
+fn2(10, 100, 200, 300)
+// CHECK-NEXT: too many positional arguments in function call.
+
+fn2(10, 100, v2 = 200)
+fn2(10, 100, v1 = 200)
+// CHECK-NEXT: unexpected keyword argument: 'v1'
+
+// fn2(10, v1 = 100, 200) // grammar error: positional argument follows keyword argument
+
+fn2(10, v1 = 100, v1 = 200)
+// CHECK-NEXT: duplicate keyword argument: 'v1'
+
+fn2(10, v3 = 100)
+// CHECK-NEXT: unexpected keyword argument: 'v3'
+
+fn2(v1 = 100)
+// CHECK-NEXT: require a positional argument, but got a keyword argument: 'v1'
+
+func fn3(v int, valist ..., msg = "hello") int {
+    return v + 30
+}
+
+fn3(10)
+fn3(10, 1, 2, 3)
+fn3(10, msg = "world")
+fn3(10, 1, 2, 3, msg = "world")
+
+func fn4(v int, valist ..., msg = "bilibili", flag = true) int {
+    return v + 40
+}
+
+fn4(10)
+fn4(10, 1, 2, 3)
+fn4(10, msg = "world")
+fn4(10, 1, 2, 3, msg = "world")
+fn4(10, 1, 2, 3, msg = "world", flag = false)
+fn4(10, 1, 2, 3, flag = false, msg = "world")
+fn4(10, 1, 2, 3, flag = false)
+fn4(10, 1, 2, 3, msg = "world")
+fn4(10, 1, 2, 3, flag = false, msg = "world", extra = 100)
+// CHECK-NEXT: unexpected keyword argument: 'extra'
+
+func fn5(valist ...) int {
+    return 50
+}
+
+fn5()
+fn5(1, 2, 3)
+fn5(msg = "hello")
+// CHECK-NEXT: unexpected keyword argument: 'msg'
+fn5(1, 2, 3, msg = "hello")
+// CHECK-NEXT: unexpected keyword argument: 'msg'
+
+func fn6(valist ..., msg = "world", flag = false) int {
+    return 60
+}
+
+func fn7(v1 = 1, v2 = 2) int {
+    return v1 + 10
+}
+
+fn7()
+fn7(v1 = 100)
+fn7(v2 = 200)
+fn7(v1 = 100, v2 = 200)
+fn7(v2 = 100, v1 = 200)
+fn7(100)
+fn7(100, 200)
+
+// CHECK-NOT: {{.}}

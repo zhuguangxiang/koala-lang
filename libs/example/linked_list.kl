@@ -1,0 +1,34 @@
+
+class Node {
+    var next Node?
+    var val int
+
+    func __init__(_val int) {
+        val = _val
+        next = null
+    }
+}
+
+pub class LinkedList {
+    var head Node?
+    var tail Node?
+    var count int
+
+    pub func __init__() {
+        head = null
+        tail = null
+        count = 0
+    }
+
+    pub func add(val int) {
+        let n = Node(val)
+        if (tail == null) {
+            head = n
+            tail = n
+        } else {
+            tail.next = n
+            tail = n
+        }
+        count += 1
+    }
+}

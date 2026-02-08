@@ -164,6 +164,9 @@ pub class int64 : Number[int64] {
 
     @intrinsic
     pub func __neq__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __iadd__(rhs int64) int64 {}
 }
 
 pub class uint8 : Number[uint8] {

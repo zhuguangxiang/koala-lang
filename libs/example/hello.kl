@@ -1,0 +1,8 @@
+
+class Foo {
+    func __init__() {
+        print("hello, world!")
+    }
+}
+
+print("hello, world!")

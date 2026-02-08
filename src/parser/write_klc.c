@@ -46,16 +46,10 @@ static uint16_t klc_add_const(KlcFile *klc, Literal *lit)
     return index;
 }
 
-void kl_write_to_klc(ParserState *ps)
+void write_to_klc(HashMap *stbl, char *path)
 {
-    HashMap *stbl = ps->stbl;
-
-    BUF(output);
-    buf_write_str(&output, ps->filename);
-    buf_write_char(&output, 'c');
-
     KlcFile klc;
-    init_klc_file(&klc, BUF_STR(output));
+    init_klc_file(&klc, path);
 
     HashMapIter it = { 0 };
     while (hashmap_next(stbl, &it)) {
@@ -111,10 +105,10 @@ void kl_write_to_klc(ParserState *ps)
                 }
 
                 // add byte codes
-                if (fn->ir_val) {
-                    printf("byte codes: %p\n", fn->ir_val);
-                    kl_emit_func(ps, (KlrFunc *)fn->ir_val, f);
-                }
+                // if (fn->ir_val) {
+                // printf("byte codes: %p\n", fn->ir_val);
+                // kl_emit_func(ps, (KlrFunc *)fn->ir_val, f);
+                // }
                 break;
             }
             case SYM_CLASS: {
@@ -127,16 +121,16 @@ void kl_write_to_klc(ParserState *ps)
 
                 KlcKlass *klass = klc_add_klass(&klc, kls->name, flags);
 
-                if (vector_size(kls->tps) > 0) {
+                if (vector_size(&kls->tps) > 0) {
                     TypeParamSymbol *tp;
-                    vector_foreach(tp, kls->tps) {
+                    vector_foreach(tp, &kls->tps) {
                         if (!tp) continue;
 
                         KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
 
-                        if (vector_size(tp->bound) > 0) {
+                        if (vector_size(&tp->bound) > 0) {
                             TypeSpec *ts;
-                            vector_foreach(ts, tp->bound) {
+                            vector_foreach(ts, &tp->bound) {
                                 if (!ts) continue;
                                 uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                              strlen(ts->signature));
@@ -146,9 +140,9 @@ void kl_write_to_klc(ParserState *ps)
                     }
                 }
 
-                if (vector_size(kls->bases) > 0) {
+                if (vector_size(&kls->bases) > 0) {
                     TypeSpec *ts;
-                    vector_foreach(ts, kls->bases) {
+                    vector_foreach(ts, &kls->bases) {
                         if (!ts) continue;
                         uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                      strlen(ts->signature));
@@ -199,15 +193,15 @@ void kl_write_to_klc(ParserState *ps)
 
                 KlcKlass *klass = klc_add_klass(&klc, kls->name, flags);
 
-                if (vector_size(kls->tps) > 0) {
+                if (vector_size(&kls->tps) > 0) {
                     TypeParamSymbol *tp;
-                    vector_foreach(tp, kls->tps) {
+                    vector_foreach(tp, &kls->tps) {
                         if (!tp) continue;
                         KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
 
-                        if (vector_size(tp->bound) > 0) {
+                        if (vector_size(&tp->bound) > 0) {
                             TypeSpec *ts;
-                            vector_foreach(ts, tp->bound) {
+                            vector_foreach(ts, &tp->bound) {
                                 if (!ts) continue;
                                 uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                              strlen(ts->signature));
@@ -217,9 +211,9 @@ void kl_write_to_klc(ParserState *ps)
                     }
                 }
 
-                if (vector_size(kls->bases) > 0) {
+                if (vector_size(&kls->bases) > 0) {
                     TypeSpec *ts;
-                    vector_foreach(ts, kls->bases) {
+                    vector_foreach(ts, &kls->bases) {
                         if (!ts) continue;
                         uint16_t index = klc_add_str(klass->filp, ts->signature,
                                                      strlen(ts->signature));
@@ -276,23 +270,7 @@ void kl_write_to_klc(ParserState *ps)
 
     write_klc_file(&klc);
 
-#ifndef NOLOG
-    klc_dump(&klc);
-#endif
-
     fini_klc_file(&klc);
-
-    log_info("read klc file: %s", BUF_STR(output));
-
-    KlcFile klc2;
-    init_klc_file(&klc2, BUF_STR(output));
-    read_klc_file(&klc2, 1);
-
-#ifndef NOLOG
-    klc_dump(&klc2);
-#endif
-
-    FINI_BUF(output);
 }
 
 #ifdef __cplusplus

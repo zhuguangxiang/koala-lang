@@ -378,10 +378,7 @@ static FILE *open_klc_file(const char *path, char *mode)
     FILE *fp = fopen(path, mode);
     if (fp == NULL) {
         char *end = strrchr(path, '/');
-        if (!end) {
-            print_error("Cannot open '%s'.", path);
-            return NULL;
-        }
+        if (!end) return NULL;
 
         /* path contains directories, create them */
         BUF(cmd);
@@ -393,10 +390,7 @@ static FILE *open_klc_file(const char *path, char *mode)
 
         /* reopen */
         fp = fopen(path, mode);
-        if (fp == NULL) {
-            print_error("Cannot open '%s'.", path);
-            return NULL;
-        }
+        if (fp == NULL) return NULL;
     }
     return fp;
 }
@@ -938,22 +932,58 @@ static void read_codes(KlcFile *klc, Vector *vec)
     }
 }
 
-int read_klc_file(KlcFile *klc, int all)
+static int check_header(KlcFile *klc)
 {
-    FILE *fp = open_klc_file(klc->path, "r");
+    if (memcmp(klc->magic, "klc", 4) != 0) {
+        fprintf(stderr, "Invalid klc file: magic mismatch\n");
+        return -1;
+    }
+
+    if (klc->version > KOALA_VERSION) {
+        fprintf(stderr, "klc version %u is not supported by this Koala version %u\n",
+                klc->version, KOALA_VERSION);
+        return -1;
+    }
+
+    return 0;
+}
+
+KlcFile *read_klc_file(char *path, int all)
+{
+    FILE *fp = fopen(path, "r");
+    if (!fp) return NULL;
+
+    KlcFile *klc = mm_alloc_obj(klc);
     klc->filp = fp;
+    hashmap_init(&klc->map, __item_entry_equal);
+    void *empty = NULL;
+    for (int i = 0; i < ITEM_MAX; i++) {
+        vector_init_ptr(klc->objs + i);
+        vector_push_back(klc->objs + i, &empty);
+    }
+
     read_bytes(klc, klc->magic, 4);
     read_uint32(klc, &klc->version);
+
+    if (check_header(klc)) {
+        fclose(fp);
+        free_klc_file(klc);
+        return NULL;
+    }
+
     read_consts(klc, klc->objs + ITEM_CONST);
     read_vars(klc, klc->objs + ITEM_VAR);
     read_funcs(klc, klc->objs + ITEM_FUNC);
     read_classes(klc, klc->objs + ITEM_CLASS);
+
     if (all) {
         read_relocs(klc, klc->objs + ITEM_RELOC);
         read_codes(klc, klc->objs + ITEM_CODE);
     }
+
     fclose(fp);
-    return 0;
+
+    return klc;
 }
 
 void init_klc_file(KlcFile *klc, const char *path)
@@ -1041,6 +1071,12 @@ void fini_klc_file(KlcFile *klc)
     fini_class(klc->objs + ITEM_CLASS);
     fini_relocs(klc->objs + ITEM_RELOC);
     fini_codes(klc->objs + ITEM_CODE);
+}
+
+void free_klc_file(KlcFile *klc)
+{
+    fini_klc_file(klc);
+    mm_free(klc);
 }
 
 KlcConst *klc_get_const(KlcFile *klc, uint16_t index)

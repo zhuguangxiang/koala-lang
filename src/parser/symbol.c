@@ -49,7 +49,7 @@ void __symbol_free__(Symbol *sym, void *arg)
         case SYM_TYPE_PARAM: {
             break;
         }
-        case SYM_MODULE: {
+        case SYM_PACKAGE: {
             break;
         }
         case SYM_INSTANCE: {
@@ -156,7 +156,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
     return (Symbol *)sym;
 }
 
-Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait)
+KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait)
 {
     KlassSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(name));
@@ -172,16 +172,18 @@ Symbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait)
         sym->protos = vector_create_ptr();
         sym->flags = flags;
         sym->stbl = stbl_new();
+        vector_init_ptr(&sym->tps);
+        vector_init_ptr(&sym->bases);
         vector_init_ptr(&sym->pip);
         vector_init_ptr(&sym->lro);
         vector_init_ptr(&sym->scm);
         add_to_global(sym);
     }
 
-    return (Symbol *)sym;
+    return sym;
 }
 
-Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner)
+TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner)
 {
     TypeParamSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(name));
@@ -193,6 +195,7 @@ Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner)
         mm_free(sym);
         sym = NULL;
     } else {
+        vector_init_ptr(&sym->bound);
         sym->stbl = stbl_new();
         add_to_global(sym);
     }
@@ -205,31 +208,31 @@ Symbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner)
     }
 #endif
 
-    return (Symbol *)sym;
+    return sym;
 }
 
-Symbol *stbl_add_module(HashMap *stbl, char *path)
+PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path, HashMap *_stbl)
 {
-    ModuleSymbol *sym = mm_alloc_obj(sym);
+    PkgSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(path));
-    sym->kind = SYM_MODULE;
+    sym->kind = SYM_PACKAGE;
     sym->name = path;
 
     if (hashmap_put_absent(stbl, sym) < 0) {
         mm_free(sym);
         sym = NULL;
     } else {
-        sym->stbl = stbl_new();
+        sym->stbl = _stbl;
         add_to_global(sym);
     }
 #ifndef NOLOG
     if (sym) {
-        log_info("add module('%s') OK", path);
+        log_info("add package('%s') OK", path);
     } else {
-        log_info("add module('%s') failed", path);
+        log_info("add package('%s') failed", path);
     }
 #endif
-    return (Symbol *)sym;
+    return sym;
 }
 
 static char *mangle_type_name(char *base_name, Vector *tp_args)
@@ -278,9 +281,9 @@ static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, char *mangled_na
     return (Symbol *)sym;
 }
 
-static Symbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *tp_args)
+static InstanceSymbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *tp_args)
 {
-    ASSERT(ts->kind == TYPE_SPECIALIZED);
+    ASSERT(ts->kind == TYPE_GENERIC_REF);
 
     Symbol *origin_sym = get_symbol_by_id(ts->sym_id);
     ASSERT(origin_sym->kind == SYM_CLASS || origin_sym->kind == SYM_TRAIT);
@@ -288,14 +291,14 @@ static Symbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *tp_args)
     Vector *base_tp_args = vector_create_ptr();
     TypeSpec *spec_arg_ts;
     TypeSpec *arg_ts;
-    vector_foreach(arg_ts, ts->specialized.args) {
+    vector_foreach(arg_ts, ts->generic_ref.args) {
         if (!arg_ts) continue;
         if (arg_ts->kind == TYPE_GENERIC_VAR) {
             spec_arg_ts = vector_get_object(tp_args, arg_ts->generic_var.index);
-        } else if (arg_ts->kind == TYPE_SPECIALIZED) {
-            // nested specialized type
-            Symbol *spec_arg_sym = instance_type_spec(stbl, arg_ts, tp_args);
-            spec_arg_ts = ((InstanceSymbol *)spec_arg_sym)->instance_ts;
+        } else if (arg_ts->kind == TYPE_GENERIC_REF) {
+            // nested generic_ref type
+            InstanceSymbol *spec_arg_sym = instance_type_spec(stbl, arg_ts, tp_args);
+            spec_arg_ts = spec_arg_sym->instance_ts;
         } else {
             ASSERT(arg_ts->kind != TYPE_UNRESOLVED);
             spec_arg_ts = arg_ts;
@@ -306,7 +309,7 @@ static Symbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *tp_args)
     return find_or_add_instance(stbl, origin_sym, base_tp_args);
 }
 
-Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
+InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
 {
     ASSERT(origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT);
 
@@ -314,7 +317,8 @@ Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
     Symbol *sym = stbl_get(stbl, mangled_name);
     if (sym) {
         log_info("found existing instance symbol '%s'", mangled_name);
-        return sym;
+        ASSERT(sym->kind == SYM_INSTANCE);
+        return (InstanceSymbol *)sym;
     }
 
     sym = stbl_add_instance(stbl, origin, mangled_name, tp_args);
@@ -323,20 +327,20 @@ Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
     KlassSymbol *kls_sym = (KlassSymbol *)origin;
 
     // set instance bases
-    if (!vector_empty(kls_sym->bases)) {
+    if (!vector_empty(&kls_sym->bases)) {
         log_info("updating instance bases for '%s'", mangled_name);
         inst_sym->bases = vector_create_ptr();
         TypeSpec *base_ts;
-        vector_foreach(base_ts, kls_sym->bases) {
+        vector_foreach(base_ts, &kls_sym->bases) {
             if (!base_ts) continue;
             if (base_ts->kind == TYPE_KLASS) {
                 vector_push_back(inst_sym->bases, &base_ts);
             } else {
-                // handle specialized base class/trait
-                ASSERT(base_ts->kind == TYPE_SPECIALIZED);
+                // handle generic_ref base class/trait
+                ASSERT(base_ts->kind == TYPE_GENERIC_REF);
                 // specialize base class/trait
-                Symbol *base_sym = instance_type_spec(stbl, base_ts, tp_args);
-                base_ts = ((InstanceSymbol *)base_sym)->instance_ts;
+                InstanceSymbol *base_sym = instance_type_spec(stbl, base_ts, tp_args);
+                base_ts = base_sym->instance_ts;
                 vector_push_back(inst_sym->bases, &base_ts);
                 ASSERT(base_ts->kind == TYPE_KLASS);
             }
@@ -345,7 +349,7 @@ Symbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
         }
     }
 
-    return sym;
+    return inst_sym;
 }
 
 Symbol *stbl_get(HashMap *stbl, char *name)

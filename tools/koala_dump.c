@@ -415,7 +415,7 @@ static void dump_relocs(Vector *vec, KlcFile *klc)
     }
 }
 
-void klc_dump(KlcFile *klc)
+static void dump(KlcFile *klc)
 {
     dump_consts(klc->objs + ITEM_CONST);
     dump_vars(klc->objs + ITEM_VAR, klc);
@@ -424,6 +424,22 @@ void klc_dump(KlcFile *klc)
     dump_relocs(klc->objs + ITEM_RELOC, klc);
 }
 
-#ifdef __cplusplus
+int main(int argc, char *argv[])
+{
+    if (argc != 2) {
+        fprintf(stderr, "usage: %s <klc file>\n", argv[0]);
+        return -1;
+    }
+
+    KlcFile *klc = read_klc_file(argv[1], 0);
+    if (!klc) {
+        fprintf(stderr, "failed to read klc file: %s\n", argv[1]);
+        return -1;
+    }
+
+    dump(klc);
+
+    free_klc_file(klc);
+
+    return 0;
 }
-#endif

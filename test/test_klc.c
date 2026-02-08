@@ -40,12 +40,6 @@ int main(int argc, char *argv[])
     write_klc_file(&klc);
     fini_klc_file(&klc);
 
-    KlcFile klc2;
-    init_klc_file(&klc2, "test_klc.klc");
-    read_klc_file(&klc2, 1);
-    klc_dump(&klc2);
-    fini_klc_file(&klc2);
-
     kl_fini();
     return 0;
 }

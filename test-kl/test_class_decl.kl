@@ -22,6 +22,19 @@ class Baz1 : Bar & Fly & Swim {
 // CHECK-NEXT: 'Bar' is not trait, only trait can be used as base
 // CHECK-NEXT: Type argument mismatch: 'Swim' expects 1 argument(s), but 0 were provided
 
+class Node {
+    var next Node?
+    var val int
+
+    func __init__(val int) {
+        // CHECK-NEXT: parameter 'val' conflicts with field name in class 'Node'
+        val = val
+        // CHECK-NEXT: cannot assign to immutable variable 'val'
+        next = null
+    }
+}
+
+
 class Baz[T] : Fly & Swim[T] {
 
     var value T
@@ -78,7 +91,7 @@ trait Animal {
 class Dog : Animal {
     var name str
 
-    func __init__(name str) {
+    func __init__(_name str) {
     }
 
     func sound() str {

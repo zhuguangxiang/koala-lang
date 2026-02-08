@@ -184,11 +184,11 @@ void init_klc_file(KlcFile *klc, const char *path);
 void fini_klc_file(KlcFile *klc);
 
 int write_klc_file(KlcFile *klc);
-int read_klc_file(KlcFile *klc, int all);
+
+KlcFile *read_klc_file(char *path, int all);
+void free_klc_file(KlcFile *klc);
 
 KlcConst *klc_get_const(KlcFile *klc, uint16_t index);
-
-void klc_dump(KlcFile *klc);
 
 #ifdef __cplusplus
 }
