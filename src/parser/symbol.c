@@ -24,9 +24,9 @@ static void add_to_global(void *_sym)
 
 void *get_symbol_by_id(int id)
 {
-    void **p = vector_get(&all_symbols, id);
+    void *p = vector_get(&all_symbols, id);
     if (!p) return NULL;
-    return *p;
+    return p;
 }
 
 void __symbol_free__(Symbol *sym, void *arg)
@@ -294,7 +294,7 @@ static InstanceSymbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *t
     vector_foreach(arg_ts, ts->generic_ref.args) {
         if (!arg_ts) continue;
         if (arg_ts->kind == TYPE_GENERIC_VAR) {
-            spec_arg_ts = vector_get_object(tp_args, arg_ts->generic_var.index);
+            spec_arg_ts = vector_get(tp_args, arg_ts->generic_var.index);
         } else if (arg_ts->kind == TYPE_GENERIC_REF) {
             // nested generic_ref type
             InstanceSymbol *spec_arg_sym = instance_type_spec(stbl, arg_ts, tp_args);

@@ -115,7 +115,7 @@ static void do_fixup(LoadContext *ctx)
         switch (entry->kind) {
             case FIXUP_TP_BOUND: {
                 TypeParamSymbol *tp = (TypeParamSymbol *)entry->owner;
-                TypeSpec **ts_ptr = vector_get(&tp->bound, entry->index);
+                TypeSpec **ts_ptr = vector_get_ptr(&tp->bound, entry->index);
                 fixup_type_spec(ts_ptr, ctx);
                 break;
             }
@@ -133,13 +133,13 @@ static void do_fixup(LoadContext *ctx)
             }
             case FIXUP_KLASS_BASE: {
                 KlassSymbol *kls_sym = entry->owner;
-                TypeSpec **ts_ptr = vector_get(&kls_sym->bases, entry->index);
+                TypeSpec **ts_ptr = vector_get_ptr(&kls_sym->bases, entry->index);
                 fixup_type_spec(ts_ptr, ctx);
                 break;
             }
             case FIXUP_GENERIC_VAR: {
                 TypeSpec *ts = entry->owner;
-                TypeSpec **ts_ptr = vector_get(ts->generic_ref.args, entry->index);
+                TypeSpec **ts_ptr = vector_get_ptr(ts->generic_ref.args, entry->index);
                 fixup_type_spec(ts_ptr, ctx);
                 break;
             }

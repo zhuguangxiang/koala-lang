@@ -109,22 +109,37 @@ static inline void vector_push_front(Vector *vec, void *obj)
     vector_insert(vec, 0, obj);
 }
 
+/* internal use */
+static inline char *__vector_offset(Vector *vec, int index)
+{
+    return vec->objs + vec->obj_size * index;
+}
+
 /*
  * Get an object pointer(the index position as object pointer)
  * Index bound is checked.
  */
-void *vector_get(Vector *vec, int index);
+static inline void *vector_get_ptr(Vector *vec, int index)
+{
+    /* not set any object */
+    if (!vec || !vec->objs) return NULL;
+
+    /* valid range is (0 ..< size) */
+    if (index < 0 || index >= vec->size) return NULL;
+
+    return __vector_offset(vec, index);
+}
 
 /* Get first object pointer */
-#define vector_first(vec) vector_get(vec, 0)
+#define vector_first(vec) vector_get_ptr(vec, 0)
 
 /* Get last object pointer */
-#define vector_last(vec) vector_get(vec, vector_size(vec) - 1)
+#define vector_last(vec) vector_get_ptr(vec, vector_size(vec) - 1)
 
 /* Peek an object at the end of the vector, not remove it.*/
 static inline void *vector_top_back(Vector *vec)
 {
-    return vector_get(vec, vector_size(vec) - 1);
+    return vector_get_ptr(vec, vector_size(vec) - 1);
 }
 
 /*
@@ -158,28 +173,35 @@ return item's self value
 */
 #define vector_foreach(obj, vec) \
     for (int i__ = 0, n__ = vector_size(vec); i__ < n__; i__++) \
-        if (({ typeof(obj) *p__ = vector_get(vec, i__); (obj = *p__); 1; }))
+        if (({ typeof(obj) *p__ = vector_get_ptr(vec, i__); (obj = *p__); 1; }))
 
 /* iterate vector, deletion is unsafe
 return item's pointer
 */
 #define vector_foreach_ptr(obj_ptr, vec) \
-    for (int i__ = 0; (obj_ptr = vector_get(vec, i__)); ++i__)
+    for (int i__ = 0; (obj_ptr = vector_get_ptr(vec, i__)); ++i__)
 
 /* iterate vector(pointer saved) in reverse order, deletion is unsafe */
 #define vector_foreach_reverse(obj, vec) \
     for (int i__ = vector_size(vec) - 1; \
-        (obj = vector_get(vec, i__)); --i__)
+        (obj = vector_get_ptr(vec, i__)); --i__)
 
 /* clang-format on */
 
 /* concat two vector(pointer saved) */
-int vector_concat(Vector *to, Vector *from);
+static inline int vector_concat(Vector *to, Vector *from)
+{
+    void **obj_p;
+    vector_foreach_ptr(obj_p, from) {
+        vector_push_back(to, obj_p);
+    }
+    return 0;
+}
 
 /* get item self value from vector */
-static inline void *vector_get_object(Vector *vec, int index)
+static inline void *vector_get(Vector *vec, int index)
 {
-    void **obj_p = (void **)vector_get(vec, index);
+    void **obj_p = (void **)vector_get_ptr(vec, index);
     return obj_p ? *obj_p : NULL;
 }
 

@@ -139,14 +139,14 @@ static Object *_get_symbol(CallFrame *cf, int rel, int sym)
 {
     ModuleObject *m = (ModuleObject *)cf->module;
     if (!rel) {
-        void **item = vector_get(&m->symbols, sym);
+        void **item = vector_get_ptr(&m->symbols, sym);
         ASSERT(item);
         return (Object *)(*item);
     }
 
-    RelocInfo *reloc = vector_get(&m->rels, rel);
+    RelocInfo *reloc = vector_get_ptr(&m->rels, rel);
     ASSERT(reloc);
-    SymbolInfo *symbol = vector_get(&reloc->syms, sym);
+    SymbolInfo *symbol = vector_get_ptr(&reloc->syms, sym);
     ASSERT(symbol && symbol->obj);
     return symbol->obj;
 }
@@ -277,7 +277,7 @@ main_loop:
             case OP_CONST_LOAD: {
                 int A = NEXT_REG();
                 int offset = NEXT_INT16();
-                Value *val = vector_get(consts, offset);
+                Value *val = vector_get_ptr(consts, offset);
                 ASSERT(val);
                 Value *ra = GET_LOCAL(A);
                 *ra = *val;

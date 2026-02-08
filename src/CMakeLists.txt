@@ -48,26 +48,6 @@ target_link_libraries(koalac_out parser)
 set_target_properties(koalac_out PROPERTIES
     OUTPUT_NAME koalac)
 
-install(TARGETS koalac_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
-
-install(DIRECTORY ${PROJECT_BINARY_DIR}/include/
-    DESTINATION koala-${KOALA_VERSION_MAIN}/include
-    FILES_MATCHING
-    PATTERN "*.h"
-    PATTERN "koala_lex.h" EXCLUDE
-    PATTERN "koala_yacc.h" EXCLUDE)
-
-include(${PROJECT_SOURCE_DIR}/cmake/symlink.cmake)
-install_symlink(
-    ./koala-${KOALA_VERSION_MAIN}
-    ${CMAKE_INSTALL_PREFIX}/koala)
-install_symlink(
-    ../lib/koala/bin/koalac
-    ${CMAKE_INSTALL_PREFIX}/../bin/koalac)
-install_symlink(
-    ../lib/koala/include
-    ${CMAKE_INSTALL_PREFIX}/../include/koala)
-
 set(COMMON_SOURCES
     common/sds.c
     common/atom.c
@@ -108,3 +88,37 @@ add_executable(koala_out ${PROJECT_SOURCE_DIR}/src/main.c)
 target_link_libraries(koala_out koala)
 set_target_properties(koala_out PROPERTIES
     OUTPUT_NAME koala)
+
+add_executable(koala_dump ${PROJECT_SOURCE_DIR}/tools/koala_dump.c)
+target_link_libraries(koala_dump parser)
+set_target_properties(koala_dump PROPERTIES
+    OUTPUT_NAME koala_dump)
+
+install(TARGETS koalac_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
+
+install(DIRECTORY ${PROJECT_BINARY_DIR}/include/
+    DESTINATION koala-${KOALA_VERSION_MAIN}/include
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "koala_lex.h" EXCLUDE
+    PATTERN "koala_yacc.h" EXCLUDE)
+
+install(TARGETS koala_dump DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
+
+include(${PROJECT_SOURCE_DIR}/cmake/symlink.cmake)
+
+install_symlink(
+    ./koala-${KOALA_VERSION_MAIN}
+    ${CMAKE_INSTALL_PREFIX}/koala)
+
+install_symlink(
+    ../lib/koala/bin/koalac
+    ${CMAKE_INSTALL_PREFIX}/../bin/koalac)
+
+install_symlink(
+    ../lib/koala/include
+    ${CMAKE_INSTALL_PREFIX}/../include/koala)
+
+install_symlink(
+    ../lib/koala/bin/koala_dump
+    ${CMAKE_INSTALL_PREFIX}/../bin/koala_dump)

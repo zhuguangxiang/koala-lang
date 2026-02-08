@@ -484,8 +484,8 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
         // Handle Variance based on storage model
 
         for (int i = 0; i < d_args_size; i++) {
-            TypeSpec *d_arg = vector_get_object(dst->generic_ref.args, i);
-            TypeSpec *s_arg = vector_get_object(src->generic_ref.args, i);
+            TypeSpec *d_arg = vector_get(dst->generic_ref.args, i);
+            TypeSpec *s_arg = vector_get(src->generic_ref.args, i);
 
             // generic parameters must be strictly compatible(invariant).
             // List[int32] and List[int64] are not compatible.
@@ -656,8 +656,7 @@ int check_type_constraints(Vector *bounds, TypeSpec *arg)
     if (!bounds || vector_size(bounds) == 0) return 1;
 
     for (int i = 0; i < vector_size(bounds); i++) {
-        TypeSpec **bound_p = vector_get(bounds, i);
-        TypeSpec *bound = *bound_p;
+        TypeSpec *bound = vector_get(bounds, i);
         if (!type_spec_compatible(bound, arg)) {
             return 0;
         }
@@ -721,10 +720,10 @@ int check_type(ParserState *ps, TypeSpec *type)
 
     // 2. Validate each generic argument against its defined constraints
     for (int i = 0; i < arg_count; i++) {
-        TypeSpec *arg = vector_get_object(type->generic_ref.args, i);
+        TypeSpec *arg = vector_get(type->generic_ref.args, i);
 
         // Get the required bounds for the i-th parameter (e.g., [Animal, Serializable])
-        TypeParamSymbol *tp_sym = vector_get_object(tps, i);
+        TypeParamSymbol *tp_sym = vector_get(tps, i);
         Vector *bounds = &tp_sym->bound;
 
         if (bounds && vector_size(bounds) > 0) {
@@ -976,8 +975,7 @@ static void remove_unreachable(Vector *stmts, int from_index)
 {
     int size = vector_size(stmts);
     for (int i = from_index; i < size; i++) {
-        Stmt **stmt_p = vector_get(stmts, i);
-        Stmt *stmt = *stmt_p;
+        Stmt *stmt = vector_get(stmts, i);
         if (!stmt) continue;
         stmt_free(stmt);
         log_warn("remove unreachable statement at index %d", i);
@@ -1601,7 +1599,7 @@ static void parse_type_params(ParserState *ps, KlassDeclStmt *kls)
     vector_foreach(tp, kls->tps) {
         if (!tp) continue;
 
-        tp_sym = vector_get_object(&sym->tps, index);
+        tp_sym = vector_get(&sym->tps, index);
         index++;
 
         if (vector_empty(tp->bound)) continue;
@@ -1694,7 +1692,7 @@ static void compute_pip(ParserState *ps, KlassSymbol *sym)
     Vector *pip = &sym->pip;
     if (vector_size(pip) > 0) return;
 
-    TypeSpec *base_ts = vector_get_object(&sym->bases, 0);
+    TypeSpec *base_ts = vector_get(&sym->bases, 0);
     if (!base_ts) {
         // add itself
         vector_push_back(pip, &sym->instance_ts);
@@ -2018,7 +2016,7 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
         return -1;
     }
 
-    ArgInfo *arg_info = vector_get_object(fn_sym->params, 0);
+    ArgInfo *arg_info = vector_get(fn_sym->params, 0);
     TypeSpec *param_ts = arg_info->ts;
 
     if (!type_spec_compatible(param_ts, rhs->ts)) {

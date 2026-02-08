@@ -154,7 +154,7 @@ void klr_alloc_registers(KlrFunc *func)
         KlrInterval *interval;
         // check register free
         for (int j = 0; j < num_regs; j++) {
-            interval = vector_get(&ctx.intervals, j);
+            interval = vector_get_ptr(&ctx.intervals, j);
             KlrValue *val = interval->val;
             if (!in_range(i, interval)) {
                 if (interval->allocated) {
@@ -166,7 +166,7 @@ void klr_alloc_registers(KlrFunc *func)
 
         // check register alloc
         for (int j = 0; j < num_regs; j++) {
-            interval = vector_get(&ctx.intervals, j);
+            interval = vector_get_ptr(&ctx.intervals, j);
             KlrValue *val = interval->val;
             if (in_range(i, interval)) {
                 if (!interval->allocated) {
@@ -180,7 +180,7 @@ void klr_alloc_registers(KlrFunc *func)
 #ifndef NOLOG
     KlrInterval *interval;
     for (int j = 0; j < num_regs; j++) {
-        interval = vector_get(&ctx.intervals, j);
+        interval = vector_get_ptr(&ctx.intervals, j);
         fprintf(stdout, "value: ");
         klr_print_name_or_tag(interval->val, stdout);
         fprintf(stdout, "\n  interval: [%d, %d)", interval->start, interval->end);

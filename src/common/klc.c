@@ -1082,8 +1082,8 @@ void free_klc_file(KlcFile *klc)
 KlcConst *klc_get_const(KlcFile *klc, uint16_t index)
 {
     Vector *consts = klc->objs + ITEM_CONST;
-    KlcConst **k = vector_get(consts, index);
-    return (k != NULL) ? *k : NULL;
+    KlcConst *k = vector_get(consts, index);
+    return k;
 }
 
 #ifdef __cplusplus

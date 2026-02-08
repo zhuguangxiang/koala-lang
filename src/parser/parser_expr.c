@@ -229,7 +229,7 @@ static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i
 
     int param_size = vector_size(params);
     for (int i = i__; i < param_size; i++) {
-        ArgInfo *arg = vector_get_object(params, i);
+        ArgInfo *arg = vector_get(params, i);
         if (!strcmp(arg->name, kw->key.name)) {
             if (!type_spec_compatible(arg->ts, kw->value->ts)) {
                 kl_error(kw->loc, "argument type is not compatible.");
@@ -246,8 +246,8 @@ static void check_dfl_param(ParserState *ps, Vector *params, Vector *exprs, int 
 {
     int expr_size = vector_size(exprs);
     for (int j = j__; j < expr_size; j++) {
-        Expr *e = vector_get_object(exprs, j);
-        ArgInfo *arg = vector_get_object(params, i__);
+        Expr *e = vector_get(exprs, j);
+        ArgInfo *arg = vector_get(params, i__);
         if (!e) {
             // use default values for the rest parameters
             log_info("kw-param: %s, no value passed, skip the rest.", arg->name);
@@ -294,7 +294,7 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
     int i__ = 0;
     int j__ = 0;
     while (i__ < param_size) {
-        ArgInfo *arg = vector_get_object(params, i__);
+        ArgInfo *arg = vector_get(params, i__);
         // 1. kw-param: pass value with keyword argument, e.g. foo(x=10)
         // 2. pass value only, e.g. foo(10)
         // 3. skip it, e.g. foo() for foo(x=10)
@@ -303,7 +303,7 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
             return;
         }
 
-        Expr *e = vector_get_object(exprs, j__++);
+        Expr *e = vector_get(exprs, j__++);
 
         if (!type_is_valist(arg->ts)) {
             // required param, caller must pass value
@@ -364,7 +364,7 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, Vector *tp_args, ParserState *
 {
     TypeSpec *inst_ts;
     if (ts->kind == TYPE_GENERIC_VAR) {
-        inst_ts = vector_get_object(tp_args, ts->generic_var.index);
+        inst_ts = vector_get(tp_args, ts->generic_var.index);
     } else if (ts->kind == TYPE_GENERIC_REF) {
         Symbol *sym = get_symbol_by_id(ts->sym_id);
         InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, sym, tp_args);
@@ -714,8 +714,7 @@ static void parse_index(ParserState *ps, Expr *exp)
                 return;
             }
 
-            TypeParamSymbol *tp_sym =
-                (TypeParamSymbol *)vector_get_object(&kls_sym->tps, i__);
+            TypeParamSymbol *tp_sym = vector_get(&kls_sym->tps, i__);
             TypeSpec *bound_ts;
             vector_foreach(bound_ts, &tp_sym->bound) {
                 if (!bound_ts) continue;
@@ -1033,7 +1032,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
         return;
     }
 
-    ArgInfo *arg_info = vector_get_object(args, 0);
+    ArgInfo *arg_info = vector_get(args, 0);
     ASSERT(arg_info);
 
     TypeSpec *arg_ts = arg_info->ts;

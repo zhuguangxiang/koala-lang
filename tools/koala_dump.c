@@ -125,16 +125,16 @@ static void dump_var(KlcVar *var, KlcFile *klc)
 
     BUF(buf);
 
-    KlcConst **k = vector_get(consts, var->name_index);
-    fprintf(stdout, "  var %s ", (*k)->sval);
+    KlcConst *k = vector_get(consts, var->name_index);
+    fprintf(stdout, "  var %s ", k->sval);
 
     k = vector_get(consts, var->type_index);
-    type_spec_str_print((*k)->sval, &buf);
+    type_spec_str_print(k->sval, &buf);
 
     k = vector_get(consts, var->const_index);
-    if (k && *k) {
+    if (k) {
         fprintf(stdout, "%s = ", BUF_STR(buf));
-        dump_const(*k);
+        dump_const(k);
     } else {
         fprintf(stdout, "%s\n", BUF_STR(buf));
     }
@@ -216,7 +216,6 @@ static void dump_code(KlcCode *code)
 static void dump_func(KlcFunc *fn, KlcFile *klc, int leading_spaces)
 {
     Vector *codes = klc->objs + ITEM_CODE;
-    KlcCode **code_p;
     KlcCode *code;
 
     dump_anns(&fn->anns, klc, leading_spaces);
@@ -281,8 +280,7 @@ static void dump_func(KlcFunc *fn, KlcFile *klc, int leading_spaces)
         return;
     }
 
-    code_p = vector_get(codes, fn->code_index);
-    code = *code_p;
+    code = vector_get(codes, fn->code_index);
     if (!code) {
         fprintf(stdout, "{}\n");
     } else {
@@ -409,9 +407,9 @@ static void dump_relocs(Vector *vec, KlcFile *klc)
     vector_foreach(item, vec) {
         if (!item) continue;
         fprintf(stdout, "  [%2d] = ", i__);
-        KlcConst **k = vector_get(consts, item->ns_index);
-        KlcConst **k2 = vector_get(consts, item->sym_index);
-        fprintf(stdout, "%s:%s\n", *k ? (*k)->sval : "", (*k2)->sval);
+        KlcConst *k = vector_get(consts, item->ns_index);
+        KlcConst *k2 = vector_get(consts, item->sym_index);
+        fprintf(stdout, "%s:%s\n", k ? k->sval : "", k2->sval);
     }
 }
 

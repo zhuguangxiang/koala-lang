@@ -64,10 +64,7 @@ void type_spec_free(TypeSpec *ts)
     mm_free(ts);
 }
 
-TypeSpec *type_spec_get_by_id(int type_id)
-{
-    return vector_get_object(&type_list, type_id);
-}
+TypeSpec *type_spec_get_by_id(int type_id) { return vector_get(&type_list, type_id); }
 
 static TypeSpec *_no_type_spec(void)
 {

@@ -35,11 +35,6 @@ static inline int __maybe_expand(Vector *vec, int extra)
     return 0;
 }
 
-static inline char *__offset(Vector *vec, int index)
-{
-    return vec->objs + vec->obj_size * index;
-}
-
 int vector_set(Vector *vec, int index, void *obj)
 {
     /*
@@ -51,28 +46,17 @@ int vector_set(Vector *vec, int index, void *obj)
     /* try to expand the vector */
     if (__maybe_expand(vec, 1)) return -1;
 
-    char *offset = __offset(vec, index);
+    char *offset = __vector_offset(vec, index);
     memcpy(offset, obj, vec->obj_size);
     if (index == vec->size) vec->size++;
     return 0;
-}
-
-void *vector_get(Vector *vec, int index)
-{
-    /* not set any object */
-    if (!vec || !vec->objs) return NULL;
-
-    /* valid range is (0 ..< size) */
-    if (index < 0 || index >= vec->size) return NULL;
-
-    return __offset(vec, index);
 }
 
 /* move one object to right */
 static void __move_to_right(Vector *vec, int index)
 {
     /* the location to start to move */
-    char *from = __offset(vec, index);
+    char *from = __vector_offset(vec, index);
 
     /* the destination to move(one object) */
     char *to = from + vec->obj_size;
@@ -95,7 +79,7 @@ int vector_insert(Vector *vec, int index, void *obj)
     /* try to expand the vector */
     if (__maybe_expand(vec, 1)) return -1;
 
-    char *offset = __offset(vec, index);
+    char *offset = __vector_offset(vec, index);
     __move_to_right(vec, index);
     memcpy(offset, obj, vec->obj_size);
     vec->size++;
@@ -105,7 +89,7 @@ int vector_insert(Vector *vec, int index, void *obj)
 static void __move_to_left(Vector *vec, int index)
 {
     /* the destination to move(one object) */
-    char *to = __offset(vec, index);
+    char *to = __vector_offset(vec, index);
 
     /* the location to start to move */
     char *from = to + vec->obj_size;
@@ -123,7 +107,7 @@ int vector_remove(Vector *vec, int index, void *obj)
     if (index < 0 || index >= vec->size) return -1;
 
     if (obj != NULL) {
-        char *offset = __offset(vec, index);
+        char *offset = __vector_offset(vec, index);
         memcpy(obj, offset, vec->obj_size);
     }
 
@@ -132,13 +116,6 @@ int vector_remove(Vector *vec, int index, void *obj)
     }
 
     vec->size--;
-    return 0;
-}
-
-int vector_concat(Vector *to, Vector *from)
-{
-    void **obj_p;
-    vector_foreach_ptr(obj_p, from) { vector_push_back(to, obj_p); }
     return 0;
 }
 

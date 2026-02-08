@@ -69,14 +69,14 @@ int module_add_object(Object *_m, const char *name, Object *obj);
 static inline RelocInfo *module_get_rel(Object *_m, int index)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    RelocInfo *item = vector_get(&m->rels, index);
+    RelocInfo *item = vector_get_ptr(&m->rels, index);
     return item;
 }
 
 static inline Object *module_get_symbol(Object *_m, int index)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    Object **item = vector_get(&m->symbols, index);
+    Object **item = vector_get_ptr(&m->symbols, index);
     if (item) return *item;
     return NULL;
 }

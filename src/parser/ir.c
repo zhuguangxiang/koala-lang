@@ -185,7 +185,7 @@ KlrValue *klr_get_param(KlrValue *val, int index)
         panic("index %d out of range(0 ..< %d)", index, size);
     }
 
-    KlrValue **item = vector_get(&func->params, index);
+    KlrValue **item = vector_get_ptr(&func->params, index);
     return *item;
 }
 
