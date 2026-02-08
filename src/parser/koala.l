@@ -260,7 +260,6 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 ">="        { YY_RETURN(GE);        }
 "<="        { YY_RETURN(LE);        }
 
-":="        { YY_RETURN(FREE_ASSIGN);  }
 "+="        { YY_RETURN(PLUS_ASSIGN);  }
 "-="        { YY_RETURN(MINUS_ASSIGN); }
 "*="        { YY_RETURN(MULT_ASSIGN);  }

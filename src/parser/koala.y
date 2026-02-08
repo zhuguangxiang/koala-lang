@@ -179,7 +179,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token GE
 %token LE
 
-%token FREE_ASSIGN
+
 %token PLUS_ASSIGN
 %token MINUS_ASSIGN
 %token MULT_ASSIGN
@@ -205,7 +205,6 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<stmt> top_stmt
 %type<stmt> let_decl
 %type<stmt> var_decl
-%type<stmt> free_var_decl
 %type<stmt> assignment
 %type<stmt> return_stmt
 %type<stmt> jump_stmt
@@ -1723,10 +1722,6 @@ local
     {
         $$ = $1;
     }
-    | free_var_decl semi
-    {
-        $$ = $1;
-    }
     | return_stmt semi
     {
         $$ = $1;
@@ -1758,20 +1753,6 @@ local
     }
     | semi
     {
-        $$ = NULL;
-    }
-    ;
-
-free_var_decl
-    : ID FREE_ASSIGN expr
-    {
-        IDENT(id, $1, loc(@1));
-        $$ = stmt_from_var_decl(id, NULL, 0, $3);
-    }
-    | ID FREE_ASSIGN error
-    {
-        kl_error(loc(@3), "expected an expr.");
-        yy_clear_ok;
         $$ = NULL;
     }
     ;

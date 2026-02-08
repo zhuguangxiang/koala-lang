@@ -172,7 +172,7 @@ int check_dir(char *path)
     }
 
     if (!S_ISDIR(sb.st_mode)) {
-        printf("%s: Not a module directory", path);
+        printf("%s: Not a package directory", path);
         return -1;
     }
 

@@ -30,12 +30,12 @@ func println(s str) {
 }
 
 func fn6() int {
-    i := 200
+    let i = 200
     if i < 100 {
-        j := "hello"
+        let j = "hello"
         println("small")
     } else {
-        j := true
+        let j = true
         println("big")
     }
     return 200
@@ -87,7 +87,7 @@ func fn7(v int?) {
     // CHECK-NEXT: optional type cannot be used with '+' operator.
 
     if v {
-        k := 100
+        let k = 100
         k + 200
     }
     // CHECK-NEXT: if condition must be boolean type.

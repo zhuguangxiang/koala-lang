@@ -24,21 +24,21 @@ set(PARSER_SRC
     parser/parser_codegen.c
     parser/symbol.c
     parser/typespec.c
-    parser/ir.c
-    parser/insn.c
-    parser/printer.c
-    parser/insn_remap.c
-    parser/linear_scan.c
-    parser/simple_reg_alloc.c
     parser/emit_code.c
     parser/write_klc.c
     parser/read_klc.c
-    parser/pass.c
-    parser/passes/dot.c
-    parser/passes/remove_load_store.c
-    parser/passes/constant_folding.c
-    parser/passes/unused_var_insn.c
-    parser/passes/basic_block.c)
+    parser/klr/ir.c
+    parser/klr/insn.c
+    parser/klr/printer.c
+    parser/klr/insn_remap.c
+    parser/klr/linear_scan.c
+    parser/klr/simple_reg_alloc.c
+    parser/klr/pass.c
+    parser/klr/passes/dot.c
+    parser/klr/passes/remove_load_store.c
+    parser/klr/passes/constant_folding.c
+    parser/klr/passes/unused_var_insn.c
+    parser/klr/passes/basic_block.c)
 
 add_library(parser STATIC ${PARSER_SRC})
 target_link_libraries(parser koala-common)
