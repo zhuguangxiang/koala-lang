@@ -128,6 +128,7 @@ TypeSpec *func_type_spec(Vector *args, TypeSpec *ret);
 TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret);
 TypeSpec *optional_type_spec(TypeSpec *src);
 TypeSpec *optional_type_spec_intern(TypeSpec *src);
+Vector *type_spec_vec_copy(Vector *args);
 
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }

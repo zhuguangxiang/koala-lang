@@ -733,6 +733,7 @@ static void parse_index(ParserState *ps, Expr *exp)
         // create or find instance symbol(List<int>)
         InstanceSymbol *inst_sym =
             find_or_add_instance(ps->stbl, (Symbol *)kls_sym, tp_args);
+        vector_destroy(tp_args);
         exp->ts = inst_sym->ts;
         exp->sym = (Symbol *)inst_sym;
         log_info("generic type instance created/got: %s", inst_sym->name);

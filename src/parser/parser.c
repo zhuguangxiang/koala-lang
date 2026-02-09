@@ -567,16 +567,16 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
 
     // parse arguments by bottom-to-up method
     int open = 0;
-    Vector *vec = NULL;
+    Vector *tp_args = NULL;
     if (vector_size(_ts->unresolved.args) > 0) {
-        vec = vector_create_ptr();
+        tp_args = vector_create_ptr();
         TypeSpec *ts;
         TypeSpec *ret;
         vector_foreach(ts, _ts->unresolved.args) {
             if (!ts) continue;
             ret = resolve_type(ps, ts);
             if (ret->kind == TYPE_GENERIC_VAR) open = 1;
-            vector_push_back(vec, &ret);
+            vector_push_back(tp_args, &ret);
         }
         vector_clear(_ts->unresolved.args);
     }
@@ -584,38 +584,44 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
     Symbol *sym = find_type_symbol(ps, &_ts->unresolved.pkg, &_ts->unresolved.name);
     if (!sym) {
         kl_error(_ts->loc, "'%s' is not found", _ts->unresolved.name.name);
-        goto error;
+        vector_destroy(tp_args);
+        return NULL;
     }
 
     if (sym->kind == SYM_TYPE_PARAM) {
-        if (vec != NULL) {
+        if (tp_args != NULL) {
             kl_error(_ts->loc, "'%s' is a type parameter, not a generic type",
                      _ts->unresolved.name.name);
-            goto error;
+            vector_destroy(tp_args);
+            return NULL;
         }
         log_info("resolve type-parameter '%s'", _ts->unresolved.name.name);
         TypeParamSymbol *ts_sym = (TypeParamSymbol *)sym;
         TypeSpec *ret = generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id,
                                               ts_sym->owner->name);
         type_spec_free(_ts);
+        vector_destroy(tp_args);
         return ret;
 
     } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
-        if (vector_size(&kls_sym->tps) != vector_size(vec)) {
+        if (vector_size(&kls_sym->tps) != vector_size(tp_args)) {
             kl_error(_ts->loc,
                      "Type argument mismatch: '%s' expects %d argument(s), but %d were "
                      "provided",
                      _ts->unresolved.name.name, vector_size(&kls_sym->tps),
-                     vector_size(vec));
-            goto error;
+                     vector_size(tp_args));
+            vector_destroy(tp_args);
+            return NULL;
         }
 
         if (open) {
             // open generic_ref type
             log_info("resolve open generic_ref type '%s'", _ts->unresolved.name.name);
-            TypeSpec *ret = generic_ref_type_spec(
-                _ts->unresolved.pkg.name, _ts->unresolved.name.name, vec, kls_sym->id);
+            TypeSpec *ret =
+                generic_ref_type_spec(_ts->unresolved.pkg.name, _ts->unresolved.name.name,
+                                      tp_args, kls_sym->id);
+            vector_destroy(tp_args);
             type_spec_free(_ts);
             return ret;
         }
@@ -623,7 +629,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         log_info("resolve closed generic_ref type '%s'", _ts->unresolved.name.name);
 
         // closed generic_ref type
-        if (vector_empty(vec)) {
+        if (vector_empty(tp_args)) {
             log_info("resolve type '%s' without type-args", _ts->unresolved.name.name);
             TypeSpec *ret =
                 klass_type_spec(_ts->unresolved.pkg.name, _ts->unresolved.name.name);
@@ -631,12 +637,14 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             ASSERT(ret->sym_id == kls_sym->id);
             ASSERT(kls_sym->instance_ts == ret);
             type_spec_free(_ts);
+            vector_destroy(tp_args);
             return ret;
         } else {
             // all args are concrete types
             // create instance symbol
             log_info("resolve type '%s' with type-args", _ts->unresolved.name.name);
-            InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, sym, vec);
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, sym, tp_args);
+            vector_destroy(tp_args);
             if (!inst_sym) {
                 kl_error(_ts->loc, "failed to get instance for generic_ref type");
                 return NULL;
@@ -648,10 +656,6 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
     } else {
         UNREACHABLE();
     }
-
-error:
-    // TODO: free memroy
-    return NULL;
 }
 
 // check arg is satified by up-bounds.
@@ -2181,12 +2185,15 @@ ParserState *new_parser_state(char *path)
 
 void free_parser_state(ParserState *ps)
 {
+    mm_free(ps->filename);
+
     Stmt *s;
     vector_foreach(s, &ps->stmts) {
         stmt_free(s);
     }
     vector_fini(&ps->stmts);
 
+    vector_fini(&ps->shadows);
     FINI_BUF(ps->sbuf);
     mm_free(ps);
 }

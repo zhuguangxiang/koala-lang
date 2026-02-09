@@ -29,6 +29,52 @@ void *get_symbol_by_id(int id)
     return p;
 }
 
+static void __free_inner_stbl(Symbol *sym)
+{
+    if (!sym) return;
+
+    switch (sym->kind) {
+        case SYM_VAR: {
+            ASSERT(!sym->stbl);
+            break;
+        }
+        case SYM_FUNC: {
+            stbl_free(sym->stbl);
+            sym->stbl = NULL;
+            break;
+        }
+        case SYM_CLASS:
+        case SYM_TRAIT: {
+            stbl_free(sym->stbl);
+            sym->stbl = NULL;
+            break;
+        }
+        case SYM_TYPE_PARAM: {
+            ASSERT(!sym->stbl);
+            break;
+        }
+        case SYM_PACKAGE: {
+            stbl_free(sym->stbl);
+            sym->stbl = NULL;
+            break;
+        }
+        case SYM_INSTANCE: {
+            stbl_free(sym->stbl);
+            sym->stbl = NULL;
+            break;
+        }
+        case SYM_SHADOW_VAR: {
+            // nothing
+            ASSERT(!sym->stbl);
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+}
+
 static void __symbol_free(Symbol *sym)
 {
     if (!sym) return;
@@ -36,16 +82,12 @@ static void __symbol_free(Symbol *sym)
         case SYM_VAR: {
             VarSymbol *var = (VarSymbol *)sym;
             if (var->lit) mm_free(var->lit);
+            ASSERT(!sym->stbl);
             break;
         }
         case SYM_FUNC: {
             FuncSymbol *fn = (FuncSymbol *)sym;
 
-            TypeParamSymbol *tp;
-            vector_foreach(tp, fn->tps) {
-                if (!tp) continue;
-                vector_fini(&tp->bound);
-            }
             vector_destroy(fn->tps);
 
             ArgInfo *arg;
@@ -55,25 +97,25 @@ static void __symbol_free(Symbol *sym)
             }
             vector_destroy(fn->params);
 
-            stbl_free(fn->stbl);
+            ASSERT(!sym->stbl);
             break;
         }
         case SYM_CLASS:
         case SYM_TRAIT: {
             KlassSymbol *kls = (KlassSymbol *)sym;
 
-            TypeParamSymbol *tp;
-            vector_foreach(tp, &kls->tps) {
-                if (!tp) continue;
-                vector_fini(&tp->bound);
-            }
             vector_fini(&kls->tps);
 
             vector_fini(&kls->bases);
             vector_destroy(kls->fields);
             vector_destroy(kls->funcs);
+            vector_destroy(kls->protos);
 
-            stbl_free(kls->stbl);
+            vector_fini(&kls->pip);
+            vector_fini(&kls->lro);
+            vector_fini(&kls->scm);
+
+            ASSERT(!sym->stbl);
             break;
         }
         case SYM_TYPE_PARAM: {
@@ -82,18 +124,19 @@ static void __symbol_free(Symbol *sym)
             break;
         }
         case SYM_PACKAGE: {
-            PkgSymbol *pkg = (PkgSymbol *)sym;
-            stbl_free(pkg->stbl);
+            ASSERT(!sym->stbl);
             break;
         }
         case SYM_INSTANCE: {
             InstanceSymbol *inst = (InstanceSymbol *)sym;
             vector_destroy(inst->tp_args);
             vector_destroy(inst->bases);
+            ASSERT(!sym->stbl);
             break;
         }
         case SYM_SHADOW_VAR: {
             // nothing
+            ASSERT(!sym->stbl);
             break;
         }
         default: {
@@ -108,10 +151,17 @@ static void __symbol_free(Symbol *sym)
 void free_all_symbols(void)
 {
     Symbol *s;
+
+    vector_foreach(s, &all_symbols) {
+        if (!s) continue;
+        __free_inner_stbl(s);
+    }
+
     vector_foreach(s, &all_symbols) {
         if (!s) continue;
         __symbol_free(s);
     }
+
     vector_fini(&all_symbols);
 }
 
@@ -244,7 +294,6 @@ TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner)
         sym = NULL;
     } else {
         vector_init_ptr(&sym->bound);
-        sym->stbl = stbl_new();
         add_to_global(sym);
     }
 
@@ -317,7 +366,7 @@ static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, char *mangled_na
         add_to_global(sym); // get sym->id
         sym->ts = type_type_spec();
         sym->origin = origin;
-        sym->tp_args = tp_args;
+        sym->tp_args = type_spec_vec_copy(tp_args);
         sym->stbl = stbl_new();
         sym->instance_ts = klass_type_spec(NULL, mangled_name);
         sym->instance_ts->sym_id = sym->id;
@@ -354,7 +403,9 @@ static InstanceSymbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *t
         vector_push_back(base_tp_args, &spec_arg_ts);
     }
 
-    return find_or_add_instance(stbl, origin_sym, base_tp_args);
+    InstanceSymbol *inst_sym = find_or_add_instance(stbl, origin_sym, base_tp_args);
+    vector_destroy(base_tp_args);
+    return inst_sym;
 }
 
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)

@@ -42,7 +42,6 @@ static inline void vector_fini(Vector *vec)
 {
     if (!vec) return;
     mm_free(vec->objs);
-    vector_init(vec, 0);
 }
 
 /* Clear a vector, no free memory */

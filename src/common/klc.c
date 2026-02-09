@@ -43,6 +43,7 @@ static int klc_const_equal(KlcConst *k1, KlcConst *k2)
         case KLC_CONST_UTF8: // fall-through
         case KLC_CONST_SHORT_UTF8: // fall-through
         case KLC_CONST_SHORT_ASCII: {
+            if (k1->sval == k2->sval) return 1;
             if (k1->len != k2->len) return 0;
             return !strncmp(k1->sval, k2->sval, k1->len);
         }
@@ -70,6 +71,8 @@ static int __item_entry_equal(void *n1, void *n2)
         UNREACHABLE();
     }
 }
+
+static void __item_entry_free(void *obj, void *arg) { mm_free(obj); }
 
 static unsigned int init_item_entry(ItemEntry *item, int type, void *data)
 {
@@ -714,7 +717,8 @@ static void read_const(KlcFile *klc, Vector *vec)
             read_bytes(klc, sval, len);
             sval[len] = 0;
             item->len = len;
-            item->sval = sval;
+            item->sval = atom_nstr(sval, len);
+            mm_free(sval);
             break;
         }
         case KLC_CONST_ASCII:
@@ -725,7 +729,8 @@ static void read_const(KlcFile *klc, Vector *vec)
             read_bytes(klc, sval, len);
             sval[len] = 0;
             item->len = len;
-            item->sval = sval;
+            item->sval = atom_nstr(sval, len);
+            mm_free(sval);
             break;
         }
         case KLC_CONST_SHORT_TUPLE: {
@@ -1022,21 +1027,86 @@ static void fini_vars(Vector *vec)
     vector_fini(vec);
 }
 
+static void fini_func(KlcFunc *fn)
+{
+    KlcArgument *arg;
+    vector_foreach(arg, &fn->args) {
+        if (!arg) continue;
+        mm_free(arg);
+    }
+    vector_fini(&fn->args);
+
+    KlcTypeParam *tp;
+    vector_foreach(tp, &fn->tps) {
+        if (!tp) continue;
+        vector_fini(&tp->bounds);
+        mm_free(tp);
+    }
+    vector_fini(&fn->tps);
+
+    KlcAnnot *ann;
+    vector_foreach(ann, &fn->anns) {
+        if (!ann) continue;
+        mm_free(ann);
+    }
+    vector_fini(&fn->anns);
+
+    mm_free(fn);
+}
+
 static void fini_funcs(Vector *vec)
 {
-    KlcConst *item;
+    KlcFunc *item;
     vector_foreach(item, vec) {
         if (!item) continue;
+        fini_func(item);
     }
 
     vector_fini(vec);
 }
 
-static void fini_class(Vector *vec)
+static void fini_klass(KlcKlass *kls)
 {
-    KlcConst *item;
+    KlcTypeParam *tp;
+    vector_foreach(tp, &kls->tps) {
+        if (!tp) continue;
+        vector_fini(&tp->bounds);
+        mm_free(tp);
+    }
+    vector_fini(&kls->tps);
+
+    KlcAnnot *ann;
+    vector_foreach(ann, &kls->anns) {
+        if (!ann) continue;
+        mm_free(ann);
+    }
+    vector_fini(&kls->anns);
+
+    vector_fini(&kls->bases);
+
+    KlcVar *field;
+    vector_foreach(field, &kls->fields) {
+        if (!field) continue;
+        mm_free(field);
+    }
+    vector_fini(&kls->fields);
+
+    KlcFunc *method;
+    vector_foreach(method, &kls->methods) {
+        if (!method) continue;
+        fini_func(method);
+    }
+    vector_fini(&kls->methods);
+
+    mm_free(kls);
+}
+
+static void fini_klasses(Vector *vec)
+{
+    KlcKlass *item;
     vector_foreach(item, vec) {
         if (!item) continue;
+        fini_klass(item);
     }
 
     vector_fini(vec);
@@ -1044,9 +1114,10 @@ static void fini_class(Vector *vec)
 
 static void fini_relocs(Vector *vec)
 {
-    KlcConst *item;
+    KlcReloc *item;
     vector_foreach(item, vec) {
         if (!item) continue;
+        mm_free(item);
     }
 
     vector_fini(vec);
@@ -1054,9 +1125,10 @@ static void fini_relocs(Vector *vec)
 
 static void fini_codes(Vector *vec)
 {
-    KlcConst *item;
+    KlcCode *item;
     vector_foreach(item, vec) {
         if (!item) continue;
+        mm_free(item);
     }
 
     vector_fini(vec);
@@ -1064,11 +1136,11 @@ static void fini_codes(Vector *vec)
 
 void fini_klc_file(KlcFile *klc)
 {
-    hashmap_fini(&klc->map, NULL, NULL);
+    hashmap_fini(&klc->map, __item_entry_free, NULL);
     fini_consts(klc->objs + ITEM_CONST);
     fini_vars(klc->objs + ITEM_VAR);
     fini_funcs(klc->objs + ITEM_FUNC);
-    fini_class(klc->objs + ITEM_CLASS);
+    fini_klasses(klc->objs + ITEM_CLASS);
     fini_relocs(klc->objs + ITEM_RELOC);
     fini_codes(klc->objs + ITEM_CODE);
 }

@@ -277,6 +277,6 @@ int main(int argc, char *argv[])
     typespec_fini();
     fini_log();
     fini_atom();
-    mm_stat();
+    // mm_stat();
     return 0;
 }

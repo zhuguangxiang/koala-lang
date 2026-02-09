@@ -118,7 +118,7 @@ Expr *expr_from_lit_none(void)
     LitExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_NONE;
-    exp->ts = optional_type_spec(NULL);
+    exp->ts = optional_type_spec_intern(NULL);
     return (Expr *)exp;
 }
 
@@ -309,7 +309,133 @@ Expr *expr_from_panic(Expr *exp)
     return (Expr *)e;
 }
 
-void expr_free(Expr *exp) { mm_free(exp); }
+static void ident_expr_free(Expr *exp) { mm_free(exp); }
+static void under_expr_free(Expr *exp) { mm_free(exp); }
+
+static void lit_expr_free(Expr *exp)
+{
+    LitExpr *lit = (LitExpr *)exp;
+    if (lit->which == LIT_EXPR_STR) mm_free(lit->sval);
+    mm_free(exp);
+}
+
+static void self_expr_free(Expr *exp) { mm_free(exp); }
+static void array_expr_free(Expr *exp) { mm_free(exp); }
+static void map_expr_free(Expr *exp) { mm_free(exp); }
+static void map_entry_expr_free(Expr *exp) { mm_free(exp); }
+static void tuple_expr_free(Expr *exp) { mm_free(exp); }
+static void set_expr_free(Expr *exp) { mm_free(exp); }
+static void anony_expr_free(Expr *exp) { mm_free(exp); }
+static void type_expr_free(Expr *exp) { mm_free(exp); }
+
+static void call_expr_free(Expr *exp)
+{
+    CallExpr *e = (CallExpr *)exp;
+    expr_free(e->lhs);
+
+    Expr *arg;
+    vector_foreach(arg, e->args) {
+        if (!arg) continue;
+        expr_free(arg);
+    }
+    vector_destroy(e->args);
+
+    mm_free(exp);
+}
+
+static void dot_expr_free(Expr *exp)
+{
+    DotExpr *e = (DotExpr *)exp;
+    expr_free(e->lhs);
+    mm_free(exp);
+}
+
+static void index_expr_free(Expr *exp)
+{
+    IndexExpr *e = (IndexExpr *)exp;
+    expr_free(e->lhs);
+    Expr *idx;
+    vector_foreach(idx, e->vec) {
+        if (!idx) continue;
+        expr_free(idx);
+    }
+    vector_destroy(e->vec);
+    mm_free(exp);
+}
+
+static void slice_expr_free(Expr *exp) { mm_free(exp); }
+
+static void unary_expr_free(Expr *exp)
+{
+    UnaryExpr *e = (UnaryExpr *)exp;
+    expr_free(e->exp);
+    mm_free(exp);
+}
+
+static void binary_expr_free(Expr *exp)
+{
+    BinaryExpr *e = (BinaryExpr *)exp;
+    expr_free(e->lhs);
+    expr_free(e->rhs);
+    mm_free(exp);
+}
+
+static void range_expr_free(Expr *exp) { mm_free(exp); }
+
+static void keyword_expr_free(Expr *exp)
+{
+    KeyWordExpr *e = (KeyWordExpr *)exp;
+    expr_free(e->value);
+    mm_free(exp);
+}
+
+static void is_expr_free(Expr *exp) { mm_free(exp); }
+static void as_expr_free(Expr *exp) { mm_free(exp); }
+static void in_expr_free(Expr *exp) { mm_free(exp); }
+
+static void bang_expr_free(Expr *exp)
+{
+    BangExpr *e = (BangExpr *)exp;
+    expr_free(e->exp);
+    mm_free(exp);
+}
+
+static void panic_expr_free(Expr *exp) { mm_free(exp); }
+
+void expr_free(Expr *exp)
+{
+    if (!exp) return;
+
+    static void (*free_handlers[EXPR_MAX_KIND])(Expr *) = {
+        [EXPR_UNK_KIND] = NULL,
+        [EXPR_ID_KIND] = ident_expr_free,
+        [EXPR_UNDER_KIND] = under_expr_free,
+        [EXPR_LITERAL_KIND] = lit_expr_free,
+        [EXPR_SELF_KIND] = self_expr_free,
+        [EXPR_ARRAY_KIND] = array_expr_free,
+        [EXPR_MAP_KIND] = map_expr_free,
+        [EXPR_MAP_ENTRY_KIND] = map_entry_expr_free,
+        [EXPR_TUPLE_KIND] = tuple_expr_free,
+        [EXPR_SET_KIND] = set_expr_free,
+        [EXPR_ANONY_KIND] = anony_expr_free,
+        [EXPR_TYPE_KIND] = type_expr_free,
+        [EXPR_CALL_KIND] = call_expr_free,
+        [EXPR_DOT_KIND] = dot_expr_free,
+        [EXPR_INDEX_KIND] = index_expr_free,
+        [EXPR_SLICE_KIND] = slice_expr_free,
+        [EXPR_UNARY_KIND] = unary_expr_free,
+        [EXPR_BINARY_KIND] = binary_expr_free,
+        [EXPR_RANGE_KIND] = range_expr_free,
+        [EXPR_KW_KIND] = keyword_expr_free,
+        [EXPR_IS_KIND] = is_expr_free,
+        [EXPR_AS_KIND] = as_expr_free,
+        [EXPR_IN_KIND] = in_expr_free,
+        [EXPR_BANG_KIND] = bang_expr_free,
+        [EXPR_PANIC_KIND] = panic_expr_free,
+    };
+
+    free_handlers[exp->kind](exp);
+}
 
 Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int ro, Expr *e)
 {
@@ -466,6 +592,7 @@ static void func_decl_stmt_free(Stmt *stmt)
     vector_foreach(tp, tps) {
         if (!tp) continue;
         vector_destroy(tp->bound);
+        mm_free(tp);
     }
     vector_destroy(tps);
 
@@ -474,6 +601,7 @@ static void func_decl_stmt_free(Stmt *stmt)
     vector_foreach(p, args) {
         if (!p) continue;
         expr_free(p->value);
+        mm_free(p);
     }
     vector_destroy(args);
 
@@ -496,6 +624,7 @@ static void klass_decl_stmt_free(Stmt *stmt)
     vector_foreach(tp, tps) {
         if (!tp) continue;
         vector_destroy(tp->bound);
+        mm_free(tp);
     }
     vector_destroy(tps);
 

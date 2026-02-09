@@ -27,6 +27,17 @@ static int type_spec_equal(TypeSpec *ts1, TypeSpec *ts2)
 
 static uint64_t type_spec_hash(TypeSpec *ts) { return str_hash(ts->signature); }
 
+static void type_spec_vec_free(Vector *vec)
+{
+    if (!vec) return;
+    TypeSpec *ts;
+    vector_foreach(ts, vec) {
+        if (!ts) continue;
+        type_spec_free(ts);
+    }
+    vector_destroy(vec);
+}
+
 void type_spec_free(TypeSpec *ts)
 {
     if (!ts) return;
@@ -39,22 +50,24 @@ void type_spec_free(TypeSpec *ts)
     // free args
     if (ts->kind == TYPE_GENERIC_REF) {
         Vector *args = ts->generic_ref.args;
-        TypeSpec *arg;
-        vector_foreach(arg, args) {
-            if (!arg) continue;
-            type_spec_free(arg);
-        }
-        vector_destroy(args);
+        type_spec_vec_free(args);
         ts->generic_ref.args = NULL;
     } else if (ts->kind == TYPE_UNRESOLVED) {
         Vector *args = ts->unresolved.args;
-        TypeSpec *arg;
-        vector_foreach(arg, args) {
-            if (!arg) continue;
-            type_spec_free(arg);
-        }
-        vector_destroy(args);
+        type_spec_vec_free(args);
         ts->unresolved.args = NULL;
+    } else if (ts->kind == TYPE_PROTO) {
+        Vector *args = ts->proto_type.args;
+        type_spec_vec_free(args);
+        ts->proto_type.args = NULL;
+    } else if (ts->kind == TYPE_UNION) {
+        Vector *args = ts->union_type.args;
+        type_spec_vec_free(args);
+        ts->union_type.args = NULL;
+    } else if (ts->kind == TYPE_MANGLED) {
+        Vector *args = ts->mangled.args;
+        type_spec_vec_free(args);
+        ts->mangled.args = NULL;
     }
 
     mm_free(ts);
@@ -345,103 +358,106 @@ void typespec_init(void)
 {
     hashmap_init(&type_map, (HashMapEqualFunc)type_spec_equal);
     vector_init_ptr(&type_list);
+    int type_id = 0;
 
     TypeSpec *ts;
 
     ts = _no_type_spec();
-    ts->type_id = 0;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _int_type_spec(1, 1);
-    ts->type_id = 1;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _int_type_spec(1, 0);
-    ts->type_id = 2;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _int_type_spec(2, 1);
-    ts->type_id = 3;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _int_type_spec(2, 0);
-    ts->type_id = 4;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _int_type_spec(4, 1);
-    ts->type_id = 5;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _int_type_spec(4, 0);
-    ts->type_id = 6;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _int_type_spec(8, 1);
-    ts->type_id = 7;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _int_type_spec(8, 0);
-    ts->type_id = 8;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _bool_type_spec();
-    ts->type_id = 9;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _str_type_spec();
-    ts->type_id = 10;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _object_type_spec();
-    ts->type_id = 11;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _va_list_type_spec();
-    ts->type_id = 12;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _float_type_spec(2);
-    ts->type_id = 13;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _float_type_spec(4);
-    ts->type_id = 14;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _float_type_spec(8);
-    ts->type_id = 15;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _bfloat16_type_spec();
-    ts->type_id = 16;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _type_type_spec();
-    ts->type_id = 17;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
     ts = _range_type_spec();
-    ts->type_id = 18;
+    ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
+
+    ASSERT(vector_size(&type_list) == type_id);
 }
 
 static void __ts_free(TypeSpec *ts)
@@ -534,12 +550,12 @@ TypeSpec *klass_type_spec(char *path, char *name)
     return type_spec_intern(ts);
 }
 
-TypeSpec *mangled_type_spec(char *name, Vector *args)
+static TypeSpec *mangled_type_spec(char *name, Vector *args)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_MANGLED;
     ts->mangled.name = name;
-    ts->mangled.args = args;
+    ts->mangled.args = type_spec_vec_copy(args);
     ts->sym_id = -1;
     ts->type_id = -1;
     // it's temporary type, do not intern
@@ -621,16 +637,7 @@ TypeSpec *generic_ref_type_spec(char *full_pkg, char *name, Vector *args, int sy
     ts->kind = TYPE_GENERIC_REF;
     ts->generic_ref.pkg = full_pkg;
     ts->generic_ref.name = name;
-    ts->generic_ref.args = NULL;
-    if (args != NULL) {
-        Vector *arg_copy = vector_create_ptr();
-        TypeSpec *arg;
-        vector_foreach(arg, args) {
-            if (!arg) continue;
-            vector_push_back(arg_copy, &arg);
-        }
-        ts->generic_ref.args = arg_copy;
-    }
+    ts->generic_ref.args = type_spec_vec_copy(args);
     ts->type_id = -1;
     ts->sym_id = sym_id;
     BUF(buf);
@@ -671,6 +678,21 @@ void union_type_spec_add_arg(TypeSpec *ts, TypeSpec *arg)
         return;
     }
     vector_push_back(ts->union_type.args, &arg);
+}
+
+Vector *type_spec_vec_copy(Vector *args)
+{
+    if (!args) return NULL;
+
+    Vector *copy = vector_create_ptr();
+
+    TypeSpec *arg;
+    vector_foreach(arg, args) {
+        if (!arg) continue;
+        vector_push_back(copy, &arg);
+    }
+
+    return copy;
 }
 
 static int cmp_typespec_by_type_id(const void *a, const void *b)
@@ -905,12 +927,14 @@ static TypeSpec *__to_typespec(char **str)
 
             if (open) {
                 ts = __to_specialized_type(k, k2 - k, args);
+                vector_destroy(args);
             } else {
                 if (vector_empty(args)) {
                     if (args) vector_destroy(args);
                     args = NULL;
                 }
                 ts = __to_mangled_type(k, k2 - k, args);
+                if (args) vector_destroy(args);
             }
 
             if (*s == ';') s++;
@@ -995,12 +1019,13 @@ static TypeSpec *__to_typespec(char **str)
         }
         case 'U': {
             s++;
-            ts = union_type_spec(NULL, NULL);
+            args = vector_create_ptr();
             while (*s != ';' && *s != '\0') {
                 arg = __to_typespec(&s);
-                if (arg) union_type_spec_add_arg(ts, arg);
+                if (arg) vector_push_back(args, &arg);
             }
             if (*s == ';') s++;
+            ts = union_type_spec_intern(args);
             break;
         }
         case 'h': {

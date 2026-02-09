@@ -359,7 +359,7 @@ static HashMap *__load(char *path)
     load_funcs(&ctx);
     do_fixup(&ctx);
 
-    fini_klc_file(klc);
+    free_klc_file(klc);
     vector_fini(&ctx.fixups);
 
     return stbl;
