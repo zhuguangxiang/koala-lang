@@ -177,14 +177,15 @@ static inline HashMap *stbl_new(void)
     return stbl;
 }
 
-void __symbol_free__(Symbol *sym, void *arg);
-
 static inline void stbl_free(HashMap *stbl)
 {
     if (!stbl) return;
-    hashmap_fini(stbl, (HashMapVisitFunc)__symbol_free__, NULL);
+    // only free the hashmap itself, all symbols are managed by global list
+    hashmap_fini(stbl, NULL, NULL);
     mm_free(stbl);
 }
+
+void free_all_symbols(void);
 
 Symbol *stbl_add(HashMap *stbl, Symbol *sym);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);

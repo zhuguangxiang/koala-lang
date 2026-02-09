@@ -256,19 +256,27 @@ static void compile(char *src, char *dst)
     }
 
     do_compile(&pss, dst);
+
+    ParserState *ps;
+    vector_foreach(ps, &pss) {
+        if (!ps) continue;
+        free_parser_state(ps);
+    }
+    vector_fini(&pss);
 }
 
 int main(int argc, char *argv[])
 {
+    parse_command(argc, argv);
     init_atom();
     init_log(LOG_TRACE, NULL, 0);
     typespec_init();
-    parse_command(argc, argv);
     init_parser();
     compile(input, output);
     fini_parser();
     typespec_fini();
     fini_log();
     fini_atom();
+    mm_stat();
     return 0;
 }

@@ -1,4 +1,4 @@
-
+#!/home/james/.local/bin/koalac
 
 func fn14(v1 int?) int {
     var v int? = v1
@@ -24,10 +24,4 @@ func fn15(v1 int?) int {
     }
 
     return v
-}
-
-func fn16(v1 int?) int {
-    var v int? = v1
-    v = 100 // 没有任何 if 检查，直接赋值非空
-    return v // 这里报错还是 Pass？
 }

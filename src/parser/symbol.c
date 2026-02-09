@@ -29,33 +29,71 @@ void *get_symbol_by_id(int id)
     return p;
 }
 
-void __symbol_free__(Symbol *sym, void *arg)
+static void __symbol_free(Symbol *sym)
 {
+    if (!sym) return;
     switch (sym->kind) {
         case SYM_VAR: {
             VarSymbol *var = (VarSymbol *)sym;
+            if (var->lit) mm_free(var->lit);
             break;
         }
         case SYM_FUNC: {
             FuncSymbol *fn = (FuncSymbol *)sym;
+
+            TypeParamSymbol *tp;
+            vector_foreach(tp, fn->tps) {
+                if (!tp) continue;
+                vector_fini(&tp->bound);
+            }
+            vector_destroy(fn->tps);
+
+            ArgInfo *arg;
+            vector_foreach(arg, fn->params) {
+                if (!arg) continue;
+                mm_free(arg);
+            }
+            vector_destroy(fn->params);
+
+            stbl_free(fn->stbl);
             break;
         }
-        case SYM_CLASS: {
-            break;
-        }
+        case SYM_CLASS:
         case SYM_TRAIT: {
+            KlassSymbol *kls = (KlassSymbol *)sym;
+
+            TypeParamSymbol *tp;
+            vector_foreach(tp, &kls->tps) {
+                if (!tp) continue;
+                vector_fini(&tp->bound);
+            }
+            vector_fini(&kls->tps);
+
+            vector_fini(&kls->bases);
+            vector_destroy(kls->fields);
+            vector_destroy(kls->funcs);
+
+            stbl_free(kls->stbl);
             break;
         }
         case SYM_TYPE_PARAM: {
+            TypeParamSymbol *tp = (TypeParamSymbol *)sym;
+            vector_fini(&tp->bound);
             break;
         }
         case SYM_PACKAGE: {
+            PkgSymbol *pkg = (PkgSymbol *)sym;
+            stbl_free(pkg->stbl);
             break;
         }
         case SYM_INSTANCE: {
+            InstanceSymbol *inst = (InstanceSymbol *)sym;
+            vector_destroy(inst->tp_args);
+            vector_destroy(inst->bases);
             break;
         }
         case SYM_SHADOW_VAR: {
+            // nothing
             break;
         }
         default: {
@@ -65,6 +103,16 @@ void __symbol_free__(Symbol *sym, void *arg)
     }
 
     mm_free(sym);
+}
+
+void free_all_symbols(void)
+{
+    Symbol *s;
+    vector_foreach(s, &all_symbols) {
+        if (!s) continue;
+        __symbol_free(s);
+    }
+    vector_fini(&all_symbols);
 }
 
 Symbol *stbl_add(HashMap *stbl, Symbol *sym)

@@ -450,7 +450,181 @@ Stmt *stmt_from_break(void)
     return s;
 }
 
-void stmt_free(Stmt *stmt) {}
+static void var_decl_stmt_free(Stmt *stmt)
+{
+    VarDeclStmt *s = (VarDeclStmt *)stmt;
+    expr_free(s->exp);
+    mm_free(s);
+}
+
+static void func_decl_stmt_free(Stmt *stmt)
+{
+    FuncDeclStmt *s = (FuncDeclStmt *)stmt;
+
+    Vector *tps = s->tps;
+    TypeParamDecl *tp;
+    vector_foreach(tp, tps) {
+        if (!tp) continue;
+        vector_destroy(tp->bound);
+    }
+    vector_destroy(tps);
+
+    Vector *args = s->args;
+    ParamDecl *p;
+    vector_foreach(p, args) {
+        if (!p) continue;
+        expr_free(p->value);
+    }
+    vector_destroy(args);
+
+    Stmt *_s;
+    vector_foreach(_s, s->body) {
+        if (!_s) continue;
+        stmt_free(_s);
+    }
+    vector_destroy(s->body);
+
+    mm_free(s);
+}
+
+static void klass_decl_stmt_free(Stmt *stmt)
+{
+    KlassDeclStmt *s = (KlassDeclStmt *)stmt;
+
+    Vector *tps = s->tps;
+    TypeParamDecl *tp;
+    vector_foreach(tp, tps) {
+        if (!tp) continue;
+        vector_destroy(tp->bound);
+    }
+    vector_destroy(tps);
+
+    vector_destroy(s->bases);
+
+    Stmt *_s;
+    vector_foreach(_s, s->stmts) {
+        if (!_s) continue;
+        stmt_free(_s);
+    }
+    vector_destroy(s->stmts);
+
+    mm_free(s);
+}
+
+static void ret_stmt_free(Stmt *stmt)
+{
+    RetStmt *s = (RetStmt *)stmt;
+    expr_free(s->exp);
+    mm_free(s);
+}
+
+static void assign_stmt_free(Stmt *stmt)
+{
+    AssignStmt *s = (AssignStmt *)stmt;
+    expr_free(s->lhs);
+    expr_free(s->rhs);
+    mm_free(s);
+}
+
+static void break_stmt_free(Stmt *stmt) { mm_free(stmt); }
+static void continue_stmt_free(Stmt *stmt) { mm_free(stmt); }
+
+static void expr_stmt_free(Stmt *stmt)
+{
+    ExprStmt *s = (ExprStmt *)stmt;
+    expr_free(s->exp);
+    mm_free(s);
+}
+
+static void block_stmt_free(Stmt *stmt)
+{
+    BlockStmt *s = (BlockStmt *)stmt;
+    Stmt *st;
+    vector_foreach(st, s->stmts) {
+        if (!st) continue;
+        stmt_free(st);
+    }
+    vector_destroy(s->stmts);
+    mm_free(s);
+}
+
+static void if_stmt_free(Stmt *stmt)
+{
+    IfStmt *s = (IfStmt *)stmt;
+    expr_free(s->cond);
+    Stmt *st;
+    vector_foreach(st, s->block) {
+        if (!st) continue;
+        stmt_free(st);
+    }
+    vector_destroy(s->block);
+    stmt_free(s->_else);
+    mm_free(s);
+}
+
+static void if_let_stmt_free(Stmt *stmt)
+{
+    IfLetStmt *s = (IfLetStmt *)stmt;
+    expr_free(s->cond);
+    Stmt *st;
+    vector_foreach(st, s->block) {
+        if (!st) continue;
+        stmt_free(st);
+    }
+    vector_destroy(s->block);
+    stmt_free(s->_else);
+    mm_free(s);
+}
+
+static void while_stmt_free(Stmt *stmt)
+{
+    WhileStmt *s = (WhileStmt *)stmt;
+    expr_free(s->cond);
+    Stmt *st;
+    vector_foreach(st, s->block) {
+        if (!st) continue;
+        stmt_free(st);
+    }
+    vector_destroy(s->block);
+    mm_free(s);
+}
+
+static void while_let_stmt_free(Stmt *stmt)
+{
+    WhileLetStmt *s = (WhileLetStmt *)stmt;
+    expr_free(s->cond);
+    Stmt *st;
+    vector_foreach(st, s->block) {
+        if (!st) continue;
+        stmt_free(st);
+    }
+    vector_destroy(s->block);
+    mm_free(s);
+}
+
+void stmt_free(Stmt *stmt)
+{
+    if (!stmt) return;
+
+    static void (*free_handlers[STMT_MAX_KIND])(Stmt *) = {
+        [STMT_VAR_KIND] = var_decl_stmt_free,
+        [STMT_FUNC_KIND] = func_decl_stmt_free,
+        [STMT_CLASS_KIND] = klass_decl_stmt_free,
+        [STMT_TRAIT_KIND] = klass_decl_stmt_free,
+        [STMT_RETURN_KIND] = ret_stmt_free,
+        [STMT_ASSIGN_KIND] = assign_stmt_free,
+        [STMT_BREAK_KIND] = break_stmt_free,
+        [STMT_CONTINUE_KIND] = continue_stmt_free,
+        [STMT_EXPR_KIND] = expr_stmt_free,
+        [STMT_BLOCK_KIND] = block_stmt_free,
+        [STMT_IF_KIND] = if_stmt_free,
+        [STMT_IF_LET_KIND] = if_let_stmt_free,
+        [STMT_WHILE_KIND] = while_stmt_free,
+        [STMT_WHILE_LET_KIND] = while_let_stmt_free,
+    };
+
+    free_handlers[stmt->kind](stmt);
+}
 
 #ifdef __cplusplus
 }

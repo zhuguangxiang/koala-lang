@@ -39,26 +39,22 @@ void type_spec_free(TypeSpec *ts)
     // free args
     if (ts->kind == TYPE_GENERIC_REF) {
         Vector *args = ts->generic_ref.args;
-        if (args) {
-            TypeSpec *arg;
-            vector_foreach(arg, args) {
-                if (!arg) continue;
-                type_spec_free(arg);
-            }
-            vector_destroy(args);
-            ts->generic_ref.args = NULL;
+        TypeSpec *arg;
+        vector_foreach(arg, args) {
+            if (!arg) continue;
+            type_spec_free(arg);
         }
+        vector_destroy(args);
+        ts->generic_ref.args = NULL;
     } else if (ts->kind == TYPE_UNRESOLVED) {
         Vector *args = ts->unresolved.args;
-        if (args) {
-            TypeSpec *arg;
-            vector_foreach(arg, args) {
-                if (!arg) continue;
-                type_spec_free(arg);
-            }
-            vector_destroy(args);
-            ts->unresolved.args = NULL;
+        TypeSpec *arg;
+        vector_foreach(arg, args) {
+            if (!arg) continue;
+            type_spec_free(arg);
         }
+        vector_destroy(args);
+        ts->unresolved.args = NULL;
     }
 
     mm_free(ts);
@@ -349,16 +345,7 @@ void typespec_init(void)
 {
     hashmap_init(&type_map, (HashMapEqualFunc)type_spec_equal);
     vector_init_ptr(&type_list);
-    /*
-    0: TYPE_NO_TYPE
-    1: TYPE_INT
-    2: TYPE_BOOL
-    3: TYPE_STR
-    4: TYPE_ANY
-    5: TYPE_VA_LIST
-    6: TYPE_FLOAT
-    7: TYPE_BFLOAT16
-    */
+
     TypeSpec *ts;
 
     ts = _no_type_spec();
@@ -457,10 +444,61 @@ void typespec_init(void)
     hashmap_put(&type_map, ts);
 }
 
+static void __ts_free(TypeSpec *ts)
+{
+    if (!ts) return;
+
+    switch (ts->kind) {
+        case TYPE_GENERIC_REF: {
+            vector_destroy(ts->generic_ref.args);
+            break;
+        }
+        case TYPE_UNION: {
+            vector_destroy(ts->union_type.args);
+            break;
+        }
+        case TYPE_MANGLED: {
+            vector_destroy(ts->mangled.args);
+            break;
+        }
+        case TYPE_PROTO: {
+            vector_destroy(ts->proto_type.args);
+            break;
+        }
+        case TYPE_NO_TYPE:
+        case TYPE_INT:
+        case TYPE_FLOAT:
+        case TYPE_BFLOAT16:
+        case TYPE_BOOL:
+        case TYPE_STR:
+        case TYPE_ANY:
+        case TYPE_VA_LIST:
+        case TYPE_TYPE:
+        case TYPE_RANGE:
+        case TYPE_OPTIONAL:
+        case TYPE_GENERIC_VAR:
+        case TYPE_KLASS: {
+            // nothing
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+
+    mm_free(ts);
+}
+
 void typespec_fini(void)
 {
-    // TODO: free type specs in type_list
     hashmap_fini(&type_map, NULL, NULL);
+
+    TypeSpec *ts;
+    vector_foreach(ts, &type_list) {
+        if (!ts) continue;
+        __ts_free(ts);
+    }
     vector_fini(&type_list);
 }
 

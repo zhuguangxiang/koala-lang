@@ -187,6 +187,39 @@ func fn7(v int?) {
     // 100.__add__(foo_fly)
 }
 
+func fn16(v1 int?) int {
+    var v int? = v1
+    v = 100
+    return v
+    // CHECK-NEXT: return type mismatch in function 'fn16'
+}
+
+func fn14(v1 int?) int {
+    var v int? = v1
+
+    if (v == null) { return 0 }
+
+    {
+        v = null
+    }
+
+    if (v == null) { return 1 }
+
+    return v
+}
+
+func fn15(v1 int?) int {
+    var v int? = v1
+
+    if (v == null) { return 0 }
+
+    {
+        v = 100
+    }
+
+    return v
+}
+
 // 100.__add__(1)
 // 100.0.__add__(2.0)
 // CHECK-NOT: {{.}}

@@ -68,7 +68,12 @@ void init_parser(void)
     load_builtin_module();
 }
 
-void fini_parser(void) {}
+void fini_parser(void)
+{
+    stbl_free(imported);
+    stbl_free(current);
+    free_all_symbols();
+}
 
 void kl_error_detail(ParserState *ps, Loc *loc) {}
 
@@ -2176,8 +2181,13 @@ ParserState *new_parser_state(char *path)
 
 void free_parser_state(ParserState *ps)
 {
+    Stmt *s;
+    vector_foreach(s, &ps->stmts) {
+        stmt_free(s);
+    }
+    vector_fini(&ps->stmts);
+
     FINI_BUF(ps->sbuf);
-    stbl_free(ps->stbl);
     mm_free(ps);
 }
 
