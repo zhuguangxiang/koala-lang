@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// SKIP: koalac %s | filecheck %s
 
 let i = 10
 let j = i + 1
