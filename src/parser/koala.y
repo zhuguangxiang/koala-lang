@@ -163,7 +163,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token BOOL
 %token STRING
 %token OBJECT
-%token ARRAY
+%token LIST
 %token MAP
 %token TUPLE
 %token SET
@@ -241,7 +241,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<expr> index_expr
 %type<expr> slice_expr
 %type<expr> atom_expr
-%type<expr> array_expr
+%type<expr> list_expr
 %type<expr> map_expr
 %type<expr> map
 %type<expr> atom
@@ -249,9 +249,10 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<expr> anony_expr
 %type<expr> assign_left_expr
 
+%type<type_spec> array_type
 %type<type_spec> optional_type
 %type<type_spec> type
-%type<type_spec> array_type
+%type<type_spec> list_type
 %type<type_spec> map_type
 %type<type_spec> set_type
 %type<type_spec> tuple_type
@@ -262,6 +263,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 
 %type<vec> id_as_list
 %type<vec> top_stmts
+%type<vec> tuple_type_list
 %type<vec> optional_type_list
 %type<vec> block
 %type<vec> local_list
@@ -562,14 +564,26 @@ optional_type
         $$ = optional_type_spec($1);
         type_spec_loc($$, lloc(@1, @2));
     }
+    | array_type
+    {
+        printf("array_type\n");
+        $$ = NULL;
+    }
     | anony_type
     {
+        printf("anonymous func type\n");
         $$ = NULL;
+    }
+    | '(' optional_type ')' '?'
+    {
+        printf("optional paren-type\n");
+        // $$ = optional_type_spec($2);
+        // type_spec_loc($$, lloc(@1, @4));
     }
     ;
 
 type
-    : array_type
+    : list_type
     {
         $$ = NULL;
     }
@@ -660,25 +674,50 @@ union_opt_type
     }
     ;
 
-array_type
-    : ARRAY '[' optional_type ']'
+list_type
+    : LIST '[' optional_type ']'
     {
-        // $$ = array_type($3);
+        // $$ = list_type($3);
         // type_set_loc($$, lloc(@1, @4));
     }
-    | ARRAY '[' error
+    | LIST '[' error
     {
         kl_error(loc(@3), "expected type.");
         yy_clear_ok;
         $$ = NULL;
     }
-    | ARRAY '[' optional_type error
+    | LIST '[' optional_type error
     {
         // free_type($3);
         kl_error(loc(@4), "expected ']'.");
         yy_clear_ok;
         $$ = NULL;
     }
+    ;
+
+array_type
+    : '[' int_lit_list ']' type
+    {
+
+    }
+    | '[' int_lit_list ']' type '?'
+    {
+
+    }
+    | '[' ']' type
+    {
+
+    }
+    | '[' ']' type '?'
+    {
+
+    }
+    ;
+
+int_lit_list
+    : INT_LITERAL
+    | int_lit_list ',' INT_LITERAL
+    | int_lit_list ','
     ;
 
 map_type
@@ -724,8 +763,19 @@ tuple_type
         $$ = NULL;
         // type_set_loc($$, lloc(@1, @4));
     }
-    | '(' optional_type_list ')'
+    | '(' optional_type ',' ')'
     {
+        printf("tuple for only one type\n");
+        $$ = NULL;
+    }
+    | '(' tuple_type_list ')'
+    {
+        printf("tuple paren-type-list\n");
+        $$ = NULL;
+    }
+    | '(' tuple_type_list ',' ')'
+    {
+        printf("tuple paren-type-list-comma\n");
         $$ = NULL;
     }
     | TUPLE '[' error
@@ -740,6 +790,19 @@ tuple_type
         kl_error(loc(@4), "expected ']'.");
         yy_clear_ok;
         $$ = NULL;
+    }
+    ;
+
+tuple_type_list
+    : optional_type ',' optional_type
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | tuple_type_list ',' optional_type
+    {
+        $$ = $1;
+        vector_push_back($$, &$3);
     }
     ;
 
@@ -1361,7 +1424,7 @@ class_name
     {
         $$ = (Ident){"str", loc(@1)};
     }
-    | ARRAY
+    | LIST
     {
         $$ = (Ident){"list", loc(@1)};
     }
@@ -2398,6 +2461,35 @@ primary_expr
         $$ = expr_from_bang($1);
         expr_set_loc($$, lloc(@1, @2));
     }
+    | '[' expr_list ']' ID
+    {
+
+    }
+    | '[' expr_list ']' ID '?'
+    {
+
+    }
+    | '[' expr_list ']' atom_type
+    {
+
+    }
+    | '[' expr_list ']' atom_type '?'
+    {
+
+    }
+    | '[' expr_list ']' LIST
+    {
+
+    }
+    | '[' expr_list ']' MAP
+    {
+    }
+    | '[' expr_list ']' SET
+    {
+    }
+    | '[' expr_list ']' TUPLE
+    {
+    }
     ;
 
 call_expr
@@ -2469,6 +2561,10 @@ dot_expr
         $$ = expr_from_dot($1, &id, DOT_NORMAL);
         expr_set_loc($$, lloc(@1, @3));
     }
+    | primary_expr '.' ID '?'
+    {
+
+    }
     | primary_expr '.' INT_LITERAL
     {
         // IDENT(id, $3, loc(@3));
@@ -2517,6 +2613,10 @@ index_expr
         // Foo[Bar, Baz]()
         $$ = expr_from_index($1, $3);
         expr_set_loc($$, lloc(@1, @4));
+    }
+    | primary_expr '[' index_expr_list ']' '?'
+    {
+
     }
     | primary_expr '[' error
     {
@@ -2643,7 +2743,7 @@ atom_expr
         yy_clear_ok;
         $$ = NULL;
     }
-    | array_expr
+    | list_expr
     {
         $$ = $1;
     }
@@ -2732,7 +2832,7 @@ atom
     }
     ;
 
-array_expr
+list_expr
     : '[' expr_list ']'
     {
         // [1,2,3]
@@ -2752,7 +2852,7 @@ array_expr
         $$ = expr_from_array(NULL);
         expr_set_loc($$, lloc(@1, @2));
     }
-    | ARRAY
+    | LIST
     {
         TypeSpec *ty = klass_type_spec(NULL, "list");
         type_spec_loc(ty, loc(@1));

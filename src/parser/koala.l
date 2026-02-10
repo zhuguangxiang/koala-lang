@@ -244,7 +244,7 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 "bool"      { YY_RETURN(BOOL);      }
 "str"       { YY_RETURN(STRING);    }
 "any"       { YY_RETURN(OBJECT);    }
-"list"      { YY_RETURN(ARRAY);     }
+"list"      { YY_RETURN(LIST);      }
 "dict"      { YY_RETURN(MAP);       }
 "set"       { YY_RETURN(SET);       }
 "tuple"     { YY_RETURN(TUPLE);     }

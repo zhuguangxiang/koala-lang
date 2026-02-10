@@ -1,27 +1,123 @@
 #!/home/james/.local/bin/koalac
 
-func fn14(v1 int?) int {
-    var v int? = v1
+var arr [2,3]int
+var arr2 [2,3]int?
+// var arr2_1 ([2,3]int?)
+var arr3 ([2,3]int)?
 
-    if (v == null) { return 0 }
+var var4 (int)?
+var var4_1 (int?)?
+var var4_2 (int,)
+var var4_3 (int,)?
+var var5 (int, str)
+var var5_1 (int, str)?
 
-    {
-        v = null
-    }
+var var7 (int, str,) // trailing comma is allowed
+var var7_1 (int, str,)?
 
-    if (v == null) { return 1 }
+var var8 (func(int)int?)?
+var var9 (func(int, str)int?)?
 
-    return v
-}
+var var10 [2,3]int = [[1,2,3],[4,5,6]]
+var var11 [2,3]int = [2,3]int()
+var var12 [2,3]int = [2,3]int(0)
+var var13 [2,3]int = [2,3]int(1,2,3,4,5,6)
+// var var14 [2,3]int = [2,3]int(1,2,3,4,5,6,) // trailing comma is allowed
+var var15 [2,3]int? = [2,3]int?([[1,2,3],[4,5,6]])
+var var16 [2,3]List[int]?
 
-func fn15(v1 int?) int {
-    var v int? = v1
+var var17 [4,]int
+var var18 [6,]int?
+var var19 [1,]int
+var var20 [1,]int?
+var var21 [2,]int = [[1,2,3],[4,5,6]]
+var var22 [2,]int? = [[1,2,3],[4,5,6]]
+var var23 [2,]int = [2,3]int([[1,2,3],[4,5,6]])
+var var24 [2,]int? = [2,3]int?([[1,2,3],[4,5,6]])
 
-    if (v == null) { return 0 }
+var var25 []int
+var var26 []int?
+var var27 []int = [1,2,3]
+var var28 []int? = [1,2,3]
 
-    {
-        v = 100
-    }
+var var29 [10]int
+var var30 [10]int?
+var var31 [10]int = [1,2,3]
+var var32 [10]int? = [1,2,3]
 
-    return v
-}
+var var33 map[int, str]
+var var34 map[int, str]?
+var var35 map[int, str] = {1: "one", 2: "two"}
+var var36 map[int, str]? = {1: "one", 2: "two"}
+
+var var37 set[int]
+var var38 set[int]?
+var var39 set[int] = [1, 2, 3]
+var var40 set[int]? = [1, 2, 3]
+
+var var41 tuple[int, str]
+var var42 tuple[int, str]?
+var var43 tuple[int, str] = (1, "one")
+var var44 tuple[int, str]? = (1, "one")
+var var45 tuple[int]
+var var46 tuple[int]?
+var var47 tuple[int] = (1,)
+var var48 tuple[int]? = (1, "one")
+
+var var49 list[int]
+var var50 list[int]?
+var var51 list[int] = [[1,2,3],[4,5,6]]
+var var52 list[int]? = [[1,2,3],[4,5,6]]
+
+var var53 Foo[int]
+var var54 Foo[int]?
+var var55 Foo[int] = Foo[int]()
+var var56 Foo[int]? = Foo[int]()
+
+var var57 foo.Bar
+var var58 foo.Bar?
+var var59 foo.Bar = foo.Bar()
+var var60 foo.Bar? = foo.Bar()
+
+var var61 (int,)
+var var62 (int,)?
+var var63 (int, str)
+var var64 (int, str)?
+var var65 (int, str,) // trailing comma is allowed
+var var66 (int, str,)? // trailing comma is allowed
+
+var var67 list[[10]int]
+
+[2,3]Foo[int]()
+[2,3]Foo[int]?()
+[2,3]list[int]([[1,2,3],[4,5,6]])
+[2,3]list[int]?()
+[2,3]map[int, str]({1: "one", 2: "two"})
+[2,3]map[int, str]?()
+[2,3]set[int]([1, 2, 3])
+[2,3]set[int]?()
+[2,3]tuple[int, str]((1, "one"))
+[2,3]tuple[int, str]?()
+[2,3]tuple[int]((1, "one"))
+[2,3]tuple[int]?((1, "one"))
+[2,3]Foo()
+[2,3]Foo?()
+[2,3]foo.Bar()
+[2,3]foo.Bar?()
+()
+// ()?
+(1,)
+// (1,)?
+(1, 2)
+// (1, 2)?
+(1,2,)
+// (1,2,)? // trailing comma is allowed
+tuple[int]()
+// tuple[int]?()
+tuple[int](1, 2)
+// tuple[int]?(1, 2)
+
+{"helll" : 1, "world": 2}
+// {"helll" : 1, "world": 2}?
+[1,2,3]
+[[1,2,3],[4,5,6]]
