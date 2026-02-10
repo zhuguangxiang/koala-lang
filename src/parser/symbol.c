@@ -461,6 +461,8 @@ Symbol *stbl_get(HashMap *stbl, char *name)
 
 void stbl_show(HashMap *stbl)
 {
+    printf("symbol table count: %d\n", stbl->count);
+
     HashMapIter it = { 0 };
     while (hashmap_next(stbl, &it)) {
         Symbol *sym = (Symbol *)it.entry;

@@ -1,0 +1,11 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Print `objs` to the stream file, separated by `sep` and followed by `end`.
+///
+/// All non-keyword arguments are converted to string and written to stream,
+/// separated by `sep` and followed by `end`. The default `file` is `sys.stdout` stream.
+@native(builtin_print)
+pub func print(objs ..., sep = ' ', end = '\n') {}

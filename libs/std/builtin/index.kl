@@ -1,0 +1,10 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+pub trait Indexable[T] {
+    func __len__() int
+    func __getitem__(index any) T
+    func __setitem__(index any, v T)
+}

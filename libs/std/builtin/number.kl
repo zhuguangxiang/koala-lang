@@ -1,0 +1,90 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+pub trait Number[T] {
+    func __add__(rhs T) T
+    func __sub__(rhs T) T
+    func __mul__(rhs T) T
+    func __div__(rhs T) T
+    func __mod__(rhs T) T
+    func __lsh__(rhs T) T
+    func __rsh__(rhs T) T
+    func __and__(rhs T) T
+    func __or__(rhs T) T
+    func __xor__(rhs T) T
+}
+
+pub class int8 : Number[int8] {
+}
+
+pub class int16 : Number[int16] {
+}
+
+pub class int32 : Number[int32] {
+    @intrinsic
+    pub func __add__(rhs int32) int32 {}
+}
+
+pub class int64 : Number[int64] {
+    // the 'x' canbe int or string
+    // the 'base' is used when 'x' is string
+    @native(kl_int64_init)
+    pub func __init__(x int | str, base = 10) {}
+
+    @intrinsic
+    pub func __add__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __gt__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __ge__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __lt__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __le__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __eq__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __neq__(rhs int64) bool {}
+
+    @intrinsic
+    pub func __iadd__(rhs int64) int64 {}
+}
+
+pub class uint8 : Number[uint8] {
+}
+
+pub class uint16 : Number[uint16] {
+}
+
+pub class uint32 : Number[uint32] {
+    @intrinsic
+    pub func __add__(rhs uint32) uint32 {}
+}
+
+pub class uint64 : Number[uint64] {
+    @intrinsic
+    pub func __add__(rhs uint64) uint64 {}
+}
+
+pub class float16 : Number[float16] {
+    @intrinsic
+    pub func __add__(rhs float16) float16 {}
+}
+
+pub class float32 : Number[float32] {
+    @intrinsic
+    pub func __add__(rhs float32) float32 {}
+}
+
+pub class float64 : Number[float64] {
+    @intrinsic
+    pub func __add__(rhs float64) float64 {}
+}

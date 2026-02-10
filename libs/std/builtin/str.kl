@@ -1,0 +1,40 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+pub class str : Seq[str] {
+
+    @native(kl_str_len)
+    pub func __len__() int {}
+
+    @native(kl_str_get_item)
+    pub func __getitem__(index any) str {}
+
+    @native(kl_str_concat)
+    pub func __concat__(seq Seq[str]) str {}
+
+    @native(kl_str_repeat)
+    pub func __repeat__(count int) str {}
+
+    @native(kl_str_find)
+    pub func find(sub str) int {}
+
+    @native(kl_str_substr)
+    pub func substr(start int, length int) str {}
+
+    @native(kl_str_to_int)
+    pub func to_int() int {}
+
+    @native(kl_str_to_float)
+    pub func to_float() float64 {}
+
+    @native(kl_str_format)
+    pub func format(fmt str, args ...) str {}
+
+    @native(kl_str_init)
+    pub func __init__(s str) {}
+
+    @native(kl_str_add)
+    pub func __add__(rhs str) str {}
+}

@@ -1,0 +1,22 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+pub class list[T] : Seq[T] {
+
+    @native(kl_list_init)
+    pub func __init__() {}
+
+    @native(kl_list_len)
+    pub func __len__() int {}
+
+    @native(kl_list_get_item)
+    pub func __getitem__(index any) T {}
+
+    @native(kl_list_concat)
+    pub func __concat__(seq Seq[T]) list[T] {}
+
+    @native(kl_list_add)
+    pub func add(item T) {}
+}

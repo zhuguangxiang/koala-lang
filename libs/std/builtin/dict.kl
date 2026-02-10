@@ -1,0 +1,16 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+pub class dict[K, V] : Indexable[V] {
+
+    @native(kl_dict_len)
+    pub func __len__() int {}
+
+    @native(kl_dict_get_item)
+    pub func __getitem__(index any) V {}
+
+    @native(kl_dict_set_item)
+    pub func __setitem__(index any, v V) {}
+}

@@ -1,0 +1,13 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+pub class type {
+
+    @native(kl_type_init)
+    pub func __init__(o any) {}
+
+    @native(kl_type_call)
+    pub func __call__(o any) type {}
+}

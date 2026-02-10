@@ -1,0 +1,10 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+pub trait Seq[T] : Indexable[T] {
+    func __contains__(v T) bool
+    func __concat__(seq Seq[T]) Seq[T]
+    func __repeat__(count int) Seq[T]
+}

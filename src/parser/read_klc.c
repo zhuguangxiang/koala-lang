@@ -357,6 +357,7 @@ static HashMap *__load(char *path)
 
     load_klasses(&ctx);
     load_funcs(&ctx);
+    stbl_show(stbl);
     do_fixup(&ctx);
 
     free_klc_file(klc);

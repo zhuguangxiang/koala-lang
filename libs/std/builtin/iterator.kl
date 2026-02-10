@@ -1,0 +1,14 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+
+pub trait Iterator[T] {
+    func __has_next__() bool
+    func __next__() T
+}
+
+pub trait Iterable[T] {
+    func __iter__() Iterator[T]
+}

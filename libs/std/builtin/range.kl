@@ -1,0 +1,13 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+pub class range : Iterable[int] {
+
+    @native(kl_range_init)
+    pub func __init__(start int, end int, step int = 1) {}
+
+    @native(kl_range_iter)
+    pub func __iter__() Iterator[int] {}
+}
