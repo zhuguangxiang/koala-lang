@@ -378,7 +378,7 @@ static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, char *mangled_na
     return (Symbol *)sym;
 }
 
-static InstanceSymbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *tp_args)
+static InstanceSymbol *__instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *tp_args)
 {
     ASSERT(ts->kind == TYPE_GENERIC_REF);
 
@@ -394,7 +394,7 @@ static InstanceSymbol *instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *t
             spec_arg_ts = vector_get(tp_args, arg_ts->generic_var.index);
         } else if (arg_ts->kind == TYPE_GENERIC_REF) {
             // nested generic_ref type
-            InstanceSymbol *spec_arg_sym = instance_type_spec(stbl, arg_ts, tp_args);
+            InstanceSymbol *spec_arg_sym = __instance_type_spec(stbl, arg_ts, tp_args);
             spec_arg_ts = spec_arg_sym->instance_ts;
         } else {
             ASSERT(arg_ts->kind != TYPE_UNRESOLVED);
@@ -438,7 +438,7 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
                 // handle generic_ref base class/trait
                 ASSERT(base_ts->kind == TYPE_GENERIC_REF);
                 // specialize base class/trait
-                InstanceSymbol *base_sym = instance_type_spec(stbl, base_ts, tp_args);
+                InstanceSymbol *base_sym = __instance_type_spec(stbl, base_ts, tp_args);
                 base_ts = base_sym->instance_ts;
                 vector_push_back(inst_sym->bases, &base_ts);
                 ASSERT(base_ts->kind == TYPE_KLASS);
@@ -461,8 +461,6 @@ Symbol *stbl_get(HashMap *stbl, char *name)
 
 void stbl_show(HashMap *stbl)
 {
-    printf("symbol table count: %d\n", stbl->count);
-
     HashMapIter it = { 0 };
     while (hashmap_next(stbl, &it)) {
         Symbol *sym = (Symbol *)it.entry;

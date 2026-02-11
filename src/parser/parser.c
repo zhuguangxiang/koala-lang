@@ -536,6 +536,9 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     return 0;
 }
 
+static void parse_ast(ParserState *ps);
+static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls);
+
 TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
 {
     if (!_ts) return NULL;
@@ -615,6 +618,32 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             return NULL;
         }
 
+        if (sym->status == SYM_UNRESOLVED) {
+            log_info("symbol '%s' is not resolved yet, try to resolve it NOW",
+                     kls_sym->name);
+            if (sym->ps) {
+                ParserState *_ps = sym->ps;
+                if (ps != _ps) {
+                    log_info("resolve symbol '%s' in '%s'", kls_sym->name, _ps->filename);
+                    parse_ast(_ps);
+                } else {
+                    log_info("currently resolving symbol '%s' in '%s'", kls_sym->name,
+                             ps->filename);
+                    parse_klass_meta(ps, sym->arg);
+                }
+            } else {
+                UNREACHABLE();
+            }
+        } else if (sym->status == SYM_RESOLVING) {
+            kl_error(_ts->loc, "circular dependency detected when resolving '%s'",
+                     kls_sym->name);
+            vector_destroy(tp_args);
+            return NULL;
+        } else {
+            log_info("symbol '%s' is already resolved", kls_sym->name);
+            // do nothing
+        }
+
         if (open) {
             // open generic_ref type
             log_info("resolve open generic_ref type '%s'", _ts->unresolved.name.name);
@@ -623,6 +652,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
                                       tp_args, kls_sym->id);
             vector_destroy(tp_args);
             type_spec_free(_ts);
+            log_type_spec(ret);
             return ret;
         }
 
@@ -638,10 +668,10 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             ASSERT(kls_sym->instance_ts == ret);
             type_spec_free(_ts);
             vector_destroy(tp_args);
+            log_type_spec(ret);
             return ret;
         } else {
-            // all args are concrete types
-            // create instance symbol
+            // all args are concrete types and create instance symbol
             log_info("resolve type '%s' with type-args", _ts->unresolved.name.name);
             InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, sym, tp_args);
             vector_destroy(tp_args);
@@ -651,6 +681,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             }
             TypeSpec *ret = inst_sym->instance_ts;
             type_spec_free(_ts);
+            log_type_spec(ret);
             return ret;
         }
     } else {
@@ -848,8 +879,10 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     VarSymbol *sym = (VarSymbol *)var->sym;
     ASSERT(sym);
 
+    log_info("parse variable declaration '%s'", id->name);
+
     if (sym->status != SYM_UNRESOLVED) {
-        log_info("variable '%s' is resolving or resolved.", id->name);
+        log_info("variable '%s' is resolving or resolved.", sym->name);
         return;
     }
 
@@ -1121,131 +1154,13 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
 
     FuncSymbol *sym = (FuncSymbol *)fn->sym;
 
+    log_info("parse func '%s' body", sym->name);
+
     check_param_name_with_field_name(ps, fn->args);
 
     sc = enter_scope(ps, SCOPE_FUNC, 0, sym->name);
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
-
-    // parse return type
-    if (fn->ret) {
-        TypeSpec *_ts = fn->ret;
-        _ts = resolve_type(ps, _ts);
-        check_type(ps, _ts);
-        sym->ret = _ts;
-    } else {
-        // default return type is 'None'
-        sym->ret = no_type_spec();
-    }
-
-    Vector *args = vector_create_ptr();
-
-    int has_va_arg = 0;
-    ParamDecl *param;
-    vector_foreach(param, fn->args) {
-        if (!param) continue;
-
-        if (has_va_arg && !param->value) {
-            kl_error(param->id.loc,
-                     "after variadic parameter must be the kw parameters.");
-            return;
-        }
-
-        if (param->va_arg) {
-            if (has_va_arg) {
-                kl_error(param->id.loc, "only one variadic parameter is allowed.");
-                return;
-            }
-            has_va_arg = 1;
-        }
-
-        ArgInfo *arg = mm_alloc_obj(arg);
-        arg->name = param->id.name;
-        arg->dfl_val_idx = 0;
-
-        TypeSpec *ts;
-        if (param->type) {
-            ts = param->type;
-            Expr *e = param->value;
-            if (e) {
-                if (e->kind != EXPR_LITERAL_KIND) {
-                    kl_error(param->id.loc,
-                             "parameter '%s' needs a literal default value",
-                             param->id.name);
-                    return;
-                }
-                e->ctx = EXPR_CTX_LOAD;
-                e->expected = ts;
-                parser_visit_expr(ps, e);
-                if (!e->ts) return;
-            }
-        } else {
-            Expr *e = param->value;
-            if (e->kind != EXPR_LITERAL_KIND) {
-                kl_error(param->id.loc, "parameter '%s' needs a literal default value",
-                         param->id.name);
-                return;
-            }
-            e->ctx = EXPR_CTX_LOAD;
-            parser_visit_expr(ps, e);
-            if (!e->ts) return;
-            ts = e->ts;
-        }
-
-        if (ts) {
-            ts = resolve_type(ps, ts);
-            ASSERT(ts);
-            check_type(ps, ts);
-        }
-
-        Symbol *s = stbl_add_var(sc->stbl, param->id.name, ts, 0);
-        if (!s) {
-            kl_error(param->id.loc, "redefinition of parameter '%s' in function '%s'",
-                     param->id.name, fn->id.name);
-            return;
-        }
-
-        ((VarSymbol *)s)->scope = VAR_SCOPE_PARAM;
-        Expr *e = param->value;
-        if (e) {
-            LitExpr *lit_exp = (LitExpr *)e;
-            Literal *lit = mm_alloc_obj(lit);
-            if (lit_exp->which == LIT_EXPR_INT) {
-                lit->which = LIT_INT;
-                lit->sign = lit_exp->sign;
-                lit->len = lit_exp->len;
-                lit->ival = lit_exp->ival;
-            } else if (lit_exp->which == LIT_EXPR_FLT) {
-                lit->which = LIT_FLT;
-                lit->fval = lit_exp->fval;
-            } else if (lit_exp->which == LIT_EXPR_BOOL) {
-                lit->which = LIT_BOOL;
-                lit->bval = lit_exp->bval;
-            } else if (lit_exp->which == LIT_EXPR_STR) {
-                lit->which = LIT_STR;
-                lit->len = lit_exp->len;
-                lit->sval = lit_exp->sval;
-            } else if (lit_exp->which == LIT_EXPR_NONE) {
-                lit->which = LIT_NONE;
-            } else {
-                UNREACHABLE();
-            }
-            ((VarSymbol *)s)->lit = lit;
-            arg->dfl_val_idx = 1;
-        }
-
-        arg->sym = s;
-        arg->ts = ts;
-        vector_push_back(args, &arg);
-    }
-
-    sym->params = args;
-
-    // update func's type
-    TypeSpec *fn_ts = func_type_spec_from_arginfo(args, sym->ret);
-    sym->ts = fn_ts;
-    log_info("update function '%s' type as:", sym->name);
-    log_type_spec(sym->ts);
 
     /* parse body */
     parse_block(ps, fn->body, NULL);
@@ -1834,20 +1749,13 @@ static void parse_klass(ParserState *ps, Stmt *stmt)
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
     KlassSymbol *sym = (KlassSymbol *)kls->sym;
 
+    log_info("parse klass '%s' body", sym->name);
+
     ScopeKind scope_kind = (kls->kind == STMT_CLASS_KIND) ? SCOPE_CLASS : SCOPE_TRAIT;
 
     ParserScope *sc = enter_scope(ps, scope_kind, 0, sym->name);
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
-
-    // parse type parameter's bounds
-    parse_type_params(ps, kls);
-
-    /* parse base class and traits */
-    parse_bases(ps, kls);
-
-    /* compute vtbl info */
-    compute_vtbl_info(ps, sym);
 
     /* parse class body */
     Stmt *s;
@@ -2131,15 +2039,240 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     handlers[stmt->kind](ps, stmt);
 }
 
+static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls)
+{
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+    ScopeKind scope_kind = (kls->kind == STMT_CLASS_KIND) ? SCOPE_CLASS : SCOPE_TRAIT;
+
+    log_info("parsing metadata for klass/trait '%s'", sym->name);
+
+    if (sym->status != SYM_UNRESOLVED) {
+        log_info("klass/trait '%s' is resolving or resolved.", sym->name);
+        return;
+    }
+
+    sym->status = SYM_RESOLVING;
+
+    ParserScope *sc = enter_scope(ps, scope_kind, 0, sym->name);
+    sc->stbl = sym->stbl;
+    sc->sym = (Symbol *)sym;
+
+    // parse type parameter's bounds
+    parse_type_params(ps, kls);
+
+    /* parse base class and traits */
+    parse_bases(ps, kls);
+
+    /* compute vtbl info */
+    compute_vtbl_info(ps, sym);
+
+    exit_scope(ps);
+
+    sym->status = SYM_RESOLVED;
+}
+
+static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
+{
+    FuncSymbol *sym = (FuncSymbol *)fn->sym;
+
+    log_info("parsing function '%s' meta info", sym->name);
+
+    if (sym->status != SYM_UNRESOLVED) {
+        log_info("function '%s' is resolving or resolved.", sym->name);
+        return;
+    }
+
+    sym->status = SYM_RESOLVING;
+
+    ParserScope *sc = enter_scope(ps, SCOPE_FUNC, 0, sym->name);
+    sc->stbl = sym->stbl;
+    sc->sym = (Symbol *)sym;
+
+    // parse return type
+    if (fn->ret) {
+        TypeSpec *_ts = fn->ret;
+        _ts = resolve_type(ps, _ts);
+        check_type(ps, _ts);
+        sym->ret = _ts;
+    } else {
+        // default return type is 'None'
+        sym->ret = no_type_spec();
+    }
+
+    Vector *args = vector_create_ptr();
+
+    int has_va_arg = 0;
+    ParamDecl *param;
+    vector_foreach(param, fn->args) {
+        if (!param) continue;
+
+        if (has_va_arg && !param->value) {
+            kl_error(param->id.loc,
+                     "after variadic parameter must be the kw parameters.");
+            return;
+        }
+
+        if (param->va_arg) {
+            if (has_va_arg) {
+                kl_error(param->id.loc, "only one variadic parameter is allowed.");
+                return;
+            }
+            has_va_arg = 1;
+        }
+
+        ArgInfo *arg = mm_alloc_obj(arg);
+        arg->name = param->id.name;
+        arg->dfl_val_idx = 0;
+
+        TypeSpec *ts;
+        if (param->type) {
+            ts = param->type;
+            Expr *e = param->value;
+            if (e) {
+                if (e->kind != EXPR_LITERAL_KIND) {
+                    kl_error(param->id.loc,
+                             "parameter '%s' needs a literal default value",
+                             param->id.name);
+                    return;
+                }
+                e->ctx = EXPR_CTX_LOAD;
+                e->expected = ts;
+                parser_visit_expr(ps, e);
+                if (!e->ts) return;
+            }
+        } else {
+            Expr *e = param->value;
+            if (e->kind != EXPR_LITERAL_KIND) {
+                kl_error(param->id.loc, "parameter '%s' needs a literal default value",
+                         param->id.name);
+                return;
+            }
+            e->ctx = EXPR_CTX_LOAD;
+            parser_visit_expr(ps, e);
+            if (!e->ts) return;
+            ts = e->ts;
+        }
+
+        if (ts) {
+            ts = resolve_type(ps, ts);
+            ASSERT(ts);
+            check_type(ps, ts);
+        }
+
+        Symbol *s = stbl_add_var(sc->stbl, param->id.name, ts, 0);
+        if (!s) {
+            kl_error(param->id.loc, "redefinition of parameter '%s' in function '%s'",
+                     param->id.name, fn->id.name);
+            return;
+        }
+
+        ((VarSymbol *)s)->scope = VAR_SCOPE_PARAM;
+        Expr *e = param->value;
+        if (e) {
+            LitExpr *lit_exp = (LitExpr *)e;
+            Literal *lit = mm_alloc_obj(lit);
+            if (lit_exp->which == LIT_EXPR_INT) {
+                lit->which = LIT_INT;
+                lit->sign = lit_exp->sign;
+                lit->len = lit_exp->len;
+                lit->ival = lit_exp->ival;
+            } else if (lit_exp->which == LIT_EXPR_FLT) {
+                lit->which = LIT_FLT;
+                lit->fval = lit_exp->fval;
+            } else if (lit_exp->which == LIT_EXPR_BOOL) {
+                lit->which = LIT_BOOL;
+                lit->bval = lit_exp->bval;
+            } else if (lit_exp->which == LIT_EXPR_STR) {
+                lit->which = LIT_STR;
+                lit->len = lit_exp->len;
+                lit->sval = lit_exp->sval;
+            } else if (lit_exp->which == LIT_EXPR_NONE) {
+                lit->which = LIT_NONE;
+            } else {
+                UNREACHABLE();
+            }
+            ((VarSymbol *)s)->lit = lit;
+            arg->dfl_val_idx = 1;
+        }
+
+        arg->sym = s;
+        arg->ts = ts;
+        vector_push_back(args, &arg);
+    }
+
+    sym->params = args;
+
+    // update func's type
+    TypeSpec *fn_ts = func_type_spec_from_arginfo(args, sym->ret);
+    sym->ts = fn_ts;
+    log_info("update function '%s' type as:", sym->name);
+    log_type_spec(sym->ts);
+
+    exit_scope(ps);
+
+    sym->status = SYM_RESOLVED;
+}
+
+static void parse_klass_func_meta(ParserState *ps, KlassDeclStmt *kls)
+{
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+
+    log_info("parsing klass/trait '%s' methods' meta info", sym->name);
+
+    ScopeKind scope_kind = (kls->kind == STMT_CLASS_KIND) ? SCOPE_CLASS : SCOPE_TRAIT;
+
+    ParserScope *sc = enter_scope(ps, scope_kind, 0, sym->name);
+    sc->stbl = sym->stbl;
+    sc->sym = (Symbol *)sym;
+
+    Stmt *stmt;
+    vector_foreach(stmt, kls->stmts) {
+        if (!stmt) continue;
+        if (stmt->kind == STMT_FUNC_KIND) {
+            parse_func_meta(ps, (FuncDeclStmt *)stmt);
+        }
+    }
+
+    exit_scope(ps);
+}
+
 static void parse_ast(ParserState *ps)
 {
     ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
     scope->stbl = ps->stbl;
+
+    if (ps->status != PS_STATUS_UNRESOLVED) {
+        log_info("AST '%s' is already resolving or resolved.", ps->filename);
+        return;
+    }
+
+    ps->status = PS_STATUS_RESOLVING;
+
+    KlassDeclStmt *kls;
+    vector_foreach(kls, &ps->kls_stmts) {
+        if (!kls) continue;
+        parse_klass_meta(ps, kls);
+    }
+
+    vector_foreach(kls, &ps->kls_stmts) {
+        if (!kls) continue;
+        parse_klass_func_meta(ps, kls);
+    }
+
+    FuncDeclStmt *fn;
+    vector_foreach(fn, &ps->fn_stmts) {
+        if (!fn) continue;
+        parse_func_meta(ps, fn);
+    }
+
     Stmt *stmt;
     vector_foreach(stmt, &ps->stmts) {
         if (!stmt) continue;
         parse_stmt(ps, stmt);
     }
+
+    ps->status = PS_STATUS_RESOLVED;
+
     exit_scope(ps);
 
     /* If there are errors, stop doing codegen. */
@@ -2155,6 +2288,8 @@ static void init_parser_state(ParserState *ps, char *filename)
 {
     ps->filename = str_dup(filename);
     vector_init_ptr(&ps->stmts);
+    vector_init_ptr(&ps->fn_stmts);
+    vector_init_ptr(&ps->kls_stmts);
     vector_init_ptr(&ps->shadows);
     INIT_BUF(ps->sbuf);
     ps->stbl = current;
@@ -2255,24 +2390,34 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
             sym = _add_global(ps, ps->stbl, var);
             if (!sym) return;
             var->where = VAR_GLOBAL;
+            sym->ps = ps;
             break;
         }
         case STMT_FUNC_KIND: {
             FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
             sym = _add_func(ps, ps->stbl, fn);
             if (!sym) return;
+            vector_push_back(&ps->fn_stmts, &stmt);
+            sym->ps = ps;
+            sym->arg = fn;
             break;
         }
         case STMT_CLASS_KIND: {
             KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
             sym = _add_klass(ps, ps->stbl, kls, 0);
             if (!sym) return;
+            vector_push_back(&ps->kls_stmts, &stmt);
+            sym->ps = ps;
+            sym->arg = kls;
             break;
         }
         case STMT_TRAIT_KIND: {
             KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
             sym = _add_klass(ps, ps->stbl, kls, 1);
             if (!sym) return;
+            vector_push_back(&ps->kls_stmts, &stmt);
+            sym->ps = ps;
+            sym->arg = kls;
             break;
         }
         default: {

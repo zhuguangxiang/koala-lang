@@ -713,7 +713,7 @@ TypeSpec *union_type_spec_intern(Vector *args)
     // sort args by type_id to ensure uniqueness
     // so that Union[A, B] and Union[B, A] are the same
 
-    qsort(args->objs, args->size, args->obj_size, cmp_typespec_by_type_id);
+    vector_sort(args, cmp_typespec_by_type_id);
 
     BUF(buf);
     type_spec_to_str(ts, &buf);

@@ -33,6 +33,7 @@ typedef struct _LoadKlcContext {
     HashMap *stbl;
     KlcFile *klc;
     Vector fixups;
+    Vector stage_2_fixups;
 } LoadContext;
 
 static inline int ts_need_fixup(TypeSpec *ts)
@@ -59,6 +60,11 @@ static void add_fixup_entry(FixupEntry *entry, TypeSpec *ts, LoadContext *ctx)
             vector_push_back(&ctx->fixups, &arg_entry);
         }
     }
+}
+
+static void add_stage_2_fixup_entry(FixupEntry *entry, LoadContext *ctx)
+{
+    vector_push_back(&ctx->stage_2_fixups, entry);
 }
 
 static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
@@ -107,10 +113,10 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
     }
 }
 
-static void do_fixup(LoadContext *ctx)
+static void __do_fixup(Vector *fixups, LoadContext *ctx)
 {
     FixupEntry *entry;
-    vector_foreach_ptr(entry, &ctx->fixups) {
+    vector_foreach_ptr(entry, fixups) {
         if (!entry) continue;
         switch (entry->kind) {
             case FIXUP_TP_BOUND: {
@@ -158,6 +164,12 @@ static void do_fixup(LoadContext *ctx)
     }
 }
 
+static void do_fixup(LoadContext *ctx)
+{
+    __do_fixup(&ctx->fixups, ctx);
+    __do_fixup(&ctx->stage_2_fixups, ctx);
+}
+
 static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
 {
     Vector *params = vector_create_ptr();
@@ -180,7 +192,11 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
                 .owner = arg_info,
                 .index = -1,
             };
-            add_fixup_entry(&entry, ts, ctx);
+            if (ts->kind == TYPE_MANGLED) {
+                add_stage_2_fixup_entry(&entry, ctx);
+            } else {
+                add_fixup_entry(&entry, ts, ctx);
+            }
         } else {
             // nothing
         }
@@ -200,7 +216,11 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
             .owner = sym,
             .index = -1,
         };
-        add_fixup_entry(&entry, ret_ts, ctx);
+        if (ret_ts->kind == TYPE_MANGLED) {
+            add_stage_2_fixup_entry(&entry, ctx);
+        } else {
+            add_fixup_entry(&entry, ret_ts, ctx);
+        }
     } else {
         // nothing
     }
@@ -211,7 +231,7 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
         .owner = sym,
         .index = -1,
     };
-    vector_push_back(&ctx->fixups, &proto_entry);
+    add_stage_2_fixup_entry(&proto_entry, ctx);
 }
 
 static void load_type_params(KlcKlass *kls, void *owner, LoadContext *ctx)
@@ -274,7 +294,7 @@ static void load_bases(KlcKlass *kls, KlassSymbol *sym, LoadContext *ctx)
                 .owner = sym,
                 .index = vector_size(&sym->bases) - 1,
             };
-            add_fixup_entry(&entry, ts, ctx);
+            add_stage_2_fixup_entry(&entry, ctx);
         } else {
             UNREACHABLE();
         }
@@ -354,6 +374,7 @@ static HashMap *__load(char *path)
     ctx.stbl = stbl;
     ctx.klc = klc;
     vector_init(&ctx.fixups, sizeof(FixupEntry));
+    vector_init(&ctx.stage_2_fixups, sizeof(FixupEntry));
 
     load_klasses(&ctx);
     load_funcs(&ctx);
@@ -362,6 +383,7 @@ static HashMap *__load(char *path)
 
     free_klc_file(klc);
     vector_fini(&ctx.fixups);
+    vector_fini(&ctx.stage_2_fixups);
 
     return stbl;
 }

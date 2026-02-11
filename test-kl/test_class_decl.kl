@@ -16,6 +16,12 @@ class Baz2[int] : Fly & Swim[int] {
 
 // CHECK: expected type-parameter decl-list.
 
+class Baz2 : Fly[int] & Swim[int] {
+}
+
+// CHECK-NEXT: Type argument mismatch: 'Fly' expects 0 argument(s), but 1 were provided
+
+
 class Baz1 : Bar & Fly & Swim {
 }
 
@@ -53,11 +59,6 @@ class Baz[T] : Fly & Swim[T] {
         // return "I'm swimming with " + to_str(u)
     }
 }
-
-class Baz2 : Fly[int] & Swim[int] {
-}
-
-// CHECK-NEXT: Type argument mismatch: 'Fly' expects 0 argument(s), but 1 were provided
 
 let b1 Baz[int] = Baz[int](100)
 let v = b1.value

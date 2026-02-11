@@ -189,6 +189,13 @@ int check_dir(char *path)
     return 0;
 }
 
+static int _path_cmp(const void *a, const void *b)
+{
+    char *pa = *(char **)a;
+    char *pb = *(char **)b;
+    return strcmp(pa, pb);
+}
+
 static void build_dir(char *path, Vector *pss)
 {
     DIR *dir = opendir(path);
@@ -209,6 +216,7 @@ static void build_dir(char *path, Vector *pss)
         return;
     }
 
+    Vector filenames = VECTOR_INIT_PTR;
     struct stat sb;
     struct dirent *dent;
     while ((dent = readdir(dir))) {
@@ -219,14 +227,21 @@ static void build_dir(char *path, Vector *pss)
             fprintf(stderr, "path '%.64s' is too long\n", path);
             continue;
         }
+
+        filename = str_dup(filename);
+        vector_push_back(&filenames, &filename);
+    }
+    closedir(dir);
+
+    vector_sort(&filenames, _path_cmp);
+
+    vector_foreach(filename, &filenames) {
         snprintf(fullpath, sizeof(fullpath) - 1, "%s/%s", prefix, filename);
-
         if (lstat(fullpath, &sb) || !S_ISREG(sb.st_mode)) continue;
-
+        printf("compiling %s\n", fullpath);
         ParserState *ps = new_parser_state(fullpath);
         vector_push_back(pss, &ps);
     }
-    closedir(dir);
 }
 
 static void compile(char *src, char *dst)

@@ -204,6 +204,11 @@ static inline void *vector_get(Vector *vec, int index)
     return obj_p ? *obj_p : NULL;
 }
 
+static inline void vector_sort(Vector *vec, int (*cmp)(const void *, const void *))
+{
+    qsort(vec->objs, vec->size, vec->obj_size, cmp);
+}
+
 #ifdef __cplusplus
 }
 #endif

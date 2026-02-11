@@ -64,10 +64,22 @@ typedef struct _ParserState {
     /* statements */
     Vector stmts;
 
+    /* klass stmts */
+    Vector kls_stmts;
+
+    /* func stmts */
+    Vector fn_stmts;
+
     /* current scope */
     ParserScope *scope;
     /* depth of scope */
     int depth;
+
+    /* status */
+    int status;
+#define PS_STATUS_UNRESOLVED 0
+#define PS_STATUS_RESOLVED   1
+#define PS_STATUS_RESOLVING  2
 
     /* temperary shadows */
     Vector shadows;

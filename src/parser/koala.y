@@ -76,30 +76,10 @@ static void free_tp_list(Vector *vec)
 
 static void yyparse_module(ParserState *ps, Vector *stmts)
 {
-    Vector sorted_stmts = VECTOR_INIT_PTR;
-
     Stmt *stmt;
     vector_foreach(stmt, stmts) {
-        if (!stmt) continue;
-        if (stmt->kind == STMT_CLASS_KIND ||
-            stmt->kind == STMT_TRAIT_KIND) {
-            vector_push_back(&sorted_stmts, &stmt);
-        }
-    }
-
-    vector_foreach(stmt, stmts) {
-        if (!stmt) continue;
-        if (stmt->kind != STMT_CLASS_KIND &&
-            stmt->kind != STMT_TRAIT_KIND) {
-            vector_push_back(&sorted_stmts, &stmt);
-        }
-    }
-
-    vector_foreach(stmt, &sorted_stmts) {
         parse_top_stmt(ps, stmt);
     }
-
-    vector_fini(&sorted_stmts);
     vector_destroy(stmts);
 }
 
