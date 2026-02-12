@@ -1,0 +1,173 @@
+
+tuple[...](1)
+tuple(1,2)
+
+// func fn1() {
+//     let a = [1, 2, 3]
+//     a[0] = 10
+// }
+
+let t (...) = (1,2,3)
+let t2 (...int) = (1,2,3)
+let t3 (...int) = tuple([1,2,3])
+let t4 (...int) = tuple((1,2,3))
+
+class array[T, const DIMS (...int)] : Seq[T] {
+
+    pub func __init__(args ...T) {}
+
+    pub func foo(arg ...T) T {}
+}
+
+class tuple[...T] : Seq[T] {
+    pub let length int
+
+    pub func __init__(args ...T) {}
+}
+
+// tuple[int, int](1,2)
+// tuple[int, int]([1,2])
+// tuple[int, int]((1,2))
+
+// let a = 1,2,3 // tuple
+// let b = (1,2,3) // tuple
+
+// let a (...) = 1,2,3 // tuple
+// let b (...) = [1,2,3] // wrong
+// let c (...) = (1,2,3) // tuple
+
+// let a1 (...int) = 1,2,3 // tuple
+// let a2 (...int) = [1,2,3] // wrong
+// let a3 (...int) = (1,2,3) // tuple
+
+// a = a1
+
+// var a4 (int, int) = (1,2)
+// var a5 (int, int) = [1,2] // wrong
+// var a6 (int, int) = 1,2
+
+// var a7 (int,) = (1,)
+
+/*
+// 1. App 开发：可选参数与关键字解包结合
+let options = {"color": "red", "size": 10}
+draw_rect(x, y, options!) // 相当于 Python 的 draw_rect(x, y, **options)
+
+// 2. AI 算子：动态 Shape 与参数解包
+let shape = (64, 3, 224, 224)
+let tensor = array[float, (64, 3, 224, 224)](data!) // 位置解包填充
+
+// 3. 混合使用：极致的灵活性
+func complex_op(a int, b int, name str = "op") { ... }
+
+let args = (1, 2)
+let kwargs = {"name": "conv1"}
+complex_op(args!, kwargs!) // 一个符号搞定所有解包
+*/
+
+/*
+
+// 1. 静态初始化：散件直接填坑，不需要感叹号
+let kernel array[float, (3, 3)] = (
+    1, 1, 1,
+    1, 1, 1,
+    1, 1, 1
+)
+
+// 2. 动态加载：将 list 拆开填入 array，必须感叹号
+let fc_weight array[float, (512, 1024)] = (load_data()!)
+
+// 3. Optional 结合：如果加载可能失败
+let data = load_maybe()   // 返回 array?
+let weights = data!       // 先解包 Optional，再使用（或者连打 data!!）
+*/
+
+/*
+// 卷积核：DIMS 是 (3, 3) 元组
+let kernel array[float, (3, 3)] = (1, 1, 1, 1, 1, 1, 1, 1, 1)
+
+// 权重矩阵：DIMS 是 (512, 1024) 元组
+let fc_weight array[float, (512, 1024)] = ([raw_ptr]!)
+
+// 动态 Batch 场景（利用 _ 占位符在元组中）
+// 这依然是一个元组：(64, _)
+let batch_data array[float, (64, _)]
+*/
+
+/*
+// 1. 卷积核：3x3 静态矩阵
+let sobel_x array[float, (3, 3)] = (
+    -1.0, 0.0, 1.0,
+    -2.0, 0.0, 2.0,
+    -1.0, 0.0, 1.0
+)
+
+// 2. 深度学习权重：512 -> 1024 全连接层
+let weights array[float, (512, 1024)] = (#[load_data()])
+
+// 3. 3D 张量：Batch=64, 高宽为 224 的图像 Buffer
+let img_batch array[float, (64, 224, 224)]
+
+*/
+
+/*
+// 定义一个 3x3 的 Sobel 算子（边缘检测）
+// 类型自动特化为 array[float, 3, 3]
+let sobel_x array[float, 3, 3] = (
+    -1.0, 0.0, 1.0,
+    -2.0, 0.0, 2.0,
+    -1.0, 0.0, 1.0
+)
+
+// 在算子逻辑中：
+func apply_kernel(data [_,_]float, x int, y int) float {
+    // 寻址 sobel_x[i, j] 会被编译器在 Phase 4 展开为 (i * 3 + j)
+    // 由于维度是 const，完全没有运行时 stride 查表开销
+    return data[x, y] * sobel_x[1, 1]
+}
+*/
+
+/*
+// 假设输入特征是 512，输出是 1024
+// 类型：array[float, 512, 1024]
+let weights array[float, 512, 1024] = (#[load_pretrained_data()])
+
+// 执行矩阵向量乘法 (GEMV)
+func forward(input [512]float) [1024]float {
+    var output [1024]float
+    // 编译器识别到 input 长度和 weights 第一维匹配
+    // 内部循环可以被 SIMD 向量化
+    for j in 0..1024 {
+        for i in 0..512 {
+            output[j] += input[i] * weights[i, j]
+        }
+    }
+    return output
+}
+*/
+
+/*
+// 定义 4x4 变换矩阵
+let identity array[float, 4, 4] = (
+    1.0, 0.0, 0.0, 0.0,
+    0.0, 1.0, 0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0,
+    0.0, 0.0, 0.0, 1.0
+)
+
+// 修改平移分量
+// 访问 identity[0, 3] 直接映射到偏移量 3
+identity[0, 3] = 10.5
+*/
+
+/*
+// 定义一个通用的归一化函数，接收任意大小的 2D 数组
+func normalize(img [_,_]float) {
+    let h, w = img.length[0], img.length[1]
+    // 业务逻辑...
+}
+
+// 调用处：
+let my_img [256, 256]float = (#[raw_data]) // 静态分配在堆/栈
+normalize(my_img) // 自动隐式转换：[256, 256] -> [_, _]
+*/

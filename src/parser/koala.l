@@ -201,6 +201,7 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 
 "from"      { YY_RETURN(FROM);      }
 "import"    { YY_RETURN(IMPORT);    }
+"const"     { YY_RETURN(CONST);     }
 "let"       { YY_RETURN(LET);       }
 "var"       { YY_RETURN(VAR);       }
 "func"      { YY_RETURN(FUNC);      }

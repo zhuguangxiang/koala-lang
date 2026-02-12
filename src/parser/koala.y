@@ -101,6 +101,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 
 %token FROM
 %token IMPORT
+%token CONST
 %token LET
 %token VAR
 %token FUNC
@@ -183,6 +184,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 
 %type<stmt> import_stmt
 %type<stmt> top_stmt
+%type<stmt> const_decl
 %type<stmt> let_decl
 %type<stmt> var_decl
 %type<stmt> assignment
@@ -240,6 +242,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<type_spec> atom_type
 %type<type_spec> union_type;
 %type<type_spec> union_opt_type;
+%type<type_spec> const_type
 
 %type<vec> id_as_list
 %type<vec> top_stmts
@@ -261,6 +264,8 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<vec> trait_members_or_empty
 %type<vec> trait_method_list
 %type<vec> type_param_decl_list
+%type<vec> type_param_valist
+%type<vec> type_param_decl_list_full
 %type<vec> call_arg_list
 %type<vec> call_kw_arg_list
 
@@ -285,6 +290,9 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %code provides {
     int yylex(YYSTYPE *yylval_param, YYLTYPE *yylloc, void *yyscanner);
 }
+
+%precedence TUPLE
+%precedence '['
 
 %start program
 
@@ -358,6 +366,16 @@ top_stmt
     : import_stmt
     {
         $$ = $1;
+    }
+    | const_decl semi
+    {
+        // $$ = $1;
+        // if ($$) var_set_where($$, VAR_GLOBAL);
+    }
+    | prefix const_decl semi
+    {
+        // $$ = $2;
+        // if ($$) var_set_where($$, VAR_GLOBAL);
     }
     | let_decl semi
     {
@@ -743,6 +761,14 @@ tuple_type
         $$ = NULL;
         // type_set_loc($$, lloc(@1, @4));
     }
+    | TUPLE '[' DOTDOTDOT ']'
+    {
+
+    }
+    | TUPLE '[' DOTDOTDOT optional_type ']'
+    {
+
+    }
     | '(' optional_type ',' ')'
     {
         printf("tuple for only one type\n");
@@ -756,6 +782,16 @@ tuple_type
     | '(' tuple_type_list ',' ')'
     {
         printf("tuple paren-type-list-comma\n");
+        $$ = NULL;
+    }
+    | '(' DOTDOTDOT ')'
+    {
+        printf("tuple variadic\n");
+        $$ = NULL;
+    }
+    | '(' DOTDOTDOT optional_type ')'
+    {
+        printf("tuple variadic2\n");
         $$ = NULL;
     }
     | TUPLE '[' error
@@ -976,6 +1012,83 @@ optional_type_list
     }
     ;
 
+const_type
+    : UINT8
+    {
+        $$ = uint8_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | UINT16
+    {
+        $$ = uint16_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | UINT32
+    {
+        $$ = uint32_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | UINT64
+    {
+        $$ = uint64_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | INT8
+    {
+        $$ = int8_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | INT16
+    {
+        $$ = int16_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | INT32
+    {
+        $$ = int32_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | INT64
+    {
+        $$ = int64_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | FLOAT16
+    {
+        $$ = float16_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | FLOAT32
+    {
+        $$ = float32_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | FLOAT64
+    {
+        $$ = float64_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | BFLOAT16
+    {
+        $$ = bfloat16_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | BOOL
+    {
+        $$ = bool_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | STRING
+    {
+        $$ = str_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
+    | tuple_type
+    {
+        $$ = $1;
+    }
+    ;
+
 let_decl
     : LET ID '=' expr
     {
@@ -1020,6 +1133,19 @@ let_decl
         kl_error(loc(@5), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
+    }
+    ;
+
+const_decl
+    : CONST ID '=' expr
+    {
+        // Ident id = {$2, loc(@2)};
+        // $$ = stmt_from_var_decl(id, NULL, 1, $4);
+        // stmt_set_loc($$, lloc(@1, @4));
+    }
+    | CONST ID const_type '=' expr
+    {
+
     }
     ;
 
@@ -1191,6 +1317,10 @@ param_list
         $$ = vector_create_ptr();
         vector_push_back($$, &p);
     }
+    | ID DOTDOTDOT optional_type
+    {
+
+    }
     | ID DOTDOTDOT ',' kw_arg_list
     {
         Ident id = {$1, loc(@1)};
@@ -1203,6 +1333,10 @@ param_list
         vector_concat($$, $4);
         vector_destroy($4);
     }
+    | ID DOTDOTDOT optional_type ',' kw_arg_list
+    {
+
+    }
     | id_type_arg_list ',' ID DOTDOTDOT
     {
         $$ = $1;
@@ -1212,6 +1346,10 @@ param_list
         ParamDecl *p = param_new(lloc(@3, @4), id, ts, NULL);
         p->va_arg = 1;
         vector_push_back($$, &p);
+    }
+    | id_type_arg_list ',' ID DOTDOTDOT optional_type
+    {
+
     }
     | id_type_arg_list ',' ID DOTDOTDOT ',' kw_arg_list
     {
@@ -1224,6 +1362,10 @@ param_list
         vector_push_back($$, &p);
         vector_concat($$, $6);
         vector_destroy($6);
+    }
+    | id_type_arg_list ',' ID DOTDOTDOT optional_type ',' kw_arg_list
+    {
+
     }
     ;
 
@@ -1307,12 +1449,12 @@ class_decl
         $$ = stmt_from_klass($2, NULL, NULL, $4);
         stmt_set_loc($$, lloc(@1, @5));
     }
-    | CLASS class_name '[' type_param_decl_list ']' extends '{' class_members_or_empty '}'
+    | CLASS class_name '[' type_param_decl_list_full ']' extends '{' class_members_or_empty '}'
     {
         $$ = stmt_from_klass($2, $4, $6, $8);
         stmt_set_loc($$, lloc(@1, @5));
     }
-    | CLASS class_name '[' type_param_decl_list ']' '{' class_members_or_empty '}'
+    | CLASS class_name '[' type_param_decl_list_full ']' '{' class_members_or_empty '}'
     {
         $$ = stmt_from_klass($2, $4, NULL, $7);
         stmt_set_loc($$, lloc(@1, @5));
@@ -1331,14 +1473,14 @@ class_decl
         yyclearin;
         $$ = NULL;
     }
-    | CLASS class_name '[' type_param_decl_list ']' extends '{' error '}'
+    | CLASS class_name '[' type_param_decl_list_full ']' extends '{' error '}'
     {
         kl_error(loc(@8), "expected field-decl or method-decl.");
         yy_clear_ok;
         yyclearin;
         $$ = NULL;
     }
-    | CLASS class_name '[' type_param_decl_list ']' '{' error '}'
+    | CLASS class_name '[' type_param_decl_list_full ']' '{' error '}'
     {
         kl_error(loc(@7), "expected field-decl or method-decl.");
         yy_clear_ok;
@@ -1431,6 +1573,50 @@ class_name
     | BOOL
     {
         $$ = (Ident){"bool", loc(@1)};
+    }
+    ;
+
+type_param_decl_list_full
+    : type_param_decl_list ',' const_param_list
+    {
+        $$ = $1;
+    }
+    | type_param_valist
+    {
+        $$ = $1;
+    }
+    | type_param_decl_list
+    {
+        $$ = $1;
+    }
+    ;
+
+const_param_list
+    : CONST ID const_type
+    | const_param_list ',' CONST ID const_type
+    ;
+
+type_param_valist
+    : DOTDOTDOT ID
+    {
+
+    }
+    | type_param_decl_list ',' DOTDOTDOT ID
+    {
+        $$ = $1;
+        // Ident id = {$3, loc(@3)};
+        // TypeSpec *ts = va_list_type_spec();
+        // type_spec_loc(ts, loc(@4));
+        // TypeParamDecl *tp = type_param_new(lloc(@3, @4), id, ts);
+        // tp->va_arg = 1;
+        // vector_push_back($$, &tp);
+    }
+    | type_param_decl_list ',' DOTDOTDOT ID error
+    {
+        free_tp_list($1);
+        kl_error(loc(@4), "expected an identifier after '...'.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1577,6 +1763,14 @@ field_decl
     {
         $$ = $1;
         var_set_where($$, VAR_FIELD);
+    }
+    | LET ID optional_type semi
+    {
+        printf("let in field decl without initialization\n");
+    }
+    | const_decl semi
+    {
+        // $$ = $1;
     }
     ;
 
@@ -1750,6 +1944,11 @@ local
     {
         $$ = stmt_from_expr($1);
         stmt_set_loc($$, lloc(@1, @2));
+    }
+    | const_decl semi
+    {
+        // $$ = $1;
+        // var_set_where($$, VAR_LOCAL);
     }
     | let_decl semi
     {
@@ -2960,10 +3159,19 @@ tuple_expr
     }
     | TUPLE
     {
+        printf("tuple expr\n");
         // Type *ty = tuple_type(NULL);
         // type_set_loc(ty, loc(@1));
         // $$ = expr_from_type(ty);
         // expr_set_loc($$, loc(@1));
+    }
+    | TUPLE '[' DOTDOTDOT ']'
+    {
+        printf("variadic tuple expr\n");
+    }
+    | TUPLE '[' DOTDOTDOT optional_type ']'
+    {
+        printf("variadic tuple expr2\n");
     }
     | '(' expr_list ',' error
     {
