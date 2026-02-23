@@ -44,7 +44,7 @@ typedef enum _SymKind {
 
 #define SYMBOL_HEAD \
     HashMapEntry hnode; SymKind kind; short flags; short status; int id; char *name; \
-    TypeSpec *ts; HashMap *stbl; void *arg; void *ps; KlrValue *ir_val;
+    TypeSpec *ts; HashMap *stbl; void *arg; void *parent; void *ps; KlrValue *ir_val;
 
 /* clang-format on */
 

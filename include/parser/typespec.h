@@ -147,6 +147,7 @@ TypeSpec *tuple_type_spec_intern(Vector *args);
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
 static inline int type_is_valist(TypeSpec *ts) { return ts->kind == TYPE_VA_LIST; }
+static inline int type_is_int(TypeSpec *ts) { return ts->kind == TYPE_INT; }
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);

@@ -32,6 +32,76 @@ static HashMap *current;
 /* builtin package */
 static HashMap *builtin;
 
+typedef struct _InferredInfo {
+    HashMapEntry hnode;
+    /* klass_name.func_name */
+    char *key;
+    /* callback */
+    Vector *(*infer)(FuncSymbol *fn, Vector *args);
+} InferredInfo;
+
+/* inferred tp of func */
+static HashMap *inferred;
+
+static Vector *infer_tuple___get_item__(FuncSymbol *fn, Vector *args)
+{
+    ASSERT(vector_size(args) == 1);
+    ASSERT(vector_size(&fn->tps) == 1);
+    Expr *e = vector_get(args, 0);
+    ASSERT(type_is_int(e->ts));
+    Symbol *parent = fn->parent;
+    ASSERT(parent && parent->kind == SYM_INSTANCE);
+    InstanceSymbol *inst_sym = (InstanceSymbol *)parent;
+
+    if (e->kind == EXPR_LITERAL_KIND) {
+        LitExpr *lit = (LitExpr *)e;
+        ASSERT(lit->which == LIT_EXPR_INT);
+        int index = (int)lit->ival;
+        ASSERT(index >= 0 && index < vector_size(inst_sym->tp_args));
+        TypeSpec *_ts = vector_get(inst_sym->tp_args, index);
+        Vector *res = vector_create_ptr();
+        vector_push_back(res, &_ts);
+        return res;
+    } else {
+        // if index is not literal, we use infered tuple's tp type.
+        TypeSpec *_ts = inst_sym->arg;
+        ASSERT(_ts);
+        Vector *res = vector_create_ptr();
+        vector_push_back(res, &_ts);
+        return res;
+    }
+}
+
+static int __inferred_info_equal__(InferredInfo *a, InferredInfo *b)
+{
+    return !strcmp(a->key, b->key);
+}
+
+static HashMap *inferred_map(void)
+{
+    HashMap *map = mm_alloc_obj(map);
+    hashmap_init(map, (HashMapEqualFunc)__inferred_info_equal__);
+
+    InferredInfo *info = mm_alloc_obj(info);
+    info->key = "tuple.__get_item__";
+    info->infer = infer_tuple___get_item__;
+    hashmap_put(map, info);
+    return map;
+}
+
+Vector *infer_func_tp(FuncSymbol *fn, Vector *args)
+{
+    char name[256] = { 0 };
+    Symbol *parent = fn->parent;
+    ASSERT(parent && parent->kind == SYM_INSTANCE);
+    InstanceSymbol *inst_sym = (InstanceSymbol *)parent;
+    snprintf(name, sizeof(name), "%s.%s", inst_sym->origin->name, fn->name);
+    InferredInfo key = { .key = name };
+    InferredInfo *info = hashmap_get(inferred, &key);
+    ASSERT(info);
+    return info->infer(fn, args);
+}
+
 // path without .klc suffix
 PkgSymbol *import_package(char *path)
 {
@@ -65,6 +135,7 @@ void init_parser(void)
 {
     imported = stbl_new();
     current = stbl_new();
+    inferred = inferred_map();
     load_builtin_module();
 }
 

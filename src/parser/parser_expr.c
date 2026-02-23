@@ -429,6 +429,40 @@ static inline int func_has_tp(FuncSymbol *fn_sym)
     return vector_size(&fn_sym->tps) > 0;
 }
 
+static Vector *get_func_real_params(FuncSymbol *fn_sym, Vector *_tp_args)
+{
+    Vector *real_params = vector_create_ptr();
+    ArgInfo *arg;
+    vector_foreach(arg, fn_sym->params) {
+        if (!arg) continue;
+        TypeSpec *ts = arg->ts;
+        if (ts->kind == TYPE_GENERIC_VAR) {
+            TypeSpec *_ts = vector_get(_tp_args, ts->generic_var.index);
+            ASSERT(_ts);
+            ASSERT(!strcmp(fn_sym->name, ts->generic_var.owner));
+            ts = _ts;
+        }
+
+        ArgInfo *real_arg = mm_alloc_obj(real_arg);
+        real_arg->name = arg->name;
+        real_arg->ts = ts;
+        real_arg->dfl_val_idx = arg->dfl_val_idx;
+        vector_push_back(real_params, &real_arg);
+    }
+    return real_params;
+}
+
+static TypeSpec *get_func_real_ret(FuncSymbol *fn_sym, Vector *_tp_args)
+{
+    TypeSpec *ret = fn_sym->ret;
+    ASSERT(!strcmp(fn_sym->name, ret->generic_var.owner));
+    if (ret->kind == TYPE_GENERIC_VAR) {
+        TypeSpec *_ts = vector_get(_tp_args, ret->generic_var.index);
+        ret = _ts;
+    }
+    return ret;
+}
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
@@ -499,11 +533,10 @@ static void parse_call(ParserState *ps, Expr *exp)
     } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_INTF) {
         FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
         if (func_has_tp(fn_sym)) {
-            // Vector *_tp_args = get_func_tp_args(fn_sym, call->args);
-            // params = get_func_real_params(fn_sym, _tp_args);
-            // exp->ts = get_func_real_ret(fn_sym, _tp_args);
-            // vector_destroy(_tp_args);
-            NYI();
+            Vector *_tp_args = infer_func_tp(fn_sym, call->args);
+            params = get_func_real_params(fn_sym, _tp_args);
+            exp->ts = get_func_real_ret(fn_sym, _tp_args);
+            vector_destroy(_tp_args);
         } else {
             if (lhs->ts->kind == TYPE_OPTIONAL) {
                 log_info("call lhs is optional of proto.");
@@ -570,6 +603,18 @@ static TypeSpec *opt_dot_type(TypeSpec *ts, int opt_or_bang)
         return optional_type_spec_intern(ts);
     }
     return ts;
+}
+
+static void copy_tps(Vector *dst, Vector *src)
+{
+    TypeParamSymbol *tp_sym;
+    vector_foreach(tp_sym, src) {
+        if (!tp_sym) continue;
+        TypeParamSymbol *new_tp_sym = mm_alloc_obj(new_tp_sym);
+        new_tp_sym->name = tp_sym->name;
+        new_tp_sym->which = tp_sym->which;
+        vector_push_back(dst, &new_tp_sym);
+    }
 }
 
 static void parse_dot(ParserState *ps, Expr *exp)
@@ -696,8 +741,9 @@ static void parse_dot(ParserState *ps, Expr *exp)
                 // create function symbol for instance method
                 Symbol *inst_fn_sym = stbl_add_func(lhs_stbl, origin_fn_sym->name, ret_ts,
                                                     inst_params, origin_fn_sym->flags);
+                inst_fn_sym->parent = inst_sym;
                 // copy method's tps to instance method
-                ((FuncSymbol *)inst_fn_sym)->tps = origin_fn_sym->tps;
+                copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &origin_fn_sym->tps);
                 TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
                 inst_fn_sym->ts = fn_ts;
                 exp->ts = opt_dot_type(fn_ts, opt_or_bang);

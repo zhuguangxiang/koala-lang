@@ -72,7 +72,7 @@ class tuple[infer T] : Seq[T] {
 
 var t tuple[int, float]
 // len(t) // 调用 __len__，返回 int
-let v = t.__get_item__(2) // v 的类型是 int
+let v = t.__get_item__(1) // v 的类型是 int
 let v1 = t.__contains__(42) // v1 的类型是 bool
 let v2 = t.to_list() // v2 的类型是 list[int]
 let v3 = t.index(42) // v3 的类型是 int
@@ -80,7 +80,7 @@ let v3 = t.index(42) // v3 的类型是 int
 
 var t1 tuple[int, int]
 // len(t) // 调用 __len__，返回 int
-let v4 = t1.__get_item__(10) // v 的类型是 int
+let v4 = t1.__get_item__(0) // v 的类型是 int
 let v5 = t1.__contains__(42) // v1 的类型是 bool
 let v6 = t1.to_list() // v2 的类型是 list[int]
 let v7 = t1.index(42) // v3 的类型是 int
