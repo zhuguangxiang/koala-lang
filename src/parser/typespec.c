@@ -68,6 +68,10 @@ void type_spec_free(TypeSpec *ts)
         Vector *args = ts->mangled.args;
         type_spec_vec_free(args);
         ts->mangled.args = NULL;
+    } else if (ts->kind == TYPE_TUPLE) {
+        Vector *args = ts->tuple.args;
+        type_spec_vec_free(args);
+        ts->tuple.args = NULL;
     }
 
     mm_free(ts);
@@ -152,21 +156,11 @@ static TypeSpec *_str_type_spec(void)
     return ts;
 }
 
-static TypeSpec *_object_type_spec(void)
+static TypeSpec *_any_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_ANY;
     ts->signature = atom_str("o");
-    ts->sym_id = -1;
-    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
-    return ts;
-}
-
-static TypeSpec *_va_list_type_spec(void)
-{
-    TypeSpec *ts = mm_alloc_obj(ts);
-    ts->kind = TYPE_VA_LIST;
-    ts->signature = atom_str("...");
     ts->sym_id = -1;
     hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
     return ts;
@@ -288,7 +282,7 @@ void update_builtin_types(HashMap *stbl)
         sym->instance_ts = ts;
     }
 
-    ts = object_type_spec();
+    ts = any_type_spec();
     sym = (KlassSymbol *)stbl_get(stbl, "any");
     if (sym) {
         ts->sym_id = sym->id;
@@ -417,12 +411,7 @@ void typespec_init(void)
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
-    ts = _object_type_spec();
-    ts->type_id = type_id++;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
-    ts = _va_list_type_spec();
+    ts = _any_type_spec();
     ts->type_id = type_id++;
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
@@ -479,6 +468,10 @@ static void __ts_free(TypeSpec *ts)
         }
         case TYPE_PROTO: {
             vector_destroy(ts->proto_type.args);
+            break;
+        }
+        case TYPE_TUPLE: {
+            vector_destroy(ts->tuple.args);
             break;
         }
         case TYPE_NO_TYPE:
@@ -695,6 +688,48 @@ Vector *type_spec_vec_copy(Vector *args)
     return copy;
 }
 
+TypeSpec *va_list_type_spec(TypeSpec *src)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_VA_LIST;
+    ts->va_list.src = src ?: any_type_spec();
+    ts->sym_id = -1;
+    ts->type_id = -1;
+    BUF(buf);
+    type_spec_to_str(ts, &buf);
+    ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
+    return type_spec_intern(ts);
+}
+
+TypeSpec *tuple_type_spec(Vector *args)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_TUPLE;
+    ts->tuple.args = args;
+    ts->sym_id = -1;
+    ts->type_id = -1;
+    return ts;
+}
+
+TypeSpec *tuple_type_spec_intern(Vector *args)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_TUPLE;
+    ts->tuple.args = args;
+    ts->sym_id = -1;
+    ts->type_id = -1;
+
+    // Tuple[A, B] and Tuple[B, A] are not the same
+
+    BUF(buf);
+    type_spec_to_str(ts, &buf);
+    ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    return type_spec_intern(ts);
+}
+
 static int cmp_typespec_by_type_id(const void *a, const void *b)
 {
     TypeSpec **ts1 = (TypeSpec **)a;
@@ -764,6 +799,7 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         }
         case TYPE_VA_LIST: {
             buf_write_str(buf, "...");
+            type_spec_to_str(ts->va_list.src, buf);
             break;
         }
         case TYPE_NO_TYPE: {
@@ -847,6 +883,16 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
                 type_spec_to_str(ts->opt.src, buf);
                 buf_write_char(buf, '?');
             }
+            break;
+        }
+        case TYPE_TUPLE: {
+            buf_write_char(buf, 'Z');
+            TypeSpec *arg;
+            vector_foreach(arg, ts->tuple.args) {
+                if (!arg) continue;
+                type_spec_to_str(arg, buf);
+            }
+            buf_write_char(buf, ';');
             break;
         }
         default: {
@@ -1006,14 +1052,16 @@ static TypeSpec *__to_typespec(char **str)
             break;
         }
         case 'o': {
-            ts = object_type_spec();
+            ts = any_type_spec();
             s++;
             break;
         }
         case '.': {
             if (!strncmp(s, "...", 3)) {
-                ts = va_list_type_spec();
                 s += 3;
+                TypeSpec *src = __to_typespec(&s);
+                // src maybe null
+                ts = va_list_type_spec(src);
             }
             break;
         }
@@ -1088,10 +1136,11 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         buf_write_str(buf, "str");
     } else if (ts->kind == TYPE_VA_LIST) {
         buf_write_str(buf, "...");
+        type_spec_print(ts->va_list.src, buf);
     } else if (ts->kind == TYPE_BOOL) {
         buf_write_str(buf, "bool");
     } else if (ts->kind == TYPE_ANY) {
-        buf_write_str(buf, "object");
+        buf_write_str(buf, "any");
     } else if (ts->kind == TYPE_UNRESOLVED) {
         buf_write_str(buf, ts->unresolved.name.name);
     } else if (ts->kind == TYPE_GENERIC_VAR) {
@@ -1150,6 +1199,17 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
             type_spec_print(ts->opt.src, buf);
             buf_write_char(buf, '?');
         }
+    } else if (ts->kind == TYPE_TUPLE) {
+        buf_write_str(buf, "Tuple[");
+        TypeSpec *arg;
+        int i = 0;
+        vector_foreach(arg, ts->tuple.args) {
+            if (!arg) continue;
+            if (i != 0) buf_write_str(buf, ", ");
+            type_spec_print(arg, buf);
+            i++;
+        }
+        buf_write_char(buf, ']');
     } else {
         UNREACHABLE();
     }

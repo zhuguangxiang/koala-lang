@@ -4,6 +4,7 @@
  */
 
 pub trait Seq[T] : Indexable[T] {
+    func __len__() int
     func __contains__(v T) bool
     func __concat__(seq Seq[T]) Seq[T]
     func __repeat__(count int) Seq[T]

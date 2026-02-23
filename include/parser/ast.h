@@ -398,7 +398,10 @@ typedef struct _VarDeclStmt {
 #define VAR_GLOBAL 1
 #define VAR_LOCAL  2
 #define VAR_FIELD  3
-    int ro;
+    int which;
+#define VAR_DECL_VAR   0
+#define VAR_DECL_LET   1
+#define VAR_DECL_CONST 2
     int pub;
     Ident id;
     Symbol *sym;
@@ -406,17 +409,25 @@ typedef struct _VarDeclStmt {
     Expr *exp;
 } VarDeclStmt;
 
-Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int ro, Expr *e);
+Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int which, Expr *e);
 #define var_set_where(stmt, _where) ((VarDeclStmt *)stmt)->where = _where;
 
 typedef struct _TypeParamDecl {
     Loc loc;
     Ident id;
-    int covariant;
-    Vector *bound;
+    int which;
+#define TP_DECL_NORMAL 0
+#define TP_DECL_CONST  1
+#define TP_DECL_INFER  2
+    union {
+        Vector *bound;
+        TypeSpec *const_type;
+    };
 } TypeParamDecl;
 
 TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound);
+TypeParamDecl *const_type_param_new(Loc loc, Ident id, TypeSpec *type);
+TypeParamDecl *infer_type_param_new(Loc loc, Ident id);
 
 typedef struct _ParamDecl {
     Loc loc;

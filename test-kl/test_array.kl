@@ -1,29 +1,140 @@
 
-tuple[...](1)
-tuple(1,2)
+// tuple[...](1)
+// tuple(1,2)
 
-// func fn1() {
-//     let a = [1, 2, 3]
-//     a[0] = 10
+// // func fn1() {
+// //     let a = [1, 2, 3]
+// //     a[0] = 10
+// // }
+
+// let t (...) = (1,2,3)
+// let t2 (...int) = (1,2,3)
+// let t3 (...int) = tuple([1,2,3])
+// let t4 (...int) = tuple((1,2,3))
+
+// func parse_array_get_item_return_type(arr array[T, DIMS], index ...(int | range)) type {
+//     // 解析 array[T, DIMS] 的 DIMS，计算出返回类型
+//     // 例如 array[int, 2, 3] 的 DIMS 是 (2, 3)，访问 arr[0] 返回 array[int, 3]
+//     // 访问 arr[0, 1] 返回 int
+//     return ... // 返回计算出的类型
 // }
 
-let t (...) = (1,2,3)
-let t2 (...int) = (1,2,3)
-let t3 (...int) = tuple([1,2,3])
-let t4 (...int) = tuple((1,2,3))
+// class array[T, const DIMS ...int] : Seq[T] {
 
-class array[T, const DIMS (...int)] : Seq[T] {
+//     @native(kl_array_init)
+//     pub func __init__(args Iterable[T]) {}
 
-    pub func __init__(args ...T) {}
+//     @intrinsic
+//     pub func __get_item__[infer U](index ...(int | range)) U {}
 
-    pub func foo(arg ...T) T {}
+//     @intrinsic
+//     pub func __set_item__(index ...(int | range), value any) {}
+// }
+
+class tuple[infer T] : Seq[T] {
+
+    @native(kl_tuple_init)
+    pub func __init__(args Iterable[T]) {}
+
+    @intrinsic
+    pub func __get_item__[infer U](index int) U {}
+
+    @native(kl_tuple_contains)
+    pub func __contains__(v T) bool {}
+
+    @native(kl_tuple_tolist)
+    pub func to_list() list[T] {}
+
+    @native(kl_tuple_iterator)
+    pub func __iter__() Iterator[T] {}
+
+    @native(kl_tuple_length)
+    pub func __len__() int {}
+
+    @native(kl_tuple_to_str)
+    pub func __str__() str {}
+
+    @native(kl_tuple_eq)
+    pub func __eq__(other any) bool {}
+
+    @native(kl_tuple_hash)
+    pub func __hash__() int {}
+
+    @native(kl_tuple_index)
+    pub func index(v T) int {}
+
+    @native(kl_tuple_count)
+    pub func count(v T) int {}
 }
 
-class tuple[...T] : Seq[T] {
-    pub let length int
+// @intrinsic
+// pub func build_tuple[infer T](args ...) tuple[T] {}
 
-    pub func __init__(args ...T) {}
-}
+var t tuple[int, float]
+// len(t) // 调用 __len__，返回 int
+let v = t.__get_item__(2) // v 的类型是 int
+let v1 = t.__contains__(42) // v1 的类型是 bool
+let v2 = t.to_list() // v2 的类型是 list[int]
+let v3 = t.index(42) // v3 的类型是 int
+
+
+var t1 tuple[int, int]
+// len(t) // 调用 __len__，返回 int
+let v4 = t1.__get_item__(10) // v 的类型是 int
+let v5 = t1.__contains__(42) // v1 的类型是 bool
+let v6 = t1.to_list() // v2 的类型是 list[int]
+let v7 = t1.index(42) // v3 的类型是 int
+
+// let b = t.__contains__(42) // b 的类型是 bool
+// let lst = t.tolist() // lst 的类型是 list[int]
+
+// let arr = array[int, 2, 3]()
+// instantiate array[int, 2, 3] with array[int, ?] when we access arr[0]
+// class array_int_2_3 {
+//   pub func __get_item__(index ...int) array[int, ?] {}
+// }
+
+// arr[0, 0] = 1
+// arr[0, 1] = 2
+// arr[0, 2] = 3
+// arr[1, 0] = 4
+// arr[1, 1] = 5
+// arr[1, 2] = 6
+// let x = arr[0, 1] // x 的类型是 int
+// let y = arr[0] // y 的类型是 array[int, 3]
+
+// let l list[int?] = list[int?]()
+// let l1 list[Foo?] = list[Foo?]()
+// let l2 list[list[int?]] = list[list[int?]]()
+// let l3 list[list[Foo?]] = list[list[Foo?]]()
+// let l4 list[map[int, int]] = list[map[int, int]]()
+// let l5 list[map[int, int]] = list[map[int, int]?]()
+// let l6 list[set[int]] = list[set[int]]()
+// let l7 list[set[int]?] = list[set[int]?]()
+// let l8 list[[2]int] = list[[2]int]()
+// let l9 list[[2]int?] = list[[2]int?]()
+// let l10 list[([2]int)?] = list[([2]int)?]()
+// let l11 list[tuple[int, int]] = list[tuple[int, int]]()
+// let l12 list[tuple[int, int]?] = list[tuple[int, int]?]()
+// let t tuple[int, int]? = tuple[int, tuple[int,int]?]()
+// let t2 tuple[int, int]? = list[list[int]?]()
+
+// let arr = [2,3]list[int]()
+
+// // // let t1 = tuple(1,2,3)
+// // let t2 = tuple[int, int]()
+
+
+
+// @intrinsic
+// @infer(DIMS)
+// pub func build_array[T, const DIMS ...int](args ...) array[T, DIMS] {}
+
+// @intrinsic
+// pub func build_map[K, V](args ...(K, V)) map[K, V] {}
+
+// @intrinsic
+// pub func build_set[T](args ...) set[T] {}
 
 // tuple[int, int](1,2)
 // tuple[int, int]([1,2])

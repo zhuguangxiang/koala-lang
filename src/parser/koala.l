@@ -20,9 +20,9 @@
 static int semicolon(ParserState *ps)
 {
     static int tokens[] = {
-        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF,
+        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID,
         TRUE, FALSE, UINT8, UINT16, UINT32, UINT64, INT8, INT16, INT32, INT64,
-        FLOAT16, FLOAT32, FLOAT64, BFLOAT16, STRING, BOOL, OBJECT,
+        FLOAT16, FLOAT32, FLOAT64, BFLOAT16, STRING, BOOL, ANY,
         RETURN, BREAK, CONTINUE, ')', ']', '}', '?',
         '_', NOT,
     };
@@ -220,8 +220,8 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 "as"        { YY_RETURN(AS);        }
 "is"        { YY_RETURN(IS);        }
 "pub"       { YY_RETURN(PUBLIC);    }
+"infer"     { YY_RETURN(INFER);     }
 
-"self"      { YY_RETURN(SELF);      }
 "true"      { YY_RETURN(TRUE);      }
 "false"     { YY_RETURN(FALSE);     }
 "null"      { YY_RETURN(NONE);      }
@@ -244,7 +244,7 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 "bfloat16"  { YY_RETURN(BFLOAT16);  }
 "bool"      { YY_RETURN(BOOL);      }
 "str"       { YY_RETURN(STRING);    }
-"any"       { YY_RETURN(OBJECT);    }
+"any"       { YY_RETURN(ANY);       }
 "list"      { YY_RETURN(LIST);      }
 "dict"      { YY_RETURN(MAP);       }
 "set"       { YY_RETURN(SET);       }

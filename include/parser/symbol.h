@@ -33,9 +33,10 @@ typedef enum _SymKind {
 } SymKind;
 
 #define SYM_FLAGS_MUTABLE   (1 << 0)
-#define SYM_FLAGS_PUBLIC    (1 << 1)
-#define SYM_FLAGS_TAG_ONLY  (1 << 2)
-#define SYM_FLAGS_TAG_VALUE (1 << 3)
+#define SYM_FLAGS_CONST     (1 << 1)
+#define SYM_FLAGS_PUBLIC    (1 << 2)
+#define SYM_FLAGS_TAG_ONLY  (1 << 3)
+#define SYM_FLAGS_TAG_VALUE (1 << 4)
 
 #define SYM_UNRESOLVED   0
 #define SYM_RESOLVED     1
@@ -89,12 +90,19 @@ typedef struct _TypeParamSymbol {
     SYMBOL_HEAD
     // owner symbol
     Symbol *owner;
-    // list of TypeSpec
-    Vector bound;
+    // which one
+    int which;
+#define TP_NORMAL 0
+#define TP_CONST  1
+#define TP_INFER  2
     // index in type-param list
     int index;
-    // invariant/covariant
-    int covariant;
+    union {
+        // list of TypeSpec
+        Vector bound;
+        // constant type
+        TypeSpec *const_type;
+    };
 } TypeParamSymbol;
 
 typedef struct _ArgInfo {
@@ -114,9 +122,9 @@ typedef struct _FuncSymbol {
     /* ArgInfo list */
     Vector *params;
     /* type params */
-    Vector *tps;
+    Vector tps;
     /* local variables */
-    Vector *locals;
+    Vector locals;
     /* stack size */
     int stack_size;
     /* code size */
@@ -189,8 +197,8 @@ void free_all_symbols(void);
 
 Symbol *stbl_add(HashMap *stbl, Symbol *sym);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
-Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
-                      Vector *params, int flags, char *ann, char *ann_key);
+Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params,
+                      int flags);
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);

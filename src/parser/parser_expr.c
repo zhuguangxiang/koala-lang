@@ -360,28 +360,61 @@ static void parse_type(ParserState *ps, Expr *exp)
     return;
 }
 
-static TypeSpec *instance_type_spec(TypeSpec *ts, Vector *tp_args, ParserState *ps)
+static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin,
+                                    InstanceSymbol *sym, ParserState *ps)
 {
+    Vector *kls_tps = &origin->tps;
+    Vector *tp_args = sym->tp_args;
+
     TypeSpec *inst_ts;
     if (ts->kind == TYPE_GENERIC_VAR) {
-        inst_ts = vector_get(tp_args, ts->generic_var.index);
+        TypeParamSymbol *tp_sym = vector_get(kls_tps, ts->generic_var.index);
+        ASSERT(tp_sym);
+        if (!strcmp(tp_sym->name, ts->generic_var.name)) {
+            if (tp_sym->which == TP_INFER) {
+                ASSERT(sym->arg);
+                inst_ts = sym->arg;
+                log_info(
+                    "generic var '%s' is inferred as '%s' for instance specialization",
+                    ts->generic_var.name, inst_ts->signature);
+            } else {
+                log_info(
+                    "generic var '%s' matches klass's tp, use tp_args to get instance "
+                    "type",
+                    ts->generic_var.name);
+                inst_ts = vector_get(tp_args, ts->generic_var.index);
+            }
+        } else {
+            // generic var must be defined in method's tps, not klass's tps.
+            log_info("generic var '%s' does not match klass's tp, keep it.",
+                     ts->generic_var.name);
+            inst_ts = ts;
+        }
     } else if (ts->kind == TYPE_GENERIC_REF) {
-        Symbol *sym = get_symbol_by_id(ts->sym_id);
-        InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, sym, tp_args);
+        Vector *_tp_args = vector_create_ptr();
+        TypeSpec *_ts;
+        vector_foreach(_ts, ts->generic_ref.args) {
+            TypeSpec *inst_arg = instance_type_spec(_ts, origin, sym, ps);
+            vector_push_back(_tp_args, &inst_arg);
+        }
+        Symbol *_sym = get_symbol_by_id(ts->sym_id);
+        InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, _sym, _tp_args);
         inst_ts = inst_sym->instance_ts;
+        vector_destroy(_tp_args);
     } else {
         inst_ts = ts;
     }
     return inst_ts;
 }
 
-static Vector *build_instance_params(Vector *params, Vector *tp_args, ParserState *ps)
+static Vector *build_instance_params(Vector *params, KlassSymbol *origin,
+                                     InstanceSymbol *sym, ParserState *ps)
 {
     Vector *inst_params = vector_create_ptr();
     ArgInfo *arg;
     vector_foreach(arg, params) {
         if (!arg) continue;
-        TypeSpec *ts = instance_type_spec(arg->ts, tp_args, ps);
+        TypeSpec *ts = instance_type_spec(arg->ts, origin, sym, ps);
         ArgInfo *inst_arg = mm_alloc_obj(inst_arg);
         inst_arg->name = arg->name;
         inst_arg->ts = ts;
@@ -389,6 +422,11 @@ static Vector *build_instance_params(Vector *params, Vector *tp_args, ParserStat
         vector_push_back(inst_params, &inst_arg);
     }
     return inst_params;
+}
+
+static inline int func_has_tp(FuncSymbol *fn_sym)
+{
+    return vector_size(&fn_sym->tps) > 0;
 }
 
 static void parse_call(ParserState *ps, Expr *exp)
@@ -460,20 +498,28 @@ static void parse_call(ParserState *ps, Expr *exp)
         params = ((FuncSymbol *)init_fn_sym)->params;
     } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_INTF) {
         FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
-        if (lhs->ts->kind == TYPE_OPTIONAL) {
-            log_info("call lhs is optional of proto.");
-            // optional proto function call
-            if (fn_sym->ret->kind == TYPE_OPTIONAL) {
+        if (func_has_tp(fn_sym)) {
+            // Vector *_tp_args = get_func_tp_args(fn_sym, call->args);
+            // params = get_func_real_params(fn_sym, _tp_args);
+            // exp->ts = get_func_real_ret(fn_sym, _tp_args);
+            // vector_destroy(_tp_args);
+            NYI();
+        } else {
+            if (lhs->ts->kind == TYPE_OPTIONAL) {
+                log_info("call lhs is optional of proto.");
+                // optional proto function call
+                if (fn_sym->ret->kind == TYPE_OPTIONAL) {
+                    exp->ts = fn_sym->ret;
+                } else {
+                    exp->ts = optional_type_spec_intern(fn_sym->ret);
+                }
+            } else if (lhs->ts->kind == TYPE_PROTO) {
+                log_info("call lhs is proto.");
+                // proto function call
                 exp->ts = fn_sym->ret;
-            } else {
-                exp->ts = optional_type_spec_intern(fn_sym->ret);
             }
-        } else if (lhs->ts->kind == TYPE_PROTO) {
-            log_info("call lhs is proto.");
-            // proto function call
-            exp->ts = fn_sym->ret;
+            params = fn_sym->params;
         }
-        params = fn_sym->params;
     } else if (lhs_sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
         Symbol *init_fn_sym = stbl_get(inst_sym->stbl, "__init__");
@@ -487,10 +533,10 @@ static void parse_call(ParserState *ps, Expr *exp)
 
             // params
             Vector *inst_params = build_instance_params(
-                ((FuncSymbol *)_init_fn_sym)->params, inst_sym->tp_args, ps);
+                ((FuncSymbol *)_init_fn_sym)->params, origin, inst_sym, ps);
 
-            init_fn_sym = stbl_add_func(inst_sym->stbl, "__init__", NULL, no_type_spec(),
-                                        inst_params, 0, NULL, NULL);
+            init_fn_sym =
+                stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(), inst_params, 0);
         }
 
         // func call type is instance type
@@ -592,7 +638,7 @@ static void parse_dot(ParserState *ps, Expr *exp)
 
     Symbol *lhs_ts_sym = get_symbol_by_id(sym_id);
     if (!lhs_ts_sym) {
-        kl_error(lhs->loc, "type is not found.");
+        kl_error(lhs->loc, "type symbol is not found.");
         return;
     }
 
@@ -625,7 +671,7 @@ static void parse_dot(ParserState *ps, Expr *exp)
                          origin->name);
                 VarSymbol *origin_var_sym = (VarSymbol *)sym;
                 TypeSpec *ts =
-                    instance_type_spec(origin_var_sym->ts, inst_sym->tp_args, ps);
+                    instance_type_spec(origin_var_sym->ts, origin, inst_sym, ps);
                 Symbol *inst_var_sym = stbl_add_var(lhs_stbl, origin_var_sym->name, ts,
                                                     origin_var_sym->flags);
                 exp->ts = opt_dot_type(inst_var_sym->ts, opt_or_bang);
@@ -641,15 +687,17 @@ static void parse_dot(ParserState *ps, Expr *exp)
 
                 // params
                 Vector *inst_params =
-                    build_instance_params(origin_fn_sym->params, inst_sym->tp_args, ps);
+                    build_instance_params(origin_fn_sym->params, origin, inst_sym, ps);
+
                 // return type
                 TypeSpec *ret_ts =
-                    instance_type_spec(origin_fn_sym->ret, inst_sym->tp_args, ps);
+                    instance_type_spec(origin_fn_sym->ret, origin, inst_sym, ps);
 
                 // create function symbol for instance method
-                Symbol *inst_fn_sym =
-                    stbl_add_func(lhs_stbl, origin_fn_sym->name, NULL, ret_ts,
-                                  inst_params, origin_fn_sym->flags, NULL, NULL);
+                Symbol *inst_fn_sym = stbl_add_func(lhs_stbl, origin_fn_sym->name, ret_ts,
+                                                    inst_params, origin_fn_sym->flags);
+                // copy method's tps to instance method
+                ((FuncSymbol *)inst_fn_sym)->tps = origin_fn_sym->tps;
                 TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
                 inst_fn_sym->ts = fn_ts;
                 exp->ts = opt_dot_type(fn_ts, opt_or_bang);

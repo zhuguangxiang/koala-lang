@@ -340,15 +340,19 @@ KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags)
     vector_init_ptr(&kls->tps);
     vector_init_ptr(&kls->anns);
     vector_init(&kls->bases, sizeof(uint16_t));
+    vector_init(&kls->pip, sizeof(uint16_t));
+    vector_init(&kls->lro, sizeof(uint16_t));
     vector_init_ptr(&kls->fields);
     vector_init_ptr(&kls->methods);
     void *empty = NULL;
     vector_push_back(&kls->tps, &empty);
     vector_push_back(&kls->anns, &empty);
-    uint16_t _empty = 0;
-    vector_push_back(&kls->bases, &_empty);
     vector_push_back(&kls->fields, &empty);
     vector_push_back(&kls->methods, &empty);
+    uint16_t _empty = 0;
+    vector_push_back(&kls->bases, &_empty);
+    vector_push_back(&kls->pip, &_empty);
+    vector_push_back(&kls->lro, &_empty);
     vector_push_back(klc->objs + ITEM_CLASS, &kls);
     return kls;
 }
@@ -570,6 +574,28 @@ static void write_bases(KlcFile *klc, Vector *vec)
     }
 }
 
+static void write_pip(KlcFile *klc, Vector *vec)
+{
+    size_t size = vector_size(vec) - 1;
+    write_uint8(klc, (uint8_t)size);
+    uint16_t item;
+    vector_foreach(item, vec) {
+        if (!item) continue;
+        write_uint16(klc, item);
+    }
+}
+
+static void write_lro(KlcFile *klc, Vector *vec)
+{
+    size_t size = vector_size(vec) - 1;
+    write_uint8(klc, (uint8_t)size);
+    uint16_t item;
+    vector_foreach(item, vec) {
+        if (!item) continue;
+        write_uint16(klc, item);
+    }
+}
+
 static void write_funcs(KlcFile *klc, Vector *vec)
 {
     size_t size = vector_size(vec) - 1;
@@ -592,7 +618,6 @@ static void write_classes(KlcFile *klc, Vector *vec)
 {
     size_t size = vector_size(vec) - 1;
     write_uint16(klc, (uint16_t)size);
-    KlcKlass **item_p;
     KlcKlass *item;
     vector_foreach(item, vec) {
         if (!item) continue;
@@ -600,6 +625,8 @@ static void write_classes(KlcFile *klc, Vector *vec)
         write_uint16(klc, item->name_index);
         write_tps(klc, &item->tps);
         write_bases(klc, &item->bases);
+        write_pip(klc, &item->pip);
+        write_lro(klc, &item->lro);
         write_vars(klc, &item->fields);
         write_funcs(klc, &item->methods);
     }
@@ -853,6 +880,30 @@ static void read_bases(KlcFile *klc, Vector *vec)
     }
 }
 
+static void read_pip(KlcFile *klc, Vector *vec)
+{
+    int size = 0;
+    read_uint8(klc, (uint8_t *)&size);
+
+    uint16_t item;
+    for (int i = 0; i < size; i++) {
+        read_uint16(klc, &item);
+        vector_push_back(vec, &item);
+    }
+}
+
+static void read_lro(KlcFile *klc, Vector *vec)
+{
+    int size = 0;
+    read_uint8(klc, (uint8_t *)&size);
+
+    uint16_t item;
+    for (int i = 0; i < size; i++) {
+        read_uint16(klc, &item);
+        vector_push_back(vec, &item);
+    }
+}
+
 static void read_funcs(KlcFile *klc, Vector *vec)
 {
     int size = 0;
@@ -888,22 +939,31 @@ static void read_classes(KlcFile *klc, Vector *vec)
         vector_init_ptr(&kls->tps);
         vector_init_ptr(&kls->anns);
         vector_init(&kls->bases, sizeof(uint16_t));
+        vector_init(&kls->pip, sizeof(uint16_t));
+        vector_init(&kls->lro, sizeof(uint16_t));
         vector_init_ptr(&kls->fields);
         vector_init_ptr(&kls->methods);
         vector_push_back(vec, &kls);
 
         read_uint16(klc, &kls->flags);
         read_uint16(klc, &kls->name_index);
+
         void *empty = NULL;
         vector_push_back(&kls->tps, &empty);
         vector_push_back(&kls->anns, &empty);
-        uint16_t _empty = 0;
-        vector_push_back(&kls->bases, &_empty);
         vector_push_back(&kls->fields, &empty);
         vector_push_back(&kls->methods, &empty);
+
+        uint16_t _empty = 0;
+        vector_push_back(&kls->bases, &_empty);
+        vector_push_back(&kls->pip, &_empty);
+        vector_push_back(&kls->lro, &_empty);
+
         read_tps(klc, &kls->tps);
         // read_anns(klc, &kls->anns);
         read_bases(klc, &kls->bases);
+        read_pip(klc, &kls->pip);
+        read_lro(klc, &kls->lro);
         read_vars(klc, &kls->fields);
         read_funcs(klc, &kls->methods);
     }

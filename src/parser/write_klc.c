@@ -150,6 +150,21 @@ void write_to_klc(HashMap *stbl, char *path)
                     }
                 }
 
+                TypeSpec *ts;
+                vector_foreach(ts, &kls->pip) {
+                    if (!ts) continue;
+                    uint16_t index =
+                        klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
+                    vector_push_back(&klass->pip, &index);
+                }
+
+                vector_foreach(ts, &kls->lro) {
+                    if (!ts) continue;
+                    uint16_t index =
+                        klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
+                    vector_push_back(&klass->lro, &index);
+                }
+
                 FuncSymbol *fn;
                 KlcFunc *klc_fn;
                 vector_foreach(fn, kls->funcs) {
@@ -219,6 +234,21 @@ void write_to_klc(HashMap *stbl, char *path)
                                                      strlen(ts->signature));
                         vector_push_back(&klass->bases, &index);
                     }
+                }
+
+                TypeSpec *ts;
+                vector_foreach(ts, &kls->pip) {
+                    if (!ts) continue;
+                    uint16_t index =
+                        klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
+                    vector_push_back(&klass->pip, &index);
+                }
+
+                vector_foreach(ts, &kls->lro) {
+                    if (!ts) continue;
+                    uint16_t index =
+                        klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
+                    vector_push_back(&klass->lro, &index);
                 }
 
                 FuncSymbol *fn;

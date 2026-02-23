@@ -207,7 +207,7 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
     TypeSpec *ret_ts = ret ? type_spec_from_str(ret->sval) : no_type_spec();
 
     HashMap *stbl = kls_sym ? kls_sym->stbl : ctx->stbl;
-    Symbol *sym = stbl_add_func(stbl, k->sval, NULL, ret_ts, params, 0, NULL, NULL);
+    Symbol *sym = stbl_add_func(stbl, k->sval, ret_ts, params, 0);
     ASSERT(sym);
 
     if (ts_need_fixup(ret_ts)) {
@@ -232,6 +232,8 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
         .index = -1,
     };
     add_stage_2_fixup_entry(&proto_entry, ctx);
+
+    sym->status = SYM_RESOLVED;
 }
 
 static void load_type_params(KlcKlass *kls, void *owner, LoadContext *ctx)
@@ -301,6 +303,54 @@ static void load_bases(KlcKlass *kls, KlassSymbol *sym, LoadContext *ctx)
     }
 }
 
+static int __type_in_vec(Vector *vec, TypeSpec *ts)
+{
+    TypeSpec *existing_ts;
+    vector_foreach(existing_ts, vec) {
+        if (!existing_ts) continue;
+        if (existing_ts == ts) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+#ifndef NOLOG
+void print_vtbl_info(KlassSymbol *sym);
+#endif
+
+static void load_pip_lro_scm(KlcKlass *kls, KlassSymbol *sym, LoadContext *ctx)
+{
+    uint16_t pip;
+    vector_foreach(pip, &kls->pip) {
+        if (!pip) continue;
+        KlcConst *base_k = klc_get_const(ctx->klc, pip);
+        TypeSpec *ts = type_spec_from_str(base_k->sval);
+        vector_push_back(&sym->pip, &ts);
+    }
+
+    uint16_t lro;
+    vector_foreach(lro, &kls->lro) {
+        if (!lro) continue;
+        KlcConst *base_k = klc_get_const(ctx->klc, lro);
+        TypeSpec *ts = type_spec_from_str(base_k->sval);
+        vector_push_back(&sym->lro, &ts);
+    }
+
+    TypeSpec *ts;
+    vector_foreach(ts, &sym->lro) {
+        if (!ts) continue;
+
+        if (!__type_in_vec(&sym->pip, ts)) {
+            vector_push_back(&sym->scm, &ts);
+        }
+    }
+
+#ifndef NOLOG
+    print_vtbl_info(sym);
+#endif
+}
+
 static void load_klass(KlcKlass *kls, LoadContext *ctx)
 {
     KlcConst *k = klc_get_const(ctx->klc, kls->name_index);
@@ -318,12 +368,17 @@ static void load_klass(KlcKlass *kls, LoadContext *ctx)
     // add bases
     load_bases(kls, cls_sym, ctx);
 
+    // add pip & lro & scm
+    load_pip_lro_scm(kls, cls_sym, ctx);
+
     // add methods
     KlcFunc *fn;
     vector_foreach(fn, &kls->methods) {
         if (!fn) continue;
         load_func(fn, cls_sym, ctx);
     }
+
+    cls_sym->status = SYM_RESOLVED;
 }
 
 static void load_funcs(LoadContext *ctx)

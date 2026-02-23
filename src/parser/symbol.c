@@ -88,7 +88,7 @@ static void __symbol_free(Symbol *sym)
         case SYM_FUNC: {
             FuncSymbol *fn = (FuncSymbol *)sym;
 
-            vector_destroy(fn->tps);
+            vector_fini(&fn->tps);
 
             ArgInfo *arg;
             vector_foreach(arg, fn->params) {
@@ -229,8 +229,7 @@ Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null)
     return (Symbol *)sym;
 }
 
-Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
-                      Vector *params, int flags, char *ann, char *ann_key)
+Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, int flags)
 {
     FuncSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(name));
@@ -243,11 +242,10 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, Vector *tps, TypeSpec *ret,
     } else {
         sym->flags = flags;
         sym->params = params;
-        sym->tps = tps;
+        vector_init_ptr(&sym->tps);
         sym->ret = ret;
+        vector_init_ptr(&sym->locals);
         sym->stbl = stbl_new();
-        sym->ann = ann;
-        sym->ann_key = ann_key;
         add_to_global(sym);
     }
 
@@ -297,14 +295,6 @@ TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner)
         add_to_global(sym);
     }
 
-#ifndef NOLOG
-    if (sym) {
-        log_info("add type_param('%s') OK", name);
-    } else {
-        log_info("add type_param('%s') failed", name);
-    }
-#endif
-
     return sym;
 }
 
@@ -322,13 +312,7 @@ PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path, HashMap *_stbl)
         sym->stbl = _stbl;
         add_to_global(sym);
     }
-#ifndef NOLOG
-    if (sym) {
-        log_info("add package('%s') OK", path);
-    } else {
-        log_info("add package('%s') failed", path);
-    }
-#endif
+
     return sym;
 }
 
@@ -408,6 +392,28 @@ static InstanceSymbol *__instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector 
     return inst_sym;
 }
 
+static TypeSpec *infer_tuple_tp(Vector *tp_args)
+{
+    ASSERT(vector_size(tp_args) >= 1);
+
+    TypeSpec *arg_ts;
+    vector_foreach(arg_ts, tp_args) {
+        if (!arg_ts) continue;
+        TypeSpec *_ts;
+        vector_foreach(_ts, tp_args) {
+            if (_ts != arg_ts) {
+                log_info(
+                    "tuple has different arg types, cannot infer, fallback to 'any'");
+                return any_type_spec();
+            }
+        }
+        log_info("tuple instance arg type: '%s'", arg_ts->signature);
+        return arg_ts;
+    }
+
+    UNREACHABLE();
+}
+
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
 {
     ASSERT(origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT);
@@ -428,6 +434,19 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
     // set instance bases
     if (!vector_empty(&kls_sym->bases)) {
         log_info("updating instance bases for '%s'", mangled_name);
+
+        Vector *_tp_args = tp_args;
+
+        if (!strcmp(origin->name, "tuple")) {
+            // tuple instance
+            // compute ...T for bases, methods parameters or return type
+            log_info("handling tuple instance '%s'", mangled_name);
+            TypeSpec *infer_ts = infer_tuple_tp(tp_args);
+            _tp_args = vector_create_ptr();
+            inst_sym->arg = infer_ts; // pass infer type to instance symbol for later use
+            vector_push_back(_tp_args, &infer_ts);
+        }
+
         inst_sym->bases = vector_create_ptr();
         TypeSpec *base_ts;
         vector_foreach(base_ts, &kls_sym->bases) {
@@ -438,13 +457,17 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
                 // handle generic_ref base class/trait
                 ASSERT(base_ts->kind == TYPE_GENERIC_REF);
                 // specialize base class/trait
-                InstanceSymbol *base_sym = __instance_type_spec(stbl, base_ts, tp_args);
+                InstanceSymbol *base_sym = __instance_type_spec(stbl, base_ts, _tp_args);
                 base_ts = base_sym->instance_ts;
                 vector_push_back(inst_sym->bases, &base_ts);
                 ASSERT(base_ts->kind == TYPE_KLASS);
             }
             log_info("updated instance base '%s' for '%s'", base_ts->klass_type.name,
                      mangled_name);
+        }
+
+        if (_tp_args != tp_args) {
+            vector_destroy(_tp_args);
         }
     }
 

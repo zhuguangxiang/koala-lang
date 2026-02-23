@@ -437,12 +437,12 @@ void expr_free(Expr *exp)
     free_handlers[exp->kind](exp);
 }
 
-Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int ro, Expr *e)
+Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int which, Expr *e)
 {
     VarDeclStmt *s = mm_alloc_obj(s);
     s->kind = STMT_VAR_KIND;
     s->id = id;
-    s->ro = ro;
+    s->which = which;
     s->type = ty;
     s->exp = e;
     return (Stmt *)s;
@@ -453,7 +453,27 @@ TypeParamDecl *type_param_new(Loc loc, Ident id, Vector *bound)
     TypeParamDecl *tp = mm_alloc_obj(tp);
     tp->loc = loc;
     tp->id = id;
+    tp->which = TP_DECL_NORMAL;
     tp->bound = bound;
+    return tp;
+}
+
+TypeParamDecl *infer_type_param_new(Loc loc, Ident id)
+{
+    TypeParamDecl *tp = mm_alloc_obj(tp);
+    tp->loc = loc;
+    tp->id = id;
+    tp->which = TP_DECL_INFER;
+    return tp;
+}
+
+TypeParamDecl *const_type_param_new(Loc loc, Ident id, TypeSpec *type)
+{
+    TypeParamDecl *tp = mm_alloc_obj(tp);
+    tp->loc = loc;
+    tp->id = id;
+    tp->which = TP_DECL_CONST;
+    tp->const_type = type;
     return tp;
 }
 
@@ -474,6 +494,7 @@ Stmt *stmt_from_func_decl(Ident id, Vector *args, TypeSpec *ret, Vector *tps)
     s->id = id;
     s->args = args;
     s->ret = ret;
+    s->tps = tps;
     return (Stmt *)s;
 }
 

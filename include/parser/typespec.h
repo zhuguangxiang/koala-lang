@@ -27,6 +27,7 @@ typedef enum _TypeKind {
     TYPE_TYPE,
     TYPE_RANGE,
     TYPE_UNION,
+    TYPE_TUPLE,
     TYPE_UNRESOLVED,
     TYPE_GENERIC_VAR,
     TYPE_GENERIC_REF,
@@ -106,6 +107,16 @@ typedef struct _TypeSpec {
             struct _TypeSpec *src;
         } opt;
 
+        // va-list
+        struct {
+            struct _TypeSpec *src;
+        } va_list;
+
+        // tuple
+        struct {
+            Vector *args;
+        } tuple;
+
         // mangled type, not interned, only used during loading from klc
         // _Z4Listi -> List[int] (string -> struct)
         struct {
@@ -129,6 +140,9 @@ TypeSpec *func_type_spec_from_arginfo(Vector *arg_infos, TypeSpec *ret);
 TypeSpec *optional_type_spec(TypeSpec *src);
 TypeSpec *optional_type_spec_intern(TypeSpec *src);
 Vector *type_spec_vec_copy(Vector *args);
+TypeSpec *va_list_type_spec(TypeSpec *src);
+TypeSpec *tuple_type_spec(Vector *args);
+TypeSpec *tuple_type_spec_intern(Vector *args);
 
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
@@ -156,14 +170,13 @@ static inline TypeSpec *int64_type_spec(void) { return type_spec_get_by_id(7); }
 static inline TypeSpec *uint64_type_spec(void) { return type_spec_get_by_id(8); }
 static inline TypeSpec *bool_type_spec(void) { return type_spec_get_by_id(9); }
 static inline TypeSpec *str_type_spec(void) { return type_spec_get_by_id(10); }
-static inline TypeSpec *object_type_spec(void) { return type_spec_get_by_id(11); }
-static inline TypeSpec *va_list_type_spec(void) { return type_spec_get_by_id(12); }
-static inline TypeSpec *float16_type_spec(void) { return type_spec_get_by_id(13); }
-static inline TypeSpec *float32_type_spec(void) { return type_spec_get_by_id(14); }
-static inline TypeSpec *float64_type_spec(void) { return type_spec_get_by_id(15); }
-static inline TypeSpec *bfloat16_type_spec(void) { return type_spec_get_by_id(16); }
-static inline TypeSpec *type_type_spec(void) { return type_spec_get_by_id(17); }
-static inline TypeSpec *range_type_spec(void) { return type_spec_get_by_id(18); }
+static inline TypeSpec *any_type_spec(void) { return type_spec_get_by_id(11); }
+static inline TypeSpec *float16_type_spec(void) { return type_spec_get_by_id(12); }
+static inline TypeSpec *float32_type_spec(void) { return type_spec_get_by_id(13); }
+static inline TypeSpec *float64_type_spec(void) { return type_spec_get_by_id(14); }
+static inline TypeSpec *bfloat16_type_spec(void) { return type_spec_get_by_id(15); }
+static inline TypeSpec *type_type_spec(void) { return type_spec_get_by_id(16); }
+static inline TypeSpec *range_type_spec(void) { return type_spec_get_by_id(17); }
 
 void update_builtin_types(HashMap *stbl);
 

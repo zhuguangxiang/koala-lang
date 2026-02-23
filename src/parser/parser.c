@@ -566,6 +566,37 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         return optional_type_spec_intern(ret);
     }
 
+    if (_ts->kind == TYPE_TUPLE) {
+        if (_ts->type_id >= 0) {
+            return _ts;
+        }
+
+        TypeSpec *arg;
+        Vector *vec = vector_create_ptr();
+        vector_foreach(arg, _ts->tuple.args) {
+            if (!arg) continue;
+            TypeSpec *ret = resolve_type(ps, arg);
+            vector_push_back(vec, &ret);
+        }
+
+        TypeSpec *ret = tuple_type_spec_intern(vec);
+
+        Ident id = { .name = "tuple", .loc = _ts->loc };
+        Symbol *origin = find_symbol(ps, &id);
+        ASSERT(origin);
+        ASSERT(origin->kind == SYM_CLASS);
+        KlassSymbol *kls_sym = (KlassSymbol *)origin;
+        ASSERT(vector_size(&kls_sym->tps) == 1);
+        TypeParamSymbol *tp_sym = vector_get(&kls_sym->tps, 0);
+        ASSERT(tp_sym->which == TP_INFER);
+        InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, origin, vec);
+        ASSERT(inst_sym);
+        type_spec_free(_ts);
+        log_type_spec(inst_sym->instance_ts);
+        ret->sym_id = inst_sym->id;
+        return ret;
+    }
+
     if (_ts->kind != TYPE_UNRESOLVED) return _ts;
 
     // parse arguments by bottom-to-up method
@@ -600,6 +631,14 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         }
         log_info("resolve type-parameter '%s'", _ts->unresolved.name.name);
         TypeParamSymbol *ts_sym = (TypeParamSymbol *)sym;
+        if (ts_sym->which == TP_INFER) {
+            log_info("type parameter '%s' is inferred", ts_sym->name);
+        } else if (ts_sym->which == TP_CONST) {
+            log_info("type parameter '%s' is const", ts_sym->name);
+        } else {
+            ASSERT(ts_sym->which == TP_NORMAL);
+            log_info("type parameter '%s' is normal", ts_sym->name);
+        }
         TypeSpec *ret = generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id,
                                               ts_sym->owner->name);
         type_spec_free(_ts);
@@ -809,7 +848,8 @@ static Symbol *_add_var(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     Symbol *sym;
 
     int flags = parse_flags(&var->flags);
-    if (!var->ro) flags |= SYM_FLAGS_MUTABLE;
+    if (var->which == VAR_DECL_VAR) flags |= SYM_FLAGS_MUTABLE;
+    if (var->which == VAR_DECL_CONST) flags |= SYM_FLAGS_CONST;
 
     sym = stbl_add_var(stbl, id->name, NULL, flags);
 
@@ -828,7 +868,8 @@ static Symbol *_add_local(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     Symbol *sym;
 
     int flags = parse_flags(&var->flags);
-    if (!var->ro) flags |= SYM_FLAGS_MUTABLE;
+    if (var->which == VAR_DECL_VAR) flags |= SYM_FLAGS_MUTABLE;
+    if (var->which == VAR_DECL_CONST) flags |= SYM_FLAGS_CONST;
 
     sym = stbl_add_var(stbl, id->name, var->type, flags);
 
@@ -1002,11 +1043,28 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
     int flags = parse_flags(&fn->flags);
     char *ann = fn->flags.at.ident;
     char *ann_key = fn->flags.at.assoc_ident;
-    sym = stbl_add_func(stbl, id->name, fn->tps, NULL, NULL, flags, ann, ann_key);
+    sym = stbl_add_func(stbl, id->name, NULL, NULL, flags);
 
     if (!sym) {
         kl_error(id->loc, "redefinition of '%s'", id->name);
         return NULL;
+    }
+
+    FuncSymbol *fn_sym = (FuncSymbol *)sym;
+
+    // add tps
+    TypeParamDecl *tp;
+    vector_foreach(tp, fn->tps) {
+        if (!tp) continue;
+        TypeParamSymbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name, sym);
+        tp_sym->index = vector_size(&fn_sym->tps);
+        if (tp->which == TP_DECL_INFER) {
+            tp_sym->which = TP_INFER;
+        } else {
+            ASSERT(tp->which == TP_DECL_NORMAL);
+            tp_sym->which = TP_NORMAL;
+        }
+        vector_push_back(&fn_sym->tps, &tp_sym);
     }
 
     fn->sym = sym;
@@ -1481,6 +1539,15 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls,
         if (!tp) continue;
         TypeParamSymbol *tp_sym = stbl_add_type_param(sym->stbl, tp->id.name, sym);
         tp_sym->index = vector_size(&kls_sym->tps);
+        if (tp->which == TP_DECL_INFER) {
+            tp_sym->which = TP_INFER;
+        } else if (tp->which == TP_DECL_CONST) {
+            tp_sym->which = TP_CONST;
+            tp_sym->const_type = tp->const_type;
+        } else {
+            ASSERT(tp->which == TP_DECL_NORMAL);
+            tp_sym->which = TP_NORMAL;
+        }
         vector_push_back(&kls_sym->tps, &tp_sym);
     }
 
@@ -1511,20 +1578,41 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls,
     return sym;
 }
 
-static void parse_type_params(ParserState *ps, KlassDeclStmt *kls)
+static void parse_type_params(ParserState *ps, Vector *tps, Symbol *sym)
 {
-    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+    Vector *sym_tps = NULL;
+
+    if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+        sym_tps = &((KlassSymbol *)sym)->tps;
+    } else if (sym->kind == SYM_FUNC) {
+        sym_tps = &((FuncSymbol *)sym)->tps;
+    } else {
+        UNREACHABLE();
+    }
 
     // parse type parameter's bounds
     int index = 0;
     TypeParamSymbol *tp_sym;
 
     TypeParamDecl *tp;
-    vector_foreach(tp, kls->tps) {
+    vector_foreach(tp, tps) {
         if (!tp) continue;
 
-        tp_sym = vector_get(&sym->tps, index);
+        tp_sym = vector_get(sym_tps, index);
         index++;
+
+        if (tp->which == TP_DECL_INFER) {
+            continue;
+        }
+
+        if (tp->which == TP_DECL_CONST) {
+            TypeSpec *const_ts = resolve_type(ps, tp->const_type);
+            if (!const_ts) continue;
+            int r = check_type(ps, const_ts);
+            if (!r) continue;
+            tp_sym->const_type = const_ts;
+            continue;
+        }
 
         if (vector_empty(tp->bound)) continue;
 
@@ -1611,7 +1699,7 @@ static KlassSymbol *_get_base_sym(TypeSpec *base_ts)
 }
 
 /* compute primary inheritance path */
-static void compute_pip(ParserState *ps, KlassSymbol *sym)
+static void compute_pip(KlassSymbol *sym)
 {
     Vector *pip = &sym->pip;
     if (vector_size(pip) > 0) return;
@@ -1626,7 +1714,7 @@ static void compute_pip(ParserState *ps, KlassSymbol *sym)
     KlassSymbol *base_sym = _get_base_sym(base_ts);
 
     // compute base's pip first
-    compute_pip(ps, base_sym);
+    compute_pip(base_sym);
 
     // inherit from base's pip
     TypeSpec *ts;
@@ -1651,7 +1739,7 @@ static int type_in_vec(Vector *vec, TypeSpec *ts)
     return 0;
 }
 
-static void compute_lro(ParserState *ps, KlassSymbol *sym)
+static void compute_lro(KlassSymbol *sym)
 {
     Vector *lro = &sym->lro;
     if (vector_size(lro) > 0) return;
@@ -1663,7 +1751,7 @@ static void compute_lro(ParserState *ps, KlassSymbol *sym)
         KlassSymbol *base_sym = _get_base_sym(base_ts);
 
         // compute base's lro first
-        compute_lro(ps, base_sym);
+        compute_lro(base_sym);
     }
 
     vector_foreach(base_ts, &sym->bases) {
@@ -1687,7 +1775,7 @@ static void compute_lro(ParserState *ps, KlassSymbol *sym)
     vector_push_back(lro, &sym->instance_ts);
 }
 
-static void compute_scm(ParserState *ps, KlassSymbol *sym)
+static void compute_scm(KlassSymbol *sym)
 {
     Vector *scm = &sym->scm;
     if (vector_size(scm) > 0) return;
@@ -1703,7 +1791,7 @@ static void compute_scm(ParserState *ps, KlassSymbol *sym)
 }
 
 #ifndef NOLOG
-static void print_vtbl_info(KlassSymbol *sym)
+void print_vtbl_info(KlassSymbol *sym)
 {
     printf("vtbl info for klass/trait '%s':", sym->name);
 
@@ -1736,11 +1824,11 @@ static void print_vtbl_info(KlassSymbol *sym)
     } while (0)
 #endif
 
-static void compute_vtbl_info(ParserState *ps, KlassSymbol *sym)
+static void compute_vtbl_info(KlassSymbol *sym)
 {
-    compute_pip(ps, sym);
-    compute_lro(ps, sym);
-    compute_scm(ps, sym);
+    compute_pip(sym);
+    compute_lro(sym);
+    compute_scm(sym);
     print_vtbl_info(sym);
 }
 
@@ -2058,13 +2146,13 @@ static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls)
     sc->sym = (Symbol *)sym;
 
     // parse type parameter's bounds
-    parse_type_params(ps, kls);
+    parse_type_params(ps, kls->tps, (Symbol *)sym);
 
     /* parse base class and traits */
     parse_bases(ps, kls);
 
     /* compute vtbl info */
-    compute_vtbl_info(ps, sym);
+    compute_vtbl_info(sym);
 
     exit_scope(ps);
 
@@ -2087,6 +2175,9 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
     ParserScope *sc = enter_scope(ps, SCOPE_FUNC, 0, sym->name);
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
+
+    // parse type parameters
+    parse_type_params(ps, fn->tps, (Symbol *)sym);
 
     // parse return type
     if (fn->ret) {
@@ -2362,7 +2453,8 @@ static Symbol *_add_global(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     Symbol *sym;
 
     int flags = parse_flags(&var->flags);
-    if (!var->ro) flags |= SYM_FLAGS_MUTABLE;
+    if (var->which == VAR_DECL_VAR) flags |= SYM_FLAGS_MUTABLE;
+    if (var->which == VAR_DECL_CONST) flags |= SYM_FLAGS_CONST;
 
     // don't add unresolved type
     if (ts && ts->kind == TYPE_UNRESOLVED) ts = NULL;

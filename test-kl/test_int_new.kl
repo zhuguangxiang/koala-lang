@@ -9,6 +9,5 @@ var v3 = int("1A", 16)
 var v4 = int("1A", base = 16, 10)
 
 // CHECK: expected expr, expr-list or ')'.
-// CHECK-NEXT: syntax error.
 
 // CHECK-NOT: {{.}}

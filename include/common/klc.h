@@ -135,6 +135,10 @@ typedef struct _KlcKlass {
     Vector anns;
     /* bases */
     Vector bases;
+    /* pip */
+    Vector pip;
+    /* lro */
+    Vector lro;
     /* fields */
     Vector fields;
     /* methods */
