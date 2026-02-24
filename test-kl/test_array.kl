@@ -34,7 +34,7 @@
 class tuple[infer T] : Seq[T] {
 
     @native(kl_tuple_init)
-    pub func __init__(args Iterable[T]) {}
+    pub func __init__(args ...) {}
 
     @intrinsic
     pub func __get_item__[infer U](index int) U {}
@@ -70,20 +70,23 @@ class tuple[infer T] : Seq[T] {
 // @intrinsic
 // pub func build_tuple[infer T](args ...) tuple[T] {}
 
-var t tuple[int, float]
+// var t tuple[int, float]
 // len(t) // 调用 __len__，返回 int
-let v = t.__get_item__(1) // v 的类型是 int
-let v1 = t.__contains__(42) // v1 的类型是 bool
-let v2 = t.to_list() // v2 的类型是 list[int]
-let v3 = t.index(42) // v3 的类型是 int
+// let v = t.__get_item__(1) // v 的类型是 int
+// let v1 = t.__contains__(42) // v1 的类型是 bool
+// let v2 = t.to_list() // v2 的类型是 list[int]
+// let v3 = t.index(42) // v3 的类型是 int
+// // t[0]
 
+// var t1 tuple[int, int]
+// // len(t) // 调用 __len__，返回 int
+// let v4 = t1.__get_item__(0) // v 的类型是 int
+// let v5 = t1.__contains__(42) // v1 的类型是 bool
+// let v6 = t1.to_list() // v2 的类型是 list[int]
+// let v7 = t1.index(42) // v3 的类型是 int
 
-var t1 tuple[int, int]
-// len(t) // 调用 __len__，返回 int
-let v4 = t1.__get_item__(0) // v 的类型是 int
-let v5 = t1.__contains__(42) // v1 的类型是 bool
-let v6 = t1.to_list() // v2 的类型是 list[int]
-let v7 = t1.index(42) // v3 的类型是 int
+let t = tuple[int, int](1, 2)
+// let t2 = tuple(1, 2, 3.0)
 
 // let b = t.__contains__(42) // b 的类型是 bool
 // let lst = t.tolist() // lst 的类型是 list[int]

@@ -752,12 +752,14 @@ map_type
 tuple_type
     : TUPLE '[' optional_type_list ']'
     {
-        $$ = tuple_type_spec($3);
+        NAME_ID(id, "tuple", loc(@1));
+        $$ = unresolved_type_spec(NULL, id, $3);
         type_spec_loc($$, lloc(@1, @4));
     }
     | '(' optional_type_list ')'
     {
-        $$ = tuple_type_spec($2);
+        NAME_ID(id, "tuple", loc(@1));
+        $$ = unresolved_type_spec(NULL, id, $2);
         type_spec_loc($$, lloc(@1, @3));
     }
     | TUPLE '[' error
@@ -2870,7 +2872,7 @@ atom_expr
     }
     | tuple_expr
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | atom_type
     {
@@ -3086,17 +3088,12 @@ tuple_expr
         $$ = expr_from_tuple($2);
         expr_set_loc($$, lloc(@1, @5));
     }
-    | '(' ')'
-    {
-        printf("tuple ()\n");
-    }
     | TUPLE
     {
-        printf("tuple expr\n");
-        // Type *ty = tuple_type(NULL);
-        // type_set_loc(ty, loc(@1));
-        // $$ = expr_from_type(ty);
-        // expr_set_loc($$, loc(@1));
+        TypeSpec *ty = klass_type_spec(NULL, "tuple");
+        type_spec_loc(ty, loc(@1));
+        $$ = expr_from_type(ty);
+        expr_set_loc($$, loc(@1));
     }
     | '(' expr_list ',' error
     {

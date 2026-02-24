@@ -1,0 +1,40 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+pub class tuple[infer T] : Seq[T] {
+
+    @native(kl_tuple_init)
+    pub func __init__(args ...) {}
+
+    // @intrinsic
+    // pub func __get_item__[infer U](index int) U {}
+
+    @native(kl_tuple_contains)
+    pub func __contains__(v T) bool {}
+
+    @native(kl_tuple_tolist)
+    pub func to_list() list[T] {}
+
+    @native(kl_tuple_iterator)
+    pub func __iter__() Iterator[T] {}
+
+    @native(kl_tuple_length)
+    pub func __len__() int {}
+
+    @native(kl_tuple_to_str)
+    pub func __str__() str {}
+
+    @native(kl_tuple_eq)
+    pub func __eq__(other any) bool {}
+
+    @native(kl_tuple_hash)
+    pub func __hash__() int {}
+
+    @native(kl_tuple_index)
+    pub func index(v T) int {}
+
+    @native(kl_tuple_count)
+    pub func count(v T) int {}
+}

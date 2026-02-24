@@ -1,0 +1,89 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+class tuple[infer T] : Seq[T] {
+
+    @native(kl_tuple_init)
+    pub func __init__(args ...) {}
+
+    @intrinsic
+    pub func __get_item__[infer U](index int) U {}
+
+    @native(kl_tuple_contains)
+    pub func __contains__(v T) bool {}
+
+    @native(kl_tuple_tolist)
+    pub func to_list() list[T] {}
+
+    @native(kl_tuple_iterator)
+    pub func __iter__() Iterator[T] {}
+
+    @native(kl_tuple_length)
+    pub func __len__() int {}
+
+    @native(kl_tuple_to_str)
+    pub func __str__() str {}
+
+    @native(kl_tuple_eq)
+    pub func __eq__(other any) bool {}
+
+    @native(kl_tuple_hash)
+    pub func __hash__() int {}
+
+    @native(kl_tuple_index)
+    pub func index(v T) int {}
+
+    @native(kl_tuple_count)
+    pub func count(v T) int {}
+}
+
+let empty = ()
+// CHECK: expected an expr.
+// CHECK: variable 'empty' needs a type or an initializer
+
+let t = tuple[int, int](1, 2)
+let t2 = tuple(1, 2, 3.0)
+
+let t3 = tuple[int](1, 2, 3)
+// CHECK: tuple instance expects 1 type arguments, but 3 were provided.
+
+let t4 = tuple[int, float](1, 2)
+// CHECK: tuple instance argument type is not compatible with specialized type parameter.
+
+let t5 = (1, 2, 3)
+
+let t6 = (1, 2.1, false)
+
+let t7 (int, float, bool) = (1, 2.1, false)
+
+let t8 (int, float, bool) = (1, 2.1, false, "extra")
+// CHECK: Types of two sides are not matched.
+// CHECK: lhs: tuple<jdz> =/= rhs: tuple<jdzu>
+
+let t9 (int, float) = (1, 2)
+// CHECK: Types of two sides are not matched.
+// CHECK: lhs: tuple<jd> =/= rhs: tuple<jj>
+
+let t10 (int, float) = tuple(1, 3.0)
+
+let t11 (int, float) = tuple[int](1)
+// CHECK: Types of two sides are not matched.
+// CHECK: lhs: tuple<jd> =/= rhs: tuple<j>
+
+let t12 (int) = (1,)
+
+func get_pos() (int, int) { return (10, 20) }
+
+let nest = ((1, 2), 3.0)
+
+func process_nest(data ( (int, int), float )) {
+    let inner = data.__get_item__(0)
+    let x = inner.__get_item__(0)
+    let y = inner.__get_item__(1)
+    let z = data.__get_item__(1)
+    x + 1
+    y + 1
+    z + 1
+// CHECK: argument type mismatch for operator '+'
+}
+
+// CHECK-NOT: {{.}}

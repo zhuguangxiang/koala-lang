@@ -128,7 +128,7 @@ static inline void load_builtin_module(void)
     PkgSymbol *pkg_sym = import_package("std/builtin");
     if (!pkg_sym) return;
     builtin = pkg_sym->stbl;
-    update_builtin_types(builtin);
+    install_builtin_types(builtin);
 }
 
 void init_parser(void)
@@ -637,37 +637,6 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         return optional_type_spec_intern(ret);
     }
 
-    if (_ts->kind == TYPE_TUPLE) {
-        if (_ts->type_id >= 0) {
-            return _ts;
-        }
-
-        TypeSpec *arg;
-        Vector *vec = vector_create_ptr();
-        vector_foreach(arg, _ts->tuple.args) {
-            if (!arg) continue;
-            TypeSpec *ret = resolve_type(ps, arg);
-            vector_push_back(vec, &ret);
-        }
-
-        TypeSpec *ret = tuple_type_spec_intern(vec);
-
-        Ident id = { .name = "tuple", .loc = _ts->loc };
-        Symbol *origin = find_symbol(ps, &id);
-        ASSERT(origin);
-        ASSERT(origin->kind == SYM_CLASS);
-        KlassSymbol *kls_sym = (KlassSymbol *)origin;
-        ASSERT(vector_size(&kls_sym->tps) == 1);
-        TypeParamSymbol *tp_sym = vector_get(&kls_sym->tps, 0);
-        ASSERT(tp_sym->which == TP_INFER);
-        InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, origin, vec);
-        ASSERT(inst_sym);
-        type_spec_free(_ts);
-        log_type_spec(inst_sym->instance_ts);
-        ret->sym_id = inst_sym->id;
-        return ret;
-    }
-
     if (_ts->kind != TYPE_UNRESOLVED) return _ts;
 
     // parse arguments by bottom-to-up method
@@ -719,13 +688,17 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
     } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
         if (vector_size(&kls_sym->tps) != vector_size(tp_args)) {
-            kl_error(_ts->loc,
-                     "Type argument mismatch: '%s' expects %d argument(s), but %d were "
-                     "provided",
-                     _ts->unresolved.name.name, vector_size(&kls_sym->tps),
-                     vector_size(tp_args));
-            vector_destroy(tp_args);
-            return NULL;
+            if (strcmp(sym->name, "tuple")) {
+                // don't check tuple type paramaters
+                kl_error(
+                    _ts->loc,
+                    "Type argument mismatch: '%s' expects %d argument(s), but %d were "
+                    "provided",
+                    _ts->unresolved.name.name, vector_size(&kls_sym->tps),
+                    vector_size(tp_args));
+                vector_destroy(tp_args);
+                return NULL;
+            }
         }
 
         if (sym->status == SYM_UNRESOLVED) {

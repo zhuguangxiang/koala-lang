@@ -249,6 +249,7 @@ static void load_type_params(KlcKlass *kls, void *owner, LoadContext *ctx)
         KlcConst *name = klc_get_const(ctx->klc, tp->name_index);
         TypeParamSymbol *tp_sym = stbl_add_type_param(cls_sym->stbl, name->sval, owner);
         tp_sym->index = vector_size(result);
+        tp_sym->which = tp->which;
         vector_push_back(result, &tp_sym);
 
         // add bounds

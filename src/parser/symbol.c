@@ -392,7 +392,7 @@ static InstanceSymbol *__instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector 
     return inst_sym;
 }
 
-static TypeSpec *infer_tuple_tp(Vector *tp_args)
+TypeSpec *infer_tuple_tp(Vector *tp_args)
 {
     ASSERT(vector_size(tp_args) >= 1);
 
@@ -445,6 +445,7 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
             _tp_args = vector_create_ptr();
             inst_sym->arg = infer_ts; // pass infer type to instance symbol for later use
             vector_push_back(_tp_args, &infer_ts);
+            log_info("tuple instance inferred type: '%s'", infer_ts->signature);
         }
 
         inst_sym->bases = vector_create_ptr();

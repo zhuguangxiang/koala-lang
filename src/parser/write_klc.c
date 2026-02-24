@@ -127,6 +127,7 @@ void write_to_klc(HashMap *stbl, char *path)
                         if (!tp) continue;
 
                         KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
+                        klc_tp->which = (int8_t)tp->which;
 
                         if (vector_size(&tp->bound) > 0) {
                             TypeSpec *ts;

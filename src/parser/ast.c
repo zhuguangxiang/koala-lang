@@ -137,13 +137,6 @@ Expr *expr_from_under(void)
     return exp;
 }
 
-Expr *expr_from_self(void)
-{
-    Expr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_SELF_KIND;
-    return exp;
-}
-
 Expr *expr_from_is_expr(Expr *exp, Loc op_loc, TypeSpec *type)
 {
     IsExpr *e = mm_alloc_obj(e);
@@ -411,7 +404,6 @@ void expr_free(Expr *exp)
         [EXPR_ID_KIND] = ident_expr_free,
         [EXPR_UNDER_KIND] = under_expr_free,
         [EXPR_LITERAL_KIND] = lit_expr_free,
-        [EXPR_SELF_KIND] = self_expr_free,
         [EXPR_ARRAY_KIND] = array_expr_free,
         [EXPR_MAP_KIND] = map_expr_free,
         [EXPR_MAP_ENTRY_KIND] = map_entry_expr_free,

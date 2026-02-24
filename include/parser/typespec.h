@@ -27,7 +27,6 @@ typedef enum _TypeKind {
     TYPE_TYPE,
     TYPE_RANGE,
     TYPE_UNION,
-    TYPE_TUPLE,
     TYPE_UNRESOLVED,
     TYPE_GENERIC_VAR,
     TYPE_GENERIC_REF,
@@ -141,8 +140,6 @@ TypeSpec *optional_type_spec(TypeSpec *src);
 TypeSpec *optional_type_spec_intern(TypeSpec *src);
 Vector *type_spec_vec_copy(Vector *args);
 TypeSpec *va_list_type_spec(TypeSpec *src);
-TypeSpec *tuple_type_spec(Vector *args);
-TypeSpec *tuple_type_spec_intern(Vector *args);
 
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
@@ -179,7 +176,7 @@ static inline TypeSpec *bfloat16_type_spec(void) { return type_spec_get_by_id(15
 static inline TypeSpec *type_type_spec(void) { return type_spec_get_by_id(16); }
 static inline TypeSpec *range_type_spec(void) { return type_spec_get_by_id(17); }
 
-void update_builtin_types(HashMap *stbl);
+void install_builtin_types(HashMap *stbl);
 
 void type_spec_free(TypeSpec *ts);
 

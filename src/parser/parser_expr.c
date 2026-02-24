@@ -167,12 +167,12 @@ static void parse_literal(ParserState *ps, Expr *exp)
             break;
         }
         case LIT_EXPR_FLT: {
-            log_info("literal float");
+            log_info("literal float: %lf", lit->fval);
             parse_lit_float(ps, lit);
             break;
         }
         case LIT_EXPR_BOOL: {
-            log_info("literal bool");
+            log_info("literal bool: %s", lit->bval ? "true" : "false");
             // do nothing
             break;
         }
@@ -207,19 +207,30 @@ static Symbol *get_current_klass(ParserState *ps)
     return NULL;
 }
 
-static void parse_self(ParserState *ps, Expr *exp)
+static void parse_tuple(ParserState *ps, Expr *exp)
 {
-    ASSERT(exp->ctx == EXPR_CTX_LOAD);
+    TupleExpr *tuple_exp = (TupleExpr *)exp;
 
-    Symbol *sym = get_current_klass(ps);
-    if (!sym || sym->kind != SYM_CLASS) {
-        kl_error(exp->loc, "'self' can only be used in class.");
-        return;
+    Vector *tp_args = vector_create_ptr();
+    Expr *e;
+    vector_foreach(e, tuple_exp->vec) {
+        e->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, e);
+        if (!e->ts) return;
+        vector_push_back(tp_args, &e->ts);
     }
 
-    exp->ts = ((KlassSymbol *)sym)->instance_ts;
-    exp->sym = sym;
-    log_info("'self' resolved as class '%s'", sym->name);
+    TypeSpec *infer_ts = infer_tuple_tp(tp_args);
+    log_info("infer tuple type:");
+    log_type_spec(infer_ts);
+
+    Symbol *origin = stbl_get(ps->builtin, "tuple");
+    InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, origin, tp_args);
+    inst_sym->arg = infer_ts; // save infered tuple type for later use
+
+    exp->ts = inst_sym->instance_ts;
+    exp->sym = (Symbol *)inst_sym;
+    log_info("tuple type resolved:");
     log_type_spec(exp->ts);
 }
 
@@ -424,9 +435,13 @@ static Vector *build_instance_params(Vector *params, KlassSymbol *origin,
     return inst_params;
 }
 
-static inline int func_has_tp(FuncSymbol *fn_sym)
+static inline int func_has_infer_tp(FuncSymbol *fn_sym)
 {
-    return vector_size(&fn_sym->tps) > 0;
+    if (vector_size(&fn_sym->tps) <= 0) return 0;
+
+    TypeParamSymbol *tp_sym = vector_get(&fn_sym->tps, 0);
+    if (tp_sym->which != TP_INFER) return 0;
+    return 1;
 }
 
 static Vector *get_func_real_params(FuncSymbol *fn_sym, Vector *_tp_args)
@@ -521,18 +536,48 @@ static void parse_call(ParserState *ps, Expr *exp)
     } else if (lhs_sym->kind == SYM_CLASS) {
         // constructor call
         KlassSymbol *cls_sym = (KlassSymbol *)lhs_sym;
-        Symbol *init_fn_sym = stbl_get(cls_sym->stbl, "__init__");
-        if (!init_fn_sym) {
+        Symbol *_fn_sym = stbl_get(cls_sym->stbl, "__init__");
+        if (!_fn_sym) {
             kl_error(lhs->loc, "class '%s' has no constructor.", lhs_sym->name);
             return;
         }
-        // func call type is instance type
-        exp->ts = cls_sym->instance_ts;
-        // exp->sym = cls_sym;
-        params = ((FuncSymbol *)init_fn_sym)->params;
+
+        if (!strcmp(cls_sym->name, "tuple")) {
+            log_info("infer tuple type parameters from __init__ arguments.");
+
+            Vector *tp_args = vector_create_ptr();
+            Expr *arg;
+            vector_foreach(arg, call->args) {
+                if (!arg) continue;
+                vector_push_back(tp_args, &arg->ts);
+            }
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, lhs_sym, tp_args);
+            vector_destroy(tp_args);
+
+            Symbol *_fn = stbl_get(inst_sym->stbl, "__init__");
+            if (!_fn) {
+                KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+                // params
+                Vector *inst_params = build_instance_params(
+                    ((FuncSymbol *)_fn_sym)->params, origin, inst_sym, ps);
+
+                _fn = stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(),
+                                    inst_params, _fn_sym->flags);
+                _fn_sym = _fn;
+            }
+
+            // func call type is instance type
+            exp->ts = inst_sym->instance_ts;
+            params = ((FuncSymbol *)_fn_sym)->params;
+        } else {
+            // func call type is instance type
+            exp->ts = cls_sym->instance_ts;
+            // exp->sym = cls_sym;
+            params = ((FuncSymbol *)_fn_sym)->params;
+        }
     } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_INTF) {
         FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
-        if (func_has_tp(fn_sym)) {
+        if (func_has_infer_tp(fn_sym)) {
             Vector *_tp_args = infer_func_tp(fn_sym, call->args);
             params = get_func_real_params(fn_sym, _tp_args);
             exp->ts = get_func_real_ret(fn_sym, _tp_args);
@@ -555,21 +600,43 @@ static void parse_call(ParserState *ps, Expr *exp)
         }
     } else if (lhs_sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
+        KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
         Symbol *init_fn_sym = stbl_get(inst_sym->stbl, "__init__");
         if (!init_fn_sym) {
-            KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
-            Symbol *_init_fn_sym = stbl_get(origin->stbl, "__init__");
-            if (!_init_fn_sym) {
+            Symbol *_fn_sym = stbl_get(origin->stbl, "__init__");
+            if (!_fn_sym) {
                 kl_error(lhs->loc, "class '%s' has no constructor.", origin->name);
                 return;
             }
 
             // params
-            Vector *inst_params = build_instance_params(
-                ((FuncSymbol *)_init_fn_sym)->params, origin, inst_sym, ps);
+            Vector *inst_params = build_instance_params(((FuncSymbol *)_fn_sym)->params,
+                                                        origin, inst_sym, ps);
 
             init_fn_sym =
                 stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(), inst_params, 0);
+        }
+
+        if (!strcmp(origin->name, "tuple")) {
+            log_info("check __init__ args with specialized tuple type parameters.");
+            if (vector_size(inst_sym->tp_args) != vector_size(call->args)) {
+                kl_error(
+                    lhs->loc,
+                    "tuple instance expects %d type arguments, but %d were provided.",
+                    vector_size(inst_sym->tp_args), vector_size(call->args));
+                return;
+            }
+
+            for (int i = 0; i < vector_size(inst_sym->tp_args); i++) {
+                TypeSpec *tp_arg = vector_get(inst_sym->tp_args, i);
+                Expr *arg = vector_get(call->args, i);
+                if (!type_spec_compatible(tp_arg, arg->ts)) {
+                    kl_error(arg->loc,
+                             "tuple instance argument type is not compatible with "
+                             "specialized type parameter.");
+                    return;
+                }
+            }
         }
 
         // func call type is instance type
@@ -772,7 +839,7 @@ static void parse_index(ParserState *ps, Expr *exp)
     if (!lhs->ts) return;
 
     if (lhs->ts->kind == TYPE_TYPE) {
-        // generic types
+        // generic types, e.g. List[int], Dict[str, int]
         KlassSymbol *kls_sym = (KlassSymbol *)lhs->sym;
         if (kls_sym->kind != SYM_CLASS) {
             kl_error(lhs->loc, "type '%s' is not a class type.", lhs->sym->name);
@@ -781,10 +848,15 @@ static void parse_index(ParserState *ps, Expr *exp)
 
         int tp_size = vector_size(&kls_sym->tps);
         if (tp_size != vector_size(index->vec)) {
-            kl_error(exp->loc,
-                     "type '%s' expects %d type arguments, but %d were provided.",
-                     kls_sym->name, tp_size, vector_size(index->vec));
-            return;
+            if (!strcmp(kls_sym->name, "tuple")) {
+                log_info(
+                    "tuple is inferred type parameter, skip type argument number check.");
+            } else {
+                kl_error(lhs->loc,
+                         "type '%s' expects %d type arguments, but %d were provided.",
+                         kls_sym->name, tp_size, vector_size(index->vec));
+                return;
+            }
         }
 
         Vector *tp_args = vector_create_ptr();
@@ -809,16 +881,18 @@ static void parse_index(ParserState *ps, Expr *exp)
             }
 
             TypeParamSymbol *tp_sym = vector_get(&kls_sym->tps, i__);
-            TypeSpec *bound_ts;
-            vector_foreach(bound_ts, &tp_sym->bound) {
-                if (!bound_ts) continue;
-                if (!type_spec_compatible(bound_ts, arg_ts)) {
-                    kl_error(arg->loc,
-                             "type argument '%s' is not compatible with bound type.",
-                             arg_sym->name);
-                    log_info("bound type is: ");
-                    log_type_spec(bound_ts);
-                    return;
+            if (tp_sym) {
+                TypeSpec *bound_ts;
+                vector_foreach(bound_ts, &tp_sym->bound) {
+                    if (!bound_ts) continue;
+                    if (!type_spec_compatible(bound_ts, arg_ts)) {
+                        kl_error(arg->loc,
+                                 "type argument '%s' is not compatible with bound type.",
+                                 arg_sym->name);
+                        log_info("bound type is: ");
+                        log_type_spec(bound_ts);
+                        return;
+                    }
                 }
             }
             vector_push_back(tp_args, &arg_ts);
@@ -833,7 +907,7 @@ static void parse_index(ParserState *ps, Expr *exp)
         log_info("generic type instance created/got: %s", inst_sym->name);
         log_type_spec(inst_sym->ts);
     } else {
-        kl_error(lhs->loc, "only generic types support type arguments.");
+        kl_error(lhs->loc, "only type/tuple/class types can be indexed.");
         return;
     }
 }
@@ -1211,7 +1285,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_ID_KIND]      = parse_ident,
         [EXPR_UNDER_KIND]   = parse_under,
         [EXPR_LITERAL_KIND] = parse_literal,
-        [EXPR_SELF_KIND]    = parse_self,
+        [EXPR_TUPLE_KIND]   = parse_tuple,
         [EXPR_TYPE_KIND]    = parse_type,
         [EXPR_CALL_KIND]    = parse_call,
         [EXPR_DOT_KIND]     = parse_dot,

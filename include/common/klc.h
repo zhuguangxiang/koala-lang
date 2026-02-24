@@ -109,6 +109,8 @@ typedef struct _KlcArgument {
 typedef struct _KlcTypeParam {
     /* ITEM_CONST */
     uint16_t name_index;
+    /* flags */
+    uint8_t which;
     /* up-bounds(type_index) */
     Vector bounds;
 } KlcTypeParam;

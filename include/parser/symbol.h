@@ -216,6 +216,7 @@ void *get_symbol_by_id(int id);
 
 PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path, HashMap *_stbl);
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
+TypeSpec *infer_tuple_tp(Vector *tp_args);
 
 #ifdef __cplusplus
 }
