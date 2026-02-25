@@ -578,7 +578,18 @@ static void parse_call(ParserState *ps, Expr *exp)
     } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_INTF) {
         FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
         if (func_has_infer_tp(fn_sym)) {
-            Vector *_tp_args = infer_func_tp(fn_sym, call->args);
+            Vector *_tp_args = infer_func_tp(fn_sym, call->args, ps);
+            if (!_tp_args) {
+                kl_error(lhs->loc, "failed to infer type parameters for function '%s'.",
+                         fn_sym->name);
+                return;
+            }
+
+            log_info("inferred type parameters for function '%s':", fn_sym->name);
+            TypeSpec *_tp_arg;
+            vector_foreach(_tp_arg, _tp_args) {
+                log_type_spec(_tp_arg);
+            }
             params = get_func_real_params(fn_sym, _tp_args);
             exp->ts = get_func_real_ret(fn_sym, _tp_args);
             vector_destroy(_tp_args);

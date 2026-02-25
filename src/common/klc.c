@@ -293,23 +293,20 @@ int klc_func_add_arg(KlcFunc *fn, char *name, char *desc, uint16_t index)
     return 0;
 }
 
-int klc_func_add_tp(KlcFunc *fn, char *name, char *desc)
+KlcTypeParam *klc_func_add_tp(KlcFunc *fn, char *name)
 {
     KlcFile *klc = fn->filp;
     int len = strlen(name);
     uint16_t name_index = klc_add_str(klc, name, len);
-    len = strlen(desc);
-    uint16_t desc_index = klc_add_str(klc, desc, len);
-
     KlcTypeParam *tp = mm_alloc_obj(tp);
     tp->name_index = name_index;
-    vector_init(&tp->bounds, sizeof(uint16_t));
 
+    vector_init(&tp->bounds, sizeof(uint16_t));
     uint16_t empty_index = 0;
     vector_push_back(&tp->bounds, &empty_index);
 
     vector_push_back(&fn->tps, &tp);
-    return 0;
+    return tp;
 }
 
 int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value)

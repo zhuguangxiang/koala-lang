@@ -25,7 +25,6 @@ typedef enum _TypeKind {
     TYPE_ANY,
     TYPE_VA_LIST,
     TYPE_TYPE,
-    TYPE_RANGE,
     TYPE_UNION,
     TYPE_UNRESOLVED,
     TYPE_GENERIC_VAR,
@@ -174,7 +173,6 @@ static inline TypeSpec *float32_type_spec(void) { return type_spec_get_by_id(13)
 static inline TypeSpec *float64_type_spec(void) { return type_spec_get_by_id(14); }
 static inline TypeSpec *bfloat16_type_spec(void) { return type_spec_get_by_id(15); }
 static inline TypeSpec *type_type_spec(void) { return type_spec_get_by_id(16); }
-static inline TypeSpec *range_type_spec(void) { return type_spec_get_by_id(17); }
 
 void install_builtin_types(HashMap *stbl);
 

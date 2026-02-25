@@ -32,6 +32,7 @@ typedef struct _FixupEntry {
 typedef struct _LoadKlcContext {
     HashMap *stbl;
     KlcFile *klc;
+    void *owner;
     Vector fixups;
     Vector stage_2_fixups;
 } LoadContext;
@@ -83,14 +84,17 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
         }
     } else if (ts->kind == TYPE_GENERIC_VAR) {
         Symbol *owner = stbl_get(ctx->stbl, ts->generic_var.owner);
-        if (owner) {
-            Symbol *tp_sym = stbl_get(owner->stbl, ts->generic_var.name);
-            ASSERT(tp_sym && tp_sym->kind == SYM_TYPE_PARAM);
-            ts->sym_id = tp_sym->id;
-            ts->generic_var.index = ((TypeParamSymbol *)tp_sym)->index;
-        } else {
-            UNREACHABLE();
+        if (!owner) {
+            Symbol *sym = ctx->owner;
+            ASSERT(sym && sym->kind == SYM_FUNC);
+            ASSERT(!strcmp(sym->name, ts->generic_var.owner));
+            owner = sym;
         }
+        ASSERT(owner);
+        Symbol *tp_sym = stbl_get(owner->stbl, ts->generic_var.name);
+        ASSERT(tp_sym && tp_sym->kind == SYM_TYPE_PARAM);
+        ts->sym_id = tp_sym->id;
+        ts->generic_var.index = ((TypeParamSymbol *)tp_sym)->index;
     } else if (ts->kind == TYPE_KLASS) {
         Symbol *sym = stbl_get(ctx->stbl, ts->klass_type.name);
         if (sym) {
@@ -118,6 +122,7 @@ static void __do_fixup(Vector *fixups, LoadContext *ctx)
     FixupEntry *entry;
     vector_foreach_ptr(entry, fixups) {
         if (!entry) continue;
+        ctx->owner = entry->owner;
         switch (entry->kind) {
             case FIXUP_TP_BOUND: {
                 TypeParamSymbol *tp = (TypeParamSymbol *)entry->owner;
@@ -170,6 +175,40 @@ static void do_fixup(LoadContext *ctx)
     __do_fixup(&ctx->stage_2_fixups, ctx);
 }
 
+static void load_type_params(Vector *tps, Vector *result, Symbol *owner, LoadContext *ctx)
+{
+    KlcTypeParam *tp;
+    vector_foreach(tp, tps) {
+        if (!tp) continue;
+
+        KlcConst *name = klc_get_const(ctx->klc, tp->name_index);
+        TypeParamSymbol *tp_sym = stbl_add_type_param(owner->stbl, name->sval, owner);
+        tp_sym->index = vector_size(result);
+        tp_sym->which = tp->which;
+        vector_push_back(result, &tp_sym);
+
+        // add bounds
+        uint16_t bound;
+        vector_foreach(bound, &tp->bounds) {
+            if (!bound) continue;
+            KlcConst *bound_k = klc_get_const(ctx->klc, bound);
+            TypeSpec *ts = type_spec_from_str(bound_k->sval);
+            vector_push_back(&tp_sym->bound, &ts);
+            if (ts->kind == TYPE_GENERIC_REF) {
+                log_info("generic_ref type in type param bound: %s", ts->signature);
+                FixupEntry entry = {
+                    .kind = FIXUP_TP_BOUND,
+                    .owner = (Symbol *)tp_sym,
+                    .index = vector_size(&tp_sym->bound) - 1,
+                };
+                add_fixup_entry(&entry, ts, ctx);
+            } else if (ts->kind == TYPE_MANGLED) {
+                UNREACHABLE();
+            }
+        }
+    }
+}
+
 static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
 {
     Vector *params = vector_create_ptr();
@@ -210,6 +249,8 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
     Symbol *sym = stbl_add_func(stbl, k->sval, ret_ts, params, 0);
     ASSERT(sym);
 
+    load_type_params(&fn->tps, &((FuncSymbol *)sym)->tps, sym, ctx);
+
     if (ts_need_fixup(ret_ts)) {
         FixupEntry entry = {
             .kind = FIXUP_FUNC_RET,
@@ -234,44 +275,6 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
     add_stage_2_fixup_entry(&proto_entry, ctx);
 
     sym->status = SYM_RESOLVED;
-}
-
-static void load_type_params(KlcKlass *kls, void *owner, LoadContext *ctx)
-{
-    KlassSymbol *cls_sym = (KlassSymbol *)owner;
-    Vector *tps = &kls->tps;
-    Vector *result = &cls_sym->tps;
-
-    KlcTypeParam *tp;
-    vector_foreach(tp, tps) {
-        if (!tp) continue;
-
-        KlcConst *name = klc_get_const(ctx->klc, tp->name_index);
-        TypeParamSymbol *tp_sym = stbl_add_type_param(cls_sym->stbl, name->sval, owner);
-        tp_sym->index = vector_size(result);
-        tp_sym->which = tp->which;
-        vector_push_back(result, &tp_sym);
-
-        // add bounds
-        uint16_t bound;
-        vector_foreach(bound, &tp->bounds) {
-            if (!bound) continue;
-            KlcConst *bound_k = klc_get_const(ctx->klc, bound);
-            TypeSpec *ts = type_spec_from_str(bound_k->sval);
-            vector_push_back(&tp_sym->bound, &ts);
-            if (ts->kind == TYPE_GENERIC_REF) {
-                log_info("generic_ref type in type param bound: %s", ts->signature);
-                FixupEntry entry = {
-                    .kind = FIXUP_TP_BOUND,
-                    .owner = (Symbol *)tp_sym,
-                    .index = vector_size(&tp_sym->bound) - 1,
-                };
-                add_fixup_entry(&entry, ts, ctx);
-            } else if (ts->kind == TYPE_MANGLED) {
-                UNREACHABLE();
-            }
-        }
-    }
 }
 
 static void load_bases(KlcKlass *kls, KlassSymbol *sym, LoadContext *ctx)
@@ -364,7 +367,7 @@ static void load_klass(KlcKlass *kls, LoadContext *ctx)
     }
 
     // add type params
-    load_type_params(kls, cls_sym, ctx);
+    load_type_params(&kls->tps, &cls_sym->tps, (Symbol *)cls_sym, ctx);
 
     // add bases
     load_bases(kls, cls_sym, ctx);

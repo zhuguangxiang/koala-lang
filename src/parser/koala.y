@@ -942,7 +942,7 @@ atom_type
     }
     | RANGE
     {
-        $$ = range_type_spec();
+        $$ = klass_type_spec(NULL, "range");
         type_spec_loc($$, loc(@1));
     }
     ;

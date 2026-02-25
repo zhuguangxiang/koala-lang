@@ -179,6 +179,27 @@ void write_to_klc(HashMap *stbl, char *path)
                     klc_fn =
                         klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
 
+                    if (vector_size(&fn->tps) > 0) {
+                        TypeParamSymbol *tp;
+                        vector_foreach(tp, &fn->tps) {
+                            if (!tp) continue;
+
+                            KlcTypeParam *klc_tp = klc_func_add_tp(klc_fn, tp->name);
+                            klc_tp->which = (int8_t)tp->which;
+
+                            if (vector_size(&tp->bound) > 0) {
+                                TypeSpec *ts;
+                                vector_foreach(ts, &tp->bound) {
+                                    if (!ts) continue;
+                                    uint16_t index =
+                                        klc_add_str(klc_fn->filp, ts->signature,
+                                                    strlen(ts->signature));
+                                    vector_push_back(&klc_tp->bounds, &index);
+                                }
+                            }
+                        }
+                    }
+
                     // add argument info
                     ArgInfo *item;
                     vector_foreach(item, fn->params) {

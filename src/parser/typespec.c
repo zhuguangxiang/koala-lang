@@ -172,16 +172,6 @@ static TypeSpec *_type_type_spec(void)
     return ts;
 }
 
-static TypeSpec *_range_type_spec(void)
-{
-    TypeSpec *ts = mm_alloc_obj(ts);
-    ts->kind = TYPE_RANGE;
-    ts->signature = atom_str("Lbuiltin.range;");
-    ts->sym_id = -1;
-    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
-    return ts;
-}
-
 void install_builtin_types(HashMap *stbl)
 {
     // Update builtin type specs with the provided symbol table
@@ -318,13 +308,13 @@ void install_builtin_types(HashMap *stbl)
         sym->instance_ts = ts;
     }
 
-    // ts = klass_type_spec("builtin", "range");
-    // sym = (KlassSymbol *)stbl_get(stbl, "range");
-    // if (sym) {
-    //     ts->sym_id = sym->id;
-    //     sym->ts = type_ts;
-    //     sym->instance_ts = ts;
-    // }
+    ts = klass_type_spec(NULL, "range");
+    sym = (KlassSymbol *)stbl_get(stbl, "range");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
 
     ts = klass_type_spec(NULL, "list");
     sym = (KlassSymbol *)stbl_get(stbl, "list");
@@ -344,8 +334,8 @@ void install_builtin_types(HashMap *stbl)
 
     vector_foreach(ts, &type_list) {
         if (!ts) continue;
-        if (ts->kind == TYPE_NO_TYPE || ts->kind == TYPE_RANGE ||
-            ts->kind == TYPE_VA_LIST || ts->kind == TYPE_BFLOAT16) {
+        if (ts->kind == TYPE_NO_TYPE || ts->kind == TYPE_VA_LIST ||
+            ts->kind == TYPE_BFLOAT16) {
             continue;
         }
         ASSERT(ts->type_id >= 0);
@@ -445,11 +435,6 @@ void typespec_init(void)
     vector_push_back(&type_list, &ts);
     hashmap_put(&type_map, ts);
 
-    ts = _range_type_spec();
-    ts->type_id = type_id++;
-    vector_push_back(&type_list, &ts);
-    hashmap_put(&type_map, ts);
-
     ASSERT(vector_size(&type_list) == type_id);
 }
 
@@ -483,7 +468,6 @@ static void __ts_free(TypeSpec *ts)
         case TYPE_ANY:
         case TYPE_VA_LIST:
         case TYPE_TYPE:
-        case TYPE_RANGE:
         case TYPE_OPTIONAL:
         case TYPE_GENERIC_VAR:
         case TYPE_KLASS: {
@@ -845,10 +829,6 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
             buf_write_str(buf, "Lbuiltin.type;");
             break;
         }
-        case TYPE_RANGE: {
-            buf_write_str(buf, "Lbuiltin.range;");
-            break;
-        }
         case TYPE_OPTIONAL: {
             if (!ts->opt.src) {
                 buf_write_str(buf, "_?");
@@ -1128,8 +1108,6 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         buf_write_str(buf, "bfloat16");
     } else if (ts->kind == TYPE_TYPE) {
         buf_write_str(buf, "type");
-    } else if (ts->kind == TYPE_RANGE) {
-        buf_write_str(buf, "range");
     } else if (ts->kind == TYPE_UNION) {
         TypeSpec *arg;
         int i = 0;

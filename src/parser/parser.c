@@ -37,18 +37,21 @@ typedef struct _InferredInfo {
     /* klass_name.func_name */
     char *key;
     /* callback */
-    Vector *(*infer)(FuncSymbol *fn, Vector *args);
+    Vector *(*infer)(FuncSymbol *fn, Vector *args, ParserState *ps);
 } InferredInfo;
 
 /* inferred tp of func */
 static HashMap *inferred;
 
-static Vector *infer_tuple___get_item__(FuncSymbol *fn, Vector *args)
+static Vector *infer_tuple___get_item__(FuncSymbol *fn, Vector *args, ParserState *ps)
 {
     ASSERT(vector_size(args) == 1);
     ASSERT(vector_size(&fn->tps) == 1);
     Expr *e = vector_get(args, 0);
-    ASSERT(type_is_int(e->ts));
+    if (!type_is_int(e->ts)) {
+        kl_error(e->loc, "index of tuple must be int, but got '%s'", e->ts->signature);
+        return NULL;
+    }
     Symbol *parent = fn->parent;
     ASSERT(parent && parent->kind == SYM_INSTANCE);
     InstanceSymbol *inst_sym = (InstanceSymbol *)parent;
@@ -89,7 +92,7 @@ static HashMap *inferred_map(void)
     return map;
 }
 
-Vector *infer_func_tp(FuncSymbol *fn, Vector *args)
+Vector *infer_func_tp(FuncSymbol *fn, Vector *args, ParserState *ps)
 {
     char name[256] = { 0 };
     Symbol *parent = fn->parent;
@@ -99,7 +102,7 @@ Vector *infer_func_tp(FuncSymbol *fn, Vector *args)
     InferredInfo key = { .key = name };
     InferredInfo *info = hashmap_get(inferred, &key);
     ASSERT(info);
-    return info->infer(fn, args);
+    return info->infer(fn, args, ps);
 }
 
 // path without .klc suffix

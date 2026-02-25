@@ -168,7 +168,7 @@ void codegen_ast(ParserState *ps);
 ParserState *new_parser_state(char *path);
 void free_parser_state(ParserState *ps);
 int do_compile(Vector *pss, char *output);
-Vector *infer_func_tp(FuncSymbol *fn, Vector *args);
+Vector *infer_func_tp(FuncSymbol *fn, Vector *args, ParserState *ps);
 
 void init_parser(void);
 void fini_parser(void);

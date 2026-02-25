@@ -167,14 +167,11 @@ KlcVar *klc_add_var(KlcFile *klc, char *name, char *desc, uint16_t index, int fl
 
 KlcFunc *klc_add_func(KlcFile *klc, char *name, char *ret_desc, int flags);
 int klc_func_add_arg(KlcFunc *fn, char *name, char *desc, uint16_t index);
-int klc_func_add_tp(KlcFunc *fn, char *name, char *desc);
+KlcTypeParam *klc_func_add_tp(KlcFunc *fn, char *name);
 int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value);
 
 KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags);
 KlcTypeParam *klc_klass_add_tp(KlcKlass *kls, char *name);
-int klc_klass_add_ann(KlcKlass *kls, char *name, char *key, char *value);
-int klc_klass_add_base(KlcKlass *kls, char *base_desc);
-KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *desc, int flags);
 KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_desc, int flags);
 
 uint16_t klc_add_none(KlcFile *klc);
