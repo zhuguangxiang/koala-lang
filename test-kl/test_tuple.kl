@@ -45,9 +45,16 @@ nest.__get_item__(true)
 
 nest.__get_item__(0)
 
+nest[0][1] + 1
+
+nest[0][2]
+// CHECK: tuple index out of range, got 2 but expected 0 <= index < 2
+// CHECK: failed to infer type parameters for function '__get_item__'.
+
 func process_nest(data ( (int, int), float )) {
     let inner = data.__get_item__(0)
-    let x = inner.__get_item__(0)
+    let inner2 = data.__get_item__(0)
+    let x = inner[0]
     let y = inner.__get_item__(1)
     let z = data.__get_item__(1)
     x + 1

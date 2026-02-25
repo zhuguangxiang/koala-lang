@@ -840,6 +840,76 @@ static void parse_dot(ParserState *ps, Expr *exp)
     return;
 }
 
+static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
+{
+    Expr *lhs = index->lhs;
+    Symbol *__fn_sym = stbl_get(lhs_sym->stbl, "__get_item__");
+
+    if (lhs_sym->kind == SYM_INSTANCE) {
+        if (!__fn_sym) {
+            // try to find __get_item__ from origin klass
+            InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
+            KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+            __fn_sym = stbl_get(origin->stbl, "__get_item__");
+            if (!__fn_sym) {
+                kl_error(lhs->loc, "type '%s' is not subscriptable.", lhs_sym->name);
+                return;
+            }
+
+            // params
+            Vector *inst_params = build_instance_params(((FuncSymbol *)__fn_sym)->params,
+                                                        origin, inst_sym, ps);
+            // return
+            TypeSpec *ret_ts =
+                instance_type_spec(((FuncSymbol *)__fn_sym)->ret, origin, inst_sym, ps);
+
+            // create function symbol for instance __get_item__
+            Symbol *inst_fn_sym = stbl_add_func(lhs_sym->stbl, "__get_item__", ret_ts,
+                                                inst_params, __fn_sym->flags);
+
+            // copy __get_item__'s tps to instance __get_item__
+            copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
+            TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
+            inst_fn_sym->ts = fn_ts;
+            inst_fn_sym->parent = inst_sym;
+            __fn_sym = inst_fn_sym;
+        }
+    } else if (lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_TRAIT) {
+        // do nothing, __get_item__ is defined on class/trait type itself, no need to
+        // create new symbol for it.
+    } else {
+        kl_error(lhs->loc, "type '%s' is not subscriptable.", lhs_sym->name);
+        return;
+    }
+
+    if (!__fn_sym) {
+        kl_error(lhs->loc, "type '%s' is not subscriptable.", lhs_sym->name);
+        return;
+    }
+
+    FuncSymbol *fn_sym = (FuncSymbol *)__fn_sym;
+
+    if (func_has_infer_tp(fn_sym)) {
+        Vector *_tp_args = infer_func_tp(fn_sym, index->vec, ps);
+        if (!_tp_args) {
+            kl_error(lhs->loc, "failed to infer type parameters for function '%s'.",
+                     fn_sym->name);
+            return;
+        }
+
+        Vector *params = get_func_real_params(fn_sym, _tp_args);
+        check_call_args(params, index->vec, ps, lhs->loc);
+        index->ts = get_func_real_ret(fn_sym, _tp_args);
+        index->sym = get_symbol_by_id(index->ts->sym_id);
+        vector_destroy(_tp_args);
+    } else {
+        NYI();
+    }
+
+    log_info("index load resolved to __get_item__:");
+    log_type_spec(index->ts);
+}
+
 static void parse_index(ParserState *ps, Expr *exp)
 {
     IndexExpr *index = (IndexExpr *)exp;
@@ -917,9 +987,32 @@ static void parse_index(ParserState *ps, Expr *exp)
         exp->sym = (Symbol *)inst_sym;
         log_info("generic type instance created/got: %s", inst_sym->name);
         log_type_spec(inst_sym->ts);
-    } else {
-        kl_error(lhs->loc, "only type/tuple/class types can be indexed.");
         return;
+    }
+
+    Expr *arg;
+    vector_foreach(arg, index->vec) {
+        if (!arg) continue;
+        arg->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, arg);
+        if (!arg->ts) return;
+    }
+
+    if (lhs->sym->kind == SYM_VAR) {
+        TypeSpec *ts = lhs->sym->ts;
+        Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
+        if (index->ctx == EXPR_CTX_LOAD) {
+            parse_index_load(ps, ts_sym, index);
+        } else {
+            NYI();
+        }
+    } else {
+        Symbol *lhs_sym = lhs->sym;
+        if (index->ctx == EXPR_CTX_LOAD) {
+            parse_index_load(ps, lhs_sym, index);
+        } else {
+            NYI();
+        }
     }
 }
 

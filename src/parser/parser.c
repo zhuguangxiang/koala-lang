@@ -47,11 +47,13 @@ static Vector *infer_tuple___get_item__(FuncSymbol *fn, Vector *args, ParserStat
 {
     ASSERT(vector_size(args) == 1);
     ASSERT(vector_size(&fn->tps) == 1);
+
     Expr *e = vector_get(args, 0);
     if (!type_is_int(e->ts)) {
         kl_error(e->loc, "index of tuple must be int, but got '%s'", e->ts->signature);
         return NULL;
     }
+
     Symbol *parent = fn->parent;
     ASSERT(parent && parent->kind == SYM_INSTANCE);
     InstanceSymbol *inst_sym = (InstanceSymbol *)parent;
@@ -60,7 +62,14 @@ static Vector *infer_tuple___get_item__(FuncSymbol *fn, Vector *args, ParserStat
         LitExpr *lit = (LitExpr *)e;
         ASSERT(lit->which == LIT_EXPR_INT);
         int index = (int)lit->ival;
-        ASSERT(index >= 0 && index < vector_size(inst_sym->tp_args));
+
+        if (!(index >= 0 && index < vector_size(inst_sym->tp_args))) {
+            kl_error(e->loc,
+                     "tuple index out of range, got %d but expected 0 <= index < %d",
+                     index, vector_size(inst_sym->tp_args));
+            return NULL;
+        }
+
         TypeSpec *_ts = vector_get(inst_sym->tp_args, index);
         Vector *res = vector_create_ptr();
         vector_push_back(res, &_ts);
