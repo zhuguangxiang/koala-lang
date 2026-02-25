@@ -43,7 +43,7 @@ typedef struct _InferredInfo {
 /* inferred tp of func */
 static HashMap *inferred;
 
-static Vector *infer_tuple___get_item__(FuncSymbol *fn, Vector *args, ParserState *ps)
+static Vector *infer_tuple___getitem__(FuncSymbol *fn, Vector *args, ParserState *ps)
 {
     ASSERT(vector_size(args) == 1);
     ASSERT(vector_size(&fn->tps) == 1);
@@ -95,8 +95,8 @@ static HashMap *inferred_map(void)
     hashmap_init(map, (HashMapEqualFunc)__inferred_info_equal__);
 
     InferredInfo *info = mm_alloc_obj(info);
-    info->key = "tuple.__get_item__";
-    info->infer = infer_tuple___get_item__;
+    info->key = "tuple.__getitem__";
+    info->infer = infer_tuple___getitem__;
     hashmap_put(map, info);
     return map;
 }

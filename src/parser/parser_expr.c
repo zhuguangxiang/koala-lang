@@ -843,14 +843,14 @@ static void parse_dot(ParserState *ps, Expr *exp)
 static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
 {
     Expr *lhs = index->lhs;
-    Symbol *__fn_sym = stbl_get(lhs_sym->stbl, "__get_item__");
+    Symbol *__fn_sym = stbl_get(lhs_sym->stbl, "__getitem__");
 
     if (lhs_sym->kind == SYM_INSTANCE) {
         if (!__fn_sym) {
-            // try to find __get_item__ from origin klass
+            // try to find __getitem__ from origin klass
             InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
             KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
-            __fn_sym = stbl_get(origin->stbl, "__get_item__");
+            __fn_sym = stbl_get(origin->stbl, "__getitem__");
             if (!__fn_sym) {
                 kl_error(lhs->loc, "type '%s' is not subscriptable.", lhs_sym->name);
                 return;
@@ -863,11 +863,11 @@ static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
             TypeSpec *ret_ts =
                 instance_type_spec(((FuncSymbol *)__fn_sym)->ret, origin, inst_sym, ps);
 
-            // create function symbol for instance __get_item__
-            Symbol *inst_fn_sym = stbl_add_func(lhs_sym->stbl, "__get_item__", ret_ts,
+            // create function symbol for instance __getitem__
+            Symbol *inst_fn_sym = stbl_add_func(lhs_sym->stbl, "__getitem__", ret_ts,
                                                 inst_params, __fn_sym->flags);
 
-            // copy __get_item__'s tps to instance __get_item__
+            // copy __getitem__'s tps to instance __getitem__
             copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
             TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
             inst_fn_sym->ts = fn_ts;
@@ -875,7 +875,7 @@ static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
             __fn_sym = inst_fn_sym;
         }
     } else if (lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_TRAIT) {
-        // do nothing, __get_item__ is defined on class/trait type itself, no need to
+        // do nothing, __getitem__ is defined on class/trait type itself, no need to
         // create new symbol for it.
     } else {
         kl_error(lhs->loc, "type '%s' is not subscriptable.", lhs_sym->name);
@@ -906,7 +906,7 @@ static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
         NYI();
     }
 
-    log_info("index load resolved to __get_item__:");
+    log_info("index load resolved to __getitem__:");
     log_type_spec(index->ts);
 }
 

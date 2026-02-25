@@ -9,7 +9,7 @@ pub class tuple[infer T] : Seq[T] {
     pub func __init__(args ...) {}
 
     @intrinsic
-    pub func __get_item__[infer U](index int) U {}
+    pub func __getitem__[infer U](index int) U {}
 
     @native(kl_tuple_contains)
     pub func __contains__(v T) bool {}
