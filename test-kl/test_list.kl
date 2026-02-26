@@ -1,0 +1,23 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+let l = list[int]()
+l.append(1)
+l.append(2.0)
+// CHECK: argument type is not compatible.
+
+l[0] + 1
+
+l[0] = 3
+
+l[0] = true
+// CHECK: argument type is not compatible.
+
+l["ok"] = true
+// CHECK: argument type is not compatible.
+// CHECK: argument type is not compatible.
+
+let l2 = list[list[int]]()
+l2.append(100)
+// CHECK: argument type is not compatible.
+
+// CHECK-NOT: {{.}}

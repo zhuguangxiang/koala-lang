@@ -1951,6 +1951,11 @@ static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
     Expr *rhs = assign->rhs;
     Symbol *lhs_sym = lhs->sym;
 
+    if (lhs->kind == EXPR_INDEX_KIND) {
+        log_info("the lhs of assignment is an index expr, skip type check.");
+        return 0;
+    }
+
     if (lhs_sym->kind == SYM_VAR) {
         if (!(lhs_sym->flags & SYM_FLAGS_MUTABLE)) {
             kl_error(assign->loc, "cannot assign to immutable variable '%s'",
@@ -2106,19 +2111,24 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
 
     Expr *lhs = assign->lhs;
     Expr *rhs = assign->rhs;
-    lhs->ctx = EXPR_CTX_STORE;
-    rhs->ctx = EXPR_CTX_LOAD;
 
-    parser_visit_expr(ps, lhs);
+    rhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, rhs);
-    if (!lhs->ts || !rhs->ts) return;
 
     if (op == OP_ASSIGN) {
         log_info("simple assignment detected.");
-        if (parse_simple_assign(ps, assign)) return;
+        lhs->ctx = EXPR_CTX_STORE;
+        lhs->arg = rhs;
+        parser_visit_expr(ps, lhs);
+        if (!lhs->ts || !rhs->ts) return;
+        parse_simple_assign(ps, assign);
     } else {
         log_info("compound assignment detected.");
-        if (parse_inplace_assign(ps, assign)) return;
+        lhs->ctx = EXPR_CTX_LOAD_STORE;
+        lhs->arg = rhs;
+        parser_visit_expr(ps, lhs);
+        if (!lhs->ts || !rhs->ts) return;
+        parse_inplace_assign(ps, assign);
     }
 }
 

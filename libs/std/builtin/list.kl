@@ -12,11 +12,14 @@ pub class list[T] : Seq[T] {
     pub func __len__() int {}
 
     @native(kl_list_get_item)
-    pub func __getitem__(index any) T {}
+    pub func __getitem__(index int) T {}
+
+    @native(kl_list_set_item)
+    pub func __setitem__(index int, value T) {}
 
     @native(kl_list_concat)
     pub func __concat__(seq Seq[T]) list[T] {}
 
-    @native(kl_list_add)
-    pub func add(item T) {}
+    @native(kl_list_append)
+    pub func append(item T) {}
 }

@@ -83,13 +83,15 @@ typedef enum _ExprCtx {
     EXPR_CTX_LOAD,
     /* lhs expr */
     EXPR_CTX_STORE,
+    /* load & store */
+    EXPR_CTX_LOAD_STORE,
     /* expr is called */
     EXPR_CTX_CALL,
 } ExprCtx;
 
 /* clang-format off */
 #define EXPR_HEAD ExprKind kind; Loc loc; ExprCtx ctx; TypeSpec *ts; \
-    TypeSpec *expected; Symbol *sym; KlrValue *ir_val;
+    TypeSpec *expected; Symbol *sym; void *arg; KlrValue *ir_val;
 /* clang-format on */
 
 typedef struct _Expr {

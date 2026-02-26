@@ -2170,10 +2170,6 @@ expr
     {
         $$ = $1;
     }
-    | or_expr DOTDOTDOT or_expr
-    {
-        $$ = NULL;
-    }
     | or_expr OPT_DEF or_expr
     {
         // $$ = expr_from_is_expr($1, loc(@2), $3);
@@ -2683,13 +2679,6 @@ dot_expr
     | primary_expr '.' ID '?'
     {
 
-    }
-    | primary_expr '.' INT_LITERAL
-    {
-        // IDENT(id, $3, loc(@3));
-        // $$ = expr_from_dot($1, &id);
-        // expr_set_loc($$, lloc(@1, @3));
-        $$ = NULL;
     }
     | primary_expr OPT_DOT ID
     {

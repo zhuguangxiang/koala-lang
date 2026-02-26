@@ -903,90 +903,167 @@ static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
         index->sym = get_symbol_by_id(index->ts->sym_id);
         vector_destroy(_tp_args);
     } else {
-        NYI();
+        index->ts = fn_sym->ret;
+        index->sym = get_symbol_by_id(index->ts->sym_id);
+        check_call_args(fn_sym->params, index->vec, ps, lhs->loc);
     }
 
     log_info("index load resolved to __getitem__:");
     log_type_spec(index->ts);
 }
 
+static void parse_index_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
+{
+    Expr *lhs = index->lhs;
+    Symbol *__fn_sym = stbl_get(lhs_sym->stbl, "__setitem__");
+
+    if (lhs_sym->kind == SYM_INSTANCE) {
+        if (!__fn_sym) {
+            // try to find __setitem__ from origin klass
+            InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
+            KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+            __fn_sym = stbl_get(origin->stbl, "__setitem__");
+            if (!__fn_sym) {
+                kl_error(lhs->loc, "type '%s' is not subscriptable.", lhs_sym->name);
+                return;
+            }
+
+            // params
+            Vector *inst_params = build_instance_params(((FuncSymbol *)__fn_sym)->params,
+                                                        origin, inst_sym, ps);
+            // return
+            TypeSpec *ret_ts =
+                instance_type_spec(((FuncSymbol *)__fn_sym)->ret, origin, inst_sym, ps);
+
+            // create function symbol for instance __setitem__
+            Symbol *inst_fn_sym = stbl_add_func(lhs_sym->stbl, "__setitem__", ret_ts,
+                                                inst_params, __fn_sym->flags);
+
+            // copy __setitem__'s tps to instance __setitem__
+            copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
+            TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
+            inst_fn_sym->ts = fn_ts;
+            inst_fn_sym->parent = inst_sym;
+            __fn_sym = inst_fn_sym;
+        }
+    } else if (lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_TRAIT) {
+        // do nothing, __setitem__ is defined on class/trait type itself, no need to
+        // create new symbol for it.
+    } else {
+        kl_error(lhs->loc, "type '%s' is not subscriptable.", lhs_sym->name);
+        return;
+    }
+
+    if (!__fn_sym) {
+        kl_error(lhs->loc, "type '%s' is not subscriptable.", lhs_sym->name);
+        return;
+    }
+
+    FuncSymbol *fn_sym = (FuncSymbol *)__fn_sym;
+
+    Vector *args = vector_create_ptr();
+
+    ASSERT(vector_size(index->vec) == 1);
+    Expr *e = vector_get(index->vec, 0);
+    vector_push_back(args, &e);
+
+    ASSERT(index->arg);
+    vector_push_back(args, &index->arg);
+
+    check_call_args(fn_sym->params, args, ps, lhs->loc);
+
+    vector_destroy(args);
+
+    index->ts = e->ts;
+    index->sym = get_symbol_by_id(index->ts->sym_id);
+
+    log_info("index store resolved to __getitem__:");
+    log_type_spec(index->ts);
+}
+
+static void parse_index_new_type(ParserState *ps, IndexExpr *index)
+{
+    Expr *lhs = index->lhs;
+    KlassSymbol *kls_sym = (KlassSymbol *)lhs->sym;
+
+    // generic types, e.g. List[int], Dict[str, int]
+
+    if (kls_sym->kind != SYM_CLASS) {
+        kl_error(lhs->loc, "type '%s' is not a class type.", lhs->sym->name);
+        return;
+    }
+
+    int tp_size = vector_size(&kls_sym->tps);
+    if (tp_size != vector_size(index->vec)) {
+        if (!strcmp(kls_sym->name, "tuple")) {
+            log_info(
+                "tuple is inferred type parameter, skip type argument number check.");
+        } else {
+            kl_error(lhs->loc,
+                     "type '%s' expects %d type arguments, but %d were provided.",
+                     kls_sym->name, tp_size, vector_size(index->vec));
+            return;
+        }
+    }
+
+    Vector *tp_args = vector_create_ptr();
+    Expr *arg;
+    vector_foreach(arg, index->vec) {
+        if (!arg) continue;
+        arg->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, arg);
+        if (!arg->ts) return;
+
+        ASSERT(arg->ts->kind == TYPE_TYPE);
+
+        TypeSpec *arg_ts;
+        Symbol *arg_sym = arg->sym;
+        if (arg_sym->kind == SYM_CLASS || arg_sym->kind == SYM_TRAIT) {
+            arg_ts = ((KlassSymbol *)arg->sym)->instance_ts;
+        } else if (arg_sym->kind == SYM_INSTANCE) {
+            arg_ts = ((InstanceSymbol *)arg->sym)->instance_ts;
+        } else {
+            kl_error(arg->loc, "type argument must be a class/trait type.");
+            return;
+        }
+
+        TypeParamSymbol *tp_sym = vector_get(&kls_sym->tps, i__);
+        if (tp_sym) {
+            TypeSpec *bound_ts;
+            vector_foreach(bound_ts, &tp_sym->bound) {
+                if (!bound_ts) continue;
+                if (!type_spec_compatible(bound_ts, arg_ts)) {
+                    kl_error(arg->loc,
+                             "type argument '%s' is not compatible with bound type.",
+                             arg_sym->name);
+                    log_info("bound type is: ");
+                    log_type_spec(bound_ts);
+                    return;
+                }
+            }
+        }
+        vector_push_back(tp_args, &arg_ts);
+    }
+
+    // create or find instance symbol(List<int>)
+    InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, (Symbol *)kls_sym, tp_args);
+    vector_destroy(tp_args);
+    index->ts = inst_sym->ts;
+    index->sym = (Symbol *)inst_sym;
+    log_info("generic type instance created/got: %s", inst_sym->name);
+    log_type_spec(inst_sym->ts);
+}
+
 static void parse_index(ParserState *ps, Expr *exp)
 {
     IndexExpr *index = (IndexExpr *)exp;
-
     Expr *lhs = index->lhs;
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);
     if (!lhs->ts) return;
 
     if (lhs->ts->kind == TYPE_TYPE) {
-        // generic types, e.g. List[int], Dict[str, int]
-        KlassSymbol *kls_sym = (KlassSymbol *)lhs->sym;
-        if (kls_sym->kind != SYM_CLASS) {
-            kl_error(lhs->loc, "type '%s' is not a class type.", lhs->sym->name);
-            return;
-        }
-
-        int tp_size = vector_size(&kls_sym->tps);
-        if (tp_size != vector_size(index->vec)) {
-            if (!strcmp(kls_sym->name, "tuple")) {
-                log_info(
-                    "tuple is inferred type parameter, skip type argument number check.");
-            } else {
-                kl_error(lhs->loc,
-                         "type '%s' expects %d type arguments, but %d were provided.",
-                         kls_sym->name, tp_size, vector_size(index->vec));
-                return;
-            }
-        }
-
-        Vector *tp_args = vector_create_ptr();
-        Expr *arg;
-        vector_foreach(arg, index->vec) {
-            if (!arg) continue;
-            arg->ctx = EXPR_CTX_LOAD;
-            parser_visit_expr(ps, arg);
-            if (!arg->ts) return;
-
-            ASSERT(arg->ts->kind == TYPE_TYPE);
-
-            TypeSpec *arg_ts;
-            Symbol *arg_sym = arg->sym;
-            if (arg_sym->kind == SYM_CLASS || arg_sym->kind == SYM_TRAIT) {
-                arg_ts = ((KlassSymbol *)arg->sym)->instance_ts;
-            } else if (arg_sym->kind == SYM_INSTANCE) {
-                arg_ts = ((InstanceSymbol *)arg->sym)->instance_ts;
-            } else {
-                kl_error(arg->loc, "type argument must be a class/trait type.");
-                return;
-            }
-
-            TypeParamSymbol *tp_sym = vector_get(&kls_sym->tps, i__);
-            if (tp_sym) {
-                TypeSpec *bound_ts;
-                vector_foreach(bound_ts, &tp_sym->bound) {
-                    if (!bound_ts) continue;
-                    if (!type_spec_compatible(bound_ts, arg_ts)) {
-                        kl_error(arg->loc,
-                                 "type argument '%s' is not compatible with bound type.",
-                                 arg_sym->name);
-                        log_info("bound type is: ");
-                        log_type_spec(bound_ts);
-                        return;
-                    }
-                }
-            }
-            vector_push_back(tp_args, &arg_ts);
-        }
-
-        // create or find instance symbol(List<int>)
-        InstanceSymbol *inst_sym =
-            find_or_add_instance(ps->stbl, (Symbol *)kls_sym, tp_args);
-        vector_destroy(tp_args);
-        exp->ts = inst_sym->ts;
-        exp->sym = (Symbol *)inst_sym;
-        log_info("generic type instance created/got: %s", inst_sym->name);
-        log_type_spec(inst_sym->ts);
+        parse_index_new_type(ps, index);
         return;
     }
 
@@ -1003,15 +1080,19 @@ static void parse_index(ParserState *ps, Expr *exp)
         Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
         if (index->ctx == EXPR_CTX_LOAD) {
             parse_index_load(ps, ts_sym, index);
+        } else if (index->ctx == EXPR_CTX_STORE) {
+            parse_index_store(ps, ts_sym, index);
         } else {
-            NYI();
+            ASSERT(index->ctx == EXPR_CTX_LOAD_STORE);
         }
     } else {
         Symbol *lhs_sym = lhs->sym;
         if (index->ctx == EXPR_CTX_LOAD) {
             parse_index_load(ps, lhs_sym, index);
+        } else if (index->ctx == EXPR_CTX_STORE) {
+            parse_index_store(ps, lhs_sym, index);
         } else {
-            NYI();
+            ASSERT(index->ctx == EXPR_CTX_LOAD_STORE);
         }
     }
 }
