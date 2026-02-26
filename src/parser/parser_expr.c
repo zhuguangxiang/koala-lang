@@ -207,6 +207,36 @@ static Symbol *get_current_klass(ParserState *ps)
     return NULL;
 }
 
+static void parse_list(ParserState *ps, Expr *exp)
+{
+    ListExpr *list_exp = (ListExpr *)exp;
+
+    Vector *tp_args = vector_create_ptr();
+    Expr *e;
+    vector_foreach(e, list_exp->vec) {
+        e->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, e);
+        if (!e->ts) return;
+        vector_push_back(tp_args, &e->ts);
+    }
+
+    TypeSpec *infer_ts = infer_types_parent(tp_args);
+    log_info("infer list type:");
+    log_type_spec(infer_ts);
+
+    vector_clear(tp_args);
+    vector_push_back(tp_args, &infer_ts);
+
+    Symbol *origin = stbl_get(ps->builtin, "list");
+    InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, origin, tp_args);
+    inst_sym->arg = infer_ts; // save infered tuple type for later use
+
+    exp->ts = inst_sym->instance_ts;
+    exp->sym = (Symbol *)inst_sym;
+    log_info("list type resolved:");
+    log_type_spec(exp->ts);
+}
+
 static void parse_tuple(ParserState *ps, Expr *exp)
 {
     TupleExpr *tuple_exp = (TupleExpr *)exp;
@@ -220,7 +250,7 @@ static void parse_tuple(ParserState *ps, Expr *exp)
         vector_push_back(tp_args, &e->ts);
     }
 
-    TypeSpec *infer_ts = infer_tuple_tp(tp_args);
+    TypeSpec *infer_ts = infer_types_parent(tp_args);
     log_info("infer tuple type:");
     log_type_spec(infer_ts);
 
@@ -977,7 +1007,7 @@ static void parse_index_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
     index->ts = e->ts;
     index->sym = get_symbol_by_id(index->ts->sym_id);
 
-    log_info("index store resolved to __getitem__:");
+    log_info("index store resolved to __setitem__:");
     log_type_spec(index->ts);
 }
 
@@ -1458,6 +1488,101 @@ static void parse_bang(ParserState *ps, Expr *exp)
     log_type_spec(exp->ts);
 }
 
+static int check_type_cast(TypeSpec *src, TypeSpec *target, ParserState *ps)
+{
+    if (src == target) {
+        log_info(
+            "type cast is valid, source and target type are the same. cast is safe.");
+        return 1;
+    }
+
+    if (target == any_type_spec()) {
+        log_info("type cast is valid, target type is 'any'. cast is safe.");
+        return 1;
+    }
+
+    Symbol *src_sym = get_symbol_by_id(src->sym_id);
+    ASSERT(src_sym->kind == SYM_CLASS || src_sym->kind == SYM_INSTANCE ||
+           src_sym->kind == SYM_TRAIT);
+    Vector *bases = &((KlassSymbol *)src_sym)->bases;
+
+    TypeSpec *ts;
+    vector_foreach(ts, bases) {
+        if (!ts) continue;
+        if (ts == target) {
+            log_info("type cast is valid, '%s' is a subtype of '%s'. cast is safe.",
+                     src->signature, target->signature);
+            return 1;
+        }
+
+        Symbol *base_sym = get_symbol_by_id(ts->sym_id);
+        ASSERT(base_sym->kind == SYM_CLASS || base_sym->kind == SYM_INSTANCE ||
+               base_sym->kind == SYM_TRAIT);
+        if (check_type_cast(ts, target, ps)) return 1;
+    }
+
+    log_info(
+        "checking type cast from '%s' to '%s', not found in base types. \nMaybe throw "
+        "exception at runtime.",
+        src->signature, target->signature);
+    return 0;
+}
+
+static void parse_as(ParserState *ps, Expr *exp)
+{
+    AsExpr *as = (AsExpr *)exp;
+    Expr *e = as->exp;
+    e->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, e);
+    if (!e->ts) return;
+
+    TypeSpec *target_ts = as->type;
+    Symbol *target_sym = get_symbol_by_id(target_ts->sym_id);
+    if (!target_sym) {
+        kl_error(as->loc, "type is not found.");
+        return;
+    }
+
+    if (target_sym->kind != SYM_CLASS && target_sym->kind != SYM_TRAIT) {
+        kl_error(as->loc, "target type of 'as' operator must be a class or trait type.");
+        return;
+    }
+
+    as->safe_cast = check_type_cast(e->ts, target_ts, ps);
+
+    exp->ts = target_ts;
+    exp->sym = target_sym;
+    log_info("'as' operator resolved, cast type to '%s'.", target_ts->signature);
+}
+
+static void parse_is(ParserState *ps, Expr *exp)
+{
+    IsExpr *is = (IsExpr *)exp;
+    Expr *e = is->exp;
+    e->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, e);
+    if (!e->ts) return;
+
+    TypeSpec *target_ts = is->type;
+    Symbol *target_sym = get_symbol_by_id(target_ts->sym_id);
+    if (!target_sym) {
+        kl_error(is->loc, "type is not found.");
+        return;
+    }
+
+    if (target_sym->kind != SYM_CLASS && target_sym->kind != SYM_TRAIT) {
+        kl_error(is->loc, "target type of 'is' operator must be a class or trait type.");
+        return;
+    }
+
+    is->result = check_type_cast(e->ts, target_ts, ps);
+
+    exp->ts = bool_type_spec();
+    exp->sym = get_symbol_by_id(exp->ts->sym_id);
+    log_info("'is' operator resolved, cast type to '%s' is '%s'.", target_ts->signature,
+             is->result ? "true" : "unknown (maybe false at runtime)");
+}
+
 void parser_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -1470,6 +1595,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_ID_KIND]      = parse_ident,
         [EXPR_UNDER_KIND]   = parse_under,
         [EXPR_LITERAL_KIND] = parse_literal,
+        [EXPR_LIST_KIND]    = parse_list,
         [EXPR_TUPLE_KIND]   = parse_tuple,
         [EXPR_TYPE_KIND]    = parse_type,
         [EXPR_CALL_KIND]    = parse_call,
@@ -1479,6 +1605,8 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_BINARY_KIND]  = parse_binary,
         [EXPR_KW_KIND]      = parse_keyword,
         [EXPR_BANG_KIND]    = parse_bang,
+        [EXPR_AS_KIND]      = parse_as,
+        [EXPR_IS_KIND]      = parse_is,
     };
     /* clang-format on */
 

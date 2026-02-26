@@ -206,10 +206,10 @@ Expr *expr_from_type(TypeSpec *type)
     return (Expr *)exp;
 }
 
-Expr *expr_from_array(Vector *vec)
+Expr *expr_from_list(Vector *vec)
 {
-    ArrayExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_ARRAY_KIND;
+    ListExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LIST_KIND;
     exp->vec = vec;
     return (Expr *)exp;
 }
@@ -313,7 +313,7 @@ static void lit_expr_free(Expr *exp)
 }
 
 static void self_expr_free(Expr *exp) { mm_free(exp); }
-static void array_expr_free(Expr *exp) { mm_free(exp); }
+static void list_expr_free(Expr *exp) { mm_free(exp); }
 static void map_expr_free(Expr *exp) { mm_free(exp); }
 static void map_entry_expr_free(Expr *exp) { mm_free(exp); }
 static void tuple_expr_free(Expr *exp) { mm_free(exp); }
@@ -404,7 +404,7 @@ void expr_free(Expr *exp)
         [EXPR_ID_KIND] = ident_expr_free,
         [EXPR_UNDER_KIND] = under_expr_free,
         [EXPR_LITERAL_KIND] = lit_expr_free,
-        [EXPR_ARRAY_KIND] = array_expr_free,
+        [EXPR_LIST_KIND] = list_expr_free,
         [EXPR_MAP_KIND] = map_expr_free,
         [EXPR_MAP_ENTRY_KIND] = map_entry_expr_free,
         [EXPR_TUPLE_KIND] = tuple_expr_free,

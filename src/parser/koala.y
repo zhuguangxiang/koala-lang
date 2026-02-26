@@ -2938,21 +2938,22 @@ atom
 list_expr
     : '[' expr_list ']'
     {
-        // [1,2,3]
-        $$ = expr_from_array($2);
+        $$ = expr_from_list($2);
         expr_set_loc($$, lloc(@1, @3));
     }
     | '[' expr_list semi ']'
     {
-
+        $$ = expr_from_list($2);
+        expr_set_loc($$, lloc(@1, @4));
     }
     | '[' expr_list ',' ']'
     {
-
+        $$ = expr_from_list($2);
+        expr_set_loc($$, lloc(@1, @4));
     }
     | '[' ']'
     {
-        $$ = expr_from_array(NULL);
+        $$ = expr_from_list(NULL);
         expr_set_loc($$, lloc(@1, @2));
     }
     | LIST

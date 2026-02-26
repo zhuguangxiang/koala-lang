@@ -54,7 +54,7 @@ typedef enum _ExprKind {
     EXPR_ID_KIND,
     EXPR_UNDER_KIND,
     EXPR_LITERAL_KIND,
-    EXPR_ARRAY_KIND,
+    EXPR_LIST_KIND,
     EXPR_MAP_KIND,
     EXPR_MAP_ENTRY_KIND,
     EXPR_TUPLE_KIND,
@@ -145,6 +145,7 @@ typedef struct _IsExpr {
     Expr *exp;
     Loc op_loc;
     TypeSpec *type;
+    int result;
 } IsExpr;
 
 typedef struct _AsExpr {
@@ -152,6 +153,7 @@ typedef struct _AsExpr {
     Expr *exp;
     Loc op_loc;
     TypeSpec *type;
+    int safe_cast;
 } AsExpr;
 
 typedef struct _InExpr {
@@ -239,12 +241,12 @@ typedef struct _TypeExpr {
 
 Expr *expr_from_type(TypeSpec *type);
 
-typedef struct _ArrayExpr {
+typedef struct _ListExpr {
     EXPR_HEAD
     Vector *vec;
-} ArrayExpr;
+} ListExpr;
 
-Expr *expr_from_array(Vector *vec);
+Expr *expr_from_list(Vector *vec);
 
 typedef struct _MapExpr {
     EXPR_HEAD
