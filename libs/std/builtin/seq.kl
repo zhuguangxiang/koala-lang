@@ -3,9 +3,93 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub trait Seq[T] : Indexable[T] {
+pub trait Comparable[T] {
+    func compare(other T) int
+}
+
+pub trait Collection[T] : Iterable[T] {
     func __len__() int
+    func empty() bool { return __len__() == 0 }
+}
+
+pub trait Seq[T] : Collection[T] {
     func __contains__(v T) bool
-    func __concat__(seq Seq[T]) Seq[T]
-    func __repeat__(count int) Seq[T]
+    func __getitem__(index int) T
+    func __setitem__(index int, value T)
+    func __getslice__(r Range) Seq[T]
+    func __setslice__(r Range, val Iterable[T])
+
+    func append(value T)
+    func extend(items Iterable[T])
+    func insert(index int, value T)
+    func remove(value T)
+    func pop(index int = -1) T
+    func clear()
+}
+
+pub trait Map[K, V] : Collection[(K, V)] {
+    func __contains__(key K) bool
+    func __getsub__(key K) V
+    func __setsub__(key K, value V)
+    func keys() Seq[K]
+    func values() Seq[V]
+    func items() Seq[(K, V)]
+    func remove(key K) V
+    func remove_or(key K, default_value V) V
+    func get(key K) V
+    func get_or(key K, default_value V) V
+}
+
+class list[T] : Seq[T] {
+    func __getitem__(index int) T { ... }
+    func __setitem__(index int, value T) { ... }
+
+    func append(value T) { ... }
+    func extend(items Iterable[T]) { ... }
+    func insert(index int, value T) { ... }
+    func remove(value T) { ... }
+    func pop(index int = -1) T { ... }
+    func clear() { ... }
+
+    func __getslice__(r Range) list[T] { ... }
+    func __setslice__(r Range, val Iterable[T]) { ... }
+
+    func sort(cmp Comparable[T]) { ... }
+}
+
+class dict[K, V] : Map[K, V] {
+    func __contains__(key K) bool { ... }
+    func __getsub__(key K) V { ... }
+    func __setsub__(key K, value V) { ... }
+    func keys() list[K] { ... }
+    func values() list[V] { ... }
+    func items() list[(K, V)] { ... }
+    func remove(key K) V { ... }
+    func remove_or(key K, default_value V) V { ... }
+    func get(key K) V { ... }
+    func get_or(key K, default_value V) V { ... }
+}
+
+pub trait Set[T] : Collection[T] {
+    func __contains__(v T) bool {}
+    func add(v T) bool  {}        // Returns true if added, false if already exists
+    func extend(items Iterable[T]) // New: Added for consistency
+    func remove(v T) bool {}      // Returns true if removed
+    func clear() {}
+
+    // Set Theory Operations
+    func union(other Iterable[T]) Set[T] {}
+    func intersect(other Iterable[T]) Set[T] {}
+    func diff(other Iterable[T]) Set[T] {}
+}
+
+pub class HashSet[T] : Set[T] {
+    func union(other Iterable[T]) HashSet[T] { ... }
+    func intersect(other Iterable[T]) HashSet[T] { ... }
+    func diff(other Iterable[T]) HashSet[T] { ... }
+}
+pub class TreeSet[T : Comparable[T]] : Set[T] {
+    func union(other Iterable[T]) TreeSet[T] { ... }
+    func intersect(other Iterable[T]) TreeSet[T] { ... }
+    func diff(other Iterable[T]) TreeSet[T] { ... }
 }
