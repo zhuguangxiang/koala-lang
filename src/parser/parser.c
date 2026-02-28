@@ -101,6 +101,18 @@ static HashMap *inferred_map(void)
     return map;
 }
 
+static void _inferred_info_free_(void *entry, void *data)
+{
+    UNUSED(data);
+    mm_free(entry);
+}
+
+static void free_inferred_map(void)
+{
+    hashmap_fini(inferred, _inferred_info_free_, NULL);
+    mm_free(inferred);
+}
+
 Vector *infer_func_tp(FuncSymbol *fn, Vector *args, ParserState *ps)
 {
     char name[256] = { 0 };
@@ -155,6 +167,7 @@ void fini_parser(void)
 {
     stbl_free(imported);
     stbl_free(current);
+    free_inferred_map();
     free_all_symbols();
 }
 
@@ -647,6 +660,16 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         TypeSpec *ret = resolve_type(ps, _ts->opt.src);
         type_spec_free(_ts);
         return optional_type_spec_intern(ret);
+    }
+
+    if (_ts->kind == TYPE_VA_LIST) {
+        if (_ts->type_id >= 0) {
+            return _ts;
+        }
+
+        TypeSpec *ret = resolve_type(ps, _ts->va_list.src);
+        type_spec_free(_ts);
+        return va_list_type_spec_intern(ret);
     }
 
     if (_ts->kind != TYPE_UNRESOLVED) return _ts;
@@ -2395,15 +2418,15 @@ static void parse_klass_func_meta(ParserState *ps, KlassDeclStmt *kls)
 
 static void parse_ast(ParserState *ps)
 {
-    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
-    scope->stbl = ps->stbl;
-
     if (ps->status != PS_STATUS_UNRESOLVED) {
         log_info("AST '%s' is already resolving or resolved.", ps->filename);
         return;
     }
 
     ps->status = PS_STATUS_RESOLVING;
+
+    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
+    scope->stbl = ps->stbl;
 
     KlassDeclStmt *kls;
     vector_foreach(kls, &ps->kls_stmts) {
@@ -2478,6 +2501,9 @@ ParserState *new_parser_state(char *path)
 void free_parser_state(ParserState *ps)
 {
     mm_free(ps->filename);
+
+    vector_fini(&ps->kls_stmts);
+    vector_fini(&ps->fn_stmts);
 
     Stmt *s;
     vector_foreach(s, &ps->stmts) {

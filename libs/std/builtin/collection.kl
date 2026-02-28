@@ -1,0 +1,126 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Comparable trait provides a way to compare two objects of the same type.
+/// Use this for ordering, sorting, or tree-based collections.
+pub trait Comparable[T] {
+    /// Compare this object with the specified object for order.
+    /// Returns a negative integer, zero, or a positive integer as this object
+    /// is less than, equal to, or greater than the specified object.
+    func compare(other T) int
+}
+
+/// Base trait for all collections.
+/// Represents a group of objects, known as its elements.
+pub trait Collection[T] : Iterable[T] {
+    /// Return the number of items in the collection.
+    func __len__() int
+
+    /// Return True if the collection is empty, False otherwise.
+    func empty() bool
+}
+
+/// A Seq is an ordered collection (also known as a sequence).
+/// Provides index-based access and slicing.
+pub trait Seq[T] : Collection[T] {
+    /// Return True if the sequence contains the specified value.
+    func __contains__(v T) bool
+
+    /// Get the item at the specified index. Raise IndexError if out of range.
+    func __getitem__(index int) T
+
+    /// Set the item at the specified index to value.
+    func __setitem__(index int, value T)
+
+    /// Return a shallow copy of a portion of the sequence defined by the range.
+    func __getslice__(r range) Seq[T]
+
+    /// Replace a slice of the sequence with elements from the iterable.
+    func __setslice__(r range, val Iterable[T])
+
+    /// Concatenate this sequence with another sequence of the same type.
+    func append(value T)
+
+    /// Extend the sequence by appending all items from the iterable.
+    func extend(items Iterable[T])
+
+    /// Insert a new item with value at a given position.
+    func insert(index int, value T)
+
+    /// Remove the first item from the sequence whose value is equal to v.
+    func remove(value T)
+
+    /// Remove and return the item at the given position in the sequence.
+    /// If no index is specified, removes and returns the last item.
+    func pop(index int = -1) T
+
+    /// Remove all items from the sequence.
+    func clear()
+}
+
+/// A Map is an object that maps keys to values.
+/// A map cannot contain duplicate keys; each key can map to at most one value.
+pub trait Map[K, V] : Collection[(K, V)] {
+    /// Return True if the map contains a mapping for the specified key.
+    func __contains__(key K) bool
+
+    /// Return the value to which the specified key is mapped.
+    func __getsub__(key K) V
+
+    /// Associate the specified value with the specified key in this map.
+    func __setsub__(key K, value V)
+
+    /// Return a dynamic view of all keys in the map.
+    func keys() Seq[K]
+
+    /// Return a dynamic view of all values in the map.
+    func values() Seq[V]
+
+    /// Return a dynamic view of all key-value pairs (tuples) in the map.
+    func items() Seq[(K, V)]
+
+    /// Remove the mapping for a key from this map if it is present.
+    /// Raise Exception if key is not present.
+    func remove(key K) V
+
+    /// Remove the key and return its value.
+    /// If key is not found, return default_value.
+    func remove_or(key K, default_value V) V
+
+    /// Return the value for key if key is in the map, else raise Exception.
+    func get(key K) V
+
+    /// Return the value for key if key is in the map, else return default_value.
+    func get_or(key K, default_value V) V
+}
+
+/// A collection that contains no duplicate elements.
+/// Models the mathematical set abstraction.
+pub trait Set[T] : Collection[T] {
+    /// Return True if the set contains the specified element.
+    func __contains__(v T) bool {}
+
+    /// Add an element to the set.
+    /// Return True if the element was not already present.
+    func add(v T) bool {}
+
+    /// Add all elements from the iterable to the set.
+    func extend(items Iterable[T])
+
+    /// Remove an element from the set. Return True if the element was present.
+    func remove(v T) bool {}
+
+    /// Remove all elements from the set.
+    func clear() {}
+
+    /// Return a new set with elements from the set and all others.
+    func union(other Iterable[T]) Set[T] {}
+
+    /// Return a new set with elements common to the set and all others.
+    func intersect(other Iterable[T]) Set[T] {}
+
+    /// Return a new set with elements in the set that are not in the others.
+    func diff(other Iterable[T]) Set[T] {}
+}

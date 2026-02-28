@@ -3,12 +3,19 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// Print `objs` to the stream file, separated by `sep` and followed by `end`.
+/// Print objects to the text stream file, separated by `sep` and followed by `end`.
 ///
-/// All non-keyword arguments are converted to string and written to stream,
-/// separated by `sep` and followed by `end`. The default `file` is `sys.stdout` stream.
+/// All non-keyword arguments are converted to strings using their `__str__` method.
+/// If no objects are given, print() will just write the `end` character.
+/// The `sep` and `end` arguments must be strings; the default separator is a space,
+/// and the default end-of-line is a newline character.
 @native(builtin_print)
 pub func print(objs ..., sep = ' ', end = '\n') {}
 
+/// Return the number of items in a collection or the length of an object.
+///
+/// The argument may be a sequence (such as a string, list, or tuple)
+/// or a collection (such as a dict or set).
+/// This function internally calls the `__len__` method of the provided object.
 @native(builtin_len)
 pub func len(obj any) int {}

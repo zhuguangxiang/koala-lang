@@ -238,10 +238,17 @@ static void build_dir(char *path, Vector *pss)
     vector_foreach(filename, &filenames) {
         snprintf(fullpath, sizeof(fullpath) - 1, "%s/%s", prefix, filename);
         if (lstat(fullpath, &sb) || !S_ISREG(sb.st_mode)) continue;
-        printf("compiling %s\n", fullpath);
         ParserState *ps = new_parser_state(fullpath);
         vector_push_back(pss, &ps);
     }
+
+    mm_free(prefix);
+
+    vector_foreach(filename, &filenames) {
+        if (!filename) continue;
+        mm_free(filename);
+    }
+    vector_fini(&filenames);
 }
 
 static void compile(char *src, char *dst)

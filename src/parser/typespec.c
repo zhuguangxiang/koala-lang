@@ -649,7 +649,7 @@ TypeSpec *union_type_spec(TypeSpec *first, TypeSpec *second)
     return ts;
 }
 
-void union_type_spec_add_arg(TypeSpec *ts, TypeSpec *arg)
+void union_type_spec_add(TypeSpec *ts, TypeSpec *arg)
 {
     if (ts->kind != TYPE_UNION) {
         return;
@@ -673,6 +673,16 @@ Vector *type_spec_vec_copy(Vector *args)
 }
 
 TypeSpec *va_list_type_spec(TypeSpec *src)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_VA_LIST;
+    ts->va_list.src = src ?: any_type_spec();
+    ts->sym_id = -1;
+    ts->type_id = -1;
+    return ts;
+}
+
+TypeSpec *va_list_type_spec_intern(TypeSpec *src)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_VA_LIST;
@@ -1000,12 +1010,11 @@ static TypeSpec *__to_typespec(char **str)
             break;
         }
         case '.': {
-            if (!strncmp(s, "...", 3)) {
-                s += 3;
-                TypeSpec *src = __to_typespec(&s);
-                // src maybe null
-                ts = va_list_type_spec(src);
-            }
+            ASSERT(!strncmp(s, "...", 3));
+            s += 3;
+            TypeSpec *src = __to_typespec(&s);
+            ASSERT(src);
+            ts = va_list_type_spec_intern(src);
             break;
         }
         case 'U': {

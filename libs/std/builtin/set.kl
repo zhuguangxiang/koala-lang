@@ -1,0 +1,16 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+pub class HashSet[T] : Set[T] {
+    pub func union(other Iterable[T]) HashSet[T] {}
+    pub func intersect(other Iterable[T]) HashSet[T] {}
+    pub func diff(other Iterable[T]) HashSet[T] {}
+}
+
+pub class TreeSet[T : Comparable[T]] : Set[T] {
+    pub func union(other Iterable[T]) TreeSet[T] {}
+    pub func intersect(other Iterable[T]) TreeSet[T] {}
+    pub func diff(other Iterable[T]) TreeSet[T] {}
+}

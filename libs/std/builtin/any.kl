@@ -3,18 +3,24 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// The 'any' trait is the root trait of all other classes and traits.
-/// All functions are implemented by internal, and everyone can use them.
+/// The 'any' trait is the root of the Koala type hierarchy.
+/// Every class and trait in the system implicitly or explicitly inherits from 'any'.
+/// It provides core methods for object identity, hashing, and representation.
 pub trait any {
-    /// The hash function is used to calculate the hash value of an object.
+    /// Return a hash value for the object.
+    /// Used by hashed collections like 'dict' and 'HashSet'.
+    /// The default implementation typically returns an integer based on the object's identity.
     @native(kl_any_hash)
     func __hash__() int {}
 
-    /// The equality function is used to compare two objects for equality.
+    /// Return True if this object is equal to the other object, False otherwise.
+    /// The default implementation uses reference equality (identity).
+    /// Objects that compare equal should also have the same hash value.
     @native(kl_any_eq)
     func __eq__(rhs any) bool {}
 
-    /// The string function is used to convert an object to a string.
+    /// Return a string representation of the object.
+    /// This is typically used for debugging or printing.
     @native(kl_any_str)
     func __str__() str {}
 }

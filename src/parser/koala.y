@@ -482,7 +482,7 @@ semi
     ;
 
 prefix
-    : DOC
+    : docs
     {
         memset(&$$, 0, sizeof($$));
         $$.doc.flag = 1;
@@ -495,12 +495,12 @@ prefix
     {
         $$ = $1;
     }
-    | DOC annotation
+    | docs annotation
     {
         $$ = $2;
         $$.doc.flag = 1;
     }
-    | DOC access
+    | docs access
     {
         $$ = $2;
         $$.doc.flag = 1;
@@ -510,12 +510,17 @@ prefix
         $$ = $1;
         $$.pub = $2.pub;
     }
-    | DOC annotation access
+    | docs annotation access
     {
         $$ = $2;
         $$.doc.flag = 1;
         $$.pub = $3.pub;
     }
+    ;
+
+docs
+    : DOC
+    | docs DOC
     ;
 
 access
@@ -626,12 +631,7 @@ union_type
     | union_type '|' type
     {
         $$ = $1;
-        if ($1) {
-            union_type_spec_add_arg($1, $3);
-        } else {
-            // $$ = union_type_spec(NULL, $3);
-            // error
-        }
+        union_type_spec_add($$, $3);
     }
     | type '|' error
     {

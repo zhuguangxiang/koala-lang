@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub class dict[K, V] : Indexable[V] {
+pub class dict[K, V] : Map[K, V] {
 
     @native(kl_dict_len)
     pub func __len__() int {}
@@ -13,4 +13,15 @@ pub class dict[K, V] : Indexable[V] {
 
     @native(kl_dict_set_item)
     pub func __setitem__(index any, v V) {}
+
+    pub func __contains__(key K) bool {}
+    pub func __getsub__(key K) V {}
+    pub func __setsub__(key K, value V) {}
+    pub func keys() list[K] {}
+    pub func values() list[V] {}
+    pub func items() list[(K, V)] {}
+    pub func remove(key K) V {}
+    pub func remove_or(key K, default_value V) V {}
+    pub func get(key K) V {}
+    pub func get_or(key K, default_value V) V {}
 }

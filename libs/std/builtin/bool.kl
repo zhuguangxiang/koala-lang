@@ -3,5 +3,30 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+/// Represents a logical value that can be either True or False.
+/// Boolean types are typically used in conditional statements and logical operations.
 pub class bool {
+    /// Return the integer value of the boolean.
+    /// Returns 1 if True, and 0 if False.
+    @native(kl_bool_to_int)
+    pub func to_int() int {}
+
+    /// Return the string representation of the boolean.
+    /// Returns "true" if True, and "false" if False.
+    /// This overrides the any.__str__ method.
+    @native(kl_bool_str)
+    pub func __str__() str {}
+
+    /// Return the logical negation of the boolean.
+    /// Analogous to the 'not' operator.
+    // pub func not() bool {}
+
+    /// Return True if the boolean is equal to the other boolean.
+    /// This overrides the any.__eq__ method for optimized bitwise comparison.
+    @native(kl_bool_eq)
+    pub func __eq__(other bool) bool {}
+
+    /// Toggle the current boolean value and return the result.
+    /// If the value is true, it becomes false; if false, it becomes true.
+    pub func toggle() bool {}
 }

@@ -6,7 +6,7 @@
 pub class list[T] : Seq[T] {
 
     @native(kl_list_init)
-    pub func __init__(args ...) {}
+    pub func __init__(args ...T) {}
 
     @native(kl_list_len)
     pub func __len__() int {}
@@ -17,9 +17,26 @@ pub class list[T] : Seq[T] {
     @native(kl_list_set_item)
     pub func __setitem__(index int, value T) {}
 
+    @native(kl_list_get_slice)
+    pub func __getslice__(r range) list[T] {}
+
+    @native(kl_list_set_slice)
+    pub func __setslice__(r range, val Iterable[T]) {}
+
+    @native(kl_list_contains)
+    pub func __contains__(v T) bool {}
+
     @native(kl_list_concat)
     pub func __concat__(seq Seq[T]) list[T] {}
 
     @native(kl_list_append)
     pub func append(item T) {}
+
+    pub func extend(items Iterable[T]) {}
+    pub func insert(index int, value T) {}
+    pub func remove(value T) {}
+    pub func pop(index int = -1) T {}
+    pub func clear() {}
+
+    pub func sort(cmp Comparable[T]) {}
 }

@@ -6,7 +6,7 @@
 pub class tuple[infer T] : Seq[T] {
 
     @native(kl_tuple_init)
-    pub func __init__(args ...) {}
+    pub func __init__(args ...T) {}
 
     @intrinsic
     pub func __getitem__[infer U](index int) U {}

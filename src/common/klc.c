@@ -1142,6 +1142,8 @@ static void fini_klass(KlcKlass *kls)
     vector_fini(&kls->anns);
 
     vector_fini(&kls->bases);
+    vector_fini(&kls->pip);
+    vector_fini(&kls->lro);
 
     KlcVar *field;
     vector_foreach(field, &kls->fields) {

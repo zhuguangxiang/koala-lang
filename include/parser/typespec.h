@@ -130,7 +130,7 @@ TypeSpec *generic_var_type_spec(char *name, int index, int sym_id, char *owner);
 TypeSpec *generic_ref_type_spec(char *full_pkg, char *name, Vector *args, int sym_id);
 TypeSpec *unresolved_type_spec(TypeIdent *pkg, TypeIdent name, Vector *args);
 TypeSpec *union_type_spec(TypeSpec *first, TypeSpec *second);
-void union_type_spec_add_arg(TypeSpec *ts, TypeSpec *arg);
+void union_type_spec_add(TypeSpec *ts, TypeSpec *arg);
 TypeSpec *union_type_spec_intern(Vector *args);
 TypeSpec *klass_type_spec(char *path, char *name);
 TypeSpec *func_type_spec(Vector *args, TypeSpec *ret);
@@ -139,6 +139,7 @@ TypeSpec *optional_type_spec(TypeSpec *src);
 TypeSpec *optional_type_spec_intern(TypeSpec *src);
 Vector *type_spec_vec_copy(Vector *args);
 TypeSpec *va_list_type_spec(TypeSpec *src);
+TypeSpec *va_list_type_spec_intern(TypeSpec *src);
 
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
