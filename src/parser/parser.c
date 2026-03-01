@@ -921,7 +921,7 @@ static int parse_flags(PrefixFlags *flags)
     return f;
 }
 
-static Symbol *_add_var(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
+static Symbol *_add_field(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
 {
     Ident *id = &var->id;
     Symbol *sym;
@@ -938,6 +938,7 @@ static Symbol *_add_var(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     }
 
     var->sym = sym;
+    ((VarSymbol *)sym)->scope = VAR_SCOPE_FIELD;
     return sym;
 }
 
@@ -958,6 +959,7 @@ static Symbol *_add_local(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     }
 
     var->sym = sym;
+    ((VarSymbol *)sym)->scope = VAR_SCOPE_LOCAL;
     return sym;
 }
 
@@ -1635,7 +1637,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls,
     vector_foreach(stmt, kls->stmts) {
         if (!stmt) continue;
         if (stmt->kind == STMT_VAR_KIND) {
-            Symbol *var = _add_var(ps, sym->stbl, (VarDeclStmt *)stmt);
+            Symbol *var = _add_field(ps, sym->stbl, (VarDeclStmt *)stmt);
             if (var) vector_push_back(kls_sym->fields, &var);
         } else if (stmt->kind == STMT_FUNC_KIND) {
             Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt);
@@ -2005,12 +2007,15 @@ static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
     }
 
     if (lhs_sym->kind == SYM_VAR) {
-        if (!(lhs_sym->flags & SYM_FLAGS_MUTABLE)) {
-            kl_error(assign->loc, "cannot assign to immutable variable '%s'",
-                     lhs_sym->name);
-            return -1;
+        VarSymbol *var_sym = (VarSymbol *)lhs_sym;
+        FuncSymbol *fn_sym = get_current_function(ps);
+        if ((var_sym->scope != VAR_SCOPE_FIELD) || strcmp(fn_sym->name, "__init__")) {
+            if (!(lhs_sym->flags & SYM_FLAGS_MUTABLE)) {
+                kl_error(assign->loc, "cannot assign to immutable variable '%s'",
+                         lhs_sym->name);
+                return -1;
+            }
         }
-
         goto check_compatiable;
     }
 
@@ -2584,6 +2589,7 @@ static Symbol *_add_global(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
 
     var->sym = sym;
     sym->arg = var;
+    ((VarSymbol *)sym)->scope = VAR_SCOPE_GLOBAL;
     return sym;
 }
 

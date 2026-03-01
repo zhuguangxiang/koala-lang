@@ -333,6 +333,14 @@ void install_builtin_types(HashMap *stbl)
         sym->instance_ts = ts;
     }
 
+    ts = klass_type_spec(NULL, "slice");
+    sym = (KlassSymbol *)stbl_get(stbl, "slice");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
+
     vector_foreach(ts, &type_list) {
         if (!ts) continue;
         if (ts->kind == TYPE_NO_TYPE || ts->kind == TYPE_VA_LIST ||

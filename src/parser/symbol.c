@@ -392,6 +392,49 @@ static InstanceSymbol *__instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector 
     return inst_sym;
 }
 
+/*
+static TypeSpec *find_two_lub(TypeSpec *a, TypeSpec *b)
+{
+    if (a == b) return a;
+
+    Symbol *a_sym = get_symbol_by_id(a->sym_id);
+    Symbol *b_sym = get_symbol_by_id(b->sym_id);
+
+    Vector *a_lro = NULL;
+    Vector *b_lro = NULL;
+
+    if (a_sym->kind == SYM_CLASS || a_sym->kind == SYM_TRAIT) {
+        a_lro = ((KlassSymbol *)a_sym)->lro;
+    } else if (a_sym->kind == SYM_INSTANCE) {
+        a_lro = ((InstanceSymbol *)a_sym)->origin->lro;
+    } else {
+        UNREACHABLE();
+    }
+
+    if (b_sym->kind == SYM_CLASS || b_sym->kind == SYM_TRAIT) {
+        b_lro = ((KlassSymbol *)b_sym)->lro;
+    } else if (b_sym->kind == SYM_INSTANCE) {
+        b_lro = ((InstanceSymbol *)b_sym)->origin->lro;
+    } else {
+        UNREACHABLE();
+    }
+
+    for (int i = 0; i < vector_size(a_lro); i++) {
+        TypeSpec *a_base_ts = vector_get(a_lro, i);
+        for (int j = 0; j < vector_size(b_lro); j++) {
+            TypeSpec *b_base_ts = vector_get(b_lro, j);
+            if (a_base_ts == b_base_ts) {
+                log_info("found lub '%s' for '%s' and '%s'", a_base_ts->signature,
+                         a->signature, b->signature);
+                return a_base_ts;
+            }
+        }
+    }
+
+    UNREACHABLE();
+}
+*/
+
 TypeSpec *find_lub(Vector *types)
 {
     if (vector_empty(types)) return any_type_spec();
@@ -404,6 +447,11 @@ TypeSpec *find_lub(Vector *types)
             log_info("types has different arg types, lub is 'any'");
             return any_type_spec();
         }
+        /*
+        if (type_is_any(ts)) break;
+        ts = find_two_lub(ts, _ts);
+        ASSERT(ts);
+        */
     }
 
     log_info("find lub: '%s'", ts->signature);

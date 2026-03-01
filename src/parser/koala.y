@@ -382,7 +382,10 @@ top_stmt
     | prefix let_decl semi
     {
         $$ = $2;
-        if ($$) var_set_where($$, VAR_GLOBAL);
+        if ($$) {
+            var_set_where($$, VAR_GLOBAL);
+            stmt_set_prefix($$, $1);
+        }
     }
     | var_decl semi
     {
@@ -392,7 +395,10 @@ top_stmt
     | prefix var_decl semi
     {
         $$ = $2;
-        if ($$) var_set_where($$, VAR_GLOBAL);
+        if ($$) {
+            var_set_where($$, VAR_GLOBAL);
+            stmt_set_prefix($$, $1);
+        }
     }
     | func_decl
     {
@@ -1729,6 +1735,7 @@ prefix_field_decl
     | prefix field_decl
     {
         $$ = $2;
+        stmt_set_prefix($$, $1);
     }
     ;
 

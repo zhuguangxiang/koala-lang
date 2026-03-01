@@ -63,9 +63,9 @@ typedef struct _KlcConst {
 #define KLC_CONST_SHORT_TUPLE ')'
 #define KLC_CONST_SHORT_LIST  ']'
 
-#define KLC_FLAGS_PUB     (1 << 0)
-#define KLC_FLAGS_MUTABLE (1 << 1)
-#define KLC_FLAGS_TRAIT   (1 << 2)
+#define KLC_FLAGS_PUB   (1 << 0)
+#define KLC_FLAGS_MUT   (1 << 1)
+#define KLC_FLAGS_TRAIT (1 << 2)
 
 typedef struct _KlcVar {
     /* flags */
@@ -173,6 +173,7 @@ int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value);
 KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags);
 KlcTypeParam *klc_klass_add_tp(KlcKlass *kls, char *name);
 KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_desc, int flags);
+KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *type, int flags);
 
 uint16_t klc_add_none(KlcFile *klc);
 uint16_t klc_add_int(KlcFile *klc, uint64_t val, int sign, int width);

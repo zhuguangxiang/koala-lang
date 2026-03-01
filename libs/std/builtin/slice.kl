@@ -1,0 +1,28 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A slice object represents a set of indices specified by [start:stop:step].
+///
+/// It is internally created by the compiler when the ':' syntax is used
+/// inside subscript brackets []. Unlike range, slice allows nil values
+/// to represent missing boundaries.
+pub class slice {
+    /// The starting index of the slice (inclusive). nil means "from the beginning/end".
+    pub let start int?
+    /// The ending index of the slice (exclusive). nil means "to the end/beginning".
+    pub let stop  int?
+    /// The step value for the slice. nil means 1.
+    pub let step  int?
+
+    /// Initialize a new slice object.
+    ///
+    /// This constructor is typically called by the VM's BUILD_SLICE instruction
+    /// when parsing [start:stop:step] syntax.
+    pub func __init__(_start int?, _stop int?, _step int?) {
+        start = _start
+        stop = _stop
+        step = _step
+    }
+}

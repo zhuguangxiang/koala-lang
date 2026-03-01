@@ -355,6 +355,24 @@ static void load_pip_lro_scm(KlcKlass *kls, KlassSymbol *sym, LoadContext *ctx)
 #endif
 }
 
+static void load_field(KlcVar *field, KlassSymbol *kls_sym, LoadContext *ctx)
+{
+    KlcConst *name = klc_get_const(ctx->klc, field->name_index);
+    KlcConst *ty_k = klc_get_const(ctx->klc, field->type_index);
+    TypeSpec *ts = type_spec_from_str(ty_k->sval);
+
+    int flags = 0;
+
+    if (field->flags & KLC_FLAGS_MUT) {
+        flags |= SYM_FLAGS_MUTABLE;
+    }
+
+    if (field->flags & KLC_FLAGS_PUB) {
+        flags |= SYM_FLAGS_PUBLIC;
+        stbl_add_var(kls_sym->stbl, name->sval, ts, flags);
+    }
+}
+
 static void load_klass(KlcKlass *kls, LoadContext *ctx)
 {
     KlcConst *k = klc_get_const(ctx->klc, kls->name_index);
@@ -374,6 +392,13 @@ static void load_klass(KlcKlass *kls, LoadContext *ctx)
 
     // add pip & lro & scm
     load_pip_lro_scm(kls, cls_sym, ctx);
+
+    // add fields
+    KlcVar *field;
+    vector_foreach(field, &kls->fields) {
+        if (!field) continue;
+        load_field(field, cls_sym, ctx);
+    }
 
     // add methods
     KlcFunc *fn;

@@ -75,6 +75,7 @@ typedef struct _VarSymbol {
 #define VAR_SCOPE_GLOBAL 1
 #define VAR_SCOPE_LOCAL  2
 #define VAR_SCOPE_PARAM  3
+#define VAR_SCOPE_FIELD  4
     Literal *lit;
 } VarSymbol;
 

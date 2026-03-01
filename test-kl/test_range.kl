@@ -1,0 +1,33 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+range[int](0, 10)
+// CHECK: type 'range' expects 0 type arguments, but 1 were provided.
+
+range()
+// CHECK: too few arguments in function call.
+
+range(0)
+// CHECK: too few arguments in function call.
+
+range(0, 1)
+range(0, 10, 2)
+range(0, 10, step = 2)
+
+range(1.1, 2.1)
+// CHECK: Incompatible type: expected 'int64', but got 'float64'.
+// CHECK: Incompatible type: expected 'int64', but got 'float64'.
+
+let r = range(0, 10)
+r[0]
+r[5]
+r[9]
+
+r.start
+r.stop
+r.step
+
+r.__len__()
+r.__contains__(5)
+r.__iter__()
+
+// CHECK-NOT: {{.}}

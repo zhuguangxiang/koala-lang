@@ -377,6 +377,22 @@ KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_desc, int flags
     return fn;
 }
 
+KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *type, int flags)
+{
+    KlcFile *klc = kls->filp;
+    int len = strlen(name);
+    uint16_t name_index = klc_add_str(klc, name, len);
+    len = strlen(type);
+    uint16_t type_index = klc_add_str(klc, type, len);
+    KlcVar *var = mm_alloc_obj(var);
+    var->flags = flags;
+    var->name_index = name_index;
+    var->type_index = type_index;
+    var->const_index = 0;
+    vector_push_back(&kls->fields, &var);
+    return var;
+}
+
 static FILE *open_klc_file(const char *path, char *mode)
 {
     FILE *fp = fopen(path, mode);

@@ -65,7 +65,7 @@ void write_to_klc(HashMap *stbl, char *path)
 
                 int flags = 0;
                 if (var->flags & SYM_FLAGS_MUTABLE) {
-                    flags |= KLC_FLAGS_MUTABLE;
+                    flags |= KLC_FLAGS_MUT;
                 }
                 if (var->flags & SYM_FLAGS_PUBLIC) {
                     flags |= KLC_FLAGS_PUB;
@@ -164,6 +164,21 @@ void write_to_klc(HashMap *stbl, char *path)
                     uint16_t index =
                         klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
                     vector_push_back(&klass->lro, &index);
+                }
+
+                VarSymbol *field;
+                vector_foreach(field, kls->fields) {
+                    if (!field) continue;
+                    int flags_ = 0;
+                    if (field->flags & SYM_FLAGS_MUTABLE) {
+                        flags_ |= KLC_FLAGS_MUT;
+                    }
+
+                    if (field->flags & SYM_FLAGS_PUBLIC) {
+                        flags_ |= KLC_FLAGS_PUB;
+                    }
+
+                    klc_klass_add_field(klass, field->name, field->ts->signature, flags_);
                 }
 
                 FuncSymbol *fn;

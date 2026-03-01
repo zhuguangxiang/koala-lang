@@ -8,10 +8,16 @@
 /// It is commonly used for looping a specific number of times in for loops.
 /// Since it implements Sequence, it supports O(1) length and indexing.
 pub class range : Sequence[int] {
+    /// The starting value of the range (inclusive).
+    pub let start int
+    /// The boundary value of the range (exclusive).
+    pub let stop int
+    /// The interval between each number in the sequence.
+    pub let step int
 
     /// Initialize a range from start (inclusive) to stop (exclusive).
     @native(kl_range_init)
-    pub func __init__(start int, end int, step int = 1) {}
+    pub func __init__(_start int, _end int, _step int = 1) {}
 
     /// Return the number of elements in the range. O(1).
     func __len__() int {
@@ -33,7 +39,32 @@ pub class range : Sequence[int] {
         // Returns a new range object with adjusted start/stop/step
     }
 
+    /// Return True if the specified item is part of the range.
+    ///
+    /// This is an O(1) operation using arithmetic checks:
+    /// 1. Check if item is within [start, stop)
+    /// 2. Check if (item - start) % step == 0
+    pub func __contains__(item int) bool {
+        // Check if item is in the range using arithmetic and bounds checking
+    }
+
     /// Return an iterator for the range.
     @native(kl_range_iter)
     pub func __iter__() Iterator[int] {}
+
+    /// Return the number of occurrences of value in the range.
+    ///
+    /// Since all values in a range are unique, this returns 1 if the value
+    /// is present (via __contains__), otherwise 0.
+    pub func count(value int) int {
+        // Return 1 if value is in the range, otherwise 0
+    }
+
+    /// Return the index of value in the range.
+    ///
+    /// PRECONDITION: value must be present in the range.
+    /// Triggers an unrecoverable panic if the value is not found.
+    pub func index(value int) int {
+        // Return the index of value in the range, or raise ValueError if not found
+    }
 }
