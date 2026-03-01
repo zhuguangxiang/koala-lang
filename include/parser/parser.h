@@ -160,6 +160,23 @@ void kl_error_detail(ParserState *, Loc *);
     kl_error_detail(ps, &loc); \
 } while (0)
 
+#define kl_error_incompatible_type(_loc, expected, actual) do { \
+    if (ps->errors++ >= MAX_ERRORS) { \
+        printf(BOLD("%s: ") ERROR_PREFIX "Too many errors.\n", ps->filename); \
+    } else { \
+        BUF(buf); \
+        buf_write_str(&buf, ERROR_PREFIX "Incompatible type: expected '"); \
+        type_spec_print(expected, &buf); \
+        buf_write_str(&buf, "', but got '"); \
+        type_spec_print(actual, &buf); \
+        buf_write_str(&buf, "'.\n"); \
+        Loc loc = _loc; \
+        printf(BOLD("%s:%d:%d: ") "%s", ps->filename, loc.line, loc.col, BUF_STR(buf)); \
+        kl_error_detail(ps, &loc); \
+        FINI_BUF(buf); \
+    } \
+} while (0)
+
 /* clang-format on */
 
 void parser_visit_expr(ParserState *ps, Expr *exp);

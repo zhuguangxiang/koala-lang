@@ -392,26 +392,22 @@ static InstanceSymbol *__instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector 
     return inst_sym;
 }
 
-TypeSpec *infer_types_parent(Vector *types)
+TypeSpec *find_lub(Vector *types)
 {
     if (vector_empty(types)) return any_type_spec();
 
-    TypeSpec *ts;
-    vector_foreach(ts, types) {
-        if (!ts) continue;
-        TypeSpec *_ts;
-        vector_foreach(_ts, types) {
-            if (_ts != ts) {
-                log_info(
-                    "types has different arg types, cannot infer, fallback to 'any'");
-                return any_type_spec();
-            }
+    TypeSpec *ts = vector_get(types, 0);
+
+    for (int i = 1; i < vector_size(types); i++) {
+        TypeSpec *_ts = vector_get(types, i);
+        if (_ts != ts) {
+            log_info("types has different arg types, lub is 'any'");
+            return any_type_spec();
         }
-        log_info("infered type: '%s'", ts->signature);
-        return ts;
     }
 
-    UNREACHABLE();
+    log_info("find lub: '%s'", ts->signature);
+    return ts;
 }
 
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
@@ -441,7 +437,7 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
             // tuple instance
             // compute ...T for bases, methods parameters or return type
             log_info("handling tuple instance '%s'", mangled_name);
-            TypeSpec *infer_ts = infer_types_parent(tp_args);
+            TypeSpec *infer_ts = find_lub(tp_args);
             _tp_args = vector_create_ptr();
             inst_sym->arg = infer_ts; // pass infer type to instance symbol for later use
             vector_push_back(_tp_args, &infer_ts);

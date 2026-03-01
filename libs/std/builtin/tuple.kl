@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub class tuple[infer T] : Seq[T] {
+pub class tuple[infer T] : Sequence[T] {
 
     @native(kl_tuple_init)
     pub func __init__(args ...T) {}

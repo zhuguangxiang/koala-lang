@@ -93,7 +93,7 @@ func fn7(v int?) {
     // CHECK-NEXT: if condition must be boolean type.
 
     100 + v
-    // CHECK-NEXT: argument type mismatch for operator '+'.
+    // CHECK-NEXT: argument type mismatch for operator '+' of type 'int64'.
 
     if v != null {
         v + 123
@@ -151,7 +151,7 @@ func fn7(v int?) {
 
     if v == null {
         500 + v
-        // CHECK-NEXT: argument type mismatch for operator '+'.
+        // CHECK-NEXT: argument type mismatch for operator '+' of type 'int64'.
     } else if v > 100 {
         600 + v
     } else {
@@ -160,7 +160,7 @@ func fn7(v int?) {
 
     if v == null {
         324 + v
-        // CHECK-NEXT: argument type mismatch for operator '+'.
+        // CHECK-NEXT: argument type mismatch for operator '+' of type 'int64'.
     } else {
         if v > 1000 {
             111 + v

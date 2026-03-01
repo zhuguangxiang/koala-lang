@@ -165,7 +165,7 @@ func fn2(v1 int?, v2 int) {
 
     let tmp2 = 10
     tmp2!
-    // CHECK-NEXT: only optional type can use bang operator.
+    // CHECK-NEXT: only optional type/Sequence's subtype can use bang operator.
 }
 
 // CHECK-NOT: {{.}}

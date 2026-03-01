@@ -4,6 +4,7 @@
  */
 
 #include "atom.h"
+#include "log.h"
 #include "symbol.h"
 #include "vector.h"
 
@@ -722,6 +723,45 @@ TypeSpec *union_type_spec_intern(Vector *args)
     ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
     FINI_BUF(buf);
     return type_spec_intern(ts);
+}
+
+int match_sequence(TypeSpec *ts, TypeSpec **it_ts, TypeSpec **arg_ts)
+{
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    ASSERT(sym);
+
+    Vector *bases;
+
+    if (sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        Symbol *origin_sym = inst_sym->origin;
+        bases = inst_sym->bases;
+
+        if (!strcmp(origin_sym->name, "Sequence")) {
+            ASSERT(vector_size(inst_sym->tp_args) == 1);
+            if (it_ts) {
+                *it_ts = inst_sym->instance_ts;
+                log_info("Sequence itself type: %s", (*it_ts)->signature);
+            }
+            if (arg_ts) {
+                *arg_ts = vector_get(inst_sym->tp_args, 0);
+                ASSERT(!type_is_generic_var(*arg_ts));
+                log_info("Sequence argument type: %s", (*arg_ts)->signature);
+            }
+            return 1;
+        }
+    } else {
+        KlassSymbol *klass_sym = (KlassSymbol *)sym;
+        bases = &klass_sym->bases;
+    }
+
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, bases) {
+        if (!base_ts) continue;
+        if (match_sequence(base_ts, it_ts, arg_ts)) return 1;
+    }
+
+    return 0;
 }
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf)

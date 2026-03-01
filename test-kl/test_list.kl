@@ -1,39 +1,105 @@
 // RUN: koalac %s 2>&1 | filecheck %s
 
-let l = list[int]()
-l.append(1)
-l.append(2.0)
-// CHECK: argument type is not compatible.
+let l0 = []
+l0.append(1)
+l0.append(2.0)
+l0.append("hi")
 
-l[0] + 1
+l0[0] + 1
+// CHECK: operator '+' is not defined in type 'any'.
 
-l[0] = 3
+l0[1] + 1.0
+// CHECK: operator '+' is not defined in type 'any'.
 
-l[0] = true
-// CHECK: argument type is not compatible.
+l0[2] + "there"
+// CHECK: operator '+' is not defined in type 'any'.
 
-l["ok"] = true
-// CHECK: argument type is not compatible.
-// CHECK: argument type is not compatible.
+let l1 = [1, 2, 3]
+l1.append(4)
+l1.append(5)
+l1[0] = 0
+l1[0] + 1
+l1[0] = l1[0] + 1
+l1[0] = true
+// CHECK: Incompatible type: expected 'int64', but got 'bool'.
 
-let l2 = list[list[int]]()
-l2.append(100)
-// CHECK: argument type is not compatible.
+l1["ok"] = true
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+// CHECK: Incompatible type: expected 'int64', but got 'bool'.
 
-l2[0][1] = 200
+let l2 = list(1,2,3)
+l2[0] = 100
+l2[0] + 1
 
-let l3 = [1, 2, 3]
+let l3 = list(1)
+l3[0] = 100
+l3[0] + 1
 
-let l4 = [1, 2.0, "hi"]
-l4.append(3)
-l4.append("hello")
+let l4 = list()
+l4.append(1)
+l4.append(2.0)
+l4.append("hi")
+l4[0] + 1
+// CHECK: operator '+' is not defined in type 'any'.
 
-let l5 = []
-l5.append(1)
-l5.append(2.0)
-l5.append("hi")
+let l5 = [1, 2.0, "hi"]
+l5.append(3)
+l5.append("hello")
 
-let x = l5[0].as(int) + 1
+let l6 = list(l2!)
+l6[0] = 100
+l6[0] + 1
+l6.append(200)
+
+let l6_1 = list(100, l2!, 200)
+l6_1[0] = 100
+l6_1[0] + 1
+l6_1[1][0] = 100
+// CHECK: type 'int64' is not subscriptable (missing __setitem__)
+
+let l7 = list(l2)
+l7[0] = 100
+// CHECK: Incompatible type: expected 'list<j>', but got 'int64'.
+l7[0][1] = 200
+l7.append(list(4,5,6))
+l7[0] = list(10, 20)
+
+let l8 = list[int]()
+l8.append(1)
+l8.append(2.0)
+// CHECK: Incompatible type: expected 'int64', but got 'float64'.
+
+let l9 = list[int](1, 2.1)
+// CHECK: Incompatible type: expected 'int64', but got 'float64'.
+
+let l10 = list[list[int]]()
+l10.append(100)
+// CHECK: Incompatible type: expected 'list<j>', but got 'int64'.
+
+l10[0][1] = 200
+
+let l11 = list(list(1,2,3))
+l11[0][0] = 100
+
+let l12 list[int] = list(1, 2, 3)
+
+let l13 = list(100, "hi"!)
+l13[0] + 100
+// CHECK: operator '+' is not defined in type 'any'.
+
+let l14 = list((1,2,3), "hi"!)
+l14[0] + 100
+// CHECK: operator '+' is not defined in type 'any'.
+l14[0][0] = 100
+// CHECK: type 'any' is not subscriptable (missing __setitem__)
+
+let l15 = list(("hi", "ok")!, "hi"!)
+
+l15[0] = "hello"
+l15[0][0] = "h"
+// CHECK: type 'str' is not subscriptable (missing __setitem__)
+
+// let x = l5[0].as(int) + 1
 
 // 123.as(any)
 // 456.as(Number[int])
@@ -41,10 +107,9 @@ let x = l5[0].as(int) + 1
 // 100.is(int)
 // 200.is(float)
 
-// let l6 = list[int](1, 2.1)
-
-// let l7 = list(1,2,3)
-
-// let l8 = list[int]()
+let s = "hello"
+let c = s[0][0][0][0]
+s[0] = "H"
+// CHECK: type 'str' is not subscriptable (missing __setitem__)
 
 // CHECK-NOT: {{.}}

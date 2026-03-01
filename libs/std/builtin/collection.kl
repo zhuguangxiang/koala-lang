@@ -22,41 +22,66 @@ pub trait Collection[T] : Iterable[T] {
     func empty() bool
 }
 
-/// A Seq is an ordered collection (also known as a sequence).
-/// Provides index-based access and slicing.
-pub trait Seq[T] : Collection[T] {
-    /// Return True if the sequence contains the specified value.
-    func __contains__(v T) bool
+// A Sequence is a read-only, indexable collection of elements.
+///
+/// This trait is the standard internal type for variadic arguments (...T).
+/// It provides random access and searching capabilities without modification.
+pub trait Sequence[T] : Collection[T] {
 
-    /// Get the item at the specified index. Raise IndexError if out of range.
+    /// Get the item at the specified index.
+    ///
+    /// PRECONDITION: 0 <= index < __len__().
+    /// Raising an IndexError (Panic) if the index is out of range.
     func __getitem__(index int) T
 
-    /// Set the item at the specified index to value.
+    /// Return a shallow copy of a portion of the sequence defined by the range.
+    func __getslice__(r range) Sequence[T]
+
+    /// Return True if the sequence contains the specified value `v`.
+    /// This is typically an O(n) operation.
+    func __contains__(v T) bool
+
+    /// Return the first index of `value`.
+    /// Raise ValueError (Panic) if the value is not present.
+    func index(value T) int
+
+    /// Return the number of occurrences of `value` in the sequence.
+    func count(value T) int
+}
+
+/// A MutableSequence is an ordered collection that supports modification.
+///
+/// It extends the Sequence trait by adding methods to update, insert,
+/// and remove elements, such as those found in a dynamic list.
+pub trait MutableSequence[T] : Sequence[T] {
+    /// Set the item at the specified index to `value`.
+    ///
+    /// PRECONDITION: 0 <= index < __len__().
     func __setitem__(index int, value T)
 
-    /// Return a shallow copy of a portion of the sequence defined by the range.
-    func __getslice__(r range) Seq[T]
-
-    /// Replace a slice of the sequence with elements from the iterable.
+    /// Replace a slice of the sequence with elements from the iterable `val`.
+    /// This may change the length of the sequence.
     func __setslice__(r range, val Iterable[T])
 
-    /// Concatenate this sequence with another sequence of the same type.
+    /// Append a new item with `value` to the end of the sequence.
     func append(value T)
 
-    /// Extend the sequence by appending all items from the iterable.
+    /// Extend the sequence by appending all items from the iterable `items`.
     func extend(items Iterable[T])
 
-    /// Insert a new item with value at a given position.
+    /// Insert a new item with `value` at the given `index`.
+    /// Elements at or after the index are shifted to the right.
     func insert(index int, value T)
 
-    /// Remove the first item from the sequence whose value is equal to v.
+    /// Remove the first occurrence of `value` from the sequence.
+    /// Raise ValueError (Panic) if the value is not present.
     func remove(value T)
 
-    /// Remove and return the item at the given position in the sequence.
-    /// If no index is specified, removes and returns the last item.
+    /// Remove and return the item at the given `index`.
+    /// If no index is specified, removes and returns the last item (-1).
     func pop(index int = -1) T
 
-    /// Remove all items from the sequence.
+    /// Remove all items from the sequence, leaving it empty.
     func clear()
 }
 
@@ -73,13 +98,13 @@ pub trait Map[K, V] : Collection[(K, V)] {
     func __setsub__(key K, value V)
 
     /// Return a dynamic view of all keys in the map.
-    func keys() Seq[K]
+    func keys() Sequence[K]
 
     /// Return a dynamic view of all values in the map.
-    func values() Seq[V]
+    func values() Sequence[V]
 
     /// Return a dynamic view of all key-value pairs (tuples) in the map.
-    func items() Seq[(K, V)]
+    func items() Sequence[(K, V)]
 
     /// Remove the mapping for a key from this map if it is present.
     /// Raise Exception if key is not present.

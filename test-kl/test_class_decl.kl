@@ -68,7 +68,7 @@ let r = b1.hello("world")
 let r2 = r.fly()
 let r3 = r.swim(200)
 let r3_1 = r.swim("test")
-// CHECK-NEXT: argument type is not compatible.
+// CHECK-NEXT: Incompatible type: expected 'int64', but got 'str'.
 
 let fly Fly = r
 let r4 = fly.fly()
@@ -76,7 +76,7 @@ let r4 = fly.fly()
 let swim Swim[int] = r
 let r5 = swim.swim(300)
 let r6 = swim.swim("hello")
-// CHECK-NEXT: argument type is not compatible.
+// CHECK-NEXT: Incompatible type: expected 'int64', but got 'str'.
 
 class Baz3 : Fly & Swim[int] {
 }

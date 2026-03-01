@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub class list[T] : Seq[T] {
+pub class list[T] : MutableSequence[T] {
 
     @native(kl_list_init)
     pub func __init__(args ...T) {}
@@ -27,7 +27,7 @@ pub class list[T] : Seq[T] {
     pub func __contains__(v T) bool {}
 
     @native(kl_list_concat)
-    pub func __concat__(seq Seq[T]) list[T] {}
+    pub func __concat__(seq Sequence[T]) list[T] {}
 
     @native(kl_list_append)
     pub func append(item T) {}

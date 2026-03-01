@@ -145,6 +145,23 @@ static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIO
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
 static inline int type_is_valist(TypeSpec *ts) { return ts->kind == TYPE_VA_LIST; }
 static inline int type_is_int(TypeSpec *ts) { return ts->kind == TYPE_INT; }
+static inline int type_is_any(TypeSpec *ts) { return ts->kind == TYPE_ANY; }
+static inline int type_is_str(TypeSpec *ts) { return ts->kind == TYPE_STR; }
+static inline int type_is_float(TypeSpec *ts) { return ts->kind == TYPE_FLOAT; }
+static inline int type_is_type(TypeSpec *ts) { return ts->kind == TYPE_TYPE; }
+static inline int type_is_union(TypeSpec *ts) { return ts->kind == TYPE_UNION; }
+static inline int type_is_generic_var(TypeSpec *ts)
+{
+    return ts->kind == TYPE_GENERIC_VAR;
+}
+static inline int type_is_generic_ref(TypeSpec *ts)
+{
+    return ts->kind == TYPE_GENERIC_REF;
+}
+static inline int type_is_klass(TypeSpec *ts) { return ts->kind == TYPE_KLASS; }
+static inline int type_is_proto(TypeSpec *ts) { return ts->kind == TYPE_PROTO; }
+
+int match_sequence(TypeSpec *ts, TypeSpec **it_ts, TypeSpec **arg_ts);
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);

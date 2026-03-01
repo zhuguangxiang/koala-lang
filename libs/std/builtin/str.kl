@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub class str : Seq[str] {
+pub class str : Sequence[str] {
 
     @native(kl_str_len)
     pub func __len__() int {}
@@ -12,7 +12,7 @@ pub class str : Seq[str] {
     pub func __getitem__(index any) str {}
 
     @native(kl_str_concat)
-    pub func __concat__(seq Seq[str]) str {}
+    pub func __concat__(seq Sequence[str]) str {}
 
     @native(kl_str_repeat)
     pub func __repeat__(count int) str {}

@@ -60,7 +60,7 @@ func process_nest(data ( (int, int), float )) {
     x + 1
     y + 1
     z + 1
-// CHECK: argument type mismatch for operator '+'.
+// CHECK: argument type mismatch for operator '+' of type 'float64'.
 }
 
 // CHECK-NOT: {{.}}

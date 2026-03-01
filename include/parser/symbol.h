@@ -216,7 +216,15 @@ void *get_symbol_by_id(int id);
 
 PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path, HashMap *_stbl);
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
-TypeSpec *infer_types_parent(Vector *types);
+
+/*
+Find the Least Upper Bound (LUB) for a set of types.
+Example: LUB([int, float, int]) -> number
+         LUB([list[int], tuple[int], range]) -> Sequence[int]
+         LUB([int, str]) -> any
+         LUB([]) -> any
+*/
+TypeSpec *find_lub(Vector *types);
 
 #ifdef __cplusplus
 }

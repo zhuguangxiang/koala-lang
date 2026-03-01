@@ -1,0 +1,77 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+class B[K, V, T] {
+    var f1 K
+    var f2 str
+    var f3 V
+    var f4 T
+    func __init__(v K, v2 str, v3 V, args ...T) {}
+}
+
+let b = B(100, "hello", 3.14, true, "hi", 123)
+b.f1 + 1
+b.f2 + " world"
+b.f3 + 1
+// CHECK: argument type mismatch for operator '+' of type 'float64'.
+b.f4 = 100
+
+
+let b1 = B(100, "hello", 3.14, true)
+b1.f4 + 1
+// CHECK: operator '+' is not defined in type 'bool'
+
+
+let b2 = B[int, float, str](100, "hello", 3.14, "hi", "james")
+b2.f4 + "ok"
+
+let b3 = B(100, "hello", 3.14)
+// CHECK: cannot infer type parameter 'T' for class 'B'.
+// CHECK: failed to infer type parameters for class 'B'.
+
+let b4 = B()
+// CHECK: too few arguments in function call.
+
+class A[K, T] {
+    var f1 K
+    var f2 T
+    func __init__(v1 int, v2 K, v3 str, v4 ...T, v5 = 1, v6 = true) {}
+}
+
+let a = A(100, 200, "hello")
+// CHECK: cannot infer type parameter 'T' for class 'A'.
+// CHECK: failed to infer type parameters for class 'A'.
+
+let a1 = A(100, 200, "hello", true)
+a1.f1 + 100
+a1.f2 + 100
+// CHECK: operator '+' is not defined in type 'bool'.
+
+let a2 = A(100, 200, "hello", true, 1)
+a2.f1 + 100
+a2.f2 + 100
+// CHECK: operator '+' is not defined in type 'any'.
+
+let a3 = A(100, 200, "hello", true, 1, v6 = 1)
+// CHECK: Incompatible type: expected 'bool', but got 'int64'.
+
+let a4 = A(100, 200, "hello", true, 1, v6 = false)
+a4.f1 + 100
+a4.f2 + 100
+// CHECK: operator '+' is not defined in type 'any'.
+
+let l = [1,2,3]
+let a5 = A(100, 200, "hello", l, v5 = 1, v6 = false)
+a5.f2[0] = 100
+
+let a6 = A(100, 200, "hello", l!, v5 = 1, v6 = false)
+a6.f2[0] = 100
+// CHECK: type 'int64' is not subscriptable (missing __setitem__)
+
+let a7 = A()
+// CHECK: too few arguments in function call.
+
+let a8 = A(100, 200, true)
+// CHECK: Incompatible type: expected 'str', but got 'bool'.
+// CHECK: failed to infer type parameters for class 'A'.
+
+// CHECK-NOT: {{.}}
