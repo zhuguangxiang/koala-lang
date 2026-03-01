@@ -539,18 +539,25 @@ Stmt *stmt_from_while_let(Ident *id, Expr *cond, Vector *block);
 typedef struct _KlassStmt {
     STMT_HEAD
     Ident id;
+    TypeSpec *ts;
     Symbol *sym;
     Vector *tps;
     Vector *bases;
     Vector *stmts;
 } KlassDeclStmt;
 
-Stmt *stmt_from_type(StmtKind kind, Ident id, Vector *tps, Vector *bases, Vector *stmts);
+typedef struct _KlassName {
+    Ident id;
+    TypeSpec *ts;
+} KlassName;
 
-#define stmt_from_klass(id, tps, bases, stmts) \
-    stmt_from_type(STMT_CLASS_KIND, id, tps, bases, stmts)
-#define stmt_from_trait(id, tps, bases, stmts) \
-    stmt_from_type(STMT_TRAIT_KIND, id, tps, bases, stmts)
+Stmt *stmt_from_type(StmtKind kind, KlassName name, Vector *tps, Vector *bases,
+                     Vector *stmts);
+
+#define stmt_from_klass(name, tps, bases, stmts) \
+    stmt_from_type(STMT_CLASS_KIND, name, tps, bases, stmts)
+#define stmt_from_trait(name, tps, bases, stmts) \
+    stmt_from_type(STMT_TRAIT_KIND, name, tps, bases, stmts)
 
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_continue(void);

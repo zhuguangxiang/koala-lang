@@ -556,11 +556,13 @@ Stmt *stmt_from_expr(Expr *exp)
     return (Stmt *)s;
 }
 
-Stmt *stmt_from_type(StmtKind kind, Ident id, Vector *tps, Vector *bases, Vector *stmts)
+Stmt *stmt_from_type(StmtKind kind, KlassName name, Vector *tps, Vector *bases,
+                     Vector *stmts)
 {
     KlassDeclStmt *s = mm_alloc_obj(s);
     s->kind = kind;
-    s->id = id;
+    s->id = name.id;
+    s->ts = name.ts;
     s->tps = tps;
     s->bases = bases;
     s->stmts = stmts;

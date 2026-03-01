@@ -1646,11 +1646,11 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls,
     }
 
     // add typespec to klass symbol
-    TypeSpec *ts = klass_type_spec(NULL, kls->id.name);
-    kls_sym->instance_ts = ts;
-    ts->sym_id = kls_sym->id;
+    kls_sym->instance_ts = kls->ts;
+    ASSERT(kls->ts->sym_id < 0);
+    kls->ts->sym_id = kls_sym->id;
 
-    ts = type_type_spec();
+    TypeSpec *ts = type_type_spec();
     kls_sym->ts = ts;
 
     kls->sym = sym;
@@ -1777,36 +1777,7 @@ static KlassSymbol *_get_base_sym(TypeSpec *base_ts)
     return base_sym;
 }
 
-/* compute primary inheritance path */
-static void compute_pip(KlassSymbol *sym)
-{
-    Vector *pip = &sym->pip;
-    if (vector_size(pip) > 0) return;
-
-    TypeSpec *base_ts = vector_get(&sym->bases, 0);
-    if (!base_ts) {
-        // add itself
-        vector_push_back(pip, &sym->instance_ts);
-        return;
-    }
-
-    KlassSymbol *base_sym = _get_base_sym(base_ts);
-
-    // compute base's pip first
-    compute_pip(base_sym);
-
-    // inherit from base's pip
-    TypeSpec *ts;
-    vector_foreach(ts, &base_sym->pip) {
-        if (!ts) continue;
-        vector_push_back(pip, &ts);
-    }
-
-    // add itself
-    vector_push_back(pip, &sym->instance_ts);
-}
-
-static int type_in_vec(Vector *vec, TypeSpec *ts)
+static int type_exists(Vector *vec, TypeSpec *ts)
 {
     TypeSpec *existing_ts;
     vector_foreach(existing_ts, vec) {
@@ -1816,6 +1787,55 @@ static int type_in_vec(Vector *vec, TypeSpec *ts)
         }
     }
     return 0;
+}
+
+/* compute primary inheritance path */
+static void compute_pip(KlassSymbol *sym)
+{
+    Vector *pip = &sym->pip;
+    if (vector_size(pip) > 0) return;
+
+    TypeSpec *any_ts;
+
+    TypeSpec *base_ts = vector_get(&sym->bases, 0);
+    if (!base_ts) {
+        any_ts = any_type_spec();
+        if (!type_exists(pip, any_ts)) {
+            vector_push_back(pip, &any_ts);
+        }
+        // add itself
+        if (!type_exists(pip, sym->instance_ts)) {
+            vector_push_back(pip, &sym->instance_ts);
+        }
+        return;
+    }
+
+    KlassSymbol *base_sym = _get_base_sym(base_ts);
+
+    // compute base's pip first
+    compute_pip(base_sym);
+
+    any_ts = any_type_spec();
+    if (!type_exists(pip, any_ts)) {
+        vector_push_back(pip, &any_ts);
+    }
+
+    // inherit from base's pip
+    TypeSpec *ts;
+    vector_foreach(ts, &base_sym->pip) {
+        if (!ts) continue;
+        // skip any type in pip
+        if (type_is_any(ts)) continue;
+
+        if (!type_exists(pip, ts)) {
+            vector_push_back(pip, &ts);
+        }
+    }
+
+    // add itself
+    if (!type_exists(pip, sym->instance_ts)) {
+        vector_push_back(pip, &sym->instance_ts);
+    }
 }
 
 static void compute_lro(KlassSymbol *sym)
@@ -1833,6 +1853,9 @@ static void compute_lro(KlassSymbol *sym)
         compute_lro(base_sym);
     }
 
+    TypeSpec *any_ts = any_type_spec();
+    vector_push_back(lro, &any_ts);
+
     vector_foreach(base_ts, &sym->bases) {
         if (!base_ts) continue;
 
@@ -1844,14 +1867,16 @@ static void compute_lro(KlassSymbol *sym)
             if (!ts) continue;
 
             // check duplication
-            if (!type_in_vec(lro, ts)) {
+            if (!type_exists(lro, ts)) {
                 vector_push_back(lro, &ts);
             }
         }
     }
 
     // add self
-    vector_push_back(lro, &sym->instance_ts);
+    if (!type_exists(lro, sym->instance_ts)) {
+        vector_push_back(lro, &sym->instance_ts);
+    }
 }
 
 static void compute_scm(KlassSymbol *sym)
@@ -1863,7 +1888,7 @@ static void compute_scm(KlassSymbol *sym)
     vector_foreach(base_ts, &sym->lro) {
         if (!base_ts) continue;
 
-        if (!type_in_vec(&sym->pip, base_ts)) {
+        if (!type_exists(&sym->pip, base_ts)) {
             vector_push_back(scm, &base_ts);
         }
     }
