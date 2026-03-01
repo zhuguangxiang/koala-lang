@@ -20,7 +20,7 @@
 static int semicolon(ParserState *ps)
 {
     static int tokens[] = {
-        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID,
+        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF,
         TRUE, FALSE, UINT8, UINT16, UINT32, UINT64, INT8, INT16, INT32, INT64,
         FLOAT16, FLOAT32, FLOAT64, BFLOAT16, STRING, BOOL, ANY,
         RETURN, BREAK, CONTINUE, ')', ']', '}', '?',
@@ -222,6 +222,7 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 "pub"       { YY_RETURN(PUBLIC);    }
 "infer"     { YY_RETURN(INFER);     }
 
+"self"      { YY_RETURN(SELF);      }
 "true"      { YY_RETURN(TRUE);      }
 "false"     { YY_RETURN(FALSE);     }
 "null"      { YY_RETURN(NONE);      }

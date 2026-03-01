@@ -35,7 +35,7 @@ pub class range : Sequence[int] {
     }
 
     /// Return a new range that is a sub-slice of the current range. O(1).
-    func __getslice__(r range) Sequence[int] {
+    func __getslice__(r slice) range {
         // Returns a new range object with adjusted start/stop/step
     }
 

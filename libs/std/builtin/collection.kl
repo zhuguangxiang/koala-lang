@@ -34,8 +34,8 @@ pub trait Sequence[T] : Collection[T] {
     /// Raising an IndexError (Panic) if the index is out of range.
     func __getitem__(index int) T
 
-    /// Return a shallow copy of a portion of the sequence defined by the range.
-    func __getslice__(r range) Sequence[T]
+    /// Return a shallow copy of a portion of the sequence defined by the slice.
+    func __getslice__(r slice) Sequence[T]
 
     /// Return True if the sequence contains the specified value `v`.
     /// This is typically an O(n) operation.
@@ -61,7 +61,7 @@ pub trait MutableSequence[T] : Sequence[T] {
 
     /// Replace a slice of the sequence with elements from the iterable `val`.
     /// This may change the length of the sequence.
-    func __setslice__(r range, val Iterable[T])
+    func __setslice__(r slice, val Iterable[T])
 
     /// Append a new item with `value` to the end of the sequence.
     func append(value T)

@@ -218,6 +218,22 @@ static Symbol *get_current_klass(ParserState *ps)
     return NULL;
 }
 
+static void parse_self(ParserState *ps, Expr *exp)
+{
+    ASSERT(exp->ctx == EXPR_CTX_LOAD);
+
+    Symbol *sym = get_current_klass(ps);
+    if (!sym || sym->kind != SYM_CLASS) {
+        kl_error(exp->loc, "'self' can only be used in class.");
+        return;
+    }
+
+    exp->ts = ((KlassSymbol *)sym)->instance_ts;
+    exp->sym = sym;
+    log_info("'self' resolved as class '%s'", sym->name);
+    log_type_spec(exp->ts);
+}
+
 static void parse_list(ParserState *ps, Expr *exp)
 {
     ListExpr *list_exp = (ListExpr *)exp;
@@ -244,6 +260,8 @@ static void parse_list(ParserState *ps, Expr *exp)
 
     exp->ts = inst_sym->instance_ts;
     exp->sym = (Symbol *)inst_sym;
+    vector_destroy(tp_args);
+
     log_info("list type resolved:");
     log_type_spec(exp->ts);
 }
@@ -1192,6 +1210,7 @@ static void parse_dot(ParserState *ps, Expr *exp)
 static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
 {
     Expr *lhs = index->lhs;
+
     Symbol *__fn_sym = stbl_get(lhs_sym->stbl, "__getitem__");
 
     if (lhs_sym->kind == SYM_INSTANCE) {
@@ -1336,6 +1355,68 @@ static void parse_index_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
     log_type_spec(index->ts);
 }
 
+static void parse_slice_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
+{
+    Expr *lhs = index->lhs;
+
+    Symbol *__fn_sym = stbl_get(lhs_sym->stbl, "__getslice__");
+
+    if (lhs_sym->kind == SYM_INSTANCE) {
+        if (!__fn_sym) {
+            // try to find __getslice__ from origin klass
+            InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
+            KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+            __fn_sym = stbl_get(origin->stbl, "__getslice__");
+            if (!__fn_sym) {
+                kl_error(lhs->loc,
+                         "type '%s' is not subscriptable (missing __getslice__)",
+                         lhs_sym->name);
+                return;
+            }
+
+            // params
+            Vector *inst_params = build_instance_params(((FuncSymbol *)__fn_sym)->params,
+                                                        origin, inst_sym, ps);
+            // return
+            TypeSpec *ret_ts =
+                instance_type_spec(((FuncSymbol *)__fn_sym)->ret, origin, inst_sym, ps);
+
+            // create function symbol for instance __getslice__
+            Symbol *inst_fn_sym = stbl_add_func(lhs_sym->stbl, "__getslice__", ret_ts,
+                                                inst_params, __fn_sym->flags);
+
+            // copy __getslice__'s tps to instance __getslice__
+            copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
+            TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
+            inst_fn_sym->ts = fn_ts;
+            inst_fn_sym->parent = inst_sym;
+            __fn_sym = inst_fn_sym;
+        }
+    } else if (lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_TRAIT) {
+        // do nothing, __getslice__ is defined on class/trait type itself, no need to
+        // create new symbol for it.
+    } else {
+        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getslice__)",
+                 lhs_sym->name);
+        return;
+    }
+
+    if (!__fn_sym) {
+        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getslice__)",
+                 lhs_sym->name);
+        return;
+    }
+
+    FuncSymbol *fn_sym = (FuncSymbol *)__fn_sym;
+
+    index->ts = fn_sym->ret;
+    index->sym = get_symbol_by_id(index->ts->sym_id);
+    check_call_args(fn_sym->params, index->vec, ps, lhs->loc);
+
+    log_info("index load resolved to __getslice__:");
+    log_type_spec(index->ts);
+}
+
 static void parse_index_new_type(ParserState *ps, IndexExpr *index)
 {
     Expr *lhs = index->lhs;
@@ -1422,6 +1503,11 @@ static void parse_index(ParserState *ps, Expr *exp)
         return;
     }
 
+    if (vector_size(index->vec) != 1) {
+        kl_error(lhs->loc, "only single index is supported.");
+        return;
+    }
+
     Expr *arg;
     vector_foreach(arg, index->vec) {
         if (!arg) continue;
@@ -1434,22 +1520,79 @@ static void parse_index(ParserState *ps, Expr *exp)
         TypeSpec *ts = lhs->sym->ts;
         Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
         if (index->ctx == EXPR_CTX_LOAD) {
-            parse_index_load(ps, ts_sym, index);
+            if (arg->kind == EXPR_SLICE_KIND) {
+                parse_slice_load(ps, ts_sym, index);
+            } else {
+                parse_index_load(ps, ts_sym, index);
+            }
         } else if (index->ctx == EXPR_CTX_STORE) {
-            parse_index_store(ps, ts_sym, index);
+            if (arg->kind == EXPR_SLICE_KIND) {
+                // parse_slice_store(ps, ts_sym, index);
+            } else {
+                parse_index_store(ps, ts_sym, index);
+            }
         } else {
             ASSERT(index->ctx == EXPR_CTX_LOAD_STORE);
         }
     } else {
         Symbol *lhs_sym = lhs->sym;
         if (index->ctx == EXPR_CTX_LOAD) {
-            parse_index_load(ps, lhs_sym, index);
+            if (arg->kind == EXPR_SLICE_KIND) {
+                parse_slice_load(ps, lhs_sym, index);
+            } else {
+                parse_index_load(ps, lhs_sym, index);
+            }
         } else if (index->ctx == EXPR_CTX_STORE) {
-            parse_index_store(ps, lhs_sym, index);
+            if (arg->kind == EXPR_SLICE_KIND) {
+                // parse_slice_store(ps, lhs_sym, index);
+            } else {
+                parse_index_store(ps, lhs_sym, index);
+            }
         } else {
             ASSERT(index->ctx == EXPR_CTX_LOAD_STORE);
         }
     }
+}
+
+static void parse_slice(ParserState *ps, Expr *exp)
+{
+    SliceExpr *slice = (SliceExpr *)exp;
+
+    Expr *start = slice->start;
+    if (start) {
+        start->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, start);
+        if (!start->ts) return;
+        if (start->ts->kind != TYPE_INT) {
+            kl_error(start->loc, "slice start index must be of int type.");
+            return;
+        }
+    }
+
+    Expr *stop = slice->stop;
+    if (stop) {
+        stop->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, stop);
+        if (!stop->ts) return;
+        if (stop->ts->kind != TYPE_INT) {
+            kl_error(stop->loc, "slice stop index must be of int type.");
+            return;
+        }
+    }
+
+    Expr *step = slice->step;
+    if (step) {
+        step->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, step);
+        if (!step->ts) return;
+        if (step->ts->kind != TYPE_INT) {
+            kl_error(step->loc, "slice step index must be of int type.");
+            return;
+        }
+    }
+
+    exp->ts = klass_type_spec(NULL, "slice");
+    exp->sym = get_symbol_by_id(exp->ts->sym_id);
 }
 
 static char *get_binary_op_name(BiOpKind op)
@@ -1928,12 +2071,14 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_ID_KIND]      = parse_ident,
         [EXPR_UNDER_KIND]   = parse_under,
         [EXPR_LITERAL_KIND] = parse_literal,
+        [EXPR_SELF_KIND]    = parse_self,
         [EXPR_LIST_KIND]    = parse_list,
         [EXPR_TUPLE_KIND]   = parse_tuple,
         [EXPR_TYPE_KIND]    = parse_type,
         [EXPR_CALL_KIND]    = parse_call,
         [EXPR_DOT_KIND]     = parse_dot,
         [EXPR_INDEX_KIND]   = parse_index,
+        [EXPR_SLICE_KIND]   = parse_slice,
         [EXPR_UNARY_KIND]   = parse_unary,
         [EXPR_BINARY_KIND]  = parse_binary,
         [EXPR_KW_KIND]      = parse_keyword,

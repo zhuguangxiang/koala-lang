@@ -7,4 +7,8 @@ let s = slice(0, 10, 1)
 s[0]
 // CHECK: type 'slice' is not subscriptable (missing __getitem__)
 
+let l = [1, 2, 3]
+
+l[0:2].append(4)
+
 // CHECK-NOT: {{.}}

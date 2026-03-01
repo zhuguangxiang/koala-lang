@@ -137,6 +137,13 @@ Expr *expr_from_under(void)
     return exp;
 }
 
+Expr *expr_from_self(void)
+{
+    Expr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_SELF_KIND;
+    return exp;
+}
+
 Expr *expr_from_is_expr(Expr *exp, Loc op_loc, TypeSpec *type)
 {
     IsExpr *e = mm_alloc_obj(e);
@@ -313,7 +320,19 @@ static void lit_expr_free(Expr *exp)
 }
 
 static void self_expr_free(Expr *exp) { mm_free(exp); }
-static void list_expr_free(Expr *exp) { mm_free(exp); }
+
+static void list_expr_free(Expr *exp)
+{
+    ListExpr *list = (ListExpr *)exp;
+    Expr *e;
+    vector_foreach(e, list->vec) {
+        if (!e) continue;
+        expr_free(e);
+    }
+    vector_destroy(list->vec);
+    mm_free(exp);
+}
+
 static void map_expr_free(Expr *exp) { mm_free(exp); }
 static void map_entry_expr_free(Expr *exp) { mm_free(exp); }
 static void tuple_expr_free(Expr *exp) { mm_free(exp); }
@@ -356,7 +375,14 @@ static void index_expr_free(Expr *exp)
     mm_free(exp);
 }
 
-static void slice_expr_free(Expr *exp) { mm_free(exp); }
+static void slice_expr_free(Expr *exp)
+{
+    SliceExpr *slice = (SliceExpr *)exp;
+    expr_free(slice->start);
+    expr_free(slice->stop);
+    expr_free(slice->step);
+    mm_free(exp);
+}
 
 static void unary_expr_free(Expr *exp)
 {
@@ -404,6 +430,7 @@ void expr_free(Expr *exp)
         [EXPR_ID_KIND] = ident_expr_free,
         [EXPR_UNDER_KIND] = under_expr_free,
         [EXPR_LITERAL_KIND] = lit_expr_free,
+        [EXPR_SELF_KIND] = self_expr_free,
         [EXPR_LIST_KIND] = list_expr_free,
         [EXPR_MAP_KIND] = map_expr_free,
         [EXPR_MAP_ENTRY_KIND] = map_entry_expr_free,

@@ -18,10 +18,10 @@ pub class list[T] : MutableSequence[T] {
     pub func __setitem__(index int, value T) {}
 
     @native(kl_list_get_slice)
-    pub func __getslice__(r range) list[T] {}
+    pub func __getslice__(r slice) list[T] {}
 
     @native(kl_list_set_slice)
-    pub func __setslice__(r range, val Iterable[T]) {}
+    pub func __setslice__(r slice, val Iterable[T]) {}
 
     @native(kl_list_contains)
     pub func __contains__(v T) bool {}

@@ -54,6 +54,7 @@ typedef enum _ExprKind {
     EXPR_ID_KIND,
     EXPR_UNDER_KIND,
     EXPR_LITERAL_KIND,
+    EXPR_SELF_KIND,
     EXPR_LIST_KIND,
     EXPR_MAP_KIND,
     EXPR_MAP_ENTRY_KIND,
@@ -139,6 +140,7 @@ typedef struct _IdentExpr {
 #define IDENT(name, s, l) Ident name = { s, l, 0, NULL }
 Expr *expr_from_ident(Ident *id);
 Expr *expr_from_under(void);
+Expr *expr_from_self(void);
 
 typedef struct _IsExpr {
     EXPR_HEAD

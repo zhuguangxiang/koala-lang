@@ -123,6 +123,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token PUBLIC
 %token INFER
 
+%token SELF
 %token TRUE
 %token FALSE
 %token NONE
@@ -2980,6 +2981,11 @@ atom
     | NONE
     {
         $$ = expr_from_lit_none();
+        expr_set_loc($$, loc(@1));
+    }
+    | SELF
+    {
+        $$ = expr_from_self();
         expr_set_loc($$, loc(@1));
     }
     | PANIC '(' expr ')'
