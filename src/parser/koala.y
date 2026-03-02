@@ -97,7 +97,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
     Ident ident;
     TypeParamDecl *tpval;
     ParamDecl *param;
-    KlassName kls_name;
+    IdentType kls_name;
 }
 
 %token FROM
@@ -269,6 +269,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<vec> tp_decl_list
 %type<vec> call_arg_list
 %type<vec> call_kw_arg_list
+%type<vec> id_list
 
 %token<sval> ID
 %token<ival> INT_LITERAL
@@ -467,7 +468,7 @@ top_stmt
     }
     | for_stmt
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | match_stmt
     {
@@ -1438,7 +1439,7 @@ class_decl
 
         Ident id = {"tuple", loc(@2)};
         TypeSpec *ts = klass_type_spec(NULL, "tuple");
-        KlassName klass_name = {id, ts};
+        IdentType klass_name = {id, ts};
         $$ = stmt_from_klass(klass_name, tp_list, $7, $9);
         stmt_set_loc($$, lloc(@1, @9));
     }
@@ -1449,121 +1450,121 @@ class_name
     {
         Ident id = {$1, loc(@1)};
         TypeSpec *ts = klass_type_spec(NULL, $1);
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | UINT8
     {
         Ident id = {"uint8", loc(@1)};
         TypeSpec *ts = uint8_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | UINT16
     {
         Ident id = {"uint16", loc(@1)};
         TypeSpec *ts = uint16_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | UINT32
     {
         Ident id = {"uint32", loc(@1)};
         TypeSpec *ts = uint32_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | UINT64
     {
         Ident id = {"uint64", loc(@1)};
         TypeSpec *ts = uint64_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | INT8
     {
         Ident id = {"int8", loc(@1)};
         TypeSpec *ts = int8_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | INT16
     {
         Ident id = {"int16", loc(@1)};
         TypeSpec *ts = int16_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | INT32
     {
         Ident id = {"int32", loc(@1)};
         TypeSpec *ts = int32_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | INT64
     {
         Ident id = {"int64", loc(@1)};
         TypeSpec *ts = int64_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | FLOAT16
     {
         Ident id = {"float16", loc(@1)};
         TypeSpec *ts = float16_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | FLOAT32
     {
         Ident id = {"float32", loc(@1)};
         TypeSpec *ts = float32_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | FLOAT64
     {
         Ident id = {"float64", loc(@1)};
         TypeSpec *ts = float64_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | BFLOAT16
     {
         Ident id = {"bfloat16", loc(@1)};
         TypeSpec *ts = bfloat16_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | STRING
     {
         Ident id = {"str", loc(@1)};
         TypeSpec *ts = str_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | LIST
     {
         Ident id = {"list", loc(@1)};
         TypeSpec *ts = klass_type_spec(NULL, "list");
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | MAP
     {
         Ident id = {"dict", loc(@1)};
         TypeSpec *ts = klass_type_spec(NULL, "dict");
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | SET
     {
         Ident id = {"set", loc(@1)};
         TypeSpec *ts = klass_type_spec(NULL, "set");
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | RANGE
     {
         Ident id = {"range", loc(@1)};
         TypeSpec *ts = klass_type_spec(NULL, "range");
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | TYPE
     {
         Ident id = {"type", loc(@1)};
         TypeSpec *ts = type_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | BOOL
     {
         Ident id = {"bool", loc(@1)};
         TypeSpec *ts = bool_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     ;
 
@@ -1817,13 +1818,13 @@ trait_name
     {
         Ident id = {$1, loc(@1)};
         TypeSpec *ts = klass_type_spec(NULL, $1);
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     | ANY
     {
         Ident id = {"any", loc(@1)};
         TypeSpec *ts = any_type_spec();
-        $$ = (KlassName){id, ts};
+        $$ = (IdentType){id, ts};
     }
     ;
 
@@ -1977,7 +1978,7 @@ local
     }
     | for_stmt
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | match_stmt
     {
@@ -2166,17 +2167,29 @@ while_stmt
 for_stmt
     : FOR id_list IN expr block
     {
-
+        $$ = stmt_from_for($2, $4, $5);
+        stmt_set_loc($$, lloc(@1, @5));
     }
     | FOR '(' id_list ')' IN expr block
     {
-
+        $$ = stmt_from_for($3, $6, $7);
+        stmt_set_loc($$, lloc(@1, @7));
     }
     ;
 
 id_list
     : ID
+    {
+        Ident id = {$1, loc(@1)};
+        $$ = vector_create(sizeof(Ident));
+        vector_push_back($$, &id);
+    }
     | id_list ',' ID
+    {
+        $$ = $1;
+        Ident id = {$3, loc(@3)};
+        vector_push_back($$, &id);
+    }
     ;
 
 match_stmt

@@ -1491,6 +1491,83 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     }
 }
 
+static void parse_for(ParserState *ps, Stmt *stmt)
+{
+    ForStmt *s = (ForStmt *)stmt;
+    Vector *ids = s->ids;
+    Expr *it = s->iterable;
+
+    it->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, it);
+    if (!it->ts) return;
+
+    TypeSpec *elem_ts = NULL;
+
+    if (type_is_tuple(it->ts)) {
+        // special handling for tuple unpacking
+        elem_ts = it->ts;
+    } else {
+        match_iterable(it->ts, NULL, &elem_ts);
+        if (!elem_ts) {
+            kl_error(it->loc, "type '%s' is not iterable", it->ts->signature);
+            return;
+        }
+    }
+
+    Vector locals;
+    vector_init(&locals, sizeof(IdentType));
+
+    if (vector_size(ids) > 1) {
+        Symbol *elem_sym = get_symbol_by_id(elem_ts->sym_id);
+
+        if (elem_sym->kind == SYM_INSTANCE) {
+            InstanceSymbol *inst_sym = (InstanceSymbol *)elem_sym;
+            Symbol *origin_sym = inst_sym->origin;
+            if (!strcmp(origin_sym->name, "tuple")) {
+                // special handling for tuple unpacking
+                if (vector_size(ids) != vector_size(inst_sym->tp_args)) {
+                    kl_error(
+                        it->loc,
+                        "num of vars in for does not match num of elements in tuple");
+                } else {
+                    for (int i = 0; i < vector_size(ids); i++) {
+                        Ident *id = vector_get_ptr(ids, i);
+                        TypeSpec *ts = vector_get(inst_sym->tp_args, i);
+                        IdentType id_type = { *id, ts };
+                        vector_push_back(&locals, &id_type);
+                    }
+                }
+                goto __do_for_body;
+            }
+        }
+
+        kl_error(it->loc,
+                 "iterable element type '%s' is not tuple for multiple vars of for loop",
+                 it->ts->signature);
+    } else {
+        Ident *id = vector_get_ptr(ids, 0);
+        IdentType id_type = { *id, elem_ts };
+        vector_push_back(&locals, &id_type);
+    }
+
+__do_for_body:
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, FOR_BLOCK, "for-block");
+
+    IdentType *id_type;
+    vector_foreach_ptr(id_type, &locals) {
+        Symbol *sym = stbl_add_var(sc->stbl, id_type->id.name, id_type->ts, 0);
+        ASSERT(sym);
+        ((VarSymbol *)sym)->scope = VAR_SCOPE_LOCAL;
+        log_info("added loop variable '%s' with type '%s'", sym->name,
+                 id_type->ts->signature);
+    }
+    vector_fini(&locals);
+
+    parse_block(ps, s->block, NULL);
+
+    exit_scope(ps);
+}
+
 static void parse_if_let(ParserState *ps, Stmt *stmt)
 {
     IfLetStmt *s = (IfLetStmt *)stmt;
@@ -2237,8 +2314,9 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_EXPR_KIND]      = parse_expr,
         [STMT_BLOCK_KIND]     = parse_block_stmt,
         [STMT_IF_KIND]        = parse_if,
-        [STMT_IF_LET_KIND]    = parse_if_let,
+        [STMT_FOR_KIND]       = parse_for,
         [STMT_WHILE_KIND]     = parse_while,
+        [STMT_IF_LET_KIND]    = parse_if_let,
         [STMT_WHILE_LET_KIND] = parse_while_let,
     };
     /* clang-format on */

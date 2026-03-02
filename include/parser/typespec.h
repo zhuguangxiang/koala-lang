@@ -160,8 +160,12 @@ static inline int type_is_generic_ref(TypeSpec *ts)
 }
 static inline int type_is_klass(TypeSpec *ts) { return ts->kind == TYPE_KLASS; }
 static inline int type_is_proto(TypeSpec *ts) { return ts->kind == TYPE_PROTO; }
+int type_is_tuple(TypeSpec *ts);
 
-int match_sequence(TypeSpec *ts, TypeSpec **it_ts, TypeSpec **arg_ts);
+int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts);
+
+#define match_sequence(ts, it_ts, arg_ts) match_type_spec(ts, "Sequence", it_ts, arg_ts)
+#define match_iterable(ts, it_ts, arg_ts) match_type_spec(ts, "Iterable", it_ts, arg_ts)
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);

@@ -733,7 +733,16 @@ TypeSpec *union_type_spec_intern(Vector *args)
     return type_spec_intern(ts);
 }
 
-int match_sequence(TypeSpec *ts, TypeSpec **it_ts, TypeSpec **arg_ts)
+int type_is_tuple(TypeSpec *ts)
+{
+    if (ts->kind != TYPE_KLASS) return 0;
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (sym->kind != SYM_INSTANCE) return 0;
+    InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+    return !strcmp(inst_sym->origin->name, "tuple");
+}
+
+int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts)
 {
     Symbol *sym = get_symbol_by_id(ts->sym_id);
     ASSERT(sym);
@@ -745,16 +754,16 @@ int match_sequence(TypeSpec *ts, TypeSpec **it_ts, TypeSpec **arg_ts)
         Symbol *origin_sym = inst_sym->origin;
         bases = inst_sym->bases;
 
-        if (!strcmp(origin_sym->name, "Sequence")) {
+        if (!strcmp(origin_sym->name, name)) {
             ASSERT(vector_size(inst_sym->tp_args) == 1);
             if (it_ts) {
                 *it_ts = inst_sym->instance_ts;
-                log_info("Sequence itself type: %s", (*it_ts)->signature);
+                log_info("%s itself type: %s", name, (*it_ts)->signature);
             }
             if (arg_ts) {
                 *arg_ts = vector_get(inst_sym->tp_args, 0);
                 ASSERT(!type_is_generic_var(*arg_ts));
-                log_info("Sequence argument type: %s", (*arg_ts)->signature);
+                log_info("%s argument type: %s", name, (*arg_ts)->signature);
             }
             return 1;
         }
@@ -766,7 +775,7 @@ int match_sequence(TypeSpec *ts, TypeSpec **it_ts, TypeSpec **arg_ts)
     TypeSpec *base_ts;
     vector_foreach(base_ts, bases) {
         if (!base_ts) continue;
-        if (match_sequence(base_ts, it_ts, arg_ts)) return 1;
+        if (match_type_spec(base_ts, name, it_ts, arg_ts)) return 1;
     }
 
     return 0;

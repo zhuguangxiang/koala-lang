@@ -538,6 +538,15 @@ typedef struct _WhileLetStmt {
 
 Stmt *stmt_from_while_let(Ident *id, Expr *cond, Vector *block);
 
+typedef struct _ForStmt {
+    STMT_HEAD
+    Vector *ids;
+    Expr *iterable;
+    Vector *block;
+} ForStmt;
+
+Stmt *stmt_from_for(Vector *ids, Expr *iterable, Vector *block);
+
 typedef struct _KlassStmt {
     STMT_HEAD
     Ident id;
@@ -548,12 +557,12 @@ typedef struct _KlassStmt {
     Vector *stmts;
 } KlassDeclStmt;
 
-typedef struct _KlassName {
+typedef struct _IdentType {
     Ident id;
     TypeSpec *ts;
-} KlassName;
+} IdentType;
 
-Stmt *stmt_from_type(StmtKind kind, KlassName name, Vector *tps, Vector *bases,
+Stmt *stmt_from_type(StmtKind kind, IdentType name, Vector *tps, Vector *bases,
                      Vector *stmts);
 
 #define stmt_from_klass(name, tps, bases, stmts) \

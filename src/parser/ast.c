@@ -575,6 +575,16 @@ Stmt *stmt_from_while_let(Ident *id, Expr *exp, Vector *block)
     return (Stmt *)s;
 }
 
+Stmt *stmt_from_for(Vector *ids, Expr *iterable, Vector *block)
+{
+    ForStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_FOR_KIND;
+    s->ids = ids;
+    s->iterable = iterable;
+    s->block = block;
+    return (Stmt *)s;
+}
+
 Stmt *stmt_from_expr(Expr *exp)
 {
     ExprStmt *s = mm_alloc_obj(s);
@@ -583,7 +593,7 @@ Stmt *stmt_from_expr(Expr *exp)
     return (Stmt *)s;
 }
 
-Stmt *stmt_from_type(StmtKind kind, KlassName name, Vector *tps, Vector *bases,
+Stmt *stmt_from_type(StmtKind kind, IdentType name, Vector *tps, Vector *bases,
                      Vector *stmts)
 {
     KlassDeclStmt *s = mm_alloc_obj(s);
@@ -733,6 +743,24 @@ static void if_stmt_free(Stmt *stmt)
     mm_free(s);
 }
 
+static void for_stmt_free(Stmt *stmt)
+{
+    ForStmt *s = (ForStmt *)stmt;
+
+    vector_destroy(s->ids);
+
+    expr_free(s->iterable);
+
+    Stmt *st;
+    vector_foreach(st, s->block) {
+        if (!st) continue;
+        stmt_free(st);
+    }
+    vector_destroy(s->block);
+
+    mm_free(s);
+}
+
 static void if_let_stmt_free(Stmt *stmt)
 {
     IfLetStmt *s = (IfLetStmt *)stmt;
@@ -789,8 +817,9 @@ void stmt_free(Stmt *stmt)
         [STMT_EXPR_KIND] = expr_stmt_free,
         [STMT_BLOCK_KIND] = block_stmt_free,
         [STMT_IF_KIND] = if_stmt_free,
-        [STMT_IF_LET_KIND] = if_let_stmt_free,
+        [STMT_FOR_KIND] = for_stmt_free,
         [STMT_WHILE_KIND] = while_stmt_free,
+        [STMT_IF_LET_KIND] = if_let_stmt_free,
         [STMT_WHILE_LET_KIND] = while_let_stmt_free,
     };
 
