@@ -1,9 +1,0 @@
-// SKIP: koalac %s | filecheck %s
-
-let i = 10
-let j = i + 1
-
-func fn1() {
-    let k = i + 2
-    // CHECK: %k = add i32 %i, 2
-}

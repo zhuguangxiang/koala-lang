@@ -9,9 +9,9 @@
 extern "C" {
 #endif
 
-static void codegen_visit_expr(ParserState *ps, Expr *exp);
+static void irgen_visit_expr(ParserState *ps, Expr *exp);
 
-static void codegen_ident(ParserState *ps, Expr *exp)
+static void irgen_ident(ParserState *ps, Expr *exp)
 {
     IdentExpr *ident = (IdentExpr *)exp;
     Symbol *sym = ident->sym;
@@ -43,7 +43,7 @@ static void codegen_ident(ParserState *ps, Expr *exp)
     }
 }
 
-static void codegen_literal(ParserState *ps, Expr *exp)
+static void irgen_literal(ParserState *ps, Expr *exp)
 {
     LitExpr *lit = (LitExpr *)exp;
     switch (lit->which) {
@@ -74,9 +74,9 @@ static void codegen_literal(ParserState *ps, Expr *exp)
     }
 }
 
-static void codegen_type(ParserState *ps, Expr *exp) {}
+static void irgen_type(ParserState *ps, Expr *exp) {}
 
-static void codegen_call(ParserState *ps, Expr *exp)
+static void irgen_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
     // Expr *func = call->func;
@@ -85,18 +85,18 @@ static void codegen_call(ParserState *ps, Expr *exp)
 
     // // generate code for function expression
     // func->ctx = EXPR_CTX_LOAD;
-    // codegen_visit_expr(ps, func);
+    // irgen_visit_expr(ps, func);
     // if (!func->ts) return;
 
     // // generate code for arguments
     // Expr **arg_exp;
     // vector_foreach(arg_exp, args) {
     //     (*arg_exp)->ctx = EXPR_CTX_LOAD;
-    //     codegen_visit_expr(ps, *arg_exp);
+    //     irgen_visit_expr(ps, *arg_exp);
     //     if (!(*arg_exp)->ts) return;
     // }
 
-    // codegen
+    // irgen
 }
 
 static OpCode get_binary_op_code(BiOpKind op)
@@ -137,7 +137,7 @@ static char *get_binary_op_name(BiOpKind op)
     }
 }
 
-static void codegen_binary(ParserState *ps, Expr *exp)
+static void irgen_binary(ParserState *ps, Expr *exp)
 {
     BinaryExpr *bin = (BinaryExpr *)exp;
     BiOpKind op = bin->op;
@@ -145,14 +145,14 @@ static void codegen_binary(ParserState *ps, Expr *exp)
     Expr *rhs = bin->rhs;
 
     lhs->ctx = EXPR_CTX_LOAD;
-    codegen_visit_expr(ps, lhs);
+    irgen_visit_expr(ps, lhs);
     if (!lhs->ir_val) return;
 
     rhs->ctx = EXPR_CTX_LOAD;
-    codegen_visit_expr(ps, rhs);
+    irgen_visit_expr(ps, rhs);
     if (!rhs->ir_val) return;
 
-    // codegen
+    // irgen
     ParserScope *sc = ps->scope;
 
     KlrBuilder bldr;
@@ -163,7 +163,7 @@ static void codegen_binary(ParserState *ps, Expr *exp)
     exp->ir_val = res;
 }
 
-static void codegen_visit_expr(ParserState *ps, Expr *exp)
+static void irgen_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
 
@@ -172,45 +172,25 @@ static void codegen_visit_expr(ParserState *ps, Expr *exp)
 
     /* clang-format off */
     static void (*handlers[])(ParserState *, Expr *) = {
-        NULL,                            /* UNKNOWN    */
-        codegen_ident,                     /* ID         */
-        NULL, // codegen_under,                     /* UNDER      */
-        codegen_literal,                   /* LITERAL    */
-        NULL,// codegen_self,                      /* SELF       */
-        NULL,// codegen_super,                     /* SUPER      */
-        NULL,// codegen_array_expr,                /* ARRAY      */
-        NULL,// codegen_map_expr,                  /* MAP        */
-        NULL,                            /* MAP_ENTRY  */
-        NULL,// codegen_tuple_expr,                /* TUPLE      */
-        NULL,// codegen_anony,                     /* ANONY      */
-        NULL,
-        codegen_type,                      /* TYPE       */
-        codegen_call,                      /* CALL       */
-        NULL,
-        NULL, // codegen_attr,                      /* ATTR       */
-        NULL, // codegen_tuple_get,                 /* TUPLE_GET  */
-        NULL, // codegen_index,                     /* INDEX      */
-        NULL, // codegen_unary,                     /* UNARY      */
-        codegen_binary,                    /* BINARY     */
-        // codegen_range,                     /* RANGE      */
-        // codegen_is_expr,                   /* IS         */
-        // codegen_as_expr,                   /* AS         */
-        NULL,                 /* OPT        */
-        NULL,                   /* OPT_NOT    */
+        [EXPR_ID_KIND]      = irgen_ident,
+        [EXPR_LITERAL_KIND] = irgen_literal,
+        [EXPR_TYPE_KIND]    = irgen_type,
+        [EXPR_CALL_KIND]    = irgen_call,
+        [EXPR_BINARY_KIND]  = irgen_binary,
     };
     /* clang-format on */
 
     handlers[exp->kind](ps, exp);
 }
 
-static void codegen_var_decl(ParserState *ps, Stmt *stmt)
+static void irgen_var_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *var = (VarDeclStmt *)stmt;
     Expr *exp = var->exp;
     if (!exp) return;
 
     exp->ctx = EXPR_CTX_LOAD;
-    codegen_visit_expr(ps, exp);
+    irgen_visit_expr(ps, exp);
     if (!exp->ir_val) return;
 
     ParserScope *sc = ps->scope;
@@ -222,23 +202,23 @@ static void codegen_var_decl(ParserState *ps, Stmt *stmt)
     klr_build_store(&bldr, sym->ir_val, exp->ir_val);
 }
 
-static void codegen_func_decl(ParserState *ps, Stmt *stmt) {}
+static void irgen_func_decl(ParserState *ps, Stmt *stmt) {}
 
-static void codegen_class(ParserState *ps, Stmt *stmt) {}
+static void irgen_class(ParserState *ps, Stmt *stmt) {}
 
-static void codegen_trait(ParserState *ps, Stmt *stmt) {}
+static void irgen_trait(ParserState *ps, Stmt *stmt) {}
 
-static void codegen_return(ParserState *ps, Stmt *stmt) {}
+static void irgen_return(ParserState *ps, Stmt *stmt) {}
 
-static void codegen_expr(ParserState *ps, Stmt *stmt)
+static void irgen_expr(ParserState *ps, Stmt *stmt)
 {
     ExprStmt *s = (ExprStmt *)stmt;
     Expr *exp = s->exp;
     exp->ctx = EXPR_CTX_LOAD;
-    codegen_visit_expr(ps, exp);
+    irgen_visit_expr(ps, exp);
 }
 
-static void codegen_stmt(ParserState *ps, Stmt *stmt)
+static void irgen_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
 
@@ -246,30 +226,20 @@ static void codegen_stmt(ParserState *ps, Stmt *stmt)
     if (ps->errors >= MAX_ERRORS) return;
 
     /* clang-format off */
-    static void (*handlers[])(ParserState *, Stmt *) = {
-        NULL,                               /* INVALID          */
-        NULL, // parse_import,              /* IMPORT_KIND      */
-        codegen_var_decl,                   /* VAR_KIND         */
-        codegen_func_decl,                  /* FUNC_KIND        */
-        codegen_class,                      /* CLASS_KIND       */
-        codegen_trait,                      /* TRAIT_KIND       */
-        codegen_return,                     /* RETURN_KIND      */
-        NULL, // parse_assign,              /* ASSIGN_KIND      */
-        NULL, // parse_break,               /* BREAK_KIND       */
-        NULL, // parse_continue,            /* CONTINUE_KIND    */
-        codegen_expr,                       /* EXPR_KIND        */
-        NULL, // parse_block,               /* BLOCK_KIND       */
-        NULL, // parse_if,                  /* IF_KIND          */
-        NULL, // parse_while,               /* WHILE_KIND       */
-        NULL, // parse_for,                 /* FOR_KIND         */
-        NULL, // parse_match,               /* MATCH_KIND       */
+    static void (*handlers[STMT_MAX_KIND])(ParserState *, Stmt *) = {
+        [STMT_VAR_KIND]     = irgen_var_decl,
+        [STMT_FUNC_KIND]    = irgen_func_decl,
+        [STMT_CLASS_KIND]   = irgen_class,
+        [STMT_TRAIT_KIND]   = irgen_trait,
+        [STMT_RETURN_KIND]  = irgen_return,
+        [STMT_EXPR_KIND]    = irgen_expr,
     };
     /* clang-format on */
 
     handlers[stmt->kind](ps, stmt);
 }
 
-void codegen_ast(ParserState *ps)
+void parser_ast_genir(ParserState *ps)
 {
     KlrModule *m = klr_create_module(ps->filename);
     if (!m) return;
@@ -297,10 +267,10 @@ void codegen_ast(ParserState *ps)
     KlrBasicBlock *entry = klr_append_block(fn, "entry");
     scope->bb = entry;
 
-    // codegen all statements
+    // irgen all statements
     vector_foreach(s, &ps->stmts) {
         if (!s) continue;
-        codegen_stmt(ps, s);
+        irgen_stmt(ps, s);
     }
 
     exit_scope(ps);

@@ -2633,7 +2633,7 @@ int do_compile(Vector *pss, char *output)
         if (!ps) continue;
         parse_ast(ps);
         if (!ps->errors) {
-            // codegen_ast(ps);
+            parser_ast_genir(ps);
         }
         errors += ps->errors;
     }

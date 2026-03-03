@@ -36,12 +36,12 @@ void klr_print_name_or_tag(KlrValue *val, FILE *fp)
 
     if (val->name[0]) {
         if (val->kind == KLR_VALUE_GLOBAL) {
-            fprintf(fp, "@%s(%d)", val->name, val->vreg);
+            fprintf(fp, "@%s", val->name);
         } else {
-            fprintf(fp, "%%%s(%d)", val->name, val->vreg);
+            fprintf(fp, "%%%s", val->name);
         }
     } else {
-        fprintf(fp, "%%%d(%d)", val->tag, val->vreg);
+        fprintf(fp, "%%%d", val->tag);
     }
 }
 

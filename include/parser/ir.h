@@ -204,9 +204,21 @@ typedef struct _KlrModule {
     Vector ext_funcs;
     /* __init__ function */
     KlrFunc *init;
-    /* symbol table */
-    HashMap *stbl;
+    /* klasses */
+    Vector klasses;
 } KlrModule;
+
+typedef struct _KlrKlass {
+    char *name;
+    Vector fields;
+    Vector methods;
+} KlrKlass;
+
+typedef struct _KlrExtSymbol {
+    KLR_VALUE_HEAD
+    char *ext_path;
+    char *ext_name;
+} KlrExtSymbol;
 
 /* def-use */
 typedef struct _KlrUse {

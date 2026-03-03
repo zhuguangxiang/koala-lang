@@ -8,6 +8,7 @@ cspell.json
 out/
 *.dot
 test-kl/*.klc
+test-kl/test-ir/*.klc
 misc/*
 *.tag
 *.tags
