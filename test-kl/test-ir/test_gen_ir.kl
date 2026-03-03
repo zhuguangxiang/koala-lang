@@ -3,6 +3,8 @@
 let i = 10
 let j = i + 1
 
+print(i, j)
+
 // CHECK: global @i int64
 // CHECK: global @j int64
 // CHECK: func @__init__() {

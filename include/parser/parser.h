@@ -181,7 +181,7 @@ void kl_error_detail(ParserState *, Loc *);
 
 void parser_visit_expr(ParserState *ps, Expr *exp);
 void parse_top_stmt(ParserState *ps, Stmt *stmt);
-void parser_ast_genir(ParserState *ps);
+void ast_emit_ir(ParserState *ps);
 ParserState *new_parser_state(char *path);
 void free_parser_state(ParserState *ps);
 int do_compile(Vector *pss, char *output);

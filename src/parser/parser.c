@@ -274,16 +274,17 @@ static FuncSymbol *get_current_function(ParserState *ps)
     return NULL;
 }
 
-static void update_ir_info(ParserState *ps, Symbol *sym, char *module)
+static void add_ext_ir_val(ParserState *ps, Symbol *sym, char *path)
 {
-    // KlrValue *val = NULL;
-    // if (sym->kind == SYM_FUNC) {
-    //     val = klr_add_ext_func(ps->module, DESC_INCREF_GET(sym->desc), module,
-    //     sym->name);
-    // } else {
-    //     NYI();
-    // }
-    // sym->ir_val = val;
+    KlrValue *val = NULL;
+    if (sym->kind == SYM_FUNC) {
+        val = klr_add_ext_func(ps->module, sym->ts, path, sym->name);
+    } else if (sym->kind == SYM_VAR) {
+        val = klr_add_ext_global(ps->module, sym->ts, path, sym->name);
+    } else {
+        // UNREACHABLE();
+    }
+    sym->ir_val = val;
 }
 
 Symbol *find_symbol(ParserState *ps, Ident *id)
@@ -335,7 +336,7 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         log_info("find symbol '%s' in builtin module", id->name);
         id->where = BLTIN_SCOPE;
         id->scope = NULL;
-        update_ir_info(ps, sym, "builtin");
+        add_ext_ir_val(ps, sym, "builtin");
         return sym;
     }
 
@@ -2582,6 +2583,7 @@ static void init_parser_state(ParserState *ps, char *filename)
     INIT_BUF(ps->sbuf);
     ps->stbl = current;
     ps->builtin = builtin;
+    ps->module = klr_create_module(ps->filename);
 }
 
 ParserState *new_parser_state(char *path)
@@ -2633,7 +2635,7 @@ int do_compile(Vector *pss, char *output)
         if (!ps) continue;
         parse_ast(ps);
         if (!ps->errors) {
-            parser_ast_genir(ps);
+            ast_emit_ir(ps);
         }
         errors += ps->errors;
     }

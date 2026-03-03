@@ -1031,15 +1031,6 @@ static void parse_call(ParserState *ps, Expr *exp)
     } else if (exp->ts->kind == TYPE_FLOAT) {
     } else {
     }
-    // // codegen
-
-    // ParserScope *sc = ps->scope;
-    // KlrValue *ir_val = lhs->ir_val;
-    // KlrBuilder bldr;
-    // klr_builder_end(&bldr, sc->bb);
-
-    // KlrValue *ret = klr_build_call(&bldr, ir_val, args, size, "");
-    // exp->ir_val = ret;
 }
 
 static TypeSpec *opt_dot_type(TypeSpec *ts, int opt_or_bang)

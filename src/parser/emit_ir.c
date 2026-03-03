@@ -9,9 +9,14 @@
 extern "C" {
 #endif
 
-static void irgen_visit_expr(ParserState *ps, Expr *exp);
+#define KLR_BUILDER(ps) \
+    ParserScope *sc = ps->scope; \
+    KlrBuilder bldr; \
+    klr_builder_end(&bldr, sc->bb);
 
-static void irgen_ident(ParserState *ps, Expr *exp)
+static void emit_ir_visit_expr(ParserState *ps, Expr *exp);
+
+static void emit_ir_ident(ParserState *ps, Expr *exp)
 {
     IdentExpr *ident = (IdentExpr *)exp;
     Symbol *sym = ident->sym;
@@ -20,10 +25,7 @@ static void irgen_ident(ParserState *ps, Expr *exp)
         return;
     }
 
-    ParserScope *sc = ps->scope;
-
-    KlrBuilder bldr;
-    klr_builder_end(&bldr, sc->bb);
+    KLR_BUILDER(ps);
 
     switch (sym->kind) {
         case SYM_VAR: {
@@ -43,7 +45,7 @@ static void irgen_ident(ParserState *ps, Expr *exp)
     }
 }
 
-static void irgen_literal(ParserState *ps, Expr *exp)
+static void emit_ir_literal(ParserState *ps, Expr *exp)
 {
     LitExpr *lit = (LitExpr *)exp;
     switch (lit->which) {
@@ -74,29 +76,37 @@ static void irgen_literal(ParserState *ps, Expr *exp)
     }
 }
 
-static void irgen_type(ParserState *ps, Expr *exp) {}
+static void emit_ir_type(ParserState *ps, Expr *exp) {}
 
-static void irgen_call(ParserState *ps, Expr *exp)
+static void emit_ir_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
-    // Expr *func = call->func;
-    // Vector *args = &call->args;
-    // size_t size = vector_size(args);
+    Expr *lhs = call->lhs;
+    Vector *args = call->args;
+    int size = vector_size(args);
 
-    // // generate code for function expression
-    // func->ctx = EXPR_CTX_LOAD;
-    // irgen_visit_expr(ps, func);
-    // if (!func->ts) return;
+    // gen ir for lhs
+    lhs->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, lhs);
+    if (!lhs->ir_val) return;
 
-    // // generate code for arguments
-    // Expr **arg_exp;
-    // vector_foreach(arg_exp, args) {
-    //     (*arg_exp)->ctx = EXPR_CTX_LOAD;
-    //     irgen_visit_expr(ps, *arg_exp);
-    //     if (!(*arg_exp)->ts) return;
-    // }
+    KlrValue *ir_args[size];
 
-    // irgen
+    // gen ir for arguments
+    Expr *e;
+    vector_foreach(e, args) {
+        e->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, e);
+        if (!e->ir_val) return;
+        ir_args[i__] = e->ir_val;
+    }
+
+    // codegen
+
+    KLR_BUILDER(ps);
+
+    KlrValue *ret = klr_build_call(&bldr, lhs->ir_val, ir_args, size, "");
+    exp->ir_val = ret;
 }
 
 static OpCode get_binary_op_code(BiOpKind op)
@@ -137,7 +147,7 @@ static char *get_binary_op_name(BiOpKind op)
     }
 }
 
-static void irgen_binary(ParserState *ps, Expr *exp)
+static void emit_ir_binary(ParserState *ps, Expr *exp)
 {
     BinaryExpr *bin = (BinaryExpr *)exp;
     BiOpKind op = bin->op;
@@ -145,25 +155,21 @@ static void irgen_binary(ParserState *ps, Expr *exp)
     Expr *rhs = bin->rhs;
 
     lhs->ctx = EXPR_CTX_LOAD;
-    irgen_visit_expr(ps, lhs);
+    emit_ir_visit_expr(ps, lhs);
     if (!lhs->ir_val) return;
 
     rhs->ctx = EXPR_CTX_LOAD;
-    irgen_visit_expr(ps, rhs);
+    emit_ir_visit_expr(ps, rhs);
     if (!rhs->ir_val) return;
 
-    // irgen
-    ParserScope *sc = ps->scope;
-
-    KlrBuilder bldr;
-    klr_builder_end(&bldr, sc->bb);
+    KLR_BUILDER(ps);
 
     KlrValue *res = klr_build_binary(&bldr, lhs->ir_val, rhs->ir_val,
                                      get_binary_op_code(op), "", get_binary_op_name(op));
     exp->ir_val = res;
 }
 
-static void irgen_visit_expr(ParserState *ps, Expr *exp)
+static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
 
@@ -172,53 +178,50 @@ static void irgen_visit_expr(ParserState *ps, Expr *exp)
 
     /* clang-format off */
     static void (*handlers[])(ParserState *, Expr *) = {
-        [EXPR_ID_KIND]      = irgen_ident,
-        [EXPR_LITERAL_KIND] = irgen_literal,
-        [EXPR_TYPE_KIND]    = irgen_type,
-        [EXPR_CALL_KIND]    = irgen_call,
-        [EXPR_BINARY_KIND]  = irgen_binary,
+        [EXPR_ID_KIND]      = emit_ir_ident,
+        [EXPR_LITERAL_KIND] = emit_ir_literal,
+        [EXPR_TYPE_KIND]    = emit_ir_type,
+        [EXPR_CALL_KIND]    = emit_ir_call,
+        [EXPR_BINARY_KIND]  = emit_ir_binary,
     };
     /* clang-format on */
 
     handlers[exp->kind](ps, exp);
 }
 
-static void irgen_var_decl(ParserState *ps, Stmt *stmt)
+static void emit_ir_var_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *var = (VarDeclStmt *)stmt;
     Expr *exp = var->exp;
     if (!exp) return;
 
     exp->ctx = EXPR_CTX_LOAD;
-    irgen_visit_expr(ps, exp);
+    emit_ir_visit_expr(ps, exp);
     if (!exp->ir_val) return;
 
-    ParserScope *sc = ps->scope;
-
-    KlrBuilder bldr;
-    klr_builder_end(&bldr, sc->bb);
+    KLR_BUILDER(ps);
 
     VarSymbol *sym = (VarSymbol *)var->sym;
     klr_build_store(&bldr, sym->ir_val, exp->ir_val);
 }
 
-static void irgen_func_decl(ParserState *ps, Stmt *stmt) {}
+static void emit_ir_func_decl(ParserState *ps, Stmt *stmt) {}
 
-static void irgen_class(ParserState *ps, Stmt *stmt) {}
+static void emit_ir_class(ParserState *ps, Stmt *stmt) {}
 
-static void irgen_trait(ParserState *ps, Stmt *stmt) {}
+static void emit_ir_trait(ParserState *ps, Stmt *stmt) {}
 
-static void irgen_return(ParserState *ps, Stmt *stmt) {}
+static void emit_ir_return(ParserState *ps, Stmt *stmt) {}
 
-static void irgen_expr(ParserState *ps, Stmt *stmt)
+static void emit_ir_expr(ParserState *ps, Stmt *stmt)
 {
     ExprStmt *s = (ExprStmt *)stmt;
     Expr *exp = s->exp;
     exp->ctx = EXPR_CTX_LOAD;
-    irgen_visit_expr(ps, exp);
+    emit_ir_visit_expr(ps, exp);
 }
 
-static void irgen_stmt(ParserState *ps, Stmt *stmt)
+static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
 
@@ -227,23 +230,21 @@ static void irgen_stmt(ParserState *ps, Stmt *stmt)
 
     /* clang-format off */
     static void (*handlers[STMT_MAX_KIND])(ParserState *, Stmt *) = {
-        [STMT_VAR_KIND]     = irgen_var_decl,
-        [STMT_FUNC_KIND]    = irgen_func_decl,
-        [STMT_CLASS_KIND]   = irgen_class,
-        [STMT_TRAIT_KIND]   = irgen_trait,
-        [STMT_RETURN_KIND]  = irgen_return,
-        [STMT_EXPR_KIND]    = irgen_expr,
+        [STMT_VAR_KIND]     = emit_ir_var_decl,
+        [STMT_FUNC_KIND]    = emit_ir_func_decl,
+        [STMT_CLASS_KIND]   = emit_ir_class,
+        [STMT_TRAIT_KIND]   = emit_ir_trait,
+        [STMT_RETURN_KIND]  = emit_ir_return,
+        [STMT_EXPR_KIND]    = emit_ir_expr,
     };
     /* clang-format on */
 
     handlers[stmt->kind](ps, stmt);
 }
 
-void parser_ast_genir(ParserState *ps)
+void ast_emit_ir(ParserState *ps)
 {
-    KlrModule *m = klr_create_module(ps->filename);
-    if (!m) return;
-    ps->module = m;
+    KlrModule *m = ps->module;
 
     // visit all global variables and add them to ir module
     Stmt *s;
@@ -267,10 +268,10 @@ void parser_ast_genir(ParserState *ps)
     KlrBasicBlock *entry = klr_append_block(fn, "entry");
     scope->bb = entry;
 
-    // irgen all statements
+    // emit ir for all statements
     vector_foreach(s, &ps->stmts) {
         if (!s) continue;
-        irgen_stmt(ps, s);
+        emit_ir_stmt(ps, s);
     }
 
     exit_scope(ps);

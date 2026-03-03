@@ -139,7 +139,7 @@ KlrModule *klr_create_module(char *name)
     m->name = name;
     vector_init_ptr(&m->globals);
     vector_init_ptr(&m->functions);
-    vector_init_ptr(&m->ext_funcs);
+    vector_init_ptr(&m->ext_syms);
     m->init = NULL;
     return m;
 }
@@ -224,14 +224,24 @@ KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ty, char *name)
     return (KlrValue *)local;
 }
 
-KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *module, char *name)
+KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *proto, char *path, char *name)
 {
     KlrExtFunc *fn = mm_alloc_obj(fn);
-    INIT_KLR_VALUE(fn, KLR_VALUE_EXT_FUNC, ret, name);
-    vector_push_back(&m->ext_funcs, &fn);
+    INIT_KLR_VALUE(fn, KLR_VALUE_EXT_FUNC, proto, name);
+    vector_push_back(&m->ext_syms, &fn);
     fn->module = m;
-    fn->owner = module;
+    fn->path = path;
     return (KlrValue *)fn;
+}
+
+KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name)
+{
+    KlrExtGlobal *var = mm_alloc_obj(var);
+    INIT_KLR_VALUE(var, KLR_VALUE_EXT_GLOBAL, ts, name);
+    vector_push_back(&m->ext_syms, &var);
+    var->module = m;
+    var->path = path;
+    return (KlrValue *)var;
 }
 
 #ifdef __cplusplus

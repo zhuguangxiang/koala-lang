@@ -69,7 +69,7 @@ static void emit_insn_call(KlrInsn *insn, Buffer *buf, KlcFile *filp)
     KlrValue *val = insn->opers[0].use.ref;
     if (val->kind == KLR_VALUE_EXT_FUNC) {
         KlrExtFunc *ext = (KlrExtFunc *)val;
-        reloc_index = klc_add_reloc(filp, ext->owner, ext->name);
+        reloc_index = klc_add_reloc(filp, ext->path, ext->name);
     }
 
     KlrOper *oper;

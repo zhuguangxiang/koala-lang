@@ -546,14 +546,24 @@ void klr_print_module(KlrModule *m, FILE *fp)
         fprintf(fp, "\n");
     }
 
-    KlrExtFunc **extf;
-    vector_foreach_ptr(extf, &m->ext_funcs) {
-        fprintf(fp, "  ext_func @%s from module \"%s\"\n", (*extf)->name, (*extf)->owner);
+    KlrExtSym *ext;
+    vector_foreach(ext, &m->ext_syms) {
+        if (ext->kind == KLR_VALUE_EXT_FUNC) {
+            fprintf(fp, "  ext func @%s.%s", ext->path, ext->name);
+            print_type(ext->ts, fp);
+            fprintf(fp, "\n");
+        } else if (ext->kind == KLR_VALUE_EXT_GLOBAL) {
+            fprintf(fp, "  ext global @%s.%s", ext->path, ext->name);
+            print_type(ext->ts, fp);
+            fprintf(fp, "\n");
+        } else {
+            fprintf(fp, "  ext sym @%s.%s", ext->path, ext->name);
+        }
     }
 
-    KlrFunc **fn;
-    vector_foreach_ptr(fn, &m->functions) {
-        klr_print_func(*fn, fp);
+    KlrFunc *fn;
+    vector_foreach(fn, &m->functions) {
+        klr_print_func(fn, fp);
     }
 
     fprintf(fp, "}\n");

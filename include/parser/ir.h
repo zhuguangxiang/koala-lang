@@ -26,6 +26,7 @@ typedef enum _KlrValueKind {
     KLR_VALUE_LOCAL,
     KLR_VALUE_INSN,
     KLR_VALUE_EXT_FUNC,
+    KLR_VALUE_EXT_GLOBAL,
     KLR_VALUE_MAX,
 } KlrValueKind;
 
@@ -100,15 +101,6 @@ typedef struct _KlrLocal {
 typedef struct _KlrParam {
     KLR_VALUE_HEAD
 } KlrParam;
-
-/* external function */
-typedef struct _KlrExtFunc {
-    KLR_VALUE_HEAD
-    /* module pointer */
-    struct _KlrModule *module;
-    /* owner module name */
-    char *owner;
-} KlrExtFunc;
 
 /* function */
 typedef struct _KlrFunc {
@@ -200,8 +192,8 @@ typedef struct _KlrModule {
     Vector globals;
     /* functions */
     Vector functions;
-    /* external functions */
-    Vector ext_funcs;
+    /* external symbols */
+    Vector ext_syms;
     /* __init__ function */
     KlrFunc *init;
     /* klasses */
@@ -214,11 +206,28 @@ typedef struct _KlrKlass {
     Vector methods;
 } KlrKlass;
 
-typedef struct _KlrExtSymbol {
-    KLR_VALUE_HEAD
-    char *ext_path;
-    char *ext_name;
-} KlrExtSymbol;
+#define KLR_EXT_SYM_HEAD \
+    KLR_VALUE_HEAD \
+    /* module pointer */ \
+    KlrModule *module; \
+    /* owner pkg path */ \
+    char *path;
+
+/* external symbol */
+typedef struct _KlrExtSym {
+    KLR_EXT_SYM_HEAD
+} KlrExtSym;
+
+/* external function */
+typedef struct _KlrExtFunc {
+    KLR_EXT_SYM_HEAD
+    /* proto */
+    TypeSpec *proto;
+} KlrExtFunc;
+
+typedef struct _KlrExtGlobal {
+    KLR_EXT_SYM_HEAD
+} KlrExtGlobal;
 
 /* def-use */
 typedef struct _KlrUse {
@@ -324,8 +333,10 @@ KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, TypeSpec **params, char *nam
 KlrValue *klr_get_param(KlrValue *fn, int index);
 KlrValue *klr_add_global(KlrModule *m, TypeSpec *ty, char *name);
 KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ty, char *name);
-// ir doesn't check external function's arguments
-KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *module, char *name);
+
+// ir doesn't check external symbol's type
+KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *proto, char *path, char *name);
+KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name);
 
 #define local_foreach(local, func) vector_foreach_ptr(local, &(func)->locals)
 
