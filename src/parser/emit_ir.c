@@ -25,6 +25,19 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
         return;
     }
 
+    if (!sym->ir_val) {
+        ASSERT(sym->flags & SYM_FLAGS_EXT);
+        KlrValue *val = NULL;
+        if (sym->kind == SYM_FUNC) {
+            val = klr_add_ext_func(ps->mod, sym->ts, sym->path, sym->name);
+        } else if (sym->kind == SYM_VAR) {
+            val = klr_add_ext_global(ps->mod, sym->ts, sym->path, sym->name);
+        } else {
+            // UNREACHABLE();
+        }
+        sym->ir_val = val;
+    }
+
     KLR_BUILDER(ps);
 
     switch (sym->kind) {
@@ -169,6 +182,28 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
     exp->ir_val = res;
 }
 
+static void emit_ir_list(ParserState *ps, Expr *exp)
+{
+    ListExpr *list = (ListExpr *)exp;
+
+    Vector ir_items = VECTOR_INIT_PTR;
+
+    Expr *e;
+    vector_foreach(e, list->vec) {
+        e->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, e);
+        if (!e->ir_val) return;
+        vector_push_back(&ir_items, &e->ir_val);
+    }
+
+    KLR_BUILDER(ps);
+
+    KlrValue *res = klr_build_list(&bldr, &ir_items, list->ts);
+    exp->ir_val = res;
+
+    vector_fini(&ir_items);
+}
+
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -183,6 +218,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_TYPE_KIND]    = emit_ir_type,
         [EXPR_CALL_KIND]    = emit_ir_call,
         [EXPR_BINARY_KIND]  = emit_ir_binary,
+        [EXPR_LIST_KIND]    = emit_ir_list,
     };
     /* clang-format on */
 
@@ -205,13 +241,46 @@ static void emit_ir_var_decl(ParserState *ps, Stmt *stmt)
     klr_build_store(&bldr, sym->ir_val, exp->ir_val);
 }
 
-static void emit_ir_func_decl(ParserState *ps, Stmt *stmt) {}
+static void emit_ir_stmt(ParserState *ps, Stmt *stmt);
+
+static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
+{
+    FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
+    Symbol *sym = fn->sym;
+    ParserScope *scope = enter_scope(ps, SCOPE_FUNC, 0, fn->id.name);
+    KlrBasicBlock *entry = klr_append_block(sym->ir_val, "entry");
+    scope->bb = entry;
+
+    Stmt *s;
+    vector_foreach(s, fn->body) {
+        if (!s) continue;
+        emit_ir_stmt(ps, s);
+    }
+
+    exit_scope(ps);
+}
 
 static void emit_ir_class(ParserState *ps, Stmt *stmt) {}
 
 static void emit_ir_trait(ParserState *ps, Stmt *stmt) {}
 
-static void emit_ir_return(ParserState *ps, Stmt *stmt) {}
+static void emit_ir_return(ParserState *ps, Stmt *stmt)
+{
+    RetStmt *ret = (RetStmt *)stmt;
+    Expr *exp = ret->exp;
+    if (!exp) {
+        KLR_BUILDER(ps);
+        klr_build_ret_void(&bldr);
+        return;
+    }
+
+    exp->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, exp);
+    if (!exp->ir_val) return;
+
+    KLR_BUILDER(ps);
+    klr_build_ret(&bldr, exp->ir_val);
+}
 
 static void emit_ir_expr(ParserState *ps, Stmt *stmt)
 {
@@ -242,9 +311,46 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
     handlers[stmt->kind](ps, stmt);
 }
 
+static void _add_global(KlrModule *m, VarDeclStmt *var)
+{
+    VarSymbol *sym = (VarSymbol *)var->sym;
+    KlrValue *gvar = klr_add_global(m, sym->ts, var->id.name);
+    sym->ir_val = gvar;
+}
+
+static void _add_func(KlrModule *m, FuncDeclStmt *fn)
+{
+    Ident *id = &fn->id;
+    FuncSymbol *sym = (FuncSymbol *)fn->sym;
+
+    KlrValue *fval = klr_add_func(m, sym->ret, id->name);
+
+    ArgInfo *arg;
+    vector_foreach(arg, sym->params) {
+        klr_func_add_param(fval, arg->ts, arg->name);
+    }
+
+    sym->ir_val = fval;
+}
+
+static void _add_klass(KlrModule *m, KlassDeclStmt *kls)
+{
+    Ident *id = &kls->id;
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+    KlrValue *kval = klr_add_klass(m, id->name);
+
+    VarSymbol *field;
+    vector_foreach(field, sym->fields) {
+        klr_klass_add_field(kval, field->name, field->ts);
+    }
+
+    sym->ir_val = kval;
+}
+
 void ast_emit_ir(ParserState *ps)
 {
-    KlrModule *m = ps->module;
+    KlrModule *m = klr_create_module(ps->filename);
+    ps->mod = m;
 
     // visit all global variables and add them to ir module
     Stmt *s;
@@ -252,19 +358,22 @@ void ast_emit_ir(ParserState *ps)
         if (!s) continue;
         if (s->kind == STMT_VAR_KIND) {
             VarDeclStmt *var = (VarDeclStmt *)s;
-            Ident *id = &var->id;
-            VarSymbol *sym = (VarSymbol *)var->sym;
-            KlrValue *gvar = klr_add_global(m, sym->ts, id->name);
-            sym->ir_val = gvar;
+            _add_global(m, var);
+        } else if (s->kind == STMT_FUNC_KIND) {
+            FuncDeclStmt *fn = (FuncDeclStmt *)s;
+            _add_func(m, fn);
+        } else if (s->kind == STMT_CLASS_KIND || s->kind == STMT_TRAIT_KIND) {
+            KlassDeclStmt *kls = (KlassDeclStmt *)s;
+            _add_klass(m, kls);
+        } else {
+            // do nothing
         }
     }
 
-    KlrValue *fn = klr_add_func(m, NULL, NULL, "__init__");
+    KlrValue *fn = klr_add_func(m, no_type_spec(), "__init__");
     m->init = (KlrFunc *)fn;
 
     ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
-    scope->stbl = ps->stbl;
-    scope->sym = NULL;
     KlrBasicBlock *entry = klr_append_block(fn, "entry");
     scope->bb = entry;
 
@@ -274,9 +383,9 @@ void ast_emit_ir(ParserState *ps)
         emit_ir_stmt(ps, s);
     }
 
-    exit_scope(ps);
-
     klr_print_module(m, stdout);
+
+    exit_scope(ps);
 }
 
 #ifdef __cplusplus

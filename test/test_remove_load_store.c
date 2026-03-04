@@ -35,12 +35,12 @@ void build_foo(KlrModule *m)
         NULL,
     };
 
-    KlrValue *func = klr_add_func(m, int64_type_spec(), param_types, "foo");
-    KlrValue *pa = klr_get_param(func, 0);
-    klr_set_name(pa, "a");
+    KlrValue *func = klr_add_func(m, int64_type_spec(), "foo");
+    klr_func_add_param(func, int64_type_spec(), "a");
+    klr_func_add_param(func, int64_type_spec(), "b");
 
-    KlrValue *pb = klr_get_param(func, 1);
-    klr_set_name(pb, "b");
+    KlrValue *pa = klr_func_get_param(func, 0);
+    KlrValue *pb = klr_func_get_param(func, 1);
 
     KlrBasicBlock *bb = klr_append_block(func, "entry");
     KlrBuilder bldr;

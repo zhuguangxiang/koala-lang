@@ -146,7 +146,7 @@ KlrModule *klr_create_module(char *name)
 
 void klr_destroy_module(KlrModule *m) {}
 
-KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, TypeSpec **params, char *name)
+KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name)
 {
     KlrFunc *fn = mm_alloc_obj(fn);
     INIT_KLR_VALUE(fn, KLR_VALUE_FUNC, ret, name);
@@ -160,23 +160,12 @@ KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, TypeSpec **params, char *nam
     fn->sbb = new_block(fn, "start");
     fn->ebb = new_block(fn, "end");
 
-    /* add params */
-    if (params) {
-        TypeSpec **item = params;
-        while (*item) {
-            KlrParam *val = mm_alloc_obj(val);
-            INIT_KLR_VALUE(val, KLR_VALUE_PARAM, *item, "");
-            vector_push_back(&fn->params, &val);
-            ++item;
-        }
-    }
-
     vector_push_back(&m->functions, &fn);
-    fn->module = m;
+    fn->mod = m;
     return (KlrValue *)fn;
 }
 
-KlrValue *klr_get_param(KlrValue *val, int index)
+KlrValue *klr_func_get_param(KlrValue *val, int index)
 {
     KlrFunc *func = (KlrFunc *)val;
 
@@ -185,8 +174,17 @@ KlrValue *klr_get_param(KlrValue *val, int index)
         panic("index %d out of range(0 ..< %d)", index, size);
     }
 
-    KlrValue **item = vector_get_ptr(&func->params, index);
-    return *item;
+    KlrValue *item = vector_get(&func->params, index);
+    return item;
+}
+
+KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ty, char *name)
+{
+    KlrFunc *fn = (KlrFunc *)val;
+    KlrParam *param = mm_alloc_obj(param);
+    INIT_KLR_VALUE(param, KLR_VALUE_PARAM, ty, name);
+    vector_push_back(&fn->params, &param);
+    return (KlrValue *)param;
 }
 
 static KlrGlobal *new_global(TypeSpec *ty, char *name)
@@ -229,7 +227,7 @@ KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *proto, char *path, char *name
     KlrExtFunc *fn = mm_alloc_obj(fn);
     INIT_KLR_VALUE(fn, KLR_VALUE_EXT_FUNC, proto, name);
     vector_push_back(&m->ext_syms, &fn);
-    fn->module = m;
+    fn->mod = m;
     fn->path = path;
     return (KlrValue *)fn;
 }
@@ -239,9 +237,68 @@ KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name)
     KlrExtGlobal *var = mm_alloc_obj(var);
     INIT_KLR_VALUE(var, KLR_VALUE_EXT_GLOBAL, ts, name);
     vector_push_back(&m->ext_syms, &var);
-    var->module = m;
+    var->mod = m;
     var->path = path;
     return (KlrValue *)var;
+}
+
+KlrValue *klr_add_klass(KlrModule *m, char *name)
+{
+    KlrKlass *klass = mm_alloc_obj(klass);
+    INIT_KLR_VALUE(klass, KLR_VALUE_KLASS, NULL, name);
+    vector_init_ptr(&klass->fields);
+    vector_init_ptr(&klass->methods);
+    vector_push_back(&m->klasses, &klass);
+    klass->mod = m;
+    return (KlrValue *)klass;
+}
+
+static KlrField *new_field(TypeSpec *ty, char *name)
+{
+    KlrField *field = mm_alloc_obj(field);
+    INIT_KLR_VALUE(field, KLR_VALUE_FIELD, ty, name);
+    return field;
+}
+
+KlrValue *klr_klass_add_field(KlrValue *klass_val, char *name, TypeSpec *ty)
+{
+    KlrKlass *klass = (KlrKlass *)klass_val;
+    KlrField *field = new_field(ty, name);
+    vector_push_back(&klass->fields, &field);
+    return (KlrValue *)field;
+}
+
+KlrValue *klr_klass_add_method(KlrValue *klass_val, char *name, TypeSpec *ret,
+                               TypeSpec **params)
+{
+    KlrKlass *klass = (KlrKlass *)klass_val;
+    KlrFunc *method = mm_alloc_obj(method);
+    INIT_KLR_VALUE(method, KLR_VALUE_FUNC, ret, name);
+
+    init_list(&method->bb_list);
+    init_list(&method->edge_list);
+    vector_init_ptr(&method->params);
+    vector_init_ptr(&method->locals);
+
+    /* initial 'start' and 'end' block */
+    method->sbb = new_block(method, "start");
+    method->ebb = new_block(method, "end");
+
+    /* add params */
+    if (params) {
+        TypeSpec **item = params;
+        while (*item) {
+            KlrParam *val = mm_alloc_obj(val);
+            INIT_KLR_VALUE(val, KLR_VALUE_PARAM, *item, "");
+            vector_push_back(&method->params, &val);
+            ++item;
+        }
+    }
+
+    vector_push_back(&klass->methods, &method);
+    method->mod = klass->mod;
+    method->klass = klass;
+    return (KlrValue *)method;
 }
 
 #ifdef __cplusplus

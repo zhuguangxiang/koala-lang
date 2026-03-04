@@ -197,6 +197,7 @@ typedef enum _OpCode {
     OP_IR_STORE,
     OP_IR_PHI,
     OP_IR_JMP_COND,
+    OP_LIST,
 
 } OpCode;
 

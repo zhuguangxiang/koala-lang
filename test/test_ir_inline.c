@@ -34,19 +34,13 @@ func foo(a int, b int) int {
 */
 void build_foo(KlrModule *m)
 {
-    TypeSpec *param_types[] = {
-        int64_type_spec(),
-        int64_type_spec(),
-        NULL,
-    };
+    KlrValue *func = klr_add_func(m, int64_type_spec(), "foo");
+    klr_func_add_param(func, int64_type_spec(), "a");
+    klr_func_add_param(func, int64_type_spec(), "b");
 
-    KlrValue *func = klr_add_func(m, int64_type_spec(), param_types, "foo");
     foo = (KlrFunc *)func;
-    KlrValue *pa = klr_get_param(func, 0);
-    klr_set_name(pa, "a");
-
-    KlrValue *pb = klr_get_param(func, 1);
-    klr_set_name(pb, "b");
+    KlrValue *pa = klr_func_get_param(func, 0);
+    KlrValue *pb = klr_func_get_param(func, 1);
 
     KlrBasicBlock *bb = klr_append_block(func, "entry");
     KlrBuilder bldr;
@@ -85,15 +79,11 @@ func bar(n int) int {
 */
 void build_bar(KlrModule *m)
 {
-    TypeSpec *param_types[] = {
-        int64_type_spec(),
-        NULL,
-    };
+    KlrValue *func = klr_add_func(m, int64_type_spec(), "bar");
+    klr_func_add_param(func, int64_type_spec(), "n");
 
-    KlrValue *func = klr_add_func(m, int64_type_spec(), param_types, "bar");
     bar = (KlrFunc *)func;
-    KlrValue *param = klr_get_param(func, 0);
-    klr_set_name(param, "n");
+    KlrValue *param = klr_func_get_param(func, 0);
 
     KlrBasicBlock *entry = klr_append_block(func, "entry");
 
@@ -157,12 +147,12 @@ static void do_inline(KlrModule *m)
     KlrBuilder bldr;
     klr_builder_at(&bldr, insn);
 
-    KlrValue *p = klr_get_param((KlrValue *)foo, 0);
+    KlrValue *p = klr_func_get_param((KlrValue *)foo, 0);
     mappings[mapping_size].callee_val = p;
     mappings[mapping_size].caller_val = insn->opers[1].use.ref;
     mapping_size++;
 
-    p = klr_get_param((KlrValue *)foo, 1);
+    p = klr_func_get_param((KlrValue *)foo, 1);
     mappings[mapping_size].callee_val = p;
     mappings[mapping_size].caller_val = insn->opers[2].use.ref;
     mapping_size++;

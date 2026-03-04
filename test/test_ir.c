@@ -31,18 +31,12 @@ func foo(a int, b int) int {
 */
 void build_foo(KlrModule *m)
 {
-    TypeSpec *param_types[] = {
-        int64_type_spec(),
-        int64_type_spec(),
-        NULL,
-    };
+    KlrValue *func = klr_add_func(m, int64_type_spec(), "foo");
+    klr_func_add_param(func, int64_type_spec(), "a");
+    klr_func_add_param(func, int64_type_spec(), "b");
 
-    KlrValue *func = klr_add_func(m, int64_type_spec(), param_types, "foo");
-    KlrValue *pa = klr_get_param(func, 0);
-    klr_set_name(pa, "a");
-
-    KlrValue *pb = klr_get_param(func, 1);
-    klr_set_name(pb, "b");
+    KlrValue *pa = klr_func_get_param(func, 0);
+    KlrValue *pb = klr_func_get_param(func, 1);
 
     KlrBasicBlock *bb = klr_append_block(func, "entry");
     KlrBuilder bldr;
@@ -82,14 +76,10 @@ func fib(n Int32) Int32 {
 */
 void build_fib(KlrModule *m)
 {
-    TypeSpec *param_types[] = {
-        int64_type_spec(),
-        NULL,
-    };
+    KlrValue *func = klr_add_func(m, int64_type_spec(), "fib");
+    klr_func_add_param(func, int64_type_spec(), "n");
 
-    KlrValue *func = klr_add_func(m, int64_type_spec(), param_types, "fib");
-    KlrValue *param = klr_get_param(func, 0);
-    klr_set_name(param, "n");
+    KlrValue *param = klr_func_get_param(func, 0);
 
     KlrBasicBlock *entry = klr_append_block(func, "entry");
 

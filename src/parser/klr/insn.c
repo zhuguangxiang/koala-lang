@@ -303,6 +303,20 @@ void klr_build_ret_void(KlrBuilder *bldr)
     klr_link_edge(bldr->bb, fn->ebb);
 }
 
+KlrValue *klr_build_list(KlrBuilder *bldr, Vector *items, TypeSpec *ty)
+{
+    int num_items = vector_size(items);
+
+    KlrInsn *insn = new_insn(OP_LIST, num_items, "");
+    for (int i = 0; i < num_items; i++) {
+        KlrValue *item = vector_get(items, i);
+        init_oper(&insn->opers[i], insn, item);
+    }
+    insn->ts = ty;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
 KlrInsn *klr_new_push(KlrValue *val)
 {
     KlrInsn *insn = new_insn(OP_PUSH, 1, "");

@@ -23,16 +23,12 @@ void klr_remove_unused_block(KlrFunc *func);
 
 static void build_unreach_block(KlrModule *m)
 {
-    TypeSpec *params[] = {
-        int64_type_spec(),
-        int64_type_spec(),
-        NULL,
-    };
-    KlrValue *fn = klr_add_func(m, int64_type_spec(), params, "add");
-    KlrValue *v1 = klr_get_param(fn, 0);
-    KlrValue *v2 = klr_get_param(fn, 1);
-    klr_set_name(v1, "v1");
-    klr_set_name(v2, "v2");
+    KlrValue *fn = klr_add_func(m, int64_type_spec(), "add");
+    klr_func_add_param(fn, int64_type_spec(), "a");
+    klr_func_add_param(fn, int64_type_spec(), "b");
+
+    KlrValue *v1 = klr_func_get_param(fn, 0);
+    KlrValue *v2 = klr_func_get_param(fn, 1);
 
     KlrBasicBlock *entry = klr_append_block(fn, "entry");
     KlrBuilder bldr;

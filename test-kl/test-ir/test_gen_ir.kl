@@ -5,6 +5,12 @@ let j = i + 1
 
 print(i, j)
 
+func foo() str { return "hello" }
+
+let s = foo()
+
+let l = [1, 2, 3]
+
 // CHECK: global @i int64
 // CHECK: global @j int64
 // CHECK: func @__init__() {

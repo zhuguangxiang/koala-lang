@@ -37,6 +37,7 @@ typedef enum _SymKind {
 #define SYM_FLAGS_PUBLIC    (1 << 2)
 #define SYM_FLAGS_TAG_ONLY  (1 << 3)
 #define SYM_FLAGS_TAG_VALUE (1 << 4)
+#define SYM_FLAGS_EXT       (1 << 5)
 
 #define SYM_UNRESOLVED   0
 #define SYM_RESOLVED     1
@@ -44,7 +45,7 @@ typedef enum _SymKind {
 
 #define SYMBOL_HEAD \
     HashMapEntry hnode; SymKind kind; short flags; short status; int id; char *name; \
-    TypeSpec *ts; HashMap *stbl; void *arg; void *parent; void *ps; KlrValue *ir_val;
+    char *path; TypeSpec *ts; HashMap *stbl; void *arg; void *parent; void *ps; KlrValue *ir_val;
 
 /* clang-format on */
 

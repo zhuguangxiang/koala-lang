@@ -25,6 +25,8 @@ typedef enum _KlrValueKind {
     KLR_VALUE_PARAM,
     KLR_VALUE_LOCAL,
     KLR_VALUE_INSN,
+    KLR_VALUE_KLASS,
+    KLR_VALUE_FIELD,
     KLR_VALUE_EXT_FUNC,
     KLR_VALUE_EXT_GLOBAL,
     KLR_VALUE_MAX,
@@ -57,13 +59,6 @@ typedef struct _KlrValue {
     (val)->name = _name ? _name : ""; \
     (val)->tag = -1;
 
-typedef union _KlrConstValue {
-    int64_t ival;
-    double fval;
-    int bval;
-    char *sval;
-} KlrConstValue;
-
 /* literal constant */
 typedef struct _KlrConst {
     KLR_VALUE_HEAD
@@ -81,10 +76,10 @@ typedef struct _KlrConst {
     };
 } KlrConst;
 
-/* global variable */
-typedef struct _KlrGlobal {
+/* global/field variable */
+typedef struct _KlrVar {
     KLR_VALUE_HEAD
-} KlrGlobal;
+} KlrGlobal, KlrField;
 
 /* local register variable */
 typedef struct _KlrLocal {
@@ -101,6 +96,8 @@ typedef struct _KlrLocal {
 typedef struct _KlrParam {
     KLR_VALUE_HEAD
 } KlrParam;
+
+struct _KlrKlass;
 
 /* function */
 typedef struct _KlrFunc {
@@ -127,7 +124,10 @@ typedef struct _KlrFunc {
     struct _KlrBasicBlock *ebb;
 
     /* module pointer */
-    struct _KlrModule *module;
+    struct _KlrModule *mod;
+
+    /* klass pointer */
+    struct _KlrKlass *klass;
 } KlrFunc;
 
 /* basic block */
@@ -201,7 +201,8 @@ typedef struct _KlrModule {
 } KlrModule;
 
 typedef struct _KlrKlass {
-    char *name;
+    KLR_VALUE_HEAD
+    KlrModule *mod;
     Vector fields;
     Vector methods;
 } KlrKlass;
@@ -209,7 +210,7 @@ typedef struct _KlrKlass {
 #define KLR_EXT_SYM_HEAD \
     KLR_VALUE_HEAD \
     /* module pointer */ \
-    KlrModule *module; \
+    KlrModule *mod; \
     /* owner pkg path */ \
     char *path;
 
@@ -324,15 +325,16 @@ KlrValue *klr_const_str(char *s, int len);
 KlrModule *klr_create_module(char *name);
 void klr_destroy_module(KlrModule *m);
 
-static inline void klr_set_name(KlrValue *val, char *name)
-{
-    val->name = name ? name : "";
-}
+KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name);
+KlrValue *klr_func_get_param(KlrValue *val, int index);
+KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ty, char *name);
 
-KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, TypeSpec **params, char *name);
-KlrValue *klr_get_param(KlrValue *fn, int index);
 KlrValue *klr_add_global(KlrModule *m, TypeSpec *ty, char *name);
 KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ty, char *name);
+KlrValue *klr_add_klass(KlrModule *m, char *name);
+KlrValue *klr_klass_add_field(KlrValue *klass, char *name, TypeSpec *ty);
+KlrValue *klr_klass_add_method(KlrValue *klass, char *name, TypeSpec *ret,
+                               TypeSpec **params);
 
 // ir doesn't check external symbol's type
 KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *proto, char *path, char *name);
@@ -488,6 +490,8 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
 
 /* IR: ret */
 void klr_build_ret_void(KlrBuilder *bldr);
+
+KlrValue *klr_build_list(KlrBuilder *bldr, Vector *items, TypeSpec *ty);
 
 /* IR: push %var */
 KlrInsn *klr_new_push(KlrValue *val);

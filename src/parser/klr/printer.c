@@ -59,7 +59,7 @@ static void print_const(KlrConst *v, FILE *fp)
             fprintf(fp, "%s", v->bval ? "True" : "False");
             break;
         case CONST_STR:
-            fprintf(fp, "%s", v->sval);
+            fprintf(fp, "'%s'", v->sval);
             break;
         default:
             UNREACHABLE();
@@ -121,6 +121,16 @@ static void print_ret(KlrInsn *insn, FILE *fp)
 }
 
 static void print_ret_void(KlrInsn *insn, FILE *fp) { fprintf(fp, "ret void"); }
+
+static void print_list(KlrInsn *insn, FILE *fp)
+{
+    klr_print_name_or_tag((KlrValue *)insn, fp);
+    fprintf(fp, " = list ");
+    for (int i = 0; i < insn->num_opers; i++) {
+        print_operand(&insn->opers[i], fp);
+        if (i < insn->num_opers - 1) fprintf(fp, ", ");
+    }
+}
 
 static void print_store(KlrInsn *insn, FILE *fp)
 {
@@ -219,7 +229,10 @@ static void print_call(KlrInsn *insn, FILE *fp)
     fprintf(fp, " = call ");
     KlrValue *fn = insn->opers[0].use.ref;
     fprintf(fp, "@%s", fn->name);
-    if (insn->num_opers > 0) fprintf(fp, ", ");
+    if (fn->kind == KLR_VALUE_EXT_FUNC) {
+        fprintf(fp, " [ext = true, path = '%s']", ((KlrExtFunc *)fn)->path);
+    }
+    if (insn->num_opers > 1) fprintf(fp, ", ");
     KlrOper *oper;
     for (int i = 1; i < insn->num_opers; i++) {
         if (i != 1) fprintf(fp, ", ");
@@ -307,6 +320,9 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_ret_void(insn, fp);
             break;
 
+        case OP_LIST:
+            print_list(insn, fp);
+            break;
         default:
             printf("%d\n", insn->code);
             UNREACHABLE();
@@ -546,20 +562,20 @@ void klr_print_module(KlrModule *m, FILE *fp)
         fprintf(fp, "\n");
     }
 
-    KlrExtSym *ext;
-    vector_foreach(ext, &m->ext_syms) {
-        if (ext->kind == KLR_VALUE_EXT_FUNC) {
-            fprintf(fp, "  ext func @%s.%s", ext->path, ext->name);
-            print_type(ext->ts, fp);
-            fprintf(fp, "\n");
-        } else if (ext->kind == KLR_VALUE_EXT_GLOBAL) {
-            fprintf(fp, "  ext global @%s.%s", ext->path, ext->name);
-            print_type(ext->ts, fp);
-            fprintf(fp, "\n");
-        } else {
-            fprintf(fp, "  ext sym @%s.%s", ext->path, ext->name);
-        }
-    }
+    // KlrExtSym *ext;
+    // vector_foreach(ext, &m->ext_syms) {
+    //     if (ext->kind == KLR_VALUE_EXT_FUNC) {
+    //         fprintf(fp, "  ext func @%s.%s", ext->path, ext->name);
+    //         print_type(ext->ts, fp);
+    //         fprintf(fp, "\n");
+    //     } else if (ext->kind == KLR_VALUE_EXT_GLOBAL) {
+    //         fprintf(fp, "  ext global @%s.%s", ext->path, ext->name);
+    //         print_type(ext->ts, fp);
+    //         fprintf(fp, "\n");
+    //     } else {
+    //         fprintf(fp, "  ext sym @%s.%s", ext->path, ext->name);
+    //     }
+    // }
 
     KlrFunc *fn;
     vector_foreach(fn, &m->functions) {
