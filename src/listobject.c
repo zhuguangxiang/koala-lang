@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #include "listobject.h"
@@ -39,7 +39,8 @@ public func __init__(v iterable[T]) { ... }
 public final class list[T] : iterable[T] { ... }
 */
 TypeObject list_type = {
-    OBJECT_HEAD_INIT(&type_type), .name = "list",
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "list",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_FINAL,
     // .alloc = _list_alloc,
     // .init = _list_init,

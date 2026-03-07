@@ -1,9 +1,10 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #include "buffer.h"
+#include "cfuncobject.h"
 #include "exception.h"
 #include "moduleobject.h"
 #include "object.h"
@@ -21,9 +22,11 @@ static void init_types(Object *m)
     type_ready(&type_type);
     type_ready(&none_type);
     type_ready(&exc_type);
-    type_ready(&int_type);
+    type_ready(&int64_type);
     type_ready(&str_type);
     type_ready(&tuple_type);
+    type_ready(&cfunc_type);
+    type_ready(&code_type);
 }
 
 // static void builtin_print_impl(Value *args, int nargs, Value *_sep, Value *_end,
@@ -116,7 +119,7 @@ static MethodDef builtin_methods[] = {
 static int builtin_module_init(Object *m) { init_types(m); }
 
 static ModuleDef builtin_module = {
-    .name = "builtin",
+    .name = "std/builtin",
     .size = 0,
     .methods = builtin_methods,
     .init = builtin_module_init,

@@ -1,13 +1,13 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #ifndef _KOALA_KLC_H_
 #define _KOALA_KLC_H_
 
-#include "codespec.h"
 #include "hashmap.h"
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {

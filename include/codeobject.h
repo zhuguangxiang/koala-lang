@@ -1,12 +1,11 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #ifndef _KOALA_CODE_OBJECT_H_
 #define _KOALA_CODE_OBJECT_H_
 
-#include "codespec.h"
 #include "object.h"
 
 #ifdef __cplusplus
@@ -15,8 +14,16 @@ extern "C" {
 
 typedef struct _CodeObject {
     FUNCTION_HEAD
-    /* code spec from klc */
-    CodeSpec cs;
+    /* name */
+    char *name;
+    /* file name */
+    char *filename;
+    /* line table(addr2line) */
+    void *line_table;
+    /* stack size */
+    int stack_size;
+    /* instructions */
+    char *insns;
 } CodeObject;
 
 extern TypeObject code_type;

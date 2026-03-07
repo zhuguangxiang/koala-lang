@@ -1,10 +1,12 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #include "moduleobject.h"
 #include "cfuncobject.h"
+#include "gc.h"
+#include "log.h"
 #include "run.h"
 #include "stringobject.h"
 
@@ -27,15 +29,15 @@ TypeObject module_type = {
 
 Object *kl_new_module(char *path)
 {
-    ModuleObject *m = mm_alloc_obj(m);
+    ModuleObject *m = gc_alloc_obj_p(m);
     INIT_OBJECT_HEAD(m, &module_type);
 
     vector_init_ptr(&m->symbols);
     init_sym_tbl(&m->map);
     vector_init(&m->consts, sizeof(Value));
-    vector_init(&m->rels, sizeof(RelocInfo));
+    vector_init(&m->rels, sizeof(RelocEntry));
 
-    RelocInfo not_used = { NULL, NULL };
+    RelocEntry not_used = { NULL };
     vector_push_back(&m->rels, &not_used);
 
     sym_tbl_add(&_gs_modules, path, strlen(path), (Object *)m);
@@ -125,56 +127,93 @@ int cp_add_obj(Object *_m, Object *obj)
     return 0;
 }
 
+static int _do_link(RelocEntry *rel, Object *_m)
+{
+    if (rel->obj) return 0;
+
+    ModuleObject *m = (ModuleObject *)_m;
+    char *key = rel->key;
+    if (!key) {
+        log_error("invalid relocation entry with empty key");
+        return 0;
+    }
+
+    if (rel->kind == REL_TYPE_MODULE) {
+        Object *obj = sym_tbl_find(&_gs_modules, key, strlen(key));
+        ASSERT(obj && IS_MODULE(obj));
+        rel->obj = obj;
+    } else if (rel->kind == REL_TYPE_KLASS) {
+        ASSERT(rel->parent > 0);
+        RelocEntry *parent = kl_get_rel(_m, rel->parent);
+        ASSERT(parent);
+        Object *obj = parent->obj;
+        if (!obj) {
+            _do_link(parent, _m);
+            obj = parent->obj;
+            if (!obj) {
+                log_error("linking '%s' failed: parent '%s' not found", key, parent->key);
+                return -1;
+            }
+        }
+        ASSERT(obj && IS_MODULE(obj));
+        obj = module_lookup(obj, key, strlen(key));
+        ASSERT(obj && IS_TYPE(obj, &type_type));
+        rel->obj = obj;
+    } else if (rel->kind == REL_TYPE_FUNC) {
+        ASSERT(rel->parent > 0);
+        RelocEntry *parent = kl_get_rel(_m, rel->parent);
+        ASSERT(parent);
+        Object *obj = parent->obj;
+        if (!obj) {
+            _do_link(parent, _m);
+            obj = parent->obj;
+            if (!obj) {
+                log_error("linking '%s' failed: parent '%s' not found", key, parent->key);
+                return -1;
+            }
+        }
+        if (IS_MODULE(obj)) {
+            obj = module_lookup(obj, key, strlen(key));
+        } else if (IS_TYPE(obj, &type_type)) {
+            obj = sym_tbl_find(&((TypeObject *)obj)->map, key, strlen(key));
+        } else {
+            UNREACHABLE();
+        }
+        ASSERT(obj && IS_CFUNC(obj));
+        rel->obj = obj;
+    } else if (rel->kind == REL_TYPE_VAR) {
+        NYI();
+    } else {
+        UNREACHABLE();
+    }
+    return 0;
+}
+
 int kl_do_link(Object *_m)
 {
     ASSERT(IS_MODULE(_m));
     ModuleObject *m = (ModuleObject *)_m;
 
-    // RelocInfo *rel;
-    // vector_foreach_ptr(rel, &m->rels) {
-    //     const char *ns = rel->ns;
-    //     if (!ns) continue;
-    //     int len = strlen(rel->ns);
-    //     char *dot = strrchr(rel->ns, '.');
-    //     if (dot) len = dot - ns;
-    //     Object *obj = sym_tbl_find(&_gs_modules, ns, len);
-    //     ASSERT(obj);
-
-    //     if (dot) {
-    //         // find from class, if dot exists.
-    //         obj = module_lookup_object(obj, dot + 1, strlen(dot + 1));
-    //         ASSERT(obj);
-    //         SymbolInfo *sym;
-    //         vector_foreach_ptr(sym, &rel->syms) {
-    //             Object *o = type_lookup(obj, sym->name, strlen(sym->name));
-    //             ASSERT(o);
-    //             sym->obj = o;
-    //         }
-    //     } else {
-    //         SymbolInfo *sym;
-    //         vector_foreach_ptr(sym, &rel->syms) {
-    //             Object *o = module_lookup_object(obj, sym->name, strlen(sym->name));
-    //             ASSERT(o);
-    //             sym->obj = o;
-    //         }
-    //     }
-    // }
+    RelocEntry *rel;
+    vector_foreach_ptr(rel, &m->rels) {
+        char *key = rel->key;
+        if (!key) continue;
+        if (_do_link(rel, _m) < 0) {
+            log_error("linking '%s' failed", key);
+        } else {
+            log_info("linked '%s' successfully", key);
+        }
+    }
 
     return 0;
 }
 
-int kl_add_rel(Object *_m, RelocInfo *rel)
+int kl_add_rel(Object *_m, int kind, char *key, int parent)
 {
+    RelocEntry rel = { .key = strdup(key), .kind = kind, .parent = parent };
     ModuleObject *m = (ModuleObject *)_m;
-    RelocInfo *item = NULL;
-    vector_foreach_ptr(item, &m->rels) {
-        const char *key = item->key;
-        if (!key) continue;
-        if (!strcmp(key, rel->key)) return -1;
-    }
-
-    vector_push_back(&m->rels, rel);
-    return 0;
+    vector_push_back(&m->rels, &rel);
+    return vector_size(&m->rels) - 1;
 }
 
 #ifdef __cplusplus

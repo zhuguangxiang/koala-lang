@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #include "exception.h"
@@ -53,7 +53,7 @@ void kl_trace_here(CallFrame *cf)
 {
     TraceBack *tb = mm_alloc_obj_fast(tb);
     tb->back = NULL;
-    tb->file = cf->code->cs.filename;
+    tb->file = cf->code->filename;
     // TODO:
     tb->lineno = 0;
 

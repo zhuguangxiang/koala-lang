@@ -1,6 +1,6 @@
 #
 # This file is part of the koala project with MIT License.
-# Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+# Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
 #
 
 include(${PROJECT_SOURCE_DIR}/cmake/bison.cmake)
@@ -71,7 +71,7 @@ set(KOALA_SOURCES
     typeobject.c
     # fieldobject.c
     cfuncobject.c
-    # codeobject.c
+    codeobject.c
     intobject.c
     # floatobject.c
     stringobject.c
@@ -80,7 +80,7 @@ set(KOALA_SOURCES
     modules/builtin.c
     gc.c
     run.c
-    # eval.c
+    eval.c
     )
 
 add_library(koala STATIC ${KOALA_SOURCES})

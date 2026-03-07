@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #include "run.h"
@@ -199,7 +199,7 @@ static void clear_done_state(void)
     LLDqNode *node = lldq_pop_head(&_gs_done_list);
     while (node) {
         KoalaState *ks = CONTAINER_OF(node, KoalaState, link);
-        ks_free(ks);
+        // ks_free(ks);
         node = lldq_pop_head(&_gs_done_list);
     }
 }
@@ -241,13 +241,13 @@ void kl_fini(void)
         ThreadState *ts = _threads + i;
         pthread_join(ts->pid, NULL);
         ASSERT(ts->state == TS_DONE);
-        ks_free(ts->current);
+        // ks_free(ts->current);
     }
 
     ASSERT(lldq_empty(&_gs_run_list));
     ASSERT(lldq_empty(&_gs_done_list));
 
-    ks_free(__ts->current);
+    // ks_free(__ts->current);
     mm_free(_threads);
 
     fini_gc_system();

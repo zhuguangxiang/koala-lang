@@ -27,17 +27,12 @@ extern "C" {
 #define GC_KIND_OBJECT       7
 
 /* clang-format off */
-#define GC_OBJECT_HEAD LLDqNode gc_link; int gc_size; short gc_age; char gc_color; char gc_kind;
+#define GC_OBJECT_HEAD LLDqNode gc_link; int gc_size; short gc_age; char gc_color; char gc_kind; int gc_num_objs;
 /* clang-format on */
 
 typedef struct _GcObject {
     GC_OBJECT_HEAD
 } GcObject;
-
-typedef struct _GcArrayObject {
-    GC_OBJECT_HEAD
-    int gc_num_objs;
-} GcArrayObject;
 
 /* clang-format off */
 #define GC_OBJECT_INIT(_size, _age, _color) \
@@ -100,7 +95,7 @@ static inline void gc_mark_array(void *ptr, Queue *que)
 {
     ASSERT(ptr);
 
-    GcArrayObject *arr = (GcArrayObject *)ptr - 1;
+    GcObject *arr = (GcObject *)ptr - 1;
     if (arr->gc_kind == GC_KIND_ARRAY_OBJECT) {
         GcObject *objs = (GcObject *)(arr + 1);
         for (int i = 0; i < arr->gc_num_objs; i++) {

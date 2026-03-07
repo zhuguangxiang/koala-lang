@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.call
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.call
  */
 
 #include "atom.h"
@@ -56,17 +56,29 @@ Object *object_lookup(Value *obj, char *name)
 
 static int _type_ready(TypeObject *tp)
 {
+    vector_init_ptr(&tp->traits);
     vector_init_ptr(&tp->fields);
     vector_init_ptr(&tp->methods);
+    vector_init_ptr(&tp->itables);
     init_sym_tbl(&tp->map);
 
     // add method to type
-    // MethodDef *def = tp->methods;
-    // while (def && def->name) {
-    //     Object *cfunc = kl_new_cfunc(def, tp->module, tp);
-    //     tbl_add_object(&tp->map, def->name, cfunc);
-    //     ++def;
-    // }
+    MethodDef *def = tp->methdefs;
+    while (def && def->name) {
+        Object *cfunc = kl_new_cfunc(def, tp->module, tp);
+        sym_tbl_add(&tp->map, def->name, strlen(def->name), cfunc);
+        ++def;
+    }
+
+    TypeObject **intfdef = tp->intfdefs;
+    while (intfdef && *intfdef) {
+        vector_push_back(&tp->traits, &intfdef);
+        ++intfdef;
+    }
+
+    // compute_pip(tp);
+    // compute_lro(tp);
+    // compute_scm(tp);
 
     return 0;
 }

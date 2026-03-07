@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #include "gc.h"
@@ -191,7 +191,7 @@ void *_gc_alloc(int size, int perm)
     ASSERT(ts->state == TS_RUNNING);
 
     /* aligned pointer size */
-    int mm_size = ALIGN_PTR(size);
+    int mm_size = ALIGN_PTR(sizeof(GcObject) + ALIGN_PTR(size));
     GcObject *obj = NULL;
 
     /* simple fsm */
@@ -255,12 +255,12 @@ void *gc_alloc_array(int kind, size_t len)
         sizeof(Value),
     };
     ASSERT(kind >= GC_KIND_ARRAY_BYTE && kind <= GC_KIND_ARRAY_VALUE);
-    len = ALIGN(len, 8);
-    int size = sizeof(GcArrayObject) + len * sizes[kind];
-    GcArrayObject *obj = gc_alloc(size);
+    int size = ALIGN_PTR(len * sizes[kind]);
+    void *_obj = gc_alloc(size);
+    GcObject *obj = (GcObject *)_obj - 1;
     obj->gc_kind = kind;
     obj->gc_num_objs = len;
-    return obj + 1;
+    return _obj;
 }
 
 static void gc_segment_fault_handler(int sig, siginfo_t *si, void *unused)
@@ -527,7 +527,7 @@ void fini_gc_system(void)
                 /* code */
                 break;
             case GC_KIND_OBJECT: {
-                Object *obj = (Object *)gc_obj;
+                Object *obj = (Object *)(gc_obj + 1);
                 TypeObject *tp = OB_TYPE(obj);
                 if (tp->fini) tp->fini(obj);
                 log_debug("object '%s' is freed", tp->name);
@@ -557,7 +557,7 @@ void fini_gc_system(void)
                 break;
             }
             case GC_KIND_OBJECT: {
-                Object *obj = (Object *)gc_obj;
+                Object *obj = (Object *)(gc_obj + 1);
                 TypeObject *tp = OB_TYPE(obj);
                 if (tp->fini) tp->fini(obj);
                 log_debug("object '%s' is freed", tp->name);

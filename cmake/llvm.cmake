@@ -1,6 +1,6 @@
 #
 # This file is part of the koala project with MIT LIcense.
-# Copyright (c) James <zhuguangxiang@gmail.com>
+# Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>
 #
 
 find_package(LLVM REQUIRED CONFIG)

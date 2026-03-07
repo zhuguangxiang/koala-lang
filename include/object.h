@@ -245,7 +245,7 @@ typedef struct _TypeObject {
     StrFunc str;
 
     /* traits */
-    struct TypeObject **intfdefs;
+    struct _TypeObject **intfdefs;
     /* members */
     MemberDef *members;
     /* method defs */
@@ -260,11 +260,18 @@ typedef struct _TypeObject {
 
     /* itables */
     Vector itables;
-
     /* itable mapping */
     HashMap itable_map;
+
     /* field/method mapping */
     HashMap map;
+
+    /* primary inheritance path */
+    Vector pip;
+    /* linear resolved order */
+    Vector lro;
+    /* second chain map */
+    Vector scm;
 } TypeObject;
 
 #define FUNCTION_HEAD \
@@ -280,7 +287,7 @@ extern TypeObject type_type;
 extern TypeObject any_type;
 extern TypeObject bool_type;
 extern TypeObject none_type;
-extern TypeObject int_type;
+extern TypeObject int64_type;
 extern TypeObject float_type;
 
 TypeObject *object_typeof(Value *val);

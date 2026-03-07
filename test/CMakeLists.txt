@@ -1,6 +1,6 @@
 #
 # MIT License
-# Copyright (c) 2018 James, https://github.com/zhuguangxiang
+# Copyright (c) James, https://github.com/zhuguangxiang
 #
 
 include(${CMAKE_SOURCE_DIR}/cmake/test.cmake)
@@ -16,7 +16,7 @@ test(test_bitset koala)
 # test(test_fib koala)
 # set_tests_properties(test_fib PROPERTIES LABELS no_debug_test)
 # test(test_type_call koala)
-# test(test_module koala)
+test(test_module koala)
 # test(test_kwargs koala)
 # test(test_typeof koala)
 # test(test_get_int_method koala)

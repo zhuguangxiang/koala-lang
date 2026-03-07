@@ -6,6 +6,7 @@
 #ifndef _KOALA_SHADOW_STACK_H_
 #define _KOALA_SHADOW_STACK_H_
 
+#include "log.h"
 #include "run.h"
 
 #ifdef __cplusplus
@@ -30,17 +31,20 @@ typedef struct _ShadowStack {
         .count = sizeof(_objs_##__LINE__) / sizeof(void *), \
         .objs = _objs_##__LINE__, \
     }; \
+    log_info("push shadow stack for function '%s', count = %d", ss_##__LINE__.fname, ss_##__LINE__.count); \
     __attribute__((cleanup(_kl_gc_ss_pop))) \
     ShadowStack *_ss_##__LINE__ = &ss_##__LINE__; \
     __ks()->shadow_stacks = _ss_##__LINE__;
 
 /* clang-format on */
 
-static inline void _kl_gc_ss_pop(ShadowStack **ss)
+static inline void _kl_gc_ss_pop(ShadowStack **pptr)
 {
+    ShadowStack *ss = *pptr;
+    log_info("pop shadow stack for function '%s', count = %d", ss->fname, ss->count);
     KoalaState *ks = __ks();
-    ASSERT(ks->shadow_stacks == *ss);
-    ks->shadow_stacks = (*ss)->back;
+    ASSERT(ks->shadow_stacks == ss);
+    ks->shadow_stacks = ss->back;
 }
 
 #ifdef __cplusplus

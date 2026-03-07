@@ -44,30 +44,30 @@ static void _copy_arguments(CallFrame *cf, Value *args, int nargs)
     }
 }
 
-static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
-{
-    CallFrame *cf = (CallFrame *)ks->stack_top_ptr;
-    ks->stack_top_ptr = ks->stack_top_ptr + sizeof(*cf);
+// static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
+// {
+//     CallFrame *cf = (CallFrame *)ks->stack_top_ptr;
+//     ks->stack_top_ptr = ks->stack_top_ptr + sizeof(*cf);
 
-    cf->code = code;
-    cf->module = code->module;
-    int nlocals = code->cs.nlocals;
-    int stack_size = code->cs.stack_size;
-    cf->local_size = nlocals;
-    cf->stack_size = stack_size;
-    cf->stack = cf->local_stack + nlocals;
-    ks->stack_top_ptr += sizeof(Value) * (nlocals + stack_size);
-    ASSERT(ks->stack_top_ptr <= ks->base_stack_ptr + ks->stack_size);
+//     cf->code = code;
+//     cf->module = code->module;
+//     int nlocals = code->cs.nlocals;
+//     int stack_size = code->cs.stack_size;
+//     cf->local_size = nlocals;
+//     cf->stack_size = stack_size;
+//     cf->stack = cf->local_stack + nlocals;
+//     ks->stack_top_ptr += sizeof(Value) * (nlocals + stack_size);
+//     ASSERT(ks->stack_top_ptr <= ks->base_stack_ptr + ks->stack_size);
 
-    return cf;
-}
+//     return cf;
+// }
 
-static void _pop_frame(KoalaState *ks, CallFrame *cf)
-{
-    /* shrink stack */
-    ks->stack_top_ptr -= sizeof(*cf) + sizeof(Value) * (cf->stack_size + cf->local_size);
-    ASSERT(ks->stack_top_ptr >= ks->base_stack_ptr);
-}
+// static void _pop_frame(KoalaState *ks, CallFrame *cf)
+// {
+//     /* shrink stack */
+//     ks->stack_top_ptr -= sizeof(*cf) + sizeof(Value) * (cf->stack_size +
+//     cf->local_size); ASSERT(ks->stack_top_ptr >= ks->base_stack_ptr);
+// }
 
 KoalaState *ks_new(void)
 {
@@ -88,6 +88,8 @@ void ks_free(KoalaState *ks)
     ASSERT(ks->shadow_stacks == NULL);
     mm_free(ks);
 }
+
+#if 0
 
 /* clang-format off */
 
@@ -144,7 +146,7 @@ void ks_free(KoalaState *ks)
 //         return (Object *)(*item);
 //     }
 
-//     RelocInfo *reloc = vector_get_ptr(&m->rels, rel);
+//     RelocEntry *reloc = vector_get_ptr(&m->rels, rel);
 //     ASSERT(reloc);
 //     SymbolInfo *symbol = vector_get_ptr(&reloc->syms, sym);
 //     ASSERT(symbol && symbol->obj);
@@ -380,26 +382,26 @@ done:
     ks->cf = cf->back;
     --ks->depth;
 }
+#endif
 
 Value kl_eval_code(Value *self, Value *args, int nargs, Object *names)
 {
     KoalaState *ks = __ks();
 
-    Object *code = as_obj(self);
+    Object *code = to_obj(self);
 
     /* build a call frame */
-    CallFrame *cf = _new_frame(ks, (CodeObject *)code);
+    // CallFrame *cf = _new_frame(ks, (CodeObject *)code);
 
     /* copy arguments */
-    _copy_arguments(cf, args, nargs);
+    // _copy_arguments(cf, args, nargs);
 
     /* eval the call frame */
-    Value result = { 0 };
-    _eval_frame(ks, cf, &result);
+    // Value result = _eval_frame(ks, cf);
 
     /* pop frame to free list */
-    _pop_frame(ks, cf);
-    return result;
+    // _pop_frame(ks, cf);
+    return none_value;
 }
 
 #ifdef __cplusplus

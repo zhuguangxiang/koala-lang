@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #ifndef _KOALA_MODULE_OBJECT_H_
@@ -45,10 +45,20 @@ typedef struct _ModuleObject {
     Vector rels;
 } ModuleObject;
 
-typedef struct _RelocInfo {
+typedef struct _RelocEntry {
+    /* key: <path>/<symbol> */
     char *key;
+    /* kind */
+    int kind;
+#define REL_TYPE_MODULE 1
+#define REL_TYPE_KLASS  2
+#define REL_TYPE_FUNC   3
+#define REL_TYPE_VAR    4
+    /* parent */
+    int parent;
+    /* object */
     Object *obj;
-} RelocInfo;
+} RelocEntry;
 
 extern TypeObject module_type;
 #define IS_MODULE(ob) IS_TYPE((ob), &module_type)
@@ -74,13 +84,34 @@ int cp_add_str(Object *_m, char *s);
 int cp_add_obj(Object *_m, Object *obj);
 
 int kl_do_link(Object *_m);
-int kl_add_rel(Object *_m, RelocInfo *rel);
 
-static inline RelocInfo *kl_get_rel(Object *_m, int index)
+int kl_add_rel(Object *_m, int kind, char *key, int parent);
+
+static inline int kl_add_rel_mod(Object *_m, char *path)
+{
+    return kl_add_rel(_m, REL_TYPE_MODULE, path, 0);
+}
+
+static inline int kl_add_rel_cls(Object *_m, char *cls, int parent)
+{
+    return kl_add_rel(_m, REL_TYPE_KLASS, cls, parent);
+}
+
+static inline int kl_add_rel_func(Object *_m, char *func, int parent)
+{
+    return kl_add_rel(_m, REL_TYPE_FUNC, func, parent);
+}
+
+static inline int kl_add_rel_var(Object *_m, char *var, int parent)
+{
+    return kl_add_rel(_m, REL_TYPE_VAR, var, parent);
+}
+
+static inline RelocEntry *kl_get_rel(Object *_m, int index)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    RelocInfo *item = vector_get_ptr(&m->rels, index);
-    return item;
+    RelocEntry *rel = vector_get_ptr(&m->rels, index);
+    return rel;
 }
 
 #ifdef __cplusplus

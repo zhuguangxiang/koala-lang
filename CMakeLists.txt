@@ -20,7 +20,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.local/lib)
 # add_definitions(-DMAX_GC_MEM_SIZE=330)
-add_definitions(-DMAX_GC_MEM_SIZE=1024)
+add_definitions(-DMAX_GC_MEM_SIZE=1024*1024)
 add_definitions(-DLOG_COLOR)
 
 set(CMAKE_C_STANDARD 17)
