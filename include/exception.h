@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #ifndef _KOALA_EXCEPTION_H_
@@ -29,8 +29,8 @@ typedef struct _Exception {
 } Exception;
 
 extern TypeObject exc_type;
-void _raise_exc_fmt(KoalaState *ks, const char *fmt, ...);
-void _raise_exc_str(KoalaState *ks, const char *str);
+void _raise_exc_fmt(KoalaState *ks, char *fmt, ...);
+void _raise_exc_str(KoalaState *ks, char *str);
 #define _exc_occurred(ks) ((ks)->exc != NULL)
 void kl_trace_here(CallFrame *cf);
 
@@ -43,9 +43,9 @@ void _print_exc(KoalaState *ks);
     _print_exc(ks);          \
 } while (0)
 
-#define raise_exc_fmt(fmt, args...) do {        \
-    KoalaState *ks = __ks();                \
-    _raise_exc_fmt(ks, fmt, args); \
+#define raise_exc_fmt(fmt, args...) do { \
+    KoalaState *ks = __ks();             \
+    _raise_exc_fmt(ks, fmt, args);       \
 } while(0)
 
 #define raise_exc_str(str) do { \

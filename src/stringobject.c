@@ -4,47 +4,42 @@
  */
 
 #include "stringobject.h"
+#include "gc.h"
 #include "shadowstack.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-static void str_gc_mark(StrObject *obj, Queue *que)
+static void str_gc_mark(StringObject *obj, Queue *que)
 {
-    if (obj->array) gc_mark_obj((GcObject *)obj->array, que);
+    if (obj->array) gc_mark_array(obj->array, que);
 }
 
 TypeObject str_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "str",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
-    .mark = (GcMarkFunc)str_gc_mark,
+    .flags = TP_FLAGS_CLASS,
+    .mark = (MarkFunc)str_gc_mark,
 };
 
-Object *kl_new_nstr(const char *s, int len)
+Object *kl_new_nstr(char *s, size_t len)
 {
-    init_gc_stack(1);
+    StringObject *x = gc_alloc_obj(x);
+    INIT_OBJECT_HEAD(x, &str_type);
+    x->size = len;
 
-    StrObject *sobj = gc_alloc_obj(sobj);
-    INIT_OBJECT_HEAD(sobj, &str_type);
-    sobj->start = 0;
-    sobj->stop = len;
+    kl_gc_protect(x);
 
-    gc_stack_push(sobj);
-
-    GcArrayObject *arr = gc_alloc_array(GC_KIND_ARRAY_INT8, len + 1);
-    char *data = (char *)(arr + 1);
+    char *data = gc_alloc_byte_array(len + 1);
     memcpy(data, s, len);
     data[len] = '\0';
-    sobj->array = arr;
+    x->array = data;
 
-    fini_gc_stack();
-
-    return (Object *)sobj;
+    return (Object *)x;
 }
 
-Object *kl_new_fmt_str(const char *fmt, ...)
+Object *kl_new_fmt_str(char *fmt, ...)
 {
     char buf[256];
     va_list args;

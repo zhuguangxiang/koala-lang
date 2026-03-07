@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #include "eval.h"
@@ -135,21 +135,21 @@ void ks_free(KoalaState *ks)
 
 /* clang-format on */
 
-static Object *_get_symbol(CallFrame *cf, int rel, int sym)
-{
-    ModuleObject *m = (ModuleObject *)cf->module;
-    if (!rel) {
-        void **item = vector_get_ptr(&m->symbols, sym);
-        ASSERT(item);
-        return (Object *)(*item);
-    }
+// static Object *_get_symbol(CallFrame *cf, int rel, int sym)
+// {
+//     ModuleObject *m = (ModuleObject *)cf->module;
+//     if (!rel) {
+//         void **item = vector_get_ptr(&m->symbols, sym);
+//         ASSERT(item);
+//         return (Object *)(*item);
+//     }
 
-    RelocInfo *reloc = vector_get_ptr(&m->rels, rel);
-    ASSERT(reloc);
-    SymbolInfo *symbol = vector_get_ptr(&reloc->syms, sym);
-    ASSERT(symbol && symbol->obj);
-    return symbol->obj;
-}
+//     RelocInfo *reloc = vector_get_ptr(&m->rels, rel);
+//     ASSERT(reloc);
+//     SymbolInfo *symbol = vector_get_ptr(&reloc->syms, sym);
+//     ASSERT(symbol && symbol->obj);
+//     return symbol->obj;
+// }
 
 static void _call_function(Object *obj, Value *args, int nargs, Object *names,
                            CallFrame *cf, Value *result)
@@ -163,17 +163,17 @@ static void _call_function(Object *obj, Value *args, int nargs, Object *names,
 
     /* process default key-value arguments */
 
-    _init_gc_stack(cf->ks, 1);
-    if (names) gc_stack_push(names);
+    // _init_gc_stack(cf->ks, 1);
+    // if (names) gc_stack_push(names);
 
     Value callable = obj_value(obj);
     Value r = func(&callable, args, nargs, names);
     *result = r;
 
-    _fini_gc_stack(cf->ks);
+    // _fini_gc_stack(cf->ks);
 }
 
-static void _eval_frame(KoalaState *ks, CallFrame *cf, Value *result)
+static Value _eval_frame(KoalaState *ks, CallFrame *cf)
 {
     CodeObject *code = (CodeObject *)cf->code;
     ModuleObject *module = (ModuleObject *)cf->module;
@@ -285,43 +285,45 @@ main_loop:
             }
 
             case OP_CALL: {
-                int rel = NEXT_INT8();
-                int sym = NEXT_INT8();
-                int nargs = NEXT_INT8();
-                int A = NEXT_REG();
-                Object *callable = _get_symbol(cf, rel, sym);
-                ASSERT(callable);
-                Value *ra = GET_LOCAL(A);
-                _call_function(callable, cf->stack, nargs, NULL, cf, ra);
-                if (IS_ERROR(ra)) {
-                    ASSERT(_exc_occurred(ks));
-                    *result = *ra;
-                    goto error;
-                }
-                SHRINK(nargs);
+                NYI();
+                // int rel = NEXT_INT8();
+                // int sym = NEXT_INT8();
+                // int nargs = NEXT_INT8();
+                // int A = NEXT_REG();
+                // Object *callable = _get_symbol(cf, rel, sym);
+                // ASSERT(callable);
+                // Value *ra = GET_LOCAL(A);
+                // _call_function(callable, cf->stack, nargs, NULL, cf, ra);
+                // if (IS_ERROR(ra)) {
+                //     ASSERT(_exc_occurred(ks));
+                //     *result = *ra;
+                //     goto error;
+                // }
+                // SHRINK(nargs);
                 DISPATCH();
             }
 
             case OP_CALL_KW: {
-                int rel = NEXT_INT8();
-                int sym = NEXT_INT8();
-                int nargs = NEXT_INT8();
-                int A = NEXT_REG();
-                Value *val = POP();
-                Object *names = as_obj(val);
-                ASSERT(IS_TUPLE(names));
-                Object *callable = _get_symbol(cf, rel, sym);
-                ASSERT(callable);
-                Value *ra = GET_LOCAL(A);
-                ASSERT(nargs >= TUPLE_LEN(names));
-                nargs -= TUPLE_LEN(names);
-                _call_function(callable, cf->stack, nargs, names, cf, ra);
-                if (IS_ERROR(ra)) {
-                    ASSERT(_exc_occurred(ks));
-                    *result = *ra;
-                    goto error;
-                }
-                SHRINK(nargs);
+                NYI();
+                // int rel = NEXT_INT8();
+                // int sym = NEXT_INT8();
+                // int nargs = NEXT_INT8();
+                // int A = NEXT_REG();
+                // Value *val = POP();
+                // Object *names = as_obj(val);
+                // ASSERT(IS_TUPLE(names));
+                // Object *callable = _get_symbol(cf, rel, sym);
+                // ASSERT(callable);
+                // Value *ra = GET_LOCAL(A);
+                // ASSERT(nargs >= TUPLE_LEN(names));
+                // nargs -= TUPLE_LEN(names);
+                // _call_function(callable, cf->stack, nargs, names, cf, ra);
+                // if (IS_ERROR(ra)) {
+                //     ASSERT(_exc_occurred(ks));
+                //     *result = *ra;
+                //     goto error;
+                // }
+                // SHRINK(nargs);
                 DISPATCH();
             }
 
@@ -334,13 +336,14 @@ main_loop:
             }
 
             case OP_REL_LOAD: {
-                int A = NEXT_REG();
-                int rel = NEXT_INT8();
-                int sym = NEXT_INT8();
-                Object *obj = _get_symbol(cf, rel, sym);
-                ASSERT(obj);
-                Value *ra = GET_LOCAL(A);
-                *ra = obj_value(obj);
+                // int A = NEXT_REG();
+                // int rel = NEXT_INT8();
+                // int sym = NEXT_INT8();
+                // Object *obj = _get_symbol(cf, rel, sym);
+                // ASSERT(obj);
+                // Value *ra = GET_LOCAL(A);
+                // *ra = obj_value(obj);
+                NYI();
                 DISPATCH();
             }
 

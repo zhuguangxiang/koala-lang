@@ -6,6 +6,7 @@
 #include "run.h"
 #include <unistd.h>
 #include "eval.h"
+#include "gc.h"
 #include "log.h"
 #include "mm.h"
 #include "shadowstack.h"
@@ -159,7 +160,7 @@ void kl_init(int argc, char *argv[])
     /* init koala threads */
     init_threads(1);
 
-    init_symbol_table(&_gs_modules);
+    init_sym_tbl(&_gs_modules);
 
     /* init builtin & sys module */
     init_builtin_module();
@@ -288,7 +289,7 @@ static void enum_koala_state(Queue *que, KoalaState *ks)
     ShadowStack *trace = ks->shadow_stacks;
     while (trace) {
         void *obj;
-        for (int i = 0; i < trace->avail; i++) {
+        for (int i = 0; i < trace->count; i++) {
             obj = trace->objs[i];
             gc_mark_obj(obj, que);
         }

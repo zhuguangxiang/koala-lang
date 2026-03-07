@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #ifndef _KOALA_TUPLE_OBJECT_H_
@@ -14,18 +14,17 @@ extern "C" {
 
 typedef struct _TupleObject {
     OBJECT_HEAD
-    int start;
-    int stop;
-    GcArrayObject *array;
+    size_t size;
+    void *array;
 } TupleObject;
 
 extern TypeObject tuple_type;
 #define IS_TUPLE(ob) IS_TYPE((ob), &tuple_type)
 
-#define TUPLE_ITEMS(x) (Value *)((((TupleObject *)(x))->array) + 1)
-#define TUPLE_LEN(x)   (((TupleObject *)(x))->stop - ((TupleObject *)(x))->start)
+#define TUPLE_ITEMS(x) (Value *)(((TupleObject *)(x))->array)
+#define TUPLE_LEN(x)   (((TupleObject *)(x))->size)
 
-Object *kl_new_tuple(int size);
+Object *kl_new_tuple(size_t size);
 
 #ifdef __cplusplus
 }

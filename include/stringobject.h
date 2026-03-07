@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #ifndef _KOALA_STRING_OBJECT_H_
@@ -12,22 +12,21 @@
 extern "C" {
 #endif
 
-typedef struct _StrObject {
+typedef struct _StringObject {
     OBJECT_HEAD
-    int start;
-    int stop;
-    GcArrayObject *array;
-} StrObject;
+    size_t size;
+    void *array;
+} StringObject;
 
 extern TypeObject str_type;
 #define IS_STR(ob) IS_TYPE((ob), &str_type)
 
-#define STR_BUF(ob) (const char *)(((StrObject *)(ob))->array + 1)
-#define STR_LEN(ob) (((StrObject *)(ob))->stop - ((StrObject *)(ob))->start)
+#define STR_BUF(ob) (char *)(((StringObject *)(ob))->array)
+#define STR_LEN(ob) (((StringObject *)(ob))->size)
 
-Object *kl_new_nstr(const char *s, int len);
-static inline Object *kl_new_str(const char *s) { return kl_new_nstr(s, strlen(s)); }
-Object *kl_new_fmt_str(const char *fmt, ...);
+Object *kl_new_nstr(char *s, size_t len);
+static inline Object *kl_new_str(char *s) { return kl_new_nstr(s, strlen(s)); }
+Object *kl_new_fmt_str(char *fmt, ...);
 
 #ifdef __cplusplus
 }

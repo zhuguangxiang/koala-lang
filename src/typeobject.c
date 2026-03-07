@@ -12,17 +12,9 @@
 extern "C" {
 #endif
 
-Object *type_lookup_object(Object *_tp, const char *name, int len)
-{
-    TypeObject *tp = (TypeObject *)_tp;
-    Object *obj = table_find(&tp->map, name, len);
-    ASSERT(obj);
-    return obj;
-}
-
 static Value type_str(Value *self)
 {
-    TypeObject *tp = as_obj(self);
+    TypeObject *tp = to_obj(self);
     ASSERT(IS_TYPE(tp, &type_type));
     const char *s = module_get_name(tp->module);
     Object *ret;
@@ -36,7 +28,7 @@ static Value type_str(Value *self)
 
 static Value type_call(Value *self, Value *args, int nargs, Object *names)
 {
-    TypeObject *type = as_obj(self);
+    TypeObject *type = to_obj(self);
 
     if (type == &type_type) {
         /* func typeof(obj object) type */
@@ -68,7 +60,7 @@ static Value type_call(Value *self, Value *args, int nargs, Object *names)
 TypeObject type_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "type",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL | TP_FLAGS_META,
+    .flags = TP_FLAGS_CLASS,
     .str = type_str,
     .call = type_call,
 };

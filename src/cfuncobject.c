@@ -1,10 +1,11 @@
 /*
  * This file is part of the koala project with MIT License.
- * Copyright (c) 2024 zhuguangxiang <zhuguangxiang@gmail.com>.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
 #include "cfuncobject.h"
 #include "exception.h"
+#include "gc.h"
 #include "moduleobject.h"
 #include "stringobject.h"
 
@@ -14,7 +15,7 @@ extern "C" {
 
 static Value cfunc_call(Value *self, Value *args, int nargs, Object *names)
 {
-    Object *callable = as_obj(self);
+    Object *callable = to_obj(self);
     ASSERT(IS_CFUNC(callable));
     CFuncObject *cfunc = (CFuncObject *)callable;
     void *fn = cfunc->def->cfunc;
@@ -52,7 +53,7 @@ static Value cfunc_call(Value *self, Value *args, int nargs, Object *names)
 
 static Value cfunc_str(Value *self)
 {
-    Object *callable = as_obj(self);
+    Object *callable = to_obj(self);
     ASSERT(IS_CFUNC(callable));
     CFuncObject *cfunc = (CFuncObject *)callable;
     Object *r;
@@ -68,12 +69,15 @@ static Value cfunc_str(Value *self)
     return obj_value(r);
 }
 
+// clang-format off
 TypeObject cfunc_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "cfunc",
+    .flags = TP_FLAGS_CLASS,
     .call = cfunc_call,
     .str = cfunc_str,
 };
+// clang-format on
 
 Object *kl_new_cfunc(MethodDef *def, Object *m, TypeObject *cls)
 {

@@ -4,40 +4,43 @@
  */
 
 #include "tupleobject.h"
+#include "gc.h"
 #include "shadowstack.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-static Value tuple_str(Value *self)
+static void tuple_gc_mark(TupleObject *obj, Queue *que)
 {
-    TupleObject *obj = as_obj(self);
-    Value r = none_value;
-    return r;
+    if (obj->array) gc_mark_array(obj->array, que);
 }
 
+static Value tuple_str(Value *self) { return none_value; }
+
+// clang-format off
 TypeObject tuple_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "tuple",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_FINAL | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
     .str = tuple_str,
+    .mark = (MarkFunc)tuple_gc_mark,
 };
+// clang-format on
 
-Object *kl_new_tuple(int size)
+Object *kl_new_tuple(size_t size)
 {
     TupleObject *x = gc_alloc_obj(x);
     INIT_OBJECT_HEAD(x, &tuple_type);
-    x->start = 0;
-    x->stop = size;
+    x->size = size;
 
-    init_gc_stack_push(1, x);
-    GcArrayObject *arr = gc_alloc_array(GC_KIND_ARRAY_VALUE, size);
-    fini_gc_stack();
-    x->array = arr;
+    kl_gc_protect(x);
 
-    Value *values = (Value *)(arr + 1);
-    for (int i = 0; i < size; i++) {
+    void *data = gc_alloc_value_array(size);
+    x->array = data;
+
+    Value *values = (Value *)(x->array);
+    for (size_t i = 0; i < size; i++) {
         Value *val = (Value *)(values + i);
         *val = none_value;
     }

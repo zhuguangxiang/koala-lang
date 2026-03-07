@@ -240,25 +240,27 @@ void *_gc_alloc(int size, int perm)
 
 done:
 
-    return obj;
+    return obj + 1;
 }
 
-void *gc_alloc_array(char kind, size_t len)
+void *gc_alloc_array(int kind, size_t len)
 {
     static size_t sizes[] = {
         0,
         sizeof(int8_t),
+        sizeof(int16_t),
+        sizeof(int32_t),
         sizeof(int64_t),
-        sizeof(double),
         sizeof(Object *),
         sizeof(Value),
     };
-    ASSERT(kind >= GC_KIND_ARRAY_INT8 && kind <= GC_KIND_ARRAY_VALUE);
+    ASSERT(kind >= GC_KIND_ARRAY_BYTE && kind <= GC_KIND_ARRAY_VALUE);
+    len = ALIGN(len, 8);
     int size = sizeof(GcArrayObject) + len * sizes[kind];
     GcArrayObject *obj = gc_alloc(size);
     obj->gc_kind = kind;
     obj->gc_num_objs = len;
-    return obj;
+    return obj + 1;
 }
 
 static void gc_segment_fault_handler(int sig, siginfo_t *si, void *unused)
@@ -284,22 +286,6 @@ static void gc_segment_fault_handler(int sig, siginfo_t *si, void *unused)
 
     ts->state = TS_RUNNING;
     log_info("[Mutator][Signal]Thread-%d is running", ts->id);
-}
-
-static void _gc_mark_array_obj(GcObject *obj, Queue *que)
-{
-    GcArrayObject *arr = (GcArrayObject *)obj;
-    if (arr->gc_kind == GC_KIND_ARRAY_OBJECT) {
-        GcObject *objs = (GcObject *)(arr + 1);
-        for (int i = 0; i < arr->gc_num_objs; i++) {
-            gc_mark_obj(objs + i, que);
-        }
-    } else if (arr->gc_kind == GC_KIND_ARRAY_VALUE) {
-        Value *values = (Value *)(arr + 1);
-        for (int i = 0; i < arr->gc_num_objs; i++) {
-            gc_mark_value(values + i, que);
-        }
-    }
 }
 
 static void *gc_pthread_func(void *arg)
@@ -419,7 +405,7 @@ next:
                     ASSERT(tp->mark);
                     tp->mark((Object *)obj, &que);
                 } else {
-                    _gc_mark_array_obj(obj, &que);
+                    gc_mark_array(obj, &que);
                 }
             }
 
@@ -577,12 +563,12 @@ void fini_gc_system(void)
                 log_debug("object '%s' is freed", tp->name);
                 break;
             }
-            case GC_KIND_ARRAY_INT8: {
-                log_debug("gc int8 array is freed");
+            case GC_KIND_ARRAY_BYTE: {
+                log_debug("gc byte array is freed");
                 break;
             }
-            case GC_KIND_ARRAY_INT64: {
-                log_debug("gc int64 array is freed");
+            case GC_KIND_ARRAY_8BYTES: {
+                log_debug("gc 8-byte array is freed");
                 break;
             }
             default: {

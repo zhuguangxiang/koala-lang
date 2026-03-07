@@ -156,7 +156,7 @@
     "files.insertFinalNewline": true,
     "notebook.insertFinalNewline": true,
     "debug.console.fontFamily": "'JetBrains Mono'",
-    "editor.scrollbar.verticalScrollbarSize": 7,
+    "editor.scrollbar.verticalScrollbarSize": 10,
     "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
         "textMateRules": [

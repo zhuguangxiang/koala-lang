@@ -4,6 +4,7 @@
  */
 
 #include "exception.h"
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,7 +15,7 @@ TypeObject exc_type = {
     .name = "Exception",
 };
 
-static Object *_new_exc(const char *msg)
+static Object *_new_exc(char *msg)
 {
     Exception *exc = gc_alloc_obj(exc);
     INIT_OBJECT_HEAD(exc, &exc_type);
@@ -23,7 +24,7 @@ static Object *_new_exc(const char *msg)
     return (Object *)exc;
 }
 
-void _raise_exc_fmt(KoalaState *ks, const char *fmt, ...)
+void _raise_exc_fmt(KoalaState *ks, char *fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
@@ -34,7 +35,7 @@ void _raise_exc_fmt(KoalaState *ks, const char *fmt, ...)
     ks->exc = _new_exc(msg);
 }
 
-void _raise_exc_str(KoalaState *ks, const char *str) { ks->exc = _new_exc(str); }
+void _raise_exc_str(KoalaState *ks, char *str) { ks->exc = _new_exc(str); }
 
 void _print_exc(KoalaState *ks)
 {
