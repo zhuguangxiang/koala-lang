@@ -65,10 +65,10 @@ add_library(koala-common STATIC ${COMMON_SOURCES})
 
 set(KOALA_SOURCES
     object.c
+    typeobject.c
     anyobject.c
     noneobject.c
-    moduleobject.c
-    typeobject.c
+    boolobject.c
     # fieldobject.c
     cfuncobject.c
     codeobject.c
@@ -77,6 +77,10 @@ set(KOALA_SOURCES
     stringobject.c
     tupleobject.c
     exception.c
+    iterobject.c
+    collectionobject.c
+    numberobject.c
+    moduleobject.c
     modules/builtin.c
     gc.c
     run.c

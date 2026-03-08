@@ -1965,7 +1965,7 @@ static void compute_scm(KlassSymbol *sym)
 #ifndef NOLOG
 void print_vtbl_info(KlassSymbol *sym)
 {
-    printf("vtbl info for klass/trait '%s':", sym->name);
+    printf("vtbl info for class/trait '%s':", sym->name);
 
     printf("\n  pip:");
     TypeSpec *ts;

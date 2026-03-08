@@ -13,13 +13,13 @@ extern "C" {
 /* clang-format off */
 
 typedef enum _OpCode {
-/*+-------------------------+--------------------------------------------------+*/
-/*| name                    |  format comments                                 |*/
-/*+-------------------------+--------------------------------------------------+*/
-    OP_NOP,                     /* [op:8][0:24]                                    */
-    OP_MOVE,                    /* [op:8][Rd:12][Rs:12]      Rd = Rs                */
-
-    OP_CONST,                   /* [op:8][Rd:12][Idx:12]      Rd = CP[Idx]           */
+/*+-----------------------------+-----------------------------------------------------+*/
+/*| name                        |  format comments                                    |*/
+/*+-----------------------------+-----------------------------------------------------+*/
+    OP_NOP,                     /* [op:8][0:24]                                        */
+    OP_MOVE,                    /* [op:8][Rd:12][Rs:12]         Rd = Rs                */
+    OP_CAST_INTF,               /* [op:8][Rd:8][Rs:8][Idx:8]    Rd = (intf)Rs          */
+    OP_CONST,                   /* [op:8][Rd:12][Idx:12]        Rd = CP[Idx]           */
 
     OP_CONST_NONE,              /* [op:8][Rd:12][0:12]        Rd = None              */
     OP_CONST_FALSE,         /* [op:8][Rd:12][0:12]        Rd = False             */
@@ -35,7 +35,7 @@ typedef enum _OpCode {
 
     OP_CONST_FLOAT_0,       /* [op:8][Rd:12][0:12]        Rd = 0.0               */
     OP_CONST_FLOAT_N0,      /* [op:8][Rd:12][0:12]        Rd = -0.0              */
-    OP_CONST_FLOAT_NAN,     /* [op:8][Rd:12][0:12]        Rd = float('nan')      */
+    OP_CONST_FLOAT_NAN,     /* [op:8][Rd:12][0:12]              Rd = float('nan')      */
     OP_CONST_FLOAT_INF,     /* [op:8][Rd:12][0:12]        Rd = float('inf')      */
     OP_CONST_FLOAT_NINF,    /* [op:8][Rd:12][0:12]        Rd = float('-inf')     */
 

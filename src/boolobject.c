@@ -12,7 +12,7 @@ extern "C" {
 static Value bool_str(Value *self)
 {
     Object *s = kl_new_fmt_str("%s", self->bval ? "true" : "false");
-    return object_value(s);
+    return obj_value(s);
 }
 
 TypeObject bool_type = {

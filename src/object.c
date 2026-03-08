@@ -54,13 +54,162 @@ Object *object_lookup(Value *obj, char *name)
     return fn;
 }
 
+static int tp_exists(Vector *vec, TypeObject *tp)
+{
+    TypeObject *existing_tp;
+    vector_foreach(existing_tp, vec) {
+        if (!existing_tp) continue;
+        if (existing_tp == tp) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* compute primary inheritance path */
+static void type_compute_pip(TypeObject *tp)
+{
+    Vector *pip = &tp->pip;
+    if (vector_size(pip) > 0) return;
+
+    TypeObject *any_tp;
+
+    TypeObject *base_tp = vector_get(&tp->bases, 0);
+    if (!base_tp) {
+        any_tp = &any_type;
+        if (!tp_exists(pip, any_tp)) {
+            vector_push_back(pip, &any_tp);
+        }
+        // add itself
+        if (!tp_exists(pip, tp)) {
+            vector_push_back(pip, &tp);
+        }
+        return;
+    }
+
+    // compute base's pip first
+    type_compute_pip(base_tp);
+
+    any_tp = &any_type;
+    if (!tp_exists(pip, any_tp)) {
+        vector_push_back(pip, &any_tp);
+    }
+
+    // inherit from base's pip
+    TypeObject *_tp;
+    vector_foreach(_tp, &base_tp->pip) {
+        if (!_tp) continue;
+        // skip any type in pip
+        if (_tp == &any_type) continue;
+
+        if (!tp_exists(pip, _tp)) {
+            vector_push_back(pip, &_tp);
+        }
+    }
+
+    // add itself
+    if (!tp_exists(pip, tp)) {
+        vector_push_back(pip, &tp);
+    }
+}
+
+static void type_compute_lro(TypeObject *tp)
+{
+    Vector *lro = &tp->lro;
+    if (vector_size(lro) > 0) return;
+
+    TypeObject *base_tp;
+    vector_foreach(base_tp, &tp->bases) {
+        if (!base_tp) continue;
+
+        // compute base's lro first
+        type_compute_lro(base_tp);
+    }
+
+    TypeObject *any_tp = &any_type;
+    vector_push_back(lro, &any_tp);
+
+    vector_foreach(base_tp, &tp->bases) {
+        if (!base_tp) continue;
+
+        // inherit from base's lro
+        TypeObject *tp;
+        vector_foreach(tp, &base_tp->lro) {
+            if (!tp) continue;
+
+            // check duplication
+            if (!tp_exists(lro, tp)) {
+                vector_push_back(lro, &tp);
+            }
+        }
+    }
+
+    // add self
+    if (!tp_exists(lro, tp)) {
+        vector_push_back(lro, &tp);
+    }
+}
+
+static void type_compute_scm(TypeObject *tp)
+{
+    Vector *scm = &tp->scm;
+    if (vector_size(scm) > 0) return;
+
+    TypeObject *base_tp;
+    vector_foreach(base_tp, &tp->lro) {
+        if (!base_tp) continue;
+
+        if (!tp_exists(&tp->pip, base_tp)) {
+            vector_push_back(scm, &base_tp);
+        }
+    }
+}
+
+#ifndef NOLOG
+static void print_vtbl_info(TypeObject *tp)
+{
+    printf("vtbl info for class/trait '%s':", tp->name);
+
+    TypeObject *_tp;
+
+    printf("\n  pip:");
+    vector_foreach(_tp, &tp->pip) {
+        if (!_tp) continue;
+        if (i__ != 0) printf(" -> ");
+        printf("%s", _tp->name);
+    }
+
+    printf("\n  lro:");
+    vector_foreach(_tp, &tp->lro) {
+        if (!_tp) continue;
+        if (i__ != 0) printf(" -> ");
+        printf("%s", _tp->name);
+    }
+
+    printf("\n  scm:");
+    vector_foreach(_tp, &tp->scm) {
+        if (!_tp) continue;
+        if (i__ != 0) printf(" -> ");
+        printf("%s", _tp->name);
+    }
+    printf("\n");
+}
+#else
+#define print_vtbl_info(tp) \
+    do { \
+    } while (0)
+#endif
+
 static int _type_ready(TypeObject *tp)
 {
-    vector_init_ptr(&tp->traits);
+    vector_init_ptr(&tp->bases);
     vector_init_ptr(&tp->fields);
     vector_init_ptr(&tp->methods);
-    vector_init_ptr(&tp->itables);
+    vector_init_ptr(&tp->vtables);
     init_sym_tbl(&tp->map);
+    vector_init_ptr(&tp->pip);
+    vector_init_ptr(&tp->lro);
+    vector_init_ptr(&tp->scm);
 
     // add method to type
     MethodDef *def = tp->methdefs;
@@ -70,15 +219,20 @@ static int _type_ready(TypeObject *tp)
         ++def;
     }
 
-    TypeObject **intfdef = tp->intfdefs;
-    while (intfdef && *intfdef) {
-        vector_push_back(&tp->traits, &intfdef);
-        ++intfdef;
+    BaseDef *base = tp->basedefs;
+    while (base && base->tp) {
+        TypeObject *base_tp = base->tp;
+        if (type_ready(base_tp)) {
+            return -1;
+        }
+        vector_push_back(&tp->bases, &base_tp);
+        ++base;
     }
 
-    // compute_pip(tp);
-    // compute_lro(tp);
-    // compute_scm(tp);
+    type_compute_pip(tp);
+    type_compute_lro(tp);
+    type_compute_scm(tp);
+    print_vtbl_info(tp);
 
     return 0;
 }

@@ -119,16 +119,22 @@ static int int_init(Value *self, Value *args, int nargs, Object *names)
     return int_init_impl(self, &_x, &_base);
 }
 
+static BaseDef int_bases[] = {
+    { &Number_type },
+    { NULL },
+};
+
 // clang-format off
 TypeObject int64_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "int64",
-    .flags = TP_FLAGS_CLASS,
+    .name     = "int64",
+    .flags    = TP_FLAGS_CLASS,
     // .hash = int_hash,
     // .cmp = int_compare,
-    .str = int_str,
+    .str      = int_str,
     // .methods = int_methods,
-    .init = int_init,
+    .init     = int_init,
+    .basedefs = int_bases,
 };
 // clang-format on
 

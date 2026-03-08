@@ -27,6 +27,12 @@ static void init_types(Object *m)
     type_ready(&tuple_type);
     type_ready(&cfunc_type);
     type_ready(&code_type);
+    type_ready(&Iterable_type);
+    type_ready(&Iterator_type);
+    type_ready(&Collection_type);
+    type_ready(&Sequence_type);
+    type_ready(&MutableSequence_type);
+    type_ready(&Number_type);
 }
 
 // static void builtin_print_impl(Value *args, int nargs, Value *_sep, Value *_end,

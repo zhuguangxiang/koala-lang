@@ -18,13 +18,19 @@ static void tuple_gc_mark(TupleObject *obj, Queue *que)
 
 static Value tuple_str(Value *self) { return none_value; }
 
+static BaseDef tuple_bases[] = {
+    { &Sequence_type },
+    { NULL },
+};
+
 // clang-format off
 TypeObject tuple_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "tuple",
-    .flags = TP_FLAGS_CLASS,
-    .str = tuple_str,
-    .mark = (MarkFunc)tuple_gc_mark,
+    .name     = "tuple",
+    .flags    = TP_FLAGS_CLASS,
+    .str      = tuple_str,
+    .mark     = (MarkFunc)tuple_gc_mark,
+    .basedefs = tuple_bases,
 };
 // clang-format on
 

@@ -185,6 +185,8 @@
     // "editor.lineHeight": 1.3,
     // "editor.letterSpacing": 0.5,
     "editor.fontWeight": "100",
+    "git.autoRepositoryDetection": false,
+    "cmake.configureOnEdit": false,
     // "http.proxy": "http://127.0.0.1:20171",
     // "https.proxy": "http://127.0.0.1:20171"
 }

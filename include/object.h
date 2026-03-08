@@ -131,8 +131,8 @@ typedef struct _Value {
 
 typedef void (*MarkFunc)(Object *, Queue *);
 
-typedef unsigned int (*HashFunc)(Value *self);
-typedef int (*RichCmpFunc)(Value *lhs, Value *rhs, int op);
+typedef Value (*HashFunc)(Value *self);
+typedef Value (*RichCmpFunc)(Value *lhs, Value *rhs, int op);
 typedef Value (*StrFunc)(Value *self);
 
 typedef Value (*GetIterFunc)(Object *self);
@@ -176,6 +176,10 @@ typedef struct _MethodDef {
 /* Value fn(Value *self, Value *args, int nargs, Object *names) */
 #define METH_VAR_NAMES 4
 
+typedef struct _BaseDef {
+    struct _TypeObject *tp;
+} BaseDef;
+
 /*
 typedef struct _NumberMethods {
     BinaryFunc nb_add;
@@ -204,10 +208,10 @@ typedef struct _SeqMapMethods {
 } SeqMapMethods;
 */
 
-typedef struct _IntfTable {
+typedef struct _VTable {
     struct _TypeObject *type;
     Vector methods;
-} IntfTable;
+} VTable;
 
 #define TP_FLAGS_CLASS    (1 << 0)
 #define TP_FLAGS_TRAIT    (1 << 1)
@@ -245,27 +249,28 @@ typedef struct _TypeObject {
     StrFunc str;
 
     /* traits */
-    struct _TypeObject **intfdefs;
+    BaseDef *basedefs;
     /* members */
     MemberDef *members;
     /* method defs */
     MethodDef *methdefs;
 
-    /* traits */
-    Vector traits;
     /* fields */
     Vector fields;
     /* methods */
     Vector methods;
-
-    /* itables */
-    Vector itables;
-    /* itable mapping */
-    HashMap itable_map;
-
     /* field/method mapping */
     HashMap map;
 
+    /* self vtable */
+    VTable *vtbl;
+    /* vtables */
+    Vector vtables;
+    /* vtable mapping */
+    HashMap vtable_map;
+
+    /* traits */
+    Vector bases;
     /* primary inheritance path */
     Vector pip;
     /* linear resolved order */
@@ -289,6 +294,12 @@ extern TypeObject bool_type;
 extern TypeObject none_type;
 extern TypeObject int64_type;
 extern TypeObject float_type;
+extern TypeObject Iterable_type;
+extern TypeObject Iterator_type;
+extern TypeObject Collection_type;
+extern TypeObject Sequence_type;
+extern TypeObject MutableSequence_type;
+extern TypeObject Number_type;
 
 TypeObject *object_typeof(Value *val);
 

@@ -16,12 +16,20 @@ static void str_gc_mark(StringObject *obj, Queue *que)
     if (obj->array) gc_mark_array(obj->array, que);
 }
 
+static BaseDef str_bases[] = {
+    { &Sequence_type },
+    { NULL },
+};
+
+// clang-format off
 TypeObject str_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "str",
-    .flags = TP_FLAGS_CLASS,
-    .mark = (MarkFunc)str_gc_mark,
+    .name     = "str",
+    .flags    = TP_FLAGS_CLASS,
+    .mark     = (MarkFunc)str_gc_mark,
+    .basedefs = str_bases,
 };
+// clang-format on
 
 Object *kl_new_nstr(char *s, size_t len)
 {
