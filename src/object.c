@@ -6,6 +6,7 @@
 #include "atom.h"
 #include "cfuncobject.h"
 #include "exception.h"
+#include "log.h"
 #include "stringobject.h"
 #include "tupleobject.h"
 
@@ -14,16 +15,21 @@ extern "C" {
 #endif
 
 static TypeObject *mapping[] = {
-    // &none_type, &exc_type,   &bool_type,  &int_type,   &int_type,
-    // &int_type,  &int_type,   &int_type,   &int_type,   &int_type,
-    // &int_type,  &float_type, &float_type, &float_type, &float_type,
+    &none_type,   &exc_type,   &bool_type,  &int8_type,   &int16_type,
+    &int32_type,  &int64_type, &uint8_type, &uint16_type, &uint32_type,
+    &uint64_type, NULL,        NULL,        NULL,         NULL,
 };
 
 TypeObject *object_typeof(Value *val)
 {
-    TypeObject *tp = mapping[val->tag];
-    if (tp) return tp;
-    return OB_TYPE(to_obj(val));
+    if (is_value(val)) {
+        ASSERT(val->tag >= 0 && val->tag < COUNT_OF(mapping));
+        TypeObject *tp = mapping[val->tag];
+        ASSERT(tp);
+        return tp;
+    } else {
+        return OB_TYPE(to_obj(val));
+    }
 }
 
 Value object_tostr(Value *self)
@@ -52,6 +58,19 @@ Object *object_lookup(Value *obj, char *name)
     TypeObject *tp = object_typeof(obj);
     Object *fn = sym_tbl_find(&tp->map, name, strlen(name));
     return fn;
+}
+
+typedef struct _VTableMapEntry {
+    HashMapEntry hnode;
+    TypeObject *tp;
+    VTable *vtbl;
+} VTableMapEntry;
+
+static int __vtbl_map_eq__(void *e1, void *e2)
+{
+    VTableMapEntry *n1 = e1;
+    VTableMapEntry *n2 = e2;
+    return n1->tp == n2->tp;
 }
 
 static int tp_exists(Vector *vec, TypeObject *tp)
@@ -210,14 +229,7 @@ static int _type_ready(TypeObject *tp)
     vector_init_ptr(&tp->pip);
     vector_init_ptr(&tp->lro);
     vector_init_ptr(&tp->scm);
-
-    // add method to type
-    MethodDef *def = tp->methdefs;
-    while (def && def->name) {
-        Object *cfunc = kl_new_cfunc(def, tp->module, tp);
-        sym_tbl_add(&tp->map, def->name, strlen(def->name), cfunc);
-        ++def;
-    }
+    hashmap_init(&tp->vtable_map, __vtbl_map_eq__);
 
     BaseDef *base = tp->basedefs;
     while (base && base->tp) {
@@ -233,6 +245,113 @@ static int _type_ready(TypeObject *tp)
     type_compute_lro(tp);
     type_compute_scm(tp);
     print_vtbl_info(tp);
+
+    // add method to type
+    MethodDef *def = tp->methdefs;
+    while (def && def->name) {
+        Object *cfunc = kl_new_cfunc(def, tp->module, tp);
+        vector_push_back(&tp->methods, &cfunc);
+        sym_tbl_add(&tp->map, def->name, strlen(def->name), cfunc);
+        log_info("added method '%s' to class/trait '%s'", def->name, tp->name);
+        ++def;
+    }
+
+    VTable *main_vtbl = mm_alloc_obj(main_vtbl);
+    main_vtbl->type = tp;
+    vector_init_ptr(&main_vtbl->methods);
+    tp->vtbl = main_vtbl;
+
+    TypeObject *base_tp;
+
+    // inherit methods from bases
+    vector_foreach(base_tp, &tp->lro) {
+        if (!base_tp) continue;
+        if (base_tp == tp) continue;
+
+        Object *meth;
+        vector_foreach(meth, &base_tp->methods) {
+            if (!meth) continue;
+            if (IS_CFUNC(meth)) {
+                CFuncObject *cfunc = (CFuncObject *)meth;
+                char *name = cfunc->def->name;
+                Object *r = sym_tbl_find(&tp->map, name, strlen(name));
+                if (!r) {
+                    log_info("inherited method '%s' from '%s' to '%s'", name,
+                             base_tp->name, tp->name);
+                    sym_tbl_add(&tp->map, name, strlen(name), meth);
+                }
+            } else {
+                NYI();
+            }
+        }
+    }
+
+    // add direct base methods to primary vtable
+    // [size - 1] = self
+    // [size - 2] = direct base
+    int base_index = vector_size(&tp->pip) - 2;
+    base_tp = vector_get(&tp->pip, base_index);
+
+    if (base_tp) {
+        VTable *base_vtbl = base_tp->vtbl;
+        if (base_vtbl) {
+            Object *meth;
+            vector_foreach(meth, &base_vtbl->methods) {
+                if (!meth) continue;
+                if (IS_CFUNC(meth)) {
+                    CFuncObject *cfunc = (CFuncObject *)meth;
+                    char *name = cfunc->def->name;
+                    Object *r = sym_tbl_find(&tp->map, name, strlen(name));
+                    ASSERT(r);
+                    vector_push_back(&main_vtbl->methods, &r);
+                    log_info("added method '%s' to main vtbl of '%s' at %d slot", name,
+                             tp->name, vector_size(&main_vtbl->methods) - 1);
+                } else {
+                    NYI();
+                }
+            }
+        }
+    }
+
+    // add self methods to primary vtable
+    if (tp->flags & TP_FLAGS_TRAIT) {
+        Object *meth;
+        vector_foreach(meth, &tp->methods) {
+            if (!meth) continue;
+            if (IS_CFUNC(meth)) {
+                CFuncObject *cfunc = (CFuncObject *)meth;
+                if (cfunc->ready) {
+                    log_info(
+                        "method '%s' of trait '%s' is already ready, skip adding to main "
+                        "vtbl",
+                        cfunc->def->name, tp->name);
+                    continue;
+                }
+                vector_push_back(&main_vtbl->methods, &meth);
+                log_info("added method '%s' to main vtbl of '%s' at %d slot",
+                         cfunc->def->name, tp->name,
+                         vector_size(&main_vtbl->methods) - 1);
+                cfunc->ready = 1;
+            } else {
+                NYI();
+            }
+        }
+    }
+
+    // add vtable mapping
+    if (tp->flags & TP_FLAGS_CLASS) {
+        vector_foreach(base_tp, &tp->pip) {
+            if (!base_tp) continue;
+            if (base_tp == tp) continue;
+            VTableMapEntry *e = mm_alloc_obj(e);
+            hashmap_entry_init(e, mem_hash(base_tp, PTR_SIZE));
+            e->tp = base_tp;
+            e->vtbl = main_vtbl;
+            hashmap_put_only(&tp->vtable_map, e);
+            log_info("added main vtable mapping for '%s' to '%s'", base_tp->name,
+                     tp->name);
+        }
+    }
 
     return 0;
 }

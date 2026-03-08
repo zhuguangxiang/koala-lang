@@ -124,19 +124,77 @@ static BaseDef int_bases[] = {
     { NULL },
 };
 
-// clang-format off
-TypeObject int64_type = {
+TypeObject int8_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name     = "int64",
-    .flags    = TP_FLAGS_CLASS,
-    // .hash = int_hash,
-    // .cmp = int_compare,
-    .str      = int_str,
-    // .methods = int_methods,
-    .init     = int_init,
+    .name = "int8",
+    .flags = TP_FLAGS_CLASS,
+    .str = int_str,
+    .init = int_init,
     .basedefs = int_bases,
 };
-// clang-format on
+
+TypeObject int16_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "int16",
+    .flags = TP_FLAGS_CLASS,
+    .str = int_str,
+    .init = int_init,
+    .basedefs = int_bases,
+};
+
+TypeObject int32_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "int32",
+    .flags = TP_FLAGS_CLASS,
+    .str = int_str,
+    .init = int_init,
+    .basedefs = int_bases,
+};
+
+TypeObject int64_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "int64",
+    .flags = TP_FLAGS_CLASS,
+    .str = int_str,
+    .init = int_init,
+    .basedefs = int_bases,
+};
+
+TypeObject uint8_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "uint8",
+    .flags = TP_FLAGS_CLASS,
+    .str = int_str,
+    .init = int_init,
+    .basedefs = int_bases,
+};
+
+TypeObject uint16_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "uint16",
+    .flags = TP_FLAGS_CLASS,
+    .str = int_str,
+    .init = int_init,
+    .basedefs = int_bases,
+};
+
+TypeObject uint32_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "uint32",
+    .flags = TP_FLAGS_CLASS,
+    .str = int_str,
+    .init = int_init,
+    .basedefs = int_bases,
+};
+
+TypeObject uint64_type = {
+    OBJECT_HEAD_INIT(&type_type),
+    .name = "uint64",
+    .flags = TP_FLAGS_CLASS,
+    .str = int_str,
+    .init = int_init,
+    .basedefs = int_bases,
+};
 
 #ifdef __cplusplus
 }

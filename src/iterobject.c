@@ -3,14 +3,23 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "exception.h"
 #include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/*------------------------------Iterable trait------------------------------*/
+
+static Value iterable_not_impl_iter(Value *self)
+{
+    raise_exc_str("'__iter__()' in trait 'Iterable' is not implemented");
+    return error_value;
+}
+
 static MethodDef Iterable_methods[] = {
-    { "__iter__", intf_not_impl, METH_NO_ARGS },
+    { "__iter__", iterable_not_impl_iter, METH_NO_ARGS },
     { NULL },
 };
 
@@ -21,9 +30,23 @@ TypeObject Iterable_type = {
     .methdefs = Iterable_methods,
 };
 
+/*------------------------------Iterator trait------------------------------*/
+
+static Value iterator_not_impl_has_next(Value *self)
+{
+    raise_exc_str("'__has_next__()' in trait 'Iterator' is not implemented");
+    return error_value;
+}
+
+static Value iterator_not_impl_next(Value *self)
+{
+    raise_exc_str("'__next__()' in trait 'Iterator' is not implemented");
+    return error_value;
+}
+
 static MethodDef Iterator_methods[] = {
-    { "__has_next__", intf_not_impl, METH_NO_ARGS },
-    { "__next__", intf_not_impl, METH_NO_ARGS },
+    { "__has_next__", iterator_not_impl_has_next, METH_NO_ARGS },
+    { "__next__", iterator_not_impl_next, METH_NO_ARGS },
     { NULL },
 };
 

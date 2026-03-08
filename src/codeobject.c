@@ -11,11 +11,14 @@
 extern "C" {
 #endif
 
+// clang-format off
 TypeObject code_type = {
     OBJECT_HEAD_INIT(&type_type),
-    .name = "code",
+    .name  = "code",
+    .flags = TP_FLAGS_CLASS,
     // .call = kl_eval_code,
 };
+// clang-format on
 
 Object *kl_new_code(char *name, Object *m, TypeObject *cls)
 {

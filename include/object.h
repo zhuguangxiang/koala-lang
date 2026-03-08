@@ -282,7 +282,8 @@ typedef struct _TypeObject {
 #define FUNCTION_HEAD \
     OBJECT_HEAD \
     Object *module; \
-    TypeObject *cls;
+    TypeObject *cls; \
+    int ready;
 
 typedef struct _FuncObject {
     FUNCTION_HEAD
@@ -292,7 +293,15 @@ extern TypeObject type_type;
 extern TypeObject any_type;
 extern TypeObject bool_type;
 extern TypeObject none_type;
+extern TypeObject int8_type;
+extern TypeObject int16_type;
+extern TypeObject int32_type;
 extern TypeObject int64_type;
+extern TypeObject uint8_type;
+extern TypeObject uint16_type;
+extern TypeObject uint32_type;
+extern TypeObject uint64_type;
+#define int_type int64_type
 extern TypeObject float_type;
 extern TypeObject Iterable_type;
 extern TypeObject Iterator_type;

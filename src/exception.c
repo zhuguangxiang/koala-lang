@@ -13,6 +13,7 @@ extern "C" {
 TypeObject exc_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name = "Exception",
+    .flags = TP_FLAGS_CLASS,
 };
 
 static Object *_new_exc(char *msg)

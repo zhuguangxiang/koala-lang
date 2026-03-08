@@ -22,7 +22,14 @@ static void init_types(Object *m)
     type_ready(&type_type);
     type_ready(&none_type);
     type_ready(&exc_type);
+    type_ready(&int8_type);
+    type_ready(&int16_type);
+    type_ready(&int32_type);
     type_ready(&int64_type);
+    type_ready(&uint8_type);
+    type_ready(&uint16_type);
+    type_ready(&uint32_type);
+    type_ready(&uint64_type);
     type_ready(&str_type);
     type_ready(&tuple_type);
     type_ready(&cfunc_type);
