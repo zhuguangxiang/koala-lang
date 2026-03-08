@@ -1,12 +1,12 @@
 // SKIP: koalac %s 2>&1 | filecheck %s
 
-// trait A {}
-// trait E {}
-// trait F {}
+trait A {}
+trait E {}
+trait F {}
 
-// trait B : A & F {}
-// trait C : A & E {}
-// trait D : B & C & A & E {}
+trait B : A & F {}
+trait C : A & E {}
+trait D : B & C & A & E {}
 
 // tbl info for klass/trait 'D':
 // pip: A ->  B ->  D

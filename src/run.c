@@ -120,7 +120,7 @@ static void init_threads(int nthreads)
     /* initialize main thread as koala thread */
     ThreadState *ts = _threads;
     lldq_init(&ts->run_list);
-    ts->current = ks_new();
+    ts->current = kl_new_ks();
     ts->id = 1;
     ts->steal_count = 0;
     ts->state = TS_RUNNING;
@@ -279,7 +279,7 @@ static void enum_koala_state(Queue *que, KoalaState *ks)
         int size = cf->local_size + cf->stack_size;
         Value *v;
         for (int i = 0; i < size; i++) {
-            v = cf->local_stack + i;
+            v = cf->locals + i;
             gc_mark_value(v, que);
         }
         cf = cf->back;

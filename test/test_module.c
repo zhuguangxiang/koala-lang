@@ -9,7 +9,7 @@
 #include "log.h"
 #include "moduleobject.h"
 #include "object.h"
-#include "opcode.h"
+#include "opcode2.h"
 #include "run.h"
 
 #ifdef __cplusplus
@@ -20,27 +20,32 @@ void test_module(void)
 {
     Object *m = kl_new_module("main");
 
-    cp_add_int(m, 100);
     cp_add_str(m, "hello");
 
     int id = kl_add_rel_mod(m, "std/builtin");
-    kl_add_rel_func(m, "print", id);
+    id = kl_add_rel_func(m, "print", id);
 
     kl_do_link(m);
 
-    // /* print(100, "hello") */
-    // char _insns[] = {
-    //     OP_CONST_INT_IMM8, 0, 100, OP_PUSH, 0, OP_CONST_LOAD, 0, 1, 0, OP_PUSH, 0,
-    //     OP_CALL,           1, 0,   2,       0, OP_RETURN,     0,
-    // };
+    /* print(100, "hello") */
+    uint32_t _insns[] = {
+        (OP_CONST_INT_IMM << 24) | (0 << 16) | 100,
+        (OP_CONST << 24) | (1 << 12) | 0,
+        (OP_ARG << 24) | 0,
+        (OP_ARG << 24) | 1,
+        (OP_CALL << 24) | (0 << 16) | 2 << 8 | id,
+        (OP_RETURN_NONE << 24),
+    };
 
-    // CodeObject *code = (CodeObject *)kl_new_code("__init__", m, NULL);
-    // code->insns = _insns;
-    // code->stack_size = 2;
+    Object *obj = kl_new_code("__init__", m, NULL);
+    CodeObject *code = (CodeObject *)obj;
+    code->insns = (char *)_insns;
+    code->nlocals = 2;
+    code->max_call_nargs = 2;
 
-    // Value self = obj_value(code);
-    // Value result = object_call(&self, NULL, 0, NULL);
-    // ASSERT(IS_NONE(&result));
+    Value self = obj_value(code);
+    Value result = object_call(&self, NULL, 0);
+    ASSERT(is_none(&result));
 }
 
 int main(int argc, char *argv[])

@@ -78,7 +78,7 @@ void test_kwargs(void)
     code->cs.stack_size = 2;
 
     Value self = obj_value(code);
-    Value result = object_call(&self, NULL, 0, NULL);
+    Value result = object_call(&self, NULL, 0);
     ASSERT(IS_NONE(&result));
 }
 

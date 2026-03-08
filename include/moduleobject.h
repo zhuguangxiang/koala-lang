@@ -114,6 +114,13 @@ static inline RelocEntry *kl_get_rel(Object *_m, int index)
     return rel;
 }
 
+static inline Object *kl_rel_get_obj(Object *_m, int index)
+{
+    RelocEntry *rel = kl_get_rel(_m, index);
+    ASSERT(rel);
+    return rel->obj;
+}
+
 #ifdef __cplusplus
 }
 #endif

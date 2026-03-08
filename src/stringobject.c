@@ -16,6 +16,8 @@ static void str_gc_mark(StringObject *obj, Queue *que)
     if (obj->array) gc_mark_array(obj->array, que);
 }
 
+static Value str_str(Value *self) { return *self; }
+
 static BaseDef str_bases[] = {
     { &Sequence_type },
     { NULL },
@@ -27,6 +29,7 @@ TypeObject str_type = {
     .name     = "str",
     .flags    = TP_FLAGS_CLASS,
     .mark     = (MarkFunc)str_gc_mark,
+    .str      = str_str,
     .basedefs = str_bases,
 };
 // clang-format on

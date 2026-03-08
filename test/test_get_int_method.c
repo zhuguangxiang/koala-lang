@@ -55,7 +55,7 @@ void test_get_int_method(void)
     code->cs.stack_size = 1;
 
     Value self = obj_value(code);
-    Value result = object_call(&self, NULL, 0, NULL);
+    Value result = object_call(&self, NULL, 0);
     ASSERT(IS_NONE(&result));
 }
 

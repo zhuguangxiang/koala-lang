@@ -10,7 +10,7 @@
 #include "exception.h"
 #include "mm.h"
 #include "moduleobject.h"
-#include "opcode.h"
+#include "opcode2.h"
 #include "shadowstack.h"
 #include "tupleobject.h"
 
@@ -21,7 +21,7 @@ extern "C" {
 /*------------------------------------DATA-----------------------------------*/
 
 /* max stack size */
-#define MAX_STACK_SIZE (16 * 64 * 1024)
+#define MAX_STACK_SIZE (64 * 1024)
 
 /* max call depth, stop for this limit */
 #define MAX_CALL_DEPTH 10000
@@ -32,160 +32,102 @@ static void _copy_arguments(CallFrame *cf, Value *args, int nargs)
 {
     ASSERT(cf->local_size >= nargs);
 
-    Value *p = cf->local_stack;
-    int total = cf->local_size + cf->stack_size;
+    Value *p = cf->locals;
 
     for (int i = 0; i < nargs; i++) {
         *(p + i) = *(args + i);
     }
-
-    for (int i = nargs; i < total; i++) {
-        (p + i)->tag = 0;
-    }
 }
 
-// static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
-// {
-//     CallFrame *cf = (CallFrame *)ks->stack_top_ptr;
-//     ks->stack_top_ptr = ks->stack_top_ptr + sizeof(*cf);
-
-//     cf->code = code;
-//     cf->module = code->module;
-//     int nlocals = code->cs.nlocals;
-//     int stack_size = code->cs.stack_size;
-//     cf->local_size = nlocals;
-//     cf->stack_size = stack_size;
-//     cf->stack = cf->local_stack + nlocals;
-//     ks->stack_top_ptr += sizeof(Value) * (nlocals + stack_size);
-//     ASSERT(ks->stack_top_ptr <= ks->base_stack_ptr + ks->stack_size);
-
-//     return cf;
-// }
-
-// static void _pop_frame(KoalaState *ks, CallFrame *cf)
-// {
-//     /* shrink stack */
-//     ks->stack_top_ptr -= sizeof(*cf) + sizeof(Value) * (cf->stack_size +
-//     cf->local_size); ASSERT(ks->stack_top_ptr >= ks->base_stack_ptr);
-// }
-
-KoalaState *ks_new(void)
+static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
 {
-    int msize = sizeof(KoalaState) + MAX_STACK_SIZE;
-    KoalaState *ks = mm_alloc(msize);
+    CallFrame *cf = mm_alloc_obj(cf);
+    cf->code = code;
+    cf->module = code->module;
+    cf->local_size = code->nlocals;
+    cf->stack_size = code->max_call_nargs;
+
+    /* TODO: grow stack if needed */
+
+    cf->locals = ks->stack_top;
+    cf->stack = cf->locals + cf->local_size;
+    ks->stack_top = cf->locals + cf->local_size + cf->stack_size;
+    ASSERT(ks->stack_top <= ks->stack_base + ks->stack_size);
+
+    return cf;
+}
+
+static void _pop_frame(KoalaState *ks, CallFrame *cf)
+{
+    /* shrink stack */
+    ks->stack_top -= (cf->local_size + cf->stack_size);
+    ASSERT(ks->stack_top >= ks->stack_base);
+    mm_free(cf);
+}
+
+KoalaState *kl_new_ks(void)
+{
+    KoalaState *ks = mm_alloc_obj(ks);
     lldq_node_init(&ks->link);
     ks->ts = __ts;
-    ks->shadow_stacks = NULL;
-    ks->stack_top_ptr = ks->base_stack_ptr;
+    ks->stack_base = mm_alloc(sizeof(Value) * MAX_STACK_SIZE);
+    ks->stack_top = ks->stack_base;
     ks->stack_size = MAX_STACK_SIZE;
     return ks;
 }
 
-void ks_free(KoalaState *ks)
+void kl_free_ks(KoalaState *ks)
 {
     if (!ks) return;
     ASSERT(!ks->cf);
     ASSERT(ks->shadow_stacks == NULL);
+    mm_free(ks->stack_base);
     mm_free(ks);
 }
 
-#if 0
-
 /* clang-format off */
 
-#define NEXT_REG() ({        \
-    uint8_t _v = *next_inst; \
-    next_inst++;             \
-    _v;                      \
-})
+// [Op:8] [A:8] [B:8] [C:8]
+// [Op:8] [A:12] [B:12]
+// [Op:8] [A:8] [B:16]
 
-#define NEXT_INT8() ({       \
-    uint8_t _v = *next_inst; \
-    next_inst++;             \
-    (int8_t)_v;              \
-})
+#define I_OP(i)  ((i) >> 24)
 
-#define NEXT_INT16() ({       \
-    uint8_t _v1 = *next_inst; \
-    next_inst++;              \
-    uint8_t _v2 = *next_inst; \
-    next_inst++;              \
-    (int)((_v2 << 8) + _v1);  \
-})
+#define I_A(i)   (((i) >> 16) & 0xFF)
+#define I_B(i)   (((i) >> 8) & 0xFF)
+#define I_C(i)   ((i) & 0xFF)
 
-#define NEXT_OP() do {   \
-    opcode = *next_inst; \
-    next_inst++;         \
-} while (0)
+#define I_Ax(i)  (((i) >> 12) & 0x0FFF)
+#define I_Bx(i)  ((i) & 0x0FFF)
 
-#define SET(x, y)   ((x)->tag = (y)->tag, (x)->obj = (y)->obj)
-#define PUSH(x)     (SET(top, x), top++)
-#define POP()       (--top)
-#define SHRINK(n)   (top -= (n))
+#define I_Bxx(i) ((i) & 0xFFFF)
 
-#define PUSH_INT(v) ((top->tag = VAL_TAG_INT, top->ival = (v)), top++)
+#define CP(i)    (*(Value *)vector_get_ptr(consts, i))
+#define RELOC(i) \
+    ({ RelocEntry *rel = vector_get_ptr(rels, i); ASSERT(rel); rel->obj; })
 
-#define GET_LOCAL(i)    ({ ASSERT((i) < nlocals); (locals + (i)); })
-#define SET_LOCAL(i, v) (ASSERT((i) < nlocals), SET(locals + (i), v))
-#define SET_INT_LOCAL(i, v) do { \
-    Value *loc = GET_LOCAL(i); \
-    loc->tag = VAL_TAG_INT; \
-    loc->ival = (v); \
-} while (0)
+#define PUSH(x)     ({ *top++ = (x); ASSERT(top <= cf->stack + cf->stack_size); })
+#define POP()       ({ --top; ASSERT(top >= cf->stack); *top; })
+#define SHRINK(n)   ({ top -= (n); ASSERT(top >= cf->stack); })
 
 #define DISPATCH() goto dispatch;
 
 /* clang-format on */
 
-// static Object *_get_symbol(CallFrame *cf, int rel, int sym)
-// {
-//     ModuleObject *m = (ModuleObject *)cf->module;
-//     if (!rel) {
-//         void **item = vector_get_ptr(&m->symbols, sym);
-//         ASSERT(item);
-//         return (Object *)(*item);
-//     }
-
-//     RelocEntry *reloc = vector_get_ptr(&m->rels, rel);
-//     ASSERT(reloc);
-//     SymbolInfo *symbol = vector_get_ptr(&reloc->syms, sym);
-//     ASSERT(symbol && symbol->obj);
-//     return symbol->obj;
-// }
-
-static void _call_function(Object *obj, Value *args, int nargs, Object *names,
-                           CallFrame *cf, Value *result)
-{
-    TypeObject *tp = OB_TYPE(obj);
-    CallFunc func = tp->call;
-    if (!func) {
-        _raise_exc_str(cf->ks, "object is not callable");
-        *result = error_value;
-    }
-
-    /* process default key-value arguments */
-
-    // _init_gc_stack(cf->ks, 1);
-    // if (names) gc_stack_push(names);
-
-    Value callable = obj_value(obj);
-    Value r = func(&callable, args, nargs, names);
-    *result = r;
-
-    // _fini_gc_stack(cf->ks);
-}
-
 static Value _eval_frame(KoalaState *ks, CallFrame *cf)
 {
-    CodeObject *code = (CodeObject *)cf->code;
-    ModuleObject *module = (ModuleObject *)cf->module;
-    Vector *consts = &module->consts;
-    uint8_t *first_inst = (uint8_t *)code->cs.insns; // Bytes_Buf(code->codes);
-    uint8_t *next_inst = first_inst;
+    CodeObject *code = cf->code;
+    ModuleObject *m = (ModuleObject *)cf->module;
+    Vector *consts = &m->consts;
+    Vector *rels = &m->rels;
     Value *top = cf->stack;
-    Value *locals = cf->local_stack;
-    int nlocals = cf->local_size;
-    int opcode;
+    Value *regs = cf->locals;
+
+    uint32_t *pc = (uint32_t *)code->insns;
+    Value result = none_value;
+    register uint32_t inst;
+    register OpCode op;
+    register int rd, rs, rt, imm, idx, off;
 
     /* push frame */
     cf->back = ks->cf;
@@ -198,166 +140,184 @@ static Value _eval_frame(KoalaState *ks, CallFrame *cf)
 main_loop:
     for (;;) {
     dispatch:
-        NEXT_OP();
+        inst = *pc++;
+        op = I_OP(inst);
     dispatch_opcode:
-        switch (opcode) {
+        switch (op) {
+            case OP_MOVE: {
+                rd = I_Ax(inst);
+                rs = I_Bx(inst);
+
+                ASSERT(rd < cf->local_size);
+                ASSERT(rs < cf->local_size);
+
+                regs[rd] = regs[rs];
+                DISPATCH();
+            }
+
+            case OP_CONST: {
+                rd = I_Ax(inst);
+                idx = I_Bx(inst);
+
+                ASSERT(rd < cf->local_size);
+
+                regs[rd] = CP(idx);
+                DISPATCH();
+            }
+
             case OP_CONST_INT_0: {
+                rd = I_Ax(inst);
+
+                ASSERT(rd < cf->local_size);
+
+                regs[rd].tag = TAG_INT64;
+                regs[rd].ival = 0;
                 DISPATCH();
             }
 
-            case OP_CONST_INT_IMM8: {
-                int A = NEXT_REG();
-                int imm = NEXT_INT8();
-                Value *ra = GET_LOCAL(A);
-                *ra = int_value((int8_t)imm);
+            case OP_CONST_INT_IMM: {
+                rd = I_A(inst);
+                imm = I_Bxx(inst);
+
+                ASSERT(rd < cf->local_size);
+
+                regs[rd].tag = TAG_INT64;
+                regs[rd].ival = imm;
                 DISPATCH();
             }
 
-            case OP_JMP_INT_CMP_LT_IMM8: {
-                int A = NEXT_REG();
-                int imm = NEXT_INT8();
-                int off = NEXT_INT16();
-                Value *ra = GET_LOCAL(A);
-                ASSERT(IS_INT(ra));
-                if (ra->ival < imm) {
-                    // absolute offset
-                    next_inst = first_inst + off;
+            case OP_JMP_INT_CMP_LT_IMM: {
+                rd = I_A(inst);
+                imm = I_B(inst);
+                off = I_C(inst);
+
+                ASSERT(rd < cf->local_size);
+
+                if (regs[rd].ival < imm) {
+                    pc += off;
                 }
                 DISPATCH();
             }
 
-            case OP_JMP_INT_CMP_GE_IMM8: {
-                int A = NEXT_REG();
-                int imm = NEXT_INT8();
-                int off = NEXT_INT16();
-                Value *ra = GET_LOCAL(A);
-                ASSERT(IS_INT(ra));
-                if (ra->ival >= imm) {
-                    // absolute offset
-                    next_inst = first_inst + off;
+            case OP_JMP_INT_CMP_GE_IMM: {
+                rd = I_A(inst);
+                imm = I_B(inst);
+                off = I_C(inst);
+
+                ASSERT(rd < cf->local_size);
+
+                if (regs[rd].ival >= imm) {
+                    pc += off;
                 }
                 DISPATCH();
             }
 
             case OP_INT_ADD: {
-                int A = NEXT_REG();
-                int B = NEXT_REG();
-                int C = NEXT_REG();
+                rd = I_A(inst);
+                rs = I_B(inst);
+                rt = I_C(inst);
 
-                Value *rb = GET_LOCAL(B);
-                Value *rc = GET_LOCAL(C);
-                ASSERT(IS_INT(rb) && IS_INT(rc));
-                int64_t r = rb->ival + rc->ival;
-                SET_INT_LOCAL(A, r);
+                ASSERT(rd < cf->local_size);
+                ASSERT(rs < cf->local_size);
+                ASSERT(rt < cf->local_size);
+
+                ASSERT(regs[rs].tag == regs[rt].tag);
+                ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+
+                regs[rd].ival = regs[rs].ival + regs[rt].ival;
+                regs[rd].tag = regs[rs].tag;
                 DISPATCH();
             }
 
-            case OP_INT_SUB_IMM8: {
-                int A = NEXT_REG();
-                int B = NEXT_REG();
-                int imm = NEXT_INT8();
-                Value *rb = GET_LOCAL(B);
-                ASSERT(IS_INT(rb));
-                int64_t r = rb->ival - imm;
-                SET_INT_LOCAL(A, r);
+            case OP_INT_SUB_IMM: {
+                rd = I_A(inst);
+                rs = I_B(inst);
+                imm = I_C(inst);
+
+                ASSERT(rd < cf->local_size);
+                ASSERT(rs < cf->local_size);
+
+                ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+
+                regs[rd].ival = regs[rs].ival - imm;
+                regs[rd].tag = regs[rs].tag;
                 DISPATCH();
             }
 
-            case OP_PUSH: {
-                int A = NEXT_REG();
-                Value *ra = GET_LOCAL(A);
-                PUSH(ra);
+            case OP_ARG: {
+                rs = I_Bx(inst);
+
+                ASSERT(rs < cf->local_size);
+
+                PUSH(regs[rs]);
                 DISPATCH();
             }
 
-            case OP_PUSH_IMM8: {
-                int imm = NEXT_INT8();
-                PUSH_INT(imm);
-                DISPATCH();
-            }
-
-            case OP_CONST_LOAD: {
-                int A = NEXT_REG();
-                int offset = NEXT_INT16();
-                Value *val = vector_get_ptr(consts, offset);
-                ASSERT(val);
-                Value *ra = GET_LOCAL(A);
-                *ra = *val;
+            case OP_ARG_INT_IMM: {
+                imm = I_Bxx(inst);
+                PUSH(int64_value(imm));
                 DISPATCH();
             }
 
             case OP_CALL: {
-                NYI();
-                // int rel = NEXT_INT8();
-                // int sym = NEXT_INT8();
-                // int nargs = NEXT_INT8();
-                // int A = NEXT_REG();
-                // Object *callable = _get_symbol(cf, rel, sym);
-                // ASSERT(callable);
-                // Value *ra = GET_LOCAL(A);
-                // _call_function(callable, cf->stack, nargs, NULL, cf, ra);
-                // if (IS_ERROR(ra)) {
-                //     ASSERT(_exc_occurred(ks));
-                //     *result = *ra;
-                //     goto error;
-                // }
-                // SHRINK(nargs);
+                rd = I_A(inst);
+                imm = I_B(inst);
+                off = I_C(inst);
+                Object *obj = RELOC(off);
+                ASSERT(obj);
+                Value callable = obj_value(obj);
+                int nargs = imm;
+                Value ret = object_call(&callable, cf->stack, nargs);
+                if (is_error(&ret)) {
+                    ASSERT(_exc_occurred(ks));
+                    result = ret;
+                    goto error;
+                }
+
+                ASSERT(rd < cf->local_size);
+
+                regs[rd] = ret;
+                SHRINK(nargs);
                 DISPATCH();
             }
 
             case OP_CALL_KW: {
-                NYI();
-                // int rel = NEXT_INT8();
-                // int sym = NEXT_INT8();
-                // int nargs = NEXT_INT8();
-                // int A = NEXT_REG();
-                // Value *val = POP();
-                // Object *names = as_obj(val);
-                // ASSERT(IS_TUPLE(names));
-                // Object *callable = _get_symbol(cf, rel, sym);
-                // ASSERT(callable);
-                // Value *ra = GET_LOCAL(A);
-                // ASSERT(nargs >= TUPLE_LEN(names));
-                // nargs -= TUPLE_LEN(names);
-                // _call_function(callable, cf->stack, nargs, names, cf, ra);
-                // if (IS_ERROR(ra)) {
-                //     ASSERT(_exc_occurred(ks));
-                //     *result = *ra;
-                //     goto error;
-                // }
-                // SHRINK(nargs);
-                DISPATCH();
-            }
+                rd = I_A(inst);
+                imm = I_B(inst);
+                off = I_C(inst);
+                Object *obj = RELOC(off);
+                ASSERT(obj);
+                Value callable = obj_value(obj);
+                Value val = POP();
+                Object *names = to_obj(&val);
+                ASSERT(IS_TUPLE(names));
+                int nargs = imm - TUPLE_LEN(names);
+                ASSERT(nargs >= 0);
+                Value ret = object_call_kw(&callable, cf->stack, nargs, names);
+                if (is_error(&ret)) {
+                    ASSERT(_exc_occurred(ks));
+                    result = ret;
+                    goto error;
+                }
 
-            case OP_ATTR_LOAD: {
-                int A = NEXT_REG();
-                int B = NEXT_REG();
-                int offset = NEXT_INT16();
-                NYI();
-                DISPATCH();
-            }
+                ASSERT(rd < cf->local_size);
 
-            case OP_REL_LOAD: {
-                // int A = NEXT_REG();
-                // int rel = NEXT_INT8();
-                // int sym = NEXT_INT8();
-                // Object *obj = _get_symbol(cf, rel, sym);
-                // ASSERT(obj);
-                // Value *ra = GET_LOCAL(A);
-                // *ra = obj_value(obj);
-                NYI();
+                regs[rd] = ret;
+                SHRINK(nargs);
                 DISPATCH();
             }
 
             case OP_RETURN: {
-                int A = NEXT_REG();
-                Value *ra = GET_LOCAL(A);
-                SET(result, ra);
+                rs = I_Bx(inst);
+
+                ASSERT(rs < cf->local_size);
+
+                result = regs[rs];
                 goto done;
             }
 
             case OP_RETURN_NONE: {
-                *result = none_value;
+                result = none_value;
                 goto done;
             }
 
@@ -381,8 +341,9 @@ done:
     /* pop frame */
     ks->cf = cf->back;
     --ks->depth;
+
+    return result;
 }
-#endif
 
 Value kl_eval_code(Value *self, Value *args, int nargs, Object *names)
 {
@@ -391,16 +352,16 @@ Value kl_eval_code(Value *self, Value *args, int nargs, Object *names)
     Object *code = to_obj(self);
 
     /* build a call frame */
-    // CallFrame *cf = _new_frame(ks, (CodeObject *)code);
+    CallFrame *cf = _new_frame(ks, (CodeObject *)code);
 
     /* copy arguments */
-    // _copy_arguments(cf, args, nargs);
+    _copy_arguments(cf, args, nargs);
 
     /* eval the call frame */
-    // Value result = _eval_frame(ks, cf);
+    Value result = _eval_frame(ks, cf);
 
     /* pop frame to free list */
-    // _pop_frame(ks, cf);
+    _pop_frame(ks, cf);
     return none_value;
 }
 

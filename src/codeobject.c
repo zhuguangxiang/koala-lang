@@ -16,7 +16,7 @@ TypeObject code_type = {
     OBJECT_HEAD_INIT(&type_type),
     .name  = "code",
     .flags = TP_FLAGS_CLASS,
-    // .call = kl_eval_code,
+    .call = kl_eval_code,
 };
 // clang-format on
 

@@ -42,76 +42,60 @@ static void init_types(Object *m)
     type_ready(&Number_type);
 }
 
-// static void builtin_print_impl(Value *args, int nargs, Value *_sep, Value *_end,
-//                                Value *_file)
-// {
-//     const char *sep = " ";
-//     const char *end = "\n";
-//     Object *file = NULL;
+static void builtin_print_impl(Value *args, int nargs, Value *_sep, Value *_end,
+                               Value *_file)
+{
+    const char *sep = " ";
+    const char *end = "\n";
+    Object *file = NULL;
 
-//     if (!IS_NONE(_sep)) {
-//         Object *obj = as_obj(_sep);
-//         ASSERT(IS_STR(obj));
-//         sep = STR_BUF(obj);
-//     }
+    if (!is_none(_sep)) {
+        Object *obj = to_obj(_sep);
+        ASSERT(IS_STR(obj));
+        sep = STR_BUF(obj);
+    }
 
-//     if (!IS_NONE(_end)) {
-//         Object *obj = as_obj(_end);
-//         ASSERT(IS_STR(obj));
-//         end = STR_BUF(obj);
-//     }
+    if (!is_none(_end)) {
+        Object *obj = to_obj(_end);
+        ASSERT(IS_STR(obj));
+        end = STR_BUF(obj);
+    }
 
-//     if (IS_NONE(_file)) {
-//         // TODO: sys.stdout
-//         file = NULL;
-//     }
+    if (is_none(_file)) {
+        // TODO: sys.stdout
+        file = NULL;
+    }
 
-//     BUF(buf);
+    BUF(buf);
 
-//     for (int i = 0; i < nargs; i++) {
-//         if (i != 0) {
-//             buf_write_str(&buf, sep);
-//         }
+    for (int i = 0; i < nargs; i++) {
+        if (i != 0) {
+            buf_write_str(&buf, sep);
+        }
 
-//         Value *arg = args + i;
-//         if (IS_NONE(arg)) {
-//             buf_write_str(&buf, "none");
-//         } else if (IS_INT(arg)) {
-//             buf_write_int64(&buf, arg->ival);
-//         } else if (IS_FLOAT(arg)) {
-//             buf_write_double(&buf, arg->fval);
-//         } else if (IS_OBJ(arg)) {
-//             Object *obj = to_obj(arg);
-//             const char *s;
-//             int len;
-//             if (IS_STR(obj)) {
-//                 s = STR_BUF(obj);
-//                 len = STR_LEN(obj);
-//                 buf_write_nstr(&buf, s, len);
-//             } else {
-//                 Value r = object_str(arg);
-//                 obj = as_obj(&r);
-//                 s = STR_BUF(obj);
-//                 len = STR_LEN(obj);
-//                 buf_write_nstr(&buf, s, len);
-//             }
-//         } else {
-//             UNREACHABLE();
-//         }
-//     }
+        Value *arg = args + i;
+        TypeObject *tp = object_typeof(arg);
+        if (tp->str) {
+            Value s = tp->str(arg);
+            buf_write_str(&buf, STR_BUF(to_obj(&s)));
+        } else {
+            /* fallback to type name */
+            buf_write_str(&buf, tp->name);
+        }
+    }
 
-//     buf_write_str(&buf, end);
+    buf_write_str(&buf, end);
 
-//     // TODO: sys.stdout
-//     printf("%s", BUF_STR(buf));
+    // TODO: sys.stdout
+    printf("%s", BUF_STR(buf));
 
-//     FINI_BUF(buf);
-// }
+    FINI_BUF(buf);
+}
 
 /*
-public func print(objs ..., sep = ' ', end = '\n', file io.Writer? = none)
+func print(objs ..., sep = ' ', end = '\n', file io.Writer? = none)
 */
-static Value builtin_print(Value *module, Value *args, int nargs, Object *names)
+static Value builtin_print(Value *m, Value *args, int nargs, Object *names)
 {
     Value _sep = none_value;
     Value _end = none_value;
@@ -119,7 +103,7 @@ static Value builtin_print(Value *module, Value *args, int nargs, Object *names)
     // const char *_kws[] = { "sep", "end", "file", NULL };
     // kl_parse_kwargs(args, nargs, names, nargs, _kws, &_sep, &_end, &_file);
 
-    // builtin_print_impl(args, nargs, &_sep, &_end, &_file);
+    builtin_print_impl(args, nargs, &_sep, &_end, &_file);
     return none_value;
 }
 

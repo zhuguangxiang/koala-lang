@@ -20,8 +20,12 @@ typedef struct _CodeObject {
     char *filename;
     /* line table(addr2line) */
     void *line_table;
-    /* stack size */
-    int stack_size;
+    /* number of positional parameters(must be passed), not include KW parameters */
+    int nargs;
+    /* all locals, include parameters(pos-args&kw-args) */
+    int nlocals;
+    /* max number of call arguments, the callframe size is nlocals + max_call_nargs */
+    int max_call_nargs;
     /* instructions */
     char *insns;
 } CodeObject;

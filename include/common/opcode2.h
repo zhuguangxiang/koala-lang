@@ -72,13 +72,6 @@ typedef enum _OpCode {
     OP_INT_SHL_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs << Imm        */
     OP_INT_SHR_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs >> Imm        */
 
-    OP_INT_CMP_EQ_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs == Imm        */
-    OP_INT_CMP_NE_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs != Imm        */
-    OP_INT_CMP_LT_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs < Imm         */
-    OP_INT_CMP_GT_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs > Imm         */
-    OP_INT_CMP_LE_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs <= Imm        */
-    OP_INT_CMP_GE_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs >= Imm        */
-
     OP_FLOAT_ADD,           /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs + Rt           */
     OP_FLOAT_SUB,           /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs - Rt           */
     OP_FLOAT_MUL,           /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs * Rt           */
@@ -88,6 +81,11 @@ typedef enum _OpCode {
 
     OP_FLOAT_CMPL,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs < Rt) ? -1 : ((Rs == Rt) ? 0 : 1) */
     OP_FLOAT_CMPG,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs > Rt) ? 1 : ((Rs == Rt) ? 0 : -1) */
+
+    OP_UINT_CMP_LT,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs < Rt) ? 1 : 0   */
+    OP_UINT_CMP_LE,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs <= Rt) ? 1 : 0   */
+    OP_UINT_CMP_GT,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs > Rt) ? 1 : 0   */
+    OP_UINT_CMP_GE,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs >= Rt) ? 1 : 0   */
 
     OP_FLOAT_TO_INT,        /* [op:8][Rd:12][Rs:12]   Rd = (int)Rs           */
     OP_INT_TO_FLOAT,        /* [op:8][Rd:12][Rs:12]   Rd = (float)Rs         */
@@ -125,6 +123,13 @@ typedef enum _OpCode {
     OP_JMP_INT_CMP_LE_IMM,  /* [op:8][A:8][imm:8][offset:8]    PC += Offset if R(A) <= Imm */
     OP_JMP_INT_CMP_GE_IMM,  /* [op:8][A:8][imm:8][offset:8]    PC += Offset if R(A) >= Imm */
 
+    OP_JMP_UINT_CMP_EQ,      /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) == R(B) */
+    OP_JMP_UINT_CMP_NE,      /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) != R(B) */
+    OP_JMP_UINT_CMP_LT,      /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) < R(B) */
+    OP_JMP_UINT_CMP_LE,      /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) <= R(B) */
+    OP_JMP_UINT_CMP_GT,      /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) > R(B) */
+    OP_JMP_UINT_CMP_GE,      /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) >= R(B) */
+
     /* call & argument pass */
     OP_ARG,                 /* [op:8][0:12][Rs:12] */
     OP_ARG_INT_IMM,         /* [op:8][0:8][Imm:16]    */
@@ -137,12 +142,13 @@ typedef enum _OpCode {
     OP_ARG_EMPTY_LIST,          /* [op:8][0:8][0:8][0:8] */
     OP_ARG_EMPTY_DICT,          /* [op:8][0:8][0:8][0:8] */
 
-    OP_CALL,                /* [op:8][Rd:12][offset:12] */
+    OP_CALL,                /* [op:8][Rd:8][imm:8][offset:8] */
     OP_CALL2,               /* [op:8][Rd:12][Rs:12] */
     OP_CALL_VTBL,              /* [op:8][Rd:8][Rs:8][offset:8] */
 
+    OP_CALL_KW,             /* [op:8][Rd:8][imm:8][offset:8] */
     /* return */
-    OP_RETURN,              /* [op:8][0:12][Rs:12]        return R(Ss)           */
+    OP_RETURN,              /* [op:8][0:12][Rs:12]        return R(Rs)           */
     OP_RETURN_NONE,         /* [op:8][0:8][0:8][0:8]     return None            */
 
     /* cast operation */

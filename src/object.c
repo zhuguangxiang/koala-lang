@@ -39,7 +39,21 @@ Value object_tostr(Value *self)
     return tp->str(self);
 }
 
-Value object_call(Value *self, Value *args, int nargs, Object *names)
+Value object_call(Value *self, Value *args, int nargs)
+{
+    TypeObject *tp = object_typeof(self);
+    ASSERT(tp);
+    CallFunc call = tp->call;
+    if (!call) {
+        /* raise an error */
+        raise_exc_fmt("'%s' is not callable", tp->name);
+        return error_value;
+    }
+
+    return call(self, args, nargs, NULL);
+}
+
+Value object_call_kw(Value *self, Value *args, int nargs, Object *names)
 {
     TypeObject *tp = object_typeof(self);
     ASSERT(tp);

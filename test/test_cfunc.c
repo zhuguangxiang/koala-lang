@@ -43,7 +43,7 @@ void test_cfunc(void)
     module_add_object(m, "hello", obj);
     Value self = obj_value(obj);
     Value arg = obj_value(m);
-    Value ret = object_call(&self, &arg, 1, NULL);
+    Value ret = object_call(&self, &arg, 1);
     ASSERT(IS_NONE(&ret));
 }
 

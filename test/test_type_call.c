@@ -36,7 +36,7 @@ void test_type_call(void)
     module_add_object(m, "__init__", (Object *)code);
 
     Value self = obj_value(code);
-    Value result = object_call(&self, NULL, 0, NULL);
+    Value result = object_call(&self, NULL, 0);
     if (IS_ERROR(&result)) {
         print_exc();
     } else {

@@ -110,7 +110,7 @@ typedef struct _Value {
 #define float32_value(x)    (Value){ .tag = TAG_FLOAT32,  .fval = (double)(x) }
 #define float64_value(x)    (Value){ .tag = TAG_FLOAT64,  .fval = (double)(x) }
 #define bfloat16_value(x)   (Value){ .tag = TAG_BFLOAT16, .fval = (double)(x) }
-#define obj_value(x)        (Value){ .vtbl = (x), .obj  = (x) }
+#define obj_value(x)        (Value){ .vtbl = OB_TYPE(x)->vtbl, .obj  = (x) }
 
 #define to_bool(v)     ({ ASSERT(is_bool(v)); (v)->bval; })
 #define to_int8(v)     ({ ASSERT(is_int8(v)); (v)->ival; })
@@ -319,7 +319,8 @@ static inline CallFunc object_callable(Value *val)
     return tp->call;
 }
 
-Value object_call(Value *self, Value *args, int nargs, Object *names);
+Value object_call(Value *self, Value *args, int nargs);
+Value object_call_kw(Value *self, Value *args, int nargs, Object *names);
 Value object_tostr(Value *self);
 Object *object_lookup(Value *obj, char *name);
 

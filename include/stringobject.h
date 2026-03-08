@@ -15,13 +15,13 @@ extern "C" {
 typedef struct _StringObject {
     OBJECT_HEAD
     size_t size;
-    void *array;
+    char *array;
 } StringObject;
 
 extern TypeObject str_type;
 #define IS_STR(ob) IS_TYPE((ob), &str_type)
 
-#define STR_BUF(ob) (char *)(((StringObject *)(ob))->array)
+#define STR_BUF(ob) (((StringObject *)(ob))->array)
 #define STR_LEN(ob) (((StringObject *)(ob))->size)
 
 Object *kl_new_nstr(char *s, size_t len);
