@@ -271,8 +271,18 @@ main_loop:
             case OP_CALL: {
                 rd = I_A(inst);
                 imm = I_B(inst);
-                off = I_C(inst);
-                Object *obj = RELOC(off);
+
+                void **cache = (void **)pc;
+                pc += 2;
+                Object *obj = *cache;
+
+                if (unlikely(!obj)) {
+                    /* cache miss, do lookup and cache it */
+                    off = I_C(inst);
+                    obj = RELOC(off);
+                    *cache = obj;
+                }
+
                 ASSERT(obj);
                 Value callable = obj_value(obj);
                 int nargs = imm;
