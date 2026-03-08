@@ -20,7 +20,7 @@ void test_module(void)
 {
     Object *m = kl_new_module("main");
 
-    cp_add_str(m, "hello");
+    int s_id = cp_add_str(m, "hello");
 
     int id = kl_add_rel_mod(m, "std/builtin");
     id = kl_add_rel_func(m, "print", id);
@@ -30,9 +30,9 @@ void test_module(void)
     /* print(100, "hello") */
     uint32_t _insns[] = {
         (OP_CONST_INT_IMM << 24) | (0 << 16) | 100,
-        (OP_CONST << 24) | (1 << 12) | 0,
-        (OP_ARG << 24) | 0,
-        (OP_ARG << 24) | 1,
+        (OP_CONST << 24) | (1 << 12) | s_id,
+        (OP_PUSH << 24) | 0,
+        (OP_PUSH << 24) | 1,
         (OP_CALL << 24) | (0 << 16) | 2 << 8 | id,
         (OP_RETURN_NONE << 24),
     };
@@ -41,7 +41,7 @@ void test_module(void)
     CodeObject *code = (CodeObject *)obj;
     code->insns = (char *)_insns;
     code->nlocals = 2;
-    code->max_call_nargs = 2;
+    code->max_nargs = 2;
 
     Value self = obj_value(code);
     Value result = object_call(&self, NULL, 0);

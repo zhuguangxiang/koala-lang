@@ -131,7 +131,7 @@ typedef enum _OpCode {
     OP_JMP_UINT_CMP_GE,      /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) >= R(B) */
 
     /* call & argument pass */
-    OP_ARG,                 /* [op:8][0:12][Rs:12] */
+    OP_PUSH,                 /* [op:8][0:12][Rs:12] */
     OP_ARG_INT_IMM,         /* [op:8][0:8][Imm:16]    */
     OP_ARG2,                /* [op:8][Rs1:12][Rs2:12] */
     OP_ARG3,                /* [op:8][Rs1:8][Rs2:8][Rs3:8] */

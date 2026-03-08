@@ -74,6 +74,9 @@ typedef struct _KoalaState {
 
     /* stack top pointer */
     Value *stack_top;
+
+    /* call frame cache */
+    CallFrame *cf_cache;
 } KoalaState;
 
 Value kl_eval_code(Value *self, Value *args, int nargs, Object *names);

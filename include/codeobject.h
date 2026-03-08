@@ -24,8 +24,8 @@ typedef struct _CodeObject {
     int nargs;
     /* all locals, include parameters(pos-args&kw-args) */
     int nlocals;
-    /* max number of call arguments, the callframe size is nlocals + max_call_nargs */
-    int max_call_nargs;
+    /* max number of call arguments, the callframe size is nlocals + max_nargs */
+    int max_nargs;
     /* instructions */
     char *insns;
 } CodeObject;

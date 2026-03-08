@@ -37,6 +37,9 @@ Object *kl_new_module(char *path)
     vector_init(&m->consts, sizeof(Value));
     vector_init(&m->rels, sizeof(RelocEntry));
 
+    Value none_val = none_value;
+    vector_push_back(&m->consts, &none_val);
+
     RelocEntry not_used = { NULL };
     vector_push_back(&m->rels, &not_used);
 
@@ -108,15 +111,14 @@ int cp_add_int(Object *_m, int64_t val)
     ModuleObject *m = (ModuleObject *)_m;
     Value v = int64_value(val);
     vector_push_back(&m->consts, &v);
-    return 0;
+    return vector_size(&m->consts) - 1;
 }
 
 int cp_add_str(Object *_m, char *s)
 {
     Object *sobj = kl_new_str(s);
     ASSERT(sobj);
-    cp_add_obj(_m, sobj);
-    return 0;
+    return cp_add_obj(_m, sobj);
 }
 
 int cp_add_obj(Object *_m, Object *obj)
@@ -124,7 +126,7 @@ int cp_add_obj(Object *_m, Object *obj)
     ModuleObject *m = (ModuleObject *)_m;
     Value v = obj_value(obj);
     vector_push_back(&m->consts, &v);
-    return 0;
+    return vector_size(&m->consts) - 1;
 }
 
 static int _do_link(RelocEntry *rel, Object *_m)
@@ -179,7 +181,8 @@ static int _do_link(RelocEntry *rel, Object *_m)
         } else {
             UNREACHABLE();
         }
-        ASSERT(obj && IS_CFUNC(obj));
+        ASSERT(obj);
+        ASSERT(IS_CFUNC(obj) || IS_CODE(obj));
         rel->obj = obj;
     } else if (rel->kind == REL_TYPE_VAR) {
         NYI();

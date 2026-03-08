@@ -28,12 +28,10 @@ extern "C" {
 
 /*-------------------------------------API-----------------------------------*/
 
-static void _copy_arguments(CallFrame *cf, Value *args, int nargs)
+static inline void _copy_arguments(CallFrame *cf, Value *args, int nargs)
 {
     ASSERT(cf->local_size >= nargs);
-
     Value *p = cf->locals;
-
     for (int i = 0; i < nargs; i++) {
         *(p + i) = *(args + i);
     }
@@ -41,11 +39,19 @@ static void _copy_arguments(CallFrame *cf, Value *args, int nargs)
 
 static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
 {
-    CallFrame *cf = mm_alloc_obj(cf);
+    CallFrame *cf;
+
+    if (ks->cf_cache) {
+        cf = ks->cf_cache;
+        ks->cf_cache = cf->back;
+    } else {
+        cf = mm_alloc_obj(cf);
+    }
+
     cf->code = code;
     cf->module = code->module;
     cf->local_size = code->nlocals;
-    cf->stack_size = code->max_call_nargs;
+    cf->stack_size = code->max_nargs;
 
     /* TODO: grow stack if needed */
 
@@ -62,7 +68,10 @@ static void _pop_frame(KoalaState *ks, CallFrame *cf)
     /* shrink stack */
     ks->stack_top -= (cf->local_size + cf->stack_size);
     ASSERT(ks->stack_top >= ks->stack_base);
-    mm_free(cf);
+
+    cf->back = ks->cf_cache;
+    ks->cf_cache = cf;
+    // mm_free(cf);
 }
 
 KoalaState *kl_new_ks(void)
@@ -244,7 +253,7 @@ main_loop:
                 DISPATCH();
             }
 
-            case OP_ARG: {
+            case OP_PUSH: {
                 rs = I_Bx(inst);
 
                 ASSERT(rs < cf->local_size);
@@ -362,7 +371,8 @@ Value kl_eval_code(Value *self, Value *args, int nargs, Object *names)
 
     /* pop frame to free list */
     _pop_frame(ks, cf);
-    return none_value;
+
+    return result;
 }
 
 #ifdef __cplusplus
