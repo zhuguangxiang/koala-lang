@@ -43,13 +43,9 @@ int main(int argc, char *argv[])
         (OP_INT_SUB_IMM << 24) | 1 << 16 | 0 << 8 | 1,
         (OP_PUSH << 24) | 1,
         (OP_CALL << 24) | 1 << 16 | 1 << 8 | id,
-        0, /* reserved for tail call optimization */
-        0, /* reserved for tail call optimization */
         (OP_INT_SUB_IMM << 24) | 2 << 16 | 0 << 8 | 2,
         (OP_PUSH << 24) | 2,
         (OP_CALL << 24) | 0 << 16 | 1 << 8 | id,
-        0,
-        0,
         (OP_INT_ADD << 24) | 0 << 16 | 1 << 8 | 0,
         (OP_RETURN << 24) | 0,
     };

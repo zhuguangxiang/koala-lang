@@ -272,16 +272,8 @@ main_loop:
                 rd = I_A(inst);
                 imm = I_B(inst);
 
-                void **cache = (void **)pc;
-                pc += 2;
-                Object *obj = *cache;
-
-                if (unlikely(!obj)) {
-                    /* cache miss, do lookup and cache it */
-                    off = I_C(inst);
-                    obj = RELOC(off);
-                    *cache = obj;
-                }
+                off = I_C(inst);
+                Object *obj = RELOC(off);
 
                 ASSERT(obj);
                 Value callable = obj_value(obj);
