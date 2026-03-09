@@ -310,6 +310,8 @@ extern TypeObject Sequence_type;
 extern TypeObject MutableSequence_type;
 extern TypeObject Number_type;
 
+#define IS_KLASS(obj) IS_TYPE(obj, &type_type)
+
 TypeObject *object_typeof(Value *val);
 
 static inline CallFunc object_callable(Value *val)
@@ -324,6 +326,7 @@ Value object_call_kw(Value *self, Value *args, int nargs, Object *names);
 Value object_tostr(Value *self);
 Object *object_lookup(Value *obj, char *name);
 
+int type_add_method(Object *_tp, char *name, Object *fn);
 int type_ready(TypeObject *tp);
 
 void init_sym_tbl(HashMap *map);

@@ -39,9 +39,9 @@ void test_module(void)
 
     Object *obj = kl_new_code("__init__", m, NULL);
     CodeObject *code = (CodeObject *)obj;
-    code->insns = (char *)_insns;
-    code->nlocals = 2;
-    code->max_nargs = 2;
+    code->cs.insns = (char *)_insns;
+    code->cs.nlocals = 2;
+    code->cs.max_nargs = 2;
 
     Value self = obj_value(code);
     Value result = object_call(&self, NULL, 0);

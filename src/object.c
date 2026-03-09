@@ -391,6 +391,15 @@ int type_ready(TypeObject *tp)
     return 0;
 }
 
+int type_add_method(Object *_tp, char *name, Object *fn)
+{
+    ASSERT(IS_TYPE(_tp, &type_type));
+    TypeObject *tp = (TypeObject *)_tp;
+    vector_push_back(&tp->methods, &fn);
+    sym_tbl_add(&tp->map, name, strlen(name), fn);
+    return 0;
+}
+
 // static int get_name_index(Object *names, const char *name)
 // {
 //     Value *items = TUPLE_ITEMS(names);

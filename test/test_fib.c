@@ -52,9 +52,9 @@ int main(int argc, char *argv[])
 
     Object *obj = kl_new_code("fib", m, NULL);
     CodeObject *code = (CodeObject *)obj;
-    code->insns = (char *)_insns;
-    code->nlocals = 3;
-    code->max_nargs = 1;
+    code->cs.insns = (char *)_insns;
+    code->cs.nlocals = 3;
+    code->cs.max_nargs = 1;
 
     module_add_obj(m, "fib", obj);
 

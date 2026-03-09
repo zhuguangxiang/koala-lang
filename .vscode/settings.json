@@ -187,9 +187,7 @@
     "editor.fontWeight": "100",
     "git.autoRepositoryDetection": false,
     "cmake.configureOnEdit": false,
-    "editor.defaultFormatter": "xaver.clang-format",
-    "C_Cpp.formatting": "disabled", // 关键：禁用微软插件的格式化逻辑
-    "clang-format.executable": "/usr/bin/clang-format", // 这里的路径要匹配你的版本
+    "clang-format.executable": "/usr/bin/clang-format",
     // "http.proxy": "http://127.0.0.1:20171",
     // "https.proxy": "http://127.0.0.1:20171"
 }

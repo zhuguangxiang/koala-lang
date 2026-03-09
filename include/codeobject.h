@@ -6,6 +6,7 @@
 #ifndef _KOALA_CODE_OBJECT_H_
 #define _KOALA_CODE_OBJECT_H_
 
+#include "codespec.h"
 #include "object.h"
 
 #ifdef __cplusplus
@@ -14,20 +15,7 @@ extern "C" {
 
 typedef struct _CodeObject {
     FUNCTION_HEAD
-    /* name */
-    char *name;
-    /* file name */
-    char *filename;
-    /* line table(addr2line) */
-    void *line_table;
-    /* number of positional parameters(must be passed), not include KW parameters */
-    int nargs;
-    /* all locals, include parameters(pos-args&kw-args) */
-    int nlocals;
-    /* max number of call arguments, the callframe size is nlocals + max_nargs */
-    int max_nargs;
-    /* instructions */
-    char *insns;
+    CodeSpec cs;
 } CodeObject;
 
 extern TypeObject code_type;

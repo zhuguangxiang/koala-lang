@@ -50,8 +50,8 @@ static CallFrame *_new_frame(KoalaState *ks, CodeObject *code)
 
     cf->code = code;
     cf->module = code->module;
-    cf->local_size = code->nlocals;
-    cf->stack_size = code->max_nargs;
+    cf->local_size = code->cs.nlocals;
+    cf->stack_size = code->cs.max_nargs;
 
     /* TODO: grow stack if needed */
 
@@ -132,7 +132,7 @@ static Value _eval_frame(KoalaState *ks, CallFrame *cf)
     Value *top = cf->stack;
     Value *regs = cf->locals;
 
-    uint32_t *pc = (uint32_t *)code->insns;
+    uint32_t *pc = (uint32_t *)code->cs.insns;
     Value result = none_value;
     register uint32_t inst;
     register OpCode op;

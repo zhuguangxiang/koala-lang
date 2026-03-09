@@ -413,7 +413,6 @@ static void load_klass(KlcKlass *kls, LoadContext *ctx)
 static void load_funcs(LoadContext *ctx)
 {
     KlcFile *klc = ctx->klc;
-    Vector *consts = klc->objs + ITEM_CONST;
 
     KlcFunc *item;
     vector_foreach(item, klc->objs + ITEM_FUNC) {
@@ -428,7 +427,6 @@ static void load_funcs(LoadContext *ctx)
 static void load_klasses(LoadContext *ctx)
 {
     KlcFile *klc = ctx->klc;
-    Vector *consts = klc->objs + ITEM_CONST;
 
     KlcKlass *kls;
     vector_foreach(kls, klc->objs + ITEM_CLASS) {

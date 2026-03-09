@@ -24,7 +24,7 @@ Object *kl_new_code(char *name, Object *m, TypeObject *cls)
 {
     CodeObject *code = gc_alloc_obj_p(code);
     INIT_OBJECT_HEAD(code, &code_type);
-    code->name = name;
+    code->cs.name = name;
     code->module = m;
     code->cls = cls;
     return (Object *)code;

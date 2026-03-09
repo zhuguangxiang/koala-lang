@@ -35,6 +35,8 @@ typedef struct _ModuleObject {
     ModuleDef *def;
     /* extend state */
     void *state;
+    /* init function */
+    Object *__init__;
     /* all symbols(globals & functions) */
     Vector symbols;
     /* symbol map for link */
@@ -120,6 +122,8 @@ static inline Object *kl_rel_get_obj(Object *_m, int index)
     ASSERT(rel);
     return rel->obj;
 }
+
+Object *kl_load_module(char *path);
 
 #ifdef __cplusplus
 }

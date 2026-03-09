@@ -96,6 +96,9 @@ int module_add_obj(Object *_m, char *name, Object *obj)
     ModuleObject *m = (ModuleObject *)_m;
     vector_push_back(&m->symbols, &obj);
     sym_tbl_add(&m->map, name, strlen(name), obj);
+    if (!strcmp(name, "__init__")) {
+        m->__init__ = obj;
+    }
     return 0;
 }
 

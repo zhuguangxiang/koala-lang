@@ -54,7 +54,7 @@ void kl_trace_here(CallFrame *cf)
 {
     TraceBack *tb = mm_alloc_obj_fast(tb);
     tb->back = NULL;
-    tb->file = cf->code->filename;
+    tb->file = cf->code->cs.filename;
     // TODO:
     tb->lineno = 0;
 
