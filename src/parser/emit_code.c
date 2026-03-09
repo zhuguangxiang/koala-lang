@@ -32,10 +32,10 @@ static void emit_insn_operand(KlrOper *oper, Buffer *buf, KlcFile *filp)
         switch (kind) {
             case CONST_INT: {
                 if (v->len == 1) {
-                    EMIT_OP(OP_PUSH_IMM8);
+                    EMIT_OP(OP_PUSH_INT_IMM);
                     EMIT_BYTE_ARG(v->ival);
                 } else if (v->len == 2) {
-                    EMIT_OP(OP_PUSH_IMM16);
+                    EMIT_OP(OP_PUSH_INT_IMM);
                     EMIT_WORD_ARG(v->ival);
                 } else {
                     // uint16_t index = klc_add_int(filp, v->ival, v->sign, v->len);

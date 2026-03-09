@@ -183,7 +183,7 @@ static void dump_code(KlcCode *code)
     uint8_t *end = (uint8_t *)code->codes + code->code_size;
     while (op < end) {
         switch (*op) {
-            case OP_PUSH_IMM8: {
+            case OP_PUSH_INT_IMM: {
                 int8_t v = *(int8_t *)(op + 1);
                 fprintf(stdout, "    push %d\n", v);
                 op += 2;

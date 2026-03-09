@@ -61,21 +61,26 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
 static void emit_ir_literal(ParserState *ps, Expr *exp)
 {
     LitExpr *lit = (LitExpr *)exp;
+    KLR_BUILDER(ps);
     switch (lit->which) {
         case LIT_EXPR_INT: {
-            exp->ir_val = klr_const_int(lit->ival, lit->ts);
+            KlrValue *k = klr_const_int(lit->ival, lit->ts);
+            exp->ir_val = klr_build_const(&bldr, k);
             break;
         }
         case LIT_EXPR_FLT: {
-            exp->ir_val = klr_const_float(lit->fval, lit->ts);
+            KlrValue *k = klr_const_float(lit->fval, lit->ts);
+            exp->ir_val = klr_build_const(&bldr, k);
             break;
         }
         case LIT_EXPR_BOOL: {
-            exp->ir_val = klr_const_bool(lit->bval);
+            KlrValue *k = klr_const_bool(lit->bval);
+            exp->ir_val = klr_build_const(&bldr, k);
             break;
         }
         case LIT_EXPR_STR: {
-            exp->ir_val = klr_const_str(lit->sval, lit->len);
+            KlrValue *k = klr_const_str(lit->sval, lit->len);
+            exp->ir_val = klr_build_const(&bldr, k);
             break;
         }
         case LIT_EXPR_NONE: {

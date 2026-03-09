@@ -7,7 +7,7 @@
 #include "codeobject.h"
 #include "log.h"
 #include "moduleobject.h"
-#include "opcode2.h"
+#include "opcode.h"
 #include "run.h"
 
 #ifdef __cplusplus

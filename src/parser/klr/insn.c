@@ -107,9 +107,8 @@ static OpCode no_regs_codes[] = {
     OP_IR_STORE,
     OP_IR_JMP_COND,
     OP_PUSH,
-    OP_POP,
     OP_PUSH_NONE,
-    OP_PUSH_IMM8,
+    OP_PUSH_INT_IMM,
     OP_RETURN,
     OP_RETURN_NONE,
     OP_JMP,
@@ -129,12 +128,12 @@ static OpCode no_regs_codes[] = {
     OP_JMP_INT_CMP_GT,
     OP_JMP_INT_CMP_LE,
     OP_JMP_INT_CMP_GE,
-    OP_JMP_INT_CMP_EQ_IMM8,
-    OP_JMP_INT_CMP_NE_IMM8,
-    OP_JMP_INT_CMP_LT_IMM8,
-    OP_JMP_INT_CMP_GT_IMM8,
-    OP_JMP_INT_CMP_LE_IMM8,
-    OP_JMP_INT_CMP_GE_IMM8,
+    OP_JMP_INT_CMP_EQ_IMM,
+    OP_JMP_INT_CMP_NE_IMM,
+    OP_JMP_INT_CMP_LT_IMM,
+    OP_JMP_INT_CMP_GT_IMM,
+    OP_JMP_INT_CMP_LE_IMM,
+    OP_JMP_INT_CMP_GE_IMM,
 };
 
 int insn_has_value(KlrInsn *insn)
@@ -313,6 +312,15 @@ KlrValue *klr_build_list(KlrBuilder *bldr, Vector *items, TypeSpec *ty)
         init_oper(&insn->opers[i], insn, item);
     }
     insn->ts = ty;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_const(KlrBuilder *bldr, KlrValue *val)
+{
+    KlrInsn *insn = new_insn(OP_CONST, 1, "");
+    init_oper(&insn->opers[0], insn, val);
+    insn->ts = val->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

@@ -13,145 +13,166 @@ extern "C" {
 /* clang-format off */
 
 typedef enum _OpCode {
-/*+-------------------------+--------------------------------------------------+*/
-/*| name                    | arguments & comments                             |*/
-/*+-------------------------+--------------------------------------------------+*/
-    OP_NOP,                 /*                  NOP                             */
-    OP_MOVE,                /* A B              R(A) = R(B)                     */
-    OP_PUSH,                /* A                STK(top++) = R(A)               */
-    OP_POP,                 /* A                R(A) = STK(--top)               */
-    OP_PUSH_NONE,           /*                  STK(top++) = None               */
-    OP_PUSH_IMM8,           /* K(1)             STK(top++) = K                  */
-    OP_PUSH_IMM16,          /* K(2)             STK(top++) = K                  */
-    OP_PUSH_CONST,          /* K(2)             STK(top++) = CP(K)              */
+/*+-----------------------------+-----------------------------------------------------+*/
+/*| name                        |  format comments                                    |*/
+/*+-----------------------------+-----------------------------------------------------+*/
+    OP_NOP,                     /* [op:8][0:24]                                        */
+    OP_MOVE,                    /* [op:8][Rd:12][Rs:12]         Rd = Rs                */
+    OP_CAST_INTF,               /* [op:8][Rd:8][Rs:8][Idx:8]    Rd = (intf)Rs          */
 
-    OP_CONST_LOAD,          /* A K(2)           R(A) = CP(K)                    */
-    OP_CONST_NONE,          /* A                R(A) = None                     */
-    OP_CONST_INT_M1,        /* A                R(A) = -1                       */
-    OP_CONST_INT_0,         /* A                R(A) = 0                        */
-    OP_CONST_INT_1,
-    OP_CONST_INT_2,
-    OP_CONST_INT_3,
-    OP_CONST_INT_4,
-    OP_CONST_INT_5,
-    OP_CONST_INT_IMM8,
-    OP_CONST_FLOAT_0,
-    OP_CONST_FLOAT_1,
-    OP_CONST_FLOAT_2,
-    OP_CONST_FLOAT_3,
+    OP_CONST,                   /* [op:8][Rd:12][Idx:12]        Rd = CP[Idx]           */
+    OP_CONST_NONE,              /* [op:8][Rd:12][0:12]          Rd = None              */
+    OP_CONST_FALSE,             /* [op:8][Rd:12][0:12]          Rd = False             */
+    OP_CONST_TRUE,              /* [op:8][Rd:12][0:12]          Rd = True              */
+    OP_CONST_EMPTY_STR,         /* [op:8][Rd:12][0:12]          Rd = ""                */
+    OP_CONST_EMPTY_LIST,        /* [op:8][Rd:12][0:12]          Rd = []                */
+    OP_CONST_EMPTY_DICT,        /* [op:8][Rd:12][0:12]          Rd = {}                */
 
-    OP_INT_ADD,
-    OP_INT_SUB,
-    OP_INT_MUL,
-    OP_INT_DIV,
-    OP_INT_MOD,
-    OP_INT_NEG,
+    OP_CONST_INT_M1,            /* [op:8][Rd:12][0:12]          Rd = -1                */
+    OP_CONST_INT_0,             /* [op:8][Rd:12][0:12]          Rd = 0                 */
+    OP_CONST_INT_1,             /* [op:8][Rd:12][0:12]          Rd = 1                 */
+    OP_CONST_INT_IMM,           /* [op:8][Rd:8][Imm:16]         Rd = Imm               */
 
-    OP_INT_AND,
-    OP_INT_OR,
-    OP_INT_XOR,
-    OP_INT_NOT,
-    OP_INT_SHL,
-    OP_INT_SHR,
-    OP_INT_USHR,
+    OP_CONST_FLOAT_0,           /* [op:8][Rd:12][0:12]          Rd = 0.0               */
+    OP_CONST_FLOAT_N0,          /* [op:8][Rd:12][0:12]          Rd = -0.0              */
+    OP_CONST_FLOAT_NAN,         /* [op:8][Rd:12][0:12]          Rd = float('nan')      */
+    OP_CONST_FLOAT_INF,         /* [op:8][Rd:12][0:12]          Rd = float('inf')      */
+    OP_CONST_FLOAT_NINF,        /* [op:8][Rd:12][0:12]          Rd = float('-inf')     */
 
-    OP_INT_CMP_EQ,
-    OP_INT_CMP_NE,
-    OP_INT_CMP_LT,
-    OP_INT_CMP_GT,
-    OP_INT_CMP_LE,
-    OP_INT_CMP_GE,
+    OP_INT_ADD,             /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs + Rt           */
+    OP_INT_SUB,             /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs - Rt           */
+    OP_INT_MUL,             /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs * Rt           */
+    OP_INT_DIV,             /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs / Rt           */
+    OP_INT_MOD,             /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs % Rt           */
+    OP_INT_NEG,             /* [op:8][Rd:8][Rs:8][0:8]   Rd = -Rs               */
 
-    OP_INT_ADD_IMM8,
-    OP_INT_SUB_IMM8,
-    OP_INT_MUL_IMM8,
-    OP_INT_DIV_IMM8,
-    OP_INT_MOD_IMM8,
+    OP_INT_AND,             /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs & Rt           */
+    OP_INT_OR,              /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs | Rt           */
+    OP_INT_XOR,             /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs ^ Rt           */
+    OP_INT_NOT,             /* [op:8][Rd:8][Rs:8][0:8]   Rd = ~Rs               */
+    OP_INT_SHL,             /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs << Rt          */
+    OP_INT_SHR,             /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs >> Rt          */
 
-    OP_INT_AND_IMM8,
-    OP_INT_OR_IMM8,
-    OP_INT_XOR_IMM8,
-    OP_INT_SHL_IMM8,
-    OP_INT_SHR_IMM8,
-    OP_INT_USHR_IMM8,
+    OP_INT_CMP_EQ,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs == Rt          */
+    OP_INT_CMP_NE,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs != Rt          */
+    OP_INT_CMP_LT,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs < Rt           */
+    OP_INT_CMP_GT,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs > Rt           */
+    OP_INT_CMP_LE,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs <= Rt          */
+    OP_INT_CMP_GE,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs >= Rt          */
 
-    OP_INT_CMP_EQ_IMM8,
-    OP_INT_CMP_NE_IMM8,
-    OP_INT_CMP_LT_IMM8,
-    OP_INT_CMP_GT_IMM8,
-    OP_INT_CMP_LE_IMM8,
-    OP_INT_CMP_GE_IMM8,
+    OP_INT_ADD_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs + Imm         */
+    OP_INT_SUB_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs - Imm         */
+    OP_INT_MUL_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs * Imm         */
+    OP_INT_DIV_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs / Imm         */
+    OP_INT_MOD_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs % Imm         */
 
-    OP_FLOAT_ADD,
-    OP_FLOAT_SUB,
-    OP_FLOAT_MUL,
-    OP_FLOAT_DIV,
-    OP_FLOAT_MOD,
-    OP_FLOAT_NEG,
+    OP_INT_AND_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs & Imm         */
+    OP_INT_OR_IMM,          /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs | Imm         */
+    OP_INT_XOR_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs ^ Imm         */
+    OP_INT_SHL_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs << Imm        */
+    OP_INT_SHR_IMM,         /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs >> Imm        */
 
-    OP_FLOAT_CMPL,
-    OP_FLOAT_CMPG,
+    OP_INT_CMP_EQ_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs == Imm        */
+    OP_INT_CMP_NE_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs != Imm        */
+    OP_INT_CMP_LT_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs < Imm         */
+    OP_INT_CMP_GT_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs > Imm         */
+    OP_INT_CMP_LE_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs <= Imm        */
+    OP_INT_CMP_GE_IMM,      /* [op:8][Rd:8][Rs:8][Imm:8]  Rd = Rs >= Imm        */
+
+    OP_FLOAT_ADD,           /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs + Rt           */
+    OP_FLOAT_SUB,           /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs - Rt           */
+    OP_FLOAT_MUL,           /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs * Rt           */
+    OP_FLOAT_DIV,           /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs / Rt           */
+    OP_FLOAT_MOD,           /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs % Rt           */
+    OP_FLOAT_NEG,           /* [op:8][Rd:8][Rs:8][0:8]   Rd = -Rs               */
+
+    OP_FLOAT_CMPL,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs < Rt) ? -1 : ((Rs == Rt) ? 0 : 1) */
+    OP_FLOAT_CMPG,          /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs > Rt) ? 1 : ((Rs == Rt) ? 0 : -1) */
+
+    OP_UINT_CMP_LT,         /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs < Rt) ? 1 : 0  */
+    OP_UINT_CMP_LE,         /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs <= Rt) ? 1 : 0 */
+    OP_UINT_CMP_GT,         /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs > Rt) ? 1 : 0  */
+    OP_UINT_CMP_GE,         /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = (Rs >= Rt) ? 1 : 0 */
+
+    OP_FLOAT_TO_INT,        /* [op:8][Rd:12][Rs:12]      Rd = (int)Rs            */
+    OP_INT_TO_FLOAT,        /* [op:8][Rd:12][Rs:12]      Rd = (float)Rs          */
+
+    /* logic operations */
+    OP_LAND,                /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs && Rt          */
+    OP_LOR,                 /* [op:8][Rd:8][Rs:8][Rt:8]  Rd = Rs || Rt          */
+    OP_LNOT,                /* [op:8][Rd:12][Rs:12]      Rd = !Rs               */
+
+    /* jump operations */
+    OP_JMP,                     /* [op:8][0:8][Offset:16]    PC += Offset                     */
+    OP_JMP_TRUE,                /* [op:8][A:8][Offset:16]    PC += Offset if R(A) is true     */
+    OP_JMP_FALSE,               /* [op:8][A:8][Offset:16]    PC += Offset if R(A) is false    */
+    OP_JMP_NONE,                /* [op:8][A:8][Offset:16]    PC += Offset if R(A) is None     */
+    OP_JMP_NOT_NONE,            /* [op:8][A:8][Offset:16]    PC += Offset if R(A) is not None */
+
+    OP_JMP_CMP_EQ,              /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) == R(B) */
+    OP_JMP_CMP_NE,              /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) != R(B) */
+    OP_JMP_CMP_LT,              /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) < R(B)  */
+    OP_JMP_CMP_GT,              /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) > R(B)  */
+    OP_JMP_CMP_LE,              /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) <= R(B) */
+    OP_JMP_CMP_GE,              /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) >= R(B) */
+
+    OP_JMP_INT_CMP_EQ,          /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) == R(B) */
+    OP_JMP_INT_CMP_NE,          /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) != R(B) */
+    OP_JMP_INT_CMP_LT,          /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) < R(B)  */
+    OP_JMP_INT_CMP_GT,          /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) > R(B)  */
+    OP_JMP_INT_CMP_LE,          /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) <= R(B) */
+    OP_JMP_INT_CMP_GE,          /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) >= R(B) */
+
+    OP_JMP_INT_CMP_EQ_IMM,      /* [op:8][A:8][imm:8][offset:8]    PC += Offset if R(A) == Imm */
+    OP_JMP_INT_CMP_NE_IMM,      /* [op:8][A:8][imm:8][offset:8]    PC += Offset if R(A) != Imm */
+    OP_JMP_INT_CMP_LT_IMM,      /* [op:8][A:8][imm:8][offset:8]    PC += Offset if R(A) < Imm  */
+    OP_JMP_INT_CMP_GT_IMM,      /* [op:8][A:8][imm:8][offset:8]    PC += Offset if R(A) > Imm  */
+    OP_JMP_INT_CMP_LE_IMM,      /* [op:8][A:8][imm:8][offset:8]    PC += Offset if R(A) <= Imm */
+    OP_JMP_INT_CMP_GE_IMM,      /* [op:8][A:8][imm:8][offset:8]    PC += Offset if R(A) >= Imm */
+
+    OP_JMP_UINT_CMP_EQ,         /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) == R(B) */
+    OP_JMP_UINT_CMP_NE,         /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) != R(B) */
+    OP_JMP_UINT_CMP_LT,         /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) < R(B)  */
+    OP_JMP_UINT_CMP_LE,         /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) <= R(B) */
+    OP_JMP_UINT_CMP_GT,         /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) > R(B)  */
+    OP_JMP_UINT_CMP_GE,         /* [op:8][A:8][B:8][Offset:8]    PC += Offset if R(A) >= R(B) */
+
+    /* call & argument pass */
+    OP_PUSH,                    /* [op:8][0:12][Rs:12]      */
+    OP_PUSH_INT_IMM,            /* [op:8][0:8][Imm:16]      */
+    OP_PUSH_CONST,              /* [op:8][0:12][Idx:12]     */
+    OP_PUSH_RELOC,              /* [op:8][0:8][Offset:16]   */
+    OP_PUSH_2,                  /* [op:8][Rs1:12][Rs2:12]   */
+    OP_PUSH_NONE,               /* [op:8][0:8][0:8][0:8]    */
+    OP_PUSH_TRUE,               /* [op:8][0:8][0:8][0:8]    */
+    OP_PUSH_FALSE,              /* [op:8][0:8][0:8][0:8]    */
+    OP_PUSH_EMPTY_STR,          /* [op:8][0:8][0:8][0:8]    */
+    OP_PUSH_EMPTY_LIST,         /* [op:8][0:8][0:8][0:8]    */
+    OP_PUSH_EMPTY_DICT,         /* [op:8][0:8][0:8][0:8]    */
+
+    OP_CALL,                    /* [op:8][Rd:8][imm:8][offset:8] */
+    OP_CALL_KW,                 /* [op:8][Rd:8][imm:8][offset:8] */
+    OP_CALL_DYNAMIC,            /* [op:8][Rd:8][imm:8][offset:8] */
+    OP_CALL_DYNAMIC_KW,         /* [op:8][Rd:8][imm:8][offset:8] */
+
+    /* return */
+    OP_RETURN,                  /* [op:8][0:12][Rs:12]      return R(Rs) */
+    OP_RETURN_NONE,             /* [op:8][0:8][0:8][0:8]    return None  */
 
     /* cast operation */
     OP_AS,
     OP_IS,
 
-    /* logic operations */
-    OP_LAND,
-    OP_LOR,
-    OP_LNOT,
-
-    /* jump operations */
-    OP_JMP,
-    OP_JMP_TRUE,
-    OP_JMP_FALSE,
-    OP_JMP_NONE,
-    OP_JMP_NOT_NONE,
-
-    OP_JMP_CMP_EQ,
-    OP_JMP_CMP_NE,
-    OP_JMP_CMP_LT,
-    OP_JMP_CMP_GT,
-    OP_JMP_CMP_LE,
-    OP_JMP_CMP_GE,
-
-    OP_JMP_INT_CMP_EQ,
-    OP_JMP_INT_CMP_NE,
-    OP_JMP_INT_CMP_LT,
-    OP_JMP_INT_CMP_GT,
-    OP_JMP_INT_CMP_LE,
-    OP_JMP_INT_CMP_GE,
-
-    OP_JMP_INT_CMP_EQ_IMM8,
-    OP_JMP_INT_CMP_NE_IMM8,
-    OP_JMP_INT_CMP_LT_IMM8,
-    OP_JMP_INT_CMP_GT_IMM8,
-    OP_JMP_INT_CMP_LE_IMM8,
-    OP_JMP_INT_CMP_GE_IMM8,
-
-    /* call */
-    OP_CALL,            /* A B C  A = mod index, B = obj index, C = nargs */
-    OP_CALL_METHOD,
-    OP_CALL_DYNAMIC,
-
-    /* call with keywords */
-    OP_CALL_KW,
-    OP_CALL_METHOD_KW,
-    OP_CALL_DYNAMIC_KW,
-
-    /* return */
-    OP_RETURN,
-    OP_RETURN_NONE,
-
     /* globals */
-    OP_GLOBAL_LOAD,
-    OP_GLOBAL_STORE,
+    OP_GET_GLOBAL,              /* [op:8][Rd:12][offset:12] */
+    OP_SET_GLOBAL,              /* [op:8][Rd:12][offset:12] */
 
     /* fields */
-    OP_FIELD_LOAD,
-    OP_FIELD_STORE,
+    OP_GET_FIELD,               /* [op:8][Rd:12][Rs:12][offset:8]   Rd = R(Rs).field[offset]    */
+    OP_SET_FIELD,               /* [op:8][Rd:12][Rs:12][offset:8]   R(Rs).field[offset] = R(Rd) */
 
-    /* generic arithmetic operators */
+    /* generic operators */
+
     OP_BINARY_ADD,
     OP_BINARY_SUB,
     OP_BINARY_MUL,
@@ -165,9 +186,7 @@ typedef enum _OpCode {
     OP_UNARY_NOT,
     OP_BINARY_SHL,
     OP_BINARY_SHR,
-    OP_BINARY_USHR,
 
-    /* generic compare operation */
     OP_BINARY_CMP_EQ,
     OP_BINARY_CMP_NE,
     OP_BINARY_CMP_LT,
@@ -179,26 +198,26 @@ typedef enum _OpCode {
     OP_SUBSCR_LOAD,
     OP_SUBSCR_STORE,
 
-    /* generic attribute operations */
-    OP_ATTR_LOAD,           /* A, B, K16    R(A) = Get(R(B), Field(REL(K16)))    */
-    OP_ATTR_STORE,
-
-    OP_REL_LOAD,            /* A, K16,      R(A) = REL(K16)                      */
-
     /* generic iterator operations */
     OP_GET_ITER,
     OP_ITER_NEXT,
 
+    /* collection new operations */
+    OP_LIST,                    /* [op:8][Rd:12][num:12]   Rd = [R(Rs1), R(Rs2), ...] */
+    OP_TUPLE,                   /* [op:8][Rd:12][num:12]   Rd = (R(Rs1), R(Rs2), ...) */
+    OP_DICT,                    /* [op:8][Rd:12][num:12]   Rd = {R(Rs1): R(Rs2), ...} */
+
     /* raise an error */
     OP_RAISE,
+
+    /* extend op */
+    OP_WIDE,
 
     /* The below insns are only in IR */
     OP_IR_LOAD,
     OP_IR_STORE,
     OP_IR_PHI,
     OP_IR_JMP_COND,
-    OP_LIST,
-
 } OpCode;
 
 /* clang-format on */

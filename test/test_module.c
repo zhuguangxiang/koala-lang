@@ -9,7 +9,7 @@
 #include "log.h"
 #include "moduleobject.h"
 #include "object.h"
-#include "opcode2.h"
+#include "opcode.h"
 #include "run.h"
 
 #ifdef __cplusplus

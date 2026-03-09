@@ -31,33 +31,19 @@ static void remap_const_store(KlrOper *oper, KlrInsn *insn)
             insn->code = OP_CONST_INT_0;
         } else if (v == 1) {
             insn->code = OP_CONST_INT_1;
-        } else if (v == 2) {
-            insn->code = OP_CONST_INT_2;
-        } else if (v == 3) {
-            insn->code = OP_CONST_INT_3;
-        } else if (v == 4) {
-            insn->code = OP_CONST_INT_4;
-        } else if (v == 5) {
-            insn->code = OP_CONST_INT_5;
         } else {
-            if (v >= INT8_MIN && v <= INT8_MAX) {
-                insn->code = OP_CONST_INT_IMM8;
+            if (v >= INT16_MIN && v <= INT16_MAX) {
+                insn->code = OP_CONST_INT_IMM;
             } else {
-                insn->code = OP_CONST_LOAD;
+                insn->code = OP_CONST;
             }
         }
     } else if (val->which == CONST_FLT) {
         double v = val->fval;
         if (v == 0) {
             insn->code = OP_CONST_FLOAT_0;
-        } else if (v == 1) {
-            insn->code = OP_CONST_FLOAT_1;
-        } else if (v == 2) {
-            insn->code = OP_CONST_FLOAT_2;
-        } else if (v == 3) {
-            insn->code = OP_CONST_FLOAT_3;
         } else {
-            insn->code = OP_CONST_LOAD;
+            insn->code = OP_CONST;
         }
     } else if (val->which == CONST_BOOL) {
         int v = val->bval;
@@ -67,7 +53,7 @@ static void remap_const_store(KlrOper *oper, KlrInsn *insn)
             insn->code = OP_CONST_INT_0;
         }
     } else if (val->which == CONST_STR) {
-        insn->code = OP_CONST_LOAD;
+        insn->code = OP_CONST;
     } else {
         UNREACHABLE();
     }
@@ -91,7 +77,7 @@ static OpCode get_jmp_cmp_int_op(OpCode op, int imm)
     ASSERT((op >= OP_BINARY_CMP_EQ) && (op <= OP_BINARY_CMP_GE));
     OpCode new_op;
     if (imm) {
-        new_op = OP_JMP_INT_CMP_EQ_IMM8 + (op - OP_BINARY_CMP_EQ);
+        new_op = OP_JMP_INT_CMP_EQ_IMM + (op - OP_BINARY_CMP_EQ);
     } else {
         new_op = OP_JMP_INT_CMP_EQ + (op - OP_BINARY_CMP_EQ);
     }

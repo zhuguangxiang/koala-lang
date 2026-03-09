@@ -241,6 +241,13 @@ static void print_call(KlrInsn *insn, FILE *fp)
     }
 }
 
+static void print_const_insn(KlrInsn *insn, FILE *fp)
+{
+    klr_print_name_or_tag((KlrValue *)insn, fp);
+    fprintf(fp, " = const ");
+    print_operand(&insn->opers[0], fp);
+}
+
 void klr_print_insn(KlrInsn *insn, FILE *fp)
 {
     switch (insn->code) {
@@ -276,16 +283,16 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_unary_operand("const_int_0", insn, fp);
             break;
 
-        case OP_CONST_INT_IMM8:
-            print_binary_operands("const_int_imm8", insn, fp);
+        case OP_CONST_INT_IMM:
+            print_binary_operands("const_int_imm", insn, fp);
             break;
 
-        case OP_CONST_LOAD:
-            print_binary_operands("const_load", insn, fp);
+        case OP_CONST:
+            print_const_insn(insn, fp);
             break;
 
-        case OP_JMP_INT_CMP_LT_IMM8:
-            print_jmp_cond("jmp_icmplt_imm8", insn, fp);
+        case OP_JMP_INT_CMP_LT_IMM:
+            print_jmp_cond("jmp_icmplt_imm", insn, fp);
             break;
 
         case OP_BINARY_ADD:

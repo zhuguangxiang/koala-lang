@@ -10,7 +10,7 @@
 #include "exception.h"
 #include "mm.h"
 #include "moduleobject.h"
-#include "opcode2.h"
+#include "opcode.h"
 #include "shadowstack.h"
 #include "tupleobject.h"
 
@@ -79,7 +79,7 @@ KoalaState *kl_new_ks(void)
     KoalaState *ks = mm_alloc_obj(ks);
     lldq_node_init(&ks->link);
     ks->ts = __ts;
-    ks->stack_base = mm_alloc(sizeof(Value) * MAX_STACK_SIZE);
+    ks->stack_base = aligned_alloc(16, sizeof(Value) * MAX_STACK_SIZE);
     ks->stack_top = ks->stack_base;
     ks->stack_size = MAX_STACK_SIZE;
     return ks;
@@ -90,7 +90,7 @@ void kl_free_ks(KoalaState *ks)
     if (!ks) return;
     ASSERT(!ks->cf);
     ASSERT(ks->shadow_stacks == NULL);
-    mm_free(ks->stack_base);
+    free(ks->stack_base);
     mm_free(ks);
 }
 
@@ -262,7 +262,7 @@ main_loop:
                 DISPATCH();
             }
 
-            case OP_ARG_INT_IMM: {
+            case OP_PUSH_INT_IMM: {
                 imm = I_Bxx(inst);
                 PUSH(int64_value(imm));
                 DISPATCH();

@@ -496,6 +496,9 @@ KlrValue *klr_build_list(KlrBuilder *bldr, Vector *items, TypeSpec *ty);
 /* IR: push %var */
 KlrInsn *klr_new_push(KlrValue *val);
 
+/* IR: const %var */
+KlrValue *klr_build_const(KlrBuilder *bldr, KlrValue *val);
+
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)
 #define insn_foreach_safe(insn, next, bb) \
