@@ -52,7 +52,7 @@ static void eliminate_constant_insn(KlrInsn *insn)
         /* update operand as constant */
         use->oper->kind = KLR_OPER_CONST;
     }
-    klr_delete_insn(insn);
+    klr_erase_insn(insn);
 }
 
 /*

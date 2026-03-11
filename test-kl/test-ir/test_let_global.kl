@@ -1,0 +1,32 @@
+// RUN: koalac %s | filecheck %s
+
+let i = 10
+let j = i + 1
+
+print(i, j)
+
+func foo() str { return "hello" }
+
+let s = foo()
+
+let l = [1, 2, 3]
+
+let l2 = list(1,2,30)
+
+let v = int(100)
+
+let t = tuple(10, 20)
+
+let t2 = (10, 20, 30)
+
+var v2 = 123
+
+print(v + 123, v2)
+
+let list_str = list("a", "b", "c")
+
+// CHECK-DAG: set_global @j int64, 11 int64
+// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 10 int64, 11 int64
+// CHECK-DAG: %11 = get_global @v2 int64
+// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 223 int64, %11 int64
+// CHECK-DAG: set_global @list_str list<u>, list['a', 'b', 'c'] list

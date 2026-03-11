@@ -85,6 +85,47 @@ KlrValue *klr_const_str(char *s, int len, KlrModule *m)
     return (KlrValue *)lit;
 }
 
+KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m)
+{
+    KlrConst *lit = mm_alloc_obj(lit);
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
+    lit->which = CONST_LIST;
+    lit->len = size;
+    KlrValue **copy = mm_alloc(size * sizeof(KlrValue *));
+    memcpy(copy, items, size * sizeof(KlrValue *));
+    lit->list.items = copy;
+    return (KlrValue *)lit;
+}
+
+KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m)
+{
+    KlrValue *lit = klr_const_list(items, size, ts, m);
+    ((KlrConst *)lit)->which = CONST_TUPLE;
+    return lit;
+}
+
+int klr_is_const(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_CONST) return 1;
+    if (val->kind == KLR_VALUE_INSN) {
+        KlrInsn *insn = (KlrInsn *)val;
+        return insn->code == OP_CONST;
+    }
+    return 0;
+}
+
+KlrConst *klr_get_const_value(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_CONST) return (KlrConst *)val;
+    if (val->kind == KLR_VALUE_INSN) {
+        KlrInsn *insn = (KlrInsn *)val;
+        if (insn->code == OP_CONST) {
+            return (KlrConst *)insn_oper_value(insn, 0);
+        }
+    }
+    return NULL;
+}
+
 static KlrBasicBlock *new_block(KlrFunc *fn, char *name)
 {
     KlrBasicBlock *bb = mm_alloc_obj(bb);
@@ -255,10 +296,11 @@ static KlrGlobal *new_global(TypeSpec *ts, char *name)
     return global;
 }
 
-KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name)
+KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut)
 {
     KlrGlobal *global = new_global(ts, name);
     vector_push_back(&m->globals, &global);
+    global->mutable = mut;
     return (KlrValue *)global;
 }
 

@@ -5,6 +5,7 @@
 
 #include "ir.h"
 #include "log.h"
+#include "passes.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +43,15 @@ void klr_run_pass_group(KlrPassGroup *grp, KlrFunc *fn)
     list_foreach(pass, link, &grp->passes) {
         pass->callback(fn, pass->arg);
     }
+}
+
+void klr_run_default_passes(KlrFunc *fn)
+{
+    KLR_PASS_GROUP(grp);
+    register_let_lit_prop_pass(&grp);
+    // register_var_lit_bb_prop_pass(&grp);
+    register_dce_pass(&grp);
+    klr_run_pass_group(&grp, fn);
 }
 
 #ifdef __cplusplus

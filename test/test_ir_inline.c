@@ -201,7 +201,7 @@ static void do_inline(KlrModule *m)
         }
     }
 
-    klr_delete_insn(insn);
+    klr_erase_insn(insn);
     klr_remove_load_pass((KlrFunc *)bar, NULL);
     klr_remove_store_pass((KlrFunc *)bar, NULL);
     klr_remove_unused_pass((KlrFunc *)bar, NULL);

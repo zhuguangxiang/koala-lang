@@ -209,8 +209,7 @@ typedef enum _OpCode {
     OP_WIDE,
 
     /* The below insns are only in IR */
-    OP_IR_LOAD,
-    OP_IR_STORE,
+    OP_IR_LOCAL,
     OP_IR_PHI,
     OP_IR_JMP_COND,
 } OpCode;

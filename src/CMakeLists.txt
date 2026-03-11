@@ -30,14 +30,16 @@ set(PARSER_SRC
     parser/klr/ir.c
     parser/klr/insn.c
     parser/klr/printer.c
-    parser/klr/insn_remap.c
-    parser/klr/linear_scan.c
+    # parser/klr/insn_remap.c
+    # parser/klr/linear_scan.c
     parser/klr/simple_reg_alloc.c
     parser/klr/pass.c
     parser/klr/passes/dot.c
     parser/klr/passes/remove_load_store.c
-    parser/klr/passes/constant_folding.c
-    parser/klr/passes/unused_var_insn.c
+    # parser/klr/passes/constant_folding.c
+    # parser/klr/passes/unused_var_insn.c
+    parser/klr/passes/let_lit_prop.c
+    parser/klr/passes/dce.c
     parser/klr/passes/basic_block.c)
 
 add_library(parser STATIC ${PARSER_SRC})

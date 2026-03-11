@@ -86,8 +86,8 @@ static OpCode get_jmp_cmp_int_op(OpCode op, int imm)
 
 static void try_combine_branch(KlrInsn *cond, KlrInsn *insn, KlrBasicBlock *bb)
 {
-    KlrValue *lhs = insn_operand_value(cond, 0);
-    KlrValue *rhs = insn_operand_value(cond, 1);
+    KlrValue *lhs = insn_oper_value(cond, 0);
+    KlrValue *rhs = insn_oper_value(cond, 1);
     if (lhs->ts->kind == TYPE_INT) {
         OpCode code = cond->code;
         if (rhs->kind == KLR_VALUE_CONST) {
@@ -130,7 +130,7 @@ static void remap_ir_call(KlrInsn *insn, KlrBasicBlock *bb)
 
     KlrValue *val;
     for (int i = 1; i < insn->num_opers; i++) {
-        val = insn_operand_value(insn, i);
+        val = insn_oper_value(insn, i);
         KlrInsn *push_insn = klr_new_push(val);
         klr_append_insn(&bldr, push_insn);
     }

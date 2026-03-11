@@ -32,7 +32,7 @@ static void update_load_insn_uses(KlrInsn *insn)
             NYI();
         }
     }
-    klr_delete_insn(insn);
+    klr_erase_insn(insn);
 }
 
 /*
@@ -46,9 +46,9 @@ void klr_remove_load_pass(KlrFunc *func, void *ctx)
     basic_block_foreach(bb, func) {
         // update all insns that use load insn
         insn_foreach_safe(insn, nxt_insn, bb) {
-            if (insn->code == OP_IR_LOAD) {
-                update_load_insn_uses(insn);
-            }
+            // if (insn->code == OP_IR_LOAD) {
+            //     update_load_insn_uses(insn);
+            // }
         }
     }
 }
@@ -66,15 +66,15 @@ void klr_remove_store_pass(KlrFunc *func, void *ctx)
         KlrInsn *prev = NULL;
         use_foreach_safe(use, nxt, var) {
             KlrInsn *insn = use->insn;
-            if (insn->code == OP_IR_STORE) {
-                if (prev) {
-                    // remove unused store insns
-                    klr_delete_insn(prev);
-                }
-                prev = insn;
-            } else {
-                prev = NULL;
-            }
+            // if (insn->code == OP_IR_STORE) {
+            //     if (prev) {
+            //         // remove unused store insns
+            //         klr_erase_insn(prev);
+            //     }
+            //     prev = insn;
+            // } else {
+            //     prev = NULL;
+            // }
         }
     }
 }

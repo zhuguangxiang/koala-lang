@@ -53,13 +53,15 @@ void invalidate_insn_operand(KlrInsn *insn, int i)
     KlrOper *oper = insn_operand(insn, i);
     KlrValue *ref = oper->use.ref;
     fini_oper(oper);
-    if (!klr_value_used(ref)) {
-        printf("delete unused value\n");
-        if (ref->kind == KLR_VALUE_INSN) {
-            printf("delete unused instruction\n");
-            klr_delete_insn((KlrInsn *)ref);
-        }
-    }
+    // TODO: delete unused value, but need to consider the order of deleting instructions
+    // and values.
+    // if (!klr_value_used(ref)) {
+    //     printf("delete unused value\n");
+    //     if (ref->kind == KLR_VALUE_INSN) {
+    //         printf("delete unused instruction\n");
+    //         klr_erase_insn((KlrInsn *)ref);
+    //     }
+    // }
 }
 
 void update_insn_operand(KlrInsn *insn, int i, KlrValue *val)
@@ -69,6 +71,15 @@ void update_insn_operand(KlrInsn *insn, int i, KlrValue *val)
         invalidate_insn_operand(insn, i);
     }
     init_oper(oper, insn, val);
+}
+
+void kl_replace_all_uses_with(KlrValue *val, KlrValue *def)
+{
+    KlrUse *use, *next;
+    use_foreach_safe(use, next, def) {
+        fini_use(use);
+        init_oper(use->oper, use->insn, val);
+    }
 }
 
 static KlrInsn *new_insn(OpCode op, int num_opers, char *name)
@@ -90,7 +101,7 @@ void klr_append_insn(KlrBuilder *bldr, KlrInsn *insn)
     ++bb->num_insns;
 }
 
-void klr_delete_insn(KlrInsn *insn)
+void klr_erase_insn(KlrInsn *insn)
 {
     KlrBasicBlock *bb = insn->bb;
     list_remove(&insn->bb_link);
@@ -104,7 +115,7 @@ void klr_delete_insn(KlrInsn *insn)
 
 /* no allocate register codes */
 static OpCode no_regs_codes[] = {
-    OP_IR_STORE,
+    OP_MOVE,
     OP_IR_JMP_COND,
     OP_PUSH,
     OP_PUSH_NONE,
@@ -145,61 +156,89 @@ int insn_has_value(KlrInsn *insn)
 }
 
 /*
- * IR: store_local %var, %val
- *
- * %var is local or parameter of function
- * %val is constant or instruction which has result
- *
- * NOTE: %val which is a local var is not allowed. This is needed to use
- * load_local and then store_local like below:
- *
- * var foo = 100
- * var bar = foo
- *
- * local %foo int
- * store_local %foo, 100
- *
- * local %bar int
- * %0 int = load_local %foo
- * store_local %bar, %0
+ * IR: move %dst, %src
+ * %dst is a local variable, %src is a reg value or const value.
  */
-void klr_build_store(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
+void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
 {
-    if (var->kind != KLR_VALUE_GLOBAL && var->kind != KLR_VALUE_LOCAL &&
-        var->kind != KLR_VALUE_PARAM) {
-        panic("'set %%x, %%v' requires a local/param/global var.");
+    if (var->kind != KLR_VALUE_LOCAL) {
+        panic("'move %%x, %%v' requires a local var.");
     }
 
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN) {
-        panic("'set_local %%x, %%v' requires a reg value.");
+        panic("'move %%x, %%v' requires a reg value.");
     }
 
-    // if (!desc_equal(var->ts, val->ts)) {
-    //     panic("'set_local %%x, %%v' requires the same types.");
-    // }
-
-    KlrInsn *insn = new_insn(OP_IR_STORE, 2, "");
+    KlrInsn *insn = new_insn(OP_MOVE, 2, "");
     init_oper(&insn->opers[0], insn, var);
     init_oper(&insn->opers[1], insn, val);
     klr_append_insn(bldr, insn);
 }
 
 /*
- * IR: %0 int = load_local %foo
- * %foo is a local or parameter of function
+ * IR: %0 = local int [immutable]
+ *
+ * create a local immutable variable of function, return the local variable as a value.
+ * %0 is a local variable of function, its type is int, and it's immutable.
  */
-KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var, char *name)
+KlrValue *klr_build_local(KlrBuilder *bldr, TypeSpec *ts, char *name)
 {
-    if (var->kind != KLR_VALUE_GLOBAL && var->kind != KLR_VALUE_LOCAL &&
-        var->kind != KLR_VALUE_PARAM) {
-        panic("'get %%x, %%v' requires a local/param/global var.");
-    }
-
-    KlrInsn *insn = new_insn(OP_IR_LOAD, 1, name);
-    init_oper(&insn->opers[0], insn, var);
-    insn->ts = var->ts;
+    KlrInsn *insn = new_insn(OP_IR_LOCAL, 0, name);
+    insn->ts = ts;
+    insn->flags |= KLR_INSN_FLAGS_CONST;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
+}
+
+/*
+ * IR: %0 = local float [mutable]
+ *
+ * %var is a local variable of function
+ */
+KlrValue *klr_build_local_var(KlrBuilder *bldr, TypeSpec *ts, char *name)
+{
+    KlrInsn *insn = new_insn(OP_IR_LOCAL, 0, name);
+    insn->ts = ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+/*
+ * IR: %0 = get_global %global
+ * get a global variable, %global is a global variable, return the value of this global
+ * variable.
+ */
+KlrValue *klr_build_get_global(KlrBuilder *bldr, KlrValue *global)
+{
+    if (global->kind != KLR_VALUE_GLOBAL) {
+        panic("'get_global %%g' requires a global variable.");
+    }
+
+    KlrInsn *insn = new_insn(OP_GET_GLOBAL, 1, "");
+    init_oper(&insn->opers[0], insn, global);
+    insn->ts = global->ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+/*
+ * IR: set_global %global, %src
+ * set a global variable, %global is a global variable, %src is a reg value or const
+ */
+void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
+{
+    if (global->kind != KLR_VALUE_GLOBAL) {
+        panic("'set_global %%g, %%v' requires a global variable.");
+    }
+
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN) {
+        panic("'set_global %%g, %%v' requires a reg value.");
+    }
+
+    KlrInsn *insn = new_insn(OP_SET_GLOBAL, 2, "");
+    init_oper(&insn->opers[0], insn, global);
+    init_oper(&insn->opers[1], insn, val);
+    klr_append_insn(bldr, insn);
 }
 
 KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,

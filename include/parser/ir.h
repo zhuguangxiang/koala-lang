@@ -65,22 +65,29 @@ typedef struct _KlrConst {
     HashMapEntry hnode;
     int index;
     int which;
-#define CONST_INT  1
-#define CONST_FLT  2
-#define CONST_BOOL 3
-#define CONST_STR  4
+#define CONST_INT   1
+#define CONST_FLT   2
+#define CONST_BOOL  3
+#define CONST_STR   4
+#define CONST_LIST  5
+#define CONST_TUPLE 6
     int len;
     union {
         uint64_t ival;
         double fval;
         int bval;
         char *sval;
+        struct {
+            KlrValue **items;
+        } list;
     };
 } KlrConst;
 
 /* global/field variable */
 typedef struct _KlrVar {
     KLR_VALUE_HEAD
+    int mutable;
+    KlrConst *kval;
 } KlrGlobal, KlrField;
 
 /* local register variable */
@@ -326,16 +333,11 @@ KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_bool(int val, KlrModule *m);
 KlrValue *klr_const_str(char *s, int len, KlrModule *m);
+KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
+KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
 
-static inline int klr_is_const(KlrValue *val)
-{
-    if (val->kind == KLR_VALUE_CONST) return 1;
-    if (val->kind == KLR_VALUE_INSN) {
-        KlrInsn *insn = (KlrInsn *)val;
-        return insn->code == OP_CONST;
-    }
-    return 0;
-}
+int klr_is_const(KlrValue *val);
+KlrConst *klr_get_const_value(KlrValue *val);
 
 /* <2> module */
 
@@ -346,7 +348,7 @@ KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name);
 KlrValue *klr_func_get_param(KlrValue *val, int index);
 KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ts, char *name);
 
-KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name);
+KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut);
 KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ts, char *name);
 KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name);
 KlrValue *klr_klass_add_field(KlrValue *klass, char *name, TypeSpec *ts);
@@ -441,16 +443,25 @@ static inline int klr_get_nr_succ(KlrBasicBlock *bb)
 
 void klr_append_insn(KlrBuilder *bldr, KlrInsn *insn);
 
-void klr_delete_insn(KlrInsn *insn);
+void klr_erase_insn(KlrInsn *insn);
 
 /* check an insn needs allocate register or not */
 int insn_has_value(KlrInsn *insn);
 
-/* IR: %0 int = load_local %foo */
-KlrValue *klr_build_load(KlrBuilder *bldr, KlrValue *var, char *name);
+/* IR: %0 = local int [immutable] */
+KlrValue *klr_build_local(KlrBuilder *bldr, TypeSpec *ts, char *name);
 
-/* IR: store_local %var, %val */
-void klr_build_store(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
+/* IR: %0 = local float [mutable] */
+KlrValue *klr_build_local_var(KlrBuilder *bldr, TypeSpec *ts, char *name);
+
+/* IR: %0 = get_global %global */
+KlrValue *klr_build_get_global(KlrBuilder *bldr, KlrValue *global);
+
+/* IR: set_global %global, %src */
+void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val);
+
+/* IR: move %dst, %src */
+void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 
 KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,
                            char *name, const char *op_name);
@@ -539,12 +550,18 @@ KlrValue *klr_build_const(KlrBuilder *bldr, KlrValue *val);
     (insn)->opers + i; \
 })
 
-#define insn_operand_value(insn, i) ({ \
+#define insn_oper_value(insn, i) ({ \
     KlrOper *oper = insn_operand(insn, i); \
     oper->use.ref; \
 })
 
+#define oper_value_foreach(val, insn, start) \
+    for (int i__ = (start); (i__ < (insn)->num_opers) && (val = insn_oper_value(insn, i__), 1); i__++)
+
 // clang-format on
+
+/* replace all uses of 'def' value with 'val' value */
+void kl_replace_all_uses_with(KlrValue *val, KlrValue *def);
 
 /* invalidate i-th operand and delete this value if it's not used */
 void invalidate_insn_operand(KlrInsn *insn, int i);
@@ -634,12 +651,6 @@ void klr_add_pass(KlrPassGroup *grp, char *name, KlrPassFunc fn, void *arg);
 
 /* execute pass group */
 void klr_run_pass_group(KlrPassGroup *grp, KlrFunc *fn);
-
-/* ir context */
-typedef struct _KlrContext {
-    HashMap passes;
-    Vector modules;
-} KlrContext;
 
 #ifdef __cplusplus
 }

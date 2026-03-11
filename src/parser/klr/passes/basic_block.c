@@ -64,7 +64,7 @@ void klr_remove_only_jump_block(KlrFunc *func)
             KlrBasicBlock *target = (KlrBasicBlock *)insn->opers[0].use.ref;
             ASSERT(target->kind == KLR_VALUE_BLOCK);
             update_target_block(bb, target);
-            klr_delete_insn(insn);
+            klr_erase_insn(insn);
             klr_delete_block(bb);
         }
     }

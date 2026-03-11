@@ -186,6 +186,7 @@
     // "editor.letterSpacing": 0.5,
     "editor.fontWeight": "100",
     "git.autoRepositoryDetection": false,
+    "git.autorefresh": false,
     "cmake.configureOnEdit": false,
     "clang-format.executable": "/usr/bin/clang-format",
     // "http.proxy": "http://127.0.0.1:20171",

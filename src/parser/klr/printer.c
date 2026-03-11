@@ -45,6 +45,17 @@ void klr_print_name_or_tag(KlrValue *val, FILE *fp)
     }
 }
 
+static void print_const(KlrConst *v, FILE *fp);
+
+static void print_const_item(KlrValue *item, FILE *fp)
+{
+    if (item->kind == KLR_VALUE_CONST) {
+        print_const((KlrConst *)item, fp);
+    } else {
+        klr_print_name_or_tag(item, fp);
+    }
+}
+
 static void print_const(KlrConst *v, FILE *fp)
 {
     int kind = v->which;
@@ -61,6 +72,26 @@ static void print_const(KlrConst *v, FILE *fp)
         case CONST_STR:
             fprintf(fp, "'%s'", v->sval);
             break;
+        case CONST_LIST: {
+            fprintf(fp, "list[");
+            for (int i = 0; i < v->len; i++) {
+                KlrValue *item = v->list.items[i];
+                print_const_item(item, fp);
+                if (i < v->len - 1) fprintf(fp, ", ");
+            }
+            fprintf(fp, "]");
+            break;
+        }
+        case CONST_TUPLE: {
+            fprintf(fp, "tuple(");
+            for (int i = 0; i < v->len; i++) {
+                KlrValue *item = v->list.items[i];
+                print_const_item(item, fp);
+                if (i < v->len - 1) fprintf(fp, ", ");
+            }
+            fprintf(fp, ")");
+            break;
+        }
         default:
             UNREACHABLE();
             break;
@@ -121,21 +152,6 @@ static void print_ret(KlrInsn *insn, FILE *fp)
 }
 
 static void print_ret_void(KlrInsn *insn, FILE *fp) { fprintf(fp, "ret void"); }
-
-static void print_store(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "store ");
-    print_operand(&insn->opers[0], fp);
-    fprintf(fp, ", ");
-    print_operand(&insn->opers[1], fp);
-}
-
-static void print_load(KlrInsn *insn, FILE *fp)
-{
-    klr_print_name_or_tag((KlrValue *)insn, fp);
-    fprintf(fp, " = load ");
-    print_operand(&insn->opers[0], fp);
-}
 
 static void print_phi(KlrInsn *insn, FILE *fp)
 {
@@ -251,15 +267,33 @@ static void print_const_insn(KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[0], fp);
 }
 
+static void print_get_global(KlrInsn *insn, FILE *fp)
+{
+    klr_print_name_or_tag((KlrValue *)insn, fp);
+    fprintf(fp, " = get_global ");
+    print_operand(&insn->opers[0], fp);
+}
+
+static void print_set_global(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "set_global ");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+}
+
+static void print_local_insn(KlrValue *local, FILE *fp)
+{
+    klr_print_name_or_tag(local, fp);
+    fprintf(fp, " = local ");
+    print_value_type(local, fp);
+}
+
 void klr_print_insn(KlrInsn *insn, FILE *fp)
 {
     switch (insn->code) {
-        case OP_IR_LOAD:
-            print_load(insn, fp);
-            break;
-
-        case OP_IR_STORE:
-            print_store(insn, fp);
+        case OP_IR_LOCAL:
+            print_local_insn((KlrValue *)insn, fp);
             break;
 
         case OP_IR_PHI:
@@ -328,6 +362,14 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_RETURN_NONE:
             print_ret_void(insn, fp);
+            break;
+
+        case OP_GET_GLOBAL:
+            print_get_global(insn, fp);
+            break;
+
+        case OP_SET_GLOBAL:
+            print_set_global(insn, fp);
             break;
 
         default:
@@ -565,6 +607,10 @@ void klr_print_module(KlrModule *m, FILE *fp)
     vector_foreach(g, &m->globals) {
         if (!g) continue;
         fprintf(fp, "  global @%s", g->name);
+        if (g->mutable)
+            fprintf(fp, " [mutable]");
+        else
+            fprintf(fp, " [immutable]");
         print_value_type(g, fp);
         fprintf(fp, "\n");
     }
