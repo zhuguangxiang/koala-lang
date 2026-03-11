@@ -1027,7 +1027,6 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
 
     if (exp->kind == EXPR_LITERAL_KIND) {
         LitExpr *lit_exp = (LitExpr *)exp;
-        sym->scope = VAR_SCOPE_GLOBAL;
         Literal *lit = mm_alloc_obj(lit);
         if (lit_exp->which == LIT_EXPR_INT) {
             lit->which = LIT_INT;

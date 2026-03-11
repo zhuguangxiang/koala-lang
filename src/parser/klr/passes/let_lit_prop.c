@@ -110,6 +110,23 @@ static void klr_let_lit_prop_pass(KlrFunc *fn, void *ctx)
                     break;
                 }
 
+                case OP_MOVE: {
+                    ASSERT(!klr_value_used(insn));
+                    KlrValue *dst = insn_oper_value(insn, 0);
+                    KlrValue *src = insn_oper_value(insn, 1);
+                    if (klr_is_local(dst)) {
+                        KlrInsn *dst_insn = (KlrInsn *)dst;
+                        // local is let and src is constant, propagate src to dst and
+                        // delete this move insn in global level and needn't SSA.
+                        if (dst_insn->flags & KLR_INSN_FLAGS_CONST) {
+                            if (klr_is_const(src)) {
+                                kl_replace_all_uses_with(src, (KlrValue *)dst_insn);
+                            }
+                        }
+                    }
+                    break;
+                }
+
                 default:
                     break;
             }

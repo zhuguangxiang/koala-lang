@@ -126,6 +126,13 @@ KlrConst *klr_get_const_value(KlrValue *val)
     return NULL;
 }
 
+int klr_is_local(KlrValue *val)
+{
+    if (val->kind != KLR_VALUE_INSN) return 0;
+    KlrInsn *insn = (KlrInsn *)val;
+    return insn->code == OP_IR_LOCAL;
+}
+
 static KlrBasicBlock *new_block(KlrFunc *fn, char *name)
 {
     KlrBasicBlock *bb = mm_alloc_obj(bb);

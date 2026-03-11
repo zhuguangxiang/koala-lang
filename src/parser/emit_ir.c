@@ -328,6 +328,10 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     }
 
     exit_scope(ps);
+
+    klr_print_func((KlrFunc *)sym->ir_val, stdout);
+
+    klr_run_default_passes((KlrFunc *)sym->ir_val);
 }
 
 static void emit_ir_class(ParserState *ps, Stmt *stmt) {}

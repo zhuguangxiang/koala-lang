@@ -39,6 +39,8 @@ typedef enum _KlrValueKind {
     TypeSpec *ts;           \
     /* list of all Uses */  \
     List use_list;          \
+    /* use count */         \
+    int use_count;          \
     /* virtual register */  \
     int vreg;               \
     /* printable name */    \
@@ -338,6 +340,9 @@ KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m
 
 int klr_is_const(KlrValue *val);
 KlrConst *klr_get_const_value(KlrValue *val);
+
+int klr_is_local(KlrValue *val);
+int klr_is_global(KlrValue *val);
 
 /* <2> module */
 

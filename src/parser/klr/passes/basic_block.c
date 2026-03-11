@@ -23,6 +23,7 @@ static void update_target_block(KlrBasicBlock *bb, KlrBasicBlock *target)
         log_info("%%%s -->> %%%s", klr_block_name(bb), klr_block_name(target));
         list_remove(&use->use_link);
         list_push_back(&target->use_list, &use->use_link);
+        target->use_count++;
         use->ref = (KlrValue *)target;
         src = use->insn->bb;
         edge_out_foreach(edge, src) {

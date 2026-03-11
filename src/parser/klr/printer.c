@@ -285,7 +285,9 @@ static void print_set_global(KlrInsn *insn, FILE *fp)
 static void print_local_insn(KlrValue *local, FILE *fp)
 {
     klr_print_name_or_tag(local, fp);
-    fprintf(fp, " = local ");
+    fprintf(fp, " = local");
+    KlrInsn *insn = (KlrInsn *)local;
+    if (insn->flags & KLR_INSN_FLAGS_CONST) fprintf(fp, " [immutable]");
     print_value_type(local, fp);
 }
 

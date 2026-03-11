@@ -16,10 +16,15 @@ static void init_use(KlrUse *use, KlrInsn *insn, KlrOper *oper, KlrValue *ref)
     use->oper = oper;
     init_list(&use->use_link);
     list_push_back(&ref->use_list, &use->use_link);
+    ref->use_count++;
     use->ref = ref;
 }
 
-static void fini_use(KlrUse *use) { list_remove(&use->use_link); }
+static void fini_use(KlrUse *use)
+{
+    list_remove(&use->use_link);
+    use->ref->use_count--;
+}
 
 static void init_oper(KlrOper *oper, KlrInsn *insn, KlrValue *ref)
 {
@@ -77,6 +82,12 @@ void kl_replace_all_uses_with(KlrValue *val, KlrValue *def)
 {
     KlrUse *use, *next;
     use_foreach_safe(use, next, def) {
+        KlrInsn *insn = use->insn;
+        if (insn->code == OP_MOVE && use->oper == &insn->opers[0]) {
+            // special case for move instruction, only replace the source operand, keep
+            // the destination operand unchanged.
+            continue;
+        }
         fini_use(use);
         init_oper(use->oper, use->insn, val);
     }
@@ -107,6 +118,7 @@ void klr_erase_insn(KlrInsn *insn)
     list_remove(&insn->bb_link);
     --bb->num_insns;
     ASSERT(list_empty(&insn->use_list));
+    ASSERT(insn->use_count == 0);
     for (int i = 0; i < insn->num_opers; i++) {
         fini_oper(&insn->opers[i]);
     }
@@ -161,7 +173,7 @@ int insn_has_value(KlrInsn *insn)
  */
 void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
 {
-    if (var->kind != KLR_VALUE_LOCAL) {
+    if (!klr_is_local(var)) {
         panic("'move %%x, %%v' requires a local var.");
     }
 

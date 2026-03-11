@@ -1,0 +1,31 @@
+// RUN: koalac %s | filecheck %s
+
+func bar() str { return "hello" }
+
+func foo() int {
+    let i = 10
+    let j = i + 1
+
+    let l = [1, 2, 3]
+
+    let l2 = list(1,2,30)
+
+    let v = int(100)
+
+    let t = tuple(10, 20)
+
+    let t2 = (10, 20, 30)
+
+    let ret = bar()
+
+    var x = 10
+
+    x + 1
+
+    return j
+}
+
+// CHECK-DAG: %0 = call @bar
+// CHECK-DAG: %ret = local [immutable] str
+// CHECK-DAG: move %ret str, %0 str
+// CHECK-DAG: ret 11 int64

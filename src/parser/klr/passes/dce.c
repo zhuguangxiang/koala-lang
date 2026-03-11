@@ -24,6 +24,25 @@ static int klr_has_side_effect(KlrInsn *insn)
                 return 1;
             }
         }
+        case OP_MOVE: {
+            KlrValue *dst = insn_oper_value(insn, 0);
+            KlrValue *src = insn_oper_value(insn, 1);
+            if (klr_is_local(dst)) {
+                KlrInsn *dst_insn = (KlrInsn *)dst;
+                // local is let and src is constant
+                if (dst_insn->flags & KLR_INSN_FLAGS_CONST) {
+                    if (klr_is_const(src)) {
+                        return 0;
+                    }
+                } else {
+                    // local is var
+                    if (dst->use_count == 1) {
+                        return 0;
+                    }
+                }
+            }
+            return 1;
+        }
         default:
             return 0;
     }
