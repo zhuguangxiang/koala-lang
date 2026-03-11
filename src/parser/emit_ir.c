@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#define KLR_BUILDER(ps) \
+#define BUILDER(ps) \
     ParserScope *sc = ps->scope; \
     KlrBuilder bldr; \
     klr_builder_end(&bldr, sc->bb);
@@ -29,7 +29,8 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
         ASSERT(sym->flags & SYM_FLAGS_EXT);
         KlrValue *val = NULL;
         if (sym->kind == SYM_FUNC) {
-            val = klr_add_ext_func(ps->mod, sym->ts, sym->path, sym->name);
+            FuncSymbol *func_sym = (FuncSymbol *)sym;
+            val = klr_add_ext_func(ps->mod, func_sym->ret, sym->path, sym->name);
         } else if (sym->kind == SYM_VAR) {
             val = klr_add_ext_global(ps->mod, sym->ts, sym->path, sym->name);
         } else {
@@ -38,12 +39,12 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
         sym->ir_val = val;
     }
 
-    KLR_BUILDER(ps);
+    BUILDER(ps);
 
     switch (sym->kind) {
         case SYM_VAR: {
             VarSymbol *var_sym = (VarSymbol *)sym;
-            exp->ir_val = klr_build_load(&bldr, var_sym->ir_val, ident->id.name);
+            exp->ir_val = klr_build_load(&bldr, var_sym->ir_val, "");
             break;
         }
         case SYM_FUNC: {
@@ -61,25 +62,26 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
 static void emit_ir_literal(ParserState *ps, Expr *exp)
 {
     LitExpr *lit = (LitExpr *)exp;
-    KLR_BUILDER(ps);
+    BUILDER(ps);
+    KlrModule *m = ps->mod;
     switch (lit->which) {
         case LIT_EXPR_INT: {
-            KlrValue *k = klr_const_int(lit->ival, lit->ts);
+            KlrValue *k = klr_const_int(lit->ival, lit->ts, m);
             exp->ir_val = klr_build_const(&bldr, k);
             break;
         }
         case LIT_EXPR_FLT: {
-            KlrValue *k = klr_const_float(lit->fval, lit->ts);
+            KlrValue *k = klr_const_float(lit->fval, lit->ts, m);
             exp->ir_val = klr_build_const(&bldr, k);
             break;
         }
         case LIT_EXPR_BOOL: {
-            KlrValue *k = klr_const_bool(lit->bval);
+            KlrValue *k = klr_const_bool(lit->bval, m);
             exp->ir_val = klr_build_const(&bldr, k);
             break;
         }
         case LIT_EXPR_STR: {
-            KlrValue *k = klr_const_str(lit->sval, lit->len);
+            KlrValue *k = klr_const_str(lit->sval, lit->len, m);
             exp->ir_val = klr_build_const(&bldr, k);
             break;
         }
@@ -94,7 +96,17 @@ static void emit_ir_literal(ParserState *ps, Expr *exp)
     }
 }
 
-static void emit_ir_type(ParserState *ps, Expr *exp) {}
+static void emit_ir_type(ParserState *ps, Expr *exp)
+{
+    Symbol *sym = exp->sym;
+    if (sym->kind == SYM_CLASS) {
+        KlassSymbol *kls_sym = (KlassSymbol *)sym;
+        exp->ir_val = klr_add_klass(ps->mod, kls_sym->instance_ts, sym->name);
+    } else if (sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        exp->ir_val = klr_add_klass(ps->mod, inst_sym->instance_ts, sym->name);
+    }
+}
 
 static void emit_ir_call(ParserState *ps, Expr *exp)
 {
@@ -121,8 +133,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
     // codegen
 
-    KLR_BUILDER(ps);
-
+    BUILDER(ps);
     KlrValue *ret = klr_build_call(&bldr, lhs->ir_val, ir_args, size, "");
     exp->ir_val = ret;
 }
@@ -180,7 +191,7 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
     emit_ir_visit_expr(ps, rhs);
     if (!rhs->ir_val) return;
 
-    KLR_BUILDER(ps);
+    BUILDER(ps);
 
     KlrValue *res = klr_build_binary(&bldr, lhs->ir_val, rhs->ir_val,
                                      get_binary_op_code(op), "", get_binary_op_name(op));
@@ -191,22 +202,23 @@ static void emit_ir_list(ParserState *ps, Expr *exp)
 {
     ListExpr *list = (ListExpr *)exp;
 
-    Vector ir_items = VECTOR_INIT_PTR;
+    int size = vector_size(list->vec);
+    KlrValue *items[size];
 
     Expr *e;
     vector_foreach(e, list->vec) {
         e->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, e);
         if (!e->ir_val) return;
-        vector_push_back(&ir_items, &e->ir_val);
+        items[i__] = e->ir_val;
     }
 
-    KLR_BUILDER(ps);
+    BUILDER(ps);
 
-    KlrValue *res = klr_build_list(&bldr, &ir_items, list->ts);
-    exp->ir_val = res;
+    emit_ir_type(ps, exp);
 
-    vector_fini(&ir_items);
+    KlrValue *ret = klr_build_call(&bldr, exp->ir_val, items, size, "");
+    exp->ir_val = ret;
 }
 
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
@@ -240,7 +252,7 @@ static void emit_ir_var_decl(ParserState *ps, Stmt *stmt)
     emit_ir_visit_expr(ps, exp);
     if (!exp->ir_val) return;
 
-    KLR_BUILDER(ps);
+    BUILDER(ps);
 
     VarSymbol *sym = (VarSymbol *)var->sym;
     klr_build_store(&bldr, sym->ir_val, exp->ir_val);
@@ -274,7 +286,7 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     RetStmt *ret = (RetStmt *)stmt;
     Expr *exp = ret->exp;
     if (!exp) {
-        KLR_BUILDER(ps);
+        BUILDER(ps);
         klr_build_ret_void(&bldr);
         return;
     }
@@ -283,7 +295,7 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     emit_ir_visit_expr(ps, exp);
     if (!exp->ir_val) return;
 
-    KLR_BUILDER(ps);
+    BUILDER(ps);
     klr_build_ret(&bldr, exp->ir_val);
 }
 
@@ -342,7 +354,7 @@ static void _add_klass(KlrModule *m, KlassDeclStmt *kls)
 {
     Ident *id = &kls->id;
     KlassSymbol *sym = (KlassSymbol *)kls->sym;
-    KlrValue *kval = klr_add_klass(m, id->name);
+    KlrValue *kval = klr_add_klass(m, sym->ts, id->name);
 
     VarSymbol *field;
     vector_foreach(field, sym->fields) {

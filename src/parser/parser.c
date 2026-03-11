@@ -1009,6 +1009,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     if (!exp) {
         if (!ts) {
             kl_error(id->loc, "variable '%s' needs a type or an initializer", id->name);
+            sym->status = SYM_RESOLVED;
             return;
         }
 
@@ -1053,6 +1054,11 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
 
     if (!ts) {
         /* update symbol type */
+        if (exp->ts->kind == TYPE_NO_TYPE) {
+            kl_error(exp->loc, "expr has not value");
+            sym->status = SYM_RESOLVED;
+            return;
+        }
         sym->ts = exp->ts;
         log_info("update symbol '%s' type as:", sym->name);
         log_type_spec(sym->ts);

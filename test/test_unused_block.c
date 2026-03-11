@@ -41,7 +41,7 @@ static void build_unreach_block(KlrModule *m)
 
     KlrBasicBlock *bb2 = klr_append_block(fn, "test_bb");
     klr_builder_head(&bldr, bb2);
-    KlrValue *t2 = klr_build_sub(&bldr, v1, klr_const_int(20, int64_type_spec()), "");
+    KlrValue *t2 = klr_build_sub(&bldr, v1, klr_const_int(20, int64_type_spec(), m), "");
     klr_build_ret(&bldr, t2);
 
     klr_build_jmp(&bldr, bb2);

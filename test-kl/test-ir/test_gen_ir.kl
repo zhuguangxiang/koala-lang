@@ -11,6 +11,12 @@ let s = foo()
 
 let l = [1, 2, 3]
 
+let l2 = list(1,2,30)
+
+let v = int(100)
+
+let t = tuple(10, 20)
+
 // CHECK: global @i int64
 // CHECK: global @j int64
 // CHECK: func @__init__() {

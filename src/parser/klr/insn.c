@@ -273,7 +273,20 @@ void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target)
 KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs,
                          char *name)
 {
+    int is_const = 1;
+
+    if (nargs <= 0) is_const = 0;
+
+    for (int i = 0; i < nargs; i++) {
+        if (!klr_is_const(args[i])) {
+            is_const = 0;
+            break;
+        }
+    }
+
     KlrInsn *insn = new_insn(OP_CALL, nargs + 1, name);
+    insn->flags |= is_const ? KLR_INSN_FLAGS_CONST : 0;
+
     init_oper(&insn->opers[0], insn, (KlrValue *)fn);
     for (int j = 0; j < nargs; j++) {
         init_oper(&insn->opers[j + 1], insn, (KlrValue *)args[j]);
@@ -300,20 +313,6 @@ void klr_build_ret_void(KlrBuilder *bldr)
 
     KlrFunc *fn = bldr->bb->func;
     klr_link_edge(bldr->bb, fn->ebb);
-}
-
-KlrValue *klr_build_list(KlrBuilder *bldr, Vector *items, TypeSpec *ty)
-{
-    int num_items = vector_size(items);
-
-    KlrInsn *insn = new_insn(OP_LIST, num_items, "");
-    for (int i = 0; i < num_items; i++) {
-        KlrValue *item = vector_get(items, i);
-        init_oper(&insn->opers[i], insn, item);
-    }
-    insn->ts = ty;
-    klr_append_insn(bldr, insn);
-    return (KlrValue *)insn;
 }
 
 KlrValue *klr_build_const(KlrBuilder *bldr, KlrValue *val)

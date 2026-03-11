@@ -10,42 +10,78 @@
 extern "C" {
 #endif
 
-KlrValue *klr_const_int(uint64_t val, TypeSpec *ts)
+KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m)
 {
+    KlrConst key = { .which = CONST_INT, .ival = val };
+    hashmap_entry_init(&key.hnode, mem_hash(&val, sizeof(val)));
+    void *entry = hashmap_get(&m->consts, &key.hnode);
+    if (entry) {
+        return (KlrValue *)CONTAINER_OF(entry, KlrConst, hnode);
+    }
+
     KlrConst *lit = mm_alloc_obj(lit);
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_INT;
     lit->ival = val;
+    hashmap_entry_init(&lit->hnode, mem_hash(&val, sizeof(val)));
+    hashmap_put(&m->consts, &lit->hnode);
     return (KlrValue *)lit;
 }
 
-KlrValue *klr_const_float(double val, TypeSpec *ts)
+KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m)
 {
+    KlrConst key = { .which = CONST_FLT, .fval = val };
+    hashmap_entry_init(&key.hnode, mem_hash(&val, sizeof(val)));
+    void *entry = hashmap_get(&m->consts, &key.hnode);
+    if (entry) {
+        return (KlrValue *)CONTAINER_OF(entry, KlrConst, hnode);
+    }
+
     KlrConst *lit = mm_alloc_obj(lit);
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_FLT;
     lit->fval = val;
+    hashmap_entry_init(&lit->hnode, mem_hash(&val, sizeof(val)));
+    hashmap_put(&m->consts, &lit->hnode);
     return (KlrValue *)lit;
 }
 
-KlrValue *klr_const_bool(int v)
+KlrValue *klr_const_bool(int v, KlrModule *m)
 {
+    KlrConst key = { .which = CONST_BOOL, .bval = v };
+    hashmap_entry_init(&key.hnode, mem_hash(&v, sizeof(v)));
+    void *entry = hashmap_get(&m->consts, &key.hnode);
+    if (entry) {
+        return (KlrValue *)CONTAINER_OF(entry, KlrConst, hnode);
+    }
+
     KlrConst *lit = mm_alloc_obj(lit);
     TypeSpec *ts = bool_type_spec();
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_BOOL;
     lit->bval = v;
+    hashmap_entry_init(&lit->hnode, mem_hash(&v, sizeof(v)));
+    hashmap_put(&m->consts, &lit->hnode);
     return (KlrValue *)lit;
 }
 
-KlrValue *klr_const_str(char *s, int len)
+KlrValue *klr_const_str(char *s, int len, KlrModule *m)
 {
+    KlrConst key = { .which = CONST_STR, .sval = s, .len = len };
+    hashmap_entry_init(&key.hnode, mem_hash(s, len));
+    void *entry = hashmap_get(&m->consts, &key.hnode);
+    if (entry) {
+        return (KlrValue *)CONTAINER_OF(entry, KlrConst, hnode);
+    }
+
     KlrConst *lit = mm_alloc_obj(lit);
     TypeSpec *ts = str_type_spec();
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_STR;
     lit->len = len;
     lit->sval = s;
+    hashmap_entry_init(&lit->hnode, mem_hash(s, len));
+    hashmap_put(&m->consts, &lit->hnode);
     return (KlrValue *)lit;
 }
 
@@ -133,6 +169,29 @@ void klr_remove_edge(KlrEdge *edge)
     mm_free(edge);
 }
 
+static int __const_eq__(void *e1, void *e2)
+{
+    KlrConst *k1 = CONTAINER_OF(e1, KlrConst, hnode);
+    KlrConst *k2 = CONTAINER_OF(e2, KlrConst, hnode);
+
+    if (k1->which != k2->which) {
+        return 0;
+    }
+
+    switch (k1->which) {
+        case CONST_INT:
+            return k1->ival == k2->ival;
+        case CONST_FLT:
+            return k1->fval == k2->fval;
+        case CONST_BOOL:
+            return k1->bval == k2->bval;
+        case CONST_STR:
+            return (k1->len == k2->len) && !strcmp(k1->sval, k2->sval);
+        default:
+            UNREACHABLE();
+    }
+}
+
 KlrModule *klr_create_module(char *name)
 {
     KlrModule *m = mm_alloc_obj_fast(m);
@@ -140,6 +199,8 @@ KlrModule *klr_create_module(char *name)
     vector_init_ptr(&m->globals);
     vector_init_ptr(&m->functions);
     vector_init_ptr(&m->ext_syms);
+    vector_init_ptr(&m->klasses);
+    hashmap_init(&m->consts, (HashMapEqualFunc)__const_eq__);
     m->init = NULL;
     return m;
 }
@@ -178,42 +239,42 @@ KlrValue *klr_func_get_param(KlrValue *val, int index)
     return item;
 }
 
-KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ty, char *name)
+KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ts, char *name)
 {
     KlrFunc *fn = (KlrFunc *)val;
     KlrParam *param = mm_alloc_obj(param);
-    INIT_KLR_VALUE(param, KLR_VALUE_PARAM, ty, name);
+    INIT_KLR_VALUE(param, KLR_VALUE_PARAM, ts, name);
     vector_push_back(&fn->params, &param);
     return (KlrValue *)param;
 }
 
-static KlrGlobal *new_global(TypeSpec *ty, char *name)
+static KlrGlobal *new_global(TypeSpec *ts, char *name)
 {
     KlrGlobal *global = mm_alloc_obj(global);
-    INIT_KLR_VALUE(global, KLR_VALUE_GLOBAL, ty, name);
+    INIT_KLR_VALUE(global, KLR_VALUE_GLOBAL, ts, name);
     return global;
 }
 
-KlrValue *klr_add_global(KlrModule *m, TypeSpec *ty, char *name)
+KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name)
 {
-    KlrGlobal *global = new_global(ty, name);
+    KlrGlobal *global = new_global(ts, name);
     vector_push_back(&m->globals, &global);
     return (KlrValue *)global;
 }
 
-static KlrLocal *new_local(TypeSpec *ty, char *name)
+static KlrLocal *new_local(TypeSpec *ts, char *name)
 {
     KlrLocal *local = mm_alloc_obj_fast(local);
-    INIT_KLR_VALUE(local, KLR_VALUE_LOCAL, ty, name);
+    INIT_KLR_VALUE(local, KLR_VALUE_LOCAL, ts, name);
     init_list(&local->bb_link);
     local->bb = NULL;
     local->counter = 0;
     return local;
 }
 
-KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ty, char *name)
+KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ts, char *name)
 {
-    KlrLocal *local = new_local(ty, name);
+    KlrLocal *local = new_local(ts, name);
     KlrBasicBlock *bb = bldr->bb;
     list_push_back(&bb->local_list, &local->bb_link);
     local->bb = bb;
@@ -222,10 +283,10 @@ KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ty, char *name)
     return (KlrValue *)local;
 }
 
-KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *proto, char *path, char *name)
+KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *path, char *name)
 {
     KlrExtFunc *fn = mm_alloc_obj(fn);
-    INIT_KLR_VALUE(fn, KLR_VALUE_EXT_FUNC, proto, name);
+    INIT_KLR_VALUE(fn, KLR_VALUE_EXT_FUNC, ret, name);
     vector_push_back(&m->ext_syms, &fn);
     fn->mod = m;
     fn->path = path;
@@ -242,7 +303,7 @@ KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name)
     return (KlrValue *)var;
 }
 
-KlrValue *klr_add_klass(KlrModule *m, char *name)
+KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name)
 {
     KlrKlass *klass = mm_alloc_obj(klass);
     INIT_KLR_VALUE(klass, KLR_VALUE_KLASS, NULL, name);
@@ -250,20 +311,21 @@ KlrValue *klr_add_klass(KlrModule *m, char *name)
     vector_init_ptr(&klass->methods);
     vector_push_back(&m->klasses, &klass);
     klass->mod = m;
+    klass->ts = ts;
     return (KlrValue *)klass;
 }
 
-static KlrField *new_field(TypeSpec *ty, char *name)
+static KlrField *new_field(TypeSpec *ts, char *name)
 {
     KlrField *field = mm_alloc_obj(field);
-    INIT_KLR_VALUE(field, KLR_VALUE_FIELD, ty, name);
+    INIT_KLR_VALUE(field, KLR_VALUE_FIELD, ts, name);
     return field;
 }
 
-KlrValue *klr_klass_add_field(KlrValue *klass_val, char *name, TypeSpec *ty)
+KlrValue *klr_klass_add_field(KlrValue *klass_val, char *name, TypeSpec *ts)
 {
     KlrKlass *klass = (KlrKlass *)klass_val;
-    KlrField *field = new_field(ty, name);
+    KlrField *field = new_field(ts, name);
     vector_push_back(&klass->fields, &field);
     return (KlrValue *)field;
 }

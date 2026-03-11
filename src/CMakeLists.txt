@@ -86,6 +86,7 @@ set(KOALA_SOURCES
     run.c
     eval.c
     read_klc.c
+    # jit/jit.c
     )
 
 add_library(koala STATIC ${KOALA_SOURCES})

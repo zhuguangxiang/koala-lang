@@ -62,6 +62,8 @@ typedef struct _KlrValue {
 /* literal constant */
 typedef struct _KlrConst {
     KLR_VALUE_HEAD
+    HashMapEntry hnode;
+    int index;
     int which;
 #define CONST_INT  1
 #define CONST_FLT  2
@@ -198,6 +200,10 @@ typedef struct _KlrModule {
     KlrFunc *init;
     /* klasses */
     Vector klasses;
+    /* constant map */
+    HashMap consts;
+    /* constant next available index */
+    int const_next;
 } KlrModule;
 
 typedef struct _KlrKlass {
@@ -271,7 +277,8 @@ typedef struct _KlrOper {
     };
 } KlrOper;
 
-#define KLR_INSN_FLAGS_LOOP 1
+#define KLR_INSN_FLAGS_LOOP  1
+#define KLR_INSN_FLAGS_CONST 2
 
 /* instruction */
 typedef struct _KlrInsn {
@@ -315,10 +322,20 @@ typedef struct _KlrBuilder {
 /* APIs */
 
 /* <1> literal constants */
-KlrValue *klr_const_int(uint64_t val, TypeSpec *ts);
-KlrValue *klr_const_float(double val, TypeSpec *ts);
-KlrValue *klr_const_bool(int val);
-KlrValue *klr_const_str(char *s, int len);
+KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m);
+KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m);
+KlrValue *klr_const_bool(int val, KlrModule *m);
+KlrValue *klr_const_str(char *s, int len, KlrModule *m);
+
+static inline int klr_is_const(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_CONST) return 1;
+    if (val->kind == KLR_VALUE_INSN) {
+        KlrInsn *insn = (KlrInsn *)val;
+        return insn->code == OP_CONST;
+    }
+    return 0;
+}
 
 /* <2> module */
 
@@ -327,12 +344,12 @@ void klr_destroy_module(KlrModule *m);
 
 KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name);
 KlrValue *klr_func_get_param(KlrValue *val, int index);
-KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ty, char *name);
+KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ts, char *name);
 
-KlrValue *klr_add_global(KlrModule *m, TypeSpec *ty, char *name);
-KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ty, char *name);
-KlrValue *klr_add_klass(KlrModule *m, char *name);
-KlrValue *klr_klass_add_field(KlrValue *klass, char *name, TypeSpec *ty);
+KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name);
+KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ts, char *name);
+KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name);
+KlrValue *klr_klass_add_field(KlrValue *klass, char *name, TypeSpec *ts);
 KlrValue *klr_klass_add_method(KlrValue *klass, char *name, TypeSpec *ret,
                                TypeSpec **params);
 
@@ -490,8 +507,6 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
 
 /* IR: ret */
 void klr_build_ret_void(KlrBuilder *bldr);
-
-KlrValue *klr_build_list(KlrBuilder *bldr, Vector *items, TypeSpec *ty);
 
 /* IR: push %var */
 KlrInsn *klr_new_push(KlrValue *val);

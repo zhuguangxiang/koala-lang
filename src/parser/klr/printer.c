@@ -122,16 +122,6 @@ static void print_ret(KlrInsn *insn, FILE *fp)
 
 static void print_ret_void(KlrInsn *insn, FILE *fp) { fprintf(fp, "ret void"); }
 
-static void print_list(KlrInsn *insn, FILE *fp)
-{
-    klr_print_name_or_tag((KlrValue *)insn, fp);
-    fprintf(fp, " = list ");
-    for (int i = 0; i < insn->num_opers; i++) {
-        print_operand(&insn->opers[i], fp);
-        if (i < insn->num_opers - 1) fprintf(fp, ", ");
-    }
-}
-
 static void print_store(KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "store ");
@@ -225,14 +215,27 @@ static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)
 
 static void print_call(KlrInsn *insn, FILE *fp)
 {
-    klr_print_name_or_tag((KlrValue *)insn, fp);
-    fprintf(fp, " = call ");
     KlrValue *fn = insn->opers[0].use.ref;
+
+    if (fn->ts->kind == TYPE_NO_TYPE) {
+        fprintf(fp, "call ");
+    } else {
+        klr_print_name_or_tag((KlrValue *)insn, fp);
+        fprintf(fp, " = call ");
+    }
+
     fprintf(fp, "@%s", fn->name);
+
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
         fprintf(fp, " [ext = true, path = '%s']", ((KlrExtFunc *)fn)->path);
     }
+
+    if (insn->flags & KLR_INSN_FLAGS_CONST) {
+        fprintf(fp, " [const]");
+    }
+
     if (insn->num_opers > 1) fprintf(fp, ", ");
+
     KlrOper *oper;
     for (int i = 1; i < insn->num_opers; i++) {
         if (i != 1) fprintf(fp, ", ");
@@ -327,9 +330,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_ret_void(insn, fp);
             break;
 
-        case OP_LIST:
-            print_list(insn, fp);
-            break;
         default:
             printf("%d\n", insn->code);
             UNREACHABLE();

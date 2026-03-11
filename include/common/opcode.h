@@ -202,11 +202,6 @@ typedef enum _OpCode {
     OP_GET_ITER,
     OP_ITER_NEXT,
 
-    /* collection new operations */
-    OP_LIST,                    /* [op:8][Rd:12][num:12]   Rd = [R(Rs1), R(Rs2), ...] */
-    OP_TUPLE,                   /* [op:8][Rd:12][num:12]   Rd = (R(Rs1), R(Rs2), ...) */
-    OP_DICT,                    /* [op:8][Rd:12][num:12]   Rd = {R(Rs1): R(Rs2), ...} */
-
     /* raise an error */
     OP_RAISE,
 

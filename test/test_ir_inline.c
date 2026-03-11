@@ -48,7 +48,7 @@ void build_foo(KlrModule *m)
 
     // var c = 100
     KlrValue *cvar = klr_add_local(&bldr, int64_type_spec(), "c");
-    klr_build_store(&bldr, cvar, klr_const_int(100, int64_type_spec()));
+    klr_build_store(&bldr, cvar, klr_const_int(100, int64_type_spec(), m));
 
     // c = a + b
     KlrValue *a = klr_build_load(&bldr, pa, "");

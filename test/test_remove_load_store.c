@@ -48,18 +48,18 @@ void build_foo(KlrModule *m)
 
     // var c = 100
     KlrValue *cvar = klr_add_local(&bldr, int64_type_spec(), "c");
-    klr_build_store(&bldr, cvar, klr_const_int(100, int64_type_spec()));
+    klr_build_store(&bldr, cvar, klr_const_int(100, int64_type_spec(), m));
 
     // c = 200 + 300;
-    KlrValue *a = klr_const_int(200, int64_type_spec());
-    KlrValue *b = klr_const_int(300, int64_type_spec());
+    KlrValue *a = klr_const_int(200, int64_type_spec(), m);
+    KlrValue *b = klr_const_int(300, int64_type_spec(), m);
     KlrValue *add = klr_build_add(&bldr, a, b, "add");
     klr_build_store(&bldr, cvar, add);
 
     // d = c + 100;
     KlrValue *dvar = klr_add_local(&bldr, int64_type_spec(), "");
     KlrValue *c = klr_build_load(&bldr, cvar, "");
-    add = klr_build_add(&bldr, c, klr_const_int(100, int64_type_spec()), "");
+    add = klr_build_add(&bldr, c, klr_const_int(100, int64_type_spec(), m), "");
     klr_build_store(&bldr, dvar, add);
 
     // return c

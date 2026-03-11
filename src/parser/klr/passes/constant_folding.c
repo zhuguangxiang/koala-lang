@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-static int try_arith_compute(KlrInsn *insn)
+static int try_arith_compute(KlrInsn *insn, KlrFunc *fn)
 {
     switch (insn->code) {
         case OP_BINARY_ADD: {
@@ -20,7 +20,7 @@ static int try_arith_compute(KlrInsn *insn)
                 KlrConst *rhs = (KlrConst *)oper2->use.ref;
                 if (lhs->which == CONST_INT && rhs->which == CONST_INT) {
                     int64_t val = lhs->ival + rhs->ival;
-                    insn->result = klr_const_int(val, int64_type_spec());
+                    insn->result = klr_const_int(val, int64_type_spec(), fn->mod);
                 }
                 return 1;
             }
@@ -67,7 +67,7 @@ void klr_constant_folding_pass(KlrFunc *func, void *ctx)
     KlrInsn *insn, *nxt_insn;
     basic_block_foreach(bb, func) {
         insn_foreach_safe(insn, nxt_insn, bb) {
-            if (try_arith_compute(insn)) {
+            if (try_arith_compute(insn, func)) {
                 eliminate_constant_insn(insn);
             }
         }
