@@ -24,11 +24,6 @@ static void klr_let_lit_prop_pass(KlrFunc *fn, void *ctx)
         insn_foreach(insn, bb) {
             OpCode op = insn->code;
             switch (op) {
-                case OP_CONST: {
-                    // do nothing
-                    break;
-                }
-
                 case OP_SET_GLOBAL: {
                     KlrGlobal *global = (KlrGlobal *)insn_oper_value(insn, 0);
                     if (!global->mutable) {
@@ -122,6 +117,21 @@ static void klr_let_lit_prop_pass(KlrFunc *fn, void *ctx)
                             if (klr_is_const(src)) {
                                 kl_replace_all_uses_with(src, (KlrValue *)dst_insn);
                             }
+                        }
+                    }
+                    break;
+                }
+
+                case OP_BINARY_CMP_GT: {
+                    KlrValue *lhs = insn_oper_value(insn, 0);
+                    KlrValue *rhs = insn_oper_value(insn, 1);
+                    if (klr_is_const(lhs) && klr_is_const(rhs)) {
+                        KlrConst *lval = klr_get_const_value(lhs);
+                        KlrConst *rval = klr_get_const_value(rhs);
+                        if (lval->which == CONST_INT && rval->which == CONST_INT) {
+                            int res = lval->ival > rval->ival;
+                            KlrValue *const_res = klr_const_bool(res, fn->mod);
+                            kl_replace_all_uses_with(const_res, (KlrValue *)insn);
                         }
                     }
                     break;

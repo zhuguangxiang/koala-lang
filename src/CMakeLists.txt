@@ -40,7 +40,7 @@ set(PARSER_SRC
     # parser/klr/passes/unused_var_insn.c
     parser/klr/passes/let_lit_prop.c
     parser/klr/passes/dce.c
-    parser/klr/passes/basic_block.c)
+    parser/klr/passes/cfg_bb_opt.c)
 
 add_library(parser STATIC ${PARSER_SRC})
 target_link_libraries(parser koala-common)

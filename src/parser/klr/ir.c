@@ -4,6 +4,7 @@
  */
 
 #include "ir.h"
+#include "log.h"
 #include "mm.h"
 
 #ifdef __cplusplus
@@ -81,6 +82,25 @@ KlrValue *klr_const_str(char *s, int len, KlrModule *m)
     lit->len = len;
     lit->sval = s;
     hashmap_entry_init(&lit->hnode, mem_hash(s, len));
+    hashmap_put(&m->consts, &lit->hnode);
+    return (KlrValue *)lit;
+}
+
+KlrValue *klr_const_none(KlrModule *m)
+{
+    KlrConst key = { .which = CONST_NONE, .sval = "none", .len = 4 };
+    hashmap_entry_init(&key.hnode, mem_hash("none", 4));
+    void *entry = hashmap_get(&m->consts, &key.hnode);
+    if (entry) {
+        return (KlrValue *)CONTAINER_OF(entry, KlrConst, hnode);
+    }
+
+    KlrConst *lit = mm_alloc_obj(lit);
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, NULL, "");
+    lit->which = CONST_NONE;
+    lit->len = 4;
+    lit->sval = "none";
+    hashmap_entry_init(&lit->hnode, mem_hash("none", 4));
     hashmap_put(&m->consts, &lit->hnode);
     return (KlrValue *)lit;
 }
@@ -186,7 +206,96 @@ KlrBasicBlock *klr_add_block_before(KlrBasicBlock *bb, char *label)
 void klr_delete_block(KlrBasicBlock *bb)
 {
     list_remove(&bb->link);
+
+    KlrEdge *edge, *nxt;
+
+    edge_out_foreach_safe(edge, nxt, bb) {
+        klr_remove_edge(edge);
+    }
+
+    edge_in_foreach_safe(edge, nxt, bb) {
+        klr_remove_edge(edge);
+    }
+
+    KlrInsn *insn, *nxt_insn;
+    insn_foreach_safe(insn, nxt_insn, bb) {
+        klr_erase_insn(insn);
+    }
+
     mm_free(bb);
+}
+
+KlrBasicBlock *klr_last_block(KlrValue *fn_val)
+{
+    KlrFunc *fn = (KlrFunc *)fn_val;
+    if (list_empty(&fn->bb_list)) {
+        return NULL;
+    }
+
+    KlrBasicBlock *last = list_last(&fn->bb_list, KlrBasicBlock, link);
+    return last;
+}
+
+void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
+{
+    ASSERT(dst->func == src->func);
+    KlrFunc *fn = dst->func;
+
+    log_info("merge block '%%%s' into '%%%s'", klr_block_name(src), klr_block_name(dst));
+
+    KlrInsn *last = insn_last(dst);
+    if (last && last->code == OP_JMP) {
+        log_info("remove jmp insn in block '%%%s'", klr_block_name(dst));
+        klr_erase_insn(last);
+    }
+
+    /* move all instructions from src to dst */
+    KlrInsn *insn, *nxt;
+    insn_foreach_safe(insn, nxt, src) {
+        list_remove(&insn->bb_link);
+        list_push_back(&dst->insn_list, &insn->bb_link);
+        insn->bb = dst;
+        ++dst->num_insns;
+        --src->num_insns;
+    }
+
+    /* update out-edges */
+    KlrEdge *edge, *nxt_edge;
+    edge_out_foreach_safe(edge, nxt_edge, src) {
+        klr_link_edge(dst, edge->dst);
+        klr_remove_edge(edge);
+    }
+
+    /* update in-edges */
+    edge_in_foreach_safe(edge, nxt_edge, src) {
+        klr_remove_edge(edge);
+    }
+}
+
+static inline int klr_is_terminator(KlrInsn *insn)
+{
+    if (!insn) return 0;
+
+    switch (insn->code) {
+        case OP_RETURN:
+        case OP_RETURN_NONE:
+        case OP_IR_JMP_COND:
+        case OP_JMP:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+void klr_add_last_return(KlrBasicBlock *bb)
+{
+    KlrInsn *last = insn_last(bb);
+
+    if (last && klr_is_terminator(last)) return;
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, bb);
+    klr_build_ret_void(&bldr);
 }
 
 void klr_link_edge(KlrBasicBlock *src, KlrBasicBlock *dst)
@@ -215,6 +324,14 @@ void klr_remove_edge(KlrEdge *edge)
     list_remove(&edge->in_link);
     list_remove(&edge->out_link);
     mm_free(edge);
+}
+
+void klr_remove_all_out_edges(KlrBasicBlock *bb)
+{
+    KlrEdge *edge, *nxt;
+    edge_out_foreach_safe(edge, nxt, bb) {
+        klr_remove_edge(edge);
+    }
 }
 
 static int __const_eq__(void *e1, void *e2)

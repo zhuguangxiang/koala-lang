@@ -176,7 +176,6 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 
 %token L_SHIFT
 %token R_SHIFT
-%token R_USHIFT
 %token DOC
 
 %token OPT_DEF
@@ -2458,11 +2457,6 @@ shift_expr
     {
         $$ = $1;
     }
-    | shift_expr R_USHIFT add_expr
-    {
-        $$ = expr_from_binary(BINARY_USHR, loc(@2), $1, $3);
-        expr_set_loc($$, lloc(@1, @3));
-    }
     | shift_expr R_SHIFT add_expr
     {
         $$ = expr_from_binary(BINARY_SHR, loc(@2), $1, $3);
@@ -2472,13 +2466,6 @@ shift_expr
     {
         $$ = expr_from_binary(BINARY_SHL, loc(@2), $1, $3);
         expr_set_loc($$, lloc(@1, @3));
-    }
-    | shift_expr R_USHIFT error
-    {
-        expr_free($1);
-        kl_error(loc(@3), "expected an expr.");
-        yy_clear_ok;
-        $$ = NULL;
     }
     | shift_expr R_SHIFT error
     {

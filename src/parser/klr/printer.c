@@ -67,7 +67,7 @@ static void print_const(KlrConst *v, FILE *fp)
             fprintf(fp, "%lf", v->fval);
             break;
         case CONST_BOOL:
-            fprintf(fp, "%s", v->bval ? "True" : "False");
+            fprintf(fp, "%s", v->bval ? "true" : "false");
             break;
         case CONST_STR:
             fprintf(fp, "'%s'", v->sval);
@@ -211,18 +211,13 @@ static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
 
-    if (insn->opers[1].kind != KLR_OPER_NONE) {
-        print_operand(&insn->opers[1], fp);
-        fprintf(fp, ", ");
-    }
-
-    KlrValue *_then = insn->opers[2].use.ref;
+    KlrValue *_then = insn->opers[1].use.ref;
     if (_then->name[0])
         fprintf(fp, "label %%%s", _then->name);
     else
         fprintf(fp, "label %%bb%d", _then->tag);
 
-    KlrValue *_else = insn->opers[3].use.ref;
+    KlrValue *_else = insn->opers[2].use.ref;
     if (_else->name[0])
         fprintf(fp, ", label %%%s", _else->name);
     else
@@ -346,8 +341,28 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_call(insn, fp);
             break;
 
+        case OP_BINARY_CMP_EQ:
+            print_cmp("cmpeq", insn, fp);
+            break;
+
+        case OP_BINARY_CMP_NE:
+            print_cmp("cmpneq", insn, fp);
+            break;
+
         case OP_BINARY_CMP_LT:
             print_cmp("cmplt", insn, fp);
+            break;
+
+        case OP_BINARY_CMP_GT:
+            print_cmp("cmpgt", insn, fp);
+            break;
+
+        case OP_BINARY_CMP_LE:
+            print_cmp("cmple", insn, fp);
+            break;
+
+        case OP_BINARY_CMP_GE:
+            print_cmp("cmpge", insn, fp);
             break;
 
         case OP_JMP:

@@ -301,11 +301,10 @@ void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
         panic("'branch %%cond, %%b1, %%b2' requires a bool cond");
     }
 
-    KlrInsn *insn = new_insn(OP_IR_JMP_COND, 4, "");
+    KlrInsn *insn = new_insn(OP_IR_JMP_COND, 3, "");
     init_oper(&insn->opers[0], insn, cond);
-    // opers[0] and opers[1] will be remapped ir to virtual machine opcode.
-    init_oper(&insn->opers[2], insn, (KlrValue *)_then);
-    init_oper(&insn->opers[3], insn, (KlrValue *)_else);
+    init_oper(&insn->opers[1], insn, (KlrValue *)_then);
+    init_oper(&insn->opers[2], insn, (KlrValue *)_else);
     klr_append_insn(bldr, insn);
 
     klr_link_edge(bldr->bb, _then);

@@ -1,0 +1,40 @@
+// RUN: koalac %s | filecheck %s
+
+let i = 10
+let j = i + 1
+let b = j > 10
+
+if j > 10 {
+    var k = j + 2
+    print(j, k)
+} else {
+    print(i)
+}
+
+// let k int? = 10
+// if k != null {
+//     print(k)
+// } else {
+//     print("k is null")
+// }
+
+func foo() {
+    let i = 10
+    let j = i + 1
+    let b = j > 10
+
+    if j > 10 {
+        var k = j + 2
+        print(j, k)
+    } else {
+        print(i)
+    }
+}
+
+// CHECK-DAG: set_global @i int64, 10 int64
+// CHECK-DAG: set_global @j int64, 11 int64
+// CHECK-DAG: set_global @b bool, true bool
+// CHECK-DAG: %k = local int64
+// CHECK-DAG: move %k int64, 13 int64
+// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 11 int64, %k int64
+// CHECK-DAG: ret void

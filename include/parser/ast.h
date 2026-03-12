@@ -198,7 +198,6 @@ typedef enum _BiOpKind {
     BINARY_MOD,
     BINARY_SHL,
     BINARY_SHR,
-    BINARY_USHR,
 
     /* &, ^, | */
     BINARY_BIT_AND,

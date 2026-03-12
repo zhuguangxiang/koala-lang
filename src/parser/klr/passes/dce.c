@@ -16,6 +16,8 @@ static int klr_has_side_effect(KlrInsn *insn)
         case OP_SET_GLOBAL:
         case OP_RETURN:
         case OP_RETURN_NONE:
+        case OP_IR_JMP_COND:
+        case OP_JMP:
             return 1;
         case OP_CALL: {
             if (insn->flags & KLR_INSN_FLAGS_CONST) {
@@ -31,7 +33,9 @@ static int klr_has_side_effect(KlrInsn *insn)
                 KlrInsn *dst_insn = (KlrInsn *)dst;
                 // local is let and src is constant
                 if (dst_insn->flags & KLR_INSN_FLAGS_CONST) {
-                    if (klr_is_const(src)) {
+                    if (klr_is_const(src) ||
+                        (src->kind == KLR_VALUE_INSN &&
+                         (((KlrInsn *)src)->flags & KLR_INSN_FLAGS_CONST))) {
                         return 0;
                     }
                 } else {
@@ -61,6 +65,7 @@ static void klr_dce_pass(KlrFunc *fn, void *ctx)
             KlrInsn *insn, *next;
             insn_foreach_safe(insn, next, bb) {
                 if (!klr_value_used(insn) && !klr_has_side_effect(insn)) {
+                    ASSERT(insn->use_count == 0);
                     klr_erase_insn(insn);
                     changed = 1;
                 }

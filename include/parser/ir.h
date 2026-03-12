@@ -73,6 +73,7 @@ typedef struct _KlrConst {
 #define CONST_STR   4
 #define CONST_LIST  5
 #define CONST_TUPLE 6
+#define CONST_NONE  7
     int len;
     union {
         uint64_t ival;
@@ -337,6 +338,7 @@ KlrValue *klr_const_bool(int val, KlrModule *m);
 KlrValue *klr_const_str(char *s, int len, KlrModule *m);
 KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
+KlrValue *klr_const_none(KlrModule *m);
 
 int klr_is_const(KlrValue *val);
 KlrConst *klr_get_const_value(KlrValue *val);
@@ -380,16 +382,37 @@ KlrBasicBlock *klr_add_block_before(KlrBasicBlock *bb, char *name);
 /* delete a basic block */
 void klr_delete_block(KlrBasicBlock *bb);
 
+/* get last basic block of a function */
+KlrBasicBlock *klr_last_block(KlrValue *fn_val);
+
+/* merge src' into 'dst',
+if 'dst' has only one successor of 'src' and 'src' has only one predecessor of 'dst'
+The caller must check the condition and 'src' is not removed.
+*/
+void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src);
+
 /* add an edge */
 void klr_link_edge(KlrBasicBlock *src, KlrBasicBlock *dst);
+
 /* remove an edge */
 void klr_remove_edge(KlrEdge *edge);
+
+/* remove all out edges of a basic block */
+void klr_remove_all_out_edges(KlrBasicBlock *bb);
 
 /* edge-out iteration */
 #define edge_out_foreach(edge, bb) list_foreach(edge, out_link, &(bb)->out_edges)
 
+/* edge-out safe iteration */
+#define edge_out_foreach_safe(edge, nxt, bb) \
+    list_foreach_safe(edge, nxt, out_link, &(bb)->out_edges)
+
 /* edge-in iteration */
 #define edge_in_foreach(edge, bb) list_foreach(edge, in_link, &(bb)->in_edges)
+
+/* edge-in safe iteration */
+#define edge_in_foreach_safe(edge, nxt, bb) \
+    list_foreach_safe(edge, nxt, in_link, &(bb)->in_edges)
 
 #define edge_in_foreach_reverse(edge, bb) \
     list_foreach_reverse(edge, in_link, &(bb)->in_edges)
@@ -529,6 +552,9 @@ KlrInsn *klr_new_push(KlrValue *val);
 
 /* IR: const %var */
 KlrValue *klr_build_const(KlrBuilder *bldr, KlrValue *val);
+
+/* add a return instruction at the end of a basic block if it doesn't have one */
+void klr_add_last_return(KlrBasicBlock *bb);
 
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)
