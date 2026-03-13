@@ -171,6 +171,14 @@ typedef enum _OpCode {
     OP_GET_FIELD,               /* [op:8][Rd:12][Rs:12][offset:8]   Rd = R(Rs).field[offset]    */
     OP_SET_FIELD,               /* [op:8][Rd:12][Rs:12][offset:8]   R(Rs).field[offset] = R(Rd) */
 
+    /* generic subscript operations */
+    OP_SUBSCR_LOAD,
+    OP_SUBSCR_STORE,
+
+    /* generic iterator operations */
+    OP_GET_ITER,
+    OP_ITER_NEXT,
+
     /* generic operators */
 
     OP_BINARY_ADD,
@@ -193,14 +201,6 @@ typedef enum _OpCode {
     OP_BINARY_CMP_GT,
     OP_BINARY_CMP_LE,
     OP_BINARY_CMP_GE,
-
-    /* generic subscript operations */
-    OP_SUBSCR_LOAD,
-    OP_SUBSCR_STORE,
-
-    /* generic iterator operations */
-    OP_GET_ITER,
-    OP_ITER_NEXT,
 
     /* raise an error */
     OP_RAISE,

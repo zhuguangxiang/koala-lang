@@ -37,6 +37,33 @@ pub class int64 : Number[int64] {
     pub func __add__(rhs int64) int64 {}
 
     @intrinsic
+    pub func __sub__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __mul__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __div__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __mod__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __lsh__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __rsh__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __bitand__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __bitor__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __bitxor__(rhs int64) int64 {}
+
+    @intrinsic
     pub func __gt__(rhs int64) bool {}
 
     @intrinsic

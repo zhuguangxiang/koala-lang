@@ -23,7 +23,7 @@ static void show_block(KlrBasicBlock *bb)
     }
 }
 
-static void text_block_show_pass(KlrFunc *fn, void *data)
+static void klr_text_show_pass(KlrFunc *fn, void *data)
 {
     printf("func: %s\n", fn->name);
     KlrBasicBlock *sbb = fn->sbb;
@@ -73,7 +73,7 @@ static void dot_print_block(KlrBasicBlock *bb, FILE *fp)
     }
 }
 
-static void dot_graph_pass(KlrFunc *fn, void *data)
+static void klr_dot_graph_pass(KlrFunc *fn, void *data)
 {
     char buf[512];
     snprintf(buf, 511, "./%s.dot", fn->name);
@@ -109,11 +109,15 @@ static void dot_graph_pass(KlrFunc *fn, void *data)
     system(buf);
 }
 
-void register_dot_passes(KlrPassGroup *grp)
-{
-    klr_add_pass(grp, "text", text_block_show_pass, NULL);
-    klr_add_pass(grp, "dot", dot_graph_pass, NULL);
-}
+KlrPass text_show_pass = {
+    .name = "text",
+    .callback = klr_text_show_pass,
+};
+
+KlrPass dot_graph_pass = {
+    .name = "dot",
+    .callback = klr_dot_graph_pass,
+};
 
 #ifdef __cplusplus
 }

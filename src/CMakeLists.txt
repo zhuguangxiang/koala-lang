@@ -35,7 +35,7 @@ set(PARSER_SRC
     parser/klr/simple_reg_alloc.c
     parser/klr/pass.c
     parser/klr/passes/dot.c
-    parser/klr/passes/simple_const_prop.c
+    parser/klr/passes/const_copy_prop.c
     parser/klr/passes/dce.c
     parser/klr/passes/cfg_bb_opt.c)
 

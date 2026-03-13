@@ -4,7 +4,6 @@
  */
 
 #include "parser.h"
-#include "passes.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -236,8 +235,8 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
     BUILDER(ps);
 
     if (op >= BINARY_GT && op <= BINARY_NEQ) {
-        KlrValue *res = klr_build_cmp(&bldr, lhs->ir_val, rhs->ir_val,
-                                      get_binary_op_code(op), get_binary_op_name(op));
+        KlrValue *res =
+            klr_build_cmp(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op), "");
         exp->ir_val = res;
     } else {
         KlrValue *res =
@@ -602,9 +601,9 @@ void ast_emit_ir(ParserState *ps)
 
     exit_scope(ps);
 
-    klr_print_module(m, stdout);
-    module_run_default_passes(m);
-    klr_print_module(m, stdout);
+    // klr_dump_module(m);
+    klr_run_default_pipeline(m);
+    klr_dump_module(m);
 }
 
 #ifdef __cplusplus

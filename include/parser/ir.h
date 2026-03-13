@@ -693,23 +693,37 @@ void klr_simple_alloc_registers(KlrFunc *func);
 
 /* <7> pass */
 
-typedef void (*KlrPassFunc)(KlrFunc *fn, void *arg);
+typedef void (*PassFunc)(KlrFunc *fn, void *arg);
 
-typedef struct _KlrPassGroup {
+typedef struct _KlrPass {
+    List link;
+    const char *name;
+    PassFunc callback;
+    void *arg;
+} KlrPass;
+
+typedef struct _KlrPipeline {
     List passes;
-} KlrPassGroup;
+    int count;
+} KlrPipeline;
 
-/* define a pass group */
-#define KLR_PASS_GROUP(name) KlrPassGroup name = { .passes = LIST_INIT(name.passes) };
+/* define a pipeline */
+#define PIPELINE(name) KlrPipeline name = { .passes = LIST_INIT(name.passes), .count = 0 }
 
-/* finalize a pass group */
-void klr_fini_pass_group(KlrPassGroup *grp);
+/* finalize a pipeline */
+void fini_pipeline(KlrPipeline *grp);
 
 /* register one pass */
-void klr_add_pass(KlrPassGroup *grp, char *name, KlrPassFunc fn, void *arg);
+void pipeline_add_pass(KlrPipeline *grp, KlrPass *pass);
 
-/* execute pass group */
-void klr_run_pass_group(KlrPassGroup *grp, KlrFunc *fn);
+/* execute pipeline */
+void run_pipeline(KlrPipeline *grp, KlrFunc *fn);
+
+/* execute default pipeline for a function */
+void run_default_pipeline(KlrFunc *fn);
+
+/* execute default pipeline for a module */
+void klr_run_default_pipeline(KlrModule *m);
 
 #ifdef __cplusplus
 }

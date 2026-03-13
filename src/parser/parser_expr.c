@@ -1599,6 +1599,18 @@ static char *get_binary_op_name(BiOpKind op)
             return "__div__";
         case BINARY_MOD:
             return "__mod__";
+        case BINARY_SHL:
+            return "__lsh__";
+        case BINARY_SHR:
+            return "__rsh__";
+
+        case BINARY_BIT_AND:
+            return "__bitand__";
+        case BINARY_BIT_OR:
+            return "__bitor__";
+        case BINARY_BIT_XOR:
+            return "__bitxor__";
+
         case BINARY_LT:
             return "__lt__";
         case BINARY_LE:
@@ -1611,6 +1623,11 @@ static char *get_binary_op_name(BiOpKind op)
             return "__eq__";
         case BINARY_NEQ:
             return "__neq__";
+
+        case BINARY_AND:
+            return "__and__";
+        case BINARY_OR:
+            return "__or__";
         default:
             return "unknown_op";
     }
@@ -1629,6 +1646,16 @@ static char *get_binary_op_str(BiOpKind op)
             return "/";
         case BINARY_MOD:
             return "%";
+        case BINARY_SHL:
+            return "<<";
+        case BINARY_SHR:
+            return ">>";
+        case BINARY_BIT_AND:
+            return "&";
+        case BINARY_BIT_OR:
+            return "|";
+        case BINARY_BIT_XOR:
+            return "^";
         case BINARY_LT:
             return "<";
         case BINARY_LE:
@@ -1641,6 +1668,10 @@ static char *get_binary_op_str(BiOpKind op)
             return "==";
         case BINARY_NEQ:
             return "!=";
+        case BINARY_AND:
+            return "&&";
+        case BINARY_OR:
+            return "||";
         default:
             UNREACHABLE();
             return "";

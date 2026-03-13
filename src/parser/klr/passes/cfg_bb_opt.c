@@ -5,7 +5,6 @@
 
 #include "ir.h"
 #include "log.h"
-#include "passes.h"
 #include "queue.h"
 
 #ifdef __cplusplus
@@ -146,10 +145,10 @@ void klr_cfg_bb_opt_pass(KlrFunc *fn, void *ctx)
     }
 }
 
-void register_cfg_bb_opt_pass(KlrPassGroup *grp)
-{
-    klr_add_pass(grp, "cfg_bb_opt", klr_cfg_bb_opt_pass, NULL);
-}
+KlrPass cfg_bb_opt_pass = {
+    .name = "cfg_bb_opt",
+    .callback = klr_cfg_bb_opt_pass,
+};
 
 #ifdef __cplusplus
 }

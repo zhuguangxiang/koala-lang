@@ -1,0 +1,99 @@
+// RUN: koalac %s | filecheck %s
+
+func nested_test() {
+    let a = 1
+    if a > 0 {
+        let b = 2
+        if b > 1 {
+            let c = 3
+            if c > 2 {
+                let d = 4
+                if d == 4 {
+                    print("Depth 4 reached", a, b, c, d)
+                }
+            }
+        }
+    }
+}
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'Depth 4 reached' str, 1 int64, 2 int64, 3 int64, 4 int64
+// CHECK: ret void
+
+func ladder_test() {
+    let score = 85
+    if score >= 90 {
+        print("Excellent")
+    } else if score >= 80 {
+        print("Good")
+    } else if score >= 70 {
+        print("Pass")
+    } else if score >= 60 {
+        print("Doubtful")
+    } else {
+        print("Fail")
+    }
+}
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Good' str
+// CHECK: ret void
+
+func logic_cascade_test() {
+    let a = 10
+    let b = 20
+
+    if (a < 15 && b > 15) || (a == 0) {
+        print("Logic Cascade Success")
+    } else {
+        print("Logic Failed")
+    }
+}
+
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Logic Cascade Success' str
+// CHECK: ret void
+
+func short_circuit_sim_test() {
+    let a = 10
+    var x = 0
+
+    // Short-circuiting
+    if (a == 10) || (x / 0 == 0) {
+        print("Short-circuit logic: Success")
+    } else {
+        print("This should never run")
+    }
+}
+
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Short-circuit logic: Success' str
+// CHECK: ret void
+
+
+func get_some_bool() bool {
+    // Simulated external input
+    return true
+}
+
+func foo() {
+    let a = get_some_bool()
+    let b = true
+
+    // The expression 'a || (b && false)' should collapse to 'a'
+    // Step 1: (true && false) -> false
+    // Step 2: a || false -> a
+    if a || (b && false) {
+        print("Path A", a)
+    } else {
+        print("Path B", b && false)
+    }
+
+    // var c = 100
+    // c = 200
+}
+
+// CHECK-LABEL: func @foo()
+// CHECK-NOT: local
+// CHECK-NOT: move
+// CHECK-NOT: land
+// CHECK-NOT: lor
+// CHECK: %0 = call @get_some_bool
+// CHECK: branch %0 bool, label %bb0, label %bb1
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'Path A' str, %0 bool
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'Path B' str, false bool
+// CHECK: ret void

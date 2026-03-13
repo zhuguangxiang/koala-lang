@@ -162,15 +162,16 @@ static void print_phi(KlrInsn *insn, FILE *fp)
     }
 }
 
-static void print_unary_operand(const char *name, KlrInsn *insn, FILE *fp)
+static void print_unary(KlrInsn *insn, char *op, FILE *fp)
 {
-    fprintf(fp, "%s ", name);
+    klr_print_name_or_tag((KlrValue *)insn, fp);
+    fprintf(fp, " = %s ", op);
     print_operand(&insn->opers[0], fp);
 }
 
-static void print_binary_operands(const char *name, KlrInsn *insn, FILE *fp)
+static void print_move(KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "%s ", name);
+    fprintf(fp, "move ");
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
     print_operand(&insn->opers[1], fp);
@@ -301,23 +302,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_MOVE:
-            print_binary_operands("move", insn, fp);
+            print_move(insn, fp);
             break;
 
         case OP_PUSH:
             print_push(insn, fp);
-            break;
-
-        case OP_CONST_INT_M1:
-            print_unary_operand("const_int_m1", insn, fp);
-            break;
-
-        case OP_CONST_INT_0:
-            print_unary_operand("const_int_0", insn, fp);
-            break;
-
-        case OP_CONST_INT_IMM:
-            print_binary_operands("const_int_imm", insn, fp);
             break;
 
         case OP_CONST:
@@ -334,6 +323,42 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_BINARY_SUB:
             print_binary(insn, "sub", fp);
+            break;
+
+        case OP_BINARY_MUL:
+            print_binary(insn, "mul", fp);
+            break;
+
+        case OP_BINARY_DIV:
+            print_binary(insn, "div", fp);
+            break;
+
+        case OP_BINARY_MOD:
+            print_binary(insn, "mod", fp);
+            break;
+
+        case OP_BINARY_AND:
+            print_binary(insn, "and", fp);
+            break;
+
+        case OP_BINARY_OR:
+            print_binary(insn, "or", fp);
+            break;
+
+        case OP_BINARY_XOR:
+            print_binary(insn, "xor", fp);
+            break;
+
+        case OP_UNARY_NOT:
+            print_unary(insn, "not", fp);
+            break;
+
+        case OP_BINARY_SHL:
+            print_binary(insn, "shl", fp);
+            break;
+
+        case OP_BINARY_SHR:
+            print_binary(insn, "shr", fp);
             break;
 
         case OP_CALL:
@@ -386,6 +411,18 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_SET_GLOBAL:
             print_set_global(insn, fp);
+            break;
+
+        case OP_LAND:
+            print_binary(insn, "land", fp);
+            break;
+
+        case OP_LOR:
+            print_binary(insn, "lor", fp);
+            break;
+
+        case OP_LNOT:
+            print_unary(insn, "lnot", fp);
             break;
 
         default:

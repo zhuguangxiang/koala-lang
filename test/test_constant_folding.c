@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-void register_constant_folding_pass(KlrPassGroup *grp);
+void register_constant_folding_pass(KlrPipeline *grp);
 void klr_insn_remap(KlrFunc *func);
 
 /*

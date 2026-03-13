@@ -201,12 +201,13 @@ int klr_clear_local_var_const(KlrBasicBlock *bb, KlrInsn *local)
 KlrValue *klr_get_local_var_const(KlrBasicBlock *bb, KlrInsn *local)
 {
     ASSERT(klr_is_local((KlrValue *)local));
-    ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
 
     LocalVarMapEntry key = { .local = local };
     hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(local)));
     LocalVarMapEntry *entry = hashmap_get(&bb->local_var_map, &key);
     if (entry) {
+        ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
+        ASSERT(!(entry->local->flags & KLR_INSN_FLAGS_CONST));
         KlrValue *val = (KlrValue *)entry->val;
         ASSERT(klr_is_const(val));
         return val;
