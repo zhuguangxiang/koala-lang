@@ -547,10 +547,6 @@ static void _add_klass(KlrModule *m, KlassDeclStmt *kls)
     sym->ir_val = kval;
 }
 
-void klr_let_lit_prop_pass(KlrFunc *func, void *ctx);
-void klr_dce_pass(KlrFunc *fn, void *ctx);
-void klr_cfg_bb_opt_pass(KlrFunc *fn);
-
 void ast_emit_ir(ParserState *ps)
 {
     KlrModule *m = klr_create_module(ps->filename);
@@ -593,7 +589,7 @@ void ast_emit_ir(ParserState *ps)
     exit_scope(ps);
 
     klr_print_module(m, stdout);
-    klr_module_run_default_passes(m);
+    module_run_default_passes(m);
     klr_print_module(m, stdout);
 }
 

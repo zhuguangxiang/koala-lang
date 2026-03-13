@@ -97,8 +97,8 @@ static void try_combine_branch(KlrInsn *cond, KlrInsn *insn, KlrBasicBlock *bb)
                 // remap to OP_JMP_INT_CMP_xx_IMM8
                 code = get_jmp_cmp_int_op(code, 1);
                 insn->code = code;
-                update_insn_operand(insn, 0, lhs);
-                update_insn_operand(insn, 1, rhs);
+                update_index_operand(insn, 0, lhs);
+                update_index_operand(insn, 1, rhs);
                 return;
             }
         }
@@ -106,8 +106,8 @@ static void try_combine_branch(KlrInsn *cond, KlrInsn *insn, KlrBasicBlock *bb)
         // remap to OP_JMP_INT_CMP_xx
         code = get_jmp_cmp_int_op(code, 0);
         insn->code = code;
-        update_insn_operand(insn, 0, lhs);
-        update_insn_operand(insn, 1, rhs);
+        update_index_operand(insn, 0, lhs);
+        update_index_operand(insn, 1, rhs);
     }
 }
 

@@ -153,6 +153,78 @@ int klr_is_local(KlrValue *val)
     return insn->code == OP_IR_LOCAL;
 }
 
+typedef struct _LocalVarMapEntry {
+    HashMapEntry hnode;
+    KlrInsn *local;
+    KlrConst *val;
+} LocalVarMapEntry;
+
+static int __local_var_eq__(void *a, void *b)
+{
+    LocalVarMapEntry *e1 = (LocalVarMapEntry *)a;
+    LocalVarMapEntry *e2 = (LocalVarMapEntry *)b;
+    return e1->local == e2->local;
+}
+
+int klr_update_local_var_const(KlrBasicBlock *bb, KlrInsn *local, KlrConst *val)
+{
+    ASSERT(klr_is_local((KlrValue *)local));
+    ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
+
+    LocalVarMapEntry key = { .local = local };
+    hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(local)));
+    LocalVarMapEntry *entry = hashmap_get(&bb->local_var_map, &key);
+    if (entry) {
+        entry->val = val;
+    } else {
+        entry = mm_alloc_obj(entry);
+        hashmap_entry_init(&entry->hnode, mem_hash(&local, sizeof(local)));
+        entry->local = local;
+        entry->val = val;
+        hashmap_put(&bb->local_var_map, entry);
+    }
+    return 0;
+}
+
+int klr_clear_local_var_const(KlrBasicBlock *bb, KlrInsn *local)
+{
+    ASSERT(klr_is_local((KlrValue *)local));
+    ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
+
+    LocalVarMapEntry key = { .local = local };
+    hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(local)));
+    LocalVarMapEntry *entry = hashmap_get(&bb->local_var_map, &key);
+    if (entry) entry->val = NULL;
+    return 0;
+}
+
+KlrValue *klr_get_local_var_const(KlrBasicBlock *bb, KlrInsn *local)
+{
+    ASSERT(klr_is_local((KlrValue *)local));
+    ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
+
+    LocalVarMapEntry key = { .local = local };
+    hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(local)));
+    LocalVarMapEntry *entry = hashmap_get(&bb->local_var_map, &key);
+    if (entry) {
+        KlrValue *val = (KlrValue *)entry->val;
+        ASSERT(klr_is_const(val));
+        return val;
+    }
+    return NULL;
+}
+
+int klr_clear_local_var_map(KlrBasicBlock *bb)
+{
+    HashMap *map = &bb->local_var_map;
+    HashMapIter it = { 0 };
+    while (hashmap_next(map, &it)) {
+        LocalVarMapEntry *e = (LocalVarMapEntry *)it.entry;
+        e->val = NULL;
+    }
+    return 0;
+}
+
 static KlrBasicBlock *new_block(KlrFunc *fn, char *name)
 {
     KlrBasicBlock *bb = mm_alloc_obj(bb);
@@ -165,9 +237,11 @@ static KlrBasicBlock *new_block(KlrFunc *fn, char *name)
     init_list(&bb->insn_list);
     init_list(&bb->in_edges);
     init_list(&bb->out_edges);
-    // init_list(&bb->phi_list);
 
+    // init_list(&bb->phi_list);
     // vector_init(&bb->phis, PTR_SIZE);
+
+    hashmap_init(&bb->local_var_map, __local_var_eq__);
 
     return bb;
 }

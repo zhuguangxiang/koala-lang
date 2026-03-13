@@ -1,0 +1,220 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+#include "ir.h"
+#include "passes.h"
+#include "queue.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
+{
+    OpCode op = insn->code;
+
+    if (op == OP_SET_GLOBAL || op == OP_GET_GLOBAL || op == OP_MOVE) {
+        return;
+    }
+
+    if (op == OP_CALL && (insn->flags & KLR_INSN_FLAGS_CONST)) {
+        return;
+    }
+
+    int changed = 0;
+
+    KlrValue *val;
+    oper_value_foreach(val, insn, 0) {
+        if (klr_is_local(val)) {
+            KlrInsn *src = (KlrInsn *)val;
+            KlrValue *const_val = klr_get_local_var_const(src->bb, src);
+            if (const_val) {
+                ASSERT(klr_is_const(const_val));
+                KlrConst *kval = klr_get_const_value(const_val);
+                update_index_operand(insn, i__, (KlrValue *)kval);
+                changed = 1;
+            }
+        }
+    }
+
+    if (changed) {
+        queue_push(wklist, insn);
+    }
+
+    switch (op) {
+        case OP_BINARY_ADD:
+        case OP_BINARY_SUB: {
+            KlrValue *lhs = insn_oper_value(insn, 0);
+            KlrValue *rhs = insn_oper_value(insn, 1);
+            if (klr_is_const(lhs) && klr_is_const(rhs)) {
+                KlrConst *lval = klr_get_const_value(lhs);
+                KlrConst *rval = klr_get_const_value(rhs);
+                if (lval->which == CONST_INT && rval->which == CONST_INT) {
+                    uint64_t res = 0;
+                    if (op == OP_BINARY_ADD) {
+                        res = lval->ival + rval->ival;
+                    } else {
+                        res = lval->ival - rval->ival;
+                    }
+                    KlrValue *const_res = klr_const_int(res, lval->ts, fn->mod);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                }
+            }
+            break;
+        }
+
+        case OP_BINARY_CMP_GT: {
+            KlrValue *lhs = insn_oper_value(insn, 0);
+            KlrValue *rhs = insn_oper_value(insn, 1);
+            if (klr_is_const(lhs) && klr_is_const(rhs)) {
+                KlrConst *lval = klr_get_const_value(lhs);
+                KlrConst *rval = klr_get_const_value(rhs);
+                if (lval->which == CONST_INT && rval->which == CONST_INT) {
+                    int res = lval->ival > rval->ival;
+                    KlrValue *const_res = klr_const_bool(res, fn->mod);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                }
+            }
+            break;
+        }
+
+        default: {
+            break;
+        }
+    }
+}
+
+static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
+{
+    OpCode op = insn->code;
+    switch (op) {
+        case OP_SET_GLOBAL: {
+            KlrGlobal *global = (KlrGlobal *)insn_oper_value(insn, 0);
+            KlrValue *val = insn_oper_value(insn, 1);
+            if (!global->mutable && klr_is_const(val)) {
+                KlrConst *kval = klr_get_const_value(val);
+                update_index_operand(insn, 1, (KlrValue *)kval);
+                global->kval = kval;
+            }
+            break;
+        }
+
+        case OP_GET_GLOBAL: {
+            KlrGlobal *global = (KlrGlobal *)insn_oper_value(insn, 0);
+            if (!global->mutable) {
+                KlrConst *val = global->kval;
+                ASSERT(val);
+                replace_all_uses_with((KlrValue *)val, (KlrValue *)insn);
+            }
+            break;
+        }
+
+        case OP_MOVE: {
+            ASSERT(!klr_value_used(insn));
+            KlrValue *_dst = insn_oper_value(insn, 0);
+            KlrValue *src = insn_oper_value(insn, 1);
+            ASSERT(klr_is_local(_dst));
+            KlrInsn *dst = (KlrInsn *)_dst;
+            if (klr_is_const(src)) {
+                if (dst->flags & KLR_INSN_FLAGS_CONST) {
+                    // let: global propagation, no SSA needed
+                    replace_all_uses_with(src, _dst);
+                } else {
+                    // var: local propagation, only one basic block, no SSA needed
+                    KlrBasicBlock *bb = dst->bb;
+                    klr_update_local_var_const(bb, dst, klr_get_const_value(src));
+                }
+            } else {
+                // clear local variable constant
+                if (!(dst->flags & KLR_INSN_FLAGS_CONST)) {
+                    KlrBasicBlock *bb = dst->bb;
+                    klr_clear_local_var_const(bb, dst);
+                }
+            }
+            break;
+        }
+
+        case OP_CALL: {
+            if (insn->flags & KLR_INSN_FLAGS_CONST) {
+                KlrKlass *callee = (KlrKlass *)insn_oper_value(insn, 0);
+                if (callee->kind == KLR_VALUE_KLASS) {
+                    KlrValue *items[insn->num_opers - 1];
+                    memset(items, 0, sizeof(items));
+                    // skip callee operand
+                    KlrValue *val;
+                    oper_value_foreach(val, insn, 1) {
+                        ASSERT(klr_is_const(val));
+                        KlrConst *kval = klr_get_const_value(val);
+                        items[i__ - 1] = (KlrValue *)kval;
+                    }
+
+                    if (!strcmp(callee->name, "list")) {
+                        val =
+                            klr_const_list(items, insn->num_opers - 1, insn->ts, fn->mod);
+                    } else if (!strcmp(callee->name, "tuple")) {
+                        val = klr_const_tuple(items, insn->num_opers - 1, insn->ts,
+                                              fn->mod);
+                    } else if (!strcmp(callee->name, "int64")) {
+                        ASSERT(insn->num_opers == 2);
+                        val = insn_oper_value(insn, 1);
+                        ASSERT(klr_is_const(val));
+                    } else {
+                        printf("unsupported const call to class '%s'\n", callee->name);
+                        NYI();
+                    }
+
+                    replace_all_uses_with(val, (KlrValue *)insn);
+                }
+            }
+            break;
+        }
+
+        default: {
+            break;
+        }
+    }
+}
+
+/*
+The `let` variable is immutable, so it can be propagated.
+This is a global constant propagation and no need SSA format.
+It can be used to fold list/tuple/map/set literals, and also can be used to fold const
+variables.
+
+The `var` variable is mutable, so it can be propagated only one basic block inside, and
+only for literal values. This is a local constant propagation and no need SSA format. It
+can be used to fold list/tuple/map/set literals, and also can be used to fold const
+variables. In one basic block, if there are many store insns to the same variable, only
+the last store insn can be propagated, and the previous store insns will be removed.
+*/
+static void klr_value_prop_pass(KlrFunc *fn, void *ctx)
+{
+    KlrBasicBlock *bb;
+    basic_block_foreach(bb, fn) {
+        klr_clear_local_var_map(bb);
+
+        QUEUE(wklist);
+
+        KlrInsn *insn;
+        insn_foreach(insn, bb) {
+            queue_push(&wklist, insn);
+        }
+
+        while (!queue_empty(&wklist)) {
+            KlrInsn *insn = queue_pop(&wklist);
+            do_propagate(insn, fn, &wklist);
+            do_fold(insn, fn, &wklist);
+        }
+    }
+}
+
+void register_value_prop_pass(KlrPassGroup *grp)
+{
+    klr_add_pass(grp, "let_literal_propagation", klr_value_prop_pass, NULL);
+}
+
+#ifdef __cplusplus
+}
+#endif

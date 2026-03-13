@@ -24,6 +24,7 @@ static void fini_use(KlrUse *use)
 {
     list_remove(&use->use_link);
     use->ref->use_count--;
+    use->ref = NULL;
 }
 
 static void init_oper(KlrOper *oper, KlrInsn *insn, KlrValue *ref)
@@ -53,32 +54,21 @@ static void fini_oper(KlrOper *oper)
     oper->kind = KLR_OPER_NONE;
 }
 
-void invalidate_insn_operand(KlrInsn *insn, int i)
+void update_operand(KlrOper *oper, KlrInsn *insn, KlrValue *val)
 {
-    KlrOper *oper = insn_operand(insn, i);
-    KlrValue *ref = oper->use.ref;
-    fini_oper(oper);
-    // TODO: delete unused value, but need to consider the order of deleting instructions
-    // and values.
-    // if (!klr_value_used(ref)) {
-    //     printf("delete unused value\n");
-    //     if (ref->kind == KLR_VALUE_INSN) {
-    //         printf("delete unused instruction\n");
-    //         klr_erase_insn((KlrInsn *)ref);
-    //     }
-    // }
-}
-
-void update_insn_operand(KlrInsn *insn, int i, KlrValue *val)
-{
-    KlrOper *oper = insn_operand(insn, i);
     if (oper->kind != KLR_OPER_NONE) {
-        invalidate_insn_operand(insn, i);
+        fini_oper(oper);
     }
     init_oper(oper, insn, val);
 }
 
-void kl_replace_all_uses_with(KlrValue *val, KlrValue *def)
+void update_index_operand(KlrInsn *insn, int i, KlrValue *val)
+{
+    KlrOper *oper = insn_operand(insn, i);
+    update_operand(oper, insn, val);
+}
+
+void replace_all_uses_with(KlrValue *val, KlrValue *def)
 {
     KlrUse *use, *next;
     use_foreach_safe(use, next, def) {
@@ -88,8 +78,7 @@ void kl_replace_all_uses_with(KlrValue *val, KlrValue *def)
             // the destination operand unchanged.
             continue;
         }
-        fini_use(use);
-        init_oper(use->oper, use->insn, val);
+        update_operand(use->oper, use->insn, val);
     }
 }
 

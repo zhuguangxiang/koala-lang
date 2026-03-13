@@ -90,7 +90,7 @@ extern "C" {
     } else { \
         printf("panic: " fmt "\n", ##__VA_ARGS__); \
     } \
-    exit(-1); \
+    abort(); \
 } while (0)
 
 #define print_error(fmt, ...) do { \

@@ -48,14 +48,14 @@ void klr_run_pass_group(KlrPassGroup *grp, KlrFunc *fn)
 void klr_run_default_passes(KlrFunc *fn)
 {
     KLR_PASS_GROUP(grp);
-    register_let_lit_prop_pass(&grp);
+    register_value_prop_pass(&grp);
     // register_var_lit_bb_prop_pass(&grp);
     register_cfg_bb_opt_pass(&grp);
     register_dce_pass(&grp);
     klr_run_pass_group(&grp, fn);
 }
 
-void klr_module_run_default_passes(KlrModule *m)
+void module_run_default_passes(KlrModule *m)
 {
     KlrFunc *fn;
     vector_foreach(fn, &m->functions) {

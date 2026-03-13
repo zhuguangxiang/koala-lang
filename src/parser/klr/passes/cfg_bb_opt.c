@@ -12,67 +12,6 @@
 extern "C" {
 #endif
 
-// static void update_target_block(KlrBasicBlock *bb, KlrBasicBlock *target)
-// {
-//     ASSERT(bb->num_outedges == 1);
-//     KlrEdge *edge = edge_out_first(bb);
-//     klr_remove_edge(edge);
-
-//     KlrBasicBlock *src;
-//     KlrUse *use, *next;
-//     use_foreach_safe(use, next, bb) {
-//         log_info("update instructions use-def chain:");
-//         log_info("%%%s -->> %%%s", klr_block_name(bb), klr_block_name(target));
-//         list_remove(&use->use_link);
-//         list_push_back(&target->use_list, &use->use_link);
-//         target->use_count++;
-//         use->ref = (KlrValue *)target;
-//         src = use->insn->bb;
-//         edge_out_foreach(edge, src) {
-//             if (edge->dst == bb) {
-//                 klr_remove_edge(edge);
-//                 break;
-//             }
-//         }
-//         klr_link_edge(src, target);
-//     }
-// }
-
-// void klr_remove_only_jump_block(KlrFunc *func)
-// {
-//     /* remove block:
-//      * the block has only one unconditional jump
-//      * update all predecessor jumpers directly jump into its successor
-//      * update edges
-//      * NOTE: this pass must be run out of ssa.
-//      */
-//     KlrBasicBlock *bb, *nxt_bb;
-//     basic_block_foreach_safe(bb, nxt_bb, func) {
-//         if (bb->num_insns > 1) continue;
-//         if (bb->num_insns == 0) {
-//             log_info("delete empty basic block '%%%s'", klr_block_name(bb));
-//             klr_delete_block(bb);
-//             continue;
-//         }
-
-//         KlrInsn *insn = insn_first(bb);
-
-//         if (insn->flags & KLR_INSN_FLAGS_LOOP) {
-//             log_info("keep loop jump basic block, '%%%s'!", klr_block_name(bb));
-//             continue;
-//         }
-
-//         if (insn->code == OP_JMP) {
-//             log_info("only one jump in block: '%%%s'", klr_block_name(bb));
-//             KlrBasicBlock *target = (KlrBasicBlock *)insn->opers[0].use.ref;
-//             ASSERT(target->kind == KLR_VALUE_BLOCK);
-//             update_target_block(bb, target);
-//             klr_erase_insn(insn);
-//             klr_delete_block(bb);
-//         }
-//     }
-// }
-
 static int klr_cf_bb_branch_folding(KlrFunc *fn)
 {
     log_info("perform branch folding optimization on function '%%%s'", fn->name);
@@ -131,14 +70,14 @@ static int klr_cfg_remove_unused_block(KlrFunc *fn)
 
     // visit all reachable blocks from sbb
 
-    QUEUE(worklist);
+    QUEUE(wklist);
 
     KlrBasicBlock *sbb = fn->sbb;
     sbb->visited = 1;
-    queue_push(&worklist, sbb);
+    queue_push(&wklist, sbb);
 
-    while (!queue_empty(&worklist)) {
-        KlrBasicBlock *bb = queue_pop(&worklist);
+    while (!queue_empty(&wklist)) {
+        KlrBasicBlock *bb = queue_pop(&wklist);
 
         KlrEdge *edge;
         edge_out_foreach(edge, bb) {
@@ -146,7 +85,7 @@ static int klr_cfg_remove_unused_block(KlrFunc *fn)
             if (dst == fn->ebb) continue;
             if (!dst->visited) {
                 dst->visited = 1;
-                queue_push(&worklist, dst);
+                queue_push(&wklist, dst);
             }
         }
     }

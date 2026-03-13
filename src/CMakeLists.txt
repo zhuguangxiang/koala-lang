@@ -35,10 +35,7 @@ set(PARSER_SRC
     parser/klr/simple_reg_alloc.c
     parser/klr/pass.c
     parser/klr/passes/dot.c
-    parser/klr/passes/remove_load_store.c
-    # parser/klr/passes/constant_folding.c
-    # parser/klr/passes/unused_var_insn.c
-    parser/klr/passes/let_lit_prop.c
+    parser/klr/passes/simple_const_prop.c
     parser/klr/passes/dce.c
     parser/klr/passes/cfg_bb_opt.c)
 

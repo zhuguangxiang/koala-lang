@@ -178,6 +178,8 @@ typedef struct _KlrBasicBlock {
     /* out edges(successors) */
     List out_edges;
 
+    /* local variable constant map */
+    HashMap local_var_map;
 } KlrBasicBlock;
 
 /* edge between basic blocks */
@@ -391,6 +393,18 @@ The caller must check the condition and 'src' is not removed.
 */
 void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src);
 
+/* update local variable constant */
+int klr_update_local_var_const(KlrBasicBlock *bb, KlrInsn *local, KlrConst *val);
+
+/* clear local variable constant */
+int klr_clear_local_var_const(KlrBasicBlock *bb, KlrInsn *local);
+
+/* get local variable constant */
+KlrValue *klr_get_local_var_const(KlrBasicBlock *bb, KlrInsn *local);
+
+/* clear all local variable constants */
+int klr_clear_local_var_map(KlrBasicBlock *bb);
+
 /* add an edge */
 void klr_link_edge(KlrBasicBlock *src, KlrBasicBlock *dst);
 
@@ -592,13 +606,11 @@ void klr_add_last_return(KlrBasicBlock *bb);
 // clang-format on
 
 /* replace all uses of 'def' value with 'val' value */
-void kl_replace_all_uses_with(KlrValue *val, KlrValue *def);
-
-/* invalidate i-th operand and delete this value if it's not used */
-void invalidate_insn_operand(KlrInsn *insn, int i);
+void replace_all_uses_with(KlrValue *val, KlrValue *def);
 
 /* update operand */
-void update_insn_operand(KlrInsn *insn, int i, KlrValue *val);
+void update_index_operand(KlrInsn *insn, int i, KlrValue *val);
+void update_operand(KlrOper *oper, KlrInsn *insn, KlrValue *val);
 
 /* check value is used or not */
 #define klr_value_used(val) (!list_empty(&(val)->use_list))
