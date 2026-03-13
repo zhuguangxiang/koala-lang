@@ -94,7 +94,7 @@ static int klr_cfg_remove_unused_block(KlrFunc *fn)
     KlrBasicBlock *nxt;
     basic_block_foreach_safe(bb, nxt, fn) {
         if (!bb->visited) {
-            log_info("basic-block: '%s' is unreachable\n", klr_block_name(bb));
+            log_info("basic-block: '%s' is unreachable", klr_block_name(bb));
             klr_delete_block(bb);
             changed = 1;
         }

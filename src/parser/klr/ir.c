@@ -346,7 +346,7 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
     }
 }
 
-static inline int klr_is_terminator(KlrInsn *insn)
+static inline int insn_is_terminator(KlrInsn *insn)
 {
     if (!insn) return 0;
 
@@ -361,11 +361,18 @@ static inline int klr_is_terminator(KlrInsn *insn)
     }
 }
 
+int block_has_terminator(KlrBasicBlock *bb)
+{
+    KlrInsn *last = insn_last(bb);
+    if (!last) return 0;
+    return insn_is_terminator(last);
+}
+
 void klr_add_last_return(KlrBasicBlock *bb)
 {
     KlrInsn *last = insn_last(bb);
 
-    if (last && klr_is_terminator(last)) return;
+    if (last && insn_is_terminator(last)) return;
 
     KlrBuilder bldr;
     klr_builder_end(&bldr, bb);

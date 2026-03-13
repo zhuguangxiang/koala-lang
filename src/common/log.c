@@ -63,16 +63,16 @@ void _log_log(LogLevel level, char *file, int line, char *fmt, ...)
         char buf[16];
         buf[strftime(buf, sizeof(buf) - 1, "%H:%M:%S", tm)] = '\0';
 
-        char buf2[32] = { 0 };
+        char buf2[128] = { 0 };
 
 #ifdef LOG_COLOR
-        snprintf(buf2, 31, "\x1b[90m%s:%d:\x1b[0m", file, line);
+        snprintf(buf2, 127, "\x1b[90m%s:%d:\x1b[0m", file, line);
 
         pthread_spin_lock(&logger.lock);
         fprintf(stderr, "%s %s%-5s\x1b[0m %-20s ", buf, level_colors[level],
                 level_names[level], buf2);
 #else
-        snprintf(buf2, 31, "%s:%d:", file, line);
+        snprintf(buf2, 127, "%s:%d:", file, line);
 
         pthread_spin_lock(&logger.lock);
         fprintf(stderr, "%s %-5s %-20s ", buf, level_names[level], buf2);
@@ -93,8 +93,8 @@ void _log_log(LogLevel level, char *file, int line, char *fmt, ...)
         char buf[32];
         buf[strftime(buf, sizeof(buf) - 1, "%Y-%m-%d %H:%M:%S", tm)] = '\0';
 
-        char buf2[32] = { 0 };
-        snprintf(buf2, 31, "%s:%d:", file, line);
+        char buf2[128] = { 0 };
+        snprintf(buf2, 127, "%s:%d:", file, line);
 
         pthread_spin_lock(&logger.flock);
         fprintf(logger.filp, "%s %-5s %-20s ", buf, level_names[level], buf2);

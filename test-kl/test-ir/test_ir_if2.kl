@@ -1,0 +1,37 @@
+// RUN: koalac %s | filecheck %s
+
+func foo() {
+    let i = 10
+    let j = i + 1
+    let k = j + 3
+    print(k)
+    let b = j > 10
+
+    if j < 10 {
+        print(i)
+    } else {
+        var k = j + 2
+        print(j, k)
+        if k > 12 {
+            print("k is greater than 12", i)
+        } else {
+            print("k is not greater than 12", b)
+        }
+    }
+
+    if j < 10 {
+        print("j is less than 10")
+    } else if j == 10 {
+        print("j is equal to 10")
+    } else {
+        print("j is greater than 10")
+    }
+
+    let unsued = "hello"
+}
+
+// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 14 int64
+// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64
+// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 'k is greater than 12' str, 10 int64
+// CHECK-DAG: call @print [ext = true, path = 'std/builtin'] [const], 'j is greater than 10' str
+// CHECK-DAG: ret void

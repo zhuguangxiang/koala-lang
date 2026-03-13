@@ -146,6 +146,9 @@ typedef struct _KlrFunc {
 typedef struct _KlrBasicBlock {
     KLR_VALUE_HEAD
 
+    /* printed name */
+    char print_name[32];
+
     /* linked in KlrFunc */
     List link;
     /* ->KlrFunc(parent) */
@@ -405,6 +408,9 @@ KlrValue *klr_get_local_var_const(KlrBasicBlock *bb, KlrInsn *local);
 /* clear all local variable constants */
 int klr_clear_local_var_map(KlrBasicBlock *bb);
 
+/* check block has terminator or not */
+int block_has_terminator(KlrBasicBlock *bb);
+
 /* add an edge */
 void klr_link_edge(KlrBasicBlock *src, KlrBasicBlock *dst);
 
@@ -640,9 +646,19 @@ void klr_print_module(KlrModule *m, FILE *fp);
     klr_print_module(m, stdout); \
     fflush(stdout);
 
+// clang-format off
+#ifndef NOLOG
+#define log_insn(insn) do { \
+    klr_print_insn(insn, stderr); \
+    putc('\n', stderr); \
+} while (0)
+#else
+#define log_insn(insn) ((void)0)
+#endif
+// clang-format on
+
 void klr_insn_remap(KlrFunc *func);
 void klr_alloc_registers(KlrFunc *func);
-void klr_constant_propagation_pass(KlrFunc *func, void *ctx);
 void klr_simple_alloc_registers(KlrFunc *func);
 
 /* <6> instruction builder */

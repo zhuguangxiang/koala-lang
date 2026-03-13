@@ -376,7 +376,7 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
         emit_ir_stmt(ps, s);
     }
 
-    KlrBasicBlock *last = klr_last_block(sym->ir_val);
+    KlrBasicBlock *last = scope->bb;
     klr_add_last_return(last);
 
     exit_scope(ps);
@@ -423,6 +423,8 @@ static void emit_ir_visit_block(ParserState *ps, Vector *block)
 
 static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
 {
+    KlrValue *fn = (KlrValue *)ps->scope->bb->func;
+
     IfStmt *s = (IfStmt *)stmt;
     Expr *cond = s->cond;
 
@@ -430,9 +432,9 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
     emit_ir_visit_expr(ps, cond);
     if (!cond->ir_val) return;
 
-    KlrBasicBlock *if_then = klr_add_block(ps->scope->bb, "if-then");
-    KlrBasicBlock *if_else = klr_add_block(if_then, "if-else");
-    KlrBasicBlock *if_end = klr_add_block(if_else, "if-end");
+    KlrBasicBlock *if_then = klr_append_block(fn, "");
+    KlrBasicBlock *if_else = klr_append_block(fn, "");
+    KlrBasicBlock *if_end = klr_append_block(fn, "");
 
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
@@ -442,9 +444,11 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
     sc->bb = if_then;
     emit_ir_visit_block(ps, s->block);
 
-    KlrBuilder _bldr;
-    klr_builder_end(&_bldr, sc->bb);
-    klr_build_jmp(&_bldr, if_end);
+    if (!block_has_terminator(sc->bb)) {
+        KlrBuilder _bldr;
+        klr_builder_end(&_bldr, sc->bb);
+        klr_build_jmp(&_bldr, if_end);
+    }
 
     exit_scope(ps);
 
@@ -458,11 +462,20 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
             emit_ir_if_stmt(ps, s->_else);
         }
 
-        KlrBuilder _bldr;
-        klr_builder_end(&_bldr, _sc->bb);
-        klr_build_jmp(&_bldr, if_end);
+        if (!block_has_terminator(_sc->bb)) {
+            KlrBuilder _bldr;
+            klr_builder_end(&_bldr, _sc->bb);
+            klr_build_jmp(&_bldr, if_end);
+        }
+
         exit_scope(ps);
+    } else {
+        KlrBuilder _bldr;
+        klr_builder_end(&_bldr, if_else);
+        klr_build_jmp(&_bldr, if_end);
     }
+
+    ps->scope->bb = if_end;
 }
 
 static void emit_ir_while_stmt(ParserState *ps, Stmt *stmt)
@@ -477,7 +490,8 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
 
 static void emit_ir_block(ParserState *ps, Stmt *stmt)
 {
-    KlrBasicBlock *block = klr_add_block(ps->scope->bb, "block");
+    KlrValue *fn = (KlrValue *)ps->scope->bb->func;
+    KlrBasicBlock *block = klr_append_block(fn, "block");
     ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "block");
     BlockStmt *s = (BlockStmt *)stmt;
     sc->bb = block;

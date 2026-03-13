@@ -12,9 +12,8 @@ extern "C" {
 char *klr_block_name(KlrBasicBlock *bb)
 {
     if (bb->name[0]) return bb->name;
-    static char sbuf[32];
-    sprintf(sbuf, "bb%d", bb->tag);
-    return sbuf;
+    sprintf(bb->print_name, "bb%d", bb->tag);
+    return bb->print_name;
 }
 
 static void print_type(TypeSpec *ty, FILE *fp)
