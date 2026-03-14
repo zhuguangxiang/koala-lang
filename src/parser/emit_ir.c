@@ -415,7 +415,14 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     klr_build_ret(&bldr, exp->ir_val);
 
     // add a dead block after return to avoid generating code after return
-    ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
+    // ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
+
+    // The front-end will guarantee that there is no code after return statement, so we
+    // don't need to append a new block here, just set current block to NULL to avoid
+    // generating ir for unreachable code
+    // If the front-end allows code after return statement in the future, we can uncomment
+    // the above line to append a new block for unreachable code
+    // ps->scope->bb = NULL;
 }
 
 static void emit_ir_expr(ParserState *ps, Stmt *stmt)
@@ -614,7 +621,14 @@ static void emit_ir_break(ParserState *ps, Stmt *stmt)
 
     // after jmp to break_bb, the code is unreachable, we can append a new block to
     // avoid generating ir for unreachable code
-    ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
+    // ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
+
+    // The front-end will guarantee that there is no code after break statement, so we
+    // don't need to append a new block here, just set current block to NULL to avoid
+    // generating ir for unreachable code
+    // If the front-end allows code after break statement in the future, we can uncomment
+    // the above line to append a new block for unreachable code
+    // ps->scope->bb = NULL;
 }
 
 static void emit_ir_continue(ParserState *ps, Stmt *stmt)
@@ -630,7 +644,14 @@ static void emit_ir_continue(ParserState *ps, Stmt *stmt)
 
     // after jmp to continue_bb, the code is unreachable, we can append a new block to
     // avoid generating ir for unreachable code
-    ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
+    // ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
+
+    // The front-end will guarantee that there is no code after continue statement, so we
+    // don't need to append a new block here, just set current block to NULL to avoid
+    // generating ir for unreachable code
+    // If the front-end allows code after continue statement in the future, we can
+    // uncomment the above line to append a new block for unreachable code
+    // ps->scope->bb = NULL;
 }
 
 static void emit_ir_stmt(ParserState *ps, Stmt *stmt)

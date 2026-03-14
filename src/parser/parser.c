@@ -1146,6 +1146,7 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
     return sym;
 }
 
+// TODO: Don't remove unreachable statements, opt will handle it.
 static void remove_unreachable(Vector *stmts, int from_index)
 {
     int size = vector_size(stmts);
@@ -1222,6 +1223,7 @@ static void parse_block(ParserState *ps, Vector *stmts, int *has_terminal)
             if (has_terminal) *has_terminal = 1;
             if (index < vector_size(stmts)) {
                 log_trace("there are more statements after a terminal statement");
+                // TODO: Don't remove unreachable statements, opt will handle it.
                 remove_unreachable(stmts, index);
                 goto exit;
             }
@@ -1235,6 +1237,7 @@ static void parse_block(ParserState *ps, Vector *stmts, int *has_terminal)
                     log_trace(
                         "there are more statements after a block with a terminal "
                         "statement");
+                    // TODO: Don't remove unreachable statements, opt will handle it.
                     remove_unreachable(stmts, index);
                     goto exit;
                 }
