@@ -438,7 +438,13 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
 
     KlrBasicBlock *if_then = klr_append_block(fn, "");
     KlrBasicBlock *if_else = klr_append_block(fn, "");
-    KlrBasicBlock *if_end = klr_append_block(fn, "");
+    KlrBasicBlock *if_end = NULL;
+
+    if (s->_else) {
+        if_end = klr_append_block(fn, "");
+    } else {
+        if_end = if_else;
+    }
 
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
@@ -473,10 +479,6 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
         }
 
         exit_scope(ps);
-    } else {
-        KlrBuilder _bldr;
-        klr_builder_end(&_bldr, if_else);
-        klr_build_jmp(&_bldr, if_end);
     }
 
     ps->scope->bb = if_end;

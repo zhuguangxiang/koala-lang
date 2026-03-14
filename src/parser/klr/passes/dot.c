@@ -23,11 +23,12 @@ static void show_block(KlrBasicBlock *bb)
     }
 }
 
-static void klr_text_show_pass(KlrFunc *fn, void *data)
+static int klr_text_show_pass(KlrFunc *fn, void *data)
 {
     printf("func: %s\n", fn->name);
     KlrBasicBlock *sbb = fn->sbb;
     show_block(sbb);
+    return 0;
 }
 
 static int is_ebb(KlrBasicBlock *bb)
@@ -73,7 +74,7 @@ static void dot_print_block(KlrBasicBlock *bb, FILE *fp)
     }
 }
 
-static void klr_dot_graph_pass(KlrFunc *fn, void *data)
+static int klr_dot_graph_pass(KlrFunc *fn, void *data)
 {
     char buf[512];
     snprintf(buf, 511, "./%s.dot", fn->name);
@@ -107,6 +108,8 @@ static void klr_dot_graph_pass(KlrFunc *fn, void *data)
 
     snprintf(buf, 511, "dot -Tpdf %s.dot -o %s.pdf", fn->name, fn->name);
     system(buf);
+
+    return 0;
 }
 
 KlrPass text_show_pass = {

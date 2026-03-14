@@ -29,7 +29,9 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
     oper_value_foreach(val, insn, 0) {
         if (klr_is_local(val)) {
             KlrInsn *src = (KlrInsn *)val;
-            KlrValue *const_val = klr_get_local_var_const(src->bb, src);
+            // from current basic block local variable map, get the latest constant value
+            // for this local variable
+            KlrValue *const_val = klr_get_local_var_const(insn->bb, src);
             if (const_val) {
                 log_info("operand %d-th of insn(/) is const value", i__);
                 log_insn(insn);
@@ -310,7 +312,7 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                              klr_block_name(insn->bb));
                     log_insn(insn);
                     /* Record the latest constant alue in the local BB map */
-                    KlrBasicBlock *bb = dst->bb;
+                    KlrBasicBlock *bb = insn->bb;
                     klr_update_local_var_const(bb, dst, klr_const_value(src));
                 } else {
                     log_info(
@@ -319,7 +321,7 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                         klr_block_name(insn->bb));
                     // Variable is assigned a volatile value, clear local variable
                     // constant
-                    KlrBasicBlock *bb = dst->bb;
+                    KlrBasicBlock *bb = insn->bb;
                     klr_clear_local_var_const(bb, dst);
                 }
             }
@@ -384,7 +386,7 @@ can be used to fold list/tuple/map/set literals, and also can be used to fold co
 variables. In one basic block, if there are many store insns to the same variable, only
 the last store insn can be propagated, and the previous store insns will be removed.
 */
-static void klr_const_copy_prop_pass(KlrFunc *fn, void *ctx)
+static int klr_const_copy_prop_pass(KlrFunc *fn, void *ctx)
 {
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
@@ -403,6 +405,8 @@ static void klr_const_copy_prop_pass(KlrFunc *fn, void *ctx)
             do_fold(insn, fn, &wklist);
         }
     }
+
+    return 0;
 }
 
 KlrPass const_copy_prop_pass = {

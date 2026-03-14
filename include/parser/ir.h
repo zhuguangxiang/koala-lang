@@ -695,7 +695,7 @@ void klr_simple_alloc_registers(KlrFunc *func);
 
 /* <7> pass */
 
-typedef void (*PassFunc)(KlrFunc *fn, void *arg);
+typedef int (*PassFunc)(KlrFunc *fn, void *arg);
 
 typedef struct _KlrPass {
     List link;

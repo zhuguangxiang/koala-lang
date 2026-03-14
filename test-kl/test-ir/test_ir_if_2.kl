@@ -36,3 +36,22 @@ func foo() {
 // CHECK: call @print [ext = true, path = 'std/builtin'], 'k is greater than 12' str, 10 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'j is greater than 10' str
 // CHECK: ret void
+
+func test_nested(a int, b int) {
+    if (a > 10) {
+        print("Level 1")
+    } else if (b > 20) {
+        print("Level 2")
+    } else {
+        print("Level 3")
+    }
+    print("Done")
+}
+
+// CHECK-LABEL: func @test_nested(param %a int64, param %b int64)
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 1' str
+// CHECK: jmp label %bb2
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Done' str
+// CHECK: ret void
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 2' str
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 3' str

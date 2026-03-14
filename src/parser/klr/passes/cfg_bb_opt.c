@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-static int klr_cf_bb_branch_folding(KlrFunc *fn)
+static int bb_branch_folding(KlrFunc *fn)
 {
     log_info("perform branch folding optimization on function '%%%s'", fn->name);
 
@@ -57,7 +57,7 @@ static int klr_cf_bb_branch_folding(KlrFunc *fn)
     return changed;
 }
 
-static int klr_cfg_remove_unused_block(KlrFunc *fn)
+static int remove_unused_block(KlrFunc *fn)
 {
     int changed = 0;
 
@@ -105,7 +105,55 @@ static int klr_cfg_remove_unused_block(KlrFunc *fn)
     return changed;
 }
 
-static int klr_cf_merge_block(KlrFunc *fn)
+#if 0
+static int remove_only_jump_block(KlrFunc *func)
+{
+    int changed = 0;
+
+    /* remove block:
+     * the block has only one unconditional jump
+     * update all predecessor jumpers directly jump into its successor
+     */
+    KlrBasicBlock *bb, *nxt_bb;
+    basic_block_foreach_safe(bb, nxt_bb, func) {
+        if (bb->num_insns > 1) continue;
+        if (bb->num_insns == 0) {
+            log_info("delete empty basic block '%%%s'", klr_block_name(bb));
+            klr_delete_block(bb);
+            continue;
+        }
+
+        KlrInsn *insn = insn_first(bb);
+
+        if (insn->flags & KLR_INSN_FLAGS_LOOP) {
+            log_info("keep loop jump basic block, '%%%s'!", klr_block_name(bb));
+            continue;
+        }
+
+        if (insn->code == OP_JMP) {
+            log_info("only one jump in block: '%%%s'", klr_block_name(bb));
+            KlrValue *_target = insn_oper_value(insn, 0);
+            ASSERT(_target->kind == KLR_VALUE_BLOCK);
+            KlrBasicBlock *target = (KlrBasicBlock *)_target;
+
+            KlrUse *use, *nxt;
+            use_foreach_safe(use, nxt, bb) {
+                log_info("update bb def-use chain:");
+                KlrOper *oper = use->oper;
+                update_operand(oper, use->insn, _target);
+                klr_link_edge(use->insn->bb, target);
+            }
+
+            klr_delete_block(bb);
+            changed = 1;
+        }
+    }
+
+    return changed;
+}
+#endif
+
+static int merge_block(KlrFunc *fn)
 {
     log_info("perform basic block merging optimization on function '%%%s'", fn->name);
 
@@ -134,15 +182,21 @@ static int klr_cf_merge_block(KlrFunc *fn)
     return changed;
 }
 
-void klr_cfg_bb_opt_pass(KlrFunc *fn, void *ctx)
+int klr_cfg_bb_opt_pass(KlrFunc *fn, void *ctx)
 {
+    int total = 0;
+
     int changed = 1;
     while (changed) {
         changed = 0;
-        changed |= klr_cf_bb_branch_folding(fn);
-        changed |= klr_cfg_remove_unused_block(fn);
-        changed |= klr_cf_merge_block(fn);
+        // changed |= remove_only_jump_block(fn);
+        changed |= bb_branch_folding(fn);
+        changed |= remove_unused_block(fn);
+        changed |= merge_block(fn);
+        total |= changed;
     }
+
+    return total;
 }
 
 KlrPass cfg_bb_opt_pass = {

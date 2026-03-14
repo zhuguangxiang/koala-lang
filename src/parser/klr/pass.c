@@ -34,13 +34,20 @@ void run_pipeline(KlrPipeline *grp, KlrFunc *fn)
     klr_print_func(fn, stdout);
 #endif
 
-    KlrPass *pass;
-    list_foreach(pass, link, &grp->passes) {
-        pass->callback(fn, pass->arg);
-        log_info("==================After Pass '%s'=================", pass->name);
+    int changed = 1;
+    int iteration = 1;
+    while (changed && iteration < 10) {
+        log_info("iteration %d:", iteration);
+        ++iteration;
+        changed = 0;
+        KlrPass *pass;
+        list_foreach(pass, link, &grp->passes) {
+            changed |= pass->callback(fn, pass->arg);
+            log_info("==================After Pass '%s'=================", pass->name);
 #ifndef NOLOG
-        klr_print_func(fn, stdout);
+            klr_print_func(fn, stdout);
 #endif
+        }
     }
 }
 

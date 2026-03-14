@@ -95,7 +95,7 @@ static int has_side_effect(KlrInsn *insn)
 /*
 Dead code elimination pass, remove instructions that have no uses.
 */
-static void klr_dce_pass(KlrFunc *fn, void *ctx)
+static int klr_dce_pass(KlrFunc *fn, void *ctx)
 {
     log_info("perform dead code elimination on function '%%%s'", fn->name);
 
@@ -138,6 +138,8 @@ static void klr_dce_pass(KlrFunc *fn, void *ctx)
         /* remove from the IR linked list */
         klr_erase_insn(insn);
     }
+
+    return 0;
 }
 
 KlrPass dce_pass = {
