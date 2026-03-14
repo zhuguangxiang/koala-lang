@@ -1,0 +1,99 @@
+// RUN: koalac %s | filecheck %s
+
+var i = 0
+
+while i < 10 { i = i + 1 }
+
+// don't generate code for infinite loops with break
+while true { break }
+while { break }
+
+// CHECK-LABEL: func @__init__()
+// CHECK: set_global @i int64, 0 int64
+// CHECK: %0 = get_global @i int64
+// CHECK: %1 = cmplt %0 int64, 10 int64
+// CHECK: branch %1 bool, label %bb1, label %bb2
+// CHECK: %2 = get_global @i int64
+// CHECK: %3 = add %2 int64, 1 int64
+// CHECK: set_global @i int64, %3 int64
+// CHECK: jmp label %bb0
+// CHECK: ret void
+
+func foo(n int) {
+    var i = n
+    while i < 10 { i = i + 1 }
+    print(n)
+}
+
+// CHECK-LABEL: func @foo(%n int64)
+// CHECK: %0 = cmplt %i int64, 10 int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: %1 = add %i int64, 1 int64
+// CHECK: move %i int64, %1 int64
+// CHECK: jmp label %bb0
+// CHECK: call @print [ext = true, path = 'std/builtin'], %n int64
+// CHECK: ret void
+
+func bar() {
+    var i = 0
+    while false && i < 10 { i = i + 1 }
+
+    // while (false && print("hi")) {}
+    print(i)
+}
+
+// CHECK-LABEL: func @bar()
+// CHECK: call @print [ext = true, path = 'std/builtin'], 0 int64
+// CHECK: ret void
+
+func gcd(a int, b int) int {
+    var x = a
+    var y = b
+    while y != 0 {
+        let t = x % y
+        x = y
+        y = t
+    }
+    return x
+}
+
+// CHECK-LABEL: func @gcd(%a int64, %b int64) int64
+// CHECK: %x = local int64
+// CHECK: move %x int64, %a int64
+// CHECK: %y = local int64
+// CHECK: move %y int64, %b int64
+// CHECK: jmp label %bb0
+// CHECK: %0 = cmpne %y int64, 0 int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: %1 = mod %x int64, %y int64
+// CHECK: move %x int64, %y int64
+// CHECK: move %y int64, %1 int64
+// CHECK: jmp label %bb0
+// CHECK: ret %x int64
+
+func fib_with_break(n int, a int) {
+    var i = 0
+    while i < n {
+        if a > 1000 { break }
+        i = i + 1
+    }
+    print(n, a)
+}
+
+// CHECK-LABEL: func @fib_with_break(%n int64, %a int64)
+// CHECK: %i = local int64
+// CHECK: move %i int64, 0 int64
+// CHECK: jmp label %bb0
+
+// CHECK: %0 = cmplt %i int64, %n int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: %1 = cmpgt %a int64, 1000 int64
+// CHECK: branch %1 bool, label %bb2, label %bb3
+
+// CHECK: call @print [ext = true, path = 'std/builtin'], %n int64, %a int64
+// CHECK: ret void
+
+// CHECK: %3 = add %i int64, 1 int64
+// CHECK: move %i int64, %3 int64
+// CHECK: jmp label %bb0

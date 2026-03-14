@@ -48,7 +48,7 @@ func test_nested(a int, b int) {
     print("Done")
 }
 
-// CHECK-LABEL: func @test_nested(param %a int64, param %b int64)
+// CHECK-LABEL: func @test_nested(%a int64, %b int64)
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 1' str
 // CHECK: jmp label %bb2
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Done' str

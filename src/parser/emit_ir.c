@@ -9,10 +9,9 @@
 extern "C" {
 #endif
 
-#define BUILDER(ps) \
-    ParserScope *sc = ps->scope; \
-    KlrBuilder bldr; \
-    klr_builder_end(&bldr, sc->bb);
+#define MOD ps->mod
+
+#define CURRENT_FUNC ((KlrValue *)ps->scope->bb->func)
 
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp);
 
@@ -30,16 +29,17 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
         KlrValue *val = NULL;
         if (sym->kind == SYM_FUNC) {
             FuncSymbol *func_sym = (FuncSymbol *)sym;
-            val = klr_add_ext_func(ps->mod, func_sym->ret, sym->path, sym->name);
+            val = klr_add_ext_func(MOD, func_sym->ret, sym->path, sym->name);
         } else if (sym->kind == SYM_VAR) {
-            val = klr_add_ext_global(ps->mod, sym->ts, sym->path, sym->name);
+            val = klr_add_ext_global(MOD, sym->ts, sym->path, sym->name);
         } else {
             // UNREACHABLE();
         }
         sym->ir_val = val;
     }
 
-    BUILDER(ps);
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
 
     switch (sym->kind) {
         case SYM_VAR: {
@@ -70,7 +70,7 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
 static void emit_ir_literal(ParserState *ps, Expr *exp)
 {
     LitExpr *lit = (LitExpr *)exp;
-    KlrModule *m = ps->mod;
+    KlrModule *m = MOD;
 
     switch (lit->which) {
         case LIT_EXPR_INT: {
@@ -105,10 +105,10 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
     Symbol *sym = exp->sym;
     if (sym->kind == SYM_CLASS) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
-        exp->ir_val = klr_add_klass(ps->mod, kls_sym->instance_ts, sym->name);
+        exp->ir_val = klr_add_klass(MOD, kls_sym->instance_ts, sym->name);
     } else if (sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
-        exp->ir_val = klr_add_klass(ps->mod, inst_sym->instance_ts, sym->name);
+        exp->ir_val = klr_add_klass(MOD, inst_sym->instance_ts, sym->name);
     }
 }
 
@@ -137,7 +137,8 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
     // codegen
 
-    BUILDER(ps);
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
     KlrValue *ret = klr_build_call(&bldr, lhs->ir_val, ir_args, size, "");
     exp->ir_val = ret;
 }
@@ -237,7 +238,8 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
     emit_ir_visit_expr(ps, rhs);
     if (!rhs->ir_val) return;
 
-    BUILDER(ps);
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
 
     if (op >= BINARY_GT && op <= BINARY_NEQ) {
         KlrValue *res =
@@ -271,10 +273,11 @@ static void emit_ir_list(ParserState *ps, Expr *exp)
     emit_ir_type(ps, exp);
 
     if (konst) {
-        KlrValue *lit = klr_const_list(items, size, exp->ts, ps->mod);
+        KlrValue *lit = klr_const_list(items, size, exp->ts, MOD);
         exp->ir_val = lit;
     } else {
-        BUILDER(ps);
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
         KlrValue *ret = klr_build_call(&bldr, exp->ir_val, items, size, "");
         exp->ir_val = ret;
     }
@@ -300,10 +303,11 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
     emit_ir_type(ps, exp);
 
     if (konst) {
-        KlrValue *lit = klr_const_tuple(items, size, exp->ts, ps->mod);
+        KlrValue *lit = klr_const_tuple(items, size, exp->ts, MOD);
         exp->ir_val = lit;
     } else {
-        BUILDER(ps);
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
         KlrValue *ret = klr_build_call(&bldr, exp->ir_val, items, size, "");
         exp->ir_val = ret;
     }
@@ -342,7 +346,8 @@ static void emit_ir_var_decl(ParserState *ps, Stmt *stmt)
         if (!exp->ir_val) return;
     }
 
-    BUILDER(ps);
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
     VarSymbol *sym = (VarSymbol *)var->sym;
     if (sym->scope == VAR_SCOPE_GLOBAL) {
         if (exp) {
@@ -395,7 +400,8 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     RetStmt *ret = (RetStmt *)stmt;
     Expr *exp = ret->exp;
     if (!exp) {
-        BUILDER(ps);
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
         klr_build_ret_void(&bldr);
         return;
     }
@@ -404,8 +410,12 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     emit_ir_visit_expr(ps, exp);
     if (!exp->ir_val) return;
 
-    BUILDER(ps);
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
     klr_build_ret(&bldr, exp->ir_val);
+
+    // add a dead block after return to avoid generating code after return
+    ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
 }
 
 static void emit_ir_expr(ParserState *ps, Stmt *stmt)
@@ -427,7 +437,7 @@ static void emit_ir_visit_block(ParserState *ps, Vector *block)
 
 static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
 {
-    KlrValue *fn = (KlrValue *)ps->scope->bb->func;
+    KlrValue *fn = CURRENT_FUNC;
 
     IfStmt *s = (IfStmt *)stmt;
     Expr *cond = s->cond;
@@ -436,12 +446,12 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
     emit_ir_visit_expr(ps, cond);
     if (!cond->ir_val) return;
 
-    KlrBasicBlock *if_then = klr_append_block(fn, "");
-    KlrBasicBlock *if_else = klr_append_block(fn, "");
+    KlrBasicBlock *if_then = klr_append_block_comment(fn, "if-then");
+    KlrBasicBlock *if_else = klr_append_block_comment(fn, "if-else");
     KlrBasicBlock *if_end = NULL;
 
     if (s->_else) {
-        if_end = klr_append_block(fn, "");
+        if_end = klr_append_block_comment(fn, "if-end");
     } else {
         if_end = if_else;
     }
@@ -486,7 +496,60 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
 
 static void emit_ir_while_stmt(ParserState *ps, Stmt *stmt)
 {
+    KlrValue *fn = CURRENT_FUNC;
+
     WhileStmt *s = (WhileStmt *)stmt;
+    Expr *cond = s->cond;
+
+    KlrBasicBlock *while_cond = klr_append_block_comment(fn, "while-cond");
+    KlrBasicBlock *while_body = klr_append_block_comment(fn, "while-body");
+    KlrBasicBlock *while_end = klr_append_block_comment(fn, "while-end");
+
+    // 1. current block jmp to cond block
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    klr_build_jmp(&bldr, while_cond);
+
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "while-cond");
+    sc->bb = while_cond;
+
+    KlrValue *cond_val = NULL;
+    if (cond != NULL) {
+        cond->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, cond);
+        if (!cond->ir_val) return;
+        cond_val = cond->ir_val;
+    } else {
+        // while true
+        cond_val = klr_const_bool(1, MOD);
+    }
+
+    // 2. build conditonal jmp
+    KlrBuilder cond_bldr;
+    klr_builder_end(&cond_bldr, while_cond);
+    klr_build_jmp_cond(&cond_bldr, cond_val, while_body, while_end);
+
+    exit_scope(ps);
+
+    sc = enter_scope(ps, SCOPE_BLOCK, WHILE_BLOCK, "while-block");
+    sc->bb = while_body;
+
+    // save continue_bb and break_bb for `break` and `continue`
+    sc->continue_bb = while_cond;
+    sc->break_bb = while_end;
+
+    emit_ir_visit_block(ps, s->block);
+
+    // add jmp to cond block
+    if (!block_has_terminator(sc->bb)) {
+        KlrBuilder _bldr;
+        klr_builder_end(&_bldr, sc->bb);
+        klr_build_jmp(&_bldr, while_cond);
+    }
+
+    exit_scope(ps);
+
+    ps->scope->bb = while_end;
 }
 
 static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
@@ -507,7 +570,8 @@ static void emit_ir_block(ParserState *ps, Stmt *stmt)
 
 static void emit_ir_simple_assignment(ParserState *ps, Expr *lhs, Expr *rhs)
 {
-    BUILDER(ps);
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
     KlrValue *var = lhs->ir_val;
     if (var->kind == KLR_VALUE_GLOBAL) {
         klr_build_set_global(&bldr, var, rhs->ir_val);
@@ -537,6 +601,38 @@ static void emit_ir_assignment(ParserState *ps, Stmt *stmt)
     }
 }
 
+static void emit_ir_break(ParserState *ps, Stmt *stmt)
+{
+    ParserScope *sc = find_loop_scope(ps);
+    // The front-end should guarantee that break statement is always inside a loop,
+    // so sc should never be NULL here.
+    ASSERT(sc);
+    ASSERT(sc->break_bb);
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    klr_build_jmp(&bldr, sc->break_bb);
+
+    // after jmp to break_bb, the code is unreachable, we can append a new block to
+    // avoid generating ir for unreachable code
+    ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
+}
+
+static void emit_ir_continue(ParserState *ps, Stmt *stmt)
+{
+    ParserScope *sc = find_loop_scope(ps);
+    // The front-end should guarantee that continue statement is always inside a loop,
+    // so sc should never be NULL here.
+    ASSERT(sc);
+    ASSERT(sc->continue_bb);
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    klr_build_jmp(&bldr, sc->continue_bb);
+
+    // after jmp to continue_bb, the code is unreachable, we can append a new block to
+    // avoid generating ir for unreachable code
+    ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
+}
+
 static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -557,6 +653,8 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
         [STMT_FOR_KIND]     = emit_ir_for_stmt,
         [STMT_BLOCK_KIND]   = emit_ir_block,
         [STMT_ASSIGN_KIND]  = emit_ir_assignment,
+        [STMT_BREAK_KIND]   = emit_ir_break,
+        [STMT_CONTINUE_KIND] = emit_ir_continue,
     };
     /* clang-format on */
 
@@ -639,7 +737,7 @@ void ast_emit_ir(ParserState *ps)
         emit_ir_stmt(ps, s);
     }
 
-    KlrBasicBlock *last = klr_last_block(fn);
+    KlrBasicBlock *last = scope->bb;
     klr_add_last_return(last);
 
     exit_scope(ps);

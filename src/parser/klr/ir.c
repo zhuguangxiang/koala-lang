@@ -197,14 +197,16 @@ int klr_clear_local_var_map(KlrBasicBlock *bb)
     return 0;
 }
 
-static KlrBasicBlock *new_block(KlrFunc *fn, char *name)
+static KlrBasicBlock *new_block(KlrFunc *fn, char *name, char *comment)
 {
     KlrBasicBlock *bb = mm_alloc_obj(bb);
+    if (!name) name = "";
+    if (!comment) comment = "";
     INIT_KLR_VALUE(bb, KLR_VALUE_BLOCK, NULL, name);
 
     init_list(&bb->link);
     bb->func = fn;
-
+    bb->comment = comment;
     init_list(&bb->local_list);
     init_list(&bb->insn_list);
     init_list(&bb->in_edges);
@@ -218,10 +220,10 @@ static KlrBasicBlock *new_block(KlrFunc *fn, char *name)
     return bb;
 }
 
-KlrBasicBlock *klr_append_block(KlrValue *fn_val, char *label)
+KlrBasicBlock *klr_append_block_name_comment(KlrValue *fn_val, char *label, char *comment)
 {
     KlrFunc *fn = (KlrFunc *)fn_val;
-    KlrBasicBlock *bb = new_block(fn, label);
+    KlrBasicBlock *bb = new_block(fn, label, comment);
 
     if (list_empty(&fn->bb_list)) {
         /* first block, add an edge <start, bb> */
@@ -236,7 +238,7 @@ KlrBasicBlock *klr_append_block(KlrValue *fn_val, char *label)
 KlrBasicBlock *klr_add_block(KlrBasicBlock *bb, char *label)
 {
     KlrFunc *fn = bb->func;
-    KlrBasicBlock *_bb = new_block(fn, label);
+    KlrBasicBlock *_bb = new_block(fn, label, NULL);
     list_add(&bb->link, &_bb->link);
     return _bb;
 }
@@ -244,42 +246,41 @@ KlrBasicBlock *klr_add_block(KlrBasicBlock *bb, char *label)
 KlrBasicBlock *klr_add_block_before(KlrBasicBlock *bb, char *label)
 {
     KlrFunc *fn = bb->func;
-    KlrBasicBlock *_bb = new_block(fn, label);
+    KlrBasicBlock *_bb = new_block(fn, label, NULL);
     list_add_before(&bb->link, &_bb->link);
     return _bb;
 }
 
-void klr_delete_block(KlrBasicBlock *bb)
+void klr_erase_block(KlrBasicBlock *bb)
 {
+    log_info("[erase-block] '%%%s' start", klr_block_name(bb));
+
     list_remove(&bb->link);
 
     KlrEdge *edge, *nxt;
 
     edge_out_foreach_safe(edge, nxt, bb) {
+        log_info("[erase-block] remove out edge '%%%s' -> '%%%s'",
+                 klr_block_name(edge->src), klr_block_name(edge->dst));
         klr_remove_edge(edge);
     }
 
     edge_in_foreach_safe(edge, nxt, bb) {
+        log_info("[erase-block] remove in edge '%%%s' -> '%%%s'",
+                 klr_block_name(edge->src), klr_block_name(edge->dst));
         klr_remove_edge(edge);
     }
 
-    KlrInsn *insn, *nxt_insn;
-    insn_foreach_safe(insn, nxt_insn, bb) {
+    KlrInsn *insn, *nxt_i;
+    insn_foreach_reverse_safe(insn, nxt_i, bb) {
+        log_info("[erase-block] remove insn in block '%%%s'", klr_block_name(bb));
+        log_insn(insn);
         klr_erase_insn(insn);
     }
 
+    log_info("[erase-block] '%%%s' done", klr_block_name(bb));
+
     mm_free(bb);
-}
-
-KlrBasicBlock *klr_last_block(KlrValue *fn_val)
-{
-    KlrFunc *fn = (KlrFunc *)fn_val;
-    if (list_empty(&fn->bb_list)) {
-        return NULL;
-    }
-
-    KlrBasicBlock *last = list_last(&fn->bb_list, KlrBasicBlock, link);
-    return last;
 }
 
 void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
@@ -287,17 +288,22 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
     ASSERT(dst->func == src->func);
     KlrFunc *fn = dst->func;
 
-    log_info("merge block '%%%s' into '%%%s'", klr_block_name(src), klr_block_name(dst));
+    log_info("[basic-block-merging] merge block '%%%s' into '%%%s'", klr_block_name(src),
+             klr_block_name(dst));
 
     KlrInsn *last = insn_last(dst);
     if (last && last->code == OP_JMP) {
-        log_info("remove jmp insn in block '%%%s'", klr_block_name(dst));
+        log_info("[basic-block-merging] remove jmp insn in block '%%%s'",
+                 klr_block_name(dst));
         klr_erase_insn(last);
     }
 
     /* move all instructions from src to dst */
     KlrInsn *insn, *nxt;
     insn_foreach_safe(insn, nxt, src) {
+        log_info("[basic-block-merging] move insn from block '%%%s' to '%%%s'",
+                 klr_block_name(src), klr_block_name(dst));
+        log_insn(insn);
         list_remove(&insn->bb_link);
         list_push_back(&dst->insn_list, &insn->bb_link);
         insn->bb = dst;
@@ -308,12 +314,16 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
     /* update out-edges */
     KlrEdge *edge, *nxt_edge;
     edge_out_foreach_safe(edge, nxt_edge, src) {
+        log_info("[basic-block-merging] update out edge '%%%s' -> '%%%s'",
+                 klr_block_name(dst), klr_block_name(edge->dst));
         klr_link_edge(dst, edge->dst);
         klr_remove_edge(edge);
     }
 
     /* update in-edges */
     edge_in_foreach_safe(edge, nxt_edge, src) {
+        log_info("[basic-block-merging] remove in edge '%%%s' -> '%%%s'",
+                 klr_block_name(edge->src), klr_block_name(edge->dst));
         klr_remove_edge(edge);
     }
 }
@@ -436,8 +446,8 @@ KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name)
     vector_init_ptr(&fn->locals);
 
     /* initial 'start' and 'end' block */
-    fn->sbb = new_block(fn, "start");
-    fn->ebb = new_block(fn, "end");
+    fn->sbb = new_block(fn, "start", NULL);
+    fn->ebb = new_block(fn, "end", NULL);
 
     vector_push_back(&m->functions, &fn);
     fn->mod = m;
@@ -541,8 +551,8 @@ KlrValue *klr_klass_add_method(KlrValue *klass_val, char *name, TypeSpec *ret,
     vector_init_ptr(&method->locals);
 
     /* initial 'start' and 'end' block */
-    method->sbb = new_block(method, "start");
-    method->ebb = new_block(method, "end");
+    method->sbb = new_block(method, "start", NULL);
+    method->ebb = new_block(method, "end", NULL);
 
     /* add params */
     if (params) {

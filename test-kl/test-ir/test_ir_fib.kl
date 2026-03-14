@@ -1,0 +1,48 @@
+// RUN: koalac %s | filecheck %s
+
+func fib(n int) int {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+// CHECK-LABEL: func @fib(%n int64) int64
+// CHECK: %0 = cmplt %n int64, 2 int64
+// CHECK: branch %0 bool, label %bb0, label %bb1
+// CHECK: ret %n int64
+// CHECK: %1 = sub %n int64, 1 int64
+// CHECK: %2 = call @fib, %1 int64
+// CHECK: %3 = sub %n int64, 2 int64
+// CHECK: %4 = call @fib, %3 int64
+// CHECK: %5 = add %2 int64, %4 int64
+// CHECK: ret %5 int64
+
+func fib_loop(n int) int {
+    var a = 0
+    var b = 1
+    var i = 0
+    while i < n {
+        let tmp = a + b
+        a = b
+        b = tmp
+        i = i + 1
+    }
+    return a
+}
+
+// CHECK-LABEL: func @fib_loop(%n int64) int64
+// CHECK: %a = local int64
+// CHECK: move %a int64, 0 int64
+// CHECK: %b = local int64
+// CHECK: move %b int64, 1 int64
+// CHECK: %i = local int64
+// CHECK: move %i int64, 0 int64
+// CHECK: jmp label %bb0
+// CHECK: %0 = cmplt %i int64, %n int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: %1 = add %a int64, %b int64
+// CHECK: move %a int64, %b int64
+// CHECK: move %b int64, %1 int64
+// CHECK: %2 = add %i int64, 1 int64
+// CHECK: move %i int64, %2 int64
+// CHECK: jmp label %bb0
+// CHECK: ret %a int64

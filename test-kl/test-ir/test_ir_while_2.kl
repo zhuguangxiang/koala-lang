@@ -1,0 +1,79 @@
+// RUN: koalac %s | filecheck %s
+
+while true {
+    break
+    print("Ghost")
+}
+print("End")
+
+// CHECK-LABLE: func @__init__()
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'End' str
+// CHECK: ret void
+
+func foo() {
+    var i = 0
+
+    while i < 10 {
+        if i == 5 {
+            i = i + 2
+            continue
+            print("Never here")
+        }
+        i = i + 1
+    }
+}
+
+// CHECK-LABLE: func @foo()
+// CHECK: %i = local int64
+// CHECK: move %i int64, 0 int64
+// CHECK: jmp label %bb0
+
+// CHECK: %0 = cmplt %i int64, 10 int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: %1 = cmpeq %i int64, 5 int64
+// CHECK: branch %1 bool, label %bb3, label %bb4
+
+// CHECK: ret void
+
+// CHECK: %2 = add %i int64, 2 int64
+// CHECK: move %i int64, %2 int64
+// CHECK: jmp label %bb0
+
+// CHECK: %3 = add %i int64, 1 int64
+// CHECK: move %i int64, %3 int64
+// CHECK: jmp label %bb0
+
+func test_dead_block(n int) int {
+    if (n > 10) {
+        return 100
+        print("I am a ghost")
+    }
+
+    while (true) {
+        break
+        var x = 200
+        print(x)
+    }
+
+    return 0
+}
+
+// CHECK-LABEL: func @test_dead_block(%n int64) int64
+// CHECK: %0 = cmpgt %n int64, 10 int64
+// CHECK: branch %0 bool, label %bb0, label %bb1
+// CHECK: ret 100 int64
+// CHECK: ret 0 int64
+
+func test_if_false() {
+    var a = 10
+    if (false) {
+        a = 1 + 2
+        print(a)
+    }
+    print(a)
+}
+
+// CHECK-LABEL: func @test_if_false()
+// CHECK: call @print [ext = true, path = 'std/builtin'], 10 int64
+// CHECK: ret void

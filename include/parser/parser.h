@@ -54,6 +54,10 @@ typedef struct _ParserScope {
     HashMap *stbl;
     /* basic block */
     KlrBasicBlock *bb;
+    /* continue block for loops */
+    KlrBasicBlock *continue_bb;
+    /* break block for loops */
+    KlrBasicBlock *break_bb;
 } ParserScope;
 
 /* per source file */
@@ -194,6 +198,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt);
 
 ParserScope *enter_scope(ParserState *ps, ScopeKind kind, BlockType block, char *name);
 void exit_scope(ParserState *ps);
+ParserScope *find_loop_scope(ParserState *ps);
 
 TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts);
 int check_type(ParserState *ps, TypeSpec *ts);

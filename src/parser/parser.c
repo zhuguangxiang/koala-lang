@@ -2256,7 +2256,7 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
     }
 }
 
-static ParserScope *get_loop_scope(ParserState *ps)
+ParserScope *find_loop_scope(ParserState *ps)
 {
     ParserScope *sc = ps->scope;
     while (sc) {
@@ -2270,7 +2270,7 @@ static ParserScope *get_loop_scope(ParserState *ps)
 
 static void parse_break(ParserState *ps, Stmt *s)
 {
-    ParserScope *sc = get_loop_scope(ps);
+    ParserScope *sc = find_loop_scope(ps);
     if (!sc) {
         kl_error(s->loc, "break statement must be inside a loop.");
     } else {
@@ -2280,7 +2280,7 @@ static void parse_break(ParserState *ps, Stmt *s)
 
 static void parse_continue(ParserState *ps, Stmt *s)
 {
-    ParserScope *sc = get_loop_scope(ps);
+    ParserScope *sc = find_loop_scope(ps);
     if (!sc) {
         kl_error(s->loc, "continue statement must be inside a loop.");
     } else {

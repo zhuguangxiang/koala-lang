@@ -13,7 +13,7 @@ extern "C" {
 
 static int bb_branch_folding(KlrFunc *fn)
 {
-    log_info("perform branch folding optimization on function '%%%s'", fn->name);
+    log_info("[branch-folding] on func '%%%s'", fn->name);
 
     int changed = 0;
 
@@ -59,6 +59,8 @@ static int bb_branch_folding(KlrFunc *fn)
 
 static int remove_unused_block(KlrFunc *fn)
 {
+    log_info("[removing-unused-block] on func '%%%s'", fn->name);
+
     int changed = 0;
 
     // clear visited flag
@@ -94,7 +96,7 @@ static int remove_unused_block(KlrFunc *fn)
     basic_block_foreach_safe(bb, nxt, fn) {
         if (!bb->visited) {
             log_info("basic-block: '%s' is unreachable", klr_block_name(bb));
-            klr_delete_block(bb);
+            klr_erase_block(bb);
             changed = 1;
         }
         bb->visited = 0;
@@ -105,9 +107,10 @@ static int remove_unused_block(KlrFunc *fn)
     return changed;
 }
 
-#if 0
 static int remove_only_jump_block(KlrFunc *func)
 {
+    log_info("[removing-only-jump-block] on func '%%%s'", func->name);
+
     int changed = 0;
 
     /* remove block:
@@ -116,46 +119,54 @@ static int remove_only_jump_block(KlrFunc *func)
      */
     KlrBasicBlock *bb, *nxt_bb;
     basic_block_foreach_safe(bb, nxt_bb, func) {
-        if (bb->num_insns > 1) continue;
-        if (bb->num_insns == 0) {
-            log_info("delete empty basic block '%%%s'", klr_block_name(bb));
-            klr_delete_block(bb);
-            continue;
-        }
-
+        if (bb->num_insns != 1) continue;
         KlrInsn *insn = insn_first(bb);
+        if (insn->code != OP_JMP) continue;
 
-        if (insn->flags & KLR_INSN_FLAGS_LOOP) {
-            log_info("keep loop jump basic block, '%%%s'!", klr_block_name(bb));
-            continue;
+        log_info("only one jump in block: '%%%s'", klr_block_name(bb));
+
+        KlrValue *_dst = insn_oper_value(insn, 0);
+        if (_dst == (KlrValue *)bb) continue;
+
+        ASSERT(_dst->kind == KLR_VALUE_BLOCK);
+        KlrBasicBlock *dst = (KlrBasicBlock *)_dst;
+
+        KlrUse *use, *nxt;
+        use_foreach_safe(use, nxt, bb) {
+            log_info("update bb def-use chain:");
+            KlrOper *oper = use->oper;
+            log_info("update operand in insn:");
+            log_insn(use->insn);
+            update_operand(oper, use->insn, _dst);
+            log_info("after update operand:");
+            log_insn(use->insn);
+            log_info("add edge '%%%s' -->> '%%%s'", klr_block_name(use->insn->bb),
+                     klr_block_name(dst));
+            klr_link_edge(use->insn->bb, dst);
         }
 
-        if (insn->code == OP_JMP) {
-            log_info("only one jump in block: '%%%s'", klr_block_name(bb));
-            KlrValue *_target = insn_oper_value(insn, 0);
-            ASSERT(_target->kind == KLR_VALUE_BLOCK);
-            KlrBasicBlock *target = (KlrBasicBlock *)_target;
-
-            KlrUse *use, *nxt;
-            use_foreach_safe(use, nxt, bb) {
-                log_info("update bb def-use chain:");
-                KlrOper *oper = use->oper;
-                update_operand(oper, use->insn, _target);
-                klr_link_edge(use->insn->bb, target);
+        if (bb->use_count == 0) {
+            KlrEdge *out_edge = edge_out_first(func->sbb);
+            ASSERT(out_edge);
+            if (out_edge->dst == bb) {
+                log_info(
+                    "remove only jump block '%%%s', but it's the start block, update "
+                    "func->sbb -->> '%%%s'",
+                    klr_block_name(bb), klr_block_name(dst));
+                klr_link_edge(func->sbb, dst);
             }
-
-            klr_delete_block(bb);
-            changed = 1;
+            klr_erase_block(bb);
         }
+
+        changed = 1;
     }
 
     return changed;
 }
-#endif
 
 static int merge_block(KlrFunc *fn)
 {
-    log_info("perform basic block merging optimization on function '%%%s'", fn->name);
+    log_info("[basic-block-merging] on func '%%%s'", fn->name);
 
     int changed = 0;
 
@@ -189,7 +200,7 @@ int klr_cfg_bb_opt_pass(KlrFunc *fn, void *ctx)
     int changed = 1;
     while (changed) {
         changed = 0;
-        // changed |= remove_only_jump_block(fn);
+        changed |= remove_only_jump_block(fn);
         changed |= bb_branch_folding(fn);
         changed |= remove_unused_block(fn);
         changed |= merge_block(fn);

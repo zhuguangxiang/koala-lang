@@ -12,7 +12,12 @@ extern "C" {
 char *klr_block_name(KlrBasicBlock *bb)
 {
     if (bb->name[0]) return bb->name;
-    sprintf(bb->print_name, "bb%d", bb->tag);
+    if (bb->comment[0]) {
+        snprintf(bb->print_name, sizeof(bb->print_name), "bb%d(%s)", bb->tag,
+                 bb->comment);
+    } else {
+        snprintf(bb->print_name, sizeof(bb->print_name), "bb%d", bb->tag);
+    }
     return bb->print_name;
 }
 
@@ -370,7 +375,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_BINARY_CMP_NE:
-            print_cmp("cmpneq", insn, fp);
+            print_cmp("cmpne", insn, fp);
             break;
 
         case OP_BINARY_CMP_LT:
@@ -459,10 +464,15 @@ static void print_block(KlrBasicBlock *bb, FILE *fp)
 {
     int used = 0;
 
-    if (bb->name[0])
+    if (bb->name[0]) {
         used = fprintf(fp, "  %%%s:", bb->name);
-    else
-        used = fprintf(fp, "  %%bb%d:", bb->tag);
+    } else {
+        if (bb->comment[0]) {
+            used = fprintf(fp, "  %%bb%d(%s):", bb->tag, bb->comment);
+        } else {
+            used = fprintf(fp, "  %%bb%d:", bb->tag);
+        }
+    }
 
     // print predecessors
     if (edge_in_empty(bb)) {
@@ -503,10 +513,15 @@ static void update_tags(KlrFunc *fn)
 
 static void print_bb_edges(KlrBasicBlock *bb, FILE *fp)
 {
-    if (bb->name[0])
+    if (bb->name[0]) {
         fprintf(fp, "%%%s:\n", bb->name);
-    else
-        fprintf(fp, "%%bb%d:\n", bb->tag);
+    } else {
+        if (bb->comment[0]) {
+            fprintf(fp, "%%bb%d(%s):\n", bb->tag, bb->comment);
+        } else {
+            fprintf(fp, "%%bb%d:\n", bb->tag);
+        }
+    }
 
     fprintf(fp, "\tpreds: ");
     if (edge_in_empty(bb)) {
@@ -581,11 +596,10 @@ void klr_print_func(KlrFunc *func, FILE *fp)
     fprintf(fp, "(");
     KlrParam *param;
     vector_foreach(param, &func->params) {
-        if (i__ == 0) {
-            fprintf(fp, "param ");
-        } else {
-            fprintf(fp, ", param ");
+        if (i__ != 0) {
+            fprintf(fp, ", ");
         }
+
         klr_print_name_or_tag((KlrValue *)param, fp);
         print_value_type(param, fp);
     }

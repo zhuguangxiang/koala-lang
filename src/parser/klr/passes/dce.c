@@ -97,7 +97,7 @@ Dead code elimination pass, remove instructions that have no uses.
 */
 static int klr_dce_pass(KlrFunc *fn, void *ctx)
 {
-    log_info("perform dead code elimination on function '%%%s'", fn->name);
+    log_info("[dead-code-elimination] on func '%%%s'", fn->name);
 
     QUEUE(wklist);
 

@@ -143,6 +143,11 @@ static inline List *list_pop_back(List *list)
          n__ = v__ ? list_next(v__, member, list) : NULL; \
          v__ && ({ n__ = list_next(v__, member, list); 1;}); v__ = n__)
 
+#define list_foreach_reverse_safe(v__, n__, member, list) \
+    for (v__ = list_last(list, typeof(*(v__)), member), \
+         n__ = v__ ? list_prev(v__, member, list) : NULL; \
+         v__ && ({ n__ = list_prev(v__, member, list); 1;}); v__ = n__)
+
 /* foreach executes sexp */
 #define list_foreach_expr(v__, ty__, member, list, sexp) \
     for (ty__ *v__ = list_first(list, ty__, member); \

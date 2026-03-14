@@ -135,7 +135,10 @@ typedef struct _KlrBasicBlock {
     KLR_VALUE_HEAD
 
     /* printed name */
-    char print_name[32];
+    char print_name[64];
+
+    /* comment */
+    char *comment;
 
     /* linked in KlrFunc */
     List link;
@@ -378,7 +381,18 @@ KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name)
 /* <3> basic block */
 
 /* append a basic block to the end of a function */
-KlrBasicBlock *klr_append_block(KlrValue *fn_val, char *name);
+KlrBasicBlock *klr_append_block_name_comment(KlrValue *fn_val, char *label,
+                                             char *comment);
+
+static inline KlrBasicBlock *klr_append_block(KlrValue *fn_val, char *name)
+{
+    return klr_append_block_name_comment(fn_val, name, NULL);
+}
+
+static inline KlrBasicBlock *klr_append_block_comment(KlrValue *fn_val, char *comment)
+{
+    return klr_append_block_name_comment(fn_val, NULL, comment);
+}
 
 /* add a basic block after 'bb' */
 KlrBasicBlock *klr_add_block(KlrBasicBlock *bb, char *name);
@@ -386,11 +400,8 @@ KlrBasicBlock *klr_add_block(KlrBasicBlock *bb, char *name);
 /* add a basic block before 'bb' */
 KlrBasicBlock *klr_add_block_before(KlrBasicBlock *bb, char *name);
 
-/* delete a basic block */
-void klr_delete_block(KlrBasicBlock *bb);
-
-/* get last basic block of a function */
-KlrBasicBlock *klr_last_block(KlrValue *fn_val);
+/* erase a basic block */
+void klr_erase_block(KlrBasicBlock *bb);
 
 /* merge src' into 'dst',
 if 'dst' has only one successor of 'src' and 'src' has only one predecessor of 'dst'
@@ -582,6 +593,10 @@ void klr_add_last_return(KlrBasicBlock *bb);
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)
 #define insn_foreach_safe(insn, next, bb) \
     list_foreach_safe(insn, next, bb_link, &(bb)->insn_list)
+#define insn_foreach_reverse(insn, bb) \
+    list_foreach_reverse(insn, bb_link, &(bb)->insn_list)
+#define insn_foreach_reverse_safe(insn, next, bb) \
+    list_foreach_reverse_safe(insn, next, bb_link, &(bb)->insn_list)
 #define insn_first(bb) list_first(&(bb)->insn_list, KlrInsn, bb_link)
 #define insn_last(bb)  list_last(&(bb)->insn_list, KlrInsn, bb_link)
 

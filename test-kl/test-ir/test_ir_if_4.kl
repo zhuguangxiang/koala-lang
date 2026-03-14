@@ -56,6 +56,6 @@ func bar(v int) int {
     return b
 }
 
-// CHECK-LABEL: func @bar(param %v int64)
+// CHECK-LABEL: func @bar(%v int64)
 // CHECK: %0 = mul %v int64, 2 int64
 // CHECK: ret %0 int64
