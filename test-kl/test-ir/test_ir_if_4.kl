@@ -1,0 +1,57 @@
+// RUN: koalac %s | filecheck %s
+
+var g = 100
+let f = g + 1
+let h = f + 101
+
+// CHECK-LABEL: func @__init__()
+// CHECK: set_global @g int64, 100 int64
+// CHECK: %1 = get_global @g int64
+// CHECK: %2 = add %1 int64, 1 int64
+// CHECK: set_global @f int64, %2 int64
+// CHECK: %4 = get_global @f int64
+// CHECK: %5 = add %4 int64, 101 int64
+// CHECK: set_global @h int64, %5 int64
+// CHECK: ret void
+
+func foo() {
+    var a = 100
+    let b = a + 1
+    print(a, b)
+
+    if (b > 3) {
+        print("a = ", a)
+    }
+
+    if (g > 3) {
+        print("g = ", g)
+    }
+
+    if (h > 3) {
+        print("h = ", h)
+    }
+
+    if (f > 3) {
+        print("f = ", f)
+    }
+
+    print(a + b + 1)
+}
+
+// CHECK-LABEL: func @foo()
+// CHECK: call @print [ext = true, path = 'std/builtin'], 100 int64, 101 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'a = ' str, 100 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'g = ' str, %4 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'h = ' str, %8 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'f = ' str, %12 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 202 int64
+
+func bar(v int) int {
+    let a = v
+    let b = a * 2
+    return b
+}
+
+// CHECK-LABEL: func @bar(param %v int64)
+// CHECK: %0 = mul %v int64, 2 int64
+// CHECK: ret %0 int64

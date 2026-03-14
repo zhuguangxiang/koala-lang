@@ -124,35 +124,6 @@ KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m
     return lit;
 }
 
-int klr_is_const(KlrValue *val)
-{
-    if (val->kind == KLR_VALUE_CONST) return 1;
-    if (val->kind == KLR_VALUE_INSN) {
-        KlrInsn *insn = (KlrInsn *)val;
-        return insn->code == OP_CONST;
-    }
-    return 0;
-}
-
-KlrConst *klr_get_const_value(KlrValue *val)
-{
-    if (val->kind == KLR_VALUE_CONST) return (KlrConst *)val;
-    if (val->kind == KLR_VALUE_INSN) {
-        KlrInsn *insn = (KlrInsn *)val;
-        if (insn->code == OP_CONST) {
-            return (KlrConst *)insn_oper_value(insn, 0);
-        }
-    }
-    return NULL;
-}
-
-int klr_is_local(KlrValue *val)
-{
-    if (val->kind != KLR_VALUE_INSN) return 0;
-    KlrInsn *insn = (KlrInsn *)val;
-    return insn->code == OP_IR_LOCAL;
-}
-
 typedef struct _LocalVarMapEntry {
     HashMapEntry hnode;
     KlrInsn *local;

@@ -83,6 +83,7 @@ func foo() {
         print("Path B", b && false)
     }
 
+    // TODO:
     // var c = 100
     // c = 200
 }

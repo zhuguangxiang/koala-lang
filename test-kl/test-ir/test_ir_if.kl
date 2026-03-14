@@ -1,6 +1,7 @@
 // RUN: koalac %s | filecheck %s
 
 let i = 10
+// TODO: foward reference
 // let j2 = j + 2
 let j = i + 1
 let b = j > 10
@@ -12,6 +13,7 @@ if j > 10 {
     print(i)
 }
 
+// TODO:
 // let k int? = 10
 // if k != null {
 //     print(k)
@@ -33,6 +35,7 @@ func foo() {
         print(i)
     }
 
+    // TODO:
     // let a1 = 10
     // let b1 = 20
     // let my_list = list(a1, b1)  // (1) 初始扫描到这里，a 和 b 已经是常量了

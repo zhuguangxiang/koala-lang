@@ -28,15 +28,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
     KlrValue *val;
     oper_value_foreach(val, insn, 0) {
         if (klr_is_local(val)) {
-            log_info("try to fold operand %d-th of insn(/) with local variable", i__);
-            log_insn(insn);
             KlrInsn *src = (KlrInsn *)val;
             KlrValue *const_val = klr_get_local_var_const(src->bb, src);
             if (const_val) {
                 log_info("operand %d-th of insn(/) is const value", i__);
                 log_insn(insn);
                 ASSERT(klr_is_const(const_val));
-                KlrConst *kval = klr_get_const_value(const_val);
+                KlrConst *kval = klr_const_value(const_val);
                 update_index_operand(insn, i__, (KlrValue *)kval);
                 changed = 1;
             }
@@ -49,14 +47,14 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 
     switch (op) {
         case OP_BINARY_ADD: {
-            log_info("try to fold binary add insn:");
-            log_insn(insn);
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_get_const_value(lhs);
-                KlrConst *rval = klr_get_const_value(rhs);
+                KlrConst *lval = klr_const_value(lhs);
+                KlrConst *rval = klr_const_value(rhs);
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
+                    log_info("fold binary add insn to const int:");
+                    log_insn(insn);
                     uint64_t res = lval->ival + rval->ival;
                     KlrValue *const_res = klr_const_int(res, lval->ts, fn->mod);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
@@ -66,14 +64,14 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_BINARY_SUB: {
-            log_info("try to fold binary sub insn:");
-            log_insn(insn);
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_get_const_value(lhs);
-                KlrConst *rval = klr_get_const_value(rhs);
+                KlrConst *lval = klr_const_value(lhs);
+                KlrConst *rval = klr_const_value(rhs);
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
+                    log_info("fold binary sub insn to const int:");
+                    log_insn(insn);
                     uint64_t res = lval->ival - rval->ival;
                     KlrValue *const_res = klr_const_int(res, lval->ts, fn->mod);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
@@ -83,14 +81,14 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_BINARY_CMP_GT: {
-            log_info("try to fold binary cmp_gt insn:");
-            log_insn(insn);
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_get_const_value(lhs);
-                KlrConst *rval = klr_get_const_value(rhs);
+                KlrConst *lval = klr_const_value(lhs);
+                KlrConst *rval = klr_const_value(rhs);
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
+                    log_info("fold binary cmp_gt insn to const bool:");
+                    log_insn(insn);
                     int res = lval->ival > rval->ival;
                     KlrValue *const_res = klr_const_bool(res, fn->mod);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
@@ -100,14 +98,14 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_BINARY_CMP_GE: {
-            log_info("try to fold binary cmp_ge insn:");
-            log_insn(insn);
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_get_const_value(lhs);
-                KlrConst *rval = klr_get_const_value(rhs);
+                KlrConst *lval = klr_const_value(lhs);
+                KlrConst *rval = klr_const_value(rhs);
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
+                    log_info("fold binary cmp_ge insn to const bool:");
+                    log_insn(insn);
                     int res = lval->ival >= rval->ival;
                     KlrValue *const_res = klr_const_bool(res, fn->mod);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
@@ -117,14 +115,14 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_BINARY_CMP_LT: {
-            log_info("try to fold binary cmp_lt insn:");
-            log_insn(insn);
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_get_const_value(lhs);
-                KlrConst *rval = klr_get_const_value(rhs);
+                KlrConst *lval = klr_const_value(lhs);
+                KlrConst *rval = klr_const_value(rhs);
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
+                    log_info("fold binary cmp_lt insn to const bool:");
+                    log_insn(insn);
                     int res = lval->ival < rval->ival;
                     KlrValue *const_res = klr_const_bool(res, fn->mod);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
@@ -134,14 +132,14 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_BINARY_CMP_LE: {
-            log_info("try to fold binary cmp_le insn:");
-            log_insn(insn);
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_get_const_value(lhs);
-                KlrConst *rval = klr_get_const_value(rhs);
+                KlrConst *lval = klr_const_value(lhs);
+                KlrConst *rval = klr_const_value(rhs);
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
+                    log_info("fold binary cmp_le insn to const bool:");
+                    log_insn(insn);
                     int res = lval->ival <= rval->ival;
                     KlrValue *const_res = klr_const_bool(res, fn->mod);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
@@ -151,14 +149,14 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_BINARY_CMP_EQ: {
-            log_info("try to fold binary cmp_eq insn:");
-            log_insn(insn);
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_get_const_value(lhs);
-                KlrConst *rval = klr_get_const_value(rhs);
+                KlrConst *lval = klr_const_value(lhs);
+                KlrConst *rval = klr_const_value(rhs);
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
+                    log_info("fold binary cmp_eq insn to const bool:");
+                    log_insn(insn);
                     int res = lval->ival == rval->ival;
                     KlrValue *const_res = klr_const_bool(res, fn->mod);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
@@ -168,8 +166,6 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_LAND: {
-            log_info("try to fold logic and insn:");
-            log_insn(insn);
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
 
@@ -178,24 +174,32 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 
             // Short-circuiting
             if (klr_is_const(lhs)) {
-                KlrConst *lval = klr_get_const_value(lhs);
+                KlrConst *lval = klr_const_value(lhs);
                 ASSERT(lval->which == CONST_BOOL);
                 if (!lval->bval) {
+                    log_info("[Short-circuiting] fold AND insn, the left is false:");
+                    log_insn(insn);
                     // false && x -> false
                     KlrValue *res = klr_const_bool(0, fn->mod);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
+                    log_info("[Short-circuiting] fold AND insn, the left is true:");
+                    log_insn(insn);
                     // true && x -> x
                     replace_all_uses_with(rhs, (KlrValue *)insn);
                 }
             } else if (klr_is_const(rhs)) {
-                KlrConst *rval = klr_get_const_value(rhs);
+                KlrConst *rval = klr_const_value(rhs);
                 ASSERT(rval->which == CONST_BOOL);
                 if (!rval->bval) {
+                    log_info("[Short-circuiting] fold AND insn, the right is false:");
+                    log_insn(insn);
                     // x && false -> false
                     KlrValue *res = klr_const_bool(0, fn->mod);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
+                    log_info("[Short-circuiting] fold AND insn, the right is true:");
+                    log_insn(insn);
                     // x && true -> x
                     replace_all_uses_with(lhs, (KlrValue *)insn);
                 }
@@ -204,8 +208,6 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_LOR: {
-            log_info("try to fold logic or insn:");
-            log_insn(insn);
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
 
@@ -214,24 +216,32 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 
             // Short-circuiting
             if (klr_is_const(lhs)) {
-                KlrConst *lval = klr_get_const_value(lhs);
+                KlrConst *lval = klr_const_value(lhs);
                 ASSERT(lval->which == CONST_BOOL);
                 if (lval->bval) {
+                    log_info("[Short-circuiting] fold OR insn, the left is true:");
+                    log_insn(insn);
                     // true || x -> true
                     KlrValue *res = klr_const_bool(1, fn->mod);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
+                    log_info("[Short-circuiting] fold OR insn, the left is false:");
+                    log_insn(insn);
                     // false || x -> x
                     replace_all_uses_with(rhs, (KlrValue *)insn);
                 }
             } else if (klr_is_const(rhs)) {
-                KlrConst *rval = klr_get_const_value(rhs);
+                KlrConst *rval = klr_const_value(rhs);
                 ASSERT(rval->which == CONST_BOOL);
                 if (rval->bval) {
+                    log_info("[Short-circuiting] fold OR insn, the right is true:");
+                    log_insn(insn);
                     // x || true -> true
                     KlrValue *res = klr_const_bool(1, fn->mod);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
+                    log_info("[Short-circuiting] fold OR insn, the right is false:");
+                    log_insn(insn);
                     // x || false -> x
                     replace_all_uses_with(lhs, (KlrValue *)insn);
                 }
@@ -250,33 +260,35 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
     OpCode op = insn->code;
     switch (op) {
         case OP_SET_GLOBAL: {
-            log_info("try to propagate set_global insn:");
-            log_insn(insn);
             KlrGlobal *global = (KlrGlobal *)insn_oper_value(insn, 0);
             KlrValue *val = insn_oper_value(insn, 1);
             if (!global->mutable && klr_is_const(val)) {
-                KlrConst *kval = klr_get_const_value(val);
-                update_index_operand(insn, 1, (KlrValue *)kval);
+                log_info("record const value for global variable:");
+                log_insn(insn);
+                KlrConst *kval = klr_const_value(val);
+                ASSERT((void *)kval == (void *)val);
+                // update_index_operand(insn, 1, (KlrValue *)kval);
                 global->kval = kval;
             }
             break;
         }
 
         case OP_GET_GLOBAL: {
-            log_info("try to propagate get_global insn:");
-            log_insn(insn);
             KlrGlobal *global = (KlrGlobal *)insn_oper_value(insn, 0);
-            if (!global->mutable) {
-                KlrConst *val = global->kval;
-                ASSERT(val);
+            KlrConst *val = global->kval;
+            // var a = 100
+            // let b = a
+            // Because `a` is mutable, we cannot propagate `a` to `b`
+            // When `let c = b + 1`, `get_global 'b' is const, but val is null.
+            if (!global->mutable && val) {
+                log_info("propagate const global variable:");
+                log_insn(insn);
                 replace_all_uses_with((KlrValue *)val, (KlrValue *)insn);
             }
             break;
         }
 
         case OP_MOVE: {
-            log_info("try to propagate move insn:");
-            log_insn(insn);
             ASSERT(!klr_value_used(insn));
             KlrValue *_dst = insn_oper_value(insn, 0);
             KlrValue *src = insn_oper_value(insn, 1);
@@ -284,6 +296,8 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             KlrInsn *dst = (KlrInsn *)_dst;
 
             if (dst->flags & KLR_INSN_FLAGS_CONST) {
+                log_info("propagate const local variable:");
+                log_insn(insn);
                 // dst is let: global propagation, no SSA needed
                 // if src is const, this is const propagation, otherwise this is copy
                 // propagation -> let x = y; let z = x -> let z = y
@@ -292,10 +306,17 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             } else {
                 // dst is var: local propagation, only one basic block, no SSA needed
                 if (klr_is_const(src)) {
+                    log_info("update var local's const value in bb '%s'",
+                             klr_block_name(insn->bb));
+                    log_insn(insn);
                     /* Record the latest constant alue in the local BB map */
                     KlrBasicBlock *bb = dst->bb;
-                    klr_update_local_var_const(bb, dst, klr_get_const_value(src));
+                    klr_update_local_var_const(bb, dst, klr_const_value(src));
                 } else {
+                    log_info(
+                        "clear var local's const value in bb '%s' because it's assigned "
+                        "a volatile value",
+                        klr_block_name(insn->bb));
                     // Variable is assigned a volatile value, clear local variable
                     // constant
                     KlrBasicBlock *bb = dst->bb;
@@ -306,8 +327,6 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_CALL: {
-            log_info("try to propagate call insn:");
-            log_insn(insn);
             if (insn->flags & KLR_INSN_FLAGS_CONST) {
                 KlrValue *callee = insn_oper_value(insn, 0);
 
@@ -322,7 +341,7 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 KlrValue *val;
                 oper_value_foreach(val, insn, 1) {
                     ASSERT(klr_is_const(val));
-                    KlrConst *kval = klr_get_const_value(val);
+                    KlrConst *kval = klr_const_value(val);
                     items[i__ - 1] = (KlrValue *)kval;
                 }
 
@@ -348,8 +367,6 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         default: {
-            log_info("no propagation for insn:");
-            log_insn(insn);
             break;
         }
     }

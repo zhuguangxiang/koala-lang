@@ -26,7 +26,7 @@ static int klr_cf_bb_branch_folding(KlrFunc *fn)
         KlrValue *cond = insn_oper_value(insn, 0);
         if (!klr_is_const(cond)) continue;
 
-        KlrConst *konst = klr_get_const_value(cond);
+        KlrConst *konst = klr_const_value(cond);
         ASSERT(konst->which == CONST_BOOL);
         int val = konst->bval;
         KlrBasicBlock *dst;

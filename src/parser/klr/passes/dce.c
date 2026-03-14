@@ -5,12 +5,13 @@
 
 #include "ir.h"
 #include "log.h"
+#include "queue.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-static int klr_has_side_effect(KlrInsn *insn)
+static int has_side_effect(KlrInsn *insn)
 {
     switch (insn->code) {
         case OP_SET_GLOBAL:
@@ -98,22 +99,44 @@ static void klr_dce_pass(KlrFunc *fn, void *ctx)
 {
     log_info("perform dead code elimination on function '%%%s'", fn->name);
 
-    int changed = 1;
-    while (changed) {
-        changed = 0;
-        KlrBasicBlock *bb;
-        basic_block_foreach(bb, fn) {
-            KlrInsn *insn, *next;
-            insn_foreach_safe(insn, next, bb) {
-                if (!klr_value_used(insn) && !klr_has_side_effect(insn)) {
-                    ASSERT(insn->use_count == 0);
-                    log_info("remove dead insn:");
-                    log_insn(insn);
-                    klr_erase_insn(insn);
-                    changed = 1;
-                }
+    QUEUE(wklist);
+
+    KlrBasicBlock *bb;
+    basic_block_foreach(bb, fn) {
+        KlrInsn *insn, *next;
+        insn_foreach_safe(insn, next, bb) {
+            /* If no one uses it and it has no side-effects, it's a candidate */
+            if (!klr_value_used(insn) && !has_side_effect(insn)) {
+                queue_push(&wklist, insn);
             }
         }
+    }
+
+    while (!queue_empty(&wklist)) {
+        KlrInsn *insn = queue_pop(&wklist);
+
+        /* In case it was already erased or its status changed */
+        if (insn->use_count > 0 || has_side_effect(insn)) {
+            continue;
+        }
+
+        /* Check if any of its operands become dead after this removal */
+        KlrOper *oper;
+        operand_foreach(oper, insn) {
+            KlrValue *val = oper->use.ref;
+            /* klr_erase_insn will do use_count--, check it use_count == 1 and push to
+             * worklist.
+             */
+            if (val->kind == KLR_VALUE_INSN && (val->use_count == 1)) {
+                queue_push(&wklist, val);
+            }
+        }
+
+        log_info("remove dead insn:");
+        log_insn(insn);
+
+        /* remove from the IR linked list */
+        klr_erase_insn(insn);
     }
 }
 

@@ -345,10 +345,25 @@ KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m)
 KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_none(KlrModule *m);
 
-int klr_is_const(KlrValue *val);
-KlrConst *klr_get_const_value(KlrValue *val);
+static inline int klr_is_const(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_CONST) return 1;
+    return 0;
+}
 
-int klr_is_local(KlrValue *val);
+static inline KlrConst *klr_const_value(KlrValue *val)
+{
+    ASSERT(klr_is_const(val));
+    return (KlrConst *)val;
+}
+
+static inline int klr_is_local(KlrValue *val)
+{
+    if (val->kind != KLR_VALUE_INSN) return 0;
+    KlrInsn *insn = (KlrInsn *)val;
+    return insn->code == OP_IR_LOCAL;
+}
+
 int klr_is_global(KlrValue *val);
 
 /* <2> module */

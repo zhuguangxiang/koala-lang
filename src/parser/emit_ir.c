@@ -538,9 +538,11 @@ static void _add_func(KlrModule *m, FuncDeclStmt *fn)
 
     KlrValue *fval = klr_add_func(m, sym->ret, id->name);
 
+    KlrValue *param;
     ArgInfo *arg;
     vector_foreach(arg, sym->params) {
-        klr_func_add_param(fval, arg->ts, arg->name);
+        param = klr_func_add_param(fval, arg->ts, arg->name);
+        arg->sym->ir_val = param;
     }
 
     sym->ir_val = fval;
@@ -565,6 +567,10 @@ void ast_emit_ir(ParserState *ps)
     KlrModule *m = klr_create_module(ps->filename);
     ps->mod = m;
 
+    // add __init__ function firstly
+    KlrValue *fn = klr_add_func(m, no_type_spec(), "__init__");
+    m->init = (KlrFunc *)fn;
+
     // visit all global variables and add them to ir module
     Stmt *s;
     vector_foreach(s, &ps->stmts) {
@@ -582,9 +588,6 @@ void ast_emit_ir(ParserState *ps)
             // do nothing
         }
     }
-
-    KlrValue *fn = klr_add_func(m, no_type_spec(), "__init__");
-    m->init = (KlrFunc *)fn;
 
     ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
     KlrBasicBlock *entry = klr_append_block(fn, "entry");

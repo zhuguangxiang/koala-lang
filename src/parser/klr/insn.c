@@ -166,7 +166,8 @@ void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
         panic("'move %%x, %%v' requires a local var.");
     }
 
-    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN) {
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_PARAM &&
+        val->kind != KLR_VALUE_INSN) {
         panic("'move %%x, %%v' requires a reg value.");
     }
 
