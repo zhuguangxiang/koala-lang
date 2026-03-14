@@ -45,7 +45,12 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
         case SYM_VAR: {
             VarSymbol *var_sym = (VarSymbol *)sym;
             if (var_sym->scope == VAR_SCOPE_GLOBAL) {
-                exp->ir_val = klr_build_get_global(&bldr, sym->ir_val);
+                if (exp->ctx == EXPR_CTX_LOAD) {
+                    exp->ir_val = klr_build_get_global(&bldr, sym->ir_val);
+                } else {
+                    ASSERT(exp->ctx == EXPR_CTX_STORE);
+                    exp->ir_val = sym->ir_val;
+                }
             } else {
                 exp->ir_val = sym->ir_val;
             }
@@ -498,6 +503,38 @@ static void emit_ir_block(ParserState *ps, Stmt *stmt)
     exit_scope(ps);
 }
 
+static void emit_ir_simple_assignment(ParserState *ps, Expr *lhs, Expr *rhs)
+{
+    BUILDER(ps);
+    KlrValue *var = lhs->ir_val;
+    if (var->kind == KLR_VALUE_GLOBAL) {
+        klr_build_set_global(&bldr, var, rhs->ir_val);
+    } else {
+        klr_build_move(&bldr, var, rhs->ir_val);
+    }
+}
+
+static void emit_ir_assignment(ParserState *ps, Stmt *stmt)
+{
+    AssignStmt *s = (AssignStmt *)stmt;
+    AssignOpKind op = s->op;
+    Expr *lhs = s->lhs;
+    Expr *rhs = s->rhs;
+
+    rhs->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, rhs);
+
+    if (op == OP_ASSIGN) {
+        lhs->ctx = EXPR_CTX_STORE;
+        lhs->arg = rhs;
+        emit_ir_visit_expr(ps, lhs);
+        if (!lhs->ir_val || !rhs->ir_val) return;
+        emit_ir_simple_assignment(ps, lhs, rhs);
+    } else {
+        NYI();
+    }
+}
+
 static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -516,7 +553,8 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
         [STMT_IF_KIND]      = emit_ir_if_stmt,
         [STMT_WHILE_KIND]   = emit_ir_while_stmt,
         [STMT_FOR_KIND]     = emit_ir_for_stmt,
-        [STMT_BLOCK_KIND]   = emit_ir_block
+        [STMT_BLOCK_KIND]   = emit_ir_block,
+        [STMT_ASSIGN_KIND]  = emit_ir_assignment,
     };
     /* clang-format on */
 

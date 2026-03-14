@@ -955,7 +955,7 @@ static TypeSpec *__to_typespec(char **str)
 
     char ch = *s;
     char *k, *k2;
-    TypeSpec *ts;
+    TypeSpec *ts = NULL;
     TypeSpec *arg;
     Vector *args;
 

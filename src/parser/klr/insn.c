@@ -146,6 +146,7 @@ static OpCode no_regs_codes[] = {
     OP_JMP_INT_CMP_GT_IMM,
     OP_JMP_INT_CMP_LE_IMM,
     OP_JMP_INT_CMP_GE_IMM,
+    OP_SET_GLOBAL,
 };
 
 int insn_has_value(KlrInsn *insn)
@@ -233,7 +234,8 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
         panic("'set_global %%g, %%v' requires a global variable.");
     }
 
-    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN) {
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
+        val->kind != KLR_VALUE_PARAM) {
         panic("'set_global %%g, %%v' requires a reg value.");
     }
 
@@ -247,12 +249,12 @@ KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCod
                            char *name, const char *op_name)
 {
     if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
-        lhs->kind != KLR_VALUE_PARAM && lhs->kind != KLR_VALUE_LOCAL) {
+        lhs->kind != KLR_VALUE_PARAM) {
         panic("'%s %%x, %%y' requires both reg vars/consts", op_name);
     }
 
     if (rhs->kind != KLR_VALUE_CONST && rhs->kind != KLR_VALUE_INSN &&
-        rhs->kind != KLR_VALUE_PARAM && rhs->kind != KLR_VALUE_LOCAL) {
+        rhs->kind != KLR_VALUE_PARAM) {
         panic("'%s %%x, %%y' requires both reg vars/consts", op_name);
     }
 
@@ -268,11 +270,13 @@ KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCod
 KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code,
                         char *name)
 {
-    if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN) {
+    if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
+        lhs->kind != KLR_VALUE_PARAM) {
         panic("'add %%x, %%y' requires both reg vars/consts");
     }
 
-    if (rhs->kind != KLR_VALUE_CONST && rhs->kind != KLR_VALUE_INSN) {
+    if (rhs->kind != KLR_VALUE_CONST && rhs->kind != KLR_VALUE_INSN &&
+        rhs->kind != KLR_VALUE_PARAM) {
         panic("'add %%x, %%y' requires both reg vars/consts");
     }
 

@@ -481,27 +481,6 @@ KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut)
     return (KlrValue *)global;
 }
 
-static KlrLocal *new_local(TypeSpec *ts, char *name)
-{
-    KlrLocal *local = mm_alloc_obj_fast(local);
-    INIT_KLR_VALUE(local, KLR_VALUE_LOCAL, ts, name);
-    init_list(&local->bb_link);
-    local->bb = NULL;
-    local->counter = 0;
-    return local;
-}
-
-KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ts, char *name)
-{
-    KlrLocal *local = new_local(ts, name);
-    KlrBasicBlock *bb = bldr->bb;
-    list_push_back(&bb->local_list, &local->bb_link);
-    local->bb = bb;
-    KlrFunc *func = bb->func;
-    vector_push_back(&func->locals, &local);
-    return (KlrValue *)local;
-}
-
 KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *path, char *name)
 {
     KlrExtFunc *fn = mm_alloc_obj(fn);

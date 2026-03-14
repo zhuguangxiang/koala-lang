@@ -42,9 +42,14 @@ func foo() {
     // let x = my_list[0]        // (2) 依赖 my_list 的折叠结果
 }
 
-// CHECK-DAG: set_global @i int64, 10 int64
-// CHECK-DAG: set_global @j int64, 11 int64
-// CHECK-DAG: set_global @b bool, true bool
-// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 14 int64
-// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64
-// CHECK-DAG: ret void
+// CHECK-LABEL: func @__init__()
+// CHECK: set_global @i int64, 10 int64
+// CHECK: set_global @j int64, 11 int64
+// CHECK: set_global @b bool, true bool
+// CHECK: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64
+// CHECK: ret void
+
+// CHECK-LABEL: func @foo()
+// CHECK: call @print [ext = true, path = 'std/builtin'], 14 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64
+// CHECK: ret void

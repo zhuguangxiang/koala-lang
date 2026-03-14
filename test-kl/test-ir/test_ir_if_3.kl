@@ -82,10 +82,6 @@ func foo() {
     } else {
         print("Path B", b && false)
     }
-
-    // TODO:
-    // var c = 100
-    // c = 200
 }
 
 // CHECK-LABEL: func @foo()

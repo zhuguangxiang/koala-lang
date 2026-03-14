@@ -30,8 +30,9 @@ func foo() {
     let unsued = "hello"
 }
 
-// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 14 int64
-// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64
-// CHECK-DAG: call @print [ext = true, path = 'std/builtin'], 'k is greater than 12' str, 10 int64
-// CHECK-DAG: call @print [ext = true, path = 'std/builtin'] [const], 'j is greater than 10' str
-// CHECK-DAG: ret void
+// CHECK-LABEL: func @foo()
+// CHECK: call @print [ext = true, path = 'std/builtin'], 14 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'k is greater than 12' str, 10 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'j is greater than 10' str
+// CHECK: ret void

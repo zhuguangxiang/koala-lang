@@ -23,7 +23,6 @@ typedef enum _KlrValueKind {
     KLR_VALUE_FUNC,
     KLR_VALUE_BLOCK,
     KLR_VALUE_PARAM,
-    KLR_VALUE_LOCAL,
     KLR_VALUE_INSN,
     KLR_VALUE_KLASS,
     KLR_VALUE_FIELD,
@@ -92,17 +91,6 @@ typedef struct _KlrVar {
     int mutable;
     KlrConst *kval;
 } KlrGlobal, KlrField;
-
-/* local register variable */
-typedef struct _KlrLocal {
-    KLR_VALUE_HEAD
-    /* link in bb */
-    List bb_link;
-    /* ->bb */
-    struct _KlrBasicBlock *bb;
-    /* rename counter(phi used) */
-    int counter;
-} KlrLocal;
 
 /* function parameter */
 typedef struct _KlrParam {
@@ -376,7 +364,6 @@ KlrValue *klr_func_get_param(KlrValue *val, int index);
 KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ts, char *name);
 
 KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut);
-KlrValue *klr_add_local(KlrBuilder *bldr, TypeSpec *ts, char *name);
 KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name);
 KlrValue *klr_klass_add_field(KlrValue *klass, char *name, TypeSpec *ts);
 KlrValue *klr_klass_add_method(KlrValue *klass, char *name, TypeSpec *ret,

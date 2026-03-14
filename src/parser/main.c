@@ -207,7 +207,7 @@ static void build_dir(char *path, Vector *pss)
     char *end = path + strlen(path) - 1;
     while (*end == '/') --end;
     char *prefix = str_ndup(path, end - path + 1);
-    int prefixlen = strlen(prefix);
+    size_t prefixlen = strlen(prefix);
     char fullpath[MAX_PATH_LEN] = { 0 };
     char *filename;
 

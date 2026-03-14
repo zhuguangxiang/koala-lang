@@ -1,0 +1,23 @@
+// RUN: koalac %s | filecheck %s
+
+var c = 100
+c = 200
+print(c)
+
+// CHECK-LABEL: func @__init__()
+// CHECK: set_global @c int64, 100 int64
+// CHECK: set_global @c int64, 200 int64
+// CHECK: %0 = get_global @c int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], %0 int64
+// CHECK: ret void
+
+
+func foo() {
+    var x = 10
+    if (c > 150) {
+        x = 20
+    } else {
+        x = 30
+    }
+    print(x)
+}

@@ -432,14 +432,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
     }
 }
 
-static void print_local(KlrLocal *local, FILE *fp)
-{
-    fprintf(fp, "\n        ");
-    fprintf(fp, "local ");
-    klr_print_name_or_tag((KlrValue *)local, fp);
-    print_value_type(local, fp);
-}
-
 static void print_preds(KlrBasicBlock *bb, int spaces, FILE *fp)
 {
     fprintf(fp, "%*s = ", spaces, ";; preds");
@@ -481,16 +473,6 @@ static void print_block(KlrBasicBlock *bb, FILE *fp)
         if (edge->src != fn->sbb) print_preds(bb, 50 - used + 8, fp);
     }
 
-    KlrFunc *func = bb->func;
-    // first block, print locals
-    if (list_first(&func->bb_list, KlrBasicBlock, link) == bb) {
-        KlrLocal **local;
-        Vector *vec = &func->locals;
-        vector_foreach_ptr(local, vec) {
-            if (klr_value_used(*local)) print_local((*local), fp);
-        }
-    }
-
     KlrInsn *insn;
     insn_foreach(insn, bb) {
         fprintf(fp, "\n        ");
@@ -498,22 +480,14 @@ static void print_block(KlrBasicBlock *bb, FILE *fp)
     }
 }
 
-static int need_update_tag(KlrInsn *insn) { return insn_has_value(insn); }
-
 static void update_tags(KlrFunc *fn)
 {
     fn->tag = 0;
     fn->bb_tag = 0;
 
-    KlrParam **param;
-    vector_foreach_ptr(param, &fn->params) {
-        if (!(*param)->name[0]) (*param)->tag = fn->tag++;
-    }
-
-    KlrLocal **local;
-    Vector *vec = &fn->locals;
-    vector_foreach_ptr(local, vec) {
-        if (!(*local)->name[0]) (*local)->tag = fn->tag++;
+    KlrParam *param;
+    vector_foreach(param, &fn->params) {
+        if (!param->name[0]) param->tag = fn->tag++;
     }
 
     KlrBasicBlock *bb;
@@ -521,23 +495,8 @@ static void update_tags(KlrFunc *fn)
         if (!bb->name[0]) bb->tag = fn->bb_tag++;
         KlrInsn *insn;
         insn_foreach(insn, bb) {
-            if (!need_update_tag(insn)) continue;
+            if (!insn_has_value(insn)) continue;
             if (!insn->name[0]) insn->tag = fn->tag++;
-        }
-    }
-}
-
-void klr_print_var_use(KlrFunc *func, FILE *fp)
-{
-    KlrLocal *local;
-    Vector *vec = &func->locals;
-    KlrUse *use;
-    int j = 0;
-    vector_foreach(local, vec) {
-        fprintf(fp, "local: %s uses:\n", local->name);
-        j = 1;
-        use_foreach(use, local) {
-            fprintf(fp, "\t [%d] %d\n", j++, use->insn->code);
         }
     }
 }
@@ -620,15 +579,15 @@ void klr_print_func(KlrFunc *func, FILE *fp)
     fprintf(fp, "  func @%s", func->name);
 
     fprintf(fp, "(");
-    KlrParam **param;
-    vector_foreach_ptr(param, &func->params) {
+    KlrParam *param;
+    vector_foreach(param, &func->params) {
         if (i__ == 0) {
             fprintf(fp, "param ");
         } else {
             fprintf(fp, ", param ");
         }
-        klr_print_name_or_tag(*(KlrValue **)param, fp);
-        print_value_type((*param), fp);
+        klr_print_name_or_tag((KlrValue *)param, fp);
+        print_value_type(param, fp);
     }
 
     fprintf(fp, ")");

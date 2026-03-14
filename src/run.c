@@ -289,7 +289,7 @@ static void enum_koala_state(Queue *que, KoalaState *ks)
     ShadowStack *trace = ks->shadow_stacks;
     while (trace) {
         void *obj;
-        for (int i = 0; i < trace->count; i++) {
+        for (uint32_t i = 0; i < trace->count; i++) {
             obj = trace->objs[i];
             gc_mark_obj(obj, que);
         }

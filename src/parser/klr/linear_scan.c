@@ -51,13 +51,13 @@ static void __free_register(KlrLSRAContext *ctx, KlrValue *val)
 #endif
 }
 
-static int local_first_def_pos(KlrLocal *local)
-{
-    KlrUse *use = use_first(local);
-    KlrInsn *insn = use->insn;
-    ASSERT(insn->code == OP_IR_STORE);
-    return insn->pos;
-}
+// static int local_first_def_pos(KlrLocal *local)
+// {
+//     KlrUse *use = use_first(local);
+//     KlrInsn *insn = use->insn;
+//     ASSERT(insn->code == OP_IR_STORE);
+//     return insn->pos;
+// }
 
 static int val_last_use_pos(KlrValue *val)
 {
@@ -110,20 +110,20 @@ void klr_alloc_registers(KlrFunc *func)
     }
 
     /* local variables */
-    KlrLocal **local;
-    vector_foreach_ptr(local, &func->locals) {
-        KlrInterval interval;
-        interval.val = (KlrValue *)(*local);
-        interval.allocated = 0;
-        interval.start = local_first_def_pos(*local);
-        interval.end = val_last_use_pos((KlrValue *)(*local));
-        vector_push_back(&ctx.intervals, &interval);
-#ifndef NOLOG
-        fprintf(stdout, "local: ");
-        klr_print_name_or_tag((KlrValue *)(*local), stdout);
-        fprintf(stdout, ", interval: [%d, %d)\n", interval.start, interval.end);
-#endif
-    }
+    //     KlrLocal **local;
+    //     vector_foreach_ptr(local, &func->locals) {
+    //         KlrInterval interval;
+    //         interval.val = (KlrValue *)(*local);
+    //         interval.allocated = 0;
+    //         interval.start = local_first_def_pos(*local);
+    //         interval.end = val_last_use_pos((KlrValue *)(*local));
+    //         vector_push_back(&ctx.intervals, &interval);
+    // #ifndef NOLOG
+    //         fprintf(stdout, "local: ");
+    //         klr_print_name_or_tag((KlrValue *)(*local), stdout);
+    //         fprintf(stdout, ", interval: [%d, %d)\n", interval.start, interval.end);
+    // #endif
+    //     }
 
     /* instructions */
     basic_block_foreach(bb, func) {
