@@ -87,7 +87,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 
 %union {
     char *sval;
-    __int128 ival;
+    __int128_t ival;
     __float128 fval;
     Stmt *stmt;
     Expr *expr;
@@ -2948,7 +2948,9 @@ atom
             $$ = NULL;
             YYERROR;
         } else {
-            $$ = expr_from_lit_int(ps->sval, $1, ps->sign, ps->bit_mode);
+            $$ = expr_from_lit_int(ps->sval, ps->sign, ps->bit_mode);
+            LitExpr *lit = (LitExpr *)$$;
+            lit->ival_128 = $1;
             expr_set_loc($$, loc(@1));
         }
     }

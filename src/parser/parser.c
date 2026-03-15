@@ -2630,7 +2630,8 @@ int do_compile(Vector *pss, char *output)
         if (!ps) continue;
         parse_ast(ps);
         if (!ps->errors) {
-            ast_emit_ir(ps);
+            kl_gen_ir(ps);
+            kl_do_lowering(ps);
         }
         errors += ps->errors;
     }

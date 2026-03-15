@@ -149,7 +149,7 @@ static OpCode no_regs_codes[] = {
     OP_SET_GLOBAL,
 };
 
-int insn_has_value(KlrInsn *insn)
+int ir_has_value(KlrInsn *insn)
 {
     for (int i = 0; i < COUNT_OF(no_regs_codes); i++) {
         if (insn->code == no_regs_codes[i]) return 0;

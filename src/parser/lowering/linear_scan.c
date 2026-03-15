@@ -128,7 +128,7 @@ void klr_alloc_registers(KlrFunc *func)
     /* instructions */
     basic_block_foreach(bb, func) {
         insn_foreach(insn, bb) {
-            if (insn_has_value(insn)) {
+            if (ir_has_value(insn)) {
                 KlrInterval interval;
                 interval.val = (KlrValue *)insn;
                 interval.allocated = 0;

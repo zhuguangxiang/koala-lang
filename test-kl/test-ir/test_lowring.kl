@@ -1,0 +1,6 @@
+
+func foo(n int) int {
+    let a = 100
+    let b = n + a + 1
+    return b
+}

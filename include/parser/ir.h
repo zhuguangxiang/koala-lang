@@ -115,8 +115,6 @@ typedef struct _KlrFunc {
 
     /* params(value, use only) */
     Vector params;
-    /* locals(load/store) */
-    Vector locals;
 
     /* start basic block */
     struct _KlrBasicBlock *sbb;
@@ -128,6 +126,27 @@ typedef struct _KlrFunc {
 
     /* klass pointer */
     struct _KlrKlass *klass;
+
+    /* number of virtual registers used */
+    int num_vregs;
+
+    /* LIR (Lowered IR) generation pipeline:
+     *
+     *   1. VReg assignment:
+     *        Assign a unique virtual register to every SSA value.
+     *
+     *   2. Lowering:
+     *        Instruction selection, pattern fusion, instruction splitting,
+     *        and conversion from SSA IR to linear LIR.
+     *
+     *   3. Register allocation:
+     *        Map vregs to physical registers (LSRA / graph coloring / simple RA),
+     *        inserting spills and reloads when necessary.
+     *
+     *   4. Code emission:
+     *        Patch jump offsets, apply WIDE expansion, and encode final VM bytecode.
+     */
+    Vector lir;
 } KlrFunc;
 
 /* basic block */
@@ -174,6 +193,20 @@ typedef struct _KlrBasicBlock {
 
     /* local variable constant map */
     HashMap local_var_map;
+
+    /**
+     * The linearized PC index of the first LowerInsn belonging to this block.
+     *
+     * Assigned during the lowering phase.
+     * Used by the patching phase to compute relative jump offsets:
+     *
+     *     offset = target_bb->start_pc - (current_pc + 1)
+     *
+     * This value is stable after lowering and remains valid through
+     * register allocation and encoding.
+     */
+    int start_pc;
+
 } KlrBasicBlock;
 
 /* edge between basic blocks */
@@ -366,6 +399,8 @@ KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name);
 KlrValue *klr_func_get_param(KlrValue *val, int index);
 KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ts, char *name);
 
+#define param_foreach(param, func) vector_foreach(param, &(func)->params)
+
 KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut);
 KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name);
 KlrValue *klr_klass_add_field(KlrValue *klass, char *name, TypeSpec *ts);
@@ -506,8 +541,8 @@ void klr_append_insn(KlrBuilder *bldr, KlrInsn *insn);
 
 void klr_erase_insn(KlrInsn *insn);
 
-/* check an insn needs allocate register or not */
-int insn_has_value(KlrInsn *insn);
+/* check an ir needs allocate register or not */
+int ir_has_value(KlrInsn *insn);
 
 /* IR: %0 = local int [immutable] */
 KlrValue *klr_build_local(KlrBuilder *bldr, TypeSpec *ts, char *name);

@@ -443,7 +443,6 @@ KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name)
     init_list(&fn->bb_list);
     init_list(&fn->edge_list);
     vector_init_ptr(&fn->params);
-    vector_init_ptr(&fn->locals);
 
     /* initial 'start' and 'end' block */
     fn->sbb = new_block(fn, "start", NULL);
@@ -548,7 +547,6 @@ KlrValue *klr_klass_add_method(KlrValue *klass_val, char *name, TypeSpec *ret,
     init_list(&method->bb_list);
     init_list(&method->edge_list);
     vector_init_ptr(&method->params);
-    vector_init_ptr(&method->locals);
 
     /* initial 'start' and 'end' block */
     method->sbb = new_block(method, "start", NULL);

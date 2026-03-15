@@ -126,7 +126,7 @@ typedef struct _LitExpr {
     };
 } LitExpr;
 
-Expr *expr_from_lit_int(char *orginal, __int128_t val, int sign, int bit_mode);
+Expr *expr_from_lit_int(char *orginal, int sign, int bit_mode);
 Expr *expr_from_lit_float(double val);
 Expr *expr_from_lit_bool(int val);
 Expr *expr_from_lit_str(Buffer *buf);

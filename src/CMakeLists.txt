@@ -23,21 +23,20 @@ set(PARSER_SRC
     parser/parser_expr.c
     parser/symbol.c
     parser/typespec.c
-    parser/emit_ir.c
-    parser/emit_code.c
     parser/write_klc.c
     parser/read_klc.c
+    parser/gen_ir.c
     parser/klr/ir.c
     parser/klr/insn.c
     parser/klr/printer.c
-    # parser/klr/insn_remap.c
-    # parser/klr/linear_scan.c
-    parser/klr/simple_reg_alloc.c
     parser/klr/pass.c
     parser/klr/passes/dot.c
     parser/klr/passes/const_copy_prop.c
     parser/klr/passes/dce.c
-    parser/klr/passes/cfg_bb_opt.c)
+    parser/klr/passes/cfg_bb_opt.c
+    parser/lowering/lowering.c
+    parser/lowering/encode.c
+    parser/lowering/lower_emit.c)
 
 add_library(parser STATIC ${PARSER_SRC})
 target_link_libraries(parser koala-common)
@@ -57,6 +56,7 @@ set(COMMON_SOURCES
     common/hashmap.c
     common/buffer.c
     common/bitset.c
+    common/opcode.c
     common/utf8.c
     common/klc.c)
 

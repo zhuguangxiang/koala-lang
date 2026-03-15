@@ -721,7 +721,7 @@ static void _add_klass(KlrModule *m, KlassDeclStmt *kls)
     sym->ir_val = kval;
 }
 
-void ast_emit_ir(ParserState *ps)
+void kl_gen_ir(ParserState *ps)
 {
     KlrModule *m = klr_create_module(ps->filename);
     ps->mod = m;

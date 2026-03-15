@@ -47,7 +47,7 @@ void klr_simple_alloc_registers(KlrFunc *func)
     KlrInsn *insn;
     basic_block_foreach(bb, func) {
         insn_foreach(insn, bb) {
-            if (insn_has_value(insn)) {
+            if (ir_has_value(insn)) {
                 insn->vreg = num_regs++;
 #ifndef NOLOG
                 fprintf(stdout, "name: ");

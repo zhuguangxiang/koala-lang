@@ -505,7 +505,7 @@ static void update_tags(KlrFunc *fn)
         if (!bb->name[0]) bb->tag = fn->bb_tag++;
         KlrInsn *insn;
         insn_foreach(insn, bb) {
-            if (!insn_has_value(insn)) continue;
+            if (!ir_has_value(insn)) continue;
             if (!insn->name[0]) insn->tag = fn->tag++;
         }
     }

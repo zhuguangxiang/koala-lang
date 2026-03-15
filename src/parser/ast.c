@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-Expr *expr_from_lit_int(char *orginal, __int128_t val, int sign, int bit_mode)
+Expr *expr_from_lit_int(char *orginal, int sign, int bit_mode)
 {
     LitExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_LITERAL_KIND;
@@ -17,7 +17,6 @@ Expr *expr_from_lit_int(char *orginal, __int128_t val, int sign, int bit_mode)
     exp->orginal = orginal; // atom str
     exp->bit_mode = bit_mode;
     exp->sign = sign;
-    exp->ival_128 = val;
     exp->ival = 0;
     exp->ts = sign ? int64_type_spec() : uint64_type_spec();
     return (Expr *)exp;
