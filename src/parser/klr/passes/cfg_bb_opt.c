@@ -137,7 +137,7 @@ static int remove_only_jump_block(KlrFunc *func)
             KlrOper *oper = use->oper;
             log_info("update operand in insn:");
             log_insn(use->insn);
-            update_operand(oper, use->insn, _dst);
+            set_operand(oper, use->insn, _dst);
             log_info("after update operand:");
             log_insn(use->insn);
             log_info("add edge '%%%s' -->> '%%%s'", klr_block_name(use->insn->bb),

@@ -107,40 +107,13 @@ static void print_const(KlrConst *v, FILE *fp)
 
 static void print_operand(KlrOper *oper, FILE *fp)
 {
-    KlrOperKind kind = oper->kind;
-    if (kind == KLR_OPER_NONE) {
-        /* FIXME:
-         * number of phi parameters is the same with predecessors number?
-         */
-        assert(0);
-        return;
-    }
-
-    if (kind == KLR_OPER_PHI) {
-        fprintf(fp, "[ ");
-        KlrValue *val = oper->phi.use.ref;
-        if (val->kind == KLR_VALUE_CONST) {
-            print_const((KlrConst *)val, fp);
-        } else {
-            klr_print_name_or_tag(val, fp);
-        }
-
-        if (val->ts) {
-            print_value_type(val, fp);
-        }
-
-        fprintf(fp, ", ");
-        klr_print_name_or_tag((KlrValue *)oper->phi.bb, fp);
-        fprintf(fp, " ]");
+    KlrValue *val = oper_value(oper);
+    if (klr_is_const(val)) {
+        print_const((KlrConst *)val, fp);
     } else {
-        KlrValue *val = oper->use.ref;
-        if (kind == KLR_OPER_CONST) {
-            print_const((KlrConst *)val, fp);
-        } else {
-            klr_print_name_or_tag(val, fp);
-        }
-        print_value_type(val, fp);
+        klr_print_name_or_tag(val, fp);
     }
+    print_value_type(val, fp);
 }
 
 static void print_binary(KlrInsn *insn, char *op, FILE *fp)
@@ -204,7 +177,7 @@ static void print_jmp(KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "jmp ");
 
-    KlrValue *val = insn->opers[0].use.ref;
+    KlrValue *val = insn_oper_value(insn, 0);
     if (val->name[0])
         fprintf(fp, "label %%%s", val->name);
     else
@@ -219,13 +192,13 @@ static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
 
-    KlrValue *_then = insn->opers[1].use.ref;
+    KlrValue *_then = insn_oper_value(insn, 1);
     if (_then->name[0])
         fprintf(fp, "label %%%s", _then->name);
     else
         fprintf(fp, "label %%bb%d", _then->tag);
 
-    KlrValue *_else = insn->opers[2].use.ref;
+    KlrValue *_else = insn_oper_value(insn, 2);
     if (_else->name[0])
         fprintf(fp, ", label %%%s", _else->name);
     else
@@ -234,7 +207,7 @@ static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)
 
 static void print_call(KlrInsn *insn, FILE *fp)
 {
-    KlrValue *fn = insn->opers[0].use.ref;
+    KlrValue *fn = insn_oper_value(insn, 0);
 
     if (fn->ts->kind == TYPE_NO_TYPE) {
         fprintf(fp, "call ");

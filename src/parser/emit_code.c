@@ -24,7 +24,7 @@ extern "C" {
 static void emit_insn_operand(KlrOper *oper, Buffer *buf, KlcFile *filp)
 {
     KlrOperKind kind = oper->kind;
-    KlrValue *val = oper->use.ref;
+    KlrValue *val = oper_value(oper);
 
     if (kind == KLR_OPER_CONST) {
         KlrConst *v = (KlrConst *)val;
@@ -66,7 +66,7 @@ static void emit_insn_operand(KlrOper *oper, Buffer *buf, KlcFile *filp)
 static void emit_insn_call(KlrInsn *insn, Buffer *buf, KlcFile *filp)
 {
     uint16_t reloc_index = 0;
-    KlrValue *val = insn->opers[0].use.ref;
+    KlrValue *val = insn_oper_value(insn, 0);
     if (val->kind == KLR_VALUE_EXT_FUNC) {
         KlrExtFunc *ext = (KlrExtFunc *)val;
         reloc_index = klc_add_reloc(filp, ext->path, ext->name);

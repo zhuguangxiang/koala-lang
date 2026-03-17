@@ -38,14 +38,18 @@ typedef enum _KlrValueKind {
     TypeSpec *ts;           \
     /* list of all Uses */  \
     List use_list;          \
+    /* list of all defs */  \
+    List def_list;          \
     /* use count */         \
     int use_count;          \
+    /* def count */         \
+    int def_count;          \
     /* virtual register */  \
     int vreg;               \
-    /* printable name */    \
-    char *name;             \
     /* printable tag */     \
-    int tag;
+    int tag;                \
+     /* printable name */   \
+    char *name;
 /* clang-format on */
 
 typedef struct _KlrValue {
@@ -56,9 +60,12 @@ typedef struct _KlrValue {
     (val)->kind = (_kind); \
     (val)->ts = (_ts); \
     init_list(&(val)->use_list); \
+    init_list(&(val)->def_list); \
+    (val)->use_count = 0; \
+    (val)->def_count = 0; \
     (val)->vreg = -1; \
-    (val)->name = _name ? _name : ""; \
-    (val)->tag = -1;
+    (val)->tag = -1; \
+    (val)->name = _name ? _name : "";
 
 /* literal constant */
 typedef struct _KlrConst {
@@ -283,38 +290,24 @@ typedef struct _KlrUse {
     /* link in use_list */
     List use_link;
 
-    /* self instruction */
+    /* back point to insn */
     struct _KlrInsn *insn;
-    /* self operand */
+    /* back point to oper */
     struct _KlrOper *oper;
+    /* true if this is a write(Def), false if it is a read(Use) */
+    int is_def;
 } KlrUse;
 
 /* phi operand */
 typedef struct _KlrPhiParam {
-    KlrUse use;
     KlrBasicBlock *bb;
     List bb_link;
 } KlrPhiParam;
 
-typedef enum _KlrOperKind {
-    KLR_OPER_NONE,
-    KLR_OPER_CONST,
-    KLR_OPER_GLOBAL,
-    KLR_OPER_FUNC,
-    KLR_OPER_BLOCK,
-    KLR_OPER_PARAM,
-    KLR_OPER_LOCAL,
-    KLR_OPER_INSN,
-    KLR_OPER_PHI,
-} KlrOperKind;
-
 /* operand */
 typedef struct _KlrOper {
-    KlrOperKind kind;
-    union {
-        KlrUse use;
-        KlrPhiParam phi;
-    };
+    KlrUse use;
+    KlrPhiParam *phi;
 } KlrOper;
 
 #define KLR_INSN_FLAGS_LOOP  1
@@ -625,27 +618,33 @@ KlrValue *klr_build_loadk(KlrBuilder *bldr, KlrValue *val);
 
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)
+
 #define insn_foreach_safe(insn, next, bb) \
     list_foreach_safe(insn, next, bb_link, &(bb)->insn_list)
+
 #define insn_foreach_reverse(insn, bb) \
     list_foreach_reverse(insn, bb_link, &(bb)->insn_list)
+
 #define insn_foreach_reverse_safe(insn, next, bb) \
     list_foreach_reverse_safe(insn, next, bb_link, &(bb)->insn_list)
+
 #define insn_first(bb) list_first(&(bb)->insn_list, KlrInsn, bb_link)
 #define insn_last(bb)  list_last(&(bb)->insn_list, KlrInsn, bb_link)
 
 /* def-use iteration */
 #define use_foreach(use, val) list_foreach(use, use_link, &(val)->use_list)
+
 #define use_foreach_safe(use, next, val) \
     list_foreach_safe(use, next, use_link, &(val)->use_list)
+
 #define use_first(val) list_first(&(val)->use_list, KlrUse, use_link)
 #define use_last(val)  list_last(&(val)->use_list, KlrUse, use_link)
 
-/* operand iteration */
-#define operand_foreach(oper, insn) \
-    for (int i__ = 0; (i__ < (insn)->num_opers) && (oper = &(insn)->opers[i__], 1); i__++)
+/* operand & use */
 
 // clang-format off
+
+#define oper_value(oper) ((oper)->use.ref)
 
 #define insn_operand(insn, i) ({ \
     ASSERT((i) >= 0 && (i) < (insn)->num_opers); \
@@ -654,23 +653,31 @@ KlrValue *klr_build_loadk(KlrBuilder *bldr, KlrValue *val);
 
 #define insn_oper_value(insn, i) ({ \
     KlrOper *oper = insn_operand(insn, i); \
-    oper->use.ref; \
+    oper_value(oper); \
 })
 
-#define oper_value_foreach(val, insn, start) \
+/* insn->oper.use iteration */
+#define insn_oper_use_foreach(use, insn) \
+    for (int i__ = 0; (i__ < (insn)->num_opers) && (use = &(insn)->opers[i__].use, 1); i__++)
+
+#define _insn_oper_value_foreach(val, insn, start) \
     for (int i__ = (start); (i__ < (insn)->num_opers) && (val = insn_oper_value(insn, i__), 1); i__++)
+
+/* insn->oper.use.ref iteration */
+#define insn_oper_value_foreach(val, insn) _insn_oper_value_foreach(val, insn, 0)
 
 // clang-format on
 
 /* replace all uses of 'def' value with 'val' value */
 void replace_all_uses_with(KlrValue *val, KlrValue *def);
 
-/* update operand */
-void update_index_operand(KlrInsn *insn, int i, KlrValue *val);
-void update_operand(KlrOper *oper, KlrInsn *insn, KlrValue *val);
+/* set/clear operand */
+void set_operand_at(KlrInsn *insn, int i, KlrValue *val);
+void set_operand(KlrOper *oper, KlrInsn *insn, KlrValue *val);
+void clear_operand(KlrOper *oper);
 
 /* check value is used or not */
-#define klr_value_used(val) (!list_empty(&(val)->use_list))
+#define klr_is_used(val) (!list_empty(&(val)->use_list))
 
 /* <5> printer */
 

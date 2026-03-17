@@ -140,8 +140,8 @@ static void isel_lower_int_binary(KlrInsn *insn, KlrFunc *fn)
         rval = tmp;
         c1 = 0;
         c2 = 1;
-        update_index_operand(insn, 0, lval);
-        update_index_operand(insn, 1, rval);
+        set_operand_at(insn, 0, lval);
+        set_operand_at(insn, 1, rval);
     }
 
     switch (insn->code) {
@@ -162,7 +162,7 @@ static void isel_lower_int_binary(KlrInsn *insn, KlrFunc *fn)
 
                 // change to reg + reg
                 insn->code = OP_INT_ADD;
-                update_index_operand(insn, 1, _v);
+                set_operand_at(insn, 1, _v);
                 break;
             }
 
@@ -187,7 +187,7 @@ static void isel_lower_int_binary(KlrInsn *insn, KlrFunc *fn)
 
                 // change to reg - reg
                 insn->code = OP_INT_SUB;
-                update_index_operand(insn, 1, _v);
+                set_operand_at(insn, 1, _v);
                 break;
             }
 
@@ -211,7 +211,7 @@ static void isel_lower_int_binary(KlrInsn *insn, KlrFunc *fn)
 
                 // change to reg * reg
                 insn->code = OP_INT_MUL;
-                update_index_operand(insn, 1, _v);
+                set_operand_at(insn, 1, _v);
                 break;
             }
 
@@ -235,7 +235,7 @@ static void isel_lower_int_binary(KlrInsn *insn, KlrFunc *fn)
 
                 // change to reg / reg
                 insn->code = OP_INT_DIV;
-                update_index_operand(insn, 1, _v);
+                set_operand_at(insn, 1, _v);
                 break;
             }
 
@@ -260,7 +260,7 @@ static void isel_lower_int_binary(KlrInsn *insn, KlrFunc *fn)
 
                 // change to reg % reg
                 insn->code = OP_INT_MOD;
-                update_index_operand(insn, 1, _v);
+                set_operand_at(insn, 1, _v);
                 break;
             }
 
@@ -285,7 +285,7 @@ static void isel_lower_int_binary(KlrInsn *insn, KlrFunc *fn)
 
                 // change to reg == reg
                 insn->code = OP_INT_CMP_EQ;
-                update_index_operand(insn, 1, _v);
+                set_operand_at(insn, 1, _v);
                 break;
             }
 
@@ -349,8 +349,8 @@ void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         KlrValue *tmp = lval;
         lval = rval;
         rval = tmp;
-        update_index_operand(insn, 0, lval);
-        update_index_operand(insn, 1, rval);
+        set_operand_at(insn, 0, lval);
+        set_operand_at(insn, 1, rval);
         c1 = 0;
         c2 = 1;
     }
@@ -377,7 +377,7 @@ void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         // imm too large → materialize
         KlrValue *v = isel_materialize_const_before(fn, insn, rc);
         insn->code = R->reg_opcode;
-        update_index_operand(insn, 1, v);
+        set_operand_at(insn, 1, v);
         return;
     }
 

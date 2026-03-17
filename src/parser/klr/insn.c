@@ -4,69 +4,77 @@
  */
 
 #include "ir.h"
+#include "log.h"
 #include "mm.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-static void init_use(KlrUse *use, KlrInsn *insn, KlrOper *oper, KlrValue *ref)
+static void init_use(KlrUse *use, KlrInsn *insn, KlrOper *oper, KlrValue *ref, int is_def)
 {
     use->insn = insn;
     use->oper = oper;
     init_list(&use->use_link);
-    list_push_back(&ref->use_list, &use->use_link);
-    ref->use_count++;
+    use->is_def = is_def;
+    if (is_def) {
+        list_push_back(&ref->def_list, &use->use_link);
+        ref->def_count++;
+    } else {
+        list_push_back(&ref->use_list, &use->use_link);
+        ref->use_count++;
+    }
     use->ref = ref;
 }
 
 static void fini_use(KlrUse *use)
 {
     list_remove(&use->use_link);
-    use->ref->use_count--;
-    use->ref = NULL;
+
+    KlrValue *ref = use->ref;
+
+    if (use->is_def) {
+        ASSERT(klr_is_local(ref));
+        ref->def_count--;
+        if (ref->def_count == 0) {
+            log_info("erase insn '%%%s' since it has no defs after this removal",
+                     ref->name);
+            ASSERT(list_empty(&ref->def_list));
+            log_insn((KlrInsn *)ref);
+            klr_erase_insn((KlrInsn *)ref);
+        }
+    } else {
+        ref->use_count--;
+    }
 }
 
-static void init_oper(KlrOper *oper, KlrInsn *insn, KlrValue *ref)
+static void init_oper(KlrOper *oper, KlrInsn *insn, KlrValue *ref, int is_def)
 {
-    init_use(&oper->use, insn, oper, ref);
-    oper->phi.bb = NULL;
-    init_list(&oper->phi.bb_link);
-    static KlrOperKind mappings[KLR_VALUE_MAX] = {
-        KLR_OPER_NONE,  KLR_OPER_CONST, KLR_OPER_GLOBAL, KLR_OPER_FUNC,
-        KLR_OPER_BLOCK, KLR_OPER_PARAM, KLR_OPER_LOCAL,  KLR_OPER_INSN,
-    };
-
-    if (ref->kind > KLR_VALUE_NONE && ref->kind < KLR_VALUE_MAX) {
-        oper->kind = mappings[ref->kind];
-    } else {
-        panic("Invalid kind %d of Value", ref->kind);
-    }
+    init_use(&oper->use, insn, oper, ref, is_def);
+    oper->phi = NULL;
 }
 
 static void fini_oper(KlrOper *oper)
 {
-    if (oper->kind != KLR_OPER_PHI) {
-        fini_use(&oper->use);
-    } else {
-        NYI();
-    }
-    oper->kind = KLR_OPER_NONE;
+    fini_use(&oper->use);
+    oper->phi = NULL;
 }
 
-void update_operand(KlrOper *oper, KlrInsn *insn, KlrValue *val)
+void set_operand(KlrOper *oper, KlrInsn *insn, KlrValue *val)
 {
-    if (oper->kind != KLR_OPER_NONE) {
-        fini_oper(oper);
-    }
-    init_oper(oper, insn, val);
+    fini_oper(oper);
+
+    // def-val cannot be updated, so we only update use-val.
+    init_oper(oper, insn, val, 0);
 }
 
-void update_index_operand(KlrInsn *insn, int i, KlrValue *val)
+void set_operand_at(KlrInsn *insn, int i, KlrValue *val)
 {
     KlrOper *oper = insn_operand(insn, i);
-    update_operand(oper, insn, val);
+    set_operand(oper, insn, val);
 }
+
+void clear_operand(KlrOper *oper) { fini_oper(oper); }
 
 void replace_all_uses_with(KlrValue *val, KlrValue *def)
 {
@@ -78,7 +86,7 @@ void replace_all_uses_with(KlrValue *val, KlrValue *def)
             // the destination operand unchanged.
             continue;
         }
-        update_operand(use->oper, use->insn, val);
+        set_operand(use->oper, use->insn, val);
     }
 }
 
@@ -108,6 +116,8 @@ void klr_erase_insn(KlrInsn *insn)
     --bb->num_insns;
     ASSERT(list_empty(&insn->use_list));
     ASSERT(insn->use_count == 0);
+    ASSERT(list_empty(&insn->def_list));
+    ASSERT(insn->def_count == 0);
     for (int i = 0; i < insn->num_opers; i++) {
         fini_oper(&insn->opers[i]);
     }
@@ -173,8 +183,8 @@ void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
     }
 
     KlrInsn *insn = new_insn(OP_MOVE, 2, "");
-    init_oper(&insn->opers[0], insn, var);
-    init_oper(&insn->opers[1], insn, val);
+    init_oper(&insn->opers[0], insn, var, 1);
+    init_oper(&insn->opers[1], insn, val, 0);
     klr_append_insn(bldr, insn);
 }
 
@@ -218,7 +228,7 @@ KlrValue *klr_build_get_global(KlrBuilder *bldr, KlrValue *global)
     }
 
     KlrInsn *insn = new_insn(OP_GET_GLOBAL, 1, "");
-    init_oper(&insn->opers[0], insn, global);
+    init_oper(&insn->opers[0], insn, global, 0);
     insn->ts = global->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
@@ -240,8 +250,8 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
     }
 
     KlrInsn *insn = new_insn(OP_SET_GLOBAL, 2, "");
-    init_oper(&insn->opers[0], insn, global);
-    init_oper(&insn->opers[1], insn, val);
+    init_oper(&insn->opers[0], insn, global, 1);
+    init_oper(&insn->opers[1], insn, val, 0);
     klr_append_insn(bldr, insn);
 }
 
@@ -259,8 +269,8 @@ KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCod
     }
 
     KlrInsn *insn = new_insn(op, 2, name);
-    init_oper(&insn->opers[0], insn, lhs);
-    init_oper(&insn->opers[1], insn, rhs);
+    init_oper(&insn->opers[0], insn, lhs, 0);
+    init_oper(&insn->opers[1], insn, rhs, 0);
     TypeSpec *ty = lhs->ts;
     insn->ts = ty;
     klr_append_insn(bldr, insn);
@@ -281,8 +291,8 @@ KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode c
     }
 
     KlrInsn *insn = new_insn(code, 2, name);
-    init_oper(&insn->opers[0], insn, lhs);
-    init_oper(&insn->opers[1], insn, rhs);
+    init_oper(&insn->opers[0], insn, lhs, 0);
+    init_oper(&insn->opers[1], insn, rhs, 0);
     insn->ts = bool_type_spec();
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
@@ -296,9 +306,9 @@ void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
     }
 
     KlrInsn *insn = new_insn(OP_IR_JMP_COND, 3, "");
-    init_oper(&insn->opers[0], insn, cond);
-    init_oper(&insn->opers[1], insn, (KlrValue *)_then);
-    init_oper(&insn->opers[2], insn, (KlrValue *)_else);
+    init_oper(&insn->opers[0], insn, cond, 0);
+    init_oper(&insn->opers[1], insn, (KlrValue *)_then, 0);
+    init_oper(&insn->opers[2], insn, (KlrValue *)_else, 0);
     klr_append_insn(bldr, insn);
 
     klr_link_edge(bldr->bb, _then);
@@ -308,7 +318,7 @@ void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
 void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target)
 {
     KlrInsn *insn = new_insn(OP_JMP, 1, "");
-    init_oper(&insn->opers[0], insn, (KlrValue *)target);
+    init_oper(&insn->opers[0], insn, (KlrValue *)target, 0);
     klr_append_insn(bldr, insn);
 
     klr_link_edge(bldr->bb, target);
@@ -331,9 +341,9 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int na
     KlrInsn *insn = new_insn(OP_CALL, nargs + 1, name);
     insn->flags |= is_const ? KLR_INSN_FLAGS_CONST : 0;
 
-    init_oper(&insn->opers[0], insn, (KlrValue *)fn);
+    init_oper(&insn->opers[0], insn, (KlrValue *)fn, 0);
     for (int j = 0; j < nargs; j++) {
-        init_oper(&insn->opers[j + 1], insn, (KlrValue *)args[j]);
+        init_oper(&insn->opers[j + 1], insn, (KlrValue *)args[j], 0);
     }
     insn->ts = fn->ts;
     klr_append_insn(bldr, insn);
@@ -343,7 +353,7 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int na
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret)
 {
     KlrInsn *insn = new_insn(OP_RETURN, 1, "");
-    init_oper(&insn->opers[0], insn, ret);
+    init_oper(&insn->opers[0], insn, ret, 0);
     klr_append_insn(bldr, insn);
 
     KlrFunc *fn = bldr->bb->func;
@@ -362,14 +372,14 @@ void klr_build_ret_void(KlrBuilder *bldr)
 KlrInsn *klr_new_push(KlrValue *val)
 {
     KlrInsn *insn = new_insn(OP_PUSH, 1, "");
-    init_oper(&insn->opers[0], insn, val);
+    init_oper(&insn->opers[0], insn, val, 0);
     return insn;
 }
 
 KlrValue *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val)
 {
     KlrInsn *insn = new_insn(OP_CONST_INT_IMM, 1, "");
-    init_oper(&insn->opers[0], insn, val);
+    init_oper(&insn->opers[0], insn, val, 0);
     insn->ts = val->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
@@ -378,7 +388,7 @@ KlrValue *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val)
 KlrValue *klr_build_loadk(KlrBuilder *bldr, KlrValue *val)
 {
     KlrInsn *insn = new_insn(OP_LOADK, 1, "");
-    init_oper(&insn->opers[0], insn, val);
+    init_oper(&insn->opers[0], insn, val, 0);
     insn->ts = val->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;

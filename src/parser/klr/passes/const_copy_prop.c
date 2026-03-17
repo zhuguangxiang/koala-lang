@@ -15,7 +15,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 {
     OpCode op = insn->code;
 
-    if (op == OP_SET_GLOBAL || op == OP_GET_GLOBAL || op == OP_MOVE) {
+    if (op == OP_SET_GLOBAL || op == OP_GET_GLOBAL) {
         return;
     }
 
@@ -25,8 +25,10 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 
     int changed = 0;
 
-    KlrValue *val;
-    oper_value_foreach(val, insn, 0) {
+    KlrUse *use;
+    insn_oper_use_foreach(use, insn) {
+        if (use->is_def) continue;
+        KlrValue *val = use->ref;
         if (klr_is_local(val)) {
             KlrInsn *src = (KlrInsn *)val;
             // from current basic block local variable map, get the latest
@@ -35,7 +37,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             if (_val) {
                 log_info("operand %d-th of insn(/) is const value/insn:", i__);
                 log_insn(insn);
-                update_index_operand(insn, i__, _val);
+                set_operand_at(insn, i__, _val);
                 changed = 1;
             }
         }
@@ -286,7 +288,9 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_MOVE: {
-            ASSERT(!klr_value_used(insn));
+            // move is only one which doesn't have uses.
+            // so ->use_count is always zero.
+            ASSERT(!klr_is_used(insn));
             KlrValue *_dst = insn_oper_value(insn, 0);
             KlrValue *src = insn_oper_value(insn, 1);
             ASSERT(klr_is_local(_dst));
@@ -356,7 +360,7 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 memset(items, 0, sizeof(items));
                 // skip callee operand
                 KlrValue *val;
-                oper_value_foreach(val, insn, 1) {
+                _insn_oper_value_foreach(val, insn, 1) {
                     ASSERT(klr_is_const(val));
                     items[i__ - 1] = val;
                 }

@@ -178,8 +178,8 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         KlrValue *tmp = lhs;
         lhs = rhs;
         rhs = tmp;
-        update_index_operand(insn, 0, lhs);
-        update_index_operand(insn, 1, rhs);
+        set_operand_at(insn, 0, lhs);
+        set_operand_at(insn, 1, rhs);
         c1 = 0;
         c2 = 1;
     }
@@ -213,7 +213,7 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         // - float always comes here because float rules have allow_imm = 0
         KlrValue *v = isel_materialize_const_before(fn, insn, rc);
         insn->code = R->reg_op;
-        update_index_operand(insn, 1, v);
+        set_operand_at(insn, 1, v);
         return;
     }
 

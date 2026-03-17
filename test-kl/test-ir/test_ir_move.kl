@@ -1,0 +1,125 @@
+// RUN: koalac %s | filecheck %s
+
+func foo(n int) int {
+    let a = 500
+    let b = n + a + 1
+    var c = b + 2
+    c = c + 3
+    return c
+}
+
+// CHECK-LABEL: func @foo(%n int64) int64
+// CHECK: %0 = add %n int64, 500 int64
+// CHECK: %1 = add %0 int64, 1 int64
+// CHECK: %2 = add %1 int64, 2 int64
+// CHECK: %3 = add %2 int64, 3 int64
+// CHECK: ret %3 int64
+
+func test_overwrite(n int64) int64 {
+    var x = n + 1
+    x = n + 2
+    x = n + 3
+    return x
+}
+
+// CHECK-LABEL: func @test_overwrite(%n int64) int64
+// CHECK: %0 = add %n int64, 3 int64
+// CHECK: ret %0 int64
+
+func test_dead_move(n int64) int64 {
+    var x = n + 5
+    var y = x + 1
+    return y
+}
+
+// CHECK-LABEL: func @test_dead_move(%n int64) int64
+// CHECK: %0 = add %n int64, 5 int64
+// CHECK: %1 = add %0 int64, 1 int64
+// CHECK: ret %1 int64
+
+func test_if_else(c bool, n int64) int64 {
+    var x = 100
+    if (c) {
+        x = 200
+        print(x)
+    } else {
+        x = 300
+        print(x)
+    }
+    return x
+}
+// CHECK-LABEL: func @test_if_else(%c bool, %n int64) int64
+// CHECK: %x = local int64
+// CHECK: move %x int64, 100 int64
+// CHECK: branch %c bool, label %bb0, label %bb1
+// CHECK: move %x int64, 200 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 200 int64
+// CHECK: jmp label %bb2
+// CHECK: move %x int64, 300 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 300 int64
+// CHECK: jmp label %bb2
+// CHECK: ret %x int64
+
+
+func test_loop(n int64) int64 {
+    var i = 0
+    var sum = 0
+    while (i < n) {
+        sum = sum + i
+        i = i + 1
+    }
+    return sum
+}
+
+// CHECK-LABEL: func @test_loop(%n int64) int64
+// CHECK: %i = local int64
+// CHECK: move %i int64, 0 int64
+// CHECK: %sum = local int64
+// CHECK: move %sum int64, 0 int64
+// CHECK: jmp label %bb0
+
+// CHECK: %0 = cmplt %i int64, %n int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: %1 = add %sum int64, %i int64
+// CHECK: move %sum int64, %1 int64
+// CHECK: %2 = add %i int64, 1 int64
+// CHECK: move %i int64, %2 int64
+// CHECK: jmp label %bb0
+
+// CHECK: ret %sum int64
+
+/*
+func @test_loop(%n int64) int64 {
+  %entry:
+        %i = local int64
+        move %i int64, 0 int64
+        %sum = local int64
+        move %sum int64, 0 int64
+        jmp label %bb0
+
+  %bb0(while-cond):                               ;; preds = %entry, %bb1
+        %0 = cmplt %i int64, %n int64
+        branch %0 bool, label %bb1, label %bb2
+
+  %bb1(while-body):                               ;; preds = %bb0
+        %1 = add %sum int64, %i int64
+        move %sum int64, %1 int64
+        %2 = add %i int64, 1 int64
+        move %i int64, %2 int64
+        jmp label %bb0
+
+  %bb2(while-end):                                ;; preds = %bb0
+        ret %sum int64
+  }
+*/
+
+func test_param_move(a int64) int64 {
+    var x = a
+    var y = x
+    var z = y
+    return z
+}
+
+// CHECK-LABEL: func @test_param_move(%a int64) int64
+// CHECK: ret %a int64

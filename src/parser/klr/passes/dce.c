@@ -19,6 +19,7 @@ static int has_side_effect(KlrInsn *insn)
         case OP_RETURN_NONE:
         case OP_IR_JMP_COND:
         case OP_JMP:
+        case OP_IR_LOCAL:
             return 1;
 
         case OP_CALL: {
@@ -44,13 +45,11 @@ static int has_side_effect(KlrInsn *insn)
 
             /*
              * RULE A: Global Dead Store Check
-             * If the target local variable has a use_count of exactly 1,
-             * it means ONLY this MOVE instruction is referencing it.
-             * No other instructions (print, add, branch) are reading it.
-             * Therefore, the assignment is a dead store and has no side-effects.
-             * Both let and var locals can be optimized in this case.
+             * If the target local variable has a use_count of exactly 0, it means no
+             * instruction is reading from it. This MOVE is the only instruction writing
+             * to it, so it has no side-effects and can be safely removed.
              */
-            if (dst->use_count == 1) {
+            if (dst->use_count == 0) {
                 return 0; /* No side-effect: Erase the MOVE */
             }
 
@@ -77,6 +76,10 @@ static int has_side_effect(KlrInsn *insn)
                 if (src->kind == KLR_VALUE_INSN &&
                     (((KlrInsn *)src)->flags & KLR_INSN_FLAGS_CONST)) {
                     return 0; /* Alias already broadcasted: Erase the MOVE */
+                }
+
+                if (src->kind == KLR_VALUE_PARAM) {
+                    return 0; /* Parameter is immutable: Erase the MOVE */
                 }
             }
 
@@ -106,7 +109,7 @@ static int klr_dce_pass(KlrFunc *fn, void *ctx)
         KlrInsn *insn, *next;
         insn_foreach_safe(insn, next, bb) {
             /* If no one uses it and it has no side-effects, it's a candidate */
-            if (!klr_value_used(insn) && !has_side_effect(insn)) {
+            if (!klr_is_used(insn) && !has_side_effect(insn)) {
                 queue_push(&wklist, insn);
             }
         }
@@ -121,11 +124,10 @@ static int klr_dce_pass(KlrFunc *fn, void *ctx)
         }
 
         /* Check if any of its operands become dead after this removal */
-        KlrOper *oper;
-        operand_foreach(oper, insn) {
-            KlrValue *val = oper->use.ref;
-            /* klr_erase_insn will do use_count--, check it use_count == 1 and push to
-             * worklist.
+        KlrValue *val;
+        insn_oper_value_foreach(val, insn) {
+            /* klr_erase_insn will do use_count--, check it use_count == 1
+             * and push to worklist.
              */
             if (val->kind == KLR_VALUE_INSN && (val->use_count == 1)) {
                 queue_push(&wklist, val);
