@@ -29,6 +29,24 @@ KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m)
     return (KlrValue *)lit;
 }
 
+KlrValue *klr_const_uint(uint64_t val, TypeSpec *ts, KlrModule *m)
+{
+    KlrConst key = { .which = CONST_UINT, .ival = val };
+    hashmap_entry_init(&key.hnode, mem_hash(&val, sizeof(val)));
+    void *entry = hashmap_get(&m->consts, &key.hnode);
+    if (entry) {
+        return (KlrValue *)CONTAINER_OF(entry, KlrConst, hnode);
+    }
+
+    KlrConst *lit = mm_alloc_obj(lit);
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
+    lit->which = CONST_UINT;
+    lit->ival = val;
+    hashmap_entry_init(&lit->hnode, mem_hash(&val, sizeof(val)));
+    hashmap_put(&m->consts, &lit->hnode);
+    return (KlrValue *)lit;
+}
+
 KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m)
 {
     KlrConst key = { .which = CONST_FLT, .fval = val };
@@ -127,7 +145,7 @@ KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m
 typedef struct _LocalVarMapEntry {
     HashMapEntry hnode;
     KlrInsn *local;
-    KlrConst *val;
+    KlrValue *val;
 } LocalVarMapEntry;
 
 static int __local_var_eq__(void *a, void *b)
@@ -137,7 +155,7 @@ static int __local_var_eq__(void *a, void *b)
     return e1->local == e2->local;
 }
 
-int klr_update_local_var_const(KlrBasicBlock *bb, KlrInsn *local, KlrConst *val)
+int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val)
 {
     ASSERT(klr_is_local((KlrValue *)local));
     ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
@@ -157,7 +175,7 @@ int klr_update_local_var_const(KlrBasicBlock *bb, KlrInsn *local, KlrConst *val)
     return 0;
 }
 
-int klr_clear_local_var_const(KlrBasicBlock *bb, KlrInsn *local)
+int klr_clear_local_var(KlrBasicBlock *bb, KlrInsn *local)
 {
     ASSERT(klr_is_local((KlrValue *)local));
     ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
@@ -169,7 +187,7 @@ int klr_clear_local_var_const(KlrBasicBlock *bb, KlrInsn *local)
     return 0;
 }
 
-KlrValue *klr_get_local_var_const(KlrBasicBlock *bb, KlrInsn *local)
+KlrValue *klr_get_local_var(KlrBasicBlock *bb, KlrInsn *local)
 {
     ASSERT(klr_is_local((KlrValue *)local));
 
@@ -179,8 +197,7 @@ KlrValue *klr_get_local_var_const(KlrBasicBlock *bb, KlrInsn *local)
     if (entry) {
         ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
         ASSERT(!(entry->local->flags & KLR_INSN_FLAGS_CONST));
-        KlrValue *val = (KlrValue *)entry->val;
-        ASSERT(klr_is_const(val));
+        KlrValue *val = entry->val;
         return val;
     }
     return NULL;
@@ -407,7 +424,8 @@ static int __const_eq__(void *e1, void *e2)
     }
 
     switch (k1->which) {
-        case CONST_INT:
+        case CONST_INT: // fall-through
+        case CONST_UINT:
             return k1->ival == k2->ival;
         case CONST_FLT:
             return k1->fval == k2->fval;
@@ -449,7 +467,7 @@ KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name)
     fn->ebb = new_block(fn, "end", NULL);
 
     vector_push_back(&m->functions, &fn);
-    fn->mod = m;
+    fn->module = m;
     return (KlrValue *)fn;
 }
 
@@ -495,7 +513,7 @@ KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *path, char *name)
     KlrExtFunc *fn = mm_alloc_obj(fn);
     INIT_KLR_VALUE(fn, KLR_VALUE_EXT_FUNC, ret, name);
     vector_push_back(&m->ext_syms, &fn);
-    fn->mod = m;
+    fn->module = m;
     fn->path = path;
     return (KlrValue *)fn;
 }
@@ -505,7 +523,7 @@ KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name)
     KlrExtGlobal *var = mm_alloc_obj(var);
     INIT_KLR_VALUE(var, KLR_VALUE_EXT_GLOBAL, ts, name);
     vector_push_back(&m->ext_syms, &var);
-    var->mod = m;
+    var->module = m;
     var->path = path;
     return (KlrValue *)var;
 }
@@ -517,7 +535,7 @@ KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name)
     vector_init_ptr(&klass->fields);
     vector_init_ptr(&klass->methods);
     vector_push_back(&m->klasses, &klass);
-    klass->mod = m;
+    klass->module = m;
     klass->ts = ts;
     return (KlrValue *)klass;
 }
@@ -564,7 +582,7 @@ KlrValue *klr_klass_add_method(KlrValue *klass_val, char *name, TypeSpec *ret,
     }
 
     vector_push_back(&klass->methods, &method);
-    method->mod = klass->mod;
+    method->module = klass->module;
     method->klass = klass;
     return (KlrValue *)method;
 }

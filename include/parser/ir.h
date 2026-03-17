@@ -67,12 +67,13 @@ typedef struct _KlrConst {
     int index;
     int which;
 #define CONST_INT   1
-#define CONST_FLT   2
-#define CONST_BOOL  3
-#define CONST_STR   4
-#define CONST_LIST  5
-#define CONST_TUPLE 6
-#define CONST_NONE  7
+#define CONST_UINT  2
+#define CONST_FLT   3
+#define CONST_BOOL  4
+#define CONST_STR   5
+#define CONST_LIST  6
+#define CONST_TUPLE 7
+#define CONST_NONE  8
     int len;
     union {
         uint64_t ival;
@@ -122,7 +123,7 @@ typedef struct _KlrFunc {
     struct _KlrBasicBlock *ebb;
 
     /* module pointer */
-    struct _KlrModule *mod;
+    struct _KlrModule *module;
 
     /* klass pointer */
     struct _KlrKlass *klass;
@@ -247,7 +248,7 @@ typedef struct _KlrModule {
 
 typedef struct _KlrKlass {
     KLR_VALUE_HEAD
-    KlrModule *mod;
+    KlrModule *module;
     Vector fields;
     Vector methods;
 } KlrKlass;
@@ -255,7 +256,7 @@ typedef struct _KlrKlass {
 #define KLR_EXT_SYM_HEAD \
     KLR_VALUE_HEAD \
     /* module pointer */ \
-    KlrModule *mod; \
+    KlrModule *module; \
     /* owner pkg path */ \
     char *path;
 
@@ -362,6 +363,7 @@ typedef struct _KlrBuilder {
 
 /* <1> literal constants */
 KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m);
+KlrValue *klr_const_uint(uint64_t val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_bool(int val, KlrModule *m);
 KlrValue *klr_const_str(char *s, int len, KlrModule *m);
@@ -373,12 +375,6 @@ static inline int klr_is_const(KlrValue *val)
 {
     if (val->kind == KLR_VALUE_CONST) return 1;
     return 0;
-}
-
-static inline KlrConst *klr_const_value(KlrValue *val)
-{
-    ASSERT(klr_is_const(val));
-    return (KlrConst *)val;
 }
 
 static inline int klr_is_local(KlrValue *val)
@@ -444,16 +440,16 @@ The caller must check the condition and 'src' is not removed.
 */
 void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src);
 
-/* update local variable constant */
-int klr_update_local_var_const(KlrBasicBlock *bb, KlrInsn *local, KlrConst *val);
+/* update local variable */
+int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val);
 
-/* clear local variable constant */
-int klr_clear_local_var_const(KlrBasicBlock *bb, KlrInsn *local);
+/* clear local variable */
+int klr_clear_local_var(KlrBasicBlock *bb, KlrInsn *local);
 
-/* get local variable constant */
-KlrValue *klr_get_local_var_const(KlrBasicBlock *bb, KlrInsn *local);
+/* get local variable */
+KlrValue *klr_get_local_var(KlrBasicBlock *bb, KlrInsn *local);
 
-/* clear all local variable constants */
+/* clear all local variables */
 int klr_clear_local_var_map(KlrBasicBlock *bb);
 
 /* check block has terminator or not */
@@ -618,11 +614,14 @@ void klr_build_ret_void(KlrBuilder *bldr);
 /* IR: push %var */
 KlrInsn *klr_new_push(KlrValue *val);
 
-/* IR: const %var */
-KlrValue *klr_build_const(KlrBuilder *bldr, KlrValue *val);
-
 /* add a return instruction at the end of a basic block if it doesn't have one */
 void klr_add_last_return(KlrBasicBlock *bb);
+
+/* IR: %0 = const imm */
+KlrValue *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val);
+
+/* IR: %0 = loadk %var */
+KlrValue *klr_build_loadk(KlrBuilder *bldr, KlrValue *val);
 
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)

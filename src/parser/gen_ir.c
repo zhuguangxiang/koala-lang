@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#define MOD ps->mod
+#define MOD ps->module
 
 #define CURRENT_FUNC ((KlrValue *)ps->scope->bb->func)
 
@@ -724,7 +724,7 @@ static void _add_klass(KlrModule *m, KlassDeclStmt *kls)
 void kl_gen_ir(ParserState *ps)
 {
     KlrModule *m = klr_create_module(ps->filename);
-    ps->mod = m;
+    ps->module = m;
 
     // add __init__ function firstly
     KlrValue *fn = klr_add_func(m, no_type_spec(), "__init__");

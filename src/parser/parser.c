@@ -2621,6 +2621,8 @@ void free_parser_state(ParserState *ps)
     mm_free(ps);
 }
 
+void klr_module_do_isel(KlrModule *module);
+
 int do_compile(Vector *pss, char *output)
 {
     int errors = 0;
@@ -2631,7 +2633,8 @@ int do_compile(Vector *pss, char *output)
         parse_ast(ps);
         if (!ps->errors) {
             kl_gen_ir(ps);
-            kl_do_lowering(ps);
+            // kl_do_lowering(ps);
+            // klr_module_do_isel(ps->module);
         }
         errors += ps->errors;
     }

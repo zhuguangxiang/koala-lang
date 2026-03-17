@@ -3,9 +3,9 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "lowering.h"
 #include <math.h>
 #include "log.h"
+#include "lowering.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -118,7 +118,7 @@ static void select_const(KlrFunc *fn, KlrValue *v, LowerInsn *out)
         return;
     }
 
-    KlrConst *kval = klr_const_value(v);
+    KlrConst *kval = (KlrConst *)v;
 
     if (kval->which == CONST_NONE) {
         out->code = OP_CONST_NONE;
@@ -185,7 +185,7 @@ static void lower_one_insn(KlrFunc *fn, KlrInsn *insn)
             KlrValue *src = insn_oper_value(insn, 1);
 
             if (src->kind == KLR_VALUE_CONST) {
-                KlrConst *kval = klr_const_value(src);
+                KlrConst *kval = (KlrConst *)src;
                 if (kval->which == CONST_INT) {
                     emit_const_int(dst->vreg, kval->ival, insn, fn);
                 } else {
@@ -224,7 +224,7 @@ static void lower_one_insn(KlrFunc *fn, KlrInsn *insn)
                 emit_ABC(OP_BINARY_ADD, dst, r1, r2, insn, fn);
             } else if (!c1 && c2) {
                 TypeSpec *ts = src1->ts;
-                KlrConst *kval = klr_const_value(src2);
+                KlrConst *kval = (KlrConst *)src2;
 
                 if (ts->kind == TYPE_INT) {
                     ASSERT(kval->which == CONST_INT);
@@ -263,7 +263,7 @@ static void lower_one_insn(KlrFunc *fn, KlrInsn *insn)
             /* reg < imm */
             if (!c1 && c2) {
                 TypeSpec *ts = src1->ts;
-                KlrConst *kval = klr_const_value(src2);
+                KlrConst *kval = (KlrConst *)src2;
 
                 if (ts->kind == TYPE_INT) {
                     ASSERT(kval->which == CONST_INT);
@@ -291,7 +291,7 @@ static void lower_one_insn(KlrFunc *fn, KlrInsn *insn)
             int c = klr_is_const(src);
 
             if (c) {
-                KlrConst *kval = klr_const_value(src);
+                KlrConst *kval = (KlrConst *)src;
                 ASSERT(kval->which == CONST_INT);
                 emit_const_int(0, kval->ival, insn, fn);
             } else {
@@ -346,7 +346,7 @@ static void klr_lower_to_lir(KlrFunc *fn)
 
 void kl_do_lowering(ParserState *ps)
 {
-    KlrModule *m = ps->mod;
+    KlrModule *m = ps->module;
     Vector *fns = &m->functions;
     KlrFunc *fn;
     vector_foreach(fn, fns) {

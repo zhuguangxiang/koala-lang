@@ -67,6 +67,9 @@ static void print_const(KlrConst *v, FILE *fp)
         case CONST_INT:
             fprintf(fp, "%ld", v->ival);
             break;
+        case CONST_UINT:
+            fprintf(fp, "%lu", (uint64_t)v->ival);
+            break;
         case CONST_FLT:
             fprintf(fp, "%lf", v->fval);
             break;
@@ -291,6 +294,24 @@ static void print_local_insn(KlrValue *local, FILE *fp)
     print_value_type(local, fp);
 }
 
+static void print_const_int_imm(KlrInsn *insn, FILE *fp)
+{
+    klr_print_name_or_tag((KlrValue *)insn, fp);
+    fprintf(fp, " = const_int_imm ");
+    KlrConst *c = (KlrConst *)insn_oper_value(insn, 0);
+    print_const(c, fp);
+    print_value_type((KlrValue *)c, fp);
+}
+
+static void print_loadk(KlrInsn *insn, FILE *fp)
+{
+    klr_print_name_or_tag((KlrValue *)insn, fp);
+    fprintf(fp, " = loadk ");
+    KlrConst *c = (KlrConst *)insn_oper_value(insn, 0);
+    print_const(c, fp);
+    print_value_type((KlrValue *)c, fp);
+}
+
 void klr_print_insn(KlrInsn *insn, FILE *fp)
 {
     switch (insn->code) {
@@ -314,9 +335,9 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_push(insn, fp);
             break;
 
-        case OP_CONST:
-            print_const_insn(insn, fp);
-            break;
+            // case OP_CONST:
+            //     print_const_insn(insn, fp);
+            //     break;
 
         case OP_JMP_INT_CMP_LT_IMM:
             print_jmp_cond("jmp_icmplt_imm", insn, fp);
@@ -430,8 +451,24 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_unary(insn, "lnot", fp);
             break;
 
+        case OP_INT_ADD_IMM:
+            print_binary(insn, "int.add_imm", fp);
+            break;
+
+        case OP_CONST_INT_IMM:
+            print_const_int_imm(insn, fp);
+            break;
+
+        case OP_INT_ADD:
+            print_binary(insn, "int.add", fp);
+            break;
+
+        case OP_LOADK:
+            print_loadk(insn, fp);
+            break;
+
         default:
-            printf("%d\n", insn->code);
+            printf("%s\n", opcode_name(insn->code));
             UNREACHABLE();
             break;
     }

@@ -34,9 +34,11 @@ set(PARSER_SRC
     parser/klr/passes/const_copy_prop.c
     parser/klr/passes/dce.c
     parser/klr/passes/cfg_bb_opt.c
-    parser/lowering/lowering.c
-    parser/lowering/encode.c
-    parser/lowering/lower_emit.c)
+    parser/klr/isel.c)
+    # parser/klr/isel_binary.c
+    # parser/lowering/lowering.c
+    # parser/lowering/encode.c
+    # parser/lowering/lower_emit.c)
 
 add_library(parser STATIC ${PARSER_SRC})
 target_link_libraries(parser koala-common)

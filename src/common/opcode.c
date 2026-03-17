@@ -10,13 +10,13 @@ extern "C" {
 #endif
 
 char *opcode_names[] = {
-#define X(name, fmt, cmt) #name,
+#define X(name, fmt, s0, s1) #name,
 #include "opcode_list.h"
 #undef X
 };
 
 int opcode_formats[] = {
-#define X(name, fmt, cmt) fmt,
+#define X(name, fmt, s0, s1) fmt,
 #include "opcode_list.h"
 #undef X
 };

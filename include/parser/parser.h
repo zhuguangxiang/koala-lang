@@ -98,7 +98,7 @@ typedef struct _ParserState {
     HashMap *stbl;
 
     /* IR module */
-    KlrModule *mod;
+    KlrModule *module;
 
     /* token */
     int token;

@@ -359,20 +359,29 @@ void klr_build_ret_void(KlrBuilder *bldr)
     klr_link_edge(bldr->bb, fn->ebb);
 }
 
-KlrValue *klr_build_const(KlrBuilder *bldr, KlrValue *val)
+KlrInsn *klr_new_push(KlrValue *val)
 {
-    KlrInsn *insn = new_insn(OP_CONST, 1, "");
+    KlrInsn *insn = new_insn(OP_PUSH, 1, "");
+    init_oper(&insn->opers[0], insn, val);
+    return insn;
+}
+
+KlrValue *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val)
+{
+    KlrInsn *insn = new_insn(OP_CONST_INT_IMM, 1, "");
     init_oper(&insn->opers[0], insn, val);
     insn->ts = val->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
 
-KlrInsn *klr_new_push(KlrValue *val)
+KlrValue *klr_build_loadk(KlrBuilder *bldr, KlrValue *val)
 {
-    KlrInsn *insn = new_insn(OP_PUSH, 1, "");
+    KlrInsn *insn = new_insn(OP_LOADK, 1, "");
     init_oper(&insn->opers[0], insn, val);
-    return insn;
+    insn->ts = val->ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
 }
 
 #ifdef __cplusplus

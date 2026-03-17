@@ -144,7 +144,14 @@ TypeSpec *va_list_type_spec_intern(TypeSpec *src);
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
 static inline int type_is_valist(TypeSpec *ts) { return ts->kind == TYPE_VA_LIST; }
-static inline int type_is_int(TypeSpec *ts) { return ts->kind == TYPE_INT; }
+static inline int type_is_int(TypeSpec *ts)
+{
+    return (ts->kind == TYPE_INT && ts->int_flt_info.sign == 1);
+}
+static inline int type_is_uint(TypeSpec *ts)
+{
+    return (ts->kind == TYPE_INT && ts->int_flt_info.sign == 0);
+}
 static inline int type_is_any(TypeSpec *ts) { return ts->kind == TYPE_ANY; }
 static inline int type_is_str(TypeSpec *ts) { return ts->kind == TYPE_STR; }
 static inline int type_is_float(TypeSpec *ts) { return ts->kind == TYPE_FLOAT; }

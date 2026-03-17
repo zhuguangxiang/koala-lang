@@ -29,15 +29,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
     oper_value_foreach(val, insn, 0) {
         if (klr_is_local(val)) {
             KlrInsn *src = (KlrInsn *)val;
-            // from current basic block local variable map, get the latest constant value
-            // for this local variable
-            KlrValue *const_val = klr_get_local_var_const(insn->bb, src);
-            if (const_val) {
-                log_info("operand %d-th of insn(/) is const value", i__);
+            // from current basic block local variable map, get the latest
+            // value(const/insn) for this local variable
+            KlrValue *_val = klr_get_local_var(insn->bb, src);
+            if (_val) {
+                log_info("operand %d-th of insn(/) is const value/insn:", i__);
                 log_insn(insn);
-                ASSERT(klr_is_const(const_val));
-                KlrConst *kval = klr_const_value(const_val);
-                update_index_operand(insn, i__, (KlrValue *)kval);
+                update_index_operand(insn, i__, _val);
                 changed = 1;
             }
         }
@@ -52,13 +50,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_const_value(lhs);
-                KlrConst *rval = klr_const_value(rhs);
+                KlrConst *lval = (KlrConst *)lhs;
+                KlrConst *rval = (KlrConst *)rhs;
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
                     log_info("fold binary add insn to const int:");
                     log_insn(insn);
                     uint64_t res = lval->ival + rval->ival;
-                    KlrValue *const_res = klr_const_int(res, lval->ts, fn->mod);
+                    KlrValue *const_res = klr_const_int(res, lval->ts, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -69,13 +67,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_const_value(lhs);
-                KlrConst *rval = klr_const_value(rhs);
+                KlrConst *lval = (KlrConst *)lhs;
+                KlrConst *rval = (KlrConst *)rhs;
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
                     log_info("fold binary sub insn to const int:");
                     log_insn(insn);
                     uint64_t res = lval->ival - rval->ival;
-                    KlrValue *const_res = klr_const_int(res, lval->ts, fn->mod);
+                    KlrValue *const_res = klr_const_int(res, lval->ts, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -86,13 +84,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_const_value(lhs);
-                KlrConst *rval = klr_const_value(rhs);
+                KlrConst *lval = (KlrConst *)lhs;
+                KlrConst *rval = (KlrConst *)rhs;
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
                     log_info("fold binary cmp_gt insn to const bool:");
                     log_insn(insn);
                     int res = lval->ival > rval->ival;
-                    KlrValue *const_res = klr_const_bool(res, fn->mod);
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -103,13 +101,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_const_value(lhs);
-                KlrConst *rval = klr_const_value(rhs);
+                KlrConst *lval = (KlrConst *)lhs;
+                KlrConst *rval = (KlrConst *)rhs;
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
                     log_info("fold binary cmp_ge insn to const bool:");
                     log_insn(insn);
                     int res = lval->ival >= rval->ival;
-                    KlrValue *const_res = klr_const_bool(res, fn->mod);
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -120,13 +118,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_const_value(lhs);
-                KlrConst *rval = klr_const_value(rhs);
+                KlrConst *lval = (KlrConst *)lhs;
+                KlrConst *rval = (KlrConst *)rhs;
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
                     log_info("fold binary cmp_lt insn to const bool:");
                     log_insn(insn);
                     int res = lval->ival < rval->ival;
-                    KlrValue *const_res = klr_const_bool(res, fn->mod);
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -137,13 +135,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_const_value(lhs);
-                KlrConst *rval = klr_const_value(rhs);
+                KlrConst *lval = (KlrConst *)lhs;
+                KlrConst *rval = (KlrConst *)rhs;
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
                     log_info("fold binary cmp_le insn to const bool:");
                     log_insn(insn);
                     int res = lval->ival <= rval->ival;
-                    KlrValue *const_res = klr_const_bool(res, fn->mod);
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -154,13 +152,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
-                KlrConst *lval = klr_const_value(lhs);
-                KlrConst *rval = klr_const_value(rhs);
+                KlrConst *lval = (KlrConst *)lhs;
+                KlrConst *rval = (KlrConst *)rhs;
                 if (lval->which == CONST_INT && rval->which == CONST_INT) {
                     log_info("fold binary cmp_eq insn to const bool:");
                     log_insn(insn);
                     int res = lval->ival == rval->ival;
-                    KlrValue *const_res = klr_const_bool(res, fn->mod);
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -176,13 +174,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 
             // Short-circuiting
             if (klr_is_const(lhs)) {
-                KlrConst *lval = klr_const_value(lhs);
+                KlrConst *lval = (KlrConst *)lhs;
                 ASSERT(lval->which == CONST_BOOL);
                 if (!lval->bval) {
                     log_info("[Short-circuiting] fold AND insn, the left is false:");
                     log_insn(insn);
                     // false && x -> false
-                    KlrValue *res = klr_const_bool(0, fn->mod);
+                    KlrValue *res = klr_const_bool(0, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
                     log_info("[Short-circuiting] fold AND insn, the left is true:");
@@ -191,13 +189,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     replace_all_uses_with(rhs, (KlrValue *)insn);
                 }
             } else if (klr_is_const(rhs)) {
-                KlrConst *rval = klr_const_value(rhs);
+                KlrConst *rval = (KlrConst *)rhs;
                 ASSERT(rval->which == CONST_BOOL);
                 if (!rval->bval) {
                     log_info("[Short-circuiting] fold AND insn, the right is false:");
                     log_insn(insn);
                     // x && false -> false
-                    KlrValue *res = klr_const_bool(0, fn->mod);
+                    KlrValue *res = klr_const_bool(0, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
                     log_info("[Short-circuiting] fold AND insn, the right is true:");
@@ -218,13 +216,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 
             // Short-circuiting
             if (klr_is_const(lhs)) {
-                KlrConst *lval = klr_const_value(lhs);
+                KlrConst *lval = (KlrConst *)lhs;
                 ASSERT(lval->which == CONST_BOOL);
                 if (lval->bval) {
                     log_info("[Short-circuiting] fold OR insn, the left is true:");
                     log_insn(insn);
                     // true || x -> true
-                    KlrValue *res = klr_const_bool(1, fn->mod);
+                    KlrValue *res = klr_const_bool(1, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
                     log_info("[Short-circuiting] fold OR insn, the left is false:");
@@ -233,13 +231,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     replace_all_uses_with(rhs, (KlrValue *)insn);
                 }
             } else if (klr_is_const(rhs)) {
-                KlrConst *rval = klr_const_value(rhs);
+                KlrConst *rval = (KlrConst *)rhs;
                 ASSERT(rval->which == CONST_BOOL);
                 if (rval->bval) {
                     log_info("[Short-circuiting] fold OR insn, the right is true:");
                     log_insn(insn);
                     // x || true -> true
-                    KlrValue *res = klr_const_bool(1, fn->mod);
+                    KlrValue *res = klr_const_bool(1, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
                     log_info("[Short-circuiting] fold OR insn, the right is false:");
@@ -267,10 +265,7 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             if (!global->mutable && klr_is_const(val)) {
                 log_info("record const value for global variable:");
                 log_insn(insn);
-                KlrConst *kval = klr_const_value(val);
-                ASSERT((void *)kval == (void *)val);
-                // update_index_operand(insn, 1, (KlrValue *)kval);
-                global->kval = kval;
+                global->kval = (KlrConst *)val;
             }
             break;
         }
@@ -311,18 +306,38 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     log_info("update var local's const value in bb '%s'",
                              klr_block_name(insn->bb));
                     log_insn(insn);
-                    /* Record the latest constant alue in the local BB map */
+                    /* Record the latest constant value in the local BB map */
                     KlrBasicBlock *bb = insn->bb;
-                    klr_update_local_var_const(bb, dst, klr_const_value(src));
+                    klr_update_local_var(bb, dst, src);
                 } else {
                     log_info(
-                        "clear var local's const value in bb '%s' because it's assigned "
+                        "update var local's value in bb '%s' although it's assigned "
                         "a volatile value",
                         klr_block_name(insn->bb));
-                    // Variable is assigned a volatile value, clear local variable
-                    // constant
+                    // Variable is assigned a volatile value, also update it
+                    // This is var copy propagation, if src is not const, we can still
+                    // propagate src to dst.
                     KlrBasicBlock *bb = insn->bb;
-                    klr_clear_local_var_const(bb, dst);
+                    if (src->kind == KLR_VALUE_PARAM) {
+                        // parameter is immutable, we can propagate it in func scope
+                        klr_update_local_var(bb, dst, src);
+                    } else if (src->kind == KLR_VALUE_INSN) {
+                        KlrInsn *_insn = (KlrInsn *)src;
+                        if (_insn->flags & KLR_INSN_FLAGS_CONST) {
+                            // src is const insn, we can propagate it in func scope
+                            klr_update_local_var(bb, dst, src);
+                        } else {
+                            if (_insn->bb == bb) {
+                                // Only propagate if src is defined in the same basic
+                                // block, otherwise it's not safe to propagate.
+                                klr_update_local_var(bb, dst, src);
+                            } else {
+                                klr_clear_local_var(bb, dst);
+                            }
+                        }
+                    } else {
+                        UNREACHABLE();
+                    }
                 }
             }
             break;
@@ -343,14 +358,15 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 KlrValue *val;
                 oper_value_foreach(val, insn, 1) {
                     ASSERT(klr_is_const(val));
-                    KlrConst *kval = klr_const_value(val);
-                    items[i__ - 1] = (KlrValue *)kval;
+                    items[i__ - 1] = val;
                 }
 
                 if (!strcmp(callee->name, "list")) {
-                    val = klr_const_list(items, insn->num_opers - 1, insn->ts, fn->mod);
+                    val =
+                        klr_const_list(items, insn->num_opers - 1, insn->ts, fn->module);
                 } else if (!strcmp(callee->name, "tuple")) {
-                    val = klr_const_tuple(items, insn->num_opers - 1, insn->ts, fn->mod);
+                    val =
+                        klr_const_tuple(items, insn->num_opers - 1, insn->ts, fn->module);
                 } else if (!strcmp(callee->name, "int64")) {
                     ASSERT(insn->num_opers == 2);
                     val = insn_oper_value(insn, 1);

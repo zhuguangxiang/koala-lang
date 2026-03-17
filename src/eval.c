@@ -164,29 +164,29 @@ main_loop:
                 DISPATCH();
             }
 
-            case OP_CONST: {
-                rd = I_Ax(inst);
-                idx = I_Bx(inst);
+                // case OP_CONST: {
+                //     rd = I_Ax(inst);
+                //     idx = I_Bx(inst);
 
-                ASSERT(rd < cf->local_size);
+                //     ASSERT(rd < cf->local_size);
 
-                regs[rd] = CP(idx);
-                DISPATCH();
-            }
+                //     regs[rd] = CP(idx);
+                //     DISPATCH();
+                // }
 
-            case OP_CONST_INT_0: {
-                rd = I_Ax(inst);
+                // case OP_CONST_INT_0: {
+                //     rd = I_Ax(inst);
 
-                ASSERT(rd < cf->local_size);
+                //     ASSERT(rd < cf->local_size);
 
-                regs[rd].tag = TAG_INT64;
-                regs[rd].ival = 0;
-                DISPATCH();
-            }
+                //     regs[rd].tag = TAG_INT64;
+                //     regs[rd].ival = 0;
+                //     DISPATCH();
+                // }
 
             case OP_CONST_INT_IMM: {
-                rd = I_A(inst);
-                imm = I_Bxx(inst);
+                rd = I_Ax(inst);
+                imm = I_Bx(inst);
 
                 ASSERT(rd < cf->local_size);
 
