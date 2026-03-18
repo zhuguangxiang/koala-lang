@@ -45,7 +45,11 @@ void klr_print_name_or_tag(KlrValue *val, FILE *fp)
             fprintf(fp, "%%%s", val->name);
         }
     } else {
-        fprintf(fp, "%%%d", val->tag);
+        if (val->tag == -1) {
+            fprintf(fp, "%%<unnamed>");
+        } else {
+            fprintf(fp, "%%%d", val->tag);
+        }
     }
 }
 
@@ -270,7 +274,7 @@ static void print_local_insn(KlrValue *local, FILE *fp)
 static void print_const_int_imm(KlrInsn *insn, FILE *fp)
 {
     klr_print_name_or_tag((KlrValue *)insn, fp);
-    fprintf(fp, " = const_int_imm ");
+    fprintf(fp, " = const.int_imm ");
     KlrConst *c = (KlrConst *)insn_oper_value(insn, 0);
     print_const(c, fp);
     print_value_type((KlrValue *)c, fp);

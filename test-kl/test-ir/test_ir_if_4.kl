@@ -4,7 +4,7 @@ var g = 100
 let f = g + 1
 let h = f + 101
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@__init__] ---
 // CHECK-LABEL: func @__init__()
 // CHECK: set_global @g int64, 100 int64
 // CHECK: %0 = get_global @g int64
@@ -40,7 +40,7 @@ func foo() {
     print(b + 1)
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@foo] ---
 // CHECK-LABEL: func @foo()
 // CHECK: call @print [ext = true, path = 'std/builtin'], 100 int64, 101 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 'a = ' str, 100 int64
@@ -58,7 +58,7 @@ func bar(v int) int {
     return b
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@bar] ---
 // CHECK-LABEL: func @bar(%v int64)
 // CHECK: %0 = mul %v int64, 2 int64
 // CHECK: ret %0 int64

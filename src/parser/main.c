@@ -24,15 +24,27 @@ static void usage(void)
     printf(
         "\nusage: koalac [<options>] <package>|<file>...\n\n"
         "options:\n"
-        "  -o <file>      Place the output into <file>.\n"
-        "  -v, --version  Print koalac version.\n"
-        "  -h, --help     Print this message.\n"
+        "  -o <file>          Place the output into <file>.\n"
+        "  --opt              Enable optimization passes (default).\n"
+        "  --isel             Enable instruction selection stage.\n"
+        "  --cgen             Enable code generation stage.\n"
+        "  --regalloc=<kind>  Select register allocator: simple | lsra.\n"
+        "  --dump=<list>      Dump IR at specific stages.\n"
+        "                     <list> is a comma-separated list of:\n"
+        "                         ir       - initial IR\n"
+        "                         opt-ir   - optimized IR (after opt passes)\n"
+        "                         lir      - LIR (after isel/regalloc)\n"
+        "                         cgen     - codegen output\n"
+        "                         all      - dump all stages\n"
+        "  -v, --version      Print koalac version.\n"
+        "  -h, --help         Print this message.\n"
         "\n");
+
     printf(
         "Environment variables:\n"
-        "KOALA_HOME - koala installed directory.\n"
-        "             The default packages search path.\n"
-        "KOALA_PATH - ':' separated list of directories for searching packages.\n"
+        "  KOALA_HOME  Koala installation directory.\n"
+        "              Used as the default package search path.\n"
+        "  KOALA_PATH  ':' separated list of directories for searching packages.\n"
         "\n");
 }
 

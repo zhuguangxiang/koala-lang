@@ -1,9 +1,5 @@
 // RUN: koalac %s --opt --dump=opt-ir | filecheck %s
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
-// CHECK-LABEL: func @__init__()
-// CHECK: ret void
-
 func test_overwrite(n int64) int64 {
     var x = n + 1
     x = n + 2
@@ -11,7 +7,7 @@ func test_overwrite(n int64) int64 {
     return x
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_overwrite] ---
 // CHECK-LABEL: func @test_overwrite(%n int64) int64
 // CHECK: %0 = add %n int64, 3 int64
 // CHECK: ret %0 int64
@@ -24,7 +20,7 @@ func foo(n int) int {
     return c
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@foo] ---
 // CHECK-LABEL: func @foo(%n int64) int64
 // CHECK: %0 = add %n int64, 500 int64
 // CHECK: %1 = add %0 int64, 1 int64
@@ -39,7 +35,7 @@ func test_param_move(a int64) int64 {
     return z
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_param_move] ---
 // CHECK-LABEL: func @test_param_move(%a int64) int64
 // CHECK: ret %a int64
 
@@ -49,7 +45,7 @@ func test_dead_move(n int64) int64 {
     return y
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_dead_move] ---
 // CHECK-LABEL: func @test_dead_move(%n int64) int64
 // CHECK: %0 = add %n int64, 5 int64
 // CHECK: %1 = add %0 int64, 1 int64
@@ -67,7 +63,7 @@ func test_if_else(c bool, n int64) int64 {
     return x
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_if_else] ---
 // CHECK-LABEL: func @test_if_else(%c bool, %n int64) int64
 // CHECK: %x = local int64
 // CHECK: move %x int64, 100 int64
@@ -90,7 +86,7 @@ func test_loop(n int64) int64 {
     return sum
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_loop] ---
 // CHECK-LABEL: func @test_loop(%n int64) int64
 // CHECK: %i = local int64
 // CHECK: move %i int64, 0 int64

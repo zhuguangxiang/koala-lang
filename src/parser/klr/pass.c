@@ -10,11 +10,6 @@
 extern "C" {
 #endif
 
-static inline void print_pass_after_header(const char *pass_name, int iteration, FILE *fp)
-{
-    fprintf(fp, "--- IR Dump After %s (Iteration %d) ---\n", pass_name, iteration);
-}
-
 static int pm_run(KlrFunc *fn, void *data)
 {
     KlrPassManager *pm = (KlrPassManager *)data;
@@ -33,7 +28,8 @@ static int pm_run(KlrFunc *fn, void *data)
             int pass_changed = p->run(fn, p->data);
 
             if (p->dump) {
-                print_pass_after_header(p->name, iteration, stdout);
+                fprintf(stdout, "--- IR Dump After %s (Iter %d) [@%s] ---\n", p->name,
+                        iteration, fn->name);
                 klr_print_func(fn, stdout);
             }
 

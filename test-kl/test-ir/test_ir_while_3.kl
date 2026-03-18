@@ -27,7 +27,7 @@ func black_hole(n int) int {
     return i
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@black_hole] ---
 //CHECK-LABEL: func @black_hole(%n int64) int64
 //CHECK: %i = local int64
 //CHECK: move %i int64, 0 int64

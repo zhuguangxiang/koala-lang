@@ -1,0 +1,26 @@
+// RUN: koalac %s --opt --isel --dump=opt-ir,lir | filecheck %s
+
+func foo(n int) int {
+    let a = 500
+    let b = n + a + 1
+    var c = b + 2
+    c = c + 3
+    return c
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@foo] ---
+// CHECK-LABEL: func @foo(%n int64) int64
+// CHECK: %0 = add %n int64, 500 int64
+// CHECK: %1 = add %0 int64, 1 int64
+// CHECK: %2 = add %1 int64, 2 int64
+// CHECK: %3 = add %2 int64, 3 int64
+// CHECK: ret %3 int64
+
+// CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@foo] ---
+// CHECK-LABEL: func @foo(%n int64) int64
+// CHECK: %0 = const.int_imm 500 int64
+// CHECK: %1 = int.add %n int64, %0 int64
+// CHECK: %2 = int.add_imm %1 int64, 1 int64
+// CHECK: %3 = int.add_imm %2 int64, 2 int64
+// CHECK: %4 = int.add_imm %3 int64, 3 int64
+// CHECK: ret %4 int64

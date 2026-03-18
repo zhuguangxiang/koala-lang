@@ -1,8 +1,0 @@
-
-func foo(n int) int {
-    let a = 500
-    let b = n + a + 1
-    var c = b + 2
-    c = c + 3
-    return c
-}

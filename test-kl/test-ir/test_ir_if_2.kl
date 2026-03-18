@@ -30,7 +30,7 @@ func foo() {
     let unsued = "hello"
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@foo] ---
 // CHECK-LABEL: func @foo()
 // CHECK: call @print [ext = true, path = 'std/builtin'], 14 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64
@@ -49,7 +49,7 @@ func test_nested(a int, b int) {
     print("Done")
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@test_nested] ---
 // CHECK-LABEL: func @test_nested(%a int64, %b int64)
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 1' str
 // CHECK: jmp label %bb2

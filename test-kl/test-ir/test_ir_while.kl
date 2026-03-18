@@ -8,7 +8,7 @@ while i < 10 { i = i + 1 }
 while true { break }
 while { break }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@__init__] ---
 // CHECK-LABEL: func @__init__()
 // CHECK: set_global @i int64, 0 int64
 // CHECK: %0 = get_global @i int64
@@ -26,7 +26,7 @@ func foo(n int) {
     print(n)
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@foo] ---
 // CHECK-LABEL: func @foo(%n int64)
 // CHECK: %0 = cmplt %i int64, 10 int64
 // CHECK: branch %0 bool, label %bb1, label %bb2
@@ -44,7 +44,7 @@ func bar() {
     print(i)
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@bar] ---
 // CHECK-LABEL: func @bar()
 // CHECK: call @print [ext = true, path = 'std/builtin'], 0 int64
 // CHECK: ret void
@@ -60,7 +60,7 @@ func gcd(a int, b int) int {
     return x
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@gcd] ---
 // CHECK-LABEL: func @gcd(%a int64, %b int64) int64
 // CHECK: %x = local int64
 // CHECK: move %x int64, %a int64
@@ -84,7 +84,7 @@ func fib_with_break(n int, a int) {
     print(n, a)
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@fib_with_break] ---
 // CHECK-LABEL: func @fib_with_break(%n int64, %a int64)
 // CHECK: %i = local int64
 // CHECK: move %i int64, 0 int64

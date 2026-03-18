@@ -25,9 +25,26 @@ print(v + 123, v2)
 
 let list_str = list("a", "b", "c")
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@__init__] ---
 // CHECK-LABEL: func @__init__()
 // CHECK: set_global @j int64, 11 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 10 int64, 11 int64
 // CHECK: %2 = get_global @v2 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 223 int64, %2 int64
 // CHECK: set_global @list_str list<u>, list['a', 'b', 'c'] list
+
+func bar() int {
+    var a = j
+    return a
+}
+
+// CHECK-LABEL: --- IR Dump After const-copy-prop (Iter 1) [@bar] ---
+// CHECK-LABEL: func @bar() int64
+// CHECK: %0 = get_global @j int64
+// CHECK: %a = local int64
+// CHECK: move %a int64, 11 int64
+// CHECK: ret 11 int64
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@bar] ---
+// CHECK-LABEL: func @bar() int64
+// CHECK: ret 11 int64
