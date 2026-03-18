@@ -185,8 +185,6 @@ void kl_error_detail(ParserState *, Loc *);
 
 void parser_visit_expr(ParserState *ps, Expr *exp);
 void parse_top_stmt(ParserState *ps, Stmt *stmt);
-void kl_gen_ir(ParserState *ps);
-void kl_do_lowering(ParserState *ps);
 
 ParserState *new_parser_state(char *path);
 void free_parser_state(ParserState *ps);
@@ -208,7 +206,17 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src);
 
 void write_to_klc(HashMap *stbl, char *path);
 HashMap *load_module(char *path);
-void kl_emit(ParserState *ps, KlrModule *m);
+void kl_gen_ir(ParserState *ps);
+
+typedef struct _KlCompileOptions {
+    int enable_opt;
+    int enable_isel;
+    int enable_cgen;
+    int regalloc;
+    KlrDumpFlags dump;
+} KlCompileOptions;
+
+extern KlCompileOptions opt;
 
 #ifdef __cplusplus
 }

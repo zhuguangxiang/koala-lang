@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: koalac %s --opt --dump=opt-ir | filecheck %s
 
 func black_hole(n int) int {
     var i = 0
@@ -27,6 +27,7 @@ func black_hole(n int) int {
     return i
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 //CHECK-LABEL: func @black_hole(%n int64) int64
 //CHECK: %i = local int64
 //CHECK: move %i int64, 0 int64

@@ -5,13 +5,14 @@
 
 #include "ir.h"
 #include "log.h"
+#include "opt.h"
 #include "queue.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-static int bb_branch_folding(KlrFunc *fn)
+int klr_bb_branch_folding(KlrFunc *fn, void *data)
 {
     log_info("[branch-folding] on func '%%%s'", fn->name);
 
@@ -57,7 +58,7 @@ static int bb_branch_folding(KlrFunc *fn)
     return changed;
 }
 
-static int remove_unused_block(KlrFunc *fn)
+int klr_remove_unused_block(KlrFunc *fn, void *data)
 {
     log_info("[removing-unused-block] on func '%%%s'", fn->name);
 
@@ -107,7 +108,7 @@ static int remove_unused_block(KlrFunc *fn)
     return changed;
 }
 
-static int remove_only_jump_block(KlrFunc *func)
+int klr_remove_only_jump_block(KlrFunc *func, void *data)
 {
     log_info("[removing-only-jump-block] on func '%%%s'", func->name);
 
@@ -164,7 +165,7 @@ static int remove_only_jump_block(KlrFunc *func)
     return changed;
 }
 
-static int merge_block(KlrFunc *fn)
+int klr_merge_block(KlrFunc *fn, void *data)
 {
     log_info("[basic-block-merging] on func '%%%s'", fn->name);
 
@@ -192,28 +193,6 @@ static int merge_block(KlrFunc *fn)
 
     return changed;
 }
-
-int klr_cfg_bb_opt_pass(KlrFunc *fn, void *ctx)
-{
-    int total = 0;
-
-    int changed = 1;
-    while (changed) {
-        changed = 0;
-        changed |= remove_only_jump_block(fn);
-        changed |= bb_branch_folding(fn);
-        changed |= remove_unused_block(fn);
-        changed |= merge_block(fn);
-        total |= changed;
-    }
-
-    return total;
-}
-
-KlrPass cfg_bb_opt_pass = {
-    .name = "cfg_bb_opt",
-    .callback = klr_cfg_bb_opt_pass,
-};
 
 #ifdef __cplusplus
 }

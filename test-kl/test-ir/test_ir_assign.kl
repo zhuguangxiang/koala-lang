@@ -1,9 +1,10 @@
-// RUN: koalac %s | filecheck %s
+// RUN: koalac %s --opt --dump=opt-ir | filecheck %s
 
 var c = 100
 c = 200
 print(c)
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
 // CHECK-LABEL: func @__init__()
 // CHECK: set_global @c int64, 100 int64
 // CHECK: set_global @c int64, 200 int64
@@ -24,6 +25,7 @@ func foo() {
     print(x)
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
 // CHECK-LABEL: func @foo()
 // CHECK: %x = local int64
 // CHECK: move %x int64, 10 int64

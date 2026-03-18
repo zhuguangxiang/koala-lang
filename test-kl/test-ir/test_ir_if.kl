@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: koalac %s --opt --dump=opt-ir | filecheck %s
 
 let i = 10
 // TODO: foward reference
@@ -42,6 +42,7 @@ func foo() {
     // let x = my_list[0]        // (2) 依赖 my_list 的折叠结果
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABEL: func @__init__()
 // CHECK: set_global @i int64, 10 int64
 // CHECK: set_global @j int64, 11 int64
@@ -49,6 +50,7 @@ func foo() {
 // CHECK: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64
 // CHECK: ret void
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABEL: func @foo()
 // CHECK: call @print [ext = true, path = 'std/builtin'], 14 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64

@@ -3,73 +3,75 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "ir.h"
+#include "pass.h"
 #include "log.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void fini_pipeline(KlrPipeline *grp)
+static inline void print_pass_after_header(const char *pass_name, int iteration, FILE *fp)
 {
-    KlrPass *pass, *next;
-    list_foreach_safe(pass, next, link, &grp->passes) {
-        list_remove(&pass->link);
-        mm_free(pass);
-    }
+    fprintf(fp, "--- IR Dump After %s (Iteration %d) ---\n", pass_name, iteration);
 }
 
-void pipeline_add_pass(KlrPipeline *grp, KlrPass *pass)
+static int pm_run(KlrFunc *fn, void *data)
 {
-    init_list(&pass->link);
-    list_push_back(&grp->passes, &pass->link);
-    ++grp->count;
-}
-
-void run_pipeline(KlrPipeline *grp, KlrFunc *fn)
-{
-    log_info("run pipeline with %d passes on function '%s'", grp->count, fn->name);
-
-#ifndef NOLOG
-    klr_print_func(fn, stdout);
-#endif
-
+    KlrPassManager *pm = (KlrPassManager *)data;
+    int total_changed = 0;
     int changed = 1;
-    int iteration = 1;
+    int iteration = 0;
+
+    char iter_str[64];
+
     while (changed && iteration < 10) {
-        log_info("iteration %d:", iteration);
         ++iteration;
         changed = 0;
-        KlrPass *pass;
-        list_foreach(pass, link, &grp->passes) {
-            changed |= pass->callback(fn, pass->arg);
-            log_info("==================After Pass '%s'=================", pass->name);
-#ifndef NOLOG
-            klr_print_func(fn, stdout);
-#endif
+
+        for (int i = 0; i < pm->count; i++) {
+            KlrPass *p = pm->passes[i];
+            int pass_changed = p->run(fn, p->data);
+
+            if (p->dump) {
+                print_pass_after_header(p->name, iteration, stdout);
+                klr_print_func(fn, stdout);
+            }
+
+            changed |= pass_changed;
         }
+
+        total_changed |= changed;
     }
+
+    return total_changed;
 }
 
-extern KlrPass const_copy_prop_pass;
-extern KlrPass cfg_bb_opt_pass;
-extern KlrPass dce_pass;
-
-void run_default_pipeline(KlrFunc *fn)
+void pm_init(KlrPassManager *pm, const char *name)
 {
-    PIPELINE(pipe);
-    pipeline_add_pass(&pipe, &const_copy_prop_pass);
-    pipeline_add_pass(&pipe, &cfg_bb_opt_pass);
-    pipeline_add_pass(&pipe, &dce_pass);
-    run_pipeline(&pipe, fn);
+    pm->capacity = 8;
+    pm->count = 0;
+    pm->passes = malloc(sizeof(KlrPass *) * pm->capacity);
+    pm->name = name;
+    pm->run = pm_run;
+    pm->data = pm;
 }
 
-void klr_run_default_pipeline(KlrModule *m)
+void pm_fini(KlrPassManager *pm) { free(pm->passes); }
+
+void pm_add_pass(KlrPassManager *pm, KlrPass *pass, int dump)
 {
-    KlrFunc *fn;
-    vector_foreach(fn, &m->functions) {
-        run_default_pipeline(fn);
+    if (pm->count == pm->capacity) {
+        pm->capacity += 8;
+        pm->passes = realloc(pm->passes, sizeof(KlrPass *) * pm->capacity);
     }
+    pm->passes[pm->count++] = pass;
+    pass->dump = dump;
+}
+
+void pm_add_pm_as_pass(KlrPassManager *pm, KlrPassManager *pm_pass, int dump)
+{
+    KlrPass *pass = (KlrPass *)pm_pass;
+    pm_add_pass(pm, pass, dump);
 }
 
 #ifdef __cplusplus

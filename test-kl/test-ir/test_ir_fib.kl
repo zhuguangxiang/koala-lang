@@ -1,10 +1,11 @@
-// RUN: koalac %s | filecheck %s
+// RUN: koalac %s --opt --dump=opt-ir | filecheck %s
 
 func fib(n int) int {
     if n < 2 { return n }
     return fib(n - 1) + fib(n - 2)
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABEL: func @fib(%n int64) int64
 // CHECK: %0 = cmplt %n int64, 2 int64
 // CHECK: branch %0 bool, label %bb0, label %bb1
@@ -29,6 +30,7 @@ func fib_loop(n int) int {
     return a
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
 // CHECK-LABEL: func @fib_loop(%n int64) int64
 // CHECK: %a = local int64
 // CHECK: move %a int64, 0 int64

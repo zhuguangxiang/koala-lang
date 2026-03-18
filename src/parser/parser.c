@@ -5,8 +5,11 @@
 
 #include "parser.h"
 #include "atom.h"
+#include "cgen.h"
+#include "isel.h"
 #include "klc.h"
 #include "log.h"
+#include "opt.h"
 
 /* clang-format off */
 #include "koala_yacc.h"
@@ -2621,7 +2624,33 @@ void free_parser_state(ParserState *ps)
     mm_free(ps);
 }
 
-void klr_module_do_isel(KlrModule *module);
+static void run_func_passes(KlrFunc *fn)
+{
+    if (opt.enable_opt) {
+        KlrPassManager pm;
+        pm_init(&pm, "opt-pass");
+        build_opt_pm(&pm, opt.dump & KLR_DUMP_OPT_IR);
+        pm.run(fn, &pm);
+        pm_fini(&pm);
+    }
+
+    if (opt.enable_isel) {
+        KlrPassManager pm;
+        pm_init(&pm, "isel-pass");
+        build_isel_pm(&pm, opt.dump & KLR_DUMP_LIR);
+        pm.run(fn, &pm);
+        pm_fini(&pm);
+    }
+
+    // if (opt.enable_cgen) {
+    //     KlrPassManager pm;
+    //     pm_init(&pm, "cgen-pass");
+    //     pm.dump = opt.dump & KLR_DUMP_CGEN;
+    //     build_cgen_pm(&pm);
+    //     pm_run(fn, &pm);
+    //     pm_fini(&pm);
+    // }
+}
 
 int do_compile(Vector *pss, char *output)
 {
@@ -2633,13 +2662,18 @@ int do_compile(Vector *pss, char *output)
         parse_ast(ps);
         if (!ps->errors) {
             kl_gen_ir(ps);
-            // kl_do_lowering(ps);
-            // klr_module_do_isel(ps->module);
         }
         errors += ps->errors;
     }
 
     if (errors > 0) return -1;
+
+    KlrModule *m = ps->module;
+
+    KlrFunc *fn;
+    vector_foreach(fn, &m->functions) {
+        run_func_passes(fn);
+    }
 
     write_to_klc(current, output);
 

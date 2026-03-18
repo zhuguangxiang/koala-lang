@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: koalac %s --opt --dump=opt-ir | filecheck %s
 
 func foo() {
     let i = 10
@@ -30,6 +30,7 @@ func foo() {
     let unsued = "hello"
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABEL: func @foo()
 // CHECK: call @print [ext = true, path = 'std/builtin'], 14 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64
@@ -48,6 +49,7 @@ func test_nested(a int, b int) {
     print("Done")
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABEL: func @test_nested(%a int64, %b int64)
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 1' str
 // CHECK: jmp label %bb2

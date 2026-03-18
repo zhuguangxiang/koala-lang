@@ -749,39 +749,14 @@ void klr_simple_alloc_registers(KlrFunc *func);
 
 /* clang-format on */
 
-/* <7> pass */
-
-typedef int (*PassFunc)(KlrFunc *fn, void *arg);
-
-typedef struct _KlrPass {
-    List link;
-    const char *name;
-    PassFunc callback;
-    void *arg;
-} KlrPass;
-
-typedef struct _KlrPipeline {
-    List passes;
-    int count;
-} KlrPipeline;
-
-/* define a pipeline */
-#define PIPELINE(name) KlrPipeline name = { .passes = LIST_INIT(name.passes), .count = 0 }
-
-/* finalize a pipeline */
-void fini_pipeline(KlrPipeline *grp);
-
-/* register one pass */
-void pipeline_add_pass(KlrPipeline *grp, KlrPass *pass);
-
-/* execute pipeline */
-void run_pipeline(KlrPipeline *grp, KlrFunc *fn);
-
-/* execute default pipeline for a function */
-void run_default_pipeline(KlrFunc *fn);
-
-/* execute default pipeline for a module */
-void klr_run_default_pipeline(KlrModule *m);
+typedef enum _KlrDumpFlags {
+    KLR_DUMP_NONE = 0,
+    KLR_DUMP_IR = 1 << 0,
+    KLR_DUMP_OPT_IR = 1 << 1,
+    KLR_DUMP_LIR = 1 << 2,
+    KLR_DUMP_CGEN = 1 << 3,
+    KLR_DUMP_ALL = 0xFFFFFFFF,
+} KlrDumpFlags;
 
 #ifdef __cplusplus
 }

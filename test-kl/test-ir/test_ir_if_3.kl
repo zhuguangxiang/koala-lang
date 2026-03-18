@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: koalac %s --opt --dump=opt-ir | filecheck %s
 
 func nested_test() {
     let a = 1
@@ -15,6 +15,9 @@ func nested_test() {
         }
     }
 }
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: func @nested_test()
 // CHECK: call @print [ext = true, path = 'std/builtin'], 'Depth 4 reached' str, 1 int64, 2 int64, 3 int64, 4 int64
 // CHECK: ret void
 
@@ -32,6 +35,9 @@ func ladder_test() {
         print("Fail")
     }
 }
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: func @ladder_test()
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Good' str
 // CHECK: ret void
 
@@ -46,6 +52,8 @@ func logic_cascade_test() {
     }
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: func @logic_cascade_test()
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Logic Cascade Success' str
 // CHECK: ret void
 
@@ -61,6 +69,8 @@ func short_circuit_sim_test() {
     }
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
+// CHECK-LABEL: func @short_circuit_sim_test()
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Short-circuit logic: Success' str
 // CHECK: ret void
 
@@ -84,6 +94,7 @@ func foo() {
     }
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 1) ---
 // CHECK-LABEL: func @foo()
 // CHECK-NOT: local
 // CHECK-NOT: move
@@ -92,5 +103,7 @@ func foo() {
 // CHECK: %0 = call @get_some_bool
 // CHECK: branch %0 bool, label %bb0, label %bb1
 // CHECK: call @print [ext = true, path = 'std/builtin'], 'Path A' str, %0 bool
+// CHECK: jmp label %bb2
 // CHECK: call @print [ext = true, path = 'std/builtin'], 'Path B' str, false bool
+// CHECK: jmp label %bb2
 // CHECK: ret void

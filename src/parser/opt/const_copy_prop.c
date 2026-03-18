@@ -3,8 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "ir.h"
 #include "log.h"
+#include "pass.h"
 #include "queue.h"
 
 #ifdef __cplusplus
@@ -406,7 +406,7 @@ can be used to fold list/tuple/map/set literals, and also can be used to fold co
 variables. In one basic block, if there are many store insns to the same variable, only
 the last store insn can be propagated, and the previous store insns will be removed.
 */
-static int klr_const_copy_prop_pass(KlrFunc *fn, void *ctx)
+int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
 {
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
@@ -428,11 +428,6 @@ static int klr_const_copy_prop_pass(KlrFunc *fn, void *ctx)
 
     return 0;
 }
-
-KlrPass const_copy_prop_pass = {
-    .name = "const_copy_propagation",
-    .callback = klr_const_copy_prop_pass,
-};
 
 #ifdef __cplusplus
 }

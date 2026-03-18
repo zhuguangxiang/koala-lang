@@ -17,6 +17,8 @@
 static char output[MAX_PATH_LEN];
 static char input[MAX_PATH_LEN];
 
+KlCompileOptions opt;
+
 static void usage(void)
 {
     printf(
@@ -68,33 +70,97 @@ static char *save_path(const char *path, char *dst)
     memcpy(dst, path, len);
 }
 
+static KlrDumpFlags parse_dump_flags(const char *s)
+{
+    KlrDumpFlags flags = KLR_DUMP_NONE;
+
+    char buf[128];
+    strncpy(buf, s, sizeof(buf));
+    buf[sizeof(buf) - 1] = 0;
+
+    char *tok = strtok(buf, ",");
+    while (tok) {
+        if (strcmp(tok, "ir") == 0)
+            flags |= KLR_DUMP_IR;
+        else if (strcmp(tok, "opt-ir") == 0)
+            flags |= KLR_DUMP_OPT_IR;
+        else if (strcmp(tok, "lir") == 0)
+            flags |= KLR_DUMP_LIR;
+        else if (strcmp(tok, "cgen") == 0)
+            flags |= KLR_DUMP_CGEN;
+        else if (strcmp(tok, "all") == 0)
+            flags |= KLR_DUMP_ALL;
+
+        tok = strtok(NULL, ",");
+    }
+
+    return flags;
+}
+
 static void parse_command(int argc, char *argv[])
 {
     extern char *optarg;
     extern int optind;
-    struct option options[] = { { "version", no_argument, NULL, 'v' },
-                                { "help", no_argument, NULL, 'h' },
-                                { NULL, 0, NULL, 0 } };
-    int opt;
+    struct option options[] = {
+        { "version", no_argument, NULL, 'v' }, { "help", no_argument, NULL, 'h' },
+        { "opt", no_argument, 0, 1 },          { "isel", no_argument, 0, 2 },
+        { "cgen", no_argument, 0, 3 },         { "regalloc", required_argument, 0, 4 },
+        { "dump", required_argument, 0, 5 },   { NULL, 0, NULL, 0 },
+    };
 
-    while ((opt = getopt_long(argc, argv, "o:vh?", options, NULL)) != -1) {
-        switch (opt) {
+    int opt_id;
+    int long_index;
+
+    while ((opt_id = getopt_long(argc, argv, "o:vh?", options, &long_index)) != -1) {
+        switch (opt_id) {
+            case 1:
+                opt.enable_opt = 1;
+                break;
+
+            case 2:
+                opt.enable_isel = 1;
+                break;
+
+            case 3:
+                opt.enable_cgen = 1;
+                break;
+
+            case 4:
+                if (strcmp(optarg, "none") == 0)
+                    opt.regalloc = 0;
+                else if (strcmp(optarg, "simple") == 0)
+                    opt.regalloc = 1;
+                else if (strcmp(optarg, "lsra") == 0)
+                    opt.regalloc = 2;
+                else {
+                    fprintf(stderr, "Unknown regalloc mode: %s\n", optarg);
+                    exit(1);
+                }
+                break;
+
+            case 5:
+                opt.dump = parse_dump_flags(optarg);
+                break;
+
             case 'o': {
                 save_path(optarg, output);
                 break;
             }
+
             case 'v':
                 version();
                 exit(0);
                 break;
+
             case 'h':
                 /* fall-through */
             case '?':
                 usage();
                 exit(0);
                 break;
+
             default:
-                printf("invalid option '%c'.\n", opt);
+                printf("Unknown option\n");
                 usage();
                 exit(0);
                 break;

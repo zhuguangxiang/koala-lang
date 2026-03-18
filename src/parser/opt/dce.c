@@ -3,8 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "ir.h"
 #include "log.h"
+#include "pass.h"
 #include "queue.h"
 
 #ifdef __cplusplus
@@ -98,7 +98,7 @@ static int has_side_effect(KlrInsn *insn)
 /*
 Dead code elimination pass, remove instructions that have no uses.
 */
-static int klr_dce_pass(KlrFunc *fn, void *ctx)
+int klr_dce_pass(KlrFunc *fn, void *data)
 {
     log_info("[dead-code-elimination] on func '%%%s'", fn->name);
 
@@ -143,11 +143,6 @@ static int klr_dce_pass(KlrFunc *fn, void *ctx)
 
     return 0;
 }
-
-KlrPass dce_pass = {
-    .name = "dce",
-    .callback = klr_dce_pass,
-};
 
 #ifdef __cplusplus
 }

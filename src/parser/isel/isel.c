@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "ir.h"
+#include "isel.h"
 #include "log.h"
 
 #ifdef __cplusplus
@@ -226,37 +226,39 @@ static inline int isel_is_binary(OpCode op)
     return (op >= OP_BINARY_ADD && op <= OP_BINARY_CMP_GE);
 }
 
-void klr_module_do_isel(KlrModule *m)
+static int klr_do_isel(KlrFunc *fn, void *data)
 {
-    log_info("do isel for module '%s'", m->name);
+    log_info("do isel for func '%s'", fn->name);
+    KlrBasicBlock *bb;
+    basic_block_foreach(bb, fn) {
+        KlrInsn *insn;
+        insn_foreach(insn, bb) {
+            log_info("do isel for insn:");
+            log_insn(insn);
 
-    KlrFunc *fn;
-    vector_foreach(fn, &m->functions) {
-        log_info("do isel for func '%s'", fn->name);
-        KlrBasicBlock *bb;
-        basic_block_foreach(bb, fn) {
-            KlrInsn *insn;
-            insn_foreach(insn, bb) {
-                log_info("do isel for insn:");
-                log_insn(insn);
-
-                if (isel_is_binary(insn->code)) {
-                    isel_lower_binary(insn, fn);
-                    continue;
-                }
-
-                if (insn->code == OP_IR_LOCAL) {
-                    // isel_lower_local(insn, fn);
-                    continue;
-                }
-
-                // other isel patterns...
+            if (isel_is_binary(insn->code)) {
+                isel_lower_binary(insn, fn);
+                continue;
             }
+
+            if (insn->code == OP_IR_LOCAL) {
+                // isel_lower_local(insn, fn);
+                continue;
+            }
+
+            // other isel patterns...
         }
     }
 
-    klr_dump_module(m);
+    return 0;
 }
+
+static KlrPass isel_pass = {
+    .name = "isel-pass",
+    .run = klr_do_isel,
+};
+
+void build_isel_pm(KlrPassManager *pm, int dump) { pm_add_pass(pm, &isel_pass, dump); }
 
 #ifdef __cplusplus
 }

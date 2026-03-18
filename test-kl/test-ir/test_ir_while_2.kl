@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: koalac %s --opt --dump=opt-ir | filecheck %s
 
 while true {
     break
@@ -6,6 +6,7 @@ while true {
 }
 print("End")
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABLE: func @__init__()
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'End' str
 // CHECK: ret void
@@ -23,6 +24,7 @@ func foo() {
     }
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABLE: func @foo()
 // CHECK: %i = local int64
 // CHECK: move %i int64, 0 int64
@@ -59,6 +61,7 @@ func test_dead_block(n int) int {
     return 0
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABEL: func @test_dead_block(%n int64) int64
 // CHECK: %0 = cmpgt %n int64, 10 int64
 // CHECK: branch %0 bool, label %bb0, label %bb1
@@ -74,6 +77,7 @@ func test_if_false() {
     print(a)
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABEL: func @test_if_false()
 // CHECK: call @print [ext = true, path = 'std/builtin'], 10 int64
 // CHECK: ret void
@@ -85,6 +89,7 @@ func instant_break() {
     print("Safe")
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABEL: func @instant_break()
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Safe' str
 // CHECK: ret void
@@ -154,6 +159,7 @@ func break_shadow() {
     print("Out")
 }
 
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iteration 2) ---
 // CHECK-LABEL: func @break_shadow()
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Out' str
 // CHECK: ret void

@@ -25,16 +25,16 @@ set(PARSER_SRC
     parser/typespec.c
     parser/write_klc.c
     parser/read_klc.c
-    parser/gen_ir.c
+    parser/irgen.c
     parser/klr/ir.c
     parser/klr/insn.c
     parser/klr/printer.c
     parser/klr/pass.c
-    parser/klr/passes/dot.c
-    parser/klr/passes/const_copy_prop.c
-    parser/klr/passes/dce.c
-    parser/klr/passes/cfg_bb_opt.c
-    parser/klr/isel.c)
+    parser/opt/const_copy_prop.c
+    parser/opt/dce.c
+    parser/opt/cfg_bb_opt.c
+    parser/opt/opt_passes.c
+    parser/isel/isel.c)
     # parser/klr/isel_binary.c
     # parser/lowering/lowering.c
     # parser/lowering/encode.c

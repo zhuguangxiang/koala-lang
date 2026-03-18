@@ -4,6 +4,7 @@
  */
 
 #include "parser.h"
+#include "pass.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -388,6 +389,11 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     KlrBasicBlock *last = scope->bb;
     klr_add_last_return(last);
 
+    if (opt.dump & KLR_DUMP_IR) {
+        fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
+        klr_print_func((KlrFunc *)sym->ir_val, stdout);
+    }
+
     exit_scope(ps);
 }
 
@@ -759,11 +765,12 @@ void kl_gen_ir(ParserState *ps)
     KlrBasicBlock *last = scope->bb;
     klr_add_last_return(last);
 
-    exit_scope(ps);
+    if (opt.dump & KLR_DUMP_IR) {
+        fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
+        klr_print_func((KlrFunc *)fn, stdout);
+    }
 
-    // klr_dump_module(m);
-    klr_run_default_pipeline(m);
-    klr_dump_module(m);
+    exit_scope(ps);
 }
 
 #ifdef __cplusplus
