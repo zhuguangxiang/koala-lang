@@ -1,0 +1,72 @@
+
+// func test_if(c bool) {
+//     if (c) {
+//         print(1) // Then
+//     } else {
+//         print(2) // Else
+//     }
+//     print(3)     // Merge
+// }
+
+
+// func test_while(n int) {
+//     var i = 0
+//     while (i < n) {
+//         print(i)
+//         i = i + 1
+//     }
+//     print("done")
+// }
+
+// func test_complex(_n int) {
+//     var n = _n
+
+//     if (n > 0) {
+//         while (n > 0) {
+//             n = n - 1
+//         }
+//     }
+
+//     print(n)
+// }
+
+// func test_cfg(n int64) int64 {
+//     var x = 0
+//     if (n > 0) {       // Branch A
+//         x = 10         // Then block
+//     } else {
+//         x = 20         // Else block
+//     }
+
+//     var i = 0
+//     while (i < n) {    // Loop Header
+//         print(i)       // Loop Body
+//         i = i + 1
+//     }
+//     return x           // Exit block
+// }
+
+// func test_nested(n int) {
+//     var i = 0
+//     while (i < n) {
+//         if (i % 2 == 0) {
+//             print("even")
+//         } else {
+//             print("odd")
+//         }
+//         i = i + 1
+//     }
+// }
+
+func test_diamond(c1 bool, c2 bool) {
+    if (c1) {
+        if (c2) {
+            print("A")
+        } else {
+            print("B")
+        }
+    } else {
+        print("C")
+    }
+    print("D")
+}

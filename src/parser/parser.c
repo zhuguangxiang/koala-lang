@@ -2673,6 +2673,9 @@ int do_compile(Vector *pss, char *output)
     KlrFunc *fn;
     vector_foreach(fn, &m->functions) {
         run_func_passes(fn);
+        // TODO:
+        // klr_build_rpo(fn);
+        // klr_print_func(fn, stdout);
     }
 
     write_to_klc(current, output);

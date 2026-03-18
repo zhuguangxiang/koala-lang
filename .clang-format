@@ -63,4 +63,4 @@ ForEachMacros: ["tuple_foreach", "local_foreach", "lldq_foreach", "hlist_for_eac
     "list_foreach", "list_foreach_safe", "use_foreach", "edge_in_foreach", "edge_out_foreach", "basic_block_foreach",
     "insn_foreach", "use_foreach_safe", "insn_foreach_safe", "vector_foreach", "vector_foreach_reverse",
     "vector_foreach_ptr", "_insn_oper_value_foreach", "edge_out_foreach_safe", "edge_in_foreach_safe", "insn_foreach_reverse_safe",
-    "insn_oper_use_foreach", "insn_oper_value_foreach"]
+    "insn_oper_use_foreach", "insn_oper_value_foreach", "edge_out_foreach_reverse"]

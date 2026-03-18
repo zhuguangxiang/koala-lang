@@ -97,6 +97,20 @@ static inline List *list_pop_back(List *list)
     return entry;
 }
 
+static inline void list_move(List *dest, List *src)
+{
+    ASSERT(list_empty(dest));
+
+    if (list_empty(src)) return;
+
+    dest->next = src->next;
+    dest->prev = src->prev;
+    dest->next->prev = dest;
+    dest->prev->next = dest;
+
+    init_list(src);
+}
+
 /* clang-format off */
 
 /* Get the entry in which is embedded */

@@ -224,7 +224,6 @@ static KlrBasicBlock *new_block(KlrFunc *fn, char *name, char *comment)
     init_list(&bb->link);
     bb->func = fn;
     bb->comment = comment;
-    init_list(&bb->local_list);
     init_list(&bb->insn_list);
     init_list(&bb->in_edges);
     init_list(&bb->out_edges);
@@ -585,6 +584,92 @@ KlrValue *klr_klass_add_method(KlrValue *klass_val, char *name, TypeSpec *ret,
     method->module = klass->module;
     method->klass = klass;
     return (KlrValue *)method;
+}
+
+static void dfs_post_order(KlrBasicBlock *bb, List *rpo_list)
+{
+    // don't visit the end block
+    if (bb == bb->func->ebb) return;
+    if (bb->visited) return;
+
+    bb->visited = 1;
+
+    /* handle 'if-else' firstly */
+    KlrEdge *edge;
+    edge_out_foreach_reverse(edge, bb) {
+        dfs_post_order(edge->dst, rpo_list);
+    }
+
+    // remove from fn->bb_list and push to rpo_list
+    list_remove(&bb->link);
+    list_push_front(rpo_list, &bb->link);
+}
+
+static void klr_dump_rpo_order(KlrFunc *fn)
+{
+    log_info("--- RPO Order for function: %s ---", fn->name);
+    KlrBasicBlock *bb;
+    basic_block_foreach(bb, fn) {
+        KlrInsn *_insn = insn_first(bb);
+        log_info("Index: %d | BB: %s | Range: [%d - %d]", bb->index, klr_block_name(bb),
+                 _insn->pos, bb->last_pos);
+
+        // print back-edge recognition info
+        KlrEdge *edge;
+        edge_out_foreach(edge, bb) {
+            if (edge->dst == fn->ebb) continue; // skip end block
+            if (edge->dst->index <= bb->index) {
+                log_info("  [!] Found Back-edge: %s -> %s", klr_block_name(bb),
+                         klr_block_name(edge->dst));
+            }
+        }
+    }
+}
+
+static void klr_assign_coord(KlrFunc *fn)
+{
+    int rpo_index = 0;
+    int current_pos = 0;
+    KlrBasicBlock *bb;
+    basic_block_foreach(bb, fn) {
+        // used for back-edge recognition
+        bb->index = rpo_index++;
+        KlrInsn *insn;
+        insn_foreach(insn, bb) {
+            // give lsra a monotonically increasing coordinate for register allocation
+            insn->pos = current_pos++;
+        }
+        // record the last pos of the block for cross-block live range analysis
+        bb->last_pos = current_pos > 0 ? (current_pos - 1) : 0;
+    }
+}
+
+void klr_build_rpo(KlrFunc *fn)
+{
+    List rpo_list;
+    init_list(&rpo_list);
+
+    // clear visited flag
+    KlrBasicBlock *bb;
+    basic_block_foreach(bb, fn) {
+        bb->visited = 0;
+    }
+
+    // from start basic block, do a post-order DFS traversal and push blocks to rpo_list
+    ASSERT(fn->sbb->num_outedges == 1);
+    KlrEdge *edge = edge_out_first(fn->sbb);
+    dfs_post_order(edge->dst, &rpo_list);
+
+    // move blocks from rpo_list back to fn->bb_list
+    list_move(&fn->bb_list, &rpo_list);
+    ASSERT(list_empty(&rpo_list));
+
+    // assign coordinate for each instruction in RPO order
+    klr_assign_coord(fn);
+
+#ifndef NOLOG
+    klr_dump_rpo_order(fn);
+#endif
 }
 
 #ifdef __cplusplus

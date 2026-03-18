@@ -169,11 +169,9 @@ typedef struct _KlrBasicBlock {
 
     /* linked in KlrFunc */
     List link;
+
     /* ->KlrFunc(parent) */
     KlrFunc *func;
-
-    /* locals defined in this block */
-    List local_list;
 
     /* block has branch flag */
     int has_branch;
@@ -201,6 +199,19 @@ typedef struct _KlrBasicBlock {
 
     /* local variable constant map */
     HashMap local_var_map;
+
+    /**
+     * The position of this block in the Reverse Post-Order (RPO) sequence.
+     * Used for back-edge detection: if (target->index <= current->index),
+     * it's a loop back-edge.
+     */
+    int index;
+
+    /**
+     * The linear position (pos) of the last instruction in this block.
+     * Crucial for determining if a value is live-out of this block.
+     */
+    int last_pos;
 
     /**
      * The linearized PC index of the first LowerInsn belonging to this block.
@@ -320,7 +331,10 @@ typedef struct _KlrInsn {
     /* opcode */
     OpCode code;
 
-    /* linear position */
+    /**
+     * Linear position (coordinate) in the RPO sequence.
+     * Serves as the time-axis for Live Interval analysis [start, end].
+     */
     int pos;
 
     /* instruction flags */
@@ -463,6 +477,9 @@ void klr_remove_all_out_edges(KlrBasicBlock *bb);
 /* edge-out safe iteration */
 #define edge_out_foreach_safe(edge, nxt, bb) \
     list_foreach_safe(edge, nxt, out_link, &(bb)->out_edges)
+
+#define edge_out_foreach_reverse(edge, bb) \
+    list_foreach_reverse(edge, out_link, &(bb)->out_edges)
 
 /* edge-in iteration */
 #define edge_in_foreach(edge, bb) list_foreach(edge, in_link, &(bb)->in_edges)
@@ -748,6 +765,9 @@ void klr_simple_alloc_registers(KlrFunc *func);
 } while (0)
 
 /* clang-format on */
+
+/* Reverse Post Order */
+void klr_build_rpo(KlrFunc *fn);
 
 typedef enum _KlrDumpFlags {
     KLR_DUMP_NONE = 0,
