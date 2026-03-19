@@ -141,6 +141,7 @@ Vector *type_spec_vec_copy(Vector *args);
 TypeSpec *va_list_type_spec(TypeSpec *src);
 TypeSpec *va_list_type_spec_intern(TypeSpec *src);
 
+static inline int type_is_no_type(TypeSpec *ts) { return ts->kind == TYPE_NO_TYPE; }
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
 static inline int type_is_valist(TypeSpec *ts) { return ts->kind == TYPE_VA_LIST; }

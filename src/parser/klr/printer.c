@@ -146,12 +146,8 @@ static void print_cmp(const char *name, KlrInsn *insn, FILE *fp)
 static void print_jmp(KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "jmp ");
-
     KlrValue *val = insn_oper_value(insn, 0);
     fprintf(fp, "label %%bb%d", val->tag);
-
-    KlrBasicBlock *bb = (KlrBasicBlock *)val;
-    if (bb->has_back_edge) fprintf(fp, " , !loop-back-edge\n");
 }
 
 static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)

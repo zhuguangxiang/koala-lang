@@ -44,12 +44,12 @@ func foo() {
 // CHECK-LABEL: func @foo()
 // CHECK: call @print [ext = true, path = 'std/builtin'], 100 int64, 101 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 'a = ' str, 100 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'], 'g = ' str, %4 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'], 'h = ' str, %8 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'], 'f = ' str, %12 int64
-// CHECK: %14 = add %a int64, 101 int64
-// CHECK: %15 = add %14 int64, 1 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'], %15 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'g = ' str, %2 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'h = ' str, %5 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'f = ' str, %8 int64
+// CHECK: %9 = add %a int64, 101 int64
+// CHECK: %10 = add %9 int64, 1 int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], %10 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 102 int64
 
 func bar(v int) int {

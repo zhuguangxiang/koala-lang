@@ -164,6 +164,11 @@ int ir_has_value(KlrInsn *insn)
     for (int i = 0; i < COUNT_OF(no_regs_codes); i++) {
         if (insn->code == no_regs_codes[i]) return 0;
     }
+
+    if (insn->code == OP_CALL && type_is_no_type(insn->ts)) {
+        return 0;
+    }
+
     return 1;
 }
 
