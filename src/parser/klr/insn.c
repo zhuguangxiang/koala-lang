@@ -46,6 +46,10 @@ static void fini_use(KlrUse *use)
     } else {
         ref->use_count--;
     }
+
+    use->ref = NULL;
+    use->insn = NULL;
+    use->oper = NULL;
 }
 
 static void init_oper(KlrOper *oper, KlrInsn *insn, KlrValue *ref, int is_def)
@@ -165,7 +169,7 @@ int ir_has_value(KlrInsn *insn)
         if (insn->code == no_regs_codes[i]) return 0;
     }
 
-    if (insn->code == OP_CALL && type_is_no_type(insn->ts)) {
+    if (insn->code == OP_IR_CALL && type_is_no_type(insn->ts)) {
         return 0;
     }
 
@@ -343,7 +347,7 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int na
         }
     }
 
-    KlrInsn *insn = new_insn(OP_CALL, nargs + 1, name);
+    KlrInsn *insn = new_insn(OP_IR_CALL, nargs + 1, name);
     insn->flags |= is_const ? KLR_INSN_FLAGS_CONST : 0;
 
     init_oper(&insn->opers[0], insn, (KlrValue *)fn, 0);

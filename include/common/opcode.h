@@ -27,19 +27,33 @@ typedef enum _SpecialConst {
 
 /*
  * Standard 4-byte fixed-length instruction encoding formats:
- * Op:   [op:8][---:24]
- * Ax:   [op:8][a:12][---:12]
- * ABC:  [op:8][a:8][b:8][c:8]
- * AxBx: [op:8][ax:12][bx:12]
- * ABxx: [op:8][a:8][bxx:16]
+ *
+ * FORMAT_NONE:
+ *   IR-only pseudo-instruction format.
+ *   Instructions with this format are never encoded into VM bytecode.
+ *   encode() must not be called on them.
+ *   Used for high-level IR constructs (e.g. OP_IR_JMP4) that are lowered
+ *   by codegen into one or more real VM instructions.
+ *
+ * FORMAT_Op:   [op:8][---:24]
+ * FORMAT_Ax:   [op:8][a:12][---:12]
+ * FORMAT_ABC:  [op:8][a:8][b:8][c:8]
+ * FORMAT_AxBx: [op:8][ax:12][bx:12]
+ * FORMAT_ABxx: [op:8][a:8][bxx:16]
  */
-typedef enum { FORMAT_Op, FORMAT_Ax, FORMAT_ABC, FORMAT_AxBx, FORMAT_ABxx } OpFormat;
+typedef enum {
+    FORMAT_NONE,
+    FORMAT_Op,
+    FORMAT_Ax,
+    FORMAT_ABC,
+    FORMAT_AxBx,
+    FORMAT_ABxx
+} OpFormat;
 
 typedef enum _OpCode {
 #define X(name, fmt, s0, s1) name,
 #include "opcode_list.h"
 #undef X
-    OP_MAX
 } OpCode;
 
 extern char *opcode_names[];

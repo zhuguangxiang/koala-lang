@@ -145,7 +145,9 @@ static void klr_build_intervals(KlrLSRAContext *ctx)
         intv.allocated = 0;
         // parameters are defined at the beginning of the function
         intv.start = 0;
-        intv.end = val_last_use_pos((KlrValue *)param);
+        int end = val_last_use_pos((KlrValue *)param);
+        // if never used, set end to 1 to avoid zero-length interval
+        intv.end = end > 0 ? end : 1;
         vector_push_back(&ctx->intervals, &intv);
     }
 

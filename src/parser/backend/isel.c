@@ -168,9 +168,7 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
 
     // constant folding hook (optional)
     if (c1 && c2) {
-        // TODO: constant fold here if you want a safety net
-        // NYI();
-        return;
+        UNREACHABLE();
     }
 
     // commutative swap: imm op reg -> reg op imm
@@ -226,14 +224,20 @@ static inline int isel_is_binary(OpCode op)
     return (op >= OP_BINARY_ADD && op <= OP_BINARY_CMP_GE);
 }
 
+/* Helper: Check if Opcode is a comparison */
+static inline int is_cmp(OpCode kind)
+{
+    return kind >= OP_BINARY_CMP_EQ && kind <= OP_BINARY_CMP_GE;
+}
+
 static int klr_do_isel(KlrFunc *fn, void *data)
 {
     log_info("do isel for func '%s'", fn->name);
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
         KlrInsn *insn;
-        insn_foreach(insn, bb) {
-            log_info("do isel for insn:");
+        insn_foreach_reverse(insn, bb) {
+            log_info("isel for insn:");
             log_insn(insn);
 
             if (isel_is_binary(insn->code)) {

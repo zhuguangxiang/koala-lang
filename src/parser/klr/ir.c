@@ -142,6 +142,20 @@ KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m
     return lit;
 }
 
+int klr_is_immutable(KlrValue *val)
+{
+    if (klr_is_global(val)) {
+        KlrGlobal *global = (KlrGlobal *)val;
+        return !global->mutable;
+    }
+
+    if (klr_is_param(val)) return 1;
+
+    ASSERT(val->kind == KLR_VALUE_INSN);
+    KlrInsn *insn = (KlrInsn *)val;
+    return (insn->flags & KLR_INSN_FLAGS_CONST) != 0;
+}
+
 typedef struct _LocalVarMapEntry {
     HashMapEntry hnode;
     KlrInsn *local;

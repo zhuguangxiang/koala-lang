@@ -24,3 +24,50 @@ func foo(n int) int {
 // CHECK: %3 = int.add_imm %2 int64, 2 int64
 // CHECK: %4 = int.add_imm %3 int64, 3 int64
 // CHECK: ret %4 int64
+
+
+// func fib(n int) int {
+//     if n < 2 { return n }
+//     return fib(n - 1) + fib(n - 2)
+// }
+
+// func test_while(n int) {
+//     var i = 0
+//     while i < n {
+//         i = i + 1
+//     }
+// }
+
+// func test_nested_loop(n int) {
+//     var i = 0
+//     while (i < n) {
+//         var j = 0
+//         while (j < i) {
+//             print(j)
+//             j = j + 1
+//         }
+//         i = i + 1
+//     }
+// }
+
+// var b = true
+
+// func foo() {
+//     if b {
+//         print("true")
+//     } else {
+//         print("false")
+//     }
+// }
+
+// func bar(n int) int {
+//     var v = 10 < 20
+//     if v {
+//         return 1
+//     } else {
+//         return 0
+//     }
+// }
+
+// func bar(n int) {
+// }

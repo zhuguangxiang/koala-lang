@@ -318,7 +318,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, "shr", fp);
             break;
 
-        case OP_CALL:
+        case OP_IR_CALL:
             print_call(insn, fp);
             break;
 
@@ -396,6 +396,18 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_LOADK:
             print_loadk(insn, fp);
+            break;
+
+        case OP_INT_CMP_LT_IMM:
+            print_cmp("int.cmp_lt_imm", insn, fp);
+            break;
+
+        case OP_INT_SUB_IMM:
+            print_binary(insn, "int.sub_imm", fp);
+            break;
+
+        case OP_INT_CMP_LT:
+            print_cmp("int.cmp_lt", insn, fp);
             break;
 
         default:

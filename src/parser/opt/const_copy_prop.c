@@ -19,7 +19,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         return;
     }
 
-    if (op == OP_CALL && (insn->flags & KLR_INSN_FLAGS_CONST)) {
+    if (op == OP_IR_CALL && (insn->flags & KLR_INSN_FLAGS_CONST)) {
         return;
     }
 
@@ -288,8 +288,12 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         }
 
         case OP_MOVE: {
-            // move is only one which doesn't have uses.
-            // so ->use_count is always zero.
+            // move is one of which doesn't have uses.
+            /*
+            These instructions, which include move, jmp, branch, return, set_global, and
+            call_void, produce no SSA result value, so there are no values that could be
+            used by other instructions and their use‑lists are empty.
+            */
             ASSERT(!klr_is_used(insn));
             KlrValue *_dst = insn_oper_value(insn, 0);
             KlrValue *src = insn_oper_value(insn, 1);
@@ -347,7 +351,7 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             break;
         }
 
-        case OP_CALL: {
+        case OP_IR_CALL: {
             if (insn->flags & KLR_INSN_FLAGS_CONST) {
                 KlrValue *callee = insn_oper_value(insn, 0);
 

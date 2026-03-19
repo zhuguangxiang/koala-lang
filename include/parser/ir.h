@@ -339,6 +339,7 @@ typedef struct _KlrOper {
 } KlrOper;
 
 #define KLR_INSN_FLAGS_CONST 1
+#define KLR_INSN_FLAGS_DEAD  2
 
 /* instruction */
 typedef struct _KlrInsn {
@@ -355,6 +356,18 @@ typedef struct _KlrInsn {
 
     /* instruction flags */
     int flags;
+
+    /* sub opcode */
+    int subop;
+#define SUB_OP_NONE  0
+#define SUB_OP_EQ    1
+#define SUB_OP_NE    2
+#define SUB_OP_LT    3
+#define SUB_OP_GT    4
+#define SUB_OP_LE    5
+#define SUB_OP_GE    6
+#define SUB_OP_TRUE  7
+#define SUB_OP_FALSE 8
 
     /* filled phi parameter index */
     int filled;
@@ -400,14 +413,39 @@ static inline int klr_is_const(KlrValue *val)
     return 0;
 }
 
+static inline int klr_is_insn(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_INSN) return 1;
+    return 0;
+}
+
 static inline int klr_is_local(KlrValue *val)
 {
-    if (val->kind != KLR_VALUE_INSN) return 0;
+    if (!klr_is_insn(val)) return 0;
+
     KlrInsn *insn = (KlrInsn *)val;
     return insn->code == OP_IR_LOCAL;
 }
 
-int klr_is_global(KlrValue *val);
+static inline int klr_is_param(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_PARAM) return 1;
+    return 0;
+}
+
+int klr_is_immutable(KlrValue *val);
+
+static inline int insn_is_dead(KlrInsn *insn)
+{
+    if (insn->flags & KLR_INSN_FLAGS_DEAD) return 1;
+    return 0;
+}
+
+static inline int klr_is_global(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_GLOBAL) return 1;
+    return 0;
+}
 
 /* <2> module */
 
