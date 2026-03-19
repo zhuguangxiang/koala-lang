@@ -101,9 +101,9 @@ func foo() {
 // CHECK-NOT: land
 // CHECK-NOT: lor
 // CHECK: %0 = call @get_some_bool
-// CHECK: branch %0 bool, label %bb0, label %bb1
+// CHECK: branch %0 bool, label %bb1, label %bb2
 // CHECK: call @print [ext = true, path = 'std/builtin'], 'Path A' str, %0 bool
-// CHECK: jmp label %bb2
+// CHECK: jmp label %bb3
 // CHECK: call @print [ext = true, path = 'std/builtin'], 'Path B' str, false bool
-// CHECK: jmp label %bb2
+// CHECK: jmp label %bb3
 // CHECK: ret void

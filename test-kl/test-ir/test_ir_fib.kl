@@ -8,7 +8,7 @@ func fib(n int) int {
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@fib] ---
 // CHECK-LABEL: func @fib(%n int64) int64
 // CHECK: %0 = cmplt %n int64, 2 int64
-// CHECK: branch %0 bool, label %bb0, label %bb1
+// CHECK: branch %0 bool, label %bb1, label %bb2
 // CHECK: ret %n int64
 // CHECK: %1 = sub %n int64, 1 int64
 // CHECK: %2 = call @fib, %1 int64
@@ -38,13 +38,13 @@ func fib_loop(n int) int {
 // CHECK: move %b int64, 1 int64
 // CHECK: %i = local int64
 // CHECK: move %i int64, 0 int64
-// CHECK: jmp label %bb0
+// CHECK: jmp label %bb1
 // CHECK: %0 = cmplt %i int64, %n int64
-// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: branch %0 bool, label %bb2, label %bb3
 // CHECK: %1 = add %a int64, %b int64
 // CHECK: move %a int64, %b int64
 // CHECK: move %b int64, %1 int64
 // CHECK: %2 = add %i int64, 1 int64
 // CHECK: move %i int64, %2 int64
-// CHECK: jmp label %bb0
+// CHECK: jmp label %bb1
 // CHECK: ret %a int64

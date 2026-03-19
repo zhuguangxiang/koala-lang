@@ -28,23 +28,23 @@ func foo() {
 // CHECK-LABEL: func @foo()
 // CHECK: %i = local int64
 // CHECK: move %i int64, 0 int64
-// CHECK: jmp label %bb0
+// CHECK: jmp label %bb1
 
 // CHECK: %0 = cmplt %i int64, 10 int64
-// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: branch %0 bool, label %bb2, label %bb3
 
 // CHECK: %1 = cmpeq %i int64, 5 int64
-// CHECK: branch %1 bool, label %bb3, label %bb4
+// CHECK: branch %1 bool, label %bb4, label %bb5
 
 // CHECK: ret void
 
 // CHECK: %2 = add %i int64, 2 int64
 // CHECK: move %i int64, %2 int64
-// CHECK: jmp label %bb0
+// CHECK: jmp label %bb1
 
 // CHECK: %3 = add %i int64, 1 int64
 // CHECK: move %i int64, %3 int64
-// CHECK: jmp label %bb0
+// CHECK: jmp label %bb1
 
 func test_dead_block(n int) int {
     if (n > 10) {
@@ -64,7 +64,7 @@ func test_dead_block(n int) int {
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@test_dead_block] ---
 // CHECK-LABEL: func @test_dead_block(%n int64) int64
 // CHECK: %0 = cmpgt %n int64, 10 int64
-// CHECK: branch %0 bool, label %bb0, label %bb1
+// CHECK: branch %0 bool, label %bb1, label %bb2
 // CHECK: ret 100 int64
 // CHECK: ret 0 int64
 

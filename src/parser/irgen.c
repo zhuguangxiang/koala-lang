@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "cmd.h"
 #include "parser.h"
 #include "pass.h"
 
@@ -389,7 +390,7 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     KlrBasicBlock *last = scope->bb;
     klr_add_last_return(last);
 
-    if (opt.dump & KLR_DUMP_IR) {
+    if (opt_dump_has(opt, DUMP_IR)) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
         klr_print_func((KlrFunc *)sym->ir_val, stdout);
     }
@@ -459,9 +460,9 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
     emit_ir_visit_expr(ps, cond);
     if (!cond->ir_val) return;
 
-    KlrBasicBlock *if_then = klr_append_block_comment(fn, "if-then");
-    KlrBasicBlock *if_else = klr_append_block_comment(fn, "if-else");
-    KlrBasicBlock *if_end = klr_append_block_comment(fn, "if-end");
+    KlrBasicBlock *if_then = klr_append_block(fn, "if-then");
+    KlrBasicBlock *if_else = klr_append_block(fn, "if-else");
+    KlrBasicBlock *if_end = klr_append_block(fn, "if-end");
 
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
@@ -512,9 +513,9 @@ static void emit_ir_while_stmt(ParserState *ps, Stmt *stmt)
     WhileStmt *s = (WhileStmt *)stmt;
     Expr *cond = s->cond;
 
-    KlrBasicBlock *while_cond = klr_append_block_comment(fn, "while-cond");
-    KlrBasicBlock *while_body = klr_append_block_comment(fn, "while-body");
-    KlrBasicBlock *while_end = klr_append_block_comment(fn, "while-end");
+    KlrBasicBlock *while_cond = klr_append_block(fn, "while-cond");
+    KlrBasicBlock *while_body = klr_append_block(fn, "while-body");
+    KlrBasicBlock *while_end = klr_append_block(fn, "while-end");
 
     // 1. current block jmp to cond block
     KlrBuilder bldr;
@@ -765,7 +766,7 @@ void kl_gen_ir(ParserState *ps)
     KlrBasicBlock *last = scope->bb;
     klr_add_last_return(last);
 
-    if (opt.dump & KLR_DUMP_IR) {
+    if (opt_dump_has(opt, DUMP_IR)) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
         klr_print_func((KlrFunc *)fn, stdout);
     }

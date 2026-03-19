@@ -214,16 +214,13 @@ int klr_clear_local_var_map(KlrBasicBlock *bb)
     return 0;
 }
 
-static KlrBasicBlock *new_block(KlrFunc *fn, char *name, char *comment)
+static KlrBasicBlock *new_block(KlrFunc *fn, char *name)
 {
     KlrBasicBlock *bb = mm_alloc_obj(bb);
-    if (!name) name = "";
-    if (!comment) comment = "";
     INIT_KLR_VALUE(bb, KLR_VALUE_BLOCK, NULL, name);
 
     init_list(&bb->link);
     bb->func = fn;
-    bb->comment = comment;
     init_list(&bb->insn_list);
     init_list(&bb->in_edges);
     init_list(&bb->out_edges);
@@ -236,10 +233,10 @@ static KlrBasicBlock *new_block(KlrFunc *fn, char *name, char *comment)
     return bb;
 }
 
-KlrBasicBlock *klr_append_block_name_comment(KlrValue *fn_val, char *label, char *comment)
+KlrBasicBlock *klr_append_block(KlrValue *fn_val, char *label)
 {
     KlrFunc *fn = (KlrFunc *)fn_val;
-    KlrBasicBlock *bb = new_block(fn, label, comment);
+    KlrBasicBlock *bb = new_block(fn, label);
 
     if (list_empty(&fn->bb_list)) {
         /* first block, add an edge <start, bb> */
@@ -254,7 +251,7 @@ KlrBasicBlock *klr_append_block_name_comment(KlrValue *fn_val, char *label, char
 KlrBasicBlock *klr_add_block(KlrBasicBlock *bb, char *label)
 {
     KlrFunc *fn = bb->func;
-    KlrBasicBlock *_bb = new_block(fn, label, NULL);
+    KlrBasicBlock *_bb = new_block(fn, label);
     list_add(&bb->link, &_bb->link);
     return _bb;
 }
@@ -262,7 +259,7 @@ KlrBasicBlock *klr_add_block(KlrBasicBlock *bb, char *label)
 KlrBasicBlock *klr_add_block_before(KlrBasicBlock *bb, char *label)
 {
     KlrFunc *fn = bb->func;
-    KlrBasicBlock *_bb = new_block(fn, label, NULL);
+    KlrBasicBlock *_bb = new_block(fn, label);
     list_add_before(&bb->link, &_bb->link);
     return _bb;
 }
@@ -462,8 +459,8 @@ KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name)
     vector_init_ptr(&fn->params);
 
     /* initial 'start' and 'end' block */
-    fn->sbb = new_block(fn, "start", NULL);
-    fn->ebb = new_block(fn, "end", NULL);
+    fn->sbb = new_block(fn, "start");
+    fn->ebb = new_block(fn, "end");
 
     vector_push_back(&m->functions, &fn);
     fn->module = m;
@@ -566,8 +563,8 @@ KlrValue *klr_klass_add_method(KlrValue *klass_val, char *name, TypeSpec *ret,
     vector_init_ptr(&method->params);
 
     /* initial 'start' and 'end' block */
-    method->sbb = new_block(method, "start", NULL);
-    method->ebb = new_block(method, "end", NULL);
+    method->sbb = new_block(method, "start");
+    method->ebb = new_block(method, "end");
 
     /* add params */
     if (params) {
@@ -605,45 +602,6 @@ static void dfs_post_order(KlrBasicBlock *bb, List *rpo_list)
     list_push_front(rpo_list, &bb->link);
 }
 
-static void klr_dump_rpo_order(KlrFunc *fn)
-{
-    log_info("--- RPO Order for function: %s ---", fn->name);
-    KlrBasicBlock *bb;
-    basic_block_foreach(bb, fn) {
-        KlrInsn *_insn = insn_first(bb);
-        log_info("Index: %d | BB: %s | Range: [%d - %d]", bb->index, klr_block_name(bb),
-                 _insn->pos, bb->last_pos);
-
-        // print back-edge recognition info
-        KlrEdge *edge;
-        edge_out_foreach(edge, bb) {
-            if (edge->dst == fn->ebb) continue; // skip end block
-            if (edge->dst->index <= bb->index) {
-                log_info("  [!] Found Back-edge: %s -> %s", klr_block_name(bb),
-                         klr_block_name(edge->dst));
-            }
-        }
-    }
-}
-
-static void klr_assign_coord(KlrFunc *fn)
-{
-    int rpo_index = 0;
-    int current_pos = 0;
-    KlrBasicBlock *bb;
-    basic_block_foreach(bb, fn) {
-        // used for back-edge recognition
-        bb->index = rpo_index++;
-        KlrInsn *insn;
-        insn_foreach(insn, bb) {
-            // give lsra a monotonically increasing coordinate for register allocation
-            insn->pos = current_pos++;
-        }
-        // record the last pos of the block for cross-block live range analysis
-        bb->last_pos = current_pos > 0 ? (current_pos - 1) : 0;
-    }
-}
-
 void klr_build_rpo(KlrFunc *fn)
 {
     List rpo_list;
@@ -655,7 +613,8 @@ void klr_build_rpo(KlrFunc *fn)
         bb->visited = 0;
     }
 
-    // from start basic block, do a post-order DFS traversal and push blocks to rpo_list
+    // from start basic block, do a post-order DFS traversal and push blocks to
+    // rpo_list
     ASSERT(fn->sbb->num_outedges == 1);
     KlrEdge *edge = edge_out_first(fn->sbb);
     dfs_post_order(edge->dst, &rpo_list);
@@ -664,12 +623,44 @@ void klr_build_rpo(KlrFunc *fn)
     list_move(&fn->bb_list, &rpo_list);
     ASSERT(list_empty(&rpo_list));
 
-    // assign coordinate for each instruction in RPO order
-    klr_assign_coord(fn);
-
-#ifndef NOLOG
-    klr_dump_rpo_order(fn);
+#ifndef NDEBUG
+    log_info("RPO order for func '%s':", fn->name);
+    klr_print_func(fn, stdout);
 #endif
+}
+
+char *klr_block_name(KlrBasicBlock *bb)
+{
+    if (bb->name[0]) {
+        snprintf(bb->print_name, sizeof(bb->print_name), "bb%d(%s)", bb->tag, bb->name);
+    } else {
+        snprintf(bb->print_name, sizeof(bb->print_name), "bb%d", bb->tag);
+    }
+    return bb->print_name;
+}
+
+char *klr_value_name(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_NONE) {
+        strcpy(val->print_name, "undef");
+        return val->print_name;
+    }
+
+    if (val->name[0]) {
+        if (val->kind == KLR_VALUE_GLOBAL) {
+            snprintf(val->print_name, sizeof(val->print_name), "@%s", val->name);
+        } else {
+            snprintf(val->print_name, sizeof(val->print_name), "%%%s", val->name);
+        }
+    } else {
+        if (val->tag == -1) {
+            snprintf(val->print_name, sizeof(val->print_name), "%%<unnamed>");
+        } else {
+            snprintf(val->print_name, sizeof(val->print_name), "%%%d", val->tag);
+        }
+    }
+
+    return val->print_name;
 }
 
 #ifdef __cplusplus

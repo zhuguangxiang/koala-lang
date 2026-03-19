@@ -31,32 +31,32 @@ func black_hole(n int) int {
 //CHECK-LABEL: func @black_hole(%n int64) int64
 //CHECK: %i = local int64
 //CHECK: move %i int64, 0 int64
-//CHECK: jmp label %bb0
+//CHECK: jmp label %bb1
 
 //CHECK: %0 = cmplt %i int64, %n int64
-//CHECK: branch %0 bool, label %bb1, label %bb2
+//CHECK: branch %0 bool, label %bb2, label %bb3
 
 //CHECK: %j = local int64
 //CHECK: move %j int64, 0 int64
-//CHECK: jmp label %bb3
+//CHECK: jmp label %bb4
 
 //CHECK: ret %i int64
 
 //CHECK: %1 = cmplt %j int64, 10 int64
-//CHECK: branch %1 bool, label %bb4, label %bb5
+//CHECK: branch %1 bool, label %bb5, label %bb6
 
 //CHECK: %2 = add %j int64, 1 int64
 //CHECK: move %j int64, %2 int64
 //CHECK: %3 = cmpeq %2 int64, 5 int64
-//CHECK: branch %3 bool, label %bb3, label %bb6
+//CHECK: branch %3 bool, label %bb4, label %bb7
 
 //CHECK: %4 = add %i int64, 1 int64
 //CHECK: move %i int64, %4 int64
 //CHECK: %5 = cmpgt %4 int64, 100 int64
-//CHECK: branch %5 bool, label %bb7, label %bb0
+//CHECK: branch %5 bool, label %bb8, label %bb1
 
 //CHECK: %6 = add %i int64, %j int64
 //CHECK: %7 = cmpgt %6 int64, 20 int64
-//CHECK: branch %7 bool, label %bb5, label %bb3
+//CHECK: branch %7 bool, label %bb6, label %bb4
 
 //CHECK: ret %i int64

@@ -81,13 +81,12 @@ int klr_remove_unused_block(KlrFunc *fn, void *data)
     while (!queue_empty(&wklist)) {
         KlrBasicBlock *bb = queue_pop(&wklist);
 
-        KlrEdge *edge;
-        edge_out_foreach(edge, bb) {
-            KlrBasicBlock *dst = edge->dst;
-            if (dst == fn->ebb) continue;
-            if (!dst->visited) {
-                dst->visited = 1;
-                queue_push(&wklist, dst);
+        KlrBasicBlock *succ;
+        bb_succ_foreach(succ, bb) {
+            if (succ == fn->ebb) continue;
+            if (!succ->visited) {
+                succ->visited = 1;
+                queue_push(&wklist, succ);
             }
         }
     }

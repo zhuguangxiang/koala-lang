@@ -1,0 +1,19 @@
+// RUN: koalac %s --opt --regalloc=lsra --dump=vreg | filecheck %s
+
+func test_reuse(a int) int {
+    let b = a + 10
+    let c = b + 20
+    let d = c + 30
+    return d
+}
+
+// CHECK-LABEL: === LSRA DUMP: @test_reuse ===
+// CHECK: %a: range: [0, 1) reg: 0
+// CHECK: %0: range: [1, 2) reg: 0
+// CHECK: %1: range: [2, 3) reg: 0
+// CHECK: %2: range: [3, 4) reg: 0
+
+// CHECK: bb: bb0(entry) index: 0 range: [1, 5)
+
+// CHECK: {{[0-9]+}}: [R[[REG:[0-9]+]]] %1 = add
+// CHECK: {{[0-9]+}}: [R[[REG]]] %2 = add

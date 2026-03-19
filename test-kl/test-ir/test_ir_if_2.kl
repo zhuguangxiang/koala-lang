@@ -52,7 +52,7 @@ func test_nested(a int, b int) {
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@test_nested] ---
 // CHECK-LABEL: func @test_nested(%a int64, %b int64)
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 1' str
-// CHECK: jmp label %bb2
+// CHECK: jmp label %bb3
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Done' str
 // CHECK: ret void
 // CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 2' str

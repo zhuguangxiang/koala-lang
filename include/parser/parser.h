@@ -208,16 +208,6 @@ void write_to_klc(HashMap *stbl, char *path);
 HashMap *load_module(char *path);
 void kl_gen_ir(ParserState *ps);
 
-typedef struct _KlCompileOptions {
-    int enable_opt;
-    int enable_isel;
-    int enable_cgen;
-    int regalloc;
-    KlrDumpFlags dump;
-} KlCompileOptions;
-
-extern KlCompileOptions opt;
-
 #ifdef __cplusplus
 }
 #endif

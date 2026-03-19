@@ -31,6 +31,9 @@ typedef enum _KlrValueKind {
     KLR_VALUE_MAX,
 } KlrValueKind;
 
+// 'print_name' is final printed name.
+// The 'tag' and 'name' are used to generate 'print_name'.
+
 /* clang-format off */
 #define KLR_VALUE_HEAD      \
     KlrValueKind kind;      \
@@ -46,10 +49,12 @@ typedef enum _KlrValueKind {
     int def_count;          \
     /* virtual register */  \
     int vreg;               \
-    /* printable tag */     \
+    /* tag */               \
     int tag;                \
-     /* printable name */   \
-    char *name;
+    /* name */              \
+    char *name;             \
+    /* print name */        \
+    char print_name[64];
 /* clang-format on */
 
 typedef struct _KlrValue {
@@ -161,12 +166,6 @@ typedef struct _KlrFunc {
 typedef struct _KlrBasicBlock {
     KLR_VALUE_HEAD
 
-    /* printed name */
-    char print_name[64];
-
-    /* comment */
-    char *comment;
-
     /* linked in KlrFunc */
     List link;
 
@@ -208,10 +207,28 @@ typedef struct _KlrBasicBlock {
     int index;
 
     /**
-     * The linear position (pos) of the last instruction in this block.
+     * The linear position (pos) of the FIRST instruction in this block.
+     * Used as the starting anchor for live interval backward scanning.
+     */
+    int first_pos;
+
+    /**
+     * The linear position (pos) of the LAST instruction in this block.
      * Crucial for determining if a value is live-out of this block.
      */
     int last_pos;
+
+    /**
+     * Flag: True if this block is the entry point (header) of a loop.
+     * Identified when a predecessor is a back-edge (index >= header->index).
+     */
+    int is_loop_header;
+
+    /**
+     * Flag: True if this block ends with a jump to an earlier block in RPO.
+     * This marks the "latch" or "exit" point of a loop body.
+     */
+    int has_back_edge;
 
     /**
      * The linearized PC index of the first LowerInsn belonging to this block.
@@ -321,8 +338,7 @@ typedef struct _KlrOper {
     KlrPhiParam *phi;
 } KlrOper;
 
-#define KLR_INSN_FLAGS_LOOP  1
-#define KLR_INSN_FLAGS_CONST 2
+#define KLR_INSN_FLAGS_CONST 1
 
 /* instruction */
 typedef struct _KlrInsn {
@@ -419,18 +435,7 @@ KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name)
 /* <3> basic block */
 
 /* append a basic block to the end of a function */
-KlrBasicBlock *klr_append_block_name_comment(KlrValue *fn_val, char *label,
-                                             char *comment);
-
-static inline KlrBasicBlock *klr_append_block(KlrValue *fn_val, char *name)
-{
-    return klr_append_block_name_comment(fn_val, name, NULL);
-}
-
-static inline KlrBasicBlock *klr_append_block_comment(KlrValue *fn_val, char *comment)
-{
-    return klr_append_block_name_comment(fn_val, NULL, comment);
-}
+KlrBasicBlock *klr_append_block(KlrValue *fn_val, char *name);
 
 /* add a basic block after 'bb' */
 KlrBasicBlock *klr_add_block(KlrBasicBlock *bb, char *name);
@@ -504,6 +509,8 @@ void klr_remove_all_out_edges(KlrBasicBlock *bb);
 #define basic_block_foreach_safe(bb, nxt, fn) \
     list_foreach_safe(bb, nxt, link, &(fn)->bb_list)
 
+#define bb_foreach_reverse(bb, fn) list_foreach_reverse(bb, link, &(fn)->bb_list)
+
 static inline int klr_get_nr_preds(KlrBasicBlock *bb)
 {
     int nr_preds = 0;
@@ -537,9 +544,6 @@ static inline int klr_get_nr_succ(KlrBasicBlock *bb)
 /* successor iteration */
 #define bb_succ_foreach(succ, bb) \
     list_foreach_expr(e_, KlrEdge, out_link, &(bb)->out_edges, succ = e_->dst)
-
-/* get basic block label */
-#define bb_label(bb) (bb)->name[0] ? (bb)->name : (bb)->tags;
 
 /* <4> instructions */
 
@@ -698,20 +702,23 @@ void clear_operand(KlrOper *oper);
 
 /* <5> printer */
 
-/* get basic block name or tag */
+/* get value printed name */
+char *klr_value_name(KlrValue *val);
+
+/* get basic block printed name */
 char *klr_block_name(KlrBasicBlock *bb);
 
 /* print a value's name */
-void klr_print_name_or_tag(KlrValue *val, FILE *fp);
+static inline void klr_print_value_name(KlrValue *val, FILE *fp)
+{
+    fprintf(fp, "%s", klr_value_name(val));
+}
 
 /* print an instruction */
 void klr_print_insn(KlrInsn *insn, FILE *fp);
 
 /* print a function */
 void klr_print_func(KlrFunc *func, FILE *fp);
-
-/* print a CFG of a function */
-void klr_print_cfg(KlrFunc *func, FILE *fp);
 
 /* print a module */
 void klr_print_module(KlrModule *m, FILE *fp);
@@ -768,15 +775,6 @@ void klr_simple_alloc_registers(KlrFunc *func);
 
 /* Reverse Post Order */
 void klr_build_rpo(KlrFunc *fn);
-
-typedef enum _KlrDumpFlags {
-    KLR_DUMP_NONE = 0,
-    KLR_DUMP_IR = 1 << 0,
-    KLR_DUMP_OPT_IR = 1 << 1,
-    KLR_DUMP_LIR = 1 << 2,
-    KLR_DUMP_CGEN = 1 << 3,
-    KLR_DUMP_ALL = 0xFFFFFFFF,
-} KlrDumpFlags;
 
 #ifdef __cplusplus
 }

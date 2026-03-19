@@ -31,7 +31,7 @@ func foo() {
 // CHECK: move %x int64, 10 int64
 // CHECK: %0 = get_global @c int64
 // CHECK: %1 = cmpgt %0 int64, 150 int64
-// CHECK: branch %1 bool, label %bb0, label %bb1
+// CHECK: branch %1 bool, label %bb1, label %bb2
 // CHECK: move %x int64, 20 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 20 int64
 // CHECK: move %x int64, 30 int64

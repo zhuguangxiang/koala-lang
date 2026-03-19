@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include "atom.h"
+#include "cmd.h"
 #include "log.h"
 #include "parser.h"
 #include "version.h"
@@ -17,7 +18,7 @@
 static char output[MAX_PATH_LEN];
 static char input[MAX_PATH_LEN];
 
-KlCompileOptions opt;
+CompileOptions opt;
 
 static void usage(void)
 {
@@ -29,11 +30,12 @@ static void usage(void)
         "  --isel             Enable instruction selection stage.\n"
         "  --cgen             Enable code generation stage.\n"
         "  --regalloc=<kind>  Select register allocator: simple | lsra.\n"
-        "  --dump=<list>      Dump IR at specific stages.\n"
+        "  --dump=<list>      Dump internal information.\n"
         "                     <list> is a comma-separated list of:\n"
-        "                         ir       - initial IR\n"
+        "                         ir       - dump no-opt IR\n"
         "                         opt-ir   - optimized IR (after opt passes)\n"
         "                         lir      - LIR (after isel/regalloc)\n"
+        "                         vreg     - dump virtual register info\n"
         "                         cgen     - codegen output\n"
         "                         all      - dump all stages\n"
         "  -v, --version      Print koalac version.\n"
@@ -66,7 +68,7 @@ static void version(void)
     }
 }
 
-static char *save_path(const char *path, char *dst)
+static void save_path(const char *path, char *dst)
 {
     const char *slash = path + strlen(path);
     /* remove trailing slashes */
@@ -82,9 +84,9 @@ static char *save_path(const char *path, char *dst)
     memcpy(dst, path, len);
 }
 
-static KlrDumpFlags parse_dump_flags(const char *s)
+static DumpFlags parse_dump_flags(const char *s)
 {
-    KlrDumpFlags flags = KLR_DUMP_NONE;
+    DumpFlags flags = DUMP_NONE;
 
     char buf[128];
     strncpy(buf, s, sizeof(buf));
@@ -93,15 +95,17 @@ static KlrDumpFlags parse_dump_flags(const char *s)
     char *tok = strtok(buf, ",");
     while (tok) {
         if (strcmp(tok, "ir") == 0)
-            flags |= KLR_DUMP_IR;
+            flags |= DUMP_IR;
         else if (strcmp(tok, "opt-ir") == 0)
-            flags |= KLR_DUMP_OPT_IR;
+            flags |= DUMP_OPT_IR;
         else if (strcmp(tok, "lir") == 0)
-            flags |= KLR_DUMP_LIR;
+            flags |= DUMP_LIR;
+        else if (strcmp(tok, "vreg") == 0)
+            flags |= DUMP_VREG;
         else if (strcmp(tok, "cgen") == 0)
-            flags |= KLR_DUMP_CGEN;
+            flags |= DUMP_CGEN;
         else if (strcmp(tok, "all") == 0)
-            flags |= KLR_DUMP_ALL;
+            flags |= DUMP_ALL;
 
         tok = strtok(NULL, ",");
     }

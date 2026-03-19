@@ -26,7 +26,7 @@ void klr_simple_alloc_registers(KlrFunc *func)
         (*param)->vreg = num_regs++;
 #ifndef NOLOG
         fprintf(stdout, "name: ");
-        klr_print_name_or_tag((KlrValue *)(*param), stdout);
+        klr_print_value_name((KlrValue *)(*param), stdout);
         fprintf(stdout, ", reg: %d\n", (*param)->vreg);
 #endif
     }
@@ -37,7 +37,7 @@ void klr_simple_alloc_registers(KlrFunc *func)
     //         (*local)->vreg = num_regs++;
     // #ifndef NOLOG
     //         fprintf(stdout, "name: ");
-    //         klr_print_name_or_tag((KlrValue *)(*local), stdout);
+    //         klr_print_value_name((KlrValue *)(*local), stdout);
     //         fprintf(stdout, ", reg: %d\n", (*local)->vreg);
     // #endif
     //     }
@@ -51,7 +51,7 @@ void klr_simple_alloc_registers(KlrFunc *func)
                 insn->vreg = num_regs++;
 #ifndef NOLOG
                 fprintf(stdout, "name: ");
-                klr_print_name_or_tag((KlrValue *)insn, stdout);
+                klr_print_value_name((KlrValue *)insn, stdout);
                 fprintf(stdout, ", reg: %d\n", insn->vreg);
 #endif
             }

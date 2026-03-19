@@ -6,9 +6,11 @@
 #include "parser.h"
 #include "atom.h"
 #include "cgen.h"
+#include "cmd.h"
 #include "isel.h"
 #include "klc.h"
 #include "log.h"
+#include "lsra.h"
 #include "opt.h"
 
 /* clang-format off */
@@ -2629,7 +2631,7 @@ static void run_func_passes(KlrFunc *fn)
     if (opt.enable_opt) {
         KlrPassManager pm;
         pm_init(&pm, "opt-pass");
-        build_opt_pm(&pm, opt.dump & KLR_DUMP_OPT_IR);
+        build_opt_pm(&pm, opt_dump_has(opt, DUMP_OPT_IR));
         pm.run(fn, &pm);
         pm_fini(&pm);
     }
@@ -2637,7 +2639,7 @@ static void run_func_passes(KlrFunc *fn)
     if (opt.enable_isel) {
         KlrPassManager pm;
         pm_init(&pm, "isel-pass");
-        build_isel_pm(&pm, opt.dump & KLR_DUMP_LIR);
+        build_isel_pm(&pm, opt_dump_has(opt, DUMP_LIR));
         pm.run(fn, &pm);
         pm_fini(&pm);
     }
@@ -2673,9 +2675,10 @@ int do_compile(Vector *pss, char *output)
     KlrFunc *fn;
     vector_foreach(fn, &m->functions) {
         run_func_passes(fn);
-        // TODO:
-        // klr_build_rpo(fn);
-        // klr_print_func(fn, stdout);
+        if (opt.regalloc == 2) {
+            klr_build_rpo(fn);
+            klr_lsra_run(fn);
+        }
     }
 
     write_to_klc(current, output);

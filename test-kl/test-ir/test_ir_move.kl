@@ -67,13 +67,13 @@ func test_if_else(c bool, n int64) int64 {
 // CHECK-LABEL: func @test_if_else(%c bool, %n int64) int64
 // CHECK: %x = local int64
 // CHECK: move %x int64, 100 int64
-// CHECK: branch %c bool, label %bb0, label %bb1
+// CHECK: branch %c bool, label %bb1, label %bb2
 // CHECK: move %x int64, 200 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 200 int64
-// CHECK: jmp label %bb2
+// CHECK: jmp label %bb3
 // CHECK: move %x int64, 300 int64
 // CHECK: call @print [ext = true, path = 'std/builtin'], 300 int64
-// CHECK: jmp label %bb2
+// CHECK: jmp label %bb3
 // CHECK: ret %x int64
 
 func test_loop(n int64) int64 {
@@ -92,16 +92,16 @@ func test_loop(n int64) int64 {
 // CHECK: move %i int64, 0 int64
 // CHECK: %sum = local int64
 // CHECK: move %sum int64, 0 int64
-// CHECK: jmp label %bb0
+// CHECK: jmp label %bb1
 
 // CHECK: %0 = cmplt %i int64, %n int64
-// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: branch %0 bool, label %bb2, label %bb3
 
 // CHECK: %1 = add %sum int64, %i int64
 // CHECK: move %sum int64, %1 int64
 // CHECK: %2 = add %i int64, 1 int64
 // CHECK: move %i int64, %2 int64
-// CHECK: jmp label %bb0
+// CHECK: jmp label %bb1
 
 // CHECK: ret %sum int64
 

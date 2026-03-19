@@ -30,6 +30,7 @@ set(PARSER_SRC
     parser/klr/insn.c
     parser/klr/printer.c
     parser/klr/pass.c
+    parser/klr/lsra.c
     parser/opt/const_copy_prop.c
     parser/opt/dce.c
     parser/opt/cfg_bb_opt.c

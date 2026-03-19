@@ -35,7 +35,7 @@ static void __alloc_register(KlrLSRAContext *ctx, KlrValue *val)
     val->vreg = reg;
 #ifndef NOLOG
     fprintf(stdout, "[alloc-register]: ");
-    klr_print_name_or_tag(val, stdout);
+    klr_print_value_name(val, stdout);
     fprintf(stdout, ", reg: %d\n", reg);
 #endif
 }
@@ -46,7 +46,7 @@ static void __free_register(KlrLSRAContext *ctx, KlrValue *val)
     bitset_set(&ctx->bitset, val->vreg);
 #ifndef NOLOG
     fprintf(stdout, "[free-register]: ");
-    klr_print_name_or_tag(val, stdout);
+    klr_print_value_name(val, stdout);
     fprintf(stdout, ", reg: %d\n", val->vreg);
 #endif
 }
@@ -104,7 +104,7 @@ void klr_alloc_registers(KlrFunc *func)
         vector_push_back(&ctx.intervals, &interval);
 #ifndef NOLOG
         fprintf(stdout, "param: ");
-        klr_print_name_or_tag((KlrValue *)(*param), stdout);
+        klr_print_value_name((KlrValue *)(*param), stdout);
         fprintf(stdout, ", interval: [%d, %d)\n", interval.start, interval.end);
 #endif
     }
@@ -120,7 +120,7 @@ void klr_alloc_registers(KlrFunc *func)
     //         vector_push_back(&ctx.intervals, &interval);
     // #ifndef NOLOG
     //         fprintf(stdout, "local: ");
-    //         klr_print_name_or_tag((KlrValue *)(*local), stdout);
+    //         klr_print_value_name((KlrValue *)(*local), stdout);
     //         fprintf(stdout, ", interval: [%d, %d)\n", interval.start, interval.end);
     // #endif
     //     }
@@ -137,7 +137,7 @@ void klr_alloc_registers(KlrFunc *func)
                 vector_push_back(&ctx.intervals, &interval);
 #ifndef NOLOG
                 fprintf(stdout, "insn: ");
-                klr_print_name_or_tag((KlrValue *)insn, stdout);
+                klr_print_value_name((KlrValue *)insn, stdout);
                 fprintf(stdout, ", interval: [%d, %d)\n", interval.start, interval.end);
 #endif
             }
@@ -182,7 +182,7 @@ void klr_alloc_registers(KlrFunc *func)
     for (int j = 0; j < num_regs; j++) {
         interval = vector_get_ptr(&ctx.intervals, j);
         fprintf(stdout, "value: ");
-        klr_print_name_or_tag(interval->val, stdout);
+        klr_print_value_name(interval->val, stdout);
         fprintf(stdout, "\n  interval: [%d, %d)", interval->start, interval->end);
         fprintf(stdout, "\n  reg: %d\n", interval->val->vreg);
     }

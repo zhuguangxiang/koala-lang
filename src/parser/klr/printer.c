@@ -9,18 +9,6 @@
 extern "C" {
 #endif
 
-char *klr_block_name(KlrBasicBlock *bb)
-{
-    if (bb->name[0]) return bb->name;
-    if (bb->comment[0]) {
-        snprintf(bb->print_name, sizeof(bb->print_name), "bb%d(%s)", bb->tag,
-                 bb->comment);
-    } else {
-        snprintf(bb->print_name, sizeof(bb->print_name), "bb%d", bb->tag);
-    }
-    return bb->print_name;
-}
-
 static void print_type(TypeSpec *ty, FILE *fp)
 {
     BUF(buf);
@@ -31,28 +19,6 @@ static void print_type(TypeSpec *ty, FILE *fp)
 
 #define print_value_type(val, fp) print_type((val)->ts, fp)
 
-void klr_print_name_or_tag(KlrValue *val, FILE *fp)
-{
-    if (val->kind == KLR_VALUE_NONE) {
-        fprintf(fp, "undef");
-        return;
-    }
-
-    if (val->name[0]) {
-        if (val->kind == KLR_VALUE_GLOBAL) {
-            fprintf(fp, "@%s", val->name);
-        } else {
-            fprintf(fp, "%%%s", val->name);
-        }
-    } else {
-        if (val->tag == -1) {
-            fprintf(fp, "%%<unnamed>");
-        } else {
-            fprintf(fp, "%%%d", val->tag);
-        }
-    }
-}
-
 static void print_const(KlrConst *v, FILE *fp);
 
 static void print_const_item(KlrValue *item, FILE *fp)
@@ -60,7 +26,7 @@ static void print_const_item(KlrValue *item, FILE *fp)
     if (item->kind == KLR_VALUE_CONST) {
         print_const((KlrConst *)item, fp);
     } else {
-        klr_print_name_or_tag(item, fp);
+        klr_print_value_name(item, fp);
     }
 }
 
@@ -115,14 +81,14 @@ static void print_operand(KlrOper *oper, FILE *fp)
     if (klr_is_const(val)) {
         print_const((KlrConst *)val, fp);
     } else {
-        klr_print_name_or_tag(val, fp);
+        klr_print_value_name(val, fp);
     }
     print_value_type(val, fp);
 }
 
 static void print_binary(KlrInsn *insn, char *op, FILE *fp)
 {
-    klr_print_name_or_tag((KlrValue *)insn, fp);
+    klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = %s ", op);
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
@@ -139,7 +105,7 @@ static void print_ret_void(KlrInsn *insn, FILE *fp) { fprintf(fp, "ret void"); }
 
 static void print_phi(KlrInsn *insn, FILE *fp)
 {
-    klr_print_name_or_tag((KlrValue *)insn, fp);
+    klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = phi ");
     for (int i = 0; i < insn->num_opers; i++) {
         print_operand(&insn->opers[i], fp);
@@ -149,7 +115,7 @@ static void print_phi(KlrInsn *insn, FILE *fp)
 
 static void print_unary(KlrInsn *insn, char *op, FILE *fp)
 {
-    klr_print_name_or_tag((KlrValue *)insn, fp);
+    klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = %s ", op);
     print_operand(&insn->opers[0], fp);
 }
@@ -170,7 +136,7 @@ static void print_push(KlrInsn *insn, FILE *fp)
 
 static void print_cmp(const char *name, KlrInsn *insn, FILE *fp)
 {
-    klr_print_name_or_tag((KlrValue *)insn, fp);
+    klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = %s ", name);
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
@@ -182,12 +148,10 @@ static void print_jmp(KlrInsn *insn, FILE *fp)
     fprintf(fp, "jmp ");
 
     KlrValue *val = insn_oper_value(insn, 0);
-    if (val->name[0])
-        fprintf(fp, "label %%%s", val->name);
-    else
-        fprintf(fp, "label %%bb%d", val->tag);
+    fprintf(fp, "label %%bb%d", val->tag);
 
-    if (insn->flags & KLR_INSN_FLAGS_LOOP) fprintf(fp, ", !klr.loop\n");
+    KlrBasicBlock *bb = (KlrBasicBlock *)val;
+    if (bb->has_back_edge) fprintf(fp, " , !loop-back-edge\n");
 }
 
 static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)
@@ -197,16 +161,10 @@ static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)
     fprintf(fp, ", ");
 
     KlrValue *_then = insn_oper_value(insn, 1);
-    if (_then->name[0])
-        fprintf(fp, "label %%%s", _then->name);
-    else
-        fprintf(fp, "label %%bb%d", _then->tag);
+    fprintf(fp, "label %%bb%d", _then->tag);
 
     KlrValue *_else = insn_oper_value(insn, 2);
-    if (_else->name[0])
-        fprintf(fp, ", label %%%s", _else->name);
-    else
-        fprintf(fp, ", label %%bb%d", _else->tag);
+    fprintf(fp, ", label %%bb%d", _else->tag);
 }
 
 static void print_call(KlrInsn *insn, FILE *fp)
@@ -216,7 +174,7 @@ static void print_call(KlrInsn *insn, FILE *fp)
     if (fn->ts->kind == TYPE_NO_TYPE) {
         fprintf(fp, "call ");
     } else {
-        klr_print_name_or_tag((KlrValue *)insn, fp);
+        klr_print_value_name((KlrValue *)insn, fp);
         fprintf(fp, " = call ");
     }
 
@@ -242,14 +200,14 @@ static void print_call(KlrInsn *insn, FILE *fp)
 
 static void print_const_insn(KlrInsn *insn, FILE *fp)
 {
-    klr_print_name_or_tag((KlrValue *)insn, fp);
+    klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = const ");
     print_operand(&insn->opers[0], fp);
 }
 
 static void print_get_global(KlrInsn *insn, FILE *fp)
 {
-    klr_print_name_or_tag((KlrValue *)insn, fp);
+    klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = get_global ");
     print_operand(&insn->opers[0], fp);
 }
@@ -264,7 +222,7 @@ static void print_set_global(KlrInsn *insn, FILE *fp)
 
 static void print_local_insn(KlrValue *local, FILE *fp)
 {
-    klr_print_name_or_tag(local, fp);
+    klr_print_value_name(local, fp);
     fprintf(fp, " = local");
     KlrInsn *insn = (KlrInsn *)local;
     if (insn->flags & KLR_INSN_FLAGS_CONST) fprintf(fp, " [immutable]");
@@ -273,7 +231,7 @@ static void print_local_insn(KlrValue *local, FILE *fp)
 
 static void print_const_int_imm(KlrInsn *insn, FILE *fp)
 {
-    klr_print_name_or_tag((KlrValue *)insn, fp);
+    klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = const.int_imm ");
     KlrConst *c = (KlrConst *)insn_oper_value(insn, 0);
     print_const(c, fp);
@@ -282,7 +240,7 @@ static void print_const_int_imm(KlrInsn *insn, FILE *fp)
 
 static void print_loadk(KlrInsn *insn, FILE *fp)
 {
-    klr_print_name_or_tag((KlrValue *)insn, fp);
+    klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = loadk ");
     KlrConst *c = (KlrConst *)insn_oper_value(insn, 0);
     print_const(c, fp);
@@ -459,17 +417,9 @@ static void print_preds(KlrBasicBlock *bb, int spaces, FILE *fp)
     int i = 0;
     bb_pred_foreach(pred, bb) {
         if (i++ == 0) {
-            if (pred->name[0]) {
-                fprintf(fp, "%%%s", pred->name);
-            } else {
-                fprintf(fp, "%%bb%d", pred->tag);
-            }
+            fprintf(fp, "%%bb%d", pred->tag);
         } else {
-            if (pred->name[0]) {
-                fprintf(fp, ", %%%s", pred->name);
-            } else {
-                fprintf(fp, ", %%bb%d", pred->tag);
-            }
+            fprintf(fp, ", %%bb%d", pred->tag);
         }
     }
 }
@@ -479,13 +429,9 @@ static void print_block(KlrBasicBlock *bb, FILE *fp)
     int used = 0;
 
     if (bb->name[0]) {
-        used = fprintf(fp, "  %%%s:", bb->name);
+        used = fprintf(fp, "  %%bb%d(%s):", bb->tag, bb->name);
     } else {
-        if (bb->comment[0]) {
-            used = fprintf(fp, "  %%bb%d(%s):", bb->tag, bb->comment);
-        } else {
-            used = fprintf(fp, "  %%bb%d:", bb->tag);
-        }
+        used = fprintf(fp, "  %%bb%d:", bb->tag);
     }
 
     // print predecessors
@@ -516,89 +462,13 @@ static void update_tags(KlrFunc *fn)
 
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
-        if (!bb->name[0]) bb->tag = fn->bb_tag++;
+        bb->tag = fn->bb_tag++;
         KlrInsn *insn;
         insn_foreach(insn, bb) {
             if (!ir_has_value(insn)) continue;
             if (!insn->name[0]) insn->tag = fn->tag++;
         }
     }
-}
-
-static void print_bb_edges(KlrBasicBlock *bb, FILE *fp)
-{
-    if (bb->name[0]) {
-        fprintf(fp, "%%%s:\n", bb->name);
-    } else {
-        if (bb->comment[0]) {
-            fprintf(fp, "%%bb%d(%s):\n", bb->tag, bb->comment);
-        } else {
-            fprintf(fp, "%%bb%d:\n", bb->tag);
-        }
-    }
-
-    fprintf(fp, "\tpreds: ");
-    if (edge_in_empty(bb)) {
-        fprintf(fp, "\tno\n");
-    } else {
-        int i = 0;
-        KlrBasicBlock *pred;
-        bb_pred_foreach(pred, bb) {
-            if (i++ == 0) {
-                if (pred->name[0]) {
-                    fprintf(fp, "\t%%%s", pred->name);
-                } else {
-                    fprintf(fp, "\t%%bb%d", pred->tag);
-                }
-            } else {
-                if (pred->name[0]) {
-                    fprintf(fp, ", %%%s\n", pred->name);
-                } else {
-                    fprintf(fp, ", %%bb%d\n", pred->tag);
-                }
-            }
-        }
-
-        if (i == 1) fprintf(fp, "\n");
-    }
-
-    fprintf(fp, "\tsuccs: ");
-    if (edge_out_empty(bb)) {
-        fprintf(fp, "\tno\n");
-    } else {
-        int i = 0;
-        KlrBasicBlock *dst;
-        bb_succ_foreach(dst, bb) {
-            if (i++ == 0) {
-                if (dst->name[0]) {
-                    fprintf(fp, "\t%%%s", dst->name);
-                } else {
-                    fprintf(fp, "\t%%bb%d", dst->tag);
-                }
-            } else {
-                if (dst->name[0]) {
-                    fprintf(fp, ", %%%s\n", dst->name);
-                } else {
-                    fprintf(fp, ", %%bb%d\n", dst->tag);
-                }
-            }
-        }
-        if (i == 1) fprintf(fp, "\n");
-    }
-
-    fprintf(fp, "\n");
-}
-
-void klr_print_cfg(KlrFunc *func, FILE *fp)
-{
-    fprintf(fp, "\nbasic blocks:\n\n");
-    print_bb_edges(func->sbb, fp);
-    KlrBasicBlock *bb;
-    basic_block_foreach(bb, func) {
-        print_bb_edges(bb, fp);
-    }
-
-    print_bb_edges(func->ebb, fp);
 }
 
 void klr_print_func(KlrFunc *func, FILE *fp)
@@ -614,7 +484,7 @@ void klr_print_func(KlrFunc *func, FILE *fp)
             fprintf(fp, ", ");
         }
 
-        klr_print_name_or_tag((KlrValue *)param, fp);
+        klr_print_value_name((KlrValue *)param, fp);
         print_value_type(param, fp);
     }
 
