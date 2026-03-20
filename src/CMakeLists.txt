@@ -32,6 +32,7 @@ set(PARSER_SRC
     parser/klr/printer.c
     parser/backend/lsra.c
     parser/backend/isel.c
+    parser/backend/cgen.c
     parser/opt/const_copy_prop.c
     parser/opt/dce.c
     parser/opt/cfg_bb_opt.c

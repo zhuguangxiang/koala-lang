@@ -1,4 +1,4 @@
-// RUN: koalac %s --opt --regalloc=lsra --dump=vreg | filecheck %s
+// RUN: koalac %s --opt --isel --regalloc=lsra --dump=vreg | filecheck %s
 
 func test_reuse(a int) int {
     let b = a + 10
@@ -15,8 +15,8 @@ func test_reuse(a int) int {
 
 // CHECK: 0: [R0] param %a
 // CHECK: %bb0(entry)[idx:0,pos:1-4]
-// CHECK: {{[0-9]+}}: [R[[REG:[0-9]+]]] %1 = add
-// CHECK: {{[0-9]+}}: [R[[REG]]] %2 = add
+// CHECK: {{[0-9]+}}: [R[[REG:[0-9]+]]] %1 = int.add_imm
+// CHECK: {{[0-9]+}}: [R[[REG]]] %2 = int.add_imm
 
 func test_interference(n int) int {
     var a = n + 1
@@ -33,9 +33,9 @@ func test_interference(n int) int {
 
 // CHECK: 0: [R0] param %n
 // CHECK: %bb0(entry)[idx:0,pos:1-4]
-// CHECK: 1: [R1] %0 = add
-// CHECK: 2: [R0] %1 = add
-// CHECK: 3: [R0] %2 = add
+// CHECK: 1: [R1] %0 = int.add_imm
+// CHECK: 2: [R0] %1 = int.add_imm
+// CHECK: 3: [R0] %2 = int.add
 // CHECK: 4: [...] ret %2
 
 func test_while(n int) {
@@ -53,9 +53,9 @@ func test_while(n int) {
 // CHECK: 1: [R1] %i = local int64
 // CHECK: 2: [...] move %i int64, 0 int64
 // CHECK: 3: [...] jmp label %bb1
-// CHECK: 4: [R2] %0 = cmplt %i int64, %n int64
+// CHECK: 4: [R2] %0 = int.cmp_lt %i int64, %n int64
 // CHECK: 5: [...] branch %0 bool, label %bb2, label %bb3
-// CHECK: 6: [R2] %1 = add %i int64, 1 int64
+// CHECK: 6: [R2] %1 = int.add_imm %i int64, 1 int64
 // CHECK: 7: [...] move %i int64, %1 int64
 // CHECK: 8: [...] jmp label %bb1
 
@@ -70,24 +70,25 @@ func test_while2(n int) {
 
 // CHECK-LABEL: ====== LSRA @test_while2 ======
 
-// CHECK: %n: range: [0, 11) reg: 0
-// CHECK: %i: range: [1, 11) reg: 1
+// CHECK: %n: range: [0, 12) reg: 0
+// CHECK: %i: range: [1, 12) reg: 1
 // CHECK: %0: range: [4, 5) reg: 2
 // CHECK: %1: range: [6, 7) reg: 2
-// CHECK: %2: range: [8, 9) reg: 2
+// CHECK: %2: range: [9, 10) reg: 2
 
 // CHECK: 1: [R1] %i = local int64
 // CHECK: 2: [...] move %i int64, 0 int64
 // CHECK: 3: [...] jmp label %bb1
 
-// CHECK: 4: [R2] %0 = cmplt %i int64, %n int64
+// CHECK: 4: [R2] %0 = int.cmp_lt %i int64, %n int64
 // CHECK: 5: [...] branch %0 bool, label %bb2, label %bb3
 
-// CHECK: 6: [R2] %1 = add %i int64, 10 int64
-// CHECK: 7: [...] call @print [ext = true, path = 'std/builtin'], %1 int64
-// CHECK: 8: [R2] %2 = add %i int64, 1 int64
-// CHECK: 9: [...] move %i int64, %2 int64
-// CHECK: 10: [...] jmp label %bb1
+// CHECK: 6: [R2] %1 = int.add_imm %i int64, 10 int64
+// CHECK: 7: [...] push %1 int64
+// CHECK: 8: [...] call @print [path = 'std/builtin'], 1
+// CHECK: 9: [R2] %2 = int.add_imm %i int64, 1 int64
+// CHECK: 10: [...] move %i int64, %2 int64
+// CHECK: 11: [...] jmp label %bb1
 // CHECK: [BACK-EDGE] bb2(while-body) -> bb1(while-cond) (Target POS: 4)
 
 func test_nested_loop(n int) {
@@ -103,31 +104,32 @@ func test_nested_loop(n int) {
 }
 
 // CHECK-LABEL: ====== LSRA @test_nested_loop ======
-// CHECK: %n: range: [0, 18) reg: 0
-// CHECK: %i: range: [1, 18) reg: 1
+// CHECK: %n: range: [0, 19) reg: 0
+// CHECK: %i: range: [1, 19) reg: 1
 // CHECK: %0: range: [4, 5) reg: 2
-// CHECK: %j: range: [6, 15) reg: 2
+// CHECK: %j: range: [6, 16) reg: 2
 // CHECK: %1: range: [9, 10) reg: 3
-// CHECK: %2: range: [12, 13) reg: 3
-// CHECK: %3: range: [15, 16) reg: 2
+// CHECK: %2: range: [13, 14) reg: 3
+// CHECK: %3: range: [16, 17) reg: 2
 
 // CHECK: 1: [R1] %i = local int64
 // CHECK: 2: [...] move %i int64, 0 int64
 // CHECK: 3: [...] jmp label %bb1
-// CHECK: 4: [R2] %0 = cmplt %i int64, %n int64
+// CHECK: 4: [R2] %0 = int.cmp_lt %i int64, %n int64
 // CHECK: 5: [...] branch %0 bool, label %bb2, label %bb6
 // CHECK: 6: [R2] %j = local int64
 // CHECK: 7: [...] move %j int64, 0 int64
 // CHECK: 8: [...] jmp label %bb3
-// CHECK: 9: [R3] %1 = cmplt %j int64, %i int64
+// CHECK: 9: [R3] %1 = int.cmp_lt %j int64, %i int64
 // CHECK: 10: [...] branch %1 bool, label %bb4, label %bb5
-// CHECK: 11: [...] call @print [ext = true, path = 'std/builtin'], %j int64
-// CHECK: 12: [R3] %2 = add %j int64, 1 int64
-// CHECK: 13: [...] move %j int64, %2 int64
-// CHECK: 14: [...] jmp label %bb3
-// CHECK: 15: [R2] %3 = add %i int64, 1 int64
-// CHECK: 16: [...] move %i int64, %3 int64
-// CHECK: 17: [...] jmp label %bb1
+// CHECK: 11: [...] push %j int64
+// CHECK: 12: [...] call @print [path = 'std/builtin'], 1
+// CHECK: 13: [R3] %2 = int.add_imm %j int64, 1 int64
+// CHECK: 14: [...] move %j int64, %2 int64
+// CHECK: 15: [...] jmp label %bb3
+// CHECK: 16: [R2] %3 = int.add_imm %i int64, 1 int64
+// CHECK: 17: [...] move %i int64, %3 int64
+// CHECK: 18: [...] jmp label %bb1
 
 
 func test_diamond(c bool, a int) int {
@@ -144,16 +146,18 @@ func test_diamond(c bool, a int) int {
 // CHECK-LABEL: ====== LSRA @test_diamond ======
 
 // CHECK: %c: range: [0, 1) reg: 0
-// CHECK: %a: range: [0, 8) reg: 1
+// CHECK: %a: range: [0, 10) reg: 1
 // CHECK: %0: range: [2, 3) reg: 0
-// CHECK: %1: range: [5, 6) reg: 0
+// CHECK: %1: range: [6, 7) reg: 0
 
 // CHECK: 1: [...] branch %c bool, label %bb1, label %bb2
 
-// CHECK: 2: [R0] %0 = add %a int64, 1 int64
-// CHECK: 3: [...] call @print [ext = true, path = 'std/builtin'], %0 int64
-// CHECK: 4: [...] jmp label %bb3
+// CHECK: 2: [R0] %0 = int.add_imm %a int64, 1 int64
+// CHECK: 3: [...] push %0 int64
+// CHECK: 4: [...] call @print [path = 'std/builtin'], 1
+// CHECK: 5: [...] jmp label %bb3
 
-// CHECK: 5: [R0] %1 = add %a int64, 2 int64
-// CHECK: 6: [...] call @print [ext = true, path = 'std/builtin'], %1 int64
-// CHECK: 7: [...] jmp label %bb3
+// CHECK: 6: [R0] %1 = int.add_imm %a int64, 2 int64
+// CHECK: 7: [...] push %1 int64
+// CHECK: 8: [...] call @print [path = 'std/builtin'], 1
+// CHECK: 9: [...] jmp label %bb3

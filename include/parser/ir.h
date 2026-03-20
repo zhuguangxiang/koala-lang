@@ -172,11 +172,6 @@ typedef struct _KlrBasicBlock {
     /* ->KlrFunc(parent) */
     KlrFunc *func;
 
-    /* block has branch flag */
-    int has_branch;
-    /* block has return flag */
-    int has_ret;
-
     /* number of instructions */
     int num_insns;
 
@@ -195,6 +190,8 @@ typedef struct _KlrBasicBlock {
     List in_edges;
     /* out edges(successors) */
     List out_edges;
+
+    /* optimization/register allocation related */
 
     /* local variable constant map */
     HashMap local_var_map;
@@ -230,19 +227,8 @@ typedef struct _KlrBasicBlock {
      */
     int has_back_edge;
 
-    /**
-     * The linearized PC index of the first LowerInsn belonging to this block.
-     *
-     * Assigned during the lowering phase.
-     * Used by the patching phase to compute relative jump offsets:
-     *
-     *     offset = target_bb->start_pc - (current_pc + 1)
-     *
-     * This value is stable after lowering and remains valid through
-     * register allocation and encoding.
-     */
-    int start_pc;
-
+    /* backend-private pointer */
+    void *mach;
 } KlrBasicBlock;
 
 /* edge between basic blocks */
@@ -322,6 +308,7 @@ typedef struct _KlrUse {
     struct _KlrInsn *insn;
     /* back point to oper */
     struct _KlrOper *oper;
+
     /* true if this is a write(Def), false if it is a read(Use) */
     int is_def;
 } KlrUse;
@@ -357,17 +344,8 @@ typedef struct _KlrInsn {
     /* instruction flags */
     int flags;
 
-    /* sub opcode */
-    int subop;
-#define SUB_OP_NONE  0
-#define SUB_OP_EQ    1
-#define SUB_OP_NE    2
-#define SUB_OP_LT    3
-#define SUB_OP_GT    4
-#define SUB_OP_LE    5
-#define SUB_OP_GE    6
-#define SUB_OP_TRUE  7
-#define SUB_OP_FALSE 8
+    /* number of arguments for OP_CALL */
+    int num_args;
 
     /* filled phi parameter index */
     int filled;
@@ -380,8 +358,19 @@ typedef struct _KlrInsn {
     /* phi variable */
     KlrValue *phi;
 
-    /* constant result of constant folding */
-    KlrValue *result;
+    /* isel fill the below fields */
+
+    /* result vreg/slot */
+    int rd;
+    /* operand0 vreg/slot */
+    int rs;
+    /* operand1 vreg/slot */
+    int rt;
+    /* immediate */
+    int imm;
+    /* branch/jmp */
+    KlrBasicBlock *bb_true;
+    KlrBasicBlock *bb_false;
 
     /* number of operands */
     int num_opers;
@@ -664,7 +653,13 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
 void klr_build_ret_void(KlrBuilder *bldr);
 
 /* IR: push %var */
-KlrInsn *klr_new_push(KlrValue *val);
+KlrValue *klr_build_push(KlrBuilder *bldr, KlrValue *val);
+
+/* IR: push_int_imm %var */
+KlrValue *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val);
+
+/* IR: push_const cp-offset */
+KlrValue *isel_build_push_const(KlrBuilder *bldr, KlrValue *val);
 
 /* add a return instruction at the end of a basic block if it doesn't have one */
 void klr_add_last_return(KlrBasicBlock *bb);
@@ -672,8 +667,8 @@ void klr_add_last_return(KlrBasicBlock *bb);
 /* IR: %0 = const imm */
 KlrValue *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val);
 
-/* IR: %0 = loadk %var */
-KlrValue *klr_build_loadk(KlrBuilder *bldr, KlrValue *val);
+/* IR: %0 = load_const %var */
+KlrValue *klr_build_load_const(KlrBuilder *bldr, KlrValue *val);
 
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)
@@ -734,6 +729,7 @@ void replace_all_uses_with(KlrValue *val, KlrValue *def);
 void set_operand_at(KlrInsn *insn, int i, KlrValue *val);
 void set_operand(KlrOper *oper, KlrInsn *insn, KlrValue *val);
 void clear_operand(KlrOper *oper);
+void clear_operand_at(KlrInsn *insn, int i);
 
 /* check value is used or not */
 #define klr_is_used(val) (!list_empty(&(val)->use_list))
@@ -751,6 +747,9 @@ static inline void klr_print_value_name(KlrValue *val, FILE *fp)
 {
     fprintf(fp, "%s", klr_value_name(val));
 }
+
+/* update tags and then print */
+void update_tags(KlrFunc *fn);
 
 /* print an instruction */
 void klr_print_insn(KlrInsn *insn, FILE *fp);

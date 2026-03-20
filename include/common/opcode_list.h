@@ -7,7 +7,7 @@ X(OP_NOP,                   FORMAT_Op,      "[op:8][---:24]", "nop")
 X(OP_MOVE,                  FORMAT_AxBx,    "[op:8][Rd:12][Rs:12]",     "Rd = Rs")
 
 X(OP_CONST_INT_IMM,         FORMAT_AxBx,    "[op:8][Rd:12][Imm:12]",    "Rd = Imm")
-X(OP_LOADK,                 FORMAT_AxBx,    "[op:8][Rd:12][Idx:12]",    "Rd = CP[Idx]")
+X(OP_LOAD_CONST,            FORMAT_AxBx,    "[op:8][Rd:12][Idx:12]",    "Rd = CP[Idx]")
 X(OP_LOADK_SPECIAL,         FORMAT_AxBx,    "[op:8][Rd:12][id:12]",     "Rd = special_const(id)")
 
 X(OP_INT_ADD,               FORMAT_ABC,     "[op:8][Rd:8][Rs:8][Rt:8]", "Rd = Rs + Rt")
@@ -116,11 +116,10 @@ X(OP_JMP_UINT_CMP_LE,       FORMAT_ABC,     "[op:8][A:8][B:8][Offset:8]", "PC +=
 X(OP_JMP_UINT_CMP_GT,       FORMAT_ABC,     "[op:8][A:8][B:8][Offset:8]", "PC += Offset if R(A) > R(B)")
 X(OP_JMP_UINT_CMP_GE,       FORMAT_ABC,     "[op:8][A:8][B:8][Offset:8]", "PC += Offset if R(A) >= R(B)")
 
-X(OP_PUSH,                  FORMAT_AxBx,    "[op:8][0:12][Rs:12]", "")
-X(OP_PUSH_INT_IMM,          FORMAT_ABxx,    "[op:8][0:8][Imm:16]", "")
-X(OP_PUSH_CONST,            FORMAT_AxBx,    "[op:8][0:12][Idx:12]", "")
+X(OP_PUSH,                  FORMAT_Ax,      "[op:8][0:12][Rs:12]", "push R(Rs)")
+X(OP_PUSH_INT_IMM,          FORMAT_Axxx,    "[op:8][Imm:24]", "")
+X(OP_PUSH_CONST,            FORMAT_Axxx,    "[op:8][Idx:24]", "")
 X(OP_PUSH_RELOC,            FORMAT_ABxx,    "[op:8][0:8][Offset:16]", "")
-X(OP_PUSH_2,                FORMAT_AxBx,    "[op:8][Rs1:12][Rs2:12]", "")
 X(OP_PUSH_NONE,             FORMAT_ABC,     "[op:8][0:8][0:8][0:8]", "")
 X(OP_PUSH_TRUE,             FORMAT_ABC,     "[op:8][0:8][0:8][0:8]", "")
 X(OP_PUSH_FALSE,            FORMAT_ABC,     "[op:8][0:8][0:8][0:8]", "")

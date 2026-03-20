@@ -390,7 +390,7 @@ void klr_add_last_return(KlrBasicBlock *bb)
 
 void klr_link_edge(KlrBasicBlock *src, KlrBasicBlock *dst)
 {
-    KlrEdge *edge = mm_alloc_obj_fast(edge);
+    KlrEdge *edge = mm_alloc_obj(edge);
     edge->src = src;
     edge->dst = dst;
     init_list(&edge->link);
@@ -450,7 +450,7 @@ static int __const_eq__(void *e1, void *e2)
 
 KlrModule *klr_create_module(char *name)
 {
-    KlrModule *m = mm_alloc_obj_fast(m);
+    KlrModule *m = mm_alloc_obj(m);
     m->name = name;
     vector_init_ptr(&m->globals);
     vector_init_ptr(&m->functions);
@@ -637,7 +637,7 @@ void klr_build_rpo(KlrFunc *fn)
     list_move(&fn->bb_list, &rpo_list);
     ASSERT(list_empty(&rpo_list));
 
-#ifndef NDEBUG
+#ifndef NOLOG
     log_info("RPO order for func '%s':", fn->name);
     klr_print_func(fn, stdout);
 #endif

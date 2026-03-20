@@ -2678,6 +2678,8 @@ int do_compile(Vector *pss, char *output)
         if (opt.regalloc == 2) {
             klr_build_rpo(fn);
             klr_lsra_run(fn);
+            KlMachFunc *mfn = klm_linearize_func(fn);
+            // klm_dump_func(mfn);
         }
     }
 

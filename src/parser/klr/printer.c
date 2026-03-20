@@ -163,7 +163,7 @@ static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)
     fprintf(fp, ", label %%bb%d", _else->tag);
 }
 
-static void print_call(KlrInsn *insn, FILE *fp)
+static void print_ir_call(KlrInsn *insn, FILE *fp)
 {
     KlrValue *fn = insn_oper_value(insn, 0);
 
@@ -194,11 +194,28 @@ static void print_call(KlrInsn *insn, FILE *fp)
     }
 }
 
-static void print_const_insn(KlrInsn *insn, FILE *fp)
+static void print_call(KlrInsn *insn, FILE *fp)
 {
-    klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = const ");
-    print_operand(&insn->opers[0], fp);
+    KlrValue *fn = insn_oper_value(insn, 0);
+
+    if (fn->ts->kind == TYPE_NO_TYPE) {
+        fprintf(fp, "call ");
+    } else {
+        klr_print_value_name((KlrValue *)insn, fp);
+        fprintf(fp, " = call ");
+    }
+
+    fprintf(fp, "@%s", fn->name);
+
+    if (fn->kind == KLR_VALUE_EXT_FUNC) {
+        fprintf(fp, " [path = '%s']", ((KlrExtFunc *)fn)->path);
+    }
+
+    if (insn->flags & KLR_INSN_FLAGS_CONST) {
+        fprintf(fp, " [const]");
+    }
+
+    fprintf(fp, ", %d", insn->num_args);
 }
 
 static void print_get_global(KlrInsn *insn, FILE *fp)
@@ -234,10 +251,10 @@ static void print_const_int_imm(KlrInsn *insn, FILE *fp)
     print_value_type((KlrValue *)c, fp);
 }
 
-static void print_loadk(KlrInsn *insn, FILE *fp)
+static void print_load_const(KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = loadk ");
+    fprintf(fp, " = load_const ");
     KlrConst *c = (KlrConst *)insn_oper_value(insn, 0);
     print_const(c, fp);
     print_value_type((KlrValue *)c, fp);
@@ -265,10 +282,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
         case OP_PUSH:
             print_push(insn, fp);
             break;
-
-            // case OP_CONST:
-            //     print_const_insn(insn, fp);
-            //     break;
 
         case OP_JMP_INT_CMP_LT_IMM:
             print_jmp_cond("jmp_icmplt_imm", insn, fp);
@@ -319,6 +332,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_IR_CALL:
+            print_ir_call(insn, fp);
+            break;
+
+        case OP_CALL:
             print_call(insn, fp);
             break;
 
@@ -394,8 +411,8 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, "int.add", fp);
             break;
 
-        case OP_LOADK:
-            print_loadk(insn, fp);
+        case OP_LOAD_CONST:
+            print_load_const(insn, fp);
             break;
 
         case OP_INT_CMP_LT_IMM:
@@ -458,7 +475,7 @@ static void print_block(KlrBasicBlock *bb, FILE *fp)
     }
 }
 
-static void update_tags(KlrFunc *fn)
+void update_tags(KlrFunc *fn)
 {
     fn->tag = 0;
     fn->bb_tag = 0;

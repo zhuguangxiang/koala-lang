@@ -36,7 +36,9 @@ typedef enum _SpecialConst {
  *   by codegen into one or more real VM instructions.
  *
  * FORMAT_Op:   [op:8][---:24]
- * FORMAT_Ax:   [op:8][a:12][---:12]
+ * FORMAT_Ax:   [op:8][---:12][ax:12]
+ * FORMAT_Axx:  [op:8][---:8][axx:16]
+ * FORMAT_Axxx: [op:8][axxx:24]
  * FORMAT_ABC:  [op:8][a:8][b:8][c:8]
  * FORMAT_AxBx: [op:8][ax:12][bx:12]
  * FORMAT_ABxx: [op:8][a:8][bxx:16]
@@ -45,6 +47,8 @@ typedef enum {
     FORMAT_NONE,
     FORMAT_Op,
     FORMAT_Ax,
+    FORMAT_Axx,
+    FORMAT_Axxx,
     FORMAT_ABC,
     FORMAT_AxBx,
     FORMAT_ABxx
@@ -58,8 +62,8 @@ typedef enum _OpCode {
 
 extern char *opcode_names[];
 static inline char *opcode_name(OpCode code) { return opcode_names[code]; }
-extern int opcode_formats[];
-static inline int opcode_format(OpCode code) { return opcode_formats[code]; }
+extern OpFormat opcode_formats[];
+static inline OpFormat opcode_format(OpCode code) { return opcode_formats[code]; }
 
 #ifdef __cplusplus
 }

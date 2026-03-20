@@ -16,6 +16,8 @@ static void klr_lsra_dump(KlrLSRAContext *ctx)
 {
     KlrFunc *fn = ctx->func;
 
+    update_tags(fn);
+
     fprintf(stdout, "\n====== LSRA @%s ======\n", fn->name);
 
     fprintf(stdout, "\n--- Intervals ---\n");
@@ -304,8 +306,6 @@ void klr_lsra_run(KlrFunc *func)
     if (opt_dump_has(opt, DUMP_VREG)) {
         klr_lsra_dump(&ctx);
     }
-
-    klr_print_func(func, stdout);
 
     fini_bitset(&ctx.bitset);
     vector_fini(&ctx.intervals);

@@ -80,6 +80,12 @@ void set_operand_at(KlrInsn *insn, int i, KlrValue *val)
 
 void clear_operand(KlrOper *oper) { fini_oper(oper); }
 
+void clear_operand_at(KlrInsn *insn, int i)
+{
+    KlrOper *oper = insn_operand(insn, i);
+    clear_operand(oper);
+}
+
 void replace_all_uses_with(KlrValue *val, KlrValue *def)
 {
     KlrUse *use, *next;
@@ -169,7 +175,8 @@ int ir_has_value(KlrInsn *insn)
         if (insn->code == no_regs_codes[i]) return 0;
     }
 
-    if (insn->code == OP_IR_CALL && type_is_no_type(insn->ts)) {
+    if ((insn->code == OP_IR_CALL || insn->code == OP_CALL) &&
+        type_is_no_type(insn->ts)) {
         return 0;
     }
 
@@ -378,11 +385,51 @@ void klr_build_ret_void(KlrBuilder *bldr)
     klr_link_edge(bldr->bb, fn->ebb);
 }
 
-KlrInsn *klr_new_push(KlrValue *val)
+KlrValue *klr_build_push(KlrBuilder *bldr, KlrValue *val)
 {
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
+        val->kind != KLR_VALUE_PARAM) {
+        panic("'push %%v' requires a reg value or const");
+    }
+
     KlrInsn *insn = new_insn(OP_PUSH, 1, "");
     init_oper(&insn->opers[0], insn, val, 0);
-    return insn;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val)
+{
+    if (val->kind != KLR_VALUE_CONST) {
+        panic("'push int imm' requires a const value");
+    }
+
+    KlrConst *c = (KlrConst *)val;
+    if (c->which != CONST_INT) {
+        panic("'push int imm' requires an int const value");
+    }
+
+    KlrInsn *insn = new_insn(OP_PUSH_INT_IMM, 1, "");
+    init_oper(&insn->opers[0], insn, val, 0);
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *isel_build_push_const(KlrBuilder *bldr, KlrValue *val)
+{
+    if (val->kind != KLR_VALUE_CONST) {
+        panic("'pushk' requires a const value");
+    }
+
+    KlrConst *c = (KlrConst *)val;
+    if (c->which != CONST_INT) {
+        panic("'pushk' requires an int const value");
+    }
+
+    KlrInsn *insn = new_insn(OP_PUSH_CONST, 1, "");
+    init_oper(&insn->opers[0], insn, val, 0);
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
 }
 
 KlrValue *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val)
@@ -394,9 +441,9 @@ KlrValue *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val)
     return (KlrValue *)insn;
 }
 
-KlrValue *klr_build_loadk(KlrBuilder *bldr, KlrValue *val)
+KlrValue *klr_build_load_const(KlrBuilder *bldr, KlrValue *val)
 {
-    KlrInsn *insn = new_insn(OP_LOADK, 1, "");
+    KlrInsn *insn = new_insn(OP_LOAD_CONST, 1, "");
     init_oper(&insn->opers[0], insn, val, 0);
     insn->ts = val->ts;
     klr_append_insn(bldr, insn);

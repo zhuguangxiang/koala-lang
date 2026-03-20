@@ -15,7 +15,7 @@ char *opcode_names[] = {
 #undef X
 };
 
-int opcode_formats[] = {
+OpFormat opcode_formats[] = {
 #define X(name, fmt, s0, s1) fmt,
 #include "opcode_list.h"
 #undef X

@@ -22,7 +22,7 @@ static KlrValue *isel_build_int_literal(KlrBuilder *bldr, KlrConst *c)
         v = klr_build_int_imm(bldr, c);
     } else {
         // large imm, materialize it as a register first
-        v = klr_build_loadk(bldr, c);
+        v = klr_build_load_const(bldr, c);
     }
 
     return v;
@@ -75,7 +75,7 @@ static KlrValue *isel_build_float_literal(KlrBuilder *bldr, KlrConst *c)
 
     // 6. 普通浮点数 → 常量池
     int idx = klr_module_add_const(bldr->fn->module, c);
-    insn = klr_builder_emit(bldr, OP_LOADK);
+    insn = klr_builder_emit(bldr, OP_LOAD_CONST);
     insn->dst = dst;
     insn->kidx = idx;
     return dst;

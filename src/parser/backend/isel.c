@@ -121,13 +121,13 @@ static KlrValue *isel_build_int_literal(KlrBuilder *bldr, KlrConst *c)
         v = klr_build_int_imm(bldr, (KlrValue *)c);
     } else {
         // large imm, materialize it as a register first
-        v = klr_build_loadk(bldr, (KlrValue *)c);
+        v = klr_build_load_const(bldr, (KlrValue *)c);
     }
 
     return v;
 }
 
-KlrValue *isel_materialize_const_before(KlrFunc *fn, KlrInsn *at, KlrConst *c)
+KlrValue *isel_materialize_const(KlrFunc *fn, KlrInsn *at, KlrConst *c)
 {
     KlrModule *m = fn->module;
 
@@ -209,7 +209,7 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         // imm too large → materialize
         // - large int/uint comes here because it doesn't fit in the imm field
         // - float always comes here because float rules have allow_imm = 0
-        KlrValue *v = isel_materialize_const_before(fn, insn, rc);
+        KlrValue *v = isel_materialize_const(fn, insn, rc);
         insn->code = R->reg_op;
         set_operand_at(insn, 1, v);
         return;
@@ -224,10 +224,63 @@ static inline int isel_is_binary(OpCode op)
     return (op >= OP_BINARY_ADD && op <= OP_BINARY_CMP_GE);
 }
 
-/* Helper: Check if Opcode is a comparison */
-static inline int is_cmp(OpCode kind)
+static void isel_materialize_push_const(KlrBuilder *bldr, KlrConst *c)
 {
-    return kind >= OP_BINARY_CMP_EQ && kind <= OP_BINARY_CMP_GE;
+    int which = c->which;
+
+    if (which == CONST_INT) {
+        int64_t imm = c->ival;
+        if (imm >= (int)(-0xFFFFFF) && imm <= (int)(0xFFFFFF)) {
+            klr_build_push_int_imm(bldr, (KlrValue *)c);
+        } else {
+            isel_build_push_const(bldr, (KlrValue *)c);
+        }
+        // } else if (which == CONST_FLT) {
+        //     return isel_build_float_literal(&bldr, c);
+        // } else if (which == CONST_BOOL) {
+        //     return isel_build_bool_literal(&bldr, c);
+        // } else if (which == CONST_STR) {
+        //     return isel_build_str_literal(&bldr, c);
+        // } else if (which == CONST_LIST) {
+        // } else if (which == CONST_TUPLE) {
+        // } else if (which == CONST_NONE) {
+        //     return isel_build_none_literal(&bldr, c);
+        // } else {
+    } else {
+        UNREACHABLE();
+    }
+}
+
+static void isel_lower_call_arg(KlrBuilder *bldr, KlrValue *arg)
+{
+    if (klr_is_const(arg)) {
+        KlrConst *c = (KlrConst *)arg;
+        isel_materialize_push_const(bldr, c);
+    } else {
+        klr_build_push(bldr, arg);
+    }
+}
+
+static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
+{
+    int nargs = insn->num_opers;
+
+    KlrBuilder bldr;
+    klr_builder_before(&bldr, insn);
+
+    for (int i = 1; i < nargs; i++) {
+        KlrValue *arg = insn_oper_value(insn, i);
+        isel_lower_call_arg(&bldr, arg);
+    }
+
+    for (int i = 1; i < nargs; i++) {
+        clear_operand_at(insn, i);
+    }
+
+    insn->code = OP_CALL;
+    insn->num_opers = 1;
+    insn->num_args = nargs - 1;
+    ASSERT(insn->num_args >= 0);
 }
 
 static int klr_do_isel(KlrFunc *fn, void *data)
@@ -250,6 +303,10 @@ static int klr_do_isel(KlrFunc *fn, void *data)
                 continue;
             }
 
+            if (insn->code == OP_IR_CALL) {
+                isel_lower_call(insn, fn);
+                continue;
+            }
             // other isel patterns...
         }
     }
