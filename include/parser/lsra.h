@@ -8,6 +8,7 @@
 
 #include "bitset.h"
 #include "ir.h"
+#include "pass.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,8 +42,7 @@ typedef struct _KlrLSRAContext {
     int last_pos;
 } KlrLSRAContext;
 
-/* register allocation pass */
-void klr_lsra_run(KlrFunc *func);
+void build_lsra_pm(KlrPassManager *pm, int dump);
 
 #ifdef __cplusplus
 }

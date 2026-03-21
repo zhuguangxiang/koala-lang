@@ -325,6 +325,31 @@ typedef struct _KlrOper {
     KlrPhiParam *phi;
 } KlrOper;
 
+typedef enum {
+    RAW_OPER_NONE,
+    RAW_OPER_REG,
+    RAW_OPER_INDEX,
+    RAW_OPER_IMM,
+    RAW_OPER_CONST,
+    RAW_OPER_BLOCK,
+    RAW_OPER_GLOBAL,
+    RAW_OPER_FUNC,
+} KlrRawOperKind;
+
+/* flatten operand */
+typedef struct _KlrRawOper {
+    KlrRawOperKind kind;
+
+    union {
+        int index;
+        int imm;
+        KlrConst *kval;
+        KlrBasicBlock *bb;
+        int global_index;
+        int func_index;
+    };
+} KlrRawOper;
+
 #define KLR_INSN_FLAGS_CONST 1
 #define KLR_INSN_FLAGS_DEAD  2
 
@@ -358,19 +383,8 @@ typedef struct _KlrInsn {
     /* phi variable */
     KlrValue *phi;
 
-    /* isel fill the below fields */
-
-    /* result vreg/slot */
-    int rd;
-    /* operand0 vreg/slot */
-    int rs;
-    /* operand1 vreg/slot */
-    int rt;
-    /* immediate */
-    int imm;
-    /* branch/jmp */
-    KlrBasicBlock *bb_true;
-    KlrBasicBlock *bb_false;
+    /* Raw operands produced by isel and consumed by mach/emit. */
+    KlrRawOper raw_opers[3];
 
     /* number of operands */
     int num_opers;
@@ -385,6 +399,45 @@ typedef struct _KlrBuilder {
 } KlrBuilder;
 
 /* APIs */
+
+/* Set operand to use the instruction's own result vreg. */
+static inline void set_raw_oper_reg(KlrInsn *insn, int slot)
+{
+    KlrRawOper *op = &insn->raw_opers[slot];
+    op->kind = RAW_OPER_REG;
+    /* RAW_OPER_REG carries no payload. */
+}
+
+/* Set operand to reference an input operand by index. */
+static inline void set_raw_oper_index(KlrInsn *insn, int slot, int index)
+{
+    KlrRawOper *op = &insn->raw_opers[slot];
+    op->kind = RAW_OPER_INDEX;
+    op->index = index; /* Index into insn->operands[]. */
+}
+
+/* Set operand to an empty slot. */
+static inline void set_raw_oper_none(KlrInsn *insn, int slot)
+{
+    KlrRawOper *op = &insn->raw_opers[slot];
+    op->kind = RAW_OPER_NONE;
+}
+
+/* Set operand to an immediate value. */
+static inline void set_raw_oper_imm(KlrInsn *insn, int slot, int imm)
+{
+    KlrRawOper *op = &insn->raw_opers[slot];
+    op->kind = RAW_OPER_IMM;
+    op->imm = imm; /* Immediate value; encoding is handled in emit. */
+}
+
+/* Set operand to a constant pool entry. */
+static inline void set_raw_oper_const(KlrInsn *insn, int slot, KlrConst *kval)
+{
+    KlrRawOper *op = &insn->raw_opers[slot];
+    op->kind = RAW_OPER_CONST;
+    op->kval = kval; /* Constant pool entry; index assigned during linearization. */
+}
 
 /* <1> literal constants */
 KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m);
@@ -665,10 +718,10 @@ KlrValue *isel_build_push_const(KlrBuilder *bldr, KlrValue *val);
 void klr_add_last_return(KlrBasicBlock *bb);
 
 /* IR: %0 = const imm */
-KlrValue *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val);
+KlrInsn *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val);
 
 /* IR: %0 = load_const %var */
-KlrValue *klr_build_load_const(KlrBuilder *bldr, KlrValue *val);
+KlrInsn *klr_build_load_const(KlrBuilder *bldr, KlrValue *val);
 
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)

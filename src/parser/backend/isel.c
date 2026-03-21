@@ -114,17 +114,25 @@ static KlrValue *isel_build_int_literal(KlrBuilder *bldr, KlrConst *c)
 {
     ASSERT(c->which == CONST_INT);
     int64_t imm = c->ival;
-    KlrValue *v;
+    KlrInsn *insn;
 
     if (imm >= (int)(-0xFFF) && imm <= (int)(0xFFF)) {
-        // small imm, can be encoded directly in the instruction
-        v = klr_build_int_imm(bldr, (KlrValue *)c);
+        /* Small immediate: use OP_CONST_INT_IMM. */
+        insn = klr_build_int_imm(bldr, (KlrValue *)c);
+
+        /* raw operands for small-imm form */
+        set_raw_oper_reg(insn, 0);
+        set_raw_oper_imm(insn, 1, imm);
     } else {
-        // large imm, materialize it as a register first
-        v = klr_build_load_const(bldr, (KlrValue *)c);
+        /* Large immediate: materialize via constant pool. */
+        insn = klr_build_load_const(bldr, (KlrValue *)c);
+
+        /* raw operands for load-const form */
+        set_raw_oper_reg(insn, 0);
+        set_raw_oper_const(insn, 1, c);
     }
 
-    return v;
+    return (KlrValue *)insn;
 }
 
 KlrValue *isel_materialize_const(KlrFunc *fn, KlrInsn *at, KlrConst *c)
@@ -189,18 +197,25 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         if (R->allow_imm) {
             // 8-bit fast path (only applies to int/uint rules)
             // float never enters this block because float rules set allow_imm = 0
+            // reg op imm
             ASSERT(rc->which == CONST_INT || rc->which == CONST_UINT);
 
             if (rc->which == CONST_INT) {
                 int64_t imm = rc->ival;
                 if (imm >= INT8_MIN && imm <= INT8_MAX) {
                     insn->code = R->imm_op;
+                    set_raw_oper_reg(insn, 0);
+                    set_raw_oper_index(insn, 1, 0);
+                    set_raw_oper_imm(insn, 2, imm);
                     return;
                 }
             } else {
                 uint64_t uimm = (uint64_t)rc->ival;
                 if (uimm <= UINT8_MAX) {
                     insn->code = R->imm_op;
+                    set_raw_oper_reg(insn, 0);
+                    set_raw_oper_index(insn, 1, 0);
+                    set_raw_oper_imm(insn, 2, uimm);
                     return;
                 }
             }
@@ -209,14 +224,21 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         // imm too large → materialize
         // - large int/uint comes here because it doesn't fit in the imm field
         // - float always comes here because float rules have allow_imm = 0
+        // reg op reg
         KlrValue *v = isel_materialize_const(fn, insn, rc);
         insn->code = R->reg_op;
         set_operand_at(insn, 1, v);
+        set_raw_oper_reg(insn, 0);
+        set_raw_oper_index(insn, 1, 0);
+        set_raw_oper_index(insn, 2, 1);
         return;
     }
 
     // reg op reg
     insn->code = R->reg_op;
+    set_raw_oper_reg(insn, 0);
+    set_raw_oper_index(insn, 1, 0);
+    set_raw_oper_index(insn, 2, 1);
 }
 
 static inline int isel_is_binary(OpCode op)
@@ -283,9 +305,17 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
     ASSERT(insn->num_args >= 0);
 }
 
+static void isel_lower_ret(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *ret = insn_oper_value(insn, 0);
+    ASSERT(klr_is_insn(ret) || klr_is_param(ret));
+    set_raw_oper_index(insn, 0, 0);
+}
+
 static int klr_do_isel(KlrFunc *fn, void *data)
 {
-    log_info("do isel for func '%s'", fn->name);
+    log_info("isel for func '%s'", fn->name);
+
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
         KlrInsn *insn;
@@ -298,16 +328,22 @@ static int klr_do_isel(KlrFunc *fn, void *data)
                 continue;
             }
 
-            if (insn->code == OP_IR_LOCAL) {
-                // isel_lower_local(insn, fn);
-                continue;
-            }
+            switch (insn->code) {
+                case OP_IR_CALL: {
+                    isel_lower_call(insn, fn);
+                    break;
+                }
 
-            if (insn->code == OP_IR_CALL) {
-                isel_lower_call(insn, fn);
-                continue;
+                case OP_RETURN: {
+                    isel_lower_ret(insn, fn);
+                    break;
+                }
+
+                // other patterns...
+                default: {
+                    break;
+                }
             }
-            // other isel patterns...
         }
     }
 

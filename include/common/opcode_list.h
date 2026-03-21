@@ -132,8 +132,8 @@ X(OP_CALL_KW,               FORMAT_ABC,     "[op:8][Rd:8][imm:8][offset:8]", "")
 X(OP_CALL_DYNAMIC,          FORMAT_ABC,     "[op:8][Rd:8][imm:8][offset:8]", "")
 X(OP_CALL_DYNAMIC_KW,       FORMAT_ABC,     "[op:8][Rd:8][imm:8][offset:8]", "")
 
-X(OP_RETURN,                FORMAT_AxBx,    "[op:8][0:12][Rs:12]",      "return R(Rs)")
-X(OP_RETURN_NONE,           FORMAT_ABC,     "[op:8][0:8][0:8][0:8]",    "return None")
+X(OP_RETURN,                FORMAT_Ax,      "[op:8][rs:12][0:12]",  "return R(rs)")
+X(OP_RETURN_NONE,           FORMAT_Op,      "[op:8][0:8][0:8][0:8]",    "return None")
 
 X(OP_AS,                    FORMAT_Ax,      "", "")
 X(OP_IS,                    FORMAT_Ax,      "", "")

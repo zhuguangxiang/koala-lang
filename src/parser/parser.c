@@ -2644,14 +2644,21 @@ static void run_func_passes(KlrFunc *fn)
         pm_fini(&pm);
     }
 
-    // if (opt.enable_cgen) {
-    //     KlrPassManager pm;
-    //     pm_init(&pm, "cgen-pass");
-    //     pm.dump = opt.dump & KLR_DUMP_CGEN;
-    //     build_cgen_pm(&pm);
-    //     pm_run(fn, &pm);
-    //     pm_fini(&pm);
-    // }
+    if (opt.regalloc == 2) {
+        KlrPassManager pm;
+        pm_init(&pm, "lsra-pass");
+        build_lsra_pm(&pm, opt_dump_has(opt, DUMP_VREG));
+        pm.run(fn, &pm);
+        pm_fini(&pm);
+    }
+
+    if (opt.enable_cgen) {
+        KlrPassManager pm;
+        pm_init(&pm, "cgen-pass");
+        build_cgen_pm(&pm, opt_dump_has(opt, DUMP_CGEN));
+        pm.run(fn, &pm);
+        pm_fini(&pm);
+    }
 }
 
 int do_compile(Vector *pss, char *output)
@@ -2675,12 +2682,6 @@ int do_compile(Vector *pss, char *output)
     KlrFunc *fn;
     vector_foreach(fn, &m->functions) {
         run_func_passes(fn);
-        if (opt.regalloc == 2) {
-            klr_build_rpo(fn);
-            klr_lsra_run(fn);
-            KlMachFunc *mfn = klm_linearize_func(fn);
-            // klm_dump_func(mfn);
-        }
     }
 
     write_to_klc(current, output);

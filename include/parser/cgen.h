@@ -7,6 +7,7 @@
 #define _KOALA_CGEN_H_
 
 #include "parser.h"
+#include "pass.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,15 +31,19 @@ typedef struct _KlMachInsn {
     /* 4-byte fixed-length encoding format */
     OpFormat format;
 
-    /* Register fields (after RA: physical slots) */
-    int rd;
-    int rs;
-    int rt;
+    /* Physical fields for encoding. */
+    int A;
+    int B;
+    int C;
 
-    /* Immediate / pool index / offset */
-    int imm;
+    int Ax;
+    int Bx;
 
-    /* Branch target: points to machine block (not patched yet) */
+    int Axx;
+    int Bxx;
+    int Axxx;
+
+    /* Branch targets (machine-level blocks). */
     struct _KlMachBlock *target_true;
     struct _KlMachBlock *target_false;
 
@@ -69,10 +74,14 @@ typedef struct _KlMachFunc {
     KlrFunc *origin;
     /* block list in layout order */
     List bb_list;
+    /* total number of instructions */
+    int total_insns;
 } KlMachFunc;
 
 KlMachFunc *klm_linearize_func(KlrFunc *fn);
 void klm_dump_func(KlMachFunc *fn);
+
+void build_cgen_pm(KlrPassManager *pm, int dump);
 
 // uint32_t encode_insn(KlmInsn *insn);
 

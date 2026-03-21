@@ -276,7 +276,7 @@ static void klr_scan_and_alloc(KlrLSRAContext *ctx)
  * Linear Scan Register Allocation:
  * variable interval = first definition point and last used point.
  */
-void klr_lsra_run(KlrFunc *func)
+static void klr_lsra_run(KlrFunc *func)
 {
     KlrLSRAContext ctx;
 
@@ -310,6 +310,20 @@ void klr_lsra_run(KlrFunc *func)
     fini_bitset(&ctx.bitset);
     vector_fini(&ctx.intervals);
 }
+
+static int klr_do_lsra(KlrFunc *func, void *data)
+{
+    klr_build_rpo(func);
+    klr_lsra_run(func);
+    return 0;
+}
+
+static KlrPass lsra_pass = {
+    .name = "lsra-pass",
+    .run = klr_do_lsra,
+};
+
+void build_lsra_pm(KlrPassManager *pm, int dump) { pm_add_pass(pm, &lsra_pass, dump); }
 
 #ifdef __cplusplus
 }

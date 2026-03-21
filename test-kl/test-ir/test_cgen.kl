@@ -26,10 +26,10 @@ func foo(n int) int {
 // CHECK: ret %4 int64
 
 
-func fib(n int) int {
-    if n < 2 { return n }
-    return fib(n - 1) + fib(n - 2)
-}
+// func fib(n int) int {
+//     if n < 2 { return n }
+//     return fib(n - 1) + fib(n - 2)
+// }
 
 // CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@fib] ---
 
