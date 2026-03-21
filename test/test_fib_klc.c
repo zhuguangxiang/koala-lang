@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
         2,
         7,
         0,
-        OP_RETURN,
+        OP_RET,
         0,
         OP_INT_SUB_IMM8,
         1,
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
         0,
         1,
         2,
-        OP_RETURN,
+        OP_RET,
         0,
     };
 

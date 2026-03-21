@@ -87,24 +87,25 @@ void translate(jit_block_t *b, uint32_t insn, int pc, gcc_jit_context *ctx)
 
         case OP_CALL: {
             // Native Recursive Call: r_ra = func(jit->temp_arg)
-            gcc_jit_rvalue *res =
-                gcc_jit_context_new_call(ctx, NULL, jit->func, 1, &jit->temp_arg);
-            gcc_jit_block_add_assignment(kb->block, NULL, get_reg(jit, ra), res);
+            gcc_jit_rvalue *res = gcc_jit_context_new_call(ctx, NULL, jit->func,
+                                                           1, &jit->temp_arg);
+            gcc_jit_block_add_assignment(kb->block, NULL, get_reg(jit, ra),
+                                         res);
             break;
         }
 
         case OP_INT_ADD: {
             // r_ra = r_rb + r_rc
-            gcc_jit_block_add_assignment_op(kb->block, NULL, get_reg(jit, ra),
-                                            GCC_JIT_BINARY_OP_PLUS, jit->int64_type,
-                                            gcc_jit_lvalue_as_rvalue(get_reg(jit, rb)),
-                                            gcc_jit_lvalue_as_rvalue(get_reg(jit, rc)));
+            gcc_jit_block_add_assignment_op(
+                kb->block, NULL, get_reg(jit, ra), GCC_JIT_BINARY_OP_PLUS,
+                jit->int64_type, gcc_jit_lvalue_as_rvalue(get_reg(jit, rb)),
+                gcc_jit_lvalue_as_rvalue(get_reg(jit, rc)));
             break;
         }
 
-        case OP_RETURN: {
-            gcc_jit_block_end_with_return(kb->block, NULL,
-                                          gcc_jit_lvalue_as_rvalue(get_reg(jit, ra)));
+        case OP_RET: {
+            gcc_jit_block_end_with_return(
+                kb->block, NULL, gcc_jit_lvalue_as_rvalue(get_reg(jit, ra)));
             kb->terminated = true;
             break;
         }
@@ -120,19 +121,22 @@ void *koala_jit_compile(uint32_t *insns, int count, bool *leaders)
     // Define function: int64_t fib(int64_t n)
     gcc_jit_param *param_n =
         gcc_jit_context_new_param(jit.ctx, NULL, jit.int64_type, "n");
-    jit.func = gcc_jit_context_new_function(jit.ctx, NULL, GCC_JIT_FUNCTION_EXPORTED,
-                                            jit.int64_type, "jit_fib", 1, &param_n, 0);
+    jit.func =
+        gcc_jit_context_new_function(jit.ctx, NULL, GCC_JIT_FUNCTION_EXPORTED,
+                                     jit.int64_type, "jit_fib", 1, &param_n, 0);
 
     // 1. Create Blocks
     jit.kb_map = calloc(count, sizeof(kl_block_t));
     for (int i = 0; i < count; i++) {
         if (leaders[i] || i == 0)
-            jit.kb_map[i].jit_block = gcc_jit_function_new_block(jit.func, NULL);
+            jit.kb_map[i].jit_block =
+                gcc_jit_function_new_block(jit.func, NULL);
     }
 
     // 2. Entry Sync: Connect Param 'n' to Virtual Register 'r0'
     // This is the ONLY manual move from the C-world to the JIT-world
-    gcc_jit_block_add_assignment(jit.kb_map[0].jit_block, NULL, get_reg(&jit, 0),
+    gcc_jit_block_add_assignment(jit.kb_map[0].jit_block, NULL,
+                                 get_reg(&jit, 0),
                                  gcc_jit_param_as_rvalue(param_n));
 
     // 3. Translation Loop
@@ -158,15 +162,18 @@ void *koala_jit_compile(uint32_t *insns, int count, bool *leaders)
 
 void scan_leaders(CodeObject *code)
 {
-    gcc_jit_context_set_int_option(ctx, GCC_JIT_INT_OPTION_OPTIMIZATION_LEVEL, 3);
+    gcc_jit_context_set_int_option(ctx, GCC_JIT_INT_OPTION_OPTIMIZATION_LEVEL,
+                                   3);
 
     gcc_jit_context *ctx = gcc_jit_context_acquire();
     gcc_jit_type *int_type = gcc_jit_context_get_type(ctx, GCC_JIT_TYPE_LONG);
 
-    gcc_jit_param *param_name = gcc_jit_context_new_param(ctx, NULL, int_type, "v");
+    gcc_jit_param *param_name =
+        gcc_jit_context_new_param(ctx, NULL, int_type, "v");
 
-    gcc_jit_function *func = gcc_jit_context_new_function(
-        ctx, NULL, GCC_JIT_FUNCTION_EXPORTED, int_type, "fib", 1, &param_name, 0);
+    gcc_jit_function *func =
+        gcc_jit_context_new_function(ctx, NULL, GCC_JIT_FUNCTION_EXPORTED,
+                                     int_type, "fib", 1, &param_name, 0);
 
     int leaders[code->cs.insns_size];
     memset(leaders, 0, sizeof(leaders));
@@ -207,8 +214,8 @@ void scan_leaders(CodeObject *code)
                 break;
             }
 
-            case OP_RETURN_NONE:
-            case OP_RETURN: {
+            case OP_RET_VOID:
+            case OP_RET: {
                 if (i + 1 < insn_count) {
                     leaders[i + 1] = 1;
                 }
@@ -242,7 +249,8 @@ void scan_leaders(CodeObject *code)
     for (int i = 0; i < insn_count; i++) {
         if (i > 0 && leaders[i]) {
             if (!current_b->has_terminal) {
-                gcc_jit_block_end_with_jump(current_b->block, NULL, blocks[i].block);
+                gcc_jit_block_end_with_jump(current_b->block, NULL,
+                                            blocks[i].block);
             }
             current_b = &blocks[i];
         }

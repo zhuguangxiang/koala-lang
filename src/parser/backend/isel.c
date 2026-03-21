@@ -39,12 +39,12 @@ static BinaryRule int_rules[] = {
     // arithmetic shift
     { OP_BINARY_SHR, OP_INT_SHR, OP_INT_SHR_IMM, 0, 1 },
 
-    { OP_BINARY_CMP_EQ, OP_INT_CMP_EQ, OP_INT_CMP_EQ_IMM, 1, 1 },
-    { OP_BINARY_CMP_NE, OP_INT_CMP_NE, OP_INT_CMP_NE_IMM, 1, 1 },
-    { OP_BINARY_CMP_LT, OP_INT_CMP_LT, OP_INT_CMP_LT_IMM, 0, 1 },
-    { OP_BINARY_CMP_GT, OP_INT_CMP_GT, OP_INT_CMP_GT_IMM, 0, 1 },
-    { OP_BINARY_CMP_LE, OP_INT_CMP_LE, OP_INT_CMP_LE_IMM, 0, 1 },
-    { OP_BINARY_CMP_GE, OP_INT_CMP_GE, OP_INT_CMP_GE_IMM, 0, 1 },
+    { OP_BINARY_CMPEQ, OP_INT_CMPEQ, OP_INT_CMPEQ_IMM, 1, 1 },
+    { OP_BINARY_CMPNE, OP_INT_CMPNE, OP_INT_CMPNE_IMM, 1, 1 },
+    { OP_BINARY_CMPLT, OP_INT_CMPLT, OP_INT_CMPLT_IMM, 0, 1 },
+    { OP_BINARY_CMPGT, OP_INT_CMPGT, OP_INT_CMPGT_IMM, 0, 1 },
+    { OP_BINARY_CMPLE, OP_INT_CMPLE, OP_INT_CMPLE_IMM, 0, 1 },
+    { OP_BINARY_CMPGE, OP_INT_CMPGE, OP_INT_CMPGE_IMM, 0, 1 },
 };
 
 static BinaryRule uint_rules[] = {
@@ -52,10 +52,10 @@ static BinaryRule uint_rules[] = {
     { OP_BINARY_MOD, OP_UINT_MOD, OP_UINT_MOD_IMM, 0, 1 },
     // logical shift
     { OP_BINARY_SHR, OP_UINT_SHR, OP_UINT_SHR_IMM, 0, 1 },
-    { OP_BINARY_CMP_LT, OP_UINT_CMP_LT, OP_UINT_CMP_LT_IMM, 0, 1 },
-    { OP_BINARY_CMP_LE, OP_UINT_CMP_LE, OP_UINT_CMP_LE_IMM, 0, 1 },
-    { OP_BINARY_CMP_GT, OP_UINT_CMP_GT, OP_UINT_CMP_GT_IMM, 0, 1 },
-    { OP_BINARY_CMP_GE, OP_UINT_CMP_GE, OP_UINT_CMP_GE_IMM, 0, 1 },
+    { OP_BINARY_CMPLT, OP_UINT_CMPLT, OP_UINT_CMPLT_IMM, 0, 1 },
+    { OP_BINARY_CMPLE, OP_UINT_CMPLE, OP_UINT_CMPLE_IMM, 0, 1 },
+    { OP_BINARY_CMPGT, OP_UINT_CMPGT, OP_UINT_CMPGT_IMM, 0, 1 },
+    { OP_BINARY_CMPGE, OP_UINT_CMPGE, OP_UINT_CMPGE_IMM, 0, 1 },
 };
 
 static BinaryRule float_rules[] = {
@@ -64,11 +64,11 @@ static BinaryRule float_rules[] = {
     { OP_BINARY_MUL, OP_FLOAT_MUL, 0, 1, 0 },
     { OP_BINARY_DIV, OP_FLOAT_DIV, 0, 0, 0 },
     { OP_BINARY_MOD, OP_FLOAT_MOD, 0, 0, 0 },
-    { OP_BINARY_CMP_LT, OP_FLOAT_CMPL, 0, 0, 0 },
-    { OP_BINARY_CMP_EQ, OP_FLOAT_CMPL, 0, 0, 0 },
-    { OP_BINARY_CMP_LE, OP_FLOAT_CMPL, 0, 0, 0 },
-    { OP_BINARY_CMP_GT, OP_FLOAT_CMPG, 0, 0, 0 },
-    { OP_BINARY_CMP_GE, OP_FLOAT_CMPG, 0, 0, 0 },
+    { OP_BINARY_CMPLT, OP_FLOAT_CMPL, 0, 0, 0 },
+    { OP_BINARY_CMPEQ, OP_FLOAT_CMPL, 0, 0, 0 },
+    { OP_BINARY_CMPLE, OP_FLOAT_CMPL, 0, 0, 0 },
+    { OP_BINARY_CMPGT, OP_FLOAT_CMPG, 0, 0, 0 },
+    { OP_BINARY_CMPGE, OP_FLOAT_CMPG, 0, 0, 0 },
 };
 
 // clang-format on
@@ -99,7 +99,8 @@ BinaryRule *find_binary_rule(OpCode ir_op, TypeSpec *ts)
 
     if (type_is_uint(ts)) {
         num_rules = COUNT_OF(int_rules);
-        // for unsigned types, if no specific rule, try to find the signed version
+        // for unsigned types, if no specific rule, try to find the signed
+        // version
         for (int i = 0; i < num_rules; i++) {
             if (int_rules[i].ir_op == ir_op) {
                 return (BinaryRule *)&int_rules[i];
@@ -116,16 +117,16 @@ static KlrValue *isel_build_int_literal(KlrBuilder *bldr, KlrConst *c)
     int64_t imm = c->ival;
     KlrInsn *insn;
 
-    if (imm >= (int)(-0xFFF) && imm <= (int)(0xFFF)) {
+    if (imm >= (int)(-0xFFFF) && imm <= (int)(0xFFFF)) {
         /* Small immediate: use OP_CONST_INT_IMM. */
-        insn = klr_build_int_imm(bldr, (KlrValue *)c);
+        insn = klr_build_const_int(bldr, (KlrValue *)c);
 
         /* raw operands for small-imm form */
         set_raw_oper_reg(insn, 0);
         set_raw_oper_imm(insn, 1, imm);
     } else {
         /* Large immediate: materialize via constant pool. */
-        insn = klr_build_load_const(bldr, (KlrValue *)c);
+        insn = klr_build_const_load(bldr, (KlrValue *)c);
 
         /* raw operands for load-const form */
         set_raw_oper_reg(insn, 0);
@@ -196,8 +197,8 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
 
         if (R->allow_imm) {
             // 8-bit fast path (only applies to int/uint rules)
-            // float never enters this block because float rules set allow_imm = 0
-            // reg op imm
+            // float never enters this block because float rules set allow_imm =
+            // 0 reg op imm
             ASSERT(rc->which == CONST_INT || rc->which == CONST_UINT);
 
             if (rc->which == CONST_INT) {
@@ -243,7 +244,7 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
 
 static inline int isel_is_binary(OpCode op)
 {
-    return (op >= OP_BINARY_ADD && op <= OP_BINARY_CMP_GE);
+    return (op >= OP_BINARY_ADD && op <= OP_BINARY_CMPGE);
 }
 
 static void isel_materialize_push_const(KlrBuilder *bldr, KlrConst *c)
@@ -278,8 +279,10 @@ static void isel_lower_call_arg(KlrBuilder *bldr, KlrValue *arg)
     if (klr_is_const(arg)) {
         KlrConst *c = (KlrConst *)arg;
         isel_materialize_push_const(bldr, c);
+        NYI();
     } else {
-        klr_build_push(bldr, arg);
+        KlrInsn *insn = klr_build_push(bldr, arg);
+        set_raw_oper_index(insn, 0, 0);
     }
 }
 
@@ -312,6 +315,55 @@ static void isel_lower_ret(KlrInsn *insn, KlrFunc *fn)
     set_raw_oper_index(insn, 0, 0);
 }
 
+static void isel_lower_move_const(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *dst = insn_oper_value(insn, 0);
+    KlrValue *src = insn_oper_value(insn, 1);
+
+    ASSERT(klr_is_local(dst));
+    ASSERT(klr_is_const(src));
+
+    KlrConst *c = (KlrConst *)src;
+
+    if (c->which == CONST_INT) {
+        int64_t imm = c->ival;
+        if (imm >= INT16_MIN && imm <= INT16_MAX) {
+            /* Small immediate: use OP_MOVE_INT_IMM. */
+            insn->code = OP_MOVE_INT_IMM;
+            set_raw_oper_index(insn, 0, 0);
+            set_raw_oper_imm(insn, 1, imm);
+        } else {
+            KlrBuilder bldr;
+            klr_builder_before(&bldr, insn);
+            /* Large immediate: materialize via constant pool. */
+            KlrInsn *_insn = klr_build_const_load(&bldr, (KlrValue *)c);
+            /* raw operands for load-const form */
+            set_raw_oper_reg(_insn, 0);
+            set_raw_oper_const(_insn, 1, c);
+            set_operand_at(insn, 1, (KlrValue *)_insn);
+        }
+        return;
+    }
+
+    NYI();
+}
+
+static void isel_lower_move(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *dst = insn_oper_value(insn, 0);
+    KlrValue *src = insn_oper_value(insn, 1);
+
+    ASSERT(klr_is_local(dst));
+
+    if (klr_is_const(src)) {
+        isel_lower_move_const(insn, fn);
+    } else {
+        ASSERT(klr_is_insn(src) || klr_is_param(src));
+        set_raw_oper_index(insn, 0, 0);
+        set_raw_oper_index(insn, 1, 1);
+    }
+}
+
 static int klr_do_isel(KlrFunc *fn, void *data)
 {
     log_info("isel for func '%s'", fn->name);
@@ -334,8 +386,13 @@ static int klr_do_isel(KlrFunc *fn, void *data)
                     break;
                 }
 
-                case OP_RETURN: {
+                case OP_RET: {
                     isel_lower_ret(insn, fn);
+                    break;
+                }
+
+                case OP_MOVE: {
+                    isel_lower_move(insn, fn);
                     break;
                 }
 
@@ -355,7 +412,10 @@ static KlrPass isel_pass = {
     .run = klr_do_isel,
 };
 
-void build_isel_pm(KlrPassManager *pm, int dump) { pm_add_pass(pm, &isel_pass, dump); }
+void build_isel_pm(KlrPassManager *pm, int dump)
+{
+    pm_add_pass(pm, &isel_pass, dump);
+}
 
 #ifdef __cplusplus
 }

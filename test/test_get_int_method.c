@@ -42,9 +42,9 @@ void test_get_int_method(void)
        print(int_hash)
     */
     char _insns[] = {
-        OP_REL_LOAD, 0,       2, 0,           OP_PUSH, 0, OP_CALL,   1,
-        0,           1,       0, OP_REL_LOAD, 0,       1, 0,         OP_PUSH,
-        0,           OP_CALL, 1, 0,           1,       0, OP_RETURN, 0,
+        OP_REL_LOAD, 0,       2, 0,           OP_PUSH, 0, OP_CALL, 1,
+        0,           1,       0, OP_REL_LOAD, 0,       1, 0,       OP_PUSH,
+        0,           OP_CALL, 1, 0,           1,       0, OP_RET,  0,
     };
 
     CodeObject *code = (CodeObject *)kl_new_code("__init__", m, NULL);

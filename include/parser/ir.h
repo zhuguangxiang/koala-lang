@@ -153,11 +153,12 @@ typedef struct _KlrFunc {
      *        and conversion from SSA IR to linear LIR.
      *
      *   3. Register allocation:
-     *        Map vregs to physical registers (LSRA / graph coloring / simple RA),
-     *        inserting spills and reloads when necessary.
+     *        Map vregs to physical registers (LSRA / graph coloring / simple
+     * RA), inserting spills and reloads when necessary.
      *
      *   4. Code emission:
-     *        Patch jump offsets, apply WIDE expansion, and encode final VM bytecode.
+     *        Patch jump offsets, apply WIDE expansion, and encode final VM
+     * bytecode.
      */
     Vector lir;
 } KlrFunc;
@@ -436,7 +437,17 @@ static inline void set_raw_oper_const(KlrInsn *insn, int slot, KlrConst *kval)
 {
     KlrRawOper *op = &insn->raw_opers[slot];
     op->kind = RAW_OPER_CONST;
-    op->kval = kval; /* Constant pool entry; index assigned during linearization. */
+    op->kval =
+        kval; /* Constant pool entry; index assigned during linearization. */
+}
+
+/* Set operand to a basic block target. */
+static inline void set_raw_oper_block(KlrInsn *insn, int slot,
+                                      KlrBasicBlock *bb)
+{
+    KlrRawOper *op = &insn->raw_opers[slot];
+    op->kind = RAW_OPER_BLOCK;
+    op->bb = bb; /* Basic block target; mapped to label during linearization. */
 }
 
 /* <1> literal constants */
@@ -445,8 +456,10 @@ KlrValue *klr_const_uint(uint64_t val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_bool(int val, KlrModule *m);
 KlrValue *klr_const_str(char *s, int len, KlrModule *m);
-KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
-KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
+KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts,
+                         KlrModule *m);
+KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts,
+                          KlrModule *m);
 KlrValue *klr_const_none(KlrModule *m);
 
 static inline int klr_is_const(KlrValue *val)
@@ -472,6 +485,18 @@ static inline int klr_is_local(KlrValue *val)
 static inline int klr_is_param(KlrValue *val)
 {
     if (val->kind == KLR_VALUE_PARAM) return 1;
+    return 0;
+}
+
+static inline int klr_is_block(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_BLOCK) return 1;
+    return 0;
+}
+
+static inline int klr_is_func(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_FUNC) return 1;
     return 0;
 }
 
@@ -507,8 +532,10 @@ KlrValue *klr_klass_add_method(KlrValue *klass, char *name, TypeSpec *ret,
                                TypeSpec **params);
 
 // ir doesn't check external symbol's type
-KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *proto, char *path, char *name);
-KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name);
+KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *proto, char *path,
+                           char *name);
+KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path,
+                             char *name);
 
 #define local_foreach(local, func) vector_foreach_ptr(local, &(func)->locals)
 
@@ -527,8 +554,8 @@ KlrBasicBlock *klr_add_block_before(KlrBasicBlock *bb, char *name);
 void klr_erase_block(KlrBasicBlock *bb);
 
 /* merge src' into 'dst',
-if 'dst' has only one successor of 'src' and 'src' has only one predecessor of 'dst'
-The caller must check the condition and 'src' is not removed.
+if 'dst' has only one successor of 'src' and 'src' has only one predecessor of
+'dst' The caller must check the condition and 'src' is not removed.
 */
 void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src);
 
@@ -557,7 +584,8 @@ void klr_remove_edge(KlrEdge *edge);
 void klr_remove_all_out_edges(KlrBasicBlock *bb);
 
 /* edge-out iteration */
-#define edge_out_foreach(edge, bb) list_foreach(edge, out_link, &(bb)->out_edges)
+#define edge_out_foreach(edge, bb) \
+    list_foreach(edge, out_link, &(bb)->out_edges)
 
 /* edge-out safe iteration */
 #define edge_out_foreach_safe(edge, nxt, bb) \
@@ -589,7 +617,8 @@ void klr_remove_all_out_edges(KlrBasicBlock *bb);
 #define basic_block_foreach_safe(bb, nxt, fn) \
     list_foreach_safe(bb, nxt, link, &(fn)->bb_list)
 
-#define bb_foreach_reverse(bb, fn) list_foreach_reverse(bb, link, &(fn)->bb_list)
+#define bb_foreach_reverse(bb, fn) \
+    list_foreach_reverse(bb, link, &(fn)->bb_list)
 
 static inline int klr_get_nr_preds(KlrBasicBlock *bb)
 {
@@ -649,44 +678,44 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val);
 /* IR: move %dst, %src */
 void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 
-KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,
-                           char *name, const char *op_name);
+KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
+                           OpCode op, char *name, const char *op_name);
 
 /* IR: %2 int = add %0, %1 */
-static inline KlrValue *klr_build_add(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
-                                      char *name)
+static inline KlrValue *klr_build_add(KlrBuilder *bldr, KlrValue *lhs,
+                                      KlrValue *rhs, char *name)
 {
     return klr_build_binary(bldr, lhs, rhs, OP_BINARY_ADD, name, "add");
 }
 
 /* IR: %2 int = sub %0, %1 */
-static inline KlrValue *klr_build_sub(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
-                                      char *name)
+static inline KlrValue *klr_build_sub(KlrBuilder *bldr, KlrValue *lhs,
+                                      KlrValue *rhs, char *name)
 {
     return klr_build_binary(bldr, lhs, rhs, OP_BINARY_SUB, name, "sub");
 }
 
 /* IR: %2 int = cmp %0, %1 */
-KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code,
-                        char *name);
+KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
+                        OpCode code, char *name);
 
 #define klr_build_cmpeq(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_EQ, name)
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPEQ, name)
 
 #define klr_build_cmpne(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_NE, name)
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPNE, name)
 
 #define klr_build_cmplt(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_LT, name)
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPLT, name)
 
 #define klr_build_cmpgt(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_GT, name)
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPGT, name)
 
 #define klr_build_cmple(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_LE, name)
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPLE, name)
 
 #define klr_build_cmpge(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMP_GE, name)
+    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPGE, name)
 
 /* IR: br %0, %bb1, %bb2 */
 void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
@@ -696,8 +725,8 @@ void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
 void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target);
 
 /* IR: %0 int = call %func, %argument-list */
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs,
-                         char *name);
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args,
+                         int nargs, char *name);
 
 /* IR: ret %var */
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
@@ -706,7 +735,7 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
 void klr_build_ret_void(KlrBuilder *bldr);
 
 /* IR: push %var */
-KlrValue *klr_build_push(KlrBuilder *bldr, KlrValue *val);
+KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val);
 
 /* IR: push_int_imm %var */
 KlrValue *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val);
@@ -714,14 +743,15 @@ KlrValue *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val);
 /* IR: push_const cp-offset */
 KlrValue *isel_build_push_const(KlrBuilder *bldr, KlrValue *val);
 
-/* add a return instruction at the end of a basic block if it doesn't have one */
+/* add a return instruction at the end of a basic block if it doesn't have one
+ */
 void klr_add_last_return(KlrBasicBlock *bb);
 
-/* IR: %0 = const imm */
-KlrInsn *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val);
+/* IR: %0 = const.int */
+KlrInsn *klr_build_const_int(KlrBuilder *bldr, KlrValue *val);
 
-/* IR: %0 = load_const %var */
-KlrInsn *klr_build_load_const(KlrBuilder *bldr, KlrValue *val);
+/* IR: %0 = const.load %var */
+KlrInsn *klr_build_const_load(KlrBuilder *bldr, KlrValue *val);
 
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)

@@ -28,7 +28,7 @@ typedef enum _SpecialConst {
 /*
  * Standard 4-byte fixed-length instruction encoding formats:
  *
- * FORMAT_NONE:
+ * FORMAT_IR:
  *   IR-only pseudo-instruction format.
  *   Instructions with this format are never encoded into VM bytecode.
  *   encode() must not be called on them.
@@ -38,32 +38,31 @@ typedef enum _SpecialConst {
  * FORMAT_Op:   [op:8][---:24]
  * FORMAT_Ax:   [op:8][ax:12][---:12]
  * FORMAT_Axx:  [op:8][axx:16][---:8]
- * FORMAT_Axxx: [op:8][axxx:24]
  * FORMAT_ABC:  [op:8][a:8][b:8][c:8]
  * FORMAT_AxBx: [op:8][ax:12][bx:12]
  * FORMAT_ABxx: [op:8][a:8][bxx:16]
  */
 typedef enum {
-    FORMAT_NONE,
+    FORMAT_IR = -1,
     FORMAT_Op,
     FORMAT_Ax,
     FORMAT_Axx,
-    FORMAT_Axxx,
     FORMAT_ABC,
     FORMAT_AxBx,
     FORMAT_ABxx
 } OpFormat;
 
 typedef enum _OpCode {
-#define X(name, fmt, s0, s1) name,
+#define X(name, fmt, comment) name,
 #include "opcode_list.h"
 #undef X
 } OpCode;
 
-extern char *opcode_names[];
-static inline char *opcode_name(OpCode code) { return opcode_names[code]; }
-extern OpFormat opcode_formats[];
-static inline OpFormat opcode_format(OpCode code) { return opcode_formats[code]; }
+extern char *__op_names[];
+static inline char *op_name(OpCode code) { return __op_names[code]; }
+
+extern OpFormat __op_formats[];
+static inline OpFormat op_format(OpCode code) { return __op_formats[code]; }
 
 #ifdef __cplusplus
 }

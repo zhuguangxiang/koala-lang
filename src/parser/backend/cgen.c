@@ -10,6 +10,100 @@
 extern "C" {
 #endif
 
+const void dump_value(char *name, int value, int is_last)
+{
+    const int FIELD_WIDTH = 10;
+    char buf[64];
+
+    if (name) {
+        int len = snprintf(buf, sizeof(buf), "%s = %d", name, value);
+        int target = is_last ? FIELD_WIDTH - 1 : FIELD_WIDTH;
+        int pad = (len >= target) ? 1 : (target - len);
+        memset(buf + len, ' ', pad);
+        buf[len + pad] = '\0';
+        fputs(buf, stdout);
+    } else {
+        int target = is_last ? FIELD_WIDTH - 1 : FIELD_WIDTH;
+        for (int i = 0; i < target; i++) putchar(' ');
+    }
+}
+
+static void dump_mach_insn(KlMachInsn *mi)
+{
+    printf("%4d  %-12s  ", mi->pc, op_name(mi->code));
+
+    switch (mi->format) {
+        case FORMAT_Ax:
+            dump_value("Ax", mi->Ax, 0);
+            dump_value(NULL, 0, 0);
+            dump_value(NULL, 0, 1);
+            break;
+
+        case FORMAT_Axx:
+            dump_value("Axx", mi->Axx, 0);
+            dump_value(NULL, 0, 0);
+            dump_value(NULL, 0, 1);
+            break;
+
+        case FORMAT_ABC:
+            dump_value("A", mi->A, 0);
+            dump_value("B", mi->B, 0);
+            dump_value("C", mi->C, 1);
+            break;
+
+        case FORMAT_AxBx:
+            dump_value("Ax", mi->Ax, 0);
+            dump_value("Bx", mi->Bx, 0);
+            dump_value(NULL, 0, 1);
+            break;
+
+        case FORMAT_ABxx:
+            dump_value("A", mi->A, 0);
+            dump_value("Bxx", mi->Bxx, 0);
+            dump_value(NULL, 0, 1);
+            break;
+
+        case FORMAT_Op:
+            // no operand
+            break;
+
+        default:
+            printf("(unknown format)");
+            break;
+    }
+
+    if (mi->target) {
+        KlrBasicBlock *origin = mi->target->origin;
+        printf(";; -> %%%s", klr_block_name(origin));
+    }
+
+    printf("\n");
+}
+
+static void dump_mach_block(KlMachBlock *mb)
+{
+    printf("%%%s:\n", klr_block_name(mb->origin));
+
+    KlMachInsn *mi;
+    vector_foreach(mi, &mb->insns) {
+        dump_mach_insn(mi);
+    }
+
+    printf("\n");
+}
+
+void klm_dump_func(KlMachFunc *fn)
+{
+    printf("====== Linearization @%s ======\n\n", fn->origin->name);
+
+    KlMachBlock *mb;
+    list_foreach(mb, link, &fn->bb_list) {
+        dump_mach_block(mb);
+    }
+
+    printf("=== End of Linearization @%s ====\n\n", fn->origin->name);
+}
+
 /* Extract integer value from a raw operand. */
 static inline int get_raw_value(KlrInsn *insn, KlrRawOper *op)
 {
@@ -40,15 +134,6 @@ static inline int get_raw_value(KlrInsn *insn, KlrRawOper *op)
             return op->global_index;
         }
 
-        case RAW_OPER_FUNC: {
-            NYI();
-            return op->func_index;
-        }
-
-        case RAW_OPER_NONE: {
-            return 0; /* Unused operand slot. */
-        }
-
         default: {
             UNREACHABLE();
             return 0;
@@ -72,10 +157,31 @@ static inline KlMachBlock *get_raw_block(KlrRawOper *op)
 static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn)
 {
     mi->code = insn->code;
-    mi->format = opcode_format(insn->code);
+    mi->format = op_format(insn->code);
     /* pc is assigned by linearization pass. */
     mi->pc = -1;
     mi->origin = insn;
+
+    if (insn->code == OP_JMP) {
+        /* For unconditional jump, operand is a single basic block. */
+        KlrValue *bb = insn_oper_value(insn, 0);
+        mi->target = ((KlrBasicBlock *)bb)->mach;
+        return;
+    }
+
+    if (insn->code == OP_CALL) {
+        /* For call, operand 0 is func, operands 1..n are args. */
+        KlrValue *fn = insn_oper_value(insn, 0);
+        ASSERT(klr_is_func(fn));
+        if (ir_has_value(insn)) {
+            mi->A = insn->vreg;
+        } else {
+            mi->A = -1;
+        }
+        mi->B = insn->num_args;
+        mi->C = 0; // offset
+        return;
+    }
 
     KlrRawOper *op0 = &insn->raw_opers[0];
     KlrRawOper *op1 = &insn->raw_opers[1];
@@ -90,11 +196,6 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn)
 
         case FORMAT_Axx: {
             mi->Axx = get_raw_value(insn, op0);
-            break;
-        }
-
-        case FORMAT_Axxx: {
-            mi->Axxx = get_raw_value(insn, op0);
             break;
         }
 
@@ -122,10 +223,6 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn)
             break;
         }
     }
-
-    /* Branch targets from raw operands (if any). */
-    mi->target_true = get_raw_block(op0);
-    mi->target_false = get_raw_block(op1);
 }
 
 KlMachFunc *klm_linearize_func(KlrFunc *fn)
@@ -134,6 +231,7 @@ KlMachFunc *klm_linearize_func(KlrFunc *fn)
     mfn->origin = fn;
     init_list(&mfn->bb_list);
 
+    // build MachBlock
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
         KlMachBlock *mb = mm_alloc_obj(mb);
@@ -144,169 +242,131 @@ KlMachFunc *klm_linearize_func(KlrFunc *fn)
         list_push_back(&mfn->bb_list, &mb->link);
     }
 
-    int pc = 0;
-
+    // fill MachInsn
     KlMachBlock *mb;
     list_foreach(mb, link, &mfn->bb_list) {
         KlrBasicBlock *bb = mb->origin;
 
-        mb->start_pc = pc;
+        // next block is fallthrough (may be NULL)
+        KlMachBlock *next = list_next(mb, link, &mfn->bb_list);
 
         KlrInsn *insn;
         insn_foreach(insn, bb) {
+            // OP_IR_LOCAL is pseudo instruction, not emitted as machine code,
+            // so skip it.
             if (klr_is_local((KlrValue *)insn)) continue;
+
+            // Lower OP_IR_JMP_COND into concrete machine-level jumps.
+            // This pseudo instruction cannot be assigned a PC or encoded
+            // directly. We must eliminate it here based solely on block layout
+            // (fallthrough).
+            //
+            //   br cond, bb_true, bb_false
+            //
+            // If bb_true is the fallthrough block, we invert the condition:
+            //
+            //   if (!cond) goto bb_false
+            //
+            // Otherwise:
+            //
+            //   if (cond) goto bb_true
+            //   goto bb_false
+            //
+            // After this lowering, the instruction stream contains only real,
+            // PC-carrying jump instructions, allowing patch_pc() and
+            // patch_branches() to compute correct offsets.
+            if (insn->code == OP_IR_JMP_COND) {
+                KlrValue *cond = insn_oper_value(insn, 0);
+
+                KlrValue *val = insn_oper_value(insn, 1);
+                ASSERT(klr_is_block(val));
+                KlrBasicBlock *bb_true = (KlrBasicBlock *)val;
+
+                val = insn_oper_value(insn, 2);
+                ASSERT(klr_is_block(val));
+                KlrBasicBlock *bb_false = (KlrBasicBlock *)val;
+
+                int fallthrough = (next && next->origin == bb_true);
+
+                if (fallthrough) {
+                    // if (!cond) goto false
+                    KlMachInsn *mi = mm_alloc_obj(mi);
+                    mi->code = OP_JMP_FALSE;
+                    mi->format = FORMAT_ABxx;
+                    mi->origin = insn;
+                    mi->A = cond->vreg;
+                    mi->target = bb_false->mach;
+                    vector_push_back(&mb->insns, &mi);
+                } else {
+                    // if (cond) goto true
+                    KlMachInsn *mi1 = mm_alloc_obj(mi1);
+                    mi1->code = OP_JMP_TRUE;
+                    mi1->format = FORMAT_ABxx;
+                    mi1->origin = insn;
+                    mi1->A = cond->vreg;
+                    mi1->target = bb_true->mach;
+                    vector_push_back(&mb->insns, &mi1);
+
+                    // goto false
+                    KlMachInsn *mi2 = mm_alloc_obj(mi2);
+                    mi2->code = OP_JMP;
+                    mi2->format = FORMAT_Axx;
+                    mi2->origin = insn;
+                    mi2->target = bb_false->mach;
+                    vector_push_back(&mb->insns, &mi2);
+                }
+                continue;
+            }
 
             KlMachInsn *mi = mm_alloc_obj(mi);
             fill_mach_insn(mi, insn);
-
-            mi->pc = pc;
-            pc++;
-
             vector_push_back(&mb->insns, &mi);
         }
     }
 
-    return mfn;
-}
+    // patch pc
+    int pc = 0;
 
-static void dump_raw_operand(KlrInsn *insn, int slot, int value)
-{
-    KlrRawOper *op = &insn->raw_opers[slot];
+    list_foreach(mb, link, &mfn->bb_list) {
+        // Record the starting PC of this block.
+        mb->start_pc = pc;
 
-    switch (op->kind) {
-        case RAW_OPER_REG:
-        case RAW_OPER_INDEX:
-            printf("R%d", value);
-            break;
-
-        case RAW_OPER_IMM:
-            printf("#%d", value);
-            break;
-
-        case RAW_OPER_CONST:
-            printf("K%d", value);
-            break;
-
-        case RAW_OPER_BLOCK:
-            printf("BB%d", value);
-            break;
-
-        case RAW_OPER_GLOBAL:
-            printf("G%d", value);
-            break;
-
-        case RAW_OPER_FUNC:
-            printf("F%d", value);
-            break;
-
-        default:
-            printf("<?>%d", value);
-            break;
-    }
-}
-
-/**
- * Dump a single operand slot with aligned formatting.
- *
- * This function prints:
- *     <name>=<semantic_value><padding>
- *
- * The semantic value is derived from the original IR operand kind
- * (register, immediate, constant pool index, block target, etc.),
- * not from the physical MachInsn field. This ensures that the dump
- * reflects the logical meaning of the operand rather than the raw
- * bitfield layout used by the instruction format.
- *
- * Each printed field is padded to a fixed width to keep the output
- * visually aligned across all instructions.
- *
- * Example output:
- *     A=R1        B=R2        C=#3
- *     Ax=BB24     Bx=#500
- *
- * Parameters:
- *   name  - Field label ("A", "B", "C", "Ax", "Bx", ...)
- *   insn  - The originating IR instruction, used to determine operand kind
- *   slot  - Operand index in raw_operands[]
- *   value - The physical integer stored in the MachInsn bitfield
- */
-static void dump_slot(const char *name, KlrInsn *insn, int slot, int value)
-{
-    printf("%s=", name);
-    dump_raw_operand(insn, slot, value);
-
-    const int FIELD_WIDTH = 12;
-    int printed_len = strlen(name) + 1 + 6; // name + '=' + estimated operand width
-    int pad = FIELD_WIDTH - printed_len;
-    if (pad < 1) pad = 1;
-
-    while (pad--) putchar(' ');
-}
-
-void klm_dump_func(KlMachFunc *fn)
-{
-    printf("====== Linearization @%s ======\n\n", fn->origin->name);
-
-    KlMachBlock *mb;
-    list_foreach(mb, link, &fn->bb_list) {
-        printf("%%%s:\n", klr_block_name(mb->origin));
-
+        // Assign PC to each instruction in this block.
         KlMachInsn *mi;
         vector_foreach(mi, &mb->insns) {
-            printf("  [%4d]  %-20s ", mi->pc, opcode_name(mi->code));
-
-            KlrInsn *insn = mi->origin;
-            /* Print physical fields based on format. */
-            switch (mi->format) {
-                case FORMAT_Ax:
-                    dump_slot("Ax", insn, 0, mi->Ax);
-                    break;
-
-                case FORMAT_Axx:
-                    dump_slot("Axx", insn, 0, mi->Axx);
-                    break;
-
-                case FORMAT_Axxx:
-                    dump_slot("Axxx", insn, 0, mi->Axxx);
-                    break;
-
-                case FORMAT_ABC:
-                    dump_slot("A", insn, 0, mi->A);
-                    dump_slot("B", insn, 1, mi->B);
-                    dump_slot("C", insn, 2, mi->C);
-                    break;
-
-                case FORMAT_AxBx:
-                    dump_slot("Ax", insn, 0, mi->Ax);
-                    dump_slot("Bx", insn, 1, mi->Bx);
-                    break;
-
-                case FORMAT_ABxx:
-                    dump_slot("A", insn, 0, mi->A);
-                    dump_slot("Bxx", insn, 1, mi->Bxx);
-                    break;
-
-                default:
-                    printf("<invalid-format>");
-                    break;
-            }
-
-            /* Print branch targets if present. */
-            if (mi->target_true || mi->target_false) {
-                printf("  ; targets: ");
-
-                if (mi->target_true) printf("T->%d ", mi->target_true->start_pc);
-
-                if (mi->target_false) printf("F->%d ", mi->target_false->start_pc);
-            }
-
-            printf("\n");
+            mi->pc = pc;
+            pc++;
         }
-
-        printf("\n");
     }
 
-    printf("==========================================\n");
+    // Optionally store total instruction count
+    mfn->total_insns = pc;
+
+    // patch jmp
+    list_foreach(mb, link, &mfn->bb_list) {
+        KlMachInsn *mi;
+        vector_foreach(mi, &mb->insns) {
+            if (mi->code == OP_JMP) {
+                ASSERT(mi->format == FORMAT_Axx);
+                ASSERT(mi->target);
+                int target_pc = mi->target->start_pc;
+                ASSERT(target_pc >= 0);
+                /* Relative offset: target - (current + 1) */
+                mi->Axx = target_pc - (mi->pc + 1);
+            } else if (mi->code == OP_JMP_TRUE || mi->code == OP_JMP_FALSE) {
+                ASSERT(mi->format == FORMAT_ABxx);
+                ASSERT(mi->target);
+                int target_pc = mi->target->start_pc;
+                ASSERT(target_pc >= 0);
+                /* Relative offset: target - (current + 1) */
+                mi->Bxx = target_pc - (mi->pc + 1);
+            } else {
+                // do nothing for non-jump instructions
+            }
+        }
+    }
+
+    return mfn;
 }
 
 static int klr_do_cgen(KlrFunc *fn, void *data)
@@ -324,7 +384,10 @@ static KlrPass cgen_pass = {
     .run = klr_do_cgen,
 };
 
-void build_cgen_pm(KlrPassManager *pm, int dump) { pm_add_pass(pm, &cgen_pass, dump); }
+void build_cgen_pm(KlrPassManager *pm, int dump)
+{
+    pm_add_pass(pm, &cgen_pass, dump);
+}
 
 #ifdef __cplusplus
 }

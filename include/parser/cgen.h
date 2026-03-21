@@ -22,7 +22,8 @@ extern "C" {
  *   - Offset patching
  *   - Final bytecode encoding
  *
- * It is intentionally simple and flat, so LSRA can scan and rewrite it efficiently.
+ * It is intentionally simple and flat, so LSRA can scan and rewrite it
+ * efficiently.
  */
 typedef struct _KlMachInsn {
     /* opcode after isel */
@@ -41,11 +42,9 @@ typedef struct _KlMachInsn {
 
     int Axx;
     int Bxx;
-    int Axxx;
 
     /* Branch targets (machine-level blocks). */
-    struct _KlMachBlock *target_true;
-    struct _KlMachBlock *target_false;
+    struct _KlMachBlock *target;
 
     /* Linearized instruction index (per function) */
     int pc;
@@ -88,10 +87,11 @@ void build_cgen_pm(KlrPassManager *pm, int dump);
 // // emit helpers
 // KlmInsn *emit_new(OpCode code, KlrInsn *origin, KlrFunc *fn);
 // KlmInsn *emit_Ax(OpCode code, int rd, KlrInsn *origin, KlrFunc *fn);
-// KlmInsn *emit_AxBx(OpCode code, int rd, int rs, KlrInsn *origin, KlrFunc *fn);
-// KlmInsn *emit_ABC(OpCode code, int rd, int rs, int rt, KlrInsn *origin, KlrFunc *fn);
-// KlmInsn *emit_ABxx(OpCode code, int rd, int imm16, KlrInsn *origin, KlrFunc *fn);
-// KlmInsn *emit_const(int rd, KlrValue *v, KlrInsn *origin, KlrFunc *fn);
+// KlmInsn *emit_AxBx(OpCode code, int rd, int rs, KlrInsn *origin, KlrFunc
+// *fn); KlmInsn *emit_ABC(OpCode code, int rd, int rs, int rt, KlrInsn *origin,
+// KlrFunc *fn); KlmInsn *emit_ABxx(OpCode code, int rd, int imm16, KlrInsn
+// *origin, KlrFunc *fn); KlmInsn *emit_const(int rd, KlrValue *v, KlrInsn
+// *origin, KlrFunc *fn);
 
 // // submodules
 // void kl_lower_binary(KlrFunc *fn, KlrInsn *insn);

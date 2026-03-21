@@ -34,7 +34,7 @@ void test_module(void)
         (OP_PUSH << 24) | 0,
         (OP_PUSH << 24) | 1,
         (OP_CALL << 24) | (0 << 16) | 2 << 8 | id,
-        (OP_RETURN_NONE << 24),
+        (OP_RET_VOID << 24),
     };
 
     Object *obj = kl_new_code("__init__", m, NULL);

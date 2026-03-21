@@ -23,7 +23,8 @@ static void dump_const(KlcConst *item)
             break;
         }
         case KLC_CONST_INT: {
-            fprintf(stdout, "%s%d, ", item->sign ? "int" : "uint", item->len * 8);
+            fprintf(stdout, "%s%d, ", item->sign ? "int" : "uint",
+                    item->len * 8);
             if (item->sign) {
                 if (item->len == 1)
                     fprintf(stdout, "%d\n", (int8_t)item->ival);
@@ -202,7 +203,7 @@ static void dump_code(KlcCode *code)
                 op += 4;
                 break;
             }
-            case OP_RETURN_NONE: {
+            case OP_RET_VOID: {
                 fprintf(stdout, "    ret-void\n");
                 op += 1;
                 break;

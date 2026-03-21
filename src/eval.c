@@ -184,7 +184,7 @@ main_loop:
                 //     DISPATCH();
                 // }
 
-            case OP_CONST_INT_IMM: {
+            case OP_CONST_INT: {
                 rd = I_Ax(inst);
                 imm = I_Bx(inst);
 
@@ -195,7 +195,7 @@ main_loop:
                 DISPATCH();
             }
 
-            case OP_JMP_INT_CMP_LT_IMM: {
+            case OP_JMP_INT_LT_IMM: {
                 rd = I_A(inst);
                 imm = I_B(inst);
                 off = I_C(inst);
@@ -208,7 +208,7 @@ main_loop:
                 DISPATCH();
             }
 
-            case OP_JMP_INT_CMP_GE_IMM: {
+            case OP_JMP_INT_GE_IMM: {
                 rd = I_A(inst);
                 imm = I_B(inst);
                 off = I_C(inst);
@@ -292,33 +292,33 @@ main_loop:
                 DISPATCH();
             }
 
-            case OP_CALL_KW: {
-                rd = I_A(inst);
-                imm = I_B(inst);
-                off = I_C(inst);
-                Object *obj = RELOC(off);
-                ASSERT(obj);
-                Value callable = obj_value(obj);
-                Value val = POP();
-                Object *names = to_obj(&val);
-                ASSERT(IS_TUPLE(names));
-                int nargs = imm - TUPLE_LEN(names);
-                ASSERT(nargs >= 0);
-                Value ret = object_call_kw(&callable, cf->stack, nargs, names);
-                if (is_error(&ret)) {
-                    ASSERT(_exc_occurred(ks));
-                    result = ret;
-                    goto error;
-                }
+                // case OP_CALL_KW: {
+                //     rd = I_A(inst);
+                //     imm = I_B(inst);
+                //     off = I_C(inst);
+                //     Object *obj = RELOC(off);
+                //     ASSERT(obj);
+                //     Value callable = obj_value(obj);
+                //     Value val = POP();
+                //     Object *names = to_obj(&val);
+                //     ASSERT(IS_TUPLE(names));
+                //     int nargs = imm - TUPLE_LEN(names);
+                //     ASSERT(nargs >= 0);
+                //     Value ret = object_call_kw(&callable, cf->stack, nargs,
+                //     names); if (is_error(&ret)) {
+                //         ASSERT(_exc_occurred(ks));
+                //         result = ret;
+                //         goto error;
+                //     }
 
-                ASSERT(rd < cf->local_size);
+                //     ASSERT(rd < cf->local_size);
 
-                regs[rd] = ret;
-                SHRINK(nargs);
-                DISPATCH();
-            }
+                //     regs[rd] = ret;
+                //     SHRINK(nargs);
+                //     DISPATCH();
+                // }
 
-            case OP_RETURN: {
+            case OP_RET: {
                 rs = I_Bx(inst);
 
                 ASSERT(rs < cf->local_size);
@@ -327,7 +327,7 @@ main_loop:
                 goto done;
             }
 
-            case OP_RETURN_NONE: {
+            case OP_RET_VOID: {
                 result = none_value;
                 goto done;
             }

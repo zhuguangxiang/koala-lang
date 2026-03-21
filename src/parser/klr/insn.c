@@ -11,7 +11,8 @@
 extern "C" {
 #endif
 
-static void init_use(KlrUse *use, KlrInsn *insn, KlrOper *oper, KlrValue *ref, int is_def)
+static void init_use(KlrUse *use, KlrInsn *insn, KlrOper *oper, KlrValue *ref,
+                     int is_def)
 {
     use->insn = insn;
     use->oper = oper;
@@ -37,8 +38,9 @@ static void fini_use(KlrUse *use)
         ASSERT(klr_is_local(ref));
         ref->def_count--;
         if (ref->def_count == 0) {
-            log_info("erase insn '%%%s' since it has no defs after this removal",
-                     ref->name);
+            log_info(
+                "erase insn '%%%s' since it has no defs after this removal",
+                ref->name);
             ASSERT(list_empty(&ref->def_list));
             log_insn((KlrInsn *)ref);
             klr_erase_insn((KlrInsn *)ref);
@@ -92,8 +94,8 @@ void replace_all_uses_with(KlrValue *val, KlrValue *def)
     use_foreach_safe(use, next, def) {
         KlrInsn *insn = use->insn;
         if (insn->code == OP_MOVE && use->oper == &insn->opers[0]) {
-            // special case for move instruction, only replace the source operand, keep
-            // the destination operand unchanged.
+            // special case for move instruction, only replace the source
+            // operand, keep the destination operand unchanged.
             continue;
         }
         set_operand(use->oper, use->insn, val);
@@ -137,35 +139,28 @@ void klr_erase_insn(KlrInsn *insn)
 /* no allocate register codes */
 static OpCode no_regs_codes[] = {
     OP_MOVE,
+    OP_MOVE_INT_IMM,
     OP_IR_JMP_COND,
     OP_PUSH,
     OP_PUSH_NONE,
     OP_PUSH_INT_IMM,
-    OP_RETURN,
-    OP_RETURN_NONE,
+    OP_RET,
+    OP_RET_VOID,
     OP_JMP,
     OP_JMP_TRUE,
     OP_JMP_FALSE,
-    OP_JMP_NONE,
-    OP_JMP_NOT_NONE,
-    OP_JMP_CMP_EQ,
-    OP_JMP_CMP_NE,
-    OP_JMP_CMP_LT,
-    OP_JMP_CMP_GT,
-    OP_JMP_CMP_LE,
-    OP_JMP_CMP_GE,
-    OP_JMP_INT_CMP_EQ,
-    OP_JMP_INT_CMP_NE,
-    OP_JMP_INT_CMP_LT,
-    OP_JMP_INT_CMP_GT,
-    OP_JMP_INT_CMP_LE,
-    OP_JMP_INT_CMP_GE,
-    OP_JMP_INT_CMP_EQ_IMM,
-    OP_JMP_INT_CMP_NE_IMM,
-    OP_JMP_INT_CMP_LT_IMM,
-    OP_JMP_INT_CMP_GT_IMM,
-    OP_JMP_INT_CMP_LE_IMM,
-    OP_JMP_INT_CMP_GE_IMM,
+    OP_JMP_INT_EQ,
+    OP_JMP_INT_NE,
+    OP_JMP_INT_LT,
+    OP_JMP_INT_GT,
+    OP_JMP_INT_LE,
+    OP_JMP_INT_GE,
+    OP_JMP_INT_EQ_IMM,
+    OP_JMP_INT_NE_IMM,
+    OP_JMP_INT_LT_IMM,
+    OP_JMP_INT_GT_IMM,
+    OP_JMP_INT_LE_IMM,
+    OP_JMP_INT_GE_IMM,
     OP_SET_GLOBAL,
 };
 
@@ -207,8 +202,9 @@ void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
 /*
  * IR: %0 = local int [immutable]
  *
- * create a local immutable variable of function, return the local variable as a value.
- * %0 is a local variable of function, its type is int, and it's immutable.
+ * create a local immutable variable of function, return the local variable as a
+ * value. %0 is a local variable of function, its type is int, and it's
+ * immutable.
  */
 KlrValue *klr_build_local(KlrBuilder *bldr, TypeSpec *ts, char *name)
 {
@@ -234,8 +230,8 @@ KlrValue *klr_build_local_var(KlrBuilder *bldr, TypeSpec *ts, char *name)
 
 /*
  * IR: %0 = get_global %global
- * get a global variable, %global is a global variable, return the value of this global
- * variable.
+ * get a global variable, %global is a global variable, return the value of this
+ * global variable.
  */
 KlrValue *klr_build_get_global(KlrBuilder *bldr, KlrValue *global)
 {
@@ -252,7 +248,8 @@ KlrValue *klr_build_get_global(KlrBuilder *bldr, KlrValue *global)
 
 /*
  * IR: set_global %global, %src
- * set a global variable, %global is a global variable, %src is a reg value or const
+ * set a global variable, %global is a global variable, %src is a reg value or
+ * const
  */
 void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
 {
@@ -271,8 +268,8 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
     klr_append_insn(bldr, insn);
 }
 
-KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,
-                           char *name, const char *op_name)
+KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
+                           OpCode op, char *name, const char *op_name)
 {
     if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
         lhs->kind != KLR_VALUE_PARAM) {
@@ -293,8 +290,8 @@ KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCod
     return (KlrValue *)insn;
 }
 
-KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code,
-                        char *name)
+KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
+                        OpCode code, char *name)
 {
     if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
         lhs->kind != KLR_VALUE_PARAM) {
@@ -340,8 +337,8 @@ void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target)
     klr_link_edge(bldr->bb, target);
 }
 
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs,
-                         char *name)
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args,
+                         int nargs, char *name)
 {
     int is_const = 1;
 
@@ -368,7 +365,7 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int na
 
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret)
 {
-    KlrInsn *insn = new_insn(OP_RETURN, 1, "");
+    KlrInsn *insn = new_insn(OP_RET, 1, "");
     init_oper(&insn->opers[0], insn, ret, 0);
     klr_append_insn(bldr, insn);
 
@@ -378,14 +375,14 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret)
 
 void klr_build_ret_void(KlrBuilder *bldr)
 {
-    KlrInsn *insn = new_insn(OP_RETURN_NONE, 0, "");
+    KlrInsn *insn = new_insn(OP_RET_VOID, 0, "");
     klr_append_insn(bldr, insn);
 
     KlrFunc *fn = bldr->bb->func;
     klr_link_edge(bldr->bb, fn->ebb);
 }
 
-KlrValue *klr_build_push(KlrBuilder *bldr, KlrValue *val)
+KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val)
 {
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
         val->kind != KLR_VALUE_PARAM) {
@@ -395,7 +392,7 @@ KlrValue *klr_build_push(KlrBuilder *bldr, KlrValue *val)
     KlrInsn *insn = new_insn(OP_PUSH, 1, "");
     init_oper(&insn->opers[0], insn, val, 0);
     klr_append_insn(bldr, insn);
-    return (KlrValue *)insn;
+    return insn;
 }
 
 KlrValue *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val)
@@ -432,18 +429,18 @@ KlrValue *isel_build_push_const(KlrBuilder *bldr, KlrValue *val)
     return (KlrValue *)insn;
 }
 
-KlrInsn *klr_build_int_imm(KlrBuilder *bldr, KlrValue *val)
+KlrInsn *klr_build_const_int(KlrBuilder *bldr, KlrValue *val)
 {
-    KlrInsn *insn = new_insn(OP_CONST_INT_IMM, 1, "");
+    KlrInsn *insn = new_insn(OP_CONST_INT, 1, "");
     init_oper(&insn->opers[0], insn, val, 0);
     insn->ts = val->ts;
     klr_append_insn(bldr, insn);
     return insn;
 }
 
-KlrInsn *klr_build_load_const(KlrBuilder *bldr, KlrValue *val)
+KlrInsn *klr_build_const_load(KlrBuilder *bldr, KlrValue *val)
 {
-    KlrInsn *insn = new_insn(OP_LOAD_CONST, 1, "");
+    KlrInsn *insn = new_insn(OP_CONST_LOAD, 1, "");
     init_oper(&insn->opers[0], insn, val, 0);
     insn->ts = val->ts;
     klr_append_insn(bldr, insn);

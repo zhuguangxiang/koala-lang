@@ -58,7 +58,8 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     log_info("fold binary add insn to const int:");
                     log_insn(insn);
                     uint64_t res = lval->ival + rval->ival;
-                    KlrValue *const_res = klr_const_int(res, lval->ts, fn->module);
+                    KlrValue *const_res =
+                        klr_const_int(res, lval->ts, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -75,14 +76,15 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     log_info("fold binary sub insn to const int:");
                     log_insn(insn);
                     uint64_t res = lval->ival - rval->ival;
-                    KlrValue *const_res = klr_const_int(res, lval->ts, fn->module);
+                    KlrValue *const_res =
+                        klr_const_int(res, lval->ts, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
             break;
         }
 
-        case OP_BINARY_CMP_GT: {
+        case OP_BINARY_CMPGT: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
@@ -99,7 +101,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             break;
         }
 
-        case OP_BINARY_CMP_GE: {
+        case OP_BINARY_CMPGE: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
@@ -116,7 +118,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             break;
         }
 
-        case OP_BINARY_CMP_LT: {
+        case OP_BINARY_CMPLT: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
@@ -133,7 +135,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             break;
         }
 
-        case OP_BINARY_CMP_LE: {
+        case OP_BINARY_CMPLE: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
@@ -150,7 +152,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             break;
         }
 
-        case OP_BINARY_CMP_EQ: {
+        case OP_BINARY_CMPEQ: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
@@ -179,13 +181,15 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 KlrConst *lval = (KlrConst *)lhs;
                 ASSERT(lval->which == CONST_BOOL);
                 if (!lval->bval) {
-                    log_info("[Short-circuiting] fold AND insn, the left is false:");
+                    log_info(
+                        "[Short-circuiting] fold AND insn, the left is false:");
                     log_insn(insn);
                     // false && x -> false
                     KlrValue *res = klr_const_bool(0, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
-                    log_info("[Short-circuiting] fold AND insn, the left is true:");
+                    log_info(
+                        "[Short-circuiting] fold AND insn, the left is true:");
                     log_insn(insn);
                     // true && x -> x
                     replace_all_uses_with(rhs, (KlrValue *)insn);
@@ -194,13 +198,16 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 KlrConst *rval = (KlrConst *)rhs;
                 ASSERT(rval->which == CONST_BOOL);
                 if (!rval->bval) {
-                    log_info("[Short-circuiting] fold AND insn, the right is false:");
+                    log_info(
+                        "[Short-circuiting] fold AND insn, the right is "
+                        "false:");
                     log_insn(insn);
                     // x && false -> false
                     KlrValue *res = klr_const_bool(0, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
-                    log_info("[Short-circuiting] fold AND insn, the right is true:");
+                    log_info(
+                        "[Short-circuiting] fold AND insn, the right is true:");
                     log_insn(insn);
                     // x && true -> x
                     replace_all_uses_with(lhs, (KlrValue *)insn);
@@ -221,13 +228,15 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 KlrConst *lval = (KlrConst *)lhs;
                 ASSERT(lval->which == CONST_BOOL);
                 if (lval->bval) {
-                    log_info("[Short-circuiting] fold OR insn, the left is true:");
+                    log_info(
+                        "[Short-circuiting] fold OR insn, the left is true:");
                     log_insn(insn);
                     // true || x -> true
                     KlrValue *res = klr_const_bool(1, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
-                    log_info("[Short-circuiting] fold OR insn, the left is false:");
+                    log_info(
+                        "[Short-circuiting] fold OR insn, the left is false:");
                     log_insn(insn);
                     // false || x -> x
                     replace_all_uses_with(rhs, (KlrValue *)insn);
@@ -236,13 +245,15 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 KlrConst *rval = (KlrConst *)rhs;
                 ASSERT(rval->which == CONST_BOOL);
                 if (rval->bval) {
-                    log_info("[Short-circuiting] fold OR insn, the right is true:");
+                    log_info(
+                        "[Short-circuiting] fold OR insn, the right is true:");
                     log_insn(insn);
                     // x || true -> true
                     KlrValue *res = klr_const_bool(1, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
-                    log_info("[Short-circuiting] fold OR insn, the right is false:");
+                    log_info(
+                        "[Short-circuiting] fold OR insn, the right is false:");
                     log_insn(insn);
                     // x || false -> x
                     replace_all_uses_with(lhs, (KlrValue *)insn);
@@ -290,9 +301,10 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
         case OP_MOVE: {
             // move is one of which doesn't have uses.
             /*
-            These instructions, which include move, jmp, branch, return, set_global, and
-            call_void, produce no SSA result value, so there are no values that could be
-            used by other instructions and their use‑lists are empty.
+            These instructions, which include move, jmp, branch, return,
+            set_global, and call_void, produce no SSA result value, so there are
+            no values that could be used by other instructions and their
+            use‑lists are empty.
             */
             ASSERT(!klr_is_used(insn));
             KlrValue *_dst = insn_oper_value(insn, 0);
@@ -304,12 +316,13 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 log_info("propagate const local variable:");
                 log_insn(insn);
                 // dst is let: global propagation, no SSA needed
-                // if src is const, this is const propagation, otherwise this is copy
-                // propagation -> let x = y; let z = x -> let z = y
-                // This handles both Constant Prop (x = 10) and Copy Prop (x = %0).
+                // if src is const, this is const propagation, otherwise this is
+                // copy propagation -> let x = y; let z = x -> let z = y This
+                // handles both Constant Prop (x = 10) and Copy Prop (x = %0).
                 replace_all_uses_with(src, _dst);
             } else {
-                // dst is var: local propagation, only one basic block, no SSA needed
+                // dst is var: local propagation, only one basic block, no SSA
+                // needed
                 if (klr_is_const(src)) {
                     log_info("update var local's const value in bb '%s'",
                              klr_block_name(insn->bb));
@@ -319,25 +332,29 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     klr_update_local_var(bb, dst, src);
                 } else {
                     log_info(
-                        "update var local's value in bb '%s' although it's assigned "
+                        "update var local's value in bb '%s' although it's "
+                        "assigned "
                         "a volatile value",
                         klr_block_name(insn->bb));
                     // Variable is assigned a volatile value, also update it
-                    // This is var copy propagation, if src is not const, we can still
-                    // propagate src to dst.
+                    // This is var copy propagation, if src is not const, we can
+                    // still propagate src to dst.
                     KlrBasicBlock *bb = insn->bb;
                     if (src->kind == KLR_VALUE_PARAM) {
-                        // parameter is immutable, we can propagate it in func scope
+                        // parameter is immutable, we can propagate it in func
+                        // scope
                         klr_update_local_var(bb, dst, src);
                     } else if (src->kind == KLR_VALUE_INSN) {
                         KlrInsn *_insn = (KlrInsn *)src;
                         if (_insn->flags & KLR_INSN_FLAGS_CONST) {
-                            // src is const insn, we can propagate it in func scope
+                            // src is const insn, we can propagate it in func
+                            // scope
                             klr_update_local_var(bb, dst, src);
                         } else {
                             if (_insn->bb == bb) {
-                                // Only propagate if src is defined in the same basic
-                                // block, otherwise it's not safe to propagate.
+                                // Only propagate if src is defined in the same
+                                // basic block, otherwise it's not safe to
+                                // propagate.
                                 klr_update_local_var(bb, dst, src);
                             } else {
                                 klr_clear_local_var(bb, dst);
@@ -370,17 +387,18 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 }
 
                 if (!strcmp(callee->name, "list")) {
-                    val =
-                        klr_const_list(items, insn->num_opers - 1, insn->ts, fn->module);
+                    val = klr_const_list(items, insn->num_opers - 1, insn->ts,
+                                         fn->module);
                 } else if (!strcmp(callee->name, "tuple")) {
-                    val =
-                        klr_const_tuple(items, insn->num_opers - 1, insn->ts, fn->module);
+                    val = klr_const_tuple(items, insn->num_opers - 1, insn->ts,
+                                          fn->module);
                 } else if (!strcmp(callee->name, "int64")) {
                     ASSERT(insn->num_opers == 2);
                     val = insn_oper_value(insn, 1);
                     ASSERT(klr_is_const(val));
                 } else {
-                    printf("unsupported const call to class '%s'\n", callee->name);
+                    printf("unsupported const call to class '%s'\n",
+                           callee->name);
                     NYI();
                 }
 
@@ -401,14 +419,15 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 /*
 The `let` variable is immutable, so it can be propagated.
 This is a global constant propagation and no need SSA format.
-It can be used to fold list/tuple/map/set literals, and also can be used to fold const
-variables.
+It can be used to fold list/tuple/map/set literals, and also can be used to fold
+const variables.
 
-The `var` variable is mutable, so it can be propagated only one basic block inside, and
-only for literal values. This is a local constant propagation and no need SSA format. It
-can be used to fold list/tuple/map/set literals, and also can be used to fold const
-variables. In one basic block, if there are many store insns to the same variable, only
-the last store insn can be propagated, and the previous store insns will be removed.
+The `var` variable is mutable, so it can be propagated only one basic block
+inside, and only for literal values. This is a local constant propagation and no
+need SSA format. It can be used to fold list/tuple/map/set literals, and also
+can be used to fold const variables. In one basic block, if there are many store
+insns to the same variable, only the last store insn can be propagated, and the
+previous store insns will be removed.
 */
 int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
 {

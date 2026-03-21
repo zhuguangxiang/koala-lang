@@ -9,14 +9,12 @@
 extern "C" {
 #endif
 
-char *opcode_names[] = {
-#define X(name, fmt, s0, s1) #name,
-#include "opcode_list.h"
-#undef X
+char *__op_names[] = {
+#include "opcode_list_lowercase.h"
 };
 
-OpFormat opcode_formats[] = {
-#define X(name, fmt, s0, s1) fmt,
+OpFormat __op_formats[] = {
+#define X(name, fmt, comment) fmt,
 #include "opcode_list.h"
 #undef X
 };

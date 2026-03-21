@@ -24,7 +24,7 @@ void test_type_call(void)
     int(100, 16)
     */
     char _insns[] = {
-        OP_PUSH_IMM8, 100, OP_PUSH_IMM8, 16, OP_CALL, 0, 0, 2, 0, OP_RETURN, 0,
+        OP_PUSH_IMM8, 100, OP_PUSH_IMM8, 16, OP_CALL, 0, 0, 2, 0, OP_RET, 0,
     };
 
     CodeObject *code = (CodeObject *)kl_new_code("__init__", m, NULL);

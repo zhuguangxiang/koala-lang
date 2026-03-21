@@ -169,17 +169,17 @@ static OpCode get_binary_op_code(BiOpKind op)
         case BINARY_BIT_XOR:
             return OP_BINARY_XOR;
         case BINARY_GT:
-            return OP_BINARY_CMP_GT;
+            return OP_BINARY_CMPGT;
         case BINARY_GE:
-            return OP_BINARY_CMP_GE;
+            return OP_BINARY_CMPGE;
         case BINARY_LT:
-            return OP_BINARY_CMP_LT;
+            return OP_BINARY_CMPLT;
         case BINARY_LE:
-            return OP_BINARY_CMP_LE;
+            return OP_BINARY_CMPLE;
         case BINARY_EQ:
-            return OP_BINARY_CMP_EQ;
+            return OP_BINARY_CMPEQ;
         case BINARY_NEQ:
-            return OP_BINARY_CMP_NE;
+            return OP_BINARY_CMPNE;
         case BINARY_AND:
             return OP_LAND;
         case BINARY_OR:
@@ -244,13 +244,13 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
     klr_builder_end(&bldr, ps->scope->bb);
 
     if (op >= BINARY_GT && op <= BINARY_NEQ) {
-        KlrValue *res =
-            klr_build_cmp(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op), "");
+        KlrValue *res = klr_build_cmp(&bldr, lhs->ir_val, rhs->ir_val,
+                                      get_binary_op_code(op), "");
         exp->ir_val = res;
     } else {
-        KlrValue *res =
-            klr_build_binary(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op), "",
-                             get_binary_op_name(op));
+        KlrValue *res = klr_build_binary(&bldr, lhs->ir_val, rhs->ir_val,
+                                         get_binary_op_code(op), "",
+                                         get_binary_op_name(op));
         exp->ir_val = res;
     }
 }
@@ -424,11 +424,11 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     // add a dead block after return to avoid generating code after return
     // ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
 
-    // The front-end will guarantee that there is no code after return statement, so we
-    // don't need to append a new block here, just set current block to NULL to avoid
-    // generating ir for unreachable code
-    // If the front-end allows code after return statement in the future, we can uncomment
-    // the above line to append a new block for unreachable code
+    // The front-end will guarantee that there is no code after return
+    // statement, so we don't need to append a new block here, just set current
+    // block to NULL to avoid generating ir for unreachable code If the
+    // front-end allows code after return statement in the future, we can
+    // uncomment the above line to append a new block for unreachable code
     // ps->scope->bb = NULL;
 }
 
@@ -481,7 +481,8 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
     exit_scope(ps);
 
     if (s->_else) {
-        ParserScope *_sc = enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "else-block");
+        ParserScope *_sc =
+            enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "else-block");
         _sc->bb = if_else;
 
         if (s->_else->kind == STMT_BLOCK_KIND) {
@@ -616,45 +617,44 @@ static void emit_ir_assignment(ParserState *ps, Stmt *stmt)
 static void emit_ir_break(ParserState *ps, Stmt *stmt)
 {
     ParserScope *sc = find_loop_scope(ps);
-    // The front-end should guarantee that break statement is always inside a loop,
-    // so sc should never be NULL here.
+    // The front-end should guarantee that break statement is always inside a
+    // loop, so sc should never be NULL here.
     ASSERT(sc);
     ASSERT(sc->break_bb);
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
     klr_build_jmp(&bldr, sc->break_bb);
 
-    // after jmp to break_bb, the code is unreachable, we can append a new block to
-    // avoid generating ir for unreachable code
-    // ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
+    // after jmp to break_bb, the code is unreachable, we can append a new block
+    // to avoid generating ir for unreachable code ps->scope->bb =
+    // klr_append_block(CURRENT_FUNC, "dead.code");
 
-    // The front-end will guarantee that there is no code after break statement, so we
-    // don't need to append a new block here, just set current block to NULL to avoid
-    // generating ir for unreachable code
-    // If the front-end allows code after break statement in the future, we can uncomment
-    // the above line to append a new block for unreachable code
-    // ps->scope->bb = NULL;
+    // The front-end will guarantee that there is no code after break statement,
+    // so we don't need to append a new block here, just set current block to
+    // NULL to avoid generating ir for unreachable code If the front-end allows
+    // code after break statement in the future, we can uncomment the above line
+    // to append a new block for unreachable code ps->scope->bb = NULL;
 }
 
 static void emit_ir_continue(ParserState *ps, Stmt *stmt)
 {
     ParserScope *sc = find_loop_scope(ps);
-    // The front-end should guarantee that continue statement is always inside a loop,
-    // so sc should never be NULL here.
+    // The front-end should guarantee that continue statement is always inside a
+    // loop, so sc should never be NULL here.
     ASSERT(sc);
     ASSERT(sc->continue_bb);
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
     klr_build_jmp(&bldr, sc->continue_bb);
 
-    // after jmp to continue_bb, the code is unreachable, we can append a new block to
-    // avoid generating ir for unreachable code
-    // ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
+    // after jmp to continue_bb, the code is unreachable, we can append a new
+    // block to avoid generating ir for unreachable code ps->scope->bb =
+    // klr_append_block(CURRENT_FUNC, "dead.code");
 
-    // The front-end will guarantee that there is no code after continue statement, so we
-    // don't need to append a new block here, just set current block to NULL to avoid
-    // generating ir for unreachable code
-    // If the front-end allows code after continue statement in the future, we can
+    // The front-end will guarantee that there is no code after continue
+    // statement, so we don't need to append a new block here, just set current
+    // block to NULL to avoid generating ir for unreachable code If the
+    // front-end allows code after continue statement in the future, we can
     // uncomment the above line to append a new block for unreachable code
     // ps->scope->bb = NULL;
 }

@@ -42,8 +42,8 @@ void test_kwargs(void)
        print(ty)
     */
     char _insns[] = {
-        OP_PUSH_IMM8, 100, OP_CALL, 1, 1, 1,         0, OP_PUSH, 0,
-        OP_CALL,      1,   0,       1, 0, OP_RETURN, 0,
+        OP_PUSH_IMM8, 100, OP_CALL, 1, 1, 1,      0, OP_PUSH, 0,
+        OP_CALL,      1,   0,       1, 0, OP_RET, 0,
     };
 
     CodeObject *code = (CodeObject *)kl_new_code("__init__", m, NULL);

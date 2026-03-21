@@ -1,12 +1,12 @@
-// SKIP: koalac %s --opt --isel --dump=opt-ir,lir | filecheck %s
+// SKIP: koalac %s --opt --isel --regalloc=lsra --cgen --dump=vreg,cgen | filecheck %s
 
-func foo(n int) int {
-    let a = 500
-    let b = n + a + 1
-    var c = b + 2
-    c = c + 3
-    return c
-}
+// func foo(n int) int {
+//     let a = 500
+//     let b = n + a + 1
+//     var c = b + 2
+//     c = c + 3
+//     return c
+// }
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@foo] ---
 // CHECK-LABEL: func @foo(%n int64) int64
@@ -33,12 +33,12 @@ func foo(n int) int {
 
 // CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@fib] ---
 
-// func test_while(n int) {
-//     var i = 0
-//     while i < n {
-//         i = i + 1
-//     }
-// }
+func test_while(n int) {
+    var i = 0
+    while i < n {
+        i = i + 1
+    }
+}
 
 // func test_nested_loop(n int) {
 //     var i = 0

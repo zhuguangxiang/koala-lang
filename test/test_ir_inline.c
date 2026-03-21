@@ -171,15 +171,15 @@ static void do_inline(KlrModule *m)
 
         insn_foreach_safe(insn2, nxt_insn2, bb2) {
             if (insn2->code == OP_BINARY_ADD) {
-                KlrValue *_add =
-                    klr_build_add(&bldr, get_caller_val(insn2->opers[0].use.ref),
-                                  get_caller_val(insn2->opers[1].use.ref), "add");
+                KlrValue *_add = klr_build_add(
+                    &bldr, get_caller_val(insn2->opers[0].use.ref),
+                    get_caller_val(insn2->opers[1].use.ref), "add");
                 // printf("add: %s, %s\n", insn2->opers[0].use.ref->name,
                 // insn2->opers[1].use.ref->name);
                 mappings[mapping_size].callee_val = (KlrValue *)insn2;
                 mappings[mapping_size].caller_val = _add;
                 mapping_size++;
-            } else if (insn2->code == OP_RETURN) {
+            } else if (insn2->code == OP_RET) {
                 ret_val = get_caller_val(insn2->opers[0].use.ref);
             } else if (insn2->code == OP_IR_STORE) {
                 klr_build_store(&bldr, get_caller_val(insn2->opers[0].use.ref),
@@ -193,7 +193,7 @@ static void do_inline(KlrModule *m)
     KlrUse *use, *nxt_use;
     use_foreach_safe(use, nxt_use, insn) {
         KlrInsn *v = (KlrInsn *)use->insn;
-        if (v->code == OP_RETURN) {
+        if (v->code == OP_RET) {
             list_remove(&v->opers[0].use.use_link);
             v->opers[0].use.ref = ret_val;
         } else {

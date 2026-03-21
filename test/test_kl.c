@@ -66,7 +66,7 @@ void test_kwargs(void)
         0,
         3,
         0,
-        OP_RETURN,
+        OP_RET,
         0,
     };
 

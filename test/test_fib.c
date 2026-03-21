@@ -38,8 +38,8 @@ int main(int argc, char *argv[])
 
     /* time = 3.8, python3.13.9 7.1, lua5.4 4.2 */
     uint32_t _insns[] = {
-        (OP_JMP_INT_CMP_GE_IMM << 24) | 0 << 16 | 2 << 8 | 1,
-        (OP_RETURN << 24) | 0,
+        // (OP_JMP_INT_CMP_GE_IMM << 24) | 0 << 16 | 2 << 8 | 1,
+        (OP_RET << 24) | 0,
         (OP_INT_SUB_IMM << 24) | 1 << 16 | 0 << 8 | 1,
         (OP_PUSH << 24) | 1,
         (OP_CALL << 24) | 1 << 16 | 1 << 8 | id,
@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
         (OP_PUSH << 24) | 2,
         (OP_CALL << 24) | 0 << 16 | 1 << 8 | id,
         (OP_INT_ADD << 24) | 0 << 16 | 1 << 8 | 0,
-        (OP_RETURN << 24) | 0,
+        (OP_RET << 24) | 0,
     };
 
     Object *obj = kl_new_code("fib", m, NULL);

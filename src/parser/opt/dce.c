@@ -15,8 +15,8 @@ static int has_side_effect(KlrInsn *insn)
 {
     switch (insn->code) {
         case OP_SET_GLOBAL:
-        case OP_RETURN:
-        case OP_RETURN_NONE:
+        case OP_RET:
+        case OP_RET_VOID:
         case OP_IR_JMP_COND:
         case OP_JMP:
         case OP_IR_LOCAL:
@@ -45,9 +45,10 @@ static int has_side_effect(KlrInsn *insn)
 
             /*
              * RULE A: Global Dead Store Check
-             * If the target local variable has a use_count of exactly 0, it means no
-             * instruction is reading from it. This MOVE is the only instruction writing
-             * to it, so it has no side-effects and can be safely removed.
+             * If the target local variable has a use_count of exactly 0, it
+             * means no instruction is reading from it. This MOVE is the only
+             * instruction writing to it, so it has no side-effects and can be
+             * safely removed.
              */
             if (dst->use_count == 0) {
                 return 0; /* No side-effect: Erase the MOVE */
@@ -55,9 +56,9 @@ static int has_side_effect(KlrInsn *insn)
 
             /*
              * RULE B: Immutable 'let' Propagation Check
-             * If the target is a 'let' (Immutable), the 'const_copy_propagation'
-             * pass has already broadcasted the 'src' value to all downstream users via
-             * RAUW.
+             * If the target is a 'let' (Immutable), the
+             * 'const_copy_propagation' pass has already broadcasted the 'src'
+             * value to all downstream users via RAUW.
              */
             if (dst->flags & KLR_INSN_FLAGS_CONST) {
                 /*

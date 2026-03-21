@@ -268,7 +268,7 @@ static void isel_lower_int_binary(KlrInsn *insn, KlrFunc *fn)
             insn->code = OP_INT_MOD;
             break;
 
-        case OP_BINARY_CMP_EQ:
+        case OP_BINARY_CMPEQ:
             if (c2) {
                 // reg == imm
                 KlrConst *rc = (KlrConst *)rval;
@@ -276,7 +276,7 @@ static void isel_lower_int_binary(KlrInsn *insn, KlrFunc *fn)
                 int64_t imm = rc->ival;
 
                 if (imm >= INT8_MIN && imm <= INT8_MAX) {
-                    insn->code = OP_INT_CMP_EQ_IMM;
+                    insn->code = OP_INT_CMPEQ_IMM;
                     break;
                 }
 
@@ -284,28 +284,28 @@ static void isel_lower_int_binary(KlrInsn *insn, KlrFunc *fn)
                 KlrValue *_v = isel_materialize_const_before(fn, insn, rc);
 
                 // change to reg == reg
-                insn->code = OP_INT_CMP_EQ;
+                insn->code = OP_INT_CMPEQ;
                 set_operand_at(insn, 1, _v);
                 break;
             }
 
             // reg == reg
-            insn->code = OP_INT_CMP_EQ;
+            insn->code = OP_INT_CMPEQ;
             break;
-        case OP_BINARY_CMP_NE:
-            insn->code = OP_INT_CMP_NE;
+        case OP_BINARY_CMPNE:
+            insn->code = OP_INT_CMPNE;
             break;
-        case OP_BINARY_CMP_LT:
-            insn->code = OP_INT_CMP_LT;
+        case OP_BINARY_CMPLT:
+            insn->code = OP_INT_CMPLT;
             break;
-        case OP_BINARY_CMP_GT:
-            insn->code = OP_INT_CMP_GT;
+        case OP_BINARY_CMPGT:
+            insn->code = OP_INT_CMPGT;
             break;
-        case OP_BINARY_CMP_LE:
-            insn->code = OP_INT_CMP_LE;
+        case OP_BINARY_CMPLE:
+            insn->code = OP_INT_CMPLE;
             break;
-        case OP_BINARY_CMP_GE:
-            insn->code = OP_INT_CMP_GE;
+        case OP_BINARY_CMPGE:
+            insn->code = OP_INT_CMPGE;
             break;
         default: {
             UNREACHABLE();

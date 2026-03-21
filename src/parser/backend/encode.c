@@ -31,7 +31,8 @@ static inline uint32_t encode_ABC(int op, int rd, int rs, int rt)
 
 static inline uint32_t encode_ABxx(int op, int rd, int imm16)
 {
-    return ((uint32_t)op << 24) | ((uint32_t)rd << 16) | ((uint32_t)(imm16 & 0xFFFF));
+    return ((uint32_t)op << 24) | ((uint32_t)rd << 16) |
+           ((uint32_t)(imm16 & 0xFFFF));
 }
 
 /*-----------------------------------------
@@ -39,7 +40,7 @@ static inline uint32_t encode_ABxx(int op, int rd, int imm16)
  *-----------------------------------------*/
 uint32_t encode_insn(LowerInsn *insn)
 {
-    switch (opcode_format(insn->code)) {
+    switch (op_format(insn->code)) {
         case FORMAT_Ax:
             return encode_Ax(insn->code, insn->rd);
 
@@ -54,7 +55,7 @@ uint32_t encode_insn(LowerInsn *insn)
 
         default:
             fprintf(stderr, "encode_insn: unknown format for %s\n",
-                    opcode_name(insn->code));
+                    op_name(insn->code));
             abort();
     }
 }
@@ -66,7 +67,7 @@ void decode_insn(uint32_t raw, LowerInsn *out)
 {
     out->code = (raw >> 24) & 0xFF;
 
-    switch (opcode_format(out->code)) {
+    switch (op_format(out->code)) {
         case FORMAT_Ax:
             /* [op:8][A:12][0:12] */
             out->rd = (raw >> 12) & 0xFFF;
@@ -100,7 +101,8 @@ void decode_insn(uint32_t raw, LowerInsn *out)
             break;
 
         default:
-            fprintf(stderr, "decode_insn: unknown format for opcode %d\n", out->code);
+            fprintf(stderr, "decode_insn: unknown format for opcode %d\n",
+                    out->code);
             abort();
     }
 

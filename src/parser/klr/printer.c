@@ -120,9 +120,9 @@ static void print_unary(KlrInsn *insn, char *op, FILE *fp)
     print_operand(&insn->opers[0], fp);
 }
 
-static void print_move(KlrInsn *insn, FILE *fp)
+static void print_move(const char *name, KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "move ");
+    fprintf(fp, "%s ", name);
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
     print_operand(&insn->opers[1], fp);
@@ -242,19 +242,19 @@ static void print_local_insn(KlrValue *local, FILE *fp)
     print_value_type(local, fp);
 }
 
-static void print_const_int_imm(KlrInsn *insn, FILE *fp)
+static void print_const_int(KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = const.int_imm ");
+    fprintf(fp, " = const.int ");
     KlrConst *c = (KlrConst *)insn_oper_value(insn, 0);
     print_const(c, fp);
     print_value_type((KlrValue *)c, fp);
 }
 
-static void print_load_const(KlrInsn *insn, FILE *fp)
+static void print_const_load(KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = load_const ");
+    fprintf(fp, " = const.load ");
     KlrConst *c = (KlrConst *)insn_oper_value(insn, 0);
     print_const(c, fp);
     print_value_type((KlrValue *)c, fp);
@@ -276,15 +276,15 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_MOVE:
-            print_move(insn, fp);
+            print_move("move", insn, fp);
             break;
 
         case OP_PUSH:
             print_push(insn, fp);
             break;
 
-        case OP_JMP_INT_CMP_LT_IMM:
-            print_jmp_cond("jmp_icmplt_imm", insn, fp);
+        case OP_JMP_INT_LT_IMM:
+            print_jmp_cond("jmp_int_lt_imm", insn, fp);
             break;
 
         case OP_BINARY_ADD:
@@ -339,27 +339,27 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_call(insn, fp);
             break;
 
-        case OP_BINARY_CMP_EQ:
+        case OP_BINARY_CMPEQ:
             print_cmp("cmpeq", insn, fp);
             break;
 
-        case OP_BINARY_CMP_NE:
+        case OP_BINARY_CMPNE:
             print_cmp("cmpne", insn, fp);
             break;
 
-        case OP_BINARY_CMP_LT:
+        case OP_BINARY_CMPLT:
             print_cmp("cmplt", insn, fp);
             break;
 
-        case OP_BINARY_CMP_GT:
+        case OP_BINARY_CMPGT:
             print_cmp("cmpgt", insn, fp);
             break;
 
-        case OP_BINARY_CMP_LE:
+        case OP_BINARY_CMPLE:
             print_cmp("cmple", insn, fp);
             break;
 
-        case OP_BINARY_CMP_GE:
+        case OP_BINARY_CMPGE:
             print_cmp("cmpge", insn, fp);
             break;
 
@@ -371,11 +371,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_jmp_cond("jmp_true", insn, fp);
             break;
 
-        case OP_RETURN:
+        case OP_RET:
             print_ret(insn, fp);
             break;
 
-        case OP_RETURN_NONE:
+        case OP_RET_VOID:
             print_ret_void(insn, fp);
             break;
 
@@ -403,19 +403,19 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, "int.add_imm", fp);
             break;
 
-        case OP_CONST_INT_IMM:
-            print_const_int_imm(insn, fp);
+        case OP_CONST_INT:
+            print_const_int(insn, fp);
             break;
 
         case OP_INT_ADD:
             print_binary(insn, "int.add", fp);
             break;
 
-        case OP_LOAD_CONST:
-            print_load_const(insn, fp);
+        case OP_CONST_LOAD:
+            print_const_load(insn, fp);
             break;
 
-        case OP_INT_CMP_LT_IMM:
+        case OP_INT_CMPLT_IMM:
             print_cmp("int.cmp_lt_imm", insn, fp);
             break;
 
@@ -423,12 +423,16 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, "int.sub_imm", fp);
             break;
 
-        case OP_INT_CMP_LT:
+        case OP_INT_CMPLT:
             print_cmp("int.cmp_lt", insn, fp);
             break;
 
+        case OP_MOVE_INT_IMM:
+            print_move("move_int_imm", insn, fp);
+            break;
+
         default:
-            printf("%s\n", opcode_name(insn->code));
+            printf("%s\n", op_name(insn->code));
             UNREACHABLE();
             break;
     }
