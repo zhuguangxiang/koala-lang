@@ -15,7 +15,9 @@ static int expand(Buffer *self, int min)
 {
     int size = self->len + min + 1;
     int newsize = self->size;
-    while (newsize <= size) newsize += EXPAND_MIN_SIZE;
+    while (newsize <= size) {
+        newsize = (newsize > 0) ? (newsize * 2) : EXPAND_MIN_SIZE;
+    }
 
     char *newbuf = mm_alloc(newsize);
     if (!newbuf) return -1;
@@ -84,14 +86,22 @@ void buf_write_word(Buffer *self, uint16_t val)
     self->len += 2;
 }
 
-void buf_write_int64(Buffer *self, int64_t val)
+void buf_write_uint32(Buffer *self, uint32_t val)
+{
+    if (available(self, 4) <= 0) return;
+    uint32_t *ptr = (uint32_t *)(self->buf + self->len);
+    *ptr = val;
+    self->len += 4;
+}
+
+void buf_write_int64_str(Buffer *self, int64_t val)
 {
     char buf[64];
     int sz = snprintf(buf, 63, "%ld", val);
     buf_write_nstr(self, buf, sz);
 }
 
-void buf_write_double(Buffer *self, double val)
+void buf_write_double_str(Buffer *self, double val)
 {
     char buf[64];
     int sz = snprintf(buf, 63, "%lf", val);

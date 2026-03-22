@@ -74,7 +74,10 @@ void type_spec_free(TypeSpec *ts)
     mm_free(ts);
 }
 
-TypeSpec *type_spec_get_by_id(int type_id) { return vector_get(&type_list, type_id); }
+TypeSpec *type_spec_get_by_id(int type_id)
+{
+    return vector_get(&type_list, type_id);
+}
 
 static TypeSpec *_no_type_spec(void)
 {
@@ -617,7 +620,8 @@ TypeSpec *generic_var_type_spec(char *name, int index, int sym_id, char *owner)
     return type_spec_intern(ts);
 }
 
-TypeSpec *generic_ref_type_spec(char *full_pkg, char *name, Vector *args, int sym_id)
+TypeSpec *generic_ref_type_spec(char *full_pkg, char *name, Vector *args,
+                                int sym_id)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_GENERIC_REF;
@@ -742,7 +746,8 @@ int type_is_tuple(TypeSpec *ts)
     return !strcmp(inst_sym->origin->name, "tuple");
 }
 
-int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts)
+int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts,
+                    TypeSpec **arg_ts)
 {
     Symbol *sym = get_symbol_by_id(ts->sym_id);
     ASSERT(sym);
@@ -1127,7 +1132,10 @@ static TypeSpec *__to_typespec(char **str)
     return ts;
 }
 
-TypeSpec *type_spec_from_str(const char *s) { return __to_typespec((char **)&s); }
+TypeSpec *type_spec_from_str(const char *s)
+{
+    return __to_typespec((char **)&s);
+}
 
 void type_spec_print(TypeSpec *ts, Buffer *buf)
 {
@@ -1140,7 +1148,7 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
             buf_write_char(buf, 'u');
         }
         buf_write_str(buf, "int");
-        buf_write_int64(buf, ts->int_flt_info.width * 8);
+        buf_write_int64_str(buf, ts->int_flt_info.width * 8);
     } else if (ts->kind == TYPE_STR) {
         buf_write_str(buf, "str");
     } else if (ts->kind == TYPE_VA_LIST) {
@@ -1169,7 +1177,7 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         }
     } else if (ts->kind == TYPE_FLOAT) {
         buf_write_str(buf, "float");
-        buf_write_int64(buf, ts->int_flt_info.width * 8);
+        buf_write_int64_str(buf, ts->int_flt_info.width * 8);
     } else if (ts->kind == TYPE_BFLOAT16) {
         buf_write_str(buf, "bfloat16");
     } else if (ts->kind == TYPE_TYPE) {
@@ -1378,7 +1386,10 @@ static void __typespec_str_print(char **str, Buffer *buf)
     *str = s;
 }
 
-void type_spec_str_print(char *s, Buffer *buf) { __typespec_str_print(&s, buf); }
+void type_spec_str_print(char *s, Buffer *buf)
+{
+    __typespec_str_print(&s, buf);
+}
 
 #ifdef __cplusplus
 }

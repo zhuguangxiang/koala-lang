@@ -43,6 +43,8 @@ typedef struct _KlMachInsn {
     int Axx;
     int Bxx;
 
+    KlrRawOper opers[3];
+
     /* Branch targets (machine-level blocks). */
     struct _KlMachBlock *target;
 

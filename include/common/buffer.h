@@ -62,11 +62,14 @@ void buf_write_byte(Buffer *self, uint8_t val);
 /* Write a word into buffer. */
 void buf_write_word(Buffer *self, uint16_t val);
 
-/* Write an int64 into buffer. */
-void buf_write_int64(Buffer *self, int64_t val);
+/* write an uint32(not str) into buffer */
+void buf_write_uint32(Buffer *self, uint32_t val);
 
-/* Write a double into buffer. */
-void buf_write_double(Buffer *self, double val);
+/* Write an int64 str(not int64 self) into buffer. */
+void buf_write_int64_str(Buffer *self, int64_t val);
+
+/* Write a double str(not double self) into buffer. */
+void buf_write_double_str(Buffer *self, double val);
 
 #ifdef __cplusplus
 }

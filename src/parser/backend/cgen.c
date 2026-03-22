@@ -141,6 +141,108 @@ static inline int get_raw_value(KlrInsn *insn, KlrRawOper *op)
     }
 }
 
+void dump_emitted_code(const Buffer *code)
+{
+    const uint32_t *p = (uint32_t *)code->buf;
+    size_t len = code->len / 4;
+
+    for (size_t pc = 0; pc < len; pc += 1) {
+        uint32_t insn = *(p + pc);
+
+        uint32_t opcode = (insn >> 24) & 0xFFu;
+        uint32_t a = (insn >> 16) & 0xFFu;
+        uint32_t b = (insn >> 8) & 0xFFu;
+        uint32_t c = (insn >> 0) & 0xFFu;
+
+        printf("%04zu:  %08X   op=%02X  A=%02X  B=%02X  C=%02X\n", pc, insn,
+               opcode, a, b, c);
+    }
+}
+
+static void emit_mach_insn(KlMachInsn *mi, Buffer *buf)
+{
+    int32_t bytecode = 0;
+
+    KlrInsn *insn = mi->origin;
+    KlrRawOper *op0 = &mi->opers[0];
+    KlrRawOper *op1 = &mi->opers[1];
+    KlrRawOper *op2 = &mi->opers[2];
+
+    switch (mi->format) {
+        case FORMAT_Op: {
+            // | op:8 | ----:24 |
+            bytecode |= (mi->code & 0xFFu) << 24;
+            break;
+        }
+
+        case FORMAT_Ax: {
+            // | op:8 | ----:12 | Ax:12 |
+            uint32_t A = get_raw_value(insn, op0);
+            bytecode |= (mi->code & 0xFFu) << 24;
+            bytecode |= (A & 0xFFFu);
+            break;
+        }
+
+        case FORMAT_Axx: {
+            // | op:8 | Axx:24 |
+            uint32_t A = mi->Axx;
+            bytecode |= (mi->code & 0xFFu) << 24;
+            bytecode |= (A & 0xFFFFFFu);
+            break;
+        }
+
+        case FORMAT_ABC: {
+            // | op:8 | A:8 | B:8 | C:8 |
+            uint32_t A = get_raw_value(insn, op0);
+            uint32_t B = get_raw_value(insn, op1);
+            uint32_t C = get_raw_value(insn, op2);
+            bytecode |= (mi->code & 0xFFu) << 24;
+            bytecode |= (A & 0xFFu) << 16;
+            bytecode |= (B & 0xFFu) << 8;
+            bytecode |= (C & 0xFFu);
+            break;
+        }
+
+        case FORMAT_AxBx: {
+            // | op:8 | Ax:12 | Bx:12 |
+            uint32_t A = get_raw_value(insn, op0);
+            uint32_t B = get_raw_value(insn, op1);
+            bytecode |= (mi->code & 0xFFu) << 24;
+            bytecode |= (A & 0xFFFu) << 12;
+            bytecode |= (B & 0xFFFu);
+            break;
+        }
+
+        case FORMAT_ABxx: {
+            // | op:8 | A:8 | Bxx:16 |
+            uint32_t A = mi->A;
+            uint32_t Bxx = mi->Bxx;
+            bytecode |= (mi->code & 0xFFu) << 24;
+            bytecode |= (A & 0xFFu) << 16;
+            bytecode |= (Bxx & 0xFFFFu);
+            break;
+        }
+
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+
+    buf_write_uint32(buf, bytecode);
+}
+
+static void klr_emit_func(KlMachFunc *mfn, Buffer *buf)
+{
+    KlMachBlock *mb;
+    list_foreach(mb, link, &mfn->bb_list) {
+        KlMachInsn *mi;
+        vector_foreach(mi, &mb->insns) {
+            emit_mach_insn(mi, buf);
+        }
+    }
+}
+
 /* Extract basic block target from a raw operand. */
 static inline KlMachBlock *get_raw_block(KlrRawOper *op)
 {
@@ -161,6 +263,10 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn)
     /* pc is assigned by linearization pass. */
     mi->pc = -1;
     mi->origin = insn;
+
+    mi->opers[0] = insn->raw_opers[0];
+    mi->opers[1] = insn->raw_opers[1];
+    mi->opers[2] = insn->raw_opers[2];
 
     if (insn->code == OP_JMP) {
         /* For unconditional jump, operand is a single basic block. */
@@ -375,6 +481,11 @@ static int klr_do_cgen(KlrFunc *fn, void *data)
 
     KlMachFunc *mfn = klm_linearize_func(fn);
     klm_dump_func(mfn);
+
+    BUF(buf);
+    klr_emit_func(mfn, &buf);
+    dump_emitted_code(&buf);
+    FINI_BUF(buf);
 
     return 0;
 }
