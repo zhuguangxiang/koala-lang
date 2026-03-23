@@ -101,6 +101,12 @@ static void print_ret(KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[0], fp);
 }
 
+static void print_ret_int_imm(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "ret_int_imm ");
+    print_operand(&insn->opers[0], fp);
+}
+
 static void print_ret_void(KlrInsn *insn, FILE *fp) { fprintf(fp, "ret void"); }
 
 static void print_phi(KlrInsn *insn, FILE *fp)
@@ -128,9 +134,9 @@ static void print_move(const char *name, KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[1], fp);
 }
 
-static void print_push(KlrInsn *insn, FILE *fp)
+static void print_push(const char *name, KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "push ");
+    fprintf(fp, "%s ", name);
     print_operand(&insn->opers[0], fp);
 }
 
@@ -244,20 +250,18 @@ static void print_local_insn(KlrValue *local, FILE *fp)
 
 static void print_const_int(KlrInsn *insn, FILE *fp)
 {
-    klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = const.int ");
-    KlrConst *c = (KlrConst *)insn_oper_value(insn, 0);
-    print_const(c, fp);
-    print_value_type((KlrValue *)c, fp);
+    fprintf(fp, "const.int ");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
 }
 
 static void print_const_load(KlrInsn *insn, FILE *fp)
 {
-    klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = const.load ");
-    KlrConst *c = (KlrConst *)insn_oper_value(insn, 0);
-    print_const(c, fp);
-    print_value_type((KlrValue *)c, fp);
+    fprintf(fp, "const.load ");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
 }
 
 void klr_print_insn(KlrInsn *insn, FILE *fp)
@@ -280,7 +284,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_PUSH:
-            print_push(insn, fp);
+            print_push("push", insn, fp);
+            break;
+
+        case OP_PUSH_CONST:
+            print_push("push_const", insn, fp);
             break;
 
         case OP_JMP_INT_LT_IMM:
@@ -375,6 +383,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_ret(insn, fp);
             break;
 
+        case OP_RET_INT_IMM:
+            print_ret_int_imm(insn, fp);
+            break;
+
         case OP_RET_VOID:
             print_ret_void(insn, fp);
             break;
@@ -403,7 +415,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, "int.add_imm", fp);
             break;
 
-        case OP_CONST_INT:
+        case OP_CONST_INT_IMM:
             print_const_int(insn, fp);
             break;
 
@@ -425,10 +437,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_INT_CMPLT:
             print_cmp("int.cmp_lt", insn, fp);
-            break;
-
-        case OP_MOVE_INT_IMM:
-            print_move("move_int_imm", insn, fp);
             break;
 
         default:

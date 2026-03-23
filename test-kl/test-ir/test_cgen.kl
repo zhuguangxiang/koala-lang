@@ -73,3 +73,10 @@ func test_while(n int) {
 
 // func bar(n int) {
 // }
+
+
+func test_add(n int) int {
+    var a = 500
+    var b = n + a + 1
+    return b
+}

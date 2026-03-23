@@ -115,25 +115,34 @@ static KlrValue *isel_build_int_literal(KlrBuilder *bldr, KlrConst *c)
 {
     ASSERT(c->which == CONST_INT);
     int64_t imm = c->ival;
+    KlrValue *local;
     KlrInsn *insn;
 
-    if (imm >= (int)(-0xFFFF) && imm <= (int)(0xFFFF)) {
-        /* Small immediate: use OP_CONST_INT_IMM. */
-        insn = klr_build_const_int(bldr, (KlrValue *)c);
+    if (imm >= INT16_MIN && imm <= INT16_MAX) {
+        /* Small immediate:
+         * OP_LOCAL
+         * OP_CONST_INT_IMM.
+         */
+        local = klr_build_local(bldr, c->ts, "");
+        insn = klr_build_const_int(bldr, local, (KlrValue *)c);
 
         /* raw operands for small-imm form */
-        set_raw_oper_reg(insn, 0);
+        set_raw_oper_index(insn, 0, 0);
         set_raw_oper_imm(insn, 1, imm);
     } else {
-        /* Large immediate: materialize via constant pool. */
-        insn = klr_build_const_load(bldr, (KlrValue *)c);
+        /* Large immediate: materialize via constant pool.
+         * OP_LOCAL
+         * OP_CONST_LOAD.
+         */
+        local = klr_build_local(bldr, c->ts, "");
+        insn = klr_build_const_load(bldr, local, (KlrValue *)c);
 
         /* raw operands for load-const form */
-        set_raw_oper_reg(insn, 0);
-        set_raw_oper_const(insn, 1, c);
+        set_raw_oper_index(insn, 0, 0);
+        set_raw_oper_imm(insn, 1, imm);
     }
 
-    return (KlrValue *)insn;
+    return local;
 }
 
 KlrValue *isel_materialize_const(KlrFunc *fn, KlrInsn *at, KlrConst *c)
@@ -253,10 +262,10 @@ static void isel_materialize_push_const(KlrBuilder *bldr, KlrConst *c)
 
     if (which == CONST_INT) {
         int64_t imm = c->ival;
-        if (imm >= (int)(-0xFFFFFF) && imm <= (int)(0xFFFFFF)) {
+        if (imm >= INT16_MIN && imm <= INT16_MAX) {
             klr_build_push_int_imm(bldr, (KlrValue *)c);
         } else {
-            isel_build_push_const(bldr, (KlrValue *)c);
+            klr_build_push_const(bldr, (KlrValue *)c);
         }
         // } else if (which == CONST_FLT) {
         //     return isel_build_float_literal(&bldr, c);
@@ -269,8 +278,12 @@ static void isel_materialize_push_const(KlrBuilder *bldr, KlrConst *c)
         // } else if (which == CONST_NONE) {
         //     return isel_build_none_literal(&bldr, c);
         // } else {
+    } else if (which == CONST_BOOL) {
+        klr_build_push_bool(bldr, (KlrValue *)c);
+    } else if (which == CONST_STR) {
+        klr_build_push_const(bldr, (KlrValue *)c);
     } else {
-        UNREACHABLE();
+        NYI();
     }
 }
 
@@ -279,7 +292,6 @@ static void isel_lower_call_arg(KlrBuilder *bldr, KlrValue *arg)
     if (klr_is_const(arg)) {
         KlrConst *c = (KlrConst *)arg;
         isel_materialize_push_const(bldr, c);
-        NYI();
     } else {
         KlrInsn *insn = klr_build_push(bldr, arg);
         set_raw_oper_index(insn, 0, 0);
@@ -311,7 +323,21 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
 static void isel_lower_ret(KlrInsn *insn, KlrFunc *fn)
 {
     KlrValue *ret = insn_oper_value(insn, 0);
-    ASSERT(klr_is_insn(ret) || klr_is_param(ret));
+    ASSERT(klr_is_insn(ret) || klr_is_param(ret) || klr_is_const(ret));
+    if (klr_is_const(ret)) {
+        KlrConst *c = (KlrConst *)ret;
+        if (c->which == CONST_INT) {
+            int64_t imm = c->ival;
+            if (imm >= INT16_MIN && imm <= INT16_MAX) {
+                insn->code = OP_RET_INT_IMM;
+                set_raw_oper_imm(insn, 0, imm);
+                return;
+            }
+        } else {
+            NYI();
+        }
+    }
+
     set_raw_oper_index(insn, 0, 0);
 }
 
@@ -325,22 +351,22 @@ static void isel_lower_move_const(KlrInsn *insn, KlrFunc *fn)
 
     KlrConst *c = (KlrConst *)src;
 
+    KlrBuilder bldr;
+    klr_builder_before(&bldr, insn);
+
     if (c->which == CONST_INT) {
         int64_t imm = c->ival;
         if (imm >= INT16_MIN && imm <= INT16_MAX) {
-            /* Small immediate: use OP_MOVE_INT_IMM. */
-            insn->code = OP_MOVE_INT_IMM;
+            /* Small immediate: use OP_CONST_INT_IMM. */
+            insn->code = OP_CONST_INT_IMM;
             set_raw_oper_index(insn, 0, 0);
             set_raw_oper_imm(insn, 1, imm);
         } else {
-            KlrBuilder bldr;
-            klr_builder_before(&bldr, insn);
             /* Large immediate: materialize via constant pool. */
-            KlrInsn *_insn = klr_build_const_load(&bldr, (KlrValue *)c);
+            insn->code = OP_CONST_LOAD;
             /* raw operands for load-const form */
-            set_raw_oper_reg(_insn, 0);
-            set_raw_oper_const(_insn, 1, c);
-            set_operand_at(insn, 1, (KlrValue *)_insn);
+            set_raw_oper_index(insn, 0, 0);
+            set_raw_oper_imm(insn, 1, imm);
         }
         return;
     }

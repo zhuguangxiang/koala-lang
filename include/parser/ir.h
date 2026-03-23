@@ -740,18 +740,21 @@ KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val);
 /* IR: push_int_imm %var */
 KlrValue *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val);
 
+/* IR: push_bool %var */
+KlrValue *klr_build_push_bool(KlrBuilder *bldr, KlrValue *val);
+
 /* IR: push_const cp-offset */
-KlrValue *isel_build_push_const(KlrBuilder *bldr, KlrValue *val);
+KlrValue *klr_build_push_const(KlrBuilder *bldr, KlrValue *val);
 
 /* add a return instruction at the end of a basic block if it doesn't have one
  */
 void klr_add_last_return(KlrBasicBlock *bb);
 
 /* IR: %0 = const.int */
-KlrInsn *klr_build_const_int(KlrBuilder *bldr, KlrValue *val);
+KlrInsn *klr_build_const_int(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 
 /* IR: %0 = const.load %var */
-KlrInsn *klr_build_const_load(KlrBuilder *bldr, KlrValue *val);
+KlrInsn *klr_build_const_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)
