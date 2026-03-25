@@ -291,6 +291,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_push("push_const", insn, fp);
             break;
 
+        case OP_PUSH_INT_IMM:
+            print_push("push_int_imm", insn, fp);
+            break;
+
         case OP_JMP_INT_LT_IMM:
             print_jmp_cond("jmp_int_lt_imm", insn, fp);
             break;
@@ -391,11 +395,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_ret_void(insn, fp);
             break;
 
-        case OP_GET_GLOBAL:
+        case OP_GLOBAL_GET:
             print_get_global(insn, fp);
             break;
 
-        case OP_SET_GLOBAL:
+        case OP_GLOBAL_SET:
             print_set_global(insn, fp);
             break;
 

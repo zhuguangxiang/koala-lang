@@ -15,7 +15,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 {
     OpCode op = insn->code;
 
-    if (op == OP_SET_GLOBAL || op == OP_GET_GLOBAL) {
+    if (op == OP_GLOBAL_SET || op == OP_GLOBAL_GET) {
         return;
     }
 
@@ -58,8 +58,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     log_info("fold binary add insn to const int:");
                     log_insn(insn);
                     uint64_t res = lval->ival + rval->ival;
-                    KlrValue *const_res =
-                        klr_const_int(res, lval->ts, fn->module);
+                    KlrValue *const_res = klr_const_int(res, lval->ts, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -76,8 +75,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     log_info("fold binary sub insn to const int:");
                     log_insn(insn);
                     uint64_t res = lval->ival - rval->ival;
-                    KlrValue *const_res =
-                        klr_const_int(res, lval->ts, fn->module);
+                    KlrValue *const_res = klr_const_int(res, lval->ts, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -181,15 +179,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 KlrConst *lval = (KlrConst *)lhs;
                 ASSERT(lval->which == CONST_BOOL);
                 if (!lval->bval) {
-                    log_info(
-                        "[Short-circuiting] fold AND insn, the left is false:");
+                    log_info("[Short-circuiting] fold AND insn, the left is false:");
                     log_insn(insn);
                     // false && x -> false
                     KlrValue *res = klr_const_bool(0, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
-                    log_info(
-                        "[Short-circuiting] fold AND insn, the left is true:");
+                    log_info("[Short-circuiting] fold AND insn, the left is true:");
                     log_insn(insn);
                     // true && x -> x
                     replace_all_uses_with(rhs, (KlrValue *)insn);
@@ -206,8 +202,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     KlrValue *res = klr_const_bool(0, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
-                    log_info(
-                        "[Short-circuiting] fold AND insn, the right is true:");
+                    log_info("[Short-circuiting] fold AND insn, the right is true:");
                     log_insn(insn);
                     // x && true -> x
                     replace_all_uses_with(lhs, (KlrValue *)insn);
@@ -228,15 +223,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 KlrConst *lval = (KlrConst *)lhs;
                 ASSERT(lval->which == CONST_BOOL);
                 if (lval->bval) {
-                    log_info(
-                        "[Short-circuiting] fold OR insn, the left is true:");
+                    log_info("[Short-circuiting] fold OR insn, the left is true:");
                     log_insn(insn);
                     // true || x -> true
                     KlrValue *res = klr_const_bool(1, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
-                    log_info(
-                        "[Short-circuiting] fold OR insn, the left is false:");
+                    log_info("[Short-circuiting] fold OR insn, the left is false:");
                     log_insn(insn);
                     // false || x -> x
                     replace_all_uses_with(rhs, (KlrValue *)insn);
@@ -245,15 +238,13 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 KlrConst *rval = (KlrConst *)rhs;
                 ASSERT(rval->which == CONST_BOOL);
                 if (rval->bval) {
-                    log_info(
-                        "[Short-circuiting] fold OR insn, the right is true:");
+                    log_info("[Short-circuiting] fold OR insn, the right is true:");
                     log_insn(insn);
                     // x || true -> true
                     KlrValue *res = klr_const_bool(1, fn->module);
                     replace_all_uses_with(res, (KlrValue *)insn);
                 } else {
-                    log_info(
-                        "[Short-circuiting] fold OR insn, the right is false:");
+                    log_info("[Short-circuiting] fold OR insn, the right is false:");
                     log_insn(insn);
                     // x || false -> x
                     replace_all_uses_with(lhs, (KlrValue *)insn);
@@ -272,7 +263,7 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 {
     OpCode op = insn->code;
     switch (op) {
-        case OP_SET_GLOBAL: {
+        case OP_GLOBAL_SET: {
             KlrGlobal *global = (KlrGlobal *)insn_oper_value(insn, 0);
             KlrValue *val = insn_oper_value(insn, 1);
             if (!global->mutable && klr_is_const(val)) {
@@ -283,7 +274,7 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             break;
         }
 
-        case OP_GET_GLOBAL: {
+        case OP_GLOBAL_GET: {
             KlrGlobal *global = (KlrGlobal *)insn_oper_value(insn, 0);
             KlrConst *val = global->kval;
             // var a = 100
@@ -387,18 +378,17 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 }
 
                 if (!strcmp(callee->name, "list")) {
-                    val = klr_const_list(items, insn->num_opers - 1, insn->ts,
-                                         fn->module);
+                    val =
+                        klr_const_list(items, insn->num_opers - 1, insn->ts, fn->module);
                 } else if (!strcmp(callee->name, "tuple")) {
-                    val = klr_const_tuple(items, insn->num_opers - 1, insn->ts,
-                                          fn->module);
+                    val =
+                        klr_const_tuple(items, insn->num_opers - 1, insn->ts, fn->module);
                 } else if (!strcmp(callee->name, "int64")) {
                     ASSERT(insn->num_opers == 2);
                     val = insn_oper_value(insn, 1);
                     ASSERT(klr_is_const(val));
                 } else {
-                    printf("unsupported const call to class '%s'\n",
-                           callee->name);
+                    printf("unsupported const call to class '%s'\n", callee->name);
                     NYI();
                 }
 

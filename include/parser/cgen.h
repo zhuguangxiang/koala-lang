@@ -14,90 +14,180 @@ extern "C" {
 #endif
 
 /*
- * KlMachInsn(LIR): Lowered, linearized, machine-dependent instruction.
- *
- * This is the canonical representation used by:
- *   - Lowering (ISel + fusion + splitting)
- *   - Linear Scan Register Allocation (LSRA)
- *   - Offset patching
- *   - Final bytecode encoding
- *
- * It is intentionally simple and flat, so LSRA can scan and rewrite it
- * efficiently.
+ * Module-level machine code generation context.
+ * Holds the global .text buffer, function list, fixups, and
+ * all state required to linearize and encode the entire module.
  */
-typedef struct _KlMachInsn {
-    /* opcode after isel */
-    OpCode code;
+typedef struct _KlMachModule {
+    /* Original high-level IR module. */
+    KlrModule *origin;
 
-    /* 4-byte fixed-length encoding format */
-    OpFormat format;
+    /* All lowered machine functions in final layout order. */
+    Vector funcs;
 
-    /* Physical fields for encoding. */
-    int A;
-    int B;
-    int C;
+    /* Internal fixups for intra-module references (rel32 patches). */
+    Vector fixups_internal;
 
-    int Ax;
-    int Bx;
+    /* remove duplicated import_entry */
+    HashMap import_map;
 
-    int Axx;
-    int Bxx;
+    /* Imported functions referenced by this module. */
+    Vector import_table;
 
-    KlrRawOper opers[3];
+    /* remove duplicated const */
+    HashMap cp_map;
 
-    /* Branch targets (machine-level blocks). */
-    struct _KlMachBlock *target;
+    /* Constant pool shared by the entire module. */
+    Vector const_pool;
 
-    /* Linearized instruction index (per function) */
+    /* Module-level code buffer (.text). All functions are laid out here. */
+    CodeBuffer codes;
+
+    /* Module-level PC allocator used during linearization. */
     int pc;
+} KlMachModule;
 
-    /* Debug: original IR instruction */
-    KlrInsn *origin;
-} KlMachInsn;
+/*
+ * Represents a function's region inside the module-level .text buffer.
+ * Each function occupies a contiguous PC interval assigned during
+ * linearization.
+ */
+typedef struct _KlMachFunc {
+    /* Owning module context. */
+    KlMachModule *ctx;
 
+    /* Basic blocks in final linearized order. */
+    List bb_list;
+
+    /* Module-level start PC of this function inside the .text buffer. */
+    int start_pc;
+
+    /* Total number of machine instructions in this function. */
+    int total_insns;
+
+    /* Original IR-level function. */
+    KlrFunc *origin;
+} KlMachFunc;
+
+/*
+ * Machine-level basic block.
+ * Each block corresponds to a contiguous PC range inside its parent function.
+ */
 typedef struct _KlMachBlock {
-    /* ->bb_list in KlMachFunc */
+    /* Parent machine function. */
+    KlMachFunc *fn;
+
+    /* Link node for func->bb_list. */
     List link;
 
-    /* [start_pc, end_pc] */
+    /* Module-level PC range [start_pc, end_pc). */
     int start_pc;
     int end_pc;
 
-    /* Vector<KlMachInsn *> */
+    /* Linearized machine instructions in this block. */
     Vector insns;
 
-    /* original basic block */
+    /* Original IR basic block. */
     KlrBasicBlock *origin;
 } KlMachBlock;
 
-typedef struct _KlMachFunc {
-    /* original IR function */
-    KlrFunc *origin;
-    /* block list in layout order */
-    List bb_list;
-    /* total number of instructions */
-    int total_insns;
-} KlMachFunc;
+typedef struct _KlMachOper {
+    enum {
+        MACH_OPER_NONE,
 
-KlMachFunc *klm_linearize_func(KlrFunc *fn);
-void klm_dump_func(KlMachFunc *fn);
+        /* register operands */
+        MACH_OPER_R, /* 8-bit register */
+        MACH_OPER_RX, /* 12-bit register */
 
-void build_cgen_pm(KlrPassManager *pm, int dump);
+        /* immediate operands */
+        MACH_OPER_IMM, /* 8-bit immediate */
+        MACH_OPER_IMM2, /* 16-bit immediate */
 
-// uint32_t encode_insn(KlmInsn *insn);
+        /* offset operands */
+        MACH_OPER_OFF2, /* 16-bit signed offset */
 
-// // emit helpers
-// KlmInsn *emit_new(OpCode code, KlrInsn *origin, KlrFunc *fn);
-// KlmInsn *emit_Ax(OpCode code, int rd, KlrInsn *origin, KlrFunc *fn);
-// KlmInsn *emit_AxBx(OpCode code, int rd, int rs, KlrInsn *origin, KlrFunc
-// *fn); KlmInsn *emit_ABC(OpCode code, int rd, int rs, int rt, KlrInsn *origin,
-// KlrFunc *fn); KlmInsn *emit_ABxx(OpCode code, int rd, int imm16, KlrInsn
-// *origin, KlrFunc *fn); KlmInsn *emit_const(int rd, KlrValue *v, KlrInsn
-// *origin, KlrFunc *fn);
+        /* index operands */
+        MACH_OPER_IDX2 /* 16-bit index */
+    } kind;
 
-// // submodules
-// void kl_lower_binary(KlrFunc *fn, KlrInsn *insn);
-// void kl_lower_unary(KlrFunc *fn, KlrInsn *insn);
+    int32_t value; /* bit-exact integer payload */
+} KlMachOper;
+
+/*
+ * Canonical lowered machine instruction (LIR).
+ * Used by instruction selection, LSRA, fixup patching, and final encoding.
+ * Each instruction has a module-level absolute PC.
+ */
+typedef struct _KlMachInsn {
+    /* Parent basic block. */
+    KlMachBlock *bb;
+
+    /* Lowered opcode after instruction selection. */
+    OpCode code;
+
+    /* Fixed 4-byte encoding format used by the final bytecode emitter. */
+    OpFormat format;
+
+    /* Physical operands. */
+    int opers[3];
+
+    /* Target function for direct (intra-module) calls. */
+    KlMachFunc *target_fn;
+
+    /* Branch target basic block (machine-level). */
+    KlMachBlock *target;
+
+    /* import table index */
+    int import_index;
+
+    /* Linearized instruction index (module-level absolute PC). */
+    int pc;
+
+    /* Original IR instruction for debugging. */
+    KlrInsn *origin;
+} KlMachInsn;
+
+#define KL_MACH_CONST_I64 0
+#define KL_MACH_CONST_U64 1
+#define KL_MACH_CONST_F64 2
+#define KL_MACH_CONST_STR 3
+
+typedef struct {
+    HashMapEntry hnode;
+    uint8_t tag;
+    int index;
+    union {
+        int64_t i64;
+        uint64_t u64;
+        double f64;
+        const char *str;
+    };
+} KlMachConst;
+
+typedef enum {
+    IMPORT_FUNC = 0, // external function
+    IMPORT_FIELD = 1, // external class field
+    IMPORT_TYPE = 2, // external type (class / interface)
+    IMPORT_CONST = 3, // external constant pool entry
+    IMPORT_METHOD = 4 // external method (rare; for final classes)
+} ImportKind;
+
+typedef struct KlMachImport {
+    HashMapEntry hnode;
+    int index;
+    const char *path;
+    const char *name;
+} KlMachImport;
+
+#define NEXT_BLOCK(mb) list_next(mb, link, &(mb)->fn->bb_list)
+void kl_lower_operands(KlrFunc *fn, KlMachModule *ctx);
+void kl_module_cgen(KlrModule *module);
+
+int kl_mach_const_add_int(KlMachModule *ctx, int64_t v);
+int kl_mach_const_add_uint(KlMachModule *ctx, uint64_t v);
+int kl_mach_const_add_float(KlMachModule *ctx, double v);
+int kl_mach_const_add_str(KlMachModule *ctx, char *s);
+int kl_mach_import_add(KlMachModule *ctx, char *path, char *name);
 
 #ifdef __cplusplus
 }

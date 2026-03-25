@@ -11,8 +11,7 @@
 extern "C" {
 #endif
 
-static void init_use(KlrUse *use, KlrInsn *insn, KlrOper *oper, KlrValue *ref,
-                     int is_def)
+static void init_use(KlrUse *use, KlrInsn *insn, KlrOper *oper, KlrValue *ref, int is_def)
 {
     use->insn = insn;
     use->oper = oper;
@@ -38,9 +37,8 @@ static void fini_use(KlrUse *use)
         ASSERT(klr_is_local(ref));
         ref->def_count--;
         if (ref->def_count == 0) {
-            log_info(
-                "erase insn '%%%s' since it has no defs after this removal",
-                ref->name);
+            log_info("erase insn '%%%s' since it has no defs after this removal",
+                     ref->name);
             ASSERT(list_empty(&ref->def_list));
             log_insn((KlrInsn *)ref);
             klr_erase_insn((KlrInsn *)ref);
@@ -166,7 +164,7 @@ static OpCode no_regs_codes[] = {
     OP_JMP_INT_GT_IMM,
     OP_JMP_INT_LE_IMM,
     OP_JMP_INT_GE_IMM,
-    OP_SET_GLOBAL,
+    OP_GLOBAL_SET,
 };
 
 int ir_has_value(KlrInsn *insn)
@@ -244,7 +242,7 @@ KlrValue *klr_build_get_global(KlrBuilder *bldr, KlrValue *global)
         panic("'get_global %%g' requires a global variable.");
     }
 
-    KlrInsn *insn = new_insn(OP_GET_GLOBAL, 1, "");
+    KlrInsn *insn = new_insn(OP_GLOBAL_GET, 1, "");
     init_oper(&insn->opers[0], insn, global, 0);
     insn->ts = global->ts;
     klr_append_insn(bldr, insn);
@@ -267,14 +265,14 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
         panic("'set_global %%g, %%v' requires a reg value.");
     }
 
-    KlrInsn *insn = new_insn(OP_SET_GLOBAL, 2, "");
+    KlrInsn *insn = new_insn(OP_GLOBAL_SET, 2, "");
     init_oper(&insn->opers[0], insn, global, 1);
     init_oper(&insn->opers[1], insn, val, 0);
     klr_append_insn(bldr, insn);
 }
 
-KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
-                           OpCode op, char *name, const char *op_name)
+KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,
+                           char *name, const char *op_name)
 {
     if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
         lhs->kind != KLR_VALUE_PARAM) {
@@ -295,8 +293,8 @@ KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
     return (KlrValue *)insn;
 }
 
-KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
-                        OpCode code, char *name)
+KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code,
+                        char *name)
 {
     if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
         lhs->kind != KLR_VALUE_PARAM) {
@@ -342,8 +340,8 @@ void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target)
     klr_link_edge(bldr->bb, target);
 }
 
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args,
-                         int nargs, char *name)
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs,
+                         char *name)
 {
     int is_const = 1;
 
@@ -400,7 +398,7 @@ KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val)
     return insn;
 }
 
-KlrValue *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val)
+KlrInsn *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val)
 {
     if (val->kind != KLR_VALUE_CONST) {
         panic("'push int imm' requires a const value");
@@ -414,7 +412,7 @@ KlrValue *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val)
     KlrInsn *insn = new_insn(OP_PUSH_INT_IMM, 1, "");
     init_oper(&insn->opers[0], insn, val, 0);
     klr_append_insn(bldr, insn);
-    return (KlrValue *)insn;
+    return insn;
 }
 
 KlrValue *klr_build_push_bool(KlrBuilder *bldr, KlrValue *val)

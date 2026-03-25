@@ -14,7 +14,7 @@ extern "C" {
 static int has_side_effect(KlrInsn *insn)
 {
     switch (insn->code) {
-        case OP_SET_GLOBAL:
+        case OP_GLOBAL_SET:
         case OP_RET:
         case OP_RET_VOID:
         case OP_IR_JMP_COND:

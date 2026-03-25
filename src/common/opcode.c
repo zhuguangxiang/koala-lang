@@ -14,7 +14,7 @@ char *__op_names[] = {
 };
 
 OpFormat __op_formats[] = {
-#define X(name, fmt, comment) fmt,
+#define X(name, fmt) fmt,
 #include "opcode_list.h"
 #undef X
 };

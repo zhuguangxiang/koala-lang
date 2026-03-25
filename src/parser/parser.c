@@ -416,14 +416,15 @@ static int is_subtype_of(int child_id, int parent_id)
  *
  * Rules for High-Performance Type System:
  * 1. Top Type: TYPE_ANY is the root and accepts any type.
- * 2. Strict Kind Matching: Except for Object, kinds must match (e.g., no implicit
- * int-to-float).
- * 3. Numerical Widening: For INT/FLOAT, source width <= destination width is allowed.
- *    Note: Semantically compatible but requires explicit 'cast' instructions during
- * codegen due to binary representation (memory layout) mismatch.
+ * 2. Strict Kind Matching: Except for Object, kinds must match (e.g., no
+ * implicit int-to-float).
+ * 3. Numerical Widening: For INT/FLOAT, source width <= destination width is
+ * allowed. Note: Semantically compatible but requires explicit 'cast'
+ * instructions during codegen due to binary representation (memory layout)
+ * mismatch.
  * 4. Generic Variance:
- *    - Reference Types (Classes): Invariant (e.g., List[Dog] -> List[Animal] not
- * allowed).
+ *    - Reference Types (Classes): Invariant (e.g., List[Dog] -> List[Animal]
+ * not allowed).
  *    - Value Types (Primitives): Invariant (Generic parameters must be strictly
  * compatible).
  */
@@ -613,7 +614,9 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
             }
         }
 
-        log_info("no compatible base found for klass type, compare directly by pointer");
+        log_info(
+            "no compatible base found for klass type, compare directly by "
+            "pointer");
         return dst == src;
     }
 
@@ -719,12 +722,12 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         if (vector_size(&kls_sym->tps) != vector_size(tp_args)) {
             if (strcmp(sym->name, "tuple")) {
                 // don't check tuple type paramaters
-                kl_error(
-                    _ts->loc,
-                    "Type argument mismatch: '%s' expects %d argument(s), but %d were "
-                    "provided",
-                    _ts->unresolved.name.name, vector_size(&kls_sym->tps),
-                    vector_size(tp_args));
+                kl_error(_ts->loc,
+                         "Type argument mismatch: '%s' expects %d argument(s), "
+                         "but %d were "
+                         "provided",
+                         _ts->unresolved.name.name, vector_size(&kls_sym->tps),
+                         vector_size(tp_args));
                 vector_destroy(tp_args);
                 return NULL;
             }
@@ -864,7 +867,8 @@ int check_type(ParserState *ps, TypeSpec *type)
     int arg_count = vector_size(type->generic_ref.args);
     if (vector_size(tps) != arg_count) {
         kl_error(type->loc,
-                 "Type argument count mismatch: '%s' expects %d argument(s), but %d were "
+                 "Type argument count mismatch: '%s' expects %d argument(s), "
+                 "but %d were "
                  "provided",
                  sym->name, vector_size(tps), arg_count);
         return 0;
@@ -874,7 +878,8 @@ int check_type(ParserState *ps, TypeSpec *type)
     for (int i = 0; i < arg_count; i++) {
         TypeSpec *arg = vector_get(type->generic_ref.args, i);
 
-        // Get the required bounds for the i-th parameter (e.g., [Animal, Serializable])
+        // Get the required bounds for the i-th parameter (e.g., [Animal,
+        // Serializable])
         TypeParamSymbol *tp_sym = vector_get(tps, i);
         Vector *bounds = &tp_sym->bound;
 
@@ -882,16 +887,16 @@ int check_type(ParserState *ps, TypeSpec *type)
             // Check if the provided 'arg' satisfies all upper bounds.
             // Since this is a constraint check, we use is_type_compatible.
             if (!check_type_constraints(bounds, arg)) {
-                kl_error(
-                    arg->loc,
-                    "Type constraint violation: argument #%d does not satisfy bounds",
-                    i + 1);
+                kl_error(arg->loc,
+                         "Type constraint violation: argument #%d does not "
+                         "satisfy bounds",
+                         i + 1);
                 return 0;
             }
         }
 
-        // 3. Core: Recursively validate the argument itself (for nested generics)
-        // This ensures Map[String, List[InvalidType]] is caught.
+        // 3. Core: Recursively validate the argument itself (for nested
+        // generics) This ensures Map[String, List[InvalidType]] is caught.
         if (!check_type(ps, arg)) {
             return 0;
         }
@@ -1228,7 +1233,8 @@ static void parse_block(ParserState *ps, Vector *stmts, int *has_terminal)
             if (has_terminal) *has_terminal = 1;
             if (index < vector_size(stmts)) {
                 log_trace("there are more statements after a terminal statement");
-                // TODO: Don't remove unreachable statements, opt will handle it.
+                // TODO: Don't remove unreachable statements, opt will handle
+                // it.
                 remove_unreachable(stmts, index);
                 goto exit;
             }
@@ -1240,9 +1246,11 @@ static void parse_block(ParserState *ps, Vector *stmts, int *has_terminal)
                 if (has_terminal) *has_terminal = 1;
                 if (index < vector_size(stmts)) {
                     log_trace(
-                        "there are more statements after a block with a terminal "
+                        "there are more statements after a block with a "
+                        "terminal "
                         "statement");
-                    // TODO: Don't remove unreachable statements, opt will handle it.
+                    // TODO: Don't remove unreachable statements, opt will
+                    // handle it.
                     remove_unreachable(stmts, index);
                     goto exit;
                 }
@@ -1528,9 +1536,9 @@ static void parse_for(ParserState *ps, Stmt *stmt)
             if (!strcmp(origin_sym->name, "tuple")) {
                 // special handling for tuple unpacking
                 if (vector_size(ids) != vector_size(inst_sym->tp_args)) {
-                    kl_error(
-                        it->loc,
-                        "num of vars in for does not match num of elements in tuple");
+                    kl_error(it->loc,
+                             "num of vars in for does not match num of "
+                             "elements in tuple");
                 } else {
                     for (int i = 0; i < vector_size(ids); i++) {
                         Ident *id = vector_get_ptr(ids, i);
@@ -1544,7 +1552,8 @@ static void parse_for(ParserState *ps, Stmt *stmt)
         }
 
         kl_error(it->loc,
-                 "iterable element type '%s' is not tuple for multiple vars of for loop",
+                 "iterable element type '%s' is not tuple for multiple vars of "
+                 "for loop",
                  it->ts->signature);
     } else {
         Ident *id = vector_get_ptr(ids, 0);
@@ -1817,10 +1826,10 @@ static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
             log_info("base is instance symbol: %s", base_sym->name);
             Symbol *origin_sym = ((InstanceSymbol *)base_sym)->origin;
             if (origin_sym->kind != SYM_TRAIT) {
-                kl_error(
-                    ts->loc,
-                    "origin symbol '%s' is not trait, only trait can be used as base",
-                    origin_sym->name);
+                kl_error(ts->loc,
+                         "origin symbol '%s' is not trait, only trait can be "
+                         "used as base",
+                         origin_sym->name);
             } else {
                 vector_push_back(vec, &base_ts);
             }
@@ -2209,7 +2218,8 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
     FuncSymbol *fn_sym = (FuncSymbol *)op_sym;
     if (vector_size(fn_sym->params) != 1) {
         kl_error(assign->loc,
-                 "inplace operator '%s' in class '%s' must have exactly one parameter.",
+                 "inplace operator '%s' in class '%s' must have exactly one "
+                 "parameter.",
                  get_inplace_op_str(op), kls_sym->name);
         return -1;
     }
@@ -2652,14 +2662,16 @@ static void run_func_passes(KlrFunc *fn)
         pm_fini(&pm);
     }
 
-    if (opt.enable_cgen) {
-        KlrPassManager pm;
-        pm_init(&pm, "cgen-pass");
-        build_cgen_pm(&pm, opt_dump_has(opt, DUMP_CGEN));
-        pm.run(fn, &pm);
-        pm_fini(&pm);
-    }
+    // if (opt.enable_cgen) {
+    //     KlrPassManager pm;
+    //     pm_init(&pm, "cgen-pass");
+    //     build_cgen_pm(&pm, opt_dump_has(opt, DUMP_CGEN));
+    //     pm.run(fn, &pm);
+    //     pm_fini(&pm);
+    // }
 }
+
+void kl_module_cgen(KlrModule *m);
 
 int do_compile(Vector *pss, char *output)
 {
@@ -2682,6 +2694,10 @@ int do_compile(Vector *pss, char *output)
     KlrFunc *fn;
     vector_foreach(fn, &m->functions) {
         run_func_passes(fn);
+    }
+
+    if (opt.enable_cgen) {
+        kl_module_cgen(m);
     }
 
     write_to_klc(current, output);

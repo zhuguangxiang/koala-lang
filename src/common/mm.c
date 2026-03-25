@@ -39,6 +39,31 @@ void *mm_alloc(int size)
     return (void *)(blk + 1);
 }
 
+void *mm_realloc(void *ptr, int new_size)
+{
+    if (!ptr) return mm_alloc(new_size);
+
+    Block *blk = (Block *)ptr - 1;
+
+    if (blk->magic != GUARD_MAGIC) {
+        log_fatal("memory is broken.\n");
+        abort();
+    }
+
+    int old_size = blk->size;
+    blk = (Block *)realloc(blk, OBJ_SIZE(blk) + new_size);
+    if (!blk) {
+        log_fatal("realloc failed.");
+        abort();
+    }
+
+    blk->size = new_size;
+    blk->magic = GUARD_MAGIC;
+    used_size += (new_size - old_size);
+
+    return (void *)(blk + 1);
+}
+
 /* memory is not cleared. */
 void *mm_alloc_fast(int size)
 {

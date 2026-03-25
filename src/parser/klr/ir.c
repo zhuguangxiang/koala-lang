@@ -135,8 +135,7 @@ KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m)
     return (KlrValue *)lit;
 }
 
-KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts,
-                          KlrModule *m)
+KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m)
 {
     KlrValue *lit = klr_const_list(items, size, ts, m);
     ((KlrConst *)lit)->which = CONST_TUPLE;
@@ -301,8 +300,7 @@ void klr_erase_block(KlrBasicBlock *bb)
 
     KlrInsn *insn, *nxt_i;
     insn_foreach_reverse_safe(insn, nxt_i, bb) {
-        log_info("[erase-block] remove insn in block '%%%s'",
-                 klr_block_name(bb));
+        log_info("[erase-block] remove insn in block '%%%s'", klr_block_name(bb));
         log_insn(insn);
         klr_erase_insn(insn);
     }
@@ -317,8 +315,8 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
     ASSERT(dst->func == src->func);
     KlrFunc *fn = dst->func;
 
-    log_info("[basic-block-merging] merge block '%%%s' into '%%%s'",
-             klr_block_name(src), klr_block_name(dst));
+    log_info("[basic-block-merging] merge block '%%%s' into '%%%s'", klr_block_name(src),
+             klr_block_name(dst));
 
     KlrInsn *last = insn_last(dst);
     if (last && last->code == OP_JMP) {
@@ -648,8 +646,7 @@ void klr_build_rpo(KlrFunc *fn)
 char *klr_block_name(KlrBasicBlock *bb)
 {
     if (bb->name[0]) {
-        snprintf(bb->print_name, sizeof(bb->print_name), "bb%d(%s)", bb->tag,
-                 bb->name);
+        snprintf(bb->print_name, sizeof(bb->print_name), "bb%d(%s)", bb->tag, bb->name);
     } else {
         snprintf(bb->print_name, sizeof(bb->print_name), "bb%d", bb->tag);
     }
@@ -665,18 +662,15 @@ char *klr_value_name(KlrValue *val)
 
     if (val->name[0]) {
         if (val->kind == KLR_VALUE_GLOBAL) {
-            snprintf(val->print_name, sizeof(val->print_name), "@%s",
-                     val->name);
+            snprintf(val->print_name, sizeof(val->print_name), "@%s", val->name);
         } else {
-            snprintf(val->print_name, sizeof(val->print_name), "%%%s",
-                     val->name);
+            snprintf(val->print_name, sizeof(val->print_name), "%%%s", val->name);
         }
     } else {
         if (val->tag == -1) {
             snprintf(val->print_name, sizeof(val->print_name), "%%<unnamed>");
         } else {
-            snprintf(val->print_name, sizeof(val->print_name), "%%%d",
-                     val->tag);
+            snprintf(val->print_name, sizeof(val->print_name), "%%%d", val->tag);
         }
     }
 

@@ -1,12 +1,12 @@
 // SKIP: koalac %s --opt --isel --regalloc=lsra --cgen --dump=vreg,cgen | filecheck %s
 
-// func foo(n int) int {
-//     let a = 500
-//     let b = n + a + 1
-//     var c = b + 2
-//     c = c + 3
-//     return c
-// }
+func foo(n int) int {
+    let a = 500
+    let b = n + a + 1
+    var c = b + 2
+    c = c + 3
+    return c
+}
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@foo] ---
 // CHECK-LABEL: func @foo(%n int64) int64
@@ -26,10 +26,10 @@
 // CHECK: ret %4 int64
 
 
-// func fib(n int) int {
-//     if n < 2 { return n }
-//     return fib(n - 1) + fib(n - 2)
-// }
+func fib(n int) int {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
 
 // CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@fib] ---
 
@@ -54,7 +54,7 @@ func test_while(n int) {
 
 // var b = true
 
-// func foo() {
+// func foo2() {
 //     if b {
 //         print("true")
 //     } else {
@@ -71,7 +71,7 @@ func test_while(n int) {
 //     }
 // }
 
-// func bar(n int) {
+// func bar2(n int) {
 // }
 
 
@@ -79,4 +79,14 @@ func test_add(n int) int {
     var a = 500
     var b = n + a + 1
     return b
+}
+
+
+func test_call(n int) int {
+    var v = 10 < 20
+    if v {
+        return test_add(10)
+    } else {
+        return test_add(20)
+    }
 }

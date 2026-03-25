@@ -30,8 +30,9 @@ set(PARSER_SRC
     parser/klr/ir.c
     parser/klr/insn.c
     parser/klr/printer.c
-    parser/backend/lsra.c
     parser/backend/isel.c
+    parser/backend/lsra.c
+    parser/backend/lower_operands.c
     parser/backend/cgen.c
     parser/opt/const_copy_prop.c
     parser/opt/dce.c

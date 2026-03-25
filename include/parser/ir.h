@@ -6,6 +6,7 @@
 #ifndef _KOALA_IR_H_
 #define _KOALA_IR_H_
 
+#include "codebuffer.h"
 #include "hashmap.h"
 #include "list.h"
 #include "opcode.h"
@@ -76,7 +77,7 @@ typedef struct _KlrValue {
 typedef struct _KlrConst {
     KLR_VALUE_HEAD
     HashMapEntry hnode;
-    int index;
+    // int index;
     int which;
 #define CONST_INT   1
 #define CONST_UINT  2
@@ -118,8 +119,6 @@ typedef struct _KlrFunc {
 
     /* basic block tag */
     int bb_tag;
-    /* variable order */
-    int order;
 
     /* basic block list */
     List bb_list;
@@ -140,27 +139,8 @@ typedef struct _KlrFunc {
     /* klass pointer */
     struct _KlrKlass *klass;
 
-    /* number of virtual registers used */
-    int num_vregs;
-
-    /* LIR (Lowered IR) generation pipeline:
-     *
-     *   1. VReg assignment:
-     *        Assign a unique virtual register to every SSA value.
-     *
-     *   2. Lowering:
-     *        Instruction selection, pattern fusion, instruction splitting,
-     *        and conversion from SSA IR to linear LIR.
-     *
-     *   3. Register allocation:
-     *        Map vregs to physical registers (LSRA / graph coloring / simple
-     * RA), inserting spills and reloads when necessary.
-     *
-     *   4. Code emission:
-     *        Patch jump offsets, apply WIDE expansion, and encode final VM
-     * bytecode.
-     */
-    Vector lir;
+    /* backend-private pointer */
+    void *mach;
 } KlrFunc;
 
 /* basic block */
@@ -326,28 +306,20 @@ typedef struct _KlrOper {
     KlrPhiParam *phi;
 } KlrOper;
 
-typedef enum {
-    RAW_OPER_NONE,
-    RAW_OPER_REG,
-    RAW_OPER_INDEX,
-    RAW_OPER_IMM,
-    RAW_OPER_CONST,
-    RAW_OPER_BLOCK,
-    RAW_OPER_GLOBAL,
-    RAW_OPER_FUNC,
-} KlrRawOperKind;
-
 /* flatten operand */
 typedef struct _KlrRawOper {
-    KlrRawOperKind kind;
-
+    enum {
+        RAW_OPER_NONE,
+        RAW_OPER_REG,
+        RAW_OPER_IMM,
+        RAW_OPER_CONST, // cp index
+        RAW_OPER_FUNC,
+    } kind;
     union {
-        int index;
+        int vreg;
         int imm;
-        KlrConst *kval;
-        KlrBasicBlock *bb;
-        int global_index;
-        int func_index;
+        int index; /* const/global index */
+        void *ptr; /* func pointer */
     };
 } KlrRawOper;
 
@@ -384,8 +356,8 @@ typedef struct _KlrInsn {
     /* phi variable */
     KlrValue *phi;
 
-    /* Raw operands produced by isel and consumed by mach/emit. */
-    KlrRawOper raw_opers[3];
+    /* Raw operands for MachInsn */
+    KlrRawOper raws[3];
 
     /* number of operands */
     int num_opers;
@@ -401,65 +373,14 @@ typedef struct _KlrBuilder {
 
 /* APIs */
 
-/* Set operand to use the instruction's own result vreg. */
-static inline void set_raw_oper_reg(KlrInsn *insn, int slot)
-{
-    KlrRawOper *op = &insn->raw_opers[slot];
-    op->kind = RAW_OPER_REG;
-    /* RAW_OPER_REG carries no payload. */
-}
-
-/* Set operand to reference an input operand by index. */
-static inline void set_raw_oper_index(KlrInsn *insn, int slot, int index)
-{
-    KlrRawOper *op = &insn->raw_opers[slot];
-    op->kind = RAW_OPER_INDEX;
-    op->index = index; /* Index into insn->operands[]. */
-}
-
-/* Set operand to an empty slot. */
-static inline void set_raw_oper_none(KlrInsn *insn, int slot)
-{
-    KlrRawOper *op = &insn->raw_opers[slot];
-    op->kind = RAW_OPER_NONE;
-}
-
-/* Set operand to an immediate value. */
-static inline void set_raw_oper_imm(KlrInsn *insn, int slot, int imm)
-{
-    KlrRawOper *op = &insn->raw_opers[slot];
-    op->kind = RAW_OPER_IMM;
-    op->imm = imm; /* Immediate value; encoding is handled in emit. */
-}
-
-/* Set operand to a constant pool entry. */
-static inline void set_raw_oper_const(KlrInsn *insn, int slot, KlrConst *kval)
-{
-    KlrRawOper *op = &insn->raw_opers[slot];
-    op->kind = RAW_OPER_CONST;
-    op->kval =
-        kval; /* Constant pool entry; index assigned during linearization. */
-}
-
-/* Set operand to a basic block target. */
-static inline void set_raw_oper_block(KlrInsn *insn, int slot,
-                                      KlrBasicBlock *bb)
-{
-    KlrRawOper *op = &insn->raw_opers[slot];
-    op->kind = RAW_OPER_BLOCK;
-    op->bb = bb; /* Basic block target; mapped to label during linearization. */
-}
-
 /* <1> literal constants */
 KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_uint(uint64_t val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_bool(int val, KlrModule *m);
 KlrValue *klr_const_str(char *s, int len, KlrModule *m);
-KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts,
-                         KlrModule *m);
-KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts,
-                          KlrModule *m);
+KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
+KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_none(KlrModule *m);
 
 static inline int klr_is_const(KlrValue *val)
@@ -532,10 +453,8 @@ KlrValue *klr_klass_add_method(KlrValue *klass, char *name, TypeSpec *ret,
                                TypeSpec **params);
 
 // ir doesn't check external symbol's type
-KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *proto, char *path,
-                           char *name);
-KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path,
-                             char *name);
+KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *proto, char *path, char *name);
+KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name);
 
 #define local_foreach(local, func) vector_foreach_ptr(local, &(func)->locals)
 
@@ -584,8 +503,7 @@ void klr_remove_edge(KlrEdge *edge);
 void klr_remove_all_out_edges(KlrBasicBlock *bb);
 
 /* edge-out iteration */
-#define edge_out_foreach(edge, bb) \
-    list_foreach(edge, out_link, &(bb)->out_edges)
+#define edge_out_foreach(edge, bb) list_foreach(edge, out_link, &(bb)->out_edges)
 
 /* edge-out safe iteration */
 #define edge_out_foreach_safe(edge, nxt, bb) \
@@ -617,8 +535,7 @@ void klr_remove_all_out_edges(KlrBasicBlock *bb);
 #define basic_block_foreach_safe(bb, nxt, fn) \
     list_foreach_safe(bb, nxt, link, &(fn)->bb_list)
 
-#define bb_foreach_reverse(bb, fn) \
-    list_foreach_reverse(bb, link, &(fn)->bb_list)
+#define bb_foreach_reverse(bb, fn) list_foreach_reverse(bb, link, &(fn)->bb_list)
 
 static inline int klr_get_nr_preds(KlrBasicBlock *bb)
 {
@@ -678,26 +595,26 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val);
 /* IR: move %dst, %src */
 void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 
-KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
-                           OpCode op, char *name, const char *op_name);
+KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,
+                           char *name, const char *op_name);
 
 /* IR: %2 int = add %0, %1 */
-static inline KlrValue *klr_build_add(KlrBuilder *bldr, KlrValue *lhs,
-                                      KlrValue *rhs, char *name)
+static inline KlrValue *klr_build_add(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
+                                      char *name)
 {
     return klr_build_binary(bldr, lhs, rhs, OP_BINARY_ADD, name, "add");
 }
 
 /* IR: %2 int = sub %0, %1 */
-static inline KlrValue *klr_build_sub(KlrBuilder *bldr, KlrValue *lhs,
-                                      KlrValue *rhs, char *name)
+static inline KlrValue *klr_build_sub(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
+                                      char *name)
 {
     return klr_build_binary(bldr, lhs, rhs, OP_BINARY_SUB, name, "sub");
 }
 
 /* IR: %2 int = cmp %0, %1 */
-KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
-                        OpCode code, char *name);
+KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code,
+                        char *name);
 
 #define klr_build_cmpeq(bldr, lhs, rhs, name) \
     klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPEQ, name)
@@ -725,8 +642,8 @@ void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
 void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target);
 
 /* IR: %0 int = call %func, %argument-list */
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args,
-                         int nargs, char *name);
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs,
+                         char *name);
 
 /* IR: ret %var */
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
@@ -738,7 +655,7 @@ void klr_build_ret_void(KlrBuilder *bldr);
 KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val);
 
 /* IR: push_int_imm %var */
-KlrValue *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val);
+KlrInsn *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val);
 
 /* IR: push_bool %var */
 KlrValue *klr_build_push_bool(KlrBuilder *bldr, KlrValue *val);
@@ -862,10 +779,6 @@ void klr_print_module(KlrModule *m, FILE *fp);
 #endif
 // clang-format on
 
-void klr_insn_remap(KlrFunc *func);
-void klr_alloc_registers(KlrFunc *func);
-void klr_simple_alloc_registers(KlrFunc *func);
-
 /* <6> instruction builder */
 
 /* clang-format off */
@@ -893,6 +806,9 @@ void klr_simple_alloc_registers(KlrFunc *func);
     (bldr)->bb = (insn)->bb; \
     (bldr)->it = (insn)->bb_link.prev; \
 } while (0)
+
+#define insn_is(insn, x) ((insn)->code == (x))
+#define insn_or(insn, a, b) (insn_is(insn, a) || insn_is(insn, b))
 
 /* clang-format on */
 

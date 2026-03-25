@@ -125,10 +125,6 @@ static KlrValue *isel_build_int_literal(KlrBuilder *bldr, KlrConst *c)
          */
         local = klr_build_local(bldr, c->ts, "");
         insn = klr_build_const_int(bldr, local, (KlrValue *)c);
-
-        /* raw operands for small-imm form */
-        set_raw_oper_index(insn, 0, 0);
-        set_raw_oper_imm(insn, 1, imm);
     } else {
         /* Large immediate: materialize via constant pool.
          * OP_LOCAL
@@ -136,10 +132,6 @@ static KlrValue *isel_build_int_literal(KlrBuilder *bldr, KlrConst *c)
          */
         local = klr_build_local(bldr, c->ts, "");
         insn = klr_build_const_load(bldr, local, (KlrValue *)c);
-
-        /* raw operands for load-const form */
-        set_raw_oper_index(insn, 0, 0);
-        set_raw_oper_imm(insn, 1, imm);
     }
 
     return local;
@@ -214,18 +206,12 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
                 int64_t imm = rc->ival;
                 if (imm >= INT8_MIN && imm <= INT8_MAX) {
                     insn->code = R->imm_op;
-                    set_raw_oper_reg(insn, 0);
-                    set_raw_oper_index(insn, 1, 0);
-                    set_raw_oper_imm(insn, 2, imm);
                     return;
                 }
             } else {
                 uint64_t uimm = (uint64_t)rc->ival;
                 if (uimm <= UINT8_MAX) {
                     insn->code = R->imm_op;
-                    set_raw_oper_reg(insn, 0);
-                    set_raw_oper_index(insn, 1, 0);
-                    set_raw_oper_imm(insn, 2, uimm);
                     return;
                 }
             }
@@ -238,17 +224,11 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         KlrValue *v = isel_materialize_const(fn, insn, rc);
         insn->code = R->reg_op;
         set_operand_at(insn, 1, v);
-        set_raw_oper_reg(insn, 0);
-        set_raw_oper_index(insn, 1, 0);
-        set_raw_oper_index(insn, 2, 1);
         return;
     }
 
     // reg op reg
     insn->code = R->reg_op;
-    set_raw_oper_reg(insn, 0);
-    set_raw_oper_index(insn, 1, 0);
-    set_raw_oper_index(insn, 2, 1);
 }
 
 static inline int isel_is_binary(OpCode op)
@@ -294,7 +274,6 @@ static void isel_lower_call_arg(KlrBuilder *bldr, KlrValue *arg)
         isel_materialize_push_const(bldr, c);
     } else {
         KlrInsn *insn = klr_build_push(bldr, arg);
-        set_raw_oper_index(insn, 0, 0);
     }
 }
 
@@ -330,7 +309,6 @@ static void isel_lower_ret(KlrInsn *insn, KlrFunc *fn)
             int64_t imm = c->ival;
             if (imm >= INT16_MIN && imm <= INT16_MAX) {
                 insn->code = OP_RET_INT_IMM;
-                set_raw_oper_imm(insn, 0, imm);
                 return;
             }
         } else {
@@ -338,7 +316,7 @@ static void isel_lower_ret(KlrInsn *insn, KlrFunc *fn)
         }
     }
 
-    set_raw_oper_index(insn, 0, 0);
+    // set_raw_oper_index(insn, 0, 0);
 }
 
 static void isel_lower_move_const(KlrInsn *insn, KlrFunc *fn)
@@ -359,14 +337,9 @@ static void isel_lower_move_const(KlrInsn *insn, KlrFunc *fn)
         if (imm >= INT16_MIN && imm <= INT16_MAX) {
             /* Small immediate: use OP_CONST_INT_IMM. */
             insn->code = OP_CONST_INT_IMM;
-            set_raw_oper_index(insn, 0, 0);
-            set_raw_oper_imm(insn, 1, imm);
         } else {
             /* Large immediate: materialize via constant pool. */
             insn->code = OP_CONST_LOAD;
-            /* raw operands for load-const form */
-            set_raw_oper_index(insn, 0, 0);
-            set_raw_oper_imm(insn, 1, imm);
         }
         return;
     }
@@ -385,8 +358,6 @@ static void isel_lower_move(KlrInsn *insn, KlrFunc *fn)
         isel_lower_move_const(insn, fn);
     } else {
         ASSERT(klr_is_insn(src) || klr_is_param(src));
-        set_raw_oper_index(insn, 0, 0);
-        set_raw_oper_index(insn, 1, 1);
     }
 }
 
@@ -438,10 +409,7 @@ static KlrPass isel_pass = {
     .run = klr_do_isel,
 };
 
-void build_isel_pm(KlrPassManager *pm, int dump)
-{
-    pm_add_pass(pm, &isel_pass, dump);
-}
+void build_isel_pm(KlrPassManager *pm, int dump) { pm_add_pass(pm, &isel_pass, dump); }
 
 #ifdef __cplusplus
 }

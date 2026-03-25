@@ -24,6 +24,9 @@ void *mm_alloc_fast(int size);
 /* Allocate object faster by its pointer, not set zero. */
 #define mm_alloc_obj_fast(ptr) mm_alloc_fast(OBJ_SIZE(ptr))
 
+/* realloc */
+void *mm_realloc(void *ptr, int new_size);
+
 /* The func frees the memory space pointed by pointer. */
 void mm_free(void *ptr);
 
