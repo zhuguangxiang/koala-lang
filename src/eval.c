@@ -184,7 +184,7 @@ main_loop:
                 //     DISPATCH();
                 // }
 
-            case OP_CONST_INT_IMM: {
+            case OP_LOAD_INT_IMM: {
                 rd = I_Ax(inst);
                 imm = I_Bx(inst);
 

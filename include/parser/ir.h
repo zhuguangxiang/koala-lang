@@ -667,11 +667,11 @@ KlrValue *klr_build_push_const(KlrBuilder *bldr, KlrValue *val);
  */
 void klr_add_last_return(KlrBasicBlock *bb);
 
-/* IR: %0 = const.int */
-KlrInsn *klr_build_const_int(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
+/* IR: %0 = load_int_imm */
+KlrInsn *klr_build_load_int_imm(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 
-/* IR: %0 = const.load %var */
-KlrInsn *klr_build_const_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
+/* IR: %0 = loadk %var */
+KlrInsn *klr_build_loadk(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)

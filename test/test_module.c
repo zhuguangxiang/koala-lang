@@ -29,7 +29,7 @@ void test_module(void)
 
     /* print(100, "hello") */
     uint32_t _insns[] = {
-        (OP_CONST_INT_IMM << 24) | (0 << 16) | 100,
+        (OP_LOAD_INT_IMM << 24) | (0 << 16) | 100,
         (OP_CONST << 24) | (1 << 12) | s_id,
         (OP_PUSH << 24) | 0,
         (OP_PUSH << 24) | 1,

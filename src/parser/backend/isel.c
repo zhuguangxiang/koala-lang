@@ -121,17 +121,17 @@ static KlrValue *isel_build_int_literal(KlrBuilder *bldr, KlrConst *c)
     if (imm >= INT16_MIN && imm <= INT16_MAX) {
         /* Small immediate:
          * OP_LOCAL
-         * OP_CONST_INT_IMM.
+         * OP_LOAD_INT_IMM.
          */
         local = klr_build_local(bldr, c->ts, "");
-        insn = klr_build_const_int(bldr, local, (KlrValue *)c);
+        insn = klr_build_load_int_imm(bldr, local, (KlrValue *)c);
     } else {
         /* Large immediate: materialize via constant pool.
          * OP_LOCAL
-         * OP_CONST_LOAD.
+         * OP_LOADK.
          */
         local = klr_build_local(bldr, c->ts, "");
-        insn = klr_build_const_load(bldr, local, (KlrValue *)c);
+        insn = klr_build_loadk(bldr, local, (KlrValue *)c);
     }
 
     return local;
@@ -335,11 +335,11 @@ static void isel_lower_move_const(KlrInsn *insn, KlrFunc *fn)
     if (c->which == CONST_INT) {
         int64_t imm = c->ival;
         if (imm >= INT16_MIN && imm <= INT16_MAX) {
-            /* Small immediate: use OP_CONST_INT_IMM. */
-            insn->code = OP_CONST_INT_IMM;
+            /* Small immediate: use OP_LOAD_INT_IMM. */
+            insn->code = OP_LOAD_INT_IMM;
         } else {
             /* Large immediate: materialize via constant pool. */
-            insn->code = OP_CONST_LOAD;
+            insn->code = OP_LOADK;
         }
         return;
     }

@@ -81,11 +81,18 @@ func test_add(n int) int {
     return b
 }
 
+func test_big_int(n int) int {
+    var a = 66000
+    var b = n + a + 1
+    var c = b + 2
+    var d = c + 3
+    return d
+}
 
 func test_call(n int) int {
     var v = 10 < 20
     if v {
-        return test_add(10)
+        return test_add(66000)
     } else {
         return test_add(20)
     }

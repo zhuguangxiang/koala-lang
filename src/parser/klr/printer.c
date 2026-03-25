@@ -248,17 +248,17 @@ static void print_local_insn(KlrValue *local, FILE *fp)
     print_value_type(local, fp);
 }
 
-static void print_const_int(KlrInsn *insn, FILE *fp)
+static void print_load_int_imm(KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "const.int ");
+    fprintf(fp, "load_int_imm ");
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
     print_operand(&insn->opers[1], fp);
 }
 
-static void print_const_load(KlrInsn *insn, FILE *fp)
+static void print_loadk(KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "const.load ");
+    fprintf(fp, "loadk ");
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
     print_operand(&insn->opers[1], fp);
@@ -419,16 +419,16 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, "int.add_imm", fp);
             break;
 
-        case OP_CONST_INT_IMM:
-            print_const_int(insn, fp);
+        case OP_LOAD_INT_IMM:
+            print_load_int_imm(insn, fp);
             break;
 
         case OP_INT_ADD:
             print_binary(insn, "int.add", fp);
             break;
 
-        case OP_CONST_LOAD:
-            print_const_load(insn, fp);
+        case OP_LOADK:
+            print_loadk(insn, fp);
             break;
 
         case OP_INT_CMPLT_IMM:

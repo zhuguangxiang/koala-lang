@@ -137,16 +137,17 @@ void klr_erase_insn(KlrInsn *insn)
 /* no allocate register codes */
 static OpCode no_regs_codes[] = {
     OP_MOVE,
-    OP_CONST_INT_IMM,
-    OP_CONST_LOAD,
-    OP_CONST_VAL,
+    OP_LOAD_INT_IMM,
+    OP_LOADK,
+    OP_LOAD_TAG,
     OP_IR_JMP_COND,
     OP_PUSH,
-    OP_PUSH_VAL,
+    OP_PUSH_TAG,
     OP_PUSH_INT_IMM,
+    OP_PUSH_CONST,
     OP_RET,
     OP_RET_INT_IMM,
-    OP_RET_VAL,
+    OP_RET_TAG,
     OP_RET_CONST,
     OP_RET_VOID,
     OP_JMP,
@@ -426,7 +427,7 @@ KlrValue *klr_build_push_bool(KlrBuilder *bldr, KlrValue *val)
         panic("'push bool imm' requires a bool const value");
     }
 
-    KlrInsn *insn = new_insn(OP_PUSH_VAL, 1, "");
+    KlrInsn *insn = new_insn(OP_PUSH_TAG, 1, "");
     init_oper(&insn->opers[0], insn, val, 0);
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
@@ -444,9 +445,9 @@ KlrValue *klr_build_push_const(KlrBuilder *bldr, KlrValue *val)
     return (KlrValue *)insn;
 }
 
-KlrInsn *klr_build_const_int(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
+KlrInsn *klr_build_load_int_imm(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
 {
-    KlrInsn *insn = new_insn(OP_CONST_INT_IMM, 2, "");
+    KlrInsn *insn = new_insn(OP_LOAD_INT_IMM, 2, "");
     init_oper(&insn->opers[0], insn, var, 0);
     init_oper(&insn->opers[1], insn, val, 0);
     insn->ts = val->ts;
@@ -454,9 +455,9 @@ KlrInsn *klr_build_const_int(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
     return insn;
 }
 
-KlrInsn *klr_build_const_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
+KlrInsn *klr_build_loadk(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
 {
-    KlrInsn *insn = new_insn(OP_CONST_LOAD, 2, "");
+    KlrInsn *insn = new_insn(OP_LOADK, 2, "");
     init_oper(&insn->opers[0], insn, var, 0);
     init_oper(&insn->opers[1], insn, val, 0);
     insn->ts = val->ts;

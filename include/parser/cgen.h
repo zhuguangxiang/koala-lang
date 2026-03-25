@@ -54,7 +54,7 @@ typedef struct _KlMachModule {
  */
 typedef struct _KlMachFunc {
     /* Owning module context. */
-    KlMachModule *ctx;
+    KlMachModule *m;
 
     /* Basic blocks in final linearized order. */
     List bb_list;

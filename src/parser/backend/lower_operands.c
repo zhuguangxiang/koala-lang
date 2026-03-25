@@ -69,6 +69,36 @@ static void check_in_imm16(KlrConst *kc)
     }
 }
 
+static int get_const_index(KlrConst *kc, KlMachModule *m)
+{
+    int index = -1;
+
+    switch (kc->which) {
+        case CONST_INT: {
+            index = kl_mach_const_add_int(m, kc->ival);
+            break;
+        }
+        case CONST_UINT: {
+            index = kl_mach_const_add_uint(m, kc->ival);
+            break;
+        }
+        case CONST_FLT: {
+            index = kl_mach_const_add_float(m, kc->fval);
+            break;
+        }
+        case CONST_STR: {
+            index = kl_mach_const_add_str(m, kc->sval);
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+
+    return index;
+}
+
 static void lower_reg_reg(KlrInsn *insn)
 {
     KlrValue *lhs = insn_oper_value(insn, 0);
@@ -121,7 +151,68 @@ static void lower_call_opers(KlrInsn *insn, KlrFunc *fn)
     set_raw_func(&insn->raws[2], (KlrFunc *)fn_val);
 }
 
-static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
+{
+    switch (insn->code) {
+        case OP_MOVE: {
+            KlrValue *dst = insn_oper_value(insn, 0);
+            KlrValue *src = insn_oper_value(insn, 1);
+
+            ASSERT(klr_is_local(dst));
+            ASSERT(!klr_is_const(src));
+
+            /* move reg, reg */
+            set_raw_reg(&insn->raws[0], dst->vreg);
+            set_raw_reg(&insn->raws[1], src->vreg);
+            break;
+        }
+
+        case OP_LOAD_INT_IMM: {
+            KlrValue *dst = insn_oper_value(insn, 0);
+            KlrValue *imm_val = insn_oper_value(insn, 1);
+
+            ASSERT(klr_is_local(dst));
+            ASSERT(klr_is_const(imm_val));
+
+            KlrConst *kc = (KlrConst *)imm_val;
+            check_in_imm16(kc);
+            int64_t imm = kc->ival;
+
+            /* load reg, imm */
+            set_raw_reg(&insn->raws[0], dst->vreg);
+            set_raw_imm(&insn->raws[1], imm);
+            break;
+        }
+
+        case OP_LOAD_TAG: {
+            NYI();
+            break;
+        }
+
+        case OP_LOADK: {
+            KlrValue *dst = insn_oper_value(insn, 0);
+            KlrValue *cst = insn_oper_value(insn, 1);
+
+            ASSERT(klr_is_local(dst));
+            ASSERT(klr_is_const(cst));
+
+            KlrConst *kc = (KlrConst *)cst;
+
+            /* const_load reg, const_index */
+            set_raw_reg(&insn->raws[0], dst->vreg);
+            int index = get_const_index(kc, m);
+            set_raw_const(&insn->raws[1], index);
+            break;
+        }
+
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+}
+
+static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
 {
     switch (insn->code) {
         case OP_RET: {
@@ -132,20 +223,30 @@ static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
-            // case OP_RET_INT_IMM: {
-            //     lower_ret_operands_ret_int_imm(insn, fn);
-            //     break;
-            // }
+        case OP_RET_INT_IMM: {
+            KlrValue *ret = insn_oper_value(insn, 0);
+            ASSERT(klr_is_const(ret));
+            KlrConst *kc = (KlrConst *)ret;
+            check_in_imm16(kc);
+            int64_t imm = kc->ival;
+            /* ret imm */
+            set_raw_imm(&insn->raws[0], imm);
+            break;
+        }
 
-            // case OP_RET_VAL: {
-            //     lower_ret_operands_ret_val(insn, fn);
-            //     break;
-            // }
+        case OP_RET_TAG: {
+            NYI();
+            break;
+        }
 
-            // case OP_RET_CONST: {
-            //     lower_ret_operands_ret_const(insn, fn);
-            //     break;
-            // }
+        case OP_RET_CONST: {
+            KlrValue *ret = insn_oper_value(insn, 0);
+            ASSERT(klr_is_const(ret));
+            KlrConst *kc = (KlrConst *)ret;
+            int index = get_const_index(kc, m);
+            set_raw_const(&insn->raws[0], index);
+            break;
+        }
 
         case OP_RET_VOID: {
             /* no operands */
@@ -160,37 +261,7 @@ static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
-static void lower_move_opers(KlrInsn *insn, KlrFunc *fn)
-{
-    KlrValue *dst = insn_oper_value(insn, 0);
-    KlrValue *src = insn_oper_value(insn, 1);
-
-    ASSERT(klr_is_local(dst));
-    ASSERT(!klr_is_const(src));
-
-    /* move reg, reg */
-    set_raw_reg(&insn->raws[0], dst->vreg);
-    set_raw_reg(&insn->raws[1], src->vreg);
-}
-
-static void lower_move_int_imm_opers(KlrInsn *insn, KlrFunc *fn)
-{
-    KlrValue *dst = insn_oper_value(insn, 0);
-    KlrValue *imm_val = insn_oper_value(insn, 1);
-
-    ASSERT(klr_is_local(dst));
-    ASSERT(klr_is_const(imm_val));
-
-    KlrConst *kc = (KlrConst *)imm_val;
-    check_in_imm16(kc);
-    int64_t imm = kc->ival;
-
-    /* move reg, imm */
-    set_raw_reg(&insn->raws[0], dst->vreg);
-    set_raw_imm(&insn->raws[1], imm);
-}
-
-static void lower_push_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_push_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
 {
     KlrValue *src = insn_oper_value(insn, 0);
 
@@ -212,61 +283,21 @@ static void lower_push_opers(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
-            // case OP_PUSH_VAL:
-            // case OP_PUSH_CONST: {
-            //     /* push val/const */
-            //     KlrValue *val = insn_oper_value(insn, 0);
-            //     ASSERT(klr_is_const(val));
-            //     set_raw_const(&insn->raws[0], ((KlrConst *)val)->index);
-            //     break;
-            // }
+        case OP_PUSH_TAG: {
+            NYI();
+            break;
+        }
 
-        default: {
-            UNREACHABLE();
+        case OP_PUSH_CONST: {
+            /* push val/const */
+            KlrValue *val = insn_oper_value(insn, 0);
+            ASSERT(klr_is_const(val));
+            KlrConst *kc = (KlrConst *)val;
+            int index = get_const_index(kc, m);
+            set_raw_const(&insn->raws[0], index);
             break;
         }
     }
-}
-
-static void lower_const_load_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *ctx)
-{
-    KlrValue *dst = insn_oper_value(insn, 0);
-    KlrValue *cst = insn_oper_value(insn, 1);
-
-    ASSERT(klr_is_local(dst));
-    ASSERT(klr_is_const(cst));
-
-    KlrConst *kc = (KlrConst *)cst;
-
-    /* const_load reg, const_index */
-    set_raw_reg(&insn->raws[0], dst->vreg);
-
-    int index = -1;
-
-    switch (kc->which) {
-        case CONST_INT: {
-            index = kl_mach_const_add_int(ctx, kc->ival);
-            break;
-        }
-        case CONST_UINT: {
-            index = kl_mach_const_add_uint(ctx, kc->ival);
-            break;
-        }
-        case CONST_FLT: {
-            index = kl_mach_const_add_float(ctx, kc->fval);
-            break;
-        }
-        case CONST_STR: {
-            index = kl_mach_const_add_str(ctx, kc->sval);
-            break;
-        }
-        default: {
-            UNREACHABLE();
-            break;
-        }
-    }
-
-    set_raw_const(&insn->raws[1], index);
 }
 
 static inline int is_binary(OpCode op)
@@ -276,11 +307,11 @@ static inline int is_binary(OpCode op)
            (op >= OP_FLOAT_ADD && op <= OP_FLOAT_CMPG);
 }
 
+static inline int is_move(OpCode op) { return op >= OP_MOVE && op <= OP_LOADK; }
 static inline int is_return(OpCode op) { return op >= OP_RET && op <= OP_RET_VOID; }
-
 static inline int is_push(OpCode op) { return op >= OP_PUSH && op <= OP_PUSH_CONST; }
 
-void kl_lower_operands(KlrFunc *fn, KlMachModule *ctx)
+void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 {
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
@@ -291,13 +322,18 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *ctx)
                 continue;
             }
 
+            if (is_move(insn->code)) {
+                lower_move_opers(insn, fn, m);
+                continue;
+            }
+
             if (is_return(insn->code)) {
-                lower_ret_opers(insn, fn);
+                lower_ret_opers(insn, fn, m);
                 continue;
             }
 
             if (is_push(insn->code)) {
-                lower_push_opers(insn, fn);
+                lower_push_opers(insn, fn, m);
                 continue;
             }
 
@@ -307,26 +343,12 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *ctx)
                     break;
                 }
 
-                case OP_MOVE: {
-                    lower_move_opers(insn, fn);
-                    break;
-                }
-
-                case OP_CONST_INT_IMM: {
-                    lower_move_int_imm_opers(insn, fn);
-                    break;
-                }
-
-                case OP_CONST_LOAD: {
-                    lower_const_load_opers(insn, fn, ctx);
-                    break;
-                }
-
                 case OP_IR_LOCAL:
                 case OP_IR_JMP_COND:
                 case OP_JMP: {
-                    // fall-through, backend will handle these IR-specific instructions
-                    // with special patterns, so we don't lower them here.
+                    // fall-through, backend will handle these IR-specific
+                    // instructions with special patterns, so we don't lower
+                    // them here.
                     break;
                 }
 

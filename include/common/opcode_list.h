@@ -37,7 +37,7 @@ X(OP_NOP, FORMAT_Op)
 X(OP_MOVE, FORMAT_RxRx)
 
 /**
- * OP_CONST_INT_IMM — load immediate integer
+ * OP_LOAD_INT_IMM — load immediate integer
  *
  * FORMAT_RImm2:
  *     | op:8 | rd:8 | imm:16 |
@@ -45,10 +45,10 @@ X(OP_MOVE, FORMAT_RxRx)
  * Details:
  *     Loads a 16-bit signed integer immediate into register rd.
  */
-X(OP_CONST_INT_IMM, FORMAT_RImm2)
+X(OP_LOAD_INT_IMM, FORMAT_RImm2)
 
 /**
- * OP_CONST_VAL — load small tagged constant
+ * OP_LOAD_TAG — load small tagged constant
  *
  * FORMAT_RxImm:
  *     | op:8 | ---:4 | rd:12 | imm:8 |
@@ -60,10 +60,10 @@ X(OP_CONST_INT_IMM, FORMAT_RImm2)
  *         - none / null
  *     This avoids constant-pool lookup for common values.
  */
-X(OP_CONST_VAL, FORMAT_RxImm)
+X(OP_LOAD_TAG, FORMAT_RxImm)
 
 /**
- * OP_CONST_LOAD — load constant from constant pool
+ * OP_LOADK — load constant from constant pool
  *
  * FORMAT_RIdx2:
  *     | op:8 | rd:8 | idx:16 |
@@ -73,7 +73,7 @@ X(OP_CONST_VAL, FORMAT_RxImm)
  *         rd = CP[idx]
  *     Used for strings, floats, arrays, objects, and other large constants.
  */
-X(OP_CONST_LOAD, FORMAT_RIdx2)
+X(OP_LOADK, FORMAT_RIdx2)
 
 /*---------------------------------------------------------------+
  |  Integer Arithmetic Operations                                |
@@ -1092,7 +1092,7 @@ X(OP_PUSH, FORMAT_Rx)
 X(OP_PUSH_INT_IMM, FORMAT_Imm2)
 
 /**
- * OP_PUSH_VAL — push small tagged value (bool / special float / none)
+ * OP_PUSH_TAG — push small tagged value (bool / special float / none)
  *
  * FORMAT_Imm2:
  *     | op:8 | ---:8 | imm:16 |
@@ -1100,7 +1100,7 @@ X(OP_PUSH_INT_IMM, FORMAT_Imm2)
  * Details:
  *     Pushes a small tagged value (boolean, special float, or none) onto the stack.
  */
-X(OP_PUSH_VAL, FORMAT_Imm2)
+X(OP_PUSH_TAG, FORMAT_Imm2)
 
 /**
  * OP_PUSH_CONST — push constant pool entry onto the stack
@@ -1180,7 +1180,7 @@ X(OP_RET, FORMAT_Rx)
 X(OP_RET_INT_IMM, FORMAT_Imm2)
 
 /**
- * OP_RET_VAL — return small tagged value (bool / special float / none)
+ * OP_RET_TAG — return small tagged value (bool / special float / none)
  *
  * FORMAT_Imm2:
  *     | op:8 | ---:8 | imm:16 |
@@ -1188,7 +1188,7 @@ X(OP_RET_INT_IMM, FORMAT_Imm2)
  * Details:
  *     Returns a small tagged value to the caller.
  */
-X(OP_RET_VAL, FORMAT_Imm2)
+X(OP_RET_TAG, FORMAT_Imm2)
 
 /**
  * OP_RET_CONST — return constant pool entry
