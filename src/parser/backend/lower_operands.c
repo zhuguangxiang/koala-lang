@@ -191,7 +191,17 @@ static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
         }
 
         case OP_LOAD_TAG: {
-            NYI();
+            KlrValue *dst = insn_oper_value(insn, 0);
+            KlrValue *tag = insn_oper_value(insn, 1);
+
+            ASSERT(klr_is_local(dst));
+            ASSERT(klr_is_const(tag));
+
+            KlrConst *kc = (KlrConst *)tag;
+
+            /* load reg, tag */
+            set_raw_reg(&insn->raws[0], dst->vreg);
+            set_raw_imm(&insn->raws[1], kc->tag);
             break;
         }
 
@@ -241,7 +251,11 @@ static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
         }
 
         case OP_RET_TAG: {
-            NYI();
+            KlrValue *ret = insn_oper_value(insn, 0);
+            ASSERT(klr_is_const(ret));
+            KlrConst *kc = (KlrConst *)ret;
+            /* ret tag */
+            set_raw_imm(&insn->raws[0], kc->tag);
             break;
         }
 
@@ -290,15 +304,17 @@ static void lower_push_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
         }
 
         case OP_PUSH_TAG: {
-            NYI();
+            ASSERT(klr_is_const(src));
+            KlrConst *kc = (KlrConst *)src;
+            /* push tag */
+            set_raw_imm(&insn->raws[0], kc->tag);
             break;
         }
 
         case OP_PUSH_CONST: {
             /* push val/const */
-            KlrValue *val = insn_oper_value(insn, 0);
-            ASSERT(klr_is_const(val));
-            KlrConst *kc = (KlrConst *)val;
+            ASSERT(klr_is_const(src));
+            KlrConst *kc = (KlrConst *)src;
             int index = get_const_index(kc, m);
             set_raw_const(&insn->raws[0], index);
             break;

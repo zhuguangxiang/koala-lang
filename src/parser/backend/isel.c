@@ -4,6 +4,7 @@
  */
 
 #include "isel.h"
+#include <math.h>
 #include "log.h"
 
 #ifdef __cplusplus
@@ -111,58 +112,116 @@ BinaryRule *find_binary_rule(OpCode ir_op, TypeSpec *ts)
     return NULL;
 }
 
-static KlrValue *isel_build_int_literal(KlrBuilder *bldr, KlrConst *c)
-{
-    ASSERT(c->which == CONST_INT);
-    int64_t imm = c->ival;
-    KlrValue *local;
-    KlrInsn *insn;
+typedef struct _LowerConstRule {
+    OpCode imm_op;
+    OpCode tag_op;
+    OpCode load_op;
+    KlrValue *(*lower)(KlrConst *, KlrInsn *, OpCode);
+} LowerConstRule;
 
-    if (imm >= INT16_MIN && imm <= INT16_MAX) {
-        /* Small immediate:
-         * OP_LOCAL
-         * OP_LOAD_INT_IMM.
-         */
-        local = klr_build_local(bldr, c->ts, "");
-        insn = klr_build_load_int_imm(bldr, local, (KlrValue *)c);
-    } else {
-        /* Large immediate: materialize via constant pool.
-         * OP_LOCAL
-         * OP_LOADK.
-         */
-        local = klr_build_local(bldr, c->ts, "");
-        insn = klr_build_loadk(bldr, local, (KlrValue *)c);
+static KlrValue *lower_set_op_only(KlrConst *c, KlrInsn *insn, OpCode op)
+{
+    insn->code = op;
+    return NULL;
+}
+
+static KlrValue *do_lower_const(KlrConst *c, KlrInsn *insn, LowerConstRule *R)
+{
+    KlrValue *ret = NULL;
+
+    switch (c->which) {
+        case CONST_NONE: {
+            ret = R->lower(c, insn, R->tag_op);
+            c->spec_tag = TAG_NONE;
+            break;
+        }
+
+        case CONST_INT: {
+            int64_t imm = c->ival;
+            if (imm >= INT16_MIN && imm <= INT16_MAX) {
+                ret = R->lower(c, insn, R->imm_op);
+            } else {
+                ret = R->lower(c, insn, R->load_op);
+            }
+            break;
+        }
+
+        case CONST_UINT: {
+            uint64_t uimm = (uint64_t)c->ival;
+            if (uimm <= UINT16_MAX) {
+                ret = R->lower(c, insn, R->imm_op);
+            } else {
+                ret = R->lower(c, insn, R->load_op);
+            }
+            break;
+        }
+
+        case CONST_FLT: {
+            double v = c->fval;
+            if (v == 0.0) {
+                ret = R->lower(c, insn, R->tag_op);
+                c->spec_tag = signbit(v) ? TAG_FLOAT_NEG_ZERO : TAG_FLOAT_POS_ZERO;
+            } else if (isnan(v)) {
+                ret = R->lower(c, insn, R->tag_op);
+                c->spec_tag = TAG_FLOAT_NAN;
+            } else if (isinf(v)) {
+                ret = R->lower(c, insn, R->tag_op);
+                c->spec_tag = signbit(v) ? TAG_FLOAT_NEG_INF : TAG_FLOAT_POS_INF;
+            } else {
+                ret = R->lower(c, insn, R->load_op);
+            }
+            break;
+        }
+
+        case CONST_BOOL: {
+            ret = R->lower(c, insn, R->tag_op);
+            c->spec_tag = c->bval ? TAG_BOOL_TRUE : TAG_BOOL_FALSE;
+            break;
+        }
+
+        case CONST_STR: {
+            ret = R->lower(c, insn, R->load_op);
+            break;
+        }
+
+        default: {
+            UNREACHABLE();
+            break;
+        }
     }
 
+    return ret;
+}
+
+static KlrValue *lower_load_binary_const(KlrConst *c, KlrInsn *insn, OpCode op)
+{
+    KlrBuilder bldr;
+    klr_builder_before(&bldr, insn);
+
+#ifndef NDEBUG
+    int which = c->which;
+    if (op == OP_LOAD_INT_IMM) {
+        ASSERT(which == CONST_INT || which == CONST_UINT);
+    } else if (op == OP_LOADK) {
+        ASSERT(which == CONST_INT || which == CONST_UINT || which == CONST_FLT);
+    } else {
+        ASSERT(op == OP_LOAD_TAG);
+        ASSERT(which == CONST_FLT);
+    }
+#endif
+
+    KlrValue *local = klr_build_local(&bldr, c->ts, "");
+    klr_build_load(&bldr, local, (KlrValue *)c, op);
     return local;
 }
 
-KlrValue *isel_materialize_const(KlrFunc *fn, KlrInsn *at, KlrConst *c)
+static KlrValue *lower_binary_const(KlrFunc *fn, KlrInsn *at, KlrConst *c)
 {
     KlrModule *m = fn->module;
 
-    KlrBuilder bldr;
-    klr_builder_before(&bldr, at);
-
-    // materialize a constant into a register, and return the value
-    int which = c->which;
-
-    if (which == CONST_INT) {
-        return isel_build_int_literal(&bldr, c);
-        // } else if (which == CONST_FLT) {
-        //     return isel_build_float_literal(&bldr, c);
-        // } else if (which == CONST_BOOL) {
-        //     return isel_build_bool_literal(&bldr, c);
-        // } else if (which == CONST_STR) {
-        //     return isel_build_str_literal(&bldr, c);
-        // } else if (which == CONST_LIST) {
-        // } else if (which == CONST_TUPLE) {
-        // } else if (which == CONST_NONE) {
-        //     return isel_build_none_literal(&bldr, c);
-        // } else {
-    } else {
-        UNREACHABLE();
-    }
+    static LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK,
+                                lower_load_binary_const };
+    return do_lower_const(c, at, &R);
 }
 
 static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
@@ -221,7 +280,7 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         // - large int/uint comes here because it doesn't fit in the imm field
         // - float always comes here because float rules have allow_imm = 0
         // reg op reg
-        KlrValue *v = isel_materialize_const(fn, insn, rc);
+        KlrValue *v = lower_binary_const(fn, insn, rc);
         insn->code = R->reg_op;
         set_operand_at(insn, 1, v);
         return;
@@ -236,57 +295,35 @@ static inline int isel_is_binary(OpCode op)
     return (op >= OP_BINARY_ADD && op <= OP_BINARY_CMPGE);
 }
 
-static void isel_materialize_push_const(KlrBuilder *bldr, KlrConst *c)
+static KlrValue *lower_push_const(KlrConst *c, KlrInsn *insn, OpCode op)
 {
-    int which = c->which;
-
-    if (which == CONST_INT) {
-        int64_t imm = c->ival;
-        if (imm >= INT16_MIN && imm <= INT16_MAX) {
-            klr_build_push_int_imm(bldr, (KlrValue *)c);
-        } else {
-            klr_build_push_const(bldr, (KlrValue *)c);
-        }
-        // } else if (which == CONST_FLT) {
-        //     return isel_build_float_literal(&bldr, c);
-        // } else if (which == CONST_BOOL) {
-        //     return isel_build_bool_literal(&bldr, c);
-        // } else if (which == CONST_STR) {
-        //     return isel_build_str_literal(&bldr, c);
-        // } else if (which == CONST_LIST) {
-        // } else if (which == CONST_TUPLE) {
-        // } else if (which == CONST_NONE) {
-        //     return isel_build_none_literal(&bldr, c);
-        // } else {
-    } else if (which == CONST_BOOL) {
-        klr_build_push_bool(bldr, (KlrValue *)c);
-    } else if (which == CONST_STR) {
-        klr_build_push_const(bldr, (KlrValue *)c);
-    } else {
-        NYI();
-    }
+    KlrBuilder bldr;
+    klr_builder_before(&bldr, insn);
+    return (KlrValue *)klr_build_push(&bldr, (KlrValue *)c, op);
 }
 
-static void isel_lower_call_arg(KlrBuilder *bldr, KlrValue *arg)
+static void lower_call_arguemnt(KlrInsn *insn, KlrValue *arg)
 {
-    if (klr_is_const(arg)) {
-        KlrConst *c = (KlrConst *)arg;
-        isel_materialize_push_const(bldr, c);
-    } else {
-        KlrInsn *insn = klr_build_push(bldr, arg);
+    if (!klr_is_const(arg)) {
+        KlrBuilder bldr;
+        klr_builder_before(&bldr, insn);
+        klr_build_push(&bldr, arg, OP_PUSH);
+        return;
     }
+
+    KlrConst *c = (KlrConst *)arg;
+    static LowerConstRule R = { OP_PUSH_INT_IMM, OP_PUSH_TAG, OP_PUSH_CONST,
+                                lower_push_const };
+    do_lower_const(c, insn, &R);
 }
 
 static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
 {
     int nargs = insn->num_opers;
 
-    KlrBuilder bldr;
-    klr_builder_before(&bldr, insn);
-
     for (int i = 1; i < nargs; i++) {
         KlrValue *arg = insn_oper_value(insn, i);
-        isel_lower_call_arg(&bldr, arg);
+        lower_call_arguemnt(insn, arg);
     }
 
     for (int i = 1; i < nargs; i++) {
@@ -303,48 +340,13 @@ static void isel_lower_ret(KlrInsn *insn, KlrFunc *fn)
 {
     KlrValue *ret = insn_oper_value(insn, 0);
     ASSERT(klr_is_insn(ret) || klr_is_param(ret) || klr_is_const(ret));
-    if (klr_is_const(ret)) {
-        KlrConst *c = (KlrConst *)ret;
-        if (c->which == CONST_INT) {
-            int64_t imm = c->ival;
-            if (imm >= INT16_MIN && imm <= INT16_MAX) {
-                insn->code = OP_RET_INT_IMM;
-                return;
-            }
-        } else {
-            NYI();
-        }
-    }
 
-    // set_raw_oper_index(insn, 0, 0);
-}
+    if (!klr_is_const(ret)) return;
 
-static void isel_lower_move_const(KlrInsn *insn, KlrFunc *fn)
-{
-    KlrValue *dst = insn_oper_value(insn, 0);
-    KlrValue *src = insn_oper_value(insn, 1);
-
-    ASSERT(klr_is_local(dst));
-    ASSERT(klr_is_const(src));
-
-    KlrConst *c = (KlrConst *)src;
-
-    KlrBuilder bldr;
-    klr_builder_before(&bldr, insn);
-
-    if (c->which == CONST_INT) {
-        int64_t imm = c->ival;
-        if (imm >= INT16_MIN && imm <= INT16_MAX) {
-            /* Small immediate: use OP_LOAD_INT_IMM. */
-            insn->code = OP_LOAD_INT_IMM;
-        } else {
-            /* Large immediate: materialize via constant pool. */
-            insn->code = OP_LOADK;
-        }
-        return;
-    }
-
-    NYI();
+    KlrConst *c = (KlrConst *)ret;
+    static LowerConstRule R = { OP_RET_INT_IMM, OP_RET_TAG, OP_RET_CONST,
+                                lower_set_op_only };
+    do_lower_const(c, insn, &R);
 }
 
 static void isel_lower_move(KlrInsn *insn, KlrFunc *fn)
@@ -353,12 +355,27 @@ static void isel_lower_move(KlrInsn *insn, KlrFunc *fn)
     KlrValue *src = insn_oper_value(insn, 1);
 
     ASSERT(klr_is_local(dst));
+    ASSERT(klr_is_insn(src) || klr_is_param(src) || klr_is_const(src));
 
-    if (klr_is_const(src)) {
-        isel_lower_move_const(insn, fn);
-    } else {
-        ASSERT(klr_is_insn(src) || klr_is_param(src));
+    if (!klr_is_const(src)) return;
+
+    KlrConst *c = (KlrConst *)src;
+    static LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK,
+                                lower_set_op_only };
+    do_lower_const(c, insn, &R);
+}
+
+static void verify_insn(KlrInsn *insn)
+{
+    OpCode op = insn->code;
+
+    if ((op >= OP_BINARY_ADD && op <= OP_IR_PHI) || (op == OP_JMP) || (op == OP_RET) ||
+        (op == OP_RET_VOID) || (op == OP_MOVE) || (op == OP_GLOBAL_GET) ||
+        (op == OP_GLOBAL_SET)) {
+        return;
     }
+
+    panic("unexpected opcode in isel input sequence: %s", op_name(op));
 }
 
 static int klr_do_isel(KlrFunc *fn, void *data)
@@ -368,9 +385,10 @@ static int klr_do_isel(KlrFunc *fn, void *data)
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
         KlrInsn *insn;
-        insn_foreach_reverse(insn, bb) {
+        insn_foreach(insn, bb) {
             log_info("isel for insn:");
             log_insn(insn);
+            verify_insn(insn);
 
             if (isel_is_binary(insn->code)) {
                 isel_lower_binary(insn, fn);

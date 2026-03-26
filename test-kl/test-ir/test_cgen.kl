@@ -52,15 +52,15 @@ func test_nested_loop(n int) {
     }
 }
 
-var b = true
+// var b = true
 
-func foo2() {
-    if b {
-        print("true")
-    } else {
-        print("false")
-    }
-}
+// func foo2() {
+//     if b {
+//         print("true")
+//     } else {
+//         print("false")
+//     }
+// }
 
 func bar(n int) int {
     var v = 10 < 20

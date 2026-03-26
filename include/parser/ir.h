@@ -77,16 +77,26 @@ typedef struct _KlrValue {
 typedef struct _KlrConst {
     KLR_VALUE_HEAD
     HashMapEntry hnode;
-    // int index;
+
+    int spec_tag;
+#define TAG_FLOAT_NEG_ZERO 1
+#define TAG_FLOAT_POS_ZERO 2
+#define TAG_FLOAT_NAN      3
+#define TAG_FLOAT_NEG_INF  4
+#define TAG_FLOAT_POS_INF  5
+#define TAG_BOOL_FALSE     6
+#define TAG_BOOL_TRUE      7
+#define TAG_NONE           8
+
     int which;
-#define CONST_INT   1
-#define CONST_UINT  2
-#define CONST_FLT   3
-#define CONST_BOOL  4
-#define CONST_STR   5
-#define CONST_LIST  6
-#define CONST_TUPLE 7
-#define CONST_NONE  8
+#define CONST_NONE  1
+#define CONST_INT   2
+#define CONST_UINT  3
+#define CONST_FLT   4
+#define CONST_BOOL  5
+#define CONST_STR   6
+#define CONST_LIST  7
+#define CONST_TUPLE 8
     int len;
     union {
         uint64_t ival;
@@ -658,27 +668,15 @@ void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
 /* IR: ret */
 void klr_build_ret_void(KlrBuilder *bldr);
 
-/* IR: push %var */
-KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val);
+/* IR: push/push_int_imm/push_tag/push_const %var */
+KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val, OpCode op);
 
-/* IR: push_int_imm %var */
-KlrInsn *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val);
-
-/* IR: push_bool %var */
-KlrValue *klr_build_push_bool(KlrBuilder *bldr, KlrValue *val);
-
-/* IR: push_const cp-offset */
-KlrValue *klr_build_push_const(KlrBuilder *bldr, KlrValue *val);
+/* IR: %0 = load_int_imm/load_tag/loadk %var */
+KlrInsn *klr_build_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val, OpCode op);
 
 /* add a return instruction at the end of a basic block if it doesn't have one
  */
 void klr_add_last_return(KlrBasicBlock *bb);
-
-/* IR: %0 = load_int_imm */
-KlrInsn *klr_build_load_int_imm(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
-
-/* IR: %0 = loadk %var */
-KlrInsn *klr_build_loadk(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)

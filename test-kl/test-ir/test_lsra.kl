@@ -51,7 +51,7 @@ func test_while(n int) {
 // CHECK: %0: range: [4, 5) reg: 2
 // CHECK: %1: range: [6, 7) reg: 2
 // CHECK: 1: [R1] %i = local int64
-// CHECK: 2: [...] const.int %i int64, 0 int64
+// CHECK: 2: [...] load_int_imm %i int64, 0 int64
 // CHECK: 3: [...] jmp label %bb1
 // CHECK: 4: [R2] %0 = int.cmp_lt %i int64, %n int64
 // CHECK: 5: [...] branch %0 bool, label %bb2, label %bb3
@@ -77,7 +77,7 @@ func test_while2(n int) {
 // CHECK: %2: range: [9, 10) reg: 2
 
 // CHECK: 1: [R1] %i = local int64
-// CHECK: 2: [...] const.int %i int64, 0 int64
+// CHECK: 2: [...] load_int_imm %i int64, 0 int64
 // CHECK: 3: [...] jmp label %bb1
 
 // CHECK: 4: [R2] %0 = int.cmp_lt %i int64, %n int64
@@ -113,12 +113,12 @@ func test_nested_loop(n int) {
 // CHECK: %3: range: [16, 17) reg: 2
 
 // CHECK: 1: [R1] %i = local int64
-// CHECK: 2: [...] const.int %i int64, 0 int64
+// CHECK: 2: [...] load_int_imm %i int64, 0 int64
 // CHECK: 3: [...] jmp label %bb1
 // CHECK: 4: [R2] %0 = int.cmp_lt %i int64, %n int64
 // CHECK: 5: [...] branch %0 bool, label %bb2, label %bb6
 // CHECK: 6: [R2] %j = local int64
-// CHECK: 7: [...] const.int %j int64, 0 int64
+// CHECK: 7: [...] load_int_imm %j int64, 0 int64
 // CHECK: 8: [...] jmp label %bb3
 // CHECK: 9: [R3] %1 = int.cmp_lt %j int64, %i int64
 // CHECK: 10: [...] branch %1 bool, label %bb4, label %bb5

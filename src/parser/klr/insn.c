@@ -386,78 +386,30 @@ void klr_build_ret_void(KlrBuilder *bldr)
     klr_link_edge(bldr->bb, fn->ebb);
 }
 
-KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val)
+KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val, OpCode op)
 {
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
         val->kind != KLR_VALUE_PARAM) {
-        panic("'push %%v' requires a reg value or const");
+        panic("'push' op requires a reg value or const");
     }
 
-    KlrInsn *insn = new_insn(OP_PUSH, 1, "");
+    KlrInsn *insn = new_insn(op, 1, "");
     init_oper(&insn->opers[0], insn, val, 0);
     klr_append_insn(bldr, insn);
     return insn;
 }
 
-KlrInsn *klr_build_push_int_imm(KlrBuilder *bldr, KlrValue *val)
+KlrInsn *klr_build_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val, OpCode op)
 {
+    if (!klr_is_local(var)) {
+        panic("'load' op requires a local var");
+    }
+
     if (val->kind != KLR_VALUE_CONST) {
-        panic("'push int imm' requires a const value");
+        panic("'load' op requires a const value");
     }
 
-    KlrConst *c = (KlrConst *)val;
-    if (c->which != CONST_INT) {
-        panic("'push int imm' requires an int const value");
-    }
-
-    KlrInsn *insn = new_insn(OP_PUSH_INT_IMM, 1, "");
-    init_oper(&insn->opers[0], insn, val, 0);
-    klr_append_insn(bldr, insn);
-    return insn;
-}
-
-KlrValue *klr_build_push_bool(KlrBuilder *bldr, KlrValue *val)
-{
-    if (val->kind != KLR_VALUE_CONST) {
-        panic("'push bool imm' requires a const value");
-    }
-
-    KlrConst *c = (KlrConst *)val;
-    if (c->which != CONST_BOOL) {
-        panic("'push bool imm' requires a bool const value");
-    }
-
-    KlrInsn *insn = new_insn(OP_PUSH_TAG, 1, "");
-    init_oper(&insn->opers[0], insn, val, 0);
-    klr_append_insn(bldr, insn);
-    return (KlrValue *)insn;
-}
-
-KlrValue *klr_build_push_const(KlrBuilder *bldr, KlrValue *val)
-{
-    if (val->kind != KLR_VALUE_CONST) {
-        panic("'push_const' requires a const value");
-    }
-
-    KlrInsn *insn = new_insn(OP_PUSH_CONST, 1, "");
-    init_oper(&insn->opers[0], insn, val, 0);
-    klr_append_insn(bldr, insn);
-    return (KlrValue *)insn;
-}
-
-KlrInsn *klr_build_load_int_imm(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
-{
-    KlrInsn *insn = new_insn(OP_LOAD_INT_IMM, 2, "");
-    init_oper(&insn->opers[0], insn, var, 0);
-    init_oper(&insn->opers[1], insn, val, 0);
-    insn->ts = val->ts;
-    klr_append_insn(bldr, insn);
-    return insn;
-}
-
-KlrInsn *klr_build_loadk(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
-{
-    KlrInsn *insn = new_insn(OP_LOADK, 2, "");
+    KlrInsn *insn = new_insn(op, 2, "");
     init_oper(&insn->opers[0], insn, var, 0);
     init_oper(&insn->opers[1], insn, val, 0);
     insn->ts = val->ts;

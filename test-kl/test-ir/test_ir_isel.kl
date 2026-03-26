@@ -18,7 +18,7 @@ func foo(n int) int {
 
 // CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@foo] ---
 // CHECK-LABEL: func @foo(%n int64) int64
-// CHECK: const.int %0 int64, 500 int64
+// CHECK: load_int_imm %0 int64, 500 int64
 // CHECK: %1 = int.add %n int64, %0 int64
 // CHECK: %2 = int.add_imm %1 int64, 1 int64
 // CHECK: %3 = int.add_imm %2 int64, 2 int64
@@ -58,7 +58,7 @@ func test_while(n int) {
 // CHECK-LABEL: func @test_while(%n int64)
 // CHECK: %bb0(entry):
 // CHECK: %i = local int64
-// CHECK: const.int %i int64, 0 int64
+// CHECK: load_int_imm %i int64, 0 int64
 // CHECK: jmp label %bb1
 // CHECK: %bb1(while-cond):
 // CHECK: %0 = int.cmp_lt %i int64, %n int64
@@ -86,7 +86,7 @@ func test_nested_loop(n int) {
 // CHECK-LABEL: func @test_nested_loop(%n int64)
 
 // CHECK: %i = local int64
-// CHECK: const.int %i int64, 0 int64
+// CHECK: load_int_imm %i int64, 0 int64
 // CHECK: jmp label %bb1
 
 // CHECK: %0 = int.cmp_lt %i int64, %n int64
@@ -94,7 +94,7 @@ func test_nested_loop(n int) {
 
 
 // CHECK: %j = local int64
-// CHECK: const.int %j int64, 0 int64
+// CHECK: load_int_imm %j int64, 0 int64
 // CHECK: jmp label %bb4
 
 // CHECK: ret void
