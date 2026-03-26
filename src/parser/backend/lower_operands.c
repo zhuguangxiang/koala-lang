@@ -30,6 +30,12 @@ static inline void set_raw_const(KlrRawOper *r, int index)
     r->index = index;
 }
 
+static inline void set_raw_block(KlrRawOper *r, KlrBasicBlock *bb)
+{
+    r->kind = RAW_OPER_BLOCK;
+    r->ptr = bb;
+}
+
 static inline void set_raw_func(KlrRawOper *r, KlrFunc *fn)
 {
     r->kind = RAW_OPER_FUNC;
@@ -144,7 +150,7 @@ static void lower_binary_opers(KlrInsn *insn, KlrFunc *fn)
 static void lower_call_opers(KlrInsn *insn, KlrFunc *fn)
 {
     KlrValue *fn_val = insn_oper_value(insn, 0);
-    ASSERT(klr_is_func(fn_val));
+    ASSERT(klr_is_func(fn_val) || klr_is_extfunc(fn_val));
 
     set_raw_reg(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], insn->num_args);
@@ -300,6 +306,15 @@ static void lower_push_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
     }
 }
 
+static void lower_jmp_opers(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *target = insn_oper_value(insn, 0);
+    ASSERT(klr_is_block(target));
+
+    /* jmp target_bb */
+    set_raw_block(&insn->raws[0], (KlrBasicBlock *)target);
+}
+
 static inline int is_binary(OpCode op)
 {
     return (op >= OP_INT_ADD && op <= OP_INT_CMPGE_IMM) ||
@@ -343,9 +358,13 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                     break;
                 }
 
-                case OP_IR_LOCAL:
-                case OP_IR_JMP_COND:
                 case OP_JMP: {
+                    lower_jmp_opers(insn, fn);
+                    break;
+                }
+
+                case OP_IR_LOCAL:
+                case OP_IR_JMP_COND: {
                     // fall-through, backend will handle these IR-specific
                     // instructions with special patterns, so we don't lower
                     // them here.

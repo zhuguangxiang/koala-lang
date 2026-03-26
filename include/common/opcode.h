@@ -66,6 +66,7 @@ typedef enum {
     FORMAT_DATA,
     FORMAT_Op,
     FORMAT_CALL,
+    FORMAT_JMP,
     FORMAT_WIDE,
 
     /* single register */
@@ -86,7 +87,6 @@ typedef enum {
 
     /* no registers */
     FORMAT_Imm2,                // 16-bit immediate
-    FORMAT_Off2,                // 16-bit offset
     FORMAT_Idx2,                // 16-bit index
 } OpFormat;
 

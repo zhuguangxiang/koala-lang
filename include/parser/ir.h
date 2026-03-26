@@ -313,13 +313,14 @@ typedef struct _KlrRawOper {
         RAW_OPER_REG,
         RAW_OPER_IMM,
         RAW_OPER_CONST, // cp index
+        RAW_OPER_BLOCK, // block pointer
         RAW_OPER_FUNC,
     } kind;
     union {
         int vreg;
         int imm;
         int index; /* const/global index */
-        void *ptr; /* func pointer */
+        void *ptr; /* block/func pointer */
     };
 } KlrRawOper;
 
@@ -418,6 +419,12 @@ static inline int klr_is_block(KlrValue *val)
 static inline int klr_is_func(KlrValue *val)
 {
     if (val->kind == KLR_VALUE_FUNC) return 1;
+    return 0;
+}
+
+static inline int klr_is_extfunc(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_EXT_FUNC) return 1;
     return 0;
 }
 

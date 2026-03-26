@@ -26,7 +26,7 @@ typedef struct _KlMachModule {
     Vector funcs;
 
     /* Internal fixups for intra-module references (rel32 patches). */
-    Vector fixups_internal;
+    Vector fixups;
 
     /* remove duplicated import_entry */
     HashMap import_map;
@@ -64,6 +64,9 @@ typedef struct _KlMachFunc {
 
     /* Total number of machine instructions in this function. */
     int total_insns;
+
+    /* branches(jmp_cond) needed to be lowered */
+    Vector branches;
 
     /* Original IR-level function. */
     KlrFunc *origin;
@@ -123,7 +126,7 @@ typedef struct _KlMachInsn {
     KlMachBlock *bb;
 
     /* Lowered opcode after instruction selection. */
-    OpCode code;
+    OpCode op;
 
     /* Fixed 4-byte encoding format used by the final bytecode emitter. */
     OpFormat format;
@@ -139,6 +142,11 @@ typedef struct _KlMachInsn {
 
     /* import table index */
     int import_index;
+
+    /* fixup_flag */
+    int fixup_flag;
+#define KL_MACH_FIXUP_REL32  1
+#define KL_MACH_FIXUP_IMPORT 2
 
     /* Linearized instruction index (module-level absolute PC). */
     int pc;
@@ -179,6 +187,11 @@ typedef struct KlMachImport {
     const char *name;
 } KlMachImport;
 
+// clang-format off
+#define mach_insn_is(mi, a) ((mi)->op == (a))
+#define mach_insn_or(mi, a, b) (mach_insn_is(mi, a) || mach_insn_is(mi, b))
+// clang-format on
+
 #define NEXT_BLOCK(mb) list_next(mb, link, &(mb)->fn->bb_list)
 void kl_lower_operands(KlrFunc *fn, KlMachModule *ctx);
 void kl_module_cgen(KlrModule *module);
@@ -187,7 +200,6 @@ int kl_mach_const_add_int(KlMachModule *ctx, int64_t v);
 int kl_mach_const_add_uint(KlMachModule *ctx, uint64_t v);
 int kl_mach_const_add_float(KlMachModule *ctx, double v);
 int kl_mach_const_add_str(KlMachModule *ctx, char *s);
-int kl_mach_import_add(KlMachModule *ctx, char *path, char *name);
 
 #ifdef __cplusplus
 }

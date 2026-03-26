@@ -807,13 +807,13 @@ X(OP_LNOT, FORMAT_RxRx)
 /**
  * OP_JMP — unconditional jump
  *
- * FORMAT_Off2:
+ * FORMAT_JMP:
  *     | op:8 | -----:8 | offset:16 |
  *
  * Details:
  *     Unconditionally jumps: pc += offset.
  */
-X(OP_JMP, FORMAT_Off2)
+X(OP_JMP, FORMAT_JMP)
 
 /**
  * OP_JMP_TRUE — conditional jump if true
