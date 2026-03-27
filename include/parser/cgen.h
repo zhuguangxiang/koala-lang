@@ -194,7 +194,7 @@ typedef struct KlMachImport {
 
 #define NEXT_BLOCK(mb) list_next(mb, link, &(mb)->fn->bb_list)
 void kl_lower_operands(KlrFunc *fn, KlMachModule *ctx);
-void kl_module_cgen(KlrModule *module);
+void kl_do_codegen(KlrModule *module);
 
 int kl_mach_const_add_int(KlMachModule *ctx, int64_t v);
 int kl_mach_const_add_uint(KlMachModule *ctx, uint64_t v);

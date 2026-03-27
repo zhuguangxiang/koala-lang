@@ -6,13 +6,13 @@
 #ifndef _KOALA_ISEL_H_
 #define _KOALA_ISEL_H_
 
-#include "pass.h"
+#include "ir.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void build_isel_pm(KlrPassManager *pm, int dump);
+void kl_do_isel(KlrModule *m);
 
 #ifdef __cplusplus
 }

@@ -2636,43 +2636,6 @@ void free_parser_state(ParserState *ps)
     mm_free(ps);
 }
 
-static void run_func_passes(KlrFunc *fn)
-{
-    if (opt.enable_opt) {
-        KlrPassManager pm;
-        pm_init(&pm, "opt-pass");
-        build_opt_pm(&pm, opt_dump_has(opt, DUMP_OPT_IR));
-        pm.run(fn, &pm);
-        pm_fini(&pm);
-    }
-
-    if (opt.enable_isel) {
-        KlrPassManager pm;
-        pm_init(&pm, "isel-pass");
-        build_isel_pm(&pm, opt_dump_has(opt, DUMP_LIR));
-        pm.run(fn, &pm);
-        pm_fini(&pm);
-    }
-
-    if (opt.regalloc == 2) {
-        KlrPassManager pm;
-        pm_init(&pm, "lsra-pass");
-        build_lsra_pm(&pm, opt_dump_has(opt, DUMP_VREG));
-        pm.run(fn, &pm);
-        pm_fini(&pm);
-    }
-
-    // if (opt.enable_cgen) {
-    //     KlrPassManager pm;
-    //     pm_init(&pm, "cgen-pass");
-    //     build_cgen_pm(&pm, opt_dump_has(opt, DUMP_CGEN));
-    //     pm.run(fn, &pm);
-    //     pm_fini(&pm);
-    // }
-}
-
-void kl_module_cgen(KlrModule *m);
-
 int do_compile(Vector *pss, char *output)
 {
     int errors = 0;
@@ -2691,13 +2654,20 @@ int do_compile(Vector *pss, char *output)
 
     KlrModule *m = ps->module;
 
-    KlrFunc *fn;
-    vector_foreach(fn, &m->functions) {
-        run_func_passes(fn);
+    if (opt_enabled()) {
+        kl_optimize(m);
     }
 
-    if (opt.enable_cgen) {
-        kl_module_cgen(m);
+    if (isel_enabled()) {
+        kl_do_isel(m);
+    }
+
+    if (lsra_enabled()) {
+        kl_do_lsra(m);
+    }
+
+    if (cgen_enabled()) {
+        kl_do_codegen(m);
     }
 
     write_to_klc(current, output);

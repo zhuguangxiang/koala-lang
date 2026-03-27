@@ -4,6 +4,8 @@
  */
 
 #include "opt.h"
+#include "cmd.h"
+#include "pass.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,18 +38,22 @@ static KlrPass cfg_merge_block_pass = {
     .run = klr_merge_block,
 };
 
-static KlrPassManager cfg_bb_opt_pm;
-
 /* dce */
 static KlrPass dce_pass = {
     .name = "dead-code-elimination",
     .run = klr_dce_pass,
 };
 
-void build_opt_pm(KlrPassManager *pm, int dump)
+void kl_optimize(KlrModule *m)
 {
-    pm_add_pass(pm, &const_copy_prop_pass, dump);
+    int dump = dump_opt_ir_enabled();
 
+    KlrPassManager pm;
+    pm_init(&pm, "opt_pass");
+
+    pm_add_pass(&pm, &const_copy_prop_pass, dump);
+
+    KlrPassManager cfg_bb_opt_pm;
     pm_init(&cfg_bb_opt_pm, "cfg_bb_opt_pass");
 
     pm_add_pass(&cfg_bb_opt_pm, &cfg_remove_only_jump_pass, 0);
@@ -55,9 +61,18 @@ void build_opt_pm(KlrPassManager *pm, int dump)
     pm_add_pass(&cfg_bb_opt_pm, &cfg_remove_unused_pass, 0);
     pm_add_pass(&cfg_bb_opt_pm, &cfg_merge_block_pass, 0);
 
-    pm_add_pm_as_pass(pm, &cfg_bb_opt_pm, dump);
+    pm_add_pm_as_pass(&pm, &cfg_bb_opt_pm, dump);
 
-    pm_add_pass(pm, &dce_pass, dump);
+    pm_add_pass(&pm, &dce_pass, dump);
+
+    KlrFunc *fn;
+    vector_foreach(fn, &m->functions) {
+        if (!fn) continue;
+        pm.run(fn, &pm);
+    }
+
+    pm_fini(&cfg_bb_opt_pm);
+    pm_fini(&pm);
 }
 
 #ifdef __cplusplus

@@ -28,8 +28,8 @@ static int pm_run(KlrFunc *fn, void *data)
             int pass_changed = p->run(fn, p->data);
 
             if (p->dump) {
-                fprintf(stdout, "--- IR Dump After %s (Iter %d) [@%s] ---\n",
-                        p->name, iteration, fn->name);
+                fprintf(stdout, "--- IR Dump After %s (Iter %d) [@%s] ---\n", p->name,
+                        iteration, fn->name);
                 klr_print_func(fn, stdout);
             }
 

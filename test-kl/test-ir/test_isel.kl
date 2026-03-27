@@ -1,4 +1,4 @@
-// RUN: koalac %s --opt --isel --dump=opt-ir,lir | filecheck %s
+// RUN: koalac %s --isel --dump=opt-ir,lir | filecheck %s
 
 func foo(n int) int {
     let a = 500
@@ -16,7 +16,7 @@ func foo(n int) int {
 // CHECK: %3 = add %2 int64, 3 int64
 // CHECK: ret %3 int64
 
-// CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@foo] ---
+// CHECK-LABEL: --- IR Dump After isel [@foo] ---
 // CHECK-LABEL: func @foo(%n int64) int64
 // CHECK: load_int_imm %0 int64, 500 int64
 // CHECK: %1 = int.add %n int64, %0 int64
@@ -30,7 +30,7 @@ func fib(n int) int {
     return fib(n - 1) + fib(n - 2)
 }
 
-// CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@fib] ---
+// CHECK-LABEL: --- IR Dump After isel [@fib] ---
 // CHECK-LABEL: func @fib(%n int64) int64
 // CHECK: %bb0(entry):
 // CHECK: %0 = int.cmp_lt_imm %n int64, 2 int64
@@ -54,7 +54,7 @@ func test_while(n int) {
     }
 }
 
-// CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@test_while] ---
+// CHECK-LABEL: --- IR Dump After isel [@test_while] ---
 // CHECK-LABEL: func @test_while(%n int64)
 // CHECK: %bb0(entry):
 // CHECK: %i = local int64
@@ -82,7 +82,7 @@ func test_nested_loop(n int) {
     }
 }
 
-// CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@test_nested_loop] ---
+// CHECK-LABEL: --- IR Dump After isel [@test_nested_loop] ---
 // CHECK-LABEL: func @test_nested_loop(%n int64)
 
 // CHECK: %i = local int64
@@ -122,7 +122,7 @@ func foo2() {
     }
 }
 
-// CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@foo2] ---
+// CHECK-LABEL: --- IR Dump After isel [@foo2] ---
 // CHECK-LABEL: func @foo2()
 
 // CHECK: %0 = get_global @b bool
@@ -147,13 +147,13 @@ func bar(n int) int {
     }
 }
 
-// CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@bar] ---
+// CHECK-LABEL: --- IR Dump After isel [@bar] ---
 // CHECK-LABEL: func @bar(%n int64) int64
 // CHECK: ret_int_imm 1 int64
 
 func bar2(n int) {
 }
 
-// CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@bar2] ---
+// CHECK-LABEL: --- IR Dump After isel [@bar2] ---
 // CHECK-LABEL: func @bar2(%n int64)
 // CHECK: ret void

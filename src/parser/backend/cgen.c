@@ -1007,7 +1007,7 @@ static void init_mach_context(KlMachModule *m, KlrModule *origin)
     m->pc = 0;
 }
 
-void kl_module_cgen(KlrModule *origin)
+void kl_do_codegen(KlrModule *origin)
 {
     KlMachModule m;
     init_mach_context(&m, origin);

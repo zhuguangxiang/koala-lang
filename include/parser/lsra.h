@@ -42,7 +42,7 @@ typedef struct _KlrLSRAContext {
     int last_pos;
 } KlrLSRAContext;
 
-void build_lsra_pm(KlrPassManager *pm, int dump);
+void kl_do_lsra(KlrModule *m);
 
 #ifdef __cplusplus
 }

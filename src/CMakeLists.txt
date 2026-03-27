@@ -26,7 +26,6 @@ set(PARSER_SRC
     parser/write_klc.c
     parser/read_klc.c
     parser/irgen.c
-    parser/pass.c
     parser/klr/ir.c
     parser/klr/insn.c
     parser/klr/printer.c
@@ -37,7 +36,8 @@ set(PARSER_SRC
     parser/opt/const_copy_prop.c
     parser/opt/dce.c
     parser/opt/cfg_bb_opt.c
-    parser/opt/opt_passes.c
+    parser/opt/opt.c
+    parser/opt/pass.c
     )
 
 add_library(parser STATIC ${PARSER_SRC})

@@ -303,7 +303,7 @@ static void klr_lsra_run(KlrFunc *func)
     /* perform linear scan register allocation */
     klr_scan_and_alloc(&ctx);
 
-    if (opt_dump_has(opt, DUMP_VREG)) {
+    if (dump_vreg_enabled()) {
         klr_lsra_dump(&ctx);
     }
 
@@ -311,19 +311,14 @@ static void klr_lsra_run(KlrFunc *func)
     vector_fini(&ctx.intervals);
 }
 
-static int klr_do_lsra(KlrFunc *func, void *data)
+void kl_do_lsra(KlrModule *m)
 {
-    klr_build_rpo(func);
-    klr_lsra_run(func);
-    return 0;
+    KlrFunc *fn;
+    vector_foreach(fn, &m->functions) {
+        klr_build_rpo(fn);
+        klr_lsra_run(fn);
+    }
 }
-
-static KlrPass lsra_pass = {
-    .name = "lsra-pass",
-    .run = klr_do_lsra,
-};
-
-void build_lsra_pm(KlrPassManager *pm, int dump) { pm_add_pass(pm, &lsra_pass, dump); }
 
 #ifdef __cplusplus
 }

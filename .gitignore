@@ -16,3 +16,4 @@ perf.data
 perf.data.old
 test_shm_open
 test_shm_read
+examples/*.klc

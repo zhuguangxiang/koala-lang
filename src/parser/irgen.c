@@ -244,13 +244,13 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
     klr_builder_end(&bldr, ps->scope->bb);
 
     if (op >= BINARY_GT && op <= BINARY_NEQ) {
-        KlrValue *res = klr_build_cmp(&bldr, lhs->ir_val, rhs->ir_val,
-                                      get_binary_op_code(op), "");
+        KlrValue *res =
+            klr_build_cmp(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op), "");
         exp->ir_val = res;
     } else {
-        KlrValue *res = klr_build_binary(&bldr, lhs->ir_val, rhs->ir_val,
-                                         get_binary_op_code(op), "",
-                                         get_binary_op_name(op));
+        KlrValue *res =
+            klr_build_binary(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op), "",
+                             get_binary_op_name(op));
         exp->ir_val = res;
     }
 }
@@ -390,7 +390,7 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     KlrBasicBlock *last = scope->bb;
     klr_add_last_return(last);
 
-    if (opt_dump_has(opt, DUMP_IR)) {
+    if (dump_ir_enabled()) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
         klr_print_func((KlrFunc *)sym->ir_val, stdout);
     }
@@ -481,8 +481,7 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
     exit_scope(ps);
 
     if (s->_else) {
-        ParserScope *_sc =
-            enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "else-block");
+        ParserScope *_sc = enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "else-block");
         _sc->bb = if_else;
 
         if (s->_else->kind == STMT_BLOCK_KIND) {
@@ -766,7 +765,7 @@ void kl_gen_ir(ParserState *ps)
     KlrBasicBlock *last = scope->bb;
     klr_add_last_return(last);
 
-    if (opt_dump_has(opt, DUMP_IR)) {
+    if (dump_ir_enabled()) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
         klr_print_func((KlrFunc *)fn, stdout);
     }

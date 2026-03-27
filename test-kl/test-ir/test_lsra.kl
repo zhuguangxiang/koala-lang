@@ -1,4 +1,4 @@
-// RUN: koalac %s --opt --isel --regalloc=lsra --dump=vreg | filecheck %s
+// RUN: koalac %s --lsra --dump=vreg | filecheck %s
 
 func test_reuse(a int) int {
     let b = a + 10

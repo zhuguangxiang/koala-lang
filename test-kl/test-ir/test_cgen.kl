@@ -1,4 +1,4 @@
-// SKIP: koalac %s --opt --isel --regalloc=lsra --cgen --dump=vreg,cgen | filecheck %s
+// RUN: koalac %s --cgen --dump=cgen | filecheck %s
 
 func foo(n int) int {
     let a = 500
@@ -8,22 +8,13 @@ func foo(n int) int {
     return c
 }
 
-// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@foo] ---
-// CHECK-LABEL: func @foo(%n int64) int64
-// CHECK: %0 = add %n int64, 500 int64
-// CHECK: %1 = add %0 int64, 1 int64
-// CHECK: %2 = add %1 int64, 2 int64
-// CHECK: %3 = add %2 int64, 3 int64
-// CHECK: ret %3 int64
-
-// CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@foo] ---
-// CHECK-LABEL: func @foo(%n int64) int64
-// CHECK: %0 = const.int_imm 500 int64
-// CHECK: %1 = int.add %n int64, %0 int64
-// CHECK: %2 = int.add_imm %1 int64, 1 int64
-// CHECK: %3 = int.add_imm %2 int64, 2 int64
-// CHECK: %4 = int.add_imm %3 int64, 3 int64
-// CHECK: ret %4 int64
+// CHECK-LABEL: ====== Linearization @foo(start_pc: 1, insns: 6) ======
+// CHECK: 1:  load_int_imm r1, #500
+// CHECK: 2:  int.add r0, r0, r1
+// CHECK: 3:  int.add_imm r0, r0, #1
+// CHECK: 4:  int.add_imm r0, r0, #2
+// CHECK: 5:  int.add_imm r0, r0, #3
+// CHECK: 6:  ret r0
 
 
 func fib(n int) int {
@@ -31,7 +22,20 @@ func fib(n int) int {
     return fib(n - 1) + fib(n - 2)
 }
 
-// CHECK-LABEL: --- IR Dump After isel-pass (Iter 1) [@fib] ---
+// CHECK-LABEL: ====== Linearization @fib(start_pc: 7, insns: 13) ======
+// CHECK: 7:  int.cmplt_imm r1, r0, #2
+// CHECK: 8:  jmp_false r1, 1              ;; -> %bb-1(if-end)
+// CHECK: 9:  ret r0
+// CHECK: 10:  int.sub_imm r1, r0, #1
+// CHECK: 11:  push r1
+// CHECK: 12:  call flg=0, r1, #1
+// CHECK: 13:  data
+// CHECK: 14:  int.sub_imm r0, r0, #2
+// CHECK: 15:  push r0
+// CHECK: 16:  call flg=0, r0, #1
+// CHECK: 17:  data
+// CHECK: 18:  int.add r0, r1, r0
+// CHECK: 19:  ret r0
 
 func test_while(n int) {
     var i = 0
@@ -39,6 +43,23 @@ func test_while(n int) {
         i = i + 1
     }
 }
+
+// CHECK-LABEL: ====== Linearization @test_while(start_pc: 20, insns: 8) ======
+// CHECK: %bb-1(entry):
+// CHECK: 20:  load_int_imm r1, #0
+// CHECK: 21:  jmp 0                        ;; -> %bb-1(while-cond)
+
+// CHECK: %bb-1(while-cond):
+// CHECK: 22:  int.cmplt r2, r1, r0
+// CHECK: 23:  jmp_false r2, 3              ;; -> %bb-1(while-end)
+
+// CHECK: %bb-1(while-body):
+// CHECK: 24:  int.add_imm r2, r1, #1
+// CHECK: 25:  move r1, r2
+// CHECK: 26:  jmp -5                       ;; -> %bb-1(while-cond)
+
+// CHECK: %bb-1(while-end):
+// CHECK: 27:  ret_void
 
 func test_nested_loop(n int) {
     var i = 0
@@ -51,6 +72,41 @@ func test_nested_loop(n int) {
         i = i + 1
     }
 }
+
+// CHECK-LABEL: ====== Linearization @test_nested_loop(start_pc: 28, insns: 18) ======
+
+// CHECK: %bb-1(entry):
+// CHECK: 28:  load_int_imm r1, #0
+// CHECK: 29:  jmp 0                        ;; -> %bb-1(while-cond)
+
+// CHECK: %bb-1(while-cond):
+// CHECK: 30:  int.cmplt r2, r1, r0
+// CHECK: 31:  jmp_false r2, 13             ;; -> %bb-1(while-end)
+
+// CHECK: %bb-1(while-body):
+// CHECK: 32:  load_int_imm r2, #0
+// CHECK: 33:  jmp 0                        ;; -> %bb-1(while-cond)
+
+// CHECK: %bb-1(while-cond):
+// CHECK: 34:  int.cmplt r3, r2, r1
+// CHECK: 35:  jmp_false r3, 6              ;; -> %bb-1(while-end)
+
+// CHECK: %bb-1(while-body):
+// CHECK: 36:  push r2
+// CHECK: 37:  call flg=1, #1
+// CHECK: 38:  data
+// CHECK: 39:  int.add_imm r3, r2, #1
+// CHECK: 40:  move r2, r3
+// CHECK: 41:  jmp -8                       ;; -> %bb-1(while-cond)
+
+// CHECK: %bb-1(while-end):
+// CHECK: 42:  int.add_imm r2, r1, #1
+// CHECK: 43:  move r1, r2
+// CHECK: 44:  jmp -15                      ;; -> %bb-1(while-cond)
+
+// CHECK: %bb-1(while-end):
+// CHECK: 45:  ret_void
+
 
 // var b = true
 
@@ -81,6 +137,14 @@ func test_add(n int) int {
     return b
 }
 
+// CHECK-LABEL: ====== Linearization @test_add(start_pc: 48, insns: 4) ======
+
+// CHECK: %bb-1(entry):
+// CHECK: 48:  load_int_imm r1, #500
+// CHECK: 49:  int.add r0, r0, r1
+// CHECK: 50:  int.add_imm r0, r0, #1
+// CHECK: 51:  ret r0
+
 func test_big_int(n int) int {
     var a = 66000
     var b = n + a + 1
@@ -88,6 +152,16 @@ func test_big_int(n int) int {
     var d = c + 3
     return d
 }
+
+// CHECK-LABEL: ====== Linearization @test_big_int(start_pc: 52, insns: 6) ======
+
+// CHECK: %bb-1(entry):
+// CHECK: 52:  loadk r1, #0
+// CHECK: 53:  int.add r0, r0, r1
+// CHECK: 54:  int.add_imm r0, r0, #1
+// CHECK: 55:  int.add_imm r0, r0, #2
+// CHECK: 56:  int.add_imm r0, r0, #3
+// CHECK: 57:  ret r0
 
 func test_call(n int) int {
     var v = 10 < 20
@@ -97,3 +171,120 @@ func test_call(n int) int {
         return test_add(20)
     }
 }
+// CHECK-LABEL: ====== Linearization @test_call(start_pc: 58, insns: 4) ======
+
+// CHECK: %bb-1(entry):
+// CHECK: 58:  push_const #0
+// CHECK: 59:  call flg=0, r0, #1
+// CHECK: 60:  data
+// CHECK: 61:  ret r0
+
+// CHECK-LABEL: ====== Emitted Bytecode (insns: 62) ======
+
+// CHECK: @__init__:
+// CHECK: [start_pc: 0, insns: 1]
+
+// CHECK: @foo:
+// CHECK: [start_pc: 1, insns: 6]
+
+// CHECK: @fib:
+// CHECK: [start_pc: 7, insns: 13]
+
+// CHECK: @test_while:
+// CHECK: [start_pc: 20, insns: 8]
+
+// CHECK: @test_nested_loop:
+// CHECK: [start_pc: 28, insns: 18]
+
+// CHECK: @bar:
+// CHECK: [start_pc: 46, insns: 1]
+
+// CHECK: @bar2:
+// CHECK: [start_pc: 47, insns: 1]
+
+// CHECK: @test_add:
+// CHECK: [start_pc: 48, insns: 4]
+
+// CHECK: @test_big_int:
+// CHECK: [start_pc: 52, insns: 6]
+
+// CHECK: @test_call:
+// CHECK: [start_pc: 58, insns: 4]
+
+// CHECK: @__init__[0,0]:
+// CHECK: 0000:  62000000   ret_void
+// CHECK: @foo[1,6]:
+// CHECK: 0001:  020101F4   load_int_imm r1, #500
+// CHECK: 0002:  05000001   int.add r0, r0, r1
+// CHECK: 0003:  06000001   int.add_imm r0, r0, #1
+// CHECK: 0004:  06000002   int.add_imm r0, r0, #2
+// CHECK: 0005:  06000003   int.add_imm r0, r0, #3
+// CHECK: 0006:  5E000000   ret r0
+// CHECK: @fib[7,19]:
+// CHECK: 0007:  1E010002   int.cmplt_imm r1, r0, #2
+// CHECK: 0008:  44010001   jmp_false r1, 1
+// CHECK: 0009:  5E000000   ret r0
+// CHECK: 0010:  08010001   int.sub_imm r1, r0, #1
+// CHECK: 0011:  59000001   push r1
+// CHECK: 0012:  5D000101   call flg=0, r1, #1
+// CHECK: 0013:  FFFFFFF9   data (rel32=-7)
+// CHECK: 0014:  08000002   int.sub_imm r0, r0, #2
+// CHECK: 0015:  59000000   push r0
+// CHECK: 0016:  5D000001   call flg=0, r0, #1
+// CHECK: 0017:  FFFFFFF5   data (rel32=-11)
+// CHECK: 0018:  05000100   int.add r0, r1, r0
+// CHECK: 0019:  5E000000   ret r0
+// CHECK: @test_while[20,27]:
+// CHECK: 0020:  02010000   load_int_imm r1, #0
+// CHECK: 0021:  42000000   jmp 0
+// CHECK: 0022:  1D020100   int.cmplt r2, r1, r0
+// CHECK: 0023:  44020003   jmp_false r2, 3
+// CHECK: 0024:  06020101   int.add_imm r2, r1, #1
+// CHECK: 0025:  01001002   move r1, r2
+// CHECK: 0026:  4200FFFB   jmp -5
+// CHECK: 0027:  62000000   ret_void
+// CHECK: @test_nested_loop[28,45]:
+// CHECK: 0028:  02010000   load_int_imm r1, #0
+// CHECK: 0029:  42000000   jmp 0
+// CHECK: 0030:  1D020100   int.cmplt r2, r1, r0
+// CHECK: 0031:  4402000D   jmp_false r2, 13
+// CHECK: 0032:  02020000   load_int_imm r2, #0
+// CHECK: 0033:  42000000   jmp 0
+// CHECK: 0034:  1D030201   int.cmplt r3, r2, r1
+// CHECK: 0035:  44030006   jmp_false r3, 6
+// CHECK: 0036:  59000002   push r2
+// CHECK: 0037:  5D1FFF01   call flg=1, #1
+// CHECK: 0038:  00000000   data (import_index=0)
+// CHECK: 0039:  06030201   int.add_imm r3, r2, #1
+// CHECK: 0040:  01002003   move r2, r3
+// CHECK: 0041:  4200FFF8   jmp -8
+// CHECK: 0042:  06020101   int.add_imm r2, r1, #1
+// CHECK: 0043:  01001002   move r1, r2
+// CHECK: 0044:  4200FFF1   jmp -15
+// CHECK: 0045:  62000000   ret_void
+// CHECK: @bar[46,46]:
+// CHECK: 0046:  5F000001   ret_int_imm #1
+// CHECK: @bar2[47,47]:
+// CHECK: 0047:  62000000   ret_void
+// CHECK: @test_add[48,51]:
+// CHECK: 0048:  020101F4   load_int_imm r1, #500
+// CHECK: 0049:  05000001   int.add r0, r0, r1
+// CHECK: 0050:  06000001   int.add_imm r0, r0, #1
+// CHECK: 0051:  5E000000   ret r0
+// CHECK: @test_big_int[52,57]:
+// CHECK: 0052:  04010000   loadk r1, #0
+// CHECK: 0053:  05000001   int.add r0, r0, r1
+// CHECK: 0054:  06000001   int.add_imm r0, r0, #1
+// CHECK: 0055:  06000002   int.add_imm r0, r0, #2
+// CHECK: 0056:  06000003   int.add_imm r0, r0, #3
+// CHECK: 0057:  5E000000   ret r0
+// CHECK: @test_call[58,61]:
+// CHECK: 0058:  5C000000   push_const #0
+// CHECK: 0059:  5D000001   call flg=0, r0, #1
+// CHECK: 0060:  FFFFFFF3   data (rel32=-13)
+// CHECK: 0061:  5E000000   ret r0
+
+// CHECK: Constant Pool:
+// CHECK:   #0: int: 66000
+// CHECK: Import Table:
+// CHECK:   #0: std/builtin.print

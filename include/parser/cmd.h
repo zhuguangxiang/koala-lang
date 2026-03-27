@@ -23,14 +23,23 @@ typedef enum _DumpFlags {
 typedef struct _CompileOptions {
     int enable_opt;
     int enable_isel;
+    int enable_lsra;
     int enable_cgen;
-    int regalloc;
     DumpFlags dump;
 } CompileOptions;
 
-#define opt_dump_has(opt, flag) (((opt).dump & (flag)) != 0)
+extern CompileOptions cmd_opt;
 
-extern CompileOptions opt;
+#define opt_enabled()  (cmd_opt.enable_opt)
+#define isel_enabled() (cmd_opt.enable_isel)
+#define lsra_enabled() (cmd_opt.enable_lsra)
+#define cgen_enabled() (cmd_opt.enable_cgen)
+
+#define dump_ir_enabled()     ((cmd_opt.dump & DUMP_IR) != 0)
+#define dump_opt_ir_enabled() ((cmd_opt.dump & DUMP_OPT_IR) != 0)
+#define dump_lir_enabled()    ((cmd_opt.dump & DUMP_LIR) != 0)
+#define dump_vreg_enabled()   ((cmd_opt.dump & DUMP_VREG) != 0)
+#define dump_cgen_enabled()   ((cmd_opt.dump & DUMP_CGEN) != 0)
 
 #ifdef __cplusplus
 }

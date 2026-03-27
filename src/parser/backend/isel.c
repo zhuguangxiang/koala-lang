@@ -3,8 +3,9 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "isel.h"
 #include <math.h>
+#include "cmd.h"
+#include "ir.h"
 #include "log.h"
 
 #ifdef __cplusplus
@@ -378,7 +379,7 @@ static void verify_insn(KlrInsn *insn)
     panic("unexpected opcode in isel input sequence: %s", op_name(op));
 }
 
-static int klr_do_isel(KlrFunc *fn, void *data)
+static void do_isel(KlrFunc *fn)
 {
     log_info("isel for func '%s'", fn->name);
 
@@ -418,16 +419,19 @@ static int klr_do_isel(KlrFunc *fn, void *data)
             }
         }
     }
-
-    return 0;
 }
 
-static KlrPass isel_pass = {
-    .name = "isel-pass",
-    .run = klr_do_isel,
-};
-
-void build_isel_pm(KlrPassManager *pm, int dump) { pm_add_pass(pm, &isel_pass, dump); }
+void kl_do_isel(KlrModule *m)
+{
+    KlrFunc *fn;
+    vector_foreach(fn, &m->functions) {
+        do_isel(fn);
+        if (dump_lir_enabled()) {
+            fprintf(stdout, "--- IR Dump After isel [@%s] ---\n", fn->name);
+            klr_print_func(fn, stdout);
+        }
+    }
+}
 
 #ifdef __cplusplus
 }
