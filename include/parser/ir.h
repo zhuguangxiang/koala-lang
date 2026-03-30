@@ -322,8 +322,8 @@ typedef struct _KlrRawOper {
         RAW_OPER_NONE,
         RAW_OPER_REG,
         RAW_OPER_IMM,
-        RAW_OPER_CONST, // cp index
-        RAW_OPER_BLOCK, // block pointer
+        RAW_OPER_CONST,  // cp index
+        RAW_OPER_BLOCK,  // block pointer
         RAW_OPER_FUNC,
     } kind;
     union {

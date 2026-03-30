@@ -1,0 +1,53 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+#include "object.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static TValue str_str(TValue *self, TValue *args, int nargs) { return *self; }
+
+static MethodDef str_methods[] = {
+    { "__str__", str_str },
+    { NULL },
+};
+
+TypeObject str_type = {
+    ._type = &type_type,
+    .name = "str",
+    .flags = TP_FLAGS_CLASS,
+    .methdefs = str_methods,
+};
+
+Object *kl_new_nstr(char *s, size_t len)
+{
+    StringObject *x = mm_alloc_obj(x);
+    INIT_OBJECT_HEAD(x, &str_type);
+    x->size = len;
+
+    char *data = mm_alloc(len + 1);
+    memcpy(data, s, len);
+    data[len] = '\0';
+    x->array = data;
+
+    return (Object *)x;
+}
+
+Object *kl_new_fmt_str(char *fmt, ...)
+{
+    char buf[256];
+    va_list args;
+    va_start(args, fmt);
+    int len = vsnprintf(buf, 255, fmt, args);
+    va_end(args);
+    buf[len] = '\0';
+    return kl_new_nstr(buf, len);
+}
+
+#ifdef __cplusplus
+}
+#endif

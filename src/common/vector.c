@@ -11,7 +11,7 @@ extern "C" {
 
 #define VECTOR_MINIMUM_CAPACITY 4
 
-static inline int __maybe_expand(Vector *vec, int extra)
+int __maybe_expand(Vector *vec, int extra)
 {
     /* vector has enough room space */
     int size = vec->size + extra;

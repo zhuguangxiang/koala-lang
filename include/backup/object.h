@@ -47,29 +47,29 @@ typedef struct _Value {
     };
 } Value;
 
-#define TAG_NONE  0 // none value
-#define TAG_ERROR 1 // error value, used for exception handling
-#define TAG_BOOL  2 // bool value
+#define TAG_NONE  0  // none value
+#define TAG_ERROR 1  // error value, used for exception handling
+#define TAG_BOOL  2  // bool value
 
-#define TAG_INT_START 3 // int value start, up to TAG_UINT64
-#define TAG_INT8      3 // int8 value
-#define TAG_INT16     4 // int16 value
-#define TAG_INT32     5 // int32 value
-#define TAG_INT64     6 // int64 value
-#define TAG_UINT8     7 // uint8 value
-#define TAG_UINT16    8 // uint16 value
-#define TAG_UINT32    9 // uint32 value
-#define TAG_UINT64    10 // uint64 value
-#define TAG_INT_END   10 // int value end
+#define TAG_INT_START 3   // int value start, up to TAG_UINT64
+#define TAG_INT8      3   // int8 value
+#define TAG_INT16     4   // int16 value
+#define TAG_INT32     5   // int32 value
+#define TAG_INT64     6   // int64 value
+#define TAG_UINT8     7   // uint8 value
+#define TAG_UINT16    8   // uint16 value
+#define TAG_UINT32    9   // uint32 value
+#define TAG_UINT64    10  // uint64 value
+#define TAG_INT_END   10  // int value end
 
-#define TAG_FLOAT_START 11 // float value start, up to TAG_FLOAT64
-#define TAG_BFLOAT16    11 // bfloat16 value
-#define TAG_FLOAT16     12 // float16 value
-#define TAG_FLOAT32     13 // float32 value
-#define TAG_FLOAT64     14 // float64 value
-#define TAG_FLOAT_END   14 // float value end
+#define TAG_FLOAT_START 11  // float value start, up to TAG_FLOAT64
+#define TAG_BFLOAT16    11  // bfloat16 value
+#define TAG_FLOAT16     12  // float16 value
+#define TAG_FLOAT32     13  // float32 value
+#define TAG_FLOAT64     14  // float64 value
+#define TAG_FLOAT_END   14  // float value end
 
-#define TAG_MAX 64 // beyond this value, it's an object pointer
+#define TAG_MAX 64  // beyond this value, it's an object pointer
 
 #define is_none(x)     ((x)->tag == TAG_NONE)
 #define is_error(x)    ((x)->tag == TAG_ERROR)

@@ -6,12 +6,18 @@ trait F {}
 
 trait B : A & F {}
 trait C : A & E {}
-trait D : B & C & A & E {}
+class D : B & C & A & E {}
 
 // tbl info for klass/trait 'D':
 // pip: A ->  B ->  D
 // lro: A ->  F ->  B ->  E ->  C ->  D
 // scm: F ->  E ->  C
+
+// B: pip A -> B
+// B: scm F
+
+// C: pip A -> C
+// C: scm E
 
 trait Flyable[T] {
     func fly() str

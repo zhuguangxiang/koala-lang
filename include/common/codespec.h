@@ -17,16 +17,12 @@ typedef struct _CodeSpec {
     char *filename;
     /* line table(addr2line) */
     void *line_table;
-    /* number of positional parameters(must be passed), not include KW parameters */
-    int nargs;
-    /* all locals, include parameters(pos-args&kw-args) */
+    /* all locals, include parameters */
     int nlocals;
-    /* max number of call arguments, the callframe size is nlocals + max_nargs */
-    int max_nargs;
-    /* size of instructions */
-    int insns_size;
-    /* instructions */
-    char *insns;
+    /* size of codes */
+    int code_size;
+    /* start_pc of this code */
+    int start_pc;
 } CodeSpec;
 
 #ifdef __cplusplus

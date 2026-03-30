@@ -65,38 +65,50 @@ set(COMMON_SOURCES
 add_library(koala-common STATIC ${COMMON_SOURCES})
 
 set(KOALA_SOURCES
-    object.c
-    typeobject.c
-    anyobject.c
-    noneobject.c
-    boolobject.c
-    # fieldobject.c
-    cfuncobject.c
-    codeobject.c
-    intobject.c
-    # floatobject.c
-    stringobject.c
-    tupleobject.c
-    exception.c
-    iterobject.c
-    collectionobject.c
-    numberobject.c
-    moduleobject.c
-    modules/builtin.c
-    gc.c
-    run.c
-    eval.c
-    read_klc.c
+    # object.c
+    # typeobject.c
+    # anyobject.c
+    # noneobject.c
+    # boolobject.c
+    # # fieldobject.c
+    # cfuncobject.c
+    # codeobject.c
+    # intobject.c
+    # # floatobject.c
+    # stringobject.c
+    # tupleobject.c
+    # exception.c
+    # iterobject.c
+    # collectionobject.c
+    # numberobject.c
+    # moduleobject.c
+    # modules/builtin.c
+    # gc.c
+    # run.c
+    # eval.c
+    # read_klc.c
     # jit/jit.c
+    objects/any.c
+    objects/boolean.c
+    objects/string.c
+    objects/function.c
+    objects/type.c
+    objects/module.c
+    objects/excobj.c
+    runtime/symtbl.c
+    runtime/vm.c
+    runtime/except.c
+    runtime/eval.c
+    modules/builtin.c
     )
 
 add_library(koala STATIC ${KOALA_SOURCES})
 target_link_libraries(koala koala-common pthread m dl ffi)
 
-# add_executable(koala_out ${PROJECT_SOURCE_DIR}/src/main.c)
-# target_link_libraries(koala_out koala)
-# set_target_properties(koala_out PROPERTIES
-#     OUTPUT_NAME koala)
+add_executable(koala_out ${PROJECT_SOURCE_DIR}/src/koala.c)
+target_link_libraries(koala_out koala)
+set_target_properties(koala_out PROPERTIES
+    OUTPUT_NAME koala)
 
 add_executable(koala_dump ${PROJECT_SOURCE_DIR}/tools/koala_dump.c)
 target_link_libraries(koala_dump parser)

@@ -6,3 +6,5 @@
 - push -> lua pass arguments?
 - import_gloabl & import_func
 - call 4 bytes or 8 bytes?
+- inline
+- object type {}

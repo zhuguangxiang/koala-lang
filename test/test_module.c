@@ -3,14 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "atom.h"
-#include "cfuncobject.h"
-#include "exception.h"
-#include "log.h"
-#include "moduleobject.h"
-#include "object.h"
-#include "opcode.h"
-#include "run.h"
+#include "koala.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,42 +13,45 @@ void test_module(void)
 {
     Object *m = kl_new_module("main");
 
-    int s_id = cp_add_str(m, "hello");
+    int cp_id = kl_mo_add_str(m, "hello");
+    int import_id = kl_mo_add_import(m, IMPORT_KIND_FUNC, "std/builtin", "print");
 
-    int id = kl_add_rel_mod(m, "std/builtin");
-    id = kl_add_rel_func(m, "print", id);
-
-    kl_do_link(m);
+    // kl_do_link(m);
 
     /* print(100, "hello") */
+    uint32_t x = (OP_LOADK << 24) | (1 << 16) | cp_id;
+
     uint32_t _insns[] = {
         (OP_LOAD_INT_IMM << 24) | (0 << 16) | 100,
-        (OP_CONST << 24) | (1 << 12) | s_id,
+        0,
         (OP_PUSH << 24) | 0,
         (OP_PUSH << 24) | 1,
-        (OP_CALL << 24) | (0 << 16) | 2 << 8 | id,
+        (OP_CALL << 24) | (1 << 20) | (0xFFFu << 8) | 2,
+        0,
         (OP_RET_VOID << 24),
     };
 
-    Object *obj = kl_new_code("__init__", m, NULL);
-    CodeObject *code = (CodeObject *)obj;
-    code->cs.insns = (char *)_insns;
-    code->cs.nlocals = 2;
-    code->cs.max_nargs = 2;
+    _insns[1] = x;
+    _insns[5] = import_id;
 
-    Value self = obj_value(code);
-    Value result = object_call(&self, NULL, 0);
-    ASSERT(is_none(&result));
+    kl_mo_set_code(m, _insns, COUNT_OF(_insns));
+
+    Object *obj = kl_new_code("__init__", m);
+    CodeObject *code = (CodeObject *)obj;
+    code->cs.start_pc = 0;
+    code->cs.nlocals = 2;
+    kl_mo_add_func(m, obj);
+
+    kl_dump_module(m);
+
+    kl_run_module(m);
 }
 
 int main(int argc, char *argv[])
 {
-    init_log(LOG_INFO, NULL, 0);
-    init_atom();
-    kl_init(argc, argv);
+    koala_initialize();
     test_module();
-    kl_fini();
-    fini_atom();
+    koala_finalize();
     return 0;
 }
 

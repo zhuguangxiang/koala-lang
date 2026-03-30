@@ -81,6 +81,15 @@ static inline void vector_destroy(Vector *vec)
 /* Get a vector capacity */
 #define vector_capacity(vec) ((NULL != (vec)) ? (vec)->capacity : 0)
 
+/* internal use */
+static inline char *__vector_offset(Vector *vec, int index)
+{
+    return vec->objs + vec->obj_size * index;
+}
+
+/* expand the vector if needed */
+int __maybe_expand(Vector *vec, int extra);
+
 /*
  * Store an object at an index. The old will be erased.
  * Index bound is checked.
@@ -88,9 +97,23 @@ static inline void vector_destroy(Vector *vec)
 int vector_set(Vector *vec, int index, void *obj);
 
 /* Append an object at the end of the vector. */
-static inline void vector_push_back(Vector *vec, void *obj)
+static inline void *vector_push_back(Vector *vec, void *obj)
 {
-    vector_set(vec, vector_size(vec), obj);
+    int index = vector_size(vec);
+
+    /*
+     * valid range is (0 ... size)
+     * if index equals vector size, it's 'append' operation.
+     */
+    if (index < 0 || index > vec->size) return NULL;
+
+    /* try to expand the vector */
+    if (__maybe_expand(vec, 1)) return NULL;
+
+    char *offset = __vector_offset(vec, index);
+    memcpy(offset, obj, vec->obj_size);
+    if (index == vec->size) vec->size++;
+    return offset;
 }
 
 /*
@@ -106,12 +129,6 @@ int vector_insert(Vector *vec, int index, void *obj);
 static inline void vector_push_front(Vector *vec, void *obj)
 {
     vector_insert(vec, 0, obj);
-}
-
-/* internal use */
-static inline char *__vector_offset(Vector *vec, int index)
-{
-    return vec->objs + vec->obj_size * index;
 }
 
 /*
@@ -153,7 +170,17 @@ int vector_remove(Vector *vec, int index, void *obj);
  */
 static inline void vector_pop_back(Vector *vec, void *obj)
 {
-    vector_remove(vec, vector_size(vec) - 1, obj);
+    int index = vector_size(vec) - 1;
+
+    /* valid range is (0 ..< size) */
+    if (index < 0 || index >= vec->size) return;
+
+    if (obj != NULL) {
+        char *offset = __vector_offset(vec, index);
+        memcpy(obj, offset, vec->obj_size);
+    }
+
+    vec->size--;
 }
 
 /*
@@ -204,6 +231,7 @@ static inline void *vector_get(Vector *vec, int index)
     return obj_p ? *obj_p : NULL;
 }
 
+/* qsort for vector */
 static inline void vector_sort(Vector *vec, int (*cmp)(const void *, const void *))
 {
     qsort(vec->objs, vec->size, vec->obj_size, cmp);
