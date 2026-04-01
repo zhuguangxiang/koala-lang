@@ -773,6 +773,7 @@ static KlMachFunc *linearize(KlrFunc *fn, KlMachModule *m)
     fn->mach = mfn;
 
     // build machine blocks
+    int index = 0;
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
         // build MachBlock for each basic block
@@ -783,7 +784,17 @@ static KlMachFunc *linearize(KlrFunc *fn, KlMachModule *m)
         vector_init_ptr(&mb->insns);
         list_push_back(&mfn->bb_list, &mb->link);
         bb->mach = mb;
+        if (index == 0) mfn->entry = mb;
+        ++index;
     }
+
+    // get entry block and add DATA(fid) at the beginning for func.
+    KlMachBlock *entry_mb = mfn->entry;
+    KlMachInsn *data = build_data_mach_insn(entry_mb);
+    data->fixup_flag = KL_MACH_FIXUP_FUNCID;
+    data->target_fn = mfn;
+    vector_push_back(&entry_mb->insns, &data);
+    vector_push_back(&m->fixups, &data);
 
     // build machine insns
     KlMachBlock *mb;
@@ -988,6 +999,18 @@ static void patch_fixups(KlMachModule *m)
                 printf("fixup call '%s' at pc %d(import), with import index %d\n",
                        mi->origin->bb->func->name, payload_pc, mi->import_index);
             }
+        } else if (mach_insn_is(mi, OP_DATA)) {
+            ASSERT(mi->fixup_flag == KL_MACH_FIXUP_FUNCID);
+            ASSERT(mi->format == FORMAT_DATA);
+            // the following DATA insn is for function ID, which is the index of this
+            // function in the module's function list.
+            int payload_pc = mi->pc;
+            KlMachFunc *target_fn = mi->target_fn;
+            int func_index = target_fn->index;
+            int *patch = (int *)codes->data + payload_pc;
+            *patch = func_index;
+            printf("fixup function '%s' at pc %d(funcid), with function index %d\n",
+                   target_fn->origin->name, payload_pc, func_index);
         } else {
             UNREACHABLE();
         }
@@ -1018,6 +1041,7 @@ void kl_do_codegen(KlrModule *origin)
     vector_foreach(fn, &origin->functions) {
         kl_lower_operands(fn, &m);
         mfn = linearize(fn, &m);
+        mfn->index = i__;
         lower_branches(mfn);
         assign_pc_and_patch_branches(mfn);
         emit_mach_func(mfn);

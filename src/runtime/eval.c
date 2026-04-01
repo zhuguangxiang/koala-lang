@@ -3,27 +3,13 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "module.h"
-#include "object.h"
+#include "modobj.h"
 #include "opcode.h"
 #include "vm.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-static inline TValue _do_call(TValue *callable, TValue *args, int nargs)
-{
-    TypeObject *tp = kl_typeof(callable);
-    CallFunc call = tp->call;
-    if (!call) {
-        /* raise an error */
-        raise_exc_fmt("'%s' is not callable", tp->name);
-        return error_value;
-    }
-
-    return call(callable, args, nargs);
-}
 
 /* max call depth, stop for this limit */
 #define MAX_CALL_DEPTH 10000
@@ -38,9 +24,9 @@ static inline TValue _do_call(TValue *callable, TValue *args, int nargs)
 
 #define I_VAL(i, shr, mask)   (((i) >> (shr)) & ((1 << (mask)) - 1))
 
-#define CP(i)    vector_get_ptr(const_pool, i)
-#define RELOC(i) \
-    ({ RelocEntry *rel = vector_get_ptr(rels, i); ASSERT(rel); rel->obj; })
+#define CP(i) (const_pool + (i))
+#define ENTRY(i) (entry_table + (i))
+#define IMPORT_ENTRY(i) (import_table + (i))
 
 #define PUSH(x)     ({ *top++ = (x); ASSERT(top <= ks->stack_base + ks->stack_size); })
 #define POP()       ({ --top; ASSERT(top >= ks->stack_top); *top; })
@@ -54,13 +40,13 @@ static TValue _eval_frame(KoalaState *ks, CallFrame *cf)
 {
     CodeObject *code = cf->code;
     ModuleObject *m = (ModuleObject *)cf->module;
-    Vector *const_pool = &m->const_pool;
+    TValue *const_pool = VECTOR_RAW(&m->const_pool, TValue);
+    ImportEntry *import_table = VECTOR_RAW(&m->import_table, ImportEntry);
+    FuncEntry *entry_table = VECTOR_RAW(&m->func_entries, FuncEntry);
     uint32_t *codes = m->codes;
-
     TValue *top = ks->stack_top;
     TValue *regs = cf->locals;
-
-    uint32_t *pc = codes + code->cs.start_pc;
+    uint32_t *pc = codes + code->cs.start_pc + 1;
 
     TValue result = none_value;
     register uint32_t inst;
@@ -69,11 +55,11 @@ static TValue _eval_frame(KoalaState *ks, CallFrame *cf)
 
     /* push frame */
     cf->back = ks->cf;
-    cf->ks = ks;
+    // cf->ks = ks;
     ks->cf = cf;
-    ++ks->depth;
+    // ++ks->depth;
 
-    ASSERT(ks->depth <= MAX_CALL_DEPTH);
+    // ASSERT(ks->depth <= MAX_CALL_DEPTH);
 
 main_loop:
     for (;;) {
@@ -116,6 +102,68 @@ main_loop:
                 DISPATCH();
             }
 
+            case OP_INT_ADD: {
+                rd = I_VAL(inst, 16, 8);
+                rs = I_VAL(inst, 8, 8);
+                rt = I_VAL(inst, 0, 8);
+
+                ASSERT(rd < cf->nlocals);
+                ASSERT(rs < cf->nlocals);
+                ASSERT(rt < cf->nlocals);
+
+                ASSERT(regs[rs].tag == regs[rt].tag);
+                ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+
+                regs[rd].ival = regs[rs].ival + regs[rt].ival;
+                regs[rd].tag = regs[rs].tag;
+                DISPATCH();
+            }
+
+            case OP_INT_SUB_IMM: {
+                rd = I_VAL(inst, 16, 8);
+                rs = I_VAL(inst, 8, 8);
+                imm = I_VAL(inst, 0, 8);
+
+                ASSERT(rd < cf->nlocals);
+                ASSERT(rs < cf->nlocals);
+
+                ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+
+                regs[rd].ival = regs[rs].ival - imm;
+                regs[rd].tag = regs[rs].tag;
+                DISPATCH();
+            }
+
+            case OP_INT_CMPLT_IMM: {
+                rd = I_VAL(inst, 16, 8);
+                rs = I_VAL(inst, 8, 8);
+                imm = I_VAL(inst, 0, 8);
+
+                ASSERT(rd < cf->nlocals);
+                ASSERT(rs < cf->nlocals);
+
+                ASSERT(regs[rs].tag == TAG_INT64);
+
+                regs[rd].ival = regs[rs].ival < imm;
+                regs[rd].tag = TAG_BOOL;
+                DISPATCH();
+            }
+
+            case OP_JMP_FALSE: {
+                rs = I_VAL(inst, 16, 8);
+                off = I_VAL(inst, 0, 16);
+
+                ASSERT(rs < cf->nlocals);
+
+                ASSERT(regs[rs].tag == TAG_BOOL);
+
+                if (regs[rs].bval == 0) {
+                    pc += off;
+                }
+
+                DISPATCH();
+            }
+
             case OP_PUSH: {
                 rs = I_VAL(inst, 0, 12);
 
@@ -135,21 +183,47 @@ main_loop:
                 int flg = I_VAL(inst, 20, 4);
                 rd = I_VAL(inst, 8, 12);
                 imm = I_VAL(inst, 0, 8);
+
                 if (flg == 1) {
                     uint32_t index = *pc++;
-                    ImportEntry *e = vector_get_ptr(&m->import_table, index);
+                    ImportEntry *e = IMPORT_ENTRY(index);
                     ASSERT(e->kind == IMPORT_KIND_FUNC);
                     Object *target = e->address;
-                    Object *m = kl_find_module(e->path);
-                    target = kl_mo_find(m, e->name);
-                    e->address = target;
                     ASSERT(target);
                     TValue val = obj_value(target);
-                    _do_call(&val, top - imm, imm);
+                    TValue ret = kl_do_call(&val, top - imm, imm);
+                    if (rd != 0xFFFu) {
+                        ASSERT(rd < cf->nlocals);
+                        regs[rd] = ret;
+                    }
                     SHRINK(imm);
-                } else {
-                    NYI();
+                    DISPATCH();
                 }
+
+                int32_t rel32 = *(int32_t *)pc++;
+                uint32_t *target_pc = pc + rel32;
+                ASSERT(target_pc < codes + code->cs.code_size);
+                uint32_t f_idx = *target_pc;
+                FuncEntry *e = ENTRY(f_idx);
+                Object *obj = e->obj;
+                TValue ret;
+
+                if (IS_CFUNC(obj)) {
+                    CFuncObject *cfunc = (CFuncObject *)obj;
+                    TValue val = obj_value(obj);
+                    NativeFunc func = cfunc->func;
+                    ret = func(&val, top - imm, imm);
+                } else {
+                    ASSERT(IS_CODE(e->obj));
+                    TValue val = obj_value(e->obj);
+                    ret = kl_eval_code(&val, NULL, 0);
+                }
+
+                if (rd != 0xFFFu) {
+                    ASSERT(rd < cf->nlocals);
+                    regs[rd] = ret;
+                }
+                SHRINK(imm);
                 DISPATCH();
             }
 
@@ -184,7 +258,7 @@ error:
 done:
     /* pop frame */
     ks->cf = cf->back;
-    --ks->depth;
+    // --ks->depth;
 
     return result;
 }
@@ -245,6 +319,21 @@ TValue kl_eval_code(TValue *self, TValue *args, int nargs)
     _pop_frame(ks, cf);
 
     return result;
+}
+
+void kl_run_module(Object *_m)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+
+    if (m->__init__) {
+        TValue val = obj_value(m->__init__);
+        kl_do_call(&val, NULL, 0);
+    }
+
+    if (m->main) {
+        TValue val = obj_value(m->main);
+        kl_do_call(&val, NULL, 0);
+    }
 }
 
 #ifdef __cplusplus

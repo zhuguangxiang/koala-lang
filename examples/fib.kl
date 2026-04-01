@@ -5,5 +5,5 @@ func fib(n int) int {
 }
 
 func main() {
-    print(fib(10))
+    print(fib(40))
 }

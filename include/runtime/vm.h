@@ -6,7 +6,6 @@
 #ifndef _KOALA_VM_H_
 #define _KOALA_VM_H_
 
-#include "function.h"
 #include "object.h"
 
 #ifdef __cplusplus

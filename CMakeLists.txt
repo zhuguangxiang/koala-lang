@@ -72,8 +72,6 @@ include_directories(${PROJECT_SOURCE_DIR}/include/common)
 include_directories(${PROJECT_BINARY_DIR}/include/common)
 include_directories(${PROJECT_SOURCE_DIR}/include/parser)
 include_directories(${PROJECT_BINARY_DIR}/include/parser)
-include_directories(${PROJECT_SOURCE_DIR}/include/objects)
-include_directories(${PROJECT_BINARY_DIR}/include/objects)
 include_directories(${PROJECT_SOURCE_DIR}/include/runtime)
 include_directories(${PROJECT_BINARY_DIR}/include/runtime)
 

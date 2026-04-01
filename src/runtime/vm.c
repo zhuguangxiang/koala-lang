@@ -46,7 +46,7 @@ void koala_initialize(void)
     init_atom();
 
     /* init global module table */
-    kl_init_mo_stbl();
+    kl_init_gm_stbl();
 
     /* init builtin & sys module */
     init_builtin_module();

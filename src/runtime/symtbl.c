@@ -59,11 +59,6 @@ Object *stbl_find_obj(HashMap *map, char *name)
 
 void stbl_init(HashMap *map) { hashmap_init(map, __stbl_equal__); }
 
-/* all loaded modules */
-HashMap _gs_modules;
-
-void kl_init_mo_stbl(void) { stbl_init(&_gs_modules); }
-
 #ifdef __cplusplus
 }
 #endif

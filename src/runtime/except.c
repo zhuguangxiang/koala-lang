@@ -3,12 +3,42 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "excobj.h"
 #include "vm.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Koala does NOT support catch exception.
+ * If an exception occurred, it must be fixed.
+ */
+
+typedef struct _TraceBack {
+    struct _TraceBack *back;
+    char *file;
+    int lineno;
+} TraceBack;
+
+typedef struct _Exception {
+    OBJECT_HEAD
+    char *msg;
+    TraceBack *back;
+} Exception;
+
+TypeObject exc_type = {
+    ._type = &type_type,
+    .name = "Exception",
+    .flags = TP_FLAGS_CLASS,
+};
+
+Object *kl_new_exc(char *msg)
+{
+    Exception *exc = mm_alloc_obj(exc);
+    INIT_OBJECT_HEAD(exc, &exc_type);
+    exc->msg = strdup(msg);
+    exc->back = NULL;
+    return (Object *)exc;
+}
 
 void _raise_exc_fmt(KoalaState *ks, char *fmt, ...)
 {

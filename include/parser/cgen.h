@@ -59,6 +59,12 @@ typedef struct _KlMachFunc {
     /* Basic blocks in final linearized order. */
     List bb_list;
 
+    /* entry machine block */
+    struct _KlMachBlock *entry;
+
+    /* func index */
+    int index;
+
     /* Module-level start PC of this function inside the .text buffer. */
     int start_pc;
 
@@ -99,11 +105,11 @@ typedef struct _KlMachOper {
         MACH_OPER_NONE,
 
         /* register operands */
-        MACH_OPER_R, /* 8-bit register */
+        MACH_OPER_R,  /* 8-bit register */
         MACH_OPER_RX, /* 12-bit register */
 
         /* immediate operands */
-        MACH_OPER_IMM, /* 8-bit immediate */
+        MACH_OPER_IMM,  /* 8-bit immediate */
         MACH_OPER_IMM2, /* 16-bit immediate */
 
         /* offset operands */
@@ -147,6 +153,7 @@ typedef struct _KlMachInsn {
     int fixup_flag;
 #define KL_MACH_FIXUP_REL32  1
 #define KL_MACH_FIXUP_IMPORT 2
+#define KL_MACH_FIXUP_FUNCID 3
 
     /* Linearized instruction index (module-level absolute PC). */
     int pc;
@@ -173,9 +180,9 @@ typedef struct {
 } KlMachConst;
 
 typedef enum {
-    IMPORT_FUNC = 0, // external function
+    IMPORT_FUNC = 0,  // external function
     IMPORT_FIELD = 1, // external class field
-    IMPORT_TYPE = 2, // external type (class / interface)
+    IMPORT_TYPE = 2,  // external type (class / interface)
     IMPORT_CONST = 3, // external constant pool entry
     IMPORT_METHOD = 4 // external method (rare; for final classes)
 } ImportKind;

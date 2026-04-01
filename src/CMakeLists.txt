@@ -88,17 +88,21 @@ set(KOALA_SOURCES
     # eval.c
     # read_klc.c
     # jit/jit.c
-    objects/any.c
-    objects/boolean.c
-    objects/string.c
-    objects/function.c
-    objects/type.c
-    objects/module.c
-    objects/excobj.c
+    objects/anyobj.c
+    objects/boolobj.c
+    objects/floatobj.c
+    objects/funcobj.c
+    objects/intobj.c
+    objects/modobj.c
+    objects/noneobj.c
+    objects/numobj.c
+    objects/strobj.c
+    objects/typeobj.c
     runtime/symtbl.c
     runtime/vm.c
     runtime/except.c
     runtime/eval.c
+    runtime/mod.c
     modules/builtin.c
     )
 

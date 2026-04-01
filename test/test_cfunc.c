@@ -20,6 +20,10 @@ void test_cfunc(void)
     Object *m = kl_new_module("cfunc");
     Object *obj = kl_new_cfunc("hello", _hello, m);
     kl_mo_add_func(m, obj);
+
+    kl_init_module(m);
+    kl_dump_module(m);
+
     TValue self = obj_value(obj);
     TValue ret = kl_do_call(&self, NULL, 0);
     ASSERT(is_none(&ret));

@@ -10,9 +10,9 @@ extern "C" {
 #endif
 
 TypeObject float_type = {
-    OBJECT_HEAD_INIT(&type_type),
+    ._type = &type_type,
     .name = "float",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC | TP_FLAGS_FINAL,
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
 };
 
 #ifdef __cplusplus

@@ -13,15 +13,15 @@ void test_module(void)
 {
     Object *m = kl_new_module("main");
 
+    /* add code */
     int cp_id = kl_mo_add_str(m, "hello");
     int import_id = kl_mo_add_import(m, IMPORT_KIND_FUNC, "std/builtin", "print");
-
-    // kl_do_link(m);
 
     /* print(100, "hello") */
     uint32_t x = (OP_LOADK << 24) | (1 << 16) | cp_id;
 
     uint32_t _insns[] = {
+        0,
         (OP_LOAD_INT_IMM << 24) | (0 << 16) | 100,
         0,
         (OP_PUSH << 24) | 0,
@@ -31,8 +31,8 @@ void test_module(void)
         (OP_RET_VOID << 24),
     };
 
-    _insns[1] = x;
-    _insns[5] = import_id;
+    _insns[2] = x;
+    _insns[6] = import_id;
 
     kl_mo_set_code(m, _insns, COUNT_OF(_insns));
 
@@ -41,6 +41,10 @@ void test_module(void)
     code->cs.start_pc = 0;
     code->cs.nlocals = 2;
     kl_mo_add_func(m, obj);
+
+    kl_init_module(m);
+
+    kl_resolve_import(m);
 
     kl_dump_module(m);
 

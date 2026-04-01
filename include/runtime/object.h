@@ -29,21 +29,21 @@ typedef struct _Object {
 #define INIT_OBJECT_HEAD(ob, type) (ob)->_type = (type)
 
 /** Retrieve the TypeObject of any Koala object. */
-#define OB_TYPE(ob) (((Object *)(ob))->_type)
+#define OB_TYPE(ob) ((ob)->_type)
 
 /** Check whether an object is of a specific type. */
 #define IS_TYPE(ob, type) (OB_TYPE(ob) == type)
 
 typedef struct _TValue {
     union {
-        uintptr_t tag;  // primitive tag OR reference marker
-        void *itbl;     // itable for traits
+        uintptr_t tag; // primitive tag OR reference marker
+        void *itbl;    // itable for traits
     };
     union {
-        int64_t ival;  // integer payload
-        double fval;   // floating‑point payload
-        int bval;      // boolean payload
-        Object *obj;   // heap object pointer
+        int64_t ival; // integer payload
+        double fval;  // floating‑point payload
+        int bval;     // boolean payload
+        Object *obj;  // heap object pointer
     };
 } TValue;
 
@@ -162,10 +162,6 @@ typedef struct _TValue {
 
 typedef TValue (*NativeFunc)(TValue *self, TValue *args, int nargs);
 
-typedef struct _BaseDef {
-    struct _TypeObject *tp;
-} BaseDef;
-
 typedef struct _MethodDef {
     /* The name of func/method */
     char *name;
@@ -177,13 +173,27 @@ typedef Object *(*AllocFunc)(struct _TypeObject *tp);
 typedef int (*InitFunc)(TValue *self, TValue *args, int nargs);
 typedef void (*FiniFunc)(Object *self);
 
-typedef TValue (*HashFunc)(TValue *self);
+typedef unsigned int (*HashFunc)(TValue *self);
 typedef TValue (*RichCmpFunc)(TValue *lhs, TValue *rhs, int op);
 typedef TValue (*StrFunc)(TValue *self);
 typedef TValue (*CallFunc)(TValue *self, TValue *args, int nargs);
 
-#define TP_FLAGS_CLASS (1 << 0)
-#define TP_FLAGS_TRAIT (1 << 1)
+typedef enum {
+    SLOT_HASH,
+    SLOT_EQ,
+    SLOT_NE,
+    SLOT_LT,
+    SLOT_LE,
+    SLOT_GT,
+    SLOT_GE,
+    SLOT_STR,
+    SLOT_CALL,
+    SLOT_MAX
+} SlotId;
+
+#define TP_FLAGS_CLASS  (1 << 0)
+#define TP_FLAGS_TRAIT  (1 << 1)
+#define TP_FLAGS_PUBLIC (1 << 2)
 
 typedef struct _TypeObject {
     OBJECT_HEAD
@@ -245,25 +255,51 @@ typedef struct _TypeObject {
 
     /* for fast access in c extension */
 
-    /* call function(__call__) */
-    CallFunc call;
     /* hash function(__hash__) */
     HashFunc hash;
     /* comparison function(__eq__, __lt__, etc.) */
     RichCmpFunc cmp;
     /* printable (__str__) */
     StrFunc str;
+    /* call function(__call__) */
+    CallFunc call;
+
+    /* slots for special methods */
+    Object *slots[SLOT_MAX];
 } TypeObject;
+
+/*---------------------------------------------------------------------------+
+ |  CFunc&Code related                                                       |
+ +---------------------------------------------------------------------------*/
+
+typedef struct _CFuncObject {
+    OBJECT_HEAD
+    Object *owner;
+    char *name;
+    NativeFunc func;
+} CFuncObject;
+
+typedef struct _CodeObject {
+    OBJECT_HEAD
+    Object *owner;
+    CodeSpec cs;
+} CodeObject;
+
+#define IS_CFUNC(ob) IS_TYPE((ob), &cfunc_type)
+#define IS_CODE(ob)  IS_TYPE((ob), &code_type)
+
+Object *kl_new_code(char *name, Object *owner);
+Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner);
 
 /*---------------------------------------------------------------------------+
  |  Bool related                                                             |
  +---------------------------------------------------------------------------*/
 
 /* Rich comparison opcodes */
-#define CMP_LT 0
-#define CMP_LE 1
-#define CMP_EQ 2
-#define CMP_NE 3
+#define CMP_EQ 0
+#define CMP_NE 1
+#define CMP_LT 2
+#define CMP_LE 3
 #define CMP_GT 4
 #define CMP_GE 5
 
@@ -319,20 +355,33 @@ Object *kl_new_fmt_str(char *fmt, ...);
  |  APIs of Object, TValue, TypeObject & ModuleObject                        |
  +---------------------------------------------------------------------------*/
 
-extern HashMap _gs_modules;
 void stbl_init(HashMap *map);
 void stbl_add_obj(HashMap *map, char *name, Object *obj);
 Object *stbl_find_obj(HashMap *map, char *name);
 
-extern TypeObject type_type;
 extern TypeObject any_type;
+extern TypeObject type_type;
+extern TypeObject none_type;
 extern TypeObject bool_type;
 extern TypeObject str_type;
-extern TypeObject field_type;
+extern TypeObject exc_type;
+// extern TypeObject field_type;
+extern TypeObject cfunc_type;
+extern TypeObject code_type;
+// shared by all int/uint types
+extern TypeObject int_type;
+// shared by all float types
+extern TypeObject float_type;
+extern TypeObject Number_type;
+
+extern TypeObject Iterable_type;
+extern TypeObject Iterator_type;
+extern TypeObject Collection_type;
+extern TypeObject Sequence_type;
+extern TypeObject MutableSequence_type;
 
 TypeObject *kl_typeof(TValue *val);
 int kl_init_type(TypeObject *tp);
-void kl_init_mo_stbl(void);
 
 /* Any object is callable, if it implements the call protocol. */
 static inline TValue kl_do_call(TValue *callable, TValue *args, int nargs)
@@ -343,7 +392,25 @@ static inline TValue kl_do_call(TValue *callable, TValue *args, int nargs)
     return call(callable, args, nargs);
 }
 
+static inline TValue kl_do_call_no_arg(TValue *callable)
+{
+    return kl_do_call(callable, NULL, 0);
+}
+
+static inline TValue kl_do_call_one_arg(TValue *callable, TValue *arg)
+{
+    return kl_do_call(callable, arg, 1);
+}
+
+void kl_init_gm_stbl(void);
+int kl_load_module(char *path);
+Object *kl_get_module(char *path);
+int kl_register_module(Object *_m);
+void kl_resolve_import(Object *_m);
+void kl_dump_module(Object *_m);
+
 TValue kl_eval_code(TValue *self, TValue *args, int nargs);
+void kl_run_module(Object *_m);
 
 #ifdef __cplusplus
 }

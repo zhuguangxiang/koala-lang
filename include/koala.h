@@ -6,8 +6,7 @@
 #ifndef _KOALA_H_
 #define _KOALA_H_
 
-#include "excobj.h"
-#include "module.h"
+#include "modobj.h"
 #include "opcode.h"
 #include "vm.h"
 

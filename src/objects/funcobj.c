@@ -3,8 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "function.h"
-#include "module.h"
+#include "modobj.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -88,8 +87,8 @@ static MethodDef cfunc_methods[] = {
 static TValue cfunc_call(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
+    ASSERT(IS_CFUNC(obj));
     CFuncObject *cfunc = (CFuncObject *)obj;
-    ASSERT(IS_CFUNC(cfunc));
     return cfunc->func(self, args, nargs);
 }
 
