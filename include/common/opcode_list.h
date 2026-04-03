@@ -378,28 +378,6 @@ X(OP_INT_CMPLT, FORMAT_RRR)
 X(OP_INT_CMPLT_IMM, FORMAT_RRImm)
 
 /**
- * OP_INT_CMPGT — integer greater-than comparison
- *
- * FORMAT_RRR:
- *     | op:8 | rd:8 | rs:8 | rt:8 |
- *
- * Details:
- *     Computes rd = (rs > rt), using signed integer comparison.
- */
-X(OP_INT_CMPGT, FORMAT_RRR)
-
-/**
- * OP_INT_CMPGT_IMM — integer greater-than comparison with immediate
- *
- * FORMAT_RRImm:
- *     | op:8 | rd:8 | rs:8 | imm:8 |
- *
- * Details:
- *     Computes rd = (rs > imm), where imm is an 8-bit signed immediate.
- */
-X(OP_INT_CMPGT_IMM, FORMAT_RRImm)
-
-/**
  * OP_INT_CMPLE — integer less-or-equal comparison
  *
  * FORMAT_RRR:
@@ -420,6 +398,28 @@ X(OP_INT_CMPLE, FORMAT_RRR)
  *     Computes rd = (rs <= imm), where imm is an 8-bit signed immediate.
  */
 X(OP_INT_CMPLE_IMM, FORMAT_RRImm)
+
+/**
+ * OP_INT_CMPGT — integer greater-than comparison
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     Computes rd = (rs > rt), using signed integer comparison.
+ */
+X(OP_INT_CMPGT, FORMAT_RRR)
+
+/**
+ * OP_INT_CMPGT_IMM — integer greater-than comparison with immediate
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Details:
+ *     Computes rd = (rs > imm), where imm is an 8-bit signed immediate.
+ */
+X(OP_INT_CMPGT_IMM, FORMAT_RRImm)
 
 /**
  * OP_INT_CMPGE — integer greater-or-equal comparison
@@ -908,28 +908,6 @@ X(OP_JMP_INT_LT, FORMAT_RROff)
 X(OP_JMP_INT_LT_IMM, FORMAT_RImmOff)
 
 /**
- * OP_JMP_INT_GT — jump if greater-than
- *
- * FORMAT_RROff:
- *     | op:8 | rs:8 | rt:8 | offset:8 |
- *
- * Details:
- *     If rs > rt, pc += offset.
- */
-X(OP_JMP_INT_GT, FORMAT_RROff)
-
-/**
- * OP_JMP_INT_GT_IMM — jump if greater-than (immediate)
- *
- * FORMAT_RImmOff:
- *     | op:8 | rs:8 | imm:8 | offset:8 |
- *
- * Details:
- *     If rs > imm, pc += offset.
- */
-X(OP_JMP_INT_GT_IMM, FORMAT_RImmOff)
-
-/**
  * OP_JMP_INT_LE — jump if less-or-equal
  *
  * FORMAT_RROff:
@@ -950,6 +928,28 @@ X(OP_JMP_INT_LE, FORMAT_RROff)
  *     If rs <= imm, pc += offset.
  */
 X(OP_JMP_INT_LE_IMM, FORMAT_RImmOff)
+
+/**
+ * OP_JMP_INT_GT — jump if greater-than
+ *
+ * FORMAT_RROff:
+ *     | op:8 | rs:8 | rt:8 | offset:8 |
+ *
+ * Details:
+ *     If rs > rt, pc += offset.
+ */
+X(OP_JMP_INT_GT, FORMAT_RROff)
+
+/**
+ * OP_JMP_INT_GT_IMM — jump if greater-than (immediate)
+ *
+ * FORMAT_RImmOff:
+ *     | op:8 | rs:8 | imm:8 | offset:8 |
+ *
+ * Details:
+ *     If rs > imm, pc += offset.
+ */
+X(OP_JMP_INT_GT_IMM, FORMAT_RImmOff)
 
 /**
  * OP_JMP_INT_GE — jump if greater-or-equal
@@ -1481,8 +1481,8 @@ X(OP_BINARY_SHR,    FORMAT_IR)
 X(OP_BINARY_CMPEQ,  FORMAT_IR)
 X(OP_BINARY_CMPNE,  FORMAT_IR)
 X(OP_BINARY_CMPLT,  FORMAT_IR)
-X(OP_BINARY_CMPGT,  FORMAT_IR)
 X(OP_BINARY_CMPLE,  FORMAT_IR)
+X(OP_BINARY_CMPGT,  FORMAT_IR)
 X(OP_BINARY_CMPGE,  FORMAT_IR)
 
 /* Unary ops (IR only) */

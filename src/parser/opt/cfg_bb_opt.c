@@ -32,9 +32,9 @@ int klr_bb_branch_folding(KlrFunc *fn, void *data)
         int val = konst->bval;
         KlrBasicBlock *dst;
         if (val) {
-            dst = (KlrBasicBlock *)insn_oper_value(insn, 1);
-        } else {
             dst = (KlrBasicBlock *)insn_oper_value(insn, 2);
+        } else {
+            dst = (KlrBasicBlock *)insn_oper_value(insn, 3);
         }
         ASSERT(dst->kind == KLR_VALUE_BLOCK);
 

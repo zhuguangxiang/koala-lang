@@ -110,7 +110,6 @@ main_loop:
                 ASSERT(rd < cf->nlocals);
                 ASSERT(rs < cf->nlocals);
                 ASSERT(rt < cf->nlocals);
-
                 ASSERT(regs[rs].tag == regs[rt].tag);
                 ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
 
@@ -126,7 +125,6 @@ main_loop:
 
                 ASSERT(rd < cf->nlocals);
                 ASSERT(rs < cf->nlocals);
-
                 ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
 
                 regs[rd].ival = regs[rs].ival - imm;
@@ -141,7 +139,6 @@ main_loop:
 
                 ASSERT(rd < cf->nlocals);
                 ASSERT(rs < cf->nlocals);
-
                 ASSERT(regs[rs].tag == TAG_INT64);
 
                 regs[rd].ival = regs[rs].ival < imm;
@@ -154,13 +151,24 @@ main_loop:
                 off = I_VAL(inst, 0, 16);
 
                 ASSERT(rs < cf->nlocals);
-
                 ASSERT(regs[rs].tag == TAG_BOOL);
 
                 if (regs[rs].bval == 0) {
                     pc += off;
                 }
+                DISPATCH();
+            }
 
+            case OP_JMP_INT_GE_IMM: {
+                rs = I_VAL(inst, 16, 8);
+                imm = I_VAL(inst, 8, 8);
+                off = I_VAL(inst, 0, 8);
+
+                ASSERT(rs < cf->nlocals);
+
+                if (regs[rs].ival >= imm) {
+                    pc += off;
+                }
                 DISPATCH();
             }
 

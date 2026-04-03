@@ -322,8 +322,8 @@ typedef struct _KlrRawOper {
         RAW_OPER_NONE,
         RAW_OPER_REG,
         RAW_OPER_IMM,
-        RAW_OPER_CONST,  // cp index
-        RAW_OPER_BLOCK,  // block pointer
+        RAW_OPER_CONST, // cp index
+        RAW_OPER_BLOCK, // block pointer
         RAW_OPER_FUNC,
     } kind;
     union {
@@ -692,6 +692,8 @@ void klr_add_last_return(KlrBasicBlock *bb);
 
 #define insn_first(bb) list_first(&(bb)->insn_list, KlrInsn, bb_link)
 #define insn_last(bb)  list_last(&(bb)->insn_list, KlrInsn, bb_link)
+
+#define insn_prev(insn, bb) list_prev(insn, bb_link, &(bb)->insn_list)
 
 /* def-use iteration */
 #define use_foreach(use, val) list_foreach(use, use_link, &(val)->use_list)

@@ -389,7 +389,6 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 // other patterns...
                 default: {
-                    UNREACHABLE();
                     break;
                 }
             }

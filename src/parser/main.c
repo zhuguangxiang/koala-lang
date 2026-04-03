@@ -118,10 +118,15 @@ static void parse_command(int argc, char *argv[])
     extern char *optarg;
     extern int optind;
     struct option options[] = {
-        { "version", no_argument, NULL, 'v' }, { "help", no_argument, NULL, 'h' },
-        { "opt", no_argument, 0, 1 },          { "isel", no_argument, 0, 2 },
-        { "lsra", no_argument, 0, 3 },         { "cgen", no_argument, 0, 4 },
-        { "dump", required_argument, 0, 5 },   { NULL, 0, NULL, 0 },
+        { "version", no_argument, NULL, 'v' },
+        { "help", no_argument, NULL, 'h' },
+        { "opt", no_argument, 0, 1 },
+        { "isel", no_argument, 0, 2 },
+        { "lsra", no_argument, 0, 3 },
+        { "cgen", no_argument, 0, 4 },
+        { "fusion", no_argument, 0, 5 },
+        { "dump", required_argument, 0, 6 },
+        { NULL, 0, NULL, 0 },
     };
 
     int opt_id;
@@ -152,6 +157,10 @@ static void parse_command(int argc, char *argv[])
                 break;
 
             case 5:
+                cmd_opt.enable_fusion = 1;
+                break;
+
+            case 6:
                 cmd_opt.dump = parse_dump_flags(optarg);
                 break;
 

@@ -1,0 +1,43 @@
+// RUN: koalac %s --isel --fusion --dump=lir | filecheck %s
+
+func test_fused(x int) int {
+    let c = x < 10
+
+    if c {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+func test_cannot_fused(x int) int {
+    let c = x < 10
+
+    if c {
+        print("small")
+    }
+
+    if c {
+        return 1
+    } else {
+        return 0
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After isel [@test_fused] ---
+// CHECK-LABEL: func @test_fused(%x int64) int64 {
+// CHECK: jmp_int_lt_imm %x int64, 10 int64, label %bb1, label %bb2
+// CHECK: ret_int_imm 1 int64
+// CHECK: ret_int_imm 0 int64
+
+// CHECK-LABEL: --- IR Dump After isel [@test_cannot_fused] ---
+// CHECK-LABEL: func @test_cannot_fused(%x int64) int64 {
+// CHECK: %bb0(entry):
+// CHECK: %0 = int.cmp_lt_imm %x int64, 10 int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: push_const 'small' str
+// CHECK: call @print [path = 'std/builtin'] [const], 1
+// CHECK: jmp label %bb2
+// CHECK: branch %0 bool, label %bb3, label %bb4
+// CHECK: ret_int_imm 1 int64
+// CHECK: ret_int_imm 0 int64

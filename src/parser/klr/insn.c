@@ -21,8 +21,10 @@ static void init_use(KlrUse *use, KlrInsn *insn, KlrOper *oper, KlrValue *ref, i
         list_push_back(&ref->def_list, &use->use_link);
         ref->def_count++;
     } else {
-        list_push_back(&ref->use_list, &use->use_link);
-        ref->use_count++;
+        if (ref) {
+            list_push_back(&ref->use_list, &use->use_link);
+            ref->use_count++;
+        }
     }
     use->ref = ref;
 }
@@ -44,7 +46,7 @@ static void fini_use(KlrUse *use)
             klr_erase_insn((KlrInsn *)ref);
         }
     } else {
-        ref->use_count--;
+        if (ref) ref->use_count--;
     }
 
     use->ref = NULL;
@@ -322,10 +324,12 @@ void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
         panic("'branch %%cond, %%b1, %%b2' requires a bool cond");
     }
 
-    KlrInsn *insn = new_insn(OP_IR_JMP_COND, 3, "");
+    KlrInsn *insn = new_insn(OP_IR_JMP_COND, 4, "");
     init_oper(&insn->opers[0], insn, cond, 0);
-    init_oper(&insn->opers[1], insn, (KlrValue *)_then, 0);
-    init_oper(&insn->opers[2], insn, (KlrValue *)_else, 0);
+    // reserved for jmp_cond_fused
+    init_oper(&insn->opers[1], insn, NULL, 0);
+    init_oper(&insn->opers[2], insn, (KlrValue *)_then, 0);
+    init_oper(&insn->opers[3], insn, (KlrValue *)_else, 0);
     klr_append_insn(bldr, insn);
 
     klr_link_edge(bldr->bb, _then);

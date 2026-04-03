@@ -71,6 +71,13 @@ typedef struct _KlMachFunc {
     /* Total number of machine instructions in this function. */
     int total_insns;
 
+    /**
+     * Set to true if process_fused_jumps() modifies the MachInsn
+     * structure (e.g., fallback expansion, long-branch insertion, fused-jmp
+     * rewriting). When true, the final layout must be recomputed before patching.
+     */
+    int changed;
+
     /* branches(jmp_cond) needed to be lowered */
     Vector branches;
 

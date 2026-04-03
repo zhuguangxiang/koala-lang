@@ -163,7 +163,10 @@ static void klr_build_intervals(KlrLSRAContext *ctx)
                 intv.allocated = 0;
                 intv.start = insn->pos;
                 intv.end = val_last_use_pos((KlrValue *)insn);
-                vector_push_back(&ctx->intervals, &intv);
+                if (intv.start < intv.end) {
+                    // If start >= end, it means this value is not used, skip interval
+                    vector_push_back(&ctx->intervals, &intv);
+                }
             }
         }
     }

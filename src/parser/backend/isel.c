@@ -366,6 +366,75 @@ static void isel_lower_move(KlrInsn *insn, KlrFunc *fn)
     do_lower_const(c, insn, &R);
 }
 
+static inline int is_int_cmp(OpCode op)
+{
+    return (op >= OP_INT_CMPEQ) && (op <= OP_INT_CMPGE_IMM);
+}
+
+static OpCode int_cmp_map[] = {
+    OP_JMP_INT_EQ, OP_JMP_INT_EQ_IMM, OP_JMP_INT_NE, OP_JMP_INT_NE_IMM,
+    OP_JMP_INT_LT, OP_JMP_INT_LT_IMM, OP_JMP_INT_LE, OP_JMP_INT_LE_IMM,
+    OP_JMP_INT_GT, OP_JMP_INT_GT_IMM, OP_JMP_INT_GE, OP_JMP_INT_GE_IMM,
+};
+
+static inline int is_uint_cmp(OpCode op)
+{
+    return ((op >= OP_UINT_CMPLT) && (op <= OP_UINT_CMPGE_IMM)) ||
+           (op >= OP_INT_CMPEQ && op <= OP_INT_CMPNE_IMM);
+}
+
+static OpCode uint_cmp_map[] = {
+    OP_JMP_UINT_LT, OP_JMP_UINT_LT_IMM, OP_JMP_UINT_LE, OP_JMP_UINT_LE_IMM,
+    OP_JMP_UINT_GT, OP_JMP_UINT_GT_IMM, OP_JMP_UINT_GE, OP_JMP_UINT_GE_IMM,
+};
+
+static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrBasicBlock *bb = insn->bb;
+    KlrInsn *prev = insn_prev(insn, bb);
+    if (!prev) return;
+    if (prev->bb != bb) return;
+    if (prev->use_count != 1) return;
+    KlrValue *cond = insn_oper_value(insn, 0);
+    if (cond != (KlrValue *)prev) return;
+
+    TypeSpec *ts = prev->ts;
+    ASSERT(type_is_bool(ts));
+
+    if (is_int_cmp(prev->code)) {
+        KlrValue *lhs = insn_oper_value(prev, 0);
+        KlrValue *rhs = insn_oper_value(prev, 1);
+        int idx = prev->code - OP_INT_CMPEQ;
+        ASSERT(idx >= 0 && idx < COUNT_OF(int_cmp_map));
+        insn->code = int_cmp_map[idx];
+        set_operand_at(insn, 0, lhs);
+        set_operand_at(insn, 1, rhs);
+        klr_erase_insn(prev);
+        return;
+    }
+
+    if (is_uint_cmp(prev->code)) {
+        KlrValue *lhs = insn_oper_value(prev, 0);
+        KlrValue *rhs = insn_oper_value(prev, 1);
+
+        OpCode op = prev->code;
+        if ((op >= OP_UINT_CMPLT) && (op <= OP_UINT_CMPGE_IMM)) {
+            int idx = op - OP_UINT_CMPLT;
+            ASSERT(idx >= 0 && idx < COUNT_OF(uint_cmp_map));
+            insn->code = uint_cmp_map[idx];
+        } else if ((op >= OP_INT_CMPEQ) && (op <= OP_INT_CMPNE_IMM)) {
+            int idx = op - OP_INT_CMPEQ;
+            ASSERT(idx >= 0 && idx < COUNT_OF(int_cmp_map));
+            insn->code = int_cmp_map[idx];
+        }
+
+        set_operand_at(insn, 0, lhs);
+        set_operand_at(insn, 1, rhs);
+        klr_erase_insn(prev);
+        return;
+    }
+}
+
 static void verify_insn(KlrInsn *insn)
 {
     OpCode op = insn->code;
@@ -409,6 +478,13 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_MOVE: {
                     isel_lower_move(insn, fn);
+                    break;
+                }
+
+                case OP_IR_JMP_COND: {
+                    if (fusion_enabled()) {
+                        isel_lower_jmp_cond(insn, fn);
+                    }
                     break;
                 }
 

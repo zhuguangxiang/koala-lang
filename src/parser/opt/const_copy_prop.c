@@ -29,7 +29,7 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
     insn_oper_use_foreach(use, insn) {
         if (use->is_def) continue;
         KlrValue *val = use->ref;
-        if (klr_is_local(val)) {
+        if (val && klr_is_local(val)) {
             KlrInsn *src = (KlrInsn *)val;
             // from current basic block local variable map, get the latest
             // value(const/insn) for this local variable

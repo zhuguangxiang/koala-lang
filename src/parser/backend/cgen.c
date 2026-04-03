@@ -762,6 +762,11 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
     }
 }
 
+static int fused_jmp(OpCode op)
+{
+    return (op >= OP_JMP_INT_EQ && op <= OP_JMP_UINT_GE_IMM);
+}
+
 static KlMachFunc *linearize(KlrFunc *fn, KlMachModule *m)
 {
     KlMachFunc *mfn = mm_alloc_obj(mfn);
@@ -808,7 +813,7 @@ static KlMachFunc *linearize(KlrFunc *fn, KlMachModule *m)
                 continue;
             }
 
-            if (insn_is(insn, OP_IR_JMP_COND)) {
+            if (insn_is(insn, OP_IR_JMP_COND) || fused_jmp(insn->code)) {
                 // don't do sel for jmp_cond here, linearize() only does build linear
                 // MachInsn, without any transformation. Do it in lower_branches()
                 mi = build_mach_insn(insn->code, insn, mb);
@@ -855,11 +860,11 @@ static void lower_jmp_cond(KlMachInsn *mi)
 
     KlrValue *cond = insn_oper_value(insn, 0);
 
-    KlrValue *val = insn_oper_value(insn, 1);
+    KlrValue *val = insn_oper_value(insn, 2);
     ASSERT(klr_is_block(val));
     KlrBasicBlock *bb_true = (KlrBasicBlock *)val;
 
-    val = insn_oper_value(insn, 2);
+    val = insn_oper_value(insn, 3);
     ASSERT(klr_is_block(val));
     KlrBasicBlock *bb_false = (KlrBasicBlock *)val;
 
@@ -891,25 +896,118 @@ static void lower_jmp_cond(KlMachInsn *mi)
     }
 }
 
+struct jmp_invert {
+    OpCode op;
+    OpFormat fmt;
+};
+
+static struct jmp_invert jmp_invert_map[] = {
+    { OP_JMP_INT_NE, FORMAT_RROff },  { OP_JMP_INT_NE_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_EQ, FORMAT_RROff },  { OP_JMP_INT_EQ_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_GE, FORMAT_RROff },  { OP_JMP_INT_GE_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_GT, FORMAT_RROff },  { OP_JMP_INT_GT_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_LE, FORMAT_RROff },  { OP_JMP_INT_LE_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_LT, FORMAT_RROff },  { OP_JMP_INT_LT_IMM, FORMAT_RImmOff },
+    { OP_JMP_UINT_GE, FORMAT_RROff }, { OP_JMP_UINT_GE_IMM, FORMAT_RImmOff },
+    { OP_JMP_UINT_GT, FORMAT_RROff }, { OP_JMP_UINT_GT_IMM, FORMAT_RImmOff },
+    { OP_JMP_UINT_LE, FORMAT_RROff }, { OP_JMP_UINT_LE_IMM, FORMAT_RImmOff },
+    { OP_JMP_UINT_LT, FORMAT_RROff }, { OP_JMP_UINT_LT_IMM, FORMAT_RImmOff },
+};
+
+static void lower_fused_jmp(KlMachInsn *mi)
+{
+    KlMachBlock *mb = mi->bb;
+    KlrInsn *insn = mi->origin;
+    OpCode op = mi->op;
+
+    KlrValue *lhs = insn_oper_value(insn, 0);
+    KlrValue *rhs = insn_oper_value(insn, 1);
+
+    // next block is fallthrough (may be NULL)
+    KlMachBlock *next = NEXT_BLOCK(mb);
+
+    KlrValue *val = insn_oper_value(insn, 2);
+    ASSERT(klr_is_block(val));
+    KlrBasicBlock *bb_true = (KlrBasicBlock *)val;
+
+    val = insn_oper_value(insn, 3);
+    ASSERT(klr_is_block(val));
+    KlrBasicBlock *bb_false = (KlrBasicBlock *)val;
+
+    int fallthrough = (next && next->origin == bb_true);
+
+    if (fallthrough) {
+        // if (!cond) goto false(invert jmp-op)
+        // inplace update
+        struct jmp_invert *inv = &jmp_invert_map[op - OP_JMP_INT_EQ];
+        mi->op = inv->op;
+        mi->format = inv->fmt;
+        mi->origin = insn;
+        mi->opers[0] = lhs->vreg;
+
+        if (op_format(mi->op) == FORMAT_RROff) {
+            mi->opers[1] = rhs->vreg;
+        } else {
+            ASSERT(op_format(mi->op) == FORMAT_RImmOff);
+            mi->opers[1] = ((KlrConst *)rhs)->ival;
+        }
+
+        mi->target = bb_false->mach;
+    } else {
+        // if (cond) goto true
+        // inplace update
+        mi->origin = insn;
+        mi->opers[0] = lhs->vreg;
+
+        if (op_format(mi->op) == FORMAT_RROff) {
+            mi->opers[1] = rhs->vreg;
+        } else {
+            ASSERT(op_format(mi->op) == FORMAT_RImmOff);
+            mi->opers[1] = ((KlrConst *)rhs)->ival;
+        }
+
+        mi->target = bb_true->mach;
+
+        // goto false
+        KlMachInsn *mi_false = build_mach_insn(OP_JMP, insn, mb);
+        mi_false->target = bb_false->mach;
+        vector_push_back(&mb->insns, &mi_false);
+    }
+}
+
 static void lower_branches(KlMachFunc *mfn)
 {
     KlMachInsn *mi;
     vector_foreach(mi, &mfn->branches) {
-        ASSERT(mach_insn_is(mi, OP_IR_JMP_COND));
-        /* Lower jmp_cond into concrete machine-level jumps. */
-        lower_jmp_cond(mi);
+        if (mach_insn_is(mi, OP_IR_JMP_COND)) {
+            /* Lower jmp_cond into concrete machine-level jumps. */
+            lower_jmp_cond(mi);
+        } else {
+            /* Lower fused jump into concrete machine-level jumps. */
+            ASSERT(fused_jmp(mi->op));
+            lower_fused_jmp(mi);
+        }
     }
 }
 
-static void assign_pc_and_patch_branches(KlMachFunc *mfn)
+/**
+ * Phase 1:
+ * Computes the initial PC layout for all MachInsn in the function.
+ * This pass assigns insn->pc and block->start_pc based on the current
+ * instruction sequence, without modifying the structure or patching
+ * any branches. All instructions must be assigned their maximum
+ * possible encoded size so that later passes can safely compute
+ * relative offsets.
+ */
+static void assign_pc(KlMachFunc *mfn)
 {
-    KlMachBlock *mb;
-    KlMachModule *m = mfn->m;
-
     // assign pc
+
+    KlMachModule *m = mfn->m;
     mfn->start_pc = m->pc;
     int pc = mfn->start_pc;
 
+    KlMachBlock *mb;
     list_foreach(mb, link, &mfn->bb_list) {
         // Record the starting PC of this block.
         mb->start_pc = pc;
@@ -926,8 +1024,30 @@ static void assign_pc_and_patch_branches(KlMachFunc *mfn)
 
     mfn->total_insns = pc - mfn->start_pc;
     m->pc += mfn->total_insns;
+}
 
+/**
+ * Phase 2:
+ * Processes fused-jump instructions by computing their relative offsets
+ * using the current PC layout. If an offset does not fit the fused-jump
+ * encoding (e.g., 8-bit short form), this function may rewrite the
+ * MachInsn structure (fallback expansion, long-branch insertion, etc.).
+ * When structural changes occur, mfn->changed must be set to true so
+ * that the final layout can be recomputed before patching.
+ *
+ * In the initial implementation, only offset checking is performed and
+ * no structural modifications are made.
+ */
+static void process_fused_jumps(KlMachFunc *mfn)
+{
+    // TODO: Implement fused-jump processing
+}
+
+static void patch_branches(KlMachFunc *mfn)
+{
     // patch branch/jmp
+
+    KlMachBlock *mb;
     list_foreach(mb, link, &mfn->bb_list) {
         KlMachInsn *mi;
         vector_foreach(mi, &mb->insns) {
@@ -945,11 +1065,37 @@ static void assign_pc_and_patch_branches(KlMachFunc *mfn)
                 ASSERT(target_pc >= 0);
                 /* Relative offset: target - (current + 1) */
                 mi->opers[1] = target_pc - (mi->pc + 1);
+            } else if (fused_jmp(mi->op)) {
+                ASSERT(mi->format == FORMAT_RROff || mi->format == FORMAT_RImmOff);
+                ASSERT(mi->target);
+                int target_pc = mi->target->start_pc;
+                ASSERT(target_pc >= 0);
+                /* Relative offset: target - (current + 1) */
+                mi->opers[2] = target_pc - (mi->pc + 1);
             } else {
                 // do nothing for non-jump instructions
             }
         }
     }
+}
+
+/**
+ * Phase 3: final layout + branch patching.
+ *
+ * If process_fused_jumps() modified the MachInsn structure (mfn->changed = true),
+ * we must recompute the final PC layout before patching. Otherwise, we only patch.
+ */
+static void assign_pc_and_patch_branches(KlMachFunc *mfn)
+{
+    KlMachBlock *mb;
+    KlMachModule *m = mfn->m;
+
+    if (mfn->changed) {
+        assign_pc(mfn);
+        mfn->changed = 0;
+    }
+
+    patch_branches(mfn);
 }
 
 static void emit_mach_func(KlMachFunc *mfn)
@@ -1043,6 +1189,8 @@ void kl_do_codegen(KlrModule *origin)
         mfn = linearize(fn, &m);
         mfn->index = i__;
         lower_branches(mfn);
+        assign_pc(mfn);
+        process_fused_jumps(mfn);
         assign_pc_and_patch_branches(mfn);
         emit_mach_func(mfn);
         dump_mach_func(mfn);

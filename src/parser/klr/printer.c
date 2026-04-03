@@ -162,10 +162,26 @@ static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
 
-    KlrValue *_then = insn_oper_value(insn, 1);
+    KlrValue *_then = insn_oper_value(insn, 2);
     fprintf(fp, "label %%bb%d", _then->tag);
 
-    KlrValue *_else = insn_oper_value(insn, 2);
+    KlrValue *_else = insn_oper_value(insn, 3);
+    fprintf(fp, ", label %%bb%d", _else->tag);
+}
+
+static void print_jmp_cond_fused(const char *name, KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "%s ", name);
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+
+    print_operand(&insn->opers[1], fp);
+    fprintf(fp, ", ");
+
+    KlrValue *_then = insn_oper_value(insn, 2);
+    fprintf(fp, "label %%bb%d", _then->tag);
+
+    KlrValue *_else = insn_oper_value(insn, 3);
     fprintf(fp, ", label %%bb%d", _else->tag);
 }
 
@@ -296,7 +312,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_JMP_INT_LT_IMM:
-            print_jmp_cond("jmp_int_lt_imm", insn, fp);
+            print_jmp_cond_fused("jmp_int_lt_imm", insn, fp);
             break;
 
         case OP_BINARY_ADD:
