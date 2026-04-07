@@ -18,7 +18,7 @@ static void klr_lsra_dump(KlrLSRAContext *ctx)
 
     update_tags(fn);
 
-    fprintf(stdout, "\n====== LSRA @%s ======\n", fn->name);
+    fprintf(stdout, "\n=============== LSRA @%s ===============\n", fn->name);
 
     fprintf(stdout, "\n--- Intervals ---\n");
 
@@ -72,6 +72,9 @@ static void klr_lsra_dump(KlrLSRAContext *ctx)
             }
         }
     }
+
+    fprintf(stdout, "\n--- Max Register(local + call-args) ---\n");
+    fprintf(stdout, "Max registers needed: %d + %d\n", fn->nlocals, fn->max_call_args);
 
     fprintf(stdout, "\n==========================================\n\n");
 }
@@ -150,6 +153,10 @@ static void klr_build_intervals(KlrLSRAContext *ctx)
         int end = val_last_use_pos((KlrValue *)param);
         // if never used, set end to 1 to avoid zero-length interval
         intv.end = end > 0 ? end : 1;
+        // if (fn->has_tailcall) {
+        //     // plus 1 to make the interval inclusive of the last use
+        //     intv.end += 1;
+        // }
         vector_push_back(&ctx->intervals, &intv);
     }
 
@@ -157,6 +164,11 @@ static void klr_build_intervals(KlrLSRAContext *ctx)
     basic_block_foreach(bb, fn) {
         KlrInsn *insn;
         insn_foreach(insn, bb) {
+            if (insn->fixedslot) {
+                vector_push_back(&ctx->fixed, &insn);
+                continue;
+            }
+
             if (ir_has_value(insn)) {
                 KlrInterval intv;
                 intv.val = (KlrValue *)insn;
@@ -166,6 +178,9 @@ static void klr_build_intervals(KlrLSRAContext *ctx)
                 if (intv.start < intv.end) {
                     // If start >= end, it means this value is not used, skip interval
                     vector_push_back(&ctx->intervals, &intv);
+                } else {
+                    log_info("Skipping interval for %s: [%d, %d) because start >= end",
+                             klr_value_name(intv.val), intv.start, intv.end);
                 }
             }
         }
@@ -236,6 +251,8 @@ static void __alloc_register(KlrLSRAContext *ctx, KlrValue *val)
     int reg = bitset_ffs_and_clear(&ctx->bitset);
     ASSERT(reg >= 0);
     val->vreg = reg;
+    int max = MAX(ctx->func->nlocals, reg + 1);
+    ctx->func->nlocals = max;
 }
 
 static void __free_register(KlrLSRAContext *ctx, KlrValue *val)
@@ -275,6 +292,24 @@ static void klr_scan_and_alloc(KlrLSRAContext *ctx)
     }
 }
 
+static void klr_fixedslot_alloc(KlrLSRAContext *ctx)
+{
+    KlrInsn *insn;
+    vector_foreach(insn, &ctx->fixed) {
+        ASSERT(insn->fixedslot);
+        if (insn->fixedslot == 1) {
+            insn->vreg = ctx->func->nlocals + insn->slotindex;
+            log_info("Assigning fixedslot register(next) %d to insn %s", insn->vreg,
+                     klr_value_name((KlrValue *)insn));
+        } else {
+            ASSERT(insn->fixedslot == 2);
+            insn->vreg = insn->slotindex;
+            log_info("Assigning fixedslot register(pos) %d to insn %s", insn->vreg,
+                     klr_value_name((KlrValue *)insn));
+        }
+    }
+}
+
 /*
  * Linear Scan Register Allocation:
  * variable interval = first definition point and last used point.
@@ -285,6 +320,7 @@ static void klr_lsra_run(KlrFunc *func)
 
     vector_init(&ctx.intervals, sizeof(KlrInterval));
     init_bitset(&ctx.bitset, MAX_REGS);
+    vector_init_ptr(&ctx.fixed);
     ctx.func = func;
 
     // default all registers to free (1 means free, 0 means used)
@@ -306,12 +342,16 @@ static void klr_lsra_run(KlrFunc *func)
     /* perform linear scan register allocation */
     klr_scan_and_alloc(&ctx);
 
+    /* perform fixedslot insn register allocation */
+    klr_fixedslot_alloc(&ctx);
+
     if (dump_vreg_enabled()) {
         klr_lsra_dump(&ctx);
     }
 
     fini_bitset(&ctx.bitset);
     vector_fini(&ctx.intervals);
+    vector_fini(&ctx.fixed);
 }
 
 void kl_do_lsra(KlrModule *m)

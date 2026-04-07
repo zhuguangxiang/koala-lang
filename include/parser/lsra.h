@@ -40,6 +40,8 @@ typedef struct _KlrLSRAContext {
     BitSet bitset;
     /* last postion */
     int last_pos;
+    /* fixedslot insns */
+    Vector fixed;
 } KlrLSRAContext;
 
 void kl_do_lsra(KlrModule *m);

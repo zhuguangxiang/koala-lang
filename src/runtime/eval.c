@@ -28,8 +28,7 @@ extern "C" {
 #define ENTRY(i) (entry_table + (i))
 #define IMPORT_ENTRY(i) (import_table + (i))
 
-#define PUSH(x)     ({ *top++ = (x); ASSERT(top <= ks->stack_base + ks->stack_size); })
-#define POP()       ({ --top; ASSERT(top >= ks->stack_top); *top; })
+#define PUSH(x)     ({ *top++ = (x); has_push = 1; ASSERT(top <= ks->stack_base + ks->stack_size); })
 #define SHRINK(n)   ({ top -= (n); ASSERT(top >= ks->stack_top); })
 
 #define DISPATCH() goto dispatch;
@@ -38,21 +37,6 @@ extern "C" {
 
 static TValue _eval_frame(KoalaState *ks, CallFrame *cf)
 {
-    CodeObject *code = cf->code;
-    ModuleObject *m = (ModuleObject *)cf->module;
-    TValue *const_pool = VECTOR_RAW(&m->const_pool, TValue);
-    ImportEntry *import_table = VECTOR_RAW(&m->import_table, ImportEntry);
-    FuncEntry *entry_table = VECTOR_RAW(&m->func_entries, FuncEntry);
-    uint32_t *codes = m->codes;
-    TValue *top = ks->stack_top;
-    TValue *regs = cf->locals;
-    uint32_t *pc = codes + code->cs.start_pc + 1;
-
-    TValue result = none_value;
-    register uint32_t inst;
-    register OpCode op;
-    register int rd, rs, rt, imm, idx, off;
-
     /* push frame */
     cf->back = ks->cf;
     // cf->ks = ks;
@@ -60,6 +44,32 @@ static TValue _eval_frame(KoalaState *ks, CallFrame *cf)
     // ++ks->depth;
 
     // ASSERT(ks->depth <= MAX_CALL_DEPTH);
+
+ext_tailcall:
+    ModuleObject *m = (ModuleObject *)cf->module;
+    TValue *const_pool = VECTOR_RAW(&m->const_pool, TValue);
+    ImportEntry *import_table = VECTOR_RAW(&m->import_table, ImportEntry);
+    FuncEntry *entry_table = VECTOR_RAW(&m->func_entries, FuncEntry);
+#ifndef NDEBUG
+    int entry_size = vector_size(&m->func_entries);
+#endif
+    uint32_t *codes = m->codes;
+
+local_tailcall:
+    // TValue *top = ks->stack_top;
+    TValue *regs = cf->locals;
+    CodeObject *code = cf->code;
+    uint32_t *pc = codes + code->cs.start_pc;
+
+#ifndef NDEBUG
+    int max_regs = cf->nlocals + code->cs.max_call_args;
+#endif
+
+    TValue result = none_value;
+    register uint32_t inst;
+    register OpCode op;
+    register int rd, rs, rt, imm, idx, off;
+    // int has_push = 0;
 
 main_loop:
     for (;;) {
@@ -72,8 +82,8 @@ main_loop:
                 rd = I_VAL(inst, 12, 12);
                 rs = I_VAL(inst, 0, 12);
 
-                ASSERT(rd < cf->nlocals);
-                ASSERT(rs < cf->nlocals);
+                ASSERT(rd < max_regs);
+                ASSERT(rs < max_regs);
 
                 regs[rd] = regs[rs];
                 DISPATCH();
@@ -83,7 +93,7 @@ main_loop:
                 rd = I_VAL(inst, 16, 8);
                 imm = I_VAL(inst, 0, 16);
 
-                ASSERT(rd < cf->nlocals);
+                ASSERT(rd < max_regs);
 
                 regs[rd].tag = TAG_INT64;
                 regs[rd].ival = imm;
@@ -94,7 +104,7 @@ main_loop:
                 rd = I_VAL(inst, 16, 8);
                 idx = I_VAL(inst, 0, 16);
 
-                ASSERT(rd < cf->nlocals);
+                ASSERT(rd < max_regs);
 
                 TValue *val = CP(idx);
                 regs[rd].tag = val->tag;
@@ -107,13 +117,27 @@ main_loop:
                 rs = I_VAL(inst, 8, 8);
                 rt = I_VAL(inst, 0, 8);
 
-                ASSERT(rd < cf->nlocals);
-                ASSERT(rs < cf->nlocals);
-                ASSERT(rt < cf->nlocals);
+                ASSERT(rd < max_regs);
+                ASSERT(rs < max_regs);
+                ASSERT(rt < max_regs);
                 ASSERT(regs[rs].tag == regs[rt].tag);
                 ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
 
                 regs[rd].ival = regs[rs].ival + regs[rt].ival;
+                regs[rd].tag = regs[rs].tag;
+                DISPATCH();
+            }
+
+            case OP_INT_ADD_IMM: {
+                rd = I_VAL(inst, 16, 8);
+                rs = I_VAL(inst, 8, 8);
+                imm = I_VAL(inst, 0, 8);
+
+                ASSERT(rd < max_regs);
+                ASSERT(rs < max_regs);
+                ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+
+                regs[rd].ival = regs[rs].ival + imm;
                 regs[rd].tag = regs[rs].tag;
                 DISPATCH();
             }
@@ -123,8 +147,8 @@ main_loop:
                 rs = I_VAL(inst, 8, 8);
                 imm = I_VAL(inst, 0, 8);
 
-                ASSERT(rd < cf->nlocals);
-                ASSERT(rs < cf->nlocals);
+                ASSERT(rd < max_regs);
+                ASSERT(rs < max_regs);
                 ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
 
                 regs[rd].ival = regs[rs].ival - imm;
@@ -137,8 +161,8 @@ main_loop:
                 rs = I_VAL(inst, 8, 8);
                 imm = I_VAL(inst, 0, 8);
 
-                ASSERT(rd < cf->nlocals);
-                ASSERT(rs < cf->nlocals);
+                ASSERT(rd < max_regs);
+                ASSERT(rs < max_regs);
                 ASSERT(regs[rs].tag == TAG_INT64);
 
                 regs[rd].ival = regs[rs].ival < imm;
@@ -150,10 +174,23 @@ main_loop:
                 rs = I_VAL(inst, 16, 8);
                 off = I_VAL(inst, 0, 16);
 
-                ASSERT(rs < cf->nlocals);
+                ASSERT(rs < max_regs);
                 ASSERT(regs[rs].tag == TAG_BOOL);
 
                 if (regs[rs].bval == 0) {
+                    pc += off;
+                }
+                DISPATCH();
+            }
+
+            case OP_JMP_INT_NE_IMM: {
+                rs = I_VAL(inst, 16, 8);
+                imm = I_VAL(inst, 8, 8);
+                off = I_VAL(inst, 0, 8);
+
+                ASSERT(rs < max_regs);
+
+                if (regs[rs].ival != imm) {
                     pc += off;
                 }
                 DISPATCH();
@@ -164,7 +201,7 @@ main_loop:
                 imm = I_VAL(inst, 8, 8);
                 off = I_VAL(inst, 0, 8);
 
-                ASSERT(rs < cf->nlocals);
+                ASSERT(rs < max_regs);
 
                 if (regs[rs].ival >= imm) {
                     pc += off;
@@ -172,20 +209,26 @@ main_loop:
                 DISPATCH();
             }
 
-            case OP_PUSH: {
-                rs = I_VAL(inst, 0, 12);
+                // case OP_PUSH: {
+                //     rs = I_VAL(inst, 0, 12);
 
-                ASSERT(rs < cf->nlocals);
+                //     ASSERT(rs < max_regs);
 
-                PUSH(regs[rs]);
-                DISPATCH();
-            }
+                //     PUSH(regs[rs]);
+                //     DISPATCH();
+                // }
 
-            case OP_PUSH_INT_IMM: {
-                imm = I_VAL(inst, 0, 16);
-                PUSH(int64_value(imm));
-                DISPATCH();
-            }
+                // case OP_PUSH_INT_IMM: {
+                //     imm = I_VAL(inst, 0, 16);
+                //     PUSH(int64_value(imm));
+                //     DISPATCH();
+                // }
+
+                // case OP_PUSH_CONST: {
+                //     off = I_VAL(inst, 0, 16);
+                //     PUSH(*CP(off));
+                //     DISPATCH();
+                // }
 
             case OP_CALL: {
                 int flg = I_VAL(inst, 20, 4);
@@ -199,20 +242,24 @@ main_loop:
                     Object *target = e->address;
                     ASSERT(target);
                     TValue val = obj_value(target);
-                    TValue ret = kl_do_call(&val, top - imm, imm);
+                    TValue ret = kl_do_call(&val, ks->stack_top, imm);
                     if (rd != 0xFFFu) {
-                        ASSERT(rd < cf->nlocals);
+                        ASSERT(rd < max_regs);
                         regs[rd] = ret;
                     }
-                    SHRINK(imm);
+                    // if (has_push) {
+                    //     SHRINK(imm);
+                    //     has_push = 0;
+                    // }
                     DISPATCH();
                 }
 
-                int32_t rel32 = *(int32_t *)pc++;
-                uint32_t *target_pc = pc + rel32;
-                ASSERT(target_pc < codes + code->cs.code_size);
-                uint32_t f_idx = *target_pc;
-                FuncEntry *e = ENTRY(f_idx);
+                int32_t local_index = *(int32_t *)pc++;
+                // uint32_t *target_pc = pc + local_index;
+                // ASSERT(target_pc < codes + code->cs.code_size);
+                // uint32_t f_idx = *target_pc;
+                ASSERT(local_index >= 0 && local_index < entry_size);
+                FuncEntry *e = ENTRY(local_index);
                 Object *obj = e->obj;
                 TValue ret;
 
@@ -220,7 +267,7 @@ main_loop:
                     CFuncObject *cfunc = (CFuncObject *)obj;
                     TValue val = obj_value(obj);
                     NativeFunc func = cfunc->func;
-                    ret = func(&val, top - imm, imm);
+                    ret = func(&val, ks->stack_top, imm);
                 } else {
                     ASSERT(IS_CODE(e->obj));
                     TValue val = obj_value(e->obj);
@@ -228,16 +275,63 @@ main_loop:
                 }
 
                 if (rd != 0xFFFu) {
-                    ASSERT(rd < cf->nlocals);
+                    ASSERT(rd < max_regs);
                     regs[rd] = ret;
                 }
-                SHRINK(imm);
                 DISPATCH();
+            }
+
+            case OP_TAIL_CALL: {
+                int flg = I_VAL(inst, 20, 4);
+                // imm = I_VAL(inst, 0, 8);
+
+                // if (flg == 1) {
+                //     // external function call
+                //     NYI();
+                //     goto ext_tailcall;
+                // }
+
+                if (flg == 3) {
+                    pc = codes + code->cs.start_pc;
+                    goto main_loop;
+                }
+
+                // local function call
+                int32_t local_index = *(int32_t *)pc++;
+                ASSERT(local_index >= 0 && local_index < entry_size);
+                FuncEntry *e = ENTRY(local_index);
+                Object *obj = e->obj;
+
+                if (obj == (Object *)cf->code) {
+                    pc = codes + code->cs.start_pc;
+                    goto main_loop;
+                }
+
+                TValue ret;
+                if (IS_CFUNC(obj)) {
+                    // CFuncObject *cfunc = (CFuncObject *)obj;
+                    // TValue val = obj_value(obj);
+                    // NativeFunc func = cfunc->func;
+                    // ret = func(&val, regs, imm);
+                    // // TODO: tail call does not have return value.
+                    // // if (rd != 0xFFFu) {
+                    // //     ASSERT(rd < cf->nlocals);
+                    // //     regs[rd] = ret;
+                    // // }
+                    // SHRINK(imm);
+                    DISPATCH();
+                } else {
+                    ASSERT(IS_CODE(e->obj));
+                    cf->code = (CodeObject *)e->obj;
+                    cf->nlocals = cf->code->cs.nlocals;
+                    ks->stack_top = cf->locals + cf->nlocals;
+                    goto local_tailcall;
+                }
             }
 
             case OP_RET: {
                 rs = I_VAL(inst, 0, 12);
-                ASSERT(rs < cf->nlocals);
+                ASSERT(rs < max_regs);
                 result = regs[rs];
                 goto done;
             }

@@ -275,21 +275,36 @@ typedef struct _TypeObject {
 typedef struct _CFuncObject {
     OBJECT_HEAD
     Object *owner;
-    char *name;
     NativeFunc func;
+    int func_idx;
+    char *name;
 } CFuncObject;
 
 typedef struct _CodeObject {
     OBJECT_HEAD
     Object *owner;
+    int func_idx;
     CodeSpec cs;
 } CodeObject;
+
+extern TypeObject cfunc_type;
+extern TypeObject code_type;
 
 #define IS_CFUNC(ob) IS_TYPE((ob), &cfunc_type)
 #define IS_CODE(ob)  IS_TYPE((ob), &code_type)
 
 Object *kl_new_code(char *name, Object *owner);
 Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner);
+
+static inline void kl_set_func_idx(Object *obj, int func_idx)
+{
+    if (IS_CODE(obj)) {
+        ((CodeObject *)obj)->func_idx = func_idx;
+    } else {
+        ASSERT(IS_CFUNC(obj));
+        ((CFuncObject *)obj)->func_idx = func_idx;
+    }
+}
 
 /*---------------------------------------------------------------------------+
  |  Bool related                                                             |
@@ -366,8 +381,6 @@ extern TypeObject bool_type;
 extern TypeObject str_type;
 extern TypeObject exc_type;
 // extern TypeObject field_type;
-extern TypeObject cfunc_type;
-extern TypeObject code_type;
 // shared by all int/uint types
 extern TypeObject int_type;
 // shared by all float types

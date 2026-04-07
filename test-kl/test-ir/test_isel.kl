@@ -39,10 +39,8 @@ func fib(n int) int {
 // CHECK: ret %n int64
 // CHECK: %bb2(if-end):
 // CHECK: %1 = int.sub_imm %n int64, 1 int64
-// CHECK: push %1 int64
 // CHECK: %2 = call @fib, 1
 // CHECK: %3 = int.sub_imm %n int64, 2 int64
-// CHECK: push %3 int64
 // CHECK: %4 = call @fib, 1
 // CHECK: %5 = int.add %2 int64, %4 int64
 // CHECK: ret %5 int64
@@ -102,14 +100,15 @@ func test_nested_loop(n int) {
 // CHECK: %1 = int.cmp_lt %j int64, %i int64
 // CHECK: branch %1 bool, label %bb5, label %bb6
 
-// CHECK: push %j int64
+// CHECK: %2 = local int64
+// CHECK: move %2 int64, %j int64
 // CHECK: call @print [path = 'std/builtin'], 1
-// CHECK: %2 = int.add_imm %j int64, 1 int64
-// CHECK: move %j int64, %2 int64
+// CHECK: %3 = int.add_imm %j int64, 1 int64
+// CHECK: move %j int64, %3 int64
 // CHECK: jmp label %bb4
 
-// CHECK: %3 = int.add_imm %i int64, 1 int64
-// CHECK: move %i int64, %3 int64
+// CHECK: %4 = int.add_imm %i int64, 1 int64
+// CHECK: move %i int64, %4 int64
 // CHECK: jmp label %bb1
 
 var b = true
@@ -128,11 +127,13 @@ func foo2() {
 // CHECK: %0 = get_global @b bool
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
-// CHECK: push_const 'true' str
+// CHECK: %1 = local str
+// CHECK: loadk %1 str, 'true' str
 // CHECK: call @print [path = 'std/builtin'] [const], 1
 // CHECK: jmp label %bb3
 
-// CHECK: push_const 'false' str
+// CHECK: %2 = local str
+// CHECK: loadk %2 str, 'false' str
 // CHECK: call @print [path = 'std/builtin'] [const], 1
 // CHECK: jmp label %bb3
 

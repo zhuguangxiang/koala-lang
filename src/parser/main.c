@@ -30,6 +30,8 @@ static void usage(void)
         "  --isel             Enable instruction selection stage.\n"
         "  --cgen             Enable code generation stage.\n"
         "  --lsra             Enable linear scan register allocator.\n"
+        "  --fusion           Enable fusion optimization passes.\n"
+        "  --tail-call        Enable tail call optimization.\n"
         "  --dump=<list>      Dump internal information.\n"
         "                     <list> is a comma-separated list of:\n"
         "                         ir       - dump no-opt IR\n"
@@ -118,15 +120,11 @@ static void parse_command(int argc, char *argv[])
     extern char *optarg;
     extern int optind;
     struct option options[] = {
-        { "version", no_argument, NULL, 'v' },
-        { "help", no_argument, NULL, 'h' },
-        { "opt", no_argument, 0, 1 },
-        { "isel", no_argument, 0, 2 },
-        { "lsra", no_argument, 0, 3 },
-        { "cgen", no_argument, 0, 4 },
-        { "fusion", no_argument, 0, 5 },
-        { "dump", required_argument, 0, 6 },
-        { NULL, 0, NULL, 0 },
+        { "version", no_argument, NULL, 'v' }, { "help", no_argument, NULL, 'h' },
+        { "opt", no_argument, 0, 1 },          { "isel", no_argument, 0, 2 },
+        { "lsra", no_argument, 0, 3 },         { "cgen", no_argument, 0, 4 },
+        { "fusion", no_argument, 0, 5 },       { "tail-call", no_argument, 0, 6 },
+        { "dump", required_argument, 0, 7 },   { NULL, 0, NULL, 0 },
     };
 
     int opt_id;
@@ -161,6 +159,10 @@ static void parse_command(int argc, char *argv[])
                 break;
 
             case 6:
+                cmd_opt.enable_tail_call = 1;
+                break;
+
+            case 7:
                 cmd_opt.dump = parse_dump_flags(optarg);
                 break;
 

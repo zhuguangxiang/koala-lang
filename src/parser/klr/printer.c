@@ -216,15 +216,15 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
     }
 }
 
-static void print_call(KlrInsn *insn, FILE *fp)
+static void print_call(const char *name, KlrInsn *insn, FILE *fp)
 {
     KlrValue *fn = insn_oper_value(insn, 0);
 
     if (fn->ts->kind == TYPE_NO_TYPE) {
-        fprintf(fp, "call ");
+        fprintf(fp, "%s ", name);
     } else {
         klr_print_value_name((KlrValue *)insn, fp);
-        fprintf(fp, " = call ");
+        fprintf(fp, " = %s ", name);
     }
 
     fprintf(fp, "@%s", fn->name);
@@ -280,6 +280,19 @@ static void print_loadk(KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[1], fp);
 }
 
+static void print_attributes(KlrInsn *insn, FILE *fp)
+{
+    if (insn->fixedslot) {
+        if (insn->vreg != -1) {
+            fprintf(fp, "        [fixedslot = %d(%s) -> R%d]", insn->slotindex,
+                    insn->fixedslot == 1 ? "next" : "pos", insn->vreg);
+        } else {
+            fprintf(fp, "        [fixedslot = %d(%s)]", insn->slotindex,
+                    insn->fixedslot == 1 ? "next" : "pos");
+        }
+    }
+}
+
 void klr_print_insn(KlrInsn *insn, FILE *fp)
 {
     switch (insn->code) {
@@ -311,8 +324,16 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_push("push_int_imm", insn, fp);
             break;
 
+        case OP_JMP_INT_LT:
+            print_jmp_cond_fused("jmp_int_lt", insn, fp);
+            break;
+
         case OP_JMP_INT_LT_IMM:
             print_jmp_cond_fused("jmp_int_lt_imm", insn, fp);
+            break;
+
+        case OP_JMP_INT_EQ_IMM:
+            print_jmp_cond_fused("jmp_int_eq_imm", insn, fp);
             break;
 
         case OP_BINARY_ADD:
@@ -364,7 +385,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_CALL:
-            print_call(insn, fp);
+            print_call("call", insn, fp);
+            break;
+
+        case OP_TAIL_CALL:
+            print_call("tail_call", insn, fp);
             break;
 
         case OP_BINARY_CMPEQ:
@@ -461,9 +486,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         default:
             printf("%s\n", op_name(insn->code));
-            UNREACHABLE();
+            // UNREACHABLE();
             break;
     }
+
+    print_attributes(insn, fp);
 }
 
 static void print_preds(KlrBasicBlock *bb, int spaces, FILE *fp)

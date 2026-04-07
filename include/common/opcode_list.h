@@ -1151,7 +1151,43 @@ X(OP_PUSH_CONST, FORMAT_Idx2)
  *         - cross-module calls via import table
  *         - interface dynamic dispatch via TypeInfo
  */
-X(OP_CALL,              FORMAT_CALL)
+X(OP_CALL, FORMAT_CALL)
+
+/**
+ * OP_TAIL_CALL — unified call instruction family
+ *
+ * FORMAT_CALL:
+ *     31                                           0
+ *     | op:8 | flag:4 | A(ret-reg):12 | B(nargs):8 |
+ *     | payload (32-bit)                           |
+ *
+ * Details:
+ *     A unified call instruction format. The 'flag' field determines
+ *     the call subtype:
+ *
+ *         flag = 0  →  direct call within the same module
+ *         flag = 1  →  external function call (import-index)
+ *         flag = 2  →  interface method call (intf-id + method-slot)
+ *
+ *     The second 32-bit word (payload) is interpreted differently
+ *     depending on the flag:
+ *
+ *         flag = 0 (direct call):
+ *             payload = relative-offset (signed 32-bit)
+ *
+ *         flag = 1 (external call):
+ *             payload = import-index (unsigned 32-bit)
+ *
+ *         flag = 2 (interface call):
+ *             payload = (intf-id:16 | method-slot:16)
+ *
+ *     This unified encoding reduces opcode count and keeps all call
+ *     instructions consistent while still supporting:
+ *         - intra-module direct calls (fast PC-relative)
+ *         - cross-module calls via import table
+ *         - interface dynamic dispatch via TypeInfo
+ */
+X(OP_TAIL_CALL, FORMAT_CALL)
 
 /*---------------------------------------------------------------+
  |  Return Instructions                                          |

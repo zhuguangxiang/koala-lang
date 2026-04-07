@@ -19,6 +19,8 @@ typedef struct _CodeSpec {
     void *line_table;
     /* all locals, include parameters */
     int nlocals;
+    /* max call arguments */
+    int max_call_args;
     /* size of codes */
     int code_size;
     /* start_pc of this code */

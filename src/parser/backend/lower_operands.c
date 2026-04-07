@@ -164,7 +164,7 @@ static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
             KlrValue *dst = insn_oper_value(insn, 0);
             KlrValue *src = insn_oper_value(insn, 1);
 
-            ASSERT(klr_is_local(dst));
+            ASSERT(klr_is_local(dst) || klr_is_param(dst));
             ASSERT(!klr_is_const(src));
 
             /* move reg, reg */
@@ -177,7 +177,7 @@ static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
             KlrValue *dst = insn_oper_value(insn, 0);
             KlrValue *imm_val = insn_oper_value(insn, 1);
 
-            ASSERT(klr_is_local(dst));
+            ASSERT(klr_is_local(dst) || klr_is_param(dst));
             ASSERT(klr_is_const(imm_val));
 
             KlrConst *kc = (KlrConst *)imm_val;
@@ -194,7 +194,7 @@ static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
             KlrValue *dst = insn_oper_value(insn, 0);
             KlrValue *tag = insn_oper_value(insn, 1);
 
-            ASSERT(klr_is_local(dst));
+            ASSERT(klr_is_local(dst) || klr_is_param(dst));
             ASSERT(klr_is_const(tag));
 
             KlrConst *kc = (KlrConst *)tag;
@@ -209,7 +209,7 @@ static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
             KlrValue *dst = insn_oper_value(insn, 0);
             KlrValue *cst = insn_oper_value(insn, 1);
 
-            ASSERT(klr_is_local(dst));
+            ASSERT(klr_is_local(dst) || klr_is_param(dst));
             ASSERT(klr_is_const(cst));
 
             KlrConst *kc = (KlrConst *)cst;
@@ -369,7 +369,8 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
             }
 
             switch (insn->code) {
-                case OP_CALL: {
+                case OP_CALL:
+                case OP_TAIL_CALL: {
                     lower_call_opers(insn, fn);
                     break;
                 }

@@ -102,6 +102,8 @@ void replace_all_uses_with(KlrValue *val, KlrValue *def)
     }
 }
 
+static int __attr_eq__(void *a, void *b) { return a == b; }
+
 static KlrInsn *new_insn(OpCode op, int num_opers, char *name)
 {
     KlrInsn *insn = mm_alloc(sizeof(*insn) + sizeof(KlrOper) * num_opers);
@@ -109,6 +111,7 @@ static KlrInsn *new_insn(OpCode op, int num_opers, char *name)
     insn->code = op;
     insn->num_opers = num_opers;
     init_list(&insn->bb_link);
+    hashmap_init(&insn->attrs, __attr_eq__);
     return insn;
 }
 
@@ -186,12 +189,15 @@ int ir_has_value(KlrInsn *insn)
 
 /*
  * IR: move %dst, %src
- * %dst is a local variable, %src is a reg value or const value.
+ * %dst is a local/param variable, %src is a reg value or const value.
+ * Here, %dst is allowed for parameter for tailcall optimization.
+ * In koala, all parameters are immutable local variables, it's checked by front-end.
+ * This is not changed for Koala language.
  */
 void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
 {
-    if (!klr_is_local(var)) {
-        panic("'move %%x, %%v' requires a local var.");
+    if (!klr_is_local(var) && !klr_is_param(var)) {
+        panic("'move %%x, %%v' requires a local/param var.");
     }
 
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_PARAM &&
@@ -405,8 +411,8 @@ KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val, OpCode op)
 
 KlrInsn *klr_build_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val, OpCode op)
 {
-    if (!klr_is_local(var)) {
-        panic("'load' op requires a local var");
+    if (!klr_is_local(var) && !klr_is_param(var)) {
+        panic("'load' op requires a local/param var");
     }
 
     if (val->kind != KLR_VALUE_CONST) {

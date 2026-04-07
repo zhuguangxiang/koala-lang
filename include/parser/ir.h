@@ -130,6 +130,15 @@ typedef struct _KlrFunc {
     /* basic block tag */
     int bb_tag;
 
+    /* flag: true if this function contains a tail call instruction */
+    int has_tailcall;
+
+    /* max number of call arguments in this function */
+    int max_call_args;
+
+    /* number of local variables used in this function */
+    int nlocals;
+
     /* basic block list */
     List bb_list;
     /* all edges */
@@ -364,6 +373,12 @@ typedef struct _KlrInsn {
     /* ->bb */
     KlrBasicBlock *bb;
 
+    /* attributes */
+    HashMap attrs;
+
+    int fixedslot;
+    int slotindex;
+
     /* phi variable */
     KlrValue *phi;
 
@@ -554,6 +569,9 @@ void klr_remove_all_out_edges(KlrBasicBlock *bb);
 
 #define bb_foreach_reverse(bb, fn) list_foreach_reverse(bb, link, &(fn)->bb_list)
 
+#define first_basic_block(fn) list_first(&(fn)->bb_list, KlrBasicBlock, link)
+#define last_basic_block(fn)  list_last(&(fn)->bb_list, KlrBasicBlock, link)
+
 static inline int klr_get_nr_preds(KlrBasicBlock *bb)
 {
     int nr_preds = 0;
@@ -694,6 +712,7 @@ void klr_add_last_return(KlrBasicBlock *bb);
 #define insn_last(bb)  list_last(&(bb)->insn_list, KlrInsn, bb_link)
 
 #define insn_prev(insn, bb) list_prev(insn, bb_link, &(bb)->insn_list)
+#define insn_next(insn, bb) list_next(insn, bb_link, &(bb)->insn_list)
 
 /* def-use iteration */
 #define use_foreach(use, val) list_foreach(use, use_link, &(val)->use_list)
@@ -721,8 +740,8 @@ void klr_add_last_return(KlrBasicBlock *bb);
 })
 
 /* insn->oper.use iteration */
-#define insn_oper_use_foreach(use, insn) \
-    for (int i__ = 0; (i__ < (insn)->num_opers) && (use = &(insn)->opers[i__].use, 1); i__++)
+#define insn_oper_use_foreach(_use, insn) \
+    for (int i__ = 0; (i__ < (insn)->num_opers) && (_use = &(insn)->opers[i__].use, 1); i__++)
 
 #define _insn_oper_value_foreach(val, insn, start) \
     for (int i__ = (start); (i__ < (insn)->num_opers) && (val = insn_oper_value(insn, i__), 1); i__++)

@@ -74,11 +74,9 @@ typedef struct _ImportEntry {
     void *address;   /* resolved runtime address */
 } ImportEntry;
 
-// module->funcs, cache-line 16 * 4 = 64
+// module->funcs, cache-line 64
 typedef struct _FuncEntry {
     Object *obj;
-    uint8_t native;
-    uint8_t unused[7];
 } FuncEntry;
 
 extern TypeObject module_type;

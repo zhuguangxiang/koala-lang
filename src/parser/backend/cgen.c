@@ -346,12 +346,15 @@ static void dump_byte_code(KlMachModule *m)
     const uint8_t *ptr = cb->data;
     size_t len = cb->size;
 
-    printf("\n====== Emitted Bytecode (insns: %zu) ======\n\n", len / 4);
+    printf("\n====== Emitted Bytecode (insns: %zu) ======\n", len / 4);
 
+    KlrFunc *fn;
     KlMachFunc *mfn;
     vector_foreach(mfn, &m->funcs) {
-        printf("\n@%s:\n", mfn->origin->name);
-        printf("[start_pc: %d, insns: %d]\n", mfn->start_pc, mfn->total_insns);
+        fn = mfn->origin;
+        printf("\n@%s:\n", fn->name);
+        printf("[start_pc: %d, insns: %d, nlocals: %d, max_call_args: %d]\n",
+               mfn->start_pc, mfn->total_insns, fn->nlocals, fn->max_call_args);
     }
 
     printf("\n");
@@ -738,6 +741,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 mi->opers[0] = 1; // set flag for external function
             } else {
                 mi->target_fn = fn->mach;
+                ASSERT(fn->mach != NULL);
                 log_info("  call target: %s(local)", fn->name);
                 // insert 4 bytes: rel32
                 KlMachBlock *mb = mi->bb;
@@ -745,7 +749,11 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 vector_push_back(&mb->insns, &data);
                 vector_push_back(&m->fixups, &mi);
                 mi->fixup_flag = KL_MACH_FIXUP_REL32;
-                mi->opers[0] = 0; // set flag for local function
+                if (insn->code == OP_TAIL_CALL) {
+                    mi->opers[0] = 3;
+                } else {
+                    mi->opers[0] = 0; // set flag for local function
+                }
             }
             break;
         }
@@ -767,15 +775,9 @@ static int fused_jmp(OpCode op)
     return (op >= OP_JMP_INT_EQ && op <= OP_JMP_UINT_GE_IMM);
 }
 
-static KlMachFunc *linearize(KlrFunc *fn, KlMachModule *m)
+static void linearize(KlMachFunc *mfn, KlMachModule *m)
 {
-    KlMachFunc *mfn = mm_alloc_obj(mfn);
-    mfn->origin = fn;
-    mfn->m = m;
-    init_list(&mfn->bb_list);
-    vector_init_ptr(&mfn->branches);
-    vector_push_back(&m->funcs, &mfn);
-    fn->mach = mfn;
+    KlrFunc *fn = mfn->origin;
 
     // build machine blocks
     int index = 0;
@@ -792,14 +794,6 @@ static KlMachFunc *linearize(KlrFunc *fn, KlMachModule *m)
         if (index == 0) mfn->entry = mb;
         ++index;
     }
-
-    // get entry block and add DATA(fid) at the beginning for func.
-    KlMachBlock *entry_mb = mfn->entry;
-    KlMachInsn *data = build_data_mach_insn(entry_mb);
-    data->fixup_flag = KL_MACH_FIXUP_FUNCID;
-    data->target_fn = mfn;
-    vector_push_back(&entry_mb->insns, &data);
-    vector_push_back(&m->fixups, &data);
 
     // build machine insns
     KlMachBlock *mb;
@@ -828,8 +822,6 @@ static KlMachFunc *linearize(KlrFunc *fn, KlMachModule *m)
             fill_mach_insn(mi, insn, m);
         }
     }
-
-    return mfn;
 }
 
 /**
@@ -1116,7 +1108,7 @@ static void patch_fixups(KlMachModule *m)
     CodeBuffer *codes = &m->codes;
     KlMachInsn *mi;
     vector_foreach(mi, &m->fixups) {
-        if (mach_insn_is(mi, OP_CALL)) {
+        if (mach_insn_or(mi, OP_CALL, OP_TAIL_CALL)) {
             if (mi->fixup_flag == KL_MACH_FIXUP_REL32) {
                 ASSERT(mi->format == FORMAT_CALL);
                 ASSERT(mi->target_fn);
@@ -1128,12 +1120,13 @@ static void patch_fixups(KlMachModule *m)
                        mi->target_fn->origin->name, target_pc);
                 ASSERT(target_pc >= 0);
                 /* Relative offset: target - (payload + 1) */
-                int rel32 = target_pc - (payload_pc + 1);
+                // int rel32 = target_pc - (payload_pc + 1);
+                int local_index = mi->target_fn->index;
                 /* Patch the placeholder data instruction following the call. */
                 int *patch = (int *)codes->data + payload_pc;
-                *patch = rel32;
-                printf("  patched position at pc %d with relative offset %d\n",
-                       payload_pc, rel32);
+                *patch = local_index;
+                printf("  patched position at pc %d with local index %d\n", payload_pc,
+                       local_index);
             } else {
                 ASSERT(mi->fixup_flag == KL_MACH_FIXUP_IMPORT);
                 ASSERT(mi->format == FORMAT_CALL);
@@ -1145,18 +1138,6 @@ static void patch_fixups(KlMachModule *m)
                 printf("fixup call '%s' at pc %d(import), with import index %d\n",
                        mi->origin->bb->func->name, payload_pc, mi->import_index);
             }
-        } else if (mach_insn_is(mi, OP_DATA)) {
-            ASSERT(mi->fixup_flag == KL_MACH_FIXUP_FUNCID);
-            ASSERT(mi->format == FORMAT_DATA);
-            // the following DATA insn is for function ID, which is the index of this
-            // function in the module's function list.
-            int payload_pc = mi->pc;
-            KlMachFunc *target_fn = mi->target_fn;
-            int func_index = target_fn->index;
-            int *patch = (int *)codes->data + payload_pc;
-            *patch = func_index;
-            printf("fixup function '%s' at pc %d(funcid), with function index %d\n",
-                   target_fn->origin->name, payload_pc, func_index);
         } else {
             UNREACHABLE();
         }
@@ -1181,13 +1162,22 @@ void kl_do_codegen(KlrModule *origin)
     KlMachModule m;
     init_mach_context(&m, origin);
 
-    // Linearize each function and assign PCs.
-    KlMachFunc *mfn;
     KlrFunc *fn;
     vector_foreach(fn, &origin->functions) {
         kl_lower_operands(fn, &m);
-        mfn = linearize(fn, &m);
+        KlMachFunc *mfn = mm_alloc_obj(mfn);
+        mfn->origin = fn;
+        mfn->m = &m;
+        init_list(&mfn->bb_list);
+        vector_init_ptr(&mfn->branches);
+        vector_push_back(&m.funcs, &mfn);
         mfn->index = i__;
+        fn->mach = mfn;
+    }
+
+    KlMachFunc *mfn;
+    vector_foreach(mfn, &m.funcs) {
+        linearize(mfn, &m);
         lower_branches(mfn);
         assign_pc(mfn);
         process_fused_jumps(mfn);

@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 /* max stack size */
-#define MAX_STACK_SIZE (64 * 1024)
+#define MAX_STACK_SIZE (2 * 64 * 1024)
 
 /* pthread */
 __thread ThreadState *__ts;

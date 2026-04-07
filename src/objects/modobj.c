@@ -37,32 +37,10 @@ static TValue not_impl_func(TValue *self, TValue *args, int nargs)
 int kl_bind_func(Object *_m, Object *obj)
 {
     ModuleObject *m = (ModuleObject *)_m;
-
-    int start_pc;
-    int nlocals;
-    int native;
-
-    if (IS_CFUNC(obj)) {
-        start_pc = 0;
-        nlocals = 0;
-        native = 1;
-    } else {
-        ASSERT(IS_CODE(obj));
-        CodeObject *code = (CodeObject *)obj;
-        start_pc = code->cs.start_pc;
-        nlocals = code->cs.nlocals;
-        native = 0;
-    }
-
-    FuncEntry entry = {
-        // .start_pc = start_pc,
-        // .nlocals = nlocals,
-        .native = native,
-        .obj = obj,
-    };
-
+    FuncEntry entry = { .obj = obj };
     vector_push_back(&m->func_entries, &entry);
-
+    int func_idx = vector_size(&m->func_entries) - 1;
+    kl_set_func_idx(obj, func_idx);
     return 0;
 }
 

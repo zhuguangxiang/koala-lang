@@ -26,16 +26,18 @@ typedef struct _CompileOptions {
     int enable_lsra;
     int enable_cgen;
     int enable_fusion;
+    int enable_tail_call;
     DumpFlags dump;
 } CompileOptions;
 
 extern CompileOptions cmd_opt;
 
-#define opt_enabled()    (cmd_opt.enable_opt)
-#define isel_enabled()   (cmd_opt.enable_isel)
-#define fusion_enabled() (cmd_opt.enable_fusion)
-#define lsra_enabled()   (cmd_opt.enable_lsra)
-#define cgen_enabled()   (cmd_opt.enable_cgen)
+#define opt_enabled()       (cmd_opt.enable_opt)
+#define isel_enabled()      (cmd_opt.enable_isel)
+#define fusion_enabled()    (cmd_opt.enable_fusion)
+#define lsra_enabled()      (cmd_opt.enable_lsra)
+#define cgen_enabled()      (cmd_opt.enable_cgen)
+#define tail_call_enabled() (cmd_opt.enable_tail_call)
 
 #define dump_ir_enabled()     ((cmd_opt.dump & DUMP_IR) != 0)
 #define dump_opt_ir_enabled() ((cmd_opt.dump & DUMP_OPT_IR) != 0)
