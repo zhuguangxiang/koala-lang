@@ -265,6 +265,8 @@ typedef struct _KlrModule {
     HashMap consts;
     /* constant next available index */
     int const_next;
+    /* mach */
+    void *mach;
 } KlrModule;
 
 typedef struct _KlrKlass {

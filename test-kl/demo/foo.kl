@@ -1,0 +1,11 @@
+
+let greeting = "Hello, world!"
+let name = "Koala"
+
+func foo(n int) int {
+    return n + 100
+}
+
+if max > min {
+    print("max is greater than min")
+}

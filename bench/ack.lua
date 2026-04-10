@@ -8,7 +8,7 @@ local function ack(m, n)
     end
 end
 
-local m, n = 3, 11
+local m, n = 3, 10
 local start = os.clock()
 local result = ack(m, n)
 local elapsed = os.clock() - start

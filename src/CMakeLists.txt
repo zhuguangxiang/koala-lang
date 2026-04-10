@@ -43,7 +43,7 @@ set(PARSER_SRC
 add_library(parser STATIC ${PARSER_SRC})
 target_link_libraries(parser koala-common)
 
-add_executable(koalac_out parser/main.c)
+add_executable(koalac_out parser/koalac.c)
 target_link_libraries(koalac_out parser)
 set_target_properties(koalac_out PROPERTIES
     OUTPUT_NAME koalac)
@@ -109,17 +109,21 @@ set(KOALA_SOURCES
 add_library(koala STATIC ${KOALA_SOURCES})
 target_link_libraries(koala koala-common pthread m dl ffi)
 
-add_executable(koala_out ${PROJECT_SOURCE_DIR}/src/koala.c)
+add_executable(koala_out
+    ${PROJECT_SOURCE_DIR}/src/koala.c
+    ${PROJECT_SOURCE_DIR}/src/args.c)
+
 target_link_libraries(koala_out koala)
 set_target_properties(koala_out PROPERTIES
     OUTPUT_NAME koala)
 
-add_executable(koala_dump ${PROJECT_SOURCE_DIR}/tools/koala_dump.c)
+add_executable(koala_dump ${PROJECT_SOURCE_DIR}/tools/klc-dump.c)
 target_link_libraries(koala_dump parser)
 set_target_properties(koala_dump PROPERTIES
-    OUTPUT_NAME koala_dump)
+    OUTPUT_NAME klc-dump)
 
 install(TARGETS koalac_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
+install(TARGETS koala_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
 
 install(DIRECTORY ${PROJECT_BINARY_DIR}/include/
     DESTINATION koala-${KOALA_VERSION_MAIN}/include
@@ -141,9 +145,13 @@ install_symlink(
     ${CMAKE_INSTALL_PREFIX}/../bin/koalac)
 
 install_symlink(
+    ../lib/koala/bin/koala
+    ${CMAKE_INSTALL_PREFIX}/../bin/koala)
+
+install_symlink(
     ../lib/koala/include
     ${CMAKE_INSTALL_PREFIX}/../include/koala)
 
 install_symlink(
-    ../lib/koala/bin/koala_dump
-    ${CMAKE_INSTALL_PREFIX}/../bin/koala_dump)
+    ../lib/koala/bin/klc-dump
+    ${CMAKE_INSTALL_PREFIX}/../bin/klc-dump)

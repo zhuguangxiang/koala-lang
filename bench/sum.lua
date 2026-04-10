@@ -7,7 +7,7 @@ local function sum(n, acc)
     return sum(n - 1, acc + n)
 end
 
-local n = 100000000 -- 一百万次递归
+local n = 100000000 -- 一亿次递归
 local start = os.clock()
 local result = sum(n, 0)
 local elapsed = os.clock() - start

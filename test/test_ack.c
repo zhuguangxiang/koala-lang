@@ -66,14 +66,14 @@ int main(int argc, char *argv[])
     Object *obj = kl_new_code("__init__", m);
     CodeObject *code = (CodeObject *)obj;
     code->cs.start_pc = 0;
-    code->cs.code_size = 8;
+    code->cs.num_insns = 8;
     code->cs.nlocals = 1;
     kl_mo_add_func(m, obj);
 
     obj = kl_new_code("ack", m);
     code = (CodeObject *)obj;
     code->cs.start_pc = 8;
-    code->cs.code_size = 21;
+    code->cs.num_insns = 21;
     code->cs.nlocals = 3;
     kl_mo_add_func(m, obj);
 

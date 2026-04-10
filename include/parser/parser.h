@@ -15,6 +15,26 @@
 extern "C" {
 #endif
 
+typedef struct _ParserModule {
+    /* module path */
+    char *path;
+
+    /* per-file ParserState */
+    Vector pss;
+
+    /* module-level symbol table */
+    HashMap *stbl;
+
+    /* all imported packages */
+    HashMap *imported;
+
+    /* builtin package */
+    HashMap *builtin;
+
+    /* module-level IR*/
+    KlrModule *module;
+} ParserModule;
+
 typedef enum _ScopeKind {
     SCOPE_TOP,
     SCOPE_CLASS,
@@ -62,6 +82,9 @@ typedef struct _ParserScope {
 
 /* per source file */
 typedef struct _ParserState {
+    /* module pointer */
+    ParserModule *module;
+
     /* src file name */
     char *filename;
 
@@ -90,15 +113,6 @@ typedef struct _ParserState {
 
     /* current file imported */
     HashMap *imported;
-
-    /* builtin table */
-    HashMap *builtin;
-
-    /* symbol table */
-    HashMap *stbl;
-
-    /* IR module */
-    KlrModule *module;
 
     /* token */
     int token;
@@ -186,13 +200,13 @@ void kl_error_detail(ParserState *, Loc *);
 void parser_visit_expr(ParserState *ps, Expr *exp);
 void parse_top_stmt(ParserState *ps, Stmt *stmt);
 
-ParserState *new_parser_state(char *path);
+ParserState *new_parser_state(ParserModule *pm, char *path);
 void free_parser_state(ParserState *ps);
-int do_compile(Vector *pss, char *output);
+void kl_parse_ast(ParserState *ps);
 Vector *infer_func_tp(FuncSymbol *fn, Vector *args, ParserState *ps);
 
-void init_parser(void);
-void fini_parser(void);
+void init_parser(ParserModule *module);
+void fini_parser(ParserModule *module);
 
 void parse_stmt(ParserState *ps, Stmt *stmt);
 
@@ -204,9 +218,9 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts);
 int check_type(ParserState *ps, TypeSpec *ts);
 int type_spec_compatible(TypeSpec *dst, TypeSpec *src);
 
-void write_to_klc(HashMap *stbl, char *path);
+void write_to_klc(ParserModule *pm);
 HashMap *load_module(char *path);
-void kl_gen_ir(ParserState *ps);
+void kl_gen_ir(ParserModule *pm);
 
 #ifdef __cplusplus
 }

@@ -11,20 +11,20 @@ extern "C" {
 #endif
 
 typedef struct _CodeSpec {
+    /* all locals, include parameters */
+    int nlocals;
+    /* start_pc of this code */
+    int start_pc;
+    /* number of insns */
+    int num_insns;
+    /* max call arguments */
+    int max_call_args;
     /* name */
     char *name;
     /* file name */
     char *filename;
     /* line table(addr2line) */
     void *line_table;
-    /* all locals, include parameters */
-    int nlocals;
-    /* max call arguments */
-    int max_call_args;
-    /* size of codes */
-    int code_size;
-    /* start_pc of this code */
-    int start_pc;
 } CodeSpec;
 
 #ifdef __cplusplus

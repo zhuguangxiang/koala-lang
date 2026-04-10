@@ -6,6 +6,8 @@
 #ifndef _KOALA_OPCODE_H_
 #define _KOALA_OPCODE_H_
 
+#include "common.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -103,6 +105,8 @@ static inline char *op_name(OpCode code) { return __op_names[code]; }
 
 extern OpFormat __op_formats[];
 static inline OpFormat op_format(OpCode code) { return __op_formats[code]; }
+
+void bytecode_print(uint8_t *code, size_t start, size_t count);
 
 #ifdef __cplusplus
 }

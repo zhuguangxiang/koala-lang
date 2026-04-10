@@ -108,7 +108,7 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
         __int128_t min_limit, max_limit;
         if (sign) {
             max_limit = (__int128_t)(phys_max >> 1); // 2^(n-1) - 1
-            min_limit = -(max_limit + 1); // -2^(n-1)
+            min_limit = -(max_limit + 1);            // -2^(n-1)
         } else {
             min_limit = 0;
             max_limit = (__int128_t)phys_max;
@@ -254,8 +254,8 @@ static void parse_list(ParserState *ps, Expr *exp)
     vector_clear(tp_args);
     vector_push_back(tp_args, &infer_ts);
 
-    Symbol *origin = stbl_get(ps->builtin, "list");
-    InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, origin, tp_args);
+    Symbol *origin = stbl_get(ps->module->builtin, "list");
+    InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, origin, tp_args);
     inst_sym->arg = infer_ts; // save infered tuple type for later use
 
     exp->ts = inst_sym->instance_ts;
@@ -283,8 +283,8 @@ static void parse_tuple(ParserState *ps, Expr *exp)
     log_info("infer tuple type:");
     log_type_spec(infer_ts);
 
-    Symbol *origin = stbl_get(ps->builtin, "tuple");
-    InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, origin, tp_args);
+    Symbol *origin = stbl_get(ps->module->builtin, "tuple");
+    InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, origin, tp_args);
     inst_sym->arg = infer_ts; // save infered tuple type for later use
 
     exp->ts = inst_sym->instance_ts;
@@ -510,7 +510,7 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin,
             vector_push_back(_tp_args, &inst_arg);
         }
         Symbol *_sym = get_symbol_by_id(ts->sym_id);
-        InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, _sym, _tp_args);
+        InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, _sym, _tp_args);
         inst_ts = inst_sym->instance_ts;
         vector_destroy(_tp_args);
     } else if (type_is_valist(ts)) {
@@ -864,7 +864,8 @@ static void parse_call(ParserState *ps, Expr *exp)
                 vector_push_back(tp_args, &arg->ts);
             }
 
-            InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, lhs_sym, tp_args);
+            InstanceSymbol *inst_sym =
+                find_or_add_instance(ps->module->stbl, lhs_sym, tp_args);
             vector_destroy(tp_args);
 
             Symbol *_fn = stbl_get(inst_sym->stbl, "__init__");
@@ -910,7 +911,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                 }
 
                 InstanceSymbol *inst_sym =
-                    find_or_add_instance(ps->stbl, lhs_sym, tp_args);
+                    find_or_add_instance(ps->module->stbl, lhs_sym, tp_args);
 
                 vector_destroy(tp_args);
 
@@ -1473,7 +1474,8 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
     }
 
     // create or find instance symbol(List<int>)
-    InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, (Symbol *)kls_sym, tp_args);
+    InstanceSymbol *inst_sym =
+        find_or_add_instance(ps->module->stbl, (Symbol *)kls_sym, tp_args);
     vector_destroy(tp_args);
     index->ts = inst_sym->ts;
     index->sym = (Symbol *)inst_sym;

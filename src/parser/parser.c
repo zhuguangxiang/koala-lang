@@ -5,13 +5,8 @@
 
 #include "parser.h"
 #include "atom.h"
-#include "cgen.h"
 #include "cmd.h"
-#include "isel.h"
-#include "klc.h"
 #include "log.h"
-#include "lsra.h"
-#include "opt.h"
 
 /* clang-format off */
 #include "koala_yacc.h"
@@ -29,13 +24,6 @@ typedef struct _Imported {
     /* module or others */
     Symbol *sym;
 } Imported;
-
-/* all imported packages */
-static HashMap *imported;
-/* current package */
-static HashMap *current;
-/* builtin package */
-static HashMap *builtin;
 
 typedef struct _InferredInfo {
     HashMapEntry hnode;
@@ -132,9 +120,9 @@ Vector *infer_func_tp(FuncSymbol *fn, Vector *args, ParserState *ps)
 }
 
 // path without .klc suffix
-PkgSymbol *import_package(char *path)
+static PkgSymbol *import_package(ParserModule *pm, char *path)
 {
-    Symbol *sym = stbl_get(imported, path);
+    Symbol *sym = stbl_get(pm->imported, path);
     if (sym) {
         log_info("module '%s' already imported", path);
         ASSERT(sym->kind == SYM_PACKAGE);
@@ -147,31 +135,41 @@ PkgSymbol *import_package(char *path)
         return NULL;
     }
 
-    PkgSymbol *pkg_sym = stbl_add_pkg(imported, path, stbl);
+    PkgSymbol *pkg_sym = stbl_add_pkg(pm->imported, path, stbl);
     log_info("imported module '%s' successfully", path);
     return pkg_sym;
 }
 
-static inline void load_builtin_module(void)
+static inline void load_builtin_module(ParserModule *pm)
 {
-    PkgSymbol *pkg_sym = import_package("std/builtin");
+    PkgSymbol *pkg_sym = import_package(pm, "std/builtin");
     if (!pkg_sym) return;
-    builtin = pkg_sym->stbl;
-    install_builtin_types(builtin);
+    pm->builtin = pkg_sym->stbl;
+    install_builtin_types(pm->builtin);
 }
 
-void init_parser(void)
+void init_parser(ParserModule *pm)
 {
-    imported = stbl_new();
-    current = stbl_new();
+    vector_init_ptr(&pm->pss);
+    pm->imported = stbl_new();
+    pm->stbl = stbl_new();
     inferred = inferred_map();
-    load_builtin_module();
+    if (!is_build_stdlib()) {
+        load_builtin_module(pm);
+    }
 }
 
-void fini_parser(void)
+void fini_parser(ParserModule *pm)
 {
-    stbl_free(imported);
-    stbl_free(current);
+    ParserState *ps;
+    vector_foreach(ps, &pm->pss) {
+        if (!ps) continue;
+        free_parser_state(ps);
+    }
+    vector_fini(&pm->pss);
+
+    stbl_free(pm->imported);
+    stbl_free(pm->stbl);
     free_inferred_map();
     free_all_symbols();
 }
@@ -323,7 +321,7 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
 
     /* find ident from external scope (imported) */
     /* find ident from auto-imported(builtin) */
-    sym = stbl_get(ps->builtin, id->name);
+    sym = stbl_get(ps->module->builtin, id->name);
     if (sym) {
         log_info("find symbol '%s' in 'std/builtin' module", id->name);
         id->where = BLTIN_SCOPE;
@@ -629,7 +627,6 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     return 0;
 }
 
-static void parse_ast(ParserState *ps);
 static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls);
 
 TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
@@ -740,7 +737,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
                 ParserState *_ps = sym->ps;
                 if (ps != _ps) {
                     log_info("resolve symbol '%s' in '%s'", kls_sym->name, _ps->filename);
-                    parse_ast(_ps);
+                    kl_parse_ast(_ps);
                 } else {
                     log_info("currently resolving symbol '%s' in '%s'", kls_sym->name,
                              ps->filename);
@@ -788,7 +785,8 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         } else {
             // all args are concrete types and create instance symbol
             log_info("resolve type '%s' with type-args", _ts->unresolved.name.name);
-            InstanceSymbol *inst_sym = find_or_add_instance(ps->stbl, sym, tp_args);
+            InstanceSymbol *inst_sym =
+                find_or_add_instance(ps->module->stbl, sym, tp_args);
             vector_destroy(tp_args);
             if (!inst_sym) {
                 kl_error(_ts->loc, "failed to get instance for generic_ref type");
@@ -2536,7 +2534,7 @@ static void parse_klass_func_meta(ParserState *ps, KlassDeclStmt *kls)
     exit_scope(ps);
 }
 
-static void parse_ast(ParserState *ps)
+void kl_parse_ast(ParserState *ps)
 {
     if (ps->status != PS_STATUS_UNRESOLVED) {
         log_info("AST '%s' is already resolving or resolved.", ps->filename);
@@ -2546,7 +2544,7 @@ static void parse_ast(ParserState *ps)
     ps->status = PS_STATUS_RESOLVING;
 
     ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
-    scope->stbl = ps->stbl;
+    scope->stbl = ps->module->stbl;
 
     KlassDeclStmt *kls;
     vector_foreach(kls, &ps->kls_stmts) {
@@ -2580,7 +2578,7 @@ static void parse_ast(ParserState *ps)
 
 #ifndef NOLOG
     /* dump symbol tables */
-    stbl_show(ps->stbl);
+    stbl_show(ps->module->stbl);
 #endif
 }
 
@@ -2592,11 +2590,9 @@ static void init_parser_state(ParserState *ps, char *filename)
     vector_init_ptr(&ps->kls_stmts);
     vector_init_ptr(&ps->shadows);
     INIT_BUF(ps->sbuf);
-    ps->stbl = current;
-    ps->builtin = builtin;
 }
 
-ParserState *new_parser_state(char *path)
+ParserState *new_parser_state(ParserModule *pm, char *path)
 {
     FILE *in = fopen(path, "r");
     if (in == NULL) {
@@ -2606,6 +2602,8 @@ ParserState *new_parser_state(char *path)
 
     ParserState *ps = mm_alloc_obj(ps);
     init_parser_state(ps, path);
+    ps->module = pm;
+    vector_push_back(&pm->pss, &ps);
 
     yyscan_t scanner;
     yylex_init_extra(ps, &scanner);
@@ -2634,45 +2632,6 @@ void free_parser_state(ParserState *ps)
     vector_fini(&ps->shadows);
     FINI_BUF(ps->sbuf);
     mm_free(ps);
-}
-
-int do_compile(Vector *pss, char *output)
-{
-    int errors = 0;
-
-    ParserState *ps;
-    vector_foreach(ps, pss) {
-        if (!ps) continue;
-        parse_ast(ps);
-        if (!ps->errors) {
-            kl_gen_ir(ps);
-        }
-        errors += ps->errors;
-    }
-
-    if (errors > 0) return -1;
-
-    KlrModule *m = ps->module;
-
-    if (opt_enabled()) {
-        kl_optimize(m);
-    }
-
-    if (isel_enabled()) {
-        kl_do_isel(m);
-    }
-
-    if (lsra_enabled()) {
-        kl_do_lsra(m);
-    }
-
-    if (cgen_enabled()) {
-        kl_do_codegen(m);
-    }
-
-    write_to_klc(current, output);
-
-    return 0;
 }
 
 // only add symbol and do not add its type
@@ -2710,7 +2669,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
     switch (stmt->kind) {
         case STMT_VAR_KIND: {
             VarDeclStmt *var = (VarDeclStmt *)stmt;
-            sym = _add_global(ps, ps->stbl, var);
+            sym = _add_global(ps, ps->module->stbl, var);
             if (!sym) return;
             var->where = VAR_GLOBAL;
             sym->ps = ps;
@@ -2718,7 +2677,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
         }
         case STMT_FUNC_KIND: {
             FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
-            sym = _add_func(ps, ps->stbl, fn);
+            sym = _add_func(ps, ps->module->stbl, fn);
             if (!sym) return;
             vector_push_back(&ps->fn_stmts, &stmt);
             sym->ps = ps;
@@ -2727,7 +2686,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
         }
         case STMT_CLASS_KIND: {
             KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
-            sym = _add_klass(ps, ps->stbl, kls, 0);
+            sym = _add_klass(ps, ps->module->stbl, kls, 0);
             if (!sym) return;
             vector_push_back(&ps->kls_stmts, &stmt);
             sym->ps = ps;
@@ -2736,7 +2695,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
         }
         case STMT_TRAIT_KIND: {
             KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
-            sym = _add_klass(ps, ps->stbl, kls, 1);
+            sym = _add_klass(ps, ps->module->stbl, kls, 1);
             if (!sym) return;
             vector_push_back(&ps->kls_stmts, &stmt);
             sym->ps = ps;

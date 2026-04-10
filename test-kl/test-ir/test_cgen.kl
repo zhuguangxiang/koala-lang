@@ -210,26 +210,26 @@ func test_call(n int) int {
 // CHECK: [start_pc: 56, insns: 4, nlocals: 1, max_call_args: 1]
 
 // CHECK: @__init__[0,0]:
-// CHECK: 0000:  63000000   ret_void
+// CHECK: 0000:  5F000000   ret_void
 // CHECK: @foo[1,6]:
 // CHECK: 0001:  020101F4   load_int_imm r1, #500
 // CHECK: 0002:  05000001   int.add r0, r0, r1
 // CHECK: 0003:  06000001   int.add_imm r0, r0, #1
 // CHECK: 0004:  06000002   int.add_imm r0, r0, #2
 // CHECK: 0005:  06000003   int.add_imm r0, r0, #3
-// CHECK: 0006:  5F000000   ret r0
+// CHECK: 0006:  5B000000   ret r0
 // CHECK: @fib[7,17]:
 // CHECK: 0007:  1E010002   int.cmplt_imm r1, r0, #2
 // CHECK: 0008:  44010001   jmp_false r1, 1
-// CHECK: 0009:  5F000000   ret r0
+// CHECK: 0009:  5B000000   ret r0
 // CHECK: 0010:  08020001   int.sub_imm r2, r0, #1
-// CHECK: 0011:  5D000101   call flg=0, r1, #1
+// CHECK: 0011:  59000101   call flg=0, r1, #1
 // CHECK: 0012:  00000002   data (rel32=2)
 // CHECK: 0013:  08020002   int.sub_imm r2, r0, #2
-// CHECK: 0014:  5D000001   call flg=0, r0, #1
+// CHECK: 0014:  59000001   call flg=0, r0, #1
 // CHECK: 0015:  00000002   data (rel32=2)
 // CHECK: 0016:  05000100   int.add r0, r1, r0
-// CHECK: 0017:  5F000000   ret r0
+// CHECK: 0017:  5B000000   ret r0
 // CHECK: @test_while[18,25]:
 // CHECK: 0018:  02010000   load_int_imm r1, #0
 // CHECK: 0019:  42000000   jmp 0
@@ -238,7 +238,7 @@ func test_call(n int) int {
 // CHECK: 0022:  06020101   int.add_imm r2, r1, #1
 // CHECK: 0023:  01001002   move r1, r2
 // CHECK: 0024:  4200FFFB   jmp -5
-// CHECK: 0025:  63000000   ret_void
+// CHECK: 0025:  5F000000   ret_void
 // CHECK: @test_nested_loop[26,43]:
 // CHECK: 0026:  02010000   load_int_imm r1, #0
 // CHECK: 0027:  42000000   jmp 0
@@ -249,7 +249,7 @@ func test_call(n int) int {
 // CHECK: 0032:  1D030201   int.cmplt r3, r2, r1
 // CHECK: 0033:  44030006   jmp_false r3, 6
 // CHECK: 0034:  01004002   move r4, r2
-// CHECK: 0035:  5D1FFF01   call flg=1, #1
+// CHECK: 0035:  591FFF01   call flg=1, #1
 // CHECK: 0036:  00000000   data (import_index=0)
 // CHECK: 0037:  06030201   int.add_imm r3, r2, #1
 // CHECK: 0038:  01002003   move r2, r3
@@ -257,28 +257,28 @@ func test_call(n int) int {
 // CHECK: 0040:  06020101   int.add_imm r2, r1, #1
 // CHECK: 0041:  01001002   move r1, r2
 // CHECK: 0042:  4200FFF1   jmp -15
-// CHECK: 0043:  63000000   ret_void
+// CHECK: 0043:  5F000000   ret_void
 // CHECK: @bar[44,44]:
-// CHECK: 0044:  60000001   ret_int_imm #1
+// CHECK: 0044:  5C000001   ret_int_imm #1
 // CHECK: @bar2[45,45]:
-// CHECK: 0045:  63000000   ret_void
+// CHECK: 0045:  5F000000   ret_void
 // CHECK: @test_add[46,49]:
 // CHECK: 0046:  020101F4   load_int_imm r1, #500
 // CHECK: 0047:  05000001   int.add r0, r0, r1
 // CHECK: 0048:  06000001   int.add_imm r0, r0, #1
-// CHECK: 0049:  5F000000   ret r0
+// CHECK: 0049:  5B000000   ret r0
 // CHECK: @test_big_int[50,55]:
 // CHECK: 0050:  04010000   loadk r1, #0
 // CHECK: 0051:  05000001   int.add r0, r0, r1
 // CHECK: 0052:  06000001   int.add_imm r0, r0, #1
 // CHECK: 0053:  06000002   int.add_imm r0, r0, #2
 // CHECK: 0054:  06000003   int.add_imm r0, r0, #3
-// CHECK: 0055:  5F000000   ret r0
+// CHECK: 0055:  5B000000   ret r0
 // CHECK: @test_call[56,59]:
 // CHECK: 0056:  04010000   loadk r1, #0
-// CHECK: 0057:  5D000001   call flg=0, r0, #1
+// CHECK: 0057:  59000001   call flg=0, r0, #1
 // CHECK: 0058:  00000007   data (rel32=7)
-// CHECK: 0059:  5F000000   ret r0
+// CHECK: 0059:  5B000000   ret r0
 
 // CHECK: Constant Pool:
 // CHECK:   #0: int: 66000

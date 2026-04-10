@@ -209,10 +209,12 @@ return item's pointer
 #define vector_foreach_ptr(obj_ptr, vec) \
     for (int i__ = 0; (obj_ptr = vector_get_ptr(vec, i__)); ++i__)
 
-/* iterate vector(pointer saved) in reverse order, deletion is unsafe */
+/* iterate vector in reverse order, deletion is unsafe
+return item's self value
+*/
 #define vector_foreach_reverse(obj, vec) \
-    for (int i__ = vector_size(vec) - 1; \
-        (obj = vector_get_ptr(vec, i__)); --i__)
+    for (int i__ = vector_size(vec) - 1; i__ >= 0; i__--) \
+        if (({ typeof(obj) *p__ = vector_get_ptr(vec, i__); (obj = *p__); 1; }))
 
 /* clang-format on */
 

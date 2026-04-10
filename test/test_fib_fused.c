@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
     Object *obj = kl_new_code("__init__", m);
     CodeObject *code = (CodeObject *)obj;
     code->cs.start_pc = 0;
-    code->cs.code_size = 1;
+    code->cs.num_insns = 1;
     code->cs.nlocals = 0;
     code->cs.max_call_args = 0;
     kl_mo_add_func(m, obj);
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     obj = kl_new_code("fib", m);
     code = (CodeObject *)obj;
     code->cs.start_pc = 1;
-    code->cs.code_size = 10;
+    code->cs.num_insns = 10;
     code->cs.nlocals = 2;
     code->cs.max_call_args = 1;
     kl_mo_add_func(m, obj);
@@ -87,7 +87,7 @@ int main(int argc, char *argv[])
     obj = kl_new_code("main", m);
     code = (CodeObject *)obj;
     code->cs.start_pc = 11;
-    code->cs.code_size = 6;
+    code->cs.num_insns = 6;
     code->cs.nlocals = 0;
     code->cs.max_call_args = 1;
     kl_mo_add_func(m, obj);

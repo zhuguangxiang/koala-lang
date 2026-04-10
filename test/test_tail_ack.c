@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     Object *obj = kl_new_code("__init__", m);
     CodeObject *code = (CodeObject *)obj;
     code->cs.start_pc = 0;
-    code->cs.code_size = 7;
+    code->cs.num_insns = 7;
     code->cs.nlocals = 0;
     code->cs.max_call_args = 2;
     kl_mo_add_func(m, obj);
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     obj = kl_new_code("ack", m);
     code = (CodeObject *)obj;
     code->cs.start_pc = 7;
-    code->cs.code_size = 16;
+    code->cs.num_insns = 16;
     code->cs.nlocals = 3;
     code->cs.max_call_args = 2;
     kl_mo_add_func(m, obj);

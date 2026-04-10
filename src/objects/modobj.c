@@ -120,8 +120,8 @@ int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *name)
 
     ImportEntry entry = {
         .kind = kind,
-        .path = path,
-        .name = name,
+        .path = atom(path),
+        .name = atom(name),
         .address = NULL,
     };
 

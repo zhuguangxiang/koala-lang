@@ -1,0 +1,11 @@
+
+let max = 100
+let min = 200
+
+func bar(n int) int {
+    return n - 100
+}
+
+if max < min {
+    print("max is less than min")
+}

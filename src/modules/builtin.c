@@ -25,7 +25,12 @@ static void print_value(TValue *val)
     } else if (is_error(val)) {
         printf("error ");
     } else if (is_obj(val)) {
-        printf("<object> ");
+        Object *obj = val->obj;
+        if (IS_STR(obj)) {
+            printf("%s ", STR_BUF(obj));
+        } else {
+            printf("<object> ");
+        }
     } else {
         NYI();
     }

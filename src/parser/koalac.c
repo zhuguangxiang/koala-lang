@@ -8,14 +8,19 @@
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include "atom.h"
+#include "cgen.h"
 #include "cmd.h"
+#include "isel.h"
+#include "klc.h"
 #include "log.h"
+#include "lsra.h"
+#include "opt.h"
 #include "parser.h"
 #include "version.h"
 
 #define MAX_PATH_LEN 1024
 
-static char output[MAX_PATH_LEN];
+static char output[MAX_PATH_LEN + 8];
 static char input[MAX_PATH_LEN];
 
 CompileOptions cmd_opt;
@@ -26,12 +31,15 @@ static void usage(void)
         "\nusage: koalac [<options>] <package>|<file>...\n\n"
         "options:\n"
         "  -o <file>          Place the output into <file>.\n"
+        "  --genir            Enable IR generation stage.\n"
         "  --opt              Enable optimization passes (default).\n"
         "  --isel             Enable instruction selection stage.\n"
-        "  --cgen             Enable code generation stage.\n"
         "  --lsra             Enable linear scan register allocator.\n"
+        "  --cgen             Enable code generation stage.\n"
         "  --fusion           Enable fusion optimization passes.\n"
         "  --tail-call        Enable tail call optimization.\n"
+        "  --build-stdlib     Build the Koala standard library.\n"
+        "  --write-klc        Write the compiled output to a .klc file.\n"
         "  --dump=<list>      Dump internal information.\n"
         "                     <list> is a comma-separated list of:\n"
         "                         ir       - dump no-opt IR\n"
@@ -65,7 +73,9 @@ static void version(void)
         printf("[gcc %d.%d.%d on %s/%s]\r\n", __GNUC__, __GNUC_MINOR__,
                __GNUC_PATCHLEVEL__, sysinfo.sysname, sysinfo.machine);
 #elif defined(_MSC_VER)
+        printf("[msvc %d on %s/%s]\r\n", _MSC_VER, sysinfo.sysname, sysinfo.machine);
 #else
+        printf("[unknown compiler on %s/%s]\r\n", sysinfo.sysname, sysinfo.machine);
 #endif
     }
 }
@@ -120,11 +130,19 @@ static void parse_command(int argc, char *argv[])
     extern char *optarg;
     extern int optind;
     struct option options[] = {
-        { "version", no_argument, NULL, 'v' }, { "help", no_argument, NULL, 'h' },
-        { "opt", no_argument, 0, 1 },          { "isel", no_argument, 0, 2 },
-        { "lsra", no_argument, 0, 3 },         { "cgen", no_argument, 0, 4 },
-        { "fusion", no_argument, 0, 5 },       { "tail-call", no_argument, 0, 6 },
-        { "dump", required_argument, 0, 7 },   { NULL, 0, NULL, 0 },
+        { "version", no_argument, NULL, 'v' },
+        { "help", no_argument, NULL, 'h' },
+        { "genir", no_argument, 0, 1 },
+        { "opt", no_argument, 0, 2 },
+        { "isel", no_argument, 0, 3 },
+        { "lsra", no_argument, 0, 4 },
+        { "cgen", no_argument, 0, 5 },
+        { "fusion", no_argument, 0, 6 },
+        { "tail-call", no_argument, 0, 7 },
+        { "build-stdlib", no_argument, 0, 8 },
+        { "write-klc", no_argument, 0, 9 },
+        { "dump", required_argument, 0, 10 },
+        { NULL, 0, NULL, 0 },
     };
 
     int opt_id;
@@ -133,36 +151,52 @@ static void parse_command(int argc, char *argv[])
     while ((opt_id = getopt_long(argc, argv, "o:vh?", options, &long_index)) != -1) {
         switch (opt_id) {
             case 1:
-                cmd_opt.enable_opt = 1;
+                cmd_opt.enable_genir = 1;
                 break;
 
             case 2:
+                cmd_opt.enable_genir = 1;
+                cmd_opt.enable_opt = 1;
+                break;
+
+            case 3:
+                cmd_opt.enable_genir = 1;
                 cmd_opt.enable_opt = 1;
                 cmd_opt.enable_isel = 1;
                 break;
 
-            case 3:
+            case 4:
+                cmd_opt.enable_genir = 1;
                 cmd_opt.enable_opt = 1;
                 cmd_opt.enable_isel = 1;
                 cmd_opt.enable_lsra = 1;
                 break;
 
-            case 4:
+            case 5:
+                cmd_opt.enable_genir = 1;
                 cmd_opt.enable_opt = 1;
                 cmd_opt.enable_isel = 1;
                 cmd_opt.enable_lsra = 1;
                 cmd_opt.enable_cgen = 1;
                 break;
 
-            case 5:
+            case 6:
                 cmd_opt.enable_fusion = 1;
                 break;
 
-            case 6:
+            case 7:
                 cmd_opt.enable_tail_call = 1;
                 break;
 
-            case 7:
+            case 8:
+                cmd_opt.build_stdlib = 1;
+                break;
+
+            case 9:
+                cmd_opt.enable_write_klc = 1;
+                break;
+
+            case 10:
                 cmd_opt.dump = parse_dump_flags(optarg);
                 break;
 
@@ -286,7 +320,7 @@ static int _path_cmp(const void *a, const void *b)
     return strcmp(pa, pb);
 }
 
-static void build_dir(char *path, Vector *pss)
+static void build_dir(char *path, ParserModule *pm)
 {
     DIR *dir = opendir(path);
     if (dir == NULL) {
@@ -328,8 +362,7 @@ static void build_dir(char *path, Vector *pss)
     vector_foreach(filename, &filenames) {
         snprintf(fullpath, sizeof(fullpath) - 1, "%s/%s", prefix, filename);
         if (lstat(fullpath, &sb) || !S_ISREG(sb.st_mode)) continue;
-        ParserState *ps = new_parser_state(fullpath);
-        vector_push_back(pss, &ps);
+        new_parser_state(pm, fullpath);
     }
 
     mm_free(prefix);
@@ -341,40 +374,50 @@ static void build_dir(char *path, Vector *pss)
     vector_fini(&filenames);
 }
 
-static void compile(char *src, char *dst)
+static void compile(ParserModule *pm)
 {
-    Vector pss = VECTOR_INIT_PTR;
-
-    if (isdotkl(src)) {
+    if (isdotkl(input)) {
         // single source file
-        if (check_dotkl(src)) return;
-        if (strlen(dst) == 0) {
-            char *dot = strrchr(src, '.');
+        if (check_dotkl(input)) return;
+
+        if (strlen(output) == 0) {
+            char *dot = strrchr(input, '.');
             if (dot) {
-                snprintf(dst, MAX_PATH_LEN - 1, "%.*s.klc", (int)(dot - src), src);
+                snprintf(output, MAX_PATH_LEN + 7, "%.*s.klc", (int)(dot - input), input);
             } else {
-                snprintf(dst, MAX_PATH_LEN - 1, "%s.klc", src);
+                snprintf(output, MAX_PATH_LEN + 7, "%s.klc", input);
             }
         }
-        ParserState *ps = new_parser_state(src);
-        vector_push_back(&pss, &ps);
+
+        new_parser_state(pm, input);
     } else {
         // package directory
-        if (check_dir(src)) return;
-        if (strlen(dst) == 0) {
-            snprintf(dst, MAX_PATH_LEN - 1, "%s.klc", src);
+        if (check_dir(input)) return;
+
+        if (strlen(output) == 0) {
+            snprintf(output, MAX_PATH_LEN + 7, "%s.klc", input);
         }
-        build_dir(src, &pss);
+
+        build_dir(input, pm);
     }
 
-    do_compile(&pss, dst);
+    int errors = 0;
 
     ParserState *ps;
-    vector_foreach(ps, &pss) {
+    vector_foreach(ps, &pm->pss) {
         if (!ps) continue;
-        free_parser_state(ps);
+        kl_parse_ast(ps);
+        errors += ps->errors;
     }
-    vector_fini(&pss);
+
+    if (errors > 0) return;
+
+    if (genir_enabled()) kl_gen_ir(pm);
+    if (opt_enabled()) kl_optimize(pm->module);
+    if (isel_enabled()) kl_do_isel(pm->module);
+    if (lsra_enabled()) kl_do_lsra(pm->module);
+    if (cgen_enabled()) kl_do_codegen(pm->module);
+    if (write_klc_enabled()) write_to_klc(pm);
 }
 
 int main(int argc, char *argv[])
@@ -383,9 +426,13 @@ int main(int argc, char *argv[])
     init_atom();
     init_log(LOG_TRACE, NULL, 0);
     typespec_init();
-    init_parser();
-    compile(input, output);
-    fini_parser();
+
+    ParserModule module;
+    module.path = output;
+    init_parser(&module);
+    compile(&module);
+    fini_parser(&module);
+
     typespec_fini();
     fini_log();
     fini_atom();

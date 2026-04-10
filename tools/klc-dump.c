@@ -7,6 +7,7 @@
 #include "atom.h"
 #include "buffer.h"
 #include "klc.h"
+#include "log.h"
 #include "opcode.h"
 #include "typespec.h"
 #include "version.h"
@@ -14,6 +15,14 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+static void dump_header(uint8_t *magic, uint32_t version)
+{
+    int major = (version >> 16) & 0xFFFFu;
+    int minor = (version >> 8) & 0xFFu;
+    int patch = version & 0xFFu;
+    fprintf(stdout, "\nversion: %" PRIu32 " (%d.%d.%d)\n", version, major, minor, patch);
+}
 
 static void dump_const(KlcConst *item)
 {
@@ -23,8 +32,7 @@ static void dump_const(KlcConst *item)
             break;
         }
         case KLC_CONST_INT: {
-            fprintf(stdout, "%s%d, ", item->sign ? "int" : "uint",
-                    item->len * 8);
+            fprintf(stdout, "%s%d, ", item->sign ? "int" : "uint", item->len * 8);
             if (item->sign) {
                 if (item->len == 1)
                     fprintf(stdout, "%d\n", (int8_t)item->ival);
@@ -111,7 +119,7 @@ static void dump_const_value(KlcConst *item)
 
 static void dump_consts(Vector *vec)
 {
-    fprintf(stdout, "constants:\n");
+    fprintf(stdout, "\nconstants:\n");
     KlcConst *item;
     vector_foreach(item, vec) {
         if (!item) continue;
@@ -145,7 +153,7 @@ static void dump_var(KlcVar *var, KlcFile *klc)
 
 static void dump_vars(Vector *vec, KlcFile *klc)
 {
-    fprintf(stdout, "variables:\n");
+    fprintf(stdout, "\nvariables:\n");
 
     Vector *consts = klc->objs + ITEM_CONST;
 
@@ -179,39 +187,7 @@ static void dump_code(KlcCode *code)
 {
     if (!code) return;
 
-    fprintf(stdout, "  locals: %d\n  opcodes:\n", code->num_locals);
-    uint8_t *op = (uint8_t *)code->codes;
-    uint8_t *end = (uint8_t *)code->codes + code->code_size;
-    while (op < end) {
-        switch (*op) {
-            case OP_PUSH_INT_IMM: {
-                int8_t v = *(int8_t *)(op + 1);
-                fprintf(stdout, "    push %d\n", v);
-                op += 2;
-                break;
-            }
-            case OP_PUSH_CONST: {
-                uint16_t index = *(uint16_t *)(op + 1);
-                fprintf(stdout, "    push-const %d\n", index);
-                op += 3;
-                break;
-            }
-            case OP_CALL: {
-                int8_t num_args = *(int8_t *)(op + 1);
-                uint16_t index = *(uint16_t *)(op + 2);
-                fprintf(stdout, "    call %d, %d\n", num_args, index);
-                op += 4;
-                break;
-            }
-            case OP_RET_VOID: {
-                fprintf(stdout, "    ret-void\n");
-                op += 1;
-                break;
-            }
-            default:
-                break;
-        }
-    }
+    fprintf(stdout, "  locals: %d\n  codes:\n", code->nlocals);
 }
 
 static void dump_func(KlcFunc *fn, KlcFile *klc, int leading_spaces)
@@ -293,7 +269,7 @@ static void dump_func(KlcFunc *fn, KlcFile *klc, int leading_spaces)
 
 static void dump_funcs(Vector *vec, KlcFile *klc)
 {
-    fprintf(stdout, "functions:\n");
+    fprintf(stdout, "\nfunctions:\n");
 
     KlcFunc *item;
     vector_foreach(item, vec) {
@@ -304,7 +280,7 @@ static void dump_funcs(Vector *vec, KlcFile *klc)
 
 static void dump_class(Vector *vec, KlcFile *klc)
 {
-    fprintf(stdout, "classes:\n");
+    fprintf(stdout, "\nclasses:\n");
 
     KlcKlass *item;
     vector_foreach(item, vec) {
@@ -398,29 +374,61 @@ static void dump_class(Vector *vec, KlcFile *klc)
     }
 }
 
-static void dump_relocs(Vector *vec, KlcFile *klc)
+static void dump_rt_consts(Vector *vec, KlcFile *klc)
 {
-    fprintf(stdout, "relocs:\n");
+    fprintf(stdout, "\nruntime constants:\n");
 
-    Vector *consts = klc->objs + ITEM_CONST;
-
-    KlcReloc *item;
+    int num_rt_consts = klc->num_rt_consts;
+    KlcConst *item;
     vector_foreach(item, vec) {
         if (!item) continue;
+        if (num_rt_consts <= 0) break;
         fprintf(stdout, "  [%2d] = ", i__);
-        KlcConst *k = vector_get(consts, item->ns_index);
-        KlcConst *k2 = vector_get(consts, item->sym_index);
-        fprintf(stdout, "%s:%s\n", k ? k->sval : "", k2->sval);
+        dump_const(item);
+        --num_rt_consts;
     }
 }
 
-static void dump(KlcFile *klc)
+static void dump_imports(Vector *vec, KlcFile *klc)
 {
-    dump_consts(klc->objs + ITEM_CONST);
-    dump_vars(klc->objs + ITEM_VAR, klc);
-    dump_funcs(klc->objs + ITEM_FUNC, klc);
-    dump_class(klc->objs + ITEM_CLASS, klc);
-    dump_relocs(klc->objs + ITEM_RELOC, klc);
+    fprintf(stdout, "\nimports:\n");
+
+    KlcImport *item;
+    vector_foreach(item, vec) {
+        if (!item) continue;
+        fprintf(stdout, "  [%2d] = ", i__);
+        KlcConst *k = klc_get_rt_const(klc, item->ns_index);
+        KlcConst *k2 = klc_get_rt_const(klc, item->sym_index);
+        fprintf(stdout, "%s::%s\n", k->sval, k2->sval);
+    }
+}
+
+static void dump_bytecodes(Vector *vec, Vector *code_vec, KlcFile *klc)
+{
+    fprintf(stdout, "\ncodes:\n\n");
+
+    uint8_t *codes = NULL;
+
+    KlcByteCode *item;
+    vector_foreach(item, vec) {
+        if (!item) continue;
+        codes = item->codes;
+        break;
+    }
+
+    ASSERT(codes);
+
+    KlcCode *code;
+    vector_foreach(code, code_vec) {
+        if (!code) continue;
+        KlcConst *k = klc_get_rt_const(klc, code->name_index);
+        fprintf(stdout,
+                "[%d]@%s(nlocals=%d, max_call_args=%d, start_pc=%d, num_insns=%d)\n",
+                i__ - 1, k->sval, code->nlocals, code->max_call_args, code->start_pc,
+                code->num_insns);
+        bytecode_print(codes, code->start_pc, code->num_insns);
+        printf("\n");
+    }
 }
 
 int main(int argc, char *argv[])
@@ -430,15 +438,28 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    init_log(LOG_INFO, NULL, 0);
+    init_atom();
+
     KlcFile *klc = read_klc_file(argv[1], 0);
     if (!klc) {
         fprintf(stderr, "failed to read klc file: %s\n", argv[1]);
         return -1;
     }
 
-    dump(klc);
+    dump_header(klc->magic, klc->version);
+
+    dump_consts(klc->objs + ITEM_CONST);
+    dump_vars(klc->objs + ITEM_VAR, klc);
+    dump_funcs(klc->objs + ITEM_FUNC, klc);
+    dump_class(klc->objs + ITEM_CLASS, klc);
+
+    dump_rt_consts(klc->objs + ITEM_RT_CONST, klc);
+    dump_imports(klc->objs + ITEM_IMPORT, klc);
+    dump_bytecodes(klc->objs + ITEM_BYTECODE, klc->objs + ITEM_CODE, klc);
 
     free_klc_file(klc);
+    fini_atom();
 
     return 0;
 }

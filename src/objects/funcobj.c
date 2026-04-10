@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "atom.h"
 #include "modobj.h"
 
 #ifdef __cplusplus
@@ -50,7 +51,7 @@ Object *kl_new_code(char *name, Object *owner)
 {
     CodeObject *code = mm_alloc_obj(code);
     INIT_OBJECT_HEAD(code, &code_type);
-    code->cs.name = name;
+    code->cs.name = atom(name);
     code->owner = owner;
     return (Object *)code;
 }

@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-#define MOD ps->module
+#define MOD ps->module->module
 
 #define CURRENT_FUNC ((KlrValue *)ps->scope->bb->func)
 
@@ -725,52 +725,57 @@ static void _add_klass(KlrModule *m, KlassDeclStmt *kls)
     sym->ir_val = kval;
 }
 
-void kl_gen_ir(ParserState *ps)
+void kl_gen_ir(ParserModule *pm)
 {
-    KlrModule *m = klr_create_module(ps->filename);
-    ps->module = m;
+    KlrModule *m = klr_create_module(pm->path);
+    pm->module = m;
 
     // add __init__ function firstly
     KlrValue *fn = klr_add_func(m, no_type_spec(), "__init__");
+    klr_append_block(fn, "entry");
     m->init = (KlrFunc *)fn;
 
-    // visit all global variables and add them to ir module
-    Stmt *s;
-    vector_foreach(s, &ps->stmts) {
-        if (!s) continue;
-        if (s->kind == STMT_VAR_KIND) {
-            VarDeclStmt *var = (VarDeclStmt *)s;
-            _add_global(m, var);
-        } else if (s->kind == STMT_FUNC_KIND) {
-            FuncDeclStmt *fn = (FuncDeclStmt *)s;
-            _add_func(m, fn);
-        } else if (s->kind == STMT_CLASS_KIND || s->kind == STMT_TRAIT_KIND) {
-            KlassDeclStmt *kls = (KlassDeclStmt *)s;
-            _add_klass(m, kls);
-        } else {
-            // do nothing
+    ParserState *ps;
+    vector_foreach(ps, &pm->pss) {
+        // visit all global variables and add them to ir module
+        Stmt *s;
+        vector_foreach(s, &ps->stmts) {
+            if (!s) continue;
+            if (s->kind == STMT_VAR_KIND) {
+                VarDeclStmt *var = (VarDeclStmt *)s;
+                _add_global(m, var);
+            } else if (s->kind == STMT_FUNC_KIND) {
+                FuncDeclStmt *fn = (FuncDeclStmt *)s;
+                _add_func(m, fn);
+            } else if (s->kind == STMT_CLASS_KIND || s->kind == STMT_TRAIT_KIND) {
+                KlassDeclStmt *kls = (KlassDeclStmt *)s;
+                _add_klass(m, kls);
+            } else {
+                // do nothing
+            }
         }
     }
 
-    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
-    KlrBasicBlock *entry = klr_append_block(fn, "entry");
-    scope->bb = entry;
-
-    // emit ir for all statements
-    vector_foreach(s, &ps->stmts) {
-        if (!s) continue;
-        emit_ir_stmt(ps, s);
+    vector_foreach(ps, &pm->pss) {
+        KlrBasicBlock *last = last_basic_block((KlrFunc *)fn);
+        ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
+        scope->bb = last;
+        // emit ir for all statements
+        Stmt *s;
+        vector_foreach(s, &ps->stmts) {
+            if (!s) continue;
+            emit_ir_stmt(ps, s);
+        }
+        exit_scope(ps);
     }
 
-    KlrBasicBlock *last = scope->bb;
+    KlrBasicBlock *last = last_basic_block((KlrFunc *)fn);
     klr_add_last_return(last);
 
     if (dump_ir_enabled()) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
         klr_print_func((KlrFunc *)fn, stdout);
     }
-
-    exit_scope(ps);
 }
 
 #ifdef __cplusplus

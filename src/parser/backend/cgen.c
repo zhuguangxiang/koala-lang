@@ -4,6 +4,7 @@
  */
 
 #include "cgen.h"
+#include "cmd.h"
 #include "codebuffer.h"
 #include "log.h"
 
@@ -93,7 +94,9 @@ int kl_mach_const_add_int(KlMachModule *m, int64_t v)
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
+#ifndef NOLOG
         printf("Found existing const entry for int: %ld (index: %d)\n", v, entry->index);
+#endif
         return entry->index;
     }
 
@@ -104,7 +107,9 @@ int kl_mach_const_add_int(KlMachModule *m, int64_t v)
     hashmap_put(&m->cp_map, new_entry);
     vector_push_back(&m->const_pool, &new_entry);
     new_entry->index = vector_size(&m->const_pool) - 1;
+#ifndef NOLOG
     printf("Added new const entry for int: %ld (index: %d)\n", v, new_entry->index);
+#endif
     return new_entry->index;
 }
 
@@ -115,7 +120,9 @@ int kl_mach_const_add_uint(KlMachModule *m, uint64_t v)
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
+#ifndef NOLOG
         printf("Found existing const entry for uint: %lu (index: %d)\n", v, entry->index);
+#endif
         return entry->index;
     }
 
@@ -126,7 +133,9 @@ int kl_mach_const_add_uint(KlMachModule *m, uint64_t v)
     hashmap_put(&m->cp_map, new_entry);
     vector_push_back(&m->const_pool, &new_entry);
     new_entry->index = vector_size(&m->const_pool) - 1;
+#ifndef NOLOG
     printf("Added new const entry for uint: %lu (index: %d)\n", v, new_entry->index);
+#endif
     return new_entry->index;
 }
 
@@ -137,7 +146,9 @@ int kl_mach_const_add_float(KlMachModule *m, double v)
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
+#ifndef NOLOG
         printf("Found existing const entry for float: %f (index: %d)\n", v, entry->index);
+#endif
         return entry->index;
     }
 
@@ -149,7 +160,9 @@ int kl_mach_const_add_float(KlMachModule *m, double v)
     vector_push_back(&m->const_pool, &new_entry);
     int index = vector_size(&m->const_pool) - 1;
     new_entry->index = index;
+#ifndef NOLOG
     printf("Added new const entry for float: %f (index: %d)\n", v, new_entry->index);
+#endif
     return index;
 }
 
@@ -160,8 +173,10 @@ int kl_mach_const_add_str(KlMachModule *m, char *v)
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
+#ifndef NOLOG
         printf("Found existing const entry for string: %s (index: %d)\n", v,
                entry->index);
+#endif
         return entry->index;
     }
 
@@ -173,7 +188,9 @@ int kl_mach_const_add_str(KlMachModule *m, char *v)
     vector_push_back(&m->const_pool, &new_entry);
     int index = vector_size(&m->const_pool) - 1;
     new_entry->index = index;
+#ifndef NOLOG
     printf("Added new const entry for string: %s (index: %d)\n", v, index);
+#endif
     return index;
 }
 
@@ -199,8 +216,10 @@ static int mach_import_add(KlMachModule *m, char *path, char *name)
 
     KlMachImport *entry = hashmap_get(&m->import_map, &key);
     if (entry) {
+#ifndef NOLOG
         printf("Found existing import entry for %s.%s (index: %d)\n", path, name,
                entry->index);
+#endif
         return entry->index;
     }
 
@@ -212,132 +231,15 @@ static int mach_import_add(KlMachModule *m, char *path, char *name)
     vector_push_back(&m->import_table, &new_entry);
     int import_index = vector_size(&m->import_table) - 1;
     new_entry->index = import_index;
+#ifndef NOLOG
     printf("Added new import entry for %s.%s (index: %d)\n", path, name, import_index);
+#endif
     return import_index;
 }
 
 static void dump_func_byte_code(KlMachFunc *mfn, const uint8_t *code)
 {
-    for (size_t pc = mfn->start_pc; pc < mfn->start_pc + mfn->total_insns; pc++) {
-        uint32_t insn = *(uint32_t *)(code + pc * 4);
-        OpCode opcode = (insn >> 24) & 0xFFu;
-        OpFormat fmt = op_format(opcode);
-        char *s = op_name(opcode);
-        ASSERT(s);
-        printf("%04zu:  %08X   %s ", pc, insn, s);
-        switch (fmt) {
-            case FORMAT_Rx: {
-                int Rx = insn & 0xFFFu;
-                printf("r%d", Rx);
-                break;
-            }
-
-            case FORMAT_RxImm: {
-                int Rx = (insn >> 8) & 0xFFFu;
-                int imm = insn & 0xFFu;
-                printf("r%d, #%d", Rx, imm);
-                break;
-            }
-
-            case FORMAT_ROff2: {
-                int R = (insn >> 16) & 0xFFu;
-                int data = (int16_t)(insn & 0xFFFFu);
-                printf("r%d, %d", R, data);
-                break;
-            }
-
-            case FORMAT_RImm2:
-            case FORMAT_RIdx2: {
-                int R = (insn >> 16) & 0xFFu;
-                int data = (int16_t)(insn & 0xFFFFu);
-                printf("r%d, #%d", R, data);
-                break;
-            }
-
-            case FORMAT_RImmOff: {
-                int R = (insn >> 16) & 0xFFu;
-                int imm = (int8_t)((insn >> 8) & 0xFFu);
-                int off = (int8_t)(insn & 0xFFu);
-                printf("r%d, #%d, %d", R, imm, off);
-                break;
-            }
-
-            case FORMAT_RxRx: {
-                int Rx1 = (insn >> 12) & 0xFFFu;
-                int Rx2 = insn & 0xFFFu;
-                printf("r%d, r%d", Rx1, Rx2);
-                break;
-            }
-
-            case FORMAT_RRImm: {
-                int R1 = (insn >> 16) & 0xFFu;
-                int R2 = (insn >> 8) & 0xFFu;
-                int data = (int8_t)(insn & 0xFFu);
-                printf("r%d, r%d, #%d", R1, R2, data);
-                break;
-            }
-
-            case FORMAT_RROff: {
-                int R1 = (insn >> 16) & 0xFFu;
-                int R2 = (insn >> 8) & 0xFFu;
-                int data = (int8_t)(insn & 0xFFu);
-                printf("r%d, r%d, %d", R1, R2, data);
-                break;
-            }
-
-            case FORMAT_RRR: {
-                int R1 = (insn >> 16) & 0xFFu;
-                int R2 = (insn >> 8) & 0xFFu;
-                int R3 = insn & 0xFFu;
-                printf("r%d, r%d, r%d", R1, R2, R3);
-                break;
-            }
-
-            case FORMAT_JMP: {
-                int data = (int16_t)(insn & 0xFFFFu);
-                printf("%d", data);
-                break;
-            }
-
-            case FORMAT_Imm2:
-            case FORMAT_Idx2: {
-                int data = (int16_t)(insn & 0xFFFFu);
-                printf("#%d", data);
-                break;
-            }
-
-            case FORMAT_Op: {
-                // no operands
-                break;
-            }
-
-            case FORMAT_CALL: {
-                int flag = (insn >> 20) & 0xFu;
-                int Rx = (insn >> 8) & 0xFFFu;
-                int nargs = insn & 0xFFu;
-                printf("flg=%d, ", flag);
-                if (Rx != 0xFFFu) printf("r%d, ", Rx);
-                printf("#%d\n", nargs);
-                pc++; // skip the next FORMAT_DATA entry
-                insn = *(uint32_t *)(code + pc * 4);
-                printf("%04zu:  %08X   data ", pc, insn);
-                if (flag == 0) {
-                    printf("(rel32=%d)", (int)insn);
-                } else if (flag == 1) {
-                    printf("(import_index=%d)", (int)insn);
-                } else if (flag == 2) {
-                    NYI();
-                }
-                break;
-            }
-
-            default: {
-                printf("(unknown format)");
-                break;
-            }
-        }
-        printf("\n");
-    }
+    bytecode_print((uint8_t *)code, (size_t)mfn->start_pc, (size_t)mfn->total_insns);
 }
 
 static void dump_byte_code(KlMachModule *m)
@@ -807,6 +709,12 @@ static void linearize(KlMachFunc *mfn, KlMachModule *m)
                 continue;
             }
 
+            if (insn_is(insn, OP_MOVE)) {
+                KlrValue *dst = insn_oper_value(insn, 0);
+                KlrValue *src = insn_oper_value(insn, 1);
+                if (dst->vreg == src->vreg) continue;
+            }
+
             if (insn_is(insn, OP_IR_JMP_COND) || fused_jmp(insn->code)) {
                 // don't do sel for jmp_cond here, linearize() only does build linear
                 // MachInsn, without any transformation. Do it in lower_branches()
@@ -1115,9 +1023,11 @@ static void patch_fixups(KlMachModule *m)
                 int target_pc = mi->target_fn->start_pc;
                 // the following DATA insn
                 int payload_pc = mi->pc + 1;
+#ifndef NOLOG
                 printf("fixup call '%s' at pc %d(relative), to 'target %s' at pc %d\n",
                        mi->origin->bb->func->name, payload_pc,
                        mi->target_fn->origin->name, target_pc);
+#endif
                 ASSERT(target_pc >= 0);
                 /* Relative offset: target - (payload + 1) */
                 // int rel32 = target_pc - (payload_pc + 1);
@@ -1125,8 +1035,10 @@ static void patch_fixups(KlMachModule *m)
                 /* Patch the placeholder data instruction following the call. */
                 int *patch = (int *)codes->data + payload_pc;
                 *patch = local_index;
+#ifndef NOLOG
                 printf("  patched position at pc %d with local index %d\n", payload_pc,
                        local_index);
+#endif
             } else {
                 ASSERT(mi->fixup_flag == KL_MACH_FIXUP_IMPORT);
                 ASSERT(mi->format == FORMAT_CALL);
@@ -1135,8 +1047,10 @@ static void patch_fixups(KlMachModule *m)
                 int payload_pc = mi->pc + 1;
                 int *patch = (int *)codes->data + payload_pc;
                 *patch = mi->import_index;
+#ifndef NOLOG
                 printf("fixup call '%s' at pc %d(import), with import index %d\n",
                        mi->origin->bb->func->name, payload_pc, mi->import_index);
+#endif
             }
         } else {
             UNREACHABLE();
@@ -1155,46 +1069,45 @@ static void init_mach_context(KlMachModule *m, KlrModule *origin)
     hashmap_init(&m->cp_map, __mach_const_eq__);
     hashmap_init(&m->import_map, __mach_import_eq__);
     m->pc = 0;
+    origin->mach = m;
 }
 
 void kl_do_codegen(KlrModule *origin)
 {
-    KlMachModule m;
-    init_mach_context(&m, origin);
+    KlMachModule *m = mm_alloc_obj(m);
+    init_mach_context(m, origin);
 
     KlrFunc *fn;
     vector_foreach(fn, &origin->functions) {
-        kl_lower_operands(fn, &m);
+        kl_lower_operands(fn, m);
         KlMachFunc *mfn = mm_alloc_obj(mfn);
         mfn->origin = fn;
-        mfn->m = &m;
+        mfn->m = m;
         init_list(&mfn->bb_list);
         vector_init_ptr(&mfn->branches);
-        vector_push_back(&m.funcs, &mfn);
+        vector_push_back(&m->funcs, &mfn);
         mfn->index = i__;
         fn->mach = mfn;
     }
 
     KlMachFunc *mfn;
-    vector_foreach(mfn, &m.funcs) {
-        linearize(mfn, &m);
+    vector_foreach(mfn, &m->funcs) {
+        linearize(mfn, m);
         lower_branches(mfn);
         assign_pc(mfn);
         process_fused_jumps(mfn);
         assign_pc_and_patch_branches(mfn);
         emit_mach_func(mfn);
-        dump_mach_func(mfn);
+        if (dump_cgen_enabled()) dump_mach_func(mfn);
     }
 
-    patch_fixups(&m);
+    patch_fixups(m);
 
-    dump_byte_code(&m);
-
-    dump_const_pool(&m);
-    dump_import_table(&m);
-
-    vector_fini(&m.funcs);
-    vector_fini(&m.fixups);
+    if (dump_cgen_enabled()) {
+        dump_byte_code(m);
+        dump_const_pool(m);
+        dump_import_table(m);
+    }
 }
 
 #ifdef __cplusplus

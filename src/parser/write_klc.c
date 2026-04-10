@@ -4,6 +4,7 @@
  */
 
 #include "atom.h"
+#include "cgen.h"
 #include "klc.h"
 #include "log.h"
 #include "mm.h"
@@ -12,8 +13,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-void kl_emit_func(ParserState *ps, KlrFunc *fn, KlcFunc *klc_fn);
 
 static uint16_t klc_add_const(KlcFile *klc, Literal *lit)
 {
@@ -46,11 +45,8 @@ static uint16_t klc_add_const(KlcFile *klc, Literal *lit)
     return index;
 }
 
-void write_to_klc(HashMap *stbl, char *path)
+static void write_meta(HashMap *stbl, KlcFile *klc)
 {
-    KlcFile klc;
-    init_klc_file(&klc, path);
-
     HashMapIter it = { 0 };
     while (hashmap_next(stbl, &it)) {
         Symbol *sym = (Symbol *)it.entry;
@@ -60,7 +56,7 @@ void write_to_klc(HashMap *stbl, char *path)
                 uint16_t def_val_idx = 0;
                 Literal *lit = var->lit;
                 if (lit) {
-                    def_val_idx = klc_add_const(&klc, lit);
+                    def_val_idx = klc_add_const(klc, lit);
                 }
 
                 int flags = 0;
@@ -71,7 +67,7 @@ void write_to_klc(HashMap *stbl, char *path)
                     flags |= KLC_FLAGS_PUB;
                 }
 
-                klc_add_var(&klc, var->name, var->ts->signature, def_val_idx, flags);
+                klc_add_var(klc, var->name, var->ts->signature, def_val_idx, flags);
                 break;
             }
             case SYM_FUNC: {
@@ -82,7 +78,7 @@ void write_to_klc(HashMap *stbl, char *path)
                     flags |= KLC_FLAGS_PUB;
                 }
 
-                KlcFunc *f = klc_add_func(&klc, fn->name, fn->ret->signature, flags);
+                KlcFunc *f = klc_add_func(klc, fn->name, fn->ret->signature, flags);
 
                 // add argument info
                 ArgInfo *item;
@@ -94,7 +90,7 @@ void write_to_klc(HashMap *stbl, char *path)
                     uint16_t def_val_idx = 0;
                     if (var_sym->lit) {
                         // has default value
-                        def_val_idx = klc_add_const(&klc, var_sym->lit);
+                        def_val_idx = klc_add_const(klc, var_sym->lit);
                     }
                     klc_func_add_arg(f, item->name, item->ts->signature, def_val_idx);
                 }
@@ -103,12 +99,6 @@ void write_to_klc(HashMap *stbl, char *path)
                 if (fn->ann) {
                     klc_func_add_ann(f, fn->ann, fn->ann_key, NULL);
                 }
-
-                // add byte codes
-                // if (fn->ir_val) {
-                // printf("byte codes: %p\n", fn->ir_val);
-                // kl_emit_func(ps, (KlrFunc *)fn->ir_val, f);
-                // }
                 break;
             }
             case SYM_CLASS: {
@@ -119,7 +109,7 @@ void write_to_klc(HashMap *stbl, char *path)
                     flags |= KLC_FLAGS_PUB;
                 }
 
-                KlcKlass *klass = klc_add_klass(&klc, kls->name, flags);
+                KlcKlass *klass = klc_add_klass(klc, kls->name, flags);
 
                 if (vector_size(&kls->tps) > 0) {
                     TypeParamSymbol *tp;
@@ -225,7 +215,7 @@ void write_to_klc(HashMap *stbl, char *path)
                         uint16_t def_val_idx = 0;
                         if (var_sym->lit) {
                             // has default value
-                            def_val_idx = klc_add_const(&klc, var_sym->lit);
+                            def_val_idx = klc_add_const(klc, var_sym->lit);
                         }
                         klc_func_add_arg(klc_fn, item->name, item->ts->signature,
                                          def_val_idx);
@@ -243,7 +233,7 @@ void write_to_klc(HashMap *stbl, char *path)
 
                 int flags = KLC_FLAGS_PUB | KLC_FLAGS_TRAIT;
 
-                KlcKlass *klass = klc_add_klass(&klc, kls->name, flags);
+                KlcKlass *klass = klc_add_klass(klc, kls->name, flags);
 
                 if (vector_size(&kls->tps) > 0) {
                     TypeParamSymbol *tp;
@@ -311,7 +301,7 @@ void write_to_klc(HashMap *stbl, char *path)
                         uint16_t def_val_idx = 0;
                         if (var_sym->lit) {
                             // has default value
-                            def_val_idx = klc_add_const(&klc, var_sym->lit);
+                            def_val_idx = klc_add_const(klc, var_sym->lit);
                         }
                         klc_func_add_arg(klc_fn, item->name, item->ts->signature,
                                          item->dfl_val_idx);
@@ -333,6 +323,58 @@ void write_to_klc(HashMap *stbl, char *path)
                 break;
             }
         }
+    }
+}
+
+static void write_rt_data(KlMachModule *m, KlcFile *klc)
+{
+    klc->num_rt_consts = vector_size(&m->const_pool);
+
+    KlMachConst *c;
+    vector_foreach(c, &m->const_pool) {
+        switch (c->tag) {
+            case KL_MACH_CONST_I64:
+                klc_add_rt_int(klc, c->i64, 1, 8);
+                break;
+            case KL_MACH_CONST_U64:
+                klc_add_rt_int(klc, c->u64, 0, 8);
+                break;
+            case KL_MACH_CONST_F64:
+                klc_add_rt_float(klc, c->f64);
+                break;
+            case KL_MACH_CONST_STR:
+                klc_add_rt_str(klc, c->str, strlen(c->str));
+                break;
+            default:
+                UNREACHABLE();
+        }
+    }
+
+    KlMachImport *imp;
+    vector_foreach(imp, &m->import_table) {
+        klc_add_import(klc, imp->kind, imp->path, imp->name);
+    }
+
+    KlrFunc *fn;
+    KlMachFunc *mach;
+    vector_foreach(mach, &m->funcs) {
+        fn = mach->origin;
+        klc_add_code(klc, fn->name, fn->nlocals, fn->max_call_args, mach->start_pc,
+                     mach->total_insns);
+    }
+
+    klc_add_bytecodes(klc, m->codes.size, m->codes.data);
+}
+
+void write_to_klc(ParserModule *pm)
+{
+    KlcFile klc;
+    init_klc_file(&klc, pm->path);
+
+    write_meta(pm->stbl, &klc);
+
+    if (pm->module) {
+        write_rt_data(pm->module->mach, &klc);
     }
 
     write_klc_file(&klc);

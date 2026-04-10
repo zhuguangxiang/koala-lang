@@ -1066,54 +1066,6 @@ X(OP_JMP_UINT_GE, FORMAT_RROff)
 X(OP_JMP_UINT_GE_IMM, FORMAT_RImmOff)
 
 /*---------------------------------------------------------------+
- |  Stack Push Instructions (used for call only)                 |
- +---------------------------------------------------------------*/
-
-/**
- * OP_PUSH — push register value onto the stack
- *
- * FORMAT_Rx:
- *     | op:8 | ---:12 | Rx(rs):12 |
- *
- * Details:
- *     Pushes the value of register rs onto the VM stack.
- */
-X(OP_PUSH, FORMAT_Rx)
-
-/**
- * OP_PUSH_INT_IMM — push integer immediate onto the stack
- *
- * FORMAT_Imm2:
- *     | op:8 | ---:8 | imm16:16 |
- *
- * Details:
- *     Pushes a 16-bit signed integer immediate onto the VM stack.
- */
-X(OP_PUSH_INT_IMM, FORMAT_Imm2)
-
-/**
- * OP_PUSH_TAG — push small tagged value (bool / special float / none)
- *
- * FORMAT_Imm2:
- *     | op:8 | ---:8 | imm:16 |
- *
- * Details:
- *     Pushes a small tagged value (boolean, special float, or none) onto the stack.
- */
-X(OP_PUSH_TAG, FORMAT_Imm2)
-
-/**
- * OP_PUSH_CONST — push constant pool entry onto the stack
- *
- * FORMAT_Idx2:
- *     | op:8 | ---:8 | index:16 |
- *
- * Details:
- *     Pushes CP[idx] onto the VM stack.
- */
-X(OP_PUSH_CONST, FORMAT_Idx2)
-
-/*---------------------------------------------------------------+
  |  Unified Call Instruction                                     |
  +---------------------------------------------------------------*/
 

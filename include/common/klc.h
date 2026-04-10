@@ -13,19 +13,24 @@
 extern "C" {
 #endif
 
-#define ITEM_CONST 0
-#define ITEM_VAR   1
-#define ITEM_FUNC  2
-#define ITEM_CLASS 3
-#define ITEM_RELOC 4
-#define ITEM_CODE  5
-#define ITEM_MAX   6
+#define ITEM_RT_CONST 0
+#define ITEM_IMPORT   1
+#define ITEM_CODE     2
+#define ITEM_BYTECODE 3
+#define ITEM_CONST    4
+#define ITEM_VAR      5
+#define ITEM_FUNC     6
+#define ITEM_CLASS    7
+#define ITEM_MAX      8
 
 typedef struct _KlcFile {
     const char *path;
     FILE *filp;
     uint8_t magic[4];
     uint32_t version;
+    uint16_t num_rt_consts;
+    uint8_t endian;
+    uint8_t padding;
     HashMap map;
     Vector objs[ITEM_MAX];
 } KlcFile;
@@ -148,20 +153,33 @@ typedef struct _KlcKlass {
 } KlcKlass;
 
 typedef struct _KlcCode {
+    /* name index */
+    uint16_t name_index;
     /* number of locals */
-    uint16_t num_locals;
-    /* byte codes size */
-    uint16_t code_size;
-    /* codes */
-    char *codes;
+    uint16_t nlocals;
+    /* max call arguments */
+    uint16_t max_call_args;
+    /* code offset */
+    uint32_t start_pc;
+    /* number of insns */
+    uint32_t num_insns;
 } KlcCode;
 
-typedef struct _KlcReloc {
-    /* ITEM_CONST */
+typedef struct _KlcImport {
+    /* the same as KlMachImport kind */
+    uint8_t kind;
+    /* ITEM_CONST(path) */
     uint16_t ns_index;
-    /* ITEM_CONST */
+    /* ITEM_CONST(name) */
     uint16_t sym_index;
-} KlcReloc;
+} KlcImport;
+
+typedef struct _KlcByteCode {
+    /* size of the bytecode array in bytes */
+    uint32_t size;
+    /* pointer to the bytecode array */
+    uint8_t *codes;
+} KlcByteCode;
 
 KlcVar *klc_add_var(KlcFile *klc, char *name, char *desc, uint16_t index, int flags);
 
@@ -181,18 +199,28 @@ uint16_t klc_add_float(KlcFile *klc, double val);
 uint16_t klc_add_str(KlcFile *klc, char *s, int len);
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len);
 
-uint16_t klc_add_code(KlcFile *klc, int num_locals, int code_size, char *codes);
-uint16_t klc_add_reloc(KlcFile *klc, char *ns, char *sym);
+uint16_t klc_add_code(KlcFile *klc, char *name, uint16_t num_locals,
+                      uint16_t max_call_args, uint32_t start_pc, uint32_t code_size);
+
+uint16_t klc_add_rt_int(KlcFile *klc, uint64_t val, int sign, int width);
+uint16_t klc_add_rt_float(KlcFile *klc, double val);
+uint16_t klc_add_rt_str(KlcFile *klc, char *s, int len);
+
+void klc_add_import(KlcFile *klc, int kind, char *ns, char *sym);
+
+void klc_add_bytecodes(KlcFile *klc, uint32_t size, uint8_t *codes);
 
 void init_klc_file(KlcFile *klc, const char *path);
 void fini_klc_file(KlcFile *klc);
 
 int write_klc_file(KlcFile *klc);
 
-KlcFile *read_klc_file(char *path, int all);
+KlcFile *read_klc_file(char *path, int rt);
 void free_klc_file(KlcFile *klc);
 
 KlcConst *klc_get_const(KlcFile *klc, uint16_t index);
+KlcConst *klc_get_rt_const(KlcFile *klc, uint16_t index);
+uint32_t klc_get_bytecodes(KlcFile *klc, uint8_t **codes);
 
 #ifdef __cplusplus
 }

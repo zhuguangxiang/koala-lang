@@ -134,12 +134,6 @@ static void print_move(const char *name, KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[1], fp);
 }
 
-static void print_push(const char *name, KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "%s ", name);
-    print_operand(&insn->opers[0], fp);
-}
-
 static void print_cmp(const char *name, KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
@@ -310,18 +304,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_MOVE:
             print_move("move", insn, fp);
-            break;
-
-        case OP_PUSH:
-            print_push("push", insn, fp);
-            break;
-
-        case OP_PUSH_CONST:
-            print_push("push_const", insn, fp);
-            break;
-
-        case OP_PUSH_INT_IMM:
-            print_push("push_int_imm", insn, fp);
             break;
 
         case OP_JMP_INT_LT:

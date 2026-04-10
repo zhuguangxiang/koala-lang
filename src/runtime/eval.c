@@ -209,27 +209,6 @@ main_loop:
                 DISPATCH();
             }
 
-                // case OP_PUSH: {
-                //     rs = I_VAL(inst, 0, 12);
-
-                //     ASSERT(rs < max_regs);
-
-                //     PUSH(regs[rs]);
-                //     DISPATCH();
-                // }
-
-                // case OP_PUSH_INT_IMM: {
-                //     imm = I_VAL(inst, 0, 16);
-                //     PUSH(int64_value(imm));
-                //     DISPATCH();
-                // }
-
-                // case OP_PUSH_CONST: {
-                //     off = I_VAL(inst, 0, 16);
-                //     PUSH(*CP(off));
-                //     DISPATCH();
-                // }
-
             case OP_CALL: {
                 int flg = I_VAL(inst, 20, 4);
                 rd = I_VAL(inst, 8, 12);

@@ -281,47 +281,6 @@ static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
     }
 }
 
-static void lower_push_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
-{
-    KlrValue *src = insn_oper_value(insn, 0);
-
-    switch (insn->code) {
-        case OP_PUSH: {
-            ASSERT(!klr_is_const(src));
-            /* push reg */
-            set_raw_reg(&insn->raws[0], src->vreg);
-            break;
-        }
-
-        case OP_PUSH_INT_IMM: {
-            ASSERT(klr_is_const(src));
-            /* push imm */
-            KlrConst *kc = (KlrConst *)src;
-            check_in_imm16(kc);
-            int64_t imm = kc->ival;
-            set_raw_imm(&insn->raws[0], imm);
-            break;
-        }
-
-        case OP_PUSH_TAG: {
-            ASSERT(klr_is_const(src));
-            KlrConst *kc = (KlrConst *)src;
-            /* push tag */
-            set_raw_imm(&insn->raws[0], kc->tag);
-            break;
-        }
-
-        case OP_PUSH_CONST: {
-            /* push val/const */
-            ASSERT(klr_is_const(src));
-            KlrConst *kc = (KlrConst *)src;
-            int index = get_const_index(kc, m);
-            set_raw_const(&insn->raws[0], index);
-            break;
-        }
-    }
-}
-
 static void lower_jmp_opers(KlrInsn *insn, KlrFunc *fn)
 {
     KlrValue *target = insn_oper_value(insn, 0);
@@ -340,7 +299,6 @@ static inline int is_binary(OpCode op)
 
 static inline int is_move(OpCode op) { return op >= OP_MOVE && op <= OP_LOADK; }
 static inline int is_return(OpCode op) { return op >= OP_RET && op <= OP_RET_VOID; }
-static inline int is_push(OpCode op) { return op >= OP_PUSH && op <= OP_PUSH_CONST; }
 
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 {
@@ -360,11 +318,6 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
             if (is_return(insn->code)) {
                 lower_ret_opers(insn, fn, m);
-                continue;
-            }
-
-            if (is_push(insn->code)) {
-                lower_push_opers(insn, fn, m);
                 continue;
             }
 

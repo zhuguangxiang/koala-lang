@@ -19,6 +19,130 @@ OpFormat __op_formats[] = {
 #undef X
 };
 
+void bytecode_print(uint8_t *code, size_t start, size_t count)
+{
+    for (size_t pc = start; pc < start + count; pc++) {
+        uint32_t insn = *(uint32_t *)(code + pc * 4);
+        OpCode opcode = (insn >> 24) & 0xFFu;
+        OpFormat fmt = op_format(opcode);
+        char *s = op_name(opcode);
+        ASSERT(s);
+        printf("%04zu:  %08X   %s ", pc, insn, s);
+        switch (fmt) {
+            case FORMAT_Rx: {
+                int Rx = insn & 0xFFFu;
+                printf("r%d", Rx);
+                break;
+            }
+
+            case FORMAT_RxImm: {
+                int Rx = (insn >> 8) & 0xFFFu;
+                int imm = insn & 0xFFu;
+                printf("r%d, #%d", Rx, imm);
+                break;
+            }
+
+            case FORMAT_ROff2: {
+                int R = (insn >> 16) & 0xFFu;
+                int data = (int16_t)(insn & 0xFFFFu);
+                printf("r%d, %d", R, data);
+                break;
+            }
+
+            case FORMAT_RImm2:
+            case FORMAT_RIdx2: {
+                int R = (insn >> 16) & 0xFFu;
+                int data = (int16_t)(insn & 0xFFFFu);
+                printf("r%d, #%d", R, data);
+                break;
+            }
+
+            case FORMAT_RImmOff: {
+                int R = (insn >> 16) & 0xFFu;
+                int imm = (int8_t)((insn >> 8) & 0xFFu);
+                int off = (int8_t)(insn & 0xFFu);
+                printf("r%d, #%d, %d", R, imm, off);
+                break;
+            }
+
+            case FORMAT_RxRx: {
+                int Rx1 = (insn >> 12) & 0xFFFu;
+                int Rx2 = insn & 0xFFFu;
+                printf("r%d, r%d", Rx1, Rx2);
+                break;
+            }
+
+            case FORMAT_RRImm: {
+                int R1 = (insn >> 16) & 0xFFu;
+                int R2 = (insn >> 8) & 0xFFu;
+                int data = (int8_t)(insn & 0xFFu);
+                printf("r%d, r%d, #%d", R1, R2, data);
+                break;
+            }
+
+            case FORMAT_RROff: {
+                int R1 = (insn >> 16) & 0xFFu;
+                int R2 = (insn >> 8) & 0xFFu;
+                int data = (int8_t)(insn & 0xFFu);
+                printf("r%d, r%d, %d", R1, R2, data);
+                break;
+            }
+
+            case FORMAT_RRR: {
+                int R1 = (insn >> 16) & 0xFFu;
+                int R2 = (insn >> 8) & 0xFFu;
+                int R3 = insn & 0xFFu;
+                printf("r%d, r%d, r%d", R1, R2, R3);
+                break;
+            }
+
+            case FORMAT_JMP: {
+                int data = (int16_t)(insn & 0xFFFFu);
+                printf("%d", data);
+                break;
+            }
+
+            case FORMAT_Imm2:
+            case FORMAT_Idx2: {
+                int data = (int16_t)(insn & 0xFFFFu);
+                printf("#%d", data);
+                break;
+            }
+
+            case FORMAT_Op: {
+                // no operands
+                break;
+            }
+
+            case FORMAT_CALL: {
+                int flag = (insn >> 20) & 0xFu;
+                int Rx = (insn >> 8) & 0xFFFu;
+                int nargs = insn & 0xFFu;
+                printf("flg=%d, ", flag);
+                if (Rx != 0xFFFu) printf("r%d, ", Rx);
+                printf("#%d\n", nargs);
+                pc++; // skip the next FORMAT_DATA entry
+                insn = *(uint32_t *)(code + pc * 4);
+                printf("%04zu:  %08X   data ", pc, insn);
+                if (flag == 0) {
+                    printf("(rel32=%d)", (int)insn);
+                } else if (flag == 1) {
+                    printf("(import_index=%d)", (int)insn);
+                } else if (flag == 2) {
+                    NYI();
+                }
+                break;
+            }
+
+            default: {
+                printf("(unknown format)");
+                break;
+            }
+        }
+        printf("\n");
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif

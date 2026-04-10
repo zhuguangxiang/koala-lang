@@ -6,7 +6,7 @@
 #ifndef _KOALA_CGEN_H_
 #define _KOALA_CGEN_H_
 
-#include "parser.h"
+#include "ir.h"
 #include "pass.h"
 
 #ifdef __cplusplus
@@ -182,23 +182,24 @@ typedef struct {
         int64_t i64;
         uint64_t u64;
         double f64;
-        const char *str;
+        char *str;
     };
 } KlMachConst;
 
 typedef enum {
-    IMPORT_FUNC = 0,  // external function
-    IMPORT_FIELD = 1, // external class field
-    IMPORT_TYPE = 2,  // external type (class / interface)
-    IMPORT_CONST = 3, // external constant pool entry
-    IMPORT_METHOD = 4 // external method (rare; for final classes)
+    IMPORT_FUNC,   /* free function */
+    IMPORT_GLOBAL, /* global variable */
+    IMPORT_TYPE,   /* type object */
+    IMPORT_METHOD, /* method of a type (slot-based) */
+    IMPORT_FIELD   /* field of a type (offset-based) */
 } ImportKind;
 
 typedef struct KlMachImport {
     HashMapEntry hnode;
+    int kind;
     int index;
-    const char *path;
-    const char *name;
+    char *path;
+    char *name;
 } KlMachImport;
 
 // clang-format off
