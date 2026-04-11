@@ -5,7 +5,15 @@
 
 #include "koala.h"
 #include <sys/stat.h>
+#include <time.h>
 #include "args.h"
+
+static double now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
+}
 
 static int run_cmd(const char *cmd)
 {
@@ -92,6 +100,8 @@ static void run_klc(const char *input)
 
 int main(int argc, char *argv[])
 {
+    // double t0 = now_ms();
+
     KoalaOptions opt = { 0 };
     if (kl_parse_args(argc, argv, &opt)) return -1;
 
@@ -102,6 +112,10 @@ int main(int argc, char *argv[])
             fprintf(stderr, "koala: -c cannot be used with .klc\n");
             return -1;
         }
+
+        // double t1 = now_ms();
+        // fprintf(stderr, "[args] %.3f ms\n", t1 - t0);
+
         run_klc(input);
         return 0;
     }

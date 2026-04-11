@@ -118,7 +118,7 @@ typedef struct _LitExpr {
             int bit_mode;
             char *orginal;
             uint64_t ival;
-            __int128_t ival_128;
+            __int128 ival_128;
         };
         double fval;
         int bval;
@@ -126,7 +126,7 @@ typedef struct _LitExpr {
     };
 } LitExpr;
 
-Expr *expr_from_lit_int(char *orginal, int sign, int bit_mode);
+Expr *expr_from_lit_int(char *orginal, int sign, int bit_mode, __int128 val);
 Expr *expr_from_lit_float(double val);
 Expr *expr_from_lit_bool(int val);
 Expr *expr_from_lit_str(Buffer *buf);

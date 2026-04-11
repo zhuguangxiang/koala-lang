@@ -80,7 +80,7 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
         return;
     }
 
-    __int128_t val = lit->ival_128;
+    __int128 val = lit->ival_128;
     int width = ts->int_flt_info.width;
     int sign = ts->int_flt_info.sign;
 
@@ -90,7 +90,7 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
     if (lit->bit_mode) {
         /* non-decimal literals */
         if (val < 0) {
-            __int128_t min_s = -((__int128_t)1 << (width * 8 - 1));
+            __int128 min_s = -((__int128)1 << (width * 8 - 1));
             if (val < min_s || sign == 0) {
                 kl_error(lit->loc, "Negative hex literal %s overflows '%s%d' range",
                          lit->orginal, (sign ? "int" : "uint"), width * 8);
@@ -105,13 +105,13 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
         }
         // notes: allow 0xFF to be assigned to int8 as -1.
     } else {
-        __int128_t min_limit, max_limit;
+        __int128 min_limit, max_limit;
         if (sign) {
-            max_limit = (__int128_t)(phys_max >> 1); // 2^(n-1) - 1
-            min_limit = -(max_limit + 1);            // -2^(n-1)
+            max_limit = (__int128)(phys_max >> 1); // 2^(n-1) - 1
+            min_limit = -(max_limit + 1);          // -2^(n-1)
         } else {
             min_limit = 0;
-            max_limit = (__int128_t)phys_max;
+            max_limit = (__int128)phys_max;
         }
 
         if (val < min_limit || val > max_limit) {

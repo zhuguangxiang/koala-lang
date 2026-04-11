@@ -10,13 +10,14 @@
 extern "C" {
 #endif
 
-/* The head of user's memory */
+/* The head of user's memory(16 bytes aligned) */
 typedef struct _Block {
     /* allocated size */
     uint32_t size;
     /* memory guard */
     uint32_t magic;
 #define GUARD_MAGIC 0xdeadbeaf
+    uint32_t unused[2];
 } Block;
 
 /* allocated memory size */
@@ -25,7 +26,7 @@ static int used_size = 0;
 /* memory is cleared to zero. */
 void *mm_alloc(int size)
 {
-    size = ALIGN(size, 32);
+    size = ALIGN(size, 16);
     Block *blk = calloc(1, OBJ_SIZE(blk) + size);
     if (!blk) {
         log_fatal("calloc failed.");
@@ -67,7 +68,7 @@ void *mm_realloc(void *ptr, int new_size)
 /* memory is not cleared. */
 void *mm_alloc_fast(int size)
 {
-    size = ALIGN(size, 32);
+    size = ALIGN(size, 16);
     Block *blk = malloc(OBJ_SIZE(blk) + size);
     if (!blk) {
         log_fatal("malloc failed.");

@@ -66,6 +66,8 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
         { "version", no_argument, 0, 'v' },         { 0, 0, 0, 0 },
     };
 
+    optind = 1;
+
     int c;
     while ((c = getopt_long(argc, argv, "co:hv", long_opts, NULL)) != -1) {
         switch (c) {

@@ -145,6 +145,8 @@ static void parse_command(int argc, char *argv[])
         { NULL, 0, NULL, 0 },
     };
 
+    optind = 1;
+
     int opt_id;
     int long_index;
 

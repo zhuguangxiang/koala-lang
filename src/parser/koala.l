@@ -76,15 +76,15 @@ static void parse_decimal_int_literal(ParserState *ps, YYSTYPE *yylval, char *s)
 
     /* 0 ... INT64_MAX ... UINT64_MAX */
     errno = 0;
-    yylval->ival = (__int128_t)strtoll(s, NULL, 10);
+    yylval->ival = (__int128)strtoll(s, NULL, 10);
     if (errno) {
         // [127 + 1, ...]
         errno = 0;
-        yylval->ival = (__int128_t)strtoull(s, NULL, 10);
+        yylval->ival = (__int128)strtoull(s, NULL, 10);
         if (errno == 0) {
             if (negative) {
                 if (yylval->ival == 9223372036854775808ULL) {
-                    yylval->ival = (__int128_t)-9223372036854775807LL - 1;
+                    yylval->ival = (__int128)-9223372036854775807LL - 1;
                 } else {
                     errno = 1;
                 }
@@ -113,7 +113,7 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
         } else {
             ps->sign = 0;
         }
-        yyval->ival = (__int128_t)strtoull(_s, NULL, base);
+        yyval->ival = (__int128)strtoull(_s, NULL, base);
         ps->bit_mode = 1;
         if (ps->sign) { yyval->ival = -yyval->ival; }
     } else {
