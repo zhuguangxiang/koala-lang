@@ -69,9 +69,25 @@ static int compile(const char *input, const char *output, KoalaOptions *opt)
     return 0;
 }
 
+static int is_directory(const char *path)
+{
+    struct stat st;
+    if (stat(path, &st) != 0) return 0;
+    return S_ISDIR(st.st_mode);
+}
+
 static char *default_output_path(const char *input)
 {
     size_t len = strlen(input);
+
+    if (is_directory(input)) {
+        char *out = malloc(len + 5); // ".klc"
+        if (!out) return NULL;
+        memcpy(out, input, len);
+        strcpy(out + len, ".klc");
+        return out;
+    }
+
     if (len < 3 || strcmp(input + len - 3, ".kl") != 0) {
         return NULL;
     }
@@ -86,9 +102,10 @@ static char *default_output_path(const char *input)
 
 static int has_suffix(const char *s, const char *suffix)
 {
-    size_t ls = strlen(s);
-    size_t lf = strlen(suffix);
-    return lf <= ls && strcmp(s + ls - lf, suffix) == 0;
+    size_t sl = strlen(s);
+    size_t su = strlen(suffix);
+    if (sl < su) return 0;
+    return strcmp(s + sl - su, suffix) == 0;
 }
 
 static void run_klc(const char *input)
@@ -118,11 +135,6 @@ int main(int argc, char *argv[])
 
         run_klc(input);
         return 0;
-    }
-
-    if (!has_suffix(input, ".kl")) {
-        fprintf(stderr, "koala: unknown input type: %s\n", input);
-        return -1;
     }
 
     char *temp = NULL;

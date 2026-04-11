@@ -28,7 +28,7 @@ CompileOptions cmd_opt;
 static void usage(void)
 {
     printf(
-        "\nusage: koalac [<options>] <package>|<file>...\n\n"
+        "\nUsage: koalac [<options>] <package>|<file.kl>\n\n"
         "options:\n"
         "  -o <file>          Place the output into <file>.\n"
         "  --genir            Enable IR generation stage.\n"

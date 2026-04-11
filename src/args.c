@@ -15,10 +15,10 @@ extern "C" {
 static void print_usage(const char *prog)
 {
     printf(
-        "Usage: %s [options] <file.kl|file.klc>\n"
+        "\nUsage: %s [<options>] <package>|<file.kl>|<file.klc>\n"
         "\n"
         "Options:\n"
-        "  -c                   Compile only (do not run)\n"
+        "  -c                   Compile only (supports .kl file or directory as module)\n"
         "  -o <file>            Output .klc file\n"
         "  --dump-no-opt-ir     Dump IR before optimization\n"
         "  --dump-ir            Dump optimized IR\n"
@@ -39,7 +39,7 @@ static void print_usage(const char *prog)
 
 static void version(void)
 {
-    printf("koalac %s (%s, %s)\n", KOALA_VERSION_STRING, __DATE__, __TIME__);
+    printf("koala %s (%s, %s)\n", KOALA_VERSION_STRING, __DATE__, __TIME__);
 
     struct utsname sysinfo;
     if (!uname(&sysinfo)) {
@@ -106,7 +106,6 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
     if (optind < argc) opt->input = argv[optind];
 
     if (!opt->input) {
-        fprintf(stderr, "%s: no input file\n", argv[0]);
         print_usage(argv[0]);
         return -1;
     }
