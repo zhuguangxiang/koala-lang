@@ -193,7 +193,7 @@ typedef struct _KlrBasicBlock {
 
     /* optimization/register allocation related */
 
-    /* local variable constant map */
+    /* local variable map(DSE used) */
     HashMap local_var_map;
 
     /**
@@ -513,7 +513,7 @@ if 'dst' has only one successor of 'src' and 'src' has only one predecessor of
 void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src);
 
 /* update local variable */
-int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val);
+int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val, KlrInsn *move);
 
 /* clear local variable */
 int klr_clear_local_var(KlrBasicBlock *bb, KlrInsn *local);
@@ -670,6 +670,9 @@ KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode c
 
 #define klr_build_cmpge(bldr, lhs, rhs, name) \
     klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPGE, name)
+
+KlrValue *klr_build_select(KlrBuilder *bldr, KlrValue *cond, KlrValue *true_val,
+                           KlrValue *false_val, char *name);
 
 /* IR: br %0, %bb1, %bb2 */
 void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,

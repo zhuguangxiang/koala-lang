@@ -17,6 +17,12 @@ static KlrPass const_copy_prop_pass = {
     .run = klr_const_copy_prop_pass,
 };
 
+/* normalize */
+static KlrPass normalize_pass = {
+    .name = "normalize",
+    .run = klr_normalize_pass,
+};
+
 /* cfg-bb-opt */
 static KlrPass cfg_remove_only_jump_pass = {
     .name = "cfg-remove-only-jump",
@@ -51,8 +57,12 @@ void kl_optimize(KlrModule *m)
     KlrPassManager pm;
     pm_init(&pm, "opt_pass");
 
+    // const_copy_prop_pass
     pm_add_pass(&pm, &const_copy_prop_pass, dump);
+    // normalize_pass
+    pm_add_pass(&pm, &normalize_pass, dump);
 
+    // cfg_bb_opt_pass
     KlrPassManager cfg_bb_opt_pm;
     pm_init(&cfg_bb_opt_pm, "cfg_bb_opt_pass");
 
@@ -63,6 +73,7 @@ void kl_optimize(KlrModule *m)
 
     pm_add_pm_as_pass(&pm, &cfg_bb_opt_pm, dump);
 
+    // dce_pass
     pm_add_pass(&pm, &dce_pass, dump);
 
     KlrFunc *fn;

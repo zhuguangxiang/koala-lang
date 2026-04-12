@@ -3,8 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "ir.h"
 #include "log.h"
-#include "pass.h"
 #include "queue.h"
 
 #ifdef __cplusplus
@@ -107,8 +107,8 @@ int klr_dce_pass(KlrFunc *fn, void *data)
 
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
-        KlrInsn *insn, *next;
-        insn_foreach_safe(insn, next, bb) {
+        KlrInsn *insn;
+        insn_foreach(insn, bb) {
             /* If no one uses it and it has no side-effects, it's a candidate */
             if (!klr_is_used(insn) && !has_side_effect(insn)) {
                 queue_push(&wklist, insn);

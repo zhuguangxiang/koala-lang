@@ -586,6 +586,7 @@ Stmt *stmt_from_for(Vector *ids, Expr *iterable, Vector *block)
     s->ids = ids;
     s->iterable = iterable;
     s->block = block;
+    vector_init(&s->sym_ids, sizeof(int));
     return (Stmt *)s;
 }
 

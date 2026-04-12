@@ -5,7 +5,6 @@
 
 #include "ir.h"
 #include "log.h"
-#include "opt.h"
 #include "queue.h"
 
 #ifdef __cplusplus

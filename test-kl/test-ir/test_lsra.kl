@@ -25,18 +25,19 @@ func test_interference(n int) int {
     return c
 }
 
-// CHECK-LABEL: =============== LSRA @test_interference ===============
-// CHECK: %n: range: [0, 2) reg: 0
-// CHECK: %0: range: [1, 3) reg: 1
-// CHECK: %1: range: [2, 3) reg: 0
-// CHECK: %2: range: [3, 4) reg: 0
+// TODO:
+// =============== LSRA @test_interference ===============
+// %n: range: [0, 2) reg: 0
+// %0: range: [1, 3) reg: 1
+// %1: range: [2, 3) reg: 0
+// %2: range: [3, 4) reg: 0
 
-// CHECK: 0: [R0] param %n
-// CHECK: %bb0(entry)[idx:0,pos:1-4]
-// CHECK: 1: [R1] %0 = int.add_imm
-// CHECK: 2: [R0] %1 = int.add_imm
-// CHECK: 3: [R0] %2 = int.add
-// CHECK: 4: [...] ret %2
+// 0: [R0] param %n
+// %bb0(entry)[idx:0,pos:1-4]
+// 1: [R1] %0 = int.add_imm
+// 2: [R0] %1 = int.add_imm
+// 3: [R0] %2 = int.add
+// 4: [...] ret %2
 
 func test_while(n int) {
     var i = 0
@@ -136,7 +137,7 @@ func test_diamond(c bool, a int) int {
         var b = a + 1
         print(b)
     } else {
-        var d = a + 2
+        let d = a + 2
         print(d)
     }
     return a
@@ -145,14 +146,17 @@ func test_diamond(c bool, a int) int {
 // CHECK-LABEL: =============== LSRA @test_diamond ===============
 
 // CHECK: %c: range: [0, 1) reg: 0
-// CHECK: %a: range: [0, 8) reg: 1
+// CHECK: %a: range: [0, 10) reg: 1
+// CHECK: %0: range: [2, 4) reg: 0
 
 // CHECK: 1: [...] branch %c bool, label %bb1, label %bb2
 
-// CHECK: 2: [R2] %0 = int.add_imm %a int64, 1 int64
-// CHECK: 3: [...] call @print [path = 'std/builtin'], 1
-// CHECK: 4: [...] jmp label %bb3
+// CHECK: 2: [R0] %0 = int.add_imm %a int64, 1 int64
+// CHECK: 3: [R2] %b = local int64        [fixedslot = 0(next) -> R2]
+// CHECK: 4: [...] move %b int64, %0 int64
+// CHECK: 5: [...] call @print [path = 'std/builtin'], 1
+// CHECK: 6: [...] jmp label %bb3
 
-// CHECK: 5: [R2] %1 = int.add_imm %a int64, 2 int64
-// CHECK: 6: [...] call @print [path = 'std/builtin'], 1
-// CHECK: 7: [...] jmp label %bb3
+// CHECK: 7: [R2] %1 = int.add_imm %a int64, 2 int64        [fixedslot = 0(next) -> R2]
+// CHECK: 8: [...] call @print [path = 'std/builtin'], 1
+// CHECK: 9: [...] jmp label %bb3

@@ -150,6 +150,18 @@ static void print_jmp(KlrInsn *insn, FILE *fp)
     fprintf(fp, "label %%bb%d", val->tag);
 }
 
+static void print_select(KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = select ");
+
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[2], fp);
+}
+
 static void print_jmp_cond(const char *name, KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "%s ", name);
@@ -298,6 +310,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_phi(insn, fp);
             break;
 
+        case OP_IR_SELECT:
+            print_select(insn, fp);
+            break;
+
         case OP_IR_JMP_COND:
             print_jmp_cond("branch", insn, fp);
             break;
@@ -316,6 +332,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_JMP_INT_EQ_IMM:
             print_jmp_cond_fused("jmp_int_eq_imm", insn, fp);
+            break;
+
+        case OP_JMP_INT_GE_IMM:
+            print_jmp_cond_fused("jmp_int_ge_imm", insn, fp);
             break;
 
         case OP_BINARY_ADD:

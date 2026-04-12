@@ -160,6 +160,7 @@ typedef struct _LocalVarMapEntry {
     HashMapEntry hnode;
     KlrInsn *local;
     KlrValue *val;
+    KlrInsn *move;
 } LocalVarMapEntry;
 
 static int __local_var_eq__(void *a, void *b)
@@ -169,7 +170,7 @@ static int __local_var_eq__(void *a, void *b)
     return e1->local == e2->local;
 }
 
-int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val)
+int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val, KlrInsn *move)
 {
     ASSERT(klr_is_local((KlrValue *)local));
     ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
@@ -178,12 +179,17 @@ int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val)
     hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(local)));
     LocalVarMapEntry *entry = hashmap_get(&bb->local_var_map, &key);
     if (entry) {
+        if (entry->move && !klr_is_const(entry->val)) {
+            entry->move->flags |= KLR_INSN_FLAGS_DEAD;
+        }
         entry->val = val;
+        entry->move = move;
     } else {
         entry = mm_alloc_obj(entry);
         hashmap_entry_init(&entry->hnode, mem_hash(&local, sizeof(local)));
         entry->local = local;
         entry->val = val;
+        entry->move = move;
         hashmap_put(&bb->local_var_map, entry);
     }
     return 0;
@@ -197,7 +203,10 @@ int klr_clear_local_var(KlrBasicBlock *bb, KlrInsn *local)
     LocalVarMapEntry key = { .local = local };
     hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(local)));
     LocalVarMapEntry *entry = hashmap_get(&bb->local_var_map, &key);
-    if (entry) entry->val = NULL;
+    if (entry) {
+        entry->val = NULL;
+        entry->move = NULL;
+    }
     return 0;
 }
 
@@ -224,6 +233,7 @@ int klr_clear_local_var_map(KlrBasicBlock *bb)
     while (hashmap_next(map, &it)) {
         LocalVarMapEntry *e = (LocalVarMapEntry *)it.entry;
         e->val = NULL;
+        e->move = NULL;
     }
     return 0;
 }

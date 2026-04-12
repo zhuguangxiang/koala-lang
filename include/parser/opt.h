@@ -14,6 +14,8 @@ extern "C" {
 
 int klr_const_copy_prop_pass(KlrFunc *fn, void *data);
 
+int klr_normalize_pass(KlrFunc *fn, void *data);
+
 int klr_remove_only_jump_block(KlrFunc *fn, void *data);
 int klr_bb_branch_folding(KlrFunc *fn, void *data);
 int klr_remove_unused_block(KlrFunc *fn, void *data);

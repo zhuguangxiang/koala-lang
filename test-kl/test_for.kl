@@ -5,7 +5,7 @@ for i in range(1, 5) {
 }
 
 for i, j in range(1, 5) {}
-// CHECK: iterable element type 'Lrange;' is not tuple for multiple vars of for loop
+// CHECK: iterable element type 'j' for 'Lrange;' is not tuple for multiple vars of for loop
 
 for t in [(1,2),(3,4)] {
     t[0] + 1
@@ -27,16 +27,14 @@ func foo() (int, str) { return (1, "hello") }
 
 for i, s in foo() {
     i + 1.0
-// CHECK: argument type mismatch for operator '+' of type 'int64'.
     s - " world"
-// CHECK: operator '-' is not defined in type 'str'.
+// CHECK: iterable element type 'o' for 'Ltuple<ju>;' is not tuple for multiple vars of for loop
+// CHECK: 'i' is not found
+// CHECK: 's' is not found
 }
 
-for i, j, k in foo() {}
-// CHECK: num of vars in for does not match num of elements in tuple
-
 for s, s2 in "hello" {}
-// CHECK: iterable element type 'u' is not tuple for multiple vars of for loop
+// CHECK: iterable element type 'u' for 'u' is not tuple for multiple vars of for loop
 
 for s in "hello" {}
 

@@ -156,6 +156,9 @@ typedef struct _KlMachInsn {
     /* import table index */
     int import_index;
 
+    /* Mark instruction as dead (removed by peephole optimization). */
+    int dead;
+
     /* fixup_flag */
     int fixup_flag;
 #define KL_MACH_FIXUP_REL32  1

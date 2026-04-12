@@ -47,12 +47,12 @@ func black_hole(n int) int {
 
 //CHECK: %2 = add %j int64, 1 int64
 //CHECK: move %j int64, %2 int64
-//CHECK: %3 = cmpeq %2 int64, 5 int64
+//CHECK: %3 = cmpeq %j int64, 5 int64
 //CHECK: branch %3 bool, label %bb4, label %bb7
 
 //CHECK: %4 = add %i int64, 1 int64
 //CHECK: move %i int64, %4 int64
-//CHECK: %5 = cmpgt %4 int64, 100 int64
+//CHECK: %5 = cmpgt %i int64, 100 int64
 //CHECK: branch %5 bool, label %bb8, label %bb1
 
 //CHECK: %6 = add %i int64, %j int64

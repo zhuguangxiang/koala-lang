@@ -23,6 +23,7 @@ extern "C" {
 #define I_OP(i)  ((i) >> 24)
 
 #define I_VAL(i, shr, mask)   (((i) >> (shr)) & ((1 << (mask)) - 1))
+#define I_SVAL(i, shr, mask)  (int##mask##_t)I_VAL(i, shr, mask)
 
 #define CP(i) (const_pool + (i))
 #define ENTRY(i) (entry_table + (i))
@@ -91,7 +92,7 @@ main_loop:
 
             case OP_LOAD_INT_IMM: {
                 rd = I_VAL(inst, 16, 8);
-                imm = I_VAL(inst, 0, 16);
+                imm = I_SVAL(inst, 0, 16);
 
                 ASSERT(rd < max_regs);
 
@@ -119,7 +120,7 @@ main_loop:
             case OP_INT_ADD_IMM: {
                 rd = I_VAL(inst, 16, 8);
                 rs = I_VAL(inst, 8, 8);
-                imm = I_VAL(inst, 0, 8);
+                imm = I_SVAL(inst, 0, 8);
 
                 ASSERT(rd < max_regs);
                 ASSERT(rs < max_regs);
@@ -133,7 +134,7 @@ main_loop:
             case OP_INT_SUB_IMM: {
                 rd = I_VAL(inst, 16, 8);
                 rs = I_VAL(inst, 8, 8);
-                imm = I_VAL(inst, 0, 8);
+                imm = I_SVAL(inst, 0, 8);
 
                 ASSERT(rd < max_regs);
                 ASSERT(rs < max_regs);
@@ -147,7 +148,7 @@ main_loop:
             case OP_INT_CMPLT_IMM: {
                 rd = I_VAL(inst, 16, 8);
                 rs = I_VAL(inst, 8, 8);
-                imm = I_VAL(inst, 0, 8);
+                imm = I_SVAL(inst, 0, 8);
 
                 ASSERT(rd < max_regs);
                 ASSERT(rs < max_regs);
@@ -158,9 +159,15 @@ main_loop:
                 DISPATCH();
             }
 
+            case OP_JMP: {
+                off = I_SVAL(inst, 0, 16);
+                pc += off;
+                DISPATCH();
+            }
+
             case OP_JMP_FALSE: {
                 rs = I_VAL(inst, 16, 8);
-                off = I_VAL(inst, 0, 16);
+                off = I_SVAL(inst, 0, 16);
 
                 ASSERT(rs < max_regs);
                 ASSERT(regs[rs].tag == TAG_BOOL);
@@ -171,10 +178,51 @@ main_loop:
                 DISPATCH();
             }
 
+            case OP_JMP_INT_EQ: {
+                rs = I_VAL(inst, 16, 8);
+                rt = I_VAL(inst, 8, 8);
+                off = I_SVAL(inst, 0, 8);
+
+                ASSERT(rs < max_regs);
+                ASSERT(rt < max_regs);
+
+                if (regs[rs].ival == regs[rt].ival) {
+                    pc += off;
+                }
+                DISPATCH();
+            }
+
+            case OP_JMP_INT_EQ_IMM: {
+                rs = I_VAL(inst, 16, 8);
+                imm = I_SVAL(inst, 8, 8);
+                off = I_SVAL(inst, 0, 8);
+
+                ASSERT(rs < max_regs);
+
+                if (regs[rs].ival == imm) {
+                    pc += off;
+                }
+                DISPATCH();
+            }
+
+            case OP_JMP_INT_NE: {
+                rs = I_VAL(inst, 16, 8);
+                rt = I_VAL(inst, 8, 8);
+                off = I_SVAL(inst, 0, 8);
+
+                ASSERT(rs < max_regs);
+                ASSERT(rt < max_regs);
+
+                if (regs[rs].ival != regs[rt].ival) {
+                    pc += off;
+                }
+                DISPATCH();
+            }
+
             case OP_JMP_INT_NE_IMM: {
                 rs = I_VAL(inst, 16, 8);
-                imm = I_VAL(inst, 8, 8);
-                off = I_VAL(inst, 0, 8);
+                imm = I_SVAL(inst, 8, 8);
+                off = I_SVAL(inst, 0, 8);
 
                 ASSERT(rs < max_regs);
 
@@ -187,7 +235,7 @@ main_loop:
             case OP_JMP_INT_LT: {
                 rs = I_VAL(inst, 16, 8);
                 rt = I_VAL(inst, 8, 8);
-                off = I_VAL(inst, 0, 8);
+                off = I_SVAL(inst, 0, 8);
 
                 ASSERT(rs < max_regs);
                 ASSERT(rt < max_regs);
@@ -198,10 +246,37 @@ main_loop:
                 DISPATCH();
             }
 
+            case OP_JMP_INT_LT_IMM: {
+                rs = I_VAL(inst, 16, 8);
+                imm = I_SVAL(inst, 8, 8);
+                off = I_SVAL(inst, 0, 8);
+
+                ASSERT(rs < max_regs);
+
+                if (regs[rs].ival < imm) {
+                    pc += off;
+                }
+                DISPATCH();
+            }
+
+            case OP_JMP_INT_GT: {
+                rs = I_VAL(inst, 16, 8);
+                rt = I_VAL(inst, 8, 8);
+                off = I_SVAL(inst, 0, 8);
+
+                ASSERT(rs < max_regs);
+                ASSERT(rt < max_regs);
+
+                if (regs[rs].ival > regs[rt].ival) {
+                    pc += off;
+                }
+                DISPATCH();
+            }
+
             case OP_JMP_INT_GT_IMM: {
                 rs = I_VAL(inst, 16, 8);
-                imm = I_VAL(inst, 8, 8);
-                off = I_VAL(inst, 0, 8);
+                imm = I_SVAL(inst, 8, 8);
+                off = I_SVAL(inst, 0, 8);
 
                 ASSERT(rs < max_regs);
 
@@ -211,10 +286,24 @@ main_loop:
                 DISPATCH();
             }
 
+            case OP_JMP_INT_GE: {
+                rs = I_VAL(inst, 16, 8);
+                rt = I_VAL(inst, 8, 8);
+                off = I_SVAL(inst, 0, 8);
+
+                ASSERT(rs < max_regs);
+                ASSERT(rt < max_regs);
+
+                if (regs[rs].ival >= regs[rt].ival) {
+                    pc += off;
+                }
+                DISPATCH();
+            }
+
             case OP_JMP_INT_GE_IMM: {
                 rs = I_VAL(inst, 16, 8);
-                imm = I_VAL(inst, 8, 8);
-                off = I_VAL(inst, 0, 8);
+                imm = I_SVAL(inst, 8, 8);
+                off = I_SVAL(inst, 0, 8);
 
                 ASSERT(rs < max_regs);
 

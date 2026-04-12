@@ -542,6 +542,7 @@ typedef struct _ForStmt {
     Vector *ids;
     Expr *iterable;
     Vector *block;
+    Vector sym_ids;
 } ForStmt;
 
 Stmt *stmt_from_for(Vector *ids, Expr *iterable, Vector *block);

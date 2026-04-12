@@ -564,9 +564,178 @@ static void emit_ir_while_stmt(ParserState *ps, Stmt *stmt)
     ps->scope->bb = while_end;
 }
 
+struct RangeInfo {
+    KlrValue *start;
+    KlrValue *end;
+    KlrValue *step;
+};
+
+static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
+{
+    if (insn->code != OP_IR_CALL) return 0;
+    KlrValue *val = insn_oper_value(insn, 0);
+    if (val->kind != KLR_VALUE_KLASS) return 0;
+    if (!str_eq(val->name, "range")) return 0;
+    int num_opers = insn->num_opers;
+    ASSERT(num_opers >= 3 && num_opers <= 4);
+    out->start = insn_oper_value(insn, 1);
+    out->end = insn_oper_value(insn, 2);
+    KlrValue *one = klr_const_int(1, int64_type_spec(), MOD);
+    out->step = (num_opers == 4 ? insn_oper_value(insn, 3) : one);
+
+    return 1;
+}
+
+static Symbol *get_loop_range_symbol(ForStmt *s)
+{
+    ASSERT(vector_size(&s->sym_ids) == 1);
+    int *sym_id = vector_get_ptr(&s->sym_ids, 0);
+    Symbol *sym = get_symbol_by_id(*sym_id);
+    ASSERT(sym->kind == SYM_VAR);
+    VarSymbol *var_sym = (VarSymbol *)sym;
+    ASSERT(var_sym->scope == VAR_SCOPE_LOCAL);
+    return sym;
+}
+
+static void build_loop_range_cond(KlrBuilder *bldr, KlrValue *range_cur,
+                                  struct RangeInfo *range_info, KlrBasicBlock *true_bb,
+                                  KlrBasicBlock *false_bb, ParserState *ps)
+{
+    KlrValue *zero = klr_const_int(0, int64_type_spec(), MOD);
+    KlrValue *cond = klr_build_cmpgt(bldr, range_info->step, zero, "");
+    KlrValue *fwd = klr_build_cmplt(bldr, range_cur, range_info->end, "");
+    KlrValue *back = klr_build_cmpgt(bldr, range_cur, range_info->end, "");
+    KlrValue *loop_cond = klr_build_select(bldr, cond, fwd, back, "");
+    klr_build_jmp_cond(bldr, loop_cond, true_bb, false_bb);
+}
+
+/*
+header:                    ;; initialize（range or iterator）
+    %state = new(...)
+    jmp cond
+
+cond:                      ;; don't generate variables
+    %has = call has_next(%state)
+    jmp_if %has, body, end
+
+body:                      ;; generate tmp variables
+    %0 = local xxx
+    %i = call next(%state)
+    move %0 ,%i
+    call print, %0
+    jmp cond
+
+end:
+*/
 static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
 {
+    KlrValue *fn = CURRENT_FUNC;
     ForStmt *s = (ForStmt *)stmt;
+
+    KlrBasicBlock *loop_header = klr_append_block(fn, "loop-header");
+    KlrBasicBlock *loop_cond = klr_append_block(fn, "loop-cond");
+    KlrBasicBlock *loop_body = klr_append_block(fn, "loop-body");
+    KlrBasicBlock *loop_end = klr_append_block(fn, "loop-end");
+    KlrValue *range_cur = NULL;
+    struct RangeInfo range_info = { 0 };
+    Symbol *range_sym = NULL;
+    int which = 0;
+#define GEN_RANGE    1
+#define GEN_TUPLE    2
+#define GEN_ITERATOR 3
+
+    // 1. current block jmp to loop header
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    klr_build_jmp(&bldr, loop_header);
+
+    // loop-header
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "loop-header");
+    sc->bb = loop_header;
+
+    Expr *it = s->iterable;
+    it->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, it);
+    if (!it->ir_val) return;
+
+    // check last insn is call @range or call @tuple
+    KlrInsn *last = insn_last(sc->bb);
+    if (is_new_range(last, &range_info, ps)) {
+        which = GEN_RANGE;
+        klr_erase_insn(last);
+        klr_builder_end(&bldr, sc->bb);
+
+        Symbol *sym = get_loop_range_symbol(s);
+        if (sym->flags & SYM_FLAGS_MUTABLE) {
+            sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+        } else {
+            sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+        }
+        klr_build_move(&bldr, sym->ir_val, range_info.start);
+        range_cur = sym->ir_val;
+    } else {
+        NYI();
+    }
+
+    klr_builder_end(&bldr, sc->bb);
+    klr_build_jmp(&bldr, loop_cond);
+
+    exit_scope(ps);
+
+    // loop-cond
+    sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "loop-cond");
+    sc->bb = loop_cond;
+
+    if (which == GEN_RANGE) {
+        klr_builder_end(&bldr, sc->bb);
+        build_loop_range_cond(&bldr, range_cur, &range_info, loop_body, loop_end, ps);
+    } else {
+        NYI();
+    }
+
+    exit_scope(ps);
+
+    // loop-body
+    sc = enter_scope(ps, SCOPE_BLOCK, FOR_BLOCK, "for-block");
+    sc->bb = loop_body;
+
+    // int sym_id;
+    // vector_foreach(sym_id, &s->sym_ids) {
+    //     Symbol *sym = get_symbol_by_id(sym_id);
+    //     ASSERT(sym->kind == SYM_VAR);
+    //     VarSymbol *var_sym = (VarSymbol *)sym;
+    //     ASSERT(var_sym->scope == VAR_SCOPE_LOCAL);
+    //     if (sym->flags & SYM_FLAGS_MUTABLE) {
+    //         sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+    //     } else {
+    //         sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+    //     }
+    // }
+
+    // save continue_bb and break_bb for `break` and `continue`
+    sc->continue_bb = loop_cond;
+    sc->break_bb = loop_end;
+
+    emit_ir_visit_block(ps, s->block);
+
+    if (which == GEN_RANGE) {
+        klr_builder_end(&bldr, sc->bb);
+        KlrValue *tmp = klr_build_add(&bldr, range_cur, range_info.step, "");
+        klr_build_move(&bldr, range_cur, tmp);
+    } else {
+        NYI();
+    }
+
+    // add jmp to loop_body block
+    if (!block_has_terminator(sc->bb)) {
+        KlrBuilder _bldr;
+        klr_builder_end(&_bldr, sc->bb);
+        build_loop_range_cond(&bldr, range_cur, &range_info, loop_body, loop_end, ps);
+    }
+
+    exit_scope(ps);
+
+    ps->scope->bb = loop_end;
 }
 
 static void emit_ir_block(ParserState *ps, Stmt *stmt)

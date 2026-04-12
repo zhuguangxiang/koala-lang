@@ -919,6 +919,7 @@ static void assign_pc(KlMachFunc *mfn)
             pc++;
         }
 
+        // TODO: remove it
         mb->end_pc = pc;
     }
 
@@ -1058,6 +1059,75 @@ static void patch_fixups(KlMachModule *m)
     }
 }
 
+static void peephole(KlMachFunc *mfn)
+{
+    KlMachBlock *mb;
+    list_foreach(mb, link, &mfn->bb_list) {
+        KlMachInsn **codes = VECTOR_RAW(&mb->insns, KlMachInsn *);
+        int n = vector_size(&mb->insns);
+
+        // jmp → fallthrough
+        // mark unconditional jumps to the immediately following block as dead
+        for (int i = 0; i < n; ++i) {
+            KlMachInsn *mi = codes[i];
+            if (mi->dead) continue;
+            if (mi->op == OP_JMP) {
+                KlMachBlock *next = NEXT_BLOCK(mb);
+                if (next && next == mi->target) {
+                    mi->dead = 1;
+                }
+            }
+        }
+
+        // reverse pass for other peephole optimizations
+        for (int i = n - 1; i > 0; i--) {
+            KlMachInsn *a = codes[i];
+            if (a->dead) continue;
+
+            KlMachInsn *b = codes[i - 1];
+            if (b->dead) continue;
+
+            if (a->op != OP_MOVE) continue;
+
+            // TODO: refactor this pattern match for move followed by int add immediate
+            if (b->op == OP_INT_ADD_IMM) {
+                if ((a->opers[0] == b->opers[1]) && (a->opers[1] == b->opers[0])) {
+                    KlrInsn *b_insn = b->origin;
+                    if (b_insn->use_count == 1) {
+                        KlrInsn *a_ref = (KlrInsn *)insn_oper_value(a->origin, 1);
+                        if (a_ref == b_insn) {
+                            a->dead = 1;
+                            b->opers[0] = a->opers[0];
+                        }
+                    }
+                }
+            } else if (b->op == OP_INT_ADD) {
+                if ((a->opers[0] == b->opers[1]) && (a->opers[1] == b->opers[0])) {
+                    KlrInsn *b_insn = b->origin;
+                    if (b_insn->use_count == 1) {
+                        KlrInsn *a_ref = (KlrInsn *)insn_oper_value(a->origin, 1);
+                        if (a_ref == b_insn) {
+                            a->dead = 1;
+                            b->opers[0] = a->opers[0];
+                        }
+                    }
+                }
+            }
+        }
+
+        // compact the instruction array by removing dead instructions
+        int w = 0;
+        for (int r = 0; r < n; r++) {
+            KlMachInsn *mi = codes[r];
+            if (!mi->dead) {
+                if (w != r) codes[w] = codes[r];
+                w++;
+            }
+        }
+        mb->insns.size = w;
+    }
+}
+
 static void init_mach_context(KlMachModule *m, KlrModule *origin)
 {
     m->origin = origin;
@@ -1093,6 +1163,7 @@ void kl_do_codegen(KlrModule *origin)
     KlMachFunc *mfn;
     vector_foreach(mfn, &m->funcs) {
         linearize(mfn, m);
+        peephole(mfn);
         lower_branches(mfn);
         assign_pc(mfn);
         process_fused_jumps(mfn);

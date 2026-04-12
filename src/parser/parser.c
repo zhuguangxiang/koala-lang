@@ -1513,7 +1513,12 @@ static void parse_for(ParserState *ps, Stmt *stmt)
 
     if (type_is_tuple(it->ts)) {
         // special handling for tuple unpacking
-        elem_ts = it->ts;
+        Symbol *sym = get_symbol_by_id(it->ts->sym_id);
+        ASSERT(sym->kind == SYM_INSTANCE);
+        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        ASSERT(!strcmp(inst_sym->origin->name, "tuple"));
+        elem_ts = sym->arg;
+        ASSERT(elem_ts);
     } else {
         match_iterable(it->ts, NULL, &elem_ts);
         if (!elem_ts) {
@@ -1550,9 +1555,9 @@ static void parse_for(ParserState *ps, Stmt *stmt)
         }
 
         kl_error(it->loc,
-                 "iterable element type '%s' is not tuple for multiple vars of "
+                 "iterable element type '%s' for '%s' is not tuple for multiple vars of "
                  "for loop",
-                 it->ts->signature);
+                 elem_ts->signature, it->ts->signature);
     } else {
         Ident *id = vector_get_ptr(ids, 0);
         IdentType id_type = { *id, elem_ts };
@@ -1564,11 +1569,13 @@ __do_for_body:
 
     IdentType *id_type;
     vector_foreach_ptr(id_type, &locals) {
-        Symbol *sym = stbl_add_var(sc->stbl, id_type->id.name, id_type->ts, 0);
+        Symbol *sym =
+            stbl_add_var(sc->stbl, id_type->id.name, id_type->ts, SYM_FLAGS_MUTABLE);
         ASSERT(sym);
         ((VarSymbol *)sym)->scope = VAR_SCOPE_LOCAL;
         log_info("added loop variable '%s' with type '%s'", sym->name,
                  id_type->ts->signature);
+        vector_push_back(&s->sym_ids, &sym->id);
     }
     vector_fini(&locals);
 

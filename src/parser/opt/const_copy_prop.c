@@ -3,8 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "ir.h"
 #include "log.h"
-#include "pass.h"
 #include "queue.h"
 
 #ifdef __cplusplus
@@ -35,10 +35,33 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             // value(const/insn) for this local variable
             KlrValue *_val = klr_get_local_var(insn->bb, src);
             if (_val) {
-                log_info("operand %d-th of insn(/) is const value/insn:", i__);
-                log_insn(insn);
-                set_operand_at(insn, i__, _val);
-                changed = 1;
+                if (klr_is_const(_val)) {
+                    // Constant Propagation: Always replace local variables with
+                    // known constants to enable further folding.
+                    log_info("operand %d-th of insn(/) is const value:", i__);
+                    log_insn(insn);
+                    set_operand_at(insn, i__, _val);
+                    changed = 1;
+                } else {
+                    if (insn->code == OP_RET) {
+                        // Special Case for Return: Enable operand forwarding even for
+                        // non-constants. This bypasses the local variable, making its
+                        // last 'move' instruction redundant and eligible for DCE.
+                        log_info("ret operand optimized: forwarding non-const value");
+                        set_operand_at(insn, i__, _val);
+                        changed = 1;
+                    } else {
+                        // Non-Constant Propagation: We generally disallow this to avoid
+                        // extending variable lifetimes, which would complicate register
+                        // allocation in our non-pure SSA IR. (Ref: bench/loop-sum.kl)
+                        log_info(
+                            "operand %d-th of insn(/) cannot be replaced with non-const "
+                            "value/insn:",
+                            i__);
+                        log_insn(insn);
+                        klr_clear_local_var(insn->bb, src);
+                    }
+                }
             }
         }
     }
@@ -253,6 +276,26 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             break;
         }
 
+        case OP_IR_SELECT: {
+            KlrValue *cond = insn_oper_value(insn, 0);
+            KlrValue *true_val = insn_oper_value(insn, 1);
+            KlrValue *false_val = insn_oper_value(insn, 2);
+            if (klr_is_const(cond)) {
+                KlrConst *c = (KlrConst *)cond;
+                ASSERT(c->which == CONST_BOOL);
+                if (c->bval) {
+                    log_info("[Short-circuiting] fold SELECT insn, condition is true:");
+                    log_insn(insn);
+                    replace_all_uses_with(true_val, (KlrValue *)insn);
+                } else {
+                    log_info("[Short-circuiting] fold SELECT insn, condition is false:");
+                    log_insn(insn);
+                    replace_all_uses_with(false_val, (KlrValue *)insn);
+                }
+            }
+            break;
+        }
+
         default: {
             break;
         }
@@ -320,12 +363,11 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     log_insn(insn);
                     /* Record the latest constant value in the local BB map */
                     KlrBasicBlock *bb = insn->bb;
-                    klr_update_local_var(bb, dst, src);
+                    klr_update_local_var(bb, dst, src, insn);
                 } else {
                     log_info(
                         "update var local's value in bb '%s' although it's "
-                        "assigned "
-                        "a volatile value",
+                        "assigned a volatile value",
                         klr_block_name(insn->bb));
                     // Variable is assigned a volatile value, also update it
                     // This is var copy propagation, if src is not const, we can
@@ -334,19 +376,19 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                     if (src->kind == KLR_VALUE_PARAM) {
                         // parameter is immutable, we can propagate it in func
                         // scope
-                        klr_update_local_var(bb, dst, src);
+                        klr_update_local_var(bb, dst, src, insn);
                     } else if (src->kind == KLR_VALUE_INSN) {
                         KlrInsn *_insn = (KlrInsn *)src;
                         if (_insn->flags & KLR_INSN_FLAGS_CONST) {
                             // src is const insn, we can propagate it in func
                             // scope
-                            klr_update_local_var(bb, dst, src);
+                            klr_update_local_var(bb, dst, src, insn);
                         } else {
                             if (_insn->bb == bb) {
                                 // Only propagate if src is defined in the same
                                 // basic block, otherwise it's not safe to
                                 // propagate.
-                                klr_update_local_var(bb, dst, src);
+                                klr_update_local_var(bb, dst, src, insn);
                             } else {
                                 klr_clear_local_var(bb, dst);
                             }
@@ -436,6 +478,16 @@ int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
             KlrInsn *insn = queue_pop(&wklist);
             do_propagate(insn, fn, &wklist);
             do_fold(insn, fn, &wklist);
+        }
+    }
+
+    basic_block_foreach(bb, fn) {
+        KlrInsn *insn, *next;
+        insn_foreach_safe(insn, next, bb) {
+            if (insn_is_dead(insn)) {
+                ASSERT(insn->code == OP_MOVE);
+                klr_erase_insn(insn);
+            }
         }
     }
 

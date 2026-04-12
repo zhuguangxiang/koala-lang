@@ -319,6 +319,38 @@ KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode c
     return (KlrValue *)insn;
 }
 
+KlrValue *klr_build_select(KlrBuilder *bldr, KlrValue *cond, KlrValue *true_val,
+                           KlrValue *false_val, char *name)
+{
+    if (cond->ts->kind != TYPE_BOOL) {
+        panic("'select %%cond, %%true, %%false' requires a bool cond");
+    }
+
+    if (true_val->kind != KLR_VALUE_CONST && true_val->kind != KLR_VALUE_INSN &&
+        true_val->kind != KLR_VALUE_PARAM) {
+        panic("'select %%cond, %%true, %%false' requires reg/const for true_val");
+    }
+
+    if (false_val->kind != KLR_VALUE_CONST && false_val->kind != KLR_VALUE_INSN &&
+        false_val->kind != KLR_VALUE_PARAM) {
+        panic("'select %%cond, %%true, %%false' requires reg/const for false_val");
+    }
+
+    if (true_val->ts != false_val->ts) {
+        panic(
+            "'select %%cond, %%true, %%false' requires true_val and false_val to have "
+            "the same type");
+    }
+
+    KlrInsn *insn = new_insn(OP_IR_SELECT, 3, name);
+    init_oper(&insn->opers[0], insn, cond, 0);
+    init_oper(&insn->opers[1], insn, true_val, 0);
+    init_oper(&insn->opers[2], insn, false_val, 0);
+    insn->ts = true_val->ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
 void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
                         KlrBasicBlock *_else)
 {
