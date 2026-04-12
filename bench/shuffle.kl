@@ -1,0 +1,6 @@
+func shuffle(a int, b int, c int, d int, e int) int {
+    if (a <= 0) { return e }
+    return shuffle(a - 1, e, d, c, b)
+}
+
+print(shuffle(40_000_000, 1, 2, 3, 4))

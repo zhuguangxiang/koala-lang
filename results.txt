@@ -1,38 +1,82 @@
 Koala vs Lua vs luajit Benchmark Results
 ==============================
 Benchmark 1: koala bench/sum.kl
-  Time (mean ± σ):     564.8 ms ±   4.4 ms    [User: 561.2 ms, System: 3.1 ms]
-  Range (min … max):   560.3 ms … 572.1 ms    10 runs
+  Time (mean ± σ):     564.4 ms ±   6.2 ms    [User: 560.9 ms, System: 3.1 ms]
+  Range (min … max):   556.6 ms … 575.5 ms    10 runs
  
 Benchmark 1: lua bench/sum.lua
-  Time (mean ± σ):      1.057 s ±  0.010 s    [User: 1.054 s, System: 0.002 s]
-  Range (min … max):    1.040 s …  1.072 s    10 runs
+  Time (mean ± σ):      1.048 s ±  0.010 s    [User: 1.047 s, System: 0.001 s]
+  Range (min … max):    1.034 s …  1.063 s    10 runs
  
 Benchmark 1: luajit -joff bench/sum.lua
-  Time (mean ± σ):     950.2 ms ±   4.2 ms    [User: 947.5 ms, System: 2.2 ms]
-  Range (min … max):   945.7 ms … 959.9 ms    10 runs
+  Time (mean ± σ):     949.1 ms ±   6.6 ms    [User: 947.4 ms, System: 1.2 ms]
+  Range (min … max):   944.6 ms … 967.2 ms    10 runs
+ 
+Benchmark 1: node --jitless bench/sum.js
+  Time (mean ± σ):      1.147 s ±  0.009 s    [User: 1.137 s, System: 0.011 s]
+  Range (min … max):    1.126 s …  1.157 s    10 runs
  
 Benchmark 1: koala bench/fib.kl
-  Time (mean ± σ):      2.999 s ±  0.103 s    [User: 2.992 s, System: 0.005 s]
-  Range (min … max):    2.858 s …  3.213 s    10 runs
+  Time (mean ± σ):      2.909 s ±  0.023 s    [User: 2.905 s, System: 0.003 s]
+  Range (min … max):    2.882 s …  2.953 s    10 runs
  
 Benchmark 1: lua bench/fib.lua
-  Time (mean ± σ):      4.239 s ±  0.039 s    [User: 4.236 s, System: 0.003 s]
-  Range (min … max):    4.191 s …  4.318 s    10 runs
+  Time (mean ± σ):      4.183 s ±  0.048 s    [User: 4.181 s, System: 0.001 s]
+  Range (min … max):    4.125 s …  4.300 s    10 runs
  
 Benchmark 1: luajit -joff bench/fib.lua
-  Time (mean ± σ):      3.256 s ±  0.027 s    [User: 3.252 s, System: 0.002 s]
-  Range (min … max):    3.219 s …  3.301 s    10 runs
+  Time (mean ± σ):      3.229 s ±  0.018 s    [User: 3.226 s, System: 0.001 s]
+  Range (min … max):    3.210 s …  3.271 s    10 runs
+ 
+Benchmark 1: node --jitless bench/fib.js
+  Time (mean ± σ):      5.763 s ±  0.047 s    [User: 5.753 s, System: 0.010 s]
+  Range (min … max):    5.719 s …  5.850 s    10 runs
  
 Benchmark 1: koala bench/ack.kl
-  Time (mean ± σ):     558.2 ms ±   6.5 ms    [User: 553.1 ms, System: 4.7 ms]
-  Range (min … max):   549.3 ms … 569.2 ms    10 runs
+  Time (mean ± σ):     556.5 ms ±   7.2 ms    [User: 552.6 ms, System: 3.5 ms]
+  Range (min … max):   539.4 ms … 566.3 ms    10 runs
  
 Benchmark 1: lua bench/ack.lua
-  Time (mean ± σ):     544.2 ms ±   6.3 ms    [User: 541.2 ms, System: 2.7 ms]
-  Range (min … max):   534.6 ms … 553.8 ms    10 runs
+  Time (mean ± σ):     542.1 ms ±  13.2 ms    [User: 540.5 ms, System: 1.3 ms]
+  Range (min … max):   521.5 ms … 561.0 ms    10 runs
  
 Benchmark 1: luajit -joff bench/ack.lua
-  Time (mean ± σ):     384.1 ms ±   5.2 ms    [User: 382.0 ms, System: 1.8 ms]
-  Range (min … max):   377.8 ms … 394.5 ms    10 runs
+  Time (mean ± σ):     381.1 ms ±   4.8 ms    [User: 379.8 ms, System: 0.9 ms]
+  Range (min … max):   373.7 ms … 387.6 ms    10 runs
+ 
+Benchmark 1: node --jitless bench/ack.js
+  Time (mean ± σ):      2.844 s ±  0.019 s    [User: 2.835 s, System: 0.035 s]
+  Range (min … max):    2.819 s …  2.872 s    10 runs
+ 
+Benchmark 1: koala bench/tak.kl
+  Time (mean ± σ):     433.9 ms ±   6.4 ms    [User: 430.3 ms, System: 3.1 ms]
+  Range (min … max):   422.7 ms … 441.0 ms    10 runs
+ 
+Benchmark 1: lua bench/tak.lua
+  Time (mean ± σ):     572.2 ms ±   7.8 ms    [User: 570.7 ms, System: 1.1 ms]
+  Range (min … max):   561.2 ms … 583.7 ms    10 runs
+ 
+Benchmark 1: luajit -joff bench/tak.lua
+  Time (mean ± σ):     348.4 ms ±   3.8 ms    [User: 347.1 ms, System: 1.0 ms]
+  Range (min … max):   343.8 ms … 353.3 ms    10 runs
+ 
+Benchmark 1: node --jitless bench/tak.js
+  Time (mean ± σ):     976.5 ms ±   8.9 ms    [User: 967.9 ms, System: 9.6 ms]
+  Range (min … max):   965.2 ms … 992.2 ms    10 runs
+ 
+Benchmark 1: koala bench/shuffle.kl
+  Time (mean ± σ):     140.7 ms ±   4.9 ms    [User: 137.8 ms, System: 2.5 ms]
+  Range (min … max):   134.4 ms … 154.2 ms    20 runs
+ 
+Benchmark 1: lua bench/shuffle.lua
+  Time (mean ± σ):     655.7 ms ±  51.2 ms    [User: 654.0 ms, System: 1.3 ms]
+  Range (min … max):   594.0 ms … 699.0 ms    10 runs
+ 
+Benchmark 1: luajit -joff bench/shuffle.lua
+  Time (mean ± σ):     462.4 ms ±  20.3 ms    [User: 461.2 ms, System: 0.9 ms]
+  Range (min … max):   440.4 ms … 492.9 ms    10 runs
+ 
+Benchmark 1: node --jitless bench/shuffle.js
+  Time (mean ± σ):     582.5 ms ±   5.4 ms    [User: 573.9 ms, System: 9.6 ms]
+  Range (min … max):   572.0 ms … 589.9 ms    10 runs
  

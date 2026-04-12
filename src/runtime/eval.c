@@ -100,18 +100,6 @@ main_loop:
                 DISPATCH();
             }
 
-            case OP_LOADK: {
-                rd = I_VAL(inst, 16, 8);
-                idx = I_VAL(inst, 0, 16);
-
-                ASSERT(rd < max_regs);
-
-                TValue *val = CP(idx);
-                regs[rd].tag = val->tag;
-                regs[rd].ival = val->ival;
-                DISPATCH();
-            }
-
             case OP_INT_ADD: {
                 rd = I_VAL(inst, 16, 8);
                 rs = I_VAL(inst, 8, 8);
@@ -191,6 +179,33 @@ main_loop:
                 ASSERT(rs < max_regs);
 
                 if (regs[rs].ival != imm) {
+                    pc += off;
+                }
+                DISPATCH();
+            }
+
+            case OP_JMP_INT_LT: {
+                rs = I_VAL(inst, 16, 8);
+                rt = I_VAL(inst, 8, 8);
+                off = I_VAL(inst, 0, 8);
+
+                ASSERT(rs < max_regs);
+                ASSERT(rt < max_regs);
+
+                if (regs[rs].ival < regs[rt].ival) {
+                    pc += off;
+                }
+                DISPATCH();
+            }
+
+            case OP_JMP_INT_GT_IMM: {
+                rs = I_VAL(inst, 16, 8);
+                imm = I_VAL(inst, 8, 8);
+                off = I_VAL(inst, 0, 8);
+
+                ASSERT(rs < max_regs);
+
+                if (regs[rs].ival > imm) {
                     pc += off;
                 }
                 DISPATCH();
@@ -313,6 +328,18 @@ main_loop:
                 ASSERT(rs < max_regs);
                 result = regs[rs];
                 goto done;
+            }
+
+            case OP_LOADK: {
+                rd = I_VAL(inst, 16, 8);
+                idx = I_VAL(inst, 0, 16);
+
+                ASSERT(rd < max_regs);
+
+                TValue *val = CP(idx);
+                regs[rd].tag = val->tag;
+                regs[rd].ival = val->ival;
+                DISPATCH();
             }
 
             case OP_RET_VOID: {

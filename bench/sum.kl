@@ -3,4 +3,4 @@ func sum(n int, acc int) int {
     return sum(n - 1, acc + n)
 }
 
-print(sum(100000000, 0))
+print(sum(100_000_000, 0))
