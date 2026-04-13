@@ -1,0 +1,35 @@
+// RUN: koalac %s --cgen --dump=lir,code | filecheck %s
+
+func g(x int) int {
+    return x + 1
+}
+
+func f(n int) int {
+    return g(n) + 1
+}
+
+// CHECK-LABEL: --- IR Dump After isel [@f] ---
+// CHECK-LABEL: func @f(%n int64) int64 {
+// CHECK: %0 = local int64        [fixedslot = 0(next)]
+// CHECK: move %0 int64, %n int64
+// CHECK: %1 = call @g, 1
+// CHECK: %2 = int.add_imm %1 int64, 1 int64
+// CHECK: ret %2 int64
+
+
+// CHECK-LABEL: @g:
+// CHECK: [start_pc: 0, insns: 2, nlocals: 1, max_call_args: 0]
+
+// CHECK-LABEL: @f:
+// CHECK: [start_pc: 2, insns: 5, nlocals: 1, max_call_args: 1]
+
+// CHECK-LABEL: @g[0,1]:
+// CHECK: {{[0-9]+}}:  06000001   int.add_imm r0, r0, #1
+// CHECK: {{[0-9]+}}:  5B000000   ret r0
+
+// CHECK-LABEL: @f[2,6]:
+// CHECK: {{[0-9]+}}:  01001000   move r1, r0
+// CHECK: {{[0-9]+}}:  59000001   call flg=0, r0, #1
+// CHECK: {{[0-9]+}}:  00000000   data (rel32=0)
+// CHECK: {{[0-9]+}}:  06000001   int.add_imm r0, r0, #1
+// CHECK: {{[0-9]+}}:  5B000000   ret r0

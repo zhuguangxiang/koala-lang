@@ -42,12 +42,12 @@ static void usage(void)
         "  --write-klc        Write the compiled output to a .klc file.\n"
         "  --dump=<list>      Dump internal information.\n"
         "                     <list> is a comma-separated list of:\n"
-        "                         ir       - dump no-opt IR\n"
-        "                         opt-ir   - optimized IR (after opt passes)\n"
-        "                         lir      - LIR (after isel/regalloc)\n"
-        "                         vreg     - dump virtual register info\n"
-        "                         cgen     - codegen output\n"
-        "                         all      - dump all stages\n"
+        "                         no-opt-ir - dump no-opt IR\n"
+        "                         ir        - optimized IR (after opt passes)\n"
+        "                         lir       - LIR (after isel/regalloc)\n"
+        "                         vreg      - dump virtual register info\n"
+        "                         code      - codegen output\n"
+        "                         all       - dump all stages\n"
         "  -v, --version      Print koalac version.\n"
         "  -h, --help         Print this message.\n"
         "\n");
@@ -108,14 +108,12 @@ static DumpFlags parse_dump_flags(const char *s)
     while (tok) {
         if (strcmp(tok, "ir") == 0)
             flags |= DUMP_IR;
-        else if (strcmp(tok, "opt-ir") == 0)
-            flags |= DUMP_OPT_IR;
         else if (strcmp(tok, "lir") == 0)
             flags |= DUMP_LIR;
         else if (strcmp(tok, "vreg") == 0)
             flags |= DUMP_VREG;
-        else if (strcmp(tok, "cgen") == 0)
-            flags |= DUMP_CGEN;
+        else if (strcmp(tok, "code") == 0)
+            flags |= DUMP_CODE;
         else if (strcmp(tok, "all") == 0)
             flags |= DUMP_ALL;
 

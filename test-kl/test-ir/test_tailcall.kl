@@ -1,4 +1,4 @@
-// RUN: koalac %s --cgen --fusion --tail-call --dump=cgen | filecheck %s
+// RUN: koalac %s --cgen --fusion --tail-call --dump=code | filecheck %s
 
 func sum(n int, acc int) int {
     if n == 0 { return acc }

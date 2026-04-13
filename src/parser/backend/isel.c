@@ -599,7 +599,7 @@ static void verify_insn(KlrInsn *insn)
 
     if ((op >= OP_BINARY_ADD && op <= OP_IR_PHI) || (op == OP_JMP) || (op == OP_RET) ||
         (op == OP_RET_VOID) || (op == OP_MOVE) || (op == OP_GLOBAL_GET) ||
-        (op == OP_GLOBAL_SET)) {
+        (op == OP_GLOBAL_SET) || (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT)) {
         return;
     }
 

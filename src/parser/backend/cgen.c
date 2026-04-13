@@ -1171,12 +1171,12 @@ void kl_do_codegen(KlrModule *origin)
         process_fused_jumps(mfn);
         assign_pc_and_patch_branches(mfn);
         emit_mach_func(mfn);
-        if (dump_cgen_enabled()) dump_mach_func(mfn);
+        if (dump_code_enabled()) dump_mach_func(mfn);
     }
 
     patch_fixups(m);
 
-    if (dump_cgen_enabled()) {
+    if (dump_code_enabled()) {
         dump_byte_code(m);
         dump_const_pool(m);
         dump_import_table(m);

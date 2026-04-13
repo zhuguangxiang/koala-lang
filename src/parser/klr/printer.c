@@ -107,6 +107,18 @@ static void print_ret_int_imm(KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[0], fp);
 }
 
+static void print_ret_tag(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "ret_tag ");
+    print_operand(&insn->opers[0], fp);
+}
+
+static void print_ret_const(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "ret_const ");
+    print_operand(&insn->opers[0], fp);
+}
+
 static void print_ret_void(KlrInsn *insn, FILE *fp) { fprintf(fp, "ret void"); }
 
 static void print_phi(KlrInsn *insn, FILE *fp)
@@ -286,6 +298,14 @@ static void print_loadk(KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[1], fp);
 }
 
+static void print_load_tag(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "load_tag ");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+}
+
 static void print_attributes(KlrInsn *insn, FILE *fp)
 {
     if (insn->fixedslot) {
@@ -330,8 +350,40 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_jmp_cond_fused("jmp_int_lt_imm", insn, fp);
             break;
 
+        case OP_JMP_INT_LE:
+            print_jmp_cond_fused("jmp_int_le", insn, fp);
+            break;
+
+        case OP_JMP_INT_LE_IMM:
+            print_jmp_cond_fused("jmp_int_le_imm", insn, fp);
+            break;
+
+        case OP_JMP_INT_EQ:
+            print_jmp_cond_fused("jmp_int_eq", insn, fp);
+            break;
+
         case OP_JMP_INT_EQ_IMM:
             print_jmp_cond_fused("jmp_int_eq_imm", insn, fp);
+            break;
+
+        case OP_JMP_INT_NE:
+            print_jmp_cond_fused("jmp_int_ne", insn, fp);
+            break;
+
+        case OP_JMP_INT_NE_IMM:
+            print_jmp_cond_fused("jmp_int_ne_imm", insn, fp);
+            break;
+
+        case OP_JMP_INT_GT:
+            print_jmp_cond_fused("jmp_int_gt", insn, fp);
+            break;
+
+        case OP_JMP_INT_GT_IMM:
+            print_jmp_cond_fused("jmp_int_gt_imm", insn, fp);
+            break;
+
+        case OP_JMP_INT_GE:
+            print_jmp_cond_fused("jmp_int_ge", insn, fp);
             break;
 
         case OP_JMP_INT_GE_IMM:
@@ -434,6 +486,14 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_ret_int_imm(insn, fp);
             break;
 
+        case OP_RET_TAG:
+            print_ret_tag(insn, fp);
+            break;
+
+        case OP_RET_CONST:
+            print_ret_const(insn, fp);
+            break;
+
         case OP_RET_VOID:
             print_ret_void(insn, fp);
             break;
@@ -478,16 +538,60 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_loadk(insn, fp);
             break;
 
-        case OP_INT_CMPLT_IMM:
-            print_cmp("int.cmp_lt_imm", insn, fp);
+        case OP_LOAD_TAG:
+            print_load_tag(insn, fp);
             break;
 
-        case OP_INT_SUB_IMM:
-            print_binary(insn, "int.sub_imm", fp);
+        case OP_INT_CMPEQ:
+            print_cmp("int.cmp_eq", insn, fp);
+            break;
+
+        case OP_INT_CMPEQ_IMM:
+            print_cmp("int.cmp_eq_imm", insn, fp);
+            break;
+
+        case OP_INT_CMPNE:
+            print_cmp("int.cmp_ne", insn, fp);
+            break;
+
+        case OP_INT_CMPNE_IMM:
+            print_cmp("int.cmp_ne_imm", insn, fp);
             break;
 
         case OP_INT_CMPLT:
             print_cmp("int.cmp_lt", insn, fp);
+            break;
+
+        case OP_INT_CMPLT_IMM:
+            print_cmp("int.cmp_lt_imm", insn, fp);
+            break;
+
+        case OP_INT_CMPLE:
+            print_cmp("int.cmp_le", insn, fp);
+            break;
+
+        case OP_INT_CMPLE_IMM:
+            print_cmp("int.cmp_le_imm", insn, fp);
+            break;
+
+        case OP_INT_CMPGT:
+            print_cmp("int.cmp_gt", insn, fp);
+            break;
+
+        case OP_INT_CMPGT_IMM:
+            print_cmp("int.cmp_gt_imm", insn, fp);
+            break;
+
+        case OP_INT_CMPGE:
+            print_cmp("int.cmp_ge", insn, fp);
+            break;
+
+        case OP_INT_CMPGE_IMM:
+            print_cmp("int.cmp_ge_imm", insn, fp);
+            break;
+
+        case OP_INT_SUB_IMM:
+            print_binary(insn, "int.sub_imm", fp);
             break;
 
         default:

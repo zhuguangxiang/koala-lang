@@ -2331,8 +2331,8 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_EXPR_KIND]      = parse_expr,
         [STMT_BLOCK_KIND]     = parse_block_stmt,
         [STMT_IF_KIND]        = parse_if,
-        [STMT_FOR_KIND]       = parse_for,
         [STMT_WHILE_KIND]     = parse_while,
+        [STMT_FOR_KIND]       = parse_for,
         [STMT_IF_LET_KIND]    = parse_if_let,
         [STMT_WHILE_LET_KIND] = parse_while_let,
     };

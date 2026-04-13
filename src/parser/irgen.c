@@ -390,7 +390,7 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     KlrBasicBlock *last = scope->bb;
     klr_add_last_return(last);
 
-    if (dump_ir_enabled()) {
+    if (dump_no_opt_ir_enabled()) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
         klr_print_func((KlrFunc *)sym->ir_val, stdout);
     }
@@ -836,19 +836,19 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
 
     /* clang-format off */
     static void (*handlers[STMT_MAX_KIND])(ParserState *, Stmt *) = {
-        [STMT_VAR_KIND]     = emit_ir_var_decl,
-        [STMT_FUNC_KIND]    = emit_ir_func_decl,
-        [STMT_CLASS_KIND]   = emit_ir_class,
-        [STMT_TRAIT_KIND]   = emit_ir_trait,
-        [STMT_RETURN_KIND]  = emit_ir_return,
-        [STMT_EXPR_KIND]    = emit_ir_expr,
-        [STMT_IF_KIND]      = emit_ir_if_stmt,
-        [STMT_WHILE_KIND]   = emit_ir_while_stmt,
-        [STMT_FOR_KIND]     = emit_ir_for_stmt,
-        [STMT_BLOCK_KIND]   = emit_ir_block,
-        [STMT_ASSIGN_KIND]  = emit_ir_assignment,
-        [STMT_BREAK_KIND]   = emit_ir_break,
+        [STMT_VAR_KIND]      = emit_ir_var_decl,
+        [STMT_FUNC_KIND]     = emit_ir_func_decl,
+        [STMT_CLASS_KIND]    = emit_ir_class,
+        [STMT_TRAIT_KIND]    = emit_ir_trait,
+        [STMT_RETURN_KIND]   = emit_ir_return,
+        [STMT_ASSIGN_KIND]   = emit_ir_assignment,
+        [STMT_BREAK_KIND]    = emit_ir_break,
         [STMT_CONTINUE_KIND] = emit_ir_continue,
+        [STMT_EXPR_KIND]     = emit_ir_expr,
+        [STMT_BLOCK_KIND]    = emit_ir_block,
+        [STMT_IF_KIND]       = emit_ir_if_stmt,
+        [STMT_WHILE_KIND]    = emit_ir_while_stmt,
+        [STMT_FOR_KIND]      = emit_ir_for_stmt,
     };
     /* clang-format on */
 
@@ -938,7 +938,7 @@ void kl_gen_ir(ParserModule *pm)
         exit_scope(ps);
     }
 
-    if (dump_ir_enabled()) {
+    if (dump_no_opt_ir_enabled()) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
         klr_print_func((KlrFunc *)fn, stdout);
     }

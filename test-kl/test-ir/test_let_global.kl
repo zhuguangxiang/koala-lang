@@ -1,4 +1,4 @@
-// RUN: koalac %s --opt --dump=opt-ir | filecheck %s
+// RUN: koalac %s --opt --dump=ir | filecheck %s
 
 let i = 10
 let j = i + 1

@@ -4,20 +4,6 @@ func fib(n int) int {
     return fib(n - 1) + fib(n - 2)
 }
 
-// func g(x int) int {
-//     return x + 1
-// }
-
-// func f(n int) int {
-//     return g(n) + 1
-// }
-
-// func main() {
-//     let v = 10
-//     let res = f(v)
-//     print(res)
-// }
-
 func main() {
     print(fib(40))
 }

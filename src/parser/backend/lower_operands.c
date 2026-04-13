@@ -294,7 +294,8 @@ static inline int is_binary(OpCode op)
 {
     return (op >= OP_INT_ADD && op <= OP_INT_CMPGE_IMM) ||
            (op >= OP_UINT_DIV && op <= OP_UINT_DIV_IMM) ||
-           (op >= OP_FLOAT_ADD && op <= OP_FLOAT_CMPG);
+           (op >= OP_FLOAT_ADD && op <= OP_FLOAT_CMPG) ||
+           (op >= OP_LAND && op <= OP_LNOT);
 }
 
 static inline int is_move(OpCode op) { return op >= OP_MOVE && op <= OP_LOADK; }

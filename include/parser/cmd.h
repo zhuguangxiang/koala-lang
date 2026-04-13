@@ -12,11 +12,11 @@ extern "C" {
 
 typedef enum _DumpFlags {
     DUMP_NONE = 0,
-    DUMP_IR = 1 << 0,
-    DUMP_OPT_IR = 1 << 1,
+    DUMP_NO_OPT_IR = 1 << 0,
+    DUMP_IR = 1 << 1,
     DUMP_LIR = 1 << 2,
     DUMP_VREG = 1 << 3,
-    DUMP_CGEN = 1 << 4,
+    DUMP_CODE = 1 << 4,
     DUMP_ALL = 0xFFFFFFFF,
 } DumpFlags;
 
@@ -45,11 +45,11 @@ extern CompileOptions cmd_opt;
 #define is_build_stdlib()   (cmd_opt.build_stdlib)
 #define write_klc_enabled() (cmd_opt.enable_write_klc)
 
-#define dump_ir_enabled()     ((cmd_opt.dump & DUMP_IR) != 0)
-#define dump_opt_ir_enabled() ((cmd_opt.dump & DUMP_OPT_IR) != 0)
-#define dump_lir_enabled()    ((cmd_opt.dump & DUMP_LIR) != 0)
-#define dump_vreg_enabled()   ((cmd_opt.dump & DUMP_VREG) != 0)
-#define dump_cgen_enabled()   ((cmd_opt.dump & DUMP_CGEN) != 0)
+#define dump_no_opt_ir_enabled() ((cmd_opt.dump & DUMP_NO_OPT_IR) != 0)
+#define dump_ir_enabled()        ((cmd_opt.dump & DUMP_IR) != 0)
+#define dump_lir_enabled()       ((cmd_opt.dump & DUMP_LIR) != 0)
+#define dump_vreg_enabled()      ((cmd_opt.dump & DUMP_VREG) != 0)
+#define dump_code_enabled()      ((cmd_opt.dump & DUMP_CODE) != 0)
 
 #ifdef __cplusplus
 }

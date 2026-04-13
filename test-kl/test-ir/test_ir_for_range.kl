@@ -1,4 +1,4 @@
-// RUN: koalac %s --cgen --fusion --tail-call --dump=lir,cgen | filecheck %s
+// RUN: koalac %s --cgen --fusion --tail-call --dump=lir,code | filecheck %s
 
 for i in range(0, 10) {
     if (i % 2 == 0) { print(i) }

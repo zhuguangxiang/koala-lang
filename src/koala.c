@@ -49,11 +49,11 @@ static int compile(const char *input, const char *output, KoalaOptions *opt)
     strcat(cmd, " --cgen --fusion --tail-call --write-klc --dump=");
 
     // dump flags
-    if (opt->dump_no_opt_ir) strcat(cmd, "ir,");
-    if (opt->dump_ir) strcat(cmd, "opt-ir,");
+    if (opt->dump_no_opt_ir) strcat(cmd, "no-opt-ir,");
+    if (opt->dump_ir) strcat(cmd, "ir,");
     if (opt->dump_lir) strcat(cmd, "lir,");
     if (opt->dump_vreg) strcat(cmd, "vreg,");
-    if (opt->dump_code) strcat(cmd, "cgen,");
+    if (opt->dump_code) strcat(cmd, "code,");
 
     // input + output
     strcat(cmd, " ");

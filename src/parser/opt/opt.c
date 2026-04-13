@@ -52,7 +52,7 @@ static KlrPass dce_pass = {
 
 void kl_optimize(KlrModule *m)
 {
-    int dump = dump_opt_ir_enabled();
+    int dump = dump_ir_enabled();
 
     KlrPassManager pm;
     pm_init(&pm, "opt_pass");

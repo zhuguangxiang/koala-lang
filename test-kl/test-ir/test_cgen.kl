@@ -1,4 +1,4 @@
-// RUN: koalac %s --cgen --dump=cgen | filecheck %s
+// RUN: koalac %s --cgen --dump=code | filecheck %s
 
 func foo(n int) int {
     let a = 500

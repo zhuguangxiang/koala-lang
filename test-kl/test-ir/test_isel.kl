@@ -1,4 +1,4 @@
-// RUN: koalac %s --isel --dump=opt-ir,lir | filecheck %s
+// RUN: koalac %s --isel --dump=lir | filecheck %s
 
 func foo(n int) int {
     let a = 500
