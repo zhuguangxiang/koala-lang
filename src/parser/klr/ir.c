@@ -463,7 +463,7 @@ KlrModule *klr_create_module(char *name)
     KlrModule *m = mm_alloc_obj(m);
     m->name = name;
     vector_init_ptr(&m->globals);
-    vector_init_ptr(&m->functions);
+    init_list(&m->func_list);
     vector_init_ptr(&m->ext_syms);
     vector_init_ptr(&m->klasses);
     hashmap_init(&m->consts, (HashMapEqualFunc)__const_eq__);
@@ -481,14 +481,43 @@ KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name)
     init_list(&fn->bb_list);
     init_list(&fn->edge_list);
     vector_init_ptr(&fn->params);
+    init_list(&fn->mlink);
 
     /* initial 'start' and 'end' block */
     fn->sbb = new_block(fn, "start");
     fn->ebb = new_block(fn, "end");
 
-    vector_push_back(&m->functions, &fn);
+    list_push_back(&m->func_list, &fn->mlink);
     fn->module = m;
     return (KlrValue *)fn;
+}
+
+static void klr_fini_func(KlrFunc *fn)
+{
+    KlrBasicBlock *bb, *nxt;
+    basic_block_foreach_safe(bb, nxt, fn) {
+        klr_erase_block(bb);
+    }
+}
+
+void klr_delete_func(KlrModule *m, KlrFunc *fn)
+{
+    list_remove(&fn->mlink);
+    fn->module = NULL;
+    klr_fini_func(fn);
+    mm_free(fn);
+}
+
+int klr_func_empty(KlrFunc *fn)
+{
+    int total_insns = 0;
+
+    KlrBasicBlock *bb;
+    basic_block_foreach(bb, fn) {
+        total_insns += bb->num_insns;
+    }
+
+    return total_insns == 0;
 }
 
 KlrValue *klr_func_get_param(KlrValue *val, int index)

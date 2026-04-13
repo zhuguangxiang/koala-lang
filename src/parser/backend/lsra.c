@@ -357,7 +357,7 @@ static void klr_lsra_run(KlrFunc *func)
 void kl_do_lsra(KlrModule *m)
 {
     KlrFunc *fn;
-    vector_foreach(fn, &m->functions) {
+    func_foreach(fn, m) {
         klr_build_rpo(fn);
 
         // for simplicity, here add a return at the end of __init__ function

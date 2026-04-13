@@ -77,7 +77,7 @@ void kl_optimize(KlrModule *m)
     pm_add_pass(&pm, &dce_pass, dump);
 
     KlrFunc *fn;
-    vector_foreach(fn, &m->functions) {
+    func_foreach(fn, m) {
         if (!fn) continue;
         pm.run(fn, &pm);
     }

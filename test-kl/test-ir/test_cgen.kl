@@ -13,7 +13,7 @@ func fib(n int) int {
     return fib(n - 1) + fib(n - 2)
 }
 
-// CHECK-LABEL: ====== Linearization @fib(start_pc: 9, insns: 11) ======
+// CHECK-LABEL: ====== Linearization @fib(start_pc: 8, insns: 11) ======
 // CHECK: {{[0-9]+}}:  int.cmplt_imm r1, r0, #2
 // CHECK: {{[0-9]+}}:  jmp_false r1, 1              ;; -> %bb-1(if-end)
 // CHECK: {{[0-9]+}}:  ret r0
@@ -33,7 +33,7 @@ func test_while(n int) {
     }
 }
 
-// CHECK-LABEL: ====== Linearization @test_while(start_pc: 20, insns: 6) ======
+// CHECK-LABEL: ====== Linearization @test_while(start_pc: 19, insns: 6) ======
 // CHECK: %bb-1(entry):
 // CHECK: {{[0-9]+}}:  load_int_imm r1, #0
 
@@ -60,7 +60,7 @@ func test_nested_loop(n int) {
     }
 }
 
-// CHECK-LABEL: ====== Linearization @test_nested_loop(start_pc: 26, insns: 14) ======
+// CHECK-LABEL: ====== Linearization @test_nested_loop(start_pc: 25, insns: 14) ======
 
 // CHECK: %bb-1(entry):
 // CHECK: {{[0-9]+}}:  load_int_imm r1, #0
@@ -120,7 +120,7 @@ func test_add(n int) int {
     return b
 }
 
-// CHECK-LABEL: ====== Linearization @test_add(start_pc: 42, insns: 4) ======
+// CHECK-LABEL: ====== Linearization @test_add(start_pc: 41, insns: 4) ======
 
 // CHECK: %bb-1(entry):
 // CHECK: {{[0-9]+}}:  load_int_imm r1, #500
@@ -144,7 +144,7 @@ func test_call(n int) int {
         return test_add(20)
     }
 }
-// CHECK-LABEL: ====== Linearization @test_call(start_pc: 53, insns: 4) ======
+// CHECK-LABEL: ====== Linearization @test_call(start_pc: 52, insns: 4) ======
 
 // CHECK: %bb-1(entry):
 // CHECK: {{[0-9]+}}:  loadk r1, #0

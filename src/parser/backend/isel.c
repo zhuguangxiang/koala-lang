@@ -680,7 +680,7 @@ static void do_isel(KlrFunc *fn)
 void kl_do_isel(KlrModule *m)
 {
     KlrFunc *fn;
-    vector_foreach(fn, &m->functions) {
+    func_foreach(fn, m) {
         do_isel(fn);
         if (dump_lir_enabled()) {
             fprintf(stdout, "--- IR Dump After isel [@%s] ---\n", fn->name);

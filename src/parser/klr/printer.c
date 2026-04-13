@@ -631,7 +631,7 @@ void klr_print_module(KlrModule *m, FILE *fp)
     // }
 
     KlrFunc *fn;
-    vector_foreach(fn, &m->functions) {
+    func_foreach(fn, m) {
         klr_print_func(fn, fp);
     }
 

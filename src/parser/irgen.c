@@ -942,6 +942,11 @@ void kl_gen_ir(ParserModule *pm)
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
         klr_print_func((KlrFunc *)fn, stdout);
     }
+
+    if (klr_func_empty((KlrFunc *)fn)) {
+        klr_delete_func(m, (KlrFunc *)fn);
+        m->init = NULL;
+    }
 }
 
 #ifdef __cplusplus

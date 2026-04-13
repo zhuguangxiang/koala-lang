@@ -154,6 +154,8 @@ typedef struct _KlrFunc {
 
     /* module pointer */
     struct _KlrModule *module;
+    /* link to module */
+    List mlink;
 
     /* klass pointer */
     struct _KlrKlass *klass;
@@ -254,7 +256,7 @@ typedef struct _KlrModule {
     /* global variables */
     Vector globals;
     /* functions */
-    Vector functions;
+    List func_list;
     /* external symbols */
     Vector ext_syms;
     /* __init__ function */
@@ -477,6 +479,10 @@ void klr_destroy_module(KlrModule *m);
 KlrValue *klr_add_func(KlrModule *m, TypeSpec *ret, char *name);
 KlrValue *klr_func_get_param(KlrValue *val, int index);
 KlrValue *klr_func_add_param(KlrValue *val, TypeSpec *ts, char *name);
+int klr_func_empty(KlrFunc *fn);
+void klr_delete_func(KlrModule *m, KlrFunc *fn);
+
+#define func_foreach(fn, m) list_foreach(fn, mlink, &(m)->func_list)
 
 #define param_foreach(param, func) vector_foreach(param, &(func)->params)
 
