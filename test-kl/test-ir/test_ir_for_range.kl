@@ -1,0 +1,51 @@
+// RUN: koalac %s --cgen --fusion --tail-call --dump=lir,cgen | filecheck %s
+
+for i in range(0, 10) {
+    if (i % 2 == 0) { print(i) }
+}
+
+// CHECK-LABLE: --- IR Dump After isel [@__init__] ---
+// CHECK-LABLE: func @__init__() <NO-TYPE> {
+// CHECK: %bb0(loop-header):
+// CHECK: %i = local int64
+// CHECK: load_int_imm %i int64, 0 int64
+// CHECK: jmp label %bb1
+
+// CHECK: %bb1(loop-body):                                ;; preds = %bb4, %bb0
+// CHECK: %0 = int.mod_imm %i int64, 2 int64
+// CHECK: jmp_int_eq_imm %0 int64, 0 int64, label %bb3, label %bb4
+
+// CHECK: %bb2(loop-end):                                 ;; preds = %bb4
+
+// CHECK: %bb3(if-then):                                  ;; preds = %bb1
+// CHECK: %1 = local int64        [fixedslot = 0(next)]
+// CHECK: move %1 int64, %i int64
+// CHECK: call @print [path = 'std/builtin'], 1
+// CHECK: jmp label %bb4
+
+// CHECK: %bb4(if-end):                                   ;; preds = %bb3, %bb1
+// CHECK: %2 = int.add_imm %i int64, 1 int64
+// CHECK: move %i int64, %2 int64
+// CHECK: jmp_int_lt_imm %i int64, 10 int64, label %bb1, label %bb2
+
+// CHECK-LABLE: ====== Linearization @__init__(start_pc: 0, insns: 10) ======
+
+// CHECK: %bb0(loop-header):
+// CHECK: {{[0-9]+}}:  load_int_imm r0, #0
+
+// CHECK: %bb1(loop-body):
+// CHECK: {{[0-9]+}}:  int.mod_imm r1, r0, #2
+// CHECK: {{[0-9]+}}:  jmp_int_ne_imm r1, #0, 3     ;; -> %bb4(if-end)
+
+// CHECK: %bb3(if-then):
+// CHECK: {{[0-9]+}}:  move r2, r0
+// CHECK: {{[0-9]+}}:  call flg=1, #1
+// CHECK: {{[0-9]+}}:  data
+
+// CHECK: %bb4(if-end):
+// CHECK: {{[0-9]+}}:  int.add_imm r0, r0, #1
+// CHECK: {{[0-9]+}}:  jmp_int_lt_imm r0, #10, -7   ;; -> %bb1(loop-body)
+// CHECK: {{[0-9]+}}:  jmp 0                        ;; -> %bb2(loop-end)
+
+// CHECK: %bb2(loop-end):
+// CHECK: {{[0-9]+}}:  ret_void

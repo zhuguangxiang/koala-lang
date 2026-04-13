@@ -247,7 +247,7 @@ All benchmarks run 10–12 times; mean ± standard deviation shown.
 
 ### 5. Tak Benchmark
 
-| anguage      | Mean Time             | Notes         |
+| Language     | Mean Time             | Notes         |
 | ------------ | --------------------- | ------------- |
 | **Koala**    | **421.8 ms ± 5.9 ms** | bench/tak.kl  |
 | Lua          | 573.4 ms ± 10.0 ms    | bench/tak.lua |
@@ -255,7 +255,7 @@ All benchmarks run 10–12 times; mean ± standard deviation shown.
 
 ### 6. Shuffle Benchmark
 
-| anguage      | Mean Time             | Notes             |
+| Language     | Mean Time             | Notes             |
 | ------------ | --------------------- | ----------------- |
 | **Koala**    | **139.7 ms ± 3.7 ms** | bench/shuffle.kl  |
 | Lua          | 602.7 ms ± 46.1 ms    | bench/shuffle.lua |

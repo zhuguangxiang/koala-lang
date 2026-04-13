@@ -431,6 +431,21 @@ main_loop:
                 DISPATCH();
             }
 
+            case OP_INT_MOD_IMM: {
+                rd = I_VAL(inst, 16, 8);
+                rs = I_VAL(inst, 8, 8);
+                imm = I_SVAL(inst, 0, 8);
+
+                ASSERT(rd < max_regs);
+                ASSERT(rs < max_regs);
+                ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+
+                regs[rd].ival = regs[rs].ival % imm;
+                regs[rd].tag = regs[rs].tag;
+
+                DISPATCH();
+            }
+
             case OP_RET_VOID: {
                 result = none_value;
                 goto done;

@@ -470,6 +470,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, "int.add", fp);
             break;
 
+        case OP_INT_MOD_IMM:
+            print_binary(insn, "int.mod_imm", fp);
+            break;
+
         case OP_LOADK:
             print_loadk(insn, fp);
             break;

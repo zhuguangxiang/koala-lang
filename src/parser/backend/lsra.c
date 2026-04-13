@@ -359,6 +359,13 @@ void kl_do_lsra(KlrModule *m)
     KlrFunc *fn;
     vector_foreach(fn, &m->functions) {
         klr_build_rpo(fn);
+
+        // for simplicity, here add a return at the end of __init__ function
+        if (str_eq(fn->name, "__init__")) {
+            KlrBasicBlock *last = last_basic_block(fn);
+            klr_add_last_return(last);
+        }
+
         klr_lsra_run(fn);
     }
 }

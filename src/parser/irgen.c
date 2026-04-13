@@ -938,9 +938,6 @@ void kl_gen_ir(ParserModule *pm)
         exit_scope(ps);
     }
 
-    KlrBasicBlock *last = last_basic_block((KlrFunc *)fn);
-    klr_add_last_return(last);
-
     if (dump_ir_enabled()) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
         klr_print_func((KlrFunc *)fn, stdout);
