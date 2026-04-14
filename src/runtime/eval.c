@@ -29,12 +29,45 @@ extern "C" {
 #define ENTRY(i) (entry_table + (i))
 #define IMPORT_ENTRY(i) (import_table + (i))
 
-#define PUSH(x)     ({ *top++ = (x); has_push = 1; ASSERT(top <= ks->stack_base + ks->stack_size); })
 #define SHRINK(n)   ({ top -= (n); ASSERT(top >= ks->stack_top); })
 
-#define DISPATCH() goto dispatch;
+#define OP_NYI(op) do { \
+    fprintf(stderr, "Fatal: Opcode %d (%s) is Not Yet Implemented\n", op, #op); \
+    abort(); \
+} while (0)
+
+#ifndef NDEBUG
+    #define CHECK_REG_ID(id) ASSERT((id) < max_regs)
+#else
+    #define CHECK_REG_ID(id) ((void)0)
+#endif
 
 /* clang-format on */
+
+#undef USE_COMPUTED_GOTOS
+
+#ifdef USE_COMPUTED_GOTOS
+
+/* map TARGET to a local label address */
+#define TARGET(op) TARGET_##op:
+
+/* direct threaded dispatch: fetch next instruction and jump immediately */
+#define DISPATCH() \
+    do { \
+        inst = *pc++; \
+        op = I_OP(inst); \
+        goto *opcode_targets[op]; \
+    } while (0)
+
+#else
+
+/* standard case label for switch-based dispatch */
+#define TARGET(op) case op:
+
+/* jump back to the loop head for the next iteration */
+#define DISPATCH() goto dispatch;
+
+#endif
 
 static TValue _eval_frame(KoalaState *ks, CallFrame *cf)
 {
@@ -70,408 +103,46 @@ local_tailcall:
     register uint32_t inst;
     register OpCode op;
     register int rd, rs, rt, imm, idx, off;
-    // int has_push = 0;
+
+#ifdef USE_COMPUTED_GOTOS
+    /* Jump table must be local to capture &&TARGET_ labels */
+#include "opcode_targets.h"
+#endif
 
 main_loop:
     for (;;) {
     dispatch:
         inst = *pc++;
         op = I_OP(inst);
-    dispatch_opcode:
-        switch (op) {
-            case OP_MOVE: {
-                rd = I_VAL(inst, 12, 12);
-                rs = I_VAL(inst, 0, 12);
 
-                ASSERT(rd < max_regs);
-                ASSERT(rs < max_regs);
-
-                regs[rd] = regs[rs];
-                DISPATCH();
-            }
-
-            case OP_LOAD_INT_IMM: {
-                rd = I_VAL(inst, 16, 8);
-                imm = I_SVAL(inst, 0, 16);
-
-                ASSERT(rd < max_regs);
-
-                regs[rd].tag = TAG_INT64;
-                regs[rd].ival = imm;
-                DISPATCH();
-            }
-
-            case OP_INT_ADD: {
-                rd = I_VAL(inst, 16, 8);
-                rs = I_VAL(inst, 8, 8);
-                rt = I_VAL(inst, 0, 8);
-
-                ASSERT(rd < max_regs);
-                ASSERT(rs < max_regs);
-                ASSERT(rt < max_regs);
-                ASSERT(regs[rs].tag == regs[rt].tag);
-                ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
-
-                regs[rd].ival = regs[rs].ival + regs[rt].ival;
-                regs[rd].tag = regs[rs].tag;
-                DISPATCH();
-            }
-
-            case OP_INT_ADD_IMM: {
-                rd = I_VAL(inst, 16, 8);
-                rs = I_VAL(inst, 8, 8);
-                imm = I_SVAL(inst, 0, 8);
-
-                ASSERT(rd < max_regs);
-                ASSERT(rs < max_regs);
-                ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
-
-                regs[rd].ival = regs[rs].ival + imm;
-                regs[rd].tag = regs[rs].tag;
-                DISPATCH();
-            }
-
-            case OP_INT_SUB_IMM: {
-                rd = I_VAL(inst, 16, 8);
-                rs = I_VAL(inst, 8, 8);
-                imm = I_SVAL(inst, 0, 8);
-
-                ASSERT(rd < max_regs);
-                ASSERT(rs < max_regs);
-                ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
-
-                regs[rd].ival = regs[rs].ival - imm;
-                regs[rd].tag = regs[rs].tag;
-                DISPATCH();
-            }
-
-            case OP_INT_CMPLT_IMM: {
-                rd = I_VAL(inst, 16, 8);
-                rs = I_VAL(inst, 8, 8);
-                imm = I_SVAL(inst, 0, 8);
-
-                ASSERT(rd < max_regs);
-                ASSERT(rs < max_regs);
-                ASSERT(regs[rs].tag == TAG_INT64);
-
-                regs[rd].ival = regs[rs].ival < imm;
-                regs[rd].tag = TAG_BOOL;
-                DISPATCH();
-            }
-
-            case OP_JMP: {
-                off = I_SVAL(inst, 0, 16);
-                pc += off;
-                DISPATCH();
-            }
-
-            case OP_JMP_FALSE: {
-                rs = I_VAL(inst, 16, 8);
-                off = I_SVAL(inst, 0, 16);
-
-                ASSERT(rs < max_regs);
-                ASSERT(regs[rs].tag == TAG_BOOL);
-
-                if (regs[rs].bval == 0) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_JMP_INT_EQ: {
-                rs = I_VAL(inst, 16, 8);
-                rt = I_VAL(inst, 8, 8);
-                off = I_SVAL(inst, 0, 8);
-
-                ASSERT(rs < max_regs);
-                ASSERT(rt < max_regs);
-
-                if (regs[rs].ival == regs[rt].ival) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_JMP_INT_EQ_IMM: {
-                rs = I_VAL(inst, 16, 8);
-                imm = I_SVAL(inst, 8, 8);
-                off = I_SVAL(inst, 0, 8);
-
-                ASSERT(rs < max_regs);
-
-                if (regs[rs].ival == imm) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_JMP_INT_NE: {
-                rs = I_VAL(inst, 16, 8);
-                rt = I_VAL(inst, 8, 8);
-                off = I_SVAL(inst, 0, 8);
-
-                ASSERT(rs < max_regs);
-                ASSERT(rt < max_regs);
-
-                if (regs[rs].ival != regs[rt].ival) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_JMP_INT_NE_IMM: {
-                rs = I_VAL(inst, 16, 8);
-                imm = I_SVAL(inst, 8, 8);
-                off = I_SVAL(inst, 0, 8);
-
-                ASSERT(rs < max_regs);
-
-                if (regs[rs].ival != imm) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_JMP_INT_LT: {
-                rs = I_VAL(inst, 16, 8);
-                rt = I_VAL(inst, 8, 8);
-                off = I_SVAL(inst, 0, 8);
-
-                ASSERT(rs < max_regs);
-                ASSERT(rt < max_regs);
-
-                if (regs[rs].ival < regs[rt].ival) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_JMP_INT_LT_IMM: {
-                rs = I_VAL(inst, 16, 8);
-                imm = I_SVAL(inst, 8, 8);
-                off = I_SVAL(inst, 0, 8);
-
-                ASSERT(rs < max_regs);
-
-                if (regs[rs].ival < imm) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_JMP_INT_GT: {
-                rs = I_VAL(inst, 16, 8);
-                rt = I_VAL(inst, 8, 8);
-                off = I_SVAL(inst, 0, 8);
-
-                ASSERT(rs < max_regs);
-                ASSERT(rt < max_regs);
-
-                if (regs[rs].ival > regs[rt].ival) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_JMP_INT_GT_IMM: {
-                rs = I_VAL(inst, 16, 8);
-                imm = I_SVAL(inst, 8, 8);
-                off = I_SVAL(inst, 0, 8);
-
-                ASSERT(rs < max_regs);
-
-                if (regs[rs].ival > imm) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_JMP_INT_GE: {
-                rs = I_VAL(inst, 16, 8);
-                rt = I_VAL(inst, 8, 8);
-                off = I_SVAL(inst, 0, 8);
-
-                ASSERT(rs < max_regs);
-                ASSERT(rt < max_regs);
-
-                if (regs[rs].ival >= regs[rt].ival) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_JMP_INT_GE_IMM: {
-                rs = I_VAL(inst, 16, 8);
-                imm = I_SVAL(inst, 8, 8);
-                off = I_SVAL(inst, 0, 8);
-
-                ASSERT(rs < max_regs);
-
-                if (regs[rs].ival >= imm) {
-                    pc += off;
-                }
-                DISPATCH();
-            }
-
-            case OP_CALL: {
-                int flg = I_VAL(inst, 20, 4);
-                rd = I_VAL(inst, 8, 12);
-                imm = I_VAL(inst, 0, 8);
-
-                if (flg == 1) {
-                    uint32_t index = *pc++;
-                    ImportEntry *e = IMPORT_ENTRY(index);
-                    ASSERT(e->kind == IMPORT_KIND_FUNC);
-                    Object *target = e->address;
-                    ASSERT(target);
-                    TValue val = obj_value(target);
-                    TValue ret = kl_do_call(&val, ks->stack_top, imm);
-                    if (rd != 0xFFFu) {
-                        ASSERT(rd < max_regs);
-                        regs[rd] = ret;
-                    }
-                    // if (has_push) {
-                    //     SHRINK(imm);
-                    //     has_push = 0;
-                    // }
-                    DISPATCH();
-                }
-
-                int32_t local_index = *(int32_t *)pc++;
-                // uint32_t *target_pc = pc + local_index;
-                // ASSERT(target_pc < codes + code->cs.code_size);
-                // uint32_t f_idx = *target_pc;
-                ASSERT(local_index >= 0 && local_index < entry_size);
-                FuncEntry *e = ENTRY(local_index);
-                Object *obj = e->obj;
-                TValue ret;
-
-                if (IS_CFUNC(obj)) {
-                    CFuncObject *cfunc = (CFuncObject *)obj;
-                    TValue val = obj_value(obj);
-                    NativeFunc func = cfunc->func;
-                    ret = func(&val, ks->stack_top, imm);
-                } else {
-                    ASSERT(IS_CODE(e->obj));
-                    TValue val = obj_value(e->obj);
-                    ret = kl_eval_code(&val, NULL, 0);
-                }
-
-                if (rd != 0xFFFu) {
-                    ASSERT(rd < max_regs);
-                    regs[rd] = ret;
-                }
-                DISPATCH();
-            }
-
-            case OP_TAIL_CALL: {
-                int flg = I_VAL(inst, 20, 4);
-                // imm = I_VAL(inst, 0, 8);
-
-                // if (flg == 1) {
-                //     // external function call
-                //     NYI();
-                //     goto ext_tailcall;
-                // }
-
-                if (flg == 3) {
-                    pc = codes + code->cs.start_pc;
-                    goto main_loop;
-                }
-
-                // local function call
-                int32_t local_index = *(int32_t *)pc++;
-                ASSERT(local_index >= 0 && local_index < entry_size);
-                FuncEntry *e = ENTRY(local_index);
-                Object *obj = e->obj;
-
-                if (obj == (Object *)cf->code) {
-                    pc = codes + code->cs.start_pc;
-                    goto main_loop;
-                }
-
-                TValue ret;
-                if (IS_CFUNC(obj)) {
-                    // CFuncObject *cfunc = (CFuncObject *)obj;
-                    // TValue val = obj_value(obj);
-                    // NativeFunc func = cfunc->func;
-                    // ret = func(&val, regs, imm);
-                    // // TODO: tail call does not have return value.
-                    // // if (rd != 0xFFFu) {
-                    // //     ASSERT(rd < cf->nlocals);
-                    // //     regs[rd] = ret;
-                    // // }
-                    // SHRINK(imm);
-                    DISPATCH();
-                } else {
-                    ASSERT(IS_CODE(e->obj));
-                    cf->code = (CodeObject *)e->obj;
-                    cf->nlocals = cf->code->cs.nlocals;
-                    ks->stack_top = cf->locals + cf->nlocals;
-                    goto local_tailcall;
-                }
-            }
-
-            case OP_RET: {
-                rs = I_VAL(inst, 0, 12);
-                ASSERT(rs < max_regs);
-                result = regs[rs];
-                goto done;
-            }
-
-            case OP_LOADK: {
-                rd = I_VAL(inst, 16, 8);
-                idx = I_VAL(inst, 0, 16);
-
-                ASSERT(rd < max_regs);
-
-                TValue *val = CP(idx);
-                regs[rd].tag = val->tag;
-                regs[rd].ival = val->ival;
-                DISPATCH();
-            }
-
-            case OP_INT_MOD_IMM: {
-                rd = I_VAL(inst, 16, 8);
-                rs = I_VAL(inst, 8, 8);
-                imm = I_SVAL(inst, 0, 8);
-
-                ASSERT(rd < max_regs);
-                ASSERT(rs < max_regs);
-                ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
-
-                regs[rd].ival = regs[rs].ival % imm;
-                regs[rd].tag = regs[rs].tag;
-
-                DISPATCH();
-            }
-
-            case OP_RET_VOID: {
-                result = none_value;
-                goto done;
-            }
-
+#ifdef USE_COMPUTED_GOTOS
+        /* initial jump into the instruction stream */
+        goto *opcode_targets[op];
+#else
+        switch (op)
+#endif
+        {
+#include "vm_ops.h"
+
+#ifndef USE_COMPUTED_GOTOS
             default: {
                 UNREACHABLE();
                 break;
             }
-        } /* switch */
-
-        /* This should never be reached here! */
-        UNREACHABLE();
-    } /* main_loop */
+#endif
+        } /* end of switch or computed goto block */
+    } /* end of main_loop */
 
 error:
 
     /* log traceback info */
     kl_trace_here(cf);
 
-    /* finish the loop as we have an error. */
+/* finish the loop as we have an error. */
 done:
     /* pop frame */
     ks->cf = cf->back;
     // --ks->depth;
-
     return result;
 }
 

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-./build-release.sh
-
 run() {
     name=$1
     cmd=$2

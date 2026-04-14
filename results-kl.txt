@@ -1,0 +1,26 @@
+Koala Benchmark Results
+==============================
+Benchmark 1: koala bench/sum.kl
+  Time (mean ± σ):     566.5 ms ±   3.9 ms    [User: 563.1 ms, System: 2.9 ms]
+  Range (min … max):   561.6 ms … 572.6 ms    10 runs
+ 
+Benchmark 1: koala bench/loop-sum.kl
+  Time (mean ± σ):     261.6 ms ±   5.5 ms    [User: 258.1 ms, System: 3.2 ms]
+  Range (min … max):   256.1 ms … 274.8 ms    11 runs
+ 
+Benchmark 1: koala bench/fib.kl
+  Time (mean ± σ):      2.874 s ±  0.029 s    [User: 2.869 s, System: 0.004 s]
+  Range (min … max):    2.841 s …  2.926 s    10 runs
+ 
+Benchmark 1: koala bench/ack.kl
+  Time (mean ± σ):     567.4 ms ±   6.7 ms    [User: 563.5 ms, System: 3.4 ms]
+  Range (min … max):   557.6 ms … 579.9 ms    10 runs
+ 
+Benchmark 1: koala bench/tak.kl
+  Time (mean ± σ):     419.8 ms ±   4.6 ms    [User: 417.1 ms, System: 2.3 ms]
+  Range (min … max):   412.7 ms … 427.2 ms    10 runs
+ 
+Benchmark 1: koala bench/shuffle.kl
+  Time (mean ± σ):     139.2 ms ±   4.2 ms    [User: 136.2 ms, System: 2.6 ms]
+  Range (min … max):   134.1 ms … 147.7 ms    22 runs
+ 
