@@ -28,7 +28,7 @@ for i in range(0, 10) {
 // CHECK: move %i int64, %2 int64
 // CHECK: jmp_int_lt_imm %i int64, 10 int64, label %bb1, label %bb2
 
-// CHECK-LABLE: ====== Linearization @__init__(start_pc: 0, insns: 10) ======
+// CHECK-LABLE: ====== Linearization @__init__(start_pc: 0, insns: 9) ======
 
 // CHECK: %bb0(loop-header):
 // CHECK: {{[0-9]+}}:  load_int_imm r0, #0
@@ -45,7 +45,6 @@ for i in range(0, 10) {
 // CHECK: %bb4(if-end):
 // CHECK: {{[0-9]+}}:  int.add_imm r0, r0, #1
 // CHECK: {{[0-9]+}}:  jmp_int_lt_imm r0, #10, -7   ;; -> %bb1(loop-body)
-// CHECK: {{[0-9]+}}:  jmp 0                        ;; -> %bb2(loop-end)
 
 // CHECK: %bb2(loop-end):
 // CHECK: {{[0-9]+}}:  ret_void

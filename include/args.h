@@ -14,11 +14,7 @@ extern "C" {
 
 typedef struct KoalaOptions {
     int compile_only;   // -c
-    int dump_no_opt_ir; // --dump-no-opt-ir
-    int dump_ir;        // --dump-ir (opt-ir)
-    int dump_lir;       // --dump-lir
-    int dump_vreg;      // --dump-vreg
-    int dump_code;      // --dump-code
+    char *dump;         // --dump=<stage>
     const char *output; // -o <file>
     const char *input;  // input file
 } KoalaOptions;

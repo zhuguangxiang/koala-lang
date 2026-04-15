@@ -94,9 +94,7 @@ int kl_mach_const_add_int(KlMachModule *m, int64_t v)
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
-#ifndef NOLOG
-        printf("Found existing const entry for int: %ld (index: %d)\n", v, entry->index);
-#endif
+        log_info("Found existing const entry for int: %ld (index: %d)", v, entry->index);
         return entry->index;
     }
 
@@ -107,9 +105,7 @@ int kl_mach_const_add_int(KlMachModule *m, int64_t v)
     hashmap_put(&m->cp_map, new_entry);
     vector_push_back(&m->const_pool, &new_entry);
     new_entry->index = vector_size(&m->const_pool) - 1;
-#ifndef NOLOG
-    printf("Added new const entry for int: %ld (index: %d)\n", v, new_entry->index);
-#endif
+    log_info("Added new const entry for int: %ld (index: %d)", v, new_entry->index);
     return new_entry->index;
 }
 
@@ -120,9 +116,7 @@ int kl_mach_const_add_uint(KlMachModule *m, uint64_t v)
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
-#ifndef NOLOG
-        printf("Found existing const entry for uint: %lu (index: %d)\n", v, entry->index);
-#endif
+        log_info("Found existing const entry for uint: %lu (index: %d)", v, entry->index);
         return entry->index;
     }
 
@@ -133,9 +127,7 @@ int kl_mach_const_add_uint(KlMachModule *m, uint64_t v)
     hashmap_put(&m->cp_map, new_entry);
     vector_push_back(&m->const_pool, &new_entry);
     new_entry->index = vector_size(&m->const_pool) - 1;
-#ifndef NOLOG
-    printf("Added new const entry for uint: %lu (index: %d)\n", v, new_entry->index);
-#endif
+    log_info("Added new const entry for uint: %lu (index: %d)", v, new_entry->index);
     return new_entry->index;
 }
 
@@ -146,9 +138,7 @@ int kl_mach_const_add_float(KlMachModule *m, double v)
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
-#ifndef NOLOG
-        printf("Found existing const entry for float: %f (index: %d)\n", v, entry->index);
-#endif
+        log_info("Found existing const entry for float: %f (index: %d)", v, entry->index);
         return entry->index;
     }
 
@@ -160,9 +150,7 @@ int kl_mach_const_add_float(KlMachModule *m, double v)
     vector_push_back(&m->const_pool, &new_entry);
     int index = vector_size(&m->const_pool) - 1;
     new_entry->index = index;
-#ifndef NOLOG
-    printf("Added new const entry for float: %f (index: %d)\n", v, new_entry->index);
-#endif
+    log_info("Added new const entry for float: %f (index: %d)", v, new_entry->index);
     return index;
 }
 
@@ -173,10 +161,8 @@ int kl_mach_const_add_str(KlMachModule *m, char *v)
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
-#ifndef NOLOG
-        printf("Found existing const entry for string: %s (index: %d)\n", v,
-               entry->index);
-#endif
+        log_info("Found existing const entry for string: %s (index: %d)", v,
+                 entry->index);
         return entry->index;
     }
 
@@ -188,9 +174,7 @@ int kl_mach_const_add_str(KlMachModule *m, char *v)
     vector_push_back(&m->const_pool, &new_entry);
     int index = vector_size(&m->const_pool) - 1;
     new_entry->index = index;
-#ifndef NOLOG
-    printf("Added new const entry for string: %s (index: %d)\n", v, index);
-#endif
+    log_info("Added new const entry for string: %s (index: %d)", v, index);
     return index;
 }
 
@@ -216,10 +200,8 @@ static int mach_import_add(KlMachModule *m, char *path, char *name)
 
     KlMachImport *entry = hashmap_get(&m->import_map, &key);
     if (entry) {
-#ifndef NOLOG
-        printf("Found existing import entry for %s.%s (index: %d)\n", path, name,
-               entry->index);
-#endif
+        log_info("Found existing import entry for %s.%s (index: %d)", path, name,
+                 entry->index);
         return entry->index;
     }
 
@@ -231,9 +213,7 @@ static int mach_import_add(KlMachModule *m, char *path, char *name)
     vector_push_back(&m->import_table, &new_entry);
     int import_index = vector_size(&m->import_table) - 1;
     new_entry->index = import_index;
-#ifndef NOLOG
-    printf("Added new import entry for %s.%s (index: %d)\n", path, name, import_index);
-#endif
+    log_info("Added new import entry for %s.%s (index: %d)", path, name, import_index);
     return import_index;
 }
 
@@ -869,9 +849,15 @@ static void lower_fused_jmp(KlMachInsn *mi)
         mi->target = bb_true->mach;
 
         // goto false
-        KlMachInsn *mi_false = build_mach_insn(OP_JMP, insn, mb);
-        mi_false->target = bb_false->mach;
-        vector_push_back(&mb->insns, &mi_false);
+        KlMachBlock *next = NEXT_BLOCK(mb);
+        if (next && next->origin != bb_false) {
+            KlMachInsn *mi_false = build_mach_insn(OP_JMP, insn, mb);
+            mi_false->target = bb_false->mach;
+            vector_push_back(&mb->insns, &mi_false);
+        } else {
+            log_info("Fallthrough to false block detected, no jump-zero inserted");
+            // printf("Fallthrough to false block detected, no jump-zero inserted\n");
+        }
     }
 }
 
@@ -1024,11 +1010,11 @@ static void patch_fixups(KlMachModule *m)
                 int target_pc = mi->target_fn->start_pc;
                 // the following DATA insn
                 int payload_pc = mi->pc + 1;
-#ifndef NOLOG
-                printf("fixup call '%s' at pc %d(relative), to 'target %s' at pc %d\n",
-                       mi->origin->bb->func->name, payload_pc,
-                       mi->target_fn->origin->name, target_pc);
-#endif
+
+                log_info("fixup call '%s' at pc %d(relative), to 'target %s' at pc %d",
+                         mi->origin->bb->func->name, payload_pc,
+                         mi->target_fn->origin->name, target_pc);
+
                 ASSERT(target_pc >= 0);
                 /* Relative offset: target - (payload + 1) */
                 // int rel32 = target_pc - (payload_pc + 1);
@@ -1036,10 +1022,9 @@ static void patch_fixups(KlMachModule *m)
                 /* Patch the placeholder data instruction following the call. */
                 int *patch = (int *)codes->data + payload_pc;
                 *patch = local_index;
-#ifndef NOLOG
-                printf("  patched position at pc %d with local index %d\n", payload_pc,
-                       local_index);
-#endif
+
+                log_info("  patched position at pc %d with local index %d", payload_pc,
+                         local_index);
             } else {
                 ASSERT(mi->fixup_flag == KL_MACH_FIXUP_IMPORT);
                 ASSERT(mi->format == FORMAT_CALL);
@@ -1048,10 +1033,8 @@ static void patch_fixups(KlMachModule *m)
                 int payload_pc = mi->pc + 1;
                 int *patch = (int *)codes->data + payload_pc;
                 *patch = mi->import_index;
-#ifndef NOLOG
-                printf("fixup call '%s' at pc %d(import), with import index %d\n",
-                       mi->origin->bb->func->name, payload_pc, mi->import_index);
-#endif
+                log_info("fixup call '%s' at pc %d(import), with import index %d",
+                         mi->origin->bb->func->name, payload_pc, mi->import_index);
             }
         } else {
             UNREACHABLE();
@@ -1089,19 +1072,7 @@ static void peephole(KlMachFunc *mfn)
 
             if (a->op != OP_MOVE) continue;
 
-            // TODO: refactor this pattern match for move followed by int add immediate
-            if (b->op == OP_INT_ADD_IMM) {
-                if ((a->opers[0] == b->opers[1]) && (a->opers[1] == b->opers[0])) {
-                    KlrInsn *b_insn = b->origin;
-                    if (b_insn->use_count == 1) {
-                        KlrInsn *a_ref = (KlrInsn *)insn_oper_value(a->origin, 1);
-                        if (a_ref == b_insn) {
-                            a->dead = 1;
-                            b->opers[0] = a->opers[0];
-                        }
-                    }
-                }
-            } else if (b->op == OP_INT_ADD) {
+            if (b->op >= OP_INT_ADD && b->op <= OP_INT_SHR_IMM) {
                 if ((a->opers[0] == b->opers[1]) && (a->opers[1] == b->opers[0])) {
                     KlrInsn *b_insn = b->origin;
                     if (b_insn->use_count == 1) {

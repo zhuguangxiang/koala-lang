@@ -203,6 +203,16 @@ static char *get_binary_op_name(BiOpKind op)
             return "div";
         case BINARY_MOD:
             return "mod";
+        case BINARY_SHL:
+            return "shl";
+        case BINARY_SHR:
+            return "shr";
+        case BINARY_BIT_AND:
+            return "and";
+        case BINARY_BIT_OR:
+            return "or";
+        case BINARY_BIT_XOR:
+            return "xor";
         case BINARY_GT:
             return "gt";
         case BINARY_GE:

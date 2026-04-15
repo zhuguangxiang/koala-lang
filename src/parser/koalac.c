@@ -30,26 +30,26 @@ static void usage(void)
     printf(
         "\nUsage: koalac [<options>] <package>|<file.kl>\n\n"
         "options:\n"
-        "  -o <file>          Place the output into <file>.\n"
-        "  --genir            Enable IR generation stage.\n"
-        "  --opt              Enable optimization passes (default).\n"
-        "  --isel             Enable instruction selection stage.\n"
-        "  --lsra             Enable linear scan register allocator.\n"
-        "  --cgen             Enable code generation stage.\n"
-        "  --fusion           Enable fusion optimization passes.\n"
-        "  --tail-call        Enable tail call optimization.\n"
-        "  --build-stdlib     Build the Koala standard library.\n"
-        "  --write-klc        Write the compiled output to a .klc file.\n"
-        "  --dump=<list>      Dump internal information.\n"
-        "                     <list> is a comma-separated list of:\n"
-        "                         no-opt-ir - dump no-opt IR\n"
-        "                         ir        - optimized IR (after opt passes)\n"
-        "                         lir       - LIR (after isel/regalloc)\n"
-        "                         vreg      - dump virtual register info\n"
-        "                         code      - codegen output\n"
-        "                         all       - dump all stages\n"
-        "  -v, --version      Print koalac version.\n"
-        "  -h, --help         Print this message.\n"
+        "  -o <file>        Place the output into <file>.\n"
+        "  --genir          Enable IR generation stage.\n"
+        "  --opt            Enable optimization passes (default).\n"
+        "  --isel           Enable instruction selection stage.\n"
+        "  --lsra           Enable linear scan register allocator.\n"
+        "  --cgen           Enable code generation stage.\n"
+        "  --fusion         Enable fusion optimization passes.\n"
+        "  --tail-call      Enable tail call optimization.\n"
+        "  --build-stdlib   Build the Koala standard library.\n"
+        "  --write-klc      Write the compiled output to a .klc file.\n"
+        "  --dump=<list>    Dump internal information.\n"
+        "                   <list> is a comma-separated list of:\n"
+        "                       no-opt-ir - dump no-opt IR\n"
+        "                       ir        - optimized IR (after opt passes)\n"
+        "                       lir       - LIR (after isel/regalloc)\n"
+        "                       vreg      - dump virtual register info\n"
+        "                       code      - codegen output\n"
+        "                       all       - dump all stages\n"
+        "  -v, --version    Print koalac version.\n"
+        "  -h, --help       Print this message.\n"
         "\n");
 
     printf(
@@ -106,7 +106,9 @@ static DumpFlags parse_dump_flags(const char *s)
 
     char *tok = strtok(buf, ",");
     while (tok) {
-        if (strcmp(tok, "ir") == 0)
+        if (strcmp(tok, "no-opt-ir") == 0)
+            flags |= DUMP_NO_OPT_IR;
+        else if (strcmp(tok, "ir") == 0)
             flags |= DUMP_IR;
         else if (strcmp(tok, "lir") == 0)
             flags |= DUMP_LIR;
@@ -148,7 +150,7 @@ static void parse_command(int argc, char *argv[])
     int opt_id;
     int long_index;
 
-    while ((opt_id = getopt_long(argc, argv, "o:vh?", options, &long_index)) != -1) {
+    while ((opt_id = getopt_long(argc, argv, "o:vh", options, &long_index)) != -1) {
         switch (opt_id) {
             case 1:
                 cmd_opt.enable_genir = 1;
@@ -211,8 +213,6 @@ static void parse_command(int argc, char *argv[])
                 break;
 
             case 'h':
-                /* fall-through */
-            case '?':
                 usage();
                 exit(0);
                 break;

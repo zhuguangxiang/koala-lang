@@ -6,6 +6,7 @@
 #include "args.h"
 #include <getopt.h>
 #include <sys/utsname.h>
+#include "mm.h"
 #include "version.h"
 
 #ifdef __cplusplus
@@ -18,15 +19,18 @@ static void print_usage(const char *prog)
         "\nUsage: %s [<options>] <package>|<file.kl>|<file.klc>\n"
         "\n"
         "Options:\n"
-        "  -c                   Compile only (supports .kl file or directory as module)\n"
-        "  -o <file>            Output .klc file\n"
-        "  --dump-no-opt-ir     Dump IR before optimization\n"
-        "  --dump-ir            Dump optimized IR\n"
-        "  --dump-lir           Dump LIR\n"
-        "  --dump-vreg          Dump virtual register allocation\n"
-        "  --dump-code          Dump bytecode\n"
-        "  -v, --version        Show version information\n"
-        "  -h, --help           Show this help message\n",
+        "  -c               Compile only (supports .kl file or directory as module)\n"
+        "  -o <file>        Output .klc file\n"
+        "  --dump=<list>    Dump internal information.\n"
+        "                   <list> is a comma-separated list of:\n"
+        "                       no-opt-ir - dump no-opt IR\n"
+        "                       ir        - optimized IR (after opt passes)\n"
+        "                       lir       - LIR (after isel/regalloc)\n"
+        "                       vreg      - dump virtual register info\n"
+        "                       code      - codegen output\n"
+        "                       all       - dump all stages\n"
+        "  -v, --version    Show version information\n"
+        "  -h, --help       Show this help message\n",
         prog);
 
     printf(
@@ -60,10 +64,10 @@ static void version(void)
 int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
 {
     static struct option long_opts[] = {
-        { "dump-no-opt-ir", no_argument, 0, 1000 }, { "dump-ir", no_argument, 0, 1001 },
-        { "dump-lir", no_argument, 0, 1002 },       { "dump-vreg", no_argument, 0, 1003 },
-        { "dump-code", no_argument, 0, 1004 },      { "help", no_argument, 0, 'h' },
-        { "version", no_argument, 0, 'v' },         { 0, 0, 0, 0 },
+        { "dump", required_argument, 0, 1000 },
+        { "help", no_argument, 0, 'h' },
+        { "version", no_argument, 0, 'v' },
+        { 0, 0, 0, 0 },
     };
 
     optind = 1;
@@ -84,19 +88,7 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
                 version();
                 return -1;
             case 1000:
-                opt->dump_no_opt_ir = 1;
-                break;
-            case 1001:
-                opt->dump_ir = 1;
-                break;
-            case 1002:
-                opt->dump_lir = 1;
-                break;
-            case 1003:
-                opt->dump_vreg = 1;
-                break;
-            case 1004:
-                opt->dump_code = 1;
+                opt->dump = str_dup(optarg);
                 break;
             default:
                 return -1;
