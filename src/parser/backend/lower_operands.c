@@ -201,7 +201,7 @@ static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
 
             /* load reg, tag */
             set_raw_reg(&insn->raws[0], dst->vreg);
-            set_raw_imm(&insn->raws[1], kc->tag);
+            set_raw_imm(&insn->raws[1], kc->spec_tag);
             break;
         }
 
@@ -255,7 +255,7 @@ static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
             ASSERT(klr_is_const(ret));
             KlrConst *kc = (KlrConst *)ret;
             /* ret tag */
-            set_raw_imm(&insn->raws[0], kc->tag);
+            set_raw_imm(&insn->raws[0], kc->spec_tag);
             break;
         }
 

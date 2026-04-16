@@ -73,7 +73,7 @@ typedef enum {
 
     /* single register */
     FORMAT_Rx,                  // 12-bit reg
-    FORMAT_RxImm,               // 12-bit reg + imm8
+    FORMAT_RxTag,               // 12-bit reg + (tag)imm8
     FORMAT_RImm2,               // 8-bit reg + imm16
     FORMAT_ROff2,               // 8-bit reg + off16
     FORMAT_RIdx2,               // 8-bit reg + index16
@@ -88,6 +88,7 @@ typedef enum {
     FORMAT_RRR,                 // 8-bit reg + 8-bit reg + 8-bit reg
 
     /* no registers */
+    FORMAT_Tag,                 // 8-bit tag immediate
     FORMAT_Imm2,                // 16-bit immediate
     FORMAT_Idx2,                // 16-bit index
 } OpFormat;
@@ -106,6 +107,7 @@ static inline char *op_name(OpCode code) { return __op_names[code]; }
 extern OpFormat __op_formats[];
 static inline OpFormat op_format(OpCode code) { return __op_formats[code]; }
 
+extern char *tag_mapping[];
 void bytecode_print(uint8_t *code, size_t start, size_t count);
 
 #ifdef __cplusplus

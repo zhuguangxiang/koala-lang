@@ -270,7 +270,11 @@ static void dump_mach_insn(KlMachInsn *mi)
             break;
         }
 
-        case FORMAT_RxImm:
+        case FORMAT_RxTag: {
+            used += printf("r%d, #%s", mi->opers[0], tag_mapping[mi->opers[1]]);
+            break;
+        }
+
         case FORMAT_RImm2:
         case FORMAT_RIdx2: {
             used += printf("r%d, #%d", mi->opers[0], mi->opers[1]);
@@ -304,6 +308,11 @@ static void dump_mach_insn(KlMachInsn *mi)
 
         case FORMAT_JMP: {
             used += printf("%d", mi->opers[0]);
+            break;
+        }
+
+        case FORMAT_Tag: {
+            used += printf("#%s", tag_mapping[mi->opers[0]]);
             break;
         }
 
@@ -447,7 +456,7 @@ static void emit_mach_insn(KlMachInsn *mi, CodeBuffer *buf)
             break;
         }
 
-        case FORMAT_RxImm: {
+        case FORMAT_RxTag: {
             // | op:8 | ----:4 | Rx:12 | imm:8 |
             uint32_t Rx = mi->opers[0];
             int imm8 = mi->opers[1];
@@ -516,6 +525,14 @@ static void emit_mach_insn(KlMachInsn *mi, CodeBuffer *buf)
             break;
         }
 
+        case FORMAT_Tag: {
+            // | op:8 | ----:16 | imm:8 |
+            int imm8 = mi->opers[0];
+            bytecode |= (op & 0xFFu) << 24;
+            bytecode |= (imm8 & 0xFFu);
+            break;
+        }
+
         case FORMAT_Imm2:
         case FORMAT_JMP:
         case FORMAT_Idx2: {
@@ -567,13 +584,14 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
     /* Map raw operands into physical encoding fields. */
     switch (mi->format) {
         case FORMAT_Rx:
+        case FORMAT_Tag:
         case FORMAT_Imm2:
         case FORMAT_Idx2: {
             mi->opers[0] = get_mach_oper(insn, op0);
             break;
         }
 
-        case FORMAT_RxImm:
+        case FORMAT_RxTag:
         case FORMAT_RImm2:
         case FORMAT_ROff2:
         case FORMAT_RIdx2:

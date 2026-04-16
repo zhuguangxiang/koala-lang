@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <math.h>
 #include "modobj.h"
 #include "opcode.h"
 #include "vm.h"
@@ -13,6 +14,22 @@ extern "C" {
 
 /* max call depth, stop for this limit */
 #define MAX_CALL_DEPTH 10000
+
+static TValue vm_tag_mappings[11];
+
+void init_tag_mappings(void)
+{
+    vm_tag_mappings[0] = bool_value(0);
+    vm_tag_mappings[1] = bool_value(1);
+    vm_tag_mappings[2] = none_value;
+    vm_tag_mappings[3] = float64_value(0.0);
+    vm_tag_mappings[4] = float64_value(-0.0);
+    vm_tag_mappings[5] = float64_value(NAN);
+    vm_tag_mappings[6] = float64_value(INFINITY);
+    vm_tag_mappings[7] = float64_value(-INFINITY);
+}
+
+#define TAG_VALUE(tag) (vm_tag_mappings[(tag)])
 
 /* clang-format off */
 

@@ -79,14 +79,17 @@ typedef struct _KlrConst {
     HashMapEntry hnode;
 
     int spec_tag;
-#define TAG_FLOAT_NEG_ZERO 1
-#define TAG_FLOAT_POS_ZERO 2
-#define TAG_FLOAT_NAN      3
-#define TAG_FLOAT_NEG_INF  4
-#define TAG_FLOAT_POS_INF  5
-#define TAG_BOOL_FALSE     6
-#define TAG_BOOL_TRUE      7
-#define TAG_NONE           8
+#define TAG_BOOL_FALSE     0
+#define TAG_BOOL_TRUE      1
+#define TAG_NONE           2
+#define TAG_FLOAT_POS_ZERO 3
+#define TAG_FLOAT_NEG_ZERO 4
+#define TAG_FLOAT_NAN      5
+#define TAG_FLOAT_POS_INF  6
+#define TAG_FLOAT_NEG_INF  7
+#define TAG_EMPTY_STR      8
+#define TAG_EMPTY_LIST     9
+#define TAG_EMPTY_DICT     10
 
     int which;
 #define CONST_NONE  1

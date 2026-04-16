@@ -19,6 +19,11 @@ OpFormat __op_formats[] = {
 #undef X
 };
 
+char *tag_mapping[] = {
+    "false", "true", "none",      "+0.0",       "-0.0",       "NaN",
+    "+inf",  "-inf", "empty_str", "empty_list", "empty_dict",
+};
+
 void bytecode_print(uint8_t *code, size_t start, size_t count)
 {
     for (size_t pc = start; pc < start + count; pc++) {
@@ -35,10 +40,10 @@ void bytecode_print(uint8_t *code, size_t start, size_t count)
                 break;
             }
 
-            case FORMAT_RxImm: {
+            case FORMAT_RxTag: {
                 int Rx = (insn >> 8) & 0xFFFu;
                 int imm = insn & 0xFFu;
-                printf("r%d, #%d", Rx, imm);
+                printf("r%d, #%s", Rx, tag_mapping[imm]);
                 break;
             }
 
@@ -99,6 +104,12 @@ void bytecode_print(uint8_t *code, size_t start, size_t count)
             case FORMAT_JMP: {
                 int data = (int16_t)(insn & 0xFFFFu);
                 printf("%d", data);
+                break;
+            }
+
+            case FORMAT_Tag: {
+                int imm = insn & 0xFFu;
+                printf("#%s", tag_mapping[imm]);
                 break;
             }
 

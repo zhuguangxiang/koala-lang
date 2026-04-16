@@ -50,17 +50,17 @@ X(OP_LOAD_INT_IMM, FORMAT_RImm2)
 /**
  * OP_LOAD_TAG — load small tagged constant
  *
- * FORMAT_RxImm:
+ * FORMAT_RxTag:
  *     | op:8 | ---:4 | rd:12 | imm:8 |
  *
  * Details:
  *     Loads a small tagged constant into rd. The imm field encodes:
- *         - boolean values
- *         - special float values (e.g., +0.0, -0.0, NaN, -inf, +inf)
- *         - none / null
+ *         - boolean values(0, 1)
+ *         - none / null(2)
+ *         - special float values (e.g., +0.0(3), -0.0(4), NaN(5), -inf(6), +inf(7))
  *     This avoids constant-pool lookup for common values.
  */
-X(OP_LOAD_TAG, FORMAT_RxImm)
+X(OP_LOAD_TAG, FORMAT_RxTag)
 
 /**
  * OP_LOADK — load constant from constant pool
@@ -1170,13 +1170,13 @@ X(OP_RET_INT_IMM, FORMAT_Imm2)
 /**
  * OP_RET_TAG — return small tagged value (bool / special float / none)
  *
- * FORMAT_Imm2:
- *     | op:8 | ---:8 | imm:16 |
+ * FORMAT_Tag:
+ *     | op:8 | ---:16 | imm:8 |
  *
  * Details:
  *     Returns a small tagged value to the caller.
  */
-X(OP_RET_TAG, FORMAT_Imm2)
+X(OP_RET_TAG, FORMAT_Tag)
 
 /**
  * OP_RET_CONST — return constant pool entry

@@ -1004,8 +1004,8 @@ TARGET(OP_FLOAT_NEG) {
 /* miscellaneous instructions */
 
 TARGET(OP_INT_NOT) {
-    rd = I_VAL(inst, 16, 8);
-    rs = I_VAL(inst, 8, 8);
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
@@ -1017,8 +1017,8 @@ TARGET(OP_INT_NOT) {
 }
 
 TARGET(OP_INT_NEG) {
-    rd = I_VAL(inst, 16, 8);
-    rs = I_VAL(inst, 8, 8);
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
@@ -1030,11 +1030,19 @@ TARGET(OP_INT_NEG) {
 }
 
 TARGET(OP_LOAD_TAG) {
-    OP_NYI(OP_LOAD_TAG);
+    rd = I_VAL(inst, 8, 12);
+    int tag = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+
+    regs[rd] = TAG_VALUE(tag);
+    DISPATCH();
 }
 
 TARGET(OP_RET_TAG) {
-    OP_NYI(OP_RET_TAG);
+    int tag = I_VAL(inst, 0, 8);
+    result = TAG_VALUE(tag);
+    goto done;
 }
 
 TARGET(OP_RET_CONST) {

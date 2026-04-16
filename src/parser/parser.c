@@ -131,8 +131,14 @@ static PkgSymbol *import_package(ParserModule *pm, char *path)
 
     HashMap *stbl = load_module(path);
     if (!stbl) {
-        log_error("failed to import module '%s'", path);
-        return NULL;
+        fprintf(stderr, "error: cannot import module '%s'\n", path);
+        char *koala_path = getenv("KOALA_PATH");
+        if (koala_path) {
+            fprintf(stderr, "KOALA_PATH: %s\n", koala_path);
+        } else {
+            fprintf(stderr, "KOALA_PATH is not set\n");
+        }
+        abort();
     }
 
     PkgSymbol *pkg_sym = stbl_add_pkg(pm->imported, path, stbl);

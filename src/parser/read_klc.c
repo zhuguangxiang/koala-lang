@@ -446,7 +446,7 @@ static HashMap *__load(char *path)
 
     KlcFile *klc = read_klc_file(path, 0);
     if (!klc) {
-        log_error("failed to read klc file: %s", path);
+        log_info("failed to read klc file: %s", path);
         return NULL;
     }
 
