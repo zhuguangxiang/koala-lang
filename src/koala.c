@@ -4,7 +4,9 @@
  */
 
 #include "koala.h"
+#include <spawn.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
 #include "args.h"
 
@@ -15,12 +17,22 @@ static double now_ms(void)
     return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
 }
 
-static int run_cmd(const char *cmd)
+static int run_cmd(char *argv[])
 {
-    int rc = system(cmd);
-    if (rc == -1) return -1;
-    if (WIFEXITED(rc)) return WEXITSTATUS(rc);
-    return -1;
+    extern char **environ;
+
+    pid_t pid;
+    int rc = posix_spawnp(&pid, "koalac", NULL, NULL, argv, environ);
+    if (rc != 0) {
+        fprintf(stderr, "posix_spawn failed: %d\n", rc);
+        return -1;
+    }
+
+    // wait sub-process
+    int status;
+    waitpid(pid, &status, 0);
+
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 }
 
 static char *make_temp_klc(void)
@@ -43,29 +55,28 @@ static char *make_temp_klc(void)
 
 static int compile(const char *input, const char *output, KoalaOptions *opt)
 {
-    char cmd[512] = "koalac";
+    char buf[64];
+    char *argv[16];
+    int n = 0;
 
-    // auto enable all optimizations
-    strcat(cmd, " --cgen --fusion --tail-call --write-klc");
+    argv[n++] = "koalac";
+    argv[n++] = "--cgen";
+    argv[n++] = "--fusion";
+    argv[n++] = "--tail-call";
+    argv[n++] = "--write-klc";
 
-    // dump string
     if (opt->dump) {
-        strcat(cmd, " --dump=");
-        strcat(cmd, opt->dump);
+        snprintf(buf, sizeof(buf), "--dump=%s", opt->dump);
+        argv[n++] = buf;
     }
 
-    // input + output
-    strcat(cmd, " ");
-    strcat(cmd, input);
-    strcat(cmd, " -o ");
-    strcat(cmd, output);
+    argv[n++] = (char *)input;
+    argv[n++] = "-o";
+    argv[n++] = (char *)output;
+    argv[n] = NULL;
 
-    int rc = run_cmd(cmd);
-    if (rc != 0) {
-        fprintf(stderr, "koala: koalac failed (%d)\n", rc);
-        return rc;
-    }
-    return 0;
+    int rc = run_cmd(argv);
+    return rc;
 }
 
 static int is_directory(const char *path)

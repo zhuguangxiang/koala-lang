@@ -6,7 +6,6 @@
 #include "args.h"
 #include <getopt.h>
 #include <sys/utsname.h>
-#include "mm.h"
 #include "version.h"
 
 #ifdef __cplusplus
@@ -88,7 +87,7 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
                 version();
                 return -1;
             case 1000:
-                opt->dump = str_dup(optarg);
+                opt->dump = optarg;
                 break;
             default:
                 return -1;

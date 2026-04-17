@@ -1,0 +1,18 @@
+
+func test_logic_chain(n int) int {
+    var i = 0
+    var score = 0
+    while i < n {
+        if i % 2 == 0 { score = score + 1 }
+        if i % 3 != 0 { score = score + 2 }
+        if i < 5000   { score = score + 1 }
+        if i >= 1000  { score = score - 1 }
+        i = i + 1
+    }
+    return score
+}
+
+func main() {
+    let n = 100_000_000
+    test_logic_chain(n)
+}

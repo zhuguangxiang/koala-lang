@@ -1,0 +1,17 @@
+
+func test_bitwise(n int) int {
+    var x = 123456789
+    var i = 0
+    while i < n {
+        x = x ^ (x << 13)
+        x = x ^ (x >> 17)
+        x = x ^ (x << 5)
+        i = i + 1
+    }
+    return x
+}
+
+func main() {
+    let n = 100_000_000
+    test_bitwise(n)
+}

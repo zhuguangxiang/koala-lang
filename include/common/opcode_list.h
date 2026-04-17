@@ -1168,13 +1168,17 @@ X(OP_RET, FORMAT_Rx)
 X(OP_RET_INT_IMM, FORMAT_Imm2)
 
 /**
- * OP_RET_TAG — return small tagged value (bool / special float / none)
+ * OP_LOAD_TAG — return small tagged constant
  *
  * FORMAT_Tag:
  *     | op:8 | ---:16 | imm:8 |
  *
  * Details:
- *     Returns a small tagged value to the caller.
+ *     Returns a small tagged constant into rd. The imm field encodes:
+ *         - boolean values(0, 1)
+ *         - none / null(2)
+ *         - special float values (e.g., +0.0(3), -0.0(4), NaN(5), -inf(6), +inf(7))
+ *     This avoids constant-pool lookup for common values.
  */
 X(OP_RET_TAG, FORMAT_Tag)
 

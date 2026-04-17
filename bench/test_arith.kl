@@ -1,0 +1,22 @@
+
+func test_arith(n int) int {
+    var res = 0
+    var i = 0
+    while i < n {
+        res = res + 10
+        res = res - 5
+        res = res * 2
+        res = res / 2
+        res = res | 255
+        res = res & 255
+        res = res << 1
+        res = res >> 1
+        i = i + 1
+    }
+    return res
+}
+
+func main() {
+    let n = 100_000_000
+    test_arith(n)
+}

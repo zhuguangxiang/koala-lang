@@ -86,7 +86,7 @@ void init_tag_mappings(void)
 
 #endif
 
-static TValue _eval_frame(KoalaState *ks, CallFrame *cf)
+__attribute__((aligned(64))) static TValue _eval_frame(KoalaState *ks, CallFrame *cf)
 {
     /* push frame */
     cf->back = ks->cf;
