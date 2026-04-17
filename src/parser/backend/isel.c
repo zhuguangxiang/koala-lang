@@ -66,11 +66,12 @@ static BinaryRule float_rules[] = {
     { OP_BINARY_MUL, OP_FLOAT_MUL, 0, 1, 0 },
     { OP_BINARY_DIV, OP_FLOAT_DIV, 0, 0, 0 },
     { OP_BINARY_MOD, OP_FLOAT_MOD, 0, 0, 0 },
-    { OP_BINARY_CMPLT, OP_FLOAT_CMPL, 0, 0, 0 },
-    { OP_BINARY_CMPEQ, OP_FLOAT_CMPL, 0, 0, 0 },
-    { OP_BINARY_CMPLE, OP_FLOAT_CMPL, 0, 0, 0 },
-    { OP_BINARY_CMPGT, OP_FLOAT_CMPG, 0, 0, 0 },
-    { OP_BINARY_CMPGE, OP_FLOAT_CMPG, 0, 0, 0 },
+    { OP_BINARY_CMPNE, OP_FLOAT_CMPNE, 0, 0, 0 },
+    { OP_BINARY_CMPLT, OP_FLOAT_CMPLT, 0, 0, 0 },
+    { OP_BINARY_CMPEQ, OP_FLOAT_CMPEQ, 0, 0, 0 },
+    { OP_BINARY_CMPLE, OP_FLOAT_CMPLE, 0, 0, 0 },
+    { OP_BINARY_CMPGT, OP_FLOAT_CMPGT, 0, 0, 0 },
+    { OP_BINARY_CMPGE, OP_FLOAT_CMPGE, 0, 0, 0 },
 };
 
 // clang-format on
@@ -546,6 +547,16 @@ static OpCode uint_cmp_map[] = {
     OP_JMP_UINT_GT, OP_JMP_UINT_GT_IMM, OP_JMP_UINT_GE, OP_JMP_UINT_GE_IMM,
 };
 
+static inline int is_float_cmp(OpCode op)
+{
+    return (op >= OP_FLOAT_CMPEQ) && (op <= OP_FLOAT_CMPGE);
+}
+
+static OpCode float_cmp_map[] = {
+    OP_JMP_FLOAT_EQ, OP_JMP_FLOAT_NE, OP_JMP_FLOAT_LT,
+    OP_JMP_FLOAT_LE, OP_JMP_FLOAT_GT, OP_JMP_FLOAT_GE,
+};
+
 static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
 {
     KlrBasicBlock *bb = insn->bb;
@@ -586,6 +597,18 @@ static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
             insn->code = int_cmp_map[idx];
         }
 
+        set_operand_at(insn, 0, lhs);
+        set_operand_at(insn, 1, rhs);
+        klr_erase_insn(prev);
+        return;
+    }
+
+    if (is_float_cmp(prev->code)) {
+        KlrValue *lhs = insn_oper_value(prev, 0);
+        KlrValue *rhs = insn_oper_value(prev, 1);
+        int idx = prev->code - OP_FLOAT_CMPEQ;
+        ASSERT(idx >= 0 && idx < COUNT_OF(float_cmp_map));
+        insn->code = float_cmp_map[idx];
         set_operand_at(insn, 0, lhs);
         set_operand_at(insn, 1, rhs);
         klr_erase_insn(prev);

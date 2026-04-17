@@ -77,7 +77,7 @@ static void __add_const(Object *m, KlcConst *item)
             break;
         }
         case KLC_CONST_FLT: {
-            NYI();
+            kl_mo_add_float(m, item->fval);
             break;
         }
         case KLC_CONST_SHORT_ASCII:

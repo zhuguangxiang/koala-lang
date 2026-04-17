@@ -670,10 +670,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
     }
 }
 
-static int fused_jmp(OpCode op)
-{
-    return (op >= OP_JMP_INT_EQ && op <= OP_JMP_UINT_GE_IMM);
-}
+static int fused_jmp(OpCode op) { return (op >= OP_JMP_INT_EQ && op <= OP_JMP_FLOAT_GE); }
 
 static void linearize(KlMachFunc *mfn, KlMachModule *m)
 {
@@ -800,16 +797,19 @@ struct jmp_invert {
 };
 
 static struct jmp_invert jmp_invert_map[] = {
-    { OP_JMP_INT_NE, FORMAT_RROff },  { OP_JMP_INT_NE_IMM, FORMAT_RImmOff },
-    { OP_JMP_INT_EQ, FORMAT_RROff },  { OP_JMP_INT_EQ_IMM, FORMAT_RImmOff },
-    { OP_JMP_INT_GE, FORMAT_RROff },  { OP_JMP_INT_GE_IMM, FORMAT_RImmOff },
-    { OP_JMP_INT_GT, FORMAT_RROff },  { OP_JMP_INT_GT_IMM, FORMAT_RImmOff },
-    { OP_JMP_INT_LE, FORMAT_RROff },  { OP_JMP_INT_LE_IMM, FORMAT_RImmOff },
-    { OP_JMP_INT_LT, FORMAT_RROff },  { OP_JMP_INT_LT_IMM, FORMAT_RImmOff },
-    { OP_JMP_UINT_GE, FORMAT_RROff }, { OP_JMP_UINT_GE_IMM, FORMAT_RImmOff },
-    { OP_JMP_UINT_GT, FORMAT_RROff }, { OP_JMP_UINT_GT_IMM, FORMAT_RImmOff },
-    { OP_JMP_UINT_LE, FORMAT_RROff }, { OP_JMP_UINT_LE_IMM, FORMAT_RImmOff },
-    { OP_JMP_UINT_LT, FORMAT_RROff }, { OP_JMP_UINT_LT_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_NE, FORMAT_RROff },   { OP_JMP_INT_NE_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_EQ, FORMAT_RROff },   { OP_JMP_INT_EQ_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_GE, FORMAT_RROff },   { OP_JMP_INT_GE_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_GT, FORMAT_RROff },   { OP_JMP_INT_GT_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_LE, FORMAT_RROff },   { OP_JMP_INT_LE_IMM, FORMAT_RImmOff },
+    { OP_JMP_INT_LT, FORMAT_RROff },   { OP_JMP_INT_LT_IMM, FORMAT_RImmOff },
+    { OP_JMP_UINT_GE, FORMAT_RROff },  { OP_JMP_UINT_GE_IMM, FORMAT_RImmOff },
+    { OP_JMP_UINT_GT, FORMAT_RROff },  { OP_JMP_UINT_GT_IMM, FORMAT_RImmOff },
+    { OP_JMP_UINT_LE, FORMAT_RROff },  { OP_JMP_UINT_LE_IMM, FORMAT_RImmOff },
+    { OP_JMP_UINT_LT, FORMAT_RROff },  { OP_JMP_UINT_LT_IMM, FORMAT_RImmOff },
+    { OP_JMP_FLOAT_NE, FORMAT_RROff }, { OP_JMP_FLOAT_EQ, FORMAT_RROff },
+    { OP_JMP_FLOAT_GE, FORMAT_RROff }, { OP_JMP_FLOAT_GT, FORMAT_RROff },
+    { OP_JMP_FLOAT_LE, FORMAT_RROff }, { OP_JMP_FLOAT_LT, FORMAT_RROff },
 };
 
 static void lower_fused_jmp(KlMachInsn *mi)
@@ -1091,6 +1091,17 @@ static void peephole(KlMachFunc *mfn)
             if (a->op != OP_MOVE) continue;
 
             if (b->op >= OP_INT_ADD && b->op <= OP_INT_SHR_IMM) {
+                if ((a->opers[0] == b->opers[1]) && (a->opers[1] == b->opers[0])) {
+                    KlrInsn *b_insn = b->origin;
+                    if (b_insn->use_count == 1) {
+                        KlrInsn *a_ref = (KlrInsn *)insn_oper_value(a->origin, 1);
+                        if (a_ref == b_insn) {
+                            a->dead = 1;
+                            b->opers[0] = a->opers[0];
+                        }
+                    }
+                }
+            } else if (b->op >= OP_FLOAT_ADD && b->op <= OP_FLOAT_MOD) {
                 if ((a->opers[0] == b->opers[1]) && (a->opers[1] == b->opers[0])) {
                     KlrInsn *b_insn = b->origin;
                     if (b_insn->use_count == 1) {

@@ -1,0 +1,19 @@
+
+func test_float_logic(n int) float {
+    var res = 0.0
+    var i = 0
+
+    while i < n {
+        res = res + 1.1
+        if res >= 50.0 {
+            res = res - 40.0
+        }
+        i = i + 1
+    }
+    return res
+}
+
+func main() {
+    let n = 100_000_000
+    print(test_float_logic(n))
+}

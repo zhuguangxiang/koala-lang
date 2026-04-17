@@ -95,6 +95,7 @@ int kl_mo_add_type(Object *_m, TypeObject *tp);
 int kl_mo_add_const(Object *_m, TValue *val);
 int kl_mo_add_str(Object *_m, char *s);
 int kl_mo_add_int(Object *_m, int64_t k);
+int kl_mo_add_float(Object *_m, double k);
 int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *name);
 Object *kl_mo_find(Object *_m, char *name);
 

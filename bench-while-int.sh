@@ -4,12 +4,12 @@ run() {
     name=$1
     cmd=$2
     echo "=== $name ==="
-    hyperfine --warmup 3 --min-runs 10 --shell=none "$cmd" | tee -a results-while.txt
+    hyperfine --warmup 3 --min-runs 10 --shell=none "$cmd" | tee -a results-while-int.txt
     echo
 }
 
-echo "Koala vs Lua vs luajit Benchmark Results" > results-while.txt
-echo "==============================" >> results-while.txt
+echo "Koala vs Lua vs luajit Benchmark Results" > results-while-int.txt
+echo "==============================" >> results-while-int.txt
 
 run "Koala test_logic_chain"  "koala bench/test_logic_chain.kl"
 run "Lua test_logic_chain"    "lua bench/test_logic_chain.lua"

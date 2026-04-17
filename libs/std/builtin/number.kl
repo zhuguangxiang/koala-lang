@@ -114,4 +114,34 @@ pub class float32 : Number[float32] {
 pub class float64 : Number[float64] {
     @intrinsic
     pub func __add__(rhs float64) float64 {}
+
+    @intrinsic
+    pub func __sub__(rhs float64) float64 {}
+
+    @intrinsic
+    pub func __mul__(rhs float64) float64 {}
+
+    @intrinsic
+    pub func __div__(rhs float64) float64 {}
+
+    @intrinsic
+    pub func __mod__(rhs float64) float64 {}
+
+    @intrinsic
+    pub func __gt__(rhs float64) bool {}
+
+    @intrinsic
+    pub func __ge__(rhs float64) bool {}
+
+    @intrinsic
+    pub func __lt__(rhs float64) bool {}
+
+    @intrinsic
+    pub func __le__(rhs float64) bool {}
+
+    @intrinsic
+    pub func __eq__(rhs float64) bool {}
+
+    @intrinsic
+    pub func __neq__(rhs float64) bool {}
 }

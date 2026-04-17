@@ -17,7 +17,7 @@ static void print_value(TValue *val)
     } else if (is_uint(val)) {
         printf("%" PRIu64 " ", val->ival);
     } else if (is_float(val)) {
-        printf("%f ", val->fval);
+        printf("%.17g ", val->fval);
     } else if (is_bool(val)) {
         printf("%s ", val->bval ? "true" : "false");
     } else if (is_none(val)) {

@@ -602,6 +602,74 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, "int.sub_imm", fp);
             break;
 
+        case OP_FLOAT_ADD:
+            print_binary(insn, "float.add", fp);
+            break;
+
+        case OP_FLOAT_SUB:
+            print_binary(insn, "float.sub", fp);
+            break;
+
+        case OP_FLOAT_MUL:
+            print_binary(insn, "float.mul", fp);
+            break;
+
+        case OP_FLOAT_DIV:
+            print_binary(insn, "float.div", fp);
+            break;
+
+        case OP_FLOAT_MOD:
+            print_binary(insn, "float.mod", fp);
+            break;
+
+        case OP_FLOAT_CMPEQ:
+            print_cmp("float.cmp_eq", insn, fp);
+            break;
+
+        case OP_FLOAT_CMPNE:
+            print_cmp("float.cmp_ne", insn, fp);
+            break;
+
+        case OP_FLOAT_CMPLT:
+            print_cmp("float.cmp_lt", insn, fp);
+            break;
+
+        case OP_FLOAT_CMPLE:
+            print_cmp("float.cmp_le", insn, fp);
+            break;
+
+        case OP_FLOAT_CMPGT:
+            print_cmp("float.cmp_gt", insn, fp);
+            break;
+
+        case OP_FLOAT_CMPGE:
+            print_cmp("float.cmp_ge", insn, fp);
+            break;
+
+        case OP_JMP_FLOAT_EQ:
+            print_jmp_cond_fused("jmp_float_eq", insn, fp);
+            break;
+
+        case OP_JMP_FLOAT_NE:
+            print_jmp_cond_fused("jmp_float_ne", insn, fp);
+            break;
+
+        case OP_JMP_FLOAT_LT:
+            print_jmp_cond_fused("jmp_float_lt", insn, fp);
+            break;
+
+        case OP_JMP_FLOAT_LE:
+            print_jmp_cond_fused("jmp_float_le", insn, fp);
+            break;
+
+        case OP_JMP_FLOAT_GT:
+            print_jmp_cond_fused("jmp_float_gt", insn, fp);
+            break;
+
+        case OP_JMP_FLOAT_GE:
+            print_jmp_cond_fused("jmp_float_ge", insn, fp);
+            break;
+
         default:
             printf("%s\n", op_name(insn->code));
             // UNREACHABLE();

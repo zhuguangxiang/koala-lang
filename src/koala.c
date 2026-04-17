@@ -172,6 +172,7 @@ int main(int argc, char *argv[])
             remove(temp);
             free(temp);
         }
+        fprintf(stderr, "koala: compilation failed\n");
         return -1;
     }
 

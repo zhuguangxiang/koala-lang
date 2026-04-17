@@ -1,0 +1,17 @@
+
+func test_float_arith(n int) float {
+    var res = 0.0
+    var step = 1.1
+    var i = 0
+
+    while i < n {
+        res = res + step
+        i = i + 1
+    }
+    return res
+}
+
+func main() {
+    let n = 100_000_000
+    print(test_float_arith(n))
+}

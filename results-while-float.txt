@@ -1,0 +1,26 @@
+Koala vs Lua vs luajit Benchmark Results
+==============================
+Benchmark 1: koala bench/test_float_logic.kl
+  Time (mean ± σ):     547.4 ms ±   6.2 ms    [User: 544.9 ms, System: 2.0 ms]
+  Range (min … max):   539.2 ms … 559.7 ms    10 runs
+ 
+Benchmark 1: lua bench/test_float_logic.lua
+  Time (mean ± σ):     703.1 ms ±   8.8 ms    [User: 701.8 ms, System: 0.9 ms]
+  Range (min … max):   694.6 ms … 718.0 ms    10 runs
+ 
+Benchmark 1: luajit -joff bench/test_float_logic.lua
+  Time (mean ± σ):     569.9 ms ±   4.8 ms    [User: 568.3 ms, System: 1.2 ms]
+  Range (min … max):   563.4 ms … 578.6 ms    10 runs
+ 
+Benchmark 1: koala bench/test_float_arith.kl
+  Time (mean ± σ):     255.5 ms ±   1.8 ms    [User: 252.7 ms, System: 2.4 ms]
+  Range (min … max):   253.7 ms … 259.0 ms    11 runs
+ 
+Benchmark 1: lua bench/test_float_arith.lua
+  Time (mean ± σ):     535.0 ms ±  12.2 ms    [User: 533.1 ms, System: 1.5 ms]
+  Range (min … max):   508.9 ms … 557.8 ms    10 runs
+ 
+Benchmark 1: luajit -joff bench/test_float_arith.lua
+  Time (mean ± σ):     328.5 ms ±   3.7 ms    [User: 326.8 ms, System: 1.3 ms]
+  Range (min … max):   324.0 ms … 336.4 ms    10 runs
+ 

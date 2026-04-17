@@ -691,32 +691,98 @@ X(OP_FLOAT_DIV, FORMAT_RRR)
 X(OP_FLOAT_MOD, FORMAT_RRR)
 
 /**
- * OP_FLOAT_CMPL — floating-point compare (CMPL)
+ * OP_FLOAT_CMPEQ — floating‑point compare (EQ)
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
  *
  * Details:
- *     rd = -1 if rs < rt
- *     rd =  0 if rs == rt
- *     rd =  1 if rs > rt
- *     rd = -1 if either operand is NaN
+ *     rd = 1  if rs == rt
+ *     rd = 0  otherwise
+ *
+ * Notes:
+ *     - If either operand is NaN, the comparison is false → rd = 0
+ *     - +0.0 and -0.0 are considered equal
  */
-X(OP_FLOAT_CMPL, FORMAT_RRR)
+X(OP_FLOAT_CMPEQ, FORMAT_RRR)
 
 /**
- * OP_FLOAT_CMPG — floating-point compare (CMPG)
+ * OP_FLOAT_CMPNE — floating‑point compare (NE)
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
  *
  * Details:
- *     rd = -1 if rs < rt
- *     rd =  0 if rs == rt
- *     rd =  1 if rs > rt
- *     rd =  1 if either operand is NaN
+ *     rd = 1  if rs != rt
+ *     rd = 0  otherwise
+ *
+ * Notes:
+ *     - If either operand is NaN, the comparison is true → rd = 1
+ *     - +0.0 and -0.0 are considered equal (so NE = 0)
  */
-X(OP_FLOAT_CMPG, FORMAT_RRR)
+X(OP_FLOAT_CMPNE, FORMAT_RRR)
+
+/**
+ * OP_FLOAT_CMPLT — floating‑point compare (LT)
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     rd = 1  if rs < rt
+ *     rd = 0  otherwise
+ *
+ * Notes:
+ *     - If either operand is NaN, the comparison is false → rd = 0
+ */
+X(OP_FLOAT_CMPLT, FORMAT_RRR)
+
+/**
+ * OP_FLOAT_CMPLE — floating‑point compare (LE)
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     rd = 1  if rs <= rt
+ *     rd = 0  otherwise
+ *
+ * Notes:
+ *     - If either operand is NaN, the comparison is false → rd = 0
+ *     - +0.0 <= -0.0 and -0.0 <= +0.0 are both true
+ */
+X(OP_FLOAT_CMPLE, FORMAT_RRR)
+
+/**
+ * OP_FLOAT_CMPGT — floating‑point compare (GT)
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     rd = 1  if rs > rt
+ *     rd = 0  otherwise
+ *
+ * Notes:
+ *     - If either operand is NaN, the comparison is false → rd = 0
+ */
+X(OP_FLOAT_CMPGT, FORMAT_RRR)
+
+/**
+ * OP_FLOAT_CMPGE — floating‑point compare (GE)
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     rd = 1  if rs >= rt
+ *     rd = 0  otherwise
+ *
+ * Notes:
+ *     - If either operand is NaN, the comparison is false → rd = 0
+ *     - +0.0 >= -0.0 and -0.0 >= +0.0 are both true
+ */
+X(OP_FLOAT_CMPGE, FORMAT_RRR)
 
 /*---------------------------------------------------------------+
  |  Floating-Point Unary Operations                              |
@@ -1064,6 +1130,98 @@ X(OP_JMP_UINT_GE, FORMAT_RROff)
  *     If rs >= imm (unsigned), pc += offset.
  */
 X(OP_JMP_UINT_GE_IMM, FORMAT_RImmOff)
+
+/*---------------------------------------------------------------+
+ |  Fused Float Compare + Jump Instructions                      |
+ +---------------------------------------------------------------*/
+
+/**
+ * OP_JMP_FLOAT_EQ — jump if floating-point equal
+ *
+ * FORMAT_RROff:
+ *     | op:8 | rs:8 | rt:8 | offset:8 |
+ *
+ * Details:
+ *     If (rs == rt) in floating‑point comparison, pc += offset.
+ *
+ * Notes:
+ *     - If either operand is NaN, comparison is false → no jump
+ *     - +0.0 and -0.0 are considered equal
+ */
+X(OP_JMP_FLOAT_EQ, FORMAT_RROff)
+
+/**
+ * OP_JMP_FLOAT_NE — jump if floating-point not equal
+ *
+ * FORMAT_RROff:
+ *     | op:8 | rs:8 | rt:8 | offset:8 |
+ *
+ * Details:
+ *     If (rs != rt) in floating‑point comparison, pc += offset.
+ *
+ * Notes:
+ *     - If either operand is NaN, comparison is true → jump
+ *     - +0.0 and -0.0 are considered equal (so NE = false)
+ */
+X(OP_JMP_FLOAT_NE, FORMAT_RROff)
+
+/**
+ * OP_JMP_FLOAT_LT — jump if floating-point less-than
+ *
+ * FORMAT_RROff:
+ *     | op:8 | rs:8 | rt:8 | offset:8 |
+ *
+ * Details:
+ *     If (rs < rt), pc += offset.
+ *
+ * Notes:
+ *     - If either operand is NaN, comparison is false → no jump
+ */
+X(OP_JMP_FLOAT_LT, FORMAT_RROff)
+
+/**
+ * OP_JMP_FLOAT_LE — jump if floating-point less-or-equal
+ *
+ * FORMAT_RROff:
+ *     | op:8 | rs:8 | rt:8 | offset:8 |
+ *
+ * Details:
+ *     If (rs <= rt), pc += offset.
+ *
+ * Notes:
+ *     - If either operand is NaN, comparison is false → no jump
+ *     - +0.0 <= -0.0 and -0.0 <= +0.0 are both true
+ */
+X(OP_JMP_FLOAT_LE, FORMAT_RROff)
+
+/**
+ * OP_JMP_FLOAT_GT — jump if floating-point greater-than
+ *
+ * FORMAT_RROff:
+ *     | op:8 | rs:8 | rt:8 | offset:8 |
+ *
+ * Details:
+ *     If (rs > rt), pc += offset.
+ *
+ * Notes:
+ *     - If either operand is NaN, comparison is false → no jump
+ */
+X(OP_JMP_FLOAT_GT, FORMAT_RROff)
+
+/**
+ * OP_JMP_FLOAT_GE — jump if floating-point greater-or-equal
+ *
+ * FORMAT_RROff:
+ *     | op:8 | rs:8 | rt:8 | offset:8 |
+ *
+ * Details:
+ *     If (rs >= rt), pc += offset.
+ *
+ * Notes:
+ *     - If either operand is NaN, comparison is false → no jump
+ *     - +0.0 >= -0.0 and -0.0 >= +0.0 are both true
+ */
+X(OP_JMP_FLOAT_GE, FORMAT_RROff)
 
 /*---------------------------------------------------------------+
  |  Unified Call Instruction                                     |

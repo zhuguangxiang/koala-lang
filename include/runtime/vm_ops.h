@@ -866,19 +866,159 @@ TARGET(OP_INT_MOD_IMM) {
 /* Float Basic */
 
 TARGET(OP_FLOAT_ADD) {
-    OP_NYI(OP_FLOAT_ADD);
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].fval = regs[rs].fval + regs[rt].fval;
+    regs[rd].tag = TAG_FLOAT64;
+
+    DISPATCH();
 }
 
 TARGET(OP_FLOAT_SUB) {
-    OP_NYI(OP_FLOAT_SUB);
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].fval = regs[rs].fval - regs[rt].fval;
+    regs[rd].tag = TAG_FLOAT64;
+
+    DISPATCH();
 }
 
 TARGET(OP_FLOAT_MUL) {
-    OP_NYI(OP_FLOAT_MUL);
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].fval = regs[rs].fval * regs[rt].fval;
+    regs[rd].tag = TAG_FLOAT64;
+
+    DISPATCH();
 }
 
-TARGET(OP_FLOAT_DIV) {
-    OP_NYI(OP_FLOAT_DIV);
+TARGET(OP_JMP_FLOAT_EQ) {
+    rs = I_VAL(inst, 16, 8);
+    rt = I_VAL(inst, 8, 8);
+    off = I_SVAL(inst, 0, 8);
+
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    if (regs[rs].fval == regs[rt].fval) {
+        pc += off;
+    }
+    DISPATCH();
+}
+
+TARGET(OP_JMP_FLOAT_NE) {
+    rs = I_VAL(inst, 16, 8);
+    rt = I_VAL(inst, 8, 8);
+    off = I_SVAL(inst, 0, 8);
+
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    if (regs[rs].fval != regs[rt].fval) {
+        pc += off;
+    }
+    DISPATCH();
+}
+
+TARGET(OP_JMP_FLOAT_LT) {
+    rs = I_VAL(inst, 16, 8);
+    rt = I_VAL(inst, 8, 8);
+    off = I_SVAL(inst, 0, 8);
+
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    if (regs[rs].fval < regs[rt].fval) {
+        pc += off;
+    }
+    DISPATCH();
+}
+
+TARGET(OP_JMP_FLOAT_LE) {
+    rs = I_VAL(inst, 16, 8);
+    rt = I_VAL(inst, 8, 8);
+    off = I_SVAL(inst, 0, 8);
+
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    if (regs[rs].fval <= regs[rt].fval) {
+        pc += off;
+    }
+    DISPATCH();
+}
+
+TARGET(OP_JMP_FLOAT_GT) {
+    rs = I_VAL(inst, 16, 8);
+    rt = I_VAL(inst, 8, 8);
+    off = I_SVAL(inst, 0, 8);
+
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    if (regs[rs].fval > regs[rt].fval) {
+        pc += off;
+    }
+    DISPATCH();
+}
+
+TARGET(OP_JMP_FLOAT_GE) {
+    rs = I_VAL(inst, 16, 8);
+    rt = I_VAL(inst, 8, 8);
+    off = I_SVAL(inst, 0, 8);
+
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    if (regs[rs].fval >= regs[rt].fval) {
+        pc += off;
+    }
+    DISPATCH();
 }
 
 /* cold instructions */
@@ -985,20 +1125,148 @@ TARGET(OP_INT_TO_FLT) {
 
 /* Float Complex */
 
+TARGET(OP_FLOAT_DIV) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].fval = regs[rs].fval / regs[rt].fval;
+    regs[rd].tag = TAG_FLOAT64;
+
+    DISPATCH();
+}
+
 TARGET(OP_FLOAT_MOD) {
-    OP_NYI(OP_FLOAT_MOD);
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].fval = fmod(regs[rs].fval, regs[rt].fval);
+    regs[rd].tag = TAG_FLOAT64;
+
+    DISPATCH();
 }
 
-TARGET(OP_FLOAT_CMPL) {
-    OP_NYI(OP_FLOAT_CMPL);
+TARGET(OP_FLOAT_CMPEQ) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].ival = regs[rs].fval == regs[rt].fval;
+    regs[rd].tag = TAG_BOOL;
+
+    DISPATCH();
 }
 
-TARGET(OP_FLOAT_CMPG) {
-    OP_NYI(OP_FLOAT_CMPG);
+TARGET(OP_FLOAT_CMPNE) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].ival = regs[rs].fval != regs[rt].fval;
+    regs[rd].tag = TAG_BOOL;
+
+    DISPATCH();
 }
 
-TARGET(OP_FLOAT_NEG) {
-    OP_NYI(OP_FLOAT_NEG);
+TARGET(OP_FLOAT_CMPLT) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].ival = regs[rs].fval < regs[rt].fval;
+    regs[rd].tag = TAG_BOOL;
+
+    DISPATCH();
+}
+
+TARGET(OP_FLOAT_CMPLE) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].ival = regs[rs].fval <= regs[rt].fval;
+    regs[rd].tag = TAG_BOOL;
+
+    DISPATCH();
+}
+
+TARGET(OP_FLOAT_CMPGT) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].ival = regs[rs].fval > regs[rt].fval;
+    regs[rd].tag = TAG_BOOL;
+
+    DISPATCH();
+}
+
+TARGET(OP_FLOAT_CMPGE) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(regs[rt].tag == TAG_FLOAT64);
+
+    regs[rd].ival = regs[rs].fval >= regs[rt].fval;
+    regs[rd].tag = TAG_BOOL;
+
+    DISPATCH();
 }
 
 /* miscellaneous instructions */
@@ -1025,6 +1293,21 @@ TARGET(OP_INT_NEG) {
 
     regs[rd].ival = -regs[rs].ival;
     regs[rd].tag = regs[rs].tag;
+
+    DISPATCH();
+}
+
+TARGET(OP_FLOAT_NEG) {
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    ASSERT(regs[rs].tag == TAG_FLOAT64);
+
+    regs[rd].fval = -regs[rs].fval;
+    regs[rd].tag = TAG_FLOAT64;
 
     DISPATCH();
 }
