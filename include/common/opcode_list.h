@@ -47,6 +47,17 @@ X(OP_MOVE, FORMAT_RxRx)
  */
 X(OP_LOAD_INT_IMM, FORMAT_RImm2)
 
+ /**
+ * OP_LOAD_UINT_IMM — load immediate unsigned integer
+ *
+ * FORMAT_RImm2:
+ *     | op:8 | rd:8 | imm:16 |
+ *
+ * Details:
+ *     Loads a 16-bit unsigned integer immediate into register rd.
+ */
+X(OP_LOAD_UINT_IMM, FORMAT_RImm2)
+
 /**
  * OP_LOAD_TAG — load small tagged constant
  *
@@ -474,6 +485,39 @@ X(OP_INT_NOT, FORMAT_RxRx)
  +---------------------------------------------------------------*/
 
 /**
+ * OP_UINT_ADD_IMM — unsigned integer addition with immediate
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Details:
+ *     Computes rd = rs + imm, where imm is an 8-bit unsigned immediate.
+ */
+X(OP_UINT_ADD_IMM, FORMAT_RRImm)
+
+/**
+ * OP_UINT_SUB_IMM — unsigned integer subtraction with immediate
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Details:
+ *     Computes rd = rs - imm, where imm is an 8-bit unsigned immediate.
+ */
+X(OP_UINT_SUB_IMM, FORMAT_RRImm)
+
+/**
+ * OP_UINT_MUL_IMM — unsigned integer multiplication with immediate
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Details:
+ *     Computes rd = rs * imm, where imm is an 8-bit unsigned immediate.
+ */
+X(OP_UINT_MUL_IMM, FORMAT_RRImm)
+
+/**
  * OP_UINT_DIV — unsigned integer division
  *
  * FORMAT_RRR:
@@ -518,6 +562,50 @@ X(OP_UINT_MOD, FORMAT_RRR)
 X(OP_UINT_MOD_IMM, FORMAT_RRImm)
 
 /**
+ * OP_UINT_AND_IMM — unsigned integer bitwise AND with immediate
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Details:
+ *     Computes rd = rs & imm, where imm is an 8-bit unsigned immediate.
+ */
+X(OP_UINT_AND_IMM, FORMAT_RRImm)
+
+/**
+ * OP_UINT_OR_IMM — unsigned integer bitwise OR with immediate
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Details:
+ *     Computes rd = rs | imm, where imm is an 8-bit unsigned immediate.
+ */
+X(OP_UINT_OR_IMM, FORMAT_RRImm)
+
+/**
+ * OP_UINT_XOR_IMM — unsigned integer bitwise XOR with immediate
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Details:
+ *     Computes rd = rs ^ imm, where imm is an 8-bit unsigned immediate.
+ */
+X(OP_UINT_XOR_IMM, FORMAT_RRImm)
+
+/**
+ * OP_UINT_SHL_IMM — unsigned integer left shift with immediate
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Details:
+ *     Computes rd = rs << imm, where imm is an 8-bit unsigned shift amount.
+ */
+X(OP_UINT_SHL_IMM, FORMAT_RRImm)
+
+/**
  * OP_UINT_SHR — unsigned logical right shift
  *
  * FORMAT_RRR:
@@ -542,6 +630,28 @@ X(OP_UINT_SHR_IMM, FORMAT_RRImm)
 /*---------------------------------------------------------------+
  |  Unsigned Integer Comparison Operations                       |
  +---------------------------------------------------------------*/
+
+/**
+ * OP_UINT_CMPEQ_IMM — unsigned integer equality comparison with immediate
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Details:
+ *     Computes rd = (rs == imm), where imm is an 8-bit unsigned immediate.
+ */
+X(OP_UINT_CMPEQ_IMM, FORMAT_RRImm)
+
+/**
+ * OP_UINT_CMPNE_IMM — unsigned integer inequality comparison with immediate
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Details:
+ *     Computes rd = (rs != imm), where imm is an 8-bit unsigned immediate.
+ */
+X(OP_UINT_CMPNE_IMM, FORMAT_RRImm)
 
 /**
  * OP_UINT_CMPLT — unsigned less-than comparison
@@ -1324,6 +1434,17 @@ X(OP_RET, FORMAT_Rx)
  *     Returns a 16-bit signed integer immediate to the caller.
  */
 X(OP_RET_INT_IMM, FORMAT_Imm2)
+
+/**
+ * OP_RET_UINT_IMM — return unsigned integer immediate
+ *
+ * FORMAT_Imm2:
+ *     | op:8 | ---:8 | imm:16 |
+ *
+ * Details:
+ *     Returns a 16-bit unsigned integer immediate to the caller.
+ */
+X(OP_RET_UINT_IMM, FORMAT_Imm2)
 
 /**
  * OP_LOAD_TAG — return small tagged constant

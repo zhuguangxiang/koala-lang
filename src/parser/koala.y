@@ -2945,23 +2945,17 @@ atom
     {
         if (errno != 0) {
             kl_error(loc(@1), "Number %s is out of int range", ps->sval);
-            $$ = NULL;
-            YYERROR;
-        } else {
-            $$ = expr_from_lit_int(ps->sval, ps->sign, ps->bit_mode, $1);
-            expr_set_loc($$, loc(@1));
         }
+        $$ = expr_from_lit_int(ps->sval, ps->sign, ps->bit_mode, $1);
+        expr_set_loc($$, loc(@1));
     }
     | FLOAT_LITERAL
     {
         if (errno != 0) {
             kl_error(loc(@1), "Number %s is out of float64 range", ps->sval);
-            $$ = NULL;
-            YYERROR;
-        } else {
-            $$ = expr_from_lit_float($1);
-            expr_set_loc($$, loc(@1));
         }
+        $$ = expr_from_lit_float($1);
+        expr_set_loc($$, loc(@1));
     }
     | STRING_LITERAL
     {

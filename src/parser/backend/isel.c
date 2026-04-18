@@ -50,10 +50,21 @@ static BinaryRule int_rules[] = {
 };
 
 static BinaryRule uint_rules[] = {
+    { OP_BINARY_ADD, OP_INT_ADD, OP_UINT_ADD_IMM, 1, 1 },
+    { OP_BINARY_SUB, OP_INT_SUB, OP_UINT_SUB_IMM, 0, 1 },
+    { OP_BINARY_MUL, OP_INT_MUL, OP_UINT_MUL_IMM, 1, 1 },
     { OP_BINARY_DIV, OP_UINT_DIV, OP_UINT_DIV_IMM, 0, 1 },
     { OP_BINARY_MOD, OP_UINT_MOD, OP_UINT_MOD_IMM, 0, 1 },
-    // logical shift
+
+    { OP_BINARY_AND, OP_INT_AND, OP_UINT_AND_IMM, 1, 1 },
+    { OP_BINARY_OR, OP_INT_OR, OP_UINT_OR_IMM, 1, 1 },
+    { OP_BINARY_XOR, OP_INT_XOR, OP_UINT_XOR_IMM, 1, 1 },
+    { OP_BINARY_SHL, OP_INT_SHL, OP_UINT_SHL_IMM, 0, 1 },
+     // logical shift
     { OP_BINARY_SHR, OP_UINT_SHR, OP_UINT_SHR_IMM, 0, 1 },
+
+    { OP_BINARY_CMPEQ, OP_INT_CMPEQ, OP_UINT_CMPEQ_IMM, 1, 1 },
+    { OP_BINARY_CMPNE, OP_INT_CMPNE, OP_UINT_CMPNE_IMM, 1, 1 },
     { OP_BINARY_CMPLT, OP_UINT_CMPLT, OP_UINT_CMPLT_IMM, 0, 1 },
     { OP_BINARY_CMPLE, OP_UINT_CMPLE, OP_UINT_CMPLE_IMM, 0, 1 },
     { OP_BINARY_CMPGT, OP_UINT_CMPGT, OP_UINT_CMPGT_IMM, 0, 1 },
@@ -100,17 +111,6 @@ BinaryRule *find_binary_rule(OpCode ir_op, TypeSpec *ts)
         }
     }
 
-    if (type_is_uint(ts)) {
-        num_rules = COUNT_OF(int_rules);
-        // for unsigned types, if no specific rule, try to find the signed
-        // version
-        for (int i = 0; i < num_rules; i++) {
-            if (int_rules[i].ir_op == ir_op) {
-                return (BinaryRule *)&int_rules[i];
-            }
-        }
-    }
-
     return NULL;
 }
 
@@ -118,6 +118,7 @@ typedef struct _LowerConstRule {
     OpCode imm_op;
     OpCode tag_op;
     OpCode load_op;
+    OpCode uimm_op;
 } LowerConstRule;
 
 static KlrValue *lower_set_op_only(KlrConst *c, KlrInsn *insn, OpCode op)
@@ -149,7 +150,7 @@ static OpCode get_const_op(KlrConst *c, LowerConstRule *R)
         case CONST_UINT: {
             uint64_t uimm = (uint64_t)c->ival;
             if (uimm <= UINT16_MAX) {
-                op = R->imm_op;
+                op = R->uimm_op;
             } else {
                 op = R->load_op;
             }
@@ -197,7 +198,7 @@ static KlrValue *lower_binary_const(KlrFunc *fn, KlrInsn *at, KlrConst *c)
     KlrBuilder bldr;
     klr_builder_before(&bldr, at);
 
-    LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK };
+    LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK, OP_LOAD_UINT_IMM };
     OpCode op = get_const_op(c, &R);
     KlrValue *local = klr_build_local(&bldr, c->ts, "");
     klr_build_load(&bldr, local, (KlrValue *)c, op);
@@ -312,7 +313,7 @@ static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
         _insn->fixedslot = 1;   // mark as fixed slot
         _insn->slotindex = pos; // assign slot index
 
-        LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK };
+        LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK, OP_LOAD_UINT_IMM };
         OpCode op = get_const_op((KlrConst *)arg, &R);
         klr_build_load(&bldr, local, arg, op);
         return;
@@ -396,7 +397,7 @@ static void lower_tailcall_fixslot(KlrValue *dst, KlrValue *src, int pos, KlrIns
     }
 
     KlrConst *c = (KlrConst *)src;
-    LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK };
+    LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK, OP_LOAD_UINT_IMM };
     OpCode op = get_const_op(c, &R);
     klr_build_load(bldr, dst, src, op);
 }
@@ -409,7 +410,7 @@ static void lower_tailcall_move(KlrValue *dst, KlrValue *src, KlrBuilder *bldr)
     }
 
     KlrConst *c = (KlrConst *)src;
-    LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK };
+    LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK, OP_LOAD_UINT_IMM };
     OpCode op = get_const_op(c, &R);
     klr_build_load(bldr, dst, src, op);
 }
@@ -504,7 +505,7 @@ static void isel_lower_ret(KlrInsn *insn, KlrFunc *fn)
     if (!klr_is_const(ret)) return;
 
     KlrConst *c = (KlrConst *)ret;
-    LowerConstRule R = { OP_RET_INT_IMM, OP_RET_TAG, OP_RET_CONST };
+    LowerConstRule R = { OP_RET_INT_IMM, OP_RET_TAG, OP_RET_CONST, OP_RET_UINT_IMM };
     OpCode op = get_const_op(c, &R);
     insn->code = op;
 }
@@ -520,7 +521,7 @@ static void isel_lower_move(KlrInsn *insn, KlrFunc *fn)
     if (!klr_is_const(src)) return;
 
     KlrConst *c = (KlrConst *)src;
-    LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK };
+    LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK, OP_LOAD_UINT_IMM };
     OpCode op = get_const_op(c, &R);
     insn->code = op;
 }

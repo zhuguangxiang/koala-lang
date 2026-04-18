@@ -413,11 +413,28 @@ static void compile(ParserModule *pm)
     if (errors > 0) return;
 
     if (genir_enabled()) kl_gen_ir(pm);
-    if (opt_enabled()) kl_optimize(pm->module);
-    if (isel_enabled()) kl_do_isel(pm->module);
-    if (lsra_enabled()) kl_do_lsra(pm->module);
-    if (cgen_enabled()) kl_do_codegen(pm->module);
-    if (write_klc_enabled()) write_to_klc(pm);
+
+    KlrModule *m = pm->module;
+
+    if (opt_enabled() && (m->errors == 0)) {
+        kl_optimize(m);
+    }
+
+    if (isel_enabled() && (m->errors == 0)) {
+        kl_do_isel(m);
+    }
+
+    if (lsra_enabled() && (m->errors == 0)) {
+        kl_do_lsra(m);
+    }
+
+    if (cgen_enabled() && (m->errors == 0)) {
+        kl_do_codegen(m);
+    }
+
+    if (write_klc_enabled() && (m->errors == 0)) {
+        write_to_klc(pm);
+    }
 }
 
 int main(int argc, char *argv[])

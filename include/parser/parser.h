@@ -139,16 +139,6 @@ Symbol *find_symbol(ParserState *ps, Ident *id);
 /* more than MAX_ERRORS, discard remaining errors shown */
 #define MAX_ERRORS 32
 
-#define BOLD_SEQ     "\033[1m"
-#define COLOR_RED    "\x1b[31m"
-#define COLOR_GREEN  "\x1b[32m"
-#define COLOR_YELLOW "\x1b[33m"
-#define COLOR_RESET  "\x1b[0m"
-
-#define BOLD(x)      BOLD_SEQ x COLOR_RESET
-#define ERROR_PREFIX BOLD_SEQ COLOR_RED "error: " COLOR_RESET
-#define WARN_PREFIX  BOLD_SEQ COLOR_YELLOW "warning: " COLOR_RESET
-
 /* clang-format off */
 
 #define kl_printf_error(fmt, ...) do { \

@@ -9,6 +9,7 @@
 #include "codebuffer.h"
 #include "hashmap.h"
 #include "list.h"
+#include "loc.h"
 #include "opcode.h"
 #include "typespec.h"
 #include "vector.h"
@@ -16,6 +17,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* ASTNode saved in IR for reporting errors */
+typedef struct _KlrASTNodeInfo {
+    char *filename;
+    Loc loc;
+} KlrASTNodeInfo;
 
 typedef enum _KlrValueKind {
     KLR_VALUE_NONE,
@@ -55,7 +62,9 @@ typedef enum _KlrValueKind {
     /* name */              \
     char *name;             \
     /* print name */        \
-    char print_name[64];
+    char print_name[64];    \
+    /* AST node info for error reporting */ \
+    KlrASTNodeInfo ast;
 /* clang-format on */
 
 typedef struct _KlrValue {
@@ -272,6 +281,8 @@ typedef struct _KlrModule {
     int const_next;
     /* mach */
     void *mach;
+    /* errors */
+    int errors;
 } KlrModule;
 
 typedef struct _KlrKlass {
@@ -854,6 +865,14 @@ void klr_print_module(KlrModule *m, FILE *fp);
 
 /* Reverse Post Order */
 void klr_build_rpo(KlrFunc *fn);
+
+#define klr_error(ast, fmt, ...) \
+    do { \
+        Loc loc = (ast)->loc; \
+        printf(BOLD("%s:%d:%d: ") ERROR_PREFIX fmt "\n", (ast)->filename, loc.line, \
+               loc.col, ##__VA_ARGS__); \
+        (m)->errors++; \
+    } while (0)
 
 #ifdef __cplusplus
 }

@@ -106,6 +106,13 @@ int kl_mo_add_int(Object *_m, int64_t k)
     return kl_mo_add_const(_m, &val);
 }
 
+int kl_mo_add_uint(Object *_m, uint64_t k)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    TValue val = uint64_value(k);
+    return kl_mo_add_const(_m, &val);
+}
+
 int kl_mo_add_float(Object *_m, double k)
 {
     ModuleObject *m = (ModuleObject *)_m;

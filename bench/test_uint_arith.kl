@@ -1,0 +1,35 @@
+
+func test_arith(n uint) uint {
+    var res uint = 0
+    var i uint = 0
+
+    while i < n {
+        res = res + 10
+        res = res - 5
+        res = res * 2
+        res = res / 2
+        res = res | 255
+        res = res & 255
+        res = res << 1
+        res = res >> 1
+        i = i + 1
+    }
+    return res
+}
+
+func test_uint_add() uint {
+    var a uint = 100
+    a = a + 200
+    if a == 300 {
+        return 0
+    }
+    return 1
+}
+
+func main() {
+    let n uint = 100_000_000
+    // let umax uint = 18446744073709551615
+    // let val uint = 9223372036854775808
+    // print(val + 1)
+    print(test_arith(n))
+}

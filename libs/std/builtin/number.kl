@@ -99,6 +99,54 @@ pub class uint32 : Number[uint32] {
 pub class uint64 : Number[uint64] {
     @intrinsic
     pub func __add__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __sub__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __mul__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __div__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __mod__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __lsh__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __rsh__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __bitand__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __bitor__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __bitxor__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __gt__(rhs uint64) bool {}
+
+    @intrinsic
+    pub func __ge__(rhs uint64) bool {}
+
+    @intrinsic
+    pub func __lt__(rhs uint64) bool {}
+
+    @intrinsic
+    pub func __le__(rhs uint64) bool {}
+
+    @intrinsic
+    pub func __eq__(rhs uint64) bool {}
+
+    @intrinsic
+    pub func __neq__(rhs uint64) bool {}
+
+    @intrinsic
+    pub func __iadd__(rhs uint64) uint64 {}
 }
 
 pub class float16 : Number[float16] {

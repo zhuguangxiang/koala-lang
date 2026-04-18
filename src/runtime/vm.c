@@ -73,7 +73,10 @@ static void __add_const(Object *m, KlcConst *item)
             break;
         }
         case KLC_CONST_INT: {
-            kl_mo_add_int(m, (int64_t)item->ival);
+            if (item->sign)
+                kl_mo_add_int(m, (int64_t)item->ival);
+            else
+                kl_mo_add_uint(m, item->ival);
             break;
         }
         case KLC_CONST_FLT: {

@@ -21,4 +21,6 @@ run "Lua test_arith"    "lua bench/test_arith.lua"
 run "Koala test_bitwise"  "koala bench/test_bitwise.kl"
 run "Lua test_bitwise"    "lua bench/test_bitwise.lua"
 
+run "Koala test_uint_arith"  "koala bench/test_uint_arith.kl"
+
 echo "Done."

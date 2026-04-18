@@ -173,7 +173,8 @@ static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
             break;
         }
 
-        case OP_LOAD_INT_IMM: {
+        case OP_LOAD_INT_IMM:
+        case OP_LOAD_UINT_IMM: {
             KlrValue *dst = insn_oper_value(insn, 0);
             KlrValue *imm_val = insn_oper_value(insn, 1);
 
@@ -239,7 +240,8 @@ static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
             break;
         }
 
-        case OP_RET_INT_IMM: {
+        case OP_RET_INT_IMM:
+        case OP_RET_UINT_IMM: {
             KlrValue *ret = insn_oper_value(insn, 0);
             ASSERT(klr_is_const(ret));
             KlrConst *kc = (KlrConst *)ret;
@@ -293,7 +295,7 @@ static void lower_jmp_opers(KlrInsn *insn, KlrFunc *fn)
 static inline int is_binary(OpCode op)
 {
     return (op >= OP_INT_ADD && op <= OP_INT_CMPGE_IMM) ||
-           (op >= OP_UINT_DIV && op <= OP_UINT_DIV_IMM) ||
+           (op >= OP_UINT_ADD_IMM && op <= OP_UINT_CMPGE_IMM) ||
            (op >= OP_FLOAT_ADD && op <= OP_FLOAT_CMPGE) ||
            (op >= OP_LAND && op <= OP_LNOT);
 }

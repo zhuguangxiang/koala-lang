@@ -76,7 +76,11 @@ static void emit_ir_literal(ParserState *ps, Expr *exp)
 
     switch (lit->which) {
         case LIT_EXPR_INT: {
-            exp->ir_val = klr_const_int(lit->ival, lit->ts, m);
+            if (lit->sign) {
+                exp->ir_val = klr_const_int(lit->ival, lit->ts, m);
+            } else {
+                exp->ir_val = klr_const_uint(lit->ival, lit->ts, m);
+            }
             break;
         }
         case LIT_EXPR_FLT: {
@@ -253,16 +257,19 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
 
+    KlrValue *res;
+
     if (op >= BINARY_GT && op <= BINARY_NEQ) {
-        KlrValue *res =
-            klr_build_cmp(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op), "");
+        res = klr_build_cmp(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op), "");
         exp->ir_val = res;
     } else {
-        KlrValue *res =
-            klr_build_binary(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op), "",
-                             get_binary_op_name(op));
+        res = klr_build_binary(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op),
+                               "", get_binary_op_name(op));
         exp->ir_val = res;
     }
+
+    res->ast.filename = ps->filename;
+    res->ast.loc = exp->loc;
 }
 
 static void emit_ir_list(ParserState *ps, Expr *exp)

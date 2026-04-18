@@ -2068,6 +2068,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     TypeSpec *fn_ret = fn_sym->ret;
 
     if (exp) {
+        exp->expected = fn_ret;
         exp->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, exp);
         if (!exp->ts) return;

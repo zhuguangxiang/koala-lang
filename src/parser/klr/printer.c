@@ -107,6 +107,12 @@ static void print_ret_int_imm(KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[0], fp);
 }
 
+static void print_ret_uint_imm(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "ret_uint_imm ");
+    print_operand(&insn->opers[0], fp);
+}
+
 static void print_ret_tag(KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "ret_tag ");
@@ -290,6 +296,14 @@ static void print_load_int_imm(KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[1], fp);
 }
 
+static void print_load_uint_imm(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "load_uint_imm ");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+}
+
 static void print_loadk(KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "loadk ");
@@ -388,6 +402,38 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_JMP_INT_GE_IMM:
             print_jmp_cond_fused("jmp_int_ge_imm", insn, fp);
+            break;
+
+        case OP_JMP_UINT_LT:
+            print_jmp_cond_fused("jmp_uint_lt", insn, fp);
+            break;
+
+        case OP_JMP_UINT_LT_IMM:
+            print_jmp_cond_fused("jmp_uint_lt_imm", insn, fp);
+            break;
+
+        case OP_JMP_UINT_LE:
+            print_jmp_cond_fused("jmp_uint_le", insn, fp);
+            break;
+
+        case OP_JMP_UINT_LE_IMM:
+            print_jmp_cond_fused("jmp_uint_le_imm", insn, fp);
+            break;
+
+        case OP_JMP_UINT_GT:
+            print_jmp_cond_fused("jmp_uint_gt", insn, fp);
+            break;
+
+        case OP_JMP_UINT_GT_IMM:
+            print_jmp_cond_fused("jmp_uint_gt_imm", insn, fp);
+            break;
+
+        case OP_JMP_UINT_GE:
+            print_jmp_cond_fused("jmp_uint_ge", insn, fp);
+            break;
+
+        case OP_JMP_UINT_GE_IMM:
+            print_jmp_cond_fused("jmp_uint_ge_imm", insn, fp);
             break;
 
         case OP_BINARY_ADD:
@@ -518,10 +564,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_unary(insn, "lnot", fp);
             break;
 
-        case OP_INT_ADD_IMM:
-            print_binary(insn, "int.add_imm", fp);
-            break;
-
         case OP_LOAD_INT_IMM:
             print_load_int_imm(insn, fp);
             break;
@@ -530,16 +572,80 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, "int.add", fp);
             break;
 
+        case OP_INT_ADD_IMM:
+            print_binary(insn, "int.add_imm", fp);
+            break;
+
+        case OP_INT_SUB:
+            print_binary(insn, "int.sub", fp);
+            break;
+
+        case OP_INT_SUB_IMM:
+            print_binary(insn, "int.sub_imm", fp);
+            break;
+
+        case OP_INT_MUL:
+            print_binary(insn, "int.mul", fp);
+            break;
+
         case OP_INT_MUL_IMM:
             print_binary(insn, "int.mul_imm", fp);
+            break;
+
+        case OP_INT_DIV:
+            print_binary(insn, "int.div", fp);
             break;
 
         case OP_INT_DIV_IMM:
             print_binary(insn, "int.div_imm", fp);
             break;
 
+        case OP_INT_MOD:
+            print_binary(insn, "int.mod", fp);
+            break;
+
         case OP_INT_MOD_IMM:
             print_binary(insn, "int.mod_imm", fp);
+            break;
+
+        case OP_INT_SHL:
+            print_binary(insn, "int.shl", fp);
+            break;
+
+        case OP_INT_SHL_IMM:
+            print_binary(insn, "int.shl_imm", fp);
+            break;
+
+        case OP_INT_SHR:
+            print_binary(insn, "int.shr", fp);
+            break;
+
+        case OP_INT_SHR_IMM:
+            print_binary(insn, "int.shr_imm", fp);
+            break;
+
+        case OP_INT_AND:
+            print_binary(insn, "int.and", fp);
+            break;
+
+        case OP_INT_AND_IMM:
+            print_binary(insn, "int.and_imm", fp);
+            break;
+
+        case OP_INT_OR:
+            print_binary(insn, "int.or", fp);
+            break;
+
+        case OP_INT_OR_IMM:
+            print_binary(insn, "int.or_imm", fp);
+            break;
+
+        case OP_INT_XOR:
+            print_binary(insn, "int.xor", fp);
+            break;
+
+        case OP_INT_XOR_IMM:
+            print_binary(insn, "int.xor_imm", fp);
             break;
 
         case OP_LOADK:
@@ -596,10 +702,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_INT_CMPGE_IMM:
             print_cmp("int.cmp_ge_imm", insn, fp);
-            break;
-
-        case OP_INT_SUB_IMM:
-            print_binary(insn, "int.sub_imm", fp);
             break;
 
         case OP_FLOAT_ADD:
@@ -668,6 +770,66 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_JMP_FLOAT_GE:
             print_jmp_cond_fused("jmp_float_ge", insn, fp);
+            break;
+
+        case OP_UINT_ADD_IMM:
+            print_binary(insn, "uint.add_imm", fp);
+            break;
+
+        case OP_UINT_SUB_IMM:
+            print_binary(insn, "uint.sub_imm", fp);
+            break;
+
+        case OP_UINT_MUL_IMM:
+            print_binary(insn, "uint.mul_imm", fp);
+            break;
+
+        case OP_UINT_DIV:
+            print_binary(insn, "uint.div", fp);
+            break;
+
+        case OP_UINT_DIV_IMM:
+            print_binary(insn, "uint.div_imm", fp);
+            break;
+
+        case OP_UINT_MOD:
+            print_binary(insn, "uint.mod", fp);
+            break;
+
+        case OP_UINT_MOD_IMM:
+            print_binary(insn, "uint.mod_imm", fp);
+            break;
+
+        case OP_UINT_SHR:
+            print_binary(insn, "uint.shr", fp);
+            break;
+
+        case OP_UINT_SHL_IMM:
+            print_binary(insn, "uint.shl_imm", fp);
+            break;
+
+        case OP_UINT_SHR_IMM:
+            print_binary(insn, "uint.shr_imm", fp);
+            break;
+
+        case OP_UINT_AND_IMM:
+            print_binary(insn, "uint.and_imm", fp);
+            break;
+
+        case OP_UINT_OR_IMM:
+            print_binary(insn, "uint.or_imm", fp);
+            break;
+
+        case OP_UINT_XOR_IMM:
+            print_binary(insn, "uint.xor_imm", fp);
+            break;
+
+        case OP_LOAD_UINT_IMM:
+            print_load_uint_imm(insn, fp);
+            break;
+
+        case OP_RET_UINT_IMM:
+            print_ret_uint_imm(insn, fp);
             break;
 
         default:

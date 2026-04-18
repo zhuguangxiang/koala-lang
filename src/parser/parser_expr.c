@@ -84,6 +84,12 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
     int width = ts->int_flt_info.width;
     int sign = ts->int_flt_info.sign;
 
+    // update literal integer's type as expected type
+    lit->ts = ts;
+    lit->sign = sign;
+    lit->len = width;
+    lit->ival = (uint64_t)val;
+
     __uint128_t phys_max = (width == 8) ? (__uint128_t)0xFFFFFFFFFFFFFFFFULL
                                         : ((__uint128_t)1 << (width * 8)) - 1;
 
@@ -120,12 +126,6 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
             return;
         }
     }
-
-    // update literal integer's type as expected type
-    lit->ts = ts;
-    lit->sign = sign;
-    lit->len = width;
-    lit->ival = (uint64_t)val;
 }
 
 static void parse_lit_float(ParserState *ps, LitExpr *lit)
@@ -1810,6 +1810,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, lhs);
 
     rhs->ctx = EXPR_CTX_LOAD;
+    rhs->expected = lhs->ts;
     parser_visit_expr(ps, rhs);
 
     if (!lhs->ts || !rhs->ts) return;
