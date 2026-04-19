@@ -49,17 +49,18 @@ func test_while(n int) {
 // CHECK-LABEL: =============== LSRA @test_while ===============
 // CHECK: %n: range: [0, 9) reg: 0
 // CHECK: %i: range: [1, 9) reg: 1
-// CHECK: %0: range: [4, 5) reg: 2
-// CHECK: %1: range: [6, 7) reg: 2
+// CHECK: %0: range: [3, 4) reg: 2
+// CHECK: %1: range: [5, 6) reg: 2
+// CHECK: %2: range: [7, 8) reg: 2
+
 // CHECK: 1: [R1] %i = local int64
 // CHECK: 2: [...] load_int_imm %i int64, 0 int64
-// CHECK: 3: [...] jmp label %bb1
-// CHECK: 4: [R2] %0 = int.cmp_lt %i int64, %n int64
-// CHECK: 5: [...] branch %0 bool, label %bb2, label %bb3
-// CHECK: 6: [R2] %1 = int.add_imm %i int64, 1 int64
-// CHECK: 7: [...] move %i int64, %1 int64
-// CHECK: 8: [...] jmp label %bb1
-
+// CHECK: 3: [R2] %0 = int.cmp_ge_imm %n int64, 0 int64
+// CHECK: 4: [...] branch %0 bool, label %bb1, label %bb2
+// CHECK: 5: [R2] %1 = int.add_imm %i int64, 1 int64
+// CHECK: 6: [...] move %i int64, %1 int64
+// CHECK: 7: [R2] %2 = int.cmp_lt %i int64, %n int64
+// CHECK: 8: [...] branch %2 bool, label %bb1, label %bb2
 
 func test_while2(n int) {
     var i = 0
@@ -73,22 +74,22 @@ func test_while2(n int) {
 
 // CHECK: %n: range: [0, 11) reg: 0
 // CHECK: %i: range: [1, 11) reg: 1
-// CHECK: %0: range: [4, 5) reg: 2
-// CHECK: %2: range: [8, 9) reg: 2
+// CHECK: %0: range: [3, 4) reg: 2
+// CHECK: %2: range: [7, 8) reg: 2
+// CHECK: %3: range: [9, 10) reg: 2
 
 // CHECK: 1: [R1] %i = local int64
 // CHECK: 2: [...] load_int_imm %i int64, 0 int64
-// CHECK: 3: [...] jmp label %bb1
+// CHECK: 3: [R2] %0 = int.cmp_ge_imm %n int64, 0 int64
+// CHECK: 4: [...] branch %0 bool, label %bb1, label %bb2
 
-// CHECK: 4: [R2] %0 = int.cmp_lt %i int64, %n int64
-// CHECK: 5: [...] branch %0 bool, label %bb2, label %bb3
-
-// CHECK: 6: [R3] %1 = int.add_imm %i int64, 10 int64
-// CHECK: 7: [...] call @print [path = 'std/builtin'], 1
-// CHECK: 8: [R2] %2 = int.add_imm %i int64, 1 int64
-// CHECK: 9: [...] move %i int64, %2 int64
-// CHECK: 10: [...] jmp label %bb1
-// CHECK: [BACK-EDGE] bb2(while-body) -> bb1(while-cond) (Target POS: 4)
+// CHECK: 5: [R3] %1 = int.add_imm %i int64, 10 int64
+// CHECK: 6: [...] call @print [path = 'std/builtin'], 1
+// CHECK: 7: [R2] %2 = int.add_imm %i int64, 1 int64
+// CHECK: 8: [...] move %i int64, %2 int64
+// CHECK: 9: [R2] %3 = int.cmp_lt %i int64, %n int64
+// CHECK: 10: [...] branch %3 bool, label %bb1, label %bb2
+// CHECK: [BACK-EDGE] bb1(while-body) -> bb1(while-body) (Target POS: 5)
 
 func test_nested_loop(n int) {
     var i = 0
@@ -105,32 +106,33 @@ func test_nested_loop(n int) {
 // CHECK-LABEL: =============== LSRA @test_nested_loop ===============
 // CHECK: %n: range: [0, 20) reg: 0
 // CHECK: %i: range: [1, 20) reg: 1
-// CHECK: %0: range: [4, 5) reg: 2
-// CHECK: %j: range: [6, 17) reg: 2
-// CHECK: %1: range: [9, 10) reg: 3
-// CHECK: %3: range: [14, 15) reg: 3
-// CHECK: %4: range: [17, 18) reg: 2
+// CHECK: %0: range: [3, 4) reg: 2
+// CHECK: %j: range: [5, 16) reg: 2
+// CHECK: %1: range: [7, 8) reg: 3
+// CHECK: %3: range: [12, 13) reg: 3
+// CHECK: %4: range: [14, 15) reg: 3
+// CHECK: %5: range: [16, 17) reg: 2
+// CHECK: %6: range: [18, 19) reg: 2
 
 // CHECK: 1: [R1] %i = local int64
 // CHECK: 2: [...] load_int_imm %i int64, 0 int64
-// CHECK: 3: [...] jmp label %bb1
-// CHECK: 4: [R2] %0 = int.cmp_lt %i int64, %n int64
-// CHECK: 5: [...] branch %0 bool, label %bb2, label %bb6
-// CHECK: 6: [R2] %j = local int64
-// CHECK: 7: [...] load_int_imm %j int64, 0 int64
-// CHECK: 8: [...] jmp label %bb3
-// CHECK: 9: [R3] %1 = int.cmp_lt %j int64, %i int64
-// CHECK: 10: [...] branch %1 bool, label %bb4, label %bb5
-// CHECK: 11: [R4] %2 = local int64
-// CHECK: 12: [...] move %2 int64, %j int64
-// CHECK: 13: [...] call @print [path = 'std/builtin'], 1
-// CHECK: 14: [R3] %3 = int.add_imm %j int64, 1 int64
-// CHECK: 15: [...] move %j int64, %3 int64
-// CHECK: 16: [...] jmp label %bb3
-// CHECK: 17: [R2] %4 = int.add_imm %i int64, 1 int64
-// CHECK: 18: [...] move %i int64, %4 int64
-// CHECK: 19: [...] jmp label %bb1
-
+// CHECK: 3: [R2] %0 = int.cmp_ge_imm %n int64, 0 int64
+// CHECK: 4: [...] branch %0 bool, label %bb1, label %bb4
+// CHECK: 5: [R2] %j = local int64
+// CHECK: 6: [...] load_int_imm %j int64, 0 int64
+// CHECK: 7: [R3] %1 = int.cmp_ge_imm %i int64, 0 int64
+// CHECK: 8: [...] branch %1 bool, label %bb2, label %bb3
+// CHECK: 9: [R4] %2 = local int64
+// CHECK: 10: [...] move %2 int64, %j int64
+// CHECK: 11: [...] call @print [path = 'std/builtin'], 1
+// CHECK: 12: [R3] %3 = int.add_imm %j int64, 1 int64
+// CHECK: 13: [...] move %j int64, %3 int64
+// CHECK: 14: [R3] %4 = int.cmp_lt %j int64, %i int64
+// CHECK: 15: [...] branch %4 bool, label %bb2, label %bb3
+// CHECK: 16: [R2] %5 = int.add_imm %i int64, 1 int64
+// CHECK: 17: [...] move %i int64, %5 int64
+// CHECK: 18: [R2] %6 = int.cmp_lt %i int64, %n int64
+// CHECK: 19: [...] branch %6 bool, label %bb1, label %bb4
 
 func test_diamond(c bool, a int) int {
     if (c) {

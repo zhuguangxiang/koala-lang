@@ -44,7 +44,9 @@ func foo() {
 
 // CHECK: %3 = add %i int64, 1 int64
 // CHECK: move %i int64, %3 int64
-// CHECK: jmp label %bb1
+// CHECK: %4 = cmplt %i int64, 10 int64
+// CHECK: branch %4 bool, label %bb2, label %bb3
+
 
 func test_dead_block(n int) int {
     if (n > 10) {

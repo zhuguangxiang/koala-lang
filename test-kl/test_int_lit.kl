@@ -2,11 +2,10 @@
 
 let NUM = 18_446_744_073_709_551_616
 // CHECK: Number 18_446_744_073_709_551_616 is out of int range
-// CHECK-NEXT: expected an expr.
 
 let NUM2 int64 = -9223372036854775809
 // CHECK-NEXT: Number -9223372036854775809 is out of int range
-// CHECK-NEXT: expected an expr.
+// CHECK-NEXT: Value -9223372036854775809 overflows 'int64' range
 
 var v int = 400
 var v2 int16 = 128
@@ -20,8 +19,6 @@ var v8 uint64 = 100
 var v9 int64 = 18446744073709551615 // Error: Value 18446744073709551615 overflows 'int64' range
 
 // CHECK-NEXT: Value 18446744073709551615 overflows 'int64' range
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: int64 =/= rhs: uint64
 
 // int64 max is 9223372036854775807 and min is -9223372036854775808
 var a int64 = -9223372036854775808;
@@ -29,8 +26,6 @@ var a int64 = -9223372036854775808;
 var a1 uint8 = -129
 
 // CHECK-NEXT: Value -129 overflows 'uint8' range
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: uint8 =/= rhs: int64
 
 var q = 100
 var r = 9223372036854775808
@@ -55,24 +50,14 @@ var m int8 = 128         // Error: 128 > 127 (strict decimal checking)
 var n uint8 = 256        // Error: 256 > 255
 
 // CHECK-NEXT: Value 128 overflows 'int8' range
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: int8 =/= rhs: int64
-
 // CHECK-NEXT: Value 256 overflows 'uint8' range
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: uint8 =/= rhs: int64
 
 // --- Non-decimal Physical Bounds (Bit-width Protection) ---
 var o int8 = 0x100       // Error: physically exceeds 8 bits (Bit pattern exceeds width)
 var p uint16 = 0x1FFFF   // Error: physically exceeds 16 bits
 
 // CHECK-NEXT: Bit pattern exceeds the bit width of 'int8'
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: int8 =/= rhs: uint64
-
 // CHECK-NEXT: Bit pattern exceeds the bit width of 'uint16'
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: uint16 =/= rhs: uint64
 
 // --- Negative Bounds & Sign Protection ---
 var q1 uint32 = -1       // Error: cannot assign negative value to unsigned type
@@ -80,22 +65,12 @@ var r1 uint64 = -0x1     // Error: negative hex literal forbidden for unsigned t
 var s int8 = -129        // Error: value below int8 lower limit
 
 // CHECK-NEXT: Value -1 overflows 'uint32' range
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: uint32 =/= rhs: int64
-
 // CHECK-NEXT: Negative hex literal -0x1 overflows 'uint64' range
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: uint64 =/= rhs: int64
-
 // CHECK-NEXT: Value -129 overflows 'int8' range
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: int8 =/= rhs: int64
 
 var t int8 = -0xFF       // Error: value -255 is below int8 lower limit (-128)
 
 // CHECK-NEXT: Negative hex literal -0xFF overflows 'int8' range
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: int8 =/= rhs: int64
 
 var w int32 = -0x7FFFFFFF // Success: -2147483647
 var x int32 = -0x80000000 // Success: -2147483648 (bit pattern for int32 min)
@@ -114,15 +89,11 @@ var z1 int8 = 0x88 // Success: -120 (overflow/truncated to int8)
 var v5 int8 = 300 // Error: constant 300 overflows int8 (if applicable)
 
 // CHECK-NEXT: Value 300 overflows 'int8' range
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: int8 =/= rhs: int64
 
 var z12 int8 = 0x88 // Success: -120 (interpreted as bit pattern)
 
 var z2 int8 = -0x88 // Error: value -136 overflows int8 range
 
 // CHECK-NEXT: Negative hex literal -0x88 overflows 'int8' range
-// CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: int8 =/= rhs: int64
 
 // CHECK-NOT: {{.}}

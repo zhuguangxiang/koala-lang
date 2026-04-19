@@ -40,15 +40,14 @@ func test_while(n int) {
 // CHECK: %bb0(entry):
 // CHECK: %i = local int64
 // CHECK: load_int_imm %i int64, 0 int64
-// CHECK: jmp label %bb1
-// CHECK: %bb1(while-cond):
-// CHECK: %0 = int.cmp_lt %i int64, %n int64
-// CHECK: branch %0 bool, label %bb2, label %bb3
-// CHECK: %bb2(while-body):
+// CHECK: %0 = int.cmp_ge_imm %n int64, 0 int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: %bb1(while-body):
 // CHECK: %1 = int.add_imm %i int64, 1 int64
 // CHECK: move %i int64, %1 int64
-// CHECK: jmp label %bb1
-// CHECK: %bb3(while-end):
+// CHECK: %2 = int.cmp_lt %i int64, %n int64
+// CHECK: branch %2 bool, label %bb1, label %bb2
+// CHECK: %bb2(while-end):
 // CHECK: ret void
 
 func test_nested_loop(n int) {
@@ -68,31 +67,29 @@ func test_nested_loop(n int) {
 
 // CHECK: %i = local int64
 // CHECK: load_int_imm %i int64, 0 int64
-// CHECK: jmp label %bb1
-
-// CHECK: %0 = int.cmp_lt %i int64, %n int64
-// CHECK: branch %0 bool, label %bb2, label %bb3
+// CHECK: %0 = int.cmp_ge_imm %n int64, 0 int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
 
 
 // CHECK: %j = local int64
 // CHECK: load_int_imm %j int64, 0 int64
-// CHECK: jmp label %bb4
+// CHECK: %1 = int.cmp_ge_imm %i int64, 0 int64
+// CHECK: branch %1 bool, label %bb3, label %bb4
 
 // CHECK: ret void
-
-// CHECK: %1 = int.cmp_lt %j int64, %i int64
-// CHECK: branch %1 bool, label %bb5, label %bb6
 
 // CHECK: %2 = local int64
 // CHECK: move %2 int64, %j int64
 // CHECK: call @print [path = 'std/builtin'], 1
 // CHECK: %3 = int.add_imm %j int64, 1 int64
 // CHECK: move %j int64, %3 int64
-// CHECK: jmp label %bb4
+// CHECK: %4 = int.cmp_lt %j int64, %i int64
+// CHECK: branch %4 bool, label %bb3, label %bb4
 
-// CHECK: %4 = int.add_imm %i int64, 1 int64
-// CHECK: move %i int64, %4 int64
-// CHECK: jmp label %bb1
+// CHECK: %5 = int.add_imm %i int64, 1 int64
+// CHECK: move %i int64, %5 int64
+// CHECK: %6 = int.cmp_lt %i int64, %n int64
+// CHECK: branch %6 bool, label %bb1, label %bb2
 
 var b = true
 

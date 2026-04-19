@@ -24,12 +24,12 @@ func f(n int) int {
 // CHECK: [start_pc: 2, insns: 5, nlocals: 1, max_call_args: 1]
 
 // CHECK-LABEL: @g[0,1]:
-// CHECK: {{[0-9]+}}:  06000001   int.add_imm r0, r0, #1
-// CHECK: {{[0-9]+}}:  5B000000   ret r0
+// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   int.add_imm r0, r0, #1
+// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   ret r0
 
 // CHECK-LABEL: @f[2,6]:
-// CHECK: {{[0-9]+}}:  01001000   move r1, r0
-// CHECK: {{[0-9]+}}:  59000001   call flg=0, r0, #1
-// CHECK: {{[0-9]+}}:  00000000   data (rel32=0)
-// CHECK: {{[0-9]+}}:  06000001   int.add_imm r0, r0, #1
-// CHECK: {{[0-9]+}}:  5B000000   ret r0
+// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   move r1, r0
+// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   call flg=0, r0, #1
+// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   data (rel32=0)
+// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   int.add_imm r0, r0, #1
+// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   ret r0

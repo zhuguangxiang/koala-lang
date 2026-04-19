@@ -20,10 +20,6 @@ Expr *expr_from_lit_int(char *orginal, int sign, int bit_mode, __int128 val)
     exp->ival_128 = val;
     exp->ival = 0;
     exp->ts = sign ? int64_type_spec() : uint64_type_spec();
-
-    // fprintf(stderr, "LitExpr addr = %p, mod 16 = %ld\n", (void *)exp,
-    //         (long)((uintptr_t)exp & 0xF));
-
     return (Expr *)exp;
 }
 

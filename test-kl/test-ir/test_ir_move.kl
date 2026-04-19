@@ -95,40 +95,14 @@ func test_loop(n int64) int64 {
 // CHECK: move %i int64, 0 int64
 // CHECK: %sum = local int64
 // CHECK: move %sum int64, 0 int64
-// CHECK: jmp label %bb1
-
 // CHECK: %0 = cmplt %i int64, %n int64
-// CHECK: branch %0 bool, label %bb2, label %bb3
+// CHECK: branch %0 bool, label %bb1, label %bb2
 
 // CHECK: %1 = add %sum int64, %i int64
 // CHECK: move %sum int64, %1 int64
 // CHECK: %2 = add %i int64, 1 int64
 // CHECK: move %i int64, %2 int64
-// CHECK: jmp label %bb1
+// CHECK: %3 = cmplt %i int64, %n int64
+// CHECK: branch %3 bool, label %bb1, label %bb2
 
 // CHECK: ret %sum int64
-
-/*
-func @test_loop(%n int64) int64 {
-  %entry:
-        %i = local int64
-        move %i int64, 0 int64
-        %sum = local int64
-        move %sum int64, 0 int64
-        jmp label %bb0
-
-  %bb0(while-cond):                               ;; preds = %entry, %bb1
-        %0 = cmplt %i int64, %n int64
-        branch %0 bool, label %bb1, label %bb2
-
-  %bb1(while-body):                               ;; preds = %bb0
-        %1 = add %sum int64, %i int64
-        move %sum int64, %1 int64
-        %2 = add %i int64, 1 int64
-        move %i int64, %2 int64
-        jmp label %bb0
-
-  %bb2(while-end):                                ;; preds = %bb0
-        ret %sum int64
-  }
-*/

@@ -1808,6 +1808,17 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);
+    if (lhs->ts) {
+        if (lhs->ts->kind == TYPE_INT) {
+            if (lhs->ts->int_flt_info.sign) {
+                lhs->ts = int64_type_spec();
+            } else {
+                lhs->ts = uint64_type_spec();
+            }
+            log_info("update integer type to %s",
+                     lhs->ts->int_flt_info.sign ? "int64" : "uint64");
+        }
+    }
 
     rhs->ctx = EXPR_CTX_LOAD;
     rhs->expected = lhs->ts;
@@ -1909,7 +1920,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
     ASSERT(arg_info);
 
     TypeSpec *arg_ts = arg_info->ts;
-    if (arg_ts != rhs->ts) {
+    if (!type_spec_compatible(arg_ts, rhs->ts)) {
         kl_error(bin->op_loc, "argument type mismatch for operator '%s' of type '%s'.",
                  get_binary_op_str(op), sym->name);
         log_info("expected type:");

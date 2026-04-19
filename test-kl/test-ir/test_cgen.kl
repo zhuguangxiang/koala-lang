@@ -33,17 +33,17 @@ func test_while(n int) {
     }
 }
 
-// CHECK-LABEL: ====== Linearization @test_while(start_pc: 19, insns: 6) ======
+// CHECK-LABEL: ====== Linearization @test_while(start_pc: 19, insns: 8) ======
 // CHECK: %bb-1(entry):
 // CHECK: {{[0-9]+}}:  load_int_imm r1, #0
-
-// CHECK: %bb-1(while-cond):
-// CHECK: {{[0-9]+}}:  int.cmplt r2, r1, r0
-// CHECK: {{[0-9]+}}:  jmp_false r2, 2              ;; -> %bb-1(while-end)
+// CHECK: {{[0-9]+}}:  int.cmpge_imm r2, r0, #0
+// CHECK: {{[0-9]+}}:  jmp_false r2, 4              ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
 // CHECK: {{[0-9]+}}:  int.add_imm r1, r1, #1
-// CHECK: {{[0-9]+}}:  jmp -4                       ;; -> %bb-1(while-cond)
+// CHECK: {{[0-9]+}}:  int.cmplt r2, r1, r0
+// CHECK: {{[0-9]+}}:  jmp_true r2, -3              ;; -> %bb-1(while-body)
+// CHECK: {{[0-9]+}}:  jmp 0                        ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-end):
 // CHECK: {{[0-9]+}}:  ret_void
@@ -60,32 +60,32 @@ func test_nested_loop(n int) {
     }
 }
 
-// CHECK-LABEL: ====== Linearization @test_nested_loop(start_pc: 25, insns: 14) ======
+// CHECK-LABEL: ====== Linearization @test_nested_loop(start_pc: 27, insns: 18) ======
 
 // CHECK: %bb-1(entry):
 // CHECK: {{[0-9]+}}:  load_int_imm r1, #0
-
-// CHECK: %bb-1(while-cond):
-// CHECK: {{[0-9]+}}:  int.cmplt r2, r1, r0
-// CHECK: {{[0-9]+}}:  jmp_false r2, 10             ;; -> %bb-1(while-end)
+// CHECK: {{[0-9]+}}:  int.cmpge_imm r2, r0, #0
+// CHECK: {{[0-9]+}}:  jmp_false r2, 14             ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
 // CHECK: {{[0-9]+}}:  load_int_imm r2, #0
-
-// CHECK: %bb-1(while-cond):
-// CHECK: {{[0-9]+}}:  int.cmplt r3, r2, r1
-// CHECK: {{[0-9]+}}:  jmp_false r3, 5              ;; -> %bb-1(while-end)
+// CHECK: {{[0-9]+}}:  int.cmpge_imm r3, r1, #0
+// CHECK: {{[0-9]+}}:  jmp_false r3, 7              ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
 // CHECK: {{[0-9]+}}:  move r4, r2
 // CHECK: {{[0-9]+}}:  call flg=1, #1
 // CHECK: {{[0-9]+}}:  data
 // CHECK: {{[0-9]+}}:  int.add_imm r2, r2, #1
-// CHECK: {{[0-9]+}}:  jmp -7                       ;; -> %bb-1(while-cond)
+// CHECK: {{[0-9]+}}:  int.cmplt r3, r2, r1
+// CHECK: {{[0-9]+}}:  jmp_true r3, -6              ;; -> %bb-1(while-body)
+// CHECK: {{[0-9]+}}:  jmp 0                        ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-end):
 // CHECK: {{[0-9]+}}:  int.add_imm r1, r1, #1
-// CHECK: {{[0-9]+}}:  jmp -12                      ;; -> %bb-1(while-cond)
+// CHECK: {{[0-9]+}}:  int.cmplt r2, r1, r0
+// CHECK: {{[0-9]+}}:  jmp_true r2, -13             ;; -> %bb-1(while-body)
+// CHECK: {{[0-9]+}}:  jmp 0                        ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-end):
 // CHECK: {{[0-9]+}}:  ret_void
@@ -120,7 +120,7 @@ func test_add(n int) int {
     return b
 }
 
-// CHECK-LABEL: ====== Linearization @test_add(start_pc: 41, insns: 4) ======
+// CHECK-LABEL: ====== Linearization @test_add(start_pc: 47, insns: 4) ======
 
 // CHECK: %bb-1(entry):
 // CHECK: {{[0-9]+}}:  load_int_imm r1, #500
@@ -144,7 +144,7 @@ func test_call(n int) int {
         return test_add(20)
     }
 }
-// CHECK-LABEL: ====== Linearization @test_call(start_pc: 52, insns: 4) ======
+// CHECK-LABEL: ====== Linearization @test_call(start_pc: 58, insns: 4) ======
 
 // CHECK: %bb-1(entry):
 // CHECK: {{[0-9]+}}:  loadk r1, #0

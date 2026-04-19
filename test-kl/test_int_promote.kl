@@ -1,0 +1,10 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+func test(n int8) int {
+    var a int8 = -100
+    a = a + a
+    return a
+}
+
+// CHECK: Types of two sides are not matched
+// CHECK: lhs: int8 =/= rhs: int64

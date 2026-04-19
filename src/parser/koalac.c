@@ -31,7 +31,7 @@ static void usage(void)
         "\nUsage: koalac [<options>] <package>|<file.kl>\n\n"
         "options:\n"
         "  -o <file>        Place the output into <file>.\n"
-        "  --genir          Enable IR generation stage.\n"
+        "  --irgen          Enable IR generation stage.\n"
         "  --opt            Enable optimization passes (default).\n"
         "  --isel           Enable instruction selection stage.\n"
         "  --lsra           Enable linear scan register allocator.\n"
@@ -132,7 +132,7 @@ static void parse_command(int argc, char *argv[])
     struct option options[] = {
         { "version", no_argument, NULL, 'v' },
         { "help", no_argument, NULL, 'h' },
-        { "genir", no_argument, 0, 1 },
+        { "irgen", no_argument, 0, 1 },
         { "opt", no_argument, 0, 2 },
         { "isel", no_argument, 0, 3 },
         { "lsra", no_argument, 0, 4 },
