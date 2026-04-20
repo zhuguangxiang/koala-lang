@@ -271,7 +271,7 @@ void exit_scope(ParserState *ps)
     --ps->depth;
 }
 
-static FuncSymbol *get_current_function(ParserState *ps)
+FuncSymbol *get_current_function(ParserState *ps)
 {
     ParserScope *sc = ps->scope;
     while (sc) {

@@ -13,7 +13,12 @@ extern "C" {
 
 KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m)
 {
-    KlrConst key = { .which = CONST_INT, .ival = val };
+    int width = ts->int_flt_info.width;
+
+    KlrConst key = {
+        .kind = KLR_VALUE_CONST, .which = CONST_INT, .len = width, .ival = val
+    };
+
     hashmap_entry_init(&key.hnode, mem_hash(&val, sizeof(val)));
     void *entry = hashmap_get(&m->consts, &key.hnode);
     if (entry) {
@@ -23,6 +28,7 @@ KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m)
     KlrConst *lit = mm_alloc_obj(lit);
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_INT;
+    lit->len = width;
     lit->ival = val;
     hashmap_entry_init(&lit->hnode, mem_hash(&val, sizeof(val)));
     hashmap_put(&m->consts, &lit->hnode);
@@ -31,7 +37,12 @@ KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m)
 
 KlrValue *klr_const_uint(uint64_t val, TypeSpec *ts, KlrModule *m)
 {
-    KlrConst key = { .which = CONST_UINT, .ival = val };
+    int width = ts->int_flt_info.width;
+
+    KlrConst key = {
+        .kind = KLR_VALUE_CONST, .which = CONST_UINT, .len = width, .ival = val
+    };
+
     hashmap_entry_init(&key.hnode, mem_hash(&val, sizeof(val)));
     void *entry = hashmap_get(&m->consts, &key.hnode);
     if (entry) {
@@ -41,6 +52,7 @@ KlrValue *klr_const_uint(uint64_t val, TypeSpec *ts, KlrModule *m)
     KlrConst *lit = mm_alloc_obj(lit);
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_UINT;
+    lit->len = width;
     lit->ival = val;
     hashmap_entry_init(&lit->hnode, mem_hash(&val, sizeof(val)));
     hashmap_put(&m->consts, &lit->hnode);
@@ -49,7 +61,12 @@ KlrValue *klr_const_uint(uint64_t val, TypeSpec *ts, KlrModule *m)
 
 KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m)
 {
-    KlrConst key = { .which = CONST_FLT, .fval = val };
+    int width = ts->int_flt_info.width;
+
+    KlrConst key = {
+        .kind = KLR_VALUE_CONST, .which = CONST_FLT, .len = width, .fval = val
+    };
+
     hashmap_entry_init(&key.hnode, mem_hash(&val, sizeof(val)));
     void *entry = hashmap_get(&m->consts, &key.hnode);
     if (entry) {
@@ -59,6 +76,7 @@ KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m)
     KlrConst *lit = mm_alloc_obj(lit);
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_FLT;
+    lit->len = width;
     lit->fval = val;
     hashmap_entry_init(&lit->hnode, mem_hash(&val, sizeof(val)));
     hashmap_put(&m->consts, &lit->hnode);
@@ -67,7 +85,7 @@ KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m)
 
 KlrValue *klr_const_bool(int v, KlrModule *m)
 {
-    KlrConst key = { .which = CONST_BOOL, .bval = v };
+    KlrConst key = { .kind = KLR_VALUE_CONST, .which = CONST_BOOL, .bval = v };
     hashmap_entry_init(&key.hnode, mem_hash(&v, sizeof(v)));
     void *entry = hashmap_get(&m->consts, &key.hnode);
     if (entry) {
@@ -86,7 +104,7 @@ KlrValue *klr_const_bool(int v, KlrModule *m)
 
 KlrValue *klr_const_str(char *s, int len, KlrModule *m)
 {
-    KlrConst key = { .which = CONST_STR, .sval = s, .len = len };
+    KlrConst key = { .kind = KLR_VALUE_CONST, .which = CONST_STR, .sval = s, .len = len };
     hashmap_entry_init(&key.hnode, mem_hash(s, len));
     void *entry = hashmap_get(&m->consts, &key.hnode);
     if (entry) {
@@ -106,7 +124,9 @@ KlrValue *klr_const_str(char *s, int len, KlrModule *m)
 
 KlrValue *klr_const_none(KlrModule *m)
 {
-    KlrConst key = { .which = CONST_NONE, .sval = "none", .len = 4 };
+    KlrConst key = {
+        .kind = KLR_VALUE_CONST, .which = CONST_NONE, .sval = "none", .len = 4
+    };
     hashmap_entry_init(&key.hnode, mem_hash("none", 4));
     void *entry = hashmap_get(&m->consts, &key.hnode);
     if (entry) {
@@ -440,6 +460,10 @@ static int __const_eq__(void *e1, void *e2)
     KlrConst *k2 = CONTAINER_OF(e2, KlrConst, hnode);
 
     if (k1->which != k2->which) {
+        return 0;
+    }
+
+    if (k1->len != k2->len) {
         return 0;
     }
 

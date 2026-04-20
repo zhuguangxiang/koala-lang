@@ -18,7 +18,15 @@ int klr_normalize_pass(KlrFunc *fn, void *data)
     basic_block_foreach(bb, fn) {
         KlrInsn *insn;
         insn_foreach(insn, bb) {
-            if (insn->code == OP_BINARY_CMPLT) {
+            if (insn->code == OP_BINARY_ADD) {
+                KlrValue *lhs = insn_oper_value(insn, 0);
+                KlrValue *rhs = insn_oper_value(insn, 1);
+                if (klr_is_const(lhs) && !klr_is_const(rhs)) {
+                    set_operand_at(insn, 0, rhs);
+                    set_operand_at(insn, 1, lhs);
+                    change = 1;
+                }
+            } else if (insn->code == OP_BINARY_CMPLT) {
                 KlrValue *lhs = insn_oper_value(insn, 0);
                 KlrValue *rhs = insn_oper_value(insn, 1);
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {

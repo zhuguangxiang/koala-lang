@@ -113,6 +113,15 @@ static void print_ret_uint_imm(KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[0], fp);
 }
 
+static void print_ir_cast(KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = cast ");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, " to");
+    print_type(insn->ts, fp);
+}
+
 static void print_ret_tag(KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "ret_tag ");
@@ -830,6 +839,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_RET_UINT_IMM:
             print_ret_uint_imm(insn, fp);
+            break;
+
+        case OP_IR_CAST:
+            print_ir_cast(insn, fp);
             break;
 
         default:

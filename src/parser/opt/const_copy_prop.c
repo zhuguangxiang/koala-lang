@@ -94,6 +94,30 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
         } \
     }
 
+#define DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(opname, op) \
+    static void __fold_binary_##opname##_insn(KlrInsn *insn, KlrModule *m) \
+    { \
+        KlrValue *lhs = insn_oper_value(insn, 0); \
+        KlrValue *rhs = insn_oper_value(insn, 1); \
+        if (klr_is_const(lhs) && klr_is_const(rhs)) { \
+            KlrConst *lval = (KlrConst *)lhs; \
+            KlrConst *rval = (KlrConst *)rhs; \
+            if (lval->which == CONST_INT && rval->which == CONST_INT) { \
+                log_info("fold binary" #opname "insn to const int:"); \
+                log_insn(insn); \
+                int64_t res = (int64_t)lval->ival op (int64_t)rval->ival; \
+                KlrValue *const_res = klr_const_int(res, lval->ts, m); \
+                replace_all_uses_with(const_res, (KlrValue *)insn); \
+            } else if (lval->which == CONST_UINT && rval->which == CONST_UINT) { \
+                log_info("fold binary" #opname "insn to const uint:"); \
+                log_insn(insn); \
+                uint64_t res = lval->ival op rval->ival; \
+                KlrValue *const_res = klr_const_uint(res, lval->ts, m); \
+                replace_all_uses_with(const_res, (KlrValue *)insn); \
+            } \
+        } \
+    }
+
 // clang-format on
 
 DEFINE_FOLD_BINARY_FUNC(add)
@@ -101,6 +125,9 @@ DEFINE_FOLD_BINARY_FUNC(sub)
 DEFINE_FOLD_BINARY_FUNC(mul)
 DEFINE_FOLD_BINARY_FUNC(div)
 DEFINE_FOLD_BINARY_FUNC(mod)
+DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(and, &)
+DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(or, |)
+DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(xor, ^)
 
 static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 {
@@ -185,6 +212,19 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
 
         case OP_BINARY_MOD: {
             __fold_binary_mod_insn(insn, m);
+            break;
+        }
+
+        case OP_BINARY_AND: {
+            __fold_binary_and_insn(insn, m);
+            break;
+        }
+        case OP_BINARY_OR: {
+            __fold_binary_or_insn(insn, m);
+            break;
+        }
+        case OP_BINARY_XOR: {
+            __fold_binary_xor_insn(insn, m);
             break;
         }
 
@@ -551,6 +591,9 @@ previous store insns will be removed.
 */
 int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
 {
+    KlrModule *m = fn->module;
+    int changed = 0;
+
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
         klr_clear_local_var_map(bb);
@@ -566,6 +609,32 @@ int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
             KlrInsn *insn = queue_pop(&wklist);
             do_propagate(insn, fn, &wklist);
             do_fold(insn, fn, &wklist);
+        }
+
+        insn_foreach(insn, bb) {
+            if (insn->code == OP_IR_CAST) {
+                KlrValue *src = insn_oper_value(insn, 0);
+                if (klr_is_const(src)) {
+                    KlrConst *c = (KlrConst *)src;
+                    KlrValue *v = klr_const_int(c->ival, insn->ts, m);
+                    replace_all_uses_with(v, (KlrValue *)insn);
+                    changed = 1;
+                }
+            }
+        }
+
+        if (changed) {
+            changed = 0;
+
+            insn_foreach(insn, bb) {
+                queue_push(&wklist, insn);
+            }
+
+            while (!queue_empty(&wklist)) {
+                KlrInsn *insn = queue_pop(&wklist);
+                do_propagate(insn, fn, &wklist);
+                do_fold(insn, fn, &wklist);
+            }
         }
     }
 

@@ -263,8 +263,34 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
         res = klr_build_cmp(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op), "");
         exp->ir_val = res;
     } else {
-        res = klr_build_binary(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op),
-                               "", get_binary_op_name(op));
+        KlrValue *cast_lhs = lhs->ir_val;
+        KlrValue *cast_rhs = rhs->ir_val;
+
+        TypeSpec *lhs_ts = cast_lhs->ts;
+        TypeSpec *rhs_ts = cast_rhs->ts;
+
+        if (type_is_int(lhs_ts)) {
+            if (lhs_ts->int_flt_info.width < 8) {
+                cast_lhs = klr_build_cast(&bldr, cast_lhs, int64_type_spec(), "");
+            }
+        } else if (type_is_uint(lhs_ts)) {
+            if (lhs_ts->int_flt_info.width < 8) {
+                cast_lhs = klr_build_cast(&bldr, cast_lhs, uint64_type_spec(), "");
+            }
+        }
+
+        if (type_is_int(rhs_ts)) {
+            if (rhs_ts->int_flt_info.width < 8) {
+                cast_rhs = klr_build_cast(&bldr, cast_rhs, int64_type_spec(), "");
+            }
+        } else if (type_is_int(rhs_ts)) {
+            if (rhs_ts->int_flt_info.width < 8) {
+                cast_rhs = klr_build_cast(&bldr, cast_rhs, uint64_type_spec(), "");
+            }
+        }
+
+        res = klr_build_binary(&bldr, cast_lhs, cast_rhs, get_binary_op_code(op), "",
+                               get_binary_op_name(op));
         exp->ir_val = res;
     }
 
@@ -397,6 +423,7 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     ParserScope *scope = enter_scope(ps, SCOPE_FUNC, 0, fn->id.name);
     KlrBasicBlock *entry = klr_append_block(sym->ir_val, "entry");
     scope->bb = entry;
+    scope->sym = sym;
 
     Stmt *s;
     vector_foreach(s, fn->body) {
@@ -434,9 +461,18 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     emit_ir_visit_expr(ps, exp);
     if (!exp->ir_val) return;
 
+    FuncSymbol *fn_sym = get_current_function(ps);
+    TypeSpec *fn_ret_ts = fn_sym->ret;
+
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
-    klr_build_ret(&bldr, exp->ir_val);
+
+    KlrValue *cast = exp->ir_val;
+    TypeSpec *cast_ts = cast->ts;
+    if (cast_ts != fn_ret_ts) {
+        cast = klr_build_cast(&bldr, cast, fn_ret_ts, "");
+    }
+    klr_build_ret(&bldr, cast);
 
     // add a dead block after return to avoid generating code after return
     // ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");

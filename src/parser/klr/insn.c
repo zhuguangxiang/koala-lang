@@ -455,6 +455,20 @@ KlrInsn *klr_build_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val, OpCode o
     return insn;
 }
 
+KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char *name)
+{
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
+        val->kind != KLR_VALUE_PARAM) {
+        panic("'int_cast' op requires a reg value or const");
+    }
+
+    KlrInsn *insn = new_insn(OP_IR_CAST, 1, name);
+    init_oper(&insn->opers[0], insn, val, 0);
+    insn->ts = dst_ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
 #ifdef __cplusplus
 }
 #endif

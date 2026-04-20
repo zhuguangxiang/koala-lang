@@ -1809,13 +1809,16 @@ static void parse_binary(ParserState *ps, Expr *exp)
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);
     if (lhs->ts) {
+        TypeSpec *orig_ts = lhs->ts;
         if (lhs->ts->kind == TYPE_INT) {
             if (lhs->ts->int_flt_info.sign) {
                 lhs->ts = int64_type_spec();
             } else {
                 lhs->ts = uint64_type_spec();
             }
-            log_info("update integer type to %s",
+            log_info("promote integer type from %s%d to %s",
+                     orig_ts->int_flt_info.sign ? "int" : "uint",
+                     orig_ts->int_flt_info.width * 8,
                      lhs->ts->int_flt_info.sign ? "int64" : "uint64");
         }
     }

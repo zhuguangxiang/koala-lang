@@ -874,6 +874,8 @@ void klr_build_rpo(KlrFunc *fn);
         (m)->errors++; \
     } while (0)
 
+KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char *name);
+
 #ifdef __cplusplus
 }
 #endif

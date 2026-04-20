@@ -1,0 +1,21 @@
+// RUN: koalac %s --cgen --dump=no-opt-ir,lir,code | filecheck %s
+
+func test_int_2(n int8) int {
+    var a int8 = 127
+    let b = (a | 128)
+    return b
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @test_int_2(%n int8) int64
+// CHECK: %a = local int8
+// CHECK: move %a int8, 127 int8
+// CHECK: %0 = cast %a int8 to int64
+// CHECK: %1 = or %0 int64, 128 int64
+// CHECK: %b = local [immutable] int64
+// CHECK: move %b int64, %1 int64
+// CHECK: ret %b int64
+
+// CHECK-LABEL: --- IR Dump After isel [@test_int_2] ---
+// CHECK-LABEL: func @test_int_2(%n int8) int64
+// CHECK: ret_int_imm 255 int64

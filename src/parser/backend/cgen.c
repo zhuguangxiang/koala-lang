@@ -704,6 +704,12 @@ static void linearize(KlMachFunc *mfn, KlMachModule *m)
                 continue;
             }
 
+            if (insn->code == OP_IR_CAST) {
+                KlrValue *src = insn_oper_value(insn, 0);
+                ASSERT(insn->vreg == src->vreg);
+                continue;
+            }
+
             if (insn_is(insn, OP_MOVE)) {
                 KlrValue *dst = insn_oper_value(insn, 0);
                 KlrValue *src = insn_oper_value(insn, 1);

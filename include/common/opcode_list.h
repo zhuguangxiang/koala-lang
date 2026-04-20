@@ -1765,6 +1765,7 @@ X(OP_IR_LOCAL,      FORMAT_IR)
 X(OP_IR_CALL,       FORMAT_IR)
 X(OP_IR_SELECT,     FORMAT_IR)
 X(OP_IR_JMP_COND,   FORMAT_IR)
+X(OP_IR_CAST,   FORMAT_IR)
 X(OP_IR_PHI,        FORMAT_IR)
 
 /* Non-executable data slot (pseudo-instruction) */

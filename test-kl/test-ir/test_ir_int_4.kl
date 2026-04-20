@@ -1,0 +1,27 @@
+// RUN: koalac %s --cgen --dump=no-opt-ir,lir,code | filecheck %s
+
+func test_int_4(n int8) int {
+    let b = (n | 128)
+    return b
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @test_int_4(%n int8) int64
+// CHECK: %0 = cast %n int8 to int64
+// CHECK: %1 = or %0 int64, 128 int64
+// CHECK: %b = local [immutable] int64
+// CHECK: move %b int64, %1 int64
+// CHECK: ret %b int64
+
+// CHECK-LABEL: --- IR Dump After isel [@test_int_4] ---
+// CHECK-LABEL: func @test_int_4(%n int8) int64
+// CHECK: %0 = cast %n int8 to int64
+// CHECK: %1 = local [immutable] int64
+// CHECK: load_int_imm %1 int64, 128 int64
+// CHECK: %2 = int.or %0 int64, %1 int64
+// CHECK: ret %2 int64
+
+// CHECK-LABEL: ====== Linearization @test_int_4(start_pc: 0, insns: 3) ======
+// CHECK: {{[0-9]+}}:  load_int_imm r1, #128
+// CHECK: {{[0-9]+}}:  int.or r0, r0, r1
+// CHECK: {{[0-9]+}}:  ret r0
