@@ -297,11 +297,21 @@ static inline int is_binary(OpCode op)
     return (op >= OP_INT_ADD && op <= OP_INT_CMPGE_IMM) ||
            (op >= OP_UINT_ADD_IMM && op <= OP_UINT_CMPGE_IMM) ||
            (op >= OP_FLOAT_ADD && op <= OP_FLOAT_CMPGE) ||
-           (op >= OP_LAND && op <= OP_LNOT);
+           (op >= OP_LAND && op <= OP_LOR);
 }
 
 static inline int is_move(OpCode op) { return op >= OP_MOVE && op <= OP_LOADK; }
 static inline int is_return(OpCode op) { return op >= OP_RET && op <= OP_RET_VOID; }
+
+static void lower_logic_not_opers(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *val = insn_oper_value(insn, 0);
+    ASSERT(klr_is_insn(val) || klr_is_param(val) || klr_is_local(val));
+
+    /* lnot reg */
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_reg(&insn->raws[1], val->vreg);
+}
 
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 {
@@ -333,6 +343,11 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_JMP: {
                     lower_jmp_opers(insn, fn);
+                    break;
+                }
+
+                case OP_LNOT: {
+                    lower_logic_not_opers(insn, fn);
                     break;
                 }
 

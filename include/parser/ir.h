@@ -507,7 +507,7 @@ KlrValue *klr_klass_add_method(KlrValue *klass, char *name, TypeSpec *ret,
                                TypeSpec **params);
 
 // ir doesn't check external symbol's type
-KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *proto, char *path, char *name);
+KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *path, char *name);
 KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name);
 
 #define local_foreach(local, func) vector_foreach_ptr(local, &(func)->locals)
@@ -690,6 +690,9 @@ KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode c
 
 #define klr_build_cmpge(bldr, lhs, rhs, name) \
     klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPGE, name)
+
+KlrValue *klr_build_unary(KlrBuilder *bldr, KlrValue *operand, OpCode op, char *name,
+                          const char *op_name);
 
 KlrValue *klr_build_select(KlrBuilder *bldr, KlrValue *cond, KlrValue *true_val,
                            KlrValue *false_val, char *name);

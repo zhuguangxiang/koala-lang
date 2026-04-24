@@ -716,6 +716,27 @@ static void linearize(KlMachFunc *mfn, KlMachModule *m)
                 if (dst->vreg == src->vreg) continue;
             }
 
+            if (insn_is(insn, OP_LNOT)) {
+                KlrInsn *next_i = insn_next(insn, bb);
+                if (insn_is(next_i, OP_IR_JMP_COND)) {
+                    KlrValue *cond = insn_oper_value(next_i, 0);
+                    ASSERT((KlrValue *)insn == cond && insn->use_count == 1);
+                    KlrValue *val = insn_oper_value(insn, 0);
+                    set_operand_at(next_i, 0, val);
+                    KlrValue *true_bb = insn_oper_value(next_i, 2);
+                    KlrValue *false_bb = insn_oper_value(next_i, 3);
+                    set_operand_at(next_i, 2, false_bb);
+                    set_operand_at(next_i, 3, true_bb);
+                    // fuse lnot + jmp_cond into a single jmp_cond with inverted condition
+                    mi = build_mach_insn(next_i->code, next_i, mb);
+                    vector_push_back(&mb->insns, &mi);
+                    vector_push_back(&mfn->branches, &mi);
+                    // skip the next jmp_cond since it's already fused
+                    insn = next_i;
+                    continue;
+                }
+            }
+
             if (insn_is(insn, OP_IR_JMP_COND) || fused_jmp(insn->code)) {
                 // don't do sel for jmp_cond here, linearize() only does build linear
                 // MachInsn, without any transformation. Do it in lower_branches()
@@ -791,9 +812,11 @@ static void lower_jmp_cond(KlMachInsn *mi)
         mi->target = bb_true->mach;
 
         // goto false
-        KlMachInsn *mi_false = build_mach_insn(OP_JMP, insn, mb);
-        mi_false->target = bb_false->mach;
-        vector_push_back(&mb->insns, &mi_false);
+        if (next && next->origin != bb_false) {
+            KlMachInsn *mi_false = build_mach_insn(OP_JMP, insn, mb);
+            mi_false->target = bb_false->mach;
+            vector_push_back(&mb->insns, &mi_false);
+        }
     }
 }
 

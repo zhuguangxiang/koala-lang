@@ -1186,13 +1186,6 @@ static int is_terminal(Stmt *stmt)
         return block->has_terminal;
     }
 
-    if (stmt->kind == STMT_EXPR_KIND) {
-        ExprStmt *exp_stmt = (ExprStmt *)stmt;
-        Expr *exp = exp_stmt->exp;
-        if (exp->kind == EXPR_PANIC_KIND) {
-            return 1;
-        }
-    }
     return 0;
 }
 

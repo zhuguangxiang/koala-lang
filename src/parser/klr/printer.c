@@ -34,6 +34,9 @@ static void print_const(KlrConst *v, FILE *fp)
 {
     int kind = v->which;
     switch (kind) {
+        case CONST_NONE:
+            fprintf(fp, "none");
+            break;
         case CONST_INT:
             fprintf(fp, "%ld", v->ival);
             break;

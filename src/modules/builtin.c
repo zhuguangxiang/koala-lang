@@ -48,8 +48,20 @@ static TValue builtin_print(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
+/*
+func panic(msg str)
+*/
+static TValue builtin_panic(TValue *self, TValue *args, int nargs)
+{
+    print_value(args);
+    printf("\n");
+    exit(1);
+    return none_value;
+}
+
 static MethodDef builtin_functions[] = {
     { "print", builtin_print },
+    { "panic", builtin_panic },
     { NULL },
 };
 

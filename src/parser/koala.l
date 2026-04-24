@@ -226,7 +226,6 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 "true"      { YY_RETURN(TRUE);      }
 "false"     { YY_RETURN(FALSE);     }
 "null"      { YY_RETURN(NONE);      }
-"panic"     { YY_RETURN(PANIC);     }
 
 "uint8"     { YY_RETURN(UINT8);     }
 "uint16"    { YY_RETURN(UINT16);    }

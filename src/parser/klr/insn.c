@@ -298,6 +298,30 @@ KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCod
     return (KlrValue *)insn;
 }
 
+KlrValue *klr_build_unary(KlrBuilder *bldr, KlrValue *operand, OpCode op, char *name,
+                          const char *op_name)
+{
+    if (operand->kind != KLR_VALUE_CONST && operand->kind != KLR_VALUE_INSN &&
+        operand->kind != KLR_VALUE_PARAM) {
+        panic("'%s %%x' requires a reg var/const", op_name);
+    }
+
+    KlrInsn *insn = new_insn(op, 1, name);
+    init_oper(&insn->opers[0], insn, operand, 0);
+
+    if (op == OP_UNARY_NEG || op == OP_UNARY_PLUS || op == OP_UNARY_NOT) {
+        TypeSpec *ty = operand->ts;
+        insn->ts = ty;
+    } else if (op == OP_LNOT) {
+        insn->ts = bool_type_spec();
+    } else {
+        UNREACHABLE();
+    }
+
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
 KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code,
                         char *name)
 {

@@ -300,15 +300,6 @@ Expr *expr_from_bang(Expr *exp)
     return (Expr *)e;
 }
 
-Expr *expr_from_panic(Expr *exp)
-{
-    PanicExpr *e = mm_alloc_obj(e);
-    e->kind = EXPR_PANIC_KIND;
-    e->exp = exp;
-    e->ts = no_type_spec();
-    return (Expr *)e;
-}
-
 static void ident_expr_free(Expr *exp) { mm_free(exp); }
 static void under_expr_free(Expr *exp) { mm_free(exp); }
 
@@ -450,7 +441,6 @@ void expr_free(Expr *exp)
         [EXPR_AS_KIND] = as_expr_free,
         [EXPR_IN_KIND] = in_expr_free,
         [EXPR_BANG_KIND] = bang_expr_free,
-        [EXPR_PANIC_KIND] = panic_expr_free,
     };
 
     free_handlers[exp->kind](exp);

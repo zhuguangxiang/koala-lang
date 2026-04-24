@@ -1757,6 +1757,7 @@ X(OP_BINARY_CMPGT,  FORMAT_IR)
 X(OP_BINARY_CMPGE,  FORMAT_IR)
 
 /* Unary ops (IR only) */
+X(OP_UNARY_PLUS,    FORMAT_IR)
 X(OP_UNARY_NEG,     FORMAT_IR)
 X(OP_UNARY_NOT,     FORMAT_IR)
 
@@ -1765,7 +1766,7 @@ X(OP_IR_LOCAL,      FORMAT_IR)
 X(OP_IR_CALL,       FORMAT_IR)
 X(OP_IR_SELECT,     FORMAT_IR)
 X(OP_IR_JMP_COND,   FORMAT_IR)
-X(OP_IR_CAST,   FORMAT_IR)
+X(OP_IR_CAST,       FORMAT_IR)
 X(OP_IR_PHI,        FORMAT_IR)
 
 /* Non-executable data slot (pseudo-instruction) */

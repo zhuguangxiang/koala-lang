@@ -432,7 +432,7 @@ static void compile(ParserModule *pm)
         kl_do_codegen(m);
     }
 
-    if (write_klc_enabled() && (m->errors == 0)) {
+    if (write_klc_enabled()) {
         write_to_klc(pm);
     }
 }

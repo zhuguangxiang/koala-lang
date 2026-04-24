@@ -257,6 +257,28 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
 
+    /*
+    if (type_is_str(lhs->ts)) {
+        ASSERT(op == BINARY_ADD);
+        KlrValue *fn = klr_add_ext_func(MOD, lhs->ts, "std/builtin", "str_add");
+        KlrValue *args[] = { lhs->ir_val, rhs->ir_val };
+        KlrValue *res = klr_build_call(&bldr, fn, args, 2, "");
+        exp->ir_val = res;
+        res->ast.filename = ps->filename;
+        res->ast.loc = exp->loc;
+        return;
+    }
+
+    if (type_is_optional(lhs->ts)) {
+        ASSERT(op == BINARY_EQ || op == BINARY_NEQ);
+        KlrValue *res = klr_build_if_null(&bldr, lhs->ir_val, rhs->ir_val, "");
+        exp->ir_val = res;
+        res->ast.filename = ps->filename;
+        res->ast.loc = exp->loc;
+        return;
+    }
+    */
+
     KlrValue *res;
 
     if (op >= BINARY_GT && op <= BINARY_NEQ) {
@@ -294,6 +316,52 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
         exp->ir_val = res;
     }
 
+    res->ast.filename = ps->filename;
+    res->ast.loc = exp->loc;
+}
+
+static void emit_ir_unary(ParserState *ps, Expr *exp)
+{
+    UnaryExpr *unary = (UnaryExpr *)exp;
+    UnOpKind op = unary->op;
+
+    Expr *e = unary->exp;
+    e->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, e);
+    if (!e->ir_val) return;
+
+    KlrValue *res = NULL;
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+
+    switch (op) {
+        case UNARY_PLUS: {
+            // unary plus is a no-op, just return the value
+            res = e->ir_val;
+            break;
+        }
+        case UNARY_NEG: {
+            res = klr_build_unary(&bldr, e->ir_val, OP_UNARY_NEG, "", "neg");
+            break;
+        }
+        case UNARY_BIT_NOT: {
+            res = klr_build_unary(&bldr, e->ir_val, OP_UNARY_NOT, "", "bit_not");
+            exp->ir_val = res;
+            res->ast.filename = ps->filename;
+            res->ast.loc = exp->loc;
+            break;
+        }
+        case UNARY_NOT: {
+            res = klr_build_unary(&bldr, e->ir_val, OP_LNOT, "", "not");
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+
+    exp->ir_val = res;
     res->ast.filename = ps->filename;
     res->ast.loc = exp->loc;
 }
@@ -372,6 +440,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_TYPE_KIND]    = emit_ir_type,
         [EXPR_CALL_KIND]    = emit_ir_call,
         [EXPR_BINARY_KIND]  = emit_ir_binary,
+        [EXPR_UNARY_KIND]   = emit_ir_unary,
         [EXPR_LIST_KIND]    = emit_ir_list,
         [EXPR_TUPLE_KIND]   = emit_ir_tuple,
     };

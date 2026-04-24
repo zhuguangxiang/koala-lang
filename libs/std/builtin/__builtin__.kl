@@ -19,3 +19,6 @@ pub func print(objs ..., sep = ' ', end = '\n') {}
 /// This function internally calls the `__len__` method of the provided object.
 @native(builtin_len)
 pub func len(obj any) int {}
+
+@native(builtin_panic)
+pub func panic(msg str) {}
