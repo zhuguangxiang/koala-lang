@@ -18,11 +18,11 @@
 extern "C" {
 #endif
 
-/* ASTNode saved in IR for reporting errors */
-typedef struct _KlrASTNodeInfo {
+/* AST Loc saved in IR for reporting errors */
+typedef struct _KlrLocInfo {
     char *filename;
     Loc loc;
-} KlrASTNodeInfo;
+} KlrLocInfo;
 
 typedef enum _KlrValueKind {
     KLR_VALUE_NONE,
@@ -63,8 +63,10 @@ typedef enum _KlrValueKind {
     char *name;             \
     /* print name */        \
     char print_name[64];    \
-    /* AST node info for error reporting */ \
-    KlrASTNodeInfo ast;
+    /* error reporting */   \
+    KlrLocInfo loc;         \
+    /* error flag */        \
+    int error;
 /* clang-format on */
 
 typedef struct _KlrValue {
@@ -396,6 +398,8 @@ typedef struct _KlrInsn {
 
     int fixedslot;
     int slotindex;
+
+    int cast_type_info;
 
     /* phi variable */
     KlrValue *phi;
@@ -780,7 +784,7 @@ void klr_add_last_return(KlrBasicBlock *bb);
 // clang-format on
 
 /* replace all uses of 'def' value with 'val' value */
-void replace_all_uses_with(KlrValue *val, KlrValue *def);
+int replace_all_uses_with(KlrValue *val, KlrValue *def);
 
 /* set/clear operand */
 void set_operand_at(KlrInsn *insn, int i, KlrValue *val);
@@ -871,13 +875,14 @@ void klr_build_rpo(KlrFunc *fn);
 
 #define klr_error(ast, fmt, ...) \
     do { \
-        Loc loc = (ast)->loc; \
-        printf(BOLD("%s:%d:%d: ") ERROR_PREFIX fmt "\n", (ast)->filename, loc.line, \
-               loc.col, ##__VA_ARGS__); \
+        Loc _loc = (ast)->loc; \
+        printf(BOLD("%s:%d:%d: ") ERROR_PREFIX fmt "\n", (ast)->filename, _loc.line, \
+               _loc.col, ##__VA_ARGS__); \
         (m)->errors++; \
     } while (0)
 
 KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char *name);
+void klr_set_loc(KlrValue *val, char *filename, Loc loc);
 
 #ifdef __cplusplus
 }

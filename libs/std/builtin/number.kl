@@ -17,12 +17,22 @@ pub trait Number[T] {
 }
 
 pub class int8 : Number[int8] {
+    // trunc to 8-bit
+    @intrinsic
+    pub func __init__(x int64 | uint64) {}
 }
 
 pub class int16 : Number[int16] {
+    // trunc to 16-bit
+    @intrinsic
+    pub func __init__(x int64 | uint64) {}
 }
 
 pub class int32 : Number[int32] {
+    // trunc to 32-bit
+    @intrinsic
+    pub func __init__(x int64 | uint64) {}
+
     @intrinsic
     pub func __add__(rhs int32) int32 {}
 }
@@ -31,7 +41,7 @@ pub class int64 : Number[int64] {
     // the 'x' canbe int or string
     // the 'base' is used when 'x' is string
     @native(kl_int64_init)
-    pub func __init__(x int | str, base = 10) {}
+    pub func __init__(x int64 | uint64 | str, base = 10) {}
 
     @intrinsic
     pub func __add__(rhs int64) int64 {}
@@ -86,17 +96,24 @@ pub class int64 : Number[int64] {
 }
 
 pub class uint8 : Number[uint8] {
+    @intrinsic
+    pub func __init__(x int64 | uint64) {}
 }
 
 pub class uint16 : Number[uint16] {
+    @intrinsic
+    pub func __init__(x int64 | uint64) {}
 }
 
 pub class uint32 : Number[uint32] {
     @intrinsic
-    pub func __add__(rhs uint32) uint32 {}
+    pub func __init__(x int64 | uint64) {}
 }
 
 pub class uint64 : Number[uint64] {
+    @intrinsic
+    pub func __init__(x int64 | uint64 | str, base = 10) {}
+
     @intrinsic
     pub func __add__(rhs uint64) uint64 {}
 

@@ -30,13 +30,13 @@ print(ack(3, 11))
 
 // CHECK: @__init__[0,12]:
 // CHECK: 0000:  {{[0-9A-F]+}}   loadk r0, #0
-// CHECK: 0001:  {{[0-9A-F]+}}   load_int_imm r1, #0
+// CHECK: 0001:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #0
 // CHECK: 0002:  {{[0-9A-F]+}}   call flg=0, r0, #2
 // CHECK: 0003:  {{[0-9A-F]+}}   data (rel32=1)
 // CHECK: 0004:  {{[0-9A-F]+}}   call flg=1, #1
 // CHECK: 0005:  {{[0-9A-F]+}}   data (import_index=0)
-// CHECK: 0006:  {{[0-9A-F]+}}   load_int_imm r0, #3
-// CHECK: 0007:  {{[0-9A-F]+}}   load_int_imm r1, #11
+// CHECK: 0006:  {{[0-9A-F]+}}   load_int_imm r0, ti=0xb, #3
+// CHECK: 0007:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #11
 // CHECK: 0008:  {{[0-9A-F]+}}   call flg=0, r0, #2
 // CHECK: 0009:  {{[0-9A-F]+}}   data (rel32=2)
 // CHECK: 0010:  {{[0-9A-F]+}}   call flg=1, #1
@@ -56,7 +56,7 @@ print(ack(3, 11))
 // CHECK: 0022:  {{[0-9A-F]+}}   ret r2
 // CHECK: 0023:  {{[0-9A-F]+}}   jmp_int_ne_imm r1, #0, 4
 // CHECK: 0024:  {{[0-9A-F]+}}   int.sub_imm r0, r0, #1
-// CHECK: 0025:  {{[0-9A-F]+}}   load_int_imm r1, #1
+// CHECK: 0025:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #1
 // CHECK: 0026:  {{[0-9A-F]+}}   tail_call flg=3, #2
 // CHECK: 0027:  {{[0-9A-F]+}}   data
 // CHECK: 0028:  {{[0-9A-F]+}}   int.sub_imm r2, r0, #1

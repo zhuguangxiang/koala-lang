@@ -330,6 +330,22 @@ static void dump_mach_insn(KlMachInsn *mi)
             break;
         }
 
+        case FORMAT_R_TI_Imm12: {
+            printf("r%d, ti=0x%x, #%d", mi->opers[0], mi->opers[1], mi->opers[2]);
+            break;
+        }
+
+        case FORMAT_TI_Imm2: {
+            printf("ti=0x%x, #%d", mi->opers[0], mi->opers[1]);
+            break;
+        }
+
+            // case FORMAT_RR_TI: {
+            //     printf("r%d, r%d, ti=0x%x, mode=%d", mi->opers[0], mi->opers[1],
+            //            (mi->opers[2] >> 2) & 0x7u, mi->opers[2] & 0x3u);
+            //     break;
+            // }
+
         case FORMAT_Op:
             // no operand
             break;
@@ -561,6 +577,40 @@ static void emit_mach_insn(KlMachInsn *mi, CodeBuffer *buf)
             break;
         }
 
+        case FORMAT_R_TI_Imm12: {
+            // | op:8 | R:8 | tag:4 | imm:12 |
+            uint32_t R = mi->opers[0];
+            uint32_t ti = mi->opers[1];
+            int imm8 = mi->opers[2];
+            bytecode |= (op & 0xFFu) << 24;
+            bytecode |= (R & 0xFFu) << 16;
+            bytecode |= (ti & 0xFu) << 12;
+            bytecode |= (imm8 & 0xFFFu);
+            break;
+        }
+
+        case FORMAT_TI_Imm2: {
+            // | op:8 | ---:5 | tag:3 | imm16:16 |
+            uint32_t ti = mi->opers[0];
+            int imm16 = mi->opers[1];
+            bytecode |= (op & 0xFFu) << 24;
+            bytecode |= (ti & 0xFu) << 16;
+            bytecode |= (imm16 & 0xFFFFu);
+            break;
+        }
+
+            // case FORMAT_RR_TI: {
+            //     // | op:8 | R1:8 | R2:8 | ---:3 | ti:3 | mode:2 |
+            //     uint32_t R1 = mi->opers[0];
+            //     uint32_t R2 = mi->opers[1];
+            //     int ti = mi->opers[2];
+            //     bytecode |= (op & 0xFFu) << 24;
+            //     bytecode |= (R1 & 0xFFu) << 16;
+            //     bytecode |= (R2 & 0xFFu) << 8;
+            //     bytecode |= ti & 0x1Fu;
+            //     break;
+            // }
+
         default: {
             UNREACHABLE();
             break;
@@ -591,6 +641,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
             break;
         }
 
+        case FORMAT_TI_Imm2:
         case FORMAT_RxTag:
         case FORMAT_RImm2:
         case FORMAT_ROff2:
@@ -601,6 +652,8 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
             break;
         }
 
+        case FORMAT_R_TI_Imm12:
+        // case FORMAT_RR_TI:
         case FORMAT_RImmOff:
         case FORMAT_RRImm:
         case FORMAT_RROff:
@@ -1135,6 +1188,16 @@ static void peephole(KlMachFunc *mfn)
             }
         }
 
+        for (int i = 0; i < n; i++) {
+            KlMachInsn *mi = codes[i];
+            if (mi->dead) continue;
+            if (mi->op == OP_MOVE) {
+                if (mi->opers[0] == mi->opers[1]) {
+                    mi->dead = 1;
+                }
+            }
+        }
+
         // compact the instruction array by removing dead instructions
         int w = 0;
         for (int r = 0; r < n; r++) {
@@ -1164,6 +1227,8 @@ static void init_mach_context(KlMachModule *m, KlrModule *origin)
 
 void kl_do_codegen(KlrModule *origin)
 {
+    if (!origin || origin->errors > 0) return;
+
     KlMachModule *m = mm_alloc_obj(m);
     init_mach_context(m, origin);
 

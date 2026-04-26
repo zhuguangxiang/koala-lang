@@ -71,6 +71,9 @@ typedef enum {
     FORMAT_JMP,
     FORMAT_WIDE,
 
+    FORMAT_R_TI_Imm12,          // load_int_imm
+    FORMAT_TI_Imm2,             // ret_int_imm
+
     /* single register */
     FORMAT_Rx,                  // 12-bit reg
     FORMAT_RxTag,               // 12-bit reg + (tag)imm8

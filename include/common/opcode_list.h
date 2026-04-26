@@ -37,26 +37,39 @@ X(OP_NOP, FORMAT_Op)
 X(OP_MOVE, FORMAT_RxRx)
 
 /**
- * OP_LOAD_INT_IMM — load immediate integer
+ * OP_LOAD_INT_IMM — load typed integer immediate (12-bit immediate)
  *
- * FORMAT_RImm2:
- *     | op:8 | rd:8 | imm:16 |
+ * FORMAT_R_TI_Imm12:
+ *     | op:8 | rd:8 | ti:4 | imm:12 |
+ *
+ * Fields:
+ *     ti       — 4-bit type info:
+ *              bit[3]   : integer flag (must be 1 for integer types)
+ *              bit[2]   : sign (0 = signed, 1 = unsigned)
+ *              bit[1:0] : width selector:
+ *              0 = 8-bit
+ *              1 = 16-bit
+ *              2 = 32-bit
+ *              3 = 64-bit
  *
  * Details:
- *     Loads a 16-bit signed integer immediate into register rd.
+ *    Loads a 12-bit signed integer immediate into rd, with the width specified by ti.
  */
-X(OP_LOAD_INT_IMM, FORMAT_RImm2)
+X(OP_LOAD_INT_IMM, FORMAT_R_TI_Imm12)
 
  /**
- * OP_LOAD_UINT_IMM — load immediate unsigned integer
+ * OP_LOAD_UINT_IMM — load typed unsigned integer immediate (12-bit immediate)
  *
- * FORMAT_RImm2:
- *     | op:8 | rd:8 | imm:16 |
+ * FORMAT_R_TI_Imm12:
+ *     | op:8 | rd:8 | ti:4 | imm:12 |
+ *
+ * Fields:
+ *     ti: the same as OP_LOAD_INT_IMM
  *
  * Details:
- *     Loads a 16-bit unsigned integer immediate into register rd.
+ *    Loads a 12-bit unsigned integer immediate into rd, with the width specified by ti.
  */
-X(OP_LOAD_UINT_IMM, FORMAT_RImm2)
+X(OP_LOAD_UINT_IMM, FORMAT_R_TI_Imm12)
 
 /**
  * OP_LOAD_TAG — load small tagged constant
@@ -1013,6 +1026,28 @@ X(OP_JMP_TRUE, FORMAT_ROff2)
  */
 X(OP_JMP_FALSE, FORMAT_ROff2)
 
+/**
+ * OP_JMP_NULL — conditional jump if null
+ *
+ * FORMAT_ROff2:
+ *     | op:8 | rd:8 | offset:16 |
+ *
+ * Details:
+ *     If rd is null, pc += offset.
+ */
+X(OP_JMP_NULL, FORMAT_ROff2)
+
+/**
+ * OP_JMP_NOT_NULL — conditional jump if not null
+ *
+ * FORMAT_ROff2:
+ *     | op:8 | rd:8 | offset:16 |
+ *
+ * Details:
+ *     If rd is not null, pc += offset.
+ */
+X(OP_JMP_NOT_NULL, FORMAT_ROff2)
+
 /*---------------------------------------------------------------+
  |  Fused Integer Compare + Jump Instructions                    |
  +---------------------------------------------------------------*/
@@ -1425,26 +1460,32 @@ X(OP_TAIL_CALL, FORMAT_CALL)
 X(OP_RET, FORMAT_Rx)
 
 /**
- * OP_RET_INT_IMM — return integer immediate
+ * OP_RET_INT_IMM — return typed integer immediate (16-bit immediate)
  *
- * FORMAT_Imm2:
- *     | op:8 | ---:8 | imm:16 |
+ * FORMAT_TI_Imm2:
+ *     | op:8 | ---:4 | ti:4 | imm:16 |
+ *
+ * Fields:
+ *     ti: the same as OP_LOAD_INT_IMM
  *
  * Details:
  *     Returns a 16-bit signed integer immediate to the caller.
  */
-X(OP_RET_INT_IMM, FORMAT_Imm2)
+X(OP_RET_INT_IMM, FORMAT_TI_Imm2)
 
 /**
- * OP_RET_UINT_IMM — return unsigned integer immediate
+ * OP_RET_UINT_IMM — return typed unsigned integer immediate (16-bit immediate)
  *
- * FORMAT_Imm2:
- *     | op:8 | ---:8 | imm:16 |
+ * FORMAT_TI_Imm2:
+ *     | op:8 | ---:4 | ti:4 | imm:16 |
+ *
+ * Fields:
+ *     ti: the same as OP_LOAD_INT_IMM
  *
  * Details:
  *     Returns a 16-bit unsigned integer immediate to the caller.
  */
-X(OP_RET_UINT_IMM, FORMAT_Imm2)
+X(OP_RET_UINT_IMM, FORMAT_TI_Imm2)
 
 /**
  * OP_LOAD_TAG — return small tagged constant
@@ -1767,6 +1808,7 @@ X(OP_IR_CALL,       FORMAT_IR)
 X(OP_IR_SELECT,     FORMAT_IR)
 X(OP_IR_JMP_COND,   FORMAT_IR)
 X(OP_IR_CAST,       FORMAT_IR)
+X(OP_IR_NEW,        FORMAT_IR)
 X(OP_IR_PHI,        FORMAT_IR)
 
 /* Non-executable data slot (pseudo-instruction) */

@@ -51,19 +51,19 @@ typedef struct _TValue {
 #define TAG_ERROR 1
 #define TAG_BOOL  2
 
-#define TAG_INT8   3
-#define TAG_INT16  4
-#define TAG_INT32  5
-#define TAG_INT64  6
-#define TAG_UINT8  7
-#define TAG_UINT16 8
-#define TAG_UINT32 9
-#define TAG_UINT64 10
+#define TAG_INT8   0b1000
+#define TAG_INT16  0b1001
+#define TAG_INT32  0b1010
+#define TAG_INT64  0b1011
+#define TAG_UINT8  0b1100
+#define TAG_UINT16 0b1101
+#define TAG_UINT32 0b1110
+#define TAG_UINT64 0b1111
 
-#define TAG_BFLOAT16 11
-#define TAG_FLOAT16  12
-#define TAG_FLOAT32  13
-#define TAG_FLOAT64  14
+#define TAG_BFLOAT16 0b10000
+#define TAG_FLOAT16  0b10001
+#define TAG_FLOAT32  0b10010
+#define TAG_FLOAT64  0b10011
 
 // beyond this value, it's an object pointer
 #define TAG_VAL_MAX 64

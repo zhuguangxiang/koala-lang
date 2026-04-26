@@ -11,6 +11,87 @@
 extern "C" {
 #endif
 
+static int check_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m)
+{
+    TypeSpec *dst_ts = insn->ts;
+    if (dst_ts->kind != TYPE_INT) return 0;
+
+    int dst_width = dst_ts->int_flt_info.width;
+    if (c->which == CONST_INT) {
+        int src_width = c->len;
+        if (src_width > dst_width) {
+            int64_t val = (int64_t)c->ival;
+            if (dst_width == 1) {
+                if (val < INT8_MIN || val > INT8_MAX) {
+                    KlrLocInfo *loc = &insn->loc;
+                    klr_error(loc,
+                              "constant integer overflow in cast: cannot cast from "
+                              "int%d to int%d",
+                              src_width * 8, dst_width * 8);
+                    insn->error = 1;
+                    return -1;
+                }
+            } else if (dst_width == 2) {
+                if (val < INT16_MIN || val > INT16_MAX) {
+                    KlrLocInfo *loc = &insn->loc;
+                    klr_error(loc,
+                              "constant integer overflow in cast: cannot cast from "
+                              "int%d to int%d",
+                              src_width * 8, dst_width * 8);
+                    insn->error = 1;
+                    return -1;
+                }
+            } else if (dst_width == 4) {
+                if (val < INT32_MIN || val > INT32_MAX) {
+                    KlrLocInfo *loc = &insn->loc;
+                    klr_error(loc,
+                              "constant integer overflow in cast: cannot cast from "
+                              "int%d to int%d",
+                              src_width * 8, dst_width * 8);
+                    insn->error = 1;
+                    return -1;
+                }
+            }
+        }
+    } else if (c->which == CONST_UINT) {
+        int src_width = c->len;
+        if (src_width > dst_width) {
+            if (dst_width == 1) {
+                if (c->ival > UINT8_MAX) {
+                    KlrLocInfo *loc = &insn->loc;
+                    klr_error(loc,
+                              "constant integer overflow in cast: cannot cast from "
+                              "uint%d to int%d",
+                              src_width * 8, dst_width * 8);
+                    insn->error = 1;
+                    return -1;
+                }
+            } else if (dst_width == 2) {
+                if (c->ival > UINT16_MAX) {
+                    KlrLocInfo *loc = &insn->loc;
+                    klr_error(loc,
+                              "constant integer overflow in cast: cannot cast from "
+                              "uint%d to int%d",
+                              src_width * 8, dst_width * 8);
+                    insn->error = 1;
+                    return -1;
+                }
+            } else if (dst_width == 4) {
+                if (c->ival > UINT32_MAX) {
+                    KlrLocInfo *loc = &insn->loc;
+                    klr_error(loc,
+                              "constant integer overflow in cast: cannot cast from "
+                              "uint%d to int%d",
+                              src_width * 8, dst_width * 8);
+                    insn->error = 1;
+                    return -1;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
 #define int64_add_overflow __builtin_add_overflow
 #define int64_sub_overflow __builtin_sub_overflow
 #define int64_mul_overflow __builtin_mul_overflow
@@ -72,8 +153,9 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
                 int r = int64_##opname##_overflow((int64_t)lval->ival, \
                                                    (int64_t)rval->ival, &res); \
                 if (r) { \
-                    KlrASTNodeInfo *ast = &insn->ast; \
-                    klr_error(ast, "signed integer overflow in binary" #opname); \
+                    KlrLocInfo *loc = &insn->loc; \
+                    klr_error(loc, "signed integer overflow in binary" #opname); \
+                    insn->error = 1; \
                     return; \
                 } \
                 KlrValue *const_res = klr_const_int(res, lval->ts, m); \
@@ -84,8 +166,9 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
                 uint64_t res; \
                 int r = uint64_##opname##_overflow(lval->ival, rval->ival, &res); \
                 if (r) { \
-                    KlrASTNodeInfo *ast = &insn->ast; \
-                    klr_error(ast, "unsigned integer overflow in binary" #opname); \
+                    KlrLocInfo *loc = &insn->loc; \
+                    klr_error(loc, "unsigned integer overflow in binary" #opname); \
+                    insn->error = 1; \
                     return; \
                 } \
                 KlrValue *const_res = klr_const_uint(res, lval->ts, m); \
@@ -129,17 +212,17 @@ DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(and, &)
 DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(or, |)
 DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(xor, ^)
 
-static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
+static int do_fold(KlrInsn *insn, KlrFunc *fn)
 {
     KlrModule *m = fn->module;
     OpCode op = insn->code;
 
     if (op == OP_GLOBAL_SET || op == OP_GLOBAL_GET) {
-        return;
+        return 0;
     }
 
     if (op == OP_IR_CALL && (insn->flags & KLR_INSN_FLAGS_CONST)) {
-        return;
+        return 0;
     }
 
     int changed = 0;
@@ -183,10 +266,6 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
                 }
             }
         }
-    }
-
-    if (changed) {
-        queue_push(wklist, insn);
     }
 
     switch (op) {
@@ -428,10 +507,14 @@ static void do_fold(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             break;
         }
     }
+
+    return changed;
 }
 
-static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
+static int do_propagate(KlrInsn *insn, KlrFunc *fn)
 {
+    KlrModule *m = fn->module;
+    int changed = 0;
     OpCode op = insn->code;
     switch (op) {
         case OP_GLOBAL_SET: {
@@ -570,10 +653,32 @@ static void do_propagate(KlrInsn *insn, KlrFunc *fn, Queue *wklist)
             break;
         }
 
+        case OP_IR_CAST: {
+            KlrValue *src = insn_oper_value(insn, 0);
+            if ((insn->error == 0) && klr_is_const(src)) {
+                KlrConst *c = (KlrConst *)src;
+                if (!check_const_cast_valid(insn, c, m)) {
+                    int sign = insn->ts->int_flt_info.sign;
+                    KlrValue *v;
+                    if (sign) {
+                        v = klr_const_int(c->ival, insn->ts, fn->module);
+                    } else {
+                        v = klr_const_uint(c->ival, insn->ts, fn->module);
+                    }
+                    if (replace_all_uses_with(v, (KlrValue *)insn)) {
+                        changed = 1;
+                    }
+                }
+            }
+            break;
+        }
+
         default: {
             break;
         }
     }
+
+    return changed;
 }
 
 /*
@@ -592,52 +697,23 @@ previous store insns will be removed.
 int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
 {
     KlrModule *m = fn->module;
-    int changed = 0;
+    int changed = 1;
 
-    KlrBasicBlock *bb;
-    basic_block_foreach(bb, fn) {
-        klr_clear_local_var_map(bb);
+    while (changed) {
+        changed = 0;
 
-        QUEUE(wklist);
-
-        KlrInsn *insn;
-        insn_foreach(insn, bb) {
-            queue_push(&wklist, insn);
-        }
-
-        while (!queue_empty(&wklist)) {
-            KlrInsn *insn = queue_pop(&wklist);
-            do_propagate(insn, fn, &wklist);
-            do_fold(insn, fn, &wklist);
-        }
-
-        insn_foreach(insn, bb) {
-            if (insn->code == OP_IR_CAST) {
-                KlrValue *src = insn_oper_value(insn, 0);
-                if (klr_is_const(src)) {
-                    KlrConst *c = (KlrConst *)src;
-                    KlrValue *v = klr_const_int(c->ival, insn->ts, m);
-                    replace_all_uses_with(v, (KlrValue *)insn);
-                    changed = 1;
-                }
-            }
-        }
-
-        if (changed) {
-            changed = 0;
-
+        KlrBasicBlock *bb;
+        basic_block_foreach(bb, fn) {
+            klr_clear_local_var_map(bb);
+            KlrInsn *insn;
             insn_foreach(insn, bb) {
-                queue_push(&wklist, insn);
-            }
-
-            while (!queue_empty(&wklist)) {
-                KlrInsn *insn = queue_pop(&wklist);
-                do_propagate(insn, fn, &wklist);
-                do_fold(insn, fn, &wklist);
+                changed |= do_propagate(insn, fn);
+                changed |= do_fold(insn, fn);
             }
         }
     }
 
+    KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
         KlrInsn *insn, *next;
         insn_foreach_safe(insn, next, bb) {

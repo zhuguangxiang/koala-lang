@@ -15,11 +15,13 @@ TARGET(OP_MOVE) {
 
 TARGET(OP_LOAD_INT_IMM) {
     rd = I_VAL(inst, 16, 8);
-    imm = I_SVAL(inst, 0, 16);
+    int ti = I_VAL(inst, 12, 4);
+    imm = ((int)(inst << 20)) >> 20;
 
     CHECK_REG_ID(rd);
+    ASSERT(ti == TAG_INT64);
 
-    regs[rd].tag = TAG_INT64;
+    regs[rd].tag = ti;
     regs[rd].ival = imm;
     DISPATCH();
 }
@@ -48,7 +50,10 @@ TARGET(OP_INT_ADD) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival + regs[rt].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = regs[rs].tag | 0b11;
+
+    ASSERT(regs[rd].tag == TAG_INT64 || regs[rd].tag == TAG_UINT64);
+
     DISPATCH();
 }
 
@@ -59,9 +64,10 @@ TARGET(OP_INT_ADD_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival + imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
     DISPATCH();
 }
 
@@ -72,9 +78,10 @@ TARGET(OP_UINT_ADD_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = (uint64_t)regs[rs].ival + (uint64_t)imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_UINT64;
     DISPATCH();
 }
 
@@ -88,7 +95,10 @@ TARGET(OP_INT_SUB) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival - regs[rt].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = regs[rs].tag | 0b11;
+
+    ASSERT(regs[rd].tag == TAG_INT64 || regs[rd].tag == TAG_UINT64);
+
     DISPATCH();
 }
 
@@ -99,9 +109,10 @@ TARGET(OP_INT_SUB_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival - imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
     DISPATCH();
 }
 
@@ -112,9 +123,10 @@ TARGET(OP_UINT_SUB_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = (uint64_t)regs[rs].ival - (uint64_t)imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_UINT64;
     DISPATCH();
 }
 
@@ -132,6 +144,7 @@ TARGET(OP_JMP_INT_LE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     if (regs[rs].ival <= imm) {
         pc += off;
@@ -145,6 +158,7 @@ TARGET(OP_JMP_INT_GT_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     if (regs[rs].ival > imm) {
         pc += off;
@@ -158,6 +172,7 @@ TARGET(OP_JMP_INT_LT_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     if (regs[rs].ival < imm) {
         pc += off;
@@ -171,6 +186,7 @@ TARGET(OP_JMP_INT_GE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     if (regs[rs].ival >= imm) {
         pc += off;
@@ -185,6 +201,8 @@ TARGET(OP_JMP_INT_LE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64);
+    ASSERT(regs[rt].tag == TAG_INT64);
 
     if (regs[rs].ival <= regs[rt].ival) {
         pc += off;
@@ -199,6 +217,8 @@ TARGET(OP_JMP_INT_GT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64);
+    ASSERT(regs[rt].tag == TAG_INT64);
 
     if (regs[rs].ival > regs[rt].ival) {
         pc += off;
@@ -213,6 +233,8 @@ TARGET(OP_JMP_INT_LT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64);
+    ASSERT(regs[rt].tag == TAG_INT64);
 
     if (regs[rs].ival < regs[rt].ival) {
         pc += off;
@@ -227,6 +249,8 @@ TARGET(OP_JMP_INT_GE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64);
+    ASSERT(regs[rt].tag == TAG_INT64);
 
     if (regs[rs].ival >= regs[rt].ival) {
         pc += off;
@@ -249,9 +273,13 @@ TARGET(OP_RET_VOID) {
 }
 
 TARGET(OP_RET_INT_IMM) {
+    int ti = I_VAL(inst, 16, 8);
     imm = I_SVAL(inst, 0, 16);
+
+    ASSERT(ti == TAG_INT64);
+
     result.ival = imm;
-    result.tag = TAG_INT64;
+    result.tag = ti;
     goto done;
 }
 
@@ -265,6 +293,7 @@ TARGET(OP_JMP_INT_EQ_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     if (regs[rs].ival == imm) {
         pc += off;
@@ -278,6 +307,7 @@ TARGET(OP_JMP_INT_NE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     if (regs[rs].ival != imm) {
         pc += off;
@@ -292,6 +322,8 @@ TARGET(OP_JMP_INT_EQ) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+    ASSERT(regs[rs].tag == regs[rt].tag);
 
     if (regs[rs].ival == regs[rt].ival) {
         pc += off;
@@ -306,6 +338,8 @@ TARGET(OP_JMP_INT_NE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+    ASSERT(regs[rs].tag == regs[rt].tag);
 
     if (regs[rs].ival != regs[rt].ival) {
         pc += off;
@@ -424,6 +458,8 @@ TARGET(OP_INT_CMPEQ) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+    ASSERT(regs[rs].tag == regs[rt].tag);
 
     regs[rd].ival = regs[rs].ival == regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -437,6 +473,7 @@ TARGET(OP_INT_CMPEQ_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival == imm;
     regs[rd].tag = TAG_BOOL;
@@ -450,6 +487,7 @@ TARGET(OP_UINT_CMPEQ_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = ((uint64_t)regs[rs].ival == (uint64_t)imm);
     regs[rd].tag = TAG_BOOL;
@@ -464,6 +502,8 @@ TARGET(OP_INT_CMPNE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+    ASSERT(regs[rs].tag == regs[rt].tag);
 
     regs[rd].ival = regs[rs].ival != regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -477,6 +517,7 @@ TARGET(OP_INT_CMPNE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival != imm;
     regs[rd].tag = TAG_BOOL;
@@ -490,6 +531,7 @@ TARGET(OP_UINT_CMPNE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = ((uint64_t)regs[rs].ival != (uint64_t)imm);
     regs[rd].tag = TAG_BOOL;
@@ -504,6 +546,8 @@ TARGET(OP_INT_CMPLT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64);
+    ASSERT(regs[rt].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival < regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -517,6 +561,7 @@ TARGET(OP_INT_CMPLT_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival < imm;
     regs[rd].tag = TAG_BOOL;
@@ -531,6 +576,8 @@ TARGET(OP_INT_CMPLE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64);
+    ASSERT(regs[rt].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival <= regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -544,6 +591,7 @@ TARGET(OP_INT_CMPLE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival <= imm;
     regs[rd].tag = TAG_BOOL;
@@ -558,6 +606,8 @@ TARGET(OP_INT_CMPGT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64);
+    ASSERT(regs[rt].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival > regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -571,6 +621,7 @@ TARGET(OP_INT_CMPGT_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival > imm;
     regs[rd].tag = TAG_BOOL;
@@ -585,6 +636,8 @@ TARGET(OP_INT_CMPGE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
+    ASSERT(regs[rs].tag == TAG_INT64);
+    ASSERT(regs[rt].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival >= regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -598,6 +651,7 @@ TARGET(OP_INT_CMPGE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival >= imm;
     regs[rd].tag = TAG_BOOL;
@@ -616,7 +670,7 @@ TARGET(OP_INT_AND) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival & regs[rt].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = regs[rs].tag | 0b11;
 
     DISPATCH();
 }
@@ -630,7 +684,7 @@ TARGET(OP_INT_AND_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = regs[rs].ival & imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -644,7 +698,7 @@ TARGET(OP_UINT_AND_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = (uint64_t)regs[rs].ival & (uint64_t)imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_UINT64;
 
     DISPATCH();
 }
@@ -659,7 +713,7 @@ TARGET(OP_INT_OR) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival | regs[rt].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = regs[rs].tag | 0b11;
 
     DISPATCH();
 }
@@ -673,7 +727,7 @@ TARGET(OP_INT_OR_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = regs[rs].ival | imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -687,7 +741,7 @@ TARGET(OP_UINT_OR_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = (uint64_t)regs[rs].ival | (uint64_t)imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_UINT64;
 
     DISPATCH();
 }
@@ -702,7 +756,7 @@ TARGET(OP_INT_XOR) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival ^ regs[rt].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = regs[rs].tag | 0b11;
 
     DISPATCH();
 }
@@ -716,7 +770,7 @@ TARGET(OP_INT_XOR_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = regs[rs].ival ^ imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -730,7 +784,7 @@ TARGET(OP_UINT_XOR_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = (uint64_t)regs[rs].ival ^ (uint64_t)imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_UINT64;
 
     DISPATCH();
 }
@@ -745,7 +799,7 @@ TARGET(OP_INT_SHL) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival << regs[rt].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = regs[rs].tag | 0b11;
 
     DISPATCH();
 }
@@ -759,7 +813,7 @@ TARGET(OP_INT_SHL_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = regs[rs].ival << imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -773,7 +827,7 @@ TARGET(OP_UINT_SHL_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = (uint64_t)regs[rs].ival << (uint64_t)imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_UINT64;
 
     DISPATCH();
 }
@@ -788,7 +842,7 @@ TARGET(OP_INT_SHR) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival >> regs[rt].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = regs[rs].tag | 0b11;
 
     DISPATCH();
 }
@@ -802,7 +856,7 @@ TARGET(OP_INT_SHR_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = regs[rs].ival >> imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -881,6 +935,30 @@ TARGET(OP_JMP_FALSE) {
     DISPATCH();
 }
 
+TARGET(OP_JMP_NULL) {
+    rs = I_VAL(inst, 16, 8);
+    off = I_SVAL(inst, 0, 16);
+
+    CHECK_REG_ID(rs);
+
+    if (is_none(&regs[rs])) {
+        pc += off;
+    }
+    DISPATCH();
+}
+
+TARGET(OP_JMP_NOT_NULL) {
+    rs = I_VAL(inst, 16, 8);
+    off = I_SVAL(inst, 0, 16);
+
+    CHECK_REG_ID(rs);
+
+    if (!is_none(&regs[rs])) {
+        pc += off;
+    }
+    DISPATCH();
+}
+
 /* Complex Int Arithmetic */
 
 TARGET(OP_INT_MUL) {
@@ -893,7 +971,7 @@ TARGET(OP_INT_MUL) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival * regs[rt].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = regs[rs].tag | 0b11;
 
     DISPATCH();
 }
@@ -907,7 +985,7 @@ TARGET(OP_INT_MUL_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = regs[rs].ival * imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -921,7 +999,7 @@ TARGET(OP_UINT_MUL_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = (uint64_t)regs[rs].ival * (uint64_t)imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_UINT64;
 
     DISPATCH();
 }
@@ -936,7 +1014,7 @@ TARGET(OP_INT_DIV) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival / regs[rt].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = regs[rs].tag | 0b11;
 
     DISPATCH();
 }
@@ -950,7 +1028,7 @@ TARGET(OP_INT_DIV_IMM) {
     CHECK_REG_ID(rs);
 
     regs[rd].ival = regs[rs].ival / imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -965,7 +1043,7 @@ TARGET(OP_INT_MOD) {
     CHECK_REG_ID(rt);
 
     regs[rd].ival = regs[rs].ival % regs[rt].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = regs[rs].tag | 0b11;
 
     DISPATCH();
 }
@@ -980,7 +1058,7 @@ TARGET(OP_INT_MOD_IMM) {
     ASSERT(regs[rs].tag == TAG_INT64);
 
     regs[rd].ival = regs[rs].ival % imm;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }
@@ -995,7 +1073,6 @@ TARGET(OP_FLOAT_ADD) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1013,7 +1090,6 @@ TARGET(OP_FLOAT_SUB) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1031,7 +1107,6 @@ TARGET(OP_FLOAT_MUL) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1048,7 +1123,6 @@ TARGET(OP_JMP_FLOAT_EQ) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1065,7 +1139,6 @@ TARGET(OP_JMP_FLOAT_NE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1082,7 +1155,6 @@ TARGET(OP_JMP_FLOAT_LT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1099,7 +1171,6 @@ TARGET(OP_JMP_FLOAT_LE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1116,7 +1187,6 @@ TARGET(OP_JMP_FLOAT_GT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1133,7 +1203,6 @@ TARGET(OP_JMP_FLOAT_GE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1149,19 +1218,25 @@ TARGET(OP_JMP_FLOAT_GE) {
 
 TARGET(OP_LOAD_UINT_IMM) {
     rd = I_VAL(inst, 16, 8);
-    imm = I_VAL(inst, 0, 16);
+    int ti = I_VAL(inst, 12, 4);
+    imm = I_VAL(inst, 0, 12);
 
     CHECK_REG_ID(rd);
+    ASSERT((ti & 0b1100) == 0b1100);
 
-    regs[rd].tag = TAG_UINT64;
+    regs[rd].tag = ti;
     regs[rd].ival = imm;
     DISPATCH();
 }
 
 TARGET(OP_RET_UINT_IMM) {
+    int ti = I_VAL(inst, 16, 8);
     imm = I_VAL(inst, 0, 16);
+
+    ASSERT((ti & 0b1100) == 0b1100);
+
     result.ival = imm;
-    result.tag = TAG_UINT64;
+    result.tag = ti;
     goto done;
 }
 
@@ -1173,7 +1248,6 @@ TARGET(OP_UINT_DIV) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1190,7 +1264,6 @@ TARGET(OP_UINT_DIV_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = (uint64_t)regs[rs].ival / (uint64_t)imm;
@@ -1207,7 +1280,6 @@ TARGET(OP_UINT_MOD) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1224,7 +1296,6 @@ TARGET(OP_UINT_MOD_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = (uint64_t)regs[rs].ival % (uint64_t)imm;
@@ -1241,7 +1312,6 @@ TARGET(OP_UINT_SHR) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1258,7 +1328,6 @@ TARGET(OP_UINT_SHR_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = (uint64_t)regs[rs].ival >> (uint64_t)imm;
@@ -1275,7 +1344,6 @@ TARGET(OP_UINT_CMPLT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1292,7 +1360,6 @@ TARGET(OP_UINT_CMPLT_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = (uint64_t)regs[rs].ival < (uint64_t)imm;
@@ -1309,7 +1376,6 @@ TARGET(OP_UINT_CMPLE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1326,7 +1392,6 @@ TARGET(OP_UINT_CMPLE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = (uint64_t)regs[rs].ival <= (uint64_t)imm;
@@ -1343,7 +1408,6 @@ TARGET(OP_UINT_CMPGT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1360,7 +1424,6 @@ TARGET(OP_UINT_CMPGT_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = (uint64_t)regs[rs].ival > (uint64_t)imm;
@@ -1377,7 +1440,6 @@ TARGET(OP_UINT_CMPGE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1394,7 +1456,6 @@ TARGET(OP_UINT_CMPGE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = (uint64_t)regs[rs].ival >= (uint64_t)imm;
@@ -1410,7 +1471,6 @@ TARGET(OP_JMP_UINT_LT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1427,7 +1487,6 @@ TARGET(OP_JMP_UINT_LT_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     if ((uint64_t)regs[rs].ival < (uint64_t)imm) {
@@ -1444,7 +1503,6 @@ TARGET(OP_JMP_UINT_LE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1461,7 +1519,6 @@ TARGET(OP_JMP_UINT_LE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     if ((uint64_t)regs[rs].ival <= (uint64_t)imm) {
@@ -1478,7 +1535,6 @@ TARGET(OP_JMP_UINT_GT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1495,7 +1551,6 @@ TARGET(OP_JMP_UINT_GT_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     if ((uint64_t)regs[rs].ival > (uint64_t)imm) {
@@ -1512,7 +1567,6 @@ TARGET(OP_JMP_UINT_GE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
     ASSERT(regs[rt].tag == TAG_UINT64);
 
@@ -1529,7 +1583,6 @@ TARGET(OP_JMP_UINT_GE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-
     ASSERT(regs[rs].tag == TAG_UINT64);
 
     if ((uint64_t)regs[rs].ival >= (uint64_t)imm) {
@@ -1559,7 +1612,6 @@ TARGET(OP_FLOAT_DIV) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1577,7 +1629,6 @@ TARGET(OP_FLOAT_MOD) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1595,7 +1646,6 @@ TARGET(OP_FLOAT_CMPEQ) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1613,7 +1663,6 @@ TARGET(OP_FLOAT_CMPNE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1631,7 +1680,6 @@ TARGET(OP_FLOAT_CMPLT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1649,7 +1697,6 @@ TARGET(OP_FLOAT_CMPLE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1667,7 +1714,6 @@ TARGET(OP_FLOAT_CMPGT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1685,7 +1731,6 @@ TARGET(OP_FLOAT_CMPGE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-
     ASSERT(regs[rs].tag == TAG_FLOAT64);
     ASSERT(regs[rt].tag == TAG_FLOAT64);
 
@@ -1703,6 +1748,7 @@ TARGET(OP_INT_NOT) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
 
     regs[rd].ival = ~regs[rs].ival;
     regs[rd].tag = regs[rs].tag;
@@ -1716,9 +1762,10 @@ TARGET(OP_INT_NEG) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
+    ASSERT(regs[rs].tag == TAG_INT64);
 
     regs[rd].ival = -regs[rs].ival;
-    regs[rd].tag = regs[rs].tag;
+    regs[rd].tag = TAG_INT64;
 
     DISPATCH();
 }

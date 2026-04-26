@@ -139,20 +139,36 @@ static OpCode get_const_op(KlrConst *c, LowerConstRule *R)
 
         case CONST_INT: {
             int64_t imm = c->ival;
-            if (imm >= INT16_MIN && imm <= INT16_MAX) {
-                op = R->imm_op;
+            if (R->imm_op == OP_LOAD_INT_IMM) {
+                if (imm >= INT12_MIN && imm <= INT12_MAX) {
+                    op = R->imm_op;
+                } else {
+                    op = R->load_op;
+                }
             } else {
-                op = R->load_op;
+                if (imm >= INT16_MIN && imm <= INT16_MAX) {
+                    op = R->imm_op;
+                } else {
+                    op = R->load_op;
+                }
             }
             break;
         }
 
         case CONST_UINT: {
             uint64_t uimm = (uint64_t)c->ival;
-            if (uimm <= UINT16_MAX) {
-                op = R->uimm_op;
+            if (R->imm_op == OP_LOAD_INT_IMM) {
+                if (uimm <= UINT12_MAX) {
+                    op = R->uimm_op;
+                } else {
+                    op = R->load_op;
+                }
             } else {
-                op = R->load_op;
+                if (uimm <= UINT16_MAX) {
+                    op = R->uimm_op;
+                } else {
+                    op = R->load_op;
+                }
             }
             break;
         }
@@ -703,6 +719,8 @@ static void do_isel(KlrFunc *fn)
 
 void kl_do_isel(KlrModule *m)
 {
+    if (!m || m->errors > 0) return;
+
     KlrFunc *fn;
     func_foreach(fn, m) {
         do_isel(fn);

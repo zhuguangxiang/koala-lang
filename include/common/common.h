@@ -121,6 +121,10 @@ extern "C" {
 #define ERROR_PREFIX BOLD_SEQ COLOR_RED "error: " COLOR_RESET
 #define WARN_PREFIX  BOLD_SEQ COLOR_YELLOW "warning: " COLOR_RESET
 
+#define INT12_MIN  (-2048)
+#define INT12_MAX  (2047)
+#define UINT12_MAX (4095u)
+
 #ifdef __cplusplus
 }
 #endif

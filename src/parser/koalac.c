@@ -416,19 +416,19 @@ static void compile(ParserModule *pm)
 
     KlrModule *m = pm->module;
 
-    if (opt_enabled() && (m->errors == 0)) {
+    if (opt_enabled()) {
         kl_optimize(m);
     }
 
-    if (isel_enabled() && (m->errors == 0)) {
+    if (isel_enabled()) {
         kl_do_isel(m);
     }
 
-    if (lsra_enabled() && (m->errors == 0)) {
+    if (lsra_enabled()) {
         kl_do_lsra(m);
     }
 
-    if (cgen_enabled() && (m->errors == 0)) {
+    if (cgen_enabled()) {
         kl_do_codegen(m);
     }
 

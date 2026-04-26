@@ -43,8 +43,10 @@ static inline void set_raw_func(KlrRawOper *r, KlrFunc *fn)
 }
 
 static inline int fits_in_imm8(int64_t x) { return x >= INT8_MIN && x <= INT8_MAX; }
+static inline int fits_in_imm12(int64_t x) { return x >= INT12_MIN && x <= INT12_MAX; }
 static inline int fits_in_imm16(int64_t x) { return x >= INT16_MIN && x <= INT16_MAX; }
 static inline int fits_in_uimm8(uint64_t x) { return x <= UINT8_MAX; }
+static inline int fits_in_uimm12(uint64_t x) { return x <= UINT12_MAX; }
 static inline int fits_in_uimm16(uint64_t x) { return x <= UINT16_MAX; }
 
 static void check_in_imm8(KlrConst *kc)
@@ -61,6 +63,20 @@ static void check_in_imm8(KlrConst *kc)
     }
 }
 
+static void check_in_imm12(KlrConst *kc)
+{
+    if (kc->which == CONST_INT) {
+        if (!fits_in_imm12(kc->ival)) {
+            panic("Constant %ld does not fit in 12-bit immediate", kc->ival);
+        }
+    } else {
+        ASSERT(kc->which == CONST_UINT);
+        if (!fits_in_uimm12(kc->ival)) {
+            panic("Constant %lu does not fit in 12-bit unsigned immediate", kc->ival);
+        }
+    }
+}
+
 static void check_in_imm16(KlrConst *kc)
 {
     if (kc->which == CONST_INT) {
@@ -73,6 +89,30 @@ static void check_in_imm16(KlrConst *kc)
             panic("Constant %lu does not fit in 16-bit unsigned immediate", kc->ival);
         }
     }
+}
+
+static int get_type_info(KlrConst *kc)
+{
+    int type_info = 0;
+    switch (kc->which) {
+        case CONST_INT: {
+            type_info |= 1 << 3;
+            type_info |= 0 << 2;
+            type_info |= __builtin_ctz(kc->len);
+            break;
+        }
+        case CONST_UINT: {
+            type_info |= 1 << 3;
+            type_info |= 1 << 2;
+            type_info |= __builtin_ctz(kc->len);
+            break;
+        }
+        default: {
+            NYI();
+            break;
+        }
+    }
+    return type_info;
 }
 
 static int get_const_index(KlrConst *kc, KlMachModule *m)
@@ -182,12 +222,14 @@ static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
             ASSERT(klr_is_const(imm_val));
 
             KlrConst *kc = (KlrConst *)imm_val;
-            check_in_imm16(kc);
+            check_in_imm12(kc);
             int64_t imm = kc->ival;
 
             /* load reg, imm */
             set_raw_reg(&insn->raws[0], dst->vreg);
-            set_raw_imm(&insn->raws[1], imm);
+            int ti = get_type_info(kc);
+            set_raw_imm(&insn->raws[1], ti);
+            set_raw_imm(&insn->raws[2], imm);
             break;
         }
 
@@ -248,7 +290,9 @@ static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
             check_in_imm16(kc);
             int64_t imm = kc->ival;
             /* ret imm */
-            set_raw_imm(&insn->raws[0], imm);
+            int type_info = get_type_info(kc);
+            set_raw_imm(&insn->raws[0], type_info);
+            set_raw_imm(&insn->raws[1], imm);
             break;
         }
 

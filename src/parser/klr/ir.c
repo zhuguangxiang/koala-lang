@@ -740,6 +740,12 @@ char *klr_value_name(KlrValue *val)
     return val->print_name;
 }
 
+void klr_set_loc(KlrValue *val, char *filename, Loc loc)
+{
+    val->loc.filename = filename;
+    val->loc.loc = loc;
+}
+
 #ifdef __cplusplus
 }
 #endif

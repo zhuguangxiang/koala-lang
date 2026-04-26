@@ -356,6 +356,8 @@ static void klr_lsra_run(KlrFunc *func)
 
 void kl_do_lsra(KlrModule *m)
 {
+    if (!m || m->errors > 0) return;
+
     KlrFunc *fn;
     func_foreach(fn, m) {
         klr_build_rpo(fn);

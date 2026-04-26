@@ -118,6 +118,41 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
     }
 }
 
+static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args,
+                               int nargs)
+{
+    if (nargs == 1) {
+        KlrValue *arg = args[0];
+        TypeSpec *ts = callee->ts;
+        TypeSpec *arg_ts = arg->ts;
+        if (ts->kind == TYPE_INT && arg_ts->kind == TYPE_INT) {
+            // if (arg_ts == ts) return arg;
+            KlrValue *ret = klr_build_cast(bldr, arg, ts, "");
+            return ret;
+        }
+    }
+
+    NYI();
+}
+
+static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue **args,
+                                int nargs)
+{
+    KlrValue *ret = NULL;
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+
+    TypeSpec *ts = callee->ts;
+    if (ts->kind == TYPE_INT) {
+        ret = emit_int_call(&bldr, callee, args, nargs);
+    } else {
+        NYI();
+    }
+
+    return ret;
+}
+
 static void emit_ir_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
@@ -143,9 +178,19 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
     // codegen
 
-    KlrBuilder bldr;
-    klr_builder_end(&bldr, ps->scope->bb);
-    KlrValue *ret = klr_build_call(&bldr, lhs->ir_val, ir_args, size, "");
+    KlrValue *callee = lhs->ir_val;
+    KlrValue *ret;
+
+    if (callee->kind == KLR_VALUE_KLASS) {
+        ret = emit_type_call(ps, callee, ir_args, size);
+        return;
+    } else {
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        ret = klr_build_call(&bldr, callee, ir_args, size, "");
+    }
+
+    klr_set_loc(ret, ps->filename, exp->loc);
     exp->ir_val = ret;
 }
 
@@ -316,8 +361,7 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
         exp->ir_val = res;
     }
 
-    res->ast.filename = ps->filename;
-    res->ast.loc = exp->loc;
+    klr_set_loc(res, ps->filename, exp->loc);
 }
 
 static void emit_ir_unary(ParserState *ps, Expr *exp)
@@ -346,9 +390,6 @@ static void emit_ir_unary(ParserState *ps, Expr *exp)
         }
         case UNARY_BIT_NOT: {
             res = klr_build_unary(&bldr, e->ir_val, OP_UNARY_NOT, "", "bit_not");
-            exp->ir_val = res;
-            res->ast.filename = ps->filename;
-            res->ast.loc = exp->loc;
             break;
         }
         case UNARY_NOT: {
@@ -362,8 +403,7 @@ static void emit_ir_unary(ParserState *ps, Expr *exp)
     }
 
     exp->ir_val = res;
-    res->ast.filename = ps->filename;
-    res->ast.loc = exp->loc;
+    klr_set_loc(res, ps->filename, exp->loc);
 }
 
 static void emit_ir_list(ParserState *ps, Expr *exp)
@@ -714,7 +754,6 @@ static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
     out->end = insn_oper_value(insn, 2);
     KlrValue *one = klr_const_int(1, int64_type_spec(), MOD);
     out->step = (num_opers == 4 ? insn_oper_value(insn, 3) : one);
-
     return 1;
 }
 

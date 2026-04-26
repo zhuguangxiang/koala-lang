@@ -88,8 +88,9 @@ void clear_operand_at(KlrInsn *insn, int i)
     clear_operand(oper);
 }
 
-void replace_all_uses_with(KlrValue *val, KlrValue *def)
+int replace_all_uses_with(KlrValue *val, KlrValue *def)
 {
+    int changed = 0;
     KlrUse *use, *next;
     use_foreach_safe(use, next, def) {
         KlrInsn *insn = use->insn;
@@ -99,7 +100,9 @@ void replace_all_uses_with(KlrValue *val, KlrValue *def)
             continue;
         }
         set_operand(use->oper, use->insn, val);
+        changed = 1;
     }
+    return changed;
 }
 
 static int __attr_eq__(void *a, void *b) { return a == b; }
@@ -200,6 +203,8 @@ void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
         val->kind != KLR_VALUE_INSN) {
         panic("'move %%x, %%v' requires a reg value.");
     }
+
+    ASSERT(var->ts == val->ts);
 
     KlrInsn *insn = new_insn(OP_MOVE, 2, "");
     init_oper(&insn->opers[0], insn, var, 1);

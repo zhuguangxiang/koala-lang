@@ -22,6 +22,6 @@ func test_int_4(n int8) int {
 // CHECK: ret %2 int64
 
 // CHECK-LABEL: ====== Linearization @test_int_4(start_pc: 0, insns: 3) ======
-// CHECK: {{[0-9]+}}:  load_int_imm r1, #128
+// CHECK: {{[0-9]+}}:  load_int_imm r1, ti=0xb, #128
 // CHECK: {{[0-9]+}}:  int.or r0, r0, r1
 // CHECK: {{[0-9]+}}:  ret r0

@@ -145,6 +145,43 @@ void bytecode_print(uint8_t *code, size_t start, size_t count)
                 break;
             }
 
+            case FORMAT_R_TI_Imm12: {
+                int R = (insn >> 16) & 0xFFu;
+                int ti = (insn >> 12) & 0xFu;
+                int imm12 = insn & 0xFFFu;
+                if (ti & 0b100) {
+                    // unsigned
+                    printf("r%d, ti=0x%x, #%u", R, ti, imm12);
+                } else {
+                    // signed
+                    int simm12 = ((int)(imm12 << 20)) >> 20;
+                    printf("r%d, ti=0x%x, #%d", R, ti, simm12);
+                }
+                break;
+            }
+
+            case FORMAT_TI_Imm2: {
+                int ti = (insn >> 16) & 0xFu;
+                int imm16 = insn & 0xFFFFu;
+                if (ti & 0b100) {
+                    // unsigned
+                    printf("ti=0x%x, #%u", ti, imm16);
+                } else {
+                    // signed
+                    printf("ti=0x%x, #%d", ti, (int16_t)imm16);
+                }
+                break;
+            }
+
+                // case FORMAT_RR_TI: {
+                //     int R1 = (insn >> 16) & 0xFFu;
+                //     int R2 = (insn >> 8) & 0xFFu;
+                //     int ti = (insn >> 2) & 0x7u;
+                //     int mode = insn & 0x3u;
+                //     printf("r%d, r%d, ti=0x%x, mode=%d", R1, R2, ti, mode);
+                //     break;
+                // }
+
             default: {
                 printf("(unknown format)");
                 break;
