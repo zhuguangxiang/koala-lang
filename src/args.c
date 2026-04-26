@@ -18,18 +18,20 @@ static void print_usage(const char *prog)
         "\nUsage: %s [<options>] <package>|<file.kl>|<file.klc>\n"
         "\n"
         "Options:\n"
-        "  -c               Compile only (supports .kl file or directory as module)\n"
-        "  -o <file>        Output .klc file\n"
-        "  --dump=<list>    Dump internal information.\n"
-        "                   <list> is a comma-separated list of:\n"
-        "                       no-opt-ir - dump no-opt IR\n"
-        "                       ir        - optimized IR (after opt passes)\n"
-        "                       lir       - LIR (after isel/regalloc)\n"
-        "                       vreg      - dump virtual register info\n"
-        "                       code      - codegen output\n"
-        "                       all       - dump all stages\n"
-        "  -v, --version    Show version information\n"
-        "  -h, --help       Show this help message\n",
+        "  -c                Compile only (supports .kl file or directory as module)\n"
+        "  -o <file>         Output .klc file\n"
+        "  --cast=trap|wrap  Set cast mode.\n"
+        "                    Default: debug=trap, release=wrap.\n"
+        "  --dump=<list>     Dump internal information.\n"
+        "                    <list> is a comma-separated list of:\n"
+        "                      no-opt-ir - dump no-opt IR\n"
+        "                      ir        - optimized IR (after opt passes)\n"
+        "                      lir       - LIR (after isel/regalloc)\n"
+        "                      vreg      - dump virtual register info\n"
+        "                      code      - codegen output\n"
+        "                      all       - dump all stages\n"
+        "  -v, --version     Show version information\n"
+        "  -h, --help        Show this help message\n",
         prog);
 
     printf(
@@ -42,7 +44,13 @@ static void print_usage(const char *prog)
 
 static void version(void)
 {
-    printf("koala %s (%s, %s)\n", KOALA_VERSION_STRING, __DATE__, __TIME__);
+#ifndef NDEBUG
+    const char *build_type = "debug";
+#else
+    const char *build_type = "release";
+#endif
+    printf("koala %s (build: %s) (%s, %s)\n", KOALA_VERSION_STRING, build_type, __DATE__,
+           __TIME__);
 
     struct utsname sysinfo;
     if (!uname(&sysinfo)) {
@@ -64,6 +72,7 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
 {
     static struct option long_opts[] = {
         { "dump", required_argument, 0, 1000 },
+        { "cast", required_argument, 0, 1001 },
         { "help", no_argument, 0, 'h' },
         { "version", no_argument, 0, 'v' },
         { 0, 0, 0, 0 },
@@ -88,6 +97,9 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
                 return -1;
             case 1000:
                 opt->dump = optarg;
+                break;
+            case 1001:
+                opt->cast_type = optarg;
                 break;
             default:
                 return -1;

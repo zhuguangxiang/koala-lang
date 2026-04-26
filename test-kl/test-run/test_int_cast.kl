@@ -1,0 +1,21 @@
+// RUN: koala %s --dump=lir | filecheck %s
+
+func test_int_cast(n int16) uint32 {
+    return uint32(n)
+}
+
+func main() {
+    let x = test_int_cast(123)
+    print(x + 1 == 124)
+    print(x == 123)
+}
+
+// CHECK: %0 = int_cast %n int16 to uint32
+// CHECK: load_int_imm %0 int16, 123 int16
+// CHECK: %2 = cast %1 uint32 to uint64
+// CHECK: %3 = uint.add_imm %2 uint64, 1 uint64
+// CHECK: %4 = uint.cmp_eq_imm %3 uint64, 124 uint64
+// CHECK: %5 = cast %1 uint32 to uint64
+// CHECK: %6 = uint.cmp_eq_imm %5 uint64, 123 uint64
+// CHECK: true
+// CHECK: true

@@ -331,13 +331,6 @@ typedef struct _BangExpr {
 
 Expr *expr_from_bang(Expr *exp);
 
-typedef struct _PanicExpr {
-    EXPR_HEAD
-    Expr *exp;
-} PanicExpr;
-
-Expr *expr_from_panic(Expr *exp);
-
 static inline int expr_is_literal_null(Expr *e)
 {
     if (e->kind != EXPR_LITERAL_KIND) return 0;

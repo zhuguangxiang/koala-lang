@@ -357,6 +357,21 @@ static void lower_logic_not_opers(KlrInsn *insn, KlrFunc *fn)
     set_raw_reg(&insn->raws[1], val->vreg);
 }
 
+static void lower_ir_cast(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *src = insn_oper_value(insn, 0);
+    set_raw_imm(&insn->raws[0], insn->vreg);
+    set_raw_imm(&insn->raws[1], src->vreg);
+}
+
+static void lower_int_cast(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *src = insn_oper_value(insn, 0);
+    set_raw_imm(&insn->raws[0], insn->vreg);
+    set_raw_imm(&insn->raws[1], src->vreg);
+    set_raw_imm(&insn->raws[2], insn->cast_flag);
+}
+
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 {
     KlrBasicBlock *bb;
@@ -392,6 +407,16 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_LNOT: {
                     lower_logic_not_opers(insn, fn);
+                    break;
+                }
+
+                case OP_INT_CAST: {
+                    lower_int_cast(insn, fn);
+                    break;
+                }
+
+                case OP_IR_CAST: {
+                    lower_ir_cast(insn, fn);
                     break;
                 }
 

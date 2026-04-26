@@ -13,9 +13,27 @@ extern "C" {
 static void print_value(TValue *val)
 {
     if (is_int(val)) {
-        printf("%" PRId64 " ", val->ival);
+        int ti = val->tag & 0b0011;
+        if (ti == 0) {
+            printf("%d ", (int8_t)val->ival);
+        } else if (ti == 1) {
+            printf("%d ", (int16_t)val->ival);
+        } else if (ti == 2) {
+            printf("%d ", (int32_t)val->ival);
+        } else {
+            printf("%" PRId64 " ", val->ival);
+        }
     } else if (is_uint(val)) {
-        printf("%" PRIu64 " ", val->ival);
+        int ti = val->tag & 0b0011;
+        if (ti == 0) {
+            printf("%u ", (uint8_t)val->ival);
+        } else if (ti == 1) {
+            printf("%u ", (uint16_t)val->ival);
+        } else if (ti == 2) {
+            printf("%u ", (uint32_t)val->ival);
+        } else {
+            printf("%" PRIu64 " ", val->ival);
+        }
     } else if (is_float(val)) {
         printf("%.17g ", val->fval);
     } else if (is_bool(val)) {

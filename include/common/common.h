@@ -62,10 +62,14 @@ extern "C" {
 
 #define UNUSED(expr) do { (void)(expr); } while (0)
 
+#ifndef NDEBUG
 #define UNREACHABLE() do { \
     fprintf(stderr, "%s:%d: Why goes here?\n", __FILE_NAME__, __LINE__); \
     abort(); \
 } while (0)
+#else
+#define UNREACHABLE() __builtin_unreachable()
+#endif
 
 #define NYI() do { \
     fprintf(stderr, "%s:%d: Not Yet Implemented\n", __FILE_NAME__, __LINE__); \

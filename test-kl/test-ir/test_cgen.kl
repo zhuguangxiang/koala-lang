@@ -9,14 +9,14 @@ func foo(n int) int {
 }
 
 // CHECK-LABEL: ====== Linearization @foo(start_pc: 0, insns: 8) ======
-// CHECK: {{[0-9]+}}:  load_int_imm r1, ti=0xb, #500
-// CHECK: {{[0-9]+}}:  int.add r0, r0, r1
-// CHECK: {{[0-9]+}}:  int.add_imm r0, r0, #1
-// CHECK: {{[0-9]+}}:  int.add_imm r0, r0, #2
-// CHECK: {{[0-9]+}}:  move r1, r0
-// CHECK: {{[0-9]+}}:  int.add_imm r0, r1, #3
-// CHECK: {{[0-9]+}}:  move r1, r0
-// CHECK: {{[0-9]+}}:  ret r0
+// CHECK: load_int_imm r1, ti=0xb, #500
+// CHECK: int.add r0, r0, r1
+// CHECK: int.add_imm r0, r0, #1
+// CHECK: int.add_imm r0, r0, #2
+// CHECK: move r1, r0
+// CHECK: int.add_imm r0, r1, #3
+// CHECK: move r1, r0
+// CHECK: ret r0
 
 
 func fib(n int) int {
@@ -25,17 +25,17 @@ func fib(n int) int {
 }
 
 // CHECK-LABEL: ====== Linearization @fib(start_pc: 8, insns: 11) ======
-// CHECK: {{[0-9]+}}:  int.cmplt_imm r1, r0, #2
-// CHECK: {{[0-9]+}}:  jmp_false r1, 1              ;; -> %bb-1(if-end)
-// CHECK: {{[0-9]+}}:  ret r0
-// CHECK: {{[0-9]+}}:  int.sub_imm r2, r0, #1
-// CHECK: {{[0-9]+}}:  call flg=0, r1, #1
-// CHECK: {{[0-9]+}}:  data
-// CHECK: {{[0-9]+}}:  int.sub_imm r2, r0, #2
-// CHECK: {{[0-9]+}}:  call flg=0, r0, #1
-// CHECK: {{[0-9]+}}:  data
-// CHECK: {{[0-9]+}}:  int.add r0, r1, r0
-// CHECK: {{[0-9]+}}:  ret r0
+// CHECK: int.cmplt_imm r1, r0, #2
+// CHECK: jmp_false r1, 1              ;; -> %bb-1(if-end)
+// CHECK: ret r0
+// CHECK: int.sub_imm r2, r0, #1
+// CHECK: call flg=0, r1, #1
+// CHECK: data
+// CHECK: int.sub_imm r2, r0, #2
+// CHECK: call flg=0, r0, #1
+// CHECK: data
+// CHECK: int.add r0, r1, r0
+// CHECK: ret r0
 
 func test_while(n int) {
     var i = 0
@@ -46,17 +46,17 @@ func test_while(n int) {
 
 // CHECK-LABEL: ====== Linearization @test_while(start_pc: 19, insns: 7) ======
 // CHECK: %bb-1(entry):
-// CHECK: {{[0-9]+}}:  load_int_imm r1, ti=0xb, #0
-// CHECK: {{[0-9]+}}:  int.cmpge_imm r2, r0, #0
-// CHECK: {{[0-9]+}}:  jmp_false r2, 3              ;; -> %bb-1(while-end)
+// CHECK: load_int_imm r1, ti=0xb, #0
+// CHECK: int.cmpge_imm r2, r0, #0
+// CHECK: jmp_false r2, 3              ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
-// CHECK: {{[0-9]+}}:  int.add_imm r1, r1, #1
-// CHECK: {{[0-9]+}}:  int.cmplt r2, r1, r0
-// CHECK: {{[0-9]+}}:  jmp_true r2, -3              ;; -> %bb-1(while-body)
+// CHECK: int.add_imm r1, r1, #1
+// CHECK: int.cmplt r2, r1, r0
+// CHECK: jmp_true r2, -3              ;; -> %bb-1(while-body)
 
 // CHECK: %bb-1(while-end):
-// CHECK: {{[0-9]+}}:  ret_void
+// CHECK: ret_void
 
 func test_nested_loop(n int) {
     var i = 0
@@ -73,30 +73,30 @@ func test_nested_loop(n int) {
 // CHECK-LABEL: ====== Linearization @test_nested_loop(start_pc: 26, insns: 16) ======
 
 // CHECK: %bb-1(entry):
-// CHECK: {{[0-9]+}}:  load_int_imm r1, ti=0xb, #0
-// CHECK: {{[0-9]+}}:  int.cmpge_imm r2, r0, #0
-// CHECK: {{[0-9]+}}:  jmp_false r2, 12             ;; -> %bb-1(while-end)
+// CHECK: load_int_imm r1, ti=0xb, #0
+// CHECK: int.cmpge_imm r2, r0, #0
+// CHECK: jmp_false r2, 12             ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
-// CHECK: {{[0-9]+}}:  load_int_imm r2, ti=0xb, #0
-// CHECK: {{[0-9]+}}:  int.cmpge_imm r3, r1, #0
-// CHECK: {{[0-9]+}}:  jmp_false r3, 6              ;; -> %bb-1(while-end)
+// CHECK: load_int_imm r2, ti=0xb, #0
+// CHECK: int.cmpge_imm r3, r1, #0
+// CHECK: jmp_false r3, 6              ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
-// CHECK: {{[0-9]+}}:  move r4, r2
-// CHECK: {{[0-9]+}}:  call flg=1, #1
-// CHECK: {{[0-9]+}}:  data
-// CHECK: {{[0-9]+}}:  int.add_imm r2, r2, #1
-// CHECK: {{[0-9]+}}:  int.cmplt r3, r2, r1
-// CHECK: {{[0-9]+}}:  jmp_true r3, -6              ;; -> %bb-1(while-body)
+// CHECK: move r4, r2
+// CHECK: call flg=1, #1
+// CHECK: data
+// CHECK: int.add_imm r2, r2, #1
+// CHECK: int.cmplt r3, r2, r1
+// CHECK: jmp_true r3, -6              ;; -> %bb-1(while-body)
 
 // CHECK: %bb-1(while-end):
-// CHECK: {{[0-9]+}}:  int.add_imm r1, r1, #1
-// CHECK: {{[0-9]+}}:  int.cmplt r2, r1, r0
-// CHECK: {{[0-9]+}}:  jmp_true r2, -12             ;; -> %bb-1(while-body)
+// CHECK: int.add_imm r1, r1, #1
+// CHECK: int.cmplt r2, r1, r0
+// CHECK: jmp_true r2, -12             ;; -> %bb-1(while-body)
 
 // CHECK: %bb-1(while-end):
-// CHECK: {{[0-9]+}}:  ret_void
+// CHECK: ret_void
 
 
 // var b = true
@@ -129,12 +129,10 @@ func test_add(n int) int {
 }
 
 // CHECK-LABEL: ====== Linearization @test_add(start_pc: 44, insns: 4) ======
-
-// CHECK: %bb-1(entry):
-// CHECK: {{[0-9]+}}:  load_int_imm r1, ti=0xb, #500
-// CHECK: {{[0-9]+}}:  int.add r0, r0, r1
-// CHECK: {{[0-9]+}}:  int.add_imm r0, r0, #1
-// CHECK: {{[0-9]+}}:  ret r0
+// CHECK: load_int_imm r1, ti=0xb, #500
+// CHECK: int.add r0, r0, r1
+// CHECK: int.add_imm r0, r0, #1
+// CHECK: ret r0
 
 func test_big_int(n int) int {
     var a = 66000
@@ -152,10 +150,9 @@ func test_call(n int) int {
         return test_add(20)
     }
 }
-// CHECK-LABEL: ====== Linearization @test_call(start_pc: 55, insns: 4) ======
 
-// CHECK: %bb-1(entry):
-// CHECK: {{[0-9]+}}:  loadk r1, #0
-// CHECK: {{[0-9]+}}:  call flg=0, r0, #1
-// CHECK: {{[0-9]+}}:  data
-// CHECK: {{[0-9]+}}:  ret r0
+// CHECK-LABEL: ====== Linearization @test_call(start_pc: 55, insns: 4) ======
+// CHECK: loadk r1, #0
+// CHECK: call flg=0, r0, #1
+// CHECK: data
+// CHECK: ret r0

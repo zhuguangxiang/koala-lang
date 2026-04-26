@@ -173,14 +173,14 @@ void bytecode_print(uint8_t *code, size_t start, size_t count)
                 break;
             }
 
-                // case FORMAT_RR_TI: {
-                //     int R1 = (insn >> 16) & 0xFFu;
-                //     int R2 = (insn >> 8) & 0xFFu;
-                //     int ti = (insn >> 2) & 0x7u;
-                //     int mode = insn & 0x3u;
-                //     printf("r%d, r%d, ti=0x%x, mode=%d", R1, R2, ti, mode);
-                //     break;
-                // }
+            case FORMAT_RR_TI_MODE: {
+                int R1 = (insn >> 16) & 0xFFu;
+                int R2 = (insn >> 8) & 0xFFu;
+                int ti = (insn >> 2) & 0xFu;
+                int mode = insn & 0x3u;
+                printf("r%d, r%d, ti=0x%x, mode=%d", R1, R2, ti, mode);
+                break;
+            }
 
             default: {
                 printf("(unknown format)");

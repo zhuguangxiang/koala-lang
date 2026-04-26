@@ -31,6 +31,8 @@ void init_tag_mappings(void)
 
 #define TAG_VALUE(tag) (vm_tag_mappings[(tag)])
 
+#include "do_cast.h"
+
 /* clang-format off */
 
 // [Op:8] [A:8] [B:8] [C:8]
@@ -53,11 +55,9 @@ void init_tag_mappings(void)
     abort(); \
 } while (0)
 
-#ifndef NDEBUG
-    #define CHECK_REG_ID(id) ASSERT((id) < max_regs)
-#else
-    #define CHECK_REG_ID(id) ((void)0)
-#endif
+#define CHECK_REG_ID(id) ASSERT((id) < max_regs)
+#define CHECK_IS_INT(id) ASSERT(is_int(regs + (id)))
+#define CHECK_IS_UINT(id) ASSERT(is_uint(regs + (id)))
 
 /* clang-format on */
 

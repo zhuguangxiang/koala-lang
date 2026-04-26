@@ -1525,6 +1525,47 @@ X(OP_RET_CONST, FORMAT_Idx2)
 X(OP_RET_VOID, FORMAT_Op)
 
 /*---------------------------------------------------------------+
+ |  Integer/Float cast Instructions                              |
+ +---------------------------------------------------------------*/
+
+/**
+ * OP_INT_CAST — integer cast with different mode on overflow
+ *
+ * FORMAT_RR_TI_MODE:
+ *     | op:8 | rd:8 | rs:8 | ---:2 | dst_ti:4 | mode:2 |
+ *
+ * dst_ti: the same as OP_LOAD_INT_IMM
+ *
+ * mode:
+ *      0 = trap on overflow
+ *      1 = wrap on overflow
+ *      2 = saturate (future)
+ *      3 = reserved
+ */
+X(OP_INT_CAST, FORMAT_RR_TI_MODE)
+
+/**
+ * OP_FLOAT_CAST — float cast with overflow mode
+ *
+ * FORMAT_RR_TI_MODE:
+ *     | op:8 | rd:8 | rs:8 | ---:2 | dst_ti:4 | mode:2 |
+ *
+ * dst_ti:
+ *     0 = f16
+ *     1 = f32
+ *     2 = f64
+ *     3 = bf16
+ *     ... reserved
+ *
+ * mode:
+ *     0 = trap
+ *     1 = ieee (default IEEE754 behavior)
+ *     2 = saturate
+ *     3 = reserved
+ */
+X(OP_FLOAT_CAST, FORMAT_RR_TI_MODE)
+
+/*---------------------------------------------------------------+
  |  Global Variable Access Instructions                           |
  +---------------------------------------------------------------*/
 

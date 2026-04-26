@@ -1,0 +1,27 @@
+// RUN: koalac %s --cgen --dump=ir | filecheck %s
+
+func test(n int8) int {
+    var a int8 = -100
+    a = int8(a + a)
+    return a
+}
+
+// CHECK: constant integer overflow in cast: cannot cast from int64 to int8
+
+func test_2() int8 {
+    return int8(130)
+}
+
+// CHECK: constant integer overflow in cast: cannot cast from int64 to int8
+
+func test_3() int8 {
+    let n = -100
+    let v = n - 50
+    return int8(v)
+}
+
+// CHECK: constant integer overflow in cast: cannot cast from int64 to int8
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_3] ---
+// CHECK: %0 = cast -150 int64 to int8        [error]
+// CHECK: ret %0 int8

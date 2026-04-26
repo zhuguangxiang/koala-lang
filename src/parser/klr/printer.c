@@ -98,46 +98,22 @@ static void print_binary(KlrInsn *insn, char *op, FILE *fp)
     print_operand(&insn->opers[1], fp);
 }
 
-static void print_ret(KlrInsn *insn, FILE *fp)
+static void print_ret(char *name, KlrInsn *insn, FILE *fp)
 {
-    fprintf(fp, "ret ");
-    print_operand(&insn->opers[0], fp);
-}
-
-static void print_ret_int_imm(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "ret_int_imm ");
-    print_operand(&insn->opers[0], fp);
-}
-
-static void print_ret_uint_imm(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "ret_uint_imm ");
-    print_operand(&insn->opers[0], fp);
-}
-
-static void print_ir_cast(KlrInsn *insn, FILE *fp)
-{
-    klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = cast ");
-    print_operand(&insn->opers[0], fp);
-    fprintf(fp, " to");
-    print_type(insn->ts, fp);
-}
-
-static void print_ret_tag(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "ret_tag ");
-    print_operand(&insn->opers[0], fp);
-}
-
-static void print_ret_const(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "ret_const ");
+    fprintf(fp, "%s ", name);
     print_operand(&insn->opers[0], fp);
 }
 
 static void print_ret_void(KlrInsn *insn, FILE *fp) { fprintf(fp, "ret void"); }
+
+static void print_ir_cast(char *name, KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = %s ", name);
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, " to");
+    print_type(insn->ts, fp);
+}
 
 static void print_phi(KlrInsn *insn, FILE *fp)
 {
@@ -156,7 +132,7 @@ static void print_unary(KlrInsn *insn, char *op, FILE *fp)
     print_operand(&insn->opers[0], fp);
 }
 
-static void print_move(const char *name, KlrInsn *insn, FILE *fp)
+static void print_no_value_insn(const char *name, KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "%s ", name);
     print_operand(&insn->opers[0], fp);
@@ -164,13 +140,9 @@ static void print_move(const char *name, KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[1], fp);
 }
 
-static void print_cmp(const char *name, KlrInsn *insn, FILE *fp)
+static inline void print_cmp(char *name, KlrInsn *insn, FILE *fp)
 {
-    klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = %s ", name);
-    print_operand(&insn->opers[0], fp);
-    fprintf(fp, ", ");
-    print_operand(&insn->opers[1], fp);
+    print_binary(insn, name, fp);
 }
 
 static void print_jmp(KlrInsn *insn, FILE *fp)
@@ -283,14 +255,6 @@ static void print_get_global(KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[0], fp);
 }
 
-static void print_set_global(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "set_global ");
-    print_operand(&insn->opers[0], fp);
-    fprintf(fp, ", ");
-    print_operand(&insn->opers[1], fp);
-}
-
 static void print_local_insn(KlrValue *local, FILE *fp)
 {
     klr_print_value_name(local, fp);
@@ -298,38 +262,6 @@ static void print_local_insn(KlrValue *local, FILE *fp)
     KlrInsn *insn = (KlrInsn *)local;
     if (insn->flags & KLR_INSN_FLAGS_CONST) fprintf(fp, " [immutable]");
     print_value_type(local, fp);
-}
-
-static void print_load_int_imm(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "load_int_imm ");
-    print_operand(&insn->opers[0], fp);
-    fprintf(fp, ", ");
-    print_operand(&insn->opers[1], fp);
-}
-
-static void print_load_uint_imm(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "load_uint_imm ");
-    print_operand(&insn->opers[0], fp);
-    fprintf(fp, ", ");
-    print_operand(&insn->opers[1], fp);
-}
-
-static void print_loadk(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "loadk ");
-    print_operand(&insn->opers[0], fp);
-    fprintf(fp, ", ");
-    print_operand(&insn->opers[1], fp);
-}
-
-static void print_load_tag(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "load_tag ");
-    print_operand(&insn->opers[0], fp);
-    fprintf(fp, ", ");
-    print_operand(&insn->opers[1], fp);
 }
 
 static void print_attributes(KlrInsn *insn, FILE *fp)
@@ -342,6 +274,10 @@ static void print_attributes(KlrInsn *insn, FILE *fp)
             fprintf(fp, "        [fixedslot = %d(%s)]", insn->slotindex,
                     insn->fixedslot == 1 ? "next" : "pos");
         }
+    }
+
+    if (insn->error) {
+        fprintf(fp, "        [error]");
     }
 }
 
@@ -365,7 +301,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_MOVE:
-            print_move("move", insn, fp);
+            print_no_value_insn("move", insn, fp);
             break;
 
         case OP_JMP_INT_LT:
@@ -537,19 +473,19 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_RET:
-            print_ret(insn, fp);
+            print_ret("ret", insn, fp);
             break;
 
         case OP_RET_INT_IMM:
-            print_ret_int_imm(insn, fp);
+            print_ret("ret_int_imm", insn, fp);
             break;
 
         case OP_RET_TAG:
-            print_ret_tag(insn, fp);
+            print_ret("ret_tag", insn, fp);
             break;
 
         case OP_RET_CONST:
-            print_ret_const(insn, fp);
+            print_ret("ret_const", insn, fp);
             break;
 
         case OP_RET_VOID:
@@ -561,7 +497,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_GLOBAL_SET:
-            print_set_global(insn, fp);
+            print_no_value_insn("set_global", insn, fp);
             break;
 
         case OP_LAND:
@@ -577,7 +513,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_LOAD_INT_IMM:
-            print_load_int_imm(insn, fp);
+            print_no_value_insn("load_int_imm", insn, fp);
             break;
 
         case OP_INT_ADD:
@@ -661,11 +597,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_LOADK:
-            print_loadk(insn, fp);
+            print_no_value_insn("loadk", insn, fp);
             break;
 
         case OP_LOAD_TAG:
-            print_load_tag(insn, fp);
+            print_no_value_insn("load_tag", insn, fp);
             break;
 
         case OP_INT_CMPEQ:
@@ -714,6 +650,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_INT_CMPGE_IMM:
             print_cmp("int.cmp_ge_imm", insn, fp);
+            break;
+
+        case OP_UINT_CMPEQ_IMM:
+            print_cmp("uint.cmp_eq_imm", insn, fp);
             break;
 
         case OP_FLOAT_ADD:
@@ -837,20 +777,23 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_LOAD_UINT_IMM:
-            print_load_uint_imm(insn, fp);
+            print_no_value_insn("load_uint_imm", insn, fp);
             break;
 
         case OP_RET_UINT_IMM:
-            print_ret_uint_imm(insn, fp);
+            print_ret("ret_uint_imm", insn, fp);
             break;
 
         case OP_IR_CAST:
-            print_ir_cast(insn, fp);
+            print_ir_cast("cast", insn, fp);
+            break;
+
+        case OP_INT_CAST:
+            print_ir_cast("int_cast", insn, fp);
             break;
 
         default:
             printf("%s\n", op_name(insn->code));
-            // UNREACHABLE();
             break;
     }
 

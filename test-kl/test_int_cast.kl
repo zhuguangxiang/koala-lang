@@ -8,3 +8,31 @@ func test(n int8) int {
 
 // CHECK: Types of two sides are not matched
 // CHECK: lhs: int8 =/= rhs: int64
+
+func test_2(i int, j uint) int {
+    return i + j
+}
+
+// CHECK: argument type mismatch for operator '+' of type 'int64'
+
+func test_3(i uint32, j int32) int {
+    return i + j
+}
+
+// CHECK: argument type mismatch for operator '+' of type 'uint64'
+
+func test_4(i int32) uint {
+    return (uint)(i + 100)
+}
+
+func test_5(i int32, j int16) int32 {
+    return (int32)(i + j)
+}
+
+func test_6(i int32, j int16) int32 {
+    return (i + j)
+}
+
+// CHECK: return type mismatch in function 'test_6'
+
+// CHECK-NOT: {{.}}

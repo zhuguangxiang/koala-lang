@@ -1,0 +1,129 @@
+// RUN: koalac %s --cgen --dump=lir | filecheck %s
+
+func test_int_0_0() int8 {
+    return int8(100)
+}
+
+// CHECK: ret_int_imm 100 int8
+
+func test_int_0_1() int16 {
+    return int16(100)
+}
+
+// CHECK: ret_int_imm 100 int16
+
+func test_int_0_2() int32 {
+    return int32(100)
+}
+
+// CHECK: ret_int_imm 100 int32
+
+func test_int_0_3() int64 {
+    return int64(100)
+}
+
+// CHECK: ret_int_imm 100 int64
+
+func test_int_0_4() uint8 {
+    return uint8(100)
+}
+
+// CHECK: ret_uint_imm 100 uint8
+
+func test_int_0_5() uint16 {
+    return uint16(100)
+}
+
+// CHECK: ret_uint_imm 100 uint16
+
+func test_int_0_6() uint32 {
+    return uint32(100)
+}
+
+// CHECK: ret_uint_imm 100 uint32
+
+func test_int_0_7() uint64 {
+    return uint64(100)
+}
+
+// CHECK: ret_uint_imm 100 uint64
+
+func test_int_1_0() int8 {
+    let n = 100
+    return int8(n)
+}
+
+// CHECK: ret_int_imm 100 int8
+
+func test_int_1_1() int16 {
+    let n = 100
+    return int16(n)
+}
+
+// CHECK: ret_int_imm 100 int16
+
+func test_int_1_2() int32 {
+    let n = 100
+    return int32(n)
+}
+
+// CHECK: ret_int_imm 100 int32
+
+func test_int_1_3() int64 {
+    let n = 100
+    return int64(n)
+}
+
+// CHECK: ret_int_imm 100 int64
+
+func test_int_1_4() uint8 {
+    let n = 100
+    return uint8(n)
+}
+
+// CHECK: ret_uint_imm 100 uint8
+
+func test_int_1_5() uint16 {
+    let n = 100
+    return uint16(n)
+}
+
+// CHECK: ret_uint_imm 100 uint16
+
+func test_int_1_6() uint32 {
+    let n = 100
+    return uint32(n)
+}
+
+// CHECK: ret_uint_imm 100 uint32
+
+func test_int_1_7() uint64 {
+    let n = 100
+    return uint64(n)
+}
+
+// CHECK: ret_uint_imm 100 uint64
+
+func test_int_2_0(n int) int8 {
+    return int8(n)
+}
+
+// CHECK: %0 = int_cast %n int64 to int8
+
+func test_int_2_1(n int) int16 {
+    return int16(n)
+}
+
+// CHECK: %0 = int_cast %n int64 to int16
+
+func test_int_2_2(n int) int32 {
+    return int32(n)
+}
+
+// CHECK: %0 = int_cast %n int64 to int32
+
+func test_int_2_3(n int) int64 {
+    return int64(n)
+}
+
+// CHECK: %0 = cast %n int64 to int64

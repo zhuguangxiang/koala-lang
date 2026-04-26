@@ -340,11 +340,11 @@ static void dump_mach_insn(KlMachInsn *mi)
             break;
         }
 
-            // case FORMAT_RR_TI: {
-            //     printf("r%d, r%d, ti=0x%x, mode=%d", mi->opers[0], mi->opers[1],
-            //            (mi->opers[2] >> 2) & 0x7u, mi->opers[2] & 0x3u);
-            //     break;
-            // }
+        case FORMAT_RR_TI_MODE: {
+            printf("r%d, r%d, ti=0x%x, mode=%d", mi->opers[0], mi->opers[1],
+                   (mi->opers[2] >> 2) & 0xFu, mi->opers[2] & 0x3u);
+            break;
+        }
 
         case FORMAT_Op:
             // no operand
@@ -599,17 +599,17 @@ static void emit_mach_insn(KlMachInsn *mi, CodeBuffer *buf)
             break;
         }
 
-            // case FORMAT_RR_TI: {
-            //     // | op:8 | R1:8 | R2:8 | ---:3 | ti:3 | mode:2 |
-            //     uint32_t R1 = mi->opers[0];
-            //     uint32_t R2 = mi->opers[1];
-            //     int ti = mi->opers[2];
-            //     bytecode |= (op & 0xFFu) << 24;
-            //     bytecode |= (R1 & 0xFFu) << 16;
-            //     bytecode |= (R2 & 0xFFu) << 8;
-            //     bytecode |= ti & 0x1Fu;
-            //     break;
-            // }
+        case FORMAT_RR_TI_MODE: {
+            // | op:8 | R1:8 | R2:8 | ---:2 | ti:4 | mode:2 |
+            uint32_t R1 = mi->opers[0];
+            uint32_t R2 = mi->opers[1];
+            int ti = mi->opers[2];
+            bytecode |= (op & 0xFFu) << 24;
+            bytecode |= (R1 & 0xFFu) << 16;
+            bytecode |= (R2 & 0xFFu) << 8;
+            bytecode |= ti & 0x3Fu;
+            break;
+        }
 
         default: {
             UNREACHABLE();
@@ -653,7 +653,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
         }
 
         case FORMAT_R_TI_Imm12:
-        // case FORMAT_RR_TI:
+        case FORMAT_RR_TI_MODE:
         case FORMAT_RImmOff:
         case FORMAT_RRImm:
         case FORMAT_RROff:
@@ -759,7 +759,12 @@ static void linearize(KlMachFunc *mfn, KlMachModule *m)
 
             if (insn->code == OP_IR_CAST) {
                 KlrValue *src = insn_oper_value(insn, 0);
-                ASSERT(insn->vreg == src->vreg);
+                ASSERT(insn->vreg >= 0 && src->vreg >= 0);
+                if (insn->vreg != src->vreg) {
+                    mi = build_mach_insn(OP_MOVE, insn, mb);
+                    vector_push_back(&mb->insns, &mi);
+                    fill_mach_insn(mi, insn, m);
+                }
                 continue;
             }
 

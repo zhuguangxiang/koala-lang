@@ -422,6 +422,17 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
 
             log_info("param '%s' is positional argument", arg->name);
 
+            if (e->kind == EXPR_LITERAL_KIND) {
+                log_info("arg is literal, parse literal expr again with expected type:");
+                log_type_spec(e->ts);
+                e->ctx = EXPR_CTX_LOAD;
+                e->expected = arg->ts;
+                parser_visit_expr(ps, e);
+                if (!e->ts) return;
+                log_info("after parsing literal expr, arg type is:");
+                log_type_spec(e->ts);
+            }
+
             if (!type_spec_compatible(arg->ts, e->ts)) {
                 kl_error_incompatible_type(e->loc, arg->ts, e->ts);
             }

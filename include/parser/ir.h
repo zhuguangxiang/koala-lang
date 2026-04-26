@@ -399,7 +399,7 @@ typedef struct _KlrInsn {
     int fixedslot;
     int slotindex;
 
-    int cast_type_info;
+    int cast_flag;
 
     /* phi variable */
     KlrValue *phi;

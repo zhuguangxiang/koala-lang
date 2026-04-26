@@ -23,33 +23,37 @@
 static char output[MAX_PATH_LEN + 8];
 static char input[MAX_PATH_LEN];
 
-CompileOptions cmd_opt;
+CompileOptions cmd_opt = {
+    .cast_type = -1,
+};
 
 static void usage(void)
 {
     printf(
         "\nUsage: koalac [<options>] <package>|<file.kl>\n\n"
         "options:\n"
-        "  -o <file>        Place the output into <file>.\n"
-        "  --irgen          Enable IR generation stage.\n"
-        "  --opt            Enable optimization passes (default).\n"
-        "  --isel           Enable instruction selection stage.\n"
-        "  --lsra           Enable linear scan register allocator.\n"
-        "  --cgen           Enable code generation stage.\n"
-        "  --fusion         Enable fusion optimization passes.\n"
-        "  --tail-call      Enable tail call optimization.\n"
-        "  --build-stdlib   Build the Koala standard library.\n"
-        "  --write-klc      Write the compiled output to a .klc file.\n"
-        "  --dump=<list>    Dump internal information.\n"
-        "                   <list> is a comma-separated list of:\n"
-        "                       no-opt-ir - dump no-opt IR\n"
-        "                       ir        - optimized IR (after opt passes)\n"
-        "                       lir       - LIR (after isel/regalloc)\n"
-        "                       vreg      - dump virtual register info\n"
-        "                       code      - codegen output\n"
-        "                       all       - dump all stages\n"
-        "  -v, --version    Print koalac version.\n"
-        "  -h, --help       Print this message.\n"
+        "  -o <file>         Place the output into <file>.\n"
+        "  --irgen           Enable IR generation stage.\n"
+        "  --opt             Enable optimization passes (default).\n"
+        "  --isel            Enable instruction selection stage.\n"
+        "  --lsra            Enable linear scan register allocator.\n"
+        "  --cgen            Enable code generation stage.\n"
+        "  --fusion          Enable fusion optimization passes.\n"
+        "  --tail-call       Enable tail call optimization.\n"
+        "  --build-stdlib    Build the Koala standard library.\n"
+        "  --write-klc       Write the compiled output to a .klc file.\n"
+        "  --cast=trap|wrap  Set cast mode.\n"
+        "                    Default: debug=trap, release=wrap.\n"
+        "  --dump=<list>     Dump internal information.\n"
+        "                    <list> is a comma-separated list of:\n"
+        "                      no-opt-ir - dump no-opt IR\n"
+        "                      ir        - optimized IR (after opt passes)\n"
+        "                      lir       - LIR (after isel/regalloc)\n"
+        "                      vreg      - dump virtual register info\n"
+        "                      code      - codegen output\n"
+        "                      all       - dump all stages\n"
+        "  -v, --version     Print koalac version.\n"
+        "  -h, --help        Print this message.\n"
         "\n");
 
     printf(
@@ -62,7 +66,13 @@ static void usage(void)
 
 static void version(void)
 {
-    printf("koalac %s (%s, %s)\n", KOALA_VERSION_STRING, __DATE__, __TIME__);
+#ifndef NDEBUG
+    const char *build_type = "debug";
+#else
+    const char *build_type = "release";
+#endif
+    printf("koalac %s (build: %s) (%s, %s)\n", KOALA_VERSION_STRING, build_type, __DATE__,
+           __TIME__);
 
     struct utsname sysinfo;
     if (!uname(&sysinfo)) {
@@ -130,19 +140,13 @@ static void parse_command(int argc, char *argv[])
     extern char *optarg;
     extern int optind;
     struct option options[] = {
-        { "version", no_argument, NULL, 'v' },
-        { "help", no_argument, NULL, 'h' },
-        { "irgen", no_argument, 0, 1 },
-        { "opt", no_argument, 0, 2 },
-        { "isel", no_argument, 0, 3 },
-        { "lsra", no_argument, 0, 4 },
-        { "cgen", no_argument, 0, 5 },
-        { "fusion", no_argument, 0, 6 },
-        { "tail-call", no_argument, 0, 7 },
-        { "build-stdlib", no_argument, 0, 8 },
-        { "write-klc", no_argument, 0, 9 },
-        { "dump", required_argument, 0, 10 },
-        { NULL, 0, NULL, 0 },
+        { "version", no_argument, NULL, 'v' }, { "help", no_argument, NULL, 'h' },
+        { "irgen", no_argument, 0, 1 },        { "opt", no_argument, 0, 2 },
+        { "isel", no_argument, 0, 3 },         { "lsra", no_argument, 0, 4 },
+        { "cgen", no_argument, 0, 5 },         { "fusion", no_argument, 0, 6 },
+        { "tail-call", no_argument, 0, 7 },    { "build-stdlib", no_argument, 0, 8 },
+        { "write-klc", no_argument, 0, 9 },    { "dump", required_argument, 0, 10 },
+        { "cast", required_argument, 0, 11 },  { NULL, 0, NULL, 0 },
     };
 
     optind = 1;
@@ -200,6 +204,18 @@ static void parse_command(int argc, char *argv[])
 
             case 10:
                 cmd_opt.dump = parse_dump_flags(optarg);
+                break;
+
+            case 11:
+                if (strcmp(optarg, "trap") == 0) {
+                    cmd_opt.cast_type = 0;
+                } else if (strcmp(optarg, "wrap") == 0) {
+                    cmd_opt.cast_type = 1;
+                } else {
+                    printf("invalid cast type: %s\n", optarg);
+                    usage();
+                    exit(0);
+                }
                 break;
 
             case 'o': {

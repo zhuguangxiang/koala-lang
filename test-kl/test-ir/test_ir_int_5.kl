@@ -1,7 +1,7 @@
 // RUN: koalac %s --cgen --dump=no-opt-ir,lir,code | filecheck %s
 
 func test_int_1(n int8) int {
-    var a int8 = -100
+    var a int16 = -100
     let b = a + n
     let c = a
     return c + b
@@ -9,16 +9,16 @@ func test_int_1(n int8) int {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @test_int_1(%n int8) int64
-// CHECK: %a = local int8
-// CHECK: move %a int8, -100 int8
-// CHECK: %0 = cast %a int8 to int64
+// CHECK: %a = local int16
+// CHECK: move %a int16, -100 int16
+// CHECK: %0 = cast %a int16 to int64
 // CHECK: %1 = cast %n int8 to int64
 // CHECK: %2 = add %0 int64, %1 int64
 // CHECK: %b = local [immutable] int64
 // CHECK: move %b int64, %2 int64
-// CHECK: %c = local [immutable] int8
-// CHECK: move %c int8, %a int8
-// CHECK: %3 = cast %c int8 to int64
+// CHECK: %c = local [immutable] int16
+// CHECK: move %c int16, %a int16
+// CHECK: %3 = cast %c int16 to int64
 // CHECK: %4 = add %3 int64, %b int64
 // CHECK: ret %4 int64
 

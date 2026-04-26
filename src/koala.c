@@ -55,7 +55,8 @@ static char *make_temp_klc(void)
 
 static int compile(const char *input, const char *output, KoalaOptions *opt)
 {
-    char buf[64];
+    char buf[16];
+    char buf_1[32];
     char *argv[16];
     int n = 0;
 
@@ -65,9 +66,14 @@ static int compile(const char *input, const char *output, KoalaOptions *opt)
     argv[n++] = "--tail-call";
     argv[n++] = "--write-klc";
 
-    if (opt->dump) {
-        snprintf(buf, sizeof(buf), "--dump=%s", opt->dump);
+    if (opt->cast_type) {
+        snprintf(buf, sizeof(buf), "--cast=%s", opt->cast_type);
         argv[n++] = buf;
+    }
+
+    if (opt->dump) {
+        snprintf(buf_1, sizeof(buf_1), "--dump=%s", opt->dump);
+        argv[n++] = buf_1;
     }
 
     argv[n++] = (char *)input;

@@ -73,6 +73,7 @@ typedef enum {
 
     FORMAT_R_TI_Imm12,          // load_int_imm
     FORMAT_TI_Imm2,             // ret_int_imm
+    FORMAT_RR_TI_MODE,          // int_cast
 
     /* single register */
     FORMAT_Rx,                  // 12-bit reg

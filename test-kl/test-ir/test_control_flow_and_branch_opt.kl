@@ -10,8 +10,8 @@ func test_const_if_folding(n int) int {
 }
 
 // CHECK-LABEL: @test_const_if_folding[0,1]:
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   int.add_imm r0, r0, #1
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   ret r0
+// CHECK: int.add_imm r0, r0, #1
+// CHECK: ret r0
 
 func test_branch_rpo_layout(n int) int {
     var r = 0
@@ -24,12 +24,12 @@ func test_branch_rpo_layout(n int) int {
 }
 
 // CHECK-LABEL: @test_branch_rpo_layout[2,7]:
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #0
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   jmp_int_le_imm r0, #0, 2
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #1
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   jmp 1
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #2
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   ret r1
+// CHECK: load_int_imm r1, ti=0xb, #0
+// CHECK: jmp_int_le_imm r0, #0, 2
+// CHECK: load_int_imm r1, ti=0xb, #1
+// CHECK: jmp 1
+// CHECK: load_int_imm r1, ti=0xb, #2
+// CHECK: ret r1
 
 func test_nested_jump_threading(n int) int {
     if n > 0 {
@@ -41,10 +41,10 @@ func test_nested_jump_threading(n int) int {
 }
 
 // CHECK-LABEL: @test_nested_jump_threading[8,11]:
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   jmp_int_le_imm r0, #0, 2
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   jmp_int_le_imm r0, #10, 1
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   ret_int_imm ti=0xb, #1
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   ret_int_imm ti=0xb, #0
+// CHECK: jmp_int_le_imm r0, #0, 2
+// CHECK: jmp_int_le_imm r0, #10, 1
+// CHECK: ret_int_imm ti=0xb, #1
+// CHECK: ret_int_imm ti=0xb, #0
 
 func test_phi_precursor_merge(n int) int {
     var x = 0
@@ -55,10 +55,10 @@ func test_phi_precursor_merge(n int) int {
 }
 
 // CHECK-LABEL: @test_phi_precursor_merge[12,15]:
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #0
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   jmp_int_le_imm r0, #100, 1
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #1
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   ret r1
+// CHECK: load_int_imm r1, ti=0xb, #0
+// CHECK: jmp_int_le_imm r0, #100, 1
+// CHECK: load_int_imm r1, ti=0xb, #1
+// CHECK: ret r1
 
 func test_logic_short_circuit(a int, b int) bool {
     if a > 0 && b > 0 {
@@ -69,9 +69,9 @@ func test_logic_short_circuit(a int, b int) bool {
 
 // TODO: verify that short-circuiting of logical AND is correctly implemented in the generated code
 // CHECK-LABEL: @test_logic_short_circuit[16,21]:
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   int.cmpgt_imm r0, r0, #0
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   int.cmpgt_imm r1, r1, #0
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   land r0, r0, r1
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   jmp_false r0, 1
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   ret_tag #true
-// CHECK: {{[0-9]+}}:  {{[0-9A-F]+}}   ret_tag #false
+// CHECK: int.cmpgt_imm r0, r0, #0
+// CHECK: int.cmpgt_imm r1, r1, #0
+// CHECK: land r0, r0, r1
+// CHECK: jmp_false r0, 1
+// CHECK: ret_tag #true
+// CHECK: ret_tag #false

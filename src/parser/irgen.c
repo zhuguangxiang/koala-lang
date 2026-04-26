@@ -183,7 +183,6 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
     if (callee->kind == KLR_VALUE_KLASS) {
         ret = emit_type_call(ps, callee, ir_args, size);
-        return;
     } else {
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
@@ -326,41 +325,40 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
 
     KlrValue *res;
 
-    if (op >= BINARY_GT && op <= BINARY_NEQ) {
-        res = klr_build_cmp(&bldr, lhs->ir_val, rhs->ir_val, get_binary_op_code(op), "");
-        exp->ir_val = res;
-    } else {
-        KlrValue *cast_lhs = lhs->ir_val;
-        KlrValue *cast_rhs = rhs->ir_val;
+    KlrValue *cast_lhs = lhs->ir_val;
+    KlrValue *cast_rhs = rhs->ir_val;
 
-        TypeSpec *lhs_ts = cast_lhs->ts;
-        TypeSpec *rhs_ts = cast_rhs->ts;
+    TypeSpec *lhs_ts = cast_lhs->ts;
+    TypeSpec *rhs_ts = cast_rhs->ts;
 
-        if (type_is_int(lhs_ts)) {
-            if (lhs_ts->int_flt_info.width < 8) {
-                cast_lhs = klr_build_cast(&bldr, cast_lhs, int64_type_spec(), "");
-            }
-        } else if (type_is_uint(lhs_ts)) {
-            if (lhs_ts->int_flt_info.width < 8) {
-                cast_lhs = klr_build_cast(&bldr, cast_lhs, uint64_type_spec(), "");
-            }
+    if (type_is_int(lhs_ts)) {
+        if (lhs_ts->int_flt_info.width < 8) {
+            cast_lhs = klr_build_cast(&bldr, cast_lhs, int64_type_spec(), "");
         }
-
-        if (type_is_int(rhs_ts)) {
-            if (rhs_ts->int_flt_info.width < 8) {
-                cast_rhs = klr_build_cast(&bldr, cast_rhs, int64_type_spec(), "");
-            }
-        } else if (type_is_int(rhs_ts)) {
-            if (rhs_ts->int_flt_info.width < 8) {
-                cast_rhs = klr_build_cast(&bldr, cast_rhs, uint64_type_spec(), "");
-            }
+    } else if (type_is_uint(lhs_ts)) {
+        if (lhs_ts->int_flt_info.width < 8) {
+            cast_lhs = klr_build_cast(&bldr, cast_lhs, uint64_type_spec(), "");
         }
-
-        res = klr_build_binary(&bldr, cast_lhs, cast_rhs, get_binary_op_code(op), "",
-                               get_binary_op_name(op));
-        exp->ir_val = res;
     }
 
+    if (type_is_int(rhs_ts)) {
+        if (rhs_ts->int_flt_info.width < 8) {
+            cast_rhs = klr_build_cast(&bldr, cast_rhs, int64_type_spec(), "");
+        }
+    } else if (type_is_int(rhs_ts)) {
+        if (rhs_ts->int_flt_info.width < 8) {
+            cast_rhs = klr_build_cast(&bldr, cast_rhs, uint64_type_spec(), "");
+        }
+    }
+
+    if (op >= BINARY_GT && op <= BINARY_NEQ) {
+        res = klr_build_cmp(&bldr, cast_lhs, cast_rhs, get_binary_op_code(op), "");
+    } else {
+        res = klr_build_binary(&bldr, cast_lhs, cast_rhs, get_binary_op_code(op), "",
+                               get_binary_op_name(op));
+    }
+
+    exp->ir_val = res;
     klr_set_loc(res, ps->filename, exp->loc);
 }
 

@@ -14,6 +14,7 @@ extern "C" {
 
 typedef struct KoalaOptions {
     int compile_only;   // -c
+    char *cast_type;    // --cast=trap|wrap
     char *dump;         // --dump=<list>
     const char *output; // -o <file>
     const char *input;  // input file
