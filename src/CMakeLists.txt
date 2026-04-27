@@ -42,7 +42,7 @@ set(PARSER_SRC
     )
 
 add_library(parser STATIC ${PARSER_SRC})
-target_link_libraries(parser koala-common)
+target_link_libraries(parser koala-common m)
 
 add_executable(koalac_out parser/koalac.c)
 target_link_libraries(koalac_out parser)

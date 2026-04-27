@@ -117,3 +117,89 @@ static void do_int_cast(TValue *regs, int rd, int rs, int mode, int dst_ti)
     regs[rd].ival = val;
     regs[rd].tag = dst_ti;
 }
+
+static char *float_type_names[] = {
+    "float16",
+    "float32",
+    "float64",
+};
+
+static int do_float_trap(int tag, double *val)
+{
+    double rt; // roundtrip
+    double casted;
+    double v = *val;
+
+    tag = tag - TAG_FLOAT16; // normalize to 0-based index for easier handling
+
+    switch (tag) {
+        case 0: {
+            _Float16 h = (_Float16)v;
+            casted = (double)h;
+            rt = casted;
+            if (rt != v) return 0; // trap
+            *val = casted;
+            return 1;
+        }
+        case 1: {
+            float f = (float)v;
+            casted = (double)f;
+            rt = casted;
+            if (rt != v) return 0; // trap
+            *val = casted;
+            return 1;
+        }
+        case 2:
+            return 1;
+        default:
+            UNREACHABLE();
+    }
+}
+
+static void do_float_wrap(int tag, double *val)
+{
+    double v = *val;
+
+    tag = tag - TAG_FLOAT16; // normalize to 0-based index for easier handling
+
+    switch (tag) {
+        case 0:
+            *val = (_Float16)v;
+            return;
+        case 1:
+            *val = (float)v;
+            return;
+        case 2:
+            return;
+        default:
+            UNREACHABLE();
+    }
+}
+
+static void do_float_cast(TValue *regs, int rd, int rs, int mode, int dst_ti)
+{
+    ASSERT(dst_ti >= TAG_FLOAT16 && dst_ti <= TAG_FLOAT64);
+
+    int src_tag = regs[rs].tag;
+    double val = regs[rs].fval;
+    ASSERT(src_tag >= TAG_FLOAT16 && src_tag <= TAG_FLOAT64);
+
+    if (mode == 0) { // trap
+        if (!do_float_trap(dst_ti, &val)) {
+            int src_idx = src_tag - TAG_FLOAT16;
+            int dst_idx = dst_ti - TAG_FLOAT16;
+            fprintf(stderr,
+                    "panic: runtime error: %s to %s cast failed (value %.17g cannot be "
+                    "represented exactly)\n",
+                    float_type_names[src_idx], float_type_names[dst_idx], val);
+            abort();
+        }
+    } else if (mode == 1) { // wrap
+        do_float_wrap(dst_ti, &val);
+    } else {
+        NYI();
+    }
+
+    regs[rd].fval = val;
+    regs[rd].tag = dst_ti;
+}

@@ -126,7 +126,24 @@ static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **ar
         TypeSpec *ts = callee->ts;
         TypeSpec *arg_ts = arg->ts;
         if (ts->kind == TYPE_INT && arg_ts->kind == TYPE_INT) {
-            // if (arg_ts == ts) return arg;
+            if (arg_ts == ts) return arg;
+            KlrValue *ret = klr_build_cast(bldr, arg, ts, "");
+            return ret;
+        }
+    }
+
+    NYI();
+}
+
+static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args,
+                                 int nargs)
+{
+    if (nargs == 1) {
+        KlrValue *arg = args[0];
+        TypeSpec *ts = callee->ts;
+        TypeSpec *arg_ts = arg->ts;
+        if (ts->kind == TYPE_FLOAT && arg_ts->kind == TYPE_FLOAT) {
+            if (arg_ts == ts) return arg;
             KlrValue *ret = klr_build_cast(bldr, arg, ts, "");
             return ret;
         }
@@ -146,6 +163,8 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue **ar
     TypeSpec *ts = callee->ts;
     if (ts->kind == TYPE_INT) {
         ret = emit_int_call(&bldr, callee, args, nargs);
+    } else if (ts->kind == TYPE_FLOAT) {
+        ret = emit_float_call(&bldr, callee, args, nargs);
     } else {
         NYI();
     }
@@ -348,6 +367,18 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
     } else if (type_is_int(rhs_ts)) {
         if (rhs_ts->int_flt_info.width < 8) {
             cast_rhs = klr_build_cast(&bldr, cast_rhs, uint64_type_spec(), "");
+        }
+    }
+
+    if (type_is_float(lhs_ts)) {
+        if (lhs_ts->int_flt_info.width < 8) {
+            cast_lhs = klr_build_cast(&bldr, cast_lhs, float64_type_spec(), "");
+        }
+    }
+
+    if (type_is_float(rhs_ts)) {
+        if (rhs_ts->int_flt_info.width < 8) {
+            cast_rhs = klr_build_cast(&bldr, cast_rhs, float64_type_spec(), "");
         }
     }
 

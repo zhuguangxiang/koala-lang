@@ -125,5 +125,3 @@ func test_int_2_2(n int) int32 {
 func test_int_2_3(n int) int64 {
     return int64(n)
 }
-
-// CHECK: %0 = cast %n int64 to int64

@@ -1,0 +1,29 @@
+// RUN: koala %s --dump=lir | filecheck %s
+
+func test_float(n float16) float32 {
+    return float32(n + 1.5)
+}
+
+func main() {
+    let a = test_float(1.0)
+    print(a)
+}
+
+// CHECK-LABEL: --- IR Dump After isel [@test_float] ---
+// CHECK-LABEL: func @test_float(%n float16) float32
+// CHECK: %0 = float_cast %n float16 to float64
+// CHECK: %1 = local [immutable] float64
+// CHECK: loadk %1 float64, 1.500000 float64
+// CHECK: %2 = float.add %0 float64, %1 float64
+// CHECK: %3 = float_cast %2 float64 to float32
+// CHECK: ret %3 float32
+
+// CHECK-LABEL: --- IR Dump After isel [@main] ---
+// CHECK-LABEL: func @main()
+// CHECK: %0 = local float16        [fixedslot = 0(next)]
+// CHECK: loadk %0 float16, 1.000000 float16
+// CHECK: %1 = call @test_float [const], 1        [fixedslot = 0(next)]
+// CHECK: call @print [path = 'std/builtin'], 1
+// CHECK: ret void
+
+// CHECK: 2.5

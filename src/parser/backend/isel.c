@@ -542,38 +542,35 @@ static void isel_lower_move(KlrInsn *insn, KlrFunc *fn)
     insn->code = op;
 }
 
-static int need_cast(TypeSpec *dst, TypeSpec *src)
+static int int_need_cast(TypeSpec *dst, TypeSpec *src)
 {
     int src_sign = src->int_flt_info.sign;
     int dst_sign = dst->int_flt_info.sign;
     int src_width = src->int_flt_info.width;
     int dst_width = dst->int_flt_info.width;
 
-    if (dst->kind == TYPE_INT && src->kind == TYPE_INT) {
-        log_info("[isel] src=%s%d → dst=%s%d", src_sign ? "int" : "uint", src_width * 8,
-                 dst_sign ? "int" : "uint", dst_width * 8);
+    ASSERT(dst->kind == TYPE_INT && src->kind == TYPE_INT);
 
-        if (dst_sign == src_sign && dst_width >= src_width) {
-            log_info("no cast needed: same sign and dst is wider or equal");
-            return 0;
-        }
+    log_info("[isel] src=%s%d → dst=%s%d", src_sign ? "int" : "uint", src_width * 8,
+             dst_sign ? "int" : "uint", dst_width * 8);
 
-        if (dst_sign == 1 && src_sign == 0 && dst_width > src_width) {
-            log_info(
-                "[isel] no cast needed: src is unsigned, dst is signed and wider "
-                "(zero-extended)");
-            return 0;
-        }
-
-        log_info("cast needed");
-        return 1;
+    if (dst_sign == src_sign && dst_width >= src_width) {
+        log_info("[isel] int, no cast needed: same sign and dst is wider or equal");
+        return 0;
     }
 
-    log_info("[isel] cast needed: non-integer types or unsupported type combination");
-    return 0;
+    if (dst_sign == 1 && src_sign == 0 && dst_width > src_width) {
+        log_info(
+            "[isel] int, no cast needed: src is unsigned, dst is signed and wider "
+            "(zero-extended)");
+        return 0;
+    }
+
+    log_info("[isel] int, cast needed");
+    return 1;
 }
 
-static int encode_cast_flag(TypeSpec *dst, TypeSpec *src)
+static int encode_int_cast_flag(TypeSpec *dst, TypeSpec *src)
 {
     int flag = 0;
     int mode = cast_mode();
@@ -587,24 +584,69 @@ static int encode_cast_flag(TypeSpec *dst, TypeSpec *src)
 #endif
     }
 
-    if (dst->kind == TYPE_INT && src->kind == TYPE_INT) {
-        // 1,2,4,8 → 0,1,2,3
-        int dst_width = __builtin_ctz(dst->int_flt_info.width);
+    ASSERT(dst->kind == TYPE_INT && src->kind == TYPE_INT);
 
-        // 0=i, 1=u
-        int dst_sign = dst->int_flt_info.sign;
-        dst_sign = dst_sign ? 0 : 1;
+    // 1,2,4,8 → 0,1,2,3
+    int dst_width = __builtin_ctz(dst->int_flt_info.width);
 
-        int ti = 0b1000 + (dst_sign << 2) + dst_width;
-        flag |= ti << 2;
-        flag |= mode;
+    // 0=i, 1=u
+    int dst_sign = dst->int_flt_info.sign;
+    dst_sign = dst_sign ? 0 : 1;
 
-        log_info("[isel] encode_cast_flag: %x (src=%s%d → dst=%s%d)", flag,
-                 src->int_flt_info.sign ? "int" : "uint", src->int_flt_info.width * 8,
-                 dst_sign ? "int" : "uint", dst_width * 8);
-    } else {
-        NYI();
+    int ti = 0b1000 + (dst_sign << 2) + dst_width;
+    flag |= ti << 2;
+    flag |= mode;
+
+    log_info("[isel] encode_int_cast_flag: 0x%x (src=%s%d → dst=%s%d)", flag,
+             src->int_flt_info.sign ? "int" : "uint", src->int_flt_info.width * 8,
+             dst_sign ? "int" : "uint", dst_width * 8);
+
+    return flag;
+}
+
+static int float_need_cast(TypeSpec *dst, TypeSpec *src)
+{
+    int src_width = src->int_flt_info.width;
+    int dst_width = dst->int_flt_info.width;
+
+    ASSERT(dst->kind == TYPE_FLOAT && src->kind == TYPE_FLOAT);
+
+    log_info("[isel] src=float%d → dst=float%d", src_width * 8, dst_width * 8);
+
+    if (dst_width == src_width) {
+        log_info("[isel] float, no cast needed: same type");
+        return 0;
     }
+
+    log_info("[isel] float, cast needed: type differs");
+    return 1;
+}
+
+static int encode_float_cast_flag(TypeSpec *dst, TypeSpec *src)
+{
+    int flag = 0;
+    int mode = cast_mode();
+    if (mode == -1) {
+#ifndef NDEBUG
+        mode = 0; // default to trap
+        log_info("[isel] no cast mode specified, defaulting to trap in debug");
+#else
+        mode = 1; // default to ieee in release
+        log_info("[isel] no cast mode specified, defaulting to ieee in release");
+#endif
+    }
+
+    ASSERT(dst->kind == TYPE_FLOAT && src->kind == TYPE_FLOAT);
+
+    // 2,4,8 → 1,2,3
+    int dst_width = __builtin_ctz(dst->int_flt_info.width);
+
+    int ti = 0b100000 + dst_width;
+    flag |= ti << 2;
+    flag |= mode;
+
+    log_info("[isel] encode_float_cast_flag: 0x%x (src=float%d → dst=float%d)", flag,
+             src->int_flt_info.width * 8, dst_width * 8);
 
     return flag;
 }
@@ -617,10 +659,14 @@ static void isel_lower_cast(KlrInsn *insn, KlrFunc *fn)
     TypeSpec *src_ts = src->ts;
 
     if (dst_ts->kind == TYPE_INT && src_ts->kind == TYPE_INT) {
-        if (need_cast(dst_ts, src_ts)) {
+        if (int_need_cast(dst_ts, src_ts)) {
             insn->code = OP_INT_CAST;
-            insn->cast_flag = encode_cast_flag(dst_ts, src_ts);
-            return;
+            insn->cast_flag = encode_int_cast_flag(dst_ts, src_ts);
+        }
+    } else if (dst_ts->kind == TYPE_FLOAT && src_ts->kind == TYPE_FLOAT) {
+        if (float_need_cast(dst_ts, src_ts)) {
+            insn->code = OP_FLOAT_CAST;
+            insn->cast_flag = encode_float_cast_flag(dst_ts, src_ts);
         }
     } else {
         NYI();

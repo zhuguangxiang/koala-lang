@@ -1548,19 +1548,19 @@ X(OP_INT_CAST, FORMAT_RR_TI_MODE)
  * OP_FLOAT_CAST — float cast with overflow mode
  *
  * FORMAT_RR_TI_MODE:
- *     | op:8 | rd:8 | rs:8 | ---:2 | dst_ti:4 | mode:2 |
+ *     | op:8 | rd:8 | rs:8 | dst_ti:6 | mode:2 |
  *
  * dst_ti:
- *     0 = f16
- *     1 = f32
- *     2 = f64
- *     3 = bf16
+ *     0b100000 = bf16 (special encoding to fit in 6 bits)
+ *     0b100001 = f16
+ *     0b100010 = f32
+ *     0b100011 = f64
  *     ... reserved
  *
  * mode:
  *     0 = trap
  *     1 = ieee (default IEEE754 behavior)
- *     2 = saturate
+ *     2 = saturate (future)
  *     3 = reserved
  */
 X(OP_FLOAT_CAST, FORMAT_RR_TI_MODE)

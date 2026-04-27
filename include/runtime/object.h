@@ -60,10 +60,11 @@ typedef struct _TValue {
 #define TAG_UINT32 0b1110
 #define TAG_UINT64 0b1111
 
-#define TAG_BFLOAT16 0b10000
-#define TAG_FLOAT16  0b10001
-#define TAG_FLOAT32  0b10010
-#define TAG_FLOAT64  0b10011
+#define TAG_FLOAT16 0b100001
+#define TAG_FLOAT32 0b100010
+#define TAG_FLOAT64 0b100011
+
+#define TAG_BFLOAT16 0b100100
 
 // beyond this value, it's an object pointer
 #define TAG_VAL_MAX 64

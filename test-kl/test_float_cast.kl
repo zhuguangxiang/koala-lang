@@ -1,0 +1,8 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+func test(n float16) float32 {
+    return n + 1.5
+}
+
+// CHECK: return type mismatch in function 'test'
+// CHECK-NOT: {{.}}

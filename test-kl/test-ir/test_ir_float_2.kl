@@ -1,0 +1,62 @@
+// RUN: koalac %s --cgen --dump=code | filecheck %s
+
+func test_float_1(n float16) float16 {
+    return n
+}
+
+func test_float_1_1(n float16) float16 {
+    return float16(n)
+}
+
+func test_float_2(n float16) float32 {
+    return n
+}
+
+func test_float_3(n float16) float64 {
+    return n
+}
+
+func test_float_4(n float32) float16 {
+    return float16(n)
+}
+
+func test_float_5(n float32) float32 {
+    return n
+}
+
+func test_float_6(n float32) float64 {
+    return n
+}
+
+func test_float_7(n float64) float16 {
+    return float16(n)
+}
+
+func test_float_8(n float64) float32 {
+    return float32(n)
+}
+
+// CHECK-LABEL: @test_float_1[0,0]:
+// CHECK: ret r0
+// CHECK-LABEL: @test_float_1_1[1,1]:
+// CHECK: ret r0
+// CHECK-LABEL: @test_float_2[2,3]:
+// CHECK: float.cast r0, r0, ti=0x22, mode=0
+// CHECK: ret r0
+// CHECK-LABEL: @test_float_3[4,5]:
+// CHECK: float.cast r0, r0, ti=0x23, mode=0
+// CHECK: ret r0
+// CHECK-LABEL: @test_float_4[6,7]:
+// CHECK: float.cast r0, r0, ti=0x21, mode=0
+// CHECK: ret r0
+// CHECK-LABEL: @test_float_5[8,8]:
+// CHECK: ret r0
+// CHECK-LABEL: @test_float_6[9,10]:
+// CHECK: float.cast r0, r0, ti=0x23, mode=0
+// CHECK: ret r0
+// CHECK-LABEL: @test_float_7[11,12]:
+// CHECK: float.cast r0, r0, ti=0x21, mode=0
+// CHECK: ret r0
+// CHECK-LABEL: @test_float_8[13,14]:
+// CHECK: float.cast r0, r0, ti=0x22, mode=0
+// CHECK: ret r0

@@ -131,8 +131,19 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
 static void parse_lit_float(ParserState *ps, LitExpr *lit)
 {
     /* expected type from lhs */
-    // TypeDesc *desc = lit->expected;
-    // if (!desc) return;
+    TypeSpec *ts = lit->expected;
+    if (!ts) {
+        lit->ts = float64_type_spec();
+        return;
+    }
+
+    if (ts->kind != TYPE_FLOAT) {
+        return;
+    }
+
+    int width = ts->int_flt_info.width;
+    lit->ts = ts;
+    lit->len = width;
 }
 
 static void parse_none(ParserState *ps, LitExpr *lit)
@@ -1831,6 +1842,10 @@ static void parse_binary(ParserState *ps, Expr *exp)
                      orig_ts->int_flt_info.sign ? "int" : "uint",
                      orig_ts->int_flt_info.width * 8,
                      lhs->ts->int_flt_info.sign ? "int64" : "uint64");
+        } else if (lhs->ts->kind == TYPE_FLOAT) {
+            lhs->ts = float64_type_spec();
+            log_info("promote float type from float%d to float64",
+                     orig_ts->int_flt_info.width * 8);
         }
     }
 

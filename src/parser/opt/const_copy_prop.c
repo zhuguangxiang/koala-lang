@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <math.h>
 #include "ir.h"
 #include "log.h"
 #include "queue.h"
@@ -138,7 +139,7 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
 
 // clang-format off
 
-#define DEFINE_FOLD_BINARY_FUNC(opname) \
+#define DEFINE_FOLD_BINARY_FUNC(opname, op) \
     static void __fold_binary_##opname##_insn(KlrInsn *insn, KlrModule *m) \
     { \
         KlrValue *lhs = insn_oper_value(insn, 0); \
@@ -173,6 +174,12 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
                 } \
                 KlrValue *const_res = klr_const_uint(res, lval->ts, m); \
                 replace_all_uses_with(const_res, (KlrValue *)insn); \
+            } else if (lval->which == CONST_FLT && rval->which == CONST_FLT) { \
+                log_info("fold binary" #opname "insn to const float:"); \
+                log_insn(insn); \
+                double res = lval->fval op rval->fval; \
+                KlrValue *const_res = klr_const_float(res, lval->ts, m); \
+                replace_all_uses_with(const_res, (KlrValue *)insn); \
             } \
         } \
     }
@@ -203,11 +210,55 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
 
 // clang-format on
 
-DEFINE_FOLD_BINARY_FUNC(add)
-DEFINE_FOLD_BINARY_FUNC(sub)
-DEFINE_FOLD_BINARY_FUNC(mul)
-DEFINE_FOLD_BINARY_FUNC(div)
-DEFINE_FOLD_BINARY_FUNC(mod)
+DEFINE_FOLD_BINARY_FUNC(add, +)
+DEFINE_FOLD_BINARY_FUNC(sub, -)
+DEFINE_FOLD_BINARY_FUNC(mul, *)
+DEFINE_FOLD_BINARY_FUNC(div, /)
+
+static void __fold_binary_mod_insn(KlrInsn *insn, KlrModule *m)
+{
+    KlrValue *lhs = insn_oper_value(insn, 0);
+    KlrValue *rhs = insn_oper_value(insn, 1);
+    if (klr_is_const(lhs) && klr_is_const(rhs)) {
+        KlrConst *lval = (KlrConst *)lhs;
+        KlrConst *rval = (KlrConst *)rhs;
+        if (lval->which == CONST_INT && rval->which == CONST_INT) {
+            log_info("fold binary mod insn to const int:");
+            log_insn(insn);
+            int64_t res;
+            int r = int64_mod_overflow((int64_t)lval->ival, (int64_t)rval->ival, &res);
+            if (r) {
+                KlrLocInfo *loc = &insn->loc;
+                klr_error(loc, "signed integer overflow in binary mod");
+                insn->error = 1;
+                return;
+            }
+            KlrValue *const_res = klr_const_int(res, lval->ts, m);
+            replace_all_uses_with(const_res, (KlrValue *)insn);
+        } else if (lval->which == CONST_UINT && rval->which == CONST_UINT) {
+            log_info("fold binary mod insn to const uint:");
+            log_insn(insn);
+            uint64_t res;
+            int r = uint64_mod_overflow(lval->ival, rval->ival, &res);
+            if (r) {
+                KlrLocInfo *loc = &insn->loc;
+                klr_error(loc, "unsigned integer overflow in binary mod");
+                insn->error = 1;
+                return;
+            }
+            KlrValue *const_res = klr_const_uint(res, lval->ts, m);
+            replace_all_uses_with(const_res, (KlrValue *)insn);
+        } else if (lval->which == CONST_FLT && rval->which == CONST_FLT) {
+            log_info("fold binary mod insn to const float:");
+            log_insn(insn);
+            double res = fmod(lval->fval, rval->fval);
+            if (res < 0) res += rval->fval;
+            KlrValue *const_res = klr_const_float(res, lval->ts, m);
+            replace_all_uses_with(const_res, (KlrValue *)insn);
+        }
+    }
+}
+
 DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(and, &)
 DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(or, |)
 DEFINE_FOLD_BINARY_FUNC_NO_OVERFLOW(xor, ^)

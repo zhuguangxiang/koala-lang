@@ -1823,7 +1823,18 @@ TARGET(OP_INT_CAST) {
 }
 
 TARGET(OP_FLOAT_CAST) {
-    OP_NYI(OP_FLOAT_CAST);
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    int flag = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    int mode = flag & 0x3;
+    int dst_ti = (flag >> 2) & 0x3F;
+
+    do_float_cast(regs, rd, rs, mode, dst_ti);
+    DISPATCH();
 }
 
 TARGET(OP_NOP) {

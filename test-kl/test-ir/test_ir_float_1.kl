@@ -1,0 +1,29 @@
+// RUN: koalac %s --cgen --dump=code | filecheck %s
+
+func test_float_0(n float, m float) float {
+    let f = 1.2
+    return (f + n - 0.1) * 2.0 / m
+}
+
+func test_float_1() float {
+    return 1.1 + 2.2
+}
+
+func test_float_2(n float, m float) float {
+    return n % m
+}
+
+// CHECK-LABEL: @test_float_0[0,7]:
+// CHECK: loadk r2, #0
+// CHECK: float.add r0, r0, r2
+// CHECK: loadk r2, #1
+// CHECK: float.sub r0, r0, r2
+// CHECK: loadk r2, #2
+// CHECK: float.mul r0, r0, r2
+// CHECK: float.div r0, r0, r1
+// CHECK: ret r0
+// CHECK-LABEL: @test_float_1[8,8]:
+// CHECK: ret_const #3
+// CHECK-LABEL: @test_float_2[9,10]:
+// CHECK: float.mod r0, r0, r1
+// CHECK: ret r0

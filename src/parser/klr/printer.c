@@ -792,6 +792,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_ir_cast("int_cast", insn, fp);
             break;
 
+        case OP_FLOAT_CAST:
+            print_ir_cast("float_cast", insn, fp);
+            break;
+
         default:
             printf("%s\n", op_name(insn->code));
             break;

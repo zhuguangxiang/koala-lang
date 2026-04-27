@@ -372,6 +372,14 @@ static void lower_int_cast(KlrInsn *insn, KlrFunc *fn)
     set_raw_imm(&insn->raws[2], insn->cast_flag);
 }
 
+static void lower_float_cast(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *src = insn_oper_value(insn, 0);
+    set_raw_imm(&insn->raws[0], insn->vreg);
+    set_raw_imm(&insn->raws[1], src->vreg);
+    set_raw_imm(&insn->raws[2], insn->cast_flag);
+}
+
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 {
     KlrBasicBlock *bb;
@@ -412,6 +420,11 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_INT_CAST: {
                     lower_int_cast(insn, fn);
+                    break;
+                }
+
+                case OP_FLOAT_CAST: {
+                    lower_float_cast(insn, fn);
                     break;
                 }
 

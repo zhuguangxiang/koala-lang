@@ -342,7 +342,7 @@ static void dump_mach_insn(KlMachInsn *mi)
 
         case FORMAT_RR_TI_MODE: {
             printf("r%d, r%d, ti=0x%x, mode=%d", mi->opers[0], mi->opers[1],
-                   (mi->opers[2] >> 2) & 0xFu, mi->opers[2] & 0x3u);
+                   (mi->opers[2] >> 2) & 0x3Fu, mi->opers[2] & 0x3u);
             break;
         }
 
@@ -607,7 +607,7 @@ static void emit_mach_insn(KlMachInsn *mi, CodeBuffer *buf)
             bytecode |= (op & 0xFFu) << 24;
             bytecode |= (R1 & 0xFFu) << 16;
             bytecode |= (R2 & 0xFFu) << 8;
-            bytecode |= ti & 0x3Fu;
+            bytecode |= ti & 0xFFu;
             break;
         }
 

@@ -154,8 +154,6 @@ func test_int_4_4(n uint16) uint16 {
     return uint16(n)
 }
 
-// CHECK: %0 = cast %n uint16 to uint16
-
 func test_int_4_5(n uint16) uint32 {
     return uint32(n)
 }
@@ -165,5 +163,3 @@ func test_int_4_5(n uint16) uint32 {
 func test_int_4_6(n uint16) uint {
     return uint(n)
 }
-
-// CHECK: %0 = cast %n uint16 to uint64

@@ -168,15 +168,24 @@ pub class uint64 : Number[uint64] {
 
 pub class float16 : Number[float16] {
     @intrinsic
+    pub func __init__(x float64) {}
+
+    @intrinsic
     pub func __add__(rhs float16) float16 {}
 }
 
 pub class float32 : Number[float32] {
     @intrinsic
+    pub func __init__(x float64) {}
+
+    @intrinsic
     pub func __add__(rhs float32) float32 {}
 }
 
 pub class float64 : Number[float64] {
+    @intrinsic
+    pub func __init__(x float64) {}
+
     @intrinsic
     pub func __add__(rhs float64) float64 {}
 
