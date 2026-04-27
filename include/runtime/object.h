@@ -64,8 +64,6 @@ typedef struct _TValue {
 #define TAG_FLOAT32 0b100010
 #define TAG_FLOAT64 0b100011
 
-#define TAG_BFLOAT16 0b100100
-
 // beyond this value, it's an object pointer
 #define TAG_VAL_MAX 64
 #define TAG_OBJECT  (TAG_VAL_MAX + 1)
@@ -87,10 +85,10 @@ typedef struct _TValue {
 #define is_uint64(x) ((x)->tag == TAG_UINT64)
 
 /* Floating point */
-#define is_float16(x)  ((x)->tag == TAG_FLOAT16)
-#define is_float32(x)  ((x)->tag == TAG_FLOAT32)
-#define is_float64(x)  ((x)->tag == TAG_FLOAT64)
-#define is_bfloat16(x) ((x)->tag == TAG_BFLOAT16)
+#define is_float16(x) ((x)->tag == TAG_FLOAT16)
+#define is_float32(x) ((x)->tag == TAG_FLOAT32)
+#define is_float64(x) ((x)->tag == TAG_FLOAT64)
+// #define is_bfloat16(x) ((x)->tag == TAG_BFLOAT16)
 
 /* Category checks */
 #define is_int(x)   (((x)->tag & 0b1100) == 0b1000)
@@ -124,7 +122,7 @@ typedef struct _TValue {
 #define float16_value(x)    (TValue){ .tag = TAG_FLOAT16,  .fval = (double)(x) }
 #define float32_value(x)    (TValue){ .tag = TAG_FLOAT32,  .fval = (double)(x) }
 #define float64_value(x)    (TValue){ .tag = TAG_FLOAT64,  .fval = (double)(x) }
-#define bfloat16_value(x)   (TValue){ .tag = TAG_BFLOAT16, .fval = (double)(x) }
+// #define bfloat16_value(x)   (TValue){ .tag = TAG_BFLOAT16, .fval = (double)(x) }
 
 /* Reference value */
 #define obj_value(x)         (TValue){ .tag = TAG_OBJECT, .obj = (x) }
@@ -148,7 +146,7 @@ typedef struct _TValue {
 #define to_float16(v)  ({ ASSERT(is_float16(v)); (v)->fval; })
 #define to_float32(v)  ({ ASSERT(is_float32(v)); (v)->fval; })
 #define to_float64(v)  ({ ASSERT(is_float64(v)); (v)->fval; })
-#define to_bfloat16(v) ({ ASSERT(is_bfloat16(v)); (v)->fval; })
+// #define to_bfloat16(v) ({ ASSERT(is_bfloat16(v)); (v)->fval; })
 
 /* Reference */
 #define to_obj(v)      ({ ASSERT(is_obj(v)); (v)->obj; })
