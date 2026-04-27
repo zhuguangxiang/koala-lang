@@ -1,0 +1,16 @@
+// RUN: koala %s --cast=wrap | filecheck %s
+
+func test(n int16) int8 {
+    return int8(n + 100)
+}
+
+func main() {
+    var n int16 = 3000
+    var result int8 = test(n)
+    print(result) // Output: 120
+    var f float32 = 3.14
+    print(f) // Output: 3.14
+}
+
+// CHECK: 28
+// CHECK: 3.14{{[0-9]+}}

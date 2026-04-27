@@ -55,7 +55,7 @@ static void dump_const(KlcConst *item)
             break;
         }
         case KLC_CONST_FLT: {
-            fprintf(stdout, "flt, %lf\n", item->fval);
+            fprintf(stdout, "float%d, %lf\n", item->len * 8, item->fval);
             break;
         }
         case KLC_CONST_SHORT_ASCII:

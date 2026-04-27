@@ -172,14 +172,15 @@ typedef struct _KlMachInsn {
     KlrInsn *origin;
 } KlMachInsn;
 
-#define KL_MACH_CONST_I64 0
-#define KL_MACH_CONST_U64 1
-#define KL_MACH_CONST_F64 2
-#define KL_MACH_CONST_STR 3
+#define KL_MACH_CONST_INT   0
+#define KL_MACH_CONST_UINT  1
+#define KL_MACH_CONST_FLOAT 2
+#define KL_MACH_CONST_STR   3
 
 typedef struct {
     HashMapEntry hnode;
     uint8_t tag;
+    int len;
     int index;
     union {
         int64_t i64;
@@ -214,9 +215,9 @@ typedef struct KlMachImport {
 void kl_lower_operands(KlrFunc *fn, KlMachModule *ctx);
 void kl_do_codegen(KlrModule *module);
 
-int kl_mach_const_add_int(KlMachModule *ctx, int64_t v);
-int kl_mach_const_add_uint(KlMachModule *ctx, uint64_t v);
-int kl_mach_const_add_float(KlMachModule *ctx, double v);
+int kl_mach_const_add_int(KlMachModule *ctx, int64_t v, int width);
+int kl_mach_const_add_uint(KlMachModule *ctx, uint64_t v, int width);
+int kl_mach_const_add_float(KlMachModule *ctx, double v, int width);
 int kl_mach_const_add_str(KlMachModule *ctx, char *s);
 
 #ifdef __cplusplus

@@ -39,6 +39,7 @@ typedef struct _KlcConst {
     short type;
     short sign;
     int len;
+    int type_info;
     union {
         /* integer */
         uint64_t ival;
@@ -195,7 +196,7 @@ KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *type, int flags);
 
 uint16_t klc_add_none(KlcFile *klc);
 uint16_t klc_add_int(KlcFile *klc, uint64_t val, int sign, int width);
-uint16_t klc_add_float(KlcFile *klc, double val);
+uint16_t klc_add_float(KlcFile *klc, double val, int width);
 uint16_t klc_add_str(KlcFile *klc, char *s, int len);
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len);
 
@@ -203,7 +204,7 @@ uint16_t klc_add_code(KlcFile *klc, char *name, uint16_t num_locals,
                       uint16_t max_call_args, uint32_t start_pc, uint32_t code_size);
 
 uint16_t klc_add_rt_int(KlcFile *klc, uint64_t val, int sign, int width);
-uint16_t klc_add_rt_float(KlcFile *klc, double val);
+uint16_t klc_add_rt_float(KlcFile *klc, double val, int width);
 uint16_t klc_add_rt_str(KlcFile *klc, char *s, int len);
 
 void klc_add_import(KlcFile *klc, int kind, char *ns, char *sym);

@@ -38,6 +38,7 @@ static int __const_equal(KlcConst *k1, KlcConst *k2)
             return k1->ival == k2->ival;
         }
         case KLC_CONST_FLT: {
+            if (k1->len != k2->len) return 0;
             return k1->fval == k2->fval;
         }
         case KLC_CONST_ASCII:      // fall-through
@@ -115,7 +116,20 @@ static uint16_t __add_none(KlcFile *klc, int type)
 
 static uint16_t __add_int(KlcFile *klc, uint64_t val, int sign, int width, int type)
 {
-    KlcConst k = { .type = KLC_CONST_INT, .sign = sign, .len = width, .ival = val };
+    // 1,2,4,8 → 0,1,2,3
+    int _width = __builtin_ctz(width);
+    // 0=i, 1=u
+    int _sign = sign ? 0 : 1;
+    int ti = 0b1000 + (_sign << 2) + _width;
+
+    KlcConst k = {
+        .type = KLC_CONST_INT,
+        .sign = sign,
+        .len = width,
+        .type_info = ti,
+        .ival = val,
+    };
+
     uint16_t idx = __index(klc, type, &k);
     if (idx == 0) {
         KlcConst *item = mm_alloc_obj(item);
@@ -123,20 +137,32 @@ static uint16_t __add_int(KlcFile *klc, uint64_t val, int sign, int width, int t
         item->sign = sign;
         item->len = width;
         item->ival = val;
+        item->type_info = ti;
         idx = __append(klc, type, item);
     }
     return idx;
 }
 
-static uint16_t __add_float(KlcFile *klc, double val, int type)
+static uint16_t __add_float(KlcFile *klc, double val, int width, int type)
 {
-    KlcConst k = { .type = KLC_CONST_FLT, .len = 0, .fval = val };
+    // 2,4,8 → 1,2,3
+    int _width = __builtin_ctz(width);
+    int ti = 0b100000 + _width;
+
+    KlcConst k = {
+        .type = KLC_CONST_FLT,
+        .len = width,
+        .type_info = ti,
+        .fval = val,
+    };
+
     uint16_t idx = __index(klc, type, &k);
     if (idx == 0) {
         KlcConst *item = mm_alloc_obj(item);
         item->type = KLC_CONST_FLT;
-        item->len = 0;
+        item->len = width;
         item->fval = val;
+        item->type_info = ti;
         idx = __append(klc, type, item);
     }
     return idx;
@@ -167,9 +193,9 @@ uint16_t klc_add_int(KlcFile *klc, uint64_t val, int sign, int width)
     return __add_int(klc, val, sign, width, ITEM_CONST);
 }
 
-uint16_t klc_add_float(KlcFile *klc, double val)
+uint16_t klc_add_float(KlcFile *klc, double val, int width)
 {
-    return __add_float(klc, val, ITEM_CONST);
+    return __add_float(klc, val, width, ITEM_CONST);
 }
 
 uint16_t klc_add_str(KlcFile *klc, char *s, int len)
@@ -214,9 +240,9 @@ uint16_t klc_add_rt_int(KlcFile *klc, uint64_t val, int sign, int width)
     return __add_int(klc, val, sign, width, ITEM_RT_CONST);
 }
 
-uint16_t klc_add_rt_float(KlcFile *klc, double val)
+uint16_t klc_add_rt_float(KlcFile *klc, double val, int width)
 {
-    return __add_float(klc, val, ITEM_RT_CONST);
+    return __add_float(klc, val, width, ITEM_RT_CONST);
 }
 
 uint16_t klc_add_rt_str(KlcFile *klc, char *s, int len)
@@ -443,6 +469,7 @@ static void write_const(KlcFile *klc, KlcConst *item)
         case KLC_CONST_INT: {
             write_uint8(klc, (uint8_t)item->len);
             write_uint8(klc, (uint8_t)item->sign);
+            write_uint8(klc, (uint8_t)item->type_info);
             if (item->len == 1) {
                 write_uint8(klc, (uint8_t)item->ival);
             } else if (item->len == 2) {
@@ -457,6 +484,8 @@ static void write_const(KlcFile *klc, KlcConst *item)
             break;
         }
         case KLC_CONST_FLT: {
+            write_uint8(klc, (uint8_t)item->len);
+            write_uint8(klc, (uint8_t)item->type_info);
             write_float(klc, item->fval);
             break;
         }
@@ -752,6 +781,9 @@ static void read_const(KlcFile *klc, Vector *vec)
             item->len = len;
             read_uint8(klc, (uint8_t *)&sign);
             item->sign = sign;
+            int type_info = 0;
+            read_uint8(klc, (uint8_t *)&type_info);
+            item->type_info = type_info;
             if (len == 1) {
                 read_uint8(klc, (uint8_t *)&ival);
             } else if (len == 2) {
@@ -768,6 +800,13 @@ static void read_const(KlcFile *klc, Vector *vec)
         }
         case KLC_CONST_FLT: {
             fval = 0.0;
+            len = 0;
+            read_uint8(klc, (uint8_t *)&len);
+            item->len = len;
+            int type_info = 0;
+            read_uint8(klc, (uint8_t *)&type_info);
+            item->type_info = type_info;
+            item->sign = 1; /* float is always signed */
             read_float(klc, &fval);
             item->fval = fval;
             break;

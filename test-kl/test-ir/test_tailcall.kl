@@ -69,6 +69,6 @@ print(ack(3, 11))
 // CHECK: 0035:  {{[0-9A-F]+}}   data
 
 // CHECK: Constant Pool:
-// CHECK:   #0: int: 100000000
+// CHECK:   #0: int64: 100000000
 // CHECK: Import Table:
 // CHECK:   #0: std/builtin.print

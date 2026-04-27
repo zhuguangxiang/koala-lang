@@ -121,15 +121,15 @@ static int get_const_index(KlrConst *kc, KlMachModule *m)
 
     switch (kc->which) {
         case CONST_INT: {
-            index = kl_mach_const_add_int(m, kc->ival);
+            index = kl_mach_const_add_int(m, kc->ival, kc->len);
             break;
         }
         case CONST_UINT: {
-            index = kl_mach_const_add_uint(m, kc->ival);
+            index = kl_mach_const_add_uint(m, kc->ival, kc->len);
             break;
         }
         case CONST_FLT: {
-            index = kl_mach_const_add_float(m, kc->fval);
+            index = kl_mach_const_add_float(m, kc->fval, kc->len);
             break;
         }
         case CONST_STR: {

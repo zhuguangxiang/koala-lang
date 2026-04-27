@@ -74,13 +74,13 @@ static void __add_const(Object *m, KlcConst *item)
         }
         case KLC_CONST_INT: {
             if (item->sign)
-                kl_mo_add_int(m, (int64_t)item->ival);
+                kl_mo_add_int(m, (int64_t)item->ival, item->type_info);
             else
-                kl_mo_add_uint(m, item->ival);
+                kl_mo_add_uint(m, item->ival, item->type_info);
             break;
         }
         case KLC_CONST_FLT: {
-            kl_mo_add_float(m, item->fval);
+            kl_mo_add_float(m, item->fval, item->type_info);
             break;
         }
         case KLC_CONST_SHORT_ASCII:

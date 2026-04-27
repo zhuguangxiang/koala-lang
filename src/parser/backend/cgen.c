@@ -19,14 +19,14 @@ static void dump_const_pool(KlMachModule *m)
     vector_foreach(kc, &m->const_pool) {
         printf("  #%d: ", i__);
         switch (kc->tag) {
-            case KL_MACH_CONST_I64:
-                printf("int: %ld\n", kc->i64);
+            case KL_MACH_CONST_INT:
+                printf("int%d: %ld\n", kc->len * 8, kc->i64);
                 break;
-            case KL_MACH_CONST_U64:
-                printf("uint: %lu\n", kc->u64);
+            case KL_MACH_CONST_UINT:
+                printf("uint%d: %lu\n", kc->len * 8, kc->u64);
                 break;
-            case KL_MACH_CONST_F64:
-                printf("float: %f\n", kc->f64);
+            case KL_MACH_CONST_FLOAT:
+                printf("float%d: %f\n", kc->len * 8, kc->f64);
                 break;
             case KL_MACH_CONST_STR:
                 printf("string: \"%s\"\n", kc->str);
@@ -52,14 +52,14 @@ static int __mach_const_eq__(void *a, void *b)
     KlMachConst *kb = (KlMachConst *)b;
     if (ka->tag != kb->tag) return 0;
     switch (ka->tag) {
-        case KL_MACH_CONST_I64:
-            return ka->i64 == kb->i64;
-        case KL_MACH_CONST_U64:
-            return ka->u64 == kb->u64;
-        case KL_MACH_CONST_F64:
-            return ka->f64 == kb->f64;
+        case KL_MACH_CONST_INT:
+            return (ka->len == kb->len) && (ka->i64 == kb->i64);
+        case KL_MACH_CONST_UINT:
+            return (ka->len == kb->len) && (ka->u64 == kb->u64);
+        case KL_MACH_CONST_FLOAT:
+            return (ka->len == kb->len) && (ka->f64 == kb->f64);
         case KL_MACH_CONST_STR:
-            return strcmp(ka->str, kb->str) == 0;
+            return (ka->len == kb->len) && (strcmp(ka->str, kb->str) == 0);
         default:
             UNREACHABLE();
     }
@@ -69,11 +69,11 @@ static unsigned int mach_const_hash(void *key)
 {
     KlMachConst *kc = (KlMachConst *)key;
     switch (kc->tag) {
-        case KL_MACH_CONST_I64:
+        case KL_MACH_CONST_INT:
             return mem_hash(&kc->i64, sizeof(kc->i64));
-        case KL_MACH_CONST_U64:
+        case KL_MACH_CONST_UINT:
             return mem_hash(&kc->u64, sizeof(kc->u64));
-        case KL_MACH_CONST_F64: {
+        case KL_MACH_CONST_FLOAT: {
             union {
                 double f;
                 uint64_t u;
@@ -87,9 +87,9 @@ static unsigned int mach_const_hash(void *key)
     }
 }
 
-int kl_mach_const_add_int(KlMachModule *m, int64_t v)
+int kl_mach_const_add_int(KlMachModule *m, int64_t v, int width)
 {
-    KlMachConst key = { .tag = KL_MACH_CONST_I64, .i64 = v };
+    KlMachConst key = { .tag = KL_MACH_CONST_INT, .len = width, .i64 = v };
     hashmap_entry_init(&key, mach_const_hash(&key));
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
@@ -99,7 +99,8 @@ int kl_mach_const_add_int(KlMachModule *m, int64_t v)
     }
 
     KlMachConst *new_entry = mm_alloc_obj(new_entry);
-    new_entry->tag = KL_MACH_CONST_I64;
+    new_entry->tag = KL_MACH_CONST_INT;
+    new_entry->len = width;
     new_entry->i64 = v;
     hashmap_entry_init(new_entry, mach_const_hash(new_entry));
     hashmap_put(&m->cp_map, new_entry);
@@ -109,9 +110,9 @@ int kl_mach_const_add_int(KlMachModule *m, int64_t v)
     return new_entry->index;
 }
 
-int kl_mach_const_add_uint(KlMachModule *m, uint64_t v)
+int kl_mach_const_add_uint(KlMachModule *m, uint64_t v, int width)
 {
-    KlMachConst key = { .tag = KL_MACH_CONST_U64, .u64 = v };
+    KlMachConst key = { .tag = KL_MACH_CONST_UINT, .len = width, .u64 = v };
     hashmap_entry_init(&key, mach_const_hash(&key));
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
@@ -121,7 +122,8 @@ int kl_mach_const_add_uint(KlMachModule *m, uint64_t v)
     }
 
     KlMachConst *new_entry = mm_alloc_obj(new_entry);
-    new_entry->tag = KL_MACH_CONST_U64;
+    new_entry->tag = KL_MACH_CONST_UINT;
+    new_entry->len = width;
     new_entry->u64 = v;
     hashmap_entry_init(new_entry, mach_const_hash(new_entry));
     hashmap_put(&m->cp_map, new_entry);
@@ -131,9 +133,9 @@ int kl_mach_const_add_uint(KlMachModule *m, uint64_t v)
     return new_entry->index;
 }
 
-int kl_mach_const_add_float(KlMachModule *m, double v)
+int kl_mach_const_add_float(KlMachModule *m, double v, int width)
 {
-    KlMachConst key = { .tag = KL_MACH_CONST_F64, .f64 = v };
+    KlMachConst key = { .tag = KL_MACH_CONST_FLOAT, .len = width, .f64 = v };
     hashmap_entry_init(&key, mach_const_hash(&key));
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
@@ -143,7 +145,8 @@ int kl_mach_const_add_float(KlMachModule *m, double v)
     }
 
     KlMachConst *new_entry = mm_alloc_obj(new_entry);
-    new_entry->tag = KL_MACH_CONST_F64;
+    new_entry->tag = KL_MACH_CONST_FLOAT;
+    new_entry->len = width;
     new_entry->f64 = v;
     hashmap_entry_init(new_entry, mach_const_hash(new_entry));
     hashmap_put(&m->cp_map, new_entry);
@@ -156,7 +159,8 @@ int kl_mach_const_add_float(KlMachModule *m, double v)
 
 int kl_mach_const_add_str(KlMachModule *m, char *v)
 {
-    KlMachConst key = { .tag = KL_MACH_CONST_STR, .str = v };
+    int len = strlen(v);
+    KlMachConst key = { .tag = KL_MACH_CONST_STR, .len = len, .str = v };
     hashmap_entry_init(&key, mach_const_hash(&key));
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
@@ -168,6 +172,7 @@ int kl_mach_const_add_str(KlMachModule *m, char *v)
 
     KlMachConst *new_entry = mm_alloc_obj(new_entry);
     new_entry->tag = KL_MACH_CONST_STR;
+    new_entry->len = len;
     new_entry->str = v;
     hashmap_entry_init(new_entry, mach_const_hash(new_entry));
     hashmap_put(&m->cp_map, new_entry);

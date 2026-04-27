@@ -99,24 +99,24 @@ int kl_mo_add_const(Object *_m, TValue *val)
     return index;
 }
 
-int kl_mo_add_int(Object *_m, int64_t k)
+int kl_mo_add_int(Object *_m, int64_t k, int type_info)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    TValue val = int64_value(k);
+    TValue val = { .tag = type_info, .ival = k };
     return kl_mo_add_const(_m, &val);
 }
 
-int kl_mo_add_uint(Object *_m, uint64_t k)
+int kl_mo_add_uint(Object *_m, uint64_t k, int type_info)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    TValue val = uint64_value(k);
+    TValue val = { .tag = type_info, .ival = k };
     return kl_mo_add_const(_m, &val);
 }
 
-int kl_mo_add_float(Object *_m, double k)
+int kl_mo_add_float(Object *_m, double k, int type_info)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    TValue val = float64_value(k);
+    TValue val = { .tag = type_info, .fval = k };
     return kl_mo_add_const(_m, &val);
 }
 

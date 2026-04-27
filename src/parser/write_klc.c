@@ -23,7 +23,7 @@ static uint16_t klc_add_const(KlcFile *klc, Literal *lit)
             break;
         }
         case LIT_FLT: {
-            index = klc_add_float(klc, lit->fval);
+            index = klc_add_float(klc, lit->fval, lit->len);
             break;
         }
         case LIT_STR: {
@@ -333,14 +333,14 @@ static void write_rt_data(KlMachModule *m, KlcFile *klc)
     KlMachConst *c;
     vector_foreach(c, &m->const_pool) {
         switch (c->tag) {
-            case KL_MACH_CONST_I64:
-                klc_add_rt_int(klc, c->i64, 1, 8);
+            case KL_MACH_CONST_INT:
+                klc_add_rt_int(klc, c->i64, 1, c->len);
                 break;
-            case KL_MACH_CONST_U64:
-                klc_add_rt_int(klc, c->u64, 0, 8);
+            case KL_MACH_CONST_UINT:
+                klc_add_rt_int(klc, c->u64, 0, c->len);
                 break;
-            case KL_MACH_CONST_F64:
-                klc_add_rt_float(klc, c->f64);
+            case KL_MACH_CONST_FLOAT:
+                klc_add_rt_float(klc, c->f64, c->len);
                 break;
             case KL_MACH_CONST_STR:
                 klc_add_rt_str(klc, c->str, strlen(c->str));
