@@ -147,7 +147,7 @@ static uint16_t __add_float(KlcFile *klc, double val, int width, int type)
 {
     // 2,4,8 → 1,2,3
     int _width = __builtin_ctz(width);
-    int ti = 0b100000 + _width;
+    int ti = 0b010000 + _width;
 
     KlcConst k = {
         .type = KLC_CONST_FLT,
@@ -198,10 +198,7 @@ uint16_t klc_add_float(KlcFile *klc, double val, int width)
     return __add_float(klc, val, width, ITEM_CONST);
 }
 
-uint16_t klc_add_str(KlcFile *klc, char *s, int len)
-{
-    return __add_str(klc, s, len, ITEM_CONST);
-}
+uint16_t klc_add_str(KlcFile *klc, char *s, int len) { return __add_str(klc, s, len, ITEM_CONST); }
 
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len)
 {
@@ -221,8 +218,8 @@ uint16_t klc_add_utf8(KlcFile *klc, char *s, int len)
     return idx;
 }
 
-uint16_t klc_add_code(KlcFile *klc, char *name, uint16_t num_locals,
-                      uint16_t max_call_args, uint32_t start_pc, uint32_t num_insns)
+uint16_t klc_add_code(KlcFile *klc, char *name, uint16_t num_locals, uint16_t max_call_args,
+                      uint32_t start_pc, uint32_t num_insns)
 {
     KlcCode *code = mm_alloc_obj(code);
     uint32_t name_index = klc_add_rt_str(klc, name, strlen(name));
@@ -448,10 +445,7 @@ static FILE *open_klc_file(const char *path, char *mode)
     return fp;
 }
 
-static void write_bytes(KlcFile *klc, uint8_t *data, int len)
-{
-    fwrite(data, 1, len, klc->filp);
-}
+static void write_bytes(KlcFile *klc, uint8_t *data, int len) { fwrite(data, 1, len, klc->filp); }
 static void write_uint8(KlcFile *klc, uint8_t val) { fwrite(&val, 1, 1, klc->filp); }
 static void write_uint16(KlcFile *klc, uint16_t val) { fwrite(&val, 1, 2, klc->filp); }
 static void write_uint32(KlcFile *klc, uint32_t val) { fwrite(&val, 1, 4, klc->filp); }
@@ -744,10 +738,7 @@ int write_klc_file(KlcFile *klc)
     return 0;
 }
 
-static void read_bytes(KlcFile *klc, uint8_t *data, int len)
-{
-    fread(data, 1, len, klc->filp);
-}
+static void read_bytes(KlcFile *klc, uint8_t *data, int len) { fread(data, 1, len, klc->filp); }
 static void read_uint8(KlcFile *klc, uint8_t *val) { fread(val, 1, 1, klc->filp); }
 static void read_uint16(KlcFile *klc, uint16_t *val) { fread(val, 1, 2, klc->filp); }
 static void read_uint32(KlcFile *klc, uint32_t *val) { fread(val, 1, 4, klc->filp); }
@@ -1101,8 +1092,8 @@ static int check_header(KlcFile *klc)
     }
 
     if (klc->version != KOALA_VERSION) {
-        fprintf(stderr, "klc version %u is not supported by this Koala version %u\n",
-                klc->version, KOALA_VERSION);
+        fprintf(stderr, "klc version %u is not supported by this Koala version %u\n", klc->version,
+                KOALA_VERSION);
         return -1;
     }
 

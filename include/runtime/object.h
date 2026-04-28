@@ -60,9 +60,9 @@ typedef struct _TValue {
 #define TAG_UINT32 0b1110
 #define TAG_UINT64 0b1111
 
-#define TAG_FLOAT16 0b100001
-#define TAG_FLOAT32 0b100010
-#define TAG_FLOAT64 0b100011
+#define TAG_FLOAT16 0b010001
+#define TAG_FLOAT32 0b010010
+#define TAG_FLOAT64 0b010011
 
 // beyond this value, it's an object pointer
 #define TAG_VAL_MAX 64
@@ -404,10 +404,7 @@ static inline TValue kl_do_call(TValue *callable, TValue *args, int nargs)
     return call(callable, args, nargs);
 }
 
-static inline TValue kl_do_call_no_arg(TValue *callable)
-{
-    return kl_do_call(callable, NULL, 0);
-}
+static inline TValue kl_do_call_no_arg(TValue *callable) { return kl_do_call(callable, NULL, 0); }
 
 static inline TValue kl_do_call_one_arg(TValue *callable, TValue *arg)
 {

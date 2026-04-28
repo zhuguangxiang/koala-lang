@@ -1816,7 +1816,7 @@ TARGET(OP_INT_CAST) {
     CHECK_REG_ID(rs);
 
     int mode = flag & 0x3;
-    int dst_ti = (flag >> 2) & 0xF;
+    int dst_ti = (flag >> 2) & 0x3F;
 
     do_int_cast(regs, rd, rs, mode, dst_ti);
     DISPATCH();

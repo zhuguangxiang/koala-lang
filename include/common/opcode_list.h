@@ -1532,9 +1532,22 @@ X(OP_RET_VOID, FORMAT_Op)
  * OP_INT_CAST — integer cast with different mode on overflow
  *
  * FORMAT_RR_TI_MODE:
- *     | op:8 | rd:8 | rs:8 | ---:2 | dst_ti:4 | mode:2 |
+ *     | op:8 | rd:8 | rs:8 | dst_ti:6 | mode:2 |
  *
- * dst_ti: the same as OP_LOAD_INT_IMM
+ * dst_ti:
+ *      0b001000 = i8
+ *      0b001001 = i16
+ *      0b001010 = i32
+ *      0b001011 = i64
+ *      0b001100 = u8
+ *      0b001101 = u16
+ *      0b001110 = u32
+ *      0b001111 = u64
+ *      0b010000 = reserved
+ *      0b010001 = f16 (cast int to f16)
+ *      0b010010 = f32 (cast int to f32)
+ *      0b010011 = f64 (cast int to f64)
+ *      ... reserved
  *
  * mode:
  *      0 = trap on overflow
@@ -1551,10 +1564,18 @@ X(OP_INT_CAST, FORMAT_RR_TI_MODE)
  *     | op:8 | rd:8 | rs:8 | dst_ti:6 | mode:2 |
  *
  * dst_ti:
- *     0b100000 = bf16 (special encoding to fit in 6 bits)
- *     0b100001 = f16
- *     0b100010 = f32
- *     0b100011 = f64
+ *     0b001000 = i8 (cast float to i8)
+ *     0b001001 = i16 (cast float to i16)
+ *     0b001010 = i32 (cast float to i32)
+ *     0b001011 = i64 (cast float to i64)
+ *     0b001100 = u8 (cast float to u8)
+ *     0b001101 = u16 (cast float to u16)
+ *     0b001110 = u32 (cast float to u32)
+ *     0b001111 = u64 (cast float to u64)
+ *     0b010000 = reserved
+ *     0b010001 = f16
+ *     0b010010 = f32
+ *     0b010011 = f64
  *     ... reserved
  *
  * mode:

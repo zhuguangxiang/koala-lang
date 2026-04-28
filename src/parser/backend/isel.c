@@ -623,7 +623,7 @@ static int encode_float_cast_flag(TypeSpec *dst, TypeSpec *src)
     // 2,4,8 → 1,2,3
     int dst_width = __builtin_ctz(dst->int_flt_info.width);
 
-    int ti = 0b100000 + dst_width;
+    int ti = 0b010000 + dst_width;
     flag |= ti << 2;
     flag |= mode;
 
@@ -751,8 +751,8 @@ static void verify_insn(KlrInsn *insn)
     OpCode op = insn->code;
 
     if ((op >= OP_BINARY_ADD && op <= OP_IR_PHI) || (op == OP_JMP) || (op == OP_RET) ||
-        (op == OP_RET_VOID) || (op == OP_MOVE) || (op == OP_GLOBAL_GET) ||
-        (op == OP_GLOBAL_SET) || (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT)) {
+        (op == OP_RET_VOID) || (op == OP_MOVE) || (op == OP_GLOBAL_GET) || (op == OP_GLOBAL_SET) ||
+        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT)) {
         return;
     }
 
