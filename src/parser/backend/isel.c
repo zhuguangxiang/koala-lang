@@ -573,16 +573,7 @@ static int int_need_cast(TypeSpec *dst, TypeSpec *src)
 static int encode_int_cast_flag(TypeSpec *dst, TypeSpec *src)
 {
     int flag = 0;
-    int mode = cast_mode();
-    if (mode == -1) {
-#ifndef NDEBUG
-        mode = 0; // default to trap
-        log_info("[isel] no cast mode specified, defaulting to trap in debug");
-#else
-        mode = 1; // default to wrap in release
-        log_info("[isel] no cast mode specified, defaulting to wrap in release");
-#endif
-    }
+    int mode = int_cast_mode();
 
     ASSERT(dst->kind == TYPE_INT && src->kind == TYPE_INT);
 
@@ -625,16 +616,7 @@ static int float_need_cast(TypeSpec *dst, TypeSpec *src)
 static int encode_float_cast_flag(TypeSpec *dst, TypeSpec *src)
 {
     int flag = 0;
-    int mode = cast_mode();
-    if (mode == -1) {
-#ifndef NDEBUG
-        mode = 0; // default to trap
-        log_info("[isel] no cast mode specified, defaulting to trap in debug");
-#else
-        mode = 1; // default to ieee in release
-        log_info("[isel] no cast mode specified, defaulting to ieee in release");
-#endif
-    }
+    int mode = float_cast_mode();
 
     ASSERT(dst->kind == TYPE_FLOAT && src->kind == TYPE_FLOAT);
 

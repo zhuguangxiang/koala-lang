@@ -44,7 +44,7 @@ static TValue type_str(TValue *self, TValue *args, int nargs)
     TypeObject *tp = kl_typeof(self);
     const char *s = kl_mo_path(tp->module);
     Object *ret;
-    if (str_eq(s, "std/builtin")) {
+    if (str_equal(s, "std/builtin")) {
         ret = kl_new_fmt_str("<class '%s'>", tp->name);
     } else {
         ret = kl_new_fmt_str("<class '%s.%s'>", s, tp->name);
@@ -162,7 +162,7 @@ int kl_init_type(TypeObject *tp)
 
         // bind to slots[]
         for (SlotDef *slot = slotdefs; slot->name; slot++) {
-            if (str_eq(def->name, slot->name)) {
+            if (str_equal(def->name, slot->name)) {
                 log_info("binding method '%s' to slots[%d] of class/trait '%s'",
                          def->name, slot->id, tp->name);
 

@@ -30,7 +30,8 @@ typedef struct _CompileOptions {
     int enable_tail_call;
     int build_stdlib;
     int enable_write_klc;
-    int cast_type;
+    int enable_int_trap;
+    int enable_float_trap;
     DumpFlags dump;
 } CompileOptions;
 
@@ -45,7 +46,8 @@ extern CompileOptions cmd_opt;
 #define tail_call_enabled() (cmd_opt.enable_tail_call)
 #define is_build_stdlib()   (cmd_opt.build_stdlib)
 #define write_klc_enabled() (cmd_opt.enable_write_klc)
-#define cast_mode()         (cmd_opt.cast_type)
+#define int_cast_mode()     (cmd_opt.enable_int_trap ? 0 : 1)
+#define float_cast_mode()   (cmd_opt.enable_float_trap ? 0 : 1)
 
 #define dump_no_opt_ir_enabled() ((cmd_opt.dump & DUMP_NO_OPT_IR) != 0)
 #define dump_ir_enabled()        ((cmd_opt.dump & DUMP_IR) != 0)

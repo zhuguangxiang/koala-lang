@@ -1,0 +1,10 @@
+// RUN: koalac %s --opt --float-trap | filecheck %s
+
+func main() {
+    let f = 1.2345678901234567
+    print(f)
+    let n = float16(f)
+    print(n)
+}
+
+// CHECK: constant float overflow in cast: cannot cast from float64 to float16

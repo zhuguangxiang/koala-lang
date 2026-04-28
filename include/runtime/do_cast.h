@@ -124,30 +124,51 @@ static char *float_type_names[] = {
     "float64",
 };
 
-static int do_float_trap(int tag, double v)
+static int do_float_trap(int tag, double *val)
 {
-    double rt; // roundtrip
-    double casted;
+    double v = *val;
 
     tag = tag - TAG_FLOAT16; // normalize to 0-based index for easier handling
 
     switch (tag) {
         case 0: {
             _Float16 h = (_Float16)v;
-            casted = (double)h;
-            rt = casted;
-            if (rt != v) return 0; // trap
+            double rt = (double)h;
+            if (rt != v) return 0;
+            *val = rt;
             return 1;
         }
         case 1: {
             float f = (float)v;
-            casted = (double)f;
-            rt = casted;
-            if (rt != v) return 0; // trap
+            double rt = (double)f;
+            if (rt != v) return 0;
+            *val = rt;
             return 1;
         }
         case 2:
             return 1;
+        default:
+            UNREACHABLE();
+    }
+}
+
+static void do_float_wrap(int tag, double *val)
+{
+    double v = *val;
+
+    tag = tag - TAG_FLOAT16; // normalize to 0-based index for easier handling
+
+    switch (tag) {
+        case 0:
+            _Float16 h = (_Float16)v;
+            *val = (double)h;
+            return;
+        case 1:
+            float f = (float)v;
+            *val = (double)f;
+            return;
+        case 2:
+            return;
         default:
             UNREACHABLE();
     }
@@ -162,7 +183,7 @@ static void do_float_cast(TValue *regs, int rd, int rs, int mode, int dst_ti)
     ASSERT(src_tag >= TAG_FLOAT16 && src_tag <= TAG_FLOAT64);
 
     if (mode == 0) { // trap
-        if (!do_float_trap(dst_ti, val)) {
+        if (!do_float_trap(dst_ti, &val)) {
             int src_idx = src_tag - TAG_FLOAT16;
             int dst_idx = dst_ti - TAG_FLOAT16;
             fprintf(stderr,
@@ -172,7 +193,7 @@ static void do_float_cast(TValue *regs, int rd, int rs, int mode, int dst_ti)
             abort();
         }
     } else if (mode == 1) { // wrap
-        // do nothing
+        do_float_wrap(dst_ti, &val);
     } else {
         NYI();
     }

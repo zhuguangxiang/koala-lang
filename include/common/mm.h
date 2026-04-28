@@ -75,7 +75,7 @@ int mem_nrchr(char *s, int len, char ch);
 int str_sep(char **str, char ch, char **out);
 
 /* string equal */
-static inline int str_eq(const char *s1, const char *s2)
+static inline int str_equal(const char *s1, const char *s2)
 {
     // if (!s1 || !s2) return 0;
     if (s1 == s2) return 1;

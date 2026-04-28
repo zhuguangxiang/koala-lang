@@ -4,10 +4,17 @@ func test_int_cast(n int16) uint32 {
     return uint32(n)
 }
 
+func test_int_wrap(n int) int8 {
+    return int8(n)
+}
+
 func main() {
     let x = test_int_cast(123)
     print(x + 1 == 124)
     print(x == 123)
+
+    let y = 300
+    print(test_int_wrap(y))
 }
 
 // CHECK: %0 = int_cast %n int16 to uint32
@@ -19,3 +26,9 @@ func main() {
 // CHECK: %6 = uint.cmp_eq_imm %5 uint64, 123 uint64
 // CHECK: true
 // CHECK: true
+// CHECK: 44
+
+/*
+panic: int64 → int8 cast overflow (300 not in [-128, 127])
+Aborted (core dumped)
+*/

@@ -13,11 +13,12 @@ extern "C" {
 #endif
 
 typedef struct KoalaOptions {
-    int compile_only;   // -c
-    char *cast_type;    // --cast=trap|wrap
-    char *dump;         // --dump=<list>
-    const char *output; // -o <file>
-    const char *input;  // input file
+    int compile_only;      // -c
+    int enable_int_trap;   // --int-trap
+    int enable_float_trap; // --float-trap
+    char *dump;            // --dump=<list>
+    const char *output;    // -o <file>
+    const char *input;     // input file
 } KoalaOptions;
 
 int kl_parse_args(int argc, char *argv[], KoalaOptions *opt);

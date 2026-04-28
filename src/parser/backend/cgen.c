@@ -26,7 +26,7 @@ static void dump_const_pool(KlMachModule *m)
                 printf("uint%d: %lu\n", kc->len * 8, kc->u64);
                 break;
             case KL_MACH_CONST_FLOAT:
-                printf("float%d: %f\n", kc->len * 8, kc->f64);
+                printf("float%d: %.17g\n", kc->len * 8, kc->f64);
                 break;
             case KL_MACH_CONST_STR:
                 printf("string: \"%s\"\n", kc->str);

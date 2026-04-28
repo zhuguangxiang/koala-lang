@@ -776,7 +776,7 @@ static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
     if (insn->code != OP_IR_CALL) return 0;
     KlrValue *val = insn_oper_value(insn, 0);
     if (val->kind != KLR_VALUE_KLASS) return 0;
-    if (!str_eq(val->name, "range")) return 0;
+    if (!str_equal(val->name, "range")) return 0;
     int num_opers = insn->num_opers;
     ASSERT(num_opers >= 3 && num_opers <= 4);
     out->start = insn_oper_value(insn, 1);

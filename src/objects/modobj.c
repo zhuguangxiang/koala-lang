@@ -61,9 +61,9 @@ int kl_mo_add_func(Object *_m, Object *obj)
         name = code->cs.name;
     }
 
-    if (str_eq(name, "__init__")) {
+    if (str_equal(name, "__init__")) {
         m->__init__ = obj;
-    } else if (str_eq(name, "main")) {
+    } else if (str_equal(name, "main")) {
         m->main = obj;
     } else {
         // do nothing

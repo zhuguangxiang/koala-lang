@@ -1,4 +1,4 @@
-// RUN: koala %s --cast=wrap | filecheck %s
+// RUN: koala %s | filecheck %s
 
 func test(n int16) int8 {
     return int8(n + 100)

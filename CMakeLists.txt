@@ -37,6 +37,14 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE debug)
 endif()
 
+execute_process(
+    COMMAND git rev-list --count HEAD
+    OUTPUT_VARIABLE KOALA_BUILD_NUMBER
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+add_definitions(-DKOALA_BUILD_NUMBER=${KOALA_BUILD_NUMBER})
+
 if(CMAKE_BUILD_TYPE STREQUAL debug)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 -fvar-tracking -DFNV32_HASH")
 elseif(CMAKE_BUILD_TYPE STREQUAL DebugTest)

@@ -4,6 +4,7 @@
  */
 
 #include <math.h>
+#include "cmd.h"
 #include "ir.h"
 #include "log.h"
 #include "queue.h"
@@ -12,7 +13,7 @@
 extern "C" {
 #endif
 
-static int check_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m)
+static int check_int_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m)
 {
     TypeSpec *dst_ts = insn->ts;
     if (dst_ts->kind != TYPE_INT) return 0;
@@ -26,8 +27,7 @@ static int check_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m)
                 if (val < INT8_MIN || val > INT8_MAX) {
                     KlrLocInfo *loc = &insn->loc;
                     klr_error(loc,
-                              "constant integer overflow in cast: cannot cast from "
-                              "int%d to int%d",
+                              "constant integer overflow in cast: cannot cast from int%d to int%d",
                               src_width * 8, dst_width * 8);
                     insn->error = 1;
                     return -1;
@@ -36,8 +36,7 @@ static int check_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m)
                 if (val < INT16_MIN || val > INT16_MAX) {
                     KlrLocInfo *loc = &insn->loc;
                     klr_error(loc,
-                              "constant integer overflow in cast: cannot cast from "
-                              "int%d to int%d",
+                              "constant integer overflow in cast: cannot cast from int%d to int%d",
                               src_width * 8, dst_width * 8);
                     insn->error = 1;
                     return -1;
@@ -46,8 +45,7 @@ static int check_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m)
                 if (val < INT32_MIN || val > INT32_MAX) {
                     KlrLocInfo *loc = &insn->loc;
                     klr_error(loc,
-                              "constant integer overflow in cast: cannot cast from "
-                              "int%d to int%d",
+                              "constant integer overflow in cast: cannot cast from int%d to int%d",
                               src_width * 8, dst_width * 8);
                     insn->error = 1;
                     return -1;
@@ -88,6 +86,46 @@ static int check_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m)
                     return -1;
                 }
             }
+        }
+    }
+    return 0;
+}
+
+static int check_float_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m, double *out)
+{
+    TypeSpec *dst_ts = insn->ts;
+    if (dst_ts->kind != TYPE_FLOAT) return 0;
+
+    int mode = float_cast_mode();
+
+    int dst_width = dst_ts->int_flt_info.width;
+    int src_width = c->len;
+    if (src_width > dst_width) {
+        double v = c->fval;
+        if (dst_width == 2) {
+            _Float16 h = (_Float16)v;
+            double rt = (double)h;
+            if (mode == 0 && rt != v) {
+                KlrLocInfo *loc = &insn->loc;
+                klr_error(loc,
+                          "constant float overflow in cast: cannot cast from float%d to float%d",
+                          src_width * 8, dst_width * 8);
+                insn->error = 1;
+                return -1;
+            }
+            *out = rt;
+        } else if (dst_width == 4) {
+            float f = (float)v;
+            double rt = (double)f;
+            if (mode == 0 && rt != v) {
+                KlrLocInfo *loc = &insn->loc;
+                klr_error(loc,
+                          "constant float overflow in cast: cannot cast from float%d to float%d",
+                          src_width * 8, dst_width * 8);
+                insn->error = 1;
+                return -1;
+            }
+            *out = rt;
         }
     }
     return 0;
@@ -304,9 +342,10 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
                         set_operand_at(insn, i__, _val);
                         changed = 1;
                     } else {
-                        // Non-Constant Propagation: We generally disallow this to avoid
-                        // extending variable lifetimes, which would complicate register
-                        // allocation in our non-pure SSA IR. (Ref: bench/loop-sum.kl)
+                        // Non-Constant Propagation: We generally disallow this to
+                        // avoid extending variable lifetimes, which would complicate
+                        // register allocation in our non-pure SSA IR. (Ref:
+                        // bench/loop-sum.kl)
                         log_info(
                             "operand %d-th of insn(/) cannot be replaced with non-const "
                             "value/insn:",
@@ -682,11 +721,9 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                 }
 
                 if (!strcmp(callee->name, "list")) {
-                    val =
-                        klr_const_list(items, insn->num_opers - 1, insn->ts, fn->module);
+                    val = klr_const_list(items, insn->num_opers - 1, insn->ts, fn->module);
                 } else if (!strcmp(callee->name, "tuple")) {
-                    val =
-                        klr_const_tuple(items, insn->num_opers - 1, insn->ts, fn->module);
+                    val = klr_const_tuple(items, insn->num_opers - 1, insn->ts, fn->module);
                 } else if (!strcmp(callee->name, "int64")) {
                     ASSERT(insn->num_opers == 2);
                     val = insn_oper_value(insn, 1);
@@ -708,17 +745,34 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
             KlrValue *src = insn_oper_value(insn, 0);
             if ((insn->error == 0) && klr_is_const(src)) {
                 KlrConst *c = (KlrConst *)src;
-                if (!check_const_cast_valid(insn, c, m)) {
-                    int sign = insn->ts->int_flt_info.sign;
-                    KlrValue *v;
-                    if (sign) {
-                        v = klr_const_int(c->ival, insn->ts, fn->module);
-                    } else {
-                        v = klr_const_uint(c->ival, insn->ts, fn->module);
+                if (c->which == CONST_INT || c->which == CONST_UINT) {
+                    log_info("fold const cast insn:");
+                    log_insn(insn);
+                    if (!check_int_const_cast_valid(insn, c, m)) {
+                        int sign = insn->ts->int_flt_info.sign;
+                        KlrValue *v;
+                        if (sign) {
+                            v = klr_const_int(c->ival, insn->ts, fn->module);
+                        } else {
+                            v = klr_const_uint(c->ival, insn->ts, fn->module);
+                        }
+                        if (replace_all_uses_with(v, (KlrValue *)insn)) {
+                            changed = 1;
+                        }
                     }
-                    if (replace_all_uses_with(v, (KlrValue *)insn)) {
-                        changed = 1;
+                } else if (c->which == CONST_FLT) {
+                    log_info("fold const cast insn:");
+                    log_insn(insn);
+                    double f = 0.0;
+                    if (!check_float_const_cast_valid(insn, c, m, &f)) {
+                        KlrValue *v = klr_const_float(f, insn->ts, fn->module);
+                        if (replace_all_uses_with(v, (KlrValue *)insn)) {
+                            changed = 1;
+                        }
                     }
+                } else {
+                    log_info("unsupported const cast for non-int/uint/float constant:");
+                    log_insn(insn);
                 }
             }
             break;

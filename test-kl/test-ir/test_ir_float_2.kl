@@ -1,4 +1,4 @@
-// RUN: koalac %s --cgen --dump=code | filecheck %s
+// RUN: koalac %s --cgen --float-trap --dump=code | filecheck %s
 
 func test_float_1(n float16) float16 {
     return n

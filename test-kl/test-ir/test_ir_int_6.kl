@@ -1,4 +1,4 @@
-// RUN: koalac %s --cgen --dump=no-opt-ir,lir,code | filecheck %s
+// RUN: koalac %s --cgen --int-trap --dump=no-opt-ir,lir,code | filecheck %s
 
 func test_int_1() int8 {
     let n = -100
