@@ -118,8 +118,7 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
     }
 }
 
-static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args,
-                               int nargs)
+static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args, int nargs)
 {
     if (nargs == 1) {
         KlrValue *arg = args[0];
@@ -135,8 +134,7 @@ static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **ar
     NYI();
 }
 
-static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args,
-                                 int nargs)
+static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args, int nargs)
 {
     if (nargs == 1) {
         KlrValue *arg = args[0];
@@ -152,8 +150,7 @@ static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **
     NYI();
 }
 
-static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue **args,
-                                int nargs)
+static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue **args, int nargs)
 {
     KlrValue *ret = NULL;
 
@@ -165,6 +162,8 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue **ar
         ret = emit_int_call(&bldr, callee, args, nargs);
     } else if (ts->kind == TYPE_FLOAT) {
         ret = emit_float_call(&bldr, callee, args, nargs);
+    } else if (ts->kind == TYPE_KLASS) {
+        ret = klr_build_new(&bldr, callee, args, nargs, "");
     } else {
         NYI();
     }
@@ -697,8 +696,8 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
     ps->scope->bb = if_end;
 }
 
-static void build_while_cond(ParserState *ps, Expr *cond, KlrBasicBlock *bb,
-                             KlrBasicBlock *body, KlrBasicBlock *end)
+static void build_while_cond(ParserState *ps, Expr *cond, KlrBasicBlock *bb, KlrBasicBlock *body,
+                             KlrBasicBlock *end)
 {
     KlrValue *cond_val = NULL;
     if (cond != NULL) {
@@ -773,7 +772,7 @@ struct RangeInfo {
 
 static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
 {
-    if (insn->code != OP_IR_CALL) return 0;
+    if (insn->code != OP_NEW) return 0;
     KlrValue *val = insn_oper_value(insn, 0);
     if (val->kind != KLR_VALUE_KLASS) return 0;
     if (!str_equal(val->name, "range")) return 0;

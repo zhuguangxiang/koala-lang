@@ -923,33 +923,6 @@ X(OP_FLOAT_CMPGE, FORMAT_RRR)
 X(OP_FLOAT_NEG, FORMAT_RxRx)
 
 /*---------------------------------------------------------------+
- |  Numeric Conversion Instructions                              |
- +---------------------------------------------------------------*/
-
-/**
- * OP_FLT_TO_INT — convert float to int
- *
- * FORMAT_RxRx:
- *     | op:8 | rd:12 | rs:12 |
- *
- * Details:
- *     Converts rs (float) to an integer value and stores it in rd.
- *     Semantics follow C-style cast: truncation toward zero.
- */
-X(OP_FLT_TO_INT, FORMAT_RxRx)
-
-/**
- * OP_INT_TO_FLT — convert int to float
- *
- * FORMAT_RxRx:
- *     | op:8 | rd:12 | rs:12 |
- *
- * Details:
- *     Converts rs (int) to a floating-point value and stores it in rd.
- */
-X(OP_INT_TO_FLT, FORMAT_RxRx)
-
-/*---------------------------------------------------------------+
  |  Boolean Logical Operations                                   |
  +---------------------------------------------------------------*/
 
@@ -1543,11 +1516,6 @@ X(OP_RET_VOID, FORMAT_Op)
  *      0b001101 = u16
  *      0b001110 = u32
  *      0b001111 = u64
- *      0b010000 = reserved
- *      0b010001 = f16 (cast int to f16)
- *      0b010010 = f32 (cast int to f32)
- *      0b010011 = f64 (cast int to f64)
- *      ... reserved
  *
  * mode:
  *      0 = trap on overflow
@@ -1564,15 +1532,6 @@ X(OP_INT_CAST, FORMAT_RR_TI_MODE)
  *     | op:8 | rd:8 | rs:8 | dst_ti:6 | mode:2 |
  *
  * dst_ti:
- *     0b001000 = i8 (cast float to i8)
- *     0b001001 = i16 (cast float to i16)
- *     0b001010 = i32 (cast float to i32)
- *     0b001011 = i64 (cast float to i64)
- *     0b001100 = u8 (cast float to u8)
- *     0b001101 = u16 (cast float to u16)
- *     0b001110 = u32 (cast float to u32)
- *     0b001111 = u64 (cast float to u64)
- *     0b010000 = reserved
  *     0b010001 = f16
  *     0b010010 = f32
  *     0b010011 = f64
@@ -1585,6 +1544,56 @@ X(OP_INT_CAST, FORMAT_RR_TI_MODE)
  *     3 = reserved
  */
 X(OP_FLOAT_CAST, FORMAT_RR_TI_MODE)
+
+/**
+ * OP_FLOAT_TO_INT — convert float to int
+ *
+ * FORMAT_RR_TI_MODE:
+ *     | op:8 | rd:8 | rs:8 | dst_ti:6 | mode:2 |
+ *
+ * dst_ti:
+ *      0b001000 = i8
+ *      0b001001 = i16
+ *      0b001010 = i32
+ *      0b001011 = i64
+ *      0b001100 = u8
+ *      0b001101 = u16
+ *      0b001110 = u32
+ *      0b001111 = u64
+ *
+ * mode:
+ *      0 = trap on overflow
+ *      1 = wrap on overflow
+ *      2 = saturate (future)
+ *      3 = reserved
+ */
+X(OP_FLOAT_TO_INT, FORMAT_RR_TI_MODE)
+
+/**
+ * OP_INT_TO_FLOAT — convert int to float
+ *
+ * FORMAT_RR_TI_MODE:
+ *     | op:8 | rd:8 | rs:8 | dst_ti:6 | mode:2 |
+ *
+ * dst_ti:
+ *     0b010001 = f16
+ *     0b010010 = f32
+ *     0b010011 = f64
+ *     ... reserved
+ *
+ * mode:
+ *     0 = trap
+ *     1 = ieee (default IEEE754 behavior)
+ *     2 = saturate (future)
+ *     3 = reserved
+ */
+X(OP_INT_TO_FLOAT, FORMAT_RR_TI_MODE)
+
+/*---------------------------------------------------------------+
+ |  New object Instructions                                      |
+ +---------------------------------------------------------------*/
+
+X(OP_NEW, FORMAT_RxRx)
 
 /*---------------------------------------------------------------+
  |  Global Variable Access Instructions                           |
@@ -1870,7 +1879,6 @@ X(OP_IR_CALL,       FORMAT_IR)
 X(OP_IR_SELECT,     FORMAT_IR)
 X(OP_IR_JMP_COND,   FORMAT_IR)
 X(OP_IR_CAST,       FORMAT_IR)
-X(OP_IR_NEW,        FORMAT_IR)
 X(OP_IR_PHI,        FORMAT_IR)
 
 /* Non-executable data slot (pseudo-instruction) */

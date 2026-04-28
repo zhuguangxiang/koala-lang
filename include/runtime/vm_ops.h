@@ -1592,16 +1592,6 @@ TARGET(OP_JMP_UINT_GE_IMM) {
     DISPATCH();
 }
 
-/* Type Conversion */
-
-TARGET(OP_FLT_TO_INT) {
-    OP_NYI(OP_FLT_TO_INT);
-}
-
-TARGET(OP_INT_TO_FLT) {
-    OP_NYI(OP_INT_TO_FLT);
-}
-
 /* Float Complex */
 
 TARGET(OP_FLOAT_DIV) {
@@ -1807,6 +1797,8 @@ TARGET(OP_RET_CONST) {
     goto done;
 }
 
+/* Type Conversion */
+
 TARGET(OP_INT_CAST) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
@@ -1835,6 +1827,14 @@ TARGET(OP_FLOAT_CAST) {
 
     do_float_cast(regs, rd, rs, mode, dst_ti);
     DISPATCH();
+}
+
+TARGET(OP_FLOAT_TO_INT) {
+    OP_NYI(OP_FLOAT_TO_INT);
+}
+
+TARGET(OP_INT_TO_FLOAT) {
+    OP_NYI(OP_INT_TO_FLOAT);
 }
 
 TARGET(OP_NOP) {

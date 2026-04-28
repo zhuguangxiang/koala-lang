@@ -507,8 +507,7 @@ void klr_delete_func(KlrModule *m, KlrFunc *fn);
 KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut);
 KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name);
 KlrValue *klr_klass_add_field(KlrValue *klass, char *name, TypeSpec *ts);
-KlrValue *klr_klass_add_method(KlrValue *klass, char *name, TypeSpec *ret,
-                               TypeSpec **params);
+KlrValue *klr_klass_add_method(KlrValue *klass, char *name, TypeSpec *ret, TypeSpec **params);
 
 // ir doesn't check external symbol's type
 KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *path, char *name);
@@ -567,18 +566,15 @@ void klr_remove_all_out_edges(KlrBasicBlock *bb);
 #define edge_out_foreach_safe(edge, nxt, bb) \
     list_foreach_safe(edge, nxt, out_link, &(bb)->out_edges)
 
-#define edge_out_foreach_reverse(edge, bb) \
-    list_foreach_reverse(edge, out_link, &(bb)->out_edges)
+#define edge_out_foreach_reverse(edge, bb) list_foreach_reverse(edge, out_link, &(bb)->out_edges)
 
 /* edge-in iteration */
 #define edge_in_foreach(edge, bb) list_foreach(edge, in_link, &(bb)->in_edges)
 
 /* edge-in safe iteration */
-#define edge_in_foreach_safe(edge, nxt, bb) \
-    list_foreach_safe(edge, nxt, in_link, &(bb)->in_edges)
+#define edge_in_foreach_safe(edge, nxt, bb) list_foreach_safe(edge, nxt, in_link, &(bb)->in_edges)
 
-#define edge_in_foreach_reverse(edge, bb) \
-    list_foreach_reverse(edge, in_link, &(bb)->in_edges)
+#define edge_in_foreach_reverse(edge, bb) list_foreach_reverse(edge, in_link, &(bb)->in_edges)
 
 #define edge_out_empty(bb) list_empty(&(bb)->out_edges)
 #define edge_out_first(bb) list_first(&(bb)->out_edges, KlrEdge, out_link)
@@ -589,9 +585,8 @@ void klr_remove_all_out_edges(KlrBasicBlock *bb);
 #define edge_in_last(bb)  list_last(&(bb)->in_edges, KlrEdge, in_link)
 
 /* basic block iteration */
-#define basic_block_foreach(bb, fn) list_foreach(bb, link, &(fn)->bb_list)
-#define basic_block_foreach_safe(bb, nxt, fn) \
-    list_foreach_safe(bb, nxt, link, &(fn)->bb_list)
+#define basic_block_foreach(bb, fn)           list_foreach(bb, link, &(fn)->bb_list)
+#define basic_block_foreach_safe(bb, nxt, fn) list_foreach_safe(bb, nxt, link, &(fn)->bb_list)
 
 #define bb_foreach_reverse(bb, fn) list_foreach_reverse(bb, link, &(fn)->bb_list)
 
@@ -656,44 +651,35 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val);
 /* IR: move %dst, %src */
 void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val);
 
-KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,
-                           char *name, const char *op_name);
+KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op, char *name,
+                           const char *op_name);
 
 /* IR: %2 int = add %0, %1 */
-static inline KlrValue *klr_build_add(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
-                                      char *name)
+static inline KlrValue *klr_build_add(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, char *name)
 {
     return klr_build_binary(bldr, lhs, rhs, OP_BINARY_ADD, name, "add");
 }
 
 /* IR: %2 int = sub %0, %1 */
-static inline KlrValue *klr_build_sub(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs,
-                                      char *name)
+static inline KlrValue *klr_build_sub(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, char *name)
 {
     return klr_build_binary(bldr, lhs, rhs, OP_BINARY_SUB, name, "sub");
 }
 
 /* IR: %2 int = cmp %0, %1 */
-KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code,
-                        char *name);
+KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code, char *name);
 
-#define klr_build_cmpeq(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPEQ, name)
+#define klr_build_cmpeq(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPEQ, name)
 
-#define klr_build_cmpne(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPNE, name)
+#define klr_build_cmpne(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPNE, name)
 
-#define klr_build_cmplt(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPLT, name)
+#define klr_build_cmplt(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPLT, name)
 
-#define klr_build_cmpgt(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPGT, name)
+#define klr_build_cmpgt(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPGT, name)
 
-#define klr_build_cmple(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPLE, name)
+#define klr_build_cmple(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPLE, name)
 
-#define klr_build_cmpge(bldr, lhs, rhs, name) \
-    klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPGE, name)
+#define klr_build_cmpge(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPGE, name)
 
 KlrValue *klr_build_unary(KlrBuilder *bldr, KlrValue *operand, OpCode op, char *name,
                           const char *op_name);
@@ -709,8 +695,7 @@ void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
 void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target);
 
 /* IR: %0 int = call %func, %argument-list */
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs,
-                         char *name);
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs, char *name);
 
 /* IR: ret %var */
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
@@ -731,11 +716,9 @@ void klr_add_last_return(KlrBasicBlock *bb);
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)
 
-#define insn_foreach_safe(insn, next, bb) \
-    list_foreach_safe(insn, next, bb_link, &(bb)->insn_list)
+#define insn_foreach_safe(insn, next, bb) list_foreach_safe(insn, next, bb_link, &(bb)->insn_list)
 
-#define insn_foreach_reverse(insn, bb) \
-    list_foreach_reverse(insn, bb_link, &(bb)->insn_list)
+#define insn_foreach_reverse(insn, bb) list_foreach_reverse(insn, bb_link, &(bb)->insn_list)
 
 #define insn_foreach_reverse_safe(insn, next, bb) \
     list_foreach_reverse_safe(insn, next, bb_link, &(bb)->insn_list)
@@ -749,8 +732,7 @@ void klr_add_last_return(KlrBasicBlock *bb);
 /* def-use iteration */
 #define use_foreach(use, val) list_foreach(use, use_link, &(val)->use_list)
 
-#define use_foreach_safe(use, next, val) \
-    list_foreach_safe(use, next, use_link, &(val)->use_list)
+#define use_foreach_safe(use, next, val) list_foreach_safe(use, next, use_link, &(val)->use_list)
 
 #define use_first(val) list_first(&(val)->use_list, KlrUse, use_link)
 #define use_last(val)  list_last(&(val)->use_list, KlrUse, use_link)
@@ -876,13 +858,14 @@ void klr_build_rpo(KlrFunc *fn);
 #define klr_error(ast, fmt, ...) \
     do { \
         Loc _loc = (ast)->loc; \
-        printf(BOLD("%s:%d:%d: ") ERROR_PREFIX fmt "\n", (ast)->filename, _loc.line, \
-               _loc.col, ##__VA_ARGS__); \
+        printf(BOLD("%s:%d:%d: ") ERROR_PREFIX fmt "\n", (ast)->filename, _loc.line, _loc.col, \
+               ##__VA_ARGS__); \
         (m)->errors++; \
     } while (0)
 
 KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char *name);
 void klr_set_loc(KlrValue *val, char *filename, Loc loc);
+KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, KlrValue **args, int nargs, char *name);
 
 #ifdef __cplusplus
 }

@@ -31,7 +31,7 @@ for i in range(0, 10) {
 // CHECK-LABLE: ====== Linearization @__init__(start_pc: 0, insns: 9) ======
 
 // CHECK: %bb0(loop-header):
-// CHECK: load_int_imm r0, #0
+// CHECK: load_int_imm r0, ti=0xb, #0
 
 // CHECK: %bb1(loop-body):
 // CHECK: int.mod_imm r1, r0, #2

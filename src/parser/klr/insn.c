@@ -39,8 +39,7 @@ static void fini_use(KlrUse *use)
         ASSERT(klr_is_local(ref));
         ref->def_count--;
         if (ref->def_count == 0) {
-            log_info("erase insn '%%%s' since it has no defs after this removal",
-                     ref->name);
+            log_info("erase insn '%%%s' since it has no defs after this removal", ref->name);
             ASSERT(list_empty(&ref->def_list));
             log_insn((KlrInsn *)ref);
             klr_erase_insn((KlrInsn *)ref);
@@ -178,8 +177,7 @@ int ir_has_value(KlrInsn *insn)
         if (insn->code == no_regs_codes[i]) return 0;
     }
 
-    if ((insn->code == OP_IR_CALL || insn->code == OP_CALL) &&
-        type_is_no_type(insn->ts)) {
+    if ((insn->code == OP_IR_CALL || insn->code == OP_CALL) && type_is_no_type(insn->ts)) {
         return 0;
     }
 
@@ -281,8 +279,8 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
     klr_append_insn(bldr, insn);
 }
 
-KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op,
-                           char *name, const char *op_name)
+KlrValue *klr_build_binary(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op, char *name,
+                           const char *op_name)
 {
     if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
         lhs->kind != KLR_VALUE_PARAM) {
@@ -327,8 +325,7 @@ KlrValue *klr_build_unary(KlrBuilder *bldr, KlrValue *operand, OpCode op, char *
     return (KlrValue *)insn;
 }
 
-KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code,
-                        char *name)
+KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code, char *name)
 {
     if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
         lhs->kind != KLR_VALUE_PARAM) {
@@ -408,8 +405,7 @@ void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target)
     klr_link_edge(bldr->bb, target);
 }
 
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs,
-                         char *name)
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs, char *name)
 {
     int is_const = 1;
 
@@ -494,6 +490,35 @@ KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char
     KlrInsn *insn = new_insn(OP_IR_CAST, 1, name);
     init_oper(&insn->opers[0], insn, val, 0);
     insn->ts = dst_ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, KlrValue **args, int nargs, char *name)
+{
+    if (klass->kind != KLR_VALUE_KLASS) {
+        panic("'new' op requires a klass value");
+    }
+
+    int is_const = 1;
+
+    if (nargs <= 0) is_const = 0;
+
+    for (int i = 0; i < nargs; i++) {
+        if (!klr_is_const(args[i])) {
+            is_const = 0;
+            break;
+        }
+    }
+
+    KlrInsn *insn = new_insn(OP_NEW, nargs + 1, name);
+    insn->flags |= is_const ? KLR_INSN_FLAGS_CONST : 0;
+
+    init_oper(&insn->opers[0], insn, klass, 0);
+    for (int j = 0; j < nargs; j++) {
+        init_oper(&insn->opers[j + 1], insn, args[j], 0);
+    }
+    insn->ts = klass->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
