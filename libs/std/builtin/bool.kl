@@ -21,8 +21,12 @@ pub class bool {
 
     /// Return True if the boolean is equal to the other boolean.
     /// This overrides the any.__eq__ method for optimized bitwise comparison.
-    @native(kl_bool_eq)
+    @intrinsic
     pub func __eq__(other any) bool {}
+
+    /// Return True if the boolean is not equal to the other boolean.
+    @intrinsic
+    pub func __neq__(other bool) bool {}
 
     /// Return the string representation of the boolean.
     /// Returns "true" if True, and "false" if False.

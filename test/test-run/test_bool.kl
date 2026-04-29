@@ -1,0 +1,56 @@
+// RUN: koala %s --dump=no-opt-ir,lir,code | filecheck %s
+
+func show(cond bool, msg str?) {
+    if cond == false {
+        if msg == null {
+            print("msg is null:", "no message")
+        } else {
+            print("msg:", msg)
+        }
+    } else if cond == true {
+        print("condition is true")
+    } else {
+        panic("unreachable")
+    }
+}
+
+func foo(cond bool, cond2 bool) bool {
+    if cond != cond2 {
+        print("cond != cond2")
+        return true
+    } else {
+        if (cond != true) {
+            print("cond != true")
+        }
+
+        if (cond2 != false) {
+            print("cond2 != false")
+        }
+
+        return false
+    }
+}
+
+show(false, "math is broken")
+show(false, null)
+show(true, "subtraction is broken")
+foo(true, false)
+
+// CHECK: %0 = cmpeq %cond bool, false bool
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: %0 = cmpne %cond bool, %cond2 bool
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: jmp_int_eq_imm %cond bool, false bool, label %bb1, label %bb2
+
+// CHECK: jmp_int_ne %cond bool, %cond2 bool, label %bb1, label %bb2
+
+// CHECK: jmp_int_ne_imm r0, #0, 11
+
+// CHECK: jmp_int_eq r0, r1, 4
+
+// CHECK: msg: math is broken
+// CHECK: msg is null: no message
+// CHECK: condition is true
+// CHECK: cond != cond2

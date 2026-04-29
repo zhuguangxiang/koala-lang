@@ -58,6 +58,8 @@ void init_tag_mappings(void)
 #define CHECK_REG_ID(id) ASSERT((id) < max_regs)
 #define CHECK_IS_INT(id) ASSERT(is_int(regs + (id)))
 #define CHECK_IS_UINT(id) ASSERT(is_uint(regs + (id)))
+#define CHECK_IS_FLOAT(id) ASSERT(is_float(regs + (id)))
+#define CHECK_IS_BOOL(id) ASSERT(is_bool(regs + (id)))
 
 /* clang-format on */
 

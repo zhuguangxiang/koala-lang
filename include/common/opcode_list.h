@@ -1106,7 +1106,7 @@ X(OP_JMP_REF_NE_NULL, FORMAT_ROff2)
  * Details:
  *     If rs == rt, pc += offset.
  */
-X(OP_JMP_INT_EQ, FORMAT_RRImm)
+X(OP_JMP_INT_EQ, FORMAT_RROff)
 
 /**
  * OP_JMP_INT_EQ_IMM — jump if equal (immediate)

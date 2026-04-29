@@ -90,6 +90,11 @@ static BinaryRule optional_rules[] = {
     { OP_BINARY_CMPNE, OP_REF_NE, OP_REF_NE_NULL, 1, 1 },
 };
 
+static BinaryRule bool_rules[] = {
+    { OP_BINARY_CMPEQ, OP_INT_CMPEQ, OP_INT_CMPEQ_IMM, 1, 1 },
+    { OP_BINARY_CMPNE, OP_INT_CMPNE, OP_INT_CMPNE_IMM, 1, 1 },
+};
+
 // clang-format on
 
 BinaryRule *find_binary_rule(OpCode ir_op, TypeSpec *ts)
@@ -109,6 +114,9 @@ BinaryRule *find_binary_rule(OpCode ir_op, TypeSpec *ts)
     } else if (type_is_optional(ts)) {
         rules = optional_rules;
         num_rules = COUNT_OF(optional_rules);
+    } else if (type_is_bool(ts)) {
+        rules = bool_rules;
+        num_rules = COUNT_OF(bool_rules);
     } else {
         UNREACHABLE();
     }
@@ -261,8 +269,14 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         KlrConst *rc = (KlrConst *)rhs;
 
         if (R->allow_imm) {
+            if (rc->which == CONST_BOOL) {
+                // special case for bool: always use imm form, no need to materialize
+                insn->code = R->imm_op;
+                return;
+            }
+
             if (rc->which == CONST_NONE) {
-                // special case for None: always use imm form, no need to materialize
+                // special case for none: always use imm form, no need to materialize
                 insn->code = R->imm_op;
                 return;
             }

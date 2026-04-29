@@ -293,7 +293,7 @@ TARGET(OP_JMP_INT_EQ_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_bool(regs + rs));
 
     if (regs[rs].ival == imm) {
         pc += off;
@@ -307,7 +307,7 @@ TARGET(OP_JMP_INT_NE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_bool(regs + rs));
 
     if (regs[rs].ival != imm) {
         pc += off;
@@ -322,7 +322,7 @@ TARGET(OP_JMP_INT_EQ) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64 || is_bool(regs + rs));
     ASSERT(regs[rs].tag == regs[rt].tag);
 
     if (regs[rs].ival == regs[rt].ival) {
@@ -338,7 +338,7 @@ TARGET(OP_JMP_INT_NE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64 || is_bool(regs + rs));
     ASSERT(regs[rs].tag == regs[rt].tag);
 
     if (regs[rs].ival != regs[rt].ival) {
