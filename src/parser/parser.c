@@ -57,8 +57,7 @@ static Vector *infer_tuple___getitem__(FuncSymbol *fn, Vector *args, ParserState
         int index = (int)lit->ival;
 
         if (!(index >= 0 && index < vector_size(inst_sym->tp_args))) {
-            kl_error(e->loc,
-                     "tuple index out of range, got %d but expected 0 <= index < %d",
+            kl_error(e->loc, "tuple index out of range, got %d but expected 0 <= index < %d",
                      index, vector_size(inst_sym->tp_args));
             return NULL;
         }
@@ -290,8 +289,8 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
     /* find id from current scope */
     Symbol *sym = stbl_get(sc->stbl, id->name);
     if (sym) {
-        log_info("find symbol '%s' in scope-%d(%s-%s)", id->name, sc->depth,
-                 scopes[sc->kind], sc->name);
+        log_info("find symbol '%s' in scope-%d(%s-%s)", id->name, sc->depth, scopes[sc->kind],
+                 sc->name);
         id->where = CURRENT_SCOPE;
         id->scope = sc;
 
@@ -714,8 +713,8 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             ASSERT(ts_sym->which == TP_NORMAL);
             log_info("type parameter '%s' is normal", ts_sym->name);
         }
-        TypeSpec *ret = generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id,
-                                              ts_sym->owner->name);
+        TypeSpec *ret =
+            generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id, ts_sym->owner->name);
         type_spec_free(_ts);
         vector_destroy(tp_args);
         return ret;
@@ -737,8 +736,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         }
 
         if (sym->status == SYM_UNRESOLVED) {
-            log_info("symbol '%s' is not resolved yet, try to resolve it NOW",
-                     kls_sym->name);
+            log_info("symbol '%s' is not resolved yet, try to resolve it NOW", kls_sym->name);
             if (sym->ps) {
                 ParserState *_ps = sym->ps;
                 if (ps != _ps) {
@@ -753,8 +751,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
                 UNREACHABLE();
             }
         } else if (sym->status == SYM_RESOLVING) {
-            kl_error(_ts->loc, "circular dependency detected when resolving '%s'",
-                     kls_sym->name);
+            kl_error(_ts->loc, "circular dependency detected when resolving '%s'", kls_sym->name);
             vector_destroy(tp_args);
             return NULL;
         } else {
@@ -765,9 +762,8 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         if (open) {
             // open generic_ref type
             log_info("resolve open generic_ref type '%s'", _ts->unresolved.name.name);
-            TypeSpec *ret =
-                generic_ref_type_spec(_ts->unresolved.pkg.name, _ts->unresolved.name.name,
-                                      tp_args, kls_sym->id);
+            TypeSpec *ret = generic_ref_type_spec(_ts->unresolved.pkg.name,
+                                                  _ts->unresolved.name.name, tp_args, kls_sym->id);
             vector_destroy(tp_args);
             type_spec_free(_ts);
             log_type_spec(ret);
@@ -779,8 +775,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         // closed generic_ref type
         if (vector_empty(tp_args)) {
             log_info("resolve type '%s' without type-args", _ts->unresolved.name.name);
-            TypeSpec *ret =
-                klass_type_spec(_ts->unresolved.pkg.name, _ts->unresolved.name.name);
+            TypeSpec *ret = klass_type_spec(_ts->unresolved.pkg.name, _ts->unresolved.name.name);
             // sure this TypeSpec is already interned
             ASSERT(ret->sym_id == kls_sym->id);
             ASSERT(kls_sym->instance_ts == ret);
@@ -791,8 +786,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         } else {
             // all args are concrete types and create instance symbol
             log_info("resolve type '%s' with type-args", _ts->unresolved.name.name);
-            InstanceSymbol *inst_sym =
-                find_or_add_instance(ps->module->stbl, sym, tp_args);
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, sym, tp_args);
             vector_destroy(tp_args);
             if (!inst_sym) {
                 kl_error(_ts->loc, "failed to get instance for generic_ref type");
@@ -1072,9 +1066,16 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
             sym->status = SYM_RESOLVED;
             return;
         }
+
         sym->ts = exp->ts;
         log_info("update symbol '%s' type as:", sym->name);
         log_type_spec(sym->ts);
+
+        if (type_is_optional(sym->ts) && sym->lit && sym->lit->which == LIT_NONE) {
+            // the literal is none, the subtype of optional is null, report error.
+            kl_error(exp->loc, "cannot assign 'null' to variable '%s' without explicit type",
+                     sym->name);
+        }
     } else {
         if (!type_spec_compatible(ts, exp->ts)) {
             kl_error(id->loc, "Types of two sides are not matched.");
@@ -1109,8 +1110,7 @@ static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
         }
 
         if (!at->assoc_ident) {
-            kl_error(at->id_loc,
-                     "'native' annotation needs a native func name in top func '%s'",
+            kl_error(at->id_loc, "'native' annotation needs a native func name in top func '%s'",
                      fn->id.name);
             return;
         }
@@ -1282,8 +1282,7 @@ static void check_param_name_with_field_name(ParserState *ps, Vector *params)
         vector_foreach(param, params) {
             if (!param) continue;
             if (strcmp(field->name, param->id.name) == 0) {
-                kl_error(param->id.loc,
-                         "parameter '%s' conflicts with field name in class '%s'",
+                kl_error(param->id.loc, "parameter '%s' conflicts with field name in class '%s'",
                          param->id.name, kls_sym->name);
             }
         }
@@ -1372,8 +1371,7 @@ static void unwrap_optional(ParserState *ps, Expr *exp, Vector *shadows)
             log_type_spec(lhs->ts->opt.src);
             sym = stbl_add_shadow_var(sc->stbl, lhs->sym, 0);
         } else if (op == BINARY_EQ) {
-            log_trace("'%s' is optional, add shadow variable(null) to stbl",
-                      lhs_sym->name);
+            log_trace("'%s' is optional, add shadow variable(null) to stbl", lhs_sym->name);
             log_type_spec(lhs->ts);
             sym = stbl_add_shadow_var(sc->stbl, lhs->sym, 1);
         } else {
@@ -1387,8 +1385,7 @@ static void unwrap_optional(ParserState *ps, Expr *exp, Vector *shadows)
             log_type_spec(rhs->ts->opt.src);
             sym = stbl_add_shadow_var(sc->stbl, rhs->sym, 0);
         } else if (op == BINARY_EQ) {
-            log_trace("'%s' is optional, add shadow variable(null) to stbl",
-                      rhs_sym->name);
+            log_trace("'%s' is optional, add shadow variable(null) to stbl", rhs_sym->name);
             log_type_spec(rhs->ts);
             sym = stbl_add_shadow_var(sc->stbl, rhs->sym, 1);
         } else {
@@ -1401,8 +1398,7 @@ static void unwrap_optional(ParserState *ps, Expr *exp, Vector *shadows)
     if (sym) {
         // for merging to parent-scope
         if (shadows) {
-            log_trace("added shadow variable '%s' in scope '%s'(vector)", sym->name,
-                      sc->name);
+            log_trace("added shadow variable '%s' in scope '%s'(vector)", sym->name, sc->name);
             vector_push_back(shadows, &sym);
         }
     }
@@ -1471,8 +1467,7 @@ static void parse_if(ParserState *ps, Stmt *stmt)
         if (!vector_empty(&shadows)) {
             if (has_terminal) {
                 ParserScope *_sc = ps->scope;
-                log_trace("if-block is terminal, saved shadows to parent scope(%s)",
-                          _sc->name);
+                log_trace("if-block is terminal, saved shadows to parent scope(%s)", _sc->name);
                 Symbol *sym;
                 vector_foreach(sym, &shadows) {
                     log_trace("move shadow variable '%s' to parent scope", sym->name);
@@ -1568,12 +1563,10 @@ __do_for_body:
 
     IdentType *id_type;
     vector_foreach_ptr(id_type, &locals) {
-        Symbol *sym =
-            stbl_add_var(sc->stbl, id_type->id.name, id_type->ts, SYM_FLAGS_MUTABLE);
+        Symbol *sym = stbl_add_var(sc->stbl, id_type->id.name, id_type->ts, SYM_FLAGS_MUTABLE);
         ASSERT(sym);
         ((VarSymbol *)sym)->scope = VAR_SCOPE_LOCAL;
-        log_info("added loop variable '%s' with type '%s'", sym->name,
-                 id_type->ts->signature);
+        log_info("added loop variable '%s' with type '%s'", sym->name, id_type->ts->signature);
         vector_push_back(&s->sym_ids, &sym->id);
     }
     vector_fini(&locals);
@@ -1689,8 +1682,7 @@ static void parse_while_let(ParserState *ps, Stmt *stmt)
 }
 
 // only add klass/trait symbol and add tp, fields and methods
-static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls,
-                          int is_trait)
+static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, int is_trait)
 {
     Ident *id = &kls->id;
     Symbol *sym;
@@ -1838,8 +1830,7 @@ static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
                 vector_push_back(vec, &base_ts);
             }
         } else {
-            kl_error(ts->loc, "'%s' is not trait, only trait can be used as base",
-                     base_sym->name);
+            kl_error(ts->loc, "'%s' is not trait, only trait can be used as base", base_sym->name);
         }
     }
 }
@@ -2104,8 +2095,7 @@ static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
         FuncSymbol *fn_sym = get_current_function(ps);
         if ((var_sym->scope != VAR_SCOPE_FIELD) || strcmp(fn_sym->name, "__init__")) {
             if (!(lhs_sym->flags & SYM_FLAGS_MUTABLE)) {
-                kl_error(assign->loc, "cannot assign to immutable variable '%s'",
-                         lhs_sym->name);
+                kl_error(assign->loc, "cannot assign to immutable variable '%s'", lhs_sym->name);
                 return -1;
             }
         }
@@ -2116,14 +2106,12 @@ static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
         ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)lhs_sym;
         Symbol *origin = shadow_sym->origin;
         if (!(origin->flags & SYM_FLAGS_MUTABLE)) {
-            kl_error(assign->loc, "cannot assign to immutable variable '%s'",
-                     lhs_sym->name);
+            kl_error(assign->loc, "cannot assign to immutable variable '%s'", lhs_sym->name);
             return -1;
         }
 
         if (type_is_optional(rhs->ts)) {
-            log_warn("type of shadow variable '%s' is changed to optional.",
-                     shadow_sym->name);
+            log_warn("type of shadow variable '%s' is changed to optional.", shadow_sym->name);
             log_info("from:");
             log_type_spec(lhs->ts);
             log_info("to:");
@@ -2202,8 +2190,7 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
 
     Symbol *kls_sym = get_symbol_by_id(lhs->ts->sym_id);
     if (kls_sym->kind != SYM_CLASS) {
-        kl_error(assign->loc, "inplace assignment is not supported for '%s' type.",
-                 kls_sym->name);
+        kl_error(assign->loc, "inplace assignment is not supported for '%s' type.", kls_sym->name);
         return -1;
     }
 
@@ -2215,8 +2202,8 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
     }
 
     if (op_sym->kind != SYM_FUNC) {
-        kl_error(assign->loc, "'%s' in class '%s' is not a function.",
-                 get_inplace_op_str(op), kls_sym->name);
+        kl_error(assign->loc, "'%s' in class '%s' is not a function.", get_inplace_op_str(op),
+                 kls_sym->name);
         return -1;
     }
 
@@ -2233,8 +2220,7 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
     TypeSpec *param_ts = arg_info->ts;
 
     if (!type_spec_compatible(param_ts, rhs->ts)) {
-        kl_error(assign->loc,
-                 "Types of two sides are not matched in inplace assignment.");
+        kl_error(assign->loc, "Types of two sides are not matched in inplace assignment.");
         printf("lhs:");
         print_type_spec(param_ts);
         printf(" =/= rhs:");
@@ -2412,8 +2398,7 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
         if (!param) continue;
 
         if (has_va_arg && !param->value) {
-            kl_error(param->id.loc,
-                     "after variadic parameter must be the kw parameters.");
+            kl_error(param->id.loc, "after variadic parameter must be the kw parameters.");
             return;
         }
 
@@ -2435,8 +2420,7 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
             Expr *e = param->value;
             if (e) {
                 if (e->kind != EXPR_LITERAL_KIND) {
-                    kl_error(param->id.loc,
-                             "parameter '%s' needs a literal default value",
+                    kl_error(param->id.loc, "parameter '%s' needs a literal default value",
                              param->id.name);
                     return;
                 }

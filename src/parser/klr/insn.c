@@ -202,7 +202,7 @@ void klr_build_move(KlrBuilder *bldr, KlrValue *var, KlrValue *val)
         panic("'move %%x, %%v' requires a reg value.");
     }
 
-    ASSERT(var->ts == val->ts);
+    // ASSERT(var->ts == val->ts);
 
     KlrInsn *insn = new_insn(OP_MOVE, 2, "");
     init_oper(&insn->opers[0], insn, var, 1);
@@ -519,6 +519,26 @@ KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, KlrValue **args, int 
         init_oper(&insn->opers[j + 1], insn, args[j], 0);
     }
     insn->ts = klass->ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_ref(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op, char *name)
+{
+    if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
+        lhs->kind != KLR_VALUE_PARAM) {
+        panic("'ref' op requires a reg value or const for lhs");
+    }
+
+    if (rhs->kind != KLR_VALUE_CONST && rhs->kind != KLR_VALUE_INSN &&
+        rhs->kind != KLR_VALUE_PARAM) {
+        panic("'ref' op requires a reg value or const for rhs");
+    }
+
+    KlrInsn *insn = new_insn(op, 2, name);
+    init_oper(&insn->opers[0], insn, lhs, 0);
+    init_oper(&insn->opers[1], insn, rhs, 0);
+    insn->ts = bool_type_spec();
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

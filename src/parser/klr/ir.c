@@ -16,7 +16,10 @@ KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m)
     int width = ts->int_flt_info.width;
 
     KlrConst key = {
-        .kind = KLR_VALUE_CONST, .which = CONST_INT, .len = width, .ival = val
+        .kind = KLR_VALUE_CONST,
+        .which = CONST_INT,
+        .len = width,
+        .ival = val,
     };
 
     hashmap_entry_init(&key.hnode, mem_hash(&val, sizeof(val)));
@@ -40,7 +43,10 @@ KlrValue *klr_const_uint(uint64_t val, TypeSpec *ts, KlrModule *m)
     int width = ts->int_flt_info.width;
 
     KlrConst key = {
-        .kind = KLR_VALUE_CONST, .which = CONST_UINT, .len = width, .ival = val
+        .kind = KLR_VALUE_CONST,
+        .which = CONST_UINT,
+        .len = width,
+        .ival = val,
     };
 
     hashmap_entry_init(&key.hnode, mem_hash(&val, sizeof(val)));
@@ -64,7 +70,10 @@ KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m)
     int width = ts->int_flt_info.width;
 
     KlrConst key = {
-        .kind = KLR_VALUE_CONST, .which = CONST_FLT, .len = width, .fval = val
+        .kind = KLR_VALUE_CONST,
+        .which = CONST_FLT,
+        .len = width,
+        .fval = val,
     };
 
     hashmap_entry_init(&key.hnode, mem_hash(&val, sizeof(val)));
@@ -104,7 +113,12 @@ KlrValue *klr_const_bool(int v, KlrModule *m)
 
 KlrValue *klr_const_str(char *s, int len, KlrModule *m)
 {
-    KlrConst key = { .kind = KLR_VALUE_CONST, .which = CONST_STR, .sval = s, .len = len };
+    KlrConst key = {
+        .kind = KLR_VALUE_CONST,
+        .which = CONST_STR,
+        .len = len,
+        .sval = s,
+    };
     hashmap_entry_init(&key.hnode, mem_hash(s, len));
     void *entry = hashmap_get(&m->consts, &key.hnode);
     if (entry) {
@@ -125,7 +139,10 @@ KlrValue *klr_const_str(char *s, int len, KlrModule *m)
 KlrValue *klr_const_none(KlrModule *m)
 {
     KlrConst key = {
-        .kind = KLR_VALUE_CONST, .which = CONST_NONE, .sval = "none", .len = 4
+        .kind = KLR_VALUE_CONST,
+        .which = CONST_NONE,
+        .len = 4,
+        .sval = "none",
     };
     hashmap_entry_init(&key.hnode, mem_hash("none", 4));
     void *entry = hashmap_get(&m->consts, &key.hnode);
@@ -134,7 +151,8 @@ KlrValue *klr_const_none(KlrModule *m)
     }
 
     KlrConst *lit = mm_alloc_obj(lit);
-    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, NULL, "");
+    TypeSpec *ts = optional_type_spec_intern(NULL);
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_NONE;
     lit->len = 4;
     lit->sval = "none";
@@ -317,14 +335,14 @@ void klr_erase_block(KlrBasicBlock *bb)
     KlrEdge *edge, *nxt;
 
     edge_out_foreach_safe(edge, nxt, bb) {
-        log_info("[erase-block] remove out edge '%%%s' -> '%%%s'",
-                 klr_block_name(edge->src), klr_block_name(edge->dst));
+        log_info("[erase-block] remove out edge '%%%s' -> '%%%s'", klr_block_name(edge->src),
+                 klr_block_name(edge->dst));
         klr_remove_edge(edge);
     }
 
     edge_in_foreach_safe(edge, nxt, bb) {
-        log_info("[erase-block] remove in edge '%%%s' -> '%%%s'",
-                 klr_block_name(edge->src), klr_block_name(edge->dst));
+        log_info("[erase-block] remove in edge '%%%s' -> '%%%s'", klr_block_name(edge->src),
+                 klr_block_name(edge->dst));
         klr_remove_edge(edge);
     }
 
@@ -350,8 +368,7 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
 
     KlrInsn *last = insn_last(dst);
     if (last && last->code == OP_JMP) {
-        log_info("[basic-block-merging] remove jmp insn in block '%%%s'",
-                 klr_block_name(dst));
+        log_info("[basic-block-merging] remove jmp insn in block '%%%s'", klr_block_name(dst));
         klr_erase_insn(last);
     }
 
@@ -371,8 +388,8 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
     /* update out-edges */
     KlrEdge *edge, *nxt_edge;
     edge_out_foreach_safe(edge, nxt_edge, src) {
-        log_info("[basic-block-merging] update out edge '%%%s' -> '%%%s'",
-                 klr_block_name(dst), klr_block_name(edge->dst));
+        log_info("[basic-block-merging] update out edge '%%%s' -> '%%%s'", klr_block_name(dst),
+                 klr_block_name(edge->dst));
         klr_link_edge(dst, edge->dst);
         klr_remove_edge(edge);
     }
@@ -468,6 +485,8 @@ static int __const_eq__(void *e1, void *e2)
     }
 
     switch (k1->which) {
+        case CONST_NONE:
+            return 1;
         case CONST_INT: // fall-through
         case CONST_UINT:
             return k1->ival == k2->ival;
@@ -628,8 +647,7 @@ KlrValue *klr_klass_add_field(KlrValue *klass_val, char *name, TypeSpec *ts)
     return (KlrValue *)field;
 }
 
-KlrValue *klr_klass_add_method(KlrValue *klass_val, char *name, TypeSpec *ret,
-                               TypeSpec **params)
+KlrValue *klr_klass_add_method(KlrValue *klass_val, char *name, TypeSpec *ret, TypeSpec **params)
 {
     KlrKlass *klass = (KlrKlass *)klass_val;
     KlrFunc *method = mm_alloc_obj(method);

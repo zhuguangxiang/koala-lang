@@ -165,8 +165,7 @@ int kl_mach_const_add_str(KlMachModule *m, char *v)
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
-        log_info("Found existing const entry for string: %s (index: %d)", v,
-                 entry->index);
+        log_info("Found existing const entry for string: %s (index: %d)", v, entry->index);
         return entry->index;
     }
 
@@ -205,8 +204,7 @@ static int mach_import_add(KlMachModule *m, char *path, char *name)
 
     KlMachImport *entry = hashmap_get(&m->import_map, &key);
     if (entry) {
-        log_info("Found existing import entry for %s.%s (index: %d)", path, name,
-                 entry->index);
+        log_info("Found existing import entry for %s.%s (index: %d)", path, name, entry->index);
         return entry->index;
     }
 
@@ -240,8 +238,8 @@ static void dump_byte_code(KlMachModule *m)
     vector_foreach(mfn, &m->funcs) {
         fn = mfn->origin;
         printf("\n@%s:\n", fn->name);
-        printf("[start_pc: %d, insns: %d, nlocals: %d, max_call_args: %d]\n",
-               mfn->start_pc, mfn->total_insns, fn->nlocals, fn->max_call_args);
+        printf("[start_pc: %d, insns: %d, nlocals: %d, max_call_args: %d]\n", mfn->start_pc,
+               mfn->total_insns, fn->nlocals, fn->max_call_args);
     }
 
     printf("\n");
@@ -386,8 +384,8 @@ static void dump_mach_block(KlMachBlock *mb)
 
 static void dump_mach_func(KlMachFunc *fn)
 {
-    printf("\n====== Linearization @%s(start_pc: %d, insns: %d) ======\n\n",
-           fn->origin->name, fn->start_pc, fn->total_insns);
+    printf("\n====== Linearization @%s(start_pc: %d, insns: %d) ======\n\n", fn->origin->name,
+           fn->start_pc, fn->total_insns);
 
     KlMachBlock *mb;
     list_foreach(mb, link, &fn->bb_list) {
@@ -730,6 +728,8 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
 
 static int fused_jmp(OpCode op) { return (op >= OP_JMP_INT_EQ && op <= OP_JMP_FLOAT_GE); }
 
+static int ref_fused_jmp(OpCode op) { return (op >= OP_JMP_REF_EQ && op <= OP_JMP_REF_NE_NULL); }
+
 static void linearize(KlMachFunc *mfn, KlMachModule *m)
 {
     KlrFunc *fn = mfn->origin;
@@ -800,7 +800,8 @@ static void linearize(KlMachFunc *mfn, KlMachModule *m)
                 }
             }
 
-            if (insn_is(insn, OP_IR_JMP_COND) || fused_jmp(insn->code)) {
+            if (insn_is(insn, OP_IR_JMP_COND) || fused_jmp(insn->code) ||
+                ref_fused_jmp(insn->code)) {
                 // don't do sel for jmp_cond here, linearize() only does build linear
                 // MachInsn, without any transformation. Do it in lower_branches()
                 mi = build_mach_insn(insn->code, insn, mb);
@@ -971,6 +972,74 @@ static void lower_fused_jmp(KlMachInsn *mi)
     }
 }
 
+static struct jmp_invert ref_jmp_invert_map[] = {
+    { OP_JMP_REF_NE, FORMAT_RROff },
+    { OP_JMP_REF_EQ, FORMAT_RROff },
+    { OP_JMP_REF_NE_NULL, FORMAT_ROff2 },
+    { OP_JMP_REF_EQ_NULL, FORMAT_ROff2 },
+};
+
+static void lower_ref_fused_jmp(KlMachInsn *mi)
+{
+    KlMachBlock *mb = mi->bb;
+    KlrInsn *insn = mi->origin;
+    OpCode op = mi->op;
+
+    KlrValue *lhs = insn_oper_value(insn, 0);
+    KlrValue *rhs = insn_oper_value(insn, 1);
+
+    // next block is fallthrough (may be NULL)
+    KlMachBlock *next = NEXT_BLOCK(mb);
+
+    KlrValue *val = insn_oper_value(insn, 2);
+    ASSERT(klr_is_block(val));
+    KlrBasicBlock *bb_true = (KlrBasicBlock *)val;
+
+    val = insn_oper_value(insn, 3);
+    ASSERT(klr_is_block(val));
+    KlrBasicBlock *bb_false = (KlrBasicBlock *)val;
+
+    int fallthrough = (next && next->origin == bb_true);
+
+    if (fallthrough) {
+        // if (!cond) goto false(invert jmp-op)
+        // inplace update
+        struct jmp_invert *inv = &ref_jmp_invert_map[op - OP_JMP_REF_EQ];
+        mi->op = inv->op;
+        mi->format = inv->fmt;
+        mi->origin = insn;
+        mi->opers[0] = lhs->vreg;
+
+        if (op_format(mi->op) == FORMAT_RROff) {
+            mi->opers[1] = rhs->vreg;
+        }
+
+        mi->target = bb_false->mach;
+    } else {
+        // if (cond) goto true
+        // inplace update
+        mi->origin = insn;
+        mi->opers[0] = lhs->vreg;
+
+        if (op_format(mi->op) == FORMAT_RROff) {
+            mi->opers[1] = rhs->vreg;
+        }
+
+        mi->target = bb_true->mach;
+
+        // goto false
+        KlMachBlock *next = NEXT_BLOCK(mb);
+        if (next && next->origin != bb_false) {
+            KlMachInsn *mi_false = build_mach_insn(OP_JMP, insn, mb);
+            mi_false->target = bb_false->mach;
+            vector_push_back(&mb->insns, &mi_false);
+        } else {
+            log_info("Fallthrough to false block detected, no jump-zero inserted");
+            // printf("Fallthrough to false block detected, no jump-zero inserted\n");
+        }
+    }
+}
+
 static void lower_branches(KlMachFunc *mfn)
 {
     KlMachInsn *mi;
@@ -978,10 +1047,12 @@ static void lower_branches(KlMachFunc *mfn)
         if (mach_insn_is(mi, OP_IR_JMP_COND)) {
             /* Lower jmp_cond into concrete machine-level jumps. */
             lower_jmp_cond(mi);
-        } else {
+        } else if (fused_jmp(mi->op)) {
             /* Lower fused jump into concrete machine-level jumps. */
-            ASSERT(fused_jmp(mi->op));
             lower_fused_jmp(mi);
+        } else {
+            ASSERT(ref_fused_jmp(mi->op));
+            lower_ref_fused_jmp(mi);
         }
     }
 }
@@ -1069,6 +1140,17 @@ static void patch_branches(KlMachFunc *mfn)
                 ASSERT(target_pc >= 0);
                 /* Relative offset: target - (current + 1) */
                 mi->opers[2] = target_pc - (mi->pc + 1);
+            } else if (ref_fused_jmp(mi->op)) {
+                ASSERT(mi->format == FORMAT_RROff || mi->format == FORMAT_ROff2);
+                ASSERT(mi->target);
+                int target_pc = mi->target->start_pc;
+                ASSERT(target_pc >= 0);
+                /* Relative offset: target - (current + 1) */
+                if (mi->format == FORMAT_RROff) {
+                    mi->opers[2] = target_pc - (mi->pc + 1);
+                } else {
+                    mi->opers[1] = target_pc - (mi->pc + 1);
+                }
             } else {
                 // do nothing for non-jump instructions
             }
@@ -1122,8 +1204,8 @@ static void patch_fixups(KlMachModule *m)
                 int payload_pc = mi->pc + 1;
 
                 log_info("fixup call '%s' at pc %d(relative), to 'target %s' at pc %d",
-                         mi->origin->bb->func->name, payload_pc,
-                         mi->target_fn->origin->name, target_pc);
+                         mi->origin->bb->func->name, payload_pc, mi->target_fn->origin->name,
+                         target_pc);
 
                 ASSERT(target_pc >= 0);
                 /* Relative offset: target - (payload + 1) */

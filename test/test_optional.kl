@@ -1,0 +1,13 @@
+// RUN: koalac %s | filecheck %s
+
+func bar(msg str?) {
+    let n = msg == 10
+}
+
+func foo() {
+    let n = null
+
+}
+
+// CHECK: cannot compare optional type with non-optional type for '==' operator.
+// CHECK: cannot assign 'null' to variable 'n' without explicit type

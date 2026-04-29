@@ -27,17 +27,23 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
     }
 
     if (!sym->ir_val) {
-        ASSERT(sym->flags & SYM_FLAGS_EXT);
-        KlrValue *val = NULL;
-        if (sym->kind == SYM_FUNC) {
-            FuncSymbol *func_sym = (FuncSymbol *)sym;
-            val = klr_add_ext_func(MOD, func_sym->ret, sym->path, sym->name);
-        } else if (sym->kind == SYM_VAR) {
-            val = klr_add_ext_global(MOD, sym->ts, sym->path, sym->name);
+        if (sym->kind == SYM_SHADOW_VAR) {
+            // copy ir_val from origin symbol
+            ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)sym;
+            sym->ir_val = shadow_sym->origin->ir_val;
         } else {
-            // UNREACHABLE();
+            ASSERT(sym->flags & SYM_FLAGS_EXT);
+            KlrValue *val = NULL;
+            if (sym->kind == SYM_FUNC) {
+                FuncSymbol *func_sym = (FuncSymbol *)sym;
+                val = klr_add_ext_func(MOD, func_sym->ret, sym->path, sym->name);
+            } else if (sym->kind == SYM_VAR) {
+                val = klr_add_ext_global(MOD, sym->ts, sym->path, sym->name);
+            } else {
+                // UNREACHABLE();
+            }
+            sym->ir_val = val;
         }
-        sym->ir_val = val;
     }
 
     KlrBuilder bldr;
@@ -58,10 +64,38 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
             }
             break;
         }
+
+        case SYM_SHADOW_VAR: {
+            Symbol *origin = ((ShadowVarSymbol *)sym)->origin;
+            int readonly = origin->flags & SYM_FLAGS_MUTABLE ? 0 : 1;
+            TypeSpec *ts = sym->ts;
+            ASSERT(!type_is_optional(ts));
+
+            KlrValue *local;
+            if (readonly) {
+                // let shadow var → SSA only
+                local = klr_build_local(&bldr, ts, "");
+            } else {
+                // var shadow var → slot + unbox + move
+                local = klr_build_local_var(&bldr, ts, "");
+            }
+            klr_set_loc(local, ps->filename, exp->loc);
+
+            KlrValue *unbox = klr_build_cast(&bldr, sym->ir_val, ts, "");
+            klr_set_loc(unbox, ps->filename, exp->loc);
+
+            klr_build_move(&bldr, local, unbox);
+
+            exp->ir_val = local;
+
+            break;
+        }
+
         case SYM_FUNC: {
             exp->ir_val = sym->ir_val;
             break;
         }
+
         default: {
             UNREACHABLE();
             break;
@@ -325,15 +359,6 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
         KlrValue *fn = klr_add_ext_func(MOD, lhs->ts, "std/builtin", "str_add");
         KlrValue *args[] = { lhs->ir_val, rhs->ir_val };
         KlrValue *res = klr_build_call(&bldr, fn, args, 2, "");
-        exp->ir_val = res;
-        res->ast.filename = ps->filename;
-        res->ast.loc = exp->loc;
-        return;
-    }
-
-    if (type_is_optional(lhs->ts)) {
-        ASSERT(op == BINARY_EQ || op == BINARY_NEQ);
-        KlrValue *res = klr_build_if_null(&bldr, lhs->ir_val, rhs->ir_val, "");
         exp->ir_val = res;
         res->ast.filename = ps->filename;
         res->ast.loc = exp->loc;

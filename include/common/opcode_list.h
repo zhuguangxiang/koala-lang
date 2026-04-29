@@ -963,6 +963,56 @@ X(OP_LOR, FORMAT_RRR)
 X(OP_LNOT, FORMAT_RxRx)
 
 /*---------------------------------------------------------------+
+ |  Reference Comparison Instructions                            |
+ +---------------------------------------------------------------*/
+
+/**
+ * OP_REF_EQ — compare two references for equality
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     Compares rs and rt for identity equality.
+ *     Writes true to rd if equal, false otherwise.
+ */
+X(OP_REF_EQ, FORMAT_RRR)
+
+/**
+ * OP_REF_NE — compare two references for inequality
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
+ *
+ * Details:
+ *     Compares rs and rt for identity inequality.
+ *     Writes true to rd if not equal, false otherwise.
+ */
+X(OP_REF_NE, FORMAT_RRR)
+
+/**
+ * OP_REF_EQ_NULL — check if reference is null
+ *
+ * FORMAT_RxRx:
+ *     | op:8 | rd:12 | rs:12 |
+ *
+ * Details:
+ *     Writes true to rd if rs is null, false otherwise.
+ */
+X(OP_REF_EQ_NULL, FORMAT_RxRx)
+
+/**
+ * OP_REF_NE_NULL — check if reference is not null
+ *
+ * FORMAT_RxRx:
+ *     | op:8 | rd:12 | rs:12 |
+ *
+ * Details:
+ *     Writes true to rd if rs is not null, false otherwise.
+ */
+X(OP_REF_NE_NULL, FORMAT_RxRx)
+
+/*---------------------------------------------------------------+
  |  Jump and Branch Instructions                                 |
  +---------------------------------------------------------------*/
 
@@ -1000,26 +1050,48 @@ X(OP_JMP_TRUE, FORMAT_ROff2)
 X(OP_JMP_FALSE, FORMAT_ROff2)
 
 /**
- * OP_JMP_NULL — conditional jump if null
+ * OP_JMP_REF_EQ — conditional jump if rs == rt
  *
- * FORMAT_ROff2:
- *     | op:8 | rd:8 | offset:16 |
+ * FORMAT_RROff:
+ *     | op:8 | rs:8 | rt:8 | offset:8 |
  *
  * Details:
- *     If rd is null, pc += offset.
+ *     If rs == rt, pc += offset.
  */
-X(OP_JMP_NULL, FORMAT_ROff2)
+X(OP_JMP_REF_EQ, FORMAT_RROff)
 
 /**
- * OP_JMP_NOT_NULL — conditional jump if not null
+ * OP_JMP_REF_NE — conditional jump if rs != rt
  *
- * FORMAT_ROff2:
- *     | op:8 | rd:8 | offset:16 |
+ * FORMAT_RROff:
+ *     | op:8 | rs:8 | rt:8 | offset:8 |
  *
  * Details:
- *     If rd is not null, pc += offset.
+ *     If rs != rt, pc += offset.
  */
-X(OP_JMP_NOT_NULL, FORMAT_ROff2)
+X(OP_JMP_REF_NE, FORMAT_RROff)
+
+/**
+ * OP_JMP_REF_EQ_NULL — conditional jump if null
+ *
+ * FORMAT_ROff2:
+ *     | op:8 | rs:8 | offset:16 |
+ *
+ * Details:
+ *     If rs is null, pc += offset.
+ */
+X(OP_JMP_REF_EQ_NULL, FORMAT_ROff2)
+
+/**
+ * OP_JMP_REF_NE_NULL — conditional jump if not null
+ *
+ * FORMAT_ROff2:
+ *     | op:8 | rs:8 | offset:16 |
+ *
+ * Details:
+ *     If rs is not null, pc += offset.
+ */
+X(OP_JMP_REF_NE_NULL, FORMAT_ROff2)
 
 /*---------------------------------------------------------------+
  |  Fused Integer Compare + Jump Instructions                    |

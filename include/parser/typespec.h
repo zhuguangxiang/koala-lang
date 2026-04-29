@@ -158,14 +158,8 @@ static inline int type_is_str(TypeSpec *ts) { return ts->kind == TYPE_STR; }
 static inline int type_is_float(TypeSpec *ts) { return ts->kind == TYPE_FLOAT; }
 static inline int type_is_type(TypeSpec *ts) { return ts->kind == TYPE_TYPE; }
 static inline int type_is_union(TypeSpec *ts) { return ts->kind == TYPE_UNION; }
-static inline int type_is_generic_var(TypeSpec *ts)
-{
-    return ts->kind == TYPE_GENERIC_VAR;
-}
-static inline int type_is_generic_ref(TypeSpec *ts)
-{
-    return ts->kind == TYPE_GENERIC_REF;
-}
+static inline int type_is_generic_var(TypeSpec *ts) { return ts->kind == TYPE_GENERIC_VAR; }
+static inline int type_is_generic_ref(TypeSpec *ts) { return ts->kind == TYPE_GENERIC_REF; }
 static inline int type_is_klass(TypeSpec *ts) { return ts->kind == TYPE_KLASS; }
 static inline int type_is_proto(TypeSpec *ts) { return ts->kind == TYPE_PROTO; }
 int type_is_tuple(TypeSpec *ts);

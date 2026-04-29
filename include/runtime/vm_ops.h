@@ -347,6 +347,64 @@ TARGET(OP_JMP_INT_NE) {
     DISPATCH();
 }
 
+TARGET(OP_JMP_REF_EQ_NULL) {
+    rs = I_VAL(inst, 16, 8);
+    off = I_SVAL(inst, 0, 16);
+
+    CHECK_REG_ID(rs);
+
+    if (is_none(&regs[rs])) {
+        pc += off;
+    }
+    DISPATCH();
+}
+
+TARGET(OP_JMP_REF_NE_NULL) {
+    rs = I_VAL(inst, 16, 8);
+    off = I_SVAL(inst, 0, 16);
+
+    CHECK_REG_ID(rs);
+
+    if (!is_none(&regs[rs])) {
+        pc += off;
+    }
+    DISPATCH();
+}
+
+TARGET(OP_REF_NE_NULL) {
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    regs[rd] = is_none(regs + rs) ? BOOL_FALSE : BOOL_TRUE;
+    DISPATCH();
+}
+
+TARGET(OP_REF_EQ_NULL) {
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    regs[rd] = is_none(regs + rs) ? BOOL_TRUE : BOOL_FALSE;
+    DISPATCH();
+}
+
+TARGET(OP_REF_EQ) {
+    OP_NYI(OP_REF_EQ);
+}
+
+TARGET(OP_REF_NE) {
+    OP_NYI(OP_REF_NE);
+}
+
+TARGET(OP_NEW) {
+    OP_NYI(OP_NEW);
+}
+
 /* Calls */
 
 TARGET(OP_CALL) {
@@ -930,30 +988,6 @@ TARGET(OP_JMP_FALSE) {
     ASSERT(regs[rs].tag == TAG_BOOL);
 
     if (regs[rs].bval == 0) {
-        pc += off;
-    }
-    DISPATCH();
-}
-
-TARGET(OP_JMP_NULL) {
-    rs = I_VAL(inst, 16, 8);
-    off = I_SVAL(inst, 0, 16);
-
-    CHECK_REG_ID(rs);
-
-    if (is_none(&regs[rs])) {
-        pc += off;
-    }
-    DISPATCH();
-}
-
-TARGET(OP_JMP_NOT_NULL) {
-    rs = I_VAL(inst, 16, 8);
-    off = I_SVAL(inst, 0, 16);
-
-    CHECK_REG_ID(rs);
-
-    if (!is_none(&regs[rs])) {
         pc += off;
     }
     DISPATCH();

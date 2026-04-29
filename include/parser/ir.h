@@ -437,6 +437,12 @@ static inline int klr_is_const(KlrValue *val)
     return 0;
 }
 
+static inline int klr_is_const_none(KlrValue *val)
+{
+    if (klr_is_const(val) && ((KlrConst *)val)->which == CONST_NONE) return 1;
+    return 0;
+}
+
 static inline int klr_is_insn(KlrValue *val)
 {
     if (val->kind == KLR_VALUE_INSN) return 1;
@@ -866,6 +872,7 @@ void klr_build_rpo(KlrFunc *fn);
 KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char *name);
 void klr_set_loc(KlrValue *val, char *filename, Loc loc);
 KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, KlrValue **args, int nargs, char *name);
+KlrValue *klr_build_ref(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op, char *name);
 
 #ifdef __cplusplus
 }

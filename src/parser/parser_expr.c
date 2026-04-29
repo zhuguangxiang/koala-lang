@@ -90,16 +90,16 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
     lit->len = width;
     lit->ival = (uint64_t)val;
 
-    __uint128_t phys_max = (width == 8) ? (__uint128_t)0xFFFFFFFFFFFFFFFFULL
-                                        : ((__uint128_t)1 << (width * 8)) - 1;
+    __uint128_t phys_max =
+        (width == 8) ? (__uint128_t)0xFFFFFFFFFFFFFFFFULL : ((__uint128_t)1 << (width * 8)) - 1;
 
     if (lit->bit_mode) {
         /* non-decimal literals */
         if (val < 0) {
             __int128 min_s = -((__int128)1 << (width * 8 - 1));
             if (val < min_s || sign == 0) {
-                kl_error(lit->loc, "Negative hex literal %s overflows '%s%d' range",
-                         lit->orginal, (sign ? "int" : "uint"), width * 8);
+                kl_error(lit->loc, "Negative hex literal %s overflows '%s%d' range", lit->orginal,
+                         (sign ? "int" : "uint"), width * 8);
                 return;
             }
         } else {
@@ -153,13 +153,9 @@ static void parse_none(ParserState *ps, LitExpr *lit)
         return;
     }
 
-    // TypeDesc *expected = lit->expected;
-    // if (expected) {
-    //     if (expected->kind != TYPE_OPTIONAL_KIND) {
-    //         kl_error(lit->loc, "expected an optional type.");
-    //         return;
-    //     }
-    //     // lit->desc = expected;
+    // TypeSpec *expected = lit->expected;
+    // if (expected && expected->kind != TYPE_OPTIONAL) {
+    //     kl_error(lit->loc, "expected an optional type.");
     // }
 }
 
@@ -322,8 +318,7 @@ static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i
     kl_error(kw->loc, "unexpected keyword argument: '%s'", kw->key.name);
 }
 
-static void check_dfl_param(ParserState *ps, Vector *params, Vector *exprs, int i__,
-                            int j__)
+static void check_dfl_param(ParserState *ps, Vector *params, Vector *exprs, int i__, int j__)
 {
     int expr_size = vector_size(exprs);
     for (int j = j__; j < expr_size; j++) {
@@ -344,8 +339,7 @@ static void check_dfl_param(ParserState *ps, Vector *params, Vector *exprs, int 
                 kl_error(e->loc, "too many positional arguments in function call.");
                 return;
             }
-            log_info("kw-param: '%s', check value passed by positional argument",
-                     arg->name);
+            log_info("kw-param: '%s', check value passed by positional argument", arg->name);
             if (!type_spec_compatible(arg->ts, e->ts)) {
                 kl_error_incompatible_type(e->loc, arg->ts, e->ts);
             }
@@ -425,10 +419,9 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
 
             if (e->kind == EXPR_KW_KIND) {
                 KeyWordExpr *kw = (KeyWordExpr *)e;
-                kl_error(
-                    kw->loc,
-                    "require a positional argument, but got a keyword argument: '%s'",
-                    kw->key.name);
+                kl_error(kw->loc,
+                         "require a positional argument, but got a keyword argument: '%s'",
+                         kw->key.name);
             }
 
             log_info("param '%s' is positional argument", arg->name);
@@ -454,17 +447,15 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
             if (!e) return;
 
             if (e->kind == EXPR_KW_KIND) {
-                log_info("skip var-arg param '%s' check and go to next kw-arg check",
-                         arg->name);
+                log_info("skip var-arg param '%s' check and go to next kw-arg check", arg->name);
                 KeyWordExpr *kw = (KeyWordExpr *)e;
                 check_kw_arg(ps, params, kw, i__ + 1);
             } else {
                 // var-arg, caller can pass 0 or more values
                 TypeSpec *src = arg->ts->va_list.src;
                 if (type_is_any(src)) {
-                    log_info(
-                        "param '%s' is var-arg of type 'any', no check for var-arg type",
-                        arg->name);
+                    log_info("param '%s' is var-arg of type 'any', no check for var-arg type",
+                             arg->name);
                 } else {
                     int next_j = 0;
                     check_valist_arg(ps, src, exprs, i__, &next_j);
@@ -494,8 +485,8 @@ static void parse_type(ParserState *ps, Expr *exp)
     return;
 }
 
-static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin,
-                                    InstanceSymbol *sym, ParserState *ps)
+static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceSymbol *sym,
+                                    ParserState *ps)
 {
     Vector *kls_tps = &origin->tps;
     Vector *tp_args = sym->tp_args;
@@ -508,9 +499,8 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin,
             if (tp_sym->which == TP_INFER) {
                 ASSERT(sym->arg);
                 inst_ts = sym->arg;
-                log_info(
-                    "generic var '%s' is inferred as '%s' for instance specialization",
-                    ts->generic_var.name, inst_ts->signature);
+                log_info("generic var '%s' is inferred as '%s' for instance specialization",
+                         ts->generic_var.name, inst_ts->signature);
             } else {
                 log_info(
                     "generic var '%s' matches klass's tp, use tp_args to get instance "
@@ -520,8 +510,7 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin,
             }
         } else {
             // generic var must be defined in method's tps, not klass's tps.
-            log_info("generic var '%s' does not match klass's tp, keep it.",
-                     ts->generic_var.name);
+            log_info("generic var '%s' does not match klass's tp, keep it.", ts->generic_var.name);
             inst_ts = ts;
         }
     } else if (ts->kind == TYPE_GENERIC_REF) {
@@ -555,8 +544,8 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin,
                         "instance type",
                         src->generic_var.name);
                     inst_src_ts = vector_get(tp_args, src->generic_var.index);
-                    log_info("var-arg generic var '%s' is resolved as '%s'",
-                             src->generic_var.name, inst_src_ts->signature);
+                    log_info("var-arg generic var '%s' is resolved as '%s'", src->generic_var.name,
+                             inst_src_ts->signature);
                 }
                 // update var-arg type as var-arg of instance type.
                 inst_ts = va_list_type_spec_intern(inst_src_ts);
@@ -576,8 +565,8 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin,
     return inst_ts;
 }
 
-static Vector *build_instance_params(Vector *params, KlassSymbol *origin,
-                                     InstanceSymbol *sym, ParserState *ps)
+static Vector *build_instance_params(Vector *params, KlassSymbol *origin, InstanceSymbol *sym,
+                                     ParserState *ps)
 {
     Vector *inst_params = vector_create_ptr();
     ArgInfo *arg;
@@ -654,8 +643,8 @@ static int __tpinfo_eq__(const TpInfo *a, const TpInfo *b)
 
 static void __tpinfo_free__(void *info, void *arg) { mm_free(info); }
 
-static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym,
-                                 CallExpr *call_exp, ParserState *ps)
+static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym, CallExpr *call_exp,
+                                 ParserState *ps)
 {
     Vector *result = vector_create_ptr();
     Vector *tps = &cls_sym->tps;
@@ -681,9 +670,8 @@ static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym,
             // no more arguments passed, report error.
             if (type_is_valist(ts)) {
                 // var-arg can be empty, break the loop and check the rest params.
-                log_info(
-                    "param '%s' is var-arg, no more arguments passed, skip the rest.",
-                    arg->name);
+                log_info("param '%s' is var-arg, no more arguments passed, skip the rest.",
+                         arg->name);
                 break;
             } else {
                 kl_error(call_exp->loc,
@@ -730,14 +718,13 @@ static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym,
 
                 if (e->kind == EXPR_KW_KIND) {
                     KeyWordExpr *kw = (KeyWordExpr *)e;
-                    log_info("var-arg '%s' is passed as keyword argument '%s', skip",
-                             arg->name, kw->key.name);
+                    log_info("var-arg '%s' is passed as keyword argument '%s', skip", arg->name,
+                             kw->key.name);
                     continue;
                 }
 
                 TypeSpec *arg_ts;
-                if ((e->kind == EXPR_BANG_KIND) &&
-                    (match_sequence(e->ts, NULL, &arg_ts))) {
+                if ((e->kind == EXPR_BANG_KIND) && (match_sequence(e->ts, NULL, &arg_ts))) {
                     vector_push_back(var_arg_types, &arg_ts);
                     log_info(
                         "var-arg '%s' is passed with bang operator(sequence[T]), "
@@ -800,8 +787,7 @@ static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym,
             vector_destroy(result);
             return NULL;
         }
-        log_info("inferred type parameter '%s' for class '%s':", tp_sym->name,
-                 cls_sym->name);
+        log_info("inferred type parameter '%s' for class '%s':", tp_sym->name, cls_sym->name);
         log_type_spec(info->real);
         vector_push_back(result, &info->real);
     }
@@ -886,19 +872,18 @@ static void parse_call(ParserState *ps, Expr *exp)
                 vector_push_back(tp_args, &arg->ts);
             }
 
-            InstanceSymbol *inst_sym =
-                find_or_add_instance(ps->module->stbl, lhs_sym, tp_args);
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, lhs_sym, tp_args);
             vector_destroy(tp_args);
 
             Symbol *_fn = stbl_get(inst_sym->stbl, "__init__");
             if (!_fn) {
                 KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
                 // params
-                Vector *inst_params = build_instance_params(
-                    ((FuncSymbol *)_fn_sym)->params, origin, inst_sym, ps);
+                Vector *inst_params =
+                    build_instance_params(((FuncSymbol *)_fn_sym)->params, origin, inst_sym, ps);
 
-                _fn = stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(),
-                                    inst_params, _fn_sym->flags);
+                _fn = stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(), inst_params,
+                                    _fn_sym->flags);
             }
             _fn_sym = _fn;
 
@@ -922,8 +907,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                         vector_push_back(tp_args, &any_ts);
                     }
                 } else {
-                    tp_args =
-                        infer_tp_from_new(cls_sym, ((FuncSymbol *)_fn_sym), call, ps);
+                    tp_args = infer_tp_from_new(cls_sym, ((FuncSymbol *)_fn_sym), call, ps);
                 }
 
                 if (!tp_args) {
@@ -941,11 +925,11 @@ static void parse_call(ParserState *ps, Expr *exp)
                 if (!_fn) {
                     KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
                     // params
-                    Vector *inst_params = build_instance_params(
-                        ((FuncSymbol *)_fn_sym)->params, origin, inst_sym, ps);
+                    Vector *inst_params = build_instance_params(((FuncSymbol *)_fn_sym)->params,
+                                                                origin, inst_sym, ps);
 
-                    _fn = stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(),
-                                        inst_params, _fn_sym->flags);
+                    _fn = stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(), inst_params,
+                                        _fn_sym->flags);
                 }
                 _fn_sym = _fn;
 
@@ -998,8 +982,7 @@ static void parse_call(ParserState *ps, Expr *exp)
         // constructor call with type parameters, e.g. Foo[int](100)
         InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
 
-        log_info("call lhs is instance of class '%s' with type parameters:",
-                 lhs_sym->name);
+        log_info("call lhs is instance of class '%s' with type parameters:", lhs_sym->name);
 
         KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
         Symbol *init_fn_sym = stbl_get(inst_sym->stbl, "__init__");
@@ -1011,8 +994,8 @@ static void parse_call(ParserState *ps, Expr *exp)
             }
 
             // params
-            Vector *inst_params = build_instance_params(((FuncSymbol *)_fn_sym)->params,
-                                                        origin, inst_sym, ps);
+            Vector *inst_params =
+                build_instance_params(((FuncSymbol *)_fn_sym)->params, origin, inst_sym, ps);
 
             init_fn_sym =
                 stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(), inst_params, 0);
@@ -1021,10 +1004,9 @@ static void parse_call(ParserState *ps, Expr *exp)
         if (!strcmp(origin->name, "tuple")) {
             log_info("check __init__ args with specialized tuple type parameters.");
             if (vector_size(inst_sym->tp_args) != vector_size(call->args)) {
-                kl_error(
-                    lhs->loc,
-                    "tuple instance expects %d type arguments, but %d were provided.",
-                    vector_size(inst_sym->tp_args), vector_size(call->args));
+                kl_error(lhs->loc,
+                         "tuple instance expects %d type arguments, but %d were provided.",
+                         vector_size(inst_sym->tp_args), vector_size(call->args));
                 return;
             }
 
@@ -1171,21 +1153,18 @@ static void parse_dot(ParserState *ps, Expr *exp)
         if (sym) {
             // field/method of instance
             if (sym->kind == SYM_VAR) {
-                log_info("found field '%s' from origin klass '%s'.", ident->name,
-                         origin->name);
+                log_info("found field '%s' from origin klass '%s'.", ident->name, origin->name);
                 VarSymbol *origin_var_sym = (VarSymbol *)sym;
-                TypeSpec *ts =
-                    instance_type_spec(origin_var_sym->ts, origin, inst_sym, ps);
-                Symbol *inst_var_sym = stbl_add_var(lhs_stbl, origin_var_sym->name, ts,
-                                                    origin_var_sym->flags);
+                TypeSpec *ts = instance_type_spec(origin_var_sym->ts, origin, inst_sym, ps);
+                Symbol *inst_var_sym =
+                    stbl_add_var(lhs_stbl, origin_var_sym->name, ts, origin_var_sym->flags);
                 exp->ts = opt_dot_type(inst_var_sym->ts, opt_or_bang);
                 exp->sym = inst_var_sym;
                 log_info("dot member resolved: %s", inst_var_sym->name);
                 log_type_spec(exp->ts);
                 return;
             } else if (sym->kind == SYM_FUNC) {
-                log_info("found func '%s' from origin klass '%s'.", ident->name,
-                         origin->name);
+                log_info("found func '%s' from origin klass '%s'.", ident->name, origin->name);
                 // method of instance
                 FuncSymbol *origin_fn_sym = (FuncSymbol *)sym;
 
@@ -1194,8 +1173,7 @@ static void parse_dot(ParserState *ps, Expr *exp)
                     build_instance_params(origin_fn_sym->params, origin, inst_sym, ps);
 
                 // return type
-                TypeSpec *ret_ts =
-                    instance_type_spec(origin_fn_sym->ret, origin, inst_sym, ps);
+                TypeSpec *ret_ts = instance_type_spec(origin_fn_sym->ret, origin, inst_sym, ps);
 
                 // create function symbol for instance method
                 Symbol *inst_fn_sym = stbl_add_func(lhs_stbl, origin_fn_sym->name, ret_ts,
@@ -1240,15 +1218,15 @@ static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
             }
 
             // params
-            Vector *inst_params = build_instance_params(((FuncSymbol *)__fn_sym)->params,
-                                                        origin, inst_sym, ps);
+            Vector *inst_params =
+                build_instance_params(((FuncSymbol *)__fn_sym)->params, origin, inst_sym, ps);
             // return
             TypeSpec *ret_ts =
                 instance_type_spec(((FuncSymbol *)__fn_sym)->ret, origin, inst_sym, ps);
 
             // create function symbol for instance __getitem__
-            Symbol *inst_fn_sym = stbl_add_func(lhs_sym->stbl, "__getitem__", ret_ts,
-                                                inst_params, __fn_sym->flags);
+            Symbol *inst_fn_sym =
+                stbl_add_func(lhs_sym->stbl, "__getitem__", ret_ts, inst_params, __fn_sym->flags);
 
             // copy __getitem__'s tps to instance __getitem__
             copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
@@ -1261,14 +1239,12 @@ static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
         // do nothing, __getitem__ is defined on class/trait type itself, no need to
         // create new symbol for it.
     } else {
-        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getitem__)",
-                 lhs_sym->name);
+        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getitem__)", lhs_sym->name);
         return;
     }
 
     if (!__fn_sym) {
-        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getitem__)",
-                 lhs_sym->name);
+        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getitem__)", lhs_sym->name);
         return;
     }
 
@@ -1277,8 +1253,7 @@ static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
     if (func_has_infer_tp(fn_sym)) {
         Vector *_tp_args = infer_func_tp(fn_sym, index->vec, ps);
         if (!_tp_args) {
-            kl_error(lhs->loc, "failed to infer type parameters for function '%s'.",
-                     fn_sym->name);
+            kl_error(lhs->loc, "failed to infer type parameters for function '%s'.", fn_sym->name);
             return;
         }
 
@@ -1315,15 +1290,15 @@ static void parse_index_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
             }
 
             // params
-            Vector *inst_params = build_instance_params(((FuncSymbol *)__fn_sym)->params,
-                                                        origin, inst_sym, ps);
+            Vector *inst_params =
+                build_instance_params(((FuncSymbol *)__fn_sym)->params, origin, inst_sym, ps);
             // return
             TypeSpec *ret_ts =
                 instance_type_spec(((FuncSymbol *)__fn_sym)->ret, origin, inst_sym, ps);
 
             // create function symbol for instance __setitem__
-            Symbol *inst_fn_sym = stbl_add_func(lhs_sym->stbl, "__setitem__", ret_ts,
-                                                inst_params, __fn_sym->flags);
+            Symbol *inst_fn_sym =
+                stbl_add_func(lhs_sym->stbl, "__setitem__", ret_ts, inst_params, __fn_sym->flags);
 
             // copy __setitem__'s tps to instance __setitem__
             copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
@@ -1336,14 +1311,12 @@ static void parse_index_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
         // do nothing, __setitem__ is defined on class/trait type itself, no need to
         // create new symbol for it.
     } else {
-        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __setitem__)",
-                 lhs_sym->name);
+        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __setitem__)", lhs_sym->name);
         return;
     }
 
     if (!__fn_sym) {
-        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __setitem__)",
-                 lhs_sym->name);
+        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __setitem__)", lhs_sym->name);
         return;
     }
 
@@ -1382,22 +1355,21 @@ static void parse_slice_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
             KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
             __fn_sym = stbl_get(origin->stbl, "__getslice__");
             if (!__fn_sym) {
-                kl_error(lhs->loc,
-                         "type '%s' is not subscriptable (missing __getslice__)",
+                kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getslice__)",
                          lhs_sym->name);
                 return;
             }
 
             // params
-            Vector *inst_params = build_instance_params(((FuncSymbol *)__fn_sym)->params,
-                                                        origin, inst_sym, ps);
+            Vector *inst_params =
+                build_instance_params(((FuncSymbol *)__fn_sym)->params, origin, inst_sym, ps);
             // return
             TypeSpec *ret_ts =
                 instance_type_spec(((FuncSymbol *)__fn_sym)->ret, origin, inst_sym, ps);
 
             // create function symbol for instance __getslice__
-            Symbol *inst_fn_sym = stbl_add_func(lhs_sym->stbl, "__getslice__", ret_ts,
-                                                inst_params, __fn_sym->flags);
+            Symbol *inst_fn_sym =
+                stbl_add_func(lhs_sym->stbl, "__getslice__", ret_ts, inst_params, __fn_sym->flags);
 
             // copy __getslice__'s tps to instance __getslice__
             copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
@@ -1410,14 +1382,12 @@ static void parse_slice_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
         // do nothing, __getslice__ is defined on class/trait type itself, no need to
         // create new symbol for it.
     } else {
-        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getslice__)",
-                 lhs_sym->name);
+        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getslice__)", lhs_sym->name);
         return;
     }
 
     if (!__fn_sym) {
-        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getslice__)",
-                 lhs_sym->name);
+        kl_error(lhs->loc, "type '%s' is not subscriptable (missing __getslice__)", lhs_sym->name);
         return;
     }
 
@@ -1446,11 +1416,9 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
     int tp_size = vector_size(&kls_sym->tps);
     if (tp_size != vector_size(index->vec)) {
         if (!strcmp(kls_sym->name, "tuple")) {
-            log_info(
-                "tuple is inferred type parameter, skip type argument number check.");
+            log_info("tuple is inferred type parameter, skip type argument number check.");
         } else {
-            kl_error(lhs->loc,
-                     "type '%s' expects %d type arguments, but %d were provided.",
+            kl_error(lhs->loc, "type '%s' expects %d type arguments, but %d were provided.",
                      kls_sym->name, tp_size, vector_size(index->vec));
             return;
         }
@@ -1483,8 +1451,7 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
             vector_foreach(bound_ts, &tp_sym->bound) {
                 if (!bound_ts) continue;
                 if (!type_spec_compatible(bound_ts, arg_ts)) {
-                    kl_error(arg->loc,
-                             "type argument '%s' is not compatible with bound type.",
+                    kl_error(arg->loc, "type argument '%s' is not compatible with bound type.",
                              arg_sym->name);
                     log_info("bound type is: ");
                     log_type_spec(bound_ts);
@@ -1496,8 +1463,7 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
     }
 
     // create or find instance symbol(List<int>)
-    InstanceSymbol *inst_sym =
-        find_or_add_instance(ps->module->stbl, (Symbol *)kls_sym, tp_args);
+    InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, (Symbol *)kls_sym, tp_args);
     vector_destroy(tp_args);
     index->ts = inst_sym->ts;
     index->sym = (Symbol *)inst_sym;
@@ -1839,8 +1805,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
                 lhs->ts = uint64_type_spec();
             }
             log_info("promote integer type from %s%d to %s",
-                     orig_ts->int_flt_info.sign ? "int" : "uint",
-                     orig_ts->int_flt_info.width * 8,
+                     orig_ts->int_flt_info.sign ? "int" : "uint", orig_ts->int_flt_info.width * 8,
                      lhs->ts->int_flt_info.sign ? "int64" : "uint64");
         } else if (lhs->ts->kind == TYPE_FLOAT) {
             lhs->ts = float64_type_spec();
@@ -1888,8 +1853,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
             }
 
             if (!type_spec_compatible(lhs->ts, rhs->ts)) {
-                kl_error(lhs->loc,
-                         "two optional types are not compatible for '%s' operator.",
+                kl_error(lhs->loc, "two optional types are not compatible for '%s' operator.",
                          get_binary_op_str(op));
                 log_info("lhs type:");
                 log_type_spec(lhs->ts);
@@ -1932,15 +1896,14 @@ static void parse_binary(ParserState *ps, Expr *exp)
     HashMap *stbl = ((KlassSymbol *)sym)->stbl;
     Symbol *fn = stbl_get(stbl, op_name);
     if (!fn) {
-        kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.",
-                 get_binary_op_str(op), sym->name);
+        kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.", get_binary_op_str(op),
+                 sym->name);
         return;
     }
 
     Vector *args = ((FuncSymbol *)fn)->params;
     if (vector_size(args) != 1) {
-        kl_error(bin->op_loc,
-                 "expected %d argument for operator '%s' of type '%s', but got 1.",
+        kl_error(bin->op_loc, "expected %d argument for operator '%s' of type '%s', but got 1.",
                  vector_size(args), get_binary_op_str(op), sym->name);
         return;
     }
@@ -1964,8 +1927,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
     else
         exp->ts = lhs->ts;
 
-    log_info("binary operator '%s' for type '%s' resolved.", get_binary_op_str(op),
-             sym->name);
+    log_info("binary operator '%s' for type '%s' resolved.", get_binary_op_str(op), sym->name);
     log_type_spec(exp->ts);
 }
 
@@ -1997,12 +1959,10 @@ static void parse_bang(ParserState *ps, Expr *exp)
             log_info("  note: symbol '%s' is a shadow variable.", sym->name);
             log_info("  value is null: %s", shadow_sym->is_null ? "true" : "false");
             if (shadow_sym->is_null) {
-                kl_error(bang->loc,
-                         "bang operator cannot be applied when value is null.");
+                kl_error(bang->loc, "bang operator cannot be applied when value is null.");
                 return;
             } else {
-                kl_warn(bang->loc,
-                        "bang operator applied on non-nullable variable('%s').",
+                kl_warn(bang->loc, "bang operator applied on non-nullable variable('%s').",
                         sym->name);
                 log_info("bang operator resolved on shadow variable, value is not null.");
                 log_type_spec(exp->ts);
@@ -2017,8 +1977,7 @@ static void parse_bang(ParserState *ps, Expr *exp)
             log_type_spec(exp->ts);
             return;
         } else {
-            kl_error(bang->loc,
-                     "only optional type/Sequence's subtype can use bang operator.");
+            kl_error(bang->loc, "only optional type/Sequence's subtype can use bang operator.");
             return;
         }
     }
@@ -2032,8 +1991,7 @@ static void parse_bang(ParserState *ps, Expr *exp)
 static int check_type_cast(TypeSpec *src, TypeSpec *target, ParserState *ps)
 {
     if (src == target) {
-        log_info(
-            "type cast is valid, source and target type are the same. cast is safe.");
+        log_info("type cast is valid, source and target type are the same. cast is safe.");
         return 1;
     }
 

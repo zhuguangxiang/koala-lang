@@ -85,6 +85,11 @@ static BinaryRule float_rules[] = {
     { OP_BINARY_CMPGE, OP_FLOAT_CMPGE, 0, 0, 0 },
 };
 
+static BinaryRule optional_rules[] = {
+    { OP_BINARY_CMPEQ, OP_REF_EQ, OP_REF_EQ_NULL, 1, 1 },
+    { OP_BINARY_CMPNE, OP_REF_NE, OP_REF_NE_NULL, 1, 1 },
+};
+
 // clang-format on
 
 BinaryRule *find_binary_rule(OpCode ir_op, TypeSpec *ts)
@@ -101,8 +106,11 @@ BinaryRule *find_binary_rule(OpCode ir_op, TypeSpec *ts)
     } else if (type_is_float(ts)) {
         rules = float_rules;
         num_rules = COUNT_OF(float_rules);
+    } else if (type_is_optional(ts)) {
+        rules = optional_rules;
+        num_rules = COUNT_OF(optional_rules);
     } else {
-        return NULL;
+        UNREACHABLE();
     }
 
     for (int i = 0; i < num_rules; i++) {
@@ -253,6 +261,12 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         KlrConst *rc = (KlrConst *)rhs;
 
         if (R->allow_imm) {
+            if (rc->which == CONST_NONE) {
+                // special case for None: always use imm form, no need to materialize
+                insn->code = R->imm_op;
+                return;
+            }
+
             // 8-bit fast path (only applies to int/uint rules)
             // float never enters this block because float rules set allow_imm =
             // 0 reg op imm
@@ -650,6 +664,8 @@ static void isel_lower_cast(KlrInsn *insn, KlrFunc *fn)
             insn->code = OP_FLOAT_CAST;
             insn->cast_flag = encode_float_cast_flag(dst_ts, src_ts);
         }
+    } else if (type_is_optional(src_ts) && !type_is_optional(dst_ts)) {
+        // opt-ref to non-opt-ref cast, do nothing
     } else {
         NYI();
     }
@@ -685,6 +701,15 @@ static inline int is_float_cmp(OpCode op)
 static OpCode float_cmp_map[] = {
     OP_JMP_FLOAT_EQ, OP_JMP_FLOAT_NE, OP_JMP_FLOAT_LT,
     OP_JMP_FLOAT_LE, OP_JMP_FLOAT_GT, OP_JMP_FLOAT_GE,
+};
+
+static inline int is_ref_cmp(OpCode op) { return (op >= OP_REF_EQ) && (op <= OP_REF_NE_NULL); }
+
+static OpCode ref_cmp_map[] = {
+    OP_JMP_REF_EQ,
+    OP_JMP_REF_NE,
+    OP_JMP_REF_EQ_NULL,
+    OP_JMP_REF_NE_NULL,
 };
 
 static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
@@ -744,6 +769,18 @@ static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
         klr_erase_insn(prev);
         return;
     }
+
+    if (is_ref_cmp(prev->code)) {
+        KlrValue *lhs = insn_oper_value(prev, 0);
+        KlrValue *rhs = insn_oper_value(prev, 1);
+        int idx = prev->code - OP_REF_EQ;
+        ASSERT(idx >= 0 && idx < COUNT_OF(ref_cmp_map));
+        insn->code = ref_cmp_map[idx];
+        set_operand_at(insn, 0, lhs);
+        set_operand_at(insn, 1, rhs);
+        klr_erase_insn(prev);
+        return;
+    }
 }
 
 static void verify_insn(KlrInsn *insn)
@@ -752,7 +789,7 @@ static void verify_insn(KlrInsn *insn)
 
     if ((op >= OP_BINARY_ADD && op <= OP_IR_PHI) || (op == OP_JMP) || (op == OP_RET) ||
         (op == OP_RET_VOID) || (op == OP_MOVE) || (op == OP_GLOBAL_GET) || (op == OP_GLOBAL_SET) ||
-        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT)) {
+        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT) || (op == OP_NEW)) {
         return;
     }
 

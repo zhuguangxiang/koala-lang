@@ -86,7 +86,10 @@ static void print_operand(KlrOper *oper, FILE *fp)
     } else {
         klr_print_value_name(val, fp);
     }
-    print_value_type(val, fp);
+
+    if (!klr_is_const_none(val)) {
+        print_value_type(val, fp);
+    }
 }
 
 static void print_binary(KlrInsn *insn, char *op, FILE *fp)
@@ -140,10 +143,7 @@ static void print_no_value_insn(const char *name, KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[1], fp);
 }
 
-static inline void print_cmp(char *name, KlrInsn *insn, FILE *fp)
-{
-    print_binary(insn, name, fp);
-}
+static inline void print_cmp(char *name, KlrInsn *insn, FILE *fp) { print_binary(insn, name, fp); }
 
 static void print_jmp(KlrInsn *insn, FILE *fp)
 {
@@ -794,6 +794,38 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_FLOAT_CAST:
             print_ir_cast("float_cast", insn, fp);
+            break;
+
+        case OP_REF_EQ:
+            print_binary(insn, "ref.eq", fp);
+            break;
+
+        case OP_REF_NE:
+            print_binary(insn, "ref.ne", fp);
+            break;
+
+        case OP_REF_EQ_NULL:
+            print_unary(insn, "ref.eq_null", fp);
+            break;
+
+        case OP_REF_NE_NULL:
+            print_unary(insn, "ref.ne_null", fp);
+            break;
+
+        case OP_JMP_REF_EQ:
+            print_jmp_cond_fused("jmp_ref_eq", insn, fp);
+            break;
+
+        case OP_JMP_REF_NE:
+            print_jmp_cond_fused("jmp_ref_ne", insn, fp);
+            break;
+
+        case OP_JMP_REF_EQ_NULL:
+            print_jmp_cond_fused("jmp_ref_eq_null", insn, fp);
+            break;
+
+        case OP_JMP_REF_NE_NULL:
+            print_jmp_cond_fused("jmp_ref_ne_null", insn, fp);
             break;
 
         default:

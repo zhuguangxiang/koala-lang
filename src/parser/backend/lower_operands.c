@@ -340,8 +340,7 @@ static inline int is_binary(OpCode op)
 {
     return (op >= OP_INT_ADD && op <= OP_INT_CMPGE_IMM) ||
            (op >= OP_UINT_ADD_IMM && op <= OP_UINT_CMPGE_IMM) ||
-           (op >= OP_FLOAT_ADD && op <= OP_FLOAT_CMPGE) ||
-           (op >= OP_LAND && op <= OP_LOR);
+           (op >= OP_FLOAT_ADD && op <= OP_FLOAT_CMPGE) || (op >= OP_LAND && op <= OP_LOR);
 }
 
 static inline int is_move(OpCode op) { return op >= OP_MOVE && op <= OP_LOADK; }
@@ -357,14 +356,14 @@ static void lower_logic_not_opers(KlrInsn *insn, KlrFunc *fn)
     set_raw_reg(&insn->raws[1], val->vreg);
 }
 
-static void lower_ir_cast(KlrInsn *insn, KlrFunc *fn)
+static void lower_ir_cast_opers(KlrInsn *insn, KlrFunc *fn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
     set_raw_imm(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], src->vreg);
 }
 
-static void lower_int_cast(KlrInsn *insn, KlrFunc *fn)
+static void lower_int_cast_opers(KlrInsn *insn, KlrFunc *fn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
     set_raw_imm(&insn->raws[0], insn->vreg);
@@ -372,12 +371,19 @@ static void lower_int_cast(KlrInsn *insn, KlrFunc *fn)
     set_raw_imm(&insn->raws[2], insn->cast_flag);
 }
 
-static void lower_float_cast(KlrInsn *insn, KlrFunc *fn)
+static void lower_float_cast_opers(KlrInsn *insn, KlrFunc *fn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
     set_raw_imm(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], src->vreg);
     set_raw_imm(&insn->raws[2], insn->cast_flag);
+}
+
+static void lower_ref_eq_null_opers(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *src = insn_oper_value(insn, 0);
+    set_raw_imm(&insn->raws[0], insn->vreg);
+    set_raw_imm(&insn->raws[1], src->vreg);
 }
 
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
@@ -419,17 +425,22 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                 }
 
                 case OP_INT_CAST: {
-                    lower_int_cast(insn, fn);
+                    lower_int_cast_opers(insn, fn);
                     break;
                 }
 
                 case OP_FLOAT_CAST: {
-                    lower_float_cast(insn, fn);
+                    lower_float_cast_opers(insn, fn);
                     break;
                 }
 
                 case OP_IR_CAST: {
-                    lower_ir_cast(insn, fn);
+                    lower_ir_cast_opers(insn, fn);
+                    break;
+                }
+
+                case OP_REF_EQ_NULL: {
+                    lower_ref_eq_null_opers(insn, fn);
                     break;
                 }
 
