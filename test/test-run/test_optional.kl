@@ -1,4 +1,4 @@
-// RUN: koala %s | filecheck %s
+// RUN: koala %s --dump=no-opt-ir,lir,code | filecheck %s
 
 func show(cond bool, msg str?) {
     if !cond {
@@ -16,6 +16,18 @@ func main() {
     show(false, null)
     show(true, "subtraction is broken")
 }
+
+// CHECK: %0 = lnot %cond bool
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: %2 = local [immutable] str
+// CHECK: %3 = cast %msg str? to str
+// CHECK: move %2 str, %3 str
+// CHECK: call @print [ext = true, path = 'std/builtin'], 'msg:' str, %2 str
+
+// CHECK: branch %cond bool, label %bb2, label %bb1
+
+// CHECK: jmp_ref_ne_null r1, 5
 
 // CHECK: msg: math is broken
 // CHECK: msg is null: no message

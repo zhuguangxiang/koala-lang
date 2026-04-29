@@ -795,6 +795,18 @@ static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
         klr_erase_insn(prev);
         return;
     }
+
+    if (prev->code == OP_LNOT) {
+        KlrValue *val = insn_oper_value(prev, 0);
+        KlrValue *true_bb = insn_oper_value(insn, 2);
+        KlrValue *false_bb = insn_oper_value(insn, 3);
+        set_operand_at(insn, 0, val);
+        set_operand_at(insn, 2, false_bb);
+        set_operand_at(insn, 3, true_bb);
+        // fuse lnot + jmp_cond into a single jmp_cond with inverted condition
+        klr_erase_insn(prev);
+        return;
+    }
 }
 
 static void verify_insn(KlrInsn *insn)
