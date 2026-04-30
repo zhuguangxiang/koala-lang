@@ -53,10 +53,10 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
         switch (sym->kind) {
             case SYM_VAR: {
                 VarSymbol *var = (VarSymbol *)sym;
-                uint16_t def_val_idx = 0;
+                uint16_t dfl_val_idx = 0;
                 Literal *lit = var->lit;
                 if (lit) {
-                    def_val_idx = klc_add_const(klc, lit);
+                    dfl_val_idx = klc_add_const(klc, lit);
                 }
 
                 int flags = 0;
@@ -67,7 +67,7 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                     flags |= KLC_FLAGS_PUB;
                 }
 
-                klc_add_var(klc, var->name, var->ts->signature, def_val_idx, flags);
+                klc_add_var(klc, var->name, var->ts->signature, dfl_val_idx, flags);
                 break;
             }
             case SYM_FUNC: {
@@ -87,12 +87,12 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                     ASSERT(item->sym->kind == SYM_VAR);
                     VarSymbol *var_sym = (VarSymbol *)item->sym;
                     ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
-                    uint16_t def_val_idx = 0;
+                    uint16_t dfl_val_idx = 0;
                     if (var_sym->lit) {
                         // has default value
-                        def_val_idx = klc_add_const(klc, var_sym->lit);
+                        dfl_val_idx = klc_add_const(klc, var_sym->lit);
                     }
-                    klc_func_add_arg(f, item->name, item->ts->signature, def_val_idx);
+                    klc_func_add_arg(f, item->name, item->ts->signature, dfl_val_idx);
                 }
 
                 // add annotations
@@ -123,8 +123,8 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                             TypeSpec *ts;
                             vector_foreach(ts, &tp->bound) {
                                 if (!ts) continue;
-                                uint16_t index = klc_add_str(klass->filp, ts->signature,
-                                                             strlen(ts->signature));
+                                uint16_t index =
+                                    klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
                                 vector_push_back(&klc_tp->bounds, &index);
                             }
                         }
@@ -135,8 +135,8 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                     TypeSpec *ts;
                     vector_foreach(ts, &kls->bases) {
                         if (!ts) continue;
-                        uint16_t index = klc_add_str(klass->filp, ts->signature,
-                                                     strlen(ts->signature));
+                        uint16_t index =
+                            klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
                         vector_push_back(&klass->bases, &index);
                     }
                 }
@@ -181,8 +181,7 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                         flags_ |= KLC_FLAGS_PUB;
                     }
 
-                    klc_fn =
-                        klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
+                    klc_fn = klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
 
                     if (vector_size(&fn->tps) > 0) {
                         TypeParamSymbol *tp;
@@ -196,9 +195,8 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                                 TypeSpec *ts;
                                 vector_foreach(ts, &tp->bound) {
                                     if (!ts) continue;
-                                    uint16_t index =
-                                        klc_add_str(klc_fn->filp, ts->signature,
-                                                    strlen(ts->signature));
+                                    uint16_t index = klc_add_str(klc_fn->filp, ts->signature,
+                                                                 strlen(ts->signature));
                                     vector_push_back(&klc_tp->bounds, &index);
                                 }
                             }
@@ -212,13 +210,12 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                         ASSERT(item->sym->kind == SYM_VAR);
                         VarSymbol *var_sym = (VarSymbol *)item->sym;
                         ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
-                        uint16_t def_val_idx = 0;
+                        uint16_t dfl_val_idx = 0;
                         if (var_sym->lit) {
                             // has default value
-                            def_val_idx = klc_add_const(klc, var_sym->lit);
+                            dfl_val_idx = klc_add_const(klc, var_sym->lit);
                         }
-                        klc_func_add_arg(klc_fn, item->name, item->ts->signature,
-                                         def_val_idx);
+                        klc_func_add_arg(klc_fn, item->name, item->ts->signature, dfl_val_idx);
                     }
 
                     // add annotations
@@ -245,8 +242,8 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                             TypeSpec *ts;
                             vector_foreach(ts, &tp->bound) {
                                 if (!ts) continue;
-                                uint16_t index = klc_add_str(klass->filp, ts->signature,
-                                                             strlen(ts->signature));
+                                uint16_t index =
+                                    klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
                                 vector_push_back(&klc_tp->bounds, &index);
                             }
                         }
@@ -257,8 +254,8 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                     TypeSpec *ts;
                     vector_foreach(ts, &kls->bases) {
                         if (!ts) continue;
-                        uint16_t index = klc_add_str(klass->filp, ts->signature,
-                                                     strlen(ts->signature));
+                        uint16_t index =
+                            klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
                         vector_push_back(&klass->bases, &index);
                     }
                 }
@@ -288,8 +285,7 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                         flags_ |= KLC_FLAGS_PUB;
                     }
 
-                    klc_fn =
-                        klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
+                    klc_fn = klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
 
                     // add argument info
                     ArgInfo *item;
@@ -298,13 +294,12 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                         ASSERT(item->sym->kind == SYM_VAR);
                         VarSymbol *var_sym = (VarSymbol *)item->sym;
                         ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
-                        uint16_t def_val_idx = 0;
+                        uint16_t dfl_val_idx = 0;
                         if (var_sym->lit) {
                             // has default value
-                            def_val_idx = klc_add_const(klc, var_sym->lit);
+                            dfl_val_idx = klc_add_const(klc, var_sym->lit);
                         }
-                        klc_func_add_arg(klc_fn, item->name, item->ts->signature,
-                                         item->dfl_val_idx);
+                        klc_func_add_arg(klc_fn, item->name, item->ts->signature, dfl_val_idx);
                     }
 
                     // add annotations

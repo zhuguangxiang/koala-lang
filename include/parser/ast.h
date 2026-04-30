@@ -68,13 +68,11 @@ typedef enum _ExprKind {
     EXPR_SLICE_KIND,
     EXPR_UNARY_KIND,
     EXPR_BINARY_KIND,
-    EXPR_RANGE_KIND,
     EXPR_KW_KIND,
     EXPR_IS_KIND,
     EXPR_AS_KIND,
     EXPR_IN_KIND,
     EXPR_BANG_KIND,
-    EXPR_PANIC_KIND,
     EXPR_MAX_KIND,
 } ExprKind;
 
@@ -473,6 +471,10 @@ typedef struct _AssignStmt {
     Loc op_loc;
     Expr *lhs;
     Expr *rhs;
+    /* only used for inplace assignment, e.g. a += b -> a = a + b, bin_exp is a + b */
+    Expr *bin_exp;
+    // function of __iadd__, __isub__ etc.
+    FuncSymbol *fn_sym;
 } AssignStmt;
 
 Stmt *stmt_from_assignment(AssignOpKind op, Expr *lhs, Expr *rhs);
@@ -555,8 +557,7 @@ typedef struct _IdentType {
     TypeSpec *ts;
 } IdentType;
 
-Stmt *stmt_from_type(StmtKind kind, IdentType name, Vector *tps, Vector *bases,
-                     Vector *stmts);
+Stmt *stmt_from_type(StmtKind kind, IdentType name, Vector *tps, Vector *bases, Vector *stmts);
 
 #define stmt_from_klass(name, tps, bases, stmts) \
     stmt_from_type(STMT_CLASS_KIND, name, tps, bases, stmts)

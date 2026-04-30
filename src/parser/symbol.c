@@ -545,8 +545,7 @@ void stbl_show(HashMap *stbl)
                 FuncSymbol *fn = (FuncSymbol *)sym;
                 BUF(buf);
                 type_spec_print(fn->ts, &buf);
-                log_info("function symbol: '%s', ret-type: '%s'", sym->name,
-                         BUF_STR(buf));
+                log_info("function symbol: '%s', proto: '%s'", sym->name, BUF_STR(buf));
                 FINI_BUF(buf);
                 break;
             }

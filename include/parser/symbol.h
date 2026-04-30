@@ -77,6 +77,7 @@ typedef struct _VarSymbol {
 #define VAR_SCOPE_LOCAL  2
 #define VAR_SCOPE_PARAM  3
 #define VAR_SCOPE_FIELD  4
+    // default value for parameters
     Literal *lit;
 } VarSymbol;
 
@@ -175,10 +176,7 @@ typedef struct _InstanceSymbol {
     Vector *bases;
 } InstanceSymbol;
 
-static inline int __symbol_equal__(Symbol *s1, Symbol *s2)
-{
-    return !strcmp(s1->name, s2->name);
-}
+static inline int __symbol_equal__(Symbol *s1, Symbol *s2) { return !strcmp(s1->name, s2->name); }
 
 static inline HashMap *stbl_new(void)
 {
@@ -199,8 +197,7 @@ void free_all_symbols(void);
 
 Symbol *stbl_add(HashMap *stbl, Symbol *sym);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
-Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params,
-                      int flags);
+Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, int flags);
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);

@@ -390,8 +390,6 @@ static void binary_expr_free(Expr *exp)
     mm_free(exp);
 }
 
-static void range_expr_free(Expr *exp) { mm_free(exp); }
-
 static void keyword_expr_free(Expr *exp)
 {
     KeyWordExpr *e = (KeyWordExpr *)exp;
@@ -435,7 +433,6 @@ void expr_free(Expr *exp)
         [EXPR_SLICE_KIND] = slice_expr_free,
         [EXPR_UNARY_KIND] = unary_expr_free,
         [EXPR_BINARY_KIND] = binary_expr_free,
-        [EXPR_RANGE_KIND] = range_expr_free,
         [EXPR_KW_KIND] = keyword_expr_free,
         [EXPR_IS_KIND] = is_expr_free,
         [EXPR_AS_KIND] = as_expr_free,
@@ -584,8 +581,7 @@ Stmt *stmt_from_expr(Expr *exp)
     return (Stmt *)s;
 }
 
-Stmt *stmt_from_type(StmtKind kind, IdentType name, Vector *tps, Vector *bases,
-                     Vector *stmts)
+Stmt *stmt_from_type(StmtKind kind, IdentType name, Vector *tps, Vector *bases, Vector *stmts)
 {
     KlassDeclStmt *s = mm_alloc_obj(s);
     s->kind = kind;

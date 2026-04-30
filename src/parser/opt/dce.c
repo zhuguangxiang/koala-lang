@@ -20,6 +20,7 @@ static int has_side_effect(KlrInsn *insn)
         case OP_IR_JMP_COND:
         case OP_JMP:
         case OP_IR_LOCAL:
+        case OP_NEW:
             return 1;
 
         case OP_IR_CALL: {

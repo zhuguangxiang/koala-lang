@@ -1,0 +1,14 @@
+// RUN: koalac %s | filecheck %s
+
+func foo(n int, s str) int {
+    let i = n
+    i += 1
+
+    var s1 = s
+    s1 -= "word"
+
+    return i
+}
+
+// CHECK: cannot assign to immutable variable 'i'
+// CHECK: inplace operator '__isub__' is not defined for class 'str'.

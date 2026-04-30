@@ -281,6 +281,29 @@ static void print_attributes(KlrInsn *insn, FILE *fp)
     }
 }
 
+static void print_new(KlrInsn *insn, FILE *fp)
+{
+    KlrValue *ty = insn_oper_value(insn, 0);
+
+    TypeSpec *ts = ty->ts;
+
+    klr_print_value_name((KlrValue *)insn, fp);
+    if (ts->klass_type.pkg) {
+        fprintf(fp, " = new @%s::%s", ts->klass_type.pkg, ts->klass_type.name);
+    } else {
+        fprintf(fp, " = new @%s", ts->klass_type.name);
+    }
+
+    if (insn->num_opers > 1) fprintf(fp, ", ");
+
+    KlrOper *oper;
+    for (int i = 1; i < insn->num_opers; i++) {
+        if (i != 1) fprintf(fp, ", ");
+        oper = &insn->opers[i];
+        print_operand(oper, fp);
+    }
+}
+
 void klr_print_insn(KlrInsn *insn, FILE *fp)
 {
     switch (insn->code) {
@@ -826,6 +849,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_JMP_REF_NE_NULL:
             print_jmp_cond_fused("jmp_ref_ne_null", insn, fp);
+            break;
+
+        case OP_NEW:
+            print_new(insn, fp);
             break;
 
         default:

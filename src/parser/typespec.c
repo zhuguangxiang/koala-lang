@@ -346,8 +346,7 @@ void install_builtin_types(HashMap *stbl)
 
     vector_foreach(ts, &type_list) {
         if (!ts) continue;
-        if (ts->kind == TYPE_NO_TYPE || ts->kind == TYPE_VA_LIST ||
-            ts->kind == TYPE_BFLOAT16) {
+        if (ts->kind == TYPE_NO_TYPE || ts->kind == TYPE_VA_LIST || ts->kind == TYPE_BFLOAT16) {
             continue;
         }
         ASSERT(ts->type_id >= 0);
@@ -743,6 +742,14 @@ int type_is_tuple(TypeSpec *ts)
     if (sym->kind != SYM_INSTANCE) return 0;
     InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
     return !strcmp(inst_sym->origin->name, "tuple");
+}
+
+int type_is_range(TypeSpec *ts)
+{
+    if (ts->kind != TYPE_KLASS) return 0;
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (sym->kind != SYM_CLASS) return 0;
+    return !strcmp(sym->name, "range");
 }
 
 int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts)

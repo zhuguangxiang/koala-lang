@@ -1,0 +1,22 @@
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
+
+func foo(n int) int {
+    var i = n
+    i += 1
+    return i
+}
+
+func main() {
+    print(foo(1))
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @foo(%n int64) int64 {
+// CHECK: %bb0(entry):
+// CHECK: %i = local int64
+// CHECK: move %i int64, %n int64
+// CHECK: %0 = add %i int64, 1 int64
+// CHECK: move %i int64, %0 int64
+// CHECK: ret %i int64
+
+// CHECK: 2

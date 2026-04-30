@@ -163,6 +163,7 @@ static inline int type_is_generic_ref(TypeSpec *ts) { return ts->kind == TYPE_GE
 static inline int type_is_klass(TypeSpec *ts) { return ts->kind == TYPE_KLASS; }
 static inline int type_is_proto(TypeSpec *ts) { return ts->kind == TYPE_PROTO; }
 int type_is_tuple(TypeSpec *ts);
+int type_is_range(TypeSpec *ts);
 
 int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts);
 

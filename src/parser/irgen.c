@@ -96,6 +96,12 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
             break;
         }
 
+        case SYM_CLASS: {
+            KlassSymbol *kls_sym = (KlassSymbol *)sym;
+            exp->ir_val = klr_add_klass(MOD, kls_sym->instance_ts, sym->name);
+            break;
+        }
+
         default: {
             UNREACHABLE();
             break;
@@ -882,23 +888,37 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     emit_ir_visit_expr(ps, it);
     if (!it->ir_val) return;
 
-    // check last insn is call @range or call @tuple
-    KlrInsn *last = insn_last(sc->bb);
-    if (is_new_range(last, &range_info, ps)) {
-        which = GEN_RANGE;
-        klr_erase_insn(last);
-        klr_builder_end(&bldr, sc->bb);
-
-        Symbol *sym = get_loop_range_symbol(s);
-        if (sym->flags & SYM_FLAGS_MUTABLE) {
-            sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
-        } else {
-            sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
-        }
-        klr_build_move(&bldr, sym->ir_val, range_info.start);
-        range_cur = sym->ir_val;
-    } else {
+    // check value is Range, Tuple, Array, List or Iterator
+    KlrValue *it_val = it->ir_val;
+    if (klr_is_param(it_val)) {
         NYI();
+    } else if (klr_is_local(it_val)) {
+        KlrInsn *local = (KlrInsn *)it_val;
+        if (local->flags & KLR_INSN_FLAGS_CONST) {
+            NYI();
+        } else {
+            NYI();
+        }
+    } else if (klr_is_insn(it_val)) {
+        KlrInsn *insn = (KlrInsn *)it_val;
+        if (is_new_range(insn, &range_info, ps)) {
+            which = GEN_RANGE;
+            klr_erase_insn(insn);
+            klr_builder_end(&bldr, sc->bb);
+
+            Symbol *sym = get_loop_range_symbol(s);
+            if (sym->flags & SYM_FLAGS_MUTABLE) {
+                sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+            } else {
+                sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+            }
+            klr_build_move(&bldr, sym->ir_val, range_info.start);
+            range_cur = sym->ir_val;
+        } else {
+            NYI();
+        }
+    } else {
+        UNREACHABLE();
     }
 
     klr_builder_end(&bldr, sc->bb);
@@ -989,6 +1009,36 @@ static void emit_ir_simple_assignment(ParserState *ps, Expr *lhs, Expr *rhs)
     }
 }
 
+static void emit_ir_inplace_assignment(ParserState *ps, AssignStmt *s)
+{
+    Expr *lhs = s->lhs;
+    Expr *rhs = s->rhs;
+    AssignOpKind op = s->op;
+
+    KlrValue *val = NULL;
+
+    if (s->bin_exp) {
+        emit_ir_binary(ps, s->bin_exp);
+        if (!s->bin_exp->ir_val) return;
+        val = s->bin_exp->ir_val;
+    } else {
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        KlrValue *args[] = { lhs->ir_val, rhs->ir_val };
+        val = klr_build_call(&bldr, s->fn_sym->ir_val, args, 2, "");
+        klr_set_loc(val, ps->filename, s->loc);
+    }
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    KlrValue *var = lhs->ir_val;
+    if (var->kind == KLR_VALUE_GLOBAL) {
+        klr_build_set_global(&bldr, var, val);
+    } else {
+        klr_build_move(&bldr, var, val);
+    }
+}
+
 static void emit_ir_assignment(ParserState *ps, Stmt *stmt)
 {
     AssignStmt *s = (AssignStmt *)stmt;
@@ -1006,7 +1056,11 @@ static void emit_ir_assignment(ParserState *ps, Stmt *stmt)
         if (!lhs->ir_val || !rhs->ir_val) return;
         emit_ir_simple_assignment(ps, lhs, rhs);
     } else {
-        NYI();
+        lhs->ctx = EXPR_CTX_LOAD_STORE;
+        lhs->arg = rhs;
+        emit_ir_visit_expr(ps, lhs);
+        if (!lhs->ir_val || !rhs->ir_val) return;
+        emit_ir_inplace_assignment(ps, s);
     }
 }
 

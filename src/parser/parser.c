@@ -1510,7 +1510,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
         Symbol *sym = get_symbol_by_id(it->ts->sym_id);
         ASSERT(sym->kind == SYM_INSTANCE);
         InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
-        ASSERT(!strcmp(inst_sym->origin->name, "tuple"));
+        ASSERT(str_equal(inst_sym->origin->name, "tuple"));
         elem_ts = sym->arg;
         ASSERT(elem_ts);
     } else {
@@ -1530,7 +1530,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
         if (elem_sym->kind == SYM_INSTANCE) {
             InstanceSymbol *inst_sym = (InstanceSymbol *)elem_sym;
             Symbol *origin_sym = inst_sym->origin;
-            if (!strcmp(origin_sym->name, "tuple")) {
+            if (str_equal(origin_sym->name, "tuple")) {
                 // special handling for tuple unpacking
                 if (vector_size(ids) != vector_size(inst_sym->tp_args)) {
                     kl_error(it->loc,
@@ -2182,6 +2182,65 @@ static char *get_inplace_op_str(AssignOpKind op)
     }
 }
 
+static char *get_inplace_binary_op_str(AssignOpKind op)
+{
+    switch (op) {
+        case OP_PLUS_ASSIGN:
+            return "__add__";
+        case OP_MINUS_ASSIGN:
+            return "__sub__";
+        case OP_MULT_ASSIGN:
+            return "__mul__";
+        case OP_DIV_ASSIGN:
+            return "__div__";
+        case OP_MOD_ASSIGN:
+            return "__mod__";
+        /* bit operator */
+        case OP_AND_ASSIGN:
+            return "__and__";
+        case OP_OR_ASSIGN:
+            return "__or__";
+        case OP_XOR_ASSIGN:
+            return "__xor__";
+        case OP_SHL_ASSIGN:
+            return "__shl__";
+        case OP_SHR_ASSIGN:
+            return "__shr__";
+        default:
+            UNREACHABLE();
+            return NULL;
+    }
+}
+
+static BiOpKind get_inplace_binary_op(AssignOpKind op)
+{
+    switch (op) {
+        case OP_PLUS_ASSIGN:
+            return BINARY_ADD;
+        case OP_MINUS_ASSIGN:
+            return BINARY_SUB;
+        case OP_MULT_ASSIGN:
+            return BINARY_MUL;
+        case OP_DIV_ASSIGN:
+            return BINARY_DIV;
+        case OP_MOD_ASSIGN:
+            return BINARY_MOD;
+        case OP_SHL_ASSIGN:
+            return BINARY_SHL;
+        case OP_SHR_ASSIGN:
+            return BINARY_SHR;
+        case OP_AND_ASSIGN:
+            return BINARY_BIT_AND;
+        case OP_OR_ASSIGN:
+            return BINARY_BIT_OR;
+        case OP_XOR_ASSIGN:
+            return BINARY_BIT_XOR;
+        default:
+            UNREACHABLE();
+            return 0;
+    }
+}
+
 static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
 {
     Expr *lhs = assign->lhs;
@@ -2227,14 +2286,33 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
         print_type_spec(rhs->ts);
         printf("\n");
         return -1;
-    } else {
-        log_info("inplace assignment type check passed.");
-        log_info("  lhs type:");
-        log_type_spec(param_ts);
-        log_info("  rhs type:");
-        log_type_spec(rhs->ts);
-        return 0;
     }
+
+    log_info("inplace assignment type check passed.");
+    log_info("  lhs type:");
+    log_type_spec(param_ts);
+    log_info("  rhs type:");
+    log_type_spec(rhs->ts);
+
+    Symbol *bi_op_sym = stbl_get(((KlassSymbol *)kls_sym)->stbl, get_inplace_binary_op_str(op));
+    if (bi_op_sym) {
+        log_info(
+            "binary operator '%s' is also defined for class '%s', inplace assignment can be "
+            "desugared to binary operation.",
+            get_inplace_binary_op_str(op), kls_sym->name);
+        assign->bin_exp = expr_from_binary(get_inplace_binary_op(op), assign->op_loc, lhs, rhs);
+        expr_set_loc(assign->bin_exp, assign->loc);
+    } else {
+        log_info(
+            "binary operator '%s' is not defined for class '%s', inplace assignment cannot be "
+            "desugared to binary operation.",
+            get_inplace_binary_op_str(op), kls_sym->name);
+        assign->bin_exp = NULL;
+    }
+
+    assign->fn_sym = fn_sym;
+
+    return 0;
 }
 
 static void parse_assign(ParserState *ps, Stmt *stmt)
@@ -2261,6 +2339,11 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
         lhs->arg = rhs;
         parser_visit_expr(ps, lhs);
         if (!lhs->ts || !rhs->ts) return;
+        Symbol *lhs_sym = lhs->sym;
+        if (!(lhs_sym->flags & SYM_FLAGS_MUTABLE)) {
+            kl_error(assign->loc, "cannot assign to immutable variable '%s'", lhs_sym->name);
+            return;
+        }
         parse_inplace_assign(ps, assign);
     }
 }
@@ -2467,6 +2550,7 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
                 lit->ival = lit_exp->ival;
             } else if (lit_exp->which == LIT_EXPR_FLT) {
                 lit->which = LIT_FLT;
+                lit->len = lit_exp->len;
                 lit->fval = lit_exp->fval;
             } else if (lit_exp->which == LIT_EXPR_BOOL) {
                 lit->which = LIT_BOOL;
