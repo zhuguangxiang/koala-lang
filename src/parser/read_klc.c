@@ -107,8 +107,7 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
         Symbol *origin = stbl_get(ctx->stbl, ts->mangled.name);
         ASSERT(origin && (origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT));
         log_info("found origin symbol for mangled type: %s", ts->mangled.name);
-        InstanceSymbol *inst_sym =
-            find_or_add_instance(ctx->stbl, origin, ts->mangled.args);
+        InstanceSymbol *inst_sym = find_or_add_instance(ctx->stbl, origin, ts->mangled.args);
         ASSERT(inst_sym);
         type_spec_free(ts);
         *ts_ptr = inst_sym->instance_ts;
@@ -209,6 +208,46 @@ static void load_type_params(Vector *tps, Vector *result, Symbol *owner, LoadCon
     }
 }
 
+static Literal *klc_const_to_literal(KlcConst *k)
+{
+    Literal *lit = mm_alloc_obj(lit);
+
+    switch (k->type) {
+        case KLC_CONST_NONE: {
+            lit->which = LIT_NONE;
+            break;
+        }
+        case KLC_CONST_INT: {
+            lit->which = LIT_INT;
+            lit->sign = k->sign;
+            lit->len = k->len;
+            lit->ival = k->ival;
+            break;
+        }
+        case KLC_CONST_FLT: {
+            lit->which = LIT_FLT;
+            lit->len = k->len;
+            lit->fval = k->fval;
+            break;
+        }
+        case KLC_CONST_SHORT_ASCII:
+        case KLC_CONST_SHORT_UTF8:
+        case KLC_CONST_ASCII:
+        case KLC_CONST_UTF8: {
+            lit->which = LIT_STR;
+            lit->len = k->len;
+            lit->sval = str_dup(k->sval);
+            break;
+        }
+        default: {
+            NYI();
+            break;
+        }
+    }
+
+    return lit;
+}
+
 static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
 {
     Vector *params = vector_create_ptr();
@@ -223,7 +262,8 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
         KlcConst *def_val = klc_get_const(ctx->klc, arg->const_index);
         arg_info->name = name->sval;
         arg_info->ts = ts;
-        arg_info->dfl_val_idx = def_val ? 1 : 0;
+        arg_info->has_dfl_val = def_val ? 1 : 0;
+        arg_info->dfl_val = def_val ? klc_const_to_literal(def_val) : NULL;
         vector_push_back(params, &arg_info);
         if (ts_need_fixup(ts)) {
             FixupEntry entry = {

@@ -77,6 +77,7 @@ typedef enum {
 
     /* single register */
     FORMAT_Rx,                  // 12-bit reg
+    FORMAT_RxImm,               // 12-bit reg + imm8
     FORMAT_RxTag,               // 12-bit reg + (tag)imm8
     FORMAT_RImm2,               // 8-bit reg + imm16
     FORMAT_ROff2,               // 8-bit reg + off16

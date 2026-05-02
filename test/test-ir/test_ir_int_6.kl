@@ -62,5 +62,5 @@ func main() {
 // CHECK: int.cast r0, r1, ti=0x8, mode=0
 // CHECK: ret r0
 
-// CHECK-LABEL: ====== Linearization @main(start_pc: 10, insns: 6) ======
+// CHECK-LABEL: ====== Linearization @main(start_pc: 10, insns: 9) ======
 // CHECK: load_int_imm r0, ti=0x8, #110

@@ -23,11 +23,12 @@ func main() {
 // CHECK: %2 = local [immutable] str
 // CHECK: %3 = cast %msg str? to str
 // CHECK: move %2 str, %3 str
-// CHECK: call @print [ext = true, path = 'std/builtin'], 'msg:' str, %2 str
+// CHECK: %4 = build_tuple 'msg:' str, %2 str
+// CHECK: call @print [ext = true, path = 'std/builtin'],  %4 tuple<uu>
 
 // CHECK: branch %cond bool, label %bb2, label %bb1
 
-// CHECK: jmp_ref_ne_null r1, 5
+// CHECK: jmp_ref_ne_null r1, 6
 
 // CHECK: msg: math is broken
 // CHECK: msg is null: no message

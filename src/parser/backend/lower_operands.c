@@ -115,36 +115,6 @@ static int get_type_info(KlrConst *kc)
     return type_info;
 }
 
-static int get_const_index(KlrConst *kc, KlMachModule *m)
-{
-    int index = -1;
-
-    switch (kc->which) {
-        case CONST_INT: {
-            index = kl_mach_const_add_int(m, kc->ival, kc->len);
-            break;
-        }
-        case CONST_UINT: {
-            index = kl_mach_const_add_uint(m, kc->ival, kc->len);
-            break;
-        }
-        case CONST_FLT: {
-            index = kl_mach_const_add_float(m, kc->fval, kc->len);
-            break;
-        }
-        case CONST_STR: {
-            index = kl_mach_const_add_str(m, kc->sval);
-            break;
-        }
-        default: {
-            UNREACHABLE();
-            break;
-        }
-    }
-
-    return index;
-}
-
 static void lower_reg_reg(KlrInsn *insn)
 {
     KlrValue *lhs = insn_oper_value(insn, 0);
@@ -259,8 +229,8 @@ static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
 
             /* const_load reg, const_index */
             set_raw_reg(&insn->raws[0], dst->vreg);
-            int index = get_const_index(kc, m);
-            set_raw_const(&insn->raws[1], index);
+            KlMachConst *entry = kl_mach_add_const(kc, m);
+            set_raw_const(&insn->raws[1], entry->index);
             break;
         }
 
@@ -309,8 +279,8 @@ static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
             KlrValue *ret = insn_oper_value(insn, 0);
             ASSERT(klr_is_const(ret));
             KlrConst *kc = (KlrConst *)ret;
-            int index = get_const_index(kc, m);
-            set_raw_const(&insn->raws[0], index);
+            KlMachConst *entry = kl_mach_add_const(kc, m);
+            set_raw_const(&insn->raws[0], entry->index);
             break;
         }
 
@@ -386,6 +356,12 @@ static void lower_ref_eq_null_opers(KlrInsn *insn, KlrFunc *fn)
     set_raw_imm(&insn->raws[1], src->vreg);
 }
 
+static void lower_build_tuple_opers(KlrInsn *insn, KlrFunc *fn)
+{
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_imm(&insn->raws[1], insn->num_args);
+}
+
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 {
     KlrBasicBlock *bb;
@@ -441,6 +417,11 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_REF_EQ_NULL: {
                     lower_ref_eq_null_opers(insn, fn);
+                    break;
+                }
+
+                case OP_BUILD_TUPLE: {
+                    lower_build_tuple_opers(insn, fn);
                     break;
                 }
 

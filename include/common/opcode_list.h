@@ -1421,7 +1421,6 @@ X(OP_JMP_FLOAT_GE, FORMAT_RROff)
  * OP_CALL — unified call instruction family
  *
  * FORMAT_CALL:
- *     31                                           0
  *     | op:8 | flag:4 | A(ret-reg):12 | B(nargs):8 |
  *     | payload (32-bit)                           |
  *
@@ -1457,7 +1456,6 @@ X(OP_CALL, FORMAT_CALL)
  * OP_TAIL_CALL — unified call instruction family
  *
  * FORMAT_CALL:
- *     31                                           0
  *     | op:8 | flag:4 | A(ret-reg):12 | B(nargs):8 |
  *     | payload (32-bit)                           |
  *
@@ -1666,6 +1664,8 @@ X(OP_INT_TO_FLOAT, FORMAT_RR_TI_MODE)
  +---------------------------------------------------------------*/
 
 X(OP_NEW, FORMAT_RxRx)
+
+X(OP_BUILD_TUPLE, FORMAT_RxImm)
 
 /*---------------------------------------------------------------+
  |  Global Variable Access Instructions                           |

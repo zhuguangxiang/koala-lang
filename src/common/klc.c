@@ -247,6 +247,26 @@ uint16_t klc_add_rt_str(KlcFile *klc, char *s, int len)
     return __add_str(klc, s, len, ITEM_RT_CONST);
 }
 
+uint16_t klc_add_rt_tuple(KlcFile *klc, Vector *list)
+{
+    KlcConst *item = mm_alloc_obj(item);
+    int size = vector_size(list);
+    if (size <= 255) {
+        item->type = KLC_CONST_SHORT_TUPLE;
+    } else {
+        item->type = KLC_CONST_TUPLE;
+    }
+    item->len = size;
+    item->val = list;
+
+    Vector *objs = klc->objs + ITEM_RT_CONST;
+    vector_push_back(objs, &item);
+    uint16_t index = vector_size(objs) - 1;
+    ASSERT(index > 0);
+
+    return index;
+}
+
 void klc_add_import(KlcFile *klc, int kind, char *ns, char *sym)
 {
     KlcImport *imp = mm_alloc_obj(imp);
@@ -500,10 +520,10 @@ static void write_const(KlcFile *klc, KlcConst *item)
             int size = vector_size(vec);
             write_uint8(klc, (uint8_t)size);
 
-            KlcConst *item;
+            uint16_t item;
             vector_foreach(item, vec) {
                 if (!item) continue;
-                write_const(klc, item);
+                write_uint16(klc, item);
             }
             break;
         }
@@ -512,10 +532,10 @@ static void write_const(KlcFile *klc, KlcConst *item)
             int size = vector_size(vec);
             write_uint32(klc, (uint32_t)size);
 
-            KlcConst *item;
+            uint16_t item;
             vector_foreach(item, vec) {
                 if (!item) continue;
-                write_const(klc, item);
+                write_uint16(klc, item);
             }
             break;
         }
@@ -827,23 +847,29 @@ static void read_const(KlcFile *klc, Vector *vec)
         case KLC_CONST_SHORT_TUPLE: {
             len = 0;
             read_uint8(klc, (uint8_t *)&len);
-            Vector *vec2 = vector_create_ptr();
+            Vector *_vec = vector_create_ptr();
             for (int i = 0; i < len; i++) {
-                read_const(klc, vec2);
+                int index = 0;
+                read_uint16(klc, (uint16_t *)&index);
+                KlcConst *kc = klc_get_rt_const(klc, index);
+                vector_push_back(_vec, &kc);
             }
             item->len = len;
-            item->val = vec2;
+            item->val = _vec;
             break;
         }
         case KLC_CONST_TUPLE: {
             len = 0;
             read_uint32(klc, (uint32_t *)&len);
-            Vector *vec2 = vector_create_ptr();
+            Vector *_vec = vector_create_ptr();
             for (int i = 0; i < len; i++) {
-                read_const(klc, vec2);
+                int index = 0;
+                read_uint16(klc, (uint16_t *)&index);
+                KlcConst *kc = klc_get_rt_const(klc, index);
+                vector_push_back(_vec, &kc);
             }
             item->len = len;
-            item->val = vec2;
+            item->val = _vec;
             break;
         }
         default: {

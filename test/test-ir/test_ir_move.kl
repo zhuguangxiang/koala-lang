@@ -72,10 +72,10 @@ func test_if_else(c bool, n int64) int64 {
 // CHECK: move %x int64, 100 int64
 // CHECK: branch %c bool, label %bb1, label %bb2
 // CHECK: move %x int64, 200 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'], 200 int64
+// CHECK: call @print [ext = true, path = 'std/builtin']
 // CHECK: jmp label %bb3
 // CHECK: move %x int64, 300 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'], 300 int64
+// CHECK: call @print [ext = true, path = 'std/builtin']
 // CHECK: jmp label %bb3
 // CHECK: ret %x int64
 

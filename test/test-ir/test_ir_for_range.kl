@@ -20,12 +20,12 @@ for i in range(0, 10) {
 // CHECK: %bb3(if-then):                                  ;; preds = %bb1
 // CHECK: %1 = local int64        [fixedslot = 0(next)]
 // CHECK: move %1 int64, %i int64
-// CHECK: call @print [path = 'std/builtin'], 1
+// CHECK: call @print [path = 'std/builtin']
 // CHECK: jmp label %bb4
 
 // CHECK: %bb4(if-end):                                   ;; preds = %bb3, %bb1
-// CHECK: %2 = int.add_imm %i int64, 1 int64
-// CHECK: move %i int64, %2 int64
+// CHECK: %5 = int.add_imm %i int64, 1 int64
+// CHECK: move %i int64, %5 int64
 // CHECK: jmp_int_lt_imm %i int64, 10 int64, label %bb1, label %bb2
 
 // CHECK-LABLE: ====== Linearization @__init__(start_pc: 0, insns: 9) ======
@@ -35,16 +35,19 @@ for i in range(0, 10) {
 
 // CHECK: %bb1(loop-body):
 // CHECK: int.mod_imm r1, r0, #2
-// CHECK: jmp_int_ne_imm r1, #0, 3     ;; -> %bb4(if-end)
+// CHECK: jmp_int_ne_imm r1, #0, 6     ;; -> %bb4(if-end)
 
 // CHECK: %bb3(if-then):
 // CHECK: move r2, r0
-// CHECK: call flg=1, #1
+// CHECK: build_tuple r2, #1
+// CHECK: loadk r3, #0
+// CHECK: loadk r4, #1
+// CHECK: call flg=1, #3
 // CHECK: data
 
 // CHECK: %bb4(if-end):
 // CHECK: int.add_imm r0, r0, #1
-// CHECK: jmp_int_lt_imm r0, #10, -7   ;; -> %bb1(loop-body)
+// CHECK: jmp_int_lt_imm r0, #10, -10   ;; -> %bb1(loop-body)
 
 // CHECK: %bb2(loop-end):
 // CHECK: ret_void

@@ -129,6 +129,8 @@ Expr *expr_from_lit_float(double val);
 Expr *expr_from_lit_bool(int val);
 Expr *expr_from_lit_str(Buffer *buf);
 Expr *expr_from_lit_none(void);
+Expr *expr_from_literal(Literal *lit);
+Literal *expr_to_literal(Expr *exp);
 
 typedef struct _IdentExpr {
     EXPR_HEAD

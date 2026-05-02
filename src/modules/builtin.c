@@ -5,6 +5,7 @@
 
 #include "buffer.h"
 #include "modobj.h"
+#include "tupleobj.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,39 +16,39 @@ static void print_value(TValue *val)
     if (is_int(val)) {
         int ti = val->tag & 0b0011;
         if (ti == 0) {
-            printf("%d ", (int8_t)val->ival);
+            printf("%d", (int8_t)val->ival);
         } else if (ti == 1) {
-            printf("%d ", (int16_t)val->ival);
+            printf("%d", (int16_t)val->ival);
         } else if (ti == 2) {
-            printf("%d ", (int32_t)val->ival);
+            printf("%d", (int32_t)val->ival);
         } else {
-            printf("%" PRId64 " ", val->ival);
+            printf("%" PRId64 "", val->ival);
         }
     } else if (is_uint(val)) {
         int ti = val->tag & 0b0011;
         if (ti == 0) {
-            printf("%u ", (uint8_t)val->ival);
+            printf("%u", (uint8_t)val->ival);
         } else if (ti == 1) {
-            printf("%u ", (uint16_t)val->ival);
+            printf("%u", (uint16_t)val->ival);
         } else if (ti == 2) {
-            printf("%u ", (uint32_t)val->ival);
+            printf("%u", (uint32_t)val->ival);
         } else {
-            printf("%" PRIu64 " ", val->ival);
+            printf("%" PRIu64 "", val->ival);
         }
     } else if (is_float(val)) {
-        printf("%.17g ", val->fval);
+        printf("%.17g", val->fval);
     } else if (is_bool(val)) {
-        printf("%s ", val->bval ? "true" : "false");
+        printf("%s", val->bval ? "true" : "false");
     } else if (is_none(val)) {
-        printf("none ");
+        printf("none");
     } else if (is_error(val)) {
-        printf("error ");
+        printf("error");
     } else if (is_obj(val)) {
         Object *obj = val->obj;
         if (IS_STR(obj)) {
-            printf("%s ", STR_BUF(obj));
+            printf("%s", STR_BUF(obj));
         } else {
-            printf("<object> ");
+            printf("<object>");
         }
     } else {
         NYI();
@@ -59,10 +60,21 @@ func print(objs ..., sep = ' ', end = '\n', file io.Writer? = null)
 */
 static TValue builtin_print(TValue *self, TValue *args, int nargs)
 {
-    for (int i = 0; i < nargs; ++i) {
-        print_value(args + i);
+    ASSERT(nargs == 3);
+    Object *tuple = to_obj(&args[0]);
+    Object *sep = to_obj(&args[1]);
+    Object *end = to_obj(&args[2]);
+
+    TValue *items = TUPLE_ITEMS(tuple);
+    int size = TUPLE_SIZE(tuple);
+    for (int i = 0; i < size; ++i) {
+        print_value(items + i);
+        if (i < size - 1) {
+            printf("%s", STR_BUF(sep));
+        } else {
+            printf("%s", STR_BUF(end));
+        }
     }
-    printf("\n");
     return none_value;
 }
 
@@ -96,6 +108,7 @@ static TypeObject *builtin_types[] = {
     &int_type,
     &float_type,
     &Number_type,
+    &tuple_type,
     NULL,
 };
 

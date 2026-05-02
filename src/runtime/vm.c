@@ -72,6 +72,7 @@ static void __add_const(Object *m, KlcConst *item)
             NYI();
             break;
         }
+
         case KLC_CONST_INT: {
             if (item->sign)
                 kl_mo_add_int(m, (int64_t)item->ival, item->type_info);
@@ -79,10 +80,12 @@ static void __add_const(Object *m, KlcConst *item)
                 kl_mo_add_uint(m, item->ival, item->type_info);
             break;
         }
+
         case KLC_CONST_FLT: {
             kl_mo_add_float(m, item->fval, item->type_info);
             break;
         }
+
         case KLC_CONST_SHORT_ASCII:
         case KLC_CONST_SHORT_UTF8:
         case KLC_CONST_ASCII:
@@ -90,6 +93,14 @@ static void __add_const(Object *m, KlcConst *item)
             kl_mo_add_str(m, item->sval);
             break;
         }
+
+        case KLC_CONST_SHORT_TUPLE:
+        case KLC_CONST_TUPLE: {
+            Vector *vec = item->val;
+            kl_mo_add_tuple(m, vec);
+            break;
+        }
+
         default: {
             NYI();
             break;

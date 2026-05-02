@@ -122,6 +122,70 @@ Expr *expr_from_lit_none(void)
     return (Expr *)exp;
 }
 
+Literal *expr_to_literal(Expr *e)
+{
+    ASSERT(e->kind == EXPR_LITERAL_KIND);
+
+    LitExpr *exp = (LitExpr *)e;
+    Literal *lit = mm_alloc_obj(lit);
+    if (exp->which == LIT_EXPR_INT) {
+        lit->which = LIT_INT;
+        lit->sign = exp->sign;
+        lit->len = exp->len;
+        lit->ival = exp->ival;
+    } else if (exp->which == LIT_EXPR_FLT) {
+        lit->which = LIT_FLT;
+        lit->len = exp->len;
+        lit->fval = exp->fval;
+    } else if (exp->which == LIT_EXPR_BOOL) {
+        lit->which = LIT_BOOL;
+        lit->bval = exp->bval;
+    } else if (exp->which == LIT_EXPR_STR) {
+        lit->which = LIT_STR;
+        lit->len = exp->len;
+        lit->sval = exp->sval;
+    } else if (exp->which == LIT_EXPR_NONE) {
+        lit->which = LIT_NONE;
+    } else {
+        UNREACHABLE();
+    }
+    return lit;
+}
+
+Expr *expr_from_literal(Literal *lit)
+{
+    LitExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    if (lit->which == LIT_INT) {
+        exp->which = LIT_EXPR_INT;
+        exp->sign = lit->sign;
+        exp->len = lit->len;
+        exp->ival = 0;
+        exp->ival_128 = lit->ival;
+        exp->ts = lit->sign ? int64_type_spec() : uint64_type_spec();
+    } else if (lit->which == LIT_FLT) {
+        exp->which = LIT_EXPR_FLT;
+        exp->len = lit->len;
+        exp->fval = lit->fval;
+        exp->ts = float64_type_spec();
+    } else if (lit->which == LIT_BOOL) {
+        exp->which = LIT_EXPR_BOOL;
+        exp->bval = lit->bval;
+        exp->ts = bool_type_spec();
+    } else if (lit->which == LIT_STR) {
+        exp->which = LIT_EXPR_STR;
+        exp->len = lit->len;
+        exp->sval = str_dup(lit->sval);
+        exp->ts = str_type_spec();
+    } else if (lit->which == LIT_NONE) {
+        exp->which = LIT_EXPR_NONE;
+        exp->ts = optional_type_spec_intern(NULL);
+    } else {
+        UNREACHABLE();
+    }
+    return (Expr *)exp;
+}
+
 Expr *expr_from_ident(Ident *id)
 {
     IdentExpr *exp = mm_alloc_obj(exp);

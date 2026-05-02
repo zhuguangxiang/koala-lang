@@ -1,0 +1,24 @@
+// RUN: koala %s --dump=no-opt-ir,code | filecheck %s
+
+func foo(n int, msg = "hello") {
+    var i = 0
+
+    while i < n {
+        print(msg, i)
+        i += 1
+    }
+}
+
+func main() {
+    foo(5, "hi")
+    foo(5)
+    print("hello", "world", sep=',', end='\n')
+}
+
+// CHECK: %1 = build_tuple %msg str, %i int64
+// CHECK: call @print [ext = true, path = 'std/builtin'], %1 tuple<uj>, ' ' str, '
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const], tuple('hello', 'world')
+
+// CEHCK: hi 0
+// CHECK: hello 0
+// CHECK: hello,world

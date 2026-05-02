@@ -80,16 +80,16 @@ func test_nested_loop(n int) {
 
 // CHECK: %2 = local int64
 // CHECK: move %2 int64, %j int64
-// CHECK: call @print [path = 'std/builtin'], 1
-// CHECK: %3 = int.add_imm %j int64, 1 int64
-// CHECK: move %j int64, %3 int64
-// CHECK: %4 = int.cmp_lt %j int64, %i int64
-// CHECK: branch %4 bool, label %bb3, label %bb4
+// CHECK: call @print [path = 'std/builtin']
+// CHECK: %6 = int.add_imm %j int64, 1 int64
+// CHECK: move %j int64, %6 int64
+// CHECK: %7 = int.cmp_lt %j int64, %i int64
+// CHECK: branch %7 bool, label %bb3, label %bb4
 
-// CHECK: %5 = int.add_imm %i int64, 1 int64
-// CHECK: move %i int64, %5 int64
-// CHECK: %6 = int.cmp_lt %i int64, %n int64
-// CHECK: branch %6 bool, label %bb1, label %bb2
+// CHECK: %8 = int.add_imm %i int64, 1 int64
+// CHECK: move %i int64, %8 int64
+// CHECK: %9 = int.cmp_lt %i int64, %n int64
+// CHECK: branch %9 bool, label %bb1, label %bb2
 
 var b = true
 
@@ -107,14 +107,14 @@ func foo2() {
 // CHECK: %0 = get_global @b bool
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
-// CHECK: %1 = local str
-// CHECK: loadk %1 str, 'true' str
-// CHECK: call @print [path = 'std/builtin'] [const], 1
+// CHECK: %1 = local tuple<u>
+// CHECK: loadk %1 tuple<u>, tuple('true') tuple<u>
+// CHECK: call @print [path = 'std/builtin'] [const]
 // CHECK: jmp label %bb3
 
-// CHECK: %2 = local str
-// CHECK: loadk %2 str, 'false' str
-// CHECK: call @print [path = 'std/builtin'] [const], 1
+// CHECK: %4 = local tuple<u>
+// CHECK: loadk %4 tuple<u>, tuple('false') tuple<u>
+// CHECK: call @print [path = 'std/builtin'] [const]
 // CHECK: jmp label %bb3
 
 // CHECK: ret void

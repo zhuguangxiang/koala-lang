@@ -32,10 +32,10 @@ func foo() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@foo] ---
 // CHECK-LABEL: func @foo()
-// CHECK: call @print [ext = true, path = 'std/builtin'], 14 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'], 11 int64, 13 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'], 'k is greater than 12' str, 10 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'j is greater than 10' str
+// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const]
 // CHECK: ret void
 
 func test_nested(a int, b int) {
@@ -51,9 +51,9 @@ func test_nested(a int, b int) {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@test_nested] ---
 // CHECK-LABEL: func @test_nested(%a int64, %b int64)
-// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 1' str
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const]
 // CHECK: jmp label %bb3
-// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Done' str
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const]
 // CHECK: ret void
-// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 2' str
-// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Level 3' str
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const]
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const]

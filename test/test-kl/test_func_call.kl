@@ -91,4 +91,8 @@ fn7(v2 = 100, v1 = 200)
 fn7(100)
 fn7(100, 200)
 
+// TODO:
+// func foo3(n int, msg = "hello", extra ...) {}
+
+
 // CHECK-NOT: {{.}}

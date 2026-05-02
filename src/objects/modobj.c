@@ -6,7 +6,9 @@
 #include "modobj.h"
 #include "atom.h"
 #include "codespec.h"
+#include "klc.h"
 #include "log.h"
+#include "tupleobj.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -125,6 +127,61 @@ int kl_mo_add_str(Object *_m, char *s)
     ModuleObject *m = (ModuleObject *)_m;
     Object *sobj = kl_new_str(s);
     TValue val = obj_value(sobj);
+    return kl_mo_add_const(_m, &val);
+}
+
+int kl_mo_add_tuple(Object *_m, Vector *list)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    Vector vec;
+    vector_init(&vec, sizeof(TValue));
+
+    KlcConst *item;
+    vector_foreach(item, list) {
+        switch (item->type) {
+            case KLC_CONST_INT: {
+                TValue val = { .tag = item->type_info, .ival = item->ival };
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_FLT: {
+                TValue val = { .tag = item->type_info, .fval = item->fval };
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_SHORT_ASCII:
+            case KLC_CONST_SHORT_UTF8:
+            case KLC_CONST_ASCII:
+            case KLC_CONST_UTF8: {
+                Object *sobj = kl_new_str(item->sval);
+                TValue val = obj_value(sobj);
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_SHORT_TUPLE:
+            case KLC_CONST_TUPLE: {
+                Vector *_sub = item->val;
+                int _index = kl_mo_add_tuple(_m, _sub);
+                TValue val = { .tag = item->type_info, .ival = _index };
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            default: {
+                NYI();
+                break;
+            }
+        }
+    }
+
+    TValue *items = VECTOR_RAW(&vec, TValue);
+    int size = vector_size(&vec);
+    Object *tobj = kl_new_tuple(items, size);
+    TValue val = obj_value(tobj);
+    vector_fini(&vec);
     return kl_mo_add_const(_m, &val);
 }
 

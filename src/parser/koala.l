@@ -335,12 +335,14 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 
 \'              { YY_S_BEGIN;              }
 <S>\'           { YY_S_END;                }
-<S>\\\'         { YY_S_WRITE('\'');        }
+<S>\\'          { YY_S_WRITE('\'');        }
+<S>\\n          { YY_STR_WRITE('\n');      }
 <S>.            { YY_S_WRITE(yytext[0]);   }
 
 \"              { YY_STR_BEGIN;            }
 <STR>\"         { YY_STR_END;              }
 <STR>\\\"       { YY_STR_WRITE('\"');      }
+<STR>\\n        { YY_STR_WRITE('\n');      }
 <STR>.          { YY_STR_WRITE(yytext[0]); }
 
 \"\"\"          { YY_TXT_BEGIN;            }

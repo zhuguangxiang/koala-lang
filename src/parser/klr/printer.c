@@ -54,20 +54,22 @@ static void print_const(KlrConst *v, FILE *fp)
             break;
         case CONST_LIST: {
             fprintf(fp, "list[");
-            for (int i = 0; i < v->len; i++) {
-                KlrValue *item = v->list.items[i];
+            int len = vector_size(v->list);
+            KlrValue *item;
+            vector_foreach(item, v->list) {
                 print_const_item(item, fp);
-                if (i < v->len - 1) fprintf(fp, ", ");
+                if (i__ < len - 1) fprintf(fp, ", ");
             }
             fprintf(fp, "]");
             break;
         }
         case CONST_TUPLE: {
             fprintf(fp, "tuple(");
-            for (int i = 0; i < v->len; i++) {
-                KlrValue *item = v->list.items[i];
+            int len = vector_size(v->list);
+            KlrValue *item;
+            vector_foreach(item, v->list) {
                 print_const_item(item, fp);
-                if (i < v->len - 1) fprintf(fp, ", ");
+                if (i__ < len - 1) fprintf(fp, ", ");
             }
             fprintf(fp, ")");
             break;
@@ -301,6 +303,23 @@ static void print_new(KlrInsn *insn, FILE *fp)
         if (i != 1) fprintf(fp, ", ");
         oper = &insn->opers[i];
         print_operand(oper, fp);
+    }
+}
+
+static void print_build_tuple(KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+
+    if (insn->num_args > 0) {
+        fprintf(fp, " = build_tuple nargs=%d", insn->num_args);
+    } else {
+        fprintf(fp, " = build_tuple ");
+        KlrOper *oper;
+        for (int i = 0; i < insn->num_opers; i++) {
+            if (i != 0) fprintf(fp, ", ");
+            oper = &insn->opers[i];
+            print_operand(oper, fp);
+        }
     }
 }
 
@@ -853,6 +872,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_NEW:
             print_new(insn, fp);
+            break;
+
+        case OP_BUILD_TUPLE:
+            print_build_tuple(insn, fp);
             break;
 
         default:

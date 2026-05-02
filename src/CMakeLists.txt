@@ -66,29 +66,6 @@ set(COMMON_SOURCES
 add_library(koala-common STATIC ${COMMON_SOURCES})
 
 set(KOALA_SOURCES
-    # object.c
-    # typeobject.c
-    # anyobject.c
-    # noneobject.c
-    # boolobject.c
-    # # fieldobject.c
-    # cfuncobject.c
-    # codeobject.c
-    # intobject.c
-    # # floatobject.c
-    # stringobject.c
-    # tupleobject.c
-    # exception.c
-    # iterobject.c
-    # collectionobject.c
-    # numberobject.c
-    # moduleobject.c
-    # modules/builtin.c
-    # gc.c
-    # run.c
-    # eval.c
-    # read_klc.c
-    # jit/jit.c
     objects/anyobj.c
     objects/boolobj.c
     objects/floatobj.c
@@ -99,6 +76,7 @@ set(KOALA_SOURCES
     objects/numobj.c
     objects/strobj.c
     objects/typeobj.c
+    objects/tupleobj.c
     runtime/symtbl.c
     runtime/vm.c
     runtime/except.c

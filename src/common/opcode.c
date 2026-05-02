@@ -40,6 +40,13 @@ void bytecode_print(uint8_t *code, size_t start, size_t count)
                 break;
             }
 
+            case FORMAT_RxImm: {
+                int Rx = (insn >> 8) & 0xFFFu;
+                int imm = insn & 0xFFu;
+                printf("r%d, #%d", Rx, imm);
+                break;
+            }
+
             case FORMAT_RxTag: {
                 int Rx = (insn >> 8) & 0xFFFu;
                 int imm = insn & 0xFFu;

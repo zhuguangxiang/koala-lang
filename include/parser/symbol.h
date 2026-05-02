@@ -112,7 +112,8 @@ typedef struct _ArgInfo {
     char *name;
     Symbol *sym;
     TypeSpec *ts;
-    int dfl_val_idx;
+    int has_dfl_val;
+    Literal *dfl_val;
 } ArgInfo;
 
 typedef struct _FuncSymbol {

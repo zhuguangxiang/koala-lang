@@ -321,28 +321,39 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
     }
 }
 
+static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
+{
+    switch (kc->tag) {
+        case KL_MACH_CONST_INT:
+            return klc_add_rt_int(klc, kc->i64, 1, kc->len);
+        case KL_MACH_CONST_UINT:
+            return klc_add_rt_int(klc, kc->u64, 0, kc->len);
+        case KL_MACH_CONST_FLOAT:
+            return klc_add_rt_float(klc, kc->f64, kc->len);
+        case KL_MACH_CONST_STR:
+            return klc_add_rt_str(klc, kc->str, strlen(kc->str));
+        case KL_MACH_CONST_TUPLE:
+            Vector *list = vector_create(sizeof(uint16_t));
+            Vector *vec = kc->list;
+            KlMachConst *item;
+            vector_foreach(item, vec) {
+                if (!item) continue;
+                uint16_t idx = _write_rt_const(klc, item);
+                vector_push_back(list, &idx);
+            }
+            return klc_add_rt_tuple(klc, list);
+        default:
+            UNREACHABLE();
+    }
+}
+
 static void write_rt_data(KlMachModule *m, KlcFile *klc)
 {
     klc->num_rt_consts = vector_size(&m->const_pool);
 
     KlMachConst *c;
     vector_foreach(c, &m->const_pool) {
-        switch (c->tag) {
-            case KL_MACH_CONST_INT:
-                klc_add_rt_int(klc, c->i64, 1, c->len);
-                break;
-            case KL_MACH_CONST_UINT:
-                klc_add_rt_int(klc, c->u64, 0, c->len);
-                break;
-            case KL_MACH_CONST_FLOAT:
-                klc_add_rt_float(klc, c->f64, c->len);
-                break;
-            case KL_MACH_CONST_STR:
-                klc_add_rt_str(klc, c->str, strlen(c->str));
-                break;
-            default:
-                UNREACHABLE();
-        }
+        _write_rt_const(klc, c);
     }
 
     KlMachImport *imp;

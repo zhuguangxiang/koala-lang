@@ -200,12 +200,13 @@ uint16_t klc_add_float(KlcFile *klc, double val, int width);
 uint16_t klc_add_str(KlcFile *klc, char *s, int len);
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len);
 
-uint16_t klc_add_code(KlcFile *klc, char *name, uint16_t num_locals,
-                      uint16_t max_call_args, uint32_t start_pc, uint32_t code_size);
+uint16_t klc_add_code(KlcFile *klc, char *name, uint16_t num_locals, uint16_t max_call_args,
+                      uint32_t start_pc, uint32_t code_size);
 
 uint16_t klc_add_rt_int(KlcFile *klc, uint64_t val, int sign, int width);
 uint16_t klc_add_rt_float(KlcFile *klc, double val, int width);
 uint16_t klc_add_rt_str(KlcFile *klc, char *s, int len);
+uint16_t klc_add_rt_tuple(KlcFile *klc, Vector *list);
 
 void klc_add_import(KlcFile *klc, int kind, char *ns, char *sym);
 

@@ -117,9 +117,7 @@ typedef struct _KlrConst {
         double fval;
         int bval;
         char *sval;
-        struct {
-            KlrValue **items;
-        } list;
+        Vector *list;
     };
 } KlrConst;
 
@@ -873,6 +871,7 @@ KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char
 void klr_set_loc(KlrValue *val, char *filename, Loc loc);
 KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, KlrValue **args, int nargs, char *name);
 KlrValue *klr_build_ref(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op, char *name);
+KlrValue *klr_build_tuple(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts, char *name);
 
 #ifdef __cplusplus
 }

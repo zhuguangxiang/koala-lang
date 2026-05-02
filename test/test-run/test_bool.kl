@@ -46,9 +46,9 @@ foo(true, false)
 
 // CHECK: jmp_int_ne %cond bool, %cond2 bool, label %bb1, label %bb2
 
-// CHECK: jmp_int_ne_imm r0, #0, 11
+// CHECK: jmp_int_ne_imm r0, #0, 15
 
-// CHECK: jmp_int_eq r0, r1, 4
+// CHECK: jmp_int_eq r0, r1, 6
 
 // CHECK: msg: math is broken
 // CHECK: msg is null: no message

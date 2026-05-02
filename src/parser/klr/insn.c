@@ -543,6 +543,31 @@ KlrValue *klr_build_ref(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode o
     return (KlrValue *)insn;
 }
 
+KlrValue *klr_build_tuple(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts, char *name)
+{
+    int is_const = 1;
+
+    if (nargs <= 0) is_const = 0;
+
+    for (int i = 0; i < nargs; i++) {
+        if (!klr_is_const(args[i])) {
+            is_const = 0;
+            break;
+        }
+    }
+
+    KlrInsn *insn = new_insn(OP_BUILD_TUPLE, nargs, name);
+    insn->flags |= is_const ? KLR_INSN_FLAGS_CONST : 0;
+
+    for (int j = 0; j < nargs; j++) {
+        init_oper(&insn->opers[j], insn, args[j], 0);
+    }
+
+    insn->ts = ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
 #ifdef __cplusplus
 }
 #endif

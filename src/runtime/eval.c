@@ -6,6 +6,7 @@
 #include <math.h>
 #include "modobj.h"
 #include "opcode.h"
+#include "tupleobj.h"
 #include "vm.h"
 
 #ifdef __cplusplus

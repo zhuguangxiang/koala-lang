@@ -403,7 +403,7 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
         // 1. kw-param: pass value with keyword argument, e.g. foo(x=10)
         // 2. pass value only, e.g. foo(10)
         // 3. skip it, e.g. foo() for foo(x=10)
-        if (arg->dfl_val_idx > 0) {
+        if (arg->has_dfl_val) {
             check_dfl_param(ps, params, exprs, i__, j__);
             return;
         }
@@ -576,7 +576,8 @@ static Vector *build_instance_params(Vector *params, KlassSymbol *origin, Instan
         ArgInfo *inst_arg = mm_alloc_obj(inst_arg);
         inst_arg->name = arg->name;
         inst_arg->ts = ts;
-        inst_arg->dfl_val_idx = arg->dfl_val_idx;
+        inst_arg->has_dfl_val = arg->has_dfl_val;
+        inst_arg->dfl_val = arg->dfl_val;
         vector_push_back(inst_params, &inst_arg);
     }
     return inst_params;
@@ -608,7 +609,8 @@ static Vector *get_func_real_params(FuncSymbol *fn_sym, Vector *_tp_args)
         ArgInfo *real_arg = mm_alloc_obj(real_arg);
         real_arg->name = arg->name;
         real_arg->ts = ts;
-        real_arg->dfl_val_idx = arg->dfl_val_idx;
+        real_arg->has_dfl_val = arg->has_dfl_val;
+        real_arg->dfl_val = arg->dfl_val;
         vector_push_back(real_params, &real_arg);
     }
     return real_params;
@@ -657,7 +659,7 @@ static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym, CallE
     ArgInfo *arg;
     vector_foreach(arg, params) {
         if (!arg) continue;
-        if (arg->dfl_val_idx > 0) {
+        if (arg->has_dfl_val) {
             // default value param, skip it and the rest params.
             log_info("param '%s' is key-word parameter, skip the rest.", arg->name);
             break;
@@ -707,7 +709,7 @@ static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym, CallE
                 // after i__ are all kw-args.
                 for (int j = i__ + 1; j < vector_size(params); j++) {
                     ArgInfo *next_arg = vector_get(params, j);
-                    ASSERT(next_arg->dfl_val_idx > 0);
+                    ASSERT(next_arg->has_dfl_val);
                 }
             }
 
@@ -794,6 +796,175 @@ static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym, CallE
 
     hashmap_fini(&map, __tpinfo_free__, NULL);
     return result;
+}
+
+typedef struct _KWArgInfo {
+    char *name;
+    TypeSpec *ts;
+    Literal *dfl_val;
+} KWArgInfo;
+
+typedef struct _ParamInfo {
+    int valist_index;
+    int npos;
+    Vector kwargs;
+} ParamInfo;
+
+static void __get_param_info(Vector *params, ParamInfo *param_info)
+{
+    int npos = 0;
+    int i = 0;
+    ArgInfo *arg;
+    vector_foreach(arg, params) {
+        if (!arg) continue;
+        if (arg->has_dfl_val) {
+            KWArgInfo info = { .name = arg->name, .ts = arg->ts, .dfl_val = arg->dfl_val };
+            vector_push_back(&param_info->kwargs, &info);
+            log_info("[__get_param_info] param '%s' is key-word parameter, add to kwargs",
+                     arg->name);
+        } else if (type_is_valist(arg->ts)) {
+            param_info->valist_index = i;
+            log_info("[__get_param_info] param '%s' is var-arg, valist_index is %d", arg->name,
+                     param_info->valist_index);
+        } else {
+            npos++;
+        }
+        i++;
+    }
+    param_info->npos = npos;
+    log_info("[__get_param_info] number of positional parameters: %d", param_info->npos);
+}
+
+typedef struct _CallArgInfo {
+    int npos;
+    Vector kwargs;
+} CallArgInfo;
+
+static void __get_call_arg_info(Vector *args, CallArgInfo *arg_info)
+{
+    int i = 0;
+    Expr *e;
+    vector_foreach(e, args) {
+        if (!e) continue;
+        if (e->kind == EXPR_KW_KIND) {
+            KeyWordExpr *kw = (KeyWordExpr *)e;
+            vector_push_back(&arg_info->kwargs, &e);
+            log_info("[__get_call_arg_info] call arg is keyword argument: '%s', add to kw_args",
+                     kw->key.name);
+        } else {
+            i++;
+        }
+    }
+    arg_info->npos = i;
+    log_info("[__get_call_arg_info] number of positional arguments in call: %d", arg_info->npos);
+}
+
+static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
+{
+    ParamInfo param_info;
+    param_info.valist_index = -1;
+    vector_init(&param_info.kwargs, sizeof(KWArgInfo));
+    __get_param_info(params, &param_info);
+
+    CallArgInfo arg_info;
+    arg_info.npos = 0;
+    vector_init_ptr(&arg_info.kwargs);
+    __get_call_arg_info(call->args, &arg_info);
+
+    Vector *vec = vector_create_ptr();
+    Vector *real_args = vector_create_ptr();
+    int eaten_kw_args = 0;
+    int changed = 0;
+
+    ASSERT(param_info.npos <= arg_info.npos);
+
+    for (int i = 0; i < param_info.npos; i++) {
+        Expr *arg = vector_get(call->args, i);
+        vector_push_back(real_args, &arg);
+    }
+
+    if (param_info.valist_index >= 0) {
+        for (int i = param_info.valist_index; i < arg_info.npos; i++) {
+            Expr *arg = vector_get(call->args, i);
+            vector_push_back(vec, &arg);
+        }
+    } else {
+        // no var-arg param, kw-args may be passed by positional arguments
+        eaten_kw_args = arg_info.npos - param_info.npos;
+
+        for (int i = param_info.npos; i < arg_info.npos; i++) {
+            Expr *arg = vector_get(call->args, i);
+            vector_push_back(real_args, &arg);
+        }
+
+        log_info(
+            "[handle_valist_and_dfl_args] no var-arg param, and %d kw-args are passed by "
+            "positional arguments.",
+            eaten_kw_args);
+    }
+
+    if (!vector_empty(vec)) {
+        log_info(
+            "[handle_valist_and_dfl_args] var-arg is passed by positional arguments(%d-%d), build "
+            "tuple for caller.",
+            param_info.valist_index, arg_info.npos - 1);
+        Expr *valist = expr_from_tuple(vec);
+        vector_push_back(real_args, &valist);
+        changed = 1;
+    } else {
+        log_info("[handle_valist_and_dfl_args] no var-arg is passed by positional arguments.");
+        vector_destroy(vec);
+        vec = NULL;
+    }
+
+    int j = 0;
+    KWArgInfo *kwarg;
+    vector_foreach_ptr(kwarg, &param_info.kwargs) {
+        if (j < eaten_kw_args) {
+            j++;
+            continue;
+        }
+        int found = 0;
+        KeyWordExpr *kw;
+        vector_foreach(kw, &arg_info.kwargs) {
+            if (str_equal(kw->key.name, kwarg->name)) {
+                log_info("[handle_valist_and_dfl_args] kw-arg '%s' is passed, add to caller args.",
+                         kwarg->name);
+                vector_push_back(real_args, &kw->value);
+                found = 1;
+                break;
+            }
+        }
+
+        if (!found) {
+            log_info(
+                "[handle_valist_and_dfl_args] kw-arg '%s' is not passed, use default value for "
+                "caller.",
+                kwarg->name);
+            Literal *dfl_val = kwarg->dfl_val;
+            ASSERT(dfl_val);
+            Expr *dfl_exp = expr_from_literal(dfl_val);
+            vector_push_back(real_args, &dfl_exp);
+            changed = 1;
+        }
+    }
+
+    if (!vector_empty(real_args)) {
+        log_info(
+            "[handle_valist_and_dfl_args] real arguments for caller after handling var-arg and "
+            "kw-arg.");
+        // TODO: free old args
+        vector_destroy(call->args);
+        call->args = real_args;
+    } else {
+        log_info(
+            "[handle_valist_and_dfl_args] no real argument for caller after handling var-arg and "
+            "kw-arg.");
+        vector_destroy(real_args);
+        real_args = NULL;
+    }
+
+    return changed;
 }
 
 static void parse_call(ParserState *ps, Expr *exp)
@@ -1030,12 +1201,22 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
 
     check_call_args(params, call->args, ps, lhs->loc);
+    if (ps->errors > 0) return;
 
-    // TODO:handle for builtin type(int, float, str etc) calls
-    if (exp->ts->kind == TYPE_INT) {
-    } else if (exp->ts->kind == TYPE_FLOAT) {
-    } else {
+    // handle valist & default parameters for caller
+    // if (!str_equal(lhs_sym->name, "print")) {
+    if (handle_valist_and_dfl_args(params, call)) {
+        log_info(
+            "arguments are changed after handling var-arg and kw-arg, re-parse argument types.");
+        Expr *arg;
+        vector_foreach(arg, call->args) {
+            if (!arg) continue;
+            arg->ctx = EXPR_CTX_LOAD;
+            parser_visit_expr(ps, arg);
+            if (!arg->ts) return;
+        }
     }
+    // }
 }
 
 static TypeSpec *opt_dot_type(TypeSpec *ts, int opt_or_bang)

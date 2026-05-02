@@ -94,7 +94,12 @@ KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m)
 
 KlrValue *klr_const_bool(int v, KlrModule *m)
 {
-    KlrConst key = { .kind = KLR_VALUE_CONST, .which = CONST_BOOL, .bval = v };
+    KlrConst key = {
+        .kind = KLR_VALUE_CONST,
+        .which = CONST_BOOL,
+        .bval = v,
+    };
+
     hashmap_entry_init(&key.hnode, mem_hash(&v, sizeof(v)));
     void *entry = hashmap_get(&m->consts, &key.hnode);
     if (entry) {
@@ -167,9 +172,11 @@ KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m)
     INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
     lit->which = CONST_LIST;
     lit->len = size;
-    KlrValue **copy = mm_alloc(size * sizeof(KlrValue *));
-    memcpy(copy, items, size * sizeof(KlrValue *));
-    lit->list.items = copy;
+    Vector *list = vector_create_ptr();
+    for (int i = 0; i < size; i++) {
+        vector_push_back(list, &items[i]);
+    }
+    lit->list = list;
     return (KlrValue *)lit;
 }
 

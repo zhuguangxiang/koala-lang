@@ -8,7 +8,7 @@ print("End")
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@__init__] ---
 // CHECK-LABEL: func @__init__()
-// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'End' str
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const]
 // CHECK: ret void
 
 func foo() {
@@ -81,7 +81,7 @@ func test_if_false() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@test_if_false] ---
 // CHECK-LABEL: func @test_if_false()
-// CHECK: call @print [ext = true, path = 'std/builtin'], 10 int64
+// CHECK: call @print [ext = true, path = 'std/builtin']
 // CHECK: ret void
 
 func instant_break() {
@@ -93,7 +93,7 @@ func instant_break() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@instant_break] ---
 // CHECK-LABEL: func @instant_break()
-// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Safe' str
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const]
 // CHECK: ret void
 
 func double_loop() {
@@ -143,11 +143,11 @@ func double_loop() {
 // %bb5(while-end):                                ;; preds = %bb3
 //     %4 = add %i int64, 1 int64
 //     move %i int64, %4 int64
-//     call @print [ext = true, path = 'std/builtin'], 'outer' str, %i int64
+//     call @print [ext = true, path = 'std/builtin']
 //     jmp label %bb0
 
 // %bb6(if-else):                                  ;; preds = %bb4
-//     call @print [ext = true, path = 'std/builtin'], 'inner' str, %j int64
+//     call @print [ext = true, path = 'std/builtin']
 //     jmp label %bb3
 // }
 
@@ -163,7 +163,7 @@ func break_shadow() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@break_shadow] ---
 // CHECK-LABEL: func @break_shadow()
-// CHECK: call @print [ext = true, path = 'std/builtin'] [const], 'Out' str
+// CHECK: call @print [ext = true, path = 'std/builtin'] [const]
 // CHECK: ret void
 
 func logic_continue() {

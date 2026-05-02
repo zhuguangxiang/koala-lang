@@ -212,7 +212,9 @@ static OpCode get_const_op(KlrConst *c, LowerConstRule *R)
             break;
         }
 
-        case CONST_STR: {
+        case CONST_STR:
+        case CONST_LIST:
+        case CONST_TUPLE: {
             op = R->load_op;
             break;
         }
@@ -809,13 +811,31 @@ static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
+static void isel_lower_build_tuple(KlrInsn *insn, KlrFunc *fn)
+{
+    int nargs = insn->num_opers;
+    for (int i = 0; i < nargs; i++) {
+        KlrValue *arg = insn_oper_value(insn, i);
+        lower_call_argument(insn, arg, i);
+    }
+
+    for (int i = 0; i < nargs; i++) {
+        clear_operand_at(insn, i);
+    }
+
+    insn->num_opers = 0;
+    insn->num_args = nargs;
+    ASSERT(insn->num_args >= 0);
+}
+
 static void verify_insn(KlrInsn *insn)
 {
     OpCode op = insn->code;
 
     if ((op >= OP_BINARY_ADD && op <= OP_IR_PHI) || (op == OP_JMP) || (op == OP_RET) ||
         (op == OP_RET_VOID) || (op == OP_MOVE) || (op == OP_GLOBAL_GET) || (op == OP_GLOBAL_SET) ||
-        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT) || (op == OP_NEW)) {
+        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT) || (op == OP_NEW) ||
+        (op == OP_BUILD_TUPLE)) {
         return;
     }
 
@@ -886,6 +906,11 @@ static void do_isel(KlrFunc *fn)
                     if (fusion_enabled()) {
                         isel_lower_jmp_cond(insn, fn);
                     }
+                    break;
+                }
+
+                case OP_BUILD_TUPLE: {
+                    isel_lower_build_tuple(insn, fn);
                     break;
                 }
 

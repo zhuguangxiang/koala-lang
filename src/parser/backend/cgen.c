@@ -12,28 +12,42 @@
 extern "C" {
 #endif
 
+static void dump_const(KlMachConst *kc, int indent)
+{
+    switch (kc->tag) {
+        case KL_MACH_CONST_INT:
+            printf("%*sint%d: %ld\n", indent, "", kc->len * 8, kc->i64);
+            break;
+        case KL_MACH_CONST_UINT:
+            printf("%*suint%d: %lu\n", indent, "", kc->len * 8, kc->u64);
+            break;
+        case KL_MACH_CONST_FLOAT:
+            printf("%*sfloat%d: %.17g\n", indent, "", kc->len * 8, kc->f64);
+            break;
+        case KL_MACH_CONST_STR:
+            printf("%*sstring: \"%s\"\n", indent, "", kc->str);
+            break;
+        case KL_MACH_CONST_TUPLE:
+            printf("%*stuple: \n", indent, "");
+            Vector *list = kc->list;
+            KlMachConst *elem;
+            vector_foreach(elem, list) {
+                dump_const(elem, indent + 6);
+            }
+            printf("\n");
+            break;
+        default:
+            UNREACHABLE();
+    }
+}
+
 static void dump_const_pool(KlMachModule *m)
 {
     printf("Constant Pool:\n");
     KlMachConst *kc;
     vector_foreach(kc, &m->const_pool) {
         printf("  #%d: ", i__);
-        switch (kc->tag) {
-            case KL_MACH_CONST_INT:
-                printf("int%d: %ld\n", kc->len * 8, kc->i64);
-                break;
-            case KL_MACH_CONST_UINT:
-                printf("uint%d: %lu\n", kc->len * 8, kc->u64);
-                break;
-            case KL_MACH_CONST_FLOAT:
-                printf("float%d: %.17g\n", kc->len * 8, kc->f64);
-                break;
-            case KL_MACH_CONST_STR:
-                printf("string: \"%s\"\n", kc->str);
-                break;
-            default:
-                UNREACHABLE();
-        }
+        dump_const(kc, 0);
     }
 }
 
@@ -87,7 +101,7 @@ static unsigned int mach_const_hash(void *key)
     }
 }
 
-int kl_mach_const_add_int(KlMachModule *m, int64_t v, int width)
+static KlMachConst *kl_mach_add_int(KlMachModule *m, int64_t v, int width)
 {
     KlMachConst key = { .tag = KL_MACH_CONST_INT, .len = width, .i64 = v };
     hashmap_entry_init(&key, mach_const_hash(&key));
@@ -95,7 +109,7 @@ int kl_mach_const_add_int(KlMachModule *m, int64_t v, int width)
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
         log_info("Found existing const entry for int: %ld (index: %d)", v, entry->index);
-        return entry->index;
+        return entry;
     }
 
     KlMachConst *new_entry = mm_alloc_obj(new_entry);
@@ -104,13 +118,14 @@ int kl_mach_const_add_int(KlMachModule *m, int64_t v, int width)
     new_entry->i64 = v;
     hashmap_entry_init(new_entry, mach_const_hash(new_entry));
     hashmap_put(&m->cp_map, new_entry);
+
     vector_push_back(&m->const_pool, &new_entry);
     new_entry->index = vector_size(&m->const_pool) - 1;
     log_info("Added new const entry for int: %ld (index: %d)", v, new_entry->index);
-    return new_entry->index;
+    return new_entry;
 }
 
-int kl_mach_const_add_uint(KlMachModule *m, uint64_t v, int width)
+static KlMachConst *kl_mach_add_uint(KlMachModule *m, uint64_t v, int width)
 {
     KlMachConst key = { .tag = KL_MACH_CONST_UINT, .len = width, .u64 = v };
     hashmap_entry_init(&key, mach_const_hash(&key));
@@ -118,7 +133,7 @@ int kl_mach_const_add_uint(KlMachModule *m, uint64_t v, int width)
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
         log_info("Found existing const entry for uint: %lu (index: %d)", v, entry->index);
-        return entry->index;
+        return entry;
     }
 
     KlMachConst *new_entry = mm_alloc_obj(new_entry);
@@ -130,10 +145,10 @@ int kl_mach_const_add_uint(KlMachModule *m, uint64_t v, int width)
     vector_push_back(&m->const_pool, &new_entry);
     new_entry->index = vector_size(&m->const_pool) - 1;
     log_info("Added new const entry for uint: %lu (index: %d)", v, new_entry->index);
-    return new_entry->index;
+    return new_entry;
 }
 
-int kl_mach_const_add_float(KlMachModule *m, double v, int width)
+static KlMachConst *kl_mach_add_float(KlMachModule *m, double v, int width)
 {
     KlMachConst key = { .tag = KL_MACH_CONST_FLOAT, .len = width, .f64 = v };
     hashmap_entry_init(&key, mach_const_hash(&key));
@@ -141,7 +156,7 @@ int kl_mach_const_add_float(KlMachModule *m, double v, int width)
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
         log_info("Found existing const entry for float: %f (index: %d)", v, entry->index);
-        return entry->index;
+        return entry;
     }
 
     KlMachConst *new_entry = mm_alloc_obj(new_entry);
@@ -154,10 +169,10 @@ int kl_mach_const_add_float(KlMachModule *m, double v, int width)
     int index = vector_size(&m->const_pool) - 1;
     new_entry->index = index;
     log_info("Added new const entry for float: %f (index: %d)", v, new_entry->index);
-    return index;
+    return new_entry;
 }
 
-int kl_mach_const_add_str(KlMachModule *m, char *v)
+static KlMachConst *kl_mach_add_str(KlMachModule *m, char *v)
 {
     int len = strlen(v);
     KlMachConst key = { .tag = KL_MACH_CONST_STR, .len = len, .str = v };
@@ -166,7 +181,7 @@ int kl_mach_const_add_str(KlMachModule *m, char *v)
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
         log_info("Found existing const entry for string: %s (index: %d)", v, entry->index);
-        return entry->index;
+        return entry;
     }
 
     KlMachConst *new_entry = mm_alloc_obj(new_entry);
@@ -179,7 +194,56 @@ int kl_mach_const_add_str(KlMachModule *m, char *v)
     int index = vector_size(&m->const_pool) - 1;
     new_entry->index = index;
     log_info("Added new const entry for string: %s (index: %d)", v, index);
-    return index;
+    return new_entry;
+}
+
+static KlMachConst *kl_mach_add_tuple(KlMachModule *m, Vector *items)
+{
+    KlMachConst *entry = mm_alloc_obj(entry);
+    entry->tag = KL_MACH_CONST_TUPLE;
+    Vector *list = vector_create_ptr();
+    KlrValue *elem;
+    vector_foreach(elem, items) {
+        KlMachConst *kc = kl_mach_add_const((KlrConst *)elem, m);
+        vector_push_back(list, &kc);
+    }
+    entry->list = list;
+
+    vector_push_back(&m->const_pool, &entry);
+    int index = vector_size(&m->const_pool) - 1;
+    entry->index = index;
+    log_info("Added new const entry for tuple (index: %d)", index);
+    return entry;
+}
+
+KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m)
+{
+    switch (kc->which) {
+        case CONST_INT: {
+            return kl_mach_add_int(m, kc->ival, kc->len);
+            break;
+        }
+        case CONST_UINT: {
+            return kl_mach_add_uint(m, kc->ival, kc->len);
+            break;
+        }
+        case CONST_FLT: {
+            return kl_mach_add_float(m, kc->fval, kc->len);
+            break;
+        }
+        case CONST_STR: {
+            return kl_mach_add_str(m, kc->sval);
+            break;
+        }
+        case CONST_TUPLE: {
+            return kl_mach_add_tuple(m, kc->list);
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
 }
 
 static int __mach_import_eq__(void *a, void *b)
@@ -270,6 +334,11 @@ static void dump_mach_insn(KlMachInsn *mi)
 
         case FORMAT_ROff2: {
             used += printf("r%d, %d", mi->opers[0], mi->opers[1]);
+            break;
+        }
+
+        case FORMAT_RxImm: {
+            used += printf("r%d, #%d", mi->opers[0], mi->opers[1]);
             break;
         }
 
@@ -475,6 +544,7 @@ static void emit_mach_insn(KlMachInsn *mi, CodeBuffer *buf)
             break;
         }
 
+        case FORMAT_RxImm:
         case FORMAT_RxTag: {
             // | op:8 | ----:4 | Rx:12 | imm:8 |
             uint32_t Rx = mi->opers[0];
@@ -645,6 +715,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
         }
 
         case FORMAT_TI_Imm2:
+        case FORMAT_RxImm:
         case FORMAT_RxTag:
         case FORMAT_RImm2:
         case FORMAT_ROff2:

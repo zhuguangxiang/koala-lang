@@ -160,18 +160,19 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
 
 static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args, int nargs)
 {
-    if (nargs == 1) {
-        KlrValue *arg = args[0];
-        TypeSpec *ts = callee->ts;
-        TypeSpec *arg_ts = arg->ts;
-        if (ts->kind == TYPE_INT && arg_ts->kind == TYPE_INT) {
-            if (arg_ts == ts) return arg;
-            KlrValue *ret = klr_build_cast(bldr, arg, ts, "");
-            return ret;
-        }
+    // TODO: base = 10
+    // if (nargs == 1) {
+    KlrValue *arg = args[0];
+    TypeSpec *ts = callee->ts;
+    TypeSpec *arg_ts = arg->ts;
+    if (ts->kind == TYPE_INT && arg_ts->kind == TYPE_INT) {
+        if (arg_ts == ts) return arg;
+        KlrValue *ret = klr_build_cast(bldr, arg, ts, "");
+        return ret;
     }
+    // }
 
-    NYI();
+    // NYI();
 }
 
 static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args, int nargs)
@@ -497,14 +498,14 @@ static void emit_ir_list(ParserState *ps, Expr *exp)
 
 static void emit_ir_tuple(ParserState *ps, Expr *exp)
 {
-    ListExpr *list = (ListExpr *)exp;
+    TupleExpr *tuple = (TupleExpr *)exp;
 
-    int size = vector_size(list->vec);
+    int size = vector_size(tuple->vec);
     KlrValue *items[size];
     int konst = 1;
 
     Expr *e;
-    vector_foreach(e, list->vec) {
+    vector_foreach(e, tuple->vec) {
         e->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, e);
         if (!e->ir_val) return;
@@ -520,7 +521,7 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
     } else {
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
-        KlrValue *ret = klr_build_call(&bldr, exp->ir_val, items, size, "");
+        KlrValue *ret = klr_build_tuple(&bldr, items, size, exp->ts, "");
         exp->ir_val = ret;
     }
 }

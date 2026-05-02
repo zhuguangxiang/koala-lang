@@ -1034,28 +1034,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     if (!exp->ts) return;
 
     if (exp->kind == EXPR_LITERAL_KIND) {
-        LitExpr *lit_exp = (LitExpr *)exp;
-        Literal *lit = mm_alloc_obj(lit);
-        if (lit_exp->which == LIT_EXPR_INT) {
-            lit->which = LIT_INT;
-            lit->sign = lit_exp->sign;
-            lit->len = lit_exp->len;
-            lit->ival = lit_exp->ival;
-        } else if (lit_exp->which == LIT_EXPR_FLT) {
-            lit->which = LIT_FLT;
-            lit->fval = lit_exp->fval;
-        } else if (lit_exp->which == LIT_EXPR_BOOL) {
-            lit->which = LIT_BOOL;
-            lit->bval = lit_exp->bval;
-        } else if (lit_exp->which == LIT_EXPR_STR) {
-            lit->which = LIT_STR;
-            lit->len = lit_exp->len;
-            lit->sval = lit_exp->sval;
-        } else if (lit_exp->which == LIT_EXPR_NONE) {
-            lit->which = LIT_NONE;
-        } else {
-            UNREACHABLE();
-        }
+        Literal *lit = expr_to_literal(exp);
         sym->lit = lit;
     }
 
@@ -1319,8 +1298,10 @@ static void parse_expr(ParserState *ps, Stmt *stmt)
 {
     ExprStmt *s = (ExprStmt *)stmt;
     Expr *exp = s->exp;
-    exp->ctx = EXPR_CTX_LOAD;
-    parser_visit_expr(ps, exp);
+    if (exp) {
+        exp->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, exp);
+    }
 }
 
 static void parse_block_stmt(ParserState *ps, Stmt *stmt)
@@ -2495,7 +2476,7 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
 
         ArgInfo *arg = mm_alloc_obj(arg);
         arg->name = param->id.name;
-        arg->dfl_val_idx = 0;
+        arg->has_dfl_val = 0;
 
         TypeSpec *ts;
         if (param->type) {
@@ -2541,31 +2522,11 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
         ((VarSymbol *)s)->scope = VAR_SCOPE_PARAM;
         Expr *e = param->value;
         if (e) {
-            LitExpr *lit_exp = (LitExpr *)e;
-            Literal *lit = mm_alloc_obj(lit);
-            if (lit_exp->which == LIT_EXPR_INT) {
-                lit->which = LIT_INT;
-                lit->sign = lit_exp->sign;
-                lit->len = lit_exp->len;
-                lit->ival = lit_exp->ival;
-            } else if (lit_exp->which == LIT_EXPR_FLT) {
-                lit->which = LIT_FLT;
-                lit->len = lit_exp->len;
-                lit->fval = lit_exp->fval;
-            } else if (lit_exp->which == LIT_EXPR_BOOL) {
-                lit->which = LIT_BOOL;
-                lit->bval = lit_exp->bval;
-            } else if (lit_exp->which == LIT_EXPR_STR) {
-                lit->which = LIT_STR;
-                lit->len = lit_exp->len;
-                lit->sval = lit_exp->sval;
-            } else if (lit_exp->which == LIT_EXPR_NONE) {
-                lit->which = LIT_NONE;
-            } else {
-                UNREACHABLE();
-            }
+            ASSERT(e->kind == EXPR_LITERAL_KIND);
+            Literal *lit = expr_to_literal(e);
             ((VarSymbol *)s)->lit = lit;
-            arg->dfl_val_idx = 1;
+            arg->has_dfl_val = 1;
+            arg->dfl_val = lit;
         }
 
         arg->sym = s;

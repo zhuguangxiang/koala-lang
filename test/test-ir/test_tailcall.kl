@@ -17,58 +17,65 @@ func ack(m int, n int) int {
 
 print(ack(3, 11))
 
-// CHECK-LABEL: ====== Emitted Bytecode (insns: 36) ======
+// CHECK-LABEL: ====== Emitted Bytecode (insns: 42) ======
 
 // CHECK: @__init__:
-// CHECK: [start_pc: 0, insns: 13, nlocals: 0, max_call_args: 2]
+// CHECK: [start_pc: 0, insns: 19, nlocals: 0, max_call_args: 3]
 
 // CHECK: @sum:
-// CHECK: [start_pc: 13, insns: 7, nlocals: 3, max_call_args: 2]
+// CHECK: [start_pc: 19, insns: 7, nlocals: 3, max_call_args: 2]
 
 // CHECK: @ack:
-// CHECK: [start_pc: 20, insns: 16, nlocals: 3, max_call_args: 2]
+// CHECK: [start_pc: 26, insns: 16, nlocals: 3, max_call_args: 2]
 
-// CHECK: @__init__[0,12]:
-// CHECK: 0000:  {{[0-9A-F]+}}   loadk r0, #0
-// CHECK: 0001:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #0
-// CHECK: 0002:  {{[0-9A-F]+}}   call flg=0, r0, #2
-// CHECK: 0003:  {{[0-9A-F]+}}   data (rel32=1)
-// CHECK: 0004:  {{[0-9A-F]+}}   call flg=1, #1
-// CHECK: 0005:  {{[0-9A-F]+}}   data (import_index=0)
-// CHECK: 0006:  {{[0-9A-F]+}}   load_int_imm r0, ti=0xb, #3
-// CHECK: 0007:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #11
-// CHECK: 0008:  {{[0-9A-F]+}}   call flg=0, r0, #2
-// CHECK: 0009:  {{[0-9A-F]+}}   data (rel32=2)
-// CHECK: 0010:  {{[0-9A-F]+}}   call flg=1, #1
-// CHECK: 0011:  {{[0-9A-F]+}}   data (import_index=0)
-// CHECK: 0012:  {{[0-9A-F]+}}   ret_void
-// CHECK: @sum[13,19]:
-// CHECK: 0013:  {{[0-9A-F]+}}   jmp_int_ne_imm r0, #0, 1
-// CHECK: 0014:  {{[0-9A-F]+}}   ret r1
-// CHECK: 0015:  {{[0-9A-F]+}}   int.sub_imm r2, r0, #1
-// CHECK: 0016:  {{[0-9A-F]+}}   int.add r1, r1, r0
-// CHECK: 0017:  {{[0-9A-F]+}}   move r0, r2
-// CHECK: 0018:  {{[0-9A-F]+}}   tail_call flg=3, #2
-// CHECK: 0019:  {{[0-9A-F]+}}   data
-// CHECK: @ack[20,35]:
-// CHECK: 0020:  {{[0-9A-F]+}}   jmp_int_ne_imm r0, #0, 2
-// CHECK: 0021:  {{[0-9A-F]+}}   int.add_imm r2, r1, #1
-// CHECK: 0022:  {{[0-9A-F]+}}   ret r2
-// CHECK: 0023:  {{[0-9A-F]+}}   jmp_int_ne_imm r1, #0, 4
-// CHECK: 0024:  {{[0-9A-F]+}}   int.sub_imm r0, r0, #1
-// CHECK: 0025:  {{[0-9A-F]+}}   load_int_imm r1, ti=0xb, #1
-// CHECK: 0026:  {{[0-9A-F]+}}   tail_call flg=3, #2
-// CHECK: 0027:  {{[0-9A-F]+}}   data
-// CHECK: 0028:  {{[0-9A-F]+}}   int.sub_imm r2, r0, #1
-// CHECK: 0029:  {{[0-9A-F]+}}   int.sub_imm r4, r1, #1
-// CHECK: 0030:  {{[0-9A-F]+}}   move r3, r0
-// CHECK: 0031:  {{[0-9A-F]+}}   call flg=0, r1, #2
-// CHECK: 0032:  {{[0-9A-F]+}}   data (rel32=2)
-// CHECK: 0033:  {{[0-9A-F]+}}   move r0, r2
-// CHECK: 0034:  {{[0-9A-F]+}}   tail_call flg=3, #2
-// CHECK: 0035:  {{[0-9A-F]+}}   data
+// CHECK: @__init__[0,18]:
+// CHECK: loadk r0, #0
+// CHECK: load_int_imm r1, ti=0xb, #0
+// CHECK: call flg=0, r0, #2
+// CHECK: data (rel32=1)
+// CHECK: build_tuple r0, #1
+// CHECK: loadk r1, #1
+// CHECK: loadk r2, #2
+// CHECK: call flg=1, #3
+// CHECK: data (import_index=0)
+// CHECK: load_int_imm r0, ti=0xb, #3
+// CHECK: load_int_imm r1, ti=0xb, #11
+// CHECK: call flg=0, r0, #2
+// CHECK: data (rel32=2)
+// CHECK: build_tuple r0, #1
+// CHECK: loadk r1, #1
+// CHECK: loadk r2, #2
+// CHECK: call flg=1, #3
+// CHECK: data (import_index=0)
+// CHECK: ret_void
+// CHECK: @sum[19,25]:
+// CHECK: jmp_int_ne_imm r0, #0, 1
+// CHECK: ret r1
+// CHECK: int.sub_imm r2, r0, #1
+// CHECK: int.add r1, r1, r0
+// CHECK: move r0, r2
+// CHECK: tail_call flg=3, #2
+// CHECK: data
+// CHECK: @ack[26,41]:
+// CHECK: jmp_int_ne_imm r0, #0, 2
+// CHECK: int.add_imm r2, r1, #1
+// CHECK: ret r2
+// CHECK: jmp_int_ne_imm r1, #0, 4
+// CHECK: int.sub_imm r0, r0, #1
+// CHECK: load_int_imm r1, ti=0xb, #1
+// CHECK: tail_call flg=3, #2
+// CHECK: data
+// CHECK: int.sub_imm r2, r0, #1
+// CHECK: int.sub_imm r4, r1, #1
+// CHECK: move r3, r0
+// CHECK: call flg=0, r1, #2
+// CHECK: data (rel32=2)
+// CHECK: move r0, r2
+// CHECK: tail_call flg=3, #2
+// CHECK: data
 
 // CHECK: Constant Pool:
 // CHECK:   #0: int64: 100000000
+// CHECK:   #1: string: " "
 // CHECK: Import Table:
 // CHECK:   #0: std/builtin.print
