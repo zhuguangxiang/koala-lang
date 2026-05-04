@@ -8,6 +8,7 @@
 #include "codespec.h"
 #include "klc.h"
 #include "log.h"
+#include "rangeobj.h"
 #include "tupleobj.h"
 
 #ifdef __cplusplus
@@ -180,6 +181,28 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
     TValue *items = VECTOR_RAW(&vec, TValue);
     int size = vector_size(&vec);
     Object *tobj = kl_new_tuple(items, size);
+    TValue val = obj_value(tobj);
+    vector_fini(&vec);
+    return kl_mo_add_const(_m, &val);
+}
+
+int kl_mo_add_range(Object *_m, Vector *list)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    Vector vec;
+    vector_init(&vec, sizeof(TValue));
+
+    KlcConst *item;
+    vector_foreach(item, list) {
+        ASSERT(item->type == KLC_CONST_INT);
+        TValue val = int64_value(item->ival);
+        vector_push_back(&vec, &val);
+    }
+
+    TValue *items = VECTOR_RAW(&vec, TValue);
+    int size = vector_size(&vec);
+    ASSERT(size == 3);
+    Object *tobj = kl_new_range(items);
     TValue val = obj_value(tobj);
     vector_fini(&vec);
     return kl_mo_add_const(_m, &val);

@@ -191,6 +191,38 @@ static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **
     NYI();
 }
 
+static KlrValue *emit_str_call(KlrValue **args, int nargs)
+{
+    ASSERT(nargs == 1);
+    KlrValue *arg = args[0];
+    return arg;
+}
+
+static KlrValue *emit_range_call(ParserState *ps, KlrBuilder *bldr, KlrValue *callee,
+                                 KlrValue **args, int nargs)
+{
+    ASSERT(nargs == 3);
+
+    int konst = 1;
+
+    for (int i = 0; i < nargs; i++) {
+        KlrValue *arg = args[i];
+        if (!klr_is_const(arg)) {
+            konst = 0;
+            break;
+        }
+    }
+
+    KlrValue *ret;
+
+    if (konst) {
+        ret = klr_const_range(args, callee->ts, MOD);
+    } else {
+        ret = klr_build_intern(bldr, args, nargs, callee->ts, INTERN_RANGE, "");
+    }
+    return ret;
+}
+
 static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue **args, int nargs)
 {
     KlrValue *ret = NULL;
@@ -203,6 +235,10 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue **ar
         ret = emit_int_call(&bldr, callee, args, nargs);
     } else if (ts->kind == TYPE_FLOAT) {
         ret = emit_float_call(&bldr, callee, args, nargs);
+    } else if (type_is_str(ts)) {
+        ret = emit_str_call(args, nargs);
+    } else if (type_is_range(ts)) {
+        ret = emit_range_call(ps, &bldr, callee, args, nargs);
     } else if (ts->kind == TYPE_KLASS) {
         ret = klr_build_new(&bldr, callee, args, nargs, "");
     } else {
@@ -804,16 +840,13 @@ struct RangeInfo {
 
 static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
 {
-    if (insn->code != OP_IR_NEW) return 0;
-    KlrValue *val = insn_oper_value(insn, 0);
-    if (val->kind != KLR_VALUE_KLASS) return 0;
-    if (!str_equal(val->name, "range")) return 0;
+    if (insn->code != OP_BUILD_INTERN) return 0;
+    if (insn->intern_tag != INTERN_RANGE) return 0;
     int num_opers = insn->num_opers;
-    ASSERT(num_opers >= 3 && num_opers <= 4);
-    out->start = insn_oper_value(insn, 1);
-    out->end = insn_oper_value(insn, 2);
-    KlrValue *one = klr_const_int(1, int64_type_spec(), MOD);
-    out->step = (num_opers == 4 ? insn_oper_value(insn, 3) : one);
+    ASSERT(num_opers == 3);
+    out->start = insn_oper_value(insn, 0);
+    out->end = insn_oper_value(insn, 1);
+    out->step = insn_oper_value(insn, 2);
     return 1;
 }
 
@@ -907,6 +940,27 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
             klr_erase_insn(insn);
             klr_builder_end(&bldr, sc->bb);
 
+            Symbol *sym = get_loop_range_symbol(s);
+            if (sym->flags & SYM_FLAGS_MUTABLE) {
+                sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+            } else {
+                sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+            }
+            klr_build_move(&bldr, sym->ir_val, range_info.start);
+            range_cur = sym->ir_val;
+        } else {
+            NYI();
+        }
+    } else if (klr_is_const(it_val)) {
+        if (type_is_range(it_val->ts)) {
+            which = GEN_RANGE;
+            KlrConst *kc = (KlrConst *)it_val;
+            KlrValue **items = VECTOR_RAW(kc->list, KlrValue *);
+            range_info.start = items[0];
+            range_info.end = items[1];
+            range_info.step = items[2];
+
+            klr_builder_end(&bldr, sc->bb);
             Symbol *sym = get_loop_range_symbol(s);
             if (sym->flags & SYM_FLAGS_MUTABLE) {
                 sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);

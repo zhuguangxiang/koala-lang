@@ -22,7 +22,7 @@ typedef struct _RangeObject {
 extern TypeObject range_type;
 #define IS_RANGE(ob) IS_TYPE((ob), &range_type)
 
-Object *kl_new_range(TValue *items, int count);
+Object *kl_new_range(TValue *items);
 
 #ifdef __cplusplus
 }

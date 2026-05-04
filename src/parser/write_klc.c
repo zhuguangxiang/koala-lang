@@ -332,7 +332,7 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
             return klc_add_rt_float(klc, kc->f64, kc->len);
         case KL_MACH_CONST_STR:
             return klc_add_rt_str(klc, kc->str, strlen(kc->str));
-        case KL_MACH_CONST_TUPLE:
+        case KL_MACH_CONST_TUPLE: {
             Vector *list = vector_create(sizeof(uint16_t));
             Vector *vec = kc->list;
             KlMachConst *item;
@@ -342,6 +342,17 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
                 vector_push_back(list, &idx);
             }
             return klc_add_rt_tuple(klc, list);
+        }
+        case KL_MACH_CONST_RANGE:
+            Vector *list = vector_create(sizeof(uint16_t));
+            Vector *vec = kc->list;
+            KlMachConst *range_item;
+            vector_foreach(range_item, vec) {
+                if (!range_item) continue;
+                uint16_t idx = _write_rt_const(klc, range_item);
+                vector_push_back(list, &idx);
+            }
+            return klc_add_rt_range(klc, list);
         default:
             UNREACHABLE();
     }

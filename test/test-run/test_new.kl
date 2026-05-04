@@ -1,0 +1,98 @@
+// RUN: koala %s --dump=no-opt-ir,lir | filecheck %s
+
+// class Point {
+//     var x int
+//     var y int
+
+//     func __init__(_x int, _y int) {
+//         x = _x
+//         y = _y
+//     }
+
+//     func __str__() str {
+//         return "Point()"
+//     }
+// }
+
+func foo(n int, m int) {
+    print(range(n, m))
+}
+
+func main() {
+    let t = (1,2,3)
+    let r = range(1, 10)
+    // // let p = Point(1, 2)
+    let s = str("hello")
+    let s2 = str(s)
+    print(t, r, s, s2)
+    foo(-1, -10)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @foo(%n int64, %m int64) <NO-TYPE> {
+// CHECK: %bb0(entry):
+// CHECK: %0 = build_intern @range, %n int64, %m int64, 1 int64
+// CHECK: %1 = build_intern @tuple, %0 range
+// CHECK: call @print [ext = true, path = 'std/builtin'], %1 tuple<Lrange;>, ' ' str, '\n' str
+// CHECK: ret void
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK: %bb0(entry):
+// CHECK: %t = local [immutable] tuple<jjj>
+// CHECK: move %t tuple<jjj>, tuple(1, 2, 3) tuple<jjj>
+// CHECK: %r = local [immutable] range
+// CHECK: move %r range, range(1, 10, 1) range
+// CHECK: %s = local [immutable] str
+// CHECK: move %s str, 'hello' str
+// CHECK: %s2 = local [immutable] str
+// CHECK: move %s2 str, %s str
+// CHECK: %0 = build_intern @tuple, %t tuple<jjj>, %r range, %s str, %s2 str
+// CHECK: call @print [ext = true, path = 'std/builtin'], %0 tuple<Ltuple<jjj>;Lrange;uu>, ' ' str, '\n' str
+// CHECK: call @foo [const], -1 int64, -10 int64
+// CHECK: ret void
+
+// CHECK-LABEL: --- IR Dump After isel [@foo] ---
+// CHECK-LABEL: func @foo(%n int64, %m int64) <NO-TYPE> {
+// CHECK: %bb0(entry):
+// CHECK: %0 = local int64        [fixedslot = 0(next)]
+// CHECK: move %0 int64, %n int64
+// CHECK: %1 = local int64        [fixedslot = 1(next)]
+// CHECK: move %1 int64, %m int64
+// CHECK: %2 = local int64        [fixedslot = 2(next)]
+// CHECK: load_int_imm %2 int64, 1 int64
+// CHECK: %3 = build_intern @range, nargs=3        [fixedslot = 0(next)]
+// CHECK: %4 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: %5 = local str        [fixedslot = 1(next)]
+// CHECK: loadk %5 str, ' ' str
+// CHECK: %6 = local str        [fixedslot = 2(next)]
+// CHECK: loadk %6 str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], nargs=3
+// CHECK: ret void
+
+// CHECK-LABEL: --- IR Dump After isel [@main] ---
+// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK: %bb0(entry):
+// CHECK: %0 = local tuple<jjj>        [fixedslot = 0(next)]
+// CHECK: loadk %0 tuple<jjj>, tuple(1, 2, 3) tuple<jjj>
+// CHECK: %1 = local range        [fixedslot = 1(next)]
+// CHECK: loadk %1 range, range(1, 10, 1) range
+// CHECK: %2 = local str        [fixedslot = 2(next)]
+// CHECK: loadk %2 str, 'hello' str
+// CHECK: %3 = local str        [fixedslot = 3(next)]
+// CHECK: loadk %3 str, 'hello' str
+// CHECK: %4 = build_intern @tuple, nargs=4        [fixedslot = 0(next)]
+// CHECK: %5 = local str        [fixedslot = 1(next)]
+// CHECK: loadk %5 str, ' ' str
+// CHECK: %6 = local str        [fixedslot = 2(next)]
+// CHECK: loadk %6 str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], nargs=3
+// CHECK: %7 = local int64        [fixedslot = 0(next)]
+// CHECK: load_int_imm %7 int64, -1 int64
+// CHECK: %8 = local int64        [fixedslot = 1(next)]
+// CHECK: load_int_imm %8 int64, -10 int64
+// CHECK: call @foo [const], nargs=2
+// CHECK: ret void
+
+// CHECK: (1, 2, 3) range(1, 10, 1) hello hello
+// CHECK: range(-1, -10, 1)

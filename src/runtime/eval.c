@@ -43,7 +43,8 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
         }
 
         case INTERN_RANGE: {
-            return kl_new_range(values, count);
+            ASSERT(count == 3);
+            return kl_new_range(values);
         }
 
         default: {

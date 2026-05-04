@@ -1,0 +1,109 @@
+// RUN: koala %s --dump=lir,code | filecheck %s
+
+for i in range(0, 10) {
+    if (i % 2 == 0) { print(i) }
+}
+
+func foo(n int) {
+    for i in range(0, n) {
+        if (i % 3 == 0) { print(i) }
+    }
+}
+
+foo(10)
+
+
+// CHECK-LABLE: --- IR Dump After isel [@__init__] ---
+// CHECK-LABLE: func @__init__() <NO-TYPE> {
+// CHECK: %bb0(loop-header):
+// CHECK: %i = local int64
+// CHECK: load_int_imm %i int64, 0 int64
+// CHECK: jmp label %bb1
+
+// CHECK: %bb1(loop-body):                                ;; preds = %bb4, %bb0
+// CHECK: %0 = int.mod_imm %i int64, 2 int64
+// CHECK: jmp_int_eq_imm %0 int64, 0 int64, label %bb3, label %bb4
+
+// CHECK: %bb2(loop-end):                                 ;; preds = %bb4
+// CHECK: %1 = local int64        [fixedslot = 0(next)]
+// CHECK: load_int_imm %1 int64, 10 int64
+// CHECK: call @foo [const], nargs=1
+
+// CHECK: %bb3(if-then):                                  ;; preds = %bb1
+// CHECK: %2 = local int64        [fixedslot = 0(next)]
+// CHECK: move %2 int64, %i int64
+// CHECK: %3 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: %4 = local str        [fixedslot = 1(next)]
+// CHECK: loadk %4 str, ' ' str
+// CHECK: %5 = local str        [fixedslot = 2(next)]
+// CHECK: loadk %5 str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], nargs=3
+// CHECK: jmp label %bb4
+
+// CHECK: %bb4(if-end):                                   ;; preds = %bb3, %bb1
+// CHECK: %6 = int.add_imm %i int64, 1 int64
+// CHECK: move %i int64, %6 int64
+// CHECK: jmp_int_lt_imm %i int64, 10 int64, label %bb1, label %bb2
+
+// CHECK-LABLE: --- IR Dump After isel [@foo] ---
+// CHECK-LABLE: func @foo(%n int64) <NO-TYPE> {
+// CHECK: %bb0(loop-header):
+// CHECK: %i = local int64
+// CHECK: load_int_imm %i int64, 0 int64
+// CHECK: jmp_int_ge_imm %n int64, 0 int64, label %bb1, label %bb2
+
+// CHECK: %bb1(loop-body):                                ;; preds = %bb4, %bb0
+// CHECK: %0 = int.mod_imm %i int64, 3 int64
+// CHECK: jmp_int_eq_imm %0 int64, 0 int64, label %bb3, label %bb4
+
+// CHECK: %bb2(loop-end):                                 ;; preds = %bb4, %bb0
+// CHECK: ret void
+
+// CHECK: %bb3(if-then):                                  ;; preds = %bb1
+// CHECK: %1 = local int64        [fixedslot = 0(next)]
+// CHECK: move %1 int64, %i int64
+// CHECK: %2 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: %3 = local str        [fixedslot = 1(next)]
+// CHECK: loadk %3 str, ' ' str
+// CHECK: %4 = local str        [fixedslot = 2(next)]
+// CHECK: loadk %4 str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], nargs=3
+// CHECK: jmp label %bb4
+
+// CHECK: %bb4(if-end):                                   ;; preds = %bb3, %bb1
+// CHECK: %5 = int.add_imm %i int64, 1 int64
+// CHECK: move %i int64, %5 int64
+// CHECK: jmp_int_lt %i int64, %n int64, label %bb1, label %bb2
+
+
+// CHECK-LABLE: @__init__[0,14]:
+// CHECK: load_int_imm r0, ti=0xb, #0
+// CHECK: int.mod_imm r1, r0, #2
+// CHECK: jmp_int_ne_imm r1, #0, 6
+// CHECK: move r2, r0
+// CHECK: build_intern r2, @tuple, #1
+// CHECK: loadk r3, #0
+// CHECK: loadk r4, #1
+// CHECK: call flg=1, #3
+// CHECK: data (import_index=0)
+// CHECK: int.add_imm r0, r0, #1
+// CHECK: jmp_int_lt_imm r0, #10, -10
+// CHECK: load_int_imm r2, ti=0xb, #10
+// CHECK: call flg=0, #1
+// CHECK: data (rel32=1)
+// CHECK: ret_void
+
+// CHECK-LABLE: @foo[15,27]:
+// CHECK: load_int_imm r1, ti=0xb, #0
+// CHECK: jmp_int_lt_imm r0, #0, 10
+// CHECK: int.mod_imm r2, r1, #3
+// CHECK: jmp_int_ne_imm r2, #0, 6
+// CHECK: move r3, r1
+// CHECK: build_intern r3, @tuple, #1
+// CHECK: loadk r4, #0
+// CHECK: loadk r5, #1
+// CHECK: call flg=1, #3
+// CHECK: data (import_index=0)
+// CHECK: int.add_imm r1, r1, #1
+// CHECK: jmp_int_lt r1, r0, -10
+// CHECK: ret_void

@@ -78,6 +78,17 @@ static void print_const(KlrConst *v, FILE *fp)
             fprintf(fp, ")");
             break;
         }
+        case CONST_RANGE: {
+            fprintf(fp, "range(");
+            int len = vector_size(v->list);
+            KlrValue *item;
+            vector_foreach(item, v->list) {
+                print_const_item(item, fp);
+                if (i__ < len - 1) fprintf(fp, ", ");
+            }
+            fprintf(fp, ")");
+            break;
+        }
         default:
             UNREACHABLE();
             break;

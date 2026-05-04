@@ -14,8 +14,6 @@ extern "C" {
 
 static void dump_const(KlMachConst *kc, int index, int indent)
 {
-    printf("%*s[%03d] ", indent, "", index);
-
     switch (kc->tag) {
         case KL_MACH_CONST_INT:
             printf("int%d   = %ld\n", kc->len * 8, kc->i64);
@@ -47,8 +45,24 @@ static void dump_const(KlMachConst *kc, int index, int indent)
             for (int i = 0; i < count; i++) {
                 KlMachConst *elem = vector_at(list, i);
                 printf("%*s[%d] ", indent + 4, "", i);
-                dump_const(elem, -1, indent + 8);
+                dump_const(elem, i, indent + 8);
             }
+            break;
+        }
+
+        case KL_MACH_CONST_RANGE: {
+            Vector *list = kc->list;
+            int count = vector_size(list);
+
+            printf("range: (");
+
+            for (int i = 0; i < count; i++) {
+                KlMachConst *elem = vector_at(list, i);
+                if (i > 0) printf(", ");
+                printf("%ld", elem->i64);
+            }
+
+            printf(")\n");
             break;
         }
 
@@ -64,6 +78,7 @@ static void dump_const_pool(KlMachModule *m)
     printf("Constant Pool:\n");
     KlMachConst *kc;
     vector_foreach(kc, &m->const_pool) {
+        printf("%*s[%03d] ", 2, "", i__);
         dump_const(kc, i__, 2);
     }
 }
@@ -91,6 +106,11 @@ static int __mach_const_eq__(void *a, void *b)
             return (ka->len == kb->len) && (ka->f64 == kb->f64);
         case KL_MACH_CONST_STR:
             return (ka->len == kb->len) && (strcmp(ka->str, kb->str) == 0);
+        case KL_MACH_CONST_RANGE: {
+            KlrValue **raw_a = VECTOR_RAW(ka->list, KlrValue *);
+            KlrValue **raw_b = VECTOR_RAW(kb->list, KlrValue *);
+            return !memcmp(raw_a, raw_b, sizeof(void *) * 3);
+        }
         default:
             UNREACHABLE();
     }
@@ -113,6 +133,9 @@ static unsigned int mach_const_hash(void *key)
         }
         case KL_MACH_CONST_STR:
             return str_hash(kc->str);
+        case KL_MACH_CONST_RANGE:
+            KlrValue **raw = VECTOR_RAW(kc->list, KlrValue *);
+            return mem_hash(raw, sizeof(void *) * 3);
         default:
             UNREACHABLE();
     }
@@ -233,28 +256,59 @@ static KlMachConst *kl_mach_add_tuple(KlMachModule *m, Vector *items)
     return entry;
 }
 
+static KlMachConst *kl_mach_add_range(KlMachModule *m, Vector *items)
+{
+    Vector *list = vector_create_ptr();
+    KlrValue *elem;
+    vector_foreach(elem, items) {
+        KlrConst *_kc = (KlrConst *)elem;
+        KlMachConst *kc = kl_mach_add_int(m, _kc->ival, _kc->len);
+        vector_push_back(list, &kc);
+    }
+
+    KlMachConst key = { .tag = KL_MACH_CONST_RANGE, .len = 3, .list = list };
+    hashmap_entry_init(&key, mach_const_hash(&key));
+
+    KlMachConst *entry = hashmap_get(&m->cp_map, &key);
+    if (entry) {
+        log_info("Found existing const entry for range (index: %d)", entry->index);
+        return entry;
+    }
+
+    KlMachConst *new_entry = mm_alloc_obj(new_entry);
+    new_entry->tag = KL_MACH_CONST_RANGE;
+    new_entry->list = list;
+
+    hashmap_entry_init(new_entry, mach_const_hash(new_entry));
+    hashmap_put(&m->cp_map, new_entry);
+
+    vector_push_back(&m->const_pool, &new_entry);
+    int index = vector_size(&m->const_pool) - 1;
+    new_entry->index = index;
+    log_info("Added new const entry for range (index: %d)", index);
+    return new_entry;
+}
+
 KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m)
 {
     switch (kc->which) {
         case CONST_INT: {
             return kl_mach_add_int(m, kc->ival, kc->len);
-            break;
         }
         case CONST_UINT: {
             return kl_mach_add_uint(m, kc->ival, kc->len);
-            break;
         }
         case CONST_FLT: {
             return kl_mach_add_float(m, kc->fval, kc->len);
-            break;
         }
         case CONST_STR: {
             return kl_mach_add_str(m, kc->sval);
-            break;
         }
         case CONST_TUPLE: {
             return kl_mach_add_tuple(m, kc->list);
-            break;
+        }
+        case CONST_RANGE: {
+            return kl_mach_add_range(m, kc->list);
         }
         default: {
             UNREACHABLE();

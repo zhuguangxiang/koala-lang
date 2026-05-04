@@ -12,7 +12,10 @@ extern "C" {
 static TValue range_str(TValue *self, TValue *args, int nargs)
 {
     RangeObject *range = (RangeObject *)to_obj(self);
-    Object *sobj = kl_new_fmt_str("range(%v, %v, %v)", range->start, range->stop, range->step);
+    int64_t start = range->start.ival;
+    int64_t stop = range->stop.ival;
+    int64_t step = range->step.ival;
+    Object *sobj = kl_new_fmt_str("range(%ld, %ld, %ld)", start, stop, step);
     return obj_value(sobj);
 }
 
@@ -28,9 +31,8 @@ TypeObject range_type = {
     .methdefs = range_methods,
 };
 
-Object *kl_new_range(TValue *items, int count)
+Object *kl_new_range(TValue *items)
 {
-    ASSERT(count == 3);
     int msize = sizeof(RangeObject);
     RangeObject *x = mm_alloc(msize);
     INIT_OBJECT_HEAD(x, &range_type);

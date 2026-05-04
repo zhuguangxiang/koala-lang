@@ -61,6 +61,7 @@ typedef struct _KlcConst {
 #define KLC_CONST_LIST  '['
 #define KLC_CONST_DICT  '{'
 #define KLC_CONST_SET   '<'
+#define KLC_CONST_RANGE 'R'
 // object created in __init__
 #define KLC_CONST_OBJECT 'O'
 
@@ -207,6 +208,7 @@ uint16_t klc_add_rt_int(KlcFile *klc, uint64_t val, int sign, int width);
 uint16_t klc_add_rt_float(KlcFile *klc, double val, int width);
 uint16_t klc_add_rt_str(KlcFile *klc, char *s, int len);
 uint16_t klc_add_rt_tuple(KlcFile *klc, Vector *list);
+uint16_t klc_add_rt_range(KlcFile *klc, Vector *list);
 
 void klc_add_import(KlcFile *klc, int kind, char *ns, char *sym);
 

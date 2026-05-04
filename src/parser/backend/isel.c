@@ -214,7 +214,8 @@ static OpCode get_const_op(KlrConst *c, LowerConstRule *R)
 
         case CONST_STR:
         case CONST_LIST:
-        case CONST_TUPLE: {
+        case CONST_TUPLE:
+        case CONST_RANGE: {
             op = R->load_op;
             break;
         }
@@ -880,6 +881,10 @@ static void do_isel(KlrFunc *fn)
         insn_foreach(insn, bb) {
             if (insn_is(insn, OP_IR_CALL)) {
                 max = MAX(max, insn->num_opers - 1);
+            } else if (insn_is(insn, OP_IR_NEW)) {
+                max = MAX(max, insn->num_opers - 1);
+            } else if (insn_is(insn, OP_BUILD_INTERN)) {
+                max = MAX(max, insn->num_opers);
             }
         }
     }

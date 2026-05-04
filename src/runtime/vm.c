@@ -101,6 +101,12 @@ static void __add_const(Object *m, KlcConst *item)
             break;
         }
 
+        case KLC_CONST_RANGE: {
+            Vector *vec = item->val;
+            kl_mo_add_range(m, vec);
+            break;
+        }
+
         default: {
             NYI();
             break;

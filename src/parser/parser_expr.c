@@ -473,6 +473,12 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
 static void parse_type(ParserState *ps, Expr *exp)
 {
     TypeSpec *ts = exp->ts;
+
+    if (exp->sym) {
+        log_info("type expr is already resolved.");
+        return;
+    }
+
     ts = resolve_type(ps, ts);
     if (!ts) return;
     if (!check_type(ps, ts)) return;
@@ -1219,6 +1225,8 @@ static void parse_call(ParserState *ps, Expr *exp)
             if (!arg->ts) return;
         }
     }
+    log_info("call expression type is:");
+    log_type_spec(exp->ts);
     // }
 }
 
