@@ -118,6 +118,20 @@ extern "C" {
 //     return int_init_impl(self, &_x, &_base);
 // }
 
+static TValue int_str(TValue *self, TValue *args, int nargs)
+{
+    char buf[24];
+    snprintf(buf, 23, "%" PRId64, self->ival);
+    buf[23] = '\0';
+    Object *sobj = kl_new_nstr(buf, strlen(buf));
+    return obj_value(sobj);
+}
+
+static MethodDef int_methods[] = {
+    { "__str__", int_str },
+    { NULL },
+};
+
 static TypeObject *int_bases[] = {
     &Number_type,
     NULL,
@@ -128,6 +142,7 @@ TypeObject int_type = {
     .name = "int",
     .flags = TP_FLAGS_CLASS,
     .bases = int_bases,
+    .methdefs = int_methods,
 };
 
 #ifdef __cplusplus

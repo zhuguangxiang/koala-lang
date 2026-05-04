@@ -108,6 +108,42 @@ void buf_write_double_str(Buffer *self, double val)
     buf_write_nstr(self, buf, sz);
 }
 
+void escape_str(const char *s, Buffer *buf)
+{
+    for (const char *p = s; *p; p++) {
+        unsigned char c = *p;
+        switch (c) {
+            case '\n':
+                buf_write_str(buf, "\\n");
+                break;
+            case '\r':
+                buf_write_str(buf, "\\r");
+                break;
+            case '\t':
+                buf_write_str(buf, "\\t");
+                break;
+            case '\\':
+                buf_write_str(buf, "\\\\");
+                break;
+            case '"':
+                buf_write_str(buf, "\\\"");
+                break;
+            case '\'':
+                buf_write_str(buf, "\\'");
+                break;
+            default:
+                if (c < 32 || c >= 127) {
+                    // control char or non-ASCII → use \xNN
+                    char tmp[5];
+                    snprintf(tmp, sizeof(tmp), "\\x%02X", c);
+                    buf_write_str(buf, tmp);
+                } else {
+                    buf_write_char(buf, c);
+                }
+        }
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif

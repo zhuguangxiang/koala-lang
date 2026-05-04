@@ -364,6 +364,7 @@ typedef struct _StringObject {
 Object *kl_new_nstr(char *s, size_t len);
 static inline Object *kl_new_str(char *s) { return kl_new_nstr(s, strlen(s)); }
 Object *kl_new_fmt_str(char *fmt, ...);
+void kl_free_str(Object *obj);
 
 /*---------------------------------------------------------------------------+
  |  APIs of Object, TValue, TypeObject & ModuleObject                        |
@@ -394,6 +395,17 @@ extern TypeObject MutableSequence_type;
 
 TypeObject *kl_typeof(TValue *val);
 int kl_init_type(TypeObject *tp);
+
+static inline Object *kl_to_str(TValue *val)
+{
+    TypeObject *tp = kl_typeof(val);
+    if (tp->str) {
+        TValue s = tp->str(val);
+        return to_obj(&s);
+    }
+
+    return kl_new_fmt_str("<%s object at %p>", tp->name, val->obj);
+}
 
 /* Any object is callable, if it implements the call protocol. */
 static inline TValue kl_do_call(TValue *callable, TValue *args, int nargs)

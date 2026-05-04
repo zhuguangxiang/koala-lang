@@ -39,7 +39,7 @@ for i in range(0, 10) {
 
 // CHECK: %bb3(if-then):
 // CHECK: move r2, r0
-// CHECK: build_tuple r2, #1
+// CHECK: build_intern r2, @tuple, #1
 // CHECK: loadk r3, #0
 // CHECK: loadk r4, #1
 // CHECK: call flg=1, #3

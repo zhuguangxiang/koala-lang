@@ -13,9 +13,11 @@ extern "C" {
 static TypeObject *_value_typeof(int tag)
 {
     static TypeObject *_types_mapping[] = {
-        &none_type,  &exc_type,   &bool_type,  &int_type,   &int_type,
-        &int_type,   &int_type,   &int_type,   &int_type,   &int_type,
-        &float_type, &float_type, &float_type, &float_type,
+        [TAG_NONE] = &none_type,     [TAG_ERROR] = &exc_type,     [TAG_BOOL] = &bool_type,
+        [TAG_INT8] = &int_type,      [TAG_INT16] = &int_type,     [TAG_INT32] = &int_type,
+        [TAG_INT64] = &int_type,     [TAG_UINT8] = &int_type,     [TAG_UINT16] = &int_type,
+        [TAG_UINT32] = &int_type,    [TAG_UINT64] = &int_type,    [TAG_FLOAT16] = &float_type,
+        [TAG_FLOAT32] = &float_type, [TAG_FLOAT64] = &float_type,
     };
 
     ASSERT(tag < COUNT_OF(_types_mapping));
@@ -74,34 +76,55 @@ static unsigned int slot_tp_hash(TValue *self)
 {
     TypeObject *tp = kl_typeof(self);
     Object *fn = slots(SLOT_HASH);
-    TValue val = obj_value(fn);
-    val = kl_do_call_no_arg(&val);
-    return to_int64(&val);
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        TValue val = cfn->func(self, NULL, 0);
+        return to_int64(&val);
+    } else {
+        TValue val = obj_value(fn);
+        val = kl_do_call_one_arg(&val, self);
+        return to_int64(&val);
+    }
 }
 
 static TValue slot_tp_richcmp(TValue *self, TValue *other, int op)
 {
     TypeObject *tp = kl_typeof(self);
     Object *fn = slots(SLOT_EQ + op);
-    TValue val = obj_value(fn);
-    TValue args[] = { *self, *other };
-    return kl_do_call(&val, args, 2);
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        return cfn->func(self, other, 1);
+    } else {
+        TValue val = obj_value(fn);
+        TValue args[] = { *self, *other };
+        return kl_do_call(&val, args, 2);
+    }
 }
 
 static TValue slot_tp_str(TValue *self)
 {
     TypeObject *tp = kl_typeof(self);
     Object *fn = slots(SLOT_STR);
-    TValue val = obj_value(fn);
-    return kl_do_call_no_arg(&val);
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        return cfn->func(self, NULL, 0);
+    } else {
+        TValue val = obj_value(fn);
+        return kl_do_call_one_arg(&val, self);
+    }
 }
 
 static TValue slot_tp_call(TValue *self, TValue *args, int nargs)
 {
     TypeObject *tp = kl_typeof(self);
     Object *fn = slots(SLOT_CALL);
-    TValue val = obj_value(fn);
-    return kl_do_call(&val, args, nargs);
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        return cfn->func(self, args, nargs);
+    } else {
+        TValue val = obj_value(fn);
+        return kl_do_call(&val, args, nargs);
+    }
 }
 
 typedef struct _SlotDef {
@@ -111,8 +134,7 @@ typedef struct _SlotDef {
     SlotId id;
 } SlotDef;
 
-#define TPSLOT(NAME, SLOT, FUNC, ID) \
-    { NAME, offsetof(TypeObject, SLOT), (void *)(FUNC), ID }
+#define TPSLOT(NAME, SLOT, FUNC, ID) { NAME, offsetof(TypeObject, SLOT), (void *)(FUNC), ID }
 
 static SlotDef slotdefs[] = {
     TPSLOT("__hash__", hash, slot_tp_hash, SLOT_HASH),
@@ -154,8 +176,7 @@ int kl_init_type(TypeObject *tp)
             log_info("added method '%s' to class/trait '%s'", def->name, tp->name);
         } else {
             cfunc = m->not_impl;
-            log_info("added method '%s'(not_impl) to class/trait '%s'", def->name,
-                     tp->name);
+            log_info("added method '%s'(not_impl) to class/trait '%s'", def->name, tp->name);
         }
         vector_push_back(&tp->methods, &cfunc);
         stbl_add_obj(&tp->members, def->name, cfunc);
@@ -163,8 +184,8 @@ int kl_init_type(TypeObject *tp)
         // bind to slots[]
         for (SlotDef *slot = slotdefs; slot->name; slot++) {
             if (str_equal(def->name, slot->name)) {
-                log_info("binding method '%s' to slots[%d] of class/trait '%s'",
-                         def->name, slot->id, tp->name);
+                log_info("binding method '%s' to slots[%d] of class/trait '%s'", def->name,
+                         slot->id, tp->name);
 
                 tp->slots[slot->id] = cfunc;
 

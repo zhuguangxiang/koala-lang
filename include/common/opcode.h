@@ -70,6 +70,9 @@ typedef enum {
     FORMAT_CALL,
     FORMAT_JMP,
     FORMAT_WIDE,
+    FORMAT_NEW,
+
+    FORMAT_RTagImm,             // build_intern
 
     FORMAT_R_TI_Imm12,          // load_int_imm
     FORMAT_TI_Imm2,             // ret_int_imm
@@ -77,7 +80,6 @@ typedef enum {
 
     /* single register */
     FORMAT_Rx,                  // 12-bit reg
-    FORMAT_RxImm,               // 12-bit reg + imm8
     FORMAT_RxTag,               // 12-bit reg + (tag)imm8
     FORMAT_RImm2,               // 8-bit reg + imm16
     FORMAT_ROff2,               // 8-bit reg + off16
@@ -114,6 +116,13 @@ static inline OpFormat op_format(OpCode code) { return __op_formats[code]; }
 
 extern char *tag_mapping[];
 void bytecode_print(uint8_t *code, size_t start, size_t count);
+
+typedef enum _InternTag {
+    INTERN_TUPLE,
+    INTERN_RANGE,
+} InternTag;
+
+extern char *intern_tag_name[];
 
 #ifdef __cplusplus
 }

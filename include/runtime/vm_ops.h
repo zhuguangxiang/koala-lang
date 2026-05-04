@@ -285,16 +285,15 @@ TARGET(OP_RET_INT_IMM) {
 
 /* warm instructions */
 
-TARGET(OP_BUILD_TUPLE) {
-    rd = I_VAL(inst, 8, 12);
+TARGET(OP_BUILD_INTERN) {
+    rd = I_VAL(inst, 16, 8);
+    int tag = I_VAL(inst, 8, 8);
     imm = I_VAL(inst, 0, 8);
 
     CHECK_REG_ID(rd);
 
-    Object *obj = kl_new_tuple(ks->stack_top, imm);
-    if (rd != 0xFFFu) {
-        regs[rd] = obj_value(obj);
-    }
+    Object *obj = do_build_intern(ks->stack_top, tag, imm);
+    if (rd != 0xFFFu) regs[rd] = obj_value(obj);
     DISPATCH();
 }
 

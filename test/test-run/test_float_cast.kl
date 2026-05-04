@@ -22,6 +22,6 @@ func main() {
 // CHECK-LABEL: func @main()
 // CHECK: %0 = local float16        [fixedslot = 0(next)]
 // CHECK: loadk %0 float16, 1.000000 float16
-// CHECK: %1 = call @test_float [const], 1        [fixedslot = 0(next)]
+// CHECK: %1 = call @test_float [const], nargs=1        [fixedslot = 0(next)]
 
 // CHECK: 2.5

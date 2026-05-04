@@ -50,7 +50,11 @@ static void print_const(KlrConst *v, FILE *fp)
             fprintf(fp, "%s", v->bval ? "true" : "false");
             break;
         case CONST_STR:
-            fprintf(fp, "'%s'", v->sval);
+            fprintf(fp, "'");
+            BUF(buf);
+            escape_str(v->sval, &buf);
+            fprintf(fp, "%s'", BUF_STR(buf));
+            FINI_BUF(buf);
             break;
         case CONST_LIST: {
             fprintf(fp, "list[");
@@ -247,7 +251,7 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
         fprintf(fp, " [const]");
     }
 
-    fprintf(fp, ", %d", insn->num_args);
+    fprintf(fp, ", nargs=%d", insn->num_args);
 }
 
 static void print_get_global(KlrInsn *insn, FILE *fp)
@@ -296,6 +300,22 @@ static void print_new(KlrInsn *insn, FILE *fp)
         fprintf(fp, " = new @%s", ts->klass_type.name);
     }
 
+    fprintf(fp, ", nargs=%d", insn->num_args);
+}
+
+static void print_ir_new(KlrInsn *insn, FILE *fp)
+{
+    KlrValue *ty = insn_oper_value(insn, 0);
+
+    TypeSpec *ts = ty->ts;
+
+    klr_print_value_name((KlrValue *)insn, fp);
+    if (ts->klass_type.pkg) {
+        fprintf(fp, " = new @%s::%s", ts->klass_type.pkg, ts->klass_type.name);
+    } else {
+        fprintf(fp, " = new @%s", ts->klass_type.name);
+    }
+
     if (insn->num_opers > 1) fprintf(fp, ", ");
 
     KlrOper *oper;
@@ -306,14 +326,17 @@ static void print_new(KlrInsn *insn, FILE *fp)
     }
 }
 
-static void print_build_tuple(KlrInsn *insn, FILE *fp)
+static void print_build_intern(KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
 
     if (insn->num_args > 0) {
-        fprintf(fp, " = build_tuple nargs=%d", insn->num_args);
+        fprintf(fp, " = build_intern @%s, nargs=%d", intern_tag_name[insn->intern_tag],
+                insn->num_args);
     } else {
-        fprintf(fp, " = build_tuple ");
+        fprintf(fp, " = build_intern @%s", intern_tag_name[insn->intern_tag]);
+        if (insn->num_opers > 0) fprintf(fp, ", ");
+
         KlrOper *oper;
         for (int i = 0; i < insn->num_opers; i++) {
             if (i != 0) fprintf(fp, ", ");
@@ -874,8 +897,12 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_new(insn, fp);
             break;
 
-        case OP_BUILD_TUPLE:
-            print_build_tuple(insn, fp);
+        case OP_IR_NEW:
+            print_ir_new(insn, fp);
+            break;
+
+        case OP_BUILD_INTERN:
+            print_build_intern(insn, fp);
             break;
 
         default:

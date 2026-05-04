@@ -6,6 +6,7 @@
 #include <math.h>
 #include "modobj.h"
 #include "opcode.h"
+#include "rangeobj.h"
 #include "tupleobj.h"
 #include "vm.h"
 
@@ -33,6 +34,24 @@ void init_tag_mappings(void)
 #define TAG_VALUE(tag) (vm_tag_mappings[(tag)])
 
 #include "do_cast.h"
+
+static Object *do_build_intern(TValue *values, InternTag tag, int count)
+{
+    switch (tag) {
+        case INTERN_TUPLE: {
+            return kl_new_tuple(values, count);
+        }
+
+        case INTERN_RANGE: {
+            return kl_new_range(values, count);
+        }
+
+        default: {
+            UNREACHABLE();
+            return NULL;
+        }
+    }
+}
 
 /* clang-format off */
 

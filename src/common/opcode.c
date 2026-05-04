@@ -24,6 +24,11 @@ char *tag_mapping[] = {
     "+inf",  "-inf", "empty_str", "empty_list", "empty_dict",
 };
 
+char *intern_tag_name[] = {
+    [INTERN_TUPLE] = "tuple",
+    [INTERN_RANGE] = "range",
+};
+
 void bytecode_print(uint8_t *code, size_t start, size_t count)
 {
     for (size_t pc = start; pc < start + count; pc++) {
@@ -40,10 +45,11 @@ void bytecode_print(uint8_t *code, size_t start, size_t count)
                 break;
             }
 
-            case FORMAT_RxImm: {
-                int Rx = (insn >> 8) & 0xFFFu;
+            case FORMAT_RTagImm: {
+                int R = (insn >> 16) & 0xFFu;
+                int tag = (insn >> 8) & 0xFFu;
                 int imm = insn & 0xFFu;
-                printf("r%d, #%d", Rx, imm);
+                printf("r%d, @%s, #%d", R, intern_tag_name[tag], imm);
                 break;
             }
 

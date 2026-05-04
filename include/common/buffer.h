@@ -71,6 +71,9 @@ void buf_write_int64_str(Buffer *self, int64_t val);
 /* Write a double str(not double self) into buffer. */
 void buf_write_double_str(Buffer *self, double val);
 
+/* Escape a string and write it into the buffer. */
+void escape_str(const char *s, Buffer *buf);
+
 #ifdef __cplusplus
 }
 #endif

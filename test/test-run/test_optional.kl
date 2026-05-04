@@ -23,7 +23,7 @@ func main() {
 // CHECK: %2 = local [immutable] str
 // CHECK: %3 = cast %msg str? to str
 // CHECK: move %2 str, %3 str
-// CHECK: %4 = build_tuple 'msg:' str, %2 str
+// CHECK: %4 = build_intern @tuple, 'msg:' str, %2 str
 // CHECK: call @print [ext = true, path = 'std/builtin'],  %4 tuple<uu>
 
 // CHECK: branch %cond bool, label %bb2, label %bb1

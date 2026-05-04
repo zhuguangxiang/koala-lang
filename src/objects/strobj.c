@@ -48,6 +48,13 @@ Object *kl_new_fmt_str(char *fmt, ...)
     return kl_new_nstr(buf, len);
 }
 
+void kl_free_str(Object *obj)
+{
+    StringObject *sobj = (StringObject *)obj;
+    mm_free(sobj->array);
+    mm_free(sobj);
+}
+
 #ifdef __cplusplus
 }
 #endif

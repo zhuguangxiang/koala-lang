@@ -511,7 +511,7 @@ KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, KlrValue **args, int 
         }
     }
 
-    KlrInsn *insn = new_insn(OP_NEW, nargs + 1, name);
+    KlrInsn *insn = new_insn(OP_IR_NEW, nargs + 1, name);
     insn->flags |= is_const ? KLR_INSN_FLAGS_CONST : 0;
 
     init_oper(&insn->opers[0], insn, klass, 0);
@@ -543,7 +543,8 @@ KlrValue *klr_build_ref(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode o
     return (KlrValue *)insn;
 }
 
-KlrValue *klr_build_tuple(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts, char *name)
+KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
+                           InternTag tag, char *name)
 {
     int is_const = 1;
 
@@ -556,7 +557,7 @@ KlrValue *klr_build_tuple(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec
         }
     }
 
-    KlrInsn *insn = new_insn(OP_BUILD_TUPLE, nargs, name);
+    KlrInsn *insn = new_insn(OP_BUILD_INTERN, nargs, name);
     insn->flags |= is_const ? KLR_INSN_FLAGS_CONST : 0;
 
     for (int j = 0; j < nargs; j++) {
@@ -564,6 +565,7 @@ KlrValue *klr_build_tuple(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec
     }
 
     insn->ts = ts;
+    insn->intern_tag = tag;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

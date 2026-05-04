@@ -811,7 +811,25 @@ static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
-static void isel_lower_build_tuple(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_new(KlrInsn *insn, KlrFunc *fn)
+{
+    int nargs = insn->num_opers;
+    for (int i = 1; i < nargs; i++) {
+        KlrValue *arg = insn_oper_value(insn, i);
+        lower_call_argument(insn, arg, i - 1);
+    }
+
+    for (int i = 1; i < nargs; i++) {
+        clear_operand_at(insn, i);
+    }
+
+    insn->code = OP_NEW;
+    insn->num_opers = 1;
+    insn->num_args = nargs - 1;
+    ASSERT(insn->num_args >= 0);
+}
+
+static void isel_lower_build_intern(KlrInsn *insn, KlrFunc *fn)
 {
     int nargs = insn->num_opers;
     for (int i = 0; i < nargs; i++) {
@@ -834,8 +852,8 @@ static void verify_insn(KlrInsn *insn)
 
     if ((op >= OP_BINARY_ADD && op <= OP_IR_PHI) || (op == OP_JMP) || (op == OP_RET) ||
         (op == OP_RET_VOID) || (op == OP_MOVE) || (op == OP_GLOBAL_GET) || (op == OP_GLOBAL_SET) ||
-        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT) || (op == OP_NEW) ||
-        (op == OP_BUILD_TUPLE)) {
+        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT) || (op == OP_IR_NEW) ||
+        (op == OP_BUILD_INTERN)) {
         return;
     }
 
@@ -909,8 +927,13 @@ static void do_isel(KlrFunc *fn)
                     break;
                 }
 
-                case OP_BUILD_TUPLE: {
-                    isel_lower_build_tuple(insn, fn);
+                case OP_BUILD_INTERN: {
+                    isel_lower_build_intern(insn, fn);
+                    break;
+                }
+
+                case OP_IR_NEW: {
+                    isel_lower_new(insn, fn);
                     break;
                 }
 

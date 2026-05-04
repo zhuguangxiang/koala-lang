@@ -5,6 +5,7 @@
 
 #include "buffer.h"
 #include "modobj.h"
+#include "rangeobj.h"
 #include "tupleobj.h"
 
 #ifdef __cplusplus
@@ -13,46 +14,8 @@ extern "C" {
 
 static void print_value(TValue *val)
 {
-    if (is_int(val)) {
-        int ti = val->tag & 0b0011;
-        if (ti == 0) {
-            printf("%d", (int8_t)val->ival);
-        } else if (ti == 1) {
-            printf("%d", (int16_t)val->ival);
-        } else if (ti == 2) {
-            printf("%d", (int32_t)val->ival);
-        } else {
-            printf("%" PRId64 "", val->ival);
-        }
-    } else if (is_uint(val)) {
-        int ti = val->tag & 0b0011;
-        if (ti == 0) {
-            printf("%u", (uint8_t)val->ival);
-        } else if (ti == 1) {
-            printf("%u", (uint16_t)val->ival);
-        } else if (ti == 2) {
-            printf("%u", (uint32_t)val->ival);
-        } else {
-            printf("%" PRIu64 "", val->ival);
-        }
-    } else if (is_float(val)) {
-        printf("%.17g", val->fval);
-    } else if (is_bool(val)) {
-        printf("%s", val->bval ? "true" : "false");
-    } else if (is_none(val)) {
-        printf("none");
-    } else if (is_error(val)) {
-        printf("error");
-    } else if (is_obj(val)) {
-        Object *obj = val->obj;
-        if (IS_STR(obj)) {
-            printf("%s", STR_BUF(obj));
-        } else {
-            printf("<object>");
-        }
-    } else {
-        NYI();
-    }
+    Object *sobj = kl_to_str(val);
+    printf("%s", STR_BUF(sobj));
 }
 
 /*
@@ -109,6 +72,7 @@ static TypeObject *builtin_types[] = {
     &float_type,
     &Number_type,
     &tuple_type,
+    &range_type,
     NULL,
 };
 

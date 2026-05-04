@@ -521,7 +521,7 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
     } else {
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
-        KlrValue *ret = klr_build_tuple(&bldr, items, size, exp->ts, "");
+        KlrValue *ret = klr_build_intern(&bldr, items, size, exp->ts, INTERN_TUPLE, "");
         exp->ir_val = ret;
     }
 }
@@ -804,7 +804,7 @@ struct RangeInfo {
 
 static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
 {
-    if (insn->code != OP_NEW) return 0;
+    if (insn->code != OP_IR_NEW) return 0;
     KlrValue *val = insn_oper_value(insn, 0);
     if (val->kind != KLR_VALUE_KLASS) return 0;
     if (!str_equal(val->name, "range")) return 0;

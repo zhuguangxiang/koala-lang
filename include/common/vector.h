@@ -128,10 +128,7 @@ int vector_insert(Vector *vec, int index, void *obj);
  * Insert an object at the front of the vector.
  * This is relatively expensive operation.
  */
-static inline void vector_push_front(Vector *vec, void *obj)
-{
-    vector_insert(vec, 0, obj);
-}
+static inline void vector_push_front(Vector *vec, void *obj) { vector_insert(vec, 0, obj); }
 
 /*
  * Get an object pointer(the index position as object pointer)
@@ -189,10 +186,7 @@ static inline void vector_pop_back(Vector *vec, void *obj)
  * Remove an object at the front of the vector.
  * This is relatively expensive operation.
  */
-static inline void vector_pop_front(Vector *vec, void *obj)
-{
-    vector_remove(vec, 0, obj);
-}
+static inline void vector_pop_front(Vector *vec, void *obj) { vector_remove(vec, 0, obj); }
 
 /* clang-format off */
 
@@ -234,6 +228,8 @@ static inline void *vector_get(Vector *vec, int index)
     void **obj_p = (void **)vector_get_ptr(vec, index);
     return obj_p ? *obj_p : NULL;
 }
+
+#define vector_at(vec, index) vector_get(vec, index)
 
 /* qsort for vector */
 static inline void vector_sort(Vector *vec, int (*cmp)(const void *, const void *))

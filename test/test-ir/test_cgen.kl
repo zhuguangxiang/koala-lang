@@ -84,7 +84,7 @@ func test_nested_loop(n int) {
 
 // CHECK: %bb-1(while-body):
 // CHECK: move r4, r2
-// CHECK: build_tuple r4, #1
+// CHECK: build_intern r4, @tuple, #1
 // CHECK: loadk r5, #0
 // CHECK: loadk r6, #1
 // CHECK: call flg=1, #3

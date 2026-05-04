@@ -1663,9 +1663,16 @@ X(OP_INT_TO_FLOAT, FORMAT_RR_TI_MODE)
  |  New object Instructions                                      |
  +---------------------------------------------------------------*/
 
-X(OP_NEW, FORMAT_RxRx)
+X(OP_NEW, FORMAT_NEW)
 
-X(OP_BUILD_TUPLE, FORMAT_RxImm)
+/**
+ * OP_BUILD_INTERN — Build builtin object
+ *
+ * FORMAT_RTagImm:
+ *     | op:8 | rd:8 | tag:8 | nargs:8 |
+ *
+ */
+X(OP_BUILD_INTERN, FORMAT_RTagImm)
 
 /*---------------------------------------------------------------+
  |  Global Variable Access Instructions                           |
@@ -1951,6 +1958,7 @@ X(OP_IR_CALL,       FORMAT_IR)
 X(OP_IR_SELECT,     FORMAT_IR)
 X(OP_IR_JMP_COND,   FORMAT_IR)
 X(OP_IR_CAST,       FORMAT_IR)
+X(OP_IR_NEW,        FORMAT_IR)
 X(OP_IR_PHI,        FORMAT_IR)
 
 /* Non-executable data slot (pseudo-instruction) */

@@ -122,6 +122,18 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
     FINI_BUF(buf);
 }
 
+static char hex2byte(const char *s)
+{
+    // yytext = "\\xNN"
+    int hi = s[2];
+    int lo = s[3];
+
+    hi = (hi <= '9') ? hi - '0' : (hi & ~0x20) - 'A' + 10;
+    lo = (lo <= '9') ? lo - '0' : (lo & ~0x20) - 'A' + 10;
+
+    return (char)((hi << 4) | lo);
+}
+
 #define YY_INPUT(buf, ret, size) ret = file_input(yyps, buf, size, yyin)
 
 #define loc_first_line yylloc->first_line
@@ -336,13 +348,25 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
 \'              { YY_S_BEGIN;              }
 <S>\'           { YY_S_END;                }
 <S>\\'          { YY_S_WRITE('\'');        }
-<S>\\n          { YY_STR_WRITE('\n');      }
+<S>\\t          { YY_S_WRITE('\t');        }
+<S>\\r          { YY_S_WRITE('\r');        }
+<S>\\n          { YY_S_WRITE('\n');        }
+<S>\\\\         { YY_S_WRITE('\\');        }
+<S>\\x[0-9A-Fa-f]{2}    {
+    YY_S_WRITE(hex2byte(yytext));
+}
 <S>.            { YY_S_WRITE(yytext[0]);   }
 
 \"              { YY_STR_BEGIN;            }
 <STR>\"         { YY_STR_END;              }
 <STR>\\\"       { YY_STR_WRITE('\"');      }
 <STR>\\n        { YY_STR_WRITE('\n');      }
+<STR>\\t        { YY_STR_WRITE('\t');      }
+<STR>\\r        { YY_STR_WRITE('\r');      }
+<STR>\\\\       { YY_STR_WRITE('\\');      }
+<STR>\\x[0-9A-Fa-f]{2}  {
+    YY_STR_WRITE(hex2byte(yytext));
+}
 <STR>.          { YY_STR_WRITE(yytext[0]); }
 
 \"\"\"          { YY_TXT_BEGIN;            }

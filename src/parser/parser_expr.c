@@ -192,7 +192,10 @@ static void parse_literal(ParserState *ps, Expr *exp)
             break;
         }
         case LIT_EXPR_STR: {
-            log_info("literal string '%s'", lit->sval);
+            BUF(buf);
+            escape_str(lit->sval, &buf);
+            log_info("literal string '%s'", BUF_STR(buf));
+            FINI_BUF(buf);
             if (check_utf8(lit->sval, lit->len) < 0) {
                 kl_error(exp->loc, "invalid utf8 string");
             }

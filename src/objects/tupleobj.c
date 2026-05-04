@@ -4,12 +4,31 @@
  */
 
 #include "tupleobj.h"
+#include "buffer.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-static TValue tuple_str(TValue *self, TValue *args, int nargs) { return *self; }
+static TValue tuple_str(TValue *self, TValue *args, int nargs)
+{
+    TupleObject *tuple = (TupleObject *)to_obj(self);
+    BUF(buf);
+    buf_write_char(&buf, '(');
+    for (size_t i = 0; i < tuple->size; i++) {
+        if (i > 0) {
+            buf_write_str(&buf, ", ");
+        }
+        TValue *item = &tuple->array[i];
+        Object *sobj = kl_to_str(item);
+        buf_write_str(&buf, STR_BUF(sobj));
+    }
+    buf_write_char(&buf, ')');
+
+    Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    return obj_value(sobj);
+}
 
 static MethodDef tuple_methods[] = {
     { "__str__", tuple_str },

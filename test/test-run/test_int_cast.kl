@@ -22,7 +22,7 @@ func main() {
 // CHECK: %2 = cast %1 uint32 to uint64
 // CHECK: %3 = uint.add_imm %2 uint64, 1 uint64
 // CHECK: %4 = uint.cmp_eq_imm %3 uint64, 124 uint64
-// CHECK: %5 = build_tuple nargs=1
+// CHECK: %5 = build_intern @tuple, nargs=1
 // CHECK: %8 = cast %1 uint32 to uint64
 // CHECK: %9 = uint.cmp_eq_imm %8 uint64, 123 uint64
 // CHECK: true

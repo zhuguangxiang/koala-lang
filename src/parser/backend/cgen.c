@@ -12,32 +12,50 @@
 extern "C" {
 #endif
 
-static void dump_const(KlMachConst *kc, int indent)
+static void dump_const(KlMachConst *kc, int index, int indent)
 {
+    printf("%*s[%03d] ", indent, "", index);
+
     switch (kc->tag) {
         case KL_MACH_CONST_INT:
-            printf("%*sint%d: %ld\n", indent, "", kc->len * 8, kc->i64);
+            printf("int%d   = %ld\n", kc->len * 8, kc->i64);
             break;
+
         case KL_MACH_CONST_UINT:
-            printf("%*suint%d: %lu\n", indent, "", kc->len * 8, kc->u64);
+            printf("uint%d  = %lu\n", kc->len * 8, kc->u64);
             break;
+
         case KL_MACH_CONST_FLOAT:
-            printf("%*sfloat%d: %.17g\n", indent, "", kc->len * 8, kc->f64);
+            printf("float%d = %.17g\n", kc->len * 8, kc->f64);
             break;
-        case KL_MACH_CONST_STR:
-            printf("%*sstring: \"%s\"\n", indent, "", kc->str);
+
+        case KL_MACH_CONST_STR: {
+            printf("str     = \"");
+            BUF(buf);
+            escape_str(kc->str, &buf);
+            printf("%s\"\n", BUF_STR(buf));
+            FINI_BUF(buf);
             break;
-        case KL_MACH_CONST_TUPLE:
-            printf("%*stuple: \n", indent, "");
+        }
+
+        case KL_MACH_CONST_TUPLE: {
             Vector *list = kc->list;
-            KlMachConst *elem;
-            vector_foreach(elem, list) {
-                dump_const(elem, indent + 6);
+            int count = vector_size(list);
+
+            printf("tuple(%d):\n", count);
+
+            for (int i = 0; i < count; i++) {
+                KlMachConst *elem = vector_at(list, i);
+                printf("%*s[%d] ", indent + 4, "", i);
+                dump_const(elem, -1, indent + 8);
             }
-            printf("\n");
             break;
-        default:
-            UNREACHABLE();
+        }
+
+        default: {
+            printf("unknown\n");
+            break;
+        }
     }
 }
 
@@ -46,8 +64,7 @@ static void dump_const_pool(KlMachModule *m)
     printf("Constant Pool:\n");
     KlMachConst *kc;
     vector_foreach(kc, &m->const_pool) {
-        printf("  #%d: ", i__);
-        dump_const(kc, 0);
+        dump_const(kc, i__, 2);
     }
 }
 
@@ -337,8 +354,9 @@ static void dump_mach_insn(KlMachInsn *mi)
             break;
         }
 
-        case FORMAT_RxImm: {
-            used += printf("r%d, #%d", mi->opers[0], mi->opers[1]);
+        case FORMAT_RTagImm: {
+            used +=
+                printf("r%d, @%s, #%d", mi->opers[0], intern_tag_name[mi->opers[1]], mi->opers[2]);
             break;
         }
 
@@ -544,7 +562,18 @@ static void emit_mach_insn(KlMachInsn *mi, CodeBuffer *buf)
             break;
         }
 
-        case FORMAT_RxImm:
+        case FORMAT_RTagImm: {
+            // | op:8 | R:8 | tag:8 | imm:8 |
+            uint32_t R = mi->opers[0];
+            int tag = mi->opers[1];
+            int imm8 = mi->opers[2];
+            bytecode |= (op & 0xFFu) << 24;
+            bytecode |= (R & 0xFFu) << 16;
+            bytecode |= (tag & 0xFFu) << 8;
+            bytecode |= (imm8 & 0xFFu);
+            break;
+        }
+
         case FORMAT_RxTag: {
             // | op:8 | ----:4 | Rx:12 | imm:8 |
             uint32_t Rx = mi->opers[0];
@@ -715,7 +744,6 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
         }
 
         case FORMAT_TI_Imm2:
-        case FORMAT_RxImm:
         case FORMAT_RxTag:
         case FORMAT_RImm2:
         case FORMAT_ROff2:
@@ -726,6 +754,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
             break;
         }
 
+        case FORMAT_RTagImm:
         case FORMAT_R_TI_Imm12:
         case FORMAT_RR_TI_MODE:
         case FORMAT_RImmOff:

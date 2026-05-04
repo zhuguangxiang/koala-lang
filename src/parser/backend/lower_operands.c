@@ -356,7 +356,14 @@ static void lower_ref_eq_null_opers(KlrInsn *insn, KlrFunc *fn)
     set_raw_imm(&insn->raws[1], src->vreg);
 }
 
-static void lower_build_tuple_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_build_intern_opers(KlrInsn *insn, KlrFunc *fn)
+{
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_imm(&insn->raws[1], insn->intern_tag);
+    set_raw_imm(&insn->raws[2], insn->num_args);
+}
+
+static void lower_new_opers(KlrInsn *insn, KlrFunc *fn)
 {
     set_raw_reg(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], insn->num_args);
@@ -420,8 +427,13 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                     break;
                 }
 
-                case OP_BUILD_TUPLE: {
-                    lower_build_tuple_opers(insn, fn);
+                case OP_BUILD_INTERN: {
+                    lower_build_intern_opers(insn, fn);
+                    break;
+                }
+
+                case OP_NEW: {
+                    lower_new_opers(insn, fn);
                     break;
                 }
 

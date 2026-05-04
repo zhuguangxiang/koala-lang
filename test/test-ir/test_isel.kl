@@ -22,9 +22,9 @@ func fib(n int) int {
 // CHECK: ret %n int64
 // CHECK: %bb2(if-end):
 // CHECK: %1 = int.sub_imm %n int64, 1 int64
-// CHECK: %2 = call @fib, 1
+// CHECK: %2 = call @fib, nargs=1
 // CHECK: %3 = int.sub_imm %n int64, 2 int64
-// CHECK: %4 = call @fib, 1
+// CHECK: %4 = call @fib, nargs=1
 // CHECK: %5 = int.add %2 int64, %4 int64
 // CHECK: ret %5 int64
 
@@ -109,12 +109,12 @@ func foo2() {
 
 // CHECK: %1 = local tuple<u>
 // CHECK: loadk %1 tuple<u>, tuple('true') tuple<u>
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin'] [const], nargs=3
 // CHECK: jmp label %bb3
 
 // CHECK: %4 = local tuple<u>
 // CHECK: loadk %4 tuple<u>, tuple('false') tuple<u>
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin'] [const], nargs=3
 // CHECK: jmp label %bb3
 
 // CHECK: ret void
