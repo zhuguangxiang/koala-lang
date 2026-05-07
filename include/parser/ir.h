@@ -34,6 +34,7 @@ typedef enum _KlrValueKind {
     KLR_VALUE_INSN,
     KLR_VALUE_KLASS,
     KLR_VALUE_FIELD,
+    KLR_VALUE_EXT_KLASS,
     KLR_VALUE_EXT_FUNC,
     KLR_VALUE_EXT_GLOBAL,
     KLR_VALUE_MAX,
@@ -109,9 +110,9 @@ typedef struct _KlrConst {
 #define CONST_FLT   4
 #define CONST_BOOL  5
 #define CONST_STR   6
-#define CONST_LIST  7
-#define CONST_TUPLE 8
-#define CONST_RANGE 9
+#define CONST_TUPLE 7
+#define CONST_RANGE 8
+#define CONST_LIST  9
     int len;
     union {
         uint64_t ival;
@@ -120,6 +121,9 @@ typedef struct _KlrConst {
         char *sval;
         Vector *list;
     };
+    // TODO:
+    // if this is loaded constant, it must be saved in 'local'.
+    // KlrValue *local;
 } KlrConst;
 
 /* global/field variable */
@@ -293,28 +297,20 @@ typedef struct _KlrKlass {
     Vector methods;
 } KlrKlass;
 
-#define KLR_EXT_SYM_HEAD \
-    KLR_VALUE_HEAD \
-    /* module pointer */ \
-    KlrModule *module; \
-    /* owner pkg path */ \
+typedef struct _KlrFieldInfo {
+    int index;
     char *path;
+    char *klass;
+    char *name;
+    TypeSpec *ts;
+} KlrFieldInfo;
 
 /* external symbol */
 typedef struct _KlrExtSym {
-    KLR_EXT_SYM_HEAD
+    KLR_VALUE_HEAD
+    KlrModule *module;
+    char *path;
 } KlrExtSym;
-
-/* external function */
-typedef struct _KlrExtFunc {
-    KLR_EXT_SYM_HEAD
-    /* proto */
-    TypeSpec *proto;
-} KlrExtFunc;
-
-typedef struct _KlrExtGlobal {
-    KLR_EXT_SYM_HEAD
-} KlrExtGlobal;
 
 /* def-use */
 typedef struct _KlrUse {
@@ -399,6 +395,8 @@ typedef struct _KlrInsn {
     int slotindex;
 
     int cast_flag;
+
+    KlrFieldInfo field_info;
 
     InternTag intern_tag;
 
@@ -520,6 +518,7 @@ KlrValue *klr_klass_add_method(KlrValue *klass, char *name, TypeSpec *ret, TypeS
 // ir doesn't check external symbol's type
 KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *path, char *name);
 KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name);
+KlrValue *klr_add_ext_klass(KlrModule *m, TypeSpec *ts, char *path, char *name);
 
 #define local_foreach(local, func) vector_foreach_ptr(local, &(func)->locals)
 
@@ -877,6 +876,9 @@ KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, KlrValue **args, int 
 KlrValue *klr_build_ref(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op, char *name);
 KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
                            InternTag tag, char *name);
+
+KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrFieldInfo *field_info,
+                              char *name);
 
 #ifdef __cplusplus
 }

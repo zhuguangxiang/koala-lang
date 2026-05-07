@@ -1,31 +1,21 @@
 // RUN: koala %s --dump=no-opt-ir,lir | filecheck %s
 
-// class Point {
-//     var x int
-//     var y int
-
-//     func __init__(_x int, _y int) {
-//         x = _x
-//         y = _y
-//     }
-
-//     func __str__() str {
-//         return "Point()"
-//     }
-// }
-
 func foo(n int, m int) {
     print(range(n, m))
+}
+
+func foo2(r range) {
+    print(r)
 }
 
 func main() {
     let t = (1,2,3)
     let r = range(1, 10)
-    // // let p = Point(1, 2)
     let s = str("hello")
     let s2 = str(s)
     print(t, r, s, s2)
     foo(-1, -10)
+    foo2(r)
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
@@ -33,7 +23,7 @@ func main() {
 // CHECK: %bb0(entry):
 // CHECK: %0 = build_intern @range, %n int64, %m int64, 1 int64
 // CHECK: %1 = build_intern @tuple, %0 range
-// CHECK: call @print [ext = true, path = 'std/builtin'], %1 tuple<Lrange;>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], %1 tuple<Lrange;>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
@@ -48,7 +38,7 @@ func main() {
 // CHECK: %s2 = local [immutable] str
 // CHECK: move %s2 str, %s str
 // CHECK: %0 = build_intern @tuple, %t tuple<jjj>, %r range, %s str, %s2 str
-// CHECK: call @print [ext = true, path = 'std/builtin'], %0 tuple<Ltuple<jjj>;Lrange;uu>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], %0 tuple<Ltuple<jjj>;Lrange;uu>, ' ' str, '\n' str
 // CHECK: call @foo [const], -1 int64, -10 int64
 // CHECK: ret void
 
@@ -96,3 +86,4 @@ func main() {
 
 // CHECK: (1, 2, 3) range(1, 10, 1) hello hello
 // CHECK: range(-1, -10, 1)
+// CHECK: range(1, 10, 1)

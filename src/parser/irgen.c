@@ -98,7 +98,8 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
 
         case SYM_CLASS: {
             KlassSymbol *kls_sym = (KlassSymbol *)sym;
-            exp->ir_val = klr_add_klass(MOD, kls_sym->instance_ts, sym->name);
+            ASSERT(sym->flags & SYM_FLAGS_EXT);
+            NYI();
             break;
         }
 
@@ -151,10 +152,13 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
     Symbol *sym = exp->sym;
     if (sym->kind == SYM_CLASS) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
-        exp->ir_val = klr_add_klass(MOD, kls_sym->instance_ts, sym->name);
+        ASSERT(sym->flags & SYM_FLAGS_EXT);
+        exp->ir_val = klr_add_ext_klass(MOD, kls_sym->instance_ts, sym->path, sym->name);
     } else if (sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
-        exp->ir_val = klr_add_klass(MOD, inst_sym->instance_ts, sym->name);
+        Symbol *origin = inst_sym->origin;
+        ASSERT(origin->flags & SYM_FLAGS_EXT);
+        exp->ir_val = klr_add_ext_klass(MOD, inst_sym->instance_ts, sym->path, sym->name);
     }
 }
 
@@ -276,7 +280,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
     KlrValue *callee = lhs->ir_val;
     KlrValue *ret;
 
-    if (callee->kind == KLR_VALUE_KLASS) {
+    if (callee->kind == KLR_VALUE_KLASS || callee->kind == KLR_VALUE_EXT_KLASS) {
         ret = emit_type_call(ps, callee, ir_args, size);
     } else {
         KlrBuilder bldr;
@@ -286,6 +290,77 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
     klr_set_loc(ret, ps->filename, exp->loc);
     exp->ir_val = ret;
+}
+
+static int get_local_field_index(Vector *fields, const char *name)
+{
+    Symbol *sym;
+    vector_foreach(sym, fields) {
+        if (str_equal(sym->name, name)) {
+            return i__;
+        }
+    }
+
+    UNREACHABLE();
+}
+
+static void get_field_index(Symbol *sym, char *name, KlrFieldInfo *fi)
+{
+    int field_index = -1;
+
+    if (sym->kind == SYM_CLASS) {
+        KlassSymbol *kls_sym = (KlassSymbol *)sym;
+        if (kls_sym->flags & SYM_FLAGS_EXT) {
+            fi->path = kls_sym->path;
+            fi->klass = kls_sym->name;
+        } else {
+            field_index = get_local_field_index(kls_sym->fields, name);
+        }
+    } else if (sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        Symbol *origin = inst_sym->origin;
+        ASSERT(origin->kind == SYM_CLASS);
+        if (origin->flags & SYM_FLAGS_EXT) {
+            fi->path = origin->path;
+            fi->klass = origin->name;
+        } else {
+            KlassSymbol *kls_sym = (KlassSymbol *)origin;
+            field_index = get_local_field_index(kls_sym->fields, name);
+        }
+    } else {
+        UNREACHABLE();
+    }
+
+    fi->index = field_index;
+    fi->name = name;
+}
+
+static void emit_ir_dot(ParserState *ps, Expr *exp)
+{
+    DotExpr *dot = (DotExpr *)exp;
+    int opt_or_bang = dot->opt_or_bang;
+
+    Expr *lhs = dot->lhs;
+    lhs->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, lhs);
+    if (!lhs->ir_val) return;
+
+    Symbol *sym = exp->sym;
+    if (sym->kind == SYM_FUNC) {
+        NYI();
+    } else {
+        ASSERT(sym->kind == SYM_VAR);
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+
+        Symbol *lhs_sym = get_symbol_by_id(lhs->ts->sym_id);
+        KlrFieldInfo field_info = { .ts = sym->ts };
+        get_field_index(lhs_sym, dot->id.name, &field_info);
+
+        KlrValue *field = klr_build_get_field(&bldr, lhs->ir_val, &field_info, "");
+        klr_set_loc(field, ps->filename, exp->loc);
+        exp->ir_val = field;
+    }
 }
 
 static OpCode get_binary_op_code(BiOpKind op)
@@ -573,12 +648,13 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
     static void (*handlers[])(ParserState *, Expr *) = {
         [EXPR_ID_KIND]      = emit_ir_ident,
         [EXPR_LITERAL_KIND] = emit_ir_literal,
-        [EXPR_TYPE_KIND]    = emit_ir_type,
-        [EXPR_CALL_KIND]    = emit_ir_call,
-        [EXPR_BINARY_KIND]  = emit_ir_binary,
-        [EXPR_UNARY_KIND]   = emit_ir_unary,
         [EXPR_LIST_KIND]    = emit_ir_list,
         [EXPR_TUPLE_KIND]   = emit_ir_tuple,
+        [EXPR_TYPE_KIND]    = emit_ir_type,
+        [EXPR_CALL_KIND]    = emit_ir_call,
+        [EXPR_DOT_KIND]     = emit_ir_dot,
+        [EXPR_UNARY_KIND]   = emit_ir_unary,
+        [EXPR_BINARY_KIND]  = emit_ir_binary,
     };
     /* clang-format on */
 

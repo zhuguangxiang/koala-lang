@@ -139,7 +139,7 @@ static void lower_reg_imm(KlrInsn *insn)
     set_raw_imm(&insn->raws[2], imm);
 }
 
-static void lower_binary_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_binary_opers(KlrInsn *insn)
 {
     OpFormat fmt = op_format(insn->code);
     KlrValue *lhs = insn_oper_value(insn, 0);
@@ -157,7 +157,7 @@ static void lower_binary_opers(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
-static void lower_call_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_call_opers(KlrInsn *insn)
 {
     KlrValue *fn_val = insn_oper_value(insn, 0);
     ASSERT(klr_is_func(fn_val) || klr_is_extfunc(fn_val));
@@ -167,7 +167,7 @@ static void lower_call_opers(KlrInsn *insn, KlrFunc *fn)
     set_raw_func(&insn->raws[2], (KlrFunc *)fn_val);
 }
 
-static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
+static void lower_move_opers(KlrInsn *insn, KlMachModule *m)
 {
     switch (insn->code) {
         case OP_MOVE: {
@@ -241,7 +241,7 @@ static void lower_move_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
     }
 }
 
-static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
+static void lower_ret_opers(KlrInsn *insn, KlMachModule *m)
 {
     switch (insn->code) {
         case OP_RET: {
@@ -297,7 +297,7 @@ static void lower_ret_opers(KlrInsn *insn, KlrFunc *fn, KlMachModule *m)
     }
 }
 
-static void lower_jmp_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_jmp_opers(KlrInsn *insn)
 {
     KlrValue *target = insn_oper_value(insn, 0);
     ASSERT(klr_is_block(target));
@@ -316,7 +316,7 @@ static inline int is_binary(OpCode op)
 static inline int is_move(OpCode op) { return op >= OP_MOVE && op <= OP_LOADK; }
 static inline int is_return(OpCode op) { return op >= OP_RET && op <= OP_RET_VOID; }
 
-static void lower_logic_not_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_logic_not_opers(KlrInsn *insn)
 {
     KlrValue *val = insn_oper_value(insn, 0);
     ASSERT(klr_is_insn(val) || klr_is_param(val) || klr_is_local(val));
@@ -326,22 +326,14 @@ static void lower_logic_not_opers(KlrInsn *insn, KlrFunc *fn)
     set_raw_reg(&insn->raws[1], val->vreg);
 }
 
-static void lower_ir_cast_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_ir_cast_opers(KlrInsn *insn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
     set_raw_imm(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], src->vreg);
 }
 
-static void lower_int_cast_opers(KlrInsn *insn, KlrFunc *fn)
-{
-    KlrValue *src = insn_oper_value(insn, 0);
-    set_raw_imm(&insn->raws[0], insn->vreg);
-    set_raw_imm(&insn->raws[1], src->vreg);
-    set_raw_imm(&insn->raws[2], insn->cast_flag);
-}
-
-static void lower_float_cast_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_int_cast_opers(KlrInsn *insn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
     set_raw_imm(&insn->raws[0], insn->vreg);
@@ -349,24 +341,42 @@ static void lower_float_cast_opers(KlrInsn *insn, KlrFunc *fn)
     set_raw_imm(&insn->raws[2], insn->cast_flag);
 }
 
-static void lower_ref_eq_null_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_float_cast_opers(KlrInsn *insn)
+{
+    KlrValue *src = insn_oper_value(insn, 0);
+    set_raw_imm(&insn->raws[0], insn->vreg);
+    set_raw_imm(&insn->raws[1], src->vreg);
+    set_raw_imm(&insn->raws[2], insn->cast_flag);
+}
+
+static void lower_ref_eq_null_opers(KlrInsn *insn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
     set_raw_imm(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], src->vreg);
 }
 
-static void lower_build_intern_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_build_intern_opers(KlrInsn *insn)
 {
     set_raw_reg(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], insn->intern_tag);
     set_raw_imm(&insn->raws[2], insn->num_args);
 }
 
-static void lower_new_opers(KlrInsn *insn, KlrFunc *fn)
+static void lower_new_opers(KlrInsn *insn)
 {
     set_raw_reg(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], insn->num_args);
+}
+
+static void lower_get_field_ext_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_reg(&insn->raws[1], obj->vreg);
+    KlrFieldInfo *field_info = &insn->field_info;
+    int index = mach_import_add_field(m, field_info->path, field_info->klass, field_info->name);
+    set_raw_imm(&insn->raws[2], index);
 }
 
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
@@ -376,64 +386,69 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
         KlrInsn *insn;
         insn_foreach(insn, bb) {
             if (is_binary(insn->code)) {
-                lower_binary_opers(insn, fn);
+                lower_binary_opers(insn);
                 continue;
             }
 
             if (is_move(insn->code)) {
-                lower_move_opers(insn, fn, m);
+                lower_move_opers(insn, m);
                 continue;
             }
 
             if (is_return(insn->code)) {
-                lower_ret_opers(insn, fn, m);
+                lower_ret_opers(insn, m);
                 continue;
             }
 
             switch (insn->code) {
                 case OP_CALL:
                 case OP_TAIL_CALL: {
-                    lower_call_opers(insn, fn);
+                    lower_call_opers(insn);
                     break;
                 }
 
                 case OP_JMP: {
-                    lower_jmp_opers(insn, fn);
+                    lower_jmp_opers(insn);
                     break;
                 }
 
                 case OP_LNOT: {
-                    lower_logic_not_opers(insn, fn);
+                    lower_logic_not_opers(insn);
                     break;
                 }
 
                 case OP_INT_CAST: {
-                    lower_int_cast_opers(insn, fn);
+                    lower_int_cast_opers(insn);
                     break;
                 }
 
                 case OP_FLOAT_CAST: {
-                    lower_float_cast_opers(insn, fn);
+                    lower_float_cast_opers(insn);
                     break;
                 }
 
                 case OP_IR_CAST: {
-                    lower_ir_cast_opers(insn, fn);
+                    lower_ir_cast_opers(insn);
                     break;
                 }
 
                 case OP_REF_EQ_NULL: {
-                    lower_ref_eq_null_opers(insn, fn);
+                    lower_ref_eq_null_opers(insn);
                     break;
                 }
 
                 case OP_BUILD_INTERN: {
-                    lower_build_intern_opers(insn, fn);
+                    lower_build_intern_opers(insn);
                     break;
                 }
 
                 case OP_NEW: {
-                    lower_new_opers(insn, fn);
+                    lower_new_opers(insn);
+                    break;
+                }
+
+                case OP_GET_FIELD_EXT: {
+                    lower_get_field_ext_opers(insn, m);
                     break;
                 }
 

@@ -28,14 +28,14 @@ func show(cond bool, msg str?) {
 // CHECK： ret void
 
 // CHECK： %bb4(if-then):                                  ;; preds = %bb1
-// CHECK： call @print [ext = true, path = 'std/builtin'] [const]
+// CHECK： call @print [path = 'std/builtin'] [const]
 // CHECK： jmp label %bb6
 
 // CHECK： %bb5(if-else):                                  ;; preds = %bb1
 // CHECK： %2 = local [immutable] str
 // CHECK： %3 = cast %msg str? to str
 // CHECK： move %2 str, %3 str
-// CHECK： call @print [ext = true, path = 'std/builtin']
+// CHECK： call @print [path = 'std/builtin']
 // CHECK： jmp label %bb6
 
 // CHECK： %bb6(if-end):                                   ;; preds = %bb4, %bb5

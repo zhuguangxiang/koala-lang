@@ -621,9 +621,26 @@ KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut)
     return (KlrValue *)global;
 }
 
+static KlrValue *klr_get_ext(KlrModule *m, char *path, char *name)
+{
+    KlrValue *sym;
+    vector_foreach(sym, &m->ext_syms) {
+        if (str_equal(sym->name, name)) {
+            return sym;
+        }
+    }
+    return NULL;
+}
+
 KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *path, char *name)
 {
-    KlrExtFunc *fn = mm_alloc_obj(fn);
+    KlrValue *sym = klr_get_ext(m, path, name);
+    if (sym) {
+        ASSERT(sym->kind == KLR_VALUE_EXT_FUNC);
+        return sym;
+    }
+
+    KlrExtSym *fn = mm_alloc_obj(fn);
     INIT_KLR_VALUE(fn, KLR_VALUE_EXT_FUNC, ret, name);
     vector_push_back(&m->ext_syms, &fn);
     fn->module = m;
@@ -633,12 +650,34 @@ KlrValue *klr_add_ext_func(KlrModule *m, TypeSpec *ret, char *path, char *name)
 
 KlrValue *klr_add_ext_global(KlrModule *m, TypeSpec *ts, char *path, char *name)
 {
-    KlrExtGlobal *var = mm_alloc_obj(var);
+    KlrValue *sym = klr_get_ext(m, path, name);
+    if (sym) {
+        ASSERT(sym->kind == KLR_VALUE_EXT_GLOBAL);
+        return sym;
+    }
+
+    KlrExtSym *var = mm_alloc_obj(var);
     INIT_KLR_VALUE(var, KLR_VALUE_EXT_GLOBAL, ts, name);
     vector_push_back(&m->ext_syms, &var);
     var->module = m;
     var->path = path;
     return (KlrValue *)var;
+}
+
+KlrValue *klr_add_ext_klass(KlrModule *m, TypeSpec *ts, char *path, char *name)
+{
+    KlrValue *sym = klr_get_ext(m, path, name);
+    if (sym) {
+        ASSERT(sym->kind == KLR_VALUE_EXT_KLASS);
+        return sym;
+    }
+
+    KlrExtSym *klass = mm_alloc_obj(klass);
+    INIT_KLR_VALUE(klass, KLR_VALUE_EXT_KLASS, ts, name);
+    vector_push_back(&m->ext_syms, &klass);
+    klass->module = m;
+    klass->path = path;
+    return (KlrValue *)klass;
 }
 
 KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name)

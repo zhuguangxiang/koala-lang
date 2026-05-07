@@ -79,4 +79,4 @@ print(ack(3, 11))
 // CHECK:   [001] str     = " "
 // CHECK:   [002] str     = "\n"
 // CHECK: Import Table:
-// CHECK:   #0: std/builtin.print
+// CHECK:   #0: func   std/builtin::print

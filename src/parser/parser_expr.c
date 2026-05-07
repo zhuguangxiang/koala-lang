@@ -280,12 +280,20 @@ static void parse_tuple(ParserState *ps, Expr *exp)
 {
     TupleExpr *tuple_exp = (TupleExpr *)exp;
 
+    if (exp->sym) {
+        log_info("tuple type already resolved:");
+        log_type_spec(exp->ts);
+        return;
+    }
+
     Vector *tp_args = vector_create_ptr();
     Expr *e;
     vector_foreach(e, tuple_exp->vec) {
-        e->ctx = EXPR_CTX_LOAD;
-        parser_visit_expr(ps, e);
-        if (!e->ts) return;
+        if (!e->sym) {
+            e->ctx = EXPR_CTX_LOAD;
+            parser_visit_expr(ps, e);
+            if (!e->ts) return;
+        }
         vector_push_back(tp_args, &e->ts);
     }
 

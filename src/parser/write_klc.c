@@ -369,7 +369,7 @@ static void write_rt_data(KlMachModule *m, KlcFile *klc)
 
     KlMachImport *imp;
     vector_foreach(imp, &m->import_table) {
-        klc_add_import(klc, imp->kind, imp->path, imp->name);
+        klc_add_import(klc, imp->kind, imp->path, imp->klass, imp->name);
     }
 
     KlrFunc *fn;

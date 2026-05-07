@@ -156,8 +156,33 @@ typedef struct _TValue {
 /* clang-format on */
 
 /*---------------------------------------------------------------------------+
+ |  Koala Instance Object Layout                                             |
+ +---------------------------------------------------------------------------*/
+
+typedef struct _InstObject {
+    OBJECT_HEAD
+    size_t size;
+    TValue fields[0];
+} InstObject;
+
+/*---------------------------------------------------------------------------+
  |  Type Object                                                              |
  +---------------------------------------------------------------------------*/
+
+typedef struct _MemberDef {
+    /* The name of field/global */
+    char *name;
+    /* type */
+    int type;
+    /* offset */
+    int offset;
+} MemberDef;
+
+#define M_TYPE_INT 0
+#define M_TYPE_STR 1
+#define M_TYPE_OBJ 2
+
+#define M_OFFSET(tp, m) offsetof(tp, m)
 
 typedef TValue (*NativeFunc)(TValue *self, TValue *args, int nargs);
 
@@ -244,6 +269,8 @@ typedef struct _TypeObject {
 
     /* methoddef */
     MethodDef *methdefs;
+    /* memberdef */
+    MemberDef *memdefs;
 
     /* allocate function */
     AllocFunc alloc;
@@ -268,7 +295,35 @@ typedef struct _TypeObject {
 } TypeObject;
 
 /*---------------------------------------------------------------------------+
- |  CFunc&Code related                                                       |
+ |  Field Object                                                             |
+ +---------------------------------------------------------------------------*/
+
+typedef enum {
+    FIELD_OFFSET, // C struct offset
+    FIELD_INDEX   // Koala class field index
+} FieldKind;
+
+typedef struct _FieldObject {
+    OBJECT_HEAD
+    char *name;
+    Object *owner;
+    FieldKind kind;
+    int type;
+    int index;
+} FieldObject;
+
+extern TypeObject field_type;
+Object *kl_new_field(char *name, int type, int offset, Object *owner);
+
+static inline Object *kl_new_index_field(char *name, int type, int index, Object *owner)
+{
+    Object *obj = kl_new_field(name, type, index, owner);
+    ((FieldObject *)obj)->kind = FIELD_INDEX;
+    return obj;
+}
+
+/*---------------------------------------------------------------------------+
+ |  CFunc&Code Object                                                        |
  +---------------------------------------------------------------------------*/
 
 typedef struct _CFuncObject {
@@ -406,6 +461,8 @@ static inline Object *kl_to_str(TValue *val)
 
     return kl_new_fmt_str("<%s object at %p>", tp->name, val->obj);
 }
+
+Object *kl_type_find(TypeObject *tp, char *name);
 
 /* Any object is callable, if it implements the call protocol. */
 static inline TValue kl_do_call(TValue *callable, TValue *args, int nargs)

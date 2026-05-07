@@ -140,8 +140,10 @@ void koala_run_file(char *path)
     vector_foreach(imp, imports) {
         if (!imp) continue;
         KlcConst *ns = klc_get_rt_const(klc, imp->ns_index);
+        KlcConst *kls = klc_get_rt_const(klc, imp->kls_index);
         KlcConst *sym = klc_get_rt_const(klc, imp->sym_index);
-        kl_mo_add_import(m, imp->kind, ns->sval, sym->sval);
+        char *kls_name = kls ? kls->sval : NULL;
+        kl_mo_add_import(m, imp->kind, ns->sval, kls_name, sym->sval);
     }
 
     Vector *code_objs = klc->objs + ITEM_CODE;

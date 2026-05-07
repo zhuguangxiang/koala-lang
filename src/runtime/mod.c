@@ -32,17 +32,40 @@ void kl_resolve_import(Object *_m)
 
     ImportEntry *e;
     vector_foreach_ptr(e, &m->import_table) {
-        Object *mod = kl_get_module(e->path);
-        if (!mod) {
-            panic("failed to resolve import: module '%s' is not found", e->path);
-            return;
-        }
+        Object *obj = NULL;
 
-        Object *obj = kl_mo_find(mod, e->name);
-        if (!obj) {
-            panic("failed to resolve import: symbol '%s::%s' is not found", e->path,
-                  e->name);
-            return;
+        if (e->kind == IMPORT_KIND_FUNC || e->kind == IMPORT_KIND_GLOBAL ||
+            e->kind == IMPORT_KIND_TYPE) {
+            Object *mod = kl_get_module(e->path);
+            if (!mod) {
+                panic("failed to resolve import: module '%s' is not found", e->path);
+                return;
+            }
+
+            obj = kl_mo_find(mod, e->name);
+            if (!obj) {
+                panic("failed to resolve import: symbol '%s::%s' is not found", e->path, e->name);
+                return;
+            }
+        } else {
+            ASSERT(e->kind == IMPORT_KIND_METHOD || e->kind == IMPORT_KIND_FIELD);
+            Object *mod = kl_get_module(e->path);
+            if (!mod) {
+                panic("failed to resolve import: module '%s' is not found", e->path);
+                return;
+            }
+
+            Object *cls = kl_mo_find(mod, e->kls);
+            if (!cls || !IS_TYPE(cls, &type_type)) {
+                panic("failed to resolve import: class '%s::%s' is not found", e->path, e->kls);
+                return;
+            }
+
+            obj = kl_type_find((TypeObject *)cls, e->name);
+            if (!obj) {
+                panic("failed to resolve import: symbol '%s::%s' is not found", e->kls, e->name);
+                return;
+            }
         }
 
         e->address = obj;
@@ -89,8 +112,7 @@ void kl_dump_module(Object *_m)
     /* Import Table */
     printf("Import Table (%d imports)\n", vector_size(&m->import_table));
     printf("  IDX  KIND     MODULE                 SYMBOL                 ADDRESS\n");
-    printf(
-        "  --------------------------------------------------------------------------\n");
+    printf("  --------------------------------------------------------------------------\n");
 
     ImportEntry *e;
     vector_foreach_ptr(e, &m->import_table) {

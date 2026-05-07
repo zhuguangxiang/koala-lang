@@ -33,6 +33,7 @@ typedef struct _LoadKlcContext {
     HashMap *stbl;
     KlcFile *klc;
     void *owner;
+    char *path;
     Vector fixups;
     Vector stage_2_fixups;
 } LoadContext;
@@ -286,8 +287,11 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
     TypeSpec *ret_ts = ret ? type_spec_from_str(ret->sval) : no_type_spec();
 
     HashMap *stbl = kls_sym ? kls_sym->stbl : ctx->stbl;
-    Symbol *sym = stbl_add_func(stbl, k->sval, ret_ts, params, 0);
+    int flags = SYM_FLAGS_EXT;
+    Symbol *sym = stbl_add_func(stbl, k->sval, ret_ts, params, flags);
     ASSERT(sym);
+    sym->parent = kls_sym;
+    if (!kls_sym) sym->path = ctx->path;
 
     load_type_params(&fn->tps, &((FuncSymbol *)sym)->tps, sym, ctx);
 
@@ -401,7 +405,7 @@ static void load_field(KlcVar *field, KlassSymbol *kls_sym, LoadContext *ctx)
     KlcConst *ty_k = klc_get_const(ctx->klc, field->type_index);
     TypeSpec *ts = type_spec_from_str(ty_k->sval);
 
-    int flags = 0;
+    int flags = SYM_FLAGS_EXT;
 
     if (field->flags & KLC_FLAGS_MUT) {
         flags |= SYM_FLAGS_MUTABLE;
@@ -409,7 +413,9 @@ static void load_field(KlcVar *field, KlassSymbol *kls_sym, LoadContext *ctx)
 
     if (field->flags & KLC_FLAGS_PUB) {
         flags |= SYM_FLAGS_PUBLIC;
-        stbl_add_var(kls_sym->stbl, name->sval, ts, flags);
+        Symbol *sym = stbl_add_var(kls_sym->stbl, name->sval, ts, flags);
+        sym->parent = kls_sym;
+        sym->status = SYM_RESOLVED;
     }
 }
 
@@ -418,11 +424,13 @@ static void load_klass(KlcKlass *kls, LoadContext *ctx)
     KlcConst *k = klc_get_const(ctx->klc, kls->name_index);
 
     KlassSymbol *cls_sym;
+    int flags = SYM_FLAGS_EXT | SYM_FLAGS_PUBLIC;
     if (kls->flags & KLC_FLAGS_TRAIT) {
-        cls_sym = stbl_add_klass(ctx->stbl, k->sval, SYM_FLAGS_PUBLIC, 1);
+        cls_sym = stbl_add_klass(ctx->stbl, k->sval, flags, 1);
     } else {
-        cls_sym = stbl_add_klass(ctx->stbl, k->sval, SYM_FLAGS_PUBLIC, 0);
+        cls_sym = stbl_add_klass(ctx->stbl, k->sval, flags, 0);
     }
+    cls_sym->path = ctx->path;
 
     // add type params
     load_type_params(&kls->tps, &cls_sym->tps, (Symbol *)cls_sym, ctx);
@@ -480,7 +488,7 @@ static void load_klasses(LoadContext *ctx)
 }
 
 // absolute path to klc file
-static HashMap *__load(char *path)
+static HashMap *__load(char *path, char *pkg_path)
 {
     log_info("read klc file: %s", path);
 
@@ -495,6 +503,7 @@ static HashMap *__load(char *path)
     LoadContext ctx;
     ctx.stbl = stbl;
     ctx.klc = klc;
+    ctx.path = atom(pkg_path);
     vector_init(&ctx.fixups, sizeof(FixupEntry));
     vector_init(&ctx.stage_2_fixups, sizeof(FixupEntry));
 
@@ -511,12 +520,12 @@ static HashMap *__load(char *path)
 }
 
 // path without .klc suffix
-HashMap *load_module(char *path)
+HashMap *load_module(char *pkg_path)
 {
     char *koala_path = getenv("KOALA_PATH");
     if (!koala_path) {
         log_info("KOALA_PATH is not set");
-        return __load(path);
+        return __load(pkg_path, pkg_path);
     }
 
     log_info("KOALA_PATH: %s", koala_path);
@@ -527,11 +536,11 @@ HashMap *load_module(char *path)
     int count = str_sep(&koala_path, ':', &prefix);
     while (count > 0) {
         buf_write_nstr(&buf, prefix, count);
-        buf_write_str(&buf, path);
+        buf_write_str(&buf, pkg_path);
         buf_write_str(&buf, ".klc");
-        stbl = __load(BUF_STR(buf));
+        stbl = __load(BUF_STR(buf), pkg_path);
         if (stbl) {
-            log_info("found module '%s' in KOALA_PATH: %s", path, prefix);
+            log_info("found package '%s' in KOALA_PATH: %s", pkg_path, prefix);
             break;
         }
 

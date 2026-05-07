@@ -18,7 +18,7 @@ func nested_test() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@nested_test] ---
 // CHECK-LABEL: func @nested_test()
-// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [path = 'std/builtin']
 // CHECK: ret void
 
 func ladder_test() {
@@ -38,7 +38,7 @@ func ladder_test() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@ladder_test] ---
 // CHECK-LABEL: func @ladder_test()
-// CHECK: call @print [ext = true, path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin'] [const]
 // CHECK: ret void
 
 func logic_cascade_test() {
@@ -54,7 +54,7 @@ func logic_cascade_test() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@logic_cascade_test] ---
 // CHECK-LABEL: func @logic_cascade_test()
-// CHECK: call @print [ext = true, path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin'] [const]
 // CHECK: ret void
 
 func short_circuit_sim_test() {
@@ -98,8 +98,8 @@ func foo() {
 // CHECK-NOT: lor
 // CHECK: %0 = call @get_some_bool
 // CHECK: branch %0 bool, label %bb1, label %bb2
-// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [path = 'std/builtin']
 // CHECK: jmp label %bb3
-// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [path = 'std/builtin']
 // CHECK: jmp label %bb3
 // CHECK: ret void

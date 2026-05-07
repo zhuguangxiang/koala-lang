@@ -37,6 +37,15 @@ TypeObject *kl_typeof(TValue *val)
     return _value_typeof(val->tag);
 }
 
+Object *kl_type_find(TypeObject *tp, char *name)
+{
+    Object *obj = stbl_find_obj(&tp->members, name);
+    if (!obj) {
+        log_error("type '%s' has no member named '%s'", tp->name, name);
+    }
+    return obj;
+}
+
 /*---------------------------------------------------------------------------+
  |  Type(meta) type definition                                               |
  +---------------------------------------------------------------------------*/
@@ -196,6 +205,16 @@ int kl_init_type(TypeObject *tp)
         }
 
         ++def;
+    }
+
+    // add member to type
+    MemberDef *mdef = tp->memdefs;
+    while (mdef && mdef->name) {
+        Object *field = kl_new_field(mdef->name, mdef->type, mdef->offset, (Object *)tp);
+        vector_push_back(&tp->fields, &field);
+        stbl_add_obj(&tp->members, mdef->name, field);
+        log_info("added field '%s' to class/trait '%s'", mdef->name, tp->name);
+        ++mdef;
     }
 
     return 0;

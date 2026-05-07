@@ -88,7 +88,19 @@ static void dump_import_table(KlMachModule *m)
     printf("Import Table:\n");
     KlMachImport *imp;
     vector_foreach(imp, &m->import_table) {
-        printf("  #%d: %s.%s\n", i__, imp->path, imp->name);
+        if (imp->kind == IMPORT_FUNC) {
+            printf("  #%d: func   %s::%s\n", i__, imp->path, imp->name);
+        } else if (imp->kind == IMPORT_GLOBAL) {
+            printf("  #%d: global %s::%s\n", i__, imp->path, imp->name);
+        } else if (imp->kind == IMPORT_TYPE) {
+            printf("  #%d: type   %s::%s\n", i__, imp->path, imp->name);
+        } else if (imp->kind == IMPORT_METHOD) {
+            printf("  #%d: method %s::%s::%s\n", i__, imp->path, imp->klass, imp->name);
+        } else if (imp->kind == IMPORT_FIELD) {
+            printf("  #%d: field  %s::%s::%s\n", i__, imp->path, imp->klass, imp->name);
+        } else {
+            UNREACHABLE();
+        }
     }
 }
 
@@ -321,7 +333,15 @@ static int __mach_import_eq__(void *a, void *b)
 {
     KlMachImport *ia = (KlMachImport *)a;
     KlMachImport *ib = (KlMachImport *)b;
-    return strcmp(ia->path, ib->path) == 0 && strcmp(ia->name, ib->name) == 0;
+    if (ia->kind != ib->kind) return 0;
+    if (ia->kind == IMPORT_FUNC) {
+        return str_equal(ia->path, ib->path) && str_equal(ia->name, ib->name);
+    } else if (ia->kind == IMPORT_FIELD) {
+        return str_equal(ia->path, ib->path) && str_equal(ia->klass, ib->klass) &&
+               str_equal(ia->name, ib->name);
+    } else {
+        UNREACHABLE();
+    }
 }
 
 static unsigned int mach_import_hash(void *key)
@@ -332,18 +352,20 @@ static unsigned int mach_import_hash(void *key)
     return h1 ^ h2;
 }
 
-static int mach_import_add(KlMachModule *m, char *path, char *name)
+static int mach_import_add_func(KlMachModule *m, char *path, char *name)
 {
-    KlMachImport key = { .path = path, .name = name };
+    KlMachImport key = { .kind = IMPORT_FUNC, .path = path, .name = name };
     hashmap_entry_init(&key, mach_import_hash(&key));
 
     KlMachImport *entry = hashmap_get(&m->import_map, &key);
     if (entry) {
-        log_info("Found existing import entry for %s.%s (index: %d)", path, name, entry->index);
+        log_info("Found existing import ext-func entry for %s.%s (index: %d)", path, name,
+                 entry->index);
         return entry->index;
     }
 
     KlMachImport *new_entry = mm_alloc_obj(new_entry);
+    new_entry->kind = IMPORT_FUNC;
     new_entry->path = path;
     new_entry->name = name;
     hashmap_entry_init(new_entry, mach_import_hash(new_entry));
@@ -351,7 +373,33 @@ static int mach_import_add(KlMachModule *m, char *path, char *name)
     vector_push_back(&m->import_table, &new_entry);
     int import_index = vector_size(&m->import_table) - 1;
     new_entry->index = import_index;
-    log_info("Added new import entry for %s.%s (index: %d)", path, name, import_index);
+    log_info("Added new import ext-func entry for %s.%s (index: %d)", path, name, import_index);
+    return import_index;
+}
+
+int mach_import_add_field(KlMachModule *m, char *path, char *klass, char *name)
+{
+    KlMachImport key = { .kind = IMPORT_FIELD, .path = path, .klass = klass, .name = name };
+    hashmap_entry_init(&key, mach_import_hash(&key));
+
+    KlMachImport *entry = hashmap_get(&m->import_map, &key);
+    if (entry) {
+        log_info("Found existing import ext-field entry for %s.%s (index: %d)", path, name,
+                 entry->index);
+        return entry->index;
+    }
+
+    KlMachImport *new_entry = mm_alloc_obj(new_entry);
+    new_entry->kind = IMPORT_FIELD;
+    new_entry->path = path;
+    new_entry->klass = klass;
+    new_entry->name = name;
+    hashmap_entry_init(new_entry, mach_import_hash(new_entry));
+    hashmap_put(&m->import_map, new_entry);
+    vector_push_back(&m->import_table, &new_entry);
+    int import_index = vector_size(&m->import_table) - 1;
+    new_entry->index = import_index;
+    log_info("Added new import ext-field entry for %s.%s (index: %d)", path, name, import_index);
     return import_index;
 }
 
@@ -840,7 +888,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 log_info("  call target: (external)");
                 // create an import entry for this external function, and record the
                 // import index in the call instruction's import_index field.
-                int index = mach_import_add(m, "std/builtin", fn->name);
+                int index = mach_import_add_func(m, "std/builtin", fn->name);
                 mi->import_index = index;
                 // insert 4 bytes: import_index
                 KlMachBlock *mb = mi->bb;

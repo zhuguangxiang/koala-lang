@@ -1710,47 +1710,50 @@ X(OP_GLOBAL_SET, FORMAT_Op)
  +---------------------------------------------------------------*/
 
 /**
- * OP_FIELD_LOAD — load field from object (same module)
+ * OP_GET_FIELD — load field from object (same module)
  *
  * FORMAT_ABC:
- *     | op:8 | A(dst):8 | B(obj):8 | C(field-off):8 |
+ *     | op:8 | dst:8 | src:8 | imm(field-offset):8 |
  *
  * Details:
  *     Loads a field from an object using a compile-time constant
  *     field offset. Used only for fields defined in the same module.
+ *     R[dst] = *(R[src] + field-offset).
  */
-X(OP_FIELD_LOAD, FORMAT_Op)
+X(OP_GET_FIELD, FORMAT_RRImm)
 
 /**
- * OP_FIELD_STORE — store field into object (same module)
+ * OP_SET_FIELD — store field into object (same module)
  *
  * FORMAT_ABC:
- *     | op:8 | A(obj):8 | B(field-off):8 | C(src):8 |
+ *     | op:8 | dst:8 | src:8 | imm(field-offset):8 |
  *
  * Details:
  *     Stores a value into a field using a compile-time constant
  *     field offset. Used only for fields defined in the same module.
+ *     Writes may trigger GC barriers depending on the value type.
+ *     *(R[dst] + field-offset) = R[src].
  */
-X(OP_FIELD_STORE, FORMAT_Op)
+X(OP_SET_FIELD, FORMAT_RRImm)
 
 /**
- * OP_FIELD_LOAD_EXT — load field from external class
+ * OP_GET_FIELD_EXT — load field from external class
  *
  * FORMAT_ABC:
- *     | op:8 | A(dst):8 | B(obj):8 | C(import-index):8 |
+ *     | op:8 | dst:8 | src:8 | imm(import-index):8 |
  *
  * Details:
  *     Loads a field defined in another module. The import-index
  *     refers to an ImportEntry of kind IMPORT_FIELD. The loader
  *     resolves the field offset and fills ImportEntry.resolved.field_offset.
  */
-X(OP_FIELD_LOAD_EXT, FORMAT_Op)
+X(OP_GET_FIELD_EXT, FORMAT_RRImm)
 
 /**
- * OP_FIELD_STORE_EXT — store field into external class
+ * OP_SET_FIELD_EXT — store field into external class
  *
  * FORMAT_ABC:
- *     | op:8 | A(obj):8 | B(import-index):8 | C(src):8 |
+ *     | op:8 | dst:8 | src:8 | imm(import-index):8 |
  *
  * Details:
  *     Stores a value into a field defined in another module. The
@@ -1758,7 +1761,7 @@ X(OP_FIELD_LOAD_EXT, FORMAT_Op)
  *     The loader resolves the field offset and fills
  *     ImportEntry.resolved.field_offset.
  */
-X(OP_FIELD_STORE_EXT, FORMAT_Op)
+X(OP_SET_FIELD_EXT, FORMAT_RRImm)
 
 /*---------------------------------------------------------------+
  |  Type Casting & Interface Casting Instructions                |

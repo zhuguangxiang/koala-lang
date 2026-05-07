@@ -42,9 +42,9 @@ func foo() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@foo] ---
 // CHECK-LABEL: func @foo()
-// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [path = 'std/builtin']
 // CHECK: %9 = build_intern @tuple, 'h = ' str, %8 int64
-// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [path = 'std/builtin']
 
 func bar(v int) int {
     let a = v

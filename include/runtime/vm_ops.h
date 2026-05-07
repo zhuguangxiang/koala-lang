@@ -285,18 +285,6 @@ TARGET(OP_RET_INT_IMM) {
 
 /* warm instructions */
 
-TARGET(OP_BUILD_INTERN) {
-    rd = I_VAL(inst, 16, 8);
-    int tag = I_VAL(inst, 8, 8);
-    imm = I_VAL(inst, 0, 8);
-
-    CHECK_REG_ID(rd);
-
-    Object *obj = do_build_intern(ks->stack_top, tag, imm);
-    if (rd != 0xFFFu) regs[rd] = obj_value(obj);
-    DISPATCH();
-}
-
 /* Int Logical Branches */
 
 TARGET(OP_JMP_INT_EQ_IMM) {
@@ -359,6 +347,8 @@ TARGET(OP_JMP_INT_NE) {
     DISPATCH();
 }
 
+/* Ref Logical Branches */
+
 TARGET(OP_JMP_REF_EQ_NULL) {
     rs = I_VAL(inst, 16, 8);
     off = I_SVAL(inst, 0, 16);
@@ -411,10 +401,6 @@ TARGET(OP_REF_EQ) {
 
 TARGET(OP_REF_NE) {
     OP_NYI(OP_REF_NE);
-}
-
-TARGET(OP_NEW) {
-    OP_NYI(OP_NEW);
 }
 
 /* Calls */
@@ -518,7 +504,62 @@ TARGET(OP_TAIL_CALL) {
     }
 }
 
-/* Comparisons*/
+TARGET(OP_GET_FIELD) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    off = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    Object *obj = to_obj(regs + rs);
+    InstObject *inst_obj = (InstObject *)obj;
+    ASSERT(off < inst_obj->size);
+    regs[rd] = inst_obj->fields[off];
+    DISPATCH();
+}
+
+TARGET(OP_GET_FIELD_EXT) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    off = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    ImportEntry *e = IMPORT_ENTRY(off);
+    ASSERT(e->kind == IMPORT_KIND_FIELD);
+    FieldObject *fld = e->address;
+    ASSERT(fld);
+    int offset = fld->index;
+    Object *obj = to_obj(regs + rs);
+    if (fld->kind == FIELD_OFFSET) {
+        regs[rd] = *(TValue *)((char *)obj + offset);
+    } else {
+        ASSERT(fld->kind == FIELD_INDEX);
+        InstObject *inst_obj = (InstObject *)obj;
+        regs[rd] = inst_obj->fields[offset];
+    }
+    DISPATCH();
+}
+
+TARGET(OP_NEW) {
+    OP_NYI(OP_NEW);
+}
+
+TARGET(OP_BUILD_INTERN) {
+    rd = I_VAL(inst, 16, 8);
+    int tag = I_VAL(inst, 8, 8);
+    imm = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+
+    Object *obj = do_build_intern(ks->stack_top, tag, imm);
+    if (rd != 0xFFFu) regs[rd] = obj_value(obj);
+    DISPATCH();
+}
+
+/* Comparisons */
 
 TARGET(OP_INT_CMPEQ) {
     rd = I_VAL(inst, 16, 8);

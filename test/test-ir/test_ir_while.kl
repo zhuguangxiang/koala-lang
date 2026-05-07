@@ -42,7 +42,7 @@ func foo(n int) {
 // CHECK: %2 = cmplt %i int64, 10 int64
 // CHECK: branch %2 bool, label %bb1, label %bb2
 
-// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [path = 'std/builtin']
 // CHECK: ret void
 
 func bar() {
@@ -55,7 +55,7 @@ func bar() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@bar] ---
 // CHECK-LABEL: func @bar()
-// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [path = 'std/builtin']
 // CHECK: ret void
 
 func gcd(a int, b int) int {
@@ -107,7 +107,7 @@ func fib_with_break(n int, a int) {
 // CHECK: %1 = cmpgt %a int64, 1000 int64
 // CHECK: branch %1 bool, label %bb2, label %bb3
 
-// CHECK: call @print [ext = true, path = 'std/builtin']
+// CHECK: call @print [path = 'std/builtin']
 // CHECK: ret void
 
 // CHECK: %3 = add %i int64, 1 int64

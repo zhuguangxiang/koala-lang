@@ -24,11 +24,19 @@ static MethodDef range_methods[] = {
     { NULL },
 };
 
+static MemberDef range_members[] = {
+    { "start", M_TYPE_INT, M_OFFSET(RangeObject, start) },
+    { "stop", M_TYPE_INT, M_OFFSET(RangeObject, stop) },
+    { "step", M_TYPE_INT, M_OFFSET(RangeObject, step) },
+    { NULL },
+};
+
 TypeObject range_type = {
     ._type = &type_type,
     .name = "range",
     .flags = TP_FLAGS_CLASS,
     .methdefs = range_methods,
+    .memdefs = range_members,
 };
 
 Object *kl_new_range(TValue *items)

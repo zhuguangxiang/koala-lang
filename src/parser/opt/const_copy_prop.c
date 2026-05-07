@@ -786,6 +786,58 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
     return changed;
 }
 
+static int do_const_range_fold(KlrInsn *insn, KlrFunc *fn)
+{
+    if (insn->flags & KLR_INSN_FLAGS_DEAD) {
+        return 0;
+    }
+
+    OpCode op = insn->code;
+    if (op != OP_GET_FIELD) {
+        return 0;
+    }
+
+    KlrValue *obj = insn_oper_value(insn, 0);
+    if (!klr_is_const(obj)) {
+        return 0;
+    }
+
+    KlrConst *kc = (KlrConst *)obj;
+    if (kc->which != CONST_RANGE) {
+        return 0;
+    }
+
+    Vector *list = kc->list;
+
+    switch (op) {
+        case OP_GET_FIELD: {
+            char *field = insn->field_info.name;
+            if (str_equal(field, "start")) {
+                KlrValue *start = vector_at(list, 0);
+                replace_all_uses_with(start, (KlrValue *)insn);
+                log_info("fold range start field access to const value.");
+            } else if (str_equal(field, "stop")) {
+                KlrValue *stop = vector_at(list, 1);
+                replace_all_uses_with(stop, (KlrValue *)insn);
+                log_info("fold range stop field access to const value.");
+            } else if (str_equal(field, "step")) {
+                KlrValue *step = vector_at(list, 2);
+                replace_all_uses_with(step, (KlrValue *)insn);
+                log_info("fold range step field access to const value.");
+            } else {
+                UNREACHABLE();
+            }
+            insn->flags |= KLR_INSN_FLAGS_DEAD;
+            return 1;
+        }
+
+        default: {
+            UNREACHABLE();
+            return 0;
+        }
+    }
+}
+
 /*
 The `let` variable is immutable, so it can be propagated.
 This is a global constant propagation and no need SSA format.
@@ -814,6 +866,7 @@ int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
             insn_foreach(insn, bb) {
                 changed |= do_propagate(insn, fn);
                 changed |= do_fold(insn, fn);
+                changed |= do_const_range_fold(insn, fn);
             }
         }
     }
@@ -823,7 +876,7 @@ int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
         KlrInsn *insn, *next;
         insn_foreach_safe(insn, next, bb) {
             if (insn_is_dead(insn)) {
-                ASSERT(insn->code == OP_MOVE);
+                ASSERT(insn->code == OP_MOVE || insn->code == OP_GET_FIELD);
                 klr_erase_insn(insn);
             }
         }

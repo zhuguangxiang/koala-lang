@@ -847,14 +847,24 @@ static void isel_lower_build_intern(KlrInsn *insn, KlrFunc *fn)
     ASSERT(insn->num_args >= 0);
 }
 
+static void isel_lower_get_field(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    ASSERT(!klr_is_const(obj));
+
+    if (insn->field_info.index == -1) {
+        insn->code = OP_GET_FIELD_EXT;
+    }
+}
+
 static void verify_insn(KlrInsn *insn)
 {
     OpCode op = insn->code;
 
     if ((op >= OP_BINARY_ADD && op <= OP_IR_PHI) || (op == OP_JMP) || (op == OP_RET) ||
         (op == OP_RET_VOID) || (op == OP_MOVE) || (op == OP_GLOBAL_GET) || (op == OP_GLOBAL_SET) ||
-        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT) || (op == OP_IR_NEW) ||
-        (op == OP_BUILD_INTERN)) {
+        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT) || (op == OP_BUILD_INTERN) ||
+        (op == OP_GET_FIELD) || (op == OP_SET_FIELD)) {
         return;
     }
 
@@ -939,6 +949,11 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_IR_NEW: {
                     isel_lower_new(insn, fn);
+                    break;
+                }
+
+                case OP_GET_FIELD: {
+                    isel_lower_get_field(insn, fn);
                     break;
                 }
 

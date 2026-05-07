@@ -224,7 +224,7 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
     fprintf(fp, "@%s", fn->name);
 
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
-        fprintf(fp, " [ext = true, path = '%s']", ((KlrExtFunc *)fn)->path);
+        fprintf(fp, " [path = '%s']", ((KlrExtSym *)fn)->path);
     }
 
     if (insn->flags & KLR_INSN_FLAGS_CONST) {
@@ -255,7 +255,7 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
     fprintf(fp, "@%s", fn->name);
 
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
-        fprintf(fp, " [path = '%s']", ((KlrExtFunc *)fn)->path);
+        fprintf(fp, " [path = '%s']", ((KlrExtSym *)fn)->path);
     }
 
     if (insn->flags & KLR_INSN_FLAGS_CONST) {
@@ -354,6 +354,20 @@ static void print_build_intern(KlrInsn *insn, FILE *fp)
             oper = &insn->opers[i];
             print_operand(oper, fp);
         }
+    }
+}
+
+static void print_get_field(KlrInsn *insn, char *name, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = %s ", name);
+    print_operand(&insn->opers[0], fp);
+    KlrFieldInfo *field_info = &insn->field_info;
+    if (field_info->index == -1) {
+        fprintf(fp, ", @%s::%s [path = '%s']", field_info->klass, field_info->name,
+                field_info->path);
+    } else {
+        fprintf(fp, ", %s(index=%d)", field_info->name, field_info->index);
     }
 }
 
@@ -914,6 +928,14 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_BUILD_INTERN:
             print_build_intern(insn, fp);
+            break;
+
+        case OP_GET_FIELD:
+            print_get_field(insn, "get_field", fp);
+            break;
+
+        case OP_GET_FIELD_EXT:
+            print_get_field(insn, "get_field_ext", fp);
             break;
 
         default:

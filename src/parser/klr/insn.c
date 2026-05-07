@@ -496,7 +496,7 @@ KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char
 
 KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, KlrValue **args, int nargs, char *name)
 {
-    if (klass->kind != KLR_VALUE_KLASS) {
+    if (klass->kind != KLR_VALUE_KLASS && klass->kind != KLR_VALUE_EXT_KLASS) {
         panic("'new' op requires a klass value");
     }
 
@@ -566,6 +566,22 @@ KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpe
 
     insn->ts = ts;
     insn->intern_tag = tag;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrFieldInfo *field_info,
+                              char *name)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM) {
+        panic("'get_field' op requires a reg/param value");
+    }
+
+    KlrInsn *insn = new_insn(OP_GET_FIELD, 1, name);
+    init_oper(&insn->opers[0], insn, obj, 0);
+
+    insn->ts = field_info->ts;
+    insn->field_info = *field_info;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

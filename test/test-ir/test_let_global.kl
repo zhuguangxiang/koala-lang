@@ -28,9 +28,9 @@ let list_str = list("a", "b", "c")
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@__init__] ---
 // CHECK-LABEL: func @__init__()
 // CHECK: set_global @j int64, 11 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'], 10 int64, 11 int64
+// CHECK: call @print [path = 'std/builtin'], 10 int64, 11 int64
 // CHECK: %1 = get_global @v2 int64
-// CHECK: call @print [ext = true, path = 'std/builtin'], 223 int64, %1 int64
+// CHECK: call @print [path = 'std/builtin'], 223 int64, %1 int64
 // CHECK: set_global @list_str list<u>, list['a', 'b', 'c'] list
 
 func bar() int {

@@ -208,13 +208,14 @@ int kl_mo_add_range(Object *_m, Vector *list)
     return kl_mo_add_const(_m, &val);
 }
 
-int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *name)
+int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *name)
 {
     ModuleObject *m = (ModuleObject *)_m;
 
     ImportEntry entry = {
         .kind = kind,
         .path = atom(path),
+        .kls = kls ? atom(kls) : NULL,
         .name = atom(name),
         .address = NULL,
     };

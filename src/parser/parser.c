@@ -331,8 +331,8 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         log_info("find symbol '%s' in 'std/builtin' module", id->name);
         id->where = BLTIN_SCOPE;
         id->scope = NULL;
-        sym->flags |= SYM_FLAGS_EXT;
-        sym->path = atom("std/builtin");
+        ASSERT(sym->flags & SYM_FLAGS_EXT);
+        ASSERT(sym->path);
         return sym;
     }
 

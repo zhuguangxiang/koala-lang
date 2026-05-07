@@ -70,6 +70,7 @@ set(KOALA_SOURCES
     objects/boolobj.c
     objects/floatobj.c
     objects/funcobj.c
+    objects/fieldobj.c
     objects/intobj.c
     objects/modobj.c
     objects/noneobj.c
