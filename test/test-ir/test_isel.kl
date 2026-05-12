@@ -109,12 +109,12 @@ func foo2() {
 
 // CHECK: %1 = local tuple<u>
 // CHECK: loadk %1 tuple<u>, tuple('true') tuple<u>
-// CHECK: call @print [path = 'std/builtin'] [const], nargs=3
+// CHECK: call @print [path = 'std/builtin', const], nargs=3
 // CHECK: jmp label %bb3
 
 // CHECK: %4 = local tuple<u>
 // CHECK: loadk %4 tuple<u>, tuple('false') tuple<u>
-// CHECK: call @print [path = 'std/builtin'] [const], nargs=3
+// CHECK: call @print [path = 'std/builtin', const], nargs=3
 // CHECK: jmp label %bb3
 
 // CHECK: ret void

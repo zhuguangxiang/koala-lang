@@ -85,6 +85,7 @@ typedef enum {
     FORMAT_ROff2,               // 8-bit reg + off16
     FORMAT_RIdx2,               // 8-bit reg + index16
     FORMAT_RImmOff,             // 8-bit reg + imm8 + off8
+    FORMAT_RxIdx12,             // 12-bit reg + index12
 
     /* two registers */
     FORMAT_RxRx,                // 12-bit reg + 12-bit reg

@@ -157,6 +157,8 @@ typedef struct _KlassSymbol {
     Vector lro;
     /* second chain map */
     Vector scm;
+    /* __init__ function */
+    Symbol *__init__;
 } KlassSymbol;
 
 typedef struct _PkgSymbol {

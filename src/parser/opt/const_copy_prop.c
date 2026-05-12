@@ -793,7 +793,7 @@ static int do_const_range_fold(KlrInsn *insn, KlrFunc *fn)
     }
 
     OpCode op = insn->code;
-    if (op != OP_GET_FIELD) {
+    if (op != OP_GET_FIELD_EXT) {
         return 0;
     }
 
@@ -810,17 +810,17 @@ static int do_const_range_fold(KlrInsn *insn, KlrFunc *fn)
     Vector *list = kc->list;
 
     switch (op) {
-        case OP_GET_FIELD: {
-            char *field = insn->field_info.name;
-            if (str_equal(field, "start")) {
+        case OP_GET_FIELD_EXT: {
+            KlrValue *fld = insn_oper_value(insn, 1);
+            if (str_equal(fld->name, "start")) {
                 KlrValue *start = vector_at(list, 0);
                 replace_all_uses_with(start, (KlrValue *)insn);
                 log_info("fold range start field access to const value.");
-            } else if (str_equal(field, "stop")) {
+            } else if (str_equal(fld->name, "stop")) {
                 KlrValue *stop = vector_at(list, 1);
                 replace_all_uses_with(stop, (KlrValue *)insn);
                 log_info("fold range stop field access to const value.");
-            } else if (str_equal(field, "step")) {
+            } else if (str_equal(fld->name, "step")) {
                 KlrValue *step = vector_at(list, 2);
                 replace_all_uses_with(step, (KlrValue *)insn);
                 log_info("fold range step field access to const value.");
@@ -828,7 +828,7 @@ static int do_const_range_fold(KlrInsn *insn, KlrFunc *fn)
                 UNREACHABLE();
             }
             insn->flags |= KLR_INSN_FLAGS_DEAD;
-            return 1;
+            return 0;
         }
 
         default: {
@@ -876,7 +876,7 @@ int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
         KlrInsn *insn, *next;
         insn_foreach_safe(insn, next, bb) {
             if (insn_is_dead(insn)) {
-                ASSERT(insn->code == OP_MOVE || insn->code == OP_GET_FIELD);
+                ASSERT(insn->code == OP_MOVE || insn->code == OP_GET_FIELD_EXT);
                 klr_erase_insn(insn);
             }
         }

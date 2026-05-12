@@ -326,7 +326,7 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
 
     /* find ident from external scope (imported) */
     /* find ident from auto-imported(builtin) */
-    sym = stbl_get(ps->module->builtin, id->name);
+    sym = stbl_get(ps->pm->builtin, id->name);
     if (sym) {
         log_info("find symbol '%s' in 'std/builtin' module", id->name);
         id->where = BLTIN_SCOPE;
@@ -786,7 +786,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         } else {
             // all args are concrete types and create instance symbol
             log_info("resolve type '%s' with type-args", _ts->unresolved.name.name);
-            InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, sym, tp_args);
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, sym, tp_args);
             vector_destroy(tp_args);
             if (!inst_sym) {
                 kl_error(_ts->loc, "failed to get instance for generic_ref type");
@@ -2005,7 +2005,7 @@ static void compute_vtbl_info(KlassSymbol *sym)
 static void parse_klass(ParserState *ps, Stmt *stmt)
 {
     KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
-    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+    Symbol *sym = kls->sym;
 
     log_info("parse klass '%s' body", sym->name);
 
@@ -2013,7 +2013,7 @@ static void parse_klass(ParserState *ps, Stmt *stmt)
 
     ParserScope *sc = enter_scope(ps, scope_kind, 0, sym->name);
     sc->stbl = sym->stbl;
-    sc->sym = (Symbol *)sym;
+    sc->sym = sym;
 
     /* parse class body */
     Stmt *s;
@@ -2580,7 +2580,7 @@ void kl_parse_ast(ParserState *ps)
     ps->status = PS_STATUS_RESOLVING;
 
     ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
-    scope->stbl = ps->module->stbl;
+    scope->stbl = ps->pm->stbl;
 
     KlassDeclStmt *kls;
     vector_foreach(kls, &ps->kls_stmts) {
@@ -2614,7 +2614,7 @@ void kl_parse_ast(ParserState *ps)
 
 #ifndef NOLOG
     /* dump symbol tables */
-    stbl_show(ps->module->stbl);
+    stbl_show(ps->pm->stbl);
 #endif
 }
 
@@ -2638,7 +2638,7 @@ ParserState *new_parser_state(ParserModule *pm, char *path)
 
     ParserState *ps = mm_alloc_obj(ps);
     init_parser_state(ps, path);
-    ps->module = pm;
+    ps->pm = pm;
     vector_push_back(&pm->pss, &ps);
 
     yyscan_t scanner;
@@ -2705,7 +2705,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
     switch (stmt->kind) {
         case STMT_VAR_KIND: {
             VarDeclStmt *var = (VarDeclStmt *)stmt;
-            sym = _add_global(ps, ps->module->stbl, var);
+            sym = _add_global(ps, ps->pm->stbl, var);
             if (!sym) return;
             var->where = VAR_GLOBAL;
             sym->ps = ps;
@@ -2713,7 +2713,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
         }
         case STMT_FUNC_KIND: {
             FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
-            sym = _add_func(ps, ps->module->stbl, fn);
+            sym = _add_func(ps, ps->pm->stbl, fn);
             if (!sym) return;
             vector_push_back(&ps->fn_stmts, &stmt);
             sym->ps = ps;
@@ -2722,7 +2722,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
         }
         case STMT_CLASS_KIND: {
             KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
-            sym = _add_klass(ps, ps->module->stbl, kls, 0);
+            sym = _add_klass(ps, ps->pm->stbl, kls, 0);
             if (!sym) return;
             vector_push_back(&ps->kls_stmts, &stmt);
             sym->ps = ps;
@@ -2731,7 +2731,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
         }
         case STMT_TRAIT_KIND: {
             KlassDeclStmt *kls = (KlassDeclStmt *)stmt;
-            sym = _add_klass(ps, ps->module->stbl, kls, 1);
+            sym = _add_klass(ps, ps->pm->stbl, kls, 1);
             if (!sym) return;
             vector_push_back(&ps->kls_stmts, &stmt);
             sym->ps = ps;

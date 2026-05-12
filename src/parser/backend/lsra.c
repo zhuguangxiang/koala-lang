@@ -18,7 +18,12 @@ static void klr_lsra_dump(KlrLSRAContext *ctx)
 
     update_tags(fn);
 
-    fprintf(stdout, "\n=============== LSRA @%s ===============\n", fn->name);
+    KlrKlass *kls = fn->klass;
+    if (kls) {
+        fprintf(stdout, "\n=============== LSRA @%s::%s ===============\n", kls->name, fn->name);
+    } else {
+        fprintf(stdout, "\n=============== LSRA @%s ===============\n", fn->name);
+    }
 
     fprintf(stdout, "\n--- Intervals ---\n");
 
@@ -117,9 +122,8 @@ static void klr_mark_back_edges(KlrFunc *fn)
             if (succ->index <= bb->index) {
                 bb->has_back_edge = 1;
                 succ->is_loop_header = 1;
-                log_info("Found Back-edge: %s (idx:%d) -> %s (idx:%d)",
-                         klr_block_name(bb), bb->index, klr_block_name(succ),
-                         succ->index);
+                log_info("Found Back-edge: %s (idx:%d) -> %s (idx:%d)", klr_block_name(bb),
+                         bb->index, klr_block_name(succ), succ->index);
             }
         }
     }
@@ -203,8 +207,7 @@ static int klr_stretch_interval(KlrLSRAContext *ctx, int header_start, int loop_
         if (intv->start < header_start && intv->end >= header_start) {
             if (intv->end < loop_end) {
                 log_info("Stretching interval for %s: [%d, %d) -> [%d, %d)",
-                         klr_value_name(intv->val), intv->start, intv->end, intv->start,
-                         loop_end);
+                         klr_value_name(intv->val), intv->start, intv->end, intv->start, loop_end);
                 intv->end = loop_end;
                 changed = 1;
             }
@@ -235,8 +238,8 @@ void klr_fix_stretch_loop(KlrLSRAContext *ctx)
             bb_succ_foreach(succ, bb) {
                 /* Detect back-edge: target index is less than or equal to current */
                 if (succ->index <= bb->index) {
-                    log_info("Stretching intervals across back-edge: %s -> %s",
-                             klr_block_name(bb), klr_block_name(succ));
+                    log_info("Stretching intervals across back-edge: %s -> %s", klr_block_name(bb),
+                             klr_block_name(succ));
                     if (klr_stretch_interval(ctx, succ->first_pos, bb->last_pos)) {
                         changed = 1;
                     }
@@ -369,6 +372,16 @@ void kl_do_lsra(KlrModule *m)
         }
 
         klr_lsra_run(fn);
+    }
+
+    KlrKlass *kls;
+    vector_foreach(kls, &m->klasses) {
+        if (!kls) continue;
+        func_foreach(fn, kls) {
+            if (!fn) continue;
+            klr_build_rpo(fn);
+            klr_lsra_run(fn);
+        }
     }
 }
 

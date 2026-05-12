@@ -38,7 +38,7 @@ func ladder_test() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@ladder_test] ---
 // CHECK-LABEL: func @ladder_test()
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin', const]
 // CHECK: ret void
 
 func logic_cascade_test() {
@@ -54,7 +54,7 @@ func logic_cascade_test() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@logic_cascade_test] ---
 // CHECK-LABEL: func @logic_cascade_test()
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin', const]
 // CHECK: ret void
 
 func short_circuit_sim_test() {

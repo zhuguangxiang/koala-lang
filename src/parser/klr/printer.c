@@ -224,11 +224,17 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
     fprintf(fp, "@%s", fn->name);
 
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
-        fprintf(fp, " [path = '%s']", ((KlrExtSym *)fn)->path);
-    }
-
-    if (insn->flags & KLR_INSN_FLAGS_CONST) {
-        fprintf(fp, " [const]");
+        KlrExtModule *m = ((KlrExtFunc *)fn)->module;
+        fprintf(fp, " [path = '%s'", m->name);
+        if (insn->flags & KLR_INSN_FLAGS_CONST) {
+            fprintf(fp, ", const]");
+        } else {
+            fprintf(fp, "]");
+        }
+    } else {
+        if (insn->flags & KLR_INSN_FLAGS_CONST) {
+            fprintf(fp, " [const]");
+        }
     }
 
     if (insn->num_opers > 1) fprintf(fp, ", ");
@@ -255,11 +261,17 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
     fprintf(fp, "@%s", fn->name);
 
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
-        fprintf(fp, " [path = '%s']", ((KlrExtSym *)fn)->path);
-    }
-
-    if (insn->flags & KLR_INSN_FLAGS_CONST) {
-        fprintf(fp, " [const]");
+        KlrExtModule *m = ((KlrExtFunc *)fn)->module;
+        fprintf(fp, " [path = '%s'", m->name);
+        if (insn->flags & KLR_INSN_FLAGS_CONST) {
+            fprintf(fp, ", const]");
+        } else {
+            fprintf(fp, "]");
+        }
+    } else {
+        if (insn->flags & KLR_INSN_FLAGS_CONST) {
+            fprintf(fp, " [const]");
+        }
     }
 
     fprintf(fp, ", nargs=%d", insn->num_args);
@@ -310,31 +322,6 @@ static void print_new(KlrInsn *insn, FILE *fp)
     } else {
         fprintf(fp, " = new @%s", ts->klass_type.name);
     }
-
-    fprintf(fp, ", nargs=%d", insn->num_args);
-}
-
-static void print_ir_new(KlrInsn *insn, FILE *fp)
-{
-    KlrValue *ty = insn_oper_value(insn, 0);
-
-    TypeSpec *ts = ty->ts;
-
-    klr_print_value_name((KlrValue *)insn, fp);
-    if (ts->klass_type.pkg) {
-        fprintf(fp, " = new @%s::%s", ts->klass_type.pkg, ts->klass_type.name);
-    } else {
-        fprintf(fp, " = new @%s", ts->klass_type.name);
-    }
-
-    if (insn->num_opers > 1) fprintf(fp, ", ");
-
-    KlrOper *oper;
-    for (int i = 1; i < insn->num_opers; i++) {
-        if (i != 1) fprintf(fp, ", ");
-        oper = &insn->opers[i];
-        print_operand(oper, fp);
-    }
 }
 
 static void print_build_intern(KlrInsn *insn, FILE *fp)
@@ -362,13 +349,38 @@ static void print_get_field(KlrInsn *insn, char *name, FILE *fp)
     klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = %s ", name);
     print_operand(&insn->opers[0], fp);
-    KlrFieldInfo *field_info = &insn->field_info;
-    if (field_info->index == -1) {
-        fprintf(fp, ", @%s::%s [path = '%s']", field_info->klass, field_info->name,
-                field_info->path);
+
+    KlrValue *val = insn_oper_value(insn, 1);
+    if (val->kind == KLR_VALUE_FIELD) {
+        KlrField *fld = (KlrField *)val;
+        fprintf(fp, ", %s(index=%d)", fld->name, fld->index);
+    } else if (val->kind == KLR_VALUE_EXT_FIELD) {
+        KlrExtField *fld = (KlrExtField *)val;
+        fprintf(fp, ", %s", fld->name);
     } else {
-        fprintf(fp, ", %s(index=%d)", field_info->name, field_info->index);
+        UNREACHABLE();
     }
+}
+
+static void print_set_field(KlrInsn *insn, char *name, FILE *fp)
+{
+    fprintf(fp, "%s ", name);
+    print_operand(&insn->opers[0], fp);
+
+    KlrValue *val = insn_oper_value(insn, 1);
+
+    if (val->kind == KLR_VALUE_FIELD) {
+        KlrField *fld = (KlrField *)val;
+        fprintf(fp, ", %s(index=%d)", fld->name, fld->index);
+    } else if (val->kind == KLR_VALUE_EXT_FIELD) {
+        KlrExtField *fld = (KlrExtField *)val;
+        fprintf(fp, ", %s", fld->name);
+    } else {
+        UNREACHABLE();
+    }
+
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[2], fp);
 }
 
 void klr_print_insn(KlrInsn *insn, FILE *fp)
@@ -922,10 +934,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_new(insn, fp);
             break;
 
-        case OP_IR_NEW:
-            print_ir_new(insn, fp);
-            break;
-
         case OP_BUILD_INTERN:
             print_build_intern(insn, fp);
             break;
@@ -936,6 +944,14 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_GET_FIELD_EXT:
             print_get_field(insn, "get_field_ext", fp);
+            break;
+
+        case OP_SET_FIELD:
+            print_set_field(insn, "set_field", fp);
+            break;
+
+        case OP_SET_FIELD_EXT:
+            print_set_field(insn, "set_field_ext", fp);
             break;
 
         default:
@@ -1012,7 +1028,12 @@ void klr_print_func(KlrFunc *func, FILE *fp)
 {
     update_tags(func);
 
-    fprintf(fp, "  func @%s", func->name);
+    KlrKlass *kls = func->klass;
+    if (kls) {
+        fprintf(fp, "  func @%s::%s", kls->name, func->name);
+    } else {
+        fprintf(fp, "  func @%s", func->name);
+    }
 
     fprintf(fp, "(");
     KlrParam *param;
@@ -1061,21 +1082,6 @@ void klr_print_module(KlrModule *m, FILE *fp)
         print_value_type(g, fp);
         fprintf(fp, "\n");
     }
-
-    // KlrExtSym *ext;
-    // vector_foreach(ext, &m->ext_syms) {
-    //     if (ext->kind == KLR_VALUE_EXT_FUNC) {
-    //         fprintf(fp, "  ext func @%s.%s", ext->path, ext->name);
-    //         print_type(ext->ts, fp);
-    //         fprintf(fp, "\n");
-    //     } else if (ext->kind == KLR_VALUE_EXT_GLOBAL) {
-    //         fprintf(fp, "  ext global @%s.%s", ext->path, ext->name);
-    //         print_type(ext->ts, fp);
-    //         fprintf(fp, "\n");
-    //     } else {
-    //         fprintf(fp, "  ext sym @%s.%s", ext->path, ext->name);
-    //     }
-    // }
 
     KlrFunc *fn;
     func_foreach(fn, m) {

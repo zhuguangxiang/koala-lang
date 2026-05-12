@@ -35,7 +35,7 @@ func test_cannot_fused(x int) int {
 // CHECK: %bb0(entry):
 // CHECK: %0 = int.cmp_lt_imm %x int64, 10 int64
 // CHECK: branch %0 bool, label %bb1, label %bb2
-// CHECK: call @print [path = 'std/builtin'] [const], nargs=3
+// CHECK: call @print [path = 'std/builtin', const], nargs=3
 // CHECK: jmp label %bb2
 // CHECK: branch %0 bool, label %bb3, label %bb4
 // CHECK: ret_int_imm 1 int64

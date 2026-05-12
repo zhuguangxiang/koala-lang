@@ -17,7 +17,7 @@ func main() {
 
 // CHECK: %1 = build_intern @tuple, %msg str, %i int64
 // CHECK: call @print [path = 'std/builtin'], %1 tuple<uj>, ' ' str
-// CHECK: call @print [path = 'std/builtin'] [const], tuple('hello', 'world')
+// CHECK: call @print [path = 'std/builtin', const], tuple('hello', 'world')
 
 // CEHCK: hi 0
 // CHECK: hello 0

@@ -427,7 +427,7 @@ static void compile(ParserModule *pm)
 
     if (genir_enabled()) kl_gen_ir(pm);
 
-    KlrModule *m = pm->module;
+    KlrModule *m = pm->m;
 
     if (opt_enabled()) {
         kl_optimize(m);

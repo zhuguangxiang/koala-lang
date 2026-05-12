@@ -8,7 +8,7 @@ print("End")
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@__init__] ---
 // CHECK-LABEL: func @__init__()
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin', const]
 // CHECK: ret void
 
 func foo() {
@@ -93,7 +93,7 @@ func instant_break() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@instant_break] ---
 // CHECK-LABEL: func @instant_break()
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin', const]
 // CHECK: ret void
 
 func double_loop() {
@@ -163,7 +163,7 @@ func break_shadow() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@break_shadow] ---
 // CHECK-LABEL: func @break_shadow()
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin', const]
 // CHECK: ret void
 
 func logic_continue() {

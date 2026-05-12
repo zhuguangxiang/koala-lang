@@ -28,7 +28,7 @@ func show(cond bool, msg str?) {
 // CHECK： ret void
 
 // CHECK： %bb4(if-then):                                  ;; preds = %bb1
-// CHECK： call @print [path = 'std/builtin'] [const]
+// CHECK： call @print [path = 'std/builtin', const]
 // CHECK： jmp label %bb6
 
 // CHECK： %bb5(if-else):                                  ;; preds = %bb1
@@ -59,7 +59,7 @@ func show(cond bool, msg str?) {
 // CHECK： loadk %2 str, 'assertion failed: ' str
 // CHECK： %3 = local str        [fixedslot = 1(next)]
 // CHECK： loadk %3 str, 'no message' str
-// CHECK： call @print [path = 'std/builtin'] [const]
+// CHECK： call @print [path = 'std/builtin', const]
 // CHECK： jmp label %bb2
 
 // CHECK： %bb4(if-else):                                  ;; preds = %bb1

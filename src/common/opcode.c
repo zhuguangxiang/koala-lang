@@ -60,6 +60,13 @@ void bytecode_print(uint8_t *code, size_t start, size_t count)
                 break;
             }
 
+            case FORMAT_RxIdx12: {
+                int Rx = (insn >> 12) & 0xFFFu;
+                int idx = insn & 0xFFFu;
+                printf("r%d, #%d", Rx, idx);
+                break;
+            }
+
             case FORMAT_ROff2: {
                 int R = (insn >> 16) & 0xFFu;
                 int data = (int16_t)(insn & 0xFFFFu);

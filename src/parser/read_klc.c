@@ -413,10 +413,12 @@ static void load_field(KlcVar *field, KlassSymbol *kls_sym, LoadContext *ctx)
 
     if (field->flags & KLC_FLAGS_PUB) {
         flags |= SYM_FLAGS_PUBLIC;
-        Symbol *sym = stbl_add_var(kls_sym->stbl, name->sval, ts, flags);
-        sym->parent = kls_sym;
-        sym->status = SYM_RESOLVED;
     }
+
+    Symbol *sym = stbl_add_var(kls_sym->stbl, name->sval, ts, flags);
+    sym->parent = kls_sym;
+    sym->status = SYM_RESOLVED;
+    vector_push_back(kls_sym->fields, &sym);
 }
 
 static void load_klass(KlcKlass *kls, LoadContext *ctx)

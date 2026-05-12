@@ -1663,7 +1663,38 @@ X(OP_INT_TO_FLOAT, FORMAT_RR_TI_MODE)
  |  New object Instructions                                      |
  +---------------------------------------------------------------*/
 
-X(OP_NEW, FORMAT_NEW)
+/**
+ * OP_NEW — allocate object of a local type (same module)
+ *
+ * FORMAT_NEW_LOCAL:
+ *     | op:8 | dst:12 | type_index(local):12 |
+ *
+ * Details:
+ *     Allocates an object whose type metadata is defined inside
+ *     the same module. The 12‑bit type_index refers to the module’s
+ *     local type‑metadata array (constructed at load time, no patch).
+ *
+ *     R[dst] = alloc(local_type[type_index]).
+ */
+X(OP_NEW, FORMAT_RxIdx12)
+
+/**
+ * OP_NEW_EXT — allocate object of an external type
+ *
+ * FORMAT_NEW_EXT:
+ *     | op:8 | dst:8 | import_index:16 |
+ *
+ * Details:
+ *     Allocates an object whose type metadata originates from
+ *     another module. The 16‑bit import_index refers to an entry
+ *     in the module’s import table.
+ *
+ *     Loader resolves the external type and fills the import entry
+ *     with the final TypeObject*.
+ *
+ *     R[dst] = alloc(import_table[import_index].type).
+ */
+X(OP_NEW_EXT, FORMAT_RIdx2)
 
 /**
  * OP_BUILD_INTERN — Build builtin object
@@ -1961,7 +1992,6 @@ X(OP_IR_CALL,       FORMAT_IR)
 X(OP_IR_SELECT,     FORMAT_IR)
 X(OP_IR_JMP_COND,   FORMAT_IR)
 X(OP_IR_CAST,       FORMAT_IR)
-X(OP_IR_NEW,        FORMAT_IR)
 X(OP_IR_PHI,        FORMAT_IR)
 
 /* Non-executable data slot (pseudo-instruction) */

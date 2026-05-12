@@ -504,6 +504,21 @@ TARGET(OP_TAIL_CALL) {
     }
 }
 
+TARGET(OP_SET_FIELD) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    off = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    Object *obj = to_obj(regs + rd);
+    InstObject *inst_obj = (InstObject *)obj;
+    ASSERT(off < inst_obj->size);
+    inst_obj->fields[off] = regs[rs];
+    DISPATCH();
+}
+
 TARGET(OP_GET_FIELD) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);

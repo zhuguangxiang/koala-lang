@@ -35,7 +35,7 @@ func foo() {
 // CHECK: call @print [path = 'std/builtin']
 // CHECK: call @print [path = 'std/builtin']
 // CHECK: call @print [path = 'std/builtin']
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin', const]
 // CHECK: ret void
 
 func test_nested(a int, b int) {
@@ -51,9 +51,9 @@ func test_nested(a int, b int) {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@test_nested] ---
 // CHECK-LABEL: func @test_nested(%a int64, %b int64)
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin', const]
 // CHECK: jmp label %bb3
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin', const]
 // CHECK: ret void
-// CHECK: call @print [path = 'std/builtin'] [const]
-// CHECK: call @print [path = 'std/builtin'] [const]
+// CHECK: call @print [path = 'std/builtin', const]
+// CHECK: call @print [path = 'std/builtin', const]

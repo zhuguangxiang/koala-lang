@@ -339,6 +339,8 @@ static int __mach_import_eq__(void *a, void *b)
     } else if (ia->kind == IMPORT_FIELD) {
         return str_equal(ia->path, ib->path) && str_equal(ia->klass, ib->klass) &&
                str_equal(ia->name, ib->name);
+    } else if (ia->kind == IMPORT_TYPE) {
+        return str_equal(ia->path, ib->path) && str_equal(ia->name, ib->name);
     } else {
         UNREACHABLE();
     }
@@ -403,6 +405,31 @@ int mach_import_add_field(KlMachModule *m, char *path, char *klass, char *name)
     return import_index;
 }
 
+int mach_import_add_klass(KlMachModule *m, char *path, char *name)
+{
+    KlMachImport key = { .kind = IMPORT_TYPE, .path = path, .name = name };
+    hashmap_entry_init(&key, mach_import_hash(&key));
+
+    KlMachImport *entry = hashmap_get(&m->import_map, &key);
+    if (entry) {
+        log_info("Found existing import ext-klass entry for %s.%s (index: %d)", path, name,
+                 entry->index);
+        return entry->index;
+    }
+
+    KlMachImport *new_entry = mm_alloc_obj(new_entry);
+    new_entry->kind = IMPORT_TYPE;
+    new_entry->path = path;
+    new_entry->name = name;
+    hashmap_entry_init(new_entry, mach_import_hash(new_entry));
+    hashmap_put(&m->import_map, new_entry);
+    vector_push_back(&m->import_table, &new_entry);
+    int import_index = vector_size(&m->import_table) - 1;
+    new_entry->index = import_index;
+    log_info("Added new import ext-klass entry for %s.%s (index: %d)", path, name, import_index);
+    return import_index;
+}
+
 static void dump_func_byte_code(KlMachFunc *mfn, const uint8_t *code)
 {
     bytecode_print((uint8_t *)code, (size_t)mfn->start_pc, (size_t)mfn->total_insns);
@@ -416,11 +443,17 @@ static void dump_byte_code(KlMachModule *m)
 
     printf("\n====== Emitted Bytecode (insns: %zu) ======\n", len / 4);
 
+    KlrKlass *kls;
     KlrFunc *fn;
     KlMachFunc *mfn;
     vector_foreach(mfn, &m->funcs) {
         fn = mfn->origin;
-        printf("\n@%s:\n", fn->name);
+        kls = fn->klass;
+        if (kls) {
+            printf("\n@%s::%s:\n", kls->name, fn->name);
+        } else {
+            printf("\n@%s:\n", fn->name);
+        }
         printf("[start_pc: %d, insns: %d, nlocals: %d, max_call_args: %d]\n", mfn->start_pc,
                mfn->total_insns, fn->nlocals, fn->max_call_args);
     }
@@ -428,8 +461,14 @@ static void dump_byte_code(KlMachModule *m)
     printf("\n");
 
     vector_foreach(mfn, &m->funcs) {
-        printf("@%s[%d,%d]:\n", mfn->origin->name, mfn->start_pc,
-               mfn->start_pc + mfn->total_insns - 1);
+        fn = mfn->origin;
+        kls = fn->klass;
+        if (kls) {
+            printf("@%s::%s[%d,%d]:\n", kls->name, fn->name, mfn->start_pc,
+                   mfn->start_pc + mfn->total_insns - 1);
+        } else {
+            printf("@%s[%d,%d]:\n", fn->name, mfn->start_pc, mfn->start_pc + mfn->total_insns - 1);
+        }
         dump_func_byte_code(mfn, ptr);
     }
 
@@ -464,6 +503,11 @@ static void dump_mach_insn(KlMachInsn *mi)
 
         case FORMAT_RxTag: {
             used += printf("r%d, #%s", mi->opers[0], tag_mapping[mi->opers[1]]);
+            break;
+        }
+
+        case FORMAT_RxIdx12: {
+            used += printf("r%d, #%d", mi->opers[0], mi->opers[1]);
             break;
         }
 
@@ -573,15 +617,27 @@ static void dump_mach_block(KlMachBlock *mb)
 
 static void dump_mach_func(KlMachFunc *fn)
 {
-    printf("\n====== Linearization @%s(start_pc: %d, insns: %d) ======\n\n", fn->origin->name,
-           fn->start_pc, fn->total_insns);
+    KlrFunc *origin = fn->origin;
+    KlrKlass *kls = origin->klass;
+
+    if (kls) {
+        printf("\n====== Linearization @%s::%s(start_pc: %d, insns: %d) ======\n\n", kls->name,
+               origin->name, fn->start_pc, fn->total_insns);
+    } else {
+        printf("\n====== Linearization @%s(start_pc: %d, insns: %d) ======\n\n", origin->name,
+               fn->start_pc, fn->total_insns);
+    }
 
     KlMachBlock *mb;
     list_foreach(mb, link, &fn->bb_list) {
         dump_mach_block(mb);
     }
 
-    printf("=== End of Linearization @%s ====\n\n", fn->origin->name);
+    if (kls) {
+        printf("=== End of Linearization @%s::%s ====\n\n", kls->name, origin->name);
+    } else {
+        printf("=== End of Linearization @%s ====\n\n", fn->origin->name);
+    }
 }
 
 /* Extract integer value from a raw operand. */
@@ -683,6 +739,16 @@ static void emit_mach_insn(KlMachInsn *mi, CodeBuffer *buf)
             bytecode |= (op & 0xFFu) << 24;
             bytecode |= (Rx & 0xFFFu) << 8;
             bytecode |= (imm8 & 0xFFu);
+            break;
+        }
+
+        case FORMAT_RxIdx12: {
+            // | op:8 | Rx:12 | idx12:12 |
+            uint32_t Rx = mi->opers[0];
+            uint32_t idx12 = mi->opers[1];
+            bytecode |= (op & 0xFFu) << 24;
+            bytecode |= (Rx & 0xFFFu) << 12;
+            bytecode |= (idx12 & 0xFFFu);
             break;
         }
 
@@ -847,6 +913,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
 
         case FORMAT_TI_Imm2:
         case FORMAT_RxTag:
+        case FORMAT_RxIdx12:
         case FORMAT_RImm2:
         case FORMAT_ROff2:
         case FORMAT_RIdx2:
@@ -916,6 +983,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
             break;
         }
 
+        case FORMAT_NEW:
         case FORMAT_Op: {
             // no operand, nothing to fill
             break;
@@ -1518,6 +1586,24 @@ void kl_do_codegen(KlrModule *origin)
         mfn->index = i__;
         fn->mach = mfn;
         ++i__;
+    }
+
+    KlrKlass *kls;
+    vector_foreach(kls, &origin->klasses) {
+        if (!kls) continue;
+        func_foreach(fn, kls) {
+            if (!fn) continue;
+            kl_lower_operands(fn, m);
+            KlMachFunc *mfn = mm_alloc_obj(mfn);
+            mfn->origin = fn;
+            mfn->m = m;
+            init_list(&mfn->bb_list);
+            vector_init_ptr(&mfn->branches);
+            vector_push_back(&m->funcs, &mfn);
+            mfn->index = i__;
+            fn->mach = mfn;
+            ++i__;
+        }
     }
 
     KlMachFunc *mfn;

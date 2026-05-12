@@ -32,7 +32,7 @@ typedef struct _ParserModule {
     HashMap *builtin;
 
     /* module-level IR*/
-    KlrModule *module;
+    KlrModule *m;
 } ParserModule;
 
 typedef enum _ScopeKind {
@@ -83,7 +83,7 @@ typedef struct _ParserScope {
 /* per source file */
 typedef struct _ParserState {
     /* module pointer */
-    ParserModule *module;
+    ParserModule *pm;
 
     /* src file name */
     char *filename;

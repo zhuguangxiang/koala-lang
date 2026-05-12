@@ -36,5 +36,5 @@ pub class str : Sequence[str] {
     pub func __init__(s str) {}
 
     @native(kl_str_add)
-    pub func __add__(rhs str) str {}
+    pub func __add__(rhs any) str {}
 }

@@ -84,6 +84,15 @@ void kl_optimize(KlrModule *m)
         pm.run(fn, &pm);
     }
 
+    KlrKlass *kls;
+    vector_foreach(kls, &m->klasses) {
+        if (!kls) continue;
+        func_foreach(fn, kls) {
+            if (!fn) continue;
+            pm.run(fn, &pm);
+        }
+    }
+
     pm_fini(&cfg_bb_opt_pm);
     pm_fini(&pm);
 }

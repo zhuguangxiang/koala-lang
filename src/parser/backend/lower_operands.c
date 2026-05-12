@@ -363,10 +363,65 @@ static void lower_build_intern_opers(KlrInsn *insn)
     set_raw_imm(&insn->raws[2], insn->num_args);
 }
 
-static void lower_new_opers(KlrInsn *insn)
+static void lower_new_opers(KlrInsn *insn, KlMachModule *m)
 {
     set_raw_reg(&insn->raws[0], insn->vreg);
-    set_raw_imm(&insn->raws[1], insn->num_args);
+
+    KlrValue *val = insn_oper_value(insn, 0);
+
+    if (val->kind == KLR_VALUE_KLASS) {
+        KlrKlass *kls = (KlrKlass *)val;
+        set_raw_imm(&insn->raws[1], kls->index);
+    } else if (val->kind == KLR_VALUE_EXT_KLASS) {
+        KlrExtKlass *kls = (KlrExtKlass *)val;
+        KlrExtModule *mod = kls->module;
+        int index = mach_import_add_klass(m, mod->name, kls->name);
+        set_raw_imm(&insn->raws[1], index);
+    } else {
+        UNREACHABLE();
+    }
+}
+
+static void lower_set_field_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    KlrValue *src = insn_oper_value(insn, 2);
+    set_raw_reg(&insn->raws[0], obj->vreg);
+    set_raw_reg(&insn->raws[1], src->vreg);
+
+    KlrValue *val = insn_oper_value(insn, 1);
+    ASSERT(val->kind == KLR_VALUE_FIELD);
+    KlrField *fld = (KlrField *)val;
+    set_raw_imm(&insn->raws[2], fld->index);
+}
+
+static void lower_get_field_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_reg(&insn->raws[1], obj->vreg);
+
+    KlrValue *val = insn_oper_value(insn, 1);
+    ASSERT(val->kind == KLR_VALUE_FIELD);
+    KlrField *fld = (KlrField *)val;
+    set_raw_imm(&insn->raws[2], fld->index);
+}
+
+static void lower_set_field_ext_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    KlrValue *src = insn_oper_value(insn, 2);
+    set_raw_reg(&insn->raws[0], obj->vreg);
+    set_raw_reg(&insn->raws[1], src->vreg);
+
+    KlrValue *val = insn_oper_value(insn, 1);
+    ASSERT(val->kind == KLR_VALUE_EXT_FIELD);
+    KlrExtField *fld = (KlrExtField *)val;
+    KlrExtKlass *kls = fld->klass;
+    KlrExtModule *mod = kls->module;
+
+    int index = mach_import_add_field(m, mod->name, kls->name, fld->name);
+    set_raw_imm(&insn->raws[2], index);
 }
 
 static void lower_get_field_ext_opers(KlrInsn *insn, KlMachModule *m)
@@ -374,8 +429,14 @@ static void lower_get_field_ext_opers(KlrInsn *insn, KlMachModule *m)
     KlrValue *obj = insn_oper_value(insn, 0);
     set_raw_reg(&insn->raws[0], insn->vreg);
     set_raw_reg(&insn->raws[1], obj->vreg);
-    KlrFieldInfo *field_info = &insn->field_info;
-    int index = mach_import_add_field(m, field_info->path, field_info->klass, field_info->name);
+
+    KlrValue *val = insn_oper_value(insn, 1);
+    ASSERT(val->kind == KLR_VALUE_EXT_FIELD);
+    KlrExtField *fld = (KlrExtField *)val;
+    KlrExtKlass *kls = fld->klass;
+    KlrExtModule *mod = kls->module;
+
+    int index = mach_import_add_field(m, mod->name, kls->name, fld->name);
     set_raw_imm(&insn->raws[2], index);
 }
 
@@ -443,7 +504,22 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                 }
 
                 case OP_NEW: {
-                    lower_new_opers(insn);
+                    lower_new_opers(insn, m);
+                    break;
+                }
+
+                case OP_SET_FIELD: {
+                    lower_set_field_opers(insn, m);
+                    break;
+                }
+
+                case OP_GET_FIELD: {
+                    lower_get_field_opers(insn, m);
+                    break;
+                }
+
+                case OP_SET_FIELD_EXT: {
+                    lower_set_field_ext_opers(insn, m);
                     break;
                 }
 

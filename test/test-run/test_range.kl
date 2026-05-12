@@ -13,9 +13,9 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @foo(%r range) <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = get_field %r range, @range::start [path = 'std/builtin']
-// CHECK: %1 = get_field %r range, @range::stop [path = 'std/builtin']
-// CHECK: %2 = get_field %r range, @range::step [path = 'std/builtin']
+// CHECK: %0 = get_field_ext %r range, start
+// CHECK: %1 = get_field_ext %r range, stop
+// CHECK: %2 = get_field_ext %r range, step
 // CHECK: %3 = build_intern @tuple, %0 int64, %1 int64, %2 int64
 // CHECK: call @print [path = 'std/builtin'], %3 tuple<jjj>, ' ' str, '\n' str
 // CHECK: ret void
@@ -25,9 +25,9 @@ func main() {
 // CHECK: %bb0(entry):
 // CHECK: %r = local [immutable] range
 // CHECK: move %r range, range(1, 10, 2) range
-// CHECK: %0 = get_field %r range, @range::start [path = 'std/builtin']
-// CHECK: %1 = get_field %r range, @range::stop [path = 'std/builtin']
-// CHECK: %2 = get_field %r range, @range::step [path = 'std/builtin']
+// CHECK: %0 = get_field_ext %r range, start
+// CHECK: %1 = get_field_ext %r range, stop
+// CHECK: %2 = get_field_ext %r range, step
 // CHECK: %3 = build_intern @tuple, %0 int64, %1 int64, %2 int64
 // CHECK: call @print [path = 'std/builtin'], %3 tuple<jjj>, ' ' str, '\n' str
 // CHECK: ret void
@@ -35,10 +35,10 @@ func main() {
 // CHECK-LABEL: --- IR Dump After isel [@foo] ---
 // CHECK-LABEL: func @foo(%r range) <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = get_field_ext %r range, @range::start [path = 'std/builtin']        [fixedslot = 0(next)]
-// CHECK: %1 = get_field_ext %r range, @range::stop [path = 'std/builtin']        [fixedslot = 1(next)]
-// CHECK: %2 = get_field_ext %r range, @range::step [path = 'std/builtin']        [fixedslot = 2(next)]
-// CHECK: %3 = build_intern @tuple, nargs=3        [fixedslot = 0(next)]
+// CHECK: %0 = get_field_ext %r range, start
+// CHECK: %1 = get_field_ext %r range, stop
+// CHECK: %2 = get_field_ext %r range, step
+// CHECK: %3 = build_intern @tuple, nargs=3
 // CHECK: %4 = local str        [fixedslot = 1(next)]
 // CHECK: loadk %4 str, ' ' str
 // CHECK: %5 = local str        [fixedslot = 2(next)]

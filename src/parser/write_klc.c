@@ -390,8 +390,8 @@ void write_to_klc(ParserModule *pm)
 
     write_meta(pm->stbl, &klc);
 
-    if (pm->module) {
-        write_rt_data(pm->module->mach, &klc);
+    if (pm->m) {
+        write_rt_data(pm->m->mach, &klc);
     }
 
     write_klc_file(&klc);

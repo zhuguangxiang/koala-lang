@@ -228,7 +228,7 @@ static OpCode get_const_op(KlrConst *c, LowerConstRule *R)
     return op;
 }
 
-static KlrValue *lower_binary_const(KlrFunc *fn, KlrInsn *at, KlrConst *c)
+static KlrValue *lower_const(KlrFunc *fn, KlrInsn *at, KlrConst *c)
 {
     KlrBuilder bldr;
     klr_builder_before(&bldr, at);
@@ -308,7 +308,7 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         // - large int/uint comes here because it doesn't fit in the imm field
         // - float always comes here because float rules have allow_imm = 0
         // reg op reg
-        KlrValue *v = lower_binary_const(fn, insn, rc);
+        KlrValue *v = lower_const(fn, insn, rc);
         insn->code = R->reg_op;
         set_operand_at(insn, 1, v);
         return;
@@ -812,24 +812,6 @@ static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
-static void isel_lower_new(KlrInsn *insn, KlrFunc *fn)
-{
-    int nargs = insn->num_opers;
-    for (int i = 1; i < nargs; i++) {
-        KlrValue *arg = insn_oper_value(insn, i);
-        lower_call_argument(insn, arg, i - 1);
-    }
-
-    for (int i = 1; i < nargs; i++) {
-        clear_operand_at(insn, i);
-    }
-
-    insn->code = OP_NEW;
-    insn->num_opers = 1;
-    insn->num_args = nargs - 1;
-    ASSERT(insn->num_args >= 0);
-}
-
 static void isel_lower_build_intern(KlrInsn *insn, KlrFunc *fn)
 {
     int nargs = insn->num_opers;
@@ -847,13 +829,17 @@ static void isel_lower_build_intern(KlrInsn *insn, KlrFunc *fn)
     ASSERT(insn->num_args >= 0);
 }
 
-static void isel_lower_get_field(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_set_field(KlrInsn *insn, KlrFunc *fn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
-    ASSERT(!klr_is_const(obj));
+    KlrValue *val = insn_oper_value(insn, 2);
 
-    if (insn->field_info.index == -1) {
-        insn->code = OP_GET_FIELD_EXT;
+    ASSERT(klr_is_insn(obj) || klr_is_param(obj) || klr_is_const(obj));
+    ASSERT(klr_is_insn(val) || klr_is_param(val) || klr_is_const(val));
+
+    if (klr_is_const(val)) {
+        KlrValue *_val = lower_const(fn, insn, (KlrConst *)val);
+        set_operand_at(insn, 2, _val);
     }
 }
 
@@ -863,8 +849,8 @@ static void verify_insn(KlrInsn *insn)
 
     if ((op >= OP_BINARY_ADD && op <= OP_IR_PHI) || (op == OP_JMP) || (op == OP_RET) ||
         (op == OP_RET_VOID) || (op == OP_MOVE) || (op == OP_GLOBAL_GET) || (op == OP_GLOBAL_SET) ||
-        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT) || (op == OP_BUILD_INTERN) ||
-        (op == OP_GET_FIELD) || (op == OP_SET_FIELD)) {
+        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT) || (op == OP_NEW) ||
+        (op == OP_BUILD_INTERN) || (op >= OP_GET_FIELD && op <= OP_SET_FIELD_EXT)) {
         return;
     }
 
@@ -890,8 +876,6 @@ static void do_isel(KlrFunc *fn)
         KlrInsn *insn;
         insn_foreach(insn, bb) {
             if (insn_is(insn, OP_IR_CALL)) {
-                max = MAX(max, insn->num_opers - 1);
-            } else if (insn_is(insn, OP_IR_NEW)) {
                 max = MAX(max, insn->num_opers - 1);
             } else if (insn_is(insn, OP_BUILD_INTERN)) {
                 max = MAX(max, insn->num_opers);
@@ -947,13 +931,9 @@ static void do_isel(KlrFunc *fn)
                     break;
                 }
 
-                case OP_IR_NEW: {
-                    isel_lower_new(insn, fn);
-                    break;
-                }
-
-                case OP_GET_FIELD: {
-                    isel_lower_get_field(insn, fn);
+                case OP_SET_FIELD:
+                case OP_SET_FIELD_EXT: {
+                    isel_lower_set_field(insn, fn);
                     break;
                 }
 
@@ -976,6 +956,19 @@ void kl_do_isel(KlrModule *m)
         if (dump_lir_enabled()) {
             fprintf(stdout, "--- IR Dump After isel [@%s] ---\n", fn->name);
             klr_print_func(fn, stdout);
+        }
+    }
+
+    KlrKlass *kls;
+    vector_foreach(kls, &m->klasses) {
+        if (!kls) continue;
+        func_foreach(fn, kls) {
+            if (!fn) continue;
+            do_isel(fn);
+            if (dump_lir_enabled()) {
+                fprintf(stdout, "--- IR Dump After isel [@%s::%s] ---\n", kls->name, fn->name);
+                klr_print_func(fn, stdout);
+            }
         }
     }
 }

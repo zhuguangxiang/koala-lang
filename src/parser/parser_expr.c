@@ -264,8 +264,8 @@ static void parse_list(ParserState *ps, Expr *exp)
     vector_clear(tp_args);
     vector_push_back(tp_args, &infer_ts);
 
-    Symbol *origin = stbl_get(ps->module->builtin, "list");
-    InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, origin, tp_args);
+    Symbol *origin = stbl_get(ps->pm->builtin, "list");
+    InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, origin, tp_args);
     inst_sym->arg = infer_ts; // save infered tuple type for later use
 
     exp->ts = inst_sym->instance_ts;
@@ -301,8 +301,8 @@ static void parse_tuple(ParserState *ps, Expr *exp)
     log_info("infer tuple type:");
     log_type_spec(infer_ts);
 
-    Symbol *origin = stbl_get(ps->module->builtin, "tuple");
-    InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, origin, tp_args);
+    Symbol *origin = stbl_get(ps->pm->builtin, "tuple");
+    InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, origin, tp_args);
     inst_sym->arg = infer_ts; // save infered tuple type for later use
 
     exp->ts = inst_sym->instance_ts;
@@ -538,7 +538,7 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceS
             vector_push_back(_tp_args, &inst_arg);
         }
         Symbol *_sym = get_symbol_by_id(ts->sym_id);
-        InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, _sym, _tp_args);
+        InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, _sym, _tp_args);
         inst_ts = inst_sym->instance_ts;
         vector_destroy(_tp_args);
     } else if (type_is_valist(ts)) {
@@ -1050,7 +1050,7 @@ static void parse_call(ParserState *ps, Expr *exp)
             return;
         }
 
-        if (!strcmp(cls_sym->name, "tuple")) {
+        if (str_equal(cls_sym->name, "tuple")) {
             log_info("infer tuple type parameters from __init__ arguments.");
 
             Vector *tp_args = vector_create_ptr();
@@ -1060,7 +1060,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                 vector_push_back(tp_args, &arg->ts);
             }
 
-            InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, lhs_sym, tp_args);
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, lhs_sym, tp_args);
             vector_destroy(tp_args);
 
             Symbol *_fn = stbl_get(inst_sym->stbl, "__init__");
@@ -1078,6 +1078,7 @@ static void parse_call(ParserState *ps, Expr *exp)
             // func call type is instance type
             exp->ts = inst_sym->instance_ts;
             params = ((FuncSymbol *)_fn_sym)->params;
+            cls_sym->__init__ = _fn_sym;
         } else {
             if (vector_size(&cls_sym->tps) > 0) {
                 log_info(
@@ -1104,8 +1105,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                     return;
                 }
 
-                InstanceSymbol *inst_sym =
-                    find_or_add_instance(ps->module->stbl, lhs_sym, tp_args);
+                InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, lhs_sym, tp_args);
 
                 vector_destroy(tp_args);
 
@@ -1124,12 +1124,14 @@ static void parse_call(ParserState *ps, Expr *exp)
                 // func call type is instance type
                 exp->ts = inst_sym->instance_ts;
                 params = ((FuncSymbol *)_fn_sym)->params;
+                cls_sym->__init__ = _fn_sym;
             } else {
                 log_info("class '%s' has no type parameters.", cls_sym->name);
                 // func call type is instance type
                 exp->ts = cls_sym->instance_ts;
                 // exp->sym = cls_sym;
                 params = ((FuncSymbol *)_fn_sym)->params;
+                cls_sym->__init__ = _fn_sym;
             }
         }
     } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_INTF) {
@@ -1663,7 +1665,7 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
     }
 
     // create or find instance symbol(List<int>)
-    InstanceSymbol *inst_sym = find_or_add_instance(ps->module->stbl, (Symbol *)kls_sym, tp_args);
+    InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, (Symbol *)kls_sym, tp_args);
     vector_destroy(tp_args);
     index->ts = inst_sym->ts;
     index->sym = (Symbol *)inst_sym;
