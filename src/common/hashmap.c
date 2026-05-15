@@ -147,10 +147,7 @@ void hashmap_fini(HashMap *self, HashMapVisitFunc _free, void *arg)
     mm_free(self->entries);
 }
 
-static inline int bucket(HashMap *self, HashMapEntry *e)
-{
-    return e->hash & (self->size - 1);
-}
+static inline int bucket(HashMap *self, HashMapEntry *e) { return e->hash & (self->size - 1); }
 
 static inline int entry_equals(HashMap *self, HashMapEntry *e1, HashMapEntry *e2)
 {
@@ -161,21 +158,16 @@ static inline void *find_entry(HashMap *self, HashMapEntry *key)
 {
     int b = bucket(self, key);
 
-    // int hint = 0;
-
     HashMapEntry *entry;
     HListNode *node;
     hlist_for_each(node, self->entries + b) {
         entry = (HashMapEntry *)node;
-        // hint++;
         if (entry->hash != key->hash) continue;
         if (self->equal(node, key)) {
-            // printf("[hashmap] find entry hint=%d\n", hint);
             return node;
         }
     }
 
-    // printf("[hashmap] not found entry hint=%d\n", hint);
     return NULL;
 }
 

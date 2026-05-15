@@ -1574,7 +1574,7 @@ void kl_do_codegen(KlrModule *origin)
     init_mach_context(m, origin);
 
     KlrFunc *fn;
-    int i__ = 0;
+    int func_index = 0;
     func_foreach(fn, origin) {
         kl_lower_operands(fn, m);
         KlMachFunc *mfn = mm_alloc_obj(mfn);
@@ -1583,9 +1583,9 @@ void kl_do_codegen(KlrModule *origin)
         init_list(&mfn->bb_list);
         vector_init_ptr(&mfn->branches);
         vector_push_back(&m->funcs, &mfn);
-        mfn->index = i__;
+        mfn->index = func_index;
         fn->mach = mfn;
-        ++i__;
+        ++func_index;
     }
 
     KlrKlass *kls;
@@ -1600,9 +1600,9 @@ void kl_do_codegen(KlrModule *origin)
             init_list(&mfn->bb_list);
             vector_init_ptr(&mfn->branches);
             vector_push_back(&m->funcs, &mfn);
-            mfn->index = i__;
+            mfn->index = func_index;
             fn->mach = mfn;
-            ++i__;
+            ++func_index;
         }
     }
 

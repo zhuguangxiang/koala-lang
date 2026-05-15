@@ -559,7 +559,16 @@ TARGET(OP_GET_FIELD_EXT) {
 }
 
 TARGET(OP_NEW) {
-    OP_NYI(OP_NEW);
+    rd = I_VAL(inst, 12, 12);
+    idx = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rd);
+    CHECK_TYPE_INDEX(idx);
+
+    TypeObject *tp = TYPE(idx);
+    Object *obj = kl_new_instance(tp);
+    regs[rd] = obj_value(obj);
+    DISPATCH();
 }
 
 TARGET(OP_BUILD_INTERN) {

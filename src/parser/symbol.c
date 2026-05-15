@@ -244,7 +244,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, 
         sym->params = params;
         vector_init_ptr(&sym->tps);
         sym->ret = ret;
-        vector_init_ptr(&sym->locals);
+        // vector_init_ptr(&sym->locals);
         sym->stbl = stbl_new();
         add_to_global(sym);
     }

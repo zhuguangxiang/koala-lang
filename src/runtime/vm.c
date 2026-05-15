@@ -127,11 +127,11 @@ void koala_run_file(char *path)
 
     int num_rt_consts = klc->num_rt_consts;
     Vector *rt_consts = klc->objs + ITEM_RT_CONST;
-    KlcConst *c;
-    vector_foreach(c, rt_consts) {
-        if (!c) continue;
+    KlcConst *kc;
+    vector_foreach(kc, rt_consts) {
+        if (!kc) continue;
         if (num_rt_consts <= 0) break;
-        __add_const(m, c);
+        __add_const(m, kc);
         --num_rt_consts;
     }
 
@@ -150,14 +150,50 @@ void koala_run_file(char *path)
     KlcCode *item;
     vector_foreach(item, code_objs) {
         if (!item) continue;
-        KlcConst *c = klc_get_rt_const(klc, item->name_index);
-        Object *_co = kl_new_code(c->sval, m);
+        kc = klc_get_rt_const(klc, item->name_index);
+        Object *_co = kl_new_code(kc->sval, m);
         CodeObject *co = (CodeObject *)_co;
+        if (item->flags & KLC_FLAGS_PUB) co->flags |= CODE_FLAG_PUB;
+        if (item->flags & KLC_FLAGS_METH) co->flags |= CODE_FLAG_METH;
         co->cs.nlocals = item->nlocals;
         co->cs.max_call_args = item->max_call_args;
         co->cs.start_pc = item->start_pc;
         co->cs.num_insns = item->num_insns;
         kl_mo_add_func(m, _co);
+    }
+
+    ModuleObject *mo = (ModuleObject *)m;
+    Vector *cls_objs = klc->objs + ITEM_CLASS;
+    KlcKlass *cls;
+    vector_foreach(cls, cls_objs) {
+        if (!cls) continue;
+        kc = klc_get_const(klc, cls->name_index);
+        TypeObject *tp = kl_new_type(kc->sval, cls->flags);
+
+        KlcVar *var;
+        vector_foreach(var, &cls->fields) {
+            if (!var) continue;
+            kc = klc_get_const(klc, var->name_index);
+            Object *field = kl_new_index_field(kc->sval, 0, i__, (Object *)tp);
+            vector_push_back(&tp->fields, &field);
+            stbl_add_obj(&tp->members, kc->sval, field);
+        }
+
+        KlcFunc *meth;
+        vector_foreach(meth, &cls->methods) {
+            if (!meth) continue;
+            kc = klc_get_const(klc, meth->name_index);
+            Object *_co = vector_get(&mo->funcs, meth->code_index);
+            ASSERT(_co && IS_CODE(_co));
+            CodeObject *co = (CodeObject *)_co;
+            ASSERT(co->flags & CODE_FLAG_METH);
+            vector_push_back(&tp->methods, &co);
+            stbl_add_obj(&tp->members, kc->sval, _co);
+        }
+
+        vector_push_back(&mo->types, &tp);
+        stbl_add_obj(&mo->symbols, kc->sval, (Object *)tp);
+        tp->flags |= TP_FLAGS_READY;
     }
 
     kl_init_module(m);

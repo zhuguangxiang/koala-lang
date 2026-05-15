@@ -221,9 +221,9 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
         fprintf(fp, " = call ");
     }
 
-    fprintf(fp, "@%s", fn->name);
-
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
+        fprintf(fp, "@%s", fn->name);
+
         KlrExtModule *m = ((KlrExtFunc *)fn)->module;
         fprintf(fp, " [path = '%s'", m->name);
         if (insn->flags & KLR_INSN_FLAGS_CONST) {
@@ -232,6 +232,13 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
             fprintf(fp, "]");
         }
     } else {
+        KlrFunc *f = (KlrFunc *)fn;
+        if (f->klass) {
+            fprintf(fp, "@%s::%s", f->klass->name, f->name);
+        } else {
+            fprintf(fp, "@%s", fn->name);
+        }
+
         if (insn->flags & KLR_INSN_FLAGS_CONST) {
             fprintf(fp, " [const]");
         }
@@ -258,9 +265,9 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
         fprintf(fp, " = %s ", name);
     }
 
-    fprintf(fp, "@%s", fn->name);
-
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
+        fprintf(fp, "@%s", fn->name);
+
         KlrExtModule *m = ((KlrExtFunc *)fn)->module;
         fprintf(fp, " [path = '%s'", m->name);
         if (insn->flags & KLR_INSN_FLAGS_CONST) {
@@ -269,6 +276,13 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
             fprintf(fp, "]");
         }
     } else {
+        KlrFunc *f = (KlrFunc *)fn;
+        if (f->klass) {
+            fprintf(fp, "@%s::%s", f->klass->name, f->name);
+        } else {
+            fprintf(fp, "@%s", fn->name);
+        }
+
         if (insn->flags & KLR_INSN_FLAGS_CONST) {
             fprintf(fp, " [const]");
         }

@@ -46,6 +46,29 @@ Object *kl_type_find(TypeObject *tp, char *name)
     return obj;
 }
 
+TypeObject *kl_new_type(char *name, int flags)
+{
+    TypeObject *tp = mm_alloc_obj(tp);
+    tp->_type = &type_type;
+    tp->name = name;
+    tp->flags = flags;
+    vector_init_ptr(&tp->fields);
+    vector_init_ptr(&tp->methods);
+    stbl_init(&tp->members);
+    return tp;
+}
+
+Object *kl_new_instance(struct _TypeObject *tp)
+{
+    size_t nfields = vector_size(&tp->fields);
+    int msize = sizeof(InstObject) + sizeof(TValue) * nfields;
+    Object *obj = mm_alloc(msize);
+    INIT_OBJECT_HEAD(obj, tp);
+    InstObject *inst = (InstObject *)obj;
+    inst->size = nfields;
+    return obj;
+}
+
 /*---------------------------------------------------------------------------+
  |  Type(meta) type definition                                               |
  +---------------------------------------------------------------------------*/
@@ -164,6 +187,8 @@ static SlotDef slotdefs[] = {
 
 int kl_init_type(TypeObject *tp)
 {
+    if (!tp || tp->flags & TP_FLAGS_READY) return 0;
+
     Object *_m = tp->module;
     ModuleObject *m = (ModuleObject *)_m;
 
@@ -217,6 +242,7 @@ int kl_init_type(TypeObject *tp)
         ++mdef;
     }
 
+    tp->flags |= TP_FLAGS_READY;
     return 0;
 }
 

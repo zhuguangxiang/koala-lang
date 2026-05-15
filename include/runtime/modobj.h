@@ -47,9 +47,11 @@ typedef struct _ModuleObject {
     /* cold zone */
     Object *__init__; // init func of koala
     Object *main;     // main func of koala
-    Vector funcs;     // functions of this module
-    Vector types;     // types defined in this module
-    // Vector globals;    // vars defined in this module
+
+    Vector funcs;   // functions of this module
+    Vector types;   // types defined in this module
+    Vector globals; // vars defined in this module
+
     HashMap symbols;  // symbols for exported map
     char *path;       // module path
     Object *not_impl; // not implemented function

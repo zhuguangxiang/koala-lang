@@ -70,6 +70,7 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                 klc_add_var(klc, var->name, var->ts->signature, dfl_val_idx, flags);
                 break;
             }
+
             case SYM_FUNC: {
                 FuncSymbol *fn = (FuncSymbol *)sym;
 
@@ -79,6 +80,7 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                 }
 
                 KlcFunc *f = klc_add_func(klc, fn->name, fn->ret->signature, flags);
+                f->code_index = fn->code_index;
 
                 // add argument info
                 ArgInfo *item;
@@ -101,6 +103,7 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                 }
                 break;
             }
+
             case SYM_CLASS: {
                 KlassSymbol *kls = (KlassSymbol *)sym;
 
@@ -176,12 +179,13 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                 vector_foreach(fn, kls->funcs) {
                     if (!fn) continue;
 
-                    int flags_ = 0;
+                    int flags_ = KLC_FLAGS_METH;
                     if (fn->flags & SYM_FLAGS_PUBLIC) {
                         flags_ |= KLC_FLAGS_PUB;
                     }
 
                     klc_fn = klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
+                    klc_fn->code_index = fn->code_index;
 
                     if (vector_size(&fn->tps) > 0) {
                         TypeParamSymbol *tp;
@@ -225,6 +229,7 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                 }
                 break;
             }
+
             case SYM_TRAIT: {
                 KlassSymbol *kls = (KlassSymbol *)sym;
 
@@ -309,10 +314,12 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                 }
                 break;
             }
+
             case SYM_INSTANCE: {
                 // do nothing
                 break;
             }
+
             default: {
                 UNREACHABLE();
                 break;
@@ -358,7 +365,7 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
     }
 }
 
-static void write_rt_data(KlMachModule *m, KlcFile *klc)
+static void write_rt_data(KlMachModule *m, KlcFile *klc, HashMap *stbl)
 {
     klc->num_rt_consts = vector_size(&m->const_pool);
 
@@ -372,13 +379,51 @@ static void write_rt_data(KlMachModule *m, KlcFile *klc)
         klc_add_import(klc, imp->kind, imp->path, imp->klass, imp->name);
     }
 
+    BUF(buf);
+
     KlrFunc *fn;
     KlMachFunc *mach;
     vector_foreach(mach, &m->funcs) {
         fn = mach->origin;
-        klc_add_code(klc, fn->name, fn->nlocals, fn->max_call_args, mach->start_pc,
-                     mach->total_insns);
+
+        RESET_BUF(buf);
+
+        Symbol *sym;
+        int flags_;
+
+        if (fn->klass) {
+            buf_write_str(&buf, fn->klass->name);
+            buf_write_char(&buf, '$');
+            buf_write_str(&buf, fn->name);
+
+            Symbol *_sym = stbl_get(stbl, fn->klass->name);
+            ASSERT(_sym && _sym->kind == SYM_CLASS);
+            KlassSymbol *kls_sym = (KlassSymbol *)_sym;
+            sym = stbl_get(kls_sym->stbl, fn->name);
+
+            flags_ = KLC_FLAGS_METH;
+        } else {
+            buf_write_str(&buf, fn->name);
+
+            sym = stbl_get(stbl, fn->name);
+
+            flags_ = 0;
+        }
+
+        ASSERT(sym && sym->kind == SYM_FUNC);
+        FuncSymbol *fn_sym = (FuncSymbol *)sym;
+
+        if (fn_sym->flags & SYM_FLAGS_PUBLIC) {
+            flags_ |= KLC_FLAGS_PUB;
+        }
+
+        int index = klc_add_code(klc, BUF_STR(buf), flags_, fn->nlocals, fn->max_call_args,
+                                 mach->start_pc, mach->total_insns);
+        ASSERT(index >= 1);
+        fn_sym->code_index = index - 1;
     }
+
+    FINI_BUF(buf);
 
     klc_add_bytecodes(klc, m->codes.size, m->codes.data);
 }
@@ -388,11 +433,11 @@ void write_to_klc(ParserModule *pm)
     KlcFile klc;
     init_klc_file(&klc, pm->path);
 
-    write_meta(pm->stbl, &klc);
-
     if (pm->m) {
-        write_rt_data(pm->m->mach, &klc);
+        write_rt_data(pm->m->mach, &klc, pm->stbl);
     }
+
+    write_meta(pm->stbl, &klc);
 
     write_klc_file(&klc);
 

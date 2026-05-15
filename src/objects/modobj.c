@@ -60,6 +60,7 @@ int kl_mo_add_func(Object *_m, Object *obj)
     } else {
         ASSERT(IS_CODE(obj));
         CodeObject *code = (CodeObject *)obj;
+        if (code->flags & CODE_FLAG_METH) return 0;
         stbl_add_obj(&m->symbols, code->cs.name, obj);
         name = code->cs.name;
     }

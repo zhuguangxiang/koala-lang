@@ -68,8 +68,7 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
 #define CP(i) (const_pool + (i))
 #define ENTRY(i) (entry_table + (i))
 #define IMPORT_ENTRY(i) (import_table + (i))
-
-#define SHRINK(n)   ({ top -= (n); ASSERT(top >= ks->stack_top); })
+#define TYPE(i) (*(types + (i)))
 
 #define OP_NYI(op) do { \
     fprintf(stderr, "Fatal: Opcode %d (%s) is Not Yet Implemented\n", op, #op); \
@@ -81,6 +80,7 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
 #define CHECK_IS_UINT(id) ASSERT(is_uint(regs + (id)))
 #define CHECK_IS_FLOAT(id) ASSERT(is_float(regs + (id)))
 #define CHECK_IS_BOOL(id) ASSERT(is_bool(regs + (id)))
+#define CHECK_TYPE_INDEX(idx) ASSERT((idx) >= 0 && (idx) < types_size)
 
 /* clang-format on */
 
@@ -124,8 +124,10 @@ ext_tailcall:
     TValue *const_pool = VECTOR_RAW(&m->const_pool, TValue);
     ImportEntry *import_table = VECTOR_RAW(&m->import_table, ImportEntry);
     FuncEntry *entry_table = VECTOR_RAW(&m->func_entries, FuncEntry);
+    TypeObject **types = VECTOR_RAW(&m->types, TypeObject *);
 #ifndef NDEBUG
     int entry_size = vector_size(&m->func_entries);
+    int types_size = vector_size(&m->types);
 #endif
     uint32_t *codes = m->codes;
 

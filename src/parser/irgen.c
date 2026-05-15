@@ -106,9 +106,9 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
         }
 
         case SYM_CLASS: {
-            KlassSymbol *kls_sym = (KlassSymbol *)sym;
             ASSERT(!(sym->flags & SYM_FLAGS_EXT));
-            exp->ir_val = klr_add_klass(MOD, kls_sym->instance_ts, sym->name);
+            ASSERT(sym->ir_val);
+            exp->ir_val = sym->ir_val;
             break;
         }
 
@@ -1491,6 +1491,11 @@ void kl_gen_ir(ParserModule *pm)
     if (klr_func_empty((KlrFunc *)fn)) {
         klr_delete_func(m, (KlrFunc *)fn);
         m->init = NULL;
+    } else {
+        // add symbol table entry for __init__ function
+        HashMap *stbl = pm->stbl;
+        Symbol *sym = stbl_add_func(stbl, "__init__", no_type_spec(), NULL, 0);
+        sym->ir_val = (KlrValue *)m->init;
     }
 }
 

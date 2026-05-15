@@ -127,14 +127,8 @@ typedef struct _FuncSymbol {
     Vector *params;
     /* type params */
     Vector tps;
-    /* local variables */
-    Vector locals;
-    /* stack size */
-    int stack_size;
-    /* code size */
-    int code_size;
-    /* codes */
-    char *codes;
+    /* code index */
+    int code_index;
 } FuncSymbol;
 
 typedef struct _KlassSymbol {

@@ -165,6 +165,8 @@ typedef struct _InstObject {
     TValue fields[0];
 } InstObject;
 
+Object *kl_new_instance(struct _TypeObject *tp);
+
 /*---------------------------------------------------------------------------+
  |  Type Object                                                              |
  +---------------------------------------------------------------------------*/
@@ -218,6 +220,7 @@ typedef enum {
 #define TP_FLAGS_CLASS  (1 << 0)
 #define TP_FLAGS_TRAIT  (1 << 1)
 #define TP_FLAGS_PUBLIC (1 << 2)
+#define TP_FLAGS_READY  (1 << 3)
 
 typedef struct _TypeObject {
     OBJECT_HEAD
@@ -337,6 +340,9 @@ typedef struct _CFuncObject {
 typedef struct _CodeObject {
     OBJECT_HEAD
     Object *owner;
+    int flags;
+#define CODE_FLAG_PUB  (1 << 0)
+#define CODE_FLAG_METH (1 << 1)
     int func_idx;
     CodeSpec cs;
 } CodeObject;
@@ -450,6 +456,7 @@ extern TypeObject MutableSequence_type;
 
 TypeObject *kl_typeof(TValue *val);
 int kl_init_type(TypeObject *tp);
+TypeObject *kl_new_type(char *name, int flags);
 
 static inline Object *kl_to_str(TValue *val)
 {

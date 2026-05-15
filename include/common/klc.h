@@ -73,6 +73,7 @@ typedef struct _KlcConst {
 #define KLC_FLAGS_PUB   (1 << 0)
 #define KLC_FLAGS_MUT   (1 << 1)
 #define KLC_FLAGS_TRAIT (1 << 2)
+#define KLC_FLAGS_METH  (1 << 3)
 
 typedef struct _KlcVar {
     /* flags */
@@ -157,6 +158,8 @@ typedef struct _KlcKlass {
 typedef struct _KlcCode {
     /* name index */
     uint16_t name_index;
+    /* flags */
+    uint16_t flags;
     /* number of locals */
     uint16_t nlocals;
     /* max call arguments */
@@ -185,16 +188,16 @@ typedef struct _KlcByteCode {
     uint8_t *codes;
 } KlcByteCode;
 
-KlcVar *klc_add_var(KlcFile *klc, char *name, char *desc, uint16_t index, int flags);
+KlcVar *klc_add_var(KlcFile *klc, char *name, char *type, uint16_t index, int flags);
 
-KlcFunc *klc_add_func(KlcFile *klc, char *name, char *ret_desc, int flags);
-int klc_func_add_arg(KlcFunc *fn, char *name, char *desc, uint16_t index);
+KlcFunc *klc_add_func(KlcFile *klc, char *name, char *type, int flags);
+int klc_func_add_arg(KlcFunc *fn, char *name, char *type, uint16_t index);
 KlcTypeParam *klc_func_add_tp(KlcFunc *fn, char *name);
 int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value);
 
 KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags);
 KlcTypeParam *klc_klass_add_tp(KlcKlass *kls, char *name);
-KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_desc, int flags);
+KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_type, int flags);
 KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *type, int flags);
 
 uint16_t klc_add_none(KlcFile *klc);
@@ -203,8 +206,9 @@ uint16_t klc_add_float(KlcFile *klc, double val, int width);
 uint16_t klc_add_str(KlcFile *klc, char *s, int len);
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len);
 
-uint16_t klc_add_code(KlcFile *klc, char *name, uint16_t num_locals, uint16_t max_call_args,
-                      uint32_t start_pc, uint32_t code_size);
+uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t num_locals,
+                      uint16_t max_call_args, uint32_t start_pc, uint32_t code_size);
+KlcCode *klc_get_code(KlcFile *klc, uint16_t index);
 
 uint16_t klc_add_rt_int(KlcFile *klc, uint64_t val, int sign, int width);
 uint16_t klc_add_rt_float(KlcFile *klc, double val, int width);
