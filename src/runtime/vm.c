@@ -65,7 +65,7 @@ void koala_initialize(void)
     init_tag_mappings();
 }
 
-static void __add_const(Object *m, KlcConst *item)
+static void __load_const(Object *m, KlcConst *item)
 {
     switch (item->type) {
         case KLC_CONST_NONE: {
@@ -131,7 +131,7 @@ void koala_run_file(char *path)
     vector_foreach(kc, rt_consts) {
         if (!kc) continue;
         if (num_rt_consts <= 0) break;
-        __add_const(m, kc);
+        __load_const(m, kc);
         --num_rt_consts;
     }
 

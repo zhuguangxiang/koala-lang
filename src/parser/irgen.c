@@ -771,6 +771,28 @@ static void emit_ir_var_decl(ParserState *ps, Stmt *stmt)
 
 static void emit_ir_stmt(ParserState *ps, Stmt *stmt);
 
+static void emit_ir_fields(ParserState *ps, ParserScope *scope, Vector *fields)
+{
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, scope->bb);
+
+    VarDeclStmt *s;
+    vector_foreach(s, fields) {
+        ASSERT(s->kind == STMT_VAR_KIND);
+        VarSymbol *var_sym = (VarSymbol *)s->sym;
+        ASSERT(var_sym->scope == VAR_SCOPE_FIELD);
+        Expr *e = s->exp;
+        if (e) {
+            emit_ir_visit_expr(ps, e);
+            ASSERT(e->ir_val);
+            ASSERT(var_sym->ir_val);
+            KlrValue *self = METHOD_SELF;
+            ASSERT(self);
+            klr_build_set_field(&bldr, self, var_sym->ir_val, e->ir_val);
+        }
+    }
+}
+
 static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
@@ -779,6 +801,10 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     KlrBasicBlock *entry = klr_append_block(sym->ir_val, "entry");
     scope->bb = entry;
     scope->sym = sym;
+
+    if (str_equal(sym->name, "__init__")) {
+        emit_ir_fields(ps, scope, fn->data);
+    }
 
     Stmt *s;
     vector_foreach(s, fn->body) {
@@ -806,12 +832,53 @@ static void emit_ir_class(ParserState *ps, Stmt *stmt)
     ParserScope *scope = enter_scope(ps, scope_kind, 0, sym->name);
     scope->sym = sym;
 
+    int has_init_fn = 0;
+    Vector fields = VECTOR_INIT_PTR;
+
     Stmt *s;
     vector_foreach(s, kls->stmts) {
         if (!s) continue;
-        if (s->kind != STMT_FUNC_KIND) continue;
+        if (s->kind == STMT_VAR_KIND) {
+            vector_push_back(&fields, &s);
+            continue;
+        }
+    }
+
+    vector_foreach(s, kls->stmts) {
+        if (!s || s->kind != STMT_FUNC_KIND) continue;
+        FuncDeclStmt *method = (FuncDeclStmt *)s;
+        Symbol *sym = method->sym;
+        if (str_equal(sym->name, "__init__")) {
+            has_init_fn = 1;
+            method->data = &fields;
+        }
         emit_ir_stmt(ps, s);
     }
+
+    if (!has_init_fn) {
+        // if there is no __init__, we still need to create an __init__ method to initialize fields
+        // with default values
+        ASSERT(sym->ir_val && sym->ir_val->kind == KLR_VALUE_KLASS);
+        KlrKlass *kls = (KlrKlass *)sym->ir_val;
+        KlrValue *fn = klr_add_method(kls, no_type_spec(), "__init__");
+        ((KlrFunc *)fn)->self = klr_func_add_param(fn, kls->ts, "self");
+        KlrBasicBlock *bb = klr_append_block(fn, "entry");
+
+        KlassSymbol *kls_sym = (KlassSymbol *)sym;
+        Symbol *sym = stbl_get(kls_sym->stbl, "__init__");
+        if (!sym) {
+            sym = stbl_add_func(kls_sym->stbl, "__init__", no_type_spec(), NULL,
+                                kls_sym->flags & SYM_FLAGS_PUBLIC);
+        }
+        sym->ir_val = fn;
+
+        ParserScope *scope = enter_scope(ps, SCOPE_FUNC, 0, fn->name);
+        scope->bb = bb;
+        emit_ir_fields(ps, scope, &fields);
+        exit_scope(ps);
+    }
+
+    vector_fini(&fields);
 
     exit_scope(ps);
 }

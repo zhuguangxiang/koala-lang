@@ -172,6 +172,22 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
                 break;
             }
 
+            case KLC_CONST_RANGE: {
+                Vector *_sub = item->val;
+                TValue values[3];
+
+                KlcConst *_item;
+                vector_foreach(_item, _sub) {
+                    ASSERT(_item->type == KLC_CONST_INT);
+                    values[i__] = int64_value(_item->ival);
+                }
+
+                Object *tobj = kl_new_range(values);
+                TValue val = obj_value(tobj);
+                vector_push_back(&vec, &val);
+                break;
+            }
+
             default: {
                 NYI();
                 break;

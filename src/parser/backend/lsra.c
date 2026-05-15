@@ -357,30 +357,34 @@ static void klr_lsra_run(KlrFunc *func)
     vector_fini(&ctx.fixed);
 }
 
+static void _do_lsra(KlrFunc *fn)
+{
+    klr_build_rpo(fn);
+
+    // for simplicity, here add a return at the end of __init__ function
+    if (str_equal(fn->name, "__init__")) {
+        KlrBasicBlock *last = last_basic_block(fn);
+        klr_add_last_return(last);
+    }
+
+    klr_lsra_run(fn);
+}
+
 void kl_do_lsra(KlrModule *m)
 {
     if (!m || m->errors > 0) return;
 
     KlrFunc *fn;
     func_foreach(fn, m) {
-        klr_build_rpo(fn);
-
-        // for simplicity, here add a return at the end of __init__ function
-        if (str_equal(fn->name, "__init__")) {
-            KlrBasicBlock *last = last_basic_block(fn);
-            klr_add_last_return(last);
-        }
-
-        klr_lsra_run(fn);
+        _do_lsra(fn);
     }
 
     KlrKlass *kls;
     vector_foreach(kls, &m->klasses) {
-        if (!kls) continue;
+        ASSERT(kls);
+        KlrFunc *fn;
         func_foreach(fn, kls) {
-            if (!fn) continue;
-            klr_build_rpo(fn);
-            klr_lsra_run(fn);
+            _do_lsra(fn);
         }
     }
 }

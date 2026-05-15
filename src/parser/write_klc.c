@@ -350,7 +350,7 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
             }
             return klc_add_rt_tuple(klc, list);
         }
-        case KL_MACH_CONST_RANGE:
+        case KL_MACH_CONST_RANGE: {
             Vector *list = vector_create(sizeof(uint16_t));
             Vector *vec = kc->list;
             KlMachConst *range_item;
@@ -360,6 +360,7 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
                 vector_push_back(list, &idx);
             }
             return klc_add_rt_range(klc, list);
+        }
         default:
             UNREACHABLE();
     }

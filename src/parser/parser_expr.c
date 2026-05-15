@@ -1046,8 +1046,10 @@ static void parse_call(ParserState *ps, Expr *exp)
 
         Symbol *_fn_sym = stbl_get(cls_sym->stbl, "__init__");
         if (!_fn_sym) {
-            kl_error(lhs->loc, "class '%s' has no constructor.", lhs_sym->name);
-            return;
+            log_info("class '%s' has no constructor, add default __init__() for it.",
+                     lhs_sym->name);
+            _fn_sym = stbl_add_func(cls_sym->stbl, "__init__", no_type_spec(), NULL,
+                                    cls_sym->flags & SYM_FLAGS_PUBLIC);
         }
 
         if (str_equal(cls_sym->name, "tuple")) {
@@ -1179,8 +1181,10 @@ static void parse_call(ParserState *ps, Expr *exp)
         if (!init_fn_sym) {
             Symbol *_fn_sym = stbl_get(origin->stbl, "__init__");
             if (!_fn_sym) {
-                kl_error(lhs->loc, "class '%s' has no constructor.", origin->name);
-                return;
+                log_info("class '%s' has no constructor, add default __init__() for it.",
+                         origin->name);
+                _fn_sym = stbl_add_func(origin->stbl, "__init__", no_type_spec(), NULL,
+                                        origin->flags & SYM_FLAGS_PUBLIC);
             }
 
             // params

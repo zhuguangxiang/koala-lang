@@ -449,6 +449,7 @@ typedef struct _FuncDeclStmt {
     Vector *args;
     TypeSpec *ret;
     Vector *body;
+    void *data;
 } FuncDeclStmt;
 
 Stmt *stmt_from_func_decl(Ident id, Vector *args, TypeSpec *ret, Vector *tps);

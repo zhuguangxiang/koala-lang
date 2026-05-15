@@ -32,15 +32,18 @@ static int __const_equal(KlcConst *k1, KlcConst *k2)
         case KLC_CONST_NONE: {
             return 1;
         }
+
         case KLC_CONST_INT: {
             if (k1->sign != k2->sign) return 0;
             if (k1->len != k2->len) return 0;
             return k1->ival == k2->ival;
         }
+
         case KLC_CONST_FLT: {
             if (k1->len != k2->len) return 0;
             return k1->fval == k2->fval;
         }
+
         case KLC_CONST_ASCII:      // fall-through
         case KLC_CONST_UTF8:       // fall-through
         case KLC_CONST_SHORT_UTF8: // fall-through
@@ -49,6 +52,16 @@ static int __const_equal(KlcConst *k1, KlcConst *k2)
             if (k1->len != k2->len) return 0;
             return !strncmp(k1->sval, k2->sval, k1->len);
         }
+
+        case KLC_CONST_RANGE: {
+            Vector *v1 = k1->val;
+            Vector *v2 = k2->val;
+            void *p1 = VECTOR_RAW(v1, uint16_t);
+            void *p2 = VECTOR_RAW(v2, uint16_t);
+            if (memcmp(p1, p2, 3 * sizeof(uint16_t))) return 0;
+            return 1;
+        }
+
         default: {
             UNREACHABLE();
         }
@@ -67,7 +80,16 @@ static void __item_entry_free(void *obj, void *arg) { mm_free(obj); }
 
 static unsigned int init_item_entry(ItemEntry *item, int type, KlcConst *data)
 {
-    uint64_t hash = mem_hash(data, sizeof(KlcConst));
+    uint64_t hash;
+
+    if (data->type == KLC_CONST_RANGE) {
+        Vector *vec = data->val;
+        uint16_t *raw = VECTOR_RAW(vec, uint16_t);
+        hash = mem_hash(raw, sizeof(uint16_t) * 3);
+    } else {
+        hash = mem_hash(data, sizeof(KlcConst));
+    }
+
     item->type = type;
     item->data = data;
     item->index = 0;
@@ -278,17 +300,18 @@ uint16_t klc_add_rt_tuple(KlcFile *klc, Vector *list)
 
 uint16_t klc_add_rt_range(KlcFile *klc, Vector *list)
 {
-    KlcConst *item = mm_alloc_obj(item);
-    item->type = KLC_CONST_RANGE;
-    item->len = vector_size(list);
-    item->val = list;
+    int len = vector_size(list);
+    KlcConst key = { .type = KLC_CONST_RANGE, .len = len, .val = list };
 
-    Vector *objs = klc->objs + ITEM_RT_CONST;
-    vector_push_back(objs, &item);
-    uint16_t index = vector_size(objs) - 1;
-    ASSERT(index > 0);
-
-    return index;
+    uint16_t idx = __index(klc, ITEM_RT_CONST, &key);
+    if (idx == 0) {
+        KlcConst *item = mm_alloc_obj(item);
+        item->type = KLC_CONST_RANGE;
+        item->len = len;
+        item->val = list;
+        idx = __append(klc, ITEM_RT_CONST, item);
+    }
+    return idx;
 }
 
 void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym)

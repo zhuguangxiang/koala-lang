@@ -961,9 +961,9 @@ void kl_do_isel(KlrModule *m)
 
     KlrKlass *kls;
     vector_foreach(kls, &m->klasses) {
-        if (!kls) continue;
+        ASSERT(kls);
+        KlrFunc *fn;
         func_foreach(fn, kls) {
-            if (!fn) continue;
             do_isel(fn);
             if (dump_lir_enabled()) {
                 fprintf(stdout, "--- IR Dump After isel [@%s::%s] ---\n", kls->name, fn->name);

@@ -86,9 +86,9 @@ void kl_optimize(KlrModule *m)
 
     KlrKlass *kls;
     vector_foreach(kls, &m->klasses) {
-        if (!kls) continue;
+        ASSERT(kls);
+        KlrFunc *fn;
         func_foreach(fn, kls) {
-            if (!fn) continue;
             pm.run(fn, &pm);
         }
     }
