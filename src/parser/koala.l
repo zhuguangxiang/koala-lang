@@ -36,10 +36,12 @@ static int semicolon(ParserState *ps)
 
 static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 {
+    if (size <= 0) return 0;
     char *s = fgets(buf, size, in);
     if (!s) return 0;
 
-    int result = strlen(s);
+    int result = (int)strlen(s);
+    if (result <= 0 || result >= size) return 0;
     // RESET_BUF(ps->linebuf[ps->index]);
     // buf_write_nstr(&ps->linebuf[ps->index % 64], buf, result - 1);
     // ps->index = (ps->index + 1) % 64;
