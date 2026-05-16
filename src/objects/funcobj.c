@@ -90,7 +90,14 @@ static TValue cfunc_call(TValue *self, TValue *args, int nargs)
     Object *obj = to_obj(self);
     ASSERT(IS_CFUNC(obj));
     CFuncObject *cfunc = (CFuncObject *)obj;
-    return cfunc->func(self, args, nargs);
+    Object *owner = cfunc->owner;
+    if (IS_MODULE(owner)) {
+        return cfunc->func(NULL, args, nargs);
+    }
+
+    ASSERT(IS_TYPE(owner, &type_type));
+    ASSERT(nargs >= 1);
+    return cfunc->func(args, args + 1, nargs - 1);
 }
 
 TypeObject cfunc_type = {

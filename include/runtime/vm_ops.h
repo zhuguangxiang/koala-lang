@@ -413,7 +413,7 @@ TARGET(OP_CALL) {
     if (flg == 1) {
         uint32_t index = *pc++;
         ImportEntry *e = IMPORT_ENTRY(index);
-        ASSERT(e->kind == IMPORT_KIND_FUNC);
+        ASSERT(e->kind == IMPORT_KIND_FUNC || e->kind == IMPORT_KIND_METHOD);
         Object *target = e->address;
         ASSERT(target);
         TValue val = obj_value(target);

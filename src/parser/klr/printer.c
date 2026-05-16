@@ -222,7 +222,12 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
     }
 
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
-        fprintf(fp, "@%s", fn->name);
+        KlrExtFunc *f = (KlrExtFunc *)fn;
+        if (f->klass) {
+            fprintf(fp, "@%s::%s", f->klass->name, f->name);
+        } else {
+            fprintf(fp, "@%s", fn->name);
+        }
 
         KlrExtModule *m = ((KlrExtFunc *)fn)->module;
         fprintf(fp, " [path = '%s'", m->name);
@@ -266,7 +271,12 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
     }
 
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
-        fprintf(fp, "@%s", fn->name);
+        KlrExtFunc *f = (KlrExtFunc *)fn;
+        if (f->klass) {
+            fprintf(fp, "@%s::%s", f->klass->name, f->name);
+        } else {
+            fprintf(fp, "@%s", fn->name);
+        }
 
         KlrExtModule *m = ((KlrExtFunc *)fn)->module;
         fprintf(fp, " [path = '%s'", m->name);

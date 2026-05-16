@@ -405,6 +405,33 @@ int mach_import_add_field(KlMachModule *m, char *path, char *klass, char *name)
     return import_index;
 }
 
+static int mach_import_add_method(KlMachModule *m, char *path, char *klass, char *name)
+{
+    KlMachImport key = { .kind = IMPORT_METHOD, .path = path, .klass = klass, .name = name };
+    hashmap_entry_init(&key, mach_import_hash(&key));
+
+    KlMachImport *entry = hashmap_get(&m->import_map, &key);
+    if (entry) {
+        log_info("Found existing import ext-method entry for %s.%s.%s (index: %d)", path, klass,
+                 name, entry->index);
+        return entry->index;
+    }
+
+    KlMachImport *new_entry = mm_alloc_obj(new_entry);
+    new_entry->kind = IMPORT_METHOD;
+    new_entry->path = path;
+    new_entry->klass = klass;
+    new_entry->name = name;
+    hashmap_entry_init(new_entry, mach_import_hash(new_entry));
+    hashmap_put(&m->import_map, new_entry);
+    vector_push_back(&m->import_table, &new_entry);
+    int import_index = vector_size(&m->import_table) - 1;
+    new_entry->index = import_index;
+    log_info("Added new import ext-method entry for %s.%s.%s (index: %d)", path, klass, name,
+             import_index);
+    return import_index;
+}
+
 int mach_import_add_klass(KlMachModule *m, char *path, char *name)
 {
     KlMachImport key = { .kind = IMPORT_TYPE, .path = path, .name = name };
@@ -955,7 +982,16 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 log_info("  call target: (external)");
                 // create an import entry for this external function, and record the
                 // import index in the call instruction's import_index field.
-                int index = mach_import_add_func(m, "std/builtin", fn->name);
+                KlrExtFunc *ext_fn = (KlrExtFunc *)fn;
+                KlrExtModule *ext_mod = ext_fn->module;
+                KlrExtKlass *ext_klass = ext_fn->klass;
+                int index;
+                if (ext_klass) {
+                    index =
+                        mach_import_add_method(m, ext_mod->name, ext_klass->name, ext_fn->name);
+                } else {
+                    index = mach_import_add_func(m, ext_mod->name, ext_fn->name);
+                }
                 mi->import_index = index;
                 // insert 4 bytes: import_index
                 KlMachBlock *mb = mi->bb;

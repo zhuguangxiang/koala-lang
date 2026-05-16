@@ -1,0 +1,55 @@
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
+
+class Point {
+    var x int
+    var y int
+    let z int = 10
+
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    func area() (int, int, int, int) {
+        return (x, y, z, x * y)
+    }
+}
+
+func main() {
+    let p = Point(1, 2)
+    print(p.area())
+    p.__init__(3, 4)
+    print(p.area())
+
+    let p2 = Point(5, 6)
+    print(p2.area())
+    p2.__init__(7, 8)
+    print(p2.area())
+
+    let r = range(1, 10, 2)
+    let s = r.__str__()
+    print(s)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %0 = new @Point
+// CHECK: call @Point::__init__, %0 Point, 1 int64, 2 int64
+// CHECK: %p = local [immutable] Point
+// CHECK: move %p Point, %0 Point
+// CHECK: %1 = call @Point::area, %p Point
+
+// CHECK: call @Point::__init__, %p Point, 3 int64, 4 int64
+
+// CHECK: %r = local [immutable] range
+// CHECK: move %r range, range(1, 10, 2) range
+// CHECK: %10 = call @range::__str__ [path = 'std/builtin'], %r range
+// CHECK: %s = local [immutable] str
+// CHECK: move %s str, %10 str
+
+// CHECK: (1, 2, 10, 2)
+// CHECK: (3, 4, 10, 12)
+// CHECK: (5, 6, 10, 30)
+// CHECK: (7, 8, 10, 56)
+// CHECK: range(1, 10, 2)

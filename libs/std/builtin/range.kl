@@ -67,4 +67,7 @@ pub class range : Sequence[int] {
     pub func index(value int) int {
         // Return the index of value in the range, or raise ValueError if not found
     }
+
+    @native(kl_range_str)
+    pub func __str__() str {}
 }

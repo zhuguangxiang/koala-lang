@@ -277,7 +277,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
     int size = vector_size(args);
 
     // gen ir for lhs
-    lhs->ctx = EXPR_CTX_LOAD;
+    lhs->ctx = EXPR_CTX_CALL;
     emit_ir_visit_expr(ps, lhs);
     if (!lhs->ir_val) return;
 
@@ -327,9 +327,23 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
         KlrValue *init_fn = _sym->ir_val;
         ret = emit_type_call(ps, callee, init_fn, ir_args, size);
     } else {
-        KlrBuilder bldr;
-        klr_builder_end(&bldr, ps->scope->bb);
-        ret = klr_build_call(&bldr, callee, ir_args, size, "");
+        KlrValue *self = lhs->arg;
+        if (self) {
+            // method call
+            KlrValue *_args[size + 1];
+            _args[0] = self;
+            for (int i = 0; i < size; i++) {
+                _args[i + 1] = ir_args[i];
+            }
+            size += 1;
+            KlrBuilder bldr;
+            klr_builder_end(&bldr, ps->scope->bb);
+            ret = klr_build_call(&bldr, callee, _args, size, "");
+        } else {
+            KlrBuilder bldr;
+            klr_builder_end(&bldr, ps->scope->bb);
+            ret = klr_build_call(&bldr, callee, ir_args, size, "");
+        }
     }
 
     klr_set_loc(ret, ps->filename, exp->loc);
@@ -412,28 +426,42 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
 
     Symbol *sym = exp->sym;
     if (sym->kind == SYM_FUNC) {
-        NYI();
-    } else {
-        ASSERT(sym->kind == SYM_VAR);
-
-        Symbol *lhs_sym = get_symbol_by_id(lhs->ts->sym_id);
-
-        if (exp->ctx == EXPR_CTX_LOAD) {
-            // load field
-            KlrBuilder bldr;
-            klr_builder_end(&bldr, ps->scope->bb);
-            KlrValue *val = build_get_field_op(lhs_sym, dot->id.name, &bldr, lhs->ir_val, ps);
-            klr_set_loc(val, ps->filename, exp->loc);
-            exp->ir_val = val;
-        } else if (exp->ctx == EXPR_CTX_CALL) {
-            // method call
-            NYI();
+        if (exp->ctx == EXPR_CTX_CALL) {
+            if (!sym->ir_val) {
+                ASSERT(sym->flags & SYM_FLAGS_EXT);
+                Symbol *_sym = sym->parent;
+                ASSERT(_sym->kind == SYM_CLASS);
+                KlassSymbol *kls_sym = (KlassSymbol *)_sym;
+                KlrValue *_val = kls_sym->ir_val;
+                ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
+                KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
+                exp->ir_val = klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
+            } else {
+                exp->ir_val = sym->ir_val;
+            }
+            // use expr's arg to save the lhs's ir_val, so that we can use it in emit_ir_call
+            exp->arg = lhs->ir_val;
         } else {
-            // store field
-            ASSERT(exp->ctx == EXPR_CTX_STORE);
-            ASSERT(sym->ir_val);
-            exp->ir_val = sym->ir_val;
+            NYI();
         }
+        return;
+    }
+
+    ASSERT(sym->kind == SYM_VAR);
+
+    if (exp->ctx == EXPR_CTX_LOAD) {
+        // load field
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        Symbol *lhs_sym = get_symbol_by_id(lhs->ts->sym_id);
+        KlrValue *val = build_get_field_op(lhs_sym, dot->id.name, &bldr, lhs->ir_val, ps);
+        klr_set_loc(val, ps->filename, exp->loc);
+        exp->ir_val = val;
+    } else {
+        // store field
+        ASSERT(exp->ctx == EXPR_CTX_STORE);
+        ASSERT(sym->ir_val);
+        exp->ir_val = sym->ir_val;
     }
 }
 
