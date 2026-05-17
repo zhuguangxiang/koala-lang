@@ -777,6 +777,16 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
     }
 }
 
+static void emit_ir_bang(ParserState *ps, Expr *exp)
+{
+    BangExpr *bang = (BangExpr *)exp;
+    Expr *e = bang->exp;
+    e->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, e);
+    if (!e->ir_val) return;
+    exp->ir_val = e->ir_val;
+}
+
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -795,6 +805,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_DOT_KIND]     = emit_ir_dot,
         [EXPR_UNARY_KIND]   = emit_ir_unary,
         [EXPR_BINARY_KIND]  = emit_ir_binary,
+        [EXPR_BANG_KIND]    = emit_ir_bang,
     };
     /* clang-format on */
 

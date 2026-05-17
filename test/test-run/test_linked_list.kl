@@ -39,12 +39,38 @@ class List {
             if prev != null {
                 prev.next = node
             }
+        }
+    }
 
-            // var curr = head
-            // while curr.next != null {
-            //     curr = curr.next!
-            // }
-            // curr.next = node
+    func append2(value int) {
+        total = total + 1
+        let node = ListNode(value)
+
+        if head == null {
+            head = node
+        } else {
+            var curr = head
+            while curr.next != null {
+                curr = curr.next!
+            }
+            curr.next = node
+        }
+    }
+
+    func append3(value int) {
+        total = total + 1
+        let node = ListNode(value)
+
+        if head == null {
+            head = node
+        } else {
+            var curr = head.next
+            var prev = head
+            while curr != null {
+                prev = curr
+                curr = curr.next
+            }
+            prev.next = node
         }
     }
 
@@ -82,7 +108,7 @@ class List {
 func main() {
     let l = List()
     for i in range(0, 10) {
-        l.append(i)
+        l.append2(i)
     }
     l.show()
     print("Total: ", l.total)

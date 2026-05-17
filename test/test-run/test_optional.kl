@@ -10,11 +10,16 @@ func show(cond bool, msg str?) {
     }
 }
 
+func foo(v int?) int {
+    return v!
+}
+
 func main() {
     let n int? = null
     show(false, "math is broken")
     show(false, null)
     show(true, "subtraction is broken")
+    print(foo(null))
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
@@ -28,13 +33,23 @@ func main() {
 // CHECK: %3 = build_intern @tuple, 'msg:' str, %2 str
 // CHECK: call @print [path = 'std/builtin'], %3 tuple<uu>
 
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @foo(%v int64?) int64 {
+// CHECK: %bb0(entry):
+// CHECK: %0 = cast %v int64? to int64
+// CHECK: ret %0 int64
+
 // CHECK-LABEL: --- IR Dump After isel [@show] ---
 // CHECK-LABEL: func @show(%cond bool, %msg str?)
 // CHECK: %bb0(entry):
 // CHECK: branch %cond bool, label %bb2, label %bb1
 
-// CHECK-LABEL: @show
+// CHECK-LABEL: @show[0,15]:
 // CHECK: jmp_ref_ne_null r1, 6
+
+// CHECK-LABEL: @foo[16,16]:
+// CHECK: ret r0
 
 // CHECK: msg: math is broken
 // CHECK: msg is null: no message
+// CHECK: none

@@ -683,10 +683,6 @@ static void isel_lower_cast(KlrInsn *insn, KlrFunc *fn)
         }
     } else if (type_is_optional(src_ts) && !type_is_optional(dst_ts)) {
         // opt-ref to non-opt-ref cast, do nothing
-    } else if (!type_is_optional(src_ts) && type_is_optional(dst_ts)) {
-        // non-opt-ref to opt-ref cast, do nothing
-    } else if (type_is_optional(src_ts) && type_is_optional(dst_ts)) {
-        // opt-ref to opt-ref cast, do nothing
     } else {
         NYI();
     }
