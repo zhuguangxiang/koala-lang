@@ -13,76 +13,65 @@ func show(cond bool, msg str?) {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @show(%cond bool, %msg str?) <NO-TYPE> {
-// CHECK： %bb0(entry):
-// CHECK： %0 = lnot %cond bool
-// CHECK： branch %0 bool, label %bb1, label %bb2
+// CHECK: %bb0(entry):
+// CHECK: %0 = lnot %cond bool
+// CHECK: branch %0 bool, label %bb1, label %bb2
 
-// CHECK： %bb1(if-then):                                  ;; preds = %bb0
-// CHECK： %1 = cmpeq %msg str?, none
-// CHECK： branch %1 bool, label %bb4, label %bb5
+// CHECK: %bb1(if-then):                                  ;; preds = %bb0
+// CHECK: %1 = cmpeq %msg str?, none
+// CHECK: branch %1 bool, label %bb4, label %bb5
 
-// CHECK： %bb2(if-else):                                  ;; preds = %bb0
-// CHECK： jmp label %bb3
+// CHECK: %bb2(if-else):                                  ;; preds = %bb0
+// CHECK: jmp label %bb3
 
-// CHECK： %bb3(if-end):                                   ;; preds = %bb6, %bb2
-// CHECK： ret void
+// CHECK: %bb3(if-end):                                   ;; preds = %bb6, %bb2
+// CHECK: ret void
 
-// CHECK： %bb4(if-then):                                  ;; preds = %bb1
-// CHECK： call @print [path = 'std/builtin', const]
-// CHECK： jmp label %bb6
+// CHECK: %bb4(if-then):                                  ;; preds = %bb1
+// CHECK: call @print [path = 'std/builtin', const]
+// CHECK: jmp label %bb6
 
-// CHECK： %bb5(if-else):                                  ;; preds = %bb1
-// CHECK： %2 = local [immutable] str
-// CHECK： %3 = cast %msg str? to str
-// CHECK： move %2 str, %3 str
-// CHECK： call @print [path = 'std/builtin']
-// CHECK： jmp label %bb6
+// CHECK: %bb5(if-else):                                  ;; preds = %bb1
+// CHECK: %2 = cast %msg str? to str
+// CHECK: call @print [path = 'std/builtin']
+// CHECK: jmp label %bb6
 
-// CHECK： %bb6(if-end):                                   ;; preds = %bb4, %bb5
-// CHECK： jmp label %bb3
+// CHECK: %bb6(if-end):                                   ;; preds = %bb4, %bb5
+// CHECK: jmp label %bb3
 
 
 // CHECK-LABEL: --- IR Dump After isel [@show] ---
 // CHECK-LABEL: func @show(%cond bool, %msg str?) <NO-TYPE> {
-// CHECK： %bb0(entry):
-// CHECK： %0 = lnot %cond bool
-// CHECK： branch %0 bool, label %bb1, label %bb2
+// CHECK: %bb0(entry):
+// CHECK: branch %cond bool, label %bb2, label %bb1
 
-// CHECK： %bb1(if-then):                                  ;; preds = %bb0
-// CHECK： jmp_ref_eq_null %msg str?, none, label %bb3, label %bb4
+// CHECK: %bb1(if-then):                                  ;; preds = %bb0
+// CHECK: jmp_ref_eq_null %msg str?, none, label %bb3, label %bb4
 
-// CHECK： %bb2(if-end):                                   ;; preds = %bb0, %bb3, %bb4
-// CHECK： ret void
+// CHECK: %bb2(if-end):                                   ;; preds = %bb0, %bb3, %bb4
+// CHECK: ret void
 
-// CHECK： %bb3(if-then):                                  ;; preds = %bb1
-// CHECK： %2 = local str        [fixedslot = 0(next)]
-// CHECK： loadk %2 str, 'assertion failed: ' str
-// CHECK： %3 = local str        [fixedslot = 1(next)]
-// CHECK： loadk %3 str, 'no message' str
-// CHECK： call @print [path = 'std/builtin', const]
-// CHECK： jmp label %bb2
-
-// CHECK： %bb4(if-else):                                  ;; preds = %bb1
-// CHECK： %4 = cast %msg str? to str        [fixedslot = 1(next)]
-// CHECK： %5 = local str        [fixedslot = 0(next)]
-// CHECK： loadk %5 str, 'assertion failed: ' str
-// CHECK： call @print [path = 'std/builtin']
-// CHECK： jmp label %bb2
+// CHECK-LABEL: %bb4(if-else):
+// CHECK: %4 = cast %msg str? to str
+// CHECK: %5 = local str
+// CHECK: loadk %5 str, 'assertion failed: ' str
+// CHECK: call @print [path = 'std/builtin']
+// CHECK: jmp label %bb2
 
 // CHECK-LABEL: @show[0,15]:
-// CHECK： jmp_true r0, 10
-// CHECK： jmp_ref_ne_null r1, 6
-// CHECK： loadk r2, #0
-// CHECK： loadk r3, #1
-// CHECK:  loadk r4, #4
-// CHECK： call flg=1, #3
-// CHECK： data (import_index=0)
-// CHECK： jmp 7
-// CHECK： move r3, r1
-// CHECK： loadk r2, #0
-// CHEKC:  build_tuple r2, #2
-// CHECK： loadk r3, #3
-// CHECK： loadk r4, #4
-// CHECK： call flg=1, #3
-// CHECK： data (import_index=0)
-// CHECK： ret_void
+// CHECK: jmp_true r0, 14
+// CHECK: jmp_ref_ne_null r1, 6
+// CHECK: loadk r2, #2
+// CHECK: loadk r3, #3
+// CHECK: loadk r4, #4
+// CHECK: call flg=1, #3
+// CHECK: data (import_index=0)
+// CHECK: jmp 7
+// CHECK: move r3, r1
+// CHECK: loadk r2, #0
+// CHECK: build_intern r2, @tuple, #2
+// CHECK: loadk r3, #3
+// CHECK: loadk r4, #4
+// CHECK: call flg=1, #3
+// CHECK: data (import_index=0)
+// CHECK: ret_void

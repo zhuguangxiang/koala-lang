@@ -683,6 +683,10 @@ static void isel_lower_cast(KlrInsn *insn, KlrFunc *fn)
         }
     } else if (type_is_optional(src_ts) && !type_is_optional(dst_ts)) {
         // opt-ref to non-opt-ref cast, do nothing
+    } else if (!type_is_optional(src_ts) && type_is_optional(dst_ts)) {
+        // non-opt-ref to opt-ref cast, do nothing
+    } else if (type_is_optional(src_ts) && type_is_optional(dst_ts)) {
+        // opt-ref to opt-ref cast, do nothing
     } else {
         NYI();
     }
@@ -843,6 +847,30 @@ static void isel_lower_set_field(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
+static void isel_lower_select(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *cond = insn_oper_value(insn, 0);
+    KlrValue *true_val = insn_oper_value(insn, 1);
+    KlrValue *false_val = insn_oper_value(insn, 2);
+
+    ASSERT(klr_is_insn(cond) || klr_is_param(cond));
+    ASSERT(klr_is_insn(true_val) || klr_is_param(true_val) || klr_is_const(true_val));
+    ASSERT(klr_is_insn(false_val) || klr_is_param(false_val) || klr_is_const(false_val));
+
+    KlrBuilder bldr;
+    klr_builder_before(&bldr, insn);
+    KlrValue *local = klr_build_local(&bldr, insn->ts, "");
+    klr_build_move(&bldr, local, false_val);
+
+    insn->code = OP_MOVE_TRUE;
+    insn->ts = NULL;
+    set_operand_at(insn, 0, local);
+    set_operand_at(insn, 1, cond);
+    set_operand_at(insn, 2, true_val);
+
+    replace_all_uses_with(local, (KlrValue *)insn);
+}
+
 static void verify_insn(KlrInsn *insn)
 {
     OpCode op = insn->code;
@@ -934,6 +962,11 @@ static void do_isel(KlrFunc *fn)
                 case OP_SET_FIELD:
                 case OP_SET_FIELD_EXT: {
                     isel_lower_set_field(insn, fn);
+                    break;
+                }
+
+                case OP_IR_SELECT: {
+                    isel_lower_select(insn, fn);
                     break;
                 }
 

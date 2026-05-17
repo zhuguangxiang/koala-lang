@@ -53,49 +53,54 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
     switch (sym->kind) {
         case SYM_VAR: {
             VarSymbol *var_sym = (VarSymbol *)sym;
-            if (var_sym->scope == VAR_SCOPE_GLOBAL) {
-                if (exp->ctx == EXPR_CTX_LOAD) {
+            if (exp->ctx == EXPR_CTX_LOAD) {
+                if (var_sym->scope == VAR_SCOPE_GLOBAL) {
                     exp->ir_val = klr_build_get_global(&bldr, sym->ir_val);
-                } else {
-                    ASSERT(exp->ctx == EXPR_CTX_STORE);
-                    exp->ir_val = sym->ir_val;
-                }
-            } else if (var_sym->scope == VAR_SCOPE_FIELD) {
-                if (exp->ctx == EXPR_CTX_LOAD) {
+                } else if (var_sym->scope == VAR_SCOPE_FIELD) {
                     KlrValue *self = METHOD_SELF;
                     exp->ir_val = klr_build_get_field(&bldr, self, sym->ir_val, "");
                 } else {
-                    ASSERT(exp->ctx == EXPR_CTX_STORE);
                     exp->ir_val = sym->ir_val;
                 }
-            } else {
+            } else if (exp->ctx == EXPR_CTX_STORE || exp->ctx == EXPR_CTX_LOAD_STORE) {
                 exp->ir_val = sym->ir_val;
+            } else {
+                UNREACHABLE();
             }
             break;
         }
 
         case SYM_SHADOW_VAR: {
             Symbol *origin = ((ShadowVarSymbol *)sym)->origin;
+            ASSERT(type_is_optional(origin->ts));
+            VarSymbol *var_sym = (VarSymbol *)origin;
+
             int readonly = origin->flags & SYM_FLAGS_MUTABLE ? 0 : 1;
             TypeSpec *ts = sym->ts;
-            ASSERT(!type_is_optional(ts));
 
-            KlrValue *local;
-            if (readonly) {
-                // let shadow var → SSA only
-                local = klr_build_local(&bldr, ts, "");
+            if (exp->ctx == EXPR_CTX_LOAD) {
+                if (!type_is_optional(ts)) {
+                    // non-optional shadow var → unbox
+
+                    KlrValue *val;
+                    if (var_sym->scope == VAR_SCOPE_FIELD) {
+                        KlrValue *self = METHOD_SELF;
+                        val = klr_build_get_field(&bldr, self, origin->ir_val, "");
+                    } else {
+                        val = origin->ir_val;
+                    }
+
+                    KlrValue *unbox = klr_build_cast(&bldr, val, ts, "");
+                    klr_set_loc(unbox, ps->filename, exp->loc);
+                    exp->ir_val = unbox;
+                } else {
+                    // optional shadow var → no unbox
+                    exp->ir_val = origin->ir_val;
+                }
             } else {
-                // var shadow var → slot + unbox + move
-                local = klr_build_local_var(&bldr, ts, "");
+                ASSERT(exp->ctx == EXPR_CTX_STORE || exp->ctx == EXPR_CTX_LOAD_STORE);
+                exp->ir_val = sym->ir_val;
             }
-            klr_set_loc(local, ps->filename, exp->loc);
-
-            KlrValue *unbox = klr_build_cast(&bldr, sym->ir_val, ts, "");
-            klr_set_loc(unbox, ps->filename, exp->loc);
-
-            klr_build_move(&bldr, local, unbox);
-
-            exp->ir_val = local;
 
             break;
         }
@@ -154,6 +159,8 @@ static void emit_ir_literal(ParserState *ps, Expr *exp)
             break;
         }
     }
+
+    klr_set_loc(exp->ir_val, ps->filename, exp->loc);
 }
 
 static void emit_ir_type(ParserState *ps, Expr *exp)
@@ -223,6 +230,16 @@ static KlrValue *emit_range_call(ParserState *ps, KlrBuilder *bldr, KlrValue *ca
         if (!klr_is_const(arg)) {
             konst = 0;
             break;
+        }
+    }
+
+    KlrValue *step = args[2];
+    if (klr_is_const(step)) {
+        KlrConst *kc = (KlrConst *)step;
+        if (kc->which == CONST_INT && kc->ival == 0) {
+            KlrModule *m = ps->pm->m;
+            KlrLocInfo *loc = &step->loc;
+            klr_error(loc, "range step cannot be zero");
         }
     }
 
@@ -362,9 +379,10 @@ static Symbol *_get_field(Vector *fields, const char *name)
     UNREACHABLE();
 }
 
-static KlrValue *build_get_field_op(Symbol *sym, char *name, KlrBuilder *bldr,
-                                    KlrValue *lhs_ir_val, ParserState *ps)
+static KlrValue *build_get_field(TypeSpec *ts, char *name, KlrBuilder *bldr, KlrValue *val,
+                                 ParserState *ps)
 {
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
     int field_index = -1;
 
     if (sym->kind == SYM_CLASS) {
@@ -387,10 +405,10 @@ static KlrValue *build_get_field_op(Symbol *sym, char *name, KlrBuilder *bldr,
                 fld_sym->ir_val = fld_ir_val;
             }
             ASSERT(fld_ir_val->kind == KLR_VALUE_EXT_FIELD);
-            return klr_build_get_field_ext(bldr, lhs_ir_val, fld_ir_val, "");
+            return klr_build_get_field_ext(bldr, val, fld_ir_val, "");
         } else {
             ASSERT(fld_sym->ir_val);
-            return klr_build_get_field(bldr, lhs_ir_val, fld_sym->ir_val, "");
+            return klr_build_get_field(bldr, val, fld_sym->ir_val, "");
         }
     }
     // } else if (sym->kind == SYM_INSTANCE) {
@@ -441,8 +459,29 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
             }
             // use expr's arg to save the lhs's ir_val, so that we can use it in emit_ir_call
             exp->arg = lhs->ir_val;
-        } else {
+        } else if (exp->ctx == EXPR_CTX_LOAD) {
+            KlrValue *fn_ir_val;
+            if (!sym->ir_val) {
+                ASSERT(sym->flags & SYM_FLAGS_EXT);
+                Symbol *_sym = sym->parent;
+                ASSERT(_sym->kind == SYM_CLASS);
+                KlassSymbol *kls_sym = (KlassSymbol *)_sym;
+                KlrValue *_val = kls_sym->ir_val;
+                ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
+                KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
+                fn_ir_val = klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
+            } else {
+                fn_ir_val = sym->ir_val;
+            }
             NYI();
+            // gen a closure for method
+            // KlrBuilder bldr;
+            // klr_builder_end(&bldr, ps->scope->bb);
+            // KlrValue *closure = klr_build_closure(&bldr, fn_ir_val, lhs->ir_val, "");
+            // klr_set_loc(closure, ps->filename, exp->loc);
+            // exp->ir_val = closure;
+        } else {
+            UNREACHABLE();
         }
         return;
     }
@@ -453,8 +492,7 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
         // load field
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
-        Symbol *lhs_sym = get_symbol_by_id(lhs->ts->sym_id);
-        KlrValue *val = build_get_field_op(lhs_sym, dot->id.name, &bldr, lhs->ir_val, ps);
+        KlrValue *val = build_get_field(lhs->ts, dot->id.name, &bldr, lhs->ir_val, ps);
         klr_set_loc(val, ps->filename, exp->loc);
         exp->ir_val = val;
     } else {
@@ -937,7 +975,9 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     KlrValue *cast = exp->ir_val;
     TypeSpec *cast_ts = cast->ts;
     if (cast_ts != fn_ret_ts) {
-        cast = klr_build_cast(&bldr, cast, fn_ret_ts, "");
+        if (!type_is_optional(fn_ret_ts)) {
+            cast = klr_build_cast(&bldr, cast, fn_ret_ts, "");
+        }
     }
     klr_build_ret(&bldr, cast);
 
@@ -1100,6 +1140,15 @@ struct RangeInfo {
     KlrValue *step;
 };
 
+static void get_range_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struct RangeInfo *out,
+                           int where)
+{
+    ASSERT(type_is_range(val->ts));
+    out->start = build_get_field(val->ts, "start", bldr, val, ps);
+    out->end = build_get_field(val->ts, "stop", bldr, val, ps);
+    out->step = build_get_field(val->ts, "step", bldr, val, ps);
+}
+
 static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
 {
     if (insn->code != OP_BUILD_INTERN) return 0;
@@ -1155,6 +1204,7 @@ end:
 */
 static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
 {
+    KlrModule *m = ps->pm->m;
     KlrValue *fn = CURRENT_FUNC;
     ForStmt *s = (ForStmt *)stmt;
 
@@ -1187,11 +1237,19 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     // check value is Range, Tuple, Array, List or Iterator
     KlrValue *it_val = it->ir_val;
     if (klr_is_param(it_val)) {
-        NYI();
+        if (type_is_range(it_val->ts)) {
+            which = GEN_RANGE;
+            klr_builder_end(&bldr, sc->bb);
+            get_range_info(it_val, &bldr, ps, &range_info, 0);
+        } else {
+            NYI();
+        }
     } else if (klr_is_local(it_val)) {
         KlrInsn *local = (KlrInsn *)it_val;
-        if (local->flags & KLR_INSN_FLAGS_CONST) {
-            NYI();
+        if (type_is_range(it_val->ts)) {
+            which = GEN_RANGE;
+            klr_builder_end(&bldr, sc->bb);
+            get_range_info(it_val, &bldr, ps, &range_info, 1);
         } else {
             NYI();
         }
@@ -1200,16 +1258,10 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         if (is_new_range(insn, &range_info, ps)) {
             which = GEN_RANGE;
             klr_erase_insn(insn);
+        } else if (type_is_range(it_val->ts)) {
+            which = GEN_RANGE;
             klr_builder_end(&bldr, sc->bb);
-
-            Symbol *sym = get_loop_range_symbol(s);
-            if (sym->flags & SYM_FLAGS_MUTABLE) {
-                sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
-            } else {
-                sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
-            }
-            klr_build_move(&bldr, sym->ir_val, range_info.start);
-            range_cur = sym->ir_val;
+            get_range_info(it_val, &bldr, ps, &range_info, 2);
         } else {
             NYI();
         }
@@ -1221,16 +1273,6 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
             range_info.start = items[0];
             range_info.end = items[1];
             range_info.step = items[2];
-
-            klr_builder_end(&bldr, sc->bb);
-            Symbol *sym = get_loop_range_symbol(s);
-            if (sym->flags & SYM_FLAGS_MUTABLE) {
-                sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
-            } else {
-                sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
-            }
-            klr_build_move(&bldr, sym->ir_val, range_info.start);
-            range_cur = sym->ir_val;
         } else {
             NYI();
         }
@@ -1239,6 +1281,20 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     }
 
     klr_builder_end(&bldr, sc->bb);
+
+    if (which == GEN_RANGE) {
+        Symbol *sym = get_loop_range_symbol(s);
+        if (sym->flags & SYM_FLAGS_MUTABLE) {
+            sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+        } else {
+            sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+        }
+        klr_build_move(&bldr, sym->ir_val, range_info.start);
+        range_cur = sym->ir_val;
+    } else {
+        NYI();
+    }
+
     klr_build_jmp(&bldr, loop_cond);
 
     exit_scope(ps);
@@ -1325,7 +1381,7 @@ static void emit_ir_simple_assignment(ParserState *ps, Expr *lhs, Expr *rhs)
         if (lhs->kind == EXPR_DOT_KIND) {
             Expr *obj = ((DotExpr *)lhs)->lhs;
             Symbol *sym = obj->sym;
-            ASSERT(sym->kind == SYM_VAR);
+            ASSERT(sym->kind == SYM_VAR || sym->kind == SYM_SHADOW_VAR);
             klr_build_set_field(&bldr, obj->ir_val, var, rhs->ir_val);
         } else if (lhs->kind == EXPR_ID_KIND) {
             KlrValue *self = METHOD_SELF;

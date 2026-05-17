@@ -349,7 +349,7 @@ static void lower_float_cast_opers(KlrInsn *insn)
     set_raw_imm(&insn->raws[2], insn->cast_flag);
 }
 
-static void lower_ref_eq_null_opers(KlrInsn *insn)
+static void lower_ref_eq_ne_null_opers(KlrInsn *insn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
     set_raw_imm(&insn->raws[0], insn->vreg);
@@ -440,6 +440,17 @@ static void lower_get_field_ext_opers(KlrInsn *insn, KlMachModule *m)
     set_raw_imm(&insn->raws[2], index);
 }
 
+static void lower_move_true_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *var = insn_oper_value(insn, 0);
+    KlrValue *cond = insn_oper_value(insn, 1);
+    KlrValue *val = insn_oper_value(insn, 2);
+
+    set_raw_reg(&insn->raws[0], var->vreg);
+    set_raw_reg(&insn->raws[1], cond->vreg);
+    set_raw_reg(&insn->raws[2], val->vreg);
+}
+
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 {
     KlrBasicBlock *bb;
@@ -493,8 +504,9 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                     break;
                 }
 
-                case OP_REF_EQ_NULL: {
-                    lower_ref_eq_null_opers(insn);
+                case OP_REF_EQ_NULL:
+                case OP_REF_NE_NULL: {
+                    lower_ref_eq_ne_null_opers(insn);
                     break;
                 }
 
@@ -525,6 +537,11 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_GET_FIELD_EXT: {
                     lower_get_field_ext_opers(insn, m);
+                    break;
+                }
+
+                case OP_MOVE_TRUE: {
+                    lower_move_true_opers(insn, m);
                     break;
                 }
 

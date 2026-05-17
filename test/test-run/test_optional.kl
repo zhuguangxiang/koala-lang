@@ -17,17 +17,23 @@ func main() {
     show(true, "subtraction is broken")
 }
 
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @show(%cond bool, %msg str?)
+// CHECK: %bb0(entry):
 // CHECK: %0 = lnot %cond bool
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
-// CHECK: %2 = local [immutable] str
-// CHECK: %3 = cast %msg str? to str
-// CHECK: move %2 str, %3 str
-// CHECK: %4 = build_intern @tuple, 'msg:' str, %2 str
-// CHECK: call @print [path = 'std/builtin'],  %4 tuple<uu>
+// CHECK: %bb5(if-else):
+// CHECK: %2 = cast %msg str? to str
+// CHECK: %3 = build_intern @tuple, 'msg:' str, %2 str
+// CHECK: call @print [path = 'std/builtin'], %3 tuple<uu>
 
+// CHECK-LABEL: --- IR Dump After isel [@show] ---
+// CHECK-LABEL: func @show(%cond bool, %msg str?)
+// CHECK: %bb0(entry):
 // CHECK: branch %cond bool, label %bb2, label %bb1
 
+// CHECK-LABEL: @show
 // CHECK: jmp_ref_ne_null r1, 6
 
 // CHECK: msg: math is broken

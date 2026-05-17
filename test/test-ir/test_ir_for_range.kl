@@ -4,8 +4,8 @@ for i in range(0, 10) {
     if (i % 2 == 0) { print(i) }
 }
 
-// CHECK-LABLE: --- IR Dump After isel [@__init__] ---
-// CHECK-LABLE: func @__init__() <NO-TYPE> {
+// CHECK-LABEL: --- IR Dump After isel [@__init__] ---
+// CHECK-LABEL: func @__init__() <NO-TYPE> {
 // CHECK: %bb0(loop-header):
 // CHECK: %i = local int64
 // CHECK: load_int_imm %i int64, 0 int64
@@ -28,7 +28,7 @@ for i in range(0, 10) {
 // CHECK: move %i int64, %5 int64
 // CHECK: jmp_int_lt_imm %i int64, 10 int64, label %bb1, label %bb2
 
-// CHECK-LABLE: ====== Linearization @__init__(start_pc: 0, insns: 9) ======
+// CHECK-LABEL: ====== Linearization @__init__(start_pc: 0, insns: 12) ======
 
 // CHECK: %bb0(loop-header):
 // CHECK: load_int_imm r0, ti=0xb, #0

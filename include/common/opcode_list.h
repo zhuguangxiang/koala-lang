@@ -1795,6 +1795,26 @@ X(OP_GET_FIELD_EXT, FORMAT_RRImm)
 X(OP_SET_FIELD_EXT, FORMAT_RRImm)
 
 /*---------------------------------------------------------------+
+ |  Conditional Move Instruction                                 |
+ +---------------------------------------------------------------*/
+
+ /**
+ * OP_MOVE_TRUE — conditional move
+ *
+ * FORMAT_RRR:
+ *     | op:8 | dst:8 | cond:8 | src:8 |
+ *
+ * Details:
+ *     If R[cond] is non-zero, R[dst] = R[src].
+ *     Otherwise, R[dst] is unchanged.
+ *
+ * Semantics:
+ *     if (R[cond] != 0)
+ *         R[dst] = R[src];
+ */
+X(OP_MOVE_TRUE, FORMAT_RRR)
+
+/*---------------------------------------------------------------+
  |  Type Casting & Interface Casting Instructions                |
  +---------------------------------------------------------------*/
 
@@ -1814,7 +1834,6 @@ X(OP_SET_FIELD_EXT, FORMAT_RRImm)
  *     within the module's TypeInfo table.
  */
 X(OP_CAST_INTF, FORMAT_Op)
-
 
 /*---------------------------------------------------------------+
  |  Subscription (Indexing) Instructions                         |

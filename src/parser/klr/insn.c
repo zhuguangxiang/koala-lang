@@ -484,8 +484,11 @@ KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char
 {
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
         val->kind != KLR_VALUE_PARAM) {
-        panic("'int_cast' op requires a reg value or const");
+        panic("'ir_cast' op requires a reg value or const");
     }
+
+    // ASSERT(!type_is_optional(val->ts));
+    ASSERT(!type_is_optional(dst_ts));
 
     KlrInsn *insn = new_insn(OP_IR_CAST, 1, name);
     init_oper(&insn->opers[0], insn, val, 0);

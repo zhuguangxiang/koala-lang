@@ -12,9 +12,8 @@ func foo(n int) {
 
 foo(10)
 
-
-// CHECK-LABLE: --- IR Dump After isel [@__init__] ---
-// CHECK-LABLE: func @__init__() <NO-TYPE> {
+// CHECK-LABEL: --- IR Dump After isel [@__init__] ---
+// CHECK-LABEL: func @__init__() <NO-TYPE> {
 // CHECK: %bb0(loop-header):
 // CHECK: %i = local int64
 // CHECK: load_int_imm %i int64, 0 int64
@@ -45,8 +44,8 @@ foo(10)
 // CHECK: move %i int64, %6 int64
 // CHECK: jmp_int_lt_imm %i int64, 10 int64, label %bb1, label %bb2
 
-// CHECK-LABLE: --- IR Dump After isel [@foo] ---
-// CHECK-LABLE: func @foo(%n int64) <NO-TYPE> {
+// CHECK-LABEL: --- IR Dump After isel [@foo] ---
+// CHECK-LABEL: func @foo(%n int64) <NO-TYPE> {
 // CHECK: %bb0(loop-header):
 // CHECK: %i = local int64
 // CHECK: load_int_imm %i int64, 0 int64
@@ -76,7 +75,7 @@ foo(10)
 // CHECK: jmp_int_lt %i int64, %n int64, label %bb1, label %bb2
 
 
-// CHECK-LABLE: @__init__[0,14]:
+// CHECK-LABEL: @__init__[0,14]:
 // CHECK: load_int_imm r0, ti=0xb, #0
 // CHECK: int.mod_imm r1, r0, #2
 // CHECK: jmp_int_ne_imm r1, #0, 6
@@ -93,7 +92,7 @@ foo(10)
 // CHECK: data (rel32=1)
 // CHECK: ret_void
 
-// CHECK-LABLE: @foo[15,27]:
+// CHECK-LABEL: @foo[15,27]:
 // CHECK: load_int_imm r1, ti=0xb, #0
 // CHECK: jmp_int_lt_imm r0, #0, 10
 // CHECK: int.mod_imm r2, r1, #3

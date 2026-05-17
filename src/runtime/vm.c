@@ -167,8 +167,8 @@ void koala_run_file(char *path)
     KlcKlass *cls;
     vector_foreach(cls, cls_objs) {
         if (!cls) continue;
-        kc = klc_get_const(klc, cls->name_index);
-        TypeObject *tp = kl_new_type(kc->sval, cls->flags);
+        KlcConst *kls_kc = klc_get_const(klc, cls->name_index);
+        TypeObject *tp = kl_new_type(kls_kc->sval, cls->flags);
 
         KlcVar *var;
         vector_foreach(var, &cls->fields) {
@@ -192,7 +192,7 @@ void koala_run_file(char *path)
         }
 
         vector_push_back(&mo->types, &tp);
-        stbl_add_obj(&mo->symbols, kc->sval, (Object *)tp);
+        stbl_add_obj(&mo->symbols, kls_kc->sval, (Object *)tp);
         tp->flags |= TP_FLAGS_READY;
     }
 

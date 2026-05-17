@@ -160,6 +160,16 @@ static void print_no_value_insn(const char *name, KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[1], fp);
 }
 
+static void print_move_true_insn(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "move_true ");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[2], fp);
+}
+
 static inline void print_cmp(char *name, KlrInsn *insn, FILE *fp) { print_binary(insn, name, fp); }
 
 static void print_jmp(KlrInsn *insn, FILE *fp)
@@ -428,6 +438,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_MOVE:
             print_no_value_insn("move", insn, fp);
+            break;
+
+        case OP_MOVE_TRUE:
+            print_move_true_insn(insn, fp);
             break;
 
         case OP_JMP_INT_LT:

@@ -41,6 +41,11 @@ TypeObject range_type = {
 
 Object *kl_new_range(TValue *items)
 {
+    int64_t step = to_int64(&items[2]);
+    if (step == 0) {
+        panic("range step cannot be zero");
+    }
+
     int msize = sizeof(RangeObject);
     RangeObject *x = mm_alloc(msize);
     INIT_OBJECT_HEAD(x, &range_type);

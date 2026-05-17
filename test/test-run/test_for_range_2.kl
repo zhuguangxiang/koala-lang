@@ -1,0 +1,37 @@
+// RUN: koala %s --dump=no-opt-ir,lir | filecheck %s
+
+func new_range(start int, stop int, step int) range {
+    return range(start, stop, step)
+}
+
+func main() {
+    let r = range(1, 10, 2)
+
+    var sum = 0
+    for i in r {
+        sum += 1
+    }
+    print(sum)
+
+    sum = 0
+    for i in new_range(1, 10, 3) {
+        sum += 1
+    }
+    print(sum)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK-LABEL: %bb1(loop-header):
+// CHECK: %0 = get_field_ext %r range, start
+// CHECK: %1 = get_field_ext %r range, stop
+// CHECK: %2 = get_field_ext %r range, step
+
+// CHECK-LABEL: %bb2(loop-cond):
+// CHECK: %6 = select %3 bool, %4 bool, %5 bool
+
+// CHECK-LABEL: --- IR Dump After isel [@main] ---
+// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK: %16 = local [immutable] bool
+// CHECK: move %16 bool, %15 bool
+// CHECK: move_true %16 bool, %13 bool, %14 bool
