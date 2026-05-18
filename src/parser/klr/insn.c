@@ -510,26 +510,6 @@ KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, char *name)
     return (KlrValue *)insn;
 }
 
-KlrValue *klr_build_ref(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op, char *name)
-{
-    if (lhs->kind != KLR_VALUE_CONST && lhs->kind != KLR_VALUE_INSN &&
-        lhs->kind != KLR_VALUE_PARAM) {
-        panic("'ref' op requires a reg value or const for lhs");
-    }
-
-    if (rhs->kind != KLR_VALUE_CONST && rhs->kind != KLR_VALUE_INSN &&
-        rhs->kind != KLR_VALUE_PARAM) {
-        panic("'ref' op requires a reg value or const for rhs");
-    }
-
-    KlrInsn *insn = new_insn(op, 2, name);
-    init_oper(&insn->opers[0], insn, lhs, 0);
-    init_oper(&insn->opers[1], insn, rhs, 0);
-    insn->ts = bool_type_spec();
-    klr_append_insn(bldr, insn);
-    return (KlrValue *)insn;
-}
-
 KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
                            InternTag tag, char *name)
 {

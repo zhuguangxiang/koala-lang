@@ -76,6 +76,15 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
         return;
     }
 
+    if (type_is_optional(ts)) {
+        ts = ts->opt.src;
+        if (!ts) {
+            lit->len = 8;
+            lit->ival = (uint64_t)lit->ival_128;
+            return;
+        }
+    }
+
     if (ts->kind != TYPE_INT) {
         return;
     }
@@ -135,6 +144,14 @@ static void parse_lit_float(ParserState *ps, LitExpr *lit)
     if (!ts) {
         lit->ts = float64_type_spec();
         return;
+    }
+
+    if (type_is_optional(ts)) {
+        ts = ts->opt.src;
+        if (!ts) {
+            lit->ts = float64_type_spec();
+            return;
+        }
     }
 
     if (ts->kind != TYPE_FLOAT) {

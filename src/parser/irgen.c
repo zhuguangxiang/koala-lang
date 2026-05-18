@@ -812,6 +812,8 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
     handlers[exp->kind](ps, exp);
 }
 
+static void emit_ir_import(ParserState *ps, Stmt *stmt) {}
+
 static void emit_ir_var_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *var = (VarDeclStmt *)stmt;
@@ -1114,7 +1116,7 @@ static void emit_ir_while_stmt(ParserState *ps, Stmt *stmt)
     KlrBasicBlock *while_body = klr_append_block(fn, "while-body");
     KlrBasicBlock *while_end = klr_append_block(fn, "while-end");
 
-    // 1. current block jmp to cond block
+    // current block jmp to cond block
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
     klr_build_jmp(&bldr, while_cond);
@@ -1231,7 +1233,7 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
 #define GEN_TUPLE    2
 #define GEN_ITERATOR 3
 
-    // 1. current block jmp to loop header
+    // current block jmp to loop header
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
     klr_build_jmp(&bldr, loop_header);
@@ -1504,6 +1506,144 @@ static void emit_ir_continue(ParserState *ps, Stmt *stmt)
     // ps->scope->bb = NULL;
 }
 
+/*
+let v = xxx
+if v != null {
+    ...
+} else {
+    ...
+}
+*/
+static void emit_ir_if_let_stmt(ParserState *ps, Stmt *stmt)
+{
+    KlrValue *fn = CURRENT_FUNC;
+
+    IfLetStmt *s = (IfLetStmt *)stmt;
+    Expr *cond = s->cond;
+    Symbol *var_sym = s->sym;
+
+    cond->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, cond);
+    if (!cond->ir_val) return;
+
+    KlrBasicBlock *if_then = klr_append_block(fn, "if-then");
+    KlrBasicBlock *if_else = klr_append_block(fn, "if-else");
+    KlrBasicBlock *if_end = klr_append_block(fn, "if-end");
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    var_sym->ir_val = klr_build_local(&bldr, var_sym->ts, var_sym->name);
+    klr_build_move(&bldr, var_sym->ir_val, cond->ir_val);
+
+    KlrValue *_cond = klr_build_cmpne(&bldr, var_sym->ir_val, klr_const_none(MOD), "");
+    klr_build_jmp_cond(&bldr, _cond, if_then, if_else);
+
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "if-block");
+    sc->bb = if_then;
+    emit_ir_visit_block(ps, s->block);
+
+    if (!block_has_terminator(sc->bb)) {
+        KlrBuilder _bldr;
+        klr_builder_end(&_bldr, sc->bb);
+        klr_build_jmp(&_bldr, if_end);
+    }
+
+    exit_scope(ps);
+
+    if (s->_else) {
+        ParserScope *_sc = enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "else-block");
+        _sc->bb = if_else;
+
+        if (s->_else->kind == STMT_BLOCK_KIND) {
+            emit_ir_visit_block(ps, ((BlockStmt *)s->_else)->stmts);
+        } else {
+            emit_ir_if_stmt(ps, s->_else);
+        }
+
+        if (!block_has_terminator(_sc->bb)) {
+            KlrBuilder _bldr;
+            klr_builder_end(&_bldr, _sc->bb);
+            klr_build_jmp(&_bldr, if_end);
+        }
+
+        exit_scope(ps);
+    } else {
+        KlrBuilder _bldr;
+        klr_builder_end(&_bldr, if_else);
+        klr_build_jmp(&_bldr, if_end);
+    }
+
+    ps->scope->bb = if_end;
+}
+
+static void build_while_let_cond(ParserState *ps, Symbol *var_sym, Expr *cond, KlrBasicBlock *bb,
+                                 KlrBasicBlock *body, KlrBasicBlock *end)
+{
+    cond->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, cond);
+    if (!cond->ir_val) return;
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, bb);
+    klr_build_move(&bldr, var_sym->ir_val, cond->ir_val);
+
+    KlrValue *_cond = klr_build_cmpne(&bldr, var_sym->ir_val, klr_const_none(MOD), "");
+    klr_build_jmp_cond(&bldr, _cond, body, end);
+}
+
+/*
+let x = xxx
+while x != null {
+    x = xxx
+}
+*/
+static void emit_ir_while_let_stmt(ParserState *ps, Stmt *stmt)
+{
+    KlrValue *fn = CURRENT_FUNC;
+
+    WhileLetStmt *s = (WhileLetStmt *)stmt;
+    Expr *cond = s->cond;
+    Symbol *var_sym = s->sym;
+
+    KlrBasicBlock *while_cond = klr_append_block(fn, "while-cond");
+    KlrBasicBlock *while_body = klr_append_block(fn, "while-body");
+    KlrBasicBlock *while_end = klr_append_block(fn, "while-end");
+
+    // current block jmp to cond block
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    klr_build_jmp(&bldr, while_cond);
+
+    ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "while-cond");
+    sc->bb = while_cond;
+
+    // create local & build condition
+    klr_builder_end(&bldr, sc->bb);
+    TypeSpec *var_ts = optional_type_spec(var_sym->ts);
+    var_sym->ir_val = klr_build_local_var(&bldr, var_ts, var_sym->name);
+    build_while_let_cond(ps, var_sym, cond, sc->bb, while_body, while_end);
+
+    exit_scope(ps);
+
+    sc = enter_scope(ps, SCOPE_BLOCK, WHILE_BLOCK, "while-block");
+    sc->bb = while_body;
+
+    // save continue_bb and break_bb for `break` and `continue`
+    sc->continue_bb = while_cond;
+    sc->break_bb = while_end;
+
+    emit_ir_visit_block(ps, s->block);
+
+    // add jmp to cond block
+    if (!block_has_terminator(sc->bb)) {
+        build_while_let_cond(ps, var_sym, cond, sc->bb, while_body, while_end);
+    }
+
+    exit_scope(ps);
+
+    ps->scope->bb = while_end;
+}
+
 static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -1513,19 +1653,22 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
 
     /* clang-format off */
     static void (*handlers[STMT_MAX_KIND])(ParserState *, Stmt *) = {
-        [STMT_VAR_KIND]      = emit_ir_var_decl,
-        [STMT_FUNC_KIND]     = emit_ir_func_decl,
-        [STMT_CLASS_KIND]    = emit_ir_class,
-        [STMT_TRAIT_KIND]    = emit_ir_trait,
-        [STMT_RETURN_KIND]   = emit_ir_return,
-        [STMT_ASSIGN_KIND]   = emit_ir_assignment,
-        [STMT_BREAK_KIND]    = emit_ir_break,
-        [STMT_CONTINUE_KIND] = emit_ir_continue,
-        [STMT_EXPR_KIND]     = emit_ir_expr,
-        [STMT_BLOCK_KIND]    = emit_ir_block,
-        [STMT_IF_KIND]       = emit_ir_if_stmt,
-        [STMT_WHILE_KIND]    = emit_ir_while_stmt,
-        [STMT_FOR_KIND]      = emit_ir_for_stmt,
+        [STMT_IMPORT_KIND]    = emit_ir_import,
+        [STMT_VAR_KIND]       = emit_ir_var_decl,
+        [STMT_FUNC_KIND]      = emit_ir_func_decl,
+        [STMT_CLASS_KIND]     = emit_ir_class,
+        [STMT_TRAIT_KIND]     = emit_ir_trait,
+        [STMT_RETURN_KIND]    = emit_ir_return,
+        [STMT_ASSIGN_KIND]    = emit_ir_assignment,
+        [STMT_BREAK_KIND]     = emit_ir_break,
+        [STMT_CONTINUE_KIND]  = emit_ir_continue,
+        [STMT_EXPR_KIND]      = emit_ir_expr,
+        [STMT_BLOCK_KIND]     = emit_ir_block,
+        [STMT_IF_KIND]        = emit_ir_if_stmt,
+        [STMT_WHILE_KIND]     = emit_ir_while_stmt,
+        [STMT_FOR_KIND]       = emit_ir_for_stmt,
+        [STMT_IF_LET_KIND]    = emit_ir_if_let_stmt,
+        [STMT_WHILE_LET_KIND] = emit_ir_while_let_stmt,
     };
     /* clang-format on */
 

@@ -1,0 +1,28 @@
+// RUN: koala %s --dump=no-opt-ir,code | filecheck %s
+
+func foo(v int?) int {
+    if let _v = v {
+        return _v
+    } else {
+        return 0
+    }
+}
+
+func main() {
+    let v int? = 100
+    let result = foo(v)
+    print(result)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @foo(%v int64?) int64
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %_v = local [immutable] int64
+// CHECK: move %_v int64, %v int64?
+// CHECK: %0 = cmpne %_v int64, none
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK-LABEL: @foo[0,2]:
+// CHECK: jmp_ref_eq_null r0, 1
+// CHECK: ret r0
+// CHECK: ret_int_imm ti=0xb, #0

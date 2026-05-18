@@ -74,6 +74,21 @@ class List {
         }
     }
 
+    func append4(value int) {
+        total = total + 1
+        let node = ListNode(value)
+
+        if head == null {
+            head = node
+        } else {
+            var curr = head
+            while let next = curr.next {
+                curr = next
+            }
+            curr.next = node
+        }
+    }
+
     func add_head(value int) {
         total = total + 1
         let node = ListNode(value)
@@ -103,12 +118,13 @@ class List {
             curr = curr.next
         }
     }
+
 }
 
 func main() {
     let l = List()
     for i in range(0, 10) {
-        l.append2(i)
+        l.append4(i)
     }
     l.show()
     print("Total: ", l.total)
@@ -116,6 +132,22 @@ func main() {
     print("Index 20: ", l.index(20))
 }
 
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @List::append4(%self List, %value int64)
+
+// CHECK-LABEL: %bb4(while-cond):
+// CHECK: %next = local ListNode?
+// CHECK: %9 = get_field %curr ListNode, next(index=1)
+// CHECK: move %next ListNode?, %9 ListNode?
+// CHECK: %10 = cmpne %next ListNode?, none
+// CHECK: branch %10 bool, label %bb5, label %bb6
+
+// CHECK-LABEL: %bb5(while-body):
+// CHECK: move %curr ListNode, %next ListNode?
+// CHECK: %11 = get_field %curr ListNode, next(index=1)
+// CHECK: move %next ListNode?, %11 ListNode?
+// CHECK: %12 = cmpne %next ListNode?, none
+// CHECK: branch %12 bool, label %bb5, label %bb6
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @List::index(%self List, %idx int64) int64?

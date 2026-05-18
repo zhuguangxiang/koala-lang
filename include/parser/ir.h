@@ -903,7 +903,6 @@ KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char
 void klr_set_loc(KlrValue *val, char *filename, Loc loc);
 
 KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, char *name);
-KlrValue *klr_build_ref(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode op, char *name);
 KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
                            InternTag tag, char *name);
 
