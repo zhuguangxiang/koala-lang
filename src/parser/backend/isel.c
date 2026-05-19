@@ -492,7 +492,7 @@ static void lower_tailcall_argument(KlrInsn *insn, KlrValue *arg, int index, Klr
     }
 }
 
-static int is_tailcall(KlrInsn *insn)
+static int is_tailcall(KlrInsn *insn, KlrFunc *cur_fn)
 {
     KlrBasicBlock *bb = insn->bb;
     KlrInsn *next = insn_next(insn, bb);
@@ -501,6 +501,9 @@ static int is_tailcall(KlrInsn *insn)
     KlrValue *val = insn_oper_value(next, 0);
     if (val != (KlrValue *)insn) return 0;
 
+    KlrValue *fn = insn_oper_value(insn, 0);
+    if (fn != (KlrValue *)cur_fn) return 0;
+
     ASSERT(insn_last(bb) == next);
     klr_erase_insn(next);
     return 1;
@@ -508,7 +511,7 @@ static int is_tailcall(KlrInsn *insn)
 
 static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
 {
-    if (tail_call_enabled() && is_tailcall(insn)) {
+    if (tail_call_enabled() && is_tailcall(insn, fn)) {
         fn->has_tailcall = 1;
         KlrInsn *last_local = NULL;
         int nargs = insn->num_opers;

@@ -169,6 +169,7 @@ static OpCode no_regs_codes[] = {
     OP_JMP_INT_LE_IMM,
     OP_JMP_INT_GE_IMM,
     OP_GLOBAL_SET,
+    OP_TAIL_CALL,
 };
 
 int ir_has_value(KlrInsn *insn)

@@ -1453,37 +1453,35 @@ X(OP_JMP_FLOAT_GE, FORMAT_RROff)
 X(OP_CALL, FORMAT_CALL)
 
 /**
- * OP_TAIL_CALL — unified call instruction family
+ * OP_TAIL_CALL — tail-call self (only call the current function)
  *
  * FORMAT_CALL:
  *     | op:8 | flag:4 | A(ret-reg):12 | B(nargs):8 |
- *     | payload (32-bit)                           |
+ *
+ * Encoding rules:
+ *     - flag must be 0
+ *     - A(ret-reg) must be 0xFFF (no return value)
+ *     - B(nargs) is optional debug info; VM does not use it
  *
  * Details:
- *     A unified call instruction format. The 'flag' field determines
- *     the call subtype:
+ *     OP_TAIL_CALL performs a tail-recursive call to the *current* function.
+ *     It cannot be used for:
+ *         - external calls
+ *         - interface method calls
+ *         - calling other functions in the same module
  *
- *         flag = 0  →  direct call within the same module
- *         flag = 1  →  external function call (import-index)
- *         flag = 2  →  interface method call (intf-id + method-slot)
+ *     No payload word follows this instruction.
+ *     The instruction is a single 32-bit word.
  *
- *     The second 32-bit word (payload) is interpreted differently
- *     depending on the flag:
+ * VM behavior:
+ *     - reuses the current stack frame (no new frame is created)
+ *     - does not return to the caller
+ *     - jumps to the beginning of the current function body
+ *     - acts as a terminator instruction (no fallthrough)
  *
- *         flag = 0 (direct call):
- *             payload = relative-offset (signed 32-bit)
- *
- *         flag = 1 (external call):
- *             payload = import-index (unsigned 32-bit)
- *
- *         flag = 2 (interface call):
- *             payload = (intf-id:16 | method-slot:16)
- *
- *     This unified encoding reduces opcode count and keeps all call
- *     instructions consistent while still supporting:
- *         - intra-module direct calls (fast PC-relative)
- *         - cross-module calls via import table
- *         - interface dynamic dispatch via TypeInfo
+ * Summary:
+ *     OP_TAIL_CALL is a compact, single-word terminator instruction
+ *     dedicated to self tail recursion elimination.
  */
 X(OP_TAIL_CALL, FORMAT_CALL)
 

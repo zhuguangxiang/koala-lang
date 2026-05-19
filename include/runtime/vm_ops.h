@@ -422,10 +422,6 @@ TARGET(OP_CALL) {
             ASSERT(rd < max_regs);
             regs[rd] = ret;
         }
-        // if (has_push) {
-        //     SHRINK(imm);
-        //     has_push = 0;
-        // }
         DISPATCH();
     }
 
@@ -457,51 +453,16 @@ TARGET(OP_CALL) {
 }
 
 TARGET(OP_TAIL_CALL) {
+#ifndef NDEBUG
+    rd = I_VAL(inst, 8, 12);
     int flg = I_VAL(inst, 20, 4);
-    // imm = I_VAL(inst, 0, 8);
+#endif
 
-    // if (flg == 1) {
-    //     // external function call
-    //     NYI();
-    //     goto ext_tailcall;
-    // }
+    ASSERT(rd == 0xFFFu); // tail call does not have return value
+    ASSERT(flg == 0);
 
-    if (flg == 3) {
-        pc = codes + code->cs.start_pc;
-        goto main_loop;
-    }
-
-    // local function call
-    int32_t local_index = *(int32_t *)pc++;
-    ASSERT(local_index >= 0 && local_index < entry_size);
-    FuncEntry *e = ENTRY(local_index);
-    Object *obj = e->obj;
-
-    if (obj == (Object *)cf->code) {
-        pc = codes + code->cs.start_pc;
-        goto main_loop;
-    }
-
-    TValue ret;
-    if (IS_CFUNC(obj)) {
-        // CFuncObject *cfunc = (CFuncObject *)obj;
-        // TValue val = obj_value(obj);
-        // NativeFunc func = cfunc->func;
-        // ret = func(&val, regs, imm);
-        // // TODO: tail call does not have return value.
-        // // if (rd != 0xFFFu) {
-        // //     ASSERT(rd < cf->nlocals);
-        // //     regs[rd] = ret;
-        // // }
-        // SHRINK(imm);
-        DISPATCH();
-    } else {
-        ASSERT(IS_CODE(e->obj));
-        cf->code = (CodeObject *)e->obj;
-        cf->nlocals = cf->code->cs.nlocals;
-        ks->stack_top = cf->locals + cf->nlocals;
-        goto local_tailcall;
-    }
+    pc = codes + code->cs.start_pc;
+    goto main_loop;
 }
 
 TARGET(OP_SET_FIELD) {

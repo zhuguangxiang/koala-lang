@@ -151,16 +151,18 @@ void bytecode_print(uint8_t *code, size_t start, size_t count)
                 int nargs = insn & 0xFFu;
                 printf("flg=%d, ", flag);
                 if (Rx != 0xFFFu) printf("r%d, ", Rx);
-                printf("#%d\n", nargs);
-                pc++; // skip the next FORMAT_DATA entry
-                insn = *(uint32_t *)(code + pc * 4);
-                printf("%04zu:  %08X   data ", pc, insn);
-                if (flag == 0) {
-                    printf("(rel32=%d)", (int)insn);
-                } else if (flag == 1) {
-                    printf("(import_index=%d)", (int)insn);
-                } else if (flag == 2) {
-                    NYI();
+                printf("#%d", nargs);
+                if (opcode != OP_TAIL_CALL) {
+                    pc++; // skip the next FORMAT_DATA entry
+                    insn = *(uint32_t *)(code + pc * 4);
+                    printf("\n%04zu:  %08X   data ", pc, insn);
+                    if (flag == 0) {
+                        printf("(rel32=%d)", (int)insn);
+                    } else if (flag == 1) {
+                        printf("(import_index=%d)", (int)insn);
+                    } else if (flag == 2) {
+                        NYI();
+                    }
                 }
                 break;
             }

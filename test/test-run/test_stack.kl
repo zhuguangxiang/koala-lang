@@ -1,0 +1,115 @@
+// RUN: koala %s | filecheck %s
+
+class ListNode {
+    let value int
+    var next ListNode?
+
+    func __init__(_value int) {
+        value = _value
+        next = null
+    }
+
+    func show() {
+        print(value)
+    }
+}
+
+class List {
+    var head ListNode? = null
+    var total int = 0
+
+    func append(value int) {
+        total = total + 1
+        let node = ListNode(value)
+
+        if head == null {
+            head = node
+        } else {
+            var curr = head
+            while let next = curr.next {
+                curr = next
+            }
+            curr.next = node
+        }
+    }
+
+    func add_head(value int) {
+        total = total + 1
+        let node = ListNode(value)
+        if head != null {
+            node.next = head
+        }
+        head = node
+    }
+
+    func index(idx int) int? {
+        var curr = head
+        var i = 0
+        while curr != null {
+            if i == idx {
+                return curr.value
+            }
+            curr = curr.next
+            i += 1
+        }
+        return null
+    }
+
+    func show() {
+        var curr = head
+        while curr != null {
+            curr.show()
+            curr = curr.next
+        }
+    }
+
+    func pop_head() int? {
+        if head == null {
+            return null
+        }
+        let value = head.value
+        head = head.next
+        total = total - 1
+        return value
+    }
+
+    func len() int {
+        return total
+    }
+}
+
+class Stack {
+    var l = List()
+
+    func push(v int) {
+        l.add_head(v)
+    }
+
+    func pop() int? {
+        if l.len() > 0 {
+            return l.pop_head()
+        }
+        return null
+    }
+
+    func show() {
+        print(l)
+    }
+}
+
+func main() {
+    let stack = Stack()
+    stack.push(10)
+    stack.push(20)
+    stack.show()
+
+    var popped = stack.pop()
+    while popped != null {
+        print("popped: ", popped)
+        popped = stack.pop()
+    }
+}
+
+// CHECK: <List object at 0x{{[0-9a-f]+}}>
+// CHECK: popped:  20
+// CHECK: popped:  10

@@ -853,7 +853,6 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt);
 static void emit_ir_fields(ParserState *ps, ParserScope *scope, Vector *fields)
 {
     KlrBuilder bldr;
-    klr_builder_end(&bldr, scope->bb);
 
     VarDeclStmt *s;
     vector_foreach(s, fields) {
@@ -867,6 +866,7 @@ static void emit_ir_fields(ParserState *ps, ParserScope *scope, Vector *fields)
             ASSERT(var_sym->ir_val);
             KlrValue *self = METHOD_SELF;
             ASSERT(self);
+            klr_builder_end(&bldr, scope->bb);
             klr_build_set_field(&bldr, self, var_sym->ir_val, e->ir_val);
         }
     }
@@ -955,6 +955,11 @@ static void emit_ir_class(ParserState *ps, Stmt *stmt)
         scope->bb = bb;
         emit_ir_fields(ps, scope, &fields);
         exit_scope(ps);
+
+        if (dump_no_opt_ir_enabled()) {
+            fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
+            klr_print_func((KlrFunc *)fn, stdout);
+        }
     }
 
     vector_fini(&fields);

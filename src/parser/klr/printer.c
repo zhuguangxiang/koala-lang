@@ -273,7 +273,7 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
 {
     KlrValue *fn = insn_oper_value(insn, 0);
 
-    if (fn->ts->kind == TYPE_NO_TYPE) {
+    if (fn->ts->kind == TYPE_NO_TYPE || insn->code == OP_TAIL_CALL) {
         fprintf(fp, "%s ", name);
     } else {
         klr_print_value_name((KlrValue *)insn, fp);
