@@ -1137,7 +1137,12 @@ static TypeSpec *__to_typespec(char **str)
     return ts;
 }
 
-TypeSpec *type_spec_from_str(const char *s) { return __to_typespec((char **)&s); }
+TypeSpec *type_spec_from_str(const char *s)
+{
+    ASSERT(s);
+    if (strlen(s) == 0) return no_type_spec();
+    return __to_typespec((char **)&s);
+}
 
 void type_spec_print(TypeSpec *ts, Buffer *buf)
 {

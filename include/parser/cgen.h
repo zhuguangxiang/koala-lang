@@ -203,7 +203,7 @@ typedef enum {
 
 typedef struct KlMachImport {
     HashMapEntry hnode;
-    int kind;
+    ImportKind kind;
     int index;
     char *path;
     char *klass; /* for method/field import */

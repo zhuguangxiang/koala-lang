@@ -23,8 +23,18 @@ TypeObject str_type = {
     .methdefs = str_methods,
 };
 
+static StringObject empty_str = {
+    ._type = &str_type,
+    .size = 0,
+    .array = "",
+};
+
 Object *kl_new_nstr(char *s, size_t len)
 {
+    if (len == 0) {
+        return (Object *)&empty_str;
+    }
+
     StringObject *x = mm_alloc_obj(x);
     INIT_OBJECT_HEAD(x, &str_type);
     x->size = len;
@@ -51,7 +61,9 @@ Object *kl_new_fmt_str(char *fmt, ...)
 void kl_free_str(Object *obj)
 {
     StringObject *sobj = (StringObject *)obj;
-    mm_free(sobj->array);
+    if (sobj->size > 0) {
+        mm_free(sobj->array);
+    }
     mm_free(sobj);
 }
 

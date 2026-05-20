@@ -190,12 +190,13 @@ static uint16_t __add_float(KlcFile *klc, double val, int width, int type)
     return idx;
 }
 
+// support empty string, but not NULL
 static uint16_t __add_str(KlcFile *klc, char *s, int len, int type)
 {
-    if (len == 0) return 0;
+    // if (len == 0) return 0;
 
     int _type = STR_TYPE(len);
-    char *_s = atom(s);
+    char *_s = len <= 0 ? "" : atom(s);
     KlcConst k = { .type = _type, .len = len, .sval = _s };
     uint16_t idx = __index(klc, type, &k);
     if (idx == 0) {
@@ -222,12 +223,11 @@ uint16_t klc_add_float(KlcFile *klc, double val, int width)
 
 uint16_t klc_add_str(KlcFile *klc, char *s, int len) { return __add_str(klc, s, len, ITEM_CONST); }
 
+// support empty string, but not NULL
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len)
 {
-    if (len == 0) return 0;
-
     int type = UTF8_TYPE(len);
-    char *_s = atom(s);
+    char *_s = len <= 0 ? "" : atom(s);
     KlcConst k = { .type = type, .len = len, .sval = _s };
     uint16_t idx = __index(klc, ITEM_CONST, &k);
     if (idx == 0) {
@@ -893,7 +893,7 @@ static void read_const(KlcFile *klc, Vector *vec)
             char mem[256];
             read_bytes(klc, mem, len);
             item->len = len;
-            item->sval = atom_nstr(mem, len);
+            item->sval = (len <= 0 ? "" : atom_nstr(mem, len));
             break;
         }
         case KLC_CONST_ASCII:
@@ -904,7 +904,7 @@ static void read_const(KlcFile *klc, Vector *vec)
             read_bytes(klc, sval, len);
             sval[len] = 0;
             item->len = len;
-            item->sval = atom_nstr(sval, len);
+            item->sval = (len <= 0 ? "" : atom_nstr(sval, len));
             mm_free(sval);
             break;
         }

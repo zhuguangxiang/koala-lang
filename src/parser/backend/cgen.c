@@ -29,6 +29,10 @@ static void dump_const(KlMachConst *kc, int index, int indent)
 
         case KL_MACH_CONST_STR: {
             printf("str     = \"");
+            if (kc->len == 0) {
+                printf("\"\n");
+                break;
+            }
             BUF(buf);
             escape_str(kc->str, &buf);
             printf("%s\"\n", BUF_STR(buf));
@@ -334,13 +338,11 @@ static int __mach_import_eq__(void *a, void *b)
     KlMachImport *ia = (KlMachImport *)a;
     KlMachImport *ib = (KlMachImport *)b;
     if (ia->kind != ib->kind) return 0;
-    if (ia->kind == IMPORT_FUNC) {
+    if (ia->kind == IMPORT_FUNC || ia->kind == IMPORT_GLOBAL || ia->kind == IMPORT_TYPE) {
         return str_equal(ia->path, ib->path) && str_equal(ia->name, ib->name);
-    } else if (ia->kind == IMPORT_FIELD) {
+    } else if (ia->kind == IMPORT_FIELD || ia->kind == IMPORT_METHOD) {
         return str_equal(ia->path, ib->path) && str_equal(ia->klass, ib->klass) &&
                str_equal(ia->name, ib->name);
-    } else if (ia->kind == IMPORT_TYPE) {
-        return str_equal(ia->path, ib->path) && str_equal(ia->name, ib->name);
     } else {
         UNREACHABLE();
     }

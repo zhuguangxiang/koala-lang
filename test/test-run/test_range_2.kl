@@ -1,0 +1,10 @@
+// RUN: koala %s | filecheck %s
+
+func main() {
+    let r = range(0, 10, 2)
+    print(r.index(4))  // Should print 2
+    print(r.index(5))  // Should print -1
+}
+
+// CHECK: 2
+// CHECK: -1

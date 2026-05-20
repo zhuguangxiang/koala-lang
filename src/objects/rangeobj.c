@@ -9,7 +9,35 @@
 extern "C" {
 #endif
 
-static TValue range_str(TValue *self, TValue *args, int nargs)
+static TValue kl_range_index(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    RangeObject *range = (RangeObject *)to_obj(self);
+    TValue *value = args + 0;
+    int64_t start = range->start.ival;
+    int64_t stop = range->stop.ival;
+    int64_t step = range->step.ival;
+
+    if (step > 0) {
+        if (value->ival < start || value->ival >= stop) {
+            return int64_value(-1); // Not found
+        }
+    } else if (step < 0) {
+        if (value->ival > start || value->ival <= stop) {
+            return int64_value(-1); // Not found
+        }
+    } else {
+        UNREACHABLE(); // Step cannot be zero, should have been checked during range creation
+    }
+
+    if ((value->ival - start) % step != 0) {
+        return int64_value(-1); // Not found
+    }
+
+    return int64_value((value->ival - start) / step);
+}
+
+static TValue kl_range_str(TValue *self, TValue *args, int nargs)
 {
     RangeObject *range = (RangeObject *)to_obj(self);
     int64_t start = range->start.ival;
@@ -20,7 +48,8 @@ static TValue range_str(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef range_methods[] = {
-    { "__str__", range_str },
+    { "index", kl_range_index },
+    { "__str__", kl_range_str },
     { NULL },
 };
 

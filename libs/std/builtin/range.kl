@@ -60,14 +60,36 @@ pub class range : Sequence[int] {
         // Return 1 if value is in the range, otherwise 0
     }
 
-    /// Return the index of value in the range.
+    /// Return the index of `value` within the range.
     ///
-    /// PRECONDITION: value must be present in the range.
-    /// Triggers an unrecoverable panic if the value is not found.
-    pub func index(value int) int {
-        // Return the index of value in the range, or raise ValueError if not found
-    }
+    /// This function performs an O(1) arithmetic check:
+    ///     - First, it verifies that `value` lies within the range bounds,
+    ///       taking the sign of `step` into account.
+    ///     - Then, it checks whether (value - start) is an exact multiple of `step`.
+    ///     - If both conditions hold, the index is:
+    ///         index = (value - start) / step
+    ///
+    /// If `value` is not present in the range, returns -1.
+    ///
+    @native(kl_range_index)
+    pub func index(value int) int {}
 
+    /// Return the string representation of the range.
+    ///
+    /// The returned format is:
+    ///     "range(start, stop, step)"
+    ///
+    /// This is an O(1) operation. All fields are printed directly without
+    /// materializing the sequence.
+    ///
+    /// Examples:
+    ///     range(0, 5, 1)   → "range(0, 5, 1)"
+    ///     range(10, 0, -2) → "range(10, 0, -2)"
+    ///
+    /// Note:
+    ///     - No panic is triggered when the range is empty.
+    ///
     @native(kl_range_str)
     pub func __str__() str {}
+
 }
