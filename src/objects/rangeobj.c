@@ -63,9 +63,9 @@ static MemberDef range_members[] = {
 TypeObject range_type = {
     ._type = &type_type,
     .name = "range",
-    .flags = TP_FLAGS_CLASS,
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = range_methods,
-    .memdefs = range_members,
+    .membdefs = range_members,
 };
 
 Object *kl_new_range(TValue *items)

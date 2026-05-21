@@ -3,8 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "ir.h"
 #include "log.h"
+#include "opt.h"
 #include "queue.h"
 
 #ifdef __cplusplus
@@ -69,6 +69,9 @@ static int has_side_effect(KlrInsn *insn)
                  * let x = 10; All 'x' are now replaced by '10'.
                  */
                 if (klr_is_const(src)) {
+                    if (!type_allowed_to_prop(src->ts)) {
+                        return 1; /* Type not allowed for propagation: Keep the MOVE for safety */
+                    }
                     return 0; /* Truth already broadcasted: Erase the MOVE */
                 }
 
@@ -77,8 +80,7 @@ static int has_side_effect(KlrInsn *insn)
                  * let a = b; All 'a' are now replaced by 'b'.
                  * Note: We only do this if 'src' is also a valid local/let.
                  */
-                if (src->kind == KLR_VALUE_INSN &&
-                    (((KlrInsn *)src)->flags & KLR_INSN_FLAGS_CONST)) {
+                if (klr_is_local(src) && (((KlrInsn *)src)->flags & KLR_INSN_FLAGS_CONST)) {
                     return 0; /* Alias already broadcasted: Erase the MOVE */
                 }
 

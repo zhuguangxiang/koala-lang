@@ -44,6 +44,10 @@ static int __const_equal(KlcConst *k1, KlcConst *k2)
             return k1->fval == k2->fval;
         }
 
+        case KLC_CONST_BOOL: {
+            return k1->ival == k2->ival;
+        }
+
         case KLC_CONST_ASCII:      // fall-through
         case KLC_CONST_UTF8:       // fall-through
         case KLC_CONST_SHORT_UTF8: // fall-through
@@ -131,6 +135,19 @@ static uint16_t __add_none(KlcFile *klc, int type)
     if (idx == 0) {
         KlcConst *item = mm_alloc_obj(item);
         item->type = KLC_CONST_NONE;
+        idx = __append(klc, type, item);
+    }
+    return idx;
+}
+
+static uint16_t __add_bool(KlcFile *klc, int val, int type)
+{
+    KlcConst k = { .type = KLC_CONST_BOOL, .ival = val };
+    uint16_t idx = __index(klc, type, &k);
+    if (idx == 0) {
+        KlcConst *item = mm_alloc_obj(item);
+        item->type = KLC_CONST_BOOL;
+        item->ival = val;
         idx = __append(klc, type, item);
     }
     return idx;
@@ -263,6 +280,10 @@ KlcCode *klc_get_code(KlcFile *klc, uint16_t index)
     return code;
 }
 
+uint16_t klc_add_rt_none(KlcFile *klc) { return __add_none(klc, ITEM_RT_CONST); }
+
+uint16_t klc_add_rt_bool(KlcFile *klc, int val) { return __add_bool(klc, val, ITEM_RT_CONST); }
+
 uint16_t klc_add_rt_int(KlcFile *klc, uint64_t val, int sign, int width)
 {
     return __add_int(klc, val, sign, width, ITEM_RT_CONST);
@@ -312,6 +333,26 @@ uint16_t klc_add_rt_range(KlcFile *klc, Vector *list)
         idx = __append(klc, ITEM_RT_CONST, item);
     }
     return idx;
+}
+
+uint16_t klc_add_rt_list(KlcFile *klc, Vector *list)
+{
+    KlcConst *item = mm_alloc_obj(item);
+    int size = vector_size(list);
+    if (size <= 255) {
+        item->type = KLC_CONST_SHORT_LIST;
+    } else {
+        item->type = KLC_CONST_LIST;
+    }
+    item->len = size;
+    item->val = list;
+
+    Vector *objs = klc->objs + ITEM_RT_CONST;
+    vector_push_back(objs, &item);
+    uint16_t index = vector_size(objs) - 1;
+    ASSERT(index > 0);
+
+    return index;
 }
 
 void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym)
@@ -555,6 +596,10 @@ static void write_const(KlcFile *klc, KlcConst *item)
             write_float(klc, item->fval);
             break;
         }
+        case KLC_CONST_BOOL: {
+            write_uint8(klc, (uint8_t)item->ival);
+            break;
+        }
         case KLC_CONST_SHORT_ASCII:
         case KLC_CONST_SHORT_UTF8: {
             write_uint8(klc, (uint8_t)item->len);
@@ -567,7 +612,8 @@ static void write_const(KlcFile *klc, KlcConst *item)
             write_bytes(klc, item->sval, item->len);
             break;
         }
-        case KLC_CONST_SHORT_TUPLE: {
+        case KLC_CONST_SHORT_TUPLE:
+        case KLC_CONST_SHORT_LIST: {
             Vector *vec = item->val;
             int size = vector_size(vec);
             write_uint8(klc, (uint8_t)size);
@@ -579,7 +625,8 @@ static void write_const(KlcFile *klc, KlcConst *item)
             }
             break;
         }
-        case KLC_CONST_TUPLE: {
+        case KLC_CONST_TUPLE:
+        case KLC_CONST_LIST: {
             Vector *vec = item->val;
             int size = vector_size(vec);
             write_uint32(klc, (uint32_t)size);
@@ -886,6 +933,12 @@ static void read_const(KlcFile *klc, Vector *vec)
             item->fval = fval;
             break;
         }
+        case KLC_CONST_BOOL: {
+            int bool_val = 0;
+            read_uint8(klc, (uint8_t *)&bool_val);
+            item->ival = bool_val;
+            break;
+        }
         case KLC_CONST_SHORT_ASCII:
         case KLC_CONST_SHORT_UTF8: {
             len = 0;
@@ -908,7 +961,8 @@ static void read_const(KlcFile *klc, Vector *vec)
             mm_free(sval);
             break;
         }
-        case KLC_CONST_SHORT_TUPLE: {
+        case KLC_CONST_SHORT_TUPLE:
+        case KLC_CONST_SHORT_LIST: {
             len = 0;
             read_uint8(klc, (uint8_t *)&len);
             Vector *_vec = vector_create_ptr();
@@ -922,7 +976,8 @@ static void read_const(KlcFile *klc, Vector *vec)
             item->val = _vec;
             break;
         }
-        case KLC_CONST_TUPLE: {
+        case KLC_CONST_TUPLE:
+        case KLC_CONST_LIST: {
             len = 0;
             read_uint32(klc, (uint32_t *)&len);
             Vector *_vec = vector_create_ptr();

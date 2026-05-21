@@ -273,7 +273,7 @@ typedef struct _TypeObject {
     /* methoddef */
     MethodDef *methdefs;
     /* memberdef */
-    MemberDef *memdefs;
+    MemberDef *membdefs;
 
     /* allocate function */
     AllocFunc alloc;

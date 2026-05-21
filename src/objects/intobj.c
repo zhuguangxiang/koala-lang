@@ -140,7 +140,7 @@ static TypeObject *int_bases[] = {
 TypeObject int_type = {
     ._type = &type_type,
     .name = "int",
-    .flags = TP_FLAGS_CLASS,
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .bases = int_bases,
     .methdefs = int_methods,
 };

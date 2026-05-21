@@ -4,6 +4,7 @@
  */
 
 #include "buffer.h"
+#include "listobj.h"
 #include "modobj.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
@@ -14,6 +15,14 @@ extern "C" {
 
 static void print_value(TValue *val)
 {
+    if (is_obj(val)) {
+        Object *obj = to_obj(val);
+        if (IS_STR(obj)) {
+            printf("%s", STR_BUF(obj));
+            return;
+        }
+    }
+
     Object *sobj = kl_to_str(val);
     printf("%s", STR_BUF(sobj));
 }
@@ -59,9 +68,9 @@ static MethodDef builtin_functions[] = {
 };
 
 static TypeObject *builtin_types[] = {
-    &any_type,   &type_type,   &none_type,  &bool_type,  &str_type,
-    &exc_type,   &field_type,  &cfunc_type, &code_type,  &int_type,
-    &float_type, &Number_type, &tuple_type, &range_type, NULL,
+    &any_type,   &type_type,  &none_type, &bool_type, &str_type,   &exc_type,
+    &field_type, &cfunc_type, &code_type, &int_type,  &float_type, &Number_type,
+    &tuple_type, &range_type, &list_type, NULL,
 };
 
 static ModuleDef builtin_module = {

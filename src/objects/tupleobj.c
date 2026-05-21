@@ -5,10 +5,18 @@
 
 #include "tupleobj.h"
 #include "buffer.h"
+#include "listobj.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+static TValue kl_tuple_tolist(TValue *self, TValue *args, int nargs)
+{
+    TupleObject *tuple = (TupleObject *)to_obj(self);
+    Object *lst = kl_new_list(tuple->array, tuple->size);
+    return obj_value(lst);
+}
 
 static TValue tuple_str(TValue *self, TValue *args, int nargs)
 {
@@ -31,6 +39,7 @@ static TValue tuple_str(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef tuple_methods[] = {
+    { "to_list", kl_tuple_tolist },
     { "__str__", tuple_str },
     { NULL },
 };
@@ -38,7 +47,7 @@ static MethodDef tuple_methods[] = {
 TypeObject tuple_type = {
     ._type = &type_type,
     .name = "tuple",
-    .flags = TP_FLAGS_CLASS,
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = tuple_methods,
 };
 

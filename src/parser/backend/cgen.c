@@ -15,6 +15,10 @@ extern "C" {
 static void dump_const(KlMachConst *kc, int index, int indent)
 {
     switch (kc->tag) {
+        case KL_MACH_CONST_NONE:
+            printf("none\n");
+            break;
+
         case KL_MACH_CONST_INT:
             printf("int%d   = %ld\n", kc->len * 8, kc->i64);
             break;
@@ -25,6 +29,10 @@ static void dump_const(KlMachConst *kc, int index, int indent)
 
         case KL_MACH_CONST_FLOAT:
             printf("float%d = %.17g\n", kc->len * 8, kc->f64);
+            break;
+
+        case KL_MACH_CONST_BOOL:
+            printf("bool    = %s\n", kc->bval ? "true" : "false");
             break;
 
         case KL_MACH_CONST_STR: {
@@ -67,6 +75,21 @@ static void dump_const(KlMachConst *kc, int index, int indent)
             }
 
             printf(")\n");
+            break;
+        }
+
+        case KL_MACH_CONST_LIST: {
+            Vector *list = kc->list;
+            int count = vector_size(list);
+
+            printf("list(%d): \n", count);
+
+            for (int i = 0; i < count; i++) {
+                KlMachConst *elem = vector_at(list, i);
+                printf("%*s[%d] ", indent + 4, "", i);
+                dump_const(elem, i, indent + 8);
+            }
+
             break;
         }
 
@@ -114,6 +137,8 @@ static int __mach_const_eq__(void *a, void *b)
     KlMachConst *kb = (KlMachConst *)b;
     if (ka->tag != kb->tag) return 0;
     switch (ka->tag) {
+        case KL_MACH_CONST_NONE:
+            return 1;
         case KL_MACH_CONST_INT:
             return (ka->len == kb->len) && (ka->i64 == kb->i64);
         case KL_MACH_CONST_UINT:
@@ -122,10 +147,24 @@ static int __mach_const_eq__(void *a, void *b)
             return (ka->len == kb->len) && (ka->f64 == kb->f64);
         case KL_MACH_CONST_STR:
             return (ka->len == kb->len) && (strcmp(ka->str, kb->str) == 0);
+        case KL_MACH_CONST_BOOL:
+            return (ka->len == kb->len) && (ka->bval == kb->bval);
         case KL_MACH_CONST_RANGE: {
-            KlrValue **raw_a = VECTOR_RAW(ka->list, KlrValue *);
-            KlrValue **raw_b = VECTOR_RAW(kb->list, KlrValue *);
+            KlMachConst **raw_a = VECTOR_RAW(ka->list, KlMachConst *);
+            KlMachConst **raw_b = VECTOR_RAW(kb->list, KlMachConst *);
             return !memcmp(raw_a, raw_b, sizeof(void *) * 3);
+        }
+        case KL_MACH_CONST_TUPLE: {
+            Vector *list_a = ka->list;
+            Vector *list_b = kb->list;
+            int count = vector_size(list_a);
+            if (count != vector_size(list_b)) return 0;
+            for (int i = 0; i < count; i++) {
+                KlMachConst *elem_a = vector_at(list_a, i);
+                KlMachConst *elem_b = vector_at(list_b, i);
+                if (!__mach_const_eq__(elem_a, elem_b)) return 0;
+            }
+            return 1;
         }
         default:
             UNREACHABLE();
@@ -136,6 +175,8 @@ static unsigned int mach_const_hash(void *key)
 {
     KlMachConst *kc = (KlMachConst *)key;
     switch (kc->tag) {
+        case KL_MACH_CONST_NONE:
+            return 0;
         case KL_MACH_CONST_INT:
             return mem_hash(&kc->i64, sizeof(kc->i64));
         case KL_MACH_CONST_UINT:
@@ -147,14 +188,49 @@ static unsigned int mach_const_hash(void *key)
             } u = { .f = kc->f64 };
             return mem_hash(&u, sizeof(u));
         }
+        case KL_MACH_CONST_BOOL:
+            return mem_hash(&kc->bval, sizeof(kc->bval));
         case KL_MACH_CONST_STR:
             return str_hash(kc->str);
         case KL_MACH_CONST_RANGE:
-            KlrValue **raw = VECTOR_RAW(kc->list, KlrValue *);
+            KlMachConst **raw = VECTOR_RAW(kc->list, KlMachConst *);
             return mem_hash(raw, sizeof(void *) * 3);
+        case KL_MACH_CONST_TUPLE: {
+            Vector *list = kc->list;
+            int count = vector_size(list);
+            unsigned int h = 0;
+            for (int i = 0; i < count; i++) {
+                KlMachConst *elem = vector_at(list, i);
+                h ^= mach_const_hash(elem) + 0x9e3779b9 + (h << 6) + (h >> 2);
+            }
+            return h;
+        }
         default:
             UNREACHABLE();
     }
+}
+
+static KlMachConst *kl_mach_add_none(KlMachModule *m)
+{
+    KlMachConst key = { .tag = KL_MACH_CONST_NONE, .len = 0 };
+    hashmap_entry_init(&key, mach_const_hash(&key));
+
+    KlMachConst *entry = hashmap_get(&m->cp_map, &key);
+    if (entry) {
+        log_info("Found existing const entry for none (index: %d)", entry->index);
+        return entry;
+    }
+
+    KlMachConst *new_entry = mm_alloc_obj(new_entry);
+    new_entry->tag = KL_MACH_CONST_NONE;
+    new_entry->len = 0;
+    hashmap_entry_init(new_entry, mach_const_hash(new_entry));
+    hashmap_put(&m->cp_map, new_entry);
+    vector_push_back(&m->const_pool, &new_entry);
+    int index = vector_size(&m->const_pool) - 1;
+    new_entry->index = index;
+    log_info("Added new const entry for none (index: %d)", new_entry->index);
+    return new_entry;
 }
 
 static KlMachConst *kl_mach_add_int(KlMachModule *m, int64_t v, int width)
@@ -228,6 +304,30 @@ static KlMachConst *kl_mach_add_float(KlMachModule *m, double v, int width)
     return new_entry;
 }
 
+static KlMachConst *kl_mach_add_bool(KlMachModule *m, int val)
+{
+    KlMachConst key = { .tag = KL_MACH_CONST_BOOL, .len = 1, .bval = val };
+    hashmap_entry_init(&key, mach_const_hash(&key));
+
+    KlMachConst *entry = hashmap_get(&m->cp_map, &key);
+    if (entry) {
+        log_info("Found existing const entry for bool: %d (index: %d)", val, entry->index);
+        return entry;
+    }
+
+    KlMachConst *new_entry = mm_alloc_obj(new_entry);
+    new_entry->tag = KL_MACH_CONST_BOOL;
+    new_entry->len = 1;
+    new_entry->bval = val;
+    hashmap_entry_init(new_entry, mach_const_hash(new_entry));
+    hashmap_put(&m->cp_map, new_entry);
+    vector_push_back(&m->const_pool, &new_entry);
+    int index = vector_size(&m->const_pool) - 1;
+    new_entry->index = index;
+    log_info("Added new const entry for bool: %d (index: %d)", val, new_entry->index);
+    return new_entry;
+}
+
 static KlMachConst *kl_mach_add_str(KlMachModule *m, char *v)
 {
     int len = strlen(v);
@@ -255,21 +355,35 @@ static KlMachConst *kl_mach_add_str(KlMachModule *m, char *v)
 
 static KlMachConst *kl_mach_add_tuple(KlMachModule *m, Vector *items)
 {
-    KlMachConst *entry = mm_alloc_obj(entry);
-    entry->tag = KL_MACH_CONST_TUPLE;
     Vector *list = vector_create_ptr();
-    KlrValue *elem;
+    KlrConst *elem;
     vector_foreach(elem, items) {
-        KlMachConst *kc = kl_mach_add_const((KlrConst *)elem, m);
+        KlMachConst *kc = kl_mach_add_const(elem, m);
         vector_push_back(list, &kc);
     }
-    entry->list = list;
 
-    vector_push_back(&m->const_pool, &entry);
+    KlMachConst key = { .tag = KL_MACH_CONST_TUPLE, .list = list };
+    hashmap_entry_init(&key, mach_const_hash(&key));
+
+    KlMachConst *entry = hashmap_get(&m->cp_map, &key);
+    if (entry) {
+        vector_destroy(list);
+        log_info("Found existing const entry for tuple (index: %d)", entry->index);
+        return entry;
+    }
+
+    KlMachConst *new_entry = mm_alloc_obj(new_entry);
+    new_entry->tag = KL_MACH_CONST_TUPLE;
+    new_entry->list = list;
+
+    hashmap_entry_init(new_entry, mach_const_hash(new_entry));
+    hashmap_put(&m->cp_map, new_entry);
+
+    vector_push_back(&m->const_pool, &new_entry);
     int index = vector_size(&m->const_pool) - 1;
-    entry->index = index;
+    new_entry->index = index;
     log_info("Added new const entry for tuple (index: %d)", index);
-    return entry;
+    return new_entry;
 }
 
 static KlMachConst *kl_mach_add_range(KlMachModule *m, Vector *items)
@@ -282,11 +396,12 @@ static KlMachConst *kl_mach_add_range(KlMachModule *m, Vector *items)
         vector_push_back(list, &kc);
     }
 
-    KlMachConst key = { .tag = KL_MACH_CONST_RANGE, .len = 3, .list = list };
+    KlMachConst key = { .tag = KL_MACH_CONST_RANGE, .list = list };
     hashmap_entry_init(&key, mach_const_hash(&key));
 
     KlMachConst *entry = hashmap_get(&m->cp_map, &key);
     if (entry) {
+        vector_destroy(list);
         log_info("Found existing const entry for range (index: %d)", entry->index);
         return entry;
     }
@@ -305,9 +420,32 @@ static KlMachConst *kl_mach_add_range(KlMachModule *m, Vector *items)
     return new_entry;
 }
 
+static KlMachConst *kl_mach_add_list(KlMachModule *m, Vector *items)
+{
+    Vector *list = vector_create_ptr();
+    KlrValue *elem;
+    vector_foreach(elem, items) {
+        KlMachConst *kc = kl_mach_add_const((KlrConst *)elem, m);
+        vector_push_back(list, &kc);
+    }
+
+    KlMachConst *entry = mm_alloc_obj(entry);
+    entry->tag = KL_MACH_CONST_LIST;
+    entry->list = list;
+
+    vector_push_back(&m->const_pool, &entry);
+    int index = vector_size(&m->const_pool) - 1;
+    entry->index = index;
+    log_info("Added new const entry for list (index: %d)", index);
+    return entry;
+}
+
 KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m)
 {
     switch (kc->which) {
+        case CONST_NONE: {
+            return kl_mach_add_none(m);
+        }
         case CONST_INT: {
             return kl_mach_add_int(m, kc->ival, kc->len);
         }
@@ -317,6 +455,9 @@ KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m)
         case CONST_FLT: {
             return kl_mach_add_float(m, kc->fval, kc->len);
         }
+        case CONST_BOOL: {
+            return kl_mach_add_bool(m, kc->bval);
+        }
         case CONST_STR: {
             return kl_mach_add_str(m, kc->sval);
         }
@@ -325,6 +466,9 @@ KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m)
         }
         case CONST_RANGE: {
             return kl_mach_add_range(m, kc->list);
+        }
+        case CONST_LIST: {
+            return kl_mach_add_list(m, kc->list);
         }
         default: {
             UNREACHABLE();

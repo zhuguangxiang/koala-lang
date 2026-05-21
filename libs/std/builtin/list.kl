@@ -32,6 +32,9 @@ pub class list[T] : MutableSequence[T] {
     @native(kl_list_append)
     pub func append(item T) {}
 
+    @native(kl_list_str)
+    pub func __str__() str {}
+
     pub func extend(items Iterable[T]) {}
     pub func insert(index int, value T) {}
     pub func remove(value T) {}

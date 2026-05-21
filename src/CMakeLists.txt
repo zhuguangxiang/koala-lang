@@ -79,6 +79,7 @@ set(KOALA_SOURCES
     objects/typeobj.c
     objects/tupleobj.c
     objects/rangeobj.c
+    objects/listobj.c
     runtime/symtbl.c
     runtime/vm.c
     runtime/except.c

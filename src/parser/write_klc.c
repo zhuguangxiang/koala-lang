@@ -331,12 +331,16 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
 static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
 {
     switch (kc->tag) {
+        case KL_MACH_CONST_NONE:
+            return klc_add_rt_none(klc);
         case KL_MACH_CONST_INT:
             return klc_add_rt_int(klc, kc->i64, 1, kc->len);
         case KL_MACH_CONST_UINT:
             return klc_add_rt_int(klc, kc->u64, 0, kc->len);
         case KL_MACH_CONST_FLOAT:
             return klc_add_rt_float(klc, kc->f64, kc->len);
+        case KL_MACH_CONST_BOOL:
+            return klc_add_rt_bool(klc, kc->bval);
         case KL_MACH_CONST_STR:
             return klc_add_rt_str(klc, kc->str, strlen(kc->str));
         case KL_MACH_CONST_TUPLE: {
@@ -360,6 +364,17 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
                 vector_push_back(list, &idx);
             }
             return klc_add_rt_range(klc, list);
+        }
+        case KL_MACH_CONST_LIST: {
+            Vector *list = vector_create(sizeof(uint16_t));
+            Vector *vec = kc->list;
+            KlMachConst *item;
+            vector_foreach(item, vec) {
+                if (!item) continue;
+                uint16_t idx = _write_rt_const(klc, item);
+                vector_push_back(list, &idx);
+            }
+            return klc_add_rt_list(klc, list);
         }
         default:
             UNREACHABLE();

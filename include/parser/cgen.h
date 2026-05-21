@@ -172,13 +172,15 @@ typedef struct _KlMachInsn {
     KlrInsn *origin;
 } KlMachInsn;
 
-#define KL_MACH_CONST_INT   1
-#define KL_MACH_CONST_UINT  2
-#define KL_MACH_CONST_FLOAT 3
-#define KL_MACH_CONST_STR   4
-#define KL_MACH_CONST_LIST  5
-#define KL_MACH_CONST_TUPLE 6
-#define KL_MACH_CONST_RANGE 7
+#define KL_MACH_CONST_NONE  1
+#define KL_MACH_CONST_INT   2
+#define KL_MACH_CONST_UINT  3
+#define KL_MACH_CONST_FLOAT 4
+#define KL_MACH_CONST_BOOL  5
+#define KL_MACH_CONST_STR   6
+#define KL_MACH_CONST_TUPLE 7
+#define KL_MACH_CONST_RANGE 8
+#define KL_MACH_CONST_LIST  9
 typedef struct _KlMachConst {
     HashMapEntry hnode;
     uint8_t tag;
@@ -190,6 +192,7 @@ typedef struct _KlMachConst {
         double f64;
         char *str;
         Vector *list;
+        int bval;
     };
 } KlMachConst;
 

@@ -27,7 +27,7 @@ static MethodDef bool_methods[] = {
 TypeObject bool_type = {
     ._type = &type_type,
     .name = "bool",
-    .flags = TP_FLAGS_CLASS,
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = bool_methods,
 };
 

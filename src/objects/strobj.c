@@ -19,7 +19,7 @@ static MethodDef str_methods[] = {
 TypeObject str_type = {
     ._type = &type_type,
     .name = "str",
-    .flags = TP_FLAGS_CLASS,
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = str_methods,
 };
 

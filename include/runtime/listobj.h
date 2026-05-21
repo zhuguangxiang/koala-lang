@@ -14,13 +14,16 @@ extern "C" {
 
 typedef struct _ListObject {
     OBJECT_HEAD
-    ssize_t start;
-    ssize_t end;
-    GcObject *array;
+    size_t start;
+    size_t end;
+    size_t capacity;
+    TValue *array;
 } ListObject;
 
 extern TypeObject list_type;
 #define IS_LIST(ob) IS_TYPE((ob), &list_type)
+
+Object *kl_new_list(TValue *items, int size);
 
 #ifdef __cplusplus
 }

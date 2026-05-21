@@ -7,6 +7,7 @@
 #include "atom.h"
 #include "codespec.h"
 #include "klc.h"
+#include "listobj.h"
 #include "log.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
@@ -124,6 +125,20 @@ int kl_mo_add_float(Object *_m, double k, int type_info)
     return kl_mo_add_const(_m, &val);
 }
 
+int kl_mo_add_bool(Object *_m, int v)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    TValue val = bool_value(v);
+    return kl_mo_add_const(_m, &val);
+}
+
+int kl_mo_add_none(Object *_m)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    TValue val = none_value;
+    return kl_mo_add_const(_m, &val);
+}
+
 int kl_mo_add_str(Object *_m, char *s)
 {
     ModuleObject *m = (ModuleObject *)_m;
@@ -132,7 +147,123 @@ int kl_mo_add_str(Object *_m, char *s)
     return kl_mo_add_const(_m, &val);
 }
 
+int _mo_add_vector(Object *_m, Vector *list) {}
+
 int kl_mo_add_tuple(Object *_m, Vector *list)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    Vector vec;
+    vector_init(&vec, sizeof(TValue));
+
+    KlcConst *item;
+    vector_foreach(item, list) {
+        switch (item->type) {
+            case KLC_CONST_NONE: {
+                TValue val = none_value;
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_INT: {
+                TValue val = { .tag = item->type_info, .ival = item->ival };
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_FLT: {
+                TValue val = { .tag = item->type_info, .fval = item->fval };
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_BOOL: {
+                TValue val = bool_value(item->ival);
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_SHORT_ASCII:
+            case KLC_CONST_SHORT_UTF8:
+            case KLC_CONST_ASCII:
+            case KLC_CONST_UTF8: {
+                Object *sobj = kl_new_str(item->sval);
+                TValue val = obj_value(sobj);
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_SHORT_TUPLE:
+            case KLC_CONST_TUPLE: {
+                Vector *_sub = item->val;
+                int _index = kl_mo_add_tuple(_m, _sub);
+                TValue val = { .tag = item->type_info, .ival = _index };
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_RANGE: {
+                Vector *_sub = item->val;
+                TValue values[3];
+
+                KlcConst *_item;
+                vector_foreach(_item, _sub) {
+                    ASSERT(_item->type == KLC_CONST_INT);
+                    values[i__] = int64_value(_item->ival);
+                }
+
+                Object *tobj = kl_new_range(values);
+                TValue val = obj_value(tobj);
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_SHORT_LIST:
+            case KLC_CONST_LIST: {
+                Vector *_sub = item->val;
+                int _index = kl_mo_add_list(_m, _sub);
+                TValue val = { .tag = item->type_info, .ival = _index };
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            default: {
+                NYI();
+                break;
+            }
+        }
+    }
+
+    TValue *items = VECTOR_RAW(&vec, TValue);
+    int size = vector_size(&vec);
+    Object *tobj = kl_new_tuple(items, size);
+    TValue val = obj_value(tobj);
+    vector_fini(&vec);
+    return kl_mo_add_const(_m, &val);
+}
+
+int kl_mo_add_range(Object *_m, Vector *list)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    Vector vec;
+    vector_init(&vec, sizeof(TValue));
+
+    KlcConst *item;
+    vector_foreach(item, list) {
+        ASSERT(item->type == KLC_CONST_INT);
+        TValue val = int64_value(item->ival);
+        vector_push_back(&vec, &val);
+    }
+
+    TValue *items = VECTOR_RAW(&vec, TValue);
+    int size = vector_size(&vec);
+    ASSERT(size == 3);
+    Object *tobj = kl_new_range(items);
+    TValue val = obj_value(tobj);
+    vector_fini(&vec);
+    return kl_mo_add_const(_m, &val);
+}
+
+int kl_mo_add_list(Object *_m, Vector *list)
 {
     ModuleObject *m = (ModuleObject *)_m;
     Vector vec;
@@ -188,6 +319,15 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
                 break;
             }
 
+            case KLC_CONST_SHORT_LIST:
+            case KLC_CONST_LIST: {
+                Vector *_sub = item->val;
+                int _index = kl_mo_add_list(_m, _sub);
+                TValue val = { .tag = item->type_info, .ival = _index };
+                vector_push_back(&vec, &val);
+                break;
+            }
+
             default: {
                 NYI();
                 break;
@@ -197,29 +337,7 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
 
     TValue *items = VECTOR_RAW(&vec, TValue);
     int size = vector_size(&vec);
-    Object *tobj = kl_new_tuple(items, size);
-    TValue val = obj_value(tobj);
-    vector_fini(&vec);
-    return kl_mo_add_const(_m, &val);
-}
-
-int kl_mo_add_range(Object *_m, Vector *list)
-{
-    ModuleObject *m = (ModuleObject *)_m;
-    Vector vec;
-    vector_init(&vec, sizeof(TValue));
-
-    KlcConst *item;
-    vector_foreach(item, list) {
-        ASSERT(item->type == KLC_CONST_INT);
-        TValue val = int64_value(item->ival);
-        vector_push_back(&vec, &val);
-    }
-
-    TValue *items = VECTOR_RAW(&vec, TValue);
-    int size = vector_size(&vec);
-    ASSERT(size == 3);
-    Object *tobj = kl_new_range(items);
+    Object *tobj = kl_new_list(items, size);
     TValue val = obj_value(tobj);
     vector_fini(&vec);
     return kl_mo_add_const(_m, &val);

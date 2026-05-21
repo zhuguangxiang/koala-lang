@@ -12,6 +12,8 @@
 extern "C" {
 #endif
 
+int type_allowed_to_prop(TypeSpec *ts);
+
 int klr_const_copy_prop_pass(KlrFunc *fn, void *data);
 
 int klr_normalize_pass(KlrFunc *fn, void *data);

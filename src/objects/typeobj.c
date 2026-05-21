@@ -94,7 +94,7 @@ static MethodDef type_methods[] = {
 TypeObject type_type = {
     ._type = &type_type,
     .name = "type",
-    .flags = TP_FLAGS_CLASS,
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = type_methods,
 };
 
@@ -233,7 +233,7 @@ int kl_init_type(TypeObject *tp)
     }
 
     // add member to type
-    MemberDef *mdef = tp->memdefs;
+    MemberDef *mdef = tp->membdefs;
     while (mdef && mdef->name) {
         Object *field = kl_new_field(mdef->name, mdef->type, mdef->offset, (Object *)tp);
         vector_push_back(&tp->fields, &field);

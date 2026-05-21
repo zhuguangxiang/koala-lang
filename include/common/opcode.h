@@ -121,6 +121,7 @@ void bytecode_print(uint8_t *code, size_t start, size_t count);
 typedef enum _InternTag {
     INTERN_TUPLE,
     INTERN_RANGE,
+    INTERN_LIST,
 } InternTag;
 
 extern char *intern_tag_name[];

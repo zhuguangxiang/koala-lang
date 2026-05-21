@@ -43,7 +43,7 @@ static MethodDef any_methods[] = {
 TypeObject any_type = {
     ._type = &type_type,
     .name = "any",
-    .flags = TP_FLAGS_TRAIT,
+    .flags = TP_FLAGS_TRAIT | TP_FLAGS_PUBLIC,
     .methdefs = any_methods,
 };
 

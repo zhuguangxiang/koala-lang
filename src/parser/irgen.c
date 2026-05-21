@@ -448,12 +448,27 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
             if (!sym->ir_val) {
                 ASSERT(sym->flags & SYM_FLAGS_EXT);
                 Symbol *_sym = sym->parent;
-                ASSERT(_sym->kind == SYM_CLASS);
-                KlassSymbol *kls_sym = (KlassSymbol *)_sym;
-                KlrValue *_val = kls_sym->ir_val;
-                ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
-                KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
-                exp->ir_val = klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
+                if (_sym->kind == SYM_INSTANCE) {
+                    InstanceSymbol *inst_sym = (InstanceSymbol *)_sym;
+                    Symbol *origin = inst_sym->origin;
+                    ASSERT(origin->flags & SYM_FLAGS_EXT);
+                    KlrValue *_val = origin->ir_val;
+                    if (!_val) {
+                        _val = klr_add_ext_klass(MOD, origin->path, inst_sym->instance_ts,
+                                                 origin->name);
+                        origin->ir_val = _val;
+                    }
+                    ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
+                    KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
+                    exp->ir_val = klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
+                } else {
+                    ASSERT(_sym->kind == SYM_CLASS);
+                    KlassSymbol *kls_sym = (KlassSymbol *)_sym;
+                    KlrValue *_val = kls_sym->ir_val;
+                    ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
+                    KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
+                    exp->ir_val = klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
+                }
             } else {
                 exp->ir_val = sym->ir_val;
             }

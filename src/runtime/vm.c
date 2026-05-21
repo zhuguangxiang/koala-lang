@@ -69,7 +69,7 @@ static void __load_const(Object *m, KlcConst *item)
 {
     switch (item->type) {
         case KLC_CONST_NONE: {
-            NYI();
+            kl_mo_add_none(m);
             break;
         }
 
@@ -83,6 +83,11 @@ static void __load_const(Object *m, KlcConst *item)
 
         case KLC_CONST_FLT: {
             kl_mo_add_float(m, item->fval, item->type_info);
+            break;
+        }
+
+        case KLC_CONST_BOOL: {
+            kl_mo_add_bool(m, (int)item->ival);
             break;
         }
 
@@ -104,6 +109,13 @@ static void __load_const(Object *m, KlcConst *item)
         case KLC_CONST_RANGE: {
             Vector *vec = item->val;
             kl_mo_add_range(m, vec);
+            break;
+        }
+
+        case KLC_CONST_SHORT_LIST:
+        case KLC_CONST_LIST: {
+            Vector *vec = item->val;
+            kl_mo_add_list(m, vec);
             break;
         }
 

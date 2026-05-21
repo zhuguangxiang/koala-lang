@@ -13,6 +13,23 @@
 extern "C" {
 #endif
 
+int type_allowed_to_prop(TypeSpec *ts)
+{
+    // only propagate simple types, don't propagate tuple/list/dict/class(not constant unique)
+    if (ts->kind == TYPE_INT || ts->kind == TYPE_FLOAT || ts->kind == TYPE_BOOL ||
+        ts->kind == TYPE_STR || type_is_range(ts) || type_is_tuple(ts)) {
+        return 1;
+    }
+
+    if (type_is_optional(ts)) {
+        TypeSpec *src = ts->opt.src;
+        if (!src) return 1; // None is allowed to propagate
+        return type_allowed_to_prop(src);
+    }
+
+    return 0;
+}
+
 static int check_int_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m)
 {
     TypeSpec *dst_ts = insn->ts;
@@ -686,13 +703,16 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
             KlrInsn *dst = (KlrInsn *)_dst;
 
             if (dst->flags & KLR_INSN_FLAGS_CONST) {
-                log_info("propagate const local variable:");
-                log_insn(insn);
-                // dst is let: global propagation, no SSA needed
-                // if src is const, this is const propagation, otherwise this is
-                // copy propagation -> let x = y; let z = x -> let z = y This
-                // handles both Constant Prop (x = 10) and Copy Prop (x = %0).
-                replace_all_uses_with(src, _dst);
+                // dst is let variable.
+                if (type_allowed_to_prop(src->ts)) {
+                    log_info("propagate const local variable:");
+                    log_insn(insn);
+                    // dst is let: global propagation, no SSA needed
+                    // if src is const, this is const propagation, otherwise this is
+                    // copy propagation -> let x = y; let z = x -> let z = y This
+                    // handles both Constant Prop (x = 10) and Copy Prop (x = %0).
+                    replace_all_uses_with(src, _dst);
+                }
             } else {
                 // dst is var: local propagation, only one basic block, no SSA
                 // needed
