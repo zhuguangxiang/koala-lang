@@ -38,6 +38,9 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
             if (sym->kind == SYM_FUNC) {
                 FuncSymbol *func_sym = (FuncSymbol *)sym;
                 val = klr_add_ext_func(MOD, sym->path, func_sym->ret, sym->name);
+                if (is_magic_func(func_sym)) {
+                    val->magic = 1;
+                }
             } else if (sym->kind == SYM_VAR) {
                 val = klr_add_ext_global(MOD, sym->path, sym->ts, sym->name);
             } else {
@@ -518,6 +521,53 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
     }
 }
 
+static void emit_ir_index(ParserState *ps, Expr *exp)
+{
+    IndexExpr *index = (IndexExpr *)exp;
+    Expr *lhs = index->lhs;
+    Vector *vec = index->vec;
+
+    if (exp->ctx == EXPR_CTX_STORE || exp->ctx == EXPR_CTX_LOAD_STORE) {
+        NYI();
+        return;
+    }
+
+    lhs->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, lhs);
+    if (!lhs->ir_val) return;
+
+    if (vector_size(vec) == 1) {
+        Expr *e = vector_at(vec, 0);
+        e->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, e);
+        if (!e->ir_val) return;
+        KlrValue *ir_val = e->ir_val;
+
+        KlrValue *item;
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+
+        if (type_is_seq(lhs->ts)) {
+            // sequence index
+            item = klr_build_seq_get(&bldr, lhs->ir_val, ir_val, exp->ts, "");
+        } else if (type_is_map(lhs->ts)) {
+            // map index
+            item = klr_build_map_get(&bldr, lhs->ir_val, ir_val, exp->ts, "");
+        } else {
+            UNREACHABLE();
+        }
+
+        klr_set_loc(item, ps->filename, exp->loc);
+        exp->ir_val = item;
+        return;
+    }
+
+    // multi-dimensional index or slice
+    NYI();
+}
+
+static void emit_ir_slice(ParserState *ps, Expr *exp) { NYI(); }
+
 static OpCode get_binary_op_code(BiOpKind op)
 {
     switch (op) {
@@ -757,7 +807,7 @@ static void emit_ir_list(ParserState *ps, Expr *exp)
     } else {
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
-        KlrValue *ret = klr_build_call(&bldr, exp->ir_val, items, size, "");
+        KlrValue *ret = klr_build_intern(&bldr, items, size, exp->ts, INTERN_LIST, "");
         exp->ir_val = ret;
     }
 }
@@ -792,6 +842,8 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
     }
 }
 
+static void emit_ir_kw(ParserState *ps, Expr *exp) { UNREACHABLE(); }
+
 static void emit_ir_bang(ParserState *ps, Expr *exp)
 {
     BangExpr *bang = (BangExpr *)exp;
@@ -818,8 +870,11 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_TYPE_KIND]    = emit_ir_type,
         [EXPR_CALL_KIND]    = emit_ir_call,
         [EXPR_DOT_KIND]     = emit_ir_dot,
+        [EXPR_INDEX_KIND]   = emit_ir_index,
+        [EXPR_SLICE_KIND]   = emit_ir_slice,
         [EXPR_UNARY_KIND]   = emit_ir_unary,
         [EXPR_BINARY_KIND]  = emit_ir_binary,
+        [EXPR_KW_KIND]      = emit_ir_kw,
         [EXPR_BANG_KIND]    = emit_ir_bang,
     };
     /* clang-format on */

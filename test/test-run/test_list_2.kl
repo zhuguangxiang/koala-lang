@@ -1,0 +1,85 @@
+// RUN: koala %s --dump=no-opt-ir,code | filecheck %s
+
+func new_list(x int) list[int] {
+    let l = [100, 200]
+    l.append(x)
+    return l
+}
+
+func main() {
+    let l = new_list(300)
+    print(l)
+
+    let v = l[0]
+    print(v)
+
+    for i in range(len(l)) {
+        let v = l[i]
+        print(v)
+    }
+
+    let r = range(10)
+    print(r)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @new_list(%x int64) list<j>
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %l = local [immutable] list<j>
+// CHECK: move %l list<j>, list[100, 200] list<j>
+// CHECK: call @list::append [path = 'std/builtin'], %l list<j>, %x int64
+// CHECK: ret %l list<j>
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %0 = call @new_list [const], 300 int64
+// CHECK: %l = local [immutable] list<j>
+// CHECK: move %l list<j>, %0 list<j>
+// CHECK: %1 = build_intern @tuple, %l list<j>
+// CHECK: call @print [path = 'std/builtin'], %1 tuple<Llist<j>;>, ' ' str, '\n' str
+// CHECK: %2 = seq_get %l list<j>, 0 int64
+// CHECK: %v = local [immutable] int64
+// CHECK: move %v int64, %2 int64
+// CHECK: %3 = build_intern @tuple, %v int64
+// CHECK: call @print [path = 'std/builtin'], %3 tuple<j>, ' ' str, '\n' str
+
+// CHECK-LABEL: %bb1(loop-header):
+// CHECK: %4 = call @len [path = 'std/builtin'], %l list<j>
+// CHECK: %i = local int64
+// CHECK: move %i int64, 0 int64
+// CHECK: jmp label %bb2
+
+// CHECK-LABEL: %bb2(loop-cond):
+// CHECK: %5 = cmpgt 1 int64, 0 int64
+// CHECK: %6 = cmplt %i int64, %4 int64
+// CHECK: %7 = cmpgt %i int64, %4 int64
+// CHECK: %8 = select %5 bool, %6 bool, %7 bool
+// CHECK: branch %8 bool, label %bb3, label %bb4
+
+// CHECK-LABEL: %bb3(loop-body):
+// CHECK: %9 = seq_get %l list<j>, %i int64
+// CHECK: %v = local [immutable] int64
+// CHECK: move %v int64, %9 int64
+// CHECK: %10 = build_intern @tuple, %v int64
+// CHECK: call @print [path = 'std/builtin'], %10 tuple<j>, ' ' str, '\n' str
+// CHECK: %11 = add %i int64, 1 int64
+// CHECK: move %i int64, %11 int64
+// CHECK: %12 = cmpgt 1 int64, 0 int64
+// CHECK: %13 = cmplt %i int64, %4 int64
+// CHECK: %14 = cmpgt %i int64, %4 int64
+// CHECK: %15 = select %12 bool, %13 bool, %14 bool
+// CHECK: branch %15 bool, label %bb3, label %bb4
+
+// CHECK-LABEL: %bb4(loop-end):
+// CHECK: %r = local [immutable] range
+// CHECK: move %r range, range(0, 10, 1) range
+// CHECK: %16 = build_intern @tuple, %r range
+// CHECK: call @print [path = 'std/builtin'], %16 tuple<Lrange;>, ' ' str, '\n' str
+// CHECK: ret void
+
+// CHECK: [100, 200, 300]
+// CHECK: 100
+// CHECK: 200
+// CHECK: 300
+// CHECK: range(0, 10, 1)

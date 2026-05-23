@@ -1,0 +1,15 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+class Foo {
+    func __len__() str {
+        return "hello"
+    }
+}
+
+func main() {
+    let n = len(200)
+    let n2 = len(Foo())
+}
+
+// CHECK: object of type 'j' has no __len__()
+// CHECK: 'LFoo;.__len__' must return int for len() call

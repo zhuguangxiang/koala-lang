@@ -1001,6 +1001,55 @@ static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
     return changed;
 }
 
+static void handle_len_call(ParserState *ps, CallExpr *call)
+{
+    log_info("handle len() call special case.");
+
+    Expr *arg = vector_get(call->args, 0);
+    Symbol *sym = get_symbol_by_id(arg->ts->sym_id);
+    ASSERT(sym);
+
+    HashMap *stbl = NULL;
+
+    if (sym->kind == SYM_CLASS) {
+        stbl = sym->stbl;
+    } else if (sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        Symbol *origin_sym = inst_sym->origin;
+        ASSERT(origin_sym && origin_sym->kind == SYM_CLASS);
+        stbl = origin_sym->stbl;
+    } else {
+        UNREACHABLE();
+    }
+
+    Symbol *len_sym = stbl_get(stbl, "__len__");
+    if (!len_sym) {
+        kl_error(arg->loc, "object of type '%s' has no __len__()", arg->ts->signature);
+        return;
+    }
+
+    if (len_sym->kind != SYM_FUNC) {
+        kl_error(arg->loc, "'%s.__len__' is not a function", arg->ts->signature);
+    }
+
+    FuncSymbol *len_fn_sym = (FuncSymbol *)len_sym;
+    if (!vector_empty(&len_fn_sym->tps)) {
+        kl_error(arg->loc,
+                 "'%s.__len__' is a generic function, cannot be called without type parameters",
+                 arg->ts->signature);
+    }
+
+    if (!vector_empty(len_fn_sym->params)) {
+        kl_error(arg->loc,
+                 "'%s.__len__' has parameters, cannot be called without arguments in len() call",
+                 arg->ts->signature);
+    }
+
+    if (!type_is_int(len_fn_sym->ret)) {
+        kl_error(arg->loc, "'%s.__len__' must return int for len() call", arg->ts->signature);
+    }
+}
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
@@ -1146,6 +1195,40 @@ static void parse_call(ParserState *ps, Expr *exp)
                 cls_sym->__init__ = _fn_sym;
             } else {
                 log_info("class '%s' has no type parameters.", cls_sym->name);
+
+                if (str_equal(cls_sym->name, "range")) {
+                    log_info("special handling for 'range' constructor call.");
+
+                    int nargs = vector_size(call->args);
+
+                    if (nargs == 1) {
+                        // range(stop), add default start and step
+                        Expr *stop = vector_at(call->args, 0);
+
+                        Expr *start = expr_from_lit_int("0", 1, 0, 0);
+                        start->ctx = EXPR_CTX_LOAD;
+                        parser_visit_expr(ps, start);
+                        Expr *step = expr_from_lit_int("1", 1, 0, 1);
+                        step->ctx = EXPR_CTX_LOAD;
+                        parser_visit_expr(ps, step);
+
+                        vector_clear(call->args);
+                        vector_push_back(call->args, &start);
+                        vector_push_back(call->args, &stop);
+                        vector_push_back(call->args, &step);
+                        log_info("transformed range(stop) call to range(0, stop, 1).");
+                    } else if (nargs == 2) {
+                        // range(start, stop), add default step
+                        Expr *step = expr_from_lit_int("1", 1, 0, 1);
+                        step->ctx = EXPR_CTX_LOAD;
+                        parser_visit_expr(ps, step);
+                        vector_push_back(call->args, &step);
+                        log_info("transformed range(start, stop) call to range(start, stop, 1).");
+                    } else {
+                        // nothing to do, use passed arguments as is.
+                    }
+                }
+
                 // func call type is instance type
                 exp->ts = cls_sym->instance_ts;
                 // exp->sym = cls_sym;
@@ -1241,10 +1324,19 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
 
     check_call_args(params, call->args, ps, lhs->loc);
+
+    // handle magic function call
+    if (lhs_sym->kind == SYM_FUNC) {
+        FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
+        if (is_magic_func(fn_sym) && str_equal(fn_sym->name, "len")) {
+            log_info("handle built-in len() call.");
+            handle_len_call(ps, call);
+        }
+    }
+
     if (ps->errors > 0) return;
 
     // handle valist & default parameters for caller
-    // if (!str_equal(lhs_sym->name, "print")) {
     if (handle_valist_and_dfl_args(params, call)) {
         log_info(
             "arguments are changed after handling var-arg and kw-arg, re-parse argument types.");
@@ -1258,7 +1350,6 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
     log_info("call expression type is:");
     log_type_spec(exp->ts);
-    // }
 }
 
 static TypeSpec *opt_dot_type(TypeSpec *ts, int opt_or_bang)

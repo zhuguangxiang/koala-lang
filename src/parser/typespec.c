@@ -735,21 +735,18 @@ TypeSpec *union_type_spec_intern(Vector *args)
     return type_spec_intern(ts);
 }
 
-int type_is_tuple(TypeSpec *ts)
+int type_is_some_klass(TypeSpec *ts, char *name)
 {
     if (ts->kind != TYPE_KLASS) return 0;
     Symbol *sym = get_symbol_by_id(ts->sym_id);
-    if (sym->kind != SYM_INSTANCE) return 0;
-    InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
-    return !strcmp(inst_sym->origin->name, "tuple");
-}
-
-int type_is_range(TypeSpec *ts)
-{
-    if (ts->kind != TYPE_KLASS) return 0;
-    Symbol *sym = get_symbol_by_id(ts->sym_id);
-    if (sym->kind != SYM_CLASS) return 0;
-    return !strcmp(sym->name, "range");
+    if (sym->kind == SYM_CLASS) {
+        KlassSymbol *klass_sym = (KlassSymbol *)sym;
+        return !strcmp(klass_sym->name, name);
+    } else {
+        ASSERT(sym->kind == SYM_INSTANCE);
+        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        return !strcmp(inst_sym->origin->name, name);
+    }
 }
 
 int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts)

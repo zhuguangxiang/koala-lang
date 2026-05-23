@@ -153,6 +153,20 @@ static inline void load_builtin_module(ParserModule *pm)
     install_builtin_types(pm->builtin);
 }
 
+static void mark_magic_func(HashMap *stbl)
+{
+    HashMapIter it = { 0 };
+    while (hashmap_next(stbl, &it)) {
+        Symbol *sym = (Symbol *)it.entry;
+        if (sym->kind == SYM_FUNC) {
+            if (str_equal(sym->name, "len")) {
+                sym->flags |= SYM_FLAGS_MAGIC;
+                log_info("marked magic function '%s'", sym->name);
+            }
+        }
+    }
+}
+
 void init_parser(ParserModule *pm)
 {
     vector_init_ptr(&pm->pss);
@@ -161,6 +175,7 @@ void init_parser(ParserModule *pm)
     inferred = inferred_map();
     if (!is_build_stdlib()) {
         load_builtin_module(pm);
+        mark_magic_func(pm->builtin);
     }
 }
 

@@ -38,6 +38,7 @@ typedef enum _SymKind {
 #define SYM_FLAGS_TAG_ONLY  (1 << 3)
 #define SYM_FLAGS_TAG_VALUE (1 << 4)
 #define SYM_FLAGS_EXT       (1 << 5)
+#define SYM_FLAGS_MAGIC     (1 << 6)
 
 #define SYM_UNRESOLVED   0
 #define SYM_RESOLVED     1
@@ -221,6 +222,8 @@ Example: LUB([int, float, int]) -> number
          LUB([]) -> any
 */
 TypeSpec *find_lub(Vector *types);
+
+static inline int is_magic_func(FuncSymbol *sym) { return (sym->flags & SYM_FLAGS_MAGIC) != 0; }
 
 #ifdef __cplusplus
 }

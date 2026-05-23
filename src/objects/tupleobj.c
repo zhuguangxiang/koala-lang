@@ -44,11 +44,35 @@ static MethodDef tuple_methods[] = {
     { NULL },
 };
 
+static size_t kl_tuple_seq_len(TValue *self)
+{
+    TupleObject *tuple = (TupleObject *)to_obj(self);
+    return tuple->size;
+}
+
+static TValue kl_tuple_seq_get(TValue *self, size_t index)
+{
+    TupleObject *tuple = (TupleObject *)to_obj(self);
+    if (index >= tuple->size) {
+        panic("tuple index out of range");
+        return none_value;
+    }
+    return tuple->array[index];
+}
+
+static SeqMethods tuple_seq_methods = {
+    .len = kl_tuple_seq_len,
+    // .contains = kl_tuple_contains,
+    .get = kl_tuple_seq_get,
+    // .set = kl_tuple_seq_set_item,
+};
+
 TypeObject tuple_type = {
     ._type = &type_type,
     .name = "tuple",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = tuple_methods,
+    .seq = &tuple_seq_methods,
 };
 
 Object *kl_new_tuple(TValue *items, int count)

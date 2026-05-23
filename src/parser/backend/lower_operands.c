@@ -451,6 +451,29 @@ static void lower_move_true_opers(KlrInsn *insn, KlMachModule *m)
     set_raw_reg(&insn->raws[2], val->vreg);
 }
 
+static void lower_seq_get_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    KlrValue *index = insn_oper_value(insn, 1);
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_reg(&insn->raws[1], obj->vreg);
+    if (klr_is_const(index)) {
+        KlrConst *kc = (KlrConst *)index;
+        check_in_imm8(kc);
+        int64_t imm = kc->ival;
+        set_raw_imm(&insn->raws[2], imm);
+    } else {
+        set_raw_reg(&insn->raws[2], index->vreg);
+    }
+}
+
+static void lower_seq_len_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_reg(&insn->raws[1], obj->vreg);
+}
+
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 {
     KlrBasicBlock *bb;
@@ -542,6 +565,17 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_MOVE_TRUE: {
                     lower_move_true_opers(insn, m);
+                    break;
+                }
+
+                case OP_SEQ_GET:
+                case OP_SEQ_GET_IMM: {
+                    lower_seq_get_opers(insn, m);
+                    break;
+                }
+
+                case OP_SEQ_LEN: {
+                    lower_seq_len_opers(insn, m);
                     break;
                 }
 

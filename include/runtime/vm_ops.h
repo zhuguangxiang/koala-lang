@@ -1150,6 +1150,57 @@ TARGET(OP_INT_MOD_IMM) {
     DISPATCH();
 }
 
+/* Sequence&Map Operations */
+
+TARGET(OP_SEQ_GET) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    TypeObject *tp = kl_typeof(regs + rs);
+    SeqMethods *seq = tp->seq;
+    ASSERT(seq && seq->get);
+    size_t index = to_int64(regs + rt);
+    regs[rd] = seq->get(regs + rs, index);
+
+    DISPATCH();
+}
+
+TARGET(OP_SEQ_GET_IMM) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    imm = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    TypeObject *tp = kl_typeof(regs + rs);
+    SeqMethods *seq = tp->seq;
+    ASSERT(seq && seq->get);
+    regs[rd] = seq->get(regs + rs, imm);
+
+    DISPATCH();
+}
+
+TARGET(OP_SEQ_LEN) {
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rs);
+
+    TypeObject *tp = kl_typeof(regs + rs);
+    SeqMethods *seq = tp->seq;
+    ASSERT(seq && seq->len);
+    size_t v = seq->len(regs + rs);
+    if (rd != 0xFFFu) regs[rd] = int64_value(v);
+
+    DISPATCH();
+}
+
 /* Float Basic */
 
 TARGET(OP_FLOAT_ADD) {

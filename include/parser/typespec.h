@@ -162,13 +162,19 @@ static inline int type_is_generic_var(TypeSpec *ts) { return ts->kind == TYPE_GE
 static inline int type_is_generic_ref(TypeSpec *ts) { return ts->kind == TYPE_GENERIC_REF; }
 static inline int type_is_klass(TypeSpec *ts) { return ts->kind == TYPE_KLASS; }
 static inline int type_is_proto(TypeSpec *ts) { return ts->kind == TYPE_PROTO; }
-int type_is_tuple(TypeSpec *ts);
-int type_is_range(TypeSpec *ts);
+int type_is_some_klass(TypeSpec *ts, char *name);
+static inline int type_is_tuple(TypeSpec *ts) { return type_is_some_klass(ts, "tuple"); }
+static inline int type_is_range(TypeSpec *ts) { return type_is_some_klass(ts, "range"); }
+static inline int type_is_list(TypeSpec *ts) { return type_is_some_klass(ts, "list"); }
 
 int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts);
 
 #define match_sequence(ts, it_ts, arg_ts) match_type_spec(ts, "Sequence", it_ts, arg_ts)
 #define match_iterable(ts, it_ts, arg_ts) match_type_spec(ts, "Iterable", it_ts, arg_ts)
+
+#define type_is_iter(ts) match_iterable(ts, NULL, NULL)
+#define type_is_seq(ts)  match_sequence(ts, NULL, NULL)
+#define type_is_map(ts)  match_type_spec(ts, "Map", NULL, NULL)
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);

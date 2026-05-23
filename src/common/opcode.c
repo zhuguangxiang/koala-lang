@@ -27,6 +27,7 @@ char *tag_mapping[] = {
 char *intern_tag_name[] = {
     [INTERN_TUPLE] = "tuple",
     [INTERN_RANGE] = "range",
+    [INTERN_LIST] = "list",
 };
 
 void bytecode_print(uint8_t *code, size_t start, size_t count)

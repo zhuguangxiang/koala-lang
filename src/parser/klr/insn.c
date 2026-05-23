@@ -608,6 +608,96 @@ KlrValue *klr_build_set_field_ext(KlrBuilder *bldr, KlrValue *obj, KlrValue *fie
     return (KlrValue *)insn;
 }
 
+KlrValue *klr_build_seq_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
+                            char *name)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM) {
+        panic("'seq_get' op requires a reg/param value for obj");
+    }
+
+    if (index->kind != KLR_VALUE_CONST && index->kind != KLR_VALUE_INSN &&
+        index->kind != KLR_VALUE_PARAM) {
+        panic("'index_get' op requires a reg/param value for index");
+    }
+
+    KlrInsn *insn = new_insn(OP_SEQ_GET, 2, name);
+    init_oper(&insn->opers[0], insn, obj, 0);
+    init_oper(&insn->opers[1], insn, index, 0);
+
+    insn->ts = ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+void klr_build_seq_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM) {
+        panic("'seq_set' op requires a reg/param value for obj");
+    }
+
+    if (index->kind != KLR_VALUE_CONST && index->kind != KLR_VALUE_INSN &&
+        index->kind != KLR_VALUE_PARAM) {
+        panic("'seq_set' op requires a reg/param value for index");
+    }
+
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
+        val->kind != KLR_VALUE_PARAM) {
+        panic("'seq_set' op requires a reg/param value for val");
+    }
+
+    KlrInsn *insn = new_insn(OP_SEQ_SET, 3, "");
+    init_oper(&insn->opers[0], insn, obj, 0);
+    init_oper(&insn->opers[1], insn, index, 0);
+    init_oper(&insn->opers[2], insn, val, 0);
+
+    klr_append_insn(bldr, insn);
+}
+
+KlrValue *klr_build_map_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
+                            char *name)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM) {
+        panic("'map_get' op requires a reg/param value for obj");
+    }
+
+    if (index->kind != KLR_VALUE_CONST && index->kind != KLR_VALUE_INSN &&
+        index->kind != KLR_VALUE_PARAM) {
+        panic("'map_get' op requires a reg/param value for index");
+    }
+
+    KlrInsn *insn = new_insn(OP_MAP_GET, 2, name);
+    init_oper(&insn->opers[0], insn, obj, 0);
+    init_oper(&insn->opers[1], insn, index, 0);
+
+    insn->ts = ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+void klr_build_map_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM) {
+        panic("'map_set' op requires a reg/param value for obj");
+    }
+
+    if (index->kind != KLR_VALUE_CONST && index->kind != KLR_VALUE_INSN &&
+        index->kind != KLR_VALUE_PARAM) {
+        panic("'map_set' op requires a reg/param value for index");
+    }
+
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
+        val->kind != KLR_VALUE_PARAM) {
+        panic("'map_set' op requires a reg/param value for val");
+    }
+
+    KlrInsn *insn = new_insn(OP_MAP_SET, 3, "");
+    init_oper(&insn->opers[0], insn, obj, 0);
+    init_oper(&insn->opers[1], insn, index, 0);
+    init_oper(&insn->opers[2], insn, val, 0);
+
+    klr_append_insn(bldr, insn);
+}
+
 #ifdef __cplusplus
 }
 #endif

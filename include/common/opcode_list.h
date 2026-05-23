@@ -1834,39 +1834,283 @@ X(OP_MOVE_TRUE, FORMAT_RRR)
 X(OP_CAST_INTF, FORMAT_Op)
 
 /*---------------------------------------------------------------+
- |  Subscription (Indexing) Instructions                         |
+ |  Sequence Instructions                                        |
  +---------------------------------------------------------------*/
 
 /**
- * OP_SUBSCR_LOAD — load element via subscription
+ * OP_SEQ_GET — load an element from a sequence
  *
- * FORMAT_Ax:
- *     | op:8 | ---:12 | Ax(rs):12 |
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
  *
- * Details:
- *     Loads the element at index stack[top] from container rs.
- *     The index is popped from the stack. The result is pushed.
+ * Semantics:
+ *     rd = rs[rt]
  *
- *     Supported container types:
- *         - arrays
- *         - strings
- *         - user-defined indexable types (via metamethods or vtable)
+ * Description:
+ *     Loads the element at index stored in register `rt` from the
+ *     sequence object in register `rs`.
+ *
+ * Behavior:
+ *     - `rt` must contain an integer index
+ *     - Bounds checking is performed at runtime
+ *     - The loaded TValue is written into `rd`
+ *     - No write barrier is required (read-only)
  */
-X(OP_SUBSCR_LOAD, FORMAT_Op)
+X(OP_SEQ_GET, FORMAT_RRR)
 
 /**
- * OP_SUBSCR_STORE — store element via subscription
+ * OP_SEQ_SET — store an element into a sequence
  *
- * FORMAT_Ax:
- *     | op:8 | ---:12 | Ax(rs):12 |
+ * FORMAT_RRR:
+ *     | op:8 | rs:8 | rt:8 | rv:8 |
  *
- * Details:
- *     Stores stack[top] into container rs at index stack[top-1].
- *     Pops both index and value.
+ * Semantics:
+ *     rs[rt] = rv
  *
- *     Supported container types mirror OP_SUBSCR_LOAD.
+ * Description:
+ *     Stores the value in register `rv` into the sequence object in
+ *     register `rs` at index stored in register `rt`.
+ *
+ * Sequence objects:
+ *     - Koala classes (objects with layout: sizeof(Base) + TValue[])
+ *     - Native types that declare themselves as sequences and use a
+ *       contiguous TValue[] layout.
+ *
+ * Behavior:
+ *     - `rt` must contain an integer index
+ *     - Bounds checking is performed at runtime
+ *     - A write barrier is applied when storing into the sequence object
+ *
+ * Notes:
+ *     - This opcode is the fast-path for `obj[index] = value` when the
+ *       compiler determines that `obj` is a sequence.
  */
-X(OP_SUBSCR_STORE, FORMAT_Op)
+X(OP_SEQ_SET, FORMAT_RRR)
+
+/**
+ * OP_SEQ_GET_IMM — load an element using an immediate index
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rd:8 | rs:8 | imm:8 |
+ *
+ * Semantics:
+ *     rd = rs[imm]
+ *
+ * Description:
+ *     Loads the element at constant index `imm` from the sequence object
+ *     in register `rs`.
+ *
+ * Behavior:
+ *     - `rs` must be a sequence object
+ *     - `imm` is an unsigned 8-bit immediate index
+ *     - Bounds checking is performed at runtime
+ *     - The loaded TValue is written into `rd`
+ *     - No write barrier is required (read-only)
+ */
+X(OP_SEQ_GET_IMM, FORMAT_RRImm)
+
+/**
+ * OP_SEQ_SET_IMM — store an element using an immediate index
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | rs:8 | rv:8 | imm:8 |
+ *
+ * Semantics:
+ *     rs[imm] = rv
+ *
+ * Description:
+ *     Stores the value in register `rv` into the sequence object in
+ *     register `rs` at constant index `imm`.
+ *
+ * Behavior:
+ *     - `rs` must be a sequence object
+ *     - `imm` is an unsigned 8-bit immediate index
+ *     - Bounds checking is performed at runtime
+ *     - A write barrier is applied when storing into the sequence object
+ */
+X(OP_SEQ_SET_IMM, FORMAT_RRImm)
+
+/**
+ * OP_SEQ_LEN — get the length of a sequence
+ *
+ * FORMAT_RxRx:
+ *     | op:8 | rd:12 | rs:12 |
+ *
+ * Semantics:
+ *     rd = seq_len(rs)
+ *
+ * Description:
+ *     Loads the length of the sequence in register rs into register rd.
+ *     The length is obtained from the sequence's length operation.
+ *
+ * Notes:
+ *     - This is a high-frequency operation and must be a VM opcode.
+ *     - IRGen emits OP_CALL for len(x).
+ *     - ISEL lowers OP_CALL "__len__" to OP_SEQ_LEN when rs is a sequence.
+ */
+X(OP_SEQ_LEN, FORMAT_RxRx)
+
+/**
+ * OP_SEQ_CONTAINS — membership test for sequence objects
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rv:8 |
+ *
+ * Semantics:
+ *     rd = (rv in rs)
+ *
+ * Description:
+ *     Evaluates whether the value in register `rv` is contained in the
+ *     sequence object stored in register `rs`. The result (true or false)
+ *     is written into register `rd`.
+ *
+ * Notes:
+ *     - This opcode is used for the `in` operator on sequence types.
+ *     - IRGen emits OP_CALL "__contains__" for `x in y`.
+ *     - ISEL lowers the call to OP_SEQ_CONTAINS when the type of `rs`
+ *       supports sequence membership testing.
+ */
+X(OP_SEQ_CONTAINS, FORMAT_RRR)
+
+/*---------------------------------------------------------------+
+ |  Map Instructions                                             |
+ +---------------------------------------------------------------*/
+
+/**
+ * OP_MAP_GET — load value from a map via key lookup
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rk:8 |
+ *
+ * Semantics:
+ *     rd = rs[rk]
+ *
+ * Description:
+ *     Loads the value associated with key in register rk
+ *     from the map in register rs.
+ *
+ * Behavior:
+ *     - rs must be a map object
+ *     - rk is a TValue key (string/int/tuple/etc.)
+ *     - Performs a key lookup according to the mapping's semantics.
+ *     - Raises KeyError if key is not found
+ */
+X(OP_MAP_GET, FORMAT_RRR)
+
+/**
+ * OP_MAP_SET — store value into a map via key lookup
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rs:8 | rk:8 | rv:8 |
+ *
+ * Semantics:
+ *     rs[rk] = rv
+ *
+ * Description:
+ *     Stores the value in register rv into the map in register rs
+ *     under key in register rk.
+ *
+ * Behavior:
+ *     - rs must be a map object
+ *     - rk is a TValue key
+ *     - Performs hash lookup and inserts or updates the entry
+ *     - Write barrier is applied when storing into map
+ */
+X(OP_MAP_SET, FORMAT_RRR)
+
+/**
+ * OP_MAP_LEN — get the number of entries in a mapping object
+ *
+ * FORMAT_RxRx:
+ *     | op:8 | rd:12 | rs:12 |
+ *
+ * Semantics:
+ *     rd = len(rs)
+ *
+ * Description:
+ *     Loads the number of key–value entries contained in the mapping
+ *     object stored in register `rs` into register `rd`. This opcode
+ *     represents the length operation for mapping types.
+ *
+ * Notes:
+ *     - This opcode is used when lowering `len(x)` for mapping objects.
+ *     - IRGen always emits OP_CALL "__len__" for `len(x)`.
+ *     - ISEL lowers the call to OP_MAP_LEN when the type of `rs`
+ *       supports mapping length retrieval.
+ */
+X(OP_MAP_LEN, FORMAT_RxRx)
+
+/**
+ * OP_MAP_CONTAINS — membership test for mapping objects
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | rs:8 | rv:8 |
+ *
+ * Semantics:
+ *     rd = (rv in rs)
+ *
+ * Description:
+ *     Evaluates whether the key in register `rv` exists in the mapping
+ *     object stored in register `rs`. The result (true or false) is
+ *     written into register `rd`.
+ *
+ * Notes:
+ *     - This opcode is used for the `in` operator on mapping types.
+ *     - IRGen emits OP_CALL "__contains__" for `x in y`.
+ *     - ISEL lowers the call to OP_MAP_CONTAINS when the type of `rs`
+ *       supports mapping membership testing.
+ */
+X(OP_MAP_CONTAINS, FORMAT_RRR)
+
+/*---------------------------------------------------------------+
+ |  List related Instructions                                    |
+ +---------------------------------------------------------------*/
+
+/**
+ * OP_LIST_PUSH — append a value to the end of a list
+ *
+ * FORMAT_RxRx:
+ *     | op:8 | rs:12 | rv:12 |
+ *
+ * Semantics:
+ *     append rv to list rs
+ *
+ * Description:
+ *     Appends the value in register rv to the list in register rs.
+ *     Performs capacity check and grows the list if necessary.
+ *     Applies write barrier when storing into the list.
+ *
+ * Notes:
+ *     - This is a high-frequency operation and must be a VM opcode.
+ *     - IRGen emits this opcode for list.append(x) and list.push(x).
+ *     - ISEL lowers this opcode directly without specialization.
+ */
+X(OP_LIST_PUSH, FORMAT_RxRx)
+
+/**
+ * OP_LIST_POP — pop the last element from a list
+ *
+ * FORMAT_RxRx:
+ *     | op:8 | rd:12 | rs:12 |
+ *
+ * Semantics:
+ *     rd = list_pop(rs)
+ *
+ * Description:
+ *     Removes and returns the last element of the list in register rs.
+ *     This is an O(1) operation.
+ *
+ * Behavior:
+ *     - rs must be a list object
+ *     - If the list is empty, raises an IndexError
+ *     - No shifting or reordering of elements is performed
+ *
+ * Notes:
+ *     - This is a high-frequency operation and must be a VM opcode.
+ *     - IRGen emits OP_CALL for list.pop().
+ *     - ISEL lowers OP_CALL "__pop__" to OP_LIST_POP when rs is a list.
+ */
+X(OP_LIST_POP, FORMAT_RxRx)
 
 /*---------------------------------------------------------------+
  |  Iterator Protocol Instructions                               |

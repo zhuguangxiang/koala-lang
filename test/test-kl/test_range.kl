@@ -7,7 +7,6 @@ range()
 // CHECK: too few arguments in function call.
 
 range(0)
-// CHECK: too few arguments in function call.
 
 range(0, 1)
 range(0, 10, 2)

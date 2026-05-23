@@ -417,6 +417,25 @@ static void print_set_field(KlrInsn *insn, char *name, FILE *fp)
     print_operand(&insn->opers[2], fp);
 }
 
+static void print_seq_get(const char *name, KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = %s ", name);
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+}
+
+static void print_seq_set(const char *name, KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "%s ", name);
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[2], fp);
+}
+
 void klr_print_insn(KlrInsn *insn, FILE *fp)
 {
     switch (insn->code) {
@@ -990,6 +1009,26 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_SET_FIELD_EXT:
             print_set_field(insn, "set_field_ext", fp);
+            break;
+
+        case OP_SEQ_GET:
+            print_seq_get("seq_get", insn, fp);
+            break;
+
+        case OP_SEQ_GET_IMM:
+            print_seq_get("seq_get_imm", insn, fp);
+            break;
+
+        case OP_SEQ_SET:
+            print_seq_set("seq_set", insn, fp);
+            break;
+
+        case OP_SEQ_SET_IMM:
+            print_seq_set("seq_set_imm", insn, fp);
+            break;
+
+        case OP_SEQ_LEN:
+            print_unary(insn, "seq_len", fp);
             break;
 
         default:

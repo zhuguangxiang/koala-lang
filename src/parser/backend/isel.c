@@ -511,6 +511,42 @@ static int is_tailcall(KlrInsn *insn, KlrFunc *cur_fn)
 
 static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
 {
+    KlrValue *fn_val = insn_oper_value(insn, 0);
+
+    if (fn_val->magic) {
+        if (str_equal(fn_val->name, "len")) {
+            log_info("handle built-in len() call.");
+            // special intrinsic: len()
+            ASSERT(insn->num_opers == 2);
+            KlrValue *arg = insn_oper_value(insn, 1);
+            ASSERT(insn->num_opers == 2);
+            if (type_is_seq(arg->ts)) {
+                if (klr_is_const(arg)) {
+                    KlrValue *_arg = lower_const(fn, insn, (KlrConst *)arg);
+                    set_operand_at(insn, 0, _arg);
+                } else {
+                    set_operand_at(insn, 0, arg);
+                }
+                clear_operand_at(insn, 1);
+                insn->num_opers = 1;
+                insn->code = OP_SEQ_LEN;
+            } else if (type_is_map(arg->ts)) {
+                if (klr_is_const(arg)) {
+                    KlrValue *_arg = lower_const(fn, insn, (KlrConst *)arg);
+                    set_operand_at(insn, 0, _arg);
+                } else {
+                    set_operand_at(insn, 0, arg);
+                }
+                clear_operand_at(insn, 1);
+                insn->num_opers = 1;
+                insn->code = OP_MAP_LEN;
+            } else {
+                NYI();
+            }
+            return;
+        }
+    }
+
     if (tail_call_enabled() && is_tailcall(insn, fn)) {
         fn->has_tailcall = 1;
         KlrInsn *last_local = NULL;
@@ -870,18 +906,24 @@ static void isel_lower_select(KlrInsn *insn, KlrFunc *fn)
     replace_all_uses_with(local, (KlrValue *)insn);
 }
 
-static void verify_insn(KlrInsn *insn)
+static void isel_lower_seq_get(KlrInsn *insn, KlrFunc *fn)
 {
-    OpCode op = insn->code;
+    KlrValue *obj = insn_oper_value(insn, 0);
+    KlrValue *index = insn_oper_value(insn, 1);
 
-    if ((op >= OP_BINARY_ADD && op <= OP_IR_PHI) || (op == OP_JMP) || (op == OP_RET) ||
-        (op == OP_RET_VOID) || (op == OP_MOVE) || (op == OP_GLOBAL_GET) || (op == OP_GLOBAL_SET) ||
-        (op == OP_LAND) || (op == OP_LOR) || (op == OP_LNOT) || (op == OP_NEW) ||
-        (op == OP_BUILD_INTERN) || (op >= OP_GET_FIELD && op <= OP_SET_FIELD_EXT)) {
-        return;
+    ASSERT(klr_is_insn(obj) || klr_is_param(obj) || klr_is_const(obj));
+    ASSERT(klr_is_insn(index) || klr_is_param(index) || klr_is_const(index));
+
+    if (klr_is_const(obj)) {
+        KlrValue *_obj = lower_const(fn, insn, (KlrConst *)obj);
+        set_operand_at(insn, 0, _obj);
     }
 
-    panic("unexpected opcode in isel input sequence: %s", op_name(op));
+    if (klr_is_const(index)) {
+        KlrConst *kc = (KlrConst *)index;
+        ASSERT(kc->which == CONST_INT);
+        insn->code = OP_SEQ_GET_IMM;
+    }
 }
 
 static void do_isel(KlrFunc *fn)
@@ -890,13 +932,6 @@ static void do_isel(KlrFunc *fn)
 
     int max = 0;
     KlrBasicBlock *bb;
-
-    basic_block_foreach(bb, fn) {
-        KlrInsn *insn;
-        insn_foreach(insn, bb) {
-            verify_insn(insn);
-        }
-    }
 
     // get max call arguments
     basic_block_foreach(bb, fn) {
@@ -966,6 +1001,11 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_IR_SELECT: {
                     isel_lower_select(insn, fn);
+                    break;
+                }
+
+                case OP_SEQ_GET: {
+                    isel_lower_seq_get(insn, fn);
                     break;
                 }
 

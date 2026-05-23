@@ -67,6 +67,29 @@ static MethodDef list_methods[] = {
     { NULL },
 };
 
+static size_t kl_list_seq_len(TValue *self)
+{
+    ListObject *list = (ListObject *)to_obj(self);
+    return list->end - list->start;
+}
+
+static TValue kl_list_seq_get(TValue *self, size_t index)
+{
+    ListObject *list = (ListObject *)to_obj(self);
+    if (index >= list->end - list->start) {
+        panic("list index out of range");
+        return none_value;
+    }
+    return list->array[list->start + index];
+}
+
+static SeqMethods list_seq_methods = {
+    .len = kl_list_seq_len,
+    // .contains = kl_list_contains,
+    .get = kl_list_seq_get,
+    // .set = kl_list_seq_set_item,
+};
+
 /*
 pub class list[T] : MutableSequence[T] { ... }
 */
@@ -75,6 +98,7 @@ TypeObject list_type = {
     .name = "list",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = list_methods,
+    .seq = &list_seq_methods,
 };
 
 Object *kl_new_list(TValue *items, int size)

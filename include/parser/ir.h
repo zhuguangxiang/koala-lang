@@ -69,7 +69,9 @@ typedef enum _KlrValueKind {
     /* error reporting */   \
     KlrLocInfo loc;         \
     /* error flag */        \
-    int error;
+    int error;              \
+    /* magic flag */        \
+    int magic;
 /* clang-format on */
 
 typedef struct _KlrValue {
@@ -911,6 +913,14 @@ KlrValue *klr_build_set_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, 
 
 KlrValue *klr_build_get_field_ext(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, char *name);
 KlrValue *klr_build_set_field_ext(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, KlrValue *val);
+
+KlrValue *klr_build_seq_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
+                            char *name);
+void klr_build_seq_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val);
+
+KlrValue *klr_build_map_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
+                            char *name);
+void klr_build_map_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val);
 
 #ifdef __cplusplus
 }

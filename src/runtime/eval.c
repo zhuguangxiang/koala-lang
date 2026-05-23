@@ -4,6 +4,7 @@
  */
 
 #include <math.h>
+#include "listobj.h"
 #include "modobj.h"
 #include "opcode.h"
 #include "rangeobj.h"
@@ -45,6 +46,10 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
         case INTERN_RANGE: {
             ASSERT(count == 3);
             return kl_new_range(values);
+        }
+
+        case INTERN_LIST: {
+            return kl_new_list(values, count);
         }
 
         default: {

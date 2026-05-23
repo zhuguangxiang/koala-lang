@@ -204,6 +204,35 @@ typedef TValue (*RichCmpFunc)(TValue *lhs, TValue *rhs, int op);
 typedef TValue (*StrFunc)(TValue *self);
 typedef TValue (*CallFunc)(TValue *self, TValue *args, int nargs);
 
+typedef size_t (*LenFunc)(TValue *self);
+typedef int (*ContainsFunc)(TValue *self, TValue *item);
+typedef TValue (*GetItemFunc)(TValue *self, size_t index);
+typedef void (*SetItemFunc)(TValue *self, size_t index, TValue *value);
+typedef TValue (*GetSubFunc)(TValue *self, TValue *key);
+typedef void (*SetSubFunc)(TValue *self, TValue *key, TValue *value);
+
+typedef struct _SeqMethods {
+    /* sequence length */
+    LenFunc len;
+    /* sequence contains */
+    ContainsFunc contains;
+    /* sequence item getter */
+    GetItemFunc get;
+    /* sequence item setter */
+    SetItemFunc set;
+} SeqMethods;
+
+typedef struct _MapMethods {
+    /* mapping length */
+    LenFunc len;
+    /* mapping contains */
+    ContainsFunc contains;
+    /* mapping item getter */
+    GetSubFunc get;
+    /* mapping item setter */
+    SetSubFunc set;
+} MapMethods;
+
 typedef enum {
     SLOT_HASH,
     SLOT_EQ,
@@ -281,6 +310,12 @@ typedef struct _TypeObject {
     InitFunc init;
     /* fini function */
     FiniFunc fini;
+
+    /* mapping protocol methods */
+    MapMethods *map;
+
+    /* sequence protocol methods */
+    SeqMethods *seq;
 
     /* for fast access in c extension */
 

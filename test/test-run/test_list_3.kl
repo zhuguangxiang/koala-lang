@@ -1,0 +1,59 @@
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
+
+func new_list(x int) list[int] {
+    let l = [100, 200, x]
+    return l
+}
+
+func new_list_list(x int) list[list[int]] {
+    let l = [[100, 200], [x], [300]]
+    return l
+}
+
+func main() {
+    let l = new_list(300)
+    print(l)
+
+    let l2 = new_list_list(300)
+    print(l2, len(l2), len(l2[0]), len(l2[1]))
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @new_list(%x int64) list<j>
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %0 = build_intern @list, 100 int64, 200 int64, %x int64
+// CHECK: %l = local [immutable] list<j>
+// CHECK: move %l list<j>, %0 list<j>
+// CHECK: ret %l list<j>
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @new_list_list(%x int64) list<Llist<j>;> {
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %0 = build_intern @list, %x int64
+// CHECK: %1 = build_intern @list, list[100, 200] list<j>, %0 list<j>, list[300] list<j>
+// CHECK: %l = local [immutable] list<Llist<j>;>
+// CHECK: move %l list<Llist<j>;>, %1 list<Llist<j>;>
+// CHECK: ret %l list<Llist<j>;>
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %0 = call @new_list [const], 300 int64
+// CHECK: %l = local [immutable] list<j>
+// CHECK: move %l list<j>, %0 list<j>
+// CHECK: %1 = build_intern @tuple, %l list<j>
+// CHECK: call @print [path = 'std/builtin'], %1 tuple<Llist<j>;>, ' ' str, '\n' str
+// CHECK: %2 = call @new_list_list [const], 300 int64
+// CHECK: %l2 = local [immutable] list<Llist<j>;>
+// CHECK: move %l2 list<Llist<j>;>, %2 list<Llist<j>;>
+// CHECK: %3 = call @len [path = 'std/builtin'], %l2 list<Llist<j>;>
+// CHECK: %4 = seq_get %l2 list<Llist<j>;>, 0 int64
+// CHECK: %5 = call @len [path = 'std/builtin'], %4 list<j>
+// CHECK: %6 = seq_get %l2 list<Llist<j>;>, 1 int64
+// CHECK: %7 = call @len [path = 'std/builtin'], %6 list<j>
+// CHECK: %8 = build_intern @tuple, %l2 list<Llist<j>;>, %3 int64, %5 int64, %7 int64
+// CHECK: call @print [path = 'std/builtin'], %8 tuple<Llist<Llist<j>;>;jjj>, ' ' str, '\n' str
+// CHECK: ret void
+
+// CHECK: [100, 200, 300]
+// CHECK-LITERAL: [[100, 200], [300], [300]] 3 2 1

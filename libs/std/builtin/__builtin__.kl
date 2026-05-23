@@ -14,11 +14,36 @@ pub func print(objs ..., sep = ' ', end = '\n') {}
 
 /// Return the number of items in a collection or the length of an object.
 ///
-/// The argument may be a sequence (such as a string, list, or tuple)
-/// or a collection (such as a dict or set).
-/// This function internally calls the `__len__` method of the provided object.
-@native(builtin_len)
+/// This function is an intrinsic and is resolved at compile time.
+/// Semantically, `len(obj)` is equivalent to calling `obj.__len__()`.
+///
+/// Any object may define a `__len__()` method to customize its length
+/// behavior. Built‑in container types such as list, dict, tuple, and set
+/// provide their own optimized implementations.
+///
+/// Note:
+///     - As an intrinsic, `len()` does not have a user‑level implementation.
+///     - The compiler may lower `len(obj)` to specialized VM instructions
+///       (e.g., OP_SEQ_LEN, OP_MAP_LEN) when the object's type is known,
+///       enabling high‑performance length queries.
+@intrinsic
 pub func len(obj any) int {}
 
+/// Immediately abort program execution with an error message.
+///
+/// `panic(msg)` raises a fatal runtime error and terminates the current
+/// execution context. The function does not return.
+///
+/// This is a native builtin function implemented directly by the Koala VM.
+/// It is used by the standard library and compiler‑generated code to signal
+/// unrecoverable conditions (such as failed assertions, type errors, or
+/// internal invariants).
+///
+/// Note:
+///     - `panic()` does not have a user‑level implementation.
+///     - The VM may include additional diagnostic information such as
+///       stack traces or source locations when reporting the panic.
+///     - User code should prefer returning `T?` or error values when
+///       appropriate; `panic()` is intended only for fatal errors.
 @native(builtin_panic)
 pub func panic(msg str) {}
