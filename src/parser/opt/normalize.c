@@ -35,6 +35,49 @@ int klr_normalize_pass(KlrFunc *fn, void *data)
                     insn->code = OP_BINARY_CMPGE;
                     change = 1;
                 }
+            } else if (insn->code == OP_BINARY_CMPLE) {
+                KlrValue *lhs = insn_oper_value(insn, 0);
+                KlrValue *rhs = insn_oper_value(insn, 1);
+                if (klr_is_const(lhs) && !klr_is_const(rhs)) {
+                    set_operand_at(insn, 0, rhs);
+                    set_operand_at(insn, 1, lhs);
+                    insn->code = OP_BINARY_CMPGT;
+                    change = 1;
+                }
+            } else if (insn->code == OP_BINARY_CMPGT) {
+                KlrValue *lhs = insn_oper_value(insn, 0);
+                KlrValue *rhs = insn_oper_value(insn, 1);
+                if (klr_is_const(lhs) && !klr_is_const(rhs)) {
+                    set_operand_at(insn, 0, rhs);
+                    set_operand_at(insn, 1, lhs);
+                    insn->code = OP_BINARY_CMPLE;
+                    change = 1;
+                }
+            } else if (insn->code == OP_BINARY_CMPGE) {
+                KlrValue *lhs = insn_oper_value(insn, 0);
+                KlrValue *rhs = insn_oper_value(insn, 1);
+                if (klr_is_const(lhs) && !klr_is_const(rhs)) {
+                    set_operand_at(insn, 0, rhs);
+                    set_operand_at(insn, 1, lhs);
+                    insn->code = OP_BINARY_CMPLT;
+                    change = 1;
+                }
+            } else if (insn->code == OP_BINARY_CMPNE) {
+                KlrValue *lhs = insn_oper_value(insn, 0);
+                KlrValue *rhs = insn_oper_value(insn, 1);
+                if (klr_is_const(lhs) && !klr_is_const(rhs)) {
+                    set_operand_at(insn, 0, rhs);
+                    set_operand_at(insn, 1, lhs);
+                    change = 1;
+                }
+            } else if (insn->code == OP_BINARY_CMPEQ) {
+                KlrValue *lhs = insn_oper_value(insn, 0);
+                KlrValue *rhs = insn_oper_value(insn, 1);
+                if (klr_is_const(lhs) && !klr_is_const(rhs)) {
+                    set_operand_at(insn, 0, rhs);
+                    set_operand_at(insn, 1, lhs);
+                    change = 1;
+                }
             }
         }
     }

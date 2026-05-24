@@ -269,6 +269,11 @@ static KlrValue *emit_tuple_call(ParserState *ps, KlrBuilder *bldr, KlrValue *ca
 static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *callee,
                                 KlrValue **args, int nargs)
 {
+    if (nargs == 0) {
+        // list() → empty list constant
+        return klr_const_list(NULL, 0, callee->ts, MOD);
+    }
+
     ASSERT(nargs == 1);
     KlrValue *arg = args[0];
 
@@ -1292,8 +1297,7 @@ struct RangeInfo {
     KlrValue *step;
 };
 
-static void get_range_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struct RangeInfo *out,
-                           int where)
+static void get_range_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struct RangeInfo *out)
 {
     ASSERT(type_is_range(val->ts));
     out->start = build_get_field(val->ts, "start", bldr, val, ps);
@@ -1311,6 +1315,30 @@ static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
     out->end = insn_oper_value(insn, 1);
     out->step = insn_oper_value(insn, 2);
     return 1;
+}
+
+struct SeqInfo {
+    KlrValue *seq;
+    KlrValue *index;
+    KlrValue *len;
+};
+
+static void get_seq_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struct SeqInfo *out)
+{
+    ASSERT(type_is_seq(val->ts));
+    out->seq = val;
+    out->index = klr_build_local_var(bldr, int64_type_spec(), "seq.index");
+
+    if (type_is_tuple(val->ts)) {
+        Symbol *_sym = get_symbol_by_id(val->ts->sym_id);
+        ASSERT(_sym->kind == SYM_INSTANCE);
+        InstanceSymbol *inst_sym = (InstanceSymbol *)_sym;
+        int size = vector_size(inst_sym->tp_args);
+        KlrValue *_len = klr_const_int(size, int64_type_spec(), MOD);
+        out->len = _len;
+    } else {
+        out->len = klr_build_seq_len(bldr, val, "");
+    }
 }
 
 static Symbol *get_loop_range_symbol(ForStmt *s)
@@ -1367,9 +1395,10 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     KlrValue *range_cur = NULL;
     struct RangeInfo range_info = { 0 };
     Symbol *range_sym = NULL;
+    struct SeqInfo seq_info = { 0 };
     int which = 0;
 #define GEN_RANGE    1
-#define GEN_TUPLE    2
+#define GEN_SEQ      2
 #define GEN_ITERATOR 3
 
     // current block jmp to loop header
@@ -1392,7 +1421,11 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         if (type_is_range(it_val->ts)) {
             which = GEN_RANGE;
             klr_builder_end(&bldr, sc->bb);
-            get_range_info(it_val, &bldr, ps, &range_info, 0);
+            get_range_info(it_val, &bldr, ps, &range_info);
+        } else if (type_is_seq(it_val->ts)) {
+            which = GEN_SEQ;
+            klr_builder_end(&bldr, sc->bb);
+            get_seq_info(it_val, &bldr, ps, &seq_info);
         } else {
             NYI();
         }
@@ -1401,7 +1434,11 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         if (type_is_range(it_val->ts)) {
             which = GEN_RANGE;
             klr_builder_end(&bldr, sc->bb);
-            get_range_info(it_val, &bldr, ps, &range_info, 1);
+            get_range_info(it_val, &bldr, ps, &range_info);
+        } else if (type_is_seq(it_val->ts)) {
+            which = GEN_SEQ;
+            klr_builder_end(&bldr, sc->bb);
+            get_seq_info(it_val, &bldr, ps, &seq_info);
         } else {
             NYI();
         }
@@ -1413,7 +1450,11 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         } else if (type_is_range(it_val->ts)) {
             which = GEN_RANGE;
             klr_builder_end(&bldr, sc->bb);
-            get_range_info(it_val, &bldr, ps, &range_info, 2);
+            get_range_info(it_val, &bldr, ps, &range_info);
+        } else if (type_is_seq(it_val->ts)) {
+            which = GEN_SEQ;
+            klr_builder_end(&bldr, sc->bb);
+            get_seq_info(it_val, &bldr, ps, &seq_info);
         } else {
             NYI();
         }
@@ -1425,6 +1466,10 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
             range_info.start = items[0];
             range_info.end = items[1];
             range_info.step = items[2];
+        } else if (type_is_seq(it_val->ts)) {
+            which = GEN_SEQ;
+            klr_builder_end(&bldr, sc->bb);
+            get_seq_info(it_val, &bldr, ps, &seq_info);
         } else {
             NYI();
         }
@@ -1443,6 +1488,11 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         }
         klr_build_move(&bldr, sym->ir_val, range_info.start);
         range_cur = sym->ir_val;
+    } else if (which == GEN_SEQ) {
+        // v is generated in loop body, i is generated in loop header.
+        // initialize index to 0
+        KlrValue *zero = klr_const_int(0, int64_type_spec(), MOD);
+        klr_build_move(&bldr, seq_info.index, zero);
     } else {
         NYI();
     }
@@ -1458,6 +1508,10 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     if (which == GEN_RANGE) {
         klr_builder_end(&bldr, sc->bb);
         build_loop_range_cond(&bldr, range_cur, &range_info, loop_body, loop_end, ps);
+    } else if (which == GEN_SEQ) {
+        klr_builder_end(&bldr, sc->bb);
+        KlrValue *cond = klr_build_cmpge(&bldr, seq_info.index, seq_info.len, "");
+        klr_build_jmp_cond(&bldr, cond, loop_end, loop_body);
     } else {
         NYI();
     }
@@ -1485,12 +1539,29 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     sc->continue_bb = loop_cond;
     sc->break_bb = loop_end;
 
+    if (which == GEN_SEQ) {
+        klr_builder_end(&bldr, sc->bb);
+        Symbol *sym = get_loop_range_symbol(s);
+        if (sym->flags & SYM_FLAGS_MUTABLE) {
+            sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+        } else {
+            sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+        }
+        KlrValue *_val = klr_build_seq_get(&bldr, seq_info.seq, seq_info.index, sym->ts, "");
+        klr_build_move(&bldr, sym->ir_val, _val);
+    }
+
     emit_ir_visit_block(ps, s->block);
 
     if (which == GEN_RANGE) {
         klr_builder_end(&bldr, sc->bb);
         KlrValue *tmp = klr_build_add(&bldr, range_cur, range_info.step, "");
         klr_build_move(&bldr, range_cur, tmp);
+    } else if (which == GEN_SEQ) {
+        klr_builder_end(&bldr, sc->bb);
+        KlrValue *one = klr_const_int(1, int64_type_spec(), MOD);
+        KlrValue *tmp = klr_build_add(&bldr, seq_info.index, one, "");
+        klr_build_move(&bldr, seq_info.index, tmp);
     } else {
         NYI();
     }
@@ -1501,6 +1572,9 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         klr_builder_end(&_bldr, sc->bb);
         if (which == GEN_RANGE) {
             build_loop_range_cond(&bldr, range_cur, &range_info, loop_body, loop_end, ps);
+        } else if (which == GEN_SEQ) {
+            KlrValue *cond = klr_build_cmpge(&bldr, seq_info.index, seq_info.len, "");
+            klr_build_jmp_cond(&bldr, cond, loop_end, loop_body);
         } else {
             NYI();
         }

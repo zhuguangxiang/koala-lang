@@ -28,7 +28,7 @@ static void print_value(TValue *val)
 }
 
 /*
-func print(objs ..., sep = ' ', end = '\n', file io.Writer? = null)
+func print(objs ..., sep = ' ', end = '\n')
 */
 static TValue builtin_print(TValue *self, TValue *args, int nargs)
 {

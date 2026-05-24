@@ -1,0 +1,25 @@
+// RUN: koala %s --dump=code | filecheck %s
+
+func main() {
+    for v in (1,2,3) {
+        print(v)
+    }
+}
+
+// CHECK-LABEL: @main[0,11]:
+// CHECK: load_int_imm r0, ti=0xb, #0
+// CHECK: loadk r1, #3
+// CHECK: seq_get r1, r1, r0
+// CHECK: move r2, r1
+// CHECK: build_intern r2, @tuple, #1
+// CHECK: loadk r3, #4
+// CHECK: loadk r4, #5
+// CHECK: call flg=1, #3
+// CHECK: data (import_index=0)
+// CHECK: int.add_imm r0, r0, #1
+// CHECK: jmp_int_lt_imm r0, #3, -10
+// CHECK: ret_void
+
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3

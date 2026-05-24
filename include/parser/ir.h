@@ -931,6 +931,8 @@ KlrValue *klr_build_map_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, Ty
                             char *name);
 void klr_build_map_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val);
 
+KlrValue *klr_build_seq_len(KlrBuilder *bldr, KlrValue *obj, char *name);
+
 #ifdef __cplusplus
 }
 #endif

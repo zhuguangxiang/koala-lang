@@ -1,0 +1,70 @@
+// RUN: koala %s --dump=no-opt-ir,code | filecheck %s
+
+func foo(x list[int], out list[int]) {
+    for v in x {
+        out.append(v)
+    }
+}
+
+func new_list() list[int] {
+    return [1,2,3]
+}
+
+func main() {
+    let l = [1,2,3,4]
+    let out = list[int]()
+    foo(l, out)
+
+    for v in new_list() {
+        out.append(v)
+    }
+
+    for v in [1,2,3] {
+        out.append(v)
+    }
+
+    print(out)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @foo(%x list<j>, %out list<j>)
+// CHECK-LABEL: %bb0(entry):
+// CHECK: jmp label %bb1
+
+// CHECK-LABEL: %bb1(loop-header):
+// CHECK: %seq.index = local int64
+// CHECK: %0 = seq_len %x list<j>
+// CHECK: move %seq.index int64, 0 int64
+// CHECK: jmp label %bb2
+
+// CHECK-LABEL: %bb2(loop-cond):
+// CHECK: %1 = cmpge %seq.index int64, %0 int64
+// CHECK: branch %1 bool, label %bb4, label %bb3
+
+// CHECK-LABEL: %bb3(loop-body):
+// CHECK: %v = local int64
+// CHECK: %2 = seq_get %x list<j>, %seq.index int64
+// CHECK: move %v int64, %2 int64
+// CHECK: call @list::append [path = 'std/builtin'], %out list<j>, %v int64
+// CHECK: %3 = add %seq.index int64, 1 int64
+// CHECK: move %seq.index int64, %3 int64
+// CHECK: %4 = cmpge %seq.index int64, %0 int64
+// CHECK: branch %4 bool, label %bb4, label %bb3
+
+// CHECK-LABEL: %bb4(loop-end):
+// CHECK: ret void
+
+// CHECK-LABEL: @foo[0,10]:
+// CHECK: seq_len r3, r0
+// CHECK: oad_int_imm r2, ti=0xb, #0
+// CHECK: jmp_int_lt_imm r3, #0, 7
+// CHECK: seq_get r4, r0, r2
+// CHECK: move r6, r4
+// CHECK: move r5, r1
+// CHECK: call flg=1, #2
+// CHECK: data (import_index=0)
+// CHECK: int.add_imm r2, r2, #1
+// CHECK: jmp_int_lt r2, r3, -7
+// CHECK: ret_void
+
+// CHECK: [1, 2, 3, 4, 1, 2, 3, 1, 2, 3]

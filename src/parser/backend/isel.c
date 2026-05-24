@@ -953,6 +953,16 @@ static void isel_lower_seq_set(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
+static void isel_lower_seq_len(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+
+    if (klr_is_const(obj)) {
+        KlrValue *_obj = lower_const(fn, insn, (KlrConst *)obj);
+        set_operand_at(insn, 0, _obj);
+    }
+}
+
 static void do_isel(KlrFunc *fn)
 {
     log_info("isel for func '%s'", fn->name);
@@ -1038,6 +1048,11 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_SEQ_SET: {
                     isel_lower_seq_set(insn, fn);
+                    break;
+                }
+
+                case OP_SEQ_LEN: {
+                    isel_lower_seq_len(insn, fn);
                     break;
                 }
 
