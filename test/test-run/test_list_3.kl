@@ -16,6 +16,11 @@ func main() {
 
     let l2 = new_list_list(300)
     print(l2, len(l2), len(l2[0]), len(l2[1]))
+
+    l[0] = 10
+    l[1] = 20
+    l[2] = 30
+    print(l)
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
@@ -53,7 +58,13 @@ func main() {
 // CHECK: %7 = call @len [path = 'std/builtin'], %6 list<j>
 // CHECK: %8 = build_intern @tuple, %l2 list<Llist<j>;>, %3 int64, %5 int64, %7 int64
 // CHECK: call @print [path = 'std/builtin'], %8 tuple<Llist<Llist<j>;>;jjj>, ' ' str, '\n' str
+// CHECK: seq_set %l list<j>, 0 int64, 10 int64
+// CHECK: seq_set %l list<j>, 1 int64, 20 int64
+// CHECK: seq_set %l list<j>, 2 int64, 30 int64
+// CHECK: %9 = build_intern @tuple, %l list<j>
+// CHECK: call @print [path = 'std/builtin'], %9 tuple<Llist<j>;>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK: [100, 200, 300]
 // CHECK-LITERAL: [[100, 200], [300], [300]] 3 2 1
+// CHECK: [10, 20, 30]

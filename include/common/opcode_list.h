@@ -1862,7 +1862,7 @@ X(OP_SEQ_GET, FORMAT_RRR)
  * OP_SEQ_SET — store an element into a sequence
  *
  * FORMAT_RRR:
- *     | op:8 | rs:8 | rt:8 | rv:8 |
+ *     | op:8 | rs:8 | rv:8 | rt:8 |
  *
  * Semantics:
  *     rs[rt] = rv

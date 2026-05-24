@@ -62,9 +62,8 @@ static TValue kl_tuple_seq_get(TValue *self, size_t index)
 
 static SeqMethods tuple_seq_methods = {
     .len = kl_tuple_seq_len,
-    // .contains = kl_tuple_contains,
+    // .contains = kl_tuple_seq_contains,
     .get = kl_tuple_seq_get,
-    // .set = kl_tuple_seq_set_item,
 };
 
 TypeObject tuple_type = {

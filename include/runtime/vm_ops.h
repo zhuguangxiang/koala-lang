@@ -1201,6 +1201,40 @@ TARGET(OP_SEQ_LEN) {
     DISPATCH();
 }
 
+TARGET(OP_SEQ_SET) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    TypeObject *tp = kl_typeof(regs + rd);
+    SeqMethods *seq = tp->seq;
+    ASSERT(seq && seq->set);
+    size_t index = to_int64(regs + rt);
+    seq->set(regs + rd, index, regs + rs);
+
+    DISPATCH();
+}
+
+TARGET(OP_SEQ_SET_IMM) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    imm = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    TypeObject *tp = kl_typeof(regs + rd);
+    SeqMethods *seq = tp->seq;
+    ASSERT(seq && seq->set);
+    seq->set(regs + rd, imm, regs + rs);
+
+    DISPATCH();
+}
+
 /* Float Basic */
 
 TARGET(OP_FLOAT_ADD) {

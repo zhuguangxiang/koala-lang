@@ -1277,6 +1277,8 @@ static void parse_call(ParserState *ps, Expr *exp)
         log_info("call lhs is instance of class '%s' with type parameters:", lhs_sym->name);
 
         KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+        if (origin->flags & SYM_FLAGS_EXT) inst_sym->flags |= SYM_FLAGS_EXT;
+
         Symbol *init_fn_sym = stbl_get(inst_sym->stbl, "__init__");
         if (!init_fn_sym) {
             Symbol *_fn_sym = stbl_get(origin->stbl, "__init__");
@@ -1285,7 +1287,9 @@ static void parse_call(ParserState *ps, Expr *exp)
                          origin->name);
                 _fn_sym = stbl_add_func(origin->stbl, "__init__", no_type_spec(), NULL,
                                         origin->flags & SYM_FLAGS_PUBLIC);
+                if (origin->flags & SYM_FLAGS_EXT) _fn_sym->flags |= SYM_FLAGS_EXT;
             }
+            origin->__init__ = _fn_sym;
 
             // params
             Vector *inst_params =
@@ -1293,6 +1297,7 @@ static void parse_call(ParserState *ps, Expr *exp)
 
             init_fn_sym =
                 stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(), inst_params, 0);
+            if (origin->flags & SYM_FLAGS_EXT) init_fn_sym->flags |= SYM_FLAGS_EXT;
         }
 
         if (!strcmp(origin->name, "tuple")) {

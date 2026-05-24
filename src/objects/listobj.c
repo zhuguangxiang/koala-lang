@@ -83,11 +83,21 @@ static TValue kl_list_seq_get(TValue *self, size_t index)
     return list->array[list->start + index];
 }
 
+static void kl_list_seq_set(TValue *self, size_t index, TValue *value)
+{
+    ListObject *list = (ListObject *)to_obj(self);
+    if (index >= list->end - list->start) {
+        panic("list index out of range");
+    }
+    // write_barrier(list, *value);
+    list->array[list->start + index] = *value;
+}
+
 static SeqMethods list_seq_methods = {
     .len = kl_list_seq_len,
     // .contains = kl_list_contains,
     .get = kl_list_seq_get,
-    // .set = kl_list_seq_set_item,
+    .set = kl_list_seq_set,
 };
 
 /*

@@ -179,6 +179,7 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
         ASSERT(origin->flags & SYM_FLAGS_EXT);
         exp->ir_val = klr_add_ext_klass(MOD, origin->path, inst_sym->instance_ts, sym->name);
     }
+    sym->ir_val = exp->ir_val;
 }
 
 static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args, int nargs)
@@ -256,6 +257,40 @@ static KlrValue *emit_range_call(ParserState *ps, KlrBuilder *bldr, KlrValue *ca
     return ret;
 }
 
+static KlrValue *emit_tuple_call(ParserState *ps, KlrBuilder *bldr, KlrValue *callee,
+                                 KlrValue **args, int nargs)
+{
+    ASSERT(nargs == 1);
+    KlrValue *arg = args[0];
+    ASSERT(klr_is_const(arg) || arg->kind == KLR_VALUE_INSN);
+    return arg;
+}
+
+static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *callee,
+                                KlrValue **args, int nargs)
+{
+    ASSERT(nargs == 1);
+    KlrValue *arg = args[0];
+
+    if (klr_is_const(arg)) {
+        KlrConst *kc = (KlrConst *)arg;
+        ASSERT(kc->which == CONST_TUPLE);
+        // list[tuple(...)]
+        Vector *vec = kc->list;
+        KlrValue **_args = VECTOR_RAW(vec, KlrValue *);
+        int _nargs = vector_size(vec);
+        return klr_const_list(_args, _nargs, callee->ts, MOD);
+    } else {
+        // build_intern @tuple(...) → build_intern @list(...)
+        ASSERT(arg->kind == KLR_VALUE_INSN);
+        KlrInsn *insn = (KlrInsn *)arg;
+        ASSERT(insn->code == OP_BUILD_INTERN && insn->intern_tag == INTERN_TUPLE);
+        insn->intern_tag = INTERN_LIST;
+        insn->ts = callee->ts;
+        return arg;
+    }
+}
+
 static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *init_fn,
                                 KlrValue **args, int nargs)
 {
@@ -273,6 +308,10 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
         ret = emit_str_call(args, nargs);
     } else if (type_is_range(ts)) {
         ret = emit_range_call(ps, &bldr, callee, args, nargs);
+    } else if (type_is_tuple(ts)) {
+        ret = emit_tuple_call(ps, &bldr, callee, args, nargs);
+    } else if (type_is_list(ts)) {
+        ret = emit_list_call(ps, &bldr, callee, args, nargs);
     } else if (ts->kind == TYPE_KLASS) {
         ASSERT(init_fn);
         ret = klr_build_new(&bldr, callee, "");
@@ -327,13 +366,23 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
         ret = emit_type_call(ps, callee, init_fn, ir_args, size);
     } else if (callee->kind == KLR_VALUE_EXT_KLASS) {
         Symbol *lhs_sym = lhs->sym;
-        ASSERT(lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_INSTANCE);
-        KlassSymbol *kls_sym = (KlassSymbol *)lhs_sym;
+        KlassSymbol *kls_sym;
+
+        if (lhs_sym->kind == SYM_INSTANCE) {
+            InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
+            Symbol *origin = inst_sym->origin;
+            kls_sym = (KlassSymbol *)origin;
+        } else {
+            ASSERT(lhs_sym->kind == SYM_CLASS);
+            kls_sym = (KlassSymbol *)lhs_sym;
+        }
+
         if (!kls_sym->ir_val) {
             ASSERT(kls_sym->flags & SYM_FLAGS_EXT);
             kls_sym->ir_val =
                 klr_add_ext_klass(MOD, kls_sym->path, kls_sym->instance_ts, kls_sym->name);
         }
+
         Symbol *_sym = kls_sym->__init__;
         ASSERT(_sym);
         if (!_sym->ir_val) {
@@ -344,6 +393,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
             KlrValue *_val = klr_add_ext_method(kls_ir_val, func_sym->ret, _sym->name);
             _sym->ir_val = _val;
         }
+
         KlrValue *init_fn = _sym->ir_val;
         ret = emit_type_call(ps, callee, init_fn, ir_args, size);
     } else {
@@ -527,14 +577,20 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
     Expr *lhs = index->lhs;
     Vector *vec = index->vec;
 
-    if (exp->ctx == EXPR_CTX_STORE || exp->ctx == EXPR_CTX_LOAD_STORE) {
-        NYI();
-        return;
-    }
-
     lhs->ctx = EXPR_CTX_LOAD;
     emit_ir_visit_expr(ps, lhs);
     if (!lhs->ir_val) return;
+
+    if (lhs->ts->kind == TYPE_TYPE) {
+        // type index, e.g. list[int]
+        emit_ir_type(ps, exp);
+        return;
+    }
+
+    if (exp->ctx == EXPR_CTX_LOAD_STORE) {
+        NYI();
+        return;
+    }
 
     if (vector_size(vec) == 1) {
         Expr *e = vector_at(vec, 0);
@@ -549,10 +605,18 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
 
         if (type_is_seq(lhs->ts)) {
             // sequence index
-            item = klr_build_seq_get(&bldr, lhs->ir_val, ir_val, exp->ts, "");
+            if (exp->ctx == EXPR_CTX_LOAD) {
+                item = klr_build_seq_get(&bldr, lhs->ir_val, ir_val, exp->ts, "");
+            } else {
+                item = klr_new_index(&bldr, lhs->ir_val, ir_val, KLR_SEQ_SET);
+            }
         } else if (type_is_map(lhs->ts)) {
             // map index
-            item = klr_build_map_get(&bldr, lhs->ir_val, ir_val, exp->ts, "");
+            if (exp->ctx == EXPR_CTX_LOAD) {
+                item = klr_build_map_get(&bldr, lhs->ir_val, ir_val, exp->ts, "");
+            } else {
+                item = klr_new_index(&bldr, lhs->ir_val, ir_val, KLR_MAP_SET);
+            }
         } else {
             UNREACHABLE();
         }
@@ -1462,24 +1526,32 @@ static void emit_ir_simple_assignment(ParserState *ps, Expr *lhs, Expr *rhs)
 {
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
-    KlrValue *var = lhs->ir_val;
-    if (var->kind == KLR_VALUE_GLOBAL) {
-        klr_build_set_global(&bldr, var, rhs->ir_val);
-    } else if (var->kind == KLR_VALUE_FIELD) {
+    KlrValue *val = lhs->ir_val;
+    if (val->kind == KLR_VALUE_GLOBAL) {
+        klr_build_set_global(&bldr, val, rhs->ir_val);
+    } else if (val->kind == KLR_VALUE_FIELD) {
         if (lhs->kind == EXPR_DOT_KIND) {
             Expr *obj = ((DotExpr *)lhs)->lhs;
             Symbol *sym = obj->sym;
             ASSERT(sym->kind == SYM_VAR || sym->kind == SYM_SHADOW_VAR);
-            klr_build_set_field(&bldr, obj->ir_val, var, rhs->ir_val);
+            klr_build_set_field(&bldr, obj->ir_val, val, rhs->ir_val);
         } else if (lhs->kind == EXPR_ID_KIND) {
             KlrValue *self = METHOD_SELF;
-            klr_build_set_field(&bldr, self, var, rhs->ir_val);
+            klr_build_set_field(&bldr, self, val, rhs->ir_val);
         } else {
             UNREACHABLE();
         }
-
+    } else if (val->kind == KLR_VALUE_INDEX) {
+        KlrIndexInfo *index_info = (KlrIndexInfo *)val;
+        if (index_info->which == KLR_SEQ_SET) {
+            klr_build_seq_set(&bldr, index_info->obj, index_info->index, rhs->ir_val);
+        } else if (index_info->which == KLR_MAP_SET) {
+            klr_build_map_set(&bldr, index_info->obj, index_info->index, rhs->ir_val);
+        } else {
+            UNREACHABLE();
+        }
     } else {
-        klr_build_move(&bldr, var, rhs->ir_val);
+        klr_build_move(&bldr, val, rhs->ir_val);
     }
 }
 

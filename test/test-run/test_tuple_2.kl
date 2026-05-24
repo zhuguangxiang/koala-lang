@@ -1,0 +1,70 @@
+// RUN: koala %s --dump=no-opt-ir,code | filecheck %s
+
+func foo(x int) int {
+    return x
+}
+
+func main() {
+    let x = foo(30)
+    let t = tuple[int,str](x, "hello")
+    let t2 = tuple[int, str](1, "world")
+    let t3 = tuple(1, "hi", 3.1)
+
+    print(t[0], t2[1], t3[2])
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %0 = call @foo [const], 30 int64
+// CHECK: %x = local [immutable] int64
+// CHECK: move %x int64, %0 int64
+// CHECK: %1 = build_intern @tuple, %x int64, 'hello' str
+// CHECK: %t = local [immutable] tuple<ju>
+// CHECK: move %t tuple<ju>, %1 tuple<ju>
+// CHECK: %t2 = local [immutable] tuple<ju>
+// CHECK: move %t2 tuple<ju>, tuple(1, 'world') tuple<ju>
+// CHECK: %t3 = local [immutable] tuple<jud>
+// CHECK: move %t3 tuple<jud>, tuple(1, 'hi', 3.100000) tuple<jud>
+// CHECK: %2 = seq_get %t tuple<ju>, 0 int64
+// CHECK: %3 = seq_get %t2 tuple<ju>, 1 int64
+// CHECK: %4 = seq_get %t3 tuple<jud>, 2 int64
+// CHECK: %5 = build_intern @tuple, %2 int64, %3 str, %4 float64
+// CHECK: call @print [path = 'std/builtin'], %5 tuple<jud>, ' ' str, '\n' str
+// CHECK: ret void
+
+// CHECK-LABEL: @main[1,16]:
+// CHECK: load_int_imm r1, ti=0xb, #30
+// CHECK: call flg=0, r1, #1
+// CHECK: data (rel32=0)
+// CHECK: loadk r2, #0
+// CHECK: build_intern r0, @tuple, #2
+// CHECK: seq_get_imm r1, r0, #0
+// CHECK: loadk r0, #3
+// CHECK: seq_get_imm r2, r0, #1
+// CHECK: loadk r0, #6
+// CHECK: seq_get_imm r3, r0, #2
+// CHECK: build_intern r1, @tuple, #3
+// CHECK: loadk r2, #7
+// CHECK: loadk r3, #8
+// CHECK: call flg=1, #3
+// CHECK: data (import_index=0)
+// CHECK: ret_void
+
+// CHECK-LABEL: Constant Pool:
+// CHECK: [000] str     = "hello"
+// CHECK: [001] int64   = 1
+// CHECK: [002] str     = "world"
+// CHECK: [003] tuple(2):
+// CHECK:     [0] int64   = 1
+// CHECK:     [1] str     = "world"
+// CHECK: [004] str     = "hi"
+// CHECK: [005] float64 = 3.1000000000000001
+// CHECK: [006] tuple(3):
+// CHECK:     [0] int64   = 1
+// CHECK:     [1] str     = "hi"
+// CHECK:     [2] float64 = 3.1000000000000001
+// CHECK: [007] str     = " "
+// CHECK: [008] str     = "\n"
+
+// CHECK: 30 world 3.1000000000000001

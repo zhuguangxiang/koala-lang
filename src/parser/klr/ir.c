@@ -809,6 +809,16 @@ KlrValue *klr_add_ext_method(KlrExtKlass *kls, TypeSpec *ret, char *name)
     return (KlrValue *)fn;
 }
 
+KlrValue *klr_new_index(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, int which)
+{
+    KlrIndexInfo *index_info = mm_alloc_obj(index_info);
+    INIT_KLR_VALUE(index_info, KLR_VALUE_INDEX, NULL, "");
+    index_info->obj = obj;
+    index_info->index = index;
+    index_info->which = which;
+    return (KlrValue *)index_info;
+}
+
 static void dfs_post_order(KlrBasicBlock *bb, List *rpo_list)
 {
     // don't visit the end block

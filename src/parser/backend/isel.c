@@ -926,6 +926,33 @@ static void isel_lower_seq_get(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
+static void isel_lower_seq_set(KlrInsn *insn, KlrFunc *fn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    KlrValue *index = insn_oper_value(insn, 1);
+    KlrValue *val = insn_oper_value(insn, 2);
+
+    ASSERT(klr_is_insn(obj) || klr_is_param(obj) || klr_is_const(obj));
+    ASSERT(klr_is_insn(index) || klr_is_param(index) || klr_is_const(index));
+    ASSERT(klr_is_insn(val) || klr_is_param(val) || klr_is_const(val));
+
+    if (klr_is_const(obj)) {
+        KlrValue *_obj = lower_const(fn, insn, (KlrConst *)obj);
+        set_operand_at(insn, 0, _obj);
+    }
+
+    if (klr_is_const(val)) {
+        KlrValue *_val = lower_const(fn, insn, (KlrConst *)val);
+        set_operand_at(insn, 2, _val);
+    }
+
+    if (klr_is_const(index)) {
+        KlrConst *kc = (KlrConst *)index;
+        ASSERT(kc->which == CONST_INT);
+        insn->code = OP_SEQ_SET_IMM;
+    }
+}
+
 static void do_isel(KlrFunc *fn)
 {
     log_info("isel for func '%s'", fn->name);
@@ -1006,6 +1033,11 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_SEQ_GET: {
                     isel_lower_seq_get(insn, fn);
+                    break;
+                }
+
+                case OP_SEQ_SET: {
+                    isel_lower_seq_set(insn, fn);
                     break;
                 }
 

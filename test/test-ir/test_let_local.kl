@@ -27,11 +27,7 @@ func foo() int {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@foo] ---
 // CHECK-LABEL: func @foo() int64
-// CHECK: %0 = new @list
-// CHECK: call @list::__init__ [path = 'std/builtin'], %0 list, tuple(1, 2, 30) tuple<jjj>
-// CHECK: %1 = new @tuple
-// CHECK: call @tuple::__init__ [path = 'std/builtin'], %1 tuple, tuple(10, 20) tuple<jj>
-// CHECK: %2 = call @bar
+// CHECK: %0 = call @bar
 // CHECK-NOT: local
 // CHECK-NOT: move
 // CHECK: ret 11 int64

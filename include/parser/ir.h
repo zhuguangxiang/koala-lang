@@ -39,6 +39,7 @@ typedef enum _KlrValueKind {
     KLR_VALUE_EXT_FUNC,
     KLR_VALUE_EXT_KLASS,
     KLR_VALUE_EXT_FIELD,
+    KLR_VALUE_INDEX,
     KLR_VALUE_MAX,
 } KlrValueKind;
 
@@ -125,9 +126,6 @@ typedef struct _KlrConst {
         char *sval;
         Vector *list;
     };
-    // TODO:
-    // if this is loaded constant, it must be saved in 'local'.
-    // KlrValue *local;
 } KlrConst;
 
 /* global/field variable */
@@ -342,6 +340,15 @@ typedef struct _KlrExtFunc {
     KlrExtKlass *klass;
 } KlrExtFunc;
 
+typedef struct _KlrIndexInfo {
+    KLR_VALUE_HEAD
+    KlrValue *obj;
+    KlrValue *index;
+    int which;
+#define KLR_SEQ_SET 1
+#define KLR_MAP_SET 2
+} KlrIndexInfo;
+
 /* def-use */
 typedef struct _KlrUse {
     /* def-value(use_list) */
@@ -522,6 +529,8 @@ static inline int klr_is_global(KlrValue *val)
     if (val->kind == KLR_VALUE_GLOBAL) return 1;
     return 0;
 }
+
+KlrValue *klr_new_index(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, int which);
 
 /* <2> module */
 

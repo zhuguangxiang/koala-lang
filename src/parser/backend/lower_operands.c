@@ -467,6 +467,25 @@ static void lower_seq_get_opers(KlrInsn *insn, KlMachModule *m)
     }
 }
 
+static void lower_seq_set_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    KlrValue *index = insn_oper_value(insn, 1);
+    KlrValue *val = insn_oper_value(insn, 2);
+
+    set_raw_reg(&insn->raws[0], obj->vreg);
+    set_raw_reg(&insn->raws[1], val->vreg);
+
+    if (klr_is_const(index)) {
+        KlrConst *kc = (KlrConst *)index;
+        check_in_imm8(kc);
+        int64_t imm = kc->ival;
+        set_raw_imm(&insn->raws[2], imm);
+    } else {
+        set_raw_reg(&insn->raws[2], index->vreg);
+    }
+}
+
 static void lower_seq_len_opers(KlrInsn *insn, KlMachModule *m)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
@@ -576,6 +595,12 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_SEQ_LEN: {
                     lower_seq_len_opers(insn, m);
+                    break;
+                }
+
+                case OP_SEQ_SET_IMM:
+                case OP_SEQ_SET: {
+                    lower_seq_set_opers(insn, m);
                     break;
                 }
 
