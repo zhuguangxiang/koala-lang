@@ -19,7 +19,7 @@ func main() {
 // CHECK-LABEL: %bb0(entry):
 // CHECK: %_v = local [immutable] int64
 // CHECK: move %_v int64, %v int64?
-// CHECK: %0 = cmpne %_v int64, none
+// CHECK: %0 = cmpne %v int64?, none
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
 // CHECK-LABEL: @foo[0,2]:

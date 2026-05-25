@@ -136,17 +136,17 @@ func main() {
 // CHECK-LABEL: func @List::append4(%self List, %value int64)
 
 // CHECK-LABEL: %bb4(while-cond):
-// CHECK: %next = local ListNode?
+// CHECK: %next = local ListNode
 // CHECK: %9 = get_field %curr ListNode, next(index=1)
-// CHECK: move %next ListNode?, %9 ListNode?
-// CHECK: %10 = cmpne %next ListNode?, none
+// CHECK: move %next ListNode, %9 ListNode?
+// CHECK: %10 = cmpne %9 ListNode?, none
 // CHECK: branch %10 bool, label %bb5, label %bb6
 
 // CHECK-LABEL: %bb5(while-body):
-// CHECK: move %curr ListNode, %next ListNode?
+// CHECK: move %curr ListNode, %next ListNode
 // CHECK: %11 = get_field %curr ListNode, next(index=1)
-// CHECK: move %next ListNode?, %11 ListNode?
-// CHECK: %12 = cmpne %next ListNode?, none
+// CHECK: move %next ListNode, %11 ListNode?
+// CHECK: %12 = cmpne %11 ListNode?, none
 // CHECK: branch %12 bool, label %bb5, label %bb6
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---

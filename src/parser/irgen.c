@@ -1756,7 +1756,7 @@ static void emit_ir_if_let_stmt(ParserState *ps, Stmt *stmt)
     var_sym->ir_val = klr_build_local(&bldr, var_sym->ts, var_sym->name);
     klr_build_move(&bldr, var_sym->ir_val, cond->ir_val);
 
-    KlrValue *_cond = klr_build_cmpne(&bldr, var_sym->ir_val, klr_const_none(MOD), "");
+    KlrValue *_cond = klr_build_cmpne(&bldr, cond->ir_val, klr_const_none(MOD), "");
     klr_build_jmp_cond(&bldr, _cond, if_then, if_else);
 
     ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "if-block");
@@ -1808,7 +1808,7 @@ static void build_while_let_cond(ParserState *ps, Symbol *var_sym, Expr *cond, K
     klr_builder_end(&bldr, bb);
     klr_build_move(&bldr, var_sym->ir_val, cond->ir_val);
 
-    KlrValue *_cond = klr_build_cmpne(&bldr, var_sym->ir_val, klr_const_none(MOD), "");
+    KlrValue *_cond = klr_build_cmpne(&bldr, cond->ir_val, klr_const_none(MOD), "");
     klr_build_jmp_cond(&bldr, _cond, body, end);
 }
 
@@ -1840,8 +1840,7 @@ static void emit_ir_while_let_stmt(ParserState *ps, Stmt *stmt)
 
     // create local & build condition
     klr_builder_end(&bldr, sc->bb);
-    TypeSpec *var_ts = optional_type_spec(var_sym->ts);
-    var_sym->ir_val = klr_build_local_var(&bldr, var_ts, var_sym->name);
+    var_sym->ir_val = klr_build_local_var(&bldr, var_sym->ts, var_sym->name);
     build_while_let_cond(ps, var_sym, cond, sc->bb, while_body, while_end);
 
     exit_scope(ps);
