@@ -425,6 +425,25 @@ TARGET(OP_CALL) {
         DISPATCH();
     }
 
+    if (flg == 2) {
+        uint32_t index = *pc++;
+        TValue *callable = ks->stack_top;
+        ASSERT(is_intf(callable));
+        IntfTable *itab = callable->itab;
+        ASSERT(index < itab->num_funcs);
+        Object *fn = itab->methods[index];
+        ASSERT(fn);
+        ASSERT(IS_CFUNC(fn) || IS_CODE(fn));
+
+        TValue val = obj_value(fn);
+        TValue ret = kl_do_call(&val, ks->stack_top, imm);
+        if (rd != 0xFFFu) {
+            ASSERT(rd < max_regs);
+            regs[rd] = ret;
+        }
+        DISPATCH();
+    }
+
     int32_t local_index = *(int32_t *)pc++;
     // uint32_t *target_pc = pc + local_index;
     // ASSERT(target_pc < codes + code->cs.code_size);
@@ -1381,6 +1400,23 @@ TARGET(OP_JMP_FLOAT_GE) {
     if (regs[rs].fval >= regs[rt].fval) {
         pc += off;
     }
+    DISPATCH();
+}
+
+TARGET(OP_MAKE_INTF) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    idx = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    TypeObject *tp = kl_typeof(regs + rs);
+    IntfTable *intf_table = vector_get_ptr(&tp->itables, idx);
+    TValue v = regs[rs];
+    v.itab = intf_table;
+    regs[rd] = v;
+
     DISPATCH();
 }
 

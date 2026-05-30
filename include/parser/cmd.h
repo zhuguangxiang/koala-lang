@@ -17,6 +17,7 @@ typedef enum _DumpFlags {
     DUMP_LIR = 1 << 2,
     DUMP_VREG = 1 << 3,
     DUMP_CODE = 1 << 4,
+    DUMP_ITABLE = 1 << 5,
     DUMP_ALL = 0xFFFFFFFF,
 } DumpFlags;
 
@@ -54,6 +55,7 @@ extern CompileOptions cmd_opt;
 #define dump_lir_enabled()       ((cmd_opt.dump & DUMP_LIR) != 0)
 #define dump_vreg_enabled()      ((cmd_opt.dump & DUMP_VREG) != 0)
 #define dump_code_enabled()      ((cmd_opt.dump & DUMP_CODE) != 0)
+#define dump_itable_enabled()    ((cmd_opt.dump & DUMP_ITABLE) != 0)
 
 #ifdef __cplusplus
 }

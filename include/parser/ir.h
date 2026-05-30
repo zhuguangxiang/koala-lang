@@ -34,6 +34,8 @@ typedef enum _KlrValueKind {
     KLR_VALUE_INSN,
     KLR_VALUE_KLASS,
     KLR_VALUE_FIELD,
+    KLR_VALUE_TRAIT,
+    KLR_VALUE_INTF,
     KLR_VALUE_EXT_MODULE,
     KLR_VALUE_EXT_GLOBAL,
     KLR_VALUE_EXT_FUNC,
@@ -287,6 +289,8 @@ typedef struct _KlrModule {
     KlrFunc *init;
     /* klasses */
     Vector klasses;
+    /* traits */
+    Vector traits;
     /* constant map */
     HashMap consts;
     /* constant next available index */
@@ -300,11 +304,30 @@ typedef struct _KlrModule {
 typedef struct _KlrKlass {
     KLR_VALUE_HEAD
     KlrModule *module;
+    /* class index in module */
     int index;
+    /* fields */
     Vector fields;
     /* methods */
     List func_list;
 } KlrKlass;
+
+typedef struct _KlrTrait {
+    KLR_VALUE_HEAD
+    KlrModule *module;
+    /* trait index in module */
+    int index;
+    /* interfaces */
+    Vector intfs;
+} KlrTrait;
+
+typedef struct _klrIntf {
+    KLR_VALUE_HEAD
+    KlrModule *module;
+    KlrTrait *trait;
+    /* intf index in trait */
+    int intf_index;
+} KlrIntf;
 
 typedef struct _KlrFieldInfo {
     int index;
@@ -328,6 +351,12 @@ typedef struct _KlrExtKlass {
     Vector methods;
 } KlrExtKlass;
 
+typedef struct _KlrExtTrait {
+    KLR_VALUE_HEAD
+    KlrExtModule *module;
+    Vector methods;
+} KlrExtTrait;
+
 typedef struct {
     KLR_VALUE_HEAD
     KlrExtModule *module;
@@ -338,6 +367,7 @@ typedef struct _KlrExtFunc {
     KLR_VALUE_HEAD
     KlrExtModule *module;
     KlrExtKlass *klass;
+    KlrExtTrait *trait;
 } KlrExtFunc;
 
 typedef struct _KlrIndexInfo {
@@ -516,6 +546,12 @@ static inline int klr_is_extfunc(KlrValue *val)
     return 0;
 }
 
+static inline int klr_is_intf(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_INTF) return 1;
+    return 0;
+}
+
 int klr_is_immutable(KlrValue *val);
 
 static inline int insn_is_dead(KlrInsn *insn)
@@ -550,6 +586,10 @@ KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut);
 KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name);
 KlrValue *klr_add_field(KlrValue *klass, char *name, TypeSpec *ts);
 KlrValue *klr_add_method(KlrKlass *kls, TypeSpec *ret, char *name);
+
+KlrValue *klr_add_intf(KlrTrait *trait, TypeSpec *ret, char *name);
+KlrValue *klr_add_trait(KlrModule *m, TypeSpec *ts, char *name);
+KlrValue *klr_get_trait(KlrModule *m, char *name);
 
 // ir doesn't check external symbol's type
 KlrExtModule *klr_add_ext_module(KlrModule *m, char *path);
@@ -898,6 +938,36 @@ void klr_print_module(KlrModule *m, FILE *fp);
 
 /* clang-format on */
 
+static inline void set_raw_reg(KlrRawOper *r, int vreg)
+{
+    r->kind = RAW_OPER_REG;
+    r->vreg = vreg;
+}
+
+static inline void set_raw_imm(KlrRawOper *r, int imm)
+{
+    r->kind = RAW_OPER_IMM;
+    r->imm = imm;
+}
+
+static inline void set_raw_const(KlrRawOper *r, int index)
+{
+    r->kind = RAW_OPER_CONST;
+    r->index = index;
+}
+
+static inline void set_raw_block(KlrRawOper *r, KlrBasicBlock *bb)
+{
+    r->kind = RAW_OPER_BLOCK;
+    r->ptr = bb;
+}
+
+static inline void set_raw_func(KlrRawOper *r, KlrValue *fn)
+{
+    r->kind = RAW_OPER_FUNC;
+    r->ptr = fn;
+}
+
 /* Reverse Post Order */
 void klr_build_rpo(KlrFunc *fn);
 
@@ -912,6 +982,9 @@ void klr_build_rpo(KlrFunc *fn);
 KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char *name);
 
 void klr_set_loc(KlrValue *val, char *filename, Loc loc);
+
+KlrValue *klr_build_make_intf(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, int intf_index,
+                              char *name);
 
 KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, char *name);
 KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,

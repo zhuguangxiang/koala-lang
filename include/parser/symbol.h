@@ -23,11 +23,11 @@ typedef enum _SymKind {
     SYM_FUNC,           /* function   */
     SYM_CLASS,          /* class      */
     SYM_TRAIT,          /* trait      */
-    SYM_INTF,           /* interface  */
     SYM_ANONY,          /* anonymous  */
     SYM_TYPE_PARAM,     /* type param */
     SYM_PACKAGE,        /* package    */
     SYM_INSTANCE,       /* instance   */
+    SYM_INHERITED,      /* inherited from trait */
     SYM_SHADOW_VAR,     /* shadow var */
     SYM_MAX,
 } SymKind;
@@ -132,6 +132,17 @@ typedef struct _FuncSymbol {
     int code_index;
 } FuncSymbol;
 
+typedef struct _IntfEntry {
+    /* key */
+    Symbol *trait;
+    /* all methods(self + inherited) */
+    Vector methods;
+    /* self index in intf_table */
+    int index;
+    /* upcast parents */
+    Vector parents;
+} IntfEntry;
+
 typedef struct _KlassSymbol {
     SYMBOL_HEAD
     /* type params */
@@ -142,8 +153,6 @@ typedef struct _KlassSymbol {
     Vector *fields;
     /* functions */
     Vector *funcs;
-    /* protos */
-    Vector *protos;
     /* instance type */
     TypeSpec *instance_ts;
     /* primary inheritance path */
@@ -152,8 +161,12 @@ typedef struct _KlassSymbol {
     Vector lro;
     /* second chain map */
     Vector scm;
+    /* interface table */
+    Vector intf_table;
     /* __init__ function */
     Symbol *__init__;
+    /* klc entry */
+    void *klc_entry;
 } KlassSymbol;
 
 typedef struct _PkgSymbol {
@@ -173,6 +186,11 @@ typedef struct _InstanceSymbol {
     /* instance bases */
     Vector *bases;
 } InstanceSymbol;
+
+typedef struct _InheritedFunc {
+    SYMBOL_HEAD
+    FuncSymbol *origin;
+} InheritedFunc;
 
 static inline int __symbol_equal__(Symbol *s1, Symbol *s2) { return !strcmp(s1->name, s2->name); }
 
@@ -196,6 +214,7 @@ void free_all_symbols(void);
 Symbol *stbl_add(HashMap *stbl, Symbol *sym);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, int flags);
+Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym);
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);
@@ -224,6 +243,10 @@ Example: LUB([int, float, int]) -> number
 TypeSpec *find_lub(Vector *types);
 
 static inline int is_magic_func(FuncSymbol *sym) { return (sym->flags & SYM_FLAGS_MAGIC) != 0; }
+
+void build_intf_table(HashMap *stbl);
+void dump_intf_table(HashMap *stbl);
+int get_intf_index(Symbol *sym, TypeSpec *trait_ts);
 
 #ifdef __cplusplus
 }

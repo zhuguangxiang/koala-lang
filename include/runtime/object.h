@@ -37,7 +37,7 @@ typedef struct _Object {
 typedef struct _TValue {
     union {
         uintptr_t tag; // primitive tag OR reference marker
-        void *itbl;    // itable for traits
+        void *itab;    // itable for traits
     };
     union {
         int64_t ival; // integer payload
@@ -97,7 +97,6 @@ typedef struct _TValue {
 
 /* Primitive vs reference */
 #define is_val(x)  ((x)->tag < TAG_VAL_MAX)
-#define is_obj(x)  ((x)->tag == TAG_OBJECT)
 #define is_intf(x) ((x)->tag > TAG_OBJECT)
 #define is_ref(x)  ((x)->tag >= TAG_OBJECT)
 
@@ -149,9 +148,7 @@ typedef struct _TValue {
 // #define to_bfloat16(v) ({ ASSERT(is_bfloat16(v)); (v)->fval; })
 
 /* Reference */
-#define to_obj(v)      ({ ASSERT(is_obj(v)); (v)->obj; })
-#define to_intf(v)     ({ ASSERT(is_intf(v)); (v)->obj; })
-#define to_ref(v)      ({ ASSERT(is_ref(v)); (v)->obj; })
+#define to_obj(v)      ({ ASSERT(is_ref(v)); (v)->obj; })
 
 /* clang-format on */
 
@@ -246,6 +243,14 @@ typedef enum {
     SLOT_MAX
 } SlotId;
 
+typedef struct _IntfTable {
+    char *name;
+    int num_funcs;
+    int num_parents;
+    Object **methods;
+    struct _IntfTable **parents;
+} IntfTable;
+
 #define TP_FLAGS_CLASS  (1 << 0)
 #define TP_FLAGS_TRAIT  (1 << 1)
 #define TP_FLAGS_PUBLIC (1 << 2)
@@ -254,32 +259,8 @@ typedef enum {
 typedef struct _TypeObject {
     OBJECT_HEAD
 
-    /**
-     * itable_entry: The magic anchor for interface dispatch and navigation.
-     *
-     * This is a "vptr" pointing to a specific entry point within a virtual
-     * table block. It acts as the functional "View" for a given Trait.
-     *
-     * 1. Layout Structure:
-     *    - Positive offsets [0, +N]: Method pointers for O(1) direct dispatch.
-     *    - Negative offsets [-1, -M]: Navigation pointers (Entry Pointers) to
-     *      parent itables for O(1) up-casting.
-     *
-     * 2. Optimization Strategy (The Koala Way):
-     *    - PIP (Primary Inheritance Path): For single inheritance or the main
-     *      branch of multi-inheritance, these traits share the SAME itable_entry
-     *      physical address. Up-casting along the PIP is a zero-cost NO-OP
-     *      (Value-equivalent IR).
-     *    - SCM (Side-path): For traits with layout conflicts (discontinuous LRO),
-     *      this points to a specialized "Patch View" where method pointers are
-     *      re-ordered to satisfy the Trait's ABI.
-     *
-     * 3. Performance for Standard Libraries:
-     *    Since most Koala stdlib traits follow single inheritance, they naturally
-     *    fall into the PIP. This ensures that most trait operations incur
-     *    ZERO overhead for pointer adjustment, behaving like static calls.
-     */
-    void **itable_entry;
+    /* Interface tables */
+    Vector itables;
 
     /* Type name */
     char *name;

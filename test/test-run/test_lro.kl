@@ -1,0 +1,45 @@
+// RUN: koala %s --dump=itable | filecheck %s
+
+trait A {}
+trait E {}
+trait F {}
+
+trait B : A & F {}
+trait C : A & E {}
+class D : B & C & A & E {}
+
+
+// CHECK-LABEL: --- Intf-Table of class D ---
+
+// CHECK: [0] any
+// CHECK:       methods:
+// CHECK:       parents:
+
+// CHECK: [1] A
+// CHECK:       methods:
+// CHECK:       parents:
+// CHECK:         [0] any
+
+// CHECK: [2] F
+// CHECK:       methods:
+// CHECK:       parents:
+// CHECK:         [0] any
+
+// CHECK: [3] B
+// CHECK:       methods:
+// CHECK:       parents:
+// CHECK:         [0] any
+// CHECK:         [1] A
+// CHECK:         [2] F
+
+// CHECK: [4] E
+// CHECK:       methods:
+// CHECK:       parents:
+// CHECK:         [0] any
+
+// CHECK: [5] C
+// CHECK:       methods:
+// CHECK:       parents:
+// CHECK:         [0] any
+// CHECK:         [1] A
+// CHECK:         [2] E

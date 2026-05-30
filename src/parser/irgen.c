@@ -16,6 +16,42 @@ extern "C" {
 #define CURRENT_FUNC ((KlrValue *)ps->scope->bb->func)
 #define METHOD_SELF  (((KlrFunc *)CURRENT_FUNC)->self)
 
+// obj: class or trait type
+// ts: trait type
+static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec *ts, char *name)
+{
+    KlrBuilder bldr;
+
+    // 1. the same type, no cast needed
+    if (ts == obj->ts) return NULL;
+
+    Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
+    Symbol *obj_sym = get_symbol_by_id(obj->ts->sym_id);
+
+    // 2. no symbol found, optional type, no cast needed
+    if (!ts_sym || !obj_sym) return NULL;
+
+    // 3. if ts is an instance, use its origin for upcast
+    if (ts_sym->kind == SYM_INSTANCE) {
+        ts_sym = ((InstanceSymbol *)ts_sym)->origin;
+        ts = ((KlassSymbol *)ts_sym)->instance_ts;
+    }
+
+    // 4. only support class/trait -> trait upcast for now
+    if (ts_sym->kind != SYM_TRAIT) return NULL;
+
+    if (obj_sym->kind == SYM_CLASS) {
+        klr_builder_end(&bldr, ps->scope->bb);
+        int intf_index = get_intf_index(obj_sym, ts);
+        return klr_build_make_intf(&bldr, obj, ts, intf_index, name);
+    } else if (obj_sym->kind == SYM_TRAIT) {
+        // TODO: support trait -> trait upcast
+        NYI();
+    } else {
+        return NULL;
+    }
+}
+
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp);
 
 static void emit_ir_ident(ParserState *ps, Expr *exp)
@@ -333,6 +369,21 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
     return ret;
 }
 
+static void update_call_args(ParserState *ps, KlrValue **args, int nargs, TypeSpec *proto_ts)
+{
+    ASSERT(proto_ts->kind == TYPE_PROTO);
+    Vector *proto_args = proto_ts->proto_type.args;
+    int proto_nargs = vector_size(proto_args);
+    ASSERT(proto_nargs == nargs);
+
+    for (int i = 0; i < nargs; i++) {
+        KlrValue *arg = args[i];
+        TypeSpec *param_ts = vector_at(proto_args, i);
+        KlrValue *casted_arg = _build_obj_intf_upcast(ps, arg, param_ts, "");
+        if (casted_arg) args[i] = casted_arg;
+    }
+}
+
 static void emit_ir_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
@@ -402,6 +453,9 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
         KlrValue *init_fn = _sym->ir_val;
         ret = emit_type_call(ps, callee, init_fn, ir_args, size);
     } else {
+        // normal call, try to build interface cast
+        update_call_args(ps, ir_args, size, lhs->ts);
+
         KlrValue *self = lhs->arg;
         if (self) {
             // method call
@@ -504,21 +558,28 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
     if (sym->kind == SYM_FUNC) {
         if (exp->ctx == EXPR_CTX_CALL) {
             if (!sym->ir_val) {
-                ASSERT(sym->flags & SYM_FLAGS_EXT);
+                // ASSERT(sym->flags & SYM_FLAGS_EXT);
                 Symbol *_sym = sym->parent;
                 if (_sym->kind == SYM_INSTANCE) {
                     InstanceSymbol *inst_sym = (InstanceSymbol *)_sym;
                     Symbol *origin = inst_sym->origin;
-                    ASSERT(origin->flags & SYM_FLAGS_EXT);
-                    KlrValue *_val = origin->ir_val;
-                    if (!_val) {
-                        _val = klr_add_ext_klass(MOD, origin->path, inst_sym->instance_ts,
-                                                 origin->name);
-                        origin->ir_val = _val;
+                    if (origin->flags & SYM_FLAGS_EXT) {
+                        KlrValue *_val = origin->ir_val;
+                        if (!_val) {
+                            _val = klr_add_ext_klass(MOD, origin->path, inst_sym->instance_ts,
+                                                     origin->name);
+                            origin->ir_val = _val;
+                        }
+                        ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
+                        KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
+                        exp->ir_val =
+                            klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
+                    } else {
+                        Symbol *_sym = stbl_get(origin->stbl, sym->name);
+                        ASSERT(_sym && (_sym->kind == SYM_FUNC || _sym->kind == SYM_INHERITED));
+                        ASSERT(_sym->ir_val);
+                        exp->ir_val = _sym->ir_val;
                     }
-                    ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
-                    KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
-                    exp->ir_val = klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
                 } else {
                     ASSERT(_sym->kind == SYM_CLASS);
                     KlassSymbol *kls_sym = (KlassSymbol *)_sym;
@@ -977,8 +1038,12 @@ static void emit_ir_var_decl(ParserState *ps, Stmt *stmt)
         } else {
             sym->ir_val = klr_build_local(&bldr, sym->ts, var->id.name);
         }
+
         if (exp) {
-            klr_build_move(&bldr, sym->ir_val, exp->ir_val);
+            KlrValue *_val = _build_obj_intf_upcast(ps, exp->ir_val, sym->ts, "");
+            if (!_val) _val = exp->ir_val;
+            klr_builder_end(&bldr, ps->scope->bb);
+            klr_build_move(&bldr, sym->ir_val, _val);
         }
     } else if (sym->scope == VAR_SCOPE_FIELD) {
         NYI();
@@ -1005,8 +1070,10 @@ static void emit_ir_fields(ParserState *ps, ParserScope *scope, Vector *fields)
             ASSERT(var_sym->ir_val);
             KlrValue *self = METHOD_SELF;
             ASSERT(self);
+            KlrValue *_val = _build_obj_intf_upcast(ps, e->ir_val, var_sym->ts, "");
+            if (!_val) _val = e->ir_val;
             klr_builder_end(&bldr, scope->bb);
-            klr_build_set_field(&bldr, self, var_sym->ir_val, e->ir_val);
+            klr_build_set_field(&bldr, self, var_sym->ir_val, _val);
         }
     }
 }
@@ -1127,16 +1194,21 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     TypeSpec *fn_ret_ts = fn_sym->ret;
 
     KlrBuilder bldr;
+    KlrValue *ret_ir_val = _build_obj_intf_upcast(ps, exp->ir_val, fn_ret_ts, "");
+
     klr_builder_end(&bldr, ps->scope->bb);
 
-    KlrValue *cast = exp->ir_val;
-    TypeSpec *cast_ts = cast->ts;
-    if (cast_ts != fn_ret_ts) {
-        if (!type_is_optional(fn_ret_ts)) {
-            cast = klr_build_cast(&bldr, cast, fn_ret_ts, "");
+    if (!ret_ir_val) {
+        KlrValue *cast = exp->ir_val;
+        ret_ir_val = cast;
+        if (cast->ts != fn_ret_ts) {
+            if (!type_is_optional(fn_ret_ts)) {
+                ret_ir_val = klr_build_cast(&bldr, cast, fn_ret_ts, "");
+            }
         }
     }
-    klr_build_ret(&bldr, cast);
+
+    klr_build_ret(&bldr, ret_ir_val);
 
     // add a dead block after return to avoid generating code after return
     // ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
@@ -1964,6 +2036,41 @@ static void _add_klass(KlrModule *m, KlassDeclStmt *kls)
     sym->ir_val = kval;
 }
 
+static void _add_intf(KlrTrait *trait, FuncSymbol *sym)
+{
+    KlrValue *fval = klr_add_intf(trait, sym->ret, sym->name);
+    sym->ir_val = fval;
+}
+
+static void _add_inherited_intf(KlrTrait *trait, InheritedFunc *sym)
+{
+    FuncSymbol *origin = sym->origin;
+    KlrValue *fval = klr_add_intf(trait, origin->ret, origin->name);
+    sym->ir_val = fval;
+}
+
+static void _add_trait(KlrModule *m, KlassDeclStmt *kls)
+{
+    Ident *id = &kls->id;
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+    KlrValue *kval = klr_add_trait(m, sym->instance_ts, id->name);
+
+    Symbol *s;
+    vector_foreach(s, sym->funcs) {
+        if (!s) continue;
+        if (s->kind == SYM_FUNC) {
+            _add_intf((KlrTrait *)kval, (FuncSymbol *)s);
+        } else if (s->kind == SYM_INHERITED) {
+            InheritedFunc *inherited = (InheritedFunc *)s;
+            _add_inherited_intf((KlrTrait *)kval, inherited);
+        } else {
+            UNREACHABLE();
+        }
+    }
+
+    sym->ir_val = kval;
+}
+
 void kl_gen_ir(ParserModule *pm)
 {
     KlrModule *m = klr_create_module(pm->path);
@@ -1986,9 +2093,12 @@ void kl_gen_ir(ParserModule *pm)
             } else if (s->kind == STMT_FUNC_KIND) {
                 FuncDeclStmt *fn = (FuncDeclStmt *)s;
                 _add_func(m, fn);
-            } else if (s->kind == STMT_CLASS_KIND || s->kind == STMT_TRAIT_KIND) {
+            } else if (s->kind == STMT_CLASS_KIND) {
                 KlassDeclStmt *kls = (KlassDeclStmt *)s;
                 _add_klass(m, kls);
+            } else if (s->kind == STMT_TRAIT_KIND) {
+                KlassDeclStmt *kls = (KlassDeclStmt *)s;
+                _add_trait(m, kls);
             } else {
                 // do nothing
             }

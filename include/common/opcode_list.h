@@ -1430,7 +1430,8 @@ X(OP_JMP_FLOAT_GE, FORMAT_RROff)
  *
  *         flag = 0  →  direct call within the same module
  *         flag = 1  →  external function call (import-index)
- *         flag = 2  →  interface method call (intf-id + method-slot)
+ *         flag = 2  →  interface method call (the same module)
+ *         flag = 3  →  interface method call (external, import-index)
  *
  *     The second 32-bit word (payload) is interpreted differently
  *     depending on the flag:
@@ -1817,21 +1818,67 @@ X(OP_MOVE_TRUE, FORMAT_RRR)
  +---------------------------------------------------------------*/
 
 /**
- * OP_CAST_INTF — cast object to interface
+ * OP_MAKE_INTF — cast object to interface
  *
- * FORMAT_ABC:
- *     | op:8 | A(dst):8 | B(obj):8 | C(intf-id):8 |
+ * FORMAT_RRImm:
+ *     | op:8 | dst:8 | src:8 | intf-index: 8 |
  *
  * Details:
  *     Attempts to cast object 'obj' to the interface identified by
- *     intf-id. If the object's TypeInfo implements the interface,
- *     the cast succeeds and dst = obj. Otherwise, an exception is
- *     raised (same semantics as OP_RAISE).
+ *     intf-table-index. No error happens.
  *
- *     intf-id refers to a compile-time assigned interface index
- *     within the module's TypeInfo table.
+ *     R[dst] receives a new interface object constructed from the
+ *     impl-entry of 'obj' that implements the target interface.
  */
-X(OP_CAST_INTF, FORMAT_Op)
+X(OP_MAKE_INTF, FORMAT_RRImm)
+
+/**
+ * OP_UPCAST — upcast interface to a parent interface
+ *
+ * FORMAT_RRImm:
+ *     | op:8 | dst:8 | src:8 | parent-index:8 |
+ *
+ * Details:
+ *     Produces a new interface in 'dst' by selecting the parent
+ *     interface implementation entry from:
+ *
+ *         src.impl_entry.parents[parent-index]
+ *
+ *     This is a purely structural upcast inside the impl-entry tree.
+ *     No error happens.
+ *
+ * Notes:
+ *    - parent-index is an 8-bit offset into impl-entry.parents[].
+ */
+X(OP_UPCAST, FORMAT_RRImm)
+
+/**
+ * OP_DOWNCAST — cast interface to a concrete class or another interface
+ *
+ * FORMAT_Op:
+ *     | op:8 | dst:12 | src:12 |
+ *     |  type-index:32         |
+ *
+ * Details:
+ *     Attempts to cast the interface-object 'src' to the target type
+ *     identified by type-index (index into IRModule.type_table).
+ *
+ *     If the target is a class:
+ *         - succeeds only if src.impl_entry.klass == target-class
+ *         - dst receives the underlying class-object
+ *
+ *     If the target is a trait:
+ *         - succeeds only if the underlying class implements the trait
+ *         - dst receives a new interface constructed from the
+ *           corresponding impl-entry
+ *
+ *     Otherwise, the operation traps.
+ *
+ * Notes:
+ *     - CHECKED OP (may trap).
+ *     - type-index is a global index (16/32 bits recommended).
+ */
+X(OP_DOWNCAST, FORMAT_Op)
 
 /*---------------------------------------------------------------+
  |  Sequence Instructions                                        |

@@ -1,0 +1,110 @@
+// RUN: koala %s | filecheck %s
+
+trait Debug {
+    func show()
+}
+
+trait Flyable[T] : Debug {
+    func fly() T
+}
+
+trait Walkable {
+    func walk() str
+}
+
+class Foo : Flyable[str] & Walkable {
+
+    let debug Debug = Bar(10, 20)
+
+    func fly() str {
+        return "Flying!"
+    }
+
+    func walk() str {
+        print(fly())
+        debug.show()
+        return "Walking!"
+    }
+
+    func show() {
+        print("This is a Foo instance.")
+    }
+}
+
+func show_debug_info(d Debug) {
+    d.show()
+}
+
+class Bar : Debug {
+    var x int
+    var y int
+
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    func show() {
+        print(x, y)
+    }
+}
+
+func new_foo() Foo {
+    return Foo()
+}
+
+func new_debug() Debug {
+    return Bar(3, 4)
+}
+
+func main() {
+    var bar = Bar(1, 2)
+    bar.show()
+
+    var foo = Foo()
+    foo.show()
+
+    let s Debug = bar
+    s.show()
+
+    let f Walkable = foo
+    print(f.walk())
+
+    show_debug_info(s)
+    show_debug_info(foo)
+
+    var f2 Flyable[str] = Foo()
+    print(f2.fly())
+    f2.show()
+
+    var d Debug = new_foo()
+    d.show()
+
+    d = new_debug()
+    d.show()
+}
+
+// CHECK: 1 2
+// CHECK: This is a Foo instance.
+// CHECK: 1 2
+// CHECK: Flying!
+// CHECK: 10 20
+// CHECK: Walking!
+// CHECK: 1 2
+// CHECK: This is a Foo instance.
+// CHECK: Flying!
+// CHECK: This is a Foo instance.
+// CHECK: This is a Foo instance.
+// CHECK: 3 4
+
+/*
+trait Fly {
+    func fly()
+}
+
+impl Fly for Point {
+    func fly() {
+        print("Point is flying")
+    }
+}
+*/

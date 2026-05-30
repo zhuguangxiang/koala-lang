@@ -15,7 +15,7 @@ extern "C" {
 
 static void print_value(TValue *val)
 {
-    if (is_obj(val)) {
+    if (is_ref(val)) {
         Object *obj = to_obj(val);
         if (IS_STR(obj)) {
             printf("%s", STR_BUF(obj));

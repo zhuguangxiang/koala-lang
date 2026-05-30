@@ -4,23 +4,7 @@
  */
 
 /// The 'any' trait is the root of the Koala type hierarchy.
-/// Every class and trait in the system implicitly or explicitly inherits from 'any'.
-/// It provides core methods for object identity, hashing, and representation.
-pub trait any {
-    /// Return a hash value for the object.
-    /// Used by hashed collections like 'dict' and 'HashSet'.
-    /// The default implementation typically returns an integer based on the object's identity.
-    @native(kl_any_hash)
-    func __hash__() int {}
-
-    /// Return True if this object is equal to the other object, False otherwise.
-    /// The default implementation uses reference equality (identity).
-    /// Objects that compare equal should also have the same hash value.
-    @native(kl_any_eq)
-    func __eq__(rhs any) bool {}
-
-    /// Return a string representation of the object.
-    /// This is typically used for debugging or printing.
-    @native(kl_any_str)
-    func __str__() str {}
-}
+/// Every class and trait implicitly inherits from 'any'.
+/// It defines no methods and imposes no behavioral requirements.
+/// It exists solely as the universal supertype for all Koala values.
+pub trait any {}

@@ -162,7 +162,7 @@ void bytecode_print(uint8_t *code, size_t start, size_t count)
                     } else if (flag == 1) {
                         printf("(import_index=%d)", (int)insn);
                     } else if (flag == 2) {
-                        NYI();
+                        printf("(intf_slot=%d)", (int)insn);
                     }
                 }
                 break;

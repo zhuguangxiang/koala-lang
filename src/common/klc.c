@@ -484,16 +484,22 @@ KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags)
     vector_init(&kls->lro, sizeof(uint16_t));
     vector_init_ptr(&kls->fields);
     vector_init_ptr(&kls->methods);
+    vector_init_ptr(&kls->intf_table);
+
     void *empty = NULL;
     vector_push_back(&kls->tps, &empty);
     vector_push_back(&kls->anns, &empty);
     vector_push_back(&kls->fields, &empty);
     vector_push_back(&kls->methods, &empty);
+    vector_push_back(&kls->intf_table, &empty);
+
     uint16_t _empty = 0;
     vector_push_back(&kls->bases, &_empty);
     vector_push_back(&kls->pip, &_empty);
     vector_push_back(&kls->lro, &_empty);
-    vector_push_back(klc->objs + ITEM_CLASS, &kls);
+
+    Vector *kls_objs = klc->objs + ITEM_CLASS;
+    vector_push_back(kls_objs, &kls);
     return kls;
 }
 
@@ -534,6 +540,17 @@ KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *type, int flags)
     var->const_index = 0;
     vector_push_back(&kls->fields, &var);
     return var;
+}
+
+KlcIntfEntry *klc_klass_add_intf_entry(KlcKlass *kls)
+{
+    KlcFile *klc = kls->filp;
+    KlcIntfEntry *entry = mm_alloc_obj(entry);
+    entry->name_index = 0;
+    vector_init(&entry->methods, sizeof(uint16_t));
+    vector_init(&entry->parents, sizeof(uint16_t));
+    vector_push_back(&kls->intf_table, &entry);
+    return entry;
 }
 
 static FILE *open_klc_file(const char *path, char *mode)
@@ -783,6 +800,38 @@ static void write_funcs(KlcFile *klc, Vector *vec)
     }
 }
 
+static void write_intf_table(KlcFile *klc, Vector *vec)
+{
+    int size = vector_size(vec) - 1;
+    ASSERT(size >= 0);
+    write_uint16(klc, (uint16_t)size);
+
+    KlcIntfEntry *item;
+    vector_foreach(item, vec) {
+        if (!item) continue;
+
+        write_uint16(klc, item->name_index);
+
+        int msize = vector_size(&item->methods);
+        ASSERT(msize >= 0);
+        write_uint16(klc, (uint16_t)msize);
+
+        uint16_t mitem;
+        vector_foreach(mitem, &item->methods) {
+            write_uint16(klc, mitem);
+        }
+
+        int psize = vector_size(&item->parents);
+        ASSERT(psize >= 0);
+        write_uint16(klc, (uint16_t)psize);
+
+        uint16_t pitem;
+        vector_foreach(pitem, &item->parents) {
+            write_uint16(klc, pitem);
+        }
+    }
+}
+
 static void write_classes(KlcFile *klc, Vector *vec)
 {
     size_t size = vector_size(vec) - 1;
@@ -798,6 +847,7 @@ static void write_classes(KlcFile *klc, Vector *vec)
         write_lro(klc, &item->lro);
         write_vars(klc, &item->fields);
         write_funcs(klc, &item->methods);
+        write_intf_table(klc, &item->intf_table);
     }
 }
 
@@ -1126,6 +1176,38 @@ static void read_lro(KlcFile *klc, Vector *vec)
     }
 }
 
+static void read_intf_table(KlcFile *klc, Vector *vec)
+{
+    int size = 0;
+    read_uint16(klc, (uint16_t *)&size);
+
+    KlcIntfEntry *entry;
+    for (int i = 0; i < size; i++) {
+        entry = mm_alloc_obj(entry);
+        vector_init(&entry->methods, sizeof(uint16_t));
+        vector_init(&entry->parents, sizeof(uint16_t));
+        vector_push_back(vec, &entry);
+
+        read_uint16(klc, &entry->name_index);
+
+        int msize = 0;
+        read_uint16(klc, (uint16_t *)&msize);
+        for (int j = 0; j < msize; j++) {
+            uint16_t method_index = 0;
+            read_uint16(klc, &method_index);
+            vector_push_back(&entry->methods, &method_index);
+        }
+
+        int psize = 0;
+        read_uint16(klc, (uint16_t *)&psize);
+        for (int j = 0; j < psize; j++) {
+            uint16_t parent_index = 0;
+            read_uint16(klc, &parent_index);
+            vector_push_back(&entry->parents, &parent_index);
+        }
+    }
+}
+
 static void read_funcs(KlcFile *klc, Vector *vec)
 {
     int size = 0;
@@ -1167,6 +1249,8 @@ static void read_classes(KlcFile *klc, Vector *vec)
         vector_init(&kls->lro, sizeof(uint16_t));
         vector_init_ptr(&kls->fields);
         vector_init_ptr(&kls->methods);
+        vector_init_ptr(&kls->intf_table);
+
         vector_push_back(vec, &kls);
 
         read_uint16(klc, &kls->flags);
@@ -1177,6 +1261,7 @@ static void read_classes(KlcFile *klc, Vector *vec)
         vector_push_back(&kls->anns, &empty);
         vector_push_back(&kls->fields, &empty);
         vector_push_back(&kls->methods, &empty);
+        vector_push_back(&kls->intf_table, &empty);
 
         uint16_t _empty = 0;
         vector_push_back(&kls->bases, &_empty);
@@ -1190,6 +1275,7 @@ static void read_classes(KlcFile *klc, Vector *vec)
         read_lro(klc, &kls->lro);
         read_vars(klc, &kls->fields);
         read_funcs(klc, &kls->methods);
+        read_intf_table(klc, &kls->intf_table);
     }
 }
 
@@ -1399,6 +1485,7 @@ static void fini_klass(KlcKlass *kls)
     vector_fini(&kls->bases);
     vector_fini(&kls->pip);
     vector_fini(&kls->lro);
+    vector_fini(&kls->intf_table);
 
     KlcVar *field;
     vector_foreach(field, &kls->fields) {

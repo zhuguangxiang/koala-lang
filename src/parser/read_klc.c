@@ -318,6 +318,12 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
     };
     add_stage_2_fixup_entry(&proto_entry, ctx);
 
+    if (kls_sym) {
+        vector_push_back(kls_sym->funcs, &sym);
+    }
+
+    log_info("loaded function '%s' for class '%s'\n", sym->name,
+             kls_sym ? kls_sym->name : "<module>");
     sym->status = SYM_RESOLVED;
 }
 

@@ -176,6 +176,27 @@ static TypeSpec *_type_type_spec(void)
     return ts;
 }
 
+static void build_class_types(HashMap *stbl)
+{
+    TypeSpec *type_ts = type_type_spec();
+    TypeSpec *ts;
+
+    HashMapIter it = { 0 };
+    while (hashmap_next(stbl, &it)) {
+        Symbol *sym = (Symbol *)it.entry;
+        if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) continue;
+        if (sym->ts) continue; // already built
+
+        ts = klass_type_spec(NULL, sym->name);
+        ts->sym_id = sym->id;
+
+        sym->ts = type_ts;
+        ((KlassSymbol *)sym)->instance_ts = ts;
+        log_debug("build class type '%s' for symbol '%s', %p\n", ts->klass_type.name, sym->name,
+                  ts);
+    }
+}
+
 void install_builtin_types(HashMap *stbl)
 {
     // Update builtin type specs with the provided symbol table
@@ -343,6 +364,8 @@ void install_builtin_types(HashMap *stbl)
         sym->ts = type_ts;
         sym->instance_ts = ts;
     }
+
+    build_class_types(stbl);
 
     vector_foreach(ts, &type_list) {
         if (!ts) continue;
@@ -739,7 +762,7 @@ int type_is_some_klass(TypeSpec *ts, char *name)
 {
     if (ts->kind != TYPE_KLASS) return 0;
     Symbol *sym = get_symbol_by_id(ts->sym_id);
-    if (sym->kind == SYM_CLASS) {
+    if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
         KlassSymbol *klass_sym = (KlassSymbol *)sym;
         return !strcmp(klass_sym->name, name);
     } else {

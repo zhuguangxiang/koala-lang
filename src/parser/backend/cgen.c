@@ -1121,7 +1121,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
             mi->opers[1] = get_mach_oper(insn, op0);
             mi->opers[2] = get_mach_oper(insn, op1);
             void *ptr = get_mach_oper_ptr(insn, op2);
-            ASSERT(klr_is_func(ptr) || klr_is_extfunc(ptr));
+            ASSERT(klr_is_func(ptr) || klr_is_extfunc(ptr) || klr_is_intf(ptr));
             KlrFunc *fn = (KlrFunc *)ptr;
 
             if (klr_is_extfunc(ptr)) {
@@ -1146,6 +1146,16 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 vector_push_back(&m->fixups, &mi);
                 mi->fixup_flag = KL_MACH_FIXUP_IMPORT;
                 mi->opers[0] = 1; // set flag for external function
+            } else if (klr_is_intf(ptr)) {
+                log_info("  call target: (interface method)");
+                mi->intf_index = ((KlrIntf *)ptr)->intf_index;
+                // insert 4 bytes: slot-id or import-index
+                KlMachBlock *mb = mi->bb;
+                KlMachInsn *data = build_data_mach_insn(mb);
+                vector_push_back(&mb->insns, &data);
+                vector_push_back(&m->fixups, &mi);
+                mi->fixup_flag = KL_MACH_FIXUP_INTFID;
+                mi->opers[0] = 2; // set flag for local interface function
             } else {
                 mi->target_fn = fn->mach;
                 ASSERT(fn->mach != NULL);
@@ -1647,8 +1657,7 @@ static void patch_fixups(KlMachModule *m)
 
                 log_info("  patched position at pc %d with local index %d", payload_pc,
                          local_index);
-            } else {
-                ASSERT(mi->fixup_flag == KL_MACH_FIXUP_IMPORT);
+            } else if (mi->fixup_flag == KL_MACH_FIXUP_IMPORT) {
                 ASSERT(mi->format == FORMAT_CALL);
                 ASSERT(mi->import_index >= 0);
                 // the following DATA insn
@@ -1657,6 +1666,13 @@ static void patch_fixups(KlMachModule *m)
                 *patch = mi->import_index;
                 log_info("fixup call '%s' at pc %d(import), with import index %d",
                          mi->origin->bb->func->name, payload_pc, mi->import_index);
+            } else {
+                ASSERT(mi->fixup_flag == KL_MACH_FIXUP_INTFID);
+                ASSERT(mi->format == FORMAT_CALL);
+                // the following DATA insn
+                int payload_pc = mi->pc + 1;
+                int *patch = (int *)codes->data + payload_pc;
+                *patch = mi->intf_index; // slot-id or import-index
             }
         } else {
             UNREACHABLE();

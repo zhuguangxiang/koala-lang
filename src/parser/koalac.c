@@ -49,6 +49,7 @@ static void usage(void)
         "                       lir       - LIR (after isel/regalloc)\n"
         "                       vreg      - dump virtual register info\n"
         "                       code      - codegen output\n"
+        "                       itable    - dump interface table\n"
         "                       all       - dump all stages\n"
         "  -v, --version    Print koalac version.\n"
         "  -h, --help       Print this message.\n"
@@ -119,6 +120,8 @@ static DumpFlags parse_dump_flags(const char *s)
             flags |= DUMP_VREG;
         else if (str_equal(tok, "code"))
             flags |= DUMP_CODE;
+        else if (str_equal(tok, "itable"))
+            flags |= DUMP_ITABLE;
         else if (str_equal(tok, "all"))
             flags |= DUMP_ALL;
 
@@ -424,6 +427,10 @@ static void compile(ParserModule *pm)
     }
 
     if (errors > 0) return;
+
+    if (!is_build_stdlib()) {
+        build_intf_table(pm->stbl);
+    }
 
     if (genir_enabled()) kl_gen_ir(pm);
 

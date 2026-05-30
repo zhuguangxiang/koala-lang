@@ -68,6 +68,11 @@ static void __free_inner_stbl(Symbol *sym)
             ASSERT(!sym->stbl);
             break;
         }
+        case SYM_INHERITED: {
+            // nothing
+            ASSERT(!sym->stbl);
+            break;
+        }
         default: {
             UNREACHABLE();
             break;
@@ -109,11 +114,11 @@ static void __symbol_free(Symbol *sym)
             vector_fini(&kls->bases);
             vector_destroy(kls->fields);
             vector_destroy(kls->funcs);
-            vector_destroy(kls->protos);
 
             vector_fini(&kls->pip);
             vector_fini(&kls->lro);
             vector_fini(&kls->scm);
+            vector_fini(&kls->intf_table);
 
             ASSERT(!sym->stbl);
             break;
@@ -135,6 +140,11 @@ static void __symbol_free(Symbol *sym)
             break;
         }
         case SYM_SHADOW_VAR: {
+            // nothing
+            ASSERT(!sym->stbl);
+            break;
+        }
+        case SYM_INHERITED: {
             // nothing
             ASSERT(!sym->stbl);
             break;
@@ -252,6 +262,26 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, 
     return (Symbol *)sym;
 }
 
+Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym)
+{
+    ASSERT(sym->kind == SYM_FUNC);
+    FuncSymbol *origin = (FuncSymbol *)sym;
+    InheritedFunc *inherited = mm_alloc_obj(inherited);
+    hashmap_entry_init(inherited, str_hash(origin->name));
+    inherited->kind = SYM_INHERITED;
+    inherited->name = atom(origin->name);
+
+    if (hashmap_put_absent(stbl, inherited) < 0) {
+        mm_free(inherited);
+        inherited = NULL;
+    } else {
+        inherited->origin = origin;
+        add_to_global(inherited);
+    }
+
+    return (Symbol *)inherited;
+}
+
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait)
 {
     KlassSymbol *sym = mm_alloc_obj(sym);
@@ -265,7 +295,6 @@ KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait)
     } else {
         sym->fields = vector_create_ptr();
         sym->funcs = vector_create_ptr();
-        sym->protos = vector_create_ptr();
         sym->flags = flags;
         sym->stbl = stbl_new();
         vector_init_ptr(&sym->tps);
@@ -273,6 +302,7 @@ KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait)
         vector_init_ptr(&sym->pip);
         vector_init_ptr(&sym->lro);
         vector_init_ptr(&sym->scm);
+        vector_init_ptr(&sym->intf_table);
         add_to_global(sym);
     }
 
@@ -569,6 +599,141 @@ void stbl_show(HashMap *stbl)
                 break;
             }
         }
+    }
+}
+
+static IntfEntry *get_intf_entry(Vector *intfs, Symbol *trait_sym)
+{
+    IntfEntry *entry;
+    vector_foreach(entry, intfs) {
+        if (entry->trait == trait_sym) return entry;
+    }
+    return NULL;
+}
+
+static void build_class_intf_table(Symbol *sym)
+{
+    ASSERT(sym->kind == SYM_CLASS);
+
+    KlassSymbol *kls = (KlassSymbol *)sym;
+    if (vector_empty(&kls->bases)) return;
+
+    log_info("building interface table for class '%s'", sym->name);
+
+    Vector *intfs = &kls->intf_table;
+    TypeSpec *ts;
+    vector_foreach(ts, &kls->lro) {
+        Symbol *_sym = get_symbol_by_id(ts->sym_id);
+        if (_sym->kind != SYM_TRAIT) continue;
+        log_info("add interface '%s' to class '%s'", _sym->name, sym->name);
+        IntfEntry *entry = mm_alloc_obj(entry);
+        entry->trait = _sym;
+        vector_init_ptr(&entry->methods);
+        entry->index = vector_size(intfs);
+        vector_init_ptr(&entry->parents);
+        vector_push_back(intfs, &entry);
+
+        KlassSymbol *trait_kls = (KlassSymbol *)_sym;
+        Symbol *fn;
+        vector_foreach(fn, trait_kls->funcs) {
+            Symbol *kls_fn = stbl_get(kls->stbl, fn->name);
+            ASSERT(kls_fn);
+            log_info("add method '%s'%s for interface '%s' in class '%s'", fn->name,
+                     fn->kind == SYM_INHERITED ? " (inherited)" : "", _sym->name, sym->name);
+            vector_push_back(&entry->methods, &kls_fn);
+        }
+    }
+
+    IntfEntry *entry;
+    vector_foreach(entry, &kls->intf_table) {
+        Symbol *sym = entry->trait;
+        KlassSymbol *trait_kls = (KlassSymbol *)sym;
+        TypeSpec *ts;
+        vector_foreach(ts, &trait_kls->lro) {
+            Symbol *_sym = get_symbol_by_id(ts->sym_id);
+            if (_sym == sym) continue;
+            log_info("add parent trait '%s' for trait '%s' in class '%s'", _sym->name,
+                     entry->trait->name, sym->name);
+            ASSERT(_sym && _sym->kind == SYM_TRAIT);
+            IntfEntry *e = get_intf_entry(intfs, _sym);
+            ASSERT(e);
+            vector_push_back(&entry->parents, &e);
+        }
+    }
+}
+
+void build_intf_table(HashMap *stbl)
+{
+    log_info("building interface table for classes...");
+
+    HashMapIter it = { 0 };
+    while (hashmap_next(stbl, &it)) {
+        Symbol *sym = (Symbol *)it.entry;
+        if (sym->kind != SYM_CLASS) continue;
+        build_class_intf_table(sym);
+    }
+}
+
+int get_intf_index(Symbol *sym, TypeSpec *trait_ts)
+{
+    ASSERT(sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT);
+    KlassSymbol *kls = (KlassSymbol *)sym;
+
+    int index = 0;
+
+    TypeSpec *ts;
+    vector_foreach(ts, &kls->lro) {
+        if (!ts) continue;
+
+        if (ts == trait_ts) {
+            return index;
+        }
+
+        ++index;
+    }
+
+    UNREACHABLE();
+}
+
+static void dump_class_intf_table(Symbol *sym)
+{
+    ASSERT(sym->kind == SYM_CLASS);
+    KlassSymbol *kls = (KlassSymbol *)sym;
+
+    printf("--- Intf-Table of class %s ---\n", sym->name);
+
+    IntfEntry *entry;
+    vector_foreach(entry, &kls->intf_table) {
+        printf("\n  [%d] %s\n", entry->index, entry->trait->name);
+
+        printf("        methods:\n");
+
+        Symbol *meth;
+        vector_foreach(meth, &entry->methods) {
+            ASSERT(meth->kind == SYM_FUNC);
+            FuncSymbol *fn = (FuncSymbol *)meth;
+            printf("          [%d] %s, code_index=%d\n", i__, fn->name, fn->code_index);
+        }
+
+        printf("        parents:\n");
+        IntfEntry *parent;
+        vector_foreach(parent, &entry->parents) {
+            printf("          [%d] %s\n", i__, parent->trait->name);
+        }
+    }
+    printf("\n");
+}
+
+void dump_intf_table(HashMap *stbl)
+{
+    printf("\n");
+
+    HashMapIter it = { 0 };
+    while (hashmap_next(stbl, &it)) {
+        Symbol *sym = (Symbol *)it.entry;
+        if (sym->kind != SYM_CLASS) continue;
+        KlassSymbol *kls = (KlassSymbol *)sym;
+        dump_class_intf_table(sym);
     }
 }
 

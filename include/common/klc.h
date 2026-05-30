@@ -133,6 +133,15 @@ typedef struct _KlcAnnot {
     uint16_t value_index;
 } KlcAnnot;
 
+typedef struct _KlcIntfEntry {
+    /* ITEM_CONST(parent trait) */
+    uint16_t name_index;
+    /* methods */
+    Vector methods;
+    /* upcast parents */
+    Vector parents;
+} KlcIntfEntry;
+
 typedef struct _KlcKlass {
     /* point back to klc file */
     KlcFile *filp;
@@ -154,6 +163,8 @@ typedef struct _KlcKlass {
     Vector fields;
     /* methods */
     Vector methods;
+    /* intf entry */
+    Vector intf_table;
 } KlcKlass;
 
 typedef struct _KlcCode {
@@ -200,6 +211,7 @@ KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags);
 KlcTypeParam *klc_klass_add_tp(KlcKlass *kls, char *name);
 KlcFunc *klc_klass_add_func(KlcKlass *kls, char *name, char *ret_type, int flags);
 KlcVar *klc_klass_add_field(KlcKlass *kls, char *name, char *type, int flags);
+KlcIntfEntry *klc_klass_add_intf_entry(KlcKlass *kls);
 
 uint16_t klc_add_none(KlcFile *klc);
 uint16_t klc_add_int(KlcFile *klc, uint64_t val, int sign, int width);

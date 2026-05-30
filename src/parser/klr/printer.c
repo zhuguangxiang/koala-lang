@@ -135,6 +135,18 @@ static void print_ir_cast(char *name, KlrInsn *insn, FILE *fp)
     print_type(insn->ts, fp);
 }
 
+static void print_make_intf(KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = make_intf ");
+    print_operand(&insn->opers[0], fp);
+
+    fprintf(fp, " [intf-table-index = %d]", insn->raws[2].imm);
+
+    fprintf(fp, " to");
+    print_type(insn->ts, fp);
+}
+
 static void print_phi(KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
@@ -246,7 +258,7 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
         } else {
             fprintf(fp, "]");
         }
-    } else {
+    } else if (fn->kind == KLR_VALUE_FUNC) {
         KlrFunc *f = (KlrFunc *)fn;
         if (f->klass) {
             fprintf(fp, "@%s::%s", f->klass->name, f->name);
@@ -257,6 +269,12 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
         if (insn->flags & KLR_INSN_FLAGS_CONST) {
             fprintf(fp, " [const]");
         }
+    } else {
+        ASSERT(fn->kind == KLR_VALUE_INTF);
+        KlrIntf *intf = (KlrIntf *)fn;
+        fprintf(fp, "@%s::%s", intf->trait->name, intf->name);
+
+        fprintf(fp, " [intf-index = %d]", intf->intf_index);
     }
 
     if (insn->num_opers > 1) fprintf(fp, ", ");
@@ -295,7 +313,7 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
         } else {
             fprintf(fp, "]");
         }
-    } else {
+    } else if (fn->kind == KLR_VALUE_FUNC) {
         KlrFunc *f = (KlrFunc *)fn;
         if (f->klass) {
             fprintf(fp, "@%s::%s", f->klass->name, f->name);
@@ -306,6 +324,12 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
         if (insn->flags & KLR_INSN_FLAGS_CONST) {
             fprintf(fp, " [const]");
         }
+    } else {
+        ASSERT(fn->kind == KLR_VALUE_INTF);
+        KlrIntf *intf = (KlrIntf *)fn;
+        fprintf(fp, "@%s::%s", intf->trait->name, intf->name);
+
+        fprintf(fp, " [intf-index = %d]", intf->intf_index);
     }
 
     fprintf(fp, ", nargs=%d", insn->num_args);
@@ -942,6 +966,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
         case OP_RET_UINT_IMM:
             print_ret("ret_uint_imm", insn, fp);
             break;
+
+        case OP_MAKE_INTF: {
+            print_make_intf(insn, fp);
+            break;
+        }
 
         case OP_IR_CAST:
             print_ir_cast("cast", insn, fp);

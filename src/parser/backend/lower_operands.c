@@ -12,36 +12,6 @@
 extern "C" {
 #endif
 
-static inline void set_raw_reg(KlrRawOper *r, int vreg)
-{
-    r->kind = RAW_OPER_REG;
-    r->vreg = vreg;
-}
-
-static inline void set_raw_imm(KlrRawOper *r, int imm)
-{
-    r->kind = RAW_OPER_IMM;
-    r->imm = imm;
-}
-
-static inline void set_raw_const(KlrRawOper *r, int index)
-{
-    r->kind = RAW_OPER_CONST;
-    r->index = index;
-}
-
-static inline void set_raw_block(KlrRawOper *r, KlrBasicBlock *bb)
-{
-    r->kind = RAW_OPER_BLOCK;
-    r->ptr = bb;
-}
-
-static inline void set_raw_func(KlrRawOper *r, KlrFunc *fn)
-{
-    r->kind = RAW_OPER_FUNC;
-    r->ptr = fn;
-}
-
 static inline int fits_in_imm8(int64_t x) { return x >= INT8_MIN && x <= INT8_MAX; }
 static inline int fits_in_imm12(int64_t x) { return x >= INT12_MIN && x <= INT12_MAX; }
 static inline int fits_in_imm16(int64_t x) { return x >= INT16_MIN && x <= INT16_MAX; }
@@ -160,11 +130,11 @@ static void lower_binary_opers(KlrInsn *insn)
 static void lower_call_opers(KlrInsn *insn)
 {
     KlrValue *fn_val = insn_oper_value(insn, 0);
-    ASSERT(klr_is_func(fn_val) || klr_is_extfunc(fn_val));
+    ASSERT(klr_is_func(fn_val) || klr_is_extfunc(fn_val) || klr_is_intf(fn_val));
 
     set_raw_reg(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], insn->num_args);
-    set_raw_func(&insn->raws[2], (KlrFunc *)fn_val);
+    set_raw_func(&insn->raws[2], fn_val);
 }
 
 static void lower_move_opers(KlrInsn *insn, KlMachModule *m)
@@ -493,6 +463,15 @@ static void lower_seq_len_opers(KlrInsn *insn, KlMachModule *m)
     set_raw_reg(&insn->raws[1], obj->vreg);
 }
 
+static void lower_make_intf_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_reg(&insn->raws[1], obj->vreg);
+    // insn->raws[2] is already set in irgen when creating OP_MAKE_INTF,
+    // so we don't need to set it here.
+}
+
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 {
     KlrBasicBlock *bb;
@@ -601,6 +580,11 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                 case OP_SEQ_SET_IMM:
                 case OP_SEQ_SET: {
                     lower_seq_set_opers(insn, m);
+                    break;
+                }
+
+                case OP_MAKE_INTF: {
+                    lower_make_intf_opers(insn, m);
                     break;
                 }
 

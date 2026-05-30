@@ -5,6 +5,7 @@
 
 #include "atom.h"
 #include "cgen.h"
+#include "cmd.h"
 #include "klc.h"
 #include "log.h"
 #include "mm.h"
@@ -45,273 +46,208 @@ static uint16_t klc_add_const(KlcFile *klc, Literal *lit)
     return index;
 }
 
+static void write_meta_type(TypeSpec *ts, Vector *vec, KlcFile *klc)
+{
+    int len = strlen(ts->signature);
+    uint16_t index = klc_add_str(klc, ts->signature, len);
+    vector_push_back(vec, &index);
+}
+
+static void write_meta_global(VarSymbol *var, KlcFile *klc)
+{
+    uint16_t dfl_val_idx = 0;
+    Literal *lit = var->lit;
+    if (lit) {
+        dfl_val_idx = klc_add_const(klc, lit);
+    }
+
+    int flags = 0;
+    if (var->flags & SYM_FLAGS_MUTABLE) {
+        flags |= KLC_FLAGS_MUT;
+    }
+    if (var->flags & SYM_FLAGS_PUBLIC) {
+        flags |= KLC_FLAGS_PUB;
+    }
+
+    klc_add_var(klc, var->name, var->ts->signature, dfl_val_idx, flags);
+}
+
+static void write_meta_func(FuncSymbol *fn_sym, KlcKlass *klass, KlcFile *klc)
+{
+    int flags = 0;
+
+    if (fn_sym->flags & SYM_FLAGS_PUBLIC) {
+        flags |= KLC_FLAGS_PUB;
+    }
+
+    KlcFunc *fn = NULL;
+    if (klass) {
+        flags |= KLC_FLAGS_METH;
+        fn = klc_klass_add_func(klass, fn_sym->name, fn_sym->ret->signature, flags);
+    } else {
+        fn = klc_add_func(klc, fn_sym->name, fn_sym->ret->signature, flags);
+    }
+
+    fn->code_index = fn_sym->code_index;
+
+    // add type parameters
+    TypeParamSymbol *tp;
+    vector_foreach(tp, &fn_sym->tps) {
+        if (!tp) continue;
+
+        KlcTypeParam *klc_tp = klc_func_add_tp(fn, tp->name);
+        klc_tp->which = (int8_t)tp->which;
+
+        TypeSpec *_ts;
+        vector_foreach(_ts, &tp->bound) {
+            if (!_ts) continue;
+            write_meta_type(_ts, &klc_tp->bounds, klc);
+        }
+    }
+
+    // add argument info
+    ArgInfo *item;
+    vector_foreach(item, fn_sym->params) {
+        if (!item) continue;
+        ASSERT(item->sym->kind == SYM_VAR);
+        VarSymbol *var_sym = (VarSymbol *)item->sym;
+        ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
+        uint16_t dfl_val_idx = 0;
+        if (var_sym->lit) {
+            // has default value
+            dfl_val_idx = klc_add_const(klc, var_sym->lit);
+        }
+        klc_func_add_arg(fn, item->name, item->ts->signature, dfl_val_idx);
+    }
+
+    // add annotations
+    if (fn_sym->ann) {
+        klc_func_add_ann(fn, fn_sym->ann, fn_sym->ann_key, NULL);
+    }
+}
+
+static void write_meta_field(VarSymbol *fld_sym, KlcKlass *klass)
+{
+    int flags = 0;
+    if (fld_sym->flags & SYM_FLAGS_MUTABLE) {
+        flags |= KLC_FLAGS_MUT;
+    }
+
+    if (fld_sym->flags & SYM_FLAGS_PUBLIC) {
+        flags |= KLC_FLAGS_PUB;
+    }
+
+    klc_klass_add_field(klass, fld_sym->name, fld_sym->ts->signature, flags);
+}
+
+static void write_meta_intf_entry(IntfEntry *intf_entry, KlcKlass *klass)
+{
+    Symbol *trait_sym = intf_entry->trait;
+    ASSERT(trait_sym->kind == SYM_TRAIT);
+    uint16_t index = klc_add_str(klass->filp, trait_sym->name, strlen(trait_sym->name));
+    KlcIntfEntry *entry = klc_klass_add_intf_entry(klass);
+    entry->name_index = index;
+
+    FuncSymbol *fn_sym;
+    vector_foreach(fn_sym, &intf_entry->methods) {
+        if (!fn_sym) continue;
+        ASSERT(fn_sym->kind == SYM_FUNC);
+        vector_push_back(&entry->methods, (uint16_t *)&fn_sym->code_index);
+    }
+
+    IntfEntry *parent;
+    vector_foreach(parent, &intf_entry->parents) {
+        if (!parent) continue;
+        vector_push_back(&entry->parents, (uint16_t *)&parent->index);
+    }
+}
+
+static void write_meta_klass(KlassSymbol *kls_sym, KlcFile *klc)
+{
+    int flags = 0;
+    if (kls_sym->flags & SYM_FLAGS_PUBLIC) {
+        flags |= KLC_FLAGS_PUB;
+    }
+
+    if (kls_sym->kind == SYM_TRAIT) {
+        flags |= KLC_FLAGS_TRAIT;
+    }
+
+    KlcKlass *klass = klc_add_klass(klc, kls_sym->name, flags);
+    kls_sym->klc_entry = klass;
+
+    // add type parameters
+    TypeParamSymbol *tp;
+    vector_foreach(tp, &kls_sym->tps) {
+        if (!tp) continue;
+
+        KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
+        klc_tp->which = (int8_t)tp->which;
+        TypeSpec *_ts;
+        vector_foreach(_ts, &tp->bound) {
+            if (!_ts) continue;
+            write_meta_type(_ts, &klc_tp->bounds, klc);
+        }
+    }
+
+    TypeSpec *ts;
+
+    // add base classes
+    vector_foreach(ts, &kls_sym->bases) {
+        if (!ts) continue;
+        write_meta_type(ts, &klass->bases, klc);
+    }
+
+    // add pip & lro
+    vector_foreach(ts, &kls_sym->pip) {
+        if (!ts) continue;
+        write_meta_type(ts, &klass->pip, klc);
+    }
+
+    vector_foreach(ts, &kls_sym->lro) {
+        if (!ts) continue;
+        write_meta_type(ts, &klass->lro, klc);
+    }
+
+    // add fields
+    VarSymbol *field;
+    vector_foreach(field, kls_sym->fields) {
+        if (!field) continue;
+        write_meta_field(field, klass);
+    }
+
+    // add methods
+    Symbol *fn;
+    vector_foreach(fn, kls_sym->funcs) {
+        if (!fn) continue;
+        if (fn->kind != SYM_FUNC) continue;
+        write_meta_func((FuncSymbol *)fn, klass, klc);
+    }
+}
+
 static void write_meta(HashMap *stbl, KlcFile *klc)
 {
+    // write global variables, functions and classes&traits
     HashMapIter it = { 0 };
     while (hashmap_next(stbl, &it)) {
         Symbol *sym = (Symbol *)it.entry;
         switch (sym->kind) {
             case SYM_VAR: {
                 VarSymbol *var = (VarSymbol *)sym;
-                uint16_t dfl_val_idx = 0;
-                Literal *lit = var->lit;
-                if (lit) {
-                    dfl_val_idx = klc_add_const(klc, lit);
-                }
-
-                int flags = 0;
-                if (var->flags & SYM_FLAGS_MUTABLE) {
-                    flags |= KLC_FLAGS_MUT;
-                }
-                if (var->flags & SYM_FLAGS_PUBLIC) {
-                    flags |= KLC_FLAGS_PUB;
-                }
-
-                klc_add_var(klc, var->name, var->ts->signature, dfl_val_idx, flags);
+                write_meta_global(var, klc);
                 break;
             }
 
             case SYM_FUNC: {
                 FuncSymbol *fn = (FuncSymbol *)sym;
-
-                int flags = 0;
-                if (fn->flags & SYM_FLAGS_PUBLIC) {
-                    flags |= KLC_FLAGS_PUB;
-                }
-
-                KlcFunc *f = klc_add_func(klc, fn->name, fn->ret->signature, flags);
-                f->code_index = fn->code_index;
-
-                // add argument info
-                ArgInfo *item;
-                vector_foreach(item, fn->params) {
-                    if (!item) continue;
-                    ASSERT(item->sym->kind == SYM_VAR);
-                    VarSymbol *var_sym = (VarSymbol *)item->sym;
-                    ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
-                    uint16_t dfl_val_idx = 0;
-                    if (var_sym->lit) {
-                        // has default value
-                        dfl_val_idx = klc_add_const(klc, var_sym->lit);
-                    }
-                    klc_func_add_arg(f, item->name, item->ts->signature, dfl_val_idx);
-                }
-
-                // add annotations
-                if (fn->ann) {
-                    klc_func_add_ann(f, fn->ann, fn->ann_key, NULL);
-                }
+                write_meta_func(fn, NULL, klc);
                 break;
             }
 
-            case SYM_CLASS: {
-                KlassSymbol *kls = (KlassSymbol *)sym;
-
-                int flags = 0;
-                if (kls->flags & SYM_FLAGS_PUBLIC) {
-                    flags |= KLC_FLAGS_PUB;
-                }
-
-                KlcKlass *klass = klc_add_klass(klc, kls->name, flags);
-
-                if (vector_size(&kls->tps) > 0) {
-                    TypeParamSymbol *tp;
-                    vector_foreach(tp, &kls->tps) {
-                        if (!tp) continue;
-
-                        KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
-                        klc_tp->which = (int8_t)tp->which;
-
-                        if (vector_size(&tp->bound) > 0) {
-                            TypeSpec *ts;
-                            vector_foreach(ts, &tp->bound) {
-                                if (!ts) continue;
-                                uint16_t index =
-                                    klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
-                                vector_push_back(&klc_tp->bounds, &index);
-                            }
-                        }
-                    }
-                }
-
-                if (vector_size(&kls->bases) > 0) {
-                    TypeSpec *ts;
-                    vector_foreach(ts, &kls->bases) {
-                        if (!ts) continue;
-                        uint16_t index =
-                            klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
-                        vector_push_back(&klass->bases, &index);
-                    }
-                }
-
-                TypeSpec *ts;
-                vector_foreach(ts, &kls->pip) {
-                    if (!ts) continue;
-                    uint16_t index =
-                        klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
-                    vector_push_back(&klass->pip, &index);
-                }
-
-                vector_foreach(ts, &kls->lro) {
-                    if (!ts) continue;
-                    uint16_t index =
-                        klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
-                    vector_push_back(&klass->lro, &index);
-                }
-
-                VarSymbol *field;
-                vector_foreach(field, kls->fields) {
-                    if (!field) continue;
-                    int flags_ = 0;
-                    if (field->flags & SYM_FLAGS_MUTABLE) {
-                        flags_ |= KLC_FLAGS_MUT;
-                    }
-
-                    if (field->flags & SYM_FLAGS_PUBLIC) {
-                        flags_ |= KLC_FLAGS_PUB;
-                    }
-
-                    klc_klass_add_field(klass, field->name, field->ts->signature, flags_);
-                }
-
-                FuncSymbol *fn;
-                KlcFunc *klc_fn;
-                vector_foreach(fn, kls->funcs) {
-                    if (!fn) continue;
-
-                    int flags_ = KLC_FLAGS_METH;
-                    if (fn->flags & SYM_FLAGS_PUBLIC) {
-                        flags_ |= KLC_FLAGS_PUB;
-                    }
-
-                    klc_fn = klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
-                    klc_fn->code_index = fn->code_index;
-
-                    if (vector_size(&fn->tps) > 0) {
-                        TypeParamSymbol *tp;
-                        vector_foreach(tp, &fn->tps) {
-                            if (!tp) continue;
-
-                            KlcTypeParam *klc_tp = klc_func_add_tp(klc_fn, tp->name);
-                            klc_tp->which = (int8_t)tp->which;
-
-                            if (vector_size(&tp->bound) > 0) {
-                                TypeSpec *ts;
-                                vector_foreach(ts, &tp->bound) {
-                                    if (!ts) continue;
-                                    uint16_t index = klc_add_str(klc_fn->filp, ts->signature,
-                                                                 strlen(ts->signature));
-                                    vector_push_back(&klc_tp->bounds, &index);
-                                }
-                            }
-                        }
-                    }
-
-                    // add argument info
-                    ArgInfo *item;
-                    vector_foreach(item, fn->params) {
-                        if (!item) continue;
-                        ASSERT(item->sym->kind == SYM_VAR);
-                        VarSymbol *var_sym = (VarSymbol *)item->sym;
-                        ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
-                        uint16_t dfl_val_idx = 0;
-                        if (var_sym->lit) {
-                            // has default value
-                            dfl_val_idx = klc_add_const(klc, var_sym->lit);
-                        }
-                        klc_func_add_arg(klc_fn, item->name, item->ts->signature, dfl_val_idx);
-                    }
-
-                    // add annotations
-                    if (fn->ann) {
-                        klc_func_add_ann(klc_fn, fn->ann, fn->ann_key, NULL);
-                    }
-                }
-                break;
-            }
-
+            case SYM_CLASS:
             case SYM_TRAIT: {
                 KlassSymbol *kls = (KlassSymbol *)sym;
-
-                int flags = KLC_FLAGS_PUB | KLC_FLAGS_TRAIT;
-
-                KlcKlass *klass = klc_add_klass(klc, kls->name, flags);
-
-                if (vector_size(&kls->tps) > 0) {
-                    TypeParamSymbol *tp;
-                    vector_foreach(tp, &kls->tps) {
-                        if (!tp) continue;
-                        KlcTypeParam *klc_tp = klc_klass_add_tp(klass, tp->name);
-
-                        if (vector_size(&tp->bound) > 0) {
-                            TypeSpec *ts;
-                            vector_foreach(ts, &tp->bound) {
-                                if (!ts) continue;
-                                uint16_t index =
-                                    klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
-                                vector_push_back(&klc_tp->bounds, &index);
-                            }
-                        }
-                    }
-                }
-
-                if (vector_size(&kls->bases) > 0) {
-                    TypeSpec *ts;
-                    vector_foreach(ts, &kls->bases) {
-                        if (!ts) continue;
-                        uint16_t index =
-                            klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
-                        vector_push_back(&klass->bases, &index);
-                    }
-                }
-
-                TypeSpec *ts;
-                vector_foreach(ts, &kls->pip) {
-                    if (!ts) continue;
-                    uint16_t index =
-                        klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
-                    vector_push_back(&klass->pip, &index);
-                }
-
-                vector_foreach(ts, &kls->lro) {
-                    if (!ts) continue;
-                    uint16_t index =
-                        klc_add_str(klass->filp, ts->signature, strlen(ts->signature));
-                    vector_push_back(&klass->lro, &index);
-                }
-
-                FuncSymbol *fn;
-                KlcFunc *klc_fn;
-                vector_foreach(fn, kls->funcs) {
-                    if (!fn) continue;
-
-                    int flags_ = KLC_FLAGS_TRAIT;
-                    if (fn->flags & SYM_FLAGS_PUBLIC) {
-                        flags_ |= KLC_FLAGS_PUB;
-                    }
-
-                    klc_fn = klc_klass_add_func(klass, fn->name, fn->ret->signature, flags_);
-
-                    // add argument info
-                    ArgInfo *item;
-                    vector_foreach(item, fn->params) {
-                        if (!item) continue;
-                        ASSERT(item->sym->kind == SYM_VAR);
-                        VarSymbol *var_sym = (VarSymbol *)item->sym;
-                        ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
-                        uint16_t dfl_val_idx = 0;
-                        if (var_sym->lit) {
-                            // has default value
-                            dfl_val_idx = klc_add_const(klc, var_sym->lit);
-                        }
-                        klc_func_add_arg(klc_fn, item->name, item->ts->signature, dfl_val_idx);
-                    }
-
-                    // add annotations
-                    if (fn->ann) {
-                        klc_func_add_ann(klc_fn, fn->ann, fn->ann_key, NULL);
-                    }
-                }
+                write_meta_klass(kls, klc);
                 break;
             }
 
@@ -323,6 +259,27 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
             default: {
                 UNREACHABLE();
                 break;
+            }
+        }
+    }
+
+    if (!is_build_stdlib()) {
+        if (dump_itable_enabled()) {
+            // dump interface table for debugging
+            dump_intf_table(stbl);
+        }
+
+        // write interface table for each class
+        HashMapIter it2 = { 0 };
+        while (hashmap_next(stbl, &it2)) {
+            Symbol *sym = (Symbol *)it2.entry;
+            if (sym->kind != SYM_CLASS) continue;
+            // add interface table
+            KlassSymbol *kls_sym = (KlassSymbol *)sym;
+            IntfEntry *intf_entry;
+            vector_foreach(intf_entry, &kls_sym->intf_table) {
+                if (!intf_entry) continue;
+                write_meta_intf_entry(intf_entry, kls_sym->klc_entry);
             }
         }
     }
@@ -436,6 +393,7 @@ static void write_rt_data(KlMachModule *m, KlcFile *klc, HashMap *stbl)
         int index = klc_add_code(klc, BUF_STR(buf), flags_, fn->nlocals, fn->max_call_args,
                                  mach->start_pc, mach->total_insns);
         ASSERT(index >= 1);
+        ASSERT(index - 1 == mach->index);
         fn_sym->code_index = index - 1;
     }
 

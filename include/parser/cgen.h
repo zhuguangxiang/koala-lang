@@ -153,6 +153,9 @@ typedef struct _KlMachInsn {
     /* Branch target basic block (machine-level). */
     KlMachBlock *target;
 
+    /* intf-slot index for call op */
+    int intf_index;
+
     /* import table index */
     int import_index;
 
@@ -164,6 +167,7 @@ typedef struct _KlMachInsn {
 #define KL_MACH_FIXUP_REL32  1
 #define KL_MACH_FIXUP_IMPORT 2
 #define KL_MACH_FIXUP_FUNCID 3
+#define KL_MACH_FIXUP_INTFID 4
 
     /* Linearized instruction index (module-level absolute PC). */
     int pc;

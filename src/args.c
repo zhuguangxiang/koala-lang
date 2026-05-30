@@ -29,6 +29,7 @@ static void print_usage(const char *prog)
         "                       lir       - LIR (after isel/regalloc)\n"
         "                       vreg      - dump virtual register info\n"
         "                       code      - codegen output\n"
+        "                       itable    - dump interface table\n"
         "                       all       - dump all stages\n"
         "  -v, --version    Show version information\n"
         "  -h, --help       Show this help message\n",

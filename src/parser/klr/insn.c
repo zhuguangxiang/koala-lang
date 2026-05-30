@@ -514,6 +514,25 @@ KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, char *name)
     return (KlrValue *)insn;
 }
 
+KlrValue *klr_build_make_intf(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, int intf_index,
+                              char *name)
+{
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
+        val->kind != KLR_VALUE_PARAM) {
+        panic("'make_intf' op requires a reg value or const");
+    }
+
+    // ASSERT(!type_is_optional(val->ts));
+    ASSERT(!type_is_optional(dst_ts));
+
+    KlrInsn *insn = new_insn(OP_MAKE_INTF, 1, name);
+    init_oper(&insn->opers[0], insn, val, 0);
+    insn->ts = dst_ts;
+    set_raw_imm(&insn->raws[2], intf_index);
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
 KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
                            InternTag tag, char *name)
 {

@@ -1236,7 +1236,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                 cls_sym->__init__ = _fn_sym;
             }
         }
-    } else if (lhs_sym->kind == SYM_FUNC || lhs_sym->kind == SYM_INTF) {
+    } else if (lhs_sym->kind == SYM_FUNC) {
         FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
         if (func_has_infer_tp(fn_sym)) {
             Vector *_tp_args = infer_func_tp(fn_sym, call->args, ps);
@@ -1486,6 +1486,34 @@ static void parse_dot(ParserState *ps, Expr *exp)
                 log_info("found func '%s' from origin klass '%s'.", ident->name, origin->name);
                 // method of instance
                 FuncSymbol *origin_fn_sym = (FuncSymbol *)sym;
+
+                // params
+                Vector *inst_params =
+                    build_instance_params(origin_fn_sym->params, origin, inst_sym, ps);
+
+                // return type
+                TypeSpec *ret_ts = instance_type_spec(origin_fn_sym->ret, origin, inst_sym, ps);
+
+                // create function symbol for instance method
+                Symbol *inst_fn_sym = stbl_add_func(lhs_stbl, origin_fn_sym->name, ret_ts,
+                                                    inst_params, origin_fn_sym->flags);
+                inst_fn_sym->parent = inst_sym;
+                // copy method's tps to instance method
+                copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &origin_fn_sym->tps);
+                TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
+                inst_fn_sym->ts = fn_ts;
+                exp->ts = opt_dot_type(fn_ts, opt_or_bang);
+                exp->sym = inst_fn_sym;
+                log_info("dot member resolved: %s", inst_fn_sym->name);
+                log_type_spec(exp->ts);
+                return;
+            } else if (sym->kind == SYM_INHERITED) {
+                InheritedFunc *inherited = (InheritedFunc *)sym;
+                log_info("found inherited func '%s' from origin klass '%s'.", ident->name,
+                         origin->name);
+
+                // method of instance
+                FuncSymbol *origin_fn_sym = inherited->origin;
 
                 // params
                 Vector *inst_params =

@@ -31,7 +31,7 @@ For primitive values, return the corresponding type based on the tag.
 TypeObject *kl_typeof(TValue *val)
 {
     if (is_ref(val)) {
-        Object *obj = to_ref(val);
+        Object *obj = to_obj(val);
         return OB_TYPE(obj);
     }
     return _value_typeof(val->tag);
@@ -54,6 +54,7 @@ TypeObject *kl_new_type(char *name, int flags)
     tp->flags = flags;
     vector_init_ptr(&tp->fields);
     vector_init_ptr(&tp->methods);
+    vector_init(&tp->itables, sizeof(IntfTable));
     stbl_init(&tp->members);
     return tp;
 }

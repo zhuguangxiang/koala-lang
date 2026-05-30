@@ -78,7 +78,7 @@ static void dump_value(TValue *val)
         printf("%" PRId64, val->ival);
     } else if (is_float(val)) {
         printf("%f", val->fval);
-    } else if (is_obj(val)) {
+    } else if (is_ref(val)) {
         Object *obj = to_obj(val);
         if (IS_STR(obj)) {
             printf("\"%s\"", STR_BUF(obj));

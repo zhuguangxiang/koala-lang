@@ -531,6 +531,7 @@ KlrModule *klr_create_module(char *name)
     vector_init_ptr(&m->ext_modules);
     vector_init_ptr(&m->klasses);
     hashmap_init(&m->consts, __const_eq__);
+    vector_init_ptr(&m->traits);
     m->init = NULL;
     return m;
 }
@@ -663,6 +664,40 @@ KlrValue *klr_add_field(KlrValue *klass_val, char *name, TypeSpec *ts)
     vector_push_back(&klass->fields, &field);
     field->index = vector_size(&klass->fields) - 1;
     return (KlrValue *)field;
+}
+
+KlrValue *klr_add_intf(KlrTrait *trait, TypeSpec *ret, char *name)
+{
+    KlrIntf *intf = mm_alloc_obj(intf);
+    INIT_KLR_VALUE(intf, KLR_VALUE_INTF, ret, name);
+    intf->trait = trait;
+    intf->module = trait->module;
+    intf->intf_index = vector_size(&trait->intfs);
+    vector_push_back(&trait->intfs, &intf);
+    return (KlrValue *)intf;
+}
+
+KlrValue *klr_add_trait(KlrModule *m, TypeSpec *ts, char *name)
+{
+    KlrTrait *trait = mm_alloc_obj(trait);
+    INIT_KLR_VALUE(trait, KLR_VALUE_TRAIT, NULL, name);
+    vector_push_back(&m->traits, &trait);
+    trait->index = vector_size(&m->traits) - 1;
+    trait->module = m;
+    trait->ts = ts;
+    vector_init_ptr(&trait->intfs);
+    return (KlrValue *)trait;
+}
+
+KlrValue *klr_get_trait(KlrModule *m, char *name)
+{
+    KlrValue *sym;
+    vector_foreach(sym, &m->traits) {
+        if (str_equal(sym->name, name)) {
+            return sym;
+        }
+    }
+    return NULL;
 }
 
 static KlrExtModule *_get_ext_mod(KlrModule *m, char *name)

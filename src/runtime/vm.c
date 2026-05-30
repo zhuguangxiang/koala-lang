@@ -182,6 +182,8 @@ void koala_run_file(char *path)
         KlcConst *kls_kc = klc_get_const(klc, cls->name_index);
         TypeObject *tp = kl_new_type(kls_kc->sval, cls->flags);
 
+        if (cls->flags & KLC_FLAGS_TRAIT) continue;
+
         KlcVar *var;
         vector_foreach(var, &cls->fields) {
             if (!var) continue;
@@ -201,6 +203,45 @@ void koala_run_file(char *path)
             ASSERT(co->flags & CODE_FLAG_METH);
             vector_push_back(&tp->methods, &co);
             stbl_add_obj(&tp->members, kc->sval, _co);
+        }
+
+        KlcIntfEntry *intf_entry;
+        vector_foreach(intf_entry, &cls->intf_table) {
+            if (!intf_entry) continue;
+
+            IntfTable itable;
+            kc = klc_get_const(klc, intf_entry->name_index);
+            itable.name = atom(kc->sval);
+            itable.num_funcs = vector_size(&intf_entry->methods);
+            itable.num_parents = vector_size(&intf_entry->parents);
+            itable.methods = mm_alloc(sizeof(Object *) * itable.num_funcs);
+            itable.parents = mm_alloc(sizeof(IntfTable *) * itable.num_parents);
+
+            uint16_t _idx = 0;
+            vector_foreach(_idx, &intf_entry->methods) {
+                Object *co = vector_get(&mo->funcs, _idx);
+                ASSERT(co && IS_CODE(co));
+                CodeObject *co_obj = (CodeObject *)co;
+                ASSERT(co_obj->flags & CODE_FLAG_METH);
+                ASSERT(i__ < itable.num_funcs);
+                itable.methods[i__] = co;
+            }
+
+            vector_push_back(&tp->itables, &itable);
+        }
+
+        vector_foreach(intf_entry, &cls->intf_table) {
+            if (!intf_entry) continue;
+
+            IntfTable *itable = vector_get_ptr(&tp->itables, i__ - 1);
+
+            uint16_t _idx = 0;
+            vector_foreach(_idx, &intf_entry->parents) {
+                IntfTable *parent = vector_get_ptr(&tp->itables, _idx);
+                ASSERT(parent);
+                ASSERT(i__ < itable->num_parents);
+                itable->parents[i__] = parent;
+            }
         }
 
         vector_push_back(&mo->types, &tp);

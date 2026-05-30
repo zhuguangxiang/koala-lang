@@ -34,6 +34,27 @@ static TValue kl_list_append(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
+static TValue kl_list_pop(TValue *self, TValue *args, int nargs)
+{
+    ListObject *list = (ListObject *)to_obj(self);
+    ASSERT(nargs == 1);
+    int64_t index = to_int64(&args[0]);
+    if (index == 0) {
+        // pop head
+        if (list->end == list->start) {
+            panic("pop from empty list");
+            return none_value;
+        }
+        return list->array[list->start++];
+    } else {
+        if (list->end == list->start) {
+            panic("pop from empty list");
+            return none_value;
+        }
+        return list->array[--list->end];
+    }
+}
+
 static TValue kl_list_len(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = (ListObject *)to_obj(self);
@@ -62,6 +83,7 @@ static TValue kl_list_str(TValue *self, TValue *args, int nargs)
 
 static MethodDef list_methods[] = {
     { "append", kl_list_append },
+    { "pop", kl_list_pop },
     { "__len__", kl_list_len },
     { "__str__", kl_list_str },
     { NULL },

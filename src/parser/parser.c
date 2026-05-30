@@ -639,6 +639,7 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     }
 
     if (dst->sym_id != src->sym_id) {
+        UNREACHABLE();
         // Check if 'src' is a subtype of 'dst' in the symbol table
         return is_subtype_of(src->sym_id, dst->sym_id);
     }
@@ -1097,21 +1098,38 @@ static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
     AtFlag *at = &flags->at;
     if (at->flag.flag) {
         ASSERT(at->ident);
-        if (strcmp(at->ident, "native")) {
-            kl_error(at->id_loc, "only 'native' annotation is allowed in top func '%s'",
-                     fn->id.name);
+
+        if (str_equal(at->ident, "intrinsic")) {
+            if (at->assoc_ident) {
+                kl_error(
+                    at->id_loc,
+                    "'intrinsic' annotation should not have a native func name in top func '%s'",
+                    fn->id.name);
+                return;
+            }
+
+            if (!vector_empty(fn->body)) {
+                kl_error(at->id_loc, "func '%s' with 'intrinsic' annotation needs empty body.",
+                         fn->id.name);
+                return;
+            }
+
             return;
         }
 
-        if (!at->assoc_ident) {
-            kl_error(at->id_loc, "'native' annotation needs a native func name in top func '%s'",
-                     fn->id.name);
-            return;
-        }
+        if (str_equal(at->ident, "native")) {
+            if (!at->assoc_ident) {
+                kl_error(at->id_loc,
+                         "'native' annotation needs a native func name in top func '%s'",
+                         fn->id.name);
+                return;
+            }
 
-        if (!vector_empty(fn->body)) {
-            kl_error(at->id_loc, "func '%s' with 'native' annotation needs empty body.",
-                     fn->id.name);
+            if (!vector_empty(fn->body)) {
+                kl_error(at->id_loc, "func '%s' with 'native' annotation needs empty body.",
+                         fn->id.name);
+                return;
+            }
             return;
         }
     }
@@ -2406,6 +2424,52 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     handlers[stmt->kind](ps, stmt);
 }
 
+static void inherit_trait_methods(KlassSymbol *sym, Loc loc, ParserState *ps)
+{
+    Vector *funcs = vector_create_ptr();
+
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, &sym->lro) {
+        if (!base_ts) continue;
+
+        Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
+        if (!base_sym) {
+            UNREACHABLE();
+            continue;
+        }
+
+        if (base_sym == (Symbol *)sym) {
+            // self type, skip
+            continue;
+        }
+
+        ASSERT(base_sym->kind == SYM_TRAIT);
+        KlassSymbol *trait_sym = (KlassSymbol *)base_sym;
+
+        Symbol *fn_sym;
+        vector_foreach(fn_sym, trait_sym->funcs) {
+            // check method name conflict
+            Symbol *existing_fn = stbl_get(sym->stbl, fn_sym->name);
+            if (existing_fn) {
+                kl_error(loc,
+                         "method '%s' inherited from trait '%s' conflicts with existing symbol in "
+                         "trait '%s'.",
+                         fn_sym->name, trait_sym->name, sym->name);
+                continue;
+            }
+
+            // inherit method
+            Symbol *inherited_fn = stbl_add_inherited_func(sym->stbl, fn_sym);
+            vector_push_back(funcs, &inherited_fn);
+            log_info("inherited method '%s' from trait '%s'", fn_sym->name, trait_sym->name);
+        }
+    }
+
+    vector_concat(funcs, sym->funcs);
+    vector_destroy(sym->funcs);
+    sym->funcs = funcs;
+}
+
 static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls)
 {
     KlassSymbol *sym = (KlassSymbol *)kls->sym;
@@ -2432,6 +2496,11 @@ static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls)
 
     /* compute vtbl info */
     compute_vtbl_info(sym);
+
+    if (sym->kind == SYM_TRAIT) {
+        // for trait, inherit methods from base traits
+        inherit_trait_methods(sym, kls->loc, ps);
+    }
 
     exit_scope(ps);
 
