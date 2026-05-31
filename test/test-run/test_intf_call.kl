@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=code | filecheck %s
+// RUN: koala %s --dump=code,no-opt-ir | filecheck %s
 
 trait Debug {
     func show()
@@ -93,12 +93,25 @@ func main() {
 
     let d2 Debug = f2
     d2.show()
+
+    let l = [1, 2, 3]
+    let a any = l
+    print(a)
+
+    let a2 any = foo
+    print(a2)
 }
 
-// CHECK-LABEL: @main[17,86]:
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+
+// CHECK: %a2 = local [immutable] any
+// CHECK: move %a2 any, %foo Foo
+
+// CHECK-LABEL: @main[17,98]:
 
 // CHECK: make_intf r0, r0, #1
-// CHECK: upcast_intf r3, r1, #1
+// CHECK: upcast_intf r4, r1, #1
 
 // CHECK: 1 2
 // CHECK: This is a Foo instance.
@@ -113,6 +126,7 @@ func main() {
 // CHECK: This is a Foo instance.
 // CHECK: 3 4
 // CHECK: This is a Foo instance.
+// CHECK: [1, 2, 3]
 
 /*
 trait Fly {

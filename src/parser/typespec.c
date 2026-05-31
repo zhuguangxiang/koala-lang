@@ -192,8 +192,7 @@ static void build_class_types(HashMap *stbl)
 
         sym->ts = type_ts;
         ((KlassSymbol *)sym)->instance_ts = ts;
-        log_debug("build class type '%s' for symbol '%s', %p\n", ts->klass_type.name, sym->name,
-                  ts);
+        log_debug("build class type '%s' for symbol '%s', %p", ts->klass_type.name, sym->name, ts);
     }
 }
 

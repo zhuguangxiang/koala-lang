@@ -683,7 +683,9 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
             if (!global->mutable && val) {
                 log_info("propagate const global variable:");
                 log_insn(insn);
-                replace_all_uses_with((KlrValue *)val, (KlrValue *)insn);
+                if (replace_all_uses_with((KlrValue *)val, (KlrValue *)insn)) {
+                    changed = 1;
+                }
             }
             break;
         }
@@ -705,17 +707,34 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
             if (dst->flags & KLR_INSN_FLAGS_CONST) {
                 // dst is let variable.
                 if (type_allowed_to_prop(src->ts)) {
-                    log_info("propagate const local variable:");
+                    log_info("propagate const:");
                     log_insn(insn);
                     // dst is let: global propagation, no SSA needed
                     // if src is const, this is const propagation, otherwise this is
-                    // copy propagation -> let x = y; let z = x -> let z = y This
+                    // copy propagation -> let x = (1,2); let z = x -> let z = (1,2) This
                     // handles both Constant Prop (x = 10) and Copy Prop (x = %0).
-                    replace_all_uses_with(src, _dst);
+                    if (replace_all_uses_with(src, _dst)) {
+                        changed = 1;
+                    }
                 } else if (klr_is_insn(src)) {
                     KlrInsn *src_insn = (KlrInsn *)src;
-                    if ((src_insn->code == OP_MAKE_INTF || src_insn->code == OP_UPCAST_INTF) &&
-                        src->use_count == 1) {
+                    if (src_insn->code == OP_IR_LOCAL) {
+                        // Special Case for Local Variable Forwarding: If the source is an
+                        // OP_IR_LOCAL instruction, we can propagate it even if it's not marked as
+                        // const. This is because OP_IR_LOCAL typically represents a local variable
+                        // that is assigned from another variable or a parameter, and propagating
+                        // it can enable further optimizations without risking unintended side
+                        // effects, as the value is still effectively immutable within the function
+                        // scope.
+                        log_info("propagate non-const OP_IR_LOCAL to let variable:");
+                        log_insn(insn);
+                        if (replace_all_uses_with(src, _dst)) {
+                            // Successfully propagated
+                            changed = 1;
+                        }
+                    } else if ((src_insn->code == OP_MAKE_INTF ||
+                                src_insn->code == OP_UPCAST_INTF) &&
+                               src->use_count == 1) {
                         // Special Case for Interface Creation: If the source is an OP_MAKE_INTF
                         // or OP_UPCAST_INTF instruction with only one use, we can safely propagate
                         // it even if it's not a constant. This is because these instructions
@@ -725,7 +744,9 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                         log_info(
                             "propagate non-const OP_MAKE_INTF or OP_UPCAST_INTF to let variable:");
                         log_insn(insn);
-                        replace_all_uses_with(src, _dst);
+                        if (replace_all_uses_with(src, _dst)) {
+                            changed = 1;
+                        }
                     }
                 }
             } else {
@@ -806,7 +827,9 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                     NYI();
                 }
 
-                replace_all_uses_with(val, (KlrValue *)insn);
+                if (replace_all_uses_with(val, (KlrValue *)insn)) {
+                    changed = 1;
+                }
             } else {
                 log_info("no propagation for non-const call insn:");
                 log_insn(insn);
