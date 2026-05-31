@@ -986,6 +986,9 @@ void klr_set_loc(KlrValue *val, char *filename, Loc loc);
 KlrValue *klr_build_make_intf(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, int intf_index,
                               char *name);
 
+KlrValue *klr_build_upcast_intf(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, int intf_index,
+                                char *name);
+
 KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, char *name);
 KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
                            InternTag tag, char *name);

@@ -714,13 +714,16 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                     replace_all_uses_with(src, _dst);
                 } else if (klr_is_insn(src)) {
                     KlrInsn *src_insn = (KlrInsn *)src;
-                    if (src_insn->code == OP_MAKE_INTF && src->use_count == 1) {
+                    if ((src_insn->code == OP_MAKE_INTF || src_insn->code == OP_UPCAST_INTF) &&
+                        src->use_count == 1) {
                         // Special Case for Interface Creation: If the source is an OP_MAKE_INTF
-                        // instruction with only one use, we can safely propagate it even if it's
-                        // not a constant. This is because OP_MAKE_INTF typically creates a new
-                        // interface value that is immutable after creation, and propagating it can
-                        // enable further optimizations without risking unintended side effects.
-                        log_info("propagate non-const OP_MAKE_INTF to let variable:");
+                        // or OP_UPCAST_INTF instruction with only one use, we can safely propagate
+                        // it even if it's not a constant. This is because these instructions
+                        // typically create a new interface value that is immutable after creation,
+                        // and propagating it can enable further optimizations without risking
+                        // unintended side effects.
+                        log_info(
+                            "propagate non-const OP_MAKE_INTF or OP_UPCAST_INTF to let variable:");
                         log_insn(insn);
                         replace_all_uses_with(src, _dst);
                     }

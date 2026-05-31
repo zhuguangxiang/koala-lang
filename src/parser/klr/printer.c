@@ -135,10 +135,10 @@ static void print_ir_cast(char *name, KlrInsn *insn, FILE *fp)
     print_type(insn->ts, fp);
 }
 
-static void print_make_intf(KlrInsn *insn, FILE *fp)
+static void print_obj_intf_cast(const char *name, KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = make_intf ");
+    fprintf(fp, " = %s ", name);
     print_operand(&insn->opers[0], fp);
 
     fprintf(fp, " [intf-table-index = %d]", insn->raws[2].imm);
@@ -968,7 +968,12 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_MAKE_INTF: {
-            print_make_intf(insn, fp);
+            print_obj_intf_cast("make_intf", insn, fp);
+            break;
+        }
+
+        case OP_UPCAST_INTF: {
+            print_obj_intf_cast("upcast_intf", insn, fp);
             break;
         }
 

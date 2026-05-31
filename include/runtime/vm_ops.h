@@ -1412,9 +1412,27 @@ TARGET(OP_MAKE_INTF) {
     CHECK_REG_ID(rs);
 
     TypeObject *tp = kl_typeof(regs + rs);
-    IntfTable *intf_table = vector_get_ptr(&tp->itables, idx);
+    IntfTable *itab = vector_get_ptr(&tp->itables, idx);
     TValue v = regs[rs];
-    v.itab = intf_table;
+    v.itab = itab;
+    regs[rd] = v;
+
+    DISPATCH();
+}
+
+TARGET(OP_UPCAST_INTF) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    idx = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    TValue v = regs[rs];
+    ASSERT(is_intf(&v));
+    IntfTable *itab = v.itab;
+    ASSERT(idx < itab->num_parents);
+    v.itab = itab->parents[idx];
     regs[rd] = v;
 
     DISPATCH();

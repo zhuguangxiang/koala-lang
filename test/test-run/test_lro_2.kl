@@ -1,0 +1,105 @@
+// RUN: koala %s --dump=itable | filecheck %s
+
+trait Debug {
+    func show()
+}
+
+trait Flyable[T] : Debug {
+    func fly() T
+}
+
+trait Walkable {
+    func walk() str
+}
+
+trait WalkableFlyable[T] : Flyable[T] & Walkable & Debug {
+    func walk_and_fly()
+}
+
+class Foo : Flyable[str] & Walkable & WalkableFlyable[str] {
+
+    let debug Debug = Bar(10, 20)
+
+    func fly() str {
+        return "Flying!"
+    }
+
+    func walk() str {
+        print(fly())
+        debug.show()
+        return "Walking!"
+    }
+
+    func show() {
+        print("This is a Foo instance.")
+    }
+
+    func walk_and_fly() {
+        print(walk(), fly())
+    }
+}
+
+func show_debug_info(d Debug) {
+    d.show()
+}
+
+class Bar : Debug {
+    var x int
+    var y int
+
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    func show() {
+        print(x, y)
+    }
+}
+
+func new_foo() Foo {
+    return Foo()
+}
+
+func new_debug() Debug {
+    return Bar(3, 4)
+}
+
+
+// CHECK-LABEL: --- Intf-Table of class Foo ---
+
+// CHECK: [0] any
+// CHECK:       methods:
+// CHECK:       parents:
+
+// CHECK: [1] Debug
+// CHECK:       methods:
+// CHECK:         [0] show, code_index=5
+// CHECK:       parents:
+// CHECK:         [0] any
+
+// CHECK: [2] Flyable
+// CHECK:       methods:
+// CHECK:         [0] show, code_index=5
+// CHECK:         [1] fly, code_index=3
+// CHECK:       parents:
+// CHECK:         [0] any
+// CHECK:         [1] Debug
+
+// CHECK: [3] Walkable
+// CHECK:       methods:
+// CHECK:         [0] walk, code_index=4
+// CHECK:       parents:
+// CHECK:         [0] any
+
+// CHECK: [4] WalkableFlyable
+// CHECK:       methods:
+// CHECK:         [0] show, code_index=5
+// CHECK:         [1] fly, code_index=3
+// CHECK:         [2] walk, code_index=4
+// CHECK:         [3] walk_and_fly, code_index=6
+// CHECK:       parents:
+// CHECK:         [0] any
+// CHECK:         [1] Debug
+// CHECK:         [2] Flyable
+// CHECK:         [3] Walkable

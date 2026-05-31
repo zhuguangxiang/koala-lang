@@ -17,7 +17,7 @@ extern "C" {
 #define METHOD_SELF  (((KlrFunc *)CURRENT_FUNC)->self)
 
 // obj: class or trait type
-// ts: trait type
+// ts: target trait type
 static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec *ts, char *name)
 {
     KlrBuilder bldr;
@@ -25,28 +25,36 @@ static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec
     // 1. the same type, no cast needed
     if (ts == obj->ts) return NULL;
 
+    // 2. if target is any, no cast needed
+    if (type_is_any(ts)) return NULL;
+
     Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
     Symbol *obj_sym = get_symbol_by_id(obj->ts->sym_id);
 
-    // 2. no symbol found, optional type, no cast needed
+    // 3. no symbol found, optional type, no cast needed
     if (!ts_sym || !obj_sym) return NULL;
 
-    // 3. if ts is an instance, use its origin for upcast
+    // 4. if ts is an instance, use its origin for upcast
     if (ts_sym->kind == SYM_INSTANCE) {
         ts_sym = ((InstanceSymbol *)ts_sym)->origin;
         ts = ((KlassSymbol *)ts_sym)->instance_ts;
     }
 
-    // 4. only support class/trait -> trait upcast for now
+    // 5. only support class/trait -> trait upcast for now
     if (ts_sym->kind != SYM_TRAIT) return NULL;
+
+    if (obj_sym->kind == SYM_INSTANCE) {
+        obj_sym = ((InstanceSymbol *)obj_sym)->origin;
+    }
 
     if (obj_sym->kind == SYM_CLASS) {
         klr_builder_end(&bldr, ps->scope->bb);
         int intf_index = get_intf_index(obj_sym, ts);
         return klr_build_make_intf(&bldr, obj, ts, intf_index, name);
     } else if (obj_sym->kind == SYM_TRAIT) {
-        // TODO: support trait -> trait upcast
-        NYI();
+        klr_builder_end(&bldr, ps->scope->bb);
+        int intf_index = get_intf_index(obj_sym, ts);
+        return klr_build_upcast_intf(&bldr, obj, ts, intf_index, name);
     } else {
         return NULL;
     }

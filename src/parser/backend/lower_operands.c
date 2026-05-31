@@ -583,7 +583,8 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                     break;
                 }
 
-                case OP_MAKE_INTF: {
+                case OP_MAKE_INTF:
+                case OP_UPCAST_INTF: {
                     lower_make_intf_opers(insn, m);
                     break;
                 }

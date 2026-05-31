@@ -1,4 +1,4 @@
-// RUN: koala %s | filecheck %s
+// RUN: koala %s --dump=code | filecheck %s
 
 trait Debug {
     func show()
@@ -12,7 +12,11 @@ trait Walkable {
     func walk() str
 }
 
-class Foo : Flyable[str] & Walkable {
+trait WalkableFlyable[T] : Flyable[T] & Walkable & Debug {
+    func walk_and_fly()
+}
+
+class Foo : Flyable[str] & Walkable & WalkableFlyable[str] {
 
     let debug Debug = Bar(10, 20)
 
@@ -28,6 +32,10 @@ class Foo : Flyable[str] & Walkable {
 
     func show() {
         print("This is a Foo instance.")
+    }
+
+    func walk_and_fly() {
+        print(walk(), fly())
     }
 }
 
@@ -82,7 +90,15 @@ func main() {
 
     d = new_debug()
     d.show()
+
+    let d2 Debug = f2
+    d2.show()
 }
+
+// CHECK-LABEL: @main[17,86]:
+
+// CHECK: make_intf r0, r0, #1
+// CHECK: upcast_intf r3, r1, #1
 
 // CHECK: 1 2
 // CHECK: This is a Foo instance.
@@ -96,6 +112,7 @@ func main() {
 // CHECK: This is a Foo instance.
 // CHECK: This is a Foo instance.
 // CHECK: 3 4
+// CHECK: This is a Foo instance.
 
 /*
 trait Fly {

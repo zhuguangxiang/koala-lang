@@ -2448,6 +2448,7 @@ static void inherit_trait_methods(KlassSymbol *sym, Loc loc, ParserState *ps)
 
         Symbol *fn_sym;
         vector_foreach(fn_sym, trait_sym->funcs) {
+            if (fn_sym->kind != SYM_FUNC) continue;
             // check method name conflict
             Symbol *existing_fn = stbl_get(sym->stbl, fn_sym->name);
             if (existing_fn) {

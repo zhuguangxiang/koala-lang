@@ -1833,7 +1833,7 @@ X(OP_MOVE_TRUE, FORMAT_RRR)
 X(OP_MAKE_INTF, FORMAT_RRImm)
 
 /**
- * OP_UPCAST — upcast interface to a parent interface
+ * OP_UPCAST_INTF — upcast interface to a parent interface
  *
  * FORMAT_RRImm:
  *     | op:8 | dst:8 | src:8 | parent-index:8 |
@@ -1850,10 +1850,10 @@ X(OP_MAKE_INTF, FORMAT_RRImm)
  * Notes:
  *    - parent-index is an 8-bit offset into impl-entry.parents[].
  */
-X(OP_UPCAST, FORMAT_RRImm)
+X(OP_UPCAST_INTF, FORMAT_RRImm)
 
 /**
- * OP_DOWNCAST — cast interface to a concrete class or another interface
+ * OP_DOWNCAST_INTF — cast interface to a concrete class or another interface
  *
  * FORMAT_Op:
  *     | op:8 | dst:12 | src:12 |
@@ -1878,7 +1878,7 @@ X(OP_UPCAST, FORMAT_RRImm)
  *     - CHECKED OP (may trap).
  *     - type-index is a global index (16/32 bits recommended).
  */
-X(OP_DOWNCAST, FORMAT_Op)
+X(OP_DOWNCAST_INTF, FORMAT_Op)
 
 /*---------------------------------------------------------------+
  |  Sequence Instructions                                        |
