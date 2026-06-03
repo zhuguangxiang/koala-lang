@@ -1,0 +1,45 @@
+// RUN: koala %s | filecheck %s
+
+import "test_pkg/pkg1"
+
+class Bar {
+    func bar() {
+        print("Bar is bar")
+    }
+}
+
+class Foo : pkg1.Fly {
+     func fly() str {
+         return "Foo is flying"
+     }
+
+    func bar() Bar {
+        return Bar()
+    }
+}
+
+func new_foo() Foo {
+    return Foo()
+}
+
+func main() {
+    pkg1.hello()
+    let foo2 = pkg1.Foo()
+    foo2.bar()
+    let bar2 = Bar()
+    bar2.bar()
+    let foo = new_foo()
+    print(foo.fly())
+    let bar = foo.bar()
+    bar.bar()
+
+    // TODO:
+    // let fly pkg1.Fly = foo
+    // print(fly.fly())
+}
+
+// CHECK: Hello from pkg1
+// CHECK: bar
+// CHECK: Bar is bar
+// CHECK: Foo is flying
+// CHECK: Bar is bar

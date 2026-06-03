@@ -504,14 +504,15 @@ static inline TValue kl_do_call_one_arg(TValue *callable, TValue *arg)
 }
 
 void kl_init_gm_stbl(void);
-int kl_load_module(char *path);
+Object *kl_load_module(char *path);
 Object *kl_get_module(char *path);
-int kl_register_module(Object *_m);
-void kl_resolve_import(Object *_m);
-void kl_dump_module(Object *_m);
+int kl_register_module(Object *m);
+void kl_resolve_import(Object *m);
+void kl_dump_module(Object *m);
 
 TValue kl_eval_code(TValue *self, TValue *args, int nargs);
-void kl_run_module(Object *_m);
+void kl_run_main(Object *m);
+void kl_run_init(Object *m);
 
 #ifdef __cplusplus
 }

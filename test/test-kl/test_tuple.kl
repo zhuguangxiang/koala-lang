@@ -21,17 +21,17 @@ let t7 (int, float, bool) = (1, 2.1, false)
 
 let t8 (int, float, bool) = (1, 2.1, false, "extra")
 // CHECK: Types of two sides are not matched.
-// CHECK: lhs: tuple<jdz> =/= rhs: tuple<jdzu>
+// CHECK: lhs: std/builtin.tuple<jdz> =/= rhs: std/builtin.tuple<jdzu>
 
 let t9 (int, float) = (1, 2)
 // CHECK: Types of two sides are not matched.
-// CHECK: lhs: tuple<jd> =/= rhs: tuple<jj>
+// CHECK: lhs: std/builtin.tuple<jd> =/= rhs: std/builtin.tuple<jj>
 
 let t10 (int, float) = tuple(1, 3.0)
 
 let t11 (int, float) = tuple[int](1)
 // CHECK: Types of two sides are not matched.
-// CHECK: lhs: tuple<jd> =/= rhs: tuple<j>
+// CHECK: lhs: std/builtin.tuple<jd> =/= rhs: std/builtin.tuple<j>
 
 let t12 (int) = (1,)
 

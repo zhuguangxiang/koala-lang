@@ -76,6 +76,9 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
             // copy ir_val from origin symbol
             ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)sym;
             sym->ir_val = shadow_sym->origin->ir_val;
+        } else if (sym->kind == SYM_PACKAGE) {
+            KlrExtModule *val = klr_add_ext_module(MOD, sym->name);
+            sym->ir_val = (KlrValue *)val;
         } else {
             ASSERT(sym->flags & SYM_FLAGS_EXT);
             KlrValue *val = NULL;
@@ -160,6 +163,11 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
         case SYM_CLASS: {
             ASSERT(!(sym->flags & SYM_FLAGS_EXT));
             ASSERT(sym->ir_val);
+            exp->ir_val = sym->ir_val;
+            break;
+        }
+
+        case SYM_PACKAGE: {
             exp->ir_val = sym->ir_val;
             break;
         }
@@ -466,16 +474,23 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
         KlrValue *self = lhs->arg;
         if (self) {
-            // method call
-            KlrValue *_args[size + 1];
-            _args[0] = self;
-            for (int i = 0; i < size; i++) {
-                _args[i + 1] = ir_args[i];
+            if (self->kind == KLR_VALUE_EXT_MODULE) {
+                // module function call, e.g. math.sin()
+                KlrBuilder bldr;
+                klr_builder_end(&bldr, ps->scope->bb);
+                ret = klr_build_call(&bldr, callee, ir_args, size, "");
+            } else {
+                // method call
+                KlrValue *_args[size + 1];
+                _args[0] = self;
+                for (int i = 0; i < size; i++) {
+                    _args[i + 1] = ir_args[i];
+                }
+                size += 1;
+                KlrBuilder bldr;
+                klr_builder_end(&bldr, ps->scope->bb);
+                ret = klr_build_call(&bldr, callee, _args, size, "");
             }
-            size += 1;
-            KlrBuilder bldr;
-            klr_builder_end(&bldr, ps->scope->bb);
-            ret = klr_build_call(&bldr, callee, _args, size, "");
         } else {
             KlrBuilder bldr;
             klr_builder_end(&bldr, ps->scope->bb);
@@ -588,14 +603,21 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
                         ASSERT(_sym->ir_val);
                         exp->ir_val = _sym->ir_val;
                     }
-                } else {
-                    ASSERT(_sym->kind == SYM_CLASS);
+                } else if (_sym->kind == SYM_CLASS) {
                     KlassSymbol *kls_sym = (KlassSymbol *)_sym;
                     KlrValue *_val = kls_sym->ir_val;
                     ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
                     KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
                     exp->ir_val = klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
+                } else {
+                    ASSERT(_sym->kind == SYM_PACKAGE);
+                    KlrValue *_val = _sym->ir_val;
+                    ASSERT(_val && _val->kind == KLR_VALUE_EXT_MODULE);
+                    KlrExtModule *ext_mod = (KlrExtModule *)_val;
+                    exp->ir_val =
+                        klr_add_ext_func(MOD, sym->path, ((FuncSymbol *)sym)->ret, sym->name);
                 }
+                sym->ir_val = exp->ir_val;
             } else {
                 exp->ir_val = sym->ir_val;
             }
@@ -622,6 +644,24 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
             // KlrValue *closure = klr_build_closure(&bldr, fn_ir_val, lhs->ir_val, "");
             // klr_set_loc(closure, ps->filename, exp->loc);
             // exp->ir_val = closure;
+        } else {
+            UNREACHABLE();
+        }
+        return;
+    }
+
+    if (sym->kind == SYM_CLASS) {
+        if (exp->ctx == EXPR_CTX_CALL) {
+            if (!sym->ir_val) {
+                Symbol *_sym = sym->parent;
+                ASSERT(_sym->kind == SYM_PACKAGE);
+                KlrValue *_val = _sym->ir_val;
+                ASSERT(_val && _val->kind == KLR_VALUE_EXT_MODULE);
+                KlrExtModule *ext_mod = (KlrExtModule *)_val;
+                exp->ir_val = klr_add_ext_klass(MOD, sym->path, ((KlassSymbol *)sym)->instance_ts,
+                                                sym->name);
+                sym->ir_val = exp->ir_val;
+            }
         } else {
             UNREACHABLE();
         }
@@ -1125,7 +1165,6 @@ static void emit_ir_class(ParserState *ps, Stmt *stmt)
     ParserScope *scope = enter_scope(ps, scope_kind, 0, sym->name);
     scope->sym = sym;
 
-    int has_init_fn = 0;
     Vector fields = VECTOR_INIT_PTR;
 
     Stmt *s;
@@ -1142,38 +1181,9 @@ static void emit_ir_class(ParserState *ps, Stmt *stmt)
         FuncDeclStmt *method = (FuncDeclStmt *)s;
         Symbol *sym = method->sym;
         if (str_equal(sym->name, "__init__")) {
-            has_init_fn = 1;
             method->data = &fields;
         }
         emit_ir_stmt(ps, s);
-    }
-
-    if (!has_init_fn) {
-        // if there is no __init__, we still need to create an __init__ method to initialize fields
-        // with default values
-        ASSERT(sym->ir_val && sym->ir_val->kind == KLR_VALUE_KLASS);
-        KlrKlass *kls = (KlrKlass *)sym->ir_val;
-        KlrValue *fn = klr_add_method(kls, no_type_spec(), "__init__");
-        ((KlrFunc *)fn)->self = klr_func_add_param(fn, kls->ts, "self");
-        KlrBasicBlock *bb = klr_append_block(fn, "entry");
-
-        KlassSymbol *kls_sym = (KlassSymbol *)sym;
-        Symbol *sym = stbl_get(kls_sym->stbl, "__init__");
-        if (!sym) {
-            sym = stbl_add_func(kls_sym->stbl, "__init__", no_type_spec(), NULL,
-                                kls_sym->flags & SYM_FLAGS_PUBLIC);
-        }
-        sym->ir_val = fn;
-
-        ParserScope *scope = enter_scope(ps, SCOPE_FUNC, 0, fn->name);
-        scope->bb = bb;
-        emit_ir_fields(ps, scope, &fields);
-        exit_scope(ps);
-
-        if (dump_no_opt_ir_enabled()) {
-            fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
-            klr_print_func((KlrFunc *)fn, stdout);
-        }
     }
 
     vector_fini(&fields);

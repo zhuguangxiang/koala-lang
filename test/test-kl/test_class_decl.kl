@@ -1,4 +1,4 @@
-// RUN: koalac %s 2>&1 | filecheck %s
+// RUN: koalac %s --pkg-path=foo | filecheck %s
 
 trait Fly {
     func fly() str
@@ -145,10 +145,10 @@ let aa A = c
 
 let aa1 A = b
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: A =/= rhs: B<j>
+// CHECK-NEXT: lhs: foo.A =/= rhs: foo.B<j>
 
 let bb1 B[int] = a
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: B<j> =/= rhs: A
+// CHECK-NEXT: lhs: foo.B<j> =/= rhs: foo.A
 
 // CHECK-NOT: {{.}}

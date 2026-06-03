@@ -22,23 +22,23 @@ func main() {
 // CHECK-LABEL: func @foo(%n int64, %m int64) <NO-TYPE> {
 // CHECK: %bb0(entry):
 // CHECK: %0 = build_intern @range, %n int64, %m int64, 1 int64
-// CHECK: %1 = build_intern @tuple, %0 range
-// CHECK: call @print [path = 'std/builtin'], %1 tuple<Lrange;>, ' ' str, '\n' str
+// CHECK: %1 = build_intern @tuple, %0 std/builtin.range
+// CHECK: call @print [path = 'std/builtin'], %1 std/builtin.tuple<Lstd/builtin.range;>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %t = local [immutable] tuple<jjj>
-// CHECK: move %t tuple<jjj>, tuple(1, 2, 3) tuple<jjj>
-// CHECK: %r = local [immutable] range
-// CHECK: move %r range, range(1, 10, 1) range
+// CHECK: %t = local [immutable] std/builtin.tuple<jjj>
+// CHECK: move %t std/builtin.tuple<jjj>, tuple(1, 2, 3) std/builtin.tuple<jjj>
+// CHECK: %r = local [immutable] std/builtin.range
+// CHECK: move %r std/builtin.range, range(1, 10, 1) std/builtin.range
 // CHECK: %s = local [immutable] str
 // CHECK: move %s str, 'hello' str
 // CHECK: %s2 = local [immutable] str
 // CHECK: move %s2 str, %s str
-// CHECK: %0 = build_intern @tuple, %t tuple<jjj>, %r range, %s str, %s2 str
-// CHECK: call @print [path = 'std/builtin'], %0 tuple<Ltuple<jjj>;Lrange;uu>, ' ' str, '\n' str
+// CHECK: %0 = build_intern @tuple, %t std/builtin.tuple<jjj>, %r std/builtin.range, %s str, %s2 str
+// CHECK: call @print [path = 'std/builtin'], %0 std/builtin.tuple<Lstd/builtin.tuple<jjj>;Lstd/builtin.range;uu>, ' ' str, '\n' str
 // CHECK: call @foo [const], -1 int64, -10 int64
 // CHECK: ret void
 
@@ -63,10 +63,10 @@ func main() {
 // CHECK-LABEL: --- IR Dump After isel [@main] ---
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = local tuple<jjj>        [fixedslot = 0(next)]
-// CHECK: loadk %0 tuple<jjj>, tuple(1, 2, 3) tuple<jjj>
-// CHECK: %1 = local range        [fixedslot = 1(next)]
-// CHECK: loadk %1 range, range(1, 10, 1) range
+// CHECK: %0 = local std/builtin.tuple<jjj>        [fixedslot = 0(next)]
+// CHECK: loadk %0 std/builtin.tuple<jjj>, tuple(1, 2, 3) std/builtin.tuple<jjj>
+// CHECK: %1 = local std/builtin.range        [fixedslot = 1(next)]
+// CHECK: loadk %1 std/builtin.range, range(1, 10, 1) std/builtin.range
 // CHECK: %2 = local str        [fixedslot = 2(next)]
 // CHECK: loadk %2 str, 'hello' str
 // CHECK: %3 = local str        [fixedslot = 3(next)]

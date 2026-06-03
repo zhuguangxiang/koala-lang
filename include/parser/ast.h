@@ -41,10 +41,11 @@ typedef struct _Ident {
     Loc loc;
     /* where is this ident ? */
     int where;
-#define CURRENT_SCOPE 1
-#define UP_SCOPE      2
-#define EXT_SCOPE     3
-#define BLTIN_SCOPE   4
+#define CURRENT_SCOPE  1
+#define UP_SCOPE       2
+#define EXT_SCOPE      3
+#define BLTIN_SCOPE    4
+#define IMPORTED_SCOPE 5
     /* scope pointer */
     void *scope;
 } Ident;
@@ -387,6 +388,20 @@ typedef struct _Stmt {
 #define stmt_set_prefix(s, prefix) (s)->flags = (prefix)
 
 void stmt_free(Stmt *stmt);
+
+typedef struct _IdentAsIdent {
+    Ident id;
+    Ident alias_id;
+} IdentAsIdent;
+
+typedef struct _ImportStmt {
+    STMT_HEAD
+    char *path;
+    char *alias;
+    Vector *names; /* only used for 'from ... import ...' */
+} ImportStmt;
+
+Stmt *stmt_from_import(Buffer *buf, char *alias, Vector *names);
 
 typedef struct _VarDeclStmt {
     STMT_HEAD

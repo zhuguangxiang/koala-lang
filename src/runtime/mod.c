@@ -15,9 +15,12 @@ static HashMap _gm_stbl;
 
 void kl_init_gm_stbl(void) { stbl_init(&_gm_stbl); }
 
-int kl_load_module(char *path) { return 0; }
-
-Object *kl_get_module(char *path) { return stbl_find_obj(&_gm_stbl, path); }
+Object *kl_get_module(char *path)
+{
+    Object *m = stbl_find_obj(&_gm_stbl, path);
+    if (m) return m;
+    return kl_load_module(path);
+}
 
 int kl_register_module(Object *_m)
 {

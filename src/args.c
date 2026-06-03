@@ -67,9 +67,13 @@ static void version(void)
 int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
 {
     static struct option long_opts[] = {
-        { "dump", required_argument, 0, 1 }, { "int-trap", no_argument, 0, 2 },
-        { "float-trap", no_argument, 0, 3 }, { "help", no_argument, 0, 'h' },
-        { "version", no_argument, 0, 'v' },  { 0, 0, 0, 0 },
+        { "dump", required_argument, 0, 1 },
+        { "int-trap", no_argument, 0, 2 },
+        { "float-trap", no_argument, 0, 3 },
+        { "help", no_argument, 0, 'h' },
+        { "version", no_argument, 0, 'v' },
+        { "pkg-path", required_argument, 0, 4 },
+        { 0, 0, 0, 0 },
     };
 
     optind = 1;
@@ -97,6 +101,10 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
                 break;
             case 3:
                 opt->enable_float_trap = 1;
+                break;
+            case 4:
+                strncpy(opt->pkg_path, optarg, MAX_PATH_LEN);
+                opt->pkg_path[MAX_PATH_LEN - 1] = 0;
                 break;
             default:
                 return -1;

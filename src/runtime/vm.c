@@ -6,6 +6,7 @@
 #include "vm.h"
 #include <unistd.h>
 #include "atom.h"
+#include "buffer.h"
 #include "klc.h"
 #include "log.h"
 #include "mm.h"
@@ -126,12 +127,12 @@ static void __load_const(Object *m, KlcConst *item)
     }
 }
 
-void koala_run_file(char *path)
+static Object *_load_module(char *path, char *pkg_path)
 {
     KlcFile *klc = read_klc_file(path, 1);
-    if (!klc) return;
+    if (!klc) return NULL;
 
-    Object *m = kl_new_module(path);
+    Object *m = kl_new_module(pkg_path);
 
     uint8_t *codes = NULL;
     uint32_t size = klc_get_bytecodes(klc, &codes);
@@ -219,6 +220,13 @@ void koala_run_file(char *path)
 
             uint16_t _idx = 0;
             vector_foreach(_idx, &intf_entry->methods) {
+                if (_idx == 0xFFFFu) {
+                    ASSERT(0); // should not happen, but just in case
+                    ASSERT(i__ < itable.num_funcs);
+                    itable.methods[i__] = ((ModuleObject *)m)->not_impl;
+                    continue;
+                }
+
                 Object *co = vector_get(&mo->funcs, _idx);
                 ASSERT(co && IS_CODE(co));
                 CodeObject *co_obj = (CodeObject *)co;
@@ -251,9 +259,69 @@ void koala_run_file(char *path)
 
     kl_init_module(m);
     kl_resolve_import(m);
-    kl_run_module(m);
-
     free_klc_file(klc);
+    return m;
+}
+
+static int isdotklc(char *filename)
+{
+    char *dot = strrchr(filename, '.');
+    if (dot == NULL || strlen(dot) != 4) return 0;
+    if (dot[1] == 'k' && dot[2] == 'l' && dot[3] == 'c') return 1;
+    return 0;
+}
+
+Object *kl_load_module(char *path)
+{
+    Object *m = NULL;
+
+    if (path[0] == '/') {
+        log_info("loading module '%s'", path);
+        m = _load_module(path, path);
+        goto done;
+    }
+
+    char *koala_path = getenv("KOALA_PATH");
+    if (!koala_path) {
+        log_info("KOALA_PATH is not set");
+        m = _load_module(path, path);
+        goto done;
+    }
+
+    log_info("KOALA_PATH: %s", koala_path);
+
+    BUF(buf);
+    char *prefix = NULL;
+    int count = str_sep(&koala_path, ':', &prefix);
+    while (count > 0) {
+        buf_write_nstr(&buf, prefix, count);
+        buf_write_str(&buf, path);
+        if (!isdotklc(path)) buf_write_str(&buf, ".klc");
+        m = _load_module(BUF_STR(buf), path);
+        if (m) {
+            log_info("found package '%s' in KOALA_PATH: %s", path, prefix);
+            break;
+        }
+
+        RESET_BUF(buf);
+        count = str_sep(&koala_path, ':', &prefix);
+    }
+
+    FINI_BUF(buf);
+
+done:
+    ModuleObject *mo = (ModuleObject *)m;
+    if (mo && mo->__init__) {
+        log_info("initializing module '%s'", path);
+        kl_run_init(m);
+    }
+    return m;
+}
+
+void koala_run_file(char *path)
+{
+    Object *m = kl_load_module(path);
+    kl_run_main(m);
 }
 
 void koala_finalize(void) { /* finalize atom string table */ fini_atom(); }

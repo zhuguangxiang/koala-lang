@@ -32,6 +32,7 @@ typedef enum _TypeKind {
     TYPE_KLASS,
     TYPE_PROTO,
     TYPE_OPTIONAL,
+    TYPE_PACKAGE,
     TYPE_MANGLED, // only for loading from klc
 } TypeKind;
 
@@ -115,6 +116,8 @@ typedef struct _TypeSpec {
             Vector *args;
         } tuple;
 
+        char *pkg_path; // package path for package type
+
         // mangled type, not interned, only used during loading from klc
         // _Z4Listi -> List[int] (string -> struct)
         struct {
@@ -140,6 +143,7 @@ TypeSpec *optional_type_spec_intern(TypeSpec *src);
 Vector *type_spec_vec_copy(Vector *args);
 TypeSpec *va_list_type_spec(TypeSpec *src);
 TypeSpec *va_list_type_spec_intern(TypeSpec *src);
+TypeSpec *pkg_type_spec(char *path);
 
 static inline int type_is_no_type(TypeSpec *ts) { return ts->kind == TYPE_NO_TYPE; }
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }

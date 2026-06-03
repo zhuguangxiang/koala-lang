@@ -73,6 +73,11 @@ static void __free_inner_stbl(Symbol *sym)
             ASSERT(!sym->stbl);
             break;
         }
+        case SYM_IMPORTED: {
+            // nothing
+            ASSERT(!sym->stbl);
+            break;
+        }
         default: {
             UNREACHABLE();
             break;
@@ -145,6 +150,11 @@ static void __symbol_free(Symbol *sym)
             break;
         }
         case SYM_INHERITED: {
+            // nothing
+            ASSERT(!sym->stbl);
+            break;
+        }
+        case SYM_IMPORTED: {
             // nothing
             ASSERT(!sym->stbl);
             break;
@@ -328,7 +338,7 @@ TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner)
     return sym;
 }
 
-PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path, HashMap *_stbl)
+PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path)
 {
     PkgSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(path));
@@ -339,11 +349,28 @@ PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path, HashMap *_stbl)
         mm_free(sym);
         sym = NULL;
     } else {
-        sym->stbl = _stbl;
         add_to_global(sym);
     }
 
     return sym;
+}
+
+Symbol *stbl_add_imported(HashMap *stbl, Symbol *origin, char *name)
+{
+    ImportedSymbol *sym = mm_alloc_obj(sym);
+    hashmap_entry_init(sym, str_hash(name));
+    sym->kind = SYM_IMPORTED;
+    sym->name = name;
+
+    if (hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    } else {
+        sym->origin = origin;
+        add_to_global(sym);
+    }
+
+    return (Symbol *)sym;
 }
 
 static char *mangle_type_name(char *base_name, Vector *tp_args)
@@ -382,7 +409,7 @@ static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, char *mangled_na
         sym->origin = origin;
         sym->tp_args = type_spec_vec_copy(tp_args);
         sym->stbl = stbl_new();
-        sym->instance_ts = klass_type_spec(NULL, mangled_name);
+        sym->instance_ts = klass_type_spec(origin->path, mangled_name);
         sym->instance_ts->sym_id = sym->id;
         sym->instance_ts->checked = 1;
     }

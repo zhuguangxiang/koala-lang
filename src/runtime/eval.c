@@ -251,17 +251,22 @@ TValue kl_eval_code(TValue *self, TValue *args, int nargs)
     return result;
 }
 
-void kl_run_module(Object *_m)
+void kl_run_main(Object *_m)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+
+    if (m->main) {
+        TValue val = obj_value(m->main);
+        kl_do_call(&val, NULL, 0);
+    }
+}
+
+void kl_run_init(Object *_m)
 {
     ModuleObject *m = (ModuleObject *)_m;
 
     if (m->__init__) {
         TValue val = obj_value(m->__init__);
-        kl_do_call(&val, NULL, 0);
-    }
-
-    if (m->main) {
-        TValue val = obj_value(m->main);
         kl_do_call(&val, NULL, 0);
     }
 }

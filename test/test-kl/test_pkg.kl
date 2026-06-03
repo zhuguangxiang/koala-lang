@@ -1,0 +1,9 @@
+// RUN: koalac %s | filecheck %s
+
+import "test_pkg/pkg1"
+
+func main() {
+    pkg1.hello()
+    pkg1.world() // This should cause an error because world is not public
+// CHECK: 'world' is not found in package 'test_pkg/pkg1'
+}

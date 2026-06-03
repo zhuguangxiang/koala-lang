@@ -10,6 +10,8 @@
 extern "C" {
 #endif
 
+#define MAX_PATH_LEN 1024
+
 typedef enum _DumpFlags {
     DUMP_NONE = 0,
     DUMP_NO_OPT_IR = 1 << 0,
@@ -34,6 +36,7 @@ typedef struct _CompileOptions {
     int enable_int_trap;
     int enable_float_trap;
     DumpFlags dump;
+    char pkg_path[MAX_PATH_LEN];
 } CompileOptions;
 
 extern CompileOptions cmd_opt;

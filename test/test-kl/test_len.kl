@@ -12,4 +12,4 @@ func main() {
 }
 
 // CHECK: object of type 'j' has no __len__()
-// CHECK: 'LFoo;.__len__' must return int for len() call
+// CHECK: 'Ltest_len.Foo;.__len__' must return int for len() call

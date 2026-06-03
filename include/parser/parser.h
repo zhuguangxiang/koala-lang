@@ -16,8 +16,11 @@ extern "C" {
 #endif
 
 typedef struct _ParserModule {
-    /* module path */
+    /* module file path(xxx.klc) */
     char *path;
+
+    /* module pkg-path(xxx) */
+    char *pkg_path;
 
     /* per-file ParserState */
     Vector pss;
@@ -210,7 +213,7 @@ int check_type(ParserState *ps, TypeSpec *ts);
 int type_spec_compatible(TypeSpec *dst, TypeSpec *src);
 
 void write_to_klc(ParserModule *pm);
-HashMap *load_module(char *path);
+HashMap *load_module(char *path, Symbol *pkg_sym);
 void kl_gen_ir(ParserModule *pm);
 
 #ifdef __cplusplus

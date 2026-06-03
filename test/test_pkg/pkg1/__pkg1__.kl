@@ -1,0 +1,23 @@
+
+// pub let v = 100
+// pub var v2 = v + 1
+// let v3 = "hello"
+// var v4 = "world"
+
+pub func hello() {
+    print("Hello from pkg1")
+}
+
+func world() {
+    print("world")
+}
+
+pub class Foo {
+    pub func bar() {
+        print("bar")
+    }
+}
+
+pub trait Fly {
+    pub func fly() str
+}

@@ -20,17 +20,17 @@ func main() {
 // CHECK: %x = local [immutable] int64
 // CHECK: move %x int64, %0 int64
 // CHECK: %1 = build_intern @tuple, %x int64, 'hello' str
-// CHECK: %t = local [immutable] tuple<ju>
-// CHECK: move %t tuple<ju>, %1 tuple<ju>
-// CHECK: %t2 = local [immutable] tuple<ju>
-// CHECK: move %t2 tuple<ju>, tuple(1, 'world') tuple<ju>
-// CHECK: %t3 = local [immutable] tuple<jud>
-// CHECK: move %t3 tuple<jud>, tuple(1, 'hi', 3.100000) tuple<jud>
-// CHECK: %2 = seq_get %t tuple<ju>, 0 int64
-// CHECK: %3 = seq_get %t2 tuple<ju>, 1 int64
-// CHECK: %4 = seq_get %t3 tuple<jud>, 2 int64
+// CHECK: %t = local [immutable] std/builtin.tuple<ju>
+// CHECK: move %t std/builtin.tuple<ju>, %1 std/builtin.tuple<ju>
+// CHECK: %t2 = local [immutable] std/builtin.tuple<ju>
+// CHECK: move %t2 std/builtin.tuple<ju>, tuple(1, 'world') std/builtin.tuple<ju>
+// CHECK: %t3 = local [immutable] std/builtin.tuple<jud>
+// CHECK: move %t3 std/builtin.tuple<jud>, tuple(1, 'hi', 3.100000) std/builtin.tuple<jud>
+// CHECK: %2 = seq_get %t std/builtin.tuple<ju>, 0 int64
+// CHECK: %3 = seq_get %t2 std/builtin.tuple<ju>, 1 int64
+// CHECK: %4 = seq_get %t3 std/builtin.tuple<jud>, 2 int64
 // CHECK: %5 = build_intern @tuple, %2 int64, %3 str, %4 float64
-// CHECK: call @print [path = 'std/builtin'], %5 tuple<jud>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], %5 std/builtin.tuple<jud>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK-LABEL: @main[1,16]:

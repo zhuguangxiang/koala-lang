@@ -24,45 +24,45 @@ func main() {
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @new_list(%x int64) list<j>
+// CHECK-LABEL: func @new_list(%x int64) std/builtin.list<j>
 // CHECK-LABEL: %bb0(entry):
 // CHECK: %0 = build_intern @list, 100 int64, 200 int64, %x int64
-// CHECK: %l = local [immutable] list<j>
-// CHECK: move %l list<j>, %0 list<j>
-// CHECK: ret %l list<j>
+// CHECK: %l = local [immutable] std/builtin.list<j>
+// CHECK: move %l std/builtin.list<j>, %0 std/builtin.list<j>
+// CHECK: ret %l std/builtin.list<j>
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @new_list_list(%x int64) list<Llist<j>;> {
+// CHECK-LABEL: func @new_list_list(%x int64) std/builtin.list<Lstd/builtin.list<j>;> {
 // CHECK-LABEL: %bb0(entry):
 // CHECK: %0 = build_intern @list, %x int64
-// CHECK: %1 = build_intern @list, list[100, 200] list<j>, %0 list<j>, list[300] list<j>
-// CHECK: %l = local [immutable] list<Llist<j>;>
-// CHECK: move %l list<Llist<j>;>, %1 list<Llist<j>;>
-// CHECK: ret %l list<Llist<j>;>
+// CHECK: %1 = build_intern @list, list[100, 200] std/builtin.list<j>, %0 std/builtin.list<j>, list[300] std/builtin.list<j>
+// CHECK: %l = local [immutable] std/builtin.list<Lstd/builtin.list<j>;>
+// CHECK: move %l std/builtin.list<Lstd/builtin.list<j>;>, %1 std/builtin.list<Lstd/builtin.list<j>;>
+// CHECK: ret %l std/builtin.list<Lstd/builtin.list<j>;>
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK-LABEL: %bb0(entry):
 // CHECK: %0 = call @new_list [const], 300 int64
-// CHECK: %l = local [immutable] list<j>
-// CHECK: move %l list<j>, %0 list<j>
-// CHECK: %1 = build_intern @tuple, %l list<j>
-// CHECK: call @print [path = 'std/builtin'], %1 tuple<Llist<j>;>, ' ' str, '\n' str
+// CHECK: %l = local [immutable] std/builtin.list<j>
+// CHECK: move %l std/builtin.list<j>, %0 std/builtin.list<j>
+// CHECK: %1 = build_intern @tuple, %l std/builtin.list<j>
+// CHECK: call @print [path = 'std/builtin'], %1 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
 // CHECK: %2 = call @new_list_list [const], 300 int64
-// CHECK: %l2 = local [immutable] list<Llist<j>;>
-// CHECK: move %l2 list<Llist<j>;>, %2 list<Llist<j>;>
-// CHECK: %3 = call @len [path = 'std/builtin'], %l2 list<Llist<j>;>
-// CHECK: %4 = seq_get %l2 list<Llist<j>;>, 0 int64
-// CHECK: %5 = call @len [path = 'std/builtin'], %4 list<j>
-// CHECK: %6 = seq_get %l2 list<Llist<j>;>, 1 int64
-// CHECK: %7 = call @len [path = 'std/builtin'], %6 list<j>
-// CHECK: %8 = build_intern @tuple, %l2 list<Llist<j>;>, %3 int64, %5 int64, %7 int64
-// CHECK: call @print [path = 'std/builtin'], %8 tuple<Llist<Llist<j>;>;jjj>, ' ' str, '\n' str
-// CHECK: seq_set %l list<j>, 0 int64, 10 int64
-// CHECK: seq_set %l list<j>, 1 int64, 20 int64
-// CHECK: seq_set %l list<j>, 2 int64, 30 int64
-// CHECK: %9 = build_intern @tuple, %l list<j>
-// CHECK: call @print [path = 'std/builtin'], %9 tuple<Llist<j>;>, ' ' str, '\n' str
+// CHECK: %l2 = local [immutable] std/builtin.list<Lstd/builtin.list<j>;>
+// CHECK: move %l2 std/builtin.list<Lstd/builtin.list<j>;>, %2 std/builtin.list<Lstd/builtin.list<j>;>
+// CHECK: %3 = call @len [path = 'std/builtin'], %l2 std/builtin.list<Lstd/builtin.list<j>;>
+// CHECK: %4 = seq_get %l2 std/builtin.list<Lstd/builtin.list<j>;>, 0 int64
+// CHECK: %5 = call @len [path = 'std/builtin'], %4 std/builtin.list<j>
+// CHECK: %6 = seq_get %l2 std/builtin.list<Lstd/builtin.list<j>;>, 1 int64
+// CHECK: %7 = call @len [path = 'std/builtin'], %6 std/builtin.list<j>
+// CHECK: %8 = build_intern @tuple, %l2 std/builtin.list<Lstd/builtin.list<j>;>, %3 int64, %5 int64, %7 int64
+// CHECK: call @print [path = 'std/builtin'], %8 std/builtin.tuple<Lstd/builtin.list<Lstd/builtin.list<j>;>;jjj>, ' ' str, '\n' str
+// CHECK: seq_set %l std/builtin.list<j>, 0 int64, 10 int64
+// CHECK: seq_set %l std/builtin.list<j>, 1 int64, 20 int64
+// CHECK: seq_set %l std/builtin.list<j>, 2 int64, 30 int64
+// CHECK: %9 = build_intern @tuple, %l std/builtin.list<j>
+// CHECK: call @print [path = 'std/builtin'], %9 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK: [100, 200, 300]

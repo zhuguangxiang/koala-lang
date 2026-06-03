@@ -107,13 +107,13 @@ func foo2() {
 // CHECK: %0 = get_global @b bool
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
-// CHECK: %1 = local tuple<u>
-// CHECK: loadk %1 tuple<u>, tuple('true') tuple<u>
+// CHECK: %1 = local std/builtin.tuple<u>
+// CHECK: loadk %1 std/builtin.tuple<u>, tuple('true') std/builtin.tuple<u>
 // CHECK: call @print [path = 'std/builtin', const], nargs=3
 // CHECK: jmp label %bb3
 
-// CHECK: %4 = local tuple<u>
-// CHECK: loadk %4 tuple<u>, tuple('false') tuple<u>
+// CHECK: %4 = local std/builtin.tuple<u>
+// CHECK: loadk %4 std/builtin.tuple<u>, tuple('false') std/builtin.tuple<u>
 // CHECK: call @print [path = 'std/builtin', const], nargs=3
 // CHECK: jmp label %bb3
 

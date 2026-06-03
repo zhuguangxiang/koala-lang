@@ -1,4 +1,4 @@
-// RUN: koalac %s 2>&1 | filecheck %s
+// RUN: koalac %s --pkg-path=z | filecheck %s
 
 func hello() str {
     // return "hello"
@@ -60,7 +60,7 @@ var l2_1 List[Baz];
 var l3 List[Bar] = List[Baz](Baz())
 
 // CHECK: Types of two sides are not matched.
-// CHECK-NEXT: lhs: List<LBar;> =/= rhs: List<LBaz;>
+// CHECK-NEXT: lhs: z.List<Lz.Bar;> =/= rhs: z.List<Lz.Baz;>
 
 var l4 List[Baz] = List[Baz](Baz())
 
@@ -114,13 +114,13 @@ let fish2 Foo2[Flyable] = Foo2[Flyable](FlyFish())
 let fish3 Foo2[Flyable] = Foo2[FlyFish](FlyFish())
 
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: Foo2<LFlyable;> =/= rhs: Foo2<LFlyFish;>
+// CHECK-NEXT: lhs: z.Foo2<Lz.Flyable;> =/= rhs: z.Foo2<Lz.FlyFish;>
 
 let bird Foo2[Bird[int]] = Foo2[Bird[int]](Bird[int](0))
 
 let bird2 Foo2[Flyable] = Foo2[Bird[int]](Bird[int](0))
 
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: Foo2<LFlyable;> =/= rhs: Foo2<LBird<j>;>
+// CHECK-NEXT: lhs: z.Foo2<Lz.Flyable;> =/= rhs: z.Foo2<Lz.Bird<j>;>
 
 // CHECK-NOT: {{.}}

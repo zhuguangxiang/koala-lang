@@ -1590,7 +1590,9 @@ uint32_t klc_get_bytecodes(KlcFile *klc, uint8_t **codes)
     KlcByteCode *item;
     vector_foreach(item, vec) {
         if (!item) continue;
-        *codes = item->codes;
+        uint8_t *data = mm_alloc(item->size);
+        memcpy(data, item->codes, item->size);
+        *codes = data;
         return item->size;
     }
     return 0;

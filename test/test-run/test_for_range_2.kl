@@ -23,9 +23,9 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK-LABEL: %bb1(loop-header):
-// CHECK: %0 = get_field_ext %r range, start
-// CHECK: %1 = get_field_ext %r range, stop
-// CHECK: %2 = get_field_ext %r range, step
+// CHECK: %0 = get_field_ext %r std/builtin.range, start
+// CHECK: %1 = get_field_ext %r std/builtin.range, stop
+// CHECK: %2 = get_field_ext %r std/builtin.range, step
 
 // CHECK-LABEL: %bb2(loop-cond):
 // CHECK: %6 = select %3 bool, %4 bool, %5 bool

@@ -1115,7 +1115,7 @@ static void parse_call(ParserState *ps, Expr *exp)
             log_info("class '%s' has no constructor, add default __init__() for it.",
                      lhs_sym->name);
             _fn_sym = stbl_add_func(cls_sym->stbl, "__init__", no_type_spec(), NULL,
-                                    cls_sym->flags & SYM_FLAGS_PUBLIC);
+                                    cls_sym->flags | SYM_FLAGS_PUBLIC);
         }
 
         if (str_equal(cls_sym->name, "tuple")) {
@@ -1286,7 +1286,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                 log_info("class '%s' has no constructor, add default __init__() for it.",
                          origin->name);
                 _fn_sym = stbl_add_func(origin->stbl, "__init__", no_type_spec(), NULL,
-                                        origin->flags & SYM_FLAGS_PUBLIC);
+                                        origin->flags | SYM_FLAGS_PUBLIC);
                 if (origin->flags & SYM_FLAGS_EXT) _fn_sym->flags |= SYM_FLAGS_EXT;
             }
             origin->__init__ = _fn_sym;
@@ -1451,7 +1451,12 @@ static void parse_dot(ParserState *ps, Expr *exp)
     Ident *ident = &dot->id;
     Symbol *sym = stbl_get(lhs_stbl, ident->name);
     if (sym) {
-        exp->ts = opt_dot_type(sym->ts, opt_or_bang);
+        if (sym->kind == SYM_CLASS) {
+            exp->ts = opt_dot_type(((KlassSymbol *)sym)->instance_ts, opt_or_bang);
+        } else {
+            exp->ts = opt_dot_type(sym->ts, opt_or_bang);
+        }
+
         exp->sym = sym;
         log_info("dot member resolved: %s", sym->name);
         if (sym->kind == SYM_FUNC) {
@@ -1542,7 +1547,19 @@ static void parse_dot(ParserState *ps, Expr *exp)
         }
     }
 
-    kl_error(ident->loc, "'%s' is not a member of '%s'", ident->name, lhs_ts_sym->name);
+    char *prefix = "";
+
+    if (lhs_ts_sym->kind == SYM_CLASS) {
+        prefix = "class";
+    } else if (lhs_ts_sym->kind == SYM_INSTANCE) {
+        prefix = "instance of class";
+    } else if (lhs_ts_sym->kind == SYM_TRAIT) {
+        prefix = "trait";
+    } else if (lhs_ts_sym->kind == SYM_PACKAGE) {
+        prefix = "package";
+    }
+
+    kl_error(ident->loc, "'%s' is not found in %s '%s'", ident->name, prefix, lhs_ts_sym->name);
     return;
 }
 
@@ -1919,7 +1936,7 @@ static void parse_slice(ParserState *ps, Expr *exp)
         }
     }
 
-    exp->ts = klass_type_spec(NULL, "slice");
+    exp->ts = klass_type_spec("std/builtin", "slice");
     exp->sym = get_symbol_by_id(exp->ts->sym_id);
 }
 

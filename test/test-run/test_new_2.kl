@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir | filecheck %s
+// RUN: koala %s --dump=no-opt-ir --pkg-path=z | filecheck %s
 
 class Point {
     var x int
@@ -26,46 +26,46 @@ func main() {
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @Point::__init__(%self Point, %_x int64, %_y int64) <NO-TYPE> {
+// CHECK-LABEL: func @Point::__init__(%self z.Point, %_x int64, %_y int64) <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: set_field %self Point, x(index=0), %_x int64
-// CHECK: set_field %self Point, y(index=1), %_y int64
+// CHECK: set_field %self z.Point, x(index=0), %_x int64
+// CHECK: set_field %self z.Point, y(index=1), %_y int64
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @Point::area(%self Point) tuple<jjj> {
+// CHECK-LABEL: func @Point::area(%self z.Point) std/builtin.tuple<jjj> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = get_field %self Point, x(index=0)
-// CHECK: %1 = get_field %self Point, y(index=1)
-// CHECK: %2 = get_field %self Point, x(index=0)
-// CHECK: %3 = get_field %self Point, y(index=1)
+// CHECK: %0 = get_field %self z.Point, x(index=0)
+// CHECK: %1 = get_field %self z.Point, y(index=1)
+// CHECK: %2 = get_field %self z.Point, x(index=0)
+// CHECK: %3 = get_field %self z.Point, y(index=1)
 // CHECK: %4 = mul %2 int64, %3 int64
 // CHECK: %5 = build_intern @tuple, %0 int64, %1 int64, %4 int64
-// CHECK: ret %5 tuple<jjj>
+// CHECK: ret %5 std/builtin.tuple<jjj>
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @foo(%r range) int64 {
+// CHECK-LABEL: func @foo(%r std/builtin.range) int64 {
 // CHECK: %bb0(entry):
-// CHECK: %0 = get_field_ext %r range, start
-// CHECK: %1 = get_field_ext %r range, stop
+// CHECK: %0 = get_field_ext %r std/builtin.range, start
+// CHECK: %1 = get_field_ext %r std/builtin.range, stop
 // CHECK: %2 = add %0 int64, %1 int64
 // CHECK: ret %2 int64
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = new @Point
-// CHECK: call @Point::__init__, %0 Point, 1 int64, 2 int64
-// CHECK: %p = local [immutable] Point
-// CHECK: move %p Point, %0 Point
-// CHECK: set_field %p Point, x(index=0), 3 int64
-// CHECK: %2 = get_field %p Point, x(index=0)
-// CHECK: %3 = get_field %p Point, y(index=1)
-// CHECK: %4 = build_intern @tuple, %p Point, %2 int64, %3 int64
-// CHECK: call @print [path = 'std/builtin'], %4 tuple<LPoint;jj>, ' ' str, '\n' str
-// CHECK: %5 = call @foo [const], range(100, 200, 1) range
+// CHECK: %0 = new @z::Point
+// CHECK: call @Point::__init__, %0 z.Point, 1 int64, 2 int64
+// CHECK: %p = local [immutable] z.Point
+// CHECK: move %p z.Point, %0 z.Point
+// CHECK: set_field %p z.Point, x(index=0), 3 int64
+// CHECK: %2 = get_field %p z.Point, x(index=0)
+// CHECK: %3 = get_field %p z.Point, y(index=1)
+// CHECK: %4 = build_intern @tuple, %p z.Point, %2 int64, %3 int64
+// CHECK: call @print [path = 'std/builtin'], %4 std/builtin.tuple<Lz.Point;jj>, ' ' str, '\n' str
+// CHECK: %5 = call @foo [const], range(100, 200, 1) std/builtin.range
 // CHECK: %6 = build_intern @tuple, %5 int64
-// CHECK: call @print [path = 'std/builtin'], %6 tuple<j>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], %6 std/builtin.tuple<j>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK: <Point object at 0x{{[0-9a-f]+}}> 3 2

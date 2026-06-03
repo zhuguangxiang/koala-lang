@@ -11,6 +11,9 @@
 #include "parser.h"
 #include "koala_yacc.h"
 
+#define STD_BUILTIN_PATH "std/builtin"
+#define PKG_PATH ps->pm->pkg_path
+
 #define yyerror(loc, ps, scanner, msg) ((void)0)
 
 #define line(loc) ((loc).first_line)
@@ -307,19 +310,18 @@ program
 import_stmt
     : IMPORT STRING_LITERAL semi
     {
-        // $$ = stmt_from_import($2, $4);
-        // stmt_set_loc($$, lloc(@1, @5));
-        $$ = NULL;
+        $$ = stmt_from_import(&ps->sbuf, NULL, NULL);
+        stmt_set_loc($$, lloc(@1, @3));
     }
     | IMPORT STRING_LITERAL AS ID semi
     {
-        // $$ = stmt_from_import($2, $4);
-        // stmt_set_loc($$, lloc(@1, @5));
-        $$ = NULL;
+        $$ = stmt_from_import(&ps->sbuf, $4, NULL);
+        stmt_set_loc($$, lloc(@1, @5));
     }
     | FROM STRING_LITERAL IMPORT id_as_list semi
     {
-        $$ = NULL;
+        $$ = stmt_from_import(&ps->sbuf, NULL, $4);
+        stmt_set_loc($$, lloc(@1, @5));
     }
     | IMPORT STRING_LITERAL error
     {
@@ -330,19 +332,39 @@ import_stmt
 id_as_list
     : ID
     {
-
+        $$ = vector_create_ptr();
+        IdentAsIdent item = { 0 };
+        Ident id = {$1, loc(@1)};
+        item.id = id;
+        vector_push_back($$, &item);
     }
     | ID AS ID
     {
-
+        $$ = vector_create_ptr();
+        IdentAsIdent item = { 0 };
+        Ident id = {$1, loc(@1)};
+        Ident alias_id = {$3, loc(@3)};
+        item.id = id;
+        item.alias_id = alias_id;
+        vector_push_back($$, &item);
     }
     | id_as_list ',' ID
     {
-
+        $$ = $1;
+        IdentAsIdent item = { 0 };
+        Ident id = {$3, loc(@3)};
+        item.id = id;
+        vector_push_back($$, &item);
     }
     | id_as_list ',' ID AS ID
     {
-
+        $$ = $1;
+        IdentAsIdent item = { 0 };
+        Ident id = {$3, loc(@3)};
+        Ident alias_id = {$5, loc(@5)};
+        item.id = id;
+        item.alias_id = alias_id;
+        vector_push_back($$, &item);
     }
     ;
 
@@ -677,7 +699,8 @@ list_type
         NAME_ID(id, "list", loc(@1));
         Vector *args = vector_create_ptr();
         vector_push_back(args, &$3);
-        $$ = unresolved_type_spec(NULL, id, args);
+        MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
+        $$ = unresolved_type_spec(&mod, id, args);
         type_spec_loc($$, lloc(@1, @4));
     }
     | LIST '[' error
@@ -760,13 +783,15 @@ tuple_type
     : TUPLE '[' optional_type_list ']'
     {
         NAME_ID(id, "tuple", loc(@1));
-        $$ = unresolved_type_spec(NULL, id, $3);
+        MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
+        $$ = unresolved_type_spec(&mod, id, $3);
         type_spec_loc($$, lloc(@1, @4));
     }
     | '(' optional_type_list ')'
     {
         NAME_ID(id, "tuple", loc(@1));
-        $$ = unresolved_type_spec(NULL, id, $2);
+        MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
+        $$ = unresolved_type_spec(&mod, id, $2);
         type_spec_loc($$, lloc(@1, @3));
     }
     | TUPLE '[' error
@@ -809,7 +834,8 @@ klass_type
     : ID
     {
         NAME_ID(id, $1, loc(@1));
-        $$ = unresolved_type_spec(NULL, id, NULL);
+        MOD_ID(mod, PKG_PATH, loc(@1));
+        $$ = unresolved_type_spec(&mod, id, NULL);
         type_spec_loc($$, loc(@1));
     }
     | ID '.' ID
@@ -822,7 +848,8 @@ klass_type
     | ID '[' optional_type_list ']'
     {
         NAME_ID(id, $1, loc(@1));
-        $$ = unresolved_type_spec(NULL, id, $3);
+        MOD_ID(mod, PKG_PATH, loc(@1));
+        $$ = unresolved_type_spec(&mod, id, $3);
         type_spec_loc($$, lloc(@1, @4));
     }
     | ID '.' ID '[' optional_type_list ']'
@@ -949,7 +976,7 @@ atom_type
     }
     | RANGE
     {
-        $$ = klass_type_spec(NULL, "range");
+        $$ = klass_type_spec(STD_BUILTIN_PATH, "range");
         type_spec_loc($$, loc(@1));
     }
     ;
@@ -1436,7 +1463,7 @@ class_decl
         vector_push_back(tp_list, &tp);
 
         Ident id = {"tuple", loc(@2)};
-        TypeSpec *ts = klass_type_spec(NULL, "tuple");
+        TypeSpec *ts = klass_type_spec(STD_BUILTIN_PATH, "tuple");
         IdentType klass_name = {id, ts};
         $$ = stmt_from_klass(klass_name, tp_list, $7, $9);
         stmt_set_loc($$, lloc(@1, @9));
@@ -1447,7 +1474,7 @@ class_name
     : ID
     {
         Ident id = {$1, loc(@1)};
-        TypeSpec *ts = klass_type_spec(NULL, $1);
+        TypeSpec *ts = klass_type_spec(PKG_PATH, $1);
         $$ = (IdentType){id, ts};
     }
     | UINT8
@@ -1531,25 +1558,25 @@ class_name
     | LIST
     {
         Ident id = {"list", loc(@1)};
-        TypeSpec *ts = klass_type_spec(NULL, "list");
+        TypeSpec *ts = klass_type_spec(STD_BUILTIN_PATH, "list");
         $$ = (IdentType){id, ts};
     }
     | MAP
     {
         Ident id = {"dict", loc(@1)};
-        TypeSpec *ts = klass_type_spec(NULL, "dict");
+        TypeSpec *ts = klass_type_spec(STD_BUILTIN_PATH, "dict");
         $$ = (IdentType){id, ts};
     }
     | SET
     {
         Ident id = {"set", loc(@1)};
-        TypeSpec *ts = klass_type_spec(NULL, "set");
+        TypeSpec *ts = klass_type_spec(STD_BUILTIN_PATH, "set");
         $$ = (IdentType){id, ts};
     }
     | RANGE
     {
         Ident id = {"range", loc(@1)};
-        TypeSpec *ts = klass_type_spec(NULL, "range");
+        TypeSpec *ts = klass_type_spec(STD_BUILTIN_PATH, "range");
         $$ = (IdentType){id, ts};
     }
     | TYPE
@@ -1815,7 +1842,7 @@ trait_name
     : ID
     {
         Ident id = {$1, loc(@1)};
-        TypeSpec *ts = klass_type_spec(NULL, $1);
+        TypeSpec *ts = klass_type_spec(PKG_PATH, $1);
         $$ = (IdentType){id, ts};
     }
     | ANY
@@ -3006,7 +3033,7 @@ list_expr
     }
     | LIST
     {
-        TypeSpec *ty = klass_type_spec(NULL, "list");
+        TypeSpec *ty = klass_type_spec(STD_BUILTIN_PATH, "list");
         type_spec_loc(ty, loc(@1));
         $$ = expr_from_type(ty);
         expr_set_loc($$, loc(@1));
@@ -3128,7 +3155,7 @@ tuple_expr
     }
     | TUPLE
     {
-        TypeSpec *ty = klass_type_spec(NULL, "tuple");
+        TypeSpec *ty = klass_type_spec(STD_BUILTIN_PATH, "tuple");
         type_spec_loc(ty, loc(@1));
         $$ = expr_from_type(ty);
         expr_set_loc($$, loc(@1));

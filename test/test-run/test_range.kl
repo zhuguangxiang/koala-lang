@@ -11,33 +11,33 @@ func main() {
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @foo(%r range) <NO-TYPE> {
+// CHECK-LABEL: func @foo(%r std/builtin.range) <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = get_field_ext %r range, start
-// CHECK: %1 = get_field_ext %r range, stop
-// CHECK: %2 = get_field_ext %r range, step
+// CHECK: %0 = get_field_ext %r std/builtin.range, start
+// CHECK: %1 = get_field_ext %r std/builtin.range, stop
+// CHECK: %2 = get_field_ext %r std/builtin.range, step
 // CHECK: %3 = build_intern @tuple, %0 int64, %1 int64, %2 int64
-// CHECK: call @print [path = 'std/builtin'], %3 tuple<jjj>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], %3 std/builtin.tuple<jjj>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %r = local [immutable] range
-// CHECK: move %r range, range(1, 10, 2) range
-// CHECK: %0 = get_field_ext %r range, start
-// CHECK: %1 = get_field_ext %r range, stop
-// CHECK: %2 = get_field_ext %r range, step
+// CHECK: %r = local [immutable] std/builtin.range
+// CHECK: move %r std/builtin.range, range(1, 10, 2) std/builtin.range
+// CHECK: %0 = get_field_ext %r std/builtin.range, start
+// CHECK: %1 = get_field_ext %r std/builtin.range, stop
+// CHECK: %2 = get_field_ext %r std/builtin.range, step
 // CHECK: %3 = build_intern @tuple, %0 int64, %1 int64, %2 int64
-// CHECK: call @print [path = 'std/builtin'], %3 tuple<jjj>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], %3 std/builtin.tuple<jjj>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After isel [@foo] ---
-// CHECK-LABEL: func @foo(%r range) <NO-TYPE> {
+// CHECK-LABEL: func @foo(%r std/builtin.range) <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = get_field_ext %r range, start
-// CHECK: %1 = get_field_ext %r range, stop
-// CHECK: %2 = get_field_ext %r range, step
+// CHECK: %0 = get_field_ext %r std/builtin.range, start
+// CHECK: %1 = get_field_ext %r std/builtin.range, stop
+// CHECK: %2 = get_field_ext %r std/builtin.range, step
 // CHECK: %3 = build_intern @tuple, nargs=3
 // CHECK: %4 = local str        [fixedslot = 1(next)]
 // CHECK: loadk %4 str, ' ' str
@@ -61,8 +61,8 @@ func main() {
 // CHECK: %5 = local str        [fixedslot = 2(next)]
 // CHECK: loadk %5 str, '\n' str
 // CHECK: call @print [path = 'std/builtin'], nargs=3
-// CHECK: %6 = local range        [fixedslot = 0(next)]
-// CHECK: loadk %6 range, range(1, 10, 2) range
+// CHECK: %6 = local std/builtin.range        [fixedslot = 0(next)]
+// CHECK: loadk %6 std/builtin.range, range(1, 10, 2) std/builtin.range
 // CHECK: call @foo, nargs=1
 // CHECK: ret void
 

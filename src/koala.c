@@ -78,6 +78,12 @@ static int compile(const char *input, const char *output, KoalaOptions *opt)
         argv[n++] = buf_2;
     }
 
+    if (opt->pkg_path[0]) {
+        char pkg_arg[1024 + 16];
+        snprintf(pkg_arg, sizeof(pkg_arg), "--pkg-path=%s", opt->pkg_path);
+        argv[n++] = pkg_arg;
+    }
+
     argv[n++] = (char *)input;
     argv[n++] = "-o";
     argv[n++] = (char *)output;

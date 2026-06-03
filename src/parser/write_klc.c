@@ -150,9 +150,14 @@ static void write_meta_intf_entry(IntfEntry *intf_entry, KlcKlass *klass)
 
     FuncSymbol *fn_sym;
     vector_foreach(fn_sym, &intf_entry->methods) {
-        if (!fn_sym) continue;
-        ASSERT(fn_sym->kind == SYM_FUNC);
-        vector_push_back(&entry->methods, (uint16_t *)&fn_sym->code_index);
+        if (!fn_sym) {
+            ASSERT(0); // should not happen, but just in case
+            uint16_t null_idx = -1;
+            vector_push_back(&entry->methods, &null_idx);
+        } else {
+            ASSERT(fn_sym->kind == SYM_FUNC);
+            vector_push_back(&entry->methods, (uint16_t *)&fn_sym->code_index);
+        }
     }
 
     IntfEntry *parent;

@@ -31,7 +31,7 @@ func main() {
 // CHECK: %bb5(if-else):
 // CHECK: %2 = cast %msg str? to str
 // CHECK: %3 = build_intern @tuple, 'msg:' str, %2 str
-// CHECK: call @print [path = 'std/builtin'], %3 tuple<uu>
+// CHECK: call @print [path = 'std/builtin'], %3 std/builtin.tuple<uu>
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @foo(%v int64?) int64 {

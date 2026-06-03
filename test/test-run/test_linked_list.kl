@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir | filecheck %s
+// RUN: koala %s --dump=no-opt-ir --pkg-path=z | filecheck %s
 
 class ListNode {
     let value int
@@ -133,29 +133,29 @@ func main() {
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @List::append4(%self List, %value int64)
+// CHECK-LABEL: func @List::append4(%self z.List, %value int64)
 
 // CHECK-LABEL: %bb4(while-cond):
-// CHECK: %next = local ListNode
-// CHECK: %9 = get_field %curr ListNode, next(index=1)
-// CHECK: move %next ListNode, %9 ListNode?
-// CHECK: %10 = cmpne %9 ListNode?, none
+// CHECK: %next = local z.ListNode
+// CHECK: %9 = get_field %curr z.ListNode, next(index=1)
+// CHECK: move %next z.ListNode, %9 z.ListNode?
+// CHECK: %10 = cmpne %9 z.ListNode?, none
 // CHECK: branch %10 bool, label %bb5, label %bb6
 
 // CHECK-LABEL: %bb5(while-body):
-// CHECK: move %curr ListNode, %next ListNode
-// CHECK: %11 = get_field %curr ListNode, next(index=1)
-// CHECK: move %next ListNode, %11 ListNode?
-// CHECK: %12 = cmpne %11 ListNode?, none
+// CHECK: move %curr z.ListNode, %next z.ListNode
+// CHECK: %11 = get_field %curr z.ListNode, next(index=1)
+// CHECK: move %next z.ListNode, %11 z.ListNode?
+// CHECK: %12 = cmpne %11 z.ListNode?, none
 // CHECK: branch %12 bool, label %bb5, label %bb6
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @List::index(%self List, %idx int64) int64?
+// CHECK-LABEL: func @List::index(%self z.List, %idx int64) int64?
 // CHECK-LABEL: %bb3(while-end):
 // CHECK: ret none
 // CHECK-LABEL: %bb4(if-then):
-// CHECK: %3 = cast %curr ListNode? to ListNode
-// CHECK: %4 = get_field %3 ListNode, value(index=0)
+// CHECK: %3 = cast %curr z.ListNode? to z.ListNode
+// CHECK: %4 = get_field %3 z.ListNode, value(index=0)
 // CHECK: ret %4 int64
 
 // CHECK: Total:  10

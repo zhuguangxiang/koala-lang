@@ -1,0 +1,5 @@
+
+let v = 200
+var v2 = v + 1
+let v3 = "hello2"
+var v4 = "world2"

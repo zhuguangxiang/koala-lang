@@ -128,19 +128,24 @@ static PkgSymbol *import_package(ParserModule *pm, char *path)
         return (PkgSymbol *)sym;
     }
 
-    HashMap *stbl = load_module(path);
+    PkgSymbol *pkg_sym = stbl_add_pkg(pm->imported, path);
+    HashMap *stbl = load_module(path, (Symbol *)pkg_sym);
+
     if (!stbl) {
         fprintf(stderr, "error: cannot import module '%s'\n", path);
         char *koala_path = getenv("KOALA_PATH");
         if (koala_path) {
-            fprintf(stderr, "KOALA_PATH: %s\n", koala_path);
+            fprintf(stderr, "please check KOALA_PATH: %s\n", koala_path);
         } else {
             fprintf(stderr, "KOALA_PATH is not set\n");
         }
         abort();
     }
 
-    PkgSymbol *pkg_sym = stbl_add_pkg(pm->imported, path, stbl);
+    TypeSpec *ts = pkg_type_spec(path);
+    pkg_sym->ts = ts;
+    pkg_sym->stbl = stbl;
+    ts->sym_id = pkg_sym->id;
     log_info("imported module '%s' successfully", path);
     return pkg_sym;
 }
@@ -297,6 +302,22 @@ FuncSymbol *get_current_function(ParserState *ps)
     return NULL;
 }
 
+char *get_pkg_path(ParserState *ps, char *pkg_path)
+{
+    if (str_equal(pkg_path, "std/builtin") || str_equal(pkg_path, ps->pm->pkg_path)) {
+        return pkg_path;
+    }
+
+    Symbol *sym = stbl_get(ps->imported, pkg_path);
+    if (sym) {
+        ASSERT(sym->kind == SYM_IMPORTED);
+        PkgSymbol *pkg_sym = (PkgSymbol *)((ImportedSymbol *)sym)->origin;
+        return pkg_sym->name;
+    }
+
+    return NULL;
+}
+
 Symbol *find_symbol(ParserState *ps, Ident *id)
 {
     ParserScope *sc = ps->scope;
@@ -351,19 +372,45 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         return sym;
     }
 
+    /* find ident from imported scope */
+    sym = stbl_get(ps->imported, id->name);
+    if (sym) {
+        log_info("find symbol '%s' in imported scope", id->name);
+        id->where = IMPORTED_SCOPE;
+        id->scope = NULL;
+        return ((ImportedSymbol *)sym)->origin;
+    }
+
     return NULL;
 }
 
 Symbol *find_type_symbol(ParserState *ps, TypeIdent *pkg, TypeIdent *name)
 {
-    if (pkg->name == NULL) {
+    if (pkg->name == NULL || str_equal(pkg->name, "std/builtin") ||
+        str_equal(pkg->name, ps->pm->pkg_path)) {
         // find in current module
         Ident id = { .name = name->name, .loc = name->loc };
         return find_symbol(ps, &id);
     }
 
-    // TODO: find package
-    return NULL;
+    // find package
+    Symbol *sym = stbl_get(ps->imported, pkg->name);
+    if (!sym) return NULL;
+    ASSERT(sym->kind == SYM_IMPORTED);
+    Symbol *origin = ((ImportedSymbol *)sym)->origin;
+    if (origin->kind != SYM_PACKAGE) {
+        kl_error(pkg->loc, "symbol '%s' is not a package", origin->name);
+        return NULL;
+    }
+    PkgSymbol *pkg_sym = (PkgSymbol *)origin;
+    sym = stbl_get(pkg_sym->stbl, name->name);
+    return sym;
+}
+
+static void parse_import(ParserState *ps, Stmt *stmt)
+{
+    // import is already resolved in parse_top_stmt
+    // do nothing.
 }
 
 /**
@@ -778,8 +825,9 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         if (open) {
             // open generic_ref type
             log_info("resolve open generic_ref type '%s'", _ts->unresolved.name.name);
-            TypeSpec *ret = generic_ref_type_spec(_ts->unresolved.pkg.name,
-                                                  _ts->unresolved.name.name, tp_args, kls_sym->id);
+            char *pkg_path = get_pkg_path(ps, _ts->unresolved.pkg.name);
+            char *pkg_name = _ts->unresolved.name.name;
+            TypeSpec *ret = generic_ref_type_spec(pkg_path, pkg_name, tp_args, kls_sym->id);
             vector_destroy(tp_args);
             type_spec_free(_ts);
             log_type_spec(ret);
@@ -791,8 +839,9 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         // closed generic_ref type
         if (vector_empty(tp_args)) {
             log_info("resolve type '%s' without type-args", _ts->unresolved.name.name);
-            TypeSpec *ret = klass_type_spec(_ts->unresolved.pkg.name, _ts->unresolved.name.name);
-            // sure this TypeSpec is already interned
+            char *pkg_path = get_pkg_path(ps, _ts->unresolved.pkg.name);
+            char *pkg_name = _ts->unresolved.name.name;
+            TypeSpec *ret = klass_type_spec(pkg_path, pkg_name);
             ASSERT(ret->sym_id == kls_sym->id);
             ASSERT(kls_sym->instance_ts == ret);
             type_spec_free(_ts);
@@ -1710,6 +1759,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
         return NULL;
     }
 
+    sym->path = ps->pm->pkg_path;
     KlassSymbol *kls_sym = (KlassSymbol *)sym;
 
     // add tps
@@ -1730,7 +1780,33 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
         vector_push_back(&kls_sym->tps, &tp_sym);
     }
 
-    // add fields & methods
+    // add __init__ function for class, if there is not __init__ in class
+    if (!is_trait) {
+        int has_init = 0;
+
+        Stmt *stmt;
+        vector_foreach(stmt, kls->stmts) {
+            if (!stmt) continue;
+            if (stmt->kind == STMT_FUNC_KIND) {
+                FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
+                if (str_equal(fn->id.name, "__init__")) {
+                    has_init = 1;
+                    break;
+                }
+            }
+        }
+
+        if (!has_init) {
+            log_info("add default __init__ for class '%s'", id->name);
+            Ident id = { .name = "__init__", .loc = kls->id.loc };
+            Stmt *init_fn = stmt_from_func_decl(id, NULL, NULL, NULL);
+            if (kls->stmts == NULL) {
+                kls->stmts = vector_create_ptr();
+            }
+            vector_push_back(kls->stmts, &init_fn);
+        }
+    }
+
     Stmt *stmt;
     vector_foreach(stmt, kls->stmts) {
         if (!stmt) continue;
@@ -2403,6 +2479,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
 
     /* clang-format off */
     static void (*handlers[STMT_MAX_KIND])(ParserState *, Stmt *) = {
+        [STMT_IMPORT_KIND]    = parse_import,
         [STMT_VAR_KIND]       = parse_var_decl,
         [STMT_FUNC_KIND]      = parse_func_decl,
         [STMT_CLASS_KIND]     = parse_klass,
@@ -2710,6 +2787,7 @@ static void init_parser_state(ParserState *ps, char *filename)
     vector_init_ptr(&ps->fn_stmts);
     vector_init_ptr(&ps->kls_stmts);
     vector_init_ptr(&ps->shadows);
+    ps->imported = stbl_new();
     INIT_BUF(ps->sbuf);
 }
 
@@ -2821,6 +2899,34 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
             vector_push_back(&ps->kls_stmts, &stmt);
             sym->ps = ps;
             sym->arg = kls;
+            break;
+        }
+        case STMT_IMPORT_KIND: {
+            ImportStmt *s = (ImportStmt *)stmt;
+            ASSERT(s->path);
+            PkgSymbol *pkg = import_package(ps->pm, s->path);
+
+            if (s->alias) {
+                ASSERT(!s->names);
+                stbl_add_imported(ps->imported, (Symbol *)pkg, s->alias);
+            } else if (s->names) {
+                ASSERT(!s->alias);
+                char *pkg_name;
+                Vector *names = s->names;
+                IdentAsIdent *item;
+                vector_foreach_ptr(item, names) {
+                    Symbol *origin = stbl_get(pkg->stbl, item->id.name);
+                    pkg_name = item->id.name;
+                    if (item->alias_id.name) {
+                        pkg_name = item->alias_id.name;
+                    }
+                    stbl_add_imported(ps->imported, origin, pkg_name);
+                }
+            } else {
+                char *pkg_name = strrchr(s->path, '/');
+                pkg_name = pkg_name ? pkg_name + 1 : s->path;
+                stbl_add_imported(ps->imported, (Symbol *)pkg, pkg_name);
+            }
             break;
         }
         default: {

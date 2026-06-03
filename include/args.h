@@ -12,13 +12,16 @@
 extern "C" {
 #endif
 
+#define MAX_PATH_LEN 1024
+
 typedef struct KoalaOptions {
-    int compile_only;      // -c
-    int enable_int_trap;   // --int-trap
-    int enable_float_trap; // --float-trap
-    char *dump;            // --dump=<list>
-    const char *output;    // -o <file>
-    const char *input;     // input file
+    int compile_only;            // -c
+    int enable_int_trap;         // --int-trap
+    int enable_float_trap;       // --float-trap
+    char *dump;                  // --dump=<list>
+    const char *output;          // -o <file>
+    const char *input;           // input file
+    char pkg_path[MAX_PATH_LEN]; // --pkg-path=<path>
 } KoalaOptions;
 
 int kl_parse_args(int argc, char *argv[], KoalaOptions *opt);

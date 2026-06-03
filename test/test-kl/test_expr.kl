@@ -62,7 +62,7 @@ f2.bar()
 let f3 Foo = f2
 
 // CHECK-NEXT: Types of two sides are not matched.
-// CHECK-NEXT: lhs: Foo =/= rhs: Foo?
+// CHECK-NEXT: lhs: test_expr.Foo =/= rhs: test_expr.Foo?
 
 // print("hello world")
 

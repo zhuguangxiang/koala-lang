@@ -18,8 +18,6 @@
 #include "parser.h"
 #include "version.h"
 
-#define MAX_PATH_LEN 1024
-
 static char output[MAX_PATH_LEN + 8];
 static char input[MAX_PATH_LEN];
 
@@ -131,6 +129,17 @@ static DumpFlags parse_dump_flags(const char *s)
     return flags;
 }
 
+static void save_pkg_path(CompileOptions *opt, const char *path)
+{
+    if (strlen(path) >= MAX_PATH_LEN) {
+        printf("too long path.");
+        usage();
+        exit(0);
+    }
+    strncpy(opt->pkg_path, path, MAX_PATH_LEN);
+    opt->pkg_path[MAX_PATH_LEN - 1] = 0;
+}
+
 static void parse_command(int argc, char *argv[])
 {
     extern char *optarg;
@@ -150,6 +159,7 @@ static void parse_command(int argc, char *argv[])
         { "dump", required_argument, 0, 10 },
         { "int-trap", no_argument, 0, 11 },
         { "float-trap", no_argument, 0, 12 },
+        { "pkg-path", required_argument, 0, 13 },
         { NULL, 0, NULL, 0 },
     };
 
@@ -216,6 +226,10 @@ static void parse_command(int argc, char *argv[])
 
             case 12:
                 cmd_opt.enable_float_trap = 1;
+                break;
+
+            case 13:
+                save_pkg_path(&cmd_opt, optarg);
                 break;
 
             case 'o': {
@@ -396,8 +410,9 @@ static void compile(ParserModule *pm)
         // single source file
         if (check_dotkl(input)) return;
 
+        char *dot = strrchr(input, '.');
+
         if (strlen(output) == 0) {
-            char *dot = strrchr(input, '.');
             if (dot) {
                 snprintf(output, MAX_PATH_LEN + 7, "%.*s.klc", (int)(dot - input), input);
             } else {
@@ -405,6 +420,14 @@ static void compile(ParserModule *pm)
             }
         }
 
+        if (pm->pkg_path == NULL) {
+            char *slash = strrchr(input, '/');
+            if (slash) {
+                pm->pkg_path = str_ndup(slash + 1, dot - slash - 1);
+            } else {
+                pm->pkg_path = str_ndup(input, dot - input);
+            }
+        }
         new_parser_state(pm, input);
     } else {
         // package directory
@@ -414,6 +437,14 @@ static void compile(ParserModule *pm)
             snprintf(output, MAX_PATH_LEN + 7, "%s.klc", input);
         }
 
+        if (pm->pkg_path == NULL) {
+            char *slash = strrchr(input, '/');
+            if (slash) {
+                pm->pkg_path = str_dup(slash + 1);
+            } else {
+                pm->pkg_path = str_dup(input);
+            }
+        }
         build_dir(input, pm);
     }
 
@@ -426,7 +457,10 @@ static void compile(ParserModule *pm)
         errors += ps->errors;
     }
 
-    if (errors > 0) return;
+    if (errors > 0) {
+        errno = -1;
+        return;
+    }
 
     if (!is_build_stdlib()) {
         build_intf_table(pm->stbl);
@@ -464,8 +498,11 @@ int main(int argc, char *argv[])
     init_log(LOG_TRACE, NULL, 0);
     typespec_init();
 
-    ParserModule module;
+    ParserModule module = { 0 };
     module.path = output;
+    if (cmd_opt.pkg_path[0]) {
+        module.pkg_path = cmd_opt.pkg_path;
+    }
     init_parser(&module);
     compile(&module);
     fini_parser(&module);

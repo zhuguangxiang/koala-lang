@@ -141,7 +141,7 @@ int mem_nrchr(char *s, int len, char ch)
 
 int str_sep(char **str, char ch, char **out)
 {
-    if (*str == NULL) return 0;
+    if (str == NULL || *str == NULL) return 0;
 
     char *s = *str;
     int count = 0;

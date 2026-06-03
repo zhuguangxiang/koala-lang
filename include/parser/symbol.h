@@ -29,6 +29,7 @@ typedef enum _SymKind {
     SYM_INSTANCE,       /* instance   */
     SYM_INHERITED,      /* inherited from trait */
     SYM_SHADOW_VAR,     /* shadow var */
+    SYM_IMPORTED,       /* imported symbol */
     SYM_MAX,
 } SymKind;
 
@@ -171,8 +172,13 @@ typedef struct _KlassSymbol {
 
 typedef struct _PkgSymbol {
     SYMBOL_HEAD
-    char *pkgname;
+    // char *pkgname;
 } PkgSymbol;
+
+typedef struct _ImportedSymbol {
+    SYMBOL_HEAD
+    Symbol *origin;
+} ImportedSymbol;
 
 /* List[int] -> _Z4Listi */
 typedef struct _InstanceSymbol {
@@ -218,6 +224,7 @@ Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym);
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);
+Symbol *stbl_add_imported(HashMap *stbl, Symbol *origin, char *name);
 Symbol *stbl_remove(HashMap *stbl, char *name);
 
 static inline void remove_shadow_var(ShadowVarSymbol *sym)
@@ -230,7 +237,7 @@ Symbol *stbl_get(HashMap *stbl, char *name);
 void stbl_show(HashMap *stbl);
 void *get_symbol_by_id(int id);
 
-PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path, HashMap *_stbl);
+PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path);
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
 
 /*

@@ -187,7 +187,7 @@ static void build_class_types(HashMap *stbl)
         if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) continue;
         if (sym->ts) continue; // already built
 
-        ts = klass_type_spec(NULL, sym->name);
+        ts = klass_type_spec("std/builtin", sym->name);
         ts->sym_id = sym->id;
 
         sym->ts = type_ts;
@@ -332,7 +332,7 @@ void install_builtin_types(HashMap *stbl)
         sym->instance_ts = ts;
     }
 
-    ts = klass_type_spec(NULL, "range");
+    ts = klass_type_spec("std/builtin", "range");
     sym = (KlassSymbol *)stbl_get(stbl, "range");
     if (sym) {
         ts->sym_id = sym->id;
@@ -340,7 +340,7 @@ void install_builtin_types(HashMap *stbl)
         sym->instance_ts = ts;
     }
 
-    ts = klass_type_spec(NULL, "list");
+    ts = klass_type_spec("std/builtin", "list");
     sym = (KlassSymbol *)stbl_get(stbl, "list");
     if (sym) {
         ts->sym_id = sym->id;
@@ -348,7 +348,7 @@ void install_builtin_types(HashMap *stbl)
         sym->instance_ts = ts;
     }
 
-    ts = klass_type_spec(NULL, "tuple");
+    ts = klass_type_spec("std/builtin", "tuple");
     sym = (KlassSymbol *)stbl_get(stbl, "tuple");
     if (sym) {
         ts->sym_id = sym->id;
@@ -356,7 +356,7 @@ void install_builtin_types(HashMap *stbl)
         sym->instance_ts = ts;
     }
 
-    ts = klass_type_spec(NULL, "slice");
+    ts = klass_type_spec("std/builtin", "slice");
     sym = (KlassSymbol *)stbl_get(stbl, "slice");
     if (sym) {
         ts->sym_id = sym->id;
@@ -503,7 +503,8 @@ static void __ts_free(TypeSpec *ts)
         case TYPE_TYPE:
         case TYPE_OPTIONAL:
         case TYPE_GENERIC_VAR:
-        case TYPE_KLASS: {
+        case TYPE_KLASS:
+        case TYPE_PACKAGE: {
             // nothing
             break;
         }
@@ -730,6 +731,21 @@ TypeSpec *va_list_type_spec_intern(TypeSpec *src)
     return type_spec_intern(ts);
 }
 
+TypeSpec *pkg_type_spec(char *path)
+{
+    TypeSpec *ts = mm_alloc_obj(ts);
+    ts->kind = TYPE_PACKAGE;
+    ts->pkg_path = atom(path);
+    ts->sym_id = -1;
+    ts->type_id = -1;
+    BUF(buf);
+    type_spec_to_str(ts, &buf);
+    ts->signature = atom_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
+    return type_spec_intern(ts);
+}
+
 static int cmp_typespec_by_type_id(const void *a, const void *b)
 {
     TypeSpec **ts1 = (TypeSpec **)a;
@@ -932,6 +948,12 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
                 type_spec_to_str(ts->opt.src, buf);
                 buf_write_char(buf, '?');
             }
+            break;
+        }
+        case TYPE_PACKAGE: {
+            buf_write_char(buf, 'P');
+            buf_write_str(buf, ts->pkg_path);
+            buf_write_char(buf, ';');
             break;
         }
         default: {
@@ -1240,6 +1262,8 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
             type_spec_print(ts->opt.src, buf);
             buf_write_char(buf, '?');
         }
+    } else if (ts->kind == TYPE_PACKAGE) {
+        buf_write_str(buf, ts->pkg_path);
     } else {
         UNREACHABLE();
     }
