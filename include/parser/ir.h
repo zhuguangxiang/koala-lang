@@ -524,6 +524,14 @@ static inline int klr_is_insn(KlrValue *val)
     return 0;
 }
 
+static inline int klr_is_call(KlrValue *val)
+{
+    if (!klr_is_insn(val)) return 0;
+
+    KlrInsn *insn = (KlrInsn *)val;
+    return (insn->code == OP_CALL) || (insn->code == OP_IR_CALL);
+}
+
 static inline int klr_is_local(KlrValue *val)
 {
     if (!klr_is_insn(val)) return 0;

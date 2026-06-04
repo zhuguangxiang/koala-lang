@@ -1,0 +1,33 @@
+// RUN: koala %s --dump=no-opt-ir,lir | filecheck %s
+
+func hello(name str) str {
+    return name
+}
+
+func world(name str) str {
+    return name
+}
+
+func main() {
+    let s = "zhangsan"
+    let s2 = "wangwu"
+    print(hello(s), world(s2))
+}
+
+// CHECK-LABEL: --- IR Dump After isel [@main] ---
+// CHECK-LABEL: func @main()
+// CHECK: %0 = local str        [fixedslot = 0(next)]
+// CHECK: loadk %0 str, 'zhangsan' str
+// CHECK: %1 = call @hello, nargs=1
+// CHECK: %2 = local str        [fixedslot = 0(next)]
+// CHECK: loadk %2 str, 'wangwu' str
+// CHECK: %3 = call @world, nargs=1        [fixedslot = 1(next)]
+// CHECK: %4 = local str        [fixedslot = 0(next)]
+// CHECK: move %4 str, %1 str
+// CHECK: %5 = build_intern @tuple, nargs=2        [fixedslot = 0(next)]
+// CHECK: %6 = local str        [fixedslot = 1(next)]
+// CHECK: loadk %6 str, ' ' str
+// CHECK: %7 = local str        [fixedslot = 2(next)]
+// CHECK: loadk %7 str, '\n' str
+// CHECK: call @print [path = 'std/builtin'], nargs=3
+// CHECK: ret void

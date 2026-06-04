@@ -330,6 +330,20 @@ static KlrValue *lower_push_const(KlrConst *c, KlrInsn *insn, OpCode op)
     return (KlrValue *)klr_build_push(&bldr, (KlrValue *)c, op);
 }
 
+static int need_spill_arg(KlrInsn *call, KlrValue *arg, int index)
+{
+    if (!klr_is_call(arg)) return 0;
+
+    int nargs = call->num_opers;
+    for (int i = index + 1; i < nargs; i++) {
+        KlrValue *_arg = insn_oper_value(call, i);
+        if ((arg != _arg) && klr_is_call(_arg)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 // Lower a single call argument into a fixed call-slot.
 // 'pos' is the slot index counted from the end of the frame.
 static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
@@ -363,6 +377,23 @@ static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
         LowerConstRule R = { OP_LOAD_INT_IMM, OP_LOAD_TAG, OP_LOADK, OP_LOAD_UINT_IMM };
         OpCode op = get_const_op((KlrConst *)arg, &R);
         klr_build_load(&bldr, local, arg, op);
+        return;
+    }
+
+    if (need_spill_arg(insn, arg, pos)) {
+        // Calls require a dedicated lowering path to handle tail calls properly.
+        // We will lower the call itself into the fixed slot, so we can directly
+        // use the call result without an extra move.
+        KlrBuilder bldr;
+        klr_builder_before(&bldr, insn);
+
+        KlrValue *local = klr_build_local_var(&bldr, arg->ts, "");
+        KlrInsn *_insn = (KlrInsn *)local;
+
+        _insn->fixedslot = 1;   // mark as fixed slot
+        _insn->slotindex = pos; // assign slot index
+
+        klr_build_move(&bldr, local, arg); // copy original value
         return;
     }
 
