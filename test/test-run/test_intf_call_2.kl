@@ -1,0 +1,66 @@
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
+
+trait Fly {
+    func fly() str
+}
+
+trait Fly2 : Fly {
+    func fly2() str
+}
+
+trait Fly3 : Fly2 {
+    func fly3() str
+}
+
+class Foo : Fly3 {
+    func fly() str {
+        return "Foo is flying"
+    }
+
+    func fly2() str {
+        return "Foo is flying2"
+    }
+
+    func fly3() str {
+        return "Foo is flying3"
+    }
+}
+
+func main() {
+    let f3 Fly3 = Foo()
+    print(f3.fly());
+    print(f3.fly2());
+    print(f3.fly3());
+
+    let f2 Fly2 = f3
+    print(f2.fly());
+    print(f2.fly2());
+
+    let f1 Fly = f3
+    print(f1.fly());
+
+    let f11 Fly = f2
+    print(f11.fly());
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: %0 = new @test_intf_call_2::Foo
+// CHECK: call @Foo::__init__, %0 test_intf_call_2.Foo
+// CHECK: %f3 = local [immutable] test_intf_call_2.Fly3
+// CHECK: %1 = make_intf %0 test_intf_call_2.Foo [intf-table-index = 3] to test_intf_call_2.Fly3
+// CHECK: move %f3 test_intf_call_2.Fly3, %1 test_intf_call_2.Fly3
+// CHECK: %2 = call @Fly3::fly [intf-index = 0], %f3 test_intf_call_2.Fly3
+// CHECK: %4 = call @Fly3::fly2 [intf-index = 1], %f3 test_intf_call_2.Fly3
+// CHECK: %6 = call @Fly3::fly3 [intf-index = 2], %f3 test_intf_call_2.Fly3
+
+// CHECK: Foo is flying
+// CHECK: Foo is flying2
+// CHECK: Foo is flying3
+
+// CHECK: Foo is flying
+// CHECK: Foo is flying2
+
+// CHECK: Foo is flying
+
+// CHECK: Foo is flying

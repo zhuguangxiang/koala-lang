@@ -844,6 +844,62 @@ KlrValue *klr_add_ext_method(KlrExtKlass *kls, TypeSpec *ret, char *name)
     return (KlrValue *)fn;
 }
 
+static KlrValue *_get_ext_trait(KlrExtModule *m, char *name)
+{
+    KlrValue *sym;
+    vector_foreach(sym, &m->symbols) {
+        if (sym->kind == KLR_VALUE_EXT_TRAIT) {
+            if (str_equal(sym->name, name)) {
+                return sym;
+            }
+        }
+    }
+    return NULL;
+}
+
+KlrValue *klr_get_ext_intf(KlrExtTrait *trait, char *name)
+{
+    Vector *list = &trait->intfs;
+
+    KlrValue *sym;
+    vector_foreach(sym, list) {
+        if (sym->kind == KLR_VALUE_EXT_INTF) {
+            if (str_equal(sym->name, name)) {
+                return sym;
+            }
+        }
+    }
+    return NULL;
+}
+
+KlrValue *klr_add_ext_trait(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name)
+{
+    KlrExtModule *ext_m = klr_add_ext_module(m, ext_m_path);
+    KlrValue *sym = _get_ext_trait(ext_m, name);
+    if (sym) return sym;
+
+    KlrExtTrait *trait = mm_alloc_obj(trait);
+    INIT_KLR_VALUE(trait, KLR_VALUE_EXT_TRAIT, ts, name);
+    vector_push_back(&ext_m->symbols, &trait);
+    trait->module = ext_m;
+    vector_init_ptr(&trait->intfs);
+    return (KlrValue *)trait;
+}
+
+KlrValue *klr_add_ext_intf(KlrExtTrait *trait, TypeSpec *ret, char *name)
+{
+    KlrValue *sym = klr_get_ext_intf(trait, name);
+    if (sym) return sym;
+
+    KlrExtIntf *intf = mm_alloc_obj(intf);
+    INIT_KLR_VALUE(intf, KLR_VALUE_EXT_INTF, ret, name);
+    intf->intf_index = vector_size(&trait->intfs);
+    vector_push_back(&trait->intfs, &intf);
+    intf->module = trait->module;
+    intf->trait = trait;
+    return (KlrValue *)intf;
+}
+
 KlrValue *klr_new_index(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, int which)
 {
     KlrIndexInfo *index_info = mm_alloc_obj(index_info);

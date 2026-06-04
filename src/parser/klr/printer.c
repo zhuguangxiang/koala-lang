@@ -269,11 +269,15 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
         if (insn->flags & KLR_INSN_FLAGS_CONST) {
             fprintf(fp, " [const]");
         }
-    } else {
-        ASSERT(fn->kind == KLR_VALUE_INTF);
+    } else if (fn->kind == KLR_VALUE_INTF) {
         KlrIntf *intf = (KlrIntf *)fn;
         fprintf(fp, "@%s::%s", intf->trait->name, intf->name);
-
+        fprintf(fp, " [intf-index = %d]", intf->intf_index);
+    } else {
+        ASSERT(fn->kind == KLR_VALUE_EXT_INTF);
+        KlrExtIntf *intf = (KlrExtIntf *)fn;
+        KlrExtModule *ext_m = intf->module;
+        fprintf(fp, "@%s.%s::%s", ext_m->name, intf->trait->name, intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
     }
 
@@ -324,11 +328,15 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
         if (insn->flags & KLR_INSN_FLAGS_CONST) {
             fprintf(fp, " [const]");
         }
-    } else {
-        ASSERT(fn->kind == KLR_VALUE_INTF);
+    } else if (fn->kind == KLR_VALUE_INTF) {
         KlrIntf *intf = (KlrIntf *)fn;
         fprintf(fp, "@%s::%s", intf->trait->name, intf->name);
-
+        fprintf(fp, " [intf-index = %d]", intf->intf_index);
+    } else {
+        ASSERT(fn->kind == KLR_VALUE_EXT_INTF);
+        KlrExtIntf *intf = (KlrExtIntf *)fn;
+        KlrExtModule *ext_m = intf->module;
+        fprintf(fp, "@%s.%s::%s", ext_m->name, intf->trait->name, intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
     }
 
@@ -368,7 +376,7 @@ static void print_attributes(KlrInsn *insn, FILE *fp)
     }
 }
 
-static void print_new(KlrInsn *insn, FILE *fp)
+static void print_new(const char *name, KlrInsn *insn, FILE *fp)
 {
     KlrValue *ty = insn_oper_value(insn, 0);
 
@@ -376,9 +384,9 @@ static void print_new(KlrInsn *insn, FILE *fp)
 
     klr_print_value_name((KlrValue *)insn, fp);
     if (ts->klass_type.pkg) {
-        fprintf(fp, " = new @%s::%s", ts->klass_type.pkg, ts->klass_type.name);
+        fprintf(fp, " = %s @%s::%s", name, ts->klass_type.pkg, ts->klass_type.name);
     } else {
-        fprintf(fp, " = new @%s", ts->klass_type.name);
+        fprintf(fp, " = %s @%s", name, ts->klass_type.name);
     }
 }
 
@@ -1022,7 +1030,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_NEW:
-            print_new(insn, fp);
+            print_new("new", insn, fp);
+            break;
+
+        case OP_NEW_EXT:
+            print_new("new_ext", insn, fp);
             break;
 
         case OP_BUILD_INTERN:

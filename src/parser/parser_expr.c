@@ -1324,6 +1324,12 @@ static void parse_call(ParserState *ps, Expr *exp)
         // func call type is instance type
         exp->ts = inst_sym->instance_ts;
         params = ((FuncSymbol *)init_fn_sym)->params;
+    } else if (lhs_sym->kind == SYM_INHERITED) {
+        InheritedFunc *inherited = (InheritedFunc *)lhs_sym;
+        FuncSymbol *origin_fn_sym = inherited->origin;
+        log_info("call lhs is inherited function '%s'", inherited->name);
+        exp->ts = origin_fn_sym->ts;
+        params = origin_fn_sym->params;
     } else {
         UNREACHABLE();
     }
@@ -1453,6 +1459,9 @@ static void parse_dot(ParserState *ps, Expr *exp)
     if (sym) {
         if (sym->kind == SYM_CLASS) {
             exp->ts = opt_dot_type(((KlassSymbol *)sym)->instance_ts, opt_or_bang);
+        } else if (sym->kind == SYM_INHERITED) {
+            InheritedFunc *inherited = (InheritedFunc *)sym;
+            exp->ts = opt_dot_type(inherited->origin->ts, opt_or_bang);
         } else {
             exp->ts = opt_dot_type(sym->ts, opt_or_bang);
         }

@@ -1,4 +1,4 @@
-// RUN: koala %s | filecheck %s
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
 
 import "test_pkg/pkg1"
 
@@ -26,20 +26,34 @@ func main() {
     pkg1.hello()
     let foo2 = pkg1.Foo()
     foo2.bar()
+
     let bar2 = Bar()
     bar2.bar()
+
     let foo = new_foo()
     print(foo.fly())
+
     let bar = foo.bar()
     bar.bar()
 
-    // TODO:
-    // let fly pkg1.Fly = foo
-    // print(fly.fly())
+    let p = pkg1.Point(1,2)
+    p.show()
+
+    let fly pkg1.Fly = foo
+    print(fly.fly())
 }
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: call @hello [path = 'test_pkg/pkg1']
+// CHECK: %0 = new @test_pkg/pkg1::Foo
+// CHECK: call @Foo::__init__ [path = 'test_pkg/pkg1'], %0 test_pkg/pkg1.Foo
+// CHECK: %8 = call @test_pkg/pkg1.Fly::fly [intf-index = 0], %fly test_pkg/pkg1.Fly
 
 // CHECK: Hello from pkg1
 // CHECK: bar
 // CHECK: Bar is bar
 // CHECK: Foo is flying
 // CHECK: Bar is bar
+// CHECK: Point(1, 2)
+// CHECK: Foo is flying

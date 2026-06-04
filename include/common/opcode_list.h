@@ -1666,16 +1666,16 @@ X(OP_INT_TO_FLOAT, FORMAT_RR_TI_MODE)
  * OP_NEW — allocate object of a local type (same module)
  *
  * FORMAT_NEW_LOCAL:
- *     | op:8 | dst:12 | type_index(local):12 |
+ *     | op:8 | dst:8 | type_index(local):16 |
  *
  * Details:
  *     Allocates an object whose type metadata is defined inside
- *     the same module. The 12‑bit type_index refers to the module’s
+ *     the same module. The 16‑bit type_index refers to the module’s
  *     local type‑metadata array (constructed at load time, no patch).
  *
  *     R[dst] = alloc(local_type[type_index]).
  */
-X(OP_NEW, FORMAT_RxIdx12)
+X(OP_NEW, FORMAT_RIdx2)
 
 /**
  * OP_NEW_EXT — allocate object of an external type

@@ -539,13 +539,29 @@ TARGET(OP_GET_FIELD_EXT) {
 }
 
 TARGET(OP_NEW) {
-    rd = I_VAL(inst, 12, 12);
-    idx = I_VAL(inst, 0, 12);
+    rd = I_VAL(inst, 16, 8);
+    idx = I_VAL(inst, 0, 16);
 
     CHECK_REG_ID(rd);
     CHECK_TYPE_INDEX(idx);
 
     TypeObject *tp = TYPE(idx);
+    Object *obj = kl_new_instance(tp);
+    regs[rd] = obj_value(obj);
+    DISPATCH();
+}
+
+TARGET(OP_NEW_EXT) {
+    rd = I_VAL(inst, 16, 8);
+    off = I_VAL(inst, 0, 16);
+
+    CHECK_REG_ID(rd);
+
+    ImportEntry *e = IMPORT_ENTRY(off);
+    ASSERT(e->kind == IMPORT_KIND_TYPE);
+    TypeObject *tp = e->address;
+    ASSERT(tp);
+
     Object *obj = kl_new_instance(tp);
     regs[rd] = obj_value(obj);
     DISPATCH();

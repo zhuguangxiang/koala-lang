@@ -1,0 +1,32 @@
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
+
+import "test_pkg/pkg1" as z
+
+class Foo : z.Fly {
+     func fly() str {
+         return "Foo is flying"
+     }
+}
+
+func main() {
+    z.hello()
+
+    let foo2 = z.Foo()
+    foo2.bar()
+
+    let foo = Foo()
+    let fly z.Fly = foo
+    print(fly.fly())
+
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: call @hello [path = 'test_pkg/pkg1']
+// CHECK: %0 = new @test_pkg/pkg1::Foo
+// CHECK: call @Foo::__init__ [path = 'test_pkg/pkg1'], %0 test_pkg/pkg1.Foo
+// CHECK: %3 = call @test_pkg/pkg1.Fly::fly [intf-index = 0], %fly test_pkg/pkg1.Fly
+
+// CHECK: Hello from pkg1
+// CHECK: bar
+// CHECK: Foo is flying

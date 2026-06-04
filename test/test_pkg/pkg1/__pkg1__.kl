@@ -12,6 +12,20 @@ func world() {
     print("world")
 }
 
+pub class Point {
+    let x int
+    let y int
+
+    pub func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    pub func show() {
+        print("Point(", x, ", ", y, ")", sep="")
+    }
+}
+
 pub class Foo {
     pub func bar() {
         print("bar")

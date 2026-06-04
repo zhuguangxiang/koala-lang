@@ -130,7 +130,8 @@ static void lower_binary_opers(KlrInsn *insn)
 static void lower_call_opers(KlrInsn *insn)
 {
     KlrValue *fn_val = insn_oper_value(insn, 0);
-    ASSERT(klr_is_func(fn_val) || klr_is_extfunc(fn_val) || klr_is_intf(fn_val));
+    ASSERT(klr_is_func(fn_val) || klr_is_extfunc(fn_val) || klr_is_intf(fn_val) ||
+           klr_is_ext_intf(fn_val));
 
     set_raw_reg(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], insn->num_args);
@@ -536,7 +537,8 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                     break;
                 }
 
-                case OP_NEW: {
+                case OP_NEW:
+                case OP_NEW_EXT: {
                     lower_new_opers(insn, m);
                     break;
                 }

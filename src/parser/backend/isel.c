@@ -228,7 +228,7 @@ static OpCode get_const_op(KlrConst *c, LowerConstRule *R)
     return op;
 }
 
-static KlrValue *lower_const(KlrFunc *fn, KlrInsn *at, KlrConst *c)
+static KlrValue *lower_const(KlrInsn *at, KlrConst *c)
 {
     KlrBuilder bldr;
     klr_builder_before(&bldr, at);
@@ -240,7 +240,7 @@ static KlrValue *lower_const(KlrFunc *fn, KlrInsn *at, KlrConst *c)
     return local;
 }
 
-static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_binary(KlrInsn *insn)
 {
     KlrValue *lhs = insn_oper_value(insn, 0);
     KlrValue *rhs = insn_oper_value(insn, 1);
@@ -308,7 +308,7 @@ static void isel_lower_binary(KlrInsn *insn, KlrFunc *fn)
         // - large int/uint comes here because it doesn't fit in the imm field
         // - float always comes here because float rules have allow_imm = 0
         // reg op reg
-        KlrValue *v = lower_const(fn, insn, rc);
+        KlrValue *v = lower_const(insn, rc);
         insn->code = R->reg_op;
         set_operand_at(insn, 1, v);
         return;
@@ -522,7 +522,7 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
             ASSERT(insn->num_opers == 2);
             if (type_is_seq(arg->ts)) {
                 if (klr_is_const(arg)) {
-                    KlrValue *_arg = lower_const(fn, insn, (KlrConst *)arg);
+                    KlrValue *_arg = lower_const(insn, (KlrConst *)arg);
                     set_operand_at(insn, 0, _arg);
                 } else {
                     set_operand_at(insn, 0, arg);
@@ -532,7 +532,7 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
                 insn->code = OP_SEQ_LEN;
             } else if (type_is_map(arg->ts)) {
                 if (klr_is_const(arg)) {
-                    KlrValue *_arg = lower_const(fn, insn, (KlrConst *)arg);
+                    KlrValue *_arg = lower_const(insn, (KlrConst *)arg);
                     set_operand_at(insn, 0, _arg);
                 } else {
                     set_operand_at(insn, 0, arg);
@@ -583,7 +583,7 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
     ASSERT(insn->num_args >= 0);
 }
 
-static void isel_lower_ret(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_ret(KlrInsn *insn)
 {
     KlrValue *ret = insn_oper_value(insn, 0);
     ASSERT(klr_is_insn(ret) || klr_is_param(ret) || klr_is_const(ret));
@@ -596,7 +596,7 @@ static void isel_lower_ret(KlrInsn *insn, KlrFunc *fn)
     insn->code = op;
 }
 
-static void isel_lower_move(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_move(KlrInsn *insn)
 {
     KlrValue *dst = insn_oper_value(insn, 0);
     KlrValue *src = insn_oper_value(insn, 1);
@@ -703,7 +703,7 @@ static int encode_float_cast_flag(TypeSpec *dst, TypeSpec *src)
     return flag;
 }
 
-static void isel_lower_cast(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_cast(KlrInsn *insn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
     ASSERT(klr_is_insn(src) || klr_is_param(src) || klr_is_const(src));
@@ -768,7 +768,7 @@ static OpCode ref_cmp_map[] = {
     OP_JMP_REF_NE_NULL,
 };
 
-static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_jmp_cond(KlrInsn *insn)
 {
     KlrBasicBlock *bb = insn->bb;
     KlrInsn *prev = insn_prev(insn, bb);
@@ -851,7 +851,7 @@ static void isel_lower_jmp_cond(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
-static void isel_lower_build_intern(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_build_intern(KlrInsn *insn)
 {
     int nargs = insn->num_opers;
     for (int i = 0; i < nargs; i++) {
@@ -868,7 +868,7 @@ static void isel_lower_build_intern(KlrInsn *insn, KlrFunc *fn)
     ASSERT(insn->num_args >= 0);
 }
 
-static void isel_lower_set_field(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_set_field(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     KlrValue *val = insn_oper_value(insn, 2);
@@ -877,12 +877,12 @@ static void isel_lower_set_field(KlrInsn *insn, KlrFunc *fn)
     ASSERT(klr_is_insn(val) || klr_is_param(val) || klr_is_const(val));
 
     if (klr_is_const(val)) {
-        KlrValue *_val = lower_const(fn, insn, (KlrConst *)val);
+        KlrValue *_val = lower_const(insn, (KlrConst *)val);
         set_operand_at(insn, 2, _val);
     }
 }
 
-static void isel_lower_select(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_select(KlrInsn *insn)
 {
     KlrValue *cond = insn_oper_value(insn, 0);
     KlrValue *true_val = insn_oper_value(insn, 1);
@@ -906,7 +906,7 @@ static void isel_lower_select(KlrInsn *insn, KlrFunc *fn)
     replace_all_uses_with(local, (KlrValue *)insn);
 }
 
-static void isel_lower_seq_get(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_seq_get(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     KlrValue *index = insn_oper_value(insn, 1);
@@ -915,7 +915,7 @@ static void isel_lower_seq_get(KlrInsn *insn, KlrFunc *fn)
     ASSERT(klr_is_insn(index) || klr_is_param(index) || klr_is_const(index));
 
     if (klr_is_const(obj)) {
-        KlrValue *_obj = lower_const(fn, insn, (KlrConst *)obj);
+        KlrValue *_obj = lower_const(insn, (KlrConst *)obj);
         set_operand_at(insn, 0, _obj);
     }
 
@@ -926,7 +926,7 @@ static void isel_lower_seq_get(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
-static void isel_lower_seq_set(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_seq_set(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     KlrValue *index = insn_oper_value(insn, 1);
@@ -937,12 +937,12 @@ static void isel_lower_seq_set(KlrInsn *insn, KlrFunc *fn)
     ASSERT(klr_is_insn(val) || klr_is_param(val) || klr_is_const(val));
 
     if (klr_is_const(obj)) {
-        KlrValue *_obj = lower_const(fn, insn, (KlrConst *)obj);
+        KlrValue *_obj = lower_const(insn, (KlrConst *)obj);
         set_operand_at(insn, 0, _obj);
     }
 
     if (klr_is_const(val)) {
-        KlrValue *_val = lower_const(fn, insn, (KlrConst *)val);
+        KlrValue *_val = lower_const(insn, (KlrConst *)val);
         set_operand_at(insn, 2, _val);
     }
 
@@ -953,13 +953,21 @@ static void isel_lower_seq_set(KlrInsn *insn, KlrFunc *fn)
     }
 }
 
-static void isel_lower_seq_len(KlrInsn *insn, KlrFunc *fn)
+static void isel_lower_seq_len(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
 
     if (klr_is_const(obj)) {
-        KlrValue *_obj = lower_const(fn, insn, (KlrConst *)obj);
+        KlrValue *_obj = lower_const(insn, (KlrConst *)obj);
         set_operand_at(insn, 0, _obj);
+    }
+}
+
+static void isel_lower_new(KlrInsn *insn)
+{
+    KlrValue *kls = insn_oper_value(insn, 0);
+    if (kls->kind == KLR_VALUE_EXT_KLASS) {
+        insn->code = OP_NEW_EXT;
     }
 }
 
@@ -998,61 +1006,66 @@ static void do_isel(KlrFunc *fn)
         KlrInsn *insn;
         insn_foreach(insn, bb) {
             if (isel_is_binary(insn->code)) {
-                isel_lower_binary(insn, fn);
+                isel_lower_binary(insn);
                 continue;
             }
 
             switch (insn->code) {
                 case OP_RET: {
-                    isel_lower_ret(insn, fn);
+                    isel_lower_ret(insn);
                     break;
                 }
 
                 case OP_MOVE: {
-                    isel_lower_move(insn, fn);
+                    isel_lower_move(insn);
                     break;
                 }
 
                 case OP_IR_CAST: {
-                    isel_lower_cast(insn, fn);
+                    isel_lower_cast(insn);
                     break;
                 }
 
                 case OP_IR_JMP_COND: {
                     if (fusion_enabled()) {
-                        isel_lower_jmp_cond(insn, fn);
+                        isel_lower_jmp_cond(insn);
                     }
                     break;
                 }
 
                 case OP_BUILD_INTERN: {
-                    isel_lower_build_intern(insn, fn);
+                    isel_lower_build_intern(insn);
                     break;
                 }
 
                 case OP_SET_FIELD:
                 case OP_SET_FIELD_EXT: {
-                    isel_lower_set_field(insn, fn);
+                    isel_lower_set_field(insn);
                     break;
                 }
 
                 case OP_IR_SELECT: {
-                    isel_lower_select(insn, fn);
+                    isel_lower_select(insn);
                     break;
                 }
 
                 case OP_SEQ_GET: {
-                    isel_lower_seq_get(insn, fn);
+                    isel_lower_seq_get(insn);
                     break;
                 }
 
                 case OP_SEQ_SET: {
-                    isel_lower_seq_set(insn, fn);
+                    isel_lower_seq_set(insn);
                     break;
                 }
 
                 case OP_SEQ_LEN: {
-                    isel_lower_seq_len(insn, fn);
+                    isel_lower_seq_len(insn);
+                    break;
+                }
+
+                case OP_NEW: {
+                    isel_lower_new(insn);
                     break;
                 }
 

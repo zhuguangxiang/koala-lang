@@ -16,6 +16,29 @@ extern "C" {
 #define CURRENT_FUNC ((KlrValue *)ps->scope->bb->func)
 #define METHOD_SELF  (((KlrFunc *)CURRENT_FUNC)->self)
 
+static void _add_all_intf_to_trait(KlrExtTrait *trait, KlassSymbol *kls_sym)
+{
+    Vector *lro = &kls_sym->lro;
+    int index = 0;
+
+    TypeSpec *ts;
+    vector_foreach(ts, lro) {
+        if (!ts) continue;
+
+        Symbol *sym = get_symbol_by_id(ts->sym_id);
+        if (!sym) continue;
+        if (sym->kind != SYM_TRAIT) continue;
+
+        KlassSymbol *trait_kls = (KlassSymbol *)sym;
+        Symbol *fn;
+        vector_foreach(fn, trait_kls->funcs) {
+            ASSERT(fn->kind == SYM_FUNC);
+            FuncSymbol *func_sym = (FuncSymbol *)fn;
+            klr_add_ext_intf(trait, func_sym->ret, func_sym->name);
+        }
+    }
+}
+
 // obj: class or trait type
 // ts: target trait type
 static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec *ts, char *name)
@@ -609,13 +632,25 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
                     ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
                     KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
                     exp->ir_val = klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
-                } else {
-                    ASSERT(_sym->kind == SYM_PACKAGE);
+                } else if (_sym->kind == SYM_PACKAGE) {
                     KlrValue *_val = _sym->ir_val;
                     ASSERT(_val && _val->kind == KLR_VALUE_EXT_MODULE);
                     KlrExtModule *ext_mod = (KlrExtModule *)_val;
                     exp->ir_val =
                         klr_add_ext_func(MOD, sym->path, ((FuncSymbol *)sym)->ret, sym->name);
+                } else {
+                    ASSERT(_sym->kind == SYM_TRAIT);
+                    ASSERT(_sym->flags & SYM_FLAGS_EXT);
+                    KlrValue *_val = _sym->ir_val;
+                    if (!_val) {
+                        _val = klr_add_ext_trait(MOD, _sym->path,
+                                                 ((KlassSymbol *)_sym)->instance_ts, _sym->name);
+                        _sym->ir_val = _val;
+                        _add_all_intf_to_trait((KlrExtTrait *)_val, (KlassSymbol *)_sym);
+                    }
+                    ASSERT(_val && _val->kind == KLR_VALUE_EXT_TRAIT);
+                    exp->ir_val = klr_get_ext_intf((KlrExtTrait *)_val, sym->name);
+                    ASSERT(exp->ir_val);
                 }
                 sym->ir_val = exp->ir_val;
             } else {
@@ -662,6 +697,20 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
                                                 sym->name);
                 sym->ir_val = exp->ir_val;
             }
+        } else {
+            UNREACHABLE();
+        }
+        return;
+    }
+
+    if (sym->kind == SYM_INHERITED) {
+        if (exp->ctx == EXPR_CTX_CALL) {
+            if (!sym->ir_val) {
+                NYI();
+            }
+            exp->ir_val = sym->ir_val;
+            // use expr's arg to save the lhs's ir_val, so that we can use it in emit_ir_call
+            exp->arg = lhs->ir_val;
         } else {
             UNREACHABLE();
         }

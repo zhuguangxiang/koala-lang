@@ -41,6 +41,8 @@ typedef enum _KlrValueKind {
     KLR_VALUE_EXT_FUNC,
     KLR_VALUE_EXT_KLASS,
     KLR_VALUE_EXT_FIELD,
+    KLR_VALUE_EXT_TRAIT,
+    KLR_VALUE_EXT_INTF,
     KLR_VALUE_INDEX,
     KLR_VALUE_MAX,
 } KlrValueKind;
@@ -321,7 +323,7 @@ typedef struct _KlrTrait {
     Vector intfs;
 } KlrTrait;
 
-typedef struct _klrIntf {
+typedef struct _KlrIntf {
     KLR_VALUE_HEAD
     KlrModule *module;
     KlrTrait *trait;
@@ -354,7 +356,7 @@ typedef struct _KlrExtKlass {
 typedef struct _KlrExtTrait {
     KLR_VALUE_HEAD
     KlrExtModule *module;
-    Vector methods;
+    Vector intfs;
 } KlrExtTrait;
 
 typedef struct {
@@ -367,8 +369,16 @@ typedef struct _KlrExtFunc {
     KLR_VALUE_HEAD
     KlrExtModule *module;
     KlrExtKlass *klass;
-    KlrExtTrait *trait;
+    // KlrExtTrait *trait;
 } KlrExtFunc;
+
+typedef struct _KlrExtIntf {
+    KLR_VALUE_HEAD
+    KlrExtModule *module;
+    KlrExtTrait *trait;
+    /* intf index in trait */
+    int intf_index;
+} KlrExtIntf;
 
 typedef struct _KlrIndexInfo {
     KLR_VALUE_HEAD
@@ -552,6 +562,12 @@ static inline int klr_is_intf(KlrValue *val)
     return 0;
 }
 
+static inline int klr_is_ext_intf(KlrValue *val)
+{
+    if (val->kind == KLR_VALUE_EXT_INTF) return 1;
+    return 0;
+}
+
 int klr_is_immutable(KlrValue *val);
 
 static inline int insn_is_dead(KlrInsn *insn)
@@ -598,6 +614,9 @@ KlrValue *klr_add_ext_global(KlrModule *m, char *ext_m_path, TypeSpec *ts, char 
 KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name);
 KlrValue *klr_add_ext_field(KlrExtKlass *kls, TypeSpec *ts, char *name);
 KlrValue *klr_add_ext_method(KlrExtKlass *kls, TypeSpec *ret, char *name);
+KlrValue *klr_add_ext_trait(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name);
+KlrValue *klr_add_ext_intf(KlrExtTrait *trait, TypeSpec *ret, char *name);
+KlrValue *klr_get_ext_intf(KlrExtTrait *trait, char *name);
 
 #define local_foreach(local, func) vector_foreach_ptr(local, &(func)->locals)
 
