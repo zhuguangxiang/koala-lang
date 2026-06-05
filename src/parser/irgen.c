@@ -39,6 +39,32 @@ static void _add_all_intf_to_trait(KlrExtTrait *trait, KlassSymbol *kls_sym)
     }
 }
 
+static void _add_instance_all_intf_to_trait(KlrExtTrait *trait, InstanceSymbol *inst_sym)
+{
+    KlassSymbol *kls_sym = (KlassSymbol *)inst_sym->origin;
+
+    Vector *lro = &kls_sym->lro;
+    int index = 0;
+
+    TypeSpec *ts;
+    vector_foreach(ts, lro) {
+        if (!ts) continue;
+
+        Symbol *sym = get_symbol_by_id(ts->sym_id);
+        if (!sym) continue;
+        if (sym->kind != SYM_TRAIT) continue;
+
+        KlassSymbol *trait_kls = (KlassSymbol *)sym;
+        Symbol *fn;
+        vector_foreach(fn, trait_kls->funcs) {
+            ASSERT(fn->kind == SYM_FUNC);
+            Symbol *_fn_inst_sym = stbl_get(inst_sym->stbl, fn->name);
+            ASSERT(_fn_inst_sym && _fn_inst_sym->kind == SYM_FUNC);
+            klr_add_ext_intf(trait, ((FuncSymbol *)_fn_inst_sym)->ret, fn->name);
+        }
+    }
+}
+
 // obj: class or trait type
 // ts: target trait type
 static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec *ts, char *name)
@@ -247,12 +273,14 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
     if (sym->kind == SYM_CLASS) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
         ASSERT(sym->flags & SYM_FLAGS_EXT);
-        exp->ir_val = klr_add_ext_klass(MOD, sym->path, kls_sym->instance_ts, sym->name);
+        exp->ir_val =
+            klr_add_ext_klass(MOD, sym->path, kls_sym->instance_ts, sym->name, sym->name);
     } else if (sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
         Symbol *origin = inst_sym->origin;
         ASSERT(origin->flags & SYM_FLAGS_EXT);
-        exp->ir_val = klr_add_ext_klass(MOD, origin->path, inst_sym->instance_ts, sym->name);
+        exp->ir_val =
+            klr_add_ext_klass(MOD, origin->path, inst_sym->instance_ts, sym->name, origin->name);
     }
     sym->ir_val = exp->ir_val;
 }
@@ -474,8 +502,8 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
         if (!kls_sym->ir_val) {
             ASSERT(kls_sym->flags & SYM_FLAGS_EXT);
-            kls_sym->ir_val =
-                klr_add_ext_klass(MOD, kls_sym->path, kls_sym->instance_ts, kls_sym->name);
+            kls_sym->ir_val = klr_add_ext_klass(MOD, kls_sym->path, kls_sym->instance_ts,
+                                                lhs_sym->name, kls_sym->name);
         }
 
         Symbol *_sym = kls_sym->__init__;
@@ -551,7 +579,8 @@ static KlrValue *build_get_field(TypeSpec *ts, char *name, KlrBuilder *bldr, Klr
         if (kls_sym->flags & SYM_FLAGS_EXT) {
             KlrValue *kls_ir_val = kls_sym->ir_val;
             if (!kls_ir_val) {
-                kls_ir_val = klr_add_ext_klass(MOD, sym->path, kls_sym->instance_ts, sym->name);
+                kls_ir_val =
+                    klr_add_ext_klass(MOD, sym->path, kls_sym->instance_ts, sym->name, sym->name);
                 kls_sym->ir_val = kls_ir_val;
             }
             ASSERT(kls_ir_val->kind == KLR_VALUE_EXT_KLASS);
@@ -610,16 +639,31 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
                     InstanceSymbol *inst_sym = (InstanceSymbol *)_sym;
                     Symbol *origin = inst_sym->origin;
                     if (origin->flags & SYM_FLAGS_EXT) {
-                        KlrValue *_val = origin->ir_val;
-                        if (!_val) {
-                            _val = klr_add_ext_klass(MOD, origin->path, inst_sym->instance_ts,
-                                                     origin->name);
-                            origin->ir_val = _val;
+                        if (origin->kind == SYM_CLASS) {
+                            KlrValue *_val = _sym->ir_val;
+                            if (!_val) {
+                                _val = klr_add_ext_klass(MOD, origin->path, inst_sym->instance_ts,
+                                                         _sym->name, origin->name);
+                                _sym->ir_val = _val;
+                            }
+                            ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
+                            KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
+                            exp->ir_val =
+                                klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
+                        } else if (origin->kind == SYM_TRAIT) {
+                            KlrValue *_val = _sym->ir_val;
+                            if (!_val) {
+                                _val = klr_add_ext_trait(MOD, origin->path, inst_sym->instance_ts,
+                                                         _sym->name);
+                                _sym->ir_val = _val;
+                                _add_instance_all_intf_to_trait((KlrExtTrait *)_val, inst_sym);
+                            }
+                            ASSERT(_val && _val->kind == KLR_VALUE_EXT_TRAIT);
+                            exp->ir_val = klr_get_ext_intf((KlrExtTrait *)_val, sym->name);
+                            ASSERT(exp->ir_val);
+                        } else {
+                            UNREACHABLE();
                         }
-                        ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
-                        KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
-                        exp->ir_val =
-                            klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
                     } else {
                         Symbol *_sym = stbl_get(origin->stbl, sym->name);
                         ASSERT(_sym && (_sym->kind == SYM_FUNC || _sym->kind == SYM_INHERITED));
@@ -694,7 +738,7 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
                 ASSERT(_val && _val->kind == KLR_VALUE_EXT_MODULE);
                 KlrExtModule *ext_mod = (KlrExtModule *)_val;
                 exp->ir_val = klr_add_ext_klass(MOD, sym->path, ((KlassSymbol *)sym)->instance_ts,
-                                                sym->name);
+                                                sym->name, sym->name);
                 sym->ir_val = exp->ir_val;
             }
         } else {

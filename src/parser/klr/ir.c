@@ -803,7 +803,8 @@ KlrValue *klr_add_ext_global(KlrModule *m, char *ext_m_path, TypeSpec *ts, char 
     return (KlrValue *)var;
 }
 
-KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name)
+KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name,
+                            char *origin_name)
 {
     KlrExtModule *ext_m = klr_add_ext_module(m, ext_m_path);
     KlrValue *sym = _get_ext_klass(ext_m, name);
@@ -815,6 +816,7 @@ KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *
     klass->module = ext_m;
     vector_init_ptr(&klass->fields);
     vector_init_ptr(&klass->methods);
+    klass->origin_name = origin_name;
     return (KlrValue *)klass;
 }
 

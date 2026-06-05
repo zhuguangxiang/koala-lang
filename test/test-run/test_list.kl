@@ -31,10 +31,10 @@ func main() {
 // CHECK: call @print [path = 'std/builtin'], %0 std/builtin.tuple<Lstd/builtin.list<o>;>, ' ' str, '\n' str
 // CHECK: %l = local [immutable] std/builtin.list<j>
 // CHECK: move %l std/builtin.list<j>, list[1, 2, 3] std/builtin.list<j>
-// CHECK: %1 = call @list::__len__ [path = 'std/builtin'], %l std/builtin.list<j>
+// CHECK: %1 = call @list<j>::__len__ [path = 'std/builtin'], %l std/builtin.list<j>
 // CHECK: %2 = build_intern @tuple, 'length of l:' str, %1 int64
 // CHECK: call @print [path = 'std/builtin'], %2 std/builtin.tuple<uj>, ' ' str, '\n' str
-// CHECK: call @list::append [path = 'std/builtin'], %l std/builtin.list<j>, 4 int64
+// CHECK: call @list<j>::append [path = 'std/builtin'], %l std/builtin.list<j>, 4 int64
 // CHECK: %3 = build_intern @tuple, %l std/builtin.list<j>
 // CHECK: call @print [path = 'std/builtin'], %3 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
 // CHECK: %4 = call @len [path = 'std/builtin'], %l std/builtin.list<j>

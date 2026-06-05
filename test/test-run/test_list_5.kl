@@ -45,7 +45,7 @@ func main() {
 // CHECK: %v = local int64
 // CHECK: %2 = seq_get %x std/builtin.list<j>, %seq.index int64
 // CHECK: move %v int64, %2 int64
-// CHECK: call @list::append [path = 'std/builtin'], %out std/builtin.list<j>, %v int64
+// CHECK: call @list<j>::append [path = 'std/builtin'], %out std/builtin.list<j>, %v int64
 // CHECK: %3 = add %seq.index int64, 1 int64
 // CHECK: move %seq.index int64, %3 int64
 // CHECK: %4 = cmpge %seq.index int64, %0 int64

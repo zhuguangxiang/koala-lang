@@ -1,0 +1,58 @@
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
+
+class Foo : Iterator[int] {
+    var count int = 0
+
+    func __has_next__() bool {
+        return count < 5
+    }
+
+    func __next__() int {
+        if count < 5 {
+            // TODO:
+            // count += 1
+            count = count + 1
+            return count
+        } else {
+            return -1
+        }
+    }
+}
+
+func main() {
+    let foo = Foo()
+
+    while foo.__has_next__() {
+        print(foo.__next__())
+    }
+
+    let it Iterator[int] = foo
+    while it.__has_next__() {
+        print(it.__next__())
+    }
+}
+
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+
+// CHECK-LABEL: %bb1(while-cond):
+// CHECK:  %1 = call @Foo::__has_next__, %foo test_intf_call_3.Foo
+
+// CHECK-LABEL: %bb2(while-body):
+// CHECK: %2 = call @Foo::__next__, %foo test_intf_call_3.Foo
+// CHECK: %3 = build_intern @tuple, %2 int64
+// CHECK: %4 = call @Foo::__has_next__, %foo test_intf_call_3.Foo
+
+// CHECK-LABEL: %bb3(while-end):
+// CHECK: %it = local [immutable] std/builtin.Iterator<j>
+// CHECK: %5 = make_intf %foo test_intf_call_3.Foo [intf-table-index = 1] to std/builtin.Iterator
+// CHECK: move %it std/builtin.Iterator<j>, %5 std/builtin.Iterator
+
+// CHECK-LABEL: %bb4(while-cond):
+// CHECK: %6 = call @std/builtin.Iterator<j>::__has_next__ [intf-index = 0], %it std/builtin.Iterator<j>
+
+// CHECK-LABEL: %bb5(while-body):
+// CHECK: %7 = call @std/builtin.Iterator<j>::__next__ [intf-index = 1], %it std/builtin.Iterator<j>
+// CHECK: %8 = build_intern @tuple, %7 int64
+// CHECK: %9 = call @std/builtin.Iterator<j>::__has_next__ [intf-index = 0], %it std/builtin.Iterator<j>
