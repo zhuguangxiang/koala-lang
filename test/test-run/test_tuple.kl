@@ -25,14 +25,14 @@ func main() {
 // CHECK-LABEL: %bb0(entry):
 // CHECK: %t = local [immutable] std/builtin.tuple<jjj>
 // CHECK: move %t std/builtin.tuple<jjj>, tuple(1, 2, 3) std/builtin.tuple<jjj>
-// CHECK: %0 = call @tuple<jjj>::to_list [path = 'std/builtin'], %t std/builtin.tuple<jjj>
+// CHECK: %0 = call @tuple::to_list [path = 'std/builtin'], %t std/builtin.tuple<jjj>
 // CHECK: %l = local [immutable] std/builtin.list<j>
 // CHECK: move %l std/builtin.list<j>, %0 std/builtin.list<j>
 // CHECK: %t1 = local [immutable] std/builtin.tuple<juz>
 // CHECK: move %t1 std/builtin.tuple<juz>, tuple(1, 'a', true) std/builtin.tuple<juz>
-// CHECK: %1 = call @tuple<juz>::to_list [path = 'std/builtin'], %t1 std/builtin.tuple<juz>
+// CHECK: %1 = call @tuple::to_list [path = 'std/builtin'], %t1 std/builtin.tuple<juz>
 // CHECK: %l1 = local [immutable] std/builtin.list<o>
-// CHECK: move %l1 std/builtin.list<o>, %1 std/builtin.list<o>
+// CHECK: move %l1 std/builtin.list<o>, %1 std/builtin.list<j>
 // CHECK: %2 = build_intern @tuple, %t1 std/builtin.tuple<juz>, %l1 std/builtin.list<o>
 // CHECK: call @print [path = 'std/builtin'], %2 std/builtin.tuple<Lstd/builtin.tuple<juz>;Lstd/builtin.list<o>;>, ' ' str, '\n' str
 // CHECK: %3 = call @foo [const], 4 int64, 5 int64, tuple(6, 7) std/builtin.tuple<jj>

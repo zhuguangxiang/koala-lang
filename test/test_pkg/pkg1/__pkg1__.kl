@@ -35,3 +35,23 @@ pub class Foo {
 pub trait Fly {
     pub func fly() str
 }
+
+pub trait FlyG[T] {
+    func fly() T
+}
+
+pub class BAR[T] {
+    var value T
+
+    pub func __init__(_value T) {
+        value = _value
+    }
+
+    pub func set_value(_value T) {
+        value = _value
+    }
+
+    pub func get_value() T {
+        return value
+    }
+}

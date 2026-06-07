@@ -11,6 +11,12 @@
 extern "C" {
 #endif
 
+int check_name(char *name)
+{
+    if (strchr(name, '<')) return 0;
+    return 1;
+}
+
 KlrValue *klr_const_int(uint64_t val, TypeSpec *ts, KlrModule *m)
 {
     int width = ts->int_flt_info.width;
@@ -647,6 +653,7 @@ KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name)
     klass->index = vector_size(&m->klasses) - 1;
     klass->module = m;
     klass->ts = ts;
+    ASSERT(check_name(name));
     return (KlrValue *)klass;
 }
 
@@ -674,6 +681,7 @@ KlrValue *klr_add_intf(KlrTrait *trait, TypeSpec *ret, char *name)
     intf->module = trait->module;
     intf->intf_index = vector_size(&trait->intfs);
     vector_push_back(&trait->intfs, &intf);
+    ASSERT(check_name(name));
     return (KlrValue *)intf;
 }
 
@@ -686,6 +694,7 @@ KlrValue *klr_add_trait(KlrModule *m, TypeSpec *ts, char *name)
     trait->module = m;
     trait->ts = ts;
     vector_init_ptr(&trait->intfs);
+    ASSERT(check_name(name));
     return (KlrValue *)trait;
 }
 
@@ -803,8 +812,7 @@ KlrValue *klr_add_ext_global(KlrModule *m, char *ext_m_path, TypeSpec *ts, char 
     return (KlrValue *)var;
 }
 
-KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name,
-                            char *origin_name)
+KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name)
 {
     KlrExtModule *ext_m = klr_add_ext_module(m, ext_m_path);
     KlrValue *sym = _get_ext_klass(ext_m, name);
@@ -816,7 +824,7 @@ KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *
     klass->module = ext_m;
     vector_init_ptr(&klass->fields);
     vector_init_ptr(&klass->methods);
-    klass->origin_name = origin_name;
+    ASSERT(check_name(name));
     return (KlrValue *)klass;
 }
 

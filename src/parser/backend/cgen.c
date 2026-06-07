@@ -1134,8 +1134,8 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 KlrExtKlass *ext_klass = ext_fn->klass;
                 int index;
                 if (ext_klass) {
-                    index = mach_import_add_method(m, ext_mod->name, ext_klass->origin_name,
-                                                   ext_fn->name);
+                    index =
+                        mach_import_add_method(m, ext_mod->name, ext_klass->name, ext_fn->name);
                 } else {
                     index = mach_import_add_func(m, ext_mod->name, ext_fn->name);
                 }

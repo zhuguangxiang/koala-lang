@@ -1815,7 +1815,12 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
             if (var) vector_push_back(kls_sym->fields, &var);
         } else if (stmt->kind == STMT_FUNC_KIND) {
             Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt);
-            if (fn) vector_push_back(kls_sym->funcs, &fn);
+            if (fn) {
+                vector_push_back(kls_sym->funcs, &fn);
+                if (str_equal(fn->name, "__init__")) {
+                    kls_sym->__init__ = fn;
+                }
+            }
         } else {
             UNREACHABLE();
         }

@@ -321,7 +321,7 @@ done:
 void koala_run_file(char *path)
 {
     Object *m = kl_load_module(path);
-    kl_run_main(m);
+    if (m) kl_run_main(m);
 }
 
 void koala_finalize(void) { /* finalize atom string table */ fini_atom(); }

@@ -47,7 +47,8 @@ typedef enum _SymKind {
 
 #define SYMBOL_HEAD \
     HashMapEntry hnode; SymKind kind; short flags; short status; int id; char *name; \
-    char *path; TypeSpec *ts; HashMap *stbl; void *arg; void *parent; void *ps; KlrValue *ir_val;
+    char *path; TypeSpec *ts; HashMap *stbl; void *arg; void *parent; void *ps; \
+    KlrValue *ir_val;
 
 /* clang-format on */
 
@@ -81,6 +82,8 @@ typedef struct _VarSymbol {
 #define VAR_SCOPE_FIELD  4
     // default value for parameters
     Literal *lit;
+    // for instance field, point to the origin field symbol
+    // void *origin;
 } VarSymbol;
 
 typedef struct _ShadowVarSymbol {
@@ -131,6 +134,8 @@ typedef struct _FuncSymbol {
     Vector tps;
     /* code index */
     int code_index;
+    // for instance method, point to the origin method symbol
+    // void *origin;
 } FuncSymbol;
 
 typedef struct _IntfEntry {

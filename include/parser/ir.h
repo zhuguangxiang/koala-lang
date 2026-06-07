@@ -305,6 +305,7 @@ typedef struct _KlrModule {
 
 typedef struct _KlrKlass {
     KLR_VALUE_HEAD
+    /* module pointer */
     KlrModule *module;
     /* class index in module */
     int index;
@@ -316,6 +317,7 @@ typedef struct _KlrKlass {
 
 typedef struct _KlrTrait {
     KLR_VALUE_HEAD
+    /* module pointer */
     KlrModule *module;
     /* trait index in module */
     int index;
@@ -325,7 +327,9 @@ typedef struct _KlrTrait {
 
 typedef struct _KlrIntf {
     KLR_VALUE_HEAD
+    /* module pointer */
     KlrModule *module;
+    /* trait pointer */
     KlrTrait *trait;
     /* intf index in trait */
     int intf_index;
@@ -351,7 +355,6 @@ typedef struct _KlrExtKlass {
     KlrExtModule *module;
     Vector fields;
     Vector methods;
-    char *origin_name;
 } KlrExtKlass;
 
 typedef struct _KlrExtTrait {
@@ -370,7 +373,6 @@ typedef struct _KlrExtFunc {
     KLR_VALUE_HEAD
     KlrExtModule *module;
     KlrExtKlass *klass;
-    // KlrExtTrait *trait;
 } KlrExtFunc;
 
 typedef struct _KlrExtIntf {
@@ -620,8 +622,7 @@ KlrValue *klr_get_trait(KlrModule *m, char *name);
 KlrExtModule *klr_add_ext_module(KlrModule *m, char *path);
 KlrValue *klr_add_ext_func(KlrModule *m, char *ext_m_path, TypeSpec *ret, char *name);
 KlrValue *klr_add_ext_global(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name);
-KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name,
-                            char *origin_name);
+KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name);
 KlrValue *klr_add_ext_field(KlrExtKlass *kls, TypeSpec *ts, char *name);
 KlrValue *klr_add_ext_method(KlrExtKlass *kls, TypeSpec *ret, char *name);
 KlrValue *klr_add_ext_trait(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name);

@@ -10,6 +10,7 @@ func main() {
     let x = foo(1)
     let l = list[int](1,2,3,x)
     let l2 = list[int](1,2,3)
+    // TODO: l3 type is list[int], but rhs is list.
     let l3 = list(4,5,6)
 
     print(l[3], l2[2], l3[1])
@@ -23,9 +24,9 @@ func main() {
 // CHECK: move %x int64, %0 int64
 // CHECK: %1 = build_intern @list, 1 int64, 2 int64, 3 int64, %x int64
 // CHECK: %l = local [immutable] std/builtin.list<j>
-// CHECK: move %l std/builtin.list<j>, %1 std/builtin.list<j>
+// CHECK: move %l std/builtin.list<j>, %1 std/builtin.list
 // CHECK: %l2 = local [immutable] std/builtin.list<j>
-// CHECK: move %l2 std/builtin.list<j>, list[1, 2, 3] std/builtin.list<j>
+// CHECK: move %l2 std/builtin.list<j>, list[1, 2, 3] std/builtin.list
 // CHECK: %l3 = local [immutable] std/builtin.list<j>
 // CHECK: move %l3 std/builtin.list<j>, list[4, 5, 6] std/builtin.list
 

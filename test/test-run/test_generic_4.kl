@@ -1,0 +1,87 @@
+// RUN: koala %s | filecheck %s
+
+import "test_pkg/pkg1" as z
+
+trait Swim[T] : z.FlyG[T] {
+    func swim() T
+}
+
+class Foo[T] : z.FlyG[T] & Swim[T] {
+    var value T
+
+    func __init__(_value T) {
+        value = _value
+    }
+
+    func set_value(_value T) {
+        value = _value
+    }
+
+    func get_value() T {
+        return value
+    }
+
+    func fly() T {
+        return value
+    }
+
+    func swim() T {
+        return value
+    }
+}
+
+func main() {
+    let foo = Foo[int](42)
+
+    print(foo.get_value())
+    foo.set_value(100)
+    print(foo.get_value())
+    print(foo.fly())
+    print(foo.swim())
+
+    print(foo.value)
+    foo.value = 200
+    print(foo.value)
+    print(foo.fly())
+    print(foo.swim())
+
+    let foo2 = Foo[str]("hello")
+    print(foo2.get_value())
+    foo2.set_value("world")
+    print(foo2.get_value())
+    print(foo2.fly())
+    print(foo2.swim())
+
+    let foo3 = Foo(1)
+    print(foo3.get_value())
+    print(foo3.value)
+    print(foo3.fly())
+    print(foo3.swim())
+
+    let f z.FlyG[int] = foo
+    print(f.fly())
+    let s Swim[int] = foo
+    print(s.swim())
+    let f2 z.FlyG[int] = s
+    print(f2.fly())
+}
+
+// CHECK: 42
+// CHECK: 100
+// CHECK: 100
+// CHECK: 100
+// CHECK: 100
+// CHECK: 200
+// CHECK: 200
+// CHECK: 200
+// CHECK: hello
+// CHECK: world
+// CHECK: world
+// CHECK: world
+// CHECK: 1
+// CHECK: 1
+// CHECK: 1
+// CHECK: 1
+// CHECK: 200
+// CHECK: 200
+// CHECK: 200

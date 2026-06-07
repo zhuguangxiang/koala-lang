@@ -273,14 +273,15 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
     if (sym->kind == SYM_CLASS) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
         ASSERT(sym->flags & SYM_FLAGS_EXT);
-        exp->ir_val =
-            klr_add_ext_klass(MOD, sym->path, kls_sym->instance_ts, sym->name, sym->name);
+        exp->ir_val = klr_add_ext_klass(MOD, sym->path, kls_sym->instance_ts, sym->name);
     } else if (sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
         Symbol *origin = inst_sym->origin;
-        ASSERT(origin->flags & SYM_FLAGS_EXT);
-        exp->ir_val =
-            klr_add_ext_klass(MOD, origin->path, inst_sym->instance_ts, sym->name, origin->name);
+        if (!origin->ir_val) {
+            // TODO: why is null?
+            ASSERT(str_equal(origin->name, "tuple") || str_equal(origin->name, "list"));
+        }
+        exp->ir_val = origin->ir_val;
     }
     sym->ir_val = exp->ir_val;
 }
@@ -483,6 +484,11 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
         Symbol *lhs_sym = lhs->sym;
         ASSERT(lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_INSTANCE);
         KlassSymbol *kls_sym = (KlassSymbol *)lhs_sym;
+        if (lhs_sym->kind == SYM_INSTANCE) {
+            InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
+            Symbol *origin = inst_sym->origin;
+            kls_sym = (KlassSymbol *)origin;
+        }
         Symbol *_sym = kls_sym->__init__;
         ASSERT(_sym && _sym->ir_val);
         KlrValue *init_fn = _sym->ir_val;
@@ -502,8 +508,8 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
         if (!kls_sym->ir_val) {
             ASSERT(kls_sym->flags & SYM_FLAGS_EXT);
-            kls_sym->ir_val = klr_add_ext_klass(MOD, kls_sym->path, kls_sym->instance_ts,
-                                                lhs_sym->name, kls_sym->name);
+            kls_sym->ir_val =
+                klr_add_ext_klass(MOD, kls_sym->path, kls_sym->instance_ts, kls_sym->name);
         }
 
         Symbol *_sym = kls_sym->__init__;
@@ -579,8 +585,7 @@ static KlrValue *build_get_field(TypeSpec *ts, char *name, KlrBuilder *bldr, Klr
         if (kls_sym->flags & SYM_FLAGS_EXT) {
             KlrValue *kls_ir_val = kls_sym->ir_val;
             if (!kls_ir_val) {
-                kls_ir_val =
-                    klr_add_ext_klass(MOD, sym->path, kls_sym->instance_ts, sym->name, sym->name);
+                kls_ir_val = klr_add_ext_klass(MOD, sym->path, kls_sym->instance_ts, sym->name);
                 kls_sym->ir_val = kls_ir_val;
             }
             ASSERT(kls_ir_val->kind == KLR_VALUE_EXT_KLASS);
@@ -597,21 +602,23 @@ static KlrValue *build_get_field(TypeSpec *ts, char *name, KlrBuilder *bldr, Klr
             ASSERT(fld_sym->ir_val);
             return klr_build_get_field(bldr, val, fld_sym->ir_val, "");
         }
+    } else if (sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        Symbol *origin = inst_sym->origin;
+        ASSERT(origin->kind == SYM_CLASS);
+
+        Symbol *fld_sym = stbl_get(origin->stbl, name);
+        ASSERT(fld_sym && fld_sym->kind == SYM_VAR);
+
+        if (origin->flags & SYM_FLAGS_EXT) {
+            NYI();
+        } else {
+            ASSERT(fld_sym->ir_val);
+            return klr_build_get_field(bldr, val, fld_sym->ir_val, "");
+        }
+    } else {
+        UNREACHABLE();
     }
-    // } else if (sym->kind == SYM_INSTANCE) {
-    //     InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
-    //     Symbol *origin = inst_sym->origin;
-    //     ASSERT(origin->kind == SYM_CLASS);
-    //     if (origin->flags & SYM_FLAGS_EXT) {
-    //         fi->path = origin->path;
-    //         fi->klass = origin->name;
-    //     } else {
-    //         KlassSymbol *kls_sym = (KlassSymbol *)origin;
-    //         field_index = get_local_field_index(kls_sym->fields, name);
-    //     }
-    // } else {
-    //     UNREACHABLE();
-    // }
 
     // fi->index = field_index;
     // fi->name = name;
@@ -643,7 +650,7 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
                             KlrValue *_val = _sym->ir_val;
                             if (!_val) {
                                 _val = klr_add_ext_klass(MOD, origin->path, inst_sym->instance_ts,
-                                                         _sym->name, origin->name);
+                                                         origin->name);
                                 _sym->ir_val = _val;
                             }
                             ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
@@ -665,10 +672,11 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
                             UNREACHABLE();
                         }
                     } else {
-                        Symbol *_sym = stbl_get(origin->stbl, sym->name);
-                        ASSERT(_sym && (_sym->kind == SYM_FUNC || _sym->kind == SYM_INHERITED));
-                        ASSERT(_sym->ir_val);
-                        exp->ir_val = _sym->ir_val;
+                        Symbol *_fn_sym = stbl_get(origin->stbl, sym->name);
+                        ASSERT(_fn_sym &&
+                               (_fn_sym->kind == SYM_FUNC || _fn_sym->kind == SYM_INHERITED));
+                        ASSERT(_fn_sym->ir_val);
+                        exp->ir_val = _fn_sym->ir_val;
                     }
                 } else if (_sym->kind == SYM_CLASS) {
                     KlassSymbol *kls_sym = (KlassSymbol *)_sym;
@@ -730,19 +738,17 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
     }
 
     if (sym->kind == SYM_CLASS) {
-        if (exp->ctx == EXPR_CTX_CALL) {
-            if (!sym->ir_val) {
-                Symbol *_sym = sym->parent;
-                ASSERT(_sym->kind == SYM_PACKAGE);
-                KlrValue *_val = _sym->ir_val;
-                ASSERT(_val && _val->kind == KLR_VALUE_EXT_MODULE);
-                KlrExtModule *ext_mod = (KlrExtModule *)_val;
-                exp->ir_val = klr_add_ext_klass(MOD, sym->path, ((KlassSymbol *)sym)->instance_ts,
-                                                sym->name, sym->name);
-                sym->ir_val = exp->ir_val;
-            }
+        if (!sym->ir_val) {
+            Symbol *_sym = sym->parent;
+            ASSERT(_sym->kind == SYM_PACKAGE);
+            KlrValue *_val = _sym->ir_val;
+            ASSERT(_val && _val->kind == KLR_VALUE_EXT_MODULE);
+            KlrExtModule *ext_mod = (KlrExtModule *)_val;
+            exp->ir_val =
+                klr_add_ext_klass(MOD, sym->path, ((KlassSymbol *)sym)->instance_ts, sym->name);
+            sym->ir_val = exp->ir_val;
         } else {
-            UNREACHABLE();
+            exp->ir_val = sym->ir_val;
         }
         return;
     }
@@ -773,8 +779,28 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
     } else {
         // store field
         ASSERT(exp->ctx == EXPR_CTX_STORE);
-        ASSERT(sym->ir_val);
-        exp->ir_val = sym->ir_val;
+        Symbol *lhs_ts_sym = get_symbol_by_id(lhs->ts->sym_id);
+        if (lhs_ts_sym->kind == SYM_CLASS) {
+            KlassSymbol *kls_sym = (KlassSymbol *)lhs_ts_sym;
+            Symbol *fld_sym = stbl_get(kls_sym->stbl, dot->id.name);
+            ASSERT(fld_sym && fld_sym->kind == SYM_VAR);
+
+            ASSERT(fld_sym->ir_val);
+            exp->ir_val = fld_sym->ir_val;
+        } else if (lhs_ts_sym->kind == SYM_INSTANCE) {
+            InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_ts_sym;
+            Symbol *origin = inst_sym->origin;
+            ASSERT(origin->kind == SYM_CLASS);
+
+            Symbol *fld_sym = stbl_get(origin->stbl, dot->id.name);
+            ASSERT(fld_sym && fld_sym->kind == SYM_VAR);
+
+            ASSERT(fld_sym->ir_val);
+            exp->ir_val = fld_sym->ir_val;
+        } else {
+            UNREACHABLE();
+        }
+        // exp->ir_val = sym->ir_val;
     }
 }
 
