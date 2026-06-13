@@ -8,10 +8,20 @@ func world(name str) str {
     return name
 }
 
+func foo(n int) {
+    var i = 0
+    var x = 5 + n
+    while i < n {
+        print(x)
+        i = i + 1
+    }
+}
+
 func main() {
     let s = "zhangsan"
     let s2 = "wangwu"
     print(hello(s), world(s2))
+    foo(3)
 }
 
 // CHECK-LABEL: --- IR Dump After isel [@main] ---
@@ -31,3 +41,8 @@ func main() {
 // CHECK: loadk %7 str, '\n' str
 // CHECK: call @print [path = 'std/builtin'], nargs=3
 // CHECK: ret void
+
+// CHECK: zhangsan wangwu
+// CHECK: 8
+// CHECK: 8
+// CHECK: 8

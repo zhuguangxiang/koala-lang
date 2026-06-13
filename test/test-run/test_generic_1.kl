@@ -1,0 +1,26 @@
+// RUN: koala %s | filecheck %s
+
+import "test_pkg/pkg1" as z
+
+func main() {
+    let b = z.BAR[int](42)
+    print(b.get_value())
+    b.set_value(100)
+    print(b.get_value() * 2)
+
+    let b2 = z.Baz[int](100)
+    print(b2.fly())
+
+    let f z.FlyG[int] = b2
+    print(f.fly() * 3)
+
+    let f2 = b2
+    print(f2.fly())
+}
+
+// CHECK: 42
+// CHECK: 200
+// CHECK: Baz init with value: 100
+// CHECK: 100
+// CHECK: 300
+// CHECK: 100

@@ -17,6 +17,14 @@ static void print_type(TypeSpec *ty, FILE *fp)
     FINI_BUF(buf);
 }
 
+static void print_type2(TypeSpec *ty, FILE *fp)
+{
+    BUF(buf);
+    type_spec_print(ty, &buf);
+    fprintf(fp, "%s", BUF_STR(buf));
+    FINI_BUF(buf);
+}
+
 #define print_value_type(val, fp) print_type((val)->ts, fp)
 
 static void print_const(KlrConst *v, FILE *fp);
@@ -246,7 +254,7 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
         KlrExtFunc *f = (KlrExtFunc *)fn;
         if (f->klass) {
-            fprintf(fp, "@%s::%s", f->klass->name, f->name);
+            fprintf(fp, "@%s:%s", f->klass->name, f->name);
         } else {
             fprintf(fp, "@%s", fn->name);
         }
@@ -261,7 +269,7 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
     } else if (fn->kind == KLR_VALUE_FUNC) {
         KlrFunc *f = (KlrFunc *)fn;
         if (f->klass) {
-            fprintf(fp, "@%s::%s", f->klass->name, f->name);
+            fprintf(fp, "@%s:%s", f->klass->name, f->name);
         } else {
             fprintf(fp, "@%s", fn->name);
         }
@@ -271,13 +279,13 @@ static void print_ir_call(KlrInsn *insn, FILE *fp)
         }
     } else if (fn->kind == KLR_VALUE_INTF) {
         KlrIntf *intf = (KlrIntf *)fn;
-        fprintf(fp, "@%s::%s", intf->trait->name, intf->name);
+        fprintf(fp, "@%s:%s", intf->trait->name, intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
     } else {
         ASSERT(fn->kind == KLR_VALUE_EXT_INTF);
         KlrExtIntf *intf = (KlrExtIntf *)fn;
         KlrExtModule *ext_m = intf->module;
-        fprintf(fp, "@%s.%s::%s", ext_m->name, intf->trait->name, intf->name);
+        fprintf(fp, "@%s.%s:%s", ext_m->name, intf->trait->name, intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
     }
 
@@ -305,7 +313,7 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
     if (fn->kind == KLR_VALUE_EXT_FUNC) {
         KlrExtFunc *f = (KlrExtFunc *)fn;
         if (f->klass) {
-            fprintf(fp, "@%s::%s", f->klass->name, f->name);
+            fprintf(fp, "@%s:%s", f->klass->name, f->name);
         } else {
             fprintf(fp, "@%s", fn->name);
         }
@@ -320,7 +328,7 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
     } else if (fn->kind == KLR_VALUE_FUNC) {
         KlrFunc *f = (KlrFunc *)fn;
         if (f->klass) {
-            fprintf(fp, "@%s::%s", f->klass->name, f->name);
+            fprintf(fp, "@%s:%s", f->klass->name, f->name);
         } else {
             fprintf(fp, "@%s", fn->name);
         }
@@ -330,13 +338,13 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
         }
     } else if (fn->kind == KLR_VALUE_INTF) {
         KlrIntf *intf = (KlrIntf *)fn;
-        fprintf(fp, "@%s::%s", intf->trait->name, intf->name);
+        fprintf(fp, "@%s:%s", intf->trait->name, intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
     } else {
         ASSERT(fn->kind == KLR_VALUE_EXT_INTF);
         KlrExtIntf *intf = (KlrExtIntf *)fn;
         KlrExtModule *ext_m = intf->module;
-        fprintf(fp, "@%s.%s::%s", ext_m->name, intf->trait->name, intf->name);
+        fprintf(fp, "@%s.%s:%s", ext_m->name, intf->trait->name, intf->name);
         fprintf(fp, " [intf-index = %d]", intf->intf_index);
     }
 
@@ -378,15 +386,30 @@ static void print_attributes(KlrInsn *insn, FILE *fp)
 
 static void print_new(const char *name, KlrInsn *insn, FILE *fp)
 {
-    KlrValue *ty = insn_oper_value(insn, 0);
-
-    TypeSpec *ts = ty->ts;
+    TypeSpec *ts = insn->ts;
 
     klr_print_value_name((KlrValue *)insn, fp);
-    if (ts->klass_type.pkg) {
-        fprintf(fp, " = %s @%s::%s", name, ts->klass_type.pkg, ts->klass_type.name);
+    if (ts->kind == TYPE_KLASS) {
+        if (ts->klass_type.pkg) {
+            fprintf(fp, " = %s @%s.%s", name, ts->klass_type.pkg, ts->klass_type.name);
+        } else {
+            fprintf(fp, " = %s @%s", name, ts->klass_type.name);
+        }
     } else {
-        fprintf(fp, " = %s @%s", name, ts->klass_type.name);
+        ASSERT(ts->kind == TYPE_GENERIC_REF);
+        if (ts->generic_ref.pkg) {
+            fprintf(fp, " = %s @%s.%s", name, ts->generic_ref.pkg, ts->generic_ref.name);
+        } else {
+            fprintf(fp, " = %s @%s", name, ts->generic_ref.name);
+        }
+
+        fprintf(fp, "[");
+        TypeSpec *_ts;
+        vector_foreach(_ts, ts->generic_ref.args) {
+            if (i__ != 0) fprintf(fp, ", ");
+            print_type2(_ts, fp);
+        }
+        fprintf(fp, "]");
     }
 }
 
@@ -1153,7 +1176,7 @@ void klr_print_func(KlrFunc *func, FILE *fp)
 
     KlrKlass *kls = func->klass;
     if (kls) {
-        fprintf(fp, "  func @%s::%s", kls->name, func->name);
+        fprintf(fp, "  func @%s:%s", kls->name, func->name);
     } else {
         fprintf(fp, "  func @%s", func->name);
     }

@@ -410,7 +410,7 @@ static void write_rt_data(KlMachModule *m, KlcFile *klc, HashMap *stbl)
 void write_to_klc(ParserModule *pm)
 {
     KlcFile klc;
-    init_klc_file(&klc, pm->path);
+    init_klc_file(&klc, pm->path, pm->pkg_path);
 
     if (pm->m) {
         write_rt_data(pm->m->mach, &klc, pm->stbl);

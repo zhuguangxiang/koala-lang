@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir --pkg-path=z | filecheck %s
+// RUN: koala %s --dump=no-opt-ir --package-name=z | filecheck %s
 
 class BAR {
     var x = 100
@@ -31,7 +31,7 @@ func main() {
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @Point::__init__(%self z.Point, %_x int64, %_y int64) <NO-TYPE> {
+// CHECK-LABEL: func @Point:__init__(%self z.Point, %_x int64, %_y int64) <NO-TYPE> {
 // CHECK: %bb0(entry):
 // CHECK: set_field %self z.Point, z(index=2), 10 int64
 // CHECK: set_field %self z.Point, x(index=0), %_x int64
@@ -39,7 +39,7 @@ func main() {
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @Point::area(%self z.Point) std/builtin.tuple<jjj> {
+// CHECK-LABEL: func @Point:area(%self z.Point) std/builtin.tuple<jjj> {
 // CHECK: %bb0(entry):
 // CHECK: %0 = get_field %self z.Point, x(index=0)
 // CHECK: %1 = get_field %self z.Point, y(index=1)
@@ -50,14 +50,14 @@ func main() {
 // CHECK: ret %5 std/builtin.tuple<jjj>
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK-LABEL: func @main()
 // CHECK: %bb0(entry):
-// CHECK: %0 = new @z::Point
-// CHECK: call @Point::__init__, %0 z.Point, 1 int64, 2 int64
+// CHECK: %0 = new @z.Point
+// CHECK: call @Point:__init__, %0 z.Point, 1 int64, 2 int64
 // CHECK: %p = local [immutable] z.Point
 // CHECK: move %p z.Point, %0 z.Point
-// CHECK: %1 = new @z::BAR
-// CHECK: call @BAR::__init__, %1 z.BAR
+// CHECK: %1 = new @z.BAR
+// CHECK: call @BAR:__init__, %1 z.BAR
 // CHECK: %b = local [immutable] z.BAR
 // CHECK: move %b z.BAR, %1 z.BAR
 // CHECK: %2 = get_field %b z.BAR, x(index=0)

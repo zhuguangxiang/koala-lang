@@ -11,19 +11,6 @@
 extern "C" {
 #endif
 
-#ifndef NOLOG
-/* clang-format off */
-#define log_type_spec(ts) do {        \
-    BUF(buf);                           \
-    type_spec_print(ts, &buf);          \
-    log_info("  '%s'", BUF_STR(buf));   \
-    FINI_BUF(buf);                      \
-} while (0)
-/* clang-format on */
-#else
-#define log_type_spec(ts) ((void *)(ts))
-#endif
-
 static void parse_ident(ParserState *ps, Expr *exp)
 {
     IdentExpr *id_exp = (IdentExpr *)exp;
@@ -51,6 +38,27 @@ static void parse_ident(ParserState *ps, Expr *exp)
         if (!fn_sym->ts) {
             log_info("update func '%s' proto", fn_sym->name);
             fn_sym->ts = func_type_spec_from_arginfo(fn_sym->params, fn_sym->ret);
+        }
+    }
+
+    if (sym->kind == SYM_TYPE_PARAM) {
+        log_info("resolving type parameter '%s'", sym->name);
+        if (sym->ts == NULL) {
+            TypeParamSymbol *tp_sym = (TypeParamSymbol *)sym;
+            if (tp_sym->which == TP_INFER) {
+                log_info("type parameter '%s' is inferred", tp_sym->name);
+            } else if (tp_sym->which == TP_CONST) {
+                log_info("type parameter '%s' is const", tp_sym->name);
+            } else {
+                ASSERT(tp_sym->which == TP_NORMAL);
+                log_info("type parameter '%s' is normal", tp_sym->name);
+            }
+            TypeSpec *ret = generic_var_type_spec(tp_sym->name, tp_sym->index, tp_sym->id,
+                                                  tp_sym->owner->name);
+            sym->ts = ret;
+        } else {
+            log_info("type parameter '%s' is already resolved", sym->name);
+            ASSERT(sym->ts->kind == TYPE_GENERIC_VAR);
         }
     }
 
@@ -536,10 +544,8 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceS
                 log_info("generic var '%s' is inferred as '%s' for instance specialization",
                          ts->generic_var.name, inst_ts->signature);
             } else {
-                log_info(
-                    "generic var '%s' matches klass's tp, use tp_args to get instance "
-                    "type",
-                    ts->generic_var.name);
+                log_info("generic var '%s' matches klass's tp, use tp_args to get instance type",
+                         ts->generic_var.name);
                 inst_ts = vector_get(tp_args, ts->generic_var.index);
             }
         } else {
@@ -593,6 +599,9 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceS
             log_info("var-arg source type is not generic var, keep it.");
             inst_ts = ts;
         }
+    } else if (ts->kind == TYPE_OPTIONAL) {
+        TypeSpec *src = instance_type_spec(ts->opt.src, origin, sym, ps);
+        inst_ts = optional_type_spec_intern(src);
     } else {
         inst_ts = ts;
     }
@@ -1320,7 +1329,7 @@ static void parse_call(ParserState *ps, Expr *exp)
         InheritedFunc *inherited = (InheritedFunc *)lhs_sym;
         FuncSymbol *origin_fn_sym = inherited->origin;
         log_info("call lhs is inherited function '%s'", inherited->name);
-        exp->ts = origin_fn_sym->ts;
+        exp->ts = origin_fn_sym->ret;
         params = origin_fn_sym->params;
     } else {
         UNREACHABLE();
@@ -1776,7 +1785,7 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
     Expr *lhs = index->lhs;
     KlassSymbol *kls_sym = (KlassSymbol *)lhs->sym;
 
-    // generic types, e.g. List[int], Dict[str, int]
+    // generic types, e.g. List[int], Dict[str, int], ListNode[T]
 
     if (kls_sym->kind != SYM_CLASS) {
         kl_error(lhs->loc, "type '%s' is not a class type.", lhs->sym->name);
@@ -1802,7 +1811,7 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
         parser_visit_expr(ps, arg);
         if (!arg->ts) return;
 
-        ASSERT(arg->ts->kind == TYPE_TYPE);
+        ASSERT(arg->ts->kind == TYPE_TYPE || arg->ts->kind == TYPE_GENERIC_VAR);
 
         TypeSpec *arg_ts;
         Symbol *arg_sym = arg->sym;
@@ -1810,6 +1819,8 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
             arg_ts = ((KlassSymbol *)arg->sym)->instance_ts;
         } else if (arg_sym->kind == SYM_INSTANCE) {
             arg_ts = ((InstanceSymbol *)arg->sym)->instance_ts;
+        } else if (arg_sym->kind == SYM_TYPE_PARAM) {
+            arg_ts = arg_sym->ts;
         } else {
             kl_error(arg->loc, "type argument must be a class/trait type.");
             return;
@@ -1838,7 +1849,7 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
     index->ts = inst_sym->ts;
     index->sym = (Symbol *)inst_sym;
     log_info("generic type instance created/got: %s", inst_sym->name);
-    log_type_spec(inst_sym->ts);
+    log_type_spec(inst_sym->instance_ts);
 }
 
 static void parse_index(ParserState *ps, Expr *exp)

@@ -42,20 +42,20 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
-// CHECK: %0 = new @test_intf_call_2::Foo
-// CHECK: call @Foo::__init__, %0 test_intf_call_2.Foo
+// CHECK: %0 = new @test_intf_call_2.Foo
+// CHECK: call @Foo:__init__, %0 test_intf_call_2.Foo
 // CHECK: %f3 = local [immutable] test_intf_call_2.Fly3
 // CHECK: %1 = make_intf %0 test_intf_call_2.Foo [intf-table-index = 3] to test_intf_call_2.Fly3
 // CHECK: move %f3 test_intf_call_2.Fly3, %1 test_intf_call_2.Fly3
-// CHECK: %2 = call @Fly3::fly [intf-index = 0], %f3 test_intf_call_2.Fly3
-// CHECK: %3 = call @Fly3::fly2 [intf-index = 1], %f3 test_intf_call_2.Fly3
-// CHECK: %4 = call @Fly3::fly3 [intf-index = 2], %f3 test_intf_call_2.Fly3
+// CHECK: %2 = call @Fly3:fly [intf-index = 0], %f3 test_intf_call_2.Fly3
+// CHECK: %3 = call @Fly3:fly2 [intf-index = 1], %f3 test_intf_call_2.Fly3
+// CHECK: %4 = call @Fly3:fly3 [intf-index = 2], %f3 test_intf_call_2.Fly3
 
 // CHECK-LABEL: --- IR Dump After isel [@main] ---
 // CHECK-LABEL: func @main()
-// CHECK: %4 = call @Fly3::fly [intf-index = 0], nargs=1
-// CHECK: %6 = call @Fly3::fly2 [intf-index = 1], nargs=1
-// CHECK: %8 = call @Fly3::fly3 [intf-index = 2], nargs=1        [fixedslot = 2(next)]
+// CHECK: %4 = call @Fly3:fly [intf-index = 0], nargs=1
+// CHECK: %6 = call @Fly3:fly2 [intf-index = 1], nargs=1
+// CHECK: %8 = call @Fly3:fly3 [intf-index = 2], nargs=1        [fixedslot = 2(next)]
 // CHECK: %9 = local str        [fixedslot = 0(next)]
 // CHECK: move %9 str, %4 str
 // CHECK: %10 = local str        [fixedslot = 1(next)]

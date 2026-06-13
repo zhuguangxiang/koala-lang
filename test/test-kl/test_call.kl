@@ -1,4 +1,4 @@
-// RUN: koalac %s --pkg-path=z | filecheck %s
+// RUN: koalac %s --package-name=z | filecheck %s
 
 func hello() str {
     // return "hello"

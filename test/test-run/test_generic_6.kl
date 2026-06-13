@@ -1,0 +1,124 @@
+// RUN: koala %s --dump=no-opt-ir --package-name=z | filecheck %s
+
+trait Fly[T] {
+    func fly() T
+}
+
+trait Swim[T] {
+    func swim() T
+}
+
+trait Bird[T] : Fly[T] {
+    func bird() T
+}
+
+trait Fish[T] : Swim[T] {
+    func fish() T
+}
+
+class Duck[T1, T2] : Bird[T1] & Fish[T2] {
+    let v1 T1
+    let v2 T2
+
+    func __init__(_v1 T1, _v2 T2) {
+        v1 = _v1
+        v2 = _v2
+    }
+
+    func fly() T1 {
+        return v1
+    }
+
+    func swim() T2 {
+        return v2
+    }
+
+    func bird() T1 {
+        return v1
+    }
+
+    func fish() T2 {
+        return v2
+    }
+}
+
+func print_int_fly(fly Fly[int]) {
+    print(fly.fly())
+}
+
+func print_str_swim(swim Swim[str]) {
+    print(swim.swim())
+}
+
+func main() {
+    let d = Duck[int, str](42, "hello")
+    let fly Fly[int] = d
+    let swim Swim[str] = d
+    let bird Bird[int] = d
+    let fish Fish[str] = d
+
+    print(fly.fly())
+    print(swim.swim())
+    print(bird.bird())
+    print(fish.fish())
+
+    let fly2 Fly[int] = bird
+    print(fly2.fly())
+    print_int_fly(fly2)
+    print_int_fly(bird)
+
+    let swim2 Swim[str] = fish
+    print(swim2.swim())
+    print_str_swim(swim2)
+    print_str_swim(fish)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: %0 = new @z.Duck<ju>
+// CHECK: call @Duck:__init__, %0 z.Duck<ju>, 42 int64, 'hello' str
+// CHECK: %d = local [immutable] z.Duck<ju>
+// CHECK: move %d z.Duck<ju>, %0 z.Duck<ju>
+// CHECK: %fly = local [immutable] z.Fly<j>
+// CHECK: %1 = make_intf %d z.Duck<ju> [intf-table-index = 1] to z.Fly
+// CHECK: move %fly z.Fly<j>, %1 z.Fly
+// CHECK: %swim = local [immutable] z.Swim<u>
+// CHECK: %2 = make_intf %d z.Duck<ju> [intf-table-index = 3] to z.Swim
+// CHECK: move %swim z.Swim<u>, %2 z.Swim
+// CHECK: %bird = local [immutable] z.Bird<j>
+// CHECK: %3 = make_intf %d z.Duck<ju> [intf-table-index = 2] to z.Bird
+// CHECK: move %bird z.Bird<j>, %3 z.Bird
+// CHECK: %fish = local [immutable] z.Fish<u>
+// CHECK: %4 = make_intf %d z.Duck<ju> [intf-table-index = 4] to z.Fish
+// CHECK: move %fish z.Fish<u>, %4 z.Fish
+// CHECK: %5 = call @Fly:fly [intf-index = 0], %fly z.Fly<j>
+// CHECK: %6 = build_intern @tuple, %5 int64
+// CHECK: call @print [path = 'std/builtin'], %6 std/builtin.tuple<j>, ' ' str, '\n' str
+// CHECK: %7 = call @Swim:swim [intf-index = 0], %swim z.Swim<u>
+// CHECK: %8 = build_intern @tuple, %7 str
+// CHECK: call @print [path = 'std/builtin'], %8 std/builtin.tuple<u>, ' ' str, '\n' str
+// CHECK: %9 = call @Bird:bird [intf-index = 1], %bird z.Bird<j>
+// CHECK: %10 = build_intern @tuple, %9 int64
+// CHECK: call @print [path = 'std/builtin'], %10 std/builtin.tuple<j>, ' ' str, '\n' str
+// CHECK: %11 = call @Fish:fish [intf-index = 1], %fish z.Fish<u>
+// CHECK: %12 = build_intern @tuple, %11 str
+// CHECK: call @print [path = 'std/builtin'], %12 std/builtin.tuple<u>, ' ' str, '\n' str
+// CHECK: %fly2 = local [immutable] z.Fly<j>
+// CHECK: %13 = upcast_intf %bird z.Bird<j> [intf-table-index = 1] to z.Fly
+// CHECK: move %fly2 z.Fly<j>, %13 z.Fly
+// CHECK: %14 = call @Fly:fly [intf-index = 0], %fly2 z.Fly<j>
+// CHECK: %15 = build_intern @tuple, %14 int64
+// CHECK: call @print [path = 'std/builtin'], %15 std/builtin.tuple<j>, ' ' str, '\n' str
+// CHECK: call @print_int_fly, %fly2 z.Fly<j>
+// CHECK: %16 = upcast_intf %bird z.Bird<j> [intf-table-index = 1] to z.Fly
+// CHECK: call @print_int_fly, %16 z.Fly
+// CHECK: %swim2 = local [immutable] z.Swim<u>
+// CHECK: %17 = upcast_intf %fish z.Fish<u> [intf-table-index = 1] to z.Swim
+// CHECK: move %swim2 z.Swim<u>, %17 z.Swim
+// CHECK: %18 = call @Swim:swim [intf-index = 0], %swim2 z.Swim<u>
+// CHECK: %19 = build_intern @tuple, %18 str
+// CHECK: call @print [path = 'std/builtin'], %19 std/builtin.tuple<u>, ' ' str, '\n' str
+// CHECK: call @print_str_swim, %swim2 z.Swim<u>
+// CHECK: %20 = upcast_intf %fish z.Fish<u> [intf-table-index = 1] to z.Swim
+// CHECK: call @print_str_swim, %20 z.Swim
+// CHECK: ret void

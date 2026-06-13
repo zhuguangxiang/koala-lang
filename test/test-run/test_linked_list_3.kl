@@ -1,0 +1,182 @@
+// RUN: koala %s --dump=no-opt-ir --package-name=z | filecheck %s
+
+import "test_pkg/pkg1" as zz
+
+class ListNode[T] {
+    let value T
+    var next ListNode[T]?
+
+    func __init__(_value T) {
+        value = _value
+        next = null
+    }
+
+    func show() {
+        print(value, end=', ')
+    }
+}
+
+class List[T] {
+    var head ListNode[T]?
+    var total int = 0
+
+    func __init__() {
+        head = null
+    }
+
+    func append(value T) {
+        total = total + 1
+        let node = ListNode(value)
+
+        if head == null {
+            head = node
+        } else {
+            var curr = head
+            while let next = curr.next {
+                curr = next
+            }
+            curr.next = node
+        }
+    }
+
+    func add_head(value T) {
+        total = total + 1
+        let node = ListNode(value)
+        if head != null {
+            node.next = head
+        }
+        head = node
+    }
+
+    func index(idx int) T? {
+        var curr = head
+        var i = 0
+        while curr != null {
+            if i == idx {
+                return curr.value
+            }
+            curr = curr.next
+            i += 1
+        }
+        return null
+    }
+
+    func show() {
+        var curr = head
+        print('[', end='')
+        while curr != null {
+            curr.show()
+            curr = curr.next
+        }
+        print(']')
+    }
+}
+
+func list_mul_sum(a List[int], b List[int]) int {
+    var sum = 0
+    var cur_a = a.head
+    var cur_b = b.head
+    while cur_a != null {
+        if cur_b != null {
+            sum = sum + cur_a.value * cur_b.value
+            cur_b = cur_b.next
+        }
+        cur_a = cur_a.next
+    }
+    return sum
+}
+
+func matmul(a List[List[int]], b List[List[int]]) List[List[int]] {
+    let res = List[List[int]]()
+
+    var cur_a = a.head
+    while cur_a != null {
+        let row_a = cur_a.value
+        let res_row = List[int]()
+        var cur_b = b.head
+        while cur_b != null {
+            let row_b = cur_b.value
+            let r = list_mul_sum(row_a, row_b)
+            res_row.append(r)
+            cur_b = cur_b.next
+        }
+        res.append(res_row)
+        cur_a = cur_a.next
+    }
+
+    return res
+}
+
+func main() {
+    // matrix 1: 2x3
+    let m1 = List[List[int]]()
+
+    let m1l1 = List[int]()
+    m1l1.append(1)
+    m1l1.append(2)
+    m1l1.append(3)
+    m1.append(m1l1)
+
+    let m1l2 = List[int]()
+    m1l2.append(4)
+    m1l2.append(5)
+    m1l2.append(6)
+    m1.append(m1l2)
+
+    var cur = m1.head
+    while cur != null {
+        let row = cur.value
+        var cur_row = row.head
+        while cur_row != null {
+            print(cur_row.value, end='  ')
+            cur_row = cur_row.next
+        }
+        print('')
+        cur = cur.next
+    }
+
+    print('------------------\n')
+
+    // matrix 2: 3x2
+    let m2 = List[List[int]]()
+    let m2l1 = List[int]()
+    m2l1.append(10)
+    m2l1.append(11)
+    m2l1.append(12)
+    m2.append(m2l1)
+    let m2l2 = List[int]()
+    m2l2.append(13)
+    m2l2.append(14)
+    m2l2.append(15)
+    m2.append(m2l2)
+
+    cur = m2.head
+    while cur != null {
+        let row = cur.value
+        var cur_row = row.head
+        while cur_row != null {
+            print(cur_row.value, end='  ')
+            cur_row = cur_row.next
+        }
+        print('')
+        cur = cur.next
+    }
+
+    print('------------------\n')
+
+    let r = matmul(m1, m2)
+    cur = r.head
+    while cur != null {
+        let row = cur.value
+        var cur_row = row.head
+        while cur_row != null {
+            print(cur_row.value, end='  ')
+            cur_row = cur_row.next
+        }
+        print('')
+        cur = cur.next
+    }
+}
+
+// CHECK: 68  86
+// CHECK: 167  212

@@ -49,6 +49,7 @@ static void usage(void)
         "                       code      - codegen output\n"
         "                       itable    - dump interface table\n"
         "                       all       - dump all stages\n"
+        "  --package-name   Specify the package name.\n"
         "  -v, --version    Print koalac version.\n"
         "  -h, --help       Print this message.\n"
         "\n");
@@ -159,7 +160,7 @@ static void parse_command(int argc, char *argv[])
         { "dump", required_argument, 0, 10 },
         { "int-trap", no_argument, 0, 11 },
         { "float-trap", no_argument, 0, 12 },
-        { "pkg-path", required_argument, 0, 13 },
+        { "package-name", required_argument, 0, 13 },
         { NULL, 0, NULL, 0 },
     };
 

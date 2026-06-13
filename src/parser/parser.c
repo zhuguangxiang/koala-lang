@@ -129,9 +129,9 @@ static PkgSymbol *import_package(ParserModule *pm, char *path)
     }
 
     PkgSymbol *pkg_sym = stbl_add_pkg(pm->imported, path);
-    HashMap *stbl = load_module(path, (Symbol *)pkg_sym);
+    int ret = load_module(path, pkg_sym);
 
-    if (!stbl) {
+    if (ret) {
         fprintf(stderr, "error: cannot import module '%s'\n", path);
         char *koala_path = getenv("KOALA_PATH");
         if (koala_path) {
@@ -142,11 +142,11 @@ static PkgSymbol *import_package(ParserModule *pm, char *path)
         abort();
     }
 
-    TypeSpec *ts = pkg_type_spec(path);
+    ASSERT(pkg_sym->path);
+    TypeSpec *ts = pkg_type_spec(pkg_sym->path);
     pkg_sym->ts = ts;
-    pkg_sym->stbl = stbl;
     ts->sym_id = pkg_sym->id;
-    log_info("imported module '%s' successfully", path);
+    log_info("imported module '%s'(pkg-path: %s) successfully", path, pkg_sym->path);
     return pkg_sym;
 }
 
@@ -218,28 +218,6 @@ static void free_scope(ParserScope *scope)
 }
 
 #ifndef NOLOG
-/* clang-format off */
-#define log_type_spec(ts) do {        \
-    BUF(buf);                           \
-    type_spec_print(ts, &buf);          \
-    log_info("  '%s'", BUF_STR(buf));   \
-    FINI_BUF(buf);                      \
-} while (0)
-/* clang-format on */
-#else
-#define log_type_spec(ts) ((void *)(ts))
-#endif
-
-/* clang-format off */
-#define print_type_spec(ts) do {    \
-    BUF(buf);                       \
-    type_spec_print(ts, &buf);      \
-    printf(" %s", BUF_STR(buf));    \
-    FINI_BUF(buf);                  \
-} while (0)
-/* clang-format on */
-
-#ifndef NOLOG
 static const char *scopes[] = {
     "TOP", "CLASS", "TRAIT", "FUNC", "BLOCK", "ANONY",
 };
@@ -302,7 +280,7 @@ FuncSymbol *get_current_function(ParserState *ps)
     return NULL;
 }
 
-char *get_pkg_path(ParserState *ps, char *pkg_path)
+static char *get_pkg_path(ParserState *ps, char *pkg_path)
 {
     if (str_equal(pkg_path, "std/builtin") || str_equal(pkg_path, ps->pm->pkg_path)) {
         return pkg_path;
@@ -312,7 +290,9 @@ char *get_pkg_path(ParserState *ps, char *pkg_path)
     if (sym) {
         ASSERT(sym->kind == SYM_IMPORTED);
         PkgSymbol *pkg_sym = (PkgSymbol *)((ImportedSymbol *)sym)->origin;
-        return pkg_sym->name;
+        log_info("found package '%s' in imported scope, pkg-path: %s\n", pkg_path, pkg_sym->path);
+        ASSERT(pkg_sym->path);
+        return pkg_sym->path;
     }
 
     return NULL;
@@ -760,6 +740,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
     }
 
     if (sym->kind == SYM_TYPE_PARAM) {
+        log_info("symbol '%s' is a type parameter", _ts->unresolved.name.name);
         if (tp_args != NULL) {
             kl_error(_ts->loc, "'%s' is a type parameter, not a generic type",
                      _ts->unresolved.name.name);
@@ -767,19 +748,23 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             return NULL;
         }
         log_info("resolve type-parameter '%s'", _ts->unresolved.name.name);
-        TypeParamSymbol *ts_sym = (TypeParamSymbol *)sym;
-        if (ts_sym->which == TP_INFER) {
-            log_info("type parameter '%s' is inferred", ts_sym->name);
-        } else if (ts_sym->which == TP_CONST) {
-            log_info("type parameter '%s' is const", ts_sym->name);
-        } else {
-            ASSERT(ts_sym->which == TP_NORMAL);
-            log_info("type parameter '%s' is normal", ts_sym->name);
+        TypeParamSymbol *tp_sym = (TypeParamSymbol *)sym;
+        TypeSpec *ret = tp_sym->ts;
+        if (ret == NULL) {
+            if (tp_sym->which == TP_INFER) {
+                log_info("type parameter '%s' is inferred", tp_sym->name);
+            } else if (tp_sym->which == TP_CONST) {
+                log_info("type parameter '%s' is const", tp_sym->name);
+            } else {
+                ASSERT(tp_sym->which == TP_NORMAL);
+                log_info("type parameter '%s' is normal", tp_sym->name);
+            }
+            ret = generic_var_type_spec(tp_sym->name, tp_sym->index, tp_sym->id,
+                                        tp_sym->owner->name);
         }
-        TypeSpec *ret =
-            generic_var_type_spec(ts_sym->name, ts_sym->index, ts_sym->id, ts_sym->owner->name);
         type_spec_free(_ts);
         vector_destroy(tp_args);
+        log_type_spec(ret);
         return ret;
 
     } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
@@ -825,13 +810,25 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         if (open) {
             // open generic_ref type
             log_info("resolve open generic_ref type '%s'", _ts->unresolved.name.name);
-            char *pkg_path = get_pkg_path(ps, _ts->unresolved.pkg.name);
-            char *pkg_name = _ts->unresolved.name.name;
-            TypeSpec *ret = generic_ref_type_spec(pkg_path, pkg_name, tp_args, kls_sym->id);
+
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, sym, tp_args);
             vector_destroy(tp_args);
+            if (!inst_sym) {
+                kl_error(_ts->loc, "failed to get instance for generic_ref type");
+                return NULL;
+            }
+            TypeSpec *ret = inst_sym->instance_ts;
             type_spec_free(_ts);
             log_type_spec(ret);
             return ret;
+
+            // char *pkg_path = get_pkg_path(ps, _ts->unresolved.pkg.name);
+            // char *pkg_name = _ts->unresolved.name.name;
+            // TypeSpec *ret = generic_ref_type_spec(pkg_path, pkg_name, tp_args, kls_sym->id);
+            // vector_destroy(tp_args);
+            // type_spec_free(_ts);
+            // log_type_spec(ret);
+            // return ret;
         }
 
         log_info("resolve closed generic_ref type '%s'", _ts->unresolved.name.name);

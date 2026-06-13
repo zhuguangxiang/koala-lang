@@ -55,3 +55,16 @@ pub class BAR[T] {
         return value
     }
 }
+
+pub class Baz[T] : FlyG[T] {
+    var value T
+
+    pub func __init__(_value T) {
+        print("Baz init with value:", _value)
+        value = _value
+    }
+
+    pub func fly() T {
+        return value
+    }
+}

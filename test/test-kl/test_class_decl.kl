@@ -1,4 +1,4 @@
-// RUN: koalac %s --pkg-path=foo | filecheck %s
+// RUN: koalac %s --package-name=foo | filecheck %s
 
 trait Fly {
     func fly() str

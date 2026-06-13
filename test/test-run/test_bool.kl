@@ -36,14 +36,18 @@ show(false, null)
 show(true, "subtraction is broken")
 foo(true, false)
 
+// CHECK-LABEL: func @show(%cond bool, %msg str?)
 // CHECK: %0 = cmpeq %cond bool, false bool
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
+// CHECK-LABEL: func @foo(%cond bool, %cond2 bool) bool
 // CHECK: %0 = cmpne %cond bool, %cond2 bool
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
+// CHECK-LABEL: --- IR Dump After isel [@show] ---
 // CHECK: jmp_int_eq_imm %cond bool, false bool, label %bb1, label %bb2
 
+// CHECK-LABEL: --- IR Dump After isel [@foo] ---
 // CHECK: jmp_int_ne %cond bool, %cond2 bool, label %bb1, label %bb2
 
 // CHECK: jmp_int_ne_imm r0, #0, 15

@@ -393,7 +393,7 @@ static char *mangle_type_name(char *base_name, Vector *tp_args)
 }
 
 static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, char *mangled_name,
-                                 Vector *tp_args)
+                                 Vector *tp_args, TypeSpec *instance_ts)
 {
     InstanceSymbol *sym = mm_alloc_obj(sym);
     hashmap_entry_init(sym, str_hash(mangled_name));
@@ -409,12 +409,10 @@ static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, char *mangled_na
         sym->origin = origin;
         sym->tp_args = type_spec_vec_copy(tp_args);
         sym->stbl = stbl_new();
-        sym->instance_ts = klass_type_spec(origin->path, mangled_name);
+        sym->instance_ts = instance_ts;
         sym->instance_ts->sym_id = sym->id;
         sym->instance_ts->checked = 1;
     }
-
-    log_info("added instance symbol '%s' with id=%d", mangled_name, sym->id);
 
     return (Symbol *)sym;
 }
@@ -424,7 +422,8 @@ static InstanceSymbol *__instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector 
     ASSERT(ts->kind == TYPE_GENERIC_REF);
 
     Symbol *origin_sym = get_symbol_by_id(ts->sym_id);
-    ASSERT(origin_sym->kind == SYM_CLASS || origin_sym->kind == SYM_TRAIT);
+    ASSERT(origin_sym->kind == SYM_CLASS || origin_sym->kind == SYM_TRAIT ||
+           origin_sym->kind == SYM_INSTANCE);
 
     Vector *base_tp_args = vector_create_ptr();
     TypeSpec *spec_arg_ts;
@@ -515,19 +514,54 @@ TypeSpec *find_lub(Vector *types)
     return ts;
 }
 
+static inline int ts_is_generic(TypeSpec *ts)
+{
+    ASSERT(ts);
+    if (ts->kind == TYPE_GENERIC_VAR) return 1;
+    if (ts->kind == TYPE_GENERIC_REF) return 1;
+    return 0;
+}
+
+static inline int tps_are_generic(Vector *tp_args)
+{
+    TypeSpec *ts;
+    vector_foreach(ts, tp_args) {
+        if (!ts) continue;
+        if (ts_is_generic(ts)) return 1;
+    }
+    return 0;
+}
+
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args)
 {
-    ASSERT(origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT);
+    ASSERT(origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT || origin->kind == SYM_INSTANCE);
+
+    if (origin->kind == SYM_INSTANCE) {
+        // inherited instance, e.g. List[int] is an inherited instance of List[T]
+        InstanceSymbol *origin_inst = (InstanceSymbol *)origin;
+        origin = origin_inst->origin;
+    }
 
     char *mangled_name = mangle_type_name(origin->name, tp_args);
     Symbol *sym = stbl_get(stbl, mangled_name);
     if (sym) {
-        log_info("found existing instance symbol '%s'", mangled_name);
+        log_info("found existing instance symbol '%s'(generic=%d)", mangled_name,
+                 sym->flags & SYM_FLAGS_GENERIC ? 1 : 0);
         ASSERT(sym->kind == SYM_INSTANCE);
         return (InstanceSymbol *)sym;
     }
 
-    sym = stbl_add_instance(stbl, origin, mangled_name, tp_args);
+    int generic = tps_are_generic(tp_args);
+
+    if (generic) {
+        log_info("added generic instance symbol '%s' for '%s'", mangled_name, origin->name);
+        TypeSpec *instance_ts = generic_ref_type_spec(origin->path, origin->name, tp_args, -1);
+        sym = stbl_add_instance(stbl, origin, mangled_name, tp_args, instance_ts);
+    } else {
+        log_info("added instance symbol '%s' for '%s'", mangled_name, origin->name);
+        TypeSpec *instance_ts = klass_type_spec(origin->path, mangled_name);
+        sym = stbl_add_instance(stbl, origin, mangled_name, tp_args, instance_ts);
+    }
 
     InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
     KlassSymbol *kls_sym = (KlassSymbol *)origin;
@@ -562,7 +596,7 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
                 InstanceSymbol *base_sym = __instance_type_spec(stbl, base_ts, _tp_args);
                 base_ts = base_sym->instance_ts;
                 vector_push_back(inst_sym->bases, &base_ts);
-                ASSERT(base_ts->kind == TYPE_KLASS);
+                ASSERT(base_ts->kind == TYPE_KLASS || base_ts->kind == TYPE_GENERIC_REF);
             }
             log_info("updated instance base '%s' for '%s'", base_ts->klass_type.name,
                      mangled_name);

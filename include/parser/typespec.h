@@ -9,6 +9,7 @@
 #include "buffer.h"
 #include "hashmap.h"
 #include "loc.h"
+#include "log.h"
 #include "vector.h"
 
 #ifdef __cplusplus
@@ -61,6 +62,7 @@ typedef struct _TypeSpec {
 
         // T
         struct {
+            char *pkg;
             char *owner;
             char *name;
             int index;
@@ -212,6 +214,28 @@ static inline TypeSpec *type_type_spec(void) { return type_spec_get_by_id(16); }
 void install_builtin_types(HashMap *stbl);
 
 void type_spec_free(TypeSpec *ts);
+
+#ifndef NOLOG
+/* clang-format off */
+#define log_type_spec(ts) do {        \
+    BUF(buf);                           \
+    type_spec_print(ts, &buf);          \
+    log_info("  '%s'", BUF_STR(buf));   \
+    FINI_BUF(buf);                      \
+} while (0)
+/* clang-format on */
+#else
+#define log_type_spec(ts) ((void *)(ts))
+#endif
+
+/* clang-format off */
+#define print_type_spec(ts) do {    \
+    BUF(buf);                       \
+    type_spec_print(ts, &buf);      \
+    printf(" %s", BUF_STR(buf));    \
+    FINI_BUF(buf);                  \
+} while (0)
+/* clang-format on */
 
 #ifdef __cplusplus
 }

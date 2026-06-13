@@ -1,0 +1,117 @@
+// RUN: koala %s --dump=no-opt-ir --package-name=z | filecheck %s
+
+class ListNode[T, W] {
+    var value T
+    var next ListNode[T, W]?
+    var prev ListNode[W, T]?
+
+    func __init__(_value T) {
+        value = _value
+        next = null
+        prev = null
+    }
+
+    func getValue() T {
+        return value
+    }
+
+    func getNext() ListNode[T, int]? {
+        let n = ListNode[int, int](0)
+        let v = n.getValue()
+        n.setValue(v)
+
+        let n1 = ListNode[T, int](value)
+        let v1 = n1.getValue()
+        n1.setValue(v1)
+
+        return n1
+    }
+
+    func setNext(_next ListNode[T, W]?) {
+        next = _next
+    }
+
+    func setValue(_value T) {
+        value = _value
+    }
+
+    func getPrev() ListNode[W, T]? {
+        return prev
+    }
+
+    func setPrev(_prev ListNode[W, T]?) {
+        prev = _prev
+    }
+}
+
+class List[V, U] {
+    var head ListNode[U, V]?
+    var tail ListNode[V, U]?
+    var extra V
+
+    func __init__(_extra V) {
+        head = null
+        tail = null
+        extra = _extra
+    }
+
+    func getExtra() V {
+        return extra
+    }
+
+    func getHead() ListNode[U, V]? {
+        return head
+    }
+
+    func getTail() ListNode[V, U]? {
+        return tail
+    }
+}
+
+func foo() {
+    let list1 = List[bool, int](false)
+    let h = list1.getHead()
+    let t = list1.getTail()
+
+    let n = ListNode[int, bool](1)
+    list1.head = n
+    // list1.tail = n  // lhs: test_generic_5.ListNode<zj>? =/= rhs: test_generic_5.ListNode<jz>
+}
+
+func bar() {
+    let list1 = List[int, ListNode[int, str]](1)
+    let h = list1.getHead()
+    let t = list1.getTail()
+    let v = list1.getExtra()
+}
+
+func foo_bar() {
+    // TODO:
+    let list1 = List[int, ListNode[int, str]?](1)
+    let h = list1.getHead()
+    let t = list1.getTail()
+    let v = list1.getExtra()
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @ListNode:getNext(%self z.ListNode) z.ListNode[ListNode:T, int64]?
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %0 = new @z.ListNode<jj>
+// CHECK: call @ListNode:__init__, %0 z.ListNode<jj>, 0 int64
+// CHECK: %n = local [immutable] z.ListNode<jj>
+// CHECK: move %n z.ListNode<jj>, %0 z.ListNode<jj>
+// CHECK: %1 = call @ListNode:getValue, %n z.ListNode<jj>
+// CHECK: %v = local [immutable] int64
+// CHECK: move %v int64, %1 int64
+// CHECK: call @ListNode:setValue, %n z.ListNode<jj>, %v int64
+// CHECK: %2 = get_field %self z.ListNode, value(index=0)
+
+// CHECK: %3 = new @z.ListNode[ListNode:T, int64]
+// CHECK: call @ListNode:__init__, %3 z.ListNode[ListNode:T, int64], %2 ListNode:T
+// CHECK: %n1 = local [immutable] z.ListNode[ListNode:T, int64]
+// CHECK: move %n1 z.ListNode[ListNode:T, int64], %3 z.ListNode[ListNode:T, int64]
+// CHECK: %4 = call @ListNode:getValue, %n1 z.ListNode[ListNode:T, int64]
+// CHECK: %v1 = local [immutable] ListNode:T
+// CHECK: move %v1 ListNode:T, %4 ListNode:T
+// CHECK: call @ListNode:setValue, %n1 z.ListNode[ListNode:T, int64], %v1 ListNode:T
+// CHECK: ret %n1 z.ListNode[ListNode:T, int64]

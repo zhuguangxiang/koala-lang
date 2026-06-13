@@ -18,18 +18,18 @@ extern "C" {
 
 /* clang-format off */
 typedef enum _SymKind {
-    SYM_UNK,            /* unknown    */
-    SYM_VAR,            /* variable   */
-    SYM_FUNC,           /* function   */
-    SYM_CLASS,          /* class      */
-    SYM_TRAIT,          /* trait      */
-    SYM_ANONY,          /* anonymous  */
-    SYM_TYPE_PARAM,     /* type param */
-    SYM_PACKAGE,        /* package    */
-    SYM_INSTANCE,       /* instance   */
-    SYM_INHERITED,      /* inherited from trait */
-    SYM_SHADOW_VAR,     /* shadow var */
-    SYM_IMPORTED,       /* imported symbol */
+    SYM_UNK,                /* unknown    */
+    SYM_VAR,                /* variable   */
+    SYM_FUNC,               /* function   */
+    SYM_CLASS,              /* class      */
+    SYM_TRAIT,              /* trait      */
+    SYM_ANONY,              /* anonymous  */
+    SYM_TYPE_PARAM,         /* type param */
+    SYM_PACKAGE,            /* package    */
+    SYM_INSTANCE,           /* instance   */
+    SYM_INHERITED,          /* inherited from trait */
+    SYM_SHADOW_VAR,         /* shadow var */
+    SYM_IMPORTED,           /* imported symbol */
     SYM_MAX,
 } SymKind;
 
@@ -40,6 +40,7 @@ typedef enum _SymKind {
 #define SYM_FLAGS_TAG_VALUE (1 << 4)
 #define SYM_FLAGS_EXT       (1 << 5)
 #define SYM_FLAGS_MAGIC     (1 << 6)
+#define SYM_FLAGS_GENERIC   (1 << 7)
 
 #define SYM_UNRESOLVED   0
 #define SYM_RESOLVED     1

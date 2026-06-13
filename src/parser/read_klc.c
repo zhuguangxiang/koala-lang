@@ -31,7 +31,7 @@ typedef struct _FixupEntry {
 
 typedef struct _LoadKlcContext {
     HashMap *stbl;
-    Symbol *pkg_sym;
+    PkgSymbol *pkg_sym;
     KlcFile *klc;
     void *owner;
     char *path;
@@ -161,6 +161,8 @@ static void __do_fixup(Vector *fixups, LoadContext *ctx)
                 // create proto type for this function
                 ASSERT(fn_sym->ts == NULL);
                 fn_sym->ts = func_type_spec_from_arginfo(fn_sym->params, fn_sym->ret);
+                log_info("created proto type for function '%s'", fn_sym->name);
+                log_type_spec(fn_sym->ts);
                 break;
             }
             default: {
@@ -327,7 +329,7 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
         vector_push_back(kls_sym->funcs, &sym);
     }
 
-    log_info("loaded function '%s' for class '%s'\n", sym->name,
+    log_info("loaded function '%s' for class '%s'", sym->name,
              kls_sym ? kls_sym->name : "<module>");
 
     sym->status = SYM_RESOLVED;
@@ -507,14 +509,14 @@ static void load_klasses(LoadContext *ctx)
 }
 
 // absolute path to klc file
-static HashMap *__load(char *path, char *pkg_path, Symbol *pkg_sym)
+static int __load(char *path, PkgSymbol *pkg_sym)
 {
     log_info("read klc file: %s", path);
 
     KlcFile *klc = read_klc_file(path, 0);
     if (!klc) {
         log_info("failed to read klc file: %s", path);
-        return NULL;
+        return -1;
     }
 
     HashMap *stbl = stbl_new();
@@ -523,8 +525,8 @@ static HashMap *__load(char *path, char *pkg_path, Symbol *pkg_sym)
     ctx.stbl = stbl;
     ctx.pkg_sym = pkg_sym;
     ctx.klc = klc;
-    ctx.path = atom(pkg_path);
-    ctx.is_builtin = str_equal(pkg_path, "std/builtin");
+    ctx.path = klc->pkg_path;
+    ctx.is_builtin = str_equal(klc->pkg_path, "std/builtin");
     vector_init(&ctx.fixups, sizeof(FixupEntry));
     vector_init(&ctx.stage_2_fixups, sizeof(FixupEntry));
 
@@ -537,30 +539,33 @@ static HashMap *__load(char *path, char *pkg_path, Symbol *pkg_sym)
     vector_fini(&ctx.fixups);
     vector_fini(&ctx.stage_2_fixups);
 
-    return stbl;
+    pkg_sym->stbl = stbl;
+    pkg_sym->path = ctx.path;
+
+    return 0;
 }
 
 // path without .klc suffix
-HashMap *load_module(char *pkg_path, Symbol *pkg_sym)
+int load_module(char *pkg_path, PkgSymbol *pkg_sym)
 {
     char *koala_path = getenv("KOALA_PATH");
     if (!koala_path) {
         log_info("KOALA_PATH is not set");
-        return __load(pkg_path, pkg_path, pkg_sym);
+        return __load(pkg_path, pkg_sym);
     }
 
     log_info("KOALA_PATH: %s", koala_path);
 
     BUF(buf);
-    HashMap *stbl = NULL;
+    int ret = -1;
     char *prefix = NULL;
     int count = str_sep(&koala_path, ':', &prefix);
     while (count > 0) {
         buf_write_nstr(&buf, prefix, count);
         buf_write_str(&buf, pkg_path);
         buf_write_str(&buf, ".klc");
-        stbl = __load(BUF_STR(buf), pkg_path, pkg_sym);
-        if (stbl) {
+        ret = __load(BUF_STR(buf), pkg_sym);
+        if (!ret) {
             log_info("found package '%s' in KOALA_PATH: %s", pkg_path, prefix);
             break;
         }
@@ -571,7 +576,7 @@ HashMap *load_module(char *pkg_path, Symbol *pkg_sym)
 
     FINI_BUF(buf);
 
-    return stbl;
+    return ret;
 }
 
 #ifdef __cplusplus

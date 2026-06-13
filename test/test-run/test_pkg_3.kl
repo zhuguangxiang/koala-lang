@@ -42,14 +42,14 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
-// CHECK: %0 = new @test_pkg_3::Foo3
-// CHECK: call @Foo3::__init__, %0 test_pkg_3.Foo3
+// CHECK: %0 = new @test_pkg_3.Foo3
+// CHECK: call @Foo3:__init__, %0 test_pkg_3.Foo3
 // CHECK: %1 = make_intf %0 test_pkg_3.Foo3 [intf-table-index = 4] to test_pkg_3.Fly4
 // CHECK: move %f4 test_pkg_3.Fly4, %1 test_pkg_3.Fly4
-// CHECK: %2 = call @Fly4::fly [intf-index = 1], %f4 test_pkg_3.Fly4
-// CHECK: %4 = call @Fly4::fly2 [intf-index = 0], %f4 test_pkg_3.Fly4
-// CHECK: %6 = call @Fly4::fly3 [intf-index = 2], %f4 test_pkg_3.Fly4
-// CHECK: %8 = call @Fly4::fly4 [intf-index = 3], %f4 test_pkg_3.Fly4
+// CHECK: %2 = call @Fly4:fly [intf-index = 1], %f4 test_pkg_3.Fly4
+// CHECK: %4 = call @Fly4:fly2 [intf-index = 0], %f4 test_pkg_3.Fly4
+// CHECK: %6 = call @Fly4:fly3 [intf-index = 2], %f4 test_pkg_3.Fly4
+// CHECK: %8 = call @Fly4:fly4 [intf-index = 3], %f4 test_pkg_3.Fly4
 
 // CHECK: Foo3 is flying
 // CHECK: Foo3 is flying2

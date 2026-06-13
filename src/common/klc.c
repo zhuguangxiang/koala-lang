@@ -904,8 +904,11 @@ int write_klc_file(KlcFile *klc)
     write_bytes(klc, klc->magic, 4);
     write_uint32(klc, klc->version);
     write_uint16(klc, klc->num_rt_consts);
+    write_uint16(klc, klc->pkg_path_index);
     write_uint8(klc, klc->endian);
-    write_uint8(klc, klc->padding);
+    write_uint8(klc, klc->padding[0]);
+    write_uint8(klc, klc->padding[1]);
+    write_uint8(klc, klc->padding[2]);
 
     write_consts(klc, klc->objs + ITEM_RT_CONST);
     write_imports(klc, klc->objs + ITEM_IMPORT);
@@ -1362,8 +1365,11 @@ KlcFile *read_klc_file(char *path, int rt)
     read_bytes(klc, klc->magic, 4);
     read_uint32(klc, &klc->version);
     read_uint16(klc, &klc->num_rt_consts);
+    read_uint16(klc, &klc->pkg_path_index);
     read_uint8(klc, &klc->endian);
-    read_uint8(klc, &klc->padding);
+    read_uint8(klc, &klc->padding[0]);
+    read_uint8(klc, &klc->padding[1]);
+    read_uint8(klc, &klc->padding[2]);
 
     if (check_header(klc)) {
         fclose(fp);
@@ -1383,26 +1389,38 @@ KlcFile *read_klc_file(char *path, int rt)
         read_classes(klc, klc->objs + ITEM_CLASS);
     }
 
+    KlcConst *k = klc_get_const(klc, klc->pkg_path_index);
+    ASSERT(k && (k->type == KLC_CONST_SHORT_ASCII || k->type == KLC_CONST_ASCII));
+    klc->pkg_path = k->sval;
+
     fclose(fp);
 
     return klc;
 }
 
-void init_klc_file(KlcFile *klc, const char *path)
+void init_klc_file(KlcFile *klc, char *path, char *pkg_path)
 {
     memcpy(klc->magic, "klc", 4);
     klc->version = KOALA_VERSION;
     klc->num_rt_consts = 0;
+    klc->pkg_path_index = 0;
     klc->endian = 0;
-    klc->padding = 0;
+    klc->padding[0] = 0;
+    klc->padding[1] = 0;
+    klc->padding[2] = 0;
     klc->path = path;
+    klc->pkg_path = atom(pkg_path);
     klc->filp = NULL;
+
     hashmap_init(&klc->map, __item_entry_equal);
+
     void *empty = NULL;
     for (int i = 0; i < ITEM_MAX; i++) {
         vector_init_ptr(klc->objs + i);
         vector_push_back(klc->objs + i, &empty);
     }
+
+    klc->pkg_path_index = klc_add_str(klc, pkg_path, strlen(pkg_path));
 }
 
 static void fini_consts(Vector *vec)

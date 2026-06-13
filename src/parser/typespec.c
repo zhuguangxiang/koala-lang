@@ -885,6 +885,8 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         }
         case TYPE_GENERIC_VAR: {
             buf_write_char(buf, 'T');
+            // buf_write_str(buf, ts->generic_var.pkg);
+            // buf_write_char(buf, ':');
             buf_write_str(buf, ts->generic_var.owner);
             buf_write_char(buf, ':');
             buf_write_str(buf, ts->generic_var.name);
@@ -893,6 +895,8 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
         }
         case TYPE_GENERIC_REF: {
             buf_write_char(buf, 'L');
+            buf_write_str(buf, ts->generic_ref.pkg);
+            buf_write_char(buf, '.');
             buf_write_str(buf, ts->generic_ref.name);
             if (vector_size(ts->generic_ref.args) > 0) {
                 buf_write_char(buf, '<');
@@ -1207,10 +1211,16 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
     } else if (ts->kind == TYPE_ANY) {
         buf_write_str(buf, "any");
     } else if (ts->kind == TYPE_UNRESOLVED) {
+        buf_write_str(buf, ts->unresolved.pkg.name);
+        buf_write_char(buf, '.');
         buf_write_str(buf, ts->unresolved.name.name);
     } else if (ts->kind == TYPE_GENERIC_VAR) {
+        buf_write_str(buf, ts->generic_var.owner);
+        buf_write_char(buf, ':');
         buf_write_str(buf, ts->generic_var.name);
     } else if (ts->kind == TYPE_GENERIC_REF) {
+        buf_write_str(buf, ts->generic_ref.pkg);
+        buf_write_char(buf, '.');
         buf_write_str(buf, ts->generic_ref.name);
         if (vector_size(ts->generic_ref.args) > 0) {
             buf_write_char(buf, '[');

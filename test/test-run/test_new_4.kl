@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir --pkg-path=z | filecheck %s
+// RUN: koala %s --dump=no-opt-ir --package-name=z | filecheck %s
 
 class Point {
     var x int
@@ -32,19 +32,19 @@ func main() {
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
-// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK-LABEL: func @main()
 // CHECK-LABEL: %bb0(entry):
-// CHECK: %0 = new @z::Point
-// CHECK: call @Point::__init__, %0 z.Point, 1 int64, 2 int64
+// CHECK: %0 = new @z.Point
+// CHECK: call @Point:__init__, %0 z.Point, 1 int64, 2 int64
 // CHECK: %p = local [immutable] z.Point
 // CHECK: move %p z.Point, %0 z.Point
-// CHECK: %1 = call @Point::area, %p z.Point
+// CHECK: %1 = call @Point:area, %p z.Point
 
-// CHECK: call @Point::__init__, %p z.Point, 3 int64, 4 int64
+// CHECK: call @Point:__init__, %p z.Point, 3 int64, 4 int64
 
 // CHECK: %r = local [immutable] std/builtin.range
 // CHECK: move %r std/builtin.range, range(1, 10, 2) std/builtin.range
-// CHECK: %10 = call @range::__str__ [path = 'std/builtin'], %r std/builtin.range
+// CHECK: %10 = call @range:__str__ [path = 'std/builtin'], %r std/builtin.range
 // CHECK: %s = local [immutable] str
 // CHECK: move %s str, %10 str
 

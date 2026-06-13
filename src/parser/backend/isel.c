@@ -330,20 +330,6 @@ static KlrValue *lower_push_const(KlrConst *c, KlrInsn *insn, OpCode op)
     return (KlrValue *)klr_build_push(&bldr, (KlrValue *)c, op);
 }
 
-static int need_spill_arg(KlrInsn *call, KlrValue *arg, int index)
-{
-    if (!klr_is_call(arg)) return 0;
-
-    int nargs = call->num_opers;
-    for (int i = index + 1; i < nargs; i++) {
-        KlrValue *_arg = insn_oper_value(call, i);
-        if ((arg != _arg) && klr_is_call(_arg)) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
 // Lower a single call argument into a fixed call-slot.
 // 'pos' is the slot index counted from the end of the frame.
 static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
@@ -380,10 +366,12 @@ static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
         return;
     }
 
-    if (need_spill_arg(insn, arg, pos)) {
-        // Calls require a dedicated lowering path to handle tail calls properly.
-        // We will lower the call itself into the fixed slot, so we can directly
-        // use the call result without an extra move.
+    ASSERT(arg->kind == KLR_VALUE_INSN);
+
+    // arg op and call op are not in the same bb
+
+    KlrInsn *def = (KlrInsn *)arg;
+    if (def->bb != insn->bb) {
         KlrBuilder bldr;
         klr_builder_before(&bldr, insn);
 
@@ -395,6 +383,27 @@ static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
 
         klr_build_move(&bldr, local, arg); // copy original value
         return;
+    }
+
+    KlrInsn *next = insn_next(def, insn->bb);
+    while (next && next != insn) {
+        if (klr_is_call((KlrValue *)next)) {
+            // Calls in the same bb require spilling to avoid clobbering live values.
+            // This is a conservative heuristic that may introduce some unnecessary spills,
+            // but it keeps the implementation simple and correct.
+            KlrBuilder bldr;
+            klr_builder_before(&bldr, insn);
+
+            KlrValue *local = klr_build_local_var(&bldr, arg->ts, "");
+            KlrInsn *_insn = (KlrInsn *)local;
+
+            _insn->fixedslot = 1;   // mark as fixed slot
+            _insn->slotindex = pos; // assign slot index
+
+            klr_build_move(&bldr, local, arg); // copy original value
+            return;
+        }
+        next = insn_next(next, insn->bb);
     }
 
     // Generic SSA value: force it into a fixed call-slot.

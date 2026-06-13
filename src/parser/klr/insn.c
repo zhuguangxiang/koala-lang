@@ -409,7 +409,8 @@ void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target)
     klr_link_edge(bldr->bb, target);
 }
 
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs, char *name)
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, TypeSpec *ret, KlrValue **args, int nargs,
+                         char *name)
 {
     int is_const = 1;
 
@@ -429,7 +430,7 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int na
     for (int j = 0; j < nargs; j++) {
         init_oper(&insn->opers[j + 1], insn, (KlrValue *)args[j], 0);
     }
-    insn->ts = fn->ts;
+    insn->ts = ret ? ret : fn->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -493,6 +494,7 @@ KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char
 
     // ASSERT(!type_is_optional(val->ts));
     ASSERT(!type_is_optional(dst_ts));
+    ASSERT(val->ts != dst_ts);
 
     KlrInsn *insn = new_insn(OP_IR_CAST, 1, name);
     init_oper(&insn->opers[0], insn, val, 0);
@@ -501,7 +503,7 @@ KlrValue *klr_build_cast(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, char
     return (KlrValue *)insn;
 }
 
-KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, char *name)
+KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, TypeSpec *ts, char *name)
 {
     if (klass->kind != KLR_VALUE_KLASS && klass->kind != KLR_VALUE_EXT_KLASS) {
         panic("'new' op requires a klass value");
@@ -509,7 +511,7 @@ KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, char *name)
 
     KlrInsn *insn = new_insn(OP_NEW, 1, name);
     init_oper(&insn->opers[0], insn, klass, 0);
-    insn->ts = klass->ts;
+    insn->ts = ts ? ts : klass->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }
@@ -579,7 +581,8 @@ KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpe
     return (KlrValue *)insn;
 }
 
-KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, char *name)
+KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, TypeSpec *ts,
+                              char *name)
 {
     if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM) {
         panic("'get_field' op requires a reg/param value");
@@ -589,7 +592,7 @@ KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, 
     init_oper(&insn->opers[0], insn, obj, 0);
     init_oper(&insn->opers[1], insn, field, 0);
 
-    insn->ts = field->ts;
+    insn->ts = ts ? ts : field->ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

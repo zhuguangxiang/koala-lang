@@ -811,7 +811,8 @@ void klr_build_jmp_cond(KlrBuilder *bldr, KlrValue *cond, KlrBasicBlock *_then,
 void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target);
 
 /* IR: %0 int = call %func, %argument-list */
-KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, KlrValue **args, int nargs, char *name);
+KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, TypeSpec *ret, KlrValue **args, int nargs,
+                         char *name);
 
 /* IR: ret %var */
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
@@ -1019,11 +1020,12 @@ KlrValue *klr_build_make_intf(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts,
 KlrValue *klr_build_upcast_intf(KlrBuilder *bldr, KlrValue *val, TypeSpec *dst_ts, int intf_index,
                                 char *name);
 
-KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, char *name);
+KlrValue *klr_build_new(KlrBuilder *bldr, KlrValue *klass, TypeSpec *ts, char *name);
 KlrValue *klr_build_intern(KlrBuilder *bldr, KlrValue **args, int nargs, TypeSpec *ts,
                            InternTag tag, char *name);
 
-KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, char *name);
+KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, TypeSpec *ts,
+                              char *name);
 KlrValue *klr_build_set_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, KlrValue *val);
 
 KlrValue *klr_build_get_field_ext(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, char *name);

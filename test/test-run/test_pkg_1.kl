@@ -1,6 +1,6 @@
 // RUN: koala %s --dump=no-opt-ir | filecheck %s
 
-import "test_pkg/pkg1"
+import "test_pkg/pkg1_1" as zz
 
 class Bar {
     func bar() {
@@ -8,7 +8,7 @@ class Bar {
     }
 }
 
-class Foo : pkg1.Fly {
+class Foo : zz.Fly {
      func fly() str {
          return "Foo is flying"
      }
@@ -23,8 +23,8 @@ func new_foo() Foo {
 }
 
 func main() {
-    pkg1.hello()
-    let foo2 = pkg1.Foo()
+    zz.hello()
+    let foo2 = zz.Foo()
     foo2.bar()
 
     let bar2 = Bar()
@@ -36,19 +36,19 @@ func main() {
     let bar = foo.bar()
     bar.bar()
 
-    let p = pkg1.Point(1,2)
+    let p = zz.Point(1,2)
     p.show()
 
-    let fly pkg1.Fly = foo
+    let fly zz.Fly = foo
     print(fly.fly())
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
-// CHECK: call @hello [path = 'test_pkg/pkg1']
+// CHECK: call @hello [path = 'test_pkg/pkg1_1']
 // CHECK: %0 = new @test_pkg/pkg1.Foo
-// CHECK: call @Foo:__init__ [path = 'test_pkg/pkg1'], %0 test_pkg/pkg1.Foo
-// CHECK: %8 = call @test_pkg/pkg1.Fly:fly [intf-index = 0], %fly test_pkg/pkg1.Fly
+// CHECK: call @Foo:__init__ [path = 'test_pkg/pkg1_1'], %0 test_pkg/pkg1.Foo
+// CHECK: %8 = call @test_pkg/pkg1_1.Fly:fly [intf-index = 0], %fly test_pkg/pkg1.Fly
 
 // CHECK: Hello from pkg1
 // CHECK: bar

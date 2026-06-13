@@ -31,6 +31,7 @@ static void print_usage(const char *prog)
         "                       code      - codegen output\n"
         "                       itable    - dump interface table\n"
         "                       all       - dump all stages\n"
+        "  --package-name   Specify the package name.\n"
         "  -v, --version    Show version information\n"
         "  -h, --help       Show this help message\n",
         prog);
@@ -72,7 +73,7 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
         { "float-trap", no_argument, 0, 3 },
         { "help", no_argument, 0, 'h' },
         { "version", no_argument, 0, 'v' },
-        { "pkg-path", required_argument, 0, 4 },
+        { "package-name", required_argument, 0, 4 },
         { 0, 0, 0, 0 },
     };
 
@@ -103,8 +104,8 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
                 opt->enable_float_trap = 1;
                 break;
             case 4:
-                strncpy(opt->pkg_path, optarg, MAX_PATH_LEN);
-                opt->pkg_path[MAX_PATH_LEN - 1] = 0;
+                strncpy(opt->pkg_name, optarg, MAX_PATH_LEN);
+                opt->pkg_name[MAX_PATH_LEN - 1] = 0;
                 break;
             default:
                 return -1;

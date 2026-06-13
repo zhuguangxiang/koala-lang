@@ -21,7 +21,7 @@ typedef struct KoalaOptions {
     char *dump;                  // --dump=<list>
     const char *output;          // -o <file>
     const char *input;           // input file
-    char pkg_path[MAX_PATH_LEN]; // --pkg-path=<path>
+    char pkg_name[MAX_PATH_LEN]; // --package-name=<name>
 } KoalaOptions;
 
 int kl_parse_args(int argc, char *argv[], KoalaOptions *opt);

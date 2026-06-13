@@ -24,13 +24,15 @@ extern "C" {
 #define ITEM_MAX      8
 
 typedef struct _KlcFile {
-    const char *path;
+    char *path;
+    char *pkg_path;
     FILE *filp;
     uint8_t magic[4];
     uint32_t version;
     uint16_t num_rt_consts;
+    uint16_t pkg_path_index;
     uint8_t endian;
-    uint8_t padding;
+    uint8_t padding[3];
     HashMap map;
     Vector objs[ITEM_MAX];
 } KlcFile;
@@ -236,7 +238,7 @@ void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym);
 
 void klc_add_bytecodes(KlcFile *klc, uint32_t size, uint8_t *codes);
 
-void init_klc_file(KlcFile *klc, const char *path);
+void init_klc_file(KlcFile *klc, char *path, char *pkg_path);
 void fini_klc_file(KlcFile *klc);
 
 int write_klc_file(KlcFile *klc);

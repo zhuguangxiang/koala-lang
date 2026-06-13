@@ -1,4 +1,4 @@
-// RUN: koala %s --pkg-path=foo --dump=code,no-opt-ir | filecheck %s
+// RUN: koala %s --package-name=foo --dump=code,no-opt-ir | filecheck %s
 
 trait Debug {
     func show()

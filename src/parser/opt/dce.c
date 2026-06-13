@@ -124,6 +124,8 @@ int klr_dce_pass(KlrFunc *fn, void *data)
         }
     }
 
+    int changed = 0;
+
     while (!queue_empty(&wklist)) {
         KlrInsn *insn = queue_pop(&wklist);
 
@@ -139,6 +141,8 @@ int klr_dce_pass(KlrFunc *fn, void *data)
              * and push to worklist.
              */
             if (val->kind == KLR_VALUE_INSN && (val->use_count == 1)) {
+                log_info("add insn to wklist:");
+                log_insn((KlrInsn *)val);
                 queue_push(&wklist, val);
             }
         }
@@ -148,9 +152,11 @@ int klr_dce_pass(KlrFunc *fn, void *data)
 
         /* remove from the IR linked list */
         klr_erase_insn(insn);
+
+        changed = 1;
     }
 
-    return 0;
+    return changed;
 }
 
 #ifdef __cplusplus
