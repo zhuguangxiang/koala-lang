@@ -50,8 +50,6 @@ Rule
 
 > If failure is part of normal control flow, return T? instead of panicking.
 
-
-
 ## Tier 3 — Panic Only for Unrecoverable Errors
 
 A function may panic only when:

@@ -200,4 +200,30 @@
     // "clang-format.executable": "/usr/bin/clang-format",
     // "http.proxy": "http://127.0.0.1:20171",
     // "https.proxy": "http://127.0.0.1:20171"
+    "highlight.regexes": {
+        "(?<!\\/\\/.*)\\b(pub|trait)\\b": {
+            "filterLanguageRegex": "swift",
+            "decorations": [
+                {
+                    "color": "#C678DD"
+                }
+            ]
+        },
+        "(?<!\\/\\/.*)\\btrait\\s+([a-zA-Z0-9_]+)": {
+            "filterLanguageRegex": "swift",
+            "decorations": [
+                {
+                    "color": "#E5C07B"
+                }
+            ]
+        },
+        "(?<!\\/\\/.*)\\b(bool|str|int|int8|int16|int32|uint8|uint16|uint32|float)\\b(\\?)?": {
+            "filterLanguageRegex": "swift",
+            "decorations": [
+                {
+                    "color": "#4EC9B0"
+                }
+            ]
+        }
+    }
 }

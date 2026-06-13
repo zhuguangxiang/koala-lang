@@ -1,2 +1,0 @@
-
-# Inside Koala VirtualMachine
