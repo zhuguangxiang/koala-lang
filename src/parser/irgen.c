@@ -143,6 +143,11 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
                 Symbol *parent = sym->parent;
                 ASSERT(parent && parent->kind == SYM_PACKAGE);
                 val = klr_add_ext_global(MOD, parent->name, sym->ts, sym->name);
+            } else if (sym->kind == SYM_CLASS) {
+                Symbol *parent = sym->parent;
+                ASSERT(parent && parent->kind == SYM_PACKAGE);
+                val = klr_add_ext_klass(MOD, parent->name, ((KlassSymbol *)sym)->instance_ts,
+                                        sym->name);
             } else {
                 UNREACHABLE();
             }
@@ -214,18 +219,19 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
         }
 
         case SYM_FUNC: {
+            ASSERT(sym->ir_val);
             exp->ir_val = sym->ir_val;
             break;
         }
 
         case SYM_CLASS: {
-            ASSERT(!(sym->flags & SYM_FLAGS_EXT));
             ASSERT(sym->ir_val);
             exp->ir_val = sym->ir_val;
             break;
         }
 
         case SYM_PACKAGE: {
+            ASSERT(sym->ir_val);
             exp->ir_val = sym->ir_val;
             break;
         }

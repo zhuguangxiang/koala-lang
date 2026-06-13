@@ -332,7 +332,7 @@ import_stmt
 id_as_list
     : ID
     {
-        $$ = vector_create_ptr();
+        $$ = vector_create(sizeof(IdentAsIdent));
         IdentAsIdent item = { 0 };
         Ident id = {$1, loc(@1)};
         item.id = id;
@@ -340,7 +340,7 @@ id_as_list
     }
     | ID AS ID
     {
-        $$ = vector_create_ptr();
+        $$ = vector_create(sizeof(IdentAsIdent));
         IdentAsIdent item = { 0 };
         Ident id = {$1, loc(@1)};
         Ident alias_id = {$3, loc(@3)};

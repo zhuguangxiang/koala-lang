@@ -146,7 +146,7 @@ static PkgSymbol *import_package(ParserModule *pm, char *path)
     TypeSpec *ts = pkg_type_spec(pkg_sym->path);
     pkg_sym->ts = ts;
     ts->sym_id = pkg_sym->id;
-    log_info("imported module '%s'(pkg-path: %s) successfully", path, pkg_sym->path);
+    log_info("imported module '%s'(package-name: %s) successfully", path, pkg_sym->path);
     return pkg_sym;
 }
 
@@ -2918,6 +2918,11 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
                 IdentAsIdent *item;
                 vector_foreach_ptr(item, names) {
                     Symbol *origin = stbl_get(pkg->stbl, item->id.name);
+                    if (!origin || !(origin->flags & SYM_FLAGS_PUBLIC)) {
+                        kl_error(item->id.loc, "cannot import symbol '%s' from package '%s'",
+                                 item->id.name, pkg->name);
+                        continue;
+                    }
                     pkg_name = item->id.name;
                     if (item->alias_id.name) {
                         pkg_name = item->alias_id.name;

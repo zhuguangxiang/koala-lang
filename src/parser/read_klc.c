@@ -253,6 +253,14 @@ static Literal *klc_const_to_literal(KlcConst *k)
     return lit;
 }
 
+static int to_symbol_flags(uint16_t klc_flags)
+{
+    int flags = SYM_FLAGS_EXT;
+    if (klc_flags & KLC_FLAGS_PUB) flags |= SYM_FLAGS_PUBLIC;
+    if (klc_flags & KLC_FLAGS_MUT) flags |= SYM_FLAGS_MUTABLE;
+    return flags;
+}
+
 static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
 {
     Vector *params = vector_create_ptr();
@@ -291,7 +299,8 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
     TypeSpec *ret_ts = ret ? type_spec_from_str(ret->sval) : no_type_spec();
 
     HashMap *stbl = kls_sym ? kls_sym->stbl : ctx->stbl;
-    int flags = SYM_FLAGS_EXT;
+    int flags = to_symbol_flags(fn->flags);
+    printf("loading function '%s' with flags: 0x%x\n", k->sval, flags);
     Symbol *sym = stbl_add_func(stbl, k->sval, ret_ts, params, flags);
     ASSERT(sym);
     sym->parent = kls_sym;
@@ -418,17 +427,7 @@ static void load_field(KlcVar *field, KlassSymbol *kls_sym, LoadContext *ctx)
     KlcConst *name = klc_get_const(ctx->klc, field->name_index);
     KlcConst *ty_k = klc_get_const(ctx->klc, field->type_index);
     TypeSpec *ts = type_spec_from_str(ty_k->sval);
-
-    int flags = SYM_FLAGS_EXT;
-
-    if (field->flags & KLC_FLAGS_MUT) {
-        flags |= SYM_FLAGS_MUTABLE;
-    }
-
-    if (field->flags & KLC_FLAGS_PUB) {
-        flags |= SYM_FLAGS_PUBLIC;
-    }
-
+    int flags = to_symbol_flags(field->flags);
     Symbol *sym = stbl_add_var(kls_sym->stbl, name->sval, ts, flags);
     sym->parent = kls_sym;
     sym->status = SYM_RESOLVED;
@@ -440,7 +439,7 @@ static void load_klass(KlcKlass *kls, LoadContext *ctx)
     KlcConst *k = klc_get_const(ctx->klc, kls->name_index);
 
     KlassSymbol *cls_sym;
-    int flags = SYM_FLAGS_EXT | SYM_FLAGS_PUBLIC;
+    int flags = to_symbol_flags(kls->flags);
     if (kls->flags & KLC_FLAGS_TRAIT) {
         cls_sym = stbl_add_klass(ctx->stbl, k->sval, flags, 1);
     } else {
@@ -486,9 +485,6 @@ static void load_funcs(LoadContext *ctx)
     KlcFunc *item;
     vector_foreach(item, klc->objs + ITEM_FUNC) {
         if (!item) continue;
-        if (!(item->flags & KLC_FLAGS_PUB)) {
-            continue;
-        }
         load_func(item, NULL, ctx);
     }
 }
