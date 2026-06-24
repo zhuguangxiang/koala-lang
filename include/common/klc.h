@@ -42,6 +42,7 @@ typedef struct _KlcConst {
     short sign;
     int len;
     int type_info;
+    int unused;
     union {
         /* integer */
         uint64_t ival;

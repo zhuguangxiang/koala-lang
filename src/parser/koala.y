@@ -145,6 +145,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token FLOAT64
 %token BFLOAT16
 
+%token ARRAY
 %token BOOL
 %token STRING
 %token ANY
@@ -243,9 +244,10 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<type_spec> tuple_type
 %type<type_spec> klass_type
 %type<type_spec> atom_type
-%type<type_spec> union_type;
-%type<type_spec> union_opt_type;
+%type<type_spec> union_type
+%type<type_spec> union_opt_type
 %type<type_spec> const_type
+%type<type_spec> array_elem_type
 
 %type<vec> id_as_list
 %type<vec> top_stmts
@@ -271,6 +273,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<vec> call_arg_list
 %type<vec> call_kw_arg_list
 %type<vec> id_list
+%type<vec> int_lit_list
 
 %token<sval> ID
 %token<ival> INT_LITERAL
@@ -323,7 +326,35 @@ import_stmt
         $$ = stmt_from_import(&ps->sbuf, NULL, $4);
         stmt_set_loc($$, lloc(@1, @5));
     }
+    | IMPORT STRING_LITERAL AS ID error
+    {
+        $$ = NULL;
+    }
+    | IMPORT STRING_LITERAL AS error
+    {
+        $$ = NULL;
+    }
     | IMPORT STRING_LITERAL error
+    {
+        $$ = NULL;
+    }
+    | IMPORT error
+    {
+        $$ = NULL;
+    }
+    | FROM STRING_LITERAL IMPORT id_as_list error
+    {
+        $$ = NULL;
+    }
+    | FROM STRING_LITERAL IMPORT error
+    {
+        $$ = NULL;
+    }
+    | FROM STRING_LITERAL error
+    {
+        $$ = NULL;
+    }
+    | FROM error
     {
         $$ = NULL;
     }
@@ -455,11 +486,15 @@ top_stmt
     }
     | prefix error
     {
+        if (ps->errors == 0) {
+            kl_error(loc(@2), "syntax error");
+        }
+        yyclearin; yyerrok;
         $$ = NULL;
     }
     | error {
         if (ps->errors == 0) {
-            kl_error(loc(@1), "syntax error.");
+            kl_error(loc(@1), "syntax error");
         }
         yyclearin; yyerrok;
         $$ = NULL;
@@ -476,7 +511,6 @@ top_stmt
     | assignment semi
     {
         $$ = $1;
-        stmt_set_loc($$, loc(@1));
     }
     | if_stmt
     {
@@ -498,11 +532,6 @@ top_stmt
 
 type_alias
     : TYPE ID '=' type
-    /* {
-        // IDENT(id, $2, loc(@2));
-        // $$ = stmt_from_type_alias(id, $4);
-        // stmt_set_loc($$, lloc(@1, @4));
-    } */
     | TYPE ID '=' anony_type
     ;
 
@@ -596,8 +625,7 @@ optional_type
     }
     | array_type
     {
-        printf("array_type\n");
-        $$ = NULL;
+        $$ = $1;
     }
     | anony_type
     {
@@ -719,28 +747,88 @@ list_type
     ;
 
 array_type
-    : '[' int_lit_list ']' type
+    : ARRAY '[' array_elem_type ',' int_lit_list ']'
     {
-
+        NAME_ID(id, "array", loc(@1));
+        Vector *args = vector_create_ptr();
+        vector_push_back(args, &$3);
+        MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
+        $$ = unresolved_type_spec(&mod, id, args);
+        // $$->unresolved.shapes = $5;
+        type_spec_loc($$, lloc(@1, @6));
     }
-    | '[' int_lit_list ']' type '?'
+    | '[' int_lit_list ']' array_elem_type
     {
-
+        NAME_ID(id, "array", loc(@1));
+        Vector *args = vector_create_ptr();
+        vector_push_back(args, &$4);
+        MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
+        $$ = unresolved_type_spec(&mod, id, args);
+        // $$->unresolved.shapes = $2;
+        type_spec_loc($$, lloc(@1, @4));
     }
-    | '[' ']' type
+    | ARRAY '[' error ']'
     {
-
+        kl_error(loc(@3), "expected a type and an integer literal list.");
+        yy_clear_ok;
+        $$ = NULL;
     }
-    | '[' ']' type '?'
-    {
+    ;
 
+array_elem_type
+    : type
+    {
+        $$ = $1;
+    }
+    | type '?'
+    {
+        $$ = optional_type_spec($1);
+        type_spec_loc($$, lloc(@1, @2));
+    }
+    | anony_type
+    {
+        printf("anonymous func type\n");
+        $$ = NULL;
     }
     ;
 
 int_lit_list
     : INT_LITERAL
+    {
+        $$ = vector_create(sizeof(int));
+        if ($1 < 0) {
+            kl_error(loc(@1), "expected a non-negative integer literal.");
+            yy_clear_ok;
+        } else {
+            vector_push_back($$, &$1);
+        }
+    }
+    | '_'
+    {
+        $$ = vector_create(sizeof(int));
+        int wildcard = -1;
+        vector_push_back($$, &wildcard);
+    }
     | int_lit_list ',' INT_LITERAL
+    {
+        $$ = $1;
+        if ($3 < 0) {
+            kl_error(loc(@3), "expected a non-negative integer literal.");
+            yy_clear_ok;
+        } else {
+            vector_push_back($$, &$3);
+        }
+    }
+    | int_lit_list ',' '_'
+    {
+        $$ = $1;
+        int wildcard = -1;
+        vector_push_back($$, &wildcard);
+    }
     | int_lit_list ','
+    {
+        $$ = $1;
+    }
     ;
 
 map_type
@@ -834,8 +922,7 @@ klass_type
     : ID
     {
         NAME_ID(id, $1, loc(@1));
-        MOD_ID(mod, PKG_PATH, loc(@1));
-        $$ = unresolved_type_spec(&mod, id, NULL);
+        $$ = unresolved_type_spec(NULL, id, NULL);
         type_spec_loc($$, loc(@1));
     }
     | ID '.' ID
@@ -848,8 +935,7 @@ klass_type
     | ID '[' optional_type_list ']'
     {
         NAME_ID(id, $1, loc(@1));
-        MOD_ID(mod, PKG_PATH, loc(@1));
-        $$ = unresolved_type_spec(&mod, id, $3);
+        $$ = unresolved_type_spec(NULL, id, $3);
         type_spec_loc($$, lloc(@1, @4));
     }
     | ID '.' ID '[' optional_type_list ']'
@@ -1881,15 +1967,20 @@ trait_method
     : func_proto_decl semi
     {
         $$ = $1;
+        PrefixFlags flags = { .pub.flag = 1 };
+        stmt_set_prefix($$, flags);
     }
     | prefix func_proto_decl semi
     {
         $$ = $2;
+        $1.pub.flag = 1;
         stmt_set_prefix($$, $1);
     }
     | func_decl
     {
         $$ = $1;
+        PrefixFlags flags = { .pub.flag = 1 };
+        stmt_set_prefix($$, flags);
     }
     | prefix func_decl
     {
@@ -2657,35 +2748,6 @@ primary_expr
         $$ = expr_from_bang($1);
         expr_set_loc($$, lloc(@1, @2));
     }
-    | '[' expr_list ']' ID
-    {
-
-    }
-    | '[' expr_list ']' ID '?'
-    {
-
-    }
-    | '[' expr_list ']' atom_type
-    {
-
-    }
-    | '[' expr_list ']' atom_type '?'
-    {
-
-    }
-    | '[' expr_list ']' LIST
-    {
-
-    }
-    | '[' expr_list ']' MAP
-    {
-    }
-    | '[' expr_list ']' SET
-    {
-    }
-    | '[' expr_list ']' TUPLE
-    {
-    }
     ;
 
 call_expr
@@ -2948,6 +3010,10 @@ atom_expr
     {
         $$ = expr_from_type($1);
         expr_set_loc($$, loc(@1));
+    }
+    | ARRAY
+    {
+        $$ = NULL;
     }
     | anony_expr
     {

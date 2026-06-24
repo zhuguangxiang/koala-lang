@@ -1063,11 +1063,6 @@ static void parse_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
 
-    Expr *lhs = call->lhs;
-    lhs->ctx = EXPR_CTX_CALL;
-    parser_visit_expr(ps, call->lhs);
-    if (!lhs->ts) return;
-
     Expr *arg;
     vector_foreach(arg, call->args) {
         if (!arg) continue;
@@ -1075,6 +1070,13 @@ static void parse_call(ParserState *ps, Expr *exp)
         parser_visit_expr(ps, arg);
         if (!arg->ts) return;
     }
+
+    Expr *lhs = call->lhs;
+    lhs->ctx = EXPR_CTX_CALL;
+    lhs->arg = call;
+    parser_visit_expr(ps, call->lhs);
+    lhs->arg = NULL;
+    if (!lhs->ts) return;
 
     Symbol *lhs_sym = lhs->sym;
     Vector *params = NULL;

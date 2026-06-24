@@ -690,6 +690,8 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             TypeSpec *ret = resolve_type(ps, arg);
             vector_push_back(vec, &ret);
         }
+        vector_destroy(_ts->union_type.args);
+        _ts->union_type.args = NULL;
         type_spec_free(_ts);
         return union_type_spec_intern(vec);
     }
@@ -700,6 +702,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         }
 
         TypeSpec *ret = resolve_type(ps, _ts->opt.src);
+        _ts->opt.src = NULL;
         type_spec_free(_ts);
         return optional_type_spec_intern(ret);
     }
@@ -710,6 +713,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         }
 
         TypeSpec *ret = resolve_type(ps, _ts->va_list.src);
+        _ts->va_list.src = NULL;
         type_spec_free(_ts);
         return va_list_type_spec_intern(ret);
     }
@@ -836,11 +840,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         // closed generic_ref type
         if (vector_empty(tp_args)) {
             log_info("resolve type '%s' without type-args", _ts->unresolved.name.name);
-            char *pkg_path = get_pkg_path(ps, _ts->unresolved.pkg.name);
-            char *pkg_name = _ts->unresolved.name.name;
-            TypeSpec *ret = klass_type_spec(pkg_path, pkg_name);
-            ASSERT(ret->sym_id == kls_sym->id);
-            ASSERT(kls_sym->instance_ts == ret);
+            TypeSpec *ret = kls_sym->instance_ts;
             type_spec_free(_ts);
             vector_destroy(tp_args);
             log_type_spec(ret);

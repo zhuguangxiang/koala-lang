@@ -300,7 +300,7 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
 
     HashMap *stbl = kls_sym ? kls_sym->stbl : ctx->stbl;
     int flags = to_symbol_flags(fn->flags);
-    printf("loading function '%s' with flags: 0x%x\n", k->sval, flags);
+    log_info("loading function '%s' with flags: 0x%x\n", k->sval, flags);
     Symbol *sym = stbl_add_func(stbl, k->sval, ret_ts, params, flags);
     ASSERT(sym);
     sym->parent = kls_sym;
@@ -465,6 +465,9 @@ static void load_klass(KlcKlass *kls, LoadContext *ctx)
     KlcVar *field;
     vector_foreach(field, &kls->fields) {
         if (!field) continue;
+        if (!(field->flags & KLC_FLAGS_PUB)) {
+            continue;
+        }
         load_field(field, cls_sym, ctx);
     }
 
@@ -472,6 +475,12 @@ static void load_klass(KlcKlass *kls, LoadContext *ctx)
     KlcFunc *fn;
     vector_foreach(fn, &kls->methods) {
         if (!fn) continue;
+        // TODO:
+        if (!(fn->flags & KLC_FLAGS_PUB)) {
+            KlcConst *kc = klc_get_const(ctx->klc, fn->name_index);
+            log_info("skipping non-public method: %s", kc->sval);
+            continue;
+        }
         load_func(fn, cls_sym, ctx);
     }
 
@@ -485,6 +494,9 @@ static void load_funcs(LoadContext *ctx)
     KlcFunc *item;
     vector_foreach(item, klc->objs + ITEM_FUNC) {
         if (!item) continue;
+        if (!(item->flags & KLC_FLAGS_PUB)) {
+            continue;
+        }
         load_func(item, NULL, ctx);
     }
 }

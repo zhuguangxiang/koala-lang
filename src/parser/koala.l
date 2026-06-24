@@ -264,6 +264,7 @@ static char hex2byte(const char *s)
 "tuple"     { YY_RETURN(TUPLE);     }
 "type"      { YY_RETURN(TYPE);      }
 "range"     { YY_RETURN(RANGE);     }
+"array"     { YY_RETURN(ARRAY);     }
 
 "&&"        { YY_RETURN(AND);       }
 "||"        { YY_RETURN(OR);        }

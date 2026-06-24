@@ -20,7 +20,7 @@ pub class range : Sequence[int] {
     pub func __init__(_start int, _end int, _step int = 1) {}
 
     /// Return the number of elements in the range. O(1).
-    func __len__() int {
+    pub func __len__() int {
         // if (this.step > 0 && this.start < this.stop) {
         //     return (this.stop - this.start - 1) / this.step + 1
         // } else if (this.step < 0 && this.start > this.stop) {
@@ -30,12 +30,12 @@ pub class range : Sequence[int] {
     }
 
     /// Get the integer at the specified index. O(1).
-    func __getitem__(index int) int {
+    pub func __getitem__(index int) int {
         // Precondition check and calculation: start + index * step
     }
 
     /// Return a new range that is a sub-slice of the current range. O(1).
-    func __getslice__(r slice) range {
+    pub func __getslice__(r slice) range {
         // Returns a new range object with adjusted start/stop/step
     }
 

@@ -385,7 +385,7 @@ typedef struct _Stmt {
 
 #define stmt_set_loc(s, l) (s)->loc = (l)
 
-#define stmt_set_prefix(s, prefix) (s)->flags = (prefix)
+#define stmt_set_prefix(s, prefix) ((Stmt *)s)->flags = (prefix)
 
 void stmt_free(Stmt *stmt);
 
