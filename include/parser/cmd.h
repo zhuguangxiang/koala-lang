@@ -15,16 +15,18 @@ extern "C" {
 typedef enum _DumpFlags {
     DUMP_NONE = 0,
     DUMP_NO_OPT_IR = 1 << 0,
-    DUMP_IR = 1 << 1,
-    DUMP_LIR = 1 << 2,
-    DUMP_VREG = 1 << 3,
-    DUMP_CODE = 1 << 4,
-    DUMP_ITABLE = 1 << 5,
+    DUMP_SSA_IR = 1 << 1,
+    DUMP_IR = 1 << 2,
+    DUMP_LIR = 1 << 3,
+    DUMP_VREG = 1 << 4,
+    DUMP_CODE = 1 << 5,
+    DUMP_ITABLE = 1 << 6,
     DUMP_ALL = 0xFFFFFFFF,
 } DumpFlags;
 
 typedef struct _CompileOptions {
     int enable_genir;
+    int enable_ssa;
     int enable_opt;
     int enable_isel;
     int enable_lsra;
@@ -42,6 +44,7 @@ typedef struct _CompileOptions {
 extern CompileOptions cmd_opt;
 
 #define genir_enabled()     (cmd_opt.enable_genir)
+#define ssa_enabled()       (cmd_opt.enable_ssa)
 #define opt_enabled()       (cmd_opt.enable_opt)
 #define isel_enabled()      (cmd_opt.enable_isel)
 #define fusion_enabled()    (cmd_opt.enable_fusion)
@@ -54,6 +57,7 @@ extern CompileOptions cmd_opt;
 #define float_cast_mode()   (cmd_opt.enable_float_trap ? 0 : 1)
 
 #define dump_no_opt_ir_enabled() ((cmd_opt.dump & DUMP_NO_OPT_IR) != 0)
+#define dump_ssa_enabled()       ((cmd_opt.dump & DUMP_SSA_IR) != 0)
 #define dump_ir_enabled()        ((cmd_opt.dump & DUMP_IR) != 0)
 #define dump_lir_enabled()       ((cmd_opt.dump & DUMP_LIR) != 0)
 #define dump_vreg_enabled()      ((cmd_opt.dump & DUMP_VREG) != 0)

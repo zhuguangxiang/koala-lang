@@ -29,6 +29,7 @@ set(PARSER_SRC
     parser/klr/ir.c
     parser/klr/insn.c
     parser/klr/printer.c
+    parser/klr/ssa.c
     parser/backend/isel.c
     parser/backend/lsra.c
     parser/backend/lower_operands.c

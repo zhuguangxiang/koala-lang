@@ -960,6 +960,12 @@ void klr_build_rpo(KlrFunc *fn)
     list_move(&fn->bb_list, &rpo_list);
     ASSERT(list_empty(&rpo_list));
 
+    int rpo_index = 0;
+    basic_block_foreach(bb, fn) {
+        // used for back-edge recognition
+        bb->index = rpo_index++;
+    }
+
 #ifndef NOLOG
     log_info("RPO order for func '%s':", fn->name);
     klr_print_func(fn, stdout);

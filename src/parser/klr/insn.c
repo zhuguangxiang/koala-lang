@@ -56,14 +56,9 @@ static void fini_use(KlrUse *use)
 static void init_oper(KlrOper *oper, KlrInsn *insn, KlrValue *ref, int is_def)
 {
     init_use(&oper->use, insn, oper, ref, is_def);
-    oper->phi = NULL;
 }
 
-static void fini_oper(KlrOper *oper)
-{
-    fini_use(&oper->use);
-    oper->phi = NULL;
-}
+static void fini_oper(KlrOper *oper) { fini_use(&oper->use); }
 
 void set_operand(KlrOper *oper, KlrInsn *insn, KlrValue *val)
 {
@@ -452,6 +447,46 @@ void klr_build_ret_void(KlrBuilder *bldr)
 
     KlrFunc *fn = bldr->bb->func;
     klr_link_edge(bldr->bb, fn->ebb);
+}
+
+KlrInsn *klr_build_phi(KlrBasicBlock *bb, KlrValue *var, char *name)
+{
+    if (!klr_is_local(var)) {
+        panic("'phi' op requires a local var");
+    }
+
+    KlrInsn *_var = (KlrInsn *)var;
+    if (_var->flags & KLR_INSN_FLAGS_CONST) {
+        panic("'phi' op requires a mutable local var");
+    }
+
+    int num_preds = klr_get_nr_preds(bb);
+    KlrInsn *insn = new_insn(OP_IR_PHI, num_preds, name);
+    insn->ts = var->ts;
+    /* the original variable whose SSA versions are merged by this phi */
+    insn->target = var;
+
+    KlrBuilder bldr;
+    klr_builder_head(&bldr, bb);
+
+    klr_append_insn(&bldr, insn);
+    return insn;
+}
+
+void klr_append_phi_operand(KlrInsn *phi, KlrValue *val)
+{
+    if (phi->code != OP_IR_PHI) {
+        panic("'append_phi_operand' requires a phi insn");
+    }
+
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
+        val->kind != KLR_VALUE_PARAM) {
+        panic("'append_phi_operand' requires a reg value or const");
+    }
+
+    ASSERT(phi->filled < phi->num_opers);
+    KlrOper *oper = phi->opers + phi->filled++;
+    init_oper(oper, phi, val, 0);
 }
 
 KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val, OpCode op)

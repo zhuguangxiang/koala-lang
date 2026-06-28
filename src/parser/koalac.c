@@ -16,6 +16,7 @@
 #include "lsra.h"
 #include "opt.h"
 #include "parser.h"
+#include "ssa.h"
 #include "version.h"
 
 static char output[MAX_PATH_LEN + 8];
@@ -30,6 +31,7 @@ static void usage(void)
         "options:\n"
         "  -o <file>        Place the output into <file>.\n"
         "  --irgen          Enable IR generation stage.\n"
+        "  --ssa            Enable SSA construction stage.\n"
         "  --opt            Enable optimization passes (default).\n"
         "  --isel           Enable instruction selection stage.\n"
         "  --lsra           Enable linear scan register allocator.\n"
@@ -43,6 +45,7 @@ static void usage(void)
         "  --dump=<list>    Dump internal information.\n"
         "                   <list> is a comma-separated list of:\n"
         "                       no-opt-ir - dump no-opt IR\n"
+        "                       ssa       - dump SSA IR\n"
         "                       ir        - optimized IR (after opt passes)\n"
         "                       lir       - LIR (after isel/regalloc)\n"
         "                       vreg      - dump virtual register info\n"
@@ -111,6 +114,8 @@ static DumpFlags parse_dump_flags(const char *s)
     while (tok) {
         if (str_equal(tok, "no-opt-ir"))
             flags |= DUMP_NO_OPT_IR;
+        else if (str_equal(tok, "ssa"))
+            flags |= DUMP_SSA_IR;
         else if (str_equal(tok, "ir"))
             flags |= DUMP_IR;
         else if (str_equal(tok, "lir"))
@@ -161,6 +166,7 @@ static void parse_command(int argc, char *argv[])
         { "int-trap", no_argument, 0, 11 },
         { "float-trap", no_argument, 0, 12 },
         { "package-name", required_argument, 0, 13 },
+        { "ssa", no_argument, 0, 14 },
         { NULL, 0, NULL, 0 },
     };
 
@@ -231,6 +237,10 @@ static void parse_command(int argc, char *argv[])
 
             case 13:
                 save_pkg_path(&cmd_opt, optarg);
+                break;
+
+            case 14:
+                cmd_opt.enable_ssa = 1;
                 break;
 
             case 'o': {
@@ -470,6 +480,10 @@ static void compile(ParserModule *pm)
     if (genir_enabled()) kl_gen_ir(pm);
 
     KlrModule *m = pm->m;
+
+    if (ssa_enabled()) {
+        kl_do_ssa(m);
+    }
 
     if (opt_enabled()) {
         kl_optimize(m);

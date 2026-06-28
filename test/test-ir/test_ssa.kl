@@ -1,0 +1,254 @@
+// RUN: koalac %s --irgen --ssa --dump=ssa | filecheck %s
+
+func test1(a int) int {
+    var x = a + 1
+    return x + 2
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test1] ---
+// CHECK-LABEL: func @test1(%a int64) int64
+// CHECK: %0 = add %a int64, 1 int64
+// CHECK: %1 = add %0 int64, 2 int64
+// CHECK: ret %1 int64
+
+func test1_1(a int) int {
+    let x = a + 1
+    return x + 2
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test1_1] ---
+// CHECK-LABEL: func @test1_1(%a int64) int64
+// CHECK: %0 = add %a int64, 1 int64
+// CHECK: %1 = add %x int64, 2 int64
+// CHECK: ret %1 int64
+
+func test2(a int) int {
+    var x = a
+    x = x + 1
+    x = x + 2
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test2] ---
+// CHECK-LABEL: func @test2(%a int64) int64
+// CHECK: %0 = add %a int64, 1 int64
+// CHECK: %1 = add %0 int64, 2 int64
+// CHECK: ret %1 int64
+
+func test3(a int, b int) int {
+    var x = a
+
+    if (b > 0) {
+        x = x + 1
+    } else {
+        x = x + 2
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test3] ---
+// CHECK-LABEL: func @test3(%a int64, %b int64) int64
+// CHECK: %x = local int64
+// CHECK: move %x int64, %a int64
+// CHECK: %0 = cmpgt %b int64, 0 int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: %1 = add %a int64, 1 int64
+// CHECK: move %x int64, %1 int64
+// CHECK: jmp label %bb3
+
+// CHECK: %2 = add %a int64, 2 int64
+// CHECK: move %x int64, %2 int64
+// CHECK: jmp label %bb3
+
+// CHECK: %x.phi.0 = phi %1 int64, %2 int64
+// CHECK: ret %x.phi.0 int64
+
+
+// TODO: GVN -> SCCP -> DCE
+func test4(a int, b int) int {
+    var x = a
+    if (b > 0) {
+        x = a + 1
+    } else {
+        x = a + 1
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test4] ---
+// CHECK-LABEL: func @test4(%a int64, %b int64) int64
+// CHECK: %x = local int64
+// CHECK: move %x int64, %a int64
+// CHECK: %0 = cmpgt %b int64, 0 int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: %1 = add %a int64, 1 int64
+// CHECK: move %x int64, %1 int64
+// CHECK: jmp label %bb3
+
+// CHECK: %2 = add %a int64, 1 int64
+// CHECK: move %x int64, %2 int64
+// CHECK: jmp label %bb3
+
+// CHECK: %x.phi.0 = phi %1 int64, %2 int64
+// CHECK: ret %x.phi.0 int64
+
+func test4_1(a int, b int) int {
+    var x = a
+    if b > 0 {
+        x = x
+    } else {
+        x = x
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test4_1] ---
+// CHECK-LABEL: func @test4_1(%a int64, %b int64) int64
+// CHECK: %x = local int64
+// CHECK: move %x int64, %a int64
+// CHECK: %0 = cmpgt %b int64, 0 int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: move %x int64, %a int64
+// CHECK: jmp label %bb3
+
+// CHECK: move %x int64, %a int64
+// CHECK: jmp label %bb3
+
+// CHECK: %x.phi.0 = phi %a int64, %a int64
+// CHECK: ret %a int64
+
+func test5(n int) int {
+    var i = 0
+
+    while (i < n) {
+        i = i + 1
+    }
+
+    return i
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test5] ---
+// CHECK-LABEL: func @test5(%n int64) int64
+
+// CHECK: %i = local int64
+// CHECK: move %i int64, 0 int64
+// CHECK: jmp label %bb1
+
+// CHECK: %0 = cmplt 0 int64, %n int64
+// CHECK: branch %0 bool, label %bb2, label %bb3
+
+// CHECK: %i.phi.0 = phi 0 int64, %1 int64
+// CHECK: %1 = add %i.phi.0 int64, 1 int64
+// CHECK: move %i int64, %1 int64
+// CHECK: %2 = cmplt %1 int64, %n int64
+// CHECK: branch %2 bool, label %bb2, label %bb3
+
+// CHECK: %i.phi.1 = phi 0 int64, %1 int64
+// CHECK: ret %i.phi.1 int64
+
+func test6(v int) int {
+    var n = v
+    var x = 1
+    while (n > 0) {
+        x = 1
+        n = n - 1
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test6] ---
+// CHECK-LABEL: func @test6(%v int64) int64
+// CHECK: %n.phi.0 = phi %v int64, %1 int64
+// CHECK: %1 = sub %n.phi.0 int64, 1 int64
+// CHECK: %x.phi.0 = phi 1 int64, 1 int64
+// CHECK: ret 1 int64
+
+func test7(v int) int {
+    var n = v
+    var x = 0
+    while (n > 0) {
+        var y = x
+        while (y < 10) {
+            y = y + 1
+        }
+        x = y
+        n = n - 1
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test7] ---
+// CHECK-LABEL: func @test7(%v int64) int64
+// CHECK: %n.phi.1 = phi %v int64, %4 int64
+// CHECK: %x.phi.0 = phi 0 int64, %y.phi.1 int64
+// CHECK: %n.phi.2 = phi %n.phi.1 int64, %n.phi.1 int64
+// CHECK: %y.phi.0 = phi %x.phi.0 int64, %2 int64
+// CHECK: %n.phi.0 = phi %n.phi.1 int64, %n.phi.1 int64
+// CHECK: %y.phi.1 = phi %x.phi.0 int64, %2 int64
+// CHECK: %x.phi.1 = phi 0 int64, %y.phi.1 int64
+// CHECK: ret %x.phi.1 int64
+
+func test8(a int) int {
+    let x = a + 1
+    var y = x + 2
+    y = y + x
+    return y
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test8] ---
+// CHECK-LABEL: func @test8(%a int64) int64
+// CHECK: %0 = add %a int64, 1 int64
+// CHECK: %x = local [immutable] int64
+// CHECK: move %x int64, %0 int64
+// CHECK: %1 = add %x int64, 2 int64
+// CHECK: %y = local int64
+// CHECK: move %y int64, %1 int64
+// CHECK: %2 = add %1 int64, %x int64
+// CHECK: move %y int64, %2 int64
+// CHECK: ret %2 int64
+
+func test9(a int, b int) int {
+    var x = a
+    if (b > 0) {
+        x = x + 1
+    }
+    while (x < 10) {
+        x = x + 2
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test9] ---
+// CHECK-LABEL: func @test9(%a int64, %b int64) int64
+// CHECK: %x.phi.0 = phi %1 int64, %a int64
+// CHECK: %x.phi.1 = phi %x.phi.0 int64, %3 int64
+// CHECK: %3 = add %x.phi.1 int64, 2 int64
+// CHECK: %x.phi.2 = phi %x.phi.0 int64, %3 int64
+// CHECK: ret %x.phi.2 int64
+
+func test10(a int) int {
+    var x = a
+    if (a > 0) {
+        x = a
+    } else {
+        x = a
+    }
+    // φ1 = φ(a, a) → trivial → a
+
+    if (a < 10) {
+        x = a
+    } else {
+        x = a
+    }
+    // φ2 = φ(a, a) → trivial → a
+
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test10] ---
+// CHECK-LABEL: func @test10(%a int64) int64
+// CHECK: %x.phi.0 = phi %a int64, %a int64
+// CHECK: ret %a int64

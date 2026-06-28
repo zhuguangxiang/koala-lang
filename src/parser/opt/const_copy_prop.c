@@ -972,7 +972,8 @@ int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
         KlrInsn *insn, *next;
         insn_foreach_safe(insn, next, bb) {
             if (insn_is_dead(insn)) {
-                ASSERT(insn->code == OP_MOVE || insn->code == OP_GET_FIELD_EXT);
+                ASSERT(insn->code == OP_MOVE || insn->code == OP_GET_FIELD_EXT ||
+                       insn->code == OP_IR_PHI);
                 klr_erase_insn(insn);
             }
         }

@@ -221,6 +221,9 @@ typedef struct _KlrBasicBlock {
     /* out edges(successors) */
     List out_edges;
 
+    /* phi current def map */
+    HashMap current_defs;
+
     /* optimization/register allocation related */
 
     /* local variable map(DSE used) */
@@ -408,16 +411,9 @@ typedef struct _KlrUse {
     int is_def;
 } KlrUse;
 
-/* phi operand */
-typedef struct _KlrPhiParam {
-    KlrBasicBlock *bb;
-    List bb_link;
-} KlrPhiParam;
-
 /* operand */
 typedef struct _KlrOper {
     KlrUse use;
-    KlrPhiParam *phi;
 } KlrOper;
 
 /* flatten operand */
@@ -438,8 +434,9 @@ typedef struct _KlrRawOper {
     };
 } KlrRawOper;
 
-#define KLR_INSN_FLAGS_CONST 1
-#define KLR_INSN_FLAGS_DEAD  2
+#define KLR_INSN_FLAGS_CONST   1
+#define KLR_INSN_FLAGS_DEAD    2
+#define KLR_INSN_FLAGS_VISITED 3 // phi only, used in trivial phi elimination
 
 /* instruction */
 typedef struct _KlrInsn {
@@ -476,10 +473,13 @@ typedef struct _KlrInsn {
 
     int cast_flag;
 
-    InternTag intern_tag;
+    /* phi name index */
+    int phi_index;
 
-    /* phi variable */
-    KlrValue *phi;
+    /* the original variable whose SSA versions are merged by this phi */
+    KlrValue *target;
+
+    InternTag intern_tag;
 
     /* Raw operands for MachInsn */
     KlrRawOper raws[3];
@@ -968,6 +968,10 @@ void klr_print_module(KlrModule *m, FILE *fp);
 #define insn_or(insn, a, b) (insn_is(insn, a) || insn_is(insn, b))
 
 /* clang-format on */
+
+/* build phi instruction */
+KlrInsn *klr_build_phi(KlrBasicBlock *bb, KlrValue *var, char *name);
+void klr_append_phi_operand(KlrInsn *phi, KlrValue *val);
 
 static inline void set_raw_reg(KlrRawOper *r, int vreg)
 {

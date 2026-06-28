@@ -78,6 +78,19 @@ int klr_normalize_pass(KlrFunc *fn, void *data)
                     set_operand_at(insn, 1, lhs);
                     change = 1;
                 }
+            } else if (insn->code == OP_IR_JMP_COND) {
+                KlrValue *cond = insn_oper_value(insn, 0);
+                // [1] is reserved for fused jump target.
+                KlrValue *tgt1 = insn_oper_value(insn, 2);
+                KlrValue *tgt2 = insn_oper_value(insn, 3);
+
+                // branch cond, bb1, bb1 → jmp bb1
+                if (tgt1 == tgt2) {
+                    insn->code = OP_JMP;
+                    insn->num_opers = 1;
+                    set_operand_at(insn, 0, tgt1);
+                    change = 1;
+                }
             }
         }
     }
