@@ -314,9 +314,6 @@ static KlrBasicBlock *new_block(KlrFunc *fn, char *name)
     init_list(&bb->in_edges);
     init_list(&bb->out_edges);
 
-    // init_list(&bb->phi_list);
-    // vector_init(&bb->phis, PTR_SIZE);
-
     hashmap_init(&bb->local_var_map, __local_var_eq__);
 
     return bb;
@@ -426,21 +423,6 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
         log_info("[basic-block-merging] remove in edge '%%%s' -> '%%%s'",
                  klr_block_name(edge->src), klr_block_name(edge->dst));
         klr_remove_edge(edge);
-    }
-}
-
-static inline int insn_is_terminator(KlrInsn *insn)
-{
-    if (!insn) return 0;
-
-    switch (insn->code) {
-        case OP_RET:
-        case OP_RET_VOID:
-        case OP_IR_JMP_COND:
-        case OP_JMP:
-            return 1;
-        default:
-            return 0;
     }
 }
 

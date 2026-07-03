@@ -13,6 +13,7 @@ extern "C" {
 #endif
 
 void kl_do_ssa(KlrModule *m);
+void kl_exit_ssa(KlrModule *m);
 
 #ifdef __cplusplus
 }

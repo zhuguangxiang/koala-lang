@@ -16,6 +16,7 @@ extern "C" {
 
 typedef struct KoalaOptions {
     int compile_only;            // -c
+    int enable_ssa;              // --ssa
     int enable_int_trap;         // --int-trap
     int enable_float_trap;       // --float-trap
     char *dump;                  // --dump=<list>

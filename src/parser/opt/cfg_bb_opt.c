@@ -37,8 +37,7 @@ int klr_bb_branch_folding(KlrFunc *fn, void *data)
         }
         ASSERT(dst->kind == KLR_VALUE_BLOCK);
 
-        log_info("branch folding: '%%%s' -->> '%%%s'", klr_block_name(bb),
-                 klr_block_name(dst));
+        log_info("branch folding: '%%%s' -->> '%%%s'", klr_block_name(bb), klr_block_name(dst));
 
         // remove all edges from bb to its successors
         klr_remove_all_out_edges(bb);
@@ -182,8 +181,7 @@ int klr_merge_block(KlrFunc *fn, void *data)
         if (dst->num_inedges != 1) continue;
 
         // merge bb and dst
-        log_info("merge basic block '%%%s' and '%%%s'", klr_block_name(bb),
-                 klr_block_name(dst));
+        log_info("merge basic block '%%%s' and '%%%s'", klr_block_name(bb), klr_block_name(dst));
         Klr_merge_block(bb, dst);
         // vector_push_back(&unused, &dst);
         changed = 1;

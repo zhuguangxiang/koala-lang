@@ -65,6 +65,10 @@ static int compile(const char *input, const char *output, KoalaOptions *opt)
     argv[n++] = "--tail-call";
     argv[n++] = "--write-klc";
 
+    if (opt->enable_ssa) {
+        argv[n++] = "--ssa";
+    }
+
     if (opt->enable_int_trap) {
         argv[n++] = "--int-trap";
     }

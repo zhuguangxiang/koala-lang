@@ -481,12 +481,13 @@ static void compile(ParserModule *pm)
 
     KlrModule *m = pm->m;
 
-    if (ssa_enabled()) {
-        kl_do_ssa(m);
-    }
-
     if (opt_enabled()) {
         kl_optimize(m);
+    }
+
+    if (ssa_enabled()) {
+        kl_do_ssa(m);
+        // kl_exit_ssa(m);
     }
 
     if (isel_enabled()) {

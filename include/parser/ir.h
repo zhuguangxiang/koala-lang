@@ -460,6 +460,9 @@ typedef struct _KlrInsn {
     /* filled phi parameter index */
     int filled;
 
+    /* phi predecessors */
+    KlrBasicBlock **phi_preds;
+
     /* link in bb */
     List bb_link;
     /* ->bb */
@@ -830,6 +833,21 @@ KlrInsn *klr_build_load(KlrBuilder *bldr, KlrValue *var, KlrValue *val, OpCode o
  */
 void klr_add_last_return(KlrBasicBlock *bb);
 
+static inline int insn_is_terminator(KlrInsn *insn)
+{
+    if (!insn) return 0;
+
+    switch (insn->code) {
+        case OP_RET:
+        case OP_RET_VOID:
+        case OP_IR_JMP_COND:
+        case OP_JMP:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
 /* instruction iteration */
 #define insn_foreach(insn, bb) list_foreach(insn, bb_link, &(bb)->insn_list)
 
@@ -971,7 +989,7 @@ void klr_print_module(KlrModule *m, FILE *fp);
 
 /* build phi instruction */
 KlrInsn *klr_build_phi(KlrBasicBlock *bb, KlrValue *var, char *name);
-void klr_append_phi_operand(KlrInsn *phi, KlrValue *val);
+void klr_append_phi_operand(KlrInsn *phi, KlrValue *val, KlrBasicBlock *pred);
 
 static inline void set_raw_reg(KlrRawOper *r, int vreg)
 {

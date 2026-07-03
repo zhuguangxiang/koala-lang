@@ -466,6 +466,8 @@ KlrInsn *klr_build_phi(KlrBasicBlock *bb, KlrValue *var, char *name)
     /* the original variable whose SSA versions are merged by this phi */
     insn->target = var;
 
+    insn->phi_preds = mm_alloc(sizeof(KlrBasicBlock *) * num_preds);
+
     KlrBuilder bldr;
     klr_builder_head(&bldr, bb);
 
@@ -473,7 +475,7 @@ KlrInsn *klr_build_phi(KlrBasicBlock *bb, KlrValue *var, char *name)
     return insn;
 }
 
-void klr_append_phi_operand(KlrInsn *phi, KlrValue *val)
+void klr_append_phi_operand(KlrInsn *phi, KlrValue *val, KlrBasicBlock *pred)
 {
     if (phi->code != OP_IR_PHI) {
         panic("'append_phi_operand' requires a phi insn");
@@ -487,6 +489,9 @@ void klr_append_phi_operand(KlrInsn *phi, KlrValue *val)
     ASSERT(phi->filled < phi->num_opers);
     KlrOper *oper = phi->opers + phi->filled++;
     init_oper(oper, phi, val, 0);
+
+    ASSERT(phi->phi_preds);
+    phi->phi_preds[phi->filled - 1] = pred;
 }
 
 KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val, OpCode op)
