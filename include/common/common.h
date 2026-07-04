@@ -86,7 +86,7 @@ extern "C" {
 
 /* clang-format off */
 
-#define FFS(x) ({ int v = __builtin_ffs(x); ASSERT(v > 0); v; })
+#define FFS(x) ({ int v = __builtin_ffs(x); ASSERT(v >= 0); v; })
 
 #define panic(fmt, ...) do { \
     if (isatty(fileno(stdout))) { \

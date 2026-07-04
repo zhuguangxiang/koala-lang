@@ -135,18 +135,16 @@ func test5(n int) int {
 
 // CHECK: %i = local int64
 // CHECK: move %i int64, 0 int64
-// CHECK: jmp label %bb1
-
 // CHECK: %0 = cmplt 0 int64, %n int64
-// CHECK: branch %0 bool, label %bb2, label %bb3
+// CHECK: branch %0 bool, label %bb1, label %bb2
 
 // CHECK: %i.phi.0 = phi 0 int64, %1 int64
 // CHECK: %1 = add %i.phi.0 int64, 1 int64
 // CHECK: move %i int64, %1 int64
 // CHECK: %2 = cmplt %1 int64, %n int64
-// CHECK: branch %2 bool, label %bb2, label %bb3
+// CHECK: branch %2 bool, label %bb1, label %bb2
 
-// CHECK: %i.phi.1 = phi 0 int64, %1 int64
+// CHECK: %i.phi.1 = phi %1 int64, 0 int64
 // CHECK: ret %i.phi.1 int64
 
 func test6(v int) int {
@@ -182,13 +180,13 @@ func test7(v int) int {
 
 // CHECK-LABEL: --- IR Dump After ssa [@test7] ---
 // CHECK-LABEL: func @test7(%v int64) int64
-// CHECK: %n.phi.1 = phi %v int64, %4 int64
+// CHECK: %n.phi.2 = phi %v int64, %4 int64
 // CHECK: %x.phi.0 = phi 0 int64, %y.phi.1 int64
-// CHECK: %n.phi.2 = phi %n.phi.1 int64, %n.phi.1 int64
+// CHECK: %n.phi.1 = phi %n.phi.2 int64, %n.phi.2 int64
 // CHECK: %y.phi.0 = phi %x.phi.0 int64, %2 int64
-// CHECK: %n.phi.0 = phi %n.phi.1 int64, %n.phi.1 int64
-// CHECK: %y.phi.1 = phi %x.phi.0 int64, %2 int64
-// CHECK: %x.phi.1 = phi 0 int64, %y.phi.1 int64
+// CHECK: %n.phi.0 = phi %n.phi.2 int64, %n.phi.2 int64
+// CHECK: %y.phi.1 = phi %2 int64, %x.phi.0 int64
+// CHECK: %x.phi.1 = phi %y.phi.1 int64, 0 int64
 // CHECK: ret %x.phi.1 int64
 
 func test8(a int) int {

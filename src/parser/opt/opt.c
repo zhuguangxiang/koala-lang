@@ -6,6 +6,7 @@
 #include "opt.h"
 #include "cmd.h"
 #include "pass.h"
+#include "ssa.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,6 +96,40 @@ void kl_optimize(KlrModule *m)
 
     pm_fini(&cfg_bb_opt_pm);
     pm_fini(&pm);
+}
+
+void kl_ssa_opt(KlrModule *m)
+{
+    if (!m || m->errors > 0) return;
+
+    int dump = dump_ir_enabled();
+
+    // cfg_bb_opt_pass
+    KlrPassManager cfg_bb_opt_pm;
+    pm_init(&cfg_bb_opt_pm, "cfg_bb_ssa_opt_pass");
+
+    pm_add_pass(&cfg_bb_opt_pm, &cfg_remove_only_jump_pass, dump);
+    pm_add_pass(&cfg_bb_opt_pm, &cfg_remove_unused_pass, dump);
+    pm_add_pass(&cfg_bb_opt_pm, &cfg_merge_block_pass, dump);
+
+    KlrFunc *fn;
+    func_foreach(fn, m) {
+        if (!fn) continue;
+        cfg_bb_opt_pm.run(fn, &cfg_bb_opt_pm);
+    }
+
+    kl_do_ssa(m);
+
+    func_foreach(fn, m) {
+        if (!fn) continue;
+        cfg_bb_opt_pm.run(fn, &cfg_bb_opt_pm);
+    }
+
+    kl_exit_ssa(m);
+
+    kl_optimize(m);
+
+    pm_fini(&cfg_bb_opt_pm);
 }
 
 #ifdef __cplusplus

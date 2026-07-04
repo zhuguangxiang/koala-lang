@@ -1691,12 +1691,14 @@ static void patch_fixups(KlMachModule *m)
     }
 }
 
-static void peephole(KlMachFunc *mfn)
+static int peephole(KlMachFunc *mfn)
 {
+    int changed = 0;
     KlMachBlock *mb;
     list_foreach(mb, link, &mfn->bb_list) {
         KlMachInsn **codes = VECTOR_RAW(&mb->insns, KlMachInsn *);
         int n = vector_size(&mb->insns);
+        if (n <= 0) continue;
 
         // jmp → fallthrough
         // mark unconditional jumps to the immediately following block as dead
@@ -1705,6 +1707,9 @@ static void peephole(KlMachFunc *mfn)
             if (mi->dead) continue;
             if (mi->op == OP_JMP) {
                 KlMachBlock *next = NEXT_BLOCK(mb);
+                while (next && vector_empty(&next->insns)) {
+                    next = NEXT_BLOCK(next);
+                }
                 if (next && next == mi->target) {
                     mi->dead = 1;
                 }
@@ -1756,8 +1761,10 @@ static void peephole(KlMachFunc *mfn)
                 w++;
             }
         }
+        changed |= (w != n);
         mb->insns.size = w;
     }
+    return changed;
 }
 
 static void init_mach_context(KlMachModule *m, KlrModule *origin)
@@ -1812,7 +1819,8 @@ void kl_do_codegen(KlrModule *origin)
     KlMachFunc *mfn;
     vector_foreach(mfn, &m->funcs) {
         linearize(mfn, m);
-        peephole(mfn);
+        while (peephole(mfn));
+        // peephole(mfn);
         lower_branches(mfn);
         assign_pc(mfn);
         process_fused_jumps(mfn);

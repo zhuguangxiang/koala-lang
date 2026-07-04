@@ -486,8 +486,7 @@ static void compile(ParserModule *pm)
     }
 
     if (ssa_enabled()) {
-        kl_do_ssa(m);
-        // kl_exit_ssa(m);
+        kl_ssa_opt(m);
     }
 
     if (isel_enabled()) {

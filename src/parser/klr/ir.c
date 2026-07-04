@@ -396,6 +396,16 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
         klr_erase_insn(last);
     }
 
+    // Setup an insertion tracker to place src's PHIs right after dst's existing PHIs
+    // After this loop, dst_phi_anchor will point to the last PHI instruction in dst (or NULL if
+    // none exist).
+    KlrInsn *dst_phi_anchor = NULL;
+    KlrInsn *curr_dst_insn;
+    insn_foreach(curr_dst_insn, dst) {
+        if (curr_dst_insn->code != OP_IR_PHI) break;
+        dst_phi_anchor = curr_dst_insn;
+    }
+
     /* move all instructions from src to dst */
     KlrInsn *insn, *nxt;
     insn_foreach_safe(insn, nxt, src) {
@@ -403,18 +413,52 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
                  klr_block_name(src), klr_block_name(dst));
         log_insn(insn);
         list_remove(&insn->bb_link);
-        list_push_back(&dst->insn_list, &insn->bb_link);
+
+        if (insn->code == OP_IR_PHI) {
+            /* if 'src' has exactly one unique predecessor 'dst'
+             * (num_inedges == 1), no valid SSA construction phase should ever create
+             * or leave a PHI node inside 'src' that pulls inputs from 'dst'.
+             * If this assertion fires, it instantly flags a critical version-tracking
+             * or operand-pruning bug inside the upstream optimization passes.
+             */
+            for (int i = 0; i < insn->filled; i++) {
+                ASSERT(insn->phi_preds[i] != dst);
+            }
+
+            if (dst_phi_anchor) {
+                list_add(&dst_phi_anchor->bb_link, &insn->bb_link);
+            } else {
+                list_push_front(&dst->insn_list, &insn->bb_link);
+            }
+            dst_phi_anchor = insn;
+        } else {
+            list_push_back(&dst->insn_list, &insn->bb_link);
+        }
+
         insn->bb = dst;
         ++dst->num_insns;
         --src->num_insns;
     }
 
-    /* update out-edges */
+    /* update out-edges (Remap successor PHI predecessor trackers point-to-point) */
     KlrEdge *edge, *nxt_edge;
     edge_out_foreach_safe(edge, nxt_edge, src) {
         log_info("[basic-block-merging] update out edge '%%%s' -> '%%%s'", klr_block_name(dst),
                  klr_block_name(edge->dst));
-        klr_link_edge(dst, edge->dst);
+
+        KlrBasicBlock *succ = edge->dst;
+
+        KlrInsn *_insn;
+        insn_foreach(_insn, succ) {
+            if (_insn->code != OP_IR_PHI) break;
+            for (int i = 0; i < _insn->filled; i++) {
+                if (_insn->phi_preds[i] == src) {
+                    _insn->phi_preds[i] = dst;
+                }
+            }
+        }
+
+        klr_link_edge(dst, succ);
         klr_remove_edge(edge);
     }
 

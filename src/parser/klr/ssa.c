@@ -517,6 +517,15 @@ static void exit_ssa(KlrFunc *func)
             }
         }
     }
+
+    // remove all PHI instructions from the function's basic blocks
+    basic_block_foreach(bb, func) {
+        KlrInsn *insn, *nxt;
+        insn_foreach_safe(insn, nxt, bb) {
+            if (insn->code != OP_IR_PHI) break;
+            klr_erase_insn(insn);
+        }
+    }
 }
 
 void kl_exit_ssa(KlrModule *m)
@@ -526,8 +535,6 @@ void kl_exit_ssa(KlrModule *m)
     KlrFunc *fn;
     func_foreach(fn, m) {
         exit_ssa(fn);
-        klr_dce_pass(fn, NULL);
-        klr_dce_pass(fn, NULL);
         if (dump_ssa_enabled()) {
             fprintf(stdout, "--- IR Dump After de-ssa [@%s] ---\n", fn->name);
             klr_print_func(fn, stdout);
@@ -540,7 +547,6 @@ void kl_exit_ssa(KlrModule *m)
         KlrFunc *fn;
         func_foreach(fn, kls) {
             exit_ssa(fn);
-            klr_dce_pass(fn, NULL);
             if (dump_ssa_enabled()) {
                 fprintf(stdout, "--- IR Dump After de-ssa [@%s] ---\n", fn->name);
                 klr_print_func(fn, stdout);
