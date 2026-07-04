@@ -47,7 +47,7 @@ static inline char *str_ndup_ex(char *s, size_t size, char *extra)
     int msize = size + strlen(extra);
     char *str = mm_alloc(msize + 1);
     memcpy(str, s, size);
-    strcat(str, extra);
+    memcpy(str + size, extra, strlen(extra));
     return str;
 }
 
@@ -57,10 +57,11 @@ static inline char *str_dup(char *s) { return str_ndup(s, strlen(s)); }
 /* duplicate c-string, with extra string. */
 static inline char *str_dup_ex(char *s, char *extra)
 {
-    int size = strlen(s) + strlen(extra);
+    int slen = strlen(s);
+    int size = slen + strlen(extra);
     char *str = mm_alloc(size + 1);
-    strcpy(str, s);
-    strcat(str, extra);
+    memcpy(str, s, slen);
+    memcpy(str + slen, extra, strlen(extra));
     return str;
 }
 
