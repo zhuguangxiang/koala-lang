@@ -395,14 +395,12 @@ static void write_rt_data(KlMachModule *m, KlcFile *klc, HashMap *stbl)
             flags_ |= KLC_FLAGS_PUB;
         }
 
-        uint16_t native_index = 0;
-        if (fn_sym->native_name) {
-            char *_s = fn_sym->native_name;
-            int _len = strlen(_s);
-            native_index = klc_add_rt_str(klc, _s, _len);
+        if (fn_sym->flags & SYM_FLAGS_NATIVE) {
+            flags_ |= KLC_FLAGS_NATIVE;
         }
-        int index = klc_add_code(klc, BUF_STR(buf), flags_, native_index, fn->nlocals,
-                                 fn->max_call_args, mach->start_pc, mach->total_insns);
+
+        int index = klc_add_code(klc, BUF_STR(buf), flags_, fn->nlocals, fn->max_call_args,
+                                 mach->start_pc, mach->total_insns);
         ASSERT(index >= 1);
         ASSERT(index - 1 == mach->index);
         fn_sym->code_index = index - 1;
@@ -420,6 +418,10 @@ void write_to_klc(ParserModule *pm)
 
     if (pm->m) {
         write_rt_data(pm->m->mach, &klc, pm->stbl);
+        char *link;
+        vector_foreach(link, &pm->links) {
+            klc_add_link(&klc, link);
+        }
     }
 
     write_meta(pm->stbl, &klc);

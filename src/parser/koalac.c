@@ -518,6 +518,8 @@ int main(int argc, char *argv[])
     if (cmd_opt.pkg_path[0]) {
         module.pkg_path = cmd_opt.pkg_path;
     }
+    vector_init_ptr(&module.links);
+
     init_parser(&module);
     compile(&module);
     fini_parser(&module);

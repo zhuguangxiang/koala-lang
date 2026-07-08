@@ -14,14 +14,7 @@ extern "C" {
 /* global module table */
 static HashMap _gm_stbl;
 
-/* the module has native implementations */
-static HashMap _gm_native_stbl;
-
-void kl_init_gm_stbl(void)
-{
-    stbl_init(&_gm_stbl);
-    stbl_init(&_gm_native_stbl);
-}
+void kl_init_gm_stbl(void) { stbl_init(&_gm_stbl); }
 
 Object *kl_get_module(char *path)
 {
@@ -34,19 +27,6 @@ int kl_register_module(Object *_m)
 {
     ModuleObject *m = (ModuleObject *)_m;
     stbl_add_obj(&_gm_stbl, m->path, _m);
-    return 0;
-}
-
-NativeFunc kl_get_native(char *name)
-{
-    Object *obj = stbl_find_obj(&_gm_native_stbl, name);
-    return obj ? ((CFuncObject *)obj)->fn : NULL;
-}
-
-int kl_register_native(char *name, NativeFunc fn)
-{
-    Object *obj = kl_new_cfunc(name, fn, NULL);
-    stbl_add_obj(&_gm_native_stbl, name, obj);
     return 0;
 }
 

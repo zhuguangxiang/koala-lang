@@ -36,6 +36,9 @@ typedef struct _ParserModule {
 
     /* module-level IR*/
     KlrModule *m;
+
+    /* links */
+    Vector links;
 } ParserModule;
 
 typedef enum _ScopeKind {

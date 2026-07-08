@@ -77,5 +77,5 @@ pub trait Animal {
 
 link "pkg1_native"
 
-@native(test_pkg_foo_func)
+@native
 pub func test_pkg_foo(a Animal) {}

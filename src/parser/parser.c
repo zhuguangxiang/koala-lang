@@ -375,6 +375,12 @@ static void parse_import(ParserState *ps, Stmt *stmt)
     // do nothing.
 }
 
+static void parse_link(ParserState *ps, Stmt *stmt)
+{
+    // link is already resolved in parse_top_stmt
+    // do nothing.
+}
+
 /**
  * Determines if a TypeSpec is a value type.
  * Value types (primitive types like int, float, bool) require exact
@@ -1143,13 +1149,13 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
     }
 }
 
-static char *func_native_name(FuncDeclStmt *fn)
+static int is_native_func(FuncDeclStmt *fn)
 {
     PrefixFlags *flags = &fn->flags;
     AtFlag *at = &flags->at;
-    if (!at->ident) return NULL;
-    if (!str_equal(at->ident, "native")) return NULL;
-    return at->assoc_ident;
+    if (!at->ident) return 0;
+    if (!str_equal(at->ident, "native")) return 0;
+    return 1;
 }
 
 // only add function symbol and don't add parameters and return type.
@@ -1326,7 +1332,7 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     check_func_prefix(ps, fn);
 
     FuncSymbol *sym = (FuncSymbol *)fn->sym;
-    sym->native_name = func_native_name(fn);
+    if (is_native_func(fn)) sym->flags |= SYM_FLAGS_NATIVE;
 
     log_info("parse func '%s' body", sym->name);
 
@@ -2453,6 +2459,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     /* clang-format off */
     static void (*handlers[STMT_MAX_KIND])(ParserState *, Stmt *) = {
         [STMT_IMPORT_KIND]    = parse_import,
+        [STMT_LINK_KIND]      = parse_link,
         [STMT_VAR_KIND]       = parse_var_decl,
         [STMT_FUNC_KIND]      = parse_func_decl,
         [STMT_CLASS_KIND]     = parse_klass,
@@ -2905,6 +2912,15 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
                 pkg_name = pkg_name ? pkg_name + 1 : s->path;
                 stbl_add_imported(ps->imported, (Symbol *)pkg, pkg_name);
             }
+            break;
+        }
+        case STMT_LINK_KIND: {
+            LinkStmt *s = (LinkStmt *)stmt;
+            if (!s->path) {
+                kl_error(s->loc, "link statement must have a path.");
+                return;
+            }
+            vector_push_back(&ps->pm->links, &s->path);
             break;
         }
         default: {

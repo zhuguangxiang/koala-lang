@@ -1209,6 +1209,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
 }
 
 static void emit_ir_import(ParserState *ps, Stmt *stmt) {}
+static void emit_ir_link(ParserState *ps, Stmt *stmt) {}
 
 static void emit_ir_var_decl(ParserState *ps, Stmt *stmt)
 {
@@ -2116,6 +2117,7 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
     /* clang-format off */
     static void (*handlers[STMT_MAX_KIND])(ParserState *, Stmt *) = {
         [STMT_IMPORT_KIND]    = emit_ir_import,
+        [STMT_LINK_KIND]      = emit_ir_link,
         [STMT_VAR_KIND]       = emit_ir_var_decl,
         [STMT_FUNC_KIND]      = emit_ir_func_decl,
         [STMT_CLASS_KIND]     = emit_ir_class,

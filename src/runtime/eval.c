@@ -239,6 +239,8 @@ TValue kl_eval_code(TValue *self, TValue *args, int nargs)
 
     Object *code = to_obj(self);
 
+    ASSERT(IS_CODE(code));
+
     /* build a call frame */
     CallFrame *cf = _new_frame(ks, (CodeObject *)code);
 

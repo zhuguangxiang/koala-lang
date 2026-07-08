@@ -59,6 +59,9 @@ typedef struct _ModuleObject {
     /* native module */
     ModuleDef *def; // module defined by c extension
     void *state;    // module private pointer
+
+    /* native so */
+    Vector natives;
 } ModuleObject;
 
 typedef enum {

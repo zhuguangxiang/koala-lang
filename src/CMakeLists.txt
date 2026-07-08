@@ -108,6 +108,7 @@ target_link_libraries(koala_dump parser)
 set_target_properties(koala_dump PROPERTIES
     OUTPUT_NAME klc-dump)
 
+install(TARGETS koala DESTINATION koala-${KOALA_VERSION_MAIN}/lib)
 install(TARGETS koalac_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
 install(TARGETS koala_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
 
@@ -141,3 +142,7 @@ install_symlink(
 install_symlink(
     ../lib/koala/bin/klc-dump
     ${CMAKE_INSTALL_PREFIX}/../bin/klc-dump)
+
+install_symlink(
+    ./koala/lib/libkoala.so
+    ${CMAKE_INSTALL_PREFIX}/../lib/libkoala.so)

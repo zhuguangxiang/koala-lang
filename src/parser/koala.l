@@ -213,6 +213,7 @@ static char hex2byte(const char *s)
 
 "from"      { YY_RETURN(FROM);      }
 "import"    { YY_RETURN(IMPORT);    }
+"link"      { YY_RETURN(LINK);      }
 "const"     { YY_RETURN(CONST);     }
 "let"       { YY_RETURN(LET);       }
 "var"       { YY_RETURN(VAR);       }

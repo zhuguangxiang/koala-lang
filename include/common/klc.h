@@ -15,13 +15,14 @@ extern "C" {
 
 #define ITEM_RT_CONST 0
 #define ITEM_IMPORT   1
-#define ITEM_CODE     2
-#define ITEM_BYTECODE 3
-#define ITEM_CONST    4
-#define ITEM_VAR      5
-#define ITEM_FUNC     6
-#define ITEM_CLASS    7
-#define ITEM_MAX      8
+#define ITEM_LINK     2
+#define ITEM_CODE     3
+#define ITEM_BYTECODE 4
+#define ITEM_CONST    5
+#define ITEM_VAR      6
+#define ITEM_FUNC     7
+#define ITEM_CLASS    8
+#define ITEM_MAX      9
 
 typedef struct _KlcFile {
     char *path;
@@ -74,10 +75,11 @@ typedef struct _KlcConst {
 #define KLC_CONST_SHORT_TUPLE ')'
 #define KLC_CONST_SHORT_LIST  ']'
 
-#define KLC_FLAGS_PUB   (1 << 0)
-#define KLC_FLAGS_MUT   (1 << 1)
-#define KLC_FLAGS_TRAIT (1 << 2)
-#define KLC_FLAGS_METH  (1 << 3)
+#define KLC_FLAGS_PUB    (1 << 0)
+#define KLC_FLAGS_MUT    (1 << 1)
+#define KLC_FLAGS_TRAIT  (1 << 2)
+#define KLC_FLAGS_METH   (1 << 3)
+#define KLC_FLAGS_NATIVE (1 << 4)
 
 typedef struct _KlcVar {
     /* flags */
@@ -175,8 +177,6 @@ typedef struct _KlcCode {
     uint16_t name_index;
     /* flags */
     uint16_t flags;
-    /* native name index */
-    uint16_t native_index;
     /* number of locals */
     uint16_t nlocals;
     /* max call arguments */
@@ -224,9 +224,8 @@ uint16_t klc_add_float(KlcFile *klc, double val, int width);
 uint16_t klc_add_str(KlcFile *klc, char *s, int len);
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len);
 
-uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t native_index,
-                      uint16_t num_locals, uint16_t max_call_args, uint32_t start_pc,
-                      uint32_t code_size);
+uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t num_locals,
+                      uint16_t max_call_args, uint32_t start_pc, uint32_t code_size);
 KlcCode *klc_get_code(KlcFile *klc, uint16_t index);
 
 uint16_t klc_add_rt_none(KlcFile *klc);
@@ -239,6 +238,7 @@ uint16_t klc_add_rt_range(KlcFile *klc, Vector *list);
 uint16_t klc_add_rt_list(KlcFile *klc, Vector *list);
 
 void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym);
+void klc_add_link(KlcFile *klc, char *path);
 
 void klc_add_bytecodes(KlcFile *klc, uint32_t size, uint8_t *codes);
 

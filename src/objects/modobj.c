@@ -383,6 +383,7 @@ Object *kl_new_module(char *path)
     vector_init(&m->func_entries, sizeof(FuncEntry));
     vector_init_ptr(&m->funcs);
     vector_init_ptr(&m->types);
+    vector_init(&m->natives, sizeof(NativeModule));
     stbl_init(&m->symbols);
     m->path = atom(path);
     Object *cfunc = kl_new_cfunc("not_impl", not_impl_func, (Object *)m);

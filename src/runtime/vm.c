@@ -4,6 +4,7 @@
  */
 
 #include "vm.h"
+#include <dlfcn.h>
 #include <unistd.h>
 #include "atom.h"
 #include "buffer.h"
@@ -127,6 +128,75 @@ static void __load_const(Object *m, KlcConst *item)
     }
 }
 
+Object *kl_get_native(Object *m, char *name)
+{
+    ModuleObject *mo = (ModuleObject *)m;
+    NativeModule *native;
+    vector_foreach_ptr(native, &mo->natives) {
+        Object *obj = stbl_find_obj(&native->symbols, name);
+        if (obj) return obj;
+    }
+    return NULL;
+}
+
+int kl_register_func(NativeModule *m, char *name, NativeFunc fn)
+{
+    Object *obj = kl_new_cfunc(name, fn, NULL);
+    stbl_add_obj(&m->symbols, name, obj);
+    return 0;
+}
+
+int kl_register_method(NativeModule *m, char *cls, char *meth, NativeFunc fn)
+{
+    char full_name[256];
+    snprintf(full_name, sizeof(full_name), "%s$%s", cls, meth);
+    Object *obj = kl_new_cfunc(full_name, fn, NULL);
+    stbl_add_obj(&m->symbols, full_name, obj);
+    return 0;
+}
+
+static const char *native_suffix(void)
+{
+#if defined(__APPLE__)
+    return ".dylib";
+#elif defined(_WIN32)
+    return ".dll";
+#else
+    return ".so";
+#endif
+}
+
+static void _load_native(ModuleObject *mo, char *name)
+{
+    char buf[256];
+    snprintf(buf, sizeof(buf), "lib%s%s", name, native_suffix());
+
+    void *handle = dlopen(buf, RTLD_LAZY | RTLD_LOCAL);
+    if (!handle) {
+        fprintf(stderr, "Failed to load %s: %s\n", buf, dlerror());
+        return;
+    }
+
+    snprintf(buf, sizeof(buf), "%s_module_init", name);
+
+    typedef void (*InitFunc)(NativeModule *);
+    InitFunc init_func = dlsym(handle, buf);
+
+    if (!init_func) {
+        fprintf(stderr, "Cannot find init function %s: %s\n", buf, dlerror());
+        dlclose(handle);
+        return;
+    }
+
+    NativeModule native_module;
+    native_module.index = vector_size(&mo->natives);
+    native_module.handle = handle;
+    stbl_init(&native_module.symbols);
+    vector_push_back(&mo->natives, &native_module);
+
+    init_func(&native_module);
+}
+
 static Object *_load_module(char *path, char *pkg_path)
 {
     KlcFile *klc = read_klc_file(path, 1);
@@ -159,15 +229,22 @@ static Object *_load_module(char *path, char *pkg_path)
         kl_mo_add_import(m, imp->kind, ns->sval, kls_name, sym->sval);
     }
 
+    Vector *links = klc->objs + ITEM_LINK;
+    uint16_t link_index;
+    vector_foreach(link_index, links) {
+        if (link_index == 0) continue;
+        KlcConst *kc = klc_get_rt_const(klc, link_index);
+        _load_native((ModuleObject *)m, kc->sval);
+    }
+
     Vector *code_objs = klc->objs + ITEM_CODE;
     KlcCode *item;
     vector_foreach(item, code_objs) {
         if (!item) continue;
         kc = klc_get_rt_const(klc, item->name_index);
         Object *_co;
-        if (item->native_index) {
-            KlcConst *name = klc_get_rt_const(klc, item->native_index);
-            _co = kl_get_native(name->sval);
+        if (item->flags & KLC_FLAGS_NATIVE) {
+            _co = kl_get_native(m, kc->sval);
             ASSERT(_co && IS_CFUNC(_co));
             CFuncObject *cfn = (CFuncObject *)_co;
             ASSERT(cfn->owner == NULL);
@@ -245,9 +322,9 @@ static Object *_load_module(char *path, char *pkg_path)
                 }
 
                 Object *co = vector_get(&mo->funcs, _idx);
-                ASSERT(co && IS_CODE(co));
-                CodeObject *co_obj = (CodeObject *)co;
-                ASSERT(co_obj->flags & CODE_FLAG_METH);
+                ASSERT(co);
+                // CodeObject *co_obj = (CodeObject *)co;
+                // ASSERT(co_obj->flags & CODE_FLAG_METH);
                 ASSERT(i__ < itable.num_funcs);
                 itable.methods[i__] = co;
             }
@@ -334,6 +411,15 @@ done:
         kl_run_init(m);
     }
     return m;
+}
+
+Object *kl_get_intf_func(TValue *intf, int func_idx)
+{
+    ASSERT(is_intf(intf));
+    IntfTable *itab = intf->itab;
+    ASSERT(itab);
+    ASSERT(func_idx >= 0 && func_idx < itab->num_funcs);
+    return itab->methods[func_idx];
 }
 
 void koala_run_file(char *path)

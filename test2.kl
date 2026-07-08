@@ -1,4 +1,19 @@
 
+import "test_pkg/pkg1" as z
+
+link "pkg1_native"
+
+class Foo : z.Animal {
+
+    func fly(name str, age int) str {
+        print(name, age)
+        return "Foo is flying"
+    }
+
+    @native
+    func swim(name str, age int) str {}
+}
+
 // func test9(a int, b int) int {
 //     var x = a
 //     if (b > 0) {
@@ -30,6 +45,10 @@
 // }
 
 func main() {
+    let an z.Animal = Foo()
+    z.test_pkg_foo(an)
+    print(an.swim("Dolphin", 5))
+
     // let arr1 = array[int, 2, 2](1, 2, 3, 4.1)
     // let arr2 = array[int](1,2)
     // let arr3 = array[int, 10](1,2,3,4,5,6,7,8,9)

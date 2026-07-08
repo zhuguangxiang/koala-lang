@@ -518,6 +518,14 @@ Stmt *stmt_from_import(Buffer *buf, char *alias, Vector *names)
     return (Stmt *)s;
 }
 
+Stmt *stmt_from_link(Buffer *buf)
+{
+    LinkStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_LINK_KIND;
+    s->path = atom_nstr(buf->buf, buf->len);
+    return (Stmt *)s;
+}
+
 Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int which, Expr *e)
 {
     VarDeclStmt *s = mm_alloc_obj(s);
@@ -694,6 +702,12 @@ static void import_stmt_free(Stmt *stmt)
 {
     ImportStmt *s = (ImportStmt *)stmt;
     vector_destroy(s->names);
+    mm_free(stmt);
+}
+
+static void link_stmt_free(Stmt *stmt)
+{
+    LinkStmt *s = (LinkStmt *)stmt;
     mm_free(stmt);
 }
 
@@ -875,14 +889,23 @@ void stmt_free(Stmt *stmt)
     if (!stmt) return;
 
     static void (*free_handlers[STMT_MAX_KIND])(Stmt *) = {
-        [STMT_IMPORT_KIND] = import_stmt_free,     [STMT_VAR_KIND] = var_decl_stmt_free,
-        [STMT_FUNC_KIND] = func_decl_stmt_free,    [STMT_CLASS_KIND] = klass_decl_stmt_free,
-        [STMT_TRAIT_KIND] = klass_decl_stmt_free,  [STMT_RETURN_KIND] = ret_stmt_free,
-        [STMT_ASSIGN_KIND] = assign_stmt_free,     [STMT_BREAK_KIND] = break_stmt_free,
-        [STMT_CONTINUE_KIND] = continue_stmt_free, [STMT_EXPR_KIND] = expr_stmt_free,
-        [STMT_BLOCK_KIND] = block_stmt_free,       [STMT_IF_KIND] = if_stmt_free,
-        [STMT_FOR_KIND] = for_stmt_free,           [STMT_WHILE_KIND] = while_stmt_free,
-        [STMT_IF_LET_KIND] = if_let_stmt_free,     [STMT_WHILE_LET_KIND] = while_let_stmt_free,
+        [STMT_IMPORT_KIND] = import_stmt_free,
+        [STMT_LINK_KIND] = link_stmt_free,
+        [STMT_VAR_KIND] = var_decl_stmt_free,
+        [STMT_FUNC_KIND] = func_decl_stmt_free,
+        [STMT_CLASS_KIND] = klass_decl_stmt_free,
+        [STMT_TRAIT_KIND] = klass_decl_stmt_free,
+        [STMT_RETURN_KIND] = ret_stmt_free,
+        [STMT_ASSIGN_KIND] = assign_stmt_free,
+        [STMT_BREAK_KIND] = break_stmt_free,
+        [STMT_CONTINUE_KIND] = continue_stmt_free,
+        [STMT_EXPR_KIND] = expr_stmt_free,
+        [STMT_BLOCK_KIND] = block_stmt_free,
+        [STMT_IF_KIND] = if_stmt_free,
+        [STMT_FOR_KIND] = for_stmt_free,
+        [STMT_WHILE_KIND] = while_stmt_free,
+        [STMT_IF_LET_KIND] = if_let_stmt_free,
+        [STMT_WHILE_LET_KIND] = while_let_stmt_free,
     };
 
     free_handlers[stmt->kind](stmt);

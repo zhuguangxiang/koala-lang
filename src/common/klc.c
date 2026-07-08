@@ -257,15 +257,13 @@ uint16_t klc_add_utf8(KlcFile *klc, char *s, int len)
     return idx;
 }
 
-uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t native_index,
-                      uint16_t num_locals, uint16_t max_call_args, uint32_t start_pc,
-                      uint32_t num_insns)
+uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t num_locals,
+                      uint16_t max_call_args, uint32_t start_pc, uint32_t num_insns)
 {
     KlcCode *code = mm_alloc_obj(code);
     uint32_t name_index = klc_add_rt_str(klc, name, strlen(name));
     code->name_index = name_index;
     code->flags = (uint16_t)flags;
-    code->native_index = native_index;
     code->nlocals = num_locals;
     code->max_call_args = max_call_args;
     code->start_pc = start_pc;
@@ -369,6 +367,12 @@ void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym)
     }
     imp->sym_index = klc_add_rt_str(klc, sym, strlen(sym));
     vector_push_back(klc->objs + ITEM_IMPORT, &imp);
+}
+
+void klc_add_link(KlcFile *klc, char *path)
+{
+    uint16_t path_index = klc_add_rt_str(klc, path, strlen(path));
+    vector_push_back(klc->objs + ITEM_LINK, &path_index);
 }
 
 void klc_add_bytecodes(KlcFile *klc, uint32_t size, uint8_t *codes)
@@ -863,7 +867,6 @@ static void write_codes(KlcFile *klc, Vector *vec)
         if (!item) continue;
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->flags);
-        write_uint16(klc, item->native_index);
         write_uint16(klc, item->nlocals);
         write_uint16(klc, item->max_call_args);
         write_uint32(klc, item->start_pc);
@@ -883,6 +886,18 @@ static void write_imports(KlcFile *klc, Vector *vec)
         write_uint16(klc, item->ns_index);
         write_uint16(klc, item->kls_index);
         write_uint16(klc, item->sym_index);
+    }
+}
+
+static void write_links(KlcFile *klc, Vector *vec)
+{
+    uint32_t size = vector_size(vec) - 1;
+    write_uint16(klc, (uint16_t)size);
+
+    uint16_t item;
+    vector_foreach(item, vec) {
+        if (item == 0) continue;
+        write_uint16(klc, item);
     }
 }
 
@@ -915,6 +930,7 @@ int write_klc_file(KlcFile *klc)
 
     write_consts(klc, klc->objs + ITEM_RT_CONST);
     write_imports(klc, klc->objs + ITEM_IMPORT);
+    write_links(klc, klc->objs + ITEM_LINK);
     write_codes(klc, klc->objs + ITEM_CODE);
     write_bytecodes(klc, klc->objs + ITEM_BYTECODE);
     write_consts(klc, klc->objs + ITEM_CONST);
@@ -1301,6 +1317,18 @@ static void read_imports(KlcFile *klc, Vector *vec)
     }
 }
 
+static void read_links(KlcFile *klc, Vector *vec)
+{
+    int size = 0;
+    read_uint16(klc, (uint16_t *)&size);
+
+    uint16_t link_index;
+    for (int i = 0; i < size; i++) {
+        read_uint16(klc, &link_index);
+        vector_push_back(vec, &link_index);
+    }
+}
+
 static void read_codes(KlcFile *klc, Vector *vec)
 {
     int size = 0;
@@ -1312,7 +1340,6 @@ static void read_codes(KlcFile *klc, Vector *vec)
         vector_push_back(vec, &code);
         read_uint16(klc, &code->name_index);
         read_uint16(klc, &code->flags);
-        read_uint16(klc, &code->native_index);
         read_uint16(klc, &code->nlocals);
         read_uint16(klc, &code->max_call_args);
         read_uint32(klc, &code->start_pc);
@@ -1383,6 +1410,7 @@ KlcFile *read_klc_file(char *path, int rt)
 
     read_consts(klc, klc->objs + ITEM_RT_CONST);
     read_imports(klc, klc->objs + ITEM_IMPORT);
+    read_links(klc, klc->objs + ITEM_LINK);
     read_codes(klc, klc->objs + ITEM_CODE);
     read_bytecodes(klc, klc->objs + ITEM_BYTECODE);
 
@@ -1420,9 +1448,15 @@ void init_klc_file(KlcFile *klc, char *path, char *pkg_path)
 
     void *empty = NULL;
     for (int i = 0; i < ITEM_MAX; i++) {
+        if (i == ITEM_LINK) continue;
         vector_init_ptr(klc->objs + i);
         vector_push_back(klc->objs + i, &empty);
     }
+
+    uint16_t empty_index = 0;
+    Vector *links = klc->objs + ITEM_LINK;
+    vector_init(links, sizeof(uint16_t));
+    vector_push_back(links, &empty_index);
 
     klc->pkg_path_index = klc_add_str(klc, pkg_path, strlen(pkg_path));
 }
@@ -1548,6 +1582,8 @@ static void fini_imports(Vector *vec)
     vector_fini(vec);
 }
 
+static inline void fini_links(Vector *vec) { vector_fini(vec); }
+
 static void fini_codes(Vector *vec)
 {
     KlcCode *item;
@@ -1577,6 +1613,7 @@ void fini_klc_file(KlcFile *klc)
 
     fini_consts(klc->objs + ITEM_RT_CONST);
     fini_imports(klc->objs + ITEM_IMPORT);
+    fini_links(klc->objs + ITEM_LINK);
     fini_codes(klc->objs + ITEM_CODE);
     fini_bytecodes(klc->objs + ITEM_BYTECODE);
 

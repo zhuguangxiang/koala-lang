@@ -41,6 +41,7 @@ typedef enum _SymKind {
 #define SYM_FLAGS_EXT       (1 << 5)
 #define SYM_FLAGS_MAGIC     (1 << 6)
 #define SYM_FLAGS_GENERIC   (1 << 7)
+#define SYM_FLAGS_NATIVE    (1 << 8)
 
 #define SYM_UNRESOLVED   0
 #define SYM_RESOLVED     1
@@ -127,8 +128,6 @@ typedef struct _FuncSymbol {
     /* annotation */
     char *ann;
     char *ann_key;
-    /* native func name */
-    char *native_name;
     /* return type */
     TypeSpec *ret;
     /* ArgInfo list */

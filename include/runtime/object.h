@@ -251,6 +251,8 @@ typedef struct _IntfTable {
     struct _IntfTable **parents;
 } IntfTable;
 
+Object *kl_get_intf_func(TValue *intf, int func_idx);
+
 #define TP_FLAGS_CLASS  (1 << 0)
 #define TP_FLAGS_TRAIT  (1 << 1)
 #define TP_FLAGS_PUBLIC (1 << 2)
@@ -503,6 +505,12 @@ static inline TValue kl_do_call_one_arg(TValue *callable, TValue *arg)
     return kl_do_call(callable, arg, 1);
 }
 
+static inline TValue kl_object_call(Object *callable, TValue *args, int nargs)
+{
+    TValue _call = obj_value(callable);
+    return kl_do_call(&_call, args, nargs);
+}
+
 void kl_init_gm_stbl(void);
 Object *kl_load_module(char *path);
 Object *kl_get_module(char *path);
@@ -510,8 +518,16 @@ int kl_register_module(Object *m);
 void kl_resolve_import(Object *m);
 void kl_dump_module(Object *m);
 
-NativeFunc kl_get_native(char *name);
-int kl_register_native(char *name, NativeFunc fn);
+Object *kl_get_native(Object *m, char *name);
+
+typedef struct _NativeModule {
+    int index;
+    void *handle;
+    HashMap symbols;
+} NativeModule;
+
+int kl_register_func(NativeModule *m, char *name, NativeFunc fn);
+int kl_register_method(NativeModule *m, char *cls, char *meth, NativeFunc fn);
 
 TValue kl_eval_code(TValue *self, TValue *args, int nargs);
 void kl_run_main(Object *m);

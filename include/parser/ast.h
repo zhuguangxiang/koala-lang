@@ -344,6 +344,8 @@ typedef enum _StmtKind {
     STMT_UNK_KIND,
     /* import */
     STMT_IMPORT_KIND,
+    /* link */
+    STMT_LINK_KIND,
     /* let/var */
     STMT_VAR_KIND,
     /* function */
@@ -402,6 +404,13 @@ typedef struct _ImportStmt {
 } ImportStmt;
 
 Stmt *stmt_from_import(Buffer *buf, char *alias, Vector *names);
+
+typedef struct _LinkStmt {
+    STMT_HEAD
+    char *path;
+} LinkStmt;
+
+Stmt *stmt_from_link(Buffer *buf);
 
 typedef struct _VarDeclStmt {
     STMT_HEAD

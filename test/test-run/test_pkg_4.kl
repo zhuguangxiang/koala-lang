@@ -1,20 +1,26 @@
+// RUN: koala %s | filecheck %s
 
-import "test_pkg/pkg1" as pkg
+import "test_pkg/pkg1" as z
 
-class Foo : Animal {
+link "pkg1_native"
+
+class Foo : z.Animal {
 
     func fly(name str, age int) str {
-        print("fly", str, age)
-        return age
+        print(name, age)
+        return "Foo is flying"
     }
 
-    func swim(name str, age int) str {
-        print("swim", str, age)
-        return age
-    }
+    @native
+    func swim(name str, age int) str {}
 }
 
 func main() {
-    let foo = Foo()
-    pkg.test_pkg_foo(foo)
+    let an z.Animal = Foo()
+    z.test_pkg_foo(an)
+    print(an.swim("Dolphin", 5))
 }
+
+// CHECK: test_pkg_foo_func is called
+// CHECK: Eagle 3
+// CHECK: <Dolphin is swimming, age 5>

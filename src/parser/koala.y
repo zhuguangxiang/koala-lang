@@ -105,6 +105,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 
 %token FROM
 %token IMPORT
+%token LINK
 %token CONST
 %token LET
 %token VAR
@@ -186,6 +187,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token BANG_DOT
 
 %type<stmt> import_stmt
+%type<stmt> link_stmt
 %type<stmt> top_stmt
 %type<stmt> const_decl
 %type<stmt> let_decl
@@ -399,6 +401,14 @@ id_as_list
     }
     ;
 
+link_stmt
+    : LINK STRING_LITERAL semi
+    {
+        $$ = stmt_from_link(&ps->sbuf);
+        stmt_set_loc($$, lloc(@1, @2));
+    }
+    ;
+
 top_stmts
     : top_stmt
     {
@@ -414,6 +424,10 @@ top_stmts
 
 top_stmt
     : import_stmt
+    {
+        $$ = $1;
+    }
+    | link_stmt
     {
         $$ = $1;
     }
