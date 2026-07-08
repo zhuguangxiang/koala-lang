@@ -127,6 +127,8 @@ typedef struct _FuncSymbol {
     /* annotation */
     char *ann;
     char *ann_key;
+    /* native func name */
+    char *native_name;
     /* return type */
     TypeSpec *ret;
     /* ArgInfo list */

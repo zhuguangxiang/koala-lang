@@ -86,6 +86,13 @@ void buf_write_word(Buffer *self, uint16_t val)
     self->len += 2;
 }
 
+void buf_write_uint8_hex(Buffer *self, uint8_t val)
+{
+    char buf[64];
+    int sz = snprintf(buf, 63, "%02x", val);
+    buf_write_nstr(self, buf, sz);
+}
+
 void buf_write_uint32(Buffer *self, uint32_t val)
 {
     if (available(self, 4) <= 0) return;

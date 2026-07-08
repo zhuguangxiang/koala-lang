@@ -1,0 +1,18 @@
+
+
+pub class bytearray : MutableSequence[uint8] {
+    @native
+    pub func __init__(def_size = 0) {}
+
+    @intrinsic
+    pub func __getitem__(index int) uint8 {}
+
+    @intrinsic
+    pub func __setitem__(index int, value uint8) {}
+
+    @native
+    pub func append(value uint8) {}
+
+    @native
+    pub func __len__() int {}
+}

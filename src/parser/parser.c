@@ -280,24 +280,6 @@ FuncSymbol *get_current_function(ParserState *ps)
     return NULL;
 }
 
-static char *get_pkg_path(ParserState *ps, char *pkg_path)
-{
-    if (str_equal(pkg_path, "std/builtin") || str_equal(pkg_path, ps->pm->pkg_path)) {
-        return pkg_path;
-    }
-
-    Symbol *sym = stbl_get(ps->imported, pkg_path);
-    if (sym) {
-        ASSERT(sym->kind == SYM_IMPORTED);
-        PkgSymbol *pkg_sym = (PkgSymbol *)((ImportedSymbol *)sym)->origin;
-        log_info("found package '%s' in imported scope, pkg-path: %s\n", pkg_path, pkg_sym->path);
-        ASSERT(pkg_sym->path);
-        return pkg_sym->path;
-    }
-
-    return NULL;
-}
-
 Symbol *find_symbol(ParserState *ps, Ident *id)
 {
     ParserScope *sc = ps->scope;
@@ -825,14 +807,6 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             type_spec_free(_ts);
             log_type_spec(ret);
             return ret;
-
-            // char *pkg_path = get_pkg_path(ps, _ts->unresolved.pkg.name);
-            // char *pkg_name = _ts->unresolved.name.name;
-            // TypeSpec *ret = generic_ref_type_spec(pkg_path, pkg_name, tp_args, kls_sym->id);
-            // vector_destroy(tp_args);
-            // type_spec_free(_ts);
-            // log_type_spec(ret);
-            // return ret;
         }
 
         log_info("resolve closed generic_ref type '%s'", _ts->unresolved.name.name);
@@ -1137,48 +1111,45 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     sym->status = SYM_RESOLVED;
 }
 
-static void check_top_func_flags(ParserState *ps, FuncDeclStmt *fn)
+static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
 {
     PrefixFlags *flags = &fn->flags;
 
     AtFlag *at = &flags->at;
-    if (at->flag.flag) {
-        ASSERT(at->ident);
+    if (!at->ident) return;
 
-        if (str_equal(at->ident, "intrinsic")) {
-            if (at->assoc_ident) {
-                kl_error(
-                    at->id_loc,
-                    "'intrinsic' annotation should not have a native func name in top func '%s'",
-                    fn->id.name);
-                return;
-            }
-
-            if (!vector_empty(fn->body)) {
-                kl_error(at->id_loc, "func '%s' with 'intrinsic' annotation needs empty body.",
-                         fn->id.name);
-                return;
-            }
-
-            return;
+    if (str_equal(at->ident, "intrinsic")) {
+        if (at->assoc_ident) {
+            kl_error(at->id_loc,
+                     "'intrinsic' annotation should not have a native func name in top func '%s'",
+                     fn->id.name);
         }
 
-        if (str_equal(at->ident, "native")) {
-            if (!at->assoc_ident) {
-                kl_error(at->id_loc,
-                         "'native' annotation needs a native func name in top func '%s'",
-                         fn->id.name);
-                return;
-            }
-
-            if (!vector_empty(fn->body)) {
-                kl_error(at->id_loc, "func '%s' with 'native' annotation needs empty body.",
-                         fn->id.name);
-                return;
-            }
-            return;
+        if (!vector_empty(fn->body)) {
+            kl_error(at->id_loc, "func '%s' with 'intrinsic' annotation needs empty body.",
+                     fn->id.name);
         }
+
+        return;
     }
+
+    if (str_equal(at->ident, "native")) {
+        if (!vector_empty(fn->body)) {
+            kl_error(at->id_loc, "func '%s' with 'native' annotation needs empty body.",
+                     fn->id.name);
+        }
+
+        return;
+    }
+}
+
+static char *func_native_name(FuncDeclStmt *fn)
+{
+    PrefixFlags *flags = &fn->flags;
+    AtFlag *at = &flags->at;
+    if (!at->ident) return NULL;
+    if (!str_equal(at->ident, "native")) return NULL;
+    return at->assoc_ident;
 }
 
 // only add function symbol and don't add parameters and return type.
@@ -1351,11 +1322,11 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
     ParserScope *sc = ps->scope;
-    if (sc->kind == SCOPE_TOP) {
-        check_top_func_flags(ps, fn);
-    }
+
+    check_func_prefix(ps, fn);
 
     FuncSymbol *sym = (FuncSymbol *)fn->sym;
+    sym->native_name = func_native_name(fn);
 
     log_info("parse func '%s' body", sym->name);
 

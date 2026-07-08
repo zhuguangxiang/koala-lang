@@ -1,0 +1,4 @@
+
+pub trait Reader {
+    func read(bs bytes) int
+}

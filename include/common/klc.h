@@ -175,6 +175,8 @@ typedef struct _KlcCode {
     uint16_t name_index;
     /* flags */
     uint16_t flags;
+    /* native name index */
+    uint16_t native_index;
     /* number of locals */
     uint16_t nlocals;
     /* max call arguments */
@@ -222,8 +224,9 @@ uint16_t klc_add_float(KlcFile *klc, double val, int width);
 uint16_t klc_add_str(KlcFile *klc, char *s, int len);
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len);
 
-uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t num_locals,
-                      uint16_t max_call_args, uint32_t start_pc, uint32_t code_size);
+uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t native_index,
+                      uint16_t num_locals, uint16_t max_call_args, uint32_t start_pc,
+                      uint32_t code_size);
 KlcCode *klc_get_code(KlcFile *klc, uint16_t index);
 
 uint16_t klc_add_rt_none(KlcFile *klc);

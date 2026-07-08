@@ -1,0 +1,5 @@
+
+pub trait Writer {
+    func write(bs bytes) int
+    func flush()
+}

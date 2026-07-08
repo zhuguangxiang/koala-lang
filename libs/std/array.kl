@@ -1,0 +1,31 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The 'array' class represents a multi-dimensional array of elements of type 'T'.
+/// It is parameterized by the element type 'T' and a variadic list of integer dimensions 'DIMS'.
+/// The number of dimensions is determined by the length of the 'DIMS' list.
+/// The size of each dimension is specified by the corresponding integer in 'DIMS'.
+/// For example, 'array[int, 3, 4]' represents a 2-dimensional array with 3 rows and 4 columns of integers.
+pub class array[T, const DIMS ...int] {
+
+    /// The 'rank' field represents the number of dimensions of the array.
+    pub let rank int = 0
+
+    /// The 'shapes' field stores the sizes of each dimension as a list of integers.
+    pub let shapes = list[int]()
+
+    /// The 'strides' field stores the strides for each dimension, which are used for
+    /// calculating the memory offset of elements in the array.
+    pub let strides = list[int]()
+
+    @intrinsic
+    pub func __init__(args ...) {}
+
+    // @intrinsic
+    // pub func __getitem__[infer U](indices ...(slice|int)) U {}
+
+    // @intrinsic
+    pub func __setitem__[infer U](indices ...(slice|int), value U = '') {}
+}

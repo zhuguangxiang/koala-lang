@@ -1,0 +1,4 @@
+
+pub trait Seeker {
+    func seek(offset int, whence int) int
+}

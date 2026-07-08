@@ -1,0 +1,20 @@
+
+import "test_pkg/pkg1" as pkg
+
+class Foo : Animal {
+
+    func fly(name str, age int) str {
+        print("fly", str, age)
+        return age
+    }
+
+    func swim(name str, age int) str {
+        print("swim", str, age)
+        return age
+    }
+}
+
+func main() {
+    let foo = Foo()
+    pkg.test_pkg_foo(foo)
+}

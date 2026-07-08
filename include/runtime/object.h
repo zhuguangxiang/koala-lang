@@ -510,6 +510,9 @@ int kl_register_module(Object *m);
 void kl_resolve_import(Object *m);
 void kl_dump_module(Object *m);
 
+NativeFunc kl_get_native(char *name);
+int kl_register_native(char *name, NativeFunc fn);
+
 TValue kl_eval_code(TValue *self, TValue *args, int nargs);
 void kl_run_main(Object *m);
 void kl_run_init(Object *m);

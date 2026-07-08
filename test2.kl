@@ -1,0 +1,89 @@
+
+// func test9(a int, b int) int {
+//     var x = a
+//     if (b > 0) {
+//         x = x + 1
+//     }
+//     while (x < 10) {
+//         x = x + 2
+//     }
+//     return x
+// }
+
+// func test7(v int) int {
+//     var n = v
+//     var x = 0
+//     while (n > 0) {
+//         var y = x
+//         while (y < 10) {
+//             y = y + 1
+//         }
+//         x = y
+//         n = n - 1
+//     }
+//     return x
+// }
+
+
+// func test(n int) int {
+//     return 100 / n
+// }
+
+func main() {
+    // let arr1 = array[int, 2, 2](1, 2, 3, 4.1)
+    // let arr2 = array[int](1,2)
+    // let arr3 = array[int, 10](1,2,3,4,5,6,7,8,9)
+    // let arr4 = array[int, 2, 3](1,2,3,4,5,6,7,8,9,10)
+    // arr4[0, 0] = -1
+    // let N = 2
+    // let arr5 = array[int, _, N](1,2,3,4)
+    // print(test7(2))
+
+    let bs = bytes(10)
+    print(bs, len(bs))
+
+    for i in range(len(bs)) {
+        bs[i] = uint8(i + 1)
+    }
+
+    for v in bs {
+        print(v)
+    }
+    // bs[0] = 01
+    // bs[1] = 0x02
+    // bs[2] = 10
+    // bs[3] = 97
+    // bs[4] = 0xde
+    // bs[5] = 0xad
+    // bs[6] = 0xbe
+    // bs[7] = 0xef
+    // print(bs, bs[0], bs[1], bs[2], bs[3], bs[4], bs[5], bs[6], bs[7])
+
+    // for v in bs {
+    //     print(v)
+    // }
+
+    // // bs[0] = 0x11
+    // // bs[1] = 0x22
+    // // bs[20] = 0x33
+    // print(bs, len(bs))
+}
+
+// func foo(arr [_, -2]int) {
+//     // do something
+//     for i in range(2) {
+//         println(arr[0, i])
+//     }
+// }
+
+// class Baz : pkg1.Fly {
+//     func fly() str {
+//         return "Baz is flying"
+//     }
+// }
+
+/*
+// trait Fly {
+    func fly()
+}
+*/

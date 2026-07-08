@@ -257,13 +257,15 @@ uint16_t klc_add_utf8(KlcFile *klc, char *s, int len)
     return idx;
 }
 
-uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t num_locals,
-                      uint16_t max_call_args, uint32_t start_pc, uint32_t num_insns)
+uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t native_index,
+                      uint16_t num_locals, uint16_t max_call_args, uint32_t start_pc,
+                      uint32_t num_insns)
 {
     KlcCode *code = mm_alloc_obj(code);
     uint32_t name_index = klc_add_rt_str(klc, name, strlen(name));
     code->name_index = name_index;
     code->flags = (uint16_t)flags;
+    code->native_index = native_index;
     code->nlocals = num_locals;
     code->max_call_args = max_call_args;
     code->start_pc = start_pc;
@@ -861,6 +863,7 @@ static void write_codes(KlcFile *klc, Vector *vec)
         if (!item) continue;
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->flags);
+        write_uint16(klc, item->native_index);
         write_uint16(klc, item->nlocals);
         write_uint16(klc, item->max_call_args);
         write_uint32(klc, item->start_pc);
@@ -1309,6 +1312,7 @@ static void read_codes(KlcFile *klc, Vector *vec)
         vector_push_back(vec, &code);
         read_uint16(klc, &code->name_index);
         read_uint16(klc, &code->flags);
+        read_uint16(klc, &code->native_index);
         read_uint16(klc, &code->nlocals);
         read_uint16(klc, &code->max_call_args);
         read_uint32(klc, &code->start_pc);

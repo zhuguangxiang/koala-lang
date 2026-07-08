@@ -1,0 +1,19 @@
+
+
+pub class BytesIO : Reader & Writer & Seeker {
+
+    @native
+    pub func __init__(b bytes) {}
+
+    @native
+    pub func read(bs bytes) int {}
+
+    @native
+    pub func write(bs bytes) int {}
+
+    @native
+    pub func seek(offset int, whence int) int {}
+
+    @native
+    pub func flush() {}
+}

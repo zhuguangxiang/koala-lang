@@ -74,6 +74,9 @@ void buf_write_double_str(Buffer *self, double val);
 /* Escape a string and write it into the buffer. */
 void escape_str(const char *s, Buffer *buf);
 
+/* Write an uint8 as hex into buffer. */
+void buf_write_uint8_hex(Buffer *self, uint8_t val);
+
 #ifdef __cplusplus
 }
 #endif

@@ -68,3 +68,14 @@ pub class Baz[T] : FlyG[T] {
         return value
     }
 }
+
+pub trait Animal {
+    func fly(name str, age int) str
+
+    func swim(name str, age int) str
+}
+
+link "pkg1_native"
+
+@native(test_pkg_foo_func)
+pub func test_pkg_foo(a Animal) {}

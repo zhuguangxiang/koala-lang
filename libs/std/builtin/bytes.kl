@@ -1,0 +1,15 @@
+
+
+pub class bytes : Sequence[uint8] {
+    @native
+    pub func __init__(size int) {}
+
+    @intrinsic
+    pub func __getitem__(index int) uint8 {}
+
+    @intrinsic
+    pub func __setitem__(index int, value uint8) {}
+
+    @native
+    pub func __len__() int {}
+}

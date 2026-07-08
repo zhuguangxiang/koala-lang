@@ -242,6 +242,9 @@ TValue kl_eval_code(TValue *self, TValue *args, int nargs)
     /* build a call frame */
     CallFrame *cf = _new_frame(ks, (CodeObject *)code);
 
+    /* copy arguments */
+    memcpy(cf->locals, args, sizeof(TValue) * nargs);
+
     /* eval the call frame */
     TValue result = _eval_frame(ks, cf);
 

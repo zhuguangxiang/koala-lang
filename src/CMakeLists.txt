@@ -65,6 +65,7 @@ set(COMMON_SOURCES
     common/klc.c)
 
 add_library(koala-common STATIC ${COMMON_SOURCES})
+set_target_properties(koala-common PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 set(KOALA_SOURCES
     objects/anyobj.c
@@ -81,6 +82,8 @@ set(KOALA_SOURCES
     objects/tupleobj.c
     objects/rangeobj.c
     objects/listobj.c
+    # objects/dictobj.c
+    objects/bytesobj.c
     runtime/symtbl.c
     runtime/vm.c
     runtime/except.c
@@ -89,7 +92,7 @@ set(KOALA_SOURCES
     modules/builtin.c
     )
 
-add_library(koala STATIC ${KOALA_SOURCES})
+add_library(koala SHARED ${KOALA_SOURCES})
 target_link_libraries(koala koala-common pthread m dl ffi)
 
 add_executable(koala_out

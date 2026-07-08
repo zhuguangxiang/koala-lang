@@ -1,0 +1,9 @@
+
+pub class Lines : Iterator[bytes] {
+
+    @native
+    pub func __init__(r Reader) {}
+
+    @native
+    pub func next_line(out bytes) bool {}
+}

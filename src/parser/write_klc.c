@@ -395,8 +395,14 @@ static void write_rt_data(KlMachModule *m, KlcFile *klc, HashMap *stbl)
             flags_ |= KLC_FLAGS_PUB;
         }
 
-        int index = klc_add_code(klc, BUF_STR(buf), flags_, fn->nlocals, fn->max_call_args,
-                                 mach->start_pc, mach->total_insns);
+        uint16_t native_index = 0;
+        if (fn_sym->native_name) {
+            char *_s = fn_sym->native_name;
+            int _len = strlen(_s);
+            native_index = klc_add_rt_str(klc, _s, _len);
+        }
+        int index = klc_add_code(klc, BUF_STR(buf), flags_, native_index, fn->nlocals,
+                                 fn->max_call_args, mach->start_pc, mach->total_insns);
         ASSERT(index >= 1);
         ASSERT(index - 1 == mach->index);
         fn_sym->code_index = index - 1;

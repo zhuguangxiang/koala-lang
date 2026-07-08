@@ -164,14 +164,24 @@ static Object *_load_module(char *path, char *pkg_path)
     vector_foreach(item, code_objs) {
         if (!item) continue;
         kc = klc_get_rt_const(klc, item->name_index);
-        Object *_co = kl_new_code(kc->sval, m);
-        CodeObject *co = (CodeObject *)_co;
-        if (item->flags & KLC_FLAGS_PUB) co->flags |= CODE_FLAG_PUB;
-        if (item->flags & KLC_FLAGS_METH) co->flags |= CODE_FLAG_METH;
-        co->cs.nlocals = item->nlocals;
-        co->cs.max_call_args = item->max_call_args;
-        co->cs.start_pc = item->start_pc;
-        co->cs.num_insns = item->num_insns;
+        Object *_co;
+        if (item->native_index) {
+            KlcConst *name = klc_get_rt_const(klc, item->native_index);
+            _co = kl_get_native(name->sval);
+            ASSERT(_co && IS_CFUNC(_co));
+            CFuncObject *cfn = (CFuncObject *)_co;
+            ASSERT(cfn->owner == NULL);
+            cfn->owner = m;
+        } else {
+            _co = kl_new_code(kc->sval, m);
+            CodeObject *co = (CodeObject *)_co;
+            if (item->flags & KLC_FLAGS_PUB) co->flags |= CODE_FLAG_PUB;
+            if (item->flags & KLC_FLAGS_METH) co->flags |= CODE_FLAG_METH;
+            co->cs.nlocals = item->nlocals;
+            co->cs.max_call_args = item->max_call_args;
+            co->cs.start_pc = item->start_pc;
+            co->cs.num_insns = item->num_insns;
+        }
         kl_mo_add_func(m, _co);
     }
 
@@ -199,10 +209,17 @@ static Object *_load_module(char *path, char *pkg_path)
             if (!meth) continue;
             kc = klc_get_const(klc, meth->name_index);
             Object *_co = vector_get(&mo->funcs, meth->code_index);
-            ASSERT(_co && IS_CODE(_co));
-            CodeObject *co = (CodeObject *)_co;
-            ASSERT(co->flags & CODE_FLAG_METH);
-            vector_push_back(&tp->methods, &co);
+            ASSERT(_co);
+            if (IS_CODE(_co)) {
+                CodeObject *co = (CodeObject *)_co;
+                co->owner = (Object *)tp;
+                ASSERT(co->flags & CODE_FLAG_METH);
+            } else {
+                ASSERT(IS_CFUNC(_co));
+                CFuncObject *cfn = (CFuncObject *)_co;
+                cfn->owner = (Object *)tp;
+            }
+            vector_push_back(&tp->methods, &_co);
             stbl_add_obj(&tp->members, kc->sval, _co);
         }
 
@@ -255,6 +272,7 @@ static Object *_load_module(char *path, char *pkg_path)
         vector_push_back(&mo->types, &tp);
         stbl_add_obj(&mo->symbols, kls_kc->sval, (Object *)tp);
         tp->flags |= TP_FLAGS_READY;
+        tp->module = m;
     }
 
     kl_init_module(m);

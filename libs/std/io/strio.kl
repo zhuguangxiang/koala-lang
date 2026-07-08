@@ -1,0 +1,13 @@
+
+
+pub class StringIO : Reader & Seeker {
+
+    @native
+    pub func __init__(s str) {}
+
+    @native
+    pub func read(bs bytes) int {}
+
+    @native
+    pub func seek(offset int, whence int) int {}
+}

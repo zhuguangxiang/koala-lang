@@ -61,6 +61,10 @@ TypeObject *kl_new_type(char *name, int flags)
 
 Object *kl_new_instance(struct _TypeObject *tp)
 {
+    if (tp->alloc) {
+        return tp->alloc(tp);
+    }
+
     size_t nfields = vector_size(&tp->fields);
     int msize = sizeof(InstObject) + sizeof(TValue) * nfields;
     Object *obj = mm_alloc(msize);
