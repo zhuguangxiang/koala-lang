@@ -43,7 +43,7 @@ void kl_free_ks(KoalaState *ks)
     mm_free(ks);
 }
 
-void koala_initialize(void)
+KOALA_EXPORT void koala_initialize(void)
 {
     /* init logger */
     init_log(LOG_INFO, NULL, 0);
@@ -422,13 +422,13 @@ Object *kl_get_intf_func(TValue *intf, int func_idx)
     return itab->methods[func_idx];
 }
 
-void koala_run_file(char *path)
+KOALA_EXPORT void koala_run_file(char *path)
 {
     Object *m = kl_load_module(path);
     if (m) kl_run_main(m);
 }
 
-void koala_finalize(void) { /* finalize atom string table */ fini_atom(); }
+KOALA_EXPORT void koala_finalize(void) { /* finalize atom string table */ fini_atom(); }
 
 #ifdef __cplusplus
 }

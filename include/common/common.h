@@ -130,6 +130,14 @@ extern "C" {
 #define INT12_MAX  (2047)
 #define UINT12_MAX (4095u)
 
+#ifndef KOALA_EXPORT
+#if defined(_WIN32)
+#define KOALA_EXPORT __declspec(dllexport) // Windows 平台导出
+#else
+#define KOALA_EXPORT __attribute__((visibility("default"))) // Linux/macOS 平台强制公开
+#endif
+#endif
+
 #ifdef __cplusplus
 }
 #endif
