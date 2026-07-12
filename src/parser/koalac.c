@@ -16,7 +16,6 @@
 #include "lsra.h"
 #include "opt.h"
 #include "parser.h"
-#include "ssa.h"
 #include "version.h"
 
 static char output[MAX_PATH_LEN + 8];
@@ -188,20 +187,26 @@ static void parse_command(int argc, char *argv[])
 
             case 3:
                 cmd_opt.enable_genir = 1;
-                cmd_opt.enable_opt = 1;
+                if (cmd_opt.enable_ssa == 0) {
+                    cmd_opt.enable_opt = 1;
+                }
                 cmd_opt.enable_isel = 1;
                 break;
 
             case 4:
                 cmd_opt.enable_genir = 1;
-                cmd_opt.enable_opt = 1;
+                if (cmd_opt.enable_ssa == 0) {
+                    cmd_opt.enable_opt = 1;
+                }
                 cmd_opt.enable_isel = 1;
                 cmd_opt.enable_lsra = 1;
                 break;
 
             case 5:
                 cmd_opt.enable_genir = 1;
-                cmd_opt.enable_opt = 1;
+                if (cmd_opt.enable_ssa == 0) {
+                    cmd_opt.enable_opt = 1;
+                }
                 cmd_opt.enable_isel = 1;
                 cmd_opt.enable_lsra = 1;
                 cmd_opt.enable_cgen = 1;
@@ -240,7 +245,9 @@ static void parse_command(int argc, char *argv[])
                 break;
 
             case 14:
+                cmd_opt.enable_genir = 1;
                 cmd_opt.enable_ssa = 1;
+                cmd_opt.enable_opt = 0;
                 break;
 
             case 'o': {
@@ -477,7 +484,9 @@ static void compile(ParserModule *pm)
         build_intf_table(pm->stbl);
     }
 
-    if (genir_enabled()) kl_gen_ir(pm);
+    if (genir_enabled()) {
+        kl_gen_ir(pm);
+    }
 
     KlrModule *m = pm->m;
 

@@ -6,7 +6,6 @@
 #include "opt.h"
 #include "cmd.h"
 #include "pass.h"
-#include "ssa.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -98,38 +97,56 @@ void kl_optimize(KlrModule *m)
     pm_fini(&pm);
 }
 
+static void run_pipeline(KlrPassManager *pm, KlrModule *m)
+{
+    KlrFunc *fn;
+    func_foreach(fn, m) {
+        if (!fn) continue;
+        pm->run(fn, pm);
+    }
+
+    KlrKlass *kls;
+    vector_foreach(kls, &m->klasses) {
+        ASSERT(kls);
+        KlrFunc *fn;
+        func_foreach(fn, kls) {
+            pm->run(fn, pm);
+        }
+    }
+}
+
 void kl_ssa_opt(KlrModule *m)
 {
     if (!m || m->errors > 0) return;
 
     int dump = dump_ir_enabled();
 
-    // cfg_bb_opt_pass
+    KlrPassManager pm;
+    pm_init(&pm, "ssa_opt_pass");
+
+    // 1. cfg_bb_opt_pass
     KlrPassManager cfg_bb_opt_pm;
     pm_init(&cfg_bb_opt_pm, "cfg_bb_ssa_opt_pass");
 
-    pm_add_pass(&cfg_bb_opt_pm, &cfg_remove_only_jump_pass, dump);
-    pm_add_pass(&cfg_bb_opt_pm, &cfg_remove_unused_pass, dump);
-    pm_add_pass(&cfg_bb_opt_pm, &cfg_merge_block_pass, dump);
+    pm_add_pass(&cfg_bb_opt_pm, &cfg_remove_only_jump_pass, 0);
+    pm_add_pass(&cfg_bb_opt_pm, &cfg_remove_unused_pass, 0);
+    pm_add_pass(&cfg_bb_opt_pm, &cfg_merge_block_pass, 0);
 
-    KlrFunc *fn;
-    func_foreach(fn, m) {
-        if (!fn) continue;
-        cfg_bb_opt_pm.run(fn, &cfg_bb_opt_pm);
-    }
+    pm_add_pm_as_pass(&pm, &cfg_bb_opt_pm, dump);
 
+    // 2. dce_pass
+    pm_add_pass(&pm, &dce_pass, dump);
+
+    run_pipeline(&pm, m);
     kl_do_ssa(m);
 
-    func_foreach(fn, m) {
-        if (!fn) continue;
-        cfg_bb_opt_pm.run(fn, &cfg_bb_opt_pm);
-    }
-
     kl_exit_ssa(m);
-
-    kl_optimize(m);
+    run_pipeline(&pm, m);
 
     pm_fini(&cfg_bb_opt_pm);
+    pm_fini(&pm);
+
+    kl_optimize(m);
 }
 
 #ifdef __cplusplus

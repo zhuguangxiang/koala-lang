@@ -43,7 +43,11 @@ static inline void vector_init(Vector *vec, int obj_size)
 static inline void vector_fini(Vector *vec)
 {
     if (!vec) return;
+    vec->capacity = 0;
+    vec->size = 0;
+    vec->obj_size = 0;
     mm_free(vec->objs);
+    vec->objs = NULL;
 }
 
 /* Clear a vector, no free memory */

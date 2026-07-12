@@ -26,6 +26,11 @@ int klr_merge_block(KlrFunc *fn, void *data);
 int klr_dce_pass(KlrFunc *fn, void *data);
 
 void kl_optimize(KlrModule *m);
+
+void kl_do_ssa(KlrModule *m);
+void kl_exit_ssa(KlrModule *m);
+
+int klr_phi_coalescing_exit_ssa_pass(KlrFunc *fn);
 void kl_ssa_opt(KlrModule *m);
 
 #ifdef __cplusplus
