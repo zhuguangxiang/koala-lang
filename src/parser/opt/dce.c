@@ -44,6 +44,10 @@ static int has_side_effect(KlrInsn *insn)
             ASSERT(klr_is_local(_dst));
             KlrInsn *dst = (KlrInsn *)_dst;
 
+            if (_dst == src) {
+                return 0; /* No side-effect: Erase the MOVE */
+            }
+
             /*
              * STRATEGY: Determine if this MOVE has any meaningful side-effects.
              * If it returns 0, the instruction is "Dead" and can be erased.

@@ -552,6 +552,13 @@ static inline int klr_is_param(KlrValue *val)
     return 0;
 }
 
+static inline int klr_is_phi(KlrValue *val)
+{
+    if (!klr_is_insn(val)) return 0;
+    KlrInsn *insn = (KlrInsn *)val;
+    return insn->code == OP_IR_PHI;
+}
+
 static inline int klr_is_block(KlrValue *val)
 {
     if (val->kind == KLR_VALUE_BLOCK) return 1;
@@ -728,6 +735,15 @@ static inline int klr_get_nr_preds(KlrBasicBlock *bb)
 /* predecessor iteration */
 #define bb_pred_foreach(pred, bb) \
     list_foreach_expr(e_, KlrEdge, in_link, &(bb)->in_edges, pred = e_->src)
+
+/* entry block */
+static inline KlrBasicBlock *klr_entry_block(KlrFunc *fn)
+{
+    ASSERT(fn->sbb->num_outedges == 1);
+    KlrEdge *edge = edge_out_first(fn->sbb);
+    KlrBasicBlock *entry_bb = edge->dst;
+    return entry_bb;
+}
 
 static inline int klr_get_nr_succ(KlrBasicBlock *bb)
 {
@@ -990,6 +1006,8 @@ void klr_print_module(KlrModule *m, FILE *fp);
 /* build phi instruction */
 KlrInsn *klr_build_phi(KlrBasicBlock *bb, KlrValue *var, char *name);
 void klr_append_phi_operand(KlrInsn *phi, KlrValue *val, KlrBasicBlock *pred);
+
+void klr_build_move_before_terminator(KlrBasicBlock *bb, KlrValue *dst, KlrValue *src);
 
 static inline void set_raw_reg(KlrRawOper *r, int vreg)
 {

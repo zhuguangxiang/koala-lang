@@ -16,7 +16,6 @@
 #include "lsra.h"
 #include "opt.h"
 #include "parser.h"
-#include "ssa.h"
 #include "version.h"
 
 static char output[MAX_PATH_LEN + 8];

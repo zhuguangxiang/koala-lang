@@ -88,6 +88,7 @@ int replace_all_uses_with(KlrValue *val, KlrValue *def)
     KlrUse *use, *next;
     use_foreach_safe(use, next, def) {
         KlrInsn *insn = use->insn;
+
         if (insn->code == OP_MOVE && use->oper == &insn->opers[0]) {
             // special case for move instruction, only replace the source
             // operand, keep the destination operand unchanged.
@@ -492,6 +493,50 @@ void klr_append_phi_operand(KlrInsn *phi, KlrValue *val, KlrBasicBlock *pred)
 
     ASSERT(phi->phi_preds);
     phi->phi_preds[phi->filled - 1] = pred;
+}
+
+/**
+ * Insert a move instruction at the logical exit point of a predecessor block.
+ * Shared by PHI Coalescing (rewrite) and De-SSA passes.
+ *
+ * Handles conditional branches correctly: if the terminator is OP_IR_JMP_COND
+ * and its condition is defined in the same block, the move is inserted BEFORE
+ * the condition instruction to preserve Def-Use integrity.
+ *
+ * bb: Target predecessor basic block
+ * dst: Move destination (local slot)
+ * src: Move source (SSA value)
+ *
+ */
+void klr_build_move_before_terminator(KlrBasicBlock *bb, KlrValue *dst, KlrValue *src)
+{
+    /* Universal self-assignment filter */
+    ASSERT(dst != src && "Self-assignment detected");
+    ASSERT(bb && dst && src);
+    ASSERT(klr_is_local(dst) && "Destination must be a local variable");
+
+    KlrInsn *last = insn_last(bb);
+    ASSERT(insn_is_terminator(last));
+
+    KlrBuilder bldr;
+
+    if (last->code == OP_IR_JMP_COND) {
+        /* Conditional branch: condition may be defined in this block.
+         * Insert move BEFORE the condition instruction to avoid
+         * clobbering the condition value's live range. */
+        KlrValue *cond = insn_oper_value(last, 0);
+        if (klr_is_insn(cond)) {
+            klr_builder_before(&bldr, (KlrInsn *)cond);
+        } else {
+            /* Condition is a param/constant — safe to insert before terminator */
+            klr_builder_before(&bldr, last);
+        }
+    } else {
+        /* Unconditional jump / return: insert directly before terminator */
+        klr_builder_before(&bldr, last);
+    }
+
+    klr_build_move(&bldr, dst, src);
 }
 
 KlrInsn *klr_build_push(KlrBuilder *bldr, KlrValue *val, OpCode op)

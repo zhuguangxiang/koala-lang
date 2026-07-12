@@ -397,6 +397,7 @@ void kl_do_ssa(KlrModule *m)
     KlrFunc *fn;
     func_foreach(fn, m) {
         build_ssa(fn);
+        klr_dce_pass(fn, NULL);
         if (dump_ssa_enabled()) {
             fprintf(stdout, "--- IR Dump After ssa [@%s] ---\n", fn->name);
             klr_print_func(fn, stdout);
@@ -409,121 +410,11 @@ void kl_do_ssa(KlrModule *m)
         KlrFunc *fn;
         func_foreach(fn, kls) {
             build_ssa(fn);
+            klr_dce_pass(fn, NULL);
             if (dump_ssa_enabled()) {
                 fprintf(stdout, "--- IR Dump After ssa [@%s::%s] ---\n", kls->name, fn->name);
                 klr_print_func(fn, stdout);
             }
-        }
-    }
-}
-
-/**
- * De-SSA (PHI Elimination) for Koala KLR IR.
- * This version exclusively handles Local Op allocation, universal use remapping,
- * and predecessor copy insertion. The redundant PHI instructions are intentionally
- * preserved on the graph to be automatically swept away by the subsequent DCE pass.
- */
-static void exit_ssa(KlrFunc *func)
-{
-    ASSERT(func->sbb->num_outedges == 1);
-    KlrEdge *edge = edge_out_first(func->sbb);
-
-    KlrBasicBlock *entry_bb = edge->dst;
-
-    KlrBuilder bldr;
-    klr_builder_head(&bldr, entry_bb);
-
-    KlrBasicBlock *bb;
-
-    /*
-     * Step 1: Create all new local ops inside the Entry Basic Block
-     */
-    basic_block_foreach(bb, func) {
-        KlrInsn *insn;
-        insn_foreach(insn, bb) {
-            if (insn->code != OP_IR_PHI) break;
-
-            char buf[64];
-            int n = snprintf(buf, sizeof(buf), "%s_", insn->name);
-
-            /* Construct a traditional mutable local variable using the PHI register's name.
-             * This local op descriptor will permanently replace the abstract single-assignment
-             * register. */
-            KlrValue *local_op = klr_build_local_var(&bldr, insn->ts, atom_nstr(buf, n));
-
-            /* Temporarily attach this newly minted local op onto the phi descriptor's target
-             * field so subsequent remapping and copy insertion stages can cross-reference it
-             * instantly. */
-            insn->target = local_op;
-        }
-    }
-
-    /*
-     * Step 2: Replace all active uses of PHI with the local op.
-     * Enforcing this BEFORE inserting copy moves decouples the def-use network.
-     * This isolates the un-promoted copies from stepping onto each other's live footprints.
-     */
-    basic_block_foreach(bb, func) {
-        KlrInsn *insn;
-        insn_foreach(insn, bb) {
-            if (insn->code != OP_IR_PHI) break;
-            KlrValue *local_op = insn->target;
-
-            /* Universal Use Remapping:
-             * Remap every single dependent consumer instruction's operand slot
-             * from referencing this abstract PHI node to referencing the clean local op.
-             * This operation leaves the PHI node's use_list completely empty, rendering it dead.
-             */
-            replace_all_uses_with(local_op, (KlrValue *)insn);
-        }
-    }
-
-    /*
-     * Step 3: Insert physical OP_MOVE statements in all predecessor blocks
-     */
-    basic_block_foreach(bb, func) {
-        KlrInsn *insn;
-        insn_foreach(insn, bb) {
-            if (insn->code != OP_IR_PHI) break;
-            KlrValue *local_op = insn->target;
-
-            /* Loop over all valid filled predecessor paths to drop the corresponding version
-             * copies */
-            for (int i = 0; i < insn->filled; i++) {
-                KlrValue *incoming_ssa_val = insn_oper_value(insn, i);
-                KlrBasicBlock *pred_bb = insn->phi_preds[i];
-
-                /* Fetch the basic block terminator (e.g., branch or jump) located at the tail
-                 */
-                KlrInsn *last = insn_last(pred_bb);
-                ASSERT(insn_is_terminator(last));
-
-                /* Create a raw KLR physical assignment instruction: Move local_op,
-                 * incoming_ssa_val
-                 */
-                KlrBuilder _bldr;
-                if (last->code == OP_IR_JMP_COND) {
-                    KlrValue *cond = insn_oper_value(last, 0);
-                    if (klr_is_insn(cond)) {
-                        KlrInsn *_cond = (KlrInsn *)cond;
-                        klr_builder_before(&_bldr, _cond);
-                    } else {
-                        klr_builder_before(&_bldr, last);
-                    }
-                } else {
-                    klr_builder_before(&_bldr, last);
-                }
-                klr_build_move(&_bldr, local_op, incoming_ssa_val);
-            }
-        }
-    }
-
-    // remove all PHI instructions from the function's basic blocks
-    basic_block_foreach(bb, func) {
-        KlrInsn *insn, *nxt;
-        insn_foreach_safe(insn, nxt, bb) {
-            if (insn->code != OP_IR_PHI) break;
-            klr_erase_insn(insn);
         }
     }
 }
@@ -534,7 +425,7 @@ void kl_exit_ssa(KlrModule *m)
 
     KlrFunc *fn;
     func_foreach(fn, m) {
-        exit_ssa(fn);
+        klr_phi_coalescing_exit_ssa_pass(fn);
         if (dump_ssa_enabled()) {
             fprintf(stdout, "--- IR Dump After de-ssa [@%s] ---\n", fn->name);
             klr_print_func(fn, stdout);
@@ -546,9 +437,9 @@ void kl_exit_ssa(KlrModule *m)
         ASSERT(kls);
         KlrFunc *fn;
         func_foreach(fn, kls) {
-            exit_ssa(fn);
+            klr_phi_coalescing_exit_ssa_pass(fn);
             if (dump_ssa_enabled()) {
-                fprintf(stdout, "--- IR Dump After de-ssa [@%s] ---\n", fn->name);
+                fprintf(stdout, "--- IR Dump After de-ssa [@%s::%s] ---\n", kls->name, fn->name);
                 klr_print_func(fn, stdout);
             }
         }
