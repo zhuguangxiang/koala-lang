@@ -278,6 +278,9 @@ typedef struct _KlrEdge {
     KlrBasicBlock *dst;
     /* add to dest block */
     List in_link;
+
+    /* edge visited flag */
+    int visited;
 } KlrEdge;
 
 /* module(translation basic unit) */

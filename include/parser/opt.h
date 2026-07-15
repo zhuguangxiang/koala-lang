@@ -30,6 +30,8 @@ void kl_optimize(KlrModule *m);
 void kl_do_ssa(KlrModule *m);
 void kl_exit_ssa(KlrModule *m);
 
+void kl_do_sccp(KlrModule *m);
+
 int klr_phi_coalescing_exit_ssa_pass(KlrFunc *fn);
 void kl_ssa_opt(KlrModule *m);
 
