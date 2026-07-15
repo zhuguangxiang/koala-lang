@@ -1726,17 +1726,41 @@ static int peephole(KlMachFunc *mfn)
 
             if (a->op != OP_MOVE) continue;
 
-            if ((b->op >= OP_INT_ADD && b->op <= OP_INT_SHR_IMM) ||
-                (b->op >= OP_FLOAT_ADD && b->op <= OP_FLOAT_MOD) ||
-                (b->op >= OP_UINT_ADD_IMM && b->op <= OP_UINT_SHR_IMM)) {
-                if ((a->opers[0] == b->opers[1]) && (a->opers[1] == b->opers[0])) {
-                    KlrInsn *b_insn = b->origin;
-                    if (b_insn->use_count == 1) {
-                        KlrInsn *a_ref = (KlrInsn *)insn_oper_value(a->origin, 1);
-                        if (a_ref == b_insn) {
-                            a->dead = 1;
-                            b->opers[0] = a->opers[0];
-                        }
+            if (!((b->op >= OP_INT_ADD && b->op <= OP_INT_SHR_IMM) ||
+                  (b->op >= OP_FLOAT_ADD && b->op <= OP_FLOAT_MOD) ||
+                  (b->op >= OP_UINT_ADD_IMM && b->op <= OP_UINT_SHR_IMM))) {
+                continue;
+            }
+
+            /*
+            swap pattern
+            add r1, r2, r3
+            move r2, r1
+            --> add r2, r2, r3
+            */
+            // if ((a->opers[0] == b->opers[1]) && (a->opers[1] == b->opers[0])) {
+            //     KlrInsn *b_insn = b->origin;
+            //     if (b_insn->use_count == 1) {
+            //         KlrInsn *a_ref = (KlrInsn *)insn_oper_value(a->origin, 1);
+            //         if (a_ref == b_insn) {
+            //             a->dead = 1;
+            //             b->opers[0] = a->opers[0];
+            //         }
+            //     }
+            // }
+
+            /*
+            def-rewriting pattern
+            shr_imm r3, r3, #1
+            move r1, r3
+            */
+            if (a->opers[1] == b->opers[0]) {
+                KlrInsn *b_insn = b->origin;
+                if (b_insn->use_count == 1) {
+                    KlrInsn *a_ref = (KlrInsn *)insn_oper_value(a->origin, 1);
+                    if (a_ref == b_insn) {
+                        a->dead = 1;
+                        b->opers[0] = a->opers[0];
                     }
                 }
             }

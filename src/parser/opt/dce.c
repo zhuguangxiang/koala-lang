@@ -64,6 +64,7 @@ static int has_side_effect(KlrInsn *insn)
                 return 0; /* No side-effect: Erase the MOVE */
             }
 
+#if 0
             /*
              * RULE B: Immutable 'let' Propagation Check
              * If the target is a 'let' (Immutable), the
@@ -95,6 +96,7 @@ static int has_side_effect(KlrInsn *insn)
                     return 0; /* Parameter is immutable: Erase the MOVE */
                 }
             }
+#endif
 
             /*
              * DEFAULT: The variable is either a 'var' being read later,

@@ -15,8 +15,8 @@ func test_reuse(a int) int {
 
 // CHECK: 0: [R0] param %a
 // CHECK: %bb0(entry)[idx:0,pos:1-4]
-// CHECK: [R[[REG:[0-9]+]]] %1 = int.add_imm
-// CHECK: [R[[REG]]] %2 = int.add_imm
+// CHECK: [R0] %1 = int.add_imm
+// CHECK: [R0] %2 = int.add_imm
 
 func test_interference(n int) int {
     var a = n + 1
