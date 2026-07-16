@@ -688,6 +688,9 @@ void klr_remove_edge(KlrEdge *edge);
 /* remove all out edges of a basic block */
 void klr_remove_all_out_edges(KlrBasicBlock *bb);
 
+/* find an edge from 'src' to 'dst' */
+KlrEdge *klr_find_edge(KlrBasicBlock *src, KlrBasicBlock *dst);
+
 /* edge-out iteration */
 #define edge_out_foreach(edge, bb) list_foreach(edge, out_link, &(bb)->out_edges)
 
@@ -905,6 +908,13 @@ static inline int insn_is_terminator(KlrInsn *insn)
 #define insn_oper_value(insn, i) ({ \
     KlrOper *oper = insn_operand(insn, i); \
     oper_value(oper); \
+})
+
+#define insn_oper_value_as_bb(insn, i) ({ \
+    KlrOper *oper = insn_operand(insn, i); \
+    KlrValue *val = oper_value(oper); \
+    ASSERT(klr_is_block(val)); \
+    (KlrBasicBlock *)val; \
 })
 
 /* insn->oper.use iteration */

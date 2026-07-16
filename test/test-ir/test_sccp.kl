@@ -1,0 +1,228 @@
+// RUN: koalac %s --ssa --dump=ssa | filecheck %s
+
+func test_const_chain() int {
+    let a = 0 + 10
+    var b = a - 5
+    let c = b * 2
+    let d = c / 2
+    return d
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_const_chain] ---
+// CHECK-LABEL: func @test_const_chain() int64
+// CHECK: ret 5 int64
+
+func test_cmp_chain() bool {
+    let a = 100
+    let b = 200
+    let c = a + b
+    let d = c > 250
+    return d
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_cmp_chain] ---
+// CHECK-LABEL: func @test_cmp_chain() bool
+// CHECK: ret true bool
+
+func test_fold_true(n int) int {
+    if 3 > 2 {
+        return n + 1
+    } else {
+        return n + 100
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_fold_true] ---
+// CHECK-LABEL: func @test_fold_true(%n int64) int64
+// CHECK: %0 = add %n int64, 1 int64
+// CHECK: ret %0 int64
+// CHECK-NOT: add %n int64, 100
+
+func test_fold_false(n int) int {
+    if 2 > 3 {
+        return n + 100
+    } else {
+        return n + 2
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_fold_false] ---
+// CHECK-LABEL: func @test_fold_false(%n int64) int64
+// CHECK: %0 = add %n int64, 2 int64
+// CHECK: ret %0 int64
+// CHECK-NOT: add %n int64, 100
+
+func test_fold_eq(n int) int {
+    if 10 == 10 {
+        return n * 2
+    } else {
+        return n * 3
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_fold_eq] ---
+// CHECK-LABEL: func @test_fold_eq(%n int64) int64
+// CHECK: %0 = mul %n int64, 2 int64
+// CHECK: ret %0 int64
+// CHECK-NOT: mul %n int64, 3
+
+func test_dead_branch(n int) int {
+    if false {
+        return n + 999
+    } else {
+        return n + 1
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_dead_branch] ---
+// CHECK-LABEL: func @test_dead_branch(%n int64) int64
+// CHECK: %0 = add %n int64, 1 int64
+// CHECK: ret %0 int64
+// CHECK-NOT: 999
+
+func test_dead_else(n int) int {
+    if true {
+        return n + 10
+    } else {
+        return n + 999
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_dead_else] ---
+// CHECK-LABEL: func @test_dead_else(%n int64) int64
+// CHECK: %0 = add %n int64, 10 int64
+// CHECK: ret %0 int64
+// CHECK-NOT: 999
+
+func test_nested_dead(n int) int {
+    if false {
+        if n > 0 {
+            return 1
+        }
+        return 2
+    } else {
+        return n
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_nested_dead] ---
+// CHECK-LABEL: func @test_nested_dead(%n int64) int64
+// CHECK: ret %n int64
+// CHECK-NOT: ret 1 int64
+// CHECK-NOT: ret 2 int64
+
+func test_phi_same_const(n int) int {
+    var x = 0
+    if n > 0 {
+        x = 42
+    } else {
+        x = 42
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_phi_same_const] ---
+// CHECK-LABEL: func @test_phi_same_const(%n int64) int64
+// CHECK: ret 42 int64
+
+func test_phi_diff_const(n int) int {
+    var x = 0
+    if n > 0 {
+        x = 10
+    } else {
+        x = 20
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_phi_diff_const] ---
+// CHECK-LABEL: func @test_phi_diff_const(%n int64) int64
+// The phi merges two different constants, so it must NOT be folded.
+// CHECK: phi 10 int64, 20 int64
+// CHECK-NOT: ret 10 int64
+// CHECK-NOT: ret 20 int64
+
+func test_phi_unreachable_pred(n int) int {
+    var x = 0
+    if true {
+        x = 99
+    } else {
+        x = 1
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_phi_unreachable_pred] ---
+// CHECK-LABEL: func @test_phi_unreachable_pred(%n int64) int64
+// With the else-branch unreachable, phi has only one live input (99).
+// CHECK: ret 99 int64
+
+func test_loop_invariant(n int) int {
+    let c = 10 * 20
+    var i = 0
+    var k = 0
+    while i < n {
+        k = c + 1
+        i = i + 1
+    }
+    return k
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_loop_invariant] ---
+// CHECK-LABEL: func @test_loop_invariant(%n int64) int64
+// k is loop-invariant: c+1 = 200+1 = 201. After the loop, k = 201
+// if the loop executed at least once, or k = 0 if it didn't.
+// SCCP should propagate c = 200 and fold c + 1 to 201.
+// CHECK: %k.phi.0 = phi 201 int64, 0 int64
+// CHECK: ret %k.phi.0 int64
+// CHECK-NOT: 200
+
+func test_loop_const_false() int {
+    var x = 0
+    while false {
+        x = 999
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_loop_const_false] ---
+// CHECK-LABEL: func @test_loop_const_false() int64
+// The loop body is dead. x remains 0.
+// CHECK: ret 0 int64
+// CHECK-NOT: 999
+
+func test_nested_loop_const(n int) int {
+    var result = 0
+    var i = 0
+    while i < n {
+        let a = 3 + 4
+        result = result + a
+        i = i + 1
+    }
+    return result
+}
+
+// CHECK-LABEL: --- IR Dump After sccp [@test_nested_loop_const] ---
+// CHECK-LABEL: func @test_nested_loop_const(%n int64) int64
+// a = 3 + 4 = 7 is folded to constant 7.
+// CHECK: 7 int64
+// CHECK-NOT: add 3 int64, 4
+
+
+func test_phi_cleanup(n int) int {
+    var x = 0
+    if false {
+        x = 1
+    } else {
+        x = 2
+    }
+    if true {
+        return x
+    } else {
+        return 3
+    }
+}
+// CHECK-LABEL: --- IR Dump After sccp [@test_phi_cleanup] ---
+// CHECK-LABEL: func @test_phi_cleanup(%n int64) int64
+// The first if-else has a dead branch, so the phi should be simplified to just the live input (2).
+// CHECK: ret 2 int64

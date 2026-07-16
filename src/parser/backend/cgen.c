@@ -1296,14 +1296,8 @@ static void lower_jmp_cond(KlMachInsn *mi)
     KlrInsn *insn = mi->origin;
 
     KlrValue *cond = insn_oper_value(insn, 0);
-
-    KlrValue *val = insn_oper_value(insn, 2);
-    ASSERT(klr_is_block(val));
-    KlrBasicBlock *bb_true = (KlrBasicBlock *)val;
-
-    val = insn_oper_value(insn, 3);
-    ASSERT(klr_is_block(val));
-    KlrBasicBlock *bb_false = (KlrBasicBlock *)val;
+    KlrBasicBlock *bb_true = insn_oper_value_as_bb(insn, 2);
+    KlrBasicBlock *bb_false = insn_oper_value_as_bb(insn, 3);
 
     // next block is fallthrough (may be NULL)
     KlMachBlock *next = NEXT_BLOCK(mb);
@@ -1368,13 +1362,8 @@ static void lower_fused_jmp(KlMachInsn *mi)
     // next block is fallthrough (may be NULL)
     KlMachBlock *next = NEXT_BLOCK(mb);
 
-    KlrValue *val = insn_oper_value(insn, 2);
-    ASSERT(klr_is_block(val));
-    KlrBasicBlock *bb_true = (KlrBasicBlock *)val;
-
-    val = insn_oper_value(insn, 3);
-    ASSERT(klr_is_block(val));
-    KlrBasicBlock *bb_false = (KlrBasicBlock *)val;
+    KlrBasicBlock *bb_true = insn_oper_value_as_bb(insn, 2);
+    KlrBasicBlock *bb_false = insn_oper_value_as_bb(insn, 3);
 
     int fallthrough = (next && next->origin == bb_true);
 
@@ -1442,13 +1431,8 @@ static void lower_ref_fused_jmp(KlMachInsn *mi)
     // next block is fallthrough (may be NULL)
     KlMachBlock *next = NEXT_BLOCK(mb);
 
-    KlrValue *val = insn_oper_value(insn, 2);
-    ASSERT(klr_is_block(val));
-    KlrBasicBlock *bb_true = (KlrBasicBlock *)val;
-
-    val = insn_oper_value(insn, 3);
-    ASSERT(klr_is_block(val));
-    KlrBasicBlock *bb_false = (KlrBasicBlock *)val;
+    KlrBasicBlock *bb_true = insn_oper_value_as_bb(insn, 2);
+    KlrBasicBlock *bb_false = insn_oper_value_as_bb(insn, 3);
 
     int fallthrough = (next && next->origin == bb_true);
 

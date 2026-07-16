@@ -159,9 +159,9 @@ static void print_phi(KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = phi ");
-    for (int i = 0; i < insn->num_opers; i++) {
+    for (int i = 0; i < insn->filled; i++) {
         print_operand(&insn->opers[i], fp);
-        if (i < insn->num_opers - 1) fprintf(fp, ", ");
+        if (i < insn->filled - 1) fprintf(fp, ", ");
     }
 }
 

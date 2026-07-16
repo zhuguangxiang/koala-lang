@@ -427,6 +427,7 @@ void kl_exit_ssa(KlrModule *m)
     func_foreach(fn, m) {
         klr_phi_coalescing_exit_ssa_pass(fn);
         klr_dce_pass(fn, NULL);
+        klr_normalize_pass(fn, NULL);
         if (dump_ssa_enabled()) {
             fprintf(stdout, "--- IR Dump After de-ssa [@%s] ---\n", fn->name);
             klr_print_func(fn, stdout);
@@ -440,6 +441,7 @@ void kl_exit_ssa(KlrModule *m)
         func_foreach(fn, kls) {
             klr_phi_coalescing_exit_ssa_pass(fn);
             klr_dce_pass(fn, NULL);
+            klr_normalize_pass(fn, NULL);
             if (dump_ssa_enabled()) {
                 fprintf(stdout, "--- IR Dump After de-ssa [@%s::%s] ---\n", kls->name, fn->name);
                 klr_print_func(fn, stdout);

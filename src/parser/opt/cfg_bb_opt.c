@@ -31,9 +31,9 @@ int klr_bb_branch_folding(KlrFunc *fn, void *data)
         int val = konst->bval;
         KlrBasicBlock *dst;
         if (val) {
-            dst = (KlrBasicBlock *)insn_oper_value(insn, 2);
+            dst = insn_oper_value_as_bb(insn, 2);
         } else {
-            dst = (KlrBasicBlock *)insn_oper_value(insn, 3);
+            dst = insn_oper_value_as_bb(insn, 3);
         }
         ASSERT(dst->kind == KLR_VALUE_BLOCK);
 
@@ -130,26 +130,48 @@ int klr_remove_only_jump_block(KlrFunc *func, void *data)
         ASSERT(_dst->kind == KLR_VALUE_BLOCK);
         KlrBasicBlock *dst = (KlrBasicBlock *)_dst;
 
+        int has_phi_from_self = 0;
+        KlrInsn *phi_insn;
+        insn_foreach(phi_insn, dst) {
+            if (phi_insn->code != OP_IR_PHI) break;
+            for (int i = 0; i < phi_insn->filled; i++) {
+                if (phi_insn->phi_preds[i] == bb) {
+                    has_phi_from_self = 1;
+                    break;
+                }
+            }
+            if (has_phi_from_self) break;
+        }
+
+        if (has_phi_from_self) {
+            log_info("skip removing '%s' because successor '%s' has PHI from this block",
+                     klr_block_name(bb), klr_block_name(dst));
+            continue;
+        }
+
+        log_info("removing only jump block: '%%%s' -> '%%%s'", klr_block_name(bb),
+                 klr_block_name(dst));
+
         /* A -> B -> C */
         insn_foreach(insn, dst) {
             if (insn->code != OP_IR_PHI) break;
 
             for (int i = 0; i < insn->filled; i++) {
-                if (insn->phi_preds[i] == bb) {
-                    // [Critical Assertion]: If C's Phi points to the empty block B,
-                    // B MUST have exactly one predecessor! Otherwise, B cannot provide
-                    // a single deterministic value to C, which violates the SSA property.
-                    ASSERT(bb->num_inedges == 1);
+                if (insn->phi_preds[i] != bb) continue;
 
-                    KlrEdge *in_edge = edge_in_first(bb);
-                    KlrBasicBlock *pred = in_edge->src;
+                // [Critical Assertion]: If C's Phi points to the empty block B,
+                // B MUST have exactly one predecessor! Otherwise, B cannot provide
+                // a single deterministic value to C, which violates the SSA property.
+                ASSERT(bb->num_inedges == 1);
 
-                    log_info("[empty-block-remove] remap phi pred from '%%%s' to '%%%s'",
-                             klr_block_name(bb), klr_block_name(pred));
+                KlrEdge *in_edge = edge_in_first(bb);
+                KlrBasicBlock *pred = in_edge->src;
 
-                    // Redirect the incoming block of C's Phi from B to A
-                    insn->phi_preds[i] = pred;
-                }
+                log_info("[empty-block-remove] remap phi pred from '%%%s' to '%%%s'",
+                         klr_block_name(bb), klr_block_name(pred));
+
+                // Redirect the incoming block of C's Phi from B to A
+                insn->phi_preds[i] = pred;
             }
         }
 

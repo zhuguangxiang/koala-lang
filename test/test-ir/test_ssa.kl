@@ -99,9 +99,6 @@ func test4_1(a int, b int) int {
 // CHECK-LABEL: func @test4_1(%a int64, %b int64) int64
 // CHECK: %x = local int64
 // CHECK: move %x int64, %a int64
-// CHECK: %0 = cmpgt %b int64, 0 int64
-// CHECK: branch %0 bool, label %bb1, label %bb1
-
 // CHECK: ret %x int64
 
 func test5(n int) int {
@@ -284,16 +281,13 @@ func test10(a int) int {
 // CHECK-LABEL: func @test4_1(%a int64, %b int64) int64
 // CHECK: %x = local int64
 // CHECK: move %x int64, %a int64
-// CHECK: %0 = cmpgt %b int64, 0 int64
-// CHECK: branch %0 bool, label %bb1, label %bb1
-
 // CHECK: ret %x int64
 
 // CHECK-LABEL: --- IR Dump After de-ssa [@test5] ---
 // CHECK-LABEL: func @test5(%n int64) int64
 // CHECK: %lc.i.phi.0 = local int64
 // CHECK: move %lc.i.phi.0 int64, 0 int64
-// CHECK: %0 = cmplt 0 int64, %n int64
+// CHECK: %0 = cmpge %n int64, 0 int64
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
 // CHECK: %1 = add %lc.i.phi.0 int64, 1

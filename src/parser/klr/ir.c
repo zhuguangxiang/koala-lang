@@ -524,6 +524,15 @@ void klr_remove_all_out_edges(KlrBasicBlock *bb)
     }
 }
 
+KlrEdge *klr_find_edge(KlrBasicBlock *src, KlrBasicBlock *dst)
+{
+    KlrEdge *edge;
+    edge_out_foreach(edge, src) {
+        if (edge->dst == dst) return edge;
+    }
+    return NULL;
+}
+
 static int __const_eq__(void *e1, void *e2)
 {
     KlrConst *k1 = CONTAINER_OF(e1, KlrConst, hnode);
@@ -1023,7 +1032,25 @@ char *klr_value_name(KlrValue *val)
         }
     } else {
         if (val->tag == -1) {
-            snprintf(val->print_name, sizeof(val->print_name), "%%<unnamed>");
+            if (klr_is_insn(val)) {
+                KlrInsn *insn = (KlrInsn *)val;
+                if (insn->code == OP_MOVE) {
+                    KlrValue *dst = insn_oper_value(insn, 0);
+                    KlrValue *src = insn_oper_value(insn, 1);
+                    snprintf(val->print_name, sizeof(val->print_name), "mov %s, %s",
+                             klr_value_name(dst), klr_value_name(src));
+                } else if (insn->code == OP_RET) {
+                    KlrValue *v = insn_oper_value(insn, 0);
+                    snprintf(val->print_name, sizeof(val->print_name), "ret %s",
+                             klr_value_name(v));
+                } else if (insn->code == OP_RET_VOID) {
+                    snprintf(val->print_name, sizeof(val->print_name), "ret void");
+                } else {
+                    snprintf(val->print_name, sizeof(val->print_name), "%%<unnamed>");
+                }
+            } else {
+                snprintf(val->print_name, sizeof(val->print_name), "%%<unnamed>");
+            }
         } else {
             snprintf(val->print_name, sizeof(val->print_name), "%%%d", val->tag);
         }

@@ -1,0 +1,378 @@
+// RUN: koalac %s --opt --dump=ir | filecheck %s
+
+// Test: SCCP constant propagation through an arithmetic chain.
+// All intermediate results are constants:
+//   a = 0 + 10 = 10
+//   b = 10 - 5 = 5
+//   c = 5 * 2 = 10
+//   d = 10 / 2 = 5
+// SCCP should propagate these constants and fold the entire chain,
+// so the function reduces to 'return 5'.
+
+func test_const_chain() int {
+    let a = 0 + 10
+    let b = a - 5
+    let c = b * 2
+    let d = c / 2
+    return d
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination
+// CHECK-LABEL: func @test_const_chain() int64
+// CHECK: ret 5 int64
+
+// Test: SCCP constant propagation through bitwise operations.
+//   x = 5 | 255 = 255
+//   y = 255 & 255 = 255
+//   z = 255 << 1 = 510
+//   w = 510 >> 1 = 255
+// After SCCP, the entire chain should fold to 255.
+
+func test_bitwise_chain() int {
+    let x = 5 | 255
+    let y = x & 255
+    let z = y << 1
+    let w = z >> 1
+    return w
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination
+// CHECK-LABEL: func @test_bitwise_chain() int64
+// CHECK: ret 255 int64
+
+// Test: SCCP propagates constants through a multi-step computation
+// that interleaves arithmetic and comparisons.
+//   a = 100
+//   b = 200
+//   c = a + b = 300
+//   d = c > 250 -> true (constant bool)
+// The return value should be the constant true.
+
+func test_cmp_chain() bool {
+    let a = 100
+    let b = 200
+    let c = a + b
+    let d = c > 250
+    return d
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination
+// CHECK-LABEL: func @test_cmp_chain() bool
+// CHECK: ret #true
+// RUN: koalac %s --opt --dump=ir | filecheck %s
+
+// Test: SCCP branch folding with known-true condition.
+// The condition (3 > 2) is a compile-time constant (true).
+// SCCP should determine the branch is always taken, fold it to
+// an unconditional jump, and eliminate the else branch entirely.
+
+func test_fold_true(n int) int {
+    if 3 > 2 {
+        return n + 1
+    } else {
+        return n + 100
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination
+// CHECK-LABEL: func @test_fold_true(%n int64) int64
+// The else branch should be eliminated. Only the then-branch remains.
+// CHECK: %0 = add %n int64, 1 int64
+// CHECK: ret %0 int64
+// CHECK-NOT: add %n int64, 100
+
+// Test: SCCP branch folding with known-false condition.
+// The condition (2 > 3) is a compile-time constant (false).
+// SCCP should fold the branch to the else path and eliminate
+// the then branch.
+
+func test_fold_false(n int) int {
+    if 2 > 3 {
+        return n + 100
+    } else {
+        return n + 2
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination
+// CHECK-LABEL: func @test_fold_false(%n int64) int64
+// The then branch should be eliminated. Only the else-branch remains.
+// CHECK: %0 = add %n int64, 2 int64
+// CHECK: ret %0 int64
+// CHECK-NOT: add %n int64, 100
+
+// Test: SCCP folding of equality comparison on constants.
+// 10 == 10 is true, so the if-branch should be taken unconditionally.
+
+func test_fold_eq(n int) int {
+    if 10 == 10 {
+        return n * 2
+    } else {
+        return n * 3
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination
+// CHECK-LABEL: func @test_fold_eq(%n int64) int64
+// CHECK: mul %n int64, 2 int64
+// CHECK-NOT: mul %n int64, 3
+// RUN: koalac %s --opt --dump=ir | filecheck %s
+
+// Test: SCCP unreachable code elimination with constant false condition.
+// The branch condition 'false' is known at compile time.
+// SCCP marks the then-branch as unreachable, and only the else-branch
+// (containing the live code) should remain in the optimized IR.
+
+func test_dead_branch(n int) int {
+    if false {
+        return n + 999
+    } else {
+        return n + 1
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination
+// CHECK-LABEL: func @test_dead_branch(%n int64) int64
+// The dead branch (n + 999) should not appear in the output.
+// CHECK: %0 = add %n int64, 1 int64
+// CHECK: ret %0 int64
+// CHECK-NOT: 999
+
+// Test: SCCP unreachable code with constant true condition.
+// The else-branch is unreachable and should be eliminated.
+
+func test_dead_else(n int) int {
+    if true {
+        return n + 10
+    } else {
+        return n + 999
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination
+// CHECK-LABEL: func @test_dead_else(%n int64) int64
+// CHECK: %0 = add %n int64, 10 int64
+// CHECK: ret %0 int64
+// CHECK-NOT: 999
+
+// Test: Nested unreachable code.
+// The outer condition is constant false, so the entire outer
+// then-branch (including the inner if) is unreachable.
+// Only the outer else-branch survives.
+
+func test_nested_dead(n int) int {
+    if false {
+        if n > 0 {
+            return 1
+        }
+        return 2
+    } else {
+        return n
+    }
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination
+// CHECK-LABEL: func @test_nested_dead(%n int64) int64
+// All the inner branches and the constant 1, 2 should be gone.
+// CHECK: ret %n int64
+// CHECK-NOT: ret 1 int64
+// CHECK-NOT: ret 2 int64
+// RUN: koalac %s --ssa --dump=ssa | filecheck %s
+
+// Test: SCCP phi node constant merging - same constant from both branches.
+// Both branches of the if assign x = 42, so the phi at the merge point
+// is phi(42, 42) = 42. SCCP should determine the phi result is constant 42.
+// After optimization, the return should be the constant 42.
+
+func test_phi_same_const(n int) int {
+    var x = 0
+    if n > 0 {
+        x = 42
+    } else {
+        x = 42
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test_phi_same_const] ---
+// CHECK-LABEL: func @test_phi_same_const(%n int64) int64
+// After SCCP, the phi should be resolved to constant 42.
+// CHECK: ret 42 int64
+
+// Test: SCCP phi node with different constants - result is BOTTOM.
+// The two branches assign different constants (10 vs 20), so the phi
+// is phi(10, 20) = BOTTOM (not a known constant). SCCP must NOT fold it.
+
+func test_phi_diff_const(n int) int {
+    var x = 0
+    if n > 0 {
+        x = 10
+    } else {
+        x = 20
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test_phi_diff_const] ---
+// CHECK-LABEL: func @test_phi_diff_const(%n int64) int64
+// The phi merges two different constants, so it must NOT be folded.
+// CHECK: phi 10 int64, 20 int64
+// CHECK-NOT: ret 10 int64
+// CHECK-NOT: ret 20 int64
+
+// Test: SCCP phi node where one branch is unreachable.
+// The condition is constant true, so only the then-branch is executable.
+// The phi has only one executable predecessor with value 99.
+// SCCP should determine the phi = 99.
+
+func test_phi_unreachable_pred(n int) int {
+    var x = 0
+    if true {
+        x = 99
+    } else {
+        x = 1
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test_phi_unreachable_pred] ---
+// CHECK-LABEL: func @test_phi_unreachable_pred(%n int64) int64
+// With the else-branch unreachable, phi has only one live input (99).
+// CHECK: ret 99 int64
+// RUN: koalac %s --ssa --dump=ssa | filecheck %s
+
+// Test: SCCP on a loop where a computation inside the loop body is
+// actually a loop-invariant constant.
+// 'c' is assigned 10 * 20 = 200 before the loop. Inside the loop,
+// 'k = c + 1 = 201' is a constant on every iteration. SCCP should
+// propagate these constants, determining k = 201 regardless of the
+// loop iteration count.
+
+func test_loop_invariant(n int) int {
+    let c = 10 * 20
+    var i = 0
+    var k = 0
+    while i < n {
+        k = c + 1
+        i = i + 1
+    }
+    return k
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test_loop_invariant] ---
+// CHECK-LABEL: func @test_loop_invariant(%n int64) int64
+// k is loop-invariant: c+1 = 200+1 = 201. After the loop, k = 201
+// if the loop executed at least once, or k = 0 if it didn't.
+// SCCP should propagate c = 200 and fold c + 1 to 201.
+// CHECK: 200
+// CHECK: 201
+
+// Test: SCCP on a loop with a constant condition.
+// 'while false' means the loop body never executes.
+// SCCP should determine the loop is unreachable and propagate
+// the initial values directly to the return.
+
+func test_loop_const_false() int {
+    var x = 0
+    while false {
+        x = 999
+    }
+    return x
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test_loop_const_false] ---
+// CHECK-LABEL: func @test_loop_const_false() int64
+// The loop body is dead. x remains 0.
+// CHECK: ret 0 int64
+// CHECK-NOT: 999
+
+// Test: SCCP on a nested loop with constant-invariant inner value.
+// The outer loop runs n times. The inner computation 'a = 3 + 4 = 7'
+// is a constant that doesn't depend on any loop variable.
+// SCCP should fold a = 7 and propagate it through the loop.
+
+func test_nested_loop_const(n int) int {
+    var result = 0
+    var i = 0
+    while i < n {
+        let a = 3 + 4
+        result = result + a
+        i = i + 1
+    }
+    return result
+}
+
+// CHECK-LABEL: --- IR Dump After ssa [@test_nested_loop_const] ---
+// CHECK-LABEL: func @test_nested_loop_const(%n int64) int64
+// a = 3 + 4 = 7 is folded to constant 7.
+// CHECK: 7 int64
+// CHECK-NOT: add 3 int64, 4
+// RUN: koala %s | filecheck %s
+
+// Test: Runtime verification that SCCP optimizations preserve correctness.
+// This program mixes constant and variable computations so that SCCP
+// can partially optimize while the final result must still be correct
+// at runtime.
+
+func const_chain() int {
+    // SCCP should fold: (0 + 10 - 5) * 2 / 2 = 5
+    let a = 0 + 10
+    let b = a - 5
+    let c = b * 2
+    let d = c / 2
+    return d
+}
+
+func branch_fold() int {
+    // SCCP folds 3 > 2 to true, returns 42
+    if 3 > 2 {
+        return 42
+    } else {
+        return -1
+    }
+}
+
+func mixed_computation(n int) int {
+    // SCCP folds the constant parts:
+    //   base = 10 + 20 = 30
+    //   factor = 2 * 3 = 6
+    // Result: 30 + n * 6
+    let base = 10 + 20
+    let factor = 2 * 3
+    return base + n * factor
+}
+
+func dead_code_safe() int {
+    // The dead branch must be eliminated, but the live branch
+    // must produce the correct result.
+    if false {
+        return 999
+    }
+    return 7
+}
+
+func phi_merge() int {
+    // Both branches assign the same constant, result is 42.
+    var x = 0
+    if 10 > 5 {
+        x = 42
+    } else {
+        x = 42
+    }
+    return x
+}
+
+func main() {
+    print(const_chain())
+    print(branch_fold())
+    print(mixed_computation(5))
+    print(dead_code_safe())
+    print(phi_merge())
+}
+
+// CHECK: 5
+// CHECK: 42
+// CHECK: 60
+// CHECK: 7
+// CHECK: 42
+测试用例，看是否有补充

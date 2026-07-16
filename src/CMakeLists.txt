@@ -41,6 +41,7 @@ set(PARSER_SRC
     parser/opt/opt.c
     parser/opt/pass.c
     parser/opt/phi_coalescing.c
+    parser/opt/sccp.c
     )
 
 add_library(parser STATIC ${PARSER_SRC})

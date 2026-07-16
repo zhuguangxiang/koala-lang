@@ -124,6 +124,9 @@ void kl_ssa_opt(KlrModule *m)
     KlrPassManager pm;
     pm_init(&pm, "ssa_opt_pass");
 
+    // normalize_pass
+    pm_add_pass(&pm, &normalize_pass, dump);
+
     // 1. cfg_bb_opt_pass
     KlrPassManager cfg_bb_opt_pm;
     pm_init(&cfg_bb_opt_pm, "cfg_bb_ssa_opt_pass");
@@ -138,15 +141,16 @@ void kl_ssa_opt(KlrModule *m)
     pm_add_pass(&pm, &dce_pass, dump);
 
     run_pipeline(&pm, m);
+
     kl_do_ssa(m);
+
+    kl_do_sccp(m);
 
     kl_exit_ssa(m);
     run_pipeline(&pm, m);
 
     pm_fini(&cfg_bb_opt_pm);
     pm_fini(&pm);
-
-    kl_optimize(m);
 }
 
 #ifdef __cplusplus

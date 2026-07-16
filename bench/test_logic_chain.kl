@@ -14,5 +14,5 @@ func test_logic_chain(n int) int {
 
 func main() {
     let n = 100_000_000
-    test_logic_chain(n)
+    print(test_logic_chain(n))
 }

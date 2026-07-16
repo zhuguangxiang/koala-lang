@@ -1,0 +1,68 @@
+// RUN: koala %s --ssa | filecheck %s
+
+// Test: Runtime verification that SCCP optimizations preserve correctness.
+// This program mixes constant and variable computations so that SCCP
+// can partially optimize while the final result must still be correct
+// at runtime.
+
+func const_chain() int {
+    // SCCP should fold: (0 + 10 - 5) * 2 / 2 = 5
+    let a = 0 + 10
+    let b = a - 5
+    let c = b * 2
+    let d = c / 2
+    return d
+}
+
+func branch_fold() int {
+    // SCCP folds 3 > 2 to true, returns 42
+    if 3 > 2 {
+        return 42
+    } else {
+        return -1
+    }
+}
+
+func mixed_computation(n int) int {
+    // SCCP folds the constant parts:
+    //   base = 10 + 20 = 30
+    //   factor = 2 * 3 = 6
+    // Result: 30 + n * 6
+    let base = 10 + 20
+    let factor = 2 * 3
+    return base + n * factor
+}
+
+func dead_code_safe() int {
+    // The dead branch must be eliminated, but the live branch
+    // must produce the correct result.
+    if false {
+        return 999
+    }
+    return 7
+}
+
+func phi_merge() int {
+    // Both branches assign the same constant, result is 42.
+    var x = 0
+    if 10 > 5 {
+        x = 42
+    } else {
+        x = 42
+    }
+    return x
+}
+
+func main() {
+    print(const_chain())
+    print(branch_fold())
+    print(mixed_computation(5))
+    print(dead_code_safe())
+    print(phi_merge())
+}
+
+// CHECK: 5
+// CHECK: 42
+// CHECK: 60
+// CHECK: 7
+// CHECK: 42
