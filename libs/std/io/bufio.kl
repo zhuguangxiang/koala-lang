@@ -1,31 +1,80 @@
 
-pub class BufferedReader : Reader {
+pub class BufReader : Reader {
+    let inner Reader
+    let buf bytes
+    var start int
+    var end int
 
-    @native
-    pub func __init__(inner Reader, buf_size = 8192) {}
+    pub func __init__(_inner Reader, buf_size = 8192) {
+        inner = _inner
+        buf = bytes(buf_size)
+        start = 0
+        end = 0
+    }
 
-    @native
-    pub func read_until(buf bytes, delim uint8) int {}
+    pub func read(out bytes) int {
+        if start >= end {
+            start = 0
+            end = inner.read(buf)
+            if end <= 0 {
+                return end
+            }
+        }
 
-    @native
-    pub func read_line(buf bytes) int {}
+        let avail = end - start
+        let n = min(avail, len(out))
+        let _end = start + n
 
-    @native
-    pub func read(bs bytes) int {}
+        out.copy_from(buf, start, _end);
+        // start += n
+        start = _end
+        return n
+    }
 
-    @native
-    pub func lines() Lines {}
+    pub func avail() int {
+        return end - start
+    }
 }
 
+pub class BufWriter : Writer {
+    let inner Writer
+    let buf bytes
+    var pos int
 
-pub class BufferedWriter : Writer {
+    pub func __init__(_inner Writer, buf_size = 8192) {
+        inner = _inner
+        buf = bytes(buf_size)
+        pos = 0
+    }
 
-    @native
-    pub func __init__(inner Writer, buf_size = 8192) {}
+    func _flush() {
+        if pos > 0 {
+            inner.write(buf.view(0, pos))
+            pos = 0
+        }
+    }
 
-    @native
-    pub func write(bs bytes) int {}
+    pub func write(data bytes) int {
+        let data_len = len(data)
+        let buf_len = len(buf)
 
-    @native
-    pub func flush() {}
+        if data_len >= buf_len {
+            _flush()
+            return inner.write(data)
+        }
+
+        if pos + data_len > buf_len {
+            _flush()
+        }
+
+        let n = data.copy_to(buf, pos)
+        // pos += n
+        pos = pos + n
+        return n
+    }
+
+    pub func flush() {
+        _flush()
+        inner.flush()
+    }
 }

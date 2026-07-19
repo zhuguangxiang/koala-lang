@@ -3,22 +3,23 @@ pub class File : Reader & Writer & Seeker & Closable {
 
     pub let path str
     pub let mode str
+    var fd int
 
-    @native
+    // @native
     pub func __init__(_path str, _mode str) {}
 
-    @native
+    // @native
     pub func read(bs bytes) int {}
 
-    @native
+    // @native
     pub func write(bs bytes) int {}
 
-    @native
+    // @native
     pub func seek(offset int, whence int) int {}
 
-    @native
+    // @native
     pub func close() {}
 
-    @native
+    // @native
     pub func flush() {}
 }

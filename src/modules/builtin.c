@@ -3,7 +3,6 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "buffer.h"
 #include "bytesobj.h"
 #include "listobj.h"
 #include "modobj.h"

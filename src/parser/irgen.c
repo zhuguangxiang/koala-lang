@@ -5,7 +5,6 @@
 
 #include "cmd.h"
 #include "parser.h"
-#include "pass.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -417,6 +416,26 @@ static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *cal
     }
 }
 
+static void update_call_args(ParserState *ps, KlrValue **args, int nargs, TypeSpec *proto_ts)
+{
+    if (!proto_ts) {
+        ASSERT(nargs == 0);
+        return;
+    }
+
+    ASSERT(proto_ts->kind == TYPE_PROTO);
+    Vector *proto_args = proto_ts->proto_type.args;
+    int proto_nargs = vector_size(proto_args);
+    ASSERT(proto_nargs == nargs);
+
+    for (int i = 0; i < nargs; i++) {
+        KlrValue *arg = args[i];
+        TypeSpec *param_ts = vector_at(proto_args, i);
+        KlrValue *casted_arg = _build_obj_intf_upcast(ps, arg, param_ts, "");
+        if (casted_arg) args[i] = casted_arg;
+    }
+}
+
 static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *init_fn,
                                 KlrValue **args, int nargs, TypeSpec *ret_ts)
 {
@@ -448,27 +467,28 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
         for (int i = 0; i < nargs; i++) {
             _args[i + 1] = args[i];
         }
+        TypeSpec *init_fn_ts;
+        if (init_fn->kind == KLR_VALUE_EXT_FUNC) {
+            init_fn_ts = ((KlrExtFunc *)init_fn)->proto;
+        } else {
+            KlrFunc *func = (KlrFunc *)init_fn;
+            Vector *params = vector_create_ptr();
+            KlrValue *arg;
+            vector_foreach(arg, &func->params) {
+                if (arg == func->self) continue;
+                TypeSpec *ts = arg->ts;
+                vector_push_back(params, &ts);
+            }
+            init_fn_ts = func_type_spec(params, func->ts);
+        }
+        update_call_args(ps, _args + 1, nargs, init_fn_ts);
+        klr_builder_end(&bldr, ps->scope->bb);
         klr_build_call(&bldr, init_fn, no_type_spec(), _args, nargs + 1, "");
     } else {
         NYI();
     }
 
     return ret;
-}
-
-static void update_call_args(ParserState *ps, KlrValue **args, int nargs, TypeSpec *proto_ts)
-{
-    ASSERT(proto_ts->kind == TYPE_PROTO);
-    Vector *proto_args = proto_ts->proto_type.args;
-    int proto_nargs = vector_size(proto_args);
-    ASSERT(proto_nargs == nargs);
-
-    for (int i = 0; i < nargs; i++) {
-        KlrValue *arg = args[i];
-        TypeSpec *param_ts = vector_at(proto_args, i);
-        KlrValue *casted_arg = _build_obj_intf_upcast(ps, arg, param_ts, "");
-        if (casted_arg) args[i] = casted_arg;
-    }
 }
 
 static void emit_ir_call(ParserState *ps, Expr *exp)
@@ -542,6 +562,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
             KlrExtKlass *kls_ir_val = (KlrExtKlass *)(kls_sym->ir_val);
             KlrValue *_val = klr_add_ext_method(kls_ir_val, func_sym->ret, _sym->name);
             _sym->ir_val = _val;
+            ((KlrExtFunc *)_val)->proto = func_sym->ts;
         }
 
         KlrValue *init_fn = _sym->ir_val;
@@ -570,9 +591,27 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                 ret = klr_build_call(&bldr, callee, exp->ts, _args, size, "");
             }
         } else {
-            KlrBuilder bldr;
-            klr_builder_end(&bldr, ps->scope->bb);
-            ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+            Symbol *parent = lhs->sym->parent;
+            if (parent && parent->kind == SYM_CLASS) {
+                FuncSymbol *cur_fn = get_current_function(ps);
+                ASSERT(cur_fn->parent == parent);
+                // method call
+                KlrValue *_args[size + 1];
+                _args[0] = METHOD_SELF;
+                for (int i = 0; i < size; i++) {
+                    _args[i + 1] = ir_args[i];
+                }
+                size += 1;
+                KlrBuilder bldr;
+                klr_builder_end(&bldr, ps->scope->bb);
+                ret = klr_build_call(&bldr, callee, exp->ts, _args, size, "");
+            } else if (!parent || parent->kind == SYM_PACKAGE) {
+                KlrBuilder bldr;
+                klr_builder_end(&bldr, ps->scope->bb);
+                ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+            } else {
+                UNREACHABLE();
+            }
         }
     }
 
@@ -708,6 +747,11 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
                 } else if (_sym->kind == SYM_CLASS) {
                     KlassSymbol *kls_sym = (KlassSymbol *)_sym;
                     KlrValue *_val = kls_sym->ir_val;
+                    if (!_val) {
+                        _val = klr_add_ext_klass(MOD, kls_sym->path, kls_sym->instance_ts,
+                                                 kls_sym->name);
+                        kls_sym->ir_val = _val;
+                    }
                     ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
                     KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
                     exp->ir_val = klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);

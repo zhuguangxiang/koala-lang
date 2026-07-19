@@ -1,15 +1,15 @@
 
 pub class Lines : Iterator[bytes] {
 
-    @native
+    // @native
     pub func __init__(r Reader) {}
 
-    @native
+    // @native
     pub func next_line(out bytes) bool {}
 
-    @native
+    // @native
     pub func __has_next__() bool {}
 
-    @native
+    // @native
     pub func __next__() bytes {}
 }

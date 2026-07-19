@@ -267,10 +267,10 @@ static Object *_load_module(char *path, char *pkg_path)
     KlcKlass *cls;
     vector_foreach(cls, cls_objs) {
         if (!cls) continue;
+        if (cls->flags & KLC_FLAGS_TRAIT) continue;
+
         KlcConst *kls_kc = klc_get_const(klc, cls->name_index);
         TypeObject *tp = kl_new_type(kls_kc->sval, cls->flags);
-
-        if (cls->flags & KLC_FLAGS_TRAIT) continue;
 
         KlcVar *var;
         vector_foreach(var, &cls->fields) {

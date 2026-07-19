@@ -10,7 +10,7 @@ func main() {
 
     let v = bs.view(3, 6)
     print("bs[3:6]", v)
-    v[0] = uint8(68)
+    v[0] = 68
     print(bs, v)
 
     print(bs.view(0, 3).index(90))

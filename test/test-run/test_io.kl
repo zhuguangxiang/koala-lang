@@ -1,0 +1,27 @@
+
+import "std/io"
+
+func main() {
+    let s = "Hello, World!Good Luck, boys!\n"
+    print(s)
+
+    let sio = io.StringIO(s)
+    print(sio)
+
+    let buf = bytes(8)
+    while {
+        let n = sio.read(buf)
+        print(buf, n)
+        if n <= 0 { break; }
+    }
+
+    let br = io.BufReader(sio)
+    print(br)
+
+    buf.zero()
+    while {
+        let n = br.read(buf)
+        print(buf, n)
+        if n <= 0 { break; }
+    }
+}

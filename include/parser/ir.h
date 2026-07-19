@@ -379,6 +379,7 @@ typedef struct _KlrExtFunc {
     KLR_VALUE_HEAD
     KlrExtModule *module;
     KlrExtKlass *klass;
+    TypeSpec *proto;
 } KlrExtFunc;
 
 typedef struct _KlrExtIntf {

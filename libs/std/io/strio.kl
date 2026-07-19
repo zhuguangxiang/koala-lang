@@ -1,13 +1,25 @@
 
-
 pub class StringIO : Reader & Seeker {
 
-    @native
-    pub func __init__(s str) {}
+    let buf bytes
+    var pos int
 
-    @native
-    pub func read(bs bytes) int {}
+    pub func __init__(s str) {
+        buf = s.to_bytes()
+        pos = 0
+    }
 
-    @native
+    pub func read(bs bytes) int {
+        let available = len(buf) - pos
+        if (available <= 0) { return 0; }
+
+        let n = min(available, len(bs))
+        bs.copy_from(buf, pos, pos + n)
+        // pos += n
+        pos = pos + n
+        return n
+    }
+
+    // @native
     pub func seek(offset int, whence int) int {}
 }

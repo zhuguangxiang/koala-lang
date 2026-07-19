@@ -41,16 +41,19 @@ pub class bytes : Sequence[uint8] {
     pub func count(value uint8) int {}
 
     @native
-    pub func copy(src bytes) {}
+    pub func copy_from(src bytes, start = 0, end = -1) int {}
 
     @native
-    pub func fill(e uint8) {}
+    pub func copy_to(dst bytes, start = 0, end = -1) int {}
 
     @native
-    pub func zero() {}
+    pub func fill(value uint8, start = 0, end = -1) {}
 
     @native
-    pub func view(start int, end int) bytes {}
+    pub func zero(start = 0, end = -1) {}
+
+    @native
+    pub func view(start = 0, end = -1) bytes {}
 
     @native
     pub func read_u32_be(offset int) uint32 {}

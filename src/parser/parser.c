@@ -1788,6 +1788,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
         } else if (stmt->kind == STMT_FUNC_KIND) {
             Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt);
             if (fn) {
+                fn->parent = kls_sym;
                 vector_push_back(kls_sym->funcs, &fn);
                 if (str_equal(fn->name, "__init__")) {
                     kls_sym->__init__ = fn;

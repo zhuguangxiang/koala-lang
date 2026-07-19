@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "bytesobj.h"
 #include "object.h"
 
 #ifdef __cplusplus
@@ -11,8 +12,22 @@ extern "C" {
 
 static TValue str_str(TValue *self, TValue *args, int nargs) { return *self; }
 
+static TValue str_to_bytes(TValue *self, TValue *args, int nargs)
+{
+    Object *obj = to_obj(self);
+    ASSERT(obj && IS_STR(obj));
+
+    StringObject *str = (StringObject *)obj;
+    ASSERT(nargs == 0);
+
+    Object *bs = kl_new_bytes((uint32_t)str->size);
+    memcpy(((BytesObject *)bs)->data, str->array, str->size);
+    return obj_value(bs);
+}
+
 static MethodDef str_methods[] = {
     { "__str__", str_str },
+    { "to_bytes", str_to_bytes },
     { NULL },
 };
 
