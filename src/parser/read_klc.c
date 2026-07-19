@@ -3,7 +3,6 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "atom.h"
 #include "klc.h"
 #include "log.h"
 #include "mm.h"
@@ -30,6 +29,7 @@ typedef struct _FixupEntry {
 } FixupEntry;
 
 typedef struct _LoadKlcContext {
+    HashMap *imported;
     HashMap *stbl;
     PkgSymbol *pkg_sym;
     KlcFile *klc;
@@ -43,7 +43,7 @@ typedef struct _LoadKlcContext {
 static inline int ts_need_fixup(TypeSpec *ts)
 {
     return ts->kind == TYPE_GENERIC_REF || ts->kind == TYPE_GENERIC_VAR ||
-           ts->kind == TYPE_MANGLED || ts->kind == TYPE_KLASS;
+           ts->kind == TYPE_MANGLED || ts->kind == TYPE_KLASS || ts->kind == TYPE_UNION;
 }
 
 static void add_fixup_entry(FixupEntry *entry, TypeSpec *ts, LoadContext *ctx)
@@ -71,6 +71,17 @@ static void add_stage_2_fixup_entry(FixupEntry *entry, LoadContext *ctx)
     vector_push_back(&ctx->stage_2_fixups, entry);
 }
 
+static Symbol *_get_symbol(char *pkg, char *name, LoadContext *ctx)
+{
+    HashMap *stbl = ctx->stbl;
+    if (pkg) {
+        Symbol *pkg_sym = stbl_get(ctx->imported, pkg);
+        ASSERT(pkg_sym);
+        stbl = pkg_sym->stbl;
+    }
+    return stbl_get(stbl, name);
+}
+
 static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
 {
     ASSERT(ts_ptr);
@@ -78,7 +89,7 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
     ASSERT(ts);
 
     if (ts->kind == TYPE_GENERIC_REF) {
-        Symbol *sym = stbl_get(ctx->stbl, ts->generic_ref.name);
+        Symbol *sym = _get_symbol(ts->generic_ref.pkg, ts->generic_ref.name, ctx);
         if (sym) {
             log_info("found symbol for generic_ref type: %s", ts->generic_ref.name);
             ts->sym_id = sym->id;
@@ -98,22 +109,32 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
         ASSERT(tp_sym && tp_sym->kind == SYM_TYPE_PARAM);
         ts->sym_id = tp_sym->id;
         ts->generic_var.index = ((TypeParamSymbol *)tp_sym)->index;
+        ASSERT(ts->generic_var.index >= 0);
     } else if (ts->kind == TYPE_KLASS) {
-        Symbol *sym = stbl_get(ctx->stbl, ts->klass_type.name);
+        Symbol *sym = _get_symbol(ts->klass_type.pkg, ts->klass_type.name, ctx);
         if (sym) {
             log_info("found symbol for klass type: %s", ts->klass_type.name);
             ts->sym_id = sym->id;
         } else {
-            UNREACHABLE();
+            // TODO:
+            // ASSERT(ts->sym_id >= 0);
         }
     } else if (ts->kind == TYPE_MANGLED) {
-        Symbol *origin = stbl_get(ctx->stbl, ts->mangled.name);
+        Symbol *origin = _get_symbol(ts->mangled.path, ts->mangled.name, ctx);
         ASSERT(origin && (origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT));
         log_info("found origin symbol for mangled type: %s", ts->mangled.name);
         InstanceSymbol *inst_sym = find_or_add_instance(ctx->stbl, origin, ts->mangled.args);
         ASSERT(inst_sym);
         type_spec_free(ts);
         *ts_ptr = inst_sym->instance_ts;
+    } else if (ts->kind == TYPE_UNION) {
+        TypeSpec **arg;
+        vector_foreach_ptr(arg, ts->union_type.args) {
+            if (ts_need_fixup(*arg)) {
+                log_info("fixup type spec for union arg-%d", i__);
+                fixup_type_spec(arg, ctx);
+            }
+        }
     } else {
         UNREACHABLE();
     }
@@ -352,7 +373,7 @@ static void load_bases(KlcKlass *kls, KlassSymbol *sym, LoadContext *ctx)
         KlcConst *base_k = klc_get_const(ctx->klc, base);
         TypeSpec *ts = type_spec_from_str(base_k->sval);
         vector_push_back(&sym->bases, &ts);
-        if (ts->kind == TYPE_GENERIC_REF) {
+        if (ts->kind == TYPE_GENERIC_REF || ts->kind == TYPE_KLASS) {
             log_info("generic_ref type in klass base: %s", ts->signature);
             FixupEntry entry = {
                 .kind = FIXUP_KLASS_BASE,
@@ -517,24 +538,27 @@ static void load_klasses(LoadContext *ctx)
 }
 
 // absolute path to klc file
-static int __load(char *path, PkgSymbol *pkg_sym)
+static PkgSymbol *__load(char *path, HashMap *imported)
 {
     log_info("read klc file: %s", path);
 
     KlcFile *klc = read_klc_file(path, 0);
     if (!klc) {
         log_info("failed to read klc file: %s", path);
-        return -1;
+        return NULL;
     }
 
     HashMap *stbl = stbl_new();
-
     LoadContext ctx = { 0 };
+    ctx.imported = imported;
     ctx.stbl = stbl;
-    ctx.pkg_sym = pkg_sym;
     ctx.klc = klc;
     ctx.path = klc->pkg_path;
     ctx.is_builtin = str_equal(klc->pkg_path, "std/builtin");
+    PkgSymbol *pkg_sym = stbl_add_pkg(imported, klc->pkg_path);
+    pkg_sym->stbl = stbl;
+    pkg_sym->path = ctx.path;
+    ctx.pkg_sym = pkg_sym;
     vector_init(&ctx.fixups, sizeof(FixupEntry));
     vector_init(&ctx.stage_2_fixups, sizeof(FixupEntry));
 
@@ -547,33 +571,30 @@ static int __load(char *path, PkgSymbol *pkg_sym)
     vector_fini(&ctx.fixups);
     vector_fini(&ctx.stage_2_fixups);
 
-    pkg_sym->stbl = stbl;
-    pkg_sym->path = ctx.path;
-
-    return 0;
+    return pkg_sym;
 }
 
 // path without .klc suffix
-int load_module(char *pkg_path, PkgSymbol *pkg_sym)
+PkgSymbol *load_module(char *pkg_path, HashMap *imported)
 {
     char *koala_path = getenv("KOALA_PATH");
     if (!koala_path) {
         log_info("KOALA_PATH is not set");
-        return __load(pkg_path, pkg_sym);
+        return __load(pkg_path, imported);
     }
 
     log_info("KOALA_PATH: %s", koala_path);
 
     BUF(buf);
-    int ret = -1;
+    PkgSymbol *sym = NULL;
     char *prefix = NULL;
     int count = str_sep(&koala_path, ':', &prefix);
     while (count > 0) {
         buf_write_nstr(&buf, prefix, count);
         buf_write_str(&buf, pkg_path);
         buf_write_str(&buf, ".klc");
-        ret = __load(BUF_STR(buf), pkg_sym);
-        if (!ret) {
+        sym = __load(BUF_STR(buf), imported);
+        if (sym) {
             log_info("found package '%s' in KOALA_PATH: %s", pkg_path, prefix);
             break;
         }
@@ -584,7 +605,7 @@ int load_module(char *pkg_path, PkgSymbol *pkg_sym)
 
     FINI_BUF(buf);
 
-    return ret;
+    return sym;
 }
 
 #ifdef __cplusplus

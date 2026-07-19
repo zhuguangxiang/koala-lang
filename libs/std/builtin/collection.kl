@@ -42,7 +42,7 @@ pub trait Sequence[T] : Collection[T] {
     func __contains__(v T) bool
 
     /// Return the first index of `value`.
-    /// Raise ValueError (Panic) if the value is not present.
+    /// Return -1 if the value is not present.
     func index(value T) int
 
     /// Return the number of occurrences of `value` in the sequence.

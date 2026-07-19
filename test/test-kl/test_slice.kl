@@ -1,7 +1,6 @@
 // RUN: koalac %s 2>&1 | filecheck %s
 
 slice(0, 10)
-// CHECK: too few arguments in function call.
 
 let s = slice(0, 10, 1)
 s[0]

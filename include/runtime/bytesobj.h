@@ -14,13 +14,14 @@ extern "C" {
 
 typedef struct _BytesObject {
     OBJECT_HEAD
-    size_t size;
+    uint32_t offset;
+    uint32_t size;
     uint8_t *data;
 } BytesObject;
 
 extern TypeObject bytes_type;
 #define IS_BYTES(ob) IS_TYPE((ob), &bytes_type)
-Object *kl_new_bytes(size_t size);
+Object *kl_new_bytes(uint32_t size);
 
 #ifdef __cplusplus
 }

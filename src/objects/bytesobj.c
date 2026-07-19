@@ -23,7 +23,7 @@ static TValue kl_bytes_str(TValue *self, TValue *args, int nargs)
 
     BUF(buf);
     for (int i = 0; i < size; ++i) {
-        buf_write_uint8_hex(&buf, bytes->data[i]);
+        buf_write_uint8_hex(&buf, bytes->data[bytes->offset + i]);
     }
     Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
     FINI_BUF(buf);
@@ -52,11 +52,140 @@ static TValue kl_bytes_init(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
+static TValue kl_bytes_index(TValue *self, TValue *args, int nargs)
+{
+    Object *obj = to_obj(self);
+    ASSERT(obj && IS_BYTES(obj));
+
+    BytesObject *bytes = (BytesObject *)obj;
+
+    ASSERT(nargs == 1);
+    TValue *v = &args[0];
+    ASSERT(is_uint8(v));
+    uint8_t value = (uint8_t)v->ival;
+
+    void *ptr = memchr(bytes->data + bytes->offset, value, bytes->size);
+    if (ptr) {
+        return int64_value((uint8_t *)ptr - (bytes->data + bytes->offset));
+    } else {
+        return int64_value(-1);
+    }
+}
+
+static TValue kl_bytes_count(TValue *self, TValue *args, int nargs)
+{
+    Object *obj = to_obj(self);
+    ASSERT(obj && IS_BYTES(obj));
+
+    BytesObject *bytes = (BytesObject *)obj;
+
+    ASSERT(nargs == 1);
+    TValue *v = &args[0];
+    ASSERT(is_uint8(v));
+    uint8_t value = (uint8_t)v->ival;
+
+    uint8_t *ptr = bytes->data + bytes->offset;
+    uint8_t *end = ptr + bytes->size;
+    int count = 0;
+    while (ptr < end) {
+        if (*ptr == value) {
+            count++;
+        }
+        ptr++;
+    }
+    return int64_value(count);
+}
+
+static TValue kl_bytes_copy(TValue *self, TValue *args, int nargs)
+{
+    Object *obj = to_obj(self);
+    ASSERT(obj && IS_BYTES(obj));
+
+    BytesObject *bytes = (BytesObject *)obj;
+
+    ASSERT(nargs == 1);
+    TValue *v = &args[0];
+    Object *src = to_obj(v);
+    ASSERT(src && IS_BYTES(src));
+    BytesObject *src_bytes = (BytesObject *)src;
+
+    ASSERT(src_bytes->size == bytes->size);
+    memmove(bytes->data + bytes->offset, src_bytes->data + src_bytes->offset, bytes->size);
+    return none_value;
+}
+
+static TValue kl_bytes_fill(TValue *self, TValue *args, int nargs)
+{
+    Object *obj = to_obj(self);
+    ASSERT(obj && IS_BYTES(obj));
+
+    BytesObject *bytes = (BytesObject *)obj;
+
+    ASSERT(nargs == 1);
+    TValue *v = &args[0];
+    ASSERT(is_uint8(v));
+    uint8_t value = (uint8_t)v->ival;
+    memset(bytes->data + bytes->offset, value, bytes->size);
+    return none_value;
+}
+
+static TValue kl_bytes_zero(TValue *self, TValue *args, int nargs)
+{
+    Object *obj = to_obj(self);
+    ASSERT(obj && IS_BYTES(obj));
+
+    BytesObject *bytes = (BytesObject *)obj;
+
+    ASSERT(nargs == 0);
+    memset(bytes->data + bytes->offset, 0, bytes->size);
+    return none_value;
+}
+
+static TValue kl_bytes_view(TValue *self, TValue *args, int nargs)
+{
+    Object *obj = to_obj(self);
+    ASSERT(obj && IS_BYTES(obj));
+
+    BytesObject *bytes = (BytesObject *)obj;
+
+    ASSERT(nargs == 2);
+    ASSERT(is_int64(&args[0]) && is_int64(&args[1]));
+    int64_t start = to_int64(&args[0]);
+    int64_t end = to_int64(&args[1]);
+    ASSERT(start >= 0 && end >= 0 && start <= end && end <= bytes->size);
+
+    BytesObject *view_bytes = mm_alloc_obj(view_bytes);
+    INIT_OBJECT_HEAD(view_bytes, &bytes_type);
+    view_bytes->offset += start;
+    view_bytes->size = end - start;
+    view_bytes->data = bytes->data;
+    return obj_value((Object *)view_bytes);
+}
+
+static TValue kl_bytes_tostr(TValue *self, TValue *args, int nargs)
+{
+    Object *obj = to_obj(self);
+    ASSERT(obj && IS_BYTES(obj));
+
+    BytesObject *bytes = (BytesObject *)obj;
+    ASSERT(nargs == 0);
+
+    Object *s = kl_new_nstr((char *)bytes->data + bytes->offset, bytes->size);
+    return obj_value(s);
+}
+
 static MethodDef bytes_methods[] = {
     { "__len__", kl_bytes_len },
     { "__str__", kl_bytes_str },
     { "__init__", kl_bytes_init },
-    { NULL },
+    { "index", kl_bytes_index },
+    { "count", kl_bytes_count },
+    { "copy", kl_bytes_copy },
+    { "fill", kl_bytes_fill },
+    { "zero", kl_bytes_zero },
+    { "view", kl_bytes_view },
+    { "to_str", kl_bytes_tostr },
+    { NULL, NULL },
 };
 
 static size_t kl_bytes_seq_len(TValue *self)
@@ -72,7 +201,7 @@ static TValue kl_bytes_seq_get(TValue *self, size_t index)
         panic("bytes index out of range");
         return none_value;
     }
-    uint8_t value = bytes->data[index];
+    uint8_t value = bytes->data[bytes->offset + index];
     return uint8_value(value);
 }
 
@@ -83,7 +212,7 @@ static void kl_bytes_seq_set(TValue *self, size_t index, TValue *value)
         panic("bytes index out of range");
     }
     ASSERT(is_uint8(value));
-    bytes->data[index] = (uint8_t)value->ival;
+    bytes->data[bytes->offset + index] = (uint8_t)value->ival;
 }
 
 static SeqMethods bytes_seq_methods = {
@@ -97,6 +226,7 @@ static Object *bytes_alloc(TypeObject *tp)
 {
     BytesObject *bytes = mm_alloc_obj(bytes);
     INIT_OBJECT_HEAD(bytes, tp);
+    bytes->offset = 0;
     bytes->size = 0;
     bytes->data = NULL;
     return (Object *)bytes;
@@ -112,10 +242,11 @@ TypeObject bytes_type = {
     .alloc = bytes_alloc,
 };
 
-Object *kl_new_bytes(size_t size)
+Object *kl_new_bytes(uint32_t size)
 {
     BytesObject *bytes = mm_alloc_obj(bytes);
     INIT_OBJECT_HEAD(bytes, &bytes_type);
+    bytes->offset = 0;
     bytes->size = size;
     bytes->data = mm_alloc(size);
     return (Object *)bytes;

@@ -417,11 +417,28 @@ static Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, char *mangled_na
     return (Symbol *)sym;
 }
 
+static int get_generic_var_index(HashMap *stbl, TypeSpec *ts)
+{
+    ASSERT(ts->kind == TYPE_GENERIC_VAR);
+    Symbol *sym = stbl_get(stbl, ts->generic_var.owner);
+    ASSERT(sym);
+    ASSERT(sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT);
+
+    Symbol *_sym = stbl_get(sym->stbl, ts->generic_var.name);
+    ASSERT(_sym && _sym->kind == SYM_TYPE_PARAM);
+    TypeParamSymbol *tp = (TypeParamSymbol *)_sym;
+    ASSERT(tp->index >= 0);
+    return tp->index;
+}
+
 static InstanceSymbol *__instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector *tp_args)
 {
     ASSERT(ts->kind == TYPE_GENERIC_REF);
 
     Symbol *origin_sym = get_symbol_by_id(ts->sym_id);
+    if (!origin_sym) {
+        origin_sym = stbl_get(stbl, ts->generic_ref.name);
+    }
     ASSERT(origin_sym->kind == SYM_CLASS || origin_sym->kind == SYM_TRAIT ||
            origin_sym->kind == SYM_INSTANCE);
 
@@ -431,6 +448,9 @@ static InstanceSymbol *__instance_type_spec(HashMap *stbl, TypeSpec *ts, Vector 
     vector_foreach(arg_ts, ts->generic_ref.args) {
         if (!arg_ts) continue;
         if (arg_ts->kind == TYPE_GENERIC_VAR) {
+            if (arg_ts->generic_var.index < 0) {
+                arg_ts->generic_var.index = get_generic_var_index(stbl, arg_ts);
+            }
             spec_arg_ts = vector_get(tp_args, arg_ts->generic_var.index);
         } else if (arg_ts->kind == TYPE_GENERIC_REF) {
             // nested generic_ref type

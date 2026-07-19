@@ -45,10 +45,10 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
-// CHECK: call @hello [path = 'test_pkg/pkg1_1']
+// CHECK: call @hello [path = 'test_pkg/pkg1']
 // CHECK: %0 = new @test_pkg/pkg1.Foo
-// CHECK: call @Foo:__init__ [path = 'test_pkg/pkg1_1'], %0 test_pkg/pkg1.Foo
-// CHECK: %8 = call @test_pkg/pkg1_1.Fly:fly [intf-index = 0], %fly test_pkg/pkg1.Fly
+// CHECK: call @Foo:__init__ [path = 'test_pkg/pkg1'], %0 test_pkg/pkg1.Foo
+// CHECK: %8 = call @test_pkg/pkg1.Fly:fly [intf-index = 0], %fly test_pkg/pkg1.Fly
 
 // CHECK: Hello from pkg1
 // CHECK: bar

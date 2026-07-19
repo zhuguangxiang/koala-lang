@@ -1,0 +1,17 @@
+
+func main() {
+    let bs = bytes(10)
+    print(len(bs))
+
+    for i in range(len(bs)) {
+        bs[i] = uint8(96 + i)
+    }
+    print(bs)
+
+    let v = bs.view(3, 6)
+    print("bs[3:6]", v)
+    v[0] = uint8(68)
+    print(bs, v)
+
+    print(bs.view(0, 3).index(90))
+}

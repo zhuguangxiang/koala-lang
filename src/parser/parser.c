@@ -128,10 +128,8 @@ static PkgSymbol *import_package(ParserModule *pm, char *path)
         return (PkgSymbol *)sym;
     }
 
-    PkgSymbol *pkg_sym = stbl_add_pkg(pm->imported, path);
-    int ret = load_module(path, pkg_sym);
-
-    if (ret) {
+    PkgSymbol *pkg_sym = load_module(path, pm->imported);
+    if (!pkg_sym) {
         fprintf(stderr, "error: cannot import module '%s'\n", path);
         char *koala_path = getenv("KOALA_PATH");
         if (koala_path) {

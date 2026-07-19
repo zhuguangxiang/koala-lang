@@ -216,7 +216,7 @@ int check_type(ParserState *ps, TypeSpec *ts);
 int type_spec_compatible(TypeSpec *dst, TypeSpec *src);
 
 void write_to_klc(ParserModule *pm);
-int load_module(char *path, PkgSymbol *pkg_sym);
+PkgSymbol *load_module(char *path, HashMap *imported);
 void kl_gen_ir(ParserModule *pm);
 
 #ifdef __cplusplus

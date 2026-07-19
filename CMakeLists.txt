@@ -45,16 +45,24 @@ execute_process(
 
 add_definitions(-DKOALA_BUILD_NUMBER=${KOALA_BUILD_NUMBER})
 
+# -fvar-tracking is GCC-specific; only add it when using GCC
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    # set(GCC_VAR_TRACKING "-fvar-tracking")
+    set(GCC_VAR_TRACKING "")
+else()
+    set(GCC_VAR_TRACKING "")
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL debug)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 -fvar-tracking -DFNV32_HASH")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 ${GCC_VAR_TRACKING} -DFNV32_HASH")
 elseif(CMAKE_BUILD_TYPE STREQUAL DebugTest)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 -fvar-tracking -DFNV32_HASH")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 ${GCC_VAR_TRACKING} -DFNV32_HASH")
     add_definitions(-DNOLOG)
 elseif(CMAKE_BUILD_TYPE STREQUAL DebugASAN)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 -fvar-tracking -fsanitize=address -fno-omit-frame-pointer")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 ${GCC_VAR_TRACKING} -fsanitize=address -fno-omit-frame-pointer")
     add_definitions(-DNOLOG)
 elseif(CMAKE_BUILD_TYPE STREQUAL Debug)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 -fvar-tracking -DFNV32_HASH")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g -std=gnu17 ${GCC_VAR_TRACKING} -DFNV32_HASH")
 elseif(CMAKE_BUILD_TYPE STREQUAL release)
     add_definitions(-DNOLOG)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu17 -O3 -DNDEBUG -DFNV32_HASH -falign-labels=64 -fno-crossjumping -fno-gcse -Wextra -Wno-unused-result -Wsign-compare -Wno-unused-result -Wno-unused-parameter -Wno-missing-field-initializers -Werror=implicit-function-declaration -fvisibility=hidden")

@@ -123,6 +123,7 @@ typedef struct _TypeSpec {
         // mangled type, not interned, only used during loading from klc
         // _Z4Listi -> List[int] (string -> struct)
         struct {
+            char *path;
             char *name;
             Vector *args;
         } mangled;

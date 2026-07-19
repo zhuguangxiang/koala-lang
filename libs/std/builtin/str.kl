@@ -37,4 +37,10 @@ pub class str : Sequence[str] {
 
     @native(kl_str_add)
     pub func __add__(rhs any) str {}
+
+    @native
+    pub func join(seq Sequence[str]) str {}
+
+    @native
+    pub func to_bytes() bytes {}
 }

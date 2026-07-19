@@ -6,7 +6,6 @@
 #ifndef _KOALA_SYMBOL_H_
 #define _KOALA_SYMBOL_H_
 
-#include "common.h"
 #include "hashmap.h"
 #include "ir.h"
 #include "typespec.h"

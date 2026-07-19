@@ -11,5 +11,50 @@ pub class bytes : Sequence[uint8] {
     pub func __setitem__(index int, value uint8) {}
 
     @native
+    pub func __getslice__(r slice) bytes {}
+
+    @native
+    pub func __setslice__(r slice, val bytes) {}
+
+    @native
     pub func __len__() int {}
+
+    @native
+    pub func empty() bool {}
+
+    @native
+    pub func __contains__(value uint8) bool {}
+
+    @native
+    pub func index(value uint8) int {}
+
+    @native
+    pub func rindex(value uint8) int {}
+
+    @native
+    pub func find(sub bytes) int {}
+
+    @native
+    pub func rfind(sub bytes) int {}
+
+    @native
+    pub func count(value uint8) int {}
+
+    @native
+    pub func copy(src bytes) {}
+
+    @native
+    pub func fill(e uint8) {}
+
+    @native
+    pub func zero() {}
+
+    @native
+    pub func view(start int, end int) bytes {}
+
+    @native
+    pub func read_u32_be(offset int) uint32 {}
+
+    @native
+    pub func to_str() str {}
 }

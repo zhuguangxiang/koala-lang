@@ -1,0 +1,24 @@
+
+pub class File : Reader & Writer & Seeker & Closable {
+
+    pub let path str
+    pub let mode str
+
+    @native
+    pub func __init__(_path str, _mode str) {}
+
+    @native
+    pub func read(bs bytes) int {}
+
+    @native
+    pub func write(bs bytes) int {}
+
+    @native
+    pub func seek(offset int, whence int) int {}
+
+    @native
+    pub func close() {}
+
+    @native
+    pub func flush() {}
+}

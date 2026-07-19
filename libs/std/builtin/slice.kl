@@ -3,26 +3,25 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// A slice object represents a set of indices specified by [start:stop:step].
+/// A slice object represents a set of indices specified by [start:end:step].
 ///
 /// It is internally created by the compiler when the ':' syntax is used
-/// inside subscript brackets []. Unlike range, slice allows nil values
-/// to represent missing boundaries.
+/// inside subscript brackets [].
 pub class slice {
-    /// The starting index of the slice (inclusive). nil means "from the beginning/end".
-    pub let start int?
-    /// The ending index of the slice (exclusive). nil means "to the end/beginning".
-    pub let stop  int?
-    /// The step value for the slice. nil means 1.
-    pub let step  int?
+    /// The starting index of the slice (inclusive).
+    pub let start int
+    /// The ending index of the slice (exclusive).
+    pub let end int
+    /// The step value for the slice.
+    pub let step int
 
     /// Initialize a new slice object.
     ///
     /// This constructor is typically called by the VM's BUILD_SLICE instruction
-    /// when parsing [start:stop:step] syntax.
-    pub func __init__(_start int?, _stop int?, _step int?) {
+    /// when parsing [start:end:step] syntax.
+    pub func __init__(_start = 0, _end = -1, _step = 1) {
         start = _start
-        stop = _stop
+        end = _end
         step = _step
     }
 }

@@ -170,7 +170,7 @@ static TypeSpec *_type_type_spec(void)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_TYPE;
-    ts->signature = atom_str("Lbuiltin.type;");
+    ts->signature = atom_str("Lstd/builtin.type;");
     ts->sym_id = -1;
     hashmap_entry_init(&ts->hnode, type_spec_hash(ts));
     return ts;
@@ -561,10 +561,11 @@ TypeSpec *klass_type_spec(char *path, char *name)
     return type_spec_intern(ts);
 }
 
-static TypeSpec *mangled_type_spec(char *name, Vector *args)
+static TypeSpec *mangled_type_spec(char *path, char *name, Vector *args)
 {
     TypeSpec *ts = mm_alloc_obj(ts);
     ts->kind = TYPE_MANGLED;
+    ts->mangled.path = path;
     ts->mangled.name = name;
     ts->mangled.args = type_spec_vec_copy(args);
     ts->sym_id = -1;
@@ -960,6 +961,23 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
             buf_write_char(buf, ';');
             break;
         }
+        case TYPE_MANGLED: {
+            buf_write_char(buf, 'L');
+            if (ts->mangled.path) {
+                buf_write_str(buf, ts->mangled.path);
+                buf_write_char(buf, '.');
+            }
+            buf_write_str(buf, ts->mangled.name);
+
+            TypeSpec *arg;
+            vector_foreach(arg, ts->mangled.args) {
+                if (!arg) continue;
+                type_spec_to_str(arg, buf);
+            }
+
+            buf_write_char(buf, ';');
+            break;
+        }
         default: {
             UNREACHABLE();
             break;
@@ -996,7 +1014,7 @@ static TypeSpec *__to_mangled_type(char *s, int len, Vector *args)
     }
 
     if (args) {
-        return mangled_type_spec(type, args);
+        return mangled_type_spec(path, type, args);
     } else {
         return klass_type_spec(path, type);
     }
@@ -1274,6 +1292,22 @@ void type_spec_print(TypeSpec *ts, Buffer *buf)
         }
     } else if (ts->kind == TYPE_PACKAGE) {
         buf_write_str(buf, ts->pkg_path);
+    } else if (ts->kind == TYPE_MANGLED) {
+        buf_write_str(buf, ts->mangled.path);
+        buf_write_char(buf, '.');
+        buf_write_str(buf, ts->mangled.name);
+
+        if (vector_size(ts->mangled.args) > 0) {
+            buf_write_char(buf, '[');
+            TypeSpec *arg;
+            int i__ = 0;
+            vector_foreach(arg, ts->mangled.args) {
+                if (!arg) continue;
+                if (i__ != 0) buf_write_str(buf, ", ");
+                type_spec_print(arg, buf);
+            }
+            buf_write_char(buf, ']');
+        }
     } else {
         UNREACHABLE();
     }

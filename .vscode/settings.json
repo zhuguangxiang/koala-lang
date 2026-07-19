@@ -201,7 +201,7 @@
     // "http.proxy": "http://127.0.0.1:20171",
     // "https.proxy": "http://127.0.0.1:20171"
     "highlight.regexes": {
-        "(?<!\\/\\/.*)\\b(pub|trait|as|const|link)\\b": {
+        "(?<!\\/\\/.*)\\b(pub|trait|class|as|const|link|native|intrinsic|func)\\b": {
             "filterLanguageRegex": "swift",
             "decorations": [
                 {
@@ -225,5 +225,15 @@
                 }
             ]
         }
-    }
+    },
+    "cmake.configureArgs": [
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+    ],
+    "clangd.arguments": [
+        "--compile-commands-dir=${workspaceFolder}/build/debug",
+        "--header-insertion=never",
+        "--background-index",
+        "-log=verbose"
+    ],
+    "C_Cpp.intelliSenseEngine": "disabled"
 }

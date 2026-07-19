@@ -6,4 +6,10 @@ pub class Lines : Iterator[bytes] {
 
     @native
     pub func next_line(out bytes) bool {}
+
+    @native
+    pub func __has_next__() bool {}
+
+    @native
+    pub func __next__() bytes {}
 }

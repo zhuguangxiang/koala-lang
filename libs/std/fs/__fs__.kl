@@ -1,0 +1,6 @@
+
+
+import "std/io" as io
+
+@native
+pub func open(path str, mode str) io.File? {}
