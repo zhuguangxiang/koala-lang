@@ -33,6 +33,33 @@ static TValue str_split(TValue *self, TValue *args, int nargs)
 
     Object *list = kl_new_list();
 
+    //
+    // FAST PATH: single-byte separator
+    //
+    if (sep_len == 1) {
+        char c = sep[0];
+        int start = 0;
+
+        for (int i = 0; i < len; i++) {
+            if (src[i] == c) {
+                int part_len = i - start;
+
+                TValue part = kl_val_nstr(src + start, part_len);
+                kl_list_append(list, part);
+
+                start = i + 1;
+            }
+        }
+
+        // Final segment
+        if (start <= len) {
+            TValue part = kl_val_nstr(src + start, len - start);
+            kl_list_append(list, part);
+        }
+
+        return obj_value(list);
+    }
+
     int start = 0;
 
     // Scan for separator occurrences
