@@ -71,8 +71,6 @@ static TypeObject file_type = {
     .alloc = file_alloc,
 };
 
-void io_native_lib_init(NativeLib *lib) {}
-
 void fs_native_lib_init(NativeLib *lib)
 {
     kl_reg_func(lib, "open", file_open);

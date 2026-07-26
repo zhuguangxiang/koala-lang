@@ -1,8 +1,9 @@
 
 
-pub class ByteBuffer : MutableSequence[uint8] {
+pub class ByteBuf : MutableSequence[uint8] {
+
     @native
-    pub func __init__(def_size = 0) {}
+    pub func __init__(size = 0) {}
 
     @intrinsic
     pub func __getitem__(index int) uint8 {}
@@ -18,4 +19,22 @@ pub class ByteBuffer : MutableSequence[uint8] {
 
     @native
     pub func to_bytes() bytes {}
+
+    @native
+    pub func append_bytes(value bytes, start = 0, end = -1) {}
+
+    @native
+    pub func fill(value uint8, start = 0, end = -1) {}
+
+    @native
+    pub func zero(start = 0, end = -1) {}
+
+    @native
+    pub func clear() {}
+
+    @native
+    pub func to_str() str {}
+
+    @native
+    pub func write_u32_be(value uint32) {}
 }

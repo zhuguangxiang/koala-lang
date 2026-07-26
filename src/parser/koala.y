@@ -115,6 +115,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token IF
 %token ELSE
 %token WHILE
+%token LOOP
 %token FOR
 %token MATCH
 %token CASE
@@ -2303,7 +2304,7 @@ while_stmt
         $$ = stmt_from_while_let(&id, $6, $8);
         stmt_set_loc($$, lloc(@1, @8));
     }
-    | WHILE block
+    | LOOP block
     {
         $$ = stmt_from_while(NULL, $2);
         stmt_set_loc($$, lloc(@1, @2));

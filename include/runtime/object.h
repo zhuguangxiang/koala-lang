@@ -47,6 +47,10 @@ typedef struct _TValue {
     };
 } TValue;
 
+/*---------------------------------------------------------------------------+
+ |   Tag Constants                                                           |
+ +---------------------------------------------------------------------------*/
+
 #define TAG_NONE  0
 #define TAG_ERROR 1
 #define TAG_BOOL  2
@@ -67,6 +71,10 @@ typedef struct _TValue {
 // beyond this value, it's an object pointer
 #define TAG_VAL_MAX 64
 #define TAG_OBJECT  (TAG_VAL_MAX + 1)
+
+/*---------------------------------------------------------------------------+
+ |   Type Checking                                                           |
+ +---------------------------------------------------------------------------*/
 
 #define is_none(x)  ((x)->tag == TAG_NONE)
 #define is_error(x) ((x)->tag == TAG_ERROR)
@@ -100,6 +108,10 @@ typedef struct _TValue {
 #define is_intf(x) ((x)->tag > TAG_OBJECT)
 #define is_ref(x)  ((x)->tag >= TAG_OBJECT)
 
+/*---------------------------------------------------------------------------+
+ |   Value Construction                                                      |
+ +---------------------------------------------------------------------------*/
+
 /* clang-format off */
 #define none_value          (TValue){ .tag = TAG_NONE,   .ival = 0 }
 #define error_value         (TValue){ .tag = TAG_ERROR,  .ival = -1 }
@@ -127,19 +139,23 @@ typedef struct _TValue {
 #define obj_value(x)         (TValue){ .tag = TAG_OBJECT, .obj = (x) }
 #define intf_value(_itab, x) (TValue){ .itab = (_itab), .obj = (x) }
 
+/*---------------------------------------------------------------------------+
+ |   Value Extraction                                                        |
+ +---------------------------------------------------------------------------*/
+
 #define to_bool(v)     ({ ASSERT(is_bool(v)); (v)->bval; })
 
 /* Signed integers */
-#define to_int8(v)     ({ ASSERT(is_int8(v)); (v)->ival; })
-#define to_int16(v)    ({ ASSERT(is_int16(v)); (v)->ival; })
-#define to_int32(v)    ({ ASSERT(is_int32(v)); (v)->ival; })
-#define to_int64(v)    ({ ASSERT(is_int64(v)); (v)->ival; })
+#define to_int8(v)     ({ ASSERT(is_int8(v)); (int8_t)(v)->ival; })
+#define to_int16(v)    ({ ASSERT(is_int16(v)); (int16_t)(v)->ival; })
+#define to_int32(v)    ({ ASSERT(is_int32(v)); (int32_t)(v)->ival; })
+#define to_int64(v)    ({ ASSERT(is_int64(v)); (int64_t)(v)->ival; })
 
 /* Unsigned integers */
-#define to_uint8(v)    ({ ASSERT(is_uint8(v)); (v)->ival; })
-#define to_uint16(v)   ({ ASSERT(is_uint16(v)); (v)->ival; })
-#define to_uint32(v)   ({ ASSERT(is_uint32(v)); (v)->ival; })
-#define to_uint64(v)   ({ ASSERT(is_uint64(v)); (v)->ival; })
+#define to_uint8(v)    ({ ASSERT(is_uint8(v)); (uint8_t)(v)->ival; })
+#define to_uint16(v)   ({ ASSERT(is_uint16(v)); (uint16_t)(v)->ival; })
+#define to_uint32(v)   ({ ASSERT(is_uint32(v)); (uint32_t)(v)->ival; })
+#define to_uint64(v)   ({ ASSERT(is_uint64(v)); (uint64_t)(v)->ival; })
 
 /* Floating point (TEMP: stored as double; real impl should preserve bit pattern) */
 #define to_float16(v)  ({ ASSERT(is_float16(v)); (v)->fval; })
@@ -467,7 +483,6 @@ extern TypeObject exc_type;
 extern TypeObject int_type;
 // shared by all float types
 extern TypeObject float_type;
-extern TypeObject Number_type;
 
 extern TypeObject Iterable_type;
 extern TypeObject Iterator_type;
@@ -521,9 +536,62 @@ int kl_register_module(Object *m);
 void kl_resolve_import(Object *m);
 void kl_dump_module(Object *m);
 
+/*---------------------------------------------------------------------------+
+ |   Argument Helpers — extract typed arguments from args[]                  |
+ +---------------------------------------------------------------------------*/
+
+static inline Object *kl_arg_obj(TValue *args, int nargs, int index)
+{
+    ASSERT(index >= 0 && index < nargs);
+    return to_obj(args + index);
+}
+
+static inline uint8_t kl_arg_uint8(TValue *args, int nargs, int index)
+{
+    ASSERT(index >= 0 && index < nargs);
+    return to_uint8(args + index);
+}
+
+static inline int64_t kl_arg_int64(TValue *args, int nargs, int index)
+{
+    ASSERT(index >= 0 && index < nargs);
+    return to_int64(args + index);
+}
+
+static inline double kl_arg_float(TValue *args, int nargs, int index)
+{
+    ASSERT(index >= 0 && index < nargs);
+    return to_float64(args + index);
+}
+
+static inline bool kl_arg_bool(TValue *args, int nargs, int index)
+{
+    ASSERT(index >= 0 && index < nargs);
+    return to_bool(args + index);
+}
+
+static inline char *kl_arg_str(TValue *args, int nargs, int index)
+{
+    ASSERT(index >= 0 && index < nargs);
+    Object *o = to_obj(args + index);
+    ASSERT(IS_STR(o));
+    return STR_BUF(o);
+}
+
+#define SELF_AS(self, tp_type) \
+    ({ \
+        Object *o = to_obj(self); \
+        ASSERT(IS_TYPE(o, &tp_type)); \
+        (void *)o; \
+    })
+
+/*---------------------------------------------------------------------------+
+ |  Native Library API                                                       |
+ +---------------------------------------------------------------------------*/
+
 Object *kl_get_native(Object *m, char *name);
 
-typedef struct _NativeModule {
+typedef struct _NativeLib {
     char *name;
     void *handle;
     HashMap symbols;
@@ -532,6 +600,10 @@ typedef struct _NativeModule {
 int kl_reg_func(NativeLib *lib, char *name, NativeFunc fn);
 int kl_reg_meth(NativeLib *lib, char *cls, char *meth, NativeFunc fn);
 int kl_reg_type(NativeLib *lib, TypeObject *tp);
+
+/*---------------------------------------------------------------------------+
+ |  Eval & Run                                                               |
+ +---------------------------------------------------------------------------*/
 
 TValue kl_eval_code(TValue *self, TValue *args, int nargs);
 void kl_run_main(Object *m);

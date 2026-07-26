@@ -31,18 +31,20 @@ static int expand(Buffer *self, int min)
     return 0;
 }
 
-static int available(Buffer *self, int size)
+static int reserve(Buffer *self, int size)
 {
     int left = self->size - self->len - 1;
     if (left <= size && expand(self, size)) return -1;
     return self->size - self->len - 1 - size;
 }
 
+int buf_reserve(Buffer *self, size_t size) { return reserve(self, (int)size); }
+
 void buf_write_nstr(Buffer *self, const char *s, int len)
 {
     if (!s) return;
     if (len <= 0) return;
-    if (available(self, len) <= 0) return;
+    if (reserve(self, len) <= 0) return;
     strncat(self->buf, s, len);
     self->len += len;
 }
@@ -68,19 +70,19 @@ void buf_nwrite(Buffer *self, int count, ...)
 
 void buf_write_char(Buffer *self, char ch)
 {
-    if (available(self, 1) <= 0) return;
+    if (reserve(self, 1) <= 0) return;
     self->buf[self->len++] = ch;
 }
 
 void buf_write_byte(Buffer *self, uint8_t val)
 {
-    if (available(self, 1) <= 0) return;
+    if (reserve(self, 1) <= 0) return;
     self->buf[self->len++] = val;
 }
 
 void buf_write_word(Buffer *self, uint16_t val)
 {
-    if (available(self, 2) <= 0) return;
+    if (reserve(self, 2) <= 0) return;
     uint16_t *ptr = (uint16_t *)(self->buf + self->len);
     *ptr = val;
     self->len += 2;
@@ -95,7 +97,7 @@ void buf_write_uint8_hex(Buffer *self, uint8_t val)
 
 void buf_write_uint32(Buffer *self, uint32_t val)
 {
-    if (available(self, 4) <= 0) return;
+    if (reserve(self, 4) <= 0) return;
     uint32_t *ptr = (uint32_t *)(self->buf + self->len);
     *ptr = val;
     self->len += 4;

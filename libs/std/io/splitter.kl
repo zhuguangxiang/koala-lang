@@ -1,11 +1,61 @@
 
-class Splitter : Iterator[bytes] {
+pub class Splitter : Iterator[bytes] {
 
-    func __init__(r BufReader, delim uint8) {}
+    let br BufReader
+    let buf ByteBuf
+    let delim uint8
 
-     // @native
+    pub func __init__(r BufReader, _delim uint8) {
+        br = r
+        buf = ByteBuf(256)
+        delim = _delim
+    }
+
+    pub func __has_next__() bool {
+        buf.clear()
+        let n = br.read_until(buf, delim)
+        return n > 0
+    }
+
+    pub func __next__() bytes {
+        return buf.to_bytes()
+    }
+}
+
+pub class Lines : Iterator[str] {
+
+    let br BufReader
+    let buf ByteBuf
+
+    pub func __init__(r BufReader) {
+        br = r
+        buf = ByteBuf(256)
+    }
+
+    pub func __has_next__() bool {
+        buf.clear()
+        let n = br.read_until(buf, 10)   // '\n'
+        return n > 0
+    }
+
+    // need to remove '\r' from the end of the line
+    @native
+    pub func __next__() str {}
+}
+
+pub class Words: Iterator[str] {
+
+    let br BufReader
+    let buf ByteBuf
+
+    pub func __init__(r BufReader) {
+        br = r
+        buf = ByteBuf(256)
+    }
+
+    @native
     pub func __has_next__() bool {}
 
-    // @native
-    pub func __next__() bytes {}
+    @native
+    pub func __next__() str {}
 }

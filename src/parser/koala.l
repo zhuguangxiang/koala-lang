@@ -223,6 +223,7 @@ static char hex2byte(const char *s)
 "if"        { YY_RETURN(IF);        }
 "else"      { YY_RETURN(ELSE);      }
 "while"     { YY_RETURN(WHILE);     }
+"loop"      { YY_RETURN(LOOP);      }
 "for"       { YY_RETURN(FOR);       }
 "switch"    { YY_RETURN(MATCH);     }
 "case"      { YY_RETURN(CASE);      }

@@ -44,6 +44,9 @@ typedef struct _Buffer {
 /* Get the buffer length */
 #define BUF_LEN(name) (name).len
 
+/* Reserve space in the buffer. */
+int buf_reserve(Buffer *self, size_t size);
+
 /* Write a NULL-terminated string. */
 void buf_write_str(Buffer *self, const char *s);
 

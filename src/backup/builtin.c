@@ -39,11 +39,9 @@ static void init_types(Object *m)
     type_ready(&Collection_type);
     type_ready(&Sequence_type);
     type_ready(&MutableSequence_type);
-    type_ready(&Number_type);
 }
 
-static void builtin_print_impl(Value *args, int nargs, Value *_sep, Value *_end,
-                               Value *_file)
+static void builtin_print_impl(Value *args, int nargs, Value *_sep, Value *_end, Value *_file)
 {
     const char *sep = " ";
     const char *end = "\n";

@@ -5,20 +5,16 @@ pub class BufReader : Reader {
     var start int
     var end int
 
-    pub func __init__(_inner Reader, buf_size = 8192) {
+    pub func __init__(_inner Reader, size = 8192) {
         inner = _inner
-        buf = bytes(buf_size)
+        buf = bytes(size)
         start = 0
         end = 0
     }
 
     pub func read(out bytes) int {
-        if start >= end {
-            start = 0
-            end = inner.read(buf)
-            if end <= 0 {
-                return end
-            }
+        if start >= end && fill() <= 0 {
+            return 0
         }
 
         let avail = end - start
@@ -34,6 +30,40 @@ pub class BufReader : Reader {
     pub func avail() int {
         return end - start
     }
+
+    pub func peek(n int) bytes {
+        let avail = end - start
+
+        if avail <= 0 && fill() <= 0 {
+            return bytes(0)
+        }
+
+        let take = min(n, end - start)
+        return buf.view(start, start + take)
+    }
+
+    pub func discard(n int) int {
+        let avail = end - start
+
+        if avail <= 0 && fill() <= 0 {
+            return 0
+        }
+
+        let take = min(n, end - start)
+        // start += take
+        start = start + take
+        return take
+    }
+
+    func fill() int {
+        start = 0
+        let _end = inner.read(buf)
+        end = _end
+        return _end
+    }
+
+    @native
+    pub func read_until(out ByteBuf, delim uint8) int {}
 }
 
 pub class BufWriter : Writer {

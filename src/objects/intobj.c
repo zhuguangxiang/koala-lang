@@ -132,16 +132,10 @@ static MethodDef int_methods[] = {
     { NULL },
 };
 
-static TypeObject *int_bases[] = {
-    &Number_type,
-    NULL,
-};
-
 TypeObject int_type = {
     ._type = &type_type,
     .name = "int",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
-    .bases = int_bases,
     .methdefs = int_methods,
 };
 

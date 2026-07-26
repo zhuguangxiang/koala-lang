@@ -78,7 +78,6 @@ set(KOALA_SOURCES
     objects/intobj.c
     objects/modobj.c
     objects/noneobj.c
-    objects/numobj.c
     objects/strobj.c
     objects/typeobj.c
     objects/tupleobj.c
@@ -86,6 +85,7 @@ set(KOALA_SOURCES
     objects/listobj.c
     # objects/dictobj.c
     objects/bytesobj.c
+    objects/bytebuf.c
     runtime/symtbl.c
     runtime/vm.c
     runtime/except.c

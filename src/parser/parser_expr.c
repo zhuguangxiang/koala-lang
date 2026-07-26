@@ -302,6 +302,12 @@ static void parse_self(ParserState *ps, Expr *exp)
         return;
     }
 
+    FuncSymbol *fn_sym = get_current_function(ps);
+    if (fn_sym && (fn_sym->flags & SYM_FLAGS_STATIC)) {
+        kl_error(exp->loc, "'self' cannot be used in static method '%s'", fn_sym->name);
+        return;
+    }
+
     exp->ts = ((KlassSymbol *)sym)->instance_ts;
     exp->sym = sym;
     log_info("'self' resolved as class '%s'", sym->name);
@@ -1434,6 +1440,11 @@ static void parse_dot(ParserState *ps, Expr *exp)
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);
     if (!lhs->ts) return;
+
+    if (lhs->kind == EXPR_SELF_KIND) {
+        kl_error(lhs->loc, "cannot access field/method by self.");
+        return;
+    }
 
     if (lhs->ts->kind == TYPE_TYPE) {
         // static method?

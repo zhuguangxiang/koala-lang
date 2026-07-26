@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "bytebuf.h"
 #include "bytesobj.h"
 #include "listobj.h"
 #include "modobj.h"
@@ -68,9 +69,9 @@ static MethodDef builtin_functions[] = {
 };
 
 static TypeObject *builtin_types[] = {
-    &any_type,   &type_type,  &none_type, &bool_type,  &str_type,   &exc_type,
-    &field_type, &cfunc_type, &code_type, &int_type,   &float_type, &Number_type,
-    &tuple_type, &range_type, &list_type, &bytes_type, NULL,
+    &any_type,   &type_type,  &none_type,  &bool_type,    &str_type,   &exc_type,
+    &field_type, &cfunc_type, &code_type,  &int_type,     &float_type, &tuple_type,
+    &range_type, &list_type,  &bytes_type, &bytebuf_type, NULL,
 };
 
 static ModuleDef builtin_module = {

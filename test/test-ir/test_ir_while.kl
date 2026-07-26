@@ -6,7 +6,7 @@ while i < 10 { i = i + 1 }
 
 // don't generate code for infinite loops with break
 while true { break }
-while { break }
+loop { break }
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@__init__] ---
 // CHECK-LABEL: func @__init__()

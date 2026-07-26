@@ -281,6 +281,17 @@ static void emit_ir_literal(ParserState *ps, Expr *exp)
     klr_set_loc(exp->ir_val, ps->filename, exp->loc);
 }
 
+static void emit_ir_self(ParserState *ps, Expr *exp)
+{
+    FuncSymbol *fn_sym = get_current_function(ps);
+    ASSERT(fn_sym && fn_sym->kind == SYM_FUNC);
+    ASSERT(fn_sym->ir_val);
+    KlrFunc *fn_ir_val = (KlrFunc *)fn_sym->ir_val;
+    ASSERT(fn_ir_val->kind == KLR_VALUE_FUNC);
+    exp->ir_val = fn_ir_val->self;
+    ASSERT(exp->ir_val);
+}
+
 static void emit_ir_type(ParserState *ps, Expr *exp)
 {
     Symbol *sym = exp->sym;
@@ -1280,6 +1291,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
     static void (*handlers[])(ParserState *, Expr *) = {
         [EXPR_ID_KIND]      = emit_ir_ident,
         [EXPR_LITERAL_KIND] = emit_ir_literal,
+        [EXPR_SELF_KIND]    = emit_ir_self,
         [EXPR_LIST_KIND]    = emit_ir_list,
         [EXPR_TUPLE_KIND]   = emit_ir_tuple,
         [EXPR_TYPE_KIND]    = emit_ir_type,
