@@ -6,10 +6,6 @@
 #ifndef _KOALA_H_
 #define _KOALA_H_
 
-#include "modobj.h"
-#include "opcode.h"
-#include "vm.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

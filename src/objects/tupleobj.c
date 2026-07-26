@@ -14,7 +14,7 @@ extern "C" {
 static TValue kl_tuple_tolist(TValue *self, TValue *args, int nargs)
 {
     TupleObject *tuple = (TupleObject *)to_obj(self);
-    Object *lst = kl_new_list(tuple->array, tuple->size);
+    Object *lst = kl_list_from_array(tuple->array, tuple->size);
     return obj_value(lst);
 }
 

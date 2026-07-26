@@ -6,8 +6,6 @@
 #ifndef _KOALA_ARGS_H_
 #define _KOALA_ARGS_H_
 
-#include "common.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -23,9 +21,13 @@ typedef struct KoalaOptions {
     const char *output;          // -o <file>
     const char *input;           // input file
     char pkg_name[MAX_PATH_LEN]; // --package-name=<name>
+    char argc;
+    char **argv;
 } KoalaOptions;
 
 int kl_parse_args(int argc, char *argv[], KoalaOptions *opt);
+
+extern KoalaOptions cmd_opt;
 
 #ifdef __cplusplus
 }

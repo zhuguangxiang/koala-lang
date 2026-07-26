@@ -94,13 +94,13 @@ public trait Indexable[T] {
 
 public class object {
 
-    @native(object_hash)
+    @native
     public func hash() int {}
 
-    @native(object_equals)
+    @native
     public func equals(rhs object) bool {}
 
-    @native(object_str)
+    @native
     public func to_str() str {}
 }
 

@@ -5,6 +5,8 @@
 
 #include "args.h"
 #include <getopt.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/utsname.h>
 #include "version.h"
 
@@ -114,7 +116,17 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
         }
     }
 
-    if (optind < argc) opt->input = argv[optind];
+    if (optind < argc) {
+        opt->argc = argc - optind;
+        opt->argv = &argv[optind];
+    } else {
+        opt->argc = 0;
+        opt->argv = NULL;
+    }
+
+    if (opt->argc > 0) {
+        opt->input = opt->argv[0];
+    }
 
     if (!opt->input) {
         print_usage(argv[0]);

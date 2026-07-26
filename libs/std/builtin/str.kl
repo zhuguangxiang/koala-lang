@@ -43,4 +43,7 @@ pub class str : Sequence[str] {
 
     @native
     pub func to_bytes() bytes {}
+
+    @native
+    pub func split(sep = " ") list[str] {}
 }

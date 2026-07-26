@@ -5,37 +5,43 @@
 
 pub class list[T] : MutableSequence[T] {
 
-    @native(kl_list_init)
+    @native
     pub func __init__(args ...T) {}
 
-    @native(kl_list_len)
+    @native
     pub func __len__() int {}
 
-    @native(kl_list_get_item)
+    @native
     pub func __getitem__(index int) T {}
 
-    @native(kl_list_set_item)
+    @native
     pub func __setitem__(index int, value T) {}
 
-    @native(kl_list_get_slice)
+    @native
     pub func __getslice__(r slice) list[T] {}
 
-    @native(kl_list_set_slice)
+    @native
     pub func __setslice__(r slice, val Iterable[T]) {}
 
-    @native(kl_list_contains)
+    @native
     pub func __contains__(v T) bool {}
 
-    @native(kl_list_concat)
+    @native
     pub func __concat__(seq Sequence[T]) list[T] {}
 
-    @native(kl_list_append)
+    @native
     pub func append(item T) {}
 
-    @native(kl_list_str)
+    @native
     pub func __str__() str {}
 
-    pub func extend(items Iterable[T]) {}
+    // TODO: extend needs intf-table
+    // @native
+    // pub func extend(items Iterable[T]) {}
+
+    @native
+    pub func extend(items list[T]) {}
+
     pub func insert(index int, value T) {}
     pub func remove(value T) {}
     pub func pop(index int = -1) T {}

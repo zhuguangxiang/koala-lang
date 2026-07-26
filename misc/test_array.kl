@@ -21,7 +21,7 @@
 
 // class array[T, const DIMS ...int] : Seq[T] {
 
-//     @native(kl_array_init)
+//     @native
 //     pub func __init__(args Iterable[T]) {}
 
 //     @intrinsic
@@ -33,37 +33,37 @@
 
 class tuple[infer T] : Seq[T] {
 
-    @native(kl_tuple_init)
+    @native
     pub func __init__(args ...) {}
 
     @intrinsic
     pub func __get_item__[infer U](index int) U {}
 
-    @native(kl_tuple_contains)
+    @native
     pub func __contains__(v T) bool {}
 
-    @native(kl_tuple_tolist)
+    @native
     pub func to_list() list[T] {}
 
-    @native(kl_tuple_iterator)
+    @native
     pub func __iter__() Iterator[T] {}
 
-    @native(kl_tuple_length)
+    @native
     pub func __len__() int {}
 
-    @native(kl_tuple_to_str)
+    @native
     pub func __str__() str {}
 
-    @native(kl_tuple_eq)
+    @native
     pub func __eq__(other any) bool {}
 
-    @native(kl_tuple_hash)
+    @native
     pub func __hash__() int {}
 
-    @native(kl_tuple_index)
+    @native
     pub func index(v T) int {}
 
-    @native(kl_tuple_count)
+    @native
     pub func count(v T) int {}
 }
 

@@ -4,6 +4,7 @@
  */
 
 #include "bytesobj.h"
+#include "listobj.h"
 #include "object.h"
 
 #ifdef __cplusplus
@@ -11,6 +12,55 @@ extern "C" {
 #endif
 
 static TValue str_str(TValue *self, TValue *args, int nargs) { return *self; }
+
+//
+// pub func split(sep = " ") list[str] {}
+// Split a UTF-8 string by a separator and return list[str]
+//
+static TValue str_split(TValue *self, TValue *args, int nargs)
+{
+    Object *ob = SELF_AS(str_type);
+
+    ASSERT(nargs == 1);
+
+    char *src = STR_BUF(ob);
+    char *sep = kl_arg_str(0);
+    int len = STR_LEN(ob);
+    int sep_len = strlen(sep);
+
+    // Separator must not be empty, compiler should have checked this.
+    ASSERT(sep_len > 0);
+
+    Object *list = kl_new_list();
+
+    int start = 0;
+
+    // Scan for separator occurrences
+    for (int i = 0; i <= len - sep_len; i++) {
+        // Found separator
+        if (memcmp(src + i, sep, sep_len) == 0) {
+            int part_len = i - start;
+
+            // Create substring (copy)
+            TValue part = kl_val_nstr(src + start, part_len);
+            kl_list_append(list, part);
+
+            // Move start to the end of separator
+            start = i + sep_len;
+
+            // Skip ahead by separator length
+            i += sep_len - 1;
+        }
+    }
+
+    // Final segment after the last separator
+    if (start <= len) {
+        TValue part = kl_val_nstr(src + start, len - start);
+        kl_list_append(list, part);
+    }
+
+    return obj_value(list);
+}
 
 static TValue str_to_bytes(TValue *self, TValue *args, int nargs)
 {
@@ -28,6 +78,7 @@ static TValue str_to_bytes(TValue *self, TValue *args, int nargs)
 static MethodDef str_methods[] = {
     { "__str__", str_str },
     { "to_bytes", str_to_bytes },
+    { "split", str_split },
     { NULL },
 };
 

@@ -540,11 +540,11 @@ void kl_dump_module(Object *m);
  |   Argument Helpers — extract typed arguments from args[]                  |
  +---------------------------------------------------------------------------*/
 
-static inline Object *kl_arg_obj(TValue *args, int nargs, int index)
-{
-    ASSERT(index >= 0 && index < nargs);
-    return to_obj(args + index);
-}
+#define kl_arg_obj(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        to_obj(args + index); \
+    })
 
 static inline uint8_t kl_arg_uint8(TValue *args, int nargs, int index)
 {
@@ -552,11 +552,11 @@ static inline uint8_t kl_arg_uint8(TValue *args, int nargs, int index)
     return to_uint8(args + index);
 }
 
-static inline int64_t kl_arg_int64(TValue *args, int nargs, int index)
-{
-    ASSERT(index >= 0 && index < nargs);
-    return to_int64(args + index);
-}
+#define kl_arg_int64(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        to_int64(args + index); \
+    })
 
 static inline double kl_arg_float(TValue *args, int nargs, int index)
 {
@@ -570,15 +570,27 @@ static inline bool kl_arg_bool(TValue *args, int nargs, int index)
     return to_bool(args + index);
 }
 
-static inline char *kl_arg_str(TValue *args, int nargs, int index)
+#define kl_arg_str(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        Object *o = to_obj(args + index); \
+        ASSERT(IS_STR(o)); \
+        STR_BUF(o); \
+    })
+
+static inline TValue kl_val_str(char *s)
 {
-    ASSERT(index >= 0 && index < nargs);
-    Object *o = to_obj(args + index);
-    ASSERT(IS_STR(o));
-    return STR_BUF(o);
+    Object *so = kl_new_str(s);
+    return obj_value(so);
 }
 
-#define SELF_AS(self, tp_type) \
+static inline TValue kl_val_nstr(char *s, size_t len)
+{
+    Object *so = kl_new_nstr(s, len);
+    return obj_value(so);
+}
+
+#define SELF_AS(tp_type) \
     ({ \
         Object *o = to_obj(self); \
         ASSERT(IS_TYPE(o, &tp_type)); \

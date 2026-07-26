@@ -1,6 +1,8 @@
 
 import "std/fs"
 import "std/io"
+import "std/os"
+// import "std/sys"
 
 // func test9(a int, b int) int {
 //     var x = a
@@ -196,6 +198,30 @@ func main() {
         buf.append(uint8(97 + i))
     }
     print(len(buf), buf)
+
+    let path = os.getenv("PATH")
+    print(path)
+
+    let args = os.args()
+    print(args)
+
+    // print(sys.stdin)
+
+    let _stdin fs.File? = fs.open(0)
+
+    // var stdin = io.BufReader(_stdin!)
+
+    if let __stdin = _stdin {
+        print(__stdin.path)
+        __stdin.read(bs)
+        print(bs.to_str())
+    }
+
+    let path2 = ["./"]
+    let sep_list = os.getenv("KOALA_PATH").split(":")
+    print(sep_list)
+    path2.extend(sep_list)
+    print(path2)
 }
 
 // import "std/io"

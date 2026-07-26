@@ -6,6 +6,7 @@
 #include "vm.h"
 #include <dlfcn.h>
 #include <unistd.h>
+#include "args.h"
 #include "atom.h"
 #include "buffer.h"
 #include "klc.h"
@@ -24,6 +25,8 @@ void init_tag_mappings(void);
 
 /* pthread */
 __thread ThreadState *__ts;
+
+KoalaOptions cmd_opt = { 0 };
 
 KoalaState *kl_new_ks(void)
 {

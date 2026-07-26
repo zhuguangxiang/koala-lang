@@ -5,13 +5,13 @@
 
 pub class dict[K, V] : Map[K, V] {
 
-    @native(kl_dict_len)
+    @native
     pub func __len__() int {}
 
-    @native(kl_dict_get_item)
+    @native
     pub func __getitem__(index any) V {}
 
-    @native(kl_dict_set_item)
+    @native
     pub func __setitem__(index any, v V) {}
 
     pub func __contains__(key K) bool {}

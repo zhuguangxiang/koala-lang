@@ -9,7 +9,7 @@
 /// If no objects are given, print() will just write the `end` character.
 /// The `sep` and `end` arguments must be strings; the default separator is a space,
 /// and the default end-of-line is a newline character.
-@native(builtin_print)
+@native
 pub func print(objs ..., sep = ' ', end = '\n') {}
 
 /// Return the number of items in a collection or the length of an object.
@@ -45,5 +45,5 @@ pub func len(obj any) int {}
 ///       stack traces or source locations when reporting the panic.
 ///     - User code should prefer returning `T?` or error values when
 ///       appropriate; `panic()` is intended only for fatal errors.
-@native(builtin_panic)
+@native
 pub func panic(msg str) {}

@@ -2,4 +2,4 @@
 link "koala_std_native"
 
 @native
-pub func open(path str, mode str) File? {}
+pub func open(path_or_fd str | int, mode = "r") File? {}

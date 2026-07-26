@@ -31,7 +31,7 @@ pub class bool {
     /// Return the string representation of the boolean.
     /// Returns "true" if True, and "false" if False.
     /// This overrides the any.__str__ method.
-    @native(kl_bool_str)
+    @native
     pub func __str__() str {}
 
     /// Toggle the current boolean value and return the result.

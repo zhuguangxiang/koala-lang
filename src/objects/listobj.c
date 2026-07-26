@@ -25,7 +25,15 @@ static void expand_capacity(ListObject *list, size_t new_capacity)
     list->capacity = capacity;
 }
 
-static TValue kl_list_append(TValue *self, TValue *args, int nargs)
+void kl_list_append(Object *ob, TValue item)
+{
+    ASSERT(IS_LIST(ob));
+    ListObject *list = (ListObject *)ob;
+    expand_capacity(list, list->end + 1);
+    list->array[list->end++] = item;
+}
+
+static TValue _list_append(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = (ListObject *)to_obj(self);
     expand_capacity(list, list->end + 1);
@@ -81,12 +89,27 @@ static TValue kl_list_str(TValue *self, TValue *args, int nargs)
     return obj_value(sobj);
 }
 
+static TValue kl_list_extend(TValue *self, TValue *args, int nargs)
+{
+    ListObject *list = SELF_AS(list_type);
+    ASSERT(nargs == 1);
+    Object *ob = kl_arg_obj(0);
+
+    if (IS_LIST(ob)) {
+        ListObject *other = (ListObject *)ob;
+        expand_capacity(list, list->end + other->end - other->start);
+        memcpy(list->array + list->end, other->array + other->start,
+               sizeof(TValue) * (other->end - other->start));
+        list->end += other->end - other->start;
+        return none_value;
+    } else {
+        NYI();
+    }
+}
+
 static MethodDef list_methods[] = {
-    { "append", kl_list_append },
-    { "pop", kl_list_pop },
-    { "__len__", kl_list_len },
-    { "__str__", kl_list_str },
-    { NULL },
+    { "append", _list_append }, { "pop", kl_list_pop },       { "__len__", kl_list_len },
+    { "__str__", kl_list_str }, { "extend", kl_list_extend }, { NULL },
 };
 
 static size_t kl_list_seq_len(TValue *self)
@@ -133,7 +156,16 @@ TypeObject list_type = {
     .seq = &list_seq_methods,
 };
 
-Object *kl_new_list(TValue *items, int size)
+Object *kl_new_list(void)
+{
+    ListObject *list = mm_alloc_obj(list);
+    INIT_OBJECT_HEAD(list, &list_type);
+    list->start = 0;
+    list->end = 0;
+    return (Object *)list;
+}
+
+Object *kl_list_from_array(TValue *items, int size)
 {
     ListObject *list = mm_alloc_obj(list);
     INIT_OBJECT_HEAD(list, &list_type);

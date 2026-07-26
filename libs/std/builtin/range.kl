@@ -16,7 +16,7 @@ pub class range : Sequence[int] {
     pub let step int
 
     /// Initialize a range from start (inclusive) to stop (exclusive).
-    @native(kl_range_init)
+    @native
     pub func __init__(_start int, _end int, _step int = 1) {}
 
     /// Return the number of elements in the range. O(1).
@@ -49,7 +49,7 @@ pub class range : Sequence[int] {
     }
 
     /// Return an iterator for the range.
-    @native(kl_range_iter)
+    @native
     pub func __iter__() Iterator[int] {}
 
     /// Return the number of occurrences of value in the range.
@@ -71,7 +71,7 @@ pub class range : Sequence[int] {
     ///
     /// If `value` is not present in the range, returns -1.
     ///
-    @native(kl_range_index)
+    @native
     pub func index(value int) int {}
 
     /// Return the string representation of the range.
@@ -89,7 +89,7 @@ pub class range : Sequence[int] {
     /// Note:
     ///     - No panic is triggered when the range is empty.
     ///
-    @native(kl_range_str)
+    @native
     pub func __str__() str {}
 
 }

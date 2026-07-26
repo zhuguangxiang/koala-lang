@@ -1,5 +1,16 @@
 
-pub func getenv(key str) str?
-pub func setenv(key str, value str)
-pub func unsetenv(key str)
-pub func environ() dict[str, str]
+link "koala_std_native"
+
+@native
+pub func getenv(key str) str? {}
+
+@native
+pub func setenv(key str, value str) {}
+
+@native
+pub func unsetenv(key str) {}
+
+// pub func environ() dict[str, str] {}
+
+@native
+pub func args() list[str] {}

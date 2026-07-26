@@ -4,8 +4,7 @@ import "std/fs"
 import "std/os"
 
 pub let version = __KOALA_VERSION__
-pub let build = __KOALA_BUILD_HASH__
-pub let date = __KOALA_BUILD_DATE__
+// pub let date = __KOALA_BUILD_DATE__
 
 let _stdin = fs.open(0)
 let _stdout = fs.open(1)
@@ -19,6 +18,4 @@ pub let argv = os.args()
 
 pub let path = ["./"]
 
-func __init__() {
-    path.extend(os.getenv("KOALA_PATH").split(":"))
-}
+path.extend(os.getenv("KOALA_PATH").split(":"))

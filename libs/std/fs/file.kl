@@ -3,7 +3,7 @@ import "std/io"
 
 pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
 
-    pub let path str
+    pub let path str?
     pub let mode str
 
     @native

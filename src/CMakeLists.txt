@@ -91,6 +91,7 @@ set(KOALA_SOURCES
     runtime/except.c
     runtime/eval.c
     runtime/mod.c
+    runtime/args.c
     modules/builtin.c
     )
 
@@ -98,8 +99,7 @@ add_library(koala SHARED ${KOALA_SOURCES})
 target_link_libraries(koala koala_common pthread m dl ffi)
 
 add_executable(koala_out
-    ${PROJECT_SOURCE_DIR}/src/koala.c
-    ${PROJECT_SOURCE_DIR}/src/args.c)
+    ${PROJECT_SOURCE_DIR}/src/koala.c)
 
 target_link_libraries(koala_out koala)
 set_target_properties(koala_out PROPERTIES

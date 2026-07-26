@@ -20,24 +20,50 @@ typedef struct _FileObject {
 
 static TypeObject file_type;
 
-static Object *kl_new_file(char *path, int fd)
+static Object *kl_new_file(TValue path, TValue mode, int fd)
 {
     FileObject *fobj = mm_alloc_obj(fobj);
     INIT_OBJECT_HEAD(fobj, &file_type);
     fobj->size = 2;
-    fobj->path = obj_value(kl_new_str(path));
-    fobj->mode = none_value;
+    fobj->path = path;
+    fobj->mode = mode;
     fobj->fd = fd;
     return (Object *)fobj;
 }
 
 static TValue file_open(TValue *self, TValue *args, int nargs)
 {
-    Object *_path = to_obj(&args[0]);
-    char *path = STR_BUF(_path);
-    int fd = open(path, O_RDONLY);
+    ASSERT(nargs == 2);
+
+    if (is_int64(&args[0])) {
+        int fd = (int)kl_arg_int64(0);
+
+        if (fcntl(fd, F_GETFD) == -1) {
+            return none_value;
+        }
+
+        Object *fobj = kl_new_file(none_value, args[1], fd);
+        return obj_value(fobj);
+    }
+
+    char *path = kl_arg_str(0);
+    char *mode = kl_arg_str(1);
+
+    int flags = 0;
+
+    if (strcmp(mode, "r") == 0) {
+        flags = O_RDONLY;
+    } else if (strcmp(mode, "w") == 0) {
+        flags = O_WRONLY | O_CREAT | O_TRUNC;
+    } else if (strcmp(mode, "a") == 0) {
+        flags = O_WRONLY | O_CREAT | O_APPEND;
+    } else {
+        flags = O_RDONLY;
+    }
+
+    int fd = open(path, flags, 0644);
     if (fd < 0) return none_value;
-    Object *fobj = kl_new_file(path, fd);
+    Object *fobj = kl_new_file(args[0], args[1], fd);
     return obj_value(fobj);
 }
 

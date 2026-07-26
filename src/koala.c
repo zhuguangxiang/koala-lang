@@ -5,9 +5,13 @@
 
 #include "koala.h"
 #include <spawn.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <unistd.h>
 #include "args.h"
 
 static double now_ms(void)
@@ -147,13 +151,12 @@ int main(int argc, char *argv[])
 {
     // double t0 = now_ms();
 
-    KoalaOptions opt = { 0 };
-    if (kl_parse_args(argc, argv, &opt)) return -1;
+    if (kl_parse_args(argc, argv, &cmd_opt)) return -1;
 
-    const char *input = opt.input;
+    const char *input = cmd_opt.input;
 
     if (has_suffix(input, ".klc")) {
-        if (opt.compile_only) {
+        if (cmd_opt.compile_only) {
             fprintf(stderr, "koala: -c cannot be used with .klc\n");
             return -1;
         }
@@ -166,10 +169,10 @@ int main(int argc, char *argv[])
     }
 
     char *temp = NULL;
-    const char *out = opt.output;
+    const char *out = cmd_opt.output;
 
     if (!out) {
-        if (opt.compile_only) {
+        if (cmd_opt.compile_only) {
             out = default_output_path(input);
             if (!out) {
                 fprintf(stderr, "koala: cannot create output path\n");
@@ -185,7 +188,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (compile(input, out, &opt)) {
+    if (compile(input, out, &cmd_opt)) {
         if (temp) {
             remove(temp);
             free(temp);
@@ -194,7 +197,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    if (!opt.compile_only) {
+    if (!cmd_opt.compile_only) {
         run_klc(out);
     }
 

@@ -254,7 +254,7 @@ a = [1,2,3]
 a = list([1,2,3])
 [v for v in range(1, 100)]
 
-@native(builtin_print)
+@native
 func print(objs: ..., sep = ' ', end = '\n', file io.Writer? = None, flush = false)
 
 print("hello", sep = '\t')

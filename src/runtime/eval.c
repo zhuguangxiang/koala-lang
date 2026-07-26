@@ -49,7 +49,7 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
         }
 
         case INTERN_LIST: {
-            return kl_new_list(values, count);
+            return kl_list_from_array(values, count);
         }
 
         default: {

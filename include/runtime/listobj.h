@@ -23,7 +23,9 @@ typedef struct _ListObject {
 extern TypeObject list_type;
 #define IS_LIST(ob) IS_TYPE((ob), &list_type)
 
-Object *kl_new_list(TValue *items, int size);
+Object *kl_new_list(void);
+Object *kl_list_from_array(TValue *items, int size);
+void kl_list_append(Object *ob, TValue item);
 
 #ifdef __cplusplus
 }

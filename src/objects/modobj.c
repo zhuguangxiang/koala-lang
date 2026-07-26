@@ -335,7 +335,7 @@ int kl_mo_add_list(Object *_m, Vector *list)
 
     TValue *items = VECTOR_RAW(&vec, TValue);
     int size = vector_size(&vec);
-    Object *tobj = kl_new_list(items, size);
+    Object *tobj = kl_list_from_array(items, size);
     TValue val = obj_value(tobj);
     vector_fini(&vec);
     return kl_mo_add_const(_m, &val);
