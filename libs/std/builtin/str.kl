@@ -5,38 +5,38 @@
 
 pub class str : Sequence[str] {
 
-    @native(kl_str_len)
-    pub func __len__() int {}
-
-    @native(kl_str_get_item)
-    pub func __getitem__(index any) str {}
-
-    @native(kl_str_concat)
-    pub func __concat__(seq Sequence[str]) str {}
-
-    @native(kl_str_repeat)
-    pub func __repeat__(count int) str {}
-
-    @native(kl_str_find)
-    pub func find(sub str) int {}
-
-    @native(kl_str_substr)
-    pub func substr(start int, length int) str {}
-
-    @native(kl_str_to_int)
-    pub func to_int() int {}
-
-    @native(kl_str_to_float)
-    pub func to_float() float64 {}
-
-    @native(kl_str_format)
-    pub func format(fmt str, args ...) str {}
-
-    @native(kl_str_init)
+    @native
     pub func __init__(s str) {}
 
-    @native(kl_str_add)
+    @native
+    pub func __len__() int {}
+
+    @native
+    pub func __getitem__(index any) str {}
+
+    @native
+    pub func find(sub str) int {}
+
+    @native
+    pub func substr(start int, length int) str {}
+
+    @native
+    pub func to_int() int {}
+
+    @native
+    pub func to_float() float64 {}
+
+    @native
+    pub func format(args ...) str {}
+
+    @native
     pub func __add__(rhs any) str {}
+
+    @native
+    pub func __eq__(rhs str) bool {}
+
+    @native
+    pub func __ne__(rhs str) bool {}
 
     @native
     pub func join(seq Sequence[str]) str {}

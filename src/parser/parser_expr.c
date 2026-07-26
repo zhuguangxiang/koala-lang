@@ -6,10 +6,49 @@
 #include "log.h"
 #include "parser.h"
 #include "utf8.h"
+#include "version.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct _ConstPlaceHolder {
+    HashMapEntry hnode;
+    char *name;
+    TypeSpec *ts;
+    Literal lit;
+} ConstPlaceHolder;
+
+static HashMap cph_map;
+
+static int _cph_equal_(void *k1, void *k2)
+{
+    ConstPlaceHolder *cp1 = (ConstPlaceHolder *)k1;
+    ConstPlaceHolder *cp2 = (ConstPlaceHolder *)k2;
+    return !strcmp(cp1->name, cp2->name);
+}
+
+void init_const_placeholder(void)
+{
+    hashmap_init(&cph_map, _cph_equal_);
+
+    // __KOALA_VERSION__
+    ConstPlaceHolder *cp = mm_alloc_obj(cp);
+    cp->name = "__KOALA_VERSION__";
+    hashmap_entry_init(cp, str_hash(cp->name));
+    cp->ts = str_type_spec();
+    cp->lit.which = LIT_STR;
+    cp->lit.sval = KOALA_VERSION_STRING;
+    hashmap_put(&cph_map, cp);
+}
+
+static ConstPlaceHolder *get_const_placeholder(char *name)
+{
+    ConstPlaceHolder key = { .name = name };
+    hashmap_entry_init(&key, str_hash(name));
+    void *ret = hashmap_get(&cph_map, &key);
+    return (ConstPlaceHolder *)ret;
+}
 
 static void parse_ident(ParserState *ps, Expr *exp)
 {
@@ -1396,6 +1435,38 @@ static void parse_dot(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, lhs);
     if (!lhs->ts) return;
 
+    if (lhs->ts->kind == TYPE_TYPE) {
+        // static method?
+        if (opt_or_bang != DOT_NORMAL) {
+            kl_error(lhs->loc, "static method can't use `!.` or `?.`");
+            return;
+        }
+
+        Symbol *lhs_sym = lhs->sym;
+        if (lhs_sym->kind != SYM_CLASS) {
+            kl_error(lhs->loc, "symbol '%s' is not a class", lhs_sym->name);
+            return;
+        }
+
+        KlassSymbol *kls_sym = (KlassSymbol *)lhs_sym;
+        Ident *ident = &dot->id;
+        Symbol *st_sym = stbl_get(kls_sym->stbl, ident->name);
+        if (!st_sym) {
+            kl_error(ident->loc, "static method '%s' not found", ident->name);
+            return;
+        }
+
+        if (!(st_sym->flags & SYM_FLAGS_STATIC)) {
+            kl_error(ident->loc, "'%s' is not a static method.", ident->name);
+            return;
+        }
+
+        exp->ts = st_sym->ts;
+        exp->sym = st_sym;
+        log_info("found static method '%s' in class '%s'", st_sym->name, kls_sym->name);
+        return;
+    }
+
     if (type_is_optional(lhs->ts)) {
         if (opt_or_bang == DOT_BANG) {
             // force unwrap, error if nil
@@ -1467,6 +1538,11 @@ static void parse_dot(ParserState *ps, Expr *exp)
             InheritedFunc *inherited = (InheritedFunc *)sym;
             exp->ts = opt_dot_type(inherited->origin->ts, opt_or_bang);
         } else {
+            if (sym->flags & SYM_FLAGS_STATIC) {
+                kl_error(ident->loc, "static method '%s' cannot be called by instance object",
+                         ident->name);
+                return;
+            }
             exp->ts = opt_dot_type(sym->ts, opt_or_bang);
         }
 
@@ -1995,7 +2071,7 @@ static char *get_binary_op_name(BiOpKind op)
         case BINARY_EQ:
             return "__eq__";
         case BINARY_NEQ:
-            return "__neq__";
+            return "__ne__";
 
         case BINARY_AND:
             return "__and__";
@@ -2465,6 +2541,27 @@ static void parse_is(ParserState *ps, Expr *exp)
              is->result ? "true" : "unknown (maybe false at runtime)");
 }
 
+static void parse_const_placeholder(ParserState *ps, Expr *exp)
+{
+    ConstPlaceholderExpr *cp = (ConstPlaceholderExpr *)exp;
+    log_info("const placeholder: %s", cp->name);
+
+    if (exp->ctx != EXPR_CTX_LOAD) {
+        kl_error(exp->loc, "const placeholder is readonly.");
+        return;
+    }
+
+    ConstPlaceHolder *cph = get_const_placeholder(cp->name);
+    if (!cph) {
+        kl_error(cp->loc, "const '%s' is not found.", cp->name);
+        return;
+    }
+
+    cp->ts = cph->ts;
+    cp->lit = &cph->lit;
+    exp->sym = get_symbol_by_id(exp->ts->sym_id);
+}
+
 void parser_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -2488,9 +2585,10 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_UNARY_KIND]   = parse_unary,
         [EXPR_BINARY_KIND]  = parse_binary,
         [EXPR_KW_KIND]      = parse_keyword,
-        [EXPR_BANG_KIND]    = parse_bang,
-        [EXPR_AS_KIND]      = parse_as,
         [EXPR_IS_KIND]      = parse_is,
+        [EXPR_AS_KIND]      = parse_as,
+        [EXPR_BANG_KIND]    = parse_bang,
+        [EXPR_CONST_PLACEHOLDER] = parse_const_placeholder,
     };
     /* clang-format on */
 

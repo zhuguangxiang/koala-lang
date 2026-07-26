@@ -45,7 +45,7 @@ set(PARSER_SRC
     )
 
 add_library(parser STATIC ${PARSER_SRC})
-target_link_libraries(parser koala-common m)
+target_link_libraries(parser koala_common m)
 
 add_executable(koalac_out parser/koalac.c)
 target_link_libraries(koalac_out parser)
@@ -66,8 +66,8 @@ set(COMMON_SOURCES
     common/utf8.c
     common/klc.c)
 
-add_library(koala-common STATIC ${COMMON_SOURCES})
-set_target_properties(koala-common PROPERTIES POSITION_INDEPENDENT_CODE ON)
+add_library(koala_common STATIC ${COMMON_SOURCES})
+set_target_properties(koala_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 set(KOALA_SOURCES
     objects/anyobj.c
@@ -95,7 +95,7 @@ set(KOALA_SOURCES
     )
 
 add_library(koala SHARED ${KOALA_SOURCES})
-target_link_libraries(koala koala-common pthread m dl ffi)
+target_link_libraries(koala koala_common pthread m dl ffi)
 
 add_executable(koala_out
     ${PROJECT_SOURCE_DIR}/src/koala.c

@@ -578,6 +578,11 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+            } else if (self->kind == KLR_VALUE_KLASS) {
+                // Foo.hello(), static method call^M
+                KlrBuilder bldr;
+                klr_builder_end(&bldr, ps->scope->bb);
+                ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
             } else {
                 // method call
                 KlrValue *_args[size + 1];
@@ -1224,6 +1229,46 @@ static void emit_ir_bang(ParserState *ps, Expr *exp)
     exp->ir_val = e->ir_val;
 }
 
+static void emit_ir_const_placeholder(ParserState *ps, Expr *exp)
+{
+    ConstPlaceholderExpr *cp = (ConstPlaceholderExpr *)exp;
+    Literal *lit = cp->lit;
+    KlrModule *m = MOD;
+
+    switch (lit->which) {
+        case LIT_INT: {
+            if (lit->sign) {
+                exp->ir_val = klr_const_int(lit->ival, cp->ts, m);
+            } else {
+                exp->ir_val = klr_const_uint(lit->ival, cp->ts, m);
+            }
+            break;
+        }
+        case LIT_FLT: {
+            exp->ir_val = klr_const_float(lit->fval, cp->ts, m);
+            break;
+        }
+        case LIT_BOOL: {
+            exp->ir_val = klr_const_bool(lit->bval, m);
+            break;
+        }
+        case LIT_STR: {
+            exp->ir_val = klr_const_str(lit->sval, lit->len, m);
+            break;
+        }
+        case LIT_NONE: {
+            exp->ir_val = klr_const_none(m);
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+
+    klr_set_loc(exp->ir_val, ps->filename, exp->loc);
+}
+
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -1246,6 +1291,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_BINARY_KIND]  = emit_ir_binary,
         [EXPR_KW_KIND]      = emit_ir_kw,
         [EXPR_BANG_KIND]    = emit_ir_bang,
+        [EXPR_CONST_PLACEHOLDER] = emit_ir_const_placeholder,
     };
     /* clang-format on */
 
@@ -1373,6 +1419,9 @@ static void emit_ir_class(ParserState *ps, Stmt *stmt)
         if (!s || s->kind != STMT_FUNC_KIND) continue;
         FuncDeclStmt *method = (FuncDeclStmt *)s;
         Symbol *sym = method->sym;
+
+        if (sym->flags & SYM_FLAGS_STATIC) continue;
+
         if (str_equal(sym->name, "__init__")) {
             method->data = &fields;
         }
@@ -2215,7 +2264,9 @@ static void _add_method(KlrKlass *kls, FuncDeclStmt *meth)
 
     KlrValue *fval = klr_add_method(kls, _sym->ret, id->name);
 
-    ((KlrFunc *)fval)->self = klr_func_add_param(fval, kls->ts, "self");
+    if (!(_sym->flags & SYM_FLAGS_STATIC)) {
+        ((KlrFunc *)fval)->self = klr_func_add_param(fval, kls->ts, "self");
+    }
 
     KlrValue *param;
     ArgInfo *arg;
@@ -2331,6 +2382,12 @@ void kl_gen_ir(ParserModule *pm)
             if (!s) continue;
             emit_ir_stmt(ps, s);
         }
+
+        vector_foreach(s, &ps->static_methods) {
+            if (!s) continue;
+            emit_ir_stmt(ps, s);
+        }
+
         exit_scope(ps);
     }
 

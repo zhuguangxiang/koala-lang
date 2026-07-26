@@ -1,5 +1,7 @@
 
 
+link "koala_std_native"
+
 func min(a int, b int) int {
     if a < b {
         return a

@@ -61,7 +61,7 @@ typedef struct _ModuleObject {
     void *state;    // module private pointer
 
     /* native so */
-    Vector natives;
+    Vector libs;
 } ModuleObject;
 
 typedef enum {
@@ -90,7 +90,7 @@ extern TypeObject module_type;
 #define IS_MODULE(ob) IS_TYPE((ob), &module_type)
 
 Object *kl_new_module(char *path);
-Object *kl_new_native_module(ModuleDef *def);
+Object *kl_module_fromdef(ModuleDef *def);
 void kl_free_module(Object *m);
 int kl_init_module(Object *_m);
 #define kl_mo_path(m) (((ModuleObject *)(m))->path)

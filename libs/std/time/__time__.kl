@@ -1,0 +1,43 @@
+
+// Internal clock identifiers
+// const CLOCK_REALTIME = "realtime"
+// const CLOCK_MONOTONIC = "monotonic"
+
+const CLOCK_REALTIME = 0
+const CLOCK_MONOTONIC = 1
+
+@native
+func sys_clock_realtime_nanos() int {}
+
+@native
+func sys_clock_monotonic_nanos() int {}
+
+@native
+func sys_sleep_nanos(ns int) {}
+
+pub func now() Instant {
+    return Instant(sys_clock_realtime_nanos(), CLOCK_REALTIME)
+}
+
+pub func monotonic() Instant {
+    return Instant(sys_clock_monotonic_nanos(), CLOCK_MONOTONIC)
+}
+
+pub func sleep(d Duration) {
+    if d.ns > 0 { sys_sleep_nanos(d.ns) }
+}
+
+pub func sleep_until(t Instant) {
+    if t.clock != CLOCK_MONOTONIC { panic("sleep_until requires monotonic Instant") }
+    let now Instant = monotonic()
+    let diff Duration = now.diff(t)
+    if diff.ns > 0 { sys_sleep_nanos(diff.ns) }
+}
+
+pub func unix_secs() int {
+    return sys_clock_realtime_nanos() / 1_000_000_000
+}
+
+pub func unix_nanos() int {
+    return sys_clock_realtime_nanos()
+}

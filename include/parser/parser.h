@@ -103,6 +103,9 @@ typedef struct _ParserState {
     /* func stmts */
     Vector fn_stmts;
 
+    /* static func stmts */
+    Vector static_methods;
+
     /* current scope */
     ParserScope *scope;
     /* depth of scope */
@@ -216,8 +219,11 @@ int check_type(ParserState *ps, TypeSpec *ts);
 int type_spec_compatible(TypeSpec *dst, TypeSpec *src);
 
 void write_to_klc(ParserModule *pm);
-PkgSymbol *load_module(char *path, HashMap *imported);
+PkgSymbol *import_package(ParserModule *pm, char *path);
+PkgSymbol *load_module(char *path, ParserModule *pm);
 void kl_gen_ir(ParserModule *pm);
+
+void init_const_placeholder(void);
 
 #ifdef __cplusplus
 }

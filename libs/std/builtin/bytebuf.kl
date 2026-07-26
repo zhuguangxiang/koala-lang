@@ -1,6 +1,6 @@
 
 
-pub class bytearray : MutableSequence[uint8] {
+pub class ByteBuffer : MutableSequence[uint8] {
     @native
     pub func __init__(def_size = 0) {}
 
@@ -15,4 +15,7 @@ pub class bytearray : MutableSequence[uint8] {
 
     @native
     pub func __len__() int {}
+
+    @native
+    pub func to_bytes() bytes {}
 }

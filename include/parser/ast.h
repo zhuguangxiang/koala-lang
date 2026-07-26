@@ -30,6 +30,7 @@ typedef struct _AtFlag {
 typedef struct _PrefixFlags {
     SimpleFlag doc;
     SimpleFlag pub;
+    SimpleFlag st;
     AtFlag at;
 } PrefixFlags;
 
@@ -74,6 +75,7 @@ typedef enum _ExprKind {
     EXPR_AS_KIND,
     EXPR_IN_KIND,
     EXPR_BANG_KIND,
+    EXPR_CONST_PLACEHOLDER,
     EXPR_MAX_KIND,
 } ExprKind;
 
@@ -132,6 +134,14 @@ Expr *expr_from_lit_str(Buffer *buf);
 Expr *expr_from_lit_none(void);
 Expr *expr_from_literal(Literal *lit);
 Literal *expr_to_literal(Expr *exp);
+
+typedef struct _ConstPlaceholderExpr {
+    EXPR_HEAD
+    char *name;
+    Literal *lit;
+} ConstPlaceholderExpr;
+
+Expr *expr_from_const_placeholder(Buffer *buf);
 
 typedef struct _IdentExpr {
     EXPR_HEAD

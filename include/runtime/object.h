@@ -156,9 +156,12 @@ typedef struct _TValue {
  |  Koala Instance Object Layout                                             |
  +---------------------------------------------------------------------------*/
 
+/* clang-format off */
+#define INST_OBJECT_HEAD OBJECT_HEAD size_t size;
+/* clang-format on */
+
 typedef struct _InstObject {
-    OBJECT_HEAD
-    size_t size;
+    INST_OBJECT_HEAD
     TValue fields[0];
 } InstObject;
 
@@ -521,13 +524,14 @@ void kl_dump_module(Object *m);
 Object *kl_get_native(Object *m, char *name);
 
 typedef struct _NativeModule {
-    int index;
+    char *name;
     void *handle;
     HashMap symbols;
-} NativeModule;
+} NativeLib;
 
-int kl_register_func(NativeModule *m, char *name, NativeFunc fn);
-int kl_register_method(NativeModule *m, char *cls, char *meth, NativeFunc fn);
+int kl_reg_func(NativeLib *lib, char *name, NativeFunc fn);
+int kl_reg_meth(NativeLib *lib, char *cls, char *meth, NativeFunc fn);
+int kl_reg_type(NativeLib *lib, TypeObject *tp);
 
 TValue kl_eval_code(TValue *self, TValue *args, int nargs);
 void kl_run_main(Object *m);

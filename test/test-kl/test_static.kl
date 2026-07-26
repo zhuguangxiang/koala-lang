@@ -1,0 +1,34 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+class Foo {
+    let msg = "hello"
+
+    func __init__(m str) {
+        msg = m
+    }
+
+    func hello() {
+        print(msg)
+    }
+
+    static func bar() str {
+        return "world"
+    }
+
+    static func baz(f Foo) str {
+        return f.msg
+    }
+}
+
+func main() {
+    let f = Foo("hello")
+    f.hello()
+
+    f.baz(Foo("world"))
+    // CHECK: static method 'baz' cannot be called by instance object
+    Foo.hello(f)
+    // CHECK: 'hello' is not a static method.
+
+    Foo.bar()
+    Foo.baz(f)
+}

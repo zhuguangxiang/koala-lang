@@ -1,8 +1,8 @@
 
-pub class Lines : Iterator[bytes] {
+pub class Lines : Iterator[str] {
 
     // @native
-    pub func __init__(r Reader) {}
+    pub func __init__(r BufReader) {}
 
     // @native
     pub func next_line(out bytes) bool {}
@@ -11,5 +11,5 @@ pub class Lines : Iterator[bytes] {
     pub func __has_next__() bool {}
 
     // @native
-    pub func __next__() bytes {}
+    pub func __next__() str {}
 }

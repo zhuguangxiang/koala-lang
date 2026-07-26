@@ -1,25 +1,23 @@
 
-pub class File : Reader & Writer & Seeker & Closable {
+import "std/io"
+
+pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
 
     pub let path str
     pub let mode str
-    var fd int
 
-    // @native
-    pub func __init__(_path str, _mode str) {}
-
-    // @native
+    @native
     pub func read(bs bytes) int {}
 
-    // @native
+    @native
     pub func write(bs bytes) int {}
 
-    // @native
+    @native
     pub func seek(offset int, whence int) int {}
 
-    // @native
+    @native
     pub func close() {}
 
-    // @native
+    /// raw file is not flushable, so it's empty
     pub func flush() {}
 }

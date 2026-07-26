@@ -81,7 +81,7 @@ static ModuleDef builtin_module = {
 
 void init_builtin_module(void)
 {
-    kl_new_native_module(&builtin_module);
+    kl_module_fromdef(&builtin_module);
     // kl_dump_module(m);
 }
 

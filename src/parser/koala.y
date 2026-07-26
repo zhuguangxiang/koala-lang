@@ -126,6 +126,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token IS
 %token PUBLIC
 %token INFER
+%token STATIC
 
 %token SELF
 %token TRUE
@@ -185,6 +186,8 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token OPT_DEF
 %token OPT_DOT
 %token BANG_DOT
+
+%token CONST_PLACEHOLDER
 
 %type<stmt> import_stmt
 %type<stmt> link_stmt
@@ -1909,6 +1912,19 @@ method_decl
         $$ = $2;
         stmt_set_prefix($$, $1);
     }
+    | STATIC func_decl
+    {
+        $$ = $2;
+        SimpleFlag flg = { 1, loc(@1) };
+        $$->flags.st = flg;
+    }
+    | prefix STATIC func_decl
+    {
+        $$ = $3;
+        stmt_set_prefix($$, $1);
+        SimpleFlag flg = { 1, loc(@2) };
+         $$->flags.st = flg;
+    }
     | semi
     {
         $$ = NULL;
@@ -3086,6 +3102,11 @@ atom
     | SELF
     {
         $$ = expr_from_self();
+        expr_set_loc($$, loc(@1));
+    }
+    | CONST_PLACEHOLDER
+    {
+        $$ = expr_from_const_placeholder(&ps->sbuf);
         expr_set_loc($$, loc(@1));
     }
     ;

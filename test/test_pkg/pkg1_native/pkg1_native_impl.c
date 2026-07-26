@@ -5,6 +5,9 @@
 
 #include "object.h"
 
+// gcc -fPIC -shared pkg1_native/pkg1_native_impl.c -o libpkg1_native.so -I../../include/runtime
+// -I../../include/common -L../../build/DebugTest/lib/ -lkoala
+
 /* func test_pkg_foo(an Animal) */
 TValue test_pkg_foo_func(TValue *self, TValue *args, int nargs)
 {
@@ -33,8 +36,6 @@ TValue foo_swim_func(TValue *self, TValue *args, int nargs)
     return obj_value(s);
 }
 
-void pkg1_native_module_init(NativeModule *m)
-{
-    kl_register_func(m, "test_pkg_foo", test_pkg_foo_func);
-    kl_register_method(m, "Foo", "swim", foo_swim_func);
-}
+void pkg1_native_lib_init(NativeLib *lib) { kl_reg_func(lib, "test_pkg_foo", test_pkg_foo_func); }
+
+void test_pkg_4_native_lib_init(NativeLib *lib) { kl_reg_meth(lib, "Foo", "swim", foo_swim_func); }

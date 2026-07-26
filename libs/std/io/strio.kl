@@ -14,7 +14,7 @@ pub class StringIO : Reader & Seeker {
         if (available <= 0) { return 0; }
 
         let n = min(available, len(bs))
-        bs.copy_from(buf, pos, pos + n)
+        bs.copy(buf, pos, pos + n)
         // pos += n
         pos = pos + n
         return n

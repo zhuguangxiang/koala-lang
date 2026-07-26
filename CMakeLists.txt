@@ -23,7 +23,7 @@ set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.local/lib)
 add_definitions(-DMAX_GC_MEM_SIZE=1024*1024)
 add_definitions(-DLOG_COLOR)
 
-set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED true)
 set(CMAKE_C_EXTENSIONS on)
 
@@ -92,6 +92,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include/runtime)
 include_directories(${PROJECT_BINARY_DIR}/include/runtime)
 
 add_subdirectory(src)
+add_subdirectory(libs)
 
 option(SKIP_TESTS "running test" OFF)
 

@@ -96,7 +96,7 @@ static TValue kl_bytes_count(TValue *self, TValue *args, int nargs)
     return int64_value(count);
 }
 
-static TValue kl_bytes_copy_from(TValue *self, TValue *args, int nargs)
+static TValue kl_bytes_copy(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(obj && IS_BYTES(obj));
@@ -117,31 +117,6 @@ static TValue kl_bytes_copy_from(TValue *self, TValue *args, int nargs)
 
     memmove(bytes->data + bytes->offset, src_bytes->data + src_bytes->offset + src_start, len);
     return int64_value(len);
-}
-
-static TValue kl_bytes_copy_to(TValue *self, TValue *args, int nargs)
-{
-    Object *obj = to_obj(self);
-    ASSERT(obj && IS_BYTES(obj));
-
-    BytesObject *bytes = (BytesObject *)obj;
-
-    ASSERT(nargs == 3);
-
-    Object *dst = to_obj(&args[0]);
-    ASSERT(dst && IS_BYTES(dst));
-    BytesObject *dst_bytes = (BytesObject *)dst;
-
-    int dst_start = to_int64(&args[1]);
-    int dst_end = to_int64(&args[2]);
-    if (dst_end < 0) dst_end = dst_bytes->size;
-
-    int len = dst_end - dst_start;
-    ASSERT(bytes->size <= len);
-
-    memmove(dst_bytes->data + dst_bytes->offset + dst_start, bytes->data + bytes->offset,
-            bytes->size);
-    return int64_value(bytes->size);
 }
 
 static TValue kl_bytes_fill(TValue *self, TValue *args, int nargs)
@@ -205,12 +180,17 @@ static TValue kl_bytes_tostr(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef bytes_methods[] = {
-    { "__len__", kl_bytes_len },     { "__str__", kl_bytes_str },
-    { "__init__", kl_bytes_init },   { "index", kl_bytes_index },
-    { "count", kl_bytes_count },     { "copy_from", kl_bytes_copy_from },
-    { "copy_to", kl_bytes_copy_to }, { "fill", kl_bytes_fill },
-    { "zero", kl_bytes_zero },       { "view", kl_bytes_view },
-    { "to_str", kl_bytes_tostr },    { NULL, NULL },
+    { "__len__", kl_bytes_len },
+    { "__str__", kl_bytes_str },
+    { "__init__", kl_bytes_init },
+    { "index", kl_bytes_index },
+    { "count", kl_bytes_count },
+    { "copy", kl_bytes_copy },
+    { "fill", kl_bytes_fill },
+    { "zero", kl_bytes_zero },
+    { "view", kl_bytes_view },
+    { "to_str", kl_bytes_tostr },
+    { NULL, NULL },
 };
 
 static size_t kl_bytes_seq_len(TValue *self)

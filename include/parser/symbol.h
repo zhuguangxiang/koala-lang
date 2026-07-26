@@ -41,6 +41,7 @@ typedef enum _SymKind {
 #define SYM_FLAGS_MAGIC     (1 << 6)
 #define SYM_FLAGS_GENERIC   (1 << 7)
 #define SYM_FLAGS_NATIVE    (1 << 8)
+#define SYM_FLAGS_STATIC    (1 << 9)
 
 #define SYM_UNRESOLVED   0
 #define SYM_RESOLVED     1

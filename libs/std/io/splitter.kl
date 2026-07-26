@@ -1,0 +1,11 @@
+
+class Splitter : Iterator[bytes] {
+
+    func __init__(r BufReader, delim uint8) {}
+
+     // @native
+    pub func __has_next__() bool {}
+
+    // @native
+    pub func __next__() bytes {}
+}

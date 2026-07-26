@@ -132,9 +132,9 @@ extern "C" {
 
 #ifndef KOALA_EXPORT
 #if defined(_WIN32)
-#define KOALA_EXPORT __declspec(dllexport) // Windows 平台导出
+#define KOALA_EXPORT __declspec(dllexport)
 #else
-#define KOALA_EXPORT __attribute__((visibility("default"))) // Linux/macOS 平台强制公开
+#define KOALA_EXPORT __attribute__((visibility("default")))
 #endif
 #endif
 

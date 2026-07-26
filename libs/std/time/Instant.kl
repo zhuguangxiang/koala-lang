@@ -1,0 +1,59 @@
+
+pub class Instant {
+    let epoch_ns int
+    let clock int
+
+    pub func __init__(_ns int, _clock int) {
+        epoch_ns = _ns
+        clock = _clock
+    }
+
+    // Instant + Duration → Instant
+    pub func __add__(d Duration) Instant {
+        return Instant(epoch_ns + d.ns, clock)
+    }
+
+    // Instant - Duration → Instant
+    pub func __sub__(d Duration) Instant {
+        return Instant(epoch_ns - d.ns, clock)
+    }
+
+    // Instant - Instant → Duration
+    pub func diff(other Instant) Duration {
+        if clock != other.clock {
+            panic("cannot diff Instants from different clocks")
+        }
+        return Duration(epoch_ns - other.epoch_ns)
+    }
+
+    // comparisons
+    pub func __eq__(other Instant) bool {
+        if clock != other.clock { panic("cannot compare Instants from different clocks") }
+        return epoch_ns == other.epoch_ns
+    }
+
+    pub func __ne__(other Instant) bool {
+        if clock != other.clock { panic("cannot compare Instants from different clocks") }
+        return epoch_ns != other.epoch_ns
+    }
+
+    pub func __lt__(other Instant) bool {
+        if clock != other.clock { panic("cannot compare Instants from different clocks") }
+        return epoch_ns < other.epoch_ns
+    }
+
+    pub func __le__(other Instant) bool {
+        if clock != other.clock { panic("cannot compare Instants from different clocks") }
+        return epoch_ns <= other.epoch_ns
+    }
+
+    pub func __gt__(other Instant) bool {
+        if clock != other.clock { panic("cannot compare Instants from different clocks") }
+        return epoch_ns > other.epoch_ns
+    }
+
+    pub func __ge__(other Instant) bool {
+        if clock != other.clock { panic("cannot compare Instants from different clocks") }
+        return epoch_ns >= other.epoch_ns
+    }
+}

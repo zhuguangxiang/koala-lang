@@ -1,0 +1,45 @@
+
+pub class Duration {
+    let ns int
+
+    pub func __init__(_ns int) {
+        ns = _ns
+    }
+
+    // Duration + Duration → Duration
+    pub func __add__(d Duration) Duration {
+        return Duration(ns + d.ns)
+    }
+
+    // Duration - Duration → Duration
+    pub func __sub__(d Duration) Duration {
+        return Duration(ns - d.ns)
+    }
+
+    // Duration * int → Duration
+    pub func __mul__(n int) Duration {
+        return Duration(ns * n)
+    }
+
+    // Duration / int → Duration
+    pub func __div__(n int) Duration {
+        return Duration(ns / n)
+    }
+
+    // constructors
+    pub static func from_secs(s int) Duration {
+        return Duration(s * 1_000_000_000)
+    }
+
+    pub static func from_millis(ms int) Duration {
+        return Duration(ms * 1_000_000)
+    }
+
+    pub static func from_micros(us int) Duration {
+        return Duration(us * 1_000)
+    }
+
+    pub static func from_nanos(ns int) Duration {
+        return Duration(ns)
+    }
+}

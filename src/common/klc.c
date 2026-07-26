@@ -563,7 +563,7 @@ static FILE *open_klc_file(const char *path, char *mode)
 {
     FILE *fp = fopen(path, mode);
     if (fp == NULL) {
-        char *end = strrchr(path, '/');
+        const char *end = strrchr(path, '/');
         if (!end) return NULL;
 
         /* path contains directories, create them */
@@ -626,13 +626,13 @@ static void write_const(KlcFile *klc, KlcConst *item)
         case KLC_CONST_SHORT_ASCII:
         case KLC_CONST_SHORT_UTF8: {
             write_uint8(klc, (uint8_t)item->len);
-            write_bytes(klc, item->sval, item->len);
+            write_bytes(klc, (uint8_t *)item->sval, item->len);
             break;
         }
         case KLC_CONST_ASCII:
         case KLC_CONST_UTF8: {
             write_uint32(klc, (uint32_t)item->len);
-            write_bytes(klc, item->sval, item->len);
+            write_bytes(klc, (uint8_t *)item->sval, item->len);
             break;
         }
         case KLC_CONST_SHORT_TUPLE:
@@ -1016,7 +1016,7 @@ static void read_const(KlcFile *klc, Vector *vec)
             len = 0;
             read_uint8(klc, (uint8_t *)&len);
             char mem[256];
-            read_bytes(klc, mem, len);
+            read_bytes(klc, (uint8_t *)mem, len);
             item->len = len;
             item->sval = (len <= 0 ? "" : atom_nstr(mem, len));
             break;
@@ -1026,7 +1026,7 @@ static void read_const(KlcFile *klc, Vector *vec)
             len = 0;
             read_uint32(klc, (uint32_t *)&len);
             sval = mm_alloc_fast(len + 1);
-            read_bytes(klc, sval, len);
+            read_bytes(klc, (uint8_t *)sval, len);
             sval[len] = 0;
             item->len = len;
             item->sval = (len <= 0 ? "" : atom_nstr(sval, len));

@@ -6,6 +6,7 @@
 #include "klc.h"
 #include "log.h"
 #include "mm.h"
+#include "parser.h"
 #include "symbol.h"
 
 #ifdef __cplusplus
@@ -29,7 +30,7 @@ typedef struct _FixupEntry {
 } FixupEntry;
 
 typedef struct _LoadKlcContext {
-    HashMap *imported;
+    ParserModule *pm;
     HashMap *stbl;
     PkgSymbol *pkg_sym;
     KlcFile *klc;
@@ -75,8 +76,15 @@ static Symbol *_get_symbol(char *pkg, char *name, LoadContext *ctx)
 {
     HashMap *stbl = ctx->stbl;
     if (pkg) {
-        Symbol *pkg_sym = stbl_get(ctx->imported, pkg);
-        ASSERT(pkg_sym);
+        Symbol *pkg_sym = stbl_get(ctx->pm->imported, pkg);
+        if (!pkg_sym) {
+            PkgSymbol *_sym = import_package(ctx->pm, pkg);
+            if (!_sym) {
+                fprintf(stderr, "failed to import package: %s", pkg);
+                return NULL;
+            }
+            pkg_sym = (Symbol *)_sym;
+        }
         stbl = pkg_sym->stbl;
     }
     return stbl_get(stbl, name);
@@ -538,7 +546,7 @@ static void load_klasses(LoadContext *ctx)
 }
 
 // absolute path to klc file
-static PkgSymbol *__load(char *path, HashMap *imported)
+static PkgSymbol *__load(char *path, ParserModule *pm)
 {
     log_info("read klc file: %s", path);
 
@@ -550,12 +558,12 @@ static PkgSymbol *__load(char *path, HashMap *imported)
 
     HashMap *stbl = stbl_new();
     LoadContext ctx = { 0 };
-    ctx.imported = imported;
+    ctx.pm = pm;
     ctx.stbl = stbl;
     ctx.klc = klc;
     ctx.path = klc->pkg_path;
     ctx.is_builtin = str_equal(klc->pkg_path, "std/builtin");
-    PkgSymbol *pkg_sym = stbl_add_pkg(imported, klc->pkg_path);
+    PkgSymbol *pkg_sym = stbl_add_pkg(pm->imported, klc->pkg_path);
     pkg_sym->stbl = stbl;
     pkg_sym->path = ctx.path;
     ctx.pkg_sym = pkg_sym;
@@ -575,12 +583,12 @@ static PkgSymbol *__load(char *path, HashMap *imported)
 }
 
 // path without .klc suffix
-PkgSymbol *load_module(char *pkg_path, HashMap *imported)
+PkgSymbol *load_module(char *pkg_path, ParserModule *pm)
 {
     char *koala_path = getenv("KOALA_PATH");
     if (!koala_path) {
         log_info("KOALA_PATH is not set");
-        return __load(pkg_path, imported);
+        return __load(pkg_path, pm);
     }
 
     log_info("KOALA_PATH: %s", koala_path);
@@ -593,7 +601,7 @@ PkgSymbol *load_module(char *pkg_path, HashMap *imported)
         buf_write_nstr(&buf, prefix, count);
         buf_write_str(&buf, pkg_path);
         buf_write_str(&buf, ".klc");
-        sym = __load(BUF_STR(buf), imported);
+        sym = __load(BUF_STR(buf), pm);
         if (sym) {
             log_info("found package '%s' in KOALA_PATH: %s", pkg_path, prefix);
             break;

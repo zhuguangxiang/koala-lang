@@ -11,7 +11,6 @@
 #include "cgen.h"
 #include "cmd.h"
 #include "isel.h"
-#include "klc.h"
 #include "log.h"
 #include "lsra.h"
 #include "opt.h"
@@ -528,6 +527,8 @@ int main(int argc, char *argv[])
         module.pkg_path = cmd_opt.pkg_path;
     }
     vector_init_ptr(&module.links);
+
+    init_const_placeholder();
 
     init_parser(&module);
     compile(&module);

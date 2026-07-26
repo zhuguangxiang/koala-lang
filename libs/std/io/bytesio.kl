@@ -3,7 +3,7 @@
 pub class BytesIO : Reader & Writer & Seeker {
 
     // @native
-    pub func __init__(b bytes) {}
+    pub func __init__(size = 8192) {}
 
     // @native
     pub func read(bs bytes) int {}
@@ -16,4 +16,15 @@ pub class BytesIO : Reader & Writer & Seeker {
 
     // @native
     pub func flush() {}
+
+    pub static func from_bytes(bs bytes) BytesIO {
+        let bio = BytesIO(len(bs))
+        bio.write(bs)
+        return bio
+    }
+
+    pub static func from_str(s str) BytesIO {
+        return BytesIO.from_bytes(s.to_bytes())
+    }
+
 }

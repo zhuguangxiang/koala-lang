@@ -110,7 +110,6 @@ Expr *expr_from_lit_str(Buffer *buf)
     exp->sval[buf->len] = '\0';
     exp->len = buf->len;
     exp->ts = str_type_spec();
-    buf->len = 0;
     return (Expr *)exp;
 }
 
@@ -184,6 +183,16 @@ Expr *expr_from_literal(Literal *lit)
     } else {
         UNREACHABLE();
     }
+    return (Expr *)exp;
+}
+
+Expr *expr_from_const_placeholder(Buffer *buf)
+{
+    ConstPlaceholderExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_CONST_PLACEHOLDER;
+    exp->name = mm_alloc_fast(buf->len + 1);
+    memcpy(exp->name, buf->buf, buf->len);
+    exp->name[buf->len] = '\0';
     return (Expr *)exp;
 }
 
@@ -475,6 +484,8 @@ static void bang_expr_free(Expr *exp)
 
 static void panic_expr_free(Expr *exp) { mm_free(exp); }
 
+static void const_placeholder_expr_free(Expr *exp) { mm_free(exp); }
+
 void expr_free(Expr *exp)
 {
     if (!exp) return;
@@ -503,6 +514,7 @@ void expr_free(Expr *exp)
         [EXPR_AS_KIND] = as_expr_free,
         [EXPR_IN_KIND] = in_expr_free,
         [EXPR_BANG_KIND] = bang_expr_free,
+        [EXPR_CONST_PLACEHOLDER] = const_placeholder_expr_free,
     };
 
     free_handlers[exp->kind](exp);

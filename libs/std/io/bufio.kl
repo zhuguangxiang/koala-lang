@@ -25,7 +25,7 @@ pub class BufReader : Reader {
         let n = min(avail, len(out))
         let _end = start + n
 
-        out.copy_from(buf, start, _end);
+        out.copy(buf, start, _end);
         // start += n
         start = _end
         return n
@@ -67,7 +67,7 @@ pub class BufWriter : Writer {
             _flush()
         }
 
-        let n = data.copy_to(buf, pos)
+        let n = buf.view(pos).copy(data)
         // pos += n
         pos = pos + n
         return n

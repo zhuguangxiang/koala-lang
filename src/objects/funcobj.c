@@ -112,7 +112,7 @@ Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner)
 {
     CFuncObject *cfunc = mm_alloc_obj(cfunc);
     INIT_OBJECT_HEAD(cfunc, &cfunc_type);
-    cfunc->name = name;
+    cfunc->name = atom(name);
     cfunc->func = fn;
     cfunc->owner = owner;
     return (Object *)cfunc;

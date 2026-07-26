@@ -3,7 +3,6 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "atom.h"
 #include "modobj.h"
 #include "object.h"
 

@@ -147,8 +147,6 @@ int kl_mo_add_str(Object *_m, char *s)
     return kl_mo_add_const(_m, &val);
 }
 
-int _mo_add_vector(Object *_m, Vector *list) {}
-
 int kl_mo_add_tuple(Object *_m, Vector *list)
 {
     ModuleObject *m = (ModuleObject *)_m;
@@ -383,7 +381,7 @@ Object *kl_new_module(char *path)
     vector_init(&m->func_entries, sizeof(FuncEntry));
     vector_init_ptr(&m->funcs);
     vector_init_ptr(&m->types);
-    vector_init(&m->natives, sizeof(NativeModule));
+    vector_init(&m->libs, sizeof(NativeLib));
     stbl_init(&m->symbols);
     m->path = atom(path);
     Object *cfunc = kl_new_cfunc("not_impl", not_impl_func, (Object *)m);
@@ -424,7 +422,7 @@ int kl_init_module(Object *_m)
     return 0;
 }
 
-Object *kl_new_native_module(ModuleDef *def)
+Object *kl_module_fromdef(ModuleDef *def)
 {
     Object *_m = kl_new_module(def->path);
     ModuleObject *m = (ModuleObject *)_m;

@@ -26,7 +26,7 @@ pub class bool {
 
     /// Return True if the boolean is not equal to the other boolean.
     @intrinsic
-    pub func __neq__(other bool) bool {}
+    pub func __ne__(other bool) bool {}
 
     /// Return the string representation of the boolean.
     /// Returns "true" if True, and "false" if False.

@@ -1176,7 +1176,10 @@ void klr_print_func(KlrFunc *func, FILE *fp)
 
     KlrKlass *kls = func->klass;
     if (kls) {
-        fprintf(fp, "  func @%s:%s", kls->name, func->name);
+        if (func->self)
+            fprintf(fp, "  func @%s:%s", kls->name, func->name);
+        else
+            fprintf(fp, "  static func @%s:%s", kls->name, func->name);
     } else {
         fprintf(fp, "  func @%s", func->name);
     }

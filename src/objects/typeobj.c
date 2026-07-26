@@ -200,6 +200,7 @@ int kl_init_type(TypeObject *tp)
     // initialization some fields
     vector_init_ptr(&tp->fields);
     vector_init_ptr(&tp->methods);
+    vector_init(&tp->itables, sizeof(IntfTable));
     stbl_init(&tp->members);
 
     // initialize slots[]

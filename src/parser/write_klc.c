@@ -3,12 +3,9 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "atom.h"
 #include "cgen.h"
 #include "cmd.h"
 #include "klc.h"
-#include "log.h"
-#include "mm.h"
 #include "parser.h"
 
 #ifdef __cplusplus

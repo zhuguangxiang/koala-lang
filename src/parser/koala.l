@@ -23,8 +23,8 @@ static int semicolon(ParserState *ps)
         INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF,
         TRUE, FALSE, UINT8, UINT16, UINT32, UINT64, INT8, INT16, INT32, INT64,
         FLOAT16, FLOAT32, FLOAT64, BFLOAT16, STRING, BOOL, ANY,
-        RETURN, BREAK, CONTINUE, ')', ']', '}', '?',
-        '_', NOT,
+        RETURN, BREAK, CONTINUE, ')', ']', '}', '?', '_', NOT,
+        CONST_PLACEHOLDER,
     };
 
     int token = ps->token;
@@ -234,6 +234,7 @@ static char hex2byte(const char *s)
 "is"        { YY_RETURN(IS);        }
 "pub"       { YY_RETURN(PUBLIC);    }
 "infer"     { YY_RETURN(INFER);     }
+"static"    { YY_RETURN(STATIC);    }
 
 "self"      { YY_RETURN(SELF);      }
 "true"      { YY_RETURN(TRUE);      }
@@ -323,6 +324,13 @@ static char hex2byte(const char *s)
 
 ">"         { YY_RETURN('>'); }
 "<"         { YY_RETURN('<'); }
+
+__KOALA_[A-Z_]+__ {
+    RESET_BUF(yyps->sbuf);
+    ASSERT(yyps->sbuf.len == 0);
+    buf_write_nstr(&yyps->sbuf, yytext, yyleng);
+    YY_RETURN(CONST_PLACEHOLDER);
+}
 
 [+-]?0[bB][01]([01_]*[01])? {
     YY_INT_VALUE(yytext, yyleng, 2); YY_RETURN(INT_LITERAL);

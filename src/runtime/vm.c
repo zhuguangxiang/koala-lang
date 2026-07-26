@@ -131,27 +131,38 @@ static void __load_const(Object *m, KlcConst *item)
 Object *kl_get_native(Object *m, char *name)
 {
     ModuleObject *mo = (ModuleObject *)m;
-    NativeModule *native;
-    vector_foreach_ptr(native, &mo->natives) {
-        Object *obj = stbl_find_obj(&native->symbols, name);
+    NativeLib *lib;
+    vector_foreach_ptr(lib, &mo->libs) {
+        Object *obj = stbl_find_obj(&lib->symbols, name);
         if (obj) return obj;
     }
     return NULL;
 }
 
-int kl_register_func(NativeModule *m, char *name, NativeFunc fn)
+int kl_reg_func(NativeLib *lib, char *name, NativeFunc fn)
 {
     Object *obj = kl_new_cfunc(name, fn, NULL);
-    stbl_add_obj(&m->symbols, name, obj);
+    stbl_add_obj(&lib->symbols, name, obj);
     return 0;
 }
 
-int kl_register_method(NativeModule *m, char *cls, char *meth, NativeFunc fn)
+int kl_reg_meth(NativeLib *lib, char *cls, char *meth, NativeFunc fn)
 {
     char full_name[256];
     snprintf(full_name, sizeof(full_name), "%s$%s", cls, meth);
     Object *obj = kl_new_cfunc(full_name, fn, NULL);
-    stbl_add_obj(&m->symbols, full_name, obj);
+    stbl_add_obj(&lib->symbols, full_name, obj);
+    return 0;
+}
+
+int kl_reg_type(NativeLib *lib, TypeObject *tp)
+{
+    vector_init_ptr(&tp->fields);
+    vector_init_ptr(&tp->methods);
+    vector_init(&tp->itables, sizeof(IntfTable));
+    stbl_init(&tp->members);
+
+    stbl_add_obj(&lib->symbols, tp->name, (Object *)tp);
     return 0;
 }
 
@@ -166,7 +177,7 @@ static const char *native_suffix(void)
 #endif
 }
 
-static void _load_native(ModuleObject *mo, char *name)
+static void _load_native(ModuleObject *mo, char *name, char *pkg_name)
 {
     char buf[256];
     snprintf(buf, sizeof(buf), "lib%s%s", name, native_suffix());
@@ -177,9 +188,10 @@ static void _load_native(ModuleObject *mo, char *name)
         return;
     }
 
-    snprintf(buf, sizeof(buf), "%s_module_init", name);
+    char *slash = strrchr(pkg_name, '/');
+    snprintf(buf, sizeof(buf), "%s_native_lib_init", slash ? slash + 1 : pkg_name);
 
-    typedef void (*InitFunc)(NativeModule *);
+    typedef void (*InitFunc)(NativeLib *);
     InitFunc init_func = dlsym(handle, buf);
 
     if (!init_func) {
@@ -188,21 +200,31 @@ static void _load_native(ModuleObject *mo, char *name)
         return;
     }
 
-    NativeModule native_module;
-    native_module.index = vector_size(&mo->natives);
-    native_module.handle = handle;
-    stbl_init(&native_module.symbols);
-    vector_push_back(&mo->natives, &native_module);
+    NativeLib lib = { .handle = handle };
+    stbl_init(&lib.symbols);
+    vector_push_back(&mo->libs, &lib);
 
-    init_func(&native_module);
+    init_func(&lib);
 }
 
-static Object *_load_module(char *path, char *pkg_path)
+static TypeObject *find_tp_from_native(Object *m, char *name)
+{
+    Object *obj = kl_get_native(m, name);
+    if (obj) {
+        ASSERT(IS_TYPE(obj, &type_type));
+        TypeObject *tp = (TypeObject *)obj;
+        return tp;
+    }
+    return NULL;
+}
+
+static Object *_load_module(char *path)
 {
     KlcFile *klc = read_klc_file(path, 1);
     if (!klc) return NULL;
 
-    Object *m = kl_new_module(pkg_path);
+    char *pkg_name = klc->pkg_path;
+    Object *m = kl_new_module(pkg_name);
 
     uint8_t *codes = NULL;
     uint32_t size = klc_get_bytecodes(klc, &codes);
@@ -234,7 +256,7 @@ static Object *_load_module(char *path, char *pkg_path)
     vector_foreach(link_index, links) {
         if (link_index == 0) continue;
         KlcConst *kc = klc_get_rt_const(klc, link_index);
-        _load_native((ModuleObject *)m, kc->sval);
+        _load_native((ModuleObject *)m, kc->sval, pkg_name);
     }
 
     Vector *code_objs = klc->objs + ITEM_CODE;
@@ -270,13 +292,17 @@ static Object *_load_module(char *path, char *pkg_path)
         if (cls->flags & KLC_FLAGS_TRAIT) continue;
 
         KlcConst *kls_kc = klc_get_const(klc, cls->name_index);
-        TypeObject *tp = kl_new_type(kls_kc->sval, cls->flags);
+
+        TypeObject *tp = find_tp_from_native(m, kls_kc->sval);
+        if (!tp) {
+            tp = kl_new_type(kls_kc->sval, cls->flags);
+        }
 
         KlcVar *var;
         vector_foreach(var, &cls->fields) {
             if (!var) continue;
             kc = klc_get_const(klc, var->name_index);
-            Object *field = kl_new_index_field(kc->sval, 0, i__, (Object *)tp);
+            Object *field = kl_new_index_field(kc->sval, 0, i__ - 1, (Object *)tp);
             vector_push_back(&tp->fields, &field);
             stbl_add_obj(&tp->members, kc->sval, field);
         }
@@ -372,14 +398,14 @@ Object *kl_load_module(char *path)
 
     if (path[0] == '/') {
         log_info("loading module '%s'", path);
-        m = _load_module(path, path);
+        m = _load_module(path);
         goto done;
     }
 
     char *koala_path = getenv("KOALA_PATH");
     if (!koala_path) {
         log_info("KOALA_PATH is not set");
-        m = _load_module(path, path);
+        m = _load_module(path);
         goto done;
     }
 
@@ -392,7 +418,7 @@ Object *kl_load_module(char *path)
         buf_write_nstr(&buf, prefix, count);
         buf_write_str(&buf, path);
         if (!isdotklc(path)) buf_write_str(&buf, ".klc");
-        m = _load_module(BUF_STR(buf), path);
+        m = _load_module(BUF_STR(buf));
         if (m) {
             log_info("found package '%s' in KOALA_PATH: %s", path, prefix);
             break;

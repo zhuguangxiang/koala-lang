@@ -4,7 +4,6 @@
  */
 
 #include "parser.h"
-#include "atom.h"
 #include "cmd.h"
 #include "log.h"
 
@@ -119,7 +118,7 @@ Vector *infer_func_tp(FuncSymbol *fn, Vector *args, ParserState *ps)
 }
 
 // path without .klc suffix
-static PkgSymbol *import_package(ParserModule *pm, char *path)
+PkgSymbol *import_package(ParserModule *pm, char *path)
 {
     Symbol *sym = stbl_get(pm->imported, path);
     if (sym) {
@@ -128,7 +127,7 @@ static PkgSymbol *import_package(ParserModule *pm, char *path)
         return (PkgSymbol *)sym;
     }
 
-    PkgSymbol *pkg_sym = load_module(path, pm->imported);
+    PkgSymbol *pkg_sym = load_module(path, pm);
     if (!pkg_sym) {
         fprintf(stderr, "error: cannot import module '%s'\n", path);
         char *koala_path = getenv("KOALA_PATH");
@@ -949,6 +948,7 @@ static int parse_flags(PrefixFlags *flags)
     int f = 0;
 
     if (flags->pub.flag) f |= SYM_FLAGS_PUBLIC;
+    if (flags->st.flag) f |= SYM_FLAGS_STATIC;
 
     if (flags->at.assoc_ident)
         f |= SYM_FLAGS_TAG_VALUE;
@@ -1790,8 +1790,13 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
             if (fn) {
                 fn->parent = kls_sym;
                 vector_push_back(kls_sym->funcs, &fn);
+
                 if (str_equal(fn->name, "__init__")) {
                     kls_sym->__init__ = fn;
+                }
+
+                if (fn->flags & SYM_FLAGS_STATIC) {
+                    vector_push_back(&ps->static_methods, &stmt);
                 }
             }
         } else {
@@ -2106,6 +2111,7 @@ static void parse_klass(ParserState *ps, Stmt *stmt)
     Stmt *s;
     vector_foreach(s, kls->stmts) {
         if (!s) continue;
+        if (s->flags.st.flag) continue;
         parse_stmt(ps, s);
     }
 
@@ -2746,6 +2752,16 @@ void kl_parse_ast(ParserState *ps)
         parse_stmt(ps, stmt);
     }
 
+    /* parse static methods */
+    Stmt *st;
+    vector_foreach(st, &ps->static_methods) {
+        FuncDeclStmt *fn_stmt = (FuncDeclStmt *)st;
+        Symbol *fn_sym = fn_stmt->sym;
+        Symbol *parent = fn_sym->parent;
+        log_info("parse static method: %s::%s", parent->name, fn_sym->name);
+        parse_stmt(ps, st);
+    }
+
     ps->status = PS_STATUS_RESOLVED;
 
     exit_scope(ps);
@@ -2766,6 +2782,7 @@ static void init_parser_state(ParserState *ps, char *filename)
     vector_init_ptr(&ps->fn_stmts);
     vector_init_ptr(&ps->kls_stmts);
     vector_init_ptr(&ps->shadows);
+    vector_init_ptr(&ps->static_methods);
     ps->imported = stbl_new();
     INIT_BUF(ps->sbuf);
 }

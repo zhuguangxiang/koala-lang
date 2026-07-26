@@ -1,18 +1,5 @@
 
-import "test_pkg/pkg1" as z
-
-link "pkg1_native"
-
-class Foo : z.Animal {
-
-    func fly(name str, age int) str {
-        print(name, age)
-        return "Foo is flying"
-    }
-
-    @native
-    func swim(name str, age int) str {}
-}
+import "std/fs"
 
 // func test9(a int, b int) int {
 //     var x = a
@@ -44,10 +31,61 @@ class Foo : z.Animal {
 //     return 100 / n
 // }
 
+func test() int? {
+    // let f = io.open("test.txt", "r")
+    // if f == null {
+    //     return null
+    // }
+
+    // let buf = bytes(1024)
+    // let n = f.read(buf)
+    // print("Read", n, "bytes from file.")
+
+    // f.close()
+
+    return 42
+}
+
+// func test2(s str) bytes {
+//     let bs = s.to_bytes()
+//     return bs.view(0, 5)
+// }
+
+
+
+// func test222(r io.Reader) {
+//     r.read(bytes(10))
+// }
+
+// class Foo {
+//     func __init__(r io.Reader) {
+//         r.read(bytes(10))
+//     }
+
+//     func add(r io.Reader) {
+
+//     }
+// }
+
+class Bar {
+    let msg = "greeting!"
+    func greet() {
+        print(msg)
+    }
+
+    func hello() {
+        greet()
+    }
+}
+
 func main() {
-    let an z.Animal = Foo()
-    z.test_pkg_foo(an)
-    print(an.swim("Dolphin", 5))
+    let b = Bar()
+    b.hello()
+    print(b.msg)
+
+    // let an z.Animal = Foo()
+    // z.test_pkg_foo(an)
+    // print(an.swim("Dolphin", 5))
 
     // let arr1 = array[int, 2, 2](1, 2, 3, 4.1)
     // let arr2 = array[int](1,2)
@@ -58,16 +96,16 @@ func main() {
     // let arr5 = array[int, _, N](1,2,3,4)
     // print(test7(2))
 
-    let bs = bytes(10)
-    print(bs, len(bs))
+    // let bs = bytes(10)
+    // print(bs, len(bs))
 
-    for i in range(len(bs)) {
-        bs[i] = uint8(i + 1)
-    }
+    // for i in range(len(bs)) {
+    //     bs[i] = uint8(i + 1)
+    // }
 
-    for v in bs {
-        print(v)
-    }
+    // for v in bs {
+    //     print(v)
+    // }
     // bs[0] = 01
     // bs[1] = 0x02
     // bs[2] = 10
@@ -78,6 +116,40 @@ func main() {
     // bs[7] = 0xef
     // print(bs, bs[0], bs[1], bs[2], bs[3], bs[4], bs[5], bs[6], bs[7])
 
+    // let ret = test()
+    // if ret == null {
+    //     return
+    // }
+
+    // if bs[0] == 1 {
+    //     print("bs[0] is 1")
+    //     print(ret + 10)
+    // } else {
+    //     print("bs[0] is not 1")
+    //     print(ret + 3)
+    // }
+
+    // let v = bs.view(3, 4)
+    // print("[3:4]", v)
+    // // print(bs.index(v))
+    // print(v.to_str())
+
+    // print(bs.index(100))
+    // let bs2 = bytes(10)
+    // bs2.copy(bs)
+    // print(bs2)
+    // print(bs2.count(10))
+    // bs2.fill(2)
+    // print(bs2.count(2))
+    // bs2.zero()
+    // print(bs2)
+
+    // // let s = slice(2, -1, 3)
+    // // print(s)
+
+    // let r = range(10)
+    // print(r, r.stop)
+
     // for v in bs {
     //     print(v)
     // }
@@ -86,7 +158,38 @@ func main() {
     // // bs[1] = 0x22
     // // bs[20] = 0x33
     // print(bs, len(bs))
+
+    // let str_io = io.StringIO("helloworldgoodluck")
+    // test222(str_io)
+    // Foo(str_io).add(str_io)
+    // let intf io.Reader = str_io
+    // let buf_str_io = io.BufferedReader(str_io)
+    // let buf = bytes(10)
+    // while {
+    //     let n = buf_str_io.read(buf)
+    //     print(buf, n)
+    //     if n <= 0 { break; }
+    // }
+
+    let f fs.File? = fs.open("test.txt", "r");
+    if f == null {
+        print("failed to open file")
+        return
+    }
+
+    let bs = bytes(32)
+    print(f.read(bs))
+    print(f.path)
+    print(bs.to_str())
+    f.close()
+
+    let v = __KOALA_VERSION__
+    print(v)
 }
+
+// import "std/io"
+
+// let f io2.File? = nil
 
 // func foo(arr [_, -2]int) {
 //     // do something
@@ -101,8 +204,8 @@ func main() {
 //     }
 // }
 
-/*
-// trait Fly {
-    func fly()
-}
-*/
+/**
+ * trait Fly {
+ *   func fly()
+ * }
+ */

@@ -1,0 +1,5 @@
+
+pub func getenv(key str) str?
+pub func setenv(key str, value str)
+pub func unsetenv(key str)
+pub func environ() dict[str, str]

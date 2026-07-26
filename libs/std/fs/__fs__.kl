@@ -1,6 +1,5 @@
 
-
-import "std/io" as io
+link "koala_std_native"
 
 @native
-pub func open(path str, mode str) io.File? {}
+pub func open(path str, mode str) File? {}
