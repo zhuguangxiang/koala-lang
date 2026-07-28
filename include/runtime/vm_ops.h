@@ -1834,6 +1834,67 @@ TARGET(OP_JMP_UINT_GE_IMM) {
     DISPATCH();
 }
 
+/* global */
+TARGET(OP_GLOBAL_SET) {
+    rd = I_VAL(inst, 12, 12);
+    idx = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rd);
+    ASSERT(idx < m->num_values);
+
+    m->values[idx] = regs[rd];
+
+    DISPATCH();
+}
+
+TARGET(OP_GLOBAL_GET) {
+    rs = I_VAL(inst, 12, 12);
+    idx = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rs);
+    ASSERT(idx < m->num_values);
+
+    regs[rs] = m->values[idx];
+
+    DISPATCH();
+}
+
+TARGET(OP_GLOBAL_SET_EXT) {
+    rs = I_VAL(inst, 16, 8);
+    idx = I_VAL(inst, 0, 16);
+
+    CHECK_REG_ID(rs);
+
+    ImportEntry *e = IMPORT_ENTRY(idx);
+    ASSERT(e->kind == IMPORT_KIND_GLOBAL);
+    GlobalObject *gobj = e->address;
+    ASSERT(gobj);
+    int index = gobj->index;
+    ModuleObject *ext = (ModuleObject *)gobj->module;
+    ASSERT(index < ext->num_values);
+    ext->values[index] = regs[rs];
+
+    DISPATCH();
+}
+
+TARGET(OP_GLOBAL_GET_EXT) {
+    rd = I_VAL(inst, 16, 8);
+    idx = I_VAL(inst, 0, 16);
+
+    CHECK_REG_ID(rd);
+
+    ImportEntry *e = IMPORT_ENTRY(idx);
+    ASSERT(e->kind == IMPORT_KIND_GLOBAL);
+    GlobalObject *gobj = e->address;
+    ASSERT(gobj);
+    int index = gobj->index;
+    ModuleObject *ext = (ModuleObject *)gobj->module;
+    ASSERT(index < ext->num_values);
+    regs[rd] = ext->values[index];
+
+    DISPATCH();
+}
+
 /* Float Complex */
 
 TARGET(OP_FLOAT_DIV) {

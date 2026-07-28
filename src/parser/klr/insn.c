@@ -246,7 +246,7 @@ KlrValue *klr_build_local_var(KlrBuilder *bldr, TypeSpec *ts, char *name)
  */
 KlrValue *klr_build_get_global(KlrBuilder *bldr, KlrValue *global)
 {
-    if (global->kind != KLR_VALUE_GLOBAL) {
+    if (global->kind != KLR_VALUE_GLOBAL && global->kind != KLR_VALUE_EXT_GLOBAL) {
         panic("'get_global %%g' requires a global variable.");
     }
 
@@ -269,7 +269,7 @@ void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
     }
 
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
-        val->kind != KLR_VALUE_PARAM) {
+        val->kind != KLR_VALUE_PARAM && val->kind != KLR_VALUE_EXT_GLOBAL) {
         panic("'set_global %%g, %%v' requires a reg value.");
     }
 

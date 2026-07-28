@@ -3,6 +3,8 @@
 // const CLOCK_REALTIME = "realtime"
 // const CLOCK_MONOTONIC = "monotonic"
 
+link "koala_std_native"
+
 const CLOCK_REALTIME = 0
 const CLOCK_MONOTONIC = 1
 

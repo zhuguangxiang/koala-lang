@@ -7,7 +7,6 @@
 #define _KOALA_CGEN_H_
 
 #include "ir.h"
-#include "pass.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -229,6 +228,7 @@ void kl_do_codegen(KlrModule *module);
 KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m);
 int mach_import_add_field(KlMachModule *m, char *path, char *klass, char *name);
 int mach_import_add_klass(KlMachModule *m, char *path, char *name);
+int mach_import_add_global(KlMachModule *m, char *path, char *name);
 
 #ifdef __cplusplus
 }

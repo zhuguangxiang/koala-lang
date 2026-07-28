@@ -44,9 +44,9 @@ func foo() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@__init__] ---
 // CHECK-LABEL: func @__init__()
-// CHECK: set_global @i int64, 10 int64
-// CHECK: set_global @j int64, 11 int64
-// CHECK: set_global @b bool, true bool
+// CHECK: global_set @i int64, 10 int64
+// CHECK: global_set @j int64, 11 int64
+// CHECK: global_set @b bool, true bool
 // CHECK: call @print [path = 'std/builtin']
 // CHECK: ret void
 

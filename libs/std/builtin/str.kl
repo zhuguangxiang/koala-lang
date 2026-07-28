@@ -30,7 +30,7 @@ pub class str : Sequence[str] {
     pub func format(args ...) str {}
 
     @native
-    pub func __add__(rhs any) str {}
+    pub func __add__(rhs str) str {}
 
     @native
     pub func __eq__(rhs str) bool {}

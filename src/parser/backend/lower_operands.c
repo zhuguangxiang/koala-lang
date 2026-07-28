@@ -411,6 +411,45 @@ static void lower_get_field_ext_opers(KlrInsn *insn, KlMachModule *m)
     set_raw_imm(&insn->raws[2], index);
 }
 
+static void lower_global_set_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *global = insn_oper_value(insn, 0);
+    KlrValue *value = insn_oper_value(insn, 1);
+
+    set_raw_reg(&insn->raws[0], value->vreg);
+    set_raw_imm(&insn->raws[1], ((KlrGlobal *)global)->index);
+}
+
+static void lower_global_get_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *global = insn_oper_value(insn, 0);
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_imm(&insn->raws[1], ((KlrGlobal *)global)->index);
+}
+
+static void lower_global_set_ext_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *global = insn_oper_value(insn, 0);
+    KlrValue *value = insn_oper_value(insn, 1);
+
+    set_raw_reg(&insn->raws[0], value->vreg);
+
+    KlrExtModule *mod = ((KlrExtGlobal *)global)->module;
+    int index = mach_import_add_global(m, mod->name, ((KlrGlobal *)global)->name);
+    set_raw_imm(&insn->raws[1], index);
+}
+
+static void lower_global_get_ext_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *global = insn_oper_value(insn, 0);
+
+    set_raw_reg(&insn->raws[0], insn->vreg);
+
+    KlrExtModule *mod = ((KlrExtGlobal *)global)->module;
+    int index = mach_import_add_global(m, mod->name, ((KlrGlobal *)global)->name);
+    set_raw_imm(&insn->raws[1], index);
+}
+
 static void lower_move_true_opers(KlrInsn *insn, KlMachModule *m)
 {
     KlrValue *var = insn_oper_value(insn, 0);
@@ -560,6 +599,26 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_GET_FIELD_EXT: {
                     lower_get_field_ext_opers(insn, m);
+                    break;
+                }
+
+                case OP_GLOBAL_SET: {
+                    lower_global_set_opers(insn, m);
+                    break;
+                }
+
+                case OP_GLOBAL_GET: {
+                    lower_global_get_opers(insn, m);
+                    break;
+                }
+
+                case OP_GLOBAL_SET_EXT: {
+                    lower_global_set_ext_opers(insn, m);
+                    break;
+                }
+
+                case OP_GLOBAL_GET_EXT: {
+                    lower_global_get_ext_opers(insn, m);
                     break;
                 }
 

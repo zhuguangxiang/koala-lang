@@ -42,4 +42,10 @@ pub class Duration {
     pub static func from_nanos(ns int) Duration {
         return Duration(ns)
     }
+
+    pub func to_ns() int64 { return ns }
+
+    pub func to_ms() int64 { return ns / 1_000_000 }
+
+    pub func to_secs() int64 { return ns / 1_000_000_000 }
 }

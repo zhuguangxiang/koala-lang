@@ -11,15 +11,15 @@ loop { break }
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@__init__] ---
 // CHECK-LABEL: func @__init__()
 
-// CHECK: set_global @i int64, 0 int64
-// CHECK: %0 = get_global @i int64
+// CHECK: global_set @i int64, 0 int64
+// CHECK: %0 = global_get @i int64
 // CHECK: %1 = cmplt %0 int64, 10 int64
 // CHECK: branch %1 bool, label %bb1, label %bb2
 
-// CHECK: %2 = get_global @i int64
+// CHECK: %2 = global_get @i int64
 // CHECK: %3 = add %2 int64, 1 int64
-// CHECK: set_global @i int64, %3 int64
-// CHECK: %4 = get_global @i int64
+// CHECK: global_set @i int64, %3 int64
+// CHECK: %4 = global_get @i int64
 // CHECK: %5 = cmplt %4 int64, 10 int64
 // CHECK: branch %5 bool, label %bb1, label %bb2
 

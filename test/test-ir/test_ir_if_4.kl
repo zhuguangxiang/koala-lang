@@ -6,13 +6,13 @@ let h = f + 101
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@__init__] ---
 // CHECK-LABEL: func @__init__()
-// CHECK: set_global @g int64, 100 int64
-// CHECK: %0 = get_global @g int64
+// CHECK: global_set @g int64, 100 int64
+// CHECK: %0 = global_get @g int64
 // CHECK: %1 = add %0 int64, 1 int64
-// CHECK: set_global @f int64, %1 int64
-// CHECK: %2 = get_global @f int64
+// CHECK: global_set @f int64, %1 int64
+// CHECK: %2 = global_get @f int64
 // CHECK: %3 = add %2 int64, 101 int64
-// CHECK: set_global @h int64, %3 int64
+// CHECK: global_set @h int64, %3 int64
 // CHECK: ret void
 
 func foo() {

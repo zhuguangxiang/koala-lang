@@ -104,7 +104,7 @@ func foo2() {
 // CHECK-LABEL: --- IR Dump After isel [@foo2] ---
 // CHECK-LABEL: func @foo2()
 
-// CHECK: %0 = get_global @b bool
+// CHECK: %0 = global_get @b bool
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
 // CHECK: %1 = local std/builtin.tuple<u>

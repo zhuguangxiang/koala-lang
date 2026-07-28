@@ -6,9 +6,9 @@ print(c)
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@__init__] ---
 // CHECK-LABEL: func @__init__()
-// CHECK: set_global @c int64, 100 int64
-// CHECK: set_global @c int64, 200 int64
-// CHECK: %0 = get_global @c int64
+// CHECK: global_set @c int64, 100 int64
+// CHECK: global_set @c int64, 200 int64
+// CHECK: %0 = global_get @c int64
 // CHECK: call @print [path = 'std/builtin']
 // CHECK: ret void
 
@@ -29,7 +29,7 @@ func foo() {
 // CHECK-LABEL: func @foo()
 // CHECK: %x = local int64
 // CHECK: move %x int64, 10 int64
-// CHECK: %0 = get_global @c int64
+// CHECK: %0 = global_get @c int64
 // CHECK: %1 = cmpgt %0 int64, 150 int64
 // CHECK: branch %1 bool, label %bb1, label %bb2
 // CHECK: move %x int64, 20 int64

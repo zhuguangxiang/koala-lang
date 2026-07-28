@@ -24,6 +24,22 @@ static TypeObject *_value_typeof(int tag)
     return _types_mapping[tag];
 }
 
+Object *kl_new_global(char *name, int index, Object *m)
+{
+    GlobalObject *global = mm_alloc_obj(global);
+    INIT_OBJECT_HEAD(global, &global_type);
+    global->name = name;
+    global->index = index;
+    global->module = m;
+    return (Object *)global;
+}
+
+TypeObject global_type = {
+    ._type = &type_type,
+    .name = "global",
+    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+};
+
 /*
 Get the type of a value. For reference values, return the type of the referenced object.
 For primitive values, return the corresponding type based on the tag.

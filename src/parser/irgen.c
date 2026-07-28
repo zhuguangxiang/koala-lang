@@ -589,8 +589,8 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
-            } else if (self->kind == KLR_VALUE_KLASS) {
-                // Foo.hello(), static method call^M
+            } else if (self->kind == KLR_VALUE_KLASS || self->kind == KLR_VALUE_EXT_KLASS) {
+                // Foo.hello(), static method call
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
@@ -702,6 +702,20 @@ static KlrValue *build_get_field(TypeSpec *ts, char *name, KlrBuilder *bldr, Klr
     // fi->name = name;
 
     return NULL;
+}
+
+static KlrValue *get_ext_global_value(char *name, Symbol *sym, ParserState *ps)
+{
+    ASSERT(sym->kind == SYM_PACKAGE);
+    PkgSymbol *pkg = (PkgSymbol *)sym;
+    Symbol *var_sym = stbl_get(pkg->stbl, name);
+    ASSERT(var_sym->kind == SYM_VAR);
+    VarSymbol *var = (VarSymbol *)var_sym;
+    if (!var->ir_val) {
+        KlrValue *val = klr_add_ext_global(MOD, pkg->name, var->ts, var->name);
+        var->ir_val = val;
+    }
+    return var->ir_val;
 }
 
 static void emit_ir_dot(ParserState *ps, Expr *exp)
@@ -859,12 +873,23 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
     ASSERT(sym->kind == SYM_VAR);
 
     if (exp->ctx == EXPR_CTX_LOAD) {
-        // load field
-        KlrBuilder bldr;
-        klr_builder_end(&bldr, ps->scope->bb);
-        KlrValue *val = build_get_field(lhs->ts, dot->id.name, &bldr, lhs->ir_val, exp->ts, ps);
-        klr_set_loc(val, ps->filename, exp->loc);
-        exp->ir_val = val;
+        KlrValue *lhs_val = lhs->ir_val;
+        if (lhs_val->kind == KLR_VALUE_EXT_MODULE) {
+            // load global from external module
+            KlrBuilder bldr;
+            klr_builder_end(&bldr, ps->scope->bb);
+            KlrValue *global_val = get_ext_global_value(dot->id.name, lhs->sym, ps);
+            KlrValue *val = klr_build_get_global(&bldr, global_val);
+            klr_set_loc(val, ps->filename, exp->loc);
+            exp->ir_val = val;
+        } else {
+            // load field
+            KlrBuilder bldr;
+            klr_builder_end(&bldr, ps->scope->bb);
+            KlrValue *val = build_get_field(lhs->ts, dot->id.name, &bldr, lhs_val, exp->ts, ps);
+            klr_set_loc(val, ps->filename, exp->loc);
+            exp->ir_val = val;
+        }
     } else {
         // store field
         ASSERT(exp->ctx == EXPR_CTX_STORE);
@@ -886,6 +911,9 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
 
             ASSERT(fld_sym->ir_val);
             exp->ir_val = fld_sym->ir_val;
+        } else if (lhs_ts_sym->kind == SYM_PACKAGE) {
+            // store global from external module
+            exp->ir_val = get_ext_global_value(dot->id.name, lhs_ts_sym, ps);
         } else {
             UNREACHABLE();
         }
@@ -1097,7 +1125,7 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
         if (rhs_ts->int_flt_info.width < 8) {
             cast_rhs = klr_build_cast(&bldr, cast_rhs, int64_type_spec(), "");
         }
-    } else if (type_is_int(rhs_ts)) {
+    } else if (type_is_uint(rhs_ts)) {
         if (rhs_ts->int_flt_info.width < 8) {
             cast_rhs = klr_build_cast(&bldr, cast_rhs, uint64_type_spec(), "");
         }
@@ -1950,6 +1978,8 @@ static void emit_ir_simple_assignment(ParserState *ps, Expr *lhs, Expr *rhs)
     klr_builder_end(&bldr, ps->scope->bb);
     KlrValue *val = lhs->ir_val;
     if (val->kind == KLR_VALUE_GLOBAL) {
+        klr_build_set_global(&bldr, val, rhs->ir_val);
+    } else if (val->kind == KLR_VALUE_EXT_GLOBAL) {
         klr_build_set_global(&bldr, val, rhs->ir_val);
     } else if (val->kind == KLR_VALUE_FIELD) {
         if (lhs->kind == EXPR_DOT_KIND) {

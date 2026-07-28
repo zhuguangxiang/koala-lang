@@ -1,0 +1,28 @@
+
+// let g0 = 100
+// let g1 = [1, 2, 3, g0]
+
+// print(g0, g1)
+
+import "std/sys"
+
+let ok = 1
+print(ok)
+
+print(sys.version)
+print(sys.path)
+
+import "std/time"
+print(time.now())
+
+func test() {
+    let d1 = time.Duration(1000)
+    let d2 = time.Duration.from_secs(1)
+    print(d1, d2)
+}
+
+let t1 = time.now()
+test()
+time.sleep(time.Duration.from_secs(2))
+let t2 = time.now()
+print("duration(ms):", t2.diff(t1).to_ms())

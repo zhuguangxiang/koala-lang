@@ -603,6 +603,31 @@ int mach_import_add_klass(KlMachModule *m, char *path, char *name)
     return import_index;
 }
 
+int mach_import_add_global(KlMachModule *m, char *path, char *name)
+{
+    KlMachImport key = { .kind = IMPORT_GLOBAL, .path = path, .name = name };
+    hashmap_entry_init(&key, mach_import_hash(&key));
+
+    KlMachImport *entry = hashmap_get(&m->import_map, &key);
+    if (entry) {
+        log_info("Found existing import ext-global entry for %s.%s (index: %d)", path, name,
+                 entry->index);
+        return entry->index;
+    }
+
+    KlMachImport *new_entry = mm_alloc_obj(new_entry);
+    new_entry->kind = IMPORT_GLOBAL;
+    new_entry->path = path;
+    new_entry->name = name;
+    hashmap_entry_init(new_entry, mach_import_hash(new_entry));
+    hashmap_put(&m->import_map, new_entry);
+    vector_push_back(&m->import_table, &new_entry);
+    int import_index = vector_size(&m->import_table) - 1;
+    new_entry->index = import_index;
+    log_info("Added new import ext-global entry for %s.%s (index: %d)", path, name, import_index);
+    return import_index;
+}
+
 static void dump_func_byte_code(KlMachFunc *mfn, const uint8_t *code)
 {
     bytecode_print((uint8_t *)code, (size_t)mfn->start_pc, (size_t)mfn->total_insns);

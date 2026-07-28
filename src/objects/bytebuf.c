@@ -13,7 +13,7 @@ static TValue bytebuf_append(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     ASSERT(nargs == 1);
-    uint8_t value = kl_arg_uint8(args, nargs, 0);
+    uint8_t value = kl_arg_uint8(0);
     buf_write_byte(&bb->buf, value);
     return none_value;
 }

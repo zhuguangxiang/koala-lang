@@ -351,11 +351,53 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
     fprintf(fp, ", nargs=%d", insn->num_args);
 }
 
-static void print_get_global(KlrInsn *insn, FILE *fp)
+static void print_global_get(KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = get_global ");
+    fprintf(fp, " = global_get ");
     print_operand(&insn->opers[0], fp);
+
+    KlrValue *g = insn->opers[0].use.ref;
+    if (g->kind == KLR_VALUE_EXT_GLOBAL) {
+        fprintf(fp, " [pkg = %s]", ((KlrExtGlobal *)g)->module->name);
+    }
+}
+
+static void print_global_get_ext(KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = global_get_ext ");
+    print_operand(&insn->opers[0], fp);
+    KlrValue *g = insn->opers[0].use.ref;
+    if (g->kind == KLR_VALUE_EXT_GLOBAL) {
+        fprintf(fp, " [pkg = %s]", ((KlrExtGlobal *)g)->module->name);
+    }
+}
+
+static void print_global_set(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "%s ", "global_set");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+
+    KlrValue *g = insn->opers[0].use.ref;
+    if (g->kind == KLR_VALUE_EXT_GLOBAL) {
+        fprintf(fp, " [pkg = %s]", ((KlrExtGlobal *)g)->module->name);
+    }
+}
+
+static void print_global_set_ext(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "%s ", "global_set_ext");
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+
+    KlrValue *g = insn->opers[0].use.ref;
+    if (g->kind == KLR_VALUE_EXT_GLOBAL) {
+        fprintf(fp, " [pkg = %s]", ((KlrExtGlobal *)g)->module->name);
+    }
 }
 
 static void print_local_insn(KlrValue *local, FILE *fp)
@@ -707,11 +749,19 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_GLOBAL_GET:
-            print_get_global(insn, fp);
+            print_global_get(insn, fp);
             break;
 
         case OP_GLOBAL_SET:
-            print_no_value_insn("set_global", insn, fp);
+            print_global_set(insn, fp);
+            break;
+
+        case OP_GLOBAL_GET_EXT:
+            print_global_get_ext(insn, fp);
+            break;
+
+        case OP_GLOBAL_SET_EXT:
+            print_global_set_ext(insn, fp);
             break;
 
         case OP_LAND:

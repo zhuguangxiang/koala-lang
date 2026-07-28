@@ -1712,7 +1712,7 @@ X(OP_BUILD_INTERN, FORMAT_RTagImm)
  * OP_GLOBAL_GET — load global variable
  *
  * FORMAT_AxBx:
- *     | op:8 | Ax(dst):12 | Bx(global-index):12 |
+ *     | op:8 | dst:12 | global-index:12 |
  *
  * Details:
  *     Loads the value of a global variable into register dst.
@@ -1720,20 +1720,46 @@ X(OP_BUILD_INTERN, FORMAT_RTagImm)
  *     Globals are resolved at module load time and stored in
  *     Module.globals[].
  */
-X(OP_GLOBAL_GET, FORMAT_Op)
+X(OP_GLOBAL_GET, FORMAT_RxIdx12)
 
 /**
  * OP_GLOBAL_SET — store global variable
  *
  * FORMAT_AxBx:
- *     | op:8 | Ax(src):12 | Bx(global-index):12 |
+ *     | op:8 | src:12 | global-index:12 |
  *
  * Details:
  *     Stores the value in register src into a global variable.
  *     The global-index refers to the module's global table.
  *     Writes may trigger GC barriers depending on the value type.
  */
-X(OP_GLOBAL_SET, FORMAT_Op)
+X(OP_GLOBAL_SET, FORMAT_RxIdx12)
+
+
+/**
+ * OP_GLOBAL_GET_EXT — load global variable
+ *
+ * FORMAT_AxBx:
+ *     | op:8 | dst:8 | imported-index:16 |
+ *
+ * Details:
+ *     Loads the value of a external global variable into register dst.
+ *     The imported-index refers to the imported-table.
+ */
+X(OP_GLOBAL_GET_EXT, FORMAT_RIdx2)
+
+/**
+ * OP_GLOBAL_SET_EXT — store global variable
+ *
+ * FORMAT_AxBx:
+ *     | op:8 | src:8 | imported-index:16 |
+ *
+ * Details:
+ *     Stores the value in register src into a global variable.
+ *     The imported-index refers to the imported-table.
+ *     Writes may trigger GC barriers depending on the value type.
+ */
+X(OP_GLOBAL_SET_EXT, FORMAT_RIdx2)
 
 /*---------------------------------------------------------------+
  |  Field Access Instructions                                    |

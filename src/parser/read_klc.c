@@ -287,6 +287,7 @@ static int to_symbol_flags(uint16_t klc_flags)
     int flags = SYM_FLAGS_EXT;
     if (klc_flags & KLC_FLAGS_PUB) flags |= SYM_FLAGS_PUBLIC;
     if (klc_flags & KLC_FLAGS_MUT) flags |= SYM_FLAGS_MUTABLE;
+    if (klc_flags & KLC_FLAGS_STATIC) flags |= SYM_FLAGS_STATIC;
     return flags;
 }
 
@@ -545,6 +546,27 @@ static void load_klasses(LoadContext *ctx)
     }
 }
 
+static void load_globals(LoadContext *ctx)
+{
+    KlcFile *klc = ctx->klc;
+
+    KlcVar *item;
+    vector_foreach(item, klc->objs + ITEM_VAR) {
+        if (!item) continue;
+        if (!(item->flags & KLC_FLAGS_PUB)) {
+            continue;
+        }
+
+        KlcConst *k = klc_get_const(ctx->klc, item->name_index);
+        KlcConst *ty_k = klc_get_const(ctx->klc, item->type_index);
+        TypeSpec *ts = type_spec_from_str(ty_k->sval);
+        int flags = to_symbol_flags(item->flags);
+        Symbol *sym = stbl_add_var(ctx->stbl, k->sval, ts, flags);
+        sym->parent = ctx->pkg_sym;
+        sym->status = SYM_RESOLVED;
+    }
+}
+
 // absolute path to klc file
 static PkgSymbol *__load(char *path, ParserModule *pm)
 {
@@ -570,6 +592,7 @@ static PkgSymbol *__load(char *path, ParserModule *pm)
     vector_init(&ctx.fixups, sizeof(FixupEntry));
     vector_init(&ctx.stage_2_fixups, sizeof(FixupEntry));
 
+    load_globals(&ctx);
     load_klasses(&ctx);
     load_funcs(&ctx);
     stbl_show(stbl);

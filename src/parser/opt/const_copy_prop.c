@@ -7,7 +7,6 @@
 #include "cmd.h"
 #include "ir.h"
 #include "log.h"
-#include "queue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -547,7 +546,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             KlrValue *rhs = insn_oper_value(insn, 1);
 
             ASSERT(lhs->ts == rhs->ts);
-            ASSERT(lhs->ts = bool_type_spec());
+            ASSERT(lhs->ts == bool_type_spec());
 
             // Short-circuiting
             if (klr_is_const(lhs)) {
@@ -665,7 +664,7 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
         case OP_GLOBAL_SET: {
             KlrGlobal *global = (KlrGlobal *)insn_oper_value(insn, 0);
             KlrValue *val = insn_oper_value(insn, 1);
-            if (!global->mutable && klr_is_const(val)) {
+            if (!global->mutable && klr_is_const(val) && type_allowed_to_prop(val->ts)) {
                 log_info("record const value for global variable:");
                 log_insn(insn);
                 global->kval = (KlrConst *)val;
@@ -680,7 +679,7 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
             // let b = a
             // Because `a` is mutable, we cannot propagate `a` to `b`
             // When `let c = b + 1`, `get_global 'b' is const, but val is null.
-            if (!global->mutable && val) {
+            if (!global->mutable && val && type_allowed_to_prop(val->ts)) {
                 log_info("propagate const global variable:");
                 log_insn(insn);
                 if (replace_all_uses_with((KlrValue *)val, (KlrValue *)insn)) {

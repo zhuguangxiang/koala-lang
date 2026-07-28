@@ -77,6 +77,9 @@ pub class int64 {
 
     @intrinsic
     pub func __iadd__(rhs int64) int64 {}
+
+    @native
+    pub func __str__() str {}
 }
 
 pub class uint8 {

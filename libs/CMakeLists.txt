@@ -7,6 +7,7 @@ set(KOALA_NATIVE_SOURCES
     std/native/fs.c
     std/native/io.c
     std/native/os.c
+    std/native/time.c
     )
 
 add_library(koala_std_native SHARED ${KOALA_NATIVE_SOURCES})

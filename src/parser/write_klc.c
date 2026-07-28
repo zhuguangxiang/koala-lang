@@ -77,6 +77,10 @@ static void write_meta_func(FuncSymbol *fn_sym, KlcKlass *klass, KlcFile *klc)
         flags |= KLC_FLAGS_PUB;
     }
 
+    if (fn_sym->flags & SYM_FLAGS_STATIC) {
+        flags |= KLC_FLAGS_STATIC;
+    }
+
     KlcFunc *fn = NULL;
     if (klass) {
         flags |= KLC_FLAGS_METH;

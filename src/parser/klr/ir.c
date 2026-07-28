@@ -675,6 +675,7 @@ KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut)
     KlrGlobal *global = new_global(ts, name);
     vector_push_back(&m->globals, &global);
     global->mutable = mut;
+    global->index = vector_size(&m->globals) - 1;
     return (KlrValue *)global;
 }
 

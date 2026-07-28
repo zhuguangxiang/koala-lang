@@ -56,4 +56,10 @@ pub class Instant {
         if clock != other.clock { panic("cannot compare Instants from different clocks") }
         return epoch_ns >= other.epoch_ns
     }
+
+    pub func to_unix_ns() int64 { return epoch_ns }
+
+    pub func to_unix_ms() int64 { return epoch_ns / 1_000_000 }
+
+    pub func to_unix_secs() int64 { return epoch_ns / 1_000_000_000 }
 }

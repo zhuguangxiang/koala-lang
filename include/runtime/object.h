@@ -362,6 +362,16 @@ static inline Object *kl_new_index_field(char *name, int type, int index, Object
     return obj;
 }
 
+extern TypeObject global_type;
+Object *kl_new_global(char *name, int index, Object *m);
+
+typedef struct _GlobalObject {
+    OBJECT_HEAD
+    char *name;
+    Object *module;
+    int index;
+} GlobalObject;
+
 /*---------------------------------------------------------------------------+
  |  CFunc&Code Object                                                        |
  +---------------------------------------------------------------------------*/
@@ -546,11 +556,11 @@ void kl_dump_module(Object *m);
         to_obj(args + index); \
     })
 
-static inline uint8_t kl_arg_uint8(TValue *args, int nargs, int index)
-{
-    ASSERT(index >= 0 && index < nargs);
-    return to_uint8(args + index);
-}
+#define kl_arg_uint8(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        to_uint8(args + index); \
+    })
 
 #define kl_arg_int64(index) \
     ({ \
@@ -558,17 +568,17 @@ static inline uint8_t kl_arg_uint8(TValue *args, int nargs, int index)
         to_int64(args + index); \
     })
 
-static inline double kl_arg_float(TValue *args, int nargs, int index)
-{
-    ASSERT(index >= 0 && index < nargs);
-    return to_float64(args + index);
-}
+#define kl_arg_float(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        to_float64(args + index); \
+    })
 
-static inline bool kl_arg_bool(TValue *args, int nargs, int index)
-{
-    ASSERT(index >= 0 && index < nargs);
-    return to_bool(args + index);
-}
+#define kl_arg_bool(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        to_bool(args + index); \
+    })
 
 #define kl_arg_str(index) \
     ({ \

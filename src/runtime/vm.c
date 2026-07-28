@@ -46,6 +46,17 @@ void kl_free_ks(KoalaState *ks)
     mm_free(ks);
 }
 
+Object *fs_module;
+Object *io_module;
+Object *sys_module;
+
+static void load_modules(void)
+{
+    fs_module = kl_load_module("std/fs");
+    io_module = kl_load_module("std/io");
+    sys_module = kl_load_module("std/sys");
+}
+
 KOALA_EXPORT void koala_initialize(void)
 {
     /* init logger */
@@ -59,7 +70,6 @@ KOALA_EXPORT void koala_initialize(void)
 
     /* init builtin & sys module */
     init_builtin_module();
-    // init_sys_module(ks);
 
     /* initialize main thread as koala thread */
     ThreadState *ts = mm_alloc_obj(ts);
@@ -68,6 +78,8 @@ KOALA_EXPORT void koala_initialize(void)
 
     /* initialize tag mappings */
     init_tag_mappings();
+
+    load_modules();
 }
 
 static void __load_const(Object *m, KlcConst *item)
@@ -379,6 +391,17 @@ static Object *_load_module(char *path)
         stbl_add_obj(&mo->symbols, kls_kc->sval, (Object *)tp);
         tp->flags |= TP_FLAGS_READY;
         tp->module = m;
+    }
+
+    Vector *globals = klc->objs + ITEM_VAR;
+    mo->num_values = vector_size(globals) - 1;
+    ASSERT(mo->num_values >= 0);
+    KlcVar *var;
+    vector_foreach(var, globals) {
+        if (!var) continue;
+        kc = klc_get_const(klc, var->name_index);
+        Object *val = kl_new_global(kc->sval, i__ - 1, m);
+        stbl_add_obj(&mo->symbols, kc->sval, val);
     }
 
     kl_init_module(m);
