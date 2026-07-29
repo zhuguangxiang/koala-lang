@@ -77,9 +77,27 @@ static TValue file_read(TValue *self, TValue *args, int nargs)
     return int64_value(r);
 }
 
-static TValue file_write(TValue *self, TValue *args, int nargs) { return none_value; }
+static TValue file_write(TValue *self, TValue *args, int nargs)
+{
+    FileObject *fobj = SELF_AS(file_type);
+    ASSERT(nargs == 1);
+    BytesObject *buf = kl_arg_obj_as(0, bytes_type);
+    if (fcntl(fobj->fd, F_GETFD) == -1) {
+        printf("file descriptor %d is closed\n", fobj->fd);
+        return none_value;
+    }
 
-static TValue file_close(TValue *self, TValue *args, int nargs) { return none_value; }
+    int r = write(fobj->fd, buf->data + buf->offset, buf->size);
+    return int64_value(r);
+}
+
+static TValue file_close(TValue *self, TValue *args, int nargs)
+{
+    FileObject *fobj = SELF_AS(file_type);
+    ASSERT(nargs == 0);
+    close(fobj->fd);
+    return none_value;
+}
 
 static TValue file_seek(TValue *self, TValue *args, int nargs) { return none_value; }
 

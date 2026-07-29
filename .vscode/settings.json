@@ -235,7 +235,6 @@
         "--background-index",
         "-log=verbose"
     ],
-    "C_Cpp.intelliSenseEngine": "disabled",
     "code-runner.executorMap": {
         "javascript": "node",
         "java": "cd $dir && javac $fileName && java $fileNameWithoutExt",

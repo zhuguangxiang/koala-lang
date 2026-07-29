@@ -264,7 +264,7 @@ KlrValue *klr_build_get_global(KlrBuilder *bldr, KlrValue *global)
  */
 void klr_build_set_global(KlrBuilder *bldr, KlrValue *global, KlrValue *val)
 {
-    if (global->kind != KLR_VALUE_GLOBAL) {
+    if (global->kind != KLR_VALUE_GLOBAL && global->kind != KLR_VALUE_EXT_GLOBAL) {
         panic("'set_global %%g, %%v' requires a global variable.");
     }
 

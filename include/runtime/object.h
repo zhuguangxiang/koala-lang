@@ -363,6 +363,7 @@ static inline Object *kl_new_index_field(char *name, int type, int index, Object
 }
 
 extern TypeObject global_type;
+#define IS_GLOBAL(ob) IS_TYPE((ob), &global_type)
 Object *kl_new_global(char *name, int index, Object *m);
 
 typedef struct _GlobalObject {
@@ -554,6 +555,14 @@ void kl_dump_module(Object *m);
     ({ \
         ASSERT(index >= 0 && index < nargs); \
         to_obj(args + index); \
+    })
+
+#define kl_arg_obj_as(index, tp_type) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        Object *o = to_obj(args + index); \
+        ASSERT(IS_TYPE(o, &tp_type)); \
+        (void *)o; \
     })
 
 #define kl_arg_uint8(index) \

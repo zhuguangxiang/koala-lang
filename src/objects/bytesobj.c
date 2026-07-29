@@ -157,6 +157,7 @@ static TValue kl_bytes_view(TValue *self, TValue *args, int nargs)
     ASSERT(is_int64(&args[0]) && is_int64(&args[1]));
     int64_t start = to_int64(&args[0]);
     int64_t end = to_int64(&args[1]);
+    if (end < 0) end = bytes->size;
     ASSERT(start >= 0 && end >= 0 && start <= end && end <= bytes->size);
 
     BytesObject *view_bytes = mm_alloc_obj(view_bytes);

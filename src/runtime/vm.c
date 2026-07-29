@@ -50,11 +50,39 @@ Object *fs_module;
 Object *io_module;
 Object *sys_module;
 
+TValue *kl_stdin;
+TValue *kl_stdout;
+TValue *kl_stderr;
+Object *buf_write_str_func;
+Object *buf_flush_func;
+
+static TValue *get_global_var(Object *m, char *name)
+{
+    ModuleObject *mo = (ModuleObject *)m;
+    Object *ob = kl_mo_find(m, name);
+    if (!ob) return NULL;
+    ASSERT(IS_GLOBAL(ob));
+    GlobalObject *gobj = (GlobalObject *)ob;
+    int index = gobj->index;
+    ASSERT(index >= 0 && index < mo->num_values);
+    TValue *val = mo->values + index;
+    return val;
+}
+
 static void load_modules(void)
 {
     fs_module = kl_load_module("std/fs");
     io_module = kl_load_module("std/io");
     sys_module = kl_load_module("std/sys");
+
+    kl_stdin = get_global_var(sys_module, "stdin");
+    kl_stdout = get_global_var(sys_module, "stdout");
+    kl_stderr = get_global_var(sys_module, "stderr");
+    ASSERT(kl_stdin && kl_stdout && kl_stderr);
+
+    buf_write_str_func = kl_mo_find(io_module, "buf_write_str");
+    buf_flush_func = kl_mo_find(io_module, "buf_flush");
+    ASSERT(buf_write_str_func && buf_flush_func);
 }
 
 KOALA_EXPORT void koala_initialize(void)

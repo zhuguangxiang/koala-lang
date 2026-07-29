@@ -6,9 +6,9 @@ import "std/os"
 pub let version = __KOALA_VERSION__
 // pub let date = __KOALA_BUILD_DATE__
 
-let _stdin = fs.open(0)
-let _stdout = fs.open(1)
-let _stderr = fs.open(2)
+pub let _stdin = fs.open(0)
+pub let _stdout = fs.open(1)
+pub let _stderr = fs.open(2)
 
 pub var stdin = io.BufReader(_stdin)
 pub var stdout = io.BufWriter(_stdout)

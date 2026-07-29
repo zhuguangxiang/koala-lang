@@ -9,3 +9,17 @@ func min(a int, b int) int {
         return b
     }
 }
+
+pub func buf_write(w BufWriter, data bytes) int {
+    let n = w.write(data)
+    return n
+}
+
+pub func buf_write_str(w BufWriter, data str) int {
+    let n = w.write(data.to_bytes())
+    return n
+}
+
+pub func buf_flush(w BufWriter) {
+    w.flush()
+}
