@@ -21,6 +21,5 @@ func main() {
     print(an.swim("Dolphin", 5))
 }
 
-// CHECK: test_pkg_foo_func is called
 // CHECK: Eagle 3
 // CHECK: <Dolphin is swimming, age 5>

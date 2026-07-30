@@ -1,0 +1,6 @@
+
+
+link "koala_ext_native"
+
+@native
+pub func pretty(s str) str {}

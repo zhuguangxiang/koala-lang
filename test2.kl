@@ -1,7 +1,7 @@
 
-import "std/fs"
-import "std/io"
-import "std/os"
+// import "std/fs"
+// import "std/io"
+// import "std/os"
 // import "std/sys"
 
 // func test9(a int, b int) int {
@@ -34,20 +34,20 @@ import "std/os"
 //     return 100 / n
 // }
 
-func test() int? {
-    // let f = io.open("test.txt", "r")
-    // if f == null {
-    //     return null
-    // }
+// func test() int? {
+//     // let f = io.open("test.txt", "r")
+//     // if f == null {
+//     //     return null
+//     // }
 
-    // let buf = bytes(1024)
-    // let n = f.read(buf)
-    // print("Read", n, "bytes from file.")
+//     // let buf = bytes(1024)
+//     // let n = f.read(buf)
+//     // print("Read", n, "bytes from file.")
 
-    // f.close()
+//     // f.close()
 
-    return 42
-}
+//     return 42
+// }
 
 // func test2(s str) bytes {
 //     let bs = s.to_bytes()
@@ -70,21 +70,23 @@ func test() int? {
 //     }
 // }
 
-class Bar {
-    let msg = "greeting!"
-    func greet() {
-        print(msg)
-    }
+// class Bar {
+//     let msg = "greeting!"
+//     func greet() {
+//         print(msg)
+//     }
 
-    func hello() {
-        greet()
-    }
-}
+//     func hello() {
+//         greet()
+//     }
+// }
+
+import "koala/pretty" as pp
 
 func main() {
-    let b = Bar()
-    b.hello()
-    print(b.msg)
+    // let b = Bar()
+    // b.hello()
+    // print(b.msg)
 
     // let an z.Animal = Foo()
     // z.test_pkg_foo(an)
@@ -174,54 +176,130 @@ func main() {
     //     if n <= 0 { break; }
     // }
 
-    let f fs.File? = fs.open("test.txt", "r");
-    if f == null {
-        print("failed to open file")
-        return
-    }
+    // let f fs.File? = fs.open("test.txt", "r");
+    // if f == null {
+    //     print("failed to open file")
+    //     return
+    // }
 
-    let bs = bytes(32)
-    // print(f.read(bs))
-    print(f.path, f.mode)
+    // let bs = bytes(32)
+    // // print(f.read(bs))
+    // print(f.path, f.mode)
+    // // print(bs.to_str())
+    // f.close()
+
+    // let v = __KOALA_VERSION__
+    // print(v)
+
+    // let br = io.BufReader(f)
+    // print(br.read(bs))
     // print(bs.to_str())
-    f.close()
 
-    let v = __KOALA_VERSION__
-    print(v)
+    // let buf = ByteBuf()
+    // for i in range(10) {
+    //     buf.append(uint8(97 + i))
+    // }
+    // print(len(buf), buf)
 
-    let br = io.BufReader(f)
-    print(br.read(bs))
-    print(bs.to_str())
+    // let path = os.getenv("PATH")
+    // print(path)
 
-    let buf = ByteBuf()
-    for i in range(10) {
-        buf.append(uint8(97 + i))
-    }
-    print(len(buf), buf)
+    // let args = os.args()
+    // print(args)
 
-    let path = os.getenv("PATH")
-    print(path)
+    // // print(sys.stdin)
 
-    let args = os.args()
-    print(args)
+    // let _stdin fs.File? = fs.open(0)
 
-    // print(sys.stdin)
+    // // var stdin = io.BufReader(_stdin!)
 
-    let _stdin fs.File? = fs.open(0)
+    // if let __stdin = _stdin {
+    //     print(__stdin.path)
+    //     __stdin.read(bs)
+    //     print(bs.to_str())
+    // }
 
-    // var stdin = io.BufReader(_stdin!)
+    // let path2 = ["./"]
+    // let sep_list = os.getenv("KOALA_PATH").split(":")
+    // print(sep_list)
+    // path2.extend(sep_list)
+    // print(path2)
 
-    if let __stdin = _stdin {
-        print(__stdin.path)
-        __stdin.read(bs)
-        print(bs.to_str())
-    }
+    // print(format("Hello\n{}", "James"))
+    // print(format("Hello, {}", "James"))
+    // print(format("value = {:d}", 42))
 
-    let path2 = ["./"]
-    let sep_list = os.getenv("KOALA_PATH").split(":")
-    print(sep_list)
-    path2.extend(sep_list)
-    print(path2)
+    // print(format("value = {:8d}", 42))
+    // # "value =       42"
+
+    // print(format("value = {:<8d}", 42))
+    // # "value = 42      "
+
+    // print(format("value = {:>8d}", 42))
+    // # "value =       42"
+
+    // print(format("value = {:^8d}", 42))
+    // # "value =   42    "
+
+    // print(format("value = {:*^8d}", 42))
+    // # "value = ***42***"
+
+    // print(format("value = {:08d}", 42))
+    // # "value = 00000042"
+
+    // print(format("pi = {:f}", 3.14159))
+    // # "pi = 3.141590"
+
+    // print(format("pi = {:.2f}", 3.14159))
+    // # "pi = 3.14"
+
+    // print(format("pi = {:8.2f}", 3.14159))
+    // # "pi =     3.14"
+
+    // print(format("hex = {:x}", 255))
+    // # "hex = ff"
+
+    // print(format("HEX = {:X}", 255))
+    // # "HEX = FF"
+
+    // print(format("bin = {:b}", 13))
+    // # "bin = 1101"
+
+    // print(format("oct = {:o}", 64))
+    // # "oct = 100"
+
+    // print(format("name = {:>10}", "Koala"))
+    // # "name =      Koala"
+
+    // print(format("x={:d}, y={:d}, z={:.2f}", 10, 20, 3.14))
+    // print(format("User {:<10} | Score {:>5d} | Rate {:>6.2f}", "James", 98, 0.876))
+
+    let x = 10
+    let y = 20
+    let s = format("Point {{ x: {:d}, y: {:d} }}", x, y)
+
+    print(s)
+
+    print(pp.pretty(s))
+
+    let s2 = "Point { x: 10, y: 20, meta: { a: 1, b: 2 } }"
+    print(pp.pretty(s2))
+
+    let s3 = "Shape { name: \"rect\", points: [ { x: 1, y: 2 }, { x: 3, y: 4 } ] }"
+    print(pp.pretty(s3))
+
+    let s4 = "Config { window: { size: { w: 800, h: 600 }, pos: { x: 10, y: 20 } }, flags: [ true, false, true ] }"
+    print(pp.pretty(s4))
+
+    // let l = [(1, 2), (3, 4), (5, 6)]
+    // // for (x, y) in l {
+    // //     print(format("x={:d}, y={:d}", x, y))
+    // // }
+    // print(l)
+
+    // for x in l {
+    //     print(format("x={:d}, y={:d}", x[0], x[1]))
+    // }
 }
 
 // import "std/io"

@@ -192,10 +192,11 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
 
             case KLC_CONST_SHORT_TUPLE:
             case KLC_CONST_TUPLE: {
-                Vector *_sub = item->val;
-                int _index = kl_mo_add_tuple(_m, _sub);
-                TValue val = { .tag = item->type_info, .ival = _index };
-                vector_push_back(&vec, &val);
+                NYI();
+                // Vector *_sub = item->val;
+                // int _index = kl_mo_add_tuple(_m, _sub);
+                // TValue val = { .tag = item->type_info, .ival = _index };
+                // vector_push_back(&vec, &val);
                 break;
             }
 

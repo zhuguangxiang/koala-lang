@@ -93,6 +93,7 @@ set(KOALA_SOURCES
     runtime/mod.c
     runtime/args.c
     modules/builtin.c
+    modules/format.c
     )
 
 add_library(koala SHARED ${KOALA_SOURCES})

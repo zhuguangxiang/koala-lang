@@ -293,6 +293,7 @@ typedef struct _CallExpr {
     EXPR_HEAD
     Expr *lhs;
     Vector *args;
+    int done;
 } CallExpr;
 
 Expr *expr_from_call(Expr *lhs, Vector *args);

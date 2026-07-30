@@ -47,3 +47,6 @@ pub func len(obj any) int {}
 ///       appropriate; `panic()` is intended only for fatal errors.
 @native
 pub func panic(msg str) {}
+
+@native
+pub func format(fmt str, args ...) str {}

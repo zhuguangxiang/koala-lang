@@ -62,4 +62,8 @@ pub class Instant {
     pub func to_unix_ms() int64 { return epoch_ns / 1_000_000 }
 
     pub func to_unix_secs() int64 { return epoch_ns / 1_000_000_000 }
+
+    pub func __str__() str {
+        return format("Instant(epoch_ns={:d}, clock={:d})", epoch_ns, clock)
+    }
 }

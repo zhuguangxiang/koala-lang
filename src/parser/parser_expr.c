@@ -1108,6 +1108,11 @@ static void parse_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
 
+    if (call->done) {
+        log_info("call expr is already parsed.");
+        return;
+    }
+
     Expr *arg;
     vector_foreach(arg, call->args) {
         if (!arg) continue;
@@ -1409,6 +1414,7 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
     log_info("call expression type is:");
     log_type_spec(exp->ts);
+    call->done = 1;
 }
 
 static TypeSpec *opt_dot_type(TypeSpec *ts, int opt_or_bang)

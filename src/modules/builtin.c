@@ -96,9 +96,12 @@ static TValue builtin_panic(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
+TValue kl_format(TValue *self, TValue *args, int nargs);
+
 static MethodDef builtin_functions[] = {
     { "print", builtin_print },
     { "panic", builtin_panic },
+    { "format", kl_format },
     { NULL },
 };
 

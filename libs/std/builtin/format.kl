@@ -1,0 +1,36 @@
+
+pub class Formatter {
+
+    @native
+    pub func write_str(s str) {}
+
+    @native
+    pub func write_int(v int) {}
+
+    @native
+    pub func write_float(v float) {}
+
+    @native
+    pub func write_bool(v bool) {}
+
+    @native
+    pub func align(a int) Formatter {}
+
+    @native
+    pub func width(w int) Formatter {}
+
+    @native
+    pub func precision(p int) Formatter {}
+
+    @native
+    pub func fill(c uint8) Formatter {}
+
+    @native
+    pub func radix(r int) Formatter {}
+
+    @native
+    pub func clear() {}
+
+    @native
+    pub func to_str() str {}
+}

@@ -14,7 +14,7 @@ TValue test_pkg_foo_func(TValue *self, TValue *args, int nargs)
     // an.fly("Eagle", 3)
     Object *fn = kl_get_intf_func(args, 0);
     TValue _args[] = { args[0], obj_value(kl_new_str("Eagle")), int64_value(3) };
-    printf("test_pkg_foo_func is called\n");
+    // printf("test_pkg_foo_func is called\n");
     return kl_object_call(fn, _args, 3);
 }
 
