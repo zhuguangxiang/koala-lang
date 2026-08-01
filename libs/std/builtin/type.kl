@@ -5,9 +5,15 @@
 
 pub class type {
 
-    @native
-    pub func __init__(o any) {}
+    // it's private, so usr can't create a type object directly
+    func __init__() {}
 
     @native
-    pub func __call__(o any) type {}
+    pub func name() str {}
+
+    @native
+    pub func methods() list[str] {}
+
+    @native
+    pub func lro() list[str] {}
 }

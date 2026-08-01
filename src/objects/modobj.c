@@ -409,7 +409,7 @@ int kl_init_module(Object *_m)
     // setup types
     TypeObject *tp;
     vector_foreach(tp, &m->types) {
-        kl_init_type(tp);
+        type_ready(tp);
     }
 
     // allocate global variables space
@@ -443,6 +443,7 @@ Object *kl_module_fromdef(ModuleDef *def)
     // add types
     TypeObject **tp = def->types;
     while (*tp) {
+        kl_init_type(*tp);
         kl_mo_add_type(_m, *tp);
         tp++;
     }

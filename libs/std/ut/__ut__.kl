@@ -1,0 +1,21 @@
+pub func assert(cond bool, msg str = "") {
+    if !cond {
+        if msg == "" {
+            panic("assertion failed")
+        } else {
+            panic(msg)
+        }
+    }
+}
+
+pub func assert_eq[T: Equatable[T]](a T, b T) {
+    if a != b {
+        panic(format("assert_eq failed: {} != {}", a, b))
+    }
+}
+
+pub func assert_ne[T: Equatable[T]](a T, b T) {
+    if a == b {
+        panic(format("assert_ne failed: {} == {}", a, b))
+    }
+}

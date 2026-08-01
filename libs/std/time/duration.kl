@@ -48,4 +48,20 @@ pub class Duration {
     pub func to_ms() int64 { return ns / 1_000_000 }
 
     pub func to_secs() int64 { return ns / 1_000_000_000 }
+
+    pub func __str__() str {
+        if ns >= 1_000_000_000 {
+            let s = ns / 1_000_000_000
+            return format("{}s", s)
+        }
+        if ns >= 1_000_000 {
+            let ms = ns / 1_000_000
+            return format("{}ms", ms)
+        }
+        if ns >= 1_000 {
+            let us = ns / 1_000
+            return format("{}us", us)
+        }
+        return format("{}ns", ns)
+    }
 }

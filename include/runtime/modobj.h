@@ -12,9 +12,6 @@
 extern "C" {
 #endif
 
-typedef int (*InitModuleFunc)(Object *m);
-typedef void (*FiniModuleFunc)(Object *m);
-
 typedef struct _ModuleDef {
     /* module path */
     char *path;
@@ -26,10 +23,6 @@ typedef struct _ModuleDef {
     MethodDef *funcs;
     /* types */
     TypeObject **types;
-    /* init function(extended state) */
-    InitModuleFunc init;
-    /* fini function(extended state) */
-    FiniModuleFunc fini;
 } ModuleDef;
 
 typedef struct _ModuleObject {
@@ -55,10 +48,6 @@ typedef struct _ModuleObject {
     HashMap symbols;  // symbols for exported map
     char *path;       // module path
     Object *not_impl; // not implemented function
-
-    /* native module */
-    ModuleDef *def; // module defined by c extension
-    void *state;    // module private pointer
 
     /* native so */
     Vector libs;

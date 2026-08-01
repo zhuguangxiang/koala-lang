@@ -2007,17 +2007,6 @@ trait_method
         $1.pub.flag = 1;
         stmt_set_prefix($$, $1);
     }
-    | func_decl
-    {
-        $$ = $1;
-        PrefixFlags flags = { .pub.flag = 1 };
-        stmt_set_prefix($$, flags);
-    }
-    | prefix func_decl
-    {
-        $$ = $2;
-        stmt_set_prefix($$, $1);
-    }
     | semi
     {
         $$ = NULL;

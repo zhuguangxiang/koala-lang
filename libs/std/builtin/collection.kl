@@ -3,15 +3,6 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// Comparable trait provides a way to compare two objects of the same type.
-/// Use this for ordering, sorting, or tree-based collections.
-pub trait Comparable[T] {
-    /// Compare this object with the specified object for order.
-    /// Returns a negative integer, zero, or a positive integer as this object
-    /// is less than, equal to, or greater than the specified object.
-    func compare(other T) int
-}
-
 /// Base trait for all collections.
 /// Represents a group of objects, known as its elements.
 pub trait Collection[T] : Iterable[T] {
@@ -125,27 +116,27 @@ pub trait Map[K, V] : Collection[(K, V)] {
 /// Models the mathematical set abstraction.
 pub trait Set[T] : Collection[T] {
     /// Return True if the set contains the specified element.
-    func __contains__(v T) bool {}
+    func __contains__(v T) bool
 
     /// Add an element to the set.
     /// Return True if the element was not already present.
-    func add(v T) bool {}
+    func add(v T) bool
 
     /// Add all elements from the iterable to the set.
     func extend(items Iterable[T])
 
     /// Remove an element from the set. Return True if the element was present.
-    func remove(v T) bool {}
+    func remove(v T) bool
 
     /// Remove all elements from the set.
-    func clear() {}
+    func clear()
 
     /// Return a new set with elements from the set and all others.
-    func union(other Iterable[T]) Set[T] {}
+    func union(other Iterable[T]) Set[T]
 
     /// Return a new set with elements common to the set and all others.
-    func intersect(other Iterable[T]) Set[T] {}
+    func intersect(other Iterable[T]) Set[T]
 
     /// Return a new set with elements in the set that are not in the others.
-    func diff(other Iterable[T]) Set[T] {}
+    func diff(other Iterable[T]) Set[T]
 }

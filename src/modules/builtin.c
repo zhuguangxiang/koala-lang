@@ -98,10 +98,19 @@ static TValue builtin_panic(TValue *self, TValue *args, int nargs)
 
 TValue kl_format(TValue *self, TValue *args, int nargs);
 
+static TValue builtin_typeof(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    TypeObject *tp = kl_typeof(&args[0]);
+    Object *tp_obj = (Object *)tp;
+    return obj_value(tp_obj);
+}
+
 static MethodDef builtin_functions[] = {
     { "print", builtin_print },
     { "panic", builtin_panic },
     { "format", kl_format },
+    { "typeof", builtin_typeof },
     { NULL },
 };
 
@@ -111,14 +120,14 @@ static TypeObject *builtin_types[] = {
     &tuple_type, &range_type,  &list_type,  &bytes_type, &bytebuf_type, NULL,
 };
 
-static ModuleDef builtin_module = {
-    .path = "std/builtin",
-    .funcs = builtin_functions,
-    .types = builtin_types,
-};
-
 void init_builtin_module(void)
 {
+    ModuleDef builtin_module = {
+        .path = "std/builtin",
+        .funcs = builtin_functions,
+        .types = builtin_types,
+    };
+
     kl_module_fromdef(&builtin_module);
     // kl_dump_module(m);
 }

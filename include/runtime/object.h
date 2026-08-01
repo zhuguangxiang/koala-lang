@@ -502,7 +502,8 @@ extern TypeObject Sequence_type;
 extern TypeObject MutableSequence_type;
 
 TypeObject *kl_typeof(TValue *val);
-int kl_init_type(TypeObject *tp);
+int type_ready(TypeObject *tp);
+void kl_init_type(TypeObject *tp);
 TypeObject *kl_new_type(char *name, int flags);
 
 static inline Object *kl_to_str(TValue *val)

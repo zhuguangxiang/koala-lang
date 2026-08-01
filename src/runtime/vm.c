@@ -200,11 +200,7 @@ int kl_reg_meth(NativeLib *lib, char *cls, char *meth, NativeFunc fn)
 
 int kl_reg_type(NativeLib *lib, TypeObject *tp)
 {
-    vector_init_ptr(&tp->fields);
-    vector_init_ptr(&tp->methods);
-    vector_init(&tp->itables, sizeof(IntfTable));
-    stbl_init(&tp->members);
-
+    kl_init_type(tp);
     stbl_add_obj(&lib->symbols, tp->name, (Object *)tp);
     return 0;
 }
@@ -384,7 +380,11 @@ static Object *_load_module(char *path)
             uint16_t _idx = 0;
             vector_foreach(_idx, &intf_entry->methods) {
                 if (_idx == 0xFFFFu) {
-                    ASSERT(0); // should not happen, but just in case
+                    // ASSERT(0); // should not happen, but just in case
+                    printf(
+                        "[_load_module] class '%s' does not implement method '%s' of interface "
+                        "'%s'\n",
+                        tp->name, kc->sval, itable.name);
                     ASSERT(i__ < itable.num_funcs);
                     itable.methods[i__] = ((ModuleObject *)m)->not_impl;
                     continue;
@@ -417,7 +417,6 @@ static Object *_load_module(char *path)
 
         vector_push_back(&mo->types, &tp);
         stbl_add_obj(&mo->symbols, kls_kc->sval, (Object *)tp);
-        tp->flags |= TP_FLAGS_READY;
         tp->module = m;
     }
 

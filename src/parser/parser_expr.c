@@ -1173,10 +1173,16 @@ static void parse_call(ParserState *ps, Expr *exp)
 
         Symbol *_fn_sym = stbl_get(cls_sym->stbl, "__init__");
         if (!_fn_sym) {
-            log_info("class '%s' has no constructor, add default __init__() for it.",
-                     lhs_sym->name);
-            _fn_sym = stbl_add_func(cls_sym->stbl, "__init__", no_type_spec(), NULL,
-                                    cls_sym->flags | SYM_FLAGS_PUBLIC);
+            if (cls_sym->flags & SYM_FLAGS_EXT) {
+                kl_error(lhs->loc, "class '%s' is external, but has no public '__init__()'.",
+                         cls_sym->name);
+                return;
+            } else {
+                log_info("class '%s' has no constructor, add default __init__() for it.",
+                         lhs_sym->name);
+                _fn_sym = stbl_add_func(cls_sym->stbl, "__init__", no_type_spec(), NULL,
+                                        cls_sym->flags | SYM_FLAGS_PUBLIC);
+            }
         }
 
         if (cls_sym->__init__ == NULL) cls_sym->__init__ = _fn_sym;

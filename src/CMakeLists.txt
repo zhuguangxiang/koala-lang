@@ -70,7 +70,6 @@ add_library(koala_common STATIC ${COMMON_SOURCES})
 set_target_properties(koala_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 set(KOALA_SOURCES
-    objects/anyobj.c
     objects/boolobj.c
     objects/floatobj.c
     objects/funcobj.c

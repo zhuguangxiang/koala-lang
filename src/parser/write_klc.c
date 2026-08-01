@@ -152,7 +152,7 @@ static void write_meta_intf_entry(IntfEntry *intf_entry, KlcKlass *klass)
     FuncSymbol *fn_sym;
     vector_foreach(fn_sym, &intf_entry->methods) {
         if (!fn_sym) {
-            ASSERT(0); // should not happen, but just in case
+            // ASSERT(0); // should not happen, but just in case
             uint16_t null_idx = -1;
             vector_push_back(&entry->methods, &null_idx);
         } else {
@@ -269,12 +269,12 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
         }
     }
 
-    if (!is_build_stdlib()) {
-        if (dump_itable_enabled()) {
-            // dump interface table for debugging
-            dump_intf_table(stbl);
-        }
+    if (dump_itable_enabled()) {
+        // dump interface table for debugging
+        dump_intf_table(stbl);
+    }
 
+    if (!is_build_stdlib()) {
         // write interface table for each class
         HashMapIter it2 = { 0 };
         while (hashmap_next(stbl, &it2)) {

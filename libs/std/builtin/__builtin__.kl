@@ -3,6 +3,50 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+/// Equatable defines semantic equality between two values of the same type.
+/// Types conforming to Equatable must provide both `__eq__` and `__ne__`,
+/// ensuring consistent behavior for equality and inequality checks.
+///
+/// Conforming to Equatable allows a type to be used in conditional logic,
+/// comparisons, and other equality‑based operations.
+pub trait Equatable[T] {
+    func __eq__(other Equatable[T]) bool
+    func __ne__(other Equatable[T]) bool
+}
+
+/// Comparable defines a total ordering between values of the same type.
+/// Types conforming to Comparable can be sorted, compared, and used in
+/// ordered data structures such as priority queues or tree‑based collections.
+///
+/// Comparable inherits from Equatable, so conforming types must also
+/// implement equality and inequality operations.
+pub trait Comparable[T] : Equatable[T] {
+    func __lt__(other Comparable[T]) bool
+    func __le__(other Comparable[T]) bool
+    func __gt__(other Comparable[T]) bool
+    func __ge__(other Comparable[T]) bool
+}
+
+/// Hashable defines the ability for a type to produce a stable hash value.
+/// Conforming to Hashable allows a type to be used as a key in dictionaries,
+/// sets, and other hash‑based collections.
+///
+/// Equal values must always produce identical hash values. The hash should
+/// be well‑distributed to ensure good performance in hashed structures.
+pub trait Hashable {
+    func __hash__() int
+}
+
+/// ToString defines a human‑readable string representation for a type.
+/// Conforming to this trait enables integration with `print()` and other
+/// string‑based output mechanisms.
+///
+/// The returned string should be suitable for display to end users and
+/// represent the value in a clear, readable form.
+pub trait ToString {
+    func __str__() str
+}
+
 /// Print objects to the text stream file, separated by `sep` and followed by `end`.
 ///
 /// All non-keyword arguments are converted to strings using their `__str__` method.
@@ -48,5 +92,22 @@ pub func len(obj any) int {}
 @native
 pub func panic(msg str) {}
 
+/// Format a string using positional arguments.
+///
+/// `{}` consumes one argument in order. No named placeholders.
+/// Arguments are converted using `__str__()`.
+///
+/// Example:
+///     format("Point({}, {})", x, y)
+///     "Point(10, 20)"
 @native
 pub func format(fmt str, args ...) str {}
+
+/// Return the runtime type of a value.
+///
+/// Example:
+///     typeof(10)      // <class 'int'>
+///     typeof("hello") // <class 'str'>
+///     typeof(Node(5)) // <class 'Node'>
+@native
+pub func typeof(obj any) type {}

@@ -201,7 +201,7 @@
     // "http.proxy": "http://127.0.0.1:20171",
     // "https.proxy": "http://127.0.0.1:20171"
     "highlight.regexes": {
-        "(?<!\\/\\/.*)\\b(pub|trait|class|as|const|link|native|intrinsic|func)\\b": {
+        "(?<!\\/\\/.*)\\b(pub|trait|class|as|const|link|native|intrinsic|func|from)\\b": {
             "filterLanguageRegex": "swift",
             "decorations": [
                 {

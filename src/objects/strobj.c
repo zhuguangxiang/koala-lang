@@ -102,11 +102,75 @@ static TValue str_to_bytes(TValue *self, TValue *args, int nargs)
     return obj_value(bs);
 }
 
+static TValue str_find(TValue *self, TValue *args, int nargs)
+{
+    StringObject *str = SELF_AS(str_type);
+
+    ASSERT(nargs == 1);
+
+    char *sub = kl_arg_str(0);
+    int sub_len = strlen(sub);
+
+    if (sub_len == 0) return int64_value(0);
+    if (sub_len > str->size) return int64_value(-1);
+
+    for (int i = 0; i <= str->size - sub_len; i++) {
+        if (memcmp(str->array + i, sub, sub_len) == 0) {
+            return int64_value(i);
+        }
+    }
+    return int64_value(-1);
+}
+
 static MethodDef str_methods[] = {
     { "__str__", str_str },
     { "to_bytes", str_to_bytes },
     { "split", str_split },
+    { "find", str_find },
     { NULL },
+};
+
+static size_t kl_str_seq_len(TValue *self)
+{
+    StringObject *str = SELF_AS(str_type);
+    return str->size;
+}
+
+static int kl_str_contains(TValue *self, TValue *item)
+{
+    StringObject *str = SELF_AS(str_type);
+    Object *ob = to_obj(item);
+    ASSERT(IS_STR(ob));
+    StringObject *substr = (StringObject *)ob;
+
+    bool result = false;
+    if (substr->size <= str->size) {
+        for (size_t i = 0; i <= str->size - substr->size; i++) {
+            if (memcmp(str->array + i, substr->array, substr->size) == 0) {
+                result = true;
+                break;
+            }
+        }
+    }
+
+    return result ? 1 : 0;
+}
+
+static TValue kl_str_seq_get(TValue *self, size_t index)
+{
+    StringObject *str = SELF_AS(str_type);
+    if (index >= str->size) {
+        panic("string index out of range");
+        return none_value;
+    }
+    return kl_val_nstr(str->array + index, 1);
+}
+
+static SeqMethods str_seq_methods = {
+    .len = kl_str_seq_len,
+    .contains = kl_str_contains,
+    .get = kl_str_seq_get,
+    .set = NULL, // Strings are immutable, so no set method
 };
 
 TypeObject str_type = {
@@ -114,6 +178,7 @@ TypeObject str_type = {
     .name = "str",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = str_methods,
+    .seq = &str_seq_methods,
 };
 
 static StringObject empty_str = {

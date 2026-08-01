@@ -718,7 +718,13 @@ static void build_class_intf_table(Symbol *sym)
         Symbol *fn;
         vector_foreach(fn, trait_kls->funcs) {
             Symbol *kls_fn = stbl_get(kls->stbl, fn->name);
-            ASSERT(kls_fn);
+            if (!kls_fn) {
+                void *empty_fn = NULL;
+                vector_push_back(&entry->methods, &empty_fn);
+                printf("class '%s' does not implement method '%s' of interface '%s'\n", sym->name,
+                       fn->name, _sym->name);
+                continue;
+            }
             log_info("add method '%s'%s for interface '%s' in class '%s'", fn->name,
                      fn->kind == SYM_INHERITED ? " (inherited)" : "", _sym->name, sym->name);
             vector_push_back(&entry->methods, &kls_fn);
@@ -791,6 +797,10 @@ static void dump_class_intf_table(Symbol *sym)
 
         Symbol *meth;
         vector_foreach(meth, &entry->methods) {
+            if (!meth) {
+                printf("          [%d] <empty>\n", i__);
+                continue;
+            }
             ASSERT(meth->kind == SYM_FUNC);
             FuncSymbol *fn = (FuncSymbol *)meth;
             printf("          [%d] %s, code_index=%d\n", i__, fn->name, fn->code_index);

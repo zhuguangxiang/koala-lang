@@ -6,4 +6,6 @@ koala -c std/os --package-name=std/os
 koala -c std/sys --package-name=std/sys
 koala -c std/time --package-name=std/time
 
+koala -c std/ut --package-name=std/ut
+
 koala -c koala/pretty.kl --package-name=koala/pretty

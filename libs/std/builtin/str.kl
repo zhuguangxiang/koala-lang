@@ -46,4 +46,7 @@ pub class str : Sequence[str] {
 
     @native
     pub func split(sep = " ") list[str] {}
+
+    @native
+    pub func __contains__(sub str) bool {}
 }

@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "listobj.h"
 #include "log.h"
 #include "modobj.h"
 
@@ -23,6 +24,12 @@ static TypeObject *_value_typeof(int tag)
     ASSERT(tag < COUNT_OF(_types_mapping));
     return _types_mapping[tag];
 }
+
+TypeObject any_type = {
+    ._type = &type_type,
+    .name = "any",
+    .flags = TP_FLAGS_TRAIT | TP_FLAGS_PUBLIC,
+};
 
 Object *kl_new_global(char *name, int index, Object *m)
 {
@@ -62,16 +69,23 @@ Object *kl_type_find(TypeObject *tp, char *name)
     return obj;
 }
 
+void kl_init_type(TypeObject *tp)
+{
+    if (!tp || tp->flags & TP_FLAGS_READY) return;
+
+    vector_init(&tp->itables, sizeof(IntfTable));
+    vector_init_ptr(&tp->fields);
+    vector_init_ptr(&tp->methods);
+    stbl_init(&tp->members);
+}
+
 TypeObject *kl_new_type(char *name, int flags)
 {
     TypeObject *tp = mm_alloc_obj(tp);
     tp->_type = &type_type;
     tp->name = name;
     tp->flags = flags;
-    vector_init_ptr(&tp->fields);
-    vector_init_ptr(&tp->methods);
-    vector_init(&tp->itables, sizeof(IntfTable));
-    stbl_init(&tp->members);
+    kl_init_type(tp);
     return tp;
 }
 
@@ -94,9 +108,9 @@ Object *kl_new_instance(struct _TypeObject *tp)
  |  Type(meta) type definition                                               |
  +---------------------------------------------------------------------------*/
 
-static TValue type_str(TValue *self, TValue *args, int nargs)
+static TValue _type_str(TValue *self, TValue *args, int nargs)
 {
-    TypeObject *tp = kl_typeof(self);
+    TypeObject *tp = SELF_AS(type_type);
     const char *s = kl_mo_path(tp->module);
     Object *ret;
     if (str_equal(s, "std/builtin")) {
@@ -107,8 +121,75 @@ static TValue type_str(TValue *self, TValue *args, int nargs)
     return obj_value(ret);
 }
 
+static TValue _type_name(TValue *self, TValue *args, int nargs)
+{
+    TypeObject *tp = SELF_AS(type_type);
+    const char *s = kl_mo_path(tp->module);
+    Object *ret;
+    if (str_equal(s, "std/builtin")) {
+        ret = kl_new_fmt_str("%s", tp->name);
+    } else {
+        ret = kl_new_fmt_str("%s.%s", s, tp->name);
+    }
+    return obj_value(ret);
+}
+
+static TValue _type_methods(TValue *self, TValue *args, int nargs)
+{
+    TypeObject *tp = SELF_AS(type_type);
+
+    Vector vec;
+    vector_init(&vec, sizeof(TValue));
+
+    Object *ob;
+    vector_foreach(ob, &tp->methods) {
+        char *name;
+        if (IS_CFUNC(ob)) {
+            CFuncObject *cfunc = (CFuncObject *)ob;
+            name = cfunc->name;
+        } else {
+            ASSERT(IS_CODE(ob));
+            CodeObject *code = (CodeObject *)ob;
+            name = code->cs.name;
+        }
+        TValue val = kl_val_str(name);
+        vector_push_back(&vec, &val);
+    }
+
+    TValue *items = VECTOR_RAW(&vec, TValue);
+    int size = vector_size(&vec);
+    Object *tobj = kl_list_from_array(items, size);
+    TValue val = obj_value(tobj);
+    vector_fini(&vec);
+    return val;
+}
+
+static TValue _type_lro(TValue *self, TValue *args, int nargs)
+{
+    TypeObject *tp = SELF_AS(type_type);
+
+    Vector vec;
+    vector_init(&vec, sizeof(TValue));
+
+    IntfTable *itab;
+    vector_foreach_ptr(itab, &tp->itables) {
+        TValue val = kl_val_str(itab->name);
+        vector_push_back(&vec, &val);
+    }
+
+    TValue *items = VECTOR_RAW(&vec, TValue);
+    int size = vector_size(&vec);
+    Object *tobj = kl_list_from_array(items, size);
+    TValue val = obj_value(tobj);
+    vector_fini(&vec);
+    return val;
+}
+
 static MethodDef type_methods[] = {
-    { "__str__", type_str },
+    { "__str__", _type_str },
+    { "name", _type_name },
+    { "methods", _type_methods },
+    { "lro", _type_lro },
     { NULL },
 };
 
@@ -206,21 +287,12 @@ static SlotDef slotdefs[] = {
  |  type init core implementation                                            |
  +---------------------------------------------------------------------------*/
 
-int kl_init_type(TypeObject *tp)
+int type_ready(TypeObject *tp)
 {
     if (!tp || tp->flags & TP_FLAGS_READY) return 0;
 
     Object *_m = tp->module;
     ModuleObject *m = (ModuleObject *)_m;
-
-    // initialization some fields
-    vector_init_ptr(&tp->fields);
-    vector_init_ptr(&tp->methods);
-    vector_init(&tp->itables, sizeof(IntfTable));
-    stbl_init(&tp->members);
-
-    // initialize slots[]
-    memset(tp->slots, 0, sizeof(tp->slots));
 
     // add method to type
     Object *cfunc;
@@ -236,21 +308,6 @@ int kl_init_type(TypeObject *tp)
         }
         vector_push_back(&tp->methods, &cfunc);
         stbl_add_obj(&tp->members, def->name, cfunc);
-
-        // bind to slots[]
-        for (SlotDef *slot = slotdefs; slot->name; slot++) {
-            if (str_equal(def->name, slot->name)) {
-                log_info("binding method '%s' to slots[%d] of class/trait '%s'", def->name,
-                         slot->id, tp->name);
-
-                tp->slots[slot->id] = cfunc;
-
-                void **field = (void **)((char *)tp + slot->offset);
-                // if the type has implemented this slot function, do not override it.
-                if (*field == NULL) *field = slot->func;
-            }
-        }
-
         ++def;
     }
 
@@ -262,6 +319,24 @@ int kl_init_type(TypeObject *tp)
         stbl_add_obj(&tp->members, mdef->name, field);
         log_info("added field '%s' to class/trait '%s'", mdef->name, tp->name);
         ++mdef;
+    }
+
+    // initialize slots[]
+    memset(tp->slots, 0, sizeof(tp->slots));
+
+    // bind to slots[]
+    for (SlotDef *slot = slotdefs; slot->name; slot++) {
+        Object *fn = stbl_find_obj(&tp->members, slot->name);
+        if (fn) {
+            log_info("binding method '%s' to slots[%d] of class/trait '%s'", slot->name, slot->id,
+                     tp->name);
+
+            tp->slots[slot->id] = fn;
+
+            void **field = (void **)((char *)tp + slot->offset);
+            // if the type has implemented this slot function, do not override it.
+            if (*field == NULL) *field = slot->func;
+        }
     }
 
     tp->flags |= TP_FLAGS_READY;
