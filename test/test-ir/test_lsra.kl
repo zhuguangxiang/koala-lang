@@ -55,11 +55,11 @@ func test_while(n int) {
 
 // CHECK: 1: [R1] %i = local int64
 // CHECK: 2: [...] load_int_imm %i int64, 0 int64
-// CHECK: 3: [R2] %0 = int.cmp_ge_imm %n int64, 0 int64
+// CHECK: 3: [R2] %0 = int.ge_imm %n int64, 0 int64
 // CHECK: 4: [...] branch %0 bool, label %bb1, label %bb2
 // CHECK: 5: [R2] %1 = int.add_imm %i int64, 1 int64
 // CHECK: 6: [...] move %i int64, %1 int64
-// CHECK: 7: [R2] %2 = int.cmp_lt %i int64, %n int64
+// CHECK: 7: [R2] %2 = int.lt %i int64, %n int64
 // CHECK: 8: [...] branch %2 bool, label %bb1, label %bb2
 
 func test_while2(n int) {
@@ -80,14 +80,14 @@ func test_while2(n int) {
 
 // CHECK: 1: [R1] %i = local int64
 // CHECK: 2: [...] load_int_imm %i int64, 0 int64
-// CHECK: 3: [R2] %0 = int.cmp_ge_imm %n int64, 0 int64
+// CHECK: 3: [R2] %0 = int.ge_imm %n int64, 0 int64
 // CHECK: 4: [...] branch %0 bool, label %bb1, label %bb2
 
 // CHECK: 5: [R3] %1 = int.add_imm %i int64, 10 int64
 // CHECK: 11: [...] call @print [path = 'std/builtin'], nargs=3
 // CHECK: 12: [R2] %5 = int.add_imm %i int64, 1 int64
 // CHECK: 13: [...] move %i int64, %5 int64
-// CHECK: 14: [R2] %6 = int.cmp_lt %i int64, %n int64
+// CHECK: 14: [R2] %6 = int.lt %i int64, %n int64
 // CHECK: 15: [...] branch %6 bool, label %bb1, label %bb2
 // CHECK: [BACK-EDGE] bb1(while-body) -> bb1(while-body) (Target POS: 5)
 
@@ -112,11 +112,11 @@ func test_nested_loop(n int) {
 
 // CHECK: 1: [R1] %i = local int64
 // CHECK: 2: [...] load_int_imm %i int64, 0 int64
-// CHECK: 3: [R2] %0 = int.cmp_ge_imm %n int64, 0 int64
+// CHECK: 3: [R2] %0 = int.ge_imm %n int64, 0 int64
 // CHECK: 4: [...] branch %0 bool, label %bb1, label %bb4
 // CHECK: 5: [R2] %j = local int64
 // CHECK: 6: [...] load_int_imm %j int64, 0 int64
-// CHECK: 7: [R3] %1 = int.cmp_ge_imm %i int64, 0 int64
+// CHECK: 7: [R3] %1 = int.ge_imm %i int64, 0 int64
 // CHECK: 8: [...] branch %1 bool, label %bb2, label %bb3
 // CHECK: 9: [R4] %2 = local int64
 // CHECK: 10: [...] move %2 int64, %j int64

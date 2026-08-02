@@ -33,7 +33,7 @@ func test_cannot_fused(x int) int {
 // CHECK-LABEL: --- IR Dump After isel [@test_cannot_fused] ---
 // CHECK-LABEL: func @test_cannot_fused(%x int64) int64 {
 // CHECK: %bb0(entry):
-// CHECK: %0 = int.cmp_lt_imm %x int64, 10 int64
+// CHECK: %0 = int.lt_imm %x int64, 10 int64
 // CHECK: branch %0 bool, label %bb1, label %bb2
 // CHECK: call @print [path = 'std/builtin', const], nargs=3
 // CHECK: jmp label %bb2

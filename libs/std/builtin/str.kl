@@ -12,7 +12,10 @@ pub class str : Sequence[str] {
     pub func __len__() int {}
 
     @native
-    pub func __getitem__(index any) str {}
+    pub func __getitem__(index int) str {}
+
+    @native
+    pub func __getslice__(r slice) list[str] {}
 
     @native
     pub func find(sub str) int {}

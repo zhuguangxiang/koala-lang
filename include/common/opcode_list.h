@@ -1907,7 +1907,7 @@ X(OP_UPCAST_INTF, FORMAT_RRImm)
 X(OP_DOWNCAST_INTF, FORMAT_Op)
 
 /*---------------------------------------------------------------+
- |  Sequence Instructions                                        |
+ |  Sequence Protocol Instructions                               |
  +---------------------------------------------------------------*/
 
 /**
@@ -2046,7 +2046,7 @@ X(OP_SEQ_LEN, FORMAT_RxRx)
 X(OP_SEQ_CONTAINS, FORMAT_RRR)
 
 /*---------------------------------------------------------------+
- |  Map Instructions                                             |
+ |  Map Protocol Instructions                                    |
  +---------------------------------------------------------------*/
 
 /**
@@ -2286,6 +2286,381 @@ X(OP_WIDE, FORMAT_WIDE)
  */
 X(OP_RAISE, FORMAT_Op)
 
+/*---------------------------------------------------------------+
+ |  Number Protocol Instructions                                 |
+ +---------------------------------------------------------------*/
+
+/**
+ * OP_NUM_ADD — numeric addition via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = a + b
+ *
+ * Description:
+ *     Computes the numeric sum of ra and rb using the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __add__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __add__
+ *
+ * Notes:
+ *     - Protocol-level addition; built-in int/float use dedicated opcodes
+ */
+X(OP_NUM_ADD, FORMAT_RRR)
+
+/**
+ * OP_NUM_SUB — numeric subtraction via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = a - b
+ *
+ * Description:
+ *     Computes the numeric difference of ra and rb using the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __sub__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __sub__
+ *
+ * Notes:
+ *     - Protocol-level subtraction; built-in int/float use dedicated opcodes
+ */
+X(OP_NUM_SUB, FORMAT_RRR)
+
+/**
+ * OP_NUM_MUL — numeric multiplication via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = a * b
+ *
+ * Description:
+ *     Computes the numeric product of ra and rb using the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __mul__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __mul__
+ *
+ * Notes:
+ *     - Protocol-level multiplication; built-in int/float use dedicated opcodes
+ */
+X(OP_NUM_MUL, FORMAT_RRR)
+
+/**
+ * OP_NUM_DIV — numeric division via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = a / b
+ *
+ * Description:
+ *     Computes the numeric quotient of ra divided by rb using the number protocol.
+ *
+ * Behavior:
+ *     - Division by zero is invalid
+ *     - Operands must implement __div__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __div__
+ *
+ * Notes:
+ *     - Protocol-level division; built-in int/float use dedicated opcodes
+ */
+X(OP_NUM_DIV, FORMAT_RRR)
+
+/**
+ * OP_NUM_MOD — numeric modulo via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = a % b
+ *
+ * Description:
+ *     Computes the remainder of ra divided by rb using the number protocol.
+ *
+ * Behavior:
+ *     - Modulo by zero is invalid
+ *     - Operands must implement __mod__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __mod__
+ *
+ * Notes:
+ *     - Protocol-level modulo; built-in int/float use dedicated opcodes
+ */
+X(OP_NUM_MOD, FORMAT_RRR)
+
+/**
+ * OP_NUM_AND — bitwise AND via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = a & b
+ *
+ * Description:
+ *     Performs bitwise AND on ra and rb using the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __and__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __and__
+ *
+ * Notes:
+ *     - Protocol-level bitwise AND; built-in int/float use dedicated opcodes
+ */
+X(OP_NUM_AND, FORMAT_RRR)
+
+/**
+ * OP_NUM_OR — bitwise OR via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = a | b
+ *
+ * Description:
+ *     Performs bitwise OR on ra and rb using the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __or__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __or__
+ *
+ * Notes:
+ *     - Protocol-level bitwise OR; built-in int/float use dedicated opcodes
+ */
+X(OP_NUM_OR, FORMAT_RRR)
+
+/**
+ * OP_NUM_XOR — bitwise XOR via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = a ^ b
+ *
+ * Description:
+ *     Performs bitwise XOR on ra and rb using the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __xor__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __xor__
+ *
+ * Notes:
+ *     - Protocol-level bitwise XOR; built-in int/float use dedicated opcodes
+ */
+X(OP_NUM_XOR, FORMAT_RRR)
+
+/**
+ * OP_NUM_SHL — bitwise shift-left via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = a << b
+ *
+ * Description:
+ *     Shifts ra left by b bits using the number protocol.
+ *
+ * Behavior:
+ *     - Shift amount must be non-negative
+ *     - Operands must implement __shl__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __shl__
+ *
+ * Notes:
+ *     - Protocol-level shift-left; built-in int/float use dedicated opcodes
+ */
+X(OP_NUM_SHL, FORMAT_RRR)
+
+/**
+ * OP_NUM_SHR — bitwise shift-right via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = a >> b
+ *
+ * Description:
+ *     Shifts ra right by b bits using the number protocol.
+ *
+ * Behavior:
+ *     - Shift amount must be non-negative
+ *     - Operands must implement __shr__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __shr__
+ *
+ * Notes:
+ *     - Protocol-level shift-right; built-in int/float use dedicated opcodes
+ */
+X(OP_NUM_SHR, FORMAT_RRR)
+
+/**
+ * OP_NUM_EQ — numeric equality comparison via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = (a == b)
+ *
+ * Description:
+ *     Compares ra and rb for equality using the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __eq__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __eq__
+ *
+ * Notes:
+ *     - Returns boolean
+ */
+X(OP_NUM_EQ, FORMAT_RRR)
+
+/**
+ * OP_NUM_NE — numeric inequality comparison via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = (a != b)
+ *
+ * Description:
+ *     Compares ra and rb for inequality using the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __ne__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __ne__
+ *
+ * Notes:
+ *     - Returns boolean
+ */
+X(OP_NUM_NE, FORMAT_RRR)
+
+/**
+ * OP_NUM_LT — numeric less-than comparison via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = (a < b)
+ *
+ * Description:
+ *     Compares ra and rb using less-than via the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __lt__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __lt__
+ *
+ * Notes:
+ *     - Returns boolean
+ */
+X(OP_NUM_LT, FORMAT_RRR)
+
+/**
+ * OP_NUM_LE — numeric less-or-equal comparison via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = (a <= b)
+ *
+ * Description:
+ *     Compares ra and rb using <= via the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __le__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __le__
+ *
+ * Notes:
+ *     - Returns boolean
+ */
+X(OP_NUM_LE, FORMAT_RRR)
+
+/**
+ * OP_NUM_GT — numeric greater-than comparison via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = (a > b)
+ *
+ * Description:
+ *     Compares ra and rb using > via the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __gt__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __gt__
+ *
+ * Notes:
+ *     - Returns boolean
+ */
+X(OP_NUM_GT, FORMAT_RRR)
+
+/**
+ * OP_NUM_GE — numeric greater-or-equal comparison via number protocol
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rd:8 | ra:8 | rb:8 |
+ *
+ * Semantics:
+ *     rd = (a >= b)
+ *
+ * Description:
+ *     Compares ra and rb using >= via the number protocol.
+ *
+ * Behavior:
+ *     - Operands must implement __ge__
+ *
+ * Types:
+ *     - User-defined numeric types implementing __ge__
+ *
+ * Notes:
+ *     - Returns boolean
+ */
+X(OP_NUM_GE, FORMAT_RRR)
 
 /*---------------------------------------------------------------+
  |  IR-Only Pseudo Instructions                                  |

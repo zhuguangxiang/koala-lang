@@ -95,6 +95,27 @@ static BinaryRule bool_rules[] = {
     { OP_BINARY_CMPNE, OP_INT_CMPNE, OP_INT_CMPNE_IMM, 1, 1 },
 };
 
+static BinaryRule num_ops_rules[] = {
+    { OP_BINARY_ADD, OP_NUM_ADD, 0, 0, 0},
+    { OP_BINARY_SUB, OP_NUM_SUB, 0, 0, 0 },
+    { OP_BINARY_MUL, OP_NUM_MUL, 0, 0, 0 },
+    { OP_BINARY_DIV, OP_NUM_DIV, 0, 0, 0 },
+    { OP_BINARY_MOD, OP_NUM_MOD, 0, 0, 0 },
+
+    { OP_BINARY_AND, OP_NUM_AND, 0, 0, 0 },
+    { OP_BINARY_OR, OP_NUM_OR, 0, 0, 0},
+    { OP_BINARY_XOR, OP_NUM_XOR, 0, 0, 0 },
+    { OP_BINARY_SHL, OP_NUM_SHL, 0, 0, 0 },
+    { OP_BINARY_SHR, OP_NUM_SHR, 0, 0, 0 },
+
+    { OP_BINARY_CMPEQ, OP_NUM_EQ, 0, 0, 0 },
+    { OP_BINARY_CMPNE, OP_NUM_NE, 0, 0, 0 },
+    { OP_BINARY_CMPLT, OP_NUM_LT, 0, 0, 0 },
+    { OP_BINARY_CMPGT, OP_NUM_GT, 0, 0, 0 },
+    { OP_BINARY_CMPLE, OP_NUM_LE, 0, 0, 0 },
+    { OP_BINARY_CMPGE, OP_NUM_GE, 0, 0, 0 },
+};
+
 // clang-format on
 
 BinaryRule *find_binary_rule(OpCode ir_op, TypeSpec *ts)
@@ -118,7 +139,7 @@ BinaryRule *find_binary_rule(OpCode ir_op, TypeSpec *ts)
         rules = bool_rules;
         num_rules = COUNT_OF(bool_rules);
     } else {
-        UNREACHABLE();
+        return NULL;
     }
 
     for (int i = 0; i < num_rules; i++) {
@@ -240,13 +261,46 @@ static KlrValue *lower_const(KlrInsn *at, KlrConst *c)
     return local;
 }
 
+static void isel_lower_num_ops(KlrInsn *insn)
+{
+    KlrValue *lhs = insn_oper_value(insn, 0);
+    KlrValue *rhs = insn_oper_value(insn, 1);
+
+    int c1 = klr_is_const(lhs);
+    int c2 = klr_is_const(rhs);
+
+    if (c1) {
+        KlrValue *local = lower_const(insn, (KlrConst *)lhs);
+        set_operand_at(insn, 0, local);
+    }
+
+    if (c2) {
+        KlrValue *local = lower_const(insn, (KlrConst *)rhs);
+        set_operand_at(insn, 1, local);
+    }
+
+    BinaryRule *rules = num_ops_rules;
+    int num_rules = COUNT_OF(num_ops_rules);
+    for (int i = 0; i < num_rules; i++) {
+        if (rules[i].ir_op == insn->code) {
+            insn->code = rules[i].reg_op;
+            return;
+        }
+    }
+
+    UNREACHABLE();
+}
+
 static void isel_lower_binary(KlrInsn *insn)
 {
     KlrValue *lhs = insn_oper_value(insn, 0);
     KlrValue *rhs = insn_oper_value(insn, 1);
 
     BinaryRule *R = find_binary_rule(insn->code, lhs->ts);
-    ASSERT(R);
+    if (R == NULL) {
+        isel_lower_num_ops(insn);
+        return;
+    }
 
     int c1 = klr_is_const(lhs);
     int c2 = klr_is_const(rhs);

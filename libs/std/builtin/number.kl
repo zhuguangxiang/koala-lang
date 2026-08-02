@@ -49,13 +49,13 @@ pub class int64 {
     pub func __rsh__(rhs int64) int64 {}
 
     @intrinsic
-    pub func __bitand__(rhs int64) int64 {}
+    pub func __and__(rhs int64) int64 {}
 
     @intrinsic
-    pub func __bitor__(rhs int64) int64 {}
+    pub func __or__(rhs int64) int64 {}
 
     @intrinsic
-    pub func __bitxor__(rhs int64) int64 {}
+    pub func __xor__(rhs int64) int64 {}
 
     @intrinsic
     pub func __gt__(rhs int64) bool {}
@@ -123,13 +123,13 @@ pub class uint64 {
     pub func __rsh__(rhs uint64) uint64 {}
 
     @intrinsic
-    pub func __bitand__(rhs uint64) uint64 {}
+    pub func __and__(rhs uint64) uint64 {}
 
     @intrinsic
-    pub func __bitor__(rhs uint64) uint64 {}
+    pub func __or__(rhs uint64) uint64 {}
 
     @intrinsic
-    pub func __bitxor__(rhs uint64) uint64 {}
+    pub func __xor__(rhs uint64) uint64 {}
 
     @intrinsic
     pub func __gt__(rhs uint64) bool {}

@@ -146,7 +146,7 @@
         "yytext",
         "zhuguangxiang"
     ],
-    "editor.fontFamily": "'JetBrains Mono'",
+    "editor.fontFamily": "'Fira Code','JetBrains Mono'",
     "editor.fontLigatures": true,
     "editor.fontSize": 14,
     "editor.lineHeight": 20,
@@ -156,7 +156,7 @@
     "editor.smoothScrolling": true,
     "terminal.integrated.fontFamily": "Victor Mono",
     // "terminal.integrated.fontSize": 13,
-    // "editor.fontFamily": "'JetBrains Mono', 'Victor Mono', 'Consolas', 'Monaspace Neon'",
+    // "editor.fontFamily": "'JetBrains Mono', 'Victor Mono', 'Fira Code', 'Consolas', 'Monaspace Neon'",
     // "editor.fontLigatures": "'calt'",
     // "terminal.integrated.fontFamily": "monospace",
     "editor.formatOnSave": true,

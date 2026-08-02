@@ -869,55 +869,55 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_INT_CMPEQ:
-            print_cmp("int.cmp_eq", insn, fp);
+            print_cmp("int.eq", insn, fp);
             break;
 
         case OP_INT_CMPEQ_IMM:
-            print_cmp("int.cmp_eq_imm", insn, fp);
+            print_cmp("int.eq_imm", insn, fp);
             break;
 
         case OP_INT_CMPNE:
-            print_cmp("int.cmp_ne", insn, fp);
+            print_cmp("int.ne", insn, fp);
             break;
 
         case OP_INT_CMPNE_IMM:
-            print_cmp("int.cmp_ne_imm", insn, fp);
+            print_cmp("int.ne_imm", insn, fp);
             break;
 
         case OP_INT_CMPLT:
-            print_cmp("int.cmp_lt", insn, fp);
+            print_cmp("int.lt", insn, fp);
             break;
 
         case OP_INT_CMPLT_IMM:
-            print_cmp("int.cmp_lt_imm", insn, fp);
+            print_cmp("int.lt_imm", insn, fp);
             break;
 
         case OP_INT_CMPLE:
-            print_cmp("int.cmp_le", insn, fp);
+            print_cmp("int.le", insn, fp);
             break;
 
         case OP_INT_CMPLE_IMM:
-            print_cmp("int.cmp_le_imm", insn, fp);
+            print_cmp("int.le_imm", insn, fp);
             break;
 
         case OP_INT_CMPGT:
-            print_cmp("int.cmp_gt", insn, fp);
+            print_cmp("int.gt", insn, fp);
             break;
 
         case OP_INT_CMPGT_IMM:
-            print_cmp("int.cmp_gt_imm", insn, fp);
+            print_cmp("int.gt_imm", insn, fp);
             break;
 
         case OP_INT_CMPGE:
-            print_cmp("int.cmp_ge", insn, fp);
+            print_cmp("int.ge", insn, fp);
             break;
 
         case OP_INT_CMPGE_IMM:
-            print_cmp("int.cmp_ge_imm", insn, fp);
+            print_cmp("int.ge_imm", insn, fp);
             break;
 
         case OP_UINT_CMPEQ_IMM:
-            print_cmp("uint.cmp_eq_imm", insn, fp);
+            print_cmp("uint.eq_imm", insn, fp);
             break;
 
         case OP_FLOAT_ADD:
@@ -941,27 +941,27 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_FLOAT_CMPEQ:
-            print_cmp("float.cmp_eq", insn, fp);
+            print_cmp("float.eq", insn, fp);
             break;
 
         case OP_FLOAT_CMPNE:
-            print_cmp("float.cmp_ne", insn, fp);
+            print_cmp("float.ne", insn, fp);
             break;
 
         case OP_FLOAT_CMPLT:
-            print_cmp("float.cmp_lt", insn, fp);
+            print_cmp("float.lt", insn, fp);
             break;
 
         case OP_FLOAT_CMPLE:
-            print_cmp("float.cmp_le", insn, fp);
+            print_cmp("float.le", insn, fp);
             break;
 
         case OP_FLOAT_CMPGT:
-            print_cmp("float.cmp_gt", insn, fp);
+            print_cmp("float.gt", insn, fp);
             break;
 
         case OP_FLOAT_CMPGE:
-            print_cmp("float.cmp_ge", insn, fp);
+            print_cmp("float.ge", insn, fp);
             break;
 
         case OP_JMP_FLOAT_EQ:
@@ -1148,6 +1148,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_SEQ_LEN:
             print_unary(insn, "seq_len", fp);
+            break;
+
+        case OP_NUM_EQ:
+            print_cmp("num.eq", insn, fp);
             break;
 
         default:

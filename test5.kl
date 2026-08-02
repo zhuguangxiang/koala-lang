@@ -1,0 +1,18 @@
+
+
+// class Foo {
+//     func bar() str {
+//         return "Hello from Foo.bar()!"
+//     }
+// }
+
+func main() {
+    // let bs = bytes(10)
+    // print(typeof(bs).methods())
+    // print(typeof(typeof(bs)).methods())
+    // print(main)
+    // print(Foo.bar)
+
+    let r = "hello" == "hello"
+    print(r)
+}

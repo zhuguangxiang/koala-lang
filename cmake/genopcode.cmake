@@ -39,7 +39,8 @@ foreach(OP ${OPCODE_NAMES})
        "${OP}" MATCHES "^OP_FLOAT_" OR
        "${OP}" MATCHES "^OP_FLT_" OR
        "${OP}" MATCHES "^OP_REF_" OR
-       "${OP}" MATCHES "^OP_CONST_")
+       "${OP}" MATCHES "^OP_CONST_" OR
+       "${OP}" MATCHES "^OP_NUM_")
 
         string(FIND "${LOWER}" "_" POS)
         if(NOT POS EQUAL -1)

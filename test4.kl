@@ -13,6 +13,10 @@ class MyClass : Hello {
     func hi() str {
         return "Hi from MyClass!"
     }
+
+    func __call__() str {
+        return "MyClass instance called!"
+    }
 }
 
 // TODO: Implement the hello() method for MyClass in top-level code
@@ -23,31 +27,43 @@ func main() {
     // let myObject = MyClass()
     // // print(myObject.hello())  // Output: Hello from MyClass!
 
-    let hi Hello = MyClass()
-    print(hi.hello())
-    print(hi.hi())
+    // let hi Hello = MyClass()
+    // print(hi.hello())
+    // print(hi.hi())
 
-    // let tp = type()
+    // // let tp = type()
 
-    let s = "Hello, Koala!"
-    print("Type of s:", typeof(s))  // Output: <class 'str'>
+    // let s = "Hello, Koala!"
+    // print("Type of s:", typeof(s))  // Output: <class 'str'>
 
-    let n = 42
-    print("Type of n:", typeof(n))  // Output: <class 'int'>
+    // let n = 42
+    // print("Type of n:", typeof(n))  // Output: <class 'int'>
 
-    let lst = list[int]()
-    print("Type of lst:", typeof(lst))  // Output: <class 'list[int]'>
+    // let lst = list[int]()
+    // print("Type of lst:", typeof(lst))  // Output: <class 'list[int]'>
 
-    print(typeof(s).name())  // Output: str
-    print(typeof(n).name())  // Output: int
-    print(typeof(lst).name())  // Output: list[int]
+    // print(typeof(s).name())  // Output: str
+    // print(typeof(n).name())  // Output: int
+    // print(typeof(lst).name())  // Output: list[int]
 
-    print(typeof(s).methods())  // Output: list of method names for str
-    print(typeof(n).methods())  // Output: list of method names for int
-    print(typeof(lst).methods())  // Output: list of method names for list[int]
+    // print(typeof(s).methods())  // Output: list of method names for str
+    // print(typeof(n).methods())  // Output: list of method names for int
+    // print(typeof(lst).methods())  // Output: list of method names for list[int]
 
-    pirnt(typeof(bytes(10)).methods())
-    print(typeof(MyClass()).lro())
-    print(typeof(hi).lro())
-    print(typeof(hi).methods())
+    // print(typeof(bytes(10)).methods())
+    // print(typeof(MyClass()).lro())
+    // print(typeof(hi).lro())
+    // print(typeof(hi).methods())
+
+    // let myClassInstance = MyClass()
+    // print(MyClass()())
+    // print(myClassInstance())  // Output: MyClass instance called!
+    // print(str)
+
+
+    let s = "Hello"
+    let s2 = s
+    // print(s == s2)  // Output: true
+
+    print(MyClass)
 }
