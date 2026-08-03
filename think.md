@@ -59,6 +59,17 @@ func foo[T](x: Equatable[T]) { ... }
 - 接口中的方法，类可以实现一部分，但是未实现的方法，再运行时如果被执行了，则抛异常，到时候在补上，避免大量的Adapter的出现
 - 在生成IR后，插入一个transform，将一些op转换为call，然后再给opt
 - 逻辑运算符（不可重载）位运算符（可重载）__and__, __or__, __xor__就是位运算符
+- 自动添加free来释放build_intern这样的op
+
+## 逃逸分析：先只支持入参，native由程序员标记
+
+```
+class Foo {
+
+    @noesc(self, name)
+    func hello(name str) { ... }
+}
+```
 index access
 ☐ slice access
 ☐ __str__() vm method binding

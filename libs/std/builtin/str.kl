@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub class str : Sequence[str] {
+pub class str : Sequence[str] & Comparable[str] & Hashable {
 
     @native
     pub func __init__(s str) {}
@@ -42,6 +42,21 @@ pub class str : Sequence[str] {
     pub func __ne__(rhs str) bool {}
 
     @native
+    pub func __lt__(rhs str) bool {}
+
+    @native
+    pub func __le__(rhs str) bool {}
+
+    @native
+    pub func __gt__(rhs str) bool {}
+
+    @native
+    pub func __ge__(rhs str) bool {}
+
+    @native
+    pub func __str__() str {}
+
+    @native
     pub func join(seq Sequence[str]) str {}
 
     @native
@@ -52,4 +67,7 @@ pub class str : Sequence[str] {
 
     @native
     pub func __contains__(sub str) bool {}
+
+    @native
+    pub func __hash__() int {}
 }

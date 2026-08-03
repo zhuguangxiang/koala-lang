@@ -79,6 +79,7 @@ set(KOALA_SOURCES
     objects/noneobj.c
     objects/strobj.c
     objects/typeobj.c
+    objects/typeslots.c
     objects/tupleobj.c
     objects/rangeobj.c
     objects/listobj.c

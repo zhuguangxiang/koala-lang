@@ -2,5 +2,9 @@
 
 link "koala_ext_native"
 
+class Pretty {
+
+}
+
 @native
 pub func pretty(s str) str {}

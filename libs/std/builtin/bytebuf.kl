@@ -33,6 +33,9 @@ pub class ByteBuf : MutableSequence[uint8] {
     pub func clear() {}
 
     @native
+    pub func append_str(value str, start = 0, end = -1) {}
+
+    @native
     pub func to_str() str {}
 
     @native

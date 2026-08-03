@@ -220,12 +220,31 @@ typedef TValue (*RichCmpFunc)(TValue *lhs, TValue *rhs, int op);
 typedef TValue (*StrFunc)(TValue *self);
 typedef TValue (*CallFunc)(TValue *self, TValue *args, int nargs);
 
+typedef TValue (*BinaryFunc)(TValue *lhs, TValue *rhs);
+
 typedef size_t (*LenFunc)(TValue *self);
 typedef int (*ContainsFunc)(TValue *self, TValue *item);
 typedef TValue (*GetItemFunc)(TValue *self, size_t index);
 typedef void (*SetItemFunc)(TValue *self, size_t index, TValue *value);
+typedef TValue (*GetSliceFunc)(TValue *self, ssize_t start, ssize_t end);
+typedef void (*SetSliceFunc)(TValue *self, ssize_t start, ssize_t end, TValue *value);
 typedef TValue (*GetSubFunc)(TValue *self, TValue *key);
 typedef void (*SetSubFunc)(TValue *self, TValue *key, TValue *value);
+
+typedef struct _NumberMethods {
+    /* number add */
+    BinaryFunc add;
+    /* number sub */
+    BinaryFunc sub;
+    /* number mul */
+    BinaryFunc mul;
+    /* number div */
+    BinaryFunc div;
+    /* number mod */
+    BinaryFunc mod;
+    /* number pow */
+    // BinaryFunc pow;
+} NumberMethods;
 
 typedef struct _SeqMethods {
     /* sequence length */
@@ -236,6 +255,10 @@ typedef struct _SeqMethods {
     GetItemFunc get;
     /* sequence item setter */
     SetItemFunc set;
+    /* sequence slice getter */
+    GetSliceFunc get_slice;
+    /* sequence slice setter */
+    SetSliceFunc set_slice;
 } SeqMethods;
 
 typedef struct _MapMethods {
@@ -250,15 +273,40 @@ typedef struct _MapMethods {
 } MapMethods;
 
 typedef enum {
+    /* hash */
     SLOT_HASH,
+
+    /* equatable & comparable */
     SLOT_EQ,
     SLOT_NE,
     SLOT_LT,
     SLOT_LE,
     SLOT_GT,
     SLOT_GE,
+
+    /* __str__ */
     SLOT_STR,
+
+    /* __call__ */
     SLOT_CALL,
+
+    /* number */
+    SLOT_ADD,
+    SLOT_SUB,
+    SLOT_MUL,
+    SLOT_DIV,
+    SLOT_MOD,
+
+    /* sequence & map */
+    SLOT_LEN,
+    SLOT_CONTAINS,
+    SLOT_GET_ITEM,
+    SLOT_SET_ITEM,
+    SLOT_GET_SLICE,
+    SLOT_SET_SLICE,
+    SLOT_GET_SUBSCRIPT,
+    SLOT_SET_SUBSCRIPT,
+
     SLOT_MAX
 } SlotId;
 
@@ -313,13 +361,12 @@ typedef struct _TypeObject {
     /* fini function */
     FiniFunc fini;
 
-    /* mapping protocol methods */
-    MapMethods *map;
-
+    /* number protocol methods */
+    NumberMethods *num;
     /* sequence protocol methods */
     SeqMethods *seq;
-
-    /* for fast access in c extension */
+    /* mapping protocol methods */
+    MapMethods *map;
 
     /* hash function(__hash__) */
     HashFunc hash;

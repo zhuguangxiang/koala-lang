@@ -195,7 +195,6 @@
     // "editor.lineHeight": 1.3,
     // "editor.letterSpacing": 0.5,
     "editor.fontWeight": "400",
-    "git.autorefresh": true,
     "cmake.configureOnEdit": false,
     // "clang-format.executable": "/usr/bin/clang-format",
     // "http.proxy": "http://127.0.0.1:20171",
@@ -294,5 +293,6 @@
         "pkl": "cd $dir && pkl eval -f yaml $fileName -o $fileNameWithoutExt.yaml",
         "gleam": "gleam run -m $fileNameWithoutExt"
     },
-    "code-runner.saveFileBeforeRun": true
+    "code-runner.saveFileBeforeRun": true,
+    "git.autofetch": true
 }

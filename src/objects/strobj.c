@@ -122,12 +122,26 @@ static TValue str_find(TValue *self, TValue *args, int nargs)
     return int64_value(-1);
 }
 
+static TValue kl_str_equal(TValue *self, TValue *args, int nargs)
+{
+    StringObject *str = SELF_AS(str_type);
+
+    ASSERT(nargs == 1);
+
+    Object *ob = to_obj(args);
+    if (!IS_STR(ob)) return bool_value(false);
+
+    StringObject *other = (StringObject *)ob;
+
+    if (str->size != other->size) return bool_value(false);
+
+    bool x = memcmp(str->array, other->array, str->size) == 0;
+    return bool_value(x);
+}
+
 static MethodDef str_methods[] = {
-    { "__str__", str_str },
-    { "to_bytes", str_to_bytes },
-    { "split", str_split },
-    { "find", str_find },
-    { NULL },
+    { "__str__", str_str }, { "to_bytes", str_to_bytes }, { "split", str_split },
+    { "find", str_find },   { "__eq__", kl_str_equal },   { NULL },
 };
 
 static size_t kl_str_seq_len(TValue *self)
