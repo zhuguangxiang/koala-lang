@@ -2374,13 +2374,59 @@ static void parse_binary(ParserState *ps, Expr *exp)
         return;
     }
 
+    Symbol *fn = NULL;
     char *op_name = get_binary_op_name(op);
-    HashMap *stbl = ((KlassSymbol *)sym)->stbl;
-    Symbol *fn = stbl_get(stbl, op_name);
-    if (!fn) {
-        kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.", get_binary_op_str(op),
-                 sym->name);
-        return;
+    if (sym->kind == SYM_TYPE_PARAM) {
+        TypeParamSymbol *tp_sym = (TypeParamSymbol *)sym;
+        TypeSpec *ts;
+        vector_foreach(ts, &tp_sym->bound) {
+            if (!ts) continue;
+            Symbol *bound_sym = get_symbol_by_id(ts->sym_id);
+            ASSERT(bound_sym->kind == SYM_TRAIT || bound_sym->kind == SYM_INSTANCE);
+
+            HashMap *stbl = ((KlassSymbol *)bound_sym)->stbl;
+            fn = stbl_get(stbl, op_name);
+            if (fn) break;
+            if (bound_sym->kind == SYM_INSTANCE) {
+                InstanceSymbol *inst_sym = (InstanceSymbol *)bound_sym;
+                KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+                fn = stbl_get(origin->stbl, op_name);
+                if (fn) {
+                    // params
+                    Vector *inst_params =
+                        build_instance_params(((FuncSymbol *)fn)->params, origin, inst_sym, ps);
+                    // return
+                    TypeSpec *ret_ts =
+                        instance_type_spec(((FuncSymbol *)fn)->ret, origin, inst_sym, ps);
+
+                    // create function symbol for instance
+                    Symbol *inst_fn_sym =
+                        stbl_add_func(stbl, op_name, ret_ts, inst_params, fn->flags);
+
+                    // copy operator's tps to instance operator
+                    // copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)fn)->tps);
+                    TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
+                    inst_fn_sym->ts = fn_ts;
+                    inst_fn_sym->parent = inst_sym;
+                    fn = inst_fn_sym;
+                    break;
+                }
+            }
+        }
+
+        if (!fn) {
+            kl_error(bin->op_loc, "operator '%s' is not defined for type parameter '%s'.",
+                     get_binary_op_str(op), sym->name);
+            return;
+        }
+    } else {
+        HashMap *stbl = ((KlassSymbol *)sym)->stbl;
+        fn = stbl_get(stbl, op_name);
+        if (!fn) {
+            kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.",
+                     get_binary_op_str(op), sym->name);
+            return;
+        }
     }
 
     Vector *args = ((FuncSymbol *)fn)->params;

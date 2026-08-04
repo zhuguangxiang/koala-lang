@@ -32,8 +32,43 @@ func foo(x: Equatable) { ... }
 
 func foo[T](x: Equatable[T]) { ... }
 
-```
+func foo[T: Equatable[T]](x: T) { ... }
 
+```
+**结论**：
+**泛型走类型擦除**
+有性能问题走定制化OP+CFFI
+增加一个dynamic_upcast op来支持，所有泛型调用方法的例子
+先限制T的upbound只能有一个,限制T实例化必须是class，不能是trait，也就是T的类型就是接口类型？
+union类型限制为class，不能有trait
+- union 成员仅允许 concrete class（可含 builtin class）
+- 不允许 trait、type parameter、any
+- 若需要“多接口能力”，用泛型约束或显式 upcast，不用 union 表达
+
+泛型T的类型自动推导
+如果 Sequence 的 T 不是类自身，用户必须显式写出 T
+入参 invariant（不变）
+返回值 covariant（协变）
+
+建议定成下面这条语言规则：
+
+- 禁止 x: Equatable 这种 existential 写法（函数入参必须是完整类型）
+- 允许写简写：func foo[T: Equatable](x: T)
+- 编译期规范化为：func foo[T: Equatable[T]](x: T)
+再补两个必要约束，避免歧义：
+- 只有当 Equatable 是单参 trait 时才允许这类省略（否则报错要求写全）
+- T 在 Equatable[...] 里默认绑定为“当前类型参数自身”，即 Self-like 绑定
+
+例子：
+
+可以省略（单参）
+trait Equatable[X] { ... }
+T: Equatable → T: Equatable[T]
+
+不能省略（多参）
+trait Mapper[K, V] { ... }
+T: Mapper ❌
+因为不知道该补成 Mapper[T, ?] 还是别的，必须显式写全。
 
 ## optimizer
 
