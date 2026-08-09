@@ -1,0 +1,45 @@
+// RUN: koala %s | filecheck %s
+
+trait Pair[A, B] {
+    func first() A
+    func second() B
+}
+
+trait Swapped[X, Y] : Pair[Y, X] {
+    func both() str
+}
+
+class Foo : Swapped[int, str] {
+    let s str
+    let n int
+
+    func __init__(_s str, _n int) {
+        s = _s
+        n = _n
+    }
+
+    func first() str {
+        return s
+    }
+
+    func second() int {
+        return n
+    }
+
+    func both() str {
+        return s
+    }
+}
+
+func main() {
+    let x Swapped[int, str] = Foo("hello", 7)
+    print(x.both())
+
+    let p Pair[str, int] = x
+    print(p.first())
+    print(p.second())
+}
+
+// CHECK: hello
+// CHECK: hello
+// CHECK: 7

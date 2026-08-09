@@ -1,0 +1,50 @@
+// RUN: koala %s | filecheck %s
+
+trait Animal {
+    func eat()
+}
+
+trait Fly[T] {
+    func fly() T
+}
+
+trait Swim2[T] : Animal & Fly[T] {
+    func swim() T
+}
+
+class Duck : Swim2[int] & Fly[int] {
+    let v1 int
+    let v2 int
+
+    func __init__(_v1 int, _v2 int) {
+        v1 = _v1
+        v2 = _v2
+    }
+
+    func fly() int {
+        return v2
+    }
+
+    func swim() int {
+        return v1
+    }
+
+    func eat() {
+        print("Duck eat")
+    }
+}
+
+func main() {
+    let s Swim2[int] = Duck(42, 43)
+    print(s.swim())
+
+    let f Fly[int] = s
+    print(f.fly())
+
+    let a Animal = s
+    a.eat()
+}
+
+// CHECK: 42
+// CHECK: 43
+// CHECK: Duck eat

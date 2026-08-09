@@ -1,0 +1,24 @@
+// RUN: koala %s | filecheck %s
+
+func equal[T : Comparable](a T, b T) bool {
+    return a == b
+}
+
+func max[T : Comparable](a T, b T) T {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+func main() {
+    print(equal(1, 1))
+    print(equal(1, 2))
+    print(max(3, 5))
+    print(max(8, 4))
+}
+
+// CHECK: true
+// CHECK: false
+// CHECK: 5
+// CHECK: 8

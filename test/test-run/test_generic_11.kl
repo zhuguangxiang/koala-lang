@@ -1,0 +1,46 @@
+// RUN: koala %s | filecheck %s
+
+import "test_pkg/pkg_chain" as z
+
+trait Top[T] : z.Mid[T] {
+    func top() T
+}
+
+class Box : Top[int] {
+    let value int
+
+    func __init__(_value int) {
+        value = _value
+    }
+
+    func base() int {
+        return value
+    }
+
+    func mid() int {
+        return value + 1
+    }
+
+    func top() int {
+        return value + 2
+    }
+}
+
+func main() {
+    let t Top[int] = Box(20)
+    print(t.top())
+
+    let m z.Mid[int] = t
+    print(m.mid())
+
+    let b z.Base[int] = t
+    print(b.base())
+
+    let b2 z.Base[int] = m
+    print(b2.base())
+}
+
+// CHECK: 22
+// CHECK: 21
+// CHECK: 20
+// CHECK: 20

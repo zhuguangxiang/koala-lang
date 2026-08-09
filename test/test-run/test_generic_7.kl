@@ -1,0 +1,52 @@
+// RUN: koala %s | filecheck %s
+
+trait A[T] {
+    func a() T
+}
+
+trait B[T] : A[T] {
+    func b() T
+}
+
+trait C[T] : B[T] {
+    func c() T
+}
+
+class Box : C[int] {
+    let value int
+
+    func __init__(_value int) {
+        value = _value
+    }
+
+    func a() int {
+        return value
+    }
+
+    func b() int {
+        return value + 1
+    }
+
+    func c() int {
+        return value + 2
+    }
+}
+
+func main() {
+    let c C[int] = Box(10)
+    print(c.c())
+
+    let b B[int] = c
+    print(b.b())
+
+    let a A[int] = c
+    print(a.a())
+
+    let a2 A[int] = b
+    print(a2.a())
+}
+
+// CHECK: 12
+// CHECK: 11
+// CHECK: 10
+// CHECK: 10

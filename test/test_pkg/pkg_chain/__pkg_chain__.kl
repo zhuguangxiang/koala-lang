@@ -1,0 +1,7 @@
+pub trait Base[T] {
+    func base() T
+}
+
+pub trait Mid[T] : Base[T] {
+    func mid() T
+}
