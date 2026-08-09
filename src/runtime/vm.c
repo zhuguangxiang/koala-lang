@@ -88,7 +88,12 @@ static void load_modules(void)
 KOALA_EXPORT void koala_initialize(void)
 {
     /* init logger */
-    init_log(LOG_INFO, NULL, 0);
+
+#ifdef DEBUG_TEST
+    init_log(LOG_WARN, NULL, 0);
+#else
+    init_log(LOG_TRACE, NULL, 0);
+#endif
 
     /* init atom string table */
     init_atom();
@@ -381,9 +386,9 @@ static Object *_load_module(char *path)
             vector_foreach(_idx, &intf_entry->methods) {
                 if (_idx == 0xFFFFu) {
                     // ASSERT(0); // should not happen, but just in case
-                    printf(
+                    log_warn(
                         "[_load_module] class '%s' does not implement method '%s' of interface "
-                        "'%s'\n",
+                        "'%s'",
                         tp->name, kc->sval, itable.name);
                     ASSERT(i__ < itable.num_funcs);
                     itable.methods[i__] = ((ModuleObject *)m)->not_impl;

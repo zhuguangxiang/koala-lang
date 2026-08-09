@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub class str : Sequence[str] & Comparable[str] & Hashable {
+pub class str : Sequence & Comparable & Hashable & ToString {
 
     @native
     pub func __init__(s str) {}

@@ -63,6 +63,11 @@ static void __free_inner_stbl(Symbol *sym)
             sym->stbl = NULL;
             break;
         }
+        case SYM_INSTANCE_FUNC: {
+            stbl_free(sym->stbl);
+            sym->stbl = NULL;
+            break;
+        }
         case SYM_SHADOW_VAR: {
             // nothing
             ASSERT(!sym->stbl);
@@ -144,6 +149,14 @@ static void __symbol_free(Symbol *sym)
             ASSERT(!sym->stbl);
             break;
         }
+        case SYM_INSTANCE_FUNC: {
+            InstanceFuncSymbol *inst_fn = (InstanceFuncSymbol *)sym;
+            vector_destroy(inst_fn->real_params);
+            vector_destroy(inst_fn->real_args);
+            ASSERT(!sym->stbl);
+            break;
+        }
+
         case SYM_SHADOW_VAR: {
             // nothing
             ASSERT(!sym->stbl);
@@ -272,10 +285,11 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, 
     return (Symbol *)sym;
 }
 
-Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym)
+Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *origin_trait)
 {
     ASSERT(sym->kind == SYM_FUNC);
     FuncSymbol *origin = (FuncSymbol *)sym;
+
     InheritedFunc *inherited = mm_alloc_obj(inherited);
     hashmap_entry_init(inherited, str_hash(origin->name));
     inherited->kind = SYM_INHERITED;
@@ -286,6 +300,8 @@ Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym)
         inherited = NULL;
     } else {
         inherited->origin = origin;
+        inherited->trait = origin_trait;
+        // inherited->ts = origin->ts;
         add_to_global(inherited);
     }
 
@@ -630,6 +646,41 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
     return inst_sym;
 }
 
+Symbol *stbl_add_func_instance(HashMap *stbl, FuncSymbol *origin, char *mangled_name,
+                               Vector *real_arg_types, TypeSpec *ret_type)
+{
+    InstanceFuncSymbol *sym = mm_alloc_obj(sym);
+    hashmap_entry_init(sym, str_hash(mangled_name));
+    sym->kind = SYM_INSTANCE_FUNC;
+    sym->name = mangled_name;
+
+    if (hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    } else {
+        add_to_global(sym); // get sym->id
+        sym->origin = origin;
+        sym->real_args = type_spec_vec_copy(real_arg_types);
+        sym->flags = origin->flags;
+        sym->ret_ts = ret_type;
+
+        Vector *real_params = vector_create_ptr();
+        ArgInfo *arg;
+        vector_foreach(arg, origin->params) {
+            if (!arg) continue;
+            ArgInfo *_real_param = mm_alloc_obj(_real_param);
+            _real_param->name = arg->name;
+            _real_param->ts = vector_get(real_arg_types, i__);
+            vector_push_back(real_params, &_real_param);
+        }
+        sym->real_params = real_params;
+
+        sym->ts = func_type_spec(real_arg_types, ret_type);
+    }
+
+    return (Symbol *)sym;
+}
+
 Symbol *stbl_get(HashMap *stbl, char *name)
 {
     if (stbl == NULL) return NULL;
@@ -673,6 +724,11 @@ void stbl_show(HashMap *stbl)
             case SYM_INSTANCE: {
                 InstanceSymbol *inst = (InstanceSymbol *)sym;
                 log_info("instance symbol: '%s'", sym->name);
+                break;
+            }
+            case SYM_INSTANCE_FUNC: {
+                InstanceFuncSymbol *inst_fn = (InstanceFuncSymbol *)sym;
+                log_info("function instance symbol: '%s'", sym->name);
                 break;
             }
             default: {
@@ -721,8 +777,8 @@ static void build_class_intf_table(Symbol *sym)
             if (!kls_fn) {
                 void *empty_fn = NULL;
                 vector_push_back(&entry->methods, &empty_fn);
-                printf("class '%s' does not implement method '%s' of interface '%s'\n", sym->name,
-                       fn->name, _sym->name);
+                log_warn("class '%s' does not implement method '%s' of interface '%s'", sym->name,
+                         fn->name, _sym->name);
                 continue;
             }
             log_info("add method '%s'%s for interface '%s' in class '%s'", fn->name,

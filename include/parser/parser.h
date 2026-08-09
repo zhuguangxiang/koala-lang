@@ -141,6 +141,9 @@ typedef struct _ParserState {
     int sign;
     /* for non-decimal literals */
     int bit_mode;
+
+    /* tp flag */
+    int tp_flag;
 } ParserState;
 
 Symbol *find_symbol(ParserState *ps, Ident *id);
@@ -224,6 +227,10 @@ PkgSymbol *load_module(char *path, ParserModule *pm);
 void kl_gen_ir(ParserModule *pm);
 
 void init_const_placeholder(void);
+
+Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *call_exp,
+                           ParserState *ps);
+Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *stbl);
 
 #ifdef __cplusplus
 }

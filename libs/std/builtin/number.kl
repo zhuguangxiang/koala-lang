@@ -3,6 +3,31 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+pub trait Number[T] {
+
+    pub func __add__(rhs T) T
+
+    pub func __sub__(rhs T) T
+
+    pub func __mul__(rhs T) T
+
+    pub func __div__(rhs T) T
+
+    pub func __mod__(rhs T) T
+
+    pub func __lsh__(rhs T) T
+
+    pub func __rsh__(rhs T) T
+
+    pub func __bitand__(rhs T) T
+
+    pub func __bitor__(rhs T) T
+
+    pub func __bitxor__(rhs T) T
+
+    pub func __bitnot__() T
+}
+
 pub class int8 {
     // trunc to 8-bit
     @intrinsic
@@ -21,7 +46,7 @@ pub class int32 {
     pub func __init__(x int64 | uint64) {}
 }
 
-pub class int64 {
+pub class int64 : Number & Comparable & Hashable & ToString {
     // the 'x' canbe int or string
     // the 'base' is used when 'x' is string
     @native
@@ -49,13 +74,16 @@ pub class int64 {
     pub func __rsh__(rhs int64) int64 {}
 
     @intrinsic
-    pub func __and__(rhs int64) int64 {}
+    pub func __bitand__(rhs int64) int64 {}
 
     @intrinsic
-    pub func __or__(rhs int64) int64 {}
+    pub func __bitor__(rhs int64) int64 {}
 
     @intrinsic
-    pub func __xor__(rhs int64) int64 {}
+    pub func __bitxor__(rhs int64) int64 {}
+
+    @intrinsic
+    pub func __bitnot__() int64 {}
 
     @intrinsic
     pub func __gt__(rhs int64) bool {}
@@ -80,6 +108,9 @@ pub class int64 {
 
     @native
     pub func __str__() str {}
+
+    @native
+    pub func __hash__() int {}
 }
 
 pub class uint8 {
@@ -97,7 +128,7 @@ pub class uint32 {
     pub func __init__(x int64 | uint64) {}
 }
 
-pub class uint64 {
+pub class uint64 : Number & Comparable & Hashable & ToString {
     @intrinsic
     pub func __init__(x int64 | uint64 | str, base = 10) {}
 
@@ -123,13 +154,16 @@ pub class uint64 {
     pub func __rsh__(rhs uint64) uint64 {}
 
     @intrinsic
-    pub func __and__(rhs uint64) uint64 {}
+    pub func __bitand__(rhs uint64) uint64 {}
 
     @intrinsic
-    pub func __or__(rhs uint64) uint64 {}
+    pub func __bitor__(rhs uint64) uint64 {}
 
     @intrinsic
-    pub func __xor__(rhs uint64) uint64 {}
+    pub func __bitxor__(rhs uint64) uint64 {}
+
+    @intrinsic
+    pub func __bitnot__() uint64 {}
 
     @intrinsic
     pub func __gt__(rhs uint64) bool {}
@@ -151,6 +185,12 @@ pub class uint64 {
 
     @intrinsic
     pub func __iadd__(rhs uint64) uint64 {}
+
+    @native
+    pub func __str__() str {}
+
+    @native
+    pub func __hash__() int {}
 }
 
 pub class float16 {

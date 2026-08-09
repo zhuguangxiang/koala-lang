@@ -35,6 +35,7 @@ static TValue not_impl_func(TValue *self, TValue *args, int nargs)
     ASSERT(IS_MODULE(_m));
     ModuleObject *m = (ModuleObject *)_m;
     // raise_exc_str("function not implemented: %s::%s!", m->path, cfunc->name);
+    fprintf(stdout, "function not implemented: %s::%s!\n", m->path, cfunc->name);
     return error_value;
 }
 

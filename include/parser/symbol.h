@@ -29,6 +29,7 @@ typedef enum _SymKind {
     SYM_INHERITED,          /* inherited from trait */
     SYM_SHADOW_VAR,         /* shadow var */
     SYM_IMPORTED,           /* imported symbol */
+    SYM_INSTANCE_FUNC,      /* instance func */
     SYM_MAX,
 } SymKind;
 
@@ -200,9 +201,22 @@ typedef struct _InstanceSymbol {
     Vector *bases;
 } InstanceSymbol;
 
+typedef struct _InstanceFuncSymbol {
+    SYMBOL_HEAD
+    /* -> FuncSymbol */
+    FuncSymbol *origin;
+    /* real ArgInfo list */
+    Vector *real_params;
+    /* real TypeSpec list */
+    Vector *real_args;
+    /* ret type */
+    TypeSpec *ret_ts;
+} InstanceFuncSymbol;
+
 typedef struct _InheritedFunc {
     SYMBOL_HEAD
     FuncSymbol *origin;
+    KlassSymbol *trait;
 } InheritedFunc;
 
 static inline int __symbol_equal__(Symbol *s1, Symbol *s2) { return !strcmp(s1->name, s2->name); }
@@ -227,7 +241,7 @@ void free_all_symbols(void);
 Symbol *stbl_add(HashMap *stbl, Symbol *sym);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, int flags);
-Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym);
+Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *origin_trait);
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);
@@ -246,6 +260,9 @@ void *get_symbol_by_id(int id);
 
 PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path);
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
+
+Symbol *stbl_add_func_instance(HashMap *stbl, FuncSymbol *origin, char *mangled_name,
+                               Vector *real_arg_types, TypeSpec *ret_type);
 
 /*
 Find the Least Upper Bound (LUB) for a set of types.

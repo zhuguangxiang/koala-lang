@@ -1,0 +1,43 @@
+// RUN: koalac %s --isel --dump=lir | filecheck %s
+
+func equal[T : Comparable](a T, b T) T {
+    if a == b {
+        return a
+    }
+    return b
+}
+
+
+func max[T : Comparable](a T, b T) T {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+
+// CHECK-LABEL: --- IR Dump After isel [@equal] ---
+// CHECK-LABEL: func @equal(%a equal:T, %b equal:T) equal:T {
+// CHECK: %bb0(entry):
+// CHECK: %0 = num.eq %a equal:T, %b equal:T
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: %bb1(if-then):                                  ;; preds = %bb0
+// CHECK: ret %a equal:T
+
+// CHECK: %bb2(if-end):                                   ;; preds = %bb0
+// CHECK: ret %b equal:T
+// CHECK: }
+
+// CHECK-LABEL: --- IR Dump After isel [@max] ---
+// CHECK-LABEL: func @max(%a max:T, %b max:T) max:T {
+// CHECK: %bb0(entry):
+// CHECK: %0 = num.gt %a max:T, %b max:T
+// CHECK: branch %0 bool, label %bb1, label %bb2
+
+// CHECK: %bb1(if-then):                                  ;; preds = %bb0
+// CHECK: ret %a max:T
+
+// CHECK: %bb2(if-end):                                   ;; preds = %bb0
+// CHECK: ret %b max:T
+// CHECK: }

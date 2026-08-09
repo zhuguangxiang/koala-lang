@@ -327,7 +327,7 @@ static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **ar
     }
     // }
 
-    // NYI();
+    NYI();
 }
 
 static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args, int nargs)

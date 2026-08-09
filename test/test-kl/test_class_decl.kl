@@ -25,8 +25,7 @@ class Baz2 : Fly[int] & Swim[int] {
 class Baz1 : Bar & Fly & Swim {
 }
 
-// CHECK-NEXT: 'Bar' is not trait, only trait can be used as base
-// CHECK-NEXT: Type argument mismatch: 'Swim' expects 1 argument(s), but 0 were provided
+// CHECK-NEXT: bound/base 'Bar' is not trait, only trait can be used as bound/base
 
 class Node {
     var next Node?

@@ -518,7 +518,12 @@ int main(int argc, char *argv[])
 {
     parse_command(argc, argv);
     init_atom();
+#ifdef DEBUG_TEST
+    init_log(LOG_WARN, NULL, 0);
+#else
     init_log(LOG_TRACE, NULL, 0);
+#endif
+
     typespec_init();
 
     ParserModule module = { 0 };

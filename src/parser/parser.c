@@ -147,12 +147,66 @@ PkgSymbol *import_package(ParserModule *pm, char *path)
     return pkg_sym;
 }
 
+static void do_trait_inherit_methods(KlassSymbol *sym)
+{
+    log_info("do_trait_inherit_methods for trait '%s'", sym->name);
+
+    Vector *funcs = vector_create_ptr();
+
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, &sym->lro) {
+        if (!base_ts) continue;
+
+        Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
+        if (!base_sym) {
+            UNREACHABLE();
+            continue;
+        }
+
+        if (base_sym == (Symbol *)sym) {
+            // self type, skip
+            continue;
+        }
+
+        ASSERT(base_sym->kind == SYM_TRAIT);
+        KlassSymbol *trait_sym = (KlassSymbol *)base_sym;
+
+        Symbol *fn_sym;
+        vector_foreach(fn_sym, trait_sym->funcs) {
+            if (fn_sym->kind != SYM_FUNC) continue;
+            // check method name conflict
+            Symbol *existing_fn = stbl_get(sym->stbl, fn_sym->name);
+            ASSERT(!existing_fn);
+
+            // inherit method
+            Symbol *inherited_fn = stbl_add_inherited_func(sym->stbl, fn_sym, trait_sym);
+            vector_push_back(funcs, &inherited_fn);
+            log_info("inherited method '%s' from trait '%s'", fn_sym->name, trait_sym->name);
+        }
+    }
+
+    vector_concat(funcs, sym->funcs);
+    vector_destroy(sym->funcs);
+    sym->funcs = funcs;
+}
+
+static void fixup_traits_inherited_methods(HashMap *stbl)
+{
+    HashMapIter it = { 0 };
+    while (hashmap_next(stbl, &it)) {
+        Symbol *sym = (Symbol *)it.entry;
+        if (sym->kind != SYM_TRAIT) continue;
+        do_trait_inherit_methods((KlassSymbol *)sym);
+    }
+}
+
 static inline void load_builtin_module(ParserModule *pm)
 {
     PkgSymbol *pkg_sym = import_package(pm, "std/builtin");
     if (!pkg_sym) return;
     pm->builtin = pkg_sym->stbl;
     install_builtin_types(pm->builtin);
+    // fixup_traits_inherited_methods(pkg_sym->stbl);
 }
 
 static void mark_magic_func(HashMap *stbl)
@@ -714,7 +768,9 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         TypeSpec *ret;
         vector_foreach(ts, _ts->unresolved.args) {
             if (!ts) continue;
+            ps->tp_flag = 1;
             ret = resolve_type(ps, ts);
+            ps->tp_flag = 0;
             if (ret->kind == TYPE_GENERIC_VAR) open = 1;
             vector_push_back(tp_args, &ret);
         }
@@ -772,28 +828,31 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             }
         }
 
-        if (sym->status == SYM_UNRESOLVED) {
-            log_info("symbol '%s' is not resolved yet, try to resolve it NOW", kls_sym->name);
-            if (sym->ps) {
-                ParserState *_ps = sym->ps;
-                if (ps != _ps) {
-                    log_info("resolve symbol '%s' in '%s'", kls_sym->name, _ps->filename);
-                    kl_parse_ast(_ps);
+        if (!ps->tp_flag) {
+            if (sym->status == SYM_UNRESOLVED) {
+                log_info("symbol '%s' is not resolved yet, try to resolve it NOW", kls_sym->name);
+                if (sym->ps) {
+                    ParserState *_ps = sym->ps;
+                    if (ps != _ps) {
+                        log_info("resolve symbol '%s' in '%s'", kls_sym->name, _ps->filename);
+                        kl_parse_ast(_ps);
+                    } else {
+                        log_info("currently resolving symbol '%s' in '%s'", kls_sym->name,
+                                 ps->filename);
+                        parse_klass_meta(ps, sym->arg);
+                    }
                 } else {
-                    log_info("currently resolving symbol '%s' in '%s'", kls_sym->name,
-                             ps->filename);
-                    parse_klass_meta(ps, sym->arg);
+                    UNREACHABLE();
                 }
+            } else if (sym->status == SYM_RESOLVING) {
+                kl_error(_ts->loc, "circular dependency detected when resolving '%s'",
+                         kls_sym->name);
+                vector_destroy(tp_args);
+                return NULL;
             } else {
-                UNREACHABLE();
+                log_info("symbol '%s' is already resolved", kls_sym->name);
+                // do nothing
             }
-        } else if (sym->status == SYM_RESOLVING) {
-            kl_error(_ts->loc, "circular dependency detected when resolving '%s'", kls_sym->name);
-            vector_destroy(tp_args);
-            return NULL;
-        } else {
-            log_info("symbol '%s' is already resolved", kls_sym->name);
-            // do nothing
         }
 
         if (open) {
@@ -1816,6 +1875,59 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
     return sym;
 }
 
+static int parse_bound_or_base(ParserState *ps, TypeSpec *ts, Ident *id, char *name, int has_tp)
+{
+    if (!ts) return -1;
+
+    if (ts->kind != TYPE_UNRESOLVED) {
+        kl_error(ts->loc, "tp-bound/base type must be unresolved type");
+        return -1;
+    }
+
+    Symbol *sym = find_type_symbol(ps, &ts->unresolved.pkg, &ts->unresolved.name);
+    if (!sym) {
+        kl_error(ts->loc, "tp-bound/base type symbol not found");
+        return -1;
+    }
+
+    if (sym->kind != SYM_TRAIT) {
+        kl_error(ts->loc, "bound/base '%s' is not trait, only trait can be used as bound/base",
+                 sym->name);
+        return -1;
+    }
+
+    if (has_tp) {
+        // only for base type, if class has type parameters, don't do the defaulting to Self rule
+        // if parsing tp bound, the 'has_tp' always false.
+        return 0;
+    }
+
+    // TODO:
+#if 1
+    if (vector_size(ts->unresolved.args) == 0) {
+        // If a trait has exactly one type parameter and no concrete argument is provided,
+        // treat the missing argument as the current type (`id`).
+        // This is a language sugar rule for both:
+        //   - tp bounds:      T : Equatable  -> T : Equatable[T]
+        //   - base traits:    Foo : Equatable -> Foo : Equatable[Foo]
+        // If the intended self type is different, it must be written explicitly.
+        KlassSymbol *kls_sym = (KlassSymbol *)sym;
+        if (vector_size(&kls_sym->tps) == 1) {
+            log_info(
+                "for '%s', trait '%s' omits its only one type argument, defaulting to Self('%s')",
+                name, kls_sym->name, id->name);
+            TypeIdent name = { id->name, id->loc };
+            Vector *vec = vector_create_ptr();
+            TypeSpec *_ts = unresolved_type_spec(NULL, name, NULL);
+            vector_push_back(vec, &_ts);
+            ts->unresolved.args = vec;
+        }
+    }
+#endif
+
+    return 0;
+}
+
 static void parse_type_params(ParserState *ps, Vector *tps, Symbol *sym)
 {
     Vector *sym_tps = NULL;
@@ -1854,13 +1966,20 @@ static void parse_type_params(ParserState *ps, Vector *tps, Symbol *sym)
 
         if (vector_empty(tp->bound)) continue;
 
+        if (vector_size(tp->bound) > 1) {
+            kl_error(tp->id.loc, "type parameter '%s' can only have one bound", tp->id.name);
+            continue;
+        }
+
         Vector *vec = &tp_sym->bound;
         TypeSpec *ts;
         vector_foreach(ts, tp->bound) {
             if (!ts) continue;
+            int r = parse_bound_or_base(ps, ts, &tp->id, sym->name, 0);
+            if (r) continue;
             ts = resolve_type(ps, ts);
             assert(ts);
-            int r = check_type(ps, ts);
+            r = check_type(ps, ts);
             assert(r);
             vector_push_back(vec, &ts);
         }
@@ -1874,37 +1993,18 @@ static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
     /* parse base class and traits */
     if (vector_empty(kls->bases)) return;
 
+    int has_tp = vector_size(&sym->tps) > 0;
     Vector *vec = &sym->bases;
     TypeSpec *ts;
     vector_foreach(ts, kls->bases) {
         if (!ts) continue;
+        int r = parse_bound_or_base(ps, ts, &kls->id, sym->name, has_tp);
+        if (r) continue;
         TypeSpec *base_ts = resolve_type(ps, ts);
         if (!base_ts) continue;
-        int r = check_type(ps, base_ts);
+        r = check_type(ps, base_ts);
         if (!r) continue;
-
-        Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
-        if (!base_sym) {
-            UNREACHABLE();
-        }
-
-        if (base_sym->kind == SYM_TRAIT) {
-            vector_push_back(vec, &base_ts);
-            log_info("base is trait symbol: %s", base_sym->name);
-        } else if (base_sym->kind == SYM_INSTANCE) {
-            log_info("base is instance symbol: %s", base_sym->name);
-            Symbol *origin_sym = ((InstanceSymbol *)base_sym)->origin;
-            if (origin_sym->kind != SYM_TRAIT) {
-                kl_error(ts->loc,
-                         "origin symbol '%s' is not trait, only trait can be "
-                         "used as base",
-                         origin_sym->name);
-            } else {
-                vector_push_back(vec, &base_ts);
-            }
-        } else {
-            kl_error(ts->loc, "'%s' is not trait, only trait can be used as base", base_sym->name);
-        }
+        vector_push_back(vec, &base_ts);
     }
 }
 
@@ -2522,7 +2622,7 @@ static void inherit_trait_methods(KlassSymbol *sym, Loc loc, ParserState *ps)
             }
 
             // inherit method
-            Symbol *inherited_fn = stbl_add_inherited_func(sym->stbl, fn_sym);
+            Symbol *inherited_fn = stbl_add_inherited_func(sym->stbl, fn_sym, trait_sym);
             vector_push_back(funcs, &inherited_fn);
             log_info("inherited method '%s' from trait '%s'", fn_sym->name, trait_sym->name);
         }
@@ -2901,6 +3001,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
             ImportStmt *s = (ImportStmt *)stmt;
             ASSERT(s->path);
             PkgSymbol *pkg = import_package(ps->pm, s->path);
+            // fixup_traits_inherited_methods(pkg->stbl);
 
             if (s->alias) {
                 ASSERT(!s->names);

@@ -1,24 +1,49 @@
 
-
-// class Foo {
-//     func bar() str {
-//         return "Hello from Foo.bar()!"
-//     }
+// trait Animal {
+//     func eat()
 // }
 
-func max[T : Comparable[T]](a T, b T) T {
-    if a > b {
+// trait Swim : Animal {
+//     func swim()
+// }
+
+// // class Bar {
+
+// // }
+
+// class Baz: Swim {
+
+// }
+
+
+// // class Foo[T] {
+// //    let v T
+// //    func __init__(_v T) {
+// //        v = _v
+// //     }
+// // }
+
+func max[T : Comparable](a T, b T) T {
+    if a == b {
         return a
     }
     return b
 }
 
-func min(a int, b int) int {
-    if a < b {
-        return a
-    }
-    return b
-}
+
+// func max2[T : Comparable](a T, b T) T {
+//     if a > b {
+//         return a
+//     }
+//     return b
+// }
+
+// func min(a int, b int) int {
+//     if a < b {
+//         return a
+//     }
+//     return b
+// }
 
 func main() {
     // let bs = bytes(10)
@@ -27,8 +52,23 @@ func main() {
     // print(main)
     // print(Foo.bar)
 
-    let r = "hello" == "hello"
-    print(r)
+    // let r = "hello" == "hello"
+    // print(r)
 
-    print(max(10, 20))
+    // print(max[int](10, 20))
+    // max[int](10, 20)
+    // let f Equatable[int] = Foo()
+    // f == Foo()
+    // print(max(10, 20))
+    // print(max2(10, 20))
+    // // let f = Foo(10)
+    // // print(f.v)
+    // let b Swim = Baz()
+    // b.eat()
+
+    // let i = int("123")
+    // print(i)
+
+    let t3 = tuple(1, "hi", 3.1)
+    print(t3)
 }

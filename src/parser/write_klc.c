@@ -262,6 +262,11 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                 break;
             }
 
+            case SYM_INSTANCE_FUNC: {
+                // do nothing
+                break;
+            }
+
             default: {
                 UNREACHABLE();
                 break;

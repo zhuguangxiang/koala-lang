@@ -21,6 +21,7 @@ set(PARSER_SRC
     parser/ast.c
     parser/parser.c
     parser/parser_expr.c
+    parser/parser_generic.c
     parser/symbol.c
     parser/typespec.c
     parser/write_klc.c

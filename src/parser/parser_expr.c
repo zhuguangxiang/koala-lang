@@ -653,9 +653,11 @@ static TypeSpec *instance_type_spec(TypeSpec *ts, KlassSymbol *origin, InstanceS
     return inst_ts;
 }
 
-static Vector *build_instance_params(Vector *params, KlassSymbol *origin, InstanceSymbol *sym,
-                                     ParserState *ps)
+static Vector *build_instance_params(Vector *params, InstanceSymbol *sym, ParserState *ps)
 {
+    KlassSymbol *origin = (KlassSymbol *)sym->origin;
+    ASSERT(origin);
+
     Vector *inst_params = vector_create_ptr();
     ArgInfo *arg;
     vector_foreach(arg, params) {
@@ -732,6 +734,76 @@ static int __tpinfo_eq__(const TpInfo *a, const TpInfo *b)
 }
 
 static void __tpinfo_free__(void *info, void *arg) { mm_free(info); }
+
+static Symbol *add_instance_method(InstanceSymbol *inst_sym, FuncSymbol *origin_fn_sym,
+                                   ParserState *ps)
+{
+    KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+    ASSERT(origin);
+
+    Vector *inst_params = build_instance_params(origin_fn_sym->params, inst_sym, ps);
+    TypeSpec *origin_ret_ts = origin_fn_sym->ret;
+    TypeSpec *inst_ret_ts = instance_type_spec(origin_ret_ts, origin, inst_sym, ps);
+
+    Symbol *inst_fn_sym = stbl_add_func(inst_sym->stbl, origin_fn_sym->name, inst_ret_ts,
+                                        inst_params, origin_fn_sym->flags);
+    inst_fn_sym->parent = inst_sym;
+    inst_fn_sym->ts = func_type_spec_from_arginfo(inst_params, inst_ret_ts);
+    return inst_fn_sym;
+}
+
+static Symbol *get_instance_method(InstanceSymbol *inst_sym, char *name, ParserState *ps)
+{
+    Symbol *inst_fn_sym = stbl_get(inst_sym->stbl, name);
+    if (inst_fn_sym) return inst_fn_sym;
+
+    KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+    ASSERT(origin);
+
+    Symbol *_sym = stbl_get(origin->stbl, name);
+    if (_sym) {
+        if (_sym->kind == SYM_INHERITED) {
+            goto inherit;
+        }
+        ASSERT(_sym->kind == SYM_FUNC);
+        FuncSymbol *origin_fn_sym = (FuncSymbol *)_sym;
+        return add_instance_method(inst_sym, origin_fn_sym, ps);
+    }
+
+inherit:
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, inst_sym->bases) {
+        Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
+        ASSERT(base_sym);
+        if (base_sym->kind == SYM_TRAIT) {
+            inst_fn_sym = stbl_get(base_sym->stbl, name);
+        } else {
+            ASSERT(base_sym->kind == SYM_INSTANCE);
+            InstanceSymbol *base_inst_sym = (InstanceSymbol *)base_sym;
+            inst_fn_sym = get_instance_method(base_inst_sym, name, ps);
+        }
+        if (inst_fn_sym) return inst_fn_sym;
+    }
+
+    return NULL;
+}
+
+static Symbol *get___init___instance(InstanceSymbol *inst_sym, ParserState *ps)
+{
+    char *name = "__init__";
+    Symbol *inst_fn_sym = stbl_get(inst_sym->stbl, name);
+    if (inst_fn_sym) return inst_fn_sym;
+
+    KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+    ASSERT(origin);
+
+    Symbol *_sym = stbl_get(origin->stbl, name);
+    ASSERT(_sym);
+
+    if (origin->__init__ == NULL) origin->__init__ = _sym;
+
+    return add_instance_method(inst_sym, (FuncSymbol *)_sym, ps);
+}
 
 static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym, CallExpr *call_exp,
                                  ParserState *ps)
@@ -1200,16 +1272,8 @@ static void parse_call(ParserState *ps, Expr *exp)
             InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, lhs_sym, tp_args);
             vector_destroy(tp_args);
 
-            Symbol *_fn = stbl_get(inst_sym->stbl, "__init__");
-            if (!_fn) {
-                KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
-                // params
-                Vector *inst_params =
-                    build_instance_params(((FuncSymbol *)_fn_sym)->params, origin, inst_sym, ps);
-
-                _fn = stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(), inst_params,
-                                    _fn_sym->flags);
-            }
+            Symbol *_fn = get___init___instance(inst_sym, ps);
+            ASSERT(_fn);
 
             // func call type is instance type
             exp->ts = inst_sym->instance_ts;
@@ -1242,19 +1306,10 @@ static void parse_call(ParserState *ps, Expr *exp)
                 }
 
                 InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, lhs_sym, tp_args);
-
                 vector_destroy(tp_args);
 
-                Symbol *_fn = stbl_get(inst_sym->stbl, "__init__");
-                if (!_fn) {
-                    KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
-                    // params
-                    Vector *inst_params = build_instance_params(((FuncSymbol *)_fn_sym)->params,
-                                                                origin, inst_sym, ps);
-
-                    _fn = stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(), inst_params,
-                                        _fn_sym->flags);
-                }
+                Symbol *_fn = get___init___instance(inst_sym, ps);
+                ASSERT(_fn);
 
                 // func call type is instance type
                 exp->ts = inst_sym->instance_ts;
@@ -1320,6 +1375,15 @@ static void parse_call(ParserState *ps, Expr *exp)
             params = get_func_real_params(fn_sym, _tp_args);
             exp->ts = get_func_real_ret(fn_sym, _tp_args);
             vector_destroy(_tp_args);
+        } else if (vector_size(&fn_sym->tps) > 0) {
+            // function has type parameters, do inference from call arguments
+            log_info("function '%s' has type parameters, try to infer them from call arguments.",
+                     fn_sym->name);
+            Vector *_tp_args = infer_tp_from_call(fn_sym, NULL, call, ps);
+            InstanceFuncSymbol *fn_inst_sym =
+                (InstanceFuncSymbol *)find_or_add_func_instance(fn_sym, _tp_args, ps->pm->stbl);
+            params = fn_inst_sym->real_params;
+            exp->ts = fn_inst_sym->ret_ts;
         } else {
             if (lhs->ts->kind == TYPE_OPTIONAL) {
                 log_info("call lhs is optional of proto.");
@@ -1345,21 +1409,12 @@ static void parse_call(ParserState *ps, Expr *exp)
         KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
         if (origin->flags & SYM_FLAGS_EXT) inst_sym->flags |= SYM_FLAGS_EXT;
 
-        Symbol *init_fn_sym = stbl_get(inst_sym->stbl, "__init__");
-        if (!init_fn_sym) {
-            Symbol *_fn_sym = stbl_get(origin->stbl, "__init__");
-            ASSERT(_fn_sym);
-            if (origin->__init__ == NULL) origin->__init__ = _fn_sym;
-            // params
-            Vector *inst_params =
-                build_instance_params(((FuncSymbol *)_fn_sym)->params, origin, inst_sym, ps);
+        Symbol *init_fn_sym = get___init___instance(inst_sym, ps);
+        ASSERT(init_fn_sym);
 
-            init_fn_sym =
-                stbl_add_func(inst_sym->stbl, "__init__", no_type_spec(), inst_params, 0);
-            if (origin->flags & SYM_FLAGS_EXT) init_fn_sym->flags |= SYM_FLAGS_EXT;
-        }
+        if (origin->flags & SYM_FLAGS_EXT) init_fn_sym->flags |= SYM_FLAGS_EXT;
 
-        if (!strcmp(origin->name, "tuple")) {
+        if (str_equal(origin->name, "tuple")) {
             log_info("check __init__ args with specialized tuple type parameters.");
             if (vector_size(inst_sym->tp_args) != vector_size(call->args)) {
                 kl_error(lhs->loc,
@@ -1603,25 +1658,12 @@ static void parse_dot(ParserState *ps, Expr *exp)
                 log_info("found func '%s' from origin klass '%s'.", ident->name, origin->name);
                 // method of instance
                 FuncSymbol *origin_fn_sym = (FuncSymbol *)sym;
-
-                // params
-                Vector *inst_params =
-                    build_instance_params(origin_fn_sym->params, origin, inst_sym, ps);
-
-                // return type
-                TypeSpec *ret_ts = instance_type_spec(origin_fn_sym->ret, origin, inst_sym, ps);
-
-                // create function symbol for instance method
-                Symbol *inst_fn_sym = stbl_add_func(lhs_stbl, origin_fn_sym->name, ret_ts,
-                                                    inst_params, origin_fn_sym->flags);
-                inst_fn_sym->parent = inst_sym;
-                // ((FuncSymbol *)inst_fn_sym)->origin = origin_fn_sym;
-
+                Symbol *inst_fn_sym = get_instance_method(inst_sym, ident->name, ps);
+                ASSERT(inst_fn_sym);
                 // copy method's tps to instance method
+                // TODO: comments copy_tops will be test/test-kl/test_tuple.kl failed
                 copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &origin_fn_sym->tps);
-                TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
-                inst_fn_sym->ts = fn_ts;
-                exp->ts = opt_dot_type(fn_ts, opt_or_bang);
+                exp->ts = opt_dot_type(inst_fn_sym->ts, opt_or_bang);
                 exp->sym = inst_fn_sym;
                 log_info("dot member resolved: %s", inst_fn_sym->name);
                 log_type_spec(exp->ts);
@@ -1632,26 +1674,14 @@ static void parse_dot(ParserState *ps, Expr *exp)
                          origin->name);
 
                 // method of instance
-                FuncSymbol *origin_fn_sym = inherited->origin;
-
-                // params
-                Vector *inst_params =
-                    build_instance_params(origin_fn_sym->params, origin, inst_sym, ps);
-
-                // return type
-                TypeSpec *ret_ts = instance_type_spec(origin_fn_sym->ret, origin, inst_sym, ps);
-
-                // create function symbol for instance method
-                Symbol *inst_fn_sym = stbl_add_func(lhs_stbl, origin_fn_sym->name, ret_ts,
-                                                    inst_params, origin_fn_sym->flags);
-                inst_fn_sym->parent = inst_sym;
-                // ((FuncSymbol *)inst_fn_sym)->origin = inherited;
+                FuncSymbol *origin_fn_sym = (FuncSymbol *)sym;
+                Symbol *inst_fn_sym = get_instance_method(inst_sym, ident->name, ps);
+                ASSERT(inst_fn_sym);
 
                 // copy method's tps to instance method
-                copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &origin_fn_sym->tps);
-                TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
-                inst_fn_sym->ts = fn_ts;
-                exp->ts = opt_dot_type(fn_ts, opt_or_bang);
+                // TODO: comments copy_tps here, there is nothing failed.
+                // copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &origin_fn_sym->tps);
+                exp->ts = opt_dot_type(inst_fn_sym->ts, opt_or_bang);
                 exp->sym = inst_fn_sym;
                 log_info("dot member resolved: %s", inst_fn_sym->name);
                 log_type_spec(exp->ts);
@@ -1697,22 +1727,12 @@ static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
                 return;
             }
 
-            // params
-            Vector *inst_params =
-                build_instance_params(((FuncSymbol *)__fn_sym)->params, origin, inst_sym, ps);
-            // return
-            TypeSpec *ret_ts =
-                instance_type_spec(((FuncSymbol *)__fn_sym)->ret, origin, inst_sym, ps);
-
             // create function symbol for instance __getitem__
-            Symbol *inst_fn_sym =
-                stbl_add_func(lhs_sym->stbl, "__getitem__", ret_ts, inst_params, __fn_sym->flags);
+            Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
 
             // copy __getitem__'s tps to instance __getitem__
+            // TODO: comments copy_tps, some tests are failed.
             copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
-            TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
-            inst_fn_sym->ts = fn_ts;
-            inst_fn_sym->parent = inst_sym;
             __fn_sym = inst_fn_sym;
         }
     } else if (lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_TRAIT) {
@@ -1769,22 +1789,12 @@ static void parse_index_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
                 return;
             }
 
-            // params
-            Vector *inst_params =
-                build_instance_params(((FuncSymbol *)__fn_sym)->params, origin, inst_sym, ps);
-            // return
-            TypeSpec *ret_ts =
-                instance_type_spec(((FuncSymbol *)__fn_sym)->ret, origin, inst_sym, ps);
-
             // create function symbol for instance __setitem__
-            Symbol *inst_fn_sym =
-                stbl_add_func(lhs_sym->stbl, "__setitem__", ret_ts, inst_params, __fn_sym->flags);
+            Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
 
             // copy __setitem__'s tps to instance __setitem__
-            copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
-            TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
-            inst_fn_sym->ts = fn_ts;
-            inst_fn_sym->parent = inst_sym;
+            // TODO: comments copy_tps, no failed.
+            // copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
             __fn_sym = inst_fn_sym;
         }
     } else if (lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_TRAIT) {
@@ -1840,22 +1850,12 @@ static void parse_slice_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
                 return;
             }
 
-            // params
-            Vector *inst_params =
-                build_instance_params(((FuncSymbol *)__fn_sym)->params, origin, inst_sym, ps);
-            // return
-            TypeSpec *ret_ts =
-                instance_type_spec(((FuncSymbol *)__fn_sym)->ret, origin, inst_sym, ps);
-
             // create function symbol for instance __getslice__
-            Symbol *inst_fn_sym =
-                stbl_add_func(lhs_sym->stbl, "__getslice__", ret_ts, inst_params, __fn_sym->flags);
+            Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
 
             // copy __getslice__'s tps to instance __getslice__
-            copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
-            TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
-            inst_fn_sym->ts = fn_ts;
-            inst_fn_sym->parent = inst_sym;
+            // TODO: comments copy_tps, no failed.
+            // copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
             __fn_sym = inst_fn_sym;
         }
     } else if (lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_TRAIT) {
@@ -1963,6 +1963,11 @@ static void parse_index(ParserState *ps, Expr *exp)
 
     if (lhs->ts->kind == TYPE_TYPE) {
         parse_index_new_type(ps, index);
+        return;
+    }
+
+    if (lhs->ts->kind == TYPE_PROTO) {
+        // parse_index_type_param(ps, index);
         return;
     }
 
@@ -2384,34 +2389,12 @@ static void parse_binary(ParserState *ps, Expr *exp)
             Symbol *bound_sym = get_symbol_by_id(ts->sym_id);
             ASSERT(bound_sym->kind == SYM_TRAIT || bound_sym->kind == SYM_INSTANCE);
 
-            HashMap *stbl = ((KlassSymbol *)bound_sym)->stbl;
-            fn = stbl_get(stbl, op_name);
-            if (fn) break;
             if (bound_sym->kind == SYM_INSTANCE) {
-                InstanceSymbol *inst_sym = (InstanceSymbol *)bound_sym;
-                KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
-                fn = stbl_get(origin->stbl, op_name);
-                if (fn) {
-                    // params
-                    Vector *inst_params =
-                        build_instance_params(((FuncSymbol *)fn)->params, origin, inst_sym, ps);
-                    // return
-                    TypeSpec *ret_ts =
-                        instance_type_spec(((FuncSymbol *)fn)->ret, origin, inst_sym, ps);
-
-                    // create function symbol for instance
-                    Symbol *inst_fn_sym =
-                        stbl_add_func(stbl, op_name, ret_ts, inst_params, fn->flags);
-
-                    // copy operator's tps to instance operator
-                    // copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)fn)->tps);
-                    TypeSpec *fn_ts = func_type_spec_from_arginfo(inst_params, ret_ts);
-                    inst_fn_sym->ts = fn_ts;
-                    inst_fn_sym->parent = inst_sym;
-                    fn = inst_fn_sym;
-                    break;
-                }
+                fn = get_instance_method((InstanceSymbol *)bound_sym, op_name, ps);
+            } else {
+                fn = stbl_get(bound_sym->stbl, op_name);
             }
+            if (fn) break;
         }
 
         if (!fn) {

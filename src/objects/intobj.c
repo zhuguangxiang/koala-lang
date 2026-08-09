@@ -137,6 +137,8 @@ TypeObject int_type = {
     .name = "int",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = int_methods,
+    .cmp = NULL,
+    .hash = NULL,
 };
 
 #ifdef __cplusplus
