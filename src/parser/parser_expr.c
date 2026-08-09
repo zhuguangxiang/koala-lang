@@ -775,6 +775,7 @@ inherit:
     vector_foreach(base_ts, inst_sym->bases) {
         Symbol *base_sym = get_symbol_by_id(base_ts->sym_id);
         ASSERT(base_sym);
+
         if (base_sym->kind == SYM_TRAIT) {
             inst_fn_sym = stbl_get(base_sym->stbl, name);
         } else {
@@ -782,7 +783,30 @@ inherit:
             InstanceSymbol *base_inst_sym = (InstanceSymbol *)base_sym;
             inst_fn_sym = get_instance_method(base_inst_sym, name, ps);
         }
-        if (inst_fn_sym) return inst_fn_sym;
+
+        if (inst_fn_sym) {
+            // add to inst_sym's stbl for faster lookup next time
+            ASSERT(inst_fn_sym->kind == SYM_FUNC);
+            FuncSymbol *_fn_sym = (FuncSymbol *)inst_fn_sym;
+
+            Vector *real_params = vector_create_ptr();
+            ArgInfo *arg;
+            vector_foreach(arg, _fn_sym->params) {
+                if (!arg) continue;
+                ArgInfo *_real_param = mm_alloc_obj(_real_param);
+                _real_param->name = arg->name;
+                _real_param->ts = arg->ts;
+                _real_param->has_dfl_val = arg->has_dfl_val;
+                _real_param->dfl_val = arg->dfl_val;
+                vector_push_back(real_params, &_real_param);
+            }
+
+            inst_fn_sym = stbl_add_func(inst_sym->stbl, _fn_sym->name, _fn_sym->ret, real_params,
+                                        _fn_sym->flags);
+            inst_fn_sym->parent = inst_sym;
+            inst_fn_sym->ts = func_type_spec_from_arginfo(real_params, _fn_sym->ret);
+            return inst_fn_sym;
+        }
     }
 
     return NULL;

@@ -1,16 +1,16 @@
-// TODO: koala %s | filecheck %s
+// RUN: koala %s | filecheck %s
 
 trait Animal {
     func eat()
 }
 
-// trait Swim : Animal {
-//     func swim()
-// }
+trait Swim : Animal {
+    func swim()
+}
 
-// class Baz: Swim {
+class Baz: Swim {
 
-// }
+}
 
 trait Fly[T] {
     func fly() T
@@ -38,20 +38,21 @@ class Duck : Swim2[int] & Fly[int] {
     }
 
     func eat() {
-        panic("Duck eatxxxx")
+        print("Duck eat")
     }
 }
 
 func main() {
-    // let b Swim = Baz()
-    // b.eat()
+    let b Swim = Baz()
+    b.eat()
 
     let d Swim2[int] = Duck(42, 43)
-    // print(d.eat())
-    d.fly()
     d.eat()
-    // print(n)
-    // print(d.swim())
+    print(d.fly())
+    print(d.swim())
 }
 
-// CHECK: function not implemented: test_generic_klass::not_impl!
+// TODO: function not implemented: test_generic_klass::not_impl!
+// CHECK: Duck eat
+// CHECK: 43
+// CHECK: 42
