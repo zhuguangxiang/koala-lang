@@ -33,11 +33,11 @@ func main() {
     let m z.Mid[int] = t
     print(m.mid())
 
-    let b z.Base[int] = t
-    print(b.base())
-
     let b2 z.Base[int] = m
     print(b2.base())
+
+    let b z.Base[int] = t
+    print(b.base())
 }
 
 // CHECK: 22

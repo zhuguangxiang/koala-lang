@@ -17,6 +17,8 @@ extern "C" {
 
 static void _add_all_intf_to_trait(KlrExtTrait *trait, KlassSymbol *kls_sym)
 {
+    ASSERT(vector_size(&trait->intfs) == 0);
+
     Vector *lro = &kls_sym->lro;
     int index = 0;
 
@@ -38,8 +40,14 @@ static void _add_all_intf_to_trait(KlrExtTrait *trait, KlassSymbol *kls_sym)
     }
 }
 
-static void _add_instance_all_intf_to_trait(KlrExtTrait *trait, InstanceSymbol *inst_sym)
+// on-demand(used) intfs not all intfs in instance symbol.
+// see: get_instance_method in parser_expr.c
+// so here has some functions or inherited functions not in instance symbol, but in origin klass
+// symbol.
+static void _add_instance_used_intf_to_trait(KlrExtTrait *trait, InstanceSymbol *inst_sym)
 {
+    ASSERT(vector_size(&trait->intfs) == 0);
+
     KlassSymbol *kls_sym = (KlassSymbol *)inst_sym->origin;
 
     Vector *lro = &kls_sym->lro;
@@ -56,10 +64,22 @@ static void _add_instance_all_intf_to_trait(KlrExtTrait *trait, InstanceSymbol *
         KlassSymbol *trait_kls = (KlassSymbol *)sym;
         Symbol *fn;
         vector_foreach(fn, trait_kls->funcs) {
-            ASSERT(fn->kind == SYM_FUNC);
+            ASSERT(fn->kind == SYM_FUNC || fn->kind == SYM_INHERITED);
+            if (fn->kind == SYM_INHERITED) {
+                // iterate by lro, so ignore inherited functions, they are already in origin
+                // klass's funcs.
+                continue;
+            }
             Symbol *_fn_inst_sym = stbl_get(inst_sym->stbl, fn->name);
-            ASSERT(_fn_inst_sym && _fn_inst_sym->kind == SYM_FUNC);
-            klr_add_ext_intf(trait, ((FuncSymbol *)_fn_inst_sym)->ret, fn->name);
+            if (_fn_inst_sym) {
+                ASSERT(_fn_inst_sym->kind == SYM_FUNC);
+                klr_add_ext_intf(trait, ((FuncSymbol *)_fn_inst_sym)->ret, fn->name);
+            } else {
+                // reserve a empty slot for unsed intf, so the index-slots are correctly matched
+                // with origin trait's intfs.
+                void *empty = NULL;
+                vector_push_back(&trait->intfs, &empty);
+            }
         }
     }
 }
@@ -759,7 +779,7 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
                                 _val = klr_add_ext_trait(MOD, parent->name, inst_sym->instance_ts,
                                                          _sym->name);
                                 _sym->ir_val = _val;
-                                _add_instance_all_intf_to_trait((KlrExtTrait *)_val, inst_sym);
+                                _add_instance_used_intf_to_trait((KlrExtTrait *)_val, inst_sym);
                             }
                             ASSERT(_val && _val->kind == KLR_VALUE_EXT_TRAIT);
                             exp->ir_val = klr_get_ext_intf((KlrExtTrait *)_val, sym->name);

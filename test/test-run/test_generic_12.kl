@@ -1,0 +1,53 @@
+// RUN: koala %s | filecheck %s
+
+import "test_pkg/pkg_chain" as z
+
+trait Top2[T] : z.Mid[T] {
+    func top1() T
+    func top2() T
+}
+
+class Box2 : Top2[int] {
+    let v int
+
+    func __init__(_v int) {
+        v = _v
+    }
+
+    func base() int {
+        return v
+    }
+
+    func mid() int {
+        return v + 2
+    }
+
+    func top1() int {
+        return v + 3
+    }
+
+    func top2() int {
+        return v + 4
+    }
+}
+
+func main() {
+    let t Top2[int] = Box2(40)
+
+    // 先只用 top2，制造 top1 未 materialize 的空槽位场景
+    print(t.top2())
+
+    let m z.Mid[int] = t
+    print(m.mid())
+
+    let b z.Base[int] = m
+    print(b.base())
+
+    // 最后再用 top1，验证前面 slot-index 没错位
+    print(t.top1())
+}
+
+// CHECK: 44
+// CHECK: 42
+// CHECK: 40
+// CHECK: 43

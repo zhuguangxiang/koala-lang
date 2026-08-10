@@ -1,0 +1,59 @@
+// RUN: koala %s | filecheck %s
+
+import "test_pkg/pkg_chain" as z
+
+trait Wrap[P, Q] : z.Swap[P, Q] {
+    func wrap() P
+}
+
+class V : Wrap[int, str] {
+    let s str
+    let n int
+
+    func __init__(_s str, _n int) {
+        s = _s
+        n = _n
+    }
+
+    // 来自 Pair[str, int]
+    func first() str {
+        return s
+    }
+
+    func second() int {
+        return n
+    }
+
+    // 来自 Swap[int, str]，返回 str
+    func swap_first() str {
+        return s
+    }
+
+    // Wrap[int, str] 自己的方法，返回 int
+    func wrap() int {
+        return n
+    }
+}
+
+func main() {
+    let w Wrap[int, str] = V("hello", 9)
+    print(w.wrap())
+
+    let s z.Swap[int, str] = w
+    print(s.swap_first())
+
+    let p z.Pair[str, int] = s
+    print(p.first())
+    print(p.second())
+
+    let p2 z.Pair[str, int] = w
+    print(p2.first())
+    print(p2.second())
+}
+
+// CHECK: 9
+// CHECK: hello
+// CHECK: hello
+// CHECK: 9
+// CHECK: hello
+// CHECK: 9

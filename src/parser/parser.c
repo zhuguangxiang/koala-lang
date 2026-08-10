@@ -206,7 +206,7 @@ static inline void load_builtin_module(ParserModule *pm)
     if (!pkg_sym) return;
     pm->builtin = pkg_sym->stbl;
     install_builtin_types(pm->builtin);
-    // fixup_traits_inherited_methods(pkg_sym->stbl);
+    fixup_traits_inherited_methods(pkg_sym->stbl);
 }
 
 static void mark_magic_func(HashMap *stbl)
@@ -3001,7 +3001,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
             ImportStmt *s = (ImportStmt *)stmt;
             ASSERT(s->path);
             PkgSymbol *pkg = import_package(ps->pm, s->path);
-            // fixup_traits_inherited_methods(pkg->stbl);
+            fixup_traits_inherited_methods(pkg->stbl);
 
             if (s->alias) {
                 ASSERT(!s->names);

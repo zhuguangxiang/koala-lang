@@ -909,6 +909,7 @@ KlrValue *klr_get_ext_intf(KlrExtTrait *trait, char *name)
 
     KlrValue *sym;
     vector_foreach(sym, list) {
+        if (!sym) continue;
         if (sym->kind == KLR_VALUE_EXT_INTF) {
             if (str_equal(sym->name, name)) {
                 return sym;

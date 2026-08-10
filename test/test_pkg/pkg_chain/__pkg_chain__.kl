@@ -1,7 +1,19 @@
+
+// koala -c test/test_pkg/pkg_chain --package-name=test_pkg/pkg_chain
+
 pub trait Base[T] {
     func base() T
 }
 
 pub trait Mid[T] : Base[T] {
     func mid() T
+}
+
+pub trait Pair[A, B] {
+    func first() A
+    func second() B
+}
+
+pub trait Swap[X, Y] : Pair[Y, X] {
+    func swap_first() Y
 }
