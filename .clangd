@@ -1,2 +1,14 @@
+CompileFlags:
+  Add: [-ferror-limit=0]
+
+If:
+  PathMatch: [
+    include/runtime/vm_ops.h
+  ]
+
+Index:
+  Background: Skip
+
 Diagnostics:
+  Suppress: ["*"]
   UnusedIncludes: None

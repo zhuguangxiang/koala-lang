@@ -3,14 +3,189 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub class HashSet[T] : Set[T] {
+/// A HashSet is a mutable, unordered collection of unique elements,
+/// backed by a hash table.
+///
+/// It implements Set, providing membership tests, insertion, removal,
+/// and set algebra. Iteration order is unspecified.
+pub class HashSet[T] : Set[T] & ToString {
+
+    /// Create an empty hash set.
+    @native
+    pub func __init__() {}
+
+    /// Return an iterator over the elements. Order is unspecified.
+    @native
+    pub func __iter__() Iterator[T] {}
+
+    /// Return the number of elements. O(1).
+    @native
+    pub func __len__() int {}
+
+    /// Return true if the set is empty, false otherwise. O(1).
+    @native
+    pub func empty() bool {}
+
+    /// Return true if the set contains `v`.
+    @native
+    pub func __contains__(v T) bool {}
+
+    /// Add an element to the set.
+    /// Return true if the element was not already present.
+    @native
+    pub func add(v T) bool {}
+
+    /// Add all elements from `items` to the set.
+    @native
+    pub func extend(items Iterable[T]) {}
+
+    /// Remove an element from the set.
+    /// Return true if the element was present.
+    @native
+    pub func remove(v T) bool {}
+
+    /// Remove all elements from the set, leaving it empty.
+    @native
+    pub func clear() {}
+
+    /// Return true if every element in the set is in `other`.
+    @native
+    pub func is_subset(other Iterable[T]) bool {}
+
+    /// Return true if every element in `other` is in the set.
+    @native
+    pub func is_superset(other Iterable[T]) bool {}
+
+    /// Return a new set with elements from the set and `other`.
+    @native
     pub func union(other Iterable[T]) HashSet[T] {}
+
+    /// Return a new set with elements common to the set and `other`.
+    @native
     pub func intersect(other Iterable[T]) HashSet[T] {}
+
+    /// Return a new set with elements in the set that are not in `other`.
+    @native
     pub func diff(other Iterable[T]) HashSet[T] {}
+
+    /// Return a string representation of the set.
+    /// Format: "{element1, element2}".
+    @native
+    pub func __str__() str {}
+
+    /// Return a new set with elements in the set or `other`, but not both.
+    @native
+    pub func sym_diff(other Iterable[T]) HashSet[T] {}
+
+    /// Return a new set with elements from the set and `other` (`self | other`).
+    @native
+    pub func __or__(other Iterable[T]) HashSet[T] {}
+
+    /// Return a new set with elements common to the set and `other` (`self & other`).
+    @native
+    pub func __and__(other Iterable[T]) HashSet[T] {}
+
+    /// Return a new set with elements in the set that are not in `other` (`self - other`).
+    @native
+    pub func __sub__(other Iterable[T]) HashSet[T] {}
+
+    /// Return a list of all elements. Order is unspecified.
+    @native
+    pub func to_list() list[T] {}
 }
 
-pub class TreeSet[T : Comparable[T]] : Set[T] {
+/// A TreeSet is a mutable, sorted collection of unique elements,
+/// backed by a balanced tree.
+///
+/// It implements Set, providing membership tests, insertion, removal,
+/// and set algebra. Elements are ordered by their Comparable ordering;
+/// iteration, to_list() and reversed() follow that order.
+pub class TreeSet[T : Comparable[T]] : Set[T] & ToString {
+
+    /// Create an empty tree set.
+    @native
+    pub func __init__() {}
+
+    /// Return an iterator over the elements in sorted order.
+    @native
+    pub func __iter__() Iterator[T] {}
+
+    /// Return the number of elements. O(1).
+    @native
+    pub func __len__() int {}
+
+    /// Return true if the set is empty, false otherwise. O(1).
+    @native
+    pub func empty() bool {}
+
+    /// Return true if the set contains `v`.
+    @native
+    pub func __contains__(v T) bool {}
+
+    /// Add an element to the set.
+    /// Return true if the element was not already present.
+    @native
+    pub func add(v T) bool {}
+
+    /// Add all elements from `items` to the set.
+    @native
+    pub func extend(items Iterable[T]) {}
+
+    /// Remove an element from the set.
+    /// Return true if the element was present.
+    @native
+    pub func remove(v T) bool {}
+
+    /// Remove all elements from the set, leaving it empty.
+    @native
+    pub func clear() {}
+
+    /// Return true if every element in the set is in `other`.
+    @native
+    pub func is_subset(other Iterable[T]) bool {}
+
+    /// Return true if every element in `other` is in the set.
+    @native
+    pub func is_superset(other Iterable[T]) bool {}
+
+    /// Return a new sorted set with elements from the set and `other`.
+    @native
     pub func union(other Iterable[T]) TreeSet[T] {}
+
+    /// Return a new sorted set with elements common to the set and `other`.
+    @native
     pub func intersect(other Iterable[T]) TreeSet[T] {}
+
+    /// Return a new sorted set with elements in the set that are not in `other`.
+    @native
     pub func diff(other Iterable[T]) TreeSet[T] {}
+
+    /// Return a string representation of the set.
+    /// Format: "{element1, element2}", in sorted order.
+    @native
+    pub func __str__() str {}
+
+    /// Return a new sorted set with elements in the set or `other`, but not both.
+    @native
+    pub func sym_diff(other Iterable[T]) TreeSet[T] {}
+
+    /// Return a new sorted set with elements from the set and `other` (`self | other`).
+    @native
+    pub func __or__(other Iterable[T]) TreeSet[T] {}
+
+    /// Return a new sorted set with elements common to the set and `other` (`self & other`).
+    @native
+    pub func __and__(other Iterable[T]) TreeSet[T] {}
+
+    /// Return a new sorted set with elements in the set that are not in `other` (`self - other`).
+    @native
+    pub func __sub__(other Iterable[T]) TreeSet[T] {}
+
+    /// Return a reverse iterator over the elements in reverse sorted order.
+    @native
+    pub func reversed() Iterator[T] {}
+
+    /// Return a list of all elements in sorted order.
+    @native
+    pub func to_list() list[T] {}
 }

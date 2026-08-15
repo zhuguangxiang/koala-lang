@@ -3,17 +3,31 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub class type {
+/// The type class represents the runtime type of a value.
+///
+/// Type objects are produced only by the runtime via `typeof()`
+/// and cannot be created directly.
+pub class type : ToString {
 
-    // it's private, so usr can't create a type object directly
+    // Private: type objects are created by the runtime only.
     func __init__() {}
 
+    /// Return the string representation of the type.
+    /// Format: "<class 'name'>", e.g. "<class 'str'>".
+    @native
+    pub func __str__() str {}
+
+    /// Return the name of the type.
+    /// For types outside std/builtin, the name is prefixed with the module path.
     @native
     pub func name() str {}
 
+    /// Return the names of all methods of the type.
     @native
     pub func methods() list[str] {}
 
+    /// Return the names of the traits conformed to by the type,
+    /// in Linearized Resolution Order.
     @native
     pub func lro() list[str] {}
 }

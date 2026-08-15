@@ -6,14 +6,14 @@
 /// An Iterator represents a position in a sequence of elements.
 /// It provides a safe way to traverse collections through a check-then-act pattern.
 pub trait Iterator[T] {
-    /// Return True if the iteration has more elements, False otherwise.
+    /// Return true if the iteration has more elements, false otherwise.
     /// This method must be checked before every call to `__next__()`.
     func __has_next__() bool
 
     /// Return the next item from the iterator.
     ///
-    /// PRECONDITION: `__has_next__()` must return True before calling this method.
-    /// If called when `__has_next__()` is False, it will trigger an panic.
+    /// PRECONDITION: `__has_next__()` must return true before calling this method.
+    /// If called when `__has_next__()` is false, it will trigger a panic.
     func __next__() T
 }
 
@@ -24,7 +24,7 @@ pub trait Iterable[T] {
     func __iter__() Iterator[T]
 
     /*
-    /// Return a lazy filter object that yields items for which `fn` returns True.
+    /// Return a lazy filter object that yields items for which `fn` returns true.
     ///
     /// Example:
     ///   func is_even(x int) bool = x % 2 == 0  // Named function (Assignment style)

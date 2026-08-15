@@ -1,43 +1,161 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
+/// A ByteBuf is a variable-length, readable and writable byte buffer.
+pub class ByteBuf : MutableSequence[uint8] & ToString {
 
-pub class ByteBuf : MutableSequence[uint8] {
-
+    /// Create a byte buffer of the initial `size`, filled with zeros.
     @native
     pub func __init__(size = 0) {}
 
-    @intrinsic
-    pub func __getitem__(index int) uint8 {}
-
-    @intrinsic
-    pub func __setitem__(index int, value uint8) {}
-
+    /// Return an iterator over the bytes.
     @native
-    pub func append(value uint8) {}
+    pub func __iter__() Iterator[uint8] {}
 
+    /// Return the length of the buffer. O(1).
     @native
     pub func __len__() int {}
 
+    /// Return true if the buffer is empty, false otherwise. O(1).
     @native
-    pub func to_bytes() bytes {}
+    pub func empty() bool {}
 
+    /// Return the byte at the specified index. O(1).
+    /// Panic if the index is out of range.
+    @intrinsic
+    pub func __getitem__(index int) uint8 {}
+
+    /// Return a copy of the portion of the buffer defined by the slice,
+    /// as a fixed-size bytes snapshot.
     @native
-    pub func append_bytes(value bytes, start = 0, end = -1) {}
+    pub func __getslice__(r slice) bytes {}
 
+    /// Return true if the buffer contains the byte `value`. O(n).
     @native
-    pub func fill(value uint8, start = 0, end = -1) {}
+    pub func __contains__(value uint8) bool {}
 
+    /// Return the first index of `value` in [start, end). O(n).
+    /// If `end` is -1, the search extends to the end of the buffer.
+    /// Return -1 if the value is not present.
     @native
-    pub func zero(start = 0, end = -1) {}
+    pub func index(value uint8, start = 0, end = -1) int {}
 
+    /// Return the last index of `value` in [start, end). O(n).
+    /// If `end` is -1, the search extends to the end of the buffer.
+    /// Return -1 if the value is not present.
+    @native
+    pub func rindex(value uint8, start = 0, end = -1) int {}
+
+    /// Return the number of occurrences of `value` in [start, end). O(n).
+    /// If `end` is -1, the search extends to the end of the buffer.
+    @native
+    pub func count(value uint8, start = 0, end = -1) int {}
+
+    /// Set the byte at the specified index to `value`. O(1).
+    /// Panic if the index is out of range.
+    @intrinsic
+    pub func __setitem__(index int, value uint8) {}
+
+    /// Replace a slice of the buffer with the elements from `val`.
+    /// This may change the length of the buffer.
+    @native
+    pub func __setslice__(r slice, val Iterable[uint8]) {}
+
+    /// Append a byte `value` to the end of the buffer.
+    @native
+    pub func append(value uint8) {}
+
+    /// Extend the buffer by appending all bytes from `items`.
+    @native
+    pub func extend(items Iterable[uint8]) {}
+
+    /// Insert a byte `value` at the given `index`.
+    /// Bytes at or after the index are shifted to the right.
+    @native
+    pub func insert(index int, value uint8) {}
+
+    /// Remove the first occurrence of `value` from the buffer.
+    /// Panic if the value is not present.
+    @native
+    pub func remove(value uint8) {}
+
+    /// Remove and return the byte at the given `index`.
+    /// If no index is specified, removes and returns the last byte (-1).
+    @native
+    pub func pop(index = -1) uint8 {}
+
+    /// Remove all bytes from the buffer, leaving it empty.
     @native
     pub func clear() {}
 
+    /// Reverse the bytes in place.
+    @native
+    pub func reverse() {}
+
+    /// Return the hexadecimal string representation of the buffer.
+    @native
+    pub func __str__() str {}
+
+    /// Append the bytes of `value` in [start, end) to the end of the buffer.
+    /// If `end` is -1, the append extends to the end of `value`.
+    @native
+    pub func append_bytes(value bytes, start = 0, end = -1) {}
+
+    /// Append the UTF-8 encoded bytes of `value` in [start, end)
+    /// to the end of the buffer.
+    /// If `end` is -1, the append extends to the end of `value`.
     @native
     pub func append_str(value str, start = 0, end = -1) {}
 
+    /// Fill the bytes in [start, end) with `value`.
+    /// If `end` is -1, the fill extends to the end of the buffer.
+    @native
+    pub func fill(value uint8, start = 0, end = -1) {}
+
+    /// Set the bytes in [start, end) to zero.
+    /// If `end` is -1, the zeroing extends to the end of the buffer.
+    @native
+    pub func zero(start = 0, end = -1) {}
+
+    /// Return the first index of the sub-sequence `sub` in [start, end). O(n).
+    /// If `end` is -1, the search extends to the end of the buffer.
+    /// Return -1 if `sub` is not present.
+    @native
+    pub func find(sub bytes, start = 0, end = -1) int {}
+
+    /// Return the last index of the sub-sequence `sub` in [start, end). O(n).
+    /// If `end` is -1, the search extends to the end of the buffer.
+    /// Return -1 if `sub` is not present.
+    @native
+    pub func rfind(sub bytes, start = 0, end = -1) int {}
+
+    /// Return true if the buffer starts with `prefix`.
+    @native
+    pub func starts_with(prefix bytes) bool {}
+
+    /// Return true if the buffer ends with `suffix`.
+    @native
+    pub func ends_with(suffix bytes) bool {}
+
+    /// Copy the bytes of `src` in [start, end) into `self` from the beginning,
+    /// overwriting existing content. The length of the buffer never changes.
+    /// Return the number of bytes copied.
+    /// Return -1 if `end - start` exceeds the length of `self`.
+    @native
+    pub func copy(src bytes, start = 0, end = -1) int {}
+
+    /// Return a fixed-size bytes snapshot of the buffer.
+    @native
+    pub func to_bytes() bytes {}
+
+    /// Decode the buffer as UTF-8 and return a new str.
+    /// Panic if the bytes are not valid UTF-8.
     @native
     pub func to_str() str {}
 
+    /// Return a reverse iterator over the bytes.
     @native
-    pub func write_u32_be(value uint32) {}
+    pub func reversed() Iterator[uint8] {}
 }

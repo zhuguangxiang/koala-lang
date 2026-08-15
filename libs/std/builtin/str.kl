@@ -3,71 +3,256 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+/// A str is an immutable sequence of characters.
+///
+/// It implements Sequence, providing text processing capabilities:
+/// searching, slicing, splitting, joining, case conversion and formatting.
+///
+/// Characters are encoded as UTF-8. str operates at the character level,
+/// so code-point level APIs (like Python's `ord`/`chr`) are not provided;
+/// use `to_bytes` for byte-level access.
 pub class str : Sequence & Comparable & Hashable & ToString {
 
+    /// Initialize a string from `s`: a copy if `s` is a str,
+    /// or a UTF-8 decoding if `s` is bytes.
+    /// Panic if the bytes are not valid UTF-8.
     @native
-    pub func __init__(s str) {}
+    pub func __init__(s str | bytes) {}
 
+    /// Return an iterator over the characters of the string.
+    @native
+    pub func __iter__() Iterator[str] {}
+
+    /// Return the length of the string.
     @native
     pub func __len__() int {}
 
+    /// Return true if the string is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Return the character at the specified index.
+    /// Panic if the index is out of range.
     @native
     pub func __getitem__(index int) str {}
 
+    /// Return the substring defined by the slice.
     @native
-    pub func __getslice__(r slice) list[str] {}
+    pub func __getslice__(r slice) str {}
 
-    @native
-    pub func find(sub str) int {}
-
-    @native
-    pub func substr(start int, length int) str {}
-
-    @native
-    pub func to_int() int {}
-
-    @native
-    pub func to_float() float64 {}
-
-    @native
-    pub func format(args ...) str {}
-
-    @native
-    pub func __add__(rhs str) str {}
-
-    @native
-    pub func __eq__(rhs str) bool {}
-
-    @native
-    pub func __ne__(rhs str) bool {}
-
-    @native
-    pub func __lt__(rhs str) bool {}
-
-    @native
-    pub func __le__(rhs str) bool {}
-
-    @native
-    pub func __gt__(rhs str) bool {}
-
-    @native
-    pub func __ge__(rhs str) bool {}
-
-    @native
-    pub func __str__() str {}
-
-    @native
-    pub func join(seq Sequence[str]) str {}
-
-    @native
-    pub func to_bytes() bytes {}
-
-    @native
-    pub func split(sep = " ") list[str] {}
-
+    /// Return true if the string contains the substring `sub`.
     @native
     pub func __contains__(sub str) bool {}
 
+    /// Return the first index of the substring `value` in [start, end).
+    /// If `end` is -1, the search extends to the end of the string.
+    /// Return -1 if the substring is not present.
+    @native
+    pub func index(value str, start = 0, end = -1) int {}
+
+    /// Return the last index of the substring `value` in [start, end).
+    /// If `end` is -1, the search extends to the end of the string.
+    /// Return -1 if the substring is not present.
+    @native
+    pub func rindex(value str, start = 0, end = -1) int {}
+
+    /// Return the number of occurrences of the substring `value` in [start, end).
+    /// If `end` is -1, the search extends to the end of the string.
+    @native
+    pub func count(value str, start = 0, end = -1) int {}
+
+    /// Return true if `self` is equal to `rhs` (`self == rhs`).
+    @native
+    pub func __eq__(rhs str) bool {}
+
+    /// Return true if `self` is not equal to `rhs` (`self != rhs`).
+    @native
+    pub func __ne__(rhs str) bool {}
+
+    /// Return true if `self` is lexicographically less than `rhs` (`self < rhs`).
+    @native
+    pub func __lt__(rhs str) bool {}
+
+    /// Return true if `self` is lexicographically less than or equal to `rhs` (`self <= rhs`).
+    @native
+    pub func __le__(rhs str) bool {}
+
+    /// Return true if `self` is lexicographically greater than `rhs` (`self > rhs`).
+    @native
+    pub func __gt__(rhs str) bool {}
+
+    /// Return true if `self` is lexicographically greater than or equal to `rhs` (`self >= rhs`).
+    @native
+    pub func __ge__(rhs str) bool {}
+
+    /// Return a stable hash value of the string.
+    /// Equal strings must always produce identical hash values.
     @native
     pub func __hash__() int {}
+
+    /// Return the string itself.
+    @native
+    pub func __str__() str {}
+
+    /// Return the substring from `start` (inclusive) to `end` (exclusive).
+    /// If `end` is -1, the substring extends to the end of the string.
+    @native
+    pub func substr(start = 0, end = -1) str {}
+
+    /// Parse the string as a decimal integer.
+    /// Panic if the string is not a valid integer.
+    @native
+    pub func to_int() int {}
+
+    /// Parse the string as a decimal integer.
+    /// Return `default` if the string is not a valid integer.
+    @native
+    pub func to_int_or(default int) int {}
+
+    /// Parse the string as a floating-point number.
+    /// Panic if the string is not a valid number.
+    @native
+    pub func to_float() float64 {}
+
+    /// Parse the string as a floating-point number.
+    /// Return `default` if the string is not a valid number.
+    @native
+    pub func to_float_or(default float64) float64 {}
+
+    /// Return a formatted string using `self` as the format.
+    /// `{}` consumes one argument in order.
+    @native
+    pub func format(args ...) str {}
+
+    /// Return a new string with `self` followed by `rhs` (`self + rhs`).
+    @native
+    pub func __add__(rhs str) str {}
+
+    /// Return a new string with `self` repeated `n` times (`self * n`).
+    /// Return an empty string if `n` is not positive.
+    @native
+    pub func __mul__(n int) str {}
+
+    /// Return a string made by joining the elements of `seq`,
+    /// with `self` as the separator.
+    @native
+    pub func join(seq Sequence[str]) str {}
+
+    /// Return the UTF-8 encoded bytes of the string.
+    @native
+    pub func to_bytes() bytes {}
+
+    /// Split the string by the separator `sep` and return the parts as a list.
+    /// At most `maxsplit` splits are done; if `maxsplit` is -1, there is no limit.
+    @native
+    pub func split(sep = " ", maxsplit = -1) list[str] {}
+
+    /// Split the string by the separator `sep` from the right and return
+    /// the parts as a list. At most `maxsplit` splits are done;
+    /// if `maxsplit` is -1, there is no limit.
+    @native
+    pub func rsplit(sep = " ", maxsplit = -1) list[str] {}
+
+    /// Split the string at line boundaries and return the lines as a list.
+    /// The line break characters are not included.
+    @native
+    pub func splitlines() list[str] {}
+
+    /// Return a copy of the string with all characters converted to uppercase.
+    @native
+    pub func upper() str {}
+
+    /// Return a copy of the string with all characters converted to lowercase.
+    @native
+    pub func lower() str {}
+
+    /// Return a copy of the string with the first character capitalized
+    /// and the rest lowercased.
+    @native
+    pub func capitalize() str {}
+
+    /// Return a copy of the string with leading and trailing whitespace removed.
+    @native
+    pub func strip() str {}
+
+    /// Return a copy of the string with leading whitespace removed.
+    @native
+    pub func lstrip() str {}
+
+    /// Return a copy of the string with trailing whitespace removed.
+    @native
+    pub func rstrip() str {}
+
+    /// Return true if the string starts with `prefix`.
+    @native
+    pub func startswith(prefix str) bool {}
+
+    /// Return true if the string ends with `suffix`.
+    @native
+    pub func endswith(suffix str) bool {}
+
+    /// Return a copy of the string with `prefix` removed
+    /// if the string starts with it, otherwise return the string unchanged.
+    @native
+    pub func removeprefix(prefix str) str {}
+
+    /// Return a copy of the string with `suffix` removed
+    /// if the string ends with it, otherwise return the string unchanged.
+    @native
+    pub func removesuffix(suffix str) str {}
+
+    /// Return a copy of the string with all occurrences of `old` replaced by `new`.
+    @native
+    pub func replace(old str, new str) str {}
+
+    /// Return a copy of the string left-padded with zeros to the given `width`.
+    /// If `width` is not greater than the string length, the string is returned unchanged.
+    @native
+    pub func zfill(width int) str {}
+
+    /// Return the string left-justified in a field of the given `width`,
+    /// padded with `fill` (default space). If `width` is not greater than
+    /// the string length, the string is returned unchanged.
+    @native
+    pub func ljust(width int, fill = " ") str {}
+
+    /// Return the string right-justified in a field of the given `width`,
+    /// padded with `fill` (default space). If `width` is not greater than
+    /// the string length, the string is returned unchanged.
+    @native
+    pub func rjust(width int, fill = " ") str {}
+
+    /// Return the string centered in a field of the given `width`,
+    /// padded with `fill` (default space). If `width` is not greater than
+    /// the string length, the string is returned unchanged.
+    @native
+    pub func center(width int, fill = " ") str {}
+
+    /// Return true if all characters in the string are digits.
+    @native
+    pub func isdigit() bool {}
+
+    /// Return true if all characters in the string are alphabetic.
+    @native
+    pub func isalpha() bool {}
+
+    /// Return true if all characters in the string are alphanumeric.
+    @native
+    pub func isalnum() bool {}
+
+    /// Return true if all characters in the string are whitespace.
+    @native
+    pub func isspace() bool {}
+
+    /// Return true if all cased characters in the string are lowercase.
+    @native
+    pub func islower() bool {}
+
+    /// Return true if all cased characters in the string are uppercase.
+    @native
+    pub func isupper() bool {}
+
+    /// Return a reverse iterator over the characters of the string.
+    @native
+    pub func reversed() Iterator[str] {}
 }

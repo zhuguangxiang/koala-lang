@@ -1,0 +1,28 @@
+
+
+link "koala_ext_native"
+
+/// Base64 codecs (RFC 4648).
+///
+/// `encode`/`decode` use the standard alphabet with padding,
+/// `encode_url`/`decode_url` use the URL- and filename-safe alphabet.
+
+/// Encode the bytes to a base64 string using the standard alphabet,
+/// with '=' padding.
+@native
+pub func encode(b bytes) str {}
+
+/// Decode a base64 string in the standard alphabet.
+/// Panic if the input is not valid base64.
+@native
+pub func decode(s str) bytes {}
+
+/// Encode the bytes to a base64 string using the URL- and filename-safe
+/// alphabet, with '=' padding.
+@native
+pub func encode_url(b bytes) str {}
+
+/// Decode a base64 string in the URL- and filename-safe alphabet.
+/// Panic if the input is not valid base64.
+@native
+pub func decode_url(s str) bytes {}

@@ -1,0 +1,257 @@
+
+
+link "koala_ext_native"
+
+/// Binary integer and float codecs over byte sequences.
+///
+/// Fixed-size codecs read at an offset of a `bytes`, or write either
+/// at an offset of a `bytes` or by appending to a `ByteBuf`.
+/// The `_be`/`_le` suffix selects big-endian or little-endian byte order.
+/// Variable-size codecs use the LEB128 format (zigzag for signed
+/// values), named `leb_u64`/`leb_i64`.
+
+/// Read an unsigned 16-bit integer from `b` at `offset`, big-endian.
+/// Panic if `offset + 2` exceeds the size of `b`.
+@native
+pub func read_u16_be(b bytes, offset int) uint16 {}
+
+/// Read an unsigned 16-bit integer from `b` at `offset`, little-endian.
+/// Panic if `offset + 2` exceeds the size of `b`.
+@native
+pub func read_u16_le(b bytes, offset int) uint16 {}
+
+/// Read an unsigned 32-bit integer from `b` at `offset`, big-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func read_u32_be(b bytes, offset int) uint32 {}
+
+/// Read an unsigned 32-bit integer from `b` at `offset`, little-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func read_u32_le(b bytes, offset int) uint32 {}
+
+/// Read an unsigned 64-bit integer from `b` at `offset`, big-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func read_u64_be(b bytes, offset int) uint64 {}
+
+/// Read an unsigned 64-bit integer from `b` at `offset`, little-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func read_u64_le(b bytes, offset int) uint64 {}
+
+/// Read a signed 16-bit integer from `b` at `offset`, big-endian.
+/// Panic if `offset + 2` exceeds the size of `b`.
+@native
+pub func read_i16_be(b bytes, offset int) int16 {}
+
+/// Read a signed 16-bit integer from `b` at `offset`, little-endian.
+/// Panic if `offset + 2` exceeds the size of `b`.
+@native
+pub func read_i16_le(b bytes, offset int) int16 {}
+
+/// Read a signed 32-bit integer from `b` at `offset`, big-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func read_i32_be(b bytes, offset int) int32 {}
+
+/// Read a signed 32-bit integer from `b` at `offset`, little-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func read_i32_le(b bytes, offset int) int32 {}
+
+/// Read a signed 64-bit integer from `b` at `offset`, big-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func read_i64_be(b bytes, offset int) int64 {}
+
+/// Read a signed 64-bit integer from `b` at `offset`, little-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func read_i64_le(b bytes, offset int) int64 {}
+
+/// Read a 32-bit float from `b` at `offset`, big-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func read_f32_be(b bytes, offset int) float32 {}
+
+/// Read a 32-bit float from `b` at `offset`, little-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func read_f32_le(b bytes, offset int) float32 {}
+
+/// Read a 64-bit float from `b` at `offset`, big-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func read_f64_be(b bytes, offset int) float64 {}
+
+/// Read a 64-bit float from `b` at `offset`, little-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func read_f64_le(b bytes, offset int) float64 {}
+
+/// Write an unsigned 16-bit integer `value` to `b` at `offset`, big-endian.
+/// Panic if `offset + 2` exceeds the size of `b`.
+@native
+pub func write_u16_be(b bytes, offset int, value uint16) {}
+
+/// Write an unsigned 16-bit integer `value` to `b` at `offset`, little-endian.
+/// Panic if `offset + 2` exceeds the size of `b`.
+@native
+pub func write_u16_le(b bytes, offset int, value uint16) {}
+
+/// Write an unsigned 32-bit integer `value` to `b` at `offset`, big-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func write_u32_be(b bytes, offset int, value uint32) {}
+
+/// Write an unsigned 32-bit integer `value` to `b` at `offset`, little-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func write_u32_le(b bytes, offset int, value uint32) {}
+
+/// Write an unsigned 64-bit integer `value` to `b` at `offset`, big-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func write_u64_be(b bytes, offset int, value uint64) {}
+
+/// Write an unsigned 64-bit integer `value` to `b` at `offset`, little-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func write_u64_le(b bytes, offset int, value uint64) {}
+
+/// Write a signed 16-bit integer `value` to `b` at `offset`, big-endian.
+/// Panic if `offset + 2` exceeds the size of `b`.
+@native
+pub func write_i16_be(b bytes, offset int, value int16) {}
+
+/// Write a signed 16-bit integer `value` to `b` at `offset`, little-endian.
+/// Panic if `offset + 2` exceeds the size of `b`.
+@native
+pub func write_i16_le(b bytes, offset int, value int16) {}
+
+/// Write a signed 32-bit integer `value` to `b` at `offset`, big-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func write_i32_be(b bytes, offset int, value int32) {}
+
+/// Write a signed 32-bit integer `value` to `b` at `offset`, little-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func write_i32_le(b bytes, offset int, value int32) {}
+
+/// Write a signed 64-bit integer `value` to `b` at `offset`, big-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func write_i64_be(b bytes, offset int, value int64) {}
+
+/// Write a signed 64-bit integer `value` to `b` at `offset`, little-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func write_i64_le(b bytes, offset int, value int64) {}
+
+/// Write a 32-bit float `value` to `b` at `offset`, big-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func write_f32_be(b bytes, offset int, value float32) {}
+
+/// Write a 32-bit float `value` to `b` at `offset`, little-endian.
+/// Panic if `offset + 4` exceeds the size of `b`.
+@native
+pub func write_f32_le(b bytes, offset int, value float32) {}
+
+/// Write a 64-bit float `value` to `b` at `offset`, big-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func write_f64_be(b bytes, offset int, value float64) {}
+
+/// Write a 64-bit float `value` to `b` at `offset`, little-endian.
+/// Panic if `offset + 8` exceeds the size of `b`.
+@native
+pub func write_f64_le(b bytes, offset int, value float64) {}
+
+/// Append an unsigned 16-bit integer `value` to `buf`, big-endian.
+@native
+pub func buf_write_u16_be(buf ByteBuf, value uint16) {}
+
+/// Append an unsigned 16-bit integer `value` to `buf`, little-endian.
+@native
+pub func buf_write_u16_le(buf ByteBuf, value uint16) {}
+
+/// Append an unsigned 32-bit integer `value` to `buf`, big-endian.
+@native
+pub func buf_write_u32_be(buf ByteBuf, value uint32) {}
+
+/// Append an unsigned 32-bit integer `value` to `buf`, little-endian.
+@native
+pub func buf_write_u32_le(buf ByteBuf, value uint32) {}
+
+/// Append an unsigned 64-bit integer `value` to `buf`, big-endian.
+@native
+pub func buf_write_u64_be(buf ByteBuf, value uint64) {}
+
+/// Append an unsigned 64-bit integer `value` to `buf`, little-endian.
+@native
+pub func buf_write_u64_le(buf ByteBuf, value uint64) {}
+
+/// Append a signed 16-bit integer `value` to `buf`, big-endian.
+@native
+pub func buf_write_i16_be(buf ByteBuf, value int16) {}
+
+/// Append a signed 16-bit integer `value` to `buf`, little-endian.
+@native
+pub func buf_write_i16_le(buf ByteBuf, value int16) {}
+
+/// Append a signed 32-bit integer `value` to `buf`, big-endian.
+@native
+pub func buf_write_i32_be(buf ByteBuf, value int32) {}
+
+/// Append a signed 32-bit integer `value` to `buf`, little-endian.
+@native
+pub func buf_write_i32_le(buf ByteBuf, value int32) {}
+
+/// Append a signed 64-bit integer `value` to `buf`, big-endian.
+@native
+pub func buf_write_i64_be(buf ByteBuf, value int64) {}
+
+/// Append a signed 64-bit integer `value` to `buf`, little-endian.
+@native
+pub func buf_write_i64_le(buf ByteBuf, value int64) {}
+
+/// Append a 32-bit float `value` to `buf`, big-endian.
+@native
+pub func buf_write_f32_be(buf ByteBuf, value float32) {}
+
+/// Append a 32-bit float `value` to `buf`, little-endian.
+@native
+pub func buf_write_f32_le(buf ByteBuf, value float32) {}
+
+/// Append a 64-bit float `value` to `buf`, big-endian.
+@native
+pub func buf_write_f64_be(buf ByteBuf, value float64) {}
+
+/// Append a 64-bit float `value` to `buf`, little-endian.
+@native
+pub func buf_write_f64_le(buf ByteBuf, value float64) {}
+
+/// Read an unsigned LEB128 integer from `b` at `offset`.
+/// Return the value and the number of bytes read.
+/// Panic if the integer is malformed or exceeds the size of `b`.
+@native
+pub func read_leb_u64(b bytes, offset int) (uint64, int) {}
+
+/// Read a signed LEB128 integer (zigzag-encoded) from `b` at `offset`.
+/// Return the value and the number of bytes read.
+/// Panic if the integer is malformed or exceeds the size of `b`.
+@native
+pub func read_leb_i64(b bytes, offset int) (int64, int) {}
+
+/// Append `value` to `buf` as an unsigned LEB128 integer.
+/// Return the number of bytes written.
+@native
+pub func buf_write_leb_u64(buf ByteBuf, value uint64) int {}
+
+/// Append `value` to `buf` as a signed LEB128 integer (zigzag-encoded).
+/// Return the number of bytes written.
+@native
+pub func buf_write_leb_i64(buf ByteBuf, value int64) int {}

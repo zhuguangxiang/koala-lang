@@ -3,25 +3,129 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub class dict[K, V] : Map[K, V] {
+/// A dict is a mutable, insertion-ordered hash map that maps unique keys
+/// to values.
+///
+/// It implements Map, providing key lookup, insertion, removal,
+/// and iteration over key-value pairs. Iteration, keys(), values() and
+/// items() all follow insertion order.
+pub class dict[K, V] : Map[K, V] & ToString {
 
+    /// Create an empty dict.
+    @native
+    pub func __init__() {}
+
+    /// Create a new dict with keys from `keys` and all values set to `value`.
+    @native
+    pub static func fromkeys(keys Iterable[K], value V) dict[K, V] {}
+
+    /// Return an iterator over the (key, value) pairs in insertion order.
+    @native
+    pub func __iter__() Iterator[(K, V)] {}
+
+    /// Return the number of key-value pairs. O(1).
     @native
     pub func __len__() int {}
 
+    /// Return true if the dict is empty, false otherwise. O(1).
     @native
-    pub func __getitem__(index any) V {}
+    pub func empty() bool {}
 
+    /// Return true if the dict contains a mapping for `key`.
     @native
-    pub func __setitem__(index any, v V) {}
-
     pub func __contains__(key K) bool {}
+
+    /// Return the value mapped to `key`. O(1).
+    /// Panic if the key is not present.
+    @native
     pub func __getsub__(key K) V {}
+
+    /// Associate `value` with `key`, replacing any existing mapping.
+    @native
     pub func __setsub__(key K, value V) {}
+
+    /// Return a list of all keys in the dict, in insertion order.
+    @native
     pub func keys() list[K] {}
+
+    /// Return a list of all values in the dict, in insertion order.
+    @native
     pub func values() list[V] {}
+
+    /// Return a list of all (key, value) pairs in the dict, in insertion order.
+    @native
     pub func items() list[(K, V)] {}
+
+    /// Remove all mappings from the dict, leaving it empty.
+    @native
+    pub func clear() {}
+
+    /// Remove the mapping for `key` and return its value. O(1).
+    /// Panic if the key is not present.
+    @native
     pub func remove(key K) V {}
+
+    /// Remove the mapping for `key` and return its value. O(1).
+    /// If the key is not found, return `default_value`.
+    @native
     pub func remove_or(key K, default_value V) V {}
-    pub func get(key K) V {}
+
+    /// Return the value for `key` if present, else null. O(1).
+    /// Unlike `__getsub__`, this never panics; use with `if let` unwrapping.
+    @native
+    pub func get(key K) V? {}
+
+    /// Return the value for `key` if present, else `default_value`. O(1).
+    @native
     pub func get_or(key K, default_value V) V {}
+
+    /// Return a string representation of the dict.
+    /// Format: "{key1: value1, key2: value2}".
+    @native
+    pub func __str__() str {}
+
+    /// Merge all (key, value) pairs from `src` into the dict,
+    /// replacing the values of existing keys.
+    @native
+    pub func update(src Iterable[(K, V)]) {}
+
+    /// Return the value for `key` if it is in the dict.
+    /// Otherwise insert `key` with `default_value` and return `default_value`.
+    @native
+    pub func setdefault(key K, default_value V) V {}
+
+    /// Return the first inserted (key, value) pair without removing it.
+    /// Panic if the dict is empty.
+    @native
+    pub func peek_first() (K, V) {}
+
+    /// Return the last inserted (key, value) pair without removing it.
+    /// Panic if the dict is empty.
+    @native
+    pub func peek_last() (K, V) {}
+
+    /// Remove and return the first inserted (key, value) pair.
+    /// Panic if the dict is empty.
+    @native
+    pub func pop_first() (K, V) {}
+
+    /// Remove and return the last inserted (key, value) pair.
+    /// Panic if the dict is empty.
+    @native
+    pub func pop_last() (K, V) {}
+
+    /// Return a new dict with mappings of `self` followed by `src` (`self | src`).
+    /// Values from `src` replace those of duplicate keys.
+    @native
+    pub func __or__(src Iterable[(K, V)]) dict[K, V] {}
+
+    /// Merge all (key, value) pairs from `src` into the dict in place,
+    /// replacing the values of existing keys (`self |= src`).
+    @native
+    pub func __ior__(src Iterable[(K, V)]) dict[K, V] {}
+
+    /// Return a reverse iterator over the (key, value) pairs
+    /// in reverse insertion order.
+    @native
+    pub func reversed() Iterator[(K, V)] {}
 }

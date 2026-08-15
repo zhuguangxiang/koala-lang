@@ -6,22 +6,33 @@
 /// A slice object represents a set of indices specified by [start:end:step].
 ///
 /// It is internally created by the compiler when the ':' syntax is used
-/// inside subscript brackets [].
-pub class slice {
+/// inside subscript brackets []. Omitted and negative bounds are completed
+/// by the compiler against the target sequence length, so all fields are
+/// concrete integers. Follows Python's slicing semantics, including
+/// negative steps for reverse slicing.
+pub class slice : ToString {
     /// The starting index of the slice (inclusive).
     pub let start int
+
     /// The ending index of the slice (exclusive).
+    /// For reverse slices it may be -1, meaning the slice goes down to index 0.
     pub let end int
-    /// The step value for the slice.
+
+    /// The step value of the slice. A negative step reverses the direction.
+    /// Must not be zero; a zero step triggers a panic.
     pub let step int
 
     /// Initialize a new slice object.
-    ///
-    /// This constructor is typically called by the VM's BUILD_SLICE instruction
-    /// when parsing [start:end:step] syntax.
-    pub func __init__(_start = 0, _end = -1, _step = 1) {
+    /// Typically constructed by the `build_intern` op when the compiler
+    /// translates the [start:end:step] syntax.
+    pub func __init__(_start int, _end int, _step = 1) {
         start = _start
         end = _end
         step = _step
     }
+
+    /// Return the string representation of the slice. O(1).
+    /// Format: "slice(start, end, step)".
+    @native
+    pub func __str__() str {}
 }

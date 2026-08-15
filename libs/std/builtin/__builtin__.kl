@@ -4,46 +4,65 @@
  */
 
 /// Equatable defines semantic equality between two values of the same type.
+/// The type parameter T is the type compared against, which is the
+/// conforming type itself.
+///
 /// Types conforming to Equatable must provide both `__eq__` and `__ne__`,
 /// ensuring consistent behavior for equality and inequality checks.
 ///
 /// Conforming to Equatable allows a type to be used in conditional logic,
-/// comparisons, and other equality‑based operations.
+/// comparisons, and other equality-based operations.
 pub trait Equatable[T] {
-    func __eq__(other Equatable[T]) bool
-    func __ne__(other Equatable[T]) bool
+    /// Return true if `self` is equal to `other` (`self == other`).
+    func __eq__(other T) bool
+
+    /// Return true if `self` is not equal to `other` (`self != other`).
+    func __ne__(other T) bool
 }
 
 /// Comparable defines a total ordering between values of the same type.
+/// The type parameter T is the type compared against, which is the
+/// conforming type itself.
 /// Types conforming to Comparable can be sorted, compared, and used in
-/// ordered data structures such as priority queues or tree‑based collections.
+/// ordered data structures such as priority queues or tree-based collections.
 ///
 /// Comparable inherits from Equatable, so conforming types must also
 /// implement equality and inequality operations.
 pub trait Comparable[T] : Equatable[T] {
-    func __lt__(other Comparable[T]) bool
-    func __le__(other Comparable[T]) bool
-    func __gt__(other Comparable[T]) bool
-    func __ge__(other Comparable[T]) bool
+    /// Return true if `self` is less than `other` (`self < other`).
+    func __lt__(other T) bool
+
+    /// Return true if `self` is less than or equal to `other` (`self <= other`).
+    func __le__(other T) bool
+
+    /// Return true if `self` is greater than `other` (`self > other`).
+    func __gt__(other T) bool
+
+    /// Return true if `self` is greater than or equal to `other` (`self >= other`).
+    func __ge__(other T) bool
 }
 
 /// Hashable defines the ability for a type to produce a stable hash value.
 /// Conforming to Hashable allows a type to be used as a key in dictionaries,
-/// sets, and other hash‑based collections.
+/// sets, and other hash-based collections.
 ///
 /// Equal values must always produce identical hash values. The hash should
-/// be well‑distributed to ensure good performance in hashed structures.
+/// be well-distributed to ensure good performance in hashed structures.
 pub trait Hashable {
+    /// Return a stable hash value for `self`.
+    ///
+    /// Equal values must always produce identical hash values.
     func __hash__() int
 }
 
-/// ToString defines a human‑readable string representation for a type.
+/// ToString defines a human-readable string representation for a type.
 /// Conforming to this trait enables integration with `print()` and other
-/// string‑based output mechanisms.
+/// string-based output mechanisms.
 ///
 /// The returned string should be suitable for display to end users and
 /// represent the value in a clear, readable form.
 pub trait ToString {
+    /// Return a human-readable string representation of `self`.
     func __str__() str
 }
 
@@ -62,14 +81,14 @@ pub func print(objs ..., sep = ' ', end = '\n') {}
 /// Semantically, `len(obj)` is equivalent to calling `obj.__len__()`.
 ///
 /// Any object may define a `__len__()` method to customize its length
-/// behavior. Built‑in container types such as list, dict, tuple, and set
+/// behavior. Built-in container types such as list, dict, tuple, and set
 /// provide their own optimized implementations.
 ///
 /// Note:
-///     - As an intrinsic, `len()` does not have a user‑level implementation.
+///     - As an intrinsic, `len()` does not have a user-level implementation.
 ///     - The compiler may lower `len(obj)` to specialized VM instructions
 ///       (e.g., OP_SEQ_LEN, OP_MAP_LEN) when the object's type is known,
-///       enabling high‑performance length queries.
+///       enabling high-performance length queries.
 @intrinsic
 pub func len(obj any) int {}
 
@@ -79,12 +98,12 @@ pub func len(obj any) int {}
 /// execution context. The function does not return.
 ///
 /// This is a native builtin function implemented directly by the Koala VM.
-/// It is used by the standard library and compiler‑generated code to signal
+/// It is used by the standard library and compiler-generated code to signal
 /// unrecoverable conditions (such as failed assertions, type errors, or
 /// internal invariants).
 ///
 /// Note:
-///     - `panic()` does not have a user‑level implementation.
+///     - `panic()` does not have a user-level implementation.
 ///     - The VM may include additional diagnostic information such as
 ///       stack traces or source locations when reporting the panic.
 ///     - User code should prefer returning `T?` or error values when
@@ -111,3 +130,43 @@ pub func format(fmt str, args ...) str {}
 ///     typeof(Node(5)) // <class 'Node'>
 @native
 pub func typeof(obj any) type {}
+
+/*
+/// Return an iterator of (index, item) pairs from `seq`.
+/// The index starts at 0, or at `start` if given.
+///
+/// Example:
+///     for i, c in enumerate("abc") { print(i, c) }
+// @native
+// pub func enumerate[T](seq Iterable[T], start = 0) Iterator[tuple[int, T]] {}
+
+/// Return an iterator of tuple[T, U] pairs from two iterables.
+/// Iteration stops when the shorter input is exhausted.
+///
+/// Example:
+///     for k, v in zip(keys, values) { print(k, v) }
+// @native
+// pub func zip[T, U](a Iterable[T], b Iterable[U]) Iterator[tuple[T, U]] {}
+
+/// Return an iterator over the elements of `seq` for which `fn` returns true.
+///
+/// Example:
+///     let evens = filter(func(x int) bool { return x % 2 == 0 }, nums)
+// @native
+// pub func filter[T](fn func(T) bool, seq Iterable[T]) Iterator[T] {}
+
+/// Return an iterator over the elements of `seq` transformed by `fn`.
+///
+/// Example:
+///     let doubled = map(func(x int) int { return x * 2 }, nums)
+// @native
+// pub func map[T, R](fn func(T) R, seq Iterable[T]) Iterator[R] {}
+
+/// Reduce the elements of `seq` to a single value using `fn`,
+/// starting from `initial`.
+///
+/// Example:
+///     let sum = reduce(func(acc int, x int) int { return acc + x }, nums, 0)
+// @native
+// pub func reduce[T, U](fn func(U, T) U, seq Iterable[T], initial U) U {}
+*/

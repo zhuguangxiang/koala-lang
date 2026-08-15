@@ -3,8 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// The 'any' trait is the root of the Koala type hierarchy.
-/// Every class and trait implicitly inherits from 'any'.
+/// The `any` trait is the root of the Koala type hierarchy.
+/// Every class and trait implicitly inherits from `any`.
 /// It defines no methods and imposes no behavioral requirements.
 /// It exists solely as the universal supertype for all Koala values.
 pub trait any {}

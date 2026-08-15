@@ -3,38 +3,32 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// Represents a logical value that can be either True or False.
+/// Represents a logical value that can be either true or false.
 /// Boolean types are typically used in conditional statements and logical operations.
-pub class bool {
+pub class bool : Equatable & ToString {
 
-    /// Return the logical AND of this boolean and another boolean.
+    /// Return the logical AND of `self` and `other` (`self && other`).
     @intrinsic
     pub func __and__(other bool) bool {}
 
-    /// Return the logical OR of this boolean and another boolean.
+    /// Return the logical OR of `self` and `other` (`self || other`).
     @intrinsic
     pub func __or__(other bool) bool {}
 
-    /// Return the logical negation of the boolean.
+    /// Return the logical negation of `self` (`!self`).
     @intrinsic
     pub func __not__() bool {}
 
-    /// Return True if the boolean is equal to the other boolean.
-    /// This overrides the any.__eq__ method for optimized bitwise comparison.
+    /// Return true if `self` is equal to `other` (`self == other`).
     @intrinsic
-    pub func __eq__(other any) bool {}
+    pub func __eq__(other bool) bool {}
 
-    /// Return True if the boolean is not equal to the other boolean.
+    /// Return true if `self` is not equal to `other` (`self != other`).
     @intrinsic
     pub func __ne__(other bool) bool {}
 
     /// Return the string representation of the boolean.
-    /// Returns "true" if True, and "false" if False.
-    /// This overrides the any.__str__ method.
+    /// Returns "true" if true, and "false" if false.
     @native
     pub func __str__() str {}
-
-    /// Toggle the current boolean value and return the result.
-    /// If the value is true, it becomes false; if false, it becomes true.
-    pub func toggle() bool {}
 }

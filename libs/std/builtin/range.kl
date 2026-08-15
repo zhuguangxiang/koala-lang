@@ -7,89 +7,68 @@
 ///
 /// It is commonly used for looping a specific number of times in for loops.
 /// Since it implements Sequence, it supports O(1) length and indexing.
-pub class range : Sequence[int] {
+pub class range : Sequence[int] & ToString {
     /// The starting value of the range (inclusive).
     pub let start int
     /// The boundary value of the range (exclusive).
-    pub let stop int
+    pub let end int
     /// The interval between each number in the sequence.
     pub let step int
 
-    /// Initialize a range from start (inclusive) to stop (exclusive).
+    /// Initialize a range from start (inclusive) to end (exclusive).
     @native
-    pub func __init__(_start int, _end int, _step int = 1) {}
-
-    /// Return the number of elements in the range. O(1).
-    pub func __len__() int {
-        // if (this.step > 0 && this.start < this.stop) {
-        //     return (this.stop - this.start - 1) / this.step + 1
-        // } else if (this.step < 0 && this.start > this.stop) {
-        //     return (this.start - this.stop - 1) / (-this.step) + 1
-        // }
-        return 0
-    }
-
-    /// Get the integer at the specified index. O(1).
-    pub func __getitem__(index int) int {
-        // Precondition check and calculation: start + index * step
-    }
-
-    /// Return a new range that is a sub-slice of the current range. O(1).
-    pub func __getslice__(r slice) range {
-        // Returns a new range object with adjusted start/stop/step
-    }
-
-    /// Return True if the specified item is part of the range.
-    ///
-    /// This is an O(1) operation using arithmetic checks:
-    /// 1. Check if item is within [start, stop)
-    /// 2. Check if (item - start) % step == 0
-    pub func __contains__(item int) bool {
-        // Check if item is in the range using arithmetic and bounds checking
-    }
+    pub func __init__(_start int, _end int, _step = 1) {}
 
     /// Return an iterator for the range.
     @native
     pub func __iter__() Iterator[int] {}
 
-    /// Return the number of occurrences of value in the range.
-    ///
-    /// Since all values in a range are unique, this returns 1 if the value
-    /// is present (via __contains__), otherwise 0.
-    pub func count(value int) int {
-        // Return 1 if value is in the range, otherwise 0
-    }
-
-    /// Return the index of `value` within the range.
-    ///
-    /// This function performs an O(1) arithmetic check:
-    ///     - First, it verifies that `value` lies within the range bounds,
-    ///       taking the sign of `step` into account.
-    ///     - Then, it checks whether (value - start) is an exact multiple of `step`.
-    ///     - If both conditions hold, the index is:
-    ///         index = (value - start) / step
-    ///
-    /// If `value` is not present in the range, returns -1.
-    ///
+    /// Return the number of elements in the range. O(1).
     @native
-    pub func index(value int) int {}
+    pub func __len__() int {}
 
-    /// Return the string representation of the range.
-    ///
-    /// The returned format is:
-    ///     "range(start, stop, step)"
-    ///
-    /// This is an O(1) operation. All fields are printed directly without
-    /// materializing the sequence.
-    ///
-    /// Examples:
-    ///     range(0, 5, 1)   → "range(0, 5, 1)"
-    ///     range(10, 0, -2) → "range(10, 0, -2)"
-    ///
-    /// Note:
-    ///     - No panic is triggered when the range is empty.
-    ///
+    /// Return true if the range is empty. O(1).
+    @native
+    pub func empty() bool {}
+
+    /// Get the integer at the specified index. O(1).
+    @native
+    pub func __getitem__(index int) int {}
+
+    /// Return a new range that is a sub-slice of the current range. O(1).
+    @native
+    pub func __getslice__(r slice) range {}
+
+    /// Return true if the specified item is part of the range. O(1).
+    @native
+    pub func __contains__(item int) bool {}
+
+    /// Return the index of `value` in the range, restricted to [start, end). O(1).
+    /// If `end` is -1, the search extends to the end of the range.
+    /// Return -1 if the value is not present.
+    @native
+    pub func index(value int, _start = 0, _end = -1) int {}
+
+    /// Return the last index of `value` in the range, restricted to [start, end).
+    /// Since all values in a range are unique, this is identical to `index`.
+    /// If `end` is -1, the search extends to the end of the range.
+    /// Return -1 if the value is not present.
+    @native
+    pub func rindex(value int, _start = 0, _end = -1) int {}
+
+    /// Return the number of occurrences of `value` in [start, end). O(1).
+    /// Since all values in a range are unique, this returns 1 if the value
+    /// is present, otherwise 0.
+    /// If `end` is -1, the search extends to the end of the range.
+    @native
+    pub func count(value int, _start = 0, _end = -1) int {}
+
+    /// Return the string representation of the range. O(1).
+    /// Format: "range(start, end, step)".
     @native
     pub func __str__() str {}
 
+    /// Return a new range with the elements in reverse order. O(1).
+    @native
+    pub func reversed() range {}
 }

@@ -3,240 +3,548 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub trait Number[T] {
-
-    pub func __add__(rhs T) T
-
-    pub func __sub__(rhs T) T
-
-    pub func __mul__(rhs T) T
-
-    pub func __div__(rhs T) T
-
-    pub func __mod__(rhs T) T
-
-    pub func __lsh__(rhs T) T
-
-    pub func __rsh__(rhs T) T
-
-    pub func __bitand__(rhs T) T
-
-    pub func __bitor__(rhs T) T
-
-    pub func __bitxor__(rhs T) T
-
-    pub func __bitnot__() T
+/// Trait for basic arithmetic operations.
+///
+/// Provides the fundamental binary arithmetic operators (`+`, `-`, `*`, `/`, `%`)
+/// shared by all numeric types.
+pub trait Arithmetic[T] {
+    /// Returns the sum of `self` and `rhs` (`self + rhs`).
+    func __add__(rhs T) T
+    /// Returns the difference of `self` and `rhs` (`self - rhs`).
+    func __sub__(rhs T) T
+    /// Returns the product of `self` and `rhs` (`self * rhs`).
+    func __mul__(rhs T) T
+    /// Returns the quotient of `self` and `rhs` (`self / rhs`).
+    func __div__(rhs T) T
+    /// Returns the remainder of `self` divided by `rhs` (`self % rhs`).
+    func __mod__(rhs T) T
 }
 
+/// Trait for bitwise operations.
+///
+/// Provides shift and bitwise logical operators. Only integer types implement
+/// this trait; floating-point types do not support bitwise operations.
+pub trait BitwiseOperators[T] {
+    /// Left shift (`self << rhs`).
+    func __lsh__(rhs T) T
+    /// Right shift (`self >> rhs`).
+    func __rsh__(rhs T) T
+    /// Bitwise AND (`self & rhs`).
+    func __bitand__(rhs T) T
+    /// Bitwise OR (`self | rhs`).
+    func __bitor__(rhs T) T
+    /// Bitwise XOR (`self ^ rhs`).
+    func __bitxor__(rhs T) T
+    /// Bitwise NOT (`~self`).
+    func __bitnot__() T
+}
+
+/// An 8-bit signed integer.
+///
+/// Used to truncate a wider integer value down to 8 bits. Arithmetic operations
+/// are performed via implicit promotion to `int64`.
 pub class int8 {
-    // trunc to 8-bit
+    /// Creates an `int8` by truncating `x` to 8 bits.
     @intrinsic
     pub func __init__(x int64 | uint64) {}
 }
 
+/// A 16-bit signed integer.
+///
+/// Used to truncate a wider integer value down to 16 bits. Arithmetic operations
+/// are performed via implicit promotion to `int64`.
 pub class int16 {
-    // trunc to 16-bit
+    /// Creates an `int16` by truncating `x` to 16 bits.
     @intrinsic
     pub func __init__(x int64 | uint64) {}
 }
 
+/// A 32-bit signed integer.
+///
+/// Used to truncate a wider integer value down to 32 bits. Arithmetic operations
+/// are performed via implicit promotion to `int64`.
 pub class int32 {
-    // trunc to 32-bit
+    /// Creates an `int32` by truncating `x` to 32 bits.
     @intrinsic
     pub func __init__(x int64 | uint64) {}
 }
 
-pub class int64 : Number & Comparable & Hashable & ToString {
-    // the 'x' canbe int or string
-    // the 'base' is used when 'x' is string
+/// A 64-bit signed integer.
+///
+/// The primary signed integer type. Supports arithmetic, bitwise, comparison,
+/// hashing, and string conversion operations.
+pub class int64 : Arithmetic & BitwiseOperators & Comparable & Hashable & ToString {
+    /// Creates an `int64`.
+    ///
+    /// The argument `x` can be an integer, a floating-point value, or a string.
+    /// When `x` is a string, `base` specifies the numeric base used for parsing
+    /// (default `10`).
     @native
-    pub func __init__(x int64 | uint64 | str, base = 10) {}
+    pub func __init__(x int64 | uint64 | str | float64, base = 10) {}
 
+    /// Returns the sum of `self` and `rhs` (`self + rhs`).
     @intrinsic
     pub func __add__(rhs int64) int64 {}
 
+    /// Returns the difference of `self` and `rhs` (`self - rhs`).
     @intrinsic
     pub func __sub__(rhs int64) int64 {}
 
+    /// Returns the product of `self` and `rhs` (`self * rhs`).
     @intrinsic
     pub func __mul__(rhs int64) int64 {}
 
+    /// Returns the quotient of `self` and `rhs` (`self / rhs`).
     @intrinsic
     pub func __div__(rhs int64) int64 {}
 
+    /// Returns the remainder of `self` divided by `rhs` (`self % rhs`).
     @intrinsic
     pub func __mod__(rhs int64) int64 {}
 
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() int64 {}
+
+    /// Left shift (`self << rhs`).
     @intrinsic
     pub func __lsh__(rhs int64) int64 {}
 
+    /// Right shift (`self >> rhs`).
     @intrinsic
     pub func __rsh__(rhs int64) int64 {}
 
+    /// Bitwise AND (`self & rhs`).
     @intrinsic
     pub func __bitand__(rhs int64) int64 {}
 
+    /// Bitwise OR (`self | rhs`).
     @intrinsic
     pub func __bitor__(rhs int64) int64 {}
 
+    /// Bitwise XOR (`self ^ rhs`).
     @intrinsic
     pub func __bitxor__(rhs int64) int64 {}
 
+    /// Bitwise NOT (`~self`).
     @intrinsic
     pub func __bitnot__() int64 {}
 
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
     @intrinsic
     pub func __gt__(rhs int64) bool {}
 
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
     @intrinsic
     pub func __ge__(rhs int64) bool {}
 
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
     @intrinsic
     pub func __lt__(rhs int64) bool {}
 
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
     @intrinsic
     pub func __le__(rhs int64) bool {}
 
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
     @intrinsic
     pub func __eq__(rhs int64) bool {}
 
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
     @intrinsic
     pub func __ne__(rhs int64) bool {}
 
+    /// Returns a hash value for `self`.
+    @native
+    pub func __hash__() int {}
+
+    /// Returns the decimal string representation of `self`.
+    @native
+    pub func __str__() str {}
+
+    /// Adds `rhs` to `self` in place (`self += rhs`).
     @intrinsic
     pub func __iadd__(rhs int64) int64 {}
 
-    @native
-    pub func __str__() str {}
+    /// Subtracts `rhs` from `self` in place (`self -= rhs`).
+    @intrinsic
+    pub func __isub__(rhs int64) int64 {}
 
+    /// Multiplies `self` by `rhs` in place (`self *= rhs`).
+    @intrinsic
+    pub func __imul__(rhs int64) int64 {}
+
+    /// Divides `self` by `rhs` in place (`self /= rhs`).
+    @intrinsic
+    pub func __idiv__(rhs int64) int64 {}
+
+    /// Assigns the remainder of `self` divided by `rhs` in place (`self %= rhs`).
+    @intrinsic
+    pub func __imod__(rhs int64) int64 {}
+
+    /// Left shifts `self` by `rhs` in place (`self <<= rhs`).
+    @intrinsic
+    pub func __ilsh__(rhs int64) int64 {}
+
+    /// Right shifts `self` by `rhs` in place (`self >>= rhs`).
+    @intrinsic
+    pub func __irsh__(rhs int64) int64 {}
+
+    /// Bitwise ANDs `self` with `rhs` in place (`self &= rhs`).
+    @intrinsic
+    pub func __ibitand__(rhs int64) int64 {}
+
+    /// Bitwise ORs `self` with `rhs` in place (`self |= rhs`).
+    @intrinsic
+    pub func __ibitor__(rhs int64) int64 {}
+
+    /// Bitwise XORs `self` with `rhs` in place (`self ^= rhs`).
+    @intrinsic
+    pub func __ibitxor__(rhs int64) int64 {}
+
+    /// Raises `self` to the power `x` (`self ** x`).
     @native
-    pub func __hash__() int {}
+    pub func pow(x int64) int64 {}
+
+    /// Returns the absolute value of `self`.
+    @native
+    pub func abs() int64 {}
+
+    /// Converts `self` to a `float64`.
+    @native
+    pub func to_float() float64 {}
+
+    /// Returns the smaller of `self` and `other`.
+    @native
+    pub func min(other int64) int64 {}
+
+    /// Returns the larger of `self` and `other`.
+    @native
+    pub func max(other int64) int64 {}
 }
 
+/// An 8-bit unsigned integer.
+///
+/// Used to truncate a wider integer value down to 8 bits. Arithmetic operations
+/// are performed via implicit promotion to `uint64`.
 pub class uint8 {
+    /// Creates a `uint8` by truncating `x` to 8 bits.
     @intrinsic
     pub func __init__(x int64 | uint64) {}
 }
 
+/// A 16-bit unsigned integer.
+///
+/// Used to truncate a wider integer value down to 16 bits. Arithmetic operations
+/// are performed via implicit promotion to `uint64`.
 pub class uint16 {
+    /// Creates a `uint16` by truncating `x` to 16 bits.
     @intrinsic
     pub func __init__(x int64 | uint64) {}
 }
 
+/// A 32-bit unsigned integer.
+///
+/// Used to truncate a wider integer value down to 32 bits. Arithmetic operations
+/// are performed via implicit promotion to `uint64`.
 pub class uint32 {
+    /// Creates a `uint32` by truncating `x` to 32 bits.
     @intrinsic
     pub func __init__(x int64 | uint64) {}
 }
 
-pub class uint64 : Number & Comparable & Hashable & ToString {
-    @intrinsic
-    pub func __init__(x int64 | uint64 | str, base = 10) {}
+/// A 64-bit unsigned integer.
+///
+/// The primary unsigned integer type. Supports arithmetic, bitwise, comparison,
+/// hashing, and string conversion operations. Being unsigned, it cannot be
+/// negated and has no `abs` method.
+pub class uint64 : Arithmetic & BitwiseOperators & Comparable & Hashable & ToString {
+    /// Creates a `uint64`.
+    ///
+    /// The argument `x` can be an integer, a floating-point value, or a string.
+    /// When `x` is a string, `base` specifies the numeric base used for parsing
+    /// (default `10`).
+    @native
+    pub func __init__(x int64 | uint64 | str | float64, base = 10) {}
 
+    /// Returns the sum of `self` and `rhs` (`self + rhs`).
     @intrinsic
     pub func __add__(rhs uint64) uint64 {}
 
+    /// Returns the difference of `self` and `rhs` (`self - rhs`).
     @intrinsic
     pub func __sub__(rhs uint64) uint64 {}
 
+    /// Returns the product of `self` and `rhs` (`self * rhs`).
     @intrinsic
     pub func __mul__(rhs uint64) uint64 {}
 
+    /// Returns the quotient of `self` and `rhs` (`self / rhs`).
     @intrinsic
     pub func __div__(rhs uint64) uint64 {}
 
+    /// Returns the remainder of `self` divided by `rhs` (`self % rhs`).
     @intrinsic
     pub func __mod__(rhs uint64) uint64 {}
 
+    /// Left shift (`self << rhs`).
     @intrinsic
     pub func __lsh__(rhs uint64) uint64 {}
 
+    /// Right shift (`self >> rhs`).
     @intrinsic
     pub func __rsh__(rhs uint64) uint64 {}
 
+    /// Bitwise AND (`self & rhs`).
     @intrinsic
     pub func __bitand__(rhs uint64) uint64 {}
 
+    /// Bitwise OR (`self | rhs`).
     @intrinsic
     pub func __bitor__(rhs uint64) uint64 {}
 
+    /// Bitwise XOR (`self ^ rhs`).
     @intrinsic
     pub func __bitxor__(rhs uint64) uint64 {}
 
+    /// Bitwise NOT (`~self`).
     @intrinsic
     pub func __bitnot__() uint64 {}
 
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
     @intrinsic
     pub func __gt__(rhs uint64) bool {}
 
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
     @intrinsic
     pub func __ge__(rhs uint64) bool {}
 
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
     @intrinsic
     pub func __lt__(rhs uint64) bool {}
 
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
     @intrinsic
     pub func __le__(rhs uint64) bool {}
 
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
     @intrinsic
     pub func __eq__(rhs uint64) bool {}
 
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
     @intrinsic
     pub func __ne__(rhs uint64) bool {}
 
-    @intrinsic
-    pub func __iadd__(rhs uint64) uint64 {}
+    /// Returns a hash value for `self`.
+    @native
+    pub func __hash__() int {}
 
+    /// Returns the decimal string representation of `self`.
     @native
     pub func __str__() str {}
 
+    /// Adds `rhs` to `self` in place (`self += rhs`).
+    @intrinsic
+    pub func __iadd__(rhs uint64) uint64 {}
+
+    /// Subtracts `rhs` from `self` in place (`self -= rhs`).
+    @intrinsic
+    pub func __isub__(rhs uint64) uint64 {}
+
+    /// Multiplies `self` by `rhs` in place (`self *= rhs`).
+    @intrinsic
+    pub func __imul__(rhs uint64) uint64 {}
+
+    /// Divides `self` by `rhs` in place (`self /= rhs`).
+    @intrinsic
+    pub func __idiv__(rhs uint64) uint64 {}
+
+    /// Assigns the remainder of `self` divided by `rhs` in place (`self %= rhs`).
+    @intrinsic
+    pub func __imod__(rhs uint64) uint64 {}
+
+    /// Left shifts `self` by `rhs` in place (`self <<= rhs`).
+    @intrinsic
+    pub func __ilsh__(rhs uint64) uint64 {}
+
+    /// Right shifts `self` by `rhs` in place (`self >>= rhs`).
+    @intrinsic
+    pub func __irsh__(rhs uint64) uint64 {}
+
+    /// Bitwise ANDs `self` with `rhs` in place (`self &= rhs`).
+    @intrinsic
+    pub func __ibitand__(rhs uint64) uint64 {}
+
+    /// Bitwise ORs `self` with `rhs` in place (`self |= rhs`).
+    @intrinsic
+    pub func __ibitor__(rhs uint64) uint64 {}
+
+    /// Bitwise XORs `self` with `rhs` in place (`self ^= rhs`).
+    @intrinsic
+    pub func __ibitxor__(rhs uint64) uint64 {}
+
+    /// Raises `self` to the power `x` (`self ** x`).
     @native
-    pub func __hash__() int {}
+    pub func pow(x uint64) uint64 {}
+
+    /// Converts `self` to a `float64`.
+    @native
+    pub func to_float() float64 {}
+
+    /// Returns the smaller of `self` and `other`.
+    @native
+    pub func min(other uint64) uint64 {}
+
+    /// Returns the larger of `self` and `other`.
+    @native
+    pub func max(other uint64) uint64 {}
 }
 
+/// A 16-bit floating-point number (half precision).
+///
+/// Used to truncate a `float64` value down to 16 bits. Arithmetic operations
+/// are performed via implicit promotion to `float64`.
 pub class float16 {
+    /// Creates a `float16` by truncating `x` to 16 bits.
     @intrinsic
     pub func __init__(x float64) {}
 }
 
+/// A 32-bit floating-point number (single precision).
+///
+/// Used to truncate a `float64` value down to 32 bits. Arithmetic operations
+/// are performed via implicit promotion to `float64`.
 pub class float32 {
+    /// Creates a `float32` by truncating `x` to 32 bits.
     @intrinsic
     pub func __init__(x float64) {}
 }
 
-pub class float64 {
-    @intrinsic
-    pub func __init__(x float64) {}
+/// A 64-bit floating-point number (double precision).
+///
+/// The primary floating-point type, conforming to IEEE 754. Supports arithmetic
+/// and comparison operations. It does not implement `BitwiseOperators` (bitwise
+/// operations are undefined for floats) nor `Hashable` (because `NaN != NaN`
+/// would violate the hash contract).
+pub class float64 : Arithmetic & Comparable & ToString {
+    /// Creates a `float64` from an integer, another floating-point value, or a
+    /// string.
+    @native
+    pub func __init__(x float64 | int64 | uint64 | str) {}
 
+    /// Returns the sum of `self` and `rhs` (`self + rhs`).
     @intrinsic
     pub func __add__(rhs float64) float64 {}
 
+    /// Returns the difference of `self` and `rhs` (`self - rhs`).
     @intrinsic
     pub func __sub__(rhs float64) float64 {}
 
+    /// Returns the product of `self` and `rhs` (`self * rhs`).
     @intrinsic
     pub func __mul__(rhs float64) float64 {}
 
+    /// Returns the quotient of `self` and `rhs` (`self / rhs`).
     @intrinsic
     pub func __div__(rhs float64) float64 {}
 
+    /// Returns the remainder of `self` divided by `rhs` (`self % rhs`).
     @intrinsic
     pub func __mod__(rhs float64) float64 {}
 
+    /// Returns the negation of `self` (`-self`).
+    @intrinsic
+    pub func __neg__() float64 {}
+
+    /// Returns `true` if `self` is greater than `rhs` (`self > rhs`).
     @intrinsic
     pub func __gt__(rhs float64) bool {}
 
+    /// Returns `true` if `self` is greater than or equal to `rhs` (`self >= rhs`).
     @intrinsic
     pub func __ge__(rhs float64) bool {}
 
+    /// Returns `true` if `self` is less than `rhs` (`self < rhs`).
     @intrinsic
     pub func __lt__(rhs float64) bool {}
 
+    /// Returns `true` if `self` is less than or equal to `rhs` (`self <= rhs`).
     @intrinsic
     pub func __le__(rhs float64) bool {}
 
+    /// Returns `true` if `self` is equal to `rhs` (`self == rhs`).
     @intrinsic
     pub func __eq__(rhs float64) bool {}
 
+    /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
     @intrinsic
     pub func __ne__(rhs float64) bool {}
+
+    /// Returns the string representation of `self`.
+    @native
+    pub func __str__() str {}
+
+    /// Adds `rhs` to `self` in place (`self += rhs`).
+    @intrinsic
+    pub func __iadd__(rhs float64) float64 {}
+
+    /// Subtracts `rhs` from `self` in place (`self -= rhs`).
+    @intrinsic
+    pub func __isub__(rhs float64) float64 {}
+
+    /// Multiplies `self` by `rhs` in place (`self *= rhs`).
+    @intrinsic
+    pub func __imul__(rhs float64) float64 {}
+
+    /// Divides `self` by `rhs` in place (`self /= rhs`).
+    @intrinsic
+    pub func __idiv__(rhs float64) float64 {}
+
+    /// Assigns the remainder of `self` divided by `rhs` in place (`self %= rhs`).
+    @intrinsic
+    pub func __imod__(rhs float64) float64 {}
+
+    /// Returns the absolute value of `self`.
+    @native
+    pub func abs() float64 {}
+
+    /// Returns the smallest integer greater than or equal to `self`.
+    @native
+    pub func ceil() float64 {}
+
+    /// Returns the largest integer less than or equal to `self`.
+    @native
+    pub func floor() float64 {}
+
+    /// Returns the nearest integer to `self`.
+    @native
+    pub func round() float64 {}
+
+    /// Returns the square root of `self`.
+    @native
+    pub func sqrt() float64 {}
+
+    /// Raises `self` to the power `x` (`self ** x`).
+    @native
+    pub func pow(x float64) float64 {}
+
+    /// Converts `self` to an `int64`, truncating toward zero.
+    @native
+    pub func to_int() int64 {}
+
+    /// Returns `true` if `self` is NaN (not a number).
+    @native
+    pub func is_nan() bool {}
+
+    /// Returns `true` if `self` is positive or negative infinity.
+    @native
+    pub func is_inf() bool {}
+
+    /// Returns the smaller of `self` and `x`.
+    @native
+    pub func min(x float64) float64 {}
+
+    /// Returns the larger of `self` and `x`.
+    @native
+    pub func max(x float64) float64 {}
 }

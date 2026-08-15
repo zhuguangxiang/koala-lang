@@ -3,38 +3,69 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-pub class tuple[infer T] : Sequence[T] {
+/// A tuple is an immutable sequence of elements.
+///
+/// It implements Sequence, providing fixed-size, read-only access:
+/// random access, searching and slicing.
+pub class tuple[infer T] : Sequence[T] & ToString {
 
+    /// Initialize a tuple with the given elements.
     @native
     pub func __init__(args ...T) {}
+
+    /// Return an iterator over the tuple.
+    @native
+    pub func __iter__() Iterator[T] {}
+
+    /// Return the number of elements in the tuple. O(1).
+    @native
+    pub func __len__() int {}
+
+    /// Return true if the tuple is empty, false otherwise. O(1).
+    @native
+    pub func empty() bool {}
 
     @intrinsic
     pub func __getitem__[infer U](index int) U {}
 
+    /// Return the sub-tuple defined by the slice.
+    @native
+    pub func __getslice__(r slice) tuple[T] {}
+
+    /// Return true if the tuple contains the specified value `v`. O(n).
     @native
     pub func __contains__(v T) bool {}
 
+    /// Return the first index of `value` in [start, end). O(n).
+    /// If `end` is -1, the search extends to the end of the tuple.
+    /// Return -1 if the value is not present.
     @native
-    pub func to_list() list[T] {}
+    pub func index(value T, start = 0, end = -1) int {}
 
+    /// Return the last index of `value` in [start, end). O(n).
+    /// If `end` is -1, the search extends to the end of the tuple.
+    /// Return -1 if the value is not present.
     @native
-    pub func __iter__() Iterator[T] {}
+    pub func rindex(value T, start = 0, end = -1) int {}
 
+    /// Return the number of occurrences of `value` in [start, end). O(n).
+    /// If `end` is -1, the search extends to the end of the tuple.
     @native
-    pub func __len__() int {}
+    pub func count(value T, start = 0, end = -1) int {}
 
+    /// Return the string representation of the tuple.
     @native
     pub func __str__() str {}
 
+    /// Return a new list containing the elements of the tuple.
     @native
-    pub func __eq__(other any) bool {}
+    pub func to_list() list[T] {}
 
+    /// Return a new tuple with elements of `self` followed by `other` (`self + other`).
     @native
-    pub func __hash__() int {}
+    pub func __add__(other tuple[T]) tuple[T] {}
 
+    /// Return a reverse iterator over the elements of the tuple.
     @native
-    pub func index(v T) int {}
-
-    @native
-    pub func count(v T) int {}
+    pub func reversed() Iterator[T] {}
 }
