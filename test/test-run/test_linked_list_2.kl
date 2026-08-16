@@ -149,5 +149,5 @@ func main() {
 // CHECK: Index 20:  none
 
 // CHECK: Total:  10
-// CHECK: Index 5:  <Point object at 0x{{[0-9a-f]+}}>
+// CHECK: Index 5:  <test_pkg/pkg1.Point object at 0x{{[0-9a-f]+}}>
 // CHECK: Index 20:  none

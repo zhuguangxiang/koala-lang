@@ -625,6 +625,21 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
             if (!base_ts) continue;
             if (base_ts->kind == TYPE_KLASS) {
                 vector_push_back(inst_sym->bases, &base_ts);
+            } else if (base_ts->kind == TYPE_MANGLED) {
+                Vector *__tp_args = vector_create_ptr();
+                TypeSpec *_base_ts;
+                vector_foreach(_base_ts, base_ts->mangled.args) {
+                    Symbol *_origin = get_symbol_by_id(_base_ts->sym_id);
+                    InstanceSymbol *_base_sym = find_or_add_instance(stbl, _origin, _tp_args);
+                    _base_ts = _base_sym->instance_ts;
+                    vector_push_back(__tp_args, &_base_ts);
+                    ASSERT(_base_ts->kind == TYPE_KLASS || _base_ts->kind == TYPE_GENERIC_REF);
+                }
+                Symbol *__origin = get_symbol_by_id(base_ts->sym_id);
+                InstanceSymbol *__base_sym = find_or_add_instance(stbl, __origin, __tp_args);
+                base_ts = __base_sym->instance_ts;
+                vector_push_back(inst_sym->bases, &base_ts);
+                ASSERT(base_ts->kind == TYPE_KLASS || base_ts->kind == TYPE_GENERIC_REF);
             } else {
                 // handle generic_ref base class/trait
                 ASSERT(base_ts->kind == TYPE_GENERIC_REF);

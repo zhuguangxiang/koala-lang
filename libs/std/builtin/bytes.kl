@@ -8,7 +8,7 @@
 /// It implements Sequence, providing random access, searching, slicing
 /// and sub-sequence matching.
 /// The size is determined at construction and never changes.
-pub class bytes : Sequence[uint8] & ToString {
+pub class bytes : Sequence[uint8] {
 
     /// Create a byte array of the given `size`, initialized to zero.
     @native

@@ -11,7 +11,7 @@
 /// Characters are encoded as UTF-8. str operates at the character level,
 /// so code-point level APIs (like Python's `ord`/`chr`) are not provided;
 /// use `to_bytes` for byte-level access.
-pub class str : Sequence & Comparable & Hashable & ToString {
+pub class str : Sequence & Comparable {
 
     /// Initialize a string from `s`: a copy if `s` is a str,
     /// or a UTF-8 decoding if `s` is bytes.

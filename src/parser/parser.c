@@ -768,9 +768,9 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         TypeSpec *ret;
         vector_foreach(ts, _ts->unresolved.args) {
             if (!ts) continue;
-            ps->tp_flag = 1;
+            ++ps->tp_flag;
             ret = resolve_type(ps, ts);
-            ps->tp_flag = 0;
+            --ps->tp_flag;
             if (ret->kind == TYPE_GENERIC_VAR) open = 1;
             vector_push_back(tp_args, &ret);
         }
@@ -1775,6 +1775,122 @@ static void parse_while_let(ParserState *ps, Stmt *stmt)
     exit_scope(ps);
 }
 
+static TypeSpec *_get_class_self_type(KlassDeclStmt *kls)
+{
+    Vector *args = NULL;
+
+    if (vector_size(kls->tps) > 0) {
+        args = vector_create_ptr();
+        TypeParamDecl *tp;
+        vector_foreach(tp, kls->tps) {
+            TypeIdent _id = { .name = tp->id.name };
+            TypeSpec *arg = unresolved_type_spec(NULL, _id, NULL);
+            vector_push_back(args, &arg);
+        }
+    }
+
+    TypeIdent id = { .name = kls->id.name };
+
+    TypeSpec *ts = unresolved_type_spec(NULL, id, args);
+    return ts;
+}
+
+static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
+{
+    if (kls->kind != STMT_CLASS_KIND) return;
+
+    bool has_eq = false;
+    bool has_ne = false;
+    bool has_hash = false;
+    bool has_str = false;
+    Stmt *stmt;
+    vector_foreach(stmt, kls->stmts) {
+        if (!stmt) continue;
+        if (stmt->kind == STMT_VAR_KIND) {
+            VarDeclStmt *var_stmt = (VarDeclStmt *)stmt;
+            // TODO: check var name is not __eq__, __ne__, __hash__ and __str__
+        } else if (stmt->kind == STMT_FUNC_KIND) {
+            FuncDeclStmt *fn_stmt = (FuncDeclStmt *)stmt;
+            if (str_equal(fn_stmt->id.name, "__eq__"))
+                has_eq = true;
+            else if (str_equal(fn_stmt->id.name, "__ne__"))
+                has_ne = true;
+            else if (str_equal(fn_stmt->id.name, "__hash__"))
+                has_hash = true;
+            else if (str_equal(fn_stmt->id.name, "__str__"))
+                has_str = true;
+        } else {
+            UNREACHABLE();
+        }
+    }
+
+    if (!has_eq) {
+        Ident _id = { .name = "__eq__" };
+        TypeSpec *_ret = bool_type_spec();
+        Vector *_args = vector_create_ptr();
+        Loc _loc = { 0 };
+        Ident _name = { .name = "other" };
+        ParamDecl *param = param_new(_loc, _name, _get_class_self_type(kls), NULL);
+        vector_push_back(_args, &param);
+        Stmt *stmt = stmt_from_func_decl(_id, _args, _ret, NULL);
+        PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
+        flags->at.ident = "native";
+
+        if (!kls->stmts) {
+            kls->stmts = vector_create_ptr();
+        }
+        vector_push_back(kls->stmts, &stmt);
+        log_info("add __eq__ for class '%s' automatically", kls->id.name);
+    }
+
+    if (!has_eq) {
+        Ident _id = { .name = "__ne__" };
+        TypeSpec *_ret = bool_type_spec();
+        Vector *_args = vector_create_ptr();
+        Loc _loc = { 0 };
+        Ident _name = { .name = "other" };
+        ParamDecl *param = param_new(_loc, _name, _get_class_self_type(kls), NULL);
+        vector_push_back(_args, &param);
+        Stmt *stmt = stmt_from_func_decl(_id, _args, _ret, NULL);
+        PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
+        flags->at.ident = "native";
+
+        if (!kls->stmts) {
+            kls->stmts = vector_create_ptr();
+        }
+        vector_push_back(kls->stmts, &stmt);
+        log_info("add __ne__ for class '%s' automatically", kls->id.name);
+    }
+
+    if (!has_hash) {
+        Ident id = { .name = "__hash__" };
+        TypeSpec *ret = int64_type_spec();
+        Stmt *stmt = stmt_from_func_decl(id, NULL, ret, NULL);
+        PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
+        flags->at.ident = "native";
+
+        if (!kls->stmts) {
+            kls->stmts = vector_create_ptr();
+        }
+        vector_push_back(kls->stmts, &stmt);
+        log_info("add __hash__ for class '%s' automatically", kls->id.name);
+    }
+
+    if (!has_str) {
+        Ident id = { .name = "__str__" };
+        TypeSpec *ret = str_type_spec();
+        Stmt *stmt = stmt_from_func_decl(id, NULL, ret, NULL);
+        PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
+        flags->at.ident = "native";
+
+        if (!kls->stmts) {
+            kls->stmts = vector_create_ptr();
+        }
+        vector_push_back(kls->stmts, &stmt);
+        log_info("add __str__ for class '%s' automatically", kls->id.name);
+    }
+}
+
 // only add klass/trait symbol and add tp, fields and methods
 static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, int is_trait)
 {
@@ -1838,6 +1954,9 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
         }
     }
 
+    /* if there is no root methods, add them automatically */
+    try_to_add_root_methods(ps, kls);
+
     Stmt *stmt;
     vector_foreach(stmt, kls->stmts) {
         if (!stmt) continue;
@@ -1875,7 +1994,8 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
     return sym;
 }
 
-static int parse_bound_or_base(ParserState *ps, TypeSpec *ts, Ident *id, char *name, int has_tp)
+static int parse_bound_or_base(ParserState *ps, TypeSpec *ts, Ident *id, char *name, int has_tp,
+                               KlassDeclStmt *kls)
 {
     if (!ts) return -1;
 
@@ -1896,11 +2016,13 @@ static int parse_bound_or_base(ParserState *ps, TypeSpec *ts, Ident *id, char *n
         return -1;
     }
 
+#if 0
     if (has_tp) {
         // only for base type, if class has type parameters, don't do the defaulting to Self rule
         // if parsing tp bound, the 'has_tp' always false.
         return 0;
     }
+#endif
 
     // TODO:
 #if 1
@@ -1916,9 +2038,14 @@ static int parse_bound_or_base(ParserState *ps, TypeSpec *ts, Ident *id, char *n
             log_info(
                 "for '%s', trait '%s' omits its only one type argument, defaulting to Self('%s')",
                 name, kls_sym->name, id->name);
-            TypeIdent name = { id->name, id->loc };
             Vector *vec = vector_create_ptr();
-            TypeSpec *_ts = unresolved_type_spec(NULL, name, NULL);
+            TypeSpec *_ts;
+            if (kls) {
+                _ts = _get_class_self_type(kls);
+            } else {
+                TypeIdent name = { id->name, id->loc };
+                _ts = unresolved_type_spec(NULL, name, NULL);
+            }
             vector_push_back(vec, &_ts);
             ts->unresolved.args = vec;
         }
@@ -1975,7 +2102,7 @@ static void parse_type_params(ParserState *ps, Vector *tps, Symbol *sym)
         TypeSpec *ts;
         vector_foreach(ts, tp->bound) {
             if (!ts) continue;
-            int r = parse_bound_or_base(ps, ts, &tp->id, sym->name, 0);
+            int r = parse_bound_or_base(ps, ts, &tp->id, sym->name, 0, NULL);
             if (r) continue;
             ts = resolve_type(ps, ts);
             assert(ts);
@@ -1998,7 +2125,7 @@ static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
     TypeSpec *ts;
     vector_foreach(ts, kls->bases) {
         if (!ts) continue;
-        int r = parse_bound_or_base(ps, ts, &kls->id, sym->name, has_tp);
+        int r = parse_bound_or_base(ps, ts, &kls->id, sym->name, has_tp, kls);
         if (r) continue;
         TypeSpec *base_ts = resolve_type(ps, ts);
         if (!base_ts) continue;
@@ -2006,6 +2133,49 @@ static void parse_bases(ParserState *ps, KlassDeclStmt *kls)
         if (!r) continue;
         vector_push_back(vec, &base_ts);
     }
+}
+
+/* add root contract traits (Hashable/Equatable/Printable) */
+static void add_root_traits(ParserState *ps, KlassDeclStmt *kls)
+{
+    if (kls->kind != STMT_CLASS_KIND) return;
+
+    if (!kls->bases) kls->bases = vector_create_ptr();
+
+    bool has_equatable = false;
+
+    TypeSpec *base;
+    vector_foreach(base, kls->bases) {
+        if (!base) continue;
+        ASSERT(base->kind == TYPE_UNRESOLVED);
+        char *path = base->unresolved.pkg.name;
+        if (!path || !str_equal(path, "std/builtin")) continue;
+
+        char *name = base->unresolved.name.name;
+        if (str_equal(name, "Equatable"))
+            has_equatable = true;
+        else if (str_equal(name, "Comparable"))
+            has_equatable = true;
+    }
+
+    TypeIdent name;
+    TypeSpec *ts;
+    if (!has_equatable) {
+        name.name = "Equatable";
+        ts = unresolved_type_spec(NULL, name, NULL);
+        vector_push_front(kls->bases, &ts);
+        log_info("add Equatable to class '%s' automatically", kls->id.name);
+    }
+
+    name.name = "Hashable";
+    ts = unresolved_type_spec(NULL, name, NULL);
+    vector_push_front(kls->bases, &ts);
+    log_info("add Hashable to class '%s' automatically", kls->id.name);
+
+    name.name = "Printable";
+    ts = unresolved_type_spec(NULL, name, NULL);
+    vector_push_front(kls->bases, &ts);
+    log_info("add Printable to class '%s' automatically", kls->id.name);
 }
 
 static KlassSymbol *_get_base_sym(TypeSpec *base_ts)
@@ -2654,7 +2824,10 @@ static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls)
     // parse type parameter's bounds
     parse_type_params(ps, kls->tps, (Symbol *)sym);
 
-    /* parse base class and traits */
+    /* add Hashable, Equatable and Printable traits */
+    add_root_traits(ps, kls);
+
+    /* parse base traits */
     parse_bases(ps, kls);
 
     /* compute vtbl info */

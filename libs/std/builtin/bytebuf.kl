@@ -4,7 +4,7 @@
  */
 
 /// A ByteBuf is a variable-length, readable and writable byte buffer.
-pub class ByteBuf : MutableSequence[uint8] & ToString {
+pub class ByteBuf : MutableSequence[uint8] {
 
     /// Create a byte buffer of the initial `size`, filled with zeros.
     @native

@@ -14,26 +14,29 @@ extern "C" {
 #endif
 
 typedef struct _Vector {
+    /* object memory */
+    char *objs;
     /* total slots */
     int capacity;
     /* used slots */
     int size;
     /* object size */
     int obj_size;
-    /* object memory */
-    char *objs;
+    /* padding */
+    int _padding;
 } Vector;
 
 /* Initialize an empty vector */
 static inline void vector_init(Vector *vec, int obj_size)
 {
+    vec->objs = NULL;
     vec->capacity = 0;
     vec->size = 0;
     vec->obj_size = obj_size;
-    vec->objs = NULL;
+    vec->_padding = 0;
 }
 
-#define VECTOR_INIT_PTR { 0, 0, PTR_SIZE, NULL }
+#define VECTOR_INIT_PTR { NULL, 0, 0, PTR_SIZE, 0 }
 
 #define VECTOR_RAW(vec, type) ((type *)(vec)->objs)
 
@@ -46,6 +49,7 @@ static inline void vector_fini(Vector *vec)
     vec->capacity = 0;
     vec->size = 0;
     vec->obj_size = 0;
+    vec->_padding = 0;
     mm_free(vec->objs);
     vec->objs = NULL;
 }

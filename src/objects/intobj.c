@@ -134,11 +134,9 @@ static MethodDef int_methods[] = {
 
 TypeObject int_type = {
     ._type = &type_type,
-    .name = "int",
+    .name = "int64",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = int_methods,
-    .cmp = NULL,
-    .hash = NULL,
 };
 
 #ifdef __cplusplus

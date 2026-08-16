@@ -7,7 +7,7 @@
 ///
 /// It implements Sequence, providing fixed-size, read-only access:
 /// random access, searching and slicing.
-pub class tuple[infer T] : Sequence[T] & ToString {
+pub class tuple[infer T] : Sequence[T] {
 
     /// Initialize a tuple with the given elements.
     @native
@@ -25,6 +25,9 @@ pub class tuple[infer T] : Sequence[T] & ToString {
     @native
     pub func empty() bool {}
 
+    /// Get the element at the specified index.
+    /// The element type is inferred from the usage context.
+    /// Panic if the index is out of range.
     @intrinsic
     pub func __getitem__[infer U](index int) U {}
 

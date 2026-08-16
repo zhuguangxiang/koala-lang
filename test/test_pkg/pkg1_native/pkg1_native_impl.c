@@ -5,8 +5,10 @@
 
 #include "object.h"
 
-// gcc -fPIC -shared pkg1_native/pkg1_native_impl.c -o libpkg1_native.so -I../../include/runtime
-// -I../../include/common -L../../build/DebugTest/lib/ -lkoala
+/*
+ gcc -fPIC -shared pkg1_native/pkg1_native_impl.c -o libpkg1_native.so -I../../include/runtime \
+ -I../../include/common -L../../build/DebugTest/lib/ -lkoala -g
+*/
 
 /* func test_pkg_foo(an Animal) */
 TValue test_pkg_foo_func(TValue *self, TValue *args, int nargs)

@@ -89,7 +89,8 @@ static SlotDef slotdefs[] = {
     { NULL },
 };
 
-#define BINSLOT(NAME, SLOT, FUNC, ID) { NAME, offsetof(NumberMethods, SLOT), (void *)(FUNC), ID }
+#define BINSLOT(NAME, SLOT, FUNC, ID) \
+    { NAME, offsetof(ArithmeticMethods, SLOT), (void *)(FUNC), ID }
 
 static SlotDef num_slotdefs[] = {
     BINSLOT("__add__", add, NULL, SLOT_ADD), BINSLOT("__sub__", sub, NULL, SLOT_SUB),
@@ -119,7 +120,7 @@ static SlotDef map_slotdefs[] = {
     { NULL },
 };
 
-void type_install_slots(TypeObject *tp)
+void kl_tp_install_slots(TypeObject *tp)
 {
     // initialize slots[]
     memset(tp->slots, 0, sizeof(tp->slots));
@@ -128,7 +129,7 @@ void type_install_slots(TypeObject *tp)
     for (SlotDef *slot = slotdefs; slot->name; slot++) {
         Object *fn = stbl_find_obj(&tp->members, slot->name);
         if (fn) {
-            log_info("binding method '%s' to slots[%d] of class/trait '%s'", slot->name, slot->id,
+            log_info("binding method '%s' to slots[%d] of class '%s'", slot->name, slot->id,
                      tp->name);
 
             tp->slots[slot->id] = fn;
@@ -138,6 +139,10 @@ void type_install_slots(TypeObject *tp)
             if (*field == NULL) *field = slot->func;
         }
     }
+
+    // bind number slots[]
+    // bind sequence slots[]
+    // bind map slots[]
 }
 
 #ifdef __cplusplus

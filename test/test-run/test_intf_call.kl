@@ -110,7 +110,7 @@ func main() {
 
 // CHECK-LABEL: @main[17,98]:
 
-// CHECK: make_intf r0, r0, #1
+// CHECK: make_intf r0, r0, #4
 // CHECK: upcast_intf r4, r1, #1
 
 // CHECK: 1 2

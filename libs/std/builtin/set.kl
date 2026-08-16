@@ -8,7 +8,7 @@
 ///
 /// It implements Set, providing membership tests, insertion, removal,
 /// and set algebra. Iteration order is unspecified.
-pub class HashSet[T] : Set[T] & ToString {
+pub class HashSet[T] : Set[T] {
 
     /// Create an empty hash set.
     @native
@@ -100,7 +100,7 @@ pub class HashSet[T] : Set[T] & ToString {
 /// It implements Set, providing membership tests, insertion, removal,
 /// and set algebra. Elements are ordered by their Comparable ordering;
 /// iteration, to_list() and reversed() follow that order.
-pub class TreeSet[T : Comparable[T]] : Set[T] & ToString {
+pub class TreeSet[T : Comparable] : Set[T] {
 
     /// Create an empty tree set.
     @native

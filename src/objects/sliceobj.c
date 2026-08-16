@@ -55,7 +55,7 @@ static MethodDef range_methods[] = {
 
 static MemberDef range_members[] = {
     { "start", M_TYPE_INT, M_OFFSET(RangeObject, start) },
-    { "stop", M_TYPE_INT, M_OFFSET(RangeObject, stop) },
+    { "end", M_TYPE_INT, M_OFFSET(RangeObject, end) },
     { "step", M_TYPE_INT, M_OFFSET(RangeObject, step) },
     { NULL },
 };

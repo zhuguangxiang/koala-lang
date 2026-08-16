@@ -7,7 +7,7 @@
 ///
 /// It is commonly used for looping a specific number of times in for loops.
 /// Since it implements Sequence, it supports O(1) length and indexing.
-pub class range : Sequence[int] & ToString {
+pub class range : Sequence[int] {
     /// The starting value of the range (inclusive).
     pub let start int
     /// The boundary value of the range (exclusive).

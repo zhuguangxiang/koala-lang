@@ -46,6 +46,39 @@ void kl_free_ks(KoalaState *ks)
     mm_free(ks);
 }
 
+static TValue _default___str__(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    TypeObject *tp = kl_typeof(self);
+    ASSERT(tp);
+    unsigned int hash = kl_hash(self);
+    ModuleObject *m = (ModuleObject *)tp->module;
+
+    Object *s = kl_new_fmt_str("<%s.%s object at 0x%x>", m->path, tp->name, hash);
+    return obj_value(s);
+}
+
+static TValue _default___hash__(TValue *self, TValue *args, int nargs)
+{
+    unsigned int hash = mem_hash(self, sizeof(TValue));
+    return int64_value(hash);
+}
+
+static TValue _default___eq__(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    int r = memcmp(self, args, sizeof(TValue));
+    return bool_value(r == 0);
+}
+
+static TValue _default___ne__(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    int r = memcmp(self, args, sizeof(TValue));
+    return bool_value(r != 0);
+}
+
+Object *builtin_module;
 Object *fs_module;
 Object *io_module;
 Object *sys_module;
@@ -71,6 +104,7 @@ static TValue *get_global_var(Object *m, char *name)
 
 static void load_modules(void)
 {
+    builtin_module = kl_load_module("std/builtin");
     fs_module = kl_load_module("std/fs");
     io_module = kl_load_module("std/io");
     sys_module = kl_load_module("std/sys");
@@ -102,7 +136,7 @@ KOALA_EXPORT void koala_initialize(void)
     kl_init_gm_stbl();
 
     /* init builtin & sys module */
-    init_builtin_module();
+    // init_builtin_module();
 
     /* initialize main thread as koala thread */
     ThreadState *ts = mm_alloc_obj(ts);
@@ -176,14 +210,40 @@ static void __load_const(Object *m, KlcConst *item)
     }
 }
 
+static bool match_suffix(const char *name, const char *suffix)
+{
+    size_t name_len = strlen(name);
+    size_t suf_len = strlen(suffix);
+
+    // length is not enough, return false directly
+    if (name_len < suf_len) return false;
+
+    return !memcmp(name + (name_len - suf_len), suffix, suf_len);
+}
+
 Object *kl_get_native(Object *m, char *name)
 {
     ModuleObject *mo = (ModuleObject *)m;
     NativeLib *lib;
     vector_foreach_ptr(lib, &mo->libs) {
-        Object *obj = stbl_find_obj(&lib->symbols, name);
-        if (obj) return obj;
+        Object *ob = stbl_find_obj(&lib->symbols, name);
+        if (ob) return ob;
     }
+
+    if (match_suffix(name, "__str__")) {
+        Object *ob = kl_new_cfunc("__str__", _default___str__, NULL);
+        return ob;
+    } else if (match_suffix(name, "__hash__")) {
+        Object *ob = kl_new_cfunc("__hash__", _default___hash__, NULL);
+        return ob;
+    } else if (match_suffix(name, "__eq__")) {
+        Object *ob = kl_new_cfunc("__eq__", _default___eq__, NULL);
+        return ob;
+    } else if (match_suffix(name, "__ne__")) {
+        Object *ob = kl_new_cfunc("__ne__", _default___ne__, NULL);
+        return ob;
+    }
+
     return NULL;
 }
 
@@ -206,7 +266,17 @@ int kl_reg_meth(NativeLib *lib, char *cls, char *meth, NativeFunc fn)
 int kl_reg_type(NativeLib *lib, TypeObject *tp)
 {
     kl_init_type(tp);
+
+    MethodDef *def = tp->methdefs;
+    while (def && def->name) {
+        if (def->cfunc) {
+            kl_reg_meth(lib, tp->name, def->name, def->cfunc);
+        }
+        ++def;
+    }
+
     stbl_add_obj(&lib->symbols, tp->name, (Object *)tp);
+
     return 0;
 }
 
@@ -226,7 +296,10 @@ static void _load_native(ModuleObject *mo, char *name, char *pkg_name)
     char buf[256];
     snprintf(buf, sizeof(buf), "lib%s%s", name, native_suffix());
 
-    void *handle = dlopen(buf, RTLD_LAZY | RTLD_LOCAL);
+    char *filename = NULL;
+    if (!str_equal(name, "koala")) filename = buf;
+
+    void *handle = dlopen(filename, RTLD_LAZY | RTLD_LOCAL);
     if (!handle) {
         fprintf(stderr, "Failed to load %s: %s\n", buf, dlerror());
         return;
@@ -244,11 +317,10 @@ static void _load_native(ModuleObject *mo, char *name, char *pkg_name)
         return;
     }
 
-    NativeLib lib = { .handle = handle };
+    NativeLib lib = { .name = name, .handle = handle };
     stbl_init(&lib.symbols);
-    vector_push_back(&mo->libs, &lib);
-
     init_func(&lib);
+    vector_push_back(&mo->libs, &lib);
 }
 
 static TypeObject *find_tp_from_native(Object *m, char *name)
@@ -269,6 +341,7 @@ static Object *_load_module(char *path)
 
     char *pkg_name = klc->pkg_path;
     Object *m = kl_new_module(pkg_name);
+    ModuleObject *mo = (ModuleObject *)m;
 
     uint8_t *codes = NULL;
     uint32_t size = klc_get_bytecodes(klc, &codes);
@@ -300,7 +373,7 @@ static Object *_load_module(char *path)
     vector_foreach(link_index, links) {
         if (link_index == 0) continue;
         KlcConst *kc = klc_get_rt_const(klc, link_index);
-        _load_native((ModuleObject *)m, kc->sval, pkg_name);
+        _load_native(mo, kc->sval, pkg_name);
     }
 
     Vector *code_objs = klc->objs + ITEM_CODE;
@@ -310,25 +383,40 @@ static Object *_load_module(char *path)
         kc = klc_get_rt_const(klc, item->name_index);
         Object *_co;
         if (item->flags & KLC_FLAGS_NATIVE) {
+            // if koala's function is marked as native, it must be implemented by a native function
+            // in the module's native library.
             _co = kl_get_native(m, kc->sval);
+            if (!_co) _co = mo->not_impl;
             ASSERT(_co && IS_CFUNC(_co));
             CFuncObject *cfn = (CFuncObject *)_co;
-            ASSERT(cfn->owner == NULL);
-            cfn->owner = m;
+            if (cfn->owner == NULL) {
+                cfn->owner = m;
+            } else {
+                ASSERT(_co == mo->not_impl);
+            }
         } else {
-            _co = kl_new_code(kc->sval, m);
-            CodeObject *co = (CodeObject *)_co;
-            if (item->flags & KLC_FLAGS_PUB) co->flags |= CODE_FLAG_PUB;
-            if (item->flags & KLC_FLAGS_METH) co->flags |= CODE_FLAG_METH;
-            co->cs.nlocals = item->nlocals;
-            co->cs.max_call_args = item->max_call_args;
-            co->cs.start_pc = item->start_pc;
-            co->cs.num_insns = item->num_insns;
+            // koala's function is overridden by native function, if the native function is found
+            // in the module's native library.
+            _co = kl_get_native(m, kc->sval);
+            if (_co) {
+                ASSERT(_co && IS_CFUNC(_co));
+                CFuncObject *cfn = (CFuncObject *)_co;
+                ASSERT(cfn->owner == NULL);
+                cfn->owner = m;
+            } else {
+                _co = kl_new_code(kc->sval, m);
+                CodeObject *co = (CodeObject *)_co;
+                if (item->flags & KLC_FLAGS_PUB) co->flags |= CODE_FLAG_PUB;
+                if (item->flags & KLC_FLAGS_METH) co->flags |= CODE_FLAG_METH;
+                co->cs.nlocals = item->nlocals;
+                co->cs.max_call_args = item->max_call_args;
+                co->cs.start_pc = item->start_pc;
+                co->cs.num_insns = item->num_insns;
+            }
         }
-        kl_mo_add_func(m, _co);
+        kl_mo_add_func(m, kc->sval, _co);
     }
 
-    ModuleObject *mo = (ModuleObject *)m;
     Vector *cls_objs = klc->objs + ITEM_CLASS;
     KlcKlass *cls;
     vector_foreach(cls, cls_objs) {
@@ -347,8 +435,7 @@ static Object *_load_module(char *path)
             if (!var) continue;
             kc = klc_get_const(klc, var->name_index);
             Object *field = kl_new_index_field(kc->sval, 0, i__ - 1, (Object *)tp);
-            vector_push_back(&tp->fields, &field);
-            stbl_add_obj(&tp->members, kc->sval, field);
+            kl_tp_add_field(tp, kc->sval, field);
         }
 
         KlcFunc *meth;
@@ -366,8 +453,7 @@ static Object *_load_module(char *path)
                 CFuncObject *cfn = (CFuncObject *)_co;
                 cfn->owner = (Object *)tp;
             }
-            vector_push_back(&tp->methods, &_co);
-            stbl_add_obj(&tp->members, kc->sval, _co);
+            kl_tp_add_method(tp, kc->sval, _co);
         }
 
         KlcIntfEntry *intf_entry;
@@ -420,9 +506,10 @@ static Object *_load_module(char *path)
             }
         }
 
-        vector_push_back(&mo->types, &tp);
-        stbl_add_obj(&mo->symbols, kls_kc->sval, (Object *)tp);
-        tp->module = m;
+        kl_tp_install_slots(tp);
+        tp->flags |= TP_FLAGS_READY;
+
+        kl_mo_add_type(m, tp);
     }
 
     Vector *globals = klc->objs + ITEM_VAR;
@@ -436,8 +523,22 @@ static Object *_load_module(char *path)
         stbl_add_obj(&mo->symbols, kc->sval, val);
     }
 
-    kl_init_module(m);
+    // bind cfunc/code to module
+    Object *fn;
+    vector_foreach(fn, &mo->funcs) {
+        kl_bind_func(m, fn);
+    }
+
+    // allocate global variables space
+    if (mo->num_values > 0) {
+        mo->values = mm_alloc(sizeof(TValue) * mo->num_values);
+        for (uint32_t i = 0; i < mo->num_values; i++) {
+            mo->values[i] = none_value;
+        }
+    }
+
     kl_resolve_import(m);
+
     free_klc_file(klc);
     return m;
 }

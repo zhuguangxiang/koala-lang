@@ -8,3 +8,67 @@
 /// It defines no methods and imposes no behavioral requirements.
 /// It exists solely as the universal supertype for all Koala values.
 pub trait any {}
+
+/// Equatable defines semantic equality between two values of the same type.
+/// The type parameter T is the type compared against, which is the
+/// conforming type itself.
+///
+/// Types conforming to Equatable must provide both `__eq__` and `__ne__`,
+/// ensuring consistent behavior for equality and inequality checks.
+///
+/// Conforming to Equatable allows a type to be used in conditional logic,
+/// comparisons, and other equality-based operations.
+pub trait Equatable[T] {
+    /// Return true if `self` is equal to `other` (`self == other`).
+    func __eq__(other T) bool
+
+    /// Return true if `self` is not equal to `other` (`self != other`).
+    func __ne__(other T) bool
+}
+
+/// Comparable defines a total ordering between values of the same type.
+/// The type parameter T is the type compared against, which is the
+/// conforming type itself.
+/// Types conforming to Comparable can be sorted, compared, and used in
+/// ordered data structures such as priority queues or tree-based collections.
+///
+/// Comparable inherits from Equatable, so conforming types must also
+/// implement equality and inequality operations.
+pub trait Comparable[T] : Equatable[T] {
+    /// Return true if `self` is less than `other` (`self < other`).
+    func __lt__(other T) bool
+
+    /// Return true if `self` is less than or equal to `other` (`self <= other`).
+    func __le__(other T) bool
+
+    /// Return true if `self` is greater than `other` (`self > other`).
+    func __gt__(other T) bool
+
+    /// Return true if `self` is greater than or equal to `other` (`self >= other`).
+    func __ge__(other T) bool
+}
+
+/// Hashable defines the ability for a type to produce a stable hash value.
+/// Conforming to Hashable allows a type to be used as a key in dictionaries,
+/// sets, and other hash-based collections.
+///
+/// Equal values must always produce identical hash values. The hash should
+/// be well-distributed to ensure good performance in hashed structures.
+pub trait Hashable {
+    /// Return a stable hash value for `self`.
+    ///
+    /// Equal values must always produce identical hash values.
+    func __hash__() int
+}
+
+/// Printable defines a human-readable string representation for a type,
+/// used by `print()` and other display mechanisms. It is a display contract,
+/// never a content conversion (e.g. `bytes` displays its hexadecimal form,
+/// while decoding into a `str` is a separate `to_str()` method).
+///
+/// The returned string should be suitable for display to end users and
+/// represent the value in a clear, readable form.
+pub trait Printable {
+    /// Return a human-readable string representation of `self`.
+    func __str__() str
+}

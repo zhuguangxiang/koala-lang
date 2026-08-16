@@ -1697,7 +1697,7 @@ static void get_range_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, str
 {
     ASSERT(type_is_range(val->ts));
     out->start = build_get_field(val->ts, "start", bldr, val, NULL, ps);
-    out->end = build_get_field(val->ts, "stop", bldr, val, NULL, ps);
+    out->end = build_get_field(val->ts, "end", bldr, val, NULL, ps);
     out->step = build_get_field(val->ts, "step", bldr, val, NULL, ps);
 }
 

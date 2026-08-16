@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 typedef struct _FileObject {
-    INST_OBJECT_HEAD
+    OBJECT_HEAD
     TValue path;
     TValue mode;
     int fd;
@@ -23,8 +23,7 @@ static TypeObject file_type;
 static Object *kl_new_file(TValue path, TValue mode, int fd)
 {
     FileObject *fobj = mm_alloc_obj(fobj);
-    INIT_OBJECT_HEAD(fobj, &file_type);
-    fobj->size = 2;
+    INIT_OBJECT_HEAD(fobj, &file_type, 2);
     fobj->path = path;
     fobj->mode = mode;
     fobj->fd = fd;
@@ -101,28 +100,25 @@ static TValue file_close(TValue *self, TValue *args, int nargs)
 
 static TValue file_seek(TValue *self, TValue *args, int nargs) { return none_value; }
 
-static Object *file_alloc(TypeObject *tp)
-{
-    FileObject *fobj = mm_alloc_obj(fobj);
-    INIT_OBJECT_HEAD(fobj, tp);
-    return (Object *)fobj;
-}
-
 static TypeObject file_type = {
     ._type = &type_type,
     .name = "File",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
-    .alloc = file_alloc,
+    .priv_size = sizeof(int),
+    .methdefs =
+        (MethodDef[]){
+            { "read", file_read },
+            { "write", file_write },
+            { "close", file_close },
+            { "seek", file_seek },
+            { NULL, NULL },
+        },
 };
 
 void fs_native_lib_init(NativeLib *lib)
 {
     kl_reg_func(lib, "open", file_open);
     kl_reg_type(lib, &file_type);
-    kl_reg_meth(lib, "File", "read", file_read);
-    kl_reg_meth(lib, "File", "write", file_write);
-    kl_reg_meth(lib, "File", "close", file_close);
-    kl_reg_meth(lib, "File", "seek", file_seek);
 }
 
 #ifdef __cplusplus

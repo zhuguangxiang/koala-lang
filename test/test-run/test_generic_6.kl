@@ -80,16 +80,16 @@ func main() {
 // CHECK: %d = local [immutable] z.Duck<ju>
 // CHECK: move %d z.Duck<ju>, %0 z.Duck<ju>
 // CHECK: %fly = local [immutable] z.Fly<j>
-// CHECK: %1 = make_intf %d z.Duck<ju> [intf-table-index = 1] to z.Fly
+// CHECK: %1 = make_intf %d z.Duck<ju> [intf-table-index = 4] to z.Fly
 // CHECK: move %fly z.Fly<j>, %1 z.Fly
 // CHECK: %swim = local [immutable] z.Swim<u>
-// CHECK: %2 = make_intf %d z.Duck<ju> [intf-table-index = 3] to z.Swim
+// CHECK: %2 = make_intf %d z.Duck<ju> [intf-table-index = 6] to z.Swim
 // CHECK: move %swim z.Swim<u>, %2 z.Swim
 // CHECK: %bird = local [immutable] z.Bird<j>
-// CHECK: %3 = make_intf %d z.Duck<ju> [intf-table-index = 2] to z.Bird
+// CHECK: %3 = make_intf %d z.Duck<ju> [intf-table-index = 5] to z.Bird
 // CHECK: move %bird z.Bird<j>, %3 z.Bird
 // CHECK: %fish = local [immutable] z.Fish<u>
-// CHECK: %4 = make_intf %d z.Duck<ju> [intf-table-index = 4] to z.Fish
+// CHECK: %4 = make_intf %d z.Duck<ju> [intf-table-index = 7] to z.Fish
 // CHECK: move %fish z.Fish<u>, %4 z.Fish
 // CHECK: %5 = call @Fly:fly [intf-index = 0], %fly z.Fly<j>
 // CHECK: %6 = build_intern @tuple, %5 int64

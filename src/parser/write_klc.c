@@ -279,21 +279,21 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
         dump_intf_table(stbl);
     }
 
-    if (!is_build_stdlib()) {
-        // write interface table for each class
-        HashMapIter it2 = { 0 };
-        while (hashmap_next(stbl, &it2)) {
-            Symbol *sym = (Symbol *)it2.entry;
-            if (sym->kind != SYM_CLASS) continue;
-            // add interface table
-            KlassSymbol *kls_sym = (KlassSymbol *)sym;
-            IntfEntry *intf_entry;
-            vector_foreach(intf_entry, &kls_sym->intf_table) {
-                if (!intf_entry) continue;
-                write_meta_intf_entry(intf_entry, kls_sym->klc_entry);
-            }
+    // if (!is_build_stdlib()) {
+    // write interface table for each class
+    HashMapIter it2 = { 0 };
+    while (hashmap_next(stbl, &it2)) {
+        Symbol *sym = (Symbol *)it2.entry;
+        if (sym->kind != SYM_CLASS) continue;
+        // add interface table
+        KlassSymbol *kls_sym = (KlassSymbol *)sym;
+        IntfEntry *intf_entry;
+        vector_foreach(intf_entry, &kls_sym->intf_table) {
+            if (!intf_entry) continue;
+            write_meta_intf_entry(intf_entry, kls_sym->klc_entry);
         }
     }
+    // }
 }
 
 static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)

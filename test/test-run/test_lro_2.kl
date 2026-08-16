@@ -72,13 +72,32 @@ func new_debug() Debug {
 // CHECK:       methods:
 // CHECK:       parents:
 
-// CHECK: [1] Debug
+// CHECK: [1] Printable
+// CHECK:       methods:
+// CHECK:         [0] __str__, code_index=11
+// CHECK:       parents:
+// CHECK:         [0] any
+
+// CHECK: [2] Hashable
+// CHECK:       methods:
+// CHECK:         [0] __hash__, code_index=10
+// CHECK:       parents:
+// CHECK:         [0] any
+
+// CHECK: [3] Equatable
+// CHECK:       methods:
+// CHECK:         [0] __eq__, code_index=8
+// CHECK:         [1] __ne__, code_index=9
+// CHECK:       parents:
+// CHECK:         [0] any
+
+// CHECK: [4] Debug
 // CHECK:       methods:
 // CHECK:         [0] show, code_index=5
 // CHECK:       parents:
 // CHECK:         [0] any
 
-// CHECK: [2] Flyable
+// CHECK: [5] Flyable
 // CHECK:       methods:
 // CHECK:         [0] show, code_index=5
 // CHECK:         [1] fly, code_index=3
@@ -86,13 +105,13 @@ func new_debug() Debug {
 // CHECK:         [0] any
 // CHECK:         [1] Debug
 
-// CHECK: [3] Walkable
+// CHECK: [6] Walkable
 // CHECK:       methods:
 // CHECK:         [0] walk, code_index=4
 // CHECK:       parents:
 // CHECK:         [0] any
 
-// CHECK: [4] WalkableFlyable
+// CHECK: [7] WalkableFlyable
 // CHECK:       methods:
 // CHECK:         [0] show, code_index=5
 // CHECK:         [1] fly, code_index=3

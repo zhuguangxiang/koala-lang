@@ -10,7 +10,7 @@
 /// by the compiler against the target sequence length, so all fields are
 /// concrete integers. Follows Python's slicing semantics, including
 /// negative steps for reverse slicing.
-pub class slice : ToString {
+pub class slice {
     /// The starting index of the slice (inclusive).
     pub let start int
 

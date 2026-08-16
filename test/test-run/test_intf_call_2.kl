@@ -45,7 +45,7 @@ func main() {
 // CHECK: %0 = new @test_intf_call_2.Foo
 // CHECK: call @Foo:__init__, %0 test_intf_call_2.Foo
 // CHECK: %f3 = local [immutable] test_intf_call_2.Fly3
-// CHECK: %1 = make_intf %0 test_intf_call_2.Foo [intf-table-index = 3] to test_intf_call_2.Fly3
+// CHECK: %1 = make_intf %0 test_intf_call_2.Foo [intf-table-index = 6] to test_intf_call_2.Fly3
 // CHECK: move %f3 test_intf_call_2.Fly3, %1 test_intf_call_2.Fly3
 // CHECK: %2 = call @Fly3:fly [intf-index = 0], %f3 test_intf_call_2.Fly3
 // CHECK: %3 = call @Fly3:fly2 [intf-index = 1], %f3 test_intf_call_2.Fly3

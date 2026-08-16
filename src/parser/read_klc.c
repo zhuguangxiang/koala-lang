@@ -90,6 +90,27 @@ static Symbol *_get_symbol(char *pkg, char *name, LoadContext *ctx)
     return stbl_get(stbl, name);
 }
 
+static void update_type_sym_id(TypeSpec *ts, LoadContext *ctx)
+{
+    if (ts->kind == TYPE_MANGLED) {
+        Symbol *sym = _get_symbol(ts->mangled.path, ts->mangled.name, ctx);
+        if (sym) {
+            log_info("found symbol for mangled type: %s", ts->mangled.name);
+            ts->sym_id = sym->id;
+        } else {
+            UNREACHABLE();
+        }
+
+        if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+            KlassSymbol *kls_sym = (KlassSymbol *)sym;
+            TypeSpec *_ts;
+            vector_foreach(_ts, &kls_sym->bases) {
+                update_type_sym_id(_ts, ctx);
+            }
+        }
+    }
+}
+
 static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
 {
     ASSERT(ts_ptr);
@@ -131,6 +152,7 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
         Symbol *origin = _get_symbol(ts->mangled.path, ts->mangled.name, ctx);
         ASSERT(origin && (origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT));
         log_info("found origin symbol for mangled type: %s", ts->mangled.name);
+        update_type_sym_id(ts, ctx);
         InstanceSymbol *inst_sym = find_or_add_instance(ctx->stbl, origin, ts->mangled.args);
         ASSERT(inst_sym);
         type_spec_free(ts);

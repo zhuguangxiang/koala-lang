@@ -987,7 +987,7 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
     return 0;
 }
 
-static TypeSpec *__to_specialized_type(char *s, int len, Vector *args)
+static TypeSpec *__to_generic_ref_type(char *s, int len, Vector *args)
 {
     char *dot = strchr(s, '.');
     char *path = NULL;
@@ -1055,7 +1055,7 @@ static TypeSpec *__to_typespec(char **str)
             }
 
             if (open) {
-                ts = __to_specialized_type(k, k2 - k, args);
+                ts = __to_generic_ref_type(k, k2 - k, args);
                 vector_destroy(args);
             } else {
                 if (vector_empty(args)) {

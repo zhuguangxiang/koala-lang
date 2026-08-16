@@ -78,7 +78,7 @@ Object *kl_new_tuple(TValue *items, int count)
 {
     int msize = sizeof(TupleObject) + count * sizeof(TValue);
     TupleObject *x = mm_alloc(msize);
-    INIT_OBJECT_HEAD(x, &tuple_type);
+    INIT_OBJECT_HEAD(x, &tuple_type, 0);
 
     x->size = count;
 

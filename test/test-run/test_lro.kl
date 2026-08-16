@@ -15,29 +15,48 @@ class D : B & C & A & E {}
 // CHECK:       methods:
 // CHECK:       parents:
 
-// CHECK: [1] A
+// CHECK: [1] Printable
+// CHECK:       methods:
+// CHECK:         [0] __str__, code_index=4
+// CHECK:       parents:
+// CHECK:         [0] any
+
+// CHECK: [2] Hashable
+// CHECK:       methods:
+// CHECK:         [0] __hash__, code_index=3
+// CHECK:       parents:
+// CHECK:           [0] any
+
+// CHECK: [3] Equatable
+// CHECK:       methods:
+// CHECK:         [0] __eq__, code_index=1
+// CHECK:         [1] __ne__, code_index=2
+// CHECK:       parents:
+// CHECK:         [0] any
+
+// CHECK: [4] A
 // CHECK:       methods:
 // CHECK:       parents:
 // CHECK:         [0] any
 
-// CHECK: [2] F
+// CHECK: [5] F
 // CHECK:       methods:
 // CHECK:       parents:
 // CHECK:         [0] any
 
-// CHECK: [3] B
+// CHECK: [6] B
 // CHECK:       methods:
 // CHECK:       parents:
 // CHECK:         [0] any
 // CHECK:         [1] A
 // CHECK:         [2] F
 
-// CHECK: [4] E
+// CHECK: [7] E
 // CHECK:       methods:
 // CHECK:       parents:
 // CHECK:         [0] any
 
-// CHECK: [5] C
+// CHECK: [8] C
 // CHECK:       methods:
 // CHECK:       parents:
 // CHECK:         [0] any

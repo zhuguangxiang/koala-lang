@@ -25,7 +25,7 @@ static MethodDef float_methods[] = {
 
 TypeObject float_type = {
     ._type = &type_type,
-    .name = "float",
+    .name = "float64",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = float_methods,
 };

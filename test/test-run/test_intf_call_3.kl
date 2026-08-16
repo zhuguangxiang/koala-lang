@@ -46,7 +46,7 @@ func main() {
 
 // CHECK-LABEL: %bb3(while-end):
 // CHECK: %it = local [immutable] std/builtin.Iterator<j>
-// CHECK: %5 = make_intf %foo test_intf_call_3.Foo [intf-table-index = 1] to std/builtin.Iterator
+// CHECK: %5 = make_intf %foo test_intf_call_3.Foo [intf-table-index = 4] to std/builtin.Iterator
 // CHECK: move %it std/builtin.Iterator<j>, %5 std/builtin.Iterator
 
 // CHECK-LABEL: %bb4(while-cond):

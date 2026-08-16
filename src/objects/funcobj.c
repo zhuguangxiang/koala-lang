@@ -50,7 +50,7 @@ TypeObject code_type = {
 Object *kl_new_code(char *name, Object *owner)
 {
     CodeObject *code = mm_alloc_obj(code);
-    INIT_OBJECT_HEAD(code, &code_type);
+    INIT_OBJECT_HEAD(code, &code_type, 0);
     code->cs.name = atom(name);
     code->owner = owner;
     return (Object *)code;
@@ -111,7 +111,7 @@ TypeObject cfunc_type = {
 Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner)
 {
     CFuncObject *cfunc = mm_alloc_obj(cfunc);
-    INIT_OBJECT_HEAD(cfunc, &cfunc_type);
+    INIT_OBJECT_HEAD(cfunc, &cfunc_type, 0);
     cfunc->name = atom(name);
     cfunc->func = fn;
     cfunc->owner = owner;

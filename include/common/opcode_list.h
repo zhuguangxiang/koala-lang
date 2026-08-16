@@ -2524,8 +2524,12 @@ X(OP_NUM_SHL, FORMAT_RRR)
  */
 X(OP_NUM_SHR, FORMAT_RRR)
 
+/*---------------------------------------------------------------+
+ |  Comparable & Equatable Protocol Instructions                 |
+ +---------------------------------------------------------------*/
+
 /**
- * OP_NUM_EQ — numeric equality comparison via number protocol
+ * OP_NUM_EQ — equality comparison via Equatable protocol
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | ra:8 | rb:8 |
@@ -2534,13 +2538,13 @@ X(OP_NUM_SHR, FORMAT_RRR)
  *     rd = (a == b)
  *
  * Description:
- *     Compares ra and rb for equality using the number protocol.
+ *     Compares ra and rb for equality using the Equatable protocol.
  *
  * Behavior:
  *     - Operands must implement __eq__
  *
  * Types:
- *     - User-defined numeric types implementing __eq__
+ *     - User-defined types implementing __eq__
  *
  * Notes:
  *     - Returns boolean
@@ -2548,7 +2552,7 @@ X(OP_NUM_SHR, FORMAT_RRR)
 X(OP_NUM_EQ, FORMAT_RRR)
 
 /**
- * OP_NUM_NE — numeric inequality comparison via number protocol
+ * OP_NUM_NE — inequality comparison via Equatable protocol
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | ra:8 | rb:8 |
@@ -2557,13 +2561,13 @@ X(OP_NUM_EQ, FORMAT_RRR)
  *     rd = (a != b)
  *
  * Description:
- *     Compares ra and rb for inequality using the number protocol.
+ *     Compares ra and rb for inequality using the Equatable protocol.
  *
  * Behavior:
  *     - Operands must implement __ne__
  *
  * Types:
- *     - User-defined numeric types implementing __ne__
+ *     - User-defined types implementing __ne__
  *
  * Notes:
  *     - Returns boolean
@@ -2571,7 +2575,7 @@ X(OP_NUM_EQ, FORMAT_RRR)
 X(OP_NUM_NE, FORMAT_RRR)
 
 /**
- * OP_NUM_LT — numeric less-than comparison via number protocol
+ * OP_NUM_LT — less-than comparison via Comparable protocol
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | ra:8 | rb:8 |
@@ -2580,13 +2584,13 @@ X(OP_NUM_NE, FORMAT_RRR)
  *     rd = (a < b)
  *
  * Description:
- *     Compares ra and rb using less-than via the number protocol.
+ *     Compares ra and rb using less-than via the Comparable protocol.
  *
  * Behavior:
  *     - Operands must implement __lt__
  *
  * Types:
- *     - User-defined numeric types implementing __lt__
+ *     - User-defined types implementing __lt__
  *
  * Notes:
  *     - Returns boolean
@@ -2594,7 +2598,7 @@ X(OP_NUM_NE, FORMAT_RRR)
 X(OP_NUM_LT, FORMAT_RRR)
 
 /**
- * OP_NUM_LE — numeric less-or-equal comparison via number protocol
+ * OP_NUM_LE — less-or-equal comparison via Comparable protocol
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | ra:8 | rb:8 |
@@ -2603,13 +2607,13 @@ X(OP_NUM_LT, FORMAT_RRR)
  *     rd = (a <= b)
  *
  * Description:
- *     Compares ra and rb using <= via the number protocol.
+ *     Compares ra and rb using <= via the Comparable protocol.
  *
  * Behavior:
  *     - Operands must implement __le__
  *
  * Types:
- *     - User-defined numeric types implementing __le__
+ *     - User-defined types implementing __le__
  *
  * Notes:
  *     - Returns boolean
@@ -2617,7 +2621,7 @@ X(OP_NUM_LT, FORMAT_RRR)
 X(OP_NUM_LE, FORMAT_RRR)
 
 /**
- * OP_NUM_GT — numeric greater-than comparison via number protocol
+ * OP_NUM_GT — greater-than comparison via Comparable protocol
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | ra:8 | rb:8 |
@@ -2626,13 +2630,13 @@ X(OP_NUM_LE, FORMAT_RRR)
  *     rd = (a > b)
  *
  * Description:
- *     Compares ra and rb using > via the number protocol.
+ *     Compares ra and rb using > via the Comparable protocol.
  *
  * Behavior:
  *     - Operands must implement __gt__
  *
  * Types:
- *     - User-defined numeric types implementing __gt__
+ *     - User-defined types implementing __gt__
  *
  * Notes:
  *     - Returns boolean
@@ -2640,7 +2644,7 @@ X(OP_NUM_LE, FORMAT_RRR)
 X(OP_NUM_GT, FORMAT_RRR)
 
 /**
- * OP_NUM_GE — numeric greater-or-equal comparison via number protocol
+ * OP_NUM_GE — greater-or-equal comparison via Comparable protocol
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | ra:8 | rb:8 |
@@ -2649,13 +2653,13 @@ X(OP_NUM_GT, FORMAT_RRR)
  *     rd = (a >= b)
  *
  * Description:
- *     Compares ra and rb using >= via the number protocol.
+ *     Compares ra and rb using >= via the Comparable protocol.
  *
  * Behavior:
  *     - Operands must implement __ge__
  *
  * Types:
- *     - User-defined numeric types implementing __ge__
+ *     - User-defined types implementing __ge__
  *
  * Notes:
  *     - Returns boolean

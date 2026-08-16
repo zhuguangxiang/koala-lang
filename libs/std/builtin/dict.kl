@@ -9,7 +9,7 @@
 /// It implements Map, providing key lookup, insertion, removal,
 /// and iteration over key-value pairs. Iteration, keys(), values() and
 /// items() all follow insertion order.
-pub class dict[K, V] : Map[K, V] & ToString {
+pub class dict[K, V] : Map[K, V] {
 
     /// Create an empty dict.
     @native

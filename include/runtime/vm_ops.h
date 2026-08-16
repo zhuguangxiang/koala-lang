@@ -455,9 +455,17 @@ TARGET(OP_CALL) {
 
     if (IS_CFUNC(obj)) {
         CFuncObject *cfunc = (CFuncObject *)obj;
-        TValue val = obj_value(obj);
         NativeFunc func = cfunc->func;
-        ret = func(&val, ks->stack_top, imm);
+        Object *owner = cfunc->owner;
+        TValue *args = ks->stack_top;
+        if (IS_MODULE(owner)) {
+            TValue val = obj_value(obj);
+            ret = func(&val, args, imm);
+        } else {
+            ASSERT(IS_TYPE(owner, &type_type));
+            ASSERT(imm > 0);
+            ret = func(args, args + 1, imm - 1);
+        }
     } else {
         ASSERT(IS_CODE(e->obj));
         TValue val = obj_value(e->obj);
@@ -494,7 +502,7 @@ TARGET(OP_SET_FIELD) {
 
     Object *obj = to_obj(regs + rd);
     InstObject *inst_obj = (InstObject *)obj;
-    ASSERT(off < inst_obj->size);
+    ASSERT(off < NR_FIELDS(inst_obj));
     inst_obj->fields[off] = regs[rs];
     DISPATCH();
 }
@@ -509,7 +517,7 @@ TARGET(OP_GET_FIELD) {
 
     Object *obj = to_obj(regs + rs);
     InstObject *inst_obj = (InstObject *)obj;
-    ASSERT(off < inst_obj->size);
+    ASSERT(off < NR_FIELDS(inst_obj));
     regs[rd] = inst_obj->fields[off];
     DISPATCH();
 }

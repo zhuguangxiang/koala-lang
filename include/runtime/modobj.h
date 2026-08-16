@@ -45,8 +45,9 @@ typedef struct _ModuleObject {
     Vector types;   // types defined in this module
     Vector globals; // vars defined in this module
 
-    HashMap symbols;  // symbols for exported map
-    char *path;       // module path
+    HashMap symbols; // symbols for exported map
+    char *path;      // module path
+
     Object *not_impl; // not implemented function
 
     /* native so */
@@ -79,13 +80,11 @@ extern TypeObject module_type;
 #define IS_MODULE(ob) IS_TYPE((ob), &module_type)
 
 Object *kl_new_module(char *path);
-Object *kl_module_fromdef(ModuleDef *def);
 void kl_free_module(Object *m);
-int kl_init_module(Object *_m);
 #define kl_mo_path(m) (((ModuleObject *)(m))->path)
 void kl_mo_set_code(Object *_m, uint32_t *insns, size_t n);
 int kl_bind_func(Object *_m, Object *obj);
-int kl_mo_add_func(Object *_m, Object *obj);
+int kl_mo_add_func(Object *_m, char *name, Object *obj);
 int kl_mo_add_type(Object *_m, TypeObject *tp);
 int kl_mo_add_const(Object *_m, TValue *val);
 int kl_mo_add_str(Object *_m, char *s);
