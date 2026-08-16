@@ -24,7 +24,7 @@ func main() {
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK-LABEL: %bb1(loop-header):
 // CHECK: %0 = get_field_ext %r std/builtin.range, start
-// CHECK: %1 = get_field_ext %r std/builtin.range, stop
+// CHECK: %1 = get_field_ext %r std/builtin.range, end
 // CHECK: %2 = get_field_ext %r std/builtin.range, step
 
 // CHECK-LABEL: %bb2(loop-cond):

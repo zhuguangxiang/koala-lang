@@ -15,7 +15,7 @@ class Point {
 }
 
 func foo(r range) int {
-    return r.start + r.stop
+    return r.start + r.end
 }
 
 func main() {
@@ -47,7 +47,7 @@ func main() {
 // CHECK-LABEL: func @foo(%r std/builtin.range) int64 {
 // CHECK: %bb0(entry):
 // CHECK: %0 = get_field_ext %r std/builtin.range, start
-// CHECK: %1 = get_field_ext %r std/builtin.range, stop
+// CHECK: %1 = get_field_ext %r std/builtin.range, end
 // CHECK: %2 = add %0 int64, %1 int64
 // CHECK: ret %2 int64
 

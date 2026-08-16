@@ -7,7 +7,7 @@
 ///
 /// It implements MutableSequence, providing dynamic array functionality:
 /// random access, appending, insertion, deletion and slicing.
-pub class list[T] : MutableSequence[T] & ToString {
+pub class list[T] : MutableSequence[T] {
 
     /// Initialize a list with the given items.
     @native

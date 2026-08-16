@@ -35,7 +35,7 @@ TypeObject field_type = {
 Object *kl_new_field(char *name, int type, int offset, Object *owner)
 {
     FieldObject *field = mm_alloc_obj(field);
-    INIT_OBJECT_HEAD(field, &field_type);
+    INIT_OBJECT_HEAD(field, &field_type, 0);
     field->name = name;
     field->owner = owner;
     field->type = type;

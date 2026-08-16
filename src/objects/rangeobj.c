@@ -11,19 +11,19 @@ extern "C" {
 
 static TValue kl_range_index(TValue *self, TValue *args, int nargs)
 {
-    ASSERT(nargs == 1);
+    ASSERT(nargs == 3);
     RangeObject *range = (RangeObject *)to_obj(self);
     TValue *value = args + 0;
-    int64_t start = range->start.ival;
-    int64_t stop = range->stop.ival;
-    int64_t step = range->step.ival;
+    int64_t start = to_int64(&range->start);
+    int64_t end = to_int64(&range->end);
+    int64_t step = to_int64(&range->step);
 
     if (step > 0) {
-        if (value->ival < start || value->ival >= stop) {
+        if (value->ival < start || value->ival >= end) {
             return int64_value(-1); // Not found
         }
     } else if (step < 0) {
-        if (value->ival > start || value->ival <= stop) {
+        if (value->ival > start || value->ival <= end) {
             return int64_value(-1); // Not found
         }
     } else {
@@ -40,10 +40,10 @@ static TValue kl_range_index(TValue *self, TValue *args, int nargs)
 static TValue kl_range_str(TValue *self, TValue *args, int nargs)
 {
     RangeObject *range = (RangeObject *)to_obj(self);
-    int64_t start = range->start.ival;
-    int64_t stop = range->stop.ival;
-    int64_t step = range->step.ival;
-    Object *sobj = kl_new_fmt_str("range(%ld, %ld, %ld)", start, stop, step);
+    int64_t start = to_int64(&range->start);
+    int64_t end = to_int64(&range->end);
+    int64_t step = to_int64(&range->step);
+    Object *sobj = kl_new_fmt_str("range(%ld, %ld, %ld)", start, end, step);
     return obj_value(sobj);
 }
 
@@ -53,19 +53,11 @@ static MethodDef range_methods[] = {
     { NULL },
 };
 
-static MemberDef range_members[] = {
-    { "start", M_TYPE_INT, M_OFFSET(RangeObject, start) },
-    { "stop", M_TYPE_INT, M_OFFSET(RangeObject, stop) },
-    { "step", M_TYPE_INT, M_OFFSET(RangeObject, step) },
-    { NULL },
-};
-
 TypeObject range_type = {
     ._type = &type_type,
     .name = "range",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = range_methods,
-    .membdefs = range_members,
 };
 
 Object *kl_new_range(TValue *items)
@@ -77,10 +69,10 @@ Object *kl_new_range(TValue *items)
 
     int msize = sizeof(RangeObject);
     RangeObject *x = mm_alloc(msize);
-    INIT_OBJECT_HEAD(x, &range_type);
+    INIT_OBJECT_HEAD(x, &range_type, 3);
 
     x->start = items[0];
-    x->stop = items[1];
+    x->end = items[1];
     x->step = items[2];
 
     return (Object *)x;

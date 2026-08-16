@@ -161,7 +161,7 @@ static TValue kl_bytes_view(TValue *self, TValue *args, int nargs)
     ASSERT(start >= 0 && end >= 0 && start <= end && end <= bytes->size);
 
     BytesObject *view_bytes = mm_alloc_obj(view_bytes);
-    INIT_OBJECT_HEAD(view_bytes, &bytes_type);
+    INIT_OBJECT_HEAD(view_bytes, &bytes_type, 0);
     view_bytes->offset += start;
     view_bytes->size = end - start;
     view_bytes->data = bytes->data;
@@ -228,30 +228,20 @@ static SeqMethods bytes_seq_methods = {
     .set = kl_bytes_seq_set,
 };
 
-static Object *bytes_alloc(TypeObject *tp)
-{
-    BytesObject *bytes = mm_alloc_obj(bytes);
-    INIT_OBJECT_HEAD(bytes, tp);
-    bytes->offset = 0;
-    bytes->size = 0;
-    bytes->data = NULL;
-    return (Object *)bytes;
-}
-
 /* pub class bytes : MutableSequence[uint8] { ... } */
 TypeObject bytes_type = {
     ._type = &type_type,
     .name = "bytes",
+    .priv_size = 2 * sizeof(uint32_t) + sizeof(uint8_t *),
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = bytes_methods,
     .seq = &bytes_seq_methods,
-    .alloc = bytes_alloc,
 };
 
 Object *kl_new_bytes(uint32_t size)
 {
     BytesObject *bytes = mm_alloc_obj(bytes);
-    INIT_OBJECT_HEAD(bytes, &bytes_type);
+    INIT_OBJECT_HEAD(bytes, &bytes_type, 0);
     bytes->offset = 0;
     bytes->size = size;
     bytes->data = mm_alloc(size);

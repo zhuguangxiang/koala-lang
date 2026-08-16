@@ -159,7 +159,7 @@ TypeObject list_type = {
 Object *kl_new_list(void)
 {
     ListObject *list = mm_alloc_obj(list);
-    INIT_OBJECT_HEAD(list, &list_type);
+    INIT_OBJECT_HEAD(list, &list_type, 0);
     list->start = 0;
     list->end = 0;
     return (Object *)list;
@@ -168,7 +168,7 @@ Object *kl_new_list(void)
 Object *kl_list_from_array(TValue *items, int size)
 {
     ListObject *list = mm_alloc_obj(list);
-    INIT_OBJECT_HEAD(list, &list_type);
+    INIT_OBJECT_HEAD(list, &list_type, 0);
     expand_capacity(list, size);
     memcpy(list->array, items, sizeof(TValue) * size);
     list->start = 0;

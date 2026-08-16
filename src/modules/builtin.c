@@ -6,7 +6,6 @@
 #include "bytebuf.h"
 #include "bytesobj.h"
 #include "listobj.h"
-#include "modobj.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
 
@@ -115,21 +114,22 @@ static MethodDef builtin_functions[] = {
 };
 
 static TypeObject *builtin_types[] = {
-    &any_type,   &type_type,   &none_type,  &bool_type,  &str_type,     &exc_type,
-    &field_type, &global_type, &cfunc_type, &code_type,  &int_type,     &float_type,
-    &tuple_type, &range_type,  &list_type,  &bytes_type, &bytebuf_type, NULL,
+    &type_type,   &none_type,  &bool_type,  &str_type,     &exc_type,   &field_type,
+    &global_type, &cfunc_type, &code_type,  &int_type,     &float_type, &tuple_type,
+    &range_type,  &list_type,  &bytes_type, &bytebuf_type,
 };
 
-void init_builtin_module(void)
+void builtin_native_lib_init(NativeLib *lib)
 {
-    ModuleDef builtin_module = {
-        .path = "std/builtin",
-        .funcs = builtin_functions,
-        .types = builtin_types,
-    };
+    MethodDef *methdef = builtin_functions;
+    while (methdef->name) {
+        kl_reg_func(lib, methdef->name, methdef->cfunc);
+        ++methdef;
+    }
 
-    kl_module_fromdef(&builtin_module);
-    // kl_dump_module(m);
+    for (int i = 0; i < COUNT_OF(builtin_types); ++i) {
+        kl_reg_type(lib, builtin_types[i]);
+    }
 }
 
 #ifdef __cplusplus

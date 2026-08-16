@@ -7,7 +7,7 @@
 ///
 /// Type objects are produced only by the runtime via `typeof()`
 /// and cannot be created directly.
-pub class type : ToString {
+pub class type {
 
     // Private: type objects are created by the runtime only.
     func __init__() {}

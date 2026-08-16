@@ -3,7 +3,8 @@ CompileFlags:
 
 If:
   PathMatch: [
-    include/runtime/vm_ops.h
+    include/runtime/vm_ops.h,
+    include/common/opcode_list.h
   ]
 
 Index:

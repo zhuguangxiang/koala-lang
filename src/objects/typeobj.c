@@ -25,16 +25,10 @@ static TypeObject *_value_typeof(int tag)
     return _types_mapping[tag];
 }
 
-TypeObject any_type = {
-    ._type = &type_type,
-    .name = "any",
-    .flags = TP_FLAGS_TRAIT | TP_FLAGS_PUBLIC,
-};
-
 Object *kl_new_global(char *name, int index, Object *m)
 {
     GlobalObject *global = mm_alloc_obj(global);
-    INIT_OBJECT_HEAD(global, &global_type);
+    INIT_OBJECT_HEAD(global, &global_type, 0);
     global->name = name;
     global->index = index;
     global->module = m;
@@ -82,7 +76,7 @@ void kl_init_type(TypeObject *tp)
 TypeObject *kl_new_type(char *name, int flags)
 {
     TypeObject *tp = mm_alloc_obj(tp);
-    tp->_type = &type_type;
+    INIT_OBJECT_HEAD(tp, &type_type, 0);
     tp->name = name;
     tp->flags = flags;
     kl_init_type(tp);
@@ -91,17 +85,26 @@ TypeObject *kl_new_type(char *name, int flags)
 
 Object *kl_new_instance(struct _TypeObject *tp)
 {
-    if (tp->alloc) {
-        return tp->alloc(tp);
-    }
-
     size_t nfields = vector_size(&tp->fields);
     int msize = sizeof(InstObject) + sizeof(TValue) * nfields;
+    msize += tp->priv_size;
     Object *obj = mm_alloc(msize);
-    INIT_OBJECT_HEAD(obj, tp);
-    InstObject *inst = (InstObject *)obj;
-    inst->size = nfields;
+    INIT_OBJECT_HEAD(obj, tp, nfields);
     return obj;
+}
+
+int kl_tp_add_field(TypeObject *tp, char *name, Object *field)
+{
+    vector_push_back(&tp->fields, &field);
+    stbl_add_obj(&tp->members, name, field);
+    return 0;
+}
+
+int kl_tp_add_method(TypeObject *tp, char *name, Object *meth)
+{
+    vector_push_back(&tp->methods, &meth);
+    stbl_add_obj(&tp->members, name, meth);
+    return 0;
 }
 
 /*---------------------------------------------------------------------------+
@@ -199,53 +202,6 @@ TypeObject type_type = {
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = type_methods,
 };
-
-/*---------------------------------------------------------------------------+
- |  type init core implementation                                            |
- +---------------------------------------------------------------------------*/
-
-void type_install_slots(TypeObject *tp);
-
-int type_ready(TypeObject *tp)
-{
-    if (!tp || tp->flags & TP_FLAGS_READY) return 0;
-
-    Object *_m = tp->module;
-    ModuleObject *m = (ModuleObject *)_m;
-
-    // add method to type
-    Object *cfunc;
-    MethodDef *def = tp->methdefs;
-    while (def && def->name) {
-        if (def->cfunc) {
-            cfunc = kl_new_cfunc(def->name, def->cfunc, (Object *)tp);
-            kl_bind_func(_m, cfunc);
-            log_info("added method '%s' to class/trait '%s'", def->name, tp->name);
-        } else {
-            cfunc = m->not_impl;
-            log_info("added method '%s'(not_impl) to class/trait '%s'", def->name, tp->name);
-        }
-        vector_push_back(&tp->methods, &cfunc);
-        stbl_add_obj(&tp->members, def->name, cfunc);
-        ++def;
-    }
-
-    // add member to type
-    MemberDef *mdef = tp->membdefs;
-    while (mdef && mdef->name) {
-        Object *field = kl_new_field(mdef->name, mdef->type, mdef->offset, (Object *)tp);
-        vector_push_back(&tp->fields, &field);
-        stbl_add_obj(&tp->members, mdef->name, field);
-        log_info("added field '%s' to class/trait '%s'", mdef->name, tp->name);
-        ++mdef;
-    }
-
-    // initialize slots[]
-    type_install_slots(tp);
-
-    tp->flags |= TP_FLAGS_READY;
-    return 0;
-}
 
 #ifdef __cplusplus
 }

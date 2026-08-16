@@ -22,7 +22,7 @@ r[5]
 r[9]
 
 r.start
-r.stop
+r.end
 r.step
 
 r.__len__()

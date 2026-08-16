@@ -5,10 +5,8 @@
 
 #include "modobj.h"
 #include "atom.h"
-#include "codespec.h"
 #include "klc.h"
 #include "listobj.h"
-#include "log.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
 
@@ -24,6 +22,7 @@ TypeObject module_type = {
     ._type = &type_type,
     .name = "module",
     .flags = TP_FLAGS_CLASS,
+    .priv_size = sizeof(ModuleObject),
 };
 
 static TValue not_impl_func(TValue *self, TValue *args, int nargs)
@@ -49,22 +48,19 @@ int kl_bind_func(Object *_m, Object *obj)
     return 0;
 }
 
-int kl_mo_add_func(Object *_m, Object *obj)
+int kl_mo_add_func(Object *_m, char *name, Object *obj)
 {
     ModuleObject *m = (ModuleObject *)_m;
     vector_push_back(&m->funcs, &obj);
 
-    char *name;
     if (IS_CFUNC(obj)) {
         CFuncObject *cfunc = (CFuncObject *)obj;
-        stbl_add_obj(&m->symbols, cfunc->name, obj);
-        name = cfunc->name;
+        stbl_add_obj(&m->symbols, name, obj);
     } else {
         ASSERT(IS_CODE(obj));
         CodeObject *code = (CodeObject *)obj;
         if (code->flags & CODE_FLAG_METH) return 0;
-        stbl_add_obj(&m->symbols, code->cs.name, obj);
-        name = code->cs.name;
+        stbl_add_obj(&m->symbols, name, obj);
     }
 
     if (str_equal(name, "__init__")) {
@@ -377,7 +373,7 @@ Object *kl_new_module(char *path)
 {
     ModuleObject *m = mm_alloc_obj(m);
 
-    INIT_OBJECT_HEAD(m, &module_type);
+    INIT_OBJECT_HEAD(m, &module_type, 0);
     vector_init(&m->const_pool, sizeof(TValue));
     vector_init(&m->import_table, sizeof(ImportEntry));
     vector_init(&m->func_entries, sizeof(FuncEntry));
@@ -395,63 +391,6 @@ Object *kl_new_module(char *path)
 void kl_free_module(Object *m)
 {
     // TODO: implement module free logic
-}
-
-int kl_init_module(Object *_m)
-{
-    ModuleObject *m = (ModuleObject *)_m;
-
-    // bind cfunc/code to module
-    Object *fn;
-    vector_foreach(fn, &m->funcs) {
-        kl_bind_func(_m, fn);
-    }
-
-    // setup types
-    TypeObject *tp;
-    vector_foreach(tp, &m->types) {
-        type_ready(tp);
-    }
-
-    // allocate global variables space
-    if (m->num_values > 0) {
-        m->values = mm_alloc(sizeof(TValue) * m->num_values);
-        for (uint32_t i = 0; i < m->num_values; i++) {
-            m->values[i] = none_value;
-        }
-    }
-
-    return 0;
-}
-
-Object *kl_module_fromdef(ModuleDef *def)
-{
-    Object *_m = kl_new_module(def->path);
-    ModuleObject *m = (ModuleObject *)_m;
-
-    // set global variables' number
-    m->num_values = def->nvars;
-
-    // add functions
-    MethodDef *fn = def->funcs;
-    while (fn && fn->name) {
-        Object *cfunc = kl_new_cfunc(fn->name, fn->cfunc, _m);
-        kl_mo_add_func(_m, cfunc);
-        log_info("added func '%s' to module '%s'", fn->name, m->path);
-        fn++;
-    }
-
-    // add types
-    TypeObject **tp = def->types;
-    while (*tp) {
-        kl_init_type(*tp);
-        kl_mo_add_type(_m, *tp);
-        tp++;
-    }
-
-    kl_init_module(_m);
-
-    return _m;
 }
 
 #ifdef __cplusplus

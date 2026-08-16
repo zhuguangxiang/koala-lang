@@ -3,42 +3,6 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// Trait for basic arithmetic operations.
-///
-/// Provides the fundamental binary arithmetic operators (`+`, `-`, `*`, `/`, `%`)
-/// shared by all numeric types.
-pub trait Arithmetic[T] {
-    /// Returns the sum of `self` and `rhs` (`self + rhs`).
-    func __add__(rhs T) T
-    /// Returns the difference of `self` and `rhs` (`self - rhs`).
-    func __sub__(rhs T) T
-    /// Returns the product of `self` and `rhs` (`self * rhs`).
-    func __mul__(rhs T) T
-    /// Returns the quotient of `self` and `rhs` (`self / rhs`).
-    func __div__(rhs T) T
-    /// Returns the remainder of `self` divided by `rhs` (`self % rhs`).
-    func __mod__(rhs T) T
-}
-
-/// Trait for bitwise operations.
-///
-/// Provides shift and bitwise logical operators. Only integer types implement
-/// this trait; floating-point types do not support bitwise operations.
-pub trait BitwiseOperators[T] {
-    /// Left shift (`self << rhs`).
-    func __lsh__(rhs T) T
-    /// Right shift (`self >> rhs`).
-    func __rsh__(rhs T) T
-    /// Bitwise AND (`self & rhs`).
-    func __bitand__(rhs T) T
-    /// Bitwise OR (`self | rhs`).
-    func __bitor__(rhs T) T
-    /// Bitwise XOR (`self ^ rhs`).
-    func __bitxor__(rhs T) T
-    /// Bitwise NOT (`~self`).
-    func __bitnot__() T
-}
-
 /// An 8-bit signed integer.
 ///
 /// Used to truncate a wider integer value down to 8 bits. Arithmetic operations
@@ -71,9 +35,8 @@ pub class int32 {
 
 /// A 64-bit signed integer.
 ///
-/// The primary signed integer type. Supports arithmetic, bitwise, comparison,
-/// hashing, and string conversion operations.
-pub class int64 : Arithmetic & BitwiseOperators & Comparable & Hashable & ToString {
+/// The primary signed integer type.
+pub class int64 : Comparable {
     /// Creates an `int64`.
     ///
     /// The argument `x` can be an integer, a floating-point value, or a string.
@@ -255,10 +218,8 @@ pub class uint32 {
 
 /// A 64-bit unsigned integer.
 ///
-/// The primary unsigned integer type. Supports arithmetic, bitwise, comparison,
-/// hashing, and string conversion operations. Being unsigned, it cannot be
-/// negated and has no `abs` method.
-pub class uint64 : Arithmetic & BitwiseOperators & Comparable & Hashable & ToString {
+/// The primary unsigned integer type.
+pub class uint64 : Comparable {
     /// Creates a `uint64`.
     ///
     /// The argument `x` can be an integer, a floating-point value, or a string.
@@ -422,13 +383,9 @@ pub class float32 {
 
 /// A 64-bit floating-point number (double precision).
 ///
-/// The primary floating-point type, conforming to IEEE 754. Supports arithmetic
-/// and comparison operations. It does not implement `BitwiseOperators` (bitwise
-/// operations are undefined for floats) nor `Hashable` (because `NaN != NaN`
-/// would violate the hash contract).
-pub class float64 : Arithmetic & Comparable & ToString {
-    /// Creates a `float64` from an integer, another floating-point value, or a
-    /// string.
+/// The primary floating-point type, conforming to IEEE 754.
+pub class float64 : Comparable {
+    /// Creates a `float64` from an integer, another floating-point value, or a string.
     @native
     pub func __init__(x float64 | int64 | uint64 | str) {}
 
@@ -479,6 +436,10 @@ pub class float64 : Arithmetic & Comparable & ToString {
     /// Returns `true` if `self` is not equal to `rhs` (`self != rhs`).
     @intrinsic
     pub func __ne__(rhs float64) bool {}
+
+    /// Returns a hash value for `self`.
+    @native
+    pub func __hash__() int {}
 
     /// Returns the string representation of `self`.
     @native

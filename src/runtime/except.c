@@ -34,7 +34,7 @@ TypeObject exc_type = {
 Object *kl_new_exc(char *msg)
 {
     Exception *exc = mm_alloc_obj(exc);
-    INIT_OBJECT_HEAD(exc, &exc_type);
+    INIT_OBJECT_HEAD(exc, &exc_type, 0);
     exc->msg = strdup(msg);
     exc->back = NULL;
     return (Object *)exc;

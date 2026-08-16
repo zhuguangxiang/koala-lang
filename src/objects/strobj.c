@@ -208,7 +208,7 @@ Object *kl_new_nstr(char *s, size_t len)
     }
 
     StringObject *x = mm_alloc_obj(x);
-    INIT_OBJECT_HEAD(x, &str_type);
+    INIT_OBJECT_HEAD(x, &str_type, 0);
     x->size = len;
 
     char *data = mm_alloc(len + 1);

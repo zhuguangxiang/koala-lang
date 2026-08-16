@@ -911,7 +911,7 @@ static int do_const_range_fold(KlrInsn *insn, KlrFunc *fn)
                 KlrValue *start = vector_at(list, 0);
                 replace_all_uses_with(start, (KlrValue *)insn);
                 log_info("fold range start field access to const value.");
-            } else if (str_equal(fld->name, "stop")) {
+            } else if (str_equal(fld->name, "end")) {
                 KlrValue *stop = vector_at(list, 1);
                 replace_all_uses_with(stop, (KlrValue *)insn);
                 log_info("fold range stop field access to const value.");

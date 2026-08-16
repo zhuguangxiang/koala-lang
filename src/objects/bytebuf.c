@@ -99,26 +99,19 @@ static SeqMethods bytebuf_seq_methods = {
     .set = bytebuf_seq_set,
 };
 
-static Object *bytebuf_alloc(TypeObject *tp)
-{
-    ByteBufObject *bb = mm_alloc_obj(bb);
-    INIT_OBJECT_HEAD(bb, tp);
-    return (Object *)bb;
-}
-
 TypeObject bytebuf_type = {
     ._type = &type_type,
     .name = "ByteBuf",
+    .priv_size = sizeof(ByteBufObject),
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
     .methdefs = bytebuf_methods,
     .seq = &bytebuf_seq_methods,
-    .alloc = bytebuf_alloc,
 };
 
 Object *kl_new_bytebuf(size_t size)
 {
     ByteBufObject *bb = mm_alloc_obj(bb);
-    INIT_OBJECT_HEAD(bb, &bytebuf_type);
+    INIT_OBJECT_HEAD(bb, &bytebuf_type, 0);
     buf_reserve(&bb->buf, size);
     return (Object *)bb;
 }

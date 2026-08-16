@@ -19,14 +19,20 @@ extern "C" {
  |  Object & TValue                                                          |
  +---------------------------------------------------------------------------*/
 
-#define OBJECT_HEAD struct _TypeObject *_type;
+#define OBJECT_HEAD \
+    /* object's meta type object */ \
+    struct _TypeObject *_type; \
+    /* Size of the Koala-visible fields (dynamic size) */ \
+    size_t _size;
 
 typedef struct _Object {
     OBJECT_HEAD
 } Object;
 
 /* Assigns the type of a newly allocated object. */
-#define INIT_OBJECT_HEAD(ob, type) (ob)->_type = (type)
+#define INIT_OBJECT_HEAD(ob, type, size) \
+    (ob)->_type = (type); \
+    (ob)->_size = (size);
 
 /** Retrieve the TypeObject of any Koala object. */
 #define OB_TYPE(ob) ((ob)->_type)
@@ -172,35 +178,17 @@ typedef struct _TValue {
  |  Koala Instance Object Layout                                             |
  +---------------------------------------------------------------------------*/
 
-/* clang-format off */
-#define INST_OBJECT_HEAD OBJECT_HEAD size_t size;
-/* clang-format on */
-
 typedef struct _InstObject {
-    INST_OBJECT_HEAD
+    OBJECT_HEAD
     TValue fields[0];
 } InstObject;
 
 Object *kl_new_instance(struct _TypeObject *tp);
+#define NR_FIELDS(obj) ((obj)->_size)
 
 /*---------------------------------------------------------------------------+
  |  Type Object                                                              |
  +---------------------------------------------------------------------------*/
-
-typedef struct _MemberDef {
-    /* The name of field/global */
-    char *name;
-    /* type */
-    int type;
-    /* offset */
-    int offset;
-} MemberDef;
-
-#define M_TYPE_INT 0
-#define M_TYPE_STR 1
-#define M_TYPE_OBJ 2
-
-#define M_OFFSET(tp, m) offsetof(tp, m)
 
 typedef TValue (*NativeFunc)(TValue *self, TValue *args, int nargs);
 
@@ -211,7 +199,7 @@ typedef struct _MethodDef {
     NativeFunc cfunc;
 } MethodDef;
 
-typedef Object *(*AllocFunc)(struct _TypeObject *tp);
+typedef void (*GcMarkFunc)(Object *self);
 typedef int (*InitFunc)(TValue *self, TValue *args, int nargs);
 typedef void (*FiniFunc)(Object *self);
 
@@ -221,6 +209,7 @@ typedef TValue (*StrFunc)(TValue *self);
 typedef TValue (*CallFunc)(TValue *self, TValue *args, int nargs);
 
 typedef TValue (*BinaryFunc)(TValue *lhs, TValue *rhs);
+typedef TValue (*UnaryFunc)(TValue *self);
 
 typedef size_t (*LenFunc)(TValue *self);
 typedef int (*ContainsFunc)(TValue *self, TValue *item);
@@ -242,8 +231,20 @@ typedef struct _NumberMethods {
     BinaryFunc div;
     /* number mod */
     BinaryFunc mod;
-    /* number pow */
-    // BinaryFunc pow;
+    /* number neg */
+    UnaryFunc neg;
+    /* bitwise left shift */
+    BinaryFunc lshift;
+    /* bitwise right shift */
+    BinaryFunc rshift;
+    /* bitwise and */
+    BinaryFunc bit_and;
+    /* bitwise or */
+    BinaryFunc bit_or;
+    /* bitwise xor */
+    BinaryFunc bit_xor;
+    /* bitwise not */
+    UnaryFunc bit_not;
 } NumberMethods;
 
 typedef struct _SeqMethods {
@@ -296,6 +297,14 @@ typedef enum {
     SLOT_MUL,
     SLOT_DIV,
     SLOT_MOD,
+    SLOT_NEG,
+
+    SLOT_LSHIFT,
+    SLOT_RSHIFT,
+    SLOT_BIT_AND,
+    SLOT_BIT_OR,
+    SLOT_BIT_XOR,
+    SLOT_BIT_NOT,
 
     /* sequence & map */
     SLOT_LEN,
@@ -331,15 +340,55 @@ typedef struct _TypeObject {
     /* Interface tables */
     Vector itables;
 
-    /* Type name */
-    char *name;
+    /**
+     * Object memory layout:
+     * +-----------------------------------+
+     * | TypeObject *type                  |  <- Object Header (sizeof(BaseObject))
+     * +-----------------------------------+
+     * | size_t _size                       |  <- Size of the Koala-visible fields (dynamic size)
+     * +-----------------------------------+
+     * | TValue fields[num_fields]         |  <- Koala-visible fields (dynamic size)
+     * +-----------------------------------+
+     * | char priv_data[priv_size]         |  <- C-private opaque payload (dynamic size)
+     * +-----------------------------------+
+     *
+     * NOTE: The 'priv_data' region is entirely invisible to Koala bytecode.
+     *       It is managed exclusively by the C native runtime side.
+     */
+
+    /* size of the C-private opaque payload appended to each object */
+    int priv_size;
 
     /* TP_FLAGS_XXX */
     int flags;
-    /* number of base types */
-    int nbases;
+
+    /* hashable protocol(__hash__) */
+    HashFunc hash;
+    /* comparison protocol(__eq__, __lt__, etc.) */
+    RichCmpFunc cmp;
+    /* tostring protocol(__str__) */
+    StrFunc str;
+    /* callable protocol(__call__) */
+    CallFunc call;
+
+    /* number protocol */
+    NumberMethods *num;
+    /* sequence protocol */
+    SeqMethods *seq;
+    /* mapping protocol */
+    MapMethods *map;
+
+    /* init function */
+    InitFunc init;
+    /* fini function */
+    FiniFunc fini;
+    /* gc mark */
+    GcMarkFunc gc_mark;
+
+    /* Type name */
+    char *name;
     /* parent traits */
-    struct _TypeObject **bases;
+    Vector bases;
     /* fields */
     Vector fields;
     /* methods */
@@ -349,33 +398,8 @@ typedef struct _TypeObject {
     /* module */
     Object *module;
 
-    /* methoddef */
+    /* methoddefs */
     MethodDef *methdefs;
-    /* memberdef */
-    MemberDef *membdefs;
-
-    /* allocate function */
-    AllocFunc alloc;
-    /* init function */
-    InitFunc init;
-    /* fini function */
-    FiniFunc fini;
-
-    /* number protocol methods */
-    NumberMethods *num;
-    /* sequence protocol methods */
-    SeqMethods *seq;
-    /* mapping protocol methods */
-    MapMethods *map;
-
-    /* hash function(__hash__) */
-    HashFunc hash;
-    /* comparison function(__eq__, __lt__, etc.) */
-    RichCmpFunc cmp;
-    /* printable (__str__) */
-    StrFunc str;
-    /* call function(__call__) */
-    CallFunc call;
 
     /* slots for special methods */
     Object *slots[SLOT_MAX];
@@ -530,7 +554,6 @@ void stbl_init(HashMap *map);
 void stbl_add_obj(HashMap *map, char *name, Object *obj);
 Object *stbl_find_obj(HashMap *map, char *name);
 
-extern TypeObject any_type;
 extern TypeObject type_type;
 extern TypeObject none_type;
 extern TypeObject bool_type;
@@ -542,16 +565,12 @@ extern TypeObject int_type;
 // shared by all float types
 extern TypeObject float_type;
 
-extern TypeObject Iterable_type;
-extern TypeObject Iterator_type;
-extern TypeObject Collection_type;
-extern TypeObject Sequence_type;
-extern TypeObject MutableSequence_type;
-
 TypeObject *kl_typeof(TValue *val);
-int type_ready(TypeObject *tp);
 void kl_init_type(TypeObject *tp);
 TypeObject *kl_new_type(char *name, int flags);
+int kl_tp_add_field(TypeObject *tp, char *name, Object *field);
+int kl_tp_add_method(TypeObject *tp, char *name, Object *meth);
+void kl_tp_install_slots(TypeObject *tp);
 
 static inline Object *kl_to_str(TValue *val)
 {

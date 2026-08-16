@@ -15,7 +15,7 @@ extern "C" {
 typedef struct _RangeObject {
     OBJECT_HEAD
     TValue start;
-    TValue stop;
+    TValue end;
     TValue step;
 } RangeObject;
 
