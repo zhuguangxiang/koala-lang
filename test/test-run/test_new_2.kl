@@ -68,5 +68,5 @@ func main() {
 // CHECK: call @print [path = 'std/builtin'], %6 std/builtin.tuple<j>, ' ' str, '\n' str
 // CHECK: ret void
 
-// CHECK: <Point object at 0x{{[0-9a-f]+}}> 3 2
+// CHECK: <z.Point object at 0x{{[0-9a-f]+}}> 3 2
 // CHECK: 300

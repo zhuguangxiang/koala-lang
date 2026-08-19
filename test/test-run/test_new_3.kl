@@ -72,7 +72,7 @@ func main() {
 // CHECK: call @print [path = 'std/builtin', const], tuple(range(100, 200, 1)) std/builtin.tuple<Lstd/builtin.range;>
 // CHECK: ret void
 
-// CHECK: <BAR object at 0x{{[0-9a-f]+}}> 100 BAR
-// CHECK: <Point object at 0x{{[0-9a-f]+}}> 1 2 10
+// CHECK: <z.BAR object at 0x{{[0-9a-f]+}}> 100 BAR
+// CHECK: <z.Point object at 0x{{[0-9a-f]+}}> 1 2 10
 // CHECK: range(100, 200, 1)
 // CHECK: range(1, 2, 3)

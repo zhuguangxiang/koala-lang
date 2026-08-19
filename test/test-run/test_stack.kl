@@ -110,6 +110,6 @@ func main() {
     }
 }
 
-// CHECK: <List object at 0x{{[0-9a-f]+}}>
+// CHECK: <test_stack.List object at 0x{{[0-9a-f]+}}>
 // CHECK: popped:  20
 // CHECK: popped:  10

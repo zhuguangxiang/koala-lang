@@ -259,10 +259,12 @@ void stbl_show(HashMap *stbl);
 void *get_symbol_by_id(int id);
 
 PkgSymbol *stbl_add_pkg(HashMap *stbl, char *path);
-InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args);
 
 Symbol *stbl_add_func_instance(HashMap *stbl, FuncSymbol *origin, char *mangled_name,
                                Vector *real_arg_types, TypeSpec *ret_type);
+
+Symbol *stbl_add_instance(HashMap *stbl, Symbol *origin, char *mangled_name, Vector *tp_args,
+                          TypeSpec *instance_ts);
 
 /*
 Find the Least Upper Bound (LUB) for a set of types.

@@ -153,7 +153,8 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
         ASSERT(origin && (origin->kind == SYM_CLASS || origin->kind == SYM_TRAIT));
         log_info("found origin symbol for mangled type: %s", ts->mangled.name);
         update_type_sym_id(ts, ctx);
-        InstanceSymbol *inst_sym = find_or_add_instance(ctx->stbl, origin, ts->mangled.args);
+        InstanceSymbol *inst_sym =
+            find_or_add_instance(ctx->stbl, origin, ts->mangled.args, ctx->pm);
         ASSERT(inst_sym);
         type_spec_free(ts);
         *ts_ptr = inst_sym->instance_ts;

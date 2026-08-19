@@ -859,7 +859,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             // open generic_ref type
             log_info("resolve open generic_ref type '%s'", _ts->unresolved.name.name);
 
-            InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, sym, tp_args);
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, sym, tp_args, ps->pm);
             vector_destroy(tp_args);
             if (!inst_sym) {
                 kl_error(_ts->loc, "failed to get instance for generic_ref type");
@@ -884,7 +884,7 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         } else {
             // all args are concrete types and create instance symbol
             log_info("resolve type '%s' with type-args", _ts->unresolved.name.name);
-            InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, sym, tp_args);
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, sym, tp_args, ps->pm);
             vector_destroy(tp_args);
             if (!inst_sym) {
                 kl_error(_ts->loc, "failed to get instance for generic_ref type");
