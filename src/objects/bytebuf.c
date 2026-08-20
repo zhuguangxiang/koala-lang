@@ -75,7 +75,7 @@ static size_t bytebuf_seq_len(TValue *self)
 static TValue bytebuf_seq_get(TValue *self, size_t index)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
-    if (index >= BUF_LEN(bb->buf)) {
+    if ((int)index >= BUF_LEN(bb->buf)) {
         panic("bytebuf index out of range");
         return none_value;
     }
@@ -86,7 +86,7 @@ static TValue bytebuf_seq_get(TValue *self, size_t index)
 static void bytebuf_seq_set(TValue *self, size_t index, TValue *value)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
-    if (index >= BUF_LEN(bb->buf)) {
+    if ((int)index >= BUF_LEN(bb->buf)) {
         panic("bytebuf index out of range");
     }
     uint8_t v = to_uint8(value);

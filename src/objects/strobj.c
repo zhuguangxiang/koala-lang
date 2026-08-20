@@ -14,19 +14,20 @@ extern "C" {
 static TValue str_str(TValue *self, TValue *args, int nargs) { return *self; }
 
 //
-// pub func split(sep = " ") list[str] {}
+// pub func split(sep = " ", maxsplit = -1) list[str] {}
 // Split a UTF-8 string by a separator and return list[str]
 //
 static TValue str_split(TValue *self, TValue *args, int nargs)
 {
     Object *ob = SELF_AS(str_type);
 
-    ASSERT(nargs == 1);
+    ASSERT(nargs == 2);
 
     char *src = STR_BUF(ob);
     char *sep = kl_arg_str(0);
     int len = STR_LEN(ob);
     int sep_len = strlen(sep);
+    int maxsplit = kl_arg_int64(1);
 
     // Separator must not be empty, compiler should have checked this.
     ASSERT(sep_len > 0);
@@ -112,9 +113,9 @@ static TValue str_find(TValue *self, TValue *args, int nargs)
     int sub_len = strlen(sub);
 
     if (sub_len == 0) return int64_value(0);
-    if (sub_len > str->size) return int64_value(-1);
+    if (sub_len > (int)str->size) return int64_value(-1);
 
-    for (int i = 0; i <= str->size - sub_len; i++) {
+    for (int i = 0; i <= (int)str->size - sub_len; i++) {
         if (memcmp(str->array + i, sub, sub_len) == 0) {
             return int64_value(i);
         }

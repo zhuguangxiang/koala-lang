@@ -395,24 +395,14 @@ static Object *_load_module(char *path)
                 ASSERT(_co == mo->not_impl);
             }
         } else {
-            // koala's function is overridden by native function, if the native function is found
-            // in the module's native library.
-            _co = kl_get_native(m, kc->sval);
-            if (_co) {
-                ASSERT(_co && IS_CFUNC(_co));
-                CFuncObject *cfn = (CFuncObject *)_co;
-                ASSERT(cfn->owner == NULL);
-                cfn->owner = m;
-            } else {
-                _co = kl_new_code(kc->sval, m);
-                CodeObject *co = (CodeObject *)_co;
-                if (item->flags & KLC_FLAGS_PUB) co->flags |= CODE_FLAG_PUB;
-                if (item->flags & KLC_FLAGS_METH) co->flags |= CODE_FLAG_METH;
-                co->cs.nlocals = item->nlocals;
-                co->cs.max_call_args = item->max_call_args;
-                co->cs.start_pc = item->start_pc;
-                co->cs.num_insns = item->num_insns;
-            }
+            _co = kl_new_code(kc->sval, m);
+            CodeObject *co = (CodeObject *)_co;
+            if (item->flags & KLC_FLAGS_PUB) co->flags |= CODE_FLAG_PUB;
+            if (item->flags & KLC_FLAGS_METH) co->flags |= CODE_FLAG_METH;
+            co->cs.nlocals = item->nlocals;
+            co->cs.max_call_args = item->max_call_args;
+            co->cs.start_pc = item->start_pc;
+            co->cs.num_insns = item->num_insns;
         }
         kl_mo_add_func(m, kc->sval, _co);
     }
