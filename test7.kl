@@ -1,0 +1,29 @@
+class Node[T : Comparable] {
+    var value T
+    var left Node[T]?
+    var right Node[T]?
+
+    func __init__(_value T) {
+        value = _value
+        left = nil
+        right = nil
+    }
+}
+
+class Tree[T : Comparable] {
+    var root Node[T]?
+
+    func __init__() {
+        root = nil
+    }
+
+    func show() {
+        let stack = list[Node[T]]()
+        print(stack)
+    }
+}
+
+func main() {
+    let t = Tree[int]()
+    t.show()
+}

@@ -495,6 +495,62 @@ static int is_subtype_of(int child_id, int parent_id)
     return 0;
 }
 
+static inline int ts_is_numeric(TypeSpec *ts)
+{
+    return ts->kind == TYPE_INT || ts->kind == TYPE_FLOAT || ts->kind == TYPE_BFLOAT16;
+}
+
+/* Resolve a symbol through import wrappers to the original symbol. */
+static Symbol *resolve_origin_symbol(Symbol *sym)
+{
+    while (sym && sym->kind == SYM_IMPORTED) {
+        sym = ((ImportedSymbol *)sym)->origin;
+    }
+    return sym;
+}
+
+/* Resolve a typespec's sym_id through import wrappers. */
+static int resolve_ts_sym_id(int sym_id)
+{
+    if (sym_id < 0) return sym_id;
+    Symbol *sym = resolve_origin_symbol(get_symbol_by_id(sym_id));
+    return sym ? sym->id : sym_id;
+}
+
+/* Canonical class/trait id behind a typespec's sym_id: unwraps import
+ * wrappers and generic instances (whose sym_id may point to an instance
+ * symbol, e.g. interned Comparable<T> specs). Returns -1 when the symbol is
+ * not a class/trait/instance. */
+static int ts_canonical_klass_id(TypeSpec *ts)
+{
+    if (!ts || ts->sym_id < 0) return -1;
+    Symbol *sym = resolve_origin_symbol(get_symbol_by_id(ts->sym_id));
+    if (!sym) return -1;
+    if (sym->kind == SYM_INSTANCE) {
+        sym = resolve_origin_symbol(((InstanceSymbol *)sym)->origin);
+    }
+    if (!sym) return -1;
+    if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) return -1;
+    return sym->id;
+}
+
+/* A numeric type and its class type (e.g. TYPE_INT 'int' vs TYPE_KLASS
+ * 'int64') name the same type; compare them by their class symbol. */
+static int ts_numeric_same_class(TypeSpec *a, TypeSpec *b)
+{
+    TypeSpec *num = NULL, *kls = NULL;
+    if (ts_is_numeric(a) && b->kind == TYPE_KLASS) {
+        num = a;
+        kls = b;
+    } else if (ts_is_numeric(b) && a->kind == TYPE_KLASS) {
+        num = b;
+        kls = a;
+    } else {
+        return 0;
+    }
+    return num->sym_id >= 0 && num->sym_id == kls->sym_id;
+}
+
 /**
  * Checks if the 'src' type is compatible with the 'dst' type.
  *
@@ -556,23 +612,46 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
         }
 
         if (dst->kind == TYPE_GENERIC_REF) {
-            if (src->kind == TYPE_KLASS) {
-                if (dst->sym_id == src->sym_id) {
-                    return 1;
-                } else {
-                    KlassSymbol *sym = get_symbol_by_id(src->sym_id);
+            // Numeric types (e.g. 'int' as TYPE_INT) also carry the sym_id of
+            // their class, so look up the symbol instead of checking the kind.
+            if (src->sym_id >= 0) {
+                Symbol *sym = get_symbol_by_id(src->sym_id);
+                if (sym && sym->kind == SYM_INSTANCE) {
+                    // instance of a generic class/trait, e.g. the fixed-up base
+                    // Comparable<j> of int64; check the origin class and the
+                    // bound type arguments invariance.
+                    InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+                    Symbol *origin = inst_sym->origin;
+                    if (!origin ||
+                        ts_canonical_klass_id(dst) != resolve_origin_symbol(origin)->id)
+                        return 0;
+                    int n = vector_size(dst->generic_ref.args);
+                    if (inst_sym->tp_args && vector_size(inst_sym->tp_args) == n) {
+                        for (int i = 0; i < n; i++) {
+                            TypeSpec *d_arg = vector_get(dst->generic_ref.args, i);
+                            TypeSpec *s_arg = vector_get(inst_sym->tp_args, i);
+                            if (!type_spec_equal_strict(d_arg, s_arg) &&
+                                !ts_numeric_same_class(d_arg, s_arg))
+                                return 0;
+                        }
+                        return 1;
+                    }
+                    return 0;
+                } else if (sym && (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT)) {
+                    if (ts_canonical_klass_id(dst) == resolve_ts_sym_id(src->sym_id)) {
+                        return 1;
+                    }
+                    KlassSymbol *kls_sym = (KlassSymbol *)sym;
                     TypeSpec *base;
-                    vector_foreach(base, &sym->bases) {
+                    vector_foreach(base, &kls_sym->bases) {
                         if (!base) continue;
                         if (type_spec_compatible(dst, base)) {
                             return 1;
                         }
                     }
-                    return 0;
                 }
             }
-
-            UNREACHABLE();
+            return 0;
         }
 
         if (dst->kind == TYPE_UNION) {
@@ -661,6 +740,14 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
             return 0;
         }
 
+        // Different generic classes/traits are never compatible, no matter
+        // their type arguments (e.g. Comparable[T] vs Equatable[T]).
+        int d_sym_id = ts_canonical_klass_id(dst);
+        int s_sym_id = ts_canonical_klass_id(src);
+        if (d_sym_id >= 0 && s_sym_id >= 0 && d_sym_id != s_sym_id) {
+            return 0;
+        }
+
         // Handle Variance based on storage model
 
         for (int i = 0; i < d_args_size; i++) {
@@ -670,7 +757,9 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
             // generic parameters must be strictly compatible(invariant).
             // List[int32] and List[int64] are not compatible.
             // List[Dog] and List[Animal] are not compatible.
-            if (!type_spec_equal_strict(d_arg, s_arg)) return 0;
+            if (!type_spec_equal_strict(d_arg, s_arg) &&
+                !ts_numeric_same_class(d_arg, s_arg))
+                return 0;
         }
 
         return 1;

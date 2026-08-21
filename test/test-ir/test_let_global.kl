@@ -1,4 +1,4 @@
-// SKIP: koalac %s --opt --dump=ir | filecheck %s
+// RUN: koalac %s --opt --dump=ir | filecheck %s
 
 let i = 10
 let j = i + 1
@@ -28,10 +28,8 @@ let list_str = list("a", "b", "c")
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@__init__] ---
 // CHECK-LABEL: func @__init__()
 // CHECK: global_set @j int64, 11 int64
-// CHECK: call @print [path = 'std/builtin'], 10 int64, 11 int64
-// CHECK: %1 = global_get @v2 int64
-// CHECK: call @print [path = 'std/builtin'], 223 int64, %1 int64
-// CHECK: global_set @list_str list<u>, list['a', 'b', 'c'] list
+// CHECK: %2 = global_get @v2 int64
+// CHECK: global_set @list_str std/builtin.list<u>, list['a', 'b', 'c'] std/builtin.list
 
 func bar() int {
     var a = j

@@ -1907,6 +1907,59 @@ static void parse_slice_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
     log_type_spec(index->ts);
 }
 
+/* Substitute a class's own type parameters in 'ts' with the actual type
+ * arguments 'tp_args' (F-bound substitution, e.g. the bound Comparable[T] of
+ * Node[T : Comparable]). Only generic variables owned by 'kls' are replaced;
+ * everything else is returned unchanged. */
+static TypeSpec *substitute_self_tps(KlassSymbol *kls, TypeSpec *ts, Vector *tp_args)
+{
+    if (!ts) return ts;
+
+    if (ts->kind == TYPE_GENERIC_VAR) {
+        if (!str_equal(ts->generic_var.owner, kls->name)) return ts;
+        int idx = ts->generic_var.index;
+        if (idx < 0) {
+            TypeParamSymbol *tp_sym;
+            vector_foreach(tp_sym, &kls->tps) {
+                if (tp_sym && str_equal(tp_sym->name, ts->generic_var.name)) {
+                    idx = tp_sym->index;
+                    break;
+                }
+            }
+        }
+        if (idx >= 0 && idx < vector_size(tp_args)) {
+            TypeSpec *arg_ts = vector_get(tp_args, idx);
+            if (arg_ts) return arg_ts;
+        }
+        return ts;
+    }
+
+    if (ts->kind == TYPE_GENERIC_REF) {
+        Vector *args = vector_create_ptr();
+        bool changed = false;
+        TypeSpec *arg_ts;
+        vector_foreach(arg_ts, ts->generic_ref.args) {
+            TypeSpec *spec_ts = substitute_self_tps(kls, arg_ts, tp_args);
+            if (spec_ts != arg_ts) changed = true;
+            vector_push_back(args, &spec_ts);
+        }
+        if (!changed) {
+            vector_destroy(args);
+            return ts;
+        }
+        return generic_ref_type_spec(ts->generic_ref.pkg, ts->generic_ref.name, args,
+                                     ts->sym_id);
+    }
+
+    if (ts->kind == TYPE_OPTIONAL) {
+        TypeSpec *src = substitute_self_tps(kls, ts->opt.src, tp_args);
+        if (src == ts->opt.src) return ts;
+        return optional_type_spec(src);
+    }
+
+    return ts;
+}
+
 static void parse_index_new_type(ParserState *ps, IndexExpr *index)
 {
     Expr *lhs = index->lhs;
@@ -1950,24 +2003,33 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
             arg_ts = arg_sym->ts;
         } else {
             kl_error(arg->loc, "type argument must be a class/trait type.");
+            vector_destroy(tp_args);
             return;
         }
+        vector_push_back(tp_args, &arg_ts);
+    }
 
+    // check type arguments against bounds, substituting the class's own type
+    // parameters in bounds first (F-bounds, e.g. Comparable[T] in Node[T])
+    Expr *__arg;
+    vector_foreach(__arg, index->vec) {
         TypeParamSymbol *tp_sym = vector_get(&kls_sym->tps, i__);
-        if (tp_sym) {
-            TypeSpec *bound_ts;
-            vector_foreach(bound_ts, &tp_sym->bound) {
-                if (!bound_ts) continue;
-                if (!type_spec_compatible(bound_ts, arg_ts)) {
-                    kl_error(arg->loc, "type argument '%s' is not compatible with bound type.",
-                             arg_sym->name);
-                    log_info("bound type is: ");
-                    log_type_spec(bound_ts);
-                    return;
-                }
+        if (!tp_sym) continue;
+        TypeSpec *arg_ts = vector_get(tp_args, i__);
+        if (!arg_ts) continue;
+        TypeSpec *bound_ts;
+        vector_foreach(bound_ts, &tp_sym->bound) {
+            if (!bound_ts) continue;
+            TypeSpec *spec_ts = substitute_self_tps(kls_sym, bound_ts, tp_args);
+            if (!type_spec_compatible(spec_ts, arg_ts)) {
+                kl_error(__arg->loc, "type argument '%s' is not compatible with bound type.",
+                         __arg->sym->name);
+                log_info("bound type is: ");
+                log_type_spec(spec_ts);
+                vector_destroy(tp_args);
+                return;
             }
         }
-        vector_push_back(tp_args, &arg_ts);
     }
 
     // create or find instance symbol(List<int>)
