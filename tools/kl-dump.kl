@@ -1,0 +1,1415 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Dump a `.klc` (Koala Code) file, written in Koala itself.
+//
+// usage:
+//     koala tools/kl-dump.kl <file.klc>
+//
+// A klc file is a Stream Object Format (SOF) stream produced by
+// `src/common/klc.c`. This tool parses every section and prints it:
+// header, constants, variables, functions, classes (with pip/lro and
+// interface tables), runtime constants, imports, links, codes and
+// disassembled bytecodes.
+//
+// The opcode tables below mirror `include/common/opcode_list.h` and
+// must be kept in sync with it.
+
+import "std/os"
+import "std/fs"
+
+/* ---------------- opcode tables ---------------- */
+
+let OP_NAMES = list[str](
+    "nop", "move", "load_int_imm", "load_uint_imm", "load_tag", "loadk", "int.add", "int.add_imm",
+    "int.sub", "int.sub_imm", "int.mul", "int.mul_imm", "int.div", "int.div_imm", "int.mod", "int.mod_imm",
+    "int.and", "int.and_imm", "int.or", "int.or_imm", "int.xor", "int.xor_imm", "int.shl", "int.shl_imm",
+    "int.shr", "int.shr_imm", "int.cmpeq", "int.cmpeq_imm", "int.cmpne", "int.cmpne_imm", "int.cmplt", "int.cmplt_imm",
+    "int.cmple", "int.cmple_imm", "int.cmpgt", "int.cmpgt_imm", "int.cmpge", "int.cmpge_imm", "int.neg", "int.not",
+    "uint.add_imm", "uint.sub_imm", "uint.mul_imm", "uint.div", "uint.div_imm", "uint.mod", "uint.mod_imm", "uint.and_imm",
+    "uint.or_imm", "uint.xor_imm", "uint.shl_imm", "uint.shr", "uint.shr_imm", "uint.cmpeq_imm", "uint.cmpne_imm", "uint.cmplt",
+    "uint.cmplt_imm", "uint.cmple", "uint.cmple_imm", "uint.cmpgt", "uint.cmpgt_imm", "uint.cmpge", "uint.cmpge_imm", "float.add",
+    "float.sub", "float.mul", "float.div", "float.mod", "float.cmpeq", "float.cmpne", "float.cmplt", "float.cmple",
+    "float.cmpgt", "float.cmpge", "float.neg", "land", "lor", "lnot", "ref.eq", "ref.ne",
+    "ref.eq_null", "ref.ne_null", "jmp", "jmp_true", "jmp_false", "jmp_ref_eq", "jmp_ref_ne", "jmp_ref_eq_null",
+    "jmp_ref_ne_null", "jmp_int_eq", "jmp_int_eq_imm", "jmp_int_ne", "jmp_int_ne_imm", "jmp_int_lt", "jmp_int_lt_imm", "jmp_int_le",
+    "jmp_int_le_imm", "jmp_int_gt", "jmp_int_gt_imm", "jmp_int_ge", "jmp_int_ge_imm", "jmp_uint_lt", "jmp_uint_lt_imm", "jmp_uint_le",
+    "jmp_uint_le_imm", "jmp_uint_gt", "jmp_uint_gt_imm", "jmp_uint_ge", "jmp_uint_ge_imm", "jmp_float_eq", "jmp_float_ne", "jmp_float_lt",
+    "jmp_float_le", "jmp_float_gt", "jmp_float_ge", "call", "tail_call", "ret", "ret_int_imm", "ret_uint_imm",
+    "ret_tag", "ret_const", "ret_void", "int.cast", "float.cast", "float.to_int", "int.to_float", "new",
+    "new_ext", "build_intern", "global_get", "global_set", "global_get_ext", "global_set_ext", "get_field", "set_field",
+    "get_field_ext", "set_field_ext", "move_true", "make_intf", "upcast_intf", "downcast_intf", "seq_get", "seq_set",
+    "seq_get_imm", "seq_set_imm", "seq_len", "seq_contains", "map_get", "map_set", "map_len", "map_contains",
+    "list_push", "list_pop", "get_iter", "iter_next", "as", "is", "wide", "raise",
+    "num.add", "num.sub", "num.mul", "num.div", "num.mod", "num.and", "num.or", "num.xor",
+    "num.shl", "num.shr", "num.eq", "num.ne", "num.lt", "num.le", "num.gt", "num.ge",
+    "binary_add", "binary_sub", "binary_mul", "binary_div", "binary_mod", "binary_and", "binary_or", "binary_xor",
+    "binary_shl", "binary_shr", "binary_cmpeq", "binary_cmpne", "binary_cmplt", "binary_cmple", "binary_cmpgt", "binary_cmpge",
+    "unary_plus", "unary_neg", "unary_not", "ir_local", "ir_call", "ir_select", "ir_jmp_cond", "ir_cast",
+    "ir_phi", "data",
+)
+
+// OpFormat ids, same order and values as the `OpFormat` enum in opcode.h.
+let OP_FMTS = list[int](
+    1, 17, 7, 7, 11, 14, 20, 18,
+    20, 18, 20, 18, 20, 18, 20, 18,
+    20, 18, 20, 18, 20, 18, 20, 18,
+    20, 18, 20, 18, 20, 18, 20, 18,
+    20, 18, 20, 18, 20, 18, 17, 17,
+    18, 18, 18, 20, 18, 20, 18, 18,
+    18, 18, 18, 20, 18, 18, 18, 20,
+    18, 20, 18, 20, 18, 20, 18, 20,
+    20, 20, 20, 20, 20, 20, 20, 20,
+    20, 20, 17, 20, 20, 17, 20, 20,
+    17, 17, 3, 13, 13, 19, 19, 13,
+    13, 19, 15, 19, 15, 19, 15, 19,
+    15, 19, 15, 19, 15, 19, 15, 19,
+    15, 19, 15, 19, 15, 19, 19, 19,
+    19, 19, 19, 2, 2, 10, 8, 8,
+    21, 23, 1, 9, 9, 9, 9, 14,
+    14, 6, 16, 16, 14, 14, 18, 18,
+    18, 18, 20, 18, 18, 1, 20, 20,
+    18, 18, 17, 20, 20, 20, 17, 20,
+    17, 17, 1, 1, 1, 1, 4, 1,
+    20, 20, 20, 20, 20, 20, 20, 20,
+    20, 20, 20, 20, 20, 20, 20, 20,
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1, -1, -1, -1,
+    -1, 0,
+)
+
+let FMT_DATA = 0
+let FMT_OP = 1
+let FMT_CALL = 2
+let FMT_JMP = 3
+let FMT_WIDE = 4
+let FMT_NEW = 5
+let FMT_RTAGIMM = 6
+let FMT_R_TI_IMM12 = 7
+let FMT_TI_IMM2 = 8
+let FMT_RR_TI_MODE = 9
+let FMT_RX = 10
+let FMT_RXTAG = 11
+let FMT_RIMM2 = 12
+let FMT_ROFF2 = 13
+let FMT_RIDX2 = 14
+let FMT_RIMMOFF = 15
+let FMT_RXIDX12 = 16
+let FMT_RXRX = 17
+let FMT_RRIMM = 18
+let FMT_RROFF = 19
+let FMT_RRR = 20
+let FMT_TAG = 21
+let FMT_IMM2 = 22
+let FMT_IDX2 = 23
+
+// Index of OP_TAIL_CALL in the opcode tables above.
+let OP_TAIL_CALL_IDX = 116
+
+// OP_LOAD_TAG / OP_RET_TAG immediate names, same as `tag_mapping`.
+let TAG_NAMES = list[str](
+    "false", "true", "none", "+0.0", "-0.0", "NaN",
+    "+inf", "-inf", "empty_str", "empty_list", "empty_dict",
+)
+
+// OP_BUILD_INTERN tag names, same as `intern_tag_name`.
+let INTERN_TAGS = list[str]("tuple", "range", "list")
+
+/* ---------------- klc constants ---------------- */
+
+// KLC_CONST_* type tags (ascii codes of the tag chars).
+let K_NONE = 78         // 'N'
+let K_INT = 105         // 'i'
+let K_FLT = 102         // 'f'
+let K_BOOL = 98         // 'b'
+let K_ASCII = 65        // 'A'
+let K_UTF8 = 85         // 'U'
+let K_TUPLE = 40        // '('
+let K_LIST = 91         // '['
+let K_DICT = 123        // '{'
+let K_SET = 60          // '<'
+let K_RANGE = 82        // 'R'
+let K_OBJECT = 79       // 'O'
+let K_SHORT_ASCII = 97  // 'a'
+let K_SHORT_UTF8 = 117  // 'u'
+let K_SHORT_TUPLE = 41  // ')'
+let K_SHORT_LIST = 93   // ']'
+
+// KLC_FLAGS_*
+let FLG_PUB = 1
+let FLG_MUT = 2
+let FLG_TRAIT = 4
+let FLG_METH = 8
+let FLG_NATIVE = 16
+let FLG_STATIC = 32
+
+// Import kinds, same order as `ImportKind` in cgen.h.
+let IMPORT_KINDS = list[str]("func", "global", "type", "method", "field")
+
+/* ---------------- helpers ---------------- */
+
+func str_of(v int) str {
+    return format("{}", v)
+}
+
+func hex_of(n int, width int) str {
+    let digits = "0123456789abcdef"
+    var out = ""
+    var i = 0
+    while i < width {
+        out = digits[(n >> (4 * i)) & 15] + out
+        i = i + 1
+    }
+    return out
+}
+
+func pad2(n int) str {
+    if n < 10 {
+        return " " + str_of(n)
+    }
+    return str_of(n)
+}
+
+// Sign-extend the low `bits` bits of `v`.
+func sign_ext(v int, bits int) int {
+    let mask = 1 << bits
+    if (v & (mask >> 1)) != 0 {
+        return v - mask
+    }
+    return v
+}
+
+// Return 2^e, by squaring.
+func pow2(e int) float64 {
+    var r = 1.0
+    var b = 2.0
+    var n = e
+    if n < 0 {
+        b = 0.5
+        n = -n
+    }
+    while n > 0 {
+        if (n & 1) != 0 {
+            r = r * b
+        }
+        b = b * b
+        n = n >> 1
+    }
+    return r
+}
+
+/* ---------------- binary reader (little-endian) ---------------- */
+
+class Reader {
+    let data bytes
+    var pos int = 0
+
+    func __init__(d bytes) {
+        data = d
+    }
+
+    func need(n int) {
+        if pos + n > len(data) {
+            panic("klc file truncated")
+        }
+    }
+
+    func u8() int {
+        need(1)
+        let v = int(data[pos])
+        pos = pos + 1
+        return v
+    }
+
+    func u16() int {
+        need(2)
+        let v = int(data[pos]) | (int(data[pos + 1]) << 8)
+        pos = pos + 2
+        return v
+    }
+
+    func u32() int {
+        need(4)
+        let v = int(data[pos]) | (int(data[pos + 1]) << 8) |
+                (int(data[pos + 2]) << 16) | (int(data[pos + 3]) << 24)
+        pos = pos + 4
+        return v
+    }
+
+    func u64() int {
+        need(8)
+        var v = 0
+        var i = 0
+        while i < 8 {
+            v = v | (int(data[pos + i]) << (8 * i))
+            i = i + 1
+        }
+        pos = pos + 8
+        return v
+    }
+
+    // Decode an IEEE-754 double stored little-endian.
+    func f64() float64 {
+        need(8)
+        var lo = 0
+        var i = 0
+        while i < 4 {
+            lo = lo | (int(data[pos + i]) << (8 * i))
+            i = i + 1
+        }
+        var hi = 0
+        while i < 8 {
+            hi = hi | (int(data[pos + i]) << (8 * (i - 4)))
+            i = i + 1
+        }
+        pos = pos + 8
+
+        let sign = (hi >> 31) & 1
+        let exp = (hi >> 20) & 0x7FF
+        let mant_hi = hi & 0xFFFFF
+        let mant = float64(mant_hi) * 4294967296.0 + float64(lo)
+        var mag = 0.0
+
+        if exp == 0x7FF {
+            if mant_hi != 0 || lo != 0 {
+                // NaN
+                mag = float64(0) / float64(0)
+            } else {
+                mag = float64(1) / float64(0)
+            }
+        } else if exp == 0 {
+            // subnormal
+            mag = mant * pow2(-1074)
+        } else {
+            mag = (1.0 + mant / 4503599627370496.0) * pow2(exp - 1023)
+        }
+
+        if sign != 0 {
+            mag = -mag
+        }
+        return mag
+    }
+
+    func take(n int) bytes {
+        need(n)
+        let v = data.view(pos, pos + n)
+        pos = pos + n
+        return v
+    }
+
+    func ascii(n int) str {
+        if n <= 0 {
+            return ""
+        }
+        return take(n).to_str()
+    }
+}
+
+/* ---------------- klc records ---------------- */
+
+class KConst {
+    var kind int = 0
+    var width int = 0
+    var sign int = 0
+    var type_info int = 0
+    var ival int = 0
+    var fval float64 = 0.0
+    var sval str = ""
+    var items list[int] = list[int]()
+}
+
+class KVar {
+    var flags int = 0
+    var name_idx int = 0
+    var type_idx int = 0
+    var const_idx int = 0
+}
+
+class KArg {
+    var name_idx int = 0
+    var type_idx int = 0
+    var const_idx int = 0
+}
+
+class KTp {
+    var name_idx int = 0
+    var which int = 0
+    var bounds list[int] = list[int]()
+}
+
+class KAnn {
+    var name_idx int = 0
+    var key_idx int = 0
+    var value_idx int = 0
+}
+
+class KFunc {
+    var flags int = 0
+    var name_idx int = 0
+    var ret_idx int = 0
+    var code_idx int = 0
+    var args list[KArg] = list[KArg]()
+    var tps list[KTp] = list[KTp]()
+    var anns list[KAnn] = list[KAnn]()
+}
+
+class KIntfEntry {
+    var name_idx int = 0
+    var methods list[int] = list[int]()
+    var parents list[int] = list[int]()
+}
+
+class KClass {
+    var flags int = 0
+    var name_idx int = 0
+    var tps list[KTp] = list[KTp]()
+    var bases list[int] = list[int]()
+    var pip list[int] = list[int]()
+    var lro list[int] = list[int]()
+    var fields list[KVar] = list[KVar]()
+    var methods list[KFunc] = list[KFunc]()
+    var intf list[KIntfEntry] = list[KIntfEntry]()
+}
+
+class KCode {
+    var name_idx int = 0
+    var flags int = 0
+    var nlocals int = 0
+    var max_call_args int = 0
+    var start_pc int = 0
+    var num_insns int = 0
+}
+
+class KImport {
+    var kind int = 0
+    var ns_idx int = 0
+    var kls_idx int = 0
+    var sym_idx int = 0
+}
+
+class KlcFile {
+    var version int = 0
+    var num_rt_consts int = 0
+    var pkg_path_idx int = 0
+    var endian int = 0
+    var rt_consts list[KConst] = list[KConst]()
+    var imports list[KImport] = list[KImport]()
+    var links list[int] = list[int]()
+    var codes list[KCode] = list[KCode]()
+    var bytecodes list[bytes] = list[bytes]()
+    var consts list[KConst] = list[KConst]()
+    var vars list[KVar] = list[KVar]()
+    var funcs list[KFunc] = list[KFunc]()
+    var classes list[KClass] = list[KClass]()
+}
+
+/* ---------------- parser ---------------- */
+
+func parse_const(r Reader) KConst {
+    let c = KConst()
+    c.kind = r.u8()
+
+    if c.kind == K_NONE || c.kind == K_OBJECT {
+        return c
+    }
+
+    if c.kind == K_INT {
+        c.width = r.u8()
+        c.sign = r.u8()
+        c.type_info = r.u8()
+        if c.width == 1 {
+            c.ival = r.u8()
+        } else if c.width == 2 {
+            c.ival = r.u16()
+        } else if c.width == 4 {
+            c.ival = r.u32()
+        } else {
+            c.ival = r.u64()
+        }
+        return c
+    }
+
+    if c.kind == K_FLT {
+        c.width = r.u8()
+        c.type_info = r.u8()
+        c.sign = 1
+        c.fval = r.f64()
+        return c
+    }
+
+    if c.kind == K_BOOL {
+        c.ival = r.u8()
+        return c
+    }
+
+    if c.kind == K_SHORT_ASCII || c.kind == K_SHORT_UTF8 {
+        c.sval = r.ascii(r.u8())
+        return c
+    }
+
+    if c.kind == K_ASCII || c.kind == K_UTF8 {
+        c.sval = r.ascii(r.u32())
+        return c
+    }
+
+    if c.kind == K_SHORT_TUPLE || c.kind == K_SHORT_LIST {
+        let n = r.u8()
+        var i = 0
+        while i < n {
+            c.items.append(r.u16())
+            i = i + 1
+        }
+        return c
+    }
+
+    if c.kind == K_TUPLE || c.kind == K_LIST {
+        let n = r.u32()
+        var i = 0
+        while i < n {
+            c.items.append(r.u16())
+            i = i + 1
+        }
+        return c
+    }
+
+    if c.kind == K_RANGE {
+        var i = 0
+        while i < 3 {
+            c.items.append(r.u16())
+            i = i + 1
+        }
+        return c
+    }
+
+    panic(format("unknown const type '{}'", c.kind))
+    return c
+}
+
+func parse_idx_list(r Reader, n int) list[int] {
+    let out = list[int]()
+    var i = 0
+    while i < n {
+        out.append(r.u16())
+        i = i + 1
+    }
+    return out
+}
+
+func parse_vars(r Reader, n int) list[KVar] {
+    let out = list[KVar]()
+    var i = 0
+    while i < n {
+        let v = KVar()
+        v.flags = r.u16()
+        v.name_idx = r.u16()
+        v.type_idx = r.u16()
+        v.const_idx = r.u16()
+        out.append(v)
+        i = i + 1
+    }
+    return out
+}
+
+func parse_tps(r Reader, n int) list[KTp] {
+    let out = list[KTp]()
+    var i = 0
+    while i < n {
+        let tp = KTp()
+        tp.name_idx = r.u16()
+        tp.which = r.u8()
+        tp.bounds = parse_idx_list(r, r.u8())
+        out.append(tp)
+        i = i + 1
+    }
+    return out
+}
+
+func parse_anns(r Reader, n int) list[KAnn] {
+    let out = list[KAnn]()
+    var i = 0
+    while i < n {
+        let ann = KAnn()
+        ann.name_idx = r.u16()
+        ann.key_idx = r.u16()
+        ann.value_idx = r.u16()
+        out.append(ann)
+        i = i + 1
+    }
+    return out
+}
+
+func parse_func(r Reader) KFunc {
+    let fn = KFunc()
+    fn.flags = r.u16()
+    fn.name_idx = r.u16()
+    fn.ret_idx = r.u16()
+    fn.code_idx = r.u16()
+
+    let nargs = r.u8()
+    var i = 0
+    while i < nargs {
+        let a = KArg()
+        a.name_idx = r.u16()
+        a.type_idx = r.u16()
+        a.const_idx = r.u16()
+        fn.args.append(a)
+        i = i + 1
+    }
+
+    fn.tps = parse_tps(r, r.u8())
+    fn.anns = parse_anns(r, r.u8())
+    return fn
+}
+
+func parse_funcs(r Reader, n int) list[KFunc] {
+    let out = list[KFunc]()
+    var i = 0
+    while i < n {
+        out.append(parse_func(r))
+        i = i + 1
+    }
+    return out
+}
+
+func parse_class(r Reader) KClass {
+    let k = KClass()
+    k.flags = r.u16()
+    k.name_idx = r.u16()
+    k.tps = parse_tps(r, r.u8())
+    k.bases = parse_idx_list(r, r.u8())
+    k.pip = parse_idx_list(r, r.u8())
+    k.lro = parse_idx_list(r, r.u8())
+    k.fields = parse_vars(r, r.u16())
+    k.methods = parse_funcs(r, r.u16())
+
+    let nintf = r.u16()
+    var i = 0
+    while i < nintf {
+        let e = KIntfEntry()
+        e.name_idx = r.u16()
+        e.methods = parse_idx_list(r, r.u16())
+        e.parents = parse_idx_list(r, r.u16())
+        k.intf.append(e)
+        i = i + 1
+    }
+    return k
+}
+
+func parse_klc(r Reader) KlcFile {
+    let f = KlcFile()
+
+    // header: magic[4], version u32, num_rt_consts u16,
+    // pkg_path_index u16, endian u8, padding[3]
+    let magic = r.take(4)
+    if magic[0] != 107 || magic[1] != 108 || magic[2] != 99 || magic[3] != 0 {
+        panic("not a klc file: bad magic")
+    }
+    f.version = r.u32()
+    f.num_rt_consts = r.u16()
+    f.pkg_path_idx = r.u16()
+    f.endian = r.u8()
+    r.pos = r.pos + 3
+
+    // sections, in stream order
+    var n = r.u16()
+    var i = 0
+    while i < n {
+        f.rt_consts.append(parse_const(r))
+        i = i + 1
+    }
+
+    n = r.u16()
+    i = 0
+    while i < n {
+        let imp = KImport()
+        imp.kind = r.u8()
+        imp.ns_idx = r.u16()
+        imp.kls_idx = r.u16()
+        imp.sym_idx = r.u16()
+        f.imports.append(imp)
+        i = i + 1
+    }
+
+    f.links = parse_idx_list(r, r.u16())
+
+    n = r.u16()
+    i = 0
+    while i < n {
+        let c = KCode()
+        c.name_idx = r.u16()
+        c.flags = r.u16()
+        c.nlocals = r.u16()
+        c.max_call_args = r.u16()
+        c.start_pc = r.u32()
+        c.num_insns = r.u32()
+        f.codes.append(c)
+        i = i + 1
+    }
+
+    n = r.u16()
+    i = 0
+    while i < n {
+        let size = r.u32()
+        f.bytecodes.append(r.take(size))
+        i = i + 1
+    }
+
+    n = r.u16()
+    i = 0
+    while i < n {
+        f.consts.append(parse_const(r))
+        i = i + 1
+    }
+
+    f.vars = parse_vars(r, r.u16())
+    f.funcs = parse_funcs(r, r.u16())
+
+    n = r.u16()
+    i = 0
+    while i < n {
+        f.classes.append(parse_class(r))
+        i = i + 1
+    }
+
+    return f
+}
+
+
+/* ---------------- typespec signature printer ---------------- */
+
+// Pretty-print a mangled type signature (the `TypeSpec.signature`
+// strings stored in the meta constants), mirroring
+// `__typespec_str_print` in src/parser/typespec.c.
+class TsPrinter {
+    let s str
+    var pos int = 0
+
+    func __init__(sig str) {
+        s = sig
+    }
+
+    func peek() str {
+        if pos >= len(s) {
+            return ""
+        }
+        return s[pos]
+    }
+
+    func skip() {
+        pos = pos + 1
+    }
+
+    func parse() str {
+        let ch = peek()
+        if ch == "" {
+            return ""
+        }
+
+        if ch == "L" {
+            // named type: Lpkg.name; or Lpkg.name<args>;
+            skip()
+            var out = ""
+            while peek() != ";" && peek() != "<" && peek() != "" {
+                out = out + peek()
+                skip()
+            }
+            if peek() == "<" {
+                skip()
+                out = out + "["
+                var i = 0
+                while peek() != ">" && peek() != "" {
+                    if i != 0 {
+                        out = out + ", "
+                    }
+                    out = out + parse()
+                    i = i + 1
+                }
+                if peek() == ">" {
+                    out = out + "]"
+                    skip()
+                }
+            }
+            if peek() == ";" {
+                skip()
+            }
+            return out
+        }
+
+        if ch == "T" {
+            // type param: Tname:bound;
+            skip()
+            while peek() != ":" && peek() != "" {
+                skip()
+            }
+            skip()
+            var out = ""
+            while peek() != ";" && peek() != "" {
+                out = out + peek()
+                skip()
+            }
+            if peek() == ";" {
+                skip()
+            }
+            return out
+        }
+
+        if ch == "U" {
+            // union: members separated by ';'
+            skip()
+            var out = ""
+            var i = 0
+            while peek() != ";" && peek() != "" {
+                if i != 0 {
+                    out = out + " | "
+                }
+                out = out + parse()
+                i = i + 1
+            }
+            if peek() == ";" {
+                skip()
+            }
+            return out
+        }
+
+        if ch == "(" {
+            // function type: (args)ret
+            skip()
+            var out = "func("
+            var i = 0
+            while peek() != ")" && peek() != "" {
+                if i != 0 {
+                    out = out + ", "
+                }
+                out = out + parse()
+                i = i + 1
+            }
+            if peek() == ")" {
+                out = out + ")"
+                skip()
+            }
+            out = out + parse()
+            return out
+        }
+
+        if ch == "." {
+            if s.substr(pos, pos + 3) == "..." {
+                skip()
+                skip()
+                skip()
+                return "..."
+            }
+            skip()
+            return "."
+        }
+
+        if ch == "c" { skip(); return "int8" }
+        if ch == "C" { skip(); return "uint8" }
+        if ch == "s" { skip(); return "int16" }
+        if ch == "S" { skip(); return "uint16" }
+        if ch == "i" { skip(); return "int32" }
+        if ch == "I" { skip(); return "uint32" }
+        if ch == "j" { skip(); return "int64" }
+        if ch == "J" { skip(); return "uint64" }
+        if ch == "u" { skip(); return "str" }
+        if ch == "z" { skip(); return "bool" }
+        if ch == "o" { skip(); return "object" }
+        if ch == "h" { skip(); return "float16" }
+        if ch == "f" { skip(); return "float32" }
+        if ch == "d" { skip(); return "float64" }
+        if ch == "b" { skip(); return "bfloat16" }
+
+        skip()
+        return ch
+    }
+}
+
+func type_str(sig str) str {
+    if len(sig) == 0 {
+        return ""
+    }
+    let p = TsPrinter(sig)
+    return p.parse()
+}
+
+/* ---------------- constant display ---------------- */
+
+func int_value_str(c KConst) str {
+    if c.sign != 0 {
+        return str_of(sign_ext(c.ival, c.width * 8))
+    }
+    if c.width >= 8 {
+        return str_of(uint64(c.ival))
+    }
+    return str_of(c.ival & ((1 << (c.width * 8)) - 1))
+}
+
+// Inline value, used for initializers and default arguments.
+func const_value(c KConst, pool list[KConst]) str {
+    if c.kind == K_NONE {
+        return "null"
+    }
+    if c.kind == K_OBJECT {
+        return "<object>"
+    }
+    if c.kind == K_INT {
+        return int_value_str(c)
+    }
+    if c.kind == K_FLT {
+        return format("{}", c.fval)
+    }
+    if c.kind == K_BOOL {
+        if c.ival != 0 {
+            return "true"
+        }
+        return "false"
+    }
+    if c.kind == K_SHORT_ASCII || c.kind == K_SHORT_UTF8 ||
+       c.kind == K_ASCII || c.kind == K_UTF8 {
+        return "\"" + c.sval + "\""
+    }
+    if c.kind == K_SHORT_TUPLE || c.kind == K_TUPLE {
+        var out = "("
+        var i = 0
+        while i < len(c.items) {
+            if i != 0 {
+                out = out + ", "
+            }
+            out = out + const_value(pool[c.items[i]], pool)
+            i = i + 1
+        }
+        return out + ")"
+    }
+    if c.kind == K_SHORT_LIST || c.kind == K_LIST {
+        var out = "["
+        var i = 0
+        while i < len(c.items) {
+            if i != 0 {
+                out = out + ", "
+            }
+            out = out + const_value(pool[c.items[i]], pool)
+            i = i + 1
+        }
+        return out + "]"
+    }
+    if c.kind == K_RANGE {
+        return "(" + const_value(pool[c.items[0]], pool) + ", " +
+               const_value(pool[c.items[1]], pool) + ", " +
+               const_value(pool[c.items[2]], pool) + ")"
+    }
+    return "<const>"
+}
+
+// Type plus value, used in the constant pool sections.
+func const_desc(c KConst, pool list[KConst]) str {
+    if c.kind == K_NONE {
+        return "none"
+    }
+    if c.kind == K_OBJECT {
+        return "object"
+    }
+    if c.kind == K_INT {
+        var tname = "int"
+        if c.sign == 0 {
+            tname = "uint"
+        }
+        return tname + str_of(c.width * 8) + ", " + int_value_str(c)
+    }
+    if c.kind == K_FLT {
+        return "float" + str_of(c.width * 8) + ", " + format("{}", c.fval)
+    }
+    if c.kind == K_BOOL {
+        return "bool, " + const_value(c, pool)
+    }
+    if c.kind == K_SHORT_ASCII || c.kind == K_SHORT_UTF8 ||
+       c.kind == K_ASCII || c.kind == K_UTF8 {
+        return "str, \"" + c.sval + "\""
+    }
+    if c.kind == K_SHORT_TUPLE || c.kind == K_TUPLE {
+        return "tuple, " + const_value(c, pool)
+    }
+    if c.kind == K_SHORT_LIST || c.kind == K_LIST {
+        return "list, " + const_value(c, pool)
+    }
+    if c.kind == K_RANGE {
+        return "range, " + const_value(c, pool)
+    }
+    return "<const>"
+}
+
+/* ---------------- meta section display ---------------- */
+
+func get_str(f KlcFile, idx int) str {
+    if idx <= 0 || idx >= len(f.consts) {
+        return "<bad-const-" + str_of(idx) + ">"
+    }
+    return f.consts[idx].sval
+}
+
+func show_anns(f KlcFile, anns list[KAnn], indent str) {
+    for ann in anns {
+        var line = indent + "@" + get_str(f, ann.name_idx)
+        if ann.key_idx != 0 {
+            line = line + "(" + get_str(f, ann.key_idx) + ")"
+        }
+        print(line)
+    }
+}
+
+func show_var(f KlcFile, v KVar, indent str) {
+    var line = indent
+    if (v.flags & FLG_PUB) != 0 {
+        line = line + "public "
+    }
+    if (v.flags & FLG_MUT) != 0 {
+        line = line + "mut "
+    }
+    line = line + "var " + get_str(f, v.name_idx) + " " + type_str(get_str(f, v.type_idx))
+    if v.const_idx != 0 {
+        line = line + " = " + const_value(f.consts[v.const_idx], f.consts)
+    }
+    print(line)
+}
+
+func show_func(f KlcFile, fn KFunc, indent str) {
+    show_anns(f, fn.anns, indent)
+
+    var line = indent
+    if (fn.flags & FLG_PUB) != 0 {
+        line = line + "public "
+    }
+    if (fn.flags & FLG_STATIC) != 0 {
+        line = line + "static "
+    }
+    if (fn.flags & FLG_NATIVE) != 0 {
+        line = line + "native "
+    }
+    line = line + "func " + get_str(f, fn.name_idx) + "("
+
+    var i = 0
+    while i < len(fn.args) {
+        let a = fn.args[i]
+        if i != 0 {
+            line = line + ", "
+        }
+        let name = get_str(f, a.name_idx)
+        if a.const_idx != 0 {
+            line = line + name + " = " + const_value(f.consts[a.const_idx], f.consts)
+        } else {
+            line = line + name + " " + type_str(get_str(f, a.type_idx))
+        }
+        i = i + 1
+    }
+    line = line + ")"
+
+    let ret = type_str(get_str(f, fn.ret_idx))
+
+    if (fn.flags & FLG_TRAIT) != 0 {
+        if len(ret) > 0 {
+            line = line + " " + ret
+        }
+        print(line)
+        return
+    }
+
+    if len(ret) > 0 {
+        line = line + " " + ret
+    }
+
+    if fn.code_idx == 0 {
+        print(line + " {}")
+    } else {
+        print(line + " { /* code[" + str_of(fn.code_idx) + "] */ }")
+    }
+}
+
+func show_type_params(f KlcFile, tps list[KTp]) str {
+    if len(tps) == 0 {
+        return ""
+    }
+    var out = "["
+    var i = 0
+    while i < len(tps) {
+        let tp = tps[i]
+        if i != 0 {
+            out = out + ", "
+        }
+        out = out + get_str(f, tp.name_idx)
+        if len(tp.bounds) > 0 {
+            out = out + ": "
+            var j = 0
+            while j < len(tp.bounds) {
+                if j != 0 {
+                    out = out + " & "
+                }
+                out = out + type_str(get_str(f, tp.bounds[j]))
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+    return out + "]"
+}
+
+func show_type_list(f KlcFile, idxs list[int]) str {
+    var out = ""
+    var i = 0
+    while i < len(idxs) {
+        if i != 0 {
+            out = out + " & "
+        }
+        out = out + type_str(get_str(f, idxs[i]))
+        i = i + 1
+    }
+    return out
+}
+
+func code_name(f KlcFile, idx int) str {
+    if idx < 0 || idx >= len(f.codes) {
+        return "<bad-code-" + str_of(idx) + ">"
+    }
+    let c = f.codes[idx]
+    return get_rt_str(f, c.name_idx)
+}
+
+func show_intf_table(f KlcFile, k KClass, indent str) {
+    if len(k.intf) == 0 {
+        return
+    }
+    print(indent + "intf table:")
+    var i = 0
+    while i < len(k.intf) {
+        let e = k.intf[i]
+        print(indent + "  [" + str_of(i) + "] trait " + get_str(f, e.name_idx))
+
+        var line = indent + "    methods: ["
+        var j = 0
+        while j < len(e.methods) {
+            if j != 0 {
+                line = line + ", "
+            }
+            let midx = e.methods[j]
+            if midx == 0xFFFF {
+                line = line + str_of(j) + ": <not impl>"
+            } else {
+                line = line + str_of(j) + ": " + code_name(f, midx)
+            }
+            j = j + 1
+        }
+        print(line + "]")
+
+        if len(e.parents) > 0 {
+            line = indent + "    parents: ["
+            j = 0
+            while j < len(e.parents) {
+                if j != 0 {
+                    line = line + ", "
+                }
+                line = line + str_of(e.parents[j])
+                j = j + 1
+            }
+            print(line + "]")
+        }
+        i = i + 1
+    }
+}
+
+func show_class(f KlcFile, k KClass) {
+    var line = "  "
+    if (k.flags & FLG_PUB) != 0 {
+        line = line + "public "
+    }
+    if (k.flags & FLG_TRAIT) != 0 {
+        line = line + "trait "
+    } else {
+        line = line + "class "
+    }
+    line = line + get_str(f, k.name_idx)
+    line = line + show_type_params(f, k.tps)
+
+    if len(k.bases) > 0 {
+        line = line + " : " + show_type_list(f, k.bases)
+    }
+    print(line + " {")
+
+    for fld in k.fields {
+        show_var(f, fld, "    ")
+    }
+
+    for m in k.methods {
+        show_func(f, m, "    ")
+    }
+
+    if len(k.pip) > 0 {
+        print("    pip: " + show_type_list(f, k.pip))
+    }
+    if len(k.lro) > 0 {
+        print("    lro: " + show_type_list(f, k.lro))
+    }
+
+    show_intf_table(f, k, "    ")
+
+    print("  }")
+}
+
+/* ---------------- runtime section display ---------------- */
+
+func get_rt_str(f KlcFile, idx int) str {
+    if idx <= 0 || idx > len(f.rt_consts) {
+        return "<bad-rt-const-" + str_of(idx) + ">"
+    }
+    return f.rt_consts[idx - 1].sval
+}
+
+func show_rt_consts(f KlcFile) {
+    print("\nruntime constants:")
+    var i = 0
+    while i < len(f.rt_consts) {
+        print("  [" + pad2(i + 1) + "] = " + const_desc(f.rt_consts[i], f.rt_consts))
+        i = i + 1
+    }
+}
+
+func show_imports(f KlcFile) {
+    print("\nimports:")
+    var i = 0
+    while i < len(f.imports) {
+        let imp = f.imports[i]
+        var kind = "kind" + str_of(imp.kind)
+        if imp.kind < len(IMPORT_KINDS) {
+            kind = IMPORT_KINDS[imp.kind]
+        }
+        var path = get_rt_str(f, imp.ns_idx)
+        if imp.kls_idx != 0 {
+            path = path + "::" + get_rt_str(f, imp.kls_idx)
+        }
+        print("  [" + pad2(i) + "] = " + kind + " " + path + "::" + get_rt_str(f, imp.sym_idx))
+        i = i + 1
+    }
+}
+
+func show_links(f KlcFile) {
+    print("\nlinks:")
+    var i = 0
+    while i < len(f.links) {
+        print("  [" + pad2(i) + "] = " + get_rt_str(f, f.links[i]))
+        i = i + 1
+    }
+}
+
+/* ---------------- disassembler ---------------- */
+
+func read_insn(codes bytes, pc int) int {
+    let o = pc * 4
+    return int(codes[o]) | (int(codes[o + 1]) << 8) |
+           (int(codes[o + 2]) << 16) | (int(codes[o + 3]) << 24)
+}
+
+func tag_name(idx int) str {
+    if idx < len(TAG_NAMES) {
+        return TAG_NAMES[idx]
+    }
+    return "<tag" + str_of(idx) + ">"
+}
+
+func disasm(codes bytes, start int, count int) {
+    var pc = start
+    let end = start + count
+    while pc < end {
+        let insn = read_insn(codes, pc)
+        let uinsn = insn & 0xFFFFFFFF
+        let opcode = (uinsn >> 24) & 0xFF
+
+        var name = "<bad-opcode>"
+        var fmt = FMT_OP
+        if opcode < len(OP_NAMES) {
+            name = OP_NAMES[opcode]
+            fmt = OP_FMTS[opcode]
+        }
+
+        var operands = ""
+
+        if fmt == FMT_RX {
+            operands = "r" + str_of(uinsn & 0xFFF)
+        } else if fmt == FMT_RTAGIMM {
+            let tag = (uinsn >> 8) & 0xFF
+            var tagname = "<tag" + str_of(tag) + ">"
+            if tag < len(INTERN_TAGS) {
+                tagname = INTERN_TAGS[tag]
+            }
+            operands = format("r{}, @{}, #{}", (uinsn >> 16) & 0xFF, tagname, uinsn & 0xFF)
+        } else if fmt == FMT_RXTAG {
+            operands = format("r{}, #{}", (uinsn >> 8) & 0xFFF, tag_name(uinsn & 0xFF))
+        } else if fmt == FMT_RXIDX12 {
+            operands = format("r{}, #{}", (uinsn >> 12) & 0xFFF, uinsn & 0xFFF)
+        } else if fmt == FMT_ROFF2 {
+            operands = format("r{}, {}", (uinsn >> 16) & 0xFF, sign_ext(uinsn & 0xFFFF, 16))
+        } else if fmt == FMT_RIMM2 || fmt == FMT_RIDX2 {
+            operands = format("r{}, #{}", (uinsn >> 16) & 0xFF, sign_ext(uinsn & 0xFFFF, 16))
+        } else if fmt == FMT_RIMMOFF {
+            operands = format("r{}, #{}, {}", (uinsn >> 16) & 0xFF,
+                              sign_ext((uinsn >> 8) & 0xFF, 8), sign_ext(uinsn & 0xFF, 8))
+        } else if fmt == FMT_RXRX {
+            operands = format("r{}, r{}", (uinsn >> 12) & 0xFFF, uinsn & 0xFFF)
+        } else if fmt == FMT_RRIMM {
+            operands = format("r{}, r{}, #{}", (uinsn >> 16) & 0xFF,
+                              (uinsn >> 8) & 0xFF, sign_ext(uinsn & 0xFF, 8))
+        } else if fmt == FMT_RROFF {
+            operands = format("r{}, r{}, {}", (uinsn >> 16) & 0xFF,
+                              (uinsn >> 8) & 0xFF, sign_ext(uinsn & 0xFF, 8))
+        } else if fmt == FMT_RRR {
+            operands = format("r{}, r{}, r{}", (uinsn >> 16) & 0xFF,
+                              (uinsn >> 8) & 0xFF, uinsn & 0xFF)
+        } else if fmt == FMT_JMP {
+            operands = str_of(sign_ext(uinsn & 0xFFFF, 16))
+        } else if fmt == FMT_TAG {
+            operands = "#" + tag_name(uinsn & 0xFF)
+        } else if fmt == FMT_IMM2 || fmt == FMT_IDX2 {
+            operands = "#" + str_of(sign_ext(uinsn & 0xFFFF, 16))
+        } else if fmt == FMT_CALL {
+            let flg = (uinsn >> 20) & 0xF
+            let rx = (uinsn >> 8) & 0xFFF
+            operands = format("flg={}, ", flg)
+            if rx != 0xFFF {
+                operands = operands + format("r{}, ", rx)
+            }
+            operands = operands + format("#{}", uinsn & 0xFF)
+            if opcode != OP_TAIL_CALL_IDX {
+                // the call is followed by a FORMAT_DATA word
+                pc = pc + 1
+                if pc < end {
+                    let data = read_insn(codes, pc)
+                    var note = ""
+                    if flg == 0 {
+                        note = format("(rel32={})", data)
+                    } else if flg == 1 {
+                        note = format("(import_index={})", data)
+                    } else if flg == 2 {
+                        note = format("(intf_slot={})", data)
+                    }
+                    print(str_of(pc).zfill(4) + ":  " + hex_of(data & 0xFFFFFFFF, 8) +
+                          "   data " + note)
+                }
+            }
+        } else if fmt == FMT_R_TI_IMM12 {
+            let ti = (uinsn >> 12) & 0xF
+            let imm12 = uinsn & 0xFFF
+            if (ti & 4) != 0 {
+                operands = format("r{}, ti=0x{}, #{}", (uinsn >> 16) & 0xFF, hex_of(ti, 1), imm12)
+            } else {
+                operands = format("r{}, ti=0x{}, #{}", (uinsn >> 16) & 0xFF,
+                                  hex_of(ti, 1), sign_ext(imm12, 12))
+            }
+        } else if fmt == FMT_TI_IMM2 {
+            let ti = (uinsn >> 16) & 0xF
+            let imm16 = uinsn & 0xFFFF
+            if (ti & 4) != 0 {
+                operands = format("ti=0x{}, #{}", hex_of(ti, 1), imm16)
+            } else {
+                operands = format("ti=0x{}, #{}", hex_of(ti, 1), sign_ext(imm16, 16))
+            }
+        } else if fmt == FMT_RR_TI_MODE {
+            operands = format("r{}, r{}, ti=0x{}, mode={}", (uinsn >> 16) & 0xFF,
+                              (uinsn >> 8) & 0xFF, hex_of((uinsn >> 2) & 0x3F, 2), uinsn & 0x3)
+        } else if fmt == FMT_DATA {
+            operands = "(raw data)"
+        } else {
+            operands = "(unknown format)"
+        }
+
+        print(str_of(pc).zfill(4) + ":  " + hex_of(uinsn, 8) + "   " + name + " " + operands)
+        pc = pc + 1
+    }
+}
+
+func show_codes(f KlcFile) {
+    print("\ncodes:")
+
+    var codes = bytes(0)
+    if len(f.bytecodes) > 0 {
+        codes = f.bytecodes[0]
+    }
+
+    var i = 0
+    while i < len(f.codes) {
+        let c = f.codes[i]
+        print("")
+        print(format("[{}]@{}(nlocals={}, max_call_args={}, start_pc={}, num_insns={})",
+                     i, get_rt_str(f, c.name_idx), c.nlocals, c.max_call_args,
+                     c.start_pc, c.num_insns))
+        if len(codes) > 0 {
+            disasm(codes, c.start_pc, c.num_insns)
+        }
+        i = i + 1
+    }
+}
+
+/* ---------------- main ---------------- */
+
+func read_file_bytes(path str) bytes {
+    let fp = fs.open(path, "r")
+    if fp == null {
+        panic("cannot open file: " + path)
+    }
+    let f = fp!
+
+    let buf = ByteBuf()
+    let chunk = bytes(65536)
+    while {
+        let n = f.read(chunk)
+        if n <= 0 {
+            break
+        }
+        buf.extend(chunk.view(0, n))
+    }
+    f.close()
+    return buf.to_bytes()
+}
+
+func main() {
+    // os.args() returns only the user arguments (no program name).
+    let args = os.args()
+    if len(args) < 1 {
+        print("usage: koala kl-dump.kl <klc file>")
+        return
+    }
+
+    let data = read_file_bytes(args[0])
+    let r = Reader(data)
+    let f = parse_klc(r)
+
+    let major = (f.version >> 16) & 0xFFFF
+    let minor = (f.version >> 8) & 0xFF
+    let patch = f.version & 0xFF
+    print(format("\nversion: {} ({}.{}.{})", f.version, major, minor, patch))
+    print("pkg path: " + get_str(f, f.pkg_path_idx))
+
+    print("\nconstants:")
+    var i = 0
+    while i < len(f.consts) {
+        print("  [" + pad2(i + 1) + "] = " + const_desc(f.consts[i], f.consts))
+        i = i + 1
+    }
+
+    print("\nvariables:")
+    for v in f.vars {
+        show_var(f, v, "  ")
+    }
+
+    print("\nfunctions:")
+    for fn in f.funcs {
+        show_func(f, fn, "  ")
+    }
+
+    print("\nclasses:")
+    for k in f.classes {
+        show_class(f, k)
+    }
+
+    show_rt_consts(f)
+    show_imports(f)
+    show_links(f)
+    show_codes(f)
+}

@@ -21,7 +21,7 @@ pub trait Sequence[T] : Collection[T] {
 
     /// Get the item at the specified index.
     ///
-    /// PRECONDITION: 0 <= index < __len__().
+    /// Precondition: 0 <= index < __len__().
     /// Panic if the index is out of range.
     func __getitem__(index int) T
 
@@ -54,7 +54,7 @@ pub trait Sequence[T] : Collection[T] {
 pub trait MutableSequence[T] : Sequence[T] {
     /// Set the item at the specified index to `value`.
     ///
-    /// PRECONDITION: 0 <= index < __len__().
+    /// Precondition: 0 <= index < __len__().
     func __setitem__(index int, value T)
 
     /// Replace a slice of the sequence with elements from the iterable `val`.
