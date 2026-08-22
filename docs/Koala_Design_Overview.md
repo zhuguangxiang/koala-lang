@@ -100,7 +100,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
   print(add_pair(3, 4))    // T 推断为 int64
   ```
 
-  函数体内 `a + b` 的操作数类型是未知类型 T，编译器不知道具体实现，但因 `T : Arithmetic` 约束而知道"加法可用"：IR 下降为协议 `add` 指令，后端转为 `num.add`（字节码 `OP_NUM_ADD`，数值协议指令），目标运行时经 Arithmetic intf-table O(1) 分发到 T 的 `__add__`，全程不创建 call frame。当前实现状态（2026-08 实测）：**十六件二元运算符的 IR 下降链路已全部打通**——IR 协议指令（`add/sub/mul/div/mod`、`shl/shr/and/or/xor`、`cmplt/cmple/cmpgt/cmpge/cmpeq/cmpne`）经优化器后保留，isel `num_ops_rules[]` 十六条 `OP_BINARY_* → OP_NUM_*` 映射齐备，寄存器分配后存活到 LIR。尚不支持：泛型一元 `-` / `~`、泛型复合赋值（`+=` 等）、VM 侧 `OP_NUM_*` handler 族（目前仅 `OP_NUM_EQ` 落地，`test_generic_9` 的失败即因此）——详见 `docs/Koala_TODO.md`。
+  函数体内 `a + b` 的操作数类型是未知类型 T，编译器不知道具体实现，但因 `T : Arithmetic` 约束而知道"加法可用"：IR 下降为协议 `add` 指令，后端转为 `num.add`（字节码 `OP_NUM_ADD`，数值协议指令），目标运行时经 Arithmetic intf-table O(1) 分发到 T 的 `__add__`，全程不创建 call frame。当前实现状态（2026-08 实测）：**十六件二元运算符的 IR 下降链路已全部打通**——IR 协议指令（`add/sub/mul/div/mod`、`shl/shr/and/or/xor`、`cmplt/cmple/cmpgt/cmpge/cmpeq/cmpne`）经优化器后保留，isel `num_ops_rules[]` 十六条 `OP_BINARY_* → OP_NUM_*` 映射齐备，寄存器分配后存活到 LIR；**比较族六件 VM handler 已落地，`test_generic_9` 转绿**。尚不支持：泛型一元 `-` / `~`、泛型复合赋值（`+=` 等）、VM 侧算术与位运算 `OP_NUM_*` handler 族——详见 `docs/Koala_TODO.md`。
 
   **trait 作参数类型（如 `a Arithmetic[int]`，对标 Rust `dyn Trait`）时运算符语法不可用——设计边界，非实现缺口**：trait 运算符方法实例化后是实现侧的具体签名（如 `__add__(int64) int64`），而操作数是 trait 值本身，类型不匹配即编译报错；trait 值与具体类型混算（如 `a + 100`）同样报错。Rust 同理：运算符 trait 族（`std::ops::Add` 等）`add(self, ...)` 按值消费 self，非 dyn-compatible，`dyn Add` 根本写不出来。运算符只存在于具体类型与泛型（`T : Arithmetic`）两条路径；trait 值上保留 `__len__` 等协议钩子调用。
 - **语义 trait 保留 dunder 声明**（如 Sequence 声明 `__getitem__` 等）：它们定义概念并只约束遵循者，对标 Python collections.abc。
@@ -122,7 +122,8 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 ## 4. Trait 与分发机制
 
 - **intf-table**：Rust 风格的每类 trait 表，**O(1) 接口分发、无需查找**——槽位含方法名 + code_index，trait 调用 = 槽位一次间接调用；class 方法调用 = 编译器查参后的**直接调用，零开销**。
-- **部分 trait 实现**：class 遵循 trait 时允许只实现其中一部分方法。未实现的方法在 intf-table 中填入 `not_impl` 占位对象，加载期仅警告、不阻断；只有当未实现的方法被真实调用时才 panic——语义是"这需要你去实现它"。这一设计直接消灭了 Java 的适配器类生态：Java 强制接口全量实现，迫使生态发明 MouseAdapter / WindowAdapter 之类的空壳抽象类，只为让用户覆写十个方法中的一个；Koala 的答案是声明归声明、实现按需，intf-table 保持 O(1) 静态分发——**契约在类型层面完整，义务在实现层面宽容**。
+- **trait 值表示（intf 值）**：具体类型扩宽为 trait 类型的值（如 `let e Equatable[bool] = false`），TValue 首字携带该类的 intf-table 指针，载荷原样保留。**扩宽是单向的**：primitive（int/float/bool 等）cast 到 trait 后原 tag 即告丢失，不可 downcast 回具体类型（对照：`any` 通道保留 tag，支持 `isinstance` 窄化）。每个 intf-table 带一个回指实现类 TypeObject 的指针，供运行时自描述（`typeof` / `print` / GC 标记）——这是运行时内省设施，不是面向用户的 downcast 通道。
+- **部分 trait 实现**：class 遵循 trait 时允许只实现其中一部分方法。未实现的方法在 intf-table 中填入 `not_impl` 占位对象，加载期仅警告、不阻断；只有当未实现的方法被真实调用时抛异常 `Exception("function xxx in xxx is not implemented.")`——语义是"这需要你去实现它"。这一设计直接消灭了 Java 的适配器类生态：Java 强制接口全量实现，迫使生态发明 MouseAdapter / WindowAdapter 之类的空壳抽象类，只为让用户覆写十个方法中的一个；Koala 的答案是声明归声明、实现按需，intf-table 保持 O(1) 静态分发——**契约在类型层面完整，义务在实现层面宽容**。
 - **泛型约束**：如 `T : Comparable[T]`；缺少约束只在泛型参数要求时报错。
 - **自类型推断**：裸遵循自动推断自类型参数（如 Equatable → Equatable[bool]），无 Self 关键字。
 - **LRO**：类型内省可见全部遵循关系与编译器插入的内容。
@@ -145,7 +146,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 Koala 的错误模型是**刻意设计**，非缺口：
 
 - **可预期的失败 = 返回值错误码**（C 风格，如 int 返回 -1）。
-- **不可预期的失败 = panic**：轻量级、**不可恢复、不可捕获**——panic 即 bug，必须改代码。
+- **不可预期的失败 = 抛异常**：Koala 有异常机制，但非常轻量级——`panic` 函数是抛异常的唯一入口，抛出 `Exception` 对象；异常**不可恢复、不可捕获，一旦抛出必须解决**（panic 即 bug，必须改代码）。
 - 明确拒绝：Java try-catch、Go defer（可读性差）、Result 式组合（作者裁定他国无更优特色解法）。
 - **与 GC 的协同**是这一模型成立的关键：无析构函数 / 资源泄漏之忧，栈可直接丢弃；无捕获则无展开表，panic 真正轻量。
 - bytes 错误模型定案：返回类型的方法用 panic，返回 int 的方法用 -1。
@@ -171,10 +172,10 @@ pub func pretty(s str) str {}
 
 Koala 的函数按声明方式分为三种，**声明与实现分离，实现的位置分三处：字节码、C 库、编译规则**。模块加载期的绑定规则：
 
-| 声明 | body | 找到 C 注册实现 | 未找到 | 被调用时 panic 语义 |
+| 声明 | body | 找到 C 注册实现 | 未找到 | 被调用时抛异常语义 |
 |------|------|----------------|--------|--------------------|
 | 无注解（普通函数） | 编译为 code 字节码，VM 执行 | C 实现覆写字节码（热路径优化入口） | — | — |
-| `@native` | 必须为空 | 绑定 C 实现 | 填 `not_impl` 占位对象，**警告**不阻断 | "用户需要实现它"（欠账） |
+| `@native` | 必须为空 | 绑定 C 实现 | 填 `not_impl` 占位对象，**警告**不阻断 | 抛 `Exception("function xxx in xxx is not implemented.")`——"用户需要实现它"（欠账） |
 | `@intrinsic` | 必须为空，调用点由编译器改写为专用指令 | 绑定 C 实现（双栖：泛型/trait 分发的运行时真身） | 填 `intrinsic_not_impl` 哨兵，**静默不警告** | "编译器 bug"（哨兵） |
 
 设计要点：
