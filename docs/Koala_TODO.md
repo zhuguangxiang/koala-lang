@@ -261,3 +261,102 @@ Koala 是完成度极高的原创设计：不是“某语言 + 某特性”的�
 | 工程布局 | 学 Go（encoding 分包），避 Go 之短（cgo、无重载） |
 | 对象模型 | 超越 Java（无 Object 神类）与 Kotlin（自动遵循免声明） |
 
+---
+
+## 7. OP_NUM_* 全特性实现（VM handler 族）
+
+> 2026-08-22 建立。实现完成一项打勾一项，不删除。
+
+### 7.1 现状快照（建立时点，只读核实）
+
+- opcode_list.h：16 条 OP_NUM_*（算术 ADD/SUB/MUL/DIV/MOD、位运算 AND/OR/XOR/SHL/SHR、
+  比较 EQ/NE/LT/LE/GT/GE），全部 FORMAT_RRR；
+- isel.c `num_ops_rules`：OP_BINARY_* → OP_NUM_* 16 条映射齐全；lower_operands.c
+  `is_binary` 已覆盖 OP_NUM_ADD..OP_NUM_GE 区间；
+- vm_ops.h：仅 OP_NUM_EQ 有 TARGET，其余 15 条在非 computed-goto 模式落 eval.c
+  UNREACHABLE（test_generic_9 失败的直接原因）；
+- typeslots.c：比较六件已挂（slotdefs 全齐，cmp → slot_tp_richcmp）；num_slotdefs
+  已存在但 FUNC 全为 NULL、绑定循环是注释占位；bit_slotdefs 不存在；
+  TypeObject->arith / ->bit 全库从未被分配或赋值；
+- printer.c：只打印 num.eq / num.gt，缺 14 个 case；
+- 内建数值类型运行时**没有** cmp / arith / bit 函数：@intrinsic 条目在 klc 里是普通
+  空体 CodeObject（write_klc 只认 SYM_FLAGS_NATIVE），slots 动态分发执行空体帧不可用。
+  比较族的对策已定为 **TARGET 内建快路径**（OP_NUM_EQ 先行）。
+
+### 7.2 任务清单
+
+**第一批：比较族（零挂接改动，修 test_generic_9）**
+
+- [x] OP_NUM_EQ 增加 int64 / uint64 / float64 快路径（初版两处 bug 已修：
+      `==` 笔误改赋值、float 分支补 `DISPATCH()`）——2026-08-22 完成
+- [x] OP_NUM_NE / LT / LE / GT / GE 五个 TARGET（EQ 模板 + 同款快路径）——2026-08-22 完成
+- [x] uint64 快路径：拆独立分支 + `(uint64_t)ival` 无符号比较，六条全齐
+      （EQ/NE/LT/LE/GT/GE），与 OP_UINT_CMPLT 既有约定一致——2026-08-22 完成
+- [ ] printer.c 补 num.ne / lt / le / ge 四个 case
+
+**第二批：算术 + 位运算（补 typeslots 脚手架）**
+
+- [ ] typeslots.c：`slot_tp_binary` 公共助手 + 10 个 trampoline
+      （ADD/SUB/MUL/DIV/MOD/LSHIFT/RSHIFT/BIT_AND/BIT_OR/BIT_XOR）
+- [ ] num_slotdefs 填 FUNC；新增 bit_slotdefs（dunder 名以 number.kl 为准：
+      `__lsh__` / `__rsh__` / `__bitand__` / `__bitor__` / `__bitxor__`）
+- [ ] kl_tp_install_slots：补两段绑定循环（首个 dunder 命中时惰性分配
+      tp->arith / tp->bit，保留"已实现不覆盖"语义）
+- [ ] 10 个 TARGET（tp->arith->xxx / tp->bit->xxx，ASSERT 三件套）
+- [ ] 内建类型算术/位运算裁决：TARGET 快路径（同比较族）还是 intrinsic 加载机制
+- [ ] printer.c 补 num.add/sub/mul/div/mod/and/or/xor/shl/shr 十个 case
+
+**第三批：num.* 比较跳转融合（jmp fusion）**
+
+动机（实测 IR，`func max[T : Comparable](a, b) { if a > b { return a } ... }`）：
+
+```
+0002:  AE020001   num.gt r2, r0, r1
+0003:  54020001   jmp_false r2, 1
+0004:  75000000   ret r0
+0005:  75000001   ret r1
+```
+
+`num.gt` 的结果 r2 仅被 `jmp_false` 消费，两条指令应融合为单条
+`jmp_num_gt r0, r1, off`：省一次中间寄存器写读 + 一次 DISPATCH，
+且快路径比较与跳转在同一 handler 内完成。
+
+现状对照：单态融合链路已全齐——isel.c `int_cmp_map` / `float_cmp_map`
+（+ uint 系）把 OP_INT_*/OP_FLOAT_* 比较 + jmp 融合为 OP_JMP_INT_* /
+OP_JMP_UINT_* / OP_JMP_FLOAT_*（含 _IMM 变体，FORMAT_RROff / RImmOff，
+printer `print_jmp_cond_fused`、cgen `fused_jmp()` + `lower_fused_jmp` 均就绪）；
+**唯独泛型 num.* 比较没有融合族**。
+
+- [ ] opcode_list.h：新增 OP_JMP_NUM_EQ / NE / LT / LE / GT / GE（FORMAT_RROff；
+      _IMM 变体视收益再定，比较对象多为泛型变量，初版可不做）
+- [ ] isel：OP_BINARY_GT..GE（走 num_ops_rules 的泛型比较）后接
+      OP_JMP_FALSE / OP_JMP_TRUE 时融合为 OP_JMP_NUM_*（真值分支取反语义
+      与现有单态融合保持一致）
+- [ ] vm_ops.h：六个 TARGET，直接复用 OP_NUM_* 比较族的快路径分支
+      （int64 有符号 / float64 直比 / uint64 `(uint64_t)` 无符号 / cmp 兜底），
+      命中即跳，不再写中间寄存器
+- [ ] printer.c / cgen：`print_jmp_cond_fused` 六个 case + FORMAT_RROff 表项
+- [ ] 验证：test_generic_9 的 max/min if-branch 反汇编出现融合指令，全量回归无新增
+
+**验证**
+
+- [x] test_generic_9 转绿（六件比较运算符 × int64/float64，24 组输出全对齐）
+      ——2026-08-22 lit 单测 PASS
+- [ ] uint64 泛型比较测试用例：六条 TARGET 的 uint64 快路径暂无测试覆盖——字面量
+      推不出 uint64，需先确认 `uint64(...)` 构造器路径能否参与泛型推导，再补进
+      test_generic_9 或另建用例（重点验 LT/GT 的 `(uint64_t)` 无符号比较，
+      用高位为 1 的大数如 UINT64_MAX 与小数比较）
+- [x] test-run 新增用户自定义数值类用例（真字节码体 dunder，验证 slots 全链路，
+      避开 intrinsic 空体问题）——test/test-run/test_generic_14.kl
+      （Score 类六件比较 dunder + 泛型 Comparable 函数全六件 + max/min if-branch，
+      16 组输出对齐），2026-08-22 lit 单测首跑 PASS（泛型比较用户类
+      OP_NUM_* 兜底链路 slot_tp_richcmp → dunder 验证通过）
+- [ ] 全量 test-debug.sh 无新增回归
+
+### 7.3 决策点（待作者拍板）
+
+1. @intrinsic 空体的系统性解法：比较族已走 TARGET 快路径；算术族跟随快路径，还是
+   走定案中的"klc 增加 intrinsic flag + 加载期 C 实现查找 + sentinel"（klc 格式需动），
+   二选一或分阶段。
+2. 一元 `-` / `~`（OP_UNARY_* 仅 IR 伪指令）与泛型复合赋值仍是独立项，不在本批。
+

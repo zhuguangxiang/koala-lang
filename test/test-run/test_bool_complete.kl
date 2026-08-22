@@ -1,0 +1,83 @@
+// RUN: koala %s | filecheck %s
+
+// test __and__
+func band(a bool, b bool) bool {
+    return a && b
+}
+
+// test __or__
+func bor(a bool, b bool) bool {
+    return a || b
+}
+
+// test __not__
+func lnot(a bool) bool {
+    return !a
+}
+
+// test __eq__
+func beq(a bool, b bool) bool {
+    return a == b
+}
+
+// test __ne__
+func bne(a bool, b bool) bool {
+    return a != b
+}
+
+// test __hash__ and __str__
+func main() {
+    print(band(true, true))
+    print(band(true, false))
+    print(band(false, true))
+    print(band(false, false))
+
+    print(bor(true, true))
+    print(bor(true, false))
+    print(bor(false, true))
+    print(bor(false, false))
+
+    print(lnot(true))
+    print(lnot(false))
+
+    print(beq(true, true))
+    print(beq(true, false))
+    print(beq(false, true))
+    print(beq(false, false))
+
+    print(bne(true, true))
+    print(bne(true, false))
+    print(bne(false, true))
+    print(bne(false, false))
+
+    print(true.__hash__() == true.__hash__())
+    print(false.__hash__() == true.__hash__())
+    print(false.__hash__() == false.__hash__())
+
+    print(true.__str__())
+    print(false.__str__())
+}
+
+// CHECK: true
+// CHECK: false
+// CHECK: false
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: false

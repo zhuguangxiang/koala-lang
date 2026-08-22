@@ -612,7 +612,7 @@ TARGET(OP_INT_CMPEQ) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64 || regs[rs].tag == TAG_BOOL);
     ASSERT(regs[rs].tag == regs[rt].tag);
 
     regs[rd].ival = regs[rs].ival == regs[rt].ival;
@@ -656,7 +656,7 @@ TARGET(OP_INT_CMPNE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64 || regs[rs].tag == TAG_BOOL);
     ASSERT(regs[rs].tag == regs[rt].tag);
 
     regs[rd].ival = regs[rs].ival != regs[rt].ival;
@@ -1204,9 +1204,191 @@ TARGET(OP_NUM_EQ) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
+    TValue *v1 = regs + rs;
+    TValue *v2 = regs + rt;
+
+    if (is_int64(v1) && is_int64(v2)) {
+        // int64 doesn't have cmp function
+        regs[rd] = bool_value(v1->ival == v2->ival);
+        DISPATCH();
+    } else if (is_float64(v1) && is_float64(v2)) {
+        // float64 doesn't have cmp function
+        regs[rd] = bool_value(v1->fval == v2->fval);
+        DISPATCH();
+    } else if (is_uint64(v1) && is_uint64(v2)) {
+        // uint64 doesn't have cmp function
+        regs[rd] = bool_value((uint64_t)v1->ival == (uint64_t)v2->ival);
+        DISPATCH();
+    }
+
     TypeObject *tp = kl_typeof(regs + rs);
     ASSERT(tp && tp->cmp);
     regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_EQ);
+
+    DISPATCH();
+}
+
+TARGET(OP_NUM_NE) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    TValue *v1 = regs + rs;
+    TValue *v2 = regs + rt;
+
+    if (is_int64(v1) && is_int64(v2)) {
+        // int64 doesn't have cmp function
+        regs[rd] = bool_value(v1->ival != v2->ival);
+        DISPATCH();
+    } else if (is_float64(v1) && is_float64(v2)) {
+        // float64 doesn't have cmp function
+        regs[rd] = bool_value(v1->fval != v2->fval);
+        DISPATCH();
+    } else if (is_uint64(v1) && is_uint64(v2)) {
+        // uint64 doesn't have cmp function
+        regs[rd] = bool_value((uint64_t)v1->ival != (uint64_t)v2->ival);
+        DISPATCH();
+    }
+
+    TypeObject *tp = kl_typeof(regs + rs);
+    ASSERT(tp && tp->cmp);
+    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_NE);
+
+    DISPATCH();
+}
+
+TARGET(OP_NUM_LT) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    TValue *v1 = regs + rs;
+    TValue *v2 = regs + rt;
+
+    if (is_int64(v1) && is_int64(v2)) {
+        // int64 doesn't have cmp function
+        regs[rd] = bool_value(v1->ival < v2->ival);
+        DISPATCH();
+    } else if (is_float64(v1) && is_float64(v2)) {
+        // float64 doesn't have cmp function
+        regs[rd] = bool_value(v1->fval < v2->fval);
+        DISPATCH();
+    } else if (is_uint64(v1) && is_uint64(v2)) {
+        // uint64 doesn't have cmp function
+        regs[rd] = bool_value((uint64_t)v1->ival < (uint64_t)v2->ival);
+        DISPATCH();
+    }
+
+    TypeObject *tp = kl_typeof(regs + rs);
+    ASSERT(tp && tp->cmp);
+    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_LT);
+
+    DISPATCH();
+}
+
+TARGET(OP_NUM_LE) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    TValue *v1 = regs + rs;
+    TValue *v2 = regs + rt;
+
+    if (is_int64(v1) && is_int64(v2)) {
+        // int64 doesn't have cmp function
+        regs[rd] = bool_value(v1->ival <= v2->ival);
+        DISPATCH();
+    } else if (is_float64(v1) && is_float64(v2)) {
+        // float64 doesn't have cmp function
+        regs[rd] = bool_value(v1->fval <= v2->fval);
+        DISPATCH();
+    } else if (is_uint64(v1) && is_uint64(v2)) {
+        // uint64 doesn't have cmp function
+        regs[rd] = bool_value((uint64_t)v1->ival <= (uint64_t)v2->ival);
+        DISPATCH();
+    }
+
+    TypeObject *tp = kl_typeof(regs + rs);
+    ASSERT(tp && tp->cmp);
+    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_LE);
+
+    DISPATCH();
+}
+
+TARGET(OP_NUM_GT) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    TValue *v1 = regs + rs;
+    TValue *v2 = regs + rt;
+
+    if (is_int64(v1) && is_int64(v2)) {
+        // int64 doesn't have cmp function
+        regs[rd] = bool_value(v1->ival > v2->ival);
+        DISPATCH();
+    } else if (is_float64(v1) && is_float64(v2)) {
+        // float64 doesn't have cmp function
+        regs[rd] = bool_value(v1->fval > v2->fval);
+        DISPATCH();
+    } else if (is_uint64(v1) && is_uint64(v2)) {
+        // uint64 doesn't have cmp function
+        regs[rd] = bool_value((uint64_t)v1->ival > (uint64_t)v2->ival);
+        DISPATCH();
+    }
+
+    TypeObject *tp = kl_typeof(regs + rs);
+    ASSERT(tp && tp->cmp);
+    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_GT);
+
+    DISPATCH();
+}
+
+TARGET(OP_NUM_GE) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    TValue *v1 = regs + rs;
+    TValue *v2 = regs + rt;
+
+    if (is_int64(v1) && is_int64(v2)) {
+        // int64 doesn't have cmp function
+        regs[rd] = bool_value(v1->ival >= v2->ival);
+        DISPATCH();
+    } else if (is_float64(v1) && is_float64(v2)) {
+        // float64 doesn't have cmp function
+        regs[rd] = bool_value(v1->fval >= v2->fval);
+        DISPATCH();
+    } else if (is_uint64(v1) && is_uint64(v2)) {
+        // uint64 doesn't have cmp function
+        regs[rd] = bool_value((uint64_t)v1->ival >= (uint64_t)v2->ival);
+        DISPATCH();
+    }
+
+    TypeObject *tp = kl_typeof(regs + rs);
+    ASSERT(tp && tp->cmp);
+    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_GE);
 
     DISPATCH();
 }

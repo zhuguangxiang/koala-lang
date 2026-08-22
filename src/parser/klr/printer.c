@@ -1154,8 +1154,24 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_cmp("num.eq", insn, fp);
             break;
 
+        case OP_NUM_NE:
+            print_cmp("num.ne", insn, fp);
+            break;
+
+        case OP_NUM_LT:
+            print_cmp("num.lt", insn, fp);
+            break;
+
+        case OP_NUM_LE:
+            print_cmp("num.le", insn, fp);
+            break;
+
         case OP_NUM_GT:
             print_cmp("num.gt", insn, fp);
+            break;
+
+        case OP_NUM_GE:
+            print_cmp("num.ge", insn, fp);
             break;
 
         default:

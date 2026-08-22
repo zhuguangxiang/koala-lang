@@ -5,20 +5,96 @@ func equal[T : Comparable](a T, b T) bool {
 }
 
 func max[T : Comparable](a T, b T) T {
-    if a > b {
-        return a
-    }
+    if a > b { return a }
     return b
 }
 
+func min[T : Comparable](a T, b T) T {
+    if a < b { return a }
+    return b
+}
+
+func not_equal[T : Comparable](a T, b T) bool {
+    return a != b
+}
+
+func less[T : Comparable](a T, b T) bool {
+    return a < b
+}
+
+func less_equal[T : Comparable](a T, b T) bool {
+    return a <= b
+}
+
+func greater[T : Comparable](a T, b T) bool {
+    return a > b
+}
+
+func greater_equal[T : Comparable](a T, b T) bool {
+    return a >= b
+}
+
 func main() {
+    // == on int64 and float64
     print(equal(1, 1))
     print(equal(1, 2))
+    print(equal(1.5, 1.5))
+
+    // if-branch forms
     print(max(3, 5))
     print(max(8, 4))
+    print(min(3, 5))
+    print(min(8, 4))
+
+    // !=
+    print(not_equal(1, 2))
+    print(not_equal(1, 1))
+    print(not_equal(1.5, 2.5))
+
+    // <
+    print(less(1, 2))
+    print(less(2, 1))
+    print(less(1.5, 2.5))
+
+    // <=
+    print(less_equal(1, 2))
+    print(less_equal(2, 2))
+    print(less_equal(3, 2))
+    print(less_equal(2.5, 2.5))
+
+    // >
+    print(greater(2, 1))
+    print(greater(1, 2))
+    print(greater(2.5, 1.5))
+
+    // >=
+    print(greater_equal(2, 1))
+    print(greater_equal(2, 2))
+    print(greater_equal(1, 2))
+    print(greater_equal(1.5, 1.5))
 }
 
 // CHECK: true
 // CHECK: false
+// CHECK: true
 // CHECK: 5
 // CHECK: 8
+// CHECK: 3
+// CHECK: 4
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: true

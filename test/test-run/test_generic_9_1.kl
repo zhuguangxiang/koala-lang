@@ -1,0 +1,25 @@
+// SKIP: koala %s | filecheck %s
+
+class Foo[T : Comparable] {
+    func equal(a T, b T) bool {
+        return a == b
+    }
+
+    func max(a T, b T) T {
+        if a > b { return a }
+        return b
+    }
+}
+
+func main() {
+    var foo = Foo[int]()
+    print(foo.equal(1, 1))
+    print(foo.equal(1, 2))
+    print(foo.max(3, 5))
+    print(foo.max(8, 4))
+}
+
+// CHECK: true
+// CHECK: false
+// CHECK: 5
+// CHECK: 8

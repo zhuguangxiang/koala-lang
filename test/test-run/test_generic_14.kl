@@ -1,0 +1,123 @@
+// RUN: koala %s | filecheck %s
+
+// Custom class implementing the six comparison dunders with real bytecode
+// bodies: generic comparisons on Score must fall through the OP_NUM_*
+// cmp-slot path (slot_tp_richcmp -> the dunder), not a builtin fast path.
+class Score {
+    var value int
+
+    func __init__(_value int) {
+        value = _value
+    }
+
+    func __eq__(rhs Score) bool {
+        return value == rhs.value
+    }
+
+    func __ne__(rhs Score) bool {
+        return value != rhs.value
+    }
+
+    func __lt__(rhs Score) bool {
+        return value < rhs.value
+    }
+
+    func __le__(rhs Score) bool {
+        return value <= rhs.value
+    }
+
+    func __gt__(rhs Score) bool {
+        return value > rhs.value
+    }
+
+    func __ge__(rhs Score) bool {
+        return value >= rhs.value
+    }
+}
+
+func equal[T : Comparable](a T, b T) bool {
+    return a == b
+}
+
+func not_equal[T : Comparable](a T, b T) bool {
+    return a != b
+}
+
+func less[T : Comparable](a T, b T) bool {
+    return a < b
+}
+
+func less_equal[T : Comparable](a T, b T) bool {
+    return a <= b
+}
+
+func greater[T : Comparable](a T, b T) bool {
+    return a > b
+}
+
+func greater_equal[T : Comparable](a T, b T) bool {
+    return a >= b
+}
+
+func max[T : Comparable](a T, b T) T {
+    if a > b { return a }
+    return b
+}
+
+func min[T : Comparable](a T, b T) T {
+    if a < b { return a }
+    return b
+}
+
+func main() {
+    let a = Score(3)
+    let b = Score(5)
+    let c = Score(3)
+
+    // ==
+    print(equal(a, c))
+    print(equal(a, b))
+
+    // !=
+    print(not_equal(a, b))
+    print(not_equal(a, c))
+
+    // <
+    print(less(a, b))
+    print(less(b, a))
+
+    // <=
+    print(less_equal(a, b))
+    print(less_equal(a, c))
+    print(less_equal(b, a))
+
+    // >
+    print(greater(b, a))
+    print(greater(a, b))
+
+    // >=
+    print(greater_equal(b, a))
+    print(greater_equal(a, c))
+    print(greater_equal(a, b))
+
+    // if-branch form on user-class values
+    print(max(a, b).value)
+    print(min(a, b).value)
+}
+
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: 5
+// CHECK: 3
