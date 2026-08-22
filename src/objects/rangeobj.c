@@ -56,7 +56,7 @@ static MethodDef range_methods[] = {
 TypeObject range_type = {
     ._type = &type_type,
     .name = "range",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
     .methdefs = range_methods,
 };
 

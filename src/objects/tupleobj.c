@@ -69,7 +69,7 @@ static SeqMethods tuple_seq_methods = {
 TypeObject tuple_type = {
     ._type = &type_type,
     .name = "tuple",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
     .methdefs = tuple_methods,
     .seq = &tuple_seq_methods,
 };

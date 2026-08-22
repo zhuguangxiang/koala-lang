@@ -819,6 +819,27 @@ inherit:
     return NULL;
 }
 
+static Symbol *get_func_from_tp(ParserState *ps, TypeParamSymbol *tp_sym, char *name)
+{
+    Symbol *fn = NULL;
+
+    TypeSpec *ts;
+    vector_foreach(ts, &tp_sym->bound) {
+        if (!ts) continue;
+        Symbol *bound_sym = get_symbol_by_id(ts->sym_id);
+        ASSERT(bound_sym->kind == SYM_TRAIT || bound_sym->kind == SYM_INSTANCE);
+
+        if (bound_sym->kind == SYM_INSTANCE) {
+            fn = get_instance_method((InstanceSymbol *)bound_sym, name, ps);
+        } else {
+            fn = stbl_get(bound_sym->stbl, name);
+        }
+        if (fn) break;
+    }
+
+    return fn;
+}
+
 static Symbol *get___init___instance(InstanceSymbol *inst_sym, ParserState *ps)
 {
     char *name = "__init__";
@@ -1232,13 +1253,13 @@ static const char *operator_dunder_sugar(const char *name)
         { "__bitor__", "the '|' operator" },
         { "__bitxor__", "the '^' operator" },
         { "__bitnot__", "the '~' operator" },
-        { "__lsh__", "the '<<' operator" },
-        { "__rsh__", "the '>>' operator" },
+        { "__shl__", "the '<<' operator" },
+        { "__shr__", "the '>>' operator" },
         { "__ibitand__", "the '&=' operator" },
         { "__ibitor__", "the '|=' operator" },
         { "__ibitxor__", "the '^=' operator" },
-        { "__ilsh__", "the '<<=' operator" },
-        { "__irsh__", "the '>>=' operator" },
+        { "__ishl__", "the '<<=' operator" },
+        { "__ishr__", "the '>>=' operator" },
         // logical operators
         { "__and__", "the '&&' operator" },
         { "__or__", "the '||' operator" },
@@ -1803,6 +1824,17 @@ static void parse_dot(ParserState *ps, Expr *exp)
         }
     }
 
+    if (lhs_ts_sym->kind == SYM_TYPE_PARAM) {
+        Symbol *fn = get_func_from_tp(ps, (TypeParamSymbol *)lhs_ts_sym, ident->name);
+        if (fn) {
+            exp->ts = opt_dot_type(fn->ts, opt_or_bang);
+            exp->sym = fn;
+            log_info("dot member resolved: %s", fn->name);
+            log_type_spec(exp->ts);
+            return;
+        }
+    }
+
     char *prefix = "";
 
     if (lhs_ts_sym->kind == SYM_CLASS) {
@@ -1816,7 +1848,6 @@ static void parse_dot(ParserState *ps, Expr *exp)
     }
 
     kl_error(ident->loc, "'%s' is not found in %s '%s'", ident->name, prefix, lhs_ts_sym->name);
-    return;
 }
 
 static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
@@ -2188,9 +2219,9 @@ static char *get_binary_op_name(BiOpKind op)
         case BINARY_MOD:
             return "__mod__";
         case BINARY_SHL:
-            return "__lsh__";
+            return "__shl__";
         case BINARY_SHR:
-            return "__rsh__";
+            return "__shr__";
 
         case BINARY_BIT_AND:
             return "__bitand__";
@@ -2493,21 +2524,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
     Symbol *fn = NULL;
     char *op_name = get_binary_op_name(op);
     if (sym->kind == SYM_TYPE_PARAM) {
-        TypeParamSymbol *tp_sym = (TypeParamSymbol *)sym;
-        TypeSpec *ts;
-        vector_foreach(ts, &tp_sym->bound) {
-            if (!ts) continue;
-            Symbol *bound_sym = get_symbol_by_id(ts->sym_id);
-            ASSERT(bound_sym->kind == SYM_TRAIT || bound_sym->kind == SYM_INSTANCE);
-
-            if (bound_sym->kind == SYM_INSTANCE) {
-                fn = get_instance_method((InstanceSymbol *)bound_sym, op_name, ps);
-            } else {
-                fn = stbl_get(bound_sym->stbl, op_name);
-            }
-            if (fn) break;
-        }
-
+        fn = get_func_from_tp(ps, (TypeParamSymbol *)sym, op_name);
         if (!fn) {
             kl_error(bin->op_loc, "operator '%s' is not defined for type parameter '%s'.",
                      get_binary_op_str(op), sym->name);

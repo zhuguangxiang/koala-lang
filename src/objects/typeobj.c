@@ -38,7 +38,7 @@ Object *kl_new_global(char *name, int index, Object *m)
 TypeObject global_type = {
     ._type = &type_type,
     .name = "global",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
 };
 
 /*
@@ -47,6 +47,11 @@ For primitive values, return the corresponding type based on the tag.
 */
 TypeObject *kl_typeof(TValue *val)
 {
+    if (is_intf(val)) {
+        IntfTable *itab = val->itab;
+        return itab->tp;
+    }
+
     if (is_ref(val)) {
         Object *obj = to_obj(val);
         return OB_TYPE(obj);
@@ -199,7 +204,7 @@ static MethodDef type_methods[] = {
 TypeObject type_type = {
     ._type = &type_type,
     .name = "type",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
     .methdefs = type_methods,
 };
 

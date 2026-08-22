@@ -2545,11 +2545,11 @@ static char *get_inplace_op_str(AssignOpKind op)
             return "__imod__";
         /* bit operator */
         case OP_AND_ASSIGN:
-            return "__iand__";
+            return "__ibitand__";
         case OP_OR_ASSIGN:
-            return "__ior__";
+            return "__ibitor__";
         case OP_XOR_ASSIGN:
-            return "__ixor__";
+            return "__ibitxor__";
         case OP_SHL_ASSIGN:
             return "__ishl__";
         case OP_SHR_ASSIGN:
@@ -2575,11 +2575,11 @@ static char *get_inplace_binary_op_str(AssignOpKind op)
             return "__mod__";
         /* bit operator */
         case OP_AND_ASSIGN:
-            return "__and__";
+            return "__bitand__";
         case OP_OR_ASSIGN:
-            return "__or__";
+            return "__bitor__";
         case OP_XOR_ASSIGN:
-            return "__xor__";
+            return "__bitxor__";
         case OP_SHL_ASSIGN:
             return "__shl__";
         case OP_SHR_ASSIGN:

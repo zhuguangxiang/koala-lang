@@ -86,7 +86,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 - 每个类型**自行定义**运算符参数类型，无跨类型签名强制。
 - **运算符契约拆成两个 trait**（定义于 `number.kl`），同为**泛型而存在**——`func f[T : Arithmetic]` 凭它约束运算符能力；class 实现了相应 dunder 即天然支持（结构式遵循，无需显式声明）：
   - **Arithmetic[T]**：五件二元算术（`__add__` / `__sub__` / `__mul__` / `__div__` / `__mod__`）+ 一元 `__neg__`；
-  - **BitwiseOperators[T]**：五件二元位运算（`__lsh__` / `__rsh__` / `__bitand__` / `__bitor__` / `__bitxor__`）+ 一元 `__bitnot__`。
+  - **BitwiseOperators[T]**：五件二元位运算（`__shl__` / `__shr__` / `__bitand__` / `__bitor__` / `__bitxor__`）+ 一元 `__bitnot__`。
 
   内建遵循：int64 / uint64 两者全遵循（uint64 不声明 `__neg__`——无符号取负无语义，靠部分 trait 实现机制自动 not_impl 占位）；float64 只遵循 Arithmetic（含 `__neg__`）。两个存在理由：其一，让泛型有能力实现运算符；其二，性能——用户类型的二元运算符经 `OP_NUM_*` 协议指令分发，**不创建 call frame**（内建数值走专用指令，同样零帧；只有普通方法调用付帧）。一元协议 op 尚未落地（现 `OP_UNARY_*` 为 IR 层伪指令），泛型一元分发列入后续施工。比较运算符不入这两个 trait，归 Equatable / Comparable 契约轨。
 
@@ -107,13 +107,15 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 - **Comparable 保持现状**：`Comparable[T] : Equatable[T]`，声明四个排序方法加继承的 `__eq__` / `__ne__`（曾考虑的单 `cmp` 方案随"合并进 any"动机消失而作废）。
 - **运算符只走语法糖，禁止显式函数调用**（学 Swift）：运算符钩子的唯一入口是对应语法，按名字显式调用是编译错误，报错信息直接指向应使用的语法糖。禁止范围（43 个）：
   - 算术与复合赋值：`__add__` / `__sub__` / `__mul__` / `__div__` / `__mod__` / `__neg__`、`__iadd__` / `__isub__` / `__imul__` / `__idiv__` / `__imod__`（走 `+ - * / %` 及 `+= -= *= /= %=`）；
-  - 位运算与复合赋值：`__bitand__` / `__bitor__` / `__bitxor__` / `__bitnot__` / `__lsh__` / `__rsh__`、`__ibitand__` / `__ibitor__` / `__ibitxor__` / `__ilsh__` / `__irsh__`（走 `& | ^ ~ << >>` 及对应复合赋值）；
+  - 位运算与复合赋值：`__bitand__` / `__bitor__` / `__bitxor__` / `__bitnot__` / `__shl__` / `__shr__`、`__ibitand__` / `__ibitor__` / `__ibitxor__` / `__ishl__` / `__ishr__`（走 `& | ^ ~ << >>` 及对应复合赋值）；
   - 逻辑：`__and__` / `__or__` / `__not__`（走 `&& || !`）；
   - 比较：全部六个（走 `== != < <= > >=`）；
   - 下标：`__getitem__` / `__setitem__` / `__getslice__` / `__setslice__` / `__getsub__` / `__setsub__`（走 `x[i]`、`x[a:b]`、`x[key]`）；
   - 可调用：`__call__`（走 `obj(...)`）；成员判定：`__contains__`（走 `x in seq`，`in` 表达式已有语法、语义下降待实现）；构造：`__init__`（走 `Type(...)`，二次显式构造属于隐患，一并禁止）。
 
   协议钩子不受此限：`__len__`（`len()`）、`__str__`、`__hash__`、`__iter__` / `__next__` / `__has_next__`（`for` 为主入口，手动迭代允许）。动机：显式调用并不提供超出语法糖的任何能力，反而曾是静默错误入口——`@intrinsic` 方法的空 body 被显式调用时静默返回 none。禁止不影响泛型分发：`max[T: Comparable]` 之类的运算符分发走编译器在运算符 call site 生成的 intf-table，不经用户显式调用路径。
+
+  **禁令对接收者形态无差别**：具体类型、trait 值（如 `Arithmetic[int]`）、泛型类型参数（`T : Arithmetic`）三种形态的显式 dunder 调用报同一条禁令错误。泛型参数的成员解析经 bound 完成——bound 是 T 的成员唯一事实源，运算符下降与点号成员访问共用同一条 bound 查找；正因 bound 承诺了方法存在，T 上的显式调用报的是"禁止"而非"方法不存在"，拒绝理由是规则而不是能力缺失。禁令名单之外的协议钩子（如 `T : Hashable` 的 `__hash__`、`T : Collection` 的 `__len__`）经 bound 解析后按普通成员调用，正常可用。
 
 ---
 

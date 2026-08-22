@@ -46,9 +46,8 @@ typedef struct _TValue {
         void *itab;    // itable for traits
     };
     union {
-        int64_t ival; // integer payload
+        int64_t ival; // integer/bool payload
         double fval;  // floating‑point payload
-        int bval;     // boolean payload
         Object *obj;  // heap object pointer
     };
 } TValue;
@@ -110,9 +109,13 @@ typedef struct _TValue {
 #define is_float(x) (((x)->tag >= TAG_FLOAT16) && ((x)->tag <= TAG_FLOAT64))
 
 /* Primitive vs reference */
-#define is_val(x)  ((x)->tag < TAG_VAL_MAX)
+#define is_val(x) ((x)->tag < TAG_VAL_MAX)
+
+// is_intf means it's an intf-table and value canbe any(primitive or object)
 #define is_intf(x) ((x)->tag > TAG_OBJECT)
-#define is_ref(x)  ((x)->tag >= TAG_OBJECT)
+
+// is_ref means it's an object pointer
+#define is_ref(x) ((x)->tag == TAG_OBJECT)
 
 /*---------------------------------------------------------------------------+
  |   Value Construction                                                      |
@@ -121,7 +124,7 @@ typedef struct _TValue {
 /* clang-format off */
 #define none_value          (TValue){ .tag = TAG_NONE,   .ival = 0 }
 #define error_value         (TValue){ .tag = TAG_ERROR,  .ival = -1 }
-#define bool_value(x)       (TValue){ .tag = TAG_BOOL,   .bval = (int)(x) }
+#define bool_value(x)       (TValue){ .tag = TAG_BOOL,   .ival = (int)(x) }
 
 /* Signed integers */
 #define int8_value(x)       (TValue){ .tag = TAG_INT8,    .ival = (int8_t)(x) }
@@ -149,7 +152,7 @@ typedef struct _TValue {
  |   Value Extraction                                                        |
  +---------------------------------------------------------------------------*/
 
-#define to_bool(v)     ({ ASSERT(is_bool(v)); (v)->bval; })
+#define to_bool(v)     ({ ASSERT(is_bool(v)); (v)->ival; })
 
 /* Signed integers */
 #define to_int8(v)     ({ ASSERT(is_int8(v)); (int8_t)(v)->ival; })
@@ -170,7 +173,7 @@ typedef struct _TValue {
 // #define to_bfloat16(v) ({ ASSERT(is_bfloat16(v)); (v)->fval; })
 
 /* Reference */
-#define to_obj(v)      ({ ASSERT(is_ref(v)); (v)->obj; })
+// #define to_obj(v)      ({ ASSERT(is_ref(v)); (v)->obj; })
 
 /* clang-format on */
 
@@ -322,20 +325,11 @@ typedef enum {
     SLOT_MAX
 } SlotId;
 
-typedef struct _IntfTable {
-    char *name;
-    int num_funcs;
-    int num_parents;
-    Object **methods;
-    struct _IntfTable **parents;
-} IntfTable;
-
 Object *kl_get_intf_func(TValue *intf, int func_idx);
 
-#define TP_FLAGS_CLASS  (1 << 0)
-#define TP_FLAGS_TRAIT  (1 << 1)
-#define TP_FLAGS_PUBLIC (1 << 2)
-#define TP_FLAGS_READY  (1 << 3)
+#define TP_FLAGS_VALUE (1 << 0)
+#define TP_FLAGS_CLASS (1 << 1)
+#define TP_FLAGS_READY (1 << 2)
 
 typedef struct _TypeObject {
     OBJECT_HEAD
@@ -393,7 +387,7 @@ typedef struct _TypeObject {
     /* Type name */
     char *name;
     /* parent traits */
-    Vector bases;
+    // Vector bases;
     /* fields */
     Vector fields;
     /* methods */
@@ -409,6 +403,32 @@ typedef struct _TypeObject {
     /* slots for special methods */
     Object *slots[SLOT_MAX];
 } TypeObject;
+
+typedef struct _IntfTable {
+    char *name;
+    int num_funcs;
+    int num_parents;
+    Object **methods;
+    struct _IntfTable **parents;
+    TypeObject *tp;
+} IntfTable;
+
+#define tp_is_ref_type(tp) (!((tp)->flags & TP_FLAGS_VALUE))
+
+// extract obj from an intf value; only valid when impl is a reference type
+#define intf_to_obj(v) \
+    ({ \
+        ASSERT(is_intf(v)); \
+        IntfTable *_itab = (IntfTable *)(v)->itab; \
+        ASSERT(_itab && tp_is_ref_type(_itab->tp)); \
+        (v)->obj; \
+    })
+
+static inline Object *to_obj(TValue *v)
+{
+    if (is_ref(v)) return v->obj;
+    return intf_to_obj(v);
+}
 
 /*---------------------------------------------------------------------------+
  |  Field Object                                                             |

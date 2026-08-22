@@ -18,7 +18,7 @@ static TValue none_str(TValue *self)
 TypeObject none_type = {
     ._type = &type_type,
     .name = "NoneType",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_VALUE,
     .str = none_str,
 };
 

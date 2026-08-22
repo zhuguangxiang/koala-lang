@@ -103,7 +103,7 @@ TypeObject bytebuf_type = {
     ._type = &type_type,
     .name = "ByteBuf",
     .priv_size = sizeof(ByteBufObject),
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
     .methdefs = bytebuf_methods,
     .seq = &bytebuf_seq_methods,
 };

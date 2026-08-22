@@ -1070,7 +1070,7 @@ TARGET(OP_JMP_TRUE) {
     CHECK_REG_ID(rs);
     ASSERT(regs[rs].tag == TAG_BOOL);
 
-    if (regs[rs].bval != 0) {
+    if (regs[rs].ival != 0) {
         pc += off;
     }
     DISPATCH();
@@ -1083,7 +1083,7 @@ TARGET(OP_JMP_FALSE) {
     CHECK_REG_ID(rs);
     ASSERT(regs[rs].tag == TAG_BOOL);
 
-    if (regs[rs].bval == 0) {
+    if (regs[rs].ival == 0) {
         pc += off;
     }
     DISPATCH();
@@ -1219,6 +1219,10 @@ TARGET(OP_NUM_EQ) {
         // uint64 doesn't have cmp function
         regs[rd] = bool_value((uint64_t)v1->ival == (uint64_t)v2->ival);
         DISPATCH();
+    } else if (is_bool(v1) && is_bool(v2)) {
+        // bool doesn't have cmp function
+        regs[rd] = bool_value(v1->ival == v2->ival);
+        DISPATCH();
     }
 
     TypeObject *tp = kl_typeof(regs + rs);
@@ -1251,6 +1255,10 @@ TARGET(OP_NUM_NE) {
     } else if (is_uint64(v1) && is_uint64(v2)) {
         // uint64 doesn't have cmp function
         regs[rd] = bool_value((uint64_t)v1->ival != (uint64_t)v2->ival);
+        DISPATCH();
+    } else if (is_bool(v1) && is_bool(v2)) {
+        // bool doesn't have cmp function
+        regs[rd] = bool_value(v1->ival != v2->ival);
         DISPATCH();
     }
 

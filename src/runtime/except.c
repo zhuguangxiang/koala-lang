@@ -25,10 +25,24 @@ typedef struct _Exception {
     TraceBack *back;
 } Exception;
 
+static TValue kl_exc_to_str(TValue *self, TValue *args, int nargs)
+{
+    // Exception *exc = (Exception *)self;
+    // return kl_str_new(exc->msg);
+    Object *s = kl_new_str("Exception()");
+    return obj_value(s);
+}
+
+static MethodDef exc_methods[] = {
+    { "__str__", kl_exc_to_str },
+    { NULL, NULL },
+};
+
 TypeObject exc_type = {
     ._type = &type_type,
     .name = "Exception",
     .flags = TP_FLAGS_CLASS,
+    .methdefs = exc_methods,
 };
 
 Object *kl_new_exc(char *msg)

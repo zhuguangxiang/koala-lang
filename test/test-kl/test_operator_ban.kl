@@ -7,8 +7,8 @@ func concrete(a int, b int) {
     // CHECK: '__add__' cannot be called explicitly, use the '+' operator instead.
     a.__imul__(b)
     // CHECK: '__imul__' cannot be called explicitly, use the '*=' operator instead.
-    a.__lsh__(b)
-    // CHECK: '__lsh__' cannot be called explicitly, use the '<<' operator instead.
+    a.__shl__(b)
+    // CHECK: '__shl__' cannot be called explicitly, use the '<<' operator instead.
     a.__ge__(b)
     // CHECK: '__ge__' cannot be called explicitly, use the '>=' operator instead.
     a.__eq__(b)
@@ -16,9 +16,9 @@ func concrete(a int, b int) {
 }
 
 func generic[T : Arithmetic](a T, b T) T {
-    // generic type parameter has no member table, rejected by member lookup
+    // explicit dunder call on T resolves via bound, then hits the same ban
     a.__add__(b)
-    // CHECK: '__add__' is not found in  'T'
+    // CHECK: '__add__' cannot be called explicitly, use the '+' operator instead.
     // operator syntax on generic parameters is the only entry and type-checks fine
     return a + b
 }

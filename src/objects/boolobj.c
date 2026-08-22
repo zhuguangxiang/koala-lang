@@ -15,7 +15,7 @@ extern "C" {
 
 static TValue bool_str(TValue *self, TValue *args, int nargs)
 {
-    Object *s = kl_new_fmt_str("%s", self->bval ? "true" : "false");
+    Object *s = kl_new_fmt_str("%s", self->ival ? "true" : "false");
     return obj_value(s);
 }
 
@@ -27,7 +27,7 @@ static MethodDef bool_methods[] = {
 TypeObject bool_type = {
     ._type = &type_type,
     .name = "bool",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_VALUE,
     .methdefs = bool_methods,
 };
 

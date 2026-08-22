@@ -6,6 +6,7 @@
 #ifndef _KOALA_CGEN_H_
 #define _KOALA_CGEN_H_
 
+#include "codebuffer.h"
 #include "ir.h"
 
 #ifdef __cplusplus

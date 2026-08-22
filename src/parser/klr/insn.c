@@ -422,6 +422,7 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, TypeSpec *ret, KlrValue
     KlrInsn *insn = new_insn(OP_IR_CALL, nargs + 1, name);
     insn->flags |= is_const ? KLR_INSN_FLAGS_CONST : 0;
 
+    ASSERT(fn);
     init_oper(&insn->opers[0], insn, (KlrValue *)fn, 0);
     for (int j = 0; j < nargs; j++) {
         init_oper(&insn->opers[j + 1], insn, (KlrValue *)args[j], 0);

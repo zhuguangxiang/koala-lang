@@ -233,7 +233,7 @@ TypeObject bytes_type = {
     ._type = &type_type,
     .name = "bytes",
     .priv_size = 2 * sizeof(uint32_t) + sizeof(uint8_t *),
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
     .methdefs = bytes_methods,
     .seq = &bytes_seq_methods,
 };

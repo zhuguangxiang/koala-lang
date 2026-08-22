@@ -5,7 +5,6 @@
 
 #include "cgen.h"
 #include "cmd.h"
-#include "codebuffer.h"
 #include "log.h"
 
 #ifdef __cplusplus

@@ -135,7 +135,7 @@ static MethodDef int_methods[] = {
 TypeObject int_type = {
     ._type = &type_type,
     .name = "int64",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_VALUE,
     .methdefs = int_methods,
 };
 

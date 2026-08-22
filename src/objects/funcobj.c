@@ -103,7 +103,7 @@ static TValue cfunc_call(TValue *self, TValue *args, int nargs)
 TypeObject cfunc_type = {
     ._type = &type_type,
     .name = "cfunc",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
     .methdefs = cfunc_methods,
     .call = cfunc_call,
 };

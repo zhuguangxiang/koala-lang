@@ -241,7 +241,7 @@ int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val, KlrIn
     ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
 
     LocalVarMapEntry key = { .local = local };
-    hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(local)));
+    hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(void *)));
     LocalVarMapEntry *entry = hashmap_get(&bb->local_var_map, &key);
     if (entry) {
         if (entry->move && !klr_is_const(entry->val)) {
@@ -251,7 +251,7 @@ int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val, KlrIn
         entry->move = move;
     } else {
         entry = mm_alloc_obj(entry);
-        hashmap_entry_init(&entry->hnode, mem_hash(&local, sizeof(local)));
+        hashmap_entry_init(&entry->hnode, mem_hash(&local, sizeof(void *)));
         entry->local = local;
         entry->val = val;
         entry->move = move;
@@ -266,7 +266,7 @@ int klr_clear_local_var(KlrBasicBlock *bb, KlrInsn *local)
     ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));
 
     LocalVarMapEntry key = { .local = local };
-    hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(local)));
+    hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(void *)));
     LocalVarMapEntry *entry = hashmap_get(&bb->local_var_map, &key);
     if (entry) {
         entry->val = NULL;
@@ -280,7 +280,7 @@ KlrValue *klr_get_local_var(KlrBasicBlock *bb, KlrInsn *local)
     ASSERT(klr_is_local((KlrValue *)local));
 
     LocalVarMapEntry key = { .local = local };
-    hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(local)));
+    hashmap_entry_init(&key.hnode, mem_hash(&local, sizeof(void *)));
     LocalVarMapEntry *entry = hashmap_get(&bb->local_var_map, &key);
     if (entry) {
         ASSERT(!(local->flags & KLR_INSN_FLAGS_CONST));

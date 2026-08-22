@@ -299,7 +299,7 @@ Koala 是完成度极高的原创设计：不是“某语言 + 某特性”的�
 - [ ] typeslots.c：`slot_tp_binary` 公共助手 + 10 个 trampoline
       （ADD/SUB/MUL/DIV/MOD/LSHIFT/RSHIFT/BIT_AND/BIT_OR/BIT_XOR）
 - [ ] num_slotdefs 填 FUNC；新增 bit_slotdefs（dunder 名以 number.kl 为准：
-      `__lsh__` / `__rsh__` / `__bitand__` / `__bitor__` / `__bitxor__`）
+      `__shl__` / `__shr__` / `__bitand__` / `__bitor__` / `__bitxor__`）
 - [ ] kl_tp_install_slots：补两段绑定循环（首个 dunder 命中时惰性分配
       tp->arith / tp->bit，保留"已实现不覆盖"语义）
 - [ ] 10 个 TARGET（tp->arith->xxx / tp->bit->xxx，ASSERT 三件套）
@@ -360,3 +360,32 @@ printer `print_jmp_cond_fused`、cgen `fused_jmp()` + `lower_fused_jmp` 均就�
    二选一或分阶段。
 2. 一元 `-` / `~`（OP_UNARY_* 仅 IR 伪指令）与泛型复合赋值仍是独立项，不在本批。
 
+---
+
+## 8. 泛型体内 T 的点号方法调用（itab 挂接）——作者决定暂时搁置
+
+> 2026-08-22 建立。作者明确：此场景当初未实现是有意为之，复杂度超出表面，
+> 重新开启前不推进任何方案。
+
+**现状**：泛型体内对 `T : Trait` 参数做点号方法调用（如 `a.__str__()`、
+`a.__hash__()`）会撞上 `vm_ops.h:431` 的 `is_intf(callable)` 断言——槽调用
+（`itab->methods[index]`）要求接收者携带 itab，而 T 实参是裸值。
+
+**根因链**：irgen.c `_build_obj_intf_upcast` 对 SYM_TYPE_PARAM 目标返回 NULL
+（只处理 class → trait 的 make_intf 与 trait → trait 的 upcast_intf），
+调用点不发射任何挂接指令 → 裸值进泛型体 → 槽调用断言。
+
+**不受影响的边界**：运算符路径（`==`、`+` 等）走 OP_NUM_* 协议分发，
+不需要 itab，继续可用。
+
+**已否决的方向（重开时不必重提）**：
+
+1. 调用点递归挂 bound[0] 的 itab——语义错误：itab 需求归属泛型体内的使用点
+   （用了哪个 bound 的方法），不归调用点；body 用第二个 bound 即失效；
+   且 `get_intf_index` 按类查 lro，T 无类，索引无法烘焙进指令。
+2. 使用点按 trait 名解析（typeof / `itab->tp` 回指恢复具体类型后在
+   `tp->itables` 里按名匹配）——原理上可行（IntfTable 回指使包装值可恢复），
+   且能结构性消解多 bound 争抢单 itab 槽位的问题，但作者判定为时过早，搁置。
+
+**配套约定**：测试用例保持注释状态（test-run/test_bool_intf_complete.kl 的
+`intf_hash` / `intf_str` 及对应 print），待本项重开后启用。

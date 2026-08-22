@@ -28,7 +28,7 @@ static MethodDef field_methods[] = {
 TypeObject field_type = {
     ._type = &type_type,
     .name = "Field",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
     .methdefs = field_methods,
 };
 

@@ -5,7 +5,6 @@
 
 #include "cgen.h"
 #include "ir.h"
-#include "log.h"
 #include "opcode.h"
 
 #ifdef __cplusplus

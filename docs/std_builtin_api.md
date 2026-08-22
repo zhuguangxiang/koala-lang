@@ -628,8 +628,8 @@ Returns the negation of `self` (`-self`).
 
 ```kl
 pub trait BitwiseOperators[T] {
-    func __lsh__(rhs T) T
-    func __rsh__(rhs T) T
+    func __shl__(rhs T) T
+    func __shr__(rhs T) T
     func __bitand__(rhs T) T
     func __bitor__(rhs T) T
     func __bitxor__(rhs T) T
@@ -643,15 +643,15 @@ Provides shift and bitwise logical operators. Only integer types implement this 
 
 ---
 
-<a id="bitwiseoperators.__lsh__"></a>
+<a id="bitwiseoperators.__shl__"></a>
 
-**`__lsh__(rhs T) T`**
+**`__shl__(rhs T) T`**
 
 Left shift (`self << rhs`).
 
-<a id="bitwiseoperators.__rsh__"></a>
+<a id="bitwiseoperators.__shr__"></a>
 
-**`__rsh__(rhs T) T`**
+**`__shr__(rhs T) T`**
 
 Right shift (`self >> rhs`).
 
@@ -1605,8 +1605,8 @@ pub class int64 : Comparable & Arithmetic & BitwiseOperators {
     pub func __div__(rhs int64) int64
     pub func __mod__(rhs int64) int64
     pub func __neg__() int64
-    pub func __lsh__(rhs int64) int64
-    pub func __rsh__(rhs int64) int64
+    pub func __shl__(rhs int64) int64
+    pub func __shr__(rhs int64) int64
     pub func __bitand__(rhs int64) int64
     pub func __bitor__(rhs int64) int64
     pub func __bitxor__(rhs int64) int64
@@ -1624,8 +1624,8 @@ pub class int64 : Comparable & Arithmetic & BitwiseOperators {
     pub func __imul__(rhs int64) int64
     pub func __idiv__(rhs int64) int64
     pub func __imod__(rhs int64) int64
-    pub func __ilsh__(rhs int64) int64
-    pub func __irsh__(rhs int64) int64
+    pub func __ishl__(rhs int64) int64
+    pub func __ishr__(rhs int64) int64
     pub func __ibitand__(rhs int64) int64
     pub func __ibitor__(rhs int64) int64
     pub func __ibitxor__(rhs int64) int64
@@ -1689,15 +1689,15 @@ Returns the remainder of `self` divided by `rhs` (`self % rhs`).
 
 Returns the negation of `self` (`-self`).
 
-<a id="int64.__lsh__"></a>
+<a id="int64.__shl__"></a>
 
-**`__lsh__(rhs int64) int64`** — *`@intrinsic`*
+**`__shl__(rhs int64) int64`** — *`@intrinsic`*
 
 Left shift (`self << rhs`).
 
-<a id="int64.__rsh__"></a>
+<a id="int64.__shr__"></a>
 
-**`__rsh__(rhs int64) int64`** — *`@intrinsic`*
+**`__shr__(rhs int64) int64`** — *`@intrinsic`*
 
 Right shift (`self >> rhs`).
 
@@ -1803,15 +1803,15 @@ Divides `self` by `rhs` in place (`self /= rhs`).
 
 Assigns the remainder of `self` divided by `rhs` in place (`self %= rhs`).
 
-<a id="int64.__ilsh__"></a>
+<a id="int64.__ishl__"></a>
 
-**`__ilsh__(rhs int64) int64`** — *`@intrinsic`*
+**`__ishl__(rhs int64) int64`** — *`@intrinsic`*
 
 Left shifts `self` by `rhs` in place (`self <<= rhs`).
 
-<a id="int64.__irsh__"></a>
+<a id="int64.__ishr__"></a>
 
-**`__irsh__(rhs int64) int64`** — *`@intrinsic`*
+**`__ishr__(rhs int64) int64`** — *`@intrinsic`*
 
 Right shifts `self` by `rhs` in place (`self >>= rhs`).
 
@@ -1933,8 +1933,8 @@ pub class uint64 : Comparable & Arithmetic & BitwiseOperators {
     pub func __mul__(rhs uint64) uint64
     pub func __div__(rhs uint64) uint64
     pub func __mod__(rhs uint64) uint64
-    pub func __lsh__(rhs uint64) uint64
-    pub func __rsh__(rhs uint64) uint64
+    pub func __shl__(rhs uint64) uint64
+    pub func __shr__(rhs uint64) uint64
     pub func __bitand__(rhs uint64) uint64
     pub func __bitor__(rhs uint64) uint64
     pub func __bitxor__(rhs uint64) uint64
@@ -1952,8 +1952,8 @@ pub class uint64 : Comparable & Arithmetic & BitwiseOperators {
     pub func __imul__(rhs uint64) uint64
     pub func __idiv__(rhs uint64) uint64
     pub func __imod__(rhs uint64) uint64
-    pub func __ilsh__(rhs uint64) uint64
-    pub func __irsh__(rhs uint64) uint64
+    pub func __ishl__(rhs uint64) uint64
+    pub func __ishr__(rhs uint64) uint64
     pub func __ibitand__(rhs uint64) uint64
     pub func __ibitor__(rhs uint64) uint64
     pub func __ibitxor__(rhs uint64) uint64
@@ -2010,15 +2010,15 @@ Returns the quotient of `self` and `rhs` (`self / rhs`).
 
 Returns the remainder of `self` divided by `rhs` (`self % rhs`).
 
-<a id="uint64.__lsh__"></a>
+<a id="uint64.__shl__"></a>
 
-**`__lsh__(rhs uint64) uint64`** — *`@intrinsic`*
+**`__shl__(rhs uint64) uint64`** — *`@intrinsic`*
 
 Left shift (`self << rhs`).
 
-<a id="uint64.__rsh__"></a>
+<a id="uint64.__shr__"></a>
 
-**`__rsh__(rhs uint64) uint64`** — *`@intrinsic`*
+**`__shr__(rhs uint64) uint64`** — *`@intrinsic`*
 
 Right shift (`self >> rhs`).
 
@@ -2124,15 +2124,15 @@ Divides `self` by `rhs` in place (`self /= rhs`).
 
 Assigns the remainder of `self` divided by `rhs` in place (`self %= rhs`).
 
-<a id="uint64.__ilsh__"></a>
+<a id="uint64.__ishl__"></a>
 
-**`__ilsh__(rhs uint64) uint64`** — *`@intrinsic`*
+**`__ishl__(rhs uint64) uint64`** — *`@intrinsic`*
 
 Left shifts `self` by `rhs` in place (`self <<= rhs`).
 
-<a id="uint64.__irsh__"></a>
+<a id="uint64.__ishr__"></a>
 
-**`__irsh__(rhs uint64) uint64`** — *`@intrinsic`*
+**`__ishr__(rhs uint64) uint64`** — *`@intrinsic`*
 
 Right shifts `self` by `rhs` in place (`self >>= rhs`).
 

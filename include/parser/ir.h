@@ -6,7 +6,6 @@
 #ifndef _KOALA_IR_H_
 #define _KOALA_IR_H_
 
-#include "codebuffer.h"
 #include "hashmap.h"
 #include "list.h"
 #include "loc.h"

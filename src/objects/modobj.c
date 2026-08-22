@@ -27,6 +27,10 @@ TypeObject module_type = {
 
 static TValue not_impl_func(TValue *self, TValue *args, int nargs)
 {
+    fprintf(stderr, "function not implemented!\n");
+    return error_value;
+// TODO:
+#if 0
     Object *obj = to_obj(self);
     ASSERT(IS_CFUNC(obj));
     CFuncObject *cfunc = (CFuncObject *)obj;
@@ -36,6 +40,7 @@ static TValue not_impl_func(TValue *self, TValue *args, int nargs)
     // raise_exc_str("function not implemented: %s::%s!", m->path, cfunc->name);
     fprintf(stdout, "function not implemented: %s::%s!\n", m->path, cfunc->name);
     return error_value;
+#endif
 }
 
 int kl_bind_func(Object *_m, Object *obj)

@@ -191,7 +191,7 @@ static SeqMethods str_seq_methods = {
 TypeObject str_type = {
     ._type = &type_type,
     .name = "str",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
     .methdefs = str_methods,
     .seq = &str_seq_methods,
 };

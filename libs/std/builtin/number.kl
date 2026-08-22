@@ -28,9 +28,9 @@ pub trait Arithmetic[T] {
 /// this trait; floating-point types do not support bitwise operations.
 pub trait BitwiseOperators[T] {
     /// Left shift (`self << rhs`).
-    func __lsh__(rhs T) T
+    func __shl__(rhs T) T
     /// Right shift (`self >> rhs`).
-    func __rsh__(rhs T) T
+    func __shr__(rhs T) T
     /// Bitwise AND (`self & rhs`).
     func __bitand__(rhs T) T
     /// Bitwise OR (`self | rhs`).
@@ -110,11 +110,11 @@ pub class int64 : Comparable & Arithmetic & BitwiseOperators {
 
     /// Left shift (`self << rhs`).
     @intrinsic
-    pub func __lsh__(rhs int64) int64 {}
+    pub func __shl__(rhs int64) int64 {}
 
     /// Right shift (`self >> rhs`).
     @intrinsic
-    pub func __rsh__(rhs int64) int64 {}
+    pub func __shr__(rhs int64) int64 {}
 
     /// Bitwise AND (`self & rhs`).
     @intrinsic
@@ -186,11 +186,11 @@ pub class int64 : Comparable & Arithmetic & BitwiseOperators {
 
     /// Left shifts `self` by `rhs` in place (`self <<= rhs`).
     @intrinsic
-    pub func __ilsh__(rhs int64) int64 {}
+    pub func __ishl__(rhs int64) int64 {}
 
     /// Right shifts `self` by `rhs` in place (`self >>= rhs`).
     @intrinsic
-    pub func __irsh__(rhs int64) int64 {}
+    pub func __ishr__(rhs int64) int64 {}
 
     /// Bitwise ANDs `self` with `rhs` in place (`self &= rhs`).
     @intrinsic
@@ -289,11 +289,11 @@ pub class uint64 : Comparable & Arithmetic & BitwiseOperators {
 
     /// Left shift (`self << rhs`).
     @intrinsic
-    pub func __lsh__(rhs uint64) uint64 {}
+    pub func __shl__(rhs uint64) uint64 {}
 
     /// Right shift (`self >> rhs`).
     @intrinsic
-    pub func __rsh__(rhs uint64) uint64 {}
+    pub func __shr__(rhs uint64) uint64 {}
 
     /// Bitwise AND (`self & rhs`).
     @intrinsic
@@ -365,11 +365,11 @@ pub class uint64 : Comparable & Arithmetic & BitwiseOperators {
 
     /// Left shifts `self` by `rhs` in place (`self <<= rhs`).
     @intrinsic
-    pub func __ilsh__(rhs uint64) uint64 {}
+    pub func __ishl__(rhs uint64) uint64 {}
 
     /// Right shifts `self` by `rhs` in place (`self >>= rhs`).
     @intrinsic
-    pub func __irsh__(rhs uint64) uint64 {}
+    pub func __ishr__(rhs uint64) uint64 {}
 
     /// Bitwise ANDs `self` with `rhs` in place (`self &= rhs`).
     @intrinsic

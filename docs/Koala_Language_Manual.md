@@ -778,7 +778,7 @@ dunder's return type. The dunder families are:
 | `+ - * / %` | `__add__` `__sub__` `__mul__` `__div__` `__mod__` |
 | unary `-` | `__neg__` |
 | `+= -= *= /= %=` | `__iadd__` `__isub__` `__imul__` `__idiv__` `__imod__` |
-| `& \| ^ ~ << >>` | `__bitand__` `__bitor__` `__bitxor__` `__bitnot__` `__lsh__` `__rsh__` |
+| `& \| ^ ~ << >>` | `__bitand__` `__bitor__` `__bitxor__` `__bitnot__` `__shl__` `__shr__` |
 | `== != < <= > >=` | `__eq__` `__ne__` `__lt__` `__le__` `__gt__` `__ge__` |
 | `x[i]`, `x[i] = v` | `__getitem__`, `__setitem__` |
 | `x[a:b]`, `x[a:b] = v` | `__getslice__`, `__setslice__` |

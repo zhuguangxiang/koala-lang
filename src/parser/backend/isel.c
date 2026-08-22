@@ -1088,6 +1088,15 @@ static void isel_lower_new(KlrInsn *insn)
     }
 }
 
+static void isel_lower_make_intf(KlrInsn *insn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    if (klr_is_const(obj)) {
+        KlrValue *_obj = lower_const(insn, (KlrConst *)obj);
+        set_operand_at(insn, 0, _obj);
+    }
+}
+
 static void do_isel(KlrFunc *fn)
 {
     log_info("isel for func '%s'", fn->name);
@@ -1193,6 +1202,11 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_NEW: {
                     isel_lower_new(insn);
+                    break;
+                }
+
+                case OP_MAKE_INTF: {
+                    isel_lower_make_intf(insn);
                     break;
                 }
 

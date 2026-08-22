@@ -1,0 +1,51 @@
+// RUN: koala %s | filecheck %s
+
+// test Equatable
+func intf_eq[T : Equatable](a T, b T) bool {
+    return a == b
+}
+
+// test Equatable
+func intf_ne[T : Equatable](a T, b T) bool {
+    return a != b
+}
+
+// test Hashable
+// func intf_hash[T : Hashable](a T, b T) bool {
+//     return a.__hash__() == b.__hash__()
+// }
+
+// test Printable
+// func intf_str[T : Printable](a T) str {
+//     return a.__str__()
+// }
+
+func main() {
+    print(intf_eq(true, true))
+    print(intf_eq(true, false))
+    print(intf_ne(true, false))
+    print(intf_ne(false, false))
+
+    // TODO: how to make_intf or upcast_intf etc.
+    // print(intf_hash(true, true))
+    // print(intf_hash(false, false))
+    // print(intf_hash(true, false))
+
+    // print(intf_str(true))
+    // print(intf_str(false))
+
+    // test any
+    let a any = true
+    print(a)
+
+    // test Equatable widening
+    let e Equatable[bool] = false
+    print(e)
+}
+
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false

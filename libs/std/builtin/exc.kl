@@ -1,0 +1,13 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An exception object represents a raised exception.
+/// Once raised, it cannot be caught and must be resolved.
+/// The func `panic` is the only way to raise it.
+///
+/// See: `panic`
+pub class Exception {
+
+}

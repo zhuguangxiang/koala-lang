@@ -417,8 +417,10 @@ static Object *_load_module(char *path)
 
         TypeObject *tp = find_tp_from_native(m, kls_kc->sval);
         if (!tp) {
-            tp = kl_new_type(kls_kc->sval, cls->flags);
+            tp = kl_new_type(kls_kc->sval, TP_FLAGS_CLASS);
         }
+
+        // ASSERT(tp->flags & TP_FLAGS_CLASS);
 
         KlcVar *var;
         vector_foreach(var, &cls->fields) {
@@ -457,6 +459,7 @@ static Object *_load_module(char *path)
             itable.num_parents = vector_size(&intf_entry->parents);
             itable.methods = mm_alloc(sizeof(Object *) * itable.num_funcs);
             itable.parents = mm_alloc(sizeof(IntfTable *) * itable.num_parents);
+            itable.tp = tp;
 
             uint16_t _idx = 0;
             vector_foreach(_idx, &intf_entry->methods) {

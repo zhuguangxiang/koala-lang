@@ -103,7 +103,7 @@ static TValue file_seek(TValue *self, TValue *args, int nargs) { return none_val
 static TypeObject file_type = {
     ._type = &type_type,
     .name = "File",
-    .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
+    .flags = TP_FLAGS_CLASS,
     .priv_size = sizeof(int),
     .methdefs =
         (MethodDef[]){
