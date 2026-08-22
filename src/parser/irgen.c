@@ -1170,6 +1170,8 @@ static void emit_ir_binary(ParserState *ps, Expr *exp)
                                get_binary_op_name(op));
     }
 
+    if (exp->ts) res->ts = exp->ts;
+    ASSERT(res->ts);
     exp->ir_val = res;
     klr_set_loc(res, ps->filename, exp->loc);
 }

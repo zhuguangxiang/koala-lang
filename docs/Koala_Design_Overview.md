@@ -74,11 +74,11 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 
 ## 3. 运算符模型：钩子与契约分轨
 
-Koala 的运算符重载是**语法钩子，不是 trait 契约**——运算符能力由 dunder 本身授予（实现了 `__add__`，`p + p2` 天然可用，无需任何声明仪式）。四条钩子族：
+Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是由 trait 声明授予**——实现了 `__add__`，`p + p2` 天然可用，无需任何声明仪式。Koala 存在运算符相关 trait（`Arithmetic` / `BitwiseOperators`，见下文），但它们只是**泛型约束标签，不参与运算符能力的授予**。四条钩子族：
 
 1. **算术 / 位运算符**
 2. **下标访问**：`__getitem__` / `__setitem__` / `__getslice__` / `__setslice__`
-3. **可调用**：`__call__`（作者明确拒绝 Callable trait）
+3. **可调用**：`__call__`（不设 Callable trait——`__call__` 的入参个数不固定，而 Koala 无变参泛型，任何 trait 形状都无法表达“任意参数可调用”，故只留钩子、不设契约）
 4. **比较运算符**：全部六个 `__eq__` / `__ne__` / `__lt__` / `__le__` / `__gt__` / `__ge__`
 
 要点：
@@ -89,8 +89,31 @@ Koala 的运算符重载是**语法钩子，不是 trait 契约**——运算符
   - **BitwiseOperators[T]**：五件二元位运算（`__lsh__` / `__rsh__` / `__bitand__` / `__bitor__` / `__bitxor__`）+ 一元 `__bitnot__`。
 
   内建遵循：int64 / uint64 两者全遵循（uint64 不声明 `__neg__`——无符号取负无语义，靠部分 trait 实现机制自动 not_impl 占位）；float64 只遵循 Arithmetic（含 `__neg__`）。两个存在理由：其一，让泛型有能力实现运算符；其二，性能——用户类型的二元运算符经 `OP_NUM_*` 协议指令分发，**不创建 call frame**（内建数值走专用指令，同样零帧；只有普通方法调用付帧）。一元协议 op 尚未落地（现 `OP_UNARY_*` 为 IR 层伪指令），泛型一元分发列入后续施工。比较运算符不入这两个 trait，归 Equatable / Comparable 契约轨。
+
+  泛型例子：
+
+  ```kl
+  func add_pair[T : Arithmetic](a T, b T) T {
+      return a + b
+  }
+
+  print(add_pair(3, 4))    // T 推断为 int64
+  ```
+
+  函数体内 `a + b` 的操作数类型是未知类型 T，编译器不知道具体实现，但因 `T : Arithmetic` 约束而知道"加法可用"：IR 下降为协议 `add` 指令，后端转为 `num.add`（字节码 `OP_NUM_ADD`，数值协议指令），目标运行时经 Arithmetic intf-table O(1) 分发到 T 的 `__add__`，全程不创建 call frame。当前实现状态（2026-08 实测）：**十六件二元运算符的 IR 下降链路已全部打通**——IR 协议指令（`add/sub/mul/div/mod`、`shl/shr/and/or/xor`、`cmplt/cmple/cmpgt/cmpge/cmpeq/cmpne`）经优化器后保留，isel `num_ops_rules[]` 十六条 `OP_BINARY_* → OP_NUM_*` 映射齐备，寄存器分配后存活到 LIR。尚不支持：泛型一元 `-` / `~`、泛型复合赋值（`+=` 等）、VM 侧 `OP_NUM_*` handler 族（目前仅 `OP_NUM_EQ` 落地，`test_generic_9` 的失败即因此）——详见 `docs/Koala_TODO.md`。
+
+  **trait 作参数类型（如 `a Arithmetic[int]`，对标 Rust `dyn Trait`）时运算符语法不可用——设计边界，非实现缺口**：trait 运算符方法实例化后是实现侧的具体签名（如 `__add__(int64) int64`），而操作数是 trait 值本身，类型不匹配即编译报错；trait 值与具体类型混算（如 `a + 100`）同样报错。Rust 同理：运算符 trait 族（`std::ops::Add` 等）`add(self, ...)` 按值消费 self，非 dyn-compatible，`dyn Add` 根本写不出来。运算符只存在于具体类型与泛型（`T : Arithmetic`）两条路径；trait 值上保留 `__len__` 等协议钩子调用。
 - **语义 trait 保留 dunder 声明**（如 Sequence 声明 `__getitem__` 等）：它们定义概念并只约束遵循者，对标 Python collections.abc。
 - **Comparable 保持现状**：`Comparable[T] : Equatable[T]`，声明四个排序方法加继承的 `__eq__` / `__ne__`（曾考虑的单 `cmp` 方案随"合并进 any"动机消失而作废）。
+- **运算符只走语法糖，禁止显式函数调用**（学 Swift）：运算符钩子的唯一入口是对应语法，按名字显式调用是编译错误，报错信息直接指向应使用的语法糖。禁止范围（43 个）：
+  - 算术与复合赋值：`__add__` / `__sub__` / `__mul__` / `__div__` / `__mod__` / `__neg__`、`__iadd__` / `__isub__` / `__imul__` / `__idiv__` / `__imod__`（走 `+ - * / %` 及 `+= -= *= /= %=`）；
+  - 位运算与复合赋值：`__bitand__` / `__bitor__` / `__bitxor__` / `__bitnot__` / `__lsh__` / `__rsh__`、`__ibitand__` / `__ibitor__` / `__ibitxor__` / `__ilsh__` / `__irsh__`（走 `& | ^ ~ << >>` 及对应复合赋值）；
+  - 逻辑：`__and__` / `__or__` / `__not__`（走 `&& || !`）；
+  - 比较：全部六个（走 `== != < <= > >=`）；
+  - 下标：`__getitem__` / `__setitem__` / `__getslice__` / `__setslice__` / `__getsub__` / `__setsub__`（走 `x[i]`、`x[a:b]`、`x[key]`）；
+  - 可调用：`__call__`（走 `obj(...)`）；成员判定：`__contains__`（走 `x in seq`，`in` 表达式已有语法、语义下降待实现）；构造：`__init__`（走 `Type(...)`，二次显式构造属于隐患，一并禁止）。
+
+  协议钩子不受此限：`__len__`（`len()`）、`__str__`、`__hash__`、`__iter__` / `__next__` / `__has_next__`（`for` 为主入口，手动迭代允许）。动机：显式调用并不提供超出语法糖的任何能力，反而曾是静默错误入口——`@intrinsic` 方法的空 body 被显式调用时静默返回 none。禁止不影响泛型分发：`max[T: Comparable]` 之类的运算符分发走编译器在运算符 call site 生成的 intf-table，不经用户显式调用路径。
 
 ---
 

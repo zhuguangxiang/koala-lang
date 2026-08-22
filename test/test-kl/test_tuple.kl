@@ -39,11 +39,11 @@ func get_pos() (int, int) { return (10, 20) }
 
 let nest = ((1, 2), 3.0)
 
-nest.__getitem__(true)
+nest[true]
 // CHECK: index of tuple must be int, but got 'z'
 // CHECK: failed to infer type parameters for function '__getitem__'.
 
-nest.__getitem__(0)
+nest[0]
 
 nest[0][1] + 1
 
@@ -52,11 +52,11 @@ nest[0][2]
 // CHECK: failed to infer type parameters for function '__getitem__'.
 
 func process_nest(data ( (int, int), float )) {
-    let inner = data.__getitem__(0)
-    let inner2 = data.__getitem__(0)
+    let inner = data[0]
+    let inner2 = data[0]
     let x = inner[0]
-    let y = inner.__getitem__(1)
-    let z = data.__getitem__(1)
+    let y = inner[1]
+    let z = data[1]
     x + 1
     y + 1
     z + 1

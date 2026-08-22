@@ -18,12 +18,8 @@ class Point {
 func main() {
     let p = Point(1, 2)
     print(p.area())
-    p.__init__(3, 4)
-    print(p.area())
 
     let p2 = Point(5, 6)
-    print(p2.area())
-    p2.__init__(7, 8)
     print(p2.area())
 
     let r = range(1, 10, 2)
@@ -40,16 +36,12 @@ func main() {
 // CHECK: move %p z.Point, %0 z.Point
 // CHECK: %1 = call @Point:area, %p z.Point
 
-// CHECK: call @Point:__init__, %p z.Point, 3 int64, 4 int64
-
 // CHECK: %r = local [immutable] std/builtin.range
 // CHECK: move %r std/builtin.range, range(1, 10, 2) std/builtin.range
-// CHECK: %10 = call @range:__str__ [path = 'std/builtin'], %r std/builtin.range
+// CHECK: call @range:__str__ [path = 'std/builtin'], %r std/builtin.range
 // CHECK: %s = local [immutable] str
-// CHECK: move %s str, %10 str
+// CHECK: move %s str, %{{[0-9]+}} str
 
 // CHECK: (1, 2, 10, 2)
-// CHECK: (3, 4, 10, 12)
 // CHECK: (5, 6, 10, 30)
-// CHECK: (7, 8, 10, 56)
 // CHECK: range(1, 10, 2)

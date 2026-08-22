@@ -132,7 +132,7 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
         }
     }
 
-    if (ts->kind != TYPE_INT) {
+    if (type_is_union(ts)) {
         return;
     }
 
@@ -141,7 +141,10 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
     int sign = ts->int_flt_info.sign;
 
     // update literal integer's type as expected type
-    lit->ts = ts;
+    // only int8/16/32/64 need to change type, base() trait don't change
+    // pub class int64 : Comparable & Arithmetic & BitwiseOperators
+    // so if expected type is base type(Comparable & Arithmetic & BitwiseOperators), don't change
+    if (ts->kind == TYPE_INT) lit->ts = ts;
     lit->sign = sign;
     lit->len = width;
     lit->ival = (uint64_t)val;
@@ -201,12 +204,16 @@ static void parse_lit_float(ParserState *ps, LitExpr *lit)
         }
     }
 
-    if (ts->kind != TYPE_FLOAT) {
+    if (type_is_union(ts)) {
         return;
     }
 
     int width = ts->int_flt_info.width;
-    lit->ts = ts;
+
+    // only update width, self type is not changed
+    // pub class float64 : Comparable & Arithmetic
+    //  so if expected type is base type(Comparable & Arithmetic), don't change
+    if (ts->kind == TYPE_FLOAT) lit->ts = ts;
     lit->len = width;
 }
 
@@ -1200,6 +1207,72 @@ static void handle_len_call(ParserState *ps, CallExpr *call)
     }
 }
 
+// Operator hook dunders must be invoked through their syntax sugar only,
+// never called explicitly as functions (Swift-style rule).
+static const char *operator_dunder_sugar(const char *name)
+{
+    static const struct {
+        const char *dunder;
+        const char *sugar;
+    } table[] = {
+        // arithmetic operators
+        { "__add__", "the '+' operator" },
+        { "__sub__", "the '-' operator" },
+        { "__mul__", "the '*' operator" },
+        { "__div__", "the '/' operator" },
+        { "__mod__", "the '%' operator" },
+        { "__neg__", "the unary '-' operator" },
+        { "__iadd__", "the '+=' operator" },
+        { "__isub__", "the '-=' operator" },
+        { "__imul__", "the '*=' operator" },
+        { "__idiv__", "the '/=' operator" },
+        { "__imod__", "the '%=' operator" },
+        // bitwise operators
+        { "__bitand__", "the '&' operator" },
+        { "__bitor__", "the '|' operator" },
+        { "__bitxor__", "the '^' operator" },
+        { "__bitnot__", "the '~' operator" },
+        { "__lsh__", "the '<<' operator" },
+        { "__rsh__", "the '>>' operator" },
+        { "__ibitand__", "the '&=' operator" },
+        { "__ibitor__", "the '|=' operator" },
+        { "__ibitxor__", "the '^=' operator" },
+        { "__ilsh__", "the '<<=' operator" },
+        { "__irsh__", "the '>>=' operator" },
+        // logical operators
+        { "__and__", "the '&&' operator" },
+        { "__or__", "the '||' operator" },
+        { "__not__", "the '!' operator" },
+        // comparison operators
+        { "__eq__", "the '==' operator" },
+        { "__ne__", "the '!=' operator" },
+        { "__lt__", "the '<' operator" },
+        { "__le__", "the '<=' operator" },
+        { "__gt__", "the '>' operator" },
+        { "__ge__", "the '>=' operator" },
+        // subscript access
+        { "__getitem__", "the subscript syntax 'x[i]'" },
+        { "__setitem__", "the subscript syntax 'x[i] = v'" },
+        { "__getslice__", "the slice syntax 'x[a:b]'" },
+        { "__setslice__", "the slice syntax 'x[a:b] = v'" },
+        { "__getsub__", "the subscript syntax 'x[key]'" },
+        { "__setsub__", "the subscript syntax 'x[key] = v'" },
+        // callable
+        { "__call__", "the call syntax 'obj(...)'" },
+        // membership
+        { "__contains__", "the 'in' operator" },
+        // constructor
+        { "__init__", "the constructor syntax 'Type(...)'" },
+    };
+
+    for (size_t i = 0; i < sizeof(table) / sizeof(table[0]); i++) {
+        if (str_equal(name, table[i].dunder)) {
+            return table[i].sugar;
+        }
+    }
+    return NULL;
+}
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
@@ -1225,6 +1298,17 @@ static void parse_call(ParserState *ps, Expr *exp)
     if (!lhs->ts) return;
 
     Symbol *lhs_sym = lhs->sym;
+
+    // operator hook dunders go through syntax sugar, explicit calls are forbidden
+    if (lhs->kind == EXPR_DOT_KIND && lhs_sym) {
+        const char *sugar = operator_dunder_sugar(lhs_sym->name);
+        if (sugar) {
+            kl_error(lhs->loc, "'%s' cannot be called explicitly, use %s instead.", lhs_sym->name,
+                     sugar);
+            return;
+        }
+    }
+
     Vector *params = NULL;
     if (lhs_sym->kind == SYM_VAR) {
         TypeSpec *ts = lhs_sym->ts;
@@ -2429,6 +2513,15 @@ static void parse_binary(ParserState *ps, Expr *exp)
                      get_binary_op_str(op), sym->name);
             return;
         }
+    } else if (sym->kind == SYM_INSTANCE) {
+        // trait-typed operand, e.g. 'a Arithmetic[int]': resolve the operator
+        // dunder through the instance interface like an explicit member call
+        fn = get_instance_method((InstanceSymbol *)sym, op_name, ps);
+        if (!fn) {
+            kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.",
+                     get_binary_op_str(op), sym->name);
+            return;
+        }
     } else {
         HashMap *stbl = ((KlassSymbol *)sym)->stbl;
         fn = stbl_get(stbl, op_name);
@@ -2439,7 +2532,9 @@ static void parse_binary(ParserState *ps, Expr *exp)
         }
     }
 
-    Vector *args = ((FuncSymbol *)fn)->params;
+    FuncSymbol *fn_sym = (FuncSymbol *)fn;
+
+    Vector *args = fn_sym->params;
     if (vector_size(args) != 1) {
         kl_error(bin->op_loc, "expected %d argument for operator '%s' of type '%s', but got 1.",
                  vector_size(args), get_binary_op_str(op), sym->name);
@@ -2460,10 +2555,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
         return;
     }
 
-    if (binary_op_iscmp(op))
-        exp->ts = bool_type_spec();
-    else
-        exp->ts = lhs->ts;
+    exp->ts = fn_sym->ret;
 
     log_info("binary operator '%s' for type '%s' resolved.", get_binary_op_str(op), sym->name);
     log_type_spec(exp->ts);

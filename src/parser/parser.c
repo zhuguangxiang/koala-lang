@@ -468,6 +468,35 @@ static int type_spec_equal_strict(TypeSpec *a, TypeSpec *b)
     return 1;
 }
 
+/*
+ * Widening to a declared base: compatible iff dst is (or is compatible with)
+ * one of src's bases. Covers class inheritance and concrete -> trait
+ * conformance alike (e.g. int64 -> Arithmetic[int]): the bases list is the
+ * single declared source of truth, nothing hidden.
+ */
+static int ts_in_bases(TypeSpec *dst, TypeSpec *src)
+{
+    Symbol *sym = get_symbol_by_id(src->sym_id);
+    if (!sym) return 0;
+
+    Vector *bases = NULL;
+    if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+        bases = &((KlassSymbol *)sym)->bases;
+    } else if (sym->kind == SYM_INSTANCE) {
+        bases = ((InstanceSymbol *)sym)->bases;
+    }
+    if (!bases) return 0;
+
+    TypeSpec *base;
+    vector_foreach(base, bases) {
+        if (!base) continue;
+        if (type_spec_compatible(dst, base)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int is_subtype_of(int child_id, int parent_id)
 {
     if (child_id == parent_id) return 1;
@@ -553,6 +582,11 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
                     return 1;
                 }
             }
+        }
+
+        // widening to a declared base, e.g. int64 -> Arithmetic[int]
+        if (ts_in_bases(dst, src)) {
+            return 1;
         }
 
         if (dst->kind == TYPE_GENERIC_REF) {

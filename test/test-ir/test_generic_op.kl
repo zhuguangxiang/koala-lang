@@ -1,0 +1,92 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s
+// Generic operators with trait-bounded parameters lower to protocol instructions
+// (later KLR num.* / OP_NUM_* bytecode), never to method calls.
+
+func g_arith[T : Arithmetic](a T, b T) T {
+    return a + b - a * b / b % a
+}
+
+func g_bit[T : BitwiseOperators](a T, b T) T {
+    return a & b | a ^ b << b >> a
+}
+
+func g_cmp[T : Comparable](a T, b T) bool {
+    return a < b && a <= b && a > b && a >= b && a == b && a != b
+}
+
+// trait-typed value + concrete type argument: legal under the substituted
+// signature __add__(int) int — the operand matches the declared Rhs type,
+// nothing hidden, strict type discipline (contrast test_operator_ban.kl,
+// where 'a + b' errors because a trait value is not 'int')
+func t_add_lit(a Arithmetic[int]) int {
+    return a + 100
+}
+
+// trait value + plain int variable: same substituted-signature path
+func t_arith(a Arithmetic[int], b int) int {
+    return a + b
+}
+
+// return covariance: the result of a + b is int64 and int64 conforms to
+// Arithmetic[int], so returning it where Arithmetic[int] is declared widens
+// to the trait value (concrete -> trait upcast)
+func t_arith2(a Arithmetic[int], b int) Arithmetic[int] {
+    return a + b
+}
+
+// concrete -> trait widening lowers to make_intf (zero-boxing: the value
+// stays unboxed, only the intf-table index is attached)
+func t_upcast_let() {
+    let x Arithmetic[int] = 5
+}
+
+func t_upcast_ret(v int) Arithmetic[int] {
+    return v
+}
+
+// CHECK-LABEL: func @g_arith(%a g_arith:T, %b g_arith:T) g_arith:T {
+// CHECK: %0 = add %a g_arith:T, %b g_arith:T
+// CHECK: %1 = mul %a g_arith:T, %b g_arith:T
+// CHECK: %2 = div %1 g_arith:T, %b g_arith:T
+// CHECK: %3 = mod %2 g_arith:T, %a g_arith:T
+// CHECK: %4 = sub %0 g_arith:T, %3 g_arith:T
+// CHECK: ret %4 g_arith:T
+
+// CHECK-LABEL: func @g_bit(%a g_bit:T, %b g_bit:T) g_bit:T {
+// CHECK: %0 = and %a g_bit:T, %b g_bit:T
+// CHECK: %1 = shl %b g_bit:T, %b g_bit:T
+// CHECK: %2 = shr %1 g_bit:T, %a g_bit:T
+// CHECK: %3 = xor %a g_bit:T, %2 g_bit:T
+// CHECK: %4 = or %0 g_bit:T, %3 g_bit:T
+// CHECK: ret %4 g_bit:T
+
+// CHECK-LABEL: func @g_cmp(%a g_cmp:T, %b g_cmp:T) bool {
+// CHECK: %0 = cmplt %a g_cmp:T, %b g_cmp:T
+// CHECK: %1 = cmple %a g_cmp:T, %b g_cmp:T
+// CHECK: %3 = cmpgt %a g_cmp:T, %b g_cmp:T
+// CHECK: %5 = cmpge %a g_cmp:T, %b g_cmp:T
+// CHECK: %7 = cmpeq %a g_cmp:T, %b g_cmp:T
+// CHECK: %9 = cmpne %a g_cmp:T, %b g_cmp:T
+// CHECK: ret {{%[0-9]+}} bool
+
+// CHECK-LABEL: func @t_add_lit(%a std/builtin.Arithmetic<j>) int64 {
+// CHECK: %0 = add %a std/builtin.Arithmetic<j>, 100 int64
+// CHECK: ret {{%[0-9]+}} int64
+
+// CHECK-LABEL: func @t_arith(%a std/builtin.Arithmetic<j>, %b int64) int64 {
+// CHECK: %0 = add %a std/builtin.Arithmetic<j>, %b int64
+// CHECK: ret {{%[0-9]+}} int64
+
+// CHECK-LABEL: func @t_arith2(%a std/builtin.Arithmetic<j>, %b int64) std/builtin.Arithmetic<j> {
+// CHECK: %0 = add %a std/builtin.Arithmetic<j>, %b int64
+// CHECK: %1 = make_intf %0 int64 [intf-table-index = {{[0-9]+}}] to std/builtin.Arithmetic
+// CHECK: ret %1 std/builtin.Arithmetic
+
+// CHECK-LABEL: func @t_upcast_let() <NO-TYPE> {
+// CHECK: %0 = make_intf 5 int64 [intf-table-index = {{[0-9]+}}] to std/builtin.Arithmetic
+// CHECK: ret void
+
+// CHECK-LABEL: func @t_upcast_ret(%v int64) std/builtin.Arithmetic<j> {
+// CHECK: %0 = make_intf %v int64 [intf-table-index = {{[0-9]+}}] to std/builtin.Arithmetic
+// CHECK: ret %0 std/builtin.Arithmetic
+

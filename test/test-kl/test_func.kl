@@ -132,8 +132,9 @@ func fn7(v int?) {
         // CHECK-NEXT: optional type cannot be used with '+' operator.
     }
 
-    foo_fly.__add__(100)
-    // CHECK-NEXT: ptional cannot use dot operator.
+    let n = 100
+    n.__add__(50)
+    // CHECK-NEXT: '__add__' cannot be called explicitly, use the '+' operator instead.
 
     if (v == null) {
         v + 100

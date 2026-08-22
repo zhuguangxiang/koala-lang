@@ -1,0 +1,98 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+// Operator dunders go through syntax sugar only: explicit calls are compile errors.
+// Covers concrete receivers, generic receivers and protocol hooks that stay allowed.
+
+func concrete(a int, b int) {
+    a.__add__(b)
+    // CHECK: '__add__' cannot be called explicitly, use the '+' operator instead.
+    a.__imul__(b)
+    // CHECK: '__imul__' cannot be called explicitly, use the '*=' operator instead.
+    a.__lsh__(b)
+    // CHECK: '__lsh__' cannot be called explicitly, use the '<<' operator instead.
+    a.__ge__(b)
+    // CHECK: '__ge__' cannot be called explicitly, use the '>=' operator instead.
+    a.__eq__(b)
+    // CHECK: '__eq__' cannot be called explicitly, use the '==' operator instead.
+}
+
+func generic[T : Arithmetic](a T, b T) T {
+    // generic type parameter has no member table, rejected by member lookup
+    a.__add__(b)
+    // CHECK: '__add__' is not found in  'T'
+    // operator syntax on generic parameters is the only entry and type-checks fine
+    return a + b
+}
+
+// trait-typed parameters (a trait requires its type argument, e.g. Arithmetic[int];
+// the bare trait name is invalid syntax)
+func trait_param(a Arithmetic[int], b Comparable[int], c Collection[int]) int {
+    a.__sub__(a)
+    // CHECK: '__sub__' cannot be called explicitly, use the '-' operator instead.
+    // Comparable inherits __eq__ from Equatable, ban fires on trait params too
+    b.__eq__(b)
+    // CHECK: '__eq__' cannot be called explicitly, use the '==' operator instead.
+    // protocol hooks stay callable on trait-typed parameters
+    return c.__len__()
+}
+
+// operator syntax on trait-typed parameters is rejected by design: after
+// instantiation the method carries the implementation-side signature
+// ('__add__(int) int') while the operand is a trait value, so the types never
+// match; Rust is the same (operator traits are not dyn-compatible).
+// Operators live on concrete types and generic 'T : Trait' bounds only.
+func t_arith(a Arithmetic[int], b Arithmetic[int]) Arithmetic[int] {
+    return a + b - a * b / b % a
+    // CHECK: argument type mismatch for operator '+' of type 'Arithmetic<j>'.
+}
+
+func t_bit(a BitwiseOperators[int], b BitwiseOperators[int]) BitwiseOperators[int] {
+    return a & b | a ^ b << b >> a
+    // CHECK: argument type mismatch for operator '&' of type 'BitwiseOperators<j>'.
+}
+
+func t_cmp(a Comparable[int], b Comparable[int]) bool {
+    return a < b && a <= b && a > b && a >= b && a == b && a != b
+    // CHECK: argument type mismatch for operator '<' of type 'Comparable<j>'.
+}
+
+// concrete -> trait widening requires the conformance to carry exactly the
+// declared type arguments: int64 conforms to Arithmetic[int64], NOT to
+// Arithmetic[float], so both widening forms are rejected (the allowed
+// direction is covered in test-ir/test_generic_op.kl).
+func t_upcast_let() {
+    let x Arithmetic[float] = 5
+    // CHECK: Types of two sides are not matched.
+}
+
+func t_upcast_ret(v int) Arithmetic[float] {
+    return v
+    // CHECK: return type mismatch in function 't_upcast_ret'
+}
+
+func protocol_hooks(l list[int], s str) {
+    // protocol hooks are NOT operators and remain explicitly callable
+    l.__len__()
+    l.append(1)
+    s.__str__()
+}
+
+class Callable2 {
+    func __call__(x int) int { return x }
+}
+
+func call_hook(c Callable2) {
+    c.__call__(3)
+    // CHECK: '__call__' cannot be called explicitly, use the call syntax 'obj(...)' instead.
+}
+
+class Point {
+    var x int
+    func __init__(v int) {
+        x = v
+    }
+}
+
+func ctor_hook(p Point) {
+    p.__init__(3)
+    // CHECK: '__init__' cannot be called explicitly, use the constructor syntax 'Type(...)' instead.
+}
