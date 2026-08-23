@@ -6,8 +6,6 @@
 #ifndef _KOALA_UTF8_H_
 #define _KOALA_UTF8_H_
 
-#include "common.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

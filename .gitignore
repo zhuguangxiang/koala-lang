@@ -18,3 +18,4 @@ test_shm_open
 test_shm_read
 examples/*.klc
 bench/*.klc
+.vscode/*.json

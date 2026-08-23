@@ -4,6 +4,10 @@
  */
 
 #include "buffer.h"
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include "mm.h"
 
 #ifdef __cplusplus
 extern "C" {

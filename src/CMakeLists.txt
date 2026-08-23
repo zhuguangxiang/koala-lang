@@ -27,6 +27,7 @@ set(PARSER_SRC
     parser/write_klc.c
     parser/read_klc.c
     parser/irgen.c
+    parser/klr/opcode.c
     parser/klr/ir.c
     parser/klr/insn.c
     parser/klr/printer.c
@@ -63,14 +64,13 @@ set(COMMON_SOURCES
     common/hashmap.c
     common/buffer.c
     common/bitset.c
-    common/opcode.c
     common/utf8.c
     common/klc.c)
 
 add_library(koala_common STATIC ${COMMON_SOURCES})
 set_target_properties(koala_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-set(KOALA_SOURCES
+set(KOALA_SHARED_SOURCES
     objects/boolobj.c
     objects/floatobj.c
     objects/funcobj.c
@@ -80,27 +80,29 @@ set(KOALA_SOURCES
     objects/noneobj.c
     objects/strobj.c
     objects/typeobj.c
-    objects/typeslots.c
     objects/tupleobj.c
     objects/rangeobj.c
     objects/listobj.c
     # objects/dictobj.c
     objects/bytesobj.c
     objects/bytebuf.c
+    modules/builtin.c
+    modules/format.c
+    runtime/mod.c
     runtime/symtbl.c
     runtime/vm.c
     runtime/except.c
-    runtime/eval.c
-    runtime/mod.c
-    modules/builtin.c
-    modules/format.c
     )
 
-add_library(koala SHARED ${KOALA_SOURCES})
+add_library(koala SHARED ${KOALA_SHARED_SOURCES})
 target_link_libraries(koala koala_common pthread m dl ffi)
 
-add_executable(koala_out
-    ${PROJECT_SOURCE_DIR}/src/koala.c ${PROJECT_SOURCE_DIR}/src/args.c)
+set(KOALA_SOURCES
+    runtime/eval.c
+    args.c
+    koala.c
+    )
+add_executable(koala_out ${KOALA_SOURCES})
 
 target_link_libraries(koala_out koala)
 set_target_properties(koala_out PROPERTIES

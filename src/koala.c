@@ -151,12 +151,12 @@ int main(int argc, char *argv[])
 {
     // double t0 = now_ms();
 
-    if (kl_parse_args(argc, argv, &cmd_opt)) return -1;
+    if (kl_parse_args(argc, argv, &kl_cmd_opt)) return -1;
 
-    const char *input = cmd_opt.input;
+    const char *input = kl_cmd_opt.input;
 
     if (has_suffix(input, ".klc")) {
-        if (cmd_opt.compile_only) {
+        if (kl_cmd_opt.compile_only) {
             fprintf(stderr, "koala: -c cannot be used with .klc\n");
             return -1;
         }
@@ -169,10 +169,10 @@ int main(int argc, char *argv[])
     }
 
     char *temp = NULL;
-    const char *out = cmd_opt.output;
+    const char *out = kl_cmd_opt.output;
 
     if (!out) {
-        if (cmd_opt.compile_only) {
+        if (kl_cmd_opt.compile_only) {
             out = default_output_path(input);
             if (!out) {
                 fprintf(stderr, "koala: cannot create output path\n");
@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (compile(input, out, &cmd_opt)) {
+    if (compile(input, out, &kl_cmd_opt)) {
         if (temp) {
             remove(temp);
             free(temp);
@@ -197,7 +197,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    if (!cmd_opt.compile_only) {
+    if (!kl_cmd_opt.compile_only) {
         run_klc(out);
     }
 

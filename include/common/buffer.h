@@ -8,8 +8,8 @@
 #ifndef _KOALA_BUFFER_H_
 #define _KOALA_BUFFER_H_
 
-#include "common.h"
-#include "mm.h"
+#include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {

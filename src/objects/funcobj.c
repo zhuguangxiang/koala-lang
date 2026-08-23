@@ -80,12 +80,7 @@ static TValue _cfunc_str(TValue *self, TValue *args, int nargs)
     return obj_value(r);
 }
 
-static MethodDef cfunc_methods[] = {
-    { "__str__", _cfunc_str },
-    { NULL },
-};
-
-static TValue cfunc_call(TValue *self, TValue *args, int nargs)
+TValue kl_cfunc_call(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(IS_CFUNC(obj));
@@ -100,12 +95,17 @@ static TValue cfunc_call(TValue *self, TValue *args, int nargs)
     return cfunc->func(args, args + 1, nargs - 1);
 }
 
+static MethodDef cfunc_methods[] = {
+    { "__str__", _cfunc_str },
+    { NULL },
+};
+
 TypeObject cfunc_type = {
     ._type = &type_type,
     .name = "cfunc",
     .flags = TP_FLAGS_CLASS,
     .methdefs = cfunc_methods,
-    .call = cfunc_call,
+    .call = kl_cfunc_call,
 };
 
 Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner)

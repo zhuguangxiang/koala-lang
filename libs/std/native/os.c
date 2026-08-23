@@ -37,14 +37,14 @@ static TValue os_unsetenv(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
-extern KoalaOptions cmd_opt;
+extern KoalaOptions kl_cmd_opt;
 
 static TValue os_args(TValue *self, TValue *args, int nargs)
 {
     Object *list = kl_new_list();
 
-    for (int i = 1; i < cmd_opt.argc; i++) {
-        TValue s = kl_val_str(cmd_opt.argv[i]);
+    for (int i = 1; i < kl_cmd_opt.argc; i++) {
+        TValue s = kl_val_str(kl_cmd_opt.argv[i]);
         kl_list_append(list, s);
     }
 

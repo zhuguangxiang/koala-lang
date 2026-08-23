@@ -10,6 +10,7 @@
 #include "codespec.h"
 #include "common.h"
 #include "hashmap.h"
+#include "slotid.h"
 #include "vector.h"
 
 #ifdef __cplusplus
@@ -204,65 +205,7 @@ typedef struct _MethodDef {
 } MethodDef;
 
 typedef void (*GcMarkFunc)(Object *self);
-typedef int (*InitFunc)(TValue *self, TValue *args, int nargs);
-typedef void (*FiniFunc)(Object *self);
 typedef TValue (*CallFunc)(TValue *self, TValue *args, int nargs);
-
-typedef enum {
-    /* hot slots -- dict/loop hot paths, all within the first cache line of TypeObject */
-
-    /* comparison protocol */
-    SLOT_EQ, // OP_NUM_EQ
-    SLOT_NE, // OP_NUM_NE
-    SLOT_LT, // OP_NUM_LT
-    SLOT_LE, // OP_NUM_LE
-    SLOT_GT, // OP_NUM_GT
-    SLOT_GE, // OP_NUM_GE
-
-    /* hashable protocol -- hit on every dict/set probe */
-    SLOT_HASH,
-
-    /* warm slots -- second cache line */
-
-    /* sequence protocol */
-    SLOT_LEN,      // OP_SEQ_LEN
-    SLOT_GET_ITEM, // OP_SEQ_GET and OP_SEQ_GET_IMM
-    SLOT_SET_ITEM, // OP_SEQ_SET and OP_SEQ_SET_IMM
-    SLOT_CONTAINS, // shared by sequence and mapping protocols, the 'in' OP
-
-    /* slice protocol */
-    SLOT_GET_SLICE, /* __getslice__ */
-    SLOT_SET_SLICE, /* __setslice__ */
-
-    /* mapping subscript protocol */
-    SLOT_GET_SUB, // __getsub__
-    SLOT_SET_SUB, // __setsub__
-
-    /* cold slots */
-
-    /* printable protocol  */
-    SLOT_STR, // __str__ -- print path
-
-    /* arithmetic protocol */
-    SLOT_ADD, // OP_NUM_ADD
-    SLOT_SUB, // OP_NUM_SUB
-    SLOT_MUL, // OP_NUM_MUL
-    SLOT_DIV, // OP_NUM_DIV
-    SLOT_MOD, // OP_NUM_MOD
-    SLOT_NEG, // unary minus
-
-    /* bitwise protocol */
-    SLOT_SHL,     // OP_NUM_SHL
-    SLOT_SHR,     // OP_NUM_SHR
-    SLOT_BIT_AND, // OP_NUM_AND
-    SLOT_BIT_OR,  // OP_NUM_OR
-    SLOT_BIT_XOR, // OP_NUM_XOR
-    SLOT_BIT_NOT, // bitwise NOT
-
-    /* other slots */
-
-    SLOT_MAX
-} SlotId;
 
 Object *kl_get_intf_func(TValue *intf, int func_idx);
 
@@ -291,8 +234,8 @@ typedef struct _TypeObject {
 
     /* Interface tables */
     Vector itables;
-    /* slots for special methods */
-    Object *slots[SLOT_MAX];
+    /* slots */
+    Vector slots;
 
     /* Type name */
     char *name;
@@ -302,11 +245,6 @@ typedef struct _TypeObject {
     int flags;
     /* gc mark */
     GcMarkFunc gc_mark;
-
-    /* init function */
-    InitFunc init;
-    /* fini function */
-    FiniFunc fini;
     /* callable (__call__) */
     CallFunc call;
 
@@ -522,32 +460,9 @@ TypeObject *kl_typeof(TValue *val);
 void kl_init_type(TypeObject *tp);
 TypeObject *kl_new_type(char *name, int flags);
 int kl_tp_add_field(TypeObject *tp, char *name, Object *field);
-int kl_tp_add_method(TypeObject *tp, char *name, Object *meth);
-void kl_tp_install_slots(TypeObject *tp);
+int kl_tp_add_method(TypeObject *tp, char *name, int slotid, Object *meth);
 
 Object *kl_type_find(TypeObject *tp, char *name);
-
-/* Any object is callable, if it implements the call protocol. */
-static inline TValue kl_do_call(TValue *callable, TValue *args, int nargs)
-{
-    TypeObject *tp = kl_typeof(callable);
-    CallFunc call = tp->call;
-    ASSERT(call != NULL);
-    return call(callable, args, nargs);
-}
-
-static inline TValue kl_do_call_no_arg(TValue *callable) { return kl_do_call(callable, NULL, 0); }
-
-static inline TValue kl_do_call_one_arg(TValue *callable, TValue *arg)
-{
-    return kl_do_call(callable, arg, 1);
-}
-
-static inline TValue kl_object_call(Object *callable, TValue *args, int nargs)
-{
-    TValue _call = obj_value(callable);
-    return kl_do_call(&_call, args, nargs);
-}
 
 void kl_init_gm_stbl(void);
 Object *kl_load_module(char *path);
@@ -662,6 +577,8 @@ int kl_reg_type(NativeLib *lib, TypeObject *tp);
  +---------------------------------------------------------------------------*/
 
 TValue kl_eval_code(TValue *self, TValue *args, int nargs);
+TValue kl_cfunc_call(TValue *self, TValue *args, int nargs);
+
 void kl_run_main(Object *m);
 void kl_run_init(Object *m);
 void kl_panic(char *msg);
@@ -670,11 +587,38 @@ void kl_panic(char *msg);
  |  Slot Call                                                                |
  +---------------------------------------------------------------------------*/
 
+/* Any object is callable, if it implements the call protocol. */
+static inline TValue kl_do_call(TValue *callable, TValue *args, int nargs)
+{
+    TypeObject *tp = kl_typeof(callable);
+    CallFunc call = tp->call;
+    ASSERT(call != NULL);
+    return call(callable, args, nargs);
+}
+
+static inline TValue kl_do_call_no_arg(TValue *callable) { return kl_do_call(callable, NULL, 0); }
+
+static inline TValue kl_do_call_one_arg(TValue *callable, TValue *arg)
+{
+    return kl_do_call(callable, arg, 1);
+}
+
+static inline TValue kl_object_call(Object *callable, TValue *args, int nargs)
+{
+    TValue _call = obj_value(callable);
+    return kl_do_call(&_call, args, nargs);
+}
+
 static inline TValue kl_slot_call_no_arg(TValue *self, int slotid)
 {
+    ASSERT(slotid < SLOT_MAX);
+
     TypeObject *tp = kl_typeof(self);
     ASSERT(tp);
-    Object *fn = tp->slots[slotid];
+
+    ASSERT(vector_size(&tp->slots) == SLOT_MAX);
+    Object **slots = VECTOR_RAW(&(tp)->slots, Object *);
+    Object *fn = slots[slotid];
     ASSERT(fn);
 
     TValue ret;
@@ -683,6 +627,7 @@ static inline TValue kl_slot_call_no_arg(TValue *self, int slotid)
         CFuncObject *cfn = (CFuncObject *)fn;
         ret = cfn->func(self, NULL, 0);
     } else {
+        ASSERT(IS_CODE(fn));
         TValue val = obj_value(fn);
         ret = kl_eval_code(&val, self, 1);
     }
@@ -692,9 +637,14 @@ static inline TValue kl_slot_call_no_arg(TValue *self, int slotid)
 
 static inline TValue kl_slot_call_one_arg(TValue *self, TValue *arg, int slotid)
 {
+    ASSERT(slotid < SLOT_MAX);
+
     TypeObject *tp = kl_typeof(self);
     ASSERT(tp);
-    Object *fn = tp->slots[slotid];
+
+    ASSERT(vector_size(&tp->slots) == SLOT_MAX);
+    Object **slots = VECTOR_RAW(&(tp)->slots, Object *);
+    Object *fn = slots[slotid];
     ASSERT(fn);
 
     TValue ret;
@@ -703,6 +653,7 @@ static inline TValue kl_slot_call_one_arg(TValue *self, TValue *arg, int slotid)
         CFuncObject *cfn = (CFuncObject *)fn;
         ret = cfn->func(self, arg, 1);
     } else {
+        ASSERT(IS_CODE(fn));
         TValue val = obj_value(fn);
         TValue args[] = { *self, *arg };
         ret = kl_eval_code(&val, args, 2);
@@ -713,9 +664,14 @@ static inline TValue kl_slot_call_one_arg(TValue *self, TValue *arg, int slotid)
 
 static inline TValue kl_slot_call_two_args(TValue *self, TValue *arg0, TValue *arg1, int slotid)
 {
+    ASSERT(slotid < SLOT_MAX);
+
     TypeObject *tp = kl_typeof(self);
     ASSERT(tp);
-    Object *fn = tp->slots[slotid];
+
+    ASSERT(vector_size(&tp->slots) == SLOT_MAX);
+    Object **slots = VECTOR_RAW(&(tp)->slots, Object *);
+    Object *fn = slots[slotid];
     ASSERT(fn);
 
     TValue ret;
@@ -725,6 +681,7 @@ static inline TValue kl_slot_call_two_args(TValue *self, TValue *arg0, TValue *a
         TValue args[] = { *arg0, *arg1 };
         ret = cfn->func(self, args, 2);
     } else {
+        ASSERT(IS_CODE(fn));
         TValue val = obj_value(fn);
         TValue args[] = { *self, *arg0, *arg1 };
         ret = kl_eval_code(&val, args, 3);

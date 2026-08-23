@@ -26,7 +26,7 @@ void init_tag_mappings(void);
 /* pthread */
 __thread ThreadState *__ts;
 
-KoalaOptions cmd_opt = { 0 };
+KoalaOptions kl_cmd_opt = { 0 };
 
 KoalaState *kl_new_ks(void)
 {
@@ -445,7 +445,7 @@ static Object *_load_module(char *path)
                 CFuncObject *cfn = (CFuncObject *)_co;
                 cfn->owner = (Object *)tp;
             }
-            kl_tp_add_method(tp, kc->sval, _co);
+            kl_tp_add_method(tp, kc->sval, meth->slot_id, _co);
         }
 
         KlcIntfEntry *intf_entry;
@@ -499,7 +499,6 @@ static Object *_load_module(char *path)
             }
         }
 
-        kl_tp_install_slots(tp);
         tp->flags |= TP_FLAGS_READY;
 
         kl_mo_add_type(m, tp);

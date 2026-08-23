@@ -6,7 +6,7 @@
 #include <math.h>
 #include "listobj.h"
 #include "modobj.h"
-#include "opcode.h"
+#include "opcode_only.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
 #include "vm.h"
@@ -130,10 +130,12 @@ ext_tailcall:
     ImportEntry *import_table = VECTOR_RAW(&m->import_table, ImportEntry);
     FuncEntry *entry_table = VECTOR_RAW(&m->func_entries, FuncEntry);
     TypeObject **types = VECTOR_RAW(&m->types, TypeObject *);
+
 #ifndef NDEBUG
     int entry_size = vector_size(&m->func_entries);
     int types_size = vector_size(&m->types);
 #endif
+
     uint32_t *codes = m->codes;
 
 local_tailcall:

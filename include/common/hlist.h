@@ -6,7 +6,7 @@
 #ifndef _KOALA_HLIST_H_
 #define _KOALA_HLIST_H_
 
-#include "common.h"
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {

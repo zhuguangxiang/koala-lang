@@ -104,6 +104,8 @@ typedef struct _KlcFunc {
     uint16_t ret_type_index;
     /* code index */
     uint16_t code_index;
+    /* slot id */
+    int16_t slot_id;
     /* arguments */
     Vector args;
     /* type params */

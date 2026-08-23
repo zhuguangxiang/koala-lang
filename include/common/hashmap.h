@@ -39,7 +39,6 @@
 #ifndef _KOALA_HASHMAP_H_
 #define _KOALA_HASHMAP_H_
 
-#include "common.h"
 #include "hlist.h"
 #include "list.h"
 

@@ -18,11 +18,14 @@ int __maybe_expand(Vector *vec, int extra)
     if (size <= vec->capacity) return 0;
 
     int cap;
+
     if (vec->capacity) {
-        cap = vec->capacity << 1;
+        cap = vec->capacity;
     } else {
         cap = VECTOR_MINIMUM_CAPACITY;
     }
+
+    while (cap < size) cap <<= 1;
 
     void *objs = mm_alloc(cap * vec->obj_size);
     if (vec->objs) {

@@ -558,12 +558,7 @@ semi
     ;
 
 prefix
-    : docs
-    {
-        memset(&$$, 0, sizeof($$));
-        $$.doc.flag = 1;
-    }
-    | annotation
+    : annotation
     {
         $$ = $1;
     }
@@ -571,32 +566,11 @@ prefix
     {
         $$ = $1;
     }
-    | docs annotation
-    {
-        $$ = $2;
-        $$.doc.flag = 1;
-    }
-    | docs access
-    {
-        $$ = $2;
-        $$.doc.flag = 1;
-    }
     | annotation access
     {
         $$ = $1;
         $$.pub = $2.pub;
     }
-    | docs annotation access
-    {
-        $$ = $2;
-        $$.doc.flag = 1;
-        $$.pub = $3.pub;
-    }
-    ;
-
-docs
-    : DOC
-    | docs DOC
     ;
 
 access

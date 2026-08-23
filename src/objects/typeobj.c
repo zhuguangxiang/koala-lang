@@ -73,9 +73,13 @@ void kl_init_type(TypeObject *tp)
     if (!tp || tp->flags & TP_FLAGS_READY) return;
 
     vector_init(&tp->itables, sizeof(IntfTable));
+    vector_init_ptr(&tp->slots);
     vector_init_ptr(&tp->fields);
     vector_init_ptr(&tp->methods);
     stbl_init(&tp->members);
+
+    /* Ensure the methods vector has at least SLOT_MAX entries */
+    vector_reserve(&tp->slots, SLOT_MAX);
 }
 
 TypeObject *kl_new_type(char *name, int flags)
@@ -105,9 +109,21 @@ int kl_tp_add_field(TypeObject *tp, char *name, Object *field)
     return 0;
 }
 
-int kl_tp_add_method(TypeObject *tp, char *name, Object *meth)
+int kl_tp_add_method(TypeObject *tp, char *name, int slotid, Object *meth)
 {
+    ASSERT(vector_size(&tp->slots) == SLOT_MAX);
+
+    if (slotid >= 0) {
+        ASSERT(slotid < SLOT_MAX);
+        /* Install the method into its designated slot position */
+        Object **slots = VECTOR_RAW(&tp->slots, Object *);
+        ASSERT(slots[slotid] == NULL);
+        slots[slotid] = meth;
+    }
+
+    /* Append regular methods */
     vector_push_back(&tp->methods, &meth);
+    /* Register the method in the member table for name-based lookup */
     stbl_add_obj(&tp->members, name, meth);
     return 0;
 }
@@ -151,6 +167,7 @@ static TValue _type_methods(TValue *self, TValue *args, int nargs)
 
     Object *ob;
     vector_foreach(ob, &tp->methods) {
+        if (!ob) continue;
         char *name;
         if (IS_CFUNC(ob)) {
             CFuncObject *cfunc = (CFuncObject *)ob;
@@ -160,6 +177,8 @@ static TValue _type_methods(TValue *self, TValue *args, int nargs)
             CodeObject *code = (CodeObject *)ob;
             name = code->cs.name;
         }
+        char *_name = strchr(name, '$');
+        if (_name) name = _name + 1;
         TValue val = kl_val_str(name);
         vector_push_back(&vec, &val);
     }

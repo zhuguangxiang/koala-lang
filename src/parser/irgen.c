@@ -191,6 +191,9 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
                 }
             } else if (exp->ctx == EXPR_CTX_STORE || exp->ctx == EXPR_CTX_LOAD_STORE) {
                 exp->ir_val = sym->ir_val;
+            } else if (exp->ctx == EXPR_CTX_CALL) {
+                // __call__()
+                exp->ir_val = sym->ir_val;
             } else {
                 UNREACHABLE();
             }

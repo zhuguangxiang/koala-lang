@@ -6,6 +6,7 @@
 #include "klc.h"
 #include "atom.h"
 #include "buffer.h"
+#include "slotid.h"
 #include "version.h"
 
 #ifdef __cplusplus
@@ -398,6 +399,67 @@ KlcVar *klc_add_var(KlcFile *klc, char *name, char *type, uint16_t index, int fl
     return var;
 }
 
+typedef struct _SlotDef {
+    char *name;
+    SlotId id;
+} SlotDef;
+
+#define TPSLOT(NAME, ID) { NAME, ID }
+
+static SlotDef slotdefs[] = {
+    TPSLOT("__eq__", SLOT_EQ),
+    TPSLOT("__ne__", SLOT_NE),
+    TPSLOT("__lt__", SLOT_LT),
+    TPSLOT("__le__", SLOT_LE),
+    TPSLOT("__gt__", SLOT_GT),
+    TPSLOT("__ge__", SLOT_GE),
+
+    TPSLOT("__hash__", SLOT_HASH),
+
+    TPSLOT("__len__", SLOT_LEN),
+    TPSLOT("__getitem__", SLOT_GET_ITEM),
+    TPSLOT("__setitem__", SLOT_SET_ITEM),
+    TPSLOT("__contains__", SLOT_CONTAINS),
+
+    TPSLOT("__getslice__", SLOT_GET_SLICE),
+    TPSLOT("__setslice__", SLOT_SET_SLICE),
+
+    TPSLOT("__getsub__", SLOT_GET_SUB),
+    TPSLOT("__setsub__", SLOT_SET_SUB),
+
+    TPSLOT("__str__", SLOT_STR),
+
+    TPSLOT("__add__", SLOT_ADD),
+    TPSLOT("__sub__", SLOT_SUB),
+    TPSLOT("__mul__", SLOT_MUL),
+    TPSLOT("__div__", SLOT_DIV),
+    TPSLOT("__mod__", SLOT_MOD),
+    TPSLOT("__neg__", SLOT_NEG),
+
+    TPSLOT("__shl__", SLOT_SHL),
+    TPSLOT("__shr__", SLOT_SHR),
+    TPSLOT("__bitand__", SLOT_BIT_AND),
+    TPSLOT("__bitor__", SLOT_BIT_OR),
+    TPSLOT("__bitxor__", SLOT_BIT_XOR),
+    TPSLOT("__bitnot__", SLOT_BIT_NOT),
+
+    TPSLOT("__init__", SLOT_INIT),
+    TPSLOT("__fini__", SLOT_FINI),
+
+    TPSLOT(NULL, 0),
+};
+
+static int klc_lookup_slot_id(const char *name)
+{
+    if (!name) return -1;
+
+    for (SlotDef *slot = slotdefs; slot->name; slot++) {
+        if (!strcmp(slot->name, name)) return slot->id;
+    }
+
+    return -1;
+}
+
 static KlcFunc *new_func(KlcFile *klc, char *name, char *ret_type, int flags)
 {
     int len = strlen(name);
@@ -410,6 +472,7 @@ static KlcFunc *new_func(KlcFile *klc, char *name, char *ret_type, int flags)
     fn->name_index = name_index;
     fn->ret_type_index = ret_index;
     fn->code_index = 0;
+    fn->slot_id = klc_lookup_slot_id(name);
     vector_init_ptr(&fn->args);
     vector_init_ptr(&fn->tps);
     vector_init_ptr(&fn->anns);
@@ -587,6 +650,7 @@ static void write_uint16(KlcFile *klc, uint16_t val) { fwrite(&val, 1, 2, klc->f
 static void write_uint32(KlcFile *klc, uint32_t val) { fwrite(&val, 1, 4, klc->filp); }
 static void write_uint64(KlcFile *klc, uint64_t val) { fwrite(&val, 1, 8, klc->filp); }
 static void write_float(KlcFile *klc, double val) { fwrite(&val, 1, 8, klc->filp); }
+static void write_int16(KlcFile *klc, int16_t val) { fwrite(&val, 1, 2, klc->filp); }
 
 static void write_const(KlcFile *klc, KlcConst *item)
 {
@@ -800,6 +864,7 @@ static void write_funcs(KlcFile *klc, Vector *vec)
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->ret_type_index);
         write_uint16(klc, item->code_index);
+        write_int16(klc, item->slot_id);
         write_args(klc, &item->args);
         write_tps(klc, &item->tps);
         write_anns(klc, &item->anns);
@@ -947,6 +1012,7 @@ static void read_uint16(KlcFile *klc, uint16_t *val) { fread(val, 1, 2, klc->fil
 static void read_uint32(KlcFile *klc, uint32_t *val) { fread(val, 1, 4, klc->filp); }
 static void read_uint64(KlcFile *klc, uint64_t *val) { fread(val, 1, 8, klc->filp); }
 static void read_float(KlcFile *klc, double *val) { fread(val, 1, 8, klc->filp); }
+static void read_int16(KlcFile *klc, int16_t *val) { fread(val, 1, 2, klc->filp); }
 
 static void read_const(KlcFile *klc, Vector *vec)
 {
@@ -1246,6 +1312,7 @@ static void read_funcs(KlcFile *klc, Vector *vec)
         read_uint16(klc, &fn->name_index);
         read_uint16(klc, &fn->ret_type_index);
         read_uint16(klc, &fn->code_index);
+        read_int16(klc, &fn->slot_id);
         void *empty = NULL;
         vector_push_back(&fn->args, &empty);
         vector_push_back(&fn->tps, &empty);

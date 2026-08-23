@@ -385,12 +385,6 @@ __KOALA_[A-Z_]+__ {
 <TXT>\"\"\"     { YY_TXT_END;              }
 <TXT>.          { YY_TXT_WRITE(yytext[0]); }
 
-"///"[^\n]* {
-    RESET_BUF(yyps->sbuf);
-    buf_write_nstr(&yyps->sbuf, yytext + 3, yyleng - 3);
-    YY_RETURN(DOC);
-}
-
 "\n"            { YY_NEWLINE; }
 [ \t\r]         { }
 "#"[^\n]*       { }

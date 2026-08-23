@@ -100,6 +100,12 @@ static inline char *__vector_offset(Vector *vec, int index)
 /* expand the vector if needed */
 int __maybe_expand(Vector *vec, int extra);
 
+static inline void vector_reserve(Vector *vec, int size)
+{
+    __maybe_expand(vec, size);
+    vec->size += size;
+}
+
 /*
  * Store an object at an index. The old will be erased.
  * Index bound is checked.

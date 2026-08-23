@@ -5,6 +5,7 @@
 
 #include "buffer.h"
 #include "hashmap.h"
+#include "mm.h"
 
 #ifdef __cplusplus
 extern "C" {

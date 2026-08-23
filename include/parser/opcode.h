@@ -6,7 +6,9 @@
 #ifndef _KOALA_OPCODE_H_
 #define _KOALA_OPCODE_H_
 
-#include "common.h"
+#include <stddef.h>
+#include <stdint.h>
+#include "opcode_only.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -103,12 +105,6 @@ typedef enum {
 
 // clang-format on
 
-typedef enum _OpCode {
-#define X(name, fmt) name,
-#include "opcode_list.h"
-#undef X
-} OpCode;
-
 extern char *__op_names[];
 static inline char *op_name(OpCode code) { return __op_names[code]; }
 
@@ -117,12 +113,6 @@ static inline OpFormat op_format(OpCode code) { return __op_formats[code]; }
 
 extern char *tag_mapping[];
 void bytecode_print(uint8_t *code, size_t start, size_t count);
-
-typedef enum _InternTag {
-    INTERN_TUPLE,
-    INTERN_RANGE,
-    INTERN_LIST,
-} InternTag;
 
 extern char *intern_tag_name[];
 
