@@ -88,6 +88,69 @@ DEFINE_ARITHMETIC_BIN_SLOT(mul, SLOT_MUL);
 DEFINE_ARITHMETIC_BIN_SLOT(div, SLOT_DIV);
 DEFINE_ARITHMETIC_BIN_SLOT(mod, SLOT_MOD);
 
+static size_t slot_seq_len(TValue *self)
+{
+    TypeObject *tp = kl_typeof(self);
+    Object *fn = slots(SLOT_LEN);
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        TValue val = cfn->func(self, NULL, 0);
+        return (size_t)to_int64(&val);
+    } else {
+        TValue val = obj_value(fn);
+        val = kl_do_call_one_arg(&val, self);
+        return (size_t)to_int64(&val);
+    }
+}
+
+static int slot_seq_contains(TValue *self, TValue *item)
+{
+    TypeObject *tp = kl_typeof(self);
+    Object *fn = slots(SLOT_CONTAINS);
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        TValue val = cfn->func(self, item, 1);
+        return (int)to_int64(&val);
+    } else {
+        TValue val = obj_value(fn);
+        TValue args[] = { *self, *item };
+        val = kl_do_call(&val, args, 2);
+        return (int)to_int64(&val);
+    }
+}
+
+static TValue slot_seq_get(TValue *self, size_t index)
+{
+    TypeObject *tp = kl_typeof(self);
+    Object *fn = slots(SLOT_GET_ITEM);
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        TValue args[] = { int64_value(index) };
+        TValue val = cfn->func(self, args, 1);
+        return val;
+    } else {
+        TValue val = obj_value(fn);
+        TValue args[] = { *self, int64_value(index) };
+        val = kl_do_call(&val, args, 2);
+        return val;
+    }
+}
+
+static void slot_seq_set(TValue *self, size_t index, TValue *value)
+{
+    TypeObject *tp = kl_typeof(self);
+    Object *fn = slots(SLOT_SET_ITEM);
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        TValue args[] = { int64_value(index), *value };
+        cfn->func(self, args, 3);
+    } else {
+        TValue val = obj_value(fn);
+        TValue args[] = { *self, int64_value(index), *value };
+        kl_do_call(&val, args, 3);
+    }
+}
+
 typedef struct _SlotDef {
     char *name;
     int offset;
@@ -125,10 +188,10 @@ static SlotDef arith_slotdefs[] = {
 #define SEQSLOT(NAME, SLOT, FUNC, ID) { NAME, offsetof(SeqMethods, SLOT), (void *)(FUNC), ID }
 
 static SlotDef seq_slotdefs[] = {
-    SEQSLOT("__len__", len, NULL, SLOT_LEN),
-    SEQSLOT("__contains__", contains, NULL, SLOT_CONTAINS),
-    SEQSLOT("__getitem__", get, NULL, SLOT_GET_ITEM),
-    SEQSLOT("__setitem__", set, NULL, SLOT_SET_ITEM),
+    SEQSLOT("__len__", len, slot_seq_len, SLOT_LEN),
+    SEQSLOT("__contains__", contains, slot_seq_contains, SLOT_CONTAINS),
+    SEQSLOT("__getitem__", get, slot_seq_get, SLOT_GET_ITEM),
+    SEQSLOT("__setitem__", set, slot_seq_set, SLOT_SET_ITEM),
     SEQSLOT("__getslice__", get_slice, NULL, SLOT_GET_SLICE),
     SEQSLOT("__setslice__", set_slice, NULL, SLOT_SET_SLICE),
     { NULL },
@@ -139,8 +202,8 @@ static SlotDef seq_slotdefs[] = {
 static SlotDef map_slotdefs[] = {
     MAPSLOT("__len__", len, NULL, SLOT_LEN),
     MAPSLOT("__contains__", contains, NULL, SLOT_CONTAINS),
-    MAPSLOT("__getsub__", get, NULL, SLOT_GET_SUBSCRIPT),
-    MAPSLOT("__setsub__", set, NULL, SLOT_SET_SUBSCRIPT),
+    MAPSLOT("__getsub__", get_sub, NULL, SLOT_GET_SUBSCRIPT),
+    MAPSLOT("__setsub__", set_sub, NULL, SLOT_SET_SUBSCRIPT),
     { NULL },
 };
 
@@ -187,6 +250,25 @@ void kl_tp_install_slots(TypeObject *tp)
     // bind bit slots[]
 
     // bind sequence slots[]
+    for (SlotDef *slot = seq_slotdefs; slot->name; slot++) {
+        Object *fn = stbl_find_obj(&tp->members, slot->name);
+        if (fn) {
+            log_info("binding sequence op '%s' to slots[%d] of class '%s'", slot->name, slot->id,
+                     tp->name);
+            tp->slots[slot->id] = fn;
+
+            SeqMethods *seq = tp->seq;
+            if (!seq) {
+                seq = mm_alloc(sizeof(SeqMethods));
+                tp->seq = seq;
+            }
+
+            void **field = (void **)((char *)seq + slot->offset);
+            // if the type has implemented this slot function, do not override it.
+            if (*field == NULL) *field = slot->func;
+        }
+    }
+
     // bind map slots[]
 }
 

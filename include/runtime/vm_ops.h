@@ -1499,7 +1499,7 @@ TARGET(OP_SEQ_GET) {
 TARGET(OP_SEQ_GET_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
-    imm = I_VAL(inst, 0, 8);
+    imm = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
@@ -1548,7 +1548,7 @@ TARGET(OP_SEQ_SET) {
 TARGET(OP_SEQ_SET_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
-    imm = I_VAL(inst, 0, 8);
+    imm = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);

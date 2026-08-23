@@ -17,6 +17,7 @@ func main() {
     print(s[0])
     print(s[6])
     print(s[10])
+    print(s[-2])
     // print("汉字"[1])
 
     // __getslice__
@@ -196,6 +197,7 @@ func main() {
 // CHECK: h
 // CHECK: w
 // CHECK: d
+// CHECK: l
 
 // TODO: 字
 

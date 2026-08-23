@@ -199,6 +199,14 @@ static MethodDef list_methods[] = {
 };
 ```
 
+**类型定义统一用 `DEFINE_TYPE` 宏，不手写 `TypeObject` 初始化器**：
+
+```c
+DEFINE_TYPE(str, TP_FLAGS_CLASS, 0, _str_methods);
+```
+
+展开为 `TypeObject str_type`（name / flags / priv_size / methdefs 一次配齐）。协议 dunder（`__len__` / `__getitem__` / `__contains__` 等）直接作为普通方法注册进 `MethodDef` 表，不再走独立的 SeqMethods 结构。
+
 - 类型系统信任声明签名，用户从不触碰桥接代码——`unsafe {}` 存在的理由（人在绕过类型系统）被结构性消除。
 - **内存层同样无 unsafe**：shadowstack 将 C / native 代码分配的对象注册为 GC root——native 侧分配的对象与 `.kl` 中分配的命运完全一致，无"记得释放"规则。对照：JNI 局部/全局引用、Python C API 引用计数、Go cgo handle table 均需手动管理。
 - 对照：Java JNI（句柄仪式）、Go cgo（栈切换开销）、Rust（强制 unsafe + transmute）、Python ctypes（运行时 marshal）。

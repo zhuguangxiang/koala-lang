@@ -275,9 +275,9 @@ typedef struct _MapMethods {
     /* mapping contains */
     ContainsFunc contains;
     /* mapping item getter */
-    GetSubFunc get;
+    GetSubFunc get_sub;
     /* mapping item setter */
-    SetSubFunc set;
+    SetSubFunc set_sub;
 } MapMethods;
 
 typedef enum {
@@ -387,8 +387,6 @@ typedef struct _TypeObject {
 
     /* Type name */
     char *name;
-    /* parent traits */
-    // Vector bases;
     /* fields */
     Vector fields;
     /* methods */
@@ -430,6 +428,15 @@ static inline Object *to_obj(TValue *v)
     if (is_ref(v)) return v->obj;
     return intf_to_obj(v);
 }
+
+#define DEFINE_TYPE(_name, _flags, _priv_size, _methods) \
+    TypeObject _name##_type = { \
+        ._type = &type_type, \
+        .name = #_name, \
+        .flags = (_flags), \
+        .priv_size = (_priv_size), \
+        .methdefs = (_methods), \
+    }
 
 /*---------------------------------------------------------------------------+
  |  Field Object                                                             |

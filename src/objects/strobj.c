@@ -1177,9 +1177,52 @@ static TValue _str_zfill(TValue *self, TValue *args, int nargs)
     return obj_value(sobj);
 }
 
-static MethodDef str_methods[] = {
+static TValue _str_len(TValue *self, TValue *args, int nargs)
+{
+    StringObject *s = SELF_AS(str_type);
+    return int64_value((int64_t)s->size);
+}
+
+static TValue _str_getitem(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    int64_t index = kl_arg_int64(0);
+    StringObject *s = SELF_AS(str_type);
+    if (index < 0) index += s->size;
+    if (index < 0 || index >= s->size) panic("string index out of range");
+    return kl_val_nstr(s->array + index, 1);
+}
+
+static TValue _str_contains(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+
+    StringObject *s = SELF_AS(str_type);
+    const char *buf = STR_BUF(s);
+    size_t len = STR_LEN(s);
+
+    Object *ob = kl_arg_obj(0);
+    ASSERT(IS_STR(ob)); // compiler ensure the type, no need to panic
+    StringObject *sub = (StringObject *)ob;
+    const char *pat = STR_BUF(sub);
+    size_t pat_len = STR_LEN(sub);
+
+    if (pat_len == 0) return bool_value(true);
+    if (pat_len > len) return bool_value(false);
+
+    for (size_t i = 0; i + pat_len <= len; i++) {
+        if (memcmp(buf + i, pat, pat_len) == 0) return bool_value(true);
+    }
+
+    return bool_value(false);
+}
+
+static MethodDef _str_methods[] = {
     { "__init__", _str_init },
+    { "__len__", _str_len },
     { "empty", _str_empty },
+    { "__getitem__", _str_getitem },
+    { "__contains__", _str_contains },
     { "index", _str_index },
     { "rindex", _str_rindex },
     { "count", _str_count },
@@ -1228,56 +1271,7 @@ static MethodDef str_methods[] = {
     { NULL },
 };
 
-static size_t kl_str_seq_len(TValue *self)
-{
-    StringObject *str = SELF_AS(str_type);
-    return str->size;
-}
-
-static int kl_str_contains(TValue *self, TValue *item)
-{
-    StringObject *str = SELF_AS(str_type);
-    Object *ob = to_obj(item);
-    ASSERT(IS_STR(ob));
-    StringObject *substr = (StringObject *)ob;
-
-    bool result = false;
-    if (substr->size <= str->size) {
-        for (size_t i = 0; i <= str->size - substr->size; i++) {
-            if (memcmp(str->array + i, substr->array, substr->size) == 0) {
-                result = true;
-                break;
-            }
-        }
-    }
-
-    return result ? 1 : 0;
-}
-
-static TValue kl_str_seq_get(TValue *self, size_t index)
-{
-    StringObject *str = SELF_AS(str_type);
-    if (index >= str->size) {
-        panic("string index out of range");
-        return none_value;
-    }
-    return kl_val_nstr(str->array + index, 1);
-}
-
-static SeqMethods str_seq_methods = {
-    .len = kl_str_seq_len,
-    .contains = kl_str_contains,
-    .get = kl_str_seq_get,
-    .set = NULL, // Strings are immutable, so no set method
-};
-
-TypeObject str_type = {
-    ._type = &type_type,
-    .name = "str",
-    .flags = TP_FLAGS_CLASS,
-    .methdefs = str_methods,
-    .seq = &str_seq_methods,
-};
+DEFINE_TYPE(str, TP_FLAGS_CLASS, 0, _str_methods);
 
 static StringObject empty_str = {
     ._type = &str_type,

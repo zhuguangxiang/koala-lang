@@ -1975,7 +1975,7 @@ X(OP_SEQ_SET, FORMAT_RRR)
  *
  * Behavior:
  *     - `rs` must be a sequence object
- *     - `imm` is an unsigned 8-bit immediate index
+ *     - `imm` is an signed 8-bit immediate index
  *     - Bounds checking is performed at runtime
  *     - The loaded TValue is written into `rd`
  *     - No write barrier is required (read-only)
@@ -1997,7 +1997,7 @@ X(OP_SEQ_GET_IMM, FORMAT_RRImm)
  *
  * Behavior:
  *     - `rs` must be a sequence object
- *     - `imm` is an unsigned 8-bit immediate index
+ *     - `imm` is an signed 8-bit immediate index
  *     - Bounds checking is performed at runtime
  *     - A write barrier is applied when storing into the sequence object
  */
