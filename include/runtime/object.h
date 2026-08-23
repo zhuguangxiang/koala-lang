@@ -206,79 +206,7 @@ typedef struct _MethodDef {
 typedef void (*GcMarkFunc)(Object *self);
 typedef int (*InitFunc)(TValue *self, TValue *args, int nargs);
 typedef void (*FiniFunc)(Object *self);
-
-typedef unsigned int (*HashFunc)(TValue *self);
-typedef TValue (*RichCmpFunc)(TValue *lhs, TValue *rhs, int op);
-typedef TValue (*StrFunc)(TValue *self);
 typedef TValue (*CallFunc)(TValue *self, TValue *args, int nargs);
-
-typedef TValue (*BinaryFunc)(TValue *lhs, TValue *rhs);
-typedef TValue (*UnaryFunc)(TValue *self);
-
-typedef size_t (*LenFunc)(TValue *self);
-typedef int (*ContainsFunc)(TValue *self, TValue *item);
-typedef TValue (*GetItemFunc)(TValue *self, size_t index);
-typedef void (*SetItemFunc)(TValue *self, size_t index, TValue *value);
-typedef TValue (*GetSliceFunc)(TValue *self, ssize_t start, ssize_t end);
-typedef void (*SetSliceFunc)(TValue *self, ssize_t start, ssize_t end, TValue *value);
-typedef TValue (*GetSubFunc)(TValue *self, TValue *key);
-typedef void (*SetSubFunc)(TValue *self, TValue *key, TValue *value);
-
-typedef struct _ArithmeticMethods {
-    /* number add */
-    BinaryFunc add;
-    /* number sub */
-    BinaryFunc sub;
-    /* number mul */
-    BinaryFunc mul;
-    /* number div */
-    BinaryFunc div;
-    /* number mod */
-    BinaryFunc mod;
-    /* number neg */
-    UnaryFunc neg;
-} ArithmeticMethods;
-
-typedef struct _BitwiseMethods {
-    /* bitwise left shift */
-    BinaryFunc lshift;
-    /* bitwise right shift */
-    BinaryFunc rshift;
-    /* bitwise and */
-    BinaryFunc bit_and;
-    /* bitwise or */
-    BinaryFunc bit_or;
-    /* bitwise xor */
-    BinaryFunc bit_xor;
-    /* bitwise not */
-    UnaryFunc bit_not;
-} BitwiseMethods;
-
-typedef struct _SeqMethods {
-    /* sequence length */
-    LenFunc len;
-    /* sequence contains */
-    ContainsFunc contains;
-    /* sequence item getter */
-    GetItemFunc get;
-    /* sequence item setter */
-    SetItemFunc set;
-    /* sequence slice getter */
-    GetSliceFunc get_slice;
-    /* sequence slice setter */
-    SetSliceFunc set_slice;
-} SeqMethods;
-
-typedef struct _MapMethods {
-    /* mapping length */
-    LenFunc len;
-    /* mapping contains */
-    ContainsFunc contains;
-    /* mapping item getter */
-    GetSubFunc get_sub;
-    /* mapping item setter */
-    SetSubFunc set_sub;
-} MapMethods;
 
 typedef enum {
     /* hot slots -- dict/loop hot paths, all within the first cache line of TypeObject */
@@ -307,11 +235,8 @@ typedef enum {
     SLOT_SET_SLICE, /* __setslice__ */
 
     /* mapping subscript protocol */
-    SLOT_GET_SUBSCRIPT, // __getsub__
-    SLOT_SET_SUBSCRIPT, // __setsub__
-
-    /* arithmetic protocol */
-    SLOT_ADD, // OP_NUM_ADD
+    SLOT_GET_SUB, // __getsub__
+    SLOT_SET_SUB, // __setsub__
 
     /* cold slots */
 
@@ -319,6 +244,7 @@ typedef enum {
     SLOT_STR, // __str__ -- print path
 
     /* arithmetic protocol */
+    SLOT_ADD, // OP_NUM_ADD
     SLOT_SUB, // OP_NUM_SUB
     SLOT_MUL, // OP_NUM_MUL
     SLOT_DIV, // OP_NUM_DIV
@@ -326,15 +252,14 @@ typedef enum {
     SLOT_NEG, // unary minus
 
     /* bitwise protocol */
-    SLOT_LSHIFT,  // OP_NUM_SHL
-    SLOT_RSHIFT,  // OP_NUM_SHR
+    SLOT_SHL,     // OP_NUM_SHL
+    SLOT_SHR,     // OP_NUM_SHR
     SLOT_BIT_AND, // OP_NUM_AND
     SLOT_BIT_OR,  // OP_NUM_OR
     SLOT_BIT_XOR, // OP_NUM_XOR
     SLOT_BIT_NOT, // bitwise NOT
 
-    /* callable protocol */
-    SLOT_CALL, // __call__ -- invoking non-function objects
+    /* other slots */
 
     SLOT_MAX
 } SlotId;
@@ -345,61 +270,46 @@ Object *kl_get_intf_func(TValue *intf, int func_idx);
 #define TP_FLAGS_CLASS (1 << 1)
 #define TP_FLAGS_READY (1 << 2)
 
+/**
+ * Object memory layout:
+ * +-----------------------------------+
+ * | TypeObject *type                  |  <- Object Header (sizeof(BaseObject))
+ * +-----------------------------------+
+ * | size_t _size                       |  <- Size of the Koala-visible fields (dynamic size)
+ * +-----------------------------------+
+ * | TValue fields[num_fields]         |  <- Koala-visible fields (dynamic size)
+ * +-----------------------------------+
+ * | char priv_data[priv_size]         |  <- C-private opaque payload (dynamic size)
+ * +-----------------------------------+
+ *
+ * NOTE: The 'priv_data' region is entirely invisible to Koala bytecode.
+ *       It is managed exclusively by the C native runtime side.
+ */
+
 typedef struct _TypeObject {
     OBJECT_HEAD
 
     /* Interface tables */
     Vector itables;
+    /* slots for special methods */
+    Object *slots[SLOT_MAX];
 
-    /**
-     * Object memory layout:
-     * +-----------------------------------+
-     * | TypeObject *type                  |  <- Object Header (sizeof(BaseObject))
-     * +-----------------------------------+
-     * | size_t _size                       |  <- Size of the Koala-visible fields (dynamic size)
-     * +-----------------------------------+
-     * | TValue fields[num_fields]         |  <- Koala-visible fields (dynamic size)
-     * +-----------------------------------+
-     * | char priv_data[priv_size]         |  <- C-private opaque payload (dynamic size)
-     * +-----------------------------------+
-     *
-     * NOTE: The 'priv_data' region is entirely invisible to Koala bytecode.
-     *       It is managed exclusively by the C native runtime side.
-     */
-
+    /* Type name */
+    char *name;
     /* size of the C-private opaque payload appended to each object */
     int priv_size;
-
     /* TP_FLAGS_XXX */
     int flags;
-
-    /* hashable protocol(__hash__) */
-    HashFunc hash;
-    /* comparison protocol(__eq__, __lt__, etc.) */
-    RichCmpFunc cmp;
-    /* tostring protocol(__str__) */
-    StrFunc str;
-    /* callable protocol(__call__) */
-    CallFunc call;
-
-    /* arithmetic protocol */
-    ArithmeticMethods *arith;
-    /* bitwise protocol */
-    BitwiseMethods *bit;
-    /* sequence protocol */
-    SeqMethods *seq;
-    /* mapping protocol */
-    MapMethods *map;
+    /* gc mark */
+    GcMarkFunc gc_mark;
 
     /* init function */
     InitFunc init;
     /* fini function */
     FiniFunc fini;
-    /* gc mark */
-    GcMarkFunc gc_mark;
+    /* callable (__call__) */
+    CallFunc call;
 
-    /* Type name */
-    char *name;
     /* fields */
     Vector fields;
     /* methods */
@@ -408,12 +318,8 @@ typedef struct _TypeObject {
     HashMap members;
     /* module */
     Object *module;
-
     /* methoddefs */
     MethodDef *methdefs;
-
-    /* slots for special methods */
-    Object *slots[SLOT_MAX];
 } TypeObject;
 
 typedef struct _IntfTable {
@@ -619,28 +525,6 @@ int kl_tp_add_field(TypeObject *tp, char *name, Object *field);
 int kl_tp_add_method(TypeObject *tp, char *name, Object *meth);
 void kl_tp_install_slots(TypeObject *tp);
 
-static inline Object *kl_to_str(TValue *val)
-{
-    TypeObject *tp = kl_typeof(val);
-    ASSERT(tp && tp->str);
-    TValue s = tp->str(val);
-    return to_obj(&s);
-}
-
-static inline unsigned int kl_hash(TValue *val)
-{
-    TypeObject *tp = kl_typeof(val);
-    ASSERT(tp && tp->hash);
-    return tp->hash(val);
-}
-
-static inline TValue kl_compare(TValue *v1, TValue *v2, int op)
-{
-    TypeObject *tp = kl_typeof(v1);
-    ASSERT(tp && tp->cmp);
-    return tp->cmp(v1, v2, op);
-}
-
 Object *kl_type_find(TypeObject *tp, char *name);
 
 /* Any object is callable, if it implements the call protocol. */
@@ -781,6 +665,85 @@ TValue kl_eval_code(TValue *self, TValue *args, int nargs);
 void kl_run_main(Object *m);
 void kl_run_init(Object *m);
 void kl_panic(char *msg);
+
+/*---------------------------------------------------------------------------+
+ |  Slot Call                                                                |
+ +---------------------------------------------------------------------------*/
+
+static inline TValue kl_slot_call_no_arg(TValue *self, int slotid)
+{
+    TypeObject *tp = kl_typeof(self);
+    ASSERT(tp);
+    Object *fn = tp->slots[slotid];
+    ASSERT(fn);
+
+    TValue ret;
+
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        ret = cfn->func(self, NULL, 0);
+    } else {
+        TValue val = obj_value(fn);
+        ret = kl_eval_code(&val, self, 1);
+    }
+
+    return ret;
+}
+
+static inline TValue kl_slot_call_one_arg(TValue *self, TValue *arg, int slotid)
+{
+    TypeObject *tp = kl_typeof(self);
+    ASSERT(tp);
+    Object *fn = tp->slots[slotid];
+    ASSERT(fn);
+
+    TValue ret;
+
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        ret = cfn->func(self, arg, 1);
+    } else {
+        TValue val = obj_value(fn);
+        TValue args[] = { *self, *arg };
+        ret = kl_eval_code(&val, args, 2);
+    }
+
+    return ret;
+}
+
+static inline TValue kl_slot_call_two_args(TValue *self, TValue *arg0, TValue *arg1, int slotid)
+{
+    TypeObject *tp = kl_typeof(self);
+    ASSERT(tp);
+    Object *fn = tp->slots[slotid];
+    ASSERT(fn);
+
+    TValue ret;
+
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfn = (CFuncObject *)fn;
+        TValue args[] = { *arg0, *arg1 };
+        ret = cfn->func(self, args, 2);
+    } else {
+        TValue val = obj_value(fn);
+        TValue args[] = { *self, *arg0, *arg1 };
+        ret = kl_eval_code(&val, args, 3);
+    }
+
+    return ret;
+}
+
+static inline Object *kl_to_str(TValue *val)
+{
+    TValue s = kl_slot_call_no_arg(val, SLOT_STR);
+    return to_obj(&s);
+}
+
+static inline unsigned int kl_hash(TValue *val)
+{
+    TValue ret = kl_slot_call_no_arg(val, SLOT_HASH);
+    return (unsigned int)to_int64(&ret);
+}
 
 #ifdef __cplusplus
 }

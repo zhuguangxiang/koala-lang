@@ -1189,7 +1189,7 @@ static TValue _str_getitem(TValue *self, TValue *args, int nargs)
     int64_t index = kl_arg_int64(0);
     StringObject *s = SELF_AS(str_type);
     if (index < 0) index += s->size;
-    if (index < 0 || index >= s->size) panic("string index out of range");
+    if (index < 0 || index >= (int64_t)s->size) panic("string index out of range");
     return kl_val_nstr(s->array + index, 1);
 }
 
@@ -1271,7 +1271,8 @@ static MethodDef _str_methods[] = {
     { NULL },
 };
 
-DEFINE_TYPE(str, TP_FLAGS_CLASS, 0, _str_methods, NULL);
+/* pub class str : Sequence & Comparable { ... } */
+DEFINE_TYPE(str, TP_FLAGS_CLASS, sizeof(StringObject), _str_methods, NULL);
 
 static StringObject empty_str = {
     ._type = &str_type,

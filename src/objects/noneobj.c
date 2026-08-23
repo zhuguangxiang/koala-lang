@@ -9,17 +9,22 @@
 extern "C" {
 #endif
 
-static TValue none_str(TValue *self)
+static TValue _none_str(TValue *self, TValue *args, int nargs)
 {
     Object *s = kl_new_str("none");
     return obj_value(s);
 }
 
+static MethodDef _none_methods[] = {
+    { "__str__", _none_str },
+    { NULL },
+};
+
 TypeObject none_type = {
     ._type = &type_type,
     .name = "NoneType",
     .flags = TP_FLAGS_VALUE,
-    .str = none_str,
+    .methdefs = _none_methods,
 };
 
 #ifdef __cplusplus

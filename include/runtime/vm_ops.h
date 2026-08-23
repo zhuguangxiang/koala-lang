@@ -1206,28 +1206,25 @@ TARGET(OP_NUM_EQ) {
 
     TValue *v1 = regs + rs;
     TValue *v2 = regs + rt;
+    TValue ret;
 
     if (is_int64(v1) && is_int64(v2)) {
         // int64 doesn't have cmp function
-        regs[rd] = bool_value(v1->ival == v2->ival);
-        DISPATCH();
+        ret = bool_value(v1->ival == v2->ival);
     } else if (is_float64(v1) && is_float64(v2)) {
         // float64 doesn't have cmp function
-        regs[rd] = bool_value(v1->fval == v2->fval);
-        DISPATCH();
+        ret = bool_value(v1->fval == v2->fval);
     } else if (is_uint64(v1) && is_uint64(v2)) {
         // uint64 doesn't have cmp function
-        regs[rd] = bool_value((uint64_t)v1->ival == (uint64_t)v2->ival);
-        DISPATCH();
+        ret = bool_value((uint64_t)v1->ival == (uint64_t)v2->ival);
     } else if (is_bool(v1) && is_bool(v2)) {
         // bool doesn't have cmp function
-        regs[rd] = bool_value(v1->ival == v2->ival);
-        DISPATCH();
+        ret = bool_value(v1->ival == v2->ival);
+    } else {
+        ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_EQ);
     }
 
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->cmp);
-    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_EQ);
+    regs[rd] = ret;
 
     DISPATCH();
 }
@@ -1243,28 +1240,25 @@ TARGET(OP_NUM_NE) {
 
     TValue *v1 = regs + rs;
     TValue *v2 = regs + rt;
+    TValue ret;
 
     if (is_int64(v1) && is_int64(v2)) {
         // int64 doesn't have cmp function
-        regs[rd] = bool_value(v1->ival != v2->ival);
-        DISPATCH();
+        ret = bool_value(v1->ival != v2->ival);
     } else if (is_float64(v1) && is_float64(v2)) {
         // float64 doesn't have cmp function
-        regs[rd] = bool_value(v1->fval != v2->fval);
-        DISPATCH();
+        ret = bool_value(v1->fval != v2->fval);
     } else if (is_uint64(v1) && is_uint64(v2)) {
         // uint64 doesn't have cmp function
-        regs[rd] = bool_value((uint64_t)v1->ival != (uint64_t)v2->ival);
-        DISPATCH();
+        ret = bool_value((uint64_t)v1->ival != (uint64_t)v2->ival);
     } else if (is_bool(v1) && is_bool(v2)) {
         // bool doesn't have cmp function
-        regs[rd] = bool_value(v1->ival != v2->ival);
-        DISPATCH();
+        ret = bool_value(v1->ival != v2->ival);
+    } else {
+        ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_NE);
     }
 
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->cmp);
-    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_NE);
+    regs[rd] = ret;
 
     DISPATCH();
 }
@@ -1280,24 +1274,22 @@ TARGET(OP_NUM_LT) {
 
     TValue *v1 = regs + rs;
     TValue *v2 = regs + rt;
+    TValue ret;
 
     if (is_int64(v1) && is_int64(v2)) {
         // int64 doesn't have cmp function
-        regs[rd] = bool_value(v1->ival < v2->ival);
-        DISPATCH();
+        ret = bool_value(v1->ival < v2->ival);
     } else if (is_float64(v1) && is_float64(v2)) {
         // float64 doesn't have cmp function
-        regs[rd] = bool_value(v1->fval < v2->fval);
-        DISPATCH();
+        ret = bool_value(v1->fval < v2->fval);
     } else if (is_uint64(v1) && is_uint64(v2)) {
         // uint64 doesn't have cmp function
-        regs[rd] = bool_value((uint64_t)v1->ival < (uint64_t)v2->ival);
-        DISPATCH();
+        ret = bool_value((uint64_t)v1->ival < (uint64_t)v2->ival);
+    } else {
+        ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_LT);
     }
 
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->cmp);
-    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_LT);
+    regs[rd] = ret;
 
     DISPATCH();
 }
@@ -1313,24 +1305,22 @@ TARGET(OP_NUM_LE) {
 
     TValue *v1 = regs + rs;
     TValue *v2 = regs + rt;
+    TValue ret;
 
     if (is_int64(v1) && is_int64(v2)) {
         // int64 doesn't have cmp function
-        regs[rd] = bool_value(v1->ival <= v2->ival);
-        DISPATCH();
+        ret = bool_value(v1->ival <= v2->ival);
     } else if (is_float64(v1) && is_float64(v2)) {
         // float64 doesn't have cmp function
-        regs[rd] = bool_value(v1->fval <= v2->fval);
-        DISPATCH();
+        ret = bool_value(v1->fval <= v2->fval);
     } else if (is_uint64(v1) && is_uint64(v2)) {
         // uint64 doesn't have cmp function
-        regs[rd] = bool_value((uint64_t)v1->ival <= (uint64_t)v2->ival);
-        DISPATCH();
+        ret = bool_value((uint64_t)v1->ival <= (uint64_t)v2->ival);
+    } else {
+        ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_LE);
     }
 
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->cmp);
-    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_LE);
+    regs[rd] = ret;
 
     DISPATCH();
 }
@@ -1346,24 +1336,22 @@ TARGET(OP_NUM_GT) {
 
     TValue *v1 = regs + rs;
     TValue *v2 = regs + rt;
+    TValue ret;
 
     if (is_int64(v1) && is_int64(v2)) {
         // int64 doesn't have cmp function
-        regs[rd] = bool_value(v1->ival > v2->ival);
-        DISPATCH();
+        ret = bool_value(v1->ival > v2->ival);
     } else if (is_float64(v1) && is_float64(v2)) {
         // float64 doesn't have cmp function
-        regs[rd] = bool_value(v1->fval > v2->fval);
-        DISPATCH();
+        ret = bool_value(v1->fval > v2->fval);
     } else if (is_uint64(v1) && is_uint64(v2)) {
         // uint64 doesn't have cmp function
-        regs[rd] = bool_value((uint64_t)v1->ival > (uint64_t)v2->ival);
-        DISPATCH();
+        ret = bool_value((uint64_t)v1->ival > (uint64_t)v2->ival);
+    } else {
+        ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_GT);
     }
 
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->cmp);
-    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_GT);
+    regs[rd] = ret;
 
     DISPATCH();
 }
@@ -1379,24 +1367,22 @@ TARGET(OP_NUM_GE) {
 
     TValue *v1 = regs + rs;
     TValue *v2 = regs + rt;
+    TValue ret;
 
     if (is_int64(v1) && is_int64(v2)) {
         // int64 doesn't have cmp function
-        regs[rd] = bool_value(v1->ival >= v2->ival);
-        DISPATCH();
+        ret = bool_value(v1->ival >= v2->ival);
     } else if (is_float64(v1) && is_float64(v2)) {
         // float64 doesn't have cmp function
-        regs[rd] = bool_value(v1->fval >= v2->fval);
-        DISPATCH();
+        ret = bool_value(v1->fval >= v2->fval);
     } else if (is_uint64(v1) && is_uint64(v2)) {
         // uint64 doesn't have cmp function
-        regs[rd] = bool_value((uint64_t)v1->ival >= (uint64_t)v2->ival);
-        DISPATCH();
+        ret = bool_value((uint64_t)v1->ival >= (uint64_t)v2->ival);
+    } else {
+        ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_GE);
     }
 
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->cmp);
-    regs[rd] = tp->cmp(regs + rs, regs + rt, CMP_GE);
+    regs[rd] = ret;
 
     DISPATCH();
 }
@@ -1409,9 +1395,8 @@ TARGET(OP_NUM_ADD) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->arith);
-    regs[rd] = tp->arith->add(regs + rs, regs + rt);
+
+    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_ADD);
 
     DISPATCH();
 }
@@ -1424,9 +1409,8 @@ TARGET(OP_NUM_SUB) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->arith);
-    regs[rd] = tp->arith->sub(regs + rs, regs + rt);
+
+    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_SUB);
 
     DISPATCH();
 }
@@ -1439,9 +1423,8 @@ TARGET(OP_NUM_MUL) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->arith);
-    regs[rd] = tp->arith->mul(regs + rs, regs + rt);
+
+    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_MUL);
 
     DISPATCH();
 }
@@ -1454,9 +1437,8 @@ TARGET(OP_NUM_DIV) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->arith);
-    regs[rd] = tp->arith->div(regs + rs, regs + rt);
+
+    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_DIV);
 
     DISPATCH();
 }
@@ -1469,9 +1451,8 @@ TARGET(OP_NUM_MOD) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    TypeObject *tp = kl_typeof(regs + rs);
-    ASSERT(tp && tp->arith);
-    regs[rd] = tp->arith->mod(regs + rs, regs + rt);
+
+    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_MOD);
 
     DISPATCH();
 }
@@ -1487,11 +1468,7 @@ TARGET(OP_SEQ_GET) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    TypeObject *tp = kl_typeof(regs + rs);
-    SeqMethods *seq = tp->seq;
-    ASSERT(seq && seq->get);
-    size_t index = to_int64(regs + rt);
-    regs[rd] = seq->get(regs + rs, index);
+    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_GET_ITEM);
 
     DISPATCH();
 }
@@ -1504,10 +1481,8 @@ TARGET(OP_SEQ_GET_IMM) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
 
-    TypeObject *tp = kl_typeof(regs + rs);
-    SeqMethods *seq = tp->seq;
-    ASSERT(seq && seq->get);
-    regs[rd] = seq->get(regs + rs, imm);
+    TValue index = int64_value(imm);
+    regs[rd] = kl_slot_call_one_arg(regs + rs, &index, SLOT_GET_ITEM);
 
     DISPATCH();
 }
@@ -1518,11 +1493,8 @@ TARGET(OP_SEQ_LEN) {
 
     CHECK_REG_ID(rs);
 
-    TypeObject *tp = kl_typeof(regs + rs);
-    SeqMethods *seq = tp->seq;
-    ASSERT(seq && seq->len);
-    size_t v = seq->len(regs + rs);
-    if (rd != 0xFFFu) regs[rd] = int64_value(v);
+    TValue ret = kl_slot_call_no_arg(regs + rs, SLOT_LEN);
+    if (rd != 0xFFFu) regs[rd] = ret;
 
     DISPATCH();
 }
@@ -1536,11 +1508,7 @@ TARGET(OP_SEQ_SET) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    TypeObject *tp = kl_typeof(regs + rd);
-    SeqMethods *seq = tp->seq;
-    ASSERT(seq && seq->set);
-    size_t index = to_int64(regs + rt);
-    seq->set(regs + rd, index, regs + rs);
+    kl_slot_call_two_args(regs + rd, regs + rt, regs + rs, SLOT_SET_ITEM);
 
     DISPATCH();
 }
@@ -1553,10 +1521,8 @@ TARGET(OP_SEQ_SET_IMM) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
 
-    TypeObject *tp = kl_typeof(regs + rd);
-    SeqMethods *seq = tp->seq;
-    ASSERT(seq && seq->set);
-    seq->set(regs + rd, imm, regs + rs);
+    TValue index = int64_value(imm);
+    kl_slot_call_two_args(regs + rd, &index, regs + rs, SLOT_SET_ITEM);
 
     DISPATCH();
 }

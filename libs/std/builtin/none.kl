@@ -1,0 +1,19 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Represents a missing optional value in Koala.
+///
+/// `NoneType` is the type of the singleton value `none`.
+/// It is used exclusively to indicate that an optional value is absent.
+///
+/// `none` is a unique value: there is only one instance of `NoneType`.
+///
+pub class NoneType {
+
+    /// Return the string representation of `none`.
+    /// Always returns "none".
+    @native
+    pub func __str__() str {}
+}

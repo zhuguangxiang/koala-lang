@@ -125,20 +125,11 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
     }
 }
 
-static MethodDef list_methods[] = {
-    { "append", _list_append }, { "pop", _list_pop },       { "__len__", _list_len },
-    { "__str__", _list_str },   { "extend", _list_extend }, { NULL },
-};
-
-static size_t kl_list_seq_len(TValue *self)
+static TValue _list_getitem(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = (ListObject *)to_obj(self);
-    return list->end - list->start;
-}
+    size_t index = to_int64(args);
 
-static TValue kl_list_seq_get(TValue *self, size_t index)
-{
-    ListObject *list = (ListObject *)to_obj(self);
     if (index >= list->end - list->start) {
         panic("list index out of range");
         return none_value;
@@ -146,33 +137,29 @@ static TValue kl_list_seq_get(TValue *self, size_t index)
     return list->array[list->start + index];
 }
 
-static void kl_list_seq_set(TValue *self, size_t index, TValue *value)
+static TValue _list_setitem(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = (ListObject *)to_obj(self);
+    size_t index = to_int64(args);
+
     if (index >= list->end - list->start) {
         panic("list index out of range");
+        return none_value;
     }
-    // write_barrier(list, *value);
-    list->array[list->start + index] = *value;
+    // write_barrier(list, args[1]);
+    list->array[list->start + index] = args[1];
+    return none_value;
 }
 
-static SeqMethods list_seq_methods = {
-    .len = kl_list_seq_len,
-    // .contains = kl_list_contains,
-    .get = kl_list_seq_get,
-    .set = kl_list_seq_set,
+static MethodDef list_methods[] = {
+    { "append", _list_append },       { "pop", _list_pop },
+    { "__len__", _list_len },         { "__str__", _list_str },
+    { "extend", _list_extend },       { "__getitem__", _list_getitem },
+    { "__setitem__", _list_setitem }, { NULL },
 };
 
-/*
-pub class list[T] : MutableSequence[T] { ... }
-*/
-TypeObject list_type = {
-    ._type = &type_type,
-    .name = "list",
-    .flags = TP_FLAGS_CLASS,
-    .methdefs = list_methods,
-    .seq = &list_seq_methods,
-};
+/* pub class list[T] : MutableSequence[T] { ... } */
+DEFINE_TYPE(list, TP_FLAGS_CLASS, sizeof(ListObject), list_methods, NULL);
 
 Object *kl_new_list(void)
 {

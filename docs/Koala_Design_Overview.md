@@ -129,6 +129,16 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 - **LRO**：类型内省可见全部遵循关系与编译器插入的内容。
 - **变型**：参数不变（invariant），返回值协变（covariant）。
 
+**三轨分发，零运行期名字解析**——Koala 全部调用形态归入三条轨道，没有一轨需要 vtable 式的方法名运行时查找：
+
+| 调用场景 | 分发机制 | 查表开销 |
+|---------|---------|---------|
+| class 自身方法 | 同模块编译期解析为直接调用（CALL rel32）；跨模块按名查 `tp->members`（wasm import 风格，绑定期完成） | 零（直调）／绑定期一次 |
+| trait 泛型分发 | `itables[idx]`（intf-table 按编译期定死的下标） | 一次索引 |
+| 协议 dunder（运算符/哈希/下标等） | `slots[id]`（`SlotId` 编译期定死，见 §7.3） | 一次索引 |
+
+`TypeObject` 上因此只有两张分发表：`itables` 与 `slots[]`（热区分发数据，紧邻排布）——不存在也不需要 vtable；方法名字典（`members`）只服务跨模块绑定与内省，不在调用热路径上。
+
 ---
 
 ## 5. 数值类型
@@ -217,7 +227,7 @@ DEFINE_TYPE(str, TP_FLAGS_CLASS, 0, _str_methods);
 
 **性能**：原路径两层间接（协议字段 → 蹦床 → 重复 `kl_typeof` → slots[] → 实现）变一层（slots[] → Object → 实现），热路径受益最大（dict 的 `__hash__` / `__eq__`、循环的 `__len__`）。若 profile 显示 TValue 打包仍嫌贵，逃生门是第三档 intrinsic（槽打标记、VM 走 C switch），而非退回双轨。
 
-**槽位按热度排布**（与 vm_ops.h 指令分层同一纪律，见 §11.7；分层依据是执行频率，是槽布局自身的设计，不依赖某槽是否已有对应指令）：hot 槽（比较协议 `SLOT_EQ..SLOT_GE` + `SLOT_HASH`）占前 56 字节——一条 cache line 内，dict 探测的 hash + eq 永不越线；warm 槽居第二线：序列协议（`SLOT_LEN` / `SLOT_GET_ITEM` / `SLOT_SET_ITEM` / `SLOT_CONTAINS`）、切片协议（`SLOT_GET_SLICE` / `SLOT_SET_SLICE`）、映射下标（`SLOT_GET_SUBSCRIPT` / `SLOT_SET_SUBSCRIPT`）、算术族中最热的 `SLOT_ADD`；cold 槽殿后：`SLOT_STR`、其余算术（`SLOT_SUB..SLOT_NEG`）、`SLOT_CALL`、位运算族。`EQ..GE` 连续且 EQ 打头，保留 richcmp 按 `SLOT_EQ + op` 寻址的约定。槽 id 仅运行时按 dunder 名绑定，不进字节码序列化，重排不破坏 .klc 兼容。
+**槽位按热度排布**（与 vm_ops.h 指令分层同一纪律，见 §11.7；分层依据是执行频率，是槽布局自身的设计，不依赖某槽是否已有对应指令）：hot 槽（比较协议 `SLOT_EQ..SLOT_GE` + `SLOT_HASH`）占前 56 字节——一条 cache line 内，dict 探测的 hash + eq 永不越线；warm 槽居第二线：序列协议（`SLOT_LEN` / `SLOT_GET_ITEM` / `SLOT_SET_ITEM` / `SLOT_CONTAINS`）、切片协议（`SLOT_GET_SLICE` / `SLOT_SET_SLICE`）、映射下标（`SLOT_GET_SUBSCRIPT` / `SLOT_SET_SUBSCRIPT`）、算术族中最热的 `SLOT_ADD`；cold 槽殿后：`SLOT_STR`、其余算术（`SLOT_SUB..SLOT_NEG`）、位运算族。`EQ..GE` 连续且 EQ 打头，保留 richcmp 按 `SLOT_EQ + op` 寻址的约定。槽 id 仅运行时按 dunder 名绑定，不进字节码序列化，重排不破坏 .klc 兼容。
 
 **唯一例外**：`gc_mark` 保留为 C 函数指针——纯 GC 引擎内部回调，无 Koala 语义，不进方法表（已作为 `DEFINE_TYPE` 的参数）。C 侧快速分配器（`kl_new_bytes` 等）绕过 `__init__` 直铺内存，属设计内行为，不受影响。
 

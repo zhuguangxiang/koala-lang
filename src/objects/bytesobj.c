@@ -180,10 +180,34 @@ static TValue _bytes_tostr(TValue *self, TValue *args, int nargs)
     return obj_value(s);
 }
 
+static TValue _bytes_getitem(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *bytes = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 1);
+    int64_t index = to_int64(args);
+    ASSERT(index >= 0 && index < bytes->size);
+    return uint8_value(bytes->data[bytes->offset + index]);
+}
+
+static TValue _bytes_setitem(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *bytes = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 2);
+    int64_t index = to_int64(args);
+    ASSERT(index >= 0 && index < bytes->size);
+    ASSERT(is_uint8(&args[1]));
+    bytes->data[bytes->offset + index] = (uint8_t)args[1].ival;
+    return none_value;
+}
+
 static MethodDef bytes_methods[] = {
     { "__len__", _bytes_len },
     { "__str__", _bytes_str },
     { "__init__", _bytes_init },
+    { "__getitem__", _bytes_getitem },
+    { "__setitem__", _bytes_setitem },
     { "index", _bytes_index },
     { "count", _bytes_count },
     { "copy", _bytes_copy },
@@ -194,49 +218,8 @@ static MethodDef bytes_methods[] = {
     { NULL, NULL },
 };
 
-static size_t _bytes_seq_len(TValue *self)
-{
-    BytesObject *bytes = (BytesObject *)to_obj(self);
-    return bytes->size;
-}
-
-static TValue _bytes_seq_get(TValue *self, size_t index)
-{
-    BytesObject *bytes = (BytesObject *)to_obj(self);
-    if (index >= bytes->size) {
-        panic("bytes index out of range");
-        return none_value;
-    }
-    uint8_t value = bytes->data[bytes->offset + index];
-    return uint8_value(value);
-}
-
-static void _bytes_seq_set(TValue *self, size_t index, TValue *value)
-{
-    BytesObject *bytes = (BytesObject *)to_obj(self);
-    if (index >= bytes->size) {
-        panic("bytes index out of range");
-    }
-    ASSERT(is_uint8(value));
-    bytes->data[bytes->offset + index] = (uint8_t)value->ival;
-}
-
-static SeqMethods bytes_seq_methods = {
-    .len = _bytes_seq_len,
-    // .contains = _bytes_contains,
-    .get = _bytes_seq_get,
-    .set = _bytes_seq_set,
-};
-
-/* pub class bytes : MutableSequence[uint8] { ... } */
-TypeObject bytes_type = {
-    ._type = &type_type,
-    .name = "bytes",
-    .priv_size = 2 * sizeof(uint32_t) + sizeof(uint8_t *),
-    .flags = TP_FLAGS_CLASS,
-    .methdefs = bytes_methods,
-    .seq = &bytes_seq_methods,
-};
+/* pub class bytes : Sequence[uint8] { ... } */
+DEFINE_TYPE(bytes, TP_FLAGS_CLASS, 2 * sizeof(uint32_t) + sizeof(uint8_t *), bytes_methods, NULL);
 
 Object *kl_new_bytes(uint32_t size)
 {

@@ -18,8 +18,8 @@ typedef struct _ByteBufObject {
     Buffer buf;
 } ByteBufObject;
 
-extern TypeObject bytebuf_type;
-#define IS_BYTEBUF(ob) IS_TYPE((ob), &bytebuf_type)
+extern TypeObject ByteBuf_type;
+#define IS_BYTEBUF(ob) IS_TYPE((ob), &ByteBuf_type)
 Object *kl_new_bytebuf(size_t size);
 
 #ifdef __cplusplus

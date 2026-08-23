@@ -29,7 +29,9 @@
 | [`ByteBuf`](#bytebuf) | A ByteBuf is a variable-length, readable and writable byte buffer. |
 | [`bytes`](#bytes) | A bytes is a fixed-size, readable and writable byte array. |
 | [`dict`](#dict) | A dict is a mutable, insertion-ordered hash map that maps unique keys to values. |
+| [`Exception`](#exception) | An exception object represents a raised exception. |
 | [`list`](#list) | A list is a mutable sequence of elements. |
+| [`NoneType`](#nonetype) | Represents a missing optional value in Koala. |
 | [`int8`](#int8) | An 8-bit signed integer. |
 | [`int16`](#int16) | A 16-bit signed integer. |
 | [`int32`](#int32) | A 32-bit signed integer. |
@@ -1351,6 +1353,16 @@ Merge all (key, value) pairs from `src` into the dict in place, replacing the va
 
 Return a reverse iterator over the (key, value) pairs in reverse insertion order.
 
+### `Exception`
+
+```kl
+pub class Exception {}
+```
+
+An exception object represents a raised exception. Once raised, it cannot be caught and must be resolved. The func [`panic`](#panic) is the only way to raise it.
+
+**See:** [`panic`](#panic)
+
 ### `list`
 
 ```kl
@@ -1533,6 +1545,28 @@ Return a copy of the list from `start` (inclusive) to `end` (exclusive). If `end
 **`reversed() Iterator[T]`** — *`@native`*
 
 Return a reverse iterator over the elements of the list.
+
+### `NoneType`
+
+```kl
+pub class NoneType {
+    pub func __str__() str
+}
+```
+
+Represents a missing optional value in Koala.
+
+[`NoneType`](#nonetype) is the type of the singleton value `none`. It is used exclusively to indicate that an optional value is absent.
+
+`none` is a unique value: there is only one instance of [`NoneType`](#nonetype).
+
+---
+
+<a id="nonetype.__str__"></a>
+
+**`__str__() str`** — *`@native`*
+
+Return the string representation of `none`. Always returns "none".
 
 ### `int8`
 
@@ -3382,7 +3416,7 @@ Return true if the tuple is empty, false otherwise. O(1).
 
 <a id="tuple.__getitem__"></a>
 
-**`__getitem__[infer U](index int) U`** — *`@intrinsic`*
+**`__getitem__[infer U](index int) U`** — *`@native`*
 
 Get the element at the specified index. The element type is inferred from the usage context. Panic if the index is out of range.
 

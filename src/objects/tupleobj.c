@@ -38,21 +38,17 @@ static TValue _tuple_str(TValue *self, TValue *args, int nargs)
     return obj_value(sobj);
 }
 
-static MethodDef tuple_methods[] = {
-    { "to_list", _tuple_tolist },
-    { "__str__", _tuple_str },
-    { NULL },
-};
-
-static size_t kl_tuple_seq_len(TValue *self)
+static TValue _tuple_len(TValue *self, TValue *args, int nargs)
 {
-    TupleObject *tuple = (TupleObject *)to_obj(self);
-    return tuple->size;
+    TupleObject *tuple = SELF_AS(tuple_type);
+    return int64_value((int64_t)tuple->size);
 }
 
-static TValue kl_tuple_seq_get(TValue *self, size_t index)
+static TValue _tuple_getitem(TValue *self, TValue *args, int nargs)
 {
     TupleObject *tuple = (TupleObject *)to_obj(self);
+    size_t index = to_int64(args);
+
     if (index >= tuple->size) {
         panic("tuple index out of range");
         return none_value;
@@ -60,19 +56,16 @@ static TValue kl_tuple_seq_get(TValue *self, size_t index)
     return tuple->array[index];
 }
 
-static SeqMethods tuple_seq_methods = {
-    .len = kl_tuple_seq_len,
-    // .contains = kl_tuple_seq_contains,
-    .get = kl_tuple_seq_get,
+static MethodDef tuple_methods[] = {
+    { "to_list", _tuple_tolist },
+    { "__str__", _tuple_str },
+    { "__len__", _tuple_len },
+    { "__getitem__", _tuple_getitem },
+    { NULL },
 };
 
-TypeObject tuple_type = {
-    ._type = &type_type,
-    .name = "tuple",
-    .flags = TP_FLAGS_CLASS,
-    .methdefs = tuple_methods,
-    .seq = &tuple_seq_methods,
-};
+/* pub class tuple[infer T] : Sequence[T] { ... } */
+DEFINE_TYPE(tuple, TP_FLAGS_CLASS, sizeof(TupleObject), tuple_methods, NULL);
 
 Object *kl_new_tuple(TValue *items, int count)
 {
