@@ -207,6 +207,21 @@ DEFINE_TYPE(str, TP_FLAGS_CLASS, 0, _str_methods);
 
 展开为 `TypeObject str_type`（name / flags / priv_size / methdefs 一次配齐）。协议 dunder（`__len__` / `__getitem__` / `__contains__` 等）直接作为普通方法注册进 `MethodDef` 表，不再走独立的 SeqMethods 结构。
 
+### 7.3 协议的统一表示：槽（slots）
+
+**协议是概念，结构体只是实现载体之一——Koala 删掉了载体，只留概念。** Hashable / Equatable / Comparable / 算术 / 位运算 / Sequence / Mapping / Printable / Callable 这些协议依然存在，其定义就是槽 id 的命名分区（`SlotId` 枚举：`SLOT_ADD..SLOT_MOD` = 算术、`SLOT_LSHIFT..SLOT_BIT_NOT` = 位运算、`SLOT_LEN..SLOT_SET_SUBSCRIPT` = 序列/映射）加上语言侧的 dunder 名；trait 系统是这些协议的语言层投影。协议的边界本来就是方法签名的集合，用槽分区表达，概念与实现一一对应，无翻译损耗。
+
+**实现上不再为每个协议铸造 C 结构体**：`TypeObject` 上的协议函数指针字段（`hash` / `cmp` / `str` / `call`）与 `ArithmeticMethods` / `BitwiseMethods` / `SeqMethods` / `MapMethods` 全部移除，`slots[SLOT_MAX]`（元素为 `Object*`，即 CFuncObject 或 CodeObject）成为唯一分发源，MethodDef 是唯一注册通道。`__init__` / `__fini__` 同样只是普通方法，无特殊地位。
+
+反面对照：CPython 双轨制——`tp_as_number` / `tp_as_sequence` 等 C 槽结构 + `__dunder__` 方法并存，`typeobject.c` 靠数千行 `slot_tp_*` 蹦床同步两轨（classic classes 遗留 + C API 稳定承诺的产物）。双轨在 Koala 中还意味着按字节偏移回写协议字段的脆弱绑定机制。统一槽 = Lua（metatable 即普通值）/ JVM（vtable 统一分发）模型。槽分发与三档绑定模型自洽：协议函数指针曾是游离其外的隐藏路径，违背 nothing hidden。
+
+**性能**：原路径两层间接（协议字段 → 蹦床 → 重复 `kl_typeof` → slots[] → 实现）变一层（slots[] → Object → 实现），热路径受益最大（dict 的 `__hash__` / `__eq__`、循环的 `__len__`）。若 profile 显示 TValue 打包仍嫌贵，逃生门是第三档 intrinsic（槽打标记、VM 走 C switch），而非退回双轨。
+
+**槽位按热度排布**（与 vm_ops.h 指令分层同一纪律，见 §11.7；分层依据是执行频率，是槽布局自身的设计，不依赖某槽是否已有对应指令）：hot 槽（比较协议 `SLOT_EQ..SLOT_GE` + `SLOT_HASH`）占前 56 字节——一条 cache line 内，dict 探测的 hash + eq 永不越线；warm 槽居第二线：序列协议（`SLOT_LEN` / `SLOT_GET_ITEM` / `SLOT_SET_ITEM` / `SLOT_CONTAINS`）、切片协议（`SLOT_GET_SLICE` / `SLOT_SET_SLICE`）、映射下标（`SLOT_GET_SUBSCRIPT` / `SLOT_SET_SUBSCRIPT`）、算术族中最热的 `SLOT_ADD`；cold 槽殿后：`SLOT_STR`、其余算术（`SLOT_SUB..SLOT_NEG`）、`SLOT_CALL`、位运算族。`EQ..GE` 连续且 EQ 打头，保留 richcmp 按 `SLOT_EQ + op` 寻址的约定。槽 id 仅运行时按 dunder 名绑定，不进字节码序列化，重排不破坏 .klc 兼容。
+
+**唯一例外**：`gc_mark` 保留为 C 函数指针——纯 GC 引擎内部回调，无 Koala 语义，不进方法表（已作为 `DEFINE_TYPE` 的参数）。C 侧快速分配器（`kl_new_bytes` 等）绕过 `__init__` 直铺内存，属设计内行为，不受影响。
+
+
 - 类型系统信任声明签名，用户从不触碰桥接代码——`unsafe {}` 存在的理由（人在绕过类型系统）被结构性消除。
 - **内存层同样无 unsafe**：shadowstack 将 C / native 代码分配的对象注册为 GC root——native 侧分配的对象与 `.kl` 中分配的命运完全一致，无"记得释放"规则。对照：JNI 局部/全局引用、Python C API 引用计数、Go cgo handle table 均需手动管理。
 - 对照：Java JNI（句柄仪式）、Go cgo（栈切换开销）、Rust（强制 unsafe + transmute）、Python ctypes（运行时 marshal）。
@@ -410,6 +425,18 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 - **观察面全覆盖**：RUN 行覆盖 no-opt-ir / ssa / ir / lir / vreg / code / itable 全部 7 个 dump 阶段——"无隐藏特性"的工程回响：每个可观察阶段都有断言守护。
 - **负向断言文化**：优化器测试大量使用 CHECK-NOT 守护"不过度优化"（如不同常量的 phi 必须保留、死分支常量必须清除），测试的是正确性边界而非仅优化效果——LLVM 测试文化的核心实践。
 - **诊断与开关回归**：编译器错误消息有专门的 `2>&1` 回归测试；--int-trap / --float-trap / --fusion / --tail-call 每个编译开关均有对应测试。
+
+### 11.7 VM 指令布局：按执行频率物理排序
+
+`vm_ops.h` 的指令 TARGET 不按语义分组、按频率分层物理排布，源码注释即分层标记：
+
+- **hot**（文件头）：`OP_MOVE` / `OP_LOADK` / `OP_LOAD_INT_IMM`、整数 `ADD`/`SUB`（含 IMM 与 uint 变体）、整数序比较跳转 `OP_JMP_INT_LE/GT/LT/GE`、`OP_RET` 族——寄存器搬运、循环计数算术、循环回边分支。
+- **warm**：逻辑分支（EQ/NE、ref-null 判断）、`OP_CALL` / `OP_TAIL_CALL`、字段存取、`OP_NEW`、int 全序比较、位运算与逻辑短路、复杂整数算术（MUL/DIV/MOD）、`OP_NUM_*` 泛型数值、`OP_SEQ_*`、float 基本运算与跳转、intf 构造/上转。
+- **cold**（文件尾）：uint 完整族、global 存取、float 复杂族（DIV/MOD/CMP）、misc（NEG/NOT/LOAD_TAG）、类型转换、`OP_NOP`。
+
+同一语义被热度拆开：`OP_INT_ADD` 在 hot 段、`OP_INT_MUL/DIV` 降到 warm、`OP_INT_NEG` 落进 misc——排布依据是 profile 频率，不是指令族谱。收益：handler 代码热段聚拢，提升 icache 命中；computed-goto 跳转表目标地址集中，利于分支预测器与取指预取；源码注释（hot/warm/cold）让分层意图可审计、可重排。
+
+同一纪律推广到运行时分发表：`TypeObject.slots[]` 的 `SlotId` 同样按热度分区（见 §7.3）——指令布局与槽布局共用一条设计原则：**把执行频率最高的入口放进第一条 cache line**。
 
 ---
 

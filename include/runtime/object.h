@@ -281,47 +281,60 @@ typedef struct _MapMethods {
 } MapMethods;
 
 typedef enum {
-    /* hash */
+    /* hot slots -- dict/loop hot paths, all within the first cache line of TypeObject */
+
+    /* comparison protocol */
+    SLOT_EQ, // OP_NUM_EQ
+    SLOT_NE, // OP_NUM_NE
+    SLOT_LT, // OP_NUM_LT
+    SLOT_LE, // OP_NUM_LE
+    SLOT_GT, // OP_NUM_GT
+    SLOT_GE, // OP_NUM_GE
+
+    /* hashable protocol -- hit on every dict/set probe */
     SLOT_HASH,
 
-    /* equatable & comparable */
-    SLOT_EQ,
-    SLOT_NE,
-    SLOT_LT,
-    SLOT_LE,
-    SLOT_GT,
-    SLOT_GE,
+    /* warm slots -- second cache line */
 
-    /* __str__ */
-    SLOT_STR,
+    /* sequence protocol */
+    SLOT_LEN,      // OP_SEQ_LEN
+    SLOT_GET_ITEM, // OP_SEQ_GET and OP_SEQ_GET_IMM
+    SLOT_SET_ITEM, // OP_SEQ_SET and OP_SEQ_SET_IMM
+    SLOT_CONTAINS, // shared by sequence and mapping protocols, the 'in' OP
 
-    /* __call__ */
-    SLOT_CALL,
+    /* slice protocol */
+    SLOT_GET_SLICE, /* __getslice__ */
+    SLOT_SET_SLICE, /* __setslice__ */
 
-    /* number */
-    SLOT_ADD,
-    SLOT_SUB,
-    SLOT_MUL,
-    SLOT_DIV,
-    SLOT_MOD,
-    SLOT_NEG,
+    /* mapping subscript protocol */
+    SLOT_GET_SUBSCRIPT, // __getsub__
+    SLOT_SET_SUBSCRIPT, // __setsub__
 
-    SLOT_LSHIFT,
-    SLOT_RSHIFT,
-    SLOT_BIT_AND,
-    SLOT_BIT_OR,
-    SLOT_BIT_XOR,
-    SLOT_BIT_NOT,
+    /* arithmetic protocol */
+    SLOT_ADD, // OP_NUM_ADD
 
-    /* sequence & map */
-    SLOT_LEN,
-    SLOT_CONTAINS,
-    SLOT_GET_ITEM,
-    SLOT_SET_ITEM,
-    SLOT_GET_SLICE,
-    SLOT_SET_SLICE,
-    SLOT_GET_SUBSCRIPT,
-    SLOT_SET_SUBSCRIPT,
+    /* cold slots */
+
+    /* printable protocol  */
+    SLOT_STR, // __str__ -- print path
+
+    /* arithmetic protocol */
+    SLOT_SUB, // OP_NUM_SUB
+    SLOT_MUL, // OP_NUM_MUL
+    SLOT_DIV, // OP_NUM_DIV
+    SLOT_MOD, // OP_NUM_MOD
+    SLOT_NEG, // unary minus
+
+    /* bitwise protocol */
+    SLOT_LSHIFT,  // OP_NUM_SHL
+    SLOT_RSHIFT,  // OP_NUM_SHR
+    SLOT_BIT_AND, // OP_NUM_AND
+    SLOT_BIT_OR,  // OP_NUM_OR
+    SLOT_BIT_XOR, // OP_NUM_XOR
+    SLOT_BIT_NOT, // bitwise NOT
+
+    /* callable protocol */
+    SLOT_CALL, // __call__ -- invoking non-function objects
 
     SLOT_MAX
 } SlotId;
@@ -429,13 +442,14 @@ static inline Object *to_obj(TValue *v)
     return intf_to_obj(v);
 }
 
-#define DEFINE_TYPE(_name, _flags, _priv_size, _methods) \
+#define DEFINE_TYPE(_name, _flags, _priv_size, _methods, _gc_mark) \
     TypeObject _name##_type = { \
         ._type = &type_type, \
         .name = #_name, \
         .flags = (_flags), \
         .priv_size = (_priv_size), \
         .methdefs = (_methods), \
+        .gc_mark = (_gc_mark), \
     }
 
 /*---------------------------------------------------------------------------+

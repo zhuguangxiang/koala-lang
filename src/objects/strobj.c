@@ -1271,7 +1271,7 @@ static MethodDef _str_methods[] = {
     { NULL },
 };
 
-DEFINE_TYPE(str, TP_FLAGS_CLASS, 0, _str_methods);
+DEFINE_TYPE(str, TP_FLAGS_CLASS, 0, _str_methods, NULL);
 
 static StringObject empty_str = {
     ._type = &str_type,
