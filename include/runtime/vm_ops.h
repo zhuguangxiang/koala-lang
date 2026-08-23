@@ -1401,6 +1401,81 @@ TARGET(OP_NUM_GE) {
     DISPATCH();
 }
 
+TARGET(OP_NUM_ADD) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+    TypeObject *tp = kl_typeof(regs + rs);
+    ASSERT(tp && tp->arith);
+    regs[rd] = tp->arith->add(regs + rs, regs + rt);
+
+    DISPATCH();
+}
+
+TARGET(OP_NUM_SUB) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+    TypeObject *tp = kl_typeof(regs + rs);
+    ASSERT(tp && tp->arith);
+    regs[rd] = tp->arith->sub(regs + rs, regs + rt);
+
+    DISPATCH();
+}
+
+TARGET(OP_NUM_MUL) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+    TypeObject *tp = kl_typeof(regs + rs);
+    ASSERT(tp && tp->arith);
+    regs[rd] = tp->arith->mul(regs + rs, regs + rt);
+
+    DISPATCH();
+}
+
+TARGET(OP_NUM_DIV) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+    TypeObject *tp = kl_typeof(regs + rs);
+    ASSERT(tp && tp->arith);
+    regs[rd] = tp->arith->div(regs + rs, regs + rt);
+
+    DISPATCH();
+}
+
+TARGET(OP_NUM_MOD) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+    TypeObject *tp = kl_typeof(regs + rs);
+    ASSERT(tp && tp->arith);
+    regs[rd] = tp->arith->mod(regs + rs, regs + rt);
+
+    DISPATCH();
+}
+
 /* Sequence&Map Operations */
 
 TARGET(OP_SEQ_GET) {

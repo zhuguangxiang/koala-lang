@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-static TValue kl_range_index(TValue *self, TValue *args, int nargs)
+static TValue _range_index(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 3);
     RangeObject *range = (RangeObject *)to_obj(self);
@@ -37,7 +37,7 @@ static TValue kl_range_index(TValue *self, TValue *args, int nargs)
     return int64_value((value->ival - start) / step);
 }
 
-static TValue kl_range_str(TValue *self, TValue *args, int nargs)
+static TValue _range_str(TValue *self, TValue *args, int nargs)
 {
     RangeObject *range = (RangeObject *)to_obj(self);
     int64_t start = to_int64(&range->start);
@@ -48,8 +48,8 @@ static TValue kl_range_str(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef range_methods[] = {
-    { "index", kl_range_index },
-    { "__str__", kl_range_str },
+    { "index", _range_index },
+    { "__str__", _range_str },
     { NULL },
 };
 

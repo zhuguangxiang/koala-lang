@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-static TValue float_str(TValue *self, TValue *args, int nargs)
+static TValue _float_str(TValue *self, TValue *args, int nargs)
 {
     char buf[32];
     snprintf(buf, 31, "%.17g", self->fval);
@@ -19,7 +19,7 @@ static TValue float_str(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef float_methods[] = {
-    { "__str__", float_str },
+    { "__str__", _float_str },
     { NULL },
 };
 

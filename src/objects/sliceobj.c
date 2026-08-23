@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-static TValue kl_range_index(TValue *self, TValue *args, int nargs)
+static TValue _slice_index(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
     RangeObject *range = (RangeObject *)to_obj(self);
@@ -37,7 +37,7 @@ static TValue kl_range_index(TValue *self, TValue *args, int nargs)
     return int64_value((value->ival - start) / step);
 }
 
-static TValue kl_range_str(TValue *self, TValue *args, int nargs)
+static TValue _slice_str(TValue *self, TValue *args, int nargs)
 {
     RangeObject *range = (RangeObject *)to_obj(self);
     int64_t start = range->start.ival;
@@ -47,13 +47,13 @@ static TValue kl_range_str(TValue *self, TValue *args, int nargs)
     return obj_value(sobj);
 }
 
-static MethodDef range_methods[] = {
-    { "index", kl_range_index },
-    { "__str__", kl_range_str },
+static MethodDef slice_methods[] = {
+    { "index", _slice_index },
+    { "__str__", _slice_str },
     { NULL },
 };
 
-static MemberDef range_members[] = {
+static MemberDef slice_members[] = {
     { "start", M_TYPE_INT, M_OFFSET(RangeObject, start) },
     { "end", M_TYPE_INT, M_OFFSET(RangeObject, end) },
     { "step", M_TYPE_INT, M_OFFSET(RangeObject, step) },
@@ -64,8 +64,8 @@ TypeObject slice_type = {
     ._type = &type_type,
     .name = "slice",
     .flags = TP_FLAGS_CLASS | TP_FLAGS_PUBLIC,
-    .methdefs = range_methods,
-    .membdefs = range_members,
+    .methdefs = slice_methods,
+    .membdefs = slice_members,
 };
 
 Object *kl_new_slice(TValue *items)

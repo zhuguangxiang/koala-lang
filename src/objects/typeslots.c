@@ -67,6 +67,27 @@ static TValue slot_tp_call(TValue *self, TValue *args, int nargs)
     }
 }
 
+#define DEFINE_ARITHMETIC_BIN_SLOT(slot, id) \
+    static TValue slot_arith_bin_##slot(TValue *self, TValue *other) \
+    { \
+        TypeObject *tp = kl_typeof(self); \
+        Object *fn = slots(id); \
+        if (IS_CFUNC(fn)) { \
+            CFuncObject *cfn = (CFuncObject *)fn; \
+            return cfn->func(self, other, 1); \
+        } else { \
+            TValue val = obj_value(fn); \
+            TValue args[] = { *self, *other }; \
+            return kl_do_call(&val, args, 2); \
+        } \
+    }
+
+DEFINE_ARITHMETIC_BIN_SLOT(add, SLOT_ADD);
+DEFINE_ARITHMETIC_BIN_SLOT(sub, SLOT_SUB);
+DEFINE_ARITHMETIC_BIN_SLOT(mul, SLOT_MUL);
+DEFINE_ARITHMETIC_BIN_SLOT(div, SLOT_DIV);
+DEFINE_ARITHMETIC_BIN_SLOT(mod, SLOT_MOD);
+
 typedef struct _SlotDef {
     char *name;
     int offset;
@@ -92,10 +113,13 @@ static SlotDef slotdefs[] = {
 #define BINSLOT(NAME, SLOT, FUNC, ID) \
     { NAME, offsetof(ArithmeticMethods, SLOT), (void *)(FUNC), ID }
 
-static SlotDef num_slotdefs[] = {
-    BINSLOT("__add__", add, NULL, SLOT_ADD), BINSLOT("__sub__", sub, NULL, SLOT_SUB),
-    BINSLOT("__mul__", mul, NULL, SLOT_MUL), BINSLOT("__div__", div, NULL, SLOT_DIV),
-    BINSLOT("__mod__", mod, NULL, SLOT_MOD), { NULL },
+static SlotDef arith_slotdefs[] = {
+    BINSLOT("__add__", add, slot_arith_bin_add, SLOT_ADD),
+    BINSLOT("__sub__", sub, slot_arith_bin_sub, SLOT_SUB),
+    BINSLOT("__mul__", mul, slot_arith_bin_mul, SLOT_MUL),
+    BINSLOT("__div__", div, slot_arith_bin_div, SLOT_DIV),
+    BINSLOT("__mod__", mod, slot_arith_bin_mod, SLOT_MOD),
+    { NULL },
 };
 
 #define SEQSLOT(NAME, SLOT, FUNC, ID) { NAME, offsetof(SeqMethods, SLOT), (void *)(FUNC), ID }
@@ -140,7 +164,28 @@ void kl_tp_install_slots(TypeObject *tp)
         }
     }
 
-    // bind number slots[]
+    // bind arith slots[]
+    for (SlotDef *slot = arith_slotdefs; slot->name; slot++) {
+        Object *fn = stbl_find_obj(&tp->members, slot->name);
+        if (fn) {
+            log_info("binding arithmetic op '%s' to slots[%d] of class '%s'", slot->name, slot->id,
+                     tp->name);
+            tp->slots[slot->id] = fn;
+
+            ArithmeticMethods *arith = tp->arith;
+            if (!arith) {
+                arith = mm_alloc(sizeof(ArithmeticMethods));
+                tp->arith = arith;
+            }
+
+            void **field = (void **)((char *)arith + slot->offset);
+            // if the type has implemented this slot function, do not override it.
+            if (*field == NULL) *field = slot->func;
+        }
+    }
+
+    // bind bit slots[]
+
     // bind sequence slots[]
     // bind map slots[]
 }

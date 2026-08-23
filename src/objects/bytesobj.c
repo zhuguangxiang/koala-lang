@@ -10,13 +10,13 @@
 extern "C" {
 #endif
 
-static TValue kl_bytes_len(TValue *self, TValue *args, int nargs)
+static TValue _bytes_len(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = (BytesObject *)to_obj(self);
     return int64_value(bytes->size);
 }
 
-static TValue kl_bytes_str(TValue *self, TValue *args, int nargs)
+static TValue _bytes_str(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = (BytesObject *)to_obj(self);
     int64_t size = bytes->size;
@@ -31,7 +31,7 @@ static TValue kl_bytes_str(TValue *self, TValue *args, int nargs)
     return obj_value(sobj);
 }
 
-static TValue kl_bytes_init(TValue *self, TValue *args, int nargs)
+static TValue _bytes_init(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(obj && IS_BYTES(obj));
@@ -52,7 +52,7 @@ static TValue kl_bytes_init(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
-static TValue kl_bytes_index(TValue *self, TValue *args, int nargs)
+static TValue _bytes_index(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(obj && IS_BYTES(obj));
@@ -72,7 +72,7 @@ static TValue kl_bytes_index(TValue *self, TValue *args, int nargs)
     }
 }
 
-static TValue kl_bytes_count(TValue *self, TValue *args, int nargs)
+static TValue _bytes_count(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(obj && IS_BYTES(obj));
@@ -96,7 +96,7 @@ static TValue kl_bytes_count(TValue *self, TValue *args, int nargs)
     return int64_value(count);
 }
 
-static TValue kl_bytes_copy(TValue *self, TValue *args, int nargs)
+static TValue _bytes_copy(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(obj && IS_BYTES(obj));
@@ -119,7 +119,7 @@ static TValue kl_bytes_copy(TValue *self, TValue *args, int nargs)
     return int64_value(len);
 }
 
-static TValue kl_bytes_fill(TValue *self, TValue *args, int nargs)
+static TValue _bytes_fill(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(obj && IS_BYTES(obj));
@@ -134,7 +134,7 @@ static TValue kl_bytes_fill(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
-static TValue kl_bytes_zero(TValue *self, TValue *args, int nargs)
+static TValue _bytes_zero(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(obj && IS_BYTES(obj));
@@ -146,7 +146,7 @@ static TValue kl_bytes_zero(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
-static TValue kl_bytes_view(TValue *self, TValue *args, int nargs)
+static TValue _bytes_view(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(obj && IS_BYTES(obj));
@@ -168,7 +168,7 @@ static TValue kl_bytes_view(TValue *self, TValue *args, int nargs)
     return obj_value((Object *)view_bytes);
 }
 
-static TValue kl_bytes_tostr(TValue *self, TValue *args, int nargs)
+static TValue _bytes_tostr(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(obj && IS_BYTES(obj));
@@ -181,26 +181,26 @@ static TValue kl_bytes_tostr(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef bytes_methods[] = {
-    { "__len__", kl_bytes_len },
-    { "__str__", kl_bytes_str },
-    { "__init__", kl_bytes_init },
-    { "index", kl_bytes_index },
-    { "count", kl_bytes_count },
-    { "copy", kl_bytes_copy },
-    { "fill", kl_bytes_fill },
-    { "zero", kl_bytes_zero },
-    { "view", kl_bytes_view },
-    { "to_str", kl_bytes_tostr },
+    { "__len__", _bytes_len },
+    { "__str__", _bytes_str },
+    { "__init__", _bytes_init },
+    { "index", _bytes_index },
+    { "count", _bytes_count },
+    { "copy", _bytes_copy },
+    { "fill", _bytes_fill },
+    { "zero", _bytes_zero },
+    { "view", _bytes_view },
+    { "to_str", _bytes_tostr },
     { NULL, NULL },
 };
 
-static size_t kl_bytes_seq_len(TValue *self)
+static size_t _bytes_seq_len(TValue *self)
 {
     BytesObject *bytes = (BytesObject *)to_obj(self);
     return bytes->size;
 }
 
-static TValue kl_bytes_seq_get(TValue *self, size_t index)
+static TValue _bytes_seq_get(TValue *self, size_t index)
 {
     BytesObject *bytes = (BytesObject *)to_obj(self);
     if (index >= bytes->size) {
@@ -211,7 +211,7 @@ static TValue kl_bytes_seq_get(TValue *self, size_t index)
     return uint8_value(value);
 }
 
-static void kl_bytes_seq_set(TValue *self, size_t index, TValue *value)
+static void _bytes_seq_set(TValue *self, size_t index, TValue *value)
 {
     BytesObject *bytes = (BytesObject *)to_obj(self);
     if (index >= bytes->size) {
@@ -222,10 +222,10 @@ static void kl_bytes_seq_set(TValue *self, size_t index, TValue *value)
 }
 
 static SeqMethods bytes_seq_methods = {
-    .len = kl_bytes_seq_len,
-    // .contains = kl_bytes_contains,
-    .get = kl_bytes_seq_get,
-    .set = kl_bytes_seq_set,
+    .len = _bytes_seq_len,
+    // .contains = _bytes_contains,
+    .get = _bytes_seq_get,
+    .set = _bytes_seq_set,
 };
 
 /* pub class bytes : MutableSequence[uint8] { ... } */

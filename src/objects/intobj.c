@@ -118,7 +118,7 @@ extern "C" {
 //     return int_init_impl(self, &_x, &_base);
 // }
 
-static TValue int_str(TValue *self, TValue *args, int nargs)
+static TValue _int_str(TValue *self, TValue *args, int nargs)
 {
     char buf[24];
     snprintf(buf, 23, "%" PRId64, self->ival);
@@ -128,7 +128,7 @@ static TValue int_str(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef int_methods[] = {
-    { "__str__", int_str },
+    { "__str__", _int_str },
     { NULL },
 };
 

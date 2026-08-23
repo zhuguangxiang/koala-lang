@@ -13,14 +13,14 @@ extern "C" {
  |  Boolean type definition                                                  |
  +---------------------------------------------------------------------------*/
 
-static TValue bool_str(TValue *self, TValue *args, int nargs)
+static TValue _bool_str(TValue *self, TValue *args, int nargs)
 {
     Object *s = kl_new_fmt_str("%s", self->ival ? "true" : "false");
     return obj_value(s);
 }
 
 static MethodDef bool_methods[] = {
-    { "__str__", bool_str },
+    { "__str__", _bool_str },
     { NULL },
 };
 

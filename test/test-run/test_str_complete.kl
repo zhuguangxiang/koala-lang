@@ -1,0 +1,319 @@
+// RUN: koala %s | filecheck %s
+
+func main() {
+    let s = "hello world"
+
+    // __len__: chars, empty, single, UTF-8 code points
+    print(len(s))
+    print(len(""))
+    print(len("a"))
+    // print(len("汉字"))
+
+    // empty
+    print("".empty())
+    print("a".empty())
+
+    // __getitem__: first / mid / last / UTF-8
+    print(s[0])
+    print(s[6])
+    print(s[10])
+    // print("汉字"[1])
+
+    // __getslice__
+    // print(s[0:5])
+    // print(s[6:11])
+
+    // // __contains__
+    // print("world" in s)
+    // print("xyz" in s)
+
+    // index: basic / first occurrence / with start / not found / UTF-8 char-level
+    print(s.index("world"))
+    print(s.index("o"))
+    print(s.index("o", 5))
+    print(s.index("xyz"))
+    // print("汉x字".index("字"))
+
+    // rindex: basic / last occurrence / not found
+    print(s.rindex("o"))
+    print(s.rindex("l"))
+    print(s.rindex("xyz"))
+
+    // count: multiple / non-overlapping / not found
+    print(s.count("l"))
+    print(s.count("o"))
+    print(s.count("xyz"))
+    print("aaa".count("aa"))
+
+    // __eq__ / __ne__
+    print(s == "hello world")
+    print(s == "hello")
+    print(s != "hello")
+    print(s != "hello world")
+
+    // __lt__ / __le__ / __gt__ / __ge__: true, false, prefix case, equal case
+    print("abc" < "abd")
+    print("abd" < "abc")
+    print("abc" < "abcd")
+    print("abc" <= "abc")
+    print("abc" <= "abb")
+    print("abd" > "abc")
+    print("abc" > "abd")
+    print("abc" >= "abc")
+
+    // __hash__: equal strings give equal hashes
+    print("hello".__hash__() == "hello".__hash__())
+
+    // __str__
+    print(s)
+    print(s.__str__())
+
+    // substr: defaults / start only / start + end
+    print(s.substr())
+    print(s.substr(6))
+    print(s.substr(0, 5))
+
+    // to_int / to_int_or: positive / negative / valid default / invalid default
+    print("123".to_int())
+    print("-456".to_int())
+    print("78".to_int_or(-1))
+    print("12abc".to_int_or(-1))
+
+    // to_float / to_float_or
+    print("3.14".to_float())
+    print("-2.5".to_float())
+    print("1.5".to_float_or(-1.5))
+    print("abc".to_float_or(-1.5))
+
+    // format: one arg / multiple args / mixed types
+    print("v={}".format(42))
+    print("a={}, b={}".format(1, "x"))
+    print("{} and {}".format("tom", true))
+
+    // __add__
+    print("hello " + "world")
+    print("" + "abc")
+
+    // __mul__: repeat / n not positive -> empty
+    print("ab" * 3)
+    print(("ab" * 0).empty())
+
+    // join: multiple elements / single element
+    print(",".join(["a", "b", "c"]))
+    print("-".join(["only"]))
+
+    // to_bytes + __init__(bytes): UTF-8 round trip
+    print(str("abc".to_bytes().to_str()))
+
+    // split: basic / maxsplit / no sep found / default sep
+    print("a,b,c".split(","))
+    print("a,b,c".split(",", maxsplit=1))
+    print("no-sep".split(","))
+    print("a b c".split())
+
+    // rsplit: maxsplit splits from the right
+    print("a,b,c".rsplit(",", maxsplit=1))
+
+    // splitlines
+    print("a\nb\nc".splitlines())
+
+    // upper / lower / capitalize
+    print("abc".upper())
+    print("aBc1".upper())
+    print("ABC".lower())
+    print("hello WORLD".capitalize())
+
+    // strip / lstrip / rstrip
+    print("  x  ".strip())
+    print("  x  ".lstrip() == "x  ")
+    print("  x  ".rstrip() == "  x")
+
+    // startswith / endswith: true / false / empty prefix
+    print(s.startswith("hello"))
+    print(s.startswith("world"))
+    print(s.startswith(""))
+    print(s.endswith("world"))
+    print(s.endswith("hello"))
+
+    // removeprefix / removesuffix: match / no match unchanged
+    print(s.removeprefix("hello "))
+    print(s.removeprefix("xyz"))
+    print(s.removesuffix(" world"))
+    print(s.removesuffix("xyz"))
+
+    // replace: all occurrences / delete / no match unchanged
+    print("aaa".replace("a", "b"))
+    print("abc".replace("b", ""))
+    print("abc".replace("x", "y"))
+
+    // zfill: pad / width <= len unchanged
+    print("42".zfill(5))
+    print("42".zfill(2))
+
+    // ljust / rjust / center: custom fill / default fill / width <= len unchanged
+    print("ab".ljust(5, "-"))
+    print("ab".ljust(5) == "ab   ")
+    print("ab".ljust(2))
+    print("ab".rjust(5, "-"))
+    print("ab".rjust(5) == "   ab")
+    print("ab".center(6, "-"))
+    print("ab".center(2))
+
+    // isdigit / isalpha / isalnum / isspace / islower / isupper: true and false cases
+    print("123".isdigit())
+    print("12a".isdigit())
+    print("abc".isalpha())
+    print("ab1".isalpha())
+    print("ab1".isalnum())
+    print("a-1".isalnum())
+    print("  ".isspace())
+    print(" a ".isspace())
+    print("abc".islower())
+    print("aBc".islower())
+    print("ABC".isupper())
+    print("AbC".isupper())
+
+    // // __iter__ / reversed
+    // for c in "abc" {
+    //     print(c)
+    // }
+    // for c in "abc".reversed() {
+    //     print(c)
+    // }
+
+    // __init__(str)
+    print(str("hello"))
+}
+
+// CHECK: 11
+// CHECK: 0
+// CHECK: 1
+
+// TODO: 2
+
+// CHECK: true
+// CHECK: false
+// CHECK: h
+// CHECK: w
+// CHECK: d
+
+// TODO: 字
+
+// TODO: hello
+// TODO: world
+// TODO: true
+// TODO: false
+
+// CHECK: 6
+// CHECK: 4
+// CHECK: 7
+// CHECK: -1
+
+// TODO: 2
+
+// CHECK: 7
+// CHECK: 9
+// CHECK: -1
+
+// CHECK: 3
+// CHECK: 2
+// CHECK: 0
+// CHECK: 1
+
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: hello world
+// CHECK: hello world
+// TODO: hello world
+// CHECK: world
+// CHECK: hello
+// CHECK: 123
+// CHECK: -456
+// CHECK: 78
+// CHECK: -1
+// CHECK: 3.14{{[0-9]*}}
+// CHECK: -2.5
+// CHECK: 1.5
+// CHECK: -1.5
+// CHECK: v=42
+// CHECK: a=1, b=x
+// CHECK: tom and true
+// CHECK: hello world
+// CHECK: abc
+// CHECK: ababab
+// CHECK: true
+// CHECK: a,b,c
+// CHECK: only
+// CHECK: abc
+// CHECK: [a, b, c]
+// CHECK: [a, b,c]
+// CHECK: [no-sep]
+// CHECK: [a, b, c]
+// CHECK: [a,b, c]
+// CHECK: [a, b, c]
+
+// CHECK: ABC
+// CHECK: ABC1
+// CHECK: abc
+// CHECK: Hello world
+
+// CHECK: x
+// CHECK: true
+// CHECK: true
+
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: true
+// CHECK: false
+
+// CHECK: world
+// CHECK: hello world
+// CHECK: hello
+// CHECK: hello world
+
+// CHECK: bbb
+// CHECK: ac
+// CHECK: abc
+// CHECK: 00042
+// CHECK: 42
+
+// CHECK: ab---
+// CHECK: true
+// CHECK: ab
+// CHECK: ---ab
+// CHECK: true
+// CHECK: --ab--
+// CHECK: ab
+
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+
+// TODO: a
+// TODO: b
+// TODO: c
+// TODO: c
+// TODO: b
+// TODO: a
+// CHECK: hello

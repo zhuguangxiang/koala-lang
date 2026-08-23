@@ -186,6 +186,19 @@ Koala 的函数按声明方式分为三种，**声明与实现分离，实现的
 - **哨兵与部分 trait 实现共用机制**（见 §4）：`not_impl` 同时承担"native 欠账"与"trait 未实现方法"两种占位，真实调用才 panic。
 - **`@intrinsic` 为 builtin 专属**：编译器只认识内建名字的改写规则，非 builtin 模块不得声明；门禁一立，哨兵的"compiler bug"责任归属永远为真。
 
+### 7.2 C 侧实现命名规范
+
+`@native` 方法的 C 实现（注册进类 `MethodDef` 表的函数）统一命名为 `_类名_方法名`——前置下划线 + 类名 + 方法名，dunder 去首尾双下划线（如 `__len__` → `_list_len`），并声明 `static`，可见性限于定义文件。`kl_` 前缀保留给跨文件暴露的公共 API（`kl_new_list` / `kl_free_str` 等），不参与本规范。
+
+样例（`src/objects/listobj.c`）：
+
+```c
+static MethodDef list_methods[] = {
+    { "append", _list_append }, { "pop", _list_pop },       { "__len__", _list_len },
+    { "__str__", _list_str },   { "extend", _list_extend }, { NULL },
+};
+```
+
 - 类型系统信任声明签名，用户从不触碰桥接代码——`unsafe {}` 存在的理由（人在绕过类型系统）被结构性消除。
 - **内存层同样无 unsafe**：shadowstack 将 C / native 代码分配的对象注册为 GC root——native 侧分配的对象与 `.kl` 中分配的命运完全一致，无"记得释放"规则。对照：JNI 局部/全局引用、Python C API 引用计数、Go cgo handle table 均需手动管理。
 - 对照：Java JNI（句柄仪式）、Go cgo（栈切换开销）、Rust（强制 unsafe + transmute）、Python ctypes（运行时 marshal）。

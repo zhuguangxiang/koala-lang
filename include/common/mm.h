@@ -82,6 +82,12 @@ static inline int str_equal(const char *s1, const char *s2)
     return !strcmp(s1, s2);
 }
 
+/* string to int64 */
+int64_t str_to_int(const char *buf, size_t len, int *ok);
+
+/* string to float64 */
+double str_to_float(const char *buf, size_t len, int *ok);
+
 #ifdef __cplusplus
 }
 #endif

@@ -25,6 +25,7 @@ extern TypeObject tuple_type;
 #define TUPLE_SIZE(x)  (((TupleObject *)(x))->size)
 
 Object *kl_new_tuple(TValue *items, int count);
+void kl_free_tuple(Object *obj);
 
 #ifdef __cplusplus
 }

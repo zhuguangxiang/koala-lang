@@ -14,7 +14,7 @@ extern "C" {
  |  Koala Code type definition                                               |
  +---------------------------------------------------------------------------*/
 
-static TValue code_str(TValue *self, TValue *args, int nargs)
+static TValue _code_str(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(IS_CODE(obj));
@@ -35,7 +35,7 @@ static TValue code_str(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef code_methods[] = {
-    { "__str__", code_str },
+    { "__str__", _code_str },
     { NULL },
 };
 
@@ -60,7 +60,7 @@ Object *kl_new_code(char *name, Object *owner)
  |  C-Func type definition                                                   |
  +---------------------------------------------------------------------------*/
 
-static TValue cfunc_str(TValue *self, TValue *args, int nargs)
+static TValue _cfunc_str(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(IS_CFUNC(obj));
@@ -81,7 +81,7 @@ static TValue cfunc_str(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef cfunc_methods[] = {
-    { "__str__", cfunc_str },
+    { "__str__", _cfunc_str },
     { NULL },
 };
 

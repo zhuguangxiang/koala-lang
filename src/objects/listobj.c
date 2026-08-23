@@ -33,6 +33,24 @@ void kl_list_append(Object *ob, TValue item)
     list->array[list->end++] = item;
 }
 
+void kl_list_prepend(Object *ob, TValue item)
+{
+    ASSERT(IS_LIST(ob));
+    ListObject *list = (ListObject *)ob;
+
+    // Ensure capacity for one more element
+    expand_capacity(list, list->end + 1);
+
+    // Shift elements to the right by 1
+    memmove(list->array + 1, list->array, list->end * sizeof(TValue));
+
+    // Insert new item at the front
+    list->array[0] = item;
+
+    // Increase element count
+    list->end++;
+}
+
 static TValue _list_append(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = (ListObject *)to_obj(self);
@@ -42,7 +60,7 @@ static TValue _list_append(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
-static TValue kl_list_pop(TValue *self, TValue *args, int nargs)
+static TValue _list_pop(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = (ListObject *)to_obj(self);
     ASSERT(nargs == 1);
@@ -63,13 +81,13 @@ static TValue kl_list_pop(TValue *self, TValue *args, int nargs)
     }
 }
 
-static TValue kl_list_len(TValue *self, TValue *args, int nargs)
+static TValue _list_len(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = (ListObject *)to_obj(self);
     return int64_value(list->end - list->start);
 }
 
-static TValue kl_list_str(TValue *self, TValue *args, int nargs)
+static TValue _list_str(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = (ListObject *)to_obj(self);
     int64_t start = list->start;
@@ -89,7 +107,7 @@ static TValue kl_list_str(TValue *self, TValue *args, int nargs)
     return obj_value(sobj);
 }
 
-static TValue kl_list_extend(TValue *self, TValue *args, int nargs)
+static TValue _list_extend(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = SELF_AS(list_type);
     ASSERT(nargs == 1);
@@ -108,8 +126,8 @@ static TValue kl_list_extend(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef list_methods[] = {
-    { "append", _list_append }, { "pop", kl_list_pop },       { "__len__", kl_list_len },
-    { "__str__", kl_list_str }, { "extend", kl_list_extend }, { NULL },
+    { "append", _list_append }, { "pop", _list_pop },       { "__len__", _list_len },
+    { "__str__", _list_str },   { "extend", _list_extend }, { NULL },
 };
 
 static size_t kl_list_seq_len(TValue *self)

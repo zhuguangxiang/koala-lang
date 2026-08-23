@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <math.h>
 #include "common.h"
 #include "log.h"
 
@@ -157,6 +158,60 @@ int str_sep(char **str, char ch, char **out)
     *out = *str;
     *str = NULL;
     return count;
+}
+
+int64_t str_to_int(const char *buf, size_t len, int *ok)
+{
+    *ok = 0;
+    if (len == 0) return 0;
+
+    // must copy to null-terminated buffer
+    char tmp[256];
+    if (len >= sizeof(tmp)) return 0; // too long
+    memcpy(tmp, buf, len);
+    tmp[len] = '\0';
+
+    char *endptr = NULL;
+    errno = 0;
+
+    int64_t val = strtoll(tmp, &endptr, 10);
+
+    // strict mode: must consume all characters
+    if (endptr != tmp + len) return 0;
+
+    // overflow
+    if (errno == ERANGE) return 0;
+
+    *ok = 1;
+    return val;
+}
+
+double str_to_float(const char *buf, size_t len, int *ok)
+{
+    *ok = 0;
+    if (len == 0) return 0.0;
+
+    char tmp[256];
+    if (len >= sizeof(tmp)) return 0.0;
+    memcpy(tmp, buf, len);
+    tmp[len] = '\0';
+
+    char *endptr = NULL;
+    errno = 0;
+
+    double val = strtod(tmp, &endptr);
+
+    // strict mode: must consume all characters
+    if (endptr != tmp + len) return 0.0;
+
+    // reject inf/nan
+    if (!isfinite(val)) return 0.0;
+
+    // overflow
+    if (errno == ERANGE) return 0.0;
+
+    *ok = 1;
+    return val;
 }
 
 #ifdef __cplusplus

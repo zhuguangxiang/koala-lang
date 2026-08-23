@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-static TValue bytebuf_append(TValue *self, TValue *args, int nargs)
+static TValue _bytebuf_append(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     ASSERT(nargs == 1);
@@ -18,14 +18,14 @@ static TValue bytebuf_append(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
-static TValue bytebuf_len(TValue *self, TValue *args, int nargs)
+static TValue _bytebuf_len(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     ASSERT(nargs == 0);
     return int64_value(BUF_LEN(bb->buf));
 }
 
-static TValue bytebuf_str(TValue *self, TValue *args, int nargs)
+static TValue _bytebuf_str(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     ASSERT(nargs == 0);
@@ -33,7 +33,7 @@ static TValue bytebuf_str(TValue *self, TValue *args, int nargs)
     return obj_value(so);
 }
 
-static TValue bytebuf_init(TValue *self, TValue *args, int nargs)
+static TValue _bytebuf_init(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     ASSERT(nargs == 1);
@@ -46,7 +46,7 @@ static TValue bytebuf_init(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
-static TValue bytebuf_to_bytes(TValue *self, TValue *args, int nargs)
+static TValue _bytebuf_to_bytes(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     ASSERT(nargs == 0);
@@ -54,25 +54,25 @@ static TValue bytebuf_to_bytes(TValue *self, TValue *args, int nargs)
     return obj_value(so);
 }
 
-static TValue bytebuf_clear(TValue *self, TValue *args, int nargs) { return none_value; }
+static TValue _bytebuf_clear(TValue *self, TValue *args, int nargs) { return none_value; }
 
-static MethodDef bytebuf_methods[] = {
-    { "append", bytebuf_append },
-    { "__len__", bytebuf_len },
-    { "__str__", bytebuf_str },
-    { "__init__", bytebuf_init },
-    { "to_bytes", bytebuf_to_bytes },
-    { "clear", bytebuf_clear },
+static MethodDef _bytebuf_methods[] = {
+    { "append", _bytebuf_append },
+    { "__len__", _bytebuf_len },
+    { "__str__", _bytebuf_str },
+    { "__init__", _bytebuf_init },
+    { "to_bytes", _bytebuf_to_bytes },
+    { "clear", _bytebuf_clear },
     { NULL },
 };
 
-static size_t bytebuf_seq_len(TValue *self)
+static size_t _bytebuf_seq_len(TValue *self)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     return BUF_LEN(bb->buf);
 }
 
-static TValue bytebuf_seq_get(TValue *self, size_t index)
+static TValue _bytebuf_seq_get(TValue *self, size_t index)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     if ((int)index >= BUF_LEN(bb->buf)) {
@@ -83,7 +83,7 @@ static TValue bytebuf_seq_get(TValue *self, size_t index)
     return uint8_value(value);
 }
 
-static void bytebuf_seq_set(TValue *self, size_t index, TValue *value)
+static void _bytebuf_seq_set(TValue *self, size_t index, TValue *value)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     if ((int)index >= BUF_LEN(bb->buf)) {
@@ -93,10 +93,10 @@ static void bytebuf_seq_set(TValue *self, size_t index, TValue *value)
     BUF_STR(bb->buf)[index] = v;
 }
 
-static SeqMethods bytebuf_seq_methods = {
-    .len = bytebuf_seq_len,
-    .get = bytebuf_seq_get,
-    .set = bytebuf_seq_set,
+static SeqMethods _bytebuf_seq_methods = {
+    .len = _bytebuf_seq_len,
+    .get = _bytebuf_seq_get,
+    .set = _bytebuf_seq_set,
 };
 
 TypeObject bytebuf_type = {
@@ -104,8 +104,8 @@ TypeObject bytebuf_type = {
     .name = "ByteBuf",
     .priv_size = sizeof(ByteBufObject),
     .flags = TP_FLAGS_CLASS,
-    .methdefs = bytebuf_methods,
-    .seq = &bytebuf_seq_methods,
+    .methdefs = _bytebuf_methods,
+    .seq = &_bytebuf_seq_methods,
 };
 
 Object *kl_new_bytebuf(size_t size)

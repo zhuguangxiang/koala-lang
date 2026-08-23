@@ -25,7 +25,7 @@ typedef struct _Exception {
     TraceBack *back;
 } Exception;
 
-static TValue kl_exc_to_str(TValue *self, TValue *args, int nargs)
+static TValue _exc_str(TValue *self, TValue *args, int nargs)
 {
     // Exception *exc = (Exception *)self;
     // return kl_str_new(exc->msg);
@@ -34,7 +34,7 @@ static TValue kl_exc_to_str(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef exc_methods[] = {
-    { "__str__", kl_exc_to_str },
+    { "__str__", _exc_str },
     { NULL, NULL },
 };
 
@@ -90,6 +90,12 @@ void kl_trace_here(CallFrame *cf)
     Exception *exc = (Exception *)cf->ks->exc;
     tb->back = exc->back;
     exc->back = tb;
+}
+
+void kl_panic(char *msg)
+{
+    fprintf(stderr, "Panic: %s\n", msg);
+    exit(1);
 }
 
 #ifdef __cplusplus

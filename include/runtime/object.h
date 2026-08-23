@@ -6,6 +6,7 @@
 #ifndef _KOALA_OBJECT_H_
 #define _KOALA_OBJECT_H_
 
+#include "buffer.h"
 #include "codespec.h"
 #include "common.h"
 #include "hashmap.h"
@@ -145,8 +146,8 @@ typedef struct _TValue {
 // #define bfloat16_value(x)   (TValue){ .tag = TAG_BFLOAT16, .fval = (double)(x) }
 
 /* Reference value */
-#define obj_value(x)         (TValue){ .tag = TAG_OBJECT, .obj = (x) }
-#define intf_value(_itab, x) (TValue){ .itab = (_itab), .obj = (x) }
+#define obj_value(x)         (TValue){ .tag = TAG_OBJECT, .obj = (Object *)(x) }
+#define intf_value(_itab, x) (TValue){ .itab = (_itab), .obj = (Object *)(x) }
 
 /*---------------------------------------------------------------------------+
  |   Value Extraction                                                        |
@@ -680,7 +681,7 @@ void kl_dump_module(Object *m);
         to_int64(args + index); \
     })
 
-#define kl_arg_float(index) \
+#define kl_arg_float64(index) \
     ({ \
         ASSERT(index >= 0 && index < nargs); \
         to_float64(args + index); \
@@ -700,6 +701,14 @@ void kl_dump_module(Object *m);
         STR_BUF(o); \
     })
 
+#define kl_arg_strobj(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        Object *o = to_obj(args + index); \
+        ASSERT(IS_STR(o)); \
+        (void *)o; \
+    })
+
 static inline TValue kl_val_str(char *s)
 {
     Object *so = kl_new_str(s);
@@ -711,6 +720,14 @@ static inline TValue kl_val_nstr(char *s, size_t len)
     Object *so = kl_new_nstr(s, len);
     return obj_value(so);
 }
+
+// string from buffer and free the buffer
+#define kl_val_str_from_buf(buf) \
+    ({ \
+        TValue v = kl_val_nstr(BUF_STR(buf), BUF_LEN(buf)); \
+        FINI_BUF(buf); \
+        v; \
+    })
 
 #define SELF_AS(tp_type) \
     ({ \
@@ -742,6 +759,7 @@ int kl_reg_type(NativeLib *lib, TypeObject *tp);
 TValue kl_eval_code(TValue *self, TValue *args, int nargs);
 void kl_run_main(Object *m);
 void kl_run_init(Object *m);
+void kl_panic(char *msg);
 
 #ifdef __cplusplus
 }

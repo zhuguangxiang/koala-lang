@@ -13,7 +13,7 @@ extern "C" {
  |  Field type definition                                                    |
  +---------------------------------------------------------------------------*/
 
-static TValue field_str(TValue *self, TValue *args, int nargs)
+static TValue _field_str(TValue *self, TValue *args, int nargs)
 {
     FieldObject *o = (FieldObject *)to_obj(self);
     Object *s = kl_new_fmt_str("<field '%s'>", o->name);
@@ -21,7 +21,7 @@ static TValue field_str(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef field_methods[] = {
-    { "__str__", field_str },
+    { "__str__", _field_str },
     { NULL },
 };
 

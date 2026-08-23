@@ -11,14 +11,14 @@
 extern "C" {
 #endif
 
-static TValue kl_tuple_tolist(TValue *self, TValue *args, int nargs)
+static TValue _tuple_tolist(TValue *self, TValue *args, int nargs)
 {
     TupleObject *tuple = (TupleObject *)to_obj(self);
     Object *lst = kl_list_from_array(tuple->array, tuple->size);
     return obj_value(lst);
 }
 
-static TValue tuple_str(TValue *self, TValue *args, int nargs)
+static TValue _tuple_str(TValue *self, TValue *args, int nargs)
 {
     TupleObject *tuple = (TupleObject *)to_obj(self);
     BUF(buf);
@@ -39,8 +39,8 @@ static TValue tuple_str(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef tuple_methods[] = {
-    { "to_list", kl_tuple_tolist },
-    { "__str__", tuple_str },
+    { "to_list", _tuple_tolist },
+    { "__str__", _tuple_str },
     { NULL },
 };
 
@@ -87,6 +87,8 @@ Object *kl_new_tuple(TValue *items, int count)
 
     return (Object *)x;
 }
+
+void kl_free_tuple(Object *obj) { mm_free(obj); }
 
 #ifdef __cplusplus
 }

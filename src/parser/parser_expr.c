@@ -132,22 +132,22 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
         }
     }
 
-    if (type_is_union(ts)) {
-        return;
-    }
+    // if (type_is_union(ts)) {
+    //     return;
+    // }
 
     __int128 val = lit->ival_128;
+    lit->ival = (uint64_t)val;
+
+    if (ts->kind != TYPE_INT) return;
+
     int width = ts->int_flt_info.width;
     int sign = ts->int_flt_info.sign;
 
     // update literal integer's type as expected type
-    // only int8/16/32/64 need to change type, base() trait don't change
-    // pub class int64 : Comparable & Arithmetic & BitwiseOperators
-    // so if expected type is base type(Comparable & Arithmetic & BitwiseOperators), don't change
-    if (ts->kind == TYPE_INT) lit->ts = ts;
+    lit->ts = ts;
     lit->sign = sign;
     lit->len = width;
-    lit->ival = (uint64_t)val;
 
     __uint128_t phys_max =
         (width == 8) ? (__uint128_t)0xFFFFFFFFFFFFFFFFULL : ((__uint128_t)1 << (width * 8)) - 1;
@@ -204,16 +204,14 @@ static void parse_lit_float(ParserState *ps, LitExpr *lit)
         }
     }
 
-    if (type_is_union(ts)) {
-        return;
-    }
+    // if (type_is_union(ts)) {
+    //     return;
+    // }
+
+    if (ts->kind != TYPE_FLOAT) return;
 
     int width = ts->int_flt_info.width;
-
-    // only update width, self type is not changed
-    // pub class float64 : Comparable & Arithmetic
-    //  so if expected type is base type(Comparable & Arithmetic), don't change
-    if (ts->kind == TYPE_FLOAT) lit->ts = ts;
+    lit->ts = ts;
     lit->len = width;
 }
 
