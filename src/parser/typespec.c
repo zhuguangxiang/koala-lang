@@ -1482,6 +1482,124 @@ static void __typespec_str_print(char **str, Buffer *buf)
 
 void type_spec_str_print(char *s, Buffer *buf) { __typespec_str_print(&s, buf); }
 
+char *mangle_type_name(char *base_name, Vector *tp_args)
+{
+    BUF(buf);
+    buf_write_str(&buf, base_name);
+
+    if (vector_size(tp_args) > 0) {
+        buf_write_char(&buf, '<');
+        TypeSpec *ts;
+        vector_foreach(ts, tp_args) {
+            type_spec_to_str(ts, &buf);
+        }
+        buf_write_char(&buf, '>');
+    }
+
+    char *mangled_name = atom_str(BUF_STR(buf));
+    FINI_BUF(buf);
+    return mangled_name;
+}
+
+static void type_spec_str_func_name(TypeSpec *ts, Buffer *buf)
+{
+    if (!ts) return;
+
+    TypeKind kind = ts->kind;
+
+    switch (kind) {
+        case TYPE_INT: {
+            if (ts->int_flt_info.width == 1) {
+                char *s = ts->int_flt_info.sign ? "int8" : "uint8";
+                buf_write_str(buf, s);
+            } else if (ts->int_flt_info.width == 2) {
+                char *s = ts->int_flt_info.sign ? "int16" : "uint16";
+                buf_write_str(buf, s);
+            } else if (ts->int_flt_info.width == 4) {
+                char *s = ts->int_flt_info.sign ? "int32" : "uint32";
+                buf_write_str(buf, s);
+            } else {
+                char *s = ts->int_flt_info.sign ? "int64" : "uint64";
+                buf_write_str(buf, s);
+            }
+            break;
+        }
+        case TYPE_FLOAT: {
+            if (ts->int_flt_info.width == 2) {
+                buf_write_str(buf, "float16");
+            } else if (ts->int_flt_info.width == 4) {
+                buf_write_str(buf, "float32");
+            } else {
+                buf_write_str(buf, "float64");
+            }
+            break;
+        }
+        case TYPE_BFLOAT16: {
+            buf_write_str(buf, "bfloat16");
+            break;
+        }
+        case TYPE_STR: {
+            buf_write_str(buf, "str");
+            break;
+        }
+        case TYPE_BOOL: {
+            buf_write_str(buf, "bool");
+            break;
+        }
+        case TYPE_KLASS: {
+            buf_write_str(buf, ts->klass_type.name);
+            break;
+        }
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+}
+
+char *mangle_func_name(char *base_name, Vector *tp_args)
+{
+    BUF(buf);
+    buf_write_str(&buf, base_name);
+
+    if (vector_size(tp_args) > 0) {
+        buf_write_char(&buf, '_');
+        TypeSpec *ts;
+        vector_foreach(ts, tp_args) {
+            type_spec_str_func_name(ts, &buf);
+        }
+    }
+
+    char *mangled_name = atom_str(BUF_STR(buf));
+    FINI_BUF(buf);
+    return mangled_name;
+}
+
+TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args)
+{
+    if (!ts) return NULL;
+
+    if (ts->kind == TYPE_GENERIC_VAR) {
+        TypeSpec *ret = vector_get(tp_args, ts->generic_var.index);
+        return ret;
+    }
+
+    if (ts->kind == TYPE_GENERIC_REF) {
+        Vector *args = vector_create_ptr();
+        TypeSpec *arg;
+        vector_foreach(arg, ts->generic_ref.args) {
+            TypeSpec *arg_ts = type_spec_specialize(arg, tp_args);
+            vector_push_back(args, &arg_ts);
+        }
+        char *mangled_name = mangle_type_name(ts->generic_ref.name, args);
+        TypeSpec *ret = klass_type_spec(ts->generic_ref.pkg, mangled_name);
+        return ret;
+    }
+
+    // other types, return ts self
+    return ts;
+}
+
 #ifdef __cplusplus
 }
 #endif

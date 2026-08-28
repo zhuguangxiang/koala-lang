@@ -8,6 +8,7 @@
 
 #include "codebuffer.h"
 #include "ir.h"
+#include "opcode.h"
 
 #ifdef __cplusplus
 extern "C" {

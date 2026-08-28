@@ -36,13 +36,11 @@ typedef enum _SymKind {
 #define SYM_FLAGS_MUTABLE   (1 << 0)
 #define SYM_FLAGS_CONST     (1 << 1)
 #define SYM_FLAGS_PUBLIC    (1 << 2)
-#define SYM_FLAGS_TAG_ONLY  (1 << 3)
-#define SYM_FLAGS_TAG_VALUE (1 << 4)
-#define SYM_FLAGS_EXT       (1 << 5)
-#define SYM_FLAGS_MAGIC     (1 << 6)
-#define SYM_FLAGS_GENERIC   (1 << 7)
-#define SYM_FLAGS_NATIVE    (1 << 8)
-#define SYM_FLAGS_STATIC    (1 << 9)
+#define SYM_FLAGS_EXT       (1 << 3)
+#define SYM_FLAGS_MAGIC     (1 << 4)
+#define SYM_FLAGS_GENERIC   (1 << 5)
+#define SYM_FLAGS_NATIVE    (1 << 6)
+#define SYM_FLAGS_STATIC    (1 << 7)
 
 #define SYM_UNRESOLVED   0
 #define SYM_RESOLVED     1

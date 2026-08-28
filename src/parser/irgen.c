@@ -5,6 +5,7 @@
 
 #include "cmd.h"
 #include "parser.h"
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -1458,6 +1459,20 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     }
 
     exit_scope(ps);
+
+    if (has_specialized_meta(stmt)) {
+        Vector *tp_args = get_specialized_types(stmt);
+        char *mangled_name = mangle_func_name(sym->name, tp_args);
+        KlrValue *new_fn = klr_specialize_func((KlrFunc *)sym->ir_val, mangled_name, tp_args);
+        Symbol *new_fn_sym = stbl_get(ps->pm->stbl, mangled_name);
+        ASSERT(new_fn_sym);
+        new_fn_sym->ir_val = new_fn;
+
+        if (dump_no_opt_ir_enabled()) {
+            fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");
+            klr_print_func((KlrFunc *)new_fn, stdout);
+        }
+    }
 }
 
 static void emit_ir_class(ParserState *ps, Stmt *stmt)

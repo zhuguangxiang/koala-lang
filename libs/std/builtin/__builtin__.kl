@@ -73,6 +73,18 @@ pub func format(fmt str, args ...) str {}
 @native
 pub func typeof(obj any) type {}
 
+@specialized(int)
+pub func min[T : Comparable](x T, y T) T {
+    if x < y { return x }
+    return y
+}
+
+@specialized(int)
+pub func max[T : Comparable](x T, y T) T {
+    if x > y { return x }
+    return y
+}
+
 /*
 /// Return an iterator of (index, item) pairs from `seq`.
 /// The index starts at 0, or at `start` if given.

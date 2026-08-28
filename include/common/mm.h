@@ -88,6 +88,27 @@ int64_t str_to_int(const char *buf, size_t len, int *ok);
 /* string to float64 */
 double str_to_float(const char *buf, size_t len, int *ok);
 
+static inline bool match_suffix(const char *name, const char *suffix)
+{
+    size_t name_len = strlen(name);
+    size_t suf_len = strlen(suffix);
+
+    // name is shorter, return false directly
+    if (name_len < suf_len) return false;
+
+    return !memcmp(name + (name_len - suf_len), suffix, suf_len);
+}
+
+static inline bool match_prefix(const char *name, const char *prefix)
+{
+    size_t pre_len = strlen(prefix);
+
+    // name is shorter, return false directly
+    if (strlen(name) < pre_len) return false;
+
+    return !memcmp(name, prefix, pre_len);
+}
+
 #ifdef __cplusplus
 }
 #endif

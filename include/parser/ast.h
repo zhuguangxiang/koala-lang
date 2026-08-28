@@ -19,18 +19,16 @@ typedef struct _SimpleFlag {
     Loc loc;
 } SimpleFlag;
 
-typedef struct _AtFlag {
-    SimpleFlag flag;
+typedef struct _Annotation {
     Loc id_loc;
-    Loc assoc_id_loc;
     char *ident;
-    char *assoc_ident;
-} AtFlag;
+    Vector *types;
+} Annotation;
 
 typedef struct _PrefixFlags {
     SimpleFlag pub;
     SimpleFlag st;
-    AtFlag at;
+    Annotation ann;
 } PrefixFlags;
 
 /* identifier */
@@ -604,6 +602,18 @@ Stmt *stmt_from_type(StmtKind kind, IdentType name, Vector *tps, Vector *bases, 
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_continue(void);
 Stmt *stmt_from_break(void);
+
+static inline bool has_specialized_meta(Stmt *stmt)
+{
+    Annotation *ann = &stmt->flags.ann;
+    return ann->ident && !strcmp(ann->ident, "specialized");
+}
+
+static inline Vector *get_specialized_types(Stmt *stmt)
+{
+    Annotation *ann = &stmt->flags.ann;
+    return ann->types;
+}
 
 #ifdef __cplusplus
 }

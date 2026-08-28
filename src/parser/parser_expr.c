@@ -1509,10 +1509,19 @@ static void parse_call(ParserState *ps, Expr *exp)
             log_info("function '%s' has type parameters, try to infer them from call arguments.",
                      fn_sym->name);
             Vector *_tp_args = infer_tp_from_call(fn_sym, NULL, call, ps);
-            InstanceFuncSymbol *fn_inst_sym = (InstanceFuncSymbol *)find_or_add_func_instance(
-                fn_sym, _tp_args, ps->pm->stbl, ps->pm);
-            params = fn_inst_sym->real_params;
-            exp->ts = fn_inst_sym->ret_ts;
+            Symbol *_fn_sym = find_or_add_func_instance(fn_sym, _tp_args, ps->pm->stbl, ps);
+            if (_fn_sym->kind == SYM_FUNC) {
+                exp->ts = ((FuncSymbol *)_fn_sym)->ret;
+                params = ((FuncSymbol *)_fn_sym)->params;
+                // update lhs->ts and lhs->sym
+                lhs->ts = _fn_sym->ts;
+                lhs->sym = _fn_sym;
+                lhs_sym = _fn_sym;
+            } else {
+                InstanceFuncSymbol *fn_inst_sym = (InstanceFuncSymbol *)_fn_sym;
+                params = fn_inst_sym->real_params;
+                exp->ts = fn_inst_sym->ret_ts;
+            }
         } else {
             if (lhs->ts->kind == TYPE_OPTIONAL) {
                 log_info("call lhs is optional of proto.");

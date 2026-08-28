@@ -1,0 +1,54 @@
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
+
+// @specialized(int, float)
+// class Foo[T: Arithmetic, U] : Sequence[T] {
+
+//     func add(x T, y T) T {
+//         return x + y;
+//     }
+// }
+
+@specialized(int)
+func max[T: Comparable](x T, y T) T {
+    if x > y {
+        return x
+    } else {
+        return y
+    }
+}
+
+func main() {
+    let r = max(1, 2)
+    print(r)
+    let n = min(1, 2)
+    print(n)
+}
+
+// func max_int64(x int, y int) int {
+//     if x > y {
+//         return x;
+//     } else {
+//         return y;
+//     }
+// }
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @max(%x max:T, %y max:T) max:T {
+// CHECK: %0 = cmpgt %x max:T, %y max:T
+// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: ret %x max:T
+// CHECK: ret %y max:T
+// CHECK: ret void
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @max_int64(%x int64, %y int64) int64 {
+// CHECK: %0 = cmpgt %x int64, %y int64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: ret %x int64
+// CHECK: ret %y int64
+// CHECK: ret void
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: %0 = call @max_int64 [const], 1 int64, 2 int64
+// CHECK: %2 = call @min_int64 [path = 'std/builtin', const], 1 int64, 2 int64

@@ -6,6 +6,7 @@
 #include "cgen.h"
 #include "cmd.h"
 #include "log.h"
+#include "opcode.h"
 
 #ifdef __cplusplus
 extern "C" {

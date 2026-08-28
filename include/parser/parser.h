@@ -231,10 +231,15 @@ void init_const_placeholder(void);
 Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *call_exp,
                            ParserState *ps);
 Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *stbl,
-                                  ParserModule *pm);
+                                  ParserState *ps);
 
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args,
                                      ParserModule *pm);
+
+#define SPECIALIZED_NAME_PREFIX "__koala_respecialized_"
+
+void update_specialized_func(FuncSymbol *origin, char *name, Vector *tp_args, ParserState *ps);
+Symbol *find_ext_symbol(ParserState *ps, char *path, char *name);
 
 #ifdef __cplusplus
 }

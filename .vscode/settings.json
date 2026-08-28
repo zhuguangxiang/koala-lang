@@ -150,7 +150,7 @@
     "editor.fontLigatures": true,
     "editor.fontSize": 14,
     // "editor.lineHeight": 20,
-    "editor.letterSpacing": 0.0,
+    // "editor.letterSpacing": 0.0,
     "editor.renderWhitespace": "none",
     "editor.cursorSmoothCaretAnimation": "on",
     "editor.smoothScrolling": true,
@@ -259,5 +259,7 @@
         "-j=2",
         "--limit-results=40"
     ],
-    "editor.inlayHints.enabled": "off"
+    "editor.inlayHints.enabled": "off",
+    "workbench.activityBar.location": "bottom",
+    "editor.lineNumbers": "relative"
 }

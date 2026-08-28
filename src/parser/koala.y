@@ -182,7 +182,6 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 
 %token L_SHIFT
 %token R_SHIFT
-%token DOC
 
 %token OPT_DEF
 %token OPT_DOT
@@ -586,22 +585,22 @@ annotation
     : '@' ID semi
     {
         memset(&$$, 0, sizeof($$));
-        AtFlag *at = &$$.at;
-        at->flag.flag = 1;
-        at->flag.loc = lloc(@1, @3);
-        at->ident = $2;
-        at->id_loc = loc(@2);
+        Annotation *ann = &$$.ann;
+        ann->ident = $2;
+        ann->id_loc = loc(@2);
     }
-    | '@' ID '(' ID ')' semi
+    | '@' ID '(' optional_type_list ')' semi
     {
         memset(&$$, 0, sizeof($$));
-        AtFlag *at = &$$.at;
-        at->flag.flag = 1;
-        at->flag.loc = lloc(@1, @3);
-        at->ident = $2;
-        at->id_loc = loc(@2);
-        at->assoc_ident = $4;
-        at->assoc_id_loc = loc(@4);
+        Annotation *ann = &$$.ann;
+        ann->ident = $2;
+        ann->id_loc = loc(@2);
+        ann->types = $4;
+    }
+    | '@' ID '(' error
+    {
+        kl_error(loc(@4), "expected type-list.");
+        yyclearin; yyerrok;
     }
     ;
 

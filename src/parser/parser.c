@@ -420,6 +420,13 @@ Symbol *find_type_symbol(ParserState *ps, TypeIdent *pkg, TypeIdent *name)
     return sym;
 }
 
+Symbol *find_ext_symbol(ParserState *ps, char *path, char *name)
+{
+    TypeIdent pkg = { .name = path, .loc = { 0 } };
+    TypeIdent _name = { .name = name, .loc = { 0 } };
+    return find_type_symbol(ps, &pkg, &_name);
+}
+
 static void parse_import(ParserState *ps, Stmt *stmt)
 {
     // import is already resolved in parse_top_stmt
@@ -1043,11 +1050,6 @@ static int parse_flags(PrefixFlags *flags)
     if (flags->pub.flag) f |= SYM_FLAGS_PUBLIC;
     if (flags->st.flag) f |= SYM_FLAGS_STATIC;
 
-    if (flags->at.assoc_ident)
-        f |= SYM_FLAGS_TAG_VALUE;
-    else if (flags->at.ident)
-        f |= SYM_FLAGS_TAG_ONLY;
-
     return f;
 }
 
@@ -1212,41 +1214,102 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
 {
     PrefixFlags *flags = &fn->flags;
 
-    AtFlag *at = &flags->at;
-    if (!at->ident) return;
+    Annotation *ann = &flags->ann;
+    if (!ann->ident) return;
 
-    if (str_equal(at->ident, "intrinsic")) {
-        if (at->assoc_ident) {
-            kl_error(at->id_loc,
-                     "'intrinsic' annotation should not have a native func name in top func '%s'",
-                     fn->id.name);
-        }
-
+    if (str_equal(ann->ident, "intrinsic")) {
         if (!vector_empty(fn->body)) {
-            kl_error(at->id_loc, "func '%s' with 'intrinsic' annotation needs empty body.",
+            kl_error(ann->id_loc, "func '%s' with 'intrinsic' annotation needs empty body.",
                      fn->id.name);
         }
 
         return;
     }
 
-    if (str_equal(at->ident, "native")) {
+    if (str_equal(ann->ident, "native")) {
         if (!vector_empty(fn->body)) {
-            kl_error(at->id_loc, "func '%s' with 'native' annotation needs empty body.",
+            kl_error(ann->id_loc, "func '%s' with 'native' annotation needs empty body.",
                      fn->id.name);
         }
 
         return;
     }
+
+    if (str_equal(ann->ident, "specialized")) {
+        if (vector_empty(fn->tps)) {
+            kl_error(ann->id_loc,
+                     "func '%s' is not a generic function. The 'specialized' annotation only be "
+                     "used for generic function.",
+                     fn->id.name);
+            return;
+        }
+
+        if (vector_empty(ann->types)) {
+            kl_error(ann->id_loc,
+                     "func '%s' with 'specialized' annotation needs at least one type.",
+                     fn->id.name);
+            return;
+        }
+
+        if (vector_size(ann->types) != vector_size(fn->tps)) {
+            kl_error(ann->id_loc,
+                     "func '%s' with 'specialized' annotation needs same number of types as type "
+                     "parameters.",
+                     fn->id.name);
+            return;
+        }
+
+        return;
+    }
+
+    kl_error(ann->id_loc, "unknown annotation '%s'", ann->ident);
+}
+
+static void check_class_prefix(ParserState *ps, KlassDeclStmt *klass)
+{
+    PrefixFlags *flags = &klass->flags;
+
+    Annotation *ann = &flags->ann;
+    if (!ann->ident) return;
+
+    if (str_equal(ann->ident, "specialized")) {
+        if (klass->kind != STMT_CLASS_KIND) {
+            kl_error(ann->id_loc,
+                     "'%s' is not a class. The 'specialized' annotation only be used for class.",
+                     klass->id.name);
+        }
+
+        if (vector_empty(klass->tps)) {
+            kl_error(
+                ann->id_loc,
+                "class '%s' is not a generic class. The 'specialized' annotation only be used "
+                "for generic class.",
+                klass->id.name);
+        }
+
+        if (vector_empty(ann->types)) {
+            kl_error(ann->id_loc,
+                     "class '%s' with 'specialized' annotation needs at least one type.",
+                     klass->id.name);
+        }
+
+        if (vector_size(ann->types) != vector_size(klass->tps)) {
+            kl_error(ann->id_loc,
+                     "class '%s' with 'specialized' annotation needs same number of types as type "
+                     "parameters.",
+                     klass->id.name);
+        }
+
+        return;
+    }
+
+    kl_error(ann->id_loc, "unknown annotation '%s'", ann->ident);
 }
 
 static int is_native_func(FuncDeclStmt *fn)
 {
-    PrefixFlags *flags = &fn->flags;
-    AtFlag *at = &flags->at;
-    if (!at->ident) return 0;
-    if (!str_equal(at->ident, "native")) return 0;
-    return 1;
+    Annotation *ann = &fn->flags.ann;
+    return ann->ident && !strcmp(ann->ident, "native");
 }
 
 // only add function symbol and don't add parameters and return type.
@@ -1256,8 +1319,7 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
     Symbol *sym;
 
     int flags = parse_flags(&fn->flags);
-    char *ann = fn->flags.at.ident;
-    char *ann_key = fn->flags.at.assoc_ident;
+
     sym = stbl_add_func(stbl, id->name, NULL, NULL, flags);
 
     if (!sym) {
@@ -1283,6 +1345,15 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
     }
 
     fn->sym = sym;
+
+    if (has_specialized_meta((Stmt *)fn)) {
+        Symbol *fn_sym = fn->sym;
+        Vector *tp_args = get_specialized_types((Stmt *)fn);
+        char *mangled_name = mangle_func_name(fn_sym->name, tp_args);
+        stbl_add_func(stbl, mangled_name, NULL, NULL, flags);
+        log_info("added specialized func symbol '%s' for '%s'", mangled_name, fn_sym->name);
+    }
+
     return sym;
 }
 
@@ -1419,8 +1490,6 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
     ParserScope *sc = ps->scope;
-
-    check_func_prefix(ps, fn);
 
     FuncSymbol *sym = (FuncSymbol *)fn->sym;
     if (is_native_func(fn)) sym->flags |= SYM_FLAGS_NATIVE;
@@ -1868,7 +1937,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         vector_push_back(_args, &param);
         Stmt *stmt = stmt_from_func_decl(_id, _args, _ret, NULL);
         PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
-        flags->at.ident = "native";
+        flags->ann.ident = "native";
 
         if (!kls->stmts) {
             kls->stmts = vector_create_ptr();
@@ -1887,7 +1956,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         vector_push_back(_args, &param);
         Stmt *stmt = stmt_from_func_decl(_id, _args, _ret, NULL);
         PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
-        flags->at.ident = "native";
+        flags->ann.ident = "native";
 
         if (!kls->stmts) {
             kls->stmts = vector_create_ptr();
@@ -1901,7 +1970,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         TypeSpec *ret = int64_type_spec();
         Stmt *stmt = stmt_from_func_decl(id, NULL, ret, NULL);
         PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
-        flags->at.ident = "native";
+        flags->ann.ident = "native";
 
         if (!kls->stmts) {
             kls->stmts = vector_create_ptr();
@@ -1915,7 +1984,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         TypeSpec *ret = str_type_spec();
         Stmt *stmt = stmt_from_func_decl(id, NULL, ret, NULL);
         PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
-        flags->at.ident = "native";
+        flags->ann.ident = "native";
 
         if (!kls->stmts) {
             kls->stmts = vector_create_ptr();
@@ -2405,6 +2474,8 @@ static void parse_klass(ParserState *ps, Stmt *stmt)
 
     log_info("parse klass '%s' body", sym->name);
 
+    check_class_prefix(ps, kls);
+
     ScopeKind scope_kind = (kls->kind == STMT_CLASS_KIND) ? SCOPE_CLASS : SCOPE_TRAIT;
 
     ParserScope *sc = enter_scope(ps, scope_kind, 0, sym->name);
@@ -2890,6 +2961,8 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
 
     sym->status = SYM_RESOLVING;
 
+    check_func_prefix(ps, fn);
+
     ParserScope *sc = enter_scope(ps, SCOPE_FUNC, 0, sym->name);
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
@@ -2999,6 +3072,13 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
     exit_scope(ps);
 
     sym->status = SYM_RESOLVED;
+
+    if (has_specialized_meta((Stmt *)fn)) {
+        Symbol *fn_sym = fn->sym;
+        Vector *tp_args = get_specialized_types((Stmt *)fn);
+        char *mangled_name = mangle_func_name(fn_sym->name, tp_args);
+        update_specialized_func(sym, mangled_name, tp_args, ps);
+    }
 }
 
 static void parse_klass_func_meta(ParserState *ps, KlassDeclStmt *kls)

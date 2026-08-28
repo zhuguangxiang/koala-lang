@@ -210,17 +210,6 @@ static void __load_const(Object *m, KlcConst *item)
     }
 }
 
-static bool match_suffix(const char *name, const char *suffix)
-{
-    size_t name_len = strlen(name);
-    size_t suf_len = strlen(suffix);
-
-    // length is not enough, return false directly
-    if (name_len < suf_len) return false;
-
-    return !memcmp(name + (name_len - suf_len), suffix, suf_len);
-}
-
 Object *kl_get_native(Object *m, char *name)
 {
     ModuleObject *mo = (ModuleObject *)m;

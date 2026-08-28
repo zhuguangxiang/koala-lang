@@ -110,13 +110,15 @@ static void write_meta_func(FuncSymbol *fn_sym, KlcKlass *klass, KlcFile *klc)
     ArgInfo *item;
     vector_foreach(item, fn_sym->params) {
         if (!item) continue;
-        ASSERT(item->sym->kind == SYM_VAR);
-        VarSymbol *var_sym = (VarSymbol *)item->sym;
-        ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
         uint16_t dfl_val_idx = 0;
-        if (var_sym->lit) {
-            // has default value
-            dfl_val_idx = klc_add_const(klc, var_sym->lit);
+        if (item->sym) {
+            ASSERT(item->sym->kind == SYM_VAR);
+            VarSymbol *var_sym = (VarSymbol *)item->sym;
+            ASSERT(var_sym->scope == VAR_SCOPE_PARAM);
+            if (var_sym->lit) {
+                // has default value
+                dfl_val_idx = klc_add_const(klc, var_sym->lit);
+            }
         }
         klc_func_add_arg(fn, item->name, item->ts->signature, dfl_val_idx);
     }

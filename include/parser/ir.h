@@ -9,7 +9,7 @@
 #include "hashmap.h"
 #include "list.h"
 #include "loc.h"
-#include "opcode.h"
+#include "opcode_only.h"
 #include "typespec.h"
 #include "vector.h"
 
@@ -1093,6 +1093,8 @@ KlrValue *klr_build_map_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, Ty
 void klr_build_map_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val);
 
 KlrValue *klr_build_seq_len(KlrBuilder *bldr, KlrValue *obj, char *name);
+
+KlrValue *klr_specialize_func(KlrFunc *fn, char *mangled_name, Vector *tp_args);
 
 #ifdef __cplusplus
 }

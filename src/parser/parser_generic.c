@@ -3,7 +3,6 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#include "atom.h"
 #include "log.h"
 #include "parser.h"
 
@@ -147,25 +146,6 @@ error:
     fini_tpinfo_map(&map);
     vector_destroy(result);
     return NULL;
-}
-
-static char *mangle_type_name(char *base_name, Vector *tp_args)
-{
-    BUF(buf);
-    buf_write_str(&buf, base_name);
-
-    if (vector_size(tp_args) > 0) {
-        buf_write_char(&buf, '<');
-        TypeSpec *ts;
-        vector_foreach(ts, tp_args) {
-            type_spec_to_str(ts, &buf);
-        }
-        buf_write_char(&buf, '>');
-    }
-
-    char *mangled_name = atom_str(BUF_STR(buf));
-    FINI_BUF(buf);
-    return mangled_name;
 }
 
 static int get_generic_var_index(HashMap *stbl, TypeSpec *ts)
@@ -386,14 +366,25 @@ static TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args, HashMap *stbl, Pa
 }
 
 Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *stbl,
-                                  ParserModule *pm)
+                                  ParserState *ps)
 {
-    char *mangled_name = mangle_type_name(origin->name, tp_args);
+    char *mangled_name = mangle_func_name(origin->name, tp_args);
     Symbol *sym = stbl_get(stbl, mangled_name);
     if (sym) {
         log_info("found existing func instance symbol '%s'", mangled_name);
-        ASSERT(sym->kind == SYM_INSTANCE_FUNC);
+        ASSERT(sym->kind == SYM_INSTANCE_FUNC || sym->kind == SYM_FUNC);
         return sym;
+    }
+
+    if (origin->flags & SYM_FLAGS_EXT) {
+        // try to find mangled_name function from external library
+        sym = find_ext_symbol(ps, origin->path, mangled_name);
+        if (sym) {
+            log_info("found existing external mangled func symbol '%s'", mangled_name);
+            ASSERT(sym->kind == SYM_FUNC);
+            return sym;
+        }
+        // fall back to add an instance function
     }
 
     log_info("added func instance symbol '%s' for '%s'", mangled_name, origin->name);
@@ -403,16 +394,48 @@ Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *
     ArgInfo *arg;
     vector_foreach(arg, origin->params) {
         if (!arg) continue;
-        TypeSpec *arg_ts = inst_type_spec(arg->ts, tp_args, stbl, pm);
+        TypeSpec *arg_ts = inst_type_spec(arg->ts, tp_args, stbl, ps->pm);
         log_info("func instance %dth-arg type: '%s'", i__, arg_ts->signature);
         vector_push_back(real_arg_types, &arg_ts);
     }
 
-    TypeSpec *ret_type = inst_type_spec(origin->ret, tp_args, stbl, pm);
+    TypeSpec *ret_type = inst_type_spec(origin->ret, tp_args, stbl, ps->pm);
     log_info("func instance ret type: '%s'", ret_type->signature);
 
     sym = stbl_add_func_instance(stbl, origin, mangled_name, real_arg_types, ret_type);
     return sym;
+}
+
+void update_specialized_func(FuncSymbol *origin, char *name, Vector *tp_args, ParserState *ps)
+{
+    ParserModule *pm = ps->pm;
+    HashMap *stbl = pm->stbl;
+    Symbol *sym = stbl_get(stbl, name);
+    ASSERT(sym);
+
+    Vector *arg_types = vector_create_ptr();
+    Vector *arg_infos = vector_create_ptr();
+
+    ArgInfo *arg;
+    vector_foreach(arg, origin->params) {
+        if (!arg) continue;
+        TypeSpec *arg_ts = inst_type_spec(arg->ts, tp_args, stbl, pm);
+        log_info("specialized func %dth-arg type: '%s'", i__, arg_ts->signature);
+        vector_push_back(arg_types, &arg_ts);
+
+        log_info("specialized func %dth-arg info: '%s'", i__, arg->name);
+        ArgInfo *_param = mm_alloc_obj(_param);
+        _param->name = arg->name;
+        _param->ts = arg_ts;
+        vector_push_back(arg_infos, &_param);
+    }
+
+    TypeSpec *ret_type = inst_type_spec(origin->ret, tp_args, stbl, pm);
+    log_info("specialized func ret type: '%s'", ret_type->signature);
+    FuncSymbol *fn_sym = (FuncSymbol *)sym;
+    fn_sym->ret = ret_type;
+    fn_sym->params = arg_infos;
+    fn_sym->ts = func_type_spec(arg_types, ret_type);
 }
 
 #ifdef __cplusplus
