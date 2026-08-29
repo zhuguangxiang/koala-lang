@@ -73,13 +73,13 @@ pub func format(fmt str, args ...) str {}
 @native
 pub func typeof(obj any) type {}
 
-@specialized(int)
+@specialized(int, uint, float)
 pub func min[T : Comparable](x T, y T) T {
     if x < y { return x }
     return y
 }
 
-@specialized(int)
+@specialized(int, uint, float)
 pub func max[T : Comparable](x T, y T) T {
     if x > y { return x }
     return y

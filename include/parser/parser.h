@@ -236,7 +236,8 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
 
 #define SPECIALIZED_NAME_PREFIX "__koala_respecialized_"
 
-void update_specialized_func(FuncSymbol *origin, char *name, Vector *tp_args, ParserState *ps);
+void add_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserState *ps);
+void update_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserState *ps);
 Symbol *find_ext_symbol(ParserState *ps, char *path, char *name);
 
 #ifdef __cplusplus

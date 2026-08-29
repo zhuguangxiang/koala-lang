@@ -2116,10 +2116,10 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
 /**
  * Check whether `ts` satisfies all bounds declared on `tp`.
  *
- * For a declaration like `T: Comparable +& Hashable`, this verifies that
+ * For a declaration like `T: Comparable & Hashable`, this verifies that
  * `ts` is compatible with EVERY bound (intersection semantics).
  */
-static int check_generic_bound(TypeParamSymbol *tp, TypeSpec *ts)
+static int check_generic_bound(TypeSpec *ts, TypeParamSymbol *tp)
 {
     if (!tp || !ts) return 0;
 
@@ -2214,7 +2214,7 @@ static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
     TypeParamSymbol *tp_sym;
     vector_foreach(tp_sym, &fn_sym->tps) {
         TypeSpec *_ts = vector_get(tp_args, i__);
-        if (!check_generic_bound(tp_sym, _ts)) {
+        if (!check_generic_bound(_ts, tp_sym)) {
             BUF(ts_buf);
             type_spec_print(arg->ts, &ts_buf);
             kl_error(lhs->loc,

@@ -1248,12 +1248,16 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
             return;
         }
 
-        if (vector_size(ann->types) != vector_size(fn->tps)) {
-            kl_error(ann->id_loc,
-                     "func '%s' with 'specialized' annotation needs same number of types as type "
-                     "parameters.",
-                     fn->id.name);
-            return;
+        Vector *tp_args;
+        vector_foreach(tp_args, ann->types) {
+            if (vector_size(tp_args) != vector_size(fn->tps)) {
+                kl_error(
+                    ann->id_loc,
+                    "func '%s' with 'specialized' annotation needs same number of types as type "
+                    "parameters.",
+                    fn->id.name);
+                return;
+            }
         }
 
         return;
@@ -1310,7 +1314,7 @@ static int is_native_func(FuncDeclStmt *fn)
 }
 
 // only add function symbol and don't add parameters and return type.
-static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
+static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int toplevel)
 {
     Ident *id = &fn->id;
     Symbol *sym;
@@ -1343,13 +1347,18 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn)
 
     fn->sym = sym;
 
-    if (has_specialized_meta((Stmt *)fn)) {
-        Symbol *fn_sym = fn->sym;
-        Vector *tp_args = get_specialized_types((Stmt *)fn);
-        char *mangled_name = mangle_func_name(fn_sym->name, tp_args);
-        stbl_add_func(stbl, mangled_name, NULL, NULL, flags);
-        log_info("added specialized func symbol '%s' for '%s'", mangled_name, fn_sym->name);
+    check_func_prefix(ps, fn);
+
+    if (!has_specialized_meta((Stmt *)fn)) return sym;
+
+    if (!toplevel) {
+        kl_error(id->loc, "func '%s' with specialized meta can only be declared at function.",
+                 id->name);
+        return NULL;
     }
+
+    Vector *tp_args_list = get_specialized_types_list((Stmt *)fn);
+    add_specialized_func((FuncSymbol *)fn->sym, tp_args_list, ps);
 
     return sym;
 }
@@ -2064,7 +2073,7 @@ static Symbol *_add_klass(ParserState *ps, HashMap *stbl, KlassDeclStmt *kls, in
             Symbol *var = _add_field(ps, sym->stbl, (VarDeclStmt *)stmt);
             if (var) vector_push_back(kls_sym->fields, &var);
         } else if (stmt->kind == STMT_FUNC_KIND) {
-            Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt);
+            Symbol *fn = _add_func(ps, sym->stbl, (FuncDeclStmt *)stmt, 0);
             if (fn) {
                 fn->parent = kls_sym;
                 vector_push_back(kls_sym->funcs, &fn);
@@ -2945,7 +2954,7 @@ static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls)
     sym->status = SYM_RESOLVED;
 }
 
-static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
+static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
 {
     FuncSymbol *sym = (FuncSymbol *)fn->sym;
 
@@ -2957,8 +2966,6 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
     }
 
     sym->status = SYM_RESOLVING;
-
-    check_func_prefix(ps, fn);
 
     ParserScope *sc = enter_scope(ps, SCOPE_FUNC, 0, sym->name);
     sc->stbl = sym->stbl;
@@ -3070,12 +3077,15 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn)
 
     sym->status = SYM_RESOLVED;
 
-    if (has_specialized_meta((Stmt *)fn)) {
-        Symbol *fn_sym = fn->sym;
-        Vector *tp_args = get_specialized_types((Stmt *)fn);
-        char *mangled_name = mangle_func_name(fn_sym->name, tp_args);
-        update_specialized_func(sym, mangled_name, tp_args, ps);
+    if (!has_specialized_meta((Stmt *)fn)) return;
+
+    if (!toplevel) {
+        kl_error(fn->loc, "specialized function must be defined at top level");
+        return;
     }
+
+    Vector *tp_args_list = get_specialized_types_list((Stmt *)fn);
+    update_specialized_func(sym, tp_args_list, ps);
 }
 
 static void parse_klass_func_meta(ParserState *ps, KlassDeclStmt *kls)
@@ -3094,7 +3104,7 @@ static void parse_klass_func_meta(ParserState *ps, KlassDeclStmt *kls)
     vector_foreach(stmt, kls->stmts) {
         if (!stmt) continue;
         if (stmt->kind == STMT_FUNC_KIND) {
-            parse_func_meta(ps, (FuncDeclStmt *)stmt);
+            parse_func_meta(ps, (FuncDeclStmt *)stmt, 0);
         }
     }
 
@@ -3127,7 +3137,7 @@ void kl_parse_ast(ParserState *ps)
     FuncDeclStmt *fn;
     vector_foreach(fn, &ps->fn_stmts) {
         if (!fn) continue;
-        parse_func_meta(ps, fn);
+        parse_func_meta(ps, fn, 1);
     }
 
     Stmt *stmt;
@@ -3256,7 +3266,7 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
         }
         case STMT_FUNC_KIND: {
             FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
-            sym = _add_func(ps, ps->pm->stbl, fn);
+            sym = _add_func(ps, ps->pm->stbl, fn, 1);
             if (!sym) return;
             vector_push_back(&ps->fn_stmts, &stmt);
             sym->ps = ps;

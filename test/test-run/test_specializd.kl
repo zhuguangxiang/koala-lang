@@ -8,7 +8,8 @@
 //     }
 // }
 
-@specialized(int)
+// @specialized([int], [uint], [float])
+@specialized(int, uint, float)
 func max[T: Comparable](x T, y T) T {
     if x > y {
         return x
@@ -24,6 +25,13 @@ func main() {
     print(n)
     let m = max[float](1.1, 2.3)
     print(m)
+    let o = max[int](1, 2)
+    print(o)
+    let p = max(2.3, 5.6)
+    print(p)
+    print(min[int](20, -3))
+    print(min(1.2, 2.3))
+    print(min[float](1.2, 2.3))
 }
 
 // func max_int64(x int, y int) int {
@@ -51,11 +59,37 @@ func main() {
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @max_uint64(%x uint64, %y uint64) uint64 {
+// CHECK: %0 = cmpgt %x uint64, %y uint64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: ret %x uint64
+// CHECK: ret %y uint64
+// CHECK: ret void
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @max_float64(%x float64, %y float64) float64 {
+// CHECK: %0 = cmpgt %x float64, %y float64
+// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: ret %x float64
+// CHECK: ret %y float64
+// CHECK: ret void
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
 // CHECK: %0 = call @max_int64 [const], 1 int64, 2 int64
 // CHECK: %2 = call @min_int64 [path = 'std/builtin', const], 1 int64, 2 int64
-// CHECK: %4 = call @max [const], 1.100000 float64, 2.300000 float64
+// CHECK: %4 = call @max_float64 [const], 1.100000 float64, 2.300000 float64
+// CHECK: %6 = call @max_int64 [const], 1 int64, 2 int64
+// CHECK: %8 = call @max_float64 [const], 2.300000 float64, 5.600000 float64
+// CHECK: %10 = call @min_int64 [path = 'std/builtin', const], 20 int64, -3 int64
+// CHECK: %12 = call @min_float64 [path = 'std/builtin', const], 1.200000 float64, 2.300000 float64
+// CHECK: %14 = call @min_float64 [path = 'std/builtin', const], 1.200000 float64, 2.300000 float64
 
 // CHECK: 2
 // CHECK: 1
 // CHECK: 2.2999{{.*}}
+// CHECK: 2
+// CHECK: 5.5999{{.*}}
+// CHECK: -3
+// CHECK: 1.2{{.*}}
+// CHECK: 1.2{{.*}}

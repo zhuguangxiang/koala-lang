@@ -609,7 +609,7 @@ static inline bool has_specialized_meta(Stmt *stmt)
     return ann->ident && !strcmp(ann->ident, "specialized");
 }
 
-static inline Vector *get_specialized_types(Stmt *stmt)
+static inline Vector *get_specialized_types_list(Stmt *stmt)
 {
     Annotation *ann = &stmt->flags.ann;
     return ann->types;

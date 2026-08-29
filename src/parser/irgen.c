@@ -963,7 +963,7 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
 
     if (lhs->ts->kind == TYPE_PROTO) {
         // assign function's KlrValue to expr's ir_val
-        exp->ir_val = lhs->sym->ir_val;
+        exp->ir_val = exp->sym->ir_val;
         ASSERT(exp->ir_val);
         return;
     }
@@ -1467,8 +1467,11 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
 
     exit_scope(ps);
 
-    if (has_specialized_meta(stmt)) {
-        Vector *tp_args = get_specialized_types(stmt);
+    if (!has_specialized_meta(stmt)) return;
+
+    Vector *tp_args_list = get_specialized_types_list(stmt);
+    Vector *tp_args;
+    vector_foreach(tp_args, tp_args_list) {
         char *mangled_name = mangle_func_name(sym->name, tp_args);
         KlrValue *new_fn = klr_specialize_func((KlrFunc *)sym->ir_val, mangled_name, tp_args);
         Symbol *new_fn_sym = stbl_get(ps->pm->stbl, mangled_name);

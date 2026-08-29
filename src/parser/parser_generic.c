@@ -406,36 +406,51 @@ Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *
     return sym;
 }
 
-void update_specialized_func(FuncSymbol *origin, char *name, Vector *tp_args, ParserState *ps)
+void add_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserState *ps)
+{
+    Vector *tp_args;
+    vector_foreach(tp_args, tp_args_list) {
+        char *mangled_name = mangle_func_name(origin->name, tp_args);
+        stbl_add_func(ps->pm->stbl, mangled_name, NULL, NULL, origin->flags);
+        log_info("added specialized func symbol '%s' for '%s'", mangled_name, origin->name);
+    }
+}
+
+void update_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserState *ps)
 {
     ParserModule *pm = ps->pm;
     HashMap *stbl = pm->stbl;
-    Symbol *sym = stbl_get(stbl, name);
-    ASSERT(sym);
 
-    Vector *arg_types = vector_create_ptr();
-    Vector *arg_infos = vector_create_ptr();
+    Vector *tp_args;
+    vector_foreach(tp_args, tp_args_list) {
+        char *name = mangle_func_name(origin->name, tp_args);
+        Symbol *sym = stbl_get(stbl, name);
+        ASSERT(sym);
 
-    ArgInfo *arg;
-    vector_foreach(arg, origin->params) {
-        if (!arg) continue;
-        TypeSpec *arg_ts = inst_type_spec(arg->ts, tp_args, stbl, pm);
-        log_info("specialized func %dth-arg type: '%s'", i__, arg_ts->signature);
-        vector_push_back(arg_types, &arg_ts);
+        Vector *arg_types = vector_create_ptr();
+        Vector *arg_infos = vector_create_ptr();
 
-        log_info("specialized func %dth-arg info: '%s'", i__, arg->name);
-        ArgInfo *_param = mm_alloc_obj(_param);
-        _param->name = arg->name;
-        _param->ts = arg_ts;
-        vector_push_back(arg_infos, &_param);
+        ArgInfo *arg;
+        vector_foreach(arg, origin->params) {
+            if (!arg) continue;
+            TypeSpec *arg_ts = inst_type_spec(arg->ts, tp_args, stbl, pm);
+            log_info("specialized func %dth-arg type: '%s'", i__, arg_ts->signature);
+            vector_push_back(arg_types, &arg_ts);
+
+            log_info("specialized func %dth-arg info: '%s'", i__, arg->name);
+            ArgInfo *_param = mm_alloc_obj(_param);
+            _param->name = arg->name;
+            _param->ts = arg_ts;
+            vector_push_back(arg_infos, &_param);
+        }
+
+        TypeSpec *ret_type = inst_type_spec(origin->ret, tp_args, stbl, pm);
+        log_info("specialized func ret type: '%s'", ret_type->signature);
+        FuncSymbol *fn_sym = (FuncSymbol *)sym;
+        fn_sym->ret = ret_type;
+        fn_sym->params = arg_infos;
+        fn_sym->ts = func_type_spec(arg_types, ret_type);
     }
-
-    TypeSpec *ret_type = inst_type_spec(origin->ret, tp_args, stbl, pm);
-    log_info("specialized func ret type: '%s'", ret_type->signature);
-    FuncSymbol *fn_sym = (FuncSymbol *)sym;
-    fn_sym->ret = ret_type;
-    fn_sym->params = arg_infos;
-    fn_sym->ts = func_type_spec(arg_types, ret_type);
 }
 
 #ifdef __cplusplus

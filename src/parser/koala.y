@@ -248,6 +248,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<type_spec> set_type
 %type<type_spec> tuple_type
 %type<type_spec> klass_type
+%type<type_spec> atom_primitive_type
 %type<type_spec> atom_type
 %type<type_spec> union_type
 %type<type_spec> union_opt_type
@@ -256,6 +257,9 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 
 %type<vec> id_as_list
 %type<vec> top_stmts
+%type<vec> specialized_types_list
+%type<vec> atom_primitive_type_lists
+%type<vec> atom_primitive_type_list
 %type<vec> optional_type_list
 %type<vec> block
 %type<vec> local_list
@@ -439,7 +443,7 @@ top_stmt
         // $$ = $1;
         // if ($$) var_set_where($$, VAR_GLOBAL);
     }
-    | prefix const_decl semi
+    | access const_decl semi
     {
         // $$ = $2;
         // if ($$) var_set_where($$, VAR_GLOBAL);
@@ -449,7 +453,7 @@ top_stmt
         $$ = $1;
         if ($$) var_set_where($$, VAR_GLOBAL);
     }
-    | prefix let_decl semi
+    | access let_decl semi
     {
         $$ = $2;
         if ($$) {
@@ -462,7 +466,7 @@ top_stmt
         $$ = $1;
         if ($$) var_set_where($$, VAR_GLOBAL);
     }
-    | prefix var_decl semi
+    | access var_decl semi
     {
         $$ = $2;
         if ($$) {
@@ -492,7 +496,7 @@ top_stmt
     {
         $$ = $1;
     }
-    | prefix trait_decl
+    | access trait_decl
     {
         $$ = $2;
         stmt_set_prefix($$, $1);
@@ -589,7 +593,7 @@ annotation
         ann->ident = $2;
         ann->id_loc = loc(@2);
     }
-    | '@' ID '(' optional_type_list ')' semi
+    | '@' ID '(' specialized_types_list ')' semi
     {
         memset(&$$, 0, sizeof($$));
         Annotation *ann = &$$.ann;
@@ -599,8 +603,54 @@ annotation
     }
     | '@' ID '(' error
     {
-        kl_error(loc(@4), "expected type-list.");
+        kl_error(loc(@4), "expected primitive types list.");
         yyclearin; yyerrok;
+    }
+    ;
+
+specialized_types_list
+    : atom_primitive_type_list
+    {
+        $$ = vector_create_ptr();
+
+        void *ts;
+        vector_foreach(ts, $1) {
+            Vector *tp_args = vector_create_ptr();
+            vector_push_back(tp_args, &ts);
+            vector_push_back($$, &tp_args);
+        }
+
+        vector_destroy($1);
+    }
+    | atom_primitive_type_lists
+    {
+        $$ = $1;
+    }
+    ;
+
+atom_primitive_type_lists
+    :  '[' atom_primitive_type_list ']'
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$2);
+    }
+    | atom_primitive_type_lists ','  '[' atom_primitive_type_list ']'
+    {
+        vector_push_back($1, &$4);
+        $$ = $1;
+    }
+    ;
+
+atom_primitive_type_list
+    : atom_primitive_type
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | atom_primitive_type_list ',' atom_primitive_type
+    {
+        vector_push_back($1, &$3);
+        $$ = $1;
     }
     ;
 
@@ -970,7 +1020,7 @@ klass_type
     }
     ;
 
-atom_type
+atom_primitive_type
     : UINT8
     {
         $$ = uint8_type_spec();
@@ -1035,6 +1085,13 @@ atom_type
     {
         $$ = bool_type_spec();
         type_spec_loc($$, loc(@1));
+    }
+    ;
+
+atom_type
+    : atom_primitive_type
+    {
+        $$ = $1;
     }
     | STRING
     {
@@ -1836,7 +1893,7 @@ prefix_field_decl
     {
         $$ = $1;
     }
-    | prefix field_decl
+    | access field_decl
     {
         $$ = $2;
         stmt_set_prefix($$, $1);
@@ -1974,7 +2031,7 @@ trait_method
         PrefixFlags flags = { .pub.flag = 1 };
         stmt_set_prefix($$, flags);
     }
-    | prefix func_proto_decl semi
+    | access func_proto_decl semi
     {
         $$ = $2;
         $1.pub.flag = 1;
