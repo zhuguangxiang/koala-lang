@@ -22,6 +22,8 @@ func main() {
     print(r)
     let n = min(1, 2)
     print(n)
+    let m = max[float](1.1, 2.3)
+    print(m)
 }
 
 // func max_int64(x int, y int) int {
@@ -52,3 +54,8 @@ func main() {
 // CHECK-LABEL: func @main()
 // CHECK: %0 = call @max_int64 [const], 1 int64, 2 int64
 // CHECK: %2 = call @min_int64 [path = 'std/builtin', const], 1 int64, 2 int64
+// CHECK: %4 = call @max [const], 1.100000 float64, 2.300000 float64
+
+// CHECK: 2
+// CHECK: 1
+// CHECK: 2.2999{{.*}}

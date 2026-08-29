@@ -961,6 +961,13 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
         return;
     }
 
+    if (lhs->ts->kind == TYPE_PROTO) {
+        // assign function's KlrValue to expr's ir_val
+        exp->ir_val = lhs->sym->ir_val;
+        ASSERT(exp->ir_val);
+        return;
+    }
+
     if (exp->ctx == EXPR_CTX_LOAD_STORE) {
         NYI();
         return;

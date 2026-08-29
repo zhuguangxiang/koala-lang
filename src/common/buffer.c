@@ -157,6 +157,57 @@ void escape_str(const char *s, Buffer *buf)
     }
 }
 
+/* Stack buffer size for fast path: avoids heap allocation for short formats */
+#define BUF_FMT_STACK_SIZE 256
+
+void buf_write_vfmt(Buffer *self, const char *fmt, va_list ap)
+{
+    if (!self || !fmt) return;
+
+    char stack_buf[BUF_FMT_STACK_SIZE];
+    va_list ap_copy;
+    va_copy(ap_copy, ap);
+
+    /*
+     * First attempt: format into a stack-local buffer.
+     * Covers the vast majority of real-world format strings
+     * (identifiers, numbers, short messages) without any heap allocation.
+     */
+    int n = vsnprintf(stack_buf, sizeof(stack_buf), fmt, ap);
+    if (n < 0) {
+        va_end(ap_copy);
+        return; /* encoding error */
+    }
+
+    if (n < (int)sizeof(stack_buf)) {
+        /* Fast path: result fit in the stack buffer */
+        buf_reserve(self, n);
+        memcpy(self->buf + self->len, stack_buf, n);
+        self->len += n;
+    } else {
+        /*
+         * Slow path: output exceeded stack buffer.
+         * 'n' holds the exact number of characters needed (excluding '\0').
+         * Re-format directly into the heap buffer.
+         */
+        buf_reserve(self, n);
+        vsnprintf(self->buf + self->len, n + 1, fmt, ap_copy);
+        self->len += n;
+    }
+
+    va_end(ap_copy);
+}
+
+void buf_write_fmt(Buffer *self, const char *fmt, ...)
+{
+    if (!self || !fmt) return;
+
+    va_list ap;
+    va_start(ap, fmt);
+    buf_write_vfmt(self, fmt, ap);
+    va_end(ap);
+}
+
 #ifdef __cplusplus
 }
 #endif

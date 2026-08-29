@@ -475,6 +475,22 @@ static int type_spec_equal_strict(TypeSpec *a, TypeSpec *b)
     return 1;
 }
 
+/* dst is compatible when it is compatible with ANY declared base. */
+static int _base_compatible(TypeSpec *dst, Vector *bases)
+{
+    if (!bases) return 0;
+
+    TypeSpec *base;
+    vector_foreach(base, bases) {
+        if (!base) continue;
+        /* Use full compatibility check to handle generic base specialization */
+        if (type_spec_compatible(dst, base)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /*
  * Widening to a declared base: compatible iff dst is (or is compatible with)
  * one of src's bases. Covers class inheritance and concrete -> trait
@@ -492,18 +508,86 @@ static int ts_in_bases(TypeSpec *dst, TypeSpec *src)
     } else if (sym->kind == SYM_INSTANCE) {
         bases = ((InstanceSymbol *)sym)->bases;
     }
-    if (!bases) return 0;
 
-    TypeSpec *base;
-    vector_foreach(base, bases) {
-        if (!base) continue;
-        if (type_spec_compatible(dst, base)) {
-            return 1;
-        }
-    }
-    return 0;
+    return _base_compatible(dst, bases);
 }
 
+/* 'T?' accepts T itself, the null type and any 'U?' with U compatible to T. */
+static int _optional_compatible_check(TypeSpec *dst, TypeSpec *src)
+{
+    ASSERT(dst->opt.src != NULL);
+
+    if (src->kind != TYPE_OPTIONAL) {
+        /* dst is optional, src is not: implicit wrapping */
+        return type_spec_compatible(dst->opt.src, src);
+    }
+
+    /* Null type is subtype of all optional types by language design */
+    if (src->opt.src == NULL) {
+        return 1;
+    }
+
+    /* both dst and src are optional: covariant on inner type */
+    return type_spec_compatible(dst->opt.src, src->opt.src);
+}
+
+/*
+ * Rule 2: strict kind matching (semantic barrier). Kinds may only differ
+ * through type parameter bounds, widening to declared base, or on the
+ * dst side: generic refs, unions and klass types.
+ */
+static int _diff_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
+{
+    /* A type parameter src satisfies dst via one of its bounds */
+    if (src->kind == TYPE_GENERIC_VAR) {
+        TypeParamSymbol *sym = get_symbol_by_id(src->sym_id);
+        if (sym) {
+            TypeSpec *bound;
+            vector_foreach(bound, &sym->bound) {
+                if (!bound) continue;
+                if (type_spec_compatible(dst, bound)) return 1;
+            }
+        }
+    }
+
+    /* Widening to a declared base, e.g. ConcreteClass -> Trait[T] */
+    if (ts_in_bases(dst, src)) return 1;
+
+    switch (dst->kind) {
+        case TYPE_GENERIC_REF: {
+            /* Only a class/instance src can match an open generic ref */
+            if (src->kind != TYPE_KLASS) return 0;
+            if (dst->sym_id == src->sym_id) return 1;
+            Symbol *sym = get_symbol_by_id(src->sym_id);
+            if (!sym || sym->kind != SYM_CLASS) return 0;
+            return _base_compatible(dst, &((KlassSymbol *)sym)->bases);
+        }
+        case TYPE_UNION: {
+            /* dst accepts any type listed in the union */
+            TypeSpec *arg;
+            vector_foreach(arg, dst->union_type.args) {
+                if (!arg) continue;
+                if (type_spec_compatible(arg, src)) return 1;
+            }
+            return 0;
+        }
+        case TYPE_KLASS: {
+            /* Primitive-to-wrapper promotion: e.g. int -> Integer.
+             * Check if dst (wrapper class) appears in src's declared bases. */
+            if (src->kind != TYPE_INT && src->kind != TYPE_FLOAT && src->kind != TYPE_BFLOAT16) {
+                return 0;
+            }
+            Symbol *src_sym = get_symbol_by_id(src->sym_id);
+            if (!src_sym) return 0;
+            /* Reuse ts_in_bases: checks if dst is in src's base list */
+            return ts_in_bases(dst, src);
+        }
+        default:
+            return 0;
+    }
+}
+
+/*
 static int is_subtype_of(int child_id, int parent_id)
 {
     if (child_id == parent_id) return 1;
@@ -530,23 +614,124 @@ static int is_subtype_of(int child_id, int parent_id)
 
     return 0;
 }
+*/
+
+/*
+ * Rule 5: structural recursion for specialized types (generics).
+ * Generic arguments are INVARIANT: List[int32] != List[int64],
+ * List[Dog] != List[Animal].
+ */
+static int compatible_generic_ref(TypeSpec *dst, TypeSpec *src)
+{
+    int d_args_size = vector_size(dst->generic_ref.args);
+    int s_args_size = vector_size(src->generic_ref.args);
+
+    if (d_args_size != s_args_size) {
+        /* Arity differs: attempt widening src to a matching base of dst.
+         * Uses full type_spec_compatible to correctly handle cases where
+         * dst is GenericRef and base is bare Klass or vice versa. */
+        Symbol *sym = get_symbol_by_id(src->sym_id);
+        if (!sym) return 0;
+
+        if (sym->kind == SYM_CLASS) {
+            return _base_compatible(dst, &((KlassSymbol *)sym)->bases);
+        }
+        if (sym->kind == SYM_INSTANCE) {
+            InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+            Symbol *origin_sym = inst_sym->origin;
+            if (origin_sym && origin_sym->kind == SYM_CLASS) {
+                return _base_compatible(dst, &((KlassSymbol *)origin_sym)->bases);
+            }
+        }
+        return 0;
+    }
+
+    /* Invariant: generic parameters must be strictly equal */
+    for (int i = 0; i < d_args_size; i++) {
+        TypeSpec *d_arg = vector_get(dst->generic_ref.args, i);
+        TypeSpec *s_arg = vector_get(src->generic_ref.args, i);
+        if (!type_spec_equal_strict(d_arg, s_arg)) return 0;
+    }
+
+    return 1;
+}
+
+/* same-kind klass comparison through src's inheritance chain */
+static int compatible_klass(TypeSpec *dst, TypeSpec *src)
+{
+    /* Identity check by sym_id, NOT pointer equality.
+     * Two TypeSpec objects representing the same class may be
+     * distinct heap allocations across compilation units. */
+    if (dst->sym_id == src->sym_id) return 1;
+
+    Symbol *sym = get_symbol_by_id(src->sym_id);
+    if (!sym) return 0;
+
+    Vector *bases = NULL;
+    if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+        bases = &((KlassSymbol *)sym)->bases;
+    } else if (sym->kind == SYM_INSTANCE) {
+        bases = ((InstanceSymbol *)sym)->bases;
+    } else {
+        log_warn("compatible_klass: unexpected symbol kind %d for sym_id %u", sym->kind,
+                 src->sym_id);
+        return 0;
+    }
+
+    return _base_compatible(dst, bases);
+}
+
+/* dst and src share the same kind: dispatch on it */
+static int _same_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
+{
+    switch (dst->kind) {
+        /*
+         * Rule 3: numeric widening. Semantically compatible but memory
+         * layout differs; codegen must insert explicit 'cast' instructions.
+         */
+        case TYPE_INT:
+        case TYPE_FLOAT:
+            if (dst->int_flt_info.sign != src->int_flt_info.sign) return 0;
+            return dst->int_flt_info.width >= src->int_flt_info.width;
+
+        case TYPE_BFLOAT16:
+            /* float16/bfloat16 can be promoted to float32/64 */
+            return dst->int_flt_info.width >= src->int_flt_info.width;
+
+        /* Rule 4: type parameters identified by index */
+        case TYPE_GENERIC_VAR:
+            return dst->generic_var.index == src->generic_var.index;
+
+        /* Rule 5: structural recursion for specialized types */
+        case TYPE_GENERIC_REF:
+            return compatible_generic_ref(dst, src);
+
+        case TYPE_KLASS:
+            return compatible_klass(dst, src);
+
+        default:
+            log_error(
+                "_same_kind_compatible_check: unhandled TypeKind %d "
+                "(dst sym_id=%u, src sym_id=%u)",
+                dst->kind, dst->sym_id, src->sym_id);
+            ASSERT(0 && "Unhandled TypeKind in _same_kind_compatible_check");
+            return 0;
+    }
+}
 
 /**
  * Checks if the 'src' type is compatible with the 'dst' type.
  *
  * Rules for High-Performance Type System:
  * 1. Top Type: TYPE_ANY is the root and accepts any type.
- * 2. Strict Kind Matching: Except for Object, kinds must match (e.g., no
- * implicit int-to-float).
- * 3. Numerical Widening: For INT/FLOAT, source width <= destination width is
- * allowed. Note: Semantically compatible but requires explicit 'cast'
- * instructions during codegen due to binary representation (memory layout)
- * mismatch.
+ * 2. Strict Kind Matching: kinds must match except via bounds, base widening,
+ *    or dst-side generic refs / unions / klass promotions.
+ * 3. Numerical Widening: INT/FLOAT source width <= destination width allowed.
+ *    Requires explicit cast in codegen due to memory layout mismatch.
  * 4. Generic Variance:
- *    - Reference Types (Classes): Invariant (e.g., List[Dog] -> List[Animal]
- * not allowed).
- *    - Value Types (Primitives): Invariant (Generic parameters must be strictly
- * compatible).
+ *    - Reference Types (Classes): Invariant (e.g., List[Dog] -> List[Animal] not allowed).
+ *    - Value Types (Primitives): Invariant (Generic parameters must be strictly compatible).
+ * 5. Optional Covariance: T? accepts T, null, and U? where U <: T.
  */
 int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 {
@@ -557,202 +742,14 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
     // Rule 1: TYPE_ANY is the Top Type (Root of the type hierarchy)
     if (dst->kind == TYPE_ANY) return 1;
 
-    if (dst->kind == TYPE_OPTIONAL) {
-        ASSERT(dst->opt.src != NULL);
-        if (src->kind == TYPE_OPTIONAL) {
-            if (src->opt.src == NULL) {
-                // src is null type
-                return 1;
-            } else {
-                // both dst and src are optional
-                return type_spec_compatible(dst->opt.src, src->opt.src);
-            }
-        } else {
-            // dst is optional, src is not optional
-            return type_spec_compatible(dst->opt.src, src);
-        }
-    } else {
-        // dst is not optional
-        // fall through to normal type compatibility check
-    }
+    /* Optional handling before kind dispatch */
+    if (dst->kind == TYPE_OPTIONAL) return _optional_compatible_check(dst, src);
 
-    // Rule 2: Strict kind matching (Semantic barrier)
-    if (dst->kind != src->kind) {
-        if (src->kind == TYPE_GENERIC_VAR) {
-            // check dst with src's upbound
-            TypeParamSymbol *sym = get_symbol_by_id(src->sym_id);
-            TypeSpec *bound;
-            vector_foreach(bound, &sym->bound) {
-                if (!bound) continue;
-                if (type_spec_compatible(dst, bound)) {
-                    // Only one bound is compatible, T is compatible with dst.
-                    return 1;
-                }
-            }
-        }
+    /* Cross-kind compatibility */
+    if (dst->kind != src->kind) return _diff_kind_compatible_check(dst, src);
 
-        // widening to a declared base, e.g. int64 -> Arithmetic[int]
-        if (ts_in_bases(dst, src)) {
-            return 1;
-        }
-
-        if (dst->kind == TYPE_GENERIC_REF) {
-            if (src->kind == TYPE_KLASS) {
-                if (dst->sym_id == src->sym_id) {
-                    return 1;
-                } else {
-                    KlassSymbol *sym = get_symbol_by_id(src->sym_id);
-                    TypeSpec *base;
-                    vector_foreach(base, &sym->bases) {
-                        if (!base) continue;
-                        if (type_spec_compatible(dst, base)) {
-                            return 1;
-                        }
-                    }
-                    return 0;
-                }
-            }
-
-            UNREACHABLE();
-        }
-
-        if (dst->kind == TYPE_UNION) {
-            TypeSpec *arg;
-            vector_foreach(arg, dst->union_type.args) {
-                if (!arg) continue;
-                if (type_spec_compatible(arg, src)) {
-                    return 1;
-                }
-            }
-        }
-
-        if (dst->kind == TYPE_KLASS) {
-            if (src->kind == TYPE_INT) {
-                // check Integer base class
-                Symbol *sym = get_symbol_by_id(src->sym_id);
-                if (sym->kind != SYM_CLASS) return 0;
-                KlassSymbol *kls_sym = (KlassSymbol *)sym;
-                TypeSpec *base;
-                vector_foreach(base, &kls_sym->bases) {
-                    if (!base) continue;
-                    if (base->kind == TYPE_KLASS) {
-                        if (base == src) {
-                            return 1;
-                        }
-                    }
-                }
-                return 0;
-            }
-        }
-
-        return 0;
-    }
-
-    // Rule 3: Numeric Widening Logic (INT/FLOAT/BFLOAT16)
-    // Semantically compatible, but memory layout is incompatible.
-    // Insert 'cast' instructions during code generation.
-    if (dst->kind == TYPE_INT || dst->kind == TYPE_FLOAT) {
-        if (dst->int_flt_info.sign != src->int_flt_info.sign) return 0;
-        return dst->int_flt_info.width >= src->int_flt_info.width;
-    }
-
-    if (dst->kind == TYPE_FLOAT || dst->kind == TYPE_BFLOAT16) {
-        // float16/bfloat16 can be promoted to float32/64
-        return dst->int_flt_info.width >= src->int_flt_info.width;
-    }
-
-    // Rule 4: Symbol ID and Inheritance Check
-
-    if (dst->kind == TYPE_GENERIC_VAR) {
-        return dst->generic_var.index == src->generic_var.index;
-    }
-
-    // Rule 5: Structural Recursion for Specialized Types (Generics)
-
-    if (dst->kind == TYPE_GENERIC_REF) {
-        int d_args_size = vector_size(dst->generic_ref.args);
-        int s_args_size = vector_size(src->generic_ref.args);
-        if (d_args_size != s_args_size) {
-            Symbol *sym = get_symbol_by_id(src->sym_id);
-            if (sym->kind == SYM_CLASS) {
-                KlassSymbol *kls_sym = (KlassSymbol *)sym;
-                TypeSpec *base;
-                vector_foreach(base, &kls_sym->bases) {
-                    if (!base) continue;
-                    if (type_spec_compatible(dst, base)) {
-                        return 1;
-                    }
-                }
-            } else if (sym->kind == SYM_INSTANCE) {
-                // TODO: bases instance
-                InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
-                Symbol *origin_sym = inst_sym->origin;
-                if (origin_sym->kind == SYM_CLASS) {
-                    KlassSymbol *kls_sym = (KlassSymbol *)origin_sym;
-                    TypeSpec *base;
-                    vector_foreach(base, &kls_sym->bases) {
-                        if (!base) continue;
-                        if (type_spec_compatible(dst, base)) {
-                            return 1;
-                        }
-                    }
-                }
-            }
-
-            return 0;
-        }
-
-        // Handle Variance based on storage model
-
-        for (int i = 0; i < d_args_size; i++) {
-            TypeSpec *d_arg = vector_get(dst->generic_ref.args, i);
-            TypeSpec *s_arg = vector_get(src->generic_ref.args, i);
-
-            // generic parameters must be strictly compatible(invariant).
-            // List[int32] and List[int64] are not compatible.
-            // List[Dog] and List[Animal] are not compatible.
-            if (!type_spec_equal_strict(d_arg, s_arg)) return 0;
-        }
-
-        return 1;
-    }
-
-    if (dst->kind == TYPE_KLASS) {
-        Symbol *sym = get_symbol_by_id(src->sym_id);
-        Vector *bases = NULL;
-        if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
-            KlassSymbol *kls_sym = (KlassSymbol *)sym;
-            bases = &kls_sym->bases;
-        } else if (sym->kind == SYM_INSTANCE) {
-            InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
-            bases = inst_sym->bases;
-        } else {
-            UNREACHABLE();
-            return 0;
-        }
-
-        TypeSpec *base;
-        vector_foreach(base, bases) {
-            if (!base) continue;
-            if (type_spec_compatible(dst, base)) {
-                return 1;
-            }
-        }
-
-        log_info(
-            "no compatible base found for klass type, compare directly by "
-            "pointer");
-        return dst == src;
-    }
-
-    if (dst->sym_id != src->sym_id) {
-        UNREACHABLE();
-        // Check if 'src' is a subtype of 'dst' in the symbol table
-        return is_subtype_of(src->sym_id, dst->sym_id);
-    }
-
-    UNREACHABLE();
-    return 0;
+    /* Same-kind compatibility */
+    return _same_kind_compatible_check(dst, src);
 }
 
 static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls);

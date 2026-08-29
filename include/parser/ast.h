@@ -90,7 +90,7 @@ typedef enum _ExprCtx {
 
 /* clang-format off */
 #define EXPR_HEAD ExprKind kind; Loc loc; ExprCtx ctx; TypeSpec *ts; \
-    TypeSpec *expected; Symbol *sym; void *arg; KlrValue *ir_val;
+    TypeSpec *expected; Symbol *sym; void *arg; void *tp_args; KlrValue *ir_val;
 /* clang-format on */
 
 typedef struct _Expr {

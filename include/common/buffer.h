@@ -80,6 +80,9 @@ void escape_str(const char *s, Buffer *buf);
 /* Write an uint8 as hex into buffer. */
 void buf_write_uint8_hex(Buffer *self, uint8_t val);
 
+/* Write a formatted string into the buffer. */
+void buf_write_fmt(Buffer *self, const char *fmt, ...);
+
 #ifdef __cplusplus
 }
 #endif

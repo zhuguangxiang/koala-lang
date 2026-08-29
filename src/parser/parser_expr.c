@@ -1506,9 +1506,15 @@ static void parse_call(ParserState *ps, Expr *exp)
             vector_destroy(_tp_args);
         } else if (vector_size(&fn_sym->tps) > 0) {
             // function has type parameters, do inference from call arguments
-            log_info("function '%s' has type parameters, try to infer them from call arguments.",
-                     fn_sym->name);
-            Vector *_tp_args = infer_tp_from_call(fn_sym, NULL, call, ps);
+            Vector *_tp_args = lhs->tp_args;
+
+            if (!_tp_args) {
+                log_info(
+                    "function '%s' has type parameters, try to infer them from call arguments.",
+                    fn_sym->name);
+                _tp_args = infer_tp_from_call(fn_sym, NULL, call, ps);
+            }
+
             Symbol *_fn_sym = find_or_add_func_instance(fn_sym, _tp_args, ps->pm->stbl, ps);
             if (_fn_sym->kind == SYM_FUNC) {
                 exp->ts = ((FuncSymbol *)_fn_sym)->ret;
@@ -1582,6 +1588,11 @@ static void parse_call(ParserState *ps, Expr *exp)
         log_info("call lhs is inherited function '%s'", inherited->name);
         exp->ts = origin_fn_sym->ret;
         params = origin_fn_sym->params;
+    } else if (lhs_sym->kind == SYM_INSTANCE_FUNC) {
+        NYI();
+        InstanceFuncSymbol *inst_fn_sym = (InstanceFuncSymbol *)lhs_sym;
+        exp->ts = inst_fn_sym->ret_ts;
+        params = inst_fn_sym->real_params;
     } else {
         UNREACHABLE();
     }
@@ -2102,6 +2113,139 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
     log_type_spec(inst_sym->instance_ts);
 }
 
+/**
+ * Check whether `ts` satisfies all bounds declared on `tp`.
+ *
+ * For a declaration like `T: Comparable +& Hashable`, this verifies that
+ * `ts` is compatible with EVERY bound (intersection semantics).
+ */
+static int check_generic_bound(TypeParamSymbol *tp, TypeSpec *ts)
+{
+    if (!tp || !ts) return 0;
+
+    /* No bounds declared → unconstrained, always satisfied */
+    if (vector_empty(&tp->bound)) {
+        return 1;
+    }
+
+    /* Every bound must be satisfied (AND semantics) */
+    TypeSpec *bound;
+    vector_foreach(bound, &tp->bound) {
+        if (!bound) continue;
+
+        Vector tp_args;
+        vector_init_ptr(&tp_args);
+        vector_push_back(&tp_args, &ts);
+        bound = type_spec_specialize(bound, &tp_args);
+
+        /*
+         * Use type_spec_compatible rather than strict equality.
+         * This allows:
+         *   - Concrete types that implement the trait
+         *   - Subtypes of the bound
+         *   - Other type parameters whose bounds are supersets
+         */
+        if (!type_spec_compatible(bound, ts)) {
+            BUF(ts_buf);
+            BUF(bound_buf);
+            type_spec_print(ts, &ts_buf);
+            type_spec_print(bound, &bound_buf);
+            log_error(
+                "generic bound not satisfied: type '%s' does not satisfy constraint '%s' on "
+                "type parameter '%s' ",
+                BUF_STR(ts_buf), BUF_STR(bound_buf), tp->name);
+            FINI_BUF(bound_buf);
+            FINI_BUF(ts_buf);
+            vector_fini(&tp_args);
+            return 0;
+        }
+
+        vector_fini(&tp_args);
+    }
+
+    return 1;
+}
+
+/**
+ * Parse explicit generic specialization: func_name[TypeArgs...]
+ *
+ * Handles: max[int], sort[Comparable, int], Map[string, int]
+ * LHS is a generic function/type whose signature is modeled as TYPE_PROTO.
+ * RHS is a type argument list (EXPR_TYPE_LIST or single EXPR_TYPE).
+ *
+ * Produces a TYPE_GENERIC_REF representing the specialized entity,
+ * with all bounds checked against the declared type parameters.
+ */
+static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
+{
+    Expr *lhs = index->lhs;
+
+    ASSERT(lhs->ts && lhs->ts->kind == TYPE_PROTO);
+
+    Symbol *lhs_sym = lhs->sym;
+    ASSERT(lhs_sym && lhs_sym->kind == SYM_FUNC);
+    FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
+
+    if (vector_empty(&fn_sym->tps)) {
+        kl_error(lhs->loc, "func '%s' is not a generic func.", lhs_sym->name);
+        return;
+    }
+
+    if (vector_size(&fn_sym->tps) != vector_size(index->vec)) {
+        kl_error(lhs->loc, "func '%s' expects %d type arguments, but %d were provided.",
+                 lhs_sym->name, vector_size(&fn_sym->tps), vector_size(index->vec));
+        return;
+    }
+
+    Vector *tp_args = vector_create_ptr();
+
+    Expr *arg;
+    vector_foreach(arg, index->vec) {
+        if (!arg) continue;
+        arg->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, arg);
+        if (!arg->ts) return;
+        Symbol *arg_sym = arg->sym;
+        ASSERT(arg_sym && arg_sym->kind == SYM_CLASS);
+        KlassSymbol *arg_kls_sym = (KlassSymbol *)arg_sym;
+        vector_push_back(tp_args, &arg_kls_sym->instance_ts);
+    }
+
+    TypeParamSymbol *tp_sym;
+    vector_foreach(tp_sym, &fn_sym->tps) {
+        TypeSpec *_ts = vector_get(tp_args, i__);
+        if (!check_generic_bound(tp_sym, _ts)) {
+            BUF(ts_buf);
+            type_spec_print(arg->ts, &ts_buf);
+            kl_error(lhs->loc,
+                     "type argument '%s' does not satisfy constraint on type parameter '%s'",
+                     BUF_STR(ts_buf), tp_sym->name);
+            FINI_BUF(ts_buf);
+            vector_destroy(tp_args);
+            return;
+        }
+    }
+
+    char *mangled_name = mangle_func_name(lhs_sym->name, tp_args);
+    Symbol *specialized_fn_sym = stbl_get(ps->pm->stbl, mangled_name);
+    if (specialized_fn_sym) {
+        ASSERT(specialized_fn_sym->kind == SYM_FUNC);
+        index->sym = specialized_fn_sym;
+        index->ts = specialized_fn_sym->ts;
+        vector_destroy(tp_args);
+        return;
+    }
+
+    // no specialized func, use the generic func
+    // Symbol *_fn_sym = find_or_add_func_instance(fn_sym, tp_args, ps->pm->stbl, ps);
+    // index->sym = _fn_sym;
+    // index->ts = _fn_sym->ts;
+    index->sym = lhs_sym;
+    index->ts = lhs_sym->ts;
+    // vector_destroy(tp_args);
+    index->tp_args = tp_args;
+}
+
 static void parse_index(ParserState *ps, Expr *exp)
 {
     IndexExpr *index = (IndexExpr *)exp;
@@ -2111,12 +2255,14 @@ static void parse_index(ParserState *ps, Expr *exp)
     if (!lhs->ts) return;
 
     if (lhs->ts->kind == TYPE_TYPE) {
+        log_info("index type");
         parse_index_new_type(ps, index);
         return;
     }
 
     if (lhs->ts->kind == TYPE_PROTO) {
-        // parse_index_type_param(ps, index);
+        log_info("index type param");
+        parse_index_func_tp(ps, index);
         return;
     }
 
