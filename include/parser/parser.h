@@ -127,8 +127,6 @@ typedef struct _ParserState {
     int token;
     /* multi-lines */
     int multi;
-    /* newline */
-    int newline;
     /* errors */
     int errors;
 

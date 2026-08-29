@@ -34,22 +34,20 @@ static int semicolon(ParserState *ps)
     return 0;
 }
 
+/* Read input using fread for better performance */
 static int file_input(ParserState *ps, char *buf, int size, FILE *in)
 {
-    char *s = fgets(buf, size, in);
-    if (!s) return 0;
-
-    int result = strlen(s);
-    // RESET_BUF(ps->linebuf[ps->index]);
-    // buf_write_nstr(&ps->linebuf[ps->index % 64], buf, result - 1);
-    // ps->index = (ps->index + 1) % 64;
-    return result;
+    size_t n = fread(buf, 1, size, in);
+    return (int)n;
 }
 
+/* Remove underscores and commas from numeric literals */
 static void replace_comma_under(int base, char *s, int len, Buffer *buf)
 {
     if (base == 2 || base == 8) s += 2;
+
     char *end = s + len;
+
     while (s < end) {
         char ch = *s;
         if (ch != '_' && ch != ',') {
@@ -57,7 +55,6 @@ static void replace_comma_under(int base, char *s, int len, Buffer *buf)
         }
         ++s;
     }
-    return;
 }
 
 static void parse_decimal_int_literal(ParserState *ps, YYSTYPE *yylval, char *s)
@@ -71,6 +68,8 @@ static void parse_decimal_int_literal(ParserState *ps, YYSTYPE *yylval, char *s)
 
     if (s[0] == '-') {
         negative = 1;
+        s += 1;
+    } else if (s[0] == '+') {
         s += 1;
     }
 
@@ -102,8 +101,10 @@ static void parse_decimal_int_literal(ParserState *ps, YYSTYPE *yylval, char *s)
 static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len, int base)
 {
     ps->sval = atom_nstr(s, len);
+
     BUF(buf);
     replace_comma_under(base, s, len, &buf);
+
     char *_s = BUF_STR(buf);
     if (base != 10) {
         errno = 0;
@@ -144,34 +145,27 @@ static char hex2byte(const char *s)
 /* clang-format off */
 
 #define YY_NEWLINE do {    \
-    yyps->newline = 1;     \
     if (semicolon(yyps)) { \
         YY_RETURN(';');    \
     }                      \
 } while (0)
 
-#define YY_USER_ACTION {                  \
-    if (yyps->newline) {                  \
-        ++loc_last_line;                  \
-        loc_first_line = loc_last_line;   \
-        loc_first_col = 1;                \
-        loc_last_col = 1;                 \
-        yyps->newline = 0;                \
-    }                                     \
-    char ch = yytext[0];                  \
-    if (ch != '\r' && ch != '\n') {       \
-        if (yyps->multi) {                \
-            loc_last_col += yyleng;       \
-        } else {                          \
-            loc_first_col = loc_last_col; \
-            loc_last_col += yyleng;       \
-        }                                 \
-    } else {                              \
-        if (yyps->multi) {                \
-            ++loc_last_line;              \
-            loc_last_col = 1;             \
-        }                                 \
-    }                                     \
+#define YY_USER_ACTION { \
+    if (yytext[0] == '\n') { \
+        ++loc_last_line; \
+        loc_last_col = 1; \
+    } else { \
+        int ignore = (YY_START == COMMENT || YY_START == LINE_COMMENT); \
+        if (!ignore) { \
+            if (yyps->multi) { \
+                loc_last_col += yyleng; \
+            } else { \
+                loc_first_line = loc_last_line; \
+                loc_first_col = loc_last_col; \
+                loc_last_col += yyleng; \
+            } \
+        } \
+    } \
 }
 
 #define YY_RETURN(x) yyps->token = x; return x
@@ -205,7 +199,7 @@ static char hex2byte(const char *s)
 %option noinput
 %option never-interactive
 
-%x S STR TXT
+%x S STR TXT COMMENT LINE_COMMENT
 
 /* rules */
 
@@ -383,13 +377,20 @@ __KOALA_[A-Z_]+__ {
 
 \"\"\"          { YY_TXT_BEGIN;            }
 <TXT>\"\"\"     { YY_TXT_END;              }
-<TXT>.          { YY_TXT_WRITE(yytext[0]); }
+<TXT>(\n|.)          { YY_TXT_WRITE(yytext[0]); }
+
+"//"            { BEGIN(LINE_COMMENT); }
+"#"             { BEGIN(LINE_COMMENT); }
+<LINE_COMMENT>.           { /* ignore non-newline chars */ }
+<LINE_COMMENT>\n          { BEGIN(INITIAL); YY_NEWLINE; }
+
+"/*"                { BEGIN(COMMENT); }
+<COMMENT>"*/"       { BEGIN(INITIAL); }
+<COMMENT>"\n"       { /* ignore any char except newline (handled below) */ }
+<COMMENT>.          { /* newline, location updated by YY_USER_ACTION, no ASI */}
 
 "\n"            { YY_NEWLINE; }
 [ \t\r]         { }
-"#"[^\n]*       { }
-"//"[^\n]*      { }
-"/*"(([^\*]*(\*[^\/])?)*)"*/" { }
 .               { }
 
 %%

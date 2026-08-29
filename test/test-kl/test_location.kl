@@ -1,0 +1,125 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+let a = 1
+let b = 2
+undefined_var1
+
+/*
+comment line 1
+comment line 2
+*/
+undefined_var2
+
+let a3 = 1 // comment
+# another comment
+undefined_var3
+
+let s = """
+hello
+world
+"""
+undefined_var4
+
+let a4 = 1 +
+    2
+undefined_var5
+
+/* block
+   comment
+*/
+
+
+// line comment
+undefined_var6
+
+let a5 = 1 /* inline */ + 2
+undefined_var7
+
+let s2 = "a\nb"  // string with escape
+"""
+multi
+line
+"""
+undefined_var8
+
+func hello() {
+    """
+    this is a multi-line string
+    you can write here anything
+    """
+
+    'hello
+    world
+    '
+
+    "hello"
+    'hello'
+
+    "hello
+    world"
+
+    print(v)
+    let a1 = undefined_var9
+    let a11 = 1 + undefined_var10
+
+    let a2 = 1
+    let b2 = 2
+    undefined_var1
+
+    /**
+     * comment line 1
+     * comment line 2
+     */
+    undefined_var2
+
+    let a3 = 1 // comment
+    # another comment
+    undefined_var3
+
+    let s = """
+    hello
+    world
+    """
+    undefined_var4
+
+    let a4 = 1 +
+        2
+    undefined_var5
+
+    /* block
+    comment
+    */
+
+    // line comment
+    undefined_var6
+
+    let a6 = 1 /* inline */ + 2
+    undefined_var7
+
+    let s2 = "a\nb"  // string with escape
+    """
+    multi
+    line
+    """
+    undefined_var8
+}
+
+// CHECK: {{.*}}5:1{{.*}}'undefined_var1' is not found
+// CHECK: {{.*}}11:1{{.*}}'undefined_var2' is not found
+// CHECK: {{.*}}15:1{{.*}}'undefined_var3' is not found
+// CHECK: {{.*}}21:1{{.*}}'undefined_var4' is not found
+// CHECK: {{.*}}25:1{{.*}}'undefined_var5' is not found
+// CHECK: {{.*}}33:1{{.*}}'undefined_var6' is not found
+// CHECK: {{.*}}36:1{{.*}}'undefined_var7' is not found
+// CHECK: {{.*}}43:1{{.*}}'undefined_var8' is not found
+// CHECK: {{.*}}61:11{{.*}}'v' is not found
+// CHECK: {{.*}}62:14{{.*}}'undefined_var9' is not found
+// CHECK: {{.*}}63:19{{.*}}'undefined_var10' is not found
+// CHECK: {{.*}}67:5{{.*}}'undefined_var1' is not found
+// CHECK: {{.*}}73:5{{.*}}'undefined_var2' is not found
+// CHECK: {{.*}}77:5{{.*}}'undefined_var3' is not found
+// CHECK: {{.*}}83:5{{.*}}'undefined_var4' is not found
+// CHECK: {{.*}}87:5{{.*}}'undefined_var5' is not found
+// CHECK: {{.*}}94:5{{.*}}'undefined_var6' is not found
+// CHECK: {{.*}}97:5{{.*}}'undefined_var7' is not found
+// CHECK: {{.*}}104:5{{.*}}'undefined_var8' is not found

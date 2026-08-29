@@ -261,5 +261,8 @@
     ],
     "editor.inlayHints.enabled": "off",
     "workbench.activityBar.location": "bottom",
-    "editor.lineNumbers": "relative"
+    "editor.lineNumbers": "relative",
+    "autoHide.autoHideSideBar": true, // 点击编辑器时自动隐藏侧边栏
+    "autoHide.autoHidePanel": false, // 底部终端是否也自动隐藏（建议设为 false，方便看报错）
+    "autoHide.delay": 300 // 点击后延迟 300 毫秒隐藏（给眼睛一个缓和时间）
 }
