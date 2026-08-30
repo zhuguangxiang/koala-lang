@@ -413,7 +413,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
-        case OP_BINARY_CMPGT: {
+        case OP_BINARY_GT: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
@@ -436,7 +436,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
-        case OP_BINARY_CMPGE: {
+        case OP_BINARY_GE: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
@@ -459,7 +459,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
-        case OP_BINARY_CMPLT: {
+        case OP_BINARY_LT: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
@@ -482,7 +482,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
-        case OP_BINARY_CMPLE: {
+        case OP_BINARY_LE: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
@@ -505,7 +505,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
-        case OP_BINARY_CMPEQ: {
+        case OP_BINARY_EQ: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {
@@ -523,7 +523,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
-        case OP_BINARY_CMPNE: {
+        case OP_BINARY_NE: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);
             if (klr_is_const(lhs) && klr_is_const(rhs)) {

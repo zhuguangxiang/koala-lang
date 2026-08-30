@@ -108,19 +108,19 @@ func test_int_2_0(n int) int8 {
     return int8(n)
 }
 
-// CHECK: %0 = int_cast %n int64 to int8
+// CHECK: %0 = int.cast %n int64 to int8
 
 func test_int_2_1(n int) int16 {
     return int16(n)
 }
 
-// CHECK: %0 = int_cast %n int64 to int16
+// CHECK: %0 = int.cast %n int64 to int16
 
 func test_int_2_2(n int) int32 {
     return int32(n)
 }
 
-// CHECK: %0 = int_cast %n int64 to int32
+// CHECK: %0 = int.cast %n int64 to int32
 
 func test_int_2_3(n int) int64 {
     return int64(n)

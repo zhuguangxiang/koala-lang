@@ -1115,7 +1115,8 @@ static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
 
     if (!vector_empty(vec)) {
         log_info(
-            "[handle_valist_and_dfl_args] var-arg is passed by positional arguments(%d-%d), build "
+            "[handle_valist_and_dfl_args] var-arg is passed by positional arguments(%d-%d), "
+            "build "
             "tuple for caller.",
             param_info.valist_index, arg_info.npos - 1);
         Expr *valist = expr_from_tuple(vec);
@@ -1168,7 +1169,8 @@ static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
         call->args = real_args;
     } else {
         log_info(
-            "[handle_valist_and_dfl_args] no real argument for caller after handling var-arg and "
+            "[handle_valist_and_dfl_args] no real argument for caller after handling var-arg "
+            "and "
             "kw-arg.");
         vector_destroy(real_args);
         real_args = NULL;
@@ -1276,6 +1278,10 @@ static const char *operator_dunder_sugar(const char *name)
         { "__setslice__", "the slice syntax 'x[a:b] = v'" },
         { "__getsub__", "the subscript syntax 'x[key]'" },
         { "__setsub__", "the subscript syntax 'x[key] = v'" },
+        // hashable
+        { "__hash__", "the 'hash()' function" },
+        // printable
+        { "__str__", "the 'str()' function" },
         // callable
         { "__call__", "the call syntax 'obj(...)'" },
         // membership
@@ -2040,6 +2046,79 @@ static void parse_slice_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
     log_type_spec(index->ts);
 }
 
+/**
+ * Check whether `ts` satisfies all bounds declared on `tp`.
+ *
+ * For a declaration like `T: Comparable & Hashable`, this verifies that
+ * `ts` is compatible with EVERY bound (intersection semantics).
+ */
+static int check_generic_bound(TypeSpec *ts, TypeParamSymbol *tp, Vector *tp_args)
+{
+    if (!tp || !ts) return 0;
+
+    /* No bounds declared → unconstrained, always satisfied */
+    if (vector_empty(&tp->bound)) return 1;
+
+    int satisfied = 1;
+
+    /* Every bound must be satisfied (AND semantics) */
+    TypeSpec *bound;
+    vector_foreach(bound, &tp->bound) {
+        if (!bound) continue;
+
+        int compatible = 0;
+
+        TypeSpec *_bound = type_spec_specialize(bound, tp_args);
+
+        /* Case 1: arg is a concrete type → existing logic */
+        if (ts->kind != TYPE_GENERIC_VAR) {
+            Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
+            ASSERT(ts_sym && ts_sym->ts && ts_sym->ts->kind == TYPE_TYPE);
+            compatible = type_spec_compatible(_bound, ts);
+        } else {
+            /*
+             * Case 2: 'ts' is a generic variable (e.g., U passed to T).
+             * U satisfies bound B if U's declared bounds contain B(or a supertype of B).
+             *
+             * Direction: ts_bound (provided, stricter) must be usable as
+             *            bound (required, looser).
+             * i.e., compatible(ts_bound, bound) ⟺ arg_bound ≤ bound
+             */
+            TypeParamSymbol *sym = get_symbol_by_id(ts->sym_id);
+            ASSERT(sym);
+            Vector *ts_bound = &sym->bound;
+            if (!vector_empty(ts_bound)) {
+                // tp's bounds are all satisfied by ts's bounds.
+                TypeSpec *provided_ts;
+                vector_foreach(provided_ts, ts_bound) {
+                    if (!provided_ts) continue;
+                    TypeSpec *_provided_ts = type_spec_specialize(provided_ts, tp_args);
+                    if (type_spec_compatible(_provided_ts, _bound)) {
+                        compatible = 1;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!compatible) {
+            satisfied = 0;
+
+            // Report every unsatisfied bound
+            BUF(req_buf);
+            BUF(prov_buf);
+            type_spec_print(ts, &prov_buf);
+            type_spec_print(_bound, &req_buf);
+            log_error("generic bound not satisfied:  '%s' does not satisfy '%s' required by '%s'",
+                      BUF_STR(req_buf), BUF_STR(prov_buf), tp->name);
+            FINI_BUF(req_buf);
+            FINI_BUF(prov_buf);
+        }
+    }
+
+    return satisfied;
+}
+
 static void parse_index_new_type(ParserState *ps, IndexExpr *index)
 {
     Expr *lhs = index->lhs;
@@ -2063,13 +2142,20 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
         }
     }
 
+    // Phase 1: Collect all type args into tp_args
+
     Vector *tp_args = vector_create_ptr();
+    vector_reserve(tp_args, tp_size);
+
     Expr *arg;
     vector_foreach(arg, index->vec) {
         if (!arg) continue;
         arg->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, arg);
-        if (!arg->ts) return;
+        if (!arg->ts) {
+            vector_destroy(tp_args);
+            return;
+        }
 
         ASSERT(arg->ts->kind == TYPE_TYPE || arg->ts->kind == TYPE_GENERIC_VAR);
 
@@ -2083,27 +2169,33 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
             arg_ts = arg_sym->ts;
         } else {
             kl_error(arg->loc, "type argument must be a class/trait type.");
+            vector_destroy(tp_args);
             return;
         }
 
-        TypeParamSymbol *tp_sym = vector_get(&kls_sym->tps, i__);
-        if (tp_sym) {
-            TypeSpec *bound_ts;
-            vector_foreach(bound_ts, &tp_sym->bound) {
-                if (!bound_ts) continue;
-                if (!type_spec_compatible(bound_ts, arg_ts)) {
-                    kl_error(arg->loc, "type argument '%s' is not compatible with bound type.",
-                             arg_sym->name);
-                    log_info("bound type is: ");
-                    log_type_spec(bound_ts);
-                    return;
-                }
-            }
-        }
-        vector_push_back(tp_args, &arg_ts);
+        // Place at the correct index position
+        vector_set(tp_args, i__, &arg_ts);
     }
 
-    // create or find instance symbol(List<int>)
+    // Phase 2: Bound check with complete tp_args
+    for (int i = 0; i < tp_size; i++) {
+        TypeSpec *arg_ts = vector_get(tp_args, i);
+        TypeParamSymbol *tp_sym = vector_get(&kls_sym->tps, i);
+        if (!arg_ts || !tp_sym) continue;
+
+        if (!check_generic_bound(arg_ts, tp_sym, tp_args)) {
+            BUF(ts_buf);
+            type_spec_print(arg_ts, &ts_buf);
+            kl_error(lhs->loc,
+                     "type argument '%s' does not satisfy constraint on type parameter '%s'",
+                     BUF_STR(ts_buf), tp_sym->name);
+            FINI_BUF(ts_buf);
+            vector_destroy(tp_args);
+            return;
+        }
+    }
+
+    // Phase 3: Create or find instance symbol(List<int>)
     InstanceSymbol *inst_sym =
         find_or_add_instance(ps->pm->stbl, (Symbol *)kls_sym, tp_args, ps->pm);
     vector_destroy(tp_args);
@@ -2111,59 +2203,6 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
     index->sym = (Symbol *)inst_sym;
     log_info("generic type instance created/got: %s", inst_sym->name);
     log_type_spec(inst_sym->instance_ts);
-}
-
-/**
- * Check whether `ts` satisfies all bounds declared on `tp`.
- *
- * For a declaration like `T: Comparable & Hashable`, this verifies that
- * `ts` is compatible with EVERY bound (intersection semantics).
- */
-static int check_generic_bound(TypeSpec *ts, TypeParamSymbol *tp)
-{
-    if (!tp || !ts) return 0;
-
-    /* No bounds declared → unconstrained, always satisfied */
-    if (vector_empty(&tp->bound)) {
-        return 1;
-    }
-
-    /* Every bound must be satisfied (AND semantics) */
-    TypeSpec *bound;
-    vector_foreach(bound, &tp->bound) {
-        if (!bound) continue;
-
-        Vector tp_args;
-        vector_init_ptr(&tp_args);
-        vector_push_back(&tp_args, &ts);
-        bound = type_spec_specialize(bound, &tp_args);
-
-        /*
-         * Use type_spec_compatible rather than strict equality.
-         * This allows:
-         *   - Concrete types that implement the trait
-         *   - Subtypes of the bound
-         *   - Other type parameters whose bounds are supersets
-         */
-        if (!type_spec_compatible(bound, ts)) {
-            BUF(ts_buf);
-            BUF(bound_buf);
-            type_spec_print(ts, &ts_buf);
-            type_spec_print(bound, &bound_buf);
-            log_error(
-                "generic bound not satisfied: type '%s' does not satisfy constraint '%s' on "
-                "type parameter '%s' ",
-                BUF_STR(ts_buf), BUF_STR(bound_buf), tp->name);
-            FINI_BUF(bound_buf);
-            FINI_BUF(ts_buf);
-            vector_fini(&tp_args);
-            return 0;
-        }
-
-        vector_fini(&tp_args);
-    }
-
-    return 1;
 }
 
 /**
@@ -2202,9 +2241,14 @@ static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
     Expr *arg;
     vector_foreach(arg, index->vec) {
         if (!arg) continue;
+
         arg->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, arg);
-        if (!arg->ts) return;
+        if (!arg->ts) {
+            vector_destroy(tp_args);
+            return;
+        }
+
         Symbol *arg_sym = arg->sym;
         ASSERT(arg_sym && arg_sym->kind == SYM_CLASS);
         KlassSymbol *arg_kls_sym = (KlassSymbol *)arg_sym;
@@ -2214,9 +2258,9 @@ static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
     TypeParamSymbol *tp_sym;
     vector_foreach(tp_sym, &fn_sym->tps) {
         TypeSpec *_ts = vector_get(tp_args, i__);
-        if (!check_generic_bound(_ts, tp_sym)) {
+        if (!check_generic_bound(_ts, tp_sym, tp_args)) {
             BUF(ts_buf);
-            type_spec_print(arg->ts, &ts_buf);
+            type_spec_print(_ts, &ts_buf);
             kl_error(lhs->loc,
                      "type argument '%s' does not satisfy constraint on type parameter '%s'",
                      BUF_STR(ts_buf), tp_sym->name);

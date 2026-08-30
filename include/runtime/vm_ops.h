@@ -604,7 +604,7 @@ TARGET(OP_MOVE_TRUE) {
 
 /* Comparisons */
 
-TARGET(OP_INT_CMPEQ) {
+TARGET(OP_INT_EQ) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -620,7 +620,7 @@ TARGET(OP_INT_CMPEQ) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPEQ_IMM) {
+TARGET(OP_INT_EQ_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_SVAL(inst, 0, 8);
@@ -634,7 +634,7 @@ TARGET(OP_INT_CMPEQ_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_UINT_CMPEQ_IMM) {
+TARGET(OP_UINT_EQ_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_VAL(inst, 0, 8);
@@ -648,7 +648,7 @@ TARGET(OP_UINT_CMPEQ_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPNE) {
+TARGET(OP_INT_NE) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -664,7 +664,7 @@ TARGET(OP_INT_CMPNE) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPNE_IMM) {
+TARGET(OP_INT_NE_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_SVAL(inst, 0, 8);
@@ -678,7 +678,7 @@ TARGET(OP_INT_CMPNE_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_UINT_CMPNE_IMM) {
+TARGET(OP_UINT_NE_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_VAL(inst, 0, 8);
@@ -692,7 +692,7 @@ TARGET(OP_UINT_CMPNE_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPLT) {
+TARGET(OP_INT_LT) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -708,7 +708,7 @@ TARGET(OP_INT_CMPLT) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPLT_IMM) {
+TARGET(OP_INT_LT_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_SVAL(inst, 0, 8);
@@ -722,7 +722,7 @@ TARGET(OP_INT_CMPLT_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPLE) {
+TARGET(OP_INT_LE) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -738,7 +738,7 @@ TARGET(OP_INT_CMPLE) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPLE_IMM) {
+TARGET(OP_INT_LE_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_SVAL(inst, 0, 8);
@@ -752,7 +752,7 @@ TARGET(OP_INT_CMPLE_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPGT) {
+TARGET(OP_INT_GT) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -768,7 +768,7 @@ TARGET(OP_INT_CMPGT) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPGT_IMM) {
+TARGET(OP_INT_GT_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_SVAL(inst, 0, 8);
@@ -782,7 +782,7 @@ TARGET(OP_INT_CMPGT_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPGE) {
+TARGET(OP_INT_GE) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -798,7 +798,7 @@ TARGET(OP_INT_CMPGE) {
     DISPATCH();
 }
 
-TARGET(OP_INT_CMPGE_IMM) {
+TARGET(OP_INT_GE_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_SVAL(inst, 0, 8);
@@ -1189,6 +1189,30 @@ TARGET(OP_INT_MOD_IMM) {
 
     regs[rd].ival = regs[rs].ival % imm;
     regs[rd].tag = TAG_INT64;
+
+    DISPATCH();
+}
+
+TARGET(OP_HASH) {
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    regs[rd] = kl_slot_call_no_arg(regs + rs, SLOT_HASH);
+
+    DISPATCH();
+}
+
+TARGET(OP_STR) {
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    regs[rd] = kl_slot_call_no_arg(regs + rs, SLOT_STR);
 
     DISPATCH();
 }
@@ -1835,7 +1859,7 @@ TARGET(OP_UINT_SHR_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_UINT_CMPLT) {
+TARGET(OP_UINT_LT) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -1852,7 +1876,7 @@ TARGET(OP_UINT_CMPLT) {
     DISPATCH();
 }
 
-TARGET(OP_UINT_CMPLT_IMM) {
+TARGET(OP_UINT_LT_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_VAL(inst, 0, 8);
@@ -1867,7 +1891,7 @@ TARGET(OP_UINT_CMPLT_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_UINT_CMPLE) {
+TARGET(OP_UINT_LE) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -1884,7 +1908,7 @@ TARGET(OP_UINT_CMPLE) {
     DISPATCH();
 }
 
-TARGET(OP_UINT_CMPLE_IMM) {
+TARGET(OP_UINT_LE_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_VAL(inst, 0, 8);
@@ -1899,7 +1923,7 @@ TARGET(OP_UINT_CMPLE_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_UINT_CMPGT) {
+TARGET(OP_UINT_GT) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -1916,7 +1940,7 @@ TARGET(OP_UINT_CMPGT) {
     DISPATCH();
 }
 
-TARGET(OP_UINT_CMPGT_IMM) {
+TARGET(OP_UINT_GT_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_VAL(inst, 0, 8);
@@ -1931,7 +1955,7 @@ TARGET(OP_UINT_CMPGT_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_UINT_CMPGE) {
+TARGET(OP_UINT_GE) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -1948,7 +1972,7 @@ TARGET(OP_UINT_CMPGE) {
     DISPATCH();
 }
 
-TARGET(OP_UINT_CMPGE_IMM) {
+TARGET(OP_UINT_GE_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     imm = I_VAL(inst, 0, 8);
@@ -2188,7 +2212,7 @@ TARGET(OP_FLOAT_MOD) {
     DISPATCH();
 }
 
-TARGET(OP_FLOAT_CMPEQ) {
+TARGET(OP_FLOAT_EQ) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -2205,7 +2229,7 @@ TARGET(OP_FLOAT_CMPEQ) {
     DISPATCH();
 }
 
-TARGET(OP_FLOAT_CMPNE) {
+TARGET(OP_FLOAT_NE) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -2222,7 +2246,7 @@ TARGET(OP_FLOAT_CMPNE) {
     DISPATCH();
 }
 
-TARGET(OP_FLOAT_CMPLT) {
+TARGET(OP_FLOAT_LT) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -2239,7 +2263,7 @@ TARGET(OP_FLOAT_CMPLT) {
     DISPATCH();
 }
 
-TARGET(OP_FLOAT_CMPLE) {
+TARGET(OP_FLOAT_LE) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -2256,7 +2280,7 @@ TARGET(OP_FLOAT_CMPLE) {
     DISPATCH();
 }
 
-TARGET(OP_FLOAT_CMPGT) {
+TARGET(OP_FLOAT_GT) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -2273,7 +2297,7 @@ TARGET(OP_FLOAT_CMPGT) {
     DISPATCH();
 }
 
-TARGET(OP_FLOAT_CMPGE) {
+TARGET(OP_FLOAT_GE) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);

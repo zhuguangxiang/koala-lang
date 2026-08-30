@@ -23,7 +23,7 @@ func main() {
     print(p2.area())
 
     let r = range(1, 10, 2)
-    let s = r.__str__()
+    let s = str(r)
     print(s)
 }
 
@@ -38,7 +38,7 @@ func main() {
 
 // CHECK: %r = local [immutable] std/builtin.range
 // CHECK: move %r std/builtin.range, range(1, 10, 2) std/builtin.range
-// CHECK: call @range:__str__ [path = 'std/builtin'], %r std/builtin.range
+// CHECK: %6 = str %r std/builtin.range
 // CHECK: %s = local [immutable] str
 // CHECK: move %s str, %{{[0-9]+}} str
 

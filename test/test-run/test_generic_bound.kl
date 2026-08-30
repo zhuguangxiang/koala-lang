@@ -1,0 +1,63 @@
+// RUN: koala %s | filecheck %s
+
+class Node[T : Comparable] {
+    var value T
+    var left Node[T]?
+    var right Node[T]?
+
+    func __init__(_value T) {
+        value = _value
+        left = nil
+        right = nil
+    }
+
+    func __str__() str {
+        print(value)
+        return "Node(" + str(value) + ")"
+    }
+}
+
+class Tree[T : Comparable] {
+    var root Node[T]?
+
+    func __init__() {
+        root = nil
+    }
+
+    func show(v T) {
+        let node = Node[T](v)
+        print(node)
+    }
+}
+
+class Pair[A : Comparable[A], B: Comparable[A]] {
+    var first A
+    var second B
+
+    func __init__(_first A, _second B) {
+        first = _first
+        second = _second
+    }
+}
+
+class Wrapper[T : Comparable[int]] {
+    var val T
+
+    func make_pair() {
+        // T passed to B, int passed to A
+        // B's bound is Comparable[A], A should resolve to int
+        let p = Pair[int, T](0, val)
+        print(p)
+    }
+}
+
+func main() {
+    let t = Tree[int]()
+    t.show(100)
+    let w = Wrapper[int]()
+    w.make_pair()
+}
+
+// CHECK: 100
+// CHECK: Node(100)
+// CHECK: <test_generic_bound.Pair object at 0x{{[0-9a-f]+}}>

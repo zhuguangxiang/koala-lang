@@ -22,31 +22,31 @@ func test_int_1_3(n int8) uint8 {
     return uint8(n)
 }
 
-// CHECK:  %0 = int_cast %n int8 to uint8
+// CHECK:  %0 = int.cast %n int8 to uint8
 
 func test_int_1_4(n int8) uint16 {
     return uint16(n)
 }
 
-// CHECK:  %0 = int_cast %n int8 to uint16
+// CHECK:  %0 = int.cast %n int8 to uint16
 
 func test_int_1_5(n int8) uint32 {
     return uint32(n)
 }
 
-// CHECK:  %0 = int_cast %n int8 to uint32
+// CHECK:  %0 = int.cast %n int8 to uint32
 
 func test_int_1_6(n int8) uint {
     return uint(n)
 }
 
-// CHECK:  %0 = int_cast %n int8 to uint64
+// CHECK:  %0 = int.cast %n int8 to uint64
 
 func test_int_2_0(n int16) int8 {
     return int8(n)
 }
 
-// CHECK:  %0 = int_cast %n int16 to int8
+// CHECK:  %0 = int.cast %n int16 to int8
 
 func test_int_2_1(n int16) int32 {
     return int32(n)
@@ -64,25 +64,25 @@ func test_int_2_3(n int16) uint8 {
     return uint8(n)
 }
 
-// CHECK:  %0 = int_cast %n int16 to uint8
+// CHECK:  %0 = int.cast %n int16 to uint8
 
 func test_int_2_4(n int16) uint16 {
     return uint16(n)
 }
 
-// CHECK: %0 = int_cast %n int16 to uint16
+// CHECK: %0 = int.cast %n int16 to uint16
 
 func test_int_2_5(n int16) uint32 {
     return uint32(n)
 }
 
-// CHECK: %0 = int_cast %n int16 to uint32
+// CHECK: %0 = int.cast %n int16 to uint32
 
 func test_int_2_6(n int16) uint {
     return uint(n)
 }
 
-// CHECK: %0 = int_cast %n int16 to uint64
+// CHECK: %0 = int.cast %n int16 to uint64
 
 func test_int_3_0(n uint8) int16 {
     return int16(n)
@@ -106,7 +106,7 @@ func test_int_3_3(n uint8) int8 {
     return int8(n)
 }
 
-// CHECK: %0 = int_cast %n uint8 to int8
+// CHECK: %0 = int.cast %n uint8 to int8
 
 func test_int_3_4(n uint8) uint16 {
     return uint16(n)
@@ -130,7 +130,7 @@ func test_int_4_0(n uint16) int8 {
     return int8(n)
 }
 
-// CHECK: %0 = int_cast %n uint16 to int8
+// CHECK: %0 = int.cast %n uint16 to int8
 
 func test_int_4_1(n uint16) int32 {
     return int32(n)
@@ -148,7 +148,7 @@ func test_int_4_3(n uint16) uint8 {
     return uint8(n)
 }
 
-// CHECK: %0 = int_cast %n uint16 to uint8
+// CHECK: %0 = int.cast %n uint16 to uint8
 
 func test_int_4_4(n uint16) uint16 {
     return uint16(n)

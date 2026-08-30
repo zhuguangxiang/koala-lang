@@ -237,7 +237,7 @@ static LatticeValue fold_binary(SCCPContext *ctx, KlrInsn *insn, LatticeValue lv
             return lv_bottom();
         }
 
-        case OP_BINARY_CMPGT: {
+        case OP_BINARY_GT: {
             if (lc->which == CONST_INT && rc->which == CONST_INT) {
                 int64_t a = (int64_t)lc->ival;
                 int64_t b = (int64_t)rc->ival;
@@ -254,7 +254,7 @@ static LatticeValue fold_binary(SCCPContext *ctx, KlrInsn *insn, LatticeValue lv
             return lv_bottom();
         }
 
-        case OP_BINARY_CMPLT: {
+        case OP_BINARY_LT: {
             if (lc->which == CONST_INT && rc->which == CONST_INT) {
                 int64_t a = (int64_t)lc->ival;
                 int64_t b = (int64_t)rc->ival;
@@ -271,7 +271,7 @@ static LatticeValue fold_binary(SCCPContext *ctx, KlrInsn *insn, LatticeValue lv
             return lv_bottom();
         }
 
-        case OP_BINARY_CMPEQ: {
+        case OP_BINARY_EQ: {
             if (lc->which == CONST_INT && rc->which == CONST_INT) {
                 int64_t a = (int64_t)lc->ival;
                 int64_t b = (int64_t)rc->ival;
@@ -288,7 +288,7 @@ static LatticeValue fold_binary(SCCPContext *ctx, KlrInsn *insn, LatticeValue lv
             return lv_bottom();
         }
 
-        case OP_BINARY_CMPGE: {
+        case OP_BINARY_GE: {
             if (lc->which == CONST_INT && rc->which == CONST_INT) {
                 int64_t a = (int64_t)lc->ival;
                 int64_t b = (int64_t)rc->ival;
@@ -305,7 +305,7 @@ static LatticeValue fold_binary(SCCPContext *ctx, KlrInsn *insn, LatticeValue lv
             return lv_bottom();
         }
 
-        case OP_BINARY_CMPLE: {
+        case OP_BINARY_LE: {
             if (lc->which == CONST_INT && rc->which == CONST_INT) {
                 int64_t a = (int64_t)lc->ival;
                 int64_t b = (int64_t)rc->ival;
@@ -322,7 +322,7 @@ static LatticeValue fold_binary(SCCPContext *ctx, KlrInsn *insn, LatticeValue lv
             return lv_bottom();
         }
 
-        case OP_BINARY_CMPNE: {
+        case OP_BINARY_NE: {
             if (lc->which == CONST_INT && rc->which == CONST_INT) {
                 int64_t a = (int64_t)lc->ival;
                 int64_t b = (int64_t)rc->ival;
@@ -367,7 +367,7 @@ static LatticeValue eval_insn(SCCPContext *ctx, KlrInsn *insn)
     }
 
     /* ---- Binary arithmetic / comparison ---- */
-    if (insn->code >= OP_BINARY_ADD && insn->code <= OP_BINARY_CMPGE) {
+    if (insn->code >= OP_BINARY_ADD && insn->code <= OP_BINARY_GE) {
         KlrValue *lhs_val = insn_oper_value(insn, 0);
         KlrValue *rhs_val = insn_oper_value(insn, 1);
         LatticeValue lhs = get_lattice(ctx, lhs_val);

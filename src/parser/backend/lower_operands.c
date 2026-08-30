@@ -278,9 +278,9 @@ static void lower_jmp_opers(KlrInsn *insn)
 
 static inline int is_binary(OpCode op)
 {
-    return (op >= OP_INT_ADD && op <= OP_INT_CMPGE_IMM) ||
-           (op >= OP_UINT_ADD_IMM && op <= OP_UINT_CMPGE_IMM) ||
-           (op >= OP_FLOAT_ADD && op <= OP_FLOAT_CMPGE) || (op >= OP_LAND && op <= OP_LOR) ||
+    return (op >= OP_INT_ADD && op <= OP_INT_GE_IMM) ||
+           (op >= OP_UINT_ADD_IMM && op <= OP_UINT_GE_IMM) ||
+           (op >= OP_FLOAT_ADD && op <= OP_FLOAT_GE) || (op >= OP_LAND && op <= OP_LOR) ||
            (op >= OP_NUM_ADD && op <= OP_NUM_GE);
 }
 
@@ -512,6 +512,13 @@ static void lower_make_intf_opers(KlrInsn *insn, KlMachModule *m)
     // so we don't need to set it here.
 }
 
+static void lower_hash_str_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    set_raw_reg(&insn->raws[0], insn->vreg);
+    set_raw_reg(&insn->raws[1], obj->vreg);
+}
+
 void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 {
     KlrBasicBlock *bb;
@@ -647,6 +654,12 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                 case OP_MAKE_INTF:
                 case OP_UPCAST_INTF: {
                     lower_make_intf_opers(insn, m);
+                    break;
+                }
+
+                case OP_HASH:
+                case OP_STR: {
+                    lower_hash_str_opers(insn, m);
                     break;
                 }
 

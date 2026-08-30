@@ -218,6 +218,9 @@ static void mark_magic_func(HashMap *stbl)
             if (str_equal(sym->name, "len")) {
                 sym->flags |= SYM_FLAGS_MAGIC;
                 log_info("marked magic function '%s'", sym->name);
+            } else if (str_equal(sym->name, "hash")) {
+                sym->flags |= SYM_FLAGS_MAGIC;
+                log_info("marked magic function '%s'", sym->name);
             }
         }
     }
@@ -582,8 +585,9 @@ static int _diff_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
             /* Reuse ts_in_bases: checks if dst is in src's base list */
             return ts_in_bases(dst, src);
         }
-        default:
+        default: {
             return 0;
+        }
     }
 }
 

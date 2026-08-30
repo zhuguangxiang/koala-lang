@@ -847,6 +847,36 @@ void klr_build_map_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValu
     klr_append_insn(bldr, insn);
 }
 
+KlrValue *klr_build_hash(KlrBuilder *bldr, KlrValue *obj, char *name)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
+        obj->kind != KLR_VALUE_CONST) {
+        panic("'hash' op requires a reg/param/const value for obj");
+    }
+
+    KlrInsn *insn = new_insn(OP_HASH, 1, name);
+    init_oper(&insn->opers[0], insn, obj, 0);
+
+    insn->ts = int64_type_spec();
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_str(KlrBuilder *bldr, KlrValue *obj, char *name)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
+        obj->kind != KLR_VALUE_CONST) {
+        panic("'str' op requires a reg/param/const value for obj");
+    }
+
+    KlrInsn *insn = new_insn(OP_STR, 1, name);
+    init_oper(&insn->opers[0], insn, obj, 0);
+
+    insn->ts = str_type_spec();
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
 #ifdef __cplusplus
 }
 #endif

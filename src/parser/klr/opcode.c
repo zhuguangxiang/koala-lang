@@ -12,11 +12,13 @@ extern "C" {
 #endif
 
 char *__op_names[] = {
-#include "opcode_list_lowercase.h"
+#define X(name, fmt, str) str,
+#include "opcode_list.h"
+#undef X
 };
 
 OpFormat __op_formats[] = {
-#define X(name, fmt) fmt,
+#define X(name, fmt, str) fmt,
 #include "opcode_list.h"
 #undef X
 };

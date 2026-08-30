@@ -318,7 +318,12 @@ static TValue _str_add(TValue *self, TValue *args, int nargs)
 {
     StringObject *s = SELF_AS(str_type);
     ASSERT(nargs == 1);
-    Object *ob = to_obj(args);
+    Object *ob;
+    if (is_val(args)) {
+        ob = kl_to_str(args);
+    } else {
+        ob = to_obj(args);
+    }
     ASSERT(IS_STR(ob));
     StringObject *o = (StringObject *)ob;
 

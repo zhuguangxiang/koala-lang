@@ -17,7 +17,7 @@ func main() {
     print(test_int_wrap(y))
 }
 
-// CHECK: %0 = int_cast %n int16 to uint32
+// CHECK: %0 = int.cast %n int16 to uint32
 // CHECK: load_int_imm %0 int16, 123 int16
 // CHECK: %2 = cast %1 uint32 to uint64
 // CHECK: %3 = uint.add_imm %2 uint64, 1 uint64

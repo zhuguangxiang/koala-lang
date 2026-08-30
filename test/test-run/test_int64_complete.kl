@@ -170,9 +170,10 @@ func main() {
     // print((3).min(7))
     // print((3).max(7))
 
-    print((5).__hash__() == (5).__hash__())
-    print((5).__str__())
-    print((-5).__str__())
+    print(hash(5) == hash(5))
+    print(hash(4) == hash(5))
+    print(str(5))
+    print(str(-5))
 }
 
 // CHECK: 8
@@ -208,5 +209,6 @@ func main() {
 // CHECK: false
 // CHECK: 1
 // CHECK: true
+// CHECK: false
 // CHECK: 5
 // CHECK: -5

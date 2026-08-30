@@ -24,7 +24,7 @@ func fib(n int) int {
 }
 
 // CHECK-LABEL: ====== Linearization @fib(start_pc: 7, insns: 11) ======
-// CHECK: int.cmplt_imm r1, r0, #2
+// CHECK: int.lt_imm r1, r0, #2
 // CHECK: jmp_false r1, 1              ;; -> %bb-1(if-end)
 // CHECK: ret r0
 // CHECK: int.sub_imm r2, r0, #1
@@ -46,12 +46,12 @@ func test_while(n int) {
 // CHECK-LABEL: ====== Linearization @test_while(start_pc: 18, insns: 7) ======
 // CHECK: %bb-1(entry):
 // CHECK: load_int_imm r1, ti=0xb, #0
-// CHECK: int.cmpge_imm r2, r0, #0
+// CHECK: int.ge_imm r2, r0, #0
 // CHECK: jmp_false r2, 3              ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
 // CHECK: int.add_imm r1, r1, #1
-// CHECK: int.cmplt r2, r1, r0
+// CHECK: int.lt r2, r1, r0
 // CHECK: jmp_true r2, -3              ;; -> %bb-1(while-body)
 
 // CHECK: %bb-1(while-end):
@@ -73,12 +73,12 @@ func test_nested_loop(n int) {
 
 // CHECK: %bb-1(entry):
 // CHECK: load_int_imm r1, ti=0xb, #0
-// CHECK: int.cmpge_imm r2, r0, #0
+// CHECK: int.ge_imm r2, r0, #0
 // CHECK: jmp_false r2, 15             ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
 // CHECK: load_int_imm r2, ti=0xb, #0
-// CHECK: int.cmpge_imm r3, r1, #0
+// CHECK: int.ge_imm r3, r1, #0
 // CHECK: jmp_false r3, 9              ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
@@ -89,12 +89,12 @@ func test_nested_loop(n int) {
 // CHECK: call flg=1, #3
 // CHECK: data
 // CHECK: int.add_imm r2, r2, #1
-// CHECK: int.cmplt r3, r2, r1
+// CHECK: int.lt r3, r2, r1
 // CHECK: jmp_true r3, -9              ;; -> %bb-1(while-body)
 
 // CHECK: %bb-1(while-end):
 // CHECK: int.add_imm r1, r1, #1
-// CHECK: int.cmplt r2, r1, r0
+// CHECK: int.lt r2, r1, r0
 // CHECK: jmp_true r2, -15             ;; -> %bb-1(while-body)
 
 // CHECK: %bb-1(while-end):

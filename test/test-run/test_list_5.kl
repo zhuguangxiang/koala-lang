@@ -33,7 +33,7 @@ func main() {
 
 // CHECK-LABEL: %bb1(loop-header):
 // CHECK: %seq.index = local int64
-// CHECK: %0 = seq_len %x std/builtin.list<j>
+// CHECK: %0 = seq.len %x std/builtin.list<j>
 // CHECK: move %seq.index int64, 0 int64
 // CHECK: jmp label %bb2
 
@@ -43,7 +43,7 @@ func main() {
 
 // CHECK-LABEL: %bb3(loop-body):
 // CHECK: %v = local int64
-// CHECK: %2 = seq_get %x std/builtin.list<j>, %seq.index int64
+// CHECK: %2 = seq.get %x std/builtin.list<j>, %seq.index int64
 // CHECK: move %v int64, %2 int64
 // CHECK: call @list:append [path = 'std/builtin'], %out std/builtin.list<j>, %v int64
 // CHECK: %3 = add %seq.index int64, 1 int64
@@ -55,10 +55,10 @@ func main() {
 // CHECK: ret void
 
 // CHECK-LABEL: @foo[0,10]:
-// CHECK: seq_len r3, r0
-// CHECK: oad_int_imm r2, ti=0xb, #0
+// CHECK: seq.len r3, r0
+// CHECK: load_int_imm r2, ti=0xb, #0
 // CHECK: jmp_int_lt_imm r3, #0, 7
-// CHECK: seq_get r4, r0, r2
+// CHECK: seq.get r4, r0, r2
 // CHECK: move r6, r4
 // CHECK: move r5, r1
 // CHECK: call flg=1, #2

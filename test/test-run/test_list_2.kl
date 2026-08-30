@@ -38,7 +38,7 @@ func main() {
 // CHECK: move %l std/builtin.list<j>, %0 std/builtin.list<j>
 // CHECK: %1 = build_intern @tuple, %l std/builtin.list<j>
 // CHECK: call @print [path = 'std/builtin'], %1 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
-// CHECK: %2 = seq_get %l std/builtin.list<j>, 0 int64
+// CHECK: %2 = seq.get %l std/builtin.list<j>, 0 int64
 // CHECK: %v = local [immutable] int64
 // CHECK: move %v int64, %2 int64
 // CHECK: %3 = build_intern @tuple, %v int64
@@ -58,7 +58,7 @@ func main() {
 // CHECK: branch %8 bool, label %bb3, label %bb4
 
 // CHECK-LABEL: %bb3(loop-body):
-// CHECK: %9 = seq_get %l std/builtin.list<j>, %i int64
+// CHECK: %9 = seq.get %l std/builtin.list<j>, %i int64
 // CHECK: %v = local [immutable] int64
 // CHECK: move %v int64, %9 int64
 // CHECK: %10 = build_intern @tuple, %v int64

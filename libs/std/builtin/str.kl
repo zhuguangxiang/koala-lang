@@ -13,11 +13,20 @@
 /// use `to_bytes` for byte-level access.
 pub class str : Sequence & Comparable {
 
-    /// Initialize a string from `s`: a copy if `s` is a str,
-    /// or a UTF-8 decoding if `s` is bytes.
-    /// Panic if the bytes are not valid UTF-8.
+    /// Initialize a string from any Koala object.
+    ///
+    /// The constructor accepts `any` because all classes automatically
+    /// provide a `__str__()` method. This allows `str()` to serve as the
+    /// universal string-conversion mechanism.
+    ///
+    /// Notes:
+    /// Koala splits Java’s `Object` into three independent traits
+    /// (`Equatable`, `Hashable`, `Printable`). Classes auto‑conform to
+    /// these traits, while traits remain pure. This enables type‑safe,
+    /// generic equality (`Equatable[T]`) without Java’s `equals(Object)`
+    /// limitation.
     @native
-    pub func __init__(s str | bytes) {}
+    pub func __init__(s any) {}
 
     /// Return an iterator over the characters of the string.
     @native

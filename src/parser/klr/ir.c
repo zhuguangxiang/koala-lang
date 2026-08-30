@@ -1121,7 +1121,7 @@ static void build_specialize_insn(KlrInsn *insn, HashMap *map, KlrBuilder *bldr)
             break;
         }
 
-        case OP_BINARY_CMPGT: {
+        case OP_BINARY_GT: {
             KlrValue *v1 = insn_oper_value(insn, 0);
             KlrValue *v2 = insn_oper_value(insn, 1);
             v1 = get_from_map(map, v1);
@@ -1131,7 +1131,7 @@ static void build_specialize_insn(KlrInsn *insn, HashMap *map, KlrBuilder *bldr)
             break;
         }
 
-        case OP_BINARY_CMPLT: {
+        case OP_BINARY_LT: {
             KlrValue *v1 = insn_oper_value(insn, 0);
             KlrValue *v2 = insn_oper_value(insn, 1);
             v1 = get_from_map(map, v1);

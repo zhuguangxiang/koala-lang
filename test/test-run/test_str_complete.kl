@@ -63,11 +63,11 @@ func main() {
     print("abc" >= "abc")
 
     // __hash__: equal strings give equal hashes
-    print("hello".__hash__() == "hello".__hash__())
+    print(hash("hello") == hash("hello"))
 
     // __str__
     print(s)
-    print(s.__str__())
+    print(str(s))
 
     // substr: defaults / start only / start + end
     print(s.substr())

@@ -1,6 +1,6 @@
-// SKIP: koala %s | filecheck %s
+// RUN: koala %s | filecheck %s
 
-class Node[T] {
+class Node[T: Comparable] {
     var value T
     var left Node[T]?
     var right Node[T]?
@@ -12,7 +12,7 @@ class Node[T] {
     }
 }
 
-class Tree[T] {
+class Tree[T: Comparable] {
     var root Node[T]?
 
     func __init__() {
@@ -90,6 +90,8 @@ func main() {
     tree.insert(1)
     tree.insert(4)
     tree.show()
+    print(tree.contains(3))
 }
 
 // CHECK: 5 3 7 1 4
+// CHECK: true

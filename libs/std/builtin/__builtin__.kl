@@ -34,6 +34,22 @@ pub func print(objs ..., sep = ' ', end = '\n') {}
 @intrinsic
 pub func len(obj any) int {}
 
+/// Return the hash value of an object.
+///
+/// This function is an intrinsic and is resolved at compile time.
+/// Semantically, `hash(obj)` is equivalent to calling `obj.__hash__()`.
+///
+/// Any class automatically provides a `__hash__()` method, and user-defined
+/// types may override it to customize hashing behavior.
+///
+/// Note:
+///     - As an intrinsic, `hash()` does not have a user-level implementation.
+///     - The compiler may lower `hash(obj)` to a specialized VM instruction
+///       (e.g., OP_HASH) when the object's type is known, enabling efficient
+///       hashing for built-in and user-defined types.
+@intrinsic
+pub func hash(obj any) int {}
+
 /// Immediately abort program execution with an error message.
 ///
 /// `panic(msg)` raises a fatal runtime error and terminates the current

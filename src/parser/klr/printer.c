@@ -536,6 +536,8 @@ static void print_seq_set(const char *name, KlrInsn *insn, FILE *fp)
 
 void klr_print_insn(KlrInsn *insn, FILE *fp)
 {
+    char *name = op_name(insn->code);
+
     switch (insn->code) {
         case OP_IR_LOCAL:
             print_local_insn((KlrValue *)insn, fp);
@@ -550,11 +552,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_IR_JMP_COND:
-            print_jmp_cond("branch", insn, fp);
+            print_jmp_cond(name, insn, fp);
             break;
 
         case OP_MOVE:
-            print_no_value_insn("move", insn, fp);
+            print_no_value_insn(name, insn, fp);
             break;
 
         case OP_MOVE_TRUE:
@@ -562,127 +564,127 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_JMP_INT_LT:
-            print_jmp_cond_fused("jmp_int_lt", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_LT_IMM:
-            print_jmp_cond_fused("jmp_int_lt_imm", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_LE:
-            print_jmp_cond_fused("jmp_int_le", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_LE_IMM:
-            print_jmp_cond_fused("jmp_int_le_imm", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_EQ:
-            print_jmp_cond_fused("jmp_int_eq", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_EQ_IMM:
-            print_jmp_cond_fused("jmp_int_eq_imm", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_NE:
-            print_jmp_cond_fused("jmp_int_ne", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_NE_IMM:
-            print_jmp_cond_fused("jmp_int_ne_imm", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_GT:
-            print_jmp_cond_fused("jmp_int_gt", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_GT_IMM:
-            print_jmp_cond_fused("jmp_int_gt_imm", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_GE:
-            print_jmp_cond_fused("jmp_int_ge", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_INT_GE_IMM:
-            print_jmp_cond_fused("jmp_int_ge_imm", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_UINT_LT:
-            print_jmp_cond_fused("jmp_uint_lt", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_UINT_LT_IMM:
-            print_jmp_cond_fused("jmp_uint_lt_imm", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_UINT_LE:
-            print_jmp_cond_fused("jmp_uint_le", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_UINT_LE_IMM:
-            print_jmp_cond_fused("jmp_uint_le_imm", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_UINT_GT:
-            print_jmp_cond_fused("jmp_uint_gt", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_UINT_GT_IMM:
-            print_jmp_cond_fused("jmp_uint_gt_imm", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_UINT_GE:
-            print_jmp_cond_fused("jmp_uint_ge", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_UINT_GE_IMM:
-            print_jmp_cond_fused("jmp_uint_ge_imm", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_BINARY_ADD:
-            print_binary(insn, "add", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_BINARY_SUB:
-            print_binary(insn, "sub", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_BINARY_MUL:
-            print_binary(insn, "mul", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_BINARY_DIV:
-            print_binary(insn, "div", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_BINARY_MOD:
-            print_binary(insn, "mod", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_BINARY_AND:
-            print_binary(insn, "and", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_BINARY_OR:
-            print_binary(insn, "or", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_BINARY_XOR:
-            print_binary(insn, "xor", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UNARY_NOT:
-            print_unary(insn, "not", fp);
+            print_unary(insn, name, fp);
             break;
 
         case OP_BINARY_SHL:
-            print_binary(insn, "shl", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_BINARY_SHR:
-            print_binary(insn, "shr", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_IR_CALL:
@@ -690,34 +692,34 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_CALL:
-            print_call("call", insn, fp);
+            print_call(name, insn, fp);
             break;
 
         case OP_TAIL_CALL:
-            print_call("tail_call", insn, fp);
+            print_call(name, insn, fp);
             break;
 
-        case OP_BINARY_CMPEQ:
+        case OP_BINARY_EQ:
             print_cmp("cmpeq", insn, fp);
             break;
 
-        case OP_BINARY_CMPNE:
+        case OP_BINARY_NE:
             print_cmp("cmpne", insn, fp);
             break;
 
-        case OP_BINARY_CMPLT:
+        case OP_BINARY_LT:
             print_cmp("cmplt", insn, fp);
             break;
 
-        case OP_BINARY_CMPGT:
+        case OP_BINARY_GT:
             print_cmp("cmpgt", insn, fp);
             break;
 
-        case OP_BINARY_CMPLE:
+        case OP_BINARY_LE:
             print_cmp("cmple", insn, fp);
             break;
 
-        case OP_BINARY_CMPGE:
+        case OP_BINARY_GE:
             print_cmp("cmpge", insn, fp);
             break;
 
@@ -726,23 +728,23 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_JMP_TRUE:
-            print_jmp_cond("jmp_true", insn, fp);
+            print_jmp_cond(name, insn, fp);
             break;
 
         case OP_RET:
-            print_ret("ret", insn, fp);
+            print_ret(name, insn, fp);
             break;
 
         case OP_RET_INT_IMM:
-            print_ret("ret_int_imm", insn, fp);
+            print_ret(name, insn, fp);
             break;
 
         case OP_RET_TAG:
-            print_ret("ret_tag", insn, fp);
+            print_ret(name, insn, fp);
             break;
 
         case OP_RET_CONST:
-            print_ret("ret_const", insn, fp);
+            print_ret(name, insn, fp);
             break;
 
         case OP_RET_VOID:
@@ -766,349 +768,349 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_LAND:
-            print_binary(insn, "land", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_LOR:
-            print_binary(insn, "lor", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_LNOT:
-            print_unary(insn, "lnot", fp);
+            print_unary(insn, name, fp);
             break;
 
         case OP_LOAD_INT_IMM:
-            print_no_value_insn("load_int_imm", insn, fp);
+            print_no_value_insn(name, insn, fp);
             break;
 
         case OP_INT_ADD:
-            print_binary(insn, "int.add", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_ADD_IMM:
-            print_binary(insn, "int.add_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_SUB:
-            print_binary(insn, "int.sub", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_SUB_IMM:
-            print_binary(insn, "int.sub_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_MUL:
-            print_binary(insn, "int.mul", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_MUL_IMM:
-            print_binary(insn, "int.mul_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_DIV:
-            print_binary(insn, "int.div", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_DIV_IMM:
-            print_binary(insn, "int.div_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_MOD:
-            print_binary(insn, "int.mod", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_MOD_IMM:
-            print_binary(insn, "int.mod_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_SHL:
-            print_binary(insn, "int.shl", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_SHL_IMM:
-            print_binary(insn, "int.shl_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_SHR:
-            print_binary(insn, "int.shr", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_SHR_IMM:
-            print_binary(insn, "int.shr_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_AND:
-            print_binary(insn, "int.and", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_AND_IMM:
-            print_binary(insn, "int.and_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_OR:
-            print_binary(insn, "int.or", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_OR_IMM:
-            print_binary(insn, "int.or_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_XOR:
-            print_binary(insn, "int.xor", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_INT_XOR_IMM:
-            print_binary(insn, "int.xor_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_LOADK:
-            print_no_value_insn("loadk", insn, fp);
+            print_no_value_insn(name, insn, fp);
             break;
 
         case OP_LOAD_TAG:
-            print_no_value_insn("load_tag", insn, fp);
+            print_no_value_insn(name, insn, fp);
             break;
 
-        case OP_INT_CMPEQ:
-            print_cmp("int.eq", insn, fp);
+        case OP_INT_EQ:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPEQ_IMM:
-            print_cmp("int.eq_imm", insn, fp);
+        case OP_INT_EQ_IMM:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPNE:
-            print_cmp("int.ne", insn, fp);
+        case OP_INT_NE:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPNE_IMM:
-            print_cmp("int.ne_imm", insn, fp);
+        case OP_INT_NE_IMM:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPLT:
-            print_cmp("int.lt", insn, fp);
+        case OP_INT_LT:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPLT_IMM:
-            print_cmp("int.lt_imm", insn, fp);
+        case OP_INT_LT_IMM:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPLE:
-            print_cmp("int.le", insn, fp);
+        case OP_INT_LE:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPLE_IMM:
-            print_cmp("int.le_imm", insn, fp);
+        case OP_INT_LE_IMM:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPGT:
-            print_cmp("int.gt", insn, fp);
+        case OP_INT_GT:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPGT_IMM:
-            print_cmp("int.gt_imm", insn, fp);
+        case OP_INT_GT_IMM:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPGE:
-            print_cmp("int.ge", insn, fp);
+        case OP_INT_GE:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_INT_CMPGE_IMM:
-            print_cmp("int.ge_imm", insn, fp);
+        case OP_INT_GE_IMM:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_UINT_CMPEQ_IMM:
-            print_cmp("uint.eq_imm", insn, fp);
+        case OP_UINT_EQ_IMM:
+            print_cmp(name, insn, fp);
             break;
 
         case OP_FLOAT_ADD:
-            print_binary(insn, "float.add", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_FLOAT_SUB:
-            print_binary(insn, "float.sub", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_FLOAT_MUL:
-            print_binary(insn, "float.mul", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_FLOAT_DIV:
-            print_binary(insn, "float.div", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_FLOAT_MOD:
-            print_binary(insn, "float.mod", fp);
+            print_binary(insn, name, fp);
             break;
 
-        case OP_FLOAT_CMPEQ:
-            print_cmp("float.eq", insn, fp);
+        case OP_FLOAT_EQ:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_FLOAT_CMPNE:
-            print_cmp("float.ne", insn, fp);
+        case OP_FLOAT_NE:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_FLOAT_CMPLT:
-            print_cmp("float.lt", insn, fp);
+        case OP_FLOAT_LT:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_FLOAT_CMPLE:
-            print_cmp("float.le", insn, fp);
+        case OP_FLOAT_LE:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_FLOAT_CMPGT:
-            print_cmp("float.gt", insn, fp);
+        case OP_FLOAT_GT:
+            print_cmp(name, insn, fp);
             break;
 
-        case OP_FLOAT_CMPGE:
-            print_cmp("float.ge", insn, fp);
+        case OP_FLOAT_GE:
+            print_cmp(name, insn, fp);
             break;
 
         case OP_JMP_FLOAT_EQ:
-            print_jmp_cond_fused("jmp_float_eq", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_FLOAT_NE:
-            print_jmp_cond_fused("jmp_float_ne", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_FLOAT_LT:
-            print_jmp_cond_fused("jmp_float_lt", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_FLOAT_LE:
-            print_jmp_cond_fused("jmp_float_le", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_FLOAT_GT:
-            print_jmp_cond_fused("jmp_float_gt", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_FLOAT_GE:
-            print_jmp_cond_fused("jmp_float_ge", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_UINT_ADD_IMM:
-            print_binary(insn, "uint.add_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_SUB_IMM:
-            print_binary(insn, "uint.sub_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_MUL_IMM:
-            print_binary(insn, "uint.mul_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_DIV:
-            print_binary(insn, "uint.div", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_DIV_IMM:
-            print_binary(insn, "uint.div_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_MOD:
-            print_binary(insn, "uint.mod", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_MOD_IMM:
-            print_binary(insn, "uint.mod_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_SHR:
-            print_binary(insn, "uint.shr", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_SHL_IMM:
-            print_binary(insn, "uint.shl_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_SHR_IMM:
-            print_binary(insn, "uint.shr_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_AND_IMM:
-            print_binary(insn, "uint.and_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_OR_IMM:
-            print_binary(insn, "uint.or_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_UINT_XOR_IMM:
-            print_binary(insn, "uint.xor_imm", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_LOAD_UINT_IMM:
-            print_no_value_insn("load_uint_imm", insn, fp);
+            print_no_value_insn(name, insn, fp);
             break;
 
         case OP_RET_UINT_IMM:
-            print_ret("ret_uint_imm", insn, fp);
+            print_ret(name, insn, fp);
             break;
 
         case OP_MAKE_INTF: {
-            print_obj_intf_cast("make_intf", insn, fp);
+            print_obj_intf_cast(name, insn, fp);
             break;
         }
 
         case OP_UPCAST_INTF: {
-            print_obj_intf_cast("upcast_intf", insn, fp);
+            print_obj_intf_cast(name, insn, fp);
             break;
         }
 
         case OP_IR_CAST:
-            print_ir_cast("cast", insn, fp);
+            print_ir_cast(name, insn, fp);
             break;
 
         case OP_INT_CAST:
-            print_ir_cast("int_cast", insn, fp);
+            print_ir_cast(name, insn, fp);
             break;
 
         case OP_FLOAT_CAST:
-            print_ir_cast("float_cast", insn, fp);
+            print_ir_cast(name, insn, fp);
             break;
 
         case OP_REF_EQ:
-            print_binary(insn, "ref.eq", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_REF_NE:
-            print_binary(insn, "ref.ne", fp);
+            print_binary(insn, name, fp);
             break;
 
         case OP_REF_EQ_NULL:
-            print_unary(insn, "ref.eq_null", fp);
+            print_unary(insn, name, fp);
             break;
 
         case OP_REF_NE_NULL:
-            print_unary(insn, "ref.ne_null", fp);
+            print_unary(insn, name, fp);
             break;
 
         case OP_JMP_REF_EQ:
-            print_jmp_cond_fused("jmp_ref_eq", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_REF_NE:
-            print_jmp_cond_fused("jmp_ref_ne", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_REF_EQ_NULL:
-            print_jmp_cond_fused("jmp_ref_eq_null", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_JMP_REF_NE_NULL:
-            print_jmp_cond_fused("jmp_ref_ne_null", insn, fp);
+            print_jmp_cond_fused(name, insn, fp);
             break;
 
         case OP_NEW:
-            print_new("new", insn, fp);
+            print_new(name, insn, fp);
             break;
 
         case OP_NEW_EXT:
-            print_new("new_ext", insn, fp);
+            print_new(name, insn, fp);
             break;
 
         case OP_BUILD_INTERN:
@@ -1116,67 +1118,79 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_GET_FIELD:
-            print_get_field(insn, "get_field", fp);
+            print_get_field(insn, name, fp);
             break;
 
         case OP_GET_FIELD_EXT:
-            print_get_field(insn, "get_field_ext", fp);
+            print_get_field(insn, name, fp);
             break;
 
         case OP_SET_FIELD:
-            print_set_field(insn, "set_field", fp);
+            print_set_field(insn, name, fp);
             break;
 
         case OP_SET_FIELD_EXT:
-            print_set_field(insn, "set_field_ext", fp);
+            print_set_field(insn, name, fp);
             break;
 
         case OP_SEQ_GET:
-            print_seq_get("seq_get", insn, fp);
+            print_seq_get(name, insn, fp);
             break;
 
         case OP_SEQ_GET_IMM:
-            print_seq_get("seq_get_imm", insn, fp);
+            print_seq_get(name, insn, fp);
             break;
 
         case OP_SEQ_SET:
-            print_seq_set("seq_set", insn, fp);
+            print_seq_set(name, insn, fp);
             break;
 
         case OP_SEQ_SET_IMM:
-            print_seq_set("seq_set_imm", insn, fp);
+            print_seq_set(name, insn, fp);
             break;
 
         case OP_SEQ_LEN:
-            print_unary(insn, "seq_len", fp);
+            print_unary(insn, name, fp);
             break;
 
         case OP_NUM_EQ:
-            print_cmp("num.eq", insn, fp);
+            print_cmp(name, insn, fp);
             break;
 
         case OP_NUM_NE:
-            print_cmp("num.ne", insn, fp);
+            print_cmp(name, insn, fp);
             break;
 
         case OP_NUM_LT:
-            print_cmp("num.lt", insn, fp);
+            print_cmp(name, insn, fp);
             break;
 
         case OP_NUM_LE:
-            print_cmp("num.le", insn, fp);
+            print_cmp(name, insn, fp);
             break;
 
         case OP_NUM_GT:
-            print_cmp("num.gt", insn, fp);
+            print_cmp(name, insn, fp);
             break;
 
         case OP_NUM_GE:
-            print_cmp("num.ge", insn, fp);
+            print_cmp(name, insn, fp);
+            break;
+
+        case OP_NUM_ADD:
+            print_binary(insn, name, fp);
+            break;
+
+        case OP_HASH:
+            print_unary(insn, name, fp);
+            break;
+
+        case OP_STR:
+            print_unary(insn, name, fp);
             break;
 
         default:
-            printf("%s\n", op_name(insn->code));
+            printf("%s\n", name);
             break;
     }
 

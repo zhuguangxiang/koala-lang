@@ -1,0 +1,46 @@
+// RUN: koala %s | filecheck %s
+
+class Foo {
+
+}
+
+import "test_pkg/pkg1" as zz
+
+class Bar {
+    let x int
+    let y int
+
+    func __init__(_x int, _y int) {
+        x = _x; y = _y
+    }
+
+    func __str__() str {
+        return format("Bar(x={}, y={})", x, y)
+    }
+}
+
+func main() {
+    let f = Foo()
+    let s = str(f) + "OK"
+    print(f)
+    print(s)
+    let f2 = Foo()
+    print(f2)
+    let i = 100
+    print(hash(i), hash(100))
+    let i2 = 100
+    print(f == f2, f == f)
+
+    let p = zz.Point(1, 2)
+    print(p)
+
+    print(Bar(1, 2))
+}
+
+// CHECK: <test_misc_1.Foo object at 0x{{[0-9a-fA-F]+}}>
+// CHECK: <test_misc_1.Foo object at 0x{{[0-9a-fA-F]+}}>OK
+// CHECK: <test_misc_1.Foo object at 0x{{[0-9a-fA-F]+}}>
+// CHECK: {{[0-9]+}} {{[0-9]+}}
+// CHECK: false true
+// CHECK: <test_pkg/pkg1.Point object at 0x{{[0-9a-fA-F]+}}>
+// CHECK: Bar(x=1, y=2)

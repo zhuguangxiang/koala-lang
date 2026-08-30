@@ -50,12 +50,12 @@ func main() {
     print(bne(false, true))
     print(bne(false, false))
 
-    print(true.__hash__() == true.__hash__())
-    print(false.__hash__() == true.__hash__())
-    print(false.__hash__() == false.__hash__())
+    print(hash(true) == hash(true))
+    print(hash(false) == hash(true))
+    print(hash(false) == hash(false))
 
-    print(true.__str__())
-    print(false.__str__())
+    print(str(true))
+    print(str(false))
 }
 
 // CHECK: true

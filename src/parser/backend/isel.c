@@ -41,12 +41,12 @@ static BinaryRule int_rules[] = {
     // arithmetic shift
     { OP_BINARY_SHR, OP_INT_SHR, OP_INT_SHR_IMM, 0, 1 },
 
-    { OP_BINARY_CMPEQ, OP_INT_CMPEQ, OP_INT_CMPEQ_IMM, 1, 1 },
-    { OP_BINARY_CMPNE, OP_INT_CMPNE, OP_INT_CMPNE_IMM, 1, 1 },
-    { OP_BINARY_CMPLT, OP_INT_CMPLT, OP_INT_CMPLT_IMM, 0, 1 },
-    { OP_BINARY_CMPGT, OP_INT_CMPGT, OP_INT_CMPGT_IMM, 0, 1 },
-    { OP_BINARY_CMPLE, OP_INT_CMPLE, OP_INT_CMPLE_IMM, 0, 1 },
-    { OP_BINARY_CMPGE, OP_INT_CMPGE, OP_INT_CMPGE_IMM, 0, 1 },
+    { OP_BINARY_EQ, OP_INT_EQ, OP_INT_EQ_IMM, 1, 1 },
+    { OP_BINARY_NE, OP_INT_NE, OP_INT_NE_IMM, 1, 1 },
+    { OP_BINARY_LT, OP_INT_LT, OP_INT_LT_IMM, 0, 1 },
+    { OP_BINARY_GT, OP_INT_GT, OP_INT_GT_IMM, 0, 1 },
+    { OP_BINARY_LE, OP_INT_LE, OP_INT_LE_IMM, 0, 1 },
+    { OP_BINARY_GE, OP_INT_GE, OP_INT_GE_IMM, 0, 1 },
 };
 
 static BinaryRule uint_rules[] = {
@@ -63,12 +63,12 @@ static BinaryRule uint_rules[] = {
      // logical shift
     { OP_BINARY_SHR, OP_UINT_SHR, OP_UINT_SHR_IMM, 0, 1 },
 
-    { OP_BINARY_CMPEQ, OP_INT_CMPEQ, OP_UINT_CMPEQ_IMM, 1, 1 },
-    { OP_BINARY_CMPNE, OP_INT_CMPNE, OP_UINT_CMPNE_IMM, 1, 1 },
-    { OP_BINARY_CMPLT, OP_UINT_CMPLT, OP_UINT_CMPLT_IMM, 0, 1 },
-    { OP_BINARY_CMPLE, OP_UINT_CMPLE, OP_UINT_CMPLE_IMM, 0, 1 },
-    { OP_BINARY_CMPGT, OP_UINT_CMPGT, OP_UINT_CMPGT_IMM, 0, 1 },
-    { OP_BINARY_CMPGE, OP_UINT_CMPGE, OP_UINT_CMPGE_IMM, 0, 1 },
+    { OP_BINARY_EQ, OP_INT_EQ, OP_UINT_EQ_IMM, 1, 1 },
+    { OP_BINARY_NE, OP_INT_NE, OP_UINT_NE_IMM, 1, 1 },
+    { OP_BINARY_LT, OP_UINT_LT, OP_UINT_LT_IMM, 0, 1 },
+    { OP_BINARY_LE, OP_UINT_LE, OP_UINT_LE_IMM, 0, 1 },
+    { OP_BINARY_GT, OP_UINT_GT, OP_UINT_GT_IMM, 0, 1 },
+    { OP_BINARY_GE, OP_UINT_GE, OP_UINT_GE_IMM, 0, 1 },
 };
 
 static BinaryRule float_rules[] = {
@@ -77,22 +77,22 @@ static BinaryRule float_rules[] = {
     { OP_BINARY_MUL, OP_FLOAT_MUL, 0, 1, 0 },
     { OP_BINARY_DIV, OP_FLOAT_DIV, 0, 0, 0 },
     { OP_BINARY_MOD, OP_FLOAT_MOD, 0, 0, 0 },
-    { OP_BINARY_CMPNE, OP_FLOAT_CMPNE, 0, 0, 0 },
-    { OP_BINARY_CMPLT, OP_FLOAT_CMPLT, 0, 0, 0 },
-    { OP_BINARY_CMPEQ, OP_FLOAT_CMPEQ, 0, 0, 0 },
-    { OP_BINARY_CMPLE, OP_FLOAT_CMPLE, 0, 0, 0 },
-    { OP_BINARY_CMPGT, OP_FLOAT_CMPGT, 0, 0, 0 },
-    { OP_BINARY_CMPGE, OP_FLOAT_CMPGE, 0, 0, 0 },
+    { OP_BINARY_NE, OP_FLOAT_NE, 0, 0, 0 },
+    { OP_BINARY_LT, OP_FLOAT_LT, 0, 0, 0 },
+    { OP_BINARY_EQ, OP_FLOAT_EQ, 0, 0, 0 },
+    { OP_BINARY_LE, OP_FLOAT_LE, 0, 0, 0 },
+    { OP_BINARY_GT, OP_FLOAT_GT, 0, 0, 0 },
+    { OP_BINARY_GE, OP_FLOAT_GE, 0, 0, 0 },
 };
 
 static BinaryRule optional_rules[] = {
-    { OP_BINARY_CMPEQ, OP_REF_EQ, OP_REF_EQ_NULL, 1, 1 },
-    { OP_BINARY_CMPNE, OP_REF_NE, OP_REF_NE_NULL, 1, 1 },
+    { OP_BINARY_EQ, OP_REF_EQ, OP_REF_EQ_NULL, 1, 1 },
+    { OP_BINARY_NE, OP_REF_NE, OP_REF_NE_NULL, 1, 1 },
 };
 
 static BinaryRule bool_rules[] = {
-    { OP_BINARY_CMPEQ, OP_INT_CMPEQ, OP_INT_CMPEQ_IMM, 1, 1 },
-    { OP_BINARY_CMPNE, OP_INT_CMPNE, OP_INT_CMPNE_IMM, 1, 1 },
+    { OP_BINARY_EQ, OP_INT_EQ, OP_INT_EQ_IMM, 1, 1 },
+    { OP_BINARY_NE, OP_INT_NE, OP_INT_NE_IMM, 1, 1 },
 };
 
 static BinaryRule num_ops_rules[] = {
@@ -108,12 +108,12 @@ static BinaryRule num_ops_rules[] = {
     { OP_BINARY_SHL, OP_NUM_SHL, 0, 0, 0 },
     { OP_BINARY_SHR, OP_NUM_SHR, 0, 0, 0 },
 
-    { OP_BINARY_CMPEQ, OP_NUM_EQ, 0, 0, 0 },
-    { OP_BINARY_CMPNE, OP_NUM_NE, 0, 0, 0 },
-    { OP_BINARY_CMPLT, OP_NUM_LT, 0, 0, 0 },
-    { OP_BINARY_CMPGT, OP_NUM_GT, 0, 0, 0 },
-    { OP_BINARY_CMPLE, OP_NUM_LE, 0, 0, 0 },
-    { OP_BINARY_CMPGE, OP_NUM_GE, 0, 0, 0 },
+    { OP_BINARY_EQ, OP_NUM_EQ, 0, 0, 0 },
+    { OP_BINARY_NE, OP_NUM_NE, 0, 0, 0 },
+    { OP_BINARY_LT, OP_NUM_LT, 0, 0, 0 },
+    { OP_BINARY_GT, OP_NUM_GT, 0, 0, 0 },
+    { OP_BINARY_LE, OP_NUM_LE, 0, 0, 0 },
+    { OP_BINARY_GE, OP_NUM_GE, 0, 0, 0 },
 };
 
 // clang-format on
@@ -372,10 +372,7 @@ static void isel_lower_binary(KlrInsn *insn)
     insn->code = R->reg_op;
 }
 
-static inline int isel_is_binary(OpCode op)
-{
-    return (op >= OP_BINARY_ADD && op <= OP_BINARY_CMPGE);
-}
+static inline int isel_is_binary(OpCode op) { return (op >= OP_BINARY_ADD && op <= OP_BINARY_GE); }
 
 static KlrValue *lower_push_const(KlrConst *c, KlrInsn *insn, OpCode op)
 {
@@ -613,7 +610,6 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
             // special intrinsic: len()
             ASSERT(insn->num_opers == 2);
             KlrValue *arg = insn_oper_value(insn, 1);
-            ASSERT(insn->num_opers == 2);
             if (type_is_seq(arg->ts)) {
                 if (klr_is_const(arg)) {
                     KlrValue *_arg = lower_const(insn, (KlrConst *)arg);
@@ -637,6 +633,25 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
             } else {
                 NYI();
             }
+            return;
+        }
+
+        if (str_equal(fn_val->name, "hash")) {
+            log_info("handle built-in hash() call.");
+            // special intrinsic: hash()
+            ASSERT(insn->num_opers == 2);
+            KlrValue *arg = insn_oper_value(insn, 1);
+
+            if (klr_is_const(arg)) {
+                KlrValue *_arg = lower_const(insn, (KlrConst *)arg);
+                set_operand_at(insn, 0, _arg);
+            } else {
+                set_operand_at(insn, 0, arg);
+            }
+
+            clear_operand_at(insn, 1);
+            insn->num_opers = 1;
+            insn->code = OP_HASH;
             return;
         }
     }
@@ -821,10 +836,7 @@ static void isel_lower_cast(KlrInsn *insn)
     }
 }
 
-static inline int is_int_cmp(OpCode op)
-{
-    return (op >= OP_INT_CMPEQ) && (op <= OP_INT_CMPGE_IMM);
-}
+static inline int is_int_cmp(OpCode op) { return (op >= OP_INT_EQ) && (op <= OP_INT_GE_IMM); }
 
 static OpCode int_cmp_map[] = {
     OP_JMP_INT_EQ, OP_JMP_INT_EQ_IMM, OP_JMP_INT_NE, OP_JMP_INT_NE_IMM,
@@ -834,8 +846,8 @@ static OpCode int_cmp_map[] = {
 
 static inline int is_uint_cmp(OpCode op)
 {
-    return ((op >= OP_UINT_CMPLT) && (op <= OP_UINT_CMPGE_IMM)) ||
-           (op >= OP_INT_CMPEQ && op <= OP_INT_CMPNE_IMM);
+    return ((op >= OP_UINT_LT) && (op <= OP_UINT_GE_IMM)) ||
+           (op >= OP_INT_EQ && op <= OP_INT_NE_IMM);
 }
 
 static OpCode uint_cmp_map[] = {
@@ -843,10 +855,7 @@ static OpCode uint_cmp_map[] = {
     OP_JMP_UINT_GT, OP_JMP_UINT_GT_IMM, OP_JMP_UINT_GE, OP_JMP_UINT_GE_IMM,
 };
 
-static inline int is_float_cmp(OpCode op)
-{
-    return (op >= OP_FLOAT_CMPEQ) && (op <= OP_FLOAT_CMPGE);
-}
+static inline int is_float_cmp(OpCode op) { return (op >= OP_FLOAT_EQ) && (op <= OP_FLOAT_GE); }
 
 static OpCode float_cmp_map[] = {
     OP_JMP_FLOAT_EQ, OP_JMP_FLOAT_NE, OP_JMP_FLOAT_LT,
@@ -878,7 +887,7 @@ static void isel_lower_jmp_cond(KlrInsn *insn)
     if (is_int_cmp(prev->code)) {
         KlrValue *lhs = insn_oper_value(prev, 0);
         KlrValue *rhs = insn_oper_value(prev, 1);
-        int idx = prev->code - OP_INT_CMPEQ;
+        int idx = prev->code - OP_INT_EQ;
         ASSERT(idx >= 0 && idx < COUNT_OF(int_cmp_map));
         insn->code = int_cmp_map[idx];
         set_operand_at(insn, 0, lhs);
@@ -892,12 +901,12 @@ static void isel_lower_jmp_cond(KlrInsn *insn)
         KlrValue *rhs = insn_oper_value(prev, 1);
 
         OpCode op = prev->code;
-        if ((op >= OP_UINT_CMPLT) && (op <= OP_UINT_CMPGE_IMM)) {
-            int idx = op - OP_UINT_CMPLT;
+        if ((op >= OP_UINT_LT) && (op <= OP_UINT_GE_IMM)) {
+            int idx = op - OP_UINT_LT;
             ASSERT(idx >= 0 && idx < COUNT_OF(uint_cmp_map));
             insn->code = uint_cmp_map[idx];
-        } else if ((op >= OP_INT_CMPEQ) && (op <= OP_INT_CMPNE_IMM)) {
-            int idx = op - OP_INT_CMPEQ;
+        } else if ((op >= OP_INT_EQ) && (op <= OP_INT_NE_IMM)) {
+            int idx = op - OP_INT_EQ;
             ASSERT(idx >= 0 && idx < COUNT_OF(int_cmp_map));
             insn->code = int_cmp_map[idx];
         }
@@ -911,7 +920,7 @@ static void isel_lower_jmp_cond(KlrInsn *insn)
     if (is_float_cmp(prev->code)) {
         KlrValue *lhs = insn_oper_value(prev, 0);
         KlrValue *rhs = insn_oper_value(prev, 1);
-        int idx = prev->code - OP_FLOAT_CMPEQ;
+        int idx = prev->code - OP_FLOAT_EQ;
         ASSERT(idx >= 0 && idx < COUNT_OF(float_cmp_map));
         insn->code = float_cmp_map[idx];
         set_operand_at(insn, 0, lhs);
@@ -1097,6 +1106,15 @@ static void isel_lower_make_intf(KlrInsn *insn)
     }
 }
 
+static void isel_lower_hash_str(KlrInsn *insn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    if (klr_is_const(obj)) {
+        KlrValue *_obj = lower_const(insn, (KlrConst *)obj);
+        set_operand_at(insn, 0, _obj);
+    }
+}
+
 static void do_isel(KlrFunc *fn)
 {
     log_info("isel for func '%s'", fn->name);
@@ -1207,6 +1225,12 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_MAKE_INTF: {
                     isel_lower_make_intf(insn);
+                    break;
+                }
+
+                case OP_HASH:
+                case OP_STR: {
+                    isel_lower_hash_str(insn);
                     break;
                 }
 

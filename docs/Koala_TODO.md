@@ -291,7 +291,7 @@ Koala 是完成度极高的原创设计：不是“某语言 + 某特性”的�
       `==` 笔误改赋值、float 分支补 `DISPATCH()`）——2026-08-22 完成
 - [x] OP_NUM_NE / LT / LE / GT / GE 五个 TARGET（EQ 模板 + 同款快路径）——2026-08-22 完成
 - [x] uint64 快路径：拆独立分支 + `(uint64_t)ival` 无符号比较，六条全齐
-      （EQ/NE/LT/LE/GT/GE），与 OP_UINT_CMPLT 既有约定一致——2026-08-22 完成
+      （EQ/NE/LT/LE/GT/GE），与 OP_UINT_LT 既有约定一致——2026-08-22 完成
 - [ ] printer.c 补 num.ne / lt / le / ge 四个 case
 
 **第二批：算术 + 位运算（补 typeslots 脚手架）**

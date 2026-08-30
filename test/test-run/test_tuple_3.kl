@@ -9,7 +9,7 @@ func main() {
 // CHECK-LABEL: @main[0,11]:
 // CHECK: load_int_imm r0, ti=0xb, #0
 // CHECK: loadk r1, #3
-// CHECK: seq_get r1, r1, r0
+// CHECK: seq.get r1, r1, r0
 // CHECK: move r2, r1
 // CHECK: build_intern r2, @tuple, #1
 // CHECK: loadk r3, #4

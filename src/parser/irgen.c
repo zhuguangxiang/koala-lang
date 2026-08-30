@@ -370,11 +370,12 @@ static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **
     NYI();
 }
 
-static KlrValue *emit_str_call(KlrValue **args, int nargs)
+static KlrValue *emit_str_call(KlrBuilder *bldr, KlrValue **args, int nargs)
 {
     ASSERT(nargs == 1);
     KlrValue *arg = args[0];
-    return arg;
+    if (arg->ts->kind == TYPE_STR) return arg;
+    return klr_build_str(bldr, arg, "");
 }
 
 static KlrValue *emit_range_call(ParserState *ps, KlrBuilder *bldr, KlrValue *callee,
@@ -485,7 +486,7 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
     } else if (ts->kind == TYPE_FLOAT) {
         ret = emit_float_call(&bldr, callee, args, nargs);
     } else if (type_is_str(ts)) {
-        ret = emit_str_call(args, nargs);
+        ret = emit_str_call(&bldr, args, nargs);
     } else if (type_is_range(ts)) {
         ret = emit_range_call(ps, &bldr, callee, args, nargs);
     } else if (type_is_tuple(ts)) {
@@ -1037,17 +1038,17 @@ static OpCode get_binary_op_code(BiOpKind op)
         case BINARY_BIT_XOR:
             return OP_BINARY_XOR;
         case BINARY_GT:
-            return OP_BINARY_CMPGT;
+            return OP_BINARY_GT;
         case BINARY_GE:
-            return OP_BINARY_CMPGE;
+            return OP_BINARY_GE;
         case BINARY_LT:
-            return OP_BINARY_CMPLT;
+            return OP_BINARY_LT;
         case BINARY_LE:
-            return OP_BINARY_CMPLE;
+            return OP_BINARY_LE;
         case BINARY_EQ:
-            return OP_BINARY_CMPEQ;
+            return OP_BINARY_EQ;
         case BINARY_NEQ:
-            return OP_BINARY_CMPNE;
+            return OP_BINARY_NE;
         case BINARY_AND:
             return OP_LAND;
         case BINARY_OR:

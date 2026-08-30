@@ -1,7 +1,12 @@
+// RUN: koala %s | filecheck %s
 
 func main() {
     let s = str("hello world")
     print(len(s))
     print(s[0])
-    print(s.find("world"))
+    print(s.index("world"))
 }
+
+// CHECK: 11
+// CHECK: h
+// CHECK: 6

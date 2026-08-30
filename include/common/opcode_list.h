@@ -19,7 +19,7 @@
  * Details:
  *     Does nothing. Used as padding or alignment.
  */
-X(OP_NOP, FORMAT_Op)
+X(OP_NOP, FORMAT_Op, "nop")
 
 /*---------------------------------------------------------------+
  |  Move and Constant Instructions                               |
@@ -34,7 +34,7 @@ X(OP_NOP, FORMAT_Op)
  * Details:
  *     Copies the value from register rs into register rd.
  */
-X(OP_MOVE, FORMAT_RxRx)
+X(OP_MOVE, FORMAT_RxRx, "move")
 
 /**
  * OP_LOAD_INT_IMM — load typed integer immediate (12-bit immediate)
@@ -55,7 +55,7 @@ X(OP_MOVE, FORMAT_RxRx)
  * Details:
  *    Loads a 12-bit signed integer immediate into rd, with the width specified by ti.
  */
-X(OP_LOAD_INT_IMM, FORMAT_R_TI_Imm12)
+X(OP_LOAD_INT_IMM, FORMAT_R_TI_Imm12, "load_int_imm")
 
  /**
  * OP_LOAD_UINT_IMM — load typed unsigned integer immediate (12-bit immediate)
@@ -69,7 +69,7 @@ X(OP_LOAD_INT_IMM, FORMAT_R_TI_Imm12)
  * Details:
  *    Loads a 12-bit unsigned integer immediate into rd, with the width specified by ti.
  */
-X(OP_LOAD_UINT_IMM, FORMAT_R_TI_Imm12)
+X(OP_LOAD_UINT_IMM, FORMAT_R_TI_Imm12, "load_uint_imm")
 
 /**
  * OP_LOAD_TAG — load small tagged constant
@@ -84,7 +84,7 @@ X(OP_LOAD_UINT_IMM, FORMAT_R_TI_Imm12)
  *         - special float values (e.g., +0.0(3), -0.0(4), NaN(5), -inf(6), +inf(7))
  *     This avoids constant-pool lookup for common values.
  */
-X(OP_LOAD_TAG, FORMAT_RxTag)
+X(OP_LOAD_TAG, FORMAT_RxTag, "load_tag")
 
 /**
  * OP_LOADK — load constant from constant pool
@@ -97,7 +97,7 @@ X(OP_LOAD_TAG, FORMAT_RxTag)
  *         rd = CP[idx]
  *     Used for strings, floats, arrays, objects, and other large constants.
  */
-X(OP_LOADK, FORMAT_RIdx2)
+X(OP_LOADK, FORMAT_RIdx2, "loadk")
 
 /*---------------------------------------------------------------+
  |  Integer Arithmetic Operations                                |
@@ -112,7 +112,7 @@ X(OP_LOADK, FORMAT_RIdx2)
  * Details:
  *     Computes rd = rs + rt.
  */
-X(OP_INT_ADD, FORMAT_RRR)
+X(OP_INT_ADD, FORMAT_RRR, "int.add")
 
 /**
  * OP_INT_ADD_IMM — integer addition with immediate
@@ -123,7 +123,7 @@ X(OP_INT_ADD, FORMAT_RRR)
  * Details:
  *     Computes rd = rs + imm, where imm is an 8-bit signed immediate.
  */
-X(OP_INT_ADD_IMM, FORMAT_RRImm)
+X(OP_INT_ADD_IMM, FORMAT_RRImm, "int.add_imm")
 
 /**
  * OP_INT_SUB — integer subtraction
@@ -134,7 +134,7 @@ X(OP_INT_ADD_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs - rt.
  */
-X(OP_INT_SUB, FORMAT_RRR)
+X(OP_INT_SUB, FORMAT_RRR, "int.sub")
 
 /**
  * OP_INT_SUB_IMM — integer subtraction with immediate
@@ -145,7 +145,7 @@ X(OP_INT_SUB, FORMAT_RRR)
  * Details:
  *     Computes rd = rs - imm, where imm is an 8-bit signed immediate.
  */
-X(OP_INT_SUB_IMM, FORMAT_RRImm)
+X(OP_INT_SUB_IMM, FORMAT_RRImm, "int.sub_imm")
 
 /**
  * OP_INT_MUL — integer multiplication
@@ -156,7 +156,7 @@ X(OP_INT_SUB_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs * rt.
  */
-X(OP_INT_MUL, FORMAT_RRR)
+X(OP_INT_MUL, FORMAT_RRR, "int.mul")
 
 /**
  * OP_INT_MUL_IMM — integer multiplication with immediate
@@ -167,7 +167,7 @@ X(OP_INT_MUL, FORMAT_RRR)
  * Details:
  *     Computes rd = rs * imm, where imm is an 8-bit signed immediate.
  */
-X(OP_INT_MUL_IMM, FORMAT_RRImm)
+X(OP_INT_MUL_IMM, FORMAT_RRImm, "int.mul_imm")
 
 /**
  * OP_INT_DIV — integer division
@@ -179,7 +179,7 @@ X(OP_INT_MUL_IMM, FORMAT_RRImm)
  *     Computes rd = rs / rt. Division-by-zero behavior follows the VM's
  *     integer arithmetic rules.
  */
-X(OP_INT_DIV, FORMAT_RRR)
+X(OP_INT_DIV, FORMAT_RRR, "int.div")
 
 /**
  * OP_INT_DIV_IMM — integer division with immediate
@@ -191,7 +191,7 @@ X(OP_INT_DIV, FORMAT_RRR)
  *     Computes rd = rs / imm, where imm is an 8-bit signed immediate.
  *     Division-by-zero behavior follows the VM's integer arithmetic rules.
  */
-X(OP_INT_DIV_IMM, FORMAT_RRImm)
+X(OP_INT_DIV_IMM, FORMAT_RRImm, "int.div_imm")
 
 /**
  * OP_INT_MOD — integer modulo
@@ -203,7 +203,7 @@ X(OP_INT_DIV_IMM, FORMAT_RRImm)
  *     Computes rd = rs % rt. Modulo-by-zero behavior follows the VM's
  *     integer arithmetic rules.
  */
-X(OP_INT_MOD, FORMAT_RRR)
+X(OP_INT_MOD, FORMAT_RRR, "int.mod")
 
 /**
  * OP_INT_MOD_IMM — integer modulo with immediate
@@ -215,7 +215,7 @@ X(OP_INT_MOD, FORMAT_RRR)
  *     Computes rd = rs % imm, where imm is an 8-bit signed immediate.
  *     Modulo-by-zero behavior follows the VM's integer arithmetic rules.
  */
-X(OP_INT_MOD_IMM, FORMAT_RRImm)
+X(OP_INT_MOD_IMM, FORMAT_RRImm, "int.mod_imm")
 
 /*---------------------------------------------------------------+
  |  Integer Bitwise and Shift Operations                         |
@@ -230,7 +230,7 @@ X(OP_INT_MOD_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs & rt.
  */
-X(OP_INT_AND, FORMAT_RRR)
+X(OP_INT_AND, FORMAT_RRR, "int.and")
 
 /**
  * OP_INT_AND_IMM — integer bitwise AND with immediate
@@ -241,7 +241,7 @@ X(OP_INT_AND, FORMAT_RRR)
  * Details:
  *     Computes rd = rs & imm, where imm is an 8-bit signed immediate.
  */
-X(OP_INT_AND_IMM, FORMAT_RRImm)
+X(OP_INT_AND_IMM, FORMAT_RRImm, "int.and_imm")
 
 /**
  * OP_INT_OR — integer bitwise OR
@@ -252,7 +252,7 @@ X(OP_INT_AND_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs | rt.
  */
-X(OP_INT_OR, FORMAT_RRR)
+X(OP_INT_OR, FORMAT_RRR, "int.or")
 
 /**
  * OP_INT_OR_IMM — integer bitwise OR with immediate
@@ -263,7 +263,7 @@ X(OP_INT_OR, FORMAT_RRR)
  * Details:
  *     Computes rd = rs | imm, where imm is an 8-bit signed immediate.
  */
-X(OP_INT_OR_IMM, FORMAT_RRImm)
+X(OP_INT_OR_IMM, FORMAT_RRImm, "int.or_imm")
 
 /**
  * OP_INT_XOR — integer bitwise XOR
@@ -274,7 +274,7 @@ X(OP_INT_OR_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs ^ rt.
  */
-X(OP_INT_XOR, FORMAT_RRR)
+X(OP_INT_XOR, FORMAT_RRR, "int.xor")
 
 /**
  * OP_INT_XOR_IMM — integer bitwise XOR with immediate
@@ -285,7 +285,7 @@ X(OP_INT_XOR, FORMAT_RRR)
  * Details:
  *     Computes rd = rs ^ imm, where imm is an 8-bit signed immediate.
  */
-X(OP_INT_XOR_IMM, FORMAT_RRImm)
+X(OP_INT_XOR_IMM, FORMAT_RRImm, "int.xor_imm")
 
 /**
  * OP_INT_SHL — integer left shift
@@ -296,7 +296,7 @@ X(OP_INT_XOR_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs << rt. Only the low 5 bits of rt are used.
  */
-X(OP_INT_SHL, FORMAT_RRR)
+X(OP_INT_SHL, FORMAT_RRR, "int.shl")
 
 /**
  * OP_INT_SHL_IMM — integer left shift with immediate
@@ -307,7 +307,7 @@ X(OP_INT_SHL, FORMAT_RRR)
  * Details:
  *     Computes rd = rs << imm, where imm is an 8-bit unsigned shift amount.
  */
-X(OP_INT_SHL_IMM, FORMAT_RRImm)
+X(OP_INT_SHL_IMM, FORMAT_RRImm, "int.shl_imm")
 
 /**
  * OP_INT_SHR — integer arithmetic right shift
@@ -318,7 +318,7 @@ X(OP_INT_SHL_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs >> rt (arithmetic shift). Only the low 5 bits of rt are used.
  */
-X(OP_INT_SHR, FORMAT_RRR)
+X(OP_INT_SHR, FORMAT_RRR, "int.shr")
 
 /**
  * OP_INT_SHR_IMM — integer arithmetic right shift with immediate
@@ -329,14 +329,14 @@ X(OP_INT_SHR, FORMAT_RRR)
  * Details:
  *     Computes rd = rs >> imm (arithmetic shift), where imm is an 8-bit unsigned shift amount.
  */
-X(OP_INT_SHR_IMM, FORMAT_RRImm)
+X(OP_INT_SHR_IMM, FORMAT_RRImm, "int.shr_imm")
 
 /*---------------------------------------------------------------+
  |  Integer Comparison Operations                                |
  +---------------------------------------------------------------*/
 
 /**
- * OP_INT_CMPEQ — integer equality comparison
+ * OP_INT_EQ — integer equality comparison
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -344,10 +344,10 @@ X(OP_INT_SHR_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs == rt).
  */
-X(OP_INT_CMPEQ, FORMAT_RRR)
+X(OP_INT_EQ, FORMAT_RRR, "int.eq")
 
 /**
- * OP_INT_CMPEQ_IMM — integer equality comparison with immediate
+ * OP_INT_EQ_IMM — integer equality comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -355,10 +355,10 @@ X(OP_INT_CMPEQ, FORMAT_RRR)
  * Details:
  *     Computes rd = (rs == imm), where imm is an 8-bit signed immediate.
  */
-X(OP_INT_CMPEQ_IMM, FORMAT_RRImm)
+X(OP_INT_EQ_IMM, FORMAT_RRImm, "int.eq_imm")
 
 /**
- * OP_INT_CMPNE — integer inequality comparison
+ * OP_INT_NE — integer inequality comparison
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -366,10 +366,10 @@ X(OP_INT_CMPEQ_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs != rt).
  */
-X(OP_INT_CMPNE, FORMAT_RRR)
+X(OP_INT_NE, FORMAT_RRR, "int.ne")
 
 /**
- * OP_INT_CMPNE_IMM — integer inequality comparison with immediate
+ * OP_INT_NE_IMM — integer inequality comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -377,10 +377,10 @@ X(OP_INT_CMPNE, FORMAT_RRR)
  * Details:
  *     Computes rd = (rs != imm), where imm is an 8-bit signed immediate.
  */
-X(OP_INT_CMPNE_IMM, FORMAT_RRImm)
+X(OP_INT_NE_IMM, FORMAT_RRImm, "int.ne_imm")
 
 /**
- * OP_INT_CMPLT — integer less-than comparison
+ * OP_INT_LT — integer less-than comparison
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -388,10 +388,10 @@ X(OP_INT_CMPNE_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs < rt), using signed integer comparison.
  */
-X(OP_INT_CMPLT, FORMAT_RRR)
+X(OP_INT_LT, FORMAT_RRR, "int.lt")
 
 /**
- * OP_INT_CMPLT_IMM — integer less-than comparison with immediate
+ * OP_INT_LT_IMM — integer less-than comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -399,10 +399,10 @@ X(OP_INT_CMPLT, FORMAT_RRR)
  * Details:
  *     Computes rd = (rs < imm), where imm is an 8-bit signed immediate.
  */
-X(OP_INT_CMPLT_IMM, FORMAT_RRImm)
+X(OP_INT_LT_IMM, FORMAT_RRImm, "int.lt_imm")
 
 /**
- * OP_INT_CMPLE — integer less-or-equal comparison
+ * OP_INT_LE — integer less-or-equal comparison
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -410,10 +410,10 @@ X(OP_INT_CMPLT_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs <= rt), using signed integer comparison.
  */
-X(OP_INT_CMPLE, FORMAT_RRR)
+X(OP_INT_LE, FORMAT_RRR, "int.le")
 
 /**
- * OP_INT_CMPLE_IMM — integer less-or-equal comparison with immediate
+ * OP_INT_LE_IMM — integer less-or-equal comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -421,10 +421,10 @@ X(OP_INT_CMPLE, FORMAT_RRR)
  * Details:
  *     Computes rd = (rs <= imm), where imm is an 8-bit signed immediate.
  */
-X(OP_INT_CMPLE_IMM, FORMAT_RRImm)
+X(OP_INT_LE_IMM, FORMAT_RRImm, "int.le_imm")
 
 /**
- * OP_INT_CMPGT — integer greater-than comparison
+ * OP_INT_GT — integer greater-than comparison
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -432,10 +432,10 @@ X(OP_INT_CMPLE_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs > rt), using signed integer comparison.
  */
-X(OP_INT_CMPGT, FORMAT_RRR)
+X(OP_INT_GT, FORMAT_RRR, "int.gt")
 
 /**
- * OP_INT_CMPGT_IMM — integer greater-than comparison with immediate
+ * OP_INT_GT_IMM — integer greater-than comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -443,10 +443,10 @@ X(OP_INT_CMPGT, FORMAT_RRR)
  * Details:
  *     Computes rd = (rs > imm), where imm is an 8-bit signed immediate.
  */
-X(OP_INT_CMPGT_IMM, FORMAT_RRImm)
+X(OP_INT_GT_IMM, FORMAT_RRImm, "int.gt_imm")
 
 /**
- * OP_INT_CMPGE — integer greater-or-equal comparison
+ * OP_INT_GE — integer greater-or-equal comparison
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -454,10 +454,10 @@ X(OP_INT_CMPGT_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs >= rt), using signed integer comparison.
  */
-X(OP_INT_CMPGE, FORMAT_RRR)
+X(OP_INT_GE, FORMAT_RRR, "int.ge")
 
 /**
- * OP_INT_CMPGE_IMM — integer greater-or-equal comparison with immediate
+ * OP_INT_GE_IMM — integer greater-or-equal comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -465,7 +465,7 @@ X(OP_INT_CMPGE, FORMAT_RRR)
  * Details:
  *     Computes rd = (rs >= imm), where imm is an 8-bit signed immediate.
  */
-X(OP_INT_CMPGE_IMM, FORMAT_RRImm)
+X(OP_INT_GE_IMM, FORMAT_RRImm, "int.ge_imm")
 
 /*---------------------------------------------------------------+
  |  Unary Integer Operations                                     |
@@ -480,7 +480,7 @@ X(OP_INT_CMPGE_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = -rs.
  */
-X(OP_INT_NEG, FORMAT_RxRx)
+X(OP_INT_NEG, FORMAT_RxRx, "int.neg")
 
 /**
  * OP_INT_NOT — integer bitwise NOT
@@ -491,7 +491,7 @@ X(OP_INT_NEG, FORMAT_RxRx)
  * Details:
  *     Computes rd = ~rs (bitwise complement).
  */
-X(OP_INT_NOT, FORMAT_RxRx)
+X(OP_INT_NOT, FORMAT_RxRx, "int.not")
 
 /*---------------------------------------------------------------+
  |  Unsigned Integer Operations                                  |
@@ -506,7 +506,7 @@ X(OP_INT_NOT, FORMAT_RxRx)
  * Details:
  *     Computes rd = rs + imm, where imm is an 8-bit unsigned immediate.
  */
-X(OP_UINT_ADD_IMM, FORMAT_RRImm)
+X(OP_UINT_ADD_IMM, FORMAT_RRImm, "uint.add_imm")
 
 /**
  * OP_UINT_SUB_IMM — unsigned integer subtraction with immediate
@@ -517,7 +517,7 @@ X(OP_UINT_ADD_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs - imm, where imm is an 8-bit unsigned immediate.
  */
-X(OP_UINT_SUB_IMM, FORMAT_RRImm)
+X(OP_UINT_SUB_IMM, FORMAT_RRImm, "uint.sub_imm")
 
 /**
  * OP_UINT_MUL_IMM — unsigned integer multiplication with immediate
@@ -528,7 +528,7 @@ X(OP_UINT_SUB_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs * imm, where imm is an 8-bit unsigned immediate.
  */
-X(OP_UINT_MUL_IMM, FORMAT_RRImm)
+X(OP_UINT_MUL_IMM, FORMAT_RRImm, "uint.mul_imm")
 
 /**
  * OP_UINT_DIV — unsigned integer division
@@ -539,7 +539,7 @@ X(OP_UINT_MUL_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs / rt using unsigned division semantics.
  */
-X(OP_UINT_DIV, FORMAT_RRR)
+X(OP_UINT_DIV, FORMAT_RRR, "uint.div")
 
 /**
  * OP_UINT_DIV_IMM — unsigned integer division with immediate
@@ -550,7 +550,7 @@ X(OP_UINT_DIV, FORMAT_RRR)
  * Details:
  *     Computes rd = rs / imm using unsigned division semantics.
  */
-X(OP_UINT_DIV_IMM, FORMAT_RRImm)
+X(OP_UINT_DIV_IMM, FORMAT_RRImm, "uint.div_imm")
 
 /**
  * OP_UINT_MOD — unsigned integer modulo
@@ -561,7 +561,7 @@ X(OP_UINT_DIV_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs % rt using unsigned modulo semantics.
  */
-X(OP_UINT_MOD, FORMAT_RRR)
+X(OP_UINT_MOD, FORMAT_RRR, "uint.mod")
 
 /**
  * OP_UINT_MOD_IMM — unsigned integer modulo with immediate
@@ -572,7 +572,7 @@ X(OP_UINT_MOD, FORMAT_RRR)
  * Details:
  *     Computes rd = rs % imm using unsigned modulo semantics.
  */
-X(OP_UINT_MOD_IMM, FORMAT_RRImm)
+X(OP_UINT_MOD_IMM, FORMAT_RRImm, "uint.mod_imm")
 
 /**
  * OP_UINT_AND_IMM — unsigned integer bitwise AND with immediate
@@ -583,7 +583,7 @@ X(OP_UINT_MOD_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs & imm, where imm is an 8-bit unsigned immediate.
  */
-X(OP_UINT_AND_IMM, FORMAT_RRImm)
+X(OP_UINT_AND_IMM, FORMAT_RRImm, "uint.and_imm")
 
 /**
  * OP_UINT_OR_IMM — unsigned integer bitwise OR with immediate
@@ -594,7 +594,7 @@ X(OP_UINT_AND_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs | imm, where imm is an 8-bit unsigned immediate.
  */
-X(OP_UINT_OR_IMM, FORMAT_RRImm)
+X(OP_UINT_OR_IMM, FORMAT_RRImm, "uint.or_imm")
 
 /**
  * OP_UINT_XOR_IMM — unsigned integer bitwise XOR with immediate
@@ -605,7 +605,7 @@ X(OP_UINT_OR_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs ^ imm, where imm is an 8-bit unsigned immediate.
  */
-X(OP_UINT_XOR_IMM, FORMAT_RRImm)
+X(OP_UINT_XOR_IMM, FORMAT_RRImm, "uint.xor_imm")
 
 /**
  * OP_UINT_SHL_IMM — unsigned integer left shift with immediate
@@ -616,7 +616,7 @@ X(OP_UINT_XOR_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs << imm, where imm is an 8-bit unsigned shift amount.
  */
-X(OP_UINT_SHL_IMM, FORMAT_RRImm)
+X(OP_UINT_SHL_IMM, FORMAT_RRImm, "uint.shl_imm")
 
 /**
  * OP_UINT_SHR — unsigned logical right shift
@@ -627,7 +627,7 @@ X(OP_UINT_SHL_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs >> rt (logical shift). High bits are filled with zero.
  */
-X(OP_UINT_SHR, FORMAT_RRR)
+X(OP_UINT_SHR, FORMAT_RRR, "uint.shr")
 
 /**
  * OP_UINT_SHR_IMM — unsigned logical right shift with immediate
@@ -638,14 +638,14 @@ X(OP_UINT_SHR, FORMAT_RRR)
  * Details:
  *     Computes rd = rs >> imm (logical shift). High bits are filled with zero.
  */
-X(OP_UINT_SHR_IMM, FORMAT_RRImm)
+X(OP_UINT_SHR_IMM, FORMAT_RRImm, "uint.shr_imm")
 
 /*---------------------------------------------------------------+
  |  Unsigned Integer Comparison Operations                       |
  +---------------------------------------------------------------*/
 
 /**
- * OP_UINT_CMPEQ_IMM — unsigned integer equality comparison with immediate
+ * OP_UINT_EQ_IMM — unsigned integer equality comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -653,10 +653,10 @@ X(OP_UINT_SHR_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs == imm), where imm is an 8-bit unsigned immediate.
  */
-X(OP_UINT_CMPEQ_IMM, FORMAT_RRImm)
+X(OP_UINT_EQ_IMM, FORMAT_RRImm, "uint.eq_imm")
 
 /**
- * OP_UINT_CMPNE_IMM — unsigned integer inequality comparison with immediate
+ * OP_UINT_NE_IMM — unsigned integer inequality comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -664,10 +664,10 @@ X(OP_UINT_CMPEQ_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs != imm), where imm is an 8-bit unsigned immediate.
  */
-X(OP_UINT_CMPNE_IMM, FORMAT_RRImm)
+X(OP_UINT_NE_IMM, FORMAT_RRImm, "uint.ne_imm")
 
 /**
- * OP_UINT_CMPLT — unsigned less-than comparison
+ * OP_UINT_LT — unsigned less-than comparison
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -675,10 +675,10 @@ X(OP_UINT_CMPNE_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs < rt) using unsigned comparison.
  */
-X(OP_UINT_CMPLT, FORMAT_RRR)
+X(OP_UINT_LT, FORMAT_RRR, "uint.lt")
 
 /**
- * OP_UINT_CMPLT_IMM — unsigned less-than comparison with immediate
+ * OP_UINT_LT_IMM — unsigned less-than comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -686,10 +686,10 @@ X(OP_UINT_CMPLT, FORMAT_RRR)
  * Details:
  *     Computes rd = (rs < imm) using unsigned comparison.
  */
-X(OP_UINT_CMPLT_IMM, FORMAT_RRImm)
+X(OP_UINT_LT_IMM, FORMAT_RRImm, "uint.lt_imm")
 
 /**
- * OP_UINT_CMPLE — unsigned less-or-equal comparison
+ * OP_UINT_LE — unsigned less-or-equal comparison
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -697,10 +697,10 @@ X(OP_UINT_CMPLT_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs <= rt) using unsigned comparison.
  */
-X(OP_UINT_CMPLE, FORMAT_RRR)
+X(OP_UINT_LE, FORMAT_RRR, "uint.le")
 
 /**
- * OP_UINT_CMPLE_IMM — unsigned less-or-equal comparison with immediate
+ * OP_UINT_LE_IMM — unsigned less-or-equal comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -708,10 +708,10 @@ X(OP_UINT_CMPLE, FORMAT_RRR)
  * Details:
  *     Computes rd = (rs <= imm) using unsigned comparison.
  */
-X(OP_UINT_CMPLE_IMM, FORMAT_RRImm)
+X(OP_UINT_LE_IMM, FORMAT_RRImm, "uint.le_imm")
 
 /**
- * OP_UINT_CMPGT — unsigned greater-than comparison
+ * OP_UINT_GT — unsigned greater-than comparison
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -719,10 +719,10 @@ X(OP_UINT_CMPLE_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs > rt) using unsigned comparison.
  */
-X(OP_UINT_CMPGT, FORMAT_RRR)
+X(OP_UINT_GT, FORMAT_RRR, "uint.gt")
 
 /**
- * OP_UINT_CMPGT_IMM — unsigned greater-than comparison with immediate
+ * OP_UINT_GT_IMM — unsigned greater-than comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -730,10 +730,10 @@ X(OP_UINT_CMPGT, FORMAT_RRR)
  * Details:
  *     Computes rd = (rs > imm) using unsigned comparison.
  */
-X(OP_UINT_CMPGT_IMM, FORMAT_RRImm)
+X(OP_UINT_GT_IMM, FORMAT_RRImm, "uint.gt_imm")
 
 /**
- * OP_UINT_CMPGE — unsigned greater-or-equal comparison
+ * OP_UINT_GE — unsigned greater-or-equal comparison
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -741,10 +741,10 @@ X(OP_UINT_CMPGT_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = (rs >= rt) using unsigned comparison.
  */
-X(OP_UINT_CMPGE, FORMAT_RRR)
+X(OP_UINT_GE, FORMAT_RRR, "uint.ge")
 
 /**
- * OP_UINT_CMPGE_IMM — unsigned greater-or-equal comparison with immediate
+ * OP_UINT_GE_IMM — unsigned greater-or-equal comparison with immediate
  *
  * FORMAT_RRImm:
  *     | op:8 | rd:8 | rs:8 | imm:8 |
@@ -752,7 +752,7 @@ X(OP_UINT_CMPGE, FORMAT_RRR)
  * Details:
  *     Computes rd = (rs >= imm) using unsigned comparison.
  */
-X(OP_UINT_CMPGE_IMM, FORMAT_RRImm)
+X(OP_UINT_GE_IMM, FORMAT_RRImm, "uint.ge_imm")
 
 /*---------------------------------------------------------------+
  |  Floating-Point Operations                                    |
@@ -767,7 +767,7 @@ X(OP_UINT_CMPGE_IMM, FORMAT_RRImm)
  * Details:
  *     Computes rd = rs + rt.
  */
-X(OP_FLOAT_ADD, FORMAT_RRR)
+X(OP_FLOAT_ADD, FORMAT_RRR, "float.add")
 
 /**
  * OP_FLOAT_SUB — floating-point subtraction
@@ -778,7 +778,7 @@ X(OP_FLOAT_ADD, FORMAT_RRR)
  * Details:
  *     Computes rd = rs - rt.
  */
-X(OP_FLOAT_SUB, FORMAT_RRR)
+X(OP_FLOAT_SUB, FORMAT_RRR, "float.sub")
 
 /**
  * OP_FLOAT_MUL — floating-point multiplication
@@ -789,7 +789,7 @@ X(OP_FLOAT_SUB, FORMAT_RRR)
  * Details:
  *     Computes rd = rs * rt.
  */
-X(OP_FLOAT_MUL, FORMAT_RRR)
+X(OP_FLOAT_MUL, FORMAT_RRR, "float.mul")
 
 /**
  * OP_FLOAT_DIV — floating-point division
@@ -800,7 +800,7 @@ X(OP_FLOAT_MUL, FORMAT_RRR)
  * Details:
  *     Computes rd = rs / rt.
  */
-X(OP_FLOAT_DIV, FORMAT_RRR)
+X(OP_FLOAT_DIV, FORMAT_RRR, "float.div")
 
 /**
  * OP_FLOAT_MOD — floating-point modulo
@@ -811,10 +811,10 @@ X(OP_FLOAT_DIV, FORMAT_RRR)
  * Details:
  *     Computes rd = fmod(rs, rt) using IEEE 754 semantics.
  */
-X(OP_FLOAT_MOD, FORMAT_RRR)
+X(OP_FLOAT_MOD, FORMAT_RRR, "float.mod")
 
 /**
- * OP_FLOAT_CMPEQ — floating‑point compare (EQ)
+ * OP_FLOAT_EQ — floating‑point compare (EQ)
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -827,10 +827,10 @@ X(OP_FLOAT_MOD, FORMAT_RRR)
  *     - If either operand is NaN, the comparison is false → rd = 0
  *     - +0.0 and -0.0 are considered equal
  */
-X(OP_FLOAT_CMPEQ, FORMAT_RRR)
+X(OP_FLOAT_EQ, FORMAT_RRR, "float.eq")
 
 /**
- * OP_FLOAT_CMPNE — floating‑point compare (NE)
+ * OP_FLOAT_NE — floating‑point compare (NE)
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -843,10 +843,10 @@ X(OP_FLOAT_CMPEQ, FORMAT_RRR)
  *     - If either operand is NaN, the comparison is true → rd = 1
  *     - +0.0 and -0.0 are considered equal (so NE = 0)
  */
-X(OP_FLOAT_CMPNE, FORMAT_RRR)
+X(OP_FLOAT_NE, FORMAT_RRR, "float.ne")
 
 /**
- * OP_FLOAT_CMPLT — floating‑point compare (LT)
+ * OP_FLOAT_LT — floating‑point compare (LT)
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -858,10 +858,10 @@ X(OP_FLOAT_CMPNE, FORMAT_RRR)
  * Notes:
  *     - If either operand is NaN, the comparison is false → rd = 0
  */
-X(OP_FLOAT_CMPLT, FORMAT_RRR)
+X(OP_FLOAT_LT, FORMAT_RRR, "float.lt")
 
 /**
- * OP_FLOAT_CMPLE — floating‑point compare (LE)
+ * OP_FLOAT_LE — floating‑point compare (LE)
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -874,10 +874,10 @@ X(OP_FLOAT_CMPLT, FORMAT_RRR)
  *     - If either operand is NaN, the comparison is false → rd = 0
  *     - +0.0 <= -0.0 and -0.0 <= +0.0 are both true
  */
-X(OP_FLOAT_CMPLE, FORMAT_RRR)
+X(OP_FLOAT_LE, FORMAT_RRR, "float.le")
 
 /**
- * OP_FLOAT_CMPGT — floating‑point compare (GT)
+ * OP_FLOAT_GT — floating‑point compare (GT)
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -889,10 +889,10 @@ X(OP_FLOAT_CMPLE, FORMAT_RRR)
  * Notes:
  *     - If either operand is NaN, the comparison is false → rd = 0
  */
-X(OP_FLOAT_CMPGT, FORMAT_RRR)
+X(OP_FLOAT_GT, FORMAT_RRR, "float.gt")
 
 /**
- * OP_FLOAT_CMPGE — floating‑point compare (GE)
+ * OP_FLOAT_GE — floating‑point compare (GE)
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rt:8 |
@@ -905,7 +905,7 @@ X(OP_FLOAT_CMPGT, FORMAT_RRR)
  *     - If either operand is NaN, the comparison is false → rd = 0
  *     - +0.0 >= -0.0 and -0.0 >= +0.0 are both true
  */
-X(OP_FLOAT_CMPGE, FORMAT_RRR)
+X(OP_FLOAT_GE, FORMAT_RRR, "float.ge")
 
 /*---------------------------------------------------------------+
  |  Floating-Point Unary Operations                              |
@@ -920,7 +920,7 @@ X(OP_FLOAT_CMPGE, FORMAT_RRR)
  * Details:
  *     Computes rd = -rs.
  */
-X(OP_FLOAT_NEG, FORMAT_RxRx)
+X(OP_FLOAT_NEG, FORMAT_RxRx, "float.neg")
 
 /*---------------------------------------------------------------+
  |  Boolean Logical Operations                                   |
@@ -936,7 +936,7 @@ X(OP_FLOAT_NEG, FORMAT_RxRx)
  *     Computes rd = (rs && rt).
  *     Operands must be boolean values (0 or 1).
  */
-X(OP_LAND, FORMAT_RRR)
+X(OP_LAND, FORMAT_RRR, "land")
 
 /**
  * OP_LOR — logical OR
@@ -948,7 +948,7 @@ X(OP_LAND, FORMAT_RRR)
  *     Computes rd = (rs || rt).
  *     Operands must be boolean values (0 or 1).
  */
-X(OP_LOR, FORMAT_RRR)
+X(OP_LOR, FORMAT_RRR, "lor")
 
 /**
  * OP_LNOT — logical NOT
@@ -960,7 +960,7 @@ X(OP_LOR, FORMAT_RRR)
  *     Computes rd = !rs.
  *     Operand must be a boolean value (0 or 1).
  */
-X(OP_LNOT, FORMAT_RxRx)
+X(OP_LNOT, FORMAT_RxRx, "lnot")
 
 /*---------------------------------------------------------------+
  |  Reference Comparison Instructions                            |
@@ -976,7 +976,7 @@ X(OP_LNOT, FORMAT_RxRx)
  *     Compares rs and rt for identity equality.
  *     Writes true to rd if equal, false otherwise.
  */
-X(OP_REF_EQ, FORMAT_RRR)
+X(OP_REF_EQ, FORMAT_RRR, "ref.eq")
 
 /**
  * OP_REF_NE — compare two references for inequality
@@ -988,7 +988,7 @@ X(OP_REF_EQ, FORMAT_RRR)
  *     Compares rs and rt for identity inequality.
  *     Writes true to rd if not equal, false otherwise.
  */
-X(OP_REF_NE, FORMAT_RRR)
+X(OP_REF_NE, FORMAT_RRR, "ref.ne")
 
 /**
  * OP_REF_EQ_NULL — check if reference is null
@@ -999,7 +999,7 @@ X(OP_REF_NE, FORMAT_RRR)
  * Details:
  *     Writes true to rd if rs is null, false otherwise.
  */
-X(OP_REF_EQ_NULL, FORMAT_RxRx)
+X(OP_REF_EQ_NULL, FORMAT_RxRx, "ref.eq_null")
 
 /**
  * OP_REF_NE_NULL — check if reference is not null
@@ -1010,7 +1010,7 @@ X(OP_REF_EQ_NULL, FORMAT_RxRx)
  * Details:
  *     Writes true to rd if rs is not null, false otherwise.
  */
-X(OP_REF_NE_NULL, FORMAT_RxRx)
+X(OP_REF_NE_NULL, FORMAT_RxRx, "ref.ne_null")
 
 /*---------------------------------------------------------------+
  |  Jump and Branch Instructions                                 |
@@ -1025,7 +1025,7 @@ X(OP_REF_NE_NULL, FORMAT_RxRx)
  * Details:
  *     Unconditionally jumps: pc += offset.
  */
-X(OP_JMP, FORMAT_JMP)
+X(OP_JMP, FORMAT_JMP, "jmp")
 
 /**
  * OP_JMP_TRUE — conditional jump if true
@@ -1036,7 +1036,7 @@ X(OP_JMP, FORMAT_JMP)
  * Details:
  *     If rd is true (non-zero), pc += offset.
  */
-X(OP_JMP_TRUE, FORMAT_ROff2)
+X(OP_JMP_TRUE, FORMAT_ROff2, "jmp_true")
 
 /**
  * OP_JMP_FALSE — conditional jump if false
@@ -1047,7 +1047,7 @@ X(OP_JMP_TRUE, FORMAT_ROff2)
  * Details:
  *     If rd is false (zero), pc += offset.
  */
-X(OP_JMP_FALSE, FORMAT_ROff2)
+X(OP_JMP_FALSE, FORMAT_ROff2, "jmp_false")
 
 /**
  * OP_JMP_REF_EQ — conditional jump if rs == rt
@@ -1058,7 +1058,7 @@ X(OP_JMP_FALSE, FORMAT_ROff2)
  * Details:
  *     If rs == rt, pc += offset.
  */
-X(OP_JMP_REF_EQ, FORMAT_RROff)
+X(OP_JMP_REF_EQ, FORMAT_RROff, "jmp_ref_eq")
 
 /**
  * OP_JMP_REF_NE — conditional jump if rs != rt
@@ -1069,7 +1069,7 @@ X(OP_JMP_REF_EQ, FORMAT_RROff)
  * Details:
  *     If rs != rt, pc += offset.
  */
-X(OP_JMP_REF_NE, FORMAT_RROff)
+X(OP_JMP_REF_NE, FORMAT_RROff, "jmp_ref_ne")
 
 /**
  * OP_JMP_REF_EQ_NULL — conditional jump if null
@@ -1080,7 +1080,7 @@ X(OP_JMP_REF_NE, FORMAT_RROff)
  * Details:
  *     If rs is null, pc += offset.
  */
-X(OP_JMP_REF_EQ_NULL, FORMAT_ROff2)
+X(OP_JMP_REF_EQ_NULL, FORMAT_ROff2, "jmp_ref_eq_null")
 
 /**
  * OP_JMP_REF_NE_NULL — conditional jump if not null
@@ -1091,7 +1091,7 @@ X(OP_JMP_REF_EQ_NULL, FORMAT_ROff2)
  * Details:
  *     If rs is not null, pc += offset.
  */
-X(OP_JMP_REF_NE_NULL, FORMAT_ROff2)
+X(OP_JMP_REF_NE_NULL, FORMAT_ROff2, "jmp_ref_ne_null")
 
 /*---------------------------------------------------------------+
  |  Fused Integer Compare + Jump Instructions                    |
@@ -1106,7 +1106,7 @@ X(OP_JMP_REF_NE_NULL, FORMAT_ROff2)
  * Details:
  *     If rs == rt, pc += offset.
  */
-X(OP_JMP_INT_EQ, FORMAT_RROff)
+X(OP_JMP_INT_EQ, FORMAT_RROff, "jmp_int_eq")
 
 /**
  * OP_JMP_INT_EQ_IMM — jump if equal (immediate)
@@ -1117,7 +1117,7 @@ X(OP_JMP_INT_EQ, FORMAT_RROff)
  * Details:
  *     If rs == imm, pc += offset.
  */
-X(OP_JMP_INT_EQ_IMM, FORMAT_RImmOff)
+X(OP_JMP_INT_EQ_IMM, FORMAT_RImmOff, "jmp_int_eq_imm")
 
 /**
  * OP_JMP_INT_NE — jump if not equal
@@ -1128,7 +1128,7 @@ X(OP_JMP_INT_EQ_IMM, FORMAT_RImmOff)
  * Details:
  *     If rs != rt, pc += offset.
  */
-X(OP_JMP_INT_NE, FORMAT_RROff)
+X(OP_JMP_INT_NE, FORMAT_RROff, "jmp_int_ne")
 
 /**
  * OP_JMP_INT_NE_IMM — jump if not equal (immediate)
@@ -1139,7 +1139,7 @@ X(OP_JMP_INT_NE, FORMAT_RROff)
  * Details:
  *     If rs != imm, pc += offset.
  */
-X(OP_JMP_INT_NE_IMM, FORMAT_RImmOff)
+X(OP_JMP_INT_NE_IMM, FORMAT_RImmOff, "jmp_int_ne_imm")
 
 /**
  * OP_JMP_INT_LT — jump if less-than
@@ -1150,7 +1150,7 @@ X(OP_JMP_INT_NE_IMM, FORMAT_RImmOff)
  * Details:
  *     If rs < rt, pc += offset.
  */
-X(OP_JMP_INT_LT, FORMAT_RROff)
+X(OP_JMP_INT_LT, FORMAT_RROff, "jmp_int_lt")
 
 /**
  * OP_JMP_INT_LT_IMM — jump if less-than (immediate)
@@ -1161,7 +1161,7 @@ X(OP_JMP_INT_LT, FORMAT_RROff)
  * Details:
  *     If rs < imm, pc += offset.
  */
-X(OP_JMP_INT_LT_IMM, FORMAT_RImmOff)
+X(OP_JMP_INT_LT_IMM, FORMAT_RImmOff, "jmp_int_lt_imm")
 
 /**
  * OP_JMP_INT_LE — jump if less-or-equal
@@ -1172,7 +1172,7 @@ X(OP_JMP_INT_LT_IMM, FORMAT_RImmOff)
  * Details:
  *     If rs <= rt, pc += offset.
  */
-X(OP_JMP_INT_LE, FORMAT_RROff)
+X(OP_JMP_INT_LE, FORMAT_RROff, "jmp_int_le")
 
 /**
  * OP_JMP_INT_LE_IMM — jump if less-or-equal (immediate)
@@ -1183,7 +1183,7 @@ X(OP_JMP_INT_LE, FORMAT_RROff)
  * Details:
  *     If rs <= imm, pc += offset.
  */
-X(OP_JMP_INT_LE_IMM, FORMAT_RImmOff)
+X(OP_JMP_INT_LE_IMM, FORMAT_RImmOff, "jmp_int_le_imm")
 
 /**
  * OP_JMP_INT_GT — jump if greater-than
@@ -1194,7 +1194,7 @@ X(OP_JMP_INT_LE_IMM, FORMAT_RImmOff)
  * Details:
  *     If rs > rt, pc += offset.
  */
-X(OP_JMP_INT_GT, FORMAT_RROff)
+X(OP_JMP_INT_GT, FORMAT_RROff, "jmp_int_gt")
 
 /**
  * OP_JMP_INT_GT_IMM — jump if greater-than (immediate)
@@ -1205,7 +1205,7 @@ X(OP_JMP_INT_GT, FORMAT_RROff)
  * Details:
  *     If rs > imm, pc += offset.
  */
-X(OP_JMP_INT_GT_IMM, FORMAT_RImmOff)
+X(OP_JMP_INT_GT_IMM, FORMAT_RImmOff, "jmp_int_gt_imm")
 
 /**
  * OP_JMP_INT_GE — jump if greater-or-equal
@@ -1216,7 +1216,7 @@ X(OP_JMP_INT_GT_IMM, FORMAT_RImmOff)
  * Details:
  *     If rs >= rt, pc += offset.
  */
-X(OP_JMP_INT_GE, FORMAT_RROff)
+X(OP_JMP_INT_GE, FORMAT_RROff, "jmp_int_ge")
 
 /**
  * OP_JMP_INT_GE_IMM — jump if greater-or-equal (immediate)
@@ -1227,7 +1227,7 @@ X(OP_JMP_INT_GE, FORMAT_RROff)
  * Details:
  *     If rs >= imm, pc += offset.
  */
-X(OP_JMP_INT_GE_IMM, FORMAT_RImmOff)
+X(OP_JMP_INT_GE_IMM, FORMAT_RImmOff, "jmp_int_ge_imm")
 
 /*---------------------------------------------------------------+
  |  Fused Unsigned Integer Compare + Jump Instructions           |
@@ -1242,7 +1242,7 @@ X(OP_JMP_INT_GE_IMM, FORMAT_RImmOff)
  * Details:
  *     If rs < rt (unsigned), pc += offset.
  */
-X(OP_JMP_UINT_LT, FORMAT_RROff)
+X(OP_JMP_UINT_LT, FORMAT_RROff, "jmp_uint_lt")
 
 /**
  * OP_JMP_UINT_LT_IMM — jump if unsigned less-than (immediate)
@@ -1253,7 +1253,7 @@ X(OP_JMP_UINT_LT, FORMAT_RROff)
  * Details:
  *     If rs < imm (unsigned), pc += offset.
  */
-X(OP_JMP_UINT_LT_IMM, FORMAT_RImmOff)
+X(OP_JMP_UINT_LT_IMM, FORMAT_RImmOff, "jmp_uint_lt_imm")
 
 /**
  * OP_JMP_UINT_LE — jump if unsigned less-or-equal
@@ -1264,7 +1264,7 @@ X(OP_JMP_UINT_LT_IMM, FORMAT_RImmOff)
  * Details:
  *     If rs <= rt (unsigned), pc += offset.
  */
-X(OP_JMP_UINT_LE, FORMAT_RROff)
+X(OP_JMP_UINT_LE, FORMAT_RROff, "jmp_uint_le")
 
 /**
  * OP_JMP_UINT_LE_IMM — jump if unsigned less-or-equal (immediate)
@@ -1275,7 +1275,7 @@ X(OP_JMP_UINT_LE, FORMAT_RROff)
  * Details:
  *     If rs <= imm (unsigned), pc += offset.
  */
-X(OP_JMP_UINT_LE_IMM, FORMAT_RImmOff)
+X(OP_JMP_UINT_LE_IMM, FORMAT_RImmOff, "jmp_uint_le_imm")
 
 /**
  * OP_JMP_UINT_GT — jump if unsigned greater-than
@@ -1286,7 +1286,7 @@ X(OP_JMP_UINT_LE_IMM, FORMAT_RImmOff)
  * Details:
  *     If rs > rt (unsigned), pc += offset.
  */
-X(OP_JMP_UINT_GT, FORMAT_RROff)
+X(OP_JMP_UINT_GT, FORMAT_RROff, "jmp_uint_gt")
 
 /**
  * OP_JMP_UINT_GT_IMM — jump if unsigned greater-than (immediate)
@@ -1297,7 +1297,7 @@ X(OP_JMP_UINT_GT, FORMAT_RROff)
  * Details:
  *     If rs > imm (unsigned), pc += offset.
  */
-X(OP_JMP_UINT_GT_IMM, FORMAT_RImmOff)
+X(OP_JMP_UINT_GT_IMM, FORMAT_RImmOff, "jmp_uint_gt_imm")
 
 /**
  * OP_JMP_UINT_GE — jump if unsigned greater-or-equal
@@ -1308,7 +1308,7 @@ X(OP_JMP_UINT_GT_IMM, FORMAT_RImmOff)
  * Details:
  *     If rs >= rt (unsigned), pc += offset.
  */
-X(OP_JMP_UINT_GE, FORMAT_RROff)
+X(OP_JMP_UINT_GE, FORMAT_RROff, "jmp_uint_ge")
 
 /**
  * OP_JMP_UINT_GE_IMM — jump if unsigned greater-or-equal (immediate)
@@ -1319,7 +1319,7 @@ X(OP_JMP_UINT_GE, FORMAT_RROff)
  * Details:
  *     If rs >= imm (unsigned), pc += offset.
  */
-X(OP_JMP_UINT_GE_IMM, FORMAT_RImmOff)
+X(OP_JMP_UINT_GE_IMM, FORMAT_RImmOff, "jmp_uint_ge_imm")
 
 /*---------------------------------------------------------------+
  |  Fused Float Compare + Jump Instructions                      |
@@ -1338,7 +1338,7 @@ X(OP_JMP_UINT_GE_IMM, FORMAT_RImmOff)
  *     - If either operand is NaN, comparison is false → no jump
  *     - +0.0 and -0.0 are considered equal
  */
-X(OP_JMP_FLOAT_EQ, FORMAT_RROff)
+X(OP_JMP_FLOAT_EQ, FORMAT_RROff, "jmp_float_eq")
 
 /**
  * OP_JMP_FLOAT_NE — jump if floating-point not equal
@@ -1353,7 +1353,7 @@ X(OP_JMP_FLOAT_EQ, FORMAT_RROff)
  *     - If either operand is NaN, comparison is true → jump
  *     - +0.0 and -0.0 are considered equal (so NE = false)
  */
-X(OP_JMP_FLOAT_NE, FORMAT_RROff)
+X(OP_JMP_FLOAT_NE, FORMAT_RROff, "jmp_float_ne")
 
 /**
  * OP_JMP_FLOAT_LT — jump if floating-point less-than
@@ -1367,7 +1367,7 @@ X(OP_JMP_FLOAT_NE, FORMAT_RROff)
  * Notes:
  *     - If either operand is NaN, comparison is false → no jump
  */
-X(OP_JMP_FLOAT_LT, FORMAT_RROff)
+X(OP_JMP_FLOAT_LT, FORMAT_RROff, "jmp_float_lt")
 
 /**
  * OP_JMP_FLOAT_LE — jump if floating-point less-or-equal
@@ -1382,7 +1382,7 @@ X(OP_JMP_FLOAT_LT, FORMAT_RROff)
  *     - If either operand is NaN, comparison is false → no jump
  *     - +0.0 <= -0.0 and -0.0 <= +0.0 are both true
  */
-X(OP_JMP_FLOAT_LE, FORMAT_RROff)
+X(OP_JMP_FLOAT_LE, FORMAT_RROff, "jmp_float_le")
 
 /**
  * OP_JMP_FLOAT_GT — jump if floating-point greater-than
@@ -1396,7 +1396,7 @@ X(OP_JMP_FLOAT_LE, FORMAT_RROff)
  * Notes:
  *     - If either operand is NaN, comparison is false → no jump
  */
-X(OP_JMP_FLOAT_GT, FORMAT_RROff)
+X(OP_JMP_FLOAT_GT, FORMAT_RROff, "jmp_float_gt")
 
 /**
  * OP_JMP_FLOAT_GE — jump if floating-point greater-or-equal
@@ -1411,7 +1411,7 @@ X(OP_JMP_FLOAT_GT, FORMAT_RROff)
  *     - If either operand is NaN, comparison is false → no jump
  *     - +0.0 >= -0.0 and -0.0 >= +0.0 are both true
  */
-X(OP_JMP_FLOAT_GE, FORMAT_RROff)
+X(OP_JMP_FLOAT_GE, FORMAT_RROff, "jmp_float_ge")
 
 /*---------------------------------------------------------------+
  |  Unified Call Instruction                                     |
@@ -1451,7 +1451,7 @@ X(OP_JMP_FLOAT_GE, FORMAT_RROff)
  *         - cross-module calls via import table
  *         - interface dynamic dispatch via TypeInfo
  */
-X(OP_CALL, FORMAT_CALL)
+X(OP_CALL, FORMAT_CALL, "call")
 
 /**
  * OP_TAIL_CALL — tail-call self (only call the current function)
@@ -1484,7 +1484,7 @@ X(OP_CALL, FORMAT_CALL)
  *     OP_TAIL_CALL is a compact, single-word terminator instruction
  *     dedicated to self tail recursion elimination.
  */
-X(OP_TAIL_CALL, FORMAT_CALL)
+X(OP_TAIL_CALL, FORMAT_CALL, "tail_call")
 
 /*---------------------------------------------------------------+
  |  Return Instructions                                          |
@@ -1499,7 +1499,7 @@ X(OP_TAIL_CALL, FORMAT_CALL)
  * Details:
  *     Returns the value in register rs to the caller.
  */
-X(OP_RET, FORMAT_Rx)
+X(OP_RET, FORMAT_Rx, "ret")
 
 /**
  * OP_RET_INT_IMM — return typed integer immediate (16-bit immediate)
@@ -1513,7 +1513,7 @@ X(OP_RET, FORMAT_Rx)
  * Details:
  *     Returns a 16-bit signed integer immediate to the caller.
  */
-X(OP_RET_INT_IMM, FORMAT_TI_Imm2)
+X(OP_RET_INT_IMM, FORMAT_TI_Imm2, "ret_int_imm")
 
 /**
  * OP_RET_UINT_IMM — return typed unsigned integer immediate (16-bit immediate)
@@ -1527,7 +1527,7 @@ X(OP_RET_INT_IMM, FORMAT_TI_Imm2)
  * Details:
  *     Returns a 16-bit unsigned integer immediate to the caller.
  */
-X(OP_RET_UINT_IMM, FORMAT_TI_Imm2)
+X(OP_RET_UINT_IMM, FORMAT_TI_Imm2, "ret_uint_imm")
 
 /**
  * OP_LOAD_TAG — return small tagged constant
@@ -1542,7 +1542,7 @@ X(OP_RET_UINT_IMM, FORMAT_TI_Imm2)
  *         - special float values (e.g., +0.0(3), -0.0(4), NaN(5), -inf(6), +inf(7))
  *     This avoids constant-pool lookup for common values.
  */
-X(OP_RET_TAG, FORMAT_Tag)
+X(OP_RET_TAG, FORMAT_Tag, "ret_tag")
 
 /**
  * OP_RET_CONST — return constant pool entry
@@ -1553,7 +1553,7 @@ X(OP_RET_TAG, FORMAT_Tag)
  * Details:
  *     Returns CP[idx] to the caller.
  */
-X(OP_RET_CONST, FORMAT_Idx2)
+X(OP_RET_CONST, FORMAT_Idx2, "ret_const")
 
 /**
  * OP_RET_VOID — return void
@@ -1564,7 +1564,7 @@ X(OP_RET_CONST, FORMAT_Idx2)
  * Details:
  *     Returns void (no value) to the caller.
  */
-X(OP_RET_VOID, FORMAT_Op)
+X(OP_RET_VOID, FORMAT_Op, "ret_void")
 
 /*---------------------------------------------------------------+
  |  Integer/Float cast Instructions                              |
@@ -1592,7 +1592,7 @@ X(OP_RET_VOID, FORMAT_Op)
  *      2 = saturate (future)
  *      3 = reserved
  */
-X(OP_INT_CAST, FORMAT_RR_TI_MODE)
+X(OP_INT_CAST, FORMAT_RR_TI_MODE, "int.cast")
 
 /**
  * OP_FLOAT_CAST — float cast with overflow mode
@@ -1612,7 +1612,7 @@ X(OP_INT_CAST, FORMAT_RR_TI_MODE)
  *     2 = saturate (future)
  *     3 = reserved
  */
-X(OP_FLOAT_CAST, FORMAT_RR_TI_MODE)
+X(OP_FLOAT_CAST, FORMAT_RR_TI_MODE, "float.cast")
 
 /**
  * OP_FLOAT_TO_INT — convert float to int
@@ -1636,7 +1636,7 @@ X(OP_FLOAT_CAST, FORMAT_RR_TI_MODE)
  *      2 = saturate (future)
  *      3 = reserved
  */
-X(OP_FLOAT_TO_INT, FORMAT_RR_TI_MODE)
+X(OP_FLOAT_TO_INT, FORMAT_RR_TI_MODE, "float_to_int")
 
 /**
  * OP_INT_TO_FLOAT — convert int to float
@@ -1656,7 +1656,7 @@ X(OP_FLOAT_TO_INT, FORMAT_RR_TI_MODE)
  *     2 = saturate (future)
  *     3 = reserved
  */
-X(OP_INT_TO_FLOAT, FORMAT_RR_TI_MODE)
+X(OP_INT_TO_FLOAT, FORMAT_RR_TI_MODE, "int_to_float")
 
 /*---------------------------------------------------------------+
  |  New object Instructions                                      |
@@ -1675,7 +1675,7 @@ X(OP_INT_TO_FLOAT, FORMAT_RR_TI_MODE)
  *
  *     R[dst] = alloc(local_type[type_index]).
  */
-X(OP_NEW, FORMAT_RIdx2)
+X(OP_NEW, FORMAT_RIdx2, "new")
 
 /**
  * OP_NEW_EXT — allocate object of an external type
@@ -1693,7 +1693,7 @@ X(OP_NEW, FORMAT_RIdx2)
  *
  *     R[dst] = alloc(import_table[import_index].type).
  */
-X(OP_NEW_EXT, FORMAT_RIdx2)
+X(OP_NEW_EXT, FORMAT_RIdx2, "new_ext")
 
 /**
  * OP_BUILD_INTERN — Build builtin object
@@ -1702,7 +1702,7 @@ X(OP_NEW_EXT, FORMAT_RIdx2)
  *     | op:8 | rd:8 | tag:8 | nargs:8 |
  *
  */
-X(OP_BUILD_INTERN, FORMAT_RTagImm)
+X(OP_BUILD_INTERN, FORMAT_RTagImm, "build_intern")
 
 /*---------------------------------------------------------------+
  |  Global Variable Access Instructions                           |
@@ -1720,7 +1720,7 @@ X(OP_BUILD_INTERN, FORMAT_RTagImm)
  *     Globals are resolved at module load time and stored in
  *     Module.globals[].
  */
-X(OP_GLOBAL_GET, FORMAT_RxIdx12)
+X(OP_GLOBAL_GET, FORMAT_RxIdx12, "global.get")
 
 /**
  * OP_GLOBAL_SET — store global variable
@@ -1733,7 +1733,7 @@ X(OP_GLOBAL_GET, FORMAT_RxIdx12)
  *     The global-index refers to the module's global table.
  *     Writes may trigger GC barriers depending on the value type.
  */
-X(OP_GLOBAL_SET, FORMAT_RxIdx12)
+X(OP_GLOBAL_SET, FORMAT_RxIdx12, "global.set")
 
 
 /**
@@ -1746,7 +1746,7 @@ X(OP_GLOBAL_SET, FORMAT_RxIdx12)
  *     Loads the value of a external global variable into register dst.
  *     The imported-index refers to the imported-table.
  */
-X(OP_GLOBAL_GET_EXT, FORMAT_RIdx2)
+X(OP_GLOBAL_GET_EXT, FORMAT_RIdx2, "global.get_ext")
 
 /**
  * OP_GLOBAL_SET_EXT — store global variable
@@ -1759,7 +1759,7 @@ X(OP_GLOBAL_GET_EXT, FORMAT_RIdx2)
  *     The imported-index refers to the imported-table.
  *     Writes may trigger GC barriers depending on the value type.
  */
-X(OP_GLOBAL_SET_EXT, FORMAT_RIdx2)
+X(OP_GLOBAL_SET_EXT, FORMAT_RIdx2, "global.set_ext")
 
 /*---------------------------------------------------------------+
  |  Field Access Instructions                                    |
@@ -1776,7 +1776,7 @@ X(OP_GLOBAL_SET_EXT, FORMAT_RIdx2)
  *     field offset. Used only for fields defined in the same module.
  *     R[dst] = *(R[src] + field-offset).
  */
-X(OP_GET_FIELD, FORMAT_RRImm)
+X(OP_GET_FIELD, FORMAT_RRImm, "get_field")
 
 /**
  * OP_SET_FIELD — store field into object (same module)
@@ -1790,7 +1790,7 @@ X(OP_GET_FIELD, FORMAT_RRImm)
  *     Writes may trigger GC barriers depending on the value type.
  *     *(R[dst] + field-offset) = R[src].
  */
-X(OP_SET_FIELD, FORMAT_RRImm)
+X(OP_SET_FIELD, FORMAT_RRImm, "set_field")
 
 /**
  * OP_GET_FIELD_EXT — load field from external class
@@ -1803,7 +1803,7 @@ X(OP_SET_FIELD, FORMAT_RRImm)
  *     refers to an ImportEntry of kind IMPORT_FIELD. The loader
  *     resolves the field offset and fills ImportEntry.resolved.field_offset.
  */
-X(OP_GET_FIELD_EXT, FORMAT_RRImm)
+X(OP_GET_FIELD_EXT, FORMAT_RRImm, "get_field_ext")
 
 /**
  * OP_SET_FIELD_EXT — store field into external class
@@ -1817,7 +1817,7 @@ X(OP_GET_FIELD_EXT, FORMAT_RRImm)
  *     The loader resolves the field offset and fills
  *     ImportEntry.resolved.field_offset.
  */
-X(OP_SET_FIELD_EXT, FORMAT_RRImm)
+X(OP_SET_FIELD_EXT, FORMAT_RRImm, "set_field_ext")
 
 /*---------------------------------------------------------------+
  |  Conditional Move Instruction                                 |
@@ -1837,7 +1837,7 @@ X(OP_SET_FIELD_EXT, FORMAT_RRImm)
  *     if (R[cond] != 0)
  *         R[dst] = R[src];
  */
-X(OP_MOVE_TRUE, FORMAT_RRR)
+X(OP_MOVE_TRUE, FORMAT_RRR, "move_true")
 
 /*---------------------------------------------------------------+
  |  Type Casting & Interface Casting Instructions                |
@@ -1856,7 +1856,7 @@ X(OP_MOVE_TRUE, FORMAT_RRR)
  *     R[dst] receives a new interface object constructed from the
  *     impl-entry of 'obj' that implements the target interface.
  */
-X(OP_MAKE_INTF, FORMAT_RRImm)
+X(OP_MAKE_INTF, FORMAT_RRImm, "make_intf")
 
 /**
  * OP_UPCAST_INTF — upcast interface to a parent interface
@@ -1876,7 +1876,7 @@ X(OP_MAKE_INTF, FORMAT_RRImm)
  * Notes:
  *    - parent-index is an 8-bit offset into impl-entry.parents[].
  */
-X(OP_UPCAST_INTF, FORMAT_RRImm)
+X(OP_UPCAST_INTF, FORMAT_RRImm, "upcast_intf")
 
 /**
  * OP_DOWNCAST_INTF — cast interface to a concrete class or another interface
@@ -1904,7 +1904,7 @@ X(OP_UPCAST_INTF, FORMAT_RRImm)
  *     - CHECKED OP (may trap).
  *     - type-index is a global index (16/32 bits recommended).
  */
-X(OP_DOWNCAST_INTF, FORMAT_Op)
+X(OP_DOWNCAST_INTF, FORMAT_Op, "downcast_intf")
 
 /*---------------------------------------------------------------+
  |  Sequence Protocol Instructions                               |
@@ -1929,7 +1929,7 @@ X(OP_DOWNCAST_INTF, FORMAT_Op)
  *     - The loaded TValue is written into `rd`
  *     - No write barrier is required (read-only)
  */
-X(OP_SEQ_GET, FORMAT_RRR)
+X(OP_SEQ_GET, FORMAT_RRR, "seq.get")
 
 /**
  * OP_SEQ_SET — store an element into a sequence
@@ -1958,7 +1958,7 @@ X(OP_SEQ_GET, FORMAT_RRR)
  *     - This opcode is the fast-path for `obj[index] = value` when the
  *       compiler determines that `obj` is a sequence.
  */
-X(OP_SEQ_SET, FORMAT_RRR)
+X(OP_SEQ_SET, FORMAT_RRR, "seq.set")
 
 /**
  * OP_SEQ_GET_IMM — load an element using an immediate index
@@ -1980,7 +1980,7 @@ X(OP_SEQ_SET, FORMAT_RRR)
  *     - The loaded TValue is written into `rd`
  *     - No write barrier is required (read-only)
  */
-X(OP_SEQ_GET_IMM, FORMAT_RRImm)
+X(OP_SEQ_GET_IMM, FORMAT_RRImm, "seq.get_imm")
 
 /**
  * OP_SEQ_SET_IMM — store an element using an immediate index
@@ -2001,7 +2001,7 @@ X(OP_SEQ_GET_IMM, FORMAT_RRImm)
  *     - Bounds checking is performed at runtime
  *     - A write barrier is applied when storing into the sequence object
  */
-X(OP_SEQ_SET_IMM, FORMAT_RRImm)
+X(OP_SEQ_SET_IMM, FORMAT_RRImm, "seq.set_imm")
 
 /**
  * OP_SEQ_LEN — get the length of a sequence
@@ -2021,7 +2021,7 @@ X(OP_SEQ_SET_IMM, FORMAT_RRImm)
  *     - IRGen emits OP_CALL for len(x).
  *     - ISEL lowers OP_CALL "__len__" to OP_SEQ_LEN when rs is a sequence.
  */
-X(OP_SEQ_LEN, FORMAT_RxRx)
+X(OP_SEQ_LEN, FORMAT_RxRx, "seq.len")
 
 /**
  * OP_SEQ_CONTAINS — membership test for sequence objects
@@ -2043,7 +2043,7 @@ X(OP_SEQ_LEN, FORMAT_RxRx)
  *     - ISEL lowers the call to OP_SEQ_CONTAINS when the type of `rs`
  *       supports sequence membership testing.
  */
-X(OP_SEQ_CONTAINS, FORMAT_RRR)
+X(OP_SEQ_CONTAINS, FORMAT_RRR, "seq.contains")
 
 /*---------------------------------------------------------------+
  |  Map Protocol Instructions                                    |
@@ -2068,7 +2068,7 @@ X(OP_SEQ_CONTAINS, FORMAT_RRR)
  *     - Performs a key lookup according to the mapping's semantics.
  *     - Raises KeyError if key is not found
  */
-X(OP_MAP_GET, FORMAT_RRR)
+X(OP_MAP_GET, FORMAT_RRR, "map.get")
 
 /**
  * OP_MAP_SET — store value into a map via key lookup
@@ -2089,7 +2089,7 @@ X(OP_MAP_GET, FORMAT_RRR)
  *     - Performs hash lookup and inserts or updates the entry
  *     - Write barrier is applied when storing into map
  */
-X(OP_MAP_SET, FORMAT_RRR)
+X(OP_MAP_SET, FORMAT_RRR, "map.set")
 
 /**
  * OP_MAP_LEN — get the number of entries in a mapping object
@@ -2111,7 +2111,7 @@ X(OP_MAP_SET, FORMAT_RRR)
  *     - ISEL lowers the call to OP_MAP_LEN when the type of `rs`
  *       supports mapping length retrieval.
  */
-X(OP_MAP_LEN, FORMAT_RxRx)
+X(OP_MAP_LEN, FORMAT_RxRx, "map.len")
 
 /**
  * OP_MAP_CONTAINS — membership test for mapping objects
@@ -2133,7 +2133,7 @@ X(OP_MAP_LEN, FORMAT_RxRx)
  *     - ISEL lowers the call to OP_MAP_CONTAINS when the type of `rs`
  *       supports mapping membership testing.
  */
-X(OP_MAP_CONTAINS, FORMAT_RRR)
+X(OP_MAP_CONTAINS, FORMAT_RRR, "map.contains")
 
 /*---------------------------------------------------------------+
  |  List related Instructions                                    |
@@ -2158,7 +2158,7 @@ X(OP_MAP_CONTAINS, FORMAT_RRR)
  *     - IRGen emits this opcode for list.append(x) and list.push(x).
  *     - ISEL lowers this opcode directly without specialization.
  */
-X(OP_LIST_PUSH, FORMAT_RxRx)
+X(OP_LIST_PUSH, FORMAT_RxRx, "list.push")
 
 /**
  * OP_LIST_POP — pop the last element from a list
@@ -2183,7 +2183,7 @@ X(OP_LIST_PUSH, FORMAT_RxRx)
  *     - IRGen emits OP_CALL for list.pop().
  *     - ISEL lowers OP_CALL "__pop__" to OP_LIST_POP when rs is a list.
  */
-X(OP_LIST_POP, FORMAT_RxRx)
+X(OP_LIST_POP, FORMAT_RxRx, "list.pop")
 
 /*---------------------------------------------------------------+
  |  Iterator Protocol Instructions                               |
@@ -2203,7 +2203,7 @@ X(OP_LIST_POP, FORMAT_RxRx)
  *         - strings → character iterator
  *         - user-defined types → __iter__ or vtable entry
  */
-X(OP_GET_ITER, FORMAT_Op)
+X(OP_GET_ITER, FORMAT_Op, "get_iter")
 
 /**
  * OP_ITER_NEXT — advance iterator
@@ -2221,7 +2221,7 @@ X(OP_GET_ITER, FORMAT_Op)
  *         - generator-like patterns
  *         - custom iterable types
  */
-X(OP_ITER_NEXT, FORMAT_Op)
+X(OP_ITER_NEXT, FORMAT_Op, "iter.next")
 
 /*---------------------------------------------------------------+
  |  Type Testing & Safe Casting Instructions                     |
@@ -2241,7 +2241,7 @@ X(OP_ITER_NEXT, FORMAT_Op)
  *
  *     This is equivalent to C#'s "as" operator.
  */
-X(OP_AS, FORMAT_Op)
+X(OP_AS, FORMAT_Op, "as")
 
 /**
  * OP_IS — type test
@@ -2255,7 +2255,7 @@ X(OP_AS, FORMAT_Op)
  *
  *     This is equivalent to C#'s "is" operator.
  */
-X(OP_IS, FORMAT_Op)
+X(OP_IS, FORMAT_Op, "is")
 
 /*---------------------------------------------------------------+
  |  Miscellaneous / Special Instructions                         |
@@ -2272,7 +2272,7 @@ X(OP_IS, FORMAT_Op)
  *     its A/B/C fields. The next instruction consumes these bits
  *     and forms 16-bit or 24-bit operands depending on its format.
  */
-X(OP_WIDE, FORMAT_WIDE)
+X(OP_WIDE, FORMAT_WIDE, "wide")
 
 /**
  * OP_RAISE — raise an exception
@@ -2284,7 +2284,7 @@ X(OP_WIDE, FORMAT_WIDE)
  *     Raises an exception. The VM unwinds the call stack until a
  *     handler is found or terminates execution if none exists.
  */
-X(OP_RAISE, FORMAT_Op)
+X(OP_RAISE, FORMAT_Op, "raise")
 
 /*---------------------------------------------------------------+
  |  Number Protocol Instructions                                 |
@@ -2311,7 +2311,7 @@ X(OP_RAISE, FORMAT_Op)
  * Notes:
  *     - Protocol-level addition; built-in int/float use dedicated opcodes
  */
-X(OP_NUM_ADD, FORMAT_RRR)
+X(OP_NUM_ADD, FORMAT_RRR, "num.add")
 
 /**
  * OP_NUM_SUB — numeric subtraction via number protocol
@@ -2334,7 +2334,7 @@ X(OP_NUM_ADD, FORMAT_RRR)
  * Notes:
  *     - Protocol-level subtraction; built-in int/float use dedicated opcodes
  */
-X(OP_NUM_SUB, FORMAT_RRR)
+X(OP_NUM_SUB, FORMAT_RRR, "num.sub")
 
 /**
  * OP_NUM_MUL — numeric multiplication via number protocol
@@ -2357,7 +2357,7 @@ X(OP_NUM_SUB, FORMAT_RRR)
  * Notes:
  *     - Protocol-level multiplication; built-in int/float use dedicated opcodes
  */
-X(OP_NUM_MUL, FORMAT_RRR)
+X(OP_NUM_MUL, FORMAT_RRR, "num.mul")
 
 /**
  * OP_NUM_DIV — numeric division via number protocol
@@ -2381,7 +2381,7 @@ X(OP_NUM_MUL, FORMAT_RRR)
  * Notes:
  *     - Protocol-level division; built-in int/float use dedicated opcodes
  */
-X(OP_NUM_DIV, FORMAT_RRR)
+X(OP_NUM_DIV, FORMAT_RRR, "num.div")
 
 /**
  * OP_NUM_MOD — numeric modulo via number protocol
@@ -2405,7 +2405,7 @@ X(OP_NUM_DIV, FORMAT_RRR)
  * Notes:
  *     - Protocol-level modulo; built-in int/float use dedicated opcodes
  */
-X(OP_NUM_MOD, FORMAT_RRR)
+X(OP_NUM_MOD, FORMAT_RRR, "num.mod")
 
 /**
  * OP_NUM_AND — bitwise AND via number protocol
@@ -2428,7 +2428,7 @@ X(OP_NUM_MOD, FORMAT_RRR)
  * Notes:
  *     - Protocol-level bitwise AND; built-in int/float use dedicated opcodes
  */
-X(OP_NUM_AND, FORMAT_RRR)
+X(OP_NUM_AND, FORMAT_RRR, "num.and")
 
 /**
  * OP_NUM_OR — bitwise OR via number protocol
@@ -2451,7 +2451,7 @@ X(OP_NUM_AND, FORMAT_RRR)
  * Notes:
  *     - Protocol-level bitwise OR; built-in int/float use dedicated opcodes
  */
-X(OP_NUM_OR, FORMAT_RRR)
+X(OP_NUM_OR, FORMAT_RRR, "num.or")
 
 /**
  * OP_NUM_XOR — bitwise XOR via number protocol
@@ -2474,7 +2474,7 @@ X(OP_NUM_OR, FORMAT_RRR)
  * Notes:
  *     - Protocol-level bitwise XOR; built-in int/float use dedicated opcodes
  */
-X(OP_NUM_XOR, FORMAT_RRR)
+X(OP_NUM_XOR, FORMAT_RRR, "num.xor")
 
 /**
  * OP_NUM_SHL — bitwise shift-left via number protocol
@@ -2498,7 +2498,7 @@ X(OP_NUM_XOR, FORMAT_RRR)
  * Notes:
  *     - Protocol-level shift-left; built-in int/float use dedicated opcodes
  */
-X(OP_NUM_SHL, FORMAT_RRR)
+X(OP_NUM_SHL, FORMAT_RRR, "num.shl")
 
 /**
  * OP_NUM_SHR — bitwise shift-right via number protocol
@@ -2522,7 +2522,7 @@ X(OP_NUM_SHL, FORMAT_RRR)
  * Notes:
  *     - Protocol-level shift-right; built-in int/float use dedicated opcodes
  */
-X(OP_NUM_SHR, FORMAT_RRR)
+X(OP_NUM_SHR, FORMAT_RRR, "num.shr")
 
 /*---------------------------------------------------------------+
  |  Comparable & Equatable Protocol Instructions                 |
@@ -2549,7 +2549,7 @@ X(OP_NUM_SHR, FORMAT_RRR)
  * Notes:
  *     - Returns boolean
  */
-X(OP_NUM_EQ, FORMAT_RRR)
+X(OP_NUM_EQ, FORMAT_RRR, "num.eq")
 
 /**
  * OP_NUM_NE — inequality comparison via Equatable protocol
@@ -2572,7 +2572,7 @@ X(OP_NUM_EQ, FORMAT_RRR)
  * Notes:
  *     - Returns boolean
  */
-X(OP_NUM_NE, FORMAT_RRR)
+X(OP_NUM_NE, FORMAT_RRR, "num.ne")
 
 /**
  * OP_NUM_LT — less-than comparison via Comparable protocol
@@ -2595,7 +2595,7 @@ X(OP_NUM_NE, FORMAT_RRR)
  * Notes:
  *     - Returns boolean
  */
-X(OP_NUM_LT, FORMAT_RRR)
+X(OP_NUM_LT, FORMAT_RRR, "num.lt")
 
 /**
  * OP_NUM_LE — less-or-equal comparison via Comparable protocol
@@ -2618,7 +2618,7 @@ X(OP_NUM_LT, FORMAT_RRR)
  * Notes:
  *     - Returns boolean
  */
-X(OP_NUM_LE, FORMAT_RRR)
+X(OP_NUM_LE, FORMAT_RRR, "num.le")
 
 /**
  * OP_NUM_GT — greater-than comparison via Comparable protocol
@@ -2641,7 +2641,7 @@ X(OP_NUM_LE, FORMAT_RRR)
  * Notes:
  *     - Returns boolean
  */
-X(OP_NUM_GT, FORMAT_RRR)
+X(OP_NUM_GT, FORMAT_RRR, "num.gt")
 
 /**
  * OP_NUM_GE — greater-or-equal comparison via Comparable protocol
@@ -2664,50 +2664,101 @@ X(OP_NUM_GT, FORMAT_RRR)
  * Notes:
  *     - Returns boolean
  */
-X(OP_NUM_GE, FORMAT_RRR)
+X(OP_NUM_GE, FORMAT_RRR, "num.ge")
+
+/**
+ * OP_HASH — compute hash value via Hashable protocol
+ *
+ * FORMAT_RR:
+ *     | op:8 | rd:12 | ra:12 |
+ *
+ * Semantics:
+ *     rd = hash(a)
+ *
+ * Description:
+ *     Computes the hash of operand `ra` using the Hashable protocol.
+ *
+ * Behavior:
+ *     - Operand must implement __hash__
+ *
+ * Types:
+ *     - User-defined types implementing __hash__
+ *     - Built-in types with native hashing (int, str, bytes, etc.)
+ *
+ * Notes:
+ *     - Returns an integer hash value
+ *     - Generated by the compiler for the intrinsic `hash(obj)`
+ */
+X(OP_HASH, FORMAT_RxRx, "hash")
+
+/**
+ * OP_STR — convert object to string via Printable protocol
+ *
+ * FORMAT_RR:
+ *     | op:8 | rd:12 | ra:12 |
+ *
+ * Semantics:
+ *     rd = str(a)
+ *
+ * Description:
+ *     Converts operand `ra` to its string representation using the
+ *     Printable protocol.
+ *
+ * Behavior:
+ *     - Operand must implement __str__
+ *
+ * Types:
+ *     - User-defined types implementing __str__
+ *     - Built-in types with native string conversion (int, bytes, etc.)
+ *
+ * Notes:
+ *     - Returns a string
+ *     - Generated by the compiler for the intrinsic `str(obj)`
+ */
+X(OP_STR, FORMAT_RxRx, "str")
 
 /*---------------------------------------------------------------+
  |  IR-Only Pseudo Instructions                                  |
  +---------------------------------------------------------------*/
 
 /* Binary arithmetic (IR only) */
-X(OP_BINARY_ADD,    FORMAT_IR)
-X(OP_BINARY_SUB,    FORMAT_IR)
-X(OP_BINARY_MUL,    FORMAT_IR)
-X(OP_BINARY_DIV,    FORMAT_IR)
-X(OP_BINARY_MOD,    FORMAT_IR)
+X(OP_BINARY_ADD,    FORMAT_IR, "add")
+X(OP_BINARY_SUB,    FORMAT_IR, "sub")
+X(OP_BINARY_MUL,    FORMAT_IR, "mul")
+X(OP_BINARY_DIV,    FORMAT_IR, "div")
+X(OP_BINARY_MOD,    FORMAT_IR, "mod")
 
 /* Binary bitwise (IR only) */
-X(OP_BINARY_AND,    FORMAT_IR)
-X(OP_BINARY_OR,     FORMAT_IR)
-X(OP_BINARY_XOR,    FORMAT_IR)
+X(OP_BINARY_AND,    FORMAT_IR, "and")
+X(OP_BINARY_OR,     FORMAT_IR, "or")
+X(OP_BINARY_XOR,    FORMAT_IR, "xor")
 
 /* Binary shifts (IR only) */
-X(OP_BINARY_SHL,    FORMAT_IR)
-X(OP_BINARY_SHR,    FORMAT_IR)
+X(OP_BINARY_SHL,    FORMAT_IR, "shl")
+X(OP_BINARY_SHR,    FORMAT_IR, "shr")
 
 /* Binary comparisons (IR only) */
-X(OP_BINARY_CMPEQ,  FORMAT_IR)
-X(OP_BINARY_CMPNE,  FORMAT_IR)
-X(OP_BINARY_CMPLT,  FORMAT_IR)
-X(OP_BINARY_CMPLE,  FORMAT_IR)
-X(OP_BINARY_CMPGT,  FORMAT_IR)
-X(OP_BINARY_CMPGE,  FORMAT_IR)
+X(OP_BINARY_EQ,  FORMAT_IR, "eq")
+X(OP_BINARY_NE,  FORMAT_IR, "ne")
+X(OP_BINARY_LT,  FORMAT_IR, "lt")
+X(OP_BINARY_LE,  FORMAT_IR, "le")
+X(OP_BINARY_GT,  FORMAT_IR, "gt")
+X(OP_BINARY_GE,  FORMAT_IR, "ge")
 
 /* Unary ops (IR only) */
-X(OP_UNARY_PLUS,    FORMAT_IR)
-X(OP_UNARY_NEG,     FORMAT_IR)
-X(OP_UNARY_NOT,     FORMAT_IR)
+X(OP_UNARY_PLUS,    FORMAT_IR, "plus")
+X(OP_UNARY_NEG,     FORMAT_IR, "neg")
+X(OP_UNARY_NOT,     FORMAT_IR, "not")
 
 /* Structural IR ops */
-X(OP_IR_LOCAL,      FORMAT_IR)
-X(OP_IR_CALL,       FORMAT_IR)
-X(OP_IR_SELECT,     FORMAT_IR)
-X(OP_IR_JMP_COND,   FORMAT_IR)
-X(OP_IR_CAST,       FORMAT_IR)
-X(OP_IR_PHI,        FORMAT_IR)
+X(OP_IR_LOCAL,      FORMAT_IR, "local")
+X(OP_IR_CALL,       FORMAT_IR, "call")
+X(OP_IR_SELECT,     FORMAT_IR, "select")
+X(OP_IR_JMP_COND,   FORMAT_IR, "branch")
+X(OP_IR_CAST,       FORMAT_IR, "cast")
+X(OP_IR_PHI,        FORMAT_IR, "phi")
 
 /* Non-executable data slot (pseudo-instruction) */
-X(OP_DATA, FORMAT_DATA)
+X(OP_DATA, FORMAT_DATA, "data")
 
 // clang-format on

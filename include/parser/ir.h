@@ -810,17 +810,17 @@ static inline KlrValue *klr_build_sub(KlrBuilder *bldr, KlrValue *lhs, KlrValue 
 /* IR: %2 int = cmp %0, %1 */
 KlrValue *klr_build_cmp(KlrBuilder *bldr, KlrValue *lhs, KlrValue *rhs, OpCode code, char *name);
 
-#define klr_build_cmpeq(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPEQ, name)
+#define klr_build_cmpeq(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_EQ, name)
 
-#define klr_build_cmpne(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPNE, name)
+#define klr_build_cmpne(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_NE, name)
 
-#define klr_build_cmplt(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPLT, name)
+#define klr_build_cmplt(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_LT, name)
 
-#define klr_build_cmpgt(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPGT, name)
+#define klr_build_cmpgt(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_GT, name)
 
-#define klr_build_cmple(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPLE, name)
+#define klr_build_cmple(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_LE, name)
 
-#define klr_build_cmpge(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_CMPGE, name)
+#define klr_build_cmpge(bldr, lhs, rhs, name) klr_build_cmp(bldr, lhs, rhs, OP_BINARY_GE, name)
 
 KlrValue *klr_build_unary(KlrBuilder *bldr, KlrValue *operand, OpCode op, char *name,
                           const char *op_name);
@@ -1093,6 +1093,8 @@ KlrValue *klr_build_map_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, Ty
 void klr_build_map_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val);
 
 KlrValue *klr_build_seq_len(KlrBuilder *bldr, KlrValue *obj, char *name);
+KlrValue *klr_build_hash(KlrBuilder *bldr, KlrValue *obj, char *name);
+KlrValue *klr_build_str(KlrBuilder *bldr, KlrValue *obj, char *name);
 
 KlrValue *klr_specialize_func(KlrFunc *fn, char *mangled_name, Vector *tp_args);
 

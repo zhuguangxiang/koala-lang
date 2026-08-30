@@ -11,7 +11,7 @@ extern "C" {
 #endif
 
 typedef enum _OpCode {
-#define X(name, fmt) name,
+#define X(name, fmt, str) name,
 #include "opcode_list.h"
 #undef X
 } OpCode;

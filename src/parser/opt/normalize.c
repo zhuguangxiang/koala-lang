@@ -4,11 +4,17 @@
  */
 
 #include "ir.h"
-#include "opcode.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+static int can_swap(KlrValue *val)
+{
+    TypeSpec *ts = val->ts;
+    if (ts->kind == TYPE_STR) return 0;
+    return 1;
+}
 
 int klr_normalize_pass(KlrFunc *fn, void *data)
 {
@@ -21,48 +27,48 @@ int klr_normalize_pass(KlrFunc *fn, void *data)
             if (insn->code == OP_BINARY_ADD) {
                 KlrValue *lhs = insn_oper_value(insn, 0);
                 KlrValue *rhs = insn_oper_value(insn, 1);
-                if (klr_is_const(lhs) && !klr_is_const(rhs)) {
+                if (can_swap(lhs) && klr_is_const(lhs) && !klr_is_const(rhs)) {
                     set_operand_at(insn, 0, rhs);
                     set_operand_at(insn, 1, lhs);
                     change = 1;
                 }
-            } else if (insn->code == OP_BINARY_CMPLT) {
+            } else if (insn->code == OP_BINARY_LT) {
                 KlrValue *lhs = insn_oper_value(insn, 0);
                 KlrValue *rhs = insn_oper_value(insn, 1);
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {
                     set_operand_at(insn, 0, rhs);
                     set_operand_at(insn, 1, lhs);
-                    insn->code = OP_BINARY_CMPGE;
+                    insn->code = OP_BINARY_GE;
                     change = 1;
                 }
-            } else if (insn->code == OP_BINARY_CMPLE) {
+            } else if (insn->code == OP_BINARY_LE) {
                 KlrValue *lhs = insn_oper_value(insn, 0);
                 KlrValue *rhs = insn_oper_value(insn, 1);
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {
                     set_operand_at(insn, 0, rhs);
                     set_operand_at(insn, 1, lhs);
-                    insn->code = OP_BINARY_CMPGT;
+                    insn->code = OP_BINARY_GT;
                     change = 1;
                 }
-            } else if (insn->code == OP_BINARY_CMPGT) {
+            } else if (insn->code == OP_BINARY_GT) {
                 KlrValue *lhs = insn_oper_value(insn, 0);
                 KlrValue *rhs = insn_oper_value(insn, 1);
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {
                     set_operand_at(insn, 0, rhs);
                     set_operand_at(insn, 1, lhs);
-                    insn->code = OP_BINARY_CMPLE;
+                    insn->code = OP_BINARY_LE;
                     change = 1;
                 }
-            } else if (insn->code == OP_BINARY_CMPGE) {
+            } else if (insn->code == OP_BINARY_GE) {
                 KlrValue *lhs = insn_oper_value(insn, 0);
                 KlrValue *rhs = insn_oper_value(insn, 1);
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {
                     set_operand_at(insn, 0, rhs);
                     set_operand_at(insn, 1, lhs);
-                    insn->code = OP_BINARY_CMPLT;
+                    insn->code = OP_BINARY_LT;
                     change = 1;
                 }
-            } else if (insn->code == OP_BINARY_CMPNE) {
+            } else if (insn->code == OP_BINARY_NE) {
                 KlrValue *lhs = insn_oper_value(insn, 0);
                 KlrValue *rhs = insn_oper_value(insn, 1);
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {
@@ -70,7 +76,7 @@ int klr_normalize_pass(KlrFunc *fn, void *data)
                     set_operand_at(insn, 1, lhs);
                     change = 1;
                 }
-            } else if (insn->code == OP_BINARY_CMPEQ) {
+            } else if (insn->code == OP_BINARY_EQ) {
                 KlrValue *lhs = insn_oper_value(insn, 0);
                 KlrValue *rhs = insn_oper_value(insn, 1);
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {
