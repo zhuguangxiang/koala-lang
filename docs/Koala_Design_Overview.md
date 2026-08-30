@@ -61,7 +61,7 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 - **带默认值的参数**：省略类型注解。
 - **变量声明**：支持默认值与**类型推导**——有初始化表达式即可省略类型注解。
 - **泛型自动推导**：泛型类型参数由编译器从上下文推断，调用侧无需手写类型实参。
-- **手动泛型展开**：`@specialize` 注解按放置位置分流——挂在具体声明上映射（`list[int64]` → `int64list`），挂在泛型类 / 泛型函数上由编译器生成特化声明；实例化无论显式书写或推断所得，注解即开关，未关联则擦除（见 §7.4）。
+- **手动泛型展开**：`@specialized` 注解按放置位置分流——挂在具体声明上映射（`list[int64]` → `int64list`），挂在泛型类 / 泛型函数上由编译器生成特化声明；实例化无论显式书写或推断所得，注解即开关，未关联则擦除（见 §7.4）。
 
 ### 2.5 Null 安全与值表示
 
@@ -101,7 +101,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
   print(add_pair(3, 4))    // T 推断为 int64
   ```
 
-  函数体内 `a + b` 的操作数类型是未知类型 T，编译器不知道具体实现，但因 `T : Arithmetic` 约束而知道"加法可用"：IR 下降为协议 `add` 指令，后端转为 `num.add`（字节码 `OP_NUM_ADD`，数值协议指令），目标运行时经 Arithmetic intf-table O(1) 分发到 T 的 `__add__`，全程不创建 call frame。当前实现状态（2026-08 实测）：**十六件二元运算符的 IR 下降链路已全部打通**——IR 协议指令（`add/sub/mul/div/mod`、`shl/shr/and/or/xor`、`cmplt/cmple/cmpgt/cmpge/cmpeq/cmpne`）经优化器后保留，isel `num_ops_rules[]` 十六条 `OP_BINARY_* → OP_NUM_*` 映射齐备，寄存器分配后存活到 LIR；**比较族六件 VM handler 已落地，`test_generic_9` 转绿**。尚不支持：泛型一元 `-` / `~`、泛型复合赋值（`+=` 等）、VM 侧算术与位运算 `OP_NUM_*` handler 族——详见 `docs/Koala_TODO.md`。
+  函数体内 `a + b` 的操作数类型是未知类型 T，编译器不知道具体实现，但因 `T : Arithmetic` 约束而知道"加法可用"：IR 下降为协议 `add` 指令，后端转为 `num.add`（字节码 `OP_NUM_ADD`，数值协议指令），目标运行时经 Arithmetic intf-table O(1) 分发到 T 的 `__add__`，全程不创建 call frame。当前实现状态（2026-08 实测）：**十六件二元运算符的 IR 下降链路已全部打通**——IR 协议指令（`add/sub/mul/div/mod`、`shl/shr/and/or/xor`、`cmplt/cmple/cmpgt/cmpge/cmpeq/cmpne`）经优化器后保留，isel `num_ops_rules[]` 十六条 `OP_BINARY_* → OP_NUM_*` 映射齐备，寄存器分配后存活到 LIR；**比较族六件与算术族五件 VM handler 均已落地，`test_generic_9` 转绿**。尚不支持：泛型一元 `-` / `~`、泛型复合赋值（`+=` 等）、VM 侧位运算 `OP_NUM_*` handler 族（5 件）——详见 `docs/Koala_TODO.md`。
 
   **trait 作参数类型（如 `a Arithmetic[int]`，对标 Rust `dyn Trait`）时运算符语法不可用——设计边界，非实现缺口**：trait 运算符方法实例化后是实现侧的具体签名（如 `__add__(int64) int64`），而操作数是 trait 值本身，类型不匹配即编译报错；trait 值与具体类型混算（如 `a + 100`）同样报错。Rust 同理：运算符 trait 族（`std::ops::Add` 等）`add(self, ...)` 按值消费 self，非 dyn-compatible，`dyn Add` 根本写不出来。运算符只存在于具体类型与泛型（`T : Arithmetic`）两条路径；trait 值上保留 `__len__` 等协议钩子调用。
 - **语义 trait 保留 dunder 声明**（如 Sequence 声明 `__getitem__` 等）：它们定义概念并只约束遵循者，对标 Python collections.abc。
@@ -118,7 +118,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 
   **禁令对接收者形态无差别**：具体类型、trait 值（如 `Arithmetic[int]`）、泛型类型参数（`T : Arithmetic`）三种形态的显式 dunder 调用报同一条禁令错误。泛型参数的成员解析经 bound 完成——bound 是 T 的成员唯一事实源，运算符下降与点号成员访问共用同一条 bound 查找；正因 bound 承诺了方法存在，T 上的显式调用报的是“禁止”而非“方法不存在”，拒绝理由是规则而不是能力缺失。禁令名单之外的协议钩子（如 `T : Hashable` 的 `__hash__`、`T : Collection` 的 `__len__`）经 bound 解析后按普通成员调用，正常可用。
   
-  **禁令按符号划界，不按名字形状**：直接调用禁令的适用对象是特定符号族——内置运算符钩子（上述 43 个）、内置 magic 函数（`len` 等 intrinsic）、编译器自动生成的符号（`@specialize` 生成物，见 §7.4）。dunder 名字形状本身不构成禁令依据：**用户自写的 `__foo__` 是合法声明、普通可调用的符号，不做任何拒绝**。
+  **禁令按符号划界，不按名字形状**：直接调用禁令的适用对象是特定符号族——内置运算符钩子（上述 43 个）、内置 magic 函数（`len` / `hash` 等 intrinsic）、编译器自动生成的符号（`@specialized` 生成物，见 §7.4）。dunder 名字形状本身不构成禁令依据：**用户自写的 `__foo__` 是合法声明、普通可调用的符号，不做任何拒绝**。
 
 ---
 
@@ -234,23 +234,23 @@ DEFINE_TYPE(str, TP_FLAGS_CLASS, 0, _str_methods);
 
 **性能**：原路径两层间接（协议字段 → 蹦床 → 重复 `kl_typeof` → slots[] → 实现）变一层（slots[] → Object → 实现），热路径受益最大（dict 的 `__hash__` / `__eq__`、循环的 `__len__`）。若 profile 显示 TValue 打包仍嫌贵，逃生门是第三档 intrinsic（槽打标记、VM 走 C switch），而非退回双轨。
 
-**槽位按热度排布**（与 vm_ops.h 指令分层同一纪律，见 §11.7；分层依据是执行频率，是槽布局自身的设计，不依赖某槽是否已有对应指令）：hot 槽（比较协议 `SLOT_EQ..SLOT_GE` + `SLOT_HASH`）占前 56 字节——一条 cache line 内，dict 探测的 hash + eq 永不越线；warm 槽居第二线：序列协议（`SLOT_LEN` / `SLOT_GET_ITEM` / `SLOT_SET_ITEM` / `SLOT_CONTAINS`）、切片协议（`SLOT_GET_SLICE` / `SLOT_SET_SLICE`）、映射下标（`SLOT_GET_SUBSCRIPT` / `SLOT_SET_SUBSCRIPT`）、算术族中最热的 `SLOT_ADD`；cold 槽殿后：`SLOT_STR`、其余算术（`SLOT_SUB..SLOT_NEG`）、位运算族。`EQ..GE` 连续且 EQ 打头，保留 richcmp 按 `SLOT_EQ + op` 寻址的约定。槽 id 仅运行时按 dunder 名绑定，不进字节码序列化，重排不破坏 .klc 兼容。
+**槽位按热度排布**（与 vm_ops.h 指令分层同一纪律，见 §11.7；分层依据是执行频率，是槽布局自身的设计，不依赖某槽是否已有对应指令）：hot 槽（比较协议 `SLOT_EQ..SLOT_GE` + `SLOT_HASH`）占前 56 字节——一条 cache line 内，dict 探测的 hash + eq 永不越线；warm 槽居第二线：序列协议（`SLOT_LEN` / `SLOT_GET_ITEM` / `SLOT_SET_ITEM` / `SLOT_CONTAINS`）、切片协议（`SLOT_GET_SLICE` / `SLOT_SET_SLICE`）、映射下标（`SLOT_GET_SUB` / `SLOT_SET_SUB`）、算术族中最热的 `SLOT_ADD`；cold 槽殿后：`SLOT_STR`、其余算术（`SLOT_SUB..SLOT_NEG`）、位运算族（`SLOT_SHL` / `SLOT_SHR` / `SLOT_BIT_AND` / `SLOT_BIT_OR` / `SLOT_BIT_XOR` / `SLOT_BIT_NOT`）。`EQ..GE` 连续且 EQ 打头，保留 richcmp 按 `SLOT_EQ + op` 寻址的约定。槽 id 仅运行时按 dunder 名绑定，不进字节码序列化，重排不破坏 .klc 兼容。
 
 **唯一例外**：`gc_mark` 保留为 C 函数指针——纯 GC 引擎内部回调，无 Koala 语义，不进方法表（已作为 `DEFINE_TYPE` 的参数）。C 侧快速分配器（`kl_new_bytes` 等）绕过 `__init__` 直铺内存，属设计内行为，不受影响。
 
-### 7.4 手动泛型展开：`@specialize` 注解与擦除兜底
+### 7.4 手动泛型展开：`@specialized` 注解与擦除兜底
 
-**泛型默认擦除；想要单态，显式注解——一个注解、两个形态、类与函数两种声明。** `list[T]` 永远是单一 `list_type`、TValue 打包存储、擦除语义，不做任何隐式特化（对照 .NET / Swift 把特化做成用户不可见的优化，违背 nothing hidden）。注解按**放置位置**分流两种行为，类与函数各得其所，合起来是 C++ 特化能力的完整版图（显式实例化 + 全特化 × 类模板 + 函数模板）——但 ODR 陷阱、声明顺序规则一个没带过来：
+**泛型默认擦除；想要单态，显式注解——一个注解、两个形态、类与函数两种声明。** `list[T]` 永远是单一 `list_type`、TValue 打包存储、擦除语义，不做任何隐式特化（对照 .NET / Swift 把特化做成用户不可见的优化，违背 nothing hidden）。注解按**放置位置**分流两种行为，类与函数各得其所，合起来是 C++ 特化能力的完整版图（显式实例化 + 全特化 × 类模板 + 函数模板）——但 ODR 陷阱、声明顺序规则一个没带过来。**注解实参只允许基本类型**（int/int8/16/32/64、uint 族、float 族、bool 等基本类型），Ref 类型（用户自定义 class）不允许——特化服务于密集存储，用户类型无密集表示可换，强制走擦除路径。
 
 ```koala
-@specialize(list[int64])                        // 映射：具体类认领一个实例化
+@specialized(list[int64])                        // 映射：具体类认领一个实例化
 pub class int64list : MutableSequence[int64] { ... }
 
-@specialize(Foo[int], Foo[float64])             // 生成：泛型类列出要物化的实例化
+@specialized(Foo[int], Foo[float64])             // 生成：泛型类列出要物化的实例化
 class Foo[T: Arithmetic] { ... }
 
-@specialize(max[int64], max[float64])           // 生成：泛型函数同理
-func max[T: Comparable](x T, y T) T { ... }
+@specialized(int, uint, float)                    // 生成：泛型函数同理
+pub func max[T: Comparable](x T, y T) T { ... }
 ```
 
 | ↓ | 泛型声明上：**生成** | 具体声明上：**映射** |
@@ -264,15 +264,15 @@ func max[T: Comparable](x T, y T) T { ... }
 
 **关联机制（两形态共享）：注解即开关，拼写只是查询触发器；关联点是符号，不是 typespec。** 注解实参 `Foo[int]` 由标准 typespec 解析器解析成一个真实例化——编译器零拼接；注解处理时不设 origin 指针、不做任何 typespec 转化，而是把这个实例化 typespec 的 **sym_id 直接关联到具体类的符号**——Bar 这个符号由此被两个 typespec 关联（它自己的与 `Foo[int]`），二者彻底分离，唯一连接点是符号（一个符号挂多个 typespec 在 Koala 已有先例：KlassSymbol 的 `ts` 与 `instance_ts`）。此后代码中任何 `Foo[int]`（注解位、构造点、嵌套泛型如 `dict[str, list[int64]]`）走既有的 create-or-find 路径命中**同一个符号**——与直呼类名 `int64list(...)` 收敛到同一构造器、同一对象、同一 `typeof`；typespec 本身原样保留，报错与调试显示用户书写的样子。**未关联则照常实例化并擦除，是合法的普通实例化，不是错误**。类型的同一性由符号相等判定——类型系统既有判据，两个 typespec 一个符号即同一类型；决定 `Foo[int]` 含义的是可见的注解集合（可 grep、出处可在报错中指名），不是拼写本身——C++ 显式特化同款语义（`vector<bool>` 的特殊含义来自那条特化声明，而非拼写）。**推断与显式同路**：推断得到的实例化同样经此解析——`list(1, 2, 3)` 推出 T = int64 后构造的 `list[int64]` 走同一条 create-or-find 路径，命中同一符号、得到 int64list。机制对实参来源无感知（显式书写、推断所得、别处传入一律同规则）——区分来源需要额外的 provenance 追踪，违背零机制。由此闭集数值 list 在注解可见处**事实默认密集**（标准库自带注解，用户零拼写成本）；泛型体内的 `list[T]` 恒擦除的正解是：类型变量实参构不成具体实例化、无从关联——分界线是**具体 vs 类型变量**，而非显式 vs 推断。擦除兜底保留给两种情形：实参含类型变量，以及关联不存在（元素类型不在闭集、注解不可见）。
 
-**合法性大多由既有机器代持。** `@specialize(list[int64])` 的实参是一个真 typespec：元数校验、“首个必须是泛型声明”由实例化符号创建路径原生完成；类型变量实参在注解位无作用域，符号解析自然失败。剩余 checker 规则映射形态三条——实参必须是**完整实例化**（裸 `list` 拒绝）、宿主必须是**具体声明**、同一实例化的符号关联只能建立一次（第二次关联即冲突报错并指名两个出处——唯一性检测由符号关联天然承担，无需链接期去重）。映射后实参元组成为惰性标签，成员解析一律以符号为准（具体类、非泛型），不走泛型替换路径。嵌套实参如 `Foo[list[int64]]` 因此合法且良定义：键的解析与代码中任何 typespec 同规则（内层映射先归约，键 = (Foo, int64list)），组合性免费获得。`@specialize` 是 class 上唯一的注解（`@native` 只出现在方法 / 函数上），也出现在泛型 func 声明上；klc 条目存一个可选属性即可，无注解列表机制。
+**合法性大多由既有机器代持。** `@specialized(list[int64])` 的实参是一个真 typespec：元数校验、“首个必须是泛型声明”由实例化符号创建路径原生完成；类型变量实参在注解位无作用域，符号解析自然失败。剩余 checker 规则映射形态三条——实参必须是**完整实例化**（裸 `list` 拒绝）、宿主必须是**具体声明**、同一实例化的符号关联只能建立一次（第二次关联即冲突报错并指名两个出处——唯一性检测由符号关联天然承担，无需链接期去重）。映射后实参元组成为惰性标签，成员解析一律以符号为准（具体类、非泛型），不走泛型替换路径。嵌套实参如 `Foo[list[int64]]` 因此合法且良定义：键的解析与代码中任何 typespec 同规则（内层映射先归约，键 = (Foo, int64list)），组合性免费获得。`@specialized` 是 class 上唯一的注解（`@native` 只出现在方法 / 函数上），也出现在泛型 func 声明上；klc 条目存一个可选属性即可，无注解列表机制。**注解实参限基本类型**：`@specialized(list[int64])` 合法，`@specialized(list[MyClass])` 拒绝（MyClass 是 Ref 类型，无密集表示可换，强制走擦除路径）。
 
 **生成形态：编译器替你写 Bar。** 注解挂在泛型声明自身上，编译器对每个列出的实例化做一次 AST 替换（`T := int`），合成出它本该让你手写的具体声明，再走**现成的标准流水线**（check→irgen→isel）：`Foo[T]` 里的 `x + y` 替换后静态解析为 int 加法，isel 直落 `OP_INT_ADD`；约束（`int : Arithmetic`）在同一流水线里自然校验；生成声明显示名诚实（`Foo[int]`，内部命名与可达性见下文）——这是 C++ 显式实例化（`template class Foo<int>;`）的注解版。机制上生成与映射**共享同一台关联机器**：合成出具体类后，实例化符号的 sym_id 照映射形态的规则关联到合成类的符号——两个形态的差别只在具体声明从哪来（手写或合成）。它把“用户要写重复代码”这笔税在**编译器可改写的范围内清零**：一个 20 方法的 `Matrix[T]` 要单态，不再手抄 20 个方法；手写具体类自此只剩一种不可替代的用途——**换物理表示**（注解只做映射，不替你写存储：`int64list` 的裸 `int64_t[]` 仍要手写）。
 
-**泛型函数：矩阵补全，机制账诚实交一笔。** 函数侧主打生成，省的不是代码行数，是 **body 里每条指令的分发**：擦除的泛型体内 `x < y` 是 itable 查找加间接调用，生成的 `max[int64]` 直落 `OP_INT_LT`，调用点本身仍是 rel32 直调——内建实参出类型化指令，用户类型走 slots，**泛型性（itable）一行不剩**。生成体完全具体，因此**不依赖擦除分发轨的成熟度**——@specialize 可作为泛型函数先行落地的路径，不必等擦除轨补齐。映射形态在函数侧退居小众位：给某一实例换算法（C++ 函数模板全特化的经典用途，如 `float32` 走特殊路径的 `max_f32`），外加唯一一条函数侧专属规则——**签名匹配**（具体函数签名 = 泛型签名替换后的形状；类侧无此条，构造器签名天然由 `__init__` 对齐）。机制成本：函数调用不产生 typespec，搭不上实例化符号缓存的便车——需要 **FuncSymbol 上一张特化表**（注解填充、klc 持久化，与既有的注解属性机制同款）加**调用解析里一个查询**：推断实参全具体 → 查表命中则直调特化符号，未命中照旧擦除泛型调用。`max(1, 2)` 推出 T = int64 → 同一查询 → 直调 `max[int64]`——provenance-blind 原样继承。查询必须长在 **checker 的共享调用解析**里（而非源码级钩子）：生成体走标准流水线，体内对其他泛型函数的调用经同一条路解析——`max[int64]` 的 body 调 `less(x, y)`，实参已具体，命中 `less[int64]` 则生成体内也是直调，**“内层先归约”由此从嵌套 typespec 延伸到调用图**。递归自动安全（生成体的递归调用解析回自身，替换已具体）；实例化集合 = 注解集合，**编译时间有界是构造性保证**——C++ 模板爆炸的根源是自动传递物化一切，这里传递的是解析，不是物化。泛型类里的方法随类生成整体覆盖；方法自带类型参数的形态若将来出现，函数规则一字不差。
+**泛型函数：矩阵补全，机制账诚实交一笔。** 函数侧主打生成，省的不是代码行数，是 **body 里每条指令的分发**：擦除的泛型体内 `x < y` 是 itable 查找加间接调用，生成的 `min[int64]` 直落 `OP_INT_LT`，调用点本身仍是 rel32 直调——内建实参出类型化指令，用户类型走 slots，**泛型性（itable）一行不剩**。生成体完全具体，因此**不依赖擦除分发轨的成熟度**——@specialized 可作为泛型函数先行落地的路径，不必等擦除轨补齐。映射形态在函数侧退居小众位：给某一实例换算法（C++ 函数模板全特化的经典用途，如 `float32` 走特殊路径的 `max_f32`），外加唯一一条函数侧专属规则——**签名匹配**（具体函数签名 = 泛型签名替换后的形状；类侧无此条，构造器签名天然由 `__init__` 对齐）。机制成本：函数调用不产生 typespec，搭不上实例化符号缓存的便车——需要 **FuncSymbol 上一张特化表**（注解填充、klc 持久化，与既有的注解属性机制同款）加**调用解析里一个查询**：推断实参全具体 → 查表命中则直调特化符号，未命中照旧擦除泛型调用。`max(1, 2)` 推出 T = int64 → 同一查询 → 直调 `max[int64]`——provenance-blind 原样继承。查询必须长在 **checker 的共享调用解析**里（而非源码级钩子）：生成体走标准流水线，体内对其他泛型函数的调用经同一条路解析——`max[int64]` 的 body 内 `x > y` 经 `Comparable` intf-table 解析为 `OP_INT_GT`，**泛型性一行不剩**——若 body 调另一 `@specialized` 泛型函数，实参已具体同样直调特化符号，**“内层先归约”由此从嵌套 typespec 延伸到调用图**。递归自动安全（生成体的递归调用解析回自身，替换已具体）；实例化集合 = 注解集合，**编译时间有界是构造性保证**——C++ 模板爆炸的根源是自动传递物化一切，这里传递的是解析，不是物化。泛型类里的方法随类生成整体覆盖；方法自带类型参数的形态若将来出现，函数规则一字不差。
 
 **生成物的命名与可达性：dunder 名 + pub 供链接 + magic 挡名字。** 自动生成的类与函数取名 `__xxx__`、同时 pub——但 **pub 管链接，不管访问**：职责是随模块导出、klc 持久化（magic 标记一并序列化）、跨模块关联解析可寻；挡住源码级按名引用的是 magic——表达式调用位与 typespec 位都不行（`__Foo_int__` 不能出现在类型注解里），**入口只有一个：实例化拼写**。与映射形态构成原则性不对称——映射宿主是手写一等公民（正常名，类名与拼写两个入口），生成物是编译器产物（单一入口）；想要可命名的类就自己写，用户的依赖面收敛为“自己的拼写与自己的注解”，编译器命名方案因此不构成公共 API。两态测试随之更干净：注解关掉时符号根本不存在，开着时不可名——开关任何一态都无法按名依赖生成物。名字从来不是查找键（关联按 sym_id、特化表按（泛型，实参）），**mangling 防碰撞因此不是正确性约束**：两个模块各自的 Foo 各生成 `__Foo_int__` 互不相扰（各自 symtab，永不按名合并）。命名分两层——内部名 `__xxx__`（symtab / klc 标识，裸工具可见，同 nm 看 C++ mangled 名），显示名 = 实例化拼写（`Foo[int]`，typeof 与诊断用，名字诚实）。
 
-**magic 按符号划界，不按名字形状。** 生成物的不可调用来自 magic 标记，而非 dunder 拼写——直接调用禁令的适用对象始终是三类符号：内置运算符钩子（§3 的语法糖专用族）、内置 magic 函数（`len` 等 intrinsic）、@specialize 自动生成的类与函数。**用户自写的 `__foo__` 是合法声明、普通可调用的符号，不做任何拒绝**——dunder 名字形状本身不构成 magic。先例同款：JVM synthetic 成员在 class 文件里而不在源语言里，C++ 显式实例化符号有外部链接而 mangled 名用户写不出；Koala 用 dunder 当 synthetic 标记还有一层便宜——`__xxx__` 本就按 IDENT 正常 lex，lexer 零改动。
+**magic 按符号划界，不按名字形状。** 生成物的不可调用来自 magic 标记，而非 dunder 拼写——直接调用禁令的适用对象始终是三类符号：内置运算符钩子（§3 的语法糖专用族）、内置 magic 函数（`len` / `hash` 等 intrinsic）、@specialized 自动生成的类与函数。**用户自写的 `__foo__` 是合法声明、普通可调用的符号，不做任何拒绝**——dunder 名字形状本身不构成 magic。先例同款：JVM synthetic 成员在 class 文件里而不在源语言里，C++ 显式实例化符号有外部链接而 mangled 名用户写不出；Koala 用 dunder 当 synthetic 标记还有一层便宜——`__xxx__` 本就按 IDENT 正常 lex，lexer 零改动。
 
 **密集类是普通类，不是新的语言实体。** 可直接构造（`int64list(1, 2, 3, x)`）、可注解、可导入、`typeof` 诚实返回 `"int64list"`；删掉注解，坏掉的只是 `list[int64]` 这个拼写，类本身毫发无损——部署顺序因此是"类先行，映射后补"。对照：Java `IntStream` 家族是擦除默认 + 手写特化但无映射语法（Valhalla 想补的正是这块）；C++ `vector<bool>` 特化换表示但同名静默坑人——Koala 用显式注解 + 独立类名，替换关系全程可 grep。
 
@@ -319,10 +319,10 @@ func max[T: Comparable](x T, y T) T { ... }
 
 | 类型 | 要点 |
 |------|------|
-| `str` | 字符串 |
+| `str` | 字符串；`str(obj)` 接受 `any` 经 `__str__()` 做通用字符串转换 |
 | `bytes` | 固定长度字节数组，24 方法；位置式写族 |
 | `ByteBuf` | 可变字节缓冲，32 方法；append 式写族 |
-| `list` | 动态数组（泛型擦除，TValue 打包存储；显式 `list[int64]` 等拼写经 `@specialize` 映射到密集类，见 §7.4） |
+| `list` | 动态数组（泛型擦除，TValue 打包存储；显式 `list[int64]` 等拼写经 `@specialized` 映射到密集类，见 §7.4） |
 | `int64list` / `float64list` / `boollist` | 密集容器三件套（§7.4）：裸 int64 / 裸 double / 位压缩 bool，普通一等类 |
 | `dict` | **插入序**哈希映射；Python 便利方法 + Rust 位置族（pop_first / peek_last）+ Java remove 命名 |
 | `HashSet` / `TreeSet` | 集合并代数 |
@@ -337,7 +337,7 @@ bytes / ByteBuf 的二进制编解码职责已**剥离至官方库 encoding**，
 - for 循环直接接受 Iterator，支持元组解包。
 - **内建容器原生展开**：for 对 range / tuple / list / dict / bytes 等内建类型做原生展开——尤其 `range` 循环**不创建 range 对象、不走 iterator 协议**，编译器直接生成循环体，热路径零分配零分发。
 - 顶层组合子：`enumerate` / `zip` 现役；`filter` / `map` / `reduce` 在路线图（注释状态）。
-- **明确不做**：`sum` / `any` / `all` / `sorted` / `min` / `max`（作者定案：简洁优先）。
+- **明确不做**：`sum` / `any` / `all` / `sorted`（作者定案：简洁优先）。`min` / `max` 已实现为泛型函数 `min[T: Comparable]` / `max[T: Comparable]`，`@specialized(int, uint, float)` 生成单态（见 §7.4）。
 - view 语义只用于固定长度类型，动态容器用 copy。
 
 ### 8.5 包编程规范
@@ -485,11 +485,11 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 
 ### 11.6 测试体系
 
-- **基建**：采用 LLVM 项目的 lit + FileCheck 工业标准（lit.cfg / ShTest / RUN 指令），test/ 下 127 个测试文件、2600+ 行 CHECK 断言。
+- **基建**：采用 LLVM 项目的 lit + FileCheck 工业标准（lit.cfg / ShTest / RUN 指令），test/ 下 139 个测试、2800+ 行 CHECK 断言。
 - **三层金字塔**：
   - `test-kl`（30）——前端语言特性（cast、slice、if-let、包管理…）
   - `test-ir`（35）——优化器逐 pass 验证（ssa、sccp、isel、lsra、fusion、tailcall…）
-  - `test-run`（64）——端到端运行（泛型、链表/树数据结构、LRO、intf 调用、IO…）
+  - `test-run`（73）——端到端运行（泛型、链表/树数据结构、LRO、intf 调用、IO…）
 - **观察面全覆盖**：RUN 行覆盖 no-opt-ir / ssa / ir / lir / vreg / code / itable 全部 7 个 dump 阶段——"无隐藏特性"的工程回响：每个可观察阶段都有断言守护。
 - **负向断言文化**：优化器测试大量使用 CHECK-NOT 守护"不过度优化"（如不同常量的 phi 必须保留、死分支常量必须清除），测试的是正确性边界而非仅优化效果——LLVM 测试文化的核心实践。
 - **诊断与开关回归**：编译器错误消息有专门的 `2>&1` 回归测试；--int-trap / --float-trap / --fusion / --tail-call 每个编译开关均有对应测试。
@@ -539,7 +539,7 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 |------|-----------|
 | 语义直觉 | Python（插入序 dict、dunder、enumerate/zip、便利方法层） |
 | 契约机制 | Rust 系（intf-table、trait 约束），无生命周期 / unsafe 负担 |
-| 泛型表示 | 擦除兜底 + `@specialize` 手动展开（映射换表示 / 生成换单态，类与函数双声明）：C++ 特化的完整版图、Java 擦除拿不到的出口；无 .NET / Valhalla 运行期泛型机器——生成只是同一份源码按注解再过一遍标准流水线 |
+| 泛型表示 | 擦除兜底 + `@specialized` 手动展开（映射换表示 / 生成换单态，类与函数双声明）：C++ 特化的完整版图、Java 擦除拿不到的出口；无 .NET / Valhalla 运行期泛型机器——生成只是同一份源码按注解再过一遍标准流水线 |
 | 错误处理 | C 的返回值 + 极简 panic；拒 Java try-catch、拒 Go defer |
 | 工程布局 | 学 Go（encoding 分包），避 Go 之短（cgo、无重载） |
 | 对象模型 | 超越 Java（无 Object 神类，根契约零 boilerplate）与 Kotlin（自动遵循免声明） |

@@ -1,0 +1,47 @@
+// RUN: koala %s --package-name=foo | filecheck %s
+
+class MyClass {
+    var value int
+    func __init__(v int) {
+        value = v
+    }
+
+    func __str__() str {
+        return format("MyClass(value={})", value)
+    }
+}
+
+class Container[T] {
+    var item T
+    func __init__(v T) {
+        item = v
+    }
+    func get() T {
+        return item
+    }
+
+    func __str__() str {
+        return format("Container(item={})", item)
+    }
+}
+
+let c1 Container[MyClass] = Container[MyClass](MyClass(42))
+let v1 = c1.get()
+
+let c2 Container[Container[int]] = Container[Container[int]](Container[int](10))
+let v2 = c2.get()
+let v3 = v2.get()
+
+let c3 Container[Container[MyClass]] = Container[Container[MyClass]](Container[MyClass](MyClass(1)))
+
+print(c1, v1)
+print(c2)
+print(v2)
+print(v3)
+print(c3)
+
+// CHECK: Container(item=MyClass(value=42)) MyClass(value=42)
+// CHECK: Container(item=Container(item=10))
+// CHECK: Container(item=10)
+// CHECK: 10
+// CHECK: Container(item=Container(item=MyClass(value=1)))

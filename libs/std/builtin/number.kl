@@ -215,14 +215,6 @@ pub class int64 : Comparable & Arithmetic & BitwiseOperators {
     /// Converts `self` to a `float64`.
     @native
     pub func to_float() float64 {}
-
-    /// Returns the smaller of `self` and `other`.
-    @native
-    pub func min(other int64) int64 {}
-
-    /// Returns the larger of `self` and `other`.
-    @native
-    pub func max(other int64) int64 {}
 }
 
 /// An 8-bit unsigned integer.
@@ -390,14 +382,6 @@ pub class uint64 : Comparable & Arithmetic & BitwiseOperators {
     /// Converts `self` to a `float64`.
     @native
     pub func to_float() float64 {}
-
-    /// Returns the smaller of `self` and `other`.
-    @native
-    pub func min(other uint64) uint64 {}
-
-    /// Returns the larger of `self` and `other`.
-    @native
-    pub func max(other uint64) uint64 {}
 }
 
 /// A 16-bit floating-point number (half precision).
@@ -539,12 +523,4 @@ pub class float64 : Comparable & Arithmetic {
     /// Returns `true` if `self` is positive or negative infinity.
     @native
     pub func is_inf() bool {}
-
-    /// Returns the smaller of `self` and `x`.
-    @native
-    pub func min(x float64) float64 {}
-
-    /// Returns the larger of `self` and `x`.
-    @native
-    pub func max(x float64) float64 {}
 }

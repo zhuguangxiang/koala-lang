@@ -146,9 +146,9 @@
         "yytext",
         "zhuguangxiang"
     ],
-    "editor.fontFamily": "'Ubuntu Mono', 'Fira Code', 'JetBrains Mono'",
+    "editor.fontFamily": "'Ubuntu Mono', 'Fira Code', 'Victor Mono', 'JetBrains Mono'",
     "editor.fontLigatures": true,
-    "editor.fontSize": 14,
+    "editor.fontSize": 14.3,
     // "editor.lineHeight": 20,
     // "editor.letterSpacing": 0.0,
     "editor.renderWhitespace": "none",
@@ -166,7 +166,7 @@
     "files.insertFinalNewline": true,
     "notebook.insertFinalNewline": true,
     "debug.console.fontFamily": "'Victor Mono'",
-    "editor.scrollbar.verticalScrollbarSize": 10,
+    "editor.scrollbar.verticalScrollbarSize": 18,
     // "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
         "textMateRules": [
@@ -186,12 +186,12 @@
     "cmake.options.statusBarVisibility": "icon",
     "editor.cursorSurroundingLines": 0,
     "cmake.setBuildTypeOnMultiConfig": true,
-    "editor.accessibilityPageSize": 10,
+    "editor.accessibilityPageSize": 16,
     "C_Cpp.errorSquiggles": "disabled",
     "dateTime.use24HourClock": false,
     "dateTime.showAMPM": true,
     "C_Cpp.default.compilerPath": "/usr/bin/gcc",
-    "editor.fontWeight": "400",
+    "editor.fontWeight": "100",
     "cmake.configureOnEdit": false,
     // "clang-format.executable": "/usr/bin/clang-format",
     // "http.proxy": "http://127.0.0.1:20171",
@@ -261,8 +261,14 @@
     ],
     "editor.inlayHints.enabled": "off",
     "workbench.activityBar.location": "bottom",
-    "editor.lineNumbers": "relative",
+    "editor.glyphMargin": false,
+    "editor.lineNumbers": "off",
+    "editor.lineDecorationsWidth": 0,
+    // "windows.zoomLevel": 0,
+    // "zenMode.restore": true,
+    // "zenMode.zoomLevel": 0,
     "autoHide.autoHideSideBar": true, // 点击编辑器时自动隐藏侧边栏
     "autoHide.autoHidePanel": false, // 底部终端是否也自动隐藏（建议设为 false，方便看报错）
-    "autoHide.delay": 300 // 点击后延迟 300 毫秒隐藏（给眼睛一个缓和时间）
+    "autoHide.delay": 300,
+    "workbench.editor.showTabs": "multiple" // 点击后延迟 300 毫秒隐藏（给眼睛一个缓和时间）
 }

@@ -4,23 +4,24 @@
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-08-22
+> 更新日期：2026-08-30
 
 ---
 
-## 1. VM 侧 `OP_NUM_*` handler 族（优先级最高）
+## 1. VM 侧 `OP_NUM_*` handler 族
 
-**现状**：`vm_ops.h` 中仅 `OP_NUM_EQ` 有 TARGET handler，其余 15 条
-（ADD/SUB/MUL/DIV/MOD、AND/OR/XOR/SHL/SHR、NE/LT/GT/LE/GE）缺失，
-执行到时落入 `eval.c:176` 的 UNREACHABLE 分支直接 abort。
+**进展（2026-08-30）**：16 条中已完成 **11 条**——比较族 6 件（EQ/NE/LT/LE/GT/GE）
+与算术族 5 件（ADD/SUB/MUL/DIV/MOD）均有 TARGET handler。`test_generic_9`（比较）
+与算术分发均转绿。架构变化：`typeslots.c` 已删除，slots 改为 `TypeObject` 上的
+`Vector`（`slotid.h` 独立头文件），slotdefs 迁移至 `klc.c`；算术族 TARGET 通过
+`kl_slot_call_one_arg` 走 slots 分发。
 
-**影响**：
-- `test_generic_9` 基线失败的直接原因；
-- 任何经泛型 trait 约束的数值运算（如 `func f[T : Arithmetic](a T, b T) T { return a + b }`）
-  编译正常、运行时崩溃。
+**未完成**：位运算族 5 件——AND / OR / XOR / SHL / SHR，opcode 与 slot id
+（`SLOT_BIT_AND` / `SLOT_BIT_OR` / `SLOT_BIT_XOR` / `SLOT_SHL` / `SLOT_SHR`）
+均已定义，缺 VM TARGET handler。
 
-**施工方向**：按 `OP_NUM_EQ` 的模式补齐 handler——经当前帧的 intf-table
-O(1) 分发到具体类型的 `__add__` 等方法，保持零 call frame 语义。
+**施工方向**：按算术族模式补 5 个 TARGET——`kl_slot_call_one_arg(self, arg,
+SLOT_BIT_AND)` 等。
 
 ---
 
@@ -57,7 +58,7 @@ O(1) 分发到具体类型的 `__add__` 等方法，保持零 call frame 语义�
 
 **现状**：`koala.y` 已有 `in_expr` 语法规则、AST 已有 `EXPR_IN_KIND`，
 但 `parser_visit_expr` 与 irgen 的分发表都没有该 kind 的 handler——
-写 `5 in r` 直接**段错误**（NULL handler 跳转地址 0）。
+写 `5 in r` 编译失败（`koala: compilation failed`，不再段错误）。
 
 **影响**：运算符显式调用禁令（43 项，见设计文档第 3 节）落地后，
 `__contains__` 不能显式调用，而 `in` 糖又未实现——
@@ -267,7 +268,18 @@ Koala 是完成度极高的原创设计：不是“某语言 + 某特性”的�
 
 > 2026-08-22 建立。实现完成一项打勾一项，不删除。
 
-### 7.1 现状快照（建立时点，只读核实）
+### 7.1 进展更新（2026-08-30，取代下述原始快照）
+
+- typeslots.c 已删除，slots 改为 `TypeObject` 上的 `Vector`；slotid.h 独立头文件；
+- slotdefs 迁移至 `klc.c`（`SlotDef slotdefs[]` 数组）；
+- 比较族 6 件 TARGET 全齐（含 int64/uint64/float64 快路径）；
+- 算术族 5 件 TARGET 全齐（ADD/SUB/MUL/DIV/MOD），通过 `kl_slot_call_one_arg` 走 slots 分发；
+- printer.c 覆盖度待核实；
+- 位运算族 5 件（AND/OR/XOR/SHL/SHR）仍未实现；
+- test_generic_9 / test_generic_14 均绿；
+- 新增 `@specialized` 泛型函数单态化（commit `3d9ea1a6`，test_specializd.kl 验证通过）。
+
+### 7.1b 原始快照（2026-08-22 建立时点，已部分过时，保留备查）
 
 - opcode_list.h：16 条 OP_NUM_*（算术 ADD/SUB/MUL/DIV/MOD、位运算 AND/OR/XOR/SHL/SHR、
   比较 EQ/NE/LT/LE/GT/GE），全部 FORMAT_RRR；
@@ -285,26 +297,24 @@ Koala 是完成度极高的原创设计：不是“某语言 + 某特性”的�
 
 ### 7.2 任务清单
 
-**第一批：比较族（零挂接改动，修 test_generic_9）**
+**第一批：比较族** ✅ 全部完成
 
-- [x] OP_NUM_EQ 增加 int64 / uint64 / float64 快路径（初版两处 bug 已修：
-      `==` 笔误改赋值、float 分支补 `DISPATCH()`）——2026-08-22 完成
-- [x] OP_NUM_NE / LT / LE / GT / GE 五个 TARGET（EQ 模板 + 同款快路径）——2026-08-22 完成
-- [x] uint64 快路径：拆独立分支 + `(uint64_t)ival` 无符号比较，六条全齐
-      （EQ/NE/LT/LE/GT/GE），与 OP_UINT_LT 既有约定一致——2026-08-22 完成
-- [ ] printer.c 补 num.ne / lt / le / ge 四个 case
+- [x] OP_NUM_EQ 增加 int64 / uint64 / float64 快路径——2026-08-22
+- [x] OP_NUM_NE / LT / LE / GT / GE 五个 TARGET——2026-08-22
+- [x] uint64 快路径：`(uint64_t)ival` 无符号比较，六条全齐——2026-08-22
+- [x] test_generic_9 转绿——2026-08-22
 
-**第二批：算术 + 位运算（补 typeslots 脚手架）**
+**第二批：算术族** ✅ 全部完成（通过 slots 分发，非 typeslots.c 蹦床）
 
-- [ ] typeslots.c：`slot_tp_binary` 公共助手 + 10 个 trampoline
-      （ADD/SUB/MUL/DIV/MOD/LSHIFT/RSHIFT/BIT_AND/BIT_OR/BIT_XOR）
-- [ ] num_slotdefs 填 FUNC；新增 bit_slotdefs（dunder 名以 number.kl 为准：
-      `__shl__` / `__shr__` / `__bitand__` / `__bitor__` / `__bitxor__`）
-- [ ] kl_tp_install_slots：补两段绑定循环（首个 dunder 命中时惰性分配
-      tp->arith / tp->bit，保留"已实现不覆盖"语义）
-- [ ] 10 个 TARGET（tp->arith->xxx / tp->bit->xxx，ASSERT 三件套）
-- [ ] 内建类型算术/位运算裁决：TARGET 快路径（同比较族）还是 intrinsic 加载机制
-- [ ] printer.c 补 num.add/sub/mul/div/mod/and/or/xor/shl/shr 十个 case
+- [x] OP_NUM_ADD/SUB/MUL/DIV/MOD 五个 TARGET（`kl_slot_call_one_arg`
+      走 SLOT_ADD..SLOT_MOD）
+- [x] test_generic_14 用户自定义数值类全链路验证通过
+
+**第二批续：位运算族** ❌ 未实现
+
+- [ ] OP_NUM_AND/OR/XOR/SHL/SHR 五个 TARGET
+      （`kl_slot_call_one_arg(self, arg, SLOT_BIT_AND)` 等）
+- [ ] printer.c 位运算 case 核实与补齐
 
 **第三批：num.* 比较跳转融合（jmp fusion）**
 
@@ -340,24 +350,15 @@ printer `print_jmp_cond_fused`、cgen `fused_jmp()` + `lower_fused_jmp` 均就�
 
 **验证**
 
-- [x] test_generic_9 转绿（六件比较运算符 × int64/float64，24 组输出全对齐）
-      ——2026-08-22 lit 单测 PASS
-- [ ] uint64 泛型比较测试用例：六条 TARGET 的 uint64 快路径暂无测试覆盖——字面量
-      推不出 uint64，需先确认 `uint64(...)` 构造器路径能否参与泛型推导，再补进
-      test_generic_9 或另建用例（重点验 LT/GT 的 `(uint64_t)` 无符号比较，
-      用高位为 1 的大数如 UINT64_MAX 与小数比较）
-- [x] test-run 新增用户自定义数值类用例（真字节码体 dunder，验证 slots 全链路，
-      避开 intrinsic 空体问题）——test/test-run/test_generic_14.kl
-      （Score 类六件比较 dunder + 泛型 Comparable 函数全六件 + max/min if-branch，
-      16 组输出对齐），2026-08-22 lit 单测首跑 PASS（泛型比较用户类
-      OP_NUM_* 兜底链路 slot_tp_richcmp → dunder 验证通过）
-- [ ] 全量 test-debug.sh 无新增回归
+- [x] test_generic_9 转绿（六件比较运算符 × int64/float64）——2026-08-22
+- [x] test_generic_14 用户自定义数值类全链路 PASS——2026-08-22
+- [x] 全量 lit-tests 基线：**136/139 通过**（97.84%），2 Unresolved
+  （test_bytes.kl / test_io.kl），1 FAIL（test_pkg_4.kl，LD_LIBRARY_PATH 未设置）
 
 ### 7.3 决策点（待作者拍板）
 
-1. @intrinsic 空体的系统性解法：比较族已走 TARGET 快路径；算术族跟随快路径，还是
-   走定案中的"klc 增加 intrinsic flag + 加载期 C 实现查找 + sentinel"（klc 格式需动），
-   二选一或分阶段。
+1. @intrinsic 空体的系统性解法：比较族已走 TARGET 快路径；**算术族已确定走
+   slots 调用**（`kl_slot_call_one_arg`）；位运算族跟随同一模式。
 2. 一元 `-` / `~`（OP_UNARY_* 仅 IR 伪指令）与泛型复合赋值仍是独立项，不在本批。
 
 ---
