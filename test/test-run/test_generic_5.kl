@@ -87,10 +87,10 @@ func bar() {
 
 func foo_bar() {
     // TODO:
-    let list1 = List[int, ListNode[int, str]?](1)
-    let h = list1.getHead()
-    let t = list1.getTail()
-    let v = list1.getExtra()
+    // let list1 = List[int, ListNode[int, str]?](1)
+    // let h = list1.getHead()
+    // let t = list1.getTail()
+    // let v = list1.getExtra()
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---

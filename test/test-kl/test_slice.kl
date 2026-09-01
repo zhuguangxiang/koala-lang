@@ -8,6 +8,6 @@ s[0]
 
 let l = [1, 2, 3]
 
-l[0:2].append(4)
+l[0:2].push(4)
 
 // CHECK-NOT: {{.}}

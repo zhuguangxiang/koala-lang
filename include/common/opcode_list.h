@@ -2004,46 +2004,44 @@ X(OP_SEQ_GET_IMM, FORMAT_RRImm, "seq.get_imm")
 X(OP_SEQ_SET_IMM, FORMAT_RRImm, "seq.set_imm")
 
 /**
- * OP_SEQ_LEN — get the length of a sequence
- *
- * FORMAT_RxRx:
- *     | op:8 | rd:12 | rs:12 |
- *
- * Semantics:
- *     rd = seq_len(rs)
- *
- * Description:
- *     Loads the length of the sequence in register rs into register rd.
- *     The length is obtained from the sequence's length operation.
- *
- * Notes:
- *     - This is a high-frequency operation and must be a VM opcode.
- *     - IRGen emits OP_CALL for len(x).
- *     - ISEL lowers OP_CALL "__len__" to OP_SEQ_LEN when rs is a sequence.
- */
-X(OP_SEQ_LEN, FORMAT_RxRx, "seq.len")
-
-/**
- * OP_SEQ_CONTAINS — membership test for sequence objects
+ * OP_SEQ_GET_SLICE — load an object using a slice index
  *
  * FORMAT_RRR:
- *     | op:8 | rd:8 | rs:8 | rv:8 |
+ *     | op:8 | rd:8 | rs:8 | rt:8 |
  *
  * Semantics:
- *     rd = (rv in rs)
+ *     rd = rs[rt]   // rt is a slice object
  *
  * Description:
- *     Evaluates whether the value in register `rv` is contained in the
- *     sequence object stored in register `rs`. The result (true or false)
- *     is written into register `rd`.
+ *     Loads an object from the container in register `rs` using the
+ *     slice descriptor in register `rt` as the index. The slice object
+ *     describes (start, end, step) and is interpreted according to the
+ *     container's indexing semantics.
  *
- * Notes:
- *     - This opcode is used for the `in` operator on sequence types.
- *     - IRGen emits OP_CALL "__contains__" for `x in y`.
- *     - ISEL lowers the call to OP_SEQ_CONTAINS when the type of `rs`
- *       supports sequence membership testing.
+ * Behavior:
+ *     - rt is a slice object
+ *     - The loaded TValue is written into rd
  */
-X(OP_SEQ_CONTAINS, FORMAT_RRR, "seq.contains")
+X(OP_SEQ_GET_SLICE, FORMAT_RRR, "seq.get_slice")
+
+/**
+ * OP_SEQ_SET_SLICE — store into a slice using a slice index
+ *
+ * FORMAT_RRR:
+ *     | op:8 | rs:8 | rt:8 | rv:8 |
+ *
+ * Semantics:
+ *     rs[rt] = rv   // rt is a slice object
+ *
+ * Description:
+ *     Stores elements from register `rv` into the slice of the container
+ *     in register `rs`, where the slice descriptor is in register `rt`.
+ *
+ * Behavior:
+ *     - rt is a slice object
+ *     - rv is an iterable of compatible element type
+ */
+X(OP_SEQ_SET_SLICE, FORMAT_RRR, "seq.set_slice")
 
 /*---------------------------------------------------------------+
  |  Map Protocol Instructions                                    |
@@ -2066,7 +2064,7 @@ X(OP_SEQ_CONTAINS, FORMAT_RRR, "seq.contains")
  *     - rs must be a map object
  *     - rk is a TValue key (string/int/tuple/etc.)
  *     - Performs a key lookup according to the mapping's semantics.
- *     - Raises KeyError if key is not found
+ *     - panic if the key is not present
  */
 X(OP_MAP_GET, FORMAT_RRR, "map.get")
 
@@ -2091,8 +2089,12 @@ X(OP_MAP_GET, FORMAT_RRR, "map.get")
  */
 X(OP_MAP_SET, FORMAT_RRR, "map.set")
 
+/*---------------------------------------------------------------+
+ |  Container(Seq&Map) Common Instructions                       |
+ +---------------------------------------------------------------*/
+
 /**
- * OP_MAP_LEN — get the number of entries in a mapping object
+ * OP_LEN — get the number of items in a container
  *
  * FORMAT_RxRx:
  *     | op:8 | rd:12 | rs:12 |
@@ -2101,20 +2103,15 @@ X(OP_MAP_SET, FORMAT_RRR, "map.set")
  *     rd = len(rs)
  *
  * Description:
- *     Loads the number of key–value entries contained in the mapping
- *     object stored in register `rs` into register `rd`. This opcode
- *     represents the length operation for mapping types.
- *
- * Notes:
- *     - This opcode is used when lowering `len(x)` for mapping objects.
- *     - IRGen always emits OP_CALL "__len__" for `len(x)`.
- *     - ISEL lowers the call to OP_MAP_LEN when the type of `rs`
- *       supports mapping length retrieval.
+ *     Loads the number of items contained in the container object
+ *     in register `rs` into register `rd`. This includes sequences,
+ *     sets, maps, strings, bytes, and any type that implements the
+ *     length protocol.
  */
-X(OP_MAP_LEN, FORMAT_RxRx, "map.len")
+X(OP_LEN, FORMAT_RxRx, "len")
 
 /**
- * OP_MAP_CONTAINS — membership test for mapping objects
+ * OP_CONTAINS — membership test for container objects
  *
  * FORMAT_RRR:
  *     | op:8 | rd:8 | rs:8 | rv:8 |
@@ -2123,17 +2120,16 @@ X(OP_MAP_LEN, FORMAT_RxRx, "map.len")
  *     rd = (rv in rs)
  *
  * Description:
- *     Evaluates whether the key in register `rv` exists in the mapping
- *     object stored in register `rs`. The result (true or false) is
- *     written into register `rd`.
+ *     Evaluates whether the value in register `rv` is contained in
+ *     the container object in register `rs`. The result (true or
+ *     false) is written into register `rd`.
  *
  * Notes:
- *     - This opcode is used for the `in` operator on mapping types.
- *     - IRGen emits OP_CALL "__contains__" for `x in y`.
- *     - ISEL lowers the call to OP_MAP_CONTAINS when the type of `rs`
- *       supports mapping membership testing.
+ *     - Lowered from IR `__contains__`
+ *     - ISEL selects the appropriate implementation based on type:
+ *       sequence, set, or map.
  */
-X(OP_MAP_CONTAINS, FORMAT_RRR, "map.contains")
+X(OP_CONTAINS, FORMAT_RRR, "contains")
 
 /*---------------------------------------------------------------+
  |  List related Instructions                                    |

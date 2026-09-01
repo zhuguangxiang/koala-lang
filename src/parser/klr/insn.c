@@ -792,7 +792,7 @@ KlrValue *klr_build_seq_len(KlrBuilder *bldr, KlrValue *obj, char *name)
         panic("'seq_len' op requires a reg/param/const value for obj");
     }
 
-    KlrInsn *insn = new_insn(OP_SEQ_LEN, 1, name);
+    KlrInsn *insn = new_insn(OP_LEN, 1, name);
     init_oper(&insn->opers[0], insn, obj, 0);
 
     insn->ts = int64_type_spec();

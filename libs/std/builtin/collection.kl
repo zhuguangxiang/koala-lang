@@ -3,21 +3,17 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// Base trait for all collections.
-/// Represents a group of objects, known as its elements.
-pub trait Collection[T] : Iterable[T] {
-    /// Return the number of items in the collection.
-    func __len__() int
-
-    /// Return true if the collection is empty, false otherwise.
-    func empty() bool
-}
-
 /// A Sequence is a read-only, indexable collection of elements.
 ///
 /// This trait is the standard internal type for variadic arguments (...T).
 /// It provides random access and searching capabilities without modification.
-pub trait Sequence[T] : Collection[T] {
+pub trait Sequence[T] : Iterable[T] {
+    /// Return the number of items in the sequence.
+    func __len__() int
+
+    /// Return true if the sequence contains the specified value `item`.
+    /// This is typically an O(n) operation.
+    func __contains__(item T) bool
 
     /// Get the item at the specified index.
     ///
@@ -27,10 +23,6 @@ pub trait Sequence[T] : Collection[T] {
 
     /// Return a shallow copy of a portion of the sequence defined by the slice.
     func __getslice__(r slice) Sequence[T]
-
-    /// Return true if the sequence contains the specified value `v`.
-    /// This is typically an O(n) operation.
-    func __contains__(v T) bool
 
     /// Return the first index of `value` in [start, end).
     /// If `end` is -1, the search extends to the end of the sequence.
@@ -61,8 +53,8 @@ pub trait MutableSequence[T] : Sequence[T] {
     /// This may change the length of the sequence.
     func __setslice__(r slice, val Iterable[T])
 
-    /// Append a new item with `value` to the end of the sequence.
-    func append(value T)
+    /// Push a new item with `value` to the end of the sequence.
+    func push(value T)
 
     /// Extend the sequence by appending all items from the iterable `items`.
     func extend(items Iterable[T])
@@ -88,7 +80,10 @@ pub trait MutableSequence[T] : Sequence[T] {
 
 /// A Map is an object that maps keys to values.
 /// A map cannot contain duplicate keys; each key can map to at most one value.
-pub trait Map[K, V] : Collection[(K, V)] {
+pub trait Map[K, V] : Iterable[(K, V)] {
+    /// Return the number of items in the map.
+    func __len__() int
+
     /// Return true if the map contains a mapping for the specified key.
     func __contains__(key K) bool
 
@@ -130,7 +125,10 @@ pub trait Map[K, V] : Collection[(K, V)] {
 
 /// A collection that contains no duplicate elements.
 /// Models the mathematical set abstraction.
-pub trait Set[T] : Collection[T] {
+pub trait Set[T] : Iterable[T] {
+    /// Return the number of items in the set.
+    func __len__() int
+
     /// Return true if the set contains the specified element.
     func __contains__(v T) bool
 
@@ -139,7 +137,9 @@ pub trait Set[T] : Collection[T] {
     func add(v T) bool
 
     /// Add all elements from the iterable to the set.
-    func extend(items Iterable[T])
+    /// Unlike `add` which inserts a single element, `update` inserts
+    /// multiple elements from any iterable source in one call.
+    func update(items Iterable[T])
 
     /// Remove an element from the set. Return true if the element was present.
     func remove(v T) bool

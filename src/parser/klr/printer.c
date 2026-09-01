@@ -1149,7 +1149,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_seq_set(name, insn, fp);
             break;
 
-        case OP_SEQ_LEN:
+        case OP_LEN:
             print_unary(insn, name, fp);
             break;
 

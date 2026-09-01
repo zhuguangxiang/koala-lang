@@ -390,3 +390,79 @@ printer `print_jmp_cond_fused`、cgen `fused_jmp()` + `lower_fused_jmp` 均就�
 
 **配套约定**：测试用例保持注释状态（test-run/test_bool_intf_complete.kl 的
 `intf_hash` / `intf_str` 及对应 print），待本项重开后启用。
+
+---
+
+## 9. list 的 push/pop 注解升级：@native → @intrinsic
+
+> 2026-08-31 建立。
+
+**现状**：`list.kl` 中 `push(value T)` 和 `pop(index = -1) T` 标记为 `@native`。
+
+**目标**：改为 `@intrinsic`，让编译器直接发射专用 VM 指令：
+- `push` → `OP_LIST_PUSH`（IRGen 已直接发射，无需 ISEL 特化）
+- `pop` → `OP_LIST_POP`（当前走 OP_CALL + ISEL 特化路径，需 ISEL 支持）
+
+**理由**：`push`/`pop` 是最高频的容器操作（循环构建列表、栈操作），
+`@intrinsic` 消除 slots 分发开销，直接操作内部数组 + 容量检查 + write barrier。
+
+**施工方向**：
+1. `list.kl`：`@native` → `@intrinsic`（push、pop 两个方法）
+2. 确认 IRGen 对 `list.push()` 发射 `OP_LIST_PUSH`（已有逻辑）
+3. 确认 ISEL 对 `list.pop()` 的 OP_CALL 特化为 `OP_LIST_POP`（需核实）
+4. 全量回归测试
+
+**依赖**：`OP_LIST_POP` 指令是否保留待确认（作者曾讨论移除，改为走 slots 分发）。
+若决定保留，则 push/pop 双双升级为 @intrinsic；若移除 OP_LIST_POP，则仅 push 升级。
+
+---
+
+## 10. Truthiness 协议与 all/any 函数（不一定支持）
+
+> 2026-08-31 建立。标注：**不一定支持**，作者未最终拍板。
+
+**设想**：引入 `Truthiness` trait，作为语法钩子支撑 `if obj:` 语法和 `all()`/`any()` 泛型函数。
+
+```koala
+pub trait Truthiness {
+    func __bool__() bool
+}
+```
+
+**编译器行为**：`if obj:` → 编译期检查 T 是否实现 Truthiness → 是则下降为 `if obj.__bool__():`，否则编译报错。与现有运算符钩子（`+`/`==`）模式完全对称，无隐式转换。
+
+**实现范围**：
+- 基本类型实现：`int`（0 = false）、`str`（空 = false）、`bool`（自身）
+- 容器类**不**实现（`if my_list:` 不合法，必须 `if len(my_list) > 0:`）
+
+**下游产物**：`all()`/`any()` 变为可行：
+
+```koala
+func all[T: Truthiness](items Iterable[T]) bool { ... }
+func any[T: Truthiness](items Iterable[T]) bool { ... }
+```
+
+检查的是元素的真假，不是容器的真假。与 Python 语义一致。
+
+**未拍板原因**：引入 Truthiness trait + `if obj:` 语法糖是否符合 Koala 的“简洁”原则，尚需作者最终决定。不做也没有功能缺失——用户可显式写 `if x != 0` / `if x != ""`。
+
+---
+
+## 11. OP_SEQ_GET_IMM / OP_SEQ_SET_IMM 负下标语义未定义
+
+> 2026-09-01 建立。
+
+**现状**：`OP_SEQ_GET_IMM` / `OP_SEQ_SET_IMM` 的 IMM 是 signed 8-bit
+（-128..127），但注释未定义负下标的语义。
+
+**待定案的问题**：
+1. Python 式负下标（`a[-1]` 从尾计数）是否支持？
+2. 若支持，是编译期展开（重写为 `len - |imm|`）还是运行时解释
+   （handler 内做 `if idx < 0 { idx += len }`）？
+3. bounds check 是否覆盖负索引场景（编译期展开方案下，重写后的
+   索引仍需运行时 bounds check；运行时解释方案下，负索引越界报错
+   语义需明确定义）？
+4. 与 OP_SEQ_GET（寄存器下标版）的负索引语义是否保持一致？
+
+**建议**：两个指令的负下标语义必须一致；若当前 OP_SEQ_GET 运行时
+handler 不处理负索引，IMM 版本也应拒绝负数（编译期报错），避免两套语义。

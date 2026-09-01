@@ -51,7 +51,7 @@ void kl_list_prepend(Object *ob, TValue item)
     list->end++;
 }
 
-static TValue _list_append(TValue *self, TValue *args, int nargs)
+static TValue _list_push(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = (ListObject *)to_obj(self);
     expand_capacity(list, list->end + 1);
@@ -152,7 +152,7 @@ static TValue _list_setitem(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef list_methods[] = {
-    { "append", _list_append },       { "pop", _list_pop },
+    { "push", _list_push },           { "pop", _list_pop },
     { "__len__", _list_len },         { "__str__", _list_str },
     { "extend", _list_extend },       { "__getitem__", _list_getitem },
     { "__setitem__", _list_setitem }, { NULL },

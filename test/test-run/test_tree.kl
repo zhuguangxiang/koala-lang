@@ -65,17 +65,17 @@ class Tree {
         let stack = list[Node]()
 
         if (root != nil) {
-            stack.append(root)
+            stack.push(root)
         }
 
         while len(stack) > 0 {
             let x = stack.pop(0)
             print(x.value, end=' ')
             if let v = x.left {
-                stack.append(v)
+                stack.push(v)
             }
             if let v = x.right {
-                stack.append(v)
+                stack.push(v)
             }
         }
         print('')

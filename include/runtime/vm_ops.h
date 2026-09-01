@@ -1511,18 +1511,6 @@ TARGET(OP_SEQ_GET_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_SEQ_LEN) {
-    rd = I_VAL(inst, 12, 12);
-    rs = I_VAL(inst, 0, 12);
-
-    CHECK_REG_ID(rs);
-
-    TValue ret = kl_slot_call_no_arg(regs + rs, SLOT_LEN);
-    if (rd != 0xFFFu) regs[rd] = ret;
-
-    DISPATCH();
-}
-
 TARGET(OP_SEQ_SET) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
@@ -1540,13 +1528,25 @@ TARGET(OP_SEQ_SET) {
 TARGET(OP_SEQ_SET_IMM) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
-    imm = I_SVAL(inst, 0, 8);
+    imm = I_SVAL(inst, 0, 8); // TODO: can be negative?
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
 
     TValue index = int64_value(imm);
     kl_slot_call_two_args(regs + rd, &index, regs + rs, SLOT_SET_ITEM);
+
+    DISPATCH();
+}
+
+TARGET(OP_LEN) {
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rs);
+
+    TValue ret = kl_slot_call_no_arg(regs + rs, SLOT_LEN);
+    if (rd != 0xFFFu) regs[rd] = ret;
 
     DISPATCH();
 }

@@ -29,7 +29,7 @@ pub func print(objs ..., sep = ' ', end = '\n') {}
 /// Note:
 ///     - As an intrinsic, `len()` does not have a user-level implementation.
 ///     - The compiler may lower `len(obj)` to specialized VM instructions
-///       (e.g., OP_SEQ_LEN, OP_MAP_LEN) when the object's type is known,
+///       (e.g., OP_LEN) when the object's type is known,
 ///       enabling high-performance length queries.
 @intrinsic
 pub func len(obj any) int {}

@@ -65,7 +65,7 @@ pub class ByteBuf : MutableSequence[uint8] {
 
     /// Append a byte `value` to the end of the buffer.
     @native
-    pub func append(value uint8) {}
+    pub func push(value uint8) {}
 
     /// Extend the buffer by appending all bytes from `items`.
     @native
@@ -101,13 +101,13 @@ pub class ByteBuf : MutableSequence[uint8] {
     /// Append the bytes of `value` in [start, end) to the end of the buffer.
     /// If `end` is -1, the append extends to the end of `value`.
     @native
-    pub func append_bytes(value bytes, start = 0, end = -1) {}
+    pub func push_bytes(value bytes, start = 0, end = -1) {}
 
     /// Append the UTF-8 encoded bytes of `value` in [start, end)
     /// to the end of the buffer.
     /// If `end` is -1, the append extends to the end of `value`.
     @native
-    pub func append_str(value str, start = 0, end = -1) {}
+    pub func push_str(value str, start = 0, end = -1) {}
 
     /// Fill the bytes in [start, end) with `value`.
     /// If `end` is -1, the fill extends to the end of the buffer.

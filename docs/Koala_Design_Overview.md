@@ -310,12 +310,108 @@ pub func max[T: Comparable](x T, y T) T { ... }
 | `Equatable[T]` / `Comparable[T]` / `Hashable` / `Printable` | 值契约 |
 | `Arithmetic[T]` / `BitwiseOperators[T]` | 算术 / 位运算能力契约（泛型约束用；结构式遵循；见 §3） |
 | `Iterable` / `Iterator` | 迭代协议 |
-| `Collection` / `Sequence` / `MutableSequence` | 容器语义（保留 dunder 声明） |
-| `Map` / `Set` | 映射与集合语义 |
+| `Sequence` / `MutableSequence` | 序列与可变序列协议 |
+| `Map` / `Set` | 映射与集合协议 |
 
 命名分层原则：**trait 层用跨语言惯例**（Java/Rust 风格的 `remove` / `remove_or`），**class 便利层对齐 Python**（`setdefault` / `update` / `fromkeys`）。
 
-### 8.3 类型清单
+### 8.3 容器协议
+
+Koala 容器 trait 遵循**有度扁平**（LW-OOP）设计原则：不学 Java/Kotlin/Swift/Python 的 5–6 层深塔，也不学 Go/Rust 的零层次平面。层级结构：
+
+```
+Iterable[T]
+├── Sequence[T]
+│   └── MutableSequence[T]
+├── Map[K, V]
+└── Set[T]
+```
+
+每层有独立语义贡献，无装饰性中间层（如 Java `AbstractList`）。
+
+| Trait | 继承 | 方法数 | 核心语义 |
+|-------|------|--------|----------|
+| `Iterable[T]` | — | 1 | 遍历（`__iter__()` → `Iterator[T]`） |
+| `Sequence[T]` | `Iterable[T]` | 7 | 只读序列：长度、成员判定、下标访问、切片、搜索 |
+| `MutableSequence[T]` | `Sequence[T]` | 9 | 可变序列：写入、追加、插入、删除、清空、反转 |
+| `Map[K, V]` | `Iterable[(K, V)]` | 10 | 键值映射：下标读写、视图、安全读取、删除 |
+| `Set[T]` | `Iterable[T]` | 11 | 数学集合：增删、批量添加、代数运算、子集判定 |
+
+**设计原则**：
+
+- trait 之间可以继承，class 都是 final 的（不可继承覆写）。
+- 每层 trait 必须有独立语义贡献，不做纯装饰层。
+- 扁平化要有度——介于 Java/Python 式深塔与 Go/Rust 式零层次之间。
+- 易用性第一，对齐 Python 语义直觉：所有容器方法都放在 trait 层，用户期望直接能调用。
+
+**Sequence[T]**（7 方法）：
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `__len__` | `() int` | 元素数量，O(1) |
+| `__contains__` | `(item T) bool` | 成员判定，支撑 `in` 语法 |
+| `__getitem__` | `(index int) T` | 下标访问，支撑 `a[i]` 语法；越界 panic |
+| `__getslice__` | `(r slice) Sequence[T]` | 切片访问，支撑 `a[i:j]` 语法 |
+| `index` | `(value T, start=0, end=-1) int` | 首次出现位置，未找到返回 -1 |
+| `rindex` | `(value T, start=0, end=-1) int` | 末次出现位置，未找到返回 -1 |
+| `count` | `(value T, start=0, end=-1) int` | 出现次数 |
+
+实现者：`str`、`list`、`tuple`、`bytes`、`range`。
+
+**MutableSequence[T]**（9 方法，继承 Sequence 全部方法）：
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `__setitem__` | `(index int, value T)` | 下标赋值，支撑 `a[i] = v` |
+| `__setslice__` | `(r slice, val Iterable[T])` | 切片赋值，支撑 `a[i:j] = [...]` |
+| `push` | `(value T)` | 追加到末尾 |
+| `extend` | `(items Iterable[T])` | 批量追加 |
+| `insert` | `(index int, value T)` | 指定位置插入 |
+| `remove` | `(value T)` | 删除首次出现，缺失 panic |
+| `pop` | `(index = -1) T` | 按下标弹出并返回，默认末尾 |
+| `clear` | `()` | 清空 |
+| `reverse` | `()` | 原地反转 |
+
+实现者：`list`、`ByteBuf`。
+
+**Map[K, V]**（10 方法）：
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `__len__` | `() int` | 键值对数量 |
+| `__contains__` | `(key K) bool` | 按键判定（覆写 Iterable 的 `(K, V)` 检查，同 Python `key in dict`） |
+| `__getsub__` | `(key K) V` | 按键读取，支撑 `m[key]`；缺失 panic |
+| `__setsub__` | `(key K, value V)` | 按键写入，支撑 `m[key] = v` |
+| `keys` | `() Sequence[K]` | 键视图 |
+| `values` | `() Sequence[V]` | 值视图 |
+| `items` | `() Sequence[(K, V)]` | 键值对视图 |
+| `clear` | `()` | 清空 |
+| `remove` | `(key K) V` | 删键返值，缺失 panic |
+| `remove_or` | `(key K, default_value V) V` | 删键返值，缺失返回默认值 |
+| `get` | `(key K) V?` | 安全读取，返回可选类型，配合 `if let` |
+| `get_or` | `(key K, default_value V) V` | 安全读取，缺失返回默认值 |
+
+实现者：`dict`（插入序哈希映射）。
+
+**Set[T]**（11 方法）：
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `__len__` | `() int` | 元素数量 |
+| `__contains__` | `(v T) bool` | 成员判定，支撑 `in` 语法 |
+| `add` | `(v T) bool` | 添加元素，返回 true 表示新插入 |
+| `update` | `(items Iterable[T])` | 批量添加 |
+| `remove` | `(v T) bool` | 删除元素，返回 true 表示曾存在 |
+| `clear` | `()` | 清空 |
+| `is_subset` | `(other Iterable[T]) bool` | 子集判定 |
+| `is_superset` | `(other Iterable[T]) bool` | 超集判定 |
+| `union` | `(other Iterable[T]) Set[T]` | 并集，返回新集合 |
+| `intersect` | `(other Iterable[T]) Set[T]` | 交集，返回新集合 |
+| `diff` | `(other Iterable[T]) Set[T]` | 差集，返回新集合 |
+
+实现者：`HashSet`（哈希集）、`TreeSet`（有序集）。
+
+### 8.4 类型清单
 
 | 类型 | 要点 |
 |------|------|
@@ -332,7 +428,7 @@ pub func max[T: Comparable](x T, y T) T { ... }
 
 bytes / ByteBuf 的二进制编解码职责已**剥离至官方库 encoding**，本体只保留序列语义。
 
-### 8.4 迭代
+### 8.5 迭代
 
 - for 循环直接接受 Iterator，支持元组解包。
 - **内建容器原生展开**：for 对 range / tuple / list / dict / bytes 等内建类型做原生展开——尤其 `range` 循环**不创建 range 对象、不走 iterator 协议**，编译器直接生成循环体，热路径零分配零分发。
@@ -340,7 +436,7 @@ bytes / ByteBuf 的二进制编解码职责已**剥离至官方库 encoding**，
 - **明确不做**：`sum` / `any` / `all` / `sorted`（作者定案：简洁优先）。`min` / `max` 已实现为泛型函数 `min[T: Comparable]` / `max[T: Comparable]`，`@specialized(int, uint, float)` 生成单态（见 §7.4）。
 - view 语义只用于固定长度类型，动态容器用 copy。
 
-### 8.5 包编程规范
+### 8.6 包编程规范
 
 - **简单包用单文件**：包内容简单时，一个 `xxx.kl` 文件即可表示（如 `assert.kl`、`pretty.kl`）。
 - **复杂包用目录**：目录名即包名（如 `io/`、`fs/`、`builtin/`），内部结构遵循两条规则：
@@ -348,7 +444,7 @@ bytes / ByteBuf 的二进制编解码职责已**剥离至官方库 encoding**，
   - 每个 class / trait 建议单独定义在一个 `xxx.kl` 中，一个类型一个文件（如 `str.kl`、`reader.kl`、`any.kl`）。
 - 效果：看文件名即知内容——"没有隐藏"在文件组织层面的投影。
 
-### 8.6 文档注释规范
+### 8.7 文档注释规范
 
 Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 Markdown API 文档，规范如下：
 
@@ -397,6 +493,94 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 
 - `tools/kl-doc.py` 按本规范提取生成 Markdown：标签行加粗，`Example:` 代码独立成块，`See:` 顶层符号自动链接；生成文档按 Traits / Classes / Functions 分类，Contents 表格含名称与摘要。
 - 写注释不得依赖本规范之外的排版技巧。
+
+### 8.8 与 Python 内置函数 / 类对照
+
+以 Python `builtins` 为基准逐项比对，标注 Koala 现状与决策。
+
+**已有**
+
+| Python | Koala | 备注 |
+|--------|-------|------|
+| `print()` | `print()` | `@native`，支持 `sep` / `end` |
+| `len()` | `len()` | `@intrinsic` |
+| `hash()` | `hash()` | `@intrinsic` |
+| `str()` | `str(any)` | 经 `__str__()` 通用字符串转换 |
+| `type()` | `typeof()` | 改名避免冲突 |
+| `min()` / `max()` | `min()` / `max()` | `@specialized` 泛型 |
+| `format()` | `format()` | `@native` |
+| `range()` | `range` 类 | 编译器补全 |
+| `slice()` | `slice` 类 | 编译器补全 |
+| `set()` | `HashSet` / `TreeSet` | — |
+| `list()` | `list(args ...T)` | 变长参数构造，不支持 `list(iterable)` 形式 |
+| `dict()` | `dict()` | — |
+| `tuple()` | `tuple(args ...T)` | — |
+| `classmethod()` / `staticmethod()` | `static` 关键字 | 语言级替代 |
+| `open()` | `fs.open` | 归 fs 包 |
+| `object` | `any` trait | 拆解为 any + 三契约 |
+| `Exception` 体系 | 单一 `Exception` | panic 不可捕获，无需层级 |
+| `abs()` | `int64.abs()` / `float64.abs()` | 方法而非顶层函数 |
+| `round()` | `float64.round()` | 方法而非顶层函数 |
+| `pow()` | `int64.pow()` / `uint64.pow()` / `float64.pow()` | 方法而非顶层函数 |
+
+**明确要补**
+
+| 函数 | 说明 |
+|------|------|
+| `enumerate()` | 已规划，for 循环高频用法 |
+| `zip()` | 已规划，多序列并行迭代 |
+| `hex()` / `oct()` / `bin()` | 整数进制格式化 |
+| `input()` | 标准输入读取 |
+| `callable()` | 判断对象是否可调用（反射 API） |
+
+**暂时没有（反射 / 运行时编译，将来设计）**
+
+| 类别 | 项目 |
+|------|------|
+| 反射 | `globals()` / `locals()` / `dir()` / `vars()` |
+| 反射 | `isinstance()` / `issubclass()` |
+| 反射 | `hasattr()` / `getattr()` / `setattr()` / `delattr()` |
+| 运行时编译 | `exec()` / `eval()` / `compile()` |
+| 动态导入 | `__import__()` |
+
+**明确不要**
+
+| 项目 | 理由 |
+|------|------|
+| `repr()` | 不区分 repr/str，`__str__()` 统一承担 |
+| `property()` | `pub let` / `pub func` 直截了当 |
+| `memoryview` | view 只用于固定长度类型，动态容器用 copy |
+| `frozenset()` | 无 hashable 容器需求 |
+| `super()` | Koala 不需要显式调用父类方法语法 |
+| `breakpoint()` | 调试器入口，Koala 无此机制 |
+| `help()` | 交互式文档，Koala 用生成式文档工具 |
+| `any()` / `all()` | 依赖隐式 truthiness 判定，Koala 不支持 bool 运算符重载（`__bool__`），无法泛型化；主流静态语言均不提供 |
+| `bool()` | 同上，隐式 truthiness 转换机制不存在 |
+
+**不确定**
+
+| 项目 | Python 用途 |
+|------|-------------|
+| `sum()` / `sorted()` | 集合聚合 / 排序 |
+| `reduce()` | 累积归约 |
+| `map()` / `filter()` | 函数式组合子 |
+| `divmod()` | 返回 (商, 余) 元组 |
+| `reversed()` 顶层 | 各类型已有 `.reversed()` 方法，顶层是否冗余 |
+| `id()` | 返回对象内存地址（身份标识） |
+| `chr()` / `ord()` | 字符 ↔ code point 互转 |
+| `complex` | 复数类型 |
+| `iter()` / `next()` 顶层 | 手动迭代协议 |
+| `aiter()` / `anext()` | 异步迭代协议，Koala 暂无 async 迭代 |
+| `ascii()` | 返回 ASCII 可打印表示，非 ASCII 转义 |
+| `bytes()` | 不可变字节构造，Koala `bytes` 类尚无通用构造器 |
+
+**已有对应（方法形式）**
+
+| Python 构造器 | Koala 方法 | 备注 |
+|---|---|---|
+| `int(x)` | `str.to_int()` / `float64.to_int()` | 方法而非构造器 |
+| `float(x)` | `str.to_float()` / `int64.to_float()` | 方法而非构造器 |
+| `bytearray()` | `ByteBuf` | 可变字节缓冲 |
 
 ---
 

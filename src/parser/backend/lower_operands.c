@@ -640,7 +640,7 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                     break;
                 }
 
-                case OP_SEQ_LEN: {
+                case OP_LEN: {
                     lower_seq_len_opers(insn, m);
                     break;
                 }

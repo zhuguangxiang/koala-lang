@@ -1,9 +1,9 @@
 // RUN: koalac %s 2>&1 | filecheck %s
 
 let l0 = []
-l0.append(1)
-l0.append(2.0)
-l0.append("hi")
+l0.push(1)
+l0.push(2.0)
+l0.push("hi")
 
 l0[0] + 1
 // CHECK: operator '+' is not defined in type 'any'.
@@ -15,8 +15,8 @@ l0[2] + "there"
 // CHECK: operator '+' is not defined in type 'any'.
 
 let l1 = [1, 2, 3]
-l1.append(4)
-l1.append(5)
+l1.push(4)
+l1.push(5)
 l1[0] = 0
 l1[0] + 1
 l1[0] = l1[0] + 1
@@ -36,20 +36,20 @@ l3[0] = 100
 l3[0] + 1
 
 let l4 = list()
-l4.append(1)
-l4.append(2.0)
-l4.append("hi")
+l4.push(1)
+l4.push(2.0)
+l4.push("hi")
 l4[0] + 1
 // CHECK: operator '+' is not defined in type 'any'.
 
 let l5 = [1, 2.0, "hi"]
-l5.append(3)
-l5.append("hello")
+l5.push(3)
+l5.push("hello")
 
 let l6 = list(l2!)
 l6[0] = 100
 l6[0] + 1
-l6.append(200)
+l6.push(200)
 
 let l6_1 = list(100, l2!, 200)
 l6_1[0] = 100
@@ -61,19 +61,19 @@ let l7 = list(l2)
 l7[0] = 100
 // CHECK: Incompatible type: expected 'std/builtin.list<j>', but got 'int64'.
 l7[0][1] = 200
-l7.append(list(4,5,6))
+l7.push(list(4,5,6))
 l7[0] = list(10, 20)
 
 let l8 = list[int]()
-l8.append(1)
-l8.append(2.0)
+l8.push(1)
+l8.push(2.0)
 // CHECK: Incompatible type: expected 'int64', but got 'float64'.
 
 let l9 = list[int](1, 2.1)
 // CHECK: Incompatible type: expected 'int64', but got 'float64'.
 
 let l10 = list[list[int]]()
-l10.append(100)
+l10.push(100)
 // CHECK: Incompatible type: expected 'std/builtin.list<j>', but got 'int64'.
 
 l10[0][1] = 200

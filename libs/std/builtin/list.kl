@@ -65,9 +65,9 @@ pub class list[T] : MutableSequence[T] {
     @native
     pub func __setslice__(r slice, val Iterable[T]) {}
 
-    /// Append a new item with `value` to the end of the list.
+    /// Push a new item with `value` to the end of the list.
     @native
-    pub func append(value T) {}
+    pub func push(value T) {}
 
     /// Extend the list by appending all items from `items`.
     @native

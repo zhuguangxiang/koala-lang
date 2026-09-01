@@ -269,6 +269,6 @@
     // "zenMode.zoomLevel": 0,
     "autoHide.autoHideSideBar": true, // 点击编辑器时自动隐藏侧边栏
     "autoHide.autoHidePanel": false, // 底部终端是否也自动隐藏（建议设为 false，方便看报错）
-    "autoHide.delay": 300,
+    "autoHide.delay": 500,
     "workbench.editor.showTabs": "multiple" // 点击后延迟 300 毫秒隐藏（给眼睛一个缓和时间）
 }

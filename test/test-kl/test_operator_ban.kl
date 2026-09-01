@@ -25,7 +25,7 @@ func generic[T : Arithmetic](a T, b T) T {
 
 // trait-typed parameters (a trait requires its type argument, e.g. Arithmetic[int];
 // the bare trait name is invalid syntax)
-func trait_param(a Arithmetic[int], b Comparable[int], c Collection[int]) int {
+func trait_param(a Arithmetic[int], b Comparable[int], c Sequence[int]) int {
     a.__sub__(a)
     // CHECK: '__sub__' cannot be called explicitly, use the '-' operator instead.
     // Comparable inherits __eq__ from Equatable, ban fires on trait params too
@@ -72,7 +72,7 @@ func t_upcast_ret(v int) Arithmetic[float] {
 func protocol_hooks(l list[int], s str) {
     // protocol hooks are NOT operators and remain explicitly callable
     l.__len__()
-    l.append(1)
+    l.push(1)
     s.__str__()
 }
 

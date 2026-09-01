@@ -619,7 +619,7 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
                 }
                 clear_operand_at(insn, 1);
                 insn->num_opers = 1;
-                insn->code = OP_SEQ_LEN;
+                insn->code = OP_LEN;
             } else if (type_is_map(arg->ts)) {
                 if (klr_is_const(arg)) {
                     KlrValue *_arg = lower_const(insn, (KlrConst *)arg);
@@ -629,7 +629,7 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
                 }
                 clear_operand_at(insn, 1);
                 insn->num_opers = 1;
-                insn->code = OP_MAP_LEN;
+                insn->code = OP_LEN;
             } else {
                 NYI();
             }
@@ -1213,7 +1213,7 @@ static void do_isel(KlrFunc *fn)
                     break;
                 }
 
-                case OP_SEQ_LEN: {
+                case OP_LEN: {
                     isel_lower_seq_len(insn);
                     break;
                 }

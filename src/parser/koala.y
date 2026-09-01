@@ -2421,6 +2421,11 @@ expr
         $$ = expr_from_is_expr($1, loc(@2), $3);
         expr_set_loc($$, lloc(@1, @3));
     }
+    | or_expr AS type
+    {
+        $$ = expr_from_as_expr($1, loc(@2), $3);
+        expr_set_loc($$, lloc(@1, @3));
+    }
     ;
 
 in_expr
@@ -2871,7 +2876,9 @@ dot_expr
     }
     | primary_expr '.' ID '?'
     {
-
+        // for type only: z.Foo? in List[z.Foo?]
+        printf("NYI: type only: z.Foo?\n");
+        NYI();
     }
     | primary_expr OPT_DOT ID
     {
@@ -2917,7 +2924,9 @@ index_expr
     }
     | primary_expr '[' index_expr_list ']' '?'
     {
-
+        // for type only: List[List[z.Foo]?]
+        printf("NYI: type only: List[List[z.Foo]?]\n");
+        NYI();
     }
     | primary_expr '[' error
     {

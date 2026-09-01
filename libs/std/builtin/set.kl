@@ -36,8 +36,10 @@ pub class HashSet[T] : Set[T] {
     pub func add(v T) bool {}
 
     /// Add all elements from `items` to the set.
+    /// Unlike `add` which inserts a single element, `update` inserts
+    /// multiple elements from any iterable source in one call.
     @native
-    pub func extend(items Iterable[T]) {}
+    pub func update(items Iterable[T]) {}
 
     /// Remove an element from the set.
     /// Return true if the element was present.
@@ -128,8 +130,10 @@ pub class TreeSet[T : Comparable] : Set[T] {
     pub func add(v T) bool {}
 
     /// Add all elements from `items` to the set.
+    /// Unlike `add` which inserts a single element, `update` inserts
+    /// multiple elements from any iterable source in one call.
     @native
-    pub func extend(items Iterable[T]) {}
+    pub func update(items Iterable[T]) {}
 
     /// Remove an element from the set.
     /// Return true if the element was present.

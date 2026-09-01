@@ -283,7 +283,6 @@ static char hex2byte(const char *s)
 "<<="       { YY_RETURN(SHL_ASSIGN);   }
 ">>="       { YY_RETURN(SHR_ASSIGN);   }
 "..."       { YY_RETURN(DOTDOTDOT);    }
-"..<"       { YY_RETURN(DOTDOTDOT);    }
 "<<"        { YY_RETURN(L_SHIFT);      }
 ">>"        { YY_RETURN(R_SHIFT);      }
 
