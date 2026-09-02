@@ -1368,6 +1368,7 @@ static void parse_call(ParserState *ps, Expr *exp)
             }
             exp->ts = ((FuncSymbol *)call_fn_sym)->ret;
             params = ((FuncSymbol *)call_fn_sym)->params;
+            exp->arg = call_fn_sym;
         } else {
             UNREACHABLE();
         }

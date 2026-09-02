@@ -1,0 +1,18 @@
+// RUN: koala %s | filecheck %s
+
+class Foo {
+    func __call__(s str) str {
+        return s + ", welcome!"
+    }
+}
+
+let g = Foo()
+
+func main() {
+    let f = Foo()
+    print(f("Tom"))
+    print(g("Jerry"))
+}
+
+// CHECK: Tom, welcome!
+// CHECK: Jerry, welcome!

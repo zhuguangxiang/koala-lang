@@ -1,4 +1,4 @@
-// RUN: koala %s | filecheck %s
+// RUN: koala %s 2>&1 | filecheck %s
 
 trait Animal {
     func eat()
@@ -45,6 +45,7 @@ class Duck : Swim2[int] & Fly[int] {
 func main() {
     let b Swim = Baz()
     b.eat()
+    b.swim()
 
     let d Swim2[int] = Duck(42, 43)
     d.eat()
@@ -52,7 +53,8 @@ func main() {
     print(d.swim())
 }
 
-// TODO: function not implemented: test_generic_klass::not_impl!
+// CHECK: function 'Swim_Baz_eat' in 'test_generic_klass' is not implemented!
+// CHECK: function 'Swim_Baz_swim' in 'test_generic_klass' is not implemented!
 // CHECK: Duck eat
 // CHECK: 43
 // CHECK: 42

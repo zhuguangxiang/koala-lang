@@ -1,3 +1,11 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Assert that `cond` is true.
+/// Panic with `msg` if it is false, or with a default message
+/// when `msg` is omitted.
 pub func assert(cond bool, msg str = "") {
     if !cond {
         if msg == "" {
@@ -8,14 +16,37 @@ pub func assert(cond bool, msg str = "") {
     }
 }
 
+/// Assert that `a` and `b` are equal.
+/// Panic with a message showing both values if they differ.
 pub func assert_eq[T: Equatable[T]](a T, b T) {
     if a != b {
         panic(format("assert_eq failed: {} != {}", a, b))
     }
 }
 
+/// Assert that `a` and `b` are not equal.
+/// Panic with a message showing both values if they are equal.
 pub func assert_ne[T: Equatable[T]](a T, b T) {
     if a == b {
         panic(format("assert_ne failed: {} == {}", a, b))
     }
 }
+
+/// Run the given test functions in order, then print a summary.
+///
+/// Tests are passed explicitly (the `test_` naming is convention only):
+/// a library cannot discover symbols it was not given, and the explicit
+/// list keeps the suite visible and ordered in the source.
+///
+/// A failure stops the process at the failing assertion; the panic stack
+/// trace names the failing test function, so the framework itself has no
+/// per-test bookkeeping and no failure output.
+// pub func run(tests ...func()) {
+//     var n = 0
+//     for t in tests {
+//         t()
+//         n += 1
+//     }
+//     print("----")
+//     print(n, "tests passed")
+// }

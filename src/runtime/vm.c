@@ -46,6 +46,37 @@ void kl_free_ks(KoalaState *ks)
     mm_free(ks);
 }
 
+TValue kl_not_impl_func(TValue *self, TValue *args, int nargs)
+{
+    Object *obj = to_obj(self);
+    ASSERT(IS_CFUNC(obj));
+    CFuncObject *cfunc = (CFuncObject *)obj;
+    Object *owner = cfunc->owner;
+    if (IS_MODULE(owner)) {
+        ModuleObject *m = (ModuleObject *)owner;
+        // raise_exc_str("function not implemented: %s::%s!", m->path, cfunc->name);
+        fprintf(stderr, "function '%s' in '%s' is not implemented!\n", cfunc->name, m->path);
+    } else {
+        ASSERT(IS_TYPE(owner, &type_type));
+        TypeObject *tp = (TypeObject *)owner;
+        // raise_exc_str("function not implemented: %s!", tp->name);
+        fprintf(stderr, "method '%s' of '%s' is not implemented!\n", cfunc->name, tp->name);
+    }
+    return error_value;
+}
+
+static Object *new_not_impl_func(Object *m, char *func_name)
+{
+    return kl_new_cfunc(func_name, kl_not_impl_func, m);
+}
+
+static Object *new_not_impl_trait_func(char *kls_name, char *trait_name, char *fn_name, Object *m)
+{
+    BUF(buf);
+    buf_write_fmt(&buf, "%s_%s_%s", trait_name, kls_name, fn_name);
+    return kl_new_cfunc(BUF_STR(buf), kl_not_impl_func, m);
+}
+
 static TValue _default___str__(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 0);
@@ -375,13 +406,11 @@ static Object *_load_module(char *path)
             // if koala's function is marked as native, it must be implemented by a native function
             // in the module's native library.
             _co = kl_get_native(m, kc->sval);
-            if (!_co) _co = mo->not_impl;
+            if (!_co) _co = new_not_impl_func(m, kc->sval);
             ASSERT(_co && IS_CFUNC(_co));
             CFuncObject *cfn = (CFuncObject *)_co;
             if (cfn->owner == NULL) {
                 cfn->owner = m;
-            } else {
-                ASSERT(_co == mo->not_impl);
             }
         } else {
             _co = kl_new_code(kc->sval, m);
@@ -452,14 +481,16 @@ static Object *_load_module(char *path)
 
             uint16_t _idx = 0;
             vector_foreach(_idx, &intf_entry->methods) {
-                if (_idx == 0xFFFFu) {
-                    // ASSERT(0); // should not happen, but just in case
+                if (_idx > 0x8000u) {
                     log_warn(
                         "[_load_module] class '%s' does not implement method '%s' of interface "
                         "'%s'",
                         tp->name, kc->sval, itable.name);
                     ASSERT(i__ < itable.num_funcs);
-                    itable.methods[i__] = ((ModuleObject *)m)->not_impl;
+                    _idx -= 0x8000u;
+                    KlcConst *fn_kc = klc_get_rt_const(klc, _idx);
+                    itable.methods[i__] =
+                        new_not_impl_trait_func(kls_kc->sval, kc->sval, fn_kc->sval, m);
                     continue;
                 }
 

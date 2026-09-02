@@ -174,6 +174,8 @@ typedef struct _KlassSymbol {
     Symbol *__init__;
     /* klc entry */
     void *klc_entry;
+    /* not implemented method symbols */
+    Vector not_impl;
 } KlassSymbol;
 
 typedef struct _PkgSymbol {

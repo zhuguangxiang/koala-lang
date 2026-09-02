@@ -73,13 +73,13 @@ void kl_init_type(TypeObject *tp)
     if (!tp || tp->flags & TP_FLAGS_READY) return;
 
     vector_init(&tp->itables, sizeof(IntfTable));
-    vector_init_ptr(&tp->slots);
     vector_init_ptr(&tp->fields);
     vector_init_ptr(&tp->methods);
     stbl_init(&tp->members);
 
-    /* Ensure the methods vector has at least SLOT_MAX entries */
-    vector_reserve(&tp->slots, SLOT_MAX);
+    /* slots: allocate SLOT_MAX entries */
+    tp->slots = mm_alloc(sizeof(Object *) * SLOT_MAX);
+    ASSERT(tp->slots);
 }
 
 TypeObject *kl_new_type(char *name, int flags)
@@ -111,14 +111,11 @@ int kl_tp_add_field(TypeObject *tp, char *name, Object *field)
 
 int kl_tp_add_method(TypeObject *tp, char *name, int slotid, Object *meth)
 {
-    ASSERT(vector_size(&tp->slots) == SLOT_MAX);
-
     if (slotid >= 0) {
         ASSERT(slotid < SLOT_MAX);
         /* Install the method into its designated slot position */
-        Object **slots = VECTOR_RAW(&tp->slots, Object *);
-        ASSERT(slots[slotid] == NULL);
-        slots[slotid] = meth;
+        ASSERT(tp->slots[slotid] == NULL);
+        tp->slots[slotid] = meth;
     }
 
     /* Append regular methods */

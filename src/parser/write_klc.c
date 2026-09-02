@@ -153,12 +153,17 @@ static void write_meta_intf_entry(IntfEntry *intf_entry, KlcKlass *klass)
 
     FuncSymbol *fn_sym;
     vector_foreach(fn_sym, &intf_entry->methods) {
-        if (!fn_sym) {
-            // ASSERT(0); // should not happen, but just in case
-            uint16_t null_idx = -1;
-            vector_push_back(&entry->methods, &null_idx);
+        ASSERT(fn_sym);
+        if (fn_sym->kind == SYM_INHERITED) {
+            fn_sym = ((InheritedFunc *)fn_sym)->origin;
+        }
+        ASSERT(fn_sym->kind == SYM_FUNC);
+        if (fn_sym->code_index == -1) {
+            uint16_t name_index = klc_add_rt_str(klass->filp, fn_sym->name, strlen(fn_sym->name));
+            ASSERT(name_index < 0x8000u);
+            name_index += 0x8000u;
+            vector_push_back(&entry->methods, &name_index);
         } else {
-            ASSERT(fn_sym->kind == SYM_FUNC);
             vector_push_back(&entry->methods, (uint16_t *)&fn_sym->code_index);
         }
     }

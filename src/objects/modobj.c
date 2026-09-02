@@ -25,24 +25,6 @@ TypeObject module_type = {
     .priv_size = sizeof(ModuleObject),
 };
 
-static TValue not_impl_func(TValue *self, TValue *args, int nargs)
-{
-    fprintf(stderr, "function not implemented!\n");
-    return error_value;
-// TODO:
-#if 0
-    Object *obj = to_obj(self);
-    ASSERT(IS_CFUNC(obj));
-    CFuncObject *cfunc = (CFuncObject *)obj;
-    Object *_m = cfunc->owner;
-    ASSERT(IS_MODULE(_m));
-    ModuleObject *m = (ModuleObject *)_m;
-    // raise_exc_str("function not implemented: %s::%s!", m->path, cfunc->name);
-    fprintf(stdout, "function not implemented: %s::%s!\n", m->path, cfunc->name);
-    return error_value;
-#endif
-}
-
 int kl_bind_func(Object *_m, Object *obj)
 {
     ModuleObject *m = (ModuleObject *)_m;
@@ -387,9 +369,6 @@ Object *kl_new_module(char *path)
     vector_init(&m->libs, sizeof(NativeLib));
     stbl_init(&m->symbols);
     m->path = atom(path);
-
-    Object *cfunc = kl_new_cfunc("not_impl", not_impl_func, (Object *)m);
-    m->not_impl = cfunc;
 
     kl_register_module((Object *)m);
     return (Object *)m;

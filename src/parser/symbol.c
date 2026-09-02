@@ -277,6 +277,7 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, 
         sym->params = params;
         vector_init_ptr(&sym->tps);
         sym->ret = ret;
+        sym->code_index = -1;
         // vector_init_ptr(&sym->locals);
         sym->stbl = stbl_new();
         add_to_global(sym);
@@ -329,6 +330,7 @@ KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait)
         vector_init_ptr(&sym->lro);
         vector_init_ptr(&sym->scm);
         vector_init_ptr(&sym->intf_table);
+        vector_init_ptr(&sym->not_impl);
         add_to_global(sym);
     }
 
@@ -609,8 +611,7 @@ static void build_class_intf_table(Symbol *sym)
         vector_foreach(fn, trait_kls->funcs) {
             Symbol *kls_fn = stbl_get(kls->stbl, fn->name);
             if (!kls_fn) {
-                void *empty_fn = NULL;
-                vector_push_back(&entry->methods, &empty_fn);
+                vector_push_back(&entry->methods, &fn);
                 log_warn("class '%s' does not implement method '%s' of interface '%s'", sym->name,
                          fn->name, _sym->name);
                 continue;
@@ -691,6 +692,12 @@ static void dump_class_intf_table(Symbol *sym)
                 printf("          [%d] <empty>\n", i__);
                 continue;
             }
+
+            if (meth->kind == SYM_INHERITED) {
+                InheritedFunc *inherited_fn = (InheritedFunc *)meth;
+                meth = (Symbol *)inherited_fn->origin;
+            }
+
             ASSERT(meth->kind == SYM_FUNC);
             FuncSymbol *fn = (FuncSymbol *)meth;
             printf("          [%d] %s, code_index=%d\n", i__, fn->name, fn->code_index);

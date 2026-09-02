@@ -603,6 +603,34 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
         KlrValue *init_fn = _sym->ir_val;
         ret = emit_type_call(ps, callee, init_fn, ir_args, size, exp->ts);
+    } else if (callee->kind == KLR_VALUE_INSN) {
+        ASSERT(klr_is_local(callee));
+        Symbol *sym = exp->arg;
+        ASSERT(sym && sym->kind == SYM_FUNC && str_equal(sym->name, "__call__"));
+        ASSERT(sym->ir_val);
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        KlrValue *_ir_args[size + 1];
+        _ir_args[0] = callee;
+        for (int i = 0; i < size; i++) {
+            _ir_args[i + 1] = ir_args[i];
+        }
+        ret = klr_build_call(&bldr, sym->ir_val, exp->ts, _ir_args, size + 1, "");
+    } else if (callee->kind == KLR_VALUE_GLOBAL) {
+        ASSERT(klr_is_global(callee));
+        Symbol *sym = exp->arg;
+        ASSERT(sym && sym->kind == SYM_FUNC && str_equal(sym->name, "__call__"));
+        ASSERT(sym->ir_val);
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        KlrValue *_ir_args[size + 1];
+        _ir_args[0] = klr_build_get_global(&bldr, callee);
+        for (int i = 0; i < size; i++) {
+            _ir_args[i + 1] = ir_args[i];
+        }
+        ret = klr_build_call(&bldr, sym->ir_val, exp->ts, _ir_args, size + 1, "");
+    } else if (callee->kind == KLR_VALUE_PARAM) {
+        NYI();
     } else {
         // normal call, try to build interface cast
         update_call_args(ps, ir_args, size, lhs->ts);

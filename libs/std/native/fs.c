@@ -82,7 +82,7 @@ static TValue file_write(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 1);
     BytesObject *buf = kl_arg_obj_as(0, bytes_type);
     if (fcntl(fobj->fd, F_GETFD) == -1) {
-        printf("file descriptor %d is closed\n", fobj->fd);
+        // printf("file descriptor %d is closed\n", fobj->fd);
         return none_value;
     }
 

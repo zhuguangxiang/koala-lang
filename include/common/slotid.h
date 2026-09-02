@@ -27,7 +27,7 @@ typedef enum {
     /* warm slots -- second cache line */
 
     /* sequence protocol */
-    SLOT_LEN,      // OP_SEQ_LEN
+    SLOT_LEN,      // OP_LEN
     SLOT_GET_ITEM, // OP_SEQ_GET and OP_SEQ_GET_IMM
     SLOT_SET_ITEM, // OP_SEQ_SET and OP_SEQ_SET_IMM
     SLOT_CONTAINS, // shared by sequence and mapping protocols, the 'in' OP

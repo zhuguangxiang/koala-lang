@@ -1,0 +1,28 @@
+// SKIP: koala %s | filecheck %s
+
+import "koala/ut"
+
+func add(a int, b int) int {
+    return a + b
+}
+
+func test_add() {
+    ut.assert(add(1, 1) == 2)
+    ut.assert_eq(add(2, 3), 5)
+}
+
+func test_negative() {
+    ut.assert_eq(add(-1, 1), 0)
+    ut.assert_ne(add(-1, 1), 1)
+}
+
+func main() {
+    ut.run("test_add", test_add)
+    ut.run("test_negative", test_negative)
+    ut.summary()
+}
+
+// CHECK-NOT: assert
+// CHECK: PASS: test_add
+// CHECK: PASS: test_negative
+// CHECK: 2 tests passed

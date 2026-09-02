@@ -235,7 +235,7 @@ typedef struct _TypeObject {
     /* Interface tables */
     Vector itables;
     /* slots */
-    Vector slots;
+    Object **slots;
 
     /* Type name */
     char *name;
@@ -616,9 +616,7 @@ static inline TValue kl_slot_call_no_arg(TValue *self, int slotid)
     TypeObject *tp = kl_typeof(self);
     ASSERT(tp);
 
-    ASSERT(vector_size(&tp->slots) == SLOT_MAX);
-    Object **slots = VECTOR_RAW(&(tp)->slots, Object *);
-    Object *fn = slots[slotid];
+    Object *fn = tp->slots[slotid];
     ASSERT(fn);
 
     TValue ret;
@@ -642,9 +640,7 @@ static inline TValue kl_slot_call_one_arg(TValue *self, TValue *arg, int slotid)
     TypeObject *tp = kl_typeof(self);
     ASSERT(tp);
 
-    ASSERT(vector_size(&tp->slots) == SLOT_MAX);
-    Object **slots = VECTOR_RAW(&(tp)->slots, Object *);
-    Object *fn = slots[slotid];
+    Object *fn = tp->slots[slotid];
     ASSERT(fn);
 
     TValue ret;
@@ -669,9 +665,7 @@ static inline TValue kl_slot_call_two_args(TValue *self, TValue *arg0, TValue *a
     TypeObject *tp = kl_typeof(self);
     ASSERT(tp);
 
-    ASSERT(vector_size(&tp->slots) == SLOT_MAX);
-    Object **slots = VECTOR_RAW(&(tp)->slots, Object *);
-    Object *fn = slots[slotid];
+    Object *fn = tp->slots[slotid];
     ASSERT(fn);
 
     TValue ret;
@@ -701,6 +695,8 @@ static inline unsigned int kl_hash(TValue *val)
     TValue ret = kl_slot_call_no_arg(val, SLOT_HASH);
     return (unsigned int)to_int64(&ret);
 }
+
+TValue kl_not_impl_func(TValue *self, TValue *args, int nargs);
 
 #ifdef __cplusplus
 }

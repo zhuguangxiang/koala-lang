@@ -226,7 +226,7 @@ DEFINE_TYPE(str, TP_FLAGS_CLASS, 0, _str_methods);
 
 ### 7.3 协议的统一表示：槽（slots）
 
-**协议是概念，结构体只是实现载体之一——Koala 删掉了载体，只留概念。** Hashable / Equatable / Comparable / 算术 / 位运算 / Sequence / Mapping / Printable / Callable 这些协议依然存在，其定义就是槽 id 的命名分区（`SlotId` 枚举：`SLOT_ADD..SLOT_MOD` = 算术、`SLOT_LSHIFT..SLOT_BIT_NOT` = 位运算、`SLOT_LEN..SLOT_SET_SUBSCRIPT` = 序列/映射）加上语言侧的 dunder 名；trait 系统是这些协议的语言层投影。协议的边界本来就是方法签名的集合，用槽分区表达，概念与实现一一对应，无翻译损耗。
+**协议是概念，结构体只是实现载体之一——Koala 删掉了载体，只留概念。** Hashable / Equatable / Comparable / 算术 / 位运算 / Sequence / Mapping / Printable 这些协议依然存在，其定义就是槽 id 的命名分区（`SlotId` 枚举：`SLOT_ADD..SLOT_MOD` = 算术、`SLOT_SHL..SLOT_BIT_NOT` = 位运算、`SLOT_LEN..SLOT_SET_SUB` = 序列/映射）加上语言侧的 dunder 名；trait 系统是这些协议的语言层投影。协议的边界本来就是方法签名的集合，用槽分区表达，概念与实现一一对应，无翻译损耗。
 
 **实现上不再为每个协议铸造 C 结构体**：`TypeObject` 上的协议函数指针字段（`hash` / `cmp` / `str` / `call`）与 `ArithmeticMethods` / `BitwiseMethods` / `SeqMethods` / `MapMethods` 全部移除，`slots[SLOT_MAX]`（元素为 `Object*`，即 CFuncObject 或 CodeObject）成为唯一分发源，MethodDef 是唯一注册通道。`__init__` / `__fini__` 同样只是普通方法，无特殊地位。
 
@@ -411,13 +411,35 @@ Iterable[T]
 
 实现者：`HashSet`（哈希集）、`TreeSet`（有序集）。
 
+**协议—槽—指令三层对应**（容器 op 重构，opcode_list.h 1914–2157）：
+
+语法钩子在 trait / SlotId / VM 指令三层一一对应，无翻译损耗：
+
+| 语法 | trait 钩子 | SlotId | VM 指令 |
+|------|-----------|--------|---------|
+| `a[i]` | `__getitem__` | `SLOT_GET_ITEM` | `OP_SEQ_GET`（+ `_IMM` 常数下标变体） |
+| `a[i] = v` | `__setitem__` | `SLOT_SET_ITEM` | `OP_SEQ_SET`（+ `_IMM`） |
+| `a[i:j]` | `__getslice__` | `SLOT_GET_SLICE` | `OP_SEQ_GET_SLICE` |
+| `a[i:j] = v` | `__setslice__` | `SLOT_SET_SLICE` | `OP_SEQ_SET_SLICE` |
+| `m[k]` | `__getsub__` | `SLOT_GET_SUB` | `OP_MAP_GET` |
+| `m[k] = v` | `__setsub__` | `SLOT_SET_SUB` | `OP_MAP_SET` |
+| `len(x)` | `__len__` | `SLOT_LEN` | `OP_LEN` |
+| `x in y` | `__contains__` | `SLOT_CONTAINS` | `OP_CONTAINS` |
+
+- **Collection 删除在指令层的投影**：`OP_LEN` / `OP_CONTAINS` 是跨 Seq/Map/Set 的通用指令（`SLOT_CONTAINS` 由序列与映射协议共享），语法级分发天然覆盖三分支，不依赖类型层超类。
+- **指令语义 = 槽分发的语义锚点**：现役 TARGET（`OP_SEQ_GET/SET` 族、`OP_LEN`）经 `kl_slot_call_*` 走统一槽表——与 `OP_NUM_*` 家族同一模式，无双轨。
+- `OP_SEQ_SET` 带写屏障，`OP_SEQ_GET` 只读无屏障；IMM 变体（signed 8-bit）服务 `t[0]` / `t[1]` 常数下标热路径，负下标语义待定（Koala_TODO §11）。
+- Set 无专属指令：无下标语法，add/remove 走方法调用，`in` 由 `OP_CONTAINS` 覆盖。
+- `OP_LIST_PUSH` / `OP_LIST_POP` 是 list 的 push/pop 方法内置（intrinsic 化路径，Koala_TODO §9），与协议指令族正交。
+- 实现进度：5 条全链路完成（SEQ_GET / GET_IMM / SET / SET_IMM / LEN），其余 7 条待补（Koala_TODO §12）。
+
 ### 8.4 类型清单
 
 | 类型 | 要点 |
 |------|------|
 | `str` | 字符串；`str(obj)` 接受 `any` 经 `__str__()` 做通用字符串转换 |
 | `bytes` | 固定长度字节数组，24 方法；位置式写族 |
-| `ByteBuf` | 可变字节缓冲，32 方法；append 式写族 |
+| `ByteBuf` | 可变字节缓冲，32 方法；push 式写族 |
 | `list` | 动态数组（泛型擦除，TValue 打包存储；显式 `list[int64]` 等拼写经 `@specialized` 映射到密集类，见 §7.4） |
 | `int64list` / `float64list` / `boollist` | 密集容器三件套（§7.4）：裸 int64 / 裸 double / 位压缩 bool，普通一等类 |
 | `dict` | **插入序**哈希映射；Python 便利方法 + Rust 位置族（pop_first / peek_last）+ Java remove 命名 |
@@ -433,7 +455,7 @@ bytes / ByteBuf 的二进制编解码职责已**剥离至官方库 encoding**，
 - for 循环直接接受 Iterator，支持元组解包。
 - **内建容器原生展开**：for 对 range / tuple / list / dict / bytes 等内建类型做原生展开——尤其 `range` 循环**不创建 range 对象、不走 iterator 协议**，编译器直接生成循环体，热路径零分配零分发。
 - 顶层组合子：`enumerate` / `zip` 现役；`filter` / `map` / `reduce` 在路线图（注释状态）。
-- **明确不做**：`sum` / `any` / `all` / `sorted`（作者定案：简洁优先）。`min` / `max` 已实现为泛型函数 `min[T: Comparable]` / `max[T: Comparable]`，`@specialized(int, uint, float)` 生成单态（见 §7.4）。
+- **明确不做**：`sum` / `sorted`（作者定案：简洁优先）；`any` / `all` 依赖 truthiness 机制，现设计无此机制故不做（若引入 Truthiness trait 可重开，见 §8.8 与 Koala_TODO §10）。`min` / `max` 已实现为泛型函数 `min[T: Comparable]` / `max[T: Comparable]`，`@specialized(int, uint, float)` 生成单态（见 §7.4）。
 - view 语义只用于固定长度类型，动态容器用 copy。
 
 ### 8.6 包编程规范
@@ -554,7 +576,7 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 | `super()` | Koala 不需要显式调用父类方法语法 |
 | `breakpoint()` | 调试器入口，Koala 无此机制 |
 | `help()` | 交互式文档，Koala 用生成式文档工具 |
-| `any()` / `all()` | 依赖隐式 truthiness 判定，Koala 不支持 bool 运算符重载（`__bool__`），无法泛型化；主流静态语言均不提供 |
+| `any()` / `all()` | 根因：Koala 无 truthiness 机制（隐式真假判定违背 nothing hidden，主流静态语言均无此概念）；若引入 Truthiness trait 语法钩子可重开（Koala_TODO §10，不一定支持） |
 | `bool()` | 同上，隐式 truthiness 转换机制不存在 |
 
 **不确定**
@@ -683,7 +705,7 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 `vm_ops.h` 的指令 TARGET 不按语义分组、按频率分层物理排布，源码注释即分层标记：
 
 - **hot**（文件头）：`OP_MOVE` / `OP_LOADK` / `OP_LOAD_INT_IMM`、整数 `ADD`/`SUB`（含 IMM 与 uint 变体）、整数序比较跳转 `OP_JMP_INT_LE/GT/LT/GE`、`OP_RET` 族——寄存器搬运、循环计数算术、循环回边分支。
-- **warm**：逻辑分支（EQ/NE、ref-null 判断）、`OP_CALL` / `OP_TAIL_CALL`、字段存取、`OP_NEW`、int 全序比较、位运算与逻辑短路、复杂整数算术（MUL/DIV/MOD）、`OP_NUM_*` 泛型数值、`OP_SEQ_*`、float 基本运算与跳转、intf 构造/上转。
+- **warm**：逻辑分支（EQ/NE、ref-null 判断）、`OP_CALL` / `OP_TAIL_CALL`、字段存取、`OP_NEW`、int 全序比较、位运算与逻辑短路、复杂整数算术（MUL/DIV/MOD）、`OP_NUM_*` 泛型数值、容器协议族（`OP_SEQ_*` 已落地；`OP_LEN` 同段；`OP_MAP_*` / `OP_CONTAINS` / `OP_LIST_PUSH` 落地时按频率归段）、float 基本运算与跳转、intf 构造/上转。
 - **cold**（文件尾）：uint 完整族、global 存取、float 复杂族（DIV/MOD/CMP）、misc（NEG/NOT/LOAD_TAG）、类型转换、`OP_NOP`。
 
 同一语义被热度拆开：`OP_INT_ADD` 在 hot 段、`OP_INT_MUL/DIV` 降到 warm、`OP_INT_NEG` 落进 misc——排布依据是 profile 频率，不是指令族谱。收益：handler 代码热段聚拢，提升 icache 命中；computed-goto 跳转表目标地址集中，利于分支预测器与取指预取；源码注释（hot/warm/cold）让分层意图可审计、可重排。

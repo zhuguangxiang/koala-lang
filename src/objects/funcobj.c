@@ -92,6 +92,11 @@ TValue kl_cfunc_call(TValue *self, TValue *args, int nargs)
 
     ASSERT(IS_TYPE(owner, &type_type));
     ASSERT(nargs >= 1);
+
+    if (cfunc->func == kl_not_impl_func) {
+        return kl_not_impl_func(self, args, nargs);
+    }
+
     return cfunc->func(args, args + 1, nargs - 1);
 }
 

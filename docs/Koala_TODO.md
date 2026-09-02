@@ -1,10 +1,11 @@
-# Koala TODO：泛型运算符协议未完成项
+# Koala TODO
 
-> 记录泛型数值协议（Arithmetic / BitwiseOperators / Comparable）相关的未完成实现。
+> 记录未完成实现与待定设计：泛型数值协议（§1–4、§7–8）、语言手册（§5）、
+> 版本计划与路线图（§6）、容器协议相关（§9、§11、§12）、Truthiness 设想（§10）。
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-08-30
+> 更新日期：2026-09-01
 
 ---
 
@@ -65,7 +66,8 @@ SLOT_BIT_AND)` 等。
 **dict/set 的成员判定目前没有任何可用入口**。
 
 **施工方向**：为 `EXPR_IN_KIND` 补语义处理与 IR 下降，
-下降为对 rhs 类型 `__contains__` 的方法调用即可。
+下降为专用指令 `OP_CONTAINS`（opcode_list.h 已定义，经 `SLOT_CONTAINS`
+槽分发；VM TARGET 待实现，见 §12）。
 
 ---
 
@@ -466,3 +468,36 @@ func any[T: Truthiness](items Iterable[T]) bool { ... }
 
 **建议**：两个指令的负下标语义必须一致；若当前 OP_SEQ_GET 运行时
 handler 不处理负索引，IMM 版本也应拒绝负数（编译期报错），避免两套语义。
+
+---
+
+## 12. 容器协议指令族实现（VM handler / printer / isel）
+
+> 2026-09-01 建立。容器类 op 重构（opcode_list.h 1914–2157）后盘点。
+> 与 §9（list push/pop 的 @intrinsic 化）相关但正交：§9 是方法内置，
+> 本节是语法钩子协议指令。三层对应见 Koala_Design_Overview.md §8.3。
+
+**已完成全链路（isel / printer / VM TARGET）——5 条**：
+
+- [x] OP_SEQ_GET（TARGET 经 kl_slot_call 走 SLOT_GET_ITEM）
+- [x] OP_SEQ_GET_IMM（isel.c:1051 常数下标特化）
+- [x] OP_SEQ_SET（SLOT_SET_ITEM）
+- [x] OP_SEQ_SET_IMM（isel.c:1078）
+- [x] OP_LEN（isel.c:622/632 下降；TARGET 走 SLOT_LEN）
+
+**已定义、未实现——7 条**：
+
+- [ ] OP_SEQ_GET_SLICE（SLOT_GET_SLICE）
+- [ ] OP_SEQ_SET_SLICE（SLOT_SET_SLICE）
+- [ ] OP_MAP_GET（IR 层已有：insn.c:816 用于成员访问下降；VM TARGET 缺）
+- [ ] OP_MAP_SET（IR 层已有：insn.c:842，dce.c 已识别其副作用；VM TARGET 缺）
+- [ ] OP_CONTAINS（SLOT_CONTAINS；依赖 §4 的 in 表达式语义下降）
+- [ ] OP_LIST_PUSH（IRGen 发射 + TARGET；见 §9）
+- [ ] OP_LIST_POP（OP_CALL + ISEL 特化路径；见 §9）
+
+**每条待办含**：vm_ops.h TARGET（kl_slot_call_* 模式）、printer.c case、
+isel 规则（如适用）、回归测试。
+
+**源码注释遗留（顺手修正项）**：
+- slotid.h:30 `SLOT_LEN, // OP_SEQ_LEN` — 注释里的指令名过时（现为 OP_LEN）
+- vm_ops.h:1531 `// TODO: can be negative?` — 即 §11 的负下标问题

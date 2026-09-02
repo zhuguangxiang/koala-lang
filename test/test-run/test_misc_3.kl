@@ -1,0 +1,52 @@
+// RUN: koala %s 2>&1 | filecheck %s
+
+import "std/sys"
+
+let ok = 1
+print(ok)
+
+print(sys.version)
+print(sys.path)
+
+import "std/time"
+print(time.now())
+
+func test() {
+    let d1 = time.Duration(1000)
+    let d2 = time.Duration.from_secs(1)
+    print(d1, d2)
+}
+
+// let t1 = time.now()
+test()
+// time.sleep(time.Duration.from_secs(2))
+// let t2 = time.now()
+// print("duration(ms):", t2.diff(t1).to_ms())
+
+print(time.Duration.from_secs(3))       // 3s
+print(time.Duration.from_millis(150))   // 150ms
+print(time.Duration.from_micros(20))    // 20us
+print(time.Duration.from_nanos(500))    // 500ns
+
+import "std/fs"
+import "std/io"
+
+let f = fs.open("test3.txt", "w")
+sys.stdout = io.BufWriter(f)
+print("hello world to file")
+f.close()
+// TODO: should panic：I/O operation on closed file
+// print("hello world to file after close()")
+
+sys.stdout = io.BufWriter(sys._stdout)
+print("hello world to console")
+
+// CHECK: 1us 1s
+
+// CHECK: 3s
+// CHECK: 150ms
+// CHECK: 20us
+// CHECK: 500ns
+
+// CHECK-NOT: hello world to file
+// CHECK: hello world to console

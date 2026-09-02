@@ -48,8 +48,6 @@ typedef struct _ModuleObject {
     HashMap symbols; // symbols for exported map
     char *path;      // module path
 
-    Object *not_impl; // not implemented function
-
     /* native so */
     Vector libs;
 } ModuleObject;
