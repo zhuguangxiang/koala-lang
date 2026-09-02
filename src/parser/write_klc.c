@@ -340,6 +340,17 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
             }
             return klc_add_rt_range(klc, list);
         }
+        case KL_MACH_CONST_SLICE: {
+            Vector *list = vector_create(sizeof(uint16_t));
+            Vector *vec = kc->list;
+            KlMachConst *range_item;
+            vector_foreach(range_item, vec) {
+                if (!range_item) continue;
+                uint16_t idx = _write_rt_const(klc, range_item);
+                vector_push_back(list, &idx);
+            }
+            return klc_add_rt_slice(klc, list);
+        }
         case KL_MACH_CONST_LIST: {
             Vector *list = vector_create(sizeof(uint16_t));
             Vector *vec = kc->list;

@@ -1551,6 +1551,20 @@ TARGET(OP_LEN) {
     DISPATCH();
 }
 
+TARGET(OP_SEQ_GET_SLICE) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_GET_SLICE);
+
+    DISPATCH();
+}
+
 /* Float Basic */
 
 TARGET(OP_FLOAT_ADD) {

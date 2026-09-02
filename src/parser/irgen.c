@@ -1016,7 +1016,12 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
         if (type_is_seq(lhs->ts)) {
             // sequence index
             if (exp->ctx == EXPR_CTX_LOAD) {
-                item = klr_build_seq_get(&bldr, lhs->ir_val, ir_val, exp->ts, "");
+                if (type_is_int(ir_val->ts)) {
+                    item = klr_build_seq_get(&bldr, lhs->ir_val, ir_val, exp->ts, "");
+                } else {
+                    ASSERT(type_is_slice(ir_val->ts));
+                    item = klr_build_slice_get(&bldr, lhs->ir_val, ir_val, lhs->ts, "");
+                }
             } else {
                 item = klr_new_index(&bldr, lhs->ir_val, ir_val, KLR_SEQ_SET);
             }
@@ -1040,7 +1045,39 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
     NYI();
 }
 
-static void emit_ir_slice(ParserState *ps, Expr *exp) { NYI(); }
+static void emit_ir_slice(ParserState *ps, Expr *exp)
+{
+    SliceExpr *slice = (SliceExpr *)exp;
+
+    int konst = 1;
+
+    Expr *e = slice->start;
+    emit_ir_visit_expr(ps, e);
+    if (!e->ir_val) return;
+    if (!klr_is_const(e->ir_val)) konst = 0;
+
+    e = slice->end;
+    emit_ir_visit_expr(ps, e);
+    if (!e->ir_val) return;
+    if (!klr_is_const(e->ir_val)) konst = 0;
+
+    e = slice->step;
+    emit_ir_visit_expr(ps, e);
+    if (!e->ir_val) return;
+    if (!klr_is_const(e->ir_val)) konst = 0;
+
+    KlrValue *ret;
+
+    KlrValue *args[3] = { slice->start->ir_val, slice->end->ir_val, slice->step->ir_val };
+
+    if (konst) {
+        exp->ir_val = klr_const_slice(args, exp->ts, MOD);
+    } else {
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        exp->ir_val = klr_build_intern(&bldr, args, 3, exp->ts, INTERN_SLICE, "");
+    }
+}
 
 static OpCode get_binary_op_code(BiOpKind op)
 {

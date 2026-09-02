@@ -2375,17 +2375,27 @@ static void parse_slice(ParserState *ps, Expr *exp)
             kl_error(start->loc, "slice start index must be of int type.");
             return;
         }
+    } else {
+        start = expr_from_lit_int("0", 1, 0, 0);
+        start->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, start);
+        slice->start = start;
     }
 
-    Expr *stop = slice->stop;
-    if (stop) {
-        stop->ctx = EXPR_CTX_LOAD;
-        parser_visit_expr(ps, stop);
-        if (!stop->ts) return;
-        if (stop->ts->kind != TYPE_INT) {
-            kl_error(stop->loc, "slice stop index must be of int type.");
+    Expr *end = slice->end;
+    if (end) {
+        end->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, end);
+        if (!end->ts) return;
+        if (end->ts->kind != TYPE_INT) {
+            kl_error(end->loc, "slice end index must be of int type.");
             return;
         }
+    } else {
+        end = expr_from_lit_int("-1", 1, 0, -1);
+        end->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, end);
+        slice->end = end;
     }
 
     Expr *step = slice->step;
@@ -2397,6 +2407,11 @@ static void parse_slice(ParserState *ps, Expr *exp)
             kl_error(step->loc, "slice step index must be of int type.");
             return;
         }
+    } else {
+        step = expr_from_lit_int("1", 1, 0, 1);
+        step->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, step);
+        slice->step = step;
     }
 
     exp->ts = klass_type_spec("std/builtin", "slice");

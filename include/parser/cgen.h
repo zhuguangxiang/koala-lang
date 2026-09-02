@@ -185,7 +185,8 @@ typedef struct _KlMachInsn {
 #define KL_MACH_CONST_STR   6
 #define KL_MACH_CONST_TUPLE 7
 #define KL_MACH_CONST_RANGE 8
-#define KL_MACH_CONST_LIST  9
+#define KL_MACH_CONST_SLICE 9
+#define KL_MACH_CONST_LIST  10
 typedef struct _KlMachConst {
     HashMapEntry hnode;
     uint8_t tag;

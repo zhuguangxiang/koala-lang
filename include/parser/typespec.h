@@ -173,6 +173,7 @@ int type_is_some_klass(TypeSpec *ts, char *name);
 static inline int type_is_tuple(TypeSpec *ts) { return type_is_some_klass(ts, "tuple"); }
 static inline int type_is_range(TypeSpec *ts) { return type_is_some_klass(ts, "range"); }
 static inline int type_is_list(TypeSpec *ts) { return type_is_some_klass(ts, "list"); }
+static inline int type_is_slice(TypeSpec *ts) { return type_is_some_klass(ts, "slice"); }
 
 int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts);
 

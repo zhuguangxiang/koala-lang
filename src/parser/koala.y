@@ -3070,6 +3070,10 @@ atom_expr
         $$ = expr_from_type($1);
         expr_set_loc($$, loc(@1));
     }
+    | atom_type '?'
+    {
+        $$ = NULL;
+    }
     | ARRAY
     {
         $$ = NULL;

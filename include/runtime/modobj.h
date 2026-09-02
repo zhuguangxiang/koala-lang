@@ -88,6 +88,7 @@ int kl_mo_add_const(Object *_m, TValue *val);
 int kl_mo_add_str(Object *_m, char *s);
 int kl_mo_add_tuple(Object *_m, Vector *list);
 int kl_mo_add_range(Object *_m, Vector *list);
+int kl_mo_add_slice(Object *_m, Vector *list);
 int kl_mo_add_int(Object *_m, int64_t k, int type_info);
 int kl_mo_add_uint(Object *_m, uint64_t k, int type_info);
 int kl_mo_add_float(Object *_m, double k, int type_info);

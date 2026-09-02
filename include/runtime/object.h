@@ -438,6 +438,22 @@ Object *kl_new_fmt_str(char *fmt, ...);
 void kl_free_str(Object *obj);
 
 /*---------------------------------------------------------------------------+
+ |  Slice related                                                            |
+ +---------------------------------------------------------------------------*/
+
+typedef struct _SliceObject {
+    OBJECT_HEAD
+    TValue start;
+    TValue end;
+    TValue step;
+} SliceObject;
+
+extern TypeObject slice_type;
+#define IS_SLICE(ob) IS_TYPE((ob), &slice_type)
+
+Object *kl_new_slice(TValue *items);
+
+/*---------------------------------------------------------------------------+
  |  APIs of Object, TValue, TypeObject & ModuleObject                        |
  +---------------------------------------------------------------------------*/
 
@@ -526,6 +542,14 @@ void kl_dump_module(Object *m);
         ASSERT(index >= 0 && index < nargs); \
         Object *o = to_obj(args + index); \
         ASSERT(IS_STR(o)); \
+        (void *)o; \
+    })
+
+#define kl_arg_slice(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        Object *o = to_obj(args + index); \
+        ASSERT(IS_SLICE(o)); \
         (void *)o; \
     })
 

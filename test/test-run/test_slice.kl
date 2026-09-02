@@ -1,0 +1,11 @@
+
+func main() {
+    let x = [1,2,3,4,5]
+    print(x)
+    let y = x[1:3]
+    print(y)
+    let s = slice(1, 3)
+    print(s, s.start, s.end, s.step)
+    // let z = x[s]
+    print(x[:])
+}

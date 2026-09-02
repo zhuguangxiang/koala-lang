@@ -200,6 +200,22 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
                 break;
             }
 
+            case KLC_CONST_SLICE: {
+                Vector *_sub = item->val;
+                TValue values[3];
+
+                KlcConst *_item;
+                vector_foreach(_item, _sub) {
+                    ASSERT(_item->type == KLC_CONST_INT);
+                    values[i__] = int64_value(_item->ival);
+                }
+
+                Object *tobj = kl_new_slice(values);
+                TValue val = obj_value(tobj);
+                vector_push_back(&vec, &val);
+                break;
+            }
+
             case KLC_CONST_SHORT_LIST:
             case KLC_CONST_LIST: {
                 Vector *_sub = item->val;
@@ -241,6 +257,28 @@ int kl_mo_add_range(Object *_m, Vector *list)
     int size = vector_size(&vec);
     ASSERT(size == 3);
     Object *tobj = kl_new_range(items);
+    TValue val = obj_value(tobj);
+    vector_fini(&vec);
+    return kl_mo_add_const(_m, &val);
+}
+
+int kl_mo_add_slice(Object *_m, Vector *list)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    Vector vec;
+    vector_init(&vec, sizeof(TValue));
+
+    KlcConst *item;
+    vector_foreach(item, list) {
+        ASSERT(item->type == KLC_CONST_INT);
+        TValue val = int64_value(item->ival);
+        vector_push_back(&vec, &val);
+    }
+
+    TValue *items = VECTOR_RAW(&vec, TValue);
+    int size = vector_size(&vec);
+    ASSERT(size == 3);
+    Object *tobj = kl_new_slice(items);
     TValue val = obj_value(tobj);
     vector_fini(&vec);
     return kl_mo_add_const(_m, &val);
@@ -297,6 +335,22 @@ int kl_mo_add_list(Object *_m, Vector *list)
                 }
 
                 Object *tobj = kl_new_range(values);
+                TValue val = obj_value(tobj);
+                vector_push_back(&vec, &val);
+                break;
+            }
+
+            case KLC_CONST_SLICE: {
+                Vector *_sub = item->val;
+                TValue values[3];
+
+                KlcConst *_item;
+                vector_foreach(_item, _sub) {
+                    ASSERT(_item->type == KLC_CONST_INT);
+                    values[i__] = int64_value(_item->ival);
+                }
+
+                Object *tobj = kl_new_slice(values);
                 TValue val = obj_value(tobj);
                 vector_push_back(&vec, &val);
                 break;

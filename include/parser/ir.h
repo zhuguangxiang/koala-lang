@@ -120,7 +120,8 @@ typedef struct _KlrConst {
 #define CONST_STR   6
 #define CONST_TUPLE 7
 #define CONST_RANGE 8
-#define CONST_LIST  9
+#define CONST_SLICE 9
+#define CONST_LIST  10
     int len;
     union {
         uint64_t ival;
@@ -514,6 +515,7 @@ KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m)
 KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_none(KlrModule *m);
 KlrValue *klr_const_range(KlrValue **args, TypeSpec *ts, KlrModule *m);
+KlrValue *klr_const_slice(KlrValue **args, TypeSpec *ts, KlrModule *m);
 
 static inline int klr_is_const(KlrValue *val)
 {
@@ -1095,6 +1097,8 @@ void klr_build_map_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValu
 KlrValue *klr_build_seq_len(KlrBuilder *bldr, KlrValue *obj, char *name);
 KlrValue *klr_build_hash(KlrBuilder *bldr, KlrValue *obj, char *name);
 KlrValue *klr_build_str(KlrBuilder *bldr, KlrValue *obj, char *name);
+KlrValue *klr_build_slice_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
+                              char *name);
 
 KlrValue *klr_specialize_func(KlrFunc *fn, char *mangled_name, Vector *tp_args);
 

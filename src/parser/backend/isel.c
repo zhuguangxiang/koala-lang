@@ -236,7 +236,8 @@ static OpCode get_const_op(KlrConst *c, LowerConstRule *R)
         case CONST_STR:
         case CONST_LIST:
         case CONST_TUPLE:
-        case CONST_RANGE: {
+        case CONST_RANGE:
+        case CONST_SLICE: {
             op = R->load_op;
             break;
         }
@@ -1089,6 +1090,25 @@ static void isel_lower_seq_len(KlrInsn *insn)
     }
 }
 
+static void isel_lower_seq_get_slice(KlrInsn *insn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    KlrValue *index = insn_oper_value(insn, 1);
+
+    ASSERT(klr_is_insn(obj) || klr_is_param(obj) || klr_is_const(obj));
+    ASSERT(klr_is_insn(index) || klr_is_param(index) || klr_is_const(index));
+
+    if (klr_is_const(obj)) {
+        KlrValue *_obj = lower_const(insn, (KlrConst *)obj);
+        set_operand_at(insn, 0, _obj);
+    }
+
+    if (klr_is_const(index)) {
+        KlrValue *_index = lower_const(insn, (KlrConst *)index);
+        set_operand_at(insn, 1, _index);
+    }
+}
+
 static void isel_lower_new(KlrInsn *insn)
 {
     KlrValue *kls = insn_oper_value(insn, 0);
@@ -1231,6 +1251,11 @@ static void do_isel(KlrFunc *fn)
                 case OP_HASH:
                 case OP_STR: {
                     isel_lower_hash_str(insn);
+                    break;
+                }
+
+                case OP_SEQ_GET_SLICE: {
+                    isel_lower_seq_get_slice(insn);
                     break;
                 }
 

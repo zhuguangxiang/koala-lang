@@ -78,6 +78,22 @@ static void dump_const(KlMachConst *kc, int index, int indent)
             break;
         }
 
+        case KL_MACH_CONST_SLICE: {
+            Vector *list = kc->list;
+            int count = vector_size(list);
+
+            printf("slice: (");
+
+            for (int i = 0; i < count; i++) {
+                KlMachConst *elem = vector_at(list, i);
+                if (i > 0) printf(", ");
+                printf("%ld", elem->i64);
+            }
+
+            printf(")\n");
+            break;
+        }
+
         case KL_MACH_CONST_LIST: {
             Vector *list = kc->list;
             int count = vector_size(list);
@@ -149,7 +165,8 @@ static int __mach_const_eq__(void *a, void *b)
             return (ka->len == kb->len) && (strcmp(ka->str, kb->str) == 0);
         case KL_MACH_CONST_BOOL:
             return (ka->len == kb->len) && (ka->bval == kb->bval);
-        case KL_MACH_CONST_RANGE: {
+        case KL_MACH_CONST_RANGE:
+        case KL_MACH_CONST_SLICE: {
             KlMachConst **raw_a = VECTOR_RAW(ka->list, KlMachConst *);
             KlMachConst **raw_b = VECTOR_RAW(kb->list, KlMachConst *);
             return !memcmp(raw_a, raw_b, sizeof(void *) * 3);
@@ -193,6 +210,7 @@ static unsigned int mach_const_hash(void *key)
         case KL_MACH_CONST_STR:
             return str_hash(kc->str);
         case KL_MACH_CONST_RANGE:
+        case KL_MACH_CONST_SLICE:
             KlMachConst **raw = VECTOR_RAW(kc->list, KlMachConst *);
             return mem_hash(raw, sizeof(void *) * 3);
         case KL_MACH_CONST_TUPLE: {
@@ -440,6 +458,40 @@ static KlMachConst *kl_mach_add_list(KlMachModule *m, Vector *items)
     return entry;
 }
 
+static KlMachConst *kl_mach_add_slice(KlMachModule *m, Vector *items)
+{
+    Vector *list = vector_create_ptr();
+    KlrValue *elem;
+    vector_foreach(elem, items) {
+        KlrConst *_kc = (KlrConst *)elem;
+        KlMachConst *kc = kl_mach_add_int(m, _kc->ival, _kc->len);
+        vector_push_back(list, &kc);
+    }
+
+    KlMachConst key = { .tag = KL_MACH_CONST_SLICE, .list = list };
+    hashmap_entry_init(&key, mach_const_hash(&key));
+
+    KlMachConst *entry = hashmap_get(&m->cp_map, &key);
+    if (entry) {
+        vector_destroy(list);
+        log_info("Found existing const entry for slice (index: %d)", entry->index);
+        return entry;
+    }
+
+    KlMachConst *new_entry = mm_alloc_obj(new_entry);
+    new_entry->tag = KL_MACH_CONST_SLICE;
+    new_entry->list = list;
+
+    hashmap_entry_init(new_entry, mach_const_hash(new_entry));
+    hashmap_put(&m->cp_map, new_entry);
+
+    vector_push_back(&m->const_pool, &new_entry);
+    int index = vector_size(&m->const_pool) - 1;
+    new_entry->index = index;
+    log_info("Added new const entry for slice (index: %d)", index);
+    return new_entry;
+}
+
 KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m)
 {
     switch (kc->which) {
@@ -469,6 +521,9 @@ KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m)
         }
         case CONST_LIST: {
             return kl_mach_add_list(m, kc->list);
+        }
+        case CONST_SLICE: {
+            return kl_mach_add_slice(m, kc->list);
         }
         default: {
             UNREACHABLE();

@@ -49,6 +49,11 @@ void kl_free_ks(KoalaState *ks)
 TValue kl_not_impl_func(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
+    if (!IS_CFUNC(obj)) {
+        fprintf(stderr, "function not implemented!\n");
+        return error_value;
+    }
+
     ASSERT(IS_CFUNC(obj));
     CFuncObject *cfunc = (CFuncObject *)obj;
     Object *owner = cfunc->owner;
@@ -224,6 +229,12 @@ static void __load_const(Object *m, KlcConst *item)
         case KLC_CONST_RANGE: {
             Vector *vec = item->val;
             kl_mo_add_range(m, vec);
+            break;
+        }
+
+        case KLC_CONST_SLICE: {
+            Vector *vec = item->val;
+            kl_mo_add_slice(m, vec);
             break;
         }
 

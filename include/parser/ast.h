@@ -318,7 +318,7 @@ Expr *expr_from_index(Expr *lhs, Vector *vec);
 typedef struct _SliceExpr {
     EXPR_HEAD
     Expr *start;
-    Expr *stop;
+    Expr *end;
     Expr *step;
 } SliceExpr;
 

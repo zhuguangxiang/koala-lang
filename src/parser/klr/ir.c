@@ -207,6 +207,20 @@ KlrValue *klr_const_range(KlrValue **args, TypeSpec *ts, KlrModule *m)
     return (KlrValue *)lit;
 }
 
+KlrValue *klr_const_slice(KlrValue **args, TypeSpec *ts, KlrModule *m)
+{
+    KlrConst *lit = mm_alloc_obj(lit);
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
+    lit->which = CONST_SLICE;
+    lit->len = 3;
+    Vector *list = vector_create_ptr();
+    vector_push_back(list, &args[0]);
+    vector_push_back(list, &args[1]);
+    vector_push_back(list, &args[2]);
+    lit->list = list;
+    return (KlrValue *)lit;
+}
+
 int klr_is_immutable(KlrValue *val)
 {
     if (klr_is_global(val)) {

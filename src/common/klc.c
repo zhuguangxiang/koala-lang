@@ -58,7 +58,8 @@ static int __const_equal(KlcConst *k1, KlcConst *k2)
             return !strncmp(k1->sval, k2->sval, k1->len);
         }
 
-        case KLC_CONST_RANGE: {
+        case KLC_CONST_RANGE:
+        case KLC_CONST_SLICE: {
             Vector *v1 = k1->val;
             Vector *v2 = k2->val;
             void *p1 = VECTOR_RAW(v1, uint16_t);
@@ -87,7 +88,7 @@ static unsigned int init_item_entry(ItemEntry *item, int type, KlcConst *data)
 {
     uint64_t hash;
 
-    if (data->type == KLC_CONST_RANGE) {
+    if (data->type == KLC_CONST_RANGE || data->type == KLC_CONST_SLICE) {
         Vector *vec = data->val;
         uint16_t *raw = VECTOR_RAW(vec, uint16_t);
         hash = mem_hash(raw, sizeof(uint16_t) * 3);
@@ -329,6 +330,22 @@ uint16_t klc_add_rt_range(KlcFile *klc, Vector *list)
     if (idx == 0) {
         KlcConst *item = mm_alloc_obj(item);
         item->type = KLC_CONST_RANGE;
+        item->len = len;
+        item->val = list;
+        idx = __append(klc, ITEM_RT_CONST, item);
+    }
+    return idx;
+}
+
+uint16_t klc_add_rt_slice(KlcFile *klc, Vector *list)
+{
+    int len = vector_size(list);
+    KlcConst key = { .type = KLC_CONST_SLICE, .len = len, .val = list };
+
+    uint16_t idx = __index(klc, ITEM_RT_CONST, &key);
+    if (idx == 0) {
+        KlcConst *item = mm_alloc_obj(item);
+        item->type = KLC_CONST_SLICE;
         item->len = len;
         item->val = list;
         idx = __append(klc, ITEM_RT_CONST, item);
@@ -725,7 +742,8 @@ static void write_const(KlcFile *klc, KlcConst *item)
             }
             break;
         }
-        case KLC_CONST_RANGE: {
+        case KLC_CONST_RANGE:
+        case KLC_CONST_SLICE: {
             Vector *vec = item->val;
 
             uint16_t item;
@@ -1129,7 +1147,8 @@ static void read_const(KlcFile *klc, Vector *vec)
             item->val = _vec;
             break;
         }
-        case KLC_CONST_RANGE: {
+        case KLC_CONST_RANGE:
+        case KLC_CONST_SLICE: {
             Vector *_vec = vector_create_ptr();
             item->len = 3;
             for (int i = 0; i < 3; i++) {

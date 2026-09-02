@@ -19,6 +19,7 @@ typedef enum _OpCode {
 typedef enum _InternTag {
     INTERN_TUPLE,
     INTERN_RANGE,
+    INTERN_SLICE,
     INTERN_LIST,
 } InternTag;
 

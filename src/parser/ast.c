@@ -361,7 +361,7 @@ Expr *expr_from_slice(Expr *start, Expr *stop, Expr *step)
     SliceExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_SLICE_KIND;
     exp->start = start;
-    exp->stop = stop;
+    exp->end = stop;
     exp->step = step;
     return (Expr *)exp;
 }
@@ -444,7 +444,7 @@ static void slice_expr_free(Expr *exp)
 {
     SliceExpr *slice = (SliceExpr *)exp;
     expr_free(slice->start);
-    expr_free(slice->stop);
+    expr_free(slice->end);
     expr_free(slice->step);
     mm_free(exp);
 }

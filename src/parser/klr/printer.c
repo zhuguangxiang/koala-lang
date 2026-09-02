@@ -98,6 +98,17 @@ static void print_const(KlrConst *v, FILE *fp)
             fprintf(fp, ")");
             break;
         }
+        case CONST_SLICE: {
+            fprintf(fp, "slice(");
+            int len = vector_size(v->list);
+            KlrValue *item;
+            vector_foreach(item, v->list) {
+                print_const_item(item, fp);
+                if (i__ < len - 1) fprintf(fp, ", ");
+            }
+            fprintf(fp, ")");
+            break;
+        }
         default:
             UNREACHABLE();
             break;
@@ -516,6 +527,15 @@ static void print_set_field(KlrInsn *insn, char *name, FILE *fp)
 }
 
 static void print_seq_get(const char *name, KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = %s ", name);
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+}
+
+static void print_seq_get_slice(const char *name, KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
     fprintf(fp, " = %s ", name);
@@ -1187,6 +1207,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_STR:
             print_unary(insn, name, fp);
+            break;
+
+        case OP_SEQ_GET_SLICE:
+            print_seq_get_slice(name, insn, fp);
             break;
 
         default:
