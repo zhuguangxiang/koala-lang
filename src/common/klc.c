@@ -412,7 +412,11 @@ KlcVar *klc_add_var(KlcFile *klc, char *name, char *type, uint16_t index, int fl
     var->name_index = name_index;
     var->type_index = type_index;
     var->const_index = index;
-    vector_push_back(klc->objs + ITEM_VAR, &var);
+    if (flags & KLC_FLAGS_CONST) {
+        vector_push_back(klc->objs + ITEM_CONST_VAR, &var);
+    } else {
+        vector_push_back(klc->objs + ITEM_VAR, &var);
+    }
     return var;
 }
 
@@ -1018,6 +1022,7 @@ int write_klc_file(KlcFile *klc)
     write_bytecodes(klc, klc->objs + ITEM_BYTECODE);
     write_consts(klc, klc->objs + ITEM_CONST);
     write_vars(klc, klc->objs + ITEM_VAR);
+    write_vars(klc, klc->objs + ITEM_CONST_VAR);
     write_funcs(klc, klc->objs + ITEM_FUNC);
     write_classes(klc, klc->objs + ITEM_CLASS);
     fclose(fp);
@@ -1503,6 +1508,7 @@ KlcFile *read_klc_file(char *path, int rt)
     if (1) {
         read_consts(klc, klc->objs + ITEM_CONST);
         read_vars(klc, klc->objs + ITEM_VAR);
+        read_vars(klc, klc->objs + ITEM_CONST_VAR);
         read_funcs(klc, klc->objs + ITEM_FUNC);
         read_classes(klc, klc->objs + ITEM_CLASS);
     }
@@ -1705,6 +1711,7 @@ void fini_klc_file(KlcFile *klc)
 
     fini_consts(klc->objs + ITEM_CONST);
     fini_vars(klc->objs + ITEM_VAR);
+    fini_vars(klc->objs + ITEM_CONST_VAR);
     fini_funcs(klc->objs + ITEM_FUNC);
     fini_klasses(klc->objs + ITEM_CLASS);
 }

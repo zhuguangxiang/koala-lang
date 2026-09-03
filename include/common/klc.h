@@ -13,16 +13,17 @@
 extern "C" {
 #endif
 
-#define ITEM_RT_CONST 0
-#define ITEM_IMPORT   1
-#define ITEM_LINK     2
-#define ITEM_CODE     3
-#define ITEM_BYTECODE 4
-#define ITEM_CONST    5
-#define ITEM_VAR      6
-#define ITEM_FUNC     7
-#define ITEM_CLASS    8
-#define ITEM_MAX      9
+#define ITEM_RT_CONST  0
+#define ITEM_IMPORT    1
+#define ITEM_LINK      2
+#define ITEM_CODE      3
+#define ITEM_BYTECODE  4
+#define ITEM_CONST     5
+#define ITEM_VAR       6
+#define ITEM_CONST_VAR 7
+#define ITEM_FUNC      8
+#define ITEM_CLASS     9
+#define ITEM_MAX       10
 
 typedef struct _KlcFile {
     char *path;
@@ -79,10 +80,11 @@ typedef struct _KlcConst {
 
 #define KLC_FLAGS_PUB    (1 << 0)
 #define KLC_FLAGS_MUT    (1 << 1)
-#define KLC_FLAGS_TRAIT  (1 << 2)
-#define KLC_FLAGS_METH   (1 << 3)
-#define KLC_FLAGS_NATIVE (1 << 4)
-#define KLC_FLAGS_STATIC (1 << 5)
+#define KLC_FLAGS_CONST  (1 << 2)
+#define KLC_FLAGS_TRAIT  (1 << 3)
+#define KLC_FLAGS_METH   (1 << 4)
+#define KLC_FLAGS_NATIVE (1 << 5)
+#define KLC_FLAGS_STATIC (1 << 6)
 
 typedef struct _KlcVar {
     /* flags */

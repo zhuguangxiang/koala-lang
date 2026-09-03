@@ -136,6 +136,7 @@ typedef struct _KlrConst {
 typedef struct {
     KLR_VALUE_HEAD
     int mutable;
+    int konst;
     int index;
     KlrConst *kval;
 } KlrGlobal, KlrField;
@@ -624,7 +625,7 @@ void klr_delete_func(KlrModule *m, KlrFunc *fn);
 #define func_foreach(fn, m_kls)    list_foreach(fn, mlink, &(m_kls)->func_list)
 #define param_foreach(param, func) vector_foreach(param, &(func)->params)
 
-KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut);
+KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut, int konst);
 KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name);
 KlrValue *klr_add_field(KlrValue *klass, char *name, TypeSpec *ts);
 KlrValue *klr_add_method(KlrKlass *kls, TypeSpec *ret, char *name);

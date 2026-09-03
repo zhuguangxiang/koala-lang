@@ -36,13 +36,16 @@ static void fini_use(KlrUse *use)
     KlrValue *ref = use->ref;
 
     if (use->is_def) {
-        ASSERT(klr_is_local(ref));
         ref->def_count--;
-        if (ref->def_count == 0) {
-            log_info("erase insn '%%%s' since it has no defs after this removal", ref->name);
-            ASSERT(list_empty(&ref->def_list));
-            log_insn((KlrInsn *)ref);
-            klr_erase_insn((KlrInsn *)ref);
+        if (klr_is_local(ref)) {
+            if (ref->def_count == 0) {
+                log_info("erase insn '%%%s' since it has no defs after this removal", ref->name);
+                ASSERT(list_empty(&ref->def_list));
+                log_insn((KlrInsn *)ref);
+                klr_erase_insn((KlrInsn *)ref);
+            }
+        } else {
+            ASSERT(klr_is_global(ref));
         }
     } else {
         if (ref) ref->use_count--;

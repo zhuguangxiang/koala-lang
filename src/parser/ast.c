@@ -20,6 +20,7 @@ Expr *expr_from_lit_int(char *orginal, int sign, int bit_mode, __int128 val)
     exp->sign = sign;
     exp->ival_128 = val;
     exp->ival = 0;
+    exp->len = 8;
     exp->ts = sign ? int64_type_spec() : uint64_type_spec();
     return (Expr *)exp;
 }
@@ -30,6 +31,7 @@ Expr *expr_from_lit_float(double val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->which = LIT_EXPR_FLT;
     exp->fval = val;
+    exp->len = 8;
     exp->ts = float64_type_spec();
     return (Expr *)exp;
 }
@@ -183,6 +185,14 @@ Expr *expr_from_literal(Literal *lit)
     } else {
         UNREACHABLE();
     }
+    return (Expr *)exp;
+}
+
+Expr *expr_from_const_tuple(Vector *vec)
+{
+    ConstTupleExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_CONST_TUPLE_KIND;
+    exp->vec = vec;
     return (Expr *)exp;
 }
 

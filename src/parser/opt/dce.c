@@ -14,7 +14,6 @@ extern "C" {
 static int has_side_effect(KlrInsn *insn)
 {
     switch (insn->code) {
-        case OP_GLOBAL_SET:
         case OP_RET:
         case OP_RET_VOID:
         case OP_IR_JMP_COND:
@@ -27,6 +26,17 @@ static int has_side_effect(KlrInsn *insn)
         case OP_MAP_SET:
         case OP_SEQ_SET_IMM:
             return 1;
+
+        case OP_GLOBAL_SET: {
+            KlrValue *gvar = insn_oper_value(insn, 0);
+            ASSERT(gvar);
+            // TODO: KLR_VALUE_EXT_GLOBAL
+            if (gvar->kind != KLR_VALUE_GLOBAL) return 1;
+
+            KlrGlobal *g = (KlrGlobal *)gvar;
+            if (g->konst) return 0;
+            return 1; /* Writing to a global variable has side-effects */
+        }
 
         case OP_IR_CALL: {
             if (insn->flags & KLR_INSN_FLAGS_CONST) {

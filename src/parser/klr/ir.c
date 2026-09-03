@@ -423,8 +423,8 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
     /* move all instructions from src to dst */
     KlrInsn *insn, *nxt;
     insn_foreach_safe(insn, nxt, src) {
-        log_info("[basic-block-merging] move insn from block '%%%s' to '%%%s'",
-                 klr_block_name(src), klr_block_name(dst));
+        log_info("[basic-block-merging] move insn from block '%%%s' to '%%%s'", klr_block_name(src),
+                 klr_block_name(dst));
         log_insn(insn);
         list_remove(&insn->bb_link);
 
@@ -478,8 +478,8 @@ void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
 
     /* update in-edges */
     edge_in_foreach_safe(edge, nxt_edge, src) {
-        log_info("[basic-block-merging] remove in edge '%%%s' -> '%%%s'",
-                 klr_block_name(edge->src), klr_block_name(edge->dst));
+        log_info("[basic-block-merging] remove in edge '%%%s' -> '%%%s'", klr_block_name(edge->src),
+                 klr_block_name(edge->dst));
         klr_remove_edge(edge);
     }
 }
@@ -684,11 +684,12 @@ static KlrGlobal *new_global(TypeSpec *ts, char *name)
     return global;
 }
 
-KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut)
+KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut, int konst)
 {
     KlrGlobal *global = new_global(ts, name);
     vector_push_back(&m->globals, &global);
     global->mutable = mut;
+    global->konst = konst;
     global->index = vector_size(&m->globals) - 1;
     return (KlrValue *)global;
 }
@@ -1057,8 +1058,7 @@ char *klr_value_name(KlrValue *val)
                              klr_value_name(dst), klr_value_name(src));
                 } else if (insn->code == OP_RET) {
                     KlrValue *v = insn_oper_value(insn, 0);
-                    snprintf(val->print_name, sizeof(val->print_name), "ret %s",
-                             klr_value_name(v));
+                    snprintf(val->print_name, sizeof(val->print_name), "ret %s", klr_value_name(v));
                 } else if (insn->code == OP_RET_VOID) {
                     snprintf(val->print_name, sizeof(val->print_name), "ret void");
                 } else {

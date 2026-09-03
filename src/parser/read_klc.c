@@ -310,6 +310,7 @@ static int to_symbol_flags(uint16_t klc_flags)
     int flags = SYM_FLAGS_EXT;
     if (klc_flags & KLC_FLAGS_PUB) flags |= SYM_FLAGS_PUBLIC;
     if (klc_flags & KLC_FLAGS_MUT) flags |= SYM_FLAGS_MUTABLE;
+    if (klc_flags & KLC_FLAGS_CONST) flags |= SYM_FLAGS_CONST;
     if (klc_flags & KLC_FLAGS_STATIC) flags |= SYM_FLAGS_STATIC;
     return flags;
 }
@@ -586,6 +587,25 @@ static void load_globals(LoadContext *ctx)
         int flags = to_symbol_flags(item->flags);
         Symbol *sym = stbl_add_var(ctx->stbl, k->sval, ts, flags);
         sym->parent = ctx->pkg_sym;
+        sym->path = ctx->path;
+        sym->status = SYM_RESOLVED;
+    }
+
+    vector_foreach(item, klc->objs + ITEM_CONST_VAR) {
+        if (!item) continue;
+        if (!(item->flags & KLC_FLAGS_PUB)) {
+            continue;
+        }
+
+        KlcConst *k = klc_get_const(ctx->klc, item->name_index);
+        KlcConst *ty_k = klc_get_const(ctx->klc, item->type_index);
+        TypeSpec *ts = type_spec_from_str(ty_k->sval);
+        KlcConst *konst_val = klc_get_const(ctx->klc, item->const_index);
+        int flags = to_symbol_flags(item->flags);
+        Symbol *sym = stbl_add_var(ctx->stbl, k->sval, ts, flags);
+        sym->parent = ctx->pkg_sym;
+        sym->path = ctx->path;
+        ((VarSymbol *)sym)->lit = klc_const_to_literal(konst_val);
         sym->status = SYM_RESOLVED;
     }
 }

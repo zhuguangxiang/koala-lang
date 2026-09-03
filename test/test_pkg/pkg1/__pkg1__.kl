@@ -83,3 +83,10 @@ link "pkg1_native"
 
 @native
 pub func test_pkg_foo(a Animal) {}
+
+pub const PI = 3.14159
+pub const E = 2.71828
+pub const GOLDEN_RATIO = 1.61803
+pub const GREETING = "Hello"
+pub const INT64_MIN = -9223372036854775808
+pub const INT64_MAX = 9223372036854775807

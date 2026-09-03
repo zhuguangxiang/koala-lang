@@ -52,18 +52,30 @@ static void write_meta_type(TypeSpec *ts, Vector *vec, KlcFile *klc)
 
 static void write_meta_global(VarSymbol *var, KlcFile *klc)
 {
+    if (var->flags & SYM_FLAGS_CONST && !(var->flags & SYM_FLAGS_PUBLIC)) {
+        // constant and not public, skip writing metadata for it
+        log_info("Skipping constant and not public variable: %s\n", var->name);
+        return;
+    }
+
+    int flags = 0;
+
+    if (var->flags & SYM_FLAGS_MUTABLE) {
+        flags |= KLC_FLAGS_MUT;
+    }
+
+    if (var->flags & SYM_FLAGS_CONST) {
+        flags |= KLC_FLAGS_CONST;
+    }
+
+    if (var->flags & SYM_FLAGS_PUBLIC) {
+        flags |= KLC_FLAGS_PUB;
+    }
+
     uint16_t dfl_val_idx = 0;
     Literal *lit = var->lit;
     if (lit) {
         dfl_val_idx = klc_add_const(klc, lit);
-    }
-
-    int flags = 0;
-    if (var->flags & SYM_FLAGS_MUTABLE) {
-        flags |= KLC_FLAGS_MUT;
-    }
-    if (var->flags & SYM_FLAGS_PUBLIC) {
-        flags |= KLC_FLAGS_PUB;
     }
 
     klc_add_var(klc, var->name, var->ts->signature, dfl_val_idx, flags);

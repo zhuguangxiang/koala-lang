@@ -131,6 +131,60 @@ static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec
 
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp);
 
+static KlrValue *_add_literal(ParserState *ps, Literal *lit)
+{
+    switch (lit->which) {
+        case LIT_BOOL:
+            return klr_const_bool(lit->bval, MOD);
+        case LIT_INT: {
+            TypeSpec *ts = NULL;
+            if (lit->sign) {
+                if (lit->len == 1)
+                    ts = int8_type_spec();
+                else if (lit->len == 2)
+                    ts = int16_type_spec();
+                else if (lit->len == 4)
+                    ts = int32_type_spec();
+                else if (lit->len == 8)
+                    ts = int64_type_spec();
+                else
+                    UNREACHABLE();
+            } else {
+                if (lit->len == 1)
+                    ts = uint8_type_spec();
+                else if (lit->len == 2)
+                    ts = uint16_type_spec();
+                else if (lit->len == 4)
+                    ts = uint32_type_spec();
+                else if (lit->len == 8)
+                    ts = uint64_type_spec();
+                else
+                    UNREACHABLE();
+            }
+            return klr_const_int(lit->ival, ts, MOD);
+        }
+        case LIT_FLT: {
+            TypeSpec *ts = NULL;
+            if (lit->len == 2) {
+                ts = float16_type_spec();
+            } else if (lit->len == 4) {
+                ts = float32_type_spec();
+            } else if (lit->len == 8) {
+                ts = float64_type_spec();
+            } else {
+                UNREACHABLE();
+            }
+            return klr_const_float(lit->fval, ts, MOD);
+        }
+        case LIT_STR:
+            return klr_const_str(lit->sval, lit->len, MOD);
+        case LIT_NONE:
+            return klr_const_none(MOD);
+        default:
+            UNREACHABLE();
+    }
+}
+
 static void emit_ir_ident(ParserState *ps, Expr *exp)
 {
     IdentExpr *ident = (IdentExpr *)exp;
@@ -162,7 +216,11 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
             } else if (sym->kind == SYM_VAR) {
                 Symbol *parent = sym->parent;
                 ASSERT(parent && parent->kind == SYM_PACKAGE);
-                val = klr_add_ext_global(MOD, parent->name, sym->ts, sym->name);
+                if (sym->flags & SYM_FLAGS_CONST) {
+                    val = _add_literal(ps, ((VarSymbol *)sym)->lit);
+                } else {
+                    val = klr_add_ext_global(MOD, parent->name, sym->ts, sym->name);
+                }
             } else if (sym->kind == SYM_CLASS) {
                 Symbol *parent = sym->parent;
                 ASSERT(parent && parent->kind == SYM_PACKAGE);
@@ -765,7 +823,12 @@ static KlrValue *get_ext_global_value(char *name, Symbol *sym, ParserState *ps)
     ASSERT(var_sym->kind == SYM_VAR);
     VarSymbol *var = (VarSymbol *)var_sym;
     if (!var->ir_val) {
-        KlrValue *val = klr_add_ext_global(MOD, pkg->name, var->ts, var->name);
+        KlrValue *val;
+        if (var->flags & SYM_FLAGS_CONST) {
+            val = _add_literal(ps, var->lit);
+        } else {
+            val = klr_add_ext_global(MOD, pkg->name, var->ts, var->name);
+        }
         var->ir_val = val;
     }
     return var->ir_val;
@@ -932,8 +995,13 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
             KlrBuilder bldr;
             klr_builder_end(&bldr, ps->scope->bb);
             KlrValue *global_val = get_ext_global_value(dot->id.name, lhs->sym, ps);
-            KlrValue *val = klr_build_get_global(&bldr, global_val);
-            klr_set_loc(val, ps->filename, exp->loc);
+            KlrValue *val;
+            if (klr_is_const(global_val)) {
+                val = global_val;
+            } else {
+                val = klr_build_get_global(&bldr, global_val);
+                klr_set_loc(val, ps->filename, exp->loc);
+            }
             exp->ir_val = val;
         } else {
             // load field
@@ -2394,7 +2462,8 @@ static void _add_global(KlrModule *m, VarDeclStmt *var)
 {
     VarSymbol *sym = (VarSymbol *)var->sym;
     int mut = var->which == VAR_DECL_VAR ? 1 : 0;
-    KlrValue *gvar = klr_add_global(m, sym->ts, var->id.name, mut);
+    int konst = var->which == VAR_DECL_CONST ? 1 : 0;
+    KlrValue *gvar = klr_add_global(m, sym->ts, var->id.name, mut, konst);
     sym->ir_val = gvar;
 }
 

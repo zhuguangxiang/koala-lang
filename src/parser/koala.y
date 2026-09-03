@@ -212,6 +212,8 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<stmt> func_proto_decl
 %type<stmt> trait_method
 
+%type<expr> const_expr
+%type<expr> const_tuple_expr
 %type<expr> expr
 %type<expr> or_expr
 %type<expr> in_expr
@@ -255,6 +257,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<type_spec> const_type
 %type<type_spec> array_elem_type
 
+%type<vec> const_expr_list
 %type<vec> id_as_list
 %type<vec> top_stmts
 %type<vec> specialized_types_list
@@ -440,13 +443,16 @@ top_stmt
     }
     | const_decl semi
     {
-        // $$ = $1;
-        // if ($$) var_set_where($$, VAR_GLOBAL);
+        $$ = $1;
+        if ($$) var_set_where($$, VAR_GLOBAL);
     }
     | access const_decl semi
     {
-        // $$ = $2;
-        // if ($$) var_set_where($$, VAR_GLOBAL);
+        $$ = $2;
+        if ($$) {
+            var_set_where($$, VAR_GLOBAL);
+            stmt_set_prefix($$, $1);
+        }
     }
     | let_decl semi
     {
@@ -1260,17 +1266,84 @@ let_decl
     ;
 
 const_decl
-    : CONST ID '=' expr
+    : CONST ID '=' const_expr
     {
         Ident id = {$2, loc(@2)};
         $$ = stmt_from_var_decl(id, NULL, 2, $4);
         stmt_set_loc($$, lloc(@1, @4));
     }
-    | CONST ID const_type '=' expr
+    | CONST ID const_type '=' const_expr
     {
         Ident id = {$2, loc(@2)};
         $$ = stmt_from_var_decl(id, $3, 2, $5);
         stmt_set_loc($$, lloc(@1, @5));
+    }
+    ;
+
+const_expr
+    : INT_LITERAL
+    {
+        if (errno != 0) {
+            kl_error(loc(@1), "Number %s is out of int range", ps->sval);
+        }
+        $$ = expr_from_lit_int(ps->sval, ps->sign, ps->bit_mode, $1);
+        expr_set_loc($$, loc(@1));
+    }
+    | FLOAT_LITERAL
+    {
+        if (errno != 0) {
+            kl_error(loc(@1), "Number %s is out of float64 range", ps->sval);
+        }
+        $$ = expr_from_lit_float($1);
+        expr_set_loc($$, loc(@1));
+    }
+    | STRING_LITERAL
+    {
+        $$ = expr_from_lit_str(&ps->sbuf);
+        expr_set_loc($$, loc(@1));
+    }
+    | TRUE
+    {
+        $$ = expr_from_lit_bool(1);
+        expr_set_loc($$, loc(@1));
+    }
+    | FALSE
+    {
+        $$ = expr_from_lit_bool(0);
+        expr_set_loc($$, loc(@1));
+    }
+    | const_tuple_expr
+    {
+        $$ = $1;
+        NYI();
+    }
+    ;
+
+const_tuple_expr
+    : '(' const_expr_list ',' ')'
+    {
+        $$ = expr_from_const_tuple($2);
+        expr_set_loc($$, lloc(@1, @4));
+    }
+    | '(' const_expr_list ',' const_expr ')'
+    {
+        // (1, "hello", [1,2,3])
+        vector_push_back($2, &$4);
+        $$ = expr_from_const_tuple($2);
+        expr_set_loc($$, lloc(@1, @5));
+    }
+    ;
+
+const_expr_list
+    : const_expr
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | const_expr_list ',' const_expr
+    {
+        vector_push_back($1, &$3);
+        $$ = $1;
     }
     ;
 
