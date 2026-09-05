@@ -501,3 +501,92 @@ isel 规则（如适用）、回归测试。
 **源码注释遗留（顺手修正项）**：
 - slotid.h:30 `SLOT_LEN, // OP_SEQ_LEN` — 注释里的指令名过时（现为 OP_LEN）
 - vm_ops.h:1531 `// TODO: can be negative?` — 即 §11 的负下标问题
+
+---
+
+## 13. 数值类型 cast 补全（int / uint / float 互转）
+
+> 2026-09-04 建立。**2026-09-05 更新：cast 补全已完成**——原 NYI 1 / NYI 2 全部落地，48 组跨族转换均可编译并正确运行。
+> 本节由"待实现清单"转为"语义与测试基线记录"。设计层面的完整叙述见 `Koala_Design_Overview.md` §5.1。
+
+### 13.1 构造函数签名
+
+`libs/std/builtin/number.kl` 中**每个**数值类型的 `__init__` 均接受 `int64 | uint64 | float64`；`int64` / `uint64` / `float64` 另接受 `str`。窄类型（int8-32 / uint8-32 / float16-32）依赖隐式提升到 int64 / uint64 / float64 后再截断，提升是编译器机制，标准库源码中不可见。
+
+类型检查已不拒绝任何数值组合，原先阻塞全部 int ↔ float 的 `isel.c` `NYI()` 已移除。
+
+### 13.2 双轨语义：常量编译期判定，变量运行期执行
+
+同一段 `dst(src)` 写法走两条完全不同的路径，**分轨是刻意设计**：`float32(2147483647)` 作为常量编译失败，作为函数参数则得 `2147483648`。
+
+**常量轨——编译器无条件校验，不受 `--int-trap` / `--float-trap` 影响**
+
+- 实现：`check_int_const_cast_valid` / `check_uint_const_cast_valid` / `check_float_const_cast_valid`（`src/parser/opt/const_copy_prop.c`），由 const-copy-prop pass 调用，不读任何 cast 开关。
+- 判定用**往返一致性**（`(int64_t)h != val` / `(uint64_t)f != val` / `(double)ival != v`）而非单纯区间比较，因此越界、截断小数、**纯精度丢失**一律编译失败。
+- 诊断文本只有两种，CHECK 时按原文写（措辞是 "overflow"，即便实际只是精度丢失）：
+  - `constant float overflow in cast: cannot cast from <src> to <dst>`
+  - `constant float overflow in cast: cannot cast negative <src> to <dst>`（float → uint 且值为负时优先触发）
+- 报错例：`float16(32767)`（折成 32768，往返不一致）、`float32(2147483647)`、`float64(9007199254740993)`、`int8(300)`、`uint8(-1)`、`int64(1.5)`。
+- pass 开启条件：`koala` 默认经 `--cgen` 打开；`koalac` 需 `--opt`（或 `--isel` / `--lsra` / `--cgen`）。
+
+**变量轨——降级为 op，由标志位控制**
+
+- `isel_lower_cast`（`src/parser/backend/isel.c`）选四个操作码之一：`OP_INT_CAST` / `OP_FLOAT_CAST` / `OP_FLOAT_TO_INT` / `OP_INT_TO_FLOAT`，目标类型与模式一起编码进 `cast_flag`，由 `include/runtime/do_cast.h` 在 VM 中执行。
+- `int_cast_mode()` / `float_cast_mode()`（`include/parser/cmd.h`）是全项目唯一读取这两个开关的地方，只被 isel 使用。
+- **mode 0（开关打开，trap）**：越界或不能精确表示即打印 `panic: … cast overflow …` 并 `abort()`。
+- **mode 1（默认，wrap / saturate）**：取值见 13.3。
+
+### 13.3 运行期默认取值（mode 1，实测）
+
+| 场景 | 行为 | 实测例 |
+|------|------|--------|
+| 整型窄化 | 按位回绕 | `uint8(300)` → 44；`int16(40000)` → −25536 |
+| float → float 窄化 | 静默舍入 | `float32(3.14159265358979)` → `3.1415927410125732` |
+| float → int 在范围内 | 向零截断 | `int64(1.9)` → 1；`int64(-1.7)` → −1 |
+| float → uint 且值为负 | 得 0 | `uint8(-1.5)` → 0；`−inf` → uint64 得 0 |
+| NaN → int / uint | 得 0 | |
+| 超出 64 位边界 | 先饱和 | → `INT64_MAX` / `INT64_MIN` / `UINT64_MAX` |
+| 窄目标（int8/16/32, uint8/16/32） | 饱和到 64 位后**再回绕**到目标宽度 | `int8(1000.7)` → −24；`int8(+inf)` → −1 |
+| `+inf` → uint64 | `UINT64_MAX`，print 显示为 −1 | 见 13.6 |
+
+float → int **不 trap，而是饱和**——这是 `do_cast.h` mode 1 分支里明确写出的语义，按现状作为规格对待，不要改成 trap。
+
+### 13.4 测试布局
+
+按**源类型**分文件，常量与运行期两套并行：
+
+| 文件 | 内容 | RUN 行 |
+|------|------|--------|
+| `test-kl/test_const_int_cast_failed.kl` | int 源常量 cast 编译期报错 | `koalac %s --opt 2>&1` |
+| `test-kl/test_const_uint_cast_failed.kl` | uint 源同上 | `koalac %s --opt 2>&1` |
+| `test-kl/test_const_float_cast_failed.kl` | float 源同上（含 inf / NaN） | `koalac %s --opt --float-trap 2>&1` |
+| `test-kl/test_float_cast_fail.kl` | float → float 窄化精度丢失 | `koalac %s --opt --float-trap 2>&1` |
+| `test-run/test_cast_int.kl` | int 源运行期取值 | `koala %s` |
+| `test-run/test_cast_uint.kl` | uint 源运行期取值 | `koala %s` |
+| `test-run/test_cast_float.kl` | float 源运行期取值 | `koala %s` |
+
+约束：
+
+- **运行期用例必须包在函数里、值走参数**，否则被常量折叠，得到的是编译期报错而不是运行期取值。
+- 编译期报错文件必须带 `2>&1`；运行期取值文件**不能**带（isel 日志走 stderr，会破坏结尾的 `CHECK-NOT: {{.}}`）。
+- NaN 只能由 float64 常量承载：得来自折叠表达式（`1.0e400 - 1.0e400`），绑到 `float32` / `float16` 的 `let` 会报 "Types of two sides are not matched."。字面量在窄宽度下可溢出成 +inf，但永远不会是 NaN。
+- 旧的按"源→目标对"分文件（`test_cast_int_int.kl` / `test_cast_uint_uint.kl` / `test_cast_int_uint.kl` / `test_cast_float_float.kl` / `test_cast_int_float.kl` / `test_cast_float_int.kl` / `test_cast_uint_float.kl`）已全部合并删除，**不要重建**；同样不要为一个用例单开一个文件。
+
+### 13.5 已完成 ✅
+
+- [x] **NYI 1**：int / uint → float 转换，经构造函数路径落地为 `OP_INT_TO_FLOAT`
+- [x] **NYI 2**：float → int / uint 转换，经构造函数路径落地为 `OP_FLOAT_TO_INT`
+- [x] 全部 48 组跨族 cast 编译并运行正确；`isel.c` 中阻塞 int ↔ float 的 `NYI()` 已移除
+- [x] 常量 cast 合法性校验：`check_int_const_cast_valid` / `check_uint_const_cast_valid` / `check_float_const_cast_valid` 覆盖 int / uint / float 三种源，越界、截断、精度丢失均报错
+- [x] **Bug 1**（2026-09-04）：float widening 在局部变量上返回 0——根因是 `check_float_const_cast_valid()` 只处理窄化，宽化时 `*out` 未赋值；已补 else 分支直传 `c->fval`
+- [x] **Bug 2**（2026-09-04）：`float32(3.14) → float64` 得 `3.1400001049041748` 是正确行为，非 Bug——显示的是 float32 的精确值
+- [x] 全量回归：156 discovered / 151 passed / 5 unresolved（既有）/ 0 failed
+
+### 13.6 遗留
+
+- [ ] **NYI 1b**：`int64.to_float()` / `uint64.to_float()` native 方法——**未验证**，构造函数路径通了不代表这两个方法通了
+- [ ] **NYI 2b**：`float64.to_int()` native 方法——同上，未验证
+- [ ] **窄整型字面量丢符号**（不是 cast 问题，但它卡住了两个 cast 用例）：超出 ±2048 的负 int16 / int32 字面量变成无符号值。根因在 `isel.c` 的 `get_const_op`——`[-2048, 2047]` 内发 `OP_LOAD_INT_IMM`，之外走 `OP_LOADK`，而 LOADK 路径没有做符号扩展。
+  - 因此 `test_cast_int.kl` 中 `test_i32_to_f32(-100000)` 与 `test_i32_to_f64(-100000)` 仍以注释 + `// expect:` 保留，是仅剩的两个未启用跨族用例；同文件末尾另有一组字面量本身的 worklist。
+  - `test_const_int_cast_failed.kl` 里 `let a int32 = -40000` / `-100000` 两处目前"因错误的原因"通过（字面量先变成大正数，再触发常量越界报错）；字面量修好后诊断文本不变，**无需改动**。
+- [ ] **高位 uint64 print 成负数**：print 一个最高位为 1 的 uint64 输出有符号值（`UINT64_MAX` → −1）。疑似运行时打印问题，非 cast 问题；`test_cast_uint.kl` / `test_cast_float.kl` 的 CHECK 暂按实测值写。

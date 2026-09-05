@@ -755,7 +755,8 @@ static int encode_int_cast_flag(TypeSpec *dst, TypeSpec *src)
     int flag = 0;
     int mode = int_cast_mode();
 
-    ASSERT(dst->kind == TYPE_INT && src->kind == TYPE_INT);
+    ASSERT(dst->kind == TYPE_INT);
+    ASSERT(src->kind == TYPE_INT || src->kind == TYPE_FLOAT);
 
     // 1,2,4,8 → 0,1,2,3
     int dst_width = __builtin_ctz(dst->int_flt_info.width);
@@ -798,7 +799,8 @@ static int encode_float_cast_flag(TypeSpec *dst, TypeSpec *src)
     int flag = 0;
     int mode = float_cast_mode();
 
-    ASSERT(dst->kind == TYPE_FLOAT && src->kind == TYPE_FLOAT);
+    ASSERT(dst->kind == TYPE_FLOAT);
+    ASSERT(src->kind == TYPE_FLOAT || src->kind == TYPE_INT);
 
     // 2,4,8 → 1,2,3
     int dst_width = __builtin_ctz(dst->int_flt_info.width);
@@ -807,7 +809,8 @@ static int encode_float_cast_flag(TypeSpec *dst, TypeSpec *src)
     flag |= ti << 2;
     flag |= mode;
 
-    log_info("[isel] encode_float_cast_flag: 0x%x (src=float%d → dst=float%d)", flag,
+    log_info("[isel] encode_float_cast_flag: 0x%x (src=%s%d → dst=float%d)", flag,
+             src->kind == TYPE_FLOAT ? "float" : (src->int_flt_info.sign ? "int" : "uint"),
              src->int_flt_info.width * 8, dst_width * 8);
 
     return flag;
@@ -830,6 +833,12 @@ static void isel_lower_cast(KlrInsn *insn)
             insn->code = OP_FLOAT_CAST;
             insn->cast_flag = encode_float_cast_flag(dst_ts, src_ts);
         }
+    } else if (dst_ts->kind == TYPE_INT && src_ts->kind == TYPE_FLOAT) {
+        insn->code = OP_FLOAT_TO_INT;
+        insn->cast_flag = encode_int_cast_flag(dst_ts, src_ts);
+    } else if (dst_ts->kind == TYPE_FLOAT && src_ts->kind == TYPE_INT) {
+        insn->code = OP_INT_TO_FLOAT;
+        insn->cast_flag = encode_float_cast_flag(dst_ts, src_ts);
     } else if (type_is_optional(src_ts) && !type_is_optional(dst_ts)) {
         // opt-ref to non-opt-ref cast, do nothing
     } else {

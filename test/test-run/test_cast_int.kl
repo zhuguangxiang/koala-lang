@@ -1,0 +1,294 @@
+// RUN: koala %s | filecheck %s
+
+// ---------- int8 source ----------
+
+func test_i8_to_u8(n int8) uint8 { return uint8(n) }
+func test_i8_to_u16(n int8) uint16 { return uint16(n) }
+func test_i8_to_u32(n int8) uint32 { return uint32(n) }
+func test_i8_to_u64(n int8) uint64 { return uint64(n) }
+func test_i8_to_i16(n int8) int16 { return int16(n) }
+func test_i8_to_i32(n int8) int32 { return int32(n) }
+func test_i8_to_i64(n int8) int64 { return int64(n) }
+
+// ---------- int16 source ----------
+
+func test_i16_to_i8(n int16) int8 { return int8(n) }
+func test_i16_to_u8(n int16) uint8 { return uint8(n) }
+func test_i16_to_u16(n int16) uint16 { return uint16(n) }
+func test_i16_to_u32(n int16) uint32 { return uint32(n) }
+func test_i16_to_u64(n int16) uint64 { return uint64(n) }
+func test_i16_to_i32(n int16) int32 { return int32(n) }
+func test_i16_to_i64(n int16) int64 { return int64(n) }
+
+// ---------- int32 source ----------
+
+func test_i32_to_i8(n int32) int8 { return int8(n) }
+func test_i32_to_i16(n int32) int16 { return int16(n) }
+func test_i32_to_u8(n int32) uint8 { return uint8(n) }
+func test_i32_to_u16(n int32) uint16 { return uint16(n) }
+func test_i32_to_u32(n int32) uint32 { return uint32(n) }
+func test_i32_to_u64(n int32) uint64 { return uint64(n) }
+func test_i32_to_i64(n int32) int64 { return int64(n) }
+
+// ---------- int64 source ----------
+
+func test_i64_to_i8(n int64) int8 { return int8(n) }
+func test_i64_to_i16(n int64) int16 { return int16(n) }
+func test_i64_to_i32(n int64) int32 { return int32(n) }
+func test_i64_to_u8(n int64) uint8 { return uint8(n) }
+func test_i64_to_u16(n int64) uint16 { return uint16(n) }
+func test_i64_to_u32(n int64) uint32 { return uint32(n) }
+func test_i64_to_u64(n int64) uint64 { return uint64(n) }
+
+// ---------- int -> float ----------
+
+func test_i8_to_f16(n int8) float16 { return float16(n) }
+func test_i8_to_f32(n int8) float32 { return float32(n) }
+func test_i8_to_f64(n int8) float64 { return float64(n) }
+func test_i16_to_f16(n int16) float16 { return float16(n) }
+func test_i16_to_f32(n int16) float32 { return float32(n) }
+func test_i16_to_f64(n int16) float64 { return float64(n) }
+func test_i32_to_f16(n int32) float16 { return float16(n) }
+func test_i32_to_f32(n int32) float32 { return float32(n) }
+func test_i32_to_f64(n int32) float64 { return float64(n) }
+func test_i64_to_f16(n int64) float16 { return float16(n) }
+func test_i64_to_f32(n int64) float32 { return float32(n) }
+func test_i64_to_f64(n int64) float64 { return float64(n) }
+
+func main() {
+    // --- int8 -> uint (negative wrap) ---
+    print(test_i8_to_u8(-1))
+    print(test_i8_to_u16(-1))
+    print(test_i8_to_u32(-1))
+    print(test_i8_to_u64(-1))
+
+    // --- int8 widening ---
+    print(test_i8_to_i16(42))
+    print(test_i8_to_i32(42))
+    print(test_i8_to_i64(42))
+    print(test_i8_to_i16(-1))
+    print(test_i8_to_i32(-1))
+    print(test_i8_to_i64(-1))
+
+    // --- int16 -> int8 narrowing ---
+    print(test_i16_to_i8(200))
+    print(test_i16_to_i8(-200))
+
+    // --- int16 -> uint (negative wrap) ---
+    print(test_i16_to_u8(-1))
+    print(test_i16_to_u16(-1))
+    print(test_i16_to_u32(-1))
+    print(test_i16_to_u64(-1))
+
+    // --- int16 -> uint8 (positive overflow) ---
+    print(test_i16_to_u8(300))
+
+    // --- int16 widening ---
+    print(test_i16_to_i32(42))
+    print(test_i16_to_i64(42))
+
+    // --- int32 -> int8/int16 narrowing ---
+    print(test_i32_to_i8(200))
+    print(test_i32_to_i8(-200))
+    print(test_i32_to_i16(40000))
+    print(test_i32_to_i16(-40000))
+
+    // --- int32 -> uint (negative wrap) ---
+    print(test_i32_to_u8(-1))
+    print(test_i32_to_u16(-1))
+    print(test_i32_to_u32(-1))
+    print(test_i32_to_u64(-1))
+
+    // --- int32 -> uint8/uint16 (positive overflow) ---
+    print(test_i32_to_u8(300))
+    print(test_i32_to_u16(70000))
+
+    // --- int32 widening ---
+    print(test_i32_to_i64(42))
+
+    // --- int64 -> int8 narrowing ---
+    print(test_i64_to_i8(300))
+    print(test_i64_to_i8(-200))
+    print(test_i64_to_i8(127))
+    print(test_i64_to_i8(-128))
+    print(test_i64_to_i8(128))
+
+    // --- int64 -> int16 narrowing ---
+    print(test_i64_to_i16(40000))
+    print(test_i64_to_i16(-40000))
+    print(test_i64_to_i16(70000))
+
+    // --- int64 -> int32 narrowing ---
+    print(test_i64_to_i32(3000000000))
+    print(test_i64_to_i32(-3000000000))
+
+    // --- int64 -> uint8 ---
+    print(test_i64_to_u8(-1))
+    print(test_i64_to_u8(300))
+    print(test_i64_to_u8(127))
+
+    // --- int64 -> uint16 ---
+    print(test_i64_to_u16(-1))
+    print(test_i64_to_u16(70000))
+
+    // --- int64 -> uint32 ---
+    print(test_i64_to_u32(-1))
+    print(test_i64_to_u32(5000000000))
+
+    // --- int64 -> uint64 ---
+    print(test_i64_to_u64(-1))
+
+    // --- int8 -> float ---
+    print(test_i8_to_f16(42))
+    print(test_i8_to_f16(-7))
+    print(test_i8_to_f32(42))
+    print(test_i8_to_f32(-7))
+    print(test_i8_to_f64(42))
+    print(test_i8_to_f64(-7))
+
+    // --- int16 -> float ---
+    print(test_i16_to_f16(1000))
+    print(test_i16_to_f16(-1000))
+    print(test_i16_to_f32(1000))
+    print(test_i16_to_f32(-1000))
+    print(test_i16_to_f64(1000))
+    print(test_i16_to_f64(-1000))
+
+    // --- int32 -> float ---
+    print(test_i32_to_f16(1000))
+    print(test_i32_to_f16(-1000))
+    print(test_i32_to_f32(100000))
+    // print(test_i32_to_f32(-100000))  // expect: -100000
+    print(test_i32_to_f64(100000))
+    // print(test_i32_to_f64(-100000))  // expect: -100000
+
+    // --- INT32_MAX -> float32/float64 ---
+    print(test_i32_to_f32(2147483647))
+    print(test_i32_to_f64(2147483647))
+
+    // --- int64 -> float ---
+    print(test_i64_to_f16(1000))
+    print(test_i64_to_f16(-1000))
+    print(test_i64_to_f32(100000))
+    print(test_i64_to_f32(-100000))
+    print(test_i64_to_f64(100000))
+    print(test_i64_to_f64(-100000))
+
+    // --- 2^53 + 1 -> float64 ---
+    print(test_i64_to_f64(9007199254740993))
+
+    // --- INT64_MAX -> float16 ---
+    print(test_i64_to_f16(9223372036854775807))
+
+    // --- negative int16/int32 literal above 2^11 loses its sign ---
+    // let n16 int16 = -2049
+    // print(n16)                       // expect: -2049
+    // let n16b int16 = -20000
+    // print(n16b)                      // expect: -20000
+    // let n32 int32 = -2049
+    // print(n32)                       // expect: -2049
+    // let n32b int32 = -100000
+    // print(n32b)                      // expect: -100000
+    // print(test_i16_to_f32(-2049))    // expect: -2049
+    // print(test_i32_to_f64(-2049))    // expect: -2049
+}
+
+// int8 -> uint neg
+// CHECK: 255
+// CHECK: 65535
+// CHECK: 4294967295
+// CHECK: -1
+// int8 widen
+// CHECK: 42
+// CHECK: 42
+// CHECK: 42
+// CHECK: -1
+// CHECK: -1
+// CHECK: -1
+// int16 -> int8
+// CHECK: -56
+// CHECK: 56
+// int16 -> uint neg
+// CHECK: 255
+// CHECK: 65535
+// CHECK: 4294967295
+// CHECK: -1
+// int16 -> uint8 pos
+// CHECK: 44
+// int16 widen
+// CHECK: 42
+// CHECK: 42
+// int32 -> int8/int16
+// CHECK: -56
+// CHECK: 56
+// CHECK: -25536
+// CHECK: 25536
+// int32 -> uint neg
+// CHECK: 255
+// CHECK: 65535
+// CHECK: 4294967295
+// CHECK: -1
+// int32 -> uint8/16 pos
+// CHECK: 44
+// CHECK: 4464
+// int32 widen
+// CHECK: 42
+// int64 -> int8
+// CHECK: 44
+// CHECK: 56
+// CHECK: 127
+// CHECK: -128
+// CHECK: -128
+// int64 -> int16
+// CHECK: -25536
+// CHECK: 25536
+// CHECK: 4464
+// int64 -> int32
+// CHECK: -1294967296
+// CHECK: 1294967296
+// int64 -> uint8
+// CHECK: 255
+// CHECK: 44
+// CHECK: 127
+// int64 -> uint16
+// CHECK: 65535
+// CHECK: 4464
+// int64 -> uint32
+// CHECK: 4294967295
+// CHECK: 705032704
+// int64 -> uint64
+// CHECK: -1
+
+// int8 -> float
+// CHECK: 42
+// CHECK: -7
+// CHECK: 42
+// CHECK: -7
+// CHECK: 42
+// CHECK: -7
+// int16 -> float
+// CHECK: 1000
+// CHECK: -1000
+// CHECK: 1000
+// CHECK: -1000
+// CHECK: 1000
+// CHECK: -1000
+// int32 -> float
+// CHECK: 1000
+// CHECK: -1000
+// CHECK: 100000
+// CHECK: 100000
+// INT32_MAX -> float
+// CHECK: 2147483648
+// CHECK: 2147483647
+// int64 -> float
+// CHECK: 1000
+// CHECK: -1000
+// CHECK: 100000
+// CHECK: -100000
+// CHECK: 100000
+// CHECK: -100000
+// 2^53 + 1 -> float64
+// CHECK: 9007199254740992
+// INT64_MAX -> float16
+// CHECK: inf

@@ -1,0 +1,601 @@
+// RUN: koalac %s --opt 2>&1 | filecheck %s
+
+// ---------- float64 source -> int8 ----------
+
+// ===== float64 -> int8 (ival > INT8_MAX) =====
+func test_f64_to_i8_pos() {
+    let a float64 = 200.5
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int8
+
+// ===== float64 -> int8 (ival < INT8_MIN) =====
+func test_f64_to_i8_neg() {
+    let a float64 = -200.5
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int8
+
+// ===== float64 -> int8 (|v| >= 2^63, rejected before the cast) =====
+func test_f64_to_i8_huge() {
+    let a float64 = 1.0e30
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int8
+
+func test_f64_to_i8_huge_neg() {
+    let a float64 = -1.0e30
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int8
+
+// ---------- float64 source -> int16 ----------
+
+// ===== float64 -> int16 (ival > INT16_MAX) =====
+func test_f64_to_i16_pos() {
+    let a float64 = 40000.5
+    print(int16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int16
+
+// ===== float64 -> int16 (ival < INT16_MIN) =====
+func test_f64_to_i16_neg() {
+    let a float64 = -40000.5
+    print(int16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int16
+
+// ===== float64 -> int16 (|v| >= 2^63, rejected before the cast) =====
+func test_f64_to_i16_huge() {
+    let a float64 = 1.0e30
+    print(int16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int16
+
+func test_f64_to_i16_huge_neg() {
+    let a float64 = -1.0e30
+    print(int16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int16
+
+// ---------- float64 source -> int32 ----------
+
+// ===== float64 -> int32 (ival > INT32_MAX) =====
+func test_f64_to_i32_pos() {
+    let a float64 = 3000000000.5
+    print(int32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int32
+
+// ===== float64 -> int32 (ival < INT32_MIN) =====
+func test_f64_to_i32_neg() {
+    let a float64 = -3000000000.5
+    print(int32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int32
+
+// ===== float64 -> int32 (|v| >= 2^63, rejected before the cast) =====
+func test_f64_to_i32_huge() {
+    let a float64 = 1.0e30
+    print(int32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int32
+
+func test_f64_to_i32_huge_neg() {
+    let a float64 = -1.0e30
+    print(int32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int32
+
+// ---------- float64 source -> int64 ----------
+
+// ===== float64 -> int64 (v >= 2^63) =====
+func test_f64_to_i64_pos() {
+    let a float64 = 1.0e19
+    print(int64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int64
+
+// ===== float64 -> int64 (v < -2^63) =====
+func test_f64_to_i64_neg() {
+    let a float64 = -1.0e19
+    print(int64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int64
+
+// ---------- float64 source -> uint8 ----------
+
+// ===== float64 -> uint8 (v < 0) =====
+func test_f64_to_u8_neg() {
+    let a float64 = -1.5
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float64 to uint8
+
+// ===== float64 -> uint8 (uval > UINT8_MAX) =====
+func test_f64_to_u8_pos() {
+    let a float64 = 300.5
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint8
+
+// ===== float64 -> uint8 (v >= 2^64, rejected before the cast) =====
+func test_f64_to_u8_huge() {
+    let a float64 = 2.0e19
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint8
+
+// ---------- float64 source -> uint16 ----------
+
+// ===== float64 -> uint16 (v < 0) =====
+func test_f64_to_u16_neg() {
+    let a float64 = -1.5
+    print(uint16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float64 to uint16
+
+// ===== float64 -> uint16 (uval > UINT16_MAX) =====
+func test_f64_to_u16_pos() {
+    let a float64 = 70000.5
+    print(uint16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint16
+
+// ===== float64 -> uint16 (v >= 2^64, rejected before the cast) =====
+func test_f64_to_u16_huge() {
+    let a float64 = 2.0e19
+    print(uint16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint16
+
+// ---------- float64 source -> uint32 ----------
+
+// ===== float64 -> uint32 (v < 0) =====
+func test_f64_to_u32_neg() {
+    let a float64 = -1.5
+    print(uint32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float64 to uint32
+
+// ===== float64 -> uint32 (uval > UINT32_MAX) =====
+func test_f64_to_u32_pos() {
+    let a float64 = 5000000000.5
+    print(uint32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint32
+
+// ===== float64 -> uint32 (v >= 2^64, rejected before the cast) =====
+func test_f64_to_u32_huge() {
+    let a float64 = 2.0e19
+    print(uint32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint32
+
+// ---------- float64 source -> uint64 ----------
+
+// ===== float64 -> uint64 (v < 0) =====
+func test_f64_to_u64_neg() {
+    let a float64 = -1.5
+    print(uint64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float64 to uint64
+
+// ===== float64 -> uint64 (v >= 2^64) =====
+func test_f64_to_u64_pos() {
+    let a float64 = 2.0e19
+    print(uint64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint64
+
+// ---------- float64 source -> float ----------
+
+// ===== float64 -> float32 (precision loss) =====
+func test_f64_to_f32() {
+    let a float64 = 3.14
+    print(float32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to float32
+
+// ===== float64 -> float16 (precision loss) =====
+func test_f64_to_f16() {
+    let a float64 = 3.14
+    print(float16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to float16
+
+// ---------- float32 source -> int8 ----------
+
+// ===== float32 -> int8 (ival > INT8_MAX) =====
+func test_f32_to_i8_pos() {
+    let a float32 = 200.5
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int8
+
+// ===== float32 -> int8 (ival < INT8_MIN) =====
+func test_f32_to_i8_neg() {
+    let a float32 = -200.5
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int8
+
+// ===== float32 -> int8 (|v| >= 2^63, rejected before the cast) =====
+func test_f32_to_i8_huge() {
+    let a float32 = 1.0e30
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int8
+
+// ---------- float32 source -> int16 ----------
+
+// ===== float32 -> int16 (ival > INT16_MAX) =====
+func test_f32_to_i16_pos() {
+    let a float32 = 40000.5
+    print(int16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int16
+
+// ===== float32 -> int16 (ival < INT16_MIN) =====
+func test_f32_to_i16_neg() {
+    let a float32 = -40000.5
+    print(int16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int16
+
+// ===== float32 -> int16 (|v| >= 2^63, rejected before the cast) =====
+func test_f32_to_i16_huge() {
+    let a float32 = 1.0e30
+    print(int16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int16
+
+// ---------- float32 source -> int32 ----------
+
+// ===== float32 -> int32 (ival > INT32_MAX) =====
+func test_f32_to_i32_pos() {
+    let a float32 = 3000000000.5
+    print(int32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int32
+
+// ===== float32 -> int32 (ival < INT32_MIN) =====
+func test_f32_to_i32_neg() {
+    let a float32 = -3000000000.5
+    print(int32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int32
+
+// ===== float32 -> int32 (|v| >= 2^63, rejected before the cast) =====
+func test_f32_to_i32_huge() {
+    let a float32 = 1.0e30
+    print(int32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int32
+
+// ---------- float32 source -> int64 ----------
+
+// ===== float32 -> int64 (v >= 2^63) =====
+func test_f32_to_i64_pos() {
+    let a float32 = 1.0e19
+    print(int64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int64
+
+// ===== float32 -> int64 (v < -2^63) =====
+func test_f32_to_i64_neg() {
+    let a float32 = -1.0e19
+    print(int64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to int64
+
+// ---------- float32 source -> uint8 ----------
+
+// ===== float32 -> uint8 (v < 0) =====
+func test_f32_to_u8_neg() {
+    let a float32 = -1.5
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float32 to uint8
+
+// ===== float32 -> uint8 (uval > UINT8_MAX) =====
+func test_f32_to_u8_pos() {
+    let a float32 = 300.5
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to uint8
+
+// ===== float32 -> uint8 (v >= 2^64, rejected before the cast) =====
+func test_f32_to_u8_huge() {
+    let a float32 = 2.0e19
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to uint8
+
+// ===== float32 -> uint8 (literal overflows float32 to +inf) =====
+func test_f32_inf_to_u8() {
+    let a float32 = 1.7e308
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to uint8
+
+// ---------- float32 source -> uint16 ----------
+
+// ===== float32 -> uint16 (v < 0) =====
+func test_f32_to_u16_neg() {
+    let a float32 = -1.5
+    print(uint16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float32 to uint16
+
+// ===== float32 -> uint16 (uval > UINT16_MAX) =====
+func test_f32_to_u16_pos() {
+    let a float32 = 70000.5
+    print(uint16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to uint16
+
+// ===== float32 -> uint16 (v >= 2^64, rejected before the cast) =====
+func test_f32_to_u16_huge() {
+    let a float32 = 2.0e19
+    print(uint16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to uint16
+
+// ---------- float32 source -> uint32 ----------
+
+// ===== float32 -> uint32 (v < 0) =====
+func test_f32_to_u32_neg() {
+    let a float32 = -1.5
+    print(uint32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float32 to uint32
+
+// ===== float32 -> uint32 (uval > UINT32_MAX) =====
+func test_f32_to_u32_pos() {
+    let a float32 = 5000000000.5
+    print(uint32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to uint32
+
+// ===== float32 -> uint32 (v >= 2^64, rejected before the cast) =====
+func test_f32_to_u32_huge() {
+    let a float32 = 2.0e19
+    print(uint32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to uint32
+
+// ---------- float32 source -> uint64 ----------
+
+// ===== float32 -> uint64 (v < 0) =====
+func test_f32_to_u64_neg() {
+    let a float32 = -1.5
+    print(uint64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float32 to uint64
+
+// ===== float32 -> uint64 (v >= 2^64) =====
+func test_f32_to_u64_pos() {
+    let a float32 = 2.0e19
+    print(uint64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to uint64
+
+// ---------- float32 source -> float ----------
+
+// ===== float32 -> float16 (precision loss) =====
+func test_f32_to_f16() {
+    let a float32 = 3.14
+    print(float16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to float16
+
+// ---------- float16 source -> int8 ----------
+
+// ===== float16 -> int8 (ival > INT8_MAX) =====
+func test_f16_to_i8_pos() {
+    let a float16 = 200.0
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float16 to int8
+
+// ===== float16 -> int8 (ival < INT8_MIN) =====
+func test_f16_to_i8_neg() {
+    let a float16 = -200.0
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float16 to int8
+
+// ---------- float16 source -> int16 ----------
+
+// ===== float16 -> int16 (ival > INT16_MAX) =====
+func test_f16_to_i16_pos() {
+    let a float16 = 40000.0
+    print(int16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float16 to int16
+
+// ===== float16 -> int16 (ival < INT16_MIN) =====
+func test_f16_to_i16_neg() {
+    let a float16 = -40000.0
+    print(int16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float16 to int16
+
+// ---------- float16 source -> uint8 ----------
+
+// ===== float16 -> uint8 (v < 0) =====
+func test_f16_to_u8_neg() {
+    let a float16 = -1.0
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float16 to uint8
+
+// ===== float16 -> uint8 (uval > UINT8_MAX) =====
+func test_f16_to_u8_pos() {
+    let a float16 = 300.0
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float16 to uint8
+
+// ---------- float16 source -> uint16 ----------
+
+// ===== float16 -> uint16 (v < 0) =====
+func test_f16_to_u16_neg() {
+    let a float16 = -1.0
+    print(uint16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float16 to uint16
+
+// ---------- float16 source -> uint32 ----------
+
+// ===== float16 -> uint32 (v < 0) =====
+func test_f16_to_u32_neg() {
+    let a float16 = -1.0
+    print(uint32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float16 to uint32
+
+// ---------- float16 source -> uint64 ----------
+
+// ===== float16 -> uint64 (v < 0) =====
+func test_f16_to_u64_neg() {
+    let a float16 = -1.0
+    print(uint64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float16 to uint64
+
+// ---------- Infinities ----------
+
+// ===== float64(+inf) -> int8 =====
+func test_f64_inf_to_i8() {
+    let a float64 = 1.0e400
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int8
+
+// ===== float64(+inf) -> uint8 =====
+func test_f64_inf_to_u8() {
+    let a float64 = 1.0e400
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint8
+
+// ===== float64(+inf) -> int64 =====
+func test_f64_inf_to_i64() {
+    let a float64 = 1.0e400
+    print(int64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int64
+
+// ===== float64(+inf) -> uint64 =====
+func test_f64_inf_to_u64() {
+    let a float64 = 1.0e400
+    print(uint64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint64
+
+// ===== float64(-inf) -> int8 =====
+func test_f64_ninf_to_i8() {
+    let a float64 = -1.0e400
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int8
+
+// ===== float64(-inf) -> uint8 (v < 0 fires first) =====
+func test_f64_ninf_to_u8() {
+    let a float64 = -1.0e400
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float64 to uint8
+
+// ===== float64(-inf) -> uint64 (v < 0 fires first) =====
+func test_f64_ninf_to_u64() {
+    let a float64 = -1.0e400
+    print(uint64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast negative float64 to uint64
+
+// ===== float16(+inf) -> int8 / uint8 =====
+func test_f16_inf_to_i8() {
+    let a float16 = 1.0e400
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float16 to int8
+
+func test_f16_inf_to_u8() {
+    let a float16 = 1.0e400
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float16 to uint8
+
+// ---------- NaN ----------
+
+// ===== NaN -> int8 =====
+func test_nan_to_i8() {
+    let a float64 = 1.0e400 - 1.0e400
+    print(int8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int8
+
+// ===== NaN -> int16 =====
+func test_nan_to_i16() {
+    let a float64 = 1.0e400 - 1.0e400
+    print(int16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int16
+
+// ===== NaN -> int32 =====
+func test_nan_to_i32() {
+    let a float64 = 1.0e400 - 1.0e400
+    print(int32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int32
+
+// ===== NaN -> int64 =====
+func test_nan_to_i64() {
+    let a float64 = 1.0e400 - 1.0e400
+    print(int64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to int64
+
+// ===== NaN -> uint8 =====
+func test_nan_to_u8() {
+    let a float64 = 1.0e400 - 1.0e400
+    print(uint8(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint8
+
+// ===== NaN -> uint16 =====
+func test_nan_to_u16() {
+    let a float64 = 1.0e400 - 1.0e400
+    print(uint16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint16
+
+// ===== NaN -> uint32 =====
+func test_nan_to_u32() {
+    let a float64 = 1.0e400 - 1.0e400
+    print(uint32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint32
+
+// ===== NaN -> uint64 =====
+func test_nan_to_u64() {
+    let a float64 = 1.0e400 - 1.0e400
+    print(uint64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to uint64
+
+func test_f64_to_f16_2() {
+    let f = 1.2345678901234567
+    let n = float16(f)
+    print(n)
+
+    // f32 rounds a big int value
+    print(float32(float(16777217)))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to float16
+// CHECK: constant float overflow in cast: cannot cast from float64 to float32
+
+// CHECK-NOT: {{.}}

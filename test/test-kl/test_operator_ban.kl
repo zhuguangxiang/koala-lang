@@ -45,9 +45,9 @@ func t_arith(a Arithmetic[int], b Arithmetic[int]) Arithmetic[int] {
     // CHECK: argument type mismatch for operator '+' of type 'Arithmetic<j>'.
 }
 
-func t_bit(a BitwiseOperators[int], b BitwiseOperators[int]) BitwiseOperators[int] {
+func t_bit(a Bitwise[int], b Bitwise[int]) Bitwise[int] {
     return a & b | a ^ b << b >> a
-    // CHECK: argument type mismatch for operator '&' of type 'BitwiseOperators<j>'.
+    // CHECK: argument type mismatch for operator '&' of type 'Bitwise<j>'.
 }
 
 func t_cmp(a Comparable[int], b Comparable[int]) bool {

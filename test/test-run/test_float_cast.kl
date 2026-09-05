@@ -7,6 +7,10 @@ func test_float(n float16) float32 {
 func main() {
     let a = test_float(1.0)
     print(a)
+
+    let f float16 = 1.5
+    let g float32 = float32(f)
+    print(g)
 }
 
 // CHECK-LABEL: --- IR Dump After isel [@test_float] ---
@@ -25,3 +29,4 @@ func main() {
 // CHECK: %1 = call @test_float [const], nargs=1        [fixedslot = 0(next)]
 
 // CHECK: 2.5
+// CHECK: 1.5

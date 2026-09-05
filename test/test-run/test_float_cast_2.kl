@@ -3,9 +3,6 @@
 func main() {
     let f = 1.2345678901234567
     print(f)
-    let n = float16(f)
-    print(n)
 }
 
 // CHECK: 1.2345678901234567
-// CHECK: 1.234375

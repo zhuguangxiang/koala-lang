@@ -150,7 +150,22 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 - **窄类型 init-only**：只在初始化时接受窄类型字面量，运算时自动提升：
   - int8/16/32 → int64，uint → uint64，float → float64
   - 提升是**编译器机制**，标准库源码中不可见。
-- **溢出**：trap 与 wrap 两种操作，由编译器 / VM 层实现，标准库无需感知。
+
+### 5.1 数值类型转换：常量与变量分轨
+
+同一段 `dst(src)` 写法，走两条完全不同的路径——**常量在编译期判定合法性，变量在运行期按开关选择策略**。
+
+- **常量转换：编译器无条件校验，不受 `--int-trap` / `--float-trap` 影响。** 折叠期对每个常量 cast 做数学合法性检查，越界、截断小数、精度丢失一律 `klr_error` 直接编译失败。常量值在编译期已完全已知，不存在"运行时才发现"的余地，因此这条路径上 trap / wrap 的二选一没有意义——不合法就是不合法。
+  - `float16(32767)` → `constant float overflow in cast: cannot cast from int16 to float16`（折成 32768，往返校验不一致）；`int8(300)`、`uint8(-1)`、`int64(1.5)` 同理。
+  - 判定用**往返一致性**而非单纯区间比较，所以纯精度丢失也被拒绝：`float32(2147483647)`、`float64(9007199254740993)` 都报错。
+  - 实现：`check_int_const_cast_valid` / `check_uint_const_cast_valid` / `check_float_const_cast_valid`（`src/parser/opt/const_copy_prop.c`），由 const-copy-prop pass 调用，不读任何 cast 开关。`koala` 默认经 `--cgen` 打开该 pass；`koalac` 需 `--opt`（或 `--isel` / `--lsra` / `--cgen`）。
+- **变量转换：降级为 op，由标志位控制。** 非常量 cast 在 `isel_lower_cast` 中选四个操作码之一——`OP_INT_CAST` / `OP_FLOAT_CAST` / `OP_FLOAT_TO_INT` / `OP_INT_TO_FLOAT`——目标类型与模式一起编码进 `cast_flag`，由 `include/runtime/do_cast.h` 在 VM 中执行。`int_cast_mode()` / `float_cast_mode()`（`include/parser/cmd.h`）是全项目唯一读取这两个开关的地方，只被 isel 使用。
+  - **开关打开 → mode 0（trap）**：越界或不能精确表示即打印 `panic: … cast overflow` 并 `abort()`。
+  - **默认关闭 → mode 1（wrap / saturate）**：
+    - 整型窄化按位回绕：`uint8(300)` → 44，`int16(40000)` → −25536。
+    - float → float 窄化静默舍入：`float32(3.14159265358979)` → `3.1415927410125732`。
+    - float → int 先**饱和**到 64 位再回绕到目标宽度：NaN → 0，负数 → 任何 uint 得 0，超上界 → `INT64_MAX` / `UINT64_MAX`。故 `uint8(-1.5)` → 0，`int8(1000.7)` → −24，`int8(+inf)` → −1（INT64_MAX 回绕）。
+- **分轨是刻意设计**：同一个 cast 写成常量和写成变量可以有不同结局——`float32(2147483647)` 作为常量编译失败，作为函数参数则得 `2147483648`。测试因此也是两套：`test-kl/test_const_<src>_cast_failed.kl`（编译期报错）与 `test-run/test_cast_<src>.kl`（运行期取值，用例一律用函数参数包裹以躲开折叠）。
 
 ---
 
@@ -671,17 +686,17 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 
 - **PassManager 框架**：pass 可嵌套成组（嵌套 PM 作为一个 pass），不动点迭代直至无变化。
 - **经典优化全家桶**：
-  - 常量与复制传播（const-copy-prop）
+  - 常量与复制传播（const-copy-prop）——同一条 pass 顺带完成常量 cast 的合法性校验（§5.1）
   - CFG 优化组：删除仅跳转块、分支折叠、删除无用块、块合并
   - 死代码消除（DCE）
   - **SSA 构造 + SCCP**（稀疏条件常量传播：TOP/常量/BOTTOM 三值格 + meet 运算 + 双 worklist，教科书级实现）+ SSA 析构（phi 合并）
-- **指令选择**：表驱动规则把泛型二元运算（OP_BINARY_*）降级为类型特化操作码（OP_INT_ADD / OP_UINT_DIV …），并支持 reg-imm 立即数形态与交换律换序——与 CPython 3.11 特化自适应解释器殊途同归，而 Koala 在编译期一次完成。
+- **指令选择**：表驱动规则把泛型二元运算（OP_BINARY_*）降级为类型特化操作码（OP_INT_ADD / OP_UINT_DIV …），并支持 reg-imm 立即数形态与交换律换序——与 CPython 3.11 特化自适应解释器殊途同归，而 Koala 在编译期一次完成。变量 cast 在此降级为 OP_INT_CAST / OP_FLOAT_CAST / OP_FLOAT_TO_INT / OP_INT_TO_FLOAT，目标类型与 trap/wrap 模式一起编码进 cast_flag（§5.1）。
 - **寄存器分配**：线性扫描（LSRA）——活跃区间分析 + 空闲寄存器位集，另有 simple regalloc 后备路径。
 - **IR 级另有三招**：指令融合（--fusion）、尾调用优化（--tail-call）、窥孔优化（peephole）——均带编译开关与对应回归测试。
 
 ### 11.4 与语言设计的呼应
 
-- **trap/wrap 溢出机制**直接暴露为编译开关（--int-trap / --float-trap）。
+- **cast 的 trap/wrap 双模式**直接暴露为编译开关（--int-trap / --float-trap），但只作用于运行期 op 路径；常量 cast 由 const-copy-prop 无条件校验，与开关无关（§5.1）。
 - **intf-table** 在编译期构建（--dump=itable 可观察），支撑运行时的零查找 trait 分发。
 - 类型化 IR 让静态类型的信息一路保留到操作码选择——**这正是未来 JIT 的免费弹药**（类型特化、去虚化在编译期已有先例）。
 
@@ -691,11 +706,11 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 
 ### 11.6 测试体系
 
-- **基建**：采用 LLVM 项目的 lit + FileCheck 工业标准（lit.cfg / ShTest / RUN 指令），test/ 下 139 个测试、2800+ 行 CHECK 断言。
+- **基建**：采用 LLVM 项目的 lit + FileCheck 工业标准（lit.cfg / ShTest / RUN 指令），test/ 下 156 个测试、3400+ 行 CHECK 断言。
 - **三层金字塔**：
-  - `test-kl`（30）——前端语言特性（cast、slice、if-let、包管理…）
-  - `test-ir`（35）——优化器逐 pass 验证（ssa、sccp、isel、lsra、fusion、tailcall…）
-  - `test-run`（73）——端到端运行（泛型、链表/树数据结构、LRO、intf 调用、IO…）
+  - `test-kl`（35）——前端语言特性（cast、slice、if-let、包管理…）
+  - `test-ir`（36）——优化器逐 pass 验证（ssa、sccp、isel、lsra、fusion、tailcall…）
+  - `test-run`（85）——端到端运行（泛型、链表/树数据结构、LRO、intf 调用、IO…）
 - **观察面全覆盖**：RUN 行覆盖 no-opt-ir / ssa / ir / lir / vreg / code / itable 全部 7 个 dump 阶段——"无隐藏特性"的工程回响：每个可观察阶段都有断言守护。
 - **负向断言文化**：优化器测试大量使用 CHECK-NOT 守护"不过度优化"（如不同常量的 phi 必须保留、死分支常量必须清除），测试的是正确性边界而非仅优化效果——LLVM 测试文化的核心实践。
 - **诊断与开关回归**：编译器错误消息有专门的 `2>&1` 回归测试；--int-trap / --float-trap / --fusion / --tail-call 每个编译开关均有对应测试。

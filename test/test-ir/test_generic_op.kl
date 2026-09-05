@@ -6,7 +6,7 @@ func g_arith[T : Arithmetic](a T, b T) T {
     return a + b - a * b / b % a
 }
 
-func g_bit[T : BitwiseOperators](a T, b T) T {
+func g_bit[T : Bitwise](a T, b T) T {
     return a & b | a ^ b << b >> a
 }
 

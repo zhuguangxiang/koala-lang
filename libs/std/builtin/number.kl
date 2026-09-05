@@ -26,7 +26,7 @@ pub trait Arithmetic[T] {
 ///
 /// Provides shift and bitwise logical operators. Only integer types implement
 /// this trait; floating-point types do not support bitwise operations.
-pub trait BitwiseOperators[T] {
+pub trait Bitwise[T] {
     /// Left shift (`self << rhs`).
     func __shl__(rhs T) T
     /// Right shift (`self >> rhs`).
@@ -49,7 +49,7 @@ pub trait BitwiseOperators[T] {
 pub class int8 {
     /// Creates an `int8` by truncating `x` to 8 bits.
     @intrinsic
-    pub func __init__(x int64 | uint64) {}
+    pub func __init__(x int64 | uint64 | float64) {}
 }
 
 /// A 16-bit signed integer.
@@ -59,7 +59,7 @@ pub class int8 {
 pub class int16 {
     /// Creates an `int16` by truncating `x` to 16 bits.
     @intrinsic
-    pub func __init__(x int64 | uint64) {}
+    pub func __init__(x int64 | uint64 | float64) {}
 }
 
 /// A 32-bit signed integer.
@@ -69,20 +69,20 @@ pub class int16 {
 pub class int32 {
     /// Creates an `int32` by truncating `x` to 32 bits.
     @intrinsic
-    pub func __init__(x int64 | uint64) {}
+    pub func __init__(x int64 | uint64 | float64) {}
 }
 
 /// A 64-bit signed integer.
 ///
 /// The primary signed integer type.
-pub class int64 : Comparable & Arithmetic & BitwiseOperators {
+pub class int64 : Comparable & Arithmetic & Bitwise {
     /// Creates an `int64`.
     ///
     /// The argument `x` can be an integer, a floating-point value, or a string.
     /// When `x` is a string, `base` specifies the numeric base used for parsing
     /// (default `10`).
     @native
-    pub func __init__(x int64 | uint64 | str | float64, base = 10) {}
+    pub func __init__(x int64 | uint64 | float64 | str, base = 10) {}
 
     /// Returns the sum of `self` and `rhs` (`self + rhs`).
     @intrinsic
@@ -224,7 +224,7 @@ pub class int64 : Comparable & Arithmetic & BitwiseOperators {
 pub class uint8 {
     /// Creates a `uint8` by truncating `x` to 8 bits.
     @intrinsic
-    pub func __init__(x int64 | uint64) {}
+    pub func __init__(x int64 | uint64 | float64) {}
 }
 
 /// A 16-bit unsigned integer.
@@ -234,7 +234,7 @@ pub class uint8 {
 pub class uint16 {
     /// Creates a `uint16` by truncating `x` to 16 bits.
     @intrinsic
-    pub func __init__(x int64 | uint64) {}
+    pub func __init__(x int64 | uint64 | float64) {}
 }
 
 /// A 32-bit unsigned integer.
@@ -244,20 +244,20 @@ pub class uint16 {
 pub class uint32 {
     /// Creates a `uint32` by truncating `x` to 32 bits.
     @intrinsic
-    pub func __init__(x int64 | uint64) {}
+    pub func __init__(x int64 | uint64 | float64) {}
 }
 
 /// A 64-bit unsigned integer.
 ///
 /// The primary unsigned integer type.
-pub class uint64 : Comparable & Arithmetic & BitwiseOperators {
+pub class uint64 : Comparable & Arithmetic & Bitwise {
     /// Creates a `uint64`.
     ///
     /// The argument `x` can be an integer, a floating-point value, or a string.
     /// When `x` is a string, `base` specifies the numeric base used for parsing
     /// (default `10`).
     @native
-    pub func __init__(x int64 | uint64 | str | float64, base = 10) {}
+    pub func __init__(x int64 | uint64 | float64 | str, base = 10) {}
 
     /// Returns the sum of `self` and `rhs` (`self + rhs`).
     @intrinsic
@@ -391,7 +391,7 @@ pub class uint64 : Comparable & Arithmetic & BitwiseOperators {
 pub class float16 {
     /// Creates a `float16` by truncating `x` to 16 bits.
     @intrinsic
-    pub func __init__(x float64) {}
+    pub func __init__(x int64 | uint64 | float64) {}
 }
 
 /// A 32-bit floating-point number (single precision).
@@ -401,7 +401,7 @@ pub class float16 {
 pub class float32 {
     /// Creates a `float32` by truncating `x` to 32 bits.
     @intrinsic
-    pub func __init__(x float64) {}
+    pub func __init__(x int64 | uint64 | float64) {}
 }
 
 /// A 64-bit floating-point number (double precision).
@@ -410,7 +410,7 @@ pub class float32 {
 pub class float64 : Comparable & Arithmetic {
     /// Creates a `float64` from an integer, another floating-point value, or a string.
     @native
-    pub func __init__(x float64 | int64 | uint64 | str) {}
+    pub func __init__(x int64 | uint64 | float64 | str) {}
 
     /// Returns the sum of `self` and `rhs` (`self + rhs`).
     @intrinsic

@@ -397,32 +397,32 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
 
 static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args, int nargs)
 {
-    // TODO: base = 10
-    // if (nargs == 1) {
     KlrValue *arg = args[0];
     TypeSpec *ts = callee->ts;
-    TypeSpec *arg_ts = arg->ts;
-    if (ts->kind == TYPE_INT && arg_ts->kind == TYPE_INT) {
-        if (arg_ts == ts) return arg;
+    if (arg->ts == ts) return arg;
+
+    ASSERT(type_is_int(ts) || type_is_uint(ts));
+    ASSERT(((int_type_width(ts) < 8) && (nargs == 1)) ||
+           ((int_type_width(ts) == 8) && (nargs == 2)));
+
+    if (!type_is_str(arg->ts)) {
         KlrValue *ret = klr_build_cast(bldr, arg, ts, "");
         return ret;
     }
-    // }
 
     NYI();
 }
 
 static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args, int nargs)
 {
-    if (nargs == 1) {
-        KlrValue *arg = args[0];
-        TypeSpec *ts = callee->ts;
-        TypeSpec *arg_ts = arg->ts;
-        if (ts->kind == TYPE_FLOAT && arg_ts->kind == TYPE_FLOAT) {
-            if (arg_ts == ts) return arg;
-            KlrValue *ret = klr_build_cast(bldr, arg, ts, "");
-            return ret;
-        }
+    ASSERT(nargs == 1);
+    KlrValue *arg = args[0];
+    TypeSpec *ts = callee->ts;
+    if (arg->ts == ts) return arg;
+
+    if (!type_is_str(arg->ts)) {
+        KlrValue *ret = klr_build_cast(bldr, arg, ts, "");
+        return ret;
     }
 
     NYI();

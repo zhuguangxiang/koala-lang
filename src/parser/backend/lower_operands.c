@@ -566,12 +566,14 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                     break;
                 }
 
-                case OP_INT_CAST: {
+                case OP_INT_CAST:
+                case OP_INT_TO_FLOAT: {
                     lower_int_cast_opers(insn);
                     break;
                 }
 
-                case OP_FLOAT_CAST: {
+                case OP_FLOAT_CAST:
+                case OP_FLOAT_TO_INT: {
                     lower_float_cast_opers(insn);
                     break;
                 }

@@ -152,14 +152,30 @@ static inline int type_is_no_type(TypeSpec *ts) { return ts->kind == TYPE_NO_TYP
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
 static inline int type_is_valist(TypeSpec *ts) { return ts->kind == TYPE_VA_LIST; }
+
 static inline int type_is_int(TypeSpec *ts)
 {
     return (ts->kind == TYPE_INT && ts->int_flt_info.sign == 1);
 }
+
+static inline int type_is_int64(TypeSpec *ts)
+{
+    return (ts->kind == TYPE_INT && ts->int_flt_info.sign == 1 && ts->int_flt_info.width == 64);
+}
+
+static inline int type_is_uint64(TypeSpec *ts)
+{
+    return (ts->kind == TYPE_INT && ts->int_flt_info.sign == 0 && ts->int_flt_info.width == 64);
+}
+
 static inline int type_is_uint(TypeSpec *ts)
 {
     return (ts->kind == TYPE_INT && ts->int_flt_info.sign == 0);
 }
+
+static inline int int_type_width(TypeSpec *ts) { return ts->int_flt_info.width; }
+static inline int float_type_width(TypeSpec *ts) { return ts->int_flt_info.width; }
+
 static inline int type_is_any(TypeSpec *ts) { return ts->kind == TYPE_ANY; }
 static inline int type_is_str(TypeSpec *ts) { return ts->kind == TYPE_STR; }
 static inline int type_is_float(TypeSpec *ts) { return ts->kind == TYPE_FLOAT; }

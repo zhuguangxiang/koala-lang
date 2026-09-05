@@ -1,0 +1,27 @@
+// RUN: koalac %s --opt --float-trap 2>&1 | filecheck %s
+
+// Test: float → float narrowing precision loss (strict mode with --float-trap)
+// Covers all klr_error paths in check_float_const_cast_valid: float → float
+
+// ===== float64 → float32 (precision loss) =====
+func test_float64_to_float32() {
+    let a float64 = 3.14
+    print(float32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to float32
+
+// ===== float64 → float16 (precision loss) =====
+func test_float64_to_float16() {
+    let a float64 = 3.14
+    print(float16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float64 to float16
+
+// ===== float32 → float16 (precision loss) =====
+func test_float32_to_float16() {
+    let a float32 = 3.14
+    print(float16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from float32 to float16
+
+// CHECK-NOT: {{.}}

@@ -2428,11 +2428,33 @@ TARGET(OP_FLOAT_CAST) {
 }
 
 TARGET(OP_FLOAT_TO_INT) {
-    OP_NYI(OP_FLOAT_TO_INT);
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    int flag = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    int mode = flag & 0x3;
+    int dst_ti = (flag >> 2) & 0x3F;
+
+    do_float_to_int(regs, rd, rs, mode, dst_ti);
+    DISPATCH();
 }
 
 TARGET(OP_INT_TO_FLOAT) {
-    OP_NYI(OP_INT_TO_FLOAT);
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    int flag = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    int mode = flag & 0x3;
+    int dst_ti = (flag >> 2) & 0x3F;
+
+    do_int_to_float(regs, rd, rs, mode, dst_ti);
+    DISPATCH();
 }
 
 TARGET(OP_NOP) {

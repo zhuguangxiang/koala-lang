@@ -220,35 +220,19 @@
                     "color": "#4EC9B0"
                 }
             ]
+        },
+        "(?<!\\/\\/.*)\\bfunc\\s+([a-zA-Z0-9_]+)(?=\\(|\\[)": {
+            "filterLanguageRegex": "swift",
+            "decorations": [
+                {
+                    "color": "#61AFEF"
+                }
+            ]
         }
     },
     "cmake.configureArgs": [
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
     ],
-    "code-runner.runInTerminal": true,
-    "code-runner.clearPreviousOutput": true,
-    "code-runner.customCommand": "koalac $fileName",
-    "code-runner.executorMap": {
-        "javascript": "node",
-        "java": "cd $dir && javac $fileName && java $fileNameWithoutExt",
-        "zig": "zig run",
-        "python": "python -u",
-        "perl": "perl",
-        "perl6": "perl6",
-        "ruby": "ruby",
-        "go": "go run",
-        "lua": "lua",
-        "groovy": "groovy",
-        "swift": "koala $fileName",
-        "scala": "scala",
-        "julia": "julia",
-        "rust": "cd $dir && rustc $fileName && $dir$fileNameWithoutExt",
-        "dart": "dart",
-        "nim": "nim compile --verbosity:0 --hints:off --run",
-        "fortran": "cd $dir && gfortran $fileName -o $fileNameWithoutExt && $dir$fileNameWithoutExt",
-        "mojo": "mojo run",
-    },
-    "code-runner.saveFileBeforeRun": true,
     "git.autofetch": false,
     "editor.quickSuggestionsDelay": 350,
     "clangd.arguments": [
@@ -267,7 +251,7 @@
     // "windows.zoomLevel": 0,
     // "zenMode.restore": true,
     // "zenMode.zoomLevel": 0,
-    "autoHide.autoHideSideBar": true, // 点击编辑器时自动隐藏侧边栏
+    "autoHide.autoHideSideBar": false, // 点击编辑器时自动隐藏侧边栏
     "autoHide.autoHidePanel": false, // 底部终端是否也自动隐藏（建议设为 false，方便看报错）
     "autoHide.delay": 500,
     "workbench.editor.showTabs": "multiple" // 点击后延迟 300 毫秒隐藏（给眼睛一个缓和时间）

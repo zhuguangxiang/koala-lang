@@ -3,8 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <float.h>
 #include <math.h>
-#include "cmd.h"
 #include "ir.h"
 #include "log.h"
 
@@ -29,122 +29,219 @@ int type_allowed_to_prop(TypeSpec *ts)
     return 0;
 }
 
-static int check_int_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m)
+// Floating point representation constants
+#define FLOAT64_UPPER_BOUND_FOR_INT64  9223372036854775808.0
+#define FLOAT64_LOWER_BOUND_FOR_INT64  -9223372036854775809.0
+#define FLOAT64_UPPER_BOUND_FOR_UINT64 18446744073709551616.0
+#define FLOAT32_UPPER_BOUND_FOR_UINT64 18446744073709551616.0f
+
+static int check_int_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m, double *fout)
 {
     TypeSpec *dst_ts = insn->ts;
-    if (dst_ts->kind != TYPE_INT) return 0;
+    int src_width = c->len;
+    int64_t val = (int64_t)c->ival;
 
-    int dst_width = dst_ts->int_flt_info.width;
-    if (c->which == CONST_INT) {
-        int src_width = c->len;
-        if (src_width > dst_width) {
-            int64_t val = (int64_t)c->ival;
-            if (dst_width == 1) {
-                if (val < INT8_MIN || val > INT8_MAX) {
-                    KlrLocInfo *loc = &insn->loc;
-                    klr_error(loc,
-                              "constant integer overflow in cast: cannot cast from int%d to int%d",
-                              src_width * 8, dst_width * 8);
-                    insn->error = 1;
-                    return -1;
-                }
-            } else if (dst_width == 2) {
-                if (val < INT16_MIN || val > INT16_MAX) {
-                    KlrLocInfo *loc = &insn->loc;
-                    klr_error(loc,
-                              "constant integer overflow in cast: cannot cast from int%d to int%d",
-                              src_width * 8, dst_width * 8);
-                    insn->error = 1;
-                    return -1;
-                }
-            } else if (dst_width == 4) {
-                if (val < INT32_MIN || val > INT32_MAX) {
-                    KlrLocInfo *loc = &insn->loc;
-                    klr_error(loc,
-                              "constant integer overflow in cast: cannot cast from int%d to int%d",
-                              src_width * 8, dst_width * 8);
-                    insn->error = 1;
-                    return -1;
-                }
+    if (dst_ts->kind == TYPE_INT) {
+        int dst_width = dst_ts->int_flt_info.width;
+        int dst_sign = dst_ts->int_flt_info.sign;
+
+        if (dst_sign) {
+            // signed -> signed: following Go spec, constant overflow is always an error
+            if (src_width > dst_width) {
+                if (dst_width == 1 && (val < INT8_MIN || val > INT8_MAX)) goto int_overflow;
+                if (dst_width == 2 && (val < INT16_MIN || val > INT16_MAX)) goto int_overflow;
+                if (dst_width == 4 && (val < INT32_MIN || val > INT32_MAX)) goto int_overflow;
+            }
+        } else {
+            // signed -> unsigned: following Go spec, constant overflow is always an error
+            if (val < 0) goto int_neg_overflow;
+            if (src_width > dst_width) {
+                if (dst_width == 1 && (uint64_t)val > UINT8_MAX) goto int_overflow;
+                if (dst_width == 2 && (uint64_t)val > UINT16_MAX) goto int_overflow;
+                if (dst_width == 4 && (uint64_t)val > UINT32_MAX) goto int_overflow;
             }
         }
-    } else if (c->which == CONST_UINT) {
-        int src_width = c->len;
-        if (src_width > dst_width) {
-            if (dst_width == 1) {
-                if (c->ival > UINT8_MAX) {
-                    KlrLocInfo *loc = &insn->loc;
-                    klr_error(loc,
-                              "constant integer overflow in cast: cannot cast from "
-                              "uint%d to int%d",
-                              src_width * 8, dst_width * 8);
-                    insn->error = 1;
-                    return -1;
-                }
-            } else if (dst_width == 2) {
-                if (c->ival > UINT16_MAX) {
-                    KlrLocInfo *loc = &insn->loc;
-                    klr_error(loc,
-                              "constant integer overflow in cast: cannot cast from "
-                              "uint%d to int%d",
-                              src_width * 8, dst_width * 8);
-                    insn->error = 1;
-                    return -1;
-                }
-            } else if (dst_width == 4) {
-                if (c->ival > UINT32_MAX) {
-                    KlrLocInfo *loc = &insn->loc;
-                    klr_error(loc,
-                              "constant integer overflow in cast: cannot cast from "
-                              "uint%d to int%d",
-                              src_width * 8, dst_width * 8);
-                    insn->error = 1;
-                    return -1;
-                }
-            }
+    } else if (dst_ts->kind == TYPE_FLOAT) {
+        // signed int -> float: constant precision loss is always forbidden
+        int dst_width = dst_ts->int_flt_info.width;
+
+        if (dst_width == 2) {
+            _Float16 h = (_Float16)val;
+            if (isinf(h) || (int64_t)h != val) goto float_overflow;
+            if (fout) *fout = (double)h;
+        } else if (dst_width == 4) {
+            float f = (float)val;
+            if (isinf(f) || (int64_t)f != val) goto float_overflow;
+            if (fout) *fout = (double)f;
+        } else {
+            double d = (double)val;
+            if (isinf(d) || (int64_t)d != val) goto float_overflow;
+            if (fout) *fout = d;
         }
     }
     return 0;
+
+int_neg_overflow:
+    klr_error(&insn->loc, "constant integer overflow in cast: cannot cast negative int%d to uint%d",
+              src_width * 8, dst_ts->int_flt_info.width * 8);
+    insn->error = 1;
+    return -1;
+
+int_overflow:
+    klr_error(&insn->loc, "constant integer overflow in cast: cannot cast from int%d to %s%d",
+              src_width * 8, dst_ts->int_flt_info.sign ? "int" : "uint",
+              dst_ts->int_flt_info.width * 8);
+    insn->error = 1;
+    return -1;
+
+float_overflow:
+    klr_error(&insn->loc, "constant float overflow in cast: cannot cast from int%d to float%d",
+              src_width * 8, dst_ts->int_flt_info.width * 8);
+    insn->error = 1;
+    return -1;
 }
 
-static int check_float_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m, double *out)
+static int check_uint_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m, double *fout)
 {
     TypeSpec *dst_ts = insn->ts;
-    if (dst_ts->kind != TYPE_FLOAT) return 0;
-
-    int mode = float_cast_mode();
-
-    int dst_width = dst_ts->int_flt_info.width;
     int src_width = c->len;
-    if (src_width > dst_width) {
-        double v = c->fval;
+    uint64_t val = c->ival;
+
+    if (dst_ts->kind == TYPE_INT) {
+        int dst_width = dst_ts->int_flt_info.width;
+        int dst_sign = dst_ts->int_flt_info.sign;
+
+        // Following Go spec, constant overflow is always an error
+        if (dst_sign) {
+            // uint -> signed
+            if (dst_width == 1 && val > INT8_MAX) goto int_overflow;
+            if (dst_width == 2 && val > INT16_MAX) goto int_overflow;
+            if (dst_width == 4 && val > INT32_MAX) goto int_overflow;
+            if (dst_width == 8 && val > (uint64_t)INT64_MAX) goto int_overflow;
+        } else {
+            // uint -> unsigned
+            if (src_width > dst_width) {
+                if (dst_width == 1 && val > UINT8_MAX) goto int_overflow;
+                if (dst_width == 2 && val > UINT16_MAX) goto int_overflow;
+                if (dst_width == 4 && val > UINT32_MAX) goto int_overflow;
+            }
+        }
+    } else if (dst_ts->kind == TYPE_FLOAT) {
+        // uint -> float: constant precision loss is always forbidden
+        int dst_width = dst_ts->int_flt_info.width;
+
         if (dst_width == 2) {
-            _Float16 h = (_Float16)v;
-            double rt = (double)h;
-            if (mode == 0 && rt != v) {
-                KlrLocInfo *loc = &insn->loc;
-                klr_error(loc,
-                          "constant float overflow in cast: cannot cast from float%d to float%d",
-                          src_width * 8, dst_width * 8);
-                insn->error = 1;
-                return -1;
+            _Float16 h = (_Float16)val;
+            if (isinf(h) || h >= FLOAT32_UPPER_BOUND_FOR_UINT64 || (uint64_t)h != val) {
+                goto float_overflow;
             }
-            *out = rt;
+            if (fout) *fout = (double)h;
         } else if (dst_width == 4) {
-            float f = (float)v;
-            double rt = (double)f;
-            if (mode == 0 && rt != v) {
-                KlrLocInfo *loc = &insn->loc;
-                klr_error(loc,
-                          "constant float overflow in cast: cannot cast from float%d to float%d",
-                          src_width * 8, dst_width * 8);
-                insn->error = 1;
-                return -1;
+            float f = (float)val;
+            if (isinf(f) || f >= FLOAT32_UPPER_BOUND_FOR_UINT64 || (uint64_t)f != val) {
+                goto float_overflow;
             }
-            *out = rt;
+            if (fout) *fout = (double)f;
+        } else {
+            double d = (double)val;
+            if (isinf(d) || d >= FLOAT64_UPPER_BOUND_FOR_UINT64 || (uint64_t)d != val) {
+                goto float_overflow;
+            }
+            if (fout) *fout = d;
         }
     }
     return 0;
+
+int_overflow:
+    klr_error(&insn->loc, "constant integer overflow in cast: cannot cast from uint%d to %s%d",
+              src_width * 8, dst_ts->int_flt_info.sign ? "int" : "uint",
+              dst_ts->int_flt_info.width * 8);
+    insn->error = 1;
+    return -1;
+
+float_overflow:
+    klr_error(&insn->loc, "constant float overflow in cast: cannot cast from uint%d to float%d",
+              src_width * 8, dst_ts->int_flt_info.width * 8);
+    insn->error = 1;
+    return -1;
+}
+
+static int check_float_const_cast_valid(KlrInsn *insn, KlrConst *c, KlrModule *m, double *fout,
+                                        int64_t *iout)
+{
+    TypeSpec *dst_ts = insn->ts;
+    int src_width = c->len;
+    double v = c->fval;
+
+    if (dst_ts->kind == TYPE_INT) {
+        int dst_width = dst_ts->int_flt_info.width;
+        int dst_sign = dst_ts->int_flt_info.sign;
+
+        // NaN conversion is always mathematically invalid for constants, trigger error
+        if (isnan(v)) goto int_overflow;
+
+        if (dst_sign) {
+            // float -> signed: constant truncation or bounds mismatch is an unconditional error
+            if (v >= FLOAT64_UPPER_BOUND_FOR_INT64 || v <= FLOAT64_LOWER_BOUND_FOR_INT64) {
+                goto int_overflow;
+            }
+
+            int64_t ival = (int64_t)v;
+            if ((double)ival != v) goto int_overflow; // decimal truncated
+            if (dst_width == 1 && (ival < INT8_MIN || ival > INT8_MAX)) goto int_overflow;
+            if (dst_width == 2 && (ival < INT16_MIN || ival > INT16_MAX)) goto int_overflow;
+            if (dst_width == 4 && (ival < INT32_MIN || ival > INT32_MAX)) goto int_overflow;
+            if (iout) *iout = ival;
+        } else {
+            // float -> unsigned: constant truncation or bounds mismatch is an unconditional error
+            if (v < 0.0) goto float_neg_overflow;
+            if (v >= FLOAT64_UPPER_BOUND_FOR_UINT64) goto int_overflow;
+
+            uint64_t uval = (uint64_t)v;
+            if ((double)uval != v) goto int_overflow; // decimal truncated
+            if (dst_width == 1 && uval > UINT8_MAX) goto int_overflow;
+            if (dst_width == 2 && uval > UINT16_MAX) goto int_overflow;
+            if (dst_width == 4 && uval > UINT32_MAX) goto int_overflow;
+            if (iout) *iout = (int64_t)uval;
+        }
+    } else if (dst_ts->kind == TYPE_FLOAT) {
+        // float -> float: constant narrowing precision loss is always forbidden
+        int dst_width = dst_ts->int_flt_info.width;
+
+        if (src_width > dst_width) {
+            if (dst_width == 2) {
+                _Float16 h = (_Float16)v;
+                if (isinf(h) || (double)h != v) goto float_overflow;
+                if (fout) *fout = (double)h;
+            } else if (dst_width == 4) {
+                float f = (float)v;
+                if (isinf(f) || (double)f != v) goto float_overflow;
+                if (fout) *fout = (double)f;
+            }
+        } else {
+            if (fout) *fout = v;
+        }
+    }
+    return 0;
+
+float_neg_overflow:
+    klr_error(&insn->loc, "constant float overflow in cast: cannot cast negative float%d to uint%d",
+              src_width * 8, dst_ts->int_flt_info.width * 8);
+    insn->error = 1;
+    return -1;
+
+int_overflow:
+    klr_error(&insn->loc, "constant float overflow in cast: cannot cast from float%d to %s%d",
+              src_width * 8, dst_ts->int_flt_info.sign ? "int" : "uint",
+              dst_ts->int_flt_info.width * 8);
+    insn->error = 1;
+    return -1;
+
+float_overflow:
+    klr_error(&insn->loc, "constant float overflow in cast: cannot cast from float%d to float%d",
+              src_width * 8, dst_ts->int_flt_info.width * 8);
+    insn->error = 1;
+    return -1;
 }
 
 #define int64_add_overflow __builtin_add_overflow
@@ -752,8 +849,7 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                 // dst is var: local propagation, only one basic block, no SSA
                 // needed
                 if (klr_is_const(src)) {
-                    log_info("update var local's const value in bb '%s'",
-                             klr_block_name(insn->bb));
+                    log_info("update var local's const value in bb '%s'", klr_block_name(insn->bb));
                     log_insn(insn);
                     /* Record the latest constant value in the local BB map */
                     KlrBasicBlock *bb = insn->bb;
@@ -840,27 +936,63 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
             KlrValue *src = insn_oper_value(insn, 0);
             if ((insn->error == 0) && klr_is_const(src)) {
                 KlrConst *c = (KlrConst *)src;
-                if (c->which == CONST_INT || c->which == CONST_UINT) {
-                    log_info("fold const cast insn:");
+                if (c->which == CONST_INT) {
+                    log_info("fold int const cast insn:");
                     log_insn(insn);
-                    if (!check_int_const_cast_valid(insn, c, m)) {
-                        int sign = insn->ts->int_flt_info.sign;
+                    double f = 0.0;
+                    if (!check_int_const_cast_valid(insn, c, m, &f)) {
                         KlrValue *v;
-                        if (sign) {
-                            v = klr_const_int(c->ival, insn->ts, fn->module);
+                        if (insn->ts->kind == TYPE_FLOAT) {
+                            v = klr_const_float(f, insn->ts, fn->module);
                         } else {
-                            v = klr_const_uint(c->ival, insn->ts, fn->module);
+                            int sign = insn->ts->int_flt_info.sign;
+                            if (sign) {
+                                v = klr_const_int(c->ival, insn->ts, fn->module);
+                            } else {
+                                v = klr_const_uint(c->ival, insn->ts, fn->module);
+                            }
+                        }
+                        if (replace_all_uses_with(v, (KlrValue *)insn)) {
+                            changed = 1;
+                        }
+                    }
+                } else if (c->which == CONST_UINT) {
+                    log_info("fold uint const cast insn:");
+                    log_insn(insn);
+                    double f = 0.0;
+                    if (!check_uint_const_cast_valid(insn, c, m, &f)) {
+                        KlrValue *v;
+                        if (insn->ts->kind == TYPE_FLOAT) {
+                            v = klr_const_float(f, insn->ts, fn->module);
+                        } else {
+                            int sign = insn->ts->int_flt_info.sign;
+                            if (sign) {
+                                v = klr_const_int(c->ival, insn->ts, fn->module);
+                            } else {
+                                v = klr_const_uint(c->ival, insn->ts, fn->module);
+                            }
                         }
                         if (replace_all_uses_with(v, (KlrValue *)insn)) {
                             changed = 1;
                         }
                     }
                 } else if (c->which == CONST_FLT) {
-                    log_info("fold const cast insn:");
+                    log_info("fold float const cast insn:");
                     log_insn(insn);
                     double f = 0.0;
-                    if (!check_float_const_cast_valid(insn, c, m, &f)) {
-                        KlrValue *v = klr_const_float(f, insn->ts, fn->module);
+                    int64_t iv = 0;
+                    if (!check_float_const_cast_valid(insn, c, m, &f, &iv)) {
+                        KlrValue *v;
+                        if (insn->ts->kind == TYPE_FLOAT) {
+                            v = klr_const_float(f, insn->ts, fn->module);
+                        } else {
+                            int sign = insn->ts->int_flt_info.sign;
+                            if (sign) {
+                                v = klr_const_int(iv, insn->ts, fn->module);
+                            } else {
+                                v = klr_const_uint(iv, insn->ts, fn->module);
+                            }
+                        }
                         if (replace_all_uses_with(v, (KlrValue *)insn)) {
                             changed = 1;
                         }

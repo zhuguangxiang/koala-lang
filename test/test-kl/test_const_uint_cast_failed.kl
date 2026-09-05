@@ -1,0 +1,188 @@
+// RUN: koalac %s --opt 2>&1 | filecheck %s
+
+// ---------- uint8 source ----------
+
+// ===== uint8 -> int8 (val > INT8_MAX) =====
+func test_u8_to_i8() {
+    let a uint8 = 200
+    print(int8(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint8 to int8
+
+// ---------- uint16 source ----------
+
+// ===== uint16 -> int8 (val > INT8_MAX) =====
+func test_u16_to_i8() {
+    let a uint16 = 200
+    print(int8(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint16 to int8
+
+// ===== uint16 -> int16 (val > INT16_MAX) =====
+func test_u16_to_i16() {
+    let a uint16 = 40000
+    print(int16(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint16 to int16
+
+// ===== uint16 -> uint8 (val > UINT8_MAX, src_width > dst_width) =====
+func test_u16_to_u8() {
+    let a uint16 = 300
+    print(uint8(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint16 to uint8
+
+// ===== uint16 -> float16 (UINT16_MAX = 65535 > 65504, rounds to inf) =====
+func test_u16_to_f16() {
+    let a uint16 = 65535
+    print(float16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from uint16 to float16
+
+// ---------- uint32 source ----------
+
+// ===== uint32 -> int8 (val > INT8_MAX) =====
+func test_u32_to_i8() {
+    let a uint32 = 200
+    print(int8(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint32 to int8
+
+// ===== uint32 -> int16 (val > INT16_MAX) =====
+func test_u32_to_i16() {
+    let a uint32 = 40000
+    print(int16(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint32 to int16
+
+// ===== uint32 -> int32 (val > INT32_MAX) =====
+func test_u32_to_i32() {
+    let a uint32 = 3000000000
+    print(int32(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint32 to int32
+
+// ===== uint32 -> uint8 (val > UINT8_MAX, src_width > dst_width) =====
+func test_u32_to_u8() {
+    let a uint32 = 300
+    print(uint8(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint32 to uint8
+
+// ===== uint32 -> uint16 (val > UINT16_MAX, src_width > dst_width) =====
+func test_u32_to_u16() {
+    let a uint32 = 70000
+    print(uint16(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint32 to uint16
+
+// ===== uint32 -> float16 (val > 65504, rounds to inf) =====
+func test_u32_to_f16_pos() {
+    let a uint32 = 100000
+    print(float16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from uint32 to float16
+
+// ===== uint32 -> float16 (UINT32_MAX) =====
+func test_u32_to_f16_max() {
+    let a uint32 = 4294967295
+    print(float16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from uint32 to float16
+
+// ---------- uint64 source ----------
+
+// ===== uint64 -> int8 (val > INT8_MAX) =====
+func test_u64_to_i8() {
+    let a uint64 = 200
+    print(int8(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint64 to int8
+
+// ===== uint64 -> int16 (val > INT16_MAX) =====
+func test_u64_to_i16() {
+    let a uint64 = 40000
+    print(int16(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint64 to int16
+
+// ===== uint64 -> int32 (val > INT32_MAX) =====
+func test_u64_to_i32() {
+    let a uint64 = 3000000000
+    print(int32(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint64 to int32
+
+// ===== uint64 -> int64 (val > INT64_MAX) =====
+func test_u64_to_i64() {
+    let a uint64 = 10000000000000000000
+    print(int64(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint64 to int64
+
+// ===== uint64 -> uint8 (val > UINT8_MAX, src_width > dst_width) =====
+func test_u64_to_u8() {
+    let a uint64 = 300
+    print(uint8(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint64 to uint8
+
+// ===== uint64 -> uint16 (val > UINT16_MAX, src_width > dst_width) =====
+func test_u64_to_u16() {
+    let a uint64 = 70000
+    print(uint16(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint64 to uint16
+
+// ===== uint64 -> uint32 (val > UINT32_MAX, src_width > dst_width) =====
+func test_u64_to_u32() {
+    let a uint64 = 5000000000
+    print(uint32(a))
+}
+// CHECK: constant integer overflow in cast: cannot cast from uint64 to uint32
+
+// ===== uint64 -> float16 (val > 65504, rounds to inf) =====
+func test_u64_to_f16_pos() {
+    let a uint64 = 100000
+    print(float16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from uint64 to float16
+
+// ===== uint64 -> float16 (UINT64_MAX) =====
+func test_u64_to_f16_max() {
+    let a uint64 = 18446744073709551615
+    print(float16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from uint64 to float16
+
+// ---------- uint -> float precision loss ----------
+
+// ===== uint16 -> float16 (65519 folds to 65504, under the 65520 rounding edge) =====
+func test_u16_to_f16_precision() {
+    let a uint16 = 65519
+    print(float16(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from uint16 to float16
+
+// ===== uint32 -> float32 (above 2^24, folds to 4294967296) =====
+func test_u32_to_f32_precision() {
+    let a uint32 = 4294967295
+    print(float32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from uint32 to float32
+
+// ===== uint64 -> float32 (above 2^24, folds to 18446744073709551616) =====
+func test_u64_to_f32_precision() {
+    let a uint64 = 18446744073709551615
+    print(float32(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from uint64 to float32
+
+// ===== uint64 -> float64 (above 2^53, folds to 18446744073709551616) =====
+func test_u64_to_f64_precision() {
+    let a uint64 = 18446744073709551615
+    print(float64(a))
+}
+// CHECK: constant float overflow in cast: cannot cast from uint64 to float64
+
+// CHECK-NOT: {{.}}

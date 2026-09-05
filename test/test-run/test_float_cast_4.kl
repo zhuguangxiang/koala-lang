@@ -1,0 +1,37 @@
+// RUN: koala %s --dump=code | filecheck %s
+
+func to_int(f float64) int {
+    return int(f)
+}
+
+func main() {
+    // In-range integer values
+    print(to_int(7.0))      // wrap: 7      | trap: OK
+    print(to_int(-7.0))     // wrap: -7     | trap: OK
+
+    // Fractional — truncate toward zero
+    print(to_int(7.9))      // wrap: 7      | trap: panic (fractional truncation)
+    print(to_int(-7.9))     // wrap: -7     | trap: panic (fractional truncation)
+
+    // Large but in int64 range
+    print(to_int(1000000000.0))        // wrap: 1000000000        | trap: OK
+    print(to_int(9007199254740992.0))  // wrap: 2^53              | trap: OK (double can represent exactly)
+
+    // Out-of-range (UB with direct cast in wrap mode)
+    print(to_int(1e20))     // wrap: INT64_MAX (9223372036854775807)
+                            // trap: panic (overflow)
+    print(to_int(-1e20))    // wrap: INT64_MIN (-9223372036854775808)
+                            // trap: panic (overflow)
+}
+
+// CHECK-LABEL: ====== Linearization @to_int(start_pc: 0, insns: 2) ======
+// CHECK: float_to_int r0, r0, ti=0xb, mode=1
+
+// CHECK: 7
+// CHECK: -7
+// CHECK: 7
+// CHECK: -7
+// CHECK: 1000000000
+// CHECK: 9007199254740992
+// CHECK: 9223372036854775807
+// CHECK: -9223372036854775808

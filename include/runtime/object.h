@@ -169,9 +169,9 @@ typedef struct _TValue {
 #define to_uint64(v)   ({ ASSERT(is_uint64(v)); (uint64_t)(v)->ival; })
 
 /* Floating point (TEMP: stored as double; real impl should preserve bit pattern) */
-#define to_float16(v)  ({ ASSERT(is_float16(v)); (v)->fval; })
-#define to_float32(v)  ({ ASSERT(is_float32(v)); (v)->fval; })
-#define to_float64(v)  ({ ASSERT(is_float64(v)); (v)->fval; })
+#define to_float16(v)  ({ ASSERT(is_float16(v)); (_Float16)(v)->fval; })
+#define to_float32(v)  ({ ASSERT(is_float32(v)); (_Float32)(v)->fval; })
+#define to_float64(v)  ({ ASSERT(is_float64(v)); (_Float64)(v)->fval; })
 // #define to_bfloat16(v) ({ ASSERT(is_bfloat16(v)); (v)->fval; })
 
 /* Reference */
