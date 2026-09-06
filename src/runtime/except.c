@@ -19,7 +19,11 @@ typedef struct _TraceBack {
 
 typedef struct _Exception {
     OBJECT_HEAD
+    // exception message
     char *msg;
+    // failed code object
+    CodeObject *co;
+    // tracebacks
     Vector tracebacks;
 } Exception;
 
@@ -43,13 +47,23 @@ TypeObject exc_type = {
     .methdefs = exc_methods,
 };
 
-static Object *_new_exc(char *msg)
+static Object *_new_exc(CodeObject *co, char *msg)
 {
     Exception *exc = mm_alloc_obj(exc);
     INIT_OBJECT_HEAD(exc, &exc_type, 0);
     exc->msg = strdup(msg);
+    exc->co = co;
     vector_init(&exc->tracebacks, sizeof(TraceBack));
     return (Object *)exc;
+}
+
+void exc_free(Object *obj)
+{
+    if (!obj) return;
+    Exception *exc = (Exception *)obj;
+    vector_fini(&exc->tracebacks);
+    free(exc->msg);
+    mm_free(exc);
 }
 
 void _raise_exc_fmt(KoalaState *ks, char *fmt, ...)
@@ -60,10 +74,10 @@ void _raise_exc_fmt(KoalaState *ks, char *fmt, ...)
     int len = vsnprintf(msg, 255, fmt, args);
     va_end(args);
     msg[len] = '\0';
-    ks->exc = _new_exc(msg);
+    ks->exc = _new_exc(ks->cf->code, msg);
 }
 
-void _raise_exc_str(KoalaState *ks, char *str) { ks->exc = _new_exc(str); }
+void _raise_exc_str(KoalaState *ks, char *str) { ks->exc = _new_exc(ks->cf->code, str); }
 
 void kl_panic(char *msg)
 {
@@ -136,12 +150,9 @@ static void print_source_line(const char *filename, int target_line)
     fclose(fp);
 }
 
-static void print_tracebacks(KoalaState *ks)
+static void print_tracebacks(Exception *exc)
 {
     printf("\nTraceback (most recent call last):\n");
-
-    ASSERT(ks->exc);
-    Exception *exc = (Exception *)ks->exc;
 
     TraceBack *tb;
     vector_foreach_ptr(tb, &exc->tracebacks) {
@@ -156,14 +167,16 @@ static void print_tracebacks(KoalaState *ks)
     fflush(stdout);
 }
 
-void _print_exc(KoalaState *ks)
+void print_exc(Object *obj)
 {
-    Object *obj = ks->exc;
     if (!obj) return;
 
-    print_tracebacks(ks);
-
     Exception *exc = (Exception *)obj;
+
+    CodeObject *code = exc->co;
+    printf("\nFailure in func '%s'\n", code->cs.name);
+
+    print_tracebacks(exc);
 
     if (isatty(1)) {
         printf("\n\x1b[31mError:\x1b[0m %s\n", exc->msg);

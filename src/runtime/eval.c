@@ -268,7 +268,9 @@ void kl_run_main(Object *_m)
         TValue val = obj_value(m->main);
         val = kl_do_call(&val, NULL, 0);
         if (is_error(&val)) {
-            print_exc();
+            Object *exc = get_exc();
+            print_exc(exc);
+            exc_free(exc);
         }
     }
 }
@@ -281,44 +283,74 @@ void kl_run_init(Object *_m)
         TValue val = obj_value(m->__init__);
         val = kl_do_call(&val, NULL, 0);
         if (is_error(&val)) {
-            print_exc();
+            Object *exc = get_exc();
+            print_exc(exc);
+            exc_free(exc);
         }
     }
 }
 
-int kl_run_test_funcs(Object *_m)
+static inline void print_test_progress(int err)
+{
+    if (err) {
+        putchar('F');
+    } else {
+        putchar('.');
+    }
+
+    fflush(stdout);
+}
+
+int kl_run_tests(Object *_m)
 {
     ModuleObject *m = (ModuleObject *)_m;
 
     Vector *test_funcs = &m->test_funcs;
     int total = vector_size(test_funcs);
 
-    printf("\nRunning tests(%d) in file '%s.kl'\n", total, m->path);
+    printf("\nRunning tests(%d) in file '%s.kl'\n\n", total, m->path);
+
+    Vector failure;
+    vector_init_ptr(&failure);
 
     long long diff_ns = 0;
-    int failure = 0;
     Object *fn;
     vector_foreach(fn, test_funcs) {
         if (!fn) continue;
+
         TValue val = obj_value(fn);
+
         long long start_ns = now_ns();
         val = kl_do_call(&val, NULL, 0);
         long long end_ns = now_ns();
         diff_ns += end_ns - start_ns;
-        if (is_error(&val)) {
-            failure++;
-            CodeObject *code = (CodeObject *)fn;
-            printf("\nFailure in func '%s'\n", code->cs.name);
-            print_exc();
+
+        int err = is_error(&val);
+
+        print_test_progress(err);
+
+        if (err) {
+            Object *exc = get_exc();
+            vector_push_back(&failure, &exc);
         }
     }
 
-    double diff_ms = (double)diff_ns / 1e6;
-    int pass = total - failure;
-    printf("\nResult: %d passed, %d failed in %.3f ms\n", pass, failure, diff_ms);
-    if (failure == 0) printf("\nAll tests passed.\n");
+    putchar('\n');
 
-    return failure;
+    vector_foreach(fn, &failure) {
+        print_exc(fn);
+        exc_free(fn);
+    }
+
+    double diff_ms = (double)diff_ns / 1e6;
+    int failed = vector_size(&failure);
+    int pass = total - failed;
+    printf("\nResult: %d passed, %d failed in %.3f ms\n", pass, failed, diff_ms);
+    if (failed == 0) printf("\nAll tests passed.\n");
+
+    vector_fini(&failure);
+
+    return failed;
 }
 
 #ifdef __cplusplus

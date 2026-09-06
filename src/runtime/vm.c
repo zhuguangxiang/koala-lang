@@ -684,7 +684,7 @@ KOALA_EXPORT void koala_run_file(char *path)
 KOALA_EXPORT int koala_test_file(char *path)
 {
     Object *m = kl_load_module(path);
-    if (m) return kl_run_test_funcs(m);
+    if (m) return kl_run_tests(m);
     return 0;
 }
 
