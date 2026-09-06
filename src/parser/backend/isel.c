@@ -369,6 +369,16 @@ static void isel_lower_binary(KlrInsn *insn)
         return;
     }
 
+    // imm op reg
+    if (c1) {
+        // normalize cannot swap ops, for example OP_BINARY_SUB
+        KlrConst *rc = (KlrConst *)lhs;
+        KlrValue *v = lower_const(insn, rc);
+        insn->code = R->reg_op;
+        set_operand_at(insn, 0, v);
+        return;
+    }
+
     // reg op reg
     insn->code = R->reg_op;
 }

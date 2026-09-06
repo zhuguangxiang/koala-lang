@@ -724,6 +724,19 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
+        case OP_LNOT: {
+            KlrValue *val = insn_oper_value(insn, 0);
+            ASSERT(val->ts == bool_type_spec());
+
+            if (klr_is_const(val)) {
+                KlrConst *c = (KlrConst *)val;
+                ASSERT(c->which == CONST_BOOL);
+                KlrValue *res = klr_const_bool(!c->bval, fn->module);
+                replace_all_uses_with(res, (KlrValue *)insn);
+            }
+            break;
+        }
+
         case OP_IR_SELECT: {
             KlrValue *cond = insn_oper_value(insn, 0);
             KlrValue *true_val = insn_oper_value(insn, 1);

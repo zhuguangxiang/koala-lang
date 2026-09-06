@@ -92,8 +92,8 @@ static void parse_ident(ParserState *ps, Expr *exp)
                 ASSERT(tp_sym->which == TP_NORMAL);
                 log_info("type parameter '%s' is normal", tp_sym->name);
             }
-            TypeSpec *ret = generic_var_type_spec(tp_sym->name, tp_sym->index, tp_sym->id,
-                                                  tp_sym->owner->name);
+            TypeSpec *ret =
+                generic_var_type_spec(tp_sym->name, tp_sym->index, tp_sym->id, tp_sym->owner->name);
             sym->ts = ret;
         } else {
             log_info("type parameter '%s' is already resolved", sym->name);
@@ -505,8 +505,7 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
 
             if (e->kind == EXPR_KW_KIND) {
                 KeyWordExpr *kw = (KeyWordExpr *)e;
-                kl_error(kw->loc,
-                         "require a positional argument, but got a keyword argument: '%s'",
+                kl_error(kw->loc, "require a positional argument, but got a keyword argument: '%s'",
                          kw->key.name);
             }
 
@@ -1403,8 +1402,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                 vector_push_back(tp_args, &arg->ts);
             }
 
-            InstanceSymbol *inst_sym =
-                find_or_add_instance(ps->pm->stbl, lhs_sym, tp_args, ps->pm);
+            InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, lhs_sym, tp_args, ps->pm);
             vector_destroy(tp_args);
 
             Symbol *_fn = get___init___instance(inst_sym, ps);
@@ -2554,6 +2552,88 @@ static BiOpKind bin_op_reverse(BiOpKind op)
     return neg_op;
 }
 
+/**
+ * Optimize a chain of unary '!' operators applied on a comparison
+ * expression, e.g. '!(a == b)' or '!!(a == b)'.
+ *
+ * Walks down consecutive UNARY_NOT nodes starting from 'unary'. If the
+ * chain bottoms out on a comparison BinaryExpr, folds the negations away:
+ *   - odd count:  flip the comparison operator (e.g. '==' -> '!=')
+ *   - even count: negations cancel out, operator stays unchanged
+ * In both cases every UnaryExpr node in the chain is marked 'skip' so
+ * that emit_ir_unary does not emit redundant OP_LNOT instructions.
+ *
+ * Returns 1 if the optimization was applied, 0 otherwise (chain does not
+ * end on a comparison expression, so 'unary' must be treated normally).
+ */
+static int opt_negate_comparison(UnaryExpr *unary)
+{
+    ASSERT(unary->op == UNARY_NOT);
+
+    // Already processed as part of an outer '!' chain (this node sits
+    // in the middle of a chain that was folded starting from an
+    // ancestor unary node). Skip re-processing to avoid flipping the
+    // comparison operator twice.
+    if (unary->skip) return 1;
+
+    int count = 1;
+    Expr *e = unary->exp;
+
+    // Collect every UnaryExpr node in this consecutive '!' chain,
+    // starting with the outermost 'unary' itself.
+    Vector chain;
+    vector_init_ptr(&chain);
+    vector_push_back(&chain, &unary);
+
+    while (e->kind == EXPR_UNARY_KIND) {
+        UnaryExpr *inner_unary = (UnaryExpr *)e;
+        if (inner_unary->op != UNARY_NOT) {
+            // Chain broken by a non-'!' unary op (e.g. '-', '~').
+            // Give up the optimization for this chain.
+            vector_fini(&chain);
+            return 0;
+        }
+        // Double negation elimination: keep walking down the chain.
+        vector_push_back(&chain, &inner_unary);
+        e = inner_unary->exp;
+        count++;
+    }
+
+    if (e->kind != EXPR_BINARY_KIND) {
+        vector_fini(&chain);
+        return 0;
+    }
+
+    BinaryExpr *bin = (BinaryExpr *)e;
+    if (!binary_op_iscmp(bin->op)) {
+        vector_fini(&chain);
+        return 0;
+    }
+
+    if (count % 2 == 1) {
+        // Odd number of negations: fold them into the comparison
+        // operator by reversing it (e.g. '==' -> '!=').
+        bin->op = bin_op_reverse(bin->op);
+        log_info("optimize unary '!'(%d) on comparison operator to its negation.", count);
+    } else {
+        // Even number of negations: they cancel out, the comparison
+        // operator is kept as-is.
+        log_info("optimize unary '!'(%d) on comparison operator, double negation eliminated.",
+                 count);
+    }
+
+    // Regardless of parity, every '!' node in the chain becomes a no-op
+    // at IR generation time: its value is just the (possibly operator
+    // flipped) comparison result passed through unchanged.
+    UnaryExpr *item;
+    vector_foreach(item, &chain) {
+        item->skip = 1;
+    }
+
+    vector_fini(&chain);
+    return 1;
+}
+
 static void parse_unary(ParserState *ps, Expr *exp)
 {
     UnaryExpr *unary = (UnaryExpr *)exp;
@@ -2564,38 +2644,7 @@ static void parse_unary(ParserState *ps, Expr *exp)
 
     // optimize unary '!' on comparison operator
     if (op == UNARY_NOT) {
-        int count = 1;
-        while (e->kind == EXPR_UNARY_KIND) {
-            UnaryExpr *inner_unary = (UnaryExpr *)e;
-            if (inner_unary->op != UNARY_NOT) {
-                // restore to original expression
-                e = unary->exp;
-                break;
-            }
-            // double negation elimination
-            e = inner_unary->exp;
-            count++;
-        }
-
-        if (e->kind == EXPR_BINARY_KIND) {
-            BinaryExpr *bin = (BinaryExpr *)e;
-            if (binary_op_iscmp(bin->op)) {
-                if (count % 2 == 1) {
-                    // change comparison operator to its negation
-                    bin->op = bin_op_reverse(bin->op);
-                    log_info(
-                        "optimize unary '!'(%d) on comparison operator to its "
-                        "negation.",
-                        count);
-                } else {
-                    log_info(
-                        "optimize unary '!'(%d) on comparison operator, double "
-                        "negation "
-                        "eliminated.",
-                        count);
-                }
-            }
-        }
+        opt_negate_comparison(unary);
     }
 
     parser_visit_expr(ps, e);
@@ -2651,8 +2700,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
                      lhs->ts->int_flt_info.sign ? "int64" : "uint64");
         } else if (lhs->ts->kind == TYPE_FLOAT) {
             lhs->ts = float64_type_spec();
-            log_info("promote float type from float%d to float64",
-                     orig_ts->int_flt_info.width * 8);
+            log_info("promote float type from float%d to float64", orig_ts->int_flt_info.width * 8);
         }
     }
 
@@ -2869,8 +2917,8 @@ static int check_type_cast(TypeSpec *src, TypeSpec *target, ParserState *ps)
     vector_foreach(ts, bases) {
         if (!ts) continue;
         if (ts == target) {
-            log_info("type cast is valid, '%s' is a subtype of '%s'. cast is safe.",
-                     src->signature, target->signature);
+            log_info("type cast is valid, '%s' is a subtype of '%s'. cast is safe.", src->signature,
+                     target->signature);
             return 1;
         }
 

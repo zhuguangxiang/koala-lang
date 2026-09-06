@@ -202,6 +202,9 @@ typedef struct _UnaryExpr {
     UnOpKind op;
     Loc op_loc;
     Expr *exp;
+    // when double negation is optimized,
+    // this flag indicates whether to skip this unary expression
+    int skip;
 } UnaryExpr;
 
 /* binary operator kind */

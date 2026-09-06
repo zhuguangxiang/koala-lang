@@ -1362,7 +1362,11 @@ static void emit_ir_unary(ParserState *ps, Expr *exp)
             break;
         }
         case UNARY_NOT: {
-            res = klr_build_unary(&bldr, e->ir_val, OP_LNOT, "", "not");
+            if (unary->skip) {
+                res = e->ir_val;
+            } else {
+                res = klr_build_unary(&bldr, e->ir_val, OP_LNOT, "", "not");
+            }
             break;
         }
         default: {

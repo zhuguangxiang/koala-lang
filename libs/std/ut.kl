@@ -1,0 +1,156 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Standard assertion library for Koala.
+///
+/// This module provides a set of assertion functions for testing and runtime
+/// invariant validation. When an assertion condition fails, the function
+/// raises a `panic()` containing a formatted diagnostic message and source
+/// location stack traceback.
+
+/// Assert that a boolean condition is true.
+///
+/// If `cond` is false, raises a `panic("assertion failed")` or
+/// `panic("assertion failed: " + msg)` if a non-empty `msg` is provided.
+///
+/// Example:
+///     assert(x > 0)
+///     assert(items.len() != 0, "items should not be empty")
+pub func assert(cond bool, msg = "") {
+    if !cond {
+        if msg == "" {
+            panic("assertion failed")
+        } else {
+            panic("assertion failed: " + msg)
+        }
+    }
+}
+
+/// Assert that a boolean value is true.
+///
+/// Raises a panic if `cond` evaluates to false, optionally appending `msg`.
+///
+/// Example:
+///     assert_true(flag)
+///     assert_true(user.is_active(), "user must be active")
+pub func assert_true(cond bool, msg = "") {
+    if !cond {
+        if msg == "" {
+            panic("assertion failed: expected true, got false")
+        } else {
+            panic("assertion failed: expected true, got false (" + msg + ")")
+        }
+    }
+}
+
+/// Assert that a boolean value is false.
+///
+/// Raises a panic if `cond` evaluates to true, optionally appending `msg`.
+///
+/// Example:
+///     assert_false(list.is_empty())
+///     assert_false(connection.is_closed(), "connection should remain open")
+pub func assert_false(cond bool, msg = "") {
+    if cond {
+        if msg == "" {
+            panic("assertion failed: expected false, got true")
+        } else {
+            panic("assertion failed: expected false, got true (" + msg + ")")
+        }
+    }
+}
+
+/// Assert that two values `a` and `b` are equal (`a == b`).
+///
+/// Requires that type `T` implements the `Equatable[T]` interface.
+/// On failure, raises a panic displaying both formatting values.
+///
+/// Example:
+///     assert_eq(add(1, 2), 3)
+///     assert_eq(name, "koala")
+pub func assert_eq[T : Equatable[T]](a T, b T) {
+    if a != b {
+        panic(format("assert_eq failed: {} != {}", a, b))
+    }
+}
+
+/// Assert that two values `a` and `b` are not equal (`a != b`).
+///
+/// Requires that type `T` implements the `Equatable[T]` interface.
+/// On failure, raises a panic displaying both formatting values.
+///
+/// Example:
+///     assert_ne(status_code, 404)
+///     assert_ne(ptr, null)
+pub func assert_ne[T : Equatable[T]](a T, b T) {
+    if a == b {
+        panic(format("assert_ne failed: {} == {}", a, b))
+    }
+}
+
+/// Assert that `a` is strictly less than `b` (`a < b`).
+///
+/// Requires that type `T` implements the `Comparable` interface.
+///
+/// Example:
+///     assert_lt(index, array.len())
+pub func assert_lt[T : Comparable](a T, b T) {
+    if !(a < b) {
+        panic(format("assert_lt failed: expected {} < {}", a, b))
+    }
+}
+
+/// Assert that `a` is less than or equal to `b` (`a <= b`).
+///
+/// Requires that type `T` implements the `Comparable` interface.
+///
+/// Example:
+///     assert_le(count, MAX_LIMIT)
+pub func assert_le[T : Comparable](a T, b T) {
+    if !(a <= b) {
+        panic(format("assert_le failed: expected {} <= {}", a, b))
+    }
+}
+
+/// Assert that `a` is strictly greater than `b` (`a > b`).
+///
+/// Requires that type `T` implements the `Comparable` interface.
+///
+/// Example:
+///     assert_gt(score, 0)
+pub func assert_gt[T : Comparable](a T, b T) {
+    if !(a > b) {
+        panic(format("assert_gt failed: expected {} > {}", a, b))
+    }
+}
+
+/// Assert that `a` is greater than or equal to `b` (`a >= b`).
+///
+/// Requires that type `T` implements the `Comparable` interface.
+///
+/// Example:
+///     assert_ge(balance, total_cost)
+pub func assert_ge[T : Comparable](a T, b T) {
+    if !(a >= b) {
+        panic(format("assert_ge failed: expected {} >= {}", a, b))
+    }
+}
+
+/// Assert that two floating-point numbers `a` and `b` are approximately equal.
+///
+/// Compares `abs(a - b) <= eps`. Default tolerance `eps` is `1e-9`.
+///
+/// Example:
+///     assert_close(0.1 + 0.2, 0.3)
+///     assert_close(calculated_pi, 3.1415926, 1e-5)
+pub func assert_close(a float, b float, eps float = 1e-9) {
+    var diff = a - b
+    if diff < 0.0 {
+        diff = 0.0 - diff
+    }
+    if diff > eps {
+        panic(format("assert_close failed: |{} - {}| = {} > eps {}", a, b, diff, eps))
+    }
+}

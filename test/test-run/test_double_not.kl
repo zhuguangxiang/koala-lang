@@ -1,0 +1,140 @@
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
+
+// ---- Comparison operators with various '!' chain depths ----
+
+func check_eq_1(v int?) bool {
+    return !(v == null)          // count=1 (odd) -> flip to cmpne, no lnot
+}
+
+func check_eq_2(v int?) bool {
+    return !!(v == null)         // count=2 (even) -> stays cmpeq, no lnot
+}
+
+func check_eq_3(v int?) bool {
+    return !!!(v == null)        // count=3 (odd) -> flip to cmpne, no lnot
+}
+
+func check_eq_4(v int?) bool {
+    return !!!!(v == null)       // count=4 (even) -> stays cmpeq, no lnot
+}
+
+func check_ne_1(a int, b int) bool {
+    return !(a != b)             // count=1 (odd) -> flip to cmpeq, no lnot
+}
+
+func check_lt_1(a int, b int) bool {
+    return !(a < b)              // count=1 (odd) -> flip to cmpge, no lnot
+}
+
+func check_le_1(a int, b int) bool {
+    return !(a <= b)             // count=1 (odd) -> flip to cmpgt, no lnot
+}
+
+func check_gt_1(a int, b int) bool {
+    return !(a > b)              // count=1 (odd) -> flip to cmple, no lnot
+}
+
+func check_ge_1(a int, b int) bool {
+    return !(a >= b)             // count=1 (odd) -> flip to cmplt, no lnot
+}
+
+// ---- Non-comparison unary '!' should NOT be folded (real lnot expected) ----
+
+func check_plain_bool(flag bool) bool {
+    return !flag                 // not a comparison chain, must emit lnot
+}
+
+func check_plain_bool_double(flag bool) bool {
+    return !!flag                // double negation on a plain bool, both lnot are real
+}
+
+// ---- Mixed chains: '!' broken by other unary ops should not be folded ----
+
+// TODO:
+// func check_mixed_bitnot(v int) bool {
+//     return !(~v == 0)            // outer '!' wraps a comparison (fine, count=1, flips to cmpne)
+// }
+
+func main() {
+    print(check_eq_1(null))
+    print(check_eq_2(null))
+    print(check_eq_3(null))
+    print(check_eq_4(null))
+    print(check_ne_1(1, 2))
+    print(check_lt_1(5, 10))
+    print(check_le_1(5, 5))
+    print(check_gt_1(10, 5))
+    print(check_ge_1(10, 10))
+    print(check_plain_bool(true))
+    print(check_plain_bool_double(true))
+    // print(check_mixed_bitnot(5))
+}
+
+// ---- IR structural checks: comparison chains fold cleanly, no lnot ----
+
+// CHECK-LABEL: func @check_eq_1(%v int64?) bool {
+// CHECK: %0 = cmpne %v int64?, none
+// CHECK-NEXT: ret %0 bool
+
+// CHECK-LABEL: func @check_eq_2(%v int64?) bool {
+// CHECK: %0 = cmpeq %v int64?, none
+// CHECK-NEXT: ret %0 bool
+
+// CHECK-LABEL: func @check_eq_3(%v int64?) bool {
+// CHECK: %0 = cmpne %v int64?, none
+// CHECK-NEXT: ret %0 bool
+
+// CHECK-LABEL: func @check_eq_4(%v int64?) bool {
+// CHECK: %0 = cmpeq %v int64?, none
+// CHECK-NEXT: ret %0 bool
+
+// CHECK-LABEL: func @check_ne_1(%a int64, %b int64) bool {
+// CHECK: %0 = cmpeq %a int64, %b int64
+// CHECK-NEXT: ret %0 bool
+
+// CHECK-LABEL: func @check_lt_1(%a int64, %b int64) bool {
+// CHECK: %0 = cmpge %a int64, %b int64
+// CHECK-NEXT: ret %0 bool
+
+// CHECK-LABEL: func @check_le_1(%a int64, %b int64) bool {
+// CHECK: %0 = cmpgt %a int64, %b int64
+// CHECK-NEXT: ret %0 bool
+
+// CHECK-LABEL: func @check_gt_1(%a int64, %b int64) bool {
+// CHECK: %0 = cmple %a int64, %b int64
+// CHECK-NEXT: ret %0 bool
+
+// CHECK-LABEL: func @check_ge_1(%a int64, %b int64) bool {
+// CHECK: %0 = cmplt %a int64, %b int64
+// CHECK-NEXT: ret %0 bool
+
+// ---- Plain bool negation: real lnot IS expected here ----
+
+// CHECK-LABEL: func @check_plain_bool(%flag bool) bool {
+// CHECK: %0 = lnot %flag bool
+// CHECK-NEXT: ret %0 bool
+
+// CHECK-LABEL: func @check_plain_bool_double(%flag bool) bool {
+// CHECK: %0 = lnot %flag bool
+// CHECK-NEXT: %1 = lnot %0 bool
+// CHECK-NEXT: ret %1 bool
+
+// func @check_mixed_bitnot(%v int64) bool {
+// %0 = bit_not %v int64
+// %1 = cmpne %0 int64, 0 int64
+// ret %1 bool
+
+// ---- Runtime output ----
+
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: true
+// CHECK: false
+// CHECK: false
+// CHECK: false
+// CHECK: false
+// CHECK: false
+// CHECK: false
+// CHECK: true
+// true
