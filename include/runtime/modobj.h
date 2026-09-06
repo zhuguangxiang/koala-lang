@@ -41,15 +41,20 @@ typedef struct _ModuleObject {
     Object *__init__; // init func of koala
     Object *main;     // main func of koala
 
-    Vector funcs;   // functions of this module
-    Vector types;   // types defined in this module
-    Vector globals; // vars defined in this module
+    Vector funcs; // functions of this module
+    Vector types; // types defined in this module
+    // Vector globals; // vars defined in this module
 
     HashMap symbols; // symbols for exported map
     char *path;      // module path
 
     /* native so */
     Vector libs;
+
+    /* test functions of this module */
+    Vector test_funcs;
+    /* line information for testing(traceback) */
+    Vector lineinfos; // ordered by pc
 } ModuleObject;
 
 typedef enum {
@@ -73,6 +78,13 @@ typedef struct _FuncEntry {
     Object *obj;
 } FuncEntry;
 
+// Line info structure for debugging and traceback purposes
+typedef struct _LineInfo {
+    uint32_t pc;     // program counter(increasing order in lineinfos vector)
+    char *filename;  // source file name
+    uint32_t lineno; // line number in the source file
+} LineInfo;
+
 extern TypeObject module_type;
 
 #define IS_MODULE(ob) IS_TYPE((ob), &module_type)
@@ -83,6 +95,7 @@ void kl_free_module(Object *m);
 void kl_mo_set_code(Object *_m, uint32_t *insns, size_t n);
 int kl_bind_func(Object *_m, Object *obj);
 int kl_mo_add_func(Object *_m, char *name, Object *obj);
+int kl_mo_add_test_func(Object *_m, char *name, Object *obj);
 int kl_mo_add_type(Object *_m, TypeObject *tp);
 int kl_mo_add_const(Object *_m, TValue *val);
 int kl_mo_add_str(Object *_m, char *s);

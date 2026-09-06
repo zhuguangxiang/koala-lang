@@ -16,6 +16,8 @@ extern "C" {
 #define CURRENT_FUNC ((KlrValue *)ps->scope->bb->func)
 #define METHOD_SELF  (((KlrFunc *)CURRENT_FUNC)->self)
 
+#define SET_IR_LOC(v, e) klr_set_loc(v, ps->filename, (e)->loc)
+
 static void _add_all_intf_to_trait(KlrExtTrait *trait, KlassSymbol *kls_sym)
 {
     ASSERT(vector_size(&trait->intfs) == 0);
@@ -496,7 +498,7 @@ static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *cal
         ASSERT(kc->which == CONST_TUPLE);
         // list[tuple(...)]
         Vector *vec = kc->list;
-        KlrValue **_args = VECTOR_RAW(vec, KlrValue *);
+        KlrValue **_args = VECTOR_ITEMS(vec, KlrValue *);
         int _nargs = vector_size(vec);
         return klr_const_list(_args, _nargs, callee->ts, MOD);
     } else {
@@ -531,8 +533,10 @@ static void update_call_args(ParserState *ps, KlrValue **args, int nargs, TypeSp
 }
 
 static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *init_fn,
-                                KlrValue **args, int nargs, TypeSpec *ret_ts)
+                                KlrValue **args, int nargs, Expr *e)
 {
+    TypeSpec *ret_ts = e->ts;
+
     KlrValue *ret = NULL;
 
     KlrBuilder bldr;
@@ -577,7 +581,8 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
         }
         update_call_args(ps, _args + 1, nargs, init_fn_ts);
         klr_builder_end(&bldr, ps->scope->bb);
-        klr_build_call(&bldr, init_fn, no_type_spec(), _args, nargs + 1, "");
+        KlrValue *ret = klr_build_call(&bldr, init_fn, no_type_spec(), _args, nargs + 1, "");
+        SET_IR_LOC(ret, e);
     } else {
         NYI();
     }
@@ -625,7 +630,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
         Symbol *_sym = kls_sym->__init__;
         ASSERT(_sym && _sym->ir_val);
         KlrValue *init_fn = _sym->ir_val;
-        ret = emit_type_call(ps, callee, init_fn, ir_args, size, exp->ts);
+        ret = emit_type_call(ps, callee, init_fn, ir_args, size, exp);
     } else if (callee->kind == KLR_VALUE_EXT_KLASS) {
         Symbol *lhs_sym = lhs->sym;
         KlassSymbol *kls_sym;
@@ -660,7 +665,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
         }
 
         KlrValue *init_fn = _sym->ir_val;
-        ret = emit_type_call(ps, callee, init_fn, ir_args, size, exp->ts);
+        ret = emit_type_call(ps, callee, init_fn, ir_args, size, exp);
     } else if (callee->kind == KLR_VALUE_INSN) {
         ASSERT(klr_is_local(callee));
         Symbol *sym = exp->arg;
@@ -674,6 +679,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
             _ir_args[i + 1] = ir_args[i];
         }
         ret = klr_build_call(&bldr, sym->ir_val, exp->ts, _ir_args, size + 1, "");
+        SET_IR_LOC(ret, exp);
     } else if (callee->kind == KLR_VALUE_GLOBAL) {
         ASSERT(klr_is_global(callee));
         Symbol *sym = exp->arg;
@@ -687,6 +693,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
             _ir_args[i + 1] = ir_args[i];
         }
         ret = klr_build_call(&bldr, sym->ir_val, exp->ts, _ir_args, size + 1, "");
+        SET_IR_LOC(ret, exp);
     } else if (callee->kind == KLR_VALUE_PARAM) {
         NYI();
     } else {
@@ -700,11 +707,13 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+                SET_IR_LOC(ret, exp);
             } else if (self->kind == KLR_VALUE_KLASS || self->kind == KLR_VALUE_EXT_KLASS) {
                 // Foo.hello(), static method call
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+                SET_IR_LOC(ret, exp);
             } else {
                 // method call
                 KlrValue *_args[size + 1];
@@ -716,6 +725,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_call(&bldr, callee, exp->ts, _args, size, "");
+                SET_IR_LOC(ret, exp);
             }
         } else {
             Symbol *parent = lhs->sym->parent;
@@ -732,10 +742,12 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_call(&bldr, callee, exp->ts, _args, size, "");
+                SET_IR_LOC(ret, exp);
             } else if (!parent || parent->kind == SYM_PACKAGE) {
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+                SET_IR_LOC(ret, exp);
             } else {
                 UNREACHABLE();
             }
@@ -2022,7 +2034,7 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         if (type_is_range(it_val->ts)) {
             which = GEN_RANGE;
             KlrConst *kc = (KlrConst *)it_val;
-            KlrValue **items = VECTOR_RAW(kc->list, KlrValue *);
+            KlrValue **items = VECTOR_ITEMS(kc->list, KlrValue *);
             range_info.start = items[0];
             range_info.end = items[1];
             range_info.step = items[2];

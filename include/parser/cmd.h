@@ -37,6 +37,7 @@ typedef struct _CompileOptions {
     int enable_write_klc;
     int enable_int_trap;
     int enable_float_trap;
+    int strip_lineinfo;
     DumpFlags dump;
     char pkg_path[MAX_PATH_LEN];
 } CompileOptions;
@@ -55,6 +56,7 @@ extern CompileOptions cmd_opt;
 #define write_klc_enabled() (cmd_opt.enable_write_klc)
 #define int_cast_mode()     (cmd_opt.enable_int_trap ? 0 : 1)
 #define float_cast_mode()   (cmd_opt.enable_float_trap ? 0 : 1)
+#define strip_lineinfo()    (cmd_opt.strip_lineinfo)
 
 #define dump_no_opt_ir_enabled() ((cmd_opt.dump & DUMP_NO_OPT_IR) != 0)
 #define dump_ssa_enabled()       ((cmd_opt.dump & DUMP_SSA_IR) != 0)

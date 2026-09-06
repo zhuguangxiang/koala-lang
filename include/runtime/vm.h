@@ -30,6 +30,9 @@ typedef struct _CallFrame {
     /* module */
     Object *module;
 
+    /* program counter for this call */
+    uint32_t pc;
+
     /* number of locals(include parameters) */
     int nlocals;
 
@@ -112,6 +115,8 @@ void _print_exc(KoalaState *ks);
 })
 
 /* clang-format on */
+
+void kl_trace_back(KoalaState *ks);
 
 void init_builtin_module(void);
 

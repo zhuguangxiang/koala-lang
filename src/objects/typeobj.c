@@ -180,7 +180,7 @@ static TValue _type_methods(TValue *self, TValue *args, int nargs)
         vector_push_back(&vec, &val);
     }
 
-    TValue *items = VECTOR_RAW(&vec, TValue);
+    TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
     Object *tobj = kl_list_from_array(items, size);
     TValue val = obj_value(tobj);
@@ -201,7 +201,7 @@ static TValue _type_lro(TValue *self, TValue *args, int nargs)
         vector_push_back(&vec, &val);
     }
 
-    TValue *items = VECTOR_RAW(&vec, TValue);
+    TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
     Object *tobj = kl_list_from_array(items, size);
     TValue val = obj_value(tobj);

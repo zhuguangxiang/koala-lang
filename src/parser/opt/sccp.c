@@ -415,8 +415,7 @@ static LatticeValue eval_insn(SCCPContext *ctx, KlrInsn *insn)
         if (cond.kind == LATTICE_CONST) {
             KlrConst *cc = (KlrConst *)cond.val;
             ASSERT(cc->which == CONST_BOOL);
-            KlrValue *selected_val =
-                cc->bval ? insn_oper_value(insn, 1) : insn_oper_value(insn, 2);
+            KlrValue *selected_val = cc->bval ? insn_oper_value(insn, 1) : insn_oper_value(insn, 2);
             return get_lattice(ctx, selected_val);
         }
         /* cond is TOP: return TOP, do not speculatively descend */
@@ -1021,7 +1020,7 @@ static void sccp_rewrite(SCCPContext *ctx)
         changed |= remove_unreachable_blocks(ctx->fn);
         changed |= klr_remove_only_jump_block(ctx->fn, NULL);
         changed |= simplify_single_pred_phi(ctx->fn);
-        changed |= klr_merge_block(ctx->fn, NULL);
+        changed |= klr_merge_block_pass(ctx->fn, NULL);
         changed |= klr_dce_pass(ctx->fn, NULL);
     }
 }

@@ -665,7 +665,7 @@ void klr_erase_block(KlrBasicBlock *bb);
 if 'dst' has only one successor of 'src' and 'src' has only one predecessor of
 'dst' The caller must check the condition and 'src' is not removed.
 */
-void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src);
+void klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src);
 
 /* update local variable */
 int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val, KlrInsn *move);

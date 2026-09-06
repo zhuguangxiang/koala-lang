@@ -62,8 +62,8 @@ static int __const_equal(KlcConst *k1, KlcConst *k2)
         case KLC_CONST_SLICE: {
             Vector *v1 = k1->val;
             Vector *v2 = k2->val;
-            void *p1 = VECTOR_RAW(v1, uint16_t);
-            void *p2 = VECTOR_RAW(v2, uint16_t);
+            void *p1 = VECTOR_ITEMS(v1, uint16_t);
+            void *p2 = VECTOR_ITEMS(v2, uint16_t);
             if (memcmp(p1, p2, 3 * sizeof(uint16_t))) return 0;
             return 1;
         }
@@ -90,7 +90,7 @@ static unsigned int init_item_entry(ItemEntry *item, int type, KlcConst *data)
 
     if (data->type == KLC_CONST_RANGE || data->type == KLC_CONST_SLICE) {
         Vector *vec = data->val;
-        uint16_t *raw = VECTOR_RAW(vec, uint16_t);
+        uint16_t *raw = VECTOR_ITEMS(vec, uint16_t);
         hash = mem_hash(raw, sizeof(uint16_t) * 3);
     } else {
         hash = mem_hash(data, sizeof(KlcConst));
@@ -545,12 +545,18 @@ KlcTypeParam *klc_func_add_tp(KlcFunc *fn, char *name)
 int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value)
 {
     KlcFile *klc = fn->filp;
+
+    ASSERT(name);
+
     int len = strlen(name);
     uint16_t name_index = klc_add_str(klc, name, len);
+
     len = key ? strlen(key) : 0;
-    uint16_t key_index = klc_add_str(klc, key, len);
+    uint16_t key_index = key ? klc_add_str(klc, key, len) : 0;
+
     len = value ? strlen(value) : 0;
-    uint16_t value_index = klc_add_str(klc, value, len);
+    uint16_t value_index = value ? klc_add_str(klc, value, len) : 0;
+
     KlcAnnot *ann = mm_alloc_obj(ann);
     ann->name_index = name_index;
     ann->key_index = key_index;
@@ -1001,6 +1007,21 @@ static void write_bytecodes(KlcFile *klc, Vector *vec)
     }
 }
 
+static void write_lineinfos(KlcFile *klc, Vector *vec)
+{
+    uint32_t size = vector_size(vec) - 1;
+    write_uint16(klc, (uint16_t)size);
+
+    KlcLineInfo *item;
+    vector_foreach(item, vec) {
+        if (!item) continue;
+        write_uint32(klc, item->pc);
+        write_uint32(klc, item->line);
+        write_uint16(klc, item->col);
+        write_uint16(klc, item->name_index);
+    }
+}
+
 int write_klc_file(KlcFile *klc)
 {
     FILE *fp = open_klc_file(klc->path, "w");
@@ -1025,6 +1046,8 @@ int write_klc_file(KlcFile *klc)
     write_vars(klc, klc->objs + ITEM_CONST_VAR);
     write_funcs(klc, klc->objs + ITEM_FUNC);
     write_classes(klc, klc->objs + ITEM_CLASS);
+    write_lineinfos(klc, klc->objs + ITEM_LINEINFO);
+
     fclose(fp);
     return 0;
 }
@@ -1470,6 +1493,22 @@ static int check_header(KlcFile *klc)
     return 0;
 }
 
+static void read_lineinfos(KlcFile *klc, Vector *vec)
+{
+    int size = 0;
+    read_uint16(klc, (uint16_t *)&size);
+
+    KlcLineInfo *info;
+    for (int i = 0; i < size; i++) {
+        info = mm_alloc_obj(info);
+        vector_push_back(vec, &info);
+        read_uint32(klc, &info->pc);
+        read_uint32(klc, &info->line);
+        read_uint16(klc, &info->col);
+        read_uint16(klc, &info->name_index);
+    }
+}
+
 KlcFile *read_klc_file(char *path, int rt)
 {
     FILE *fp = fopen(path, "r");
@@ -1511,6 +1550,7 @@ KlcFile *read_klc_file(char *path, int rt)
         read_vars(klc, klc->objs + ITEM_CONST_VAR);
         read_funcs(klc, klc->objs + ITEM_FUNC);
         read_classes(klc, klc->objs + ITEM_CLASS);
+        read_lineinfos(klc, klc->objs + ITEM_LINEINFO);
     }
 
     KlcConst *k = klc_get_const(klc, klc->pkg_path_index);
@@ -1699,6 +1739,17 @@ static void fini_bytecodes(Vector *vec)
     vector_fini(vec);
 }
 
+static void fini_lineinfo(Vector *vec)
+{
+    KlcLineInfo *item;
+    vector_foreach(item, vec) {
+        if (!item) continue;
+        mm_free(item);
+    }
+
+    vector_fini(vec);
+}
+
 void fini_klc_file(KlcFile *klc)
 {
     hashmap_fini(&klc->map, __item_entry_free, NULL);
@@ -1714,6 +1765,7 @@ void fini_klc_file(KlcFile *klc)
     fini_vars(klc->objs + ITEM_CONST_VAR);
     fini_funcs(klc->objs + ITEM_FUNC);
     fini_klasses(klc->objs + ITEM_CLASS);
+    fini_lineinfo(klc->objs + ITEM_LINEINFO);
 }
 
 void free_klc_file(KlcFile *klc)
@@ -1736,6 +1788,18 @@ KlcConst *klc_get_rt_const(KlcFile *klc, uint16_t index)
     return k;
 }
 
+char *klc_get_str(KlcFile *klc, uint16_t index)
+{
+    KlcConst *k = klc_get_const(klc, index);
+    return k ? k->sval : NULL;
+}
+
+char *klc_get_rt_str(KlcFile *klc, uint16_t index)
+{
+    KlcConst *k = klc_get_rt_const(klc, index);
+    return k ? k->sval : NULL;
+}
+
 uint32_t klc_get_bytecodes(KlcFile *klc, uint8_t **codes)
 {
     Vector *vec = klc->objs + ITEM_BYTECODE;
@@ -1748,6 +1812,19 @@ uint32_t klc_get_bytecodes(KlcFile *klc, uint8_t **codes)
         return item->size;
     }
     return 0;
+}
+
+void klc_add_lineinfo(KlcFile *klc, uint32_t pc, uint32_t line, uint16_t col, char *filename)
+{
+    ASSERT(filename);
+    Vector *vec = klc->objs + ITEM_LINEINFO;
+    uint16_t name_index = klc_add_str(klc, filename, strlen(filename));
+    KlcLineInfo *info = mm_alloc_obj(info);
+    info->pc = pc;
+    info->line = line;
+    info->col = col;
+    info->name_index = name_index;
+    vector_push_back(vec, &info);
 }
 
 #ifdef __cplusplus

@@ -126,10 +126,10 @@ __attribute__((aligned(64))) static TValue _eval_frame(KoalaState *ks, CallFrame
 
 ext_tailcall:
     ModuleObject *m = (ModuleObject *)cf->module;
-    TValue *const_pool = VECTOR_RAW(&m->const_pool, TValue);
-    ImportEntry *import_table = VECTOR_RAW(&m->import_table, ImportEntry);
-    FuncEntry *entry_table = VECTOR_RAW(&m->func_entries, FuncEntry);
-    TypeObject **types = VECTOR_RAW(&m->types, TypeObject *);
+    TValue *const_pool = VECTOR_ITEMS(&m->const_pool, TValue);
+    ImportEntry *import_table = VECTOR_ITEMS(&m->import_table, ImportEntry);
+    FuncEntry *entry_table = VECTOR_ITEMS(&m->func_entries, FuncEntry);
+    TypeObject **types = VECTOR_ITEMS(&m->types, TypeObject *);
 
 #ifndef NDEBUG
     int entry_size = vector_size(&m->func_entries);
@@ -274,6 +274,19 @@ void kl_run_init(Object *_m)
 
     if (m->__init__) {
         TValue val = obj_value(m->__init__);
+        kl_do_call(&val, NULL, 0);
+    }
+}
+
+void kl_run_test_funcs(Object *_m)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+
+    Vector *test_funcs = &m->test_funcs;
+    Object *fn;
+    vector_foreach(fn, test_funcs) {
+        if (!fn) continue;
+        TValue val = obj_value(fn);
         kl_do_call(&val, NULL, 0);
     }
 }

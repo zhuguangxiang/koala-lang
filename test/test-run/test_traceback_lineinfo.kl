@@ -1,0 +1,26 @@
+// RUN: ! koala %s --test 2>&1 | filecheck %s
+
+// Function f1 triggers panic
+func f1() {
+    panic("f1 failed")
+}
+
+// Function f2 calls f1
+func f2() {
+    f1()
+}
+
+// Test entry point calling f2
+@test
+func test_traceback() {
+    f2()
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   File "{{.*}}", line 5, in f1
+// CHECK-NEXT:     panic("f1 failed")
+// CHECK-NEXT:   File "{{.*}}", line 10, in f2
+// CHECK-NEXT:     f1()
+// CHECK-NEXT:   File "{{.*}}", line 16, in test_traceback
+// CHECK-NEXT:     f2()
+// CHECK: Panic: f1 failed

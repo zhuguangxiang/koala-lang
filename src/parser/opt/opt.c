@@ -41,7 +41,7 @@ static KlrPass cfg_remove_unused_pass = {
 
 static KlrPass cfg_merge_block_pass = {
     .name = "cfg-merge-block",
-    .run = klr_merge_block,
+    .run = klr_merge_block_pass,
 };
 
 /* dce */

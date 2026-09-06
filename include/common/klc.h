@@ -23,7 +23,8 @@ extern "C" {
 #define ITEM_CONST_VAR 7
 #define ITEM_FUNC      8
 #define ITEM_CLASS     9
-#define ITEM_MAX       10
+#define ITEM_LINEINFO  10
+#define ITEM_MAX       11
 
 typedef struct _KlcFile {
     char *path;
@@ -261,6 +262,18 @@ void free_klc_file(KlcFile *klc);
 KlcConst *klc_get_const(KlcFile *klc, uint16_t index);
 KlcConst *klc_get_rt_const(KlcFile *klc, uint16_t index);
 uint32_t klc_get_bytecodes(KlcFile *klc, uint8_t **codes);
+char *klc_get_str(KlcFile *klc, uint16_t index);
+char *klc_get_rt_str(KlcFile *klc, uint16_t index);
+
+typedef struct _KlcLineInfo {
+    uint32_t pc;
+    uint32_t line;
+    uint16_t col;
+    // file name index
+    uint16_t name_index;
+} KlcLineInfo;
+
+void klc_add_lineinfo(KlcFile *klc, uint32_t pc, uint32_t line, uint16_t col, char *filename);
 
 #ifdef __cplusplus
 }

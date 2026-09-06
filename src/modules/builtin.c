@@ -8,6 +8,7 @@
 #include "listobj.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
+#include "vm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,17 +83,25 @@ func panic(msg str)
 */
 static TValue builtin_panic(TValue *self, TValue *args, int nargs)
 {
+    KoalaState *ks = __ks();
+    kl_trace_back(ks);
+
     BUF(buf);
+
+    buf_write_str(&buf, "\nPanic: ");
     print_value(args, &buf);
-    buf_write_char(&buf, '\n');
+    buf_write_str(&buf, "\n\n");
 
     Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
+
     stdout_write_str(sobj);
     stdout_flush();
 
+    kl_free_str(sobj);
+
     FINI_BUF(buf);
-    exit(1);
-    return none_value;
+
+    exit(-1);
 }
 
 TValue kl_format(TValue *self, TValue *args, int nargs);

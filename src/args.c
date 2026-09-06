@@ -20,24 +20,25 @@ static void print_usage(const char *prog)
         "\nUsage: %s [<options>] <package>|<file.kl>|<file.klc>\n"
         "\n"
         "Options:\n"
-        "  -c               Compile only (supports .kl file or directory as module)\n"
-        "  -o <file>        Output .klc file\n"
-        "  --ssa            Enable SSA construction stage.\n"
-        "  --int-trap       Enable trap checking for integer cast.\n"
-        "  --float-trap     Enable trap checking for float cast.\n"
-        "  --dump=<list>    Dump internal information.\n"
-        "                   <list> is a comma-separated list of:\n"
-        "                       no-opt-ir - dump no-opt IR\n"
-        "                       ssa       - dump SSA IR\n"
-        "                       ir        - optimized IR (after opt passes)\n"
-        "                       lir       - LIR (after isel/regalloc)\n"
-        "                       vreg      - dump virtual register info\n"
-        "                       code      - codegen output\n"
-        "                       itable    - dump interface table\n"
-        "                       all       - dump all stages\n"
-        "  --package-name   Specify the package name.\n"
-        "  -v, --version    Show version information\n"
-        "  -h, --help       Show this help message\n",
+        "  -c                   Compile only (supports .kl file or directory as module)\n"
+        "  -o <file>            Output .klc file\n"
+        "  --ssa                Enable SSA construction stage.\n"
+        "  --int-trap           Enable trap checking for integer cast.\n"
+        "  --float-trap         Enable trap checking for float cast.\n"
+        "  --dump=<list>        Dump internal information.\n"
+        "                       <list> is a comma-separated list of:\n"
+        "                           no-opt-ir - dump no-opt IR\n"
+        "                           ssa       - dump SSA IR\n"
+        "                           ir        - optimized IR (after opt passes)\n"
+        "                           lir       - LIR (after isel/regalloc)\n"
+        "                           vreg      - dump virtual register info\n"
+        "                           code      - codegen output\n"
+        "                           itable    - dump interface table\n"
+        "                           all       - dump all stages\n"
+        "  --package-name       Specify the package name.\n"
+        "  --strip-lineinfo     Strip line information from the output.\n"
+        "  -v, --version        Show version information\n"
+        "  -h, --help           Show this help message\n",
         prog);
 
     printf(
@@ -72,10 +73,16 @@ static void version(void)
 int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
 {
     static struct option long_opts[] = {
-        { "dump", required_argument, 0, 1 }, { "int-trap", no_argument, 0, 2 },
-        { "float-trap", no_argument, 0, 3 }, { "help", no_argument, 0, 'h' },
-        { "version", no_argument, 0, 'v' },  { "package-name", required_argument, 0, 4 },
-        { "ssa", no_argument, 0, 5 },        { 0, 0, 0, 0 },
+        { "dump", required_argument, 0, 1 },
+        { "int-trap", no_argument, 0, 2 },
+        { "float-trap", no_argument, 0, 3 },
+        { "help", no_argument, 0, 'h' },
+        { "version", no_argument, 0, 'v' },
+        { "package-name", required_argument, 0, 4 },
+        { "ssa", no_argument, 0, 5 },
+        { "test", no_argument, 0, 6 },
+        { "strip-lineinfo", no_argument, 0, 7 },
+        { 0, 0, 0, 0 },
     };
 
     optind = 1;
@@ -110,6 +117,12 @@ int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
                 break;
             case 5:
                 opt->enable_ssa = 1;
+                break;
+            case 6:
+                opt->test_mode = 1;
+                break;
+            case 7:
+                opt->strip_lineinfo = 1;
                 break;
             default:
                 return -1;

@@ -13,6 +13,7 @@
 #include <time.h>
 #include <unistd.h>
 #include "args.h"
+#include "mm.h"
 
 static double now_ms(void)
 {
@@ -60,7 +61,7 @@ static char *make_temp_klc(void)
 static int compile(const char *input, const char *output, KoalaOptions *opt)
 {
     char buf_2[32];
-    char *argv[16];
+    char *argv[20];
     int n = 0;
 
     argv[n++] = "koalac";
@@ -79,6 +80,10 @@ static int compile(const char *input, const char *output, KoalaOptions *opt)
 
     if (opt->enable_float_trap) {
         argv[n++] = "--float-trap";
+    }
+
+    if (opt->strip_lineinfo) {
+        argv[n++] = "--strip-lineinfo";
     }
 
     if (opt->dump) {
@@ -132,18 +137,16 @@ static char *default_output_path(const char *input)
     return out;
 }
 
-static int has_suffix(const char *s, const char *suffix)
-{
-    size_t sl = strlen(s);
-    size_t su = strlen(suffix);
-    if (sl < su) return 0;
-    return strcmp(s + sl - su, suffix) == 0;
-}
-
 static void run_klc(const char *input)
 {
     koala_initialize();
-    koala_run_file((char *)input);
+
+    if (kl_cmd_opt.test_mode) {
+        koala_test_file((char *)input);
+    } else {
+        koala_run_file((char *)input);
+    }
+
     koala_finalize();
 }
 
@@ -155,7 +158,7 @@ int main(int argc, char *argv[])
 
     const char *input = kl_cmd_opt.input;
 
-    if (has_suffix(input, ".klc")) {
+    if (match_suffix(input, ".klc")) {
         if (kl_cmd_opt.compile_only) {
             fprintf(stderr, "koala: -c cannot be used with .klc\n");
             return -1;

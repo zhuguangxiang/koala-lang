@@ -208,7 +208,7 @@ int klr_remove_only_jump_block(KlrFunc *func, void *data)
     return changed;
 }
 
-int klr_merge_block(KlrFunc *fn, void *data)
+int klr_merge_block_pass(KlrFunc *fn, void *data)
 {
     log_info("[basic-block-merging] on func '%%%s'", fn->name);
 
@@ -228,7 +228,7 @@ int klr_merge_block(KlrFunc *fn, void *data)
 
         // merge bb and dst
         log_info("merge basic block '%%%s' and '%%%s'", klr_block_name(bb), klr_block_name(dst));
-        Klr_merge_block(bb, dst);
+        klr_merge_block(bb, dst);
         // vector_push_back(&unused, &dst);
         changed = 1;
     }

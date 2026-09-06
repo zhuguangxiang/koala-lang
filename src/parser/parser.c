@@ -56,8 +56,8 @@ static Vector *infer_tuple___getitem__(FuncSymbol *fn, Vector *args, ParserState
         int index = (int)lit->ival;
 
         if (!(index >= 0 && index < vector_size(inst_sym->tp_args))) {
-            kl_error(e->loc, "tuple index out of range, got %d but expected 0 <= index < %d",
-                     index, vector_size(inst_sym->tp_args));
+            kl_error(e->loc, "tuple index out of range, got %d but expected 0 <= index < %d", index,
+                     vector_size(inst_sym->tp_args));
             return NULL;
         }
 
@@ -846,8 +846,8 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
                 ASSERT(tp_sym->which == TP_NORMAL);
                 log_info("type parameter '%s' is normal", tp_sym->name);
             }
-            ret = generic_var_type_spec(tp_sym->name, tp_sym->index, tp_sym->id,
-                                        tp_sym->owner->name);
+            ret =
+                generic_var_type_spec(tp_sym->name, tp_sym->index, tp_sym->id, tp_sym->owner->name);
         }
         type_spec_free(_ts);
         vector_destroy(tp_args);
@@ -1267,6 +1267,38 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
         return;
     }
 
+    if (str_equal(ann->ident, "test")) {
+        if (!match_prefix(fn->id.name, "test_")) {
+            kl_error(fn->id.loc,
+                     "func '%s' with 'test' annotation needs to be named with 'test_' prefix.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(fn->tps)) {
+            kl_error(fn->id.loc,
+                     "func '%s' is a generic function. The 'test' annotation only be used for "
+                     "non-generic function.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(ann->types)) {
+            kl_error(ann->id_loc, "func '%s' with 'test' annotation cannot have any type.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(fn->args)) {
+            kl_error(fn->id.loc, "func '%s' with 'test' annotation cannot have any argument.",
+                     fn->id.name);
+        }
+
+        if (fn->ret) {
+            kl_error(fn->id.loc, "func '%s' with 'test' annotation cannot have return type.",
+                     fn->id.name);
+        }
+
+        return;
+    }
+
     kl_error(ann->id_loc, "unknown annotation '%s'", ann->ident);
 }
 
@@ -1285,11 +1317,10 @@ static void check_class_prefix(ParserState *ps, KlassDeclStmt *klass)
         }
 
         if (vector_empty(klass->tps)) {
-            kl_error(
-                ann->id_loc,
-                "class '%s' is not a generic class. The 'specialized' annotation only be used "
-                "for generic class.",
-                klass->id.name);
+            kl_error(ann->id_loc,
+                     "class '%s' is not a generic class. The 'specialized' annotation only be used "
+                     "for generic class.",
+                     klass->id.name);
         }
 
         if (vector_empty(ann->types)) {
@@ -1352,6 +1383,11 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
     fn->sym = sym;
 
     check_func_prefix(ps, fn);
+
+    if (match_prefix(fn->flags.ann.ident, "test")) {
+        // only functions with 'test' prefix get this annotation
+        fn_sym->ann = fn->flags.ann.ident;
+    }
 
     if (!has_specialized_meta((Stmt *)fn)) return sym;
 

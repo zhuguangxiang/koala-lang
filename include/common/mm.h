@@ -90,6 +90,8 @@ double str_to_float(const char *buf, size_t len, int *ok);
 
 static inline bool match_suffix(const char *name, const char *suffix)
 {
+    if (!name || !suffix) return false;
+
     size_t name_len = strlen(name);
     size_t suf_len = strlen(suffix);
 
@@ -101,6 +103,8 @@ static inline bool match_suffix(const char *name, const char *suffix)
 
 static inline bool match_prefix(const char *name, const char *prefix)
 {
+    if (!name || !prefix) return false;
+
     size_t pre_len = strlen(prefix);
 
     // name is shorter, return false directly

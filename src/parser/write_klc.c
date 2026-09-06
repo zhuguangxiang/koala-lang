@@ -445,6 +445,14 @@ static void write_rt_data(KlMachModule *m, KlcFile *klc, HashMap *stbl)
     FINI_BUF(buf);
 
     klc_add_bytecodes(klc, m->codes.size, m->codes.data);
+
+    if (!strip_lineinfo()) {
+        KlMachLoc *loc;
+        vector_foreach(loc, &m->locs) {
+            if (!loc) continue;
+            klc_add_lineinfo(klc, loc->pc, loc->line, loc->col, loc->filename);
+        }
+    }
 }
 
 void write_to_klc(ParserModule *pm)

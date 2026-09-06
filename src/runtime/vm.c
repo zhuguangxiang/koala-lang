@@ -388,6 +388,8 @@ static Object *_load_module(char *path)
         --num_rt_consts;
     }
 
+    // process imports
+
     Vector *imports = klc->objs + ITEM_IMPORT;
     KlcImport *imp;
     vector_foreach(imp, imports) {
@@ -399,6 +401,8 @@ static Object *_load_module(char *path)
         kl_mo_add_import(m, imp->kind, ns->sval, kls_name, sym->sval);
     }
 
+    // process native libraries
+
     Vector *links = klc->objs + ITEM_LINK;
     uint16_t link_index;
     vector_foreach(link_index, links) {
@@ -406,6 +410,8 @@ static Object *_load_module(char *path)
         KlcConst *kc = klc_get_rt_const(klc, link_index);
         _load_native(mo, kc->sval, pkg_name);
     }
+
+    // process code objects
 
     Vector *code_objs = klc->objs + ITEM_CODE;
     KlcCode *item;
@@ -435,6 +441,8 @@ static Object *_load_module(char *path)
         }
         kl_mo_add_func(m, kc->sval, _co);
     }
+
+    // process classes
 
     Vector *cls_objs = klc->objs + ITEM_CLASS;
     KlcKlass *cls;
@@ -535,6 +543,42 @@ static Object *_load_module(char *path)
         kl_mo_add_type(m, tp);
     }
 
+    // process test functions
+
+    Vector *func_objs = klc->objs + ITEM_FUNC;
+    if (vector_size(func_objs) > 1) {
+        // slot 0 is reserved for null.
+        KlcFunc *fn_item;
+        vector_foreach(fn_item, func_objs) {
+            if (!fn_item) continue;
+            KlcAnnot *ann = vector_get(&fn_item->anns, 1);
+            if (!ann) continue;
+            char *_name = klc_get_str(klc, ann->name_index);
+            if (!match_prefix(_name, "test")) continue;
+            Object *_co = vector_get(&mo->funcs, fn_item->code_index);
+            ASSERT(_co);
+            _name = klc_get_str(klc, fn_item->name_index);
+            kl_mo_add_test_func(m, _name, _co);
+        }
+    }
+
+    // process lineinfo for testing(traceback)
+
+    Vector *lineinfos = klc->objs + ITEM_LINEINFO;
+    KlcLineInfo *_line;
+    vector_foreach(_line, lineinfos) {
+        if (!_line) continue;
+        // handle lineinfo as needed for testing(traceback)
+        LineInfo line;
+        line.pc = _line->pc;
+        line.filename = klc_get_str(klc, _line->name_index);
+        line.lineno = _line->line;
+        vector_push_back(&mo->lineinfos, &line);
+        // printf("  PC: %u, File \"%s\", line %d\n", line.pc, line.filename, line.lineno);
+    }
+
+    // process global variables
+
     Vector *globals = klc->objs + ITEM_VAR;
     mo->num_values = vector_size(globals) - 1;
     ASSERT(mo->num_values >= 0);
@@ -547,12 +591,14 @@ static Object *_load_module(char *path)
     }
 
     // bind cfunc/code to module
+
     Object *fn;
     vector_foreach(fn, &mo->funcs) {
         kl_bind_func(m, fn);
     }
 
     // allocate global variables space
+
     if (mo->num_values > 0) {
         mo->values = mm_alloc(sizeof(TValue) * mo->num_values);
         for (uint32_t i = 0; i < mo->num_values; i++) {
@@ -634,6 +680,12 @@ KOALA_EXPORT void koala_run_file(char *path)
 {
     Object *m = kl_load_module(path);
     if (m) kl_run_main(m);
+}
+
+KOALA_EXPORT void koala_test_file(char *path)
+{
+    Object *m = kl_load_module(path);
+    if (m) kl_run_test_funcs(m);
 }
 
 KOALA_EXPORT void koala_finalize(void) { /* finalize atom string table */ fini_atom(); }

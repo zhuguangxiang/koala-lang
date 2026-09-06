@@ -396,7 +396,7 @@ void klr_erase_block(KlrBasicBlock *bb)
     mm_free(bb);
 }
 
-void Klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
+void klr_merge_block(KlrBasicBlock *dst, KlrBasicBlock *src)
 {
     ASSERT(dst->func == src->func);
     KlrFunc *fn = dst->func;

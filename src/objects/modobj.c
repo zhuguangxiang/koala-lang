@@ -61,6 +61,13 @@ int kl_mo_add_func(Object *_m, char *name, Object *obj)
     return 0;
 }
 
+int kl_mo_add_test_func(Object *_m, char *name, Object *obj)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    vector_push_back(&m->test_funcs, &obj);
+    return 0;
+}
+
 int kl_mo_add_type(Object *_m, TypeObject *tp)
 {
     ModuleObject *m = (ModuleObject *)_m;
@@ -232,7 +239,7 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
         }
     }
 
-    TValue *items = VECTOR_RAW(&vec, TValue);
+    TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
     Object *tobj = kl_new_tuple(items, size);
     TValue val = obj_value(tobj);
@@ -253,7 +260,7 @@ int kl_mo_add_range(Object *_m, Vector *list)
         vector_push_back(&vec, &val);
     }
 
-    TValue *items = VECTOR_RAW(&vec, TValue);
+    TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
     ASSERT(size == 3);
     Object *tobj = kl_new_range(items);
@@ -275,7 +282,7 @@ int kl_mo_add_slice(Object *_m, Vector *list)
         vector_push_back(&vec, &val);
     }
 
-    TValue *items = VECTOR_RAW(&vec, TValue);
+    TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
     ASSERT(size == 3);
     Object *tobj = kl_new_slice(items);
@@ -372,7 +379,7 @@ int kl_mo_add_list(Object *_m, Vector *list)
         }
     }
 
-    TValue *items = VECTOR_RAW(&vec, TValue);
+    TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
     Object *tobj = kl_list_from_array(items, size);
     TValue val = obj_value(tobj);
@@ -420,6 +427,8 @@ Object *kl_new_module(char *path)
     vector_init(&m->func_entries, sizeof(FuncEntry));
     vector_init_ptr(&m->funcs);
     vector_init_ptr(&m->types);
+    vector_init_ptr(&m->test_funcs);
+    vector_init(&m->lineinfos, sizeof(LineInfo));
     vector_init(&m->libs, sizeof(NativeLib));
     stbl_init(&m->symbols);
     m->path = atom(path);

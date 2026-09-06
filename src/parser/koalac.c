@@ -27,32 +27,33 @@ static void usage(void)
     printf(
         "\nUsage: koalac [<options>] <package>|<file.kl>\n\n"
         "options:\n"
-        "  -o <file>        Place the output into <file>.\n"
-        "  --irgen          Enable IR generation stage.\n"
-        "  --ssa            Enable SSA construction stage.\n"
-        "  --opt            Enable optimization passes (default).\n"
-        "  --isel           Enable instruction selection stage.\n"
-        "  --lsra           Enable linear scan register allocator.\n"
-        "  --cgen           Enable code generation stage.\n"
-        "  --fusion         Enable fusion optimization passes.\n"
-        "  --tail-call      Enable tail call optimization.\n"
-        "  --build-stdlib   Build the Koala standard library.\n"
-        "  --write-klc      Write the compiled output to a .klc file.\n"
-        "  --int-trap       Enable trap checking for integer cast.\n"
-        "  --float-trap     Enable trap checking for float cast.\n"
-        "  --dump=<list>    Dump internal information.\n"
-        "                   <list> is a comma-separated list of:\n"
-        "                       no-opt-ir - dump no-opt IR\n"
-        "                       ssa       - dump SSA IR\n"
-        "                       ir        - optimized IR (after opt passes)\n"
-        "                       lir       - LIR (after isel/regalloc)\n"
-        "                       vreg      - dump virtual register info\n"
-        "                       code      - codegen output\n"
-        "                       itable    - dump interface table\n"
-        "                       all       - dump all stages\n"
-        "  --package-name   Specify the package name.\n"
-        "  -v, --version    Print koalac version.\n"
-        "  -h, --help       Print this message.\n"
+        "  -o <file>            Place the output into <file>.\n"
+        "  --irgen              Enable IR generation stage.\n"
+        "  --ssa                Enable SSA construction stage.\n"
+        "  --opt                Enable optimization passes (default).\n"
+        "  --isel               Enable instruction selection stage.\n"
+        "  --lsra               Enable linear scan register allocator.\n"
+        "  --cgen               Enable code generation stage.\n"
+        "  --fusion             Enable fusion optimization passes.\n"
+        "  --tail-call          Enable tail call optimization.\n"
+        "  --build-stdlib       Build the Koala standard library.\n"
+        "  --write-klc          Write the compiled output to a .klc file.\n"
+        "  --int-trap           Enable trap checking for integer cast.\n"
+        "  --float-trap         Enable trap checking for float cast.\n"
+        "  --dump=<list>        Dump internal information.\n"
+        "                       <list> is a comma-separated list of:\n"
+        "                           no-opt-ir - dump no-opt IR\n"
+        "                           ssa       - dump SSA IR\n"
+        "                           ir        - optimized IR (after opt passes)\n"
+        "                           lir       - LIR (after isel/regalloc)\n"
+        "                           vreg      - dump virtual register info\n"
+        "                           code      - codegen output\n"
+        "                           itable    - dump interface table\n"
+        "                           all       - dump all stages\n"
+        "  --package-name       Specify the package name.\n"
+        "  --strip-lineinfo     Strip line information from the output.\n"
+        "  -v, --version        Print koalac version.\n"
+        "  -h, --help           Print this message.\n"
         "\n");
 
     printf(
@@ -165,6 +166,7 @@ static void parse_command(int argc, char *argv[])
         { "float-trap", no_argument, 0, 12 },
         { "package-name", required_argument, 0, 13 },
         { "ssa", no_argument, 0, 14 },
+        { "strip-lineinfo", no_argument, 0, 15 },
         { NULL, 0, NULL, 0 },
     };
 
@@ -247,6 +249,10 @@ static void parse_command(int argc, char *argv[])
                 cmd_opt.enable_genir = 1;
                 cmd_opt.enable_ssa = 1;
                 cmd_opt.enable_opt = 0;
+                break;
+
+            case 15:
+                cmd_opt.strip_lineinfo = 1;
                 break;
 
             case 'o': {

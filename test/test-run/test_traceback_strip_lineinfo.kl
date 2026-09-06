@@ -1,0 +1,23 @@
+// RUN: ! koala %s --test --strip-lineinfo 2>&1 | filecheck %s
+
+// Function f1 triggers panic
+func f1() {
+    panic("f1 failed")
+}
+
+// Function f2 calls f1
+func f2() {
+    f1()
+}
+
+// Test entry point calling f2
+@test
+func test_traceback_strip() {
+    f2()
+}
+
+// CHECK: Traceback (most recent call last):
+// CHECK-NEXT:   [pc {{[0-9]+}}] in f1
+// CHECK-NEXT:   [pc {{[0-9]+}}] in f2
+// CHECK-NEXT:   [pc {{[0-9]+}}] in test_traceback_strip
+// CHECK: Panic: f1 failed

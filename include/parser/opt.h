@@ -21,7 +21,7 @@ int klr_normalize_pass(KlrFunc *fn, void *data);
 int klr_remove_only_jump_block(KlrFunc *fn, void *data);
 int klr_bb_branch_folding(KlrFunc *fn, void *data);
 int klr_remove_unused_block(KlrFunc *fn, void *data);
-int klr_merge_block(KlrFunc *fn, void *data);
+int klr_merge_block_pass(KlrFunc *fn, void *data);
 
 int klr_dce_pass(KlrFunc *fn, void *data);
 

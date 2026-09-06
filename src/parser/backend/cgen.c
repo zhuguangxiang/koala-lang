@@ -4,6 +4,7 @@
  */
 
 #include "cgen.h"
+#include "atom.h"
 #include "cmd.h"
 #include "log.h"
 #include "opcode.h"
@@ -167,8 +168,8 @@ static int __mach_const_eq__(void *a, void *b)
             return (ka->len == kb->len) && (ka->bval == kb->bval);
         case KL_MACH_CONST_RANGE:
         case KL_MACH_CONST_SLICE: {
-            KlMachConst **raw_a = VECTOR_RAW(ka->list, KlMachConst *);
-            KlMachConst **raw_b = VECTOR_RAW(kb->list, KlMachConst *);
+            KlMachConst **raw_a = VECTOR_ITEMS(ka->list, KlMachConst *);
+            KlMachConst **raw_b = VECTOR_ITEMS(kb->list, KlMachConst *);
             return !memcmp(raw_a, raw_b, sizeof(void *) * 3);
         }
         case KL_MACH_CONST_TUPLE: {
@@ -211,7 +212,7 @@ static unsigned int mach_const_hash(void *key)
             return str_hash(kc->str);
         case KL_MACH_CONST_RANGE:
         case KL_MACH_CONST_SLICE:
-            KlMachConst **raw = VECTOR_RAW(kc->list, KlMachConst *);
+            KlMachConst **raw = VECTOR_ITEMS(kc->list, KlMachConst *);
             return mem_hash(raw, sizeof(void *) * 3);
         case KL_MACH_CONST_TUPLE: {
             Vector *list = kc->list;
@@ -1214,8 +1215,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 KlrExtKlass *ext_klass = ext_fn->klass;
                 int index;
                 if (ext_klass) {
-                    index =
-                        mach_import_add_method(m, ext_mod->name, ext_klass->name, ext_fn->name);
+                    index = mach_import_add_method(m, ext_mod->name, ext_klass->name, ext_fn->name);
                 } else {
                     index = mach_import_add_func(m, ext_mod->name, ext_fn->name);
                 }
@@ -1275,6 +1275,19 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
             UNREACHABLE();
             break;
         }
+    }
+
+    if (insn->code == OP_CALL) {
+        // save source location for the call instruction
+        ASSERT(!mi->loc);
+        ASSERT(insn->loc.filename != NULL);
+        KlMachLoc *loc = mm_alloc_obj(loc);
+        loc->filename = atom(insn->loc.filename);
+        loc->line = insn->loc.loc.line;
+        loc->col = insn->loc.loc.col;
+        vector_push_back(&m->locs, &loc);
+        mi->loc = loc;
+        // printf("Call source location: %s:%d:%d\n", insn->loc.filename, loc->line, loc->col);
     }
 }
 
@@ -1598,6 +1611,12 @@ static void assign_pc(KlMachFunc *mfn)
         KlMachInsn *mi;
         vector_foreach(mi, &mb->insns) {
             mi->pc = pc;
+
+            // set the PC for the source location if it exists
+            KlMachLoc *loc = mi->loc;
+            if (loc) loc->pc = pc;
+
+            // Advance the PC for the next instruction.
             pc++;
         }
 
@@ -1760,7 +1779,7 @@ static int peephole(KlMachFunc *mfn)
     int changed = 0;
     KlMachBlock *mb;
     list_foreach(mb, link, &mfn->bb_list) {
-        KlMachInsn **codes = VECTOR_RAW(&mb->insns, KlMachInsn *);
+        KlMachInsn **codes = VECTOR_ITEMS(&mb->insns, KlMachInsn *);
         int n = vector_size(&mb->insns);
         if (n <= 0) continue;
 
@@ -1865,6 +1884,7 @@ static void init_mach_context(KlMachModule *m, KlrModule *origin)
     codebuf_init(&m->codes);
     hashmap_init(&m->cp_map, __mach_const_eq__);
     hashmap_init(&m->import_map, __mach_import_eq__);
+    vector_init_ptr(&m->locs);
     m->pc = 0;
     origin->mach = m;
 }

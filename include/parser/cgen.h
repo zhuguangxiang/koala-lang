@@ -46,7 +46,18 @@ typedef struct _KlMachModule {
 
     /* Module-level PC allocator used during linearization. */
     int pc;
+
+    /* Source locations for debugging(testing) purposes. */
+    Vector locs;
 } KlMachModule;
+
+typedef struct _KlMachLoc {
+    // atom string
+    char *filename;
+    int pc;
+    int line;
+    int col;
+} KlMachLoc;
 
 /*
  * Represents a function's region inside the module-level .text buffer.
@@ -175,6 +186,9 @@ typedef struct _KlMachInsn {
 
     /* Original IR instruction for debugging. */
     KlrInsn *origin;
+
+    /* Source location for debugging purposes. */
+    KlMachLoc *loc;
 } KlMachInsn;
 
 #define KL_MACH_CONST_NONE  1

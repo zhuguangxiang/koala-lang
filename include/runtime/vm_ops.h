@@ -410,6 +410,11 @@ TARGET(OP_CALL) {
     rd = I_VAL(inst, 8, 12);
     imm = I_VAL(inst, 0, 8);
 
+    // save pc for traceback
+    ptrdiff_t off = pc - codes;
+    ASSERT(off >= 0);
+    cf->pc = (uint32_t)off - 1;
+
     if (flg == 1) {
         uint32_t index = *pc++;
         ImportEntry *e = IMPORT_ENTRY(index);
