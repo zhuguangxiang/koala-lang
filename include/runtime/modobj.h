@@ -51,8 +51,9 @@ typedef struct _ModuleObject {
     /* native so */
     Vector libs;
 
-    /* test functions of this module */
-    Vector test_funcs;
+    /* test cases of this module */
+    Vector tests;
+
     /* line information for testing(traceback) */
     Vector lineinfos; // ordered by pc
 } ModuleObject;
@@ -89,13 +90,21 @@ extern TypeObject module_type;
 
 #define IS_MODULE(ob) IS_TYPE((ob), &module_type)
 
+typedef struct _TestCase {
+    char *name;
+    CodeObject *co;
+    long long elapsed_ns;
+    int passed;
+    Object *exc;
+} TestCase;
+
 Object *kl_new_module(char *path);
 void kl_free_module(Object *m);
 #define kl_mo_path(m) (((ModuleObject *)(m))->path)
 void kl_mo_set_code(Object *_m, uint32_t *insns, size_t n);
 int kl_bind_func(Object *_m, Object *obj);
 int kl_mo_add_func(Object *_m, char *name, Object *obj);
-int kl_mo_add_test_func(Object *_m, char *name, Object *obj);
+int kl_mo_add_test(Object *_m, char *name, CodeObject *obj);
 int kl_mo_add_type(Object *_m, TypeObject *tp);
 int kl_mo_add_const(Object *_m, TValue *val);
 int kl_mo_add_str(Object *_m, char *s);

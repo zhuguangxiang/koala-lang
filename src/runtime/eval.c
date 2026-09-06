@@ -268,9 +268,9 @@ void kl_run_main(Object *_m)
         TValue val = obj_value(m->main);
         val = kl_do_call(&val, NULL, 0);
         if (is_error(&val)) {
-            Object *exc = get_exc();
-            print_exc(exc);
-            exc_free(exc);
+            Object *exc = pop_exc();
+            ASSERT(exc);
+            print_exc_and_free(exc);
         }
     }
 }
@@ -283,20 +283,43 @@ void kl_run_init(Object *_m)
         TValue val = obj_value(m->__init__);
         val = kl_do_call(&val, NULL, 0);
         if (is_error(&val)) {
-            Object *exc = get_exc();
-            print_exc(exc);
-            exc_free(exc);
+            Object *exc = pop_exc();
+            ASSERT(exc);
+            print_exc_and_free(exc);
         }
     }
 }
 
-static inline void print_test_progress(int err)
+static void print_test_progress(int err, int index, int total)
 {
-    if (err) {
-        putchar('F');
-    } else {
-        putchar('.');
+    static char results[4096]; // store all test results
+    results[index] = err ? 'F' : '.';
+
+    const int window = 50; // number of symbols to show
+    int start = 0;
+
+    // compute sliding window start
+    if (total > window) {
+        if (index + 1 <= window)
+            start = 0;
+        else
+            start = (index + 1) - window;
     }
+
+    printf("\r[");
+    for (int i = start; i < start + window && i < total; i++) {
+        char c = results[i];
+        if (i > index) {
+            printf(" "); // not executed yet
+        } else if (c == 'F') {
+            printf("\x1b[31mF\x1b[0m"); // red F
+        } else {
+            printf("\x1b[32m.\x1b[0m"); // green dot
+        }
+    }
+    printf("]  %d/%d", index + 1, total);
+
+    if (index + 1 == total) printf("\n");
 
     fflush(stdout);
 }
@@ -305,50 +328,59 @@ int kl_run_tests(Object *_m)
 {
     ModuleObject *m = (ModuleObject *)_m;
 
-    Vector *test_funcs = &m->test_funcs;
-    int total = vector_size(test_funcs);
+    Vector *tests = &m->tests;
+    int total = vector_size(tests);
 
-    printf("\nRunning tests(%d) in file '%s.kl'\n\n", total, m->path);
+    printf("\nRunning %d tests in file '%s.kl'\n\n", total, m->path);
 
-    Vector failure;
-    vector_init_ptr(&failure);
+    // 1. run test cases, print progress and save result
 
-    long long diff_ns = 0;
-    Object *fn;
-    vector_foreach(fn, test_funcs) {
-        if (!fn) continue;
-
-        TValue val = obj_value(fn);
+    TestCase *_case;
+    vector_foreach_ptr(_case, tests) {
+        TValue val = obj_value(_case->co);
 
         long long start_ns = now_ns();
         val = kl_do_call(&val, NULL, 0);
         long long end_ns = now_ns();
-        diff_ns += end_ns - start_ns;
+
+        _case->elapsed_ns = end_ns - start_ns;
 
         int err = is_error(&val);
-
-        print_test_progress(err);
-
+        print_test_progress(err, i__, total);
         if (err) {
-            Object *exc = get_exc();
-            vector_push_back(&failure, &exc);
+            Object *exc = pop_exc();
+            ASSERT(exc);
+            _case->exc = exc;
+            _case->passed = 0;
+        } else {
+            _case->exc = NULL;
+            _case->passed = 1;
         }
     }
 
-    putchar('\n');
+    // 2. calculate total time and pass count
 
-    vector_foreach(fn, &failure) {
-        print_exc(fn);
-        exc_free(fn);
+    long long total_ns = 0;
+    int pass = 0;
+    vector_foreach_ptr(_case, tests) {
+        total_ns += _case->elapsed_ns;
+
+        if (_case->passed) {
+            ASSERT(_case->exc == NULL);
+            pass++;
+            continue;
+        }
+
+        ASSERT(_case->exc);
+        print_exc_and_free(_case->exc);
+        _case->exc = NULL;
     }
 
-    double diff_ms = (double)diff_ns / 1e6;
-    int failed = vector_size(&failure);
-    int pass = total - failed;
-    printf("\nResult: %d passed, %d failed in %.3f ms\n", pass, failed, diff_ms);
+    // 3. print result
+    double total_ms = (double)total_ns / 1e6;
+    int failed = total - pass;
+    printf("\nResult: %d passed, %d failed in %.3f ms\n", pass, failed, total_ms);
     if (failed == 0) printf("\nAll tests passed.\n");
-
-    vector_fini(&failure);
 
     return failed;
 }

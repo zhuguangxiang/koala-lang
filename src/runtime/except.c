@@ -57,10 +57,9 @@ static Object *_new_exc(CodeObject *co, char *msg)
     return (Object *)exc;
 }
 
-void exc_free(Object *obj)
+static void _free_exc(Exception *exc)
 {
-    if (!obj) return;
-    Exception *exc = (Exception *)obj;
+    if (!exc) return;
     vector_fini(&exc->tracebacks);
     free(exc->msg);
     mm_free(exc);
@@ -167,7 +166,7 @@ static void print_tracebacks(Exception *exc)
     fflush(stdout);
 }
 
-void print_exc(Object *obj)
+void print_exc_and_free(Object *obj)
 {
     if (!obj) return;
 
@@ -185,6 +184,8 @@ void print_exc(Object *obj)
     }
 
     fflush(stdout);
+
+    _free_exc(exc);
 }
 
 void trace_here(CallFrame *cf)

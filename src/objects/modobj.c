@@ -61,10 +61,11 @@ int kl_mo_add_func(Object *_m, char *name, Object *obj)
     return 0;
 }
 
-int kl_mo_add_test_func(Object *_m, char *name, Object *obj)
+int kl_mo_add_test(Object *_m, char *name, CodeObject *obj)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    vector_push_back(&m->test_funcs, &obj);
+    TestCase test_case = { .name = atom(name), .co = obj };
+    vector_push_back(&m->tests, &test_case);
     return 0;
 }
 
@@ -427,7 +428,7 @@ Object *kl_new_module(char *path)
     vector_init(&m->func_entries, sizeof(FuncEntry));
     vector_init_ptr(&m->funcs);
     vector_init_ptr(&m->types);
-    vector_init_ptr(&m->test_funcs);
+    vector_init(&m->tests, sizeof(TestCase));
     vector_init(&m->lineinfos, sizeof(LineInfo));
     vector_init(&m->libs, sizeof(NativeLib));
     stbl_init(&m->symbols);

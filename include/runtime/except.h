@@ -12,16 +12,15 @@
 extern "C" {
 #endif
 
-static inline Object *get_exc()
+static inline Object *pop_exc()
 {
     KoalaState *ks = __ks();
     Object *exc = ks->exc;
-    ASSERT(exc);
     ks->exc = NULL;
     return exc;
 }
 
-void print_exc(Object *obj);
+void print_exc_and_free(Object *obj);
 
 void _raise_exc_fmt(KoalaState *ks, char *fmt, ...);
 
@@ -40,8 +39,6 @@ void _raise_exc_str(KoalaState *ks, char *str);
     } while (0)
 
 void trace_here(CallFrame *cf);
-
-void exc_free(Object *obj);
 
 #ifdef __cplusplus
 }

@@ -555,9 +555,9 @@ static Object *_load_module(char *path)
             char *_name = klc_get_str(klc, ann->name_index);
             if (!match_prefix(_name, "test")) continue;
             Object *_co = vector_get(&mo->funcs, fn_item->code_index);
-            ASSERT(_co);
+            ASSERT(_co && IS_CODE(_co));
             _name = klc_get_str(klc, fn_item->name_index);
-            kl_mo_add_test_func(m, _name, _co);
+            kl_mo_add_test(m, _name, (CodeObject *)_co);
         }
     }
 
