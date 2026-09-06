@@ -20,4 +20,4 @@ func test_traceback_strip() {
 // CHECK-NEXT:   [pc {{[0-9]+}}] in f1
 // CHECK-NEXT:   [pc {{[0-9]+}}] in f2
 // CHECK-NEXT:   [pc {{[0-9]+}}] in test_traceback_strip
-// CHECK: Panic: f1 failed
+// CHECK: {{.*}}Error{{.*}}: f1 failed

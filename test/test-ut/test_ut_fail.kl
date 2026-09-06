@@ -1,0 +1,18 @@
+// RUN: ! koala %s --test
+
+import "std/ut"
+
+@test
+func test_assert_eq_should_fail() {
+    ut.assert_eq(1, 2)
+}
+
+@test
+func test_assert_lt_should_fail() {
+    ut.assert_lt(5, 1)
+}
+
+@test
+func test_assert_close_should_fail() {
+    ut.assert_close(1.0, 2.0)
+}

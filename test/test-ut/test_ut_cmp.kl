@@ -1,0 +1,15 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+@test
+func test_assert_lt_le() {
+    ut.assert_lt(1, 2)
+    ut.assert_le(2, 2)
+}
+
+@test
+func test_assert_gt_ge() {
+    ut.assert_gt(2, 1)
+    ut.assert_ge(2, 2)
+}

@@ -83,25 +83,11 @@ func panic(msg str)
 */
 static TValue builtin_panic(TValue *self, TValue *args, int nargs)
 {
-    KoalaState *ks = __ks();
-    kl_trace_back(ks);
-
     BUF(buf);
-
-    buf_write_str(&buf, "\nPanic: ");
     print_value(args, &buf);
-    buf_write_str(&buf, "\n\n");
-
-    Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
-
-    stdout_write_str(sobj);
-    stdout_flush();
-
-    kl_free_str(sobj);
-
+    raise_exc_str(BUF_STR(buf));
     FINI_BUF(buf);
-
-    exit(-1);
+    return error_value;
 }
 
 TValue kl_format(TValue *self, TValue *args, int nargs);

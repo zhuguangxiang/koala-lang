@@ -15,13 +15,6 @@
 #include "args.h"
 #include "mm.h"
 
-static double now_ms(void)
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6;
-}
-
 static int run_cmd(char *argv[])
 {
     extern char **environ;
@@ -137,17 +130,21 @@ static char *default_output_path(const char *input)
     return out;
 }
 
-static void run_klc(const char *input)
+static int run_klc(const char *input)
 {
     koala_initialize();
 
+    int failure;
+
     if (kl_cmd_opt.test_mode) {
-        koala_test_file((char *)input);
+        failure = koala_test_file((char *)input);
     } else {
-        koala_run_file((char *)input);
+        failure = koala_run_file((char *)input);
     }
 
     koala_finalize();
+
+    return failure;
 }
 
 int main(int argc, char *argv[])
@@ -167,8 +164,7 @@ int main(int argc, char *argv[])
         // double t1 = now_ms();
         // fprintf(stderr, "[args] %.3f ms\n", t1 - t0);
 
-        run_klc(input);
-        return 0;
+        return run_klc(input);
     }
 
     char *temp = NULL;
@@ -200,8 +196,10 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    int ret = 0;
+
     if (!kl_cmd_opt.compile_only) {
-        run_klc(out);
+        ret = run_klc(out);
     }
 
     if (temp) {
@@ -209,5 +207,5 @@ int main(int argc, char *argv[])
         free(temp);
     }
 
-    return 0;
+    return ret;
 }

@@ -605,7 +605,7 @@ TValue kl_cfunc_call(TValue *self, TValue *args, int nargs);
 
 void kl_run_main(Object *m);
 void kl_run_init(Object *m);
-void kl_run_test_funcs(Object *m);
+int kl_run_test_funcs(Object *m);
 void kl_panic(char *msg);
 
 /*---------------------------------------------------------------------------+

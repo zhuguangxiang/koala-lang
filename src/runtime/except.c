@@ -9,17 +9,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Koala does NOT support catch exception.
- * If an exception occurred, it must be fixed.
- */
-
-typedef struct _TraceBack {
-    struct _TraceBack *back;
-    char *file;
-    int lineno;
-} TraceBack;
-
 typedef struct _Exception {
     OBJECT_HEAD
     char *msg;
@@ -46,7 +35,7 @@ TypeObject exc_type = {
     .methdefs = exc_methods,
 };
 
-Object *kl_new_exc(char *msg)
+static Object *_new_exc(char *msg)
 {
     Exception *exc = mm_alloc_obj(exc);
     INIT_OBJECT_HEAD(exc, &exc_type, 0);
@@ -63,34 +52,25 @@ void _raise_exc_fmt(KoalaState *ks, char *fmt, ...)
     int len = vsnprintf(msg, 255, fmt, args);
     va_end(args);
     msg[len] = '\0';
-    ks->exc = kl_new_exc(msg);
+    ks->exc = _new_exc(msg);
 }
 
-void _raise_exc_str(KoalaState *ks, char *str) { ks->exc = kl_new_exc(str); }
+void _raise_exc_str(KoalaState *ks, char *str) { ks->exc = _new_exc(str); }
 
 void _print_exc(KoalaState *ks)
 {
     Object *obj = ks->exc;
     if (!obj) return;
+
     Exception *exc = (Exception *)obj;
+
     if (isatty(1)) {
-        printf("\x1b[31mError:\x1b[0m %s\n", exc->msg);
+        printf("\n\x1b[31mError:\x1b[0m %s\n", exc->msg);
     } else {
         printf("Error: %s\n", exc->msg);
     }
-}
 
-void kl_trace_here(CallFrame *cf)
-{
-    TraceBack *tb = mm_alloc_obj_fast(tb);
-    tb->back = NULL;
-    tb->file = cf->code->cs.filename;
-    // TODO:
-    tb->lineno = 0;
-
-    Exception *exc = (Exception *)cf->ks->exc;
-    tb->back = exc->back;
-    exc->back = tb;
+    fflush(stdout);
 }
 
 void kl_panic(char *msg)
@@ -164,36 +144,52 @@ static void print_source_line(const char *filename, int target_line)
     fclose(fp);
 }
 
-void kl_trace_back(KoalaState *ks)
+void print_tracebacks(KoalaState *ks)
 {
-    // Object *obj = ks->exc;
-    // if (!obj) return;
-    // Exception *exc = (Exception *)obj;
-    // TraceBack *tb = exc->back;
-    // while (tb) {
-    //     printf("  File \"%s\", line %d\n", tb->file, tb->lineno);
-    //     tb = tb->back;
-    // }
-
     printf("\nTraceback (most recent call last):\n");
-    CallFrame *cf = ks->cf;
-    ModuleObject *mo = (ModuleObject *)cf->module;
-    while (cf) {
-        CodeObject *co = cf->code;
-        char *func_name = co ? co->cs.name : "<unknown>";
-        LineInfo *line = find_lineinfo(&mo->lineinfos, cf->pc);
-        if (line && line->filename) {
-            // Print full source location when LineInfo is available
-            printf("  File \"%s\", line %d, in %s\n", line->filename, line->lineno, func_name);
-            print_source_line(line->filename, line->lineno);
+
+    TraceBack *tb;
+    vector_foreach_ptr(tb, &ks->tracebacks) {
+        if (tb->filename) {
+            printf("  File \"%s\", line %d, in %s\n", tb->filename, tb->lineno, tb->funcname);
+            print_source_line(tb->filename, tb->lineno);
         } else {
-            // Fallback using decimal PC directly mapping to --dump=code output
-            printf("  [pc %04u] in %s\n", cf->pc, func_name);
+            printf("  [pc %04u] in %s\n", tb->pc, tb->funcname);
         }
-        cf = cf->back;
     }
 
     fflush(stdout);
+}
+
+void kl_trace_here(CallFrame *cf)
+{
+    KoalaState *ks = cf->ks;
+    ModuleObject *mo = (ModuleObject *)cf->module;
+    CodeObject *co = cf->code;
+
+    char *func_name = co ? co->cs.name : "<unknown>";
+    LineInfo *line = find_lineinfo(&mo->lineinfos, cf->pc);
+
+    TraceBack tb;
+
+    if (line && line->filename) {
+        // // Print full source location when LineInfo is available
+        // printf("  File \"%s\", line %d, in %s\n", line->filename, line->lineno, func_name);
+        // print_source_line(line->filename, line->lineno);
+        tb.filename = line->filename;
+        tb.funcname = func_name;
+        tb.lineno = line->lineno;
+        tb.pc = 0;
+    } else {
+        // // Fallback using decimal PC directly mapping to --dump=code output
+        // printf("  [pc %04u] in %s\n", cf->pc, func_name);
+        tb.filename = NULL;
+        tb.funcname = func_name;
+        tb.lineno = 0;
+        tb.pc = cf->pc;
+    }
+
+    vector_push_back(&ks->tracebacks, &tb);
 }
 
 #ifdef __cplusplus

@@ -63,6 +63,9 @@ typedef struct _KoalaState {
     /* sys module */
     Object *sys;
 
+    /* tracebacks */
+    Vector tracebacks;
+
     /* exception */
     Object *exc;
 
@@ -85,11 +88,16 @@ static inline KoalaState *__ks(void) { return __ts->current; }
 KoalaState *kl_new_ks(void);
 void kl_free_ks(KoalaState *ks);
 
+typedef struct _TraceBack {
+    char *filename;
+    char *funcname;
+    int lineno;
+    uint32_t pc;
+} TraceBack;
+
 void _raise_exc_fmt(KoalaState *ks, char *fmt, ...);
 void _raise_exc_str(KoalaState *ks, char *str);
 #define _exc_occurred(ks) ((ks)->exc != NULL)
-void kl_trace_here(CallFrame *cf);
-
 void _print_exc(KoalaState *ks);
 
 /* clang-format off */
@@ -116,7 +124,8 @@ void _print_exc(KoalaState *ks);
 
 /* clang-format on */
 
-void kl_trace_back(KoalaState *ks);
+void kl_trace_here(CallFrame *cf);
+void print_tracebacks(KoalaState *ks);
 
 void init_builtin_module(void);
 

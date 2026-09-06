@@ -1,0 +1,13 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+@test
+func test_assert_close_default_eps() {
+    ut.assert_close(0.1 + 0.2, 0.3)
+}
+
+@test
+func test_assert_close_custom_eps() {
+    ut.assert_close(3.14159, 3.1416, 1e-3)
+}

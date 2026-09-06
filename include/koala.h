@@ -11,8 +11,8 @@ extern "C" {
 #endif
 
 void koala_initialize(void);
-void koala_run_file(char *path);
-void koala_test_file(char *path);
+int koala_run_file(char *path);
+int koala_test_file(char *path);
 void koala_finalize(void);
 
 #ifdef __cplusplus

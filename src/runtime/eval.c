@@ -186,6 +186,7 @@ error:
 
     /* log traceback info */
     kl_trace_here(cf);
+    result = error_value;
 
 /* finish the loop as we have an error. */
 done:
@@ -245,6 +246,7 @@ TValue kl_eval_code(TValue *self, TValue *args, int nargs)
 
     /* build a call frame */
     CallFrame *cf = _new_frame(ks, (CodeObject *)code);
+    cf->ks = ks;
 
     /* copy arguments */
     memcpy(cf->locals, args, sizeof(TValue) * nargs);
@@ -264,7 +266,12 @@ void kl_run_main(Object *_m)
 
     if (m->main) {
         TValue val = obj_value(m->main);
-        kl_do_call(&val, NULL, 0);
+        val = kl_do_call(&val, NULL, 0);
+        if (is_error(&val)) {
+            KoalaState *ks = __ks();
+            print_tracebacks(ks);
+            _print_exc(ks);
+        }
     }
 }
 
@@ -274,21 +281,51 @@ void kl_run_init(Object *_m)
 
     if (m->__init__) {
         TValue val = obj_value(m->__init__);
-        kl_do_call(&val, NULL, 0);
+        val = kl_do_call(&val, NULL, 0);
+        if (is_error(&val)) {
+            KoalaState *ks = __ks();
+            print_tracebacks(ks);
+            _print_exc(ks);
+        }
     }
 }
 
-void kl_run_test_funcs(Object *_m)
+int kl_run_test_funcs(Object *_m)
 {
     ModuleObject *m = (ModuleObject *)_m;
 
     Vector *test_funcs = &m->test_funcs;
+    int total = vector_size(test_funcs);
+
+    printf("\nRunning tests(%d) in file '%s.kl'\n", total, m->path);
+
+    long long diff_ns = 0;
+    int failure = 0;
     Object *fn;
     vector_foreach(fn, test_funcs) {
         if (!fn) continue;
         TValue val = obj_value(fn);
-        kl_do_call(&val, NULL, 0);
+        long long start_ns = now_ns();
+        val = kl_do_call(&val, NULL, 0);
+        long long end_ns = now_ns();
+        diff_ns += end_ns - start_ns;
+        if (is_error(&val)) {
+            failure++;
+            KoalaState *ks = __ks();
+            CodeObject *code = (CodeObject *)fn;
+            printf("\nFailure in func '%s'\n", code->cs.name);
+            print_tracebacks(ks);
+            _print_exc(ks);
+            vector_clear(&ks->tracebacks);
+        }
     }
+
+    double diff_ms = (double)diff_ns / 1e6;
+    int pass = total - failure;
+    printf("\nResult: %d passed, %d failed in %.3f ms\n", pass, failure, diff_ms);
+    if (failure == 0) printf("\nAll tests passed.\n");
+
+    return failure;
 }
 
 #ifdef __cplusplus

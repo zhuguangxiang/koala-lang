@@ -427,6 +427,8 @@ TARGET(OP_CALL) {
             ASSERT(rd < max_regs);
             regs[rd] = ret;
         }
+
+        if (is_error(&ret)) goto error;
         DISPATCH();
     }
 
@@ -446,6 +448,8 @@ TARGET(OP_CALL) {
             ASSERT(rd < max_regs);
             regs[rd] = ret;
         }
+
+        if (is_error(&ret)) goto error;
         DISPATCH();
     }
 
@@ -481,6 +485,8 @@ TARGET(OP_CALL) {
         ASSERT(rd < max_regs);
         regs[rd] = ret;
     }
+
+    if (is_error(&ret)) goto error;
     DISPATCH();
 }
 

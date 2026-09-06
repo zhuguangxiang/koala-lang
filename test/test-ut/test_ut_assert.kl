@@ -1,0 +1,21 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+@test
+func test_assert_pass() {
+    ut.assert(1 + 1 == 2)
+    ut.assert(true, "should not fail")
+}
+
+@test
+func test_assert_true() {
+    ut.assert_true(1 < 2)
+    ut.assert_true(!false)
+}
+
+@test
+func test_assert_false() {
+    ut.assert_false(1 > 2)
+    ut.assert_false(false, "should be false")
+}

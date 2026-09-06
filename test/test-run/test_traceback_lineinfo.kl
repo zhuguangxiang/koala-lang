@@ -23,4 +23,4 @@ func test_traceback() {
 // CHECK-NEXT:     f1()
 // CHECK-NEXT:   File "{{.*}}", line 16, in test_traceback
 // CHECK-NEXT:     f2()
-// CHECK: Panic: f1 failed
+// CHECK: {{.*}}Error{{.*}}: f1 failed

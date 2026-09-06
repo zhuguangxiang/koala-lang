@@ -35,6 +35,7 @@ KoalaState *kl_new_ks(void)
     ks->stack_base = aligned_alloc(16, sizeof(TValue) * MAX_STACK_SIZE);
     ks->stack_top = ks->stack_base;
     ks->stack_size = MAX_STACK_SIZE;
+    vector_init(&ks->tracebacks, sizeof(TraceBack));
     return ks;
 }
 
@@ -42,6 +43,7 @@ void kl_free_ks(KoalaState *ks)
 {
     if (!ks) return;
     ASSERT(!ks->cf);
+    vector_fini(&ks->tracebacks);
     free(ks->stack_base);
     mm_free(ks);
 }
@@ -51,7 +53,8 @@ TValue kl_not_impl_func(TValue *self, TValue *args, int nargs)
     Object *obj = to_obj(self);
     if (!IS_CFUNC(obj)) {
         fprintf(stderr, "function not implemented!\n");
-        return error_value;
+        NYI();
+        // return error_value(-1);
     }
 
     ASSERT(IS_CFUNC(obj));
@@ -67,7 +70,8 @@ TValue kl_not_impl_func(TValue *self, TValue *args, int nargs)
         // raise_exc_str("function not implemented: %s!", tp->name);
         fprintf(stderr, "method '%s' of '%s' is not implemented!\n", cfunc->name, tp->name);
     }
-    return error_value;
+    // NYI();
+    return none_value;
 }
 
 static Object *new_not_impl_func(Object *m, char *func_name)
@@ -682,10 +686,11 @@ KOALA_EXPORT void koala_run_file(char *path)
     if (m) kl_run_main(m);
 }
 
-KOALA_EXPORT void koala_test_file(char *path)
+KOALA_EXPORT int koala_test_file(char *path)
 {
     Object *m = kl_load_module(path);
-    if (m) kl_run_test_funcs(m);
+    if (m) return kl_run_test_funcs(m);
+    return 0;
 }
 
 KOALA_EXPORT void koala_finalize(void) { /* finalize atom string table */ fini_atom(); }
