@@ -35,7 +35,6 @@ KoalaState *kl_new_ks(void)
     ks->stack_base = aligned_alloc(16, sizeof(TValue) * MAX_STACK_SIZE);
     ks->stack_top = ks->stack_base;
     ks->stack_size = MAX_STACK_SIZE;
-    vector_init(&ks->tracebacks, sizeof(TraceBack));
     return ks;
 }
 
@@ -43,7 +42,6 @@ void kl_free_ks(KoalaState *ks)
 {
     if (!ks) return;
     ASSERT(!ks->cf);
-    vector_fini(&ks->tracebacks);
     free(ks->stack_base);
     mm_free(ks);
 }
@@ -174,9 +172,6 @@ KOALA_EXPORT void koala_initialize(void)
 
     /* init global module table */
     kl_init_gm_stbl();
-
-    /* init builtin & sys module */
-    // init_builtin_module();
 
     /* initialize main thread as koala thread */
     ThreadState *ts = mm_alloc_obj(ts);

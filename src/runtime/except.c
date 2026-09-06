@@ -9,10 +9,18 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct _TraceBack {
+    char *filename;
+    char *funcname;
+    int lineno;
+    uint32_t pc;
+} TraceBack;
+
 typedef struct _Exception {
     OBJECT_HEAD
     char *msg;
-    TraceBack *back;
+    Vector tracebacks;
 } Exception;
 
 static TValue _exc_str(TValue *self, TValue *args, int nargs)
@@ -40,7 +48,7 @@ static Object *_new_exc(char *msg)
     Exception *exc = mm_alloc_obj(exc);
     INIT_OBJECT_HEAD(exc, &exc_type, 0);
     exc->msg = strdup(msg);
-    exc->back = NULL;
+    vector_init(&exc->tracebacks, sizeof(TraceBack));
     return (Object *)exc;
 }
 
@@ -56,22 +64,6 @@ void _raise_exc_fmt(KoalaState *ks, char *fmt, ...)
 }
 
 void _raise_exc_str(KoalaState *ks, char *str) { ks->exc = _new_exc(str); }
-
-void _print_exc(KoalaState *ks)
-{
-    Object *obj = ks->exc;
-    if (!obj) return;
-
-    Exception *exc = (Exception *)obj;
-
-    if (isatty(1)) {
-        printf("\n\x1b[31mError:\x1b[0m %s\n", exc->msg);
-    } else {
-        printf("Error: %s\n", exc->msg);
-    }
-
-    fflush(stdout);
-}
 
 void kl_panic(char *msg)
 {
@@ -144,12 +136,15 @@ static void print_source_line(const char *filename, int target_line)
     fclose(fp);
 }
 
-void print_tracebacks(KoalaState *ks)
+static void print_tracebacks(KoalaState *ks)
 {
     printf("\nTraceback (most recent call last):\n");
 
+    ASSERT(ks->exc);
+    Exception *exc = (Exception *)ks->exc;
+
     TraceBack *tb;
-    vector_foreach_ptr(tb, &ks->tracebacks) {
+    vector_foreach_ptr(tb, &exc->tracebacks) {
         if (tb->filename) {
             printf("  File \"%s\", line %d, in %s\n", tb->filename, tb->lineno, tb->funcname);
             print_source_line(tb->filename, tb->lineno);
@@ -161,9 +156,30 @@ void print_tracebacks(KoalaState *ks)
     fflush(stdout);
 }
 
-void kl_trace_here(CallFrame *cf)
+void _print_exc(KoalaState *ks)
+{
+    Object *obj = ks->exc;
+    if (!obj) return;
+
+    print_tracebacks(ks);
+
+    Exception *exc = (Exception *)obj;
+
+    if (isatty(1)) {
+        printf("\n\x1b[31mError:\x1b[0m %s\n", exc->msg);
+    } else {
+        printf("Error: %s\n", exc->msg);
+    }
+
+    fflush(stdout);
+}
+
+void trace_here(CallFrame *cf)
 {
     KoalaState *ks = cf->ks;
+    ASSERT(ks->exc);
+    Exception *exc = (Exception *)ks->exc;
+
     ModuleObject *mo = (ModuleObject *)cf->module;
     CodeObject *co = cf->code;
 
@@ -189,7 +205,7 @@ void kl_trace_here(CallFrame *cf)
         tb.pc = cf->pc;
     }
 
-    vector_push_back(&ks->tracebacks, &tb);
+    vector_push_back(&exc->tracebacks, &tb);
 }
 
 #ifdef __cplusplus

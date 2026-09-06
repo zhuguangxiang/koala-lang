@@ -5,10 +5,10 @@
 
 #include "bytebuf.h"
 #include "bytesobj.h"
+#include "except.h"
 #include "listobj.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
-#include "vm.h"
 
 #ifdef __cplusplus
 extern "C" {

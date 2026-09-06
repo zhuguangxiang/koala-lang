@@ -64,4 +64,12 @@ pub class Duration {
         }
         return format("{}ns", ns)
     }
+
+    pub func __eq__(d Duration) bool {
+        return ns == d.ns
+    }
+
+    pub func __ne__(d Duration) bool {
+        return ns != d.ns
+    }
 }

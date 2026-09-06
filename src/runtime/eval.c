@@ -4,12 +4,12 @@
  */
 
 #include <math.h>
+#include "except.h"
 #include "listobj.h"
 #include "modobj.h"
 #include "opcode_only.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
-#include "vm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -185,7 +185,7 @@ main_loop:
 error:
 
     /* log traceback info */
-    kl_trace_here(cf);
+    trace_here(cf);
     result = error_value;
 
 /* finish the loop as we have an error. */
@@ -268,9 +268,7 @@ void kl_run_main(Object *_m)
         TValue val = obj_value(m->main);
         val = kl_do_call(&val, NULL, 0);
         if (is_error(&val)) {
-            KoalaState *ks = __ks();
-            print_tracebacks(ks);
-            _print_exc(ks);
+            print_exc();
         }
     }
 }
@@ -283,9 +281,7 @@ void kl_run_init(Object *_m)
         TValue val = obj_value(m->__init__);
         val = kl_do_call(&val, NULL, 0);
         if (is_error(&val)) {
-            KoalaState *ks = __ks();
-            print_tracebacks(ks);
-            _print_exc(ks);
+            print_exc();
         }
     }
 }
@@ -311,12 +307,9 @@ int kl_run_test_funcs(Object *_m)
         diff_ns += end_ns - start_ns;
         if (is_error(&val)) {
             failure++;
-            KoalaState *ks = __ks();
             CodeObject *code = (CodeObject *)fn;
             printf("\nFailure in func '%s'\n", code->cs.name);
-            print_tracebacks(ks);
-            _print_exc(ks);
-            vector_clear(&ks->tracebacks);
+            print_exc();
         }
     }
 
