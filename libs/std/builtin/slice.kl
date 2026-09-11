@@ -23,8 +23,19 @@ pub class slice {
     pub let step int
 
     /// Initialize a new slice object.
+    ///
     /// Typically constructed by the `build_intern` op when the compiler
-    /// translates the [start:end:step] syntax.
+    /// translates the [start:end:step] syntax.Users may also construct
+    /// slice objects explicitly via `slice(start, end, step)`.
+    ///
+    /// Pass `INT_MIN` for `_start` or `_end` to indicate that the bound is
+    /// omitted; the runtime will resolve it to the appropriate default based
+    /// on the sign of `_step` (positive step → start=0 / end=len,
+    /// negative step → start=len-1 / end=-1). This sentinel applies equally
+    /// whether the slice originates from compiler-generated syntax or
+    /// user-facing construction.
+    ///
+    /// `_step` defaults to 1 and must not be zero; a zero step panics.
     pub func __init__(_start int, _end int, _step = 1) {
         start = _start
         end = _end

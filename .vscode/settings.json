@@ -146,15 +146,15 @@
         "yytext",
         "zhuguangxiang"
     ],
-    "editor.fontFamily": "'Ubuntu Mono', 'Fira Code', 'Victor Mono', 'JetBrains Mono'",
+    "editor.fontFamily": "'Ubuntu Mono', 'JetBrains Mono', 'Fira Code','Victor Mono'",
     "editor.fontLigatures": true,
     "editor.fontSize": 15,
-    // "editor.lineHeight": 20,
-    // "editor.letterSpacing": 0.0,
+    "editor.lineHeight": 22,
+    // "editor.letterSpacing": 0.1,
     "editor.renderWhitespace": "none",
     "editor.cursorSmoothCaretAnimation": "on",
     "editor.smoothScrolling": true,
-    "terminal.integrated.fontFamily": "Victor Mono",
+    "terminal.integrated.fontFamily": "Ubuntu Mono",
     // "terminal.integrated.fontSize": 13,
     // "editor.fontFamily": "'JetBrains Mono', 'Victor Mono', 'Fira Code', 'Consolas', 'Monaspace Neon'",
     // "editor.fontLigatures": "'calt'",
@@ -165,7 +165,7 @@
     "files.trimFinalNewlines": true,
     "files.insertFinalNewline": true,
     "notebook.insertFinalNewline": true,
-    "debug.console.fontFamily": "'Victor Mono'",
+    // "debug.console.fontFamily": "'Victor Mono'",
     "editor.scrollbar.verticalScrollbarSize": 18,
     // "editor.smoothScrolling": true,
     "editor.tokenColorCustomizations": {
@@ -251,8 +251,4 @@
     // "windows.zoomLevel": 0,
     // "zenMode.restore": true,
     // "zenMode.zoomLevel": 0,
-    "autoHide.autoHideSideBar": false, // 点击编辑器时自动隐藏侧边栏
-    "autoHide.autoHidePanel": false, // 底部终端是否也自动隐藏（建议设为 false，方便看报错）
-    "autoHide.delay": 500,
-    "workbench.editor.showTabs": "multiple" // 点击后延迟 300 毫秒隐藏（给眼睛一个缓和时间）
 }

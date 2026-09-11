@@ -7,6 +7,7 @@
 
 %{
 
+#include "atom.h"
 #include "buffer.h"
 #include "parser.h"
 #include "koala_yacc.h"
@@ -606,6 +607,15 @@ annotation
         ann->ident = $2;
         ann->id_loc = loc(@2);
         ann->types = $4;
+    }
+    | '@' ID '(' STRING_LITERAL ')' semi
+    {
+        memset(&$$, 0, sizeof($$));
+        Annotation *ann = &$$.ann;
+        ann->ident = $2;
+        ann->id_loc = loc(@2);
+        Buffer *buf = &ps->sbuf;
+        ann->value = atom_nstr(buf->buf, buf->len);
     }
     | '@' ID '(' error
     {

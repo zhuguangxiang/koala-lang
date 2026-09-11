@@ -485,9 +485,7 @@ static void compile(ParserModule *pm)
         return;
     }
 
-    // if (!is_build_stdlib()) {
     build_intf_table(pm->stbl);
-    // }
 
     if (genir_enabled()) {
         kl_gen_ir(pm);

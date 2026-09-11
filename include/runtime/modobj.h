@@ -93,6 +93,8 @@ extern TypeObject module_type;
 typedef struct _TestCase {
     char *name;
     CodeObject *co;
+    int expect_panic;
+    char *msg;
     long long elapsed_ns;
     int passed;
     Object *exc;
@@ -104,7 +106,7 @@ void kl_free_module(Object *m);
 void kl_mo_set_code(Object *_m, uint32_t *insns, size_t n);
 int kl_bind_func(Object *_m, Object *obj);
 int kl_mo_add_func(Object *_m, char *name, Object *obj);
-int kl_mo_add_test(Object *_m, char *name, CodeObject *obj);
+int kl_mo_add_test(Object *_m, char *name, CodeObject *obj, int expect_panic, char *msg);
 int kl_mo_add_type(Object *_m, TypeObject *tp);
 int kl_mo_add_const(Object *_m, TValue *val);
 int kl_mo_add_str(Object *_m, char *s);

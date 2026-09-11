@@ -61,10 +61,15 @@ int kl_mo_add_func(Object *_m, char *name, Object *obj)
     return 0;
 }
 
-int kl_mo_add_test(Object *_m, char *name, CodeObject *obj)
+int kl_mo_add_test(Object *_m, char *name, CodeObject *obj, int expect_panic, char *msg)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    TestCase test_case = { .name = atom(name), .co = obj };
+    TestCase test_case = {
+        .name = atom(name),
+        .co = obj,
+        .expect_panic = expect_panic,
+        .msg = msg ? atom(msg) : "<no message>",
+    };
     vector_push_back(&m->tests, &test_case);
     return 0;
 }

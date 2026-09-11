@@ -1277,8 +1277,8 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
         }
     }
 
-    if (insn->code == OP_CALL) {
-        // save source location for the call instruction
+    if (insn->loc.filename) {
+        // save source location for this instruction
         ASSERT(!mi->loc);
         ASSERT(insn->loc.filename != NULL);
         KlMachLoc *loc = mm_alloc_obj(loc);

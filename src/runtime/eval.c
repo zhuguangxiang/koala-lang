@@ -4,6 +4,7 @@
  */
 
 #include <math.h>
+#include <pthread.h>
 #include "except.h"
 #include "listobj.h"
 #include "modobj.h"
@@ -52,6 +53,11 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
             return kl_list_from_array(values, count);
         }
 
+        case INTERN_SLICE: {
+            ASSERT(count == 3);
+            return kl_new_slice(values);
+        }
+
         default: {
             UNREACHABLE();
             return NULL;
@@ -60,6 +66,13 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
 }
 
 /* clang-format off */
+
+// save pc for traceback
+#define SAVE_PC() do { \
+    ptrdiff_t off = pc - codes; \
+    ASSERT(off >= 0); \
+    cf->pc = (uint32_t)off - 1; \
+} while (0)
 
 // [Op:8] [A:8] [B:8] [C:8]
 // [Op:8] [A:12] [B:12]
@@ -346,16 +359,35 @@ int kl_run_tests(Object *_m)
         _case->elapsed_ns = end_ns - start_ns;
 
         int err = is_error(&val);
-        print_test_progress(err, i__, total);
-        if (err) {
-            Object *exc = pop_exc();
-            ASSERT(exc);
-            _case->exc = exc;
-            _case->passed = 0;
-        } else {
+
+        // if there is no error, mark the test case as passed
+        if (!err) {
             _case->exc = NULL;
             _case->passed = 1;
+            print_test_progress(0, i__, total);
+            continue;
         }
+
+        Object *exc = pop_exc();
+        ASSERT(exc);
+
+        if (_case->expect_panic) {
+            char *exc_str = kl_exc_get_msg(exc);
+            if (str_equal(exc_str, _case->msg)) {
+                // eat this exception as it matches the expected panic
+                kl_free_exc(exc);
+                _case->exc = NULL;
+                _case->passed = 1;
+                print_test_progress(0, i__, total);
+                continue;
+            }
+            // fall through to unexpected exception handling
+        }
+
+        // unexpected exception
+        print_test_progress(1, i__, total);
+        _case->exc = exc;
+        _case->passed = 0;
     }
 
     // 2. calculate total time and pass count

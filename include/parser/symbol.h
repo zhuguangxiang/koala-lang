@@ -127,6 +127,7 @@ typedef struct _FuncSymbol {
     /* annotation */
     char *ann;
     char *ann_key;
+    char *ann_val;
     /* return type */
     TypeSpec *ret;
     /* ArgInfo list */
@@ -136,7 +137,7 @@ typedef struct _FuncSymbol {
     /* code index */
     int code_index;
     // for instance method, point to the origin method symbol
-    // void *origin;
+    void *origin;
 } FuncSymbol;
 
 typedef struct _IntfEntry {

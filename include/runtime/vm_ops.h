@@ -410,10 +410,7 @@ TARGET(OP_CALL) {
     rd = I_VAL(inst, 8, 12);
     imm = I_VAL(inst, 0, 8);
 
-    // save pc for traceback
-    ptrdiff_t off = pc - codes;
-    ASSERT(off >= 0);
-    cf->pc = (uint32_t)off - 1;
+    SAVE_PC();
 
     if (flg == 1) {
         uint32_t index = *pc++;
@@ -1256,7 +1253,9 @@ TARGET(OP_NUM_EQ) {
         // bool doesn't have cmp function
         ret = bool_value(v1->ival == v2->ival);
     } else {
+        SAVE_PC();
         ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_EQ);
+        if (is_error(&ret)) goto error;
     }
 
     regs[rd] = ret;
@@ -1290,7 +1289,9 @@ TARGET(OP_NUM_NE) {
         // bool doesn't have cmp function
         ret = bool_value(v1->ival != v2->ival);
     } else {
+        SAVE_PC();
         ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_NE);
+        if (is_error(&ret)) goto error;
     }
 
     regs[rd] = ret;
@@ -1321,7 +1322,9 @@ TARGET(OP_NUM_LT) {
         // uint64 doesn't have cmp function
         ret = bool_value((uint64_t)v1->ival < (uint64_t)v2->ival);
     } else {
+        SAVE_PC();
         ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_LT);
+        if (is_error(&ret)) goto error;
     }
 
     regs[rd] = ret;
@@ -1352,7 +1355,9 @@ TARGET(OP_NUM_LE) {
         // uint64 doesn't have cmp function
         ret = bool_value((uint64_t)v1->ival <= (uint64_t)v2->ival);
     } else {
+        SAVE_PC();
         ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_LE);
+        if (is_error(&ret)) goto error;
     }
 
     regs[rd] = ret;
@@ -1383,7 +1388,9 @@ TARGET(OP_NUM_GT) {
         // uint64 doesn't have cmp function
         ret = bool_value((uint64_t)v1->ival > (uint64_t)v2->ival);
     } else {
+        SAVE_PC();
         ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_GT);
+        if (is_error(&ret)) goto error;
     }
 
     regs[rd] = ret;
@@ -1414,7 +1421,9 @@ TARGET(OP_NUM_GE) {
         // uint64 doesn't have cmp function
         ret = bool_value((uint64_t)v1->ival >= (uint64_t)v2->ival);
     } else {
+        SAVE_PC();
         ret = kl_slot_call_one_arg(regs + rs, regs + rt, CMP_GE);
+        if (is_error(&ret)) goto error;
     }
 
     regs[rd] = ret;
@@ -1431,8 +1440,11 @@ TARGET(OP_NUM_ADD) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_ADD);
+    SAVE_PC();
+    TValue ret = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_ADD);
+    if (is_error(&ret)) goto error;
 
+    regs[rd] = ret;
     DISPATCH();
 }
 
@@ -1445,8 +1457,11 @@ TARGET(OP_NUM_SUB) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_SUB);
+    SAVE_PC();
+    TValue ret = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_SUB);
+    if (is_error(&ret)) goto error;
 
+    regs[rd] = ret;
     DISPATCH();
 }
 
@@ -1459,8 +1474,11 @@ TARGET(OP_NUM_MUL) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_MUL);
+    SAVE_PC();
+    TValue ret = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_MUL);
+    if (is_error(&ret)) goto error;
 
+    regs[rd] = ret;
     DISPATCH();
 }
 
@@ -1473,8 +1491,11 @@ TARGET(OP_NUM_DIV) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_DIV);
+    SAVE_PC();
+    TValue ret = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_DIV);
+    if (is_error(&ret)) goto error;
 
+    regs[rd] = ret;
     DISPATCH();
 }
 
@@ -1487,8 +1508,11 @@ TARGET(OP_NUM_MOD) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_MOD);
+    SAVE_PC();
+    TValue ret = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_MOD);
+    if (is_error(&ret)) goto error;
 
+    regs[rd] = ret;
     DISPATCH();
 }
 
@@ -1503,8 +1527,11 @@ TARGET(OP_SEQ_GET) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_GET_ITEM);
+    SAVE_PC();
+    TValue ret = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_GET_ITEM);
+    if (is_error(&ret)) goto error;
 
+    regs[rd] = ret;
     DISPATCH();
 }
 
@@ -1517,8 +1544,12 @@ TARGET(OP_SEQ_GET_IMM) {
     CHECK_REG_ID(rs);
 
     TValue index = int64_value(imm);
-    regs[rd] = kl_slot_call_one_arg(regs + rs, &index, SLOT_GET_ITEM);
 
+    SAVE_PC();
+    TValue ret = kl_slot_call_one_arg(regs + rs, &index, SLOT_GET_ITEM);
+    if (is_error(&ret)) goto error;
+
+    regs[rd] = ret;
     DISPATCH();
 }
 
@@ -1531,7 +1562,8 @@ TARGET(OP_SEQ_SET) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    kl_slot_call_two_args(regs + rd, regs + rt, regs + rs, SLOT_SET_ITEM);
+    TValue ret = kl_slot_call_two_args(regs + rd, regs + rt, regs + rs, SLOT_SET_ITEM);
+    if (is_error(&ret)) goto error;
 
     DISPATCH();
 }
@@ -1545,7 +1577,10 @@ TARGET(OP_SEQ_SET_IMM) {
     CHECK_REG_ID(rs);
 
     TValue index = int64_value(imm);
-    kl_slot_call_two_args(regs + rd, &index, regs + rs, SLOT_SET_ITEM);
+
+    SAVE_PC();
+    TValue ret = kl_slot_call_two_args(regs + rd, &index, regs + rs, SLOT_SET_ITEM);
+    if (is_error(&ret)) goto error;
 
     DISPATCH();
 }
@@ -1556,7 +1591,10 @@ TARGET(OP_LEN) {
 
     CHECK_REG_ID(rs);
 
+    SAVE_PC();
     TValue ret = kl_slot_call_no_arg(regs + rs, SLOT_LEN);
+    if (is_error(&ret)) goto error;
+
     if (rd != 0xFFFu) regs[rd] = ret;
 
     DISPATCH();
@@ -1571,8 +1609,11 @@ TARGET(OP_SEQ_GET_SLICE) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
-    regs[rd] = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_GET_SLICE);
+    SAVE_PC();
+    TValue ret = kl_slot_call_one_arg(regs + rs, regs + rt, SLOT_GET_SLICE);
+    if (is_error(&ret)) goto error;
 
+    regs[rd] = ret;
     DISPATCH();
 }
 

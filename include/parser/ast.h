@@ -22,6 +22,7 @@ typedef struct _SimpleFlag {
 typedef struct _Annotation {
     Loc id_loc;
     char *ident;
+    char *value;
     Vector *types;
 } Annotation;
 

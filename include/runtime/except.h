@@ -38,6 +38,9 @@ void _raise_exc_str(KoalaState *ks, char *str);
         _raise_exc_str(ks, str); \
     } while (0)
 
+char *kl_exc_get_msg(Object *exc);
+void kl_free_exc(Object *exc);
+
 void trace_here(CallFrame *cf);
 
 #ifdef __cplusplus

@@ -93,6 +93,7 @@ set(KOALA_SHARED_SOURCES
     runtime/symtbl.c
     runtime/vm.c
     runtime/except.c
+    runtime/slice_adjust.c
     )
 
 add_library(koala SHARED ${KOALA_SHARED_SOURCES})

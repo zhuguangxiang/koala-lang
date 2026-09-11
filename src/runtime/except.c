@@ -57,9 +57,10 @@ static Object *_new_exc(CodeObject *co, char *msg)
     return (Object *)exc;
 }
 
-static void _free_exc(Exception *exc)
+void kl_free_exc(Object *ob)
 {
-    if (!exc) return;
+    if (!ob) return;
+    Exception *exc = (Exception *)ob;
     vector_fini(&exc->tracebacks);
     free(exc->msg);
     mm_free(exc);
@@ -77,6 +78,13 @@ void _raise_exc_fmt(KoalaState *ks, char *fmt, ...)
 }
 
 void _raise_exc_str(KoalaState *ks, char *str) { ks->exc = _new_exc(ks->cf->code, str); }
+
+char *kl_exc_get_msg(Object *exc)
+{
+    if (!exc) return NULL;
+    Exception *e = (Exception *)exc;
+    return e->msg;
+}
 
 void kl_panic(char *msg)
 {
@@ -185,7 +193,7 @@ void print_exc_and_free(Object *obj)
 
     fflush(stdout);
 
-    _free_exc(exc);
+    kl_free_exc(obj);
 }
 
 void trace_here(CallFrame *cf)

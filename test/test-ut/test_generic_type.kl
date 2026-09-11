@@ -1,0 +1,42 @@
+// RUN: koala %s --test
+
+trait Swim {
+    func swim() str
+}
+
+trait Fly {
+    func fly() str
+}
+
+trait SubSwim : Swim & Fly {
+
+}
+
+class Foo[T : SubSwim] : Swim {
+    func swim() str {
+        return "Foo is swimming!"
+    }
+
+    func foo(v T) str {
+        return format("{} {} from foo()", v.swim(), v.fly())
+    }
+}
+
+class Bar : Swim & Fly & SubSwim {
+    func swim() str {
+        return "Bar is swimming!"
+    }
+
+    func fly() str {
+        return "Bar is flying!"
+    }
+}
+
+from "std/ut" import assert_eq
+
+@test
+func test_generic() {
+    let foo = Foo[Bar]()
+    assert_eq(foo.swim(), "Foo is swimming!")
+    assert_eq(foo.foo(Bar()), "Bar is swimming! Bar is flying! from foo()")
+}

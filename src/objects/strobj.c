@@ -5,6 +5,7 @@
 
 #include "buffer.h"
 #include "bytesobj.h"
+#include "except.h"
 #include "listobj.h"
 #include "object.h"
 
@@ -1198,6 +1199,74 @@ static TValue _str_getitem(TValue *self, TValue *args, int nargs)
     return kl_val_nstr(s->array + index, 1);
 }
 
+static TValue _str_getslice(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+
+    StringObject *sobj = SELF_AS(str_type);
+    SliceObject *slice = kl_arg_slice(0);
+
+    int64_t start = to_int64(&slice->start);
+    int64_t end = to_int64(&slice->end);
+    int64_t step = to_int64(&slice->step);
+
+    if (step == 0) {
+        raise_exc_str("step cannot be zero");
+        return error_value;
+    }
+
+    /* Normalize raw slice parameters into a valid [start, end) range,
+     * handling None defaults, negative indices, and clamping.
+     * Returns: >0 valid slice, ==0 empty slice, <0 invalid arguments. */
+    int r = slice_adjust(&start, &end, step, STR_LEN(sobj));
+    if (r < 0) {
+        raise_exc_str("invalid slice");
+        return error_value;
+    }
+
+    if (r == 0) {
+        return kl_val_nstr("", 0);
+    }
+
+    /* Compute the number of elements in the result.
+     * Regardless of step sign, the count is ceil(distance / abs_step).
+     *   positive step: dist = end - start   (start < end)
+     *   negative step: dist = start - end   (start > end)
+     * Unified formula: len = (dist + abs_step - 1) / abs_step
+     * The "+abs_step-1" term is essential for ceiling division via integer
+     * truncation; without it, e.g. 11/2 yields 5 instead of 6, silently
+     * dropping the element at index 0 when stepping backwards. */
+    int64_t abs_step = step > 0 ? step : -step;
+    int64_t dist = step > 0 ? (end - start) : (start - end);
+    int64_t len = (dist + abs_step - 1) / abs_step;
+
+    /* Guard against zero or negative length from upstream boundary errors,
+     * preventing mm_alloc(0) or negative-size allocation UB. */
+    if (len <= 0) {
+        return kl_val_nstr("", 0);
+    }
+
+    /* Fast path: step==1 is the most common slice operation.
+     * Return a zero-copy view directly into the source string buffer. */
+    if (step == 1) {
+        return kl_val_nstr(sobj->array + start, len);
+    }
+
+    /* General path: copy elements one by one into a new buffer.
+     * A single loop handles both positive and negative steps because
+     * "idx += step" naturally advances or retreats based on step sign,
+     * eliminating the need for separate branches. */
+    char *buf = mm_alloc(len);
+    int64_t idx = start;
+    for (int64_t i = 0; i < len; i++) {
+        buf[i] = sobj->array[idx];
+        idx += step;
+    }
+    TValue ret = kl_val_nstr(buf, len);
+    mm_free(buf);
+    return ret;
+}
+
 static TValue _str_contains(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
@@ -1227,6 +1296,7 @@ static MethodDef _str_methods[] = {
     { "__len__", _str_len },
     { "empty", _str_empty },
     { "__getitem__", _str_getitem },
+    { "__getslice__", _str_getslice },
     { "__contains__", _str_contains },
     { "index", _str_index },
     { "rindex", _str_rindex },

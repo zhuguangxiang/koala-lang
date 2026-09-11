@@ -151,7 +151,7 @@ static TValue _list_setitem(TValue *self, TValue *args, int nargs)
     return none_value;
 }
 
-static inline void slice_adjust(int64_t *start, int64_t *end, int64_t step, size_t n)
+static inline void _slice_adjust(int64_t *start, int64_t *end, int64_t step, size_t n)
 {
     if (step > 0) {
         if (*start < 0) *start += (int64_t)n;
@@ -179,7 +179,7 @@ static Object *list_slice(ListObject *list, SliceObject *slice)
     int64_t step = slice->step.ival;
 
     size_t n = list->end - list->start; /* 逻辑长度 */
-    slice_adjust(&start, &end, step, n);
+    _slice_adjust(&start, &end, step, n);
 
     /* --- step == 1：零拷贝共享视图 --- */
     if (step == 1) {

@@ -1299,6 +1299,43 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
         return;
     }
 
+    if (str_equal(ann->ident, "test_expect_panic")) {
+        if (!match_prefix(fn->id.name, "test_")) {
+            kl_error(fn->id.loc,
+                     "func '%s' with 'test_expect_panic' annotation needs to be named with 'test_' "
+                     "prefix.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(fn->tps)) {
+            kl_error(fn->id.loc,
+                     "func '%s' is a generic function. The 'test_expect_panic' annotation only be "
+                     "used for "
+                     "non-generic function.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(ann->types)) {
+            kl_error(ann->id_loc,
+                     "func '%s' with 'test_expect_panic' annotation cannot have any type.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(fn->args)) {
+            kl_error(fn->id.loc,
+                     "func '%s' with 'test_expect_panic' annotation cannot have any argument.",
+                     fn->id.name);
+        }
+
+        if (fn->ret) {
+            kl_error(fn->id.loc,
+                     "func '%s' with 'test_expect_panic' annotation cannot have return type.",
+                     fn->id.name);
+        }
+
+        return;
+    }
+
     kl_error(ann->id_loc, "unknown annotation '%s'", ann->ident);
 }
 
@@ -1389,10 +1426,16 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
         fn_sym->ann = fn->flags.ann.ident;
     }
 
+    if (match_prefix(fn->flags.ann.ident, "test_expect_panic")) {
+        // only functions with 'test_expect_panic' prefix get this annotation
+        fn_sym->ann = fn->flags.ann.ident;
+        fn_sym->ann_val = fn->flags.ann.value;
+    }
+
     if (!has_specialized_meta((Stmt *)fn)) return sym;
 
     if (!toplevel) {
-        kl_error(id->loc, "func '%s' with specialized meta can only be declared at function.",
+        kl_error(id->loc, "func '%s' with specialized meta can only be declared at top level.",
                  id->name);
         return NULL;
     }
@@ -1473,8 +1516,7 @@ static void parse_block(ParserState *ps, Vector *stmts, int *has_terminal)
             if (has_terminal) *has_terminal = 1;
             if (index < vector_size(stmts)) {
                 log_trace("there are more statements after a terminal statement");
-                // TODO: Don't remove unreachable statements, opt will handle
-                // it.
+                // TODO: Don't remove unreachable statements, opt will handle it.
                 remove_unreachable(stmts, index);
                 goto exit;
             }
@@ -1489,8 +1531,7 @@ static void parse_block(ParserState *ps, Vector *stmts, int *has_terminal)
                         "there are more statements after a block with a "
                         "terminal "
                         "statement");
-                    // TODO: Don't remove unreachable statements, opt will
-                    // handle it.
+                    // TODO: Don't remove unreachable statements, opt will handle it.
                     remove_unreachable(stmts, index);
                     goto exit;
                 }

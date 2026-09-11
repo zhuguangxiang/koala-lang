@@ -21,9 +21,6 @@ pub trait Sequence[T] : Iterable[T] {
     /// Panic if the index is out of range.
     func __getitem__(index int) T
 
-    /// Return a shallow copy of a portion of the sequence defined by the slice.
-    func __getslice__(r slice) Sequence[T]
-
     /// Return the first index of `value` in [start, end).
     /// If `end` is -1, the search extends to the end of the sequence.
     /// Return -1 if the value is not present.
@@ -48,10 +45,6 @@ pub trait MutableSequence[T] : Sequence[T] {
     ///
     /// Precondition: 0 <= index < __len__().
     func __setitem__(index int, value T)
-
-    /// Replace a slice of the sequence with elements from the iterable `val`.
-    /// This may change the length of the sequence.
-    func __setslice__(r slice, val Iterable[T])
 
     /// Push a new item with `value` to the end of the sequence.
     func push(value T)

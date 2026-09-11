@@ -1,0 +1,140 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+@test
+func test_slice_create() {
+    var s = slice(2, 3)
+    ut.assert_eq(s.start, 2)
+    ut.assert_eq(s.end, 3)
+    ut.assert_eq(s.step, 1)
+
+    s = slice(0, 0, -1)
+    ut.assert_eq(s.start, 0)
+    ut.assert_eq(s.end, 0)
+    ut.assert_eq(s.step, -1)
+
+    s = slice(0, 0, 0)
+    ut.assert_eq(s.start, 0)
+    ut.assert_eq(s.end, 0)
+    ut.assert_eq(s.step, 0)
+
+    ut.assert_eq(str(s), "slice(0, 0, 0)")
+
+    let s1 = "hello world"
+    ut.assert_eq(s1[:], "hello world")
+    ut.assert_eq(s1[:5], "hello")
+    ut.assert_eq(s1[::-1], "dlrow olleh")
+    ut.assert_eq(s1[::-2], "drwolh")
+    ut.assert_eq(s1[::2], "hlowrd")
+    ut.assert_eq(s1[1::2], "el ol")
+}
+
+@test
+func test_str_slice_basic() {
+    let s = "hello world"
+    ut.assert_eq(s[0:5],      "hello")       // explicit start:end
+    ut.assert_eq(s[:5],       "hello")       // omit start → 0
+    ut.assert_eq(s[6:],       "world")       // omit end → len
+    ut.assert_eq(s[:],        "hello world") // full copy
+    ut.assert_eq(s[3:8],      "lo wo")       // middle range
+    ut.assert_eq(s[0:100],    "hello world") // end beyond length → clamped
+    ut.assert_eq(s[-5:],      "world")       // negative start
+    ut.assert_eq(s[:-6],      "hello")       // negative end
+    ut.assert_eq(s[-5:-1],    "worl")        // both negative
+    ut.assert_eq(s[2:-1],     "llo worl")    // mixed sign indices
+}
+
+@test
+func test_str_step_gt_1() {
+    let s = "hello world"
+    ut.assert_eq(s[::2],      "hlowrd")      // every other char
+    ut.assert_eq(s[1::2],     "el ol")       // every other, offset by 1
+    ut.assert_eq(s[::3],      "hlwl")        // every 3rd char
+    ut.assert_eq(s[2::3],     "l r")         // 索引 2, 5, 8 -> 'l', ' ', 'r'
+    ut.assert_eq(s[:6:2],     "hlo")         // step with explicit end
+    ut.assert_eq(s[1:8:3],    "eoo")         // 索引 1, 4, 7 -> 'e', 'o', 'o'
+}
+
+@test
+func test_slice_negative_step() {
+    let s = "hello world"
+    ut.assert_eq(s[::-1],     "dlrow olleh")
+    ut.assert_eq(s[::-2],     "drwolh")
+    ut.assert_eq(s[::-3],     "dooe")
+    ut.assert_eq(s[10::-1],   "dlrow olleh")
+    ut.assert_eq(s[9::-1],    "lrow olleh")
+    ut.assert_eq(s[8:2:-1],   "row ol")
+    ut.assert_eq(s[7:1:-2],   "o l")
+    ut.assert_eq(s[:5:-1],    "dlrow")
+    ut.assert_eq(s[4::-1],    "olleh")
+}
+
+@test
+func test_str_slice_adjustment() {
+    let s = "abcdef"
+    ut.assert_eq(s[1:4], "bcd")
+    ut.assert_eq(s[4:1:-1], "edc")
+    ut.assert_eq(s[:3], "abc")
+    ut.assert_eq(s[3:], "def")
+    ut.assert_eq(s[::-1], "fedcba")
+}
+
+@test
+func test_str_slice_edge_cases() {
+    let s = "abcdef"
+    ut.assert_eq(s[0:0], "")
+    ut.assert_eq(s[0:0:1], "")
+    ut.assert_eq(s[0:0:-1], "")
+    ut.assert_eq(s[5:2:-1], "fedc"[0:3])
+    ut.assert_eq(s[5:2:-2], "fd")
+}
+
+@test
+func test_str_slice_result_zero() {
+    let s = "hello world"
+    ut.assert_eq(s[5:5],      "")
+    ut.assert_eq(s[5:3],      "")
+    ut.assert_eq(s[3:5:-1],   "")
+    ut.assert_eq(s[::100],    "h")
+    ut.assert_eq(s[5::100],   " ")
+    ut.assert_eq(s[100:],     "")
+    ut.assert_eq(s[:-100],    "")
+}
+
+@test
+func test_str_slice_single_char() {
+    let s = "hello world"
+    ut.assert_eq(s[0:1],      "h")
+    ut.assert_eq(s[-1:],      "d")
+    ut.assert_eq(s[-1:-2:-1], "d")
+    ut.assert_eq(s[0:0],      "")
+    ut.assert_eq(s[11:11],    "")
+}
+
+@test_expect_panic("step cannot be zero")
+func test_str_slice_step_zero() {
+    let s = "hello world"
+    ut.assert_eq(len(s), 11)
+    // s[::0] // be optimized for no used.
+    // let _ = s[::0]
+    print(s[::0])
+    // ut.assert_raise(s[::0])
+}
+
+@test
+func test_str_slice_other() {
+    let s = "hello world"
+    ut.assert_eq(s[::-1][::-1], s)
+    ut.assert_eq(s[::1],        s)
+    ut.assert_eq(s[:len(s)],    s)
+    ut.assert_eq(""[:], "")
+    ut.assert_eq(""[::-1], "")
+    ut.assert_eq("a"[::-1], "a")
+    ut.assert_eq("a"[::2], "a")
+}
+
+@test_expect_panic("func 'reversed' of 'str' is not implemented!")
+func test_str_not_impl() {
+    "hello".reversed()
+}

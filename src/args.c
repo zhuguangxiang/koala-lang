@@ -37,6 +37,7 @@ static void print_usage(const char *prog)
         "                           all       - dump all stages\n"
         "  --package-name       Specify the package name.\n"
         "  --strip-lineinfo     Strip line information from the output.\n"
+        "  --test               Enable test mode.\n"
         "  -v, --version        Show version information\n"
         "  -h, --help           Show this help message\n",
         prog);

@@ -174,9 +174,6 @@ typedef struct _TValue {
 #define to_float64(v)  ({ ASSERT(is_float64(v)); (_Float64)(v)->fval; })
 // #define to_bfloat16(v) ({ ASSERT(is_bfloat16(v)); (v)->fval; })
 
-/* Reference */
-// #define to_obj(v)      ({ ASSERT(is_ref(v)); (v)->obj; })
-
 /* clang-format on */
 
 /*---------------------------------------------------------------------------+
@@ -345,6 +342,7 @@ typedef struct _CFuncObject {
     NativeFunc func;
     int func_idx;
     char *name;
+    void *priv;
 } CFuncObject;
 
 typedef struct _CodeObject {
@@ -722,6 +720,8 @@ static inline unsigned int kl_hash(TValue *val)
 }
 
 TValue kl_not_impl_func(TValue *self, TValue *args, int nargs);
+
+int slice_adjust(int64_t *_start, int64_t *_end, int64_t step, int64_t len);
 
 #ifdef __cplusplus
 }

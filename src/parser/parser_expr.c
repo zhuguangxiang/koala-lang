@@ -753,6 +753,7 @@ static Symbol *add_instance_method(InstanceSymbol *inst_sym, FuncSymbol *origin_
                                         inst_params, origin_fn_sym->flags);
     inst_fn_sym->parent = inst_sym;
     inst_fn_sym->ts = func_type_spec_from_arginfo(inst_params, inst_ret_ts);
+    ((FuncSymbol *)inst_fn_sym)->origin = origin_fn_sym;
     return inst_fn_sym;
 }
 
@@ -1850,7 +1851,12 @@ static void parse_dot(ParserState *ps, Expr *exp)
     if (lhs_ts_sym->kind == SYM_TYPE_PARAM) {
         Symbol *fn = get_func_from_tp(ps, (TypeParamSymbol *)lhs_ts_sym, ident->name);
         if (fn) {
-            exp->ts = opt_dot_type(fn->ts, opt_or_bang);
+            log_info("found func '%s' from type param '%s'.", ident->name, lhs_ts_sym->name);
+            if (fn->kind == SYM_INHERITED) {
+                exp->ts = ((InheritedFunc *)fn)->origin->ts;
+            } else {
+                exp->ts = opt_dot_type(fn->ts, opt_or_bang);
+            }
             exp->sym = fn;
             log_info("dot member resolved: %s", fn->name);
             log_type_spec(exp->ts);
@@ -2374,7 +2380,7 @@ static void parse_slice(ParserState *ps, Expr *exp)
             return;
         }
     } else {
-        start = expr_from_lit_int("0", 1, 0, 0);
+        start = expr_from_lit_int("-9223372036854775808", 1, 0, INT64_MIN);
         start->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, start);
         slice->start = start;
@@ -2390,7 +2396,7 @@ static void parse_slice(ParserState *ps, Expr *exp)
             return;
         }
     } else {
-        end = expr_from_lit_int("-1", 1, 0, -1);
+        end = expr_from_lit_int("-9223372036854775808", 1, 0, INT64_MIN);
         end->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, end);
         slice->end = end;

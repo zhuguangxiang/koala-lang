@@ -37,18 +37,6 @@ Object *kl_new_slice(TValue *items)
     int64_t end = to_int64(&items[1]);
     int64_t step = to_int64(&items[2]);
 
-    if (start < 0) {
-        panic("slice start cannot be negative");
-    }
-
-    if (end < -1) {
-        panic("slice end cannot be less than -1");
-    }
-
-    if (step <= 0) {
-        panic("slice step cannot be zero");
-    }
-
     int msize = sizeof(SliceObject);
     SliceObject *x = mm_alloc(msize);
     INIT_OBJECT_HEAD(x, &slice_type, 3);

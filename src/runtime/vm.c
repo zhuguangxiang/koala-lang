@@ -9,6 +9,7 @@
 #include "args.h"
 #include "atom.h"
 #include "buffer.h"
+#include "except.h"
 #include "klc.h"
 #include "log.h"
 #include "mm.h"
@@ -49,27 +50,27 @@ void kl_free_ks(KoalaState *ks)
 TValue kl_not_impl_func(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
-    if (!IS_CFUNC(obj)) {
-        fprintf(stderr, "function not implemented!\n");
-        NYI();
-        // return error_value(-1);
-    }
-
     ASSERT(IS_CFUNC(obj));
+
     CFuncObject *cfunc = (CFuncObject *)obj;
     Object *owner = cfunc->owner;
+
+    if (cfunc->priv) {
+        raise_exc_str((char *)cfunc->priv);
+        return error_value;
+    }
+
     if (IS_MODULE(owner)) {
         ModuleObject *m = (ModuleObject *)owner;
-        // raise_exc_str("function not implemented: %s::%s!", m->path, cfunc->name);
-        fprintf(stderr, "function '%s' in '%s' is not implemented!\n", cfunc->name, m->path);
-    } else {
-        ASSERT(IS_TYPE(owner, &type_type));
-        TypeObject *tp = (TypeObject *)owner;
-        // raise_exc_str("function not implemented: %s!", tp->name);
-        fprintf(stderr, "method '%s' of '%s' is not implemented!\n", cfunc->name, tp->name);
+        raise_exc_fmt("func '%s' in '%s' is not implemented!", cfunc->name, m->path);
+        return error_value;
     }
-    // NYI();
-    return none_value;
+
+    ASSERT(IS_TYPE(owner, &type_type));
+    TypeObject *tp = (TypeObject *)owner;
+    char *dollar = strchr(cfunc->name, '$') + 1;
+    raise_exc_fmt("func '%s' of '%s' is not implemented!", dollar, tp->name);
+    return error_value;
 }
 
 static Object *new_not_impl_func(Object *m, char *func_name)
@@ -79,9 +80,24 @@ static Object *new_not_impl_func(Object *m, char *func_name)
 
 static Object *new_not_impl_trait_func(char *kls_name, char *trait_name, char *fn_name, Object *m)
 {
-    BUF(buf);
-    buf_write_fmt(&buf, "%s_%s_%s", trait_name, kls_name, fn_name);
-    return kl_new_cfunc(BUF_STR(buf), kl_not_impl_func, m);
+    BUF(name);
+    BUF(msg);
+
+    buf_write_fmt(&name, "%s_%s_%s", trait_name, kls_name, fn_name);
+    buf_write_fmt(&msg, "func '%s::%s' for '%s' is not implemented!", kls_name, fn_name,
+                  trait_name);
+
+    Object *cfunc = kl_new_cfunc(BUF_STR(name), kl_not_impl_func, m);
+
+    char *_msg = mm_alloc(BUF_LEN(msg) + 1);
+    memcpy(_msg, BUF_STR(msg), BUF_LEN(msg));
+    _msg[BUF_LEN(msg)] = '\0';
+
+    ((CFuncObject *)cfunc)->priv = _msg;
+
+    FINI_BUF(name);
+    FINI_BUF(msg);
+    return cfunc;
 }
 
 static TValue _default___str__(TValue *self, TValue *args, int nargs)
@@ -556,8 +572,14 @@ static Object *_load_module(char *path)
             if (!match_prefix(_name, "test")) continue;
             Object *_co = vector_get(&mo->funcs, fn_item->code_index);
             ASSERT(_co && IS_CODE(_co));
+            int expect_panic = match_prefix(_name, "test_expect_panic");
+            char *msg = NULL;
+            if (expect_panic) {
+                log_info("test '%s' expects panic", _name);
+                msg = klc_get_str(klc, ann->value_index);
+            }
             _name = klc_get_str(klc, fn_item->name_index);
-            kl_mo_add_test(m, _name, (CodeObject *)_co);
+            kl_mo_add_test(m, _name, (CodeObject *)_co, expect_panic, msg);
         }
     }
 

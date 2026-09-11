@@ -21,8 +21,8 @@ func main() {
     // print("汉字"[1])
 
     // __getslice__
-    // print(s[0:5])
-    // print(s[6:11])
+    print(s[0:5])
+    print(s[6:11])
 
     // // __contains__
     // print("world" in s)
@@ -201,8 +201,8 @@ func main() {
 
 // TODO: 字
 
-// TODO: hello
-// TODO: world
+// CHECK: hello
+// CHECK: world
 // TODO: true
 // TODO: false
 

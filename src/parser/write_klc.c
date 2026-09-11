@@ -137,7 +137,7 @@ static void write_meta_func(FuncSymbol *fn_sym, KlcKlass *klass, KlcFile *klc)
 
     // add annotations
     if (fn_sym->ann) {
-        klc_func_add_ann(fn, fn_sym->ann, fn_sym->ann_key, NULL);
+        klc_func_add_ann(fn, fn_sym->ann, fn_sym->ann_key, fn_sym->ann_val);
     }
 }
 
@@ -298,7 +298,6 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
         dump_intf_table(stbl);
     }
 
-    // if (!is_build_stdlib()) {
     // write interface table for each class
     HashMapIter it2 = { 0 };
     while (hashmap_next(stbl, &it2)) {
@@ -312,7 +311,6 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
             write_meta_intf_entry(intf_entry, kls_sym->klc_entry);
         }
     }
-    // }
 }
 
 static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
