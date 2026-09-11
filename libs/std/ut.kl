@@ -38,9 +38,9 @@ pub func assert(cond bool, msg = "") {
 pub func assert_true(cond bool, msg = "") {
     if !cond {
         if msg == "" {
-            panic("assertion failed: expected true, got false")
+            panic("assertion failed: condition is false")
         } else {
-            panic("assertion failed: expected true, got false (" + msg + ")")
+            panic("assertion failed: condition is false (" + msg + ")")
         }
     }
 }
@@ -55,9 +55,9 @@ pub func assert_true(cond bool, msg = "") {
 pub func assert_false(cond bool, msg = "") {
     if cond {
         if msg == "" {
-            panic("assertion failed: expected false, got true")
+            panic("assertion failed: condition is true")
         } else {
-            panic("assertion failed: expected false, got true (" + msg + ")")
+            panic("assertion failed: condition is true (" + msg + ")")
         }
     }
 }
@@ -72,7 +72,7 @@ pub func assert_false(cond bool, msg = "") {
 ///     assert_eq(name, "koala")
 pub func assert_eq[T : Equatable[T]](a T, b T) {
     if a != b {
-        panic(format("assert_eq failed: {} != {}", a, b))
+        panic(format("assertion failed: {} != {}", a, b))
     }
 }
 
@@ -86,7 +86,7 @@ pub func assert_eq[T : Equatable[T]](a T, b T) {
 ///     assert_ne(ptr, null)
 pub func assert_ne[T : Equatable[T]](a T, b T) {
     if a == b {
-        panic(format("assert_ne failed: {} == {}", a, b))
+        panic(format("assertion failed: {} == {}", a, b))
     }
 }
 
@@ -98,7 +98,7 @@ pub func assert_ne[T : Equatable[T]](a T, b T) {
 ///     assert_lt(index, array.len())
 pub func assert_lt[T : Comparable](a T, b T) {
     if !(a < b) {
-        panic(format("assert_lt failed: expected {} < {}", a, b))
+        panic(format("assertion failed: {} < {} is false", a, b))
     }
 }
 
@@ -110,7 +110,7 @@ pub func assert_lt[T : Comparable](a T, b T) {
 ///     assert_le(count, MAX_LIMIT)
 pub func assert_le[T : Comparable](a T, b T) {
     if !(a <= b) {
-        panic(format("assert_le failed: expected {} <= {}", a, b))
+        panic(format("assertion failed: {} <= {} is false", a, b))
     }
 }
 
@@ -122,7 +122,7 @@ pub func assert_le[T : Comparable](a T, b T) {
 ///     assert_gt(score, 0)
 pub func assert_gt[T : Comparable](a T, b T) {
     if !(a > b) {
-        panic(format("assert_gt failed: expected {} > {}", a, b))
+        panic(format("assertion failed: {} > {} is false", a, b))
     }
 }
 
@@ -134,7 +134,7 @@ pub func assert_gt[T : Comparable](a T, b T) {
 ///     assert_ge(balance, total_cost)
 pub func assert_ge[T : Comparable](a T, b T) {
     if !(a >= b) {
-        panic(format("assert_ge failed: expected {} >= {}", a, b))
+        panic(format("assertion failed: {} >= {} is false", a, b))
     }
 }
 
@@ -151,6 +151,6 @@ pub func assert_close(a float, b float, eps float = 1e-9) {
         diff = 0.0 - diff
     }
     if diff > eps {
-        panic(format("assert_close failed: |{} - {}| = {} > eps {}", a, b, diff, eps))
+        panic(format("assertion failed: |{} - {}| = {} > {}", a, b, diff, eps))
     }
 }
