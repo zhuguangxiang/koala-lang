@@ -274,7 +274,7 @@ static void parse_literal(ParserState *ps, Expr *exp)
             break;
         }
         case LIT_EXPR_NONE: {
-            log_info("literal null");
+            log_info("literal nil");
             parse_none(ps, lit);
             break;
         }
@@ -2719,14 +2719,14 @@ static void parse_binary(ParserState *ps, Expr *exp)
     if (type_is_optional(lhs->ts) && (op != BINARY_EQ && op != BINARY_NEQ)) {
         Symbol *opt_sym = lhs->sym;
         if (opt_sym && opt_sym->kind == SYM_SHADOW_VAR) {
-            // check shadow variable null state
+            // check shadow variable nil state
             ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)opt_sym;
             log_info("  note: symbol '%s' is a shadow variable.", opt_sym->name);
-            log_info("  value is null: %s", shadow_sym->is_null ? "true" : "false");
+            log_info("  value is nil: %s", shadow_sym->is_null ? "true" : "false");
             if (shadow_sym->is_null) {
                 kl_error(bin->op_loc,
                          "optional type cannot be used with '%s' operator when value "
-                         "is null.",
+                         "is nil.",
                          get_binary_op_str(op));
                 return;
             }
@@ -2738,10 +2738,10 @@ static void parse_binary(ParserState *ps, Expr *exp)
     }
 
     if (op == BINARY_EQ || op == BINARY_NEQ) {
-        // special handling for optional and null comparison
+        // special handling for optional and nil comparison
         if (type_is_optional(lhs->ts) && type_is_optional(rhs->ts)) {
             if (expr_is_literal_null(lhs) || expr_is_literal_null(rhs)) {
-                // allow optional type compared with null literal
+                // allow optional type compared with nil literal
                 exp->ts = bool_type_spec();
                 log_info("binary operator '%s' resolved.", get_binary_op_str(op));
                 log_type_spec(exp->ts);
@@ -2868,17 +2868,17 @@ static void parse_bang(ParserState *ps, Expr *exp)
     if (!type_is_optional(e->ts)) {
         Symbol *sym = e->sym;
         if (sym->kind == SYM_SHADOW_VAR) {
-            // check shadow variable null state
+            // check shadow variable nil state
             ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)sym;
             log_info("  note: symbol '%s' is a shadow variable.", sym->name);
-            log_info("  value is null: %s", shadow_sym->is_null ? "true" : "false");
+            log_info("  value is nil: %s", shadow_sym->is_null ? "true" : "false");
             if (shadow_sym->is_null) {
-                kl_error(bang->loc, "bang operator cannot be applied when value is null.");
+                kl_error(bang->loc, "bang operator cannot be applied when value is nil.");
                 return;
             } else {
                 kl_warn(bang->loc, "bang operator applied on non-nullable variable('%s').",
                         sym->name);
-                log_info("bang operator resolved on shadow variable, value is not null.");
+                log_info("bang operator resolved on shadow variable, value is not nil.");
                 log_type_spec(exp->ts);
                 exp->ts = e->ts;
                 exp->sym = e->sym;

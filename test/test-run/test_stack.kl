@@ -6,7 +6,7 @@ class ListNode {
 
     func __init__(_value int) {
         value = _value
-        next = null
+        next = nil
     }
 
     func show() {
@@ -15,14 +15,14 @@ class ListNode {
 }
 
 class List {
-    var head ListNode? = null
+    var head ListNode? = nil
     var total int = 0
 
     func append(value int) {
         total = total + 1
         let node = ListNode(value)
 
-        if head == null {
+        if head == nil {
             head = node
         } else {
             var curr = head
@@ -36,7 +36,7 @@ class List {
     func add_head(value int) {
         total = total + 1
         let node = ListNode(value)
-        if head != null {
+        if head != nil {
             node.next = head
         }
         head = node
@@ -45,27 +45,27 @@ class List {
     func index(idx int) int? {
         var curr = head
         var i = 0
-        while curr != null {
+        while curr != nil {
             if i == idx {
                 return curr.value
             }
             curr = curr.next
             i += 1
         }
-        return null
+        return nil
     }
 
     func show() {
         var curr = head
-        while curr != null {
+        while curr != nil {
             curr.show()
             curr = curr.next
         }
     }
 
     func pop_head() int? {
-        if head == null {
-            return null
+        if head == nil {
+            return nil
         }
         let value = head.value
         head = head.next
@@ -89,7 +89,7 @@ class Stack {
         if l.len() > 0 {
             return l.pop_head()
         }
-        return null
+        return nil
     }
 
     func show() {
@@ -104,7 +104,7 @@ func main() {
     stack.show()
 
     var popped = stack.pop()
-    while popped != null {
+    while popped != nil {
         print("popped: ", popped)
         popped = stack.pop()
     }

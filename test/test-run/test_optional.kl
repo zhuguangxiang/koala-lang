@@ -2,8 +2,8 @@
 
 func show(cond bool, msg str?) {
     if !cond {
-        if msg == null {
-            print("msg is null:", "no message")
+        if msg == nil {
+            print("msg is nil:", "no message")
         } else {
             print("msg:", msg)
         }
@@ -15,11 +15,11 @@ func foo(v int?) int {
 }
 
 func main() {
-    let n int? = null
+    let n int? = nil
     show(false, "math is broken")
-    show(false, null)
+    show(false, nil)
     show(true, "subtraction is broken")
-    print(foo(null))
+    print(foo(nil))
 }
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
@@ -51,5 +51,5 @@ func main() {
 // CHECK: ret r0
 
 // CHECK: msg: math is broken
-// CHECK: msg is null: no message
+// CHECK: msg is nil: no message
 // CHECK: none

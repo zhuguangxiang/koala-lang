@@ -2,8 +2,8 @@
 
 func show(cond bool, msg str?) {
     if cond == false {
-        if msg == null {
-            print("msg is null:", "no message")
+        if msg == nil {
+            print("msg is nil:", "no message")
         } else {
             print("msg:", msg)
         }
@@ -32,7 +32,7 @@ func foo(cond bool, cond2 bool) bool {
 }
 
 show(false, "math is broken")
-show(false, null)
+show(false, nil)
 show(true, "subtraction is broken")
 foo(true, false)
 
@@ -55,6 +55,6 @@ foo(true, false)
 // CHECK: jmp_int_eq r0, r1, 6
 
 // CHECK: msg: math is broken
-// CHECK: msg is null: no message
+// CHECK: msg is nil: no message
 // CHECK: condition is true
 // CHECK: cond != cond2

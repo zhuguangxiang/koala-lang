@@ -1188,7 +1188,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
 
         if (type_is_optional(sym->ts) && sym->lit && sym->lit->which == LIT_NONE) {
             // the literal is none, the subtype of optional is null, report error.
-            kl_error(exp->loc, "cannot assign 'null' to variable '%s' without explicit type",
+            kl_error(exp->loc, "cannot assign 'nil' to variable '%s' without explicit type",
                      sym->name);
         }
     } else {
@@ -2668,7 +2668,7 @@ static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
 check_compatiable:
     if (!type_spec_compatible(lhs->ts, rhs->ts)) {
         if (!type_is_optional(lhs->ts) && expr_is_literal_null(rhs)) {
-            kl_error(assign->loc, "Cannot assign null to non-nullable type.");
+            kl_error(assign->loc, "Cannot assign nil to non-nullable type.");
         } else {
             kl_error(assign->loc, "Types of two sides are not matched.");
         }

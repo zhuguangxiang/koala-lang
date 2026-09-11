@@ -7,7 +7,7 @@ func foo() int? {
 let a = 10
 a = 20
 // CHECK: cannot assign to immutable variable 'a'
-a = null
+a = nil
 // CHECK-NEXT: cannot assign to immutable variable 'a'
 a = foo()
 // CHECK-NEXT: cannot assign to immutable variable 'a'
@@ -23,8 +23,8 @@ b = "hello"
 b = 1.2
 // CHECK-NEXT: Types of two sides are not matched.
 // CHECK-NEXT: lhs: int64 =/= rhs: float64
-b = null
-// CHECK-NEXT: Cannot assign null to non-nullable type.
+b = nil
+// CHECK-NEXT: Cannot assign nil to non-nullable type.
 // CHECK-NEXT: lhs: int64 =/= rhs: _?
 b = foo()
 // CHECK-NEXT: Types of two sides are not matched.
@@ -33,14 +33,14 @@ b = foo()
 let c int? = 100
 c = 200
 // CHECK-NEXT: cannot assign to immutable variable 'c'
-c = null
+c = nil
 // CHECK-NEXT: cannot assign to immutable variable 'c'
 c = foo()
 // CHECK-NEXT: cannot assign to immutable variable 'c'
 
-var d int? = null
+var d int? = nil
 d = 300
-d = null
+d = nil
 d = false
 // CHECK-NEXT: Types of two sides are not matched.
 // CHECK-NEXT: lhs: int64? =/= rhs: bool
@@ -57,21 +57,21 @@ func fn1(v1 int?, v2 int) {
     if v2 > 0 {
         v3 = v2
     } else {
-        v3 = null
-        // CHECK-NEXT: Cannot assign null to non-nullable type.
+        v3 = nil
+        // CHECK-NEXT: Cannot assign nil to non-nullable type.
         // CHECK-NEXT: lhs: int64 =/= rhs: _?
         v3 = v1
         // CHECK-NEXT: Types of two sides are not matched.
         // CHECK-NEXT: lhs: int64 =/= rhs: int64?
     }
 
-    var v4 int? = null
+    var v4 int? = nil
     if v2 < 0 {
         v4 = v2
     } else {
         v4 = 100
     }
-    v4 = null
+    v4 = nil
 }
 
 class Foo {
@@ -89,40 +89,40 @@ class Foo {
 func fn2(v1 int?, v2 int) {
     let v3 = 0
 
-    if v1 != null {
+    if v1 != nil {
         v3 = v2
         // CHECK-NEXT: cannot assign to immutable variable 'v3'
     }
 
-    var v4 int? = null
-    if v4 != null {
+    var v4 int? = nil
+    if v4 != nil {
         v4 = v2
         v4 + 2
-        v4 = null
+        v4 = nil
         v4 + 3
         // CHECK-NEXT: optional type cannot be used with '+' operator.
-        if v4 != null {
+        if v4 != nil {
             v4 + 100
         }
         v4 + 200
         // CHECK-NEXT: optional type cannot be used with '+' operator.
     } else {
         v4 + 300
-        // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+        // CHECK-NEXT: optional type cannot be used with '+' operator when value is nil.
     }
     v4 = 100
     v4 + 400
     // CHECK-NEXT: optional type cannot be used with '+' operator.
 
-    if v4 == null { return }
+    if v4 == nil { return }
 
     v4 + 500
-    v4 = null
+    v4 = nil
     v4 + 600
     // CHECK-NEXT: optional type cannot be used with '+' operator.
 
-    let v5 int? = null
-    if v5 != null {
+    let v5 int? = nil
+    if v5 != nil {
         v5 + 700
         v5 = 800
         // CHECK-NEXT: cannot assign to immutable variable 'v5'
@@ -135,7 +135,7 @@ func fn2(v1 int?, v2 int) {
     foo.b = 400
     // CHECK-NEXT: cannot assign to immutable variable 'b'
 
-    foo.v = null
+    foo.v = nil
     foo.v = foo.b
 
     let foo2 = foo.foo()
@@ -143,21 +143,21 @@ func fn2(v1 int?, v2 int) {
     // CHECK-NEXT: optional cannot use dot operator.
     foo2!.a
 
-    if foo2 != null {
+    if foo2 != nil {
         foo2.a
     }
 
     var f1 = Foo()
     var f2 = f1
-    if f1.v != null {
-        f2.v = null
+    if f1.v != nil {
+        f2.v = nil
         f1.v + 1
         // CHECK-NEXT: optional type cannot be used with '+' operator.
         f1.v! + 2
     }
 
     let tmp = f1.v
-    if tmp != null {
+    if tmp != nil {
         tmp + 1
         tmp! + 2
         // CHECK-NEXT: bang operator applied on non-nullable variable('tmp').

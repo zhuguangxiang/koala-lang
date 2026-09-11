@@ -8,7 +8,7 @@ class ListNode[T] {
 
     func __init__(_value T) {
         value = _value
-        next = null
+        next = nil
     }
 
     func show() {
@@ -21,14 +21,14 @@ class List[T] {
     var total int = 0
 
     func __init__() {
-        head = null
+        head = nil
     }
 
     func append(value T) {
         total = total + 1
         let node = ListNode(value)
 
-        if head == null {
+        if head == nil {
             head = node
         } else {
             var curr = head
@@ -42,7 +42,7 @@ class List[T] {
     func add_head(value T) {
         total = total + 1
         let node = ListNode(value)
-        if head != null {
+        if head != nil {
             node.next = head
         }
         head = node
@@ -51,20 +51,20 @@ class List[T] {
     func index(idx int) T? {
         var curr = head
         var i = 0
-        while curr != null {
+        while curr != nil {
             if i == idx {
                 return curr.value
             }
             curr = curr.next
             i += 1
         }
-        return null
+        return nil
     }
 
     func show() {
         var curr = head
         print('[', end='')
-        while curr != null {
+        while curr != nil {
             curr.show()
             curr = curr.next
         }
@@ -76,8 +76,8 @@ func list_mul_sum(a List[int], b List[int]) int {
     var sum = 0
     var cur_a = a.head
     var cur_b = b.head
-    while cur_a != null {
-        if cur_b != null {
+    while cur_a != nil {
+        if cur_b != nil {
             sum = sum + cur_a.value * cur_b.value
             cur_b = cur_b.next
         }
@@ -90,11 +90,11 @@ func matmul(a List[List[int]], b List[List[int]]) List[List[int]] {
     let res = List[List[int]]()
 
     var cur_a = a.head
-    while cur_a != null {
+    while cur_a != nil {
         let row_a = cur_a.value
         let res_row = List[int]()
         var cur_b = b.head
-        while cur_b != null {
+        while cur_b != nil {
             let row_b = cur_b.value
             let r = list_mul_sum(row_a, row_b)
             res_row.append(r)
@@ -124,10 +124,10 @@ func main() {
     m1.append(m1l2)
 
     var cur = m1.head
-    while cur != null {
+    while cur != nil {
         let row = cur.value
         var cur_row = row.head
-        while cur_row != null {
+        while cur_row != nil {
             print(cur_row.value, end='  ')
             cur_row = cur_row.next
         }
@@ -151,10 +151,10 @@ func main() {
     m2.append(m2l2)
 
     cur = m2.head
-    while cur != null {
+    while cur != nil {
         let row = cur.value
         var cur_row = row.head
-        while cur_row != null {
+        while cur_row != nil {
             print(cur_row.value, end='  ')
             cur_row = cur_row.next
         }
@@ -166,10 +166,10 @@ func main() {
 
     let r = matmul(m1, m2)
     cur = r.head
-    while cur != null {
+    while cur != nil {
         let row = cur.value
         var cur_row = row.head
-        while cur_row != null {
+        while cur_row != nil {
             print(cur_row.value, end='  ')
             cur_row = cur_row.next
         }

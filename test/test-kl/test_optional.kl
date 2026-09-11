@@ -5,9 +5,9 @@ func bar(msg str?) {
 }
 
 func foo() {
-    let n = null
+    let n = nil
 
 }
 
 // CHECK: cannot compare optional type with non-optional type for '==' operator.
-// CHECK: cannot assign 'null' to variable 'n' without explicit type
+// CHECK: cannot assign 'nil' to variable 'n' without explicit type

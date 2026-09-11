@@ -6,7 +6,7 @@ class ListNode {
 
     func __init__(_value int) {
         value = _value
-        next = null
+        next = nil
     }
 
     func show() {
@@ -19,24 +19,24 @@ class List {
     var total int = 0
 
     func __init__() {
-        head = null
+        head = nil
     }
 
     func append(value int) {
         total = total + 1
         let node = ListNode(value)
 
-        if head == null {
+        if head == nil {
             head = node
         } else {
             var it ListNode? = head
             var prev = it
-            while it != null {
+            while it != nil {
                 prev = it
                 it = it.next
             }
 
-            if prev != null {
+            if prev != nil {
                 prev.next = node
             }
         }
@@ -46,11 +46,11 @@ class List {
         total = total + 1
         let node = ListNode(value)
 
-        if head == null {
+        if head == nil {
             head = node
         } else {
             var curr = head
-            while curr.next != null {
+            while curr.next != nil {
                 curr = curr.next!
             }
             curr.next = node
@@ -61,12 +61,12 @@ class List {
         total = total + 1
         let node = ListNode(value)
 
-        if head == null {
+        if head == nil {
             head = node
         } else {
             var curr = head.next
             var prev = head
-            while curr != null {
+            while curr != nil {
                 prev = curr
                 curr = curr.next
             }
@@ -78,7 +78,7 @@ class List {
         total = total + 1
         let node = ListNode(value)
 
-        if head == null {
+        if head == nil {
             head = node
         } else {
             var curr = head
@@ -92,7 +92,7 @@ class List {
     func add_head(value int) {
         total = total + 1
         let node = ListNode(value)
-        if head != null {
+        if head != nil {
             node.next = head
         }
         head = node
@@ -101,19 +101,19 @@ class List {
     func index(idx int) int? {
         var curr = head
         var i = 0
-        while curr != null {
+        while curr != nil {
             if i == idx {
                 return curr.value
             }
             curr = curr.next
             i += 1
         }
-        return null
+        return nil
     }
 
     func show() {
         var curr = head
-        while curr != null {
+        while curr != nil {
             curr.show()
             curr = curr.next
         }

@@ -16,7 +16,7 @@ func main() {
     print(l)
     print("length of l:", len(l))
 
-    let t = (1, 2, null)
+    let t = (1, 2, nil)
     print(t)
 
     let l2 = new_list(300)

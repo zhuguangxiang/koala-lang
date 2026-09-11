@@ -17,29 +17,29 @@ while i < 10 {
     i + 1
 }
 
-let v int? = null
+let v int? = nil
 
 while i > 0 {
     v + 1
     // CHECK: optional type cannot be used with '+' operator.
-    if v == null {
+    if v == nil {
         continue
     }
     v + 2
 }
 
-var v2 int? = null
+var v2 int? = nil
 
 while i < 10 {
-    if v2 == null {
-        if v == null {
+    if v2 == nil {
+        if v == nil {
             continue
             v + 1
             v2 + 1
         }
         v + 2
         v2 + 2
-        // CHECK-NEXT: optional type cannot be used with '+' operator when value is null
+        // CHECK-NEXT: optional type cannot be used with '+' operator when value is nil
         continue
     }
     v + 3
@@ -48,12 +48,12 @@ while i < 10 {
 }
 
 func get_opt() int? {
-    return null
+    return nil
 }
 
 func test_basic_pollution(v1 int?) {
     var v = v1
-    if v == null { return }
+    if v == nil { return }
 
     while (i < 10) {
         v = get_opt()
@@ -65,7 +65,7 @@ func test_basic_pollution(v1 int?) {
 
 func test_continue_shadow(v1 int?) {
     var v = v1
-    if v == null { return }
+    if v == nil { return }
 
     while (i > 10) {
         if (true) {
@@ -80,7 +80,7 @@ func test_continue_shadow(v1 int?) {
 
 func test_break_pollution(v1 int?) {
     var v = v1
-    if v == null { return }
+    if v == nil { return }
 
     while (true) {
         v = get_opt()
@@ -93,7 +93,7 @@ func test_break_pollution(v1 int?) {
 
 func test_nested_invalidation(v1 int?) {
     var v = v1
-    if v == null { return }
+    if v == nil { return }
 
     while (i < 10) {
         while (i < 10) {
@@ -121,11 +121,11 @@ func test_while_let_isolation(v1 Node?) {
 
 func test_cond_side_effect(v1 int?) {
     var v = v1
-    if v == null { return }
+    if v == nil { return }
 
     v = get_opt()
 
-    while (v != null) {
+    while (v != nil) {
         v + 1
         v = get_opt()
     }

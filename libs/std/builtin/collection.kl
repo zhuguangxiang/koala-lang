@@ -107,7 +107,7 @@ pub trait Map[K, V] : Iterable[(K, V)] {
     /// If key is not found, return default_value.
     func remove_or(key K, default_value V) V
 
-    /// Return the value for key if key is in the map, else null.
+    /// Return the value for key if key is in the map, else nil.
     /// Unlike `__getsub__` (`map[key]`), this never panics and is meant
     /// to be used with `if let` unwrapping.
     func get(key K) V?

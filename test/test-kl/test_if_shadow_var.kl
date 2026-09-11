@@ -1,7 +1,7 @@
 // RUN: koalac %s | filecheck %s
 
 func fn1(v1 int?) {
-    if v1 != null {
+    if v1 != nil {
         v1 + 123
     }
 
@@ -10,14 +10,14 @@ func fn1(v1 int?) {
 }
 
 func fn2(v1 int?) {
-    if v1 != null {
+    if v1 != nil {
         v1 + 123
 
-        let v2 int? = null
+        let v2 int? = nil
 
-        if (v2 == null) {
+        if (v2 == nil) {
             v2 + 456
-            // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+            // CHECK-NEXT: optional type cannot be used with '+' operator when value is nil.
         }
 
         v1 + 456
@@ -31,7 +31,7 @@ func fn2(v1 int?) {
 }
 
 func fn3(v1 int?) {
-    if v1 == null {
+    if v1 == nil {
         return
     }
 
@@ -39,28 +39,28 @@ func fn3(v1 int?) {
 }
 
 func fn4(v int?) int {
-    if null != v {
+    if nil != v {
         return 1
     } else {
         return 0
     }
 
-    if null != v { return 1 }
+    if nil != v { return 1 }
 
     v + 1
-    // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+    // CHECK-NEXT: optional type cannot be used with '+' operator when value is nil.
 
-    null != v
+    nil != v
 
     return 100
 }
 
 func fn5(v1 int?) {
-    if v1 != null {
+    if v1 != nil {
         v1 + 123
 
-        let v2 int? = null
-        if (v2 == null) {
+        let v2 int? = nil
+        if (v2 == nil) {
             return
         }
 
@@ -73,12 +73,12 @@ func fn5(v1 int?) {
 }
 
 func fn6(v1 int?) {
-    if v1 != null {
+    if v1 != nil {
         v1 + 123
 
-        let v2 int? = null
+        let v2 int? = nil
         {
-            if (v2 == null) {
+            if (v2 == nil) {
                 return
             }
 
@@ -94,27 +94,27 @@ func fn6(v1 int?) {
 }
 
 func fn7(v1 int) {
-    let v2 int? = null
+    let v2 int? = nil
     if (v1 > 0) {
-        if (v2 == null) { return }
+        if (v2 == nil) { return }
     }
     v2 + 1
     // CHECK-NEXT: optional type cannot be used with '+' operator.
 }
 
 func fn8(v1 int?, v2 int?) {
-    if (v1 == null) { return }
+    if (v1 == nil) { return }
     // Shadow Scope A (v1: int)
-    if (v2 == null) { return }
+    if (v2 == nil) { return }
     // Shadow Scope B (v1: int, v2: int)
     v1 + v2
 }
 
 func fn9() {
-    let v2 int? = null
+    let v2 int? = nil
     {
         {
-            if (v2 == null) { return }
+            if (v2 == nil) { return }
         }
         v2 + 1
         // CHECK-NEXT: optional type cannot be used with '+' operator.
@@ -124,29 +124,29 @@ func fn9() {
 }
 
 func fn10(v int?) {
-    if !(v != null) {
+    if !(v != nil) {
         return
     }
     v + 1
 }
 
 func fn10_1(v int?) {
-    if !!(v == null) {
+    if !!(v == nil) {
         return
     }
     v + 1
 }
 
 func fn10_2(v int?) {
-    if !!(!(v == null)) {
+    if !!(!(v == nil)) {
         return
     }
     v + 1
-    // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+    // CHECK-NEXT: optional type cannot be used with '+' operator when value is nil.
 }
 
 func fn11(v int?) int {
-    if (v == null) {
+    if (v == nil) {
         return 1
         v + 1 // dead code
     }
@@ -155,7 +155,7 @@ func fn11(v int?) int {
 }
 
 func fn12(v int?) int {
-    if (v == null) {
+    if (v == nil) {
         {
             return 1 // The return is inside a naked block
         }
@@ -167,14 +167,14 @@ func fn12(v int?) int {
 }
 
 func fn13(v int?) int {
-    if (v == null) {
+    if (v == nil) {
         return 1
         v + 1 // // dead code
     }
 
     v + 1
 
-    if (v == null) {
+    if (v == nil) {
         // CHECK-NEXT: cannot compare non-optional type with optional type for '==' operator.
         {
             return 1 // The return is inside a naked block
@@ -187,13 +187,13 @@ func fn13(v int?) int {
 func fn14(v1 int?) int {
     var v int? = v1
 
-    if (v == null) { return 0 }
+    if (v == nil) { return 0 }
 
     {
-        v = null
+        v = nil
     }
 
-    if (v == null) { return 1 }
+    if (v == nil) { return 1 }
 
     return v
 }
@@ -201,7 +201,7 @@ func fn14(v1 int?) int {
 func fn14_1(v1 int?) int {
     var v int? = v1
 
-    if (v == null) { return 0 }
+    if (v == nil) { return 0 }
 
     {
         v = 100
@@ -218,39 +218,39 @@ func fn14_2(v1 int?) int {
 }
 
 func fn15 () {
-    let v1 int? = null
+    let v1 int? = nil
 
-    if (v1 != null) {
-        // in here, 'v' is non-null
+    if (v1 != nil) {
+        // in here, 'v' is non-nil
     } else {
-        // in here, 'v' is null
+        // in here, 'v' is nil
     }
     // no shadow
 
     v1 - 200
     // CHECK-NEXT: optional type cannot be used with '-' operator.
 
-    if v1 == null {
+    if v1 == nil {
         return
     }
-    // shadow 'v1' as non-null here
+    // shadow 'v1' as non-nil here
 
     v1 + 200
 
     let v2 int? = 1
 
-    if (v2 == null) {
-        // in here, 'v2' is null
+    if (v2 == nil) {
+        // in here, 'v2' is nil
     }
     // no shadow
 
     v2 - 100
     // CHECK-NEXT: optional type cannot be used with '-' operator.
 
-    if v2 == null {
+    if v2 == nil {
         return
     }
-    // shadow 'v2' as non-null here
+    // shadow 'v2' as non-nil here
 
     v2 + 100
     v1 + 123

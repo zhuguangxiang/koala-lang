@@ -3,19 +3,19 @@
 // ---- Comparison operators with various '!' chain depths ----
 
 func check_eq_1(v int?) bool {
-    return !(v == null)          // count=1 (odd) -> flip to cmpne, no lnot
+    return !(v == nil)          // count=1 (odd) -> flip to cmpne, no lnot
 }
 
 func check_eq_2(v int?) bool {
-    return !!(v == null)         // count=2 (even) -> stays cmpeq, no lnot
+    return !!(v == nil)         // count=2 (even) -> stays cmpeq, no lnot
 }
 
 func check_eq_3(v int?) bool {
-    return !!!(v == null)        // count=3 (odd) -> flip to cmpne, no lnot
+    return !!!(v == nil)        // count=3 (odd) -> flip to cmpne, no lnot
 }
 
 func check_eq_4(v int?) bool {
-    return !!!!(v == null)       // count=4 (even) -> stays cmpeq, no lnot
+    return !!!!(v == nil)       // count=4 (even) -> stays cmpeq, no lnot
 }
 
 func check_ne_1(a int, b int) bool {
@@ -56,10 +56,10 @@ func check_plain_bool_double(flag bool) bool {
 // }
 
 func main() {
-    print(check_eq_1(null))
-    print(check_eq_2(null))
-    print(check_eq_3(null))
-    print(check_eq_4(null))
+    print(check_eq_1(nil))
+    print(check_eq_2(nil))
+    print(check_eq_3(nil))
+    print(check_eq_4(nil))
     print(check_ne_1(1, 2))
     print(check_lt_1(5, 10))
     print(check_le_1(5, 5))

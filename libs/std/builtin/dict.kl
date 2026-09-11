@@ -70,7 +70,7 @@ pub class dict[K, V] : Map[K, V] {
     @native
     pub func remove_or(key K, default_value V) V {}
 
-    /// Return the value for `key` if present, else null. O(1).
+    /// Return the value for `key` if present, else nil. O(1).
     /// Unlike `__getsub__`, this never panics; use with `if let` unwrapping.
     @native
     pub func get(key K) V? {}

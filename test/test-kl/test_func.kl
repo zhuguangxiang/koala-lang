@@ -23,7 +23,7 @@ func fn5() int {
 }
 
 func fn5_1() int? {
-    return null
+    return nil
 }
 
 func println(s str) {
@@ -46,21 +46,21 @@ var val int = opt
 // CHECK-NEXT: Types of two sides are not matched.
 // CHECK-NEXT: lhs: int64 =/= rhs: int64?
 
-var val1 int = null
+var val1 int = nil
 // CHECK-NEXT: Types of two sides are not matched.
 // CHECK-NEXT: lhs: int64 =/= rhs: _?
 
-var val1_1 int? = null
+var val1_1 int? = nil
 
-var val2 bool = opt == null
-var val3 bool = opt != null
-var val4 bool = null == opt
-var val5 bool = null != opt
-var val6 bool = null == null
-var val7 bool = null != null
-var val8 bool = 100 == null
+var val2 bool = opt == nil
+var val3 bool = opt != nil
+var val4 bool = nil == opt
+var val5 bool = nil != opt
+var val6 bool = nil == nil
+var val7 bool = nil != nil
+var val8 bool = 100 == nil
 // CHECK-NEXT: cannot compare non-optional type with optional type for '==' operator.
-var val9 bool = null != 100
+var val9 bool = nil != 100
 // CHECK-NEXT: cannot compare optional type with non-optional type for '!=' operator.
 
 var val10 bool = opt == 100
@@ -83,7 +83,7 @@ func fn7(v int?) {
     v + 100
     // CHECK-NEXT: optional type cannot be used with '+' operator.
 
-    null + 100
+    nil + 100
     // CHECK-NEXT: optional type cannot be used with '+' operator.
 
     if v {
@@ -95,27 +95,27 @@ func fn7(v int?) {
     100 + v
     // CHECK-NEXT: argument type mismatch for operator '+' of type 'int64'.
 
-    if v != null {
+    if v != nil {
         v + 123
     }
 
     v + 123
     // CHECK-NEXT: optional type cannot be used with '+' operator.
 
-    if null != v {
+    if nil != v {
         456 + v
     }
 
-    if null != null {
+    if nil != nil {
         789 + 100
     }
 
-    if v == null {
+    if v == nil {
         v + 321
-        // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+        // CHECK-NEXT: optional type cannot be used with '+' operator when value is nil.
     }
 
-    if v != null {
+    if v != nil {
         if v == 100 { // 这里 v 已经是 int 了，应该允许和 100 比较
             // OK
         }
@@ -127,7 +127,7 @@ func fn7(v int?) {
         // CHECK-NEXT: optional type cannot be used with '+' operator.
     }
 
-    if Foo().fly() != null {
+    if Foo().fly() != nil {
         Foo().fly() + 50
         // CHECK-NEXT: optional type cannot be used with '+' operator.
     }
@@ -136,21 +136,21 @@ func fn7(v int?) {
     n.__add__(50)
     // CHECK-NEXT: '__add__' cannot be called explicitly, use the '+' operator instead.
 
-    if (v == null) {
+    if (v == nil) {
         v + 100
-        // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+        // CHECK-NEXT: optional type cannot be used with '+' operator when value is nil.
     } else {
         v + 200
     }
 
-    if (v != null) {
+    if (v != nil) {
         v + 300
     } else {
         v + 400
-        // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+        // CHECK-NEXT: optional type cannot be used with '+' operator when value is nil.
     }
 
-    if v == null {
+    if v == nil {
         500 + v
         // CHECK-NEXT: argument type mismatch for operator '+' of type 'int64'.
     } else if v > 100 {
@@ -159,7 +159,7 @@ func fn7(v int?) {
         700 + v
     }
 
-    if v == null {
+    if v == nil {
         324 + v
         // CHECK-NEXT: argument type mismatch for operator '+' of type 'int64'.
     } else {
@@ -170,7 +170,7 @@ func fn7(v int?) {
         }
     }
 
-    if v == null {
+    if v == nil {
        return
     }
 
@@ -198,13 +198,13 @@ func fn16(v1 int?) int {
 func fn14(v1 int?) int {
     var v int? = v1
 
-    if (v == null) { return 0 }
+    if (v == nil) { return 0 }
 
     {
-        v = null
+        v = nil
     }
 
-    if (v == null) { return 1 }
+    if (v == nil) { return 1 }
 
     return v
 }
@@ -212,7 +212,7 @@ func fn14(v1 int?) int {
 func fn15(v1 int?) int {
     var v int? = v1
 
-    if (v == null) { return 0 }
+    if (v == nil) { return 0 }
 
     {
         v = 100

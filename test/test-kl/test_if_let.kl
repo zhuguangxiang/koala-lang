@@ -12,7 +12,7 @@ class Foo {
     func __init__() {}
 
     func foo() Bar? {
-        return null
+        return nil
     }
 
     func test1() int { return 1; }
@@ -30,13 +30,13 @@ func fn1(f1 Foo?) int {
 
     var f = f1
 
-    if (f == null) { return 0 }
+    if (f == nil) { return 0 }
 
     {
-        f = null
+        f = nil
     }
 
-    if (f == null) { return 1 }
+    if (f == nil) { return 1 }
 
     return f.bar()
 }

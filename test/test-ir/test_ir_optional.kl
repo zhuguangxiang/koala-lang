@@ -3,7 +3,7 @@
 func show(cond bool, msg str?) {
     // if cond == false {
     if !cond {
-        if msg == null {
+        if msg == nil {
             print("assertion failed: ", "no message")
         } else {
             print("assertion failed: ", msg)

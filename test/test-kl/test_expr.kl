@@ -12,7 +12,7 @@ class Foo {
     func __init__() {}
 
     func foo() Bar? {
-        return null
+        return nil
     }
 
     func test1() int { return 1; }
@@ -54,7 +54,7 @@ let a = f1?.test1() // 应推导为 int?
 
 let b = f1?.test2() // 应推导为 int? (由于你的扁平化逻辑，不再是 int??)
 
-let f2 Foo? = null // OK
+let f2 Foo? = nil // OK
 
 f2.bar()
 // CHECK-NEXT: optional cannot use dot operator.
@@ -68,41 +68,41 @@ let f3 Foo = f2
 
 
 func fn(v int?) int {
-    if v == null{
+    if v == nil{
         return 1
     } else {
         return 0
     }
 
-    if v == null { return 1 }
+    if v == nil { return 1 }
 
     v + 1
 
-    v == null
+    v == nil
     // CHECK-NEXT: cannot compare non-optional type with optional type for '==' operator.
     return 100
 }
 
 func fn2(v int?) int {
-    if null != v {
+    if nil != v {
         return 1
     } else {
         return 0
     }
 
-    if null != v { return 1 }
+    if nil != v { return 1 }
 
     v + 1
-    // CHECK-NEXT: optional type cannot be used with '+' operator when value is null.
+    // CHECK-NEXT: optional type cannot be used with '+' operator when value is nil.
 
-    null != v
+    nil != v
 
     return 100
 }
 
 func fn3(v int?, v2 int?) int {
-    if v == null {
-        if null == v2 {
+    if v == nil {
+        if nil == v2 {
             return 1
         }
 
@@ -113,10 +113,10 @@ func fn3(v int?, v2 int?) int {
 }
 
 func fn4(v int?, v2 int?) int {
-    if v == null {
+    if v == nil {
         return 0
     } else {
-        if null == v2 {
+        if nil == v2 {
             return 1
         }
 

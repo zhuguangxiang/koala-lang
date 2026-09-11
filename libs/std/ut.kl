@@ -83,7 +83,7 @@ pub func assert_eq[T : Equatable[T]](a T, b T) {
 ///
 /// Example:
 ///     assert_ne(status_code, 404)
-///     assert_ne(ptr, null)
+///     assert_ne(ptr, nil)
 pub func assert_ne[T : Equatable[T]](a T, b T) {
     if a == b {
         panic(format("assertion failed: {} == {}", a, b))

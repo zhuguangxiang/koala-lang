@@ -35,7 +35,7 @@ class Node {
         // CHECK-NEXT: parameter 'val' conflicts with field name in class 'Node'
         val = val
         // CHECK-NEXT: cannot assign to immutable variable 'val'
-        next = null
+        next = nil
     }
 }
 

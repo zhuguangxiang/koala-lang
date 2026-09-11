@@ -7,8 +7,8 @@ class ListNode[T, W] {
 
     func __init__(_value T) {
         value = _value
-        next = null
-        prev = null
+        next = nil
+        prev = nil
     }
 
     func getValue() T {
@@ -50,8 +50,8 @@ class List[V, U] {
     var extra V
 
     func __init__(_extra V) {
-        head = null
-        tail = null
+        head = nil
+        tail = nil
         extra = _extra
     }
 

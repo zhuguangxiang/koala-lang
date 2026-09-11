@@ -849,7 +849,7 @@ func int_value_str(c KConst) str {
 // Inline value, used for initializers and default arguments.
 func const_value(c KConst, pool list[KConst]) str {
     if c.kind == K_NONE {
-        return "null"
+        return "nil"
     }
     if c.kind == K_OBJECT {
         return "<object>"
@@ -1350,7 +1350,7 @@ func show_codes(f KlcFile) {
 
 func read_file_bytes(path str) bytes {
     let fp = fs.open(path, "r")
-    if fp == null {
+    if fp == nil {
         panic("cannot open file: " + path)
     }
     let f = fp!
