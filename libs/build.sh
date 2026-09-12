@@ -1,6 +1,6 @@
 #!/bin/bash
 
-koalac --build-stdlib --cgen --write-klc std/builtin --package-name=std/builtin
+koalac --build-stdlib --cgen --write-klc --fusion std/builtin --package-name=std/builtin
 
 koala -c std/io --package-name=std/io
 koala -c std/fs --package-name=std/fs

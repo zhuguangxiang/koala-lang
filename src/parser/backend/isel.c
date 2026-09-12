@@ -1154,6 +1154,22 @@ static void isel_lower_hash_str(KlrInsn *insn)
     }
 }
 
+static void isel_lower_contains(KlrInsn *insn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    KlrValue *val = insn_oper_value(insn, 1);
+
+    if (klr_is_const(obj)) {
+        KlrValue *_obj = lower_const(insn, (KlrConst *)obj);
+        set_operand_at(insn, 0, _obj);
+    }
+
+    if (klr_is_const(val)) {
+        KlrValue *_val = lower_const(insn, (KlrConst *)val);
+        set_operand_at(insn, 1, _val);
+    }
+}
+
 static void do_isel(KlrFunc *fn)
 {
     log_info("isel for func '%s'", fn->name);
@@ -1275,6 +1291,11 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_SEQ_GET_SLICE: {
                     isel_lower_seq_get_slice(insn);
+                    break;
+                }
+
+                case OP_CONTAINS: {
+                    isel_lower_contains(insn);
                     break;
                 }
 

@@ -1282,6 +1282,8 @@ static const char *operator_dunder_sugar(const char *name)
         { "__hash__", "the 'hash()' function" },
         // printable
         { "__str__", "the 'str()' function" },
+        // len
+        { "__len__", "the 'len()' function" },
         // callable
         { "__call__", "the call syntax 'obj(...)'" },
         // membership
@@ -2996,6 +2998,46 @@ static void parse_is(ParserState *ps, Expr *exp)
              is->result ? "true" : "unknown (maybe false at runtime)");
 }
 
+static void parse_in(ParserState *ps, Expr *exp)
+{
+    InExpr *in = (InExpr *)exp;
+    Expr *e = in->lhs;
+    e->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, e);
+    if (!e->ts) return;
+
+    Expr *container = in->rhs;
+    container->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, container);
+    if (!container->ts) return;
+
+    Symbol *container_ts_sym = get_symbol_by_id(container->ts->sym_id);
+    ASSERT(container_ts_sym);
+    Symbol *_fn_sym = stbl_get(container_ts_sym->stbl, "__contains__");
+    if (!_fn_sym) {
+        kl_error(in->op_loc, "container type does not support '__contains__' method.");
+        return;
+    }
+
+    if (_fn_sym->kind != SYM_FUNC) {
+        kl_error(in->op_loc, "'__contains__' is not a function.");
+        return;
+    }
+
+    Vector *params = ((FuncSymbol *)_fn_sym)->params;
+    Vector _args;
+    vector_init_ptr(&_args);
+    vector_push_back(&_args, &e);
+    check_call_args(params, &_args, ps, in->op_loc);
+    vector_fini(&_args);
+
+    if (ps->errors > 0) return;
+
+    exp->ts = bool_type_spec();
+    exp->sym = get_symbol_by_id(exp->ts->sym_id);
+    log_info("'in' operator resolved.");
+}
+
 static void parse_const_placeholder(ParserState *ps, Expr *exp)
 {
     ConstPlaceholderExpr *cp = (ConstPlaceholderExpr *)exp;
@@ -3042,6 +3084,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_KW_KIND]      = parse_keyword,
         [EXPR_IS_KIND]      = parse_is,
         [EXPR_AS_KIND]      = parse_as,
+        [EXPR_IN_KIND]      = parse_in,
         [EXPR_BANG_KIND]    = parse_bang,
         [EXPR_CONST_PLACEHOLDER] = parse_const_placeholder,
     };

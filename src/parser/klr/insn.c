@@ -902,6 +902,27 @@ KlrValue *klr_build_slice_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, 
     return (KlrValue *)insn;
 }
 
+KlrValue *klr_build_contains(KlrBuilder *bldr, KlrValue *obj, KlrValue *val, char *name)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
+        obj->kind != KLR_VALUE_CONST) {
+        panic("'contains' op requires a reg/param/const value for obj");
+    }
+
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
+        val->kind != KLR_VALUE_PARAM) {
+        panic("'contains' op requires a reg/param/const value for val");
+    }
+
+    KlrInsn *insn = new_insn(OP_CONTAINS, 2, name);
+    init_oper(&insn->opers[0], insn, obj, 0);
+    init_oper(&insn->opers[1], insn, val, 0);
+
+    insn->ts = bool_type_spec();
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -24,9 +24,9 @@ func main() {
     print(s[0:5])
     print(s[6:11])
 
-    // // __contains__
-    // print("world" in s)
-    // print("xyz" in s)
+    // __contains__
+    print("world" in s)
+    print("xyz" in s)
 
     // index: basic / first occurrence / with start / not found / UTF-8 char-level
     print(s.index("world"))
@@ -203,8 +203,8 @@ func main() {
 
 // CHECK: hello
 // CHECK: world
-// TODO: true
-// TODO: false
+// CHECK: true
+// CHECK: false
 
 // CHECK: 6
 // CHECK: 4

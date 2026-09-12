@@ -303,6 +303,9 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
 
         case SYM_FUNC: {
             ASSERT(sym->ir_val);
+            if (is_magic_func((FuncSymbol *)sym)) {
+                sym->ir_val->magic = 1;
+            }
             exp->ir_val = sym->ir_val;
             break;
         }
@@ -1537,6 +1540,25 @@ static void emit_ir_const_placeholder(ParserState *ps, Expr *exp)
     SET_IR_LOC(exp->ir_val, exp);
 }
 
+static void emit_ir_contains(ParserState *ps, Expr *exp)
+{
+    InExpr *in = (InExpr *)exp;
+    Expr *obj = in->rhs;
+    Expr *val = in->lhs;
+
+    obj->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, obj);
+    if (!obj->ir_val) return;
+
+    val->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, val);
+    if (!val->ir_val) return;
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    exp->ir_val = klr_build_contains(&bldr, obj->ir_val, val->ir_val, "");
+}
+
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -1559,6 +1581,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_UNARY_KIND]   = emit_ir_unary,
         [EXPR_BINARY_KIND]  = emit_ir_binary,
         [EXPR_KW_KIND]      = emit_ir_kw,
+        [EXPR_IN_KIND]      = emit_ir_contains,
         [EXPR_BANG_KIND]    = emit_ir_bang,
         [EXPR_CONST_PLACEHOLDER] = emit_ir_const_placeholder,
     };

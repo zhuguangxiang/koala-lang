@@ -7,21 +7,21 @@
 /// It provides a safe way to traverse collections through a check-then-act pattern.
 pub trait Iterator[T] {
     /// Return true if the iteration has more elements, false otherwise.
-    /// This method must be checked before every call to `__next__()`.
-    func __has_next__() bool
+    /// This method must be checked before every call to `next()`.
+    func has_next() bool
 
     /// Return the next item from the iterator.
     ///
-    /// PRECONDITION: `__has_next__()` must return true before calling this method.
-    /// If called when `__has_next__()` is false, it will trigger a panic.
-    func __next__() T
+    /// PRECONDITION: `has_next()` must return true before calling this method.
+    /// If called when `has_next()` is false, it will trigger a panic.
+    func next() T
 }
 
 /// The Iterable trait is the basis for all objects that can be looped over.
 /// It provides lazy functional operators for efficient data processing.
 pub trait Iterable[T] {
     /// Return a new iterator object to begin a traversal of the elements.
-    func __iter__() Iterator[T]
+    func iter(_step = 1) Iterator[T]
 
     /// Return a lazy filter object that yields items for which `fn` returns true.
     ///

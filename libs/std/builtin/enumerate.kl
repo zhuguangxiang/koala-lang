@@ -1,0 +1,26 @@
+/// Specialized explicit implementation for enumerating an iterable into an iterator of (index, item) pairs.
+
+// pub class Enumerate[T] : Iterator[(int, T)] {
+//     let iterator Iterator[T]
+//     var cursor int
+
+//     pub func __init__(_iterable Iterable[T]) {
+//         iterator = iter(_iterable)
+//         cursor = 0
+//     }
+
+//     pub func has_next() bool {
+//         return iterator.has_next()
+//     }
+
+//     pub func next() (int, T) {
+//         if iterator.has_next() {
+//             let idx = cursor
+//             let val = iterator.next()
+//             cursor = cursor + 1
+//             return (idx, val)
+//         } else {
+//             panic("No more elements in Enumerate")
+//         }
+//     }
+// }

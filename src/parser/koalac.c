@@ -476,6 +476,24 @@ static void compile(ParserModule *pm)
     ParserState *ps;
     vector_foreach(ps, &pm->pss) {
         if (!ps) continue;
+        kl_parse_ast_klass_meta(ps);
+        errors += ps->errors;
+    }
+
+    vector_foreach(ps, &pm->pss) {
+        if (!ps) continue;
+        kl_parse_ast_klass_func_meta(ps);
+        errors += ps->errors;
+    }
+
+    vector_foreach(ps, &pm->pss) {
+        if (!ps) continue;
+        kl_parse_ast_func_meta(ps);
+        errors += ps->errors;
+    }
+
+    vector_foreach(ps, &pm->pss) {
+        if (!ps) continue;
         kl_parse_ast(ps);
         errors += ps->errors;
     }

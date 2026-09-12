@@ -209,20 +209,25 @@ static inline void load_builtin_module(ParserModule *pm)
     fixup_traits_inherited_methods(pkg_sym->stbl);
 }
 
-static void mark_magic_func(HashMap *stbl)
+static void mark_magic_func(Symbol *sym)
+{
+    if (sym->kind != SYM_FUNC) return;
+
+    if (str_equal(sym->name, "len")) {
+        sym->flags |= SYM_FLAGS_MAGIC;
+        log_info("marked magic function '%s'", sym->name);
+    } else if (str_equal(sym->name, "hash")) {
+        sym->flags |= SYM_FLAGS_MAGIC;
+        log_info("marked magic function '%s'", sym->name);
+    }
+}
+
+static void mark_magic_funcs(HashMap *stbl)
 {
     HashMapIter it = { 0 };
     while (hashmap_next(stbl, &it)) {
         Symbol *sym = (Symbol *)it.entry;
-        if (sym->kind == SYM_FUNC) {
-            if (str_equal(sym->name, "len")) {
-                sym->flags |= SYM_FLAGS_MAGIC;
-                log_info("marked magic function '%s'", sym->name);
-            } else if (str_equal(sym->name, "hash")) {
-                sym->flags |= SYM_FLAGS_MAGIC;
-                log_info("marked magic function '%s'", sym->name);
-            }
-        }
+        mark_magic_func(sym);
     }
 }
 
@@ -234,7 +239,10 @@ void init_parser(ParserModule *pm)
     inferred = inferred_map();
     if (!is_build_stdlib()) {
         load_builtin_module(pm);
-        mark_magic_func(pm->builtin);
+        mark_magic_funcs(pm->builtin);
+    } else {
+        // build builtin module
+        pm->builtin = pm->stbl;
     }
 }
 
@@ -3022,14 +3030,6 @@ static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls)
     /* parse base traits */
     parse_bases(ps, kls);
 
-    /* compute vtbl info */
-    compute_vtbl_info(sym);
-
-    if (sym->kind == SYM_TRAIT) {
-        // for trait, inherit methods from base traits
-        inherit_trait_methods(sym, kls->loc, ps);
-    }
-
     exit_scope(ps);
 
     sym->status = SYM_RESOLVED;
@@ -3158,6 +3158,10 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
 
     sym->status = SYM_RESOLVED;
 
+    if (is_build_stdlib()) {
+        mark_magic_func((Symbol *)sym);
+    }
+
     if (!has_specialized_meta((Stmt *)fn)) return;
 
     if (!toplevel) {
@@ -3169,7 +3173,7 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
     update_specialized_func(sym, tp_args_list, ps);
 }
 
-static void parse_klass_func_meta(ParserState *ps, KlassDeclStmt *kls)
+static void parse_klass_member_meta(ParserState *ps, KlassDeclStmt *kls)
 {
     KlassSymbol *sym = (KlassSymbol *)kls->sym;
 
@@ -3181,12 +3185,64 @@ static void parse_klass_func_meta(ParserState *ps, KlassDeclStmt *kls)
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
 
+    /* compute vtbl info */
+    compute_vtbl_info(sym);
+
+    if (sym->kind == SYM_TRAIT) {
+        // for trait, inherit methods from base traits
+        inherit_trait_methods(sym, kls->loc, ps);
+    }
+
     Stmt *stmt;
     vector_foreach(stmt, kls->stmts) {
         if (!stmt) continue;
-        if (stmt->kind == STMT_FUNC_KIND) {
+        if (stmt->kind == STMT_VAR_KIND) {
+            parse_var_decl(ps, stmt);
+        } else if (stmt->kind == STMT_FUNC_KIND) {
             parse_func_meta(ps, (FuncDeclStmt *)stmt, 0);
         }
+    }
+
+    exit_scope(ps);
+}
+
+void kl_parse_ast_klass_meta(ParserState *ps)
+{
+    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
+    scope->stbl = ps->pm->stbl;
+
+    KlassDeclStmt *kls;
+    vector_foreach(kls, &ps->kls_stmts) {
+        if (!kls) continue;
+        parse_klass_meta(ps, kls);
+    }
+
+    exit_scope(ps);
+}
+
+void kl_parse_ast_klass_func_meta(ParserState *ps)
+{
+    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
+    scope->stbl = ps->pm->stbl;
+
+    KlassDeclStmt *kls;
+    vector_foreach(kls, &ps->kls_stmts) {
+        if (!kls) continue;
+        parse_klass_member_meta(ps, kls);
+    }
+
+    exit_scope(ps);
+}
+
+void kl_parse_ast_func_meta(ParserState *ps)
+{
+    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
+    scope->stbl = ps->pm->stbl;
+
+    FuncDeclStmt *fn;
+    vector_foreach(fn, &ps->fn_stmts) {
+        if (!fn) continue;
+        parse_func_meta(ps, fn, 1);
     }
 
     exit_scope(ps);
@@ -3203,23 +3259,6 @@ void kl_parse_ast(ParserState *ps)
 
     ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
     scope->stbl = ps->pm->stbl;
-
-    KlassDeclStmt *kls;
-    vector_foreach(kls, &ps->kls_stmts) {
-        if (!kls) continue;
-        parse_klass_meta(ps, kls);
-    }
-
-    vector_foreach(kls, &ps->kls_stmts) {
-        if (!kls) continue;
-        parse_klass_func_meta(ps, kls);
-    }
-
-    FuncDeclStmt *fn;
-    vector_foreach(fn, &ps->fn_stmts) {
-        if (!fn) continue;
-        parse_func_meta(ps, fn, 1);
-    }
 
     Stmt *stmt;
     vector_foreach(stmt, &ps->stmts) {

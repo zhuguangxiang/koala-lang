@@ -1,0 +1,23 @@
+/// Specialized explicit implementation for zipping two iterables into an iterator of tuple pairs.
+
+// pub class Zip[T, U] : Iterator[(T, U)] {
+//     let it_a Iterator[T]
+//     let it_b Iterator[U]
+
+//     pub func __init__(_a Iterable[T], _b Iterable[U]) {
+//         it_a = iter(_a)
+//         it_b = iter(_b)
+//     }
+
+//     pub func has_next() bool {
+//         return it_a.has_next() && it_b.has_next()
+//     }
+
+//     pub func next() (T, U) {
+//         if it_a.has_next() && it_b.has_next() {
+//             return (it_a.next(), it_b.next())
+//         } else {
+//             panic("No more elements in Zip")
+//         }
+//     }
+// }

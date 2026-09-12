@@ -29,8 +29,30 @@ pub class str : Sequence & Comparable {
     pub func __init__(s any) {}
 
     /// Return an iterator over the characters of the string.
-    @native
-    pub func __iter__() Iterator[str] {}
+    ///
+    /// The iterator traverses the string from left to right, returning
+    /// one character per step. The optional `_step` argument controls
+    /// the stride of iteration:
+    ///
+    /// - `_step = 1` produces a normal character-by-character traversal.
+    /// - `_step > 1` skips characters, yielding a strided iteration.
+    ///
+    /// The iterator is stateful and does not allocate; it reads directly
+    /// from the underlying string.
+    pub func iter(_step = 1) StrIterator { return StrIterator(self, _step) }
+
+    /// Return a reverse iterator over the characters of the string.
+    ///
+    /// The iterator traverses the string from right to left, returning
+    /// one character per step. The optional `_step` argument controls
+    /// the stride of reverse iteration:
+    ///
+    /// - `_step = 1` produces a normal reverse traversal.
+    /// - `_step > 1` skips characters in reverse order.
+    ///
+    /// The iterator is stateful and does not allocate; it reads directly
+    /// from the underlying string.
+    pub func reversed(_step = 1) StrReverseIterator { return StrReverseIterator(self, _step) }
 
     /// Return the length of the string.
     @native
@@ -260,8 +282,123 @@ pub class str : Sequence & Comparable {
     /// Return true if all cased characters in the string are uppercase.
     @native
     pub func isupper() bool {}
+}
 
-    /// Return a reverse iterator over the characters of the string.
-    @native
-    pub func reversed() Iterator[str] {}
+/// An iterator over the characters of a string, from left to right.
+///
+/// `StrIterator` is the default iterator returned by `str.iter()`.
+/// It provides sequential access to each character in UTF‑8 order.
+///
+/// The iterator is *stateful*: it maintains an internal cursor that
+/// advances by `step` on each call to `next()`. A `step` greater than 1
+/// produces a strided iteration (e.g., every second or third character).
+///
+/// Once the cursor reaches or exceeds the string length, `has_next()`
+/// returns false and `next()` panics.
+///
+/// Notes:
+/// - Characters are returned as `str` (single‑character strings).
+/// - The iterator does not allocate; it reads directly from the source string.
+/// - Iterators are not resettable; create a new iterator to iterate again.
+/// - Strided iteration is useful for sampling, scanning, and simple parsing.
+pub class StrIterator : Iterator[str] {
+    let step int
+    let source str
+    let length int
+    var cursor int
+
+    /// Initialize a forward iterator over `_s` with an optional stride `_step`.
+    ///
+    /// The cursor starts at index 0 and advances by `step` on each iteration.
+    /// A `step` of 1 produces a normal character-by-character traversal.
+    pub func __init__(_s str, _step = 1) {
+        source = _s
+        length = len(_s)
+        cursor = 0
+        step = _step
+    }
+
+    /// Return true if there are remaining characters to iterate.
+    pub func has_next() bool {
+        return cursor < length
+    }
+
+    /// Return the next character and advance the cursor by `step`.
+    ///
+    /// Panic if the iterator is exhausted.
+    pub func next() str {
+        if cursor < length {
+            let ch = source[cursor]
+            cursor = cursor + step
+            return ch
+        } else {
+            panic("No more elements in StrIterator")
+        }
+    }
+
+    /// Return a human-readable description of the iterator state.
+    ///
+    /// Useful for debugging and logging.
+    pub func __str__() str {
+        return format("StrIterator(step={}, cursor={}, length={})", step, cursor, length)
+    }
+}
+
+/// A reverse iterator over the characters of a string, from right to left.
+///
+/// `StrReverseIterator` is returned by `str.reversed()`. It iterates
+/// characters in reverse UTF‑8 order, starting from the last character
+/// and moving toward index 0.
+///
+/// Like `StrIterator`, this iterator is *stateful* and advances by `step`.
+/// A `step` greater than 1 produces a strided reverse traversal.
+///
+/// Once the cursor moves past index 0, `has_next()` returns false and
+/// `next()` panics.
+///
+/// Notes:
+/// - Characters are returned as `str` (single‑character strings).
+/// - The iterator does not allocate; it reads directly from the source string.
+/// - Reverse iteration is useful for right‑to‑left scanning, suffix analysis,
+///   and algorithms that naturally operate from the end of a string.
+pub class StrReverseIterator : Iterator[str] {
+    let step int
+    let source str
+    let length int
+    var cursor int
+
+    /// Initialize a reverse iterator over `_s` with an optional stride `_step`.
+    ///
+    /// The cursor starts at `length - 1` and moves backward by `step`.
+    pub func __init__(_s str, _step = 1) {
+        source = _s
+        length = len(_s)
+        cursor = length - 1
+        step = _step
+    }
+
+    /// Return true if there are remaining characters to iterate in reverse.
+    pub func has_next() bool {
+        return cursor >= 0
+    }
+
+    /// Return the next character in reverse order and move the cursor backward.
+    ///
+    /// Panic if the iterator is exhausted.
+    pub func next() str {
+        if cursor >= 0 {
+            let ch = source[cursor]
+            cursor = cursor - step
+            return ch
+        } else {
+            panic("No more elements in StrReverseIterator")
+        }
+    }
+
+    /// Return a human-readable description of the iterator state.
+    ///
+    /// Useful for debugging and logging.
+    pub func __str__() str {
+        return format("StrReverseIterator(step={}, cursor={}, length={})", step, cursor, length)
+    }
 }

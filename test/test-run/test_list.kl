@@ -11,7 +11,7 @@ func main() {
     print(l0)
 
     let l = [1, 2, 3]
-    print("length of l:", l.__len__())
+    print("length of l:", len(l))
     l.push(4)
     print(l)
     print("length of l:", len(l))
@@ -31,7 +31,7 @@ func main() {
 // CHECK: call @print [path = 'std/builtin'], %0 std/builtin.tuple<Lstd/builtin.list<o>;>, ' ' str, '\n' str
 // CHECK: %l = local [immutable] std/builtin.list<j>
 // CHECK: move %l std/builtin.list<j>, list[1, 2, 3] std/builtin.list<j>
-// CHECK: %1 = call @list:__len__ [path = 'std/builtin'], %l std/builtin.list<j>
+// CHECK: %1 = call @len [path = 'std/builtin'], %l std/builtin.list<j>
 // CHECK: %2 = build_intern @tuple, 'length of l:' str, %1 int64
 // CHECK: call @print [path = 'std/builtin'], %2 std/builtin.tuple<uj>, ' ' str, '\n' str
 // CHECK: call @list:push [path = 'std/builtin'], %l std/builtin.list<j>, 4 int64
@@ -51,7 +51,7 @@ func main() {
 // CHECK: call @print [path = 'std/builtin'], %8 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
 // CHECK: ret void
 
-// CHECK-LABEL: @main[6,54]:
+// CHECK-LABEL: @main[6,52]:
 // CHECK: loadk r1, #3
 // CHECK: build_intern r1, @tuple, #1
 // CHECK: loadk r2, #4
@@ -59,9 +59,7 @@ func main() {
 // CHECK: call flg=1, #3
 // CHECK: data (import_index=1)
 // CHECK: loadk r0, #9
-// CHECK: move r1, r0
-// CHECK: call flg=1, r2, #1
-// CHECK: data (import_index=2)
+// CHECK: len r2, r0
 // CHECK: loadk r1, #10
 // CHECK: build_intern r1, @tuple, #2
 // CHECK: loadk r2, #4
@@ -118,7 +116,6 @@ func main() {
 // CHECK-LABEL: Import Table:
 // CHECK: #0: method std/builtin::list::push
 // CHECK: #1: func   std/builtin::print
-// CHECK: #2: method std/builtin::list::__len__
 
 // CHECK:[]
 // CHECK:length of l: 3

@@ -160,6 +160,9 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token TYPE
 %token RANGE
 
+%token LAMBDA_START
+%token LAMBDA_START_OR
+
 %token AND
 %token OR
 %token NOT
@@ -239,9 +242,10 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<expr> map
 %type<expr> atom
 %type<expr> tuple_expr
-%type<expr> anony_expr
+%type<expr> lambda_expr
 %type<expr> assign_left_expr
 
+%type<type_spec> base_type
 %type<type_spec> array_type
 %type<type_spec> optional_type
 %type<type_spec> param_type
@@ -256,7 +260,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<type_spec> union_type
 %type<type_spec> union_opt_type
 %type<type_spec> const_type
-%type<type_spec> array_elem_type
+%type<type_spec> lambda_type
 
 %type<vec> const_expr_list
 %type<vec> id_as_list
@@ -265,6 +269,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<vec> atom_primitive_type_lists
 %type<vec> atom_primitive_type_list
 %type<vec> optional_type_list
+%type<vec> base_type_list
 %type<vec> block
 %type<vec> local_list
 %type<vec> map_list
@@ -320,6 +325,10 @@ program
     : top_stmts
     {
         yyparse_module(ps, $1);
+    }
+    | %empty
+    {
+        // empty program
     }
     ;
 
@@ -559,8 +568,8 @@ top_stmt
     ;
 
 type_alias
-    : TYPE ID '=' type
-    | TYPE ID '=' anony_type
+    : TYPE ID '=' base_type
+    | TYPE ID '=' lambda_type
     ;
 
 semi
@@ -671,6 +680,18 @@ atom_primitive_type_list
     ;
 
 optional_type
+    : base_type
+    {
+        $$ = $1;
+    }
+    | lambda_type
+    {
+        printf("anonymous func type\n");
+        $$ = NULL;
+    }
+    ;
+
+base_type
     : type
     {
         $$ = $1;
@@ -683,11 +704,6 @@ optional_type
     | array_type
     {
         $$ = $1;
-    }
-    | anony_type
-    {
-        printf("anonymous func type\n");
-        $$ = NULL;
     }
     ;
 
@@ -718,20 +734,60 @@ type
     }
     ;
 
-anony_type
-    : FUNC '(' optional_type_list ')' optional_type
+lambda_type
+    : '|' base_type_list '|' base_type
     {
         printf("optional func-type\n");
     }
-    | FUNC '(' optional_type_list ')'
+    | '|' base_type_list '|'
     {
         printf("no return func-type\n");
     }
-    | FUNC '(' ')' optional_type
+    | OR base_type
     {
         printf("no parameter func-type\n");
     }
-    | FUNC '(' ')'
+    | OR
+    {
+        printf("no return no parameter func-type\n");
+    }
+    | anony_type_with_brackets
+    {
+        printf("anonymous func type with brackets\n");
+    }
+    | anony_type_with_brackets '?'
+    {
+        printf("optional anonymous func type with brackets\n");
+    }
+    ;
+
+base_type_list
+    : base_type
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | base_type_list ',' base_type
+    {
+        vector_push_back($1, &$3);
+        $$ = $1;
+    }
+    ;
+
+anony_type_with_brackets
+    : LAMBDA_START base_type_list '|' base_type '}'
+    {
+        printf("optional func-type\n");
+    }
+    | LAMBDA_START base_type_list '|' '}'
+    {
+        printf("no return func-type\n");
+    }
+    | LAMBDA_START_OR base_type '}'
+    {
+        printf("no parameter func-type\n");
+    }
+    | LAMBDA_START_OR '}'
     {
         printf("no return no parameter func-type\n");
     }
@@ -804,7 +860,7 @@ list_type
     ;
 
 array_type
-    : ARRAY '[' array_elem_type ',' int_lit_list ']'
+    : ARRAY '[' type ',' int_lit_list ']'
     {
         NAME_ID(id, "array", loc(@1));
         Vector *args = vector_create_ptr();
@@ -814,7 +870,7 @@ array_type
         // $$->unresolved.shapes = $5;
         type_spec_loc($$, lloc(@1, @6));
     }
-    | '[' int_lit_list ']' array_elem_type
+    | '[' int_lit_list ']' type
     {
         NAME_ID(id, "array", loc(@1));
         Vector *args = vector_create_ptr();
@@ -828,23 +884,6 @@ array_type
     {
         kl_error(loc(@3), "expected a type and an integer literal list.");
         yy_clear_ok;
-        $$ = NULL;
-    }
-    ;
-
-array_elem_type
-    : type
-    {
-        $$ = $1;
-    }
-    | type '?'
-    {
-        $$ = optional_type_spec($1);
-        type_spec_loc($$, lloc(@1, @2));
-    }
-    | anony_type
-    {
-        printf("anonymous func type\n");
         $$ = NULL;
     }
     ;
@@ -3161,9 +3200,9 @@ atom_expr
     {
         $$ = NULL;
     }
-    | anony_expr
+    | lambda_expr
     {
-        $$ = NULL;
+        $$ = $1;
     }
     ;
 
@@ -3394,26 +3433,30 @@ tuple_expr
     }
     ;
 
-anony_expr
-    : FUNC '(' param_list ')' optional_type block
+lambda_expr
+    : LAMBDA_START lambda_params '|' expr '}'
     {
-
     }
-    | FUNC '(' param_list ')' block
+    | LAMBDA_START_OR expr '}'
     {
-
     }
-    | FUNC '(' ')' optional_type block
-    {
+    ;
 
+lambda_params
+    : lambda_param
+    {
     }
-    | FUNC '(' ')' block
+    | lambda_params ',' lambda_param
     {
-
     }
-    | FUNC error
-    {
+    ;
 
+lambda_param
+    : ID
+    {
+    }
+    | ID base_type
+    {
     }
     ;
 

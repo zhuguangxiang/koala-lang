@@ -262,6 +262,9 @@ static char hex2byte(const char *s)
 "range"     { YY_RETURN(RANGE);     }
 "array"     { YY_RETURN(ARRAY);     }
 
+"{||"       { YY_RETURN(LAMBDA_START_OR); }
+"{|"        { YY_RETURN(LAMBDA_START);    }
+
 "&&"        { YY_RETURN(AND);       }
 "||"        { YY_RETURN(OR);        }
 "!"         { YY_RETURN(NOT);       }

@@ -554,6 +554,15 @@ static void print_seq_set(const char *name, KlrInsn *insn, FILE *fp)
     print_operand(&insn->opers[2], fp);
 }
 
+static void print_contains(const char *name, KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = %s ", name);
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ", ");
+    print_operand(&insn->opers[1], fp);
+}
+
 void klr_print_insn(KlrInsn *insn, FILE *fp)
 {
     char *name = op_name(insn->code);
@@ -1211,6 +1220,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_SEQ_GET_SLICE:
             print_seq_get_slice(name, insn, fp);
+            break;
+
+        case OP_CONTAINS:
+            print_contains(name, insn, fp);
             break;
 
         default:

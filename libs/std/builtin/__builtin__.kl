@@ -89,17 +89,92 @@ pub func format(fmt str, args ...) str {}
 @native
 pub func typeof(obj any) type {}
 
+/*
+ * USER GUIDE: Generic Shells vs. @specialized Functions
+ *
+ * Koala provides two ways to write and optimize functions for multiple types:
+ *
+ * 1. Generic Shell Pattern (e.g., `abs`)
+ *    - How to use: Call `abs(x)` with any supported type.
+ *    - Behind the scenes: This is an unconstrained shell. To support a new type,
+ *      simply write a standalone function named `abs_<typename>`. The compiler
+ *      will automatically route calls to your custom version with zero overhead.
+ *    - Note: Passing an unsupported type will cause a runtime panic.
+ *
+ * 2. Automated Specialization (e.g., `min` / `max`)
+ *    - How to use: Call `min(x, y)` or `max(x, y)`. Arguments must be of the
+ *      SAME type and must implement the `Comparable` trait.
+ *    - Behind the scenes: Types listed in `@specialized(...)` run at native hardware
+ *      speeds. Other types fallback to safe interface-based dynamic dispatch.
+ *    - Note: Passing mixed types (e.g., int and float) will trigger a compile error.
+ */
+
+/// Unconstrained generic shell for absolute value. Fallback path triggers panic.
+pub func abs[T](a T) T {
+    panic("abs is not implemented for this type")
+}
+
+/// Specialized explicit implementation of `abs()` for 64-bit signed integers.
+///
+/// If user writes `abs(10)`, the compiler will route the call to `abs_int64(10)`.
+pub func abs_int64(a int) int {
+    if a < 0 { return 0 - a }
+    return a
+}
+
+/// Specialized explicit implementation of `abs()` for 64-bit floating-point numbers.
+///
+/// If user writes `abs(10.0)`, the compiler will route the call to `abs_float64(10.0)`.
+pub func abs_float64(a float) float {
+    if a < 0.0 { return 0.0 - a }
+    return a
+}
+
+/// Constrained generic maximum function, auto-specialized for primitives.
 @specialized(int, uint, float)
 pub func min[T : Comparable](x T, y T) T {
     if x < y { return x }
     return y
 }
 
+/// Constrained generic maximum function, auto-specialized for primitives.
+///
+/// This will generate the specialized `max_int64`, `max_uint64`, and `max_float64` functions.
+/// And user writes `max(10, 20)`, the compiler will route the call to `max_int64(10, 20)`.
 @specialized(int, uint, float)
 pub func max[T : Comparable](x T, y T) T {
     if x > y { return x }
     return y
 }
+
+/// Unconstrained generic shell for power/exponentiation. Fallback path triggers panic.
+///
+/// To extend support for custom types, implement a standalone function named
+/// `pow_<base_type>_<exp_type>`.
+pub func pow[T, U](base T, exp U) any {
+    panic("pow is not implemented for these types")
+}
+
+/// Specialized explicit implementation for 64-bit integer base and exponent.
+///
+/// Uses an optimized binary exponentiation (exponentiation by squaring) algorithm.
+/// If user writes `pow(2, 10)`, the compiler will route the call to `pow_int64_int64(2, 10)`.
+@native
+pub func pow_int64_int64(base int, exp int) int {}
+
+/// Specialized explicit implementation for float base and integer exponent.
+///
+/// Leverages fast fast-power squaring, allowing optimal register usage in the VM.
+/// If user writes `pow(2.0, 10)`, the compiler will route the call to `pow_float64_int64(2.0, 10)`.
+@native
+pub func pow_float64_int64(base float, exp int) float {}
+
+/// Specialized explicit implementation for float base and float exponent.
+///
+/// This is a native fallback that routes directly to the VM's high-performance C math library.
+/// If user writes `pow(2.0, 10.0)`, the compiler will route the call to `pow_float64_float64(2.0, 10.0)`.
+@native
+pub func pow_float64_float64(base float, exp float) float {}
 
 /*
 /// Return an iterator of (index, item) pairs from `seq`.

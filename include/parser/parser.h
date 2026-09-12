@@ -202,6 +202,9 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt);
 
 ParserState *new_parser_state(ParserModule *pm, char *path);
 void free_parser_state(ParserState *ps);
+void kl_parse_ast_klass_meta(ParserState *ps);
+void kl_parse_ast_klass_func_meta(ParserState *ps);
+void kl_parse_ast_func_meta(ParserState *ps);
 void kl_parse_ast(ParserState *ps);
 Vector *infer_func_tp(FuncSymbol *fn, Vector *args, ParserState *ps);
 FuncSymbol *get_current_function(ParserState *ps);
