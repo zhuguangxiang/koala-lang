@@ -1,11 +1,13 @@
 # Koala TODO
 
 > 记录未完成实现与待定设计：泛型数值协议（§1–4、§7–8）、语言手册（§5）、
-> 版本计划与路线图（§6）、容器协议相关（§9、§11、§12）、Truthiness 设想（§10）。
+> 版本计划与路线图（§6）、容器协议相关（§9、§11、§12）、Truthiness 设想（§10）、
+> 数值 cast 补全（§13，已完成转语义 / 测试基线记录）、from_str 解析 API（§14，设计定案未实现）、
+> 测试揭示的 WIP 特性（§15）。
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-09-01
+> 更新日期：2026-09-12
 
 ---
 
@@ -590,3 +592,87 @@ float → int **不 trap，而是饱和**——这是 `do_cast.h` mode 1 分支�
   - 因此 `test_cast_int.kl` 中 `test_i32_to_f32(-100000)` 与 `test_i32_to_f64(-100000)` 仍以注释 + `// expect:` 保留，是仅剩的两个未启用跨族用例；同文件末尾另有一组字面量本身的 worklist。
   - `test_const_int_cast_failed.kl` 里 `let a int32 = -40000` / `-100000` 两处目前"因错误的原因"通过（字面量先变成大正数，再触发常量越界报错）；字面量修好后诊断文本不变，**无需改动**。
 - [ ] **高位 uint64 print 成负数**：print 一个最高位为 1 的 uint64 输出有符号值（`UINT64_MAX` → −1）。疑似运行时打印问题，非 cast 问题；`test_cast_uint.kl` / `test_cast_float.kl` 的 CHECK 暂按实测值写。
+
+---
+
+## 14. 数值类型字符串解析 API（from_str 家族）
+
+> 2026-09-12 建立。设计定案（见 `Koala_Design_Overview.md` §5.2 / §6），**实现未开始**。
+
+### 14.1 现状（源码核实）
+
+- `int64.__init__(x int64 | uint64 | float64 | str, base = 10)`、`uint64` 同形、`float64.__init__(x int64 | uint64 | float64 | str)`——三个主类型构造器 union 仍含 `str`。
+- `intobj.c` 中 `int_init` / `str_to_int` 整段被注释（lines 48-119）——构造器路径上的 str 解析**未实现**，`int64("100")` 当前命中 not_impl。
+- `str.to_int` / `to_int_or` / `to_float` / `to_float_or` 在 `strobj.c` 中是活的（`_str_to_int` 等，调用 `str_to_int` helper）——`_or` 家族的既有先例。
+- 窄类型（int8/16/32, uint8/16/32, float16/32）的 `__init__` 已是纯数值 union（`@intrinsic`），无需改动。
+- src 中不存在任何 `from_str`。
+
+### 14.2 目标形状
+
+每个主数值类（int64 / uint64 / float64）：
+
+```koala
+@native
+pub func __init__(x int64 | uint64 | float64) {}              // 去掉 str，纯数值 union → cast op
+
+@native
+pub static func from_str_or(s str, fallback int64, base = 10) int64 {}
+
+@native
+pub static func try_from_str(s str, base = 10) int64? {}
+```
+
+- `from_str_or`：主形态，裸返回可内联算术；fallback 必传无隐式默认（nothing hidden）。
+- `try_from_str`：检测形态，`T?` + narrowing。
+- 无裸 `from_str`；`base ∉ [2,36]` → panic（bug 类）。
+- float64 无 base：`from_str_or(s, fallback) float64` / `try_from_str(s) float64?`。
+
+### 14.3 实现清单
+
+- [ ] `number.kl`：int64/uint64/float64 的 `__init__` 去掉 `str`（和 base）；加 `from_str_or` / `try_from_str` static 声明 + doc comment
+- [ ] `intobj.c` / `floatobj.c`（uint64 如有独立文件）：实现 `_int64_from_str_or` / `_int64_try_from_str` 等 native（复用 `strobj.c` 的 `str_to_int` / `str_to_float` helper，或抽到公共位置）
+- [ ] MethodDef 表注册新 static 方法
+- [ ] `intobj.c`：删除注释掉的 `int_init` / `str_to_int` 死代码
+- [ ] static 方法的 klc 持久化 / 调用路径验证
+- [ ] 测试：`test-run/test_from_str.kl`（from_str_or 各 base、fallback、try_from_str narrowing、base 非法 panic）
+
+### 14.4 与既有 API 的关系
+
+- `str.to_int` / `to_int_or` / `to_float` / `to_float_or`：legacy 冻结不动。将来是否迁移到 `from_str_or` 形态单独立案。
+- `int64.to_float()` / `float64.to_int()`（§13.6 NYI 1b/2b）：数值→数值，与 from_str（str→数值）正交，各自独立验证。
+
+### 14.5 设计依据
+
+- minimize-panic 原则（`Koala_Design_Overview.md` §6）
+- 显式回退解决安全 vs 易用（§5.2）：fallback 必传 = 失败决策写在调用点 = nothing hidden
+- 模式演化：panic+`_or`（旧）→ `_or`+`try_`（新）
+
+---
+
+## 15. 测试文件揭示的 WIP / 未验证特性（无 RUN 行，lit 标记 Unresolved）
+
+> 2026-09-12 建立。通读 test/ 用例时发现以下特性有测试文件但**无 `// RUN:` 行**，lit 不执行、标记 Unresolved（即 §13.5 记录的 5 unresolved 之列，§7.2 亦点名 test_bytes / test_io）。特性是否已落地未经 lit 验证，**不入设计文档**（设计文档只收已确认 finalized 特性），在此挂账跟踪。
+
+### 15.1 多维下标 `a[i, j]`（test-run/test_nd_list.kl）
+
+- 用例：`let a = [[1,2,3],[4,5,6]]; print(a[1,2])`（2×3 嵌套 list 多轴索引）。
+- 待验证：是否编译通过；语义是 `a[1][2]` 的糖，还是独立的多轴 `__getitem__`。
+- 落地后：补 RUN 行 + CHECK，再考虑写入设计文档 §3 下标族。
+
+### 15.2 bytes 视图与索引（test-run/test_bytes.kl）
+
+- 用例：`bytes(10)`、`len(bs)`、`bs[i] = uint8(96+i)`、`bs.view(3,6)`（切片视图）、`v[0] = 68`（视图写穿原 buf）、`bs.view(0,3).index(90)`（视图内搜索）、`buf.zero()`（清零）。
+- §7.2 已记录 test_bytes 为 Unresolved。
+- 待验证：view 的共享语义（写穿原 buf）、index 搜索、zero 填充是否全链路通；与设计文档 §8.4「bytes 24 方法；位置式写族」的 view/index 对应关系。
+
+### 15.3 io 模块（test-run/test_io.kl）
+
+- 用例：`import "std/io"`、`io.StringIO(s)`、`io.BufReader(sio)`、`sio.read(buf)` / `br.read(buf)`（读入 bytes 缓冲、返回 int 字节数，`<= 0` 表 EOF）、`while { ... if n <= 0 { break } }`（无条件 while + break 无限循环）。
+- §7.2 已记录 test_io 为 Unresolved。
+- 待验证：StringIO / BufReader 的 read 协议、与 bytes 缓冲的协作；`while {}` 无限循环形式是否已在其他 passing 测试中实证。
+
+### 15.4 处理建议
+
+- 逐个补 RUN 行与 CHECK 断言，跑通后从 Unresolved 转 PASS；
+- 确认落地的特性再迁入设计文档对应章节（下标族 §3、bytes §8.4、io §8/§9）；
+- 未落地者保留在本节跟踪，不污染设计文档的「已确认」边界。

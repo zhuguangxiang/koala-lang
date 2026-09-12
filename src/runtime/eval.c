@@ -362,9 +362,16 @@ int kl_run_tests(Object *_m)
 
         // if there is no error, mark the test case as passed
         if (!err) {
-            _case->exc = NULL;
-            _case->passed = 1;
-            print_test_progress(0, i__, total);
+            if (_case->expect_panic) {
+                // expected a panic but the test passed without error
+                _case->exc = NULL;
+                _case->passed = 0;
+                print_test_progress(1, i__, total);
+            } else {
+                _case->exc = NULL;
+                _case->passed = 1;
+                print_test_progress(0, i__, total);
+            }
             continue;
         }
 
@@ -403,9 +410,29 @@ int kl_run_tests(Object *_m)
             continue;
         }
 
-        ASSERT(_case->exc);
-        print_exc_and_free(_case->exc);
-        _case->exc = NULL;
+        if (_case->exc) {
+            print_exc_and_free(_case->exc);
+            _case->exc = NULL;
+        } else {
+            // no exception object, but the test failed for some other reason
+            if (isatty(1)) {
+                printf(
+                    "\n\x1b[31mError:\x1b[0m Test '%s' failed.\n  Expected Exception:\n    %s\n  "
+                    "But no exception was raised.\n",
+                    _case->name, _case->msg);
+                printf(
+                    "\nHint: It seems this feature was recently implemented, but the negative\n"
+                    "  test case was not updated.\n");
+            } else {
+                printf(
+                    "\nError: Test '%s' failed.\n  Expected Exception:\n    %s\n  But no exception "
+                    "was raised.\n",
+                    _case->name, _case->msg);
+                printf(
+                    "\nHint: It seems this feature was recently implemented, but the negative\n"
+                    "  test case was not updated.\n");
+            }
+        }
     }
 
     // 3. print result

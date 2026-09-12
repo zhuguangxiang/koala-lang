@@ -133,8 +133,3 @@ func test_str_slice_other() {
     ut.assert_eq("a"[::-1], "a")
     ut.assert_eq("a"[::2], "a")
 }
-
-@test_expect_panic("func 'reversed' of 'str' is not implemented!")
-func test_str_not_impl() {
-    "hello".reversed()
-}

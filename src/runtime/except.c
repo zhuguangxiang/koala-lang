@@ -188,7 +188,7 @@ void print_exc_and_free(Object *obj)
     if (isatty(1)) {
         printf("\n\x1b[31mError:\x1b[0m %s\n", exc->msg);
     } else {
-        printf("Error: %s\n", exc->msg);
+        printf("\nError: %s\n", exc->msg);
     }
 
     fflush(stdout);

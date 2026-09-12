@@ -65,9 +65,12 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 
 ### 2.5 Null 安全与值表示
 
-- **无 null**：语言中不存在 null，可选值用 `T?` 表达——从根上消灭 NullPointerException 这一问题类别。
-- **分支自动窄化**：if/else 分支中 `T?` 自动窄化为 `T`（flow-sensitive smart cast），无强解仪式。
-- **if let / while let 自动解包**：解包即窄化，编译后**不产生多余指令**——无 Rust 式 match 仪式，无强解后缀，零运行时代价。
+- **无 null**：语言中不存在 null，可选值用 `T?` 表达——从根上消灭 NullPointerException 这一问题类别。`nil` 在 IR 中为 `none` 值，打印为 `none`。
+- **分支自动窄化（flow-sensitive smart cast）**：`if v != nil { ... }` 块内、`if v == nil { return }` 之后，`v` 自动窄化为 `T`，可直接参与运算；窄化随作用域精确进出（裸块、嵌套、死代码、对 `var` 重新赋值都正确失效），IR 下降为 `cast T? to T`。诊断区分“optional type cannot be used with '+' operator”（未窄化）与“…when value is nil”（已判 nil 分支内）。
+- **if let / while let 自动解包**：`if let v = expr { ... } else { ... }` 绑定**不可变**量 v（else 分支不可见 v）；`while let next = curr.next { ... }` 循环解包。解包即窄化，零运行时代价。
+- **可选链 `?.`**：`f.foo()?.get_id()`——接收者为 nil 时整个链短路为 nil，不 panic。
+- **强制解包 `!`（后缀）**：`v!` 断言 `T?` 非 nil 并取值，IR 下降为 `cast T? to T`（如 `return v!`、`curr = curr.next!`）。是“我确知非 nil”的逃生口，不替代窄化；**不是错误处理通道**（对 nil 行为不保证）——可失败转换用 `_or` / `try_`（见 §6）。
+- **展开 `!`（后缀，变参位）**：`f(l!)` 把 list `l` 的元素展开为变参实参（与强制解包同形不同义，按上下文区分）。
 - **无 box/unbox**：实现层不存在装箱机制——值类型进入普适 `any` / 泛型容器无需变身。对照：Java autoboxing（隐藏分配 + Integer 缓存陷阱）、C# struct 装箱、Kotlin Int-as-Any 装箱、Go interface{} 装箱。"普适 any + 泛型"与"零装箱"通常互斥，Koala 两者兼得，是 VM / 表示层的工程成就。
 - 零装箱同时是"无隐藏特性"原则的直接推论（装箱即隐藏分配、隐藏身份变化），也是基准性能的贡献项。
 
@@ -75,7 +78,7 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 
 ## 3. 运算符模型：钩子与契约分轨
 
-Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是由 trait 声明授予**——实现了 `__add__`，`p + p2` 天然可用，无需任何声明仪式。Koala 存在运算符相关 trait（`Arithmetic` / `BitwiseOperators`，见下文），但它们只是**泛型约束标签，不参与运算符能力的授予**。四条钩子族：
+Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是由 trait 声明授予**——实现了 `__add__`，`p + p2` 天然可用，无需任何声明仪式。Koala 存在运算符相关 trait（`Arithmetic` / `Bitwise`，见下文），但它们只是**泛型约束标签，不参与运算符能力的授予**。四条钩子族：
 
 1. **算术 / 位运算符**
 2. **下标访问**：`__getitem__` / `__setitem__` / `__getslice__` / `__setslice__`
@@ -87,7 +90,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 - 每个类型**自行定义**运算符参数类型，无跨类型签名强制。
 - **运算符契约拆成两个 trait**（定义于 `number.kl`），同为**泛型而存在**——`func f[T : Arithmetic]` 凭它约束运算符能力；class 实现了相应 dunder 即天然支持（结构式遵循，无需显式声明）：
   - **Arithmetic[T]**：五件二元算术（`__add__` / `__sub__` / `__mul__` / `__div__` / `__mod__`）+ 一元 `__neg__`；
-  - **BitwiseOperators[T]**：五件二元位运算（`__shl__` / `__shr__` / `__bitand__` / `__bitor__` / `__bitxor__`）+ 一元 `__bitnot__`。
+  - **Bitwise[T]**：五件二元位运算（`__shl__` / `__shr__` / `__bitand__` / `__bitor__` / `__bitxor__`）+ 一元 `__bitnot__`。
 
   内建遵循：int64 / uint64 两者全遵循（uint64 不声明 `__neg__`——无符号取负无语义，靠部分 trait 实现机制自动 not_impl 占位）；float64 只遵循 Arithmetic（含 `__neg__`）。两个存在理由：其一，让泛型有能力实现运算符；其二，性能——用户类型的二元运算符经 `OP_NUM_*` 协议指令分发，**不创建 call frame**（内建数值走专用指令，同样零帧；只有普通方法调用付帧）。一元协议 op 尚未落地（现 `OP_UNARY_*` 为 IR 层伪指令），泛型一元分发列入后续施工。比较运算符不入这两个 trait，归 Equatable / Comparable 契约轨。
 
@@ -129,7 +132,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 - **部分 trait 实现**：class 遵循 trait 时允许只实现其中一部分方法。未实现的方法在 intf-table 中填入 `not_impl` 占位对象，加载期仅警告、不阻断；只有当未实现的方法被真实调用时抛异常 `Exception("function xxx in xxx is not implemented.")`——语义是"这需要你去实现它"。这一设计直接消灭了 Java 的适配器类生态：Java 强制接口全量实现，迫使生态发明 MouseAdapter / WindowAdapter 之类的空壳抽象类，只为让用户覆写十个方法中的一个；Koala 的答案是声明归声明、实现按需，intf-table 保持 O(1) 静态分发——**契约在类型层面完整，义务在实现层面宽容**。
 - **泛型约束**：如 `T : Comparable[T]`；缺少约束只在泛型参数要求时报错。
 - **自类型推断**：裸遵循自动推断自类型参数（如 Equatable → Equatable[bool]），无 Self 关键字。
-- **LRO**：类型内省可见全部遵循关系与编译器插入的内容。
+- **LRO（线性化）**：`--dump=itable` 可见每个类的 Intf-Table——槽位含方法名 + code_index + parents。线性化顺序：`[0] any` 打头，紧接编译器自动遵循的三契约 `[1] Printable / [2] Hashable / [3] Equatable`（§2.2），之后才是用户声明的 trait（按 C3 线性化，菱形继承去重，test-run/test_lro.kl・test_lro_2.kl 守护）。类型内省可见全部遵循关系与编译器插入的内容，无隐藏。
 - **变型**：参数不变（invariant），返回值协变（covariant）。
 
 **三轨分发，零运行期名字解析**——Koala 全部调用形态归入三条轨道，没有一轨需要 vtable 式的方法名运行时查找：
@@ -167,6 +170,37 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
     - float → int 先**饱和**到 64 位再回绕到目标宽度：NaN → 0，负数 → 任何 uint 得 0，超上界 → `INT64_MAX` / `UINT64_MAX`。故 `uint8(-1.5)` → 0，`int8(1000.7)` → −24，`int8(+inf)` → −1（INT64_MAX 回绕）。
 - **分轨是刻意设计**：同一个 cast 写成常量和写成变量可以有不同结局——`float32(2147483647)` 作为常量编译失败，作为函数参数则得 `2147483648`。测试因此也是两套：`test-kl/test_const_<src>_cast_failed.kl`（编译期报错）与 `test-run/test_cast_<src>.kl`（运行期取值，用例一律用函数参数包裹以躲开折叠）。
 
+### 5.2 字符串到数值的解析：显式回退模式
+
+数值构造器（`__init__`）只接受**数值** union（`int64 | uint64 | float64`），经 cast op 路径转换（§5.1）。字符串解析从构造器分离，成为数值类上的 static 函数——minimize-panic 原则（§6）与"安全 vs 易用"矛盾的唯一解。
+
+**形状（每个主数值类同形）：**
+
+```koala
+pub class int64 : Comparable & Arithmetic & Bitwise {
+    @native
+    pub func __init__(x int64 | uint64 | float64) {}              // 纯数值 union → cast op
+
+    @native
+    pub static func from_str_or(s str, fallback int64, base = 10) int64 {}
+
+    @native
+    pub static func try_from_str(s str, base = 10) int64? {}
+}
+```
+
+- **`from_str_or`**：主形态。裸 `int64` 返回，可直接内联算术（`int64.from_str_or("100", 0) + 200`）。失败回退到 `fallback`——**必传、无隐式默认**，失败处理写在调用点，源码可见可 grep（nothing hidden）。
+- **`try_from_str`**：检测形态。`int64?` + 流式 narrowing。需要区分"解析出 0"与"解析失败"时用。
+- **无裸 `from_str`**：每个调用点必须写下失败故事。
+- **`base ∉ [2, 36]` → panic**：程序员 bug，与 write-after-close 同类。
+- float64 同形但无 base：`from_str_or(s, fallback) float64` / `try_from_str(s) float64?`。
+
+**安全 vs 易用裁决**：矛盾只在"隐藏"上。`T?` 挡内联算术（卡易用），panic 违反 minimize-panic（卡原则），隐式 `default = 0` 让失败无痕（卡 nothing hidden）。唯一三者兼得的形状是必传 fallback：易用性损失 = 一个参数，安全性收益 = 失败路径 100% 源码可见。
+
+**模式演化**：旧 = panic 主 + `_or` 兄弟（`str.to_int`/`to_int_or`，legacy 冻结）；新 = `_or` 主 + `try_` 兄弟。`_or` 后缀存活，panic 主函数被废除。
+
+**实现状态**：设计定案，未落地。当前 int64/uint64/float64 的 `__init__` 仍含 `str`（`intobj.c` 的 `int_init`/`str_to_int` 整段注释，构造器 str 路径未实现）；`from_str` 家族 src 中不存在。详见 `Koala_TODO.md` §14。
+
 ---
 
 ## 6. 错误处理：C 式返回值 + panic
@@ -178,8 +212,10 @@ Koala 的错误模型是**刻意设计**，非缺口：
 - 明确拒绝：Java try-catch、Go defer（可读性差）、Result 式组合（作者裁定他国无更优特色解法）。
 - **与 GC 的协同**是这一模型成立的关键：无析构函数 / 资源泄漏之忧，栈可直接丢弃；无捕获则无展开表，panic 真正轻量。
 - bytes 错误模型定案：返回类型的方法用 panic，返回 int 的方法用 -1。
-- 可失败转换模式：保留 panic 主方法 + `_or(default)` 变体（如 `to_int()` / `to_int_or(0)`）。
+- **minimize-panic 原则（库设计，2026-09-04 定案）**：能不 panic 就不 panic——库 API 只要有替代通道（`T?`、回退值、错误码）就不用 panic；panic 仅留给 bug 类错误（非法状态、程序员错误，如 write-after-close、`base ∉ [2,36]`）。
+- 可失败转换模式演化：旧模式 = panic 主方法 + `_or(default)` 变体（`str.to_int` / `to_int_or`，legacy 冻结不动）；新模式 = `_or(fallback)` 主形态 + `try_` 检测兄弟（`from_str_or` / `try_from_str`，§5.2）。新 API 一律走新模式。
 - Map 返回 `T` 的方法必须文档化键缺失时的 panic 行为。
+- **panic 回溯（traceback）**：panic 触发时打印 Python 风格调用栈——`Traceback (most recent call last):` 逐帧 `File "...", line N, in func` + 对应源码行，末行 `Error: <msg>`（test-run/test_traceback_lineinfo.kl 守护）。行号信息可经 `--strip-lineinfo` 剥离（klc 体积 / 隐私取舍）。`--test` 模式下 @test 函数失败同样产生 traceback（§11.8）。
 
 ---
 
@@ -323,7 +359,7 @@ pub func max[T: Comparable](x T, y T) T { ... }
 |-------|------|
 | `any` | 空根（自动遵循三契约的载体） |
 | `Equatable[T]` / `Comparable[T]` / `Hashable` / `Printable` | 值契约 |
-| `Arithmetic[T]` / `BitwiseOperators[T]` | 算术 / 位运算能力契约（泛型约束用；结构式遵循；见 §3） |
+| `Arithmetic[T]` / `Bitwise[T]` | 算术 / 位运算能力契约（泛型约束用；结构式遵循；见 §3） |
 | `Iterable` / `Iterator` | 迭代协议 |
 | `Sequence` / `MutableSequence` | 序列与可变序列协议 |
 | `Map` / `Set` | 映射与集合协议 |
@@ -687,12 +723,12 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 - **PassManager 框架**：pass 可嵌套成组（嵌套 PM 作为一个 pass），不动点迭代直至无变化。
 - **经典优化全家桶**：
   - 常量与复制传播（const-copy-prop）——同一条 pass 顺带完成常量 cast 的合法性校验（§5.1）
-  - CFG 优化组：删除仅跳转块、分支折叠、删除无用块、块合并
+  - CFG 优化组：删除仅跳转块、分支折叠、删除无用块、块合并；**常量 if 折叠**（`let a=10; if a>5` 直落 then 分支）、**跳转线程化**（嵌套 if 合并为链式条件跳转 `jmp_int_le_imm`）、**RPO 块布局**（逆后序排布减少跳转）、**双非折叠**（`!(cmp)` 翻转比较算子、`!!`/`!!!` 链按奇偶归约，不生成 `lnot`；仅对比较链生效，普通 bool 取反仍出 `lnot`）
   - 死代码消除（DCE）
   - **SSA 构造 + SCCP**（稀疏条件常量传播：TOP/常量/BOTTOM 三值格 + meet 运算 + 双 worklist，教科书级实现）+ SSA 析构（phi 合并）
 - **指令选择**：表驱动规则把泛型二元运算（OP_BINARY_*）降级为类型特化操作码（OP_INT_ADD / OP_UINT_DIV …），并支持 reg-imm 立即数形态与交换律换序——与 CPython 3.11 特化自适应解释器殊途同归，而 Koala 在编译期一次完成。变量 cast 在此降级为 OP_INT_CAST / OP_FLOAT_CAST / OP_FLOAT_TO_INT / OP_INT_TO_FLOAT，目标类型与 trap/wrap 模式一起编码进 cast_flag（§5.1）。
 - **寄存器分配**：线性扫描（LSRA）——活跃区间分析 + 空闲寄存器位集，另有 simple regalloc 后备路径。
-- **IR 级另有三招**：指令融合（--fusion）、尾调用优化（--tail-call）、窥孔优化（peephole）——均带编译开关与对应回归测试。
+- **IR 级另有数招**（均带编译开关与回归测试）：**指令融合**（--fusion，`let c = x<10; if c` 融合为 `jmp_int_lt_imm` 比较跳转合一；c 被多处使用则不融合、物化为 `int.lt_imm`）；**尾调用优化**（--tail-call，尾位置生成 `tail_call` 指令复用当前帧——`sum(100000000, 0)` 深递归不爆栈）；**滑动窗口调用**（call 结果直接被消费时省去中间 local，函数头记录 `max_call_args`）；**窥孔优化**（peephole）。
 
 ### 11.4 与语言设计的呼应
 
@@ -726,6 +762,14 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 同一语义被热度拆开：`OP_INT_ADD` 在 hot 段、`OP_INT_MUL/DIV` 降到 warm、`OP_INT_NEG` 落进 misc——排布依据是 profile 频率，不是指令族谱。收益：handler 代码热段聚拢，提升 icache 命中；computed-goto 跳转表目标地址集中，利于分支预测器与取指预取；源码注释（hot/warm/cold）让分层意图可审计、可重排。
 
 同一纪律推广到运行时分发表：`TypeObject.slots[]` 的 `SlotId` 同样按热度分区（见 §7.3）——指令布局与槽布局共用一条设计原则：**把执行频率最高的入口放进第一条 cache line**。
+
+### 11.8 内建单元测试：@test 注解与 --test 运行器
+
+Koala 把单元测试做进语言与编译器，无需第三方框架：
+
+- **`@test` 注解**标记测试函数，编译器强制四条合法性规则（test-kl/test_annotation_test.kl 守护）：不能有任何参数；名字必须以 `test_` 前缀开头；不能是泛型函数；不能有返回类型。违反任一条都是编译错误，报错信息直指原因。
+- **`--test` 运行器**：`koala file.kl --test` 收集并运行所有 @test 函数；测试内 panic 会产生 traceback（§6）并以非零码退出。
+- 与 lit/FileCheck 回归测试（§11.6）正交：后者测编译器自身，@test 测用户代码。标准库 `ut` 包提供断言辅助。
 
 ---
 
