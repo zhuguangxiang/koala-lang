@@ -65,6 +65,14 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
     }
 }
 
+static TValue do_nil_check(TValue *val)
+{
+    if (!is_none(val)) return none_value;
+
+    raise_exc_str("forced unwrap (`!`) of a nil value");
+    return error_value;
+}
+
 /* clang-format off */
 
 // save pc for traceback

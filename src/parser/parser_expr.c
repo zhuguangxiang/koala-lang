@@ -1276,8 +1276,6 @@ static const char *operator_dunder_sugar(const char *name)
         { "__setitem__", "the subscript syntax 'x[i] = v'" },
         { "__getslice__", "the slice syntax 'x[a:b]'" },
         { "__setslice__", "the slice syntax 'x[a:b] = v'" },
-        { "__getsub__", "the subscript syntax 'x[key]'" },
-        { "__setsub__", "the subscript syntax 'x[key] = v'" },
         // hashable
         { "__hash__", "the 'hash()' function" },
         // printable
@@ -3015,7 +3013,8 @@ static void parse_in(ParserState *ps, Expr *exp)
     ASSERT(container_ts_sym);
     Symbol *_fn_sym = stbl_get(container_ts_sym->stbl, "__contains__");
     if (!_fn_sym) {
-        kl_error(in->op_loc, "container type does not support '__contains__' method.");
+        kl_error(in->op_loc, "type '%s' does not support '__contains__' method.",
+                 container_ts_sym->name);
         return;
     }
 

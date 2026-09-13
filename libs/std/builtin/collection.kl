@@ -3,65 +3,71 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// A Sequence is a read-only, indexable collection of elements.
+/// A Sequence provides read-only indexed access to a collection of elements.
 ///
-/// This trait is the standard internal type for variadic arguments (...T).
+/// This trait is the standard internal type for variadic arguments (`...T`).
 /// It provides random access and searching capabilities without modification.
 pub trait Sequence[T] : Iterable[T] {
     /// Return the number of items in the sequence.
     func __len__() int
 
     /// Return true if the sequence contains the specified value `item`.
-    /// This is typically an O(n) operation.
     func __contains__(item T) bool
 
-    /// Get the item at the specified index.
+    /// Return the item at the specified `index`.
     ///
-    /// Precondition: 0 <= index < __len__().
-    /// Panic if the index is out of range.
+    /// PRECONDITION: `0 <= index < __len__()`.
+    /// Calling this method with an out-of-range index will trigger a panic.
     func __getitem__(index int) T
 
-    /// Return the first index of `value` in [start, end).
-    /// If `end` is -1, the search extends to the end of the sequence.
-    /// Return -1 if the value is not present.
+    /// Return the first index of `value` in `[start, end)`.
+    ///
+    /// If `end` is `-1`, the search extends to the end of the sequence.
+    /// Return `-1` if `value` is not present.
     func index(value T, start = 0, end = -1) int
 
-    /// Return the last index of `value` in [start, end).
-    /// If `end` is -1, the search extends to the end of the sequence.
-    /// Return -1 if the value is not present.
+    /// Return the last index of `value` in `[start, end)`.
+    ///
+    /// If `end` is `-1`, the search extends to the end of the sequence.
+    /// Return `-1` if `value` is not present.
     func rindex(value T, start = 0, end = -1) int
 
-    /// Return the number of occurrences of `value` in [start, end).
-    /// If `end` is -1, the search extends to the end of the sequence.
+    /// Return the number of occurrences of `value` in `[start, end)`.
+    ///
+    /// If `end` is `-1`, the search extends to the end of the sequence.
     func count(value T, start = 0, end = -1) int
 }
 
 /// A MutableSequence is an ordered collection that supports modification.
 ///
-/// It extends the Sequence trait by adding methods to update, insert,
-/// and remove elements, such as those found in a dynamic list.
+/// It extends the Sequence trait with operations for updating, inserting,
+/// and removing elements.
 pub trait MutableSequence[T] : Sequence[T] {
-    /// Set the item at the specified index to `value`.
+    /// Set the item at the specified `index` to `value`.
     ///
-    /// Precondition: 0 <= index < __len__().
+    /// PRECONDITION: `0 <= index < __len__()`.
+    /// Calling this method with an out-of-range index will trigger a panic.
     func __setitem__(index int, value T)
 
-    /// Push a new item with `value` to the end of the sequence.
+    /// Append `value` to the end of the sequence.
     func push(value T)
 
-    /// Extend the sequence by appending all items from the iterable `items`.
+    /// Append all elements from `items` to the end of the sequence.
     func extend(items Iterable[T])
 
-    /// Insert a new item with `value` at the given `index`.
-    /// Elements at or after the index are shifted to the right.
+    /// Insert `value` at the specified `index`.
+    ///
+    /// Elements at or after `index` are shifted to the right.
     func insert(index int, value T)
 
     /// Remove the first occurrence of `value` from the sequence.
-    /// Panic if the value is not present.
+    ///
+    /// Calling this method when `value` is not present will trigger a panic.
     func remove(value T)
 
-    /// Remove and return the item at the given `index`.
-    /// If no index is specified, removes and returns the last item (-1).
+    /// Remove and return the item at the specified `index`.
+    ///
+    /// If `index` is omitted, remove and return the last item.
     func pop(index = -1) T
 
     /// Remove all items from the sequence, leaving it empty.
@@ -71,87 +77,97 @@ pub trait MutableSequence[T] : Sequence[T] {
     func reverse()
 }
 
-/// A Map is an object that maps keys to values.
-/// A map cannot contain duplicate keys; each key can map to at most one value.
+/// A Map is a collection of key-value mappings.
+///
+/// A map cannot contain duplicate keys; each key maps to at most one value.
 pub trait Map[K, V] : Iterable[(K, V)] {
-    /// Return the number of items in the map.
+    /// Return the number of mappings in the map.
     func __len__() int
 
-    /// Return true if the map contains a mapping for the specified key.
+    /// Return true if the map contains a mapping for `key`.
     func __contains__(key K) bool
 
-    /// Return the value to which the specified key is mapped.
-    /// Panic if the key is not present.
-    func __getsub__(key K) V
+    /// Return the value associated with `key`.
+    ///
+    /// Calling this method when `key` is not present will trigger a panic.
+    func __getitem__(key K) V
 
-    /// Associate the specified value with the specified key in this map.
-    func __setsub__(key K, value V)
+    /// Associate `value` with `key`.
+    ///
+    /// If `key` already exists, its associated value is replaced.
+    func __setitem__(key K, value V)
 
-    /// Return a list of all keys in the map.
+    /// Return a sequence containing all keys in the map.
     func keys() Sequence[K]
 
-    /// Return a list of all values in the map.
+    /// Return a sequence containing all values in the map.
     func values() Sequence[V]
 
-    /// Return a list of all key-value pairs (tuples) in the map.
+    /// Return a sequence containing all key-value pairs in the map.
     func items() Sequence[(K, V)]
 
-    /// Remove all of the mappings from the map, leaving it empty.
+    /// Remove all mappings from the map, leaving it empty.
     func clear()
 
-    /// Remove the mapping for a key from this map if it is present.
-    /// Panic if the key is not present.
+    /// Remove the mapping for `key` and return its value.
+    ///
+    /// Calling this method when `key` is not present will trigger a panic.
     func remove(key K) V
 
-    /// Remove the key and return its value.
-    /// If key is not found, return default_value.
+    /// Remove the mapping for `key` and return its value.
+    ///
+    /// If `key` is not present, return `default_value`.
     func remove_or(key K, default_value V) V
 
-    /// Return the value for key if key is in the map, else nil.
-    /// Unlike `__getsub__` (`map[key]`), this never panics and is meant
-    /// to be used with `if let` unwrapping.
+    /// Return the value associated with `key`, or `nil` if `key` is not present.
+    ///
+    /// Unlike `__getitem__` (`map[key]`), this method does not panic when
+    /// `key` is not present and is intended for use with `if let`.
     func get(key K) V?
 
-    /// Return the value for key if key is in the map, else return default_value.
+    /// Return the value associated with `key`, or `default_value` if `key` is
+    /// not present.
     func get_or(key K, default_value V) V
 }
 
-/// A collection that contains no duplicate elements.
-/// Models the mathematical set abstraction.
+/// A Set is a collection that contains no duplicate elements.
+///
+/// It models the mathematical set abstraction.
 pub trait Set[T] : Iterable[T] {
-    /// Return the number of items in the set.
+    /// Return the number of elements in the set.
     func __len__() int
 
-    /// Return true if the set contains the specified element.
-    func __contains__(v T) bool
+    /// Return true if the set contains `value`.
+    func __contains__(value T) bool
 
-    /// Add an element to the set.
-    /// Return true if the element was not already present.
-    func add(v T) bool
+    /// Add `value` to the set.
+    ///
+    /// Return true if `value` was not already present.
+    func add(value T) bool
 
-    /// Add all elements from the iterable to the set.
-    /// Unlike `add` which inserts a single element, `update` inserts
-    /// multiple elements from any iterable source in one call.
+    /// Add all elements from `items` to the set.
     func update(items Iterable[T])
 
-    /// Remove an element from the set. Return true if the element was present.
-    func remove(v T) bool
+    /// Remove `value` from the set.
+    ///
+    /// Return true if `value` was present.
+    func remove(value T) bool
 
     /// Remove all elements from the set.
     func clear()
 
-    /// Return true if every element in the set is in `other`.
+    /// Return true if every element in the set is contained in `other`.
     func is_subset(other Iterable[T]) bool
 
-    /// Return true if every element in `other` is in the set.
+    /// Return true if every element in `other` is contained in the set.
     func is_superset(other Iterable[T]) bool
 
-    /// Return a new set with elements from the set and the other collection.
+    /// Return a new set containing the elements from the set and `other`.
     func union(other Iterable[T]) Set[T]
 
-    /// Return a new set with elements common to the set and the other collection.
+    /// Return a new set containing the elements common to the set and `other`.
     func intersect(other Iterable[T]) Set[T]
 
-    /// Return a new set with elements in the set that are not in the other collection.
+    /// Return a new set containing the elements in the set but not in `other`.
     func diff(other Iterable[T]) Set[T]
 }

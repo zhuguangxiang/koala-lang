@@ -297,6 +297,13 @@ static void lower_logic_not_opers(KlrInsn *insn)
     set_raw_reg(&insn->raws[1], val->vreg);
 }
 
+static void lower_ir_nil_check_opers(KlrInsn *insn)
+{
+    KlrValue *src = insn_oper_value(insn, 0);
+    set_raw_imm(&insn->raws[0], insn->vreg);
+    set_raw_imm(&insn->raws[1], src->vreg);
+}
+
 static void lower_ir_cast_opers(KlrInsn *insn)
 {
     KlrValue *src = insn_oper_value(insn, 0);
@@ -595,6 +602,11 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                 case OP_REF_EQ_NULL:
                 case OP_REF_NE_NULL: {
                     lower_ref_eq_ne_null_opers(insn);
+                    break;
+                }
+
+                case OP_NIL_CHECK: {
+                    lower_ir_nil_check_opers(insn);
                     break;
                 }
 

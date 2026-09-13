@@ -850,7 +850,8 @@ static void isel_lower_cast(KlrInsn *insn)
         insn->code = OP_INT_TO_FLOAT;
         insn->cast_flag = encode_float_cast_flag(dst_ts, src_ts);
     } else if (type_is_optional(src_ts) && !type_is_optional(dst_ts)) {
-        // opt-ref to non-opt-ref cast, do nothing
+        insn->code = OP_NIL_CHECK;
+        insn->cast_flag = 0;
     } else {
         NYI();
     }

@@ -6,6 +6,7 @@
 // Link the koala core runtime (libkoala.so): all @native declarations in
 // this module are resolved against it at module load time. Since the runtime
 // is the host process itself, no external library is loaded.
+
 link "koala"
 
 /// Print objects to the text stream file, separated by `sep` and followed by `end`.
@@ -22,9 +23,9 @@ pub func print(objs ..., sep = ' ', end = '\n') {}
 /// This function is an intrinsic and is resolved at compile time.
 /// Semantically, `len(obj)` is equivalent to calling `obj.__len__()`.
 ///
-/// Any object may define a `__len__()` method to customize its length
-/// behavior. Built-in container types such as list, dict, tuple, and set
-/// provide their own optimized implementations.
+/// Any object may define a `__len__()` method to customize its length behavior.
+/// Built-in container types such as list, dict, tuple, and set provide their own
+/// optimized implementations.
 ///
 /// Note:
 ///     - As an intrinsic, `len()` does not have a user-level implementation.
@@ -104,8 +105,8 @@ pub func typeof(obj any) type {}
  * 2. Automated Specialization (e.g., `min` / `max`)
  *    - How to use: Call `min(x, y)` or `max(x, y)`. Arguments must be of the
  *      SAME type and must implement the `Comparable` trait.
- *    - Behind the scenes: Types listed in `@specialized(...)` run at native hardware
- *      speeds. Other types fallback to safe interface-based dynamic dispatch.
+ *    - Behind the scenes: Types listed in `@specialized(...)` run at native
+ *      hardware speeds. Other types fall back to safe interface-based dynamic dispatch.
  *    - Note: Passing mixed types (e.g., int and float) will trigger a compile error.
  */
 
@@ -130,7 +131,7 @@ pub func abs_float64(a float) float {
     return a
 }
 
-/// Constrained generic maximum function, auto-specialized for primitives.
+/// Constrained generic minimum function, auto-specialized for primitives.
 @specialized(int, uint, float)
 pub func min[T : Comparable](x T, y T) T {
     if x < y { return x }
@@ -139,8 +140,9 @@ pub func min[T : Comparable](x T, y T) T {
 
 /// Constrained generic maximum function, auto-specialized for primitives.
 ///
-/// This will generate the specialized `max_int64`, `max_uint64`, and `max_float64` functions.
-/// And user writes `max(10, 20)`, the compiler will route the call to `max_int64(10, 20)`.
+/// This will generate the specialized `max_int64`, `max_uint64`, and `max_float64`
+/// functions. If the user writes `max(10, 20)`, the compiler will route the call to
+/// `max_int64(10, 20)`.
 @specialized(int, uint, float)
 pub func max[T : Comparable](x T, y T) T {
     if x > y { return x }
@@ -158,60 +160,28 @@ pub func pow[T, U](base T, exp U) any {
 /// Specialized explicit implementation for 64-bit integer base and exponent.
 ///
 /// Uses an optimized binary exponentiation (exponentiation by squaring) algorithm.
-/// If user writes `pow(2, 10)`, the compiler will route the call to `pow_int64_int64(2, 10)`.
+/// If user writes `pow(2, 10)`, the compiler will route the call to
+/// `pow_int64_int64(2, 10)`.
 @native
-pub func pow_int64_int64(base int, exp int) int {}
+pub func pow_int64_int64(base int, exp int) {}
 
 /// Specialized explicit implementation for float base and integer exponent.
 ///
-/// Leverages fast fast-power squaring, allowing optimal register usage in the VM.
-/// If user writes `pow(2.0, 10)`, the compiler will route the call to `pow_float64_int64(2.0, 10)`.
+/// Uses fast exponentiation by squaring, allowing optimal register usage in the VM.
+/// If user writes `pow(2.0, 10)`, the compiler will route the call to
+/// `pow_float64_int64(2.0, 10)`.
 @native
 pub func pow_float64_int64(base float, exp int) float {}
 
 /// Specialized explicit implementation for float base and float exponent.
 ///
-/// This is a native fallback that routes directly to the VM's high-performance C math library.
-/// If user writes `pow(2.0, 10.0)`, the compiler will route the call to `pow_float64_float64(2.0, 10.0)`.
+/// This is a native fallback that routes directly to the VM's high-performance
+/// C math library. If user writes `pow(2.0, 10.0)`, the compiler will route the call to
+/// `pow_float64_float64(2.0, 10.0)`.
 @native
 pub func pow_float64_float64(base float, exp float) float {}
 
-/*
-/// Return an iterator of (index, item) pairs from `seq`.
-/// The index starts at 0, or at `start` if given.
-///
-/// Example:
-///     for i, c in enumerate("abc") { print(i, c) }
-// @native
-// pub func enumerate[T](seq Iterable[T], start = 0) Iterator[tuple[int, T]] {}
-
-/// Return an iterator of tuple[T, U] pairs from two iterables.
-/// Iteration stops when the shorter input is exhausted.
-///
-/// Example:
-///     for k, v in zip(keys, values) { print(k, v) }
-// @native
-// pub func zip[T, U](a Iterable[T], b Iterable[U]) Iterator[tuple[T, U]] {}
-
-/// Return an iterator over the elements of `seq` for which `fn` returns true.
-///
-/// Example:
-///     let evens = filter(func(x int) bool { return x % 2 == 0 }, nums)
-// @native
-// pub func filter[T](fn func(T) bool, seq Iterable[T]) Iterator[T] {}
-
-/// Return an iterator over the elements of `seq` transformed by `fn`.
-///
-/// Example:
-///     let doubled = map(func(x int) int { return x * 2 }, nums)
-// @native
-// pub func map[T, R](fn func(T) R, seq Iterable[T]) Iterator[R] {}
-
-/// Reduce the elements of `seq` to a single value using `fn`,
-/// starting from `initial`.
-///
-/// Example:
-///     let sum = reduce(func(acc int, x int) int { return acc + x }, nums, 0)
-// @native
-// pub func reduce[T, U](fn func(U, T) U, seq Iterable[T], initial U) U {}
-*/
+pub func add_ret_opt(a int ) int? {
+    if a > 0 { return a + 100 }
+    return nil
+}

@@ -1849,6 +1849,29 @@ static int peephole(KlMachFunc *mfn)
             }
         }
 
+        // reverse pass for op_nil_check and op_move peephole optimization
+        /*
+            move r1, r0
+            nil_check r0, r1
+        */
+        for (int i = n - 1; i > 0; i--) {
+            KlMachInsn *a = codes[i];
+            if (a->dead) continue;
+
+            KlMachInsn *b = codes[i - 1];
+            if (b->dead) continue;
+
+            if (a->op == OP_NIL_CHECK && b->op == OP_MOVE) {
+                // match: move S <- R ; nil_check D <- S
+                if (a->opers[1] == b->opers[0]) {
+                    // rewrite nil_check D <- R
+                    a->opers[1] = b->opers[1];
+                    // delete move
+                    b->dead = 1;
+                }
+            }
+        }
+
         for (int i = 0; i < n; i++) {
             KlMachInsn *mi = codes[i];
             if (mi->dead) continue;

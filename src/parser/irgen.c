@@ -1497,7 +1497,21 @@ static void emit_ir_bang(ParserState *ps, Expr *exp)
     e->ctx = EXPR_CTX_LOAD;
     emit_ir_visit_expr(ps, e);
     if (!e->ir_val) return;
-    exp->ir_val = e->ir_val;
+
+    TypeSpec *opt_ts = e->ts;
+    if (!type_is_optional(opt_ts)) {
+        // for shadow variable:
+        // warning: bang operator applied on non-nullable variable
+        exp->ir_val = e->ir_val;
+        return;
+    }
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    TypeSpec *src_ts = opt_ts->opt.src;
+    KlrValue *v = klr_build_cast(&bldr, e->ir_val, src_ts, "");
+    SET_IR_LOC(v, exp);
+    exp->ir_val = v;
 }
 
 static void emit_ir_const_placeholder(ParserState *ps, Expr *exp)

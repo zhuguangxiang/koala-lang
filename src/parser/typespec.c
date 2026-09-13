@@ -1196,6 +1196,11 @@ static TypeSpec *__to_typespec(char **str)
         }
     }
 
+    if (*s == '?') {
+        ts = optional_type_spec_intern(ts);
+        s++; // skip '?'
+    }
+
     *str = s;
     return ts;
 }

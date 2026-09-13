@@ -1097,6 +1097,24 @@ TARGET(OP_JMP_FALSE) {
     DISPATCH();
 }
 
+TARGET(OP_NIL_CHECK) {
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    SAVE_PC();
+    TValue ret = do_nil_check(regs + rs);
+    if (is_error(&ret)) goto error;
+
+    if (rd != rs) {
+        regs[rd] = regs[rs];
+    }
+
+    DISPATCH();
+}
+
 /* Complex Int Arithmetic */
 
 TARGET(OP_INT_MUL) {

@@ -155,6 +155,15 @@ static void print_ir_cast(char *name, KlrInsn *insn, FILE *fp)
     print_type(insn->ts, fp);
 }
 
+static void print_ir_nil_check(char *name, KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = %s ", name);
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, " to");
+    print_type(insn->ts, fp);
+}
+
 static void print_obj_intf_cast(const char *name, KlrInsn *insn, FILE *fp)
 {
     klr_print_value_name((KlrValue *)insn, fp);
@@ -1226,6 +1235,9 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_contains(name, insn, fp);
             break;
 
+        case OP_NIL_CHECK:
+            print_ir_nil_check(name, insn, fp);
+            break;
         default:
             printf("%s\n", name);
             break;

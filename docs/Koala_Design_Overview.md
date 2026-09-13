@@ -78,6 +78,55 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 
 ## 3. 运算符模型：钩子与契约分轨
 
+### 3.1 Magic 函数、普通方法与 top-level 映射（双向分轨）
+
+Koala 把“带特殊能力的方法”分成两套**互不重叠、方向相反**的机制——**Magic 协议入口**（语法 → 编译器 → dunder，dot 封闭）与**普通方法 + top-level 映射**（dot 可达）。这是理解 §3.2 运算符禁令的前提。
+
+**Magic 函数 `__xxx__()`：编译器内部的语言协议入口，不是普通方法。**
+
+```
+语言语法  →  编译器识别  →  __xxx__()
+```
+
+magic 函数只能由语言语法经编译器下降触发，**用户不能通过 dot 访问**，编译器直接阻止：
+
+```kl
+obj.__xxx__()    // 非法
+```
+
+`__xxx__` 只存在于语言协议层，**普通用户 API 永远不需要通过 magic 函数暴露**。既然编译器已在语言层面干掉了 magic 的 dot 访问，就**无需再依赖文档约定来防止误用——语言本身即封闭**；这也根除了旧隐患：`@intrinsic` 空 body 被显式 dot 调用时静默返回 none，如今这条路径根本不存在。
+
+**普通 method：对象 API，可直接 dot 链式调用。**
+
+```kl
+obj.foo()
+obj.foo().bar()
+obj.len()
+obj.iter()
+obj.next()
+```
+
+**Top-level mapping：高频普通方法提供 top-level 快捷入口，展开为普通方法调用。**
+
+```
+len(x)   →  x.len()
+iter(x)  →  x.iter()
+next(x)  →  x.next()
+```
+
+top-level 函数只是普通方法的语法糖：`len(x)` 与 `x.len()` 等价，两者皆可 dot。
+
+**两套机制方向对照：**
+
+```
+Magic:    语言语法 → 编译器 → __xxx__()     （用户不能 dot 调用）
+Mapping:  top-level → 普通 method           （用户可以 dot 调用）
+```
+
+**边界因此非常清楚**：magic 是协议层唯一入口、只由语法触发、dot 封闭；普通方法是对象 API、dot 可达、可链式；top-level 映射只是普通方法的快捷方式——三者是完全不同的机制。运算符钩子（§3.2）是 magic 协议入口中最大的一族；迭代（`iter` / `has_next` / `next`）与长度（`len`）等则归入普通方法 + top-level 映射一侧，不再是 dunder。
+
+### 3.2 运算符钩子族与契约分轨
+
 Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是由 trait 声明授予**——实现了 `__add__`，`p + p2` 天然可用，无需任何声明仪式。Koala 存在运算符相关 trait（`Arithmetic` / `Bitwise`，见下文），但它们只是**泛型约束标签，不参与运算符能力的授予**。四条钩子族：
 
 1. **算术 / 位运算符**
@@ -106,7 +155,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 
   函数体内 `a + b` 的操作数类型是未知类型 T，编译器不知道具体实现，但因 `T : Arithmetic` 约束而知道"加法可用"：IR 下降为协议 `add` 指令，后端转为 `num.add`（字节码 `OP_NUM_ADD`，数值协议指令），目标运行时经 Arithmetic intf-table O(1) 分发到 T 的 `__add__`，全程不创建 call frame。当前实现状态（2026-08 实测）：**十六件二元运算符的 IR 下降链路已全部打通**——IR 协议指令（`add/sub/mul/div/mod`、`shl/shr/and/or/xor`、`cmplt/cmple/cmpgt/cmpge/cmpeq/cmpne`）经优化器后保留，isel `num_ops_rules[]` 十六条 `OP_BINARY_* → OP_NUM_*` 映射齐备，寄存器分配后存活到 LIR；**比较族六件与算术族五件 VM handler 均已落地，`test_generic_9` 转绿**。尚不支持：泛型一元 `-` / `~`、泛型复合赋值（`+=` 等）、VM 侧位运算 `OP_NUM_*` handler 族（5 件）——详见 `docs/Koala_TODO.md`。
 
-  **trait 作参数类型（如 `a Arithmetic[int]`，对标 Rust `dyn Trait`）时运算符语法不可用——设计边界，非实现缺口**：trait 运算符方法实例化后是实现侧的具体签名（如 `__add__(int64) int64`），而操作数是 trait 值本身，类型不匹配即编译报错；trait 值与具体类型混算（如 `a + 100`）同样报错。Rust 同理：运算符 trait 族（`std::ops::Add` 等）`add(self, ...)` 按值消费 self，非 dyn-compatible，`dyn Add` 根本写不出来。运算符只存在于具体类型与泛型（`T : Arithmetic`）两条路径；trait 值上保留 `__len__` 等协议钩子调用。
+  **trait 作参数类型（如 `a Arithmetic[int]`，对标 Rust `dyn Trait`）时运算符语法不可用——设计边界，非实现缺口**：trait 运算符方法实例化后是实现侧的具体签名（如 `__add__(int64) int64`），而操作数是 trait 值本身，类型不匹配即编译报错；trait 值与具体类型混算（如 `a + 100`）同样报错。Rust 同理：运算符 trait 族（`std::ops::Add` 等）`add(self, ...)` 按值消费 self，非 dyn-compatible，`dyn Add` 根本写不出来。运算符只存在于具体类型与泛型（`T : Arithmetic`）两条路径；trait 值上的协议能力（长度、哈希等）改经 top-level 映射 / 普通方法入口访问（`len(tv)` 等），magic dunder 的 dot 调用一律封闭（§3.1）。
 - **语义 trait 保留 dunder 声明**（如 Sequence 声明 `__getitem__` 等）：它们定义概念并只约束遵循者，对标 Python collections.abc。
 - **Comparable 保持现状**：`Comparable[T] : Equatable[T]`，声明四个排序方法加继承的 `__eq__` / `__ne__`（曾考虑的单 `cmp` 方案随"合并进 any"动机消失而作废）。
 - **运算符只走语法糖，禁止显式函数调用**（学 Swift）：运算符钩子的唯一入口是对应语法，按名字显式调用是编译错误，报错信息直接指向应使用的语法糖。禁止范围（43 个）：
@@ -117,11 +166,11 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
   - 下标：`__getitem__` / `__setitem__` / `__getslice__` / `__setslice__` / `__getsub__` / `__setsub__`（走 `x[i]`、`x[a:b]`、`x[key]`）；
   - 可调用：`__call__`（走 `obj(...)`）；成员判定：`__contains__`（走 `x in seq`，`in` 表达式已有语法、语义下降待实现）；构造：`__init__`（走 `Type(...)`，二次显式构造属于隐患，一并禁止）。
 
-  协议钩子不受此限：`__len__`（`len()`）、`__str__`、`__hash__`、`__iter__` / `__next__` / `__has_next__`（`for` 为主入口，手动迭代允许）。动机：显式调用并不提供超出语法糖的任何能力，反而曾是静默错误入口——`@intrinsic` 方法的空 body 被显式调用时静默返回 none。禁止不影响泛型分发：`max[T: Comparable]` 之类的运算符分发走编译器在运算符 call site 生成的 intf-table，不经用户显式调用路径。
+  **这 43 个运算符钩子只是“magic 一律 dot 封闭”这条普遍规则（§3.1）中最大的一族，不是特例**：所有 magic dunder——含 `__len__` / `__str__` / `__hash__` 等协议入口——都不接受 `obj.__xxx__()` 显式 dot 调用。能力并不因此丢失，只是改走两个合法入口：**语言语法**（运算符、`x[i]`、`x[a:b]`、`x in seq`、`obj(...)`、`Type(...)`）与 **top-level 映射 / 普通方法**（`len(x)` → `x.len()`、`str(x)`、`hash(x)`、`iter(x)` → `x.iter()`、`next(x)` → `x.next()`）。迭代协议已重构为普通方法 `iter` / `has_next` / `next`（不再是 dunder），天然 dot 可达。动机同 §3.1：显式 dot 调用 magic 不提供超出语法糖的任何能力，反而曾是静默错误入口——`@intrinsic` 空 body 被显式调用静默返回 none，语言层封闭后此路径不复存在。禁止不影响泛型分发：`max[T: Comparable]` 之类的运算符分发走编译器在运算符 call site 生成的 intf-table，不经用户显式调用路径。
 
-  **禁令对接收者形态无差别**：具体类型、trait 值（如 `Arithmetic[int]`）、泛型类型参数（`T : Arithmetic`）三种形态的显式 dunder 调用报同一条禁令错误。泛型参数的成员解析经 bound 完成——bound 是 T 的成员唯一事实源，运算符下降与点号成员访问共用同一条 bound 查找；正因 bound 承诺了方法存在，T 上的显式调用报的是“禁止”而非“方法不存在”，拒绝理由是规则而不是能力缺失。禁令名单之外的协议钩子（如 `T : Hashable` 的 `__hash__`、`T : Collection` 的 `__len__`）经 bound 解析后按普通成员调用，正常可用。
+  **禁令对接收者形态无差别**：具体类型、trait 值（如 `Arithmetic[int]`）、泛型类型参数（`T : Arithmetic`）三种形态的显式 dunder 调用报同一条禁令错误。泛型参数的成员解析经 bound 完成——bound 是 T 的成员唯一事实源，运算符下降与点号成员访问共用同一条 bound 查找；正因 bound 承诺了方法存在，T 上的显式调用报的是“禁止”而非“方法不存在”，拒绝理由是规则而不是能力缺失。禁令覆盖**全部** magic dunder，不因接收者形态或协议类别而豁免：`T : Hashable` 的 hash 能力、`T : Collection` 的 len 能力经 bound 解析后，同样只走 top-level 映射 / 普通方法入口（`hash(x)`、`len(x)` → `x.len()`），不接受 `x.__hash__()` / `x.__len__()` 显式 dot 调用。
   
-  **禁令按符号划界，不按名字形状**：直接调用禁令的适用对象是特定符号族——内置运算符钩子（上述 43 个）、内置 magic 函数（`len` / `hash` 等 intrinsic）、编译器自动生成的符号（`@specialized` 生成物，见 §7.4）。dunder 名字形状本身不构成禁令依据：**用户自写的 `__foo__` 是合法声明、普通可调用的符号，不做任何拒绝**。
+  **禁令按符号划界，不按名字形状**：直接调用禁令的适用对象是特定符号族——内置运算符钩子（上述 43 个）、内置协议 magic dunder（`__len__` / `__str__` / `__hash__` 等——禁止的是 `obj.__xxx__()` 这条 dot 路径；其 top-level 快捷函数 `len()` / `str()` / `hash()` 反而是官方入口）、编译器自动生成的符号（`@specialized` 生成物，见 §7.4）。dunder 名字形状本身不构成禁令依据：**用户自写的 `__foo__` 是合法声明、普通可调用的符号，不做任何拒绝**。
 
 ---
 
@@ -323,7 +372,7 @@ pub func max[T: Comparable](x T, y T) T { ... }
 
 **生成物的命名与可达性：dunder 名 + pub 供链接 + magic 挡名字。** 自动生成的类与函数取名 `__xxx__`、同时 pub——但 **pub 管链接，不管访问**：职责是随模块导出、klc 持久化（magic 标记一并序列化）、跨模块关联解析可寻；挡住源码级按名引用的是 magic——表达式调用位与 typespec 位都不行（`__Foo_int__` 不能出现在类型注解里），**入口只有一个：实例化拼写**。与映射形态构成原则性不对称——映射宿主是手写一等公民（正常名，类名与拼写两个入口），生成物是编译器产物（单一入口）；想要可命名的类就自己写，用户的依赖面收敛为“自己的拼写与自己的注解”，编译器命名方案因此不构成公共 API。两态测试随之更干净：注解关掉时符号根本不存在，开着时不可名——开关任何一态都无法按名依赖生成物。名字从来不是查找键（关联按 sym_id、特化表按（泛型，实参）），**mangling 防碰撞因此不是正确性约束**：两个模块各自的 Foo 各生成 `__Foo_int__` 互不相扰（各自 symtab，永不按名合并）。命名分两层——内部名 `__xxx__`（symtab / klc 标识，裸工具可见，同 nm 看 C++ mangled 名），显示名 = 实例化拼写（`Foo[int]`，typeof 与诊断用，名字诚实）。
 
-**magic 按符号划界，不按名字形状。** 生成物的不可调用来自 magic 标记，而非 dunder 拼写——直接调用禁令的适用对象始终是三类符号：内置运算符钩子（§3 的语法糖专用族）、内置 magic 函数（`len` / `hash` 等 intrinsic）、@specialized 自动生成的类与函数。**用户自写的 `__foo__` 是合法声明、普通可调用的符号，不做任何拒绝**——dunder 名字形状本身不构成 magic。先例同款：JVM synthetic 成员在 class 文件里而不在源语言里，C++ 显式实例化符号有外部链接而 mangled 名用户写不出；Koala 用 dunder 当 synthetic 标记还有一层便宜——`__xxx__` 本就按 IDENT 正常 lex，lexer 零改动。
+**magic 按符号划界，不按名字形状。** 生成物的不可调用来自 magic 标记，而非 dunder 拼写——直接调用禁令的适用对象始终是三类符号：内置运算符钩子（§3 的语法糖专用族）、内置协议 magic dunder（`__len__` / `__str__` / `__hash__` 等，禁 dot 路径而非其 top-level 快捷函数）、@specialized 自动生成的类与函数。**用户自写的 `__foo__` 是合法声明、普通可调用的符号，不做任何拒绝**——dunder 名字形状本身不构成 magic。先例同款：JVM synthetic 成员在 class 文件里而不在源语言里，C++ 显式实例化符号有外部链接而 mangled 名用户写不出；Koala 用 dunder 当 synthetic 标记还有一层便宜——`__xxx__` 本就按 IDENT 正常 lex，lexer 零改动。
 
 **密集类是普通类，不是新的语言实体。** 可直接构造（`int64list(1, 2, 3, x)`）、可注解、可导入、`typeof` 诚实返回 `"int64list"`；删掉注解，坏掉的只是 `list[int64]` 这个拼写，类本身毫发无损——部署顺序因此是"类先行，映射后补"。对照：Java `IntStream` 家族是擦除默认 + 手写特化但无映射语法（Valhalla 想补的正是这块）；C++ `vector<bool>` 特化换表示但同名静默坑人——Koala 用显式注解 + 独立类名，替换关系全程可 grep。
 
@@ -382,7 +431,7 @@ Iterable[T]
 
 | Trait | 继承 | 方法数 | 核心语义 |
 |-------|------|--------|----------|
-| `Iterable[T]` | — | 1 | 遍历（`__iter__()` → `Iterator[T]`） |
+| `Iterable[T]` | — | 1 | 遍历（`iter(_step=1)` → `Iterator[T]`；普通方法，非 dunder） |
 | `Sequence[T]` | `Iterable[T]` | 7 | 只读序列：长度、成员判定、下标访问、切片、搜索 |
 | `MutableSequence[T]` | `Sequence[T]` | 9 | 可变序列：写入、追加、插入、删除、清空、反转 |
 | `Map[K, V]` | `Iterable[(K, V)]` | 10 | 键值映射：下标读写、视图、安全读取、删除 |
@@ -571,89 +620,87 @@ Koala 文档注释采用 Rust 风格 `///`，由 `tools/kl-doc.py` 提取生成 
 
 以 Python `builtins` 为基准逐项比对，标注 Koala 现状与决策。
 
-**已有**
+**Top-level function 分类原则**：top-level function 是精选出来的**高频、普遍、自然**的语言 / API 入口——`@intrinsic mapping` 只是其中一类，普通 top-level function 同样合法。**没有必要为了 API 对称性给所有 method 都制造 top-level function**；按“是否有独立价值”逐项裁定。
+
+**① 已确定 · @intrinsic mapping**（top-level → 普通方法，见 §3.1）
+
+| top-level | 展开 | 备注 |
+|-----------|------|------|
+| `len(x)` | `x.len()` | 通识；`len(x)` 与 `x.len()` 皆可 dot |
+| `hash(x)` | `x.hash()` | 内建哈希表（Map / Set）基石 |
+| `iter(x)` | `x.iter()` | 迭代入口 |
+| `reversed(x)` | `x.iter(reversed = true)` | 与 `iter()` 共用同一 iterator 实现 |
+
+**② 已确定 · 普通 top-level functions**（非 mapping）
+
+| 函数 | 独立价值 |
+|------|----------|
+| `abs(x)` | 高频数学操作，`abs(x)` 比 `x.abs()` 自然 |
+| `format(value, spec)` | 通用格式化，不应要求用户知道具体类型的方法 |
+| `max(...)` / `min(...)` | 对多个值 / 序列做选择的通用操作，非某对象的 property |
+| `pow(x, y)` | 数学二元操作，top-level 表达自然 |
+| `print(...)` | 语言级 I/O，无合理 receiver |
+| `str(x)` | 通用转换 / 字符串化入口 |
+| `typeof(x)` | Koala 自己的类型查询操作 |
+| `next(iterator) T?` | **普通函数、非 mapping**；与 `Iterator.next() T` 语义不同——top-level `next()` 是安全接口，耗尽返回 `nil` |
+
+**③ 保留能力，但归为 class / type**（非 builtin function）
+
+| 名称 | 说明 |
+|------|------|
+| `enumerate` | `enumerate(xs)` 构造形式自然，但语义是**创建带状态的迭代对象**——调用类型 / 构造器，而非 builtin function |
+| `zip` | `zip(a, b)` 本质是创建组合迭代器 / iterable，同理归 class / type |
+
+**④ 待定**（有 top-level 表达价值，但 API 未定）
+
+| 函数 | 未决问题 |
+|------|----------|
+| `all(items)` / `any(items)` | 泛型约束；predicate result 类型；空 iterable 语义；是否只接受 `Iterable[bool]`；是否需要 predicate 版本 |
+| `sum(Iterable[T])` | T 是否须支持 `+`；是否需 zero / identity；整数 / 浮点 / Decimal 处理；空序列返回；是否允许初始值 |
+| `sorted` | 返回 `Array[T]` 还是 `Sequence[T]`；输入 `Iterable[T]` 还是 `Sequence[T]`；比较协议；是否支持 key / comparator；稳定性；排序方向 |
+
+**⑤ 不需要 top-level function**（若存在，应为普通 method）
+
+| 函数 | 说明 |
+|------|------|
+| `map` / `filter` | 若 `Iterable` 提供 `items.map(f)` / `items.filter(pred)`，则 top-level `map(f, items)` / `filter(pred, items)` 无足够额外价值 |
+
+**⑥ 明确抛弃**（不作为 top-level builtin）
+
+`ascii`、`bool`、`breakpoint`、`callable`、`classmethod`、`compile`、`complex`、`delattr`、`dir`、`eval`、`exec`、`getattr`、`globals`、`hasattr`、`help`、`id`、`input`、`isinstance`、`issubclass`、`locals`、`memoryview`、`object`、`open`、`repr`、`setattr`、`staticmethod`、`super`、`type`、`vars`。
+
+- `repr` **坚决不要**：不区分 repr / str，`__str__()` 统一承担。
+- 反射 / 运行时编译族（`globals` / `locals` / `dir` / `vars` / `isinstance` / `issubclass` / `hasattr` / `getattr` / `setattr` / `delattr` / `exec` / `eval` / `compile`）一律不作为 top-level builtin。
+- 若干有 Koala 语言级 / 命名空间替代（非 top-level builtin）：`type` → `typeof`；`classmethod` / `staticmethod` → `static` 关键字；`object` → `any` trait（拆解为 any + 三契约）；`open` → `fs.open`（归 fs 包）；`super` → 无需显式父类调用语法；`property` → `pub let` / `pub func`；`memoryview` → view 只用于定长类型、动态容器用 copy。
+
+**⑦ 类 / 构造器 / 方法对照**（保留）
 
 | Python | Koala | 备注 |
 |--------|-------|------|
-| `print()` | `print()` | `@native`，支持 `sep` / `end` |
-| `len()` | `len()` | `@intrinsic` |
-| `hash()` | `hash()` | `@intrinsic` |
-| `str()` | `str(any)` | 经 `__str__()` 通用字符串转换 |
-| `type()` | `typeof()` | 改名避免冲突 |
-| `min()` / `max()` | `min()` / `max()` | `@specialized` 泛型 |
-| `format()` | `format()` | `@native` |
 | `range()` | `range` 类 | 编译器补全 |
 | `slice()` | `slice` 类 | 编译器补全 |
 | `set()` | `HashSet` / `TreeSet` | — |
 | `list()` | `list(args ...T)` | 变长参数构造，不支持 `list(iterable)` 形式 |
 | `dict()` | `dict()` | — |
 | `tuple()` | `tuple(args ...T)` | — |
-| `classmethod()` / `staticmethod()` | `static` 关键字 | 语言级替代 |
-| `open()` | `fs.open` | 归 fs 包 |
-| `object` | `any` trait | 拆解为 any + 三契约 |
-| `Exception` 体系 | 单一 `Exception` | panic 不可捕获，无需层级 |
-| `abs()` | `int64.abs()` / `float64.abs()` | 方法而非顶层函数 |
-| `round()` | `float64.round()` | 方法而非顶层函数 |
-| `pow()` | `int64.pow()` / `uint64.pow()` / `float64.pow()` | 方法而非顶层函数 |
-
-**明确要补**
-
-| 函数 | 说明 |
-|------|------|
-| `enumerate()` | 已规划，for 循环高频用法 |
-| `zip()` | 已规划，多序列并行迭代 |
-| `hex()` / `oct()` / `bin()` | 整数进制格式化 |
-| `input()` | 标准输入读取 |
-| `callable()` | 判断对象是否可调用（反射 API） |
-
-**暂时没有（反射 / 运行时编译，将来设计）**
-
-| 类别 | 项目 |
-|------|------|
-| 反射 | `globals()` / `locals()` / `dir()` / `vars()` |
-| 反射 | `isinstance()` / `issubclass()` |
-| 反射 | `hasattr()` / `getattr()` / `setattr()` / `delattr()` |
-| 运行时编译 | `exec()` / `eval()` / `compile()` |
-| 动态导入 | `__import__()` |
-
-**明确不要**
-
-| 项目 | 理由 |
-|------|------|
-| `repr()` | 不区分 repr/str，`__str__()` 统一承担 |
-| `property()` | `pub let` / `pub func` 直截了当 |
-| `memoryview` | view 只用于固定长度类型，动态容器用 copy |
-| `frozenset()` | 无 hashable 容器需求 |
-| `super()` | Koala 不需要显式调用父类方法语法 |
-| `breakpoint()` | 调试器入口，Koala 无此机制 |
-| `help()` | 交互式文档，Koala 用生成式文档工具 |
-| `any()` / `all()` | 根因：Koala 无 truthiness 机制（隐式真假判定违背 nothing hidden，主流静态语言均无此概念）；若引入 Truthiness trait 语法钩子可重开（Koala_TODO §10，不一定支持） |
-| `bool()` | 同上，隐式 truthiness 转换机制不存在 |
-
-**不确定**
-
-| 项目 | Python 用途 |
-|------|-------------|
-| `sum()` / `sorted()` | 集合聚合 / 排序 |
-| `reduce()` | 累积归约 |
-| `map()` / `filter()` | 函数式组合子 |
-| `divmod()` | 返回 (商, 余) 元组 |
-| `reversed()` 顶层 | 各类型已有 `.reversed()` 方法，顶层是否冗余 |
-| `id()` | 返回对象内存地址（身份标识） |
-| `chr()` / `ord()` | 字符 ↔ code point 互转 |
-| `complex` | 复数类型 |
-| `iter()` / `next()` 顶层 | 手动迭代协议 |
-| `aiter()` / `anext()` | 异步迭代协议，Koala 暂无 async 迭代 |
-| `ascii()` | 返回 ASCII 可打印表示，非 ASCII 转义 |
-| `bytes()` | 不可变字节构造，Koala `bytes` 类尚无通用构造器 |
-
-**已有对应（方法形式）**
-
-| Python 构造器 | Koala 方法 | 备注 |
-|---|---|---|
+| `bytearray()` | `ByteBuf` | 可变字节缓冲 |
 | `int(x)` | `str.to_int()` / `float64.to_int()` | 方法而非构造器 |
 | `float(x)` | `str.to_float()` / `int64.to_float()` | 方法而非构造器 |
-| `bytearray()` | `ByteBuf` | 可变字节缓冲 |
+| `round()` | `float64.round()` | 方法而非顶层函数 |
+| `Exception` 体系 | 单一 `Exception` | panic 不可捕获，无需层级 |
+| `frozenset()` | 无 | 无 hashable 容器需求 |
+
+**⑧ 其他未决**（本轮分类未提及，维持现状）
+
+| 项目 | 现状 |
+|------|------|
+| `hex()` / `oct()` / `bin()` | 整数进制格式化，规划中 |
+| `divmod()` | 返回 (商, 余) 元组，未定 |
+| `reduce()` | 累积归约，未定（`iterator.kl` 中曾加后被作者注释，仅路线图） |
+| `chr()` / `ord()` | 字符 ↔ code point 互转，未定 |
+| `bytes()` | 不可变字节构造，`bytes` 类尚无通用构造器 |
+| `aiter()` / `anext()` | 异步迭代协议，Koala 暂无 async 迭代 |
+| `__import__()` | 动态导入，未定 |
 
 ---
 

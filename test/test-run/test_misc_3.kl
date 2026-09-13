@@ -32,9 +32,9 @@ import "std/fs"
 import "std/io"
 
 let f = fs.open("test3.txt", "w")
-sys.stdout = io.BufWriter(f)
+sys.stdout = io.BufWriter(f!)
 print("hello world to file")
-f.close()
+f!.close()
 // TODO: should panic：I/O operation on closed file
 // print("hello world to file after close()")
 

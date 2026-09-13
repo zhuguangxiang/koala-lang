@@ -47,9 +47,11 @@ func main() {
 // CHECK-LABEL: @show[0,15]:
 // CHECK: jmp_ref_ne_null r1, 6
 
-// CHECK-LABEL: @foo[16,16]:
+// CHECK-LABEL: @foo[16,17]:
+// CHECK: nil_check r0, r0
 // CHECK: ret r0
 
 // CHECK: msg: math is broken
 // CHECK: msg is nil: no message
-// CHECK: none
+
+// CHECK: forced unwrap (`!`) of a nil value

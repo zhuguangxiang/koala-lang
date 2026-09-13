@@ -38,11 +38,11 @@ pub class dict[K, V] : Map[K, V] {
     /// Return the value mapped to `key`. O(1).
     /// Panic if the key is not present.
     @native
-    pub func __getsub__(key K) V {}
+    pub func __getitem__(key K) V {}
 
     /// Associate `value` with `key`, replacing any existing mapping.
     @native
-    pub func __setsub__(key K, value V) {}
+    pub func __setitem__(key K, value V) {}
 
     /// Return a list of all keys in the dict, in insertion order.
     @native

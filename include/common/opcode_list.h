@@ -2713,6 +2713,8 @@ X(OP_HASH, FORMAT_RxRx, "hash")
  */
 X(OP_STR, FORMAT_RxRx, "str")
 
+X(OP_NIL_CHECK, FORMAT_RxRx, "nil_check")
+
 /*---------------------------------------------------------------+
  |  IR-Only Pseudo Instructions                                  |
  +---------------------------------------------------------------*/

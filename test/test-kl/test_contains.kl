@@ -1,0 +1,9 @@
+// RUN: koalac %s --opt 2>&1 | filecheck %s
+
+func test_contains() {
+    print(100 in "hello")
+    print(1 in 100)
+}
+
+// CHECK: Incompatible type: expected 'str', but got 'int64'.
+// CHECK: type 'int64' does not support '__contains__' method.

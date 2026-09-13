@@ -1,0 +1,92 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+@test
+pub func test_str_contains() {
+    ut.assert("he" in "hello")
+    ut.assert("world" in "world")
+    ut.assert_false("world" in "hello")
+}
+
+@test
+pub func test_str_iter() {
+    var s = "hello"
+    var iter = s.iter()
+    var result = ""
+    while let c = iter.next() {
+        // TODO: generate num.add
+        result += c
+    }
+    ut.assert_eq(result, s)
+}
+
+@test
+pub func test_str_iter2() {
+    var s = "hello"
+    var it = s.iter()
+    var result = ""
+    while it.has_next() {
+        result = result + it.next_strict()
+        // FIXME:
+        // failed: result += it.next_strict()
+    }
+    ut.assert_eq(result, s)
+}
+
+@test
+pub func test_str_rev() {
+    var s = "hello"
+    var it = s.reversed()
+    var result = ""
+    while let c = it.next() {
+        // TODO: generate num.add
+        result += c
+    }
+    ut.assert_eq(result, "olleh")
+}
+
+@test
+pub func test_str_rev2() {
+    var s = "hello"
+    var it = s.reversed()
+    var result = ""
+    ut.assert_eq(it.next_or("ZZ"), "o")
+    while it.has_next() {
+        result = result + it.next_strict()
+        // FIXME:
+        // failed: result += it.next_strict()
+    }
+    ut.assert_eq(result, "lleh")
+    ut.assert_eq(it.next_or("ZZ"), "ZZ")
+}
+
+@test
+pub func test_str_empty() {
+    var s = ""
+    var iter = s.iter()
+    ut.assert_false(iter.has_next())
+    ut.assert_eq(iter.next_or("ZZ"), "ZZ")
+}
+
+@test
+pub func test_str_empty_reversed() {
+    var s = ""
+    var iter = s.reversed()
+    ut.assert_false(iter.has_next())
+    ut.assert_eq(iter.next_or("ZZ"), "ZZ")
+}
+
+@test_expect_panic("No more elements in StrRevIter")
+pub func test_str_empty_reversed_panic() {
+    var s = ""
+    var iter = s.reversed()
+    iter.next_strict()
+}
+
+@test_expect_panic("No more elements in StrIter")
+pub func test_str_empty_panic() {
+    var s = ""
+    var iter = s.iter()
+    iter.next_strict()
+}

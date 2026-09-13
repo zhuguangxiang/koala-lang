@@ -21,3 +21,75 @@
 //         }
 //     }
 // }
+
+/*
+ * /// Return an iterator of (index, item) pairs from `seq`.
+ * /// The index starts at 0, or at `start` if given.
+ * ///
+ * /// Example:
+ * ///     for i, c in enumerate("abc") { print(i, c) }
+ *
+ * // @native
+ * // pub func enumerate[T](seq Iterable[T], start = 0) Iterator[tuple[int, T]] {}
+ *
+ * /// Return an iterator of tuple[T, U] pairs from two iterables.
+ * /// Iteration stops when the shorter input is exhausted.
+ * ///
+ * /// Example:
+ * ///     for k, v in zip(keys, values) { print(k, v) }
+ *
+ * // @native
+ * // pub func zip[T, U](a Iterable[T], b Iterable[U]) Iterator[tuple[int, T]] {}
+ *
+ * /// Return an iterator over the elements of `seq` for which `fn` returns true.
+ * ///
+ * /// Example:
+ * ///     let evens = filter(func(x int) bool { return x % 2 == 0 }, nums)
+ *
+ * // @native
+ * // pub func filter[T](fn func(T) bool, seq Iterable[T]) Iterator[T] {}
+ *
+ * /// Return an iterator over the elements of `seq` transformed by `fn`.
+ * ///
+ * /// Example:
+ *     let doubled = map(func(x int) int { return x * 2 }, nums)
+ *
+ * // @native
+ * // pub func map[T, R](fn func(T) R, seq Iterable[R]) Iterator[R] {}
+ *
+ * /// Reduce the elements of `seq` to a single value using `fn`,
+ * /// starting from `initial`.
+ * ///
+ * /// Example:
+ *     let sum = reduce(func(acc int, x int) int { return acc + x }, nums, 0)
+ *
+ * // @native
+ * // pub func reduce[T, U](fn func(U, T) U, seq Iterable[T], initial U) U {}
+ */
+
+/// Return a lazy filter object that yields items for which `fn` returns true.
+///
+/// Example:
+///   func is_even(x int) bool = x % 2 == 0  // Named function (Assignment style)
+///   let nums = list[int](1, 2, 3, 4)
+///   let evens = nums.filter(is_even)       // Lazy: no computation yet
+// func filter(fn func(T) bool) Iterable[T]
+
+/// Return a lazy map object that yields items transformed by `fn`.
+///
+/// Example with Anonymous Function:
+///   let nums = list[int](1, 2, 3)
+///   let doubled = nums.map(func(x int) int {
+///       return x * 2                       // Anonymous (Block style)
+///   })
+// func map[R](fn func(T) R) Iterable[R]
+
+/// Eagerly reduce the elements of the iterable to a single value using `fn`.
+///
+/// Example:
+///   let nums = list[int](1, 2, 3, 4)
+///   let sum = nums.reduce(0, func(acc int, x int) int {
+///       return acc + x
+///   })
+///   // sum = 10
+// func reduce[U](initial U, fn func(U, T) U) U
