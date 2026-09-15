@@ -2000,7 +2000,69 @@ static void get_seq_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struc
     }
 }
 
-static Symbol *get_loop_range_symbol(ForStmt *s)
+struct IterInfo {
+    KlrValue *it_obj;
+    KlrValue *has_next;
+    KlrValue *next_strict;
+};
+
+static KlrValue *get_iter_func(KlrValue *val, ParserState *ps)
+{
+    Symbol *sym = get_symbol_by_id(val->ts->sym_id);
+    ASSERT(sym->kind == SYM_CLASS);
+    Symbol *fn = stbl_get(sym->stbl, "iter");
+    ASSERT(fn);
+    if (!fn->ir_val) {
+        NYI();
+    }
+    return fn->ir_val;
+}
+
+static void get_iter_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struct IterInfo *out)
+{
+    KlrValue *obj = NULL;
+    if (type_is_iterator(val->ts)) {
+        obj = val;
+    } else if (type_is_iterable(val->ts)) {
+        KlrValue *iter_fn = get_iter_func(val, ps);
+        KlrValue *args[] = { val };
+        obj = klr_build_call(bldr, iter_fn, iter_fn->ts, args, 1, "");
+    } else {
+        UNREACHABLE();
+    }
+
+    // get has_next and next_strict
+    Symbol *sym = get_symbol_by_id(obj->ts->sym_id);
+    if (sym->kind == SYM_CLASS) {
+        Symbol *fn = stbl_get(sym->stbl, "has_next");
+        ASSERT(fn);
+        if (!fn->ir_val) {
+            NYI();
+        }
+        out->has_next = fn->ir_val;
+
+        fn = stbl_get(sym->stbl, "next_strict");
+        ASSERT(fn);
+        if (!fn->ir_val) {
+            NYI();
+        }
+        out->next_strict = fn->ir_val;
+
+        out->it_obj = obj;
+    } else {
+        NYI();
+    }
+}
+
+static void build_loop_iter_cond(KlrBuilder *bldr, struct IterInfo *it_info, KlrBasicBlock *true_bb,
+                                 KlrBasicBlock *false_bb, ParserState *ps)
+{
+    KlrValue *args[] = { it_info->it_obj };
+    KlrValue *cond = klr_build_call(bldr, it_info->has_next, bool_type_spec(), args, 1, "");
+    klr_build_jmp_cond(bldr, cond, true_bb, false_bb);
+}
+
+static Symbol *get_loop_var_symbol(ForStmt *s)
 {
     ASSERT(vector_size(&s->sym_ids) == 1);
     int *sym_id = vector_get_ptr(&s->sym_ids, 0);
@@ -2055,6 +2117,7 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     struct RangeInfo range_info = { 0 };
     Symbol *range_sym = NULL;
     struct SeqInfo seq_info = { 0 };
+    struct IterInfo it_info = { 0 };
     int which = 0;
 #define GEN_RANGE    1
 #define GEN_SEQ      2
@@ -2085,8 +2148,12 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
             which = GEN_SEQ;
             klr_builder_end(&bldr, sc->bb);
             get_seq_info(it_val, &bldr, ps, &seq_info);
+        } else if (type_is_iter(it_val->ts)) {
+            which = GEN_ITERATOR;
+            klr_builder_end(&bldr, sc->bb);
+            get_iter_info(it_val, &bldr, ps, &it_info);
         } else {
-            NYI();
+            UNREACHABLE();
         }
     } else if (klr_is_local(it_val)) {
         KlrInsn *local = (KlrInsn *)it_val;
@@ -2098,8 +2165,12 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
             which = GEN_SEQ;
             klr_builder_end(&bldr, sc->bb);
             get_seq_info(it_val, &bldr, ps, &seq_info);
+        } else if (type_is_iter(it_val->ts)) {
+            which = GEN_ITERATOR;
+            klr_builder_end(&bldr, sc->bb);
+            get_iter_info(it_val, &bldr, ps, &it_info);
         } else {
-            NYI();
+            UNREACHABLE();
         }
     } else if (klr_is_insn(it_val)) {
         KlrInsn *insn = (KlrInsn *)it_val;
@@ -2114,8 +2185,12 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
             which = GEN_SEQ;
             klr_builder_end(&bldr, sc->bb);
             get_seq_info(it_val, &bldr, ps, &seq_info);
+        } else if (type_is_iter(it_val->ts)) {
+            which = GEN_ITERATOR;
+            klr_builder_end(&bldr, sc->bb);
+            get_iter_info(it_val, &bldr, ps, &it_info);
         } else {
-            NYI();
+            UNREACHABLE();
         }
     } else if (klr_is_const(it_val)) {
         if (type_is_range(it_val->ts)) {
@@ -2130,7 +2205,7 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
             klr_builder_end(&bldr, sc->bb);
             get_seq_info(it_val, &bldr, ps, &seq_info);
         } else {
-            NYI();
+            UNREACHABLE();
         }
     } else {
         UNREACHABLE();
@@ -2139,7 +2214,7 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     klr_builder_end(&bldr, sc->bb);
 
     if (which == GEN_RANGE) {
-        Symbol *sym = get_loop_range_symbol(s);
+        Symbol *sym = get_loop_var_symbol(s);
         if (sym->flags & SYM_FLAGS_MUTABLE) {
             sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
         } else {
@@ -2152,8 +2227,27 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         // initialize index to 0
         KlrValue *zero = klr_const_int(0, int64_type_spec(), MOD);
         klr_build_move(&bldr, seq_info.index, zero);
+    } else if (which == GEN_ITERATOR) {
+        // nothing to do
+        // no need to generate codes in 'cond_header' block
+        /*
+        header:
+            %it = call iter() if obj is Iterable (get_iter_info will handle this)
+            // no need gen call iter() if obj is Iterator
+        cond:
+            %0 = call hash_next
+            jmp_true body, end
+        body:
+            %var = local i64
+            %1 = call next_strict
+            move %var, %1
+            ....
+            %0 = call hash_next
+            jmp_true body, end
+        end:
+        */
     } else {
-        NYI();
+        UNREACHABLE();
     }
 
     klr_build_jmp(&bldr, loop_cond);
@@ -2171,8 +2265,11 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         klr_builder_end(&bldr, sc->bb);
         KlrValue *cond = klr_build_cmpge(&bldr, seq_info.index, seq_info.len, "");
         klr_build_jmp_cond(&bldr, cond, loop_end, loop_body);
+    } else if (which == GEN_ITERATOR) {
+        klr_builder_end(&bldr, sc->bb);
+        build_loop_iter_cond(&bldr, &it_info, loop_body, loop_end, ps);
     } else {
-        NYI();
+        UNREACHABLE();
     }
 
     exit_scope(ps);
@@ -2181,26 +2278,13 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     sc = enter_scope(ps, SCOPE_BLOCK, FOR_BLOCK, "for-block");
     sc->bb = loop_body;
 
-    // int sym_id;
-    // vector_foreach(sym_id, &s->sym_ids) {
-    //     Symbol *sym = get_symbol_by_id(sym_id);
-    //     ASSERT(sym->kind == SYM_VAR);
-    //     VarSymbol *var_sym = (VarSymbol *)sym;
-    //     ASSERT(var_sym->scope == VAR_SCOPE_LOCAL);
-    //     if (sym->flags & SYM_FLAGS_MUTABLE) {
-    //         sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
-    //     } else {
-    //         sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
-    //     }
-    // }
-
     // save continue_bb and break_bb for `break` and `continue`
     sc->continue_bb = loop_cond;
     sc->break_bb = loop_end;
 
     if (which == GEN_SEQ) {
         klr_builder_end(&bldr, sc->bb);
-        Symbol *sym = get_loop_range_symbol(s);
+        Symbol *sym = get_loop_var_symbol(s);
         if (sym->flags & SYM_FLAGS_MUTABLE) {
             sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
         } else {
@@ -2208,6 +2292,15 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         }
         KlrValue *_val = klr_build_seq_get(&bldr, seq_info.seq, seq_info.index, sym->ts, "");
         klr_build_move(&bldr, sym->ir_val, _val);
+    } else if (which == GEN_ITERATOR) {
+        // create local variable
+        klr_builder_end(&bldr, sc->bb);
+        Symbol *sym = get_loop_var_symbol(s);
+        sym->ir_val = klr_build_local_var(&bldr, it_info.next_strict->ts, sym->name);
+        KlrValue *args[] = { it_info.it_obj };
+        KlrValue *next_val =
+            klr_build_call(&bldr, it_info.next_strict, it_info.next_strict->ts, args, 1, "");
+        klr_build_move(&bldr, sym->ir_val, next_val);
     }
 
     emit_ir_visit_block(ps, s->block);
@@ -2221,21 +2314,24 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         KlrValue *one = klr_const_int(1, int64_type_spec(), MOD);
         KlrValue *tmp = klr_build_add(&bldr, seq_info.index, one, "");
         klr_build_move(&bldr, seq_info.index, tmp);
+    } else if (which == GEN_ITERATOR) {
+        // nothing to do
     } else {
-        NYI();
+        UNREACHABLE();
     }
 
     // add jmp to loop_body block
     if (!block_has_terminator(sc->bb)) {
-        KlrBuilder _bldr;
-        klr_builder_end(&_bldr, sc->bb);
+        klr_builder_end(&bldr, sc->bb);
         if (which == GEN_RANGE) {
             build_loop_range_cond(&bldr, range_cur, &range_info, loop_body, loop_end, ps);
         } else if (which == GEN_SEQ) {
             KlrValue *cond = klr_build_cmpge(&bldr, seq_info.index, seq_info.len, "");
             klr_build_jmp_cond(&bldr, cond, loop_end, loop_body);
+        } else if (which == GEN_ITERATOR) {
+            build_loop_iter_cond(&bldr, &it_info, loop_body, loop_end, ps);
         } else {
-            NYI();
+            UNREACHABLE();
         }
     }
 

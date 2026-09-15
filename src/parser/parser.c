@@ -1806,7 +1806,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
         elem_ts = sym->arg;
         ASSERT(elem_ts);
     } else {
-        match_iterable(it->ts, NULL, &elem_ts);
+        match_iter(it->ts, NULL, &elem_ts);
         if (!elem_ts) {
             kl_error(it->loc, "type '%s' is not iterable", it->ts->signature);
             return;

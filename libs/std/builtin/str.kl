@@ -164,6 +164,8 @@ pub class str : Sequence & Comparable {
     @native
     pub func __mul__(n int) str {}
 
+    /// Append `rhs` to `self` in place (`self += rhs`), returning the updated string.
+    /// This mutates the original string buffer when possible.
     @native
     pub func __iadd__(rhs str) str {}
 

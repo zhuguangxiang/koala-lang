@@ -83,7 +83,92 @@
 
 import "koala/pretty" as pp
 
+class Foo : Iterator[int] & Iterable[int] {
+
+    let lst = [1, 2, 3]
+    var index = 0
+
+    func has_next() bool {
+        return index < len(lst)
+    }
+
+    func next_strict() int {
+        let val = lst[index]
+        index = index + 1
+        return val
+    }
+
+    func iter() Iterator[int] {
+        panic("Foo:iter() must not be called")
+        return self
+    }
+}
+
+class Bar : Iterable[int] {
+    let lst = [1, 2, 3]
+
+    func iter() BarIter {
+        return BarIter(self)
+    }
+}
+
+class BarIter : Iterator[int] {
+    let bar Bar
+    var index = 0
+
+    func __init__(b Bar) {
+        bar = b
+    }
+
+    func has_next() bool {
+        return index < len(bar.lst)
+    }
+
+    func next_strict() int {
+        let val = bar.lst[index]
+        index = index + 1
+        return val
+    }
+}
+
+// func max_float32(a float32, b float32) float32 {
+//     if a > b {
+//         return a
+//     }
+//     return b
+// }
+
 func main() {
+    // print(max(float32(1.5), float32(2.5)))
+    // let f = Foo()
+    // for i in Foo() { print(i) }
+
+    for i in Bar() { print(i) }
+
+    // let s = "hello"
+    // for c in s { print(c) }
+    // print(s.upper())
+
+    // let it Iterator[str] = s.iter()
+    // print(it.next_or("ZZ"))
+
+    // for c in it { print(c) }
+
+    // let it Iterable[str] = s
+    // for c in it { print(c) }
+
+    // let x |int| int = {|a| a}
+    // let y {|int| int} = {|a| a}
+    // let z {|int| int}? = {|a| a}
+    // print(max(10, 20))
+    // print(max_int64(10, 20))
+    // print(abs(-10))
+    // print(abs_int64(-10))
+    // print(ok(100))
+    // print(max(10, 20))
+    // let s = "hello world"
+
+    // print("he" in "hello world")
     // let b = Bar()
     // b.hello()
     // print(b.msg)
@@ -274,22 +359,22 @@ func main() {
     // print(format("x={:d}, y={:d}, z={:.2f}", 10, 20, 3.14))
     // print(format("User {:<10} | Score {:>5d} | Rate {:>6.2f}", "James", 98, 0.876))
 
-    let x = 10
-    let y = 20
-    let s = format("Point {{ x: {:d}, y: {:d} }}", x, y)
+    // let x = 10
+    // let y = 20
+    // let s = format("Point {{ x: {:d}, y: {:d} }}", x, y)
 
-    print(s)
+    // print(s)
 
-    print(pp.pretty(s))
+    // print(pp.pretty(s))
 
-    let s2 = "Point { x: 10, y: 20, meta: { a: 1, b: 2 } }"
-    print(pp.pretty(s2))
+    // let s2 = "Point { x: 10, y: 20, meta: { a: 1, b: 2 } }"
+    // print(pp.pretty(s2))
 
-    let s3 = "Shape { name: \"rect\", points: [ { x: 1, y: 2 }, { x: 3, y: 4 } ] }"
-    print(pp.pretty(s3))
+    // let s3 = "Shape { name: \"rect\", points: [ { x: 1, y: 2 }, { x: 3, y: 4 } ] }"
+    // print(pp.pretty(s3))
 
-    let s4 = "Config { window: { size: { w: 800, h: 600 }, pos: { x: 10, y: 20 } }, flags: [ true, false, true ] }"
-    print(pp.pretty(s4))
+    // let s4 = "Config { window: { size: { w: 800, h: 600 }, pos: { x: 10, y: 20 } }, flags: [ true, false, true ] }"
+    // print(pp.pretty(s4))
 
     // let l = [(1, 2), (3, 4), (5, 6)]
     // // for (x, y) in l {

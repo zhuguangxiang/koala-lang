@@ -194,11 +194,17 @@ static inline int type_is_slice(TypeSpec *ts) { return type_is_some_klass(ts, "s
 int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts);
 
 #define match_sequence(ts, it_ts, arg_ts) match_type_spec(ts, "Sequence", it_ts, arg_ts)
-#define match_iterable(ts, it_ts, arg_ts) match_type_spec(ts, "Iterable", it_ts, arg_ts)
 
-#define type_is_iter(ts) match_iterable(ts, NULL, NULL)
-#define type_is_seq(ts)  match_sequence(ts, NULL, NULL)
-#define type_is_map(ts)  match_type_spec(ts, "Map", NULL, NULL)
+#define match_iter(ts, it_ts, arg_ts) \
+    (match_type_spec(ts, "Iterator", it_ts, arg_ts) || \
+     match_type_spec(ts, "Iterable", it_ts, arg_ts))
+
+#define type_is_iter(ts)     match_iter(ts, NULL, NULL)
+#define type_is_iterator(ts) match_type_spec(ts, "Iterator", NULL, NULL)
+#define type_is_iterable(ts) match_type_spec(ts, "Iterable", NULL, NULL)
+
+#define type_is_seq(ts) match_sequence(ts, NULL, NULL)
+#define type_is_map(ts) match_type_spec(ts, "Map", NULL, NULL)
 
 int type_spec_to_str(TypeSpec *ts, Buffer *buf);
 TypeSpec *type_spec_from_str(const char *s);

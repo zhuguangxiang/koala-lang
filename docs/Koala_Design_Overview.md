@@ -69,7 +69,7 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 - **分支自动窄化（flow-sensitive smart cast）**：`if v != nil { ... }` 块内、`if v == nil { return }` 之后，`v` 自动窄化为 `T`，可直接参与运算；窄化随作用域精确进出（裸块、嵌套、死代码、对 `var` 重新赋值都正确失效），IR 下降为 `cast T? to T`。诊断区分“optional type cannot be used with '+' operator”（未窄化）与“…when value is nil”（已判 nil 分支内）。
 - **if let / while let 自动解包**：`if let v = expr { ... } else { ... }` 绑定**不可变**量 v（else 分支不可见 v）；`while let next = curr.next { ... }` 循环解包。解包即窄化，零运行时代价。
 - **可选链 `?.`**：`f.foo()?.get_id()`——接收者为 nil 时整个链短路为 nil，不 panic。
-- **强制解包 `!`（后缀）**：`v!` 断言 `T?` 非 nil 并取值，IR 下降为 `cast T? to T`（如 `return v!`、`curr = curr.next!`）。是“我确知非 nil”的逃生口，不替代窄化；**不是错误处理通道**（对 nil 行为不保证）——可失败转换用 `_or` / `try_`（见 §6）。
+- **强制解包 `!`（后缀）**：`v!` 断言 `T?` 非 nil 并取值，IR 下降为 `nil_check`（opcode `OP_NIL_CHECK`，`FORMAT_RxRx`）；对 nil **触发运行时异常**（消息 ``forced unwrap (`!`) of a nil value``）——本轮 `fix unwrap(!) bug` 修复了此前对 nil 静默返回 `none` 的行为。作用于非可选值时仅告警并原样透传。是“我确知非 nil”的逃生口，不替代窄化，也**不是错误处理通道**——可失败转换用 `_or` / `try_`（见 §6）。
 - **展开 `!`（后缀，变参位）**：`f(l!)` 把 list `l` 的元素展开为变参实参（与强制解包同形不同义，按上下文区分）。
 - **无 box/unbox**：实现层不存在装箱机制——值类型进入普适 `any` / 泛型容器无需变身。对照：Java autoboxing（隐藏分配 + Integer 缓存陷阱）、C# struct 装箱、Kotlin Int-as-Any 装箱、Go interface{} 装箱。"普适 any + 泛型"与"零装箱"通常互斥，Koala 两者兼得，是 VM / 表示层的工程成就。
 - 零装箱同时是"无隐藏特性"原则的直接推论（装箱即隐藏分配、隐藏身份变化），也是基准性能的贡献项。
@@ -431,7 +431,7 @@ Iterable[T]
 
 | Trait | 继承 | 方法数 | 核心语义 |
 |-------|------|--------|----------|
-| `Iterable[T]` | — | 1 | 遍历（`iter(_step=1)` → `Iterator[T]`；普通方法，非 dunder） |
+| `Iterable[T]` | — | 1 | 遍历（`iter(step=1)` → `Iterator[T]`；普通方法，非 dunder） |
 | `Sequence[T]` | `Iterable[T]` | 7 | 只读序列：长度、成员判定、下标访问、切片、搜索 |
 | `MutableSequence[T]` | `Sequence[T]` | 9 | 可变序列：写入、追加、插入、删除、清空、反转 |
 | `Map[K, V]` | `Iterable[(K, V)]` | 10 | 键值映射：下标读写、视图、安全读取、删除 |
@@ -552,10 +552,29 @@ bytes / ByteBuf 的二进制编解码职责已**剥离至官方库 encoding**，
 
 ### 8.5 迭代
 
-- for 循环直接接受 Iterator，支持元组解包。
+**`Iterator[T]` 协议**（2026-09-13 迭代器重构）——前进-only 遍历状态机，不回退、不分配，提供两套互补访问模式（Option 式 `next()` 与 check-then-act `has_next()` + `next_strict()`）：
+
+| 方法 | 签名 | 语义 |
+|------|------|------|
+| `has_next()` | `bool` | 是否还有元素；调用 `next_strict()` 前必须先检查 |
+| `next_strict()` | `T` | 取下一元素；**耗尽即 panic**，永不返回 nil（前置：`has_next()` 为 true） |
+| `next()` | `T?` | Option 式安全接口；**耗尽返回 nil、永不 panic**（`while let v = it.next()`；T 本身可空时慎用 while let，nil 元素会提前终止循环） |
+| `next_or(default)` | `T` | 取下一元素，耗尽则返回 `default`（仅对非可空 T 有意义） |
+
+`Iterable[T]` 唯一入口 `iter(step = 1) Iterator[T]`（普通方法，非 dunder；`step` 为每次前进的元素数）。
+
+**`for v in x` 的可迭代类型解析——按优先级顺序匹配**：`x` 语义上允许 `Sequence[T]` / `Iterator[T]` / `Iterable[T]` 三种类型；三者不是“只能取其一”，而是**按固定优先级顺序匹配，命中即短路**：
+
+1. **先看是否 `Sequence[T]`（最高优先级）**：尽管 `Sequence[T] : Iterable[T]`，`for` 对 Sequence 做**特殊支持**——走 `len` + 下标 `get` fast-path，**不创建 iterator**、不退回 iter 协议。
+2. **否则若为 `Iterator[T]`**：直接以 `has_next()` + `next_strict()` 驱动循环体（故 `for x in l.reversed() {}` 可用——方法返回裸 `Iterator[T]` 即可直接进 for）。
+3. **否则若为 `Iterable[T]`（兜底）**：先调用 `iter()` 得到 `Iterator[T]`，再按第 2 条的 iterator 协议驱动。
+
+**排序依据**：优先级 2 先于 3——若对象同时是 `Iterator` 与 `Iterable`（其 `iter()` 按惯例返回自身），直接走 iterator 协议，省掉一次 `iter()` 自调用。三层整体按“`for` 需现场构造的机制由少到多”排序：Sequence 零 iterator → Iterator 零 `iter()` → Iterable 需 `iter()`。
+
+`for` 支持元组解包（`for i, c in ...`）。
 - **内建容器原生展开**：for 对 range / tuple / list / dict / bytes 等内建类型做原生展开——尤其 `range` 循环**不创建 range 对象、不走 iterator 协议**，编译器直接生成循环体，热路径零分配零分发。
-- 顶层组合子：`enumerate` / `zip` 现役；`filter` / `map` / `reduce` 在路线图（注释状态）。
-- **明确不做**：`sum` / `sorted`（作者定案：简洁优先）；`any` / `all` 依赖 truthiness 机制，现设计无此机制故不做（若引入 Truthiness trait 可重开，见 §8.8 与 Koala_TODO §10）。`min` / `max` 已实现为泛型函数 `min[T: Comparable]` / `max[T: Comparable]`，`@specialized(int, uint, float)` 生成单态（见 §7.4）。
+- **顶层组合子现状**：`enumerate` / `zip` 已从 `__builtin__.kl` 移入 `zip.kl`，为**注释态路线图**（设计归为 class / type，见 §8.8 ③）；`filter` / `map` / `reduce` 同为注释态路线图，设计上应为 `Iterable` 的普通方法（`items.map(f)` / `items.filter(pred)`，见 §8.8 ⑤）。
+- **聚合 / 排序待定**：`sum` / `sorted` / `any` / `all` 有 top-level 表达价值但 API 未定（见 §8.8 ④）；`any` / `all` 另依赖 truthiness 机制（若引入 Truthiness trait 可重开，Koala_TODO §10）。`min` / `max` 已实现为泛型函数 `min[T: Comparable]` / `max[T: Comparable]`，`@specialized(int, uint, float)` 生成单态（见 §7.4）。
 - view 语义只用于固定长度类型，动态容器用 copy。
 
 ### 8.6 包编程规范

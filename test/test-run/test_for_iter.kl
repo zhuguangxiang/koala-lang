@@ -1,0 +1,85 @@
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
+
+class Foo : Iterator[int] & Iterable[int] {
+
+    let lst = [1, 2, 3]
+    var index = 0
+
+    func has_next() bool {
+        return index < len(lst)
+    }
+
+    func next_strict() int {
+        let val = lst[index]
+        index = index + 1
+        return val
+    }
+
+    func iter() Iterator[int] {
+        panic("Foo:iter() must not be called")
+        return self
+    }
+}
+
+class Bar : Iterable[int] {
+    let lst = [1, 2, 3]
+
+    func iter() BarIter {
+        return BarIter(self)
+    }
+}
+
+class BarIter : Iterator[int] {
+    let bar Bar
+    var index = 0
+
+    func __init__(b Bar) {
+        bar = b
+    }
+
+    func has_next() bool {
+        return index < len(bar.lst)
+    }
+
+    func next_strict() int {
+        let val = bar.lst[index]
+        index = index + 1
+        return val
+    }
+}
+
+func main() {
+    for i in Bar() {
+        print(i)
+    }
+
+    for j in Foo() {
+        print(j)
+    }
+}
+
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK: %1 = call @Bar:iter, %0 test_for_iter.Bar
+// CHECK: %2 = call @BarIter:has_next, %1 test_for_iter.BarIter
+// CHECK: branch %2 bool, label %bb3, label %bb4
+// CHECK: %i = local int64
+// CHECK: %3 = call @BarIter:next_strict, %1 test_for_iter.BarIter
+// CHECK: move %i int64, %3 int64
+// CHECK: %5 = call @BarIter:has_next, %1 test_for_iter.BarIter
+// CHECK: branch %5 bool, label %bb3, label %bb4
+
+// CHECK: %7 = call @Foo:has_next, %6 test_for_iter.Foo
+// CHECK: %j = local int64
+// CHECK: %8 = call @Foo:next_strict, %6 test_for_iter.Foo
+// CHECK: move %j int64, %8 int64
+// CHECK: %10 = call @Foo:has_next, %6 test_for_iter.Foo
+// CHECK: branch %10 bool, label %bb7, label %bb8
+
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3
