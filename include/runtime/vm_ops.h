@@ -567,22 +567,6 @@ TARGET(OP_NEW) {
     DISPATCH();
 }
 
-TARGET(OP_NEW_EXT) {
-    rd = I_VAL(inst, 16, 8);
-    off = I_VAL(inst, 0, 16);
-
-    CHECK_REG_ID(rd);
-
-    ImportEntry *e = IMPORT_ENTRY(off);
-    ASSERT(e->kind == IMPORT_KIND_TYPE);
-    TypeObject *tp = e->address;
-    ASSERT(tp);
-
-    Object *obj = kl_new_instance(tp);
-    regs[rd] = obj_value(obj);
-    DISPATCH();
-}
-
 TARGET(OP_BUILD_INTERN) {
     rd = I_VAL(inst, 16, 8);
     int tag = I_VAL(inst, 8, 8);
@@ -2219,13 +2203,23 @@ TARGET(OP_JMP_UINT_GE_IMM) {
 
 /* global */
 TARGET(OP_GLOBAL_SET) {
-    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 12, 12);
     idx = I_VAL(inst, 0, 12);
 
-    CHECK_REG_ID(rd);
-    ASSERT(idx < m->num_values);
+    CHECK_REG_ID(rs);
 
-    m->values[idx] = regs[rd];
+    if (idx < m->num_globals) {
+        ASSERT(idx < m->num_values);
+        m->values[idx] = regs[rs];
+    } else {
+        Object *obj = vector_get(&m->globals, idx);
+        ASSERT(obj && IS_GLOBAL(obj));
+        GlobalObject *gobj = (GlobalObject *)obj;
+        int index = gobj->index;
+        ModuleObject *ext = (ModuleObject *)gobj->module;
+        ASSERT(index < ext->num_values);
+        ext->values[index] = regs[rs];
+    }
 
     DISPATCH();
 }
@@ -2235,45 +2229,19 @@ TARGET(OP_GLOBAL_GET) {
     idx = I_VAL(inst, 0, 12);
 
     CHECK_REG_ID(rs);
-    ASSERT(idx < m->num_values);
 
-    regs[rs] = m->values[idx];
-
-    DISPATCH();
-}
-
-TARGET(OP_GLOBAL_SET_EXT) {
-    rs = I_VAL(inst, 16, 8);
-    idx = I_VAL(inst, 0, 16);
-
-    CHECK_REG_ID(rs);
-
-    ImportEntry *e = IMPORT_ENTRY(idx);
-    ASSERT(e->kind == IMPORT_KIND_GLOBAL);
-    GlobalObject *gobj = e->address;
-    ASSERT(gobj);
-    int index = gobj->index;
-    ModuleObject *ext = (ModuleObject *)gobj->module;
-    ASSERT(index < ext->num_values);
-    ext->values[index] = regs[rs];
-
-    DISPATCH();
-}
-
-TARGET(OP_GLOBAL_GET_EXT) {
-    rd = I_VAL(inst, 16, 8);
-    idx = I_VAL(inst, 0, 16);
-
-    CHECK_REG_ID(rd);
-
-    ImportEntry *e = IMPORT_ENTRY(idx);
-    ASSERT(e->kind == IMPORT_KIND_GLOBAL);
-    GlobalObject *gobj = e->address;
-    ASSERT(gobj);
-    int index = gobj->index;
-    ModuleObject *ext = (ModuleObject *)gobj->module;
-    ASSERT(index < ext->num_values);
-    regs[rd] = ext->values[index];
+    if (idx < m->num_globals) {
+        ASSERT(idx < m->num_values);
+        regs[rs] = m->values[idx];
+    } else {
+        Object *obj = vector_get(&m->globals, idx);
+        ASSERT(obj && IS_GLOBAL(obj));
+        GlobalObject *gobj = (GlobalObject *)obj;
+        int index = gobj->index;
+        ModuleObject *ext = (ModuleObject *)gobj->module;
+        ASSERT(index < ext->num_values);
+        regs[rs] = ext->values[index];
+    }
 
     DISPATCH();
 }

@@ -106,6 +106,9 @@ typedef struct _ParserState {
     /* static func stmts */
     Vector static_methods;
 
+    /* const global variables */
+    Vector const_globals;
+
     /* current scope */
     ParserScope *scope;
     /* depth of scope */

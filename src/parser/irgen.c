@@ -2770,6 +2770,8 @@ void kl_gen_ir(ParserModule *pm)
     klr_append_block(fn, "entry");
     m->init = (KlrFunc *)fn;
 
+    int num_globals = 0;
+
     ParserState *ps;
     vector_foreach(ps, &pm->pss) {
         // visit all global variables and add them to ir module
@@ -2778,6 +2780,7 @@ void kl_gen_ir(ParserModule *pm)
             if (!s) continue;
             if (s->kind == STMT_VAR_KIND) {
                 VarDeclStmt *var = (VarDeclStmt *)s;
+                if (var->which == VAR_DECL_CONST) continue;
                 _add_global(m, var);
             } else if (s->kind == STMT_FUNC_KIND) {
                 FuncDeclStmt *fn = (FuncDeclStmt *)s;
@@ -2792,6 +2795,15 @@ void kl_gen_ir(ParserModule *pm)
                 // do nothing
             }
         }
+
+        // add const globals
+        vector_foreach(s, &ps->const_globals) {
+            if (!s) continue;
+            ASSERT(s->kind == STMT_VAR_KIND);
+            VarDeclStmt *var = (VarDeclStmt *)s;
+            ASSERT(var->which == VAR_DECL_CONST);
+            _add_global(m, var);
+        }
     }
 
     vector_foreach(ps, &pm->pss) {
@@ -2802,9 +2814,24 @@ void kl_gen_ir(ParserModule *pm)
         Stmt *s;
         vector_foreach(s, &ps->stmts) {
             if (!s) continue;
+            if (s->kind == STMT_VAR_KIND) {
+                VarDeclStmt *var = (VarDeclStmt *)s;
+                if (var->which == VAR_DECL_CONST) {
+                    // Skip const global variables during normal parsing.
+                    continue;
+                }
+                ++num_globals;
+            }
             emit_ir_stmt(ps, s);
         }
 
+        // emit ir for const global variables
+        vector_foreach(s, &ps->const_globals) {
+            if (!s) continue;
+            emit_ir_stmt(ps, s);
+        }
+
+        // emit ir for static methods
         vector_foreach(s, &ps->static_methods) {
             if (!s) continue;
             emit_ir_stmt(ps, s);
@@ -2812,6 +2839,8 @@ void kl_gen_ir(ParserModule *pm)
 
         exit_scope(ps);
     }
+
+    m->num_globals = num_globals;
 
     if (dump_no_opt_ir_enabled()) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");

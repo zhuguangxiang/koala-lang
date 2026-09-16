@@ -63,8 +63,8 @@ func main() {
 
 
 // CHECK-LABEL: Import Table:
-// CHECK: #0: method std/builtin::tuple::to_list
-// CHECK: #1: func   std/builtin::print
+// CHECK: [000] method std/builtin::tuple::to_list
+// CHECK: [001] func   std/builtin::print
 
 // CHECK: (1, a, true) [1, a, true]
 // CHECK: (4, 5, 9, -1, (20, 0))

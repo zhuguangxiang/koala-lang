@@ -384,33 +384,9 @@ static void print_global_get(KlrInsn *insn, FILE *fp)
     }
 }
 
-static void print_global_get_ext(KlrInsn *insn, FILE *fp)
-{
-    klr_print_value_name((KlrValue *)insn, fp);
-    fprintf(fp, " = global_get_ext ");
-    print_operand(&insn->opers[0], fp);
-    KlrValue *g = insn->opers[0].use.ref;
-    if (g->kind == KLR_VALUE_EXT_GLOBAL) {
-        fprintf(fp, " [pkg = %s]", ((KlrExtGlobal *)g)->module->name);
-    }
-}
-
 static void print_global_set(KlrInsn *insn, FILE *fp)
 {
     fprintf(fp, "%s ", "global_set");
-    print_operand(&insn->opers[0], fp);
-    fprintf(fp, ", ");
-    print_operand(&insn->opers[1], fp);
-
-    KlrValue *g = insn->opers[0].use.ref;
-    if (g->kind == KLR_VALUE_EXT_GLOBAL) {
-        fprintf(fp, " [pkg = %s]", ((KlrExtGlobal *)g)->module->name);
-    }
-}
-
-static void print_global_set_ext(KlrInsn *insn, FILE *fp)
-{
-    fprintf(fp, "%s ", "global_set_ext");
     print_operand(&insn->opers[0], fp);
     fprintf(fp, ", ");
     print_operand(&insn->opers[1], fp);
@@ -797,14 +773,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_global_set(insn, fp);
             break;
 
-        case OP_GLOBAL_GET_EXT:
-            print_global_get_ext(insn, fp);
-            break;
-
-        case OP_GLOBAL_SET_EXT:
-            print_global_set_ext(insn, fp);
-            break;
-
         case OP_LAND:
             print_binary(insn, name, fp);
             break;
@@ -1144,10 +1112,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_NEW:
-            print_new(name, insn, fp);
-            break;
-
-        case OP_NEW_EXT:
             print_new(name, insn, fp);
             break;
 

@@ -133,15 +133,20 @@ static void dump_import_table(KlMachModule *m)
     KlMachImport *imp;
     vector_foreach(imp, &m->import_table) {
         if (imp->kind == IMPORT_FUNC) {
-            printf("  #%d: func   %s::%s\n", i__, imp->path, imp->name);
+            printf("  [%03d] func   %s::%s, slot_index: %d\n", i__, imp->path, imp->name,
+                   imp->slot_index);
         } else if (imp->kind == IMPORT_GLOBAL) {
-            printf("  #%d: global %s::%s\n", i__, imp->path, imp->name);
+            printf("  [%03d] global %s::%s, slot_index: %d\n", i__, imp->path, imp->name,
+                   imp->slot_index);
         } else if (imp->kind == IMPORT_TYPE) {
-            printf("  #%d: type   %s::%s\n", i__, imp->path, imp->name);
+            printf("  [%03d] type   %s::%s, slot_index: %d\n", i__, imp->path, imp->name,
+                   imp->slot_index);
         } else if (imp->kind == IMPORT_METHOD) {
-            printf("  #%d: method %s::%s::%s\n", i__, imp->path, imp->klass, imp->name);
+            printf("  [%03d] method %s::%s::%s, slot_index: %d\n", i__, imp->path, imp->klass,
+                   imp->name, imp->slot_index);
         } else if (imp->kind == IMPORT_FIELD) {
-            printf("  #%d: field  %s::%s::%s\n", i__, imp->path, imp->klass, imp->name);
+            printf("  [%03d] field  %s::%s::%s, slot_index: %d\n", i__, imp->path, imp->klass,
+                   imp->name, imp->slot_index);
         } else {
             UNREACHABLE();
         }
@@ -642,8 +647,8 @@ int mach_import_add_klass(KlMachModule *m, char *path, char *name)
     KlMachImport *entry = hashmap_get(&m->import_map, &key);
     if (entry) {
         log_info("Found existing import ext-klass entry for %s.%s (index: %d)", path, name,
-                 entry->index);
-        return entry->index;
+                 entry->slot_index);
+        return entry->slot_index;
     }
 
     KlMachImport *new_entry = mm_alloc_obj(new_entry);
@@ -654,9 +659,12 @@ int mach_import_add_klass(KlMachModule *m, char *path, char *name)
     hashmap_put(&m->import_map, new_entry);
     vector_push_back(&m->import_table, &new_entry);
     int import_index = vector_size(&m->import_table) - 1;
+    int slot_index = m->num_klasses++;
     new_entry->index = import_index;
-    log_info("Added new import ext-klass entry for %s.%s (index: %d)", path, name, import_index);
-    return import_index;
+    new_entry->slot_index = slot_index;
+    log_info("Added new import ext-klass entry for %s.%s (index: %d, slot_index: %d)", path, name,
+             import_index, slot_index);
+    return slot_index;
 }
 
 int mach_import_add_global(KlMachModule *m, char *path, char *name)
@@ -667,8 +675,8 @@ int mach_import_add_global(KlMachModule *m, char *path, char *name)
     KlMachImport *entry = hashmap_get(&m->import_map, &key);
     if (entry) {
         log_info("Found existing import ext-global entry for %s.%s (index: %d)", path, name,
-                 entry->index);
-        return entry->index;
+                 entry->slot_index);
+        return entry->slot_index;
     }
 
     KlMachImport *new_entry = mm_alloc_obj(new_entry);
@@ -679,9 +687,12 @@ int mach_import_add_global(KlMachModule *m, char *path, char *name)
     hashmap_put(&m->import_map, new_entry);
     vector_push_back(&m->import_table, &new_entry);
     int import_index = vector_size(&m->import_table) - 1;
+    int slot_index = m->num_globals++;
     new_entry->index = import_index;
-    log_info("Added new import ext-global entry for %s.%s (index: %d)", path, name, import_index);
-    return import_index;
+    new_entry->slot_index = slot_index;
+    log_info("Added new import ext-global entry for %s.%s (index: %d, slot_index: %d)", path, name,
+             import_index, slot_index);
+    return slot_index;
 }
 
 static void dump_func_byte_code(KlMachFunc *mfn, const uint8_t *code)
@@ -1900,6 +1911,8 @@ static int peephole(KlMachFunc *mfn)
 static void init_mach_context(KlMachModule *m, KlrModule *origin)
 {
     m->origin = origin;
+    m->num_klasses = vector_size(&origin->klasses);
+    m->num_globals = origin->num_globals;
     vector_init_ptr(&m->funcs);
     vector_init_ptr(&m->fixups);
     vector_init_ptr(&m->import_table);

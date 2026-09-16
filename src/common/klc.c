@@ -373,7 +373,7 @@ uint16_t klc_add_rt_list(KlcFile *klc, Vector *list)
     return index;
 }
 
-void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym)
+void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym, int slot_index)
 {
     KlcImport *imp = mm_alloc_obj(imp);
     imp->kind = kind;
@@ -384,6 +384,7 @@ void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym)
         imp->kls_index = 0;
     }
     imp->sym_index = klc_add_rt_str(klc, sym, strlen(sym));
+    imp->slot_index = slot_index;
     vector_push_back(klc->objs + ITEM_IMPORT, &imp);
 }
 
@@ -977,6 +978,7 @@ static void write_imports(KlcFile *klc, Vector *vec)
         write_uint16(klc, item->ns_index);
         write_uint16(klc, item->kls_index);
         write_uint16(klc, item->sym_index);
+        write_uint16(klc, item->slot_index);
     }
 }
 
@@ -1426,6 +1428,7 @@ static void read_imports(KlcFile *klc, Vector *vec)
         read_uint16(klc, &imp->ns_index);
         read_uint16(klc, &imp->kls_index);
         read_uint16(klc, &imp->sym_index);
+        read_uint16(klc, &imp->slot_index);
     }
 }
 

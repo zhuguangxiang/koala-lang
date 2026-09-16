@@ -114,8 +114,8 @@ func main() {
 // CHECK:     [2] none
 
 // CHECK-LABEL: Import Table:
-// CHECK: #0: method std/builtin::list::push
-// CHECK: #1: func   std/builtin::print
+// CHECK: [000] method std/builtin::list::push
+// CHECK: [001] func   std/builtin::print
 
 // CHECK:[]
 // CHECK:length of l: 3

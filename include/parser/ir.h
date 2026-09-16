@@ -290,6 +290,11 @@ typedef struct _KlrModule {
     char *name;
     /* global variables */
     Vector globals;
+    /*
+    number of non-const global variables(var/let)
+    const globals do not have slots. var/let globals have slots, and from index is zero.
+    */
+    int num_globals;
     /* functions */
     List func_list;
     /* external modules */

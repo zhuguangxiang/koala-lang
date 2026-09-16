@@ -23,6 +23,12 @@ typedef struct _KlMachModule {
     /* Original high-level IR module. */
     KlrModule *origin;
 
+    /* Number of local global variables in this module. */
+    int num_globals;
+
+    /* Number of local classes in this module. */
+    int num_klasses;
+
     /* All lowered machine functions in final layout order. */
     Vector funcs;
 
@@ -228,6 +234,7 @@ typedef struct KlMachImport {
     HashMapEntry hnode;
     ImportKind kind;
     int index;
+    int slot_index;
     char *path;
     char *klass; /* for method/field import */
     char *name;

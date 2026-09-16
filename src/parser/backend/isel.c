@@ -1014,19 +1014,6 @@ static void isel_lower_global_set(KlrInsn *insn)
         KlrValue *_val = lower_const(insn, (KlrConst *)val);
         set_operand_at(insn, 1, _val);
     }
-
-    KlrValue *g = insn_oper_value(insn, 0);
-    if (g->kind == KLR_VALUE_EXT_GLOBAL) {
-        insn->code = OP_GLOBAL_SET_EXT;
-    }
-}
-
-static void isel_lower_global_get(KlrInsn *insn)
-{
-    KlrValue *g = insn_oper_value(insn, 0);
-    if (g->kind == KLR_VALUE_EXT_GLOBAL) {
-        insn->code = OP_GLOBAL_GET_EXT;
-    }
 }
 
 static void isel_lower_select(KlrInsn *insn)
@@ -1126,14 +1113,6 @@ static void isel_lower_seq_get_slice(KlrInsn *insn)
     if (klr_is_const(index)) {
         KlrValue *_index = lower_const(insn, (KlrConst *)index);
         set_operand_at(insn, 1, _index);
-    }
-}
-
-static void isel_lower_new(KlrInsn *insn)
-{
-    KlrValue *kls = insn_oper_value(insn, 0);
-    if (kls->kind == KLR_VALUE_EXT_KLASS) {
-        insn->code = OP_NEW_EXT;
     }
 }
 
@@ -1249,11 +1228,6 @@ static void do_isel(KlrFunc *fn)
                     break;
                 }
 
-                case OP_GLOBAL_GET: {
-                    isel_lower_global_get(insn);
-                    break;
-                }
-
                 case OP_IR_SELECT: {
                     isel_lower_select(insn);
                     break;
@@ -1271,11 +1245,6 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_LEN: {
                     isel_lower_seq_len(insn);
-                    break;
-                }
-
-                case OP_NEW: {
-                    isel_lower_new(insn);
                     break;
                 }
 

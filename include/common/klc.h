@@ -204,6 +204,8 @@ typedef struct _KlcImport {
     uint16_t kls_index;
     /* ITEM_CONST(name) */
     uint16_t sym_index;
+    /* slot index */
+    uint16_t slot_index;
 } KlcImport;
 
 typedef struct _KlcByteCode {
@@ -246,7 +248,7 @@ uint16_t klc_add_rt_range(KlcFile *klc, Vector *list);
 uint16_t klc_add_rt_list(KlcFile *klc, Vector *list);
 uint16_t klc_add_rt_slice(KlcFile *klc, Vector *list);
 
-void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym);
+void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym, int slot_index);
 void klc_add_link(KlcFile *klc, char *path);
 
 void klc_add_bytecodes(KlcFile *klc, uint32_t size, uint8_t *codes);

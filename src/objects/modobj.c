@@ -393,7 +393,7 @@ int kl_mo_add_list(Object *_m, Vector *list)
     return kl_mo_add_const(_m, &val);
 }
 
-int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *name)
+int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *name, int slot_index)
 {
     ModuleObject *m = (ModuleObject *)_m;
 
@@ -403,6 +403,7 @@ int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *n
         .kls = kls ? atom(kls) : NULL,
         .name = atom(name),
         .address = NULL,
+        .slot_index = slot_index,
     };
 
     int index = vector_size(&m->import_table);
@@ -433,6 +434,7 @@ Object *kl_new_module(char *path)
     vector_init(&m->func_entries, sizeof(FuncEntry));
     vector_init_ptr(&m->funcs);
     vector_init_ptr(&m->types);
+    vector_init_ptr(&m->globals);
     vector_init(&m->tests, sizeof(TestCase));
     vector_init(&m->lineinfos, sizeof(LineInfo));
     vector_init(&m->libs, sizeof(NativeLib));

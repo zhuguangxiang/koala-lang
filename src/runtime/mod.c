@@ -72,6 +72,13 @@ void kl_resolve_import(Object *_m)
         }
 
         e->address = obj;
+        if (e->kind == IMPORT_KIND_TYPE) {
+            ASSERT(vector_size(&m->types) == e->slot_index);
+            vector_push_back(&m->types, &obj);
+        } else if (e->kind == IMPORT_KIND_GLOBAL) {
+            ASSERT(vector_size(&m->globals) == e->slot_index);
+            vector_push_back(&m->globals, &obj);
+        }
     }
 }
 

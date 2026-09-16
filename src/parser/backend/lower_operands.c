@@ -424,37 +424,34 @@ static void lower_global_set_opers(KlrInsn *insn, KlMachModule *m)
     KlrValue *value = insn_oper_value(insn, 1);
 
     set_raw_reg(&insn->raws[0], value->vreg);
-    set_raw_imm(&insn->raws[1], ((KlrGlobal *)global)->index);
+
+    if (global->kind == KLR_VALUE_EXT_GLOBAL) {
+        KlrExtGlobal *ext = (KlrExtGlobal *)global;
+        KlrExtModule *mod = ext->module;
+        int index = mach_import_add_global(m, mod->name, global->name);
+        set_raw_imm(&insn->raws[1], index);
+    } else {
+        ASSERT(global->kind == KLR_VALUE_GLOBAL);
+        KlrGlobal *g = (KlrGlobal *)global;
+        set_raw_imm(&insn->raws[1], g->index);
+    }
 }
 
 static void lower_global_get_opers(KlrInsn *insn, KlMachModule *m)
 {
     KlrValue *global = insn_oper_value(insn, 0);
     set_raw_reg(&insn->raws[0], insn->vreg);
-    set_raw_imm(&insn->raws[1], ((KlrGlobal *)global)->index);
-}
 
-static void lower_global_set_ext_opers(KlrInsn *insn, KlMachModule *m)
-{
-    KlrValue *global = insn_oper_value(insn, 0);
-    KlrValue *value = insn_oper_value(insn, 1);
-
-    set_raw_reg(&insn->raws[0], value->vreg);
-
-    KlrExtModule *mod = ((KlrExtGlobal *)global)->module;
-    int index = mach_import_add_global(m, mod->name, ((KlrGlobal *)global)->name);
-    set_raw_imm(&insn->raws[1], index);
-}
-
-static void lower_global_get_ext_opers(KlrInsn *insn, KlMachModule *m)
-{
-    KlrValue *global = insn_oper_value(insn, 0);
-
-    set_raw_reg(&insn->raws[0], insn->vreg);
-
-    KlrExtModule *mod = ((KlrExtGlobal *)global)->module;
-    int index = mach_import_add_global(m, mod->name, ((KlrGlobal *)global)->name);
-    set_raw_imm(&insn->raws[1], index);
+    if (global->kind == KLR_VALUE_EXT_GLOBAL) {
+        KlrExtGlobal *ext = (KlrExtGlobal *)global;
+        KlrExtModule *mod = ext->module;
+        int index = mach_import_add_global(m, mod->name, global->name);
+        set_raw_imm(&insn->raws[1], index);
+    } else {
+        ASSERT(global->kind == KLR_VALUE_GLOBAL);
+        KlrGlobal *g = (KlrGlobal *)global;
+        set_raw_imm(&insn->raws[1], g->index);
+    }
 }
 
 static void lower_move_true_opers(KlrInsn *insn, KlMachModule *m)
@@ -615,8 +612,7 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                     break;
                 }
 
-                case OP_NEW:
-                case OP_NEW_EXT: {
+                case OP_NEW: {
                     lower_new_opers(insn, m);
                     break;
                 }
@@ -648,16 +644,6 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_GLOBAL_GET: {
                     lower_global_get_opers(insn, m);
-                    break;
-                }
-
-                case OP_GLOBAL_SET_EXT: {
-                    lower_global_set_ext_opers(insn, m);
-                    break;
-                }
-
-                case OP_GLOBAL_GET_EXT: {
-                    lower_global_get_ext_opers(insn, m);
                     break;
                 }
 

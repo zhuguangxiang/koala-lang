@@ -373,7 +373,7 @@ printer `print_jmp_cond_fused`、cgen `fused_jmp()` + `lower_fused_jmp` 均就�
 > 重新开启前不推进任何方案。
 
 **现状**：泛型体内对 `T : Trait` 参数做点号方法调用（如 `a.__str__()`、
-`a.__hash__()`）会撞上 `vm_ops.h:431` 的 `is_intf(callable)` 断言——槽调用
+`a.hash()`）会撞上 `vm_ops.h:431` 的 `is_intf(callable)` 断言——槽调用
 （`itab->methods[index]`）要求接收者携带 itab，而 T 实参是裸值。
 
 **根因链**：irgen.c `_build_obj_intf_upcast` 对 SYM_TYPE_PARAM 目标返回 NULL
@@ -437,7 +437,7 @@ pub trait Truthiness {
 
 **实现范围**：
 - 基本类型实现：`int`（0 = false）、`str`（空 = false）、`bool`（自身）
-- 容器类**不**实现（`if my_list:` 不合法，必须 `if len(my_list) > 0:`）
+- 容器类**不**实现（`if my_list:` 不合法，必须 `if my_list.len() > 0:`）
 
 **下游产物**：`all()`/`any()` 变为可行：
 

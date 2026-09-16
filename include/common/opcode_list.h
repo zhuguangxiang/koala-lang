@@ -1678,24 +1678,6 @@ X(OP_INT_TO_FLOAT, FORMAT_RR_TI_MODE, "int_to_float")
 X(OP_NEW, FORMAT_RIdx2, "new")
 
 /**
- * OP_NEW_EXT — allocate object of an external type
- *
- * FORMAT_NEW_EXT:
- *     | op:8 | dst:8 | import_index:16 |
- *
- * Details:
- *     Allocates an object whose type metadata originates from
- *     another module. The 16‑bit import_index refers to an entry
- *     in the module’s import table.
- *
- *     Loader resolves the external type and fills the import entry
- *     with the final TypeObject*.
- *
- *     R[dst] = alloc(import_table[import_index].type).
- */
-X(OP_NEW_EXT, FORMAT_RIdx2, "new_ext")
-
-/**
  * OP_BUILD_INTERN — Build builtin object
  *
  * FORMAT_RTagImm:
@@ -1734,32 +1716,6 @@ X(OP_GLOBAL_GET, FORMAT_RxIdx12, "global.get")
  *     Writes may trigger GC barriers depending on the value type.
  */
 X(OP_GLOBAL_SET, FORMAT_RxIdx12, "global.set")
-
-
-/**
- * OP_GLOBAL_GET_EXT — load global variable
- *
- * FORMAT_AxBx:
- *     | op:8 | dst:8 | imported-index:16 |
- *
- * Details:
- *     Loads the value of a external global variable into register dst.
- *     The imported-index refers to the imported-table.
- */
-X(OP_GLOBAL_GET_EXT, FORMAT_RIdx2, "global.get_ext")
-
-/**
- * OP_GLOBAL_SET_EXT — store global variable
- *
- * FORMAT_AxBx:
- *     | op:8 | src:8 | imported-index:16 |
- *
- * Details:
- *     Stores the value in register src into a global variable.
- *     The imported-index refers to the imported-table.
- *     Writes may trigger GC barriers depending on the value type.
- */
-X(OP_GLOBAL_SET_EXT, FORMAT_RIdx2, "global.set_ext")
 
 /*---------------------------------------------------------------+
  |  Field Access Instructions                                    |
@@ -2132,94 +2088,6 @@ X(OP_LEN, FORMAT_RxRx, "len")
 X(OP_CONTAINS, FORMAT_RRR, "contains")
 
 /*---------------------------------------------------------------+
- |  List related Instructions                                    |
- +---------------------------------------------------------------*/
-
-/**
- * OP_LIST_PUSH — append a value to the end of a list
- *
- * FORMAT_RxRx:
- *     | op:8 | rs:12 | rv:12 |
- *
- * Semantics:
- *     append rv to list rs
- *
- * Description:
- *     Appends the value in register rv to the list in register rs.
- *     Performs capacity check and grows the list if necessary.
- *     Applies write barrier when storing into the list.
- *
- * Notes:
- *     - This is a high-frequency operation and must be a VM opcode.
- *     - IRGen emits this opcode for list.append(x) and list.push(x).
- *     - ISEL lowers this opcode directly without specialization.
- */
-X(OP_LIST_PUSH, FORMAT_RxRx, "list.push")
-
-/**
- * OP_LIST_POP — pop the last element from a list
- *
- * FORMAT_RxRx:
- *     | op:8 | rd:12 | rs:12 |
- *
- * Semantics:
- *     rd = list_pop(rs)
- *
- * Description:
- *     Removes and returns the last element of the list in register rs.
- *     This is an O(1) operation.
- *
- * Behavior:
- *     - rs must be a list object
- *     - If the list is empty, raises an IndexError
- *     - No shifting or reordering of elements is performed
- *
- * Notes:
- *     - This is a high-frequency operation and must be a VM opcode.
- *     - IRGen emits OP_CALL for list.pop().
- *     - ISEL lowers OP_CALL "__pop__" to OP_LIST_POP when rs is a list.
- */
-X(OP_LIST_POP, FORMAT_RxRx, "list.pop")
-
-/*---------------------------------------------------------------+
- |  Iterator Protocol Instructions                               |
- +---------------------------------------------------------------*/
-
-/**
- * OP_GET_ITER — obtain iterator from object
- *
- * FORMAT_Ax:
- *     | op:8 | ---:12 | Ax(obj):12 |
- *
- * Details:
- *     Produces an iterator object for 'obj' and pushes it onto
- *     the stack. The iterator protocol is defined by TypeInfo:
- *
- *         - arrays → array iterator
- *         - strings → character iterator
- *         - user-defined types → __iter__ or vtable entry
- */
-X(OP_GET_ITER, FORMAT_Op, "get_iter")
-
-/**
- * OP_ITER_NEXT — advance iterator
- *
- * FORMAT_Ax:
- *     | op:8 | ---:12 | Ax(iter):12 |
- *
- * Details:
- *     Advances the iterator 'iter'. If iteration continues, pushes
- *     the next value and returns true. If iteration ends, pushes
- *     false.
- *
- *     This instruction is designed to support:
- *         - for-in loops
- *         - generator-like patterns
- *         - custom iterable types
- */
-X(OP_ITER_NEXT, FORMAT_Op, "iter.next")
-
-/*---------------------------------------------------------------+
  |  Type Testing & Safe Casting Instructions                     |
  +---------------------------------------------------------------*/
 
@@ -2269,18 +2137,6 @@ X(OP_IS, FORMAT_Op, "is")
  *     and forms 16-bit or 24-bit operands depending on its format.
  */
 X(OP_WIDE, FORMAT_WIDE, "wide")
-
-/**
- * OP_RAISE — raise an exception
- *
- * FORMAT_Op:
- *     | op:8 | ------------------------:24 |
- *
- * Details:
- *     Raises an exception. The VM unwinds the call stack until a
- *     handler is found or terminates execution if none exists.
- */
-X(OP_RAISE, FORMAT_Op, "raise")
 
 /*---------------------------------------------------------------+
  |  Number Protocol Instructions                                 |
@@ -2713,6 +2569,33 @@ X(OP_HASH, FORMAT_RxRx, "hash")
  */
 X(OP_STR, FORMAT_RxRx, "str")
 
+/**
+ * OP_NIL_CHECK — panic if operand is nil
+ *
+ * FORMAT_RR:
+ *     | op:8 | rd:12 | ra:12 |
+ *
+ * Semantics:
+ *     nil_check(a, dst)
+ *
+ * Description:
+ *     Checks operand `ra` for nil. If the value is nil, a runtime
+ *     panic is raised. Otherwise execution continues normally.
+ *
+ * Behavior:
+ *     - Does not modify the operand value
+ *     - Raises a panic if `ra` is nil
+ *     - Used by the compiler to implement the forced unwrap operator (`!`)
+ *
+ * Types:
+ *     - Any optional type (`T?`)
+ *     - Any value that may be nil at runtime
+ *
+ * Notes:
+ *     - Generated by the compiler for `x!`
+ *     - Ensures the value is non-nil for subsequent instructions
+ *     - Commonly optimized with preceding `move` instructions
+ */
 X(OP_NIL_CHECK, FORMAT_RxRx, "nil_check")
 
 /*---------------------------------------------------------------+

@@ -413,7 +413,7 @@ static Object *_load_module(char *path)
         KlcConst *kls = klc_get_rt_const(klc, imp->kls_index);
         KlcConst *sym = klc_get_rt_const(klc, imp->sym_index);
         char *kls_name = kls ? kls->sval : NULL;
-        kl_mo_add_import(m, imp->kind, ns->sval, kls_name, sym->sval);
+        kl_mo_add_import(m, imp->kind, ns->sval, kls_name, sym->sval, imp->slot_index);
     }
 
     // process native libraries
@@ -558,6 +558,9 @@ static Object *_load_module(char *path)
         kl_mo_add_type(m, tp);
     }
 
+    // set the number of local classes in the module
+    mo->num_klasses = vector_size(&mo->types);
+
     // process test functions
 
     Vector *func_objs = klc->objs + ITEM_FUNC;
@@ -608,7 +611,9 @@ static Object *_load_module(char *path)
         if (!var) continue;
         kc = klc_get_const(klc, var->name_index);
         Object *val = kl_new_global(kc->sval, i__ - 1, m);
+        vector_push_back(&mo->globals, &val);
         stbl_add_obj(&mo->symbols, kc->sval, val);
+        mo->num_globals++;
     }
 
     // bind cfunc/code to module

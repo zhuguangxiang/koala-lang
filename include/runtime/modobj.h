@@ -41,9 +41,13 @@ typedef struct _ModuleObject {
     Object *__init__; // init func of koala
     Object *main;     // main func of koala
 
-    Vector funcs; // functions of this module
-    Vector types; // types defined in this module
-    // Vector globals; // vars defined in this module
+    Vector funcs;   // functions used of this module
+    Vector types;   // types used in this module
+    Vector globals; // vars used in this module
+
+    int num_klasses; // number of local classes in the module
+    int num_funcs;   // number of local functions in the module
+    int num_globals; // number of local global variables in the module
 
     HashMap symbols; // symbols for exported map
     char *path;      // module path
@@ -72,6 +76,7 @@ typedef struct _ImportEntry {
     char *kls;       /* class name string */
     char *name;      /* symbol name string */
     void *address;   /* resolved runtime address */
+    int slot_index;  /* slot index for globals/types/funcs */
 } ImportEntry;
 
 // module->funcs, cache-line 64
@@ -119,7 +124,8 @@ int kl_mo_add_float(Object *_m, double k, int type_info);
 int kl_mo_add_bool(Object *_m, int v);
 int kl_mo_add_none(Object *_m);
 int kl_mo_add_list(Object *_m, Vector *list);
-int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *name);
+int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *name,
+                     int slot_index);
 Object *kl_mo_find(Object *_m, char *name);
 
 #ifdef __cplusplus

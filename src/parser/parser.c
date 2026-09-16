@@ -3297,6 +3297,7 @@ static void init_parser_state(ParserState *ps, char *filename)
     vector_init_ptr(&ps->kls_stmts);
     vector_init_ptr(&ps->shadows);
     vector_init_ptr(&ps->static_methods);
+    vector_init_ptr(&ps->const_globals);
     ps->imported = stbl_new();
     INIT_BUF(ps->sbuf);
 }
@@ -3331,6 +3332,8 @@ void free_parser_state(ParserState *ps)
 
     vector_fini(&ps->kls_stmts);
     vector_fini(&ps->fn_stmts);
+    vector_fini(&ps->static_methods);
+    vector_fini(&ps->const_globals);
 
     Stmt *s;
     vector_foreach(s, &ps->stmts) {
@@ -3366,6 +3369,11 @@ static Symbol *_add_global(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     var->sym = sym;
     sym->arg = var;
     ((VarSymbol *)sym)->scope = VAR_SCOPE_GLOBAL;
+
+    if (var->which == VAR_DECL_CONST) {
+        vector_push_back(&ps->const_globals, &var);
+    }
+
     return sym;
 }
 
