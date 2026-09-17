@@ -51,6 +51,10 @@ static TpInfo *get_tpinfo(HashMap *map, char *name)
     return (TpInfo *)ret;
 }
 
+/* Forward declaration, the definition is below. */
+static int infer_tp_from_generic_ref(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
+                                     char *tp_owner_name, Loc loc, ParserState *ps);
+
 Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *call_exp,
                            ParserState *ps)
 {
@@ -114,7 +118,10 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
         }
 
         if (ts->kind == TYPE_GENERIC_REF) {
-            NYI();
+            log_info("param '%s' is generic ref '%s'", arg->name, ts->signature);
+            if (!infer_tp_from_generic_ref(&map, ts, exp->ts, tp_owner_name, call_exp->loc, ps))
+                goto error;
+            continue;
         }
 
         if (ts->kind == TYPE_VA_LIST) {
@@ -246,6 +253,198 @@ static inline int tps_are_generic(Vector *tp_args)
     return 0;
 }
 
+static Symbol *_unwrap_origin_symbol(Symbol *sym)
+{
+    while (sym) {
+        if (sym->kind == SYM_INSTANCE) {
+            sym = ((InstanceSymbol *)sym)->origin;
+        } else if (sym->kind == SYM_IMPORTED) {
+            sym = ((ImportedSymbol *)sym)->origin;
+        } else {
+            break;
+        }
+    }
+    return sym;
+}
+
+/*
+ * Resolves the origin class/trait symbol of a TYPE_GENERIC_REF typespec.
+ * The sym_id of a generic_ref may point to an instance symbol (created by
+ * find_or_add_instance), or it may be unset (e.g. loaded from klc).
+ */
+static Symbol *generic_ref_origin_sym(TypeSpec *ts, ParserModule *pm)
+{
+    ASSERT(ts && ts->kind == TYPE_GENERIC_REF);
+
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (!sym) sym = _get_symbol_by_name(ts->generic_ref.pkg, ts->generic_ref.name, pm);
+
+    sym = _unwrap_origin_symbol(sym);
+
+    if (!sym) return NULL;
+    if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) return NULL;
+    return sym;
+}
+
+/* Forward declaration, defined just below. */
+static Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserState *ps);
+
+/*
+ * Searches 'bases' for a type whose origin matches 'origin' and returns the
+ * type arguments of it. The returned vector is borrowed from the symbol
+ * table, do not free it.
+ */
+static Vector *find_matched_tp_args_in_bases(Symbol *origin, Vector *bases, ParserState *ps)
+{
+    if (!bases) return NULL;
+
+    TypeSpec *base_ts;
+    vector_foreach(base_ts, bases) {
+        if (!base_ts) continue;
+        Vector *ret = find_matched_tp_args(origin, base_ts, ps);
+        if (ret) return ret;
+    }
+    return NULL;
+}
+
+/*
+ * Finds the type arguments of 'arg_ts' (or one of its base types) which
+ * correspond to the 'origin' class/trait. The returned vector is borrowed
+ * from the symbol table, do not free it.
+ */
+static Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserState *ps)
+{
+    if (!arg_ts) return NULL;
+
+    Symbol *sym = get_symbol_by_id(arg_ts->sym_id);
+    if (!sym && arg_ts->kind == TYPE_GENERIC_REF) {
+        sym = _get_symbol_by_name(arg_ts->generic_ref.pkg, arg_ts->generic_ref.name, ps->pm);
+    }
+    if (sym && sym->kind == SYM_IMPORTED) sym = ((ImportedSymbol *)sym)->origin;
+    if (!sym) return NULL;
+
+    if (arg_ts->kind == TYPE_GENERIC_REF) {
+        if (sym->kind == SYM_INSTANCE) {
+            InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+            if (inst_sym->origin && inst_sym->origin->id == origin->id) {
+                // e.g. param 'Iterator[T]' matches arg 'Iterator[int]'
+                return arg_ts->generic_ref.args;
+            }
+            // specialized instance, e.g. 'MyIter[int]', search its bases
+            return find_matched_tp_args_in_bases(origin, inst_sym->bases, ps);
+        }
+        if ((sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) && sym->id != origin->id) {
+            return find_matched_tp_args_in_bases(origin, &((KlassSymbol *)sym)->bases, ps);
+        }
+        return NULL;
+    }
+
+    if (arg_ts->kind != TYPE_KLASS) return NULL;
+
+    if (sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        if (inst_sym->origin && inst_sym->origin->id == origin->id) {
+            // e.g. param 'Iterator[T]' matches arg 'Iterator[int]'
+            return inst_sym->tp_args;
+        }
+        // specialized instance, e.g. 'MyIter[int]', search its bases
+        return find_matched_tp_args_in_bases(origin, inst_sym->bases, ps);
+    }
+
+    if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+        if (sym->id == origin->id) {
+            // bare origin type carries no type arguments, nothing to match
+            return NULL;
+        }
+        // normal class, e.g. 'Foo' which inherits 'Iterator[int]'
+        return find_matched_tp_args_in_bases(origin, &((KlassSymbol *)sym)->bases, ps);
+    }
+
+    return NULL;
+}
+
+/*
+ * Binds the type parameters found in the arguments of 'param_ts' (a
+ * TYPE_GENERIC_REF) to the corresponding types in 'matched_args'.
+ */
+static int bind_tp_from_matched_args(HashMap *map, TypeSpec *param_ts, Vector *matched_args,
+                                     char *tp_owner_name, Loc loc, ParserState *ps)
+{
+    Vector *param_args = param_ts->generic_ref.args;
+    int num_params = vector_size(param_args);
+    int num_matched = vector_size(matched_args);
+
+    if (num_params != num_matched) {
+        kl_error(loc, "type '%s' has %d type parameter(s), but %d type argument(s) matched.",
+                 param_ts->signature, num_params, num_matched);
+        return 0;
+    }
+
+    for (int i = 0; i < num_params; i++) {
+        TypeSpec *param_arg = vector_get(param_args, i);
+        TypeSpec *matched_arg = vector_get(matched_args, i);
+        if (!param_arg || !matched_arg) continue;
+
+        if (param_arg->kind == TYPE_GENERIC_VAR) {
+            ASSERT(str_equal(param_arg->generic_var.owner, tp_owner_name));
+
+            TpInfo *info = get_tpinfo(map, param_arg->generic_var.name);
+            if (info) {
+                if (!type_spec_compatible(info->real, matched_arg)) {
+                    kl_error(loc, "generic type '%s' is inferred as '%s', but got '%s'", info->name,
+                             info->real->signature, matched_arg->signature);
+                    return 0;
+                }
+            } else {
+                add_tpinfo(map, param_arg->generic_var.name, matched_arg);
+            }
+        } else if (param_arg->kind == TYPE_GENERIC_REF) {
+            // nested generic ref, e.g. param 'Foo[Bar[T]]' matches 'Foo[Bar[int]]'
+            if (!infer_tp_from_generic_ref(map, param_arg, matched_arg, tp_owner_name, loc, ps))
+                return 0;
+        }
+        /* else: a concrete param type argument carries no type parameter,
+           its compatibility is checked later by check_call_args(). */
+    }
+
+    return 1;
+}
+
+/*
+ * Infers type parameter bindings from a call argument whose corresponding
+ * parameter type is a TYPE_GENERIC_REF, e.g. param 'Iterator[T]' with a class
+ * argument which inherits 'Iterator[int]' infers 'T' as int.
+ */
+static int infer_tp_from_generic_ref(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
+                                     char *tp_owner_name, Loc loc, ParserState *ps)
+{
+    ASSERT(param_ts->kind == TYPE_GENERIC_REF);
+
+    if (!tps_are_generic(param_ts->generic_ref.args)) {
+        // closed generic ref, nothing to infer, its compatibility
+        // is checked later by check_call_args().
+        return 1;
+    }
+
+    Symbol *origin = generic_ref_origin_sym(param_ts, ps->pm);
+    if (!origin) {
+        kl_error(loc, "cannot resolve the origin type of '%s'.", param_ts->signature);
+        return 0;
+    }
+
+    Vector *matched_args = find_matched_tp_args(origin, arg_ts, ps);
+    if (!matched_args) {
+        kl_error(loc, "cannot infer type parameter(s) of '%s': type '%s' does not match '%s'.",
+                 tp_owner_name, arg_ts ? arg_ts->signature : "none", param_ts->signature);
+        return 0;
+    }
+
+    log_info("param type '%s' matched arg type '%s' with %d type argument(s)", param_ts->signature,
+             arg_ts->signature, vector_size(matched_args));
+
+    return bind_tp_from_matched_args(map, param_ts, matched_args, tp_owner_name, loc, ps);
+}
+
 InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_args,
                                      ParserModule *pm)
 {
@@ -328,8 +527,7 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
                 vector_push_back(inst_sym->bases, &base_ts);
                 ASSERT(base_ts->kind == TYPE_KLASS || base_ts->kind == TYPE_GENERIC_REF);
             }
-            log_info("updated instance base '%s' for '%s'", base_ts->klass_type.name,
-                     mangled_name);
+            log_info("updated instance base '%s' for '%s'", base_ts->klass_type.name, mangled_name);
         }
 
         if (_tp_args != tp_args) {
@@ -359,6 +557,9 @@ static TypeSpec *inst_type_spec(TypeSpec *ts, Vector *tp_args, HashMap *stbl, Pa
         Symbol *sym = get_symbol_by_id(ts->sym_id);
         InstanceSymbol *inst_sym = find_or_add_instance(stbl, sym, _tp_args, pm);
         arg_ts = inst_sym->instance_ts;
+    } else if (ts->kind == TYPE_OPTIONAL) {
+        TypeSpec *inst_inner = inst_type_spec(ts->opt.src, tp_args, stbl, pm);
+        arg_ts = optional_type_spec_intern(inst_inner);
     } else {
         arg_ts = ts;
     }

@@ -1,0 +1,76 @@
+// RUN: koala %s | filecheck %s
+
+class Foo : Iterator[int] & Iterable[int] {
+
+    let lst = [1, 2, 3]
+    var index = 0
+
+    func has_next() bool {
+        return index < len(lst)
+    }
+
+    func next() int? {
+        if has_next() { return next_strict() }
+        return nil
+    }
+
+    func next_strict() int {
+        let val = lst[index]
+        index = index + 1
+        return val
+    }
+
+    func iter() Iterator[int] {
+        panic("Foo:iter() must not be called")
+        return self
+    }
+}
+
+func next[T](it Iterator[T]) T? {
+    return it.next()
+}
+
+func main() {
+    let f = Foo()
+    while let val = next[int](f) {
+        print(val)
+    }
+
+    let f2 = Foo()
+    print(next[int](f2))
+    print(next[int](f2))
+
+    let f3 = Foo()
+    print(next(f3))
+    print(next(f3))
+    print(next(f3))
+
+    let f4 = Foo()
+    print(next(f4))
+    print(next[int](f4))
+    print(next(f4))
+
+    let f5 = Foo()
+    print(next[int](f5))
+    print(next(f5))
+    print(next[int](f5))
+}
+
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3
+
+// CHECK: 1
+// CHECK: 2
+
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3
+
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3
+
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3

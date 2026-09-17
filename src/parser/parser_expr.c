@@ -1595,7 +1595,6 @@ static void parse_call(ParserState *ps, Expr *exp)
         exp->ts = origin_fn_sym->ret;
         params = origin_fn_sym->params;
     } else if (lhs_sym->kind == SYM_INSTANCE_FUNC) {
-        NYI();
         InstanceFuncSymbol *inst_fn_sym = (InstanceFuncSymbol *)lhs_sym;
         exp->ts = inst_fn_sym->ret_ts;
         params = inst_fn_sym->real_params;
@@ -2278,7 +2277,8 @@ static void parse_index_func_tp(ParserState *ps, IndexExpr *index)
     char *mangled_name = mangle_func_name(lhs_sym->name, tp_args);
     Symbol *specialized_fn_sym = stbl_get(ps->pm->stbl, mangled_name);
     if (specialized_fn_sym) {
-        ASSERT(specialized_fn_sym->kind == SYM_FUNC);
+        ASSERT(specialized_fn_sym->kind == SYM_FUNC ||
+               specialized_fn_sym->kind == SYM_INSTANCE_FUNC);
         index->sym = specialized_fn_sym;
         index->ts = specialized_fn_sym->ts;
         vector_destroy(tp_args);

@@ -1,8 +1,0 @@
-/// Return the next element from the iterator, or `nil` if the iterator is exhausted.
-///
-/// Unlike `Iterator.next()`, this function safely handles an exhausted iterator
-/// by returning `nil` instead of panicking.
-pub func next[T](it Iterator[T]) T? {
-    if it.has_next() { return it.next() }
-    return nil
-}

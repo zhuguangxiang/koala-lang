@@ -1121,7 +1121,14 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
 
     if (lhs->ts->kind == TYPE_PROTO) {
         // assign function's KlrValue to expr's ir_val
-        exp->ir_val = exp->sym->ir_val;
+        Symbol *_sym = exp->sym;
+        if (_sym->kind == SYM_INSTANCE_FUNC) {
+            FuncSymbol *origin = ((InstanceFuncSymbol *)_sym)->origin;
+            ASSERT(origin->kind == SYM_FUNC);
+            exp->ir_val = origin->ir_val;
+        } else {
+            exp->ir_val = _sym->ir_val;
+        }
         ASSERT(exp->ir_val);
         return;
     }
