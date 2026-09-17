@@ -32,21 +32,21 @@ print(ack(3, 11))
 // CHECK: loadk r0, #0
 // CHECK: load_int_imm r1, ti=0xb, #0
 // CHECK: call flg=0, r0, #2
-// CHECK: data (rel32=1)
+// CHECK: data (func_index=1(local))
 // CHECK: build_intern r0, @tuple, #1
 // CHECK: loadk r1, #1
 // CHECK: loadk r2, #2
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=0)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=3(imported))
 // CHECK: load_int_imm r0, ti=0xb, #3
 // CHECK: load_int_imm r1, ti=0xb, #11
 // CHECK: call flg=0, r0, #2
-// CHECK: data (rel32=2)
+// CHECK: data (func_index=2(local))
 // CHECK: build_intern r0, @tuple, #1
 // CHECK: loadk r1, #1
 // CHECK: loadk r2, #2
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=0)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=3(imported))
 // CHECK: ret_void
 
 // CHECK: @sum[19,24]:
@@ -69,7 +69,7 @@ print(ack(3, 11))
 // CHECK: int.sub_imm r4, r1, #1
 // CHECK: move r3, r0
 // CHECK: call flg=0, r1, #2
-// CHECK: data (rel32=2)
+// CHECK: data (func_index=2(local))
 // CHECK: move r0, r2
 // CHECK: tail_call flg=0, #2
 

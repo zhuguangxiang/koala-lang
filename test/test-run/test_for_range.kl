@@ -83,13 +83,13 @@ foo(10)
 // CHECK: build_intern r2, @tuple, #1
 // CHECK: loadk r3, #0
 // CHECK: loadk r4, #1
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=0)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=2(imported))
 // CHECK: int.add_imm r0, r0, #1
 // CHECK: jmp_int_lt_imm r0, #10, -10
 // CHECK: load_int_imm r2, ti=0xb, #10
 // CHECK: call flg=0, #1
-// CHECK: data (rel32=1)
+// CHECK: data (func_index=1(local))
 // CHECK: ret_void
 
 // CHECK-LABEL: @foo[15,27]:
@@ -101,8 +101,8 @@ foo(10)
 // CHECK: build_intern r3, @tuple, #1
 // CHECK: loadk r4, #0
 // CHECK: loadk r5, #1
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=0)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=2(imported))
 // CHECK: int.add_imm r1, r1, #1
 // CHECK: jmp_int_lt r1, r0, -10
 // CHECK: ret_void

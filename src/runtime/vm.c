@@ -457,6 +457,9 @@ static Object *_load_module(char *path)
         kl_mo_add_func(m, kc->sval, _co);
     }
 
+    // set local function count
+    mo->num_funcs = vector_size(&mo->funcs);
+
     // process classes
 
     Vector *cls_objs = klc->objs + ITEM_CLASS;
@@ -616,13 +619,6 @@ static Object *_load_module(char *path)
         mo->num_globals++;
     }
 
-    // bind cfunc/code to module
-
-    Object *fn;
-    vector_foreach(fn, &mo->funcs) {
-        kl_bind_func(m, fn);
-    }
-
     // allocate global variables space
 
     if (mo->num_values > 0) {
@@ -632,7 +628,15 @@ static Object *_load_module(char *path)
         }
     }
 
+    // resolve imports
     kl_resolve_import(m);
+
+    // bind cfunc/code to module
+
+    Object *fn;
+    vector_foreach(fn, &mo->funcs) {
+        kl_bind_func(m, fn);
+    }
 
     free_klc_file(klc);
     return m;

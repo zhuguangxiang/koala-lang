@@ -56,39 +56,39 @@ func main() {
 // CHECK: build_intern r1, @tuple, #1
 // CHECK: loadk r2, #4
 // CHECK: loadk r3, #5
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=1)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=3(imported))
 // CHECK: loadk r0, #9
 // CHECK: len r2, r0
 // CHECK: loadk r1, #10
 // CHECK: build_intern r1, @tuple, #2
 // CHECK: loadk r2, #4
 // CHECK: loadk r3, #5
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=1)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=3(imported))
 // CHECK: move r1, r0
 // CHECK: load_int_imm r2, ti=0xb, #4
-// CHECK: call flg=1, #2
-// CHECK: data (import_index=0)
+// CHECK: call flg=0, #2
+// CHECK: data (func_index=2(imported))
 // CHECK: move r1, r0
 // CHECK: build_intern r1, @tuple, #1
 // CHECK: loadk r2, #4
 // CHECK: loadk r3, #5
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=1)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=3(imported))
 // CHECK: len r2, r0
 // CHECK: loadk r1, #10
 // CHECK: build_intern r1, @tuple, #2
 // CHECK: loadk r2, #4
 // CHECK: loadk r3, #5
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=1)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=3(imported))
 // CHECK: loadk r1, #12
 // CHECK: build_intern r1, @tuple, #1
 // CHECK: loadk r2, #4
 // CHECK: loadk r3, #5
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=1)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=3(imported))
 
 // CHECK-LABEL: Constant Pool:
 // CHECK: [000] int64   = 100

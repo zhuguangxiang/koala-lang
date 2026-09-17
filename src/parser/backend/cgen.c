@@ -568,9 +568,9 @@ static int mach_import_add_func(KlMachModule *m, char *path, char *name)
 
     KlMachImport *entry = hashmap_get(&m->import_map, &key);
     if (entry) {
-        log_info("Found existing import ext-func entry for %s.%s (index: %d)", path, name,
-                 entry->index);
-        return entry->index;
+        log_info("Found existing import ext-func entry for %s.%s (slot_index: %d)", path, name,
+                 entry->slot_index);
+        return entry->slot_index;
     }
 
     KlMachImport *new_entry = mm_alloc_obj(new_entry);
@@ -581,9 +581,12 @@ static int mach_import_add_func(KlMachModule *m, char *path, char *name)
     hashmap_put(&m->import_map, new_entry);
     vector_push_back(&m->import_table, &new_entry);
     int import_index = vector_size(&m->import_table) - 1;
+    int slot_index = m->num_funcs++;
     new_entry->index = import_index;
-    log_info("Added new import ext-func entry for %s.%s (index: %d)", path, name, import_index);
-    return import_index;
+    new_entry->slot_index = slot_index;
+    log_info("Added new import ext-func entry for %s.%s (index: %d, slot_index: %d)", path, name,
+             import_index, slot_index);
+    return slot_index;
 }
 
 int mach_import_add_field(KlMachModule *m, char *path, char *klass, char *name)
@@ -619,9 +622,9 @@ static int mach_import_add_method(KlMachModule *m, char *path, char *klass, char
 
     KlMachImport *entry = hashmap_get(&m->import_map, &key);
     if (entry) {
-        log_info("Found existing import ext-method entry for %s.%s.%s (index: %d)", path, klass,
-                 name, entry->index);
-        return entry->index;
+        log_info("Found existing import ext-method entry for %s.%s.%s (slot_index: %d)", path,
+                 klass, name, entry->slot_index);
+        return entry->slot_index;
     }
 
     KlMachImport *new_entry = mm_alloc_obj(new_entry);
@@ -633,10 +636,12 @@ static int mach_import_add_method(KlMachModule *m, char *path, char *klass, char
     hashmap_put(&m->import_map, new_entry);
     vector_push_back(&m->import_table, &new_entry);
     int import_index = vector_size(&m->import_table) - 1;
+    int slot_index = m->num_funcs++;
     new_entry->index = import_index;
-    log_info("Added new import ext-method entry for %s.%s.%s (index: %d)", path, klass, name,
-             import_index);
-    return import_index;
+    new_entry->slot_index = slot_index;
+    log_info("Added new import ext-method entry for %s.%s.%s (index: %d, slot_index: %d)", path,
+             klass, name, import_index, slot_index);
+    return slot_index;
 }
 
 int mach_import_add_klass(KlMachModule *m, char *path, char *name)
@@ -646,7 +651,7 @@ int mach_import_add_klass(KlMachModule *m, char *path, char *name)
 
     KlMachImport *entry = hashmap_get(&m->import_map, &key);
     if (entry) {
-        log_info("Found existing import ext-klass entry for %s.%s (index: %d)", path, name,
+        log_info("Found existing import ext-klass entry for %s.%s (slot_index: %d)", path, name,
                  entry->slot_index);
         return entry->slot_index;
     }
@@ -674,7 +679,7 @@ int mach_import_add_global(KlMachModule *m, char *path, char *name)
 
     KlMachImport *entry = hashmap_get(&m->import_map, &key);
     if (entry) {
-        log_info("Found existing import ext-global entry for %s.%s (index: %d)", path, name,
+        log_info("Found existing import ext-global entry for %s.%s (slot_index: %d)", path, name,
                  entry->slot_index);
         return entry->slot_index;
     }
@@ -697,7 +702,8 @@ int mach_import_add_global(KlMachModule *m, char *path, char *name)
 
 static void dump_func_byte_code(KlMachFunc *mfn, const uint8_t *code)
 {
-    bytecode_print((uint8_t *)code, (size_t)mfn->start_pc, (size_t)mfn->total_insns);
+    bytecode_print((uint8_t *)code, (size_t)mfn->start_pc, (size_t)mfn->total_insns,
+                   vector_size(&mfn->m->funcs));
 }
 
 static void dump_byte_code(KlMachModule *m)
@@ -1237,7 +1243,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 vector_push_back(&mb->insns, &data);
                 vector_push_back(&m->fixups, &mi);
                 mi->fixup_flag = KL_MACH_FIXUP_IMPORT;
-                mi->opers[0] = 1; // set flag for external function
+                mi->opers[0] = 0; // set flag for external function
             } else if (klr_is_intf(ptr)) {
                 log_info("  call target: (interface method)");
                 mi->intf_index = ((KlrIntf *)ptr)->intf_index;
@@ -1247,7 +1253,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 vector_push_back(&mb->insns, &data);
                 vector_push_back(&m->fixups, &mi);
                 mi->fixup_flag = KL_MACH_FIXUP_INTFID;
-                mi->opers[0] = 2; // set flag for local interface function
+                mi->opers[0] = 1; // set flag for local interface function
             } else if (klr_is_ext_intf(ptr)) {
                 log_info("  call target: (ext interface method)");
                 mi->intf_index = ((KlrExtIntf *)ptr)->intf_index;
@@ -1257,7 +1263,7 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 vector_push_back(&mb->insns, &data);
                 vector_push_back(&m->fixups, &mi);
                 mi->fixup_flag = KL_MACH_FIXUP_INTFID;
-                mi->opers[0] = 2; // set flag for external interface function
+                mi->opers[0] = 1; // set flag for external interface function
             } else {
                 mi->target_fn = fn->mach;
                 ASSERT(fn->mach != NULL);
@@ -1959,6 +1965,8 @@ void kl_do_codegen(KlrModule *origin)
             _add_mach_func(fn, m);
         }
     }
+
+    m->num_funcs = vector_size(&m->funcs);
 
     KlMachFunc *mfn;
     vector_foreach(mfn, &m->funcs) {

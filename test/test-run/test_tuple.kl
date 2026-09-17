@@ -46,21 +46,20 @@ func main() {
 
 // CHECK-LABEL: @main[9,44]:
 // CHECK: loadk r1, #3
-// CHECK: call flg=1, #1
-// CHECK: data (import_index=0)
+// CHECK: call flg=0, #1
+// CHECK: data (func_index=2(imported))
 // CHECK: loadk r1, #6
-// CHECK: call flg=1, r0, #1
-// CHECK: data (import_index=0)
+// CHECK: call flg=0, r0, #1
+// CHECK: data (func_index=2(imported))
 // CHECK: move r2, r0
 // CHECK: loadk r1, #6
 // CHECK: build_intern r1, @tuple, #2
 // CHECK: loadk r2, #7
 // CHECK: loadk r3, #8
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=1)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=3(imported))
 // CHECK: load_int_imm r1, ti=0xb, #4
 // CHECK: load_int_imm r2, ti=0xb, #5
-
 
 // CHECK-LABEL: Import Table:
 // CHECK: [000] method std/builtin::tuple::to_list

@@ -422,11 +422,9 @@ static void dump_bytecodes(Vector *vec, Vector *code_vec, KlcFile *klc)
     vector_foreach(code, code_vec) {
         if (!code) continue;
         KlcConst *k = klc_get_rt_const(klc, code->name_index);
-        fprintf(stdout,
-                "[%d]@%s(nlocals=%d, max_call_args=%d, start_pc=%d, num_insns=%d)\n",
+        fprintf(stdout, "[%d]@%s(nlocals=%d, max_call_args=%d, start_pc=%d, num_insns=%d)\n",
                 i__ - 1, k->sval, code->nlocals, code->max_call_args, code->start_pc,
                 code->num_insns);
-        bytecode_print(codes, code->start_pc, code->num_insns);
         printf("\n");
     }
 }

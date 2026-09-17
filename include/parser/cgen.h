@@ -23,11 +23,14 @@ typedef struct _KlMachModule {
     /* Original high-level IR module. */
     KlrModule *origin;
 
-    /* Number of local global variables in this module. */
+    /* Number of global(local&extern) variables in this module. */
     int num_globals;
 
-    /* Number of local classes in this module. */
+    /* Number of classes(local&extern) in this module. */
     int num_klasses;
+
+    /* Number of functions(local&extern) in this module. */
+    int num_funcs;
 
     /* All lowered machine functions in final layout order. */
     Vector funcs;

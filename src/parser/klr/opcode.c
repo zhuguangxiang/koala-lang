@@ -34,7 +34,7 @@ char *intern_tag_name[] = {
     [INTERN_LIST] = "list",
 };
 
-void bytecode_print(uint8_t *code, size_t start, size_t count)
+void bytecode_print(uint8_t *code, size_t start, size_t count, size_t num_local_funcs)
 {
     for (size_t pc = start; pc < start + count; pc++) {
         uint32_t insn = *(uint32_t *)(code + pc * 4);
@@ -162,11 +162,14 @@ void bytecode_print(uint8_t *code, size_t start, size_t count)
                     insn = *(uint32_t *)(code + pc * 4);
                     printf("\n%04zu:  %08X   data ", pc, insn);
                     if (flag == 0) {
-                        printf("(rel32=%d)", (int)insn);
+                        if (insn < num_local_funcs)
+                            printf("(func_index=%d(local))", (int)insn);
+                        else
+                            printf("(func_index=%d(imported))", (int)insn);
                     } else if (flag == 1) {
-                        printf("(import_index=%d)", (int)insn);
-                    } else if (flag == 2) {
                         printf("(intf_slot=%d)", (int)insn);
+                    } else {
+                        UNREACHABLE();
                     }
                 }
                 break;

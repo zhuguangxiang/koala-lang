@@ -78,6 +78,9 @@ void kl_resolve_import(Object *_m)
         } else if (e->kind == IMPORT_KIND_GLOBAL) {
             ASSERT(vector_size(&m->globals) == e->slot_index);
             vector_push_back(&m->globals, &obj);
+        } else if (e->kind == IMPORT_KIND_FUNC || e->kind == IMPORT_KIND_METHOD) {
+            ASSERT(vector_size(&m->funcs) == e->slot_index);
+            vector_push_back(&m->funcs, &obj);
         }
     }
 }

@@ -30,6 +30,6 @@ func f(n int) int {
 // CHECK-LABEL: @f[2,6]:
 // CHECK: move r1, r0
 // CHECK: call flg=0, r0, #1
-// CHECK: data (rel32=0)
+// CHECK: data (func_index=0(local))
 // CHECK: int.add_imm r0, r0, #1
 // CHECK: ret r0

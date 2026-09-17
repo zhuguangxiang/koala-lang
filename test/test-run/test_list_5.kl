@@ -61,8 +61,8 @@ func main() {
 // CHECK: seq.get r4, r0, r2
 // CHECK: move r6, r4
 // CHECK: move r5, r1
-// CHECK: call flg=1, #2
-// CHECK: data (import_index=0)
+// CHECK: call flg=0, #2
+// CHECK: data (func_index=3(imported))
 // CHECK: int.add_imm r2, r2, #1
 // CHECK: jmp_int_lt r2, r3, -7
 // CHECK: ret_void

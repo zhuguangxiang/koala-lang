@@ -26,7 +26,10 @@ add_custom_target(koala-tests
     COMMENT "Executing Koala integration test suite..."
 )
 
-configure_file(lit.site.cfg lit.cfg @ONLY)
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg
+    ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
+    @ONLY)
 
 # add a target to run the test, build this test will trigger the run
 add_custom_target(lit-tests

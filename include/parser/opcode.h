@@ -112,7 +112,7 @@ extern OpFormat __op_formats[];
 static inline OpFormat op_format(OpCode code) { return __op_formats[code]; }
 
 extern char *tag_mapping[];
-void bytecode_print(uint8_t *code, size_t start, size_t count);
+void bytecode_print(uint8_t *code, size_t start, size_t count, size_t num_local_funcs);
 
 extern char *intern_tag_name[];
 

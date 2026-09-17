@@ -412,60 +412,33 @@ TARGET(OP_CALL) {
 
     SAVE_PC();
 
-    if (flg == 1) {
-        uint32_t index = *pc++;
-        ImportEntry *e = IMPORT_ENTRY(index);
-        ASSERT(e->kind == IMPORT_KIND_FUNC || e->kind == IMPORT_KIND_METHOD);
-        Object *target = e->address;
-        ASSERT(target);
-        TValue val = obj_value(target);
-        TValue ret = kl_do_call(&val, ks->stack_top, imm);
-        if (rd != 0xFFFu) {
-            ASSERT(rd < max_regs);
-            regs[rd] = ret;
-        }
+    Object *fn;
 
-        if (is_error(&ret)) goto error;
-        DISPATCH();
-    }
-
-    if (flg == 2) {
+    if (__builtin_expect(flg == 1, 0)) {
         uint32_t index = *pc++;
         TValue *callable = ks->stack_top;
         ASSERT(is_intf(callable));
         IntfTable *itab = callable->itab;
         ASSERT(index < itab->num_funcs);
-        Object *fn = itab->methods[index];
-        ASSERT(fn);
-        ASSERT(IS_CFUNC(fn) || IS_CODE(fn));
-
-        TValue val = obj_value(fn);
-        TValue ret = kl_do_call(&val, ks->stack_top, imm);
-        if (rd != 0xFFFu) {
-            ASSERT(rd < max_regs);
-            regs[rd] = ret;
-        }
-
-        if (is_error(&ret)) goto error;
-        DISPATCH();
+        fn = itab->methods[index];
+    } else {
+        int32_t local_index = *(int32_t *)pc++;
+        ASSERT(local_index >= 0 && local_index < entry_size);
+        FuncEntry *e = ENTRY(local_index);
+        fn = e->obj;
     }
 
-    int32_t local_index = *(int32_t *)pc++;
-    // uint32_t *target_pc = pc + local_index;
-    // ASSERT(target_pc < codes + code->cs.code_size);
-    // uint32_t f_idx = *target_pc;
-    ASSERT(local_index >= 0 && local_index < entry_size);
-    FuncEntry *e = ENTRY(local_index);
-    Object *obj = e->obj;
+    ASSERT(fn != NULL);
+
     TValue ret;
 
-    if (IS_CFUNC(obj)) {
-        CFuncObject *cfunc = (CFuncObject *)obj;
+    if (IS_CFUNC(fn)) {
+        CFuncObject *cfunc = (CFuncObject *)fn;
         NativeFunc func = cfunc->func;
         Object *owner = cfunc->owner;
         TValue *args = ks->stack_top;
         if (IS_MODULE(owner)) {
-            TValue val = obj_value(obj);
+            TValue val = obj_value(fn);
             ret = func(&val, args, imm);
         } else {
             ASSERT(IS_TYPE(owner, &type_type));
@@ -473,8 +446,8 @@ TARGET(OP_CALL) {
             ret = func(args, args + 1, imm - 1);
         }
     } else {
-        ASSERT(IS_CODE(e->obj));
-        TValue val = obj_value(e->obj);
+        ASSERT(IS_CODE(fn));
+        TValue val = obj_value(fn);
         ret = kl_eval_code(&val, NULL, 0);
     }
 

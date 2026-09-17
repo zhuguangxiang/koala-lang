@@ -36,7 +36,7 @@ func main() {
 // CHECK-LABEL: @main[1,16]:
 // CHECK: load_int_imm r1, ti=0xb, #30
 // CHECK: call flg=0, r1, #1
-// CHECK: data (rel32=0)
+// CHECK: data (func_index=0(local))
 // CHECK: loadk r2, #0
 // CHECK: build_intern r0, @tuple, #2
 // CHECK: seq.get_imm r1, r0, #0
@@ -47,8 +47,8 @@ func main() {
 // CHECK: build_intern r1, @tuple, #3
 // CHECK: loadk r2, #7
 // CHECK: loadk r3, #8
-// CHECK: call flg=1, #3
-// CHECK: data (import_index=0)
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=2(imported))
 // CHECK: ret_void
 
 // CHECK-LABEL: Constant Pool:
