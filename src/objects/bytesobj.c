@@ -43,13 +43,13 @@ static TValue _bytes_init(TValue *self, TValue *args, int nargs)
     int64_t size = to_int64(v);
     if (size < 0) {
         panic("bytes size must be non-negative");
-        return none_value;
+        return nil_value;
     }
 
     void *data = mm_alloc(size);
     bytes->data = (uint8_t *)data;
     bytes->size = size;
-    return none_value;
+    return nil_value;
 }
 
 static TValue _bytes_index(TValue *self, TValue *args, int nargs)
@@ -131,7 +131,7 @@ static TValue _bytes_fill(TValue *self, TValue *args, int nargs)
     ASSERT(is_uint8(v));
     uint8_t value = (uint8_t)v->ival;
     memset(bytes->data + bytes->offset, value, bytes->size);
-    return none_value;
+    return nil_value;
 }
 
 static TValue _bytes_zero(TValue *self, TValue *args, int nargs)
@@ -143,7 +143,7 @@ static TValue _bytes_zero(TValue *self, TValue *args, int nargs)
 
     ASSERT(nargs == 2);
     memset(bytes->data + bytes->offset, 0, bytes->size);
-    return none_value;
+    return nil_value;
 }
 
 static TValue _bytes_view(TValue *self, TValue *args, int nargs)
@@ -199,7 +199,7 @@ static TValue _bytes_setitem(TValue *self, TValue *args, int nargs)
     ASSERT(index >= 0 && index < bytes->size);
     ASSERT(is_uint8(&args[1]));
     bytes->data[bytes->offset + index] = (uint8_t)args[1].ival;
-    return none_value;
+    return nil_value;
 }
 
 static MethodDef bytes_methods[] = {

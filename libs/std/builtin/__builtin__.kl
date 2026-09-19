@@ -16,7 +16,7 @@ link "koala"
 /// The `sep` and `end` arguments must be strings; the default separator is a space,
 /// and the default end-of-line is a newline character.
 @native
-pub func print(objs ..., sep = ' ', end = '\n') {}
+pub func print(objs ..., sep = " ", end = "\n") {}
 
 /// Return the number of items in a collection or the length of an object.
 ///
@@ -180,8 +180,3 @@ pub func pow_float64_int64(base float, exp int) float {}
 /// `pow_float64_float64(2.0, 10.0)`.
 @native
 pub func pow_float64_float64(base float, exp float) float {}
-
-pub func add_ret_opt(a int ) int? {
-    if a > 0 { return a + 100 }
-    return nil
-}

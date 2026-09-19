@@ -1,6 +1,18 @@
-
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
 link "koala_std_native"
+
+/// Seek whence: absolute position from the start of content.
+pub const SEEK_SET = 0
+
+/// Seek whence: relative to the current position.
+pub const SEEK_CUR = 1
+
+/// Seek whence: relative to the end of content.
+pub const SEEK_END = 2
 
 pub func buf_write(w BufWriter, data bytes) int {
     let n = w.write(data)

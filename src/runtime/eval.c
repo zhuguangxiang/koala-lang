@@ -25,7 +25,7 @@ void init_tag_mappings(void)
 {
     vm_tag_mappings[0] = bool_value(0);
     vm_tag_mappings[1] = bool_value(1);
-    vm_tag_mappings[2] = none_value;
+    vm_tag_mappings[2] = nil_value;
     vm_tag_mappings[3] = float64_value(0.0);
     vm_tag_mappings[4] = float64_value(-0.0);
     vm_tag_mappings[5] = float64_value(NAN);
@@ -67,7 +67,7 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
 
 static TValue do_nil_check(TValue *val)
 {
-    if (!is_none(val)) return none_value;
+    if (!is_nil(val)) return nil_value;
 
     raise_exc_str("forced unwrap (`!`) of a nil value");
     return error_value;
@@ -169,7 +169,7 @@ local_tailcall:
     int max_regs = cf->nlocals + code->cs.max_call_args;
 #endif
 
-    TValue result = none_value;
+    TValue result = nil_value;
     register uint32_t inst;
     register OpCode op;
     register int rd, rs, rt, imm, idx, off;

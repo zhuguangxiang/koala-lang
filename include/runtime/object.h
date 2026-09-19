@@ -58,7 +58,7 @@ typedef struct _TValue {
  |   Tag Constants                                                           |
  +---------------------------------------------------------------------------*/
 
-#define TAG_NONE  0
+#define TAG_NIL   0
 #define TAG_ERROR 1
 #define TAG_BOOL  2
 
@@ -83,7 +83,7 @@ typedef struct _TValue {
  |   Type Checking                                                           |
  +---------------------------------------------------------------------------*/
 
-#define is_none(x)  ((x)->tag == TAG_NONE)
+#define is_nil(x)   ((x)->tag == TAG_NIL)
 #define is_error(x) ((x)->tag == TAG_ERROR)
 #define is_bool(x)  ((x)->tag == TAG_BOOL)
 
@@ -124,7 +124,7 @@ typedef struct _TValue {
  +---------------------------------------------------------------------------*/
 
 /* clang-format off */
-#define none_value          (TValue){ .tag = TAG_NONE,   .ival = 0 }
+#define nil_value           (TValue){ .tag = TAG_NIL,    .ival = 0 }
 #define error_value         (TValue){ .tag = TAG_ERROR,  .ival = -1 }
 #define bool_value(x)       (TValue){ .tag = TAG_BOOL,   .ival = (int)(x) }
 
@@ -341,6 +341,7 @@ typedef struct _CFuncObject {
     Object *owner;
     NativeFunc func;
     int func_idx;
+    int not_impl;
     char *name;
     void *priv;
 } CFuncObject;
@@ -460,7 +461,7 @@ void stbl_add_obj(HashMap *map, char *name, Object *obj);
 Object *stbl_find_obj(HashMap *map, char *name);
 
 extern TypeObject type_type;
-extern TypeObject none_type;
+extern TypeObject nil_type;
 extern TypeObject bool_type;
 extern TypeObject str_type;
 extern TypeObject exc_type;
@@ -718,8 +719,6 @@ static inline unsigned int kl_hash(TValue *val)
     TValue ret = kl_slot_call_no_arg(val, SLOT_HASH);
     return (unsigned int)to_int64(&ret);
 }
-
-TValue kl_not_impl_func(TValue *self, TValue *args, int nargs);
 
 int slice_adjust(int64_t *_start, int64_t *_end, int64_t step, int64_t len);
 

@@ -109,7 +109,8 @@ typedef struct _LitExpr {
 #define LIT_EXPR_FLT  2
 #define LIT_EXPR_BOOL 3
 #define LIT_EXPR_STR  4
-#define LIT_EXPR_NONE 5
+#define LIT_EXPR_CHAR 5
+#define LIT_EXPR_NONE 6
     int len;
     union {
         struct {
@@ -130,6 +131,7 @@ Expr *expr_from_lit_int(char *orginal, int sign, int bit_mode, __int128 val);
 Expr *expr_from_lit_float(double val);
 Expr *expr_from_lit_bool(int val);
 Expr *expr_from_lit_str(Buffer *buf);
+Expr *expr_from_lit_char(Buffer *buf);
 Expr *expr_from_lit_none(void);
 Expr *expr_from_literal(Literal *lit);
 Literal *expr_to_literal(Expr *exp);

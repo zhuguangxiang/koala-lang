@@ -1,5 +1,80 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
+/// Writer is the core interface for writing raw bytes or strings to any byte sink.
+///
+/// Implementations can wrap files, network sockets, stdout, stderr, or
+/// in-memory buffers. It provides both byte-level and string-level write
+/// operations to accommodate different caller needs while remaining
+/// encoding-agnostic at the trait level.
+///
+/// Implementations should follow these conventions:
+/// - Return the number of bytes actually written.
+/// - A short write (n < len(bs)) indicates a partial write, which may
+///   signal an error condition (e.g., disk full, broken pipe).
+/// - Never return a negative value.
+/// - The flush() method should be called to ensure buffered data is
+///   pushed to the underlying sink.
+///
+/// Example:
+///     let f = fs.open("output.bin", "w")!
+///     let n = f.write(b"hello")
+///     let m = f.write_str("world")
+///     if n + m == 10 {
+///         f.flush()
+///     }
+///     f.close()
 pub trait Writer {
+    /// Write the contents of the provided byte slice to the underlying sink.
+    ///
+    /// # Arguments
+    /// - `bs`: The source bytes to write.
+    ///
+    /// # Returns
+    /// The number of bytes actually written. A value less than len(bs)
+    /// indicates a partial write, which typically signals an error condition.
+    ///
+    /// # Notes
+    /// - The buffer `bs` is not mutated.
+    /// - For buffered writers, data may be held in an internal buffer until
+    ///   flush() is called or the buffer is full.
+    /// - If the resource has been closed, this method should panic.
     func write(bs bytes) int
+
+    /// Write the given string to the underlying sink.
+    ///
+    /// This is a convenience method for callers who have string data and
+    /// want to avoid manually encoding to bytes. The implementation is
+    /// responsible for converting the string to its UTF-8 byte representation
+    /// before writing.
+    ///
+    /// # Arguments
+    /// - `s`: The source string to write.
+    ///
+    /// # Returns
+    /// The number of bytes actually written (not the number of characters).
+    /// A value less than the UTF-8 byte length of `s` indicates a partial write.
+    ///
+    /// # Notes
+    /// - The string `s` is not mutated.
+    /// - This method is semantically equivalent to `write(s.to_bytes())` but
+    ///   may be more efficient in implementations that can avoid an intermediate
+    ///   allocation.
+    /// - If the resource has been closed, this method should panic.
+    func write_str(s str) int
+
+    /// Flush any internally buffered data to the underlying sink.
+    ///
+    /// For unbuffered writers (e.g., raw File), this is typically a no-op.
+    /// For buffered writers (e.g., BufWriter), this forces all pending data
+    /// to be written out immediately.
+    ///
+    /// # Notes
+    /// - Should be called after a series of write() / write_str() calls when
+    ///   data must be guaranteed to reach the underlying sink (e.g., before
+    ///   close(), or when writing log entries that must not be lost).
+    /// - If the resource has been closed, this method should panic.
     func flush()
 }

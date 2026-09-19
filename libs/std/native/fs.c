@@ -38,10 +38,10 @@ static TValue file_open(TValue *self, TValue *args, int nargs)
         int fd = (int)kl_arg_int64(0);
 
         if (fcntl(fd, F_GETFD) == -1) {
-            return none_value;
+            return nil_value;
         }
 
-        Object *fobj = kl_new_file(none_value, args[1], fd);
+        Object *fobj = kl_new_file(nil_value, args[1], fd);
         return obj_value(fobj);
     }
 
@@ -61,7 +61,7 @@ static TValue file_open(TValue *self, TValue *args, int nargs)
     }
 
     int fd = open(path, flags, 0644);
-    if (fd < 0) return none_value;
+    if (fd < 0) return nil_value;
     Object *fobj = kl_new_file(args[0], args[1], fd);
     return obj_value(fobj);
 }
@@ -83,7 +83,7 @@ static TValue file_write(TValue *self, TValue *args, int nargs)
     BytesObject *buf = kl_arg_obj_as(0, bytes_type);
     if (fcntl(fobj->fd, F_GETFD) == -1) {
         // printf("file descriptor %d is closed\n", fobj->fd);
-        return none_value;
+        return nil_value;
     }
 
     int r = write(fobj->fd, buf->data + buf->offset, buf->size);
@@ -95,10 +95,10 @@ static TValue file_close(TValue *self, TValue *args, int nargs)
     FileObject *fobj = SELF_AS(file_type);
     ASSERT(nargs == 0);
     close(fobj->fd);
-    return none_value;
+    return nil_value;
 }
 
-static TValue file_seek(TValue *self, TValue *args, int nargs) { return none_value; }
+static TValue file_seek(TValue *self, TValue *args, int nargs) { return nil_value; }
 
 static TypeObject file_type = {
     ._type = &type_type,

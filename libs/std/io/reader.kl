@@ -1,4 +1,42 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
+/// Reader is the core interface for reading raw bytes from any byte source.
+///
+/// Implementations can wrap files, network sockets, stdin, or in-memory buffers.
+/// The trait deliberately operates on raw bytes rather than strings to keep
+/// IO encoding-agnostic — callers are responsible for decoding bytes into
+/// strings if needed.
+///
+/// Implementations should follow these conventions:
+/// - Return the number of bytes actually read (0 ≤ n ≤ len(bs)).
+/// - Return 0 when EOF is reached (no more data available).
+/// - Never return a negative value.
+/// - A return value less than len(bs) does NOT necessarily mean EOF;
+///   it may simply indicate that fewer bytes are currently available.
+///
+/// Example:
+///     let f = fs.open("data.bin", "r")!
+///     let buf = bytes(1024)
+///     let n = f.read(buf)
+///     if n > 0 {
+///         process(buf[:n])
+///     }
+///     f.close()
 pub trait Reader {
+    /// Read up to len(bs) bytes from the underlying source into the provided buffer.
+    ///
+    /// # Arguments
+    /// - `bs`: The destination buffer to fill with data.
+    ///
+    /// # Returns
+    /// The number of bytes actually read, or 0 if EOF has been reached.
+    ///
+    /// # Notes
+    /// - The buffer `bs` is mutated in-place with the read data.
+    /// - A short read (n < len(bs)) is not an error and does not imply EOF.
+    /// - If the resource has been closed, this method should panic.
     func read(bs bytes) int
 }

@@ -110,8 +110,8 @@ extern "C" {
 // */
 // static int int_init(Value *self, Value *args, int nargs, Object *names)
 // {
-//     Value _x = none_value;
-//     Value _base = none_value;
+//     Value _x = nil_value;
+//     Value _base = nil_value;
 //     // const char *_kws[] = { "x", "base", NULL };
 //     // kl_parse_kwargs(args, nargs, names, 0, _kws, &_x, &_base);
 

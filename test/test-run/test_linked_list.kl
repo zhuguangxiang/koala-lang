@@ -139,20 +139,20 @@ func main() {
 // CHECK: %next = local z.ListNode
 // CHECK: %8 = get_field %curr z.ListNode, next(index=1)
 // CHECK: move %next z.ListNode, %8 z.ListNode?
-// CHECK: %9 = cmpne %8 z.ListNode?, none
+// CHECK: %9 = cmpne %8 z.ListNode?, nil
 // CHECK: branch %9 bool, label %bb5, label %bb6
 
 // CHECK-LABEL: %bb5(while-body):
 // CHECK: move %curr z.ListNode, %next z.ListNode
 // CHECK: %10 = get_field %curr z.ListNode, next(index=1)
 // CHECK: move %next z.ListNode, %10 z.ListNode?
-// CHECK: %11 = cmpne %10 z.ListNode?, none
+// CHECK: %11 = cmpne %10 z.ListNode?, nil
 // CHECK: branch %11 bool, label %bb5, label %bb6
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @List:index(%self z.List, %idx int64) int64?
 // CHECK-LABEL: %bb3(while-end):
-// CHECK: ret none
+// CHECK: ret nil
 // CHECK-LABEL: %bb4(if-then):
 // CHECK: %3 = cast %curr z.ListNode? to z.ListNode
 // CHECK: %4 = get_field %3 z.ListNode, value(index=0)
@@ -160,4 +160,4 @@ func main() {
 
 // CHECK: Total:  10
 // CHECK: Index 5:  5
-// CHECK: Index 20:  none
+// CHECK: Index 20:  nil

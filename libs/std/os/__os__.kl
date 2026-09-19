@@ -11,6 +11,3 @@ pub func setenv(key str, value str) {}
 pub func unsetenv(key str) {}
 
 // pub func environ() dict[str, str] {}
-
-@native
-pub func args() list[str] {}

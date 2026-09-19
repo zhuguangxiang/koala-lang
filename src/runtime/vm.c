@@ -47,7 +47,7 @@ void kl_free_ks(KoalaState *ks)
     mm_free(ks);
 }
 
-TValue kl_not_impl_func(TValue *self, TValue *args, int nargs)
+static TValue kl_not_impl_func(TValue *self, TValue *args, int nargs)
 {
     Object *obj = to_obj(self);
     ASSERT(IS_CFUNC(obj));
@@ -75,7 +75,9 @@ TValue kl_not_impl_func(TValue *self, TValue *args, int nargs)
 
 static Object *new_not_impl_func(Object *m, char *func_name)
 {
-    return kl_new_cfunc(func_name, kl_not_impl_func, m);
+    Object *cfunc = kl_new_cfunc(func_name, kl_not_impl_func, m);
+    ((CFuncObject *)cfunc)->not_impl = 1;
+    return cfunc;
 }
 
 static Object *new_not_impl_trait_func(char *kls_name, char *trait_name, char *fn_name, Object *m)
@@ -93,6 +95,7 @@ static Object *new_not_impl_trait_func(char *kls_name, char *trait_name, char *f
     memcpy(_msg, BUF_STR(msg), BUF_LEN(msg));
     _msg[BUF_LEN(msg)] = '\0';
 
+    ((CFuncObject *)cfunc)->not_impl = 1;
     ((CFuncObject *)cfunc)->priv = _msg;
 
     FINI_BUF(name);
@@ -624,7 +627,7 @@ static Object *_load_module(char *path)
     if (mo->num_values > 0) {
         mo->values = mm_alloc(sizeof(TValue) * mo->num_values);
         for (uint32_t i = 0; i < mo->num_values; i++) {
-            mo->values[i] = none_value;
+            mo->values[i] = nil_value;
         }
     }
 

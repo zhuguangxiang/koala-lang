@@ -20,7 +20,7 @@
 static int semicolon(ParserState *ps)
 {
     static int tokens[] = {
-        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, NONE, ID, SELF,
+        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, CHAR_LITERAL, NONE, ID, SELF,
         TRUE, FALSE, UINT8, UINT16, UINT32, UINT64, INT8, INT16, INT32, INT64,
         FLOAT16, FLOAT32, FLOAT64, BFLOAT16, STRING, BOOL, ANY,
         RETURN, BREAK, CONTINUE, ')', ']', '}', '?', '_', NOT,
@@ -129,8 +129,8 @@ static char hex2byte(const char *s)
     int hi = s[2];
     int lo = s[3];
 
-    hi = (hi <= '9') ? hi - '0' : (hi & ~0x20) - 'A' + 10;
-    lo = (lo <= '9') ? lo - '0' : (lo & ~0x20) - 'A' + 10;
+    hi = (hi <= '9') ? (hi - '0') : ((hi & ~0x20) - 'A' + 10);
+    lo = (lo <= '9') ? (lo - '0') : ((lo & ~0x20) - 'A' + 10);
 
     return (char)((hi << 4) | lo);
 }
@@ -180,7 +180,7 @@ static char hex2byte(const char *s)
 
 #define YY_S_BEGIN yyps->multi = 1; RESET_BUF(yyps->sbuf); BEGIN(S);
 #define YY_S_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
-#define YY_S_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL);
+#define YY_S_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(CHAR_LITERAL);
 
 #define YY_STR_BEGIN yyps->multi = 1; RESET_BUF(yyps->sbuf); BEGIN(STR);
 #define YY_STR_WRITE(ch) buf_write_char(&yyps->sbuf, ch)

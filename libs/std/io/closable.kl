@@ -1,4 +1,30 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
+/// Closable represents a resource that can be explicitly closed to release
+/// underlying system resources (file descriptors, network sockets, etc.).
+///
+/// Implementing this trait signals that the resource holds external state
+/// that should be cleaned up when no longer needed. Users are expected to
+/// call close() when done, or use a context manager / defer pattern if
+/// available.
+///
+/// Typical implementations: File, Socket, Pipe, and buffered wrappers
+/// like BufReader / BufWriter that need to propagate close to their
+/// underlying reader or writer.
+///
+/// Example:
+///     let f = fs.open("data.txt", "r")!
+///     f.close()
+///     // ... use f
 pub trait Closable {
+    /// Close the underlying resource and release associated system handles.
+    ///
+    /// After calling close(), any subsequent read/write operations on this
+    /// resource should panic with an "I/O operation on closed file" error.
+    ///
+    /// Calling close() multiple times is safe — subsequent calls are no-ops.
     func close()
 }

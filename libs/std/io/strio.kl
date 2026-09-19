@@ -1,25 +1,65 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
-pub class StringIO : Reader & Seeker {
+/// StringIO is an in-memory text stream that implements Reader,Seeker and Closable.
+///
+/// It wraps a UTF-8 encoded byte buffer and provides file-like reading
+/// operations without touching the filesystem. StringIO is read-only.
+pub class StringIO : Reader & Seeker & Closable {
+    /// Create a StringIO initialized with the given string.
+    @native
+    pub func __init__(s str) {}
 
-    let buf bytes
-    var pos int
+    /// Read up to len(bs) bytes from the current position into bs.
+    ///
+    /// # Arguments
+    /// - `bs`: Destination buffer.
+    ///
+    /// # Returns
+    /// Number of bytes actually read. Returns 0 at EOF.
+    @native
+    pub func read(bs bytes) int {}
 
-    pub func __init__(s str) {
-        buf = s.to_bytes()
-        pos = 0
-    }
-
-    pub func read(bs bytes) int {
-        let available = len(buf) - pos
-        if (available <= 0) { return 0; }
-
-        let n = min(available, len(bs))
-        bs.copy(buf, pos, pos + n)
-        // pos += n
-        pos = pos + n
-        return n
-    }
-
-    // @native
+    /// Move the read position to the given offset.
+    ///
+    /// # Arguments
+    /// - `offset`: Byte offset to seek to.
+    /// - `whence`: Reference point:
+    ///   - 0: Start of buffer (SEEK_SET)
+    ///   - 1: Current position (SEEK_CUR)
+    ///   - 2: End of buffer (SEEK_END)
+    ///
+    /// # Returns
+    /// The new absolute position.
+    @native
     pub func seek(offset int, whence int) int {}
+
+    /// Return the current read position.
+    ///
+    /// # Returns
+    /// The current byte offset from the start of the buffer.
+    @native
+    pub func tell() int {}
+
+    /// Return true if the read position has reached the end of the buffer.
+    ///
+    /// Unlike Java's ready() which checks if the next read will block,
+    /// StringIO is always "ready" since it's in-memory. eof() tells you
+    /// whether there is any data left to read.
+    @native
+    pub func eof() bool {}
+
+    /// Return the entire buffer contents as a string.
+    ///
+    /// This returns the full original string regardless of the current read position.
+    @native
+    pub func getvalue() str {}
+
+    /// Close this StringIO. Since it operates entirely in memory, this
+    /// method does not release any system resources, but it marks the
+    /// stream as closed for trait consistency.
+    @native
+    pub func close() {}
 }

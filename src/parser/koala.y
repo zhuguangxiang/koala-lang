@@ -297,6 +297,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token<ival> INT_LITERAL
 %token<fval> FLOAT_LITERAL
 %token STRING_LITERAL
+%token CHAR_LITERAL
 %type<prefix_flags> annotation
 %type<prefix_flags> prefix
 %type<prefix_flags> access
@@ -1349,6 +1350,11 @@ const_expr
     | STRING_LITERAL
     {
         $$ = expr_from_lit_str(&ps->sbuf);
+        expr_set_loc($$, loc(@1));
+    }
+    | CHAR_LITERAL
+    {
+        $$ = expr_from_lit_char(&ps->sbuf);
         expr_set_loc($$, loc(@1));
     }
     | TRUE
@@ -3237,6 +3243,11 @@ atom
     | STRING_LITERAL
     {
         $$ = expr_from_lit_str(&ps->sbuf);
+        expr_set_loc($$, loc(@1));
+    }
+    | CHAR_LITERAL
+    {
+        $$ = expr_from_lit_char(&ps->sbuf);
         expr_set_loc($$, loc(@1));
     }
     | TRUE

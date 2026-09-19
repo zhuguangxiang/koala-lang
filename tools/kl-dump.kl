@@ -111,7 +111,7 @@ let OP_TAIL_CALL_IDX = 116
 
 // OP_LOAD_TAG / OP_RET_TAG immediate names, same as `tag_mapping`.
 let TAG_NAMES = list[str](
-    "false", "true", "none", "+0.0", "-0.0", "NaN",
+    "false", "true", "nil", "+0.0", "-0.0", "NaN",
     "+inf", "-inf", "empty_str", "empty_list", "empty_dict",
 )
 
@@ -905,7 +905,7 @@ func const_value(c KConst, pool list[KConst]) str {
 // Type plus value, used in the constant pool sections.
 func const_desc(c KConst, pool list[KConst]) str {
     if c.kind == K_NONE {
-        return "none"
+        return "nil"
     }
     if c.kind == K_OBJECT {
         return "object"

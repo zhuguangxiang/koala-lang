@@ -14,7 +14,7 @@ extern "C" {
 static TypeObject *_value_typeof(int tag)
 {
     static TypeObject *_types_mapping[] = {
-        [TAG_NONE] = &none_type,     [TAG_ERROR] = &exc_type,     [TAG_BOOL] = &bool_type,
+        [TAG_NIL] = &nil_type,       [TAG_ERROR] = &exc_type,     [TAG_BOOL] = &bool_type,
         [TAG_INT8] = &int_type,      [TAG_INT16] = &int_type,     [TAG_INT32] = &int_type,
         [TAG_INT64] = &int_type,     [TAG_UINT8] = &int_type,     [TAG_UINT16] = &int_type,
         [TAG_UINT32] = &int_type,    [TAG_UINT64] = &int_type,    [TAG_FLOAT16] = &float_type,

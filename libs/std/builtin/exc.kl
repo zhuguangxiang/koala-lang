@@ -10,4 +10,7 @@
 /// See: `panic`
 pub class Exception {
 
+    /// Private: User should not directly instantiate this class.
+    /// Use the `panic` function to raise an exception.
+    func __init__() {}
 }

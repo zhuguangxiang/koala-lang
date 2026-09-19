@@ -75,7 +75,7 @@ static TValue builtin_print(TValue *self, TValue *args, int nargs)
     stdout_flush();
 
     FINI_BUF(buf);
-    return none_value;
+    return nil_value;
 }
 
 /*
@@ -109,7 +109,7 @@ static MethodDef builtin_functions[] = {
 };
 
 static TypeObject *builtin_types[] = {
-    &type_type,   &none_type,  &bool_type, &str_type,   &exc_type,     &field_type,
+    &type_type,   &nil_type,   &bool_type, &str_type,   &exc_type,     &field_type,
     &global_type, &cfunc_type, &code_type, &int_type,   &float_type,   &tuple_type,
     &range_type,  &slice_type, &list_type, &bytes_type, &ByteBuf_type,
 };

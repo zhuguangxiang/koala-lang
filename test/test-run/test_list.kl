@@ -41,7 +41,7 @@ func main() {
 // CHECK: %5 = build_intern @tuple, 'length of l:' str, %4 int64
 // CHECK: call @print [path = 'std/builtin'], %5 std/builtin.tuple<uj>, ' ' str, '\n' str
 // CHECK: %t = local [immutable] std/builtin.tuple<jj_?>
-// CHECK: move %t std/builtin.tuple<jj_?>, tuple(1, 2, none) std/builtin.tuple<jj_?>
+// CHECK: move %t std/builtin.tuple<jj_?>, tuple(1, 2, nil) std/builtin.tuple<jj_?>
 // CHECK: %6 = build_intern @tuple, %t std/builtin.tuple<jj_?>
 // CHECK: call @print [path = 'std/builtin'], %6 std/builtin.tuple<Lstd/builtin.tuple<jj_?>;>, ' ' str, '\n' str
 // CHECK: %7 = call @new_list [const], 300 int64
@@ -107,11 +107,11 @@ func main() {
 // CHECK:     [1] int64   = 2
 // CHECK:     [2] int64   = 3
 // CHECK: [010] str     = "length of l:"
-// CHECK: [011] none
+// CHECK: [011] nil
 // CHECK: [012] tuple(3):
 // CHECK:     [0] int64   = 1
 // CHECK:     [1] int64   = 2
-// CHECK:     [2] none
+// CHECK:     [2] nil
 
 // CHECK-LABEL: Import Table:
 // CHECK: [000] method std/builtin::list::push
@@ -121,5 +121,5 @@ func main() {
 // CHECK:length of l: 3
 // CHECK:[1, 2, 3, 4]
 // CHECK:length of l: 4
-// CHECK:(1, 2, none)
+// CHECK:(1, 2, nil)
 // CHECK:[100, 200, 300]

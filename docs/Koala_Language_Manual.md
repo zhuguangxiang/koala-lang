@@ -990,7 +990,7 @@ Value construction and extraction:
 
 | Interface | Purpose |
 |-----------|---------|
-| `int64_value(v)`, `bool_value(v)`, `obj_value(o)`, `none_value` | Build a `TValue` |
+| `int64_value(v)`, `bool_value(v)`, `obj_value(o)`, `nil_value` | Build a `TValue` |
 | `to_int64(v)`, `to_obj(v)` | Extract an int64 / object from a `TValue` |
 | `STR_BUF(o)` | Get the C string buffer of a str object |
 | `kl_new_str(s)`, `kl_new_fmt_str(fmt, ...)` | Create str objects |

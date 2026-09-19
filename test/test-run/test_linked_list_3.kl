@@ -12,7 +12,7 @@ class ListNode[T] {
     }
 
     func show() {
-        print(value, end=', ')
+        print(value, end=", ")
     }
 }
 
@@ -63,12 +63,12 @@ class List[T] {
 
     func show() {
         var curr = head
-        print('[', end='')
+        print("[", end="")
         while curr != nil {
             curr.show()
             curr = curr.next
         }
-        print(']')
+        print("]")
     }
 }
 
@@ -128,14 +128,14 @@ func main() {
         let row = cur.value
         var cur_row = row.head
         while cur_row != nil {
-            print(cur_row.value, end='  ')
+            print(cur_row.value, end="  ")
             cur_row = cur_row.next
         }
-        print('')
+        print("")
         cur = cur.next
     }
 
-    print('------------------\n')
+    print("------------------\n")
 
     // matrix 2: 3x2
     let m2 = List[List[int]]()
@@ -155,14 +155,14 @@ func main() {
         let row = cur.value
         var cur_row = row.head
         while cur_row != nil {
-            print(cur_row.value, end='  ')
+            print(cur_row.value, end="  ")
             cur_row = cur_row.next
         }
-        print('')
+        print("")
         cur = cur.next
     }
 
-    print('------------------\n')
+    print("------------------\n")
 
     let r = matmul(m1, m2)
     cur = r.head
@@ -170,10 +170,10 @@ func main() {
         let row = cur.value
         var cur_row = row.head
         while cur_row != nil {
-            print(cur_row.value, end='  ')
+            print(cur_row.value, end="  ")
             cur_row = cur_row.next
         }
-        print('')
+        print("")
         cur = cur.next
     }
 }

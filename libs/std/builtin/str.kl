@@ -75,6 +75,14 @@ pub class str : Sequence & Comparable {
     @native
     pub func __contains__(sub str) bool {}
 
+    /// Returns a single-character string at the given index.
+    ///
+    /// # Contract
+    /// Requires `0 <= index < len()`.
+    /// Calls `panic()` if violated — uncatchable, must be fixed.
+    @intrinsic
+    pub func at(index int) str {}
+
     /// Return the first index of the substring `value` in [start, end).
     /// If `end` is -1, the search extends to the end of the string.
     /// Return -1 if the substring is not present.
@@ -346,17 +354,6 @@ pub class StrIter : Iterator[str] {
         return ch
     }
 
-    /// Return the next character and advance the cursor by `step`.
-    ///
-    /// Return `dflt` if the iterator is exhausted.
-    pub func next_or(dflt str) str {
-        if cursor >= length { return dflt }
-
-        let ch = source[cursor]
-        cursor = cursor + step
-        return ch
-    }
-
     /// Return a human-readable description of the iterator state.
     ///
     /// Useful for debugging and logging.
@@ -415,17 +412,6 @@ pub class StrRevIter : Iterator[str] {
     /// Return the next character in reverse order, or `nil` if exhausted.
     pub func next() str? {
         if cursor < 0 { return nil }
-        let ch = source[cursor]
-        cursor = cursor - step
-        return ch
-    }
-
-    /// Return the next character and move the cursor backward by `step`.
-    ///
-    /// Return `dflt` if the iterator is exhausted.
-    pub func next_or(dflt str) str {
-        if cursor < 0 { return dflt }
-
         let ch = source[cursor]
         cursor = cursor - step
         return ch

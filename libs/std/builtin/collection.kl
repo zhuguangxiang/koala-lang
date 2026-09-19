@@ -20,6 +20,38 @@ pub trait Sequence[T] : Iterable[T] {
     /// Calling this method with an out-of-range index will trigger a panic.
     func __getitem__(index int) T
 
+    /// Returns whether the sequence contains no elements.
+    ///
+    /// O(1) or O(n) depending on implementation.
+    ///
+    /// # Example
+    /// ```
+    /// if s.empty() { /* ... */ }
+    /// if !s.empty() { /* ... */ }
+    /// ```
+    func empty() bool
+
+    /// Returns the first element. The same as `at(0)`.
+    ///
+    /// # Contract
+    /// Requires `!empty()`.
+    /// Calls `panic()` if violated — uncatchable, must be fixed.
+    func first() T
+
+    /// Returns the last element. The same as `at(__len__() - 1)`.
+    ///
+    /// # Contract
+    /// Requires `!empty()`.
+    /// Calls `panic()` if violated — uncatchable, must be fixed.
+    func last() T
+
+    /// Returns the element at the given index. The same as `__getitem__`.
+    ///
+    /// # Contract
+    /// Requires `0 <= index < __len__()`.
+    /// Calls `panic()` if violated — uncatchable, must be fixed.
+    func at(index int) T
+
     /// Return the first index of `value` in `[start, end)`.
     ///
     /// If `end` is `-1`, the search extends to the end of the sequence.
@@ -49,8 +81,20 @@ pub trait MutableSequence[T] : Sequence[T] {
     /// Calling this method with an out-of-range index will trigger a panic.
     func __setitem__(index int, value T)
 
+    /// Sets the element at the given index to `value`. The same as `__setitem__`.
+    ///
+    /// # Contract
+    /// Requires `0 <= index < __len__()`.
+    /// Calls `panic()` if violated — uncatchable, must be fixed.
+    func put(index int, value T)
+
     /// Append `value` to the end of the sequence.
     func push(value T)
+
+    /// Remove and return the item at the specified `index`.
+    ///
+    /// If `index` is omitted, remove and return the last item.
+    func pop(index = -1) T
 
     /// Append all elements from `items` to the end of the sequence.
     func extend(items Iterable[T])
@@ -65,16 +109,13 @@ pub trait MutableSequence[T] : Sequence[T] {
     /// Calling this method when `value` is not present will trigger a panic.
     func remove(value T)
 
-    /// Remove and return the item at the specified `index`.
+    /// Swap the elements at the specified `index1` and `index2`.
     ///
-    /// If `index` is omitted, remove and return the last item.
-    func pop(index = -1) T
+    /// If either index is out of bounds, calling this method will trigger a panic.
+    func swap(index1 int, index2 int)
 
     /// Remove all items from the sequence, leaving it empty.
     func clear()
-
-    /// Reverse the elements of the sequence in place.
-    func reverse()
 }
 
 /// A Map is a collection of key-value mappings.

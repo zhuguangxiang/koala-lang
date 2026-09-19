@@ -268,7 +268,7 @@ TARGET(OP_RET) {
 }
 
 TARGET(OP_RET_VOID) {
-    result = none_value;
+    result = nil_value;
     goto done;
 }
 
@@ -355,7 +355,7 @@ TARGET(OP_JMP_REF_EQ_NULL) {
 
     CHECK_REG_ID(rs);
 
-    if (is_none(&regs[rs])) {
+    if (is_nil(&regs[rs])) {
         pc += off;
     }
     DISPATCH();
@@ -367,7 +367,7 @@ TARGET(OP_JMP_REF_NE_NULL) {
 
     CHECK_REG_ID(rs);
 
-    if (!is_none(&regs[rs])) {
+    if (!is_nil(&regs[rs])) {
         pc += off;
     }
     DISPATCH();
@@ -380,7 +380,7 @@ TARGET(OP_REF_NE_NULL) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
 
-    regs[rd] = is_none(regs + rs) ? BOOL_FALSE : BOOL_TRUE;
+    regs[rd] = is_nil(regs + rs) ? BOOL_FALSE : BOOL_TRUE;
     DISPATCH();
 }
 
@@ -391,7 +391,7 @@ TARGET(OP_REF_EQ_NULL) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
 
-    regs[rd] = is_none(regs + rs) ? BOOL_TRUE : BOOL_FALSE;
+    regs[rd] = is_nil(regs + rs) ? BOOL_TRUE : BOOL_FALSE;
     DISPATCH();
 }
 
@@ -437,7 +437,7 @@ TARGET(OP_CALL) {
         NativeFunc func = cfunc->func;
         Object *owner = cfunc->owner;
         TValue *args = ks->stack_top;
-        if (IS_MODULE(owner)) {
+        if (IS_MODULE(owner) || (cfunc->not_impl)) {
             TValue val = obj_value(fn);
             ret = func(&val, args, imm);
         } else {

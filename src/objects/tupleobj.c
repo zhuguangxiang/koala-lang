@@ -51,7 +51,7 @@ static TValue _tuple_getitem(TValue *self, TValue *args, int nargs)
 
     if (index >= tuple->size) {
         panic("tuple index out of range");
-        return none_value;
+        return nil_value;
     }
     return tuple->array[index];
 }

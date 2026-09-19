@@ -77,7 +77,7 @@ set(KOALA_SHARED_SOURCES
     objects/fieldobj.c
     objects/intobj.c
     objects/modobj.c
-    objects/noneobj.c
+    objects/nilobj.c
     objects/strobj.c
     objects/typeobj.c
     objects/tupleobj.c

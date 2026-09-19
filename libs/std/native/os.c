@@ -16,7 +16,7 @@ static TValue os_getenv(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 1);
     char *name = kl_arg_str(0);
     char *v = getenv(name);
-    if (!v) return none_value;
+    if (!v) return nil_value;
     return kl_val_str(atom(v));
 }
 
@@ -26,7 +26,7 @@ static TValue os_setenv(TValue *self, TValue *args, int nargs)
     char *name = kl_arg_str(0);
     char *value = kl_arg_str(1);
     setenv(name, value, 1);
-    return none_value;
+    return nil_value;
 }
 
 static TValue os_unsetenv(TValue *self, TValue *args, int nargs)
@@ -34,7 +34,7 @@ static TValue os_unsetenv(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 1);
     char *name = kl_arg_str(0);
     unsetenv(name);
-    return none_value;
+    return nil_value;
 }
 
 extern KoalaOptions kl_cmd_opt;

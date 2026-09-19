@@ -1,30 +1,140 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
-
-pub class BytesIO : Reader & Writer & Seeker {
-
-    // @native
+/// BytesIO is an in-memory byte stream that implements Reader, Writer,
+/// Seeker, and Closable. It provides a file-like API for reading and
+/// writing binary data entirely in memory, without disk I/O.
+///
+/// Unlike Python's BytesIO (which uses a dynamically resizing buffer),
+/// Koala's BytesIO wraps a fixed-length bytes buffer. The buffer size
+/// is determined at construction time and cannot be resized. Writes
+/// beyond the buffer capacity will panic.
+///
+/// BytesIO is useful for:
+/// - Building binary data incrementally before sending over a network.
+/// - Testing code that expects a Reader / Writer without touching the filesystem.
+/// - Temporary storage of binary data (e.g., image processing, serialization).
+///
+/// Example:
+///     let bio = io.BytesIO(256)
+///     bio.write_str("Hello, BytesIO!")
+///     bio.seek(0)
+///     let data = bio.getvalue()
+///     print(data)  // b"Hello, BytesIO!\x00\x00..." (256 bytes total)
+pub class BytesIO : Reader & Writer & Seeker & Closable {
+    /// Create an empty BytesIO with the given buffer size.
+    ///
+    /// # Arguments
+    /// - `size`: The fixed buffer capacity in bytes. Defaults to 8192.
+    ///
+    /// The buffer is allocated and zero-filled. The logical length is 0,
+    /// and the read/write position is at the start.
+    @native
     pub func __init__(size = 8192) {}
 
-    // @native
+    /// Read up to len(bs) bytes from the current position into the provided buffer.
+    ///
+    /// # Arguments
+    /// - `bs`: The destination buffer to fill with data.
+    ///
+    /// # Returns
+    /// The number of bytes actually read, or 0 if EOF has been reached.
+    @native
     pub func read(bs bytes) int {}
 
-    // @native
+    /// Write the provided byte slice at the current position.
+    ///
+    /// # Arguments
+    /// - `bs`: The source bytes to write.
+    ///
+    /// # Returns
+    /// The number of bytes actually written.
+    @native
     pub func write(bs bytes) int {}
 
-    // @native
+    /// Move the read/write position to the given offset.
+    ///
+    /// # Arguments
+    /// - `offset`: The byte offset to seek to.
+    /// - `whence`: The reference point for the offset:
+    ///   - 0: Start of the buffer (default).
+    ///   - 1: Current position.
+    ///   - 2: End of the buffer.
+    ///
+    /// # Returns
+    /// The new absolute position.
+    @native
     pub func seek(offset int, whence int) int {}
 
-    // @native
-    pub func flush() {}
+    /// Return the current read/write position.
+    ///
+    /// # Returns
+    /// The current byte offset from the start of the buffer.
+    @native
+    pub func tell() int {}
 
+    /// Write the UTF-8 encoding of the given string at the current position.
+    ///
+    /// This is a convenience method equivalent to write(s.to_bytes()).
+    ///
+    /// # Arguments
+    /// - `s`: The string to write.
+    ///
+    /// # Returns
+    /// The number of bytes actually written.
+    @native
+    pub func write_str(s str) int {}
+
+    /// Return the entire contents of the buffer as a new bytes object,
+    /// regardless of the current read/write position.
+    ///
+    /// This is the primary way to extract data from a BytesIO after writing.
+    ///
+    /// # Returns
+    /// A copy of all bytes written to this BytesIO.
+    @native
+    pub func getvalue() bytes {}
+
+    /// Close this BytesIO. Subsequent read/write operations will panic.
+    ///
+    /// Since BytesIO operates entirely in memory, this method does not
+    /// release any system resources, but it marks the stream as closed
+    /// to prevent further use.
+    @native
+    pub func close() {}
+
+    /// Create a BytesIO initialized with the given byte data.
+    ///
+    /// The data is copied into the internal buffer, and the read/write
+    /// position is set to the start (position 0).
+    ///
+    /// # Arguments
+    /// - `bs`: The initial byte data.
+    ///
+    /// # Returns
+    /// A new BytesIO containing a copy of `bs`.
     pub static func from_bytes(bs bytes) BytesIO {
         let bio = BytesIO(len(bs))
         bio.write(bs)
+        // bio.seek(0)
         return bio
     }
 
+    /// Create a BytesIO initialized with the UTF-8 encoding of the given string.
+    ///
+    /// This is a convenience method equivalent to BytesIO.from_bytes(s.to_bytes()).
+    ///
+    /// # Arguments
+    /// - `s`: The initial string data.
+    ///
+    /// # Returns
+    /// A new BytesIO containing the UTF-8 bytes of `s`.
     pub static func from_str(s str) BytesIO {
-        return BytesIO.from_bytes(s.to_bytes())
+        let bio = BytesIO(len(s))
+        bio.write_str(s)
+        // bio.seek(0)
+        return bio
     }
-
 }

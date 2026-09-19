@@ -73,19 +73,19 @@ func main() {
 // ---- IR structural checks: comparison chains fold cleanly, no lnot ----
 
 // CHECK-LABEL: func @check_eq_1(%v int64?) bool {
-// CHECK: %0 = cmpne %v int64?, none
+// CHECK: %0 = cmpne %v int64?, nil
 // CHECK-NEXT: ret %0 bool
 
 // CHECK-LABEL: func @check_eq_2(%v int64?) bool {
-// CHECK: %0 = cmpeq %v int64?, none
+// CHECK: %0 = cmpeq %v int64?, nil
 // CHECK-NEXT: ret %0 bool
 
 // CHECK-LABEL: func @check_eq_3(%v int64?) bool {
-// CHECK: %0 = cmpne %v int64?, none
+// CHECK: %0 = cmpne %v int64?, nil
 // CHECK-NEXT: ret %0 bool
 
 // CHECK-LABEL: func @check_eq_4(%v int64?) bool {
-// CHECK: %0 = cmpeq %v int64?, none
+// CHECK: %0 = cmpeq %v int64?, nil
 // CHECK-NEXT: ret %0 bool
 
 // CHECK-LABEL: func @check_ne_1(%a int64, %b int64) bool {

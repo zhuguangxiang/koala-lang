@@ -1,5 +1,67 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
 link "koala_std_native"
 
+/// Open the file or file descriptor `path_or_fd` and return a `File` object.
+///
+/// `path_or_fd` is either a path string, or an integer file descriptor
+/// (e.g. 0, 1, 2 for stdin, stdout, stderr).
+///
+/// `mode` selects the access:
+/// - `"r"`: read-only, the file must exist.
+/// - `"w"`: write-only, create or truncate.
+/// - `"x"`: write-only, exclusive create, fail if the file exists.
+/// - `"a"`: write-only, create if absent, always append at the end.
+/// - `"r+"`: read and write, the file must exist.
+/// - `"w+"`: read and write, create or truncate.
+/// - `"x+"`: read and write, exclusive create, fail if the file exists.
+/// - `"a+"`: read and write, create if absent, always append at the end.
+///
+/// Return nil if the file cannot be opened (missing file, permission
+/// denied, file already exists for `"x"`/`"x+"`, invalid descriptor).
+/// Files created by `"w"`, `"x"`, `"a"` and their `"+"` variants get
+/// permission 0644.
+///
+/// Example:
+///     let f = fs.open("hello.txt", "w")
+///     f?.write("hello".to_bytes())
+///     f?.close()
+///
+/// See: `File`.
 @native
 pub func open(path_or_fd str | int, mode = "r") File? {}
+
+/// Read the file `path` into `out` and return the count read.
+///
+/// Reading stops when `out` is full or end of file is reached, so
+/// the caller controls the memory used. Return 0 for an empty file,
+/// or -1 if the file cannot be opened or read. The file is closed
+/// before returning.
+///
+/// See: `write_bytes`, `File.read`.
+@native
+pub func read_bytes(path str, out bytes) int {}
+
+/// Write `data` to the file `path`, creating or truncating it.
+///
+/// All bytes are written or the operation fails; return true on
+/// success, false if the file cannot be opened or written.
+/// New files get permission 0666 masked by the process umask.
+///
+/// See: `write_str`, `read_bytes`.
+@native
+pub func write_bytes(path str, data bytes) bool {}
+
+/// Encode `data` as UTF-8 and write it to the file `path`,
+/// creating or truncating it.
+///
+/// All bytes are written or the operation fails; return true on
+/// success, false if the file cannot be opened or written.
+/// New files get permission 0666 masked by the process umask.
+///
+/// See: `write_bytes`, `read_bytes`.
+@native
+pub func write_str(path str, data str) bool {}

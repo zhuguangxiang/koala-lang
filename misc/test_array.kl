@@ -219,7 +219,7 @@ let sobel_x array[float, (3, 3)] = (
 // 2. 深度学习权重：512 -> 1024 全连接层
 let weights array[float, (512, 1024)] = (#[load_data()])
 
-// 3. 3D 张量：Batch=64, 高宽为 224 的图像 Buffer
+// 3. 3D 张量：Batch=64, 高宽为 224 的图像 ByteBuf
 let img_batch array[float, (64, 224, 224)]
 
 */

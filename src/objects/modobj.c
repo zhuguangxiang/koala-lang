@@ -132,7 +132,7 @@ int kl_mo_add_bool(Object *_m, int v)
 int kl_mo_add_none(Object *_m)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    TValue val = none_value;
+    TValue val = nil_value;
     return kl_mo_add_const(_m, &val);
 }
 
@@ -154,7 +154,7 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
     vector_foreach(item, list) {
         switch (item->type) {
             case KLC_CONST_NONE: {
-                TValue val = none_value;
+                TValue val = nil_value;
                 vector_push_back(&vec, &val);
                 break;
             }

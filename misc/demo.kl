@@ -5,7 +5,7 @@
 200.2
 true
 false
-none
+nil
 
 var a0 int = 0
 var a11 int? = 0
@@ -16,13 +16,13 @@ var b3 (int | str) ? = "hello"
 // var b4 (int | str?) ? = "hello"
 // var b5 (100) = 100
 
-public func print(objs ..., sep = '\'ab\tcd', end = '\n', file io.Writer = none) {}
+public func print(objs ..., sep = '\'ab\tcd', end = '\n', file io.Writer = nil) {}
 public func __set_item__(index int, v T) { }
 public func __set_item__(index int?, v T) { }
 public func __set_item__(index int | str, v T) { }
 public func __set_item__(index (int | str), v T) { }
 public func __set_item__(index int | str, v T) { }
-public func __set_item__(index (int | str), v T | K | V | Int = none) { }
+public func __set_item__(index (int | str), v T | K | V | Int = nil) { }
 class Foo : Bar[int] {
 }
 
@@ -138,7 +138,7 @@ map[K:V]()
 
 let v1 list = 0
 let v2 [int] = 0
-let v3 [K:V] = none
+let v3 [K:V] = nil
 
 class Animal {
 
@@ -173,7 +173,7 @@ let ms = """
 }
 """
 
-let v int = none
+let v int = nil
 */
 
 /*
@@ -211,7 +211,7 @@ type(v)
 */
 
 
-func new_bytes(v (int | str | list[int8])? = none) bytes {
+func new_bytes(v (int | str | list[int8])? = nil) bytes {
 
 }
 

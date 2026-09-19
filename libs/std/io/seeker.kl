@@ -1,4 +1,26 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
+/// An object with a movable cursor over its content.
+///
+/// Implementers: `fs.File`, `io.BytesIO`, `io.StrIO`.
 pub trait Seeker {
+
+    /// Move the cursor by `offset` relative to `whence` and return
+    /// the new absolute position, or -1 on error.
+    ///
+    /// `whence`: 0 = start of content, 1 = current position,
+    /// 2 = end of content (POSIX values).
+    ///
+    /// See: `SEEK_SET`, `SEEK_CUR`, `SEEK_END`.
     func seek(offset int, whence int) int
+
+    /// Return the current cursor position, or -1 on error.
+    ///
+    /// Equivalent to `seek(0, 1)`, provided for readability.
+    ///
+    /// See: `seek`.
+    func tell() int
 }

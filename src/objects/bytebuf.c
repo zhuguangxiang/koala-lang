@@ -15,7 +15,7 @@ static TValue _bytebuf_append(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 1);
     uint8_t value = kl_arg_uint8(0);
     buf_write_byte(&bb->buf, value);
-    return none_value;
+    return nil_value;
 }
 
 static TValue _bytebuf_len(TValue *self, TValue *args, int nargs)
@@ -43,7 +43,7 @@ static TValue _bytebuf_init(TValue *self, TValue *args, int nargs)
     }
     ASSERT(BUF_LEN(bb->buf) == 0);
     buf_reserve(&bb->buf, (size_t)size);
-    return none_value;
+    return nil_value;
 }
 
 static TValue _bytebuf_to_bytes(TValue *self, TValue *args, int nargs)
@@ -61,7 +61,7 @@ static TValue _bytebuf_getitem(TValue *self, TValue *args, int nargs)
     int64_t index = to_int64(args);
     if (index < 0 || index >= BUF_LEN(bb->buf)) {
         panic("bytebuf index out of range");
-        return none_value;
+        return nil_value;
     }
     uint8_t value = (uint8_t)BUF_STR(bb->buf)[index];
     return uint8_value(value);
@@ -74,14 +74,14 @@ static TValue _bytebuf_setitem(TValue *self, TValue *args, int nargs)
     int64_t index = to_int64(args);
     if (index < 0 || index >= BUF_LEN(bb->buf)) {
         panic("bytebuf index out of range");
-        return none_value;
+        return nil_value;
     }
     uint8_t value = to_uint8(&args[1]);
     BUF_STR(bb->buf)[index] = value;
-    return none_value;
+    return nil_value;
 }
 
-static TValue _bytebuf_clear(TValue *self, TValue *args, int nargs) { return none_value; }
+static TValue _bytebuf_clear(TValue *self, TValue *args, int nargs) { return nil_value; }
 
 static MethodDef _bytebuf_methods[] = {
     { "append", _bytebuf_append },
@@ -95,7 +95,7 @@ static MethodDef _bytebuf_methods[] = {
     { NULL },
 };
 
-/* pub class ByteBuf : MutableSequence[uint8] { ... } */
+/* pub class ByteBuf { ... } */
 DEFINE_TYPE(ByteBuf, TP_FLAGS_CLASS, sizeof(Buffer), _bytebuf_methods, NULL);
 
 Object *kl_new_bytebuf(size_t size)

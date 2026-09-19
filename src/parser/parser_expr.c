@@ -273,6 +273,23 @@ static void parse_literal(ParserState *ps, Expr *exp)
             ASSERT(lit->sym);
             break;
         }
+        case LIT_EXPR_CHAR: {
+            log_info("literal char '%s'", lit->sval);
+            if (lit->len != 1) {
+                kl_error(exp->loc, "invalid char literal, expected one char, but got %d", lit->len);
+                return;
+            }
+            char ch = lit->sval[0];
+            lit->ival_128 = (uint64_t)ch;
+            lit->ival = (uint64_t)ch;
+            lit->sign = 0;
+            lit->len = 1;
+            lit->which = LIT_EXPR_INT;
+            ASSERT(lit->ts);
+            lit->sym = get_symbol_by_id(lit->ts->sym_id);
+            ASSERT(lit->sym);
+            break;
+        }
         case LIT_EXPR_NONE: {
             log_info("literal nil");
             parse_none(ps, lit);

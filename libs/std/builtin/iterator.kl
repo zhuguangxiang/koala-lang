@@ -52,23 +52,6 @@ pub trait Iterator[T] {
     /// - Avoid `while let` when `T` is nullable (`T?`), because `v == nil`
     ///   will prematurely terminate the loop.
     func next() T?
-
-    /// Return the next element, or `default` if the iterator is exhausted.
-    ///
-    /// Semantics:
-    /// - If `has_next()` is true  → return the next element
-    /// - If `has_next()` is false → return `default`
-    ///
-    /// This method is meaningful only when `T` is non-nullable. If `T` is
-    /// nullable (`T?`), then `default` cannot distinguish between:
-    /// - iterator exhausted
-    /// - element is nil
-    ///
-    /// Recommended usage:
-    /// - Provide a fallback value when consuming streams:
-    ///
-    ///     let ch = it.next_or(' ')
-    func next_or(default T) T
 }
 
 /// The Iterable trait is the basis for all objects that can be iterated over.

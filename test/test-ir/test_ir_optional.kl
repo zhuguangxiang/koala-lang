@@ -18,7 +18,7 @@ func show(cond bool, msg str?) {
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
 // CHECK: %bb1(if-then):                                  ;; preds = %bb0
-// CHECK: %1 = cmpeq %msg str?, none
+// CHECK: %1 = cmpeq %msg str?, nil
 // CHECK: branch %1 bool, label %bb4, label %bb5
 
 // CHECK: %bb2(if-else):                                  ;; preds = %bb0
@@ -46,7 +46,7 @@ func show(cond bool, msg str?) {
 // CHECK: branch %cond bool, label %bb2, label %bb1
 
 // CHECK: %bb1(if-then):                                  ;; preds = %bb0
-// CHECK: jmp_ref_eq_null %msg str?, none, label %bb3, label %bb4
+// CHECK: jmp_ref_eq_null %msg str?, nil, label %bb3, label %bb4
 
 // CHECK: %bb2(if-end):                                   ;; preds = %bb0, %bb3, %bb4
 // CHECK: ret void

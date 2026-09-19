@@ -70,7 +70,7 @@ class Tree {
 
         while len(stack) > 0 {
             let x = stack.pop(0)
-            print(x.value, end=' ')
+            print(x.value, end=" ")
             if let v = x.left {
                 stack.push(v)
             }
@@ -78,7 +78,7 @@ class Tree {
                 stack.push(v)
             }
         }
-        print('')
+        print("")
     }
 }
 

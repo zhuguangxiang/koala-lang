@@ -15,8 +15,30 @@ pub class bytes : Sequence[uint8] {
     pub func __init__(size int) {}
 
     /// Return an iterator over the bytes.
-    @native
-    pub func __iter__() Iterator[uint8] {}
+    ///
+    /// The iterator traverses the byte array from left to right, returning
+    /// one byte per step. The optional `_step` argument controls
+    /// the stride of iteration:
+    ///
+    /// - `step = 1` produces a normal byte-by-byte traversal.
+    /// - `step > 1` skips bytes, yielding a strided iteration.
+    ///
+    /// The iterator is stateful and does not allocate; it reads directly
+    /// from the underlying byte array.
+    pub func iter(step = 1) BytesIter { return BytesIter(self, step) }
+
+    /// Return a reverse iterator over the bytes.
+    ///
+    /// The iterator traverses the byte array from right to left, returning
+    /// one byte per step. The optional `_step` argument controls
+    /// the stride of reverse iteration:
+    ///
+    /// - `step = 1` produces a normal reverse traversal.
+    /// - `step > 1` skips bytes in reverse order.
+    ///
+    /// The iterator is stateful and does not allocate; it reads directly
+    /// from the underlying byte array.
+    pub func reversed(step = 1) BytesRevIter { return BytesRevIter(self, step) }
 
     /// Return the size of the byte array. O(1).
     @native
@@ -35,7 +57,7 @@ pub class bytes : Sequence[uint8] {
     @intrinsic
     pub func __getslice__(r slice) bytes {}
 
-    /// Return true if the byte array contains the byte `value`. O(n).
+    /// Return true if the byte array contains the byte `value`.
     @native
     pub func __contains__(value uint8) bool {}
 
@@ -56,10 +78,6 @@ pub class bytes : Sequence[uint8] {
     @native
     pub func count(value uint8, start = 0, end = -1) int {}
 
-    /// Return the hexadecimal string representation of the bytes.
-    @native
-    pub func __str__() str {}
-
     /// Set the byte at the specified index to `value`. O(1).
     /// Panic if the index is out of range.
     @intrinsic
@@ -70,24 +88,61 @@ pub class bytes : Sequence[uint8] {
     @intrinsic
     pub func __setslice__(r slice, val bytes) {}
 
+    /// Return the byte at the specified index. The same as `__getitem__`.
+    /// Panic if the index is out of range.
+    @intrinsic
+    pub func at(index int) uint8 {}
+
+    /// Set the byte at the specified index to `value`. The same as `__setitem__`.
+    /// Panic if the index is out of range.
+    @intrinsic
+    pub func put(index int, value uint8) {}
+
     /// Return the first index of the sub-sequence `sub` in [start, end). O(n).
     /// If `end` is -1, the search extends to the end of the byte array.
     /// Return -1 if `sub` is not present.
     @native
-    pub func find(sub bytes, start = 0, end = -1) int {}
+    pub func find_bytes(sub bytes, start = 0, end = -1) int {}
 
     /// Return the last index of the sub-sequence `sub` in [start, end). O(n).
     /// If `end` is -1, the search extends to the end of the byte array.
     /// Return -1 if `sub` is not present.
     @native
-    pub func rfind(sub bytes, start = 0, end = -1) int {}
+    pub func rfind_bytes(sub bytes, start = 0, end = -1) int {}
 
     /// Copy the bytes of `src` in [start, end) into `self` from the beginning.
-    /// If `end` is -1, the copy extends to the end of `src`.
-    /// Return the number of bytes copied.
-    /// Return -1 if `end - start` exceeds the size of `self`.
+    ///
+    /// This is a raw memory copy operation, similar to C's memcpy.
+    /// The destination is always the beginning of `self`; if you need to copy
+    /// into a specific offset, use `self.view(offset).copy(src)` instead.
+    ///
+    /// # Arguments
+    /// - `src`: The source bytes to copy from.
+    /// - `start`: The start index in `src` (inclusive). Defaults to 0.
+    /// - `end`: The end index in `src` (exclusive). Defaults to -1 (end of src).
+    ///
+    /// # Returns
+    /// The number of bytes copied.
+    /// Returns -1 if the slice length exceeds `self`'s capacity.
     @native
     pub func copy(src bytes, start = 0, end = -1) int {}
+
+    /// Copy the UTF-8 encoding of `s` in [start, end) into `self` from the beginning.
+    ///
+    /// This is a convenience method equivalent to copy(s.to_bytes()).
+    /// The destination is always the beginning of `self`; if you need to copy
+    /// into a specific offset, use `self.view(offset).copy_str(s)` instead.
+    ///
+    /// # Arguments
+    /// - `s`: The source string to encode and copy from.
+    /// - `start`: The start rune index in `s` (inclusive). Defaults to 0.
+    /// - `end`: The end rune index in `s` (exclusive). Defaults to -1 (end of s).
+    ///
+    /// # Returns
+    /// The number of bytes copied.
+    /// Returns -1 if the UTF-8 byte length exceeds `self`'s capacity.
+    @native
+    pub func copy_str(s str, start = 0, end = -1) int {}
 
     /// Fill the bytes in [start, end) with `value`.
     /// If `end` is -1, the fill extends to the end of the byte array.
@@ -106,22 +161,178 @@ pub class bytes : Sequence[uint8] {
 
     /// Return true if the byte array starts with `prefix`.
     @native
-    pub func starts_with(prefix bytes) bool {}
+    pub func startswith(prefix bytes) bool {}
 
     /// Return true if the byte array ends with `suffix`.
     @native
-    pub func ends_with(suffix bytes) bool {}
+    pub func endswith(suffix bytes) bool {}
 
-    /// Reverse the bytes in place.
+    /// Replace all occurrences of `old` with `new`, returning a new byte array.
     @native
-    pub func reverse() {}
+    pub func replace(old bytes, new bytes) bytes {}
+
+    /// Split the bytes by the separator `sep` and return the parts as a list.
+    /// At most `maxsplit` splits are done; if `maxsplit` is -1, there is no limit.
+    @native
+    pub func split(sep bytes, maxsplit = -1) list[bytes] {}
+
+    /// Split the bytes by the separator `sep` from the right and return
+    /// the parts as a list. At most `maxsplit` splits are done;
+    /// if `maxsplit` is -1, there is no limit.
+    @native
+    pub func rsplit(sep bytes, maxsplit = -1) list[bytes] {}
+
+    /// Split the bytes at line boundaries and return the lines as a list.
+    /// The line break characters are not included.
+    @native
+    pub func splitlines() list[bytes] {}
+
+    /// Remove leading and trailing whitespace bytes (0x20, \t, \n, \r).
+    @native
+    pub func strip() bytes {}
+
+    /// Remove leading whitespace bytes.
+    @native
+    pub func lstrip() bytes {}
+
+    /// Remove trailing whitespace bytes.
+    @native
+    pub func rstrip() bytes {}
 
     /// Decode the bytes as UTF-8 and return a new str.
     /// Panic if the bytes are not valid UTF-8.
     @native
     pub func to_str() str {}
 
-    /// Return a reverse iterator over the bytes.
+    /// Return the hexadecimal string representation of the bytes.
     @native
-    pub func reversed() Iterator[uint8] {}
+    pub func __str__() str {}
+}
+
+/// An iterator over the bytes of a byte array, from left to right.
+///
+/// `BytesIter` provides sequential access to each byte in the array.
+///
+/// The iterator is stateful: it maintains an internal cursor that
+/// advances by `step` on each call to `next()`. A `step` greater than 1
+/// produces a strided iteration.
+///
+/// Once the cursor reaches or exceeds the byte array length, `has_next()`
+/// returns false and `next()` panics.
+///
+/// Notes:
+/// - Bytes are returned as `uint8`.
+/// - The iterator does not allocate; it reads directly from the source bytes.
+/// - Iterators are not resettable; create a new iterator to iterate again.
+/// - Strided iteration is useful for sampling, scanning, and simple parsing.
+pub class BytesIter : Iterator[uint8] {
+    let step int
+    let source bytes
+    let length int
+    var cursor int
+
+    /// Initialize a forward iterator over `b` with an optional stride `step`.
+    ///
+    /// The cursor starts at index 0 and advances by `step` on each iteration.
+    pub func __init__(b bytes, _step = 1) {
+        source = b
+        length = len(b)
+        cursor = 0
+        step = _step
+    }
+
+    /// Return true if there are remaining bytes to iterate.
+    pub func has_next() bool {
+        return cursor < length
+    }
+
+    /// Return the next byte and advance the cursor by `step`.
+    ///
+    /// Panic if the iterator is exhausted.
+    pub func next_strict() uint8 {
+        if cursor >= length { panic("No more elements in BytesIter") }
+
+        let val = source[cursor]
+        cursor = cursor + step
+        return val
+    }
+
+    /// Return the next byte, or `nil` if exhausted.
+    pub func next() uint8? {
+        if cursor >= length { return nil }
+
+        let val = source[cursor]
+        cursor = cursor + step
+        return val
+    }
+
+    /// Return a human-readable description of the iterator state.
+    ///
+    /// Useful for debugging and logging.
+    pub func __str__() str {
+        return format("BytesIter(step={}, cursor={}, length={})", step, cursor, length)
+    }
+}
+
+/// An iterator over the bytes of a byte array, from right to left.
+///
+/// `BytesRevIter` provides reverse sequential access to each byte in the array.
+///
+/// The iterator is stateful: it maintains an internal cursor that
+/// moves backward by `step` on each call to `next()`. A `step` greater
+/// than 1 produces a strided reverse iteration.
+///
+/// Once the cursor moves before the beginning of the byte array, `has_next()`
+/// returns false and `next()` panics.
+///
+/// Notes:
+/// - Bytes are returned as `uint8`.
+/// - The iterator does not allocate; it reads directly from the source bytes.
+/// - Iterators are not resettable; create a new iterator to iterate again.
+pub class BytesRevIter : Iterator[uint8] {
+    let step int
+    let source bytes
+    let length int
+    var cursor int
+
+    /// Initialize a reverse iterator over `b` with an optional stride `step`.
+    ///
+    /// The cursor starts at the last byte and moves backward by `step`.
+    pub func __init__(b bytes, _step = 1) {
+        source = b
+        length = len(b)
+        cursor = length - 1
+        step = _step
+    }
+
+    /// Return true if there are remaining bytes to iterate.
+    pub func has_next() bool {
+        return cursor >= 0
+    }
+
+    /// Return the next byte and move the cursor backward by `step`.
+    ///
+    /// Panic if the iterator is exhausted.
+    pub func next_strict() uint8 {
+        if cursor < 0 { panic("No more elements in BytesRevIter") }
+
+        let val = source[cursor]
+        cursor = cursor - step
+        return val
+    }
+
+    /// Return the next byte in reverse order, or `nil` if exhausted.
+    pub func next() uint8? {
+        if cursor < 0 { return nil }
+        let val = source[cursor]
+        cursor = cursor - step
+        return val
+    }
+
+    /// Return a human-readable description of the iterator state.
+    ///
+    /// Useful for debugging and logging.
+    pub func __str__() str {
+        return format("BytesRevIter(step={}, cursor={}, length={})", step, cursor, length)
+    }
 }

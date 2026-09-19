@@ -1,61 +1,199 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
+/// Splitter splits a BufReader into chunks delimited by a single byte.
+///
+/// It reads from the underlying reader on each iteration, accumulating bytes
+/// into an internal buffer until the delimiter is encountered or EOF is reached.
+/// The delimiter itself is not included in the returned chunk.
+///
+/// Typical use case: splitting a stream by a custom separator (e.g., CSV fields
+/// separated by ',' or log entries separated by '\x00').
+///
+/// Example:
+///     let br = io.BufReader(io.StdinReader())
+///     for chunk in io.Splitter(br, b',') {
+///         print(chunk)
+///     }
 pub class Splitter : Iterator[bytes] {
-
+    /// The underlying buffered reader that provides the byte stream.
     let br BufReader
+
+    /// Internal buffer that accumulates bytes until the delimiter is found.
+    /// Reused across iterations to avoid repeated allocations.
     let buf ByteBuf
+
+    /// The delimiter byte used to split the stream.
+    /// This byte is consumed from the reader but not included in returned chunks.
     let delim uint8
 
-    pub func __init__(r BufReader, _delim uint8) {
-        br = r
+    /// Create a new Splitter that splits the given reader by the specified delimiter.
+    ///
+    /// # Arguments
+    /// - `_br`: The buffered reader to read from.
+    /// - `_delim`: The single byte used as the delimiter (e.g., b',' or b'\n').
+    ///
+    /// The internal buffer is initialized with a capacity of 256 bytes and will
+    /// grow automatically if a chunk exceeds this size.
+    pub func __init__(_br BufReader, _delim uint8) {
+        br = _br
         buf = ByteBuf(256)
         delim = _delim
     }
 
-    pub func __has_next__() bool {
+    /// Read the next chunk from the underlying reader.
+    ///
+    /// Clears the internal buffer and reads until the delimiter or EOF.
+    /// Returns true if at least one byte was read, false if EOF was reached
+    /// before any data.
+    pub func has_next() bool {
         buf.clear()
         let n = br.read_until(buf, delim)
         return n > 0
     }
 
-    pub func __next__() bytes {
+    /// Return the current chunk as bytes.
+    ///
+    /// Must be called after has_next() returned true.
+    /// The returned bytes do not include the delimiter.
+    pub func next_strict() bytes {
         return buf.to_bytes()
+    }
+
+    /// Return the next chunk, or nil if EOF has been reached.
+    ///
+    /// Convenience method that combines has_next() and next_strict().
+    pub func next() bytes? {
+        if !has_next() { return nil }
+        return next_strict()
     }
 }
 
+/// Lines iterates over lines of text from a BufReader.
+///
+/// Each iteration reads until a newline character ('\n') is encountered.
+/// The newline character and any trailing carriage return ('\r') are stripped
+/// from the returned string, so each yielded line is clean text without line endings.
+///
+/// This is the most common way to read a text file or stream line by line
+/// without loading the entire content into memory.
+///
+/// Example:
+///     let f = fs.open("data.txt", "r")!
+///     let br = io.BufReader(f)
+///     for line in io.Lines(br) {
+///         print(line)
+///     }
+///     f.close()
 pub class Lines : Iterator[str] {
-
+    /// The underlying buffered reader that provides the byte stream.
     let br BufReader
+
+    /// Internal buffer that accumulates bytes until a newline is found.
+    /// Reused across iterations to avoid repeated allocations.
     let buf ByteBuf
 
-    pub func __init__(r BufReader) {
-        br = r
+    /// Create a new Lines iterator that reads lines from the given buffered reader.
+    ///
+    /// # Arguments
+    /// - `_br`: The buffered reader to read from.
+    ///
+    /// The internal buffer is initialized with a capacity of 256 bytes and will
+    /// grow automatically if a line exceeds this size.
+    ///
+    /// Note: Lines handles both Unix ('\n') and Windows ('\r\n') line endings.
+    /// The returned strings have both '\n' and trailing '\r' stripped.
+    pub func __init__(_br BufReader) {
+        br = _br
         buf = ByteBuf(256)
     }
 
-    pub func __has_next__() bool {
+    /// Read the next line from the underlying reader.
+    ///
+    /// Clears the internal buffer and reads until '\n' or EOF.
+    /// Returns true if at least one byte was read, false if EOF was reached
+    /// before any data. An empty line (just '\n') returns true with an empty string.
+    pub func has_next() bool {
         buf.clear()
-        let n = br.read_until(buf, 10)   // '\n'
+        let n = br.read_until(buf, '\n')
         return n > 0
     }
 
-    // need to remove '\r' from the end of the line
+    /// Return the current line as a str, with '\n' and trailing '\r' removed.
+    ///
+    /// Must be called after has_next() returned true.
+    /// Handles both Unix ('\n') and Windows ('\r\n') line endings.
     @native
-    pub func __next__() str {}
+    pub func next_strict() str {}
+
+    /// Return the next line, or nil if EOF has been reached.
+    ///
+    /// Convenience method that combines has_next() and next_strict().
+    pub func next() str? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
 }
 
+/// Words iterates over whitespace-separated tokens from a BufReader.
+///
+/// It skips leading whitespace (spaces, tabs, newlines, carriage returns),
+/// then reads consecutive non-whitespace bytes as a single word.
+/// Empty input or trailing whitespace produces no extra iterations.
+///
+/// This is useful for tokenizing input where fields are separated by
+/// arbitrary amounts of whitespace, such as parsing command output or
+/// simple data formats.
+///
+/// Example:
+///     let br = io.BufReader(io.StdinReader())
+///     for word in io.Words(br) {
+///         print(word)
+///     }
 pub class Words: Iterator[str] {
 
+    /// The underlying buffered reader that provides the byte stream.
     let br BufReader
+
+    /// Internal buffer that accumulates non-whitespace bytes for the current token.
+    /// Reused across iterations to avoid repeated allocations.
     let buf ByteBuf
 
-    pub func __init__(r BufReader) {
-        br = r
+    /// Create a new Words iterator that tokenizes the given buffered reader
+    /// by whitespace (spaces, tabs, newlines, carriage returns).
+    ///
+    /// # Arguments
+    /// - `_br`: The buffered reader to read from.
+    ///
+    /// The internal buffer is initialized with a capacity of 256 bytes and will
+    /// grow automatically if a token exceeds this size.
+    pub func __init__(_br BufReader) {
+        br = _br
         buf = ByteBuf(256)
     }
 
+    /// Read the next whitespace-delimited token from the underlying reader.
+    ///
+    /// Skips any leading whitespace, then accumulates non-whitespace bytes
+    /// into the internal buffer. Returns true if a token was found, false if
+    /// EOF was reached without finding any non-whitespace content.
     @native
-    pub func __has_next__() bool {}
+    pub func has_next() bool {}
 
+    /// Return the current token as a str.
+    ///
+    /// Must be called after has_next() returned true.
+    /// The returned string contains only the non-whitespace bytes of the token.
     @native
-    pub func __next__() str {}
+    pub func next_strict() str {}
+
+    /// Return the next token, or nil if EOF has been reached.
+    ///
+    /// Convenience method that combines has_next() and next_strict().
+    pub func next() str? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
 }

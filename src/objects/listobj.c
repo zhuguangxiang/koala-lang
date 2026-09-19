@@ -57,7 +57,7 @@ static TValue _list_push(TValue *self, TValue *args, int nargs)
     expand_capacity(list, list->end + 1);
     // write_barrier(list, args[0]);
     list->array[list->end++] = args[0];
-    return none_value;
+    return nil_value;
 }
 
 static TValue _list_pop(TValue *self, TValue *args, int nargs)
@@ -69,13 +69,13 @@ static TValue _list_pop(TValue *self, TValue *args, int nargs)
         // pop head
         if (list->end == list->start) {
             panic("pop from empty list");
-            return none_value;
+            return nil_value;
         }
         return list->array[list->start++];
     } else {
         if (list->end == list->start) {
             panic("pop from empty list");
-            return none_value;
+            return nil_value;
         }
         return list->array[--list->end];
     }
@@ -119,7 +119,7 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
         memcpy(list->array + list->end, other->array + other->start,
                sizeof(TValue) * (other->end - other->start));
         list->end += other->end - other->start;
-        return none_value;
+        return nil_value;
     } else {
         NYI();
     }
@@ -132,7 +132,7 @@ static TValue _list_getitem(TValue *self, TValue *args, int nargs)
 
     if (index >= list->end - list->start) {
         panic("list index out of range");
-        return none_value;
+        return nil_value;
     }
     return list->array[list->start + index];
 }
@@ -144,11 +144,11 @@ static TValue _list_setitem(TValue *self, TValue *args, int nargs)
 
     if (index >= list->end - list->start) {
         panic("list index out of range");
-        return none_value;
+        return nil_value;
     }
     // write_barrier(list, args[1]);
     list->array[list->start + index] = args[1];
-    return none_value;
+    return nil_value;
 }
 
 static inline void _slice_adjust(int64_t *start, int64_t *end, int64_t step, size_t n)

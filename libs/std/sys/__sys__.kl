@@ -14,9 +14,10 @@ pub var stdin = io.BufReader(_stdin)
 pub var stdout = io.BufWriter(_stdout)
 pub var stderr = io.BufWriter(_stderr)
 
-pub let argv = os.args()
-
 pub let path = ["./"]
+
+@native
+pub func args() list[str] {}
 
 if let s = os.getenv("KOALA_PATH") {
     path.extend(s.split(":"))

@@ -17,7 +17,7 @@ static void dump_const(KlMachConst *kc, int index, int indent)
 {
     switch (kc->tag) {
         case KL_MACH_CONST_NONE:
-            printf("none\n");
+            printf("nil\n");
             break;
 
         case KL_MACH_CONST_INT:

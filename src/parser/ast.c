@@ -115,6 +115,19 @@ Expr *expr_from_lit_str(Buffer *buf)
     return (Expr *)exp;
 }
 
+Expr *expr_from_lit_char(Buffer *buf)
+{
+    LitExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->which = LIT_EXPR_CHAR;
+    exp->sval = mm_alloc_fast(buf->len + 1);
+    memcpy(exp->sval, buf->buf, buf->len);
+    exp->sval[buf->len] = '\0';
+    exp->len = buf->len;
+    exp->ts = uint8_type_spec();
+    return (Expr *)exp;
+}
+
 Expr *expr_from_lit_none(void)
 {
     LitExpr *exp = mm_alloc_obj(exp);
@@ -146,6 +159,11 @@ Literal *expr_to_literal(Expr *e)
         lit->which = LIT_STR;
         lit->len = exp->len;
         lit->sval = exp->sval;
+    } else if (exp->which == LIT_EXPR_CHAR) {
+        lit->which = LIT_INT;
+        lit->sign = exp->sign;
+        lit->len = exp->len;
+        lit->ival = exp->ival;
     } else if (exp->which == LIT_EXPR_NONE) {
         lit->which = LIT_NONE;
     } else {

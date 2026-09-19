@@ -45,7 +45,7 @@ static TValue sys_sleep_nanos(TValue *self, TValue *args, int nargs)
 
     int64_t ns = kl_arg_int64(0);
     if (ns <= 0) {
-        return none_value;
+        return nil_value;
     }
 
     struct timespec req;
@@ -55,7 +55,7 @@ static TValue sys_sleep_nanos(TValue *self, TValue *args, int nargs)
     // 简单版：不处理被信号中断的剩余时间
     nanosleep(&req, NULL);
 
-    return none_value;
+    return nil_value;
 }
 
 void time_native_lib_init(NativeLib *lib)
