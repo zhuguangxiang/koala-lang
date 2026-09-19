@@ -14,26 +14,6 @@
 extern "C" {
 #endif
 
-extern TValue *kl_stdout;
-extern Object *buf_write_str_func;
-extern Object *buf_flush_func;
-
-static void stdout_write_str(Object *sobj)
-{
-    TValue args[2];
-    args[0] = *kl_stdout;
-    args[1] = obj_value(sobj);
-    TValue callable = obj_value(buf_write_str_func);
-    kl_do_call(&callable, args, 2);
-}
-
-static void stdout_flush()
-{
-    TValue callable = obj_value(buf_flush_func);
-    TValue arg = *kl_stdout;
-    kl_do_call_one_arg(&callable, &arg);
-}
-
 static void print_value(TValue *val, Buffer *buf)
 {
     if (is_ref(val)) {
@@ -49,18 +29,25 @@ static void print_value(TValue *val, Buffer *buf)
 }
 
 /*
-func print(objs ..., sep = ' ', end = '\n')
+func print_intern(w io.Writer, _sep str, _end str, objs ...) {}
 */
-static TValue builtin_print(TValue *self, TValue *args, int nargs)
+static TValue print_intern(TValue *self, TValue *args, int nargs)
 {
-    ASSERT(nargs == 3);
-    Object *tuple = to_obj(&args[0]);
+    ASSERT(nargs == 4);
+    TValue writer = args[0];
     Object *sep = to_obj(&args[1]);
     Object *end = to_obj(&args[2]);
-    BUF(buf);
+    Object *upper_tuple = to_obj(&args[3]);
 
+    TValue *upper_items = TUPLE_ITEMS(upper_tuple);
+    ASSERT(TUPLE_SIZE(upper_tuple) == 1);
+
+    Object *tuple = to_obj(upper_items);
     TValue *items = TUPLE_ITEMS(tuple);
     int size = TUPLE_SIZE(tuple);
+
+    BUF(buf);
+
     for (int i = 0; i < size; ++i) {
         print_value(items + i, &buf);
         if (i < size - 1) {
@@ -71,8 +58,15 @@ static TValue builtin_print(TValue *self, TValue *args, int nargs)
     }
 
     Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
-    stdout_write_str(sobj);
-    stdout_flush();
+
+    // write_str(s str) int
+    Object *write_str_fn = kl_get_intf_func(&writer, 1);
+    TValue _args[] = { writer, obj_value(sobj) };
+    kl_object_call(write_str_fn, _args, 2);
+
+    // flush() int
+    Object *flush_fn = kl_get_intf_func(&writer, 2);
+    kl_object_call(flush_fn, &writer, 1);
 
     FINI_BUF(buf);
     return nil_value;
@@ -101,7 +95,6 @@ static TValue builtin_typeof(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef builtin_functions[] = {
-    { "print", builtin_print },
     { "panic", builtin_panic },
     { "format", kl_format },
     { "typeof", builtin_typeof },
@@ -124,6 +117,20 @@ void builtin_native_lib_init(NativeLib *lib)
 
     for (int i = 0; i < COUNT_OF(builtin_types); ++i) {
         kl_reg_type(lib, builtin_types[i]);
+    }
+}
+
+static MethodDef print_lib_functions[] = {
+    { "print_intern", print_intern },
+    { NULL },
+};
+
+void print_native_lib_init(NativeLib *lib)
+{
+    MethodDef *methdef = print_lib_functions;
+    while (methdef->name) {
+        kl_reg_func(lib, methdef->name, methdef->cfunc);
+        ++methdef;
     }
 }
 

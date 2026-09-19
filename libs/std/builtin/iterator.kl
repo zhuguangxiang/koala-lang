@@ -5,66 +5,34 @@
 
 /// An Iterator represents the state of an ongoing traversal of elements.
 ///
-/// It provides two complementary access patterns:
-/// - Optional-result iteration via [`Iterator.next`](#iterator.next).
-/// - Check-then-act iteration via [`Iterator.has_next`](#iterator.has_next)
-///   and [`Iterator.next_strict`](#iterator.next_strict).
+/// It supports optional-result iteration with `next()`, and check-then-act iteration
+/// with `has_next()` and `next_strict()`.
 ///
-/// The iterator never rewinds and never allocates; it is a forward-only traversal state machine.
+/// Iterators are stateful and do not support rewinding.
 pub trait Iterator[T] {
-    /// Returns whether another element is available.
-    ///
-    /// Check this before calling
-    /// [`Iterator.next_strict`](#iterator.next_strict).
+
+    /// Return true if another element is available.
     func has_next() bool
 
-    /// Returns the next element and advances the iterator.
-    ///
-    /// Check `has_next()` before calling this method.
-    /// The returned value may be `nil` when `T` is nullable.
-    ///
-    /// Errors
+    /// Return the next element and advance the iterator.
     ///
     /// Panic if the iterator is exhausted.
-    ///
-    /// Examples
-    ///
-    /// Given an iterator `it`:
-    ///
-    /// ```kl
-    /// while it.has_next() {
-    ///     print(it.next_strict())
-    /// }
-    /// ```
     func next_strict() T
 
-    /// Returns the next element and advances the iterator, or returns
-    /// `nil` if the iterator is exhausted.
+    /// Return the next element and advance the iterator, or `nil` if the iterator is exhausted.
     ///
-    /// Exhaustion is represented by `nil`, not a panic.
-    /// When `T` is nullable, an element may also be `nil`. Use
-    /// [`Iterator.has_next`](#iterator.has_next) together with
-    /// [`Iterator.next_strict`](#iterator.next_strict) to distinguish
-    /// such elements from exhaustion.
-    ///
-    /// Examples
-    ///
-    /// Given an iterator `it` whose element type is not nullable:
-    ///
-    /// ```kl
-    /// while let value = it.next() {
-    ///     print(value)
-    /// }
-    /// ```
+    /// When `T` is nullable, an element may also be `nil`. Use `has_next()`
+    /// with `next_strict()` to distinguish such elements from exhaustion.
     func next() T?
 }
 
-/// The Iterable trait is the basis for all objects that can be iterated over.
+/// Iterable is the basis for objects that can be traversed.
 ///
-/// It provides a way to create an iterator for traversing elements.
+/// It provides a way to create an iterator for the elements.
 pub trait Iterable[T] {
+
     /// Return a new iterator for traversing the elements.
     ///
-    /// `step` specifies the number of elements to advance on each iteration.
+    /// `step` specifies the number of elements to advance after each iteration.
     func iter(step = 1) Iterator[T]
 }

@@ -9,20 +9,6 @@
 
 link "koala"
 
-/// Prints objects separated by `sep` and followed by `end`.
-///
-/// Objects are converted to strings using their `__str__` method.
-/// If no objects are given, `print()` writes only `end`.
-/// The default separator is a space, and the default ending is a newline.
-///
-/// Examples
-///
-/// ```kl
-/// print("red", "green", "blue", sep = ", ")
-/// ```
-@native
-pub func print(objs ..., sep = " ", end = "\n") {}
-
 /// Return the number of items in a collection or the length of an object.
 ///
 /// This function is an intrinsic and is resolved at compile time.

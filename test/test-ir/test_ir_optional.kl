@@ -28,12 +28,12 @@ func show(cond bool, msg str?) {
 // CHECK: ret void
 
 // CHECK: %bb4(if-then):                                  ;; preds = %bb1
-// CHECK: call @print [path = 'std/builtin', const]
+// CHECK: call @print [path = 'std/print', const]
 // CHECK: jmp label %bb6
 
 // CHECK: %bb5(if-else):                                  ;; preds = %bb1
 // CHECK: %2 = cast %msg str? to str
-// CHECK: call @print [path = 'std/builtin']
+// CHECK: call @print [path = 'std/print']
 // CHECK: jmp label %bb6
 
 // CHECK: %bb6(if-end):                                   ;; preds = %bb4, %bb5
@@ -55,7 +55,7 @@ func show(cond bool, msg str?) {
 // CHECK: %4 = nil_check %msg str? to str
 // CHECK: %5 = local str
 // CHECK: loadk %5 str, 'assertion failed: ' str
-// CHECK: call @print [path = 'std/builtin']
+// CHECK: call @print [path = 'std/print']
 // CHECK: jmp label %bb2
 
 // CHECK-LABEL: @show[0,15]:

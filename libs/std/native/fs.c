@@ -90,6 +90,20 @@ static TValue file_write(TValue *self, TValue *args, int nargs)
     return int64_value(r);
 }
 
+static TValue file_write_str(TValue *self, TValue *args, int nargs)
+{
+    FileObject *fobj = SELF_AS(file_type);
+    ASSERT(nargs == 1);
+    StringObject *sobj = kl_arg_obj_as(0, str_type);
+    if (fcntl(fobj->fd, F_GETFD) == -1) {
+        // printf("file descriptor %d is closed\n", fobj->fd);
+        return nil_value;
+    }
+
+    int r = write(fobj->fd, STR_BUF(sobj), STR_LEN(sobj));
+    return int64_value(r);
+}
+
 static TValue file_close(TValue *self, TValue *args, int nargs)
 {
     FileObject *fobj = SELF_AS(file_type);
@@ -109,6 +123,7 @@ static TypeObject file_type = {
         (MethodDef[]){
             { "read", file_read },
             { "write", file_write },
+            { "write_str", file_write_str },
             { "close", file_close },
             { "seek", file_seek },
             { NULL, NULL },

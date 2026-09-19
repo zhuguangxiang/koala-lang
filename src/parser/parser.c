@@ -207,6 +207,10 @@ static inline void load_builtin_module(ParserModule *pm)
     pm->builtin = pkg_sym->stbl;
     install_builtin_types(pm->builtin);
     fixup_traits_inherited_methods(pkg_sym->stbl);
+
+    pkg_sym = import_package(pm, "std/print");
+    if (!pkg_sym) return;
+    pm->print = pkg_sym->stbl;
 }
 
 static void mark_magic_func(Symbol *sym)
@@ -384,7 +388,6 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         up = up->next;
     }
 
-    /* find ident from external scope (imported) */
     /* find ident from auto-imported(builtin) */
     sym = stbl_get(ps->pm->builtin, id->name);
     if (sym) {
@@ -394,6 +397,18 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         ASSERT(sym->flags & SYM_FLAGS_EXT);
         ASSERT(sym->path);
         return sym;
+    }
+
+    if (ps->pm->print) {
+        sym = stbl_get(ps->pm->print, id->name);
+        if (sym) {
+            log_info("find symbol '%s' in 'std/print' module", id->name);
+            id->where = PRELUDE_SCOPE;
+            id->scope = NULL;
+            ASSERT(sym->flags & SYM_FLAGS_EXT);
+            ASSERT(sym->path);
+            return sym;
+        }
     }
 
     /* find ident from imported scope */

@@ -170,7 +170,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
   **这 43 个运算符钩子只是“magic 一律 dot 封闭”这条普遍规则（§3.1）中最大的一族，不是特例**：所有 magic dunder——运算符钩子加 `__str__` / `__init__` 等协议入口——都不接受 `obj.__xxx__()` 显式 dot 调用。能力并不因此丢失，只是改走两个合法入口：**语言语法**（运算符、`x[i]`、`x[a:b]`、`x in seq`、`obj(...)`、`Type(...)`、`str(x)` 构造）与**普通方法**（`x.len()` / `x.hash()` / `x.iter()` / `x.next()` 等——len / hash 与迭代协议 `iter` / `has_next` / `next` 本就是普通方法、非 dunder，天然 dot 可达）。动机同 §3.1：显式 dot 调用 magic 不提供超出语法糖的任何能力，反而曾是静默错误入口——`@intrinsic` 空 body 被显式调用静默返回 none，语言层封闭后此路径不复存在。禁止不影响泛型分发：`max[T: Comparable]` 之类的运算符分发走编译器在运算符 call site 生成的 intf-table，不经用户显式调用路径。
 
   **禁令对接收者形态无差别**：具体类型、trait 值（如 `Arithmetic[int]`）、泛型类型参数（`T : Arithmetic`）三种形态的显式 dunder 调用报同一条禁令错误。泛型参数的成员解析经 bound 完成——bound 是 T 的成员唯一事实源，运算符下降与点号成员访问共用同一条 bound 查找；正因 bound 承诺了方法存在，T 上的显式调用报的是“禁止”而非“方法不存在”，拒绝理由是规则而不是能力缺失。禁令覆盖**全部** magic dunder，不因接收者形态或协议类别而豁免：`T : Equatable` 的 `__eq__`、`T : Arithmetic` 的 `__add__` 经 bound 解析后，运算符下降照常，但同样不接受 `x.__eq__()` / `x.__add__()` 显式 dot 调用。（`len` / `hash` 是普通方法、非 magic，`x.len()` / `x.hash()` 直接 dot 可达，不在禁令之列。）
-  
+
   **禁令按符号划界，不按名字形状**：直接调用禁令的适用对象是特定符号族——内置运算符钩子（上述 43 个）、内置协议 magic dunder（`__str__` 字符串转换、`__init__` 构造——禁止的是 `obj.__xxx__()` 这条 dot 路径；字符串化走 `str(x)` 构造器、构造走 `Type(...)` 语法）、编译器自动生成的符号（`@specialized` 生成物，见 §7.4）。dunder 名字形状本身不构成禁令依据：**用户自写的 `__foo__` 是合法声明、普通可调用的符号，不做任何拒绝**。
 
 ---
@@ -402,6 +402,52 @@ pub func max[T: Comparable](x T, y T) T { ... }
 ### 8.1 透明核心
 
 **所有内建类型都在标准库的 `.kl` 源文件中声明**（libs/std/builtin/*.kl）——对比 Go（编译器魔法）、Rust（lang items）、Java（原始类型特殊化），Koala 语言核心零暗角。C 后端实现位于 libs/std/native/。
+
+**Builtin 包自举（里程碑）**：`std/builtin` 是独立 package，不依赖任何 package（依赖 = ∅）。它提供 Koala 标准库最基础的 API 与声明，但从 VM 的视角看，它不是特殊模块。
+
+VM 初始化时不需要预加载 `std/builtin`。当某个模块依赖它时，由普通 module loader 沿 dependency graph 自动加载。`src/runtime/vm.c` 中的 `load_modules()` 已移除对 `std/builtin` 的预加载，并通过实测验证：即使不预加载 `std/builtin`，程序仍可正常运行；需要时由普通 module loader 自动加载。
+
+自举链条为：
+
+```text
+koalac --build-stdlib
+        ↓
+std/builtin → builtin.klc
+        ↓
+普通 dependency
+        ↓
+普通 module loader
+        ↓
+VM
+```
+
+§8.8 的 top-level prelude 同样遵循这条普通路径：prelude package 是用户模块的隐式依赖，由同一个 module loader 加载，而不是 VM 启动阶段的特殊机制。
+
+这使运行时与标准库彻底解耦：
+
+* `std/builtin` 是普通 package；
+* 零依赖使它成为标准库 dependency graph 的根包；
+* package 加载统一由 module loader 处理；
+* VM 不包含针对 `std/builtin` 的特殊加载逻辑；
+* `@intrinsic` 等编译器专属行为是声明与编译器语义的属性，而不是 package 的特殊运行时地位。
+
+换言之：
+
+> **builtin 在语言与标准库层面是基础，但在 VM 模块加载层面不是基础。**
+
+**最底层是依赖图的根节点，而不是加载器里的特殊地位。**
+
+即：
+
+```text
+compiler  ↔  intrinsic
+stdlib    ↔  package
+loader    ↔  dependency
+VM        ↔  runtime
+```
+
+各层各司其职，`std/builtin` 与其他 package 在运行时遵循统一的模块加载机制。
+
 
 ### 8.2 Trait 层
 
@@ -667,6 +713,16 @@ func next_strict() T
 ### 8.8 与 Python 内置函数 / 类对照
 
 以 Python `builtins` 为基准逐项比对，标注 Koala 现状与决策。
+
+**预加载包 / top-level prelude（关键概念）**：顶层作用域名字的来源不是“builtin”这一特殊命名空间，而是预加载包（preloaded packages / top-level prelude）：启动标准库环境时，`builtin`、`print`、`open` 这几个 package 一起加载，并把它们的**公开声明**放入用户模块的 top-level scope。所以用户看到的是：
+
+```kl
+print("hello")
+
+let f = open("test.txt")
+
+let n = len(items)
+```
 
 **Top-level function 分类原则**：top-level function 必须是**有独立函数体的真·普通函数**（含 `@native`——C 实现的普通函数，**不是 magic**），按“是否有独立价值”逐项裁定。**不设“top-level → 方法”的 @intrinsic 映射**：Koala 是静态语言，`x.len()` 编译期即按静态类型 / trait bound 解析，再造 `len(x)` 别名只是隐藏改写、零收益（§3.1）。故 len / hash / iter / reversed 只有方法形态、无 top-level；`next` 只是 `Iterator.next()` 方法，同样无 top-level。
 

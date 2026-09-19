@@ -34,12 +34,12 @@ func main() {
 // CHECK: %l1 = local [immutable] std/builtin.list<o>
 // CHECK: move %l1 std/builtin.list<o>, %1 std/builtin.list<o>
 // CHECK: %2 = build_intern @tuple, %t1 std/builtin.tuple<juz>, %l1 std/builtin.list<o>
-// CHECK: call @print [path = 'std/builtin'], %2 std/builtin.tuple<Lstd/builtin.tuple<juz>;Lstd/builtin.list<o>;>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/print'], %2 std/builtin.tuple<Lstd/builtin.tuple<juz>;Lstd/builtin.list<o>;>, ' ' str, '\n' str
 // CHECK: %3 = call @foo [const], 4 int64, 5 int64, tuple(6, 7) std/builtin.tuple<jj>
 // CHECK: %t2 = local [immutable] std/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>
 // CHECK: move %t2 std/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>, %3 std/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>
 // CHECK: %4 = build_intern @tuple, %t2 std/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>
-// CHECK: call @print [path = 'std/builtin'], %4 std/builtin.tuple<Lstd/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>;>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/print'], %4 std/builtin.tuple<Lstd/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>;>, ' ' str, '\n' str
 // CHECK: %5 = build_intern @tuple, %t std/builtin.tuple<jjj>, %t2 std/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>, 6 int64
 // CHECK: %t3 = local [immutable] std/builtin.tuple<Lstd/builtin.tuple<jjj>;Lstd/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>;j>
 // CHECK: move %t3 std/builtin.tuple<Lstd/builtin.tuple<jjj>;Lstd/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>;j>, %5 std/builtin.tuple<Lstd/builtin.tuple<jjj>;Lstd/builtin.tuple<jjjjLstd/builtin.tuple<jj>;>;j>
@@ -63,7 +63,7 @@ func main() {
 
 // CHECK-LABEL: Import Table:
 // CHECK: [000] method std/builtin::tuple::to_list
-// CHECK: [001] func   std/builtin::print
+// CHECK: [001] func   std/print::print
 
 // CHECK: (1, a, true) [1, a, true]
 // CHECK: (4, 5, 9, -1, (20, 0))

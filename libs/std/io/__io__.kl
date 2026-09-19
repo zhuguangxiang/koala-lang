@@ -13,17 +13,3 @@ pub const SEEK_CUR = 1
 
 /// Seek whence: relative to the end of content.
 pub const SEEK_END = 2
-
-pub func buf_write(w BufWriter, data bytes) int {
-    let n = w.write(data)
-    return n
-}
-
-pub func buf_write_str(w BufWriter, data str) int {
-    let n = w.write(data.to_bytes())
-    return n
-}
-
-pub func buf_flush(w BufWriter) {
-    w.flush()
-}

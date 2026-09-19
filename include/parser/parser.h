@@ -31,8 +31,11 @@ typedef struct _ParserModule {
     /* all imported packages */
     HashMap *imported;
 
-    /* builtin package */
+    /* builtin package (std/builtin) */
     HashMap *builtin;
+
+    /* prelude package (std/print) */
+    HashMap *print;
 
     /* module-level IR*/
     KlrModule *m;

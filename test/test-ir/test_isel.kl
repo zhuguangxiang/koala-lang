@@ -80,7 +80,7 @@ func test_nested_loop(n int) {
 
 // CHECK: %2 = local int64
 // CHECK: move %2 int64, %j int64
-// CHECK: call @print [path = 'std/builtin']
+// CHECK: call @print [path = 'std/print']
 // CHECK: %6 = int.add_imm %j int64, 1 int64
 // CHECK: move %j int64, %6 int64
 // CHECK: %7 = int.lt %j int64, %i int64
@@ -109,12 +109,12 @@ func foo2() {
 
 // CHECK: %1 = local std/builtin.tuple<u>
 // CHECK: loadk %1 std/builtin.tuple<u>, tuple('true') std/builtin.tuple<u>
-// CHECK: call @print [path = 'std/builtin', const], nargs=3
+// CHECK: call @print [path = 'std/print', const], nargs=3
 // CHECK: jmp label %bb3
 
 // CHECK: %4 = local std/builtin.tuple<u>
 // CHECK: loadk %4 std/builtin.tuple<u>, tuple('false') std/builtin.tuple<u>
-// CHECK: call @print [path = 'std/builtin', const], nargs=3
+// CHECK: call @print [path = 'std/print', const], nargs=3
 // CHECK: jmp label %bb3
 
 // CHECK: ret void

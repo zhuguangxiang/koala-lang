@@ -44,7 +44,8 @@ typedef struct _Ident {
 #define UP_SCOPE       2
 #define EXT_SCOPE      3
 #define BLTIN_SCOPE    4
-#define IMPORTED_SCOPE 5
+#define PRELUDE_SCOPE  5
+#define IMPORTED_SCOPE 6
     /* scope pointer */
     void *scope;
 } Ident;

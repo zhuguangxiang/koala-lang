@@ -1,0 +1,30 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+import "std/sys"
+
+link "koala"
+
+/// Writes objects to `w` with the specified separator and ending.
+@native
+func print_intern(w io.Writer, _sep str, _end str, objs ...) {}
+
+/// Prints objects separated by `sep` and followed by `end`.
+///
+/// Objects are converted to strings using `__str__`.
+/// If no objects are given, `print()` writes only `end`.
+/// The default separator is a space, and the default ending is a newline.
+/// `w` specifies the output destination and defaults to `sys.stdout`.
+///
+/// Examples
+///
+/// ```kl
+/// print("red", "green", "blue", sep = ", ")
+/// ```
+pub func print(objs ..., sep = " ", end = "\n") {
+    let w = sys.stdout
+    print_intern(w, sep, end, objs)
+}

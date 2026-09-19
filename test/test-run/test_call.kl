@@ -39,7 +39,7 @@ func main() {
 // CHECK: loadk %6 str, ' ' str
 // CHECK: %7 = local str        [fixedslot = 2(next)]
 // CHECK: loadk %7 str, '\n' str
-// CHECK: call @print [path = 'std/builtin'], nargs=3
+// CHECK: call @print [path = 'std/print'], nargs=3
 // CHECK: ret void
 
 // CHECK: zhangsan wangwu

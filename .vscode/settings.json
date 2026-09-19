@@ -148,7 +148,7 @@
     ],
     "editor.fontFamily": "'Ubuntu Mono', 'JetBrains Mono', 'Fira Code','Victor Mono'",
     "editor.fontLigatures": true,
-    "editor.fontSize": 14,
+    "editor.fontSize": 15,
     "editor.lineHeight": 22,
     // "editor.letterSpacing": 0.1,
     "editor.renderWhitespace": "none",
