@@ -1,4 +1,4 @@
-/// Specialized explicit implementation for zipping two iterables into an iterator of tuple pairs.
+// Specialized explicit implementation for zipping two iterables into an iterator of tuple pairs.
 
 // pub class Zip[T, U] : Iterator[(T, U)] {
 //     let it_a Iterator[T]
@@ -67,29 +67,29 @@
  * // pub func reduce[T, U](fn func(U, T) U, seq Iterable[T], initial U) U {}
  */
 
-/// Return a lazy filter object that yields items for which `fn` returns true.
-///
-/// Example:
-///   func is_even(x int) bool = x % 2 == 0  // Named function (Assignment style)
-///   let nums = list[int](1, 2, 3, 4)
-///   let evens = nums.filter(is_even)       // Lazy: no computation yet
+// Return a lazy filter object that yields items for which `fn` returns true.
+//
+// Example:
+//   func is_even(x int) bool = x % 2 == 0  // Named function (Assignment style)
+//   let nums = list[int](1, 2, 3, 4)
+//   let evens = nums.filter(is_even)       // Lazy: no computation yet
 // func filter(fn func(T) bool) Iterable[T]
 
-/// Return a lazy map object that yields items transformed by `fn`.
-///
-/// Example with Anonymous Function:
-///   let nums = list[int](1, 2, 3)
-///   let doubled = nums.map(func(x int) int {
-///       return x * 2                       // Anonymous (Block style)
-///   })
+// Return a lazy map object that yields items transformed by `fn`.
+//
+// Example with Anonymous Function:
+//   let nums = list[int](1, 2, 3)
+//   let doubled = nums.map(func(x int) int {
+//       return x * 2                       // Anonymous (Block style)
+//   })
 // func map[R](fn func(T) R) Iterable[R]
 
-/// Eagerly reduce the elements of the iterable to a single value using `fn`.
-///
-/// Example:
-///   let nums = list[int](1, 2, 3, 4)
-///   let sum = nums.reduce(0, func(acc int, x int) int {
-///       return acc + x
-///   })
-///   // sum = 10
+// Eagerly reduce the elements of the iterable to a single value using `fn`.
+//
+// Example:
+//   let nums = list[int](1, 2, 3, 4)
+//   let sum = nums.reduce(0, func(acc int, x int) int {
+//       return acc + x
+//   })
+//   // sum = 10
 // func reduce[U](initial U, fn func(U, T) U) U

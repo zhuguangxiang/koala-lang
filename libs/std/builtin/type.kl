@@ -3,22 +3,22 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// The type class represents the runtime type of a value.
+/// The `type` class represents the runtime type of a value.
 ///
-/// Type objects are produced only by the runtime via `typeof()`
+/// Type objects are produced only by the runtime via [`typeof`](#typeof)
 /// and cannot be created directly.
 pub class type {
 
-    // Private: type objects are created by the runtime only.
+    /// Type objects are created only by the runtime.
     func __init__() {}
 
     /// Return the string representation of the type.
-    /// Format: "<class 'name'>", e.g. "<class 'str'>".
+    /// Uses the form `"<class 'name'>"`, for example `"<class 'str'>"`.
     @native
     pub func __str__() str {}
 
     /// Return the name of the type.
-    /// For types outside std/builtin, the name is prefixed with the module path.
+    /// For types outside `std/builtin`, the name is prefixed with the module path.
     @native
     pub func name() str {}
 

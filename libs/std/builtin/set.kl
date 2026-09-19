@@ -6,7 +6,7 @@
 /// A HashSet is a mutable, unordered collection of unique elements,
 /// backed by a hash table.
 ///
-/// It implements Set, providing membership tests, insertion, removal,
+/// It implements `Set`, providing membership tests, insertion, removal,
 /// and set algebra. Iteration order is unspecified.
 pub class HashSet[T] : Set[T] {
 
@@ -71,7 +71,7 @@ pub class HashSet[T] : Set[T] {
     pub func diff(other Iterable[T]) HashSet[T] {}
 
     /// Return a string representation of the set.
-    /// Format: "{element1, element2}".
+    /// Uses the form `{element1, element2}`.
     @native
     pub func __str__() str {}
 
@@ -99,9 +99,10 @@ pub class HashSet[T] : Set[T] {
 /// A TreeSet is a mutable, sorted collection of unique elements,
 /// backed by a balanced tree.
 ///
-/// It implements Set, providing membership tests, insertion, removal,
-/// and set algebra. Elements are ordered by their Comparable ordering;
-/// iteration, to_list() and reversed() follow that order.
+/// It implements `Set`, providing membership tests, insertion, removal,
+/// and set algebra. Elements are ordered by their `Comparable` ordering.
+/// Iteration and `to_list()` follow that order; `reversed()` traverses it
+/// in reverse.
 pub class TreeSet[T : Comparable] : Set[T] {
 
     /// Create an empty tree set.
@@ -165,7 +166,7 @@ pub class TreeSet[T : Comparable] : Set[T] {
     pub func diff(other Iterable[T]) TreeSet[T] {}
 
     /// Return a string representation of the set.
-    /// Format: "{element1, element2}", in sorted order.
+    /// Uses the form `{element1, element2}`, in sorted order.
     @native
     pub func __str__() str {}
 

@@ -5,14 +5,23 @@
 
 /// ByteBuf is a mutable, growable byte buffer for general-purpose buffered I/O.
 ///
-/// It provides efficient append operations and can be converted to str or bytes.
+/// It provides efficient append operations and can be converted to `str` or `bytes`.
 /// Suitable for building formatted output, protocol serialization (e.g., HTTP),
 /// network message assembly, and other scenarios requiring incremental byte accumulation.
 ///
-/// ByteBuf is append-only by design: bytes are pushed to the end, and the entire
-/// content can be read out as a snapshot. It does not support random access,
-/// insertion, or removal of individual elements — for those operations, use a
-/// dedicated sequence type instead.
+/// Bytes are appended at the end. [`ByteBuf.fill`](#bytebuf.fill) and
+/// [`ByteBuf.zero`](#bytebuf.zero) overwrite existing ranges;
+/// [`ByteBuf.clear`](#bytebuf.clear) resets the buffer's length to zero.
+/// Individual-element indexing, insertion, and removal are not supported.
+///
+/// Examples
+///
+/// ```kl
+/// let buffer = ByteBuf()
+/// buffer.push_str("Hello, ")
+/// buffer.push_str("Koala!")
+/// print(buffer.to_str())
+/// ```
 pub class ByteBuf {
     /// Create an empty buffer with an optional initial capacity.
     ///
@@ -42,19 +51,21 @@ pub class ByteBuf {
     @native
     pub func push_bytes(b bytes) {}
 
-    /// Fill the bytes in [start, end) with `value`.
-    /// If `end` is -1, the fill extends to the end of the buffer.
+    /// Fill the bytes in `[start, end)` with `value`.
+    /// If `end` is `-1`, the fill extends to the end of the buffer.
     @native
     pub func fill(value uint8, start = 0, end = -1) {}
 
-    /// Set the bytes in [start, end) to zero.
-    /// If `end` is -1, the zeroing extends to the end of the buffer.
+    /// Set the bytes in `[start, end)` to zero.
+    /// If `end` is `-1`, the zeroing extends to the end of the buffer.
     @native
     pub func zero(start = 0, end = -1) {}
 
-    /// Decode the buffered content as UTF-8 and return a new str.
+    /// Decode the buffered content as UTF-8 and return a new `str`.
     ///
-    /// Panics if the buffered bytes are not valid UTF-8.
+    /// Errors
+    ///
+    /// Panic if the buffered bytes are not valid UTF-8.
     @native
     pub func to_str() str {}
 

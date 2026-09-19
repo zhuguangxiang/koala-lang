@@ -5,7 +5,7 @@
 
 /// A tuple is an immutable sequence of elements.
 ///
-/// It implements Sequence, providing fixed-size, read-only access:
+/// It implements `Sequence`, providing fixed-size, read-only access:
 /// random access, searching and slicing.
 pub class tuple[infer T] : Sequence[T] {
 
@@ -27,6 +27,9 @@ pub class tuple[infer T] : Sequence[T] {
 
     /// Get the element at the specified index.
     /// The element type is inferred from the usage context.
+    ///
+    /// Errors
+    ///
     /// Panic if the index is out of range.
     @native
     pub func __getitem__[infer U](index int) U {}
@@ -39,20 +42,20 @@ pub class tuple[infer T] : Sequence[T] {
     @native
     pub func __contains__(v T) bool {}
 
-    /// Return the first index of `value` in [start, end). O(n).
-    /// If `end` is -1, the search extends to the end of the tuple.
-    /// Return -1 if the value is not present.
+    /// Return the first index of `value` in `[start, end)`. O(n).
+    /// If `end` is `-1`, the search extends to the end of the tuple.
+    /// Return `-1` if the value is not present.
     @native
     pub func index(value T, start = 0, end = -1) int {}
 
-    /// Return the last index of `value` in [start, end). O(n).
-    /// If `end` is -1, the search extends to the end of the tuple.
-    /// Return -1 if the value is not present.
+    /// Return the last index of `value` in `[start, end)`. O(n).
+    /// If `end` is `-1`, the search extends to the end of the tuple.
+    /// Return `-1` if the value is not present.
     @native
     pub func rindex(value T, start = 0, end = -1) int {}
 
-    /// Return the number of occurrences of `value` in [start, end). O(n).
-    /// If `end` is -1, the search extends to the end of the tuple.
+    /// Return the number of occurrences of `value` in `[start, end)`. O(n).
+    /// If `end` is `-1`, the search extends to the end of the tuple.
     @native
     pub func count(value T, start = 0, end = -1) int {}
 

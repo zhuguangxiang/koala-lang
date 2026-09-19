@@ -204,7 +204,7 @@ pub class int64 : Comparable & Arithmetic & Bitwise {
     @intrinsic
     pub func __ibitxor__(rhs int64) int64 {}
 
-    /// Raises `self` to the power `x` (`self ** x`).
+    /// Raises `self` to the power `x`.
     @native
     pub func pow(x int64) int64 {}
 
@@ -375,7 +375,7 @@ pub class uint64 : Comparable & Arithmetic & Bitwise {
     @intrinsic
     pub func __ibitxor__(rhs uint64) uint64 {}
 
-    /// Raises `self` to the power `x` (`self ** x`).
+    /// Raises `self` to the power `x`.
     @native
     pub func pow(x uint64) uint64 {}
 
@@ -508,7 +508,7 @@ pub class float64 : Comparable & Arithmetic {
     @native
     pub func sqrt() float64 {}
 
-    /// Raises `self` to the power `x` (`self ** x`).
+    /// Raises `self` to the power `x`.
     @native
     pub func pow(x float64) float64 {}
 

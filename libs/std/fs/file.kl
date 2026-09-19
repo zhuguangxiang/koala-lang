@@ -40,8 +40,9 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// `len(bs)` before EOF) is possible; loop when an exact count
     /// is required.
     ///
-    /// Panics:
-    /// - reading a closed file.
+    /// Errors
+    ///
+    /// - Panic when reading a closed file.
     @native
     pub func read(bs bytes) int {}
 
@@ -50,8 +51,9 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// Return -1 on error. A short write is possible; loop until all
     /// bytes are written when required.
     ///
-    /// Panics:
-    /// - writing a closed file.
+    /// Errors
+    ///
+    /// - Panic when writing a closed file.
     @native
     pub func write(bs bytes) int {}
 
@@ -67,8 +69,9 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// Return -1 on error. A short write is possible; loop until all
     /// bytes are written when required.
     ///
-    /// Panics:
-    /// - writing a closed file.
+    /// Errors
+    ///
+    /// - Panic when writing a closed file.
     @native
     pub func write_str(s str) int {}
 
@@ -78,8 +81,9 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// `whence`: 0 = start of file, 1 = current position,
     /// 2 = end of file. Return -1 on error.
     ///
-    /// Panics:
-    /// - seeking a closed file.
+    /// Errors
+    ///
+    /// - Panic when seeking a closed file.
     @native
     pub func seek(offset int, whence int) int {}
 
@@ -87,8 +91,9 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     ///
     /// Return -1 on error.
     ///
-    /// Panics:
-    /// - querying the position of a closed file.
+    /// Errors
+    ///
+    /// - Panic when querying the position of a closed file.
     @native
     pub func tell() int {}
 
@@ -98,8 +103,9 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// The cursor itself is not moved. Return true on success,
     /// false on error.
     ///
-    /// Panics:
-    /// - truncating a closed file.
+    /// Errors
+    ///
+    /// - Panic when truncating a closed file.
     @native
     pub func truncate(size = -1) bool {}
 
@@ -120,7 +126,7 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// Return true if the file is connected to a terminal (tty).
     ///
     /// Return false on error, including a closed file; this query
-    /// never panics.
+    /// never triggers a panic.
     @native
     pub func is_tty() bool {}
 }

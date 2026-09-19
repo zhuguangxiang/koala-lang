@@ -5,12 +5,11 @@
 
 /// An exception object represents a raised exception.
 /// Once raised, it cannot be caught and must be resolved.
-/// The func `panic` is the only way to raise it.
 ///
-/// See: `panic`
+/// Use [`panic`](#panic) to raise an exception; it is the only supported way.
 pub class Exception {
 
-    /// Private: User should not directly instantiate this class.
-    /// Use the `panic` function to raise an exception.
+    /// Users should not directly instantiate this class.
+    /// Use [`panic`](#panic) to raise an exception.
     func __init__() {}
 }

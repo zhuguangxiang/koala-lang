@@ -3,10 +3,10 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// A slice object represents a set of indices specified by [start:end:step].
+/// A slice object represents a set of indices specified by `[start:end:step]`.
 ///
-/// It is internally created by the compiler when the ':' syntax is used
-/// inside subscript brackets []. Omitted and negative bounds are completed
+/// It is internally created by the compiler when the `:` syntax is used
+/// inside subscript brackets `[]`. Omitted and negative bounds are completed
 /// by the compiler against the target sequence length, so all fields are
 /// concrete integers. Follows Python's slicing semantics, including
 /// negative steps for reverse slicing.
@@ -15,7 +15,7 @@ pub class slice {
     pub let start int
 
     /// The ending index of the slice (exclusive).
-    /// For reverse slices it may be -1, meaning the slice goes down to index 0.
+    /// For reverse slices it may be `-1`, meaning the slice goes down to index 0.
     pub let end int
 
     /// The step value of the slice. A negative step reverses the direction.
@@ -25,7 +25,7 @@ pub class slice {
     /// Initialize a new slice object.
     ///
     /// Typically constructed by the `build_intern` op when the compiler
-    /// translates the [start:end:step] syntax.Users may also construct
+    /// translates the `[start:end:step]` syntax. Users may also construct
     /// slice objects explicitly via `slice(start, end, step)`.
     ///
     /// Pass `INT_MIN` for `_start` or `_end` to indicate that the bound is
@@ -35,7 +35,7 @@ pub class slice {
     /// whether the slice originates from compiler-generated syntax or
     /// user-facing construction.
     ///
-    /// `_step` defaults to 1 and must not be zero; a zero step panics.
+    /// `_step` defaults to 1 and must not be zero; a zero step triggers a panic.
     pub func __init__(_start int, _end int, _step = 1) {
         start = _start
         end = _end
@@ -43,7 +43,7 @@ pub class slice {
     }
 
     /// Return the string representation of the slice. O(1).
-    /// Format: "slice(start, end, step)".
+    /// Uses the form `slice(start, end, step)`.
     @native
     pub func __str__() str {}
 }

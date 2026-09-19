@@ -16,40 +16,45 @@ pub trait Sequence[T] : Iterable[T] {
 
     /// Return the item at the specified `index`.
     ///
-    /// PRECONDITION: `0 <= index < __len__()`.
-    /// Calling this method with an out-of-range index will trigger a panic.
+    /// Errors
+    ///
+    /// Panic if `index` is negative or is not less than the sequence length.
     func __getitem__(index int) T
 
     /// Returns whether the sequence contains no elements.
     ///
     /// O(1) or O(n) depending on implementation.
     ///
-    /// # Example
-    /// ```
-    /// if s.empty() { /* ... */ }
-    /// if !s.empty() { /* ... */ }
+    /// Examples
+    ///
+    /// Given a sequence `s`:
+    ///
+    /// ```kl
+    /// if s.empty() {
+    ///     print("The sequence is empty.")
+    /// }
     /// ```
     func empty() bool
 
     /// Returns the first element. The same as `at(0)`.
     ///
-    /// # Contract
-    /// Requires `!empty()`.
-    /// Calls `panic()` if violated — uncatchable, must be fixed.
+    /// Errors
+    ///
+    /// Panic if the sequence is empty.
     func first() T
 
-    /// Returns the last element. The same as `at(__len__() - 1)`.
+    /// Returns the last element of the sequence.
     ///
-    /// # Contract
-    /// Requires `!empty()`.
-    /// Calls `panic()` if violated — uncatchable, must be fixed.
+    /// Errors
+    ///
+    /// Panic if the sequence is empty.
     func last() T
 
-    /// Returns the element at the given index. The same as `__getitem__`.
+    /// Returns the element at the specified `index`.
     ///
-    /// # Contract
-    /// Requires `0 <= index < __len__()`.
-    /// Calls `panic()` if violated — uncatchable, must be fixed.
+    /// Errors
+    ///
+    /// Panic if `index` is negative or is not less than the sequence length.
     func at(index int) T
 
     /// Return the first index of `value` in `[start, end)`.
@@ -77,15 +82,16 @@ pub trait Sequence[T] : Iterable[T] {
 pub trait MutableSequence[T] : Sequence[T] {
     /// Set the item at the specified `index` to `value`.
     ///
-    /// PRECONDITION: `0 <= index < __len__()`.
-    /// Calling this method with an out-of-range index will trigger a panic.
+    /// Errors
+    ///
+    /// Panic if `index` is negative or is not less than the sequence length.
     func __setitem__(index int, value T)
 
-    /// Sets the element at the given index to `value`. The same as `__setitem__`.
+    /// Sets the element at the specified `index` to `value`.
     ///
-    /// # Contract
-    /// Requires `0 <= index < __len__()`.
-    /// Calls `panic()` if violated — uncatchable, must be fixed.
+    /// Errors
+    ///
+    /// Panic if `index` is negative or is not less than the sequence length.
     func put(index int, value T)
 
     /// Append `value` to the end of the sequence.
@@ -106,12 +112,16 @@ pub trait MutableSequence[T] : Sequence[T] {
 
     /// Remove the first occurrence of `value` from the sequence.
     ///
-    /// Calling this method when `value` is not present will trigger a panic.
+    /// Errors
+    ///
+    /// Panic if `value` is not present.
     func remove(value T)
 
     /// Swap the elements at the specified `index1` and `index2`.
     ///
-    /// If either index is out of bounds, calling this method will trigger a panic.
+    /// Errors
+    ///
+    /// Panic if either index is out of bounds.
     func swap(index1 int, index2 int)
 
     /// Remove all items from the sequence, leaving it empty.
@@ -130,7 +140,9 @@ pub trait Map[K, V] : Iterable[(K, V)] {
 
     /// Return the value associated with `key`.
     ///
-    /// Calling this method when `key` is not present will trigger a panic.
+    /// Errors
+    ///
+    /// Panic if `key` is not present.
     func __getitem__(key K) V
 
     /// Associate `value` with `key`.
@@ -152,7 +164,9 @@ pub trait Map[K, V] : Iterable[(K, V)] {
 
     /// Remove the mapping for `key` and return its value.
     ///
-    /// Calling this method when `key` is not present will trigger a panic.
+    /// Errors
+    ///
+    /// Panic if `key` is not present.
     func remove(key K) V
 
     /// Remove the mapping for `key` and return its value.
@@ -162,7 +176,7 @@ pub trait Map[K, V] : Iterable[(K, V)] {
 
     /// Return the value associated with `key`, or `nil` if `key` is not present.
     ///
-    /// Unlike `__getitem__` (`map[key]`), this method does not panic when
+    /// Unlike indexing with `map[key]`, this method does not panic when
     /// `key` is not present and is intended for use with `if let`.
     func get(key K) V?
 

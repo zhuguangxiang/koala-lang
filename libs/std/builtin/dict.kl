@@ -6,9 +6,9 @@
 /// A dict is a mutable, insertion-ordered hash map that maps unique keys
 /// to values.
 ///
-/// It implements Map, providing key lookup, insertion, removal,
-/// and iteration over key-value pairs. Iteration, keys(), values() and
-/// items() all follow insertion order.
+/// It implements `Map`, providing key lookup, insertion, removal,
+/// and iteration over key-value pairs. Iteration, `keys()`, `values()` and
+/// `items()` all follow insertion order.
 pub class dict[K, V] : Map[K, V] {
 
     /// Create an empty dict.
@@ -36,7 +36,10 @@ pub class dict[K, V] : Map[K, V] {
     pub func __contains__(key K) bool {}
 
     /// Return the value mapped to `key`. O(1).
-    /// Panic if the key is not present.
+    ///
+    /// Errors
+    ///
+    /// Panic if `key` is not present.
     @native
     pub func __getitem__(key K) V {}
 
@@ -61,7 +64,10 @@ pub class dict[K, V] : Map[K, V] {
     pub func clear() {}
 
     /// Remove the mapping for `key` and return its value. O(1).
-    /// Panic if the key is not present.
+    ///
+    /// Errors
+    ///
+    /// Panic if `key` is not present.
     @native
     pub func remove(key K) V {}
 
@@ -70,8 +76,10 @@ pub class dict[K, V] : Map[K, V] {
     @native
     pub func remove_or(key K, default_value V) V {}
 
-    /// Return the value for `key` if present, else nil. O(1).
-    /// Unlike `__getsub__`, this never panics; use with `if let` unwrapping.
+    /// Return the value for `key` if present, else `nil`. O(1).
+    ///
+    /// Missing keys return `nil` instead of panicking; use `if let`
+    /// to unwrap the result.
     @native
     pub func get(key K) V? {}
 
@@ -80,7 +88,7 @@ pub class dict[K, V] : Map[K, V] {
     pub func get_or(key K, default_value V) V {}
 
     /// Return a string representation of the dict.
-    /// Format: "{key1: value1, key2: value2}".
+    /// Uses the form `{key1: value1, key2: value2}`.
     @native
     pub func __str__() str {}
 
@@ -95,21 +103,33 @@ pub class dict[K, V] : Map[K, V] {
     pub func setdefault(key K, default_value V) V {}
 
     /// Return the first inserted (key, value) pair without removing it.
+    ///
+    /// Errors
+    ///
     /// Panic if the dict is empty.
     @native
     pub func peek_first() (K, V) {}
 
     /// Return the last inserted (key, value) pair without removing it.
+    ///
+    /// Errors
+    ///
     /// Panic if the dict is empty.
     @native
     pub func peek_last() (K, V) {}
 
     /// Remove and return the first inserted (key, value) pair.
+    ///
+    /// Errors
+    ///
     /// Panic if the dict is empty.
     @native
     pub func pop_first() (K, V) {}
 
     /// Remove and return the last inserted (key, value) pair.
+    ///
+    /// Errors
+    ///
     /// Panic if the dict is empty.
     @native
     pub func pop_last() (K, V) {}

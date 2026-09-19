@@ -14,11 +14,13 @@ current directory. On invalid arguments the full help is printed.
 
 What is extracted:
   - `///` doc comments attached to the declaration that follows them
-  - top-level `pub class` / `pub trait` / `pub func` declarations
-  - member `func` and `var`/`let` field declarations inside classes
-    and traits
+  - public and private top-level `class` / `trait` / `func` declarations
+  - member `func` / `static func` and `var`/`let` field declarations
+    inside classes and traits
   - base types (`: A & B`) rendered as Supertraits/Bases lines
-  - `@native` / `@intrinsic` annotations are reported as tags
+  - annotations, including single-line arguments, are reported as tags
+  - Markdown bodies are preserved, including plain section names, lists,
+    explicit links, whitespace, and fenced code examples
 
 What is ignored:
   - `/* ... */` block comments (including commented-out code)
@@ -28,15 +30,14 @@ What is ignored:
 import argparse
 import re
 import sys
-import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 
 DOC_PREFIX = "///"
-ANNOT_RE = re.compile(r"^\s*@(\w+)\s*$")
-LABEL_RE = re.compile(r"^(Example|Notes?|Precondition|Panics|See):\s*(.*)$")
+ANNOT_RE = re.compile(r"^\s*@(\w+(?:\s*\(.*\))?)\s*$")
 DECL_RE = re.compile(
-    r"^\s*(?P<pub>pub\s+)?(?P<kind>class|trait|func)\s+(?P<name>\w+)(?P<rest>.*)$"
+    r"^\s*(?P<pub>pub\s+)?(?P<static>static\s+)?"
+    r"(?P<kind>class|trait|func)\s+(?P<name>\w+)(?P<rest>.*)$"
 )
 FIELD_RE = re.compile(
     r"^\s*(?P<pub>pub\s+)?(?P<kind>var|let)\s+(?P<name>\w+)(?P<rest>.*)$"
@@ -95,13 +96,10 @@ def bases_of(signature):
     return bases
 
 
-def first_sentence(text):
-    """First sentence of a doc text, for Contents summaries."""
-    para = text.split("\n\n", 1)[0].replace("\n", " ").strip()
-    m = re.search(r"(?<=[.!?])(?=\s|$)", para)
-    if m and m.start() > 0:
-        return para[: m.start()]
-    return para
+def first_paragraph(text):
+    """First paragraph of a doc text, for Contents summaries."""
+    para = re.split(r"\n[ \t]*\n", text.strip(), maxsplit=1)[0]
+    return " ".join(line.strip() for line in para.splitlines())
 
 
 @dataclass
@@ -167,7 +165,7 @@ def parse_source(text):
             continue
 
         if stripped.startswith(DOC_PREFIX):
-            content = stripped[len(DOC_PREFIX) :]
+            content = raw.lstrip()[len(DOC_PREFIX) :]
             if content.startswith(" "):
                 content = content[1:]
             pending_doc.append(content)
@@ -181,7 +179,10 @@ def parse_source(text):
             pending_tags.append(m.group(1))
             continue
 
-        m = DECL_RE.match(line)
+        at_declaration_scope = depth == 0 or (
+            container is not None and depth == member_depth
+        )
+        m = DECL_RE.match(line) if at_declaration_scope else None
         if m:
             header = stripped
             # braces must be counted on the raw line(s), the header is
@@ -203,7 +204,7 @@ def parse_source(text):
                 kind=m.group("kind"),
                 name=m.group("name"),
                 signature=header,
-                doc="\n".join(pending_doc).strip(),
+                doc="\n".join(pending_doc),
                 tags=list(pending_tags),
             )
             pending_doc = []
@@ -229,7 +230,7 @@ def parse_source(text):
                     kind="field",
                     name=f.group("name"),
                     signature=header,
-                    doc="\n".join(pending_doc).strip(),
+                    doc="\n".join(pending_doc),
                     tags=list(pending_tags),
                 )
             )
@@ -253,85 +254,23 @@ def parse_source(text):
     return toplevel
 
 
-def render_doc(doc, links=None):
-    """Render doc text as Markdown.
+def render_doc(doc):
+    """Return the Markdown body unchanged.
 
-    Line breaks follow blank lines only: consecutive non-empty doc lines
-    are joined into one paragraph line; an empty doc line starts a new
-    paragraph. 4-space indented runs become standalone code blocks.
-    Label lines (Example:/Note:/Notes:/Precondition:/Panics:/See:) are
-    rendered bold; `See:` backticked references to known symbols become
-    anchor links.
+    Plain section names need no special parsing. Preserving the source
+    also preserves lists, fenced examples, explicit links, and hard breaks.
+    Inline code is not implicitly converted into a cross-reference.
     """
-    links = links or {}
-    out = []
-    para = []
-    block = []
-
-    def flush_para():
-        if para:
-            if out and out[-1] != "":
-                out.append("")
-            out.append(linkify(" ".join(para)))
-            para.clear()
-
-    def flush_block():
-        if block:
-            out.append("")
-            out.append("```kl")
-            out.extend(textwrap.dedent("\n".join(block)).splitlines())
-            out.append("```")
-            out.append("")
-            block.clear()
-
-    def linkify(text):
-        def repl(m):
-            name = m.group(1)
-            # qualified `Type.member` first, then the top-level symbol;
-            # an optional trailing `()` (call form) is ignored for lookup
-            bare = name[:-2] if name.endswith("()") else name
-            anchor = (
-                links.get(name)
-                or links.get(bare)
-                or links.get(name.split(".")[0])
-                or links.get(bare.split(".")[0])
-            )
-            if anchor:
-                return f"[`{name}`](#{anchor})"
-            return m.group(0)
-
-        return re.sub(r"`([^`]+)`", repl, text)
-
-    for line in doc.splitlines():
-        if not line.strip():
-            flush_para()
-            flush_block()
-        elif line.startswith("    "):
-            flush_para()
-            block.append(line)
-        else:
-            m = LABEL_RE.match(line.strip())
-            if m:
-                flush_para()
-                flush_block()
-                label = f"**{m.group(1)}:**"
-                rest = m.group(2).strip()
-                if rest:
-                    label += " " + linkify(rest)
-                if out and out[-1] != "":
-                    out.append("")
-                out.append(label)
-            else:
-                flush_block()
-                para.append(line.strip())
-    flush_para()
-    flush_block()
-    return "\n".join(out)
+    return doc
 
 
 def short_sig(item):
     """Signature without the leading `pub class/trait/func` keywords."""
-    return re.sub(r"^(pub\s+)?(class|trait|func)\s+", "", item.signature)
+    return re.sub(
+        r"^(?:pub\s+)?(static\s+)?(?:class|trait|func)\s+",
+        r"\1",
+        item.signature,
+    )
 
 
 def decl_block(item):
@@ -359,7 +298,7 @@ def render_member(mem, links, anchor=None):
         lines[-1] += " — " + " ".join(f"*`@{t}`*" for t in mem.tags)
     lines.append("")
     if mem.doc:
-        lines.append(render_doc(mem.doc, links))
+        lines.append(render_doc(mem.doc))
         lines.append("")
     return lines
 
@@ -382,7 +321,7 @@ def render_bases(item, links):
 
 def render_item(item, links, qname):
     """Render one top-level class/trait/func as Markdown."""
-    lines = [f"### `{item.name}`", ""]
+    lines = [f'<a id="{qname}"></a>', "", f"### `{item.name}`", ""]
     if item.kind in ("class", "trait"):
         lines += decl_block(item)
         lines += render_bases(item, links)
@@ -393,7 +332,7 @@ def render_item(item, links, qname):
             lines.append(" ".join(f"*`@{t}`*" for t in item.tags))
     lines.append("")
     if item.doc:
-        lines.append(render_doc(item.doc, links))
+        lines.append(render_doc(item.doc))
         lines.append("")
     fields = [m for m in item.members if m.kind == "field"]
     methods = [m for m in item.members if m.kind != "field"]
@@ -404,10 +343,10 @@ def render_item(item, links, qname):
         lines.append("**Fields**")
         lines.append("")
         for mem in fields:
-            lines += render_member(mem, links, f"{qname}.{mem.name}")
+            lines += render_member(mem, links, f"{qname}.{mem.name.lower()}")
     for mem in methods:
-        lines += render_member(mem, links, f"{qname}.{mem.name}")
-    return "\n".join(lines).rstrip()
+        lines += render_member(mem, links, f"{qname}.{mem.name.lower()}")
+    return "\n".join(lines).rstrip("\n")
 
 
 def render_package(pkg_name, files):
@@ -438,7 +377,7 @@ def render_package(pkg_name, files):
         lines.append("| Name | Summary |")
         lines.append("|------|---------|")
         for it in entries:
-            summary = first_sentence(it.doc).replace("|", "\\|") if it.doc else ""
+            summary = first_paragraph(it.doc).replace("|", "\\|") if it.doc else ""
             lines.append(f"| [`{it.name}`](#{it.name.lower()}) | {summary} |")
         lines.append("")
 
@@ -453,7 +392,7 @@ def render_package(pkg_name, files):
         for item in entries:
             lines.append(render_item(item, links, item.name.lower()))
             lines.append("")
-    return "\n".join(lines).rstrip() + "\n"
+    return "\n".join(lines).rstrip("\n") + "\n"
 
 
 class HelpOnErrorParser(argparse.ArgumentParser):

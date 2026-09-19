@@ -5,8 +5,16 @@
 
 /// A range represents an immutable sequence of integers.
 ///
-/// It is commonly used for looping a specific number of times in for loops.
-/// Since it implements Sequence, it supports O(1) length and indexing.
+/// It is commonly used for looping a specific number of times in `for` loops.
+/// Since it implements `Sequence`, it supports O(1) length and indexing.
+///
+/// Examples
+///
+/// ```kl
+/// for value in range(0, 3) {
+///     print(value)
+/// }
+/// ```
 pub class range : Sequence[int] {
     /// The starting value of the range (inclusive).
     pub let start int
@@ -15,7 +23,7 @@ pub class range : Sequence[int] {
     /// The interval between each number in the sequence.
     pub let step int
 
-    /// Initialize a range from start (inclusive) to end (exclusive).
+    /// Initialize a range from `_start` (inclusive) to `_end` (exclusive).
     @native
     pub func __init__(_start int, _end int, _step = 1) {}
 
@@ -43,28 +51,29 @@ pub class range : Sequence[int] {
     @native
     pub func __contains__(item int) bool {}
 
-    /// Return the index of `value` in the range, restricted to [start, end). O(1).
-    /// If `end` is -1, the search extends to the end of the range.
-    /// Return -1 if the value is not present.
+    /// Return the index of `value` in the range, restricted to `[_start, _end)`. O(1).
+    /// If `_end` is `-1`, the search extends to the end of the range.
+    /// Return `-1` if the value is not present.
     @native
     pub func index(value int, _start = 0, _end = -1) int {}
 
-    /// Return the last index of `value` in the range, restricted to [start, end).
-    /// Since all values in a range are unique, this is identical to `index`.
-    /// If `end` is -1, the search extends to the end of the range.
-    /// Return -1 if the value is not present.
+    /// Return the last index of `value` in the range, restricted to `[_start, _end)`.
+    /// Since all values in a range are unique, this is identical to
+    /// [`range.index`](#range.index).
+    /// If `_end` is `-1`, the search extends to the end of the range.
+    /// Return `-1` if the value is not present.
     @native
     pub func rindex(value int, _start = 0, _end = -1) int {}
 
-    /// Return the number of occurrences of `value` in [start, end). O(1).
+    /// Return the number of occurrences of `value` in `[_start, _end)`. O(1).
     /// Since all values in a range are unique, this returns 1 if the value
     /// is present, otherwise 0.
-    /// If `end` is -1, the search extends to the end of the range.
+    /// If `_end` is `-1`, the search extends to the end of the range.
     @native
     pub func count(value int, _start = 0, _end = -1) int {}
 
     /// Return the string representation of the range. O(1).
-    /// Format: "range(start, end, step)".
+    /// Uses the form `range(start, end, step)`.
     @native
     pub func __str__() str {}
 

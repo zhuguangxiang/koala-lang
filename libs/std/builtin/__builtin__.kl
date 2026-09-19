@@ -9,12 +9,17 @@
 
 link "koala"
 
-/// Print objects to the text stream file, separated by `sep` and followed by `end`.
+/// Prints objects separated by `sep` and followed by `end`.
 ///
-/// All non-keyword arguments are converted to strings using their `__str__` method.
-/// If no objects are given, print() will just write the `end` character.
-/// The `sep` and `end` arguments must be strings; the default separator is a space,
-/// and the default end-of-line is a newline character.
+/// Objects are converted to strings using their `__str__` method.
+/// If no objects are given, `print()` writes only `end`.
+/// The default separator is a space, and the default ending is a newline.
+///
+/// Examples
+///
+/// ```kl
+/// print("red", "green", "blue", sep = ", ")
+/// ```
 @native
 pub func print(objs ..., sep = " ", end = "\n") {}
 
@@ -27,11 +32,12 @@ pub func print(objs ..., sep = " ", end = "\n") {}
 /// Built-in container types such as list, dict, tuple, and set provide their own
 /// optimized implementations.
 ///
-/// Note:
-///     - As an intrinsic, `len()` does not have a user-level implementation.
-///     - The compiler may lower `len(obj)` to specialized VM instructions
-///       (e.g., OP_LEN) when the object's type is known,
-///       enabling high-performance length queries.
+/// Notes
+///
+/// - As an intrinsic, `len()` does not have a user-level implementation.
+/// - The compiler may lower `len(obj)` to specialized VM instructions
+///   (e.g., `OP_LEN`) when the object's type is known,
+///   enabling high-performance length queries.
 @intrinsic
 pub func len(obj any) int {}
 
@@ -43,11 +49,12 @@ pub func len(obj any) int {}
 /// Any class automatically provides a `__hash__()` method, and user-defined
 /// types may override it to customize hashing behavior.
 ///
-/// Note:
-///     - As an intrinsic, `hash()` does not have a user-level implementation.
-///     - The compiler may lower `hash(obj)` to a specialized VM instruction
-///       (e.g., OP_HASH) when the object's type is known, enabling efficient
-///       hashing for built-in and user-defined types.
+/// Notes
+///
+/// - As an intrinsic, `hash()` does not have a user-level implementation.
+/// - The compiler may lower `hash(obj)` to a specialized VM instruction
+///   (e.g., `OP_HASH`) when the object's type is known, enabling efficient
+///   hashing for built-in and user-defined types.
 @intrinsic
 pub func hash(obj any) int {}
 
@@ -61,12 +68,13 @@ pub func hash(obj any) int {}
 /// unrecoverable conditions (such as failed assertions, type errors, or
 /// internal invariants).
 ///
-/// Note:
-///     - `panic()` does not have a user-level implementation.
-///     - The VM may include additional diagnostic information such as
-///       stack traces or source locations when reporting the panic.
-///     - User code should prefer returning `T?` or error values when
-///       appropriate; `panic()` is intended only for fatal errors.
+/// Notes
+///
+/// - `panic()` is an ordinary native function implemented in C.
+/// - The VM may include additional diagnostic information such as
+///   stack traces or source locations when reporting the panic.
+/// - User code should prefer returning `T?` or error values when
+///   appropriate; `panic()` is intended only for fatal errors.
 @native
 pub func panic(msg str) {}
 
@@ -75,18 +83,23 @@ pub func panic(msg str) {}
 /// `{}` consumes one argument in order. No named placeholders.
 /// Arguments are converted using `__str__()`.
 ///
-/// Example:
-///     format("Point({}, {})", x, y)
-///     "Point(10, 20)"
+/// Examples
+///
+/// ```kl
+/// let text = format("Point({}, {})", 10, 20)
+/// print(text) // Point(10, 20)
+/// ```
 @native
 pub func format(fmt str, args ...) str {}
 
 /// Return the runtime type of a value.
 ///
-/// Example:
-///     typeof(10)      // <class 'int'>
-///     typeof("hello") // <class 'str'>
-///     typeof(Node(5)) // <class 'Node'>
+/// Examples
+///
+/// ```kl
+/// let value_type = typeof(10)
+/// print(value_type)
+/// ```
 @native
 pub func typeof(obj any) type {}
 
@@ -110,7 +123,11 @@ pub func typeof(obj any) type {}
  *    - Note: Passing mixed types (e.g., int and float) will trigger a compile error.
  */
 
-/// Unconstrained generic shell for absolute value. Fallback path triggers panic.
+/// Computes the absolute value using a matching specialization.
+///
+/// Errors
+///
+/// Panic if execution reaches the unspecialized fallback.
 pub func abs[T](a T) T {
     panic("abs is not implemented for this type")
 }
@@ -149,10 +166,14 @@ pub func max[T : Comparable](x T, y T) T {
     return y
 }
 
-/// Unconstrained generic shell for power/exponentiation. Fallback path triggers panic.
+/// Computes a power using a matching specialization.
 ///
 /// To extend support for custom types, implement a standalone function named
 /// `pow_<base_type>_<exp_type>`.
+///
+/// Errors
+///
+/// Panic if execution reaches the unspecialized fallback.
 pub func pow[T, U](base T, exp U) any {
     panic("pow is not implemented for these types")
 }

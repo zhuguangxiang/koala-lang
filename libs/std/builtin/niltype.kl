@@ -12,11 +12,11 @@
 ///
 pub class NilType {
 
-    /// Private: User cannot instantiate `NilType` directly. Use 'nil' instead.
+    /// Users cannot instantiate `NilType` directly. Use `nil` instead.
     func __init__() {}
 
     /// Return the string representation of `nil`.
-    /// Always returns "nil".
+    /// Always returns `"nil"`.
     @native
     pub func __str__() str {}
 }

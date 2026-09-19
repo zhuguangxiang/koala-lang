@@ -6,51 +6,56 @@
 /// An Iterator represents the state of an ongoing traversal of elements.
 ///
 /// It provides two complementary access patterns:
-/// - Option-style iteration via `next()`
-/// - Check-then-act iteration via `has_next()` + `next_strict()`
+/// - Optional-result iteration via [`Iterator.next`](#iterator.next).
+/// - Check-then-act iteration via [`Iterator.has_next`](#iterator.has_next)
+///   and [`Iterator.next_strict`](#iterator.next_strict).
 ///
 /// The iterator never rewinds and never allocates; it is a forward-only traversal state machine.
 pub trait Iterator[T] {
-    /// Return true if the iterator has more elements.
+    /// Returns whether another element is available.
     ///
-    /// This method must be checked before calling `next_strict()`.
-    ///
-    /// Semantics:
-    /// - true  → the next call to `next_strict()` will return a valid `T`
-    /// - false → the iterator is exhausted
+    /// Check this before calling
+    /// [`Iterator.next_strict`](#iterator.next_strict).
     func has_next() bool
 
-    /// Return the next element from the iterator.
+    /// Returns the next element and advances the iterator.
     ///
-    /// PRECONDITION:
-    /// - `has_next()` must return true before calling this method.
+    /// Check `has_next()` before calling this method.
+    /// The returned value may be `nil` when `T` is nullable.
     ///
-    /// If the iterator is exhausted, this method will panic.
+    /// Errors
     ///
-    /// Semantics:
-    /// - Always returns a real element of type `T`
-    /// - Never returns `nil`
+    /// Panic if the iterator is exhausted.
     ///
-    /// Recommended usage:
-    /// - Use together with `has_next()` for clean, non-Option iteration:
+    /// Examples
     ///
-    ///     while it.has_next() {
-    ///         let v = it.next_strict()   // v: T
-    ///     }
+    /// Given an iterator `it`:
+    ///
+    /// ```kl
+    /// while it.has_next() {
+    ///     print(it.next_strict())
+    /// }
+    /// ```
     func next_strict() T
 
-    /// Return the next element wrapped in an Option (`T?`).
+    /// Returns the next element and advances the iterator, or returns
+    /// `nil` if the iterator is exhausted.
     ///
-    /// Semantics:
-    /// - nil → iterator exhausted
-    /// - v   → next element is `v` (may be nil if `T` is nullable)
+    /// Exhaustion is represented by `nil`, not a panic.
+    /// When `T` is nullable, an element may also be `nil`. Use
+    /// [`Iterator.has_next`](#iterator.has_next) together with
+    /// [`Iterator.next_strict`](#iterator.next_strict) to distinguish
+    /// such elements from exhaustion.
     ///
-    /// This method is safe to call at any time. It never panics.
+    /// Examples
     ///
-    /// Recommended usage:
-    /// - Use `while let v = it.next()` when `T` is non-nullable.
-    /// - Avoid `while let` when `T` is nullable (`T?`), because `v == nil`
-    ///   will prematurely terminate the loop.
+    /// Given an iterator `it` whose element type is not nullable:
+    ///
+    /// ```kl
+    /// while let value = it.next() {
+    ///     print(value)
+    /// }
+    /// ```
     func next() T?
 }
 

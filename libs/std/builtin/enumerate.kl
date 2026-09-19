@@ -1,4 +1,4 @@
-/// Specialized explicit implementation for enumerating an iterable into an iterator of (index, item) pairs.
+// Specialized explicit implementation for enumerating an iterable into an iterator of (index, item) pairs.
 
 // pub class Enumerate[T] : Iterator[(int, T)] {
 //     let iterator Iterator[T]
