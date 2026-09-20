@@ -1,21 +1,40 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
 import "std/io"
 import "std/fs"
 import "std/os"
 
+/// The version of the Koala programming language.
 pub let version = __KOALA_VERSION__
+
 // pub let date = __KOALA_BUILD_DATE__
 
+/// The standard input file.
 pub let _stdin = fs.open(0)!
+
+/// The standard output file.
 pub let _stdout = fs.open(1)!
+
+/// The standard error file.
 pub let _stderr = fs.open(2)!
 
+/// The buffered standard input reader.
 pub var stdin = io.BufReader(_stdin)
+
+/// The buffered standard output writer.
 pub var stdout = io.BufWriter(_stdout)
+
+/// The buffered standard error writer.
 pub var stderr = io.BufWriter(_stderr)
 
+/// The list of directories in the Koala module search path.
 pub let path = ["./"]
 
+/// Get the list of command-line arguments passed to the program.
+/// Returns an empty list if no arguments are provided.
 @native
 pub func args() list[str] {}
 

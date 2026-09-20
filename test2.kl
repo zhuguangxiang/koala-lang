@@ -81,55 +81,8 @@
 //     }
 // }
 
-import "koala/pretty" as pp
-
-class Foo : Iterator[int] & Iterable[int] {
-
-    let lst = [1, 2, 3]
-    var index = 0
-
-    func has_next() bool {
-        return index < len(lst)
-    }
-
-    func next_strict() int {
-        let val = lst[index]
-        index = index + 1
-        return val
-    }
-
-    func iter() Iterator[int] {
-        panic("Foo:iter() must not be called")
-        return self
-    }
-}
-
-class Bar : Iterable[int] {
-    let lst = [1, 2, 3]
-
-    func iter() BarIter {
-        return BarIter(self)
-    }
-}
-
-class BarIter : Iterator[int] {
-    let bar Bar
-    var index = 0
-
-    func __init__(b Bar) {
-        bar = b
-    }
-
-    func has_next() bool {
-        return index < len(bar.lst)
-    }
-
-    func next_strict() int {
-        let val = bar.lst[index]
-        index = index + 1
-        return val
-    }
-}
+// import "koala/pretty" as pp
+import "test_pkg/pkg1"
 
 // func max_float32(a float32, b float32) float32 {
 //     if a > b {
@@ -138,12 +91,51 @@ class BarIter : Iterator[int] {
 //     return b
 // }
 
-func main() {
-    // print(max(float32(1.5), float32(2.5)))
-    // let f = Foo()
-    // for i in Foo() { print(i) }
+@native
+func foo() str {}
+class Foo {
 
-    for i in Bar() { print(i) }
+    @native
+    pub func foo() str {}
+}
+
+import "std/fs"
+import "std/io"
+
+func main() {
+    let f = fs.open("ex.toml")
+    let br = io.BufReader(f!)
+    let buf = Buffer(80)
+    // let bs = bytes(80)
+    // br.read(bs)
+    // print(bs.to_str())
+    br.read_until(buf, '\n')
+    print(buf.to_str())
+    buf.clear()
+    br.read_until(buf, '\n')
+    print(buf.to_str())
+    // print("hello")
+    // let i = 'a'
+    // let n = '\n'
+    // let m ="""
+    // hello,world
+    // ok
+    // """
+    // print(m)
+    // print(n)
+    // print(i)
+    // print(m)
+    // print(pkg1.Point(1, 2))
+    // print(pkg1.PI)
+    // print(pkg1.ANSWER)
+
+    // let bs = bytes(128)
+    // // bs.copy_str("Hello, Bytes!")
+
+    // // let f = Foo()
+    // print(foo())
+
+    // print(max(float32(1.5), float32(2.5)))
 
     // let s = "hello"
     // for c in s { print(c) }

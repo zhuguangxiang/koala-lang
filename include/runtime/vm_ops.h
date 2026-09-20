@@ -322,7 +322,7 @@ TARGET(OP_JMP_INT_EQ) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64 || is_bool(regs + rs));
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
     ASSERT(regs[rs].tag == regs[rt].tag);
 
     if (regs[rs].ival == regs[rt].ival) {
@@ -338,7 +338,7 @@ TARGET(OP_JMP_INT_NE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64 || is_bool(regs + rs));
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
     ASSERT(regs[rs].tag == regs[rt].tag);
 
     if (regs[rs].ival != regs[rt].ival) {
@@ -577,7 +577,7 @@ TARGET(OP_INT_EQ) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64 || regs[rs].tag == TAG_BOOL);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
     ASSERT(regs[rs].tag == regs[rt].tag);
 
     regs[rd].ival = regs[rs].ival == regs[rt].ival;

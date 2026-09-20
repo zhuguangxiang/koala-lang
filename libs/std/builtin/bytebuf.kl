@@ -3,75 +3,42 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// ByteBuf is a mutable, growable byte buffer for general-purpose buffered I/O.
+/// Buffer is a mutable, growable byte buffer.
 ///
-/// It provides efficient append operations and can be converted to `str` or `bytes`.
-/// Suitable for building formatted output, protocol serialization (e.g., HTTP),
-/// network message assembly, and other scenarios requiring incremental byte accumulation.
-///
-/// Bytes are appended at the end. [`ByteBuf.fill`](#bytebuf.fill) and
-/// [`ByteBuf.zero`](#bytebuf.zero) overwrite existing ranges;
-/// [`ByteBuf.clear`](#bytebuf.clear) resets the buffer's length to zero.
-/// Individual-element indexing, insertion, and removal are not supported.
+/// It supports efficient byte and string appends and can be converted to `str` or `bytes`.
 ///
 /// Examples
 ///
 /// ```kl
-/// let buffer = ByteBuf()
-/// buffer.push_str("Hello, ")
-/// buffer.push_str("Koala!")
+/// let buffer = Buffer()
+/// buffer.write_str("Hello, ")
+/// buffer.write_str("Koala!")
 /// print(buffer.to_str())
 /// ```
-pub class ByteBuf {
+pub class Buffer {
     /// Create an empty buffer with an optional initial capacity.
-    ///
-    /// The buffer starts with zero length. `capacity` specifies the initial
-    /// allocation size; subsequent writes will automatically grow the internal
-    /// storage when needed.
     @native
     pub func __init__(capacity = 256) {}
 
     /// Append a single byte to the end of the buffer.
-    ///
-    /// If the internal storage is full, the buffer will automatically grow
-    /// (typically doubling its capacity).
     @native
-    pub func push(b uint8) {}
+    pub func write_byte(b uint8) {}
 
-    /// Append the UTF-8 encoded bytes of a string to the buffer.
-    ///
-    /// The string is encoded as UTF-8 and its raw bytes are appended to
-    /// the end of the buffer.
+    /// Append the UTF-8 encoded bytes of `s` to the buffer.
     @native
-    pub func push_str(s str) {}
+    pub func write_str(s str) {}
 
     /// Append raw bytes to the end of the buffer.
-    ///
-    /// The entire content of `b` is copied into the buffer.
     @native
-    pub func push_bytes(b bytes) {}
-
-    /// Fill the bytes in `[start, end)` with `value`.
-    /// If `end` is `-1`, the fill extends to the end of the buffer.
-    @native
-    pub func fill(value uint8, start = 0, end = -1) {}
-
-    /// Set the bytes in `[start, end)` to zero.
-    /// If `end` is `-1`, the zeroing extends to the end of the buffer.
-    @native
-    pub func zero(start = 0, end = -1) {}
+    pub func write(b bytes) {}
 
     /// Decode the buffered content as UTF-8 and return a new `str`.
-    ///
-    /// Errors
     ///
     /// Panic if the buffered bytes are not valid UTF-8.
     @native
     pub func to_str() str {}
 
-    /// Return a fixed-size bytes snapshot of the buffered content.
-    ///
-    /// Returns a view of the buffered data without copying.
+    /// Return a view of the buffered content as `bytes`.
     @native
     pub func to_bytes() bytes {}
 
@@ -85,7 +52,7 @@ pub class ByteBuf {
 
     /// Clear the buffer, resetting its length to zero.
     ///
-    /// The internal storage is retained for reuse; capacity is not reduced.
+    /// The buffer can be reused without reducing its capacity.
     @native
     pub func clear() {}
 }

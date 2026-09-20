@@ -104,7 +104,7 @@ static MethodDef builtin_functions[] = {
 static TypeObject *builtin_types[] = {
     &type_type,   &nil_type,   &bool_type, &str_type,   &exc_type,     &field_type,
     &global_type, &cfunc_type, &code_type, &int_type,   &float_type,   &tuple_type,
-    &range_type,  &slice_type, &list_type, &bytes_type, &ByteBuf_type,
+    &range_type,  &slice_type, &list_type, &bytes_type, &bytebuf_type,
 };
 
 void builtin_native_lib_init(NativeLib *lib)

@@ -14,7 +14,7 @@
 ///
 /// Example:
 ///     let br = io.BufReader(io.StdinReader())
-///     for chunk in io.Splitter(br, b',') {
+///     for chunk in io.Splitter(br, ',') {
 ///         print(chunk)
 ///     }
 pub class Splitter : Iterator[bytes] {
@@ -23,7 +23,7 @@ pub class Splitter : Iterator[bytes] {
 
     /// Internal buffer that accumulates bytes until the delimiter is found.
     /// Reused across iterations to avoid repeated allocations.
-    let buf ByteBuf
+    let buf Buffer
 
     /// The delimiter byte used to split the stream.
     /// This byte is consumed from the reader but not included in returned chunks.
@@ -31,7 +31,7 @@ pub class Splitter : Iterator[bytes] {
 
     /// Create a new Splitter that splits the given reader by the specified delimiter.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `_br`: The buffered reader to read from.
     /// - `_delim`: The single byte used as the delimiter (e.g., b',' or b'\n').
     ///
@@ -39,7 +39,7 @@ pub class Splitter : Iterator[bytes] {
     /// grow automatically if a chunk exceeds this size.
     pub func __init__(_br BufReader, _delim uint8) {
         br = _br
-        buf = ByteBuf(256)
+        buf = Buffer(256)
         delim = _delim
     }
 
@@ -81,7 +81,7 @@ pub class Splitter : Iterator[bytes] {
 /// without loading the entire content into memory.
 ///
 /// Example:
-///     let f = fs.open("data.txt", "r")!
+///     let f = fs.open("data.txt")!
 ///     let br = io.BufReader(f)
 ///     for line in io.Lines(br) {
 ///         print(line)
@@ -93,11 +93,11 @@ pub class Lines : Iterator[str] {
 
     /// Internal buffer that accumulates bytes until a newline is found.
     /// Reused across iterations to avoid repeated allocations.
-    let buf ByteBuf
+    let buf Buffer
 
     /// Create a new Lines iterator that reads lines from the given buffered reader.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `_br`: The buffered reader to read from.
     ///
     /// The internal buffer is initialized with a capacity of 256 bytes and will
@@ -107,7 +107,7 @@ pub class Lines : Iterator[str] {
     /// The returned strings have both '\n' and trailing '\r' stripped.
     pub func __init__(_br BufReader) {
         br = _br
-        buf = ByteBuf(256)
+        buf = Buffer(256)
     }
 
     /// Read the next line from the underlying reader.
@@ -159,19 +159,19 @@ pub class Words: Iterator[str] {
 
     /// Internal buffer that accumulates non-whitespace bytes for the current token.
     /// Reused across iterations to avoid repeated allocations.
-    let buf ByteBuf
+    let buf Buffer
 
     /// Create a new Words iterator that tokenizes the given buffered reader
     /// by whitespace (spaces, tabs, newlines, carriage returns).
     ///
-    /// # Arguments
+    /// Arguments
     /// - `_br`: The buffered reader to read from.
     ///
     /// The internal buffer is initialized with a capacity of 256 bytes and will
     /// grow automatically if a token exceeds this size.
     pub func __init__(_br BufReader) {
         br = _br
-        buf = ByteBuf(256)
+        buf = Buffer(256)
     }
 
     /// Read the next whitespace-delimited token from the underlying reader.

@@ -40,12 +40,12 @@ pub class BufReader : Reader {
 
     /// Create a new BufReader wrapping the given reader with the specified buffer size.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `_inner`: The underlying reader to wrap.
     /// - `size`: The internal buffer size in bytes. Defaults to 8192.
     ///
-    /// The buffer is allocated immediately. Larger sizes reduce system call
-    /// frequency but increase memory usage.
+    /// The buffer is allocated immediately. Larger sizes reduce system call frequency
+    /// but increase memory usage.
     pub func __init__(_inner Reader, size = 8192) {
         inner = _inner
         buf = bytes(size)
@@ -58,16 +58,11 @@ pub class BufReader : Reader {
     /// Data is served from the internal buffer first. If the buffer is empty,
     /// it is refilled from the underlying reader before serving the read.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `out`: The destination buffer to fill with data.
     ///
-    /// # Returns
+    /// Returns
     /// The number of bytes actually read, or 0 if EOF has been reached.
-    ///
-    /// # Notes
-    /// - This method satisfies the Reader trait contract.
-    /// - A short read (n < len(out)) does not imply EOF; it means fewer bytes
-    ///   are currently available in the buffer.
     pub func read(out bytes) int {
         if start >= end && fill() <= 0 {
             return 0
@@ -89,7 +84,7 @@ pub class BufReader : Reader {
     /// This is useful for checking whether data is ready to be consumed
     /// without blocking or performing I/O.
     ///
-    /// # Returns
+    /// Returns
     /// The number of unconsumed bytes in the buffer (end - start).
     pub func avail() int {
         return end - start
@@ -101,17 +96,12 @@ pub class BufReader : Reader {
     /// remain valid only until the next read, discard, or fill operation.
     /// If the buffer is empty, it is refilled from the underlying reader.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `n`: The number of bytes to peek.
     ///
-    /// # Returns
+    /// Returns
     /// A view of up to n bytes from the current read position.
     /// Returns an empty bytes(0) if EOF has been reached.
-    ///
-    /// # Notes
-    /// - The returned view does not advance the read position.
-    /// - If n exceeds the available buffered data, only the available
-    ///   bytes are returned (no automatic refill beyond the first).
     pub func peek(n int) bytes {
         let avail = end - start
 
@@ -129,10 +119,10 @@ pub class BufReader : Reader {
     /// This is more efficient than reading into a temporary buffer when
     /// the data is not needed, as it avoids copying.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `n`: The number of bytes to skip.
     ///
-    /// # Returns
+    /// Returns
     /// The number of bytes actually skipped. May be less than n if EOF
     /// is reached before skipping the requested amount.
     pub func discard(n int) int {
@@ -154,7 +144,7 @@ pub class BufReader : Reader {
     /// the underlying reader. This is called internally when the buffer
     /// is exhausted.
     ///
-    /// # Returns
+    /// Returns
     /// The number of bytes read from the underlying reader, or 0 if EOF.
     func fill() int {
         start = 0
@@ -170,19 +160,45 @@ pub class BufReader : Reader {
     /// the output buffer. This is the core method used by Splitter, Lines,
     /// and Words iterators.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `out`: The destination buffer to append read bytes to.
     /// - `delim`: The delimiter byte to stop at (not included in output).
     ///
-    /// # Returns
+    /// Returns
     /// The number of bytes appended to the output buffer (excluding the delimiter).
     /// Returns 0 if EOF was reached before any data was read.
-    ///
-    /// # Notes
-    /// - This method is marked @native because it requires efficient
-    ///   byte-by-byte scanning that is best implemented in the runtime.
-    @native
-    pub func read_until(out ByteBuf, delim uint8) int {}
+    pub func read_until(out Buffer, delim uint8) int {
+        var total = 0
+
+        loop {
+            var i = start
+
+            while i < end {
+                if buf[i] == delim {
+                    let n = i - start
+
+                    if n > 0 {
+                        out.write(buf.view(start, i))
+                        total += n
+                    }
+
+                    start = i + 1
+                    // print("total:", total)
+                    return total
+                }
+
+                i = i + 1
+            }
+
+            if start < end {
+                out.write(buf.view(start, end))
+                total += end - start
+                start = end
+            }
+
+            if fill() <= 0 { return total }
+        }
+    }
 }
 
 /// BufWriter is a buffered wrapper around a Writer that reduces the number
@@ -218,7 +234,7 @@ pub class BufWriter : Writer {
 
     /// Create a new BufWriter wrapping the given writer with the specified buffer size.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `_inner`: The underlying writer to wrap.
     /// - `buf_size`: The internal buffer size in bytes. Defaults to 8192.
     ///
@@ -250,14 +266,14 @@ pub class BufWriter : Writer {
     ///   to the underlying writer (bypassing the buffer).
     /// - Otherwise, the data is copied into the now-empty buffer.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `data`: The source bytes to write.
     ///
-    /// # Returns
+    /// Returns
     /// The number of bytes actually written (buffered or flushed).
     /// A value less than len(data) indicates a partial write.
     ///
-    /// # Notes
+    /// Notes
     /// - This method satisfies the Writer trait contract.
     /// - Data may not reach the underlying writer until flush() is called
     ///   or the buffer fills up.
@@ -289,10 +305,10 @@ pub class BufWriter : Writer {
     ///   directly to the underlying writer (bypassing the buffer).
     /// - Otherwise, the data is copied into the now-empty buffer.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `s`: The source string to encode and write.
     ///
-    /// # Returns
+    /// Returns
     /// The number of bytes actually written (buffered or flushed).
     /// A value less than the UTF-8 byte length of `s` indicates a partial write.
     pub func write_str(s str) int {
@@ -305,7 +321,7 @@ pub class BufWriter : Writer {
     /// This ensures that all data written so far has been pushed through
     /// to the final destination (e.g., disk, network).
     ///
-    /// # Notes
+    /// Notes
     /// - Should be called when data must be guaranteed to reach the
     ///   underlying sink (e.g., before close(), or when writing log entries).
     /// - After calling flush(), the internal buffer is empty and ready

@@ -29,10 +29,10 @@
 pub trait Writer {
     /// Write the contents of the provided byte slice to the underlying sink.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `bs`: The source bytes to write.
     ///
-    /// # Returns
+    /// Returns
     /// The number of bytes actually written. A value less than len(bs)
     /// indicates a partial write, which typically signals an error condition.
     ///
@@ -50,14 +50,14 @@ pub trait Writer {
     /// responsible for converting the string to its UTF-8 byte representation
     /// before writing.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `s`: The source string to write.
     ///
-    /// # Returns
+    /// Returns
     /// The number of bytes actually written (not the number of characters).
     /// A value less than the UTF-8 byte length of `s` indicates a partial write.
     ///
-    /// # Notes
+    /// Notes
     /// - The string `s` is not mutated.
     /// - This method is semantically equivalent to `write(s.to_bytes())` but
     ///   may be more efficient in implementations that can avoid an intermediate
@@ -71,7 +71,7 @@ pub trait Writer {
     /// For buffered writers (e.g., BufWriter), this forces all pending data
     /// to be written out immediately.
     ///
-    /// # Notes
+    /// Notes
     /// - Should be called after a series of write() / write_str() calls when
     ///   data must be guaranteed to reach the underlying sink (e.g., before
     ///   close(), or when writing log entries that must not be lost).

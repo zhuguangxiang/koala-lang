@@ -31,17 +31,16 @@ pub class bytes : Sequence[uint8] {
     pub func __len__() int {}
 
     /// Return true if the byte array is empty. O(1).
-    @native
-    pub func empty() bool {}
+    pub func empty() bool { return len(self) == 0 }
 
     /// Return the byte at `index`. O(1).
     ///
     /// Panic if `index` is out of range.
-    @intrinsic
+    @native
     pub func __getitem__(index int) uint8 {}
 
     /// Return a copy of the byte array defined by `r`.
-    @intrinsic
+    @native
     pub func __getslice__(r slice) bytes {}
 
     /// Return true if the byte array contains `value`.
@@ -71,13 +70,13 @@ pub class bytes : Sequence[uint8] {
     /// Set the byte at `index` to `value`. O(1).
     ///
     /// Panic if `index` is out of range.
-    @intrinsic
+    @native
     pub func __setitem__(index int, value uint8) {}
 
     /// Replace the byte array defined by `r` with `val`.
     ///
     /// The length of the byte array never changes.
-    @intrinsic
+    @native
     pub func __setslice__(r slice, val bytes) {}
 
     /// Return the first index of the sub-sequence `sub` in `[start, end)`. O(n).

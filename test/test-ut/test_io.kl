@@ -1,4 +1,6 @@
+// SKIP: koala %s --test
 
+import "std/ut"
 import "std/io"
 
 func main() {

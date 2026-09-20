@@ -552,7 +552,10 @@ static TValue _str_to_int(TValue *self, TValue *args, int nargs)
     int ok = 0;
     int64_t val = str_to_int(buf, len, &ok);
 
-    if (!ok) kl_panic("invalid integer literal");
+    if (!ok) {
+        raise_exc_str("invalid integer literal");
+        return error_value;
+    }
 
     return int64_value(val);
 }
@@ -588,7 +591,10 @@ static TValue _str_to_float(TValue *self, TValue *args, int nargs)
     int ok = 0;
     double val = str_to_float(buf, len, &ok);
 
-    if (!ok) kl_panic("invalid float literal");
+    if (!ok) {
+        raise_exc_str("invalid float literal");
+        return error_value;
+    }
 
     return float64_value(val);
 }
@@ -817,7 +823,10 @@ static TValue _str_center(TValue *self, TValue *args, int nargs)
         fill = STR_BUF(fs);
         fill_len = STR_LEN(fs);
 
-        if (fill_len != 1) kl_panic("center(): fill must be a single character");
+        if (fill_len != 1) {
+            raise_exc_str("center(): fill must be a single character");
+            return error_value;
+        }
     }
 
     // width <= len → return original
@@ -860,7 +869,10 @@ static TValue _str_ljust(TValue *self, TValue *args, int nargs)
         StringObject *fs = kl_arg_strobj(1);
         fill = STR_BUF(fs);
         fill_len = STR_LEN(fs);
-        if (fill_len != 1) kl_panic("ljust(): fill must be a single character");
+        if (fill_len != 1) {
+            raise_exc_str("ljust(): fill must be a single character");
+            return error_value;
+        }
     }
 
     if (width <= (int64_t)len) return obj_value(s);
@@ -895,7 +907,10 @@ static TValue _str_rjust(TValue *self, TValue *args, int nargs)
         StringObject *fs = kl_arg_strobj(1);
         fill = STR_BUF(fs);
         fill_len = STR_LEN(fs);
-        if (fill_len != 1) kl_panic("rjust(): fill must be a single character");
+        if (fill_len != 1) {
+            raise_exc_str("rjust(): fill must be a single character");
+            return error_value;
+        }
     }
 
     if (width <= (int64_t)len) return obj_value(s);
@@ -1195,7 +1210,10 @@ static TValue _str_getitem(TValue *self, TValue *args, int nargs)
     int64_t index = kl_arg_int64(0);
     StringObject *s = SELF_AS(str_type);
     if (index < 0) index += s->size;
-    if (index < 0 || index >= (int64_t)s->size) panic("string index out of range");
+    if (index < 0 || index >= (int64_t)s->size) {
+        raise_exc_str("str index out of range");
+        return error_value;
+    }
     return kl_val_nstr(s->array + index, 1);
 }
 

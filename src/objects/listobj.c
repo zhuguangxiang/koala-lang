@@ -5,6 +5,7 @@
 
 #include "listobj.h"
 #include "buffer.h"
+#include "excobj.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,14 +69,14 @@ static TValue _list_pop(TValue *self, TValue *args, int nargs)
     if (index == 0) {
         // pop head
         if (list->end == list->start) {
-            panic("pop from empty list");
-            return nil_value;
+            raise_exc_str("pop from empty list");
+            return error_value;
         }
         return list->array[list->start++];
     } else {
         if (list->end == list->start) {
-            panic("pop from empty list");
-            return nil_value;
+            raise_exc_str("pop from empty list");
+            return error_value;
         }
         return list->array[--list->end];
     }
@@ -131,8 +132,8 @@ static TValue _list_getitem(TValue *self, TValue *args, int nargs)
     size_t index = to_int64(args);
 
     if (index >= list->end - list->start) {
-        panic("list index out of range");
-        return nil_value;
+        raise_exc_str("list index out of range");
+        return error_value;
     }
     return list->array[list->start + index];
 }
@@ -143,8 +144,8 @@ static TValue _list_setitem(TValue *self, TValue *args, int nargs)
     size_t index = to_int64(args);
 
     if (index >= list->end - list->start) {
-        panic("list index out of range");
-        return nil_value;
+        raise_exc_str("list index out of range");
+        return error_value;
     }
     // write_barrier(list, args[1]);
     list->array[list->start + index] = args[1];

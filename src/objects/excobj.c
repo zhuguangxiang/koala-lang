@@ -86,12 +86,6 @@ char *kl_exc_get_msg(Object *exc)
     return e->msg;
 }
 
-void kl_panic(char *msg)
-{
-    fprintf(stderr, "Panic: %s\n", msg);
-    exit(1);
-}
-
 /**
  * Binary search for LineInfo matching the given PC in lineinfos vector.
  * Finds the LineInfo entry with the largest pc that satisfies info->pc <= pc.

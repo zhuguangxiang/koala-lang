@@ -3,8 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-#ifndef _KOALA_BYTEBUF_OBJECT_H_
-#define _KOALA_BYTEBUF_OBJECT_H_
+#ifndef _KOALA_BUFFER_OBJECT_H_
+#define _KOALA_BUFFER_OBJECT_H_
 
 #include "buffer.h"
 #include "object.h"
@@ -18,12 +18,12 @@ typedef struct _ByteBufObject {
     Buffer buf;
 } ByteBufObject;
 
-extern TypeObject ByteBuf_type;
-#define IS_BYTEBUF(ob) IS_TYPE((ob), &ByteBuf_type)
+extern TypeObject bytebuf_type;
+#define IS_BYTEBUF(ob) IS_TYPE((ob), &bytebuf_type)
 Object *kl_new_bytebuf(size_t size);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_BYTEBUF_OBJECT_H_ */
+#endif /* _KOALA_BUFFER_OBJECT_H_ */

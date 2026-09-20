@@ -14,31 +14,31 @@ pub class StringIO : Reader & Seeker & Closable {
 
     /// Read up to len(bs) bytes from the current position into bs.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `bs`: Destination buffer.
     ///
-    /// # Returns
+    /// Returns
     /// Number of bytes actually read. Returns 0 at EOF.
     @native
     pub func read(bs bytes) int {}
 
     /// Move the read position to the given offset.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `offset`: Byte offset to seek to.
     /// - `whence`: Reference point:
     ///   - 0: Start of buffer (SEEK_SET)
     ///   - 1: Current position (SEEK_CUR)
     ///   - 2: End of buffer (SEEK_END)
     ///
-    /// # Returns
+    /// Returns
     /// The new absolute position.
     @native
     pub func seek(offset int, whence int) int {}
 
     /// Return the current read position.
     ///
-    /// # Returns
+    /// Returns
     /// The current byte offset from the start of the buffer.
     @native
     pub func tell() int {}

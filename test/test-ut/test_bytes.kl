@@ -1,0 +1,121 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+@test
+func test_init_zero() {
+    let bs = bytes(10)
+    ut.assert_eq(len(bs), 10)
+    for i in range(len(bs)) {
+        ut.assert(bs[i] == 0)
+    }
+}
+
+@test
+func test_empty() {
+    let bs = bytes(10)
+    ut.assert_eq(bs.empty(), false)
+    let empty_bs = bytes(0)
+    ut.assert_eq(empty_bs.empty(), true)
+}
+
+@test
+func test_index_access() {
+    let bs = bytes(10)
+
+    for i in range(len(bs)) {
+        bs[i] = uint8(96 + i)
+    }
+
+    for i in range(len(bs)) {
+        ut.assert(bs[i] == uint8(96 + i))
+    }
+
+    bs[0] = 0xFF
+    bs[1] = 0x00
+    bs[2] = 0xAB
+    ut.assert(bs[0] == 0xFF)
+    ut.assert(bs[1] == 0x00)
+    ut.assert(bs[2] == 0xAB)
+}
+
+@test_expect_panic("bytes index out of range")
+func test_index_set_error() {
+    let bs = bytes(10)
+    bs[10] = 42
+}
+
+@test_expect_panic("bytes index out of range")
+func test_index_get_error() {
+    let bs = bytes(10)
+    print(bs[10])
+}
+
+@test
+func test_index_count() {
+    let bs = bytes(10)
+    for i in range(len(bs)) {
+        bs[i] = uint8(i % 256)
+    }
+
+    for i in range(len(bs)) {
+        ut.assert_eq(bs.index(uint8(i % 256)), i)
+        ut.assert_eq(bs.count(uint8(i % 256)), 1)
+    }
+}
+
+@test
+func test_view() {
+    let bs = bytes(10)
+    for i in range(len(bs)) {
+        bs[i] = uint8(96 + i)
+    }
+
+    let v = bs.view(3, 6)
+    ut.assert_eq(len(v), 3)
+    v[0] = 68
+    ut.assert(bs[3] == 68)
+    ut.assert(v[0] == 68)
+}
+
+@test
+func test_seq_for() {
+    let bs = bytes(10)
+    for i in range(len(bs)) {
+        bs[i] = uint8(96 + i)
+    }
+
+    var i = 0
+    for b in bs {
+        ut.assert(b == uint8(96 + i))
+        i += 1
+    }
+}
+
+// @test
+// func test_iter() {
+//     let bs = bytes(10)
+//     for i in range(len(bs)) {
+//         bs[i] = uint8(96 + i)
+//     }
+
+//     var i = 0
+//     for b in bs.iter() {
+//         ut.assert(b == uint8(96 + i))
+//         i += 1
+//     }
+// }
+
+// @test
+// func test_rev_iter() {
+//     let bs = bytes(10)
+//     for i in range(len(bs)) {
+//         bs[i] = uint8(96 + i)
+//     }
+
+//     var i = len(bs) - 1
+//     for b in bs.reversed() {
+//         ut.assert(b == uint8(96 + i))
+//         i -= 1
+//     }
+// }

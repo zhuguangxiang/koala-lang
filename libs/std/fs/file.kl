@@ -38,22 +38,14 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     ///
     /// Return 0 at EOF, or -1 on error. A short read (less than
     /// `len(bs)` before EOF) is possible; loop when an exact count
-    /// is required.
-    ///
-    /// Errors
-    ///
-    /// - Panic when reading a closed file.
+    /// is required. Panic when reading a closed file.
     @native
     pub func read(bs bytes) int {}
 
     /// Write `len(bs)` bytes from `bs` and return the count written.
     ///
     /// Return -1 on error. A short write is possible; loop until all
-    /// bytes are written when required.
-    ///
-    /// Errors
-    ///
-    /// - Panic when writing a closed file.
+    /// bytes are written when required. Panic when writing a closed file.
     @native
     pub func write(bs bytes) int {}
 
@@ -61,10 +53,10 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     ///
     /// This is a convenience method equivalent to write(s.to_bytes()).
     ///
-    /// # Arguments
+    /// Arguments
     /// - `s`: The source string to encode and write.
     ///
-    /// # Returns
+    /// Returns
     /// The number of bytes actually written.
     /// Return -1 on error. A short write is possible; loop until all
     /// bytes are written when required.

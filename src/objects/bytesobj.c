@@ -5,6 +5,7 @@
 
 #include "bytesobj.h"
 #include "buffer.h"
+#include "excobj.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,11 +40,10 @@ static TValue _bytes_init(TValue *self, TValue *args, int nargs)
     BytesObject *bytes = (BytesObject *)obj;
 
     ASSERT(nargs == 1);
-    TValue *v = &args[0];
-    int64_t size = to_int64(v);
+    int64_t size = kl_arg_int64(0);
     if (size < 0) {
-        panic("bytes size must be non-negative");
-        return nil_value;
+        raise_exc_str("bytes size must be non-negative");
+        return error_value;
     }
 
     void *data = mm_alloc(size);
@@ -59,10 +59,8 @@ static TValue _bytes_index(TValue *self, TValue *args, int nargs)
 
     BytesObject *bytes = (BytesObject *)obj;
 
-    ASSERT(nargs == 1);
-    TValue *v = &args[0];
-    ASSERT(is_uint8(v));
-    uint8_t value = (uint8_t)v->ival;
+    ASSERT(nargs == 3);
+    uint8_t value = kl_arg_uint8(0);
 
     void *ptr = memchr(bytes->data + bytes->offset, value, bytes->size);
     if (ptr) {
@@ -79,10 +77,8 @@ static TValue _bytes_count(TValue *self, TValue *args, int nargs)
 
     BytesObject *bytes = (BytesObject *)obj;
 
-    ASSERT(nargs == 1);
-    TValue *v = &args[0];
-    ASSERT(is_uint8(v));
-    uint8_t value = (uint8_t)v->ival;
+    ASSERT(nargs == 3);
+    uint8_t value = kl_arg_uint8(0);
 
     uint8_t *ptr = bytes->data + bytes->offset;
     uint8_t *end = ptr + bytes->size;
@@ -108,8 +104,8 @@ static TValue _bytes_copy(TValue *self, TValue *args, int nargs)
     ASSERT(src && IS_BYTES(src));
     BytesObject *src_bytes = (BytesObject *)src;
 
-    int src_start = to_int64(&args[1]);
-    int src_end = to_int64(&args[2]);
+    int src_start = kl_arg_int64(1);
+    int src_end = kl_arg_int64(2);
     if (src_end < 0) src_end = src_bytes->size;
 
     int len = src_end - src_start;
@@ -127,9 +123,7 @@ static TValue _bytes_fill(TValue *self, TValue *args, int nargs)
     BytesObject *bytes = (BytesObject *)obj;
 
     ASSERT(nargs == 3);
-    TValue *v = &args[0];
-    ASSERT(is_uint8(v));
-    uint8_t value = (uint8_t)v->ival;
+    uint8_t value = kl_arg_uint8(0);
     memset(bytes->data + bytes->offset, value, bytes->size);
     return nil_value;
 }
@@ -154,9 +148,8 @@ static TValue _bytes_view(TValue *self, TValue *args, int nargs)
     BytesObject *bytes = (BytesObject *)obj;
 
     ASSERT(nargs == 2);
-    ASSERT(is_int64(&args[0]) && is_int64(&args[1]));
-    int64_t start = to_int64(&args[0]);
-    int64_t end = to_int64(&args[1]);
+    int64_t start = kl_arg_int64(0);
+    int64_t end = kl_arg_int64(1);
     if (end < 0) end = bytes->size;
     ASSERT(start >= 0 && end >= 0 && start <= end && end <= bytes->size);
 
@@ -185,8 +178,11 @@ static TValue _bytes_getitem(TValue *self, TValue *args, int nargs)
     BytesObject *bytes = SELF_AS(bytes_type);
 
     ASSERT(nargs == 1);
-    int64_t index = to_int64(args);
-    ASSERT(index >= 0 && index < bytes->size);
+    int64_t index = kl_arg_int64(0);
+    if (!(index >= 0 && index < bytes->size)) {
+        raise_exc_str("bytes index out of range");
+        return error_value;
+    }
     return uint8_value(bytes->data[bytes->offset + index]);
 }
 
@@ -195,10 +191,14 @@ static TValue _bytes_setitem(TValue *self, TValue *args, int nargs)
     BytesObject *bytes = SELF_AS(bytes_type);
 
     ASSERT(nargs == 2);
-    int64_t index = to_int64(args);
-    ASSERT(index >= 0 && index < bytes->size);
-    ASSERT(is_uint8(&args[1]));
-    bytes->data[bytes->offset + index] = (uint8_t)args[1].ival;
+    int64_t index = kl_arg_int64(0);
+    if (!(index >= 0 && index < bytes->size)) {
+        raise_exc_str("bytes index out of range");
+        return error_value;
+    }
+
+    uint8_t value = kl_arg_uint8(1);
+    bytes->data[bytes->offset + index] = value;
     return nil_value;
 }
 

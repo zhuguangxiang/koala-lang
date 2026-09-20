@@ -19,26 +19,11 @@ pub trait Sequence[T] : Iterable[T] {
     /// Panic if `index` is negative or is not less than the sequence length.
     func __getitem__(index int) T
 
-    /// Returns whether the sequence contains no elements.
-    func empty() bool
-
-    /// Returns the first element. Panic if the sequence is empty.
-    func first() T
-
-    /// Returns the last element of the sequence. Panic if the sequence is empty.
-    func last() T
-
     /// Return the first index of `value` in `[start, end)`.
     ///
     /// If `end` is `-1`, the search extends to the end of the sequence.
     /// Return `-1` if `value` is not present.
     func index(value T, start = 0, end = -1) int
-
-    /// Return the last index of `value` in `[start, end)`.
-    ///
-    /// If `end` is `-1`, the search extends to the end of the sequence.
-    /// Return `-1` if `value` is not present.
-    func rindex(value T, start = 0, end = -1) int
 
     /// Return the number of occurrences of `value` in `[start, end)`.
     ///
@@ -58,7 +43,7 @@ pub trait MutableSequence[T] : Sequence[T] {
     func __setitem__(index int, value T)
 
     /// Append `value` to the end of the sequence.
-    func push(value T)
+    func append(value T)
 
     /// Remove and return the item at `index`.
     ///
@@ -81,11 +66,6 @@ pub trait MutableSequence[T] : Sequence[T] {
     ///
     /// Panic if `value` is not present.
     func remove(value T)
-
-    /// Swap the elements at `index1` and `index2`.
-    ///
-    /// Panic if either index is out of bounds.
-    func swap(index1 int, index2 int)
 
     /// Remove all items from the sequence, leaving it empty.
     func clear()

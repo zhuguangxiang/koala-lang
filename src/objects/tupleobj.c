@@ -5,6 +5,7 @@
 
 #include "tupleobj.h"
 #include "buffer.h"
+#include "excobj.h"
 #include "listobj.h"
 
 #ifdef __cplusplus
@@ -50,8 +51,8 @@ static TValue _tuple_getitem(TValue *self, TValue *args, int nargs)
     size_t index = to_int64(args);
 
     if (index >= tuple->size) {
-        panic("tuple index out of range");
-        return nil_value;
+        raise_exc_str("tuple index out of range");
+        return error_value;
     }
     return tuple->array[index];
 }

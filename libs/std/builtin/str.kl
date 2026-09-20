@@ -87,14 +87,6 @@ pub class str : Sequence & Comparable {
     @native
     pub func __contains__(sub str) bool {}
 
-    /// Returns a single-character string at the given index.
-    ///
-    /// Errors
-    ///
-    /// Panic if `index` is negative or is not less than the string length.
-    @intrinsic
-    pub func at(index int) str {}
-
     /// Return the first index of the substring `value` in `[start, end)`.
     /// If `end` is `-1`, the search extends to the end of the string.
     /// Return `-1` if the substring is not present.

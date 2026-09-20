@@ -1,12 +1,20 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
 link "koala"
 
+/// Get the value of an environment variable. Returns `nil` if the variable is not set.
 @native
 pub func getenv(key str) str? {}
 
+/// Set the value of an environment variable.
+/// If the variable already exists, its value is overwritten.
 @native
 pub func setenv(key str, value str) {}
 
+/// Unset (remove) an environment variable. Does nothing if the variable is not set.
 @native
 pub func unsetenv(key str) {}
 
