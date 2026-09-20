@@ -6,10 +6,9 @@
 #include "vm.h"
 #include <dlfcn.h>
 #include <unistd.h>
-#include "args.h"
 #include "atom.h"
 #include "buffer.h"
-#include "except.h"
+#include "excobj.h"
 #include "klc.h"
 #include "log.h"
 #include "mm.h"
@@ -26,8 +25,6 @@ void init_tag_mappings(void);
 
 /* pthread */
 __thread ThreadState *__ts;
-
-KoalaOptions kl_cmd_opt = { 0 };
 
 KoalaState *kl_new_ks(void)
 {
@@ -103,38 +100,6 @@ static Object *new_not_impl_trait_func(char *kls_name, char *trait_name, char *f
     return cfunc;
 }
 
-static TValue _default___str__(TValue *self, TValue *args, int nargs)
-{
-    ASSERT(nargs == 0);
-    TypeObject *tp = kl_typeof(self);
-    ASSERT(tp);
-    unsigned int hash = kl_hash(self);
-    ModuleObject *m = (ModuleObject *)tp->module;
-
-    Object *s = kl_new_fmt_str("<%s.%s object at 0x%x>", m->path, tp->name, hash);
-    return obj_value(s);
-}
-
-static TValue _default___hash__(TValue *self, TValue *args, int nargs)
-{
-    unsigned int hash = mem_hash(self, sizeof(TValue));
-    return int64_value(hash);
-}
-
-static TValue _default___eq__(TValue *self, TValue *args, int nargs)
-{
-    ASSERT(nargs == 1);
-    int r = memcmp(self, args, sizeof(TValue));
-    return bool_value(r == 0);
-}
-
-static TValue _default___ne__(TValue *self, TValue *args, int nargs)
-{
-    ASSERT(nargs == 1);
-    int r = memcmp(self, args, sizeof(TValue));
-    return bool_value(r != 0);
-}
-
 static TValue *get_global_var(Object *m, char *name)
 {
     ModuleObject *mo = (ModuleObject *)m;
@@ -148,38 +113,69 @@ static TValue *get_global_var(Object *m, char *name)
     return val;
 }
 
-static void load_modules(void)
+static Object *kl_load_module(char *path);
+
+static Object *find_or_load_module(char *path)
 {
-    // It's not necessary to load standard builtin module here.
-    // because it will be loaded automatically when needed.
-    // kl_load_module("std/builtin");
+    Object *m = kl_get_module(path);
+    if (m) return m;
+    return kl_load_module(path);
 }
 
-KOALA_EXPORT void koala_initialize(void)
+static void resolve_import(Object *_m)
 {
-    /* init logger */
+    ModuleObject *m = (ModuleObject *)_m;
 
-#ifdef DEBUG_TEST
-    init_log(LOG_WARN, NULL, 0);
-#else
-    init_log(LOG_TRACE, NULL, 0);
-#endif
+    ImportEntry *e;
+    vector_foreach_ptr(e, &m->import_table) {
+        Object *obj = NULL;
 
-    /* init atom string table */
-    init_atom();
+        if (e->kind == IMPORT_KIND_FUNC || e->kind == IMPORT_KIND_GLOBAL ||
+            e->kind == IMPORT_KIND_TYPE) {
+            Object *mod = find_or_load_module(e->path);
+            if (!mod) {
+                panic("failed to resolve import: module '%s' is not found", e->path);
+                return;
+            }
 
-    /* init global module table */
-    kl_init_gm_stbl();
+            obj = kl_mo_find(mod, e->name);
+            if (!obj) {
+                panic("failed to resolve import: symbol '%s::%s' is not found", e->path, e->name);
+                return;
+            }
+        } else {
+            ASSERT(e->kind == IMPORT_KIND_METHOD || e->kind == IMPORT_KIND_FIELD);
+            Object *mod = find_or_load_module(e->path);
+            if (!mod) {
+                panic("failed to resolve import: module '%s' is not found", e->path);
+                return;
+            }
 
-    /* initialize main thread as koala thread */
-    ThreadState *ts = mm_alloc_obj(ts);
-    ts->current = kl_new_ks();
-    __ts = ts;
+            Object *cls = kl_mo_find(mod, e->kls);
+            if (!cls || !IS_TYPE(cls, &type_type)) {
+                panic("failed to resolve import: class '%s::%s' is not found", e->path, e->kls);
+                return;
+            }
 
-    /* initialize tag mappings */
-    init_tag_mappings();
+            obj = kl_type_find((TypeObject *)cls, e->name);
+            if (!obj) {
+                panic("failed to resolve import: symbol '%s::%s' is not found", e->kls, e->name);
+                return;
+            }
+        }
 
-    load_modules();
+        e->address = obj;
+        if (e->kind == IMPORT_KIND_TYPE) {
+            ASSERT(vector_size(&m->types) == e->slot_index);
+            vector_push_back(&m->types, &obj);
+        } else if (e->kind == IMPORT_KIND_GLOBAL) {
+            ASSERT(vector_size(&m->globals) == e->slot_index);
+            vector_push_back(&m->globals, &obj);
+        } else if (e->kind == IMPORT_KIND_FUNC || e->kind == IMPORT_KIND_METHOD) {
+            ASSERT(vector_size(&m->funcs) == e->slot_index);
+            vector_push_back(&m->funcs, &obj);
+        }
+    }
 }
 
 static void __load_const(Object *m, KlcConst *item)
@@ -247,65 +243,6 @@ static void __load_const(Object *m, KlcConst *item)
             break;
         }
     }
-}
-
-Object *kl_get_native(Object *m, char *name)
-{
-    ModuleObject *mo = (ModuleObject *)m;
-    NativeLib *lib;
-    vector_foreach_ptr(lib, &mo->libs) {
-        Object *ob = stbl_find_obj(&lib->symbols, name);
-        if (ob) return ob;
-    }
-
-    if (match_suffix(name, "__str__")) {
-        Object *ob = kl_new_cfunc("__str__", _default___str__, NULL);
-        return ob;
-    } else if (match_suffix(name, "__hash__")) {
-        Object *ob = kl_new_cfunc("__hash__", _default___hash__, NULL);
-        return ob;
-    } else if (match_suffix(name, "__eq__")) {
-        Object *ob = kl_new_cfunc("__eq__", _default___eq__, NULL);
-        return ob;
-    } else if (match_suffix(name, "__ne__")) {
-        Object *ob = kl_new_cfunc("__ne__", _default___ne__, NULL);
-        return ob;
-    }
-
-    return NULL;
-}
-
-int kl_reg_func(NativeLib *lib, char *name, NativeFunc fn)
-{
-    Object *obj = kl_new_cfunc(name, fn, NULL);
-    stbl_add_obj(&lib->symbols, name, obj);
-    return 0;
-}
-
-int kl_reg_meth(NativeLib *lib, char *cls, char *meth, NativeFunc fn)
-{
-    char full_name[256];
-    snprintf(full_name, sizeof(full_name), "%s$%s", cls, meth);
-    Object *obj = kl_new_cfunc(full_name, fn, NULL);
-    stbl_add_obj(&lib->symbols, full_name, obj);
-    return 0;
-}
-
-int kl_reg_type(NativeLib *lib, TypeObject *tp)
-{
-    kl_init_type(tp);
-
-    MethodDef *def = tp->methdefs;
-    while (def && def->name) {
-        if (def->cfunc) {
-            kl_reg_meth(lib, tp->name, def->name, def->cfunc);
-        }
-        ++def;
-    }
-
-    stbl_add_obj(&lib->symbols, tp->name, (Object *)tp);
-
-    return 0;
 }
 
 static const char *native_suffix(void)
@@ -611,7 +548,7 @@ static Object *_load_module(char *path)
     }
 
     // resolve imports
-    kl_resolve_import(m);
+    resolve_import(m);
 
     // bind cfunc/code to module
 
@@ -632,7 +569,7 @@ static int isdotklc(char *filename)
     return 0;
 }
 
-Object *kl_load_module(char *path)
+static Object *kl_load_module(char *path)
 {
     Object *m = NULL;
 
@@ -699,6 +636,40 @@ KOALA_EXPORT int koala_test_file(char *path)
     Object *m = kl_load_module(path);
     if (m) return kl_run_tests(m);
     return 0;
+}
+
+static void load_modules(void)
+{
+    // It's not necessary to load standard builtin module here.
+    // because it will be loaded automatically when needed.
+    // kl_load_module("std/builtin");
+}
+
+KOALA_EXPORT void koala_initialize(void)
+{
+    /* init logger */
+
+#ifdef DEBUG_TEST
+    init_log(LOG_WARN, NULL, 0);
+#else
+    init_log(LOG_TRACE, NULL, 0);
+#endif
+
+    /* init atom string table */
+    init_atom();
+
+    /* init global module table */
+    kl_init_gm_stbl();
+
+    /* initialize main thread as koala thread */
+    ThreadState *ts = mm_alloc_obj(ts);
+    ts->current = kl_new_ks();
+    __ts = ts;
+
+    /* initialize tag mappings */
+    init_tag_mappings();
+
+    load_modules();
 }
 
 KOALA_EXPORT void koala_finalize(void) { /* finalize atom string table */ fini_atom(); }

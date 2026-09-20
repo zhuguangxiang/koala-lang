@@ -87,19 +87,24 @@ set(KOALA_SHARED_SOURCES
     # objects/dictobj.c
     objects/bytesobj.c
     objects/bytebuf.c
-    modules/builtin.c
-    modules/format.c
-    runtime/mod.c
-    runtime/symtbl.c
-    runtime/vm.c
-    runtime/except.c
+    objects/excobj.c
+    runtime/format.c
     runtime/slice_adjust.c
+    runtime/symtbl.c
+    runtime/native_libs.c
+    runtime/cmd_opt.c
+    modules/builtin.c
+    modules/fs.c
+    modules/io.c
+    modules/os.c
+    modules/time.c
     )
 
 add_library(koala SHARED ${KOALA_SHARED_SOURCES})
 target_link_libraries(koala koala_common pthread m dl ffi)
 
 set(KOALA_SOURCES
+    runtime/vm.c
     runtime/eval.c
     args.c
     koala.c

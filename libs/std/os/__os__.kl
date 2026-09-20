@@ -1,5 +1,5 @@
 
-link "koala_std_native"
+link "koala"
 
 @native
 pub func getenv(key str) str? {}

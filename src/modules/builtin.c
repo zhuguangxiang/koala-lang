@@ -5,7 +5,7 @@
 
 #include "bytebuf.h"
 #include "bytesobj.h"
-#include "except.h"
+#include "excobj.h"
 #include "listobj.h"
 #include "rangeobj.h"
 #include "tupleobj.h"

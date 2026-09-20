@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-link "koala_std_native"
+link "koala"
 
 /// Seek whence: absolute position from the start of content.
 pub const SEEK_SET = 0

@@ -3,7 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-link "koala_std_native"
+link "koala"
 
 /// Open the file or file descriptor `path_or_fd` and return a `File` object.
 ///

@@ -5,7 +5,7 @@
 
 #include "buffer.h"
 #include "bytesobj.h"
-#include "except.h"
+#include "excobj.h"
 #include "listobj.h"
 #include "object.h"
 

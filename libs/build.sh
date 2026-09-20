@@ -5,11 +5,11 @@ koalac --build-stdlib --cgen --write-klc --fusion std/builtin --package-name=std
 koala -c std/io --package-name=std/io
 koala -c std/fs --package-name=std/fs
 
-koala -c std/print.kl --package-name=std/print
+koala -c std/print --package-name=std/print
 
 koala -c std/os --package-name=std/os
 koala -c std/sys --package-name=std/sys
 koala -c std/time --package-name=std/time
-koala -c std/ut.kl --package-name=std/ut
+koala -c std/ut --package-name=std/ut
 
 koala -c koala/pretty.kl --package-name=koala/pretty

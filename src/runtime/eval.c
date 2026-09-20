@@ -5,7 +5,7 @@
 
 #include <math.h>
 #include <pthread.h>
-#include "except.h"
+#include "excobj.h"
 #include "listobj.h"
 #include "modobj.h"
 #include "opcode_only.h"
