@@ -47,8 +47,7 @@ pub class Buffer {
     pub func __len__() int {}
 
     /// Return true if the buffer contains no bytes. O(1).
-    @native
-    pub func empty() bool {}
+    pub func empty() bool { return len(self) == 0 }
 
     /// Clear the buffer, resetting its length to zero.
     ///

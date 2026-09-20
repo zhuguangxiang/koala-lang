@@ -621,29 +621,17 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
             // special intrinsic: len()
             ASSERT(insn->num_opers == 2);
             KlrValue *arg = insn_oper_value(insn, 1);
-            if (type_is_seq(arg->ts)) {
-                if (klr_is_const(arg)) {
-                    KlrValue *_arg = lower_const(insn, (KlrConst *)arg);
-                    set_operand_at(insn, 0, _arg);
-                } else {
-                    set_operand_at(insn, 0, arg);
-                }
-                clear_operand_at(insn, 1);
-                insn->num_opers = 1;
-                insn->code = OP_LEN;
-            } else if (type_is_map(arg->ts)) {
-                if (klr_is_const(arg)) {
-                    KlrValue *_arg = lower_const(insn, (KlrConst *)arg);
-                    set_operand_at(insn, 0, _arg);
-                } else {
-                    set_operand_at(insn, 0, arg);
-                }
-                clear_operand_at(insn, 1);
-                insn->num_opers = 1;
-                insn->code = OP_LEN;
+
+            if (klr_is_const(arg)) {
+                KlrValue *_arg = lower_const(insn, (KlrConst *)arg);
+                set_operand_at(insn, 0, _arg);
             } else {
-                NYI();
+                set_operand_at(insn, 0, arg);
             }
+
+            clear_operand_at(insn, 1);
+            insn->num_opers = 1;
+            insn->code = OP_LEN;
             return;
         }
 

@@ -92,6 +92,36 @@ func test_seq_for() {
     }
 }
 
+@test
+func test_iter_call() {
+    let bs = bytes(10)
+    for i in range(len(bs)) {
+        bs[i] = uint8(96 + i)
+    }
+
+    let it = bs.iter()
+    var i = 0
+    while let v = it.next() {
+        ut.assert(v == uint8(96 + i))
+        i += 1
+    }
+}
+
+@test
+func test_rev_iter_call() {
+    let bs = bytes(10)
+    for i in range(len(bs)) {
+        bs[i] = uint8(96 + i)
+    }
+
+    let it = bs.reversed()
+    var i = len(bs) - 1
+    while let v = it.next() {
+        ut.assert(v == uint8(96 + i))
+        i -= 1
+    }
+}
+
 // @test
 // func test_iter() {
 //     let bs = bytes(10)
