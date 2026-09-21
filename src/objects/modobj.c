@@ -56,7 +56,7 @@ void kl_dump_module(Object *_m)
 
     printf("  codes        : %p\n", m->codes);
     printf("  num_codes    : %u insns\n", m->num_codes);
-    printf("  func_entries : %d entries\n", vector_size(&m->func_entries));
+    // printf("  func_entries : %d entries\n", vector_size(&m->func_entries));
     printf("  const_pool   : %d constants\n", vector_size(&m->const_pool));
     printf("  import_table : %d imports\n", vector_size(&m->import_table));
     printf("  init         : %p\n", m->__init__);
@@ -120,16 +120,6 @@ TypeObject module_type = {
     .flags = TP_FLAGS_CLASS,
     .priv_size = sizeof(ModuleObject),
 };
-
-int kl_bind_func(Object *_m, Object *obj)
-{
-    ModuleObject *m = (ModuleObject *)_m;
-    FuncEntry entry = { .obj = obj };
-    vector_push_back(&m->func_entries, &entry);
-    int func_idx = vector_size(&m->func_entries) - 1;
-    kl_set_func_idx(obj, func_idx);
-    return 0;
-}
 
 int kl_mo_add_func(Object *_m, char *name, Object *obj)
 {
@@ -527,7 +517,6 @@ Object *kl_new_module(char *path)
     INIT_OBJECT_HEAD(m, &module_type, 0);
     vector_init(&m->const_pool, sizeof(TValue));
     vector_init(&m->import_table, sizeof(ImportEntry));
-    vector_init(&m->func_entries, sizeof(FuncEntry));
     vector_init_ptr(&m->funcs);
     vector_init_ptr(&m->types);
     vector_init_ptr(&m->globals);

@@ -166,7 +166,8 @@ static KlrValue *lower_set_op_only(KlrConst *c, KlrInsn *insn, OpCode op)
 
 static OpCode get_const_op(KlrConst *c, LowerConstRule *R)
 {
-    OpCode op = OP_NOP;
+    OpCode op = OP_UNREACHABLE;
+
     switch (c->which) {
         case CONST_NONE: {
             op = R->tag_op;

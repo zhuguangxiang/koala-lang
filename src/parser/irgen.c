@@ -1256,7 +1256,6 @@ static OpCode get_binary_op_code(BiOpKind op)
             return OP_LOR;
         default:
             UNREACHABLE();
-            return OP_NOP;
     }
 }
 
@@ -1698,7 +1697,15 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
     }
 
     KlrBasicBlock *last = scope->bb;
-    klr_add_last_return(last);
+    Annotation *ann = &fn->flags.ann;
+    if (ann && ann->ident && (!strcmp(ann->ident, "native") || !strcmp(ann->ident, "intrinsic"))) {
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, last);
+        KlrValue *op = klr_build_unreachable(&bldr);
+        klr_set_loc(op, ps->filename, fn->id.loc);
+    } else {
+        klr_add_last_return(last);
+    }
 
     if (dump_no_opt_ir_enabled()) {
         fprintf(stdout, "--- IR Dump After ir-gen(no-opt) ---\n");

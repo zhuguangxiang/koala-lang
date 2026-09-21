@@ -340,7 +340,6 @@ typedef struct _CFuncObject {
     OBJECT_HEAD
     Object *owner;
     NativeFunc func;
-    int func_idx;
     int not_impl;
     char *name;
     void *priv;
@@ -352,7 +351,6 @@ typedef struct _CodeObject {
     int flags;
 #define CODE_FLAG_PUB  (1 << 0)
 #define CODE_FLAG_METH (1 << 1)
-    int func_idx;
     CodeSpec cs;
 } CodeObject;
 
@@ -364,16 +362,6 @@ extern TypeObject code_type;
 
 Object *kl_new_code(char *name, Object *owner);
 Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner);
-
-static inline void kl_set_func_idx(Object *obj, int func_idx)
-{
-    if (IS_CODE(obj)) {
-        ((CodeObject *)obj)->func_idx = func_idx;
-    } else {
-        ASSERT(IS_CFUNC(obj));
-        ((CFuncObject *)obj)->func_idx = func_idx;
-    }
-}
 
 /*---------------------------------------------------------------------------+
  |  Bool related                                                             |

@@ -92,7 +92,7 @@ static TValue do_nil_check(TValue *val)
 #define I_SVAL(i, shr, mask)  (int##mask##_t)I_VAL(i, shr, mask)
 
 #define CP(i) (const_pool + (i))
-#define ENTRY(i) (entry_table + (i))
+#define ENTRY(i) entry_table[i]
 #define IMPORT_ENTRY(i) (import_table + (i))
 #define TYPE(i) (*(types + (i)))
 
@@ -149,11 +149,11 @@ ext_tailcall:
     ModuleObject *m = (ModuleObject *)cf->module;
     TValue *const_pool = VECTOR_ITEMS(&m->const_pool, TValue);
     ImportEntry *import_table = VECTOR_ITEMS(&m->import_table, ImportEntry);
-    FuncEntry *entry_table = VECTOR_ITEMS(&m->func_entries, FuncEntry);
+    Object **entry_table = VECTOR_ITEMS(&m->funcs, Object *);
     TypeObject **types = VECTOR_ITEMS(&m->types, TypeObject *);
 
 #ifndef NDEBUG
-    int entry_size = vector_size(&m->func_entries);
+    int entry_size = vector_size(&m->funcs);
     int types_size = vector_size(&m->types);
 #endif
 

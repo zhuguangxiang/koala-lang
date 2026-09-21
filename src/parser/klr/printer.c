@@ -1202,8 +1202,13 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
         case OP_NIL_CHECK:
             print_ir_nil_check(name, insn, fp);
             break;
+
+        case OP_UNREACHABLE:
+            fprintf(fp, "%s", name);
+            break;
+
         default:
-            printf("%s\n", name);
+            fprintf(fp, "%s\n", name);
             break;
     }
 

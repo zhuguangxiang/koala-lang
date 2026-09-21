@@ -113,13 +113,19 @@ static TValue *get_global_var(Object *m, char *name)
     return val;
 }
 
-static Object *kl_load_module(char *path);
+static Object *load_module(char *path);
 
 static Object *find_or_load_module(char *path)
 {
     Object *m = kl_get_module(path);
-    if (m) return m;
-    return kl_load_module(path);
+    if (m) {
+        ModuleObject *mo = (ModuleObject *)m;
+        if (!(mo->flags & MOD_FLAGS_READY)) {
+            fprintf(stderr, "warning: circular dependency detected: %s\n", path);
+        }
+        return m;
+    }
+    return load_module(path);
 }
 
 static void resolve_import(Object *_m)
@@ -550,12 +556,7 @@ static Object *_load_module(char *path)
     // resolve imports
     resolve_import(m);
 
-    // bind cfunc/code to module
-
-    Object *fn;
-    vector_foreach(fn, &mo->funcs) {
-        kl_bind_func(m, fn);
-    }
+    mo->flags |= MOD_FLAGS_READY;
 
     free_klc_file(klc);
     return m;
@@ -569,7 +570,7 @@ static int isdotklc(char *filename)
     return 0;
 }
 
-static Object *kl_load_module(char *path)
+static Object *load_module(char *path)
 {
     Object *m = NULL;
 
@@ -627,13 +628,13 @@ Object *kl_get_intf_func(TValue *intf, int func_idx)
 
 KOALA_EXPORT void koala_run_file(char *path)
 {
-    Object *m = kl_load_module(path);
+    Object *m = load_module(path);
     if (m) kl_run_main(m);
 }
 
 KOALA_EXPORT int koala_test_file(char *path)
 {
-    Object *m = kl_load_module(path);
+    Object *m = load_module(path);
     if (m) return kl_run_tests(m);
     return 0;
 }

@@ -142,6 +142,7 @@ void klr_erase_insn(KlrInsn *insn)
 
 /* no allocate register codes */
 static OpCode no_regs_codes[] = {
+    OP_UNREACHABLE,
     OP_MOVE,
     OP_LOAD_INT_IMM,
     OP_LOADK,
@@ -919,6 +920,13 @@ KlrValue *klr_build_contains(KlrBuilder *bldr, KlrValue *obj, KlrValue *val, cha
     init_oper(&insn->opers[1], insn, val, 0);
 
     insn->ts = bool_type_spec();
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_unreachable(KlrBuilder *bldr)
+{
+    KlrInsn *insn = new_insn(OP_UNREACHABLE, 0, "");
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

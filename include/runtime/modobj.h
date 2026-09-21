@@ -25,6 +25,8 @@ typedef struct _ModuleDef {
     TypeObject **types;
 } ModuleDef;
 
+#define MOD_FLAGS_READY (1 << 0)
+
 typedef struct _ModuleObject {
     OBJECT_HEAD
 
@@ -33,7 +35,8 @@ typedef struct _ModuleObject {
     uint32_t num_codes;  // number of codes
     uint32_t num_values; // number of global values
     TValue *values;      // global values
-    Vector func_entries; // func entry array
+    Vector funcs;        // functions used of this
+    Vector globals;      // vars used in this module
     Vector const_pool;   // constant pool
     Vector import_table; // import table(wasm)
 
@@ -41,13 +44,12 @@ typedef struct _ModuleObject {
     Object *__init__; // init func of koala
     Object *main;     // main func of koala
 
-    Vector funcs;   // functions used of this module
-    Vector types;   // types used in this module
-    Vector globals; // vars used in this module
+    Vector types; // types used in this module
 
     int num_klasses; // number of local classes in the module
     int num_funcs;   // number of local functions in the module
     int num_globals; // number of local global variables in the module
+    int flags;       // module flags (e.g., MOD_FLAGS_READY)
 
     HashMap symbols; // symbols for exported map
     char *path;      // module path
@@ -79,11 +81,6 @@ typedef struct _ImportEntry {
     int slot_index;  /* slot index for globals/types/funcs */
 } ImportEntry;
 
-// module->funcs, cache-line 64
-typedef struct _FuncEntry {
-    Object *obj;
-} FuncEntry;
-
 // Line info structure for debugging and traceback purposes
 typedef struct _LineInfo {
     uint32_t pc;     // program counter(increasing order in lineinfos vector)
@@ -109,7 +106,6 @@ Object *kl_new_module(char *path);
 void kl_free_module(Object *m);
 #define kl_mo_path(m) (((ModuleObject *)(m))->path)
 void kl_mo_set_code(Object *_m, uint32_t *insns, size_t n);
-int kl_bind_func(Object *_m, Object *obj);
 int kl_mo_add_func(Object *_m, char *name, Object *obj);
 int kl_mo_add_test(Object *_m, char *name, CodeObject *obj, int expect_panic, char *msg);
 int kl_mo_add_type(Object *_m, TypeObject *tp);

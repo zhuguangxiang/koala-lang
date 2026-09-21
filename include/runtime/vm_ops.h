@@ -424,8 +424,7 @@ TARGET(OP_CALL) {
     } else {
         int32_t local_index = *(int32_t *)pc++;
         ASSERT(local_index >= 0 && local_index < entry_size);
-        FuncEntry *e = ENTRY(local_index);
-        fn = e->obj;
+        fn = ENTRY(local_index);
     }
 
     ASSERT(fn != NULL);
@@ -2486,7 +2485,8 @@ TARGET(OP_INT_TO_FLOAT) {
     DISPATCH();
 }
 
-TARGET(OP_NOP) {
-    /* do nothing, just move to next instruction */
-    DISPATCH();
+TARGET(OP_UNREACHABLE) {
+    SAVE_PC();
+    raise_exc_str("unreachable code executed");
+    goto error;
 }

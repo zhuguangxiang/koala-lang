@@ -91,8 +91,9 @@ import "test_pkg/pkg1"
 //     return b
 // }
 
-@native
+@intrinsic
 func foo() str {}
+
 class Foo {
 
     @native
@@ -114,6 +115,9 @@ func main() {
     buf.clear()
     br.read_until(buf, '\n')
     print(buf.to_str())
+
+    // foo()
+
     // print("hello")
     // let i = 'a'
     // let n = '\n'

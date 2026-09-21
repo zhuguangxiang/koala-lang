@@ -11,15 +11,16 @@
  +---------------------------------------------------------------*/
 
 /**
- * OP_NOP — no operation
+ * OP_UNREACHABLE — unreachable instruction
  *
  * FORMAT_Op:
  *     | op:8 | ------------------------:24 |
  *
  * Details:
- *     Does nothing. Used as padding or alignment.
+ *     Marks an unreachable point in the control flow.
+ *     Reaching this instruction raises an exception.
  */
-X(OP_NOP, FORMAT_Op, "nop")
+X(OP_UNREACHABLE, FORMAT_Op, "unreachable")
 
 /*---------------------------------------------------------------+
  |  Move and Constant Instructions                               |

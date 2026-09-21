@@ -16,3 +16,19 @@ func test_assert_lt_should_fail() {
 func test_assert_close_should_fail() {
     ut.assert_close(1.0, 2.0)
 }
+
+@intrinsic
+func foo() str {}
+
+@native
+func bar() str {}
+
+@test_expect_panic("unreachable code executed")
+func test_foo_should_fail() {
+    foo()
+}
+
+@test_expect_panic("func 'bar' in 'test_ut_fail' is not implemented!")
+func test_bar_should_fail() {
+    bar()
+}
