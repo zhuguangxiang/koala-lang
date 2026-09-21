@@ -156,14 +156,6 @@ pub class int64 : Comparable & Arithmetic & Bitwise {
     @intrinsic
     pub func __ne__(rhs int64) bool {}
 
-    /// Returns a hash value for `self`.
-    @native
-    pub func __hash__() int {}
-
-    /// Returns the decimal string representation of `self`.
-    @native
-    pub func __str__() str {}
-
     /// Adds `rhs` to `self` in place (`self += rhs`).
     @intrinsic
     pub func __iadd__(rhs int64) int64 {}
@@ -327,14 +319,6 @@ pub class uint64 : Comparable & Arithmetic & Bitwise {
     @intrinsic
     pub func __ne__(rhs uint64) bool {}
 
-    /// Returns a hash value for `self`.
-    @native
-    pub func __hash__() int {}
-
-    /// Returns the decimal string representation of `self`.
-    @native
-    pub func __str__() str {}
-
     /// Adds `rhs` to `self` in place (`self += rhs`).
     @intrinsic
     pub func __iadd__(rhs uint64) uint64 {}
@@ -462,7 +446,7 @@ pub class float64 : Comparable & Arithmetic {
 
     /// Returns a hash value for `self`.
     @native
-    pub func __hash__() int {}
+    pub func hash() int {}
 
     /// Returns the string representation of `self`.
     @native

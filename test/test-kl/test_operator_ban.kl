@@ -32,7 +32,7 @@ func trait_param(a Arithmetic[int], b Comparable[int], c Sequence[int]) int {
     b.__eq__(b)
     // CHECK: '__eq__' cannot be called explicitly, use the '==' operator instead.
     // protocol hooks stay callable on trait-typed parameters
-    return c.__len__()
+    return c.len()
 }
 
 // operator syntax on trait-typed parameters is rejected by design: after
@@ -43,16 +43,19 @@ func trait_param(a Arithmetic[int], b Comparable[int], c Sequence[int]) int {
 func t_arith(a Arithmetic[int], b Arithmetic[int]) Arithmetic[int] {
     return a + b - a * b / b % a
     // CHECK: argument type mismatch for operator '+' of type 'Arithmetic<j>'.
+    // CHECK: argument type mismatch for operator '*' of type 'Arithmetic<j>'.
 }
 
 func t_bit(a Bitwise[int], b Bitwise[int]) Bitwise[int] {
     return a & b | a ^ b << b >> a
     // CHECK: argument type mismatch for operator '&' of type 'Bitwise<j>'.
+    // CHECK: argument type mismatch for operator '<<' of type 'Bitwise<j>'.
 }
 
 func t_cmp(a Comparable[int], b Comparable[int]) bool {
     return a < b && a <= b && a > b && a >= b && a == b && a != b
     // CHECK: argument type mismatch for operator '<' of type 'Comparable<j>'.
+    // CHECK: argument type mismatch for operator '<=' of type 'Comparable<j>'.
 }
 
 // concrete -> trait widening requires the conformance to carry exactly the
@@ -71,7 +74,7 @@ func t_upcast_ret(v int) Arithmetic[float] {
 
 func protocol_hooks(l list[int], s str) {
     // protocol hooks are NOT operators and remain explicitly callable
-    l.__len__()
+    l.len()
     l.push(1)
     s.__str__()
 }

@@ -203,7 +203,7 @@ static TValue _bytes_setitem(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef bytes_methods[] = {
-    { "__len__", _bytes_len },
+    { "len", _bytes_len },
     { "__str__", _bytes_str },
     { "__init__", _bytes_init },
     { "__getitem__", _bytes_getitem },

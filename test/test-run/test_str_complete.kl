@@ -3,7 +3,7 @@
 func main() {
     let s = "hello world"
 
-    // __len__: chars, empty, single, UTF-8 code points
+    // len: chars, empty, single, UTF-8 code points
     print(len(s))
     print(len(""))
     print(len("a"))
@@ -62,7 +62,7 @@ func main() {
     print("abc" > "abd")
     print("abc" >= "abc")
 
-    // __hash__: equal strings give equal hashes
+    // hash: equal strings give equal hashes
     print(hash("hello") == hash("hello"))
 
     // __str__

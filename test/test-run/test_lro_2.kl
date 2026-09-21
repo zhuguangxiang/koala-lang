@@ -80,7 +80,7 @@ func new_debug() Debug {
 
 // CHECK: [2] Hashable
 // CHECK:       methods:
-// CHECK:         [0] __hash__, code_index=10
+// CHECK:         [0] hash, code_index=10
 // CHECK:       parents:
 // CHECK:         [0] any
 

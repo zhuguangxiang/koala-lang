@@ -239,7 +239,7 @@ static TValue _list_getslice(TValue *self, TValue *args, int nargs)
 static MethodDef list_methods[] = {
     { "push", _list_push },
     { "pop", _list_pop },
-    { "__len__", _list_len },
+    { "len", _list_len },
     { "__str__", _list_str },
     { "extend", _list_extend },
     { "__getitem__", _list_getitem },

@@ -4,7 +4,6 @@
  */
 
 /// Represents a logical value that can be either true or false.
-/// Boolean types are typically used in conditional statements and logical operations.
 pub class bool {
 
     /// Return the logical AND of `self` and `other` (`self && other`).
@@ -26,13 +25,4 @@ pub class bool {
     /// Return true if `self` is not equal to `other` (`self != other`).
     @intrinsic
     pub func __ne__(other bool) bool {}
-
-    /// Return a hash value for `self`.
-    @native
-    pub func __hash__() int {}
-
-    /// Return the string representation of the boolean.
-    /// Returns "true" if true, and "false" if false.
-    @native
-    pub func __str__() str {}
 }

@@ -217,6 +217,11 @@ static void mark_magic_func(Symbol *sym)
 {
     if (sym->kind != SYM_FUNC) return;
 
+    Symbol *parent = sym->parent;
+    if (sym->parent) {
+        if (parent->kind != SYM_PACKAGE) return;
+    }
+
     if (str_equal(sym->name, "len")) {
         sym->flags |= SYM_FLAGS_MAGIC;
         log_info("marked magic function '%s'", sym->name);
@@ -2021,14 +2026,14 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         if (!stmt) continue;
         if (stmt->kind == STMT_VAR_KIND) {
             VarDeclStmt *var_stmt = (VarDeclStmt *)stmt;
-            // TODO: check var name is not __eq__, __ne__, __hash__ and __str__
+            // TODO: check var name is not __eq__, __ne__, hash and __str__
         } else if (stmt->kind == STMT_FUNC_KIND) {
             FuncDeclStmt *fn_stmt = (FuncDeclStmt *)stmt;
             if (str_equal(fn_stmt->id.name, "__eq__"))
                 has_eq = true;
             else if (str_equal(fn_stmt->id.name, "__ne__"))
                 has_ne = true;
-            else if (str_equal(fn_stmt->id.name, "__hash__"))
+            else if (str_equal(fn_stmt->id.name, "hash"))
                 has_hash = true;
             else if (str_equal(fn_stmt->id.name, "__str__"))
                 has_str = true;
@@ -2048,6 +2053,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         Stmt *stmt = stmt_from_func_decl(_id, _args, _ret, NULL);
         PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
         flags->ann.ident = "native";
+        flags->pub.flag = 1;
 
         if (!kls->stmts) {
             kls->stmts = vector_create_ptr();
@@ -2056,7 +2062,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         log_info("add __eq__ for class '%s' automatically", kls->id.name);
     }
 
-    if (!has_eq) {
+    if (!has_ne) {
         Ident _id = { .name = "__ne__" };
         TypeSpec *_ret = bool_type_spec();
         Vector *_args = vector_create_ptr();
@@ -2067,6 +2073,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         Stmt *stmt = stmt_from_func_decl(_id, _args, _ret, NULL);
         PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
         flags->ann.ident = "native";
+        flags->pub.flag = 1;
 
         if (!kls->stmts) {
             kls->stmts = vector_create_ptr();
@@ -2076,17 +2083,18 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
     }
 
     if (!has_hash) {
-        Ident id = { .name = "__hash__" };
+        Ident id = { .name = "hash" };
         TypeSpec *ret = int64_type_spec();
         Stmt *stmt = stmt_from_func_decl(id, NULL, ret, NULL);
         PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
         flags->ann.ident = "native";
+        flags->pub.flag = 1;
 
         if (!kls->stmts) {
             kls->stmts = vector_create_ptr();
         }
         vector_push_back(kls->stmts, &stmt);
-        log_info("add __hash__ for class '%s' automatically", kls->id.name);
+        log_info("add hash for class '%s' automatically", kls->id.name);
     }
 
     if (!has_str) {
@@ -2095,6 +2103,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         Stmt *stmt = stmt_from_func_decl(id, NULL, ret, NULL);
         PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
         flags->ann.ident = "native";
+        flags->pub.flag = 1;
 
         if (!kls->stmts) {
             kls->stmts = vector_create_ptr();
@@ -3135,7 +3144,7 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
 
         if (ts) {
             ts = resolve_type(ps, ts);
-            ASSERT(ts);
+            if (!ts) return;
             check_type(ps, ts);
         }
 

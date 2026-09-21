@@ -23,7 +23,7 @@ class D : B & C & A & E {}
 
 // CHECK: [2] Hashable
 // CHECK:       methods:
-// CHECK:         [0] __hash__, code_index=3
+// CHECK:         [0] hash, code_index=3
 // CHECK:       parents:
 // CHECK:           [0] any
 

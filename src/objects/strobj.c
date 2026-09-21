@@ -1311,7 +1311,7 @@ static TValue _str_contains(TValue *self, TValue *args, int nargs)
 
 static MethodDef _str_methods[] = {
     { "__init__", _str_init },
-    { "__len__", _str_len },
+    { "len", _str_len },
     { "empty", _str_empty },
     { "__getitem__", _str_getitem },
     { "__getslice__", _str_getslice },
@@ -1325,7 +1325,7 @@ static MethodDef _str_methods[] = {
     { "__le__", _str_le },
     { "__gt__", _str_gt },
     { "__ge__", _str_ge },
-    { "__hash__", _str_hash },
+    { "hash", _str_hash },
     { "__str__", _str_str },
     { "substr", _str_substr },
     { "to_int", _str_to_int },

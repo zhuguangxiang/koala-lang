@@ -53,8 +53,8 @@ Object *kl_get_native(Object *m, char *name)
     if (match_suffix(name, "__str__")) {
         Object *ob = kl_new_cfunc("__str__", _default___str__, NULL);
         return ob;
-    } else if (match_suffix(name, "__hash__")) {
-        Object *ob = kl_new_cfunc("__hash__", _default___hash__, NULL);
+    } else if (match_suffix(name, "hash")) {
+        Object *ob = kl_new_cfunc("hash", _default___hash__, NULL);
         return ob;
     } else if (match_suffix(name, "__eq__")) {
         Object *ob = kl_new_cfunc("__eq__", _default___eq__, NULL);

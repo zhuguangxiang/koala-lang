@@ -25,7 +25,7 @@ func bne(a bool, b bool) bool {
     return a != b
 }
 
-// test __hash__ and __str__
+// test hash and __str__
 func main() {
     print(band(true, true))
     print(band(true, false))

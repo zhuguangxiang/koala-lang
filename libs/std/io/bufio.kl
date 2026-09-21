@@ -3,6 +3,65 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+/// Buffer is a mutable, growable byte buffer.
+///
+/// It supports efficient byte and string appends and can be converted to `str` or `bytes`.
+///
+/// Examples
+///
+/// ```kl
+/// let buffer = Buffer()
+/// buffer.write_str("Hello, ")
+/// buffer.write_str("Koala!")
+/// print(buffer.to_str())
+/// ```
+pub class Buffer {
+    /// Create an empty buffer with an optional initial capacity.
+    @native
+    pub func __init__(capacity = 256) {}
+
+    /// Append a single byte to the end of the buffer.
+    @native
+    pub func write_byte(b uint8) {}
+
+    /// Append the UTF-8 encoded bytes of `s` to the buffer.
+    @native
+    pub func write_str(s str) {}
+
+    /// Append raw bytes to the end of the buffer.
+    @native
+    pub func write(b bytes) {}
+
+    /// Write the contents of the buffer to the given `Writer`.
+    ///
+    /// Return the number of bytes written.
+    @native
+    pub func write_to(w Writer) int {}
+
+    /// Decode the buffered content as UTF-8 and return a new `str`.
+    ///
+    /// Panic if the buffered bytes are not valid UTF-8.
+    @native
+    pub func to_str() str {}
+
+    /// Return a view of the buffered content as `bytes`.
+    @native
+    pub func to_bytes() bytes {}
+
+    /// Return the current number of bytes in the buffer. O(1).
+    @native
+    pub func len() int {}
+
+    /// Return true if the buffer contains no bytes. O(1).
+    pub func empty() bool { return len() == 0 }
+
+    /// Clear the buffer, resetting its length to zero.
+    ///
+    /// The buffer can be reused without reducing its capacity.
+    @native
+    pub func clear() {}
+}
+
 /// BufReader is a buffered wrapper around a Reader that reduces the number
 /// of system calls by reading data in large chunks and serving smaller
 /// reads from an internal buffer.

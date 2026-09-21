@@ -33,7 +33,7 @@ pub class range : Sequence[int] {
 
     /// Return the number of elements in the range. O(1).
     @native
-    pub func __len__() int {}
+    pub func len() int {}
 
     /// Return true if the range is empty. O(1).
     @native
@@ -71,11 +71,6 @@ pub class range : Sequence[int] {
     /// If `_end` is `-1`, the search extends to the end of the range.
     @native
     pub func count(value int, _start = 0, _end = -1) int {}
-
-    /// Return the string representation of the range. O(1).
-    /// Uses the form `range(start, end, step)`.
-    @native
-    pub func __str__() str {}
 
     /// Return a new range with the elements in reverse order. O(1).
     @native

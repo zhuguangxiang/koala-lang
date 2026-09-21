@@ -20,7 +20,7 @@ pub class HashSet[T] : Set[T] {
 
     /// Return the number of elements. O(1).
     @native
-    pub func __len__() int {}
+    pub func len() int {}
 
     /// Return true if the set is empty, false otherwise. O(1).
     @native
@@ -70,11 +70,6 @@ pub class HashSet[T] : Set[T] {
     @native
     pub func diff(other Iterable[T]) HashSet[T] {}
 
-    /// Return a string representation of the set.
-    /// Uses the form `{element1, element2}`.
-    @native
-    pub func __str__() str {}
-
     /// Return a new set with elements in the set or `other`, but not both.
     @native
     pub func sym_diff(other Iterable[T]) HashSet[T] {}
@@ -115,7 +110,7 @@ pub class TreeSet[T : Comparable] : Set[T] {
 
     /// Return the number of elements. O(1).
     @native
-    pub func __len__() int {}
+    pub func len() int {}
 
     /// Return true if the set is empty, false otherwise. O(1).
     @native
@@ -164,11 +159,6 @@ pub class TreeSet[T : Comparable] : Set[T] {
     /// Return a new sorted set with elements in the set that are not in `other`.
     @native
     pub func diff(other Iterable[T]) TreeSet[T] {}
-
-    /// Return a string representation of the set.
-    /// Uses the form `{element1, element2}`, in sorted order.
-    @native
-    pub func __str__() str {}
 
     /// Return a new sorted set with elements in the set or `other`, but not both.
     @native

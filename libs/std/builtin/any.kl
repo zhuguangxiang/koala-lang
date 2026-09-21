@@ -58,7 +58,7 @@ pub trait Hashable {
     /// Return a stable hash value for `self`.
     ///
     /// Equal values must always produce identical hash values.
-    func __hash__() int
+    func hash() int
 }
 
 /// `Printable` defines a human-readable string representation for a type,

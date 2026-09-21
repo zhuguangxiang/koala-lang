@@ -19,7 +19,7 @@ pub class tuple[infer T] : Sequence[T] {
 
     /// Return the number of elements in the tuple. O(1).
     @native
-    pub func __len__() int {}
+    pub func len() int {}
 
     /// Return true if the tuple is empty, false otherwise. O(1).
     @native
@@ -58,10 +58,6 @@ pub class tuple[infer T] : Sequence[T] {
     /// If `end` is `-1`, the search extends to the end of the tuple.
     @native
     pub func count(value T, start = 0, end = -1) int {}
-
-    /// Return the string representation of the tuple.
-    @native
-    pub func __str__() str {}
 
     /// Return a new list containing the elements of the tuple.
     @native

@@ -12,9 +12,9 @@ link "koala"
 /// Return the number of items in a collection or the length of an object.
 ///
 /// This function is an intrinsic and is resolved at compile time.
-/// Semantically, `len(obj)` is equivalent to calling `obj.__len__()`.
+/// Semantically, `len(obj)` is equivalent to calling `obj.len()`.
 ///
-/// Any object may define a `__len__()` method to customize its length behavior.
+/// Any object may define a `len()` method to customize its length behavior.
 /// Built-in container types such as list, dict, tuple, and set provide their own
 /// optimized implementations.
 ///
@@ -30,9 +30,9 @@ pub func len(obj any) int {}
 /// Return the hash value of an object.
 ///
 /// This function is an intrinsic and is resolved at compile time.
-/// Semantically, `hash(obj)` is equivalent to calling `obj.__hash__()`.
+/// Semantically, `hash(obj)` is equivalent to calling `obj.hash()`.
 ///
-/// Any class automatically provides a `__hash__()` method, and user-defined
+/// Any class automatically provides a `hash()` method, and user-defined
 /// types may override it to customize hashing behavior.
 ///
 /// Notes

@@ -25,7 +25,7 @@ r.start
 r.end
 r.step
 
-r.__len__()
+r.len()
 r.__iter__()
 
 r.__contains__(5)

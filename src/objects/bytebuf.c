@@ -119,7 +119,7 @@ static MethodDef _bytebuf_methods[] = {
     { "write_byte", _bytebuf_write_byte },
     { "write_str", _bytebuf_write_str },
     { "write", _bytebuf_write_bytes },
-    { "__len__", _bytebuf_len },
+    { "len", _bytebuf_len },
     { "__setitem__", _bytebuf_setitem },
     { "__getitem__", _bytebuf_getitem },
     { "to_str", _bytebuf_to_str },

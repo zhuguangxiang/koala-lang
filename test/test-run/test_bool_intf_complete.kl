@@ -11,9 +11,9 @@ func intf_ne[T : Equatable](a T, b T) bool {
 }
 
 // test Hashable
-// func intf_hash[T : Hashable](a T, b T) bool {
-//     return a.__hash__() == b.__hash__()
-// }
+func intf_hash[T : Hashable](a T, b T) bool {
+    return a.hash() == b.hash()
+}
 
 // test Printable
 // func intf_str[T : Printable](a T) str {
@@ -41,6 +41,8 @@ func main() {
     // test Equatable widening
     let e Equatable[bool] = false
     print(e)
+
+    print(true.hash() == true.hash())
 }
 
 // CHECK: true
@@ -49,3 +51,4 @@ func main() {
 // CHECK: false
 // CHECK: true
 // CHECK: false
+// CHECK: true

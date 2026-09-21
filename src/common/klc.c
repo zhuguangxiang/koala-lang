@@ -436,9 +436,9 @@ static SlotDef slotdefs[] = {
     TPSLOT("__gt__", SLOT_GT),
     TPSLOT("__ge__", SLOT_GE),
 
-    TPSLOT("__hash__", SLOT_HASH),
+    TPSLOT("hash", SLOT_HASH),
 
-    TPSLOT("__len__", SLOT_LEN),
+    TPSLOT("len", SLOT_LEN),
     TPSLOT("__contains__", SLOT_CONTAINS),
 
     TPSLOT("__getitem__", SLOT_GET_ITEM),

@@ -60,7 +60,7 @@ static TValue _tuple_getitem(TValue *self, TValue *args, int nargs)
 static MethodDef tuple_methods[] = {
     { "to_list", _tuple_tolist },
     { "__str__", _tuple_str },
-    { "__len__", _tuple_len },
+    { "len", _tuple_len },
     { "__getitem__", _tuple_getitem },
     { NULL },
 };

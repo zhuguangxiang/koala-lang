@@ -1217,31 +1217,31 @@ static void handle_len_call(ParserState *ps, CallExpr *call)
         UNREACHABLE();
     }
 
-    Symbol *len_sym = stbl_get(stbl, "__len__");
+    Symbol *len_sym = stbl_get(stbl, "len");
     if (!len_sym) {
-        kl_error(arg->loc, "object of type '%s' has no __len__()", arg->ts->signature);
+        kl_error(arg->loc, "object of type '%s' has no len()", arg->ts->signature);
         return;
     }
 
     if (len_sym->kind != SYM_FUNC) {
-        kl_error(arg->loc, "'%s.__len__' is not a function", arg->ts->signature);
+        kl_error(arg->loc, "'%s.len' is not a function", arg->ts->signature);
     }
 
     FuncSymbol *len_fn_sym = (FuncSymbol *)len_sym;
     if (!vector_empty(&len_fn_sym->tps)) {
         kl_error(arg->loc,
-                 "'%s.__len__' is a generic function, cannot be called without type parameters",
+                 "'%s.len' is a generic function, cannot be called without type parameters",
                  arg->ts->signature);
     }
 
     if (!vector_empty(len_fn_sym->params)) {
         kl_error(arg->loc,
-                 "'%s.__len__' has parameters, cannot be called without arguments in len() call",
+                 "'%s.len' has parameters, cannot be called without arguments in len() call",
                  arg->ts->signature);
     }
 
     if (!type_is_int(len_fn_sym->ret)) {
-        kl_error(arg->loc, "'%s.__len__' must return int for len() call", arg->ts->signature);
+        kl_error(arg->loc, "'%s.len' must return int for len() call", arg->ts->signature);
     }
 }
 
@@ -1293,12 +1293,8 @@ static const char *operator_dunder_sugar(const char *name)
         { "__setitem__", "the subscript syntax 'x[i] = v'" },
         { "__getslice__", "the slice syntax 'x[a:b]'" },
         { "__setslice__", "the slice syntax 'x[a:b] = v'" },
-        // hashable
-        { "__hash__", "the 'hash()' function" },
         // printable
         { "__str__", "the 'str()' function" },
-        // len
-        { "__len__", "the 'len()' function" },
         // callable
         { "__call__", "the call syntax 'obj(...)'" },
         // membership

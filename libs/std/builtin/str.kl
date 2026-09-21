@@ -65,7 +65,7 @@ pub class str : Sequence & Comparable {
 
     /// Return the length of the string.
     @native
-    pub func __len__() int {}
+    pub func len() int {}
 
     /// Return true if the string is empty, false otherwise.
     @native
@@ -127,15 +127,6 @@ pub class str : Sequence & Comparable {
     /// Return true if `self` is lexicographically greater than or equal to `rhs` (`self >= rhs`).
     @native
     pub func __ge__(rhs str) bool {}
-
-    /// Return a stable hash value of the string.
-    /// Equal strings must always produce identical hash values.
-    @native
-    pub func __hash__() int {}
-
-    /// Return the string itself.
-    @native
-    pub func __str__() str {}
 
     /// Return the substring from `start` (inclusive) to `end` (exclusive).
     /// If `end` is `-1`, the substring extends to the end of the string.

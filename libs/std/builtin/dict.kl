@@ -25,7 +25,7 @@ pub class dict[K, V] : Map[K, V] {
 
     /// Return the number of key-value pairs. O(1).
     @native
-    pub func __len__() int {}
+    pub func len() int {}
 
     /// Return true if the dict is empty, false otherwise. O(1).
     @native
@@ -86,11 +86,6 @@ pub class dict[K, V] : Map[K, V] {
     /// Return the value for `key` if present, else `default_value`. O(1).
     @native
     pub func get_or(key K, default_value V) V {}
-
-    /// Return a string representation of the dict.
-    /// Uses the form `{key1: value1, key2: value2}`.
-    @native
-    pub func __str__() str {}
 
     /// Merge all (key, value) pairs from `src` into the dict,
     /// replacing the values of existing keys.

@@ -3,13 +3,45 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+/// An Iterator represents the state of an ongoing traversal of elements.
+///
+/// It supports optional-result iteration with `next()`, and check-then-act iteration
+/// with `has_next()` and `next_strict()`.
+///
+/// Iterators are stateful and do not support rewinding.
+pub trait Iterator[T] {
+
+    /// Return true if another element is available.
+    func has_next() bool
+
+    /// Return the next element and advance the iterator. Panic if the iterator is exhausted.
+    func next_strict() T
+
+    /// Return the next element and advance the iterator, or `nil` if the iterator is exhausted.
+    ///
+    /// When `T` is nullable, an element may also be `nil`. Use `has_next()`
+    /// with `next_strict()` to distinguish such elements from exhaustion.
+    func next() T?
+}
+
+/// Iterable is the basis for objects that can be traversed.
+///
+/// It provides a way to create an iterator for the elements.
+pub trait Iterable[T] {
+
+    /// Return a new iterator for traversing the elements.
+    ///
+    /// `step` specifies the number of elements to advance after each iteration.
+    func iter(step = 1) Iterator[T]
+}
+
 /// A Sequence provides read-only indexed access to a collection of elements.
 ///
 /// It provides random access and searching capabilities without modification.
 pub trait Sequence[T] : Iterable[T] {
 
     /// Return the number of items in the sequence.
-    func __len__() int
+    func len() int
 
     /// Return true if the sequence contains the specified value `item`.
     func __contains__(item T) bool
@@ -49,7 +81,7 @@ pub trait MutableSequence[T] : Sequence[T] {
     ///
     /// If `index` is `-1`, remove and return the last item.
     ///
-    /// Panic if `index` is out of bounds.
+    /// Panic if `index` is out of bounds or sequence is empty.
     func pop(index = -1) T
 
     /// Append all elements from `items` to the end of the sequence.
@@ -76,7 +108,7 @@ pub trait MutableSequence[T] : Sequence[T] {
 /// A map cannot contain duplicate keys; each key maps to at most one value.
 pub trait Map[K, V] : Iterable[(K, V)] {
     /// Return the number of mappings in the map.
-    func __len__() int
+    func len() int
 
     /// Return true if the map contains a mapping for `key`.
     func __contains__(key K) bool
@@ -105,11 +137,7 @@ pub trait Map[K, V] : Iterable[(K, V)] {
     /// Remove all mappings from the map, leaving it empty.
     func clear()
 
-    /// Remove the mapping for `key` and return its value.
-    ///
-    /// Errors
-    ///
-    /// Panic if `key` is not present.
+    /// Remove the mapping for `key` and return its value. Panic if `key` is not present.
     func remove(key K) V
 
     /// Remove the mapping for `key` and return its value.
@@ -133,7 +161,7 @@ pub trait Map[K, V] : Iterable[(K, V)] {
 /// It models the mathematical set abstraction.
 pub trait Set[T] : Iterable[T] {
     /// Return the number of elements in the set.
-    func __len__() int
+    func len() int
 
     /// Return true if the set contains `value`.
     func __contains__(value T) bool

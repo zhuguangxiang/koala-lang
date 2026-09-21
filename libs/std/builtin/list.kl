@@ -28,7 +28,7 @@ pub class list[T] : MutableSequence[T] {
 
     /// Return the number of items in the list. O(1).
     @native
-    pub func __len__() int {}
+    pub func len() int {}
 
     /// Return true if the list is empty, false otherwise. O(1).
     @native
@@ -113,10 +113,6 @@ pub class list[T] : MutableSequence[T] {
     /// Reverse the elements of the list in place.
     @native
     pub func reverse() {}
-
-    /// Return the string representation of the list.
-    @native
-    pub func __str__() str {}
 
     /// Return a new list with items of `self` followed by `seq` (`self + seq`).
     @native
