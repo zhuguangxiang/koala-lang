@@ -37,12 +37,12 @@ func main() {
 // CHECK: %l = local [immutable] std/builtin.list<j>
 // CHECK: move %l std/builtin.list<j>, %0 std/builtin.list<j>
 // CHECK: %1 = build_intern @tuple, %l std/builtin.list<j>
-// CHECK: call @print [path = 'std/print'], %1 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
 // CHECK: %2 = seq.get %l std/builtin.list<j>, 0 int64
 // CHECK: %v = local [immutable] int64
 // CHECK: move %v int64, %2 int64
 // CHECK: %3 = build_intern @tuple, %v int64
-// CHECK: call @print [path = 'std/print'], %3 std/builtin.tuple<j>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple<j>, ' ' str, '\n' str
 
 // CHECK-LABEL: %bb1(loop-header):
 // CHECK: %4 = call @len [path = 'std/builtin'], %l std/builtin.list<j>
@@ -62,7 +62,7 @@ func main() {
 // CHECK: %v = local [immutable] int64
 // CHECK: move %v int64, %9 int64
 // CHECK: %10 = build_intern @tuple, %v int64
-// CHECK: call @print [path = 'std/print'], %10 std/builtin.tuple<j>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %10 std/builtin.tuple<j>, ' ' str, '\n' str
 // CHECK: %11 = add %i int64, 1 int64
 // CHECK: move %i int64, %11 int64
 // CHECK: %12 = cmpgt 1 int64, 0 int64
@@ -75,7 +75,7 @@ func main() {
 // CHECK: %r = local [immutable] std/builtin.range
 // CHECK: move %r std/builtin.range, range(0, 10, 1) std/builtin.range
 // CHECK: %16 = build_intern @tuple, %r std/builtin.range
-// CHECK: call @print [path = 'std/print'], %16 std/builtin.tuple<Lstd/builtin.range;>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %16 std/builtin.tuple<Lstd/builtin.range;>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK: [100, 200, 300]

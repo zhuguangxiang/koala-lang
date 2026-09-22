@@ -5,7 +5,7 @@ koalac --build-stdlib --cgen --write-klc --fusion std/builtin --package-name=std
 koala -c std/io --package-name=std/io
 koala -c std/fs --package-name=std/fs
 
-koala -c std/print --package-name=std/print
+koala -c std/prelude --package-name=std/prelude
 
 koala -c std/os --package-name=std/os
 koala -c std/sys --package-name=std/sys

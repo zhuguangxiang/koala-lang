@@ -113,7 +113,9 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// Note:
     /// Writes go directly to the operating system; there is nothing
     /// to flush. Use `io.BufWriter` when buffering is desired.
-    pub func flush() {}
+    pub func flush() {
+        if closed { panic("file is closed") }
+    }
 
     /// Return true if the file is connected to a terminal (tty).
     ///

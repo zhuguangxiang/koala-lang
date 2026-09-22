@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "bytesobj.h"
+#include "excobj.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,6 +16,7 @@ typedef struct _FileObject {
     OBJECT_HEAD
     TValue path;
     TValue mode;
+    TValue closed;
     int fd;
 } FileObject;
 
@@ -23,9 +25,10 @@ static TypeObject file_type;
 static Object *kl_new_file(TValue path, TValue mode, int fd)
 {
     FileObject *fobj = mm_alloc_obj(fobj);
-    INIT_OBJECT_HEAD(fobj, &file_type, 2);
+    INIT_OBJECT_HEAD(fobj, &file_type, 3);
     fobj->path = path;
     fobj->mode = mode;
+    fobj->closed = BOOL_FALSE;
     fobj->fd = fd;
     return (Object *)fobj;
 }
@@ -70,6 +73,15 @@ static TValue file_read(TValue *self, TValue *args, int nargs)
 {
     Object *_self = to_obj(self);
     FileObject *fobj = (FileObject *)_self;
+
+    if (to_bool(&fobj->closed) == 1) {
+        raise_exc_fmt("file descriptor %d is closed", fobj->fd);
+        return error_value;
+    } else if (fcntl(fobj->fd, F_GETFD) == -1) {
+        raise_exc_fmt("file descriptor %d is closed", fobj->fd);
+        return error_value;
+    }
+
     Object *_buf = to_obj(&args[0]);
     BytesObject *buf = (BytesObject *)_buf;
     int r = read(fobj->fd, buf->data, buf->size);
@@ -81,9 +93,13 @@ static TValue file_write(TValue *self, TValue *args, int nargs)
     FileObject *fobj = SELF_AS(file_type);
     ASSERT(nargs == 1);
     BytesObject *buf = kl_arg_obj_as(0, bytes_type);
-    if (fcntl(fobj->fd, F_GETFD) == -1) {
-        // printf("file descriptor %d is closed\n", fobj->fd);
-        return nil_value;
+
+    if (to_bool(&fobj->closed) == 1) {
+        raise_exc_fmt("file descriptor %d is closed", fobj->fd);
+        return error_value;
+    } else if (fcntl(fobj->fd, F_GETFD) == -1) {
+        raise_exc_fmt("file descriptor %d is closed", fobj->fd);
+        return error_value;
     }
 
     int r = write(fobj->fd, buf->data + buf->offset, buf->size);
@@ -95,9 +111,13 @@ static TValue file_write_str(TValue *self, TValue *args, int nargs)
     FileObject *fobj = SELF_AS(file_type);
     ASSERT(nargs == 1);
     StringObject *sobj = kl_arg_obj_as(0, str_type);
-    if (fcntl(fobj->fd, F_GETFD) == -1) {
-        // printf("file descriptor %d is closed\n", fobj->fd);
-        return nil_value;
+
+    if (to_bool(&fobj->closed) == 1) {
+        raise_exc_fmt("file descriptor %d is closed", fobj->fd);
+        return error_value;
+    } else if (fcntl(fobj->fd, F_GETFD) == -1) {
+        raise_exc_fmt("file descriptor %d is closed", fobj->fd);
+        return error_value;
     }
 
     int r = write(fobj->fd, STR_BUF(sobj), STR_LEN(sobj));
@@ -109,6 +129,8 @@ static TValue file_close(TValue *self, TValue *args, int nargs)
     FileObject *fobj = SELF_AS(file_type);
     ASSERT(nargs == 0);
     close(fobj->fd);
+    fobj->closed = BOOL_TRUE;
+    fobj->fd = -1;
     return nil_value;
 }
 

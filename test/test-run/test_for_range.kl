@@ -36,7 +36,7 @@ foo(10)
 // CHECK: loadk %4 str, ' ' str
 // CHECK: %5 = local str        [fixedslot = 2(next)]
 // CHECK: loadk %5 str, '\n' str
-// CHECK: call @print [path = 'std/print'], nargs=3
+// CHECK: call @print [path = 'std/prelude'], nargs=3
 // CHECK: jmp label %bb4
 
 // CHECK: %bb4(if-end):                                   ;; preds = %bb3, %bb1
@@ -66,7 +66,7 @@ foo(10)
 // CHECK: loadk %3 str, ' ' str
 // CHECK: %4 = local str        [fixedslot = 2(next)]
 // CHECK: loadk %4 str, '\n' str
-// CHECK: call @print [path = 'std/print'], nargs=3
+// CHECK: call @print [path = 'std/prelude'], nargs=3
 // CHECK: jmp label %bb4
 
 // CHECK: %bb4(if-end):                                   ;; preds = %bb3, %bb1

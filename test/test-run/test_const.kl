@@ -20,13 +20,13 @@ func main() {
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK: %0 = global_get @NAME str
 // CHECK: %2 = global_get @AGE int64
-// CHECK: call @print [path = 'std/print'], %3 std/builtin.tuple<uj>
-// CHECK: call @print [path = 'std/print', const], tuple('PI:', 3.141590) std/builtin.tuple<ud>
-// CHECK: call @print [path = 'std/print', const], tuple('E:', 2.718280) std/builtin.tuple<ud>
-// CHECK: call @print [path = 'std/print', const], tuple('GREETING:', 'Hello') std/builtin.tuple<uu>
-// CHECK: call @print [path = 'std/print', const], tuple('GOLDEN_RATIO:', 1.618030) std/builtin.tuple<ud>
-// CHECK: call @print [path = 'std/print', const], tuple('INT64_MIN:', -9223372036854775808) std/builtin.tuple<uj>
-// CHECK: call @print [path = 'std/print', const], tuple('INT64_MAX:', 9223372036854775807) std/builtin.tuple<uj>
+// CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple<uj>
+// CHECK: call @print [path = 'std/prelude', const], tuple('PI:', 3.141590) std/builtin.tuple<ud>
+// CHECK: call @print [path = 'std/prelude', const], tuple('E:', 2.718280) std/builtin.tuple<ud>
+// CHECK: call @print [path = 'std/prelude', const], tuple('GREETING:', 'Hello') std/builtin.tuple<uu>
+// CHECK: call @print [path = 'std/prelude', const], tuple('GOLDEN_RATIO:', 1.618030) std/builtin.tuple<ud>
+// CHECK: call @print [path = 'std/prelude', const], tuple('INT64_MIN:', -9223372036854775808) std/builtin.tuple<uj>
+// CHECK: call @print [path = 'std/prelude', const], tuple('INT64_MAX:', 9223372036854775807) std/builtin.tuple<uj>
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @__init__() <NO-TYPE> {
@@ -42,13 +42,13 @@ func main() {
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK: %0 = build_intern @tuple, 'Name:' str, 'Jerry' str
 // CHECK: %1 = build_intern @tuple, 'Age:' str, 30 int64
-// CHECK: call @print [path = 'std/print'], %1 std/builtin.tuple<uj>
-// CHECK: call @print [path = 'std/print', const], tuple('PI:', 3.141590) std/builtin.tuple<ud>
-// CHECK: call @print [path = 'std/print', const], tuple('E:', 2.718280) std/builtin.tuple<ud>
-// CHECK: call @print [path = 'std/print', const], tuple('GREETING:', 'Hello') std/builtin.tuple<uu>
-// CHECK: call @print [path = 'std/print', const], tuple('GOLDEN_RATIO:', 1.618030) std/builtin.tuple<ud>
-// CHECK: call @print [path = 'std/print', const], tuple('INT64_MIN:', -9223372036854775808) std/builtin.tuple<uj>
-// CHECK: call @print [path = 'std/print', const], tuple('INT64_MAX:', 9223372036854775807) std/builtin.tuple<uj>
+// CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple<uj>
+// CHECK: call @print [path = 'std/prelude', const], tuple('PI:', 3.141590) std/builtin.tuple<ud>
+// CHECK: call @print [path = 'std/prelude', const], tuple('E:', 2.718280) std/builtin.tuple<ud>
+// CHECK: call @print [path = 'std/prelude', const], tuple('GREETING:', 'Hello') std/builtin.tuple<uu>
+// CHECK: call @print [path = 'std/prelude', const], tuple('GOLDEN_RATIO:', 1.618030) std/builtin.tuple<ud>
+// CHECK: call @print [path = 'std/prelude', const], tuple('INT64_MIN:', -9223372036854775808) std/builtin.tuple<uj>
+// CHECK: call @print [path = 'std/prelude', const], tuple('INT64_MAX:', 9223372036854775807) std/builtin.tuple<uj>
 
 // CHECK: Name: Jerry
 // CHECK: Age: 30

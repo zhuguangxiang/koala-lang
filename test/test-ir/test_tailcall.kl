@@ -78,4 +78,4 @@ print(ack(3, 11))
 // CHECK:   [001] str     = " "
 // CHECK:   [002] str     = "\n"
 // CHECK: Import Table:
-// CHECK:   [000] func   std/print::print
+// CHECK:   [000] func   std/prelude::print

@@ -17,7 +17,7 @@ func main() {
 // CHECK: %1 = get_field_ext %r std/builtin.range, end
 // CHECK: %2 = get_field_ext %r std/builtin.range, step
 // CHECK: %3 = build_intern @tuple, %0 int64, %1 int64, %2 int64
-// CHECK: call @print [path = 'std/print'], %3 std/builtin.tuple<jjj>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple<jjj>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
@@ -29,7 +29,7 @@ func main() {
 // CHECK: %1 = get_field_ext %r std/builtin.range, end
 // CHECK: %2 = get_field_ext %r std/builtin.range, step
 // CHECK: %3 = build_intern @tuple, %0 int64, %1 int64, %2 int64
-// CHECK: call @print [path = 'std/print'], %3 std/builtin.tuple<jjj>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple<jjj>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After isel [@foo] ---
@@ -43,7 +43,7 @@ func main() {
 // CHECK: loadk %4 str, ' ' str
 // CHECK: %5 = local str        [fixedslot = 2(next)]
 // CHECK: loadk %5 str, '\n' str
-// CHECK: call @print [path = 'std/print'], nargs=3
+// CHECK: call @print [path = 'std/prelude'], nargs=3
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After isel [@main] ---
@@ -60,7 +60,7 @@ func main() {
 // CHECK: loadk %4 str, ' ' str
 // CHECK: %5 = local str        [fixedslot = 2(next)]
 // CHECK: loadk %5 str, '\n' str
-// CHECK: call @print [path = 'std/print'], nargs=3
+// CHECK: call @print [path = 'std/prelude'], nargs=3
 // CHECK: %6 = local std/builtin.range        [fixedslot = 0(next)]
 // CHECK: loadk %6 std/builtin.range, range(1, 10, 2) std/builtin.range
 // CHECK: call @foo, nargs=1

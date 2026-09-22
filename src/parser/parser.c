@@ -207,10 +207,6 @@ static inline void load_builtin_module(ParserModule *pm)
     pm->builtin = pkg_sym->stbl;
     install_builtin_types(pm->builtin);
     fixup_traits_inherited_methods(pkg_sym->stbl);
-
-    pkg_sym = import_package(pm, "std/print");
-    if (!pkg_sym) return;
-    pm->print = pkg_sym->stbl;
 }
 
 static void mark_magic_func(Symbol *sym)
@@ -393,8 +389,9 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         up = up->next;
     }
 
+    ParserModule *pm = ps->pm;
     /* find ident from auto-imported(builtin) */
-    sym = stbl_get(ps->pm->builtin, id->name);
+    sym = stbl_get(pm->builtin, id->name);
     if (sym) {
         log_info("find symbol '%s' in 'std/builtin' module", id->name);
         id->where = BLTIN_SCOPE;
@@ -404,10 +401,15 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         return sym;
     }
 
-    if (ps->pm->print) {
-        sym = stbl_get(ps->pm->print, id->name);
+    if (!pm->prelude) {
+        PkgSymbol *pkg_sym = import_package(pm, "std/prelude");
+        if (pkg_sym) pm->prelude = pkg_sym->stbl;
+    }
+
+    if (pm->prelude) {
+        sym = stbl_get(pm->prelude, id->name);
         if (sym) {
-            log_info("find symbol '%s' in 'std/print' module", id->name);
+            log_info("find symbol '%s' in 'std/prelude' module", id->name);
             id->where = PRELUDE_SCOPE;
             id->scope = NULL;
             ASSERT(sym->flags & SYM_FLAGS_EXT);
@@ -1143,6 +1145,31 @@ static void check_type_in_first_chain(ParserState *ps, TypeSpec *src, TypeSpec *
     }
 }
 
+static char *get_module_path_from_ts(TypeSpec *ts, ParserModule *pm)
+{
+    if (!pm->pkg_path) return NULL;
+
+    char *path = NULL;
+
+    if (!ts) return NULL;
+
+    if (ts->kind == TYPE_KLASS) {
+        path = ts->klass_type.pkg;
+    } else if (ts->kind == TYPE_GENERIC_VAR) {
+        path = ts->generic_var.pkg;
+    } else if (ts->kind == TYPE_GENERIC_REF) {
+        path = ts->generic_ref.pkg;
+    } else if (ts->kind == TYPE_PACKAGE) {
+        path = ts->pkg_path;
+    }
+
+    if (!path) return NULL;
+
+    if (!strcmp(path, pm->pkg_path)) return NULL;
+
+    return path;
+}
+
 static void parse_var_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *var = (VarDeclStmt *)stmt;
@@ -1213,6 +1240,10 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         sym->ts = exp->ts;
         log_info("update symbol '%s' type as:", sym->name);
         log_type_spec(sym->ts);
+
+        // try to load module which includes the inferred type.
+        char *path = get_module_path_from_ts(sym->ts, ps->pm);
+        if (path) import_package(ps->pm, path);
 
         if (type_is_optional(sym->ts) && sym->lit && sym->lit->which == LIT_NONE) {
             // the literal is none, the subtype of optional is null, report error.

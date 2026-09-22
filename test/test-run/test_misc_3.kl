@@ -28,18 +28,22 @@ print(time.Duration.from_millis(150))   // 150ms
 print(time.Duration.from_micros(20))    // 20us
 print(time.Duration.from_nanos(500))    // 500ns
 
-import "std/fs"
 import "std/io"
 
-let f = fs.open("test3.txt", "w")!
+let f = open("test3.txt", "w")!
 sys.stdout = io.BufWriter(f)
 print("hello world to file")
 f.close()
-// TODO: should panic：I/O operation on closed file
-// print("hello world to file after close()")
+
+// The buffered data has not necessarily been written yet.
+print("hello world to file after close()")
+
+// The actual I/O happens here and should fail.
+// sys.stdout.flush()
 
 sys.stdout = io.BufWriter(sys._stdout)
 print("hello world to console")
+print("file is closed:", f.closed)
 
 // CHECK: 1us 1s
 
@@ -50,3 +54,4 @@ print("hello world to console")
 
 // CHECK-NOT: hello world to file
 // CHECK: hello world to console
+// CHECK: file is closed: true

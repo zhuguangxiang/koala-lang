@@ -6,8 +6,6 @@
 import "std/io"
 import "std/sys"
 
-link "koala"
-
 /// Writes objects to `w` with the specified separator and ending.
 @native
 func print_intern(w io.Writer, _sep str, _end str, objs ...) {}
@@ -27,4 +25,9 @@ func print_intern(w io.Writer, _sep str, _end str, objs ...) {}
 pub func print(objs ..., sep = " ", end = "\n") {
     let w = sys.stdout
     print_intern(w, sep, end, objs)
+}
+
+pub func fprintf(w io.Writer, fmt str, args ...) int {
+    let s = format(fmt, args)
+    return w.write_str(s)
 }

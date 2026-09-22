@@ -47,11 +47,11 @@ func foo() {
 // CHECK: global_set @i int64, 10 int64
 // CHECK: global_set @j int64, 11 int64
 // CHECK: global_set @b bool, true bool
-// CHECK: call @print [path = 'std/print']
+// CHECK: call @print [path = 'std/prelude']
 // CHECK: ret void
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@foo] ---
 // CHECK-LABEL: func @foo()
-// CHECK: call @print [path = 'std/print']
-// CHECK: call @print [path = 'std/print']
+// CHECK: call @print [path = 'std/prelude']
+// CHECK: call @print [path = 'std/prelude']
 // CHECK: ret void

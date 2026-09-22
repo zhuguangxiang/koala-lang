@@ -1,0 +1,36 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/fs"
+
+/// Opens the file or file descriptor path_or_fd and returns a File object.
+///
+/// path_or_fd is either a path string, or an integer file descriptor
+/// (e.g. 0, 1, 2 for stdin, stdout, stderr).
+///
+/// mode selects the access:
+/// - "r": read-only, the file must exist.
+/// - "w": write-only, create or truncate.
+/// - "x": write-only, exclusive create, fail if the file exists.
+/// - "a": write-only, create if absent, always append at the end.
+/// - "r+": read and write, the file must exist.
+/// - "w+": read and write, create or truncate.
+/// - "x+": read and write, exclusive create, fail if the file exists.
+/// - "a+": read and write, create if absent, always append at the end.
+///
+/// Returns nil if the file cannot be opened (missing file, permission denied,
+/// file already exists for "x"/"x+", invalid descriptor).
+/// Files created by "w", "x", "a" and their "+" variants get
+/// permission 0644.
+///
+/// Example:
+/// let f = open("hello.txt", "w")
+/// f?.write("hello".to_bytes())
+/// f?.close()
+///
+/// See: File.
+pub func open(path_or_fd str | int, mode = "r") fs.File? {
+    return fs.open(path_or_fd, mode)
+}

@@ -3,17 +3,12 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "bytebuf.h"
 #include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-static TValue buf_reader_read_until(TValue *self, TValue *args, int nargs)
-{
-    printf("buf_reader_read_until called\n");
-    return nil_value;
-}
 
 static TValue splitter_hash_next(TValue *self, TValue *args, int nargs) { return bool_value(1); }
 
@@ -29,13 +24,13 @@ static TValue words_next(TValue *self, TValue *args, int nargs) { return bool_va
 
 void io_native_lib_init(NativeLib *lib)
 {
-    // kl_reg_meth(lib, "BufReader", "read_until", buf_reader_read_until);
     kl_reg_meth(lib, "Splitter", "has_next", splitter_hash_next);
     kl_reg_meth(lib, "Splitter", "next", splitter_next);
     kl_reg_meth(lib, "Lines", "has_next", lines_hash_next);
     kl_reg_meth(lib, "Lines", "next", lines_next);
     kl_reg_meth(lib, "Words", "has_next", words_hash_next);
     kl_reg_meth(lib, "Words", "next", words_next);
+    kl_reg_type(lib, &bytebuf_type);
 }
 
 #ifdef __cplusplus

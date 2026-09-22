@@ -62,10 +62,10 @@ func main() {
 // CHECK: %2 = get_field %p z.Point, x(index=0)
 // CHECK: %3 = get_field %p z.Point, y(index=1)
 // CHECK: %4 = build_intern @tuple, %p z.Point, %2 int64, %3 int64
-// CHECK: call @print [path = 'std/print'], %4 std/builtin.tuple<Lz.Point;jj>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %4 std/builtin.tuple<Lz.Point;jj>, ' ' str, '\n' str
 // CHECK: %5 = call @foo [const], range(100, 200, 1) std/builtin.range
 // CHECK: %6 = build_intern @tuple, %5 int64
-// CHECK: call @print [path = 'std/print'], %6 std/builtin.tuple<j>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %6 std/builtin.tuple<j>, ' ' str, '\n' str
 // CHECK: ret void
 
 // CHECK: <z.Point object at 0x{{[0-9a-f]+}}> 3 2

@@ -63,13 +63,13 @@ func main() {
 // CHECK: %2 = get_field %b z.BAR, x(index=0)
 // CHECK: %3 = get_field %b z.BAR, y(index=1)
 // CHECK: %4 = build_intern @tuple, %b z.BAR, %2 int64, %3 str
-// CHECK: call @print [path = 'std/print'], %4 std/builtin.tuple<Lz.BAR;ju>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], %4 std/builtin.tuple<Lz.BAR;ju>, ' ' str, '\n' str
 // CHECK: %5 = get_field %p z.Point, x(index=0)
 // CHECK: %6 = get_field %p z.Point, y(index=1)
 // CHECK: %7 = get_field %p z.Point, z(index=2)
 // CHECK: %8 = build_intern @tuple, %p z.Point, %5 int64, %6 int64, %7 int64
-// CHECK: call @print [path = 'std/print'], %8 std/builtin.tuple<Lz.Point;jjj>, ' ' str, '\n' str
-// CHECK: call @print [path = 'std/print', const], tuple(range(100, 200, 1)) std/builtin.tuple<Lstd/builtin.range;>
+// CHECK: call @print [path = 'std/prelude'], %8 std/builtin.tuple<Lz.Point;jjj>, ' ' str, '\n' str
+// CHECK: call @print [path = 'std/prelude', const], tuple(range(100, 200, 1)) std/builtin.tuple<Lstd/builtin.range;>
 // CHECK: ret void
 
 // CHECK: <z.BAR object at 0x{{[0-9a-f]+}}> 100 BAR
