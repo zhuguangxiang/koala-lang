@@ -1,0 +1,41 @@
+// RUN: koala %s | filecheck %s
+
+func hello(a int, args ...) {
+    for v in args {
+        print(v)
+    }
+}
+
+import "std/io"
+import "std/sys"
+
+func test_open() {
+	let lst = sys.args()
+	print(lst, lst[0], len(lst))
+	let f = open(lst[0])!
+    let br = io.BufReader(f)
+    let buf = io.Buffer(80)
+
+	var n = br.read_until(buf, '\n')
+
+	print(n, buf.to_str())
+
+	buf.clear()
+
+	n = br.read_until(buf, '\n')
+	print(n, buf.to_str())
+
+	f.close()
+}
+
+
+func main() {
+	hello(1,2,"hello", true)
+	test_open()
+	print(len([1,2,3]))
+}
+
+// CHECK: 2
+// CHECK: hello
+// CHECK: true
+// CHECK: 3

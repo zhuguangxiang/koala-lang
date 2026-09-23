@@ -468,7 +468,7 @@ int kl_tp_add_method(TypeObject *tp, char *name, int slotid, Object *meth);
 Object *kl_type_find(TypeObject *tp, char *name);
 
 void kl_init_gm_stbl(void);
-Object *kl_get_module(char *path);
+Object *kl_find_module(char *path);
 void kl_dump_module(Object *m);
 
 /*---------------------------------------------------------------------------+

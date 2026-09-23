@@ -430,6 +430,34 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
     return NULL;
 }
 
+static Symbol *get_valist_symbol(TypeSpec *src, ParserState *ps)
+{
+    TypeSpec *_tuple = klass_type_spec("std/builtin", "tuple");
+
+    Symbol *origin = get_symbol_by_id(_tuple->sym_id);
+    ASSERT(origin);
+
+    Vector tp_args;
+    vector_init_ptr(&tp_args);
+    vector_push_back(&tp_args, &src);
+    InstanceSymbol *sym = find_or_add_instance(ps->pm->stbl, origin, &tp_args, ps->pm);
+    vector_fini(&tp_args);
+    ASSERT(sym);
+    return (Symbol *)sym;
+}
+
+Symbol *get_type_symbol(TypeSpec *ts, ParserState *ps)
+{
+    Symbol *sym;
+    if ((ts->kind == TYPE_VA_LIST) && (ts->sym_id < 0)) {
+        sym = get_valist_symbol(ts->va_list.src, ps);
+        ts->sym_id = sym->id;
+    } else {
+        sym = get_symbol_by_id(ts->sym_id);
+    }
+    return sym;
+}
+
 Symbol *find_type_symbol(ParserState *ps, TypeIdent *pkg, TypeIdent *name)
 {
     if (pkg->name == NULL || str_equal(pkg->name, "std/builtin") ||
@@ -1145,31 +1173,6 @@ static void check_type_in_first_chain(ParserState *ps, TypeSpec *src, TypeSpec *
     }
 }
 
-static char *get_module_path_from_ts(TypeSpec *ts, ParserModule *pm)
-{
-    if (!pm->pkg_path) return NULL;
-
-    char *path = NULL;
-
-    if (!ts) return NULL;
-
-    if (ts->kind == TYPE_KLASS) {
-        path = ts->klass_type.pkg;
-    } else if (ts->kind == TYPE_GENERIC_VAR) {
-        path = ts->generic_var.pkg;
-    } else if (ts->kind == TYPE_GENERIC_REF) {
-        path = ts->generic_ref.pkg;
-    } else if (ts->kind == TYPE_PACKAGE) {
-        path = ts->pkg_path;
-    }
-
-    if (!path) return NULL;
-
-    if (!strcmp(path, pm->pkg_path)) return NULL;
-
-    return path;
-}
-
 static void parse_var_decl(ParserState *ps, Stmt *stmt)
 {
     VarDeclStmt *var = (VarDeclStmt *)stmt;
@@ -1240,10 +1243,6 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
         sym->ts = exp->ts;
         log_info("update symbol '%s' type as:", sym->name);
         log_type_spec(sym->ts);
-
-        // try to load module which includes the inferred type.
-        char *path = get_module_path_from_ts(sym->ts, ps->pm);
-        if (path) import_package(ps->pm, path);
 
         if (type_is_optional(sym->ts) && sym->lit && sym->lit->which == LIT_NONE) {
             // the literal is none, the subtype of optional is null, report error.
@@ -1848,9 +1847,9 @@ static void parse_for(ParserState *ps, Stmt *stmt)
 
     TypeSpec *elem_ts = NULL;
 
-    if (type_is_tuple(it->ts)) {
+    if (type_is_tuple(it->ts) || type_is_valist(it->ts)) {
         // special handling for tuple unpacking
-        Symbol *sym = get_symbol_by_id(it->ts->sym_id);
+        Symbol *sym = get_type_symbol(it->ts, ps);
         ASSERT(sym->kind == SYM_INSTANCE);
         InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
         ASSERT(str_equal(inst_sym->origin->name, "tuple"));

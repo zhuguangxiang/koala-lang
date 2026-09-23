@@ -19,7 +19,7 @@ static HashMap _gm_stbl;
 
 void kl_init_gm_stbl(void) { stbl_init(&_gm_stbl); }
 
-Object *kl_get_module(char *path) { return stbl_find_obj(&_gm_stbl, path); }
+Object *kl_find_module(char *path) { return stbl_find_obj(&_gm_stbl, path); }
 
 static int register_module(Object *_m)
 {

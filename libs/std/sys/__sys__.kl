@@ -7,6 +7,8 @@ import "std/io"
 import "std/fs"
 import "std/os"
 
+link "koala"
+
 /// The version of the Koala programming language.
 pub let version = __KOALA_VERSION__
 

@@ -47,10 +47,7 @@ static void _phi_current_def_free_(void *entry, void *arg)
     mm_free(e);
 }
 
-static void fini_phi_current_defs(HashMap *map)
-{
-    hashmap_fini(map, _phi_current_def_free_, NULL);
-}
+static void fini_phi_current_defs(HashMap *map) { hashmap_fini(map, _phi_current_def_free_, NULL); }
 
 /**
  * Checks whether a PHI instruction is incomplete (i.e., its currently populated
@@ -67,7 +64,7 @@ static inline int phi_is_incomplete(KlrInsn *phi)
 static void write_variable(KlrBasicBlock *bb, KlrValue *x, KlrValue *v)
 {
     CurrentDef *entry = mm_alloc_obj(entry);
-    hashmap_entry_init(entry, mem_hash(&x, sizeof(x)));
+    hashmap_entry_init(entry, mem_hash(&x, PTR_SIZE));
     entry->key = x;
     entry->value = v;
     hashmap_put(&bb->current_defs, entry);
@@ -82,7 +79,7 @@ static KlrValue *read_variable(KlrBasicBlock *bb, KlrValue *x)
 {
     /* Construct a temporary key for lookup */
     CurrentDef key = { .key = x };
-    hashmap_entry_init(&key, mem_hash(&x, sizeof(x)));
+    hashmap_entry_init(&key, mem_hash(&x, PTR_SIZE));
 
     /* Try to read from CurrentDefs[B] */
     CurrentDef *entry = hashmap_get(&bb->current_defs, &key);
@@ -204,8 +201,8 @@ static KlrValue *read_variable_recursive(KlrBasicBlock *bb, KlrValue *x)
     /* Case 1: no predecessors → x is undefined or a parameter */
     if (bb->num_inedges == 0) {
         /* Return the original variable as its own SSA version */
-        log_info("read_variable_recursive: %s -> %s in %%bb%d (no predecessors)",
-                 klr_value_name(x), klr_value_name(x), bb->tag);
+        log_info("read_variable_recursive: %s -> %s in %%bb%d (no predecessors)", klr_value_name(x),
+                 klr_value_name(x), bb->tag);
         return x;
     }
 
@@ -350,16 +347,15 @@ static void build_ssa(KlrFunc *func)
                     log_info("build_ssa: filling back-edge from %%bb%d to %%bb%d for variable %s",
                              pred->tag, bb->tag, klr_value_name(local_var));
                     CurrentDef key = { .key = local_var };
-                    hashmap_entry_init(&key, mem_hash(&local_var, sizeof(local_var)));
+                    hashmap_entry_init(&key, mem_hash(&local_var, PTR_SIZE));
                     CurrentDef *entry = hashmap_get(&pred->current_defs, &key);
                     ASSERT(entry && entry->value);
                     KlrValue *final_pred_val = entry->value;
 
                     /* Append the correct cyclic SSA definition into the PHI node slots */
-                    log_info(
-                        "build_ssa: appending %s from %%bb%d to PHI in %%bb%d for variable %s",
-                        klr_value_name(final_pred_val), pred->tag, bb->tag,
-                        klr_value_name(local_var));
+                    log_info("build_ssa: appending %s from %%bb%d to PHI in %%bb%d for variable %s",
+                             klr_value_name(final_pred_val), pred->tag, bb->tag,
+                             klr_value_name(local_var));
                     klr_append_phi_operand(insn, final_pred_val, pred);
                 } else {
                     log_info(

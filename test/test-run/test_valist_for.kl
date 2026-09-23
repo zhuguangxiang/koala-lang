@@ -1,0 +1,23 @@
+// RUN: koala %s ex2.toml | filecheck %s
+
+func hello(a int, args ...) {
+    for v in args {
+        print(v)
+    }
+}
+
+import "std/sys"
+
+func main() {
+	hello(1,2,"hello", true)
+	print(len([1,2,3]))
+
+	let lst = sys.args()
+	print(lst, lst[0], len(lst))
+}
+
+// CHECK: 2
+// CHECK: hello
+// CHECK: true
+// CHECK: 3
+// CHECK: [ex2.toml] ex2.toml 1

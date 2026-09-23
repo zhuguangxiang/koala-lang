@@ -248,6 +248,7 @@ InstanceSymbol *find_or_add_instance(HashMap *stbl, Symbol *origin, Vector *tp_a
 void add_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserState *ps);
 void update_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserState *ps);
 Symbol *find_ext_symbol(ParserState *ps, char *path, char *name);
+Symbol *get_type_symbol(TypeSpec *ts, ParserState *ps);
 
 #ifdef __cplusplus
 }

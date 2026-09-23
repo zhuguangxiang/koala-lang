@@ -43,6 +43,7 @@ typedef struct _LoadKlcContext {
 
 static inline int ts_need_fixup(TypeSpec *ts)
 {
+    if (ts->kind == TYPE_OPTIONAL) return ts_need_fixup(ts->opt.src);
     return ts->kind == TYPE_GENERIC_REF || ts->kind == TYPE_GENERIC_VAR ||
            ts->kind == TYPE_MANGLED || ts->kind == TYPE_KLASS || ts->kind == TYPE_UNION;
 }
@@ -165,6 +166,11 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
                 log_info("fixup type spec for union arg-%d", i__);
                 fixup_type_spec(arg, ctx);
             }
+        }
+    } else if (ts->kind == TYPE_OPTIONAL) {
+        if (ts->opt.src->sym_id < 0) {
+            TypeSpec *_src_ts = ts->opt.src;
+            fixup_type_spec(&_src_ts, ctx);
         }
     } else {
         UNREACHABLE();

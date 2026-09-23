@@ -98,6 +98,7 @@ set(KOALA_SHARED_SOURCES
     modules/io.c
     modules/os.c
     modules/time.c
+    modules/sys.c
     )
 
 add_library(koala SHARED ${KOALA_SHARED_SOURCES})

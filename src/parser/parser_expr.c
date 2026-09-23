@@ -1201,7 +1201,7 @@ static void handle_len_call(ParserState *ps, CallExpr *call)
     log_info("handle len() call special case.");
 
     Expr *arg = vector_get(call->args, 0);
-    Symbol *sym = get_symbol_by_id(arg->ts->sym_id);
+    Symbol *sym = get_type_symbol(arg->ts, ps);
     ASSERT(sym);
 
     HashMap *stbl = NULL;
@@ -2343,7 +2343,7 @@ static void parse_index(ParserState *ps, Expr *exp)
 
     if (lhs->sym->kind == SYM_VAR) {
         TypeSpec *ts = lhs->sym->ts;
-        Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
+        Symbol *ts_sym = get_type_symbol(ts, ps);
         if (index->ctx == EXPR_CTX_LOAD) {
             if (arg->kind == EXPR_SLICE_KIND) {
                 parse_slice_load(ps, ts_sym, index);

@@ -113,20 +113,7 @@ static TValue *get_global_var(Object *m, char *name)
     return val;
 }
 
-static Object *load_module(char *path);
-
-static Object *find_or_load_module(char *path)
-{
-    Object *m = kl_get_module(path);
-    if (m) {
-        ModuleObject *mo = (ModuleObject *)m;
-        if (!(mo->flags & MOD_FLAGS_READY)) {
-            fprintf(stderr, "warning: circular dependency detected: %s\n", path);
-        }
-        return m;
-    }
-    return load_module(path);
-}
+static Object *kl_load_module(char *path);
 
 static void resolve_import(Object *_m)
 {
@@ -136,14 +123,14 @@ static void resolve_import(Object *_m)
     vector_foreach_ptr(e, &m->import_table) {
         Object *obj = NULL;
 
+        Object *mod = kl_load_module(e->path);
+        if (!mod) {
+            panic("failed to resolve import: module '%s' is not found", e->path);
+            return;
+        }
+
         if (e->kind == IMPORT_KIND_FUNC || e->kind == IMPORT_KIND_GLOBAL ||
             e->kind == IMPORT_KIND_TYPE) {
-            Object *mod = find_or_load_module(e->path);
-            if (!mod) {
-                panic("failed to resolve import: module '%s' is not found", e->path);
-                return;
-            }
-
             obj = kl_mo_find(mod, e->name);
             if (!obj) {
                 panic("failed to resolve import: symbol '%s::%s' is not found", e->path, e->name);
@@ -151,11 +138,6 @@ static void resolve_import(Object *_m)
             }
         } else {
             ASSERT(e->kind == IMPORT_KIND_METHOD || e->kind == IMPORT_KIND_FIELD);
-            Object *mod = find_or_load_module(e->path);
-            if (!mod) {
-                panic("failed to resolve import: module '%s' is not found", e->path);
-                return;
-            }
 
             Object *cls = kl_mo_find(mod, e->kls);
             if (!cls || !IS_TYPE(cls, &type_type)) {
@@ -303,6 +285,18 @@ static TypeObject *find_tp_from_native(Object *m, char *name)
         return tp;
     }
     return NULL;
+}
+
+static Object *_find_module(char *path)
+{
+    Object *m = kl_find_module(path);
+    if (m) {
+        ModuleObject *mo = (ModuleObject *)m;
+        if (!(mo->flags & MOD_FLAGS_READY)) {
+            fprintf(stderr, "warning: circular dependency detected: %s\n", path);
+        }
+    }
+    return m;
 }
 
 static Object *_load_module(char *path)
@@ -570,9 +564,10 @@ static int isdotklc(char *filename)
     return 0;
 }
 
-static Object *load_module(char *path)
+static Object *kl_load_module(char *path)
 {
-    Object *m = NULL;
+    Object *m = _find_module(path);
+    if (m) return m;
 
     if (path[0] == '/') {
         log_info("loading module '%s'", path);
@@ -628,13 +623,13 @@ Object *kl_get_intf_func(TValue *intf, int func_idx)
 
 KOALA_EXPORT void koala_run_file(char *path)
 {
-    Object *m = load_module(path);
+    Object *m = kl_load_module(path);
     if (m) kl_run_main(m);
 }
 
 KOALA_EXPORT int koala_test_file(char *path)
 {
-    Object *m = load_module(path);
+    Object *m = kl_load_module(path);
     if (m) return kl_run_tests(m);
     return 0;
 }
