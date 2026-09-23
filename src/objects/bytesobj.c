@@ -13,18 +13,20 @@ extern "C" {
 
 static TValue _bytes_len(TValue *self, TValue *args, int nargs)
 {
-    BytesObject *bytes = (BytesObject *)to_obj(self);
+    BytesObject *bytes = SELF_AS(bytes_type);
     return int64_value(bytes->size);
 }
 
 static TValue _bytes_str(TValue *self, TValue *args, int nargs)
 {
-    BytesObject *bytes = (BytesObject *)to_obj(self);
+    BytesObject *bytes = SELF_AS(bytes_type);
     int64_t size = bytes->size;
 
     BUF(buf);
     for (int i = 0; i < size; ++i) {
-        buf_write_uint8_hex(&buf, bytes->data[bytes->offset + i]);
+        uint8_t ch = bytes->data[bytes->offset + i];
+        if (ch == 0) break;
+        buf_write_char(&buf, ch);
     }
     Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
     FINI_BUF(buf);
@@ -34,10 +36,7 @@ static TValue _bytes_str(TValue *self, TValue *args, int nargs)
 
 static TValue _bytes_init(TValue *self, TValue *args, int nargs)
 {
-    Object *obj = to_obj(self);
-    ASSERT(obj && IS_BYTES(obj));
-
-    BytesObject *bytes = (BytesObject *)obj;
+    BytesObject *bytes = SELF_AS(bytes_type);
 
     ASSERT(nargs == 1);
     int64_t size = kl_arg_int64(0);
@@ -54,10 +53,7 @@ static TValue _bytes_init(TValue *self, TValue *args, int nargs)
 
 static TValue _bytes_index(TValue *self, TValue *args, int nargs)
 {
-    Object *obj = to_obj(self);
-    ASSERT(obj && IS_BYTES(obj));
-
-    BytesObject *bytes = (BytesObject *)obj;
+    BytesObject *bytes = SELF_AS(bytes_type);
 
     ASSERT(nargs == 3);
     uint8_t value = kl_arg_uint8(0);
@@ -72,10 +68,7 @@ static TValue _bytes_index(TValue *self, TValue *args, int nargs)
 
 static TValue _bytes_count(TValue *self, TValue *args, int nargs)
 {
-    Object *obj = to_obj(self);
-    ASSERT(obj && IS_BYTES(obj));
-
-    BytesObject *bytes = (BytesObject *)obj;
+    BytesObject *bytes = SELF_AS(bytes_type);
 
     ASSERT(nargs == 3);
     uint8_t value = kl_arg_uint8(0);
@@ -94,10 +87,7 @@ static TValue _bytes_count(TValue *self, TValue *args, int nargs)
 
 static TValue _bytes_copy(TValue *self, TValue *args, int nargs)
 {
-    Object *obj = to_obj(self);
-    ASSERT(obj && IS_BYTES(obj));
-
-    BytesObject *bytes = (BytesObject *)obj;
+    BytesObject *bytes = SELF_AS(bytes_type);
 
     ASSERT(nargs == 3);
     Object *src = to_obj(&args[0]);
@@ -117,10 +107,7 @@ static TValue _bytes_copy(TValue *self, TValue *args, int nargs)
 
 static TValue _bytes_fill(TValue *self, TValue *args, int nargs)
 {
-    Object *obj = to_obj(self);
-    ASSERT(obj && IS_BYTES(obj));
-
-    BytesObject *bytes = (BytesObject *)obj;
+    BytesObject *bytes = SELF_AS(bytes_type);
 
     ASSERT(nargs == 3);
     uint8_t value = kl_arg_uint8(0);
@@ -130,10 +117,7 @@ static TValue _bytes_fill(TValue *self, TValue *args, int nargs)
 
 static TValue _bytes_zero(TValue *self, TValue *args, int nargs)
 {
-    Object *obj = to_obj(self);
-    ASSERT(obj && IS_BYTES(obj));
-
-    BytesObject *bytes = (BytesObject *)obj;
+    BytesObject *bytes = SELF_AS(bytes_type);
 
     ASSERT(nargs == 2);
     memset(bytes->data + bytes->offset, 0, bytes->size);
@@ -142,10 +126,7 @@ static TValue _bytes_zero(TValue *self, TValue *args, int nargs)
 
 static TValue _bytes_view(TValue *self, TValue *args, int nargs)
 {
-    Object *obj = to_obj(self);
-    ASSERT(obj && IS_BYTES(obj));
-
-    BytesObject *bytes = (BytesObject *)obj;
+    BytesObject *bytes = SELF_AS(bytes_type);
 
     ASSERT(nargs == 2);
     int64_t start = kl_arg_int64(0);
@@ -163,14 +144,19 @@ static TValue _bytes_view(TValue *self, TValue *args, int nargs)
 
 static TValue _bytes_tostr(TValue *self, TValue *args, int nargs)
 {
-    Object *obj = to_obj(self);
-    ASSERT(obj && IS_BYTES(obj));
+    BytesObject *bytes = SELF_AS(bytes_type);
+    int64_t size = bytes->size;
 
-    BytesObject *bytes = (BytesObject *)obj;
-    ASSERT(nargs == 0);
+    BUF(buf);
+    for (int i = 0; i < size; ++i) {
+        uint8_t ch = bytes->data[bytes->offset + i];
+        if (ch == 0) break;
+        buf_write_char(&buf, ch);
+    }
+    Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
 
-    Object *s = kl_new_nstr((char *)bytes->data + bytes->offset, bytes->size);
-    return obj_value(s);
+    return obj_value(sobj);
 }
 
 static TValue _bytes_getitem(TValue *self, TValue *args, int nargs)

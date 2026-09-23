@@ -37,9 +37,10 @@ pub func open(path_or_fd str | int, mode = "r") File? {}
 /// Read the file `path` into `out` and return the count read.
 ///
 /// Reading stops when `out` is full or end of file is reached, so
-/// the caller controls the memory used. Return 0 for an empty file,
-/// or -1 if the file cannot be opened or read. The file is closed
-/// before returning.
+/// the caller controls the memory used.
+///
+/// Return 0 for an empty file, or -1 if the file cannot be opened or read.
+/// The file is closed before returning.
 ///
 /// See: `write_bytes`, `File.read`.
 @native
@@ -47,9 +48,9 @@ pub func read_bytes(path str, out bytes) int {}
 
 /// Write `data` to the file `path`, creating or truncating it.
 ///
-/// All bytes are written or the operation fails; return true on
-/// success, false if the file cannot be opened or written.
-/// New files get permission 0666 masked by the process umask.
+/// All bytes are written or the operation fails; return true on success,
+/// false if the file cannot be opened or written.
+/// The file is closed before returning.
 ///
 /// See: `write_str`, `read_bytes`.
 @native
@@ -58,9 +59,9 @@ pub func write_bytes(path str, data bytes) bool {}
 /// Encode `data` as UTF-8 and write it to the file `path`,
 /// creating or truncating it.
 ///
-/// All bytes are written or the operation fails; return true on
-/// success, false if the file cannot be opened or written.
-/// New files get permission 0666 masked by the process umask.
+/// All bytes are written or the operation fails; return true on success,
+/// false if the file cannot be opened or written.
+/// The file is closed before returning.
 ///
 /// See: `write_bytes`, `read_bytes`.
 @native

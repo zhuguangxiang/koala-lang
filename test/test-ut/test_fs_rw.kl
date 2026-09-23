@@ -1,0 +1,59 @@
+// RUN: koala %s --test
+
+import "std/fs"
+import "std/ut"
+
+@test
+func test_fs_toplevel_funcs() {
+    // write_str
+    let ok = fs.write_str("/tmp/kl_fs_test.txt", "hello koala 你好")
+    ut.assert(ok)
+
+    // read_bytes into a big buffer -> stops at EOF
+    let buf = bytes(64)
+    let n = fs.read_bytes("/tmp/kl_fs_test.txt", buf)
+    ut.assert_eq(n, 18)
+    print(len(buf.to_str()))
+    ut.assert_eq(buf.to_str(), "hello koala 你好")
+
+    // read_bytes with a small buffer -> stops when full
+    let small = bytes(5)
+    let n2 = fs.read_bytes("/tmp/kl_fs_test.txt", small)
+    ut.assert_eq(n2, 5)
+
+    // empty file -> 0
+    fs.write_bytes("/tmp/kl_fs_empty.bin", bytes(0))
+    let ebuf = bytes(16)
+    let n3 = fs.read_bytes("/tmp/kl_fs_empty.bin", ebuf)
+    ut.assert_eq(n3, 0)
+
+    // missing file -> -1
+    let n4 = fs.read_bytes("/tmp/kl_fs_missing.bin", ebuf)
+    ut.assert_eq(n4, -1)
+
+    // write_bytes roundtrip with binary data
+    let data = bytes(4)
+    data[0] = 1
+    data[1] = 2
+    data[2] = 255
+    data[3] = 0
+    let ok2 = fs.write_bytes("/tmp/kl_fs_test.bin", data)
+    ut.assert(ok2)
+    let rbuf = bytes(4)
+    let n5 = fs.read_bytes("/tmp/kl_fs_test.bin", rbuf)
+    ut.assert_eq(n5, 4)
+    ut.assert(rbuf[0] == 1)
+    ut.assert(rbuf[1] == 2)
+    ut.assert(rbuf[2] == 255)
+    ut.assert(rbuf[3] == 0)
+
+    // truncate semantics: rewrite shorter content
+    fs.write_str("/tmp/kl_fs_test.txt", "abc")
+    let tbuf = bytes(64)
+    let n6 = fs.read_bytes("/tmp/kl_fs_test.txt", tbuf)
+    ut.assert_eq(n6, 3)
+
+    // cannot write -> false
+    let ok3 = fs.write_str("/nonexistent_dir/x.txt", "x")
+    ut.assert_false(ok3)
+}

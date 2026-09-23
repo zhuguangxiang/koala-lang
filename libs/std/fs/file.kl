@@ -7,20 +7,12 @@ import "std/io"
 
 /// An opened file providing byte-level read, write and seek access.
 ///
-/// It implements the `io.Reader`, `io.Writer`, `io.Seeker` and
-/// `io.Closable` protocols. Obtain instances via `fs.open`.
+/// It implements the `io.Reader`, `io.Writer`, `io.Seeker` and `io.Closable` protocols.
+/// Obtain instances via `fs.open` or `open` only.
 ///
-/// Files are not closed by the GC; `close` must be called explicitly
-/// to release the underlying file descriptor.
-///
-/// Note:
-/// All I/O operations report failure by returning -1; no failure
-/// reason is provided.
-///
-/// See: `fs.open`.
+/// See: `fs.open` and `open`.
 pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// The filesystem path this file was opened from.
-    ///
     /// Nil if the file was wrapped from a raw file descriptor.
     pub let path str?
 
@@ -29,75 +21,59 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     pub let mode str
 
     /// Whether this file has been closed.
-    ///
-    /// Starts as false; becomes true after `close`. Read-only from
-    /// koala code; maintained by the native implementation.
     pub let closed bool
+
+    /// The raw file descriptor associated with this file.
+    pub let fd int
+
+    /// True if the file is connected to a terminal (tty).
+    pub let is_tty bool
+
+    /// Private constructor.
+    ///
+    /// User cannot directly create instances of this class.
+    func __init__() {}
 
     /// Read up to `len(bs)` bytes into `bs` and return the count read.
     ///
-    /// Return 0 at EOF, or -1 on error. A short read (less than
-    /// `len(bs)` before EOF) is possible; loop when an exact count
-    /// is required. Panic when reading a closed file.
+    /// Return 0 at EOF, or -1 on error. Panic when writing a closed file.
     @native
     pub func read(bs bytes) int {}
 
     /// Write `len(bs)` bytes from `bs` and return the count written.
     ///
-    /// Return -1 on error. A short write is possible; loop until all
-    /// bytes are written when required. Panic when writing a closed file.
+    /// Return -1 on error. Panic when writing a closed file.
     @native
     pub func write(bs bytes) int {}
 
     /// Write the UTF-8 encoding of the string to the file.
     ///
-    /// This is a convenience method equivalent to write(s.to_bytes()).
-    ///
-    /// Arguments
-    /// - `s`: The source string to encode and write.
-    ///
-    /// Returns
-    /// The number of bytes actually written.
-    /// Return -1 on error. A short write is possible; loop until all
-    /// bytes are written when required.
-    ///
-    /// Errors
-    ///
-    /// - Panic when writing a closed file.
+    /// Returns the number of bytes actually written.
+    /// Return -1 on error. Panic when writing a closed file.
     @native
     pub func write_str(s str) int {}
 
-    /// Move the file cursor by `offset` relative to `whence` and
-    /// return the new absolute position.
+    /// Move the file cursor by `offset` relative to `whence` and return the new absolute position.
     ///
-    /// `whence`: 0 = start of file, 1 = current position,
-    /// 2 = end of file. Return -1 on error.
+    /// `whence`: 0 = start of file, 1 = current position, 2 = end of file.
     ///
-    /// Errors
+    /// Return -1 on error. Panic when seeking a closed file.
     ///
-    /// - Panic when seeking a closed file.
+    /// See: `io.SEEK_SET`, `io.SEEK_CUR`, `io.SEEK_END` for the `whence` values.
     @native
     pub func seek(offset int, whence int) int {}
 
     /// Return the current cursor position.
     ///
-    /// Return -1 on error.
-    ///
-    /// Errors
-    ///
-    /// - Panic when querying the position of a closed file.
+    /// Return -1 on error. Panic when querying the position of a closed file.
     @native
     pub func tell() int {}
 
     /// Truncate the file to `size` bytes.
     ///
-    /// If `size` is -1, truncate at the current cursor position.
-    /// The cursor itself is not moved. Return true on success,
-    /// false on error.
+    /// If `size` is -1, truncate at the current cursor position. The cursor itself is not moved.
     ///
-    /// Errors
-    ///
-    /// - Panic when truncating a closed file.
+    /// Return true on success, false on error. Panic when truncating a closed file.
     @native
     pub func truncate(size = -1) bool {}
 
@@ -107,20 +83,9 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     @native
     pub func close() {}
 
-    /// Satisfy the `io.Writer` protocol; a raw file is unbuffered,
-    /// so this is a no-op.
-    ///
-    /// Note:
-    /// Writes go directly to the operating system; there is nothing
-    /// to flush. Use `io.BufWriter` when buffering is desired.
+    /// Satisfy the `io.Writer` protocol; a raw file is unbuffered, so this only checks
+    /// if the file is closed.
     pub func flush() {
         if closed { panic("file is closed") }
     }
-
-    /// Return true if the file is connected to a terminal (tty).
-    ///
-    /// Return false on error, including a closed file; this query
-    /// never triggers a panic.
-    @native
-    pub func is_tty() bool {}
 }
