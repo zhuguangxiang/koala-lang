@@ -51,14 +51,14 @@ pub func test_str_rev2() {
     var s = "hello"
     var it = s.reversed()
     var result = ""
-    ut.assert_eq(it.next_or("ZZ"), "o")
+    ut.assert_eq(it.next()!, "o")
     while it.has_next() {
         result = result + it.next_strict()
         // FIXME:
         // failed: result += it.next_strict()
     }
     ut.assert_eq(result, "lleh")
-    ut.assert_eq(it.next_or("ZZ"), "ZZ")
+    ut.assert(it.next() == nil)
 }
 
 @test
@@ -66,7 +66,7 @@ pub func test_str_empty() {
     var s = ""
     var iter = s.iter()
     ut.assert_false(iter.has_next())
-    ut.assert_eq(iter.next_or("ZZ"), "ZZ")
+    ut.assert(iter.next() == nil)
 }
 
 @test
@@ -74,7 +74,7 @@ pub func test_str_empty_reversed() {
     var s = ""
     var iter = s.reversed()
     ut.assert_false(iter.has_next())
-    ut.assert_eq(iter.next_or("ZZ"), "ZZ")
+    ut.assert(iter.next() == nil)
 }
 
 @test_expect_panic("No more elements in StrRevIter")

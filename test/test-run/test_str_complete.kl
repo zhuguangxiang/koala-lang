@@ -174,13 +174,14 @@ func main() {
     print("ABC".isupper())
     print("AbC".isupper())
 
-    // // __iter__ / reversed
-    // for c in "abc" {
-    //     print(c)
-    // }
-    // for c in "abc".reversed() {
-    //     print(c)
-    // }
+    // iter / reversed
+    for c in "abc" {
+        print(c)
+    }
+
+    for c in "abc".reversed() {
+        print(c)
+    }
 
     // __init__(str)
     print(str("hello"))
@@ -312,10 +313,10 @@ func main() {
 // CHECK: true
 // CHECK: false
 
-// TODO: a
-// TODO: b
-// TODO: c
-// TODO: c
-// TODO: b
-// TODO: a
+// CHECK: a
+// CHECK: b
+// CHECK: c
+// CHECK: c
+// CHECK: b
+// CHECK: a
 // CHECK: hello

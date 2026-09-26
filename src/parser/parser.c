@@ -401,7 +401,18 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
         return sym;
     }
 
-    if (!pm->prelude) {
+    /* find ident from imported scope */
+    sym = stbl_get(ps->imported, id->name);
+    if (sym) {
+        log_info("find symbol '%s' in imported scope", id->name);
+        id->where = IMPORTED_SCOPE;
+        id->scope = NULL;
+        return ((ImportedSymbol *)sym)->origin;
+    }
+
+    // Resolve explicit imports before loading prelude, and never import prelude
+    // while bootstrapping builtin or compiling prelude itself.
+    if (!pm->prelude && !is_build_stdlib() && strcmp(pm->pkg_path, "std/prelude")) {
         PkgSymbol *pkg_sym = import_package(pm, "std/prelude");
         if (pkg_sym) pm->prelude = pkg_sym->stbl;
     }
@@ -416,15 +427,6 @@ Symbol *find_symbol(ParserState *ps, Ident *id)
             ASSERT(sym->path);
             return sym;
         }
-    }
-
-    /* find ident from imported scope */
-    sym = stbl_get(ps->imported, id->name);
-    if (sym) {
-        log_info("find symbol '%s' in imported scope", id->name);
-        id->where = IMPORTED_SCOPE;
-        id->scope = NULL;
-        return ((ImportedSymbol *)sym)->origin;
     }
 
     return NULL;
@@ -1835,6 +1837,80 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     }
 }
 
+// Resolve type has the specified method and return it if found.
+// If the method is not found or is not a function, report an error and return NULL.
+static FuncSymbol *resolve_method(ParserState *ps, TypeSpec *ts, char *name, Loc loc)
+{
+    Symbol *owner = get_type_symbol(ts, ps);
+    if (!owner) {
+        kl_error(loc, "type '%s' has no symbol", ts->signature);
+        return NULL;
+    }
+
+    Symbol *method = NULL;
+
+    if (owner->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst = (InstanceSymbol *)owner;
+        method = get_instance_method(inst, name, ps);
+    } else if (owner->kind == SYM_CLASS || owner->kind == SYM_TRAIT) {
+        method = stbl_get(owner->stbl, name);
+    }
+
+    if (!method) {
+        kl_error(loc, "type '%s' has no method '%s'", ts->signature, name);
+        return NULL;
+    }
+
+    if (method->kind == SYM_INHERITED) {
+        method = (Symbol *)((InheritedFunc *)method)->origin;
+        ASSERT(method);
+    }
+
+    if (method->kind != SYM_FUNC) {
+        kl_error(loc, "symbol '%s' is not a func in type '%s'", name, ts->signature);
+        return NULL;
+    }
+
+    FuncSymbol *fn = (FuncSymbol *)method;
+
+    // Check that all arguments of the method have default values.
+    // ArgInfo *arg;
+    // vector_foreach(arg, fn->params) {
+    //     if (!arg->has_dfl_val) {
+    //         kl_error(loc, "method '%s' requires argument '%s'", name, arg->name);
+    //         return NULL;
+    //     }
+    // }
+
+    return fn;
+}
+
+static int resolve_iterator_method(Expr *it, ParserState *ps)
+{
+    // Implement the logic to resolve iterator methods for the given iterable expression.
+    // Return 1 if the iterator methods are successfully resolved, 0 otherwise.
+
+    if (type_is_range(it->ts) || type_is_seq(it->ts)) {
+        // skip range and sequence types as they are iterable
+        return 0;
+    }
+
+    TypeSpec *it_ts = it->ts;
+
+    if (!type_is_iterator(it_ts)) {
+        FuncSymbol *iter = resolve_method(ps, it_ts, "iter", it->loc);
+        if (!iter) return -1;
+        it_ts = iter->ret;
+    }
+
+    if (!resolve_method(ps, it_ts, "has_next", it->loc) ||
+        !resolve_method(ps, it_ts, "next_strict", it->loc)) {
+        return -1;
+    }
+
+    return 0;
+}
+
 static void parse_for(ParserState *ps, Stmt *stmt)
 {
     ForStmt *s = (ForStmt *)stmt;
@@ -1861,6 +1937,9 @@ static void parse_for(ParserState *ps, Stmt *stmt)
             kl_error(it->loc, "type '%s' is not iterable", it->ts->signature);
             return;
         }
+
+        // Ensure that the iterable type has the necessary iterator methods before proceeding.
+        if (resolve_iterator_method(it, ps)) return;
     }
 
     Vector locals;

@@ -21,13 +21,43 @@ class Foo : Iterator[int] & Iterable[int] {
     }
 
     func iter() Iterator[int] {
-        panic("Foo:iter() must not be called")
         return self
     }
 }
 
+func iter[T](obj Iterable[T]) Iterator[T] {
+    return obj.iter()
+}
+
 func next[T](it Iterator[T]) T? {
     return it.next()
+}
+
+func count_elements[T](it Iterator[T]) int {
+    // An explicit call may create interface IR before the loop is lowered.
+    if !it.has_next() { return 0 }
+    var count = 0
+    for value in it {
+        count = count + 1
+    }
+    return count
+}
+
+func sum_iterator(it Iterator[int]) int {
+    var total = 0
+    for value in it {
+        total = total + value
+    }
+    return total
+}
+
+func collect_iterable(obj Iterable[str]) str {
+    var result = ""
+    // The implicit iter() call must also pass the default step argument.
+    for ch in obj {
+        result = result + ch
+    }
+    return result
 }
 
 func main() {
@@ -54,6 +84,28 @@ func main() {
     print(next[int](f5))
     print(next(f5))
     print(next[int](f5))
+
+    let f6 = Foo()
+    let it = iter(f6)
+    print(next[int](it))
+    while it.has_next() {
+        print(it.next())
+    }
+
+    let str_it Iterator[str] = "hello world".iter()
+    var text = ""
+    for ch in str_it {
+        text = text + ch
+    }
+    print("trait string: " + text)
+
+    print("trait integer sum")
+    print(sum_iterator(Foo()))
+    print("generic trait counts")
+    print(count_elements(iter(Foo())))
+    print(count_elements("abcd".iter()))
+    print(count_elements("".iter()))
+    print("trait iterable: " + collect_iterable("abc"))
 }
 
 // CHECK: 1
@@ -74,3 +126,15 @@ func main() {
 // CHECK: 1
 // CHECK: 2
 // CHECK: 3
+
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3
+// CHECK-NEXT: trait string: hello world
+// CHECK-NEXT: trait integer sum
+// CHECK-NEXT: 6
+// CHECK-NEXT: generic trait counts
+// CHECK-NEXT: 3
+// CHECK-NEXT: 4
+// CHECK-NEXT: 0
+// CHECK-NEXT: trait iterable: abc

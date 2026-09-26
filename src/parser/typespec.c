@@ -791,7 +791,7 @@ int type_is_some_klass(TypeSpec *ts, char *name)
 int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts)
 {
     Symbol *sym = get_symbol_by_id(ts->sym_id);
-    ASSERT(sym);
+    if (!sym) return 0;
 
     Vector *bases;
 
@@ -808,7 +808,6 @@ int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_t
             }
             if (arg_ts) {
                 *arg_ts = vector_get(inst_sym->tp_args, 0);
-                ASSERT(!type_is_generic_var(*arg_ts));
                 log_info("%s argument type: %s", name, (*arg_ts)->signature);
             }
             return 1;

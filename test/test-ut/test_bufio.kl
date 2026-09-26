@@ -1,0 +1,426 @@
+// RUN: koala %s --test
+
+import "std/io"
+import "std/ut"
+
+// This file exercises the buffered wrappers io.BufReader / io.BufWriter on top
+// of the in-memory streams io.BytesIO and io.StringIO.
+//
+// Combination coverage:
+//   BufReader(BytesIO)  -> read / peek / discard / avail / read_until
+//   BufReader(StringIO) -> read / read_until
+//   Words(BufReader)    -> for / next / lookahead / refills / EOF / panic
+//   BufWriter(BytesIO)  -> write / write_str / flush / auto-flush / large bypass
+//   BufWriter(StringIO) -> NOT TESTED: StringIO is read-only
+//                          (Reader & Seeker & Closable, it is not a Writer),
+//                          so io.BufWriter(sio) does not type-check by design.
+//
+// The internal buffer sizes are kept small on purpose so every test forces
+// multiple refills / flushes across the wrapper boundary.
+
+// ---------------------------------------------------------------------------
+// BufReader over BytesIO
+// ---------------------------------------------------------------------------
+
+@test
+func test_bufreader_bytesio_read() {
+    let bio = io.BytesIO.from_str("hello world") // 11 bytes
+    let br = io.BufReader(bio, 4)                // small buffer forces refills
+    let buf = bytes(16)
+
+    ut.assert_eq(br.read(buf), 4)
+    ut.assert_eq(buf.view(0, 4).to_str(), "hell")
+    ut.assert_eq(br.read(buf), 4)
+    ut.assert_eq(buf.view(0, 4).to_str(), "o wo")
+    ut.assert_eq(br.read(buf), 3) // short read: only 3 bytes left
+    ut.assert_eq(buf.view(0, 3).to_str(), "rld")
+    ut.assert_eq(br.read(buf), 0) // EOF
+}
+
+@test
+func test_bufreader_bytesio_peek_discard() {
+    let bio = io.BytesIO.from_str("abcdef")
+    let br = io.BufReader(bio, 4)
+
+    // nothing buffered before the first access
+    ut.assert_eq(br.avail(), 0)
+
+    // peek triggers a fill but consumes nothing
+    let p = br.peek(3)
+    ut.assert_eq(len(p), 3)
+    ut.assert_eq(p.to_str(), "abc")
+    ut.assert_eq(br.avail(), 4) // fill pulled 4 bytes, peek left them all
+
+    // discard drops bytes without copying them out
+    ut.assert_eq(br.discard(2), 2)
+    ut.assert_eq(br.avail(), 2)
+
+    // the next read serves what is left in the buffer ("cd")
+    let buf = bytes(8)
+    ut.assert_eq(br.read(buf), 2)
+    ut.assert_eq(buf.view(0, 2).to_str(), "cd")
+}
+
+@test
+func test_bufreader_bytesio_peek_eof() {
+    let bio = io.BytesIO.from_str("xy")
+    let br = io.BufReader(bio, 4)
+
+    // peek returns whatever is available (2 < requested 4)
+    let p = br.peek(4)
+    ut.assert_eq(len(p), 2)
+    ut.assert_eq(p.to_str(), "xy")
+
+    // after consuming everything, peek at EOF yields an empty bytes
+    ut.assert_eq(br.discard(2), 2)
+    let e = br.peek(4)
+    ut.assert_eq(len(e), 0)
+}
+
+@test
+func test_bufreader_bytesio_read_until() {
+    let bio = io.BytesIO.from_str("alpha,beta,gamma") // 16 bytes
+    let br = io.BufReader(bio, 4)
+
+    let out = Buffer()
+    ut.assert_eq(br.read_until(out, ','), 5)
+    ut.assert_eq(out.to_str(), "alpha")
+
+    out.clear()
+    ut.assert_eq(br.read_until(out, ','), 4)
+    ut.assert_eq(out.to_str(), "beta")
+
+    // no more delimiters: read_until runs to EOF and returns what it got
+    out.clear()
+    ut.assert_eq(br.read_until(out, ','), 5)
+    ut.assert_eq(out.to_str(), "gamma")
+}
+
+// ---------------------------------------------------------------------------
+// BufReader over StringIO (read-only stream)
+// ---------------------------------------------------------------------------
+
+@test
+func test_bufreader_strio_read() {
+    let sio = io.StringIO("koala lang") // 10 bytes
+    let br = io.BufReader(sio, 4)
+    let buf = bytes(16)
+
+    ut.assert_eq(br.read(buf), 4)
+    ut.assert_eq(buf.view(0, 4).to_str(), "koal")
+    ut.assert_eq(br.read(buf), 4)
+    ut.assert_eq(buf.view(0, 4).to_str(), "a la")
+    ut.assert_eq(br.read(buf), 2) // short read: only 2 bytes left
+    ut.assert_eq(buf.view(0, 2).to_str(), "ng")
+    ut.assert_eq(br.read(buf), 0) // EOF
+}
+
+@test
+func test_bufreader_strio_read_until() {
+    let sio = io.StringIO("one;two;three") // 13 bytes
+    let br = io.BufReader(sio, 4)
+
+    let out = Buffer()
+    ut.assert_eq(br.read_until(out, ';'), 3)
+    ut.assert_eq(out.to_str(), "one")
+
+    out.clear()
+    ut.assert_eq(br.read_until(out, ';'), 3)
+    ut.assert_eq(out.to_str(), "two")
+
+    // last field has no trailing delimiter: read_until runs to EOF
+    out.clear()
+    ut.assert_eq(br.read_until(out, ';'), 5)
+    ut.assert_eq(out.to_str(), "three")
+}
+
+// ---------------------------------------------------------------------------
+// BufWriter over BytesIO
+// ---------------------------------------------------------------------------
+
+@test
+func test_bufwriter_bytesio_buffering() {
+    let bio = io.BytesIO(64)
+    let bw = io.BufWriter(bio, 8)
+
+    // first write stays in the 8-byte buffer, bio is still empty
+    ut.assert_eq(bw.write_str("Hello, "), 7)
+    ut.assert_eq(bio.size(), 0)
+
+    // second write would overflow the buffer -> auto-flushes the first chunk
+    ut.assert_eq(bw.write_str("Koala!"), 6)
+    ut.assert_eq(bio.size(), 7)
+
+    // explicit flush pushes the remainder through
+    bw.flush()
+    ut.assert_eq(bio.size(), 13)
+
+    // read the accumulated content back from the underlying BytesIO
+    bio.seek(0, 0)
+    let buf = bytes(64)
+    ut.assert_eq(bio.read(buf), 13)
+    ut.assert_eq(buf.view(0, 13).to_str(), "Hello, Koala!")
+}
+
+@test
+func test_bufwriter_bytesio_large_bypass() {
+    let bio = io.BytesIO(64)
+    let bw = io.BufWriter(bio, 4)
+
+    // data larger than the buffer bypasses it and lands in bio immediately
+    ut.assert_eq(bw.write_str("abcdef"), 6)
+    ut.assert_eq(bio.size(), 6)
+
+    bw.flush()
+    bio.seek(0, 0)
+    let buf = bytes(16)
+    ut.assert_eq(bio.read(buf), 6)
+    ut.assert_eq(buf.view(0, 6).to_str(), "abcdef")
+}
+
+// ---------------------------------------------------------------------------
+// End-to-end: BufWriter -> BytesIO -> BufReader
+// ---------------------------------------------------------------------------
+
+@test
+func test_bufio_roundtrip_over_bytesio() {
+    let bio = io.BytesIO(128)
+    let bw = io.BufWriter(bio, 8)
+    bw.write_str("The quick ")
+    bw.write_str("brown fox")
+    bw.flush()
+
+    // rewind and read everything back through a BufReader (no ';' present,
+    // so read_until drains to EOF)
+    bio.seek(0, 0)
+    let br = io.BufReader(bio, 4)
+    let out = Buffer()
+    ut.assert_eq(br.read_until(out, ';'), 19)
+    ut.assert_eq(out.to_str(), "The quick brown fox")
+}
+
+// ---------------------------------------------------------------------------
+// Words over buffered streams
+// ---------------------------------------------------------------------------
+
+// Compile this before constructing Words or explicitly calling its methods:
+// the imported class and iterator method IR must be created by the for loop.
+func collect_imported_words(it io.Words) str {
+    var result = ""
+    for word in it {
+        result = result + word + "|"
+    }
+    return result
+}
+
+func collect_words(it Iterator[str]) str {
+    var result = ""
+    for word in it {
+        result = result + word + "|"
+    }
+    return result
+}
+
+@test
+func test_words_for_loop() {
+    let words = io.Words(io.BufReader(io.StringIO(" \talpha  beta\r\n gamma \t"), 4))
+    var result = ""
+    for word in words {
+        result = result + word + "|"
+    }
+    ut.assert_eq(result, "alpha|beta|gamma|")
+    ut.assert_false(words.has_next())
+}
+
+@test
+func test_words_for_parameter() {
+    let words = io.Words(io.BufReader(io.StringIO("one two three"), 2))
+    ut.assert_eq(collect_imported_words(words), "one|two|three|")
+    ut.assert_false(words.has_next())
+}
+
+@test
+func test_words_for_expression_control_flow() {
+    let br = io.BufReader(io.StringIO("skip first stop last"), 3)
+    var result = ""
+    for word in io.Words(br) {
+        if word == "skip" { continue }
+        if word == "stop" { break }
+        result = result + word + "|"
+    }
+    ut.assert_eq(result, "first|")
+    // Breaking does not consume words beyond the current element.
+    ut.assert_eq(collect_imported_words(io.Words(br)), "last|")
+}
+
+@test
+func test_imported_builtin_iterator_for() {
+    var forward = ""
+    for ch in "abc".iter() {
+        forward = forward + ch
+    }
+    ut.assert_eq(forward, "abc")
+
+    var backward = ""
+    for ch in "abc".reversed() {
+        backward = backward + ch
+    }
+    ut.assert_eq(backward, "cba")
+}
+
+@test
+func test_trait_iterator_for_control_flow() {
+    let it Iterator[str] = "abcd".iter()
+    ut.assert(it.has_next())
+    var result = ""
+    for ch in it {
+        if ch == "a" { continue }
+        if ch == "c" { break }
+        result = result + ch
+    }
+    ut.assert_eq(result, "b")
+    ut.assert_eq(it.next_strict(), "d")
+    ut.assert_false(it.has_next())
+    ut.assert_eq(collect_words(it), "")
+}
+
+@test
+func test_trait_iterator_for_empty_and_expression() {
+    ut.assert_eq(collect_words("".iter()), "")
+    ut.assert_eq(collect_words("".reversed()), "")
+    var result = ""
+    for ch in iter("xyz") {
+        result = result + ch
+    }
+    ut.assert_eq(result, "xyz")
+}
+
+@test
+func test_words_iterator_refill_boundaries() {
+    for size in [1, 2, 3, 4, 7, 8, 8192] {
+        let br = io.BufReader(io.StringIO("  one\ttwo\nthree\rfour  "), size)
+        ut.assert_eq(collect_words(io.Words(br)), "one|two|three|four|")
+    }
+}
+
+@test
+func test_words_bytesio_next() {
+    let bio = io.BytesIO.from_str("first\tsecond\nlast")
+    let words = io.Words(io.BufReader(bio, 3))
+    var result = ""
+    while let word = words.next() {
+        result = result + word + "|"
+    }
+    ut.assert_eq(result, "first|second|last|")
+    ut.assert(words.next() == nil)
+    ut.assert_false(words.has_next())
+}
+
+@test
+func test_words_empty_and_whitespace() {
+    for text in ["", " ", "\t\r\n", "   \t\n\r   "] {
+        let words = io.Words(io.BufReader(io.StringIO(text), 1))
+        ut.assert_false(words.has_next())
+        ut.assert_false(words.has_next())
+        ut.assert(words.next() == nil)
+        ut.assert_eq(collect_words(words), "")
+    }
+}
+
+@test
+func test_words_cached_lookahead() {
+    let words = io.Words(io.BufReader(io.StringIO("one two three"), 2))
+    ut.assert(words.has_next())
+    ut.assert(words.has_next())
+    let first = words.next_strict()
+    ut.assert_eq(first, "one")
+
+    ut.assert(words.has_next())
+    ut.assert(words.has_next())
+    let second = words.next()
+    ut.assert_eq(second!, "two")
+    ut.assert_eq(words.next_strict(), "three")
+    // Previously returned strings survive clearing and reusing the buffer.
+    ut.assert_eq(first, "one")
+    ut.assert_eq(second!, "two")
+    ut.assert_false(words.has_next())
+    ut.assert(words.next() == nil)
+}
+
+@test
+func test_words_final_word_without_separator() {
+    let words = io.Words(io.BufReader(io.StringIO("last"), 1))
+    // EOF may already be known while the last word is still pending.
+    ut.assert(words.has_next())
+    ut.assert(words.has_next())
+    ut.assert_eq(words.next_strict(), "last")
+    ut.assert_false(words.has_next())
+    ut.assert(words.next() == nil)
+    ut.assert(words.next() == nil)
+}
+
+@test
+func test_words_long_token() {
+    var token = ""
+    var i = 0
+    while i < 600 {
+        token = token + "x"
+        i = i + 1
+    }
+    let br = io.BufReader(io.StringIO("head " + token + " tail"), 7)
+    let words = io.Words(br)
+    ut.assert_eq(words.next_strict(), "head")
+    // The token exceeds both the reader and the initial token-buffer capacity.
+    ut.assert_eq(words.next_strict(), token)
+    ut.assert_eq(words.next_strict(), "tail")
+    ut.assert_false(words.has_next())
+}
+
+@test
+func test_words_utf8_and_punctuation() {
+    let br = io.BufReader(io.StringIO("café 世界\tnaïve,word!"), 1)
+    // Individual UTF-8 characters are split across refills, not across tokens.
+    ut.assert_eq(collect_words(io.Words(br)), "café|世界|naïve,word!|")
+}
+
+@test
+func test_words_short_reads() {
+    // The inner reader returns one byte even though the outer one requests eight.
+    let inner = io.BufReader(io.StringIO("one two\nthree"), 1)
+    let words = io.Words(io.BufReader(inner, 8))
+    ut.assert_eq(collect_words(words), "one|two|three|")
+}
+
+@test
+func test_words_shared_reader_position() {
+    let br = io.BufReader(io.StringIO("xxone two three"), 8)
+    ut.assert_eq(br.discard(2), 2)
+    let words = io.Words(br)
+    ut.assert_eq(words.next_strict(), "one")
+    // Only the word and its first separator are consumed.
+    ut.assert_eq(br.peek(2).to_str(), "tw")
+    ut.assert_eq(words.next_strict(), "two")
+    ut.assert_eq(words.next_strict(), "three")
+    ut.assert_false(words.has_next())
+}
+
+@test_expect_panic("No more elements in Words")
+func test_words_empty_next_strict_panic() {
+    let words = io.Words(io.BufReader(io.StringIO(""), 2))
+    words.next_strict()
+}
+
+@test_expect_panic("No more elements in Words")
+func test_words_exhausted_next_strict_panic() {
+    let words = io.Words(io.BufReader(io.StringIO("only"), 2))
+    ut.assert_eq(words.next_strict(), "only")
+    words.next_strict()
+}
+
+@test_expect_panic("I/O operation on closed StringIO")
+func test_words_closed_reader_panic() {
+    let source = io.StringIO("word")
+    let words = io.Words(io.BufReader(source, 2))
+    source.close()
+    words.has_next()
+}

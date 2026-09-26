@@ -113,11 +113,7 @@ pub trait Map[K, V] : Iterable[(K, V)] {
     /// Return true if the map contains a mapping for `key`.
     func __contains__(key K) bool
 
-    /// Return the value associated with `key`.
-    ///
-    /// Errors
-    ///
-    /// Panic if `key` is not present.
+    /// Return the value associated with `key`. Panic if `key` is not present.
     func __getitem__(key K) V
 
     /// Associate `value` with `key`.

@@ -89,6 +89,17 @@ pub func format(fmt str, args ...) str {}
 @native
 pub func typeof(obj any) type {}
 
+/// Return an iterator over the elements of an iterable.
+pub func iter[T](obj Iterable[T]) Iterator[T] {
+    return obj.iter()
+}
+
+/// Return the next element, or nil when exhausted.
+/// Consume elements with `while let value = next(it)`.
+pub func next[T](it Iterator[T]) T? {
+    return it.next()
+}
+
 /*
  * USER GUIDE: Generic Shells vs. @specialized Functions
  *
@@ -110,8 +121,6 @@ pub func typeof(obj any) type {}
  */
 
 /// Computes the absolute value using a matching specialization.
-///
-/// Errors
 ///
 /// Panic if execution reaches the unspecialized fallback.
 pub func abs[T](a T) T {
@@ -156,8 +165,6 @@ pub func max[T : Comparable](x T, y T) T {
 ///
 /// To extend support for custom types, implement a standalone function named
 /// `pow_<base_type>_<exp_type>`.
-///
-/// Errors
 ///
 /// Panic if execution reaches the unspecialized fallback.
 pub func pow[T, U](base T, exp U) any {

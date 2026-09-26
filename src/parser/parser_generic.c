@@ -344,8 +344,6 @@ static Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserStat
         return NULL;
     }
 
-    if (arg_ts->kind != TYPE_KLASS) return NULL;
-
     if (sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
         if (inst_sym->origin && inst_sym->origin->id == origin->id) {

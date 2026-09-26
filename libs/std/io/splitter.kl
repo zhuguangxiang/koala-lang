@@ -125,8 +125,7 @@ pub class Lines : Iterator[str] {
     ///
     /// Must be called after has_next() returned true.
     /// Handles both Unix ('\n') and Windows ('\r\n') line endings.
-    @native
-    pub func next_strict() str {}
+    pub func next_strict() str { return buf.to_str() }
 
     /// Return the next line, or nil if EOF has been reached.
     ///
@@ -139,9 +138,10 @@ pub class Lines : Iterator[str] {
 
 /// Words iterates over whitespace-separated tokens from a BufReader.
 ///
-/// It skips leading whitespace (spaces, tabs, newlines, carriage returns),
-/// then reads consecutive non-whitespace bytes as a single word.
-/// Empty input or trailing whitespace produces no extra iterations.
+/// It splits on ASCII space, tab, newline, and carriage return, skipping
+/// leading and repeated separators. Other bytes, including UTF-8 text, are
+/// preserved. Empty input or trailing whitespace produces no extra iterations.
+/// Tokens may span any number of buffered reads.
 ///
 /// This is useful for tokenizing input where fields are separated by
 /// arbitrary amounts of whitespace, such as parsing command output or
@@ -152,7 +152,7 @@ pub class Lines : Iterator[str] {
 ///     for word in io.Words(br) {
 ///         print(word)
 ///     }
-pub class Words: Iterator[str] {
+pub class Words : Iterator[str] {
 
     /// The underlying buffered reader that provides the byte stream.
     let br BufReader
@@ -160,6 +160,12 @@ pub class Words: Iterator[str] {
     /// Internal buffer that accumulates non-whitespace bytes for the current token.
     /// Reused across iterations to avoid repeated allocations.
     let buf Buffer
+
+    /// Whether the buffer holds a token that has not yet been returned.
+    var ready bool = false
+
+    /// Whether the underlying reader has reached EOF.
+    var done bool = false
 
     /// Create a new Words iterator that tokenizes the given buffered reader
     /// by whitespace (spaces, tabs, newlines, carriage returns).
@@ -174,20 +180,55 @@ pub class Words: Iterator[str] {
         buf = Buffer(256)
     }
 
-    /// Read the next whitespace-delimited token from the underlying reader.
+    /// Return true if another word is available, buffering it if necessary.
     ///
-    /// Skips any leading whitespace, then accumulates non-whitespace bytes
-    /// into the internal buffer. Returns true if a token was found, false if
-    /// EOF was reached without finding any non-whitespace content.
-    @native
-    pub func has_next() bool {}
+    /// Repeated calls do not advance past the pending word. Leading whitespace
+    /// is skipped, and word fragments are copied before the reader is refilled.
+    pub func has_next() bool {
+        if ready { return true }
+        if done { return false }
 
-    /// Return the current token as a str.
+        buf.clear()
+        loop {
+            // Peek at buffered data, requesting one byte to trigger a refill
+            // when empty. Only the bytes scanned below will be consumed.
+            let chunk = br.peek(max(br.avail(), 1))
+            let n = len(chunk)
+            if n == 0 {
+                done = true
+                ready = !buf.empty()
+                return ready
+            }
+
+            var i = 0
+            while i < n {
+                let b = chunk[i]
+                if b == ' ' || b == '\t' || b == '\n' || b == '\r' {
+                    if !buf.empty() {
+                        br.discard(i + 1)
+                        ready = true
+                        return true
+                    }
+                } else {
+                    // Indexed access preserves the offset of the peeked view.
+                    buf.write_byte(b)
+                }
+                i = i + 1
+            }
+            br.discard(n)
+        }
+    }
+
+    /// Return the next word and advance the iterator. Panic if exhausted.
     ///
-    /// Must be called after has_next() returned true.
-    /// The returned string contains only the non-whitespace bytes of the token.
-    @native
-    pub func next_strict() str {}
+    /// May be called without a preceding has_next(). The returned string is
+    /// independent of the internal buffer and remains valid after advancing.
+    pub func next_strict() str {
+        if !has_next() { panic("No more elements in Words") }
+        let word = buf.to_str()
+        ready = false
+        return word
+    }
 
     /// Return the next token, or nil if EOF has been reached.
     ///

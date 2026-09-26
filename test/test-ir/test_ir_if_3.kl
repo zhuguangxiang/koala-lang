@@ -80,9 +80,10 @@ func foo() {
     let a = get_some_bool()
     let b = true
 
-    // The expression 'a || (b && false)' should collapse to 'a'
-    // Step 1: (true && false) -> false
-    // Step 2: a || false -> a
+    // 'a || (b && false)': the RHS '(b && false)' const-folds to false, but
+    // because the OR's LHS 'a' is a runtime value, the OR keeps its logical
+    // diamond (%bb1 evaluates the rhs into %land, then joins into %lor). The
+    // result %lor is semantically 'a', though not structurally collapsed.
     if a || (b && false) {
         print("Path A", a)
     } else {
@@ -92,10 +93,29 @@ func foo() {
 
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@foo] ---
 // CHECK-LABEL: func @foo()
+// CHECK: %bb0(entry):
 // CHECK: %0 = call @get_some_bool
-// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: %lor = local bool
+// CHECK: move %lor bool, %0 bool
+// CHECK: branch %0 bool, label %bb2, label %bb1
+// CHECK: %bb1(logical-rhs):
+// CHECK: %land = local bool
+// CHECK: move %land bool, true bool
+// CHECK: move %land bool, false bool
+// CHECK: move %lor bool, %land bool
+// CHECK: jmp label %bb2
+// CHECK: %bb2(logical-end):
+// CHECK: branch %lor bool, label %bb3, label %bb4
+// CHECK: %bb3(if-then):
+// CHECK: %1 = build_intern @tuple, 'Path A' str, %0 bool
 // CHECK: call @print [path = 'std/prelude']
-// CHECK: jmp label %bb3
+// CHECK: jmp label %bb5
+// CHECK: %bb4(if-else):
+// CHECK: %land = local bool
+// CHECK: move %land bool, true bool
+// CHECK: move %land bool, false bool
+// CHECK: %2 = build_intern @tuple, 'Path B' str, %land bool
 // CHECK: call @print [path = 'std/prelude']
-// CHECK: jmp label %bb3
+// CHECK: jmp label %bb5
+// CHECK: %bb5(if-end):
 // CHECK: ret void

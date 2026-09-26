@@ -99,7 +99,7 @@ static TValue _bytes_copy(TValue *self, TValue *args, int nargs)
     if (src_end < 0) src_end = src_bytes->size;
 
     int len = src_end - src_start;
-    ASSERT(len <= bytes->size);
+    ASSERT(len >= 0 && len <= bytes->size);
 
     memmove(bytes->data + bytes->offset, src_bytes->data + src_bytes->offset + src_start, len);
     return int64_value(len);

@@ -895,6 +895,82 @@ static KlrValue *get_ext_global_value(char *name, Symbol *sym, ParserState *ps)
     return var->ir_val;
 }
 
+static KlrValue *get_class_method(ParserState *ps, Symbol *sym)
+{
+    if (sym->ir_val) return sym->ir_val;
+
+    ASSERT(sym->kind == SYM_FUNC);
+    Symbol *owner = sym->parent;
+    ASSERT(owner && owner->kind == SYM_CLASS);
+    ASSERT(owner->flags & SYM_FLAGS_EXT);
+
+    KlassSymbol *klass = (KlassSymbol *)owner;
+    if (!klass->ir_val) {
+        klass->ir_val = klr_add_ext_klass(MOD, klass->path, klass->instance_ts, klass->name);
+    }
+
+    ASSERT(klass->ir_val->kind == KLR_VALUE_EXT_KLASS);
+
+    sym->ir_val =
+        klr_add_ext_method((KlrExtKlass *)klass->ir_val, ((FuncSymbol *)sym)->ret, sym->name);
+    return sym->ir_val;
+}
+
+static KlrValue *get_callable(ParserState *ps, Symbol *sym)
+{
+    if (sym->ir_val) return sym->ir_val;
+    ASSERT(sym->kind == SYM_FUNC);
+    Symbol *owner = sym->parent;
+    if (owner->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst = (InstanceSymbol *)owner;
+        Symbol *origin = inst->origin;
+        if (!(origin->flags & SYM_FLAGS_EXT)) {
+            Symbol *method = stbl_get(origin->stbl, sym->name);
+            ASSERT(method && method->ir_val);
+            sym->ir_val = method->ir_val;
+        } else {
+            Symbol *parent = origin->parent;
+            ASSERT(parent && parent->kind == SYM_PACKAGE);
+            if (origin->kind == SYM_CLASS) {
+                if (!owner->ir_val) {
+                    owner->ir_val =
+                        klr_add_ext_klass(MOD, parent->name, inst->instance_ts, origin->name);
+                }
+                ASSERT(owner->ir_val->kind == KLR_VALUE_EXT_KLASS);
+                sym->ir_val = klr_add_ext_method((KlrExtKlass *)owner->ir_val,
+                                                 ((FuncSymbol *)sym)->ret, sym->name);
+            } else {
+                ASSERT(origin->kind == SYM_TRAIT);
+                if (!owner->ir_val) {
+                    owner->ir_val =
+                        klr_add_ext_trait(MOD, parent->name, inst->instance_ts, owner->name);
+                    _add_instance_used_intf_to_trait((KlrExtTrait *)owner->ir_val, inst);
+                }
+                ASSERT(owner->ir_val->kind == KLR_VALUE_EXT_TRAIT);
+                sym->ir_val = klr_get_ext_intf((KlrExtTrait *)owner->ir_val, sym->name);
+            }
+        }
+    } else if (owner->kind == SYM_CLASS) {
+        return get_class_method(ps, sym);
+    } else if (owner->kind == SYM_PACKAGE) {
+        ASSERT(owner->ir_val && owner->ir_val->kind == KLR_VALUE_EXT_MODULE);
+        sym->ir_val = klr_add_ext_func(MOD, owner->name, ((FuncSymbol *)sym)->ret, sym->name);
+    } else {
+        ASSERT(owner->kind == SYM_TRAIT && (owner->flags & SYM_FLAGS_EXT));
+        if (!owner->ir_val) {
+            Symbol *parent = owner->parent;
+            ASSERT(parent && parent->kind == SYM_PACKAGE);
+            owner->ir_val = klr_add_ext_trait(MOD, parent->name,
+                                              ((KlassSymbol *)owner)->instance_ts, owner->name);
+            _add_all_intf_to_trait((KlrExtTrait *)owner->ir_val, (KlassSymbol *)owner);
+        }
+        ASSERT(owner->ir_val->kind == KLR_VALUE_EXT_TRAIT);
+        sym->ir_val = klr_get_ext_intf((KlrExtTrait *)owner->ir_val, sym->name);
+    }
+    ASSERT(sym->ir_val);
+    return sym->ir_val;
+}
+
 static void emit_ir_dot(ParserState *ps, Expr *exp)
 {
     DotExpr *dot = (DotExpr *)exp;
@@ -905,89 +981,22 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
     emit_ir_visit_expr(ps, lhs);
     if (!lhs->ir_val) return;
 
+    TypeSpec *lhs_ts = lhs->ir_val->ts;
+    if (lhs_ts && type_is_optional(lhs_ts)) {
+        if (opt_or_bang == DOT_BANG) {
+            KlrBuilder bldr;
+            klr_builder_end(&bldr, ps->scope->bb);
+            TypeSpec *src_ts = lhs_ts->opt.src;
+            KlrValue *v = klr_build_cast(&bldr, lhs->ir_val, src_ts, "");
+            SET_IR_LOC(v, lhs);
+            lhs->ir_val = v;
+        }
+    }
+
     Symbol *sym = exp->sym;
     if (sym->kind == SYM_FUNC) {
         if (exp->ctx == EXPR_CTX_CALL) {
-            if (!sym->ir_val) {
-                // ASSERT(sym->flags & SYM_FLAGS_EXT);
-                Symbol *_sym = sym->parent;
-                if (_sym->kind == SYM_INSTANCE) {
-                    InstanceSymbol *inst_sym = (InstanceSymbol *)_sym;
-                    Symbol *origin = inst_sym->origin;
-                    if (origin->flags & SYM_FLAGS_EXT) {
-                        if (origin->kind == SYM_CLASS) {
-                            KlrValue *_val = _sym->ir_val;
-                            if (!_val) {
-                                Symbol *parent = origin->parent;
-                                ASSERT(parent && parent->kind == SYM_PACKAGE);
-                                _val = klr_add_ext_klass(MOD, parent->name, inst_sym->instance_ts,
-                                                         origin->name);
-                                _sym->ir_val = _val;
-                            }
-                            ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
-                            KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
-                            exp->ir_val =
-                                klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
-                        } else if (origin->kind == SYM_TRAIT) {
-                            KlrValue *_val = _sym->ir_val;
-                            if (!_val) {
-                                Symbol *parent = origin->parent;
-                                ASSERT(parent && parent->kind == SYM_PACKAGE);
-                                _val = klr_add_ext_trait(MOD, parent->name, inst_sym->instance_ts,
-                                                         _sym->name);
-                                _sym->ir_val = _val;
-                                _add_instance_used_intf_to_trait((KlrExtTrait *)_val, inst_sym);
-                            }
-                            ASSERT(_val && _val->kind == KLR_VALUE_EXT_TRAIT);
-                            exp->ir_val = klr_get_ext_intf((KlrExtTrait *)_val, sym->name);
-                            ASSERT(exp->ir_val);
-                        } else {
-                            UNREACHABLE();
-                        }
-                    } else {
-                        Symbol *_fn_sym = stbl_get(origin->stbl, sym->name);
-                        ASSERT(_fn_sym &&
-                               (_fn_sym->kind == SYM_FUNC || _fn_sym->kind == SYM_INHERITED));
-                        ASSERT(_fn_sym->ir_val);
-                        exp->ir_val = _fn_sym->ir_val;
-                    }
-                } else if (_sym->kind == SYM_CLASS) {
-                    KlassSymbol *kls_sym = (KlassSymbol *)_sym;
-                    KlrValue *_val = kls_sym->ir_val;
-                    if (!_val) {
-                        _val = klr_add_ext_klass(MOD, kls_sym->path, kls_sym->instance_ts,
-                                                 kls_sym->name);
-                        kls_sym->ir_val = _val;
-                    }
-                    ASSERT(_val && _val->kind == KLR_VALUE_EXT_KLASS);
-                    KlrExtKlass *ext_kls = (KlrExtKlass *)_val;
-                    exp->ir_val = klr_add_ext_method(ext_kls, ((FuncSymbol *)sym)->ret, sym->name);
-                } else if (_sym->kind == SYM_PACKAGE) {
-                    KlrValue *_val = _sym->ir_val;
-                    ASSERT(_val && _val->kind == KLR_VALUE_EXT_MODULE);
-                    KlrExtModule *ext_mod = (KlrExtModule *)_val;
-                    exp->ir_val =
-                        klr_add_ext_func(MOD, _sym->name, ((FuncSymbol *)sym)->ret, sym->name);
-                } else {
-                    ASSERT(_sym->kind == SYM_TRAIT);
-                    ASSERT(_sym->flags & SYM_FLAGS_EXT);
-                    KlrValue *_val = _sym->ir_val;
-                    if (!_val) {
-                        Symbol *parent = _sym->parent;
-                        ASSERT(parent && parent->kind == SYM_PACKAGE);
-                        _val = klr_add_ext_trait(MOD, parent->name,
-                                                 ((KlassSymbol *)_sym)->instance_ts, _sym->name);
-                        _sym->ir_val = _val;
-                        _add_all_intf_to_trait((KlrExtTrait *)_val, (KlassSymbol *)_sym);
-                    }
-                    ASSERT(_val && _val->kind == KLR_VALUE_EXT_TRAIT);
-                    exp->ir_val = klr_get_ext_intf((KlrExtTrait *)_val, sym->name);
-                    ASSERT(exp->ir_val);
-                }
-                sym->ir_val = exp->ir_val;
-            } else {
-                exp->ir_val = sym->ir_val;
-            }
+            exp->ir_val = get_callable(ps, sym);
             // use expr's arg to save the lhs's ir_val, so that we can use it in emit_ir_call
             exp->arg = lhs->ir_val;
         } else if (exp->ctx == EXPR_CTX_LOAD) {
@@ -1304,12 +1313,105 @@ static char *get_binary_op_name(BiOpKind op)
     }
 }
 
+/*
+ * Lower logical '&&' / '||' to a short-circuiting CFG diamond.
+ *
+ * Both operands are bool after type checking (klr_build_jmp_cond requires a
+ * bool cond, and emit_ir_if_stmt feeds cond->ir_val directly with no cast).
+ * The result is a mutable local initialized to the lhs; the rhs is evaluated
+ * in a separate block ONLY on the non-short-circuiting path and moved into the
+ * result there. The existing SSA construction pass inserts the phi at the join
+ * block (end_bb has two predecessors and the result local has def_count == 2).
+ *
+ *   a && b : a true  -> eval b, result = b ; a false -> result = a (false)
+ *   a || b : a true  -> result = a (true)  ; a false -> eval b, result = b
+ */
+static void emit_ir_logical(ParserState *ps, Expr *exp, BiOpKind op)
+{
+    KlrValue *fn = CURRENT_FUNC;
+    BinaryExpr *bin = (BinaryExpr *)exp;
+    Expr *lhs = bin->lhs;
+    Expr *rhs = bin->rhs;
+    char *tag = (op == BINARY_AND) ? "land" : "lor";
+
+    /* 1) evaluate lhs in the current block (bool) */
+    lhs->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, lhs);
+    if (!lhs->ir_val) return;
+
+    /*
+     * Constant-fold a compile-time-bool lhs. This preserves short-circuit
+     * semantics (the rhs is skipped when the lhs already decides the result)
+     * and, crucially, avoids emitting a conditional branch on a constant,
+     * which the instruction selector cannot handle.
+     *   false && x -> false       true  && x -> x
+     *   true  || x -> true        false || x -> x
+     */
+    if (lhs->ir_val->kind == KLR_VALUE_CONST && ((KlrConst *)lhs->ir_val)->which == CONST_BOOL) {
+        int lv = ((KlrConst *)lhs->ir_val)->bval;
+        int decides = (op == BINARY_AND) ? !lv : lv;
+        if (!decides) {
+            /* lhs does not decide: the result is exactly the rhs */
+            rhs->ctx = EXPR_CTX_LOAD;
+            emit_ir_visit_expr(ps, rhs);
+            if (!rhs->ir_val) return;
+            exp->ts = bool_type_spec();
+            exp->ir_val = rhs->ir_val;
+        } else {
+            /* lhs alone decides: rhs is never evaluated */
+            exp->ts = bool_type_spec();
+            exp->ir_val = lhs->ir_val;
+        }
+        SET_IR_LOC(exp->ir_val, exp);
+        return;
+    }
+
+    KlrBasicBlock *rhs_bb = klr_append_block(fn, "logical-rhs");
+    KlrBasicBlock *end_bb = klr_append_block(fn, "logical-end");
+
+    /* 2) result local, tentatively initialized with lhs */
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    KlrValue *result = klr_build_local_var(&bldr, bool_type_spec(), tag);
+    klr_build_move(&bldr, result, lhs->ir_val);
+
+    /* 3) branch: '&&' evaluates rhs when true; '||' evaluates rhs when false */
+    if (op == BINARY_AND) {
+        klr_build_jmp_cond(&bldr, lhs->ir_val, rhs_bb, end_bb);
+    } else {
+        klr_build_jmp_cond(&bldr, lhs->ir_val, end_bb, rhs_bb);
+    }
+
+    /* 4) rhs block: evaluate rhs (may create/switch blocks, so re-read bb) */
+    ps->scope->bb = rhs_bb;
+    rhs->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, rhs);
+    if (!rhs->ir_val) return;
+
+    KlrBuilder b2;
+    klr_builder_end(&b2, ps->scope->bb);
+    klr_build_move(&b2, result, rhs->ir_val);
+    klr_build_jmp(&b2, end_bb);
+
+    /* 5) join: subsequent IR attaches to end_bb; SSA inserts the phi here */
+    ps->scope->bb = end_bb;
+    exp->ts = bool_type_spec();
+    exp->ir_val = result;
+    SET_IR_LOC(result, exp);
+}
+
 static void emit_ir_binary(ParserState *ps, Expr *exp)
 {
     BinaryExpr *bin = (BinaryExpr *)exp;
     BiOpKind op = bin->op;
     Expr *lhs = bin->lhs;
     Expr *rhs = bin->rhs;
+
+    /* logical operators short-circuit; lower them to a CFG diamond */
+    if (op == BINARY_AND || op == BINARY_OR) {
+        emit_ir_logical(ps, exp, op);
+        return;
+    }
 
     lhs->ctx = EXPR_CTX_LOAD;
     emit_ir_visit_expr(ps, lhs);
@@ -2016,20 +2118,62 @@ static void get_seq_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struc
 
 struct IterInfo {
     KlrValue *it_obj;
-    KlrValue *has_next;
-    KlrValue *next_strict;
+    Symbol *has_next;
+    Symbol *next_strict;
 };
 
-static KlrValue *get_iter_func(KlrValue *val, ParserState *ps)
+static Symbol *get_iter_func(KlrValue *val, char *name)
 {
-    Symbol *sym = get_symbol_by_id(val->ts->sym_id);
-    ASSERT(sym->kind == SYM_CLASS);
-    Symbol *fn = stbl_get(sym->stbl, "iter");
-    ASSERT(fn);
-    if (!fn->ir_val) {
-        NYI();
+    Symbol *owner = get_symbol_by_id(val->ts->sym_id);
+    ASSERT(owner);
+    Symbol *method = stbl_get(owner->stbl, name);
+    ASSERT(method && (method->kind == SYM_FUNC));
+    return method;
+}
+
+static KlrValue *build_iter_call(KlrBuilder *bldr, Symbol *method, KlrValue *obj, ParserState *ps)
+{
+    ASSERT(method->kind == SYM_FUNC);
+
+    FuncSymbol *fn = (FuncSymbol *)method;
+
+    int nargs = vector_size(fn->params) + 1;
+    KlrValue *args[nargs];
+    args[0] = obj;
+
+    ArgInfo *arg;
+    vector_foreach(arg, fn->params) {
+        ASSERT(arg->has_dfl_val && arg->dfl_val);
+        args[i__ + 1] = _add_literal(ps, arg->dfl_val);
     }
-    return fn->ir_val;
+
+    KlrValue *callable = get_callable(ps, method);
+    return klr_build_call(bldr, callable, fn->ret, args, nargs, "");
+}
+
+static KlrValue *build_has_next_call(KlrBuilder *bldr, Symbol *method, KlrValue *obj,
+                                     ParserState *ps)
+{
+    ASSERT(method->kind == SYM_FUNC);
+
+    KlrValue *args[1];
+    args[0] = obj;
+
+    KlrValue *callable = get_callable(ps, method);
+    return klr_build_call(bldr, callable, bool_type_spec(), args, 1, "");
+}
+
+static KlrValue *build_next_strict_call(KlrBuilder *bldr, Symbol *method, KlrValue *obj,
+                                        TypeSpec *ret_ts, ParserState *ps)
+{
+    ASSERT(ret_ts);
+    ASSERT(method->kind == SYM_FUNC);
+
+    KlrValue *args[1];
+    args[0] = obj;
+
+    KlrValue *callable = get_callable(ps, method);
+    return klr_build_call(bldr, callable, ret_ts, args, 1, "");
 }
 
 static void get_iter_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struct IterInfo *out)
@@ -2038,41 +2182,21 @@ static void get_iter_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, stru
     if (type_is_iterator(val->ts)) {
         obj = val;
     } else if (type_is_iterable(val->ts)) {
-        KlrValue *iter_fn = get_iter_func(val, ps);
-        KlrValue *args[] = { val };
-        obj = klr_build_call(bldr, iter_fn, iter_fn->ts, args, 1, "");
+        Symbol *iter = get_iter_func(val, "iter");
+        obj = build_iter_call(bldr, iter, val, ps);
     } else {
         UNREACHABLE();
     }
 
-    // get has_next and next_strict
-    Symbol *sym = get_symbol_by_id(obj->ts->sym_id);
-    if (sym->kind == SYM_CLASS) {
-        Symbol *fn = stbl_get(sym->stbl, "has_next");
-        ASSERT(fn);
-        if (!fn->ir_val) {
-            NYI();
-        }
-        out->has_next = fn->ir_val;
-
-        fn = stbl_get(sym->stbl, "next_strict");
-        ASSERT(fn);
-        if (!fn->ir_val) {
-            NYI();
-        }
-        out->next_strict = fn->ir_val;
-
-        out->it_obj = obj;
-    } else {
-        NYI();
-    }
+    out->has_next = get_iter_func(obj, "has_next");
+    out->next_strict = get_iter_func(obj, "next_strict");
+    out->it_obj = obj;
 }
 
 static void build_loop_iter_cond(KlrBuilder *bldr, struct IterInfo *it_info, KlrBasicBlock *true_bb,
                                  KlrBasicBlock *false_bb, ParserState *ps)
 {
-    KlrValue *args[] = { it_info->it_obj };
-    KlrValue *cond = klr_build_call(bldr, it_info->has_next, bool_type_spec(), args, 1, "");
+    KlrValue *cond = build_has_next_call(bldr, it_info->has_next, it_info->it_obj, ps);
     klr_build_jmp_cond(bldr, cond, true_bb, false_bb);
 }
 
@@ -2310,10 +2434,9 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
         // create local variable
         klr_builder_end(&bldr, sc->bb);
         Symbol *sym = get_loop_var_symbol(s);
-        sym->ir_val = klr_build_local_var(&bldr, it_info.next_strict->ts, sym->name);
-        KlrValue *args[] = { it_info.it_obj };
+        sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
         KlrValue *next_val =
-            klr_build_call(&bldr, it_info.next_strict, it_info.next_strict->ts, args, 1, "");
+            build_next_strict_call(&bldr, it_info.next_strict, it_info.it_obj, sym->ts, ps);
         klr_build_move(&bldr, sym->ir_val, next_val);
     }
 

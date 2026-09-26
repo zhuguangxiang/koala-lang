@@ -774,7 +774,10 @@ static Symbol *add_instance_method(InstanceSymbol *inst_sym, FuncSymbol *origin_
     return inst_fn_sym;
 }
 
-static Symbol *get_instance_method(InstanceSymbol *inst_sym, char *name, ParserState *ps)
+// Get the instance method of an instance symbol by name. If the method is not found in the
+// instance, it will look up the method in the origin class and its base types, and add it to the
+// instance's symbol table for faster future lookup.
+Symbol *get_instance_method(InstanceSymbol *inst_sym, char *name, ParserState *ps)
 {
     Symbol *inst_fn_sym = stbl_get(inst_sym->stbl, name);
     if (inst_fn_sym) return inst_fn_sym;
@@ -1532,6 +1535,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                     "function '%s' has type parameters, try to infer them from call arguments.",
                     fn_sym->name);
                 _tp_args = infer_tp_from_call(fn_sym, NULL, call, ps);
+                if (!_tp_args) return;
             }
 
             Symbol *_fn_sym = find_or_add_func_instance(fn_sym, _tp_args, ps->pm->stbl, ps);
@@ -1546,6 +1550,7 @@ static void parse_call(ParserState *ps, Expr *exp)
                 InstanceFuncSymbol *fn_inst_sym = (InstanceFuncSymbol *)_fn_sym;
                 params = fn_inst_sym->real_params;
                 exp->ts = fn_inst_sym->ret_ts;
+                lhs->ts = fn_inst_sym->ts;
             }
         } else {
             if (lhs->ts->kind == TYPE_OPTIONAL) {
@@ -1718,7 +1723,6 @@ static void parse_dot(ParserState *ps, Expr *exp)
             log_info("force unwrap optional type.");
             TypeSpec *src_ts = lhs->ts->opt.src;
             ASSERT(src_ts);
-            lhs->ts = src_ts;
         } else if (opt_or_bang == DOT_OPTIONAL) {
             // safe unwrap, don't change lhs type and pass next
             log_info("safe unwrap optional type.");

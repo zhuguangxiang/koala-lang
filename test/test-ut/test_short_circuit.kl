@@ -1,0 +1,118 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+// Dedicated tests for logical short-circuit evaluation of '&&' and '||'.
+//
+// Semantics under test:
+//   a && b : if a is false, b is NOT evaluated and the result is false;
+//            if a is true,  b IS evaluated and the result is b.
+//   a || b : if a is true,  b is NOT evaluated and the result is true;
+//            if a is false, b IS evaluated and the result is b.
+//
+// The operands are produced by helper CALLS (never literal bool constants) so
+// the expressions are not const-folded, and boom() gives an observable,
+// fail-hard signal if the rhs is evaluated when it must not be.
+
+func tval() bool { return true }
+
+func fval() bool { return false }
+
+// boom() must never be reached by the short-circuit tests below. If the
+// compiler evaluates the rhs eagerly, this panics and the test fails.
+func boom() bool {
+    panic("rhs evaluated: logical operator did not short-circuit")
+    return false
+}
+
+// ---------------------------------------------------------------------------
+// Result correctness (full truth tables)
+// ---------------------------------------------------------------------------
+
+@test
+func test_and_truth_table() {
+    ut.assert_true(tval() && tval())
+    ut.assert_false(tval() && fval())
+    ut.assert_false(fval() && tval())
+    ut.assert_false(fval() && fval())
+}
+
+@test
+func test_or_truth_table() {
+    ut.assert_true(tval() || tval())
+    ut.assert_true(tval() || fval())
+    ut.assert_true(fval() || tval())
+    ut.assert_false(fval() || fval())
+}
+
+// ---------------------------------------------------------------------------
+// Short-circuit: rhs must NOT be evaluated on the short-circuit path
+// ---------------------------------------------------------------------------
+
+@test
+func test_and_short_circuits_on_false() {
+    // lhs false -> result false, boom() never called
+    ut.assert_false(fval() && boom())
+}
+
+@test
+func test_or_short_circuits_on_true() {
+    // lhs true -> result true, boom() never called
+    ut.assert_true(tval() || boom())
+}
+
+// ---------------------------------------------------------------------------
+// Non-short-circuit path: rhs IS evaluated when needed
+// ---------------------------------------------------------------------------
+
+@test
+func test_and_evaluates_rhs_when_lhs_true() {
+    // lhs true -> rhs evaluated (fval -> false), result false
+    ut.assert_false(tval() && fval())
+}
+
+@test
+func test_or_evaluates_rhs_when_lhs_false() {
+    // lhs false -> rhs evaluated (tval -> true), result true
+    ut.assert_true(fval() || tval())
+}
+
+// ---------------------------------------------------------------------------
+// Chaining / nesting / precedence preserve left-to-right short-circuit
+// ---------------------------------------------------------------------------
+
+@test
+func test_chained_and_short_circuits() {
+    // (fval() && tval()) && boom(): first false stops the chain, boom() not run
+    ut.assert_false(fval() && tval() && boom())
+}
+
+@test
+func test_chained_or_short_circuits() {
+    // (tval() || fval()) || boom(): first true stops the chain, boom() not run
+    ut.assert_true(tval() || fval() || boom())
+}
+
+@test
+func test_and_binds_tighter_than_or() {
+    // parses as (fval() && boom()) || tval():
+    //   left  : fval() false -> boom() skipped -> false
+    //   right : false || tval() -> true
+    ut.assert_true(fval() && boom() || tval())
+}
+
+@test
+func test_short_circuit_in_if_condition() {
+    // the diamond must compose with an enclosing 'if' condition
+    var taken = false
+    if fval() && boom() {
+        taken = true
+    }
+    ut.assert_false(taken)
+
+    var taken2 = false
+    if tval() || boom() {
+        taken2 = true
+    }
+    ut.assert_true(taken2)
+}

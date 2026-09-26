@@ -95,7 +95,6 @@ set(KOALA_SHARED_SOURCES
     runtime/cmd_opt.c
     modules/builtin.c
     modules/fs.c
-    modules/io.c
     modules/os.c
     modules/time.c
     modules/sys.c

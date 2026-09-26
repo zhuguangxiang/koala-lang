@@ -48,7 +48,7 @@ pub class str : Sequence & Comparable {
     ///
     /// The iterator is stateful and does not allocate; it reads directly
     /// from the underlying string.
-    pub func iter(step = 1) StrIter { return StrIter(self, step) }
+    pub func iter(step = 1) Iterator[str] { return StrIter(self, step) }
 
     /// Return a reverse iterator over the characters of the string.
     ///
@@ -61,7 +61,7 @@ pub class str : Sequence & Comparable {
     ///
     /// The iterator is stateful and does not allocate; it reads directly
     /// from the underlying string.
-    pub func reversed(step = 1) StrRevIter { return StrRevIter(self, step) }
+    pub func reversed(step = 1) Iterator[str] { return StrRevIter(self, step) }
 
     /// Return the length of the string.
     @native

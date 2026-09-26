@@ -61,13 +61,49 @@ func t_upcast_ret(v int) Arithmetic[int] {
 // CHECK: ret %4 g_bit:T
 
 // CHECK-LABEL: func @g_cmp(%a g_cmp:T, %b g_cmp:T) bool {
+// CHECK: %bb0(entry):
 // CHECK: %0 = cmplt %a g_cmp:T, %b g_cmp:T
+// CHECK: %land = local bool
+// CHECK: move %land bool, %0 bool
+// CHECK: branch %0 bool, label %bb1, label %bb2
+// CHECK: %bb1(logical-rhs):
 // CHECK: %1 = cmple %a g_cmp:T, %b g_cmp:T
-// CHECK: %3 = cmpgt %a g_cmp:T, %b g_cmp:T
-// CHECK: %5 = cmpge %a g_cmp:T, %b g_cmp:T
-// CHECK: %7 = cmpeq %a g_cmp:T, %b g_cmp:T
-// CHECK: %9 = cmpne %a g_cmp:T, %b g_cmp:T
-// CHECK: ret {{%[0-9]+}} bool
+// CHECK: move %land bool, %1 bool
+// CHECK: jmp label %bb2
+// CHECK: %bb2(logical-end):
+// CHECK: %land = local bool
+// CHECK: move %land bool, %land bool
+// CHECK: branch %land bool, label %bb3, label %bb4
+// CHECK: %bb3(logical-rhs):
+// CHECK: %2 = cmpgt %a g_cmp:T, %b g_cmp:T
+// CHECK: move %land bool, %2 bool
+// CHECK: jmp label %bb4
+// CHECK: %bb4(logical-end):
+// CHECK: %land = local bool
+// CHECK: move %land bool, %land bool
+// CHECK: branch %land bool, label %bb5, label %bb6
+// CHECK: %bb5(logical-rhs):
+// CHECK: %3 = cmpge %a g_cmp:T, %b g_cmp:T
+// CHECK: move %land bool, %3 bool
+// CHECK: jmp label %bb6
+// CHECK: %bb6(logical-end):
+// CHECK: %land = local bool
+// CHECK: move %land bool, %land bool
+// CHECK: branch %land bool, label %bb7, label %bb8
+// CHECK: %bb7(logical-rhs):
+// CHECK: %4 = cmpeq %a g_cmp:T, %b g_cmp:T
+// CHECK: move %land bool, %4 bool
+// CHECK: jmp label %bb8
+// CHECK: %bb8(logical-end):
+// CHECK: %land = local bool
+// CHECK: move %land bool, %land bool
+// CHECK: branch %land bool, label %bb9, label %bb10
+// CHECK: %bb9(logical-rhs):
+// CHECK: %5 = cmpne %a g_cmp:T, %b g_cmp:T
+// CHECK: move %land bool, %5 bool
+// CHECK: jmp label %bb10
+// CHECK: %bb10(logical-end):
+// CHECK: ret %land bool
 
 // CHECK-LABEL: func @t_add_lit(%a std/builtin.Arithmetic<j>) int64 {
 // CHECK: %0 = add %a std/builtin.Arithmetic<j>, 100 int64

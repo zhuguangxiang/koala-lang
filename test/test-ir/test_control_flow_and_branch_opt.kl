@@ -67,11 +67,14 @@ func test_logic_short_circuit(a int, b int) bool {
     return false
 }
 
-// TODO: verify that short-circuiting of logical AND is correctly implemented in the generated code
-// CHECK-LABEL: @test_logic_short_circuit[16,21]:
+// Short-circuit AND verified: 'b > 0' (r1) is evaluated only when 'a > 0' (r0)
+// is true; 'jmp_false r0, 2' skips the rhs block so the result stays false.
+// CHECK-LABEL: @test_logic_short_circuit[16,23]:
 // CHECK: int.gt_imm r0, r0, #0
-// CHECK: int.gt_imm r1, r1, #0
-// CHECK: land r0, r0, r1
-// CHECK: jmp_false r0, 1
+// CHECK: move r2, r0
+// CHECK: jmp_false r0, 2
+// CHECK: int.gt_imm r0, r1, #0
+// CHECK: move r2, r0
+// CHECK: jmp_false r2, 1
 // CHECK: ret_tag #true
 // CHECK: ret_tag #false

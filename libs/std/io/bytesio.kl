@@ -4,13 +4,19 @@
  */
 
 /// BytesIO is an in-memory byte stream that implements Reader, Writer,
-/// Seeker, and Closable. It provides a file-like API for reading and
+/// Seeker and Closable. It provides a file-like API for reading and
 /// writing binary data entirely in memory, without disk I/O.
 ///
 /// Unlike Python's BytesIO (which uses a dynamically resizing buffer),
-/// Koala's BytesIO wraps a fixed-length bytes buffer. The buffer size
-/// is determined at construction time and cannot be resized. Writes
-/// beyond the buffer capacity will panic.
+/// Koala's BytesIO wraps a fixed-capacity bytes buffer. The capacity is
+/// determined at construction time and never changes. The stream keeps
+/// track of the logical end of the data written so far, which never
+/// exceeds the capacity:
+/// - Reading serves bytes from the current position up to the logical end,
+///   and returns 0 once the position reaches the end (EOF).
+/// - Writing at or beyond the logical end appends data and moves the end
+///   forward; writing before the end overwrites existing bytes without
+///   changing the end.
 ///
 /// BytesIO is useful for:
 /// - Building binary data incrementally before sending over a network.
@@ -18,107 +24,57 @@
 /// - Temporary storage of binary data (e.g., image processing, serialization).
 ///
 /// Example:
-///     let bio = io.BytesIO(256)
-///     bio.write_str("Hello, BytesIO!")
-///     bio.seek(0)
-///     let data = bio.getvalue()
-///     print(data)  // b"Hello, BytesIO!\x00\x00..." (256 bytes total)
+///     let bio = io.BytesIO(64)
+///     bio.write_str("Hello, ")
+///     bio.write_str("BytesIO!")
+///     bio.seek(0, 0)
+///     let buf = bytes(64)
+///     let n = bio.read(buf)          // n == 15
+///     print(buf.view(0, n).to_str()) // "Hello, BytesIO!"
 pub class BytesIO : Reader & Writer & Seeker & Closable {
-    /// Create an empty BytesIO with the given buffer size.
+
+    /// The underlying fixed-capacity byte buffer.
+    let bs bytes
+
+    /// The logical end of the data written so far, 0 <= end <= len(bs).
+    var end int = 0
+
+    /// The current read/write position within the buffer, 0 <= pos <= end.
+    var pos int = 0
+
+    /// Whether close() has been called.
+    var closed bool = false
+
+    /// Create an empty BytesIO with the given buffer capacity.
     ///
-    /// # Arguments
+    /// Arguments
     /// - `size`: The fixed buffer capacity in bytes. Defaults to 8192.
     ///
-    /// The buffer is allocated and zero-filled. The logical length is 0,
-    /// and the read/write position is at the start.
-    @native
-    pub func __init__(size = 8192) {}
+    /// The buffer is allocated and zero-filled. The logical end and the
+    /// read/write position both start at 0.
+    ///
+    /// Panic if `size` is negative.
+    pub func __init__(size = 8192) {
+        if size < 0 {
+            panic("BytesIO size must be >= 0")
+        }
+        bs = bytes(size)
+    }
 
-    /// Read up to len(bs) bytes from the current position into the provided buffer.
+    /// Create a BytesIO initialized with a copy of the given byte data.
     ///
-    /// # Arguments
-    /// - `bs`: The destination buffer to fill with data.
+    /// The capacity equals len(data), the logical end is len(data), and
+    /// the position is 0, so the content can be read back immediately.
     ///
-    /// # Returns
-    /// The number of bytes actually read, or 0 if EOF has been reached.
-    @native
-    pub func read(bs bytes) int {}
-
-    /// Write the provided byte slice at the current position.
+    /// Arguments
+    /// - `data`: The initial byte data. It is not mutated.
     ///
-    /// # Arguments
-    /// - `bs`: The source bytes to write.
-    ///
-    /// # Returns
-    /// The number of bytes actually written.
-    @native
-    pub func write(bs bytes) int {}
-
-    /// Move the read/write position to the given offset.
-    ///
-    /// # Arguments
-    /// - `offset`: The byte offset to seek to.
-    /// - `whence`: The reference point for the offset:
-    ///   - 0: Start of the buffer (default).
-    ///   - 1: Current position.
-    ///   - 2: End of the buffer.
-    ///
-    /// # Returns
-    /// The new absolute position.
-    @native
-    pub func seek(offset int, whence int) int {}
-
-    /// Return the current read/write position.
-    ///
-    /// # Returns
-    /// The current byte offset from the start of the buffer.
-    @native
-    pub func tell() int {}
-
-    /// Write the UTF-8 encoding of the given string at the current position.
-    ///
-    /// This is a convenience method equivalent to write(s.to_bytes()).
-    ///
-    /// # Arguments
-    /// - `s`: The string to write.
-    ///
-    /// # Returns
-    /// The number of bytes actually written.
-    @native
-    pub func write_str(s str) int {}
-
-    /// Return the entire contents of the buffer as a new bytes object,
-    /// regardless of the current read/write position.
-    ///
-    /// This is the primary way to extract data from a BytesIO after writing.
-    ///
-    /// # Returns
-    /// A copy of all bytes written to this BytesIO.
-    @native
-    pub func getvalue() bytes {}
-
-    /// Close this BytesIO. Subsequent read/write operations will panic.
-    ///
-    /// Since BytesIO operates entirely in memory, this method does not
-    /// release any system resources, but it marks the stream as closed
-    /// to prevent further use.
-    @native
-    pub func close() {}
-
-    /// Create a BytesIO initialized with the given byte data.
-    ///
-    /// The data is copied into the internal buffer, and the read/write
-    /// position is set to the start (position 0).
-    ///
-    /// # Arguments
-    /// - `bs`: The initial byte data.
-    ///
-    /// # Returns
-    /// A new BytesIO containing a copy of `bs`.
-    pub static func from_bytes(bs bytes) BytesIO {
-        let bio = BytesIO(len(bs))
-        bio.write(bs)
-        // bio.seek(0)
+    /// Returns
+    /// A new BytesIO containing a copy of `data`.
+    pub static func from_bytes(data bytes) BytesIO {
+        let bio = BytesIO(len(data))
+        bio.write(data)
+        bio.seek(0, 0)
         return bio
     }
 
@@ -126,15 +82,213 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
     ///
     /// This is a convenience method equivalent to BytesIO.from_bytes(s.to_bytes()).
     ///
-    /// # Arguments
+    /// Arguments
     /// - `s`: The initial string data.
     ///
-    /// # Returns
-    /// A new BytesIO containing the UTF-8 bytes of `s`.
+    /// Returns
+    /// A new BytesIO containing the UTF-8 bytes of `s`, positioned at 0.
     pub static func from_str(s str) BytesIO {
         let bio = BytesIO(len(s))
         bio.write_str(s)
-        // bio.seek(0)
+        bio.seek(0, 0)
         return bio
+    }
+
+    /// Read up to len(_bs) bytes from the current position into `_bs`.
+    ///
+    /// Arguments
+    /// - `_bs`: The destination buffer to fill with data.
+    ///
+    /// Returns
+    /// The number of bytes actually read, or 0 if the position has
+    /// reached the logical end (EOF).
+    ///
+    /// Notes
+    /// - A short read (n < len(_bs)) means EOF was reached, since all
+    ///   the data is already in memory.
+    /// - Panic if the stream has been closed.
+    pub func read(_bs bytes) int {
+        if closed {
+            panic("I/O operation on closed BytesIO")
+        }
+
+        let avail = end - pos
+        if avail <= 0 {
+            return 0
+        }
+
+        let n = min(len(_bs), avail)
+        _bs.copy(bs.view(pos, pos + n), 0, n)
+        pos = pos + n
+        return n
+    }
+
+    /// Write `_bs` at the current position.
+    ///
+    /// Writing at or beyond the logical end appends data and moves the
+    /// end forward; writing before the end overwrites existing bytes.
+    /// After the call the position is just past the written data.
+    ///
+    /// Arguments
+    /// - `_bs`: The source bytes to write. It is not mutated.
+    ///
+    /// Returns
+    /// The number of bytes actually written, always len(_bs).
+    ///
+    /// Notes
+    /// - Panic if the stream has been closed.
+    /// - Panic if the write would exceed the fixed capacity.
+    pub func write(_bs bytes) int {
+        if closed {
+            panic("I/O operation on closed BytesIO")
+        }
+
+        let n = len(_bs)
+        if n == 0 {
+            return 0
+        }
+        if pos + n > len(bs) {
+            panic("BytesIO write exceeds capacity")
+        }
+
+        bs.view(pos, pos + n).copy(_bs, 0, n)
+        pos = pos + n
+        if pos > end {
+            end = pos
+        }
+        return n
+    }
+
+    /// Write the UTF-8 encoding of the given string at the current position.
+    ///
+    /// This is a convenience method equivalent to write(s.to_bytes()).
+    ///
+    /// Arguments
+    /// - `s`: The string to write.
+    ///
+    /// Returns
+    /// The number of bytes actually written (not the number of characters).
+    ///
+    /// Notes
+    /// - Panic if the stream has been closed.
+    /// - Panic if the write would exceed the fixed capacity.
+    pub func write_str(s str) int {
+        return write(s.to_bytes())
+    }
+
+    /// Flush buffered data to the underlying sink.
+    ///
+    /// BytesIO keeps everything in memory, so this is a no-op. It exists
+    /// to satisfy the Writer trait and to panic on a closed stream like
+    /// the other I/O operations.
+    ///
+    /// Panic if the stream has been closed.
+    pub func flush() {
+        if closed {
+            panic("I/O operation on closed BytesIO")
+        }
+    }
+
+    /// Move the read/write position to `offset` relative to `whence`.
+    ///
+    /// The resulting position is clamped into [0, end]. Seeking past the
+    /// logical end does not create gaps: the next write appends at the
+    /// end and extends it.
+    ///
+    /// Arguments
+    /// - `offset`: The byte offset relative to `whence`. May be negative.
+    /// - `whence`: The reference point for the offset:
+    ///   - 0: Start of the data (SEEK_SET).
+    ///   - 1: Current position (SEEK_CUR).
+    ///   - 2: Logical end of the data (SEEK_END).
+    ///
+    /// Returns
+    /// The new absolute position, or -1 if `whence` is invalid or the
+    /// stream has been closed.
+    pub func seek(offset int, whence int) int {
+        if closed {
+            return -1
+        }
+
+        var np int
+        if whence == 0 {
+            np = offset
+        } else if whence == 1 {
+            np = pos + offset
+        } else if whence == 2 {
+            np = end + offset
+        } else {
+            return -1
+        }
+
+        if np < 0 {
+            np = 0
+        } else if np > end {
+            np = end
+        }
+        pos = np
+        return pos
+    }
+
+    /// Return the current read/write position.
+    ///
+    /// Returns
+    /// The current byte offset from the start of the buffer,
+    /// or -1 if the stream has been closed.
+    pub func tell() int {
+        if closed {
+            return -1
+        }
+        return pos
+    }
+
+    /// Close this BytesIO.
+    ///
+    /// Since BytesIO operates entirely in memory, no system resources are
+    /// released; the stream is only marked as closed. Subsequent read,
+    /// write, write_str and flush operations panic; seek returns -1 and
+    /// tell returns -1. Calling close() multiple times is safe.
+    pub func close() {
+        closed = true
+    }
+
+    /// Return true if close() has been called.
+    pub func is_closed() bool {
+        return closed
+    }
+
+    /// Return the logical end of the data written so far.
+    ///
+    /// Returns
+    /// The number of valid bytes from the start of the buffer,
+    /// or -1 if the stream has been closed.
+    pub func size() int {
+        if closed {
+            return -1
+        }
+        return end
+    }
+
+    /// Return the fixed capacity of the underlying buffer.
+    pub func capacity() int {
+        return len(bs)
+    }
+
+    /// Return a copy of the bytes written so far, from 0 to the logical end.
+    ///
+    /// The position is not changed. The result is an independent copy:
+    /// later writes to the stream do not affect it.
+    ///
+    /// Panic if the stream has been closed.
+    pub func getvalue() bytes {
+        if closed {
+            panic("I/O operation on closed BytesIO")
+        }
+
+        let out = bytes(end)
+        if end > 0 {
+            out.copy(bs.view(0, end), 0, end)
+        }
+        return out
     }
 }

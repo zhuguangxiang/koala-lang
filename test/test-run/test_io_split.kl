@@ -1,0 +1,74 @@
+// RUN: koala %s | filecheck %s
+
+import "std/io"
+
+func main() {
+    let bio = io.BytesIO(256)
+    bio.write_str("Hello, BytesIO!\nSecond line.\nLast line.")
+
+    let br = io.BufReader(bio)
+
+    bio.seek(0, 0)
+
+    let lines = io.Lines(br)
+    while lines.has_next() {
+        let line = lines.next_strict()
+        print(line)
+    }
+
+    bio.seek(0, 0)
+    let buf = Buffer(100)
+    br.read_until(buf, '\n')
+    print(buf.to_str())
+
+    bio.seek(0, 0)
+    for line in io.Lines(io.BufReader(bio)) {
+        print(line)
+    }
+
+
+    let s = "hello Koala"
+    for c in s {
+        print(c)
+    }
+
+    let it = iter(s)
+    while let c = next(it) {
+        print(c)
+    }
+
+    for c in it {
+        print(c)
+    }
+}
+
+// CHECK: Hello, BytesIO!
+// CHECK: Second line.
+// CHECK: Last line.
+// CHECK: Hello, BytesIO!
+// CHECK: Hello, BytesIO!
+// CHECK: Second line.
+// CHECK: Last line.
+// CHECK: h
+// CHECK: e
+// CHECK: l
+// CHECK: l
+// CHECK: o
+
+// CHECK: K
+// CHECK: o
+// CHECK: a
+// CHECK: l
+// CHECK: a
+
+// CHECK: h
+// CHECK: e
+// CHECK: l
+// CHECK: l
+// CHECK: o
+
+// CHECK: K
+// CHECK: o
+// CHECK: a
+// CHECK: l
+// CHECK: a

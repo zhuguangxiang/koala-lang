@@ -1,0 +1,196 @@
+// RUN: koala %s --test
+
+import "std/io"
+import "std/ut"
+
+@test
+func test_strio_init() {
+    let sio = io.StringIO("hello")
+    ut.assert_eq(sio.tell(), 0)
+    ut.assert_eq(sio.size(), 5)
+    ut.assert_false(sio.is_closed())
+    ut.assert_false(sio.eof())
+    ut.assert_eq(sio.getvalue(), "hello")
+}
+
+@test
+func test_strio_empty() {
+    let sio = io.StringIO("")
+    ut.assert_eq(sio.size(), 0)
+    ut.assert(sio.eof())
+
+    let buf = bytes(8)
+    ut.assert_eq(sio.read(buf), 0)
+}
+
+@test
+func test_strio_read_all() {
+    let sio = io.StringIO("Hello, StringIO!")
+
+    let buf = bytes(64)
+    ut.assert_eq(sio.read(buf), 16)
+    ut.assert_eq(buf.view(0, 16).to_str(), "Hello, StringIO!")
+    ut.assert_eq(sio.tell(), 16)
+    ut.assert(sio.eof())
+
+    // EOF
+    ut.assert_eq(sio.read(buf), 0)
+
+    // rewind and read again
+    ut.assert_eq(sio.seek(0, 0), 0)
+    ut.assert_false(sio.eof())
+    ut.assert_eq(sio.read(buf), 16)
+    ut.assert_eq(buf.view(0, 16).to_str(), "Hello, StringIO!")
+}
+
+@test
+func test_strio_partial_reads() {
+    let sio = io.StringIO("abcdefgh")
+
+    let buf = bytes(3)
+    ut.assert_eq(sio.read(buf), 3)
+    ut.assert_eq(buf.view(0, 3).to_str(), "abc")
+    ut.assert_eq(sio.read(buf), 3)
+    ut.assert_eq(buf.view(0, 3).to_str(), "def")
+
+    // short read: only 2 bytes left
+    ut.assert_eq(sio.read(buf), 2)
+    ut.assert_eq(buf.view(0, 2).to_str(), "gh")
+
+    // EOF
+    ut.assert_eq(sio.read(buf), 0)
+}
+
+@test
+func test_strio_utf8_bytes() {
+    // reading is byte-oriented: "你好" is 6 UTF-8 bytes
+    let sio = io.StringIO("你好")
+    ut.assert_eq(sio.size(), 6)
+
+    // a read may split a multi-byte character
+    let buf = bytes(4)
+    ut.assert_eq(sio.read(buf), 4)
+    ut.assert_eq(sio.tell(), 4)
+    ut.assert_false(sio.eof())
+
+    // the remaining 2 bytes complete the second character
+    let rest = bytes(2)
+    ut.assert_eq(sio.read(rest), 2)
+    ut.assert(sio.eof())
+
+    // the two chunks hold the raw UTF-8 bytes of "你好" (e4 bd a0 e5 a5 bd)
+    ut.assert(buf[0] == 0xe4)
+    ut.assert(buf[1] == 0xbd)
+    ut.assert(buf[2] == 0xa0)
+    ut.assert(buf[3] == 0xe5)
+    ut.assert(rest[0] == 0xa5)
+    ut.assert(rest[1] == 0xbd)
+
+    // rewind: reading all 6 bytes at once decodes back to the source
+    sio.seek(0, 0)
+    let all = bytes(6)
+    ut.assert_eq(sio.read(all), 6)
+    ut.assert_eq(all.to_str(), "你好")
+}
+
+@test
+func test_strio_seek_tell() {
+    let sio = io.StringIO("abcdefgh") // size == 8
+
+    // SEEK_SET
+    ut.assert_eq(sio.seek(3, 0), 3)
+    ut.assert_eq(sio.tell(), 3)
+
+    // SEEK_CUR, forward and backward
+    ut.assert_eq(sio.seek(2, 1), 5)
+    ut.assert_eq(sio.seek(-4, 1), 1)
+
+    // SEEK_END
+    ut.assert_eq(sio.seek(0, 2), 8)
+    ut.assert(sio.eof())
+    ut.assert_eq(sio.seek(-6, 2), 2)
+
+    // clamping: never below 0, never above the end
+    ut.assert_eq(sio.seek(-100, 1), 0)
+    ut.assert_eq(sio.seek(100, 0), 8)
+
+    // invalid whence -> -1, position unchanged
+    ut.assert_eq(sio.seek(0, 7), -1)
+    ut.assert_eq(sio.tell(), 8)
+
+    // read after seeking back
+    sio.seek(2, 0)
+    let buf = bytes(3)
+    ut.assert_eq(sio.read(buf), 3)
+    ut.assert_eq(buf.view(0, 3).to_str(), "cde")
+}
+
+@test
+func test_strio_getvalue_keeps_position() {
+    let sio = io.StringIO("koala")
+    let buf = bytes(2)
+    ut.assert_eq(sio.read(buf), 2)
+
+    // getvalue returns the full string and does not move the position
+    ut.assert_eq(sio.getvalue(), "koala")
+    ut.assert_eq(sio.tell(), 2)
+}
+
+@test
+func test_strio_close() {
+    let sio = io.StringIO("data")
+    ut.assert_false(sio.is_closed())
+
+    sio.close()
+    ut.assert(sio.is_closed())
+
+    // closing twice is safe
+    sio.close()
+
+    // seek/tell/size report -1 after close
+    ut.assert_eq(sio.seek(0, 0), -1)
+    ut.assert_eq(sio.tell(), -1)
+    ut.assert_eq(sio.size(), -1)
+}
+
+@test
+func test_strio_as_reader() {
+    // StringIO passed as an io.Reader trait value, consumed via read()
+    let r io.Reader = io.StringIO("trait read")
+    let buf = bytes(10)
+    ut.assert_eq(r.read(buf), 10)
+    ut.assert_eq(buf.view(0, 10).to_str(), "trait read")
+    ut.assert_eq(r.read(buf), 0)
+}
+
+@test
+func test_strio_with_bufreader() {
+    // end-to-end: StringIO -> BufReader with a small internal buffer,
+    // so the reader must refill from StringIO repeatedly
+    let sio = io.StringIO("hello buffered world")
+    let br = io.BufReader(sio, 8)
+
+    let buf = bytes(64)
+    ut.assert_eq(br.read(buf), 8)
+    ut.assert_eq(buf.view(0, 8).to_str(), "hello bu")
+    ut.assert_eq(br.read(buf), 8)
+    ut.assert_eq(buf.view(0, 8).to_str(), "ffered w")
+    ut.assert_eq(br.read(buf), 4)
+    ut.assert_eq(buf.view(0, 4).to_str(), "orld")
+    ut.assert_eq(br.read(buf), 0)
+}
+
+@test_expect_panic("I/O operation on closed StringIO")
+func test_strio_read_after_close_should_panic() {
+    let sio = io.StringIO("data")
+    sio.close()
+    let buf = bytes(4)
+    sio.read(buf)
+}
+
+@test_expect_panic("I/O operation on closed StringIO")
+func test_strio_getvalue_after_close_should_panic() {
+    let sio = io.StringIO("data")
+    sio.close()
+    sio.getvalue()
+}

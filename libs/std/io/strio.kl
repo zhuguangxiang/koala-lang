@@ -3,63 +3,180 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-/// StringIO is an in-memory text stream that implements Reader,Seeker and Closable.
+/// StringIO is an in-memory text stream that implements Reader, Seeker
+/// and Closable. It wraps a UTF-8 string and provides file-like reading
+/// operations without touching the filesystem.
 ///
-/// It wraps a UTF-8 encoded byte buffer and provides file-like reading
-/// operations without touching the filesystem. StringIO is read-only.
+/// StringIO is read-only: it implements no Writer methods, and the
+/// underlying string never changes. Reading operates at the byte level
+/// as required by the Reader trait — positions and counts are UTF-8
+/// byte offsets, not character counts.
+///
+/// StringIO is useful for:
+/// - Testing code that expects a Reader without touching the filesystem.
+/// - Feeding in-memory text into byte-oriented consumers such as
+///   BufReader, Lines, Words and Splitter.
+///
+/// Example:
+///     let sio = io.StringIO("Hello, StringIO!")
+///     let buf = bytes(64)
+///     let n = sio.read(buf)          // n == 16
+///     print(buf.view(0, n).to_str()) // "Hello, StringIO!"
 pub class StringIO : Reader & Seeker & Closable {
-    /// Create a StringIO initialized with the given string.
-    @native
-    pub func __init__(s str) {}
 
-    /// Read up to len(bs) bytes from the current position into bs.
+    /// The underlying string. It is never mutated.
+    let source str
+
+    /// The UTF-8 bytes of `source`, computed once at construction.
+    /// All reading is served from this byte view.
+    let bs bytes
+
+    /// The current read position in bytes, 0 <= pos <= len(bs).
+    var pos int = 0
+
+    /// Whether close() has been called.
+    var closed bool = false
+
+    /// Create a StringIO reading from the given string.
     ///
     /// Arguments
-    /// - `bs`: Destination buffer.
+    /// - `s`: The source string. It is not mutated.
     ///
-    /// Returns
-    /// Number of bytes actually read. Returns 0 at EOF.
-    @native
-    pub func read(bs bytes) int {}
+    /// The read position starts at 0.
+    pub func __init__(s str) {
+        source = s
+        bs = s.to_bytes()
+    }
 
-    /// Move the read position to the given offset.
+    /// Read up to len(_bs) bytes from the current position into `_bs`.
     ///
     /// Arguments
-    /// - `offset`: Byte offset to seek to.
-    /// - `whence`: Reference point:
-    ///   - 0: Start of buffer (SEEK_SET)
-    ///   - 1: Current position (SEEK_CUR)
-    ///   - 2: End of buffer (SEEK_END)
+    /// - `_bs`: The destination buffer to fill with data.
     ///
     /// Returns
-    /// The new absolute position.
-    @native
-    pub func seek(offset int, whence int) int {}
+    /// The number of bytes actually read, or 0 if the position has
+    /// reached the end of the string (EOF).
+    ///
+    /// Notes
+    /// - A short read (n < len(_bs)) means EOF was reached, since all
+    ///   the data is already in memory.
+    /// - Reading is byte-oriented: a read may end in the middle of a
+    ///   multi-byte UTF-8 character.
+    /// - Panic if the stream has been closed.
+    pub func read(_bs bytes) int {
+        if closed {
+            panic("I/O operation on closed StringIO")
+        }
+
+        let avail = len(bs) - pos
+        if avail <= 0 {
+            return 0
+        }
+
+        let n = min(len(_bs), avail)
+        _bs.copy(bs.view(pos, pos + n), 0, n)
+        pos = pos + n
+        return n
+    }
+
+    /// Move the read position to `offset` relative to `whence`.
+    ///
+    /// The resulting position is clamped into [0, len(bs)], so it can
+    /// never point outside the source string.
+    ///
+    /// Arguments
+    /// - `offset`: The byte offset relative to `whence`. May be negative.
+    /// - `whence`: The reference point for the offset:
+    ///   - 0: Start of the string (SEEK_SET).
+    ///   - 1: Current position (SEEK_CUR).
+    ///   - 2: End of the string (SEEK_END).
+    ///
+    /// Returns
+    /// The new absolute position, or -1 if `whence` is invalid or the
+    /// stream has been closed.
+    pub func seek(offset int, whence int) int {
+        if closed {
+            return -1
+        }
+
+        var np int
+        if whence == 0 {
+            np = offset
+        } else if whence == 1 {
+            np = pos + offset
+        } else if whence == 2 {
+            np = len(bs) + offset
+        } else {
+            return -1
+        }
+
+        if np < 0 {
+            np = 0
+        } else if np > len(bs) {
+            np = len(bs)
+        }
+        pos = np
+        return pos
+    }
 
     /// Return the current read position.
     ///
     /// Returns
-    /// The current byte offset from the start of the buffer.
-    @native
-    pub func tell() int {}
+    /// The current byte offset from the start of the string,
+    /// or -1 if the stream has been closed.
+    pub func tell() int {
+        if closed {
+            return -1
+        }
+        return pos
+    }
 
-    /// Return true if the read position has reached the end of the buffer.
+    /// Close this StringIO.
+    ///
+    /// Since StringIO operates entirely in memory, no system resources are
+    /// released; the stream is only marked as closed. Subsequent read and
+    /// getvalue operations panic; seek and tell return -1. Calling close()
+    /// multiple times is safe.
+    pub func close() {
+        closed = true
+    }
+
+    /// Return true if close() has been called.
+    pub func is_closed() bool {
+        return closed
+    }
+
+    /// Return true if the read position has reached the end of the string.
     ///
     /// Unlike Java's ready() which checks if the next read will block,
     /// StringIO is always "ready" since it's in-memory. eof() tells you
     /// whether there is any data left to read.
-    @native
-    pub func eof() bool {}
+    pub func eof() bool {
+        return pos >= len(bs)
+    }
 
-    /// Return the entire buffer contents as a string.
+    /// Return the length of the source string in UTF-8 bytes.
     ///
-    /// This returns the full original string regardless of the current read position.
-    @native
-    pub func getvalue() str {}
+    /// Returns
+    /// The total number of readable bytes,
+    /// or -1 if the stream has been closed.
+    pub func size() int {
+        if closed {
+            return -1
+        }
+        return len(bs)
+    }
 
-    /// Close this StringIO. Since it operates entirely in memory, this
-    /// method does not release any system resources, but it marks the
-    /// stream as closed for trait consistency.
-    @native
-    pub func close() {}
+    /// Return the whole source string.
+    ///
+    /// The read position is not changed. The string is immutable, so the
+    /// result always reflects the full content regardless of the position.
+    ///
+    /// Panic if the stream has been closed.
+    pub func getvalue() str {
+        if closed {
+            panic("I/O operation on closed StringIO")
+        }
+        return source
+    }
 }

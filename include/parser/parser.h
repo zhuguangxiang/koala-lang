@@ -249,6 +249,7 @@ void add_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserState 
 void update_specialized_func(FuncSymbol *origin, Vector *tp_args_list, ParserState *ps);
 Symbol *find_ext_symbol(ParserState *ps, char *path, char *name);
 Symbol *get_type_symbol(TypeSpec *ts, ParserState *ps);
+Symbol *get_instance_method(InstanceSymbol *inst_sym, char *name, ParserState *ps);
 
 #ifdef __cplusplus
 }
