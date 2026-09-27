@@ -3,43 +3,68 @@
 // const CLOCK_REALTIME = "realtime"
 // const CLOCK_MONOTONIC = "monotonic"
 
+/// Time primitives: instants, durations and thread sleeping.
+///
+/// `now` and `monotonic` create `Instant` values on the realtime and monotonic
+/// clocks, `Duration` spans time with nanosecond resolution, and `sleep` and
+/// `sleep_until` block the current thread.
+
 link "koala"
 
+/// Identifier of the system realtime (wall) clock.
 const CLOCK_REALTIME = 0
+
+/// Identifier of the monotonic clock, which never goes backward.
 const CLOCK_MONOTONIC = 1
 
+/// Return nanoseconds since the Unix epoch on the realtime clock.
 @native
 func sys_clock_realtime_nanos() int {}
 
+/// Return nanoseconds from an unspecified starting point on the monotonic clock.
 @native
 func sys_clock_monotonic_nanos() int {}
 
+/// Block the current thread for `ns` nanoseconds.
 @native
 func sys_sleep_nanos(ns int) {}
 
+/// Return the current instant on the realtime (wall) clock.
 pub func now() Instant {
     return Instant(sys_clock_realtime_nanos(), CLOCK_REALTIME)
 }
 
+/// Return the current instant on the monotonic clock.
+///
+/// Monotonic instants never go backward, which makes them the right choice
+/// for measuring elapsed time and for `sleep_until`.
 pub func monotonic() Instant {
     return Instant(sys_clock_monotonic_nanos(), CLOCK_MONOTONIC)
 }
 
+/// Block the current thread for the duration `d`.
+///
+/// Durations of zero or less return immediately.
 pub func sleep(d Duration) {
     if d.ns > 0 { sys_sleep_nanos(d.ns) }
 }
 
+/// Block the current thread until the monotonic instant `t`.
+///
+/// Panics if `t` is not a monotonic instant; returns immediately once `t`
+/// has passed.
 pub func sleep_until(t Instant) {
     if t.clock != CLOCK_MONOTONIC { panic("sleep_until requires monotonic Instant") }
     let now Instant = monotonic()
-    let diff Duration = now.diff(t)
-    if diff.ns > 0 { sys_sleep_nanos(diff.ns) }
+    if t > now { sys_sleep_nanos(t.diff(now).ns) }
 }
 
+/// Return the current Unix time in whole seconds.
 pub func unix_secs() int {
     return sys_clock_realtime_nanos() / 1_000_000_000
 }
 
+/// Return the current Unix time in nanoseconds.
 pub func unix_nanos() int {
     return sys_clock_realtime_nanos()
 }

@@ -1,0 +1,127 @@
+// RUN: koala %s --test
+
+import "std/time"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// Duration
+// ---------------------------------------------------------------------------
+
+@test
+func test_duration_constructors() {
+    ut.assert_eq(time.Duration.from_secs(2).to_ns(), int64(2_000_000_000))
+    ut.assert_eq(time.Duration.from_millis(3).to_ns(), int64(3_000_000))
+    ut.assert_eq(time.Duration.from_micros(4).to_ns(), int64(4_000))
+    ut.assert_eq(time.Duration.from_nanos(5).to_ns(), int64(5))
+}
+
+@test
+func test_duration_conversions_truncate() {
+    let d = time.Duration.from_millis(2500)
+    ut.assert_eq(d.to_ns(), int64(2_500_000_000))
+    ut.assert_eq(d.to_ms(), int64(2500))
+    ut.assert_eq(d.to_secs(), int64(2)) // truncated toward zero
+}
+
+@test
+func test_duration_arithmetic() {
+    let a = time.Duration.from_millis(100)
+    let b = time.Duration.from_millis(40)
+    ut.assert(a + b == time.Duration.from_millis(140))
+    ut.assert(a - b == time.Duration.from_millis(60))
+    ut.assert(a * 3 == time.Duration.from_millis(300))
+    ut.assert(a / 4 == time.Duration.from_millis(25))
+}
+
+@test
+func test_duration_equality() {
+    ut.assert(time.Duration.from_secs(1) == time.Duration.from_millis(1000))
+    ut.assert(time.Duration.from_nanos(1) != time.Duration.from_nanos(2))
+}
+
+@test
+func test_duration_str() {
+    ut.assert_eq(format("{}", time.Duration.from_nanos(10)), "10ns")
+    ut.assert_eq(format("{}", time.Duration.from_micros(30)), "30us")
+    ut.assert_eq(format("{}", time.Duration.from_millis(500)), "500ms")
+    ut.assert_eq(format("{}", time.Duration.from_secs(2)), "2s")
+}
+
+// ---------------------------------------------------------------------------
+// Instant
+// ---------------------------------------------------------------------------
+
+@test
+func test_instant_shift_and_diff() {
+    let t0 = time.monotonic()
+    let t1 = t0 + time.Duration.from_secs(5)
+    let t2 = t1 - time.Duration.from_secs(2)
+    ut.assert_eq(t1.diff(t0).to_secs(), int64(5))
+    ut.assert_eq(t0.diff(t1).to_secs(), int64(-5)) // negative going backwards
+    ut.assert_eq(t2.diff(t0).to_secs(), int64(3))
+}
+
+@test
+func test_instant_comparisons() {
+    let t0 = time.monotonic()
+    let t1 = t0 + time.Duration.from_millis(1)
+    ut.assert(t0 < t1)
+    ut.assert(t0 <= t1)
+    ut.assert(t1 > t0)
+    ut.assert(t1 >= t0)
+    ut.assert(t0 == t0 + time.Duration.from_nanos(0))
+    ut.assert(t0 != t1)
+}
+
+@test
+func test_instant_str() {
+    let i = time.Instant(123, 0)
+    ut.assert_eq(format("{}", i), "Instant(epoch_ns=123, clock=0)")
+}
+
+// ---------------------------------------------------------------------------
+// Clocks and sleeping
+// ---------------------------------------------------------------------------
+
+@test
+func test_now_and_unix_time() {
+    ut.assert(time.now().to_unix_secs() > int64(1_600_000_000)) // after 2020-09
+    ut.assert(time.unix_secs() > 1_600_000_000)
+    ut.assert(time.unix_nanos() > 1_600_000_000_000_000_000)
+}
+
+@test
+func test_sleep_blocks_for_duration() {
+    let before = time.monotonic()
+    time.sleep(time.Duration.from_millis(20))
+    ut.assert(time.monotonic().diff(before).to_ms() >= int64(20))
+}
+
+@test
+func test_sleep_non_positive_returns_immediately() {
+    let before = time.monotonic()
+    time.sleep(time.Duration.from_nanos(0))
+    time.sleep(time.Duration.from_secs(-1))
+    ut.assert(time.monotonic().diff(before).to_ms() < int64(10))
+}
+
+// Regression: sleep_until used to compute `now.diff(t)` instead of
+// `t.diff(now)`, so it returned immediately for future instants and slept
+// for the elapsed amount for past ones.
+
+@test
+func test_sleep_until_future_instant() {
+    let start = time.monotonic()
+    let target = start + time.Duration.from_millis(30)
+    time.sleep_until(target)
+    let now = time.monotonic()
+    ut.assert(now >= target) // actually slept until the target
+    ut.assert(now.diff(start).to_ms() >= int64(30))
+}
+
+@test
+func test_sleep_until_past_instant_returns_immediately() {
+    let before = time.monotonic()
+    time.sleep_until(before - time.Duration.from_millis(100))
+    ut.assert(time.monotonic().diff(before).to_ms() < int64(10))
+}

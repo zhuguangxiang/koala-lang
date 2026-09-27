@@ -1,54 +1,70 @@
 
+/// A span of time with nanosecond resolution.
+///
+/// Create durations with the `from_secs`, `from_millis`, `from_micros` and
+/// `from_nanos` constructors, combine them with `+`, `-`, `*` and `/`, and
+/// pass them to `time.sleep`.
 pub class Duration {
+    /// Length of the duration in nanoseconds.
     let ns int
 
+    /// Create a duration from a raw nanosecond count; prefer the `from_*` constructors.
     pub func __init__(_ns int) {
         ns = _ns
     }
 
-    // Duration + Duration → Duration
+    /// Return the sum of two durations (`self + d`).
     pub func __add__(d Duration) Duration {
         return Duration(ns + d.ns)
     }
 
-    // Duration - Duration → Duration
+    /// Return the difference of two durations (`self - d`).
     pub func __sub__(d Duration) Duration {
         return Duration(ns - d.ns)
     }
 
-    // Duration * int → Duration
+    /// Return the duration scaled by the integer `n` (`self * n`).
     pub func __mul__(n int) Duration {
         return Duration(ns * n)
     }
 
-    // Duration / int → Duration
+    /// Return the duration divided by the integer `n` (`self / n`); panics if `n` is zero.
     pub func __div__(n int) Duration {
         return Duration(ns / n)
     }
 
     // constructors
+    /// Create a duration of `s` seconds.
     pub static func from_secs(s int) Duration {
         return Duration(s * 1_000_000_000)
     }
 
+    /// Create a duration of `ms` milliseconds.
     pub static func from_millis(ms int) Duration {
         return Duration(ms * 1_000_000)
     }
 
+    /// Create a duration of `us` microseconds.
     pub static func from_micros(us int) Duration {
         return Duration(us * 1_000)
     }
 
+    /// Create a duration of `ns` nanoseconds.
     pub static func from_nanos(ns int) Duration {
         return Duration(ns)
     }
 
+    /// Return the length in whole nanoseconds.
     pub func to_ns() int64 { return ns }
 
+    /// Return the length in whole milliseconds, truncated.
     pub func to_ms() int64 { return ns / 1_000_000 }
 
+    /// Return the length in whole seconds, truncated.
     pub func to_secs() int64 { return ns / 1_000_000_000 }
 
+    /// Return a string using the largest unit that fits, truncated:
+    /// `2s`, `500ms`, `30us` or `10ns`.
     pub func __str__() str {
         if ns >= 1_000_000_000 {
             let s = ns / 1_000_000_000
@@ -65,10 +81,12 @@ pub class Duration {
         return format("{}ns", ns)
     }
 
+    /// Return true if both durations have the same length.
     pub func __eq__(d Duration) bool {
         return ns == d.ns
     }
 
+    /// Return true if the durations differ in length.
     pub func __ne__(d Duration) bool {
         return ns != d.ns
     }

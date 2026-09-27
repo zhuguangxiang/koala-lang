@@ -1,24 +1,35 @@
 
+/// A point in time on a specific clock.
+///
+/// Create instants with `time.now()` (realtime) or `time.monotonic()`.
+/// Arithmetic with `Duration` and comparisons work only between instants of
+/// the same clock; mixing clocks panics.
 pub class Instant {
+    /// Nanoseconds since the epoch of `clock`.
     let epoch_ns int
+
+    /// Identifier of the clock this instant belongs to.
     let clock int
 
+    /// Create an instant from a raw nanosecond timestamp and clock id;
+    /// prefer `time.now()` and `time.monotonic()`.
     pub func __init__(_ns int, _clock int) {
         epoch_ns = _ns
         clock = _clock
     }
 
-    // Instant + Duration → Instant
+    /// Return a new instant shifted forward by the duration `d` (`self + d`).
     pub func __add__(d Duration) Instant {
         return Instant(epoch_ns + d.ns, clock)
     }
 
-    // Instant - Duration → Instant
+    /// Return a new instant shifted backward by the duration `d` (`self - d`).
     pub func __sub__(d Duration) Instant {
         return Instant(epoch_ns - d.ns, clock)
     }
 
-    // Instant - Instant → Duration
+    /// Return the elapsed duration between two instants of the same clock
+    /// (`self - other`); positive when `self` is later than `other`.
     pub func diff(other Instant) Duration {
         if clock != other.clock {
             panic("cannot diff Instants from different clocks")
@@ -27,42 +38,52 @@ pub class Instant {
     }
 
     // comparisons
+    /// Return true if `self == other`.
     pub func __eq__(other Instant) bool {
         if clock != other.clock { panic("cannot compare Instants from different clocks") }
         return epoch_ns == other.epoch_ns
     }
 
+    /// Return true if `self != other`.
     pub func __ne__(other Instant) bool {
         if clock != other.clock { panic("cannot compare Instants from different clocks") }
         return epoch_ns != other.epoch_ns
     }
 
+    /// Return true if `self < other`.
     pub func __lt__(other Instant) bool {
         if clock != other.clock { panic("cannot compare Instants from different clocks") }
         return epoch_ns < other.epoch_ns
     }
 
+    /// Return true if `self <= other`.
     pub func __le__(other Instant) bool {
         if clock != other.clock { panic("cannot compare Instants from different clocks") }
         return epoch_ns <= other.epoch_ns
     }
 
+    /// Return true if `self > other`.
     pub func __gt__(other Instant) bool {
         if clock != other.clock { panic("cannot compare Instants from different clocks") }
         return epoch_ns > other.epoch_ns
     }
 
+    /// Return true if `self >= other`.
     pub func __ge__(other Instant) bool {
         if clock != other.clock { panic("cannot compare Instants from different clocks") }
         return epoch_ns >= other.epoch_ns
     }
 
+    /// Return nanoseconds since the Unix epoch; meaningful for realtime instants only.
     pub func to_unix_ns() int64 { return epoch_ns }
 
+    /// Return whole milliseconds since the Unix epoch.
     pub func to_unix_ms() int64 { return epoch_ns / 1_000_000 }
 
+    /// Return whole seconds since the Unix epoch.
     pub func to_unix_secs() int64 { return epoch_ns / 1_000_000_000 }
 
+    /// Return a textual representation like `Instant(epoch_ns=123, clock=0)`.
     pub func __str__() str {
         return format("Instant(epoch_ns={:d}, clock={:d})", epoch_ns, clock)
     }
