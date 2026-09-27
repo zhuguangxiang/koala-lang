@@ -70,6 +70,7 @@ typedef struct _KlcConst {
 #define KLC_CONST_SET   '<'
 #define KLC_CONST_RANGE 'R'
 #define KLC_CONST_SLICE 'S'
+#define KLC_CONST_BYTES 'B'
 
 // object created in __init__
 #define KLC_CONST_OBJECT 'O'
@@ -233,6 +234,7 @@ uint16_t klc_add_int(KlcFile *klc, uint64_t val, int sign, int width);
 uint16_t klc_add_float(KlcFile *klc, double val, int width);
 uint16_t klc_add_str(KlcFile *klc, char *s, int len);
 uint16_t klc_add_utf8(KlcFile *klc, char *s, int len);
+uint16_t klc_add_bytes(KlcFile *klc, char *s, int len);
 
 uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t num_locals,
                       uint16_t max_call_args, uint32_t start_pc, uint32_t code_size);
@@ -243,6 +245,7 @@ uint16_t klc_add_rt_bool(KlcFile *klc, int val);
 uint16_t klc_add_rt_int(KlcFile *klc, uint64_t val, int sign, int width);
 uint16_t klc_add_rt_float(KlcFile *klc, double val, int width);
 uint16_t klc_add_rt_str(KlcFile *klc, char *s, int len);
+uint16_t klc_add_rt_bytes(KlcFile *klc, char *s, int len);
 uint16_t klc_add_rt_tuple(KlcFile *klc, Vector *list);
 uint16_t klc_add_rt_range(KlcFile *klc, Vector *list);
 uint16_t klc_add_rt_list(KlcFile *klc, Vector *list);

@@ -147,6 +147,31 @@ KlrValue *klr_const_str(char *s, int len, KlrModule *m)
     return (KlrValue *)lit;
 }
 
+KlrValue *klr_const_bytes(char *s, int len, KlrModule *m)
+{
+    KlrConst key = {
+        .kind = KLR_VALUE_CONST,
+        .which = CONST_BYTES,
+        .len = len,
+        .sval = s,
+    };
+    hashmap_entry_init(&key.hnode, mem_hash(s, len));
+    void *entry = hashmap_get(&m->consts, &key.hnode);
+    if (entry) {
+        return (KlrValue *)CONTAINER_OF(entry, KlrConst, hnode);
+    }
+
+    KlrConst *lit = mm_alloc_obj(lit);
+    TypeSpec *ts = bytes_type_spec();
+    INIT_KLR_VALUE(lit, KLR_VALUE_CONST, ts, "");
+    lit->which = CONST_BYTES;
+    lit->len = len;
+    lit->sval = s;
+    hashmap_entry_init(&lit->hnode, mem_hash(s, len));
+    hashmap_put(&m->consts, &lit->hnode);
+    return (KlrValue *)lit;
+}
+
 KlrValue *klr_const_none(KlrModule *m)
 {
     KlrConst key = {
@@ -572,6 +597,8 @@ static int __const_eq__(void *e1, void *e2)
             return k1->bval == k2->bval;
         case CONST_STR:
             return (k1->len == k2->len) && !strcmp(k1->sval, k2->sval);
+        case CONST_BYTES:
+            return (k1->len == k2->len) && !memcmp(k1->sval, k2->sval, k1->len);
         default:
             UNREACHABLE();
     }

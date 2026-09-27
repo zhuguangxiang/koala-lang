@@ -212,8 +212,6 @@ static uint16_t __add_float(KlcFile *klc, double val, int width, int type)
 // support empty string, but not NULL
 static uint16_t __add_str(KlcFile *klc, char *s, int len, int type)
 {
-    // if (len == 0) return 0;
-
     int _type = STR_TYPE(len);
     char *_s = len <= 0 ? "" : atom(s);
     KlcConst k = { .type = _type, .len = len, .sval = _s };
@@ -223,6 +221,20 @@ static uint16_t __add_str(KlcFile *klc, char *s, int len, int type)
         item->type = _type;
         item->len = len;
         item->sval = _s;
+        idx = __append(klc, type, item);
+    }
+    return idx;
+}
+
+static uint16_t __add_bytes(KlcFile *klc, char *s, int len, int type)
+{
+    KlcConst k = { .type = KLC_CONST_BYTES, .len = len, .sval = s };
+    uint16_t idx = __index(klc, type, &k);
+    if (idx == 0) {
+        KlcConst *item = mm_alloc_obj(item);
+        item->type = KLC_CONST_BYTES;
+        item->len = len;
+        item->sval = s;
         idx = __append(klc, type, item);
     }
     return idx;
@@ -257,6 +269,11 @@ uint16_t klc_add_utf8(KlcFile *klc, char *s, int len)
         idx = __append(klc, ITEM_CONST, item);
     }
     return idx;
+}
+
+uint16_t klc_add_bytes(KlcFile *klc, char *s, int len)
+{
+    return __add_bytes(klc, s, len, ITEM_CONST);
 }
 
 uint16_t klc_add_code(KlcFile *klc, char *name, int flags, uint16_t num_locals,
@@ -299,6 +316,11 @@ uint16_t klc_add_rt_float(KlcFile *klc, double val, int width)
 uint16_t klc_add_rt_str(KlcFile *klc, char *s, int len)
 {
     return __add_str(klc, s, len, ITEM_RT_CONST);
+}
+
+uint16_t klc_add_rt_bytes(KlcFile *klc, char *s, int len)
+{
+    return __add_bytes(klc, s, len, ITEM_RT_CONST);
 }
 
 uint16_t klc_add_rt_tuple(KlcFile *klc, Vector *list)
@@ -762,6 +784,11 @@ static void write_const(KlcFile *klc, KlcConst *item)
             }
             break;
         }
+        case KLC_CONST_BYTES: {
+            write_uint32(klc, (uint32_t)item->len);
+            write_bytes(klc, (uint8_t *)item->sval, item->len);
+            break;
+        }
         case KLC_CONST_OBJECT: {
             break;
         }
@@ -1186,6 +1213,16 @@ static void read_const(KlcFile *klc, Vector *vec)
                 vector_push_back(_vec, &kc);
             }
             item->val = _vec;
+            break;
+        }
+        case KLC_CONST_BYTES: {
+            len = 0;
+            read_uint32(klc, (uint32_t *)&len);
+            char *sval = mm_alloc_fast(len + 1);
+            read_bytes(klc, (uint8_t *)sval, len);
+            sval[len] = 0;
+            item->len = len;
+            item->sval = sval;
             break;
         }
         default: {

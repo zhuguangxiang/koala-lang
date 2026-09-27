@@ -111,6 +111,7 @@ int kl_mo_add_test(Object *_m, char *name, CodeObject *obj, int expect_panic, ch
 int kl_mo_add_type(Object *_m, TypeObject *tp);
 int kl_mo_add_const(Object *_m, TValue *val);
 int kl_mo_add_str(Object *_m, char *s);
+int kl_mo_add_bytes(Object *_m, char *s, int len);
 int kl_mo_add_tuple(Object *_m, Vector *list);
 int kl_mo_add_range(Object *_m, Vector *list);
 int kl_mo_add_slice(Object *_m, Vector *list);

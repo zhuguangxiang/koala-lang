@@ -22,6 +22,7 @@ typedef struct _BytesObject {
 extern TypeObject bytes_type;
 #define IS_BYTES(ob) IS_TYPE((ob), &bytes_type)
 Object *kl_new_bytes(uint32_t size);
+Object *kl_bytes_from_data(uint8_t *data, uint32_t size);
 
 #define BYTES_OFFSET(bs) (((BytesObject *)(bs))->offset)
 #define BYTES_SIZE(bs)   (((BytesObject *)(bs))->size)

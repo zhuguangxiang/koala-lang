@@ -62,10 +62,11 @@ typedef struct _TValue {
 #define TAG_ERROR 1
 #define TAG_BOOL  2
 
-#define TAG_INT8   0b1000
-#define TAG_INT16  0b1001
-#define TAG_INT32  0b1010
-#define TAG_INT64  0b1011
+#define TAG_INT8  0b1000
+#define TAG_INT16 0b1001
+#define TAG_INT32 0b1010
+#define TAG_INT64 0b1011
+
 #define TAG_UINT8  0b1100
 #define TAG_UINT16 0b1101
 #define TAG_UINT32 0b1110
@@ -106,8 +107,11 @@ typedef struct _TValue {
 // #define is_bfloat16(x) ((x)->tag == TAG_BFLOAT16)
 
 /* Category checks */
-#define is_int(x)   (((x)->tag & 0b1100) == 0b1000)
-#define is_uint(x)  (((x)->tag & 0b1100) == 0b1100)
+#define is_int_tag(tag)  (((tag) & 0b1100) == 0b1000)
+#define is_uint_tag(tag) (((tag) & 0b1100) == 0b1100)
+
+#define is_int(x)   is_int_tag((x)->tag)
+#define is_uint(x)  is_uint_tag((x)->tag)
 #define is_float(x) (((x)->tag >= TAG_FLOAT16) && ((x)->tag <= TAG_FLOAT64))
 
 /* Primitive vs reference */

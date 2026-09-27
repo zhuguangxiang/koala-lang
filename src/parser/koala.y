@@ -152,6 +152,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token ARRAY
 %token BOOL
 %token STRING
+%token BYTES
 %token ANY
 %token LIST
 %token MAP
@@ -298,6 +299,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %token<fval> FLOAT_LITERAL
 %token STRING_LITERAL
 %token CHAR_LITERAL
+%token BYTES_LITERAL
 %type<prefix_flags> annotation
 %type<prefix_flags> prefix
 %type<prefix_flags> access
@@ -1154,6 +1156,11 @@ atom_type
         $$ = str_type_spec();
         type_spec_loc($$, loc(@1));
     }
+    | BYTES
+    {
+        $$ = bytes_type_spec();
+        type_spec_loc($$, loc(@1));
+    }
     | ANY
     {
         $$ = any_type_spec();
@@ -1355,6 +1362,11 @@ const_expr
     | CHAR_LITERAL
     {
         $$ = expr_from_lit_char(&ps->sbuf);
+        expr_set_loc($$, loc(@1));
+    }
+    | BYTES_LITERAL
+    {
+        $$ = expr_from_lit_bytes(&ps->sbuf);
         expr_set_loc($$, loc(@1));
     }
     | TRUE
@@ -1815,6 +1827,12 @@ class_name
     {
         Ident id = {"str", loc(@1)};
         TypeSpec *ts = str_type_spec();
+        $$ = (IdentType){id, ts};
+    }
+    | BYTES
+    {
+        Ident id = {"bytes", loc(@1)};
+        TypeSpec *ts = bytes_type_spec();
         $$ = (IdentType){id, ts};
     }
     | LIST
@@ -3248,6 +3266,11 @@ atom
     | CHAR_LITERAL
     {
         $$ = expr_from_lit_char(&ps->sbuf);
+        expr_set_loc($$, loc(@1));
+    }
+    | BYTES_LITERAL
+    {
+        $$ = expr_from_lit_bytes(&ps->sbuf);
         expr_set_loc($$, loc(@1));
     }
     | TRUE

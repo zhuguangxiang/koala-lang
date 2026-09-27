@@ -28,6 +28,10 @@ static uint16_t klc_add_const(KlcFile *klc, Literal *lit)
             index = klc_add_utf8(klc, lit->sval, lit->len);
             break;
         }
+        case LIT_BYTES: {
+            index = klc_add_bytes(klc, lit->sval, lit->len);
+            break;
+        }
         case LIT_BOOL: {
             index = klc_add_int(klc, lit->bval ? 1 : 0, 0, 1);
             break;
@@ -328,6 +332,8 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
             return klc_add_rt_bool(klc, kc->bval);
         case KL_MACH_CONST_STR:
             return klc_add_rt_str(klc, kc->str, strlen(kc->str));
+        case KL_MACH_CONST_BYTES:
+            return klc_add_rt_bytes(klc, kc->str, kc->len);
         case KL_MACH_CONST_TUPLE: {
             Vector *list = vector_create(sizeof(uint16_t));
             Vector *vec = kc->list;

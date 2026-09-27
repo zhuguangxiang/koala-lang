@@ -290,6 +290,14 @@ static void parse_literal(ParserState *ps, Expr *exp)
             ASSERT(lit->sym);
             break;
         }
+        case LIT_EXPR_BYTES: {
+            log_info("literal bytes");
+            ASSERT(lit->ts);
+            lit->which = LIT_EXPR_BYTES;
+            lit->sym = get_symbol_by_id(lit->ts->sym_id);
+            ASSERT(lit->sym);
+            break;
+        }
         case LIT_EXPR_NONE: {
             log_info("literal nil");
             parse_none(ps, lit);
@@ -2678,16 +2686,19 @@ static void parse_unary(ParserState *ps, Expr *exp)
             kl_error(unary->op_loc, "unary '+' operator requires int or float type.");
             return;
         }
+        exp->ts = e->ts;
     } else if (op == UNARY_NEG) {
         if (e->ts->kind != TYPE_INT && e->ts->kind != TYPE_FLOAT) {
             kl_error(unary->op_loc, "unary '-' operator requires int or float type.");
             return;
         }
+        exp->ts = e->ts;
     } else if (op == UNARY_BIT_NOT) {
         if (e->ts->kind != TYPE_INT) {
             kl_error(unary->op_loc, "unary '~' operator requires int type.");
             return;
         }
+        exp->ts = e->ts;
     } else if (op == UNARY_NOT) {
         if (e->ts->kind != TYPE_BOOL) {
             kl_error(unary->op_loc, "unary '!' operator requires bool type.");

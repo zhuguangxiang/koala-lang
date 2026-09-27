@@ -238,7 +238,7 @@ func main() {
 // CHECK: true
 // CHECK: hello world
 // CHECK: hello world
-// TODO: hello world
+// CHECK: hello world
 // CHECK: world
 // CHECK: hello
 // CHECK: 123

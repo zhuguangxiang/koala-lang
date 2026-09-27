@@ -33,13 +33,13 @@ func test_splitter_with_basic() {
     // has_next() is cached and does not consume.
     ut.assert(sp.has_next())
     ut.assert(sp.has_next())
-    ut.assert_eq(sp.next_strict().to_str(), "alpha")
+    ut.assert_eq(sp.next_strict(), b"alpha")
 
     ut.assert(sp.has_next())
-    ut.assert_eq(sp.next_strict().to_str(), "beta")
+    ut.assert_eq(sp.next_strict(), b"beta")
 
     // no trailing separator: the last chunk runs to EOF
-    ut.assert_eq(sp.next_strict().to_str(), "gamma")
+    ut.assert_eq(sp.next_strict(), b"gamma")
 
     // exhausted
     ut.assert_false(sp.has_next())
@@ -96,9 +96,9 @@ func test_splitter_with_chunk_independence() {
     let first = sp.next_strict()
     let second = sp.next_strict()
     // Earlier chunks survive the internal buffers being cleared and reused.
-    ut.assert_eq(first.to_str(), "ab")
-    ut.assert_eq(second.to_str(), "cd")
-    ut.assert_eq(sp.next_strict().to_str(), "ef")
+    ut.assert_eq(first, b"ab")
+    ut.assert_eq(second, b"cd")
+    ut.assert_eq(sp.next_strict(), b"ef")
 }
 
 @test
@@ -107,11 +107,11 @@ func test_splitter_with_shared_reader() {
     let br = io.BufReader(io.StringIO("head a::b"), 16)
     let prefix = Buffer()
     br.read_until(prefix, ' ')
-    ut.assert_eq(prefix.to_str(), "head")
+    ut.assert_eq(prefix.to_bytes(), b"head")
 
     let sp = br.split_with("::".to_bytes())
-    ut.assert_eq(sp.next_strict().to_str(), "a")
-    ut.assert_eq(sp.next_strict().to_str(), "b")
+    ut.assert_eq(sp.next_strict(), b"a")
+    ut.assert_eq(sp.next_strict(), b"b")
     ut.assert_false(sp.has_next())
 }
 
@@ -133,6 +133,6 @@ func test_splitter_with_long_chunk() {
     }
     let sp = io.BufReader(io.StringIO(text + "::end"), 8).split_with("::".to_bytes())
     ut.assert_eq(sp.next_strict().to_str(), text)
-    ut.assert_eq(sp.next_strict().to_str(), "end")
+    ut.assert_eq(sp.next_strict(), b"end")
     ut.assert_false(sp.has_next())
 }

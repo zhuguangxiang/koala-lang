@@ -33,7 +33,7 @@ func test_bytesio_from_bytes() {
     // from_bytes copies the data, the source is not referenced
     let buf = bytes(16)
     ut.assert_eq(bio.read(buf), 5)
-    ut.assert_eq(buf.view(0, 5).to_str(), "hello")
+    ut.assert_eq(buf.view(0, 5), b"hello")
 
     // EOF afterwards
     ut.assert_eq(bio.read(buf), 0)
@@ -46,7 +46,7 @@ func test_bytesio_from_str() {
 
     let buf = bytes(8)
     ut.assert_eq(bio.read(buf), 5)
-    ut.assert_eq(buf.view(0, 5).to_str(), "koala")
+    ut.assert_eq(buf.view(0, 5), b"koala")
 }
 
 @test
@@ -61,7 +61,7 @@ func test_bytesio_write_then_read() {
     ut.assert_eq(bio.seek(0, 0), 0)
     let buf = bytes(64)
     ut.assert_eq(bio.read(buf), 13)
-    ut.assert_eq(buf.view(0, 13).to_str(), "Hello, Koala!")
+    ut.assert_eq(buf.view(0, 13), b"Hello, Koala!")
     ut.assert_eq(bio.tell(), 13)
 
     // EOF
@@ -74,13 +74,13 @@ func test_bytesio_partial_reads() {
 
     let buf = bytes(3)
     ut.assert_eq(bio.read(buf), 3)
-    ut.assert_eq(buf.view(0, 3).to_str(), "abc")
+    ut.assert_eq(buf.view(0, 3), b"abc")
     ut.assert_eq(bio.read(buf), 3)
-    ut.assert_eq(buf.view(0, 3).to_str(), "def")
+    ut.assert_eq(buf.view(0, 3), b"def")
 
     // short read: only 2 bytes left
     ut.assert_eq(bio.read(buf), 2)
-    ut.assert_eq(buf.view(0, 2).to_str(), "gh")
+    ut.assert_eq(buf.view(0, 2), b"gh")
 
     // EOF
     ut.assert_eq(bio.read(buf), 0)
@@ -119,32 +119,32 @@ func test_bytesio_overwrite() {
     ut.assert_eq(bio.seek(6, 0), 6)
     ut.assert_eq(bio.write_str("koala"), 5)
     ut.assert_eq(bio.size(), 11)
-    ut.assert_eq(bio.getvalue().to_str(), "hello koala")
+    ut.assert_eq(bio.getvalue(), b"hello koala")
 
     // truncate by rewriting from the start
     bio.seek(0, 0)
     bio.write_str("hi")
     ut.assert_eq(bio.size(), 11)
-    ut.assert_eq(bio.getvalue().view(0, 2).to_str(), "hi")
+    ut.assert_eq(bio.getvalue().view(0, 2), b"hi")
 }
 
 @test
 func test_bytesio_getvalue() {
     let bio = io.BytesIO(32)
-    bio.write("abc".to_bytes())
-    bio.write("def".to_bytes())
+    bio.write(b"abc")
+    bio.write(b"def")
 
     // getvalue does not disturb the position
     ut.assert_eq(bio.tell(), 6)
     let v = bio.getvalue()
     ut.assert_eq(len(v), 6)
-    ut.assert_eq(v.to_str(), "abcdef")
+    ut.assert_eq(v, b"abcdef")
     ut.assert_eq(bio.tell(), 6)
 
     // the result is an independent copy
     bio.write_str("g")
     ut.assert_eq(len(v), 6)
-    ut.assert_eq(bio.getvalue().to_str(), "abcdefg")
+    ut.assert_eq(bio.getvalue(), b"abcdefg")
 }
 
 @test
@@ -170,7 +170,7 @@ func test_bytesio_as_reader() {
     let r io.Reader = io.BytesIO.from_str("trait read")
     let buf = bytes(10)
     ut.assert_eq(r.read(buf), 10)
-    ut.assert_eq(buf.view(0, 10).to_str(), "trait read")
+    ut.assert_eq(buf.view(0, 10), b"trait read")
     ut.assert_eq(r.read(buf), 0)
 }
 
@@ -183,11 +183,11 @@ func test_bytesio_with_bufreader() {
 
     let buf = bytes(64)
     ut.assert_eq(br.read(buf), 8)
-    ut.assert_eq(buf.view(0, 8).to_str(), "hello bu")
+    ut.assert_eq(buf.view(0, 8), b"hello bu")
     ut.assert_eq(br.read(buf), 8)
-    ut.assert_eq(buf.view(0, 8).to_str(), "ffered w")
+    ut.assert_eq(buf.view(0, 8), b"ffered w")
     ut.assert_eq(br.read(buf), 4)
-    ut.assert_eq(buf.view(0, 4).to_str(), "orld")
+    ut.assert_eq(buf.view(0, 4), b"orld")
     ut.assert_eq(br.read(buf), 0)
 }
 

@@ -71,9 +71,15 @@ pub func assert_false(cond bool, msg = "") {
 ///     assert_eq(add(1, 2), 3)
 ///     assert_eq(name, "koala")
 pub func assert_eq[T : Equatable[T]](a T, b T) {
-    if a != b {
-        panic(format("assertion failed: {} != {}", a, b))
-    }
+    if a != b { panic(format("assertion failed: {} != {}", a, b)) }
+}
+
+pub func assert_eq_uint8(a uint8, b uint8) {
+    if a != b { panic(format("assertion failed: {} != {}", a, b)) }
+}
+
+pub func assert_eq_int64(a int, b int) {
+    if a != b { panic(format("assertion failed: {} != {}", a, b)) }
 }
 
 /// Assert that two values `a` and `b` are not equal (`a != b`).
@@ -88,6 +94,14 @@ pub func assert_ne[T : Equatable[T]](a T, b T) {
     if a == b {
         panic(format("assertion failed: {} == {}", a, b))
     }
+}
+
+pub func assert_ne_uint8(a uint8, b uint8) {
+    if a == b { panic(format("assertion failed: {} == {}", a, b)) }
+}
+
+pub func assert_ne_int64(a int, b int) {
+    if a == b { panic(format("assertion failed: {} == {}", a, b)) }
 }
 
 /// Assert that `a` is strictly less than `b` (`a < b`).

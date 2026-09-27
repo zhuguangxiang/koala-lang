@@ -184,7 +184,7 @@ func test_words_shared_reader_position() {
     ut.assert_eq(words.next_strict(), "one")
     // The space after "one" was consumed with the word; peek serves the
     // buffered remainder without refilling.
-    ut.assert_eq(br.peek(3).to_str(), "two")
+    ut.assert_eq(br.peek(3), b"two")
     ut.assert_eq(words.next_strict(), "two")
     ut.assert_false(words.has_next())
 }

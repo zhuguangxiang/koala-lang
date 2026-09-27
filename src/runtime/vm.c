@@ -200,6 +200,11 @@ static void __load_const(Object *m, KlcConst *item)
             break;
         }
 
+        case KLC_CONST_BYTES: {
+            kl_mo_add_bytes(m, item->sval, item->len);
+            break;
+        }
+
         case KLC_CONST_SHORT_TUPLE:
         case KLC_CONST_TUPLE: {
             Vector *vec = item->val;

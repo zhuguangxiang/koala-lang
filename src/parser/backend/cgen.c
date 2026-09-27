@@ -49,6 +49,19 @@ static void dump_const(KlMachConst *kc, int index, int indent)
             break;
         }
 
+        case KL_MACH_CONST_BYTES: {
+            printf("bytes   = \"");
+            if (kc->len == 0) {
+                printf("\"\n");
+                break;
+            }
+            BUF(buf);
+            escape_str(kc->str, &buf);
+            printf("%s\"\n", BUF_STR(buf));
+            FINI_BUF(buf);
+            break;
+        }
+
         case KL_MACH_CONST_TUPLE: {
             Vector *list = kc->list;
             int count = vector_size(list);
@@ -169,6 +182,8 @@ static int __mach_const_eq__(void *a, void *b)
             return (ka->len == kb->len) && (ka->f64 == kb->f64);
         case KL_MACH_CONST_STR:
             return (ka->len == kb->len) && (strcmp(ka->str, kb->str) == 0);
+        case KL_MACH_CONST_BYTES:
+            return (ka->len == kb->len) && (memcmp(ka->str, kb->str, ka->len) == 0);
         case KL_MACH_CONST_BOOL:
             return (ka->len == kb->len) && (ka->bval == kb->bval);
         case KL_MACH_CONST_RANGE:
@@ -215,6 +230,8 @@ static unsigned int mach_const_hash(void *key)
             return mem_hash(&kc->bval, sizeof(kc->bval));
         case KL_MACH_CONST_STR:
             return str_hash(kc->str);
+        case KL_MACH_CONST_BYTES:
+            return mem_hash(kc->str, kc->len);
         case KL_MACH_CONST_RANGE:
         case KL_MACH_CONST_SLICE:
             KlMachConst **raw = VECTOR_ITEMS(kc->list, KlMachConst *);
@@ -377,6 +394,30 @@ static KlMachConst *kl_mach_add_str(KlMachModule *m, char *v)
     return new_entry;
 }
 
+static KlMachConst *kl_mach_add_bytes(KlMachModule *m, char *v, int len)
+{
+    KlMachConst key = { .tag = KL_MACH_CONST_BYTES, .len = len, .str = v };
+    hashmap_entry_init(&key, mach_const_hash(&key));
+
+    KlMachConst *entry = hashmap_get(&m->cp_map, &key);
+    if (entry) {
+        log_info("Found existing const entry for bytes: %s (index: %d)", v, entry->index);
+        return entry;
+    }
+
+    KlMachConst *new_entry = mm_alloc_obj(new_entry);
+    new_entry->tag = KL_MACH_CONST_BYTES;
+    new_entry->len = len;
+    new_entry->str = v;
+    hashmap_entry_init(new_entry, mach_const_hash(new_entry));
+    hashmap_put(&m->cp_map, new_entry);
+    vector_push_back(&m->const_pool, &new_entry);
+    int index = vector_size(&m->const_pool) - 1;
+    new_entry->index = index;
+    log_info("Added new const entry for bytes: %s (index: %d)", v, index);
+    return new_entry;
+}
+
 static KlMachConst *kl_mach_add_tuple(KlMachModule *m, Vector *items)
 {
     Vector *list = vector_create_ptr();
@@ -518,6 +559,9 @@ KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m)
         }
         case CONST_STR: {
             return kl_mach_add_str(m, kc->sval);
+        }
+        case CONST_BYTES: {
+            return kl_mach_add_bytes(m, kc->sval, kc->len);
         }
         case CONST_TUPLE: {
             return kl_mach_add_tuple(m, kc->list);

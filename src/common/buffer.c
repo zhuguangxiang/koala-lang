@@ -49,7 +49,7 @@ void buf_write_nstr(Buffer *self, const char *s, int len)
     if (!s) return;
     if (len <= 0) return;
     if (reserve(self, len) <= 0) return;
-    strncat(self->buf, s, len);
+    strncat(self->buf + self->len, s, len);
     self->len += len;
 }
 

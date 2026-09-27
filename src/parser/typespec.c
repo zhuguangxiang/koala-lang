@@ -364,6 +364,14 @@ void install_builtin_types(HashMap *stbl)
         sym->instance_ts = ts;
     }
 
+    ts = bytes_type_spec();
+    sym = (KlassSymbol *)stbl_get(stbl, "bytes");
+    if (sym) {
+        ts->sym_id = sym->id;
+        sym->ts = type_ts;
+        sym->instance_ts = ts;
+    }
+
     build_class_types(stbl);
 
     vector_foreach(ts, &type_list) {

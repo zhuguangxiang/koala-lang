@@ -5,6 +5,7 @@
 
 #include "modobj.h"
 #include "atom.h"
+#include "bytesobj.h"
 #include "klc.h"
 #include "listobj.h"
 #include "rangeobj.h"
@@ -227,6 +228,14 @@ int kl_mo_add_str(Object *_m, char *s)
     ModuleObject *m = (ModuleObject *)_m;
     Object *sobj = kl_new_str(s);
     TValue val = obj_value(sobj);
+    return kl_mo_add_const(_m, &val);
+}
+
+int kl_mo_add_bytes(Object *_m, char *s, int len)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+    Object *bobj = kl_bytes_from_data((uint8_t *)s, len);
+    TValue val = obj_value(bobj);
     return kl_mo_add_const(_m, &val);
 }
 

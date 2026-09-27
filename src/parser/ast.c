@@ -128,6 +128,19 @@ Expr *expr_from_lit_char(Buffer *buf)
     return (Expr *)exp;
 }
 
+Expr *expr_from_lit_bytes(Buffer *buf)
+{
+    LitExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->which = LIT_EXPR_BYTES;
+    exp->sval = mm_alloc_fast(buf->len + 1);
+    memcpy(exp->sval, buf->buf, buf->len);
+    exp->sval[buf->len] = '\0';
+    exp->len = buf->len;
+    exp->ts = bytes_type_spec();
+    return (Expr *)exp;
+}
+
 Expr *expr_from_lit_none(void)
 {
     LitExpr *exp = mm_alloc_obj(exp);
@@ -164,6 +177,10 @@ Literal *expr_to_literal(Expr *e)
         lit->sign = exp->sign;
         lit->len = exp->len;
         lit->ival = exp->ival;
+    } else if (exp->which == LIT_EXPR_BYTES) {
+        lit->which = LIT_BYTES;
+        lit->len = exp->len;
+        lit->sval = exp->sval;
     } else if (exp->which == LIT_EXPR_NONE) {
         lit->which = LIT_NONE;
     } else {
@@ -197,6 +214,11 @@ Expr *expr_from_literal(Literal *lit)
         exp->len = lit->len;
         exp->sval = str_dup(lit->sval);
         exp->ts = str_type_spec();
+    } else if (lit->which == LIT_BYTES) {
+        exp->which = LIT_EXPR_BYTES;
+        exp->len = lit->len;
+        exp->sval = str_dup(lit->sval);
+        exp->ts = bytes_type_spec();
     } else if (lit->which == LIT_NONE) {
         exp->which = LIT_EXPR_NONE;
         exp->ts = optional_type_spec_intern(NULL);
@@ -408,7 +430,7 @@ static void under_expr_free(Expr *exp) { mm_free(exp); }
 static void lit_expr_free(Expr *exp)
 {
     LitExpr *lit = (LitExpr *)exp;
-    if (lit->which == LIT_EXPR_STR) mm_free(lit->sval);
+    if (lit->which == LIT_EXPR_STR || lit->which == LIT_EXPR_BYTES) mm_free(lit->sval);
     mm_free(exp);
 }
 

@@ -19,7 +19,7 @@ TARGET(OP_LOAD_INT_IMM) {
     imm = ((int)(inst << 20)) >> 20;
 
     CHECK_REG_ID(rd);
-    ASSERT((ti & 0b1100) == 0b1000);
+    ASSERT(is_int_tag(ti));
 
     regs[rd].tag = ti;
     regs[rd].ival = imm;
@@ -41,6 +41,7 @@ TARGET(OP_LOADK) {
 /* Int Arithmetic */
 
 TARGET(OP_INT_ADD) {
+    // int/uint both are the same add operation
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -49,7 +50,11 @@ TARGET(OP_INT_ADD) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
+
     regs[rd].ival = regs[rs].ival + regs[rt].ival;
+    // promote to 64-bit(signed or unsigned)
     regs[rd].tag = regs[rs].tag | 0b11;
 
     ASSERT(regs[rd].tag == TAG_INT64 || regs[rd].tag == TAG_UINT64);
@@ -64,7 +69,7 @@ TARGET(OP_INT_ADD_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     regs[rd].ival = regs[rs].ival + imm;
     regs[rd].tag = TAG_INT64;
@@ -78,7 +83,7 @@ TARGET(OP_UINT_ADD_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = (uint64_t)regs[rs].ival + (uint64_t)imm;
     regs[rd].tag = TAG_UINT64;
@@ -86,6 +91,7 @@ TARGET(OP_UINT_ADD_IMM) {
 }
 
 TARGET(OP_INT_SUB) {
+    // signed/unsigned both are the same sub operation
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);
     rt = I_VAL(inst, 0, 8);
@@ -94,7 +100,11 @@ TARGET(OP_INT_SUB) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
 
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
+
     regs[rd].ival = regs[rs].ival - regs[rt].ival;
+    // promote to 64-bit(signed or unsigned)
     regs[rd].tag = regs[rs].tag | 0b11;
 
     ASSERT(regs[rd].tag == TAG_INT64 || regs[rd].tag == TAG_UINT64);
@@ -109,7 +119,7 @@ TARGET(OP_INT_SUB_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     regs[rd].ival = regs[rs].ival - imm;
     regs[rd].tag = TAG_INT64;
@@ -123,7 +133,7 @@ TARGET(OP_UINT_SUB_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = (uint64_t)regs[rs].ival - (uint64_t)imm;
     regs[rd].tag = TAG_UINT64;
@@ -144,7 +154,7 @@ TARGET(OP_JMP_INT_LE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     if (regs[rs].ival <= imm) {
         pc += off;
@@ -158,7 +168,7 @@ TARGET(OP_JMP_INT_GT_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     if (regs[rs].ival > imm) {
         pc += off;
@@ -172,7 +182,7 @@ TARGET(OP_JMP_INT_LT_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     if (regs[rs].ival < imm) {
         pc += off;
@@ -186,7 +196,7 @@ TARGET(OP_JMP_INT_GE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     if (regs[rs].ival >= imm) {
         pc += off;
@@ -201,8 +211,8 @@ TARGET(OP_JMP_INT_LE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_INT(rs);
-    CHECK_IS_INT(rt);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
 
     if (regs[rs].ival <= regs[rt].ival) {
         pc += off;
@@ -217,8 +227,8 @@ TARGET(OP_JMP_INT_GT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_INT(rs);
-    CHECK_IS_INT(rt);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
 
     if (regs[rs].ival > regs[rt].ival) {
         pc += off;
@@ -233,8 +243,8 @@ TARGET(OP_JMP_INT_LT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_INT(rs);
-    CHECK_IS_INT(rt);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
 
     if (regs[rs].ival < regs[rt].ival) {
         pc += off;
@@ -249,8 +259,8 @@ TARGET(OP_JMP_INT_GE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_INT(rs);
-    CHECK_IS_INT(rt);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
 
     if (regs[rs].ival >= regs[rt].ival) {
         pc += off;
@@ -276,7 +286,7 @@ TARGET(OP_RET_INT_IMM) {
     int ti = I_VAL(inst, 16, 8);
     imm = I_SVAL(inst, 0, 16);
 
-    ASSERT((ti & 0b1100) == 0b1000);
+    ASSERT(is_int_tag(ti));
 
     result.ival = imm;
     result.tag = ti;
@@ -293,7 +303,7 @@ TARGET(OP_JMP_INT_EQ_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    ASSERT(is_int(regs + rs) || is_bool(regs + rs));
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
 
     if (regs[rs].ival == imm) {
         pc += off;
@@ -307,7 +317,7 @@ TARGET(OP_JMP_INT_NE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    ASSERT(is_int(regs + rs) || is_bool(regs + rs));
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
 
     if (regs[rs].ival != imm) {
         pc += off;
@@ -323,7 +333,7 @@ TARGET(OP_JMP_INT_EQ) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
     ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
-    ASSERT(regs[rs].tag == regs[rt].tag);
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt) || is_bool(regs + rt));
 
     if (regs[rs].ival == regs[rt].ival) {
         pc += off;
@@ -339,7 +349,7 @@ TARGET(OP_JMP_INT_NE) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
     ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
-    ASSERT(regs[rs].tag == regs[rt].tag);
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt) || is_bool(regs + rt));
 
     if (regs[rs].ival != regs[rt].ival) {
         pc += off;
@@ -577,9 +587,9 @@ TARGET(OP_INT_EQ) {
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
     ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
-    ASSERT(regs[rs].tag == regs[rt].tag);
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt) || is_bool(regs + rt));
 
-    regs[rd].ival = regs[rs].ival == regs[rt].ival;
+    regs[rd].ival = (regs[rs].ival == regs[rt].ival);
     regs[rd].tag = TAG_BOOL;
     DISPATCH();
 }
@@ -591,9 +601,9 @@ TARGET(OP_INT_EQ_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
-    regs[rd].ival = regs[rs].ival == imm;
+    regs[rd].ival = (regs[rs].ival == imm);
     regs[rd].tag = TAG_BOOL;
     DISPATCH();
 }
@@ -605,7 +615,7 @@ TARGET(OP_UINT_EQ_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = ((uint64_t)regs[rs].ival == (uint64_t)imm);
     regs[rd].tag = TAG_BOOL;
@@ -620,10 +630,10 @@ TARGET(OP_INT_NE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64 || regs[rs].tag == TAG_BOOL);
-    ASSERT(regs[rs].tag == regs[rt].tag);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt) || is_bool(regs + rt));
 
-    regs[rd].ival = regs[rs].ival != regs[rt].ival;
+    regs[rd].ival = (regs[rs].ival != regs[rt].ival);
     regs[rd].tag = TAG_BOOL;
     DISPATCH();
 }
@@ -635,7 +645,7 @@ TARGET(OP_INT_NE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     regs[rd].ival = regs[rs].ival != imm;
     regs[rd].tag = TAG_BOOL;
@@ -649,7 +659,7 @@ TARGET(OP_UINT_NE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = ((uint64_t)regs[rs].ival != (uint64_t)imm);
     regs[rd].tag = TAG_BOOL;
@@ -664,8 +674,8 @@ TARGET(OP_INT_LT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_INT(rs);
-    CHECK_IS_INT(rt);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
 
     regs[rd].ival = regs[rs].ival < regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -679,7 +689,7 @@ TARGET(OP_INT_LT_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     regs[rd].ival = regs[rs].ival < imm;
     regs[rd].tag = TAG_BOOL;
@@ -694,8 +704,8 @@ TARGET(OP_INT_LE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_INT(rs);
-    CHECK_IS_INT(rt);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
 
     regs[rd].ival = regs[rs].ival <= regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -709,7 +719,7 @@ TARGET(OP_INT_LE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     regs[rd].ival = regs[rs].ival <= imm;
     regs[rd].tag = TAG_BOOL;
@@ -724,8 +734,8 @@ TARGET(OP_INT_GT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_INT(rs);
-    CHECK_IS_INT(rt);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
 
     regs[rd].ival = regs[rs].ival > regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -739,7 +749,7 @@ TARGET(OP_INT_GT_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     regs[rd].ival = regs[rs].ival > imm;
     regs[rd].tag = TAG_BOOL;
@@ -754,8 +764,8 @@ TARGET(OP_INT_GE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_INT(rs);
-    CHECK_IS_INT(rt);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rt) || is_uint(regs + rt));
 
     regs[rd].ival = regs[rs].ival >= regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -769,7 +779,7 @@ TARGET(OP_INT_GE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     regs[rd].ival = regs[rs].ival >= imm;
     regs[rd].tag = TAG_BOOL;
@@ -1167,7 +1177,7 @@ TARGET(OP_INT_MOD_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_INT(rs);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     regs[rd].ival = regs[rs].ival % imm;
     regs[rd].tag = TAG_INT64;
@@ -1214,14 +1224,14 @@ TARGET(OP_NUM_EQ) {
     TValue *v2 = regs + rt;
     TValue ret;
 
-    if (is_int64(v1) && is_int64(v2)) {
-        // int64 doesn't have cmp function
+    if (is_int(v1) && is_int(v2)) {
+        // int64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->ival == v2->ival);
-    } else if (is_float64(v1) && is_float64(v2)) {
-        // float64 doesn't have cmp function
+    } else if (is_float(v1) && is_float(v2)) {
+        // float64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->fval == v2->fval);
-    } else if (is_uint64(v1) && is_uint64(v2)) {
-        // uint64 doesn't have cmp function
+    } else if (is_uint(v1) && is_uint(v2)) {
+        // uint64/32/16/8 doesn't have cmp function
         ret = bool_value((uint64_t)v1->ival == (uint64_t)v2->ival);
     } else if (is_bool(v1) && is_bool(v2)) {
         // bool doesn't have cmp function
@@ -1250,14 +1260,14 @@ TARGET(OP_NUM_NE) {
     TValue *v2 = regs + rt;
     TValue ret;
 
-    if (is_int64(v1) && is_int64(v2)) {
-        // int64 doesn't have cmp function
+    if (is_int(v1) && is_int(v2)) {
+        // int64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->ival != v2->ival);
-    } else if (is_float64(v1) && is_float64(v2)) {
-        // float64 doesn't have cmp function
+    } else if (is_float(v1) && is_float(v2)) {
+        // float64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->fval != v2->fval);
-    } else if (is_uint64(v1) && is_uint64(v2)) {
-        // uint64 doesn't have cmp function
+    } else if (is_uint(v1) && is_uint(v2)) {
+        // uint64/32/16/8 doesn't have cmp function
         ret = bool_value((uint64_t)v1->ival != (uint64_t)v2->ival);
     } else if (is_bool(v1) && is_bool(v2)) {
         // bool doesn't have cmp function
@@ -1286,14 +1296,14 @@ TARGET(OP_NUM_LT) {
     TValue *v2 = regs + rt;
     TValue ret;
 
-    if (is_int64(v1) && is_int64(v2)) {
-        // int64 doesn't have cmp function
+    if (is_int(v1) && is_int(v2)) {
+        // int64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->ival < v2->ival);
-    } else if (is_float64(v1) && is_float64(v2)) {
-        // float64 doesn't have cmp function
+    } else if (is_float(v1) && is_float(v2)) {
+        // float64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->fval < v2->fval);
-    } else if (is_uint64(v1) && is_uint64(v2)) {
-        // uint64 doesn't have cmp function
+    } else if (is_uint(v1) && is_uint(v2)) {
+        // uint64/32/16/8 doesn't have cmp function
         ret = bool_value((uint64_t)v1->ival < (uint64_t)v2->ival);
     } else {
         SAVE_PC();
@@ -1319,14 +1329,14 @@ TARGET(OP_NUM_LE) {
     TValue *v2 = regs + rt;
     TValue ret;
 
-    if (is_int64(v1) && is_int64(v2)) {
-        // int64 doesn't have cmp function
+    if (is_int(v1) && is_int(v2)) {
+        // int64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->ival <= v2->ival);
-    } else if (is_float64(v1) && is_float64(v2)) {
-        // float64 doesn't have cmp function
+    } else if (is_float(v1) && is_float(v2)) {
+        // float64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->fval <= v2->fval);
-    } else if (is_uint64(v1) && is_uint64(v2)) {
-        // uint64 doesn't have cmp function
+    } else if (is_uint(v1) && is_uint(v2)) {
+        // uint64/32/16/8 doesn't have cmp function
         ret = bool_value((uint64_t)v1->ival <= (uint64_t)v2->ival);
     } else {
         SAVE_PC();
@@ -1352,14 +1362,14 @@ TARGET(OP_NUM_GT) {
     TValue *v2 = regs + rt;
     TValue ret;
 
-    if (is_int64(v1) && is_int64(v2)) {
-        // int64 doesn't have cmp function
+    if (is_int(v1) && is_int(v2)) {
+        // int64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->ival > v2->ival);
-    } else if (is_float64(v1) && is_float64(v2)) {
-        // float64 doesn't have cmp function
+    } else if (is_float(v1) && is_float(v2)) {
+        // float64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->fval > v2->fval);
-    } else if (is_uint64(v1) && is_uint64(v2)) {
-        // uint64 doesn't have cmp function
+    } else if (is_uint(v1) && is_uint(v2)) {
+        // uint64/32/16/8 doesn't have cmp function
         ret = bool_value((uint64_t)v1->ival > (uint64_t)v2->ival);
     } else {
         SAVE_PC();
@@ -1385,14 +1395,14 @@ TARGET(OP_NUM_GE) {
     TValue *v2 = regs + rt;
     TValue ret;
 
-    if (is_int64(v1) && is_int64(v2)) {
-        // int64 doesn't have cmp function
+    if (is_int(v1) && is_int(v2)) {
+        // int64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->ival >= v2->ival);
-    } else if (is_float64(v1) && is_float64(v2)) {
-        // float64 doesn't have cmp function
+    } else if (is_float(v1) && is_float(v2)) {
+        // float64/32/16/8 doesn't have cmp function
         ret = bool_value(v1->fval >= v2->fval);
-    } else if (is_uint64(v1) && is_uint64(v2)) {
-        // uint64 doesn't have cmp function
+    } else if (is_uint(v1) && is_uint(v2)) {
+        // uint64/32/16/8 doesn't have cmp function
         ret = bool_value((uint64_t)v1->ival >= (uint64_t)v2->ival);
     } else {
         SAVE_PC();
@@ -1803,7 +1813,7 @@ TARGET(OP_LOAD_UINT_IMM) {
     imm = I_VAL(inst, 0, 12);
 
     CHECK_REG_ID(rd);
-    ASSERT((ti & 0b1100) == 0b1100);
+    ASSERT(is_uint_tag(ti));
 
     regs[rd].tag = ti;
     regs[rd].ival = imm;
@@ -1814,7 +1824,7 @@ TARGET(OP_RET_UINT_IMM) {
     int ti = I_VAL(inst, 16, 8);
     imm = I_VAL(inst, 0, 16);
 
-    ASSERT((ti & 0b1100) == 0b1100);
+    ASSERT(is_uint_tag(ti));
 
     result.ival = imm;
     result.tag = ti;
@@ -1829,8 +1839,8 @@ TARGET(OP_UINT_DIV) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     regs[rd].ival = (uint64_t)regs[rs].ival / (uint64_t)regs[rt].ival;
     regs[rd].tag = TAG_UINT64;
@@ -1845,7 +1855,7 @@ TARGET(OP_UINT_DIV_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = (uint64_t)regs[rs].ival / (uint64_t)imm;
     regs[rd].tag = TAG_UINT64;
@@ -1861,8 +1871,8 @@ TARGET(OP_UINT_MOD) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     regs[rd].ival = (uint64_t)regs[rs].ival % (uint64_t)regs[rt].ival;
     regs[rd].tag = TAG_UINT64;
@@ -1877,7 +1887,7 @@ TARGET(OP_UINT_MOD_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = (uint64_t)regs[rs].ival % (uint64_t)imm;
     regs[rd].tag = TAG_UINT64;
@@ -1893,8 +1903,8 @@ TARGET(OP_UINT_SHR) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     regs[rd].ival = (uint64_t)regs[rs].ival >> (uint64_t)regs[rt].ival;
     regs[rd].tag = TAG_UINT64;
@@ -1909,7 +1919,7 @@ TARGET(OP_UINT_SHR_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = (uint64_t)regs[rs].ival >> (uint64_t)imm;
     regs[rd].tag = TAG_UINT64;
@@ -1925,8 +1935,8 @@ TARGET(OP_UINT_LT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     regs[rd].ival = (uint64_t)regs[rs].ival < (uint64_t)regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -1941,7 +1951,7 @@ TARGET(OP_UINT_LT_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = (uint64_t)regs[rs].ival < (uint64_t)imm;
     regs[rd].tag = TAG_BOOL;
@@ -1957,8 +1967,8 @@ TARGET(OP_UINT_LE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     regs[rd].ival = (uint64_t)regs[rs].ival <= (uint64_t)regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -1973,7 +1983,7 @@ TARGET(OP_UINT_LE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = (uint64_t)regs[rs].ival <= (uint64_t)imm;
     regs[rd].tag = TAG_BOOL;
@@ -1989,8 +1999,8 @@ TARGET(OP_UINT_GT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     regs[rd].ival = (uint64_t)regs[rs].ival > (uint64_t)regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -2005,7 +2015,7 @@ TARGET(OP_UINT_GT_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = (uint64_t)regs[rs].ival > (uint64_t)imm;
     regs[rd].tag = TAG_BOOL;
@@ -2021,8 +2031,8 @@ TARGET(OP_UINT_GE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     regs[rd].ival = (uint64_t)regs[rs].ival >= (uint64_t)regs[rt].ival;
     regs[rd].tag = TAG_BOOL;
@@ -2037,7 +2047,7 @@ TARGET(OP_UINT_GE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     regs[rd].ival = (uint64_t)regs[rs].ival >= (uint64_t)imm;
     regs[rd].tag = TAG_BOOL;
@@ -2052,8 +2062,8 @@ TARGET(OP_JMP_UINT_LT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     if ((uint64_t)regs[rs].ival < (uint64_t)regs[rt].ival) {
         pc += off;
@@ -2068,7 +2078,7 @@ TARGET(OP_JMP_UINT_LT_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     if ((uint64_t)regs[rs].ival < (uint64_t)imm) {
         pc += off;
@@ -2084,8 +2094,8 @@ TARGET(OP_JMP_UINT_LE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     if ((uint64_t)regs[rs].ival <= (uint64_t)regs[rt].ival) {
         pc += off;
@@ -2100,7 +2110,7 @@ TARGET(OP_JMP_UINT_LE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     if ((uint64_t)regs[rs].ival <= (uint64_t)imm) {
         pc += off;
@@ -2116,8 +2126,8 @@ TARGET(OP_JMP_UINT_GT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     if ((uint64_t)regs[rs].ival > (uint64_t)regs[rt].ival) {
         pc += off;
@@ -2132,7 +2142,7 @@ TARGET(OP_JMP_UINT_GT_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     if ((uint64_t)regs[rs].ival > (uint64_t)imm) {
         pc += off;
@@ -2148,8 +2158,8 @@ TARGET(OP_JMP_UINT_GE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    CHECK_IS_UINT(rs);
-    CHECK_IS_UINT(rt);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
+    ASSERT(is_uint(regs + rt) || is_int(regs + rt));
 
     if ((uint64_t)regs[rs].ival >= (uint64_t)regs[rt].ival) {
         pc += off;
@@ -2164,7 +2174,7 @@ TARGET(OP_JMP_UINT_GE_IMM) {
     off = I_SVAL(inst, 0, 8);
 
     CHECK_REG_ID(rs);
-    CHECK_IS_UINT(rs);
+    ASSERT(is_uint(regs + rs) || is_int(regs + rs));
 
     if ((uint64_t)regs[rs].ival >= (uint64_t)imm) {
         pc += off;
@@ -2364,7 +2374,8 @@ TARGET(OP_INT_NOT) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    ASSERT(regs[rs].tag == TAG_INT64 || regs[rs].tag == TAG_UINT64);
+
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     regs[rd].ival = ~regs[rs].ival;
     regs[rd].tag = regs[rs].tag;
@@ -2378,7 +2389,7 @@ TARGET(OP_INT_NEG) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    ASSERT(regs[rs].tag == TAG_INT64);
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
 
     regs[rd].ival = -regs[rs].ival;
     regs[rd].tag = TAG_INT64;

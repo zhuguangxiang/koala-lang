@@ -29,7 +29,7 @@ func test_strio_read_all() {
 
     let buf = bytes(64)
     ut.assert_eq(sio.read(buf), 16)
-    ut.assert_eq(buf.view(0, 16).to_str(), "Hello, StringIO!")
+    ut.assert_eq(buf.view(0, 16), b"Hello, StringIO!")
     ut.assert_eq(sio.tell(), 16)
     ut.assert(sio.eof())
 
@@ -40,7 +40,7 @@ func test_strio_read_all() {
     ut.assert_eq(sio.seek(0, 0), 0)
     ut.assert_false(sio.eof())
     ut.assert_eq(sio.read(buf), 16)
-    ut.assert_eq(buf.view(0, 16).to_str(), "Hello, StringIO!")
+    ut.assert_eq(buf.view(0, 16), b"Hello, StringIO!")
 }
 
 @test
@@ -49,13 +49,13 @@ func test_strio_partial_reads() {
 
     let buf = bytes(3)
     ut.assert_eq(sio.read(buf), 3)
-    ut.assert_eq(buf.view(0, 3).to_str(), "abc")
+    ut.assert_eq(buf.view(0, 3), b"abc")
     ut.assert_eq(sio.read(buf), 3)
-    ut.assert_eq(buf.view(0, 3).to_str(), "def")
+    ut.assert_eq(buf.view(0, 3), b"def")
 
     // short read: only 2 bytes left
     ut.assert_eq(sio.read(buf), 2)
-    ut.assert_eq(buf.view(0, 2).to_str(), "gh")
+    ut.assert_eq(buf.view(0, 2), b"gh")
 
     // EOF
     ut.assert_eq(sio.read(buf), 0)
@@ -122,7 +122,7 @@ func test_strio_seek_tell() {
     sio.seek(2, 0)
     let buf = bytes(3)
     ut.assert_eq(sio.read(buf), 3)
-    ut.assert_eq(buf.view(0, 3).to_str(), "cde")
+    ut.assert_eq(buf.view(0, 3), b"cde")
 }
 
 @test
@@ -159,7 +159,7 @@ func test_strio_as_reader() {
     let r io.Reader = io.StringIO("trait read")
     let buf = bytes(10)
     ut.assert_eq(r.read(buf), 10)
-    ut.assert_eq(buf.view(0, 10).to_str(), "trait read")
+    ut.assert_eq(buf.view(0, 10), b"trait read")
     ut.assert_eq(r.read(buf), 0)
 }
 
@@ -172,11 +172,11 @@ func test_strio_with_bufreader() {
 
     let buf = bytes(64)
     ut.assert_eq(br.read(buf), 8)
-    ut.assert_eq(buf.view(0, 8).to_str(), "hello bu")
+    ut.assert_eq(buf.view(0, 8), b"hello bu")
     ut.assert_eq(br.read(buf), 8)
-    ut.assert_eq(buf.view(0, 8).to_str(), "ffered w")
+    ut.assert_eq(buf.view(0, 8), b"ffered w")
     ut.assert_eq(br.read(buf), 4)
-    ut.assert_eq(buf.view(0, 4).to_str(), "orld")
+    ut.assert_eq(buf.view(0, 4), b"orld")
     ut.assert_eq(br.read(buf), 0)
 }
 

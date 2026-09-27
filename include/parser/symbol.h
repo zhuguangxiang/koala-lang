@@ -59,11 +59,13 @@ typedef struct _Symbol {
 
 typedef struct _Literal {
     int which;
-#define LIT_INT  1
-#define LIT_FLT  2
-#define LIT_BOOL 3
-#define LIT_STR  4
-#define LIT_NONE 5
+#define LIT_INT   1
+#define LIT_FLT   2
+#define LIT_BOOL  3
+#define LIT_STR   4
+#define LIT_CHAR  5
+#define LIT_BYTES 6
+#define LIT_NONE  7
     int len;
     int sign;
     union {

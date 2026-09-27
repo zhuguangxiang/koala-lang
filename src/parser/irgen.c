@@ -355,6 +355,10 @@ static void emit_ir_literal(ParserState *ps, Expr *exp)
             exp->ir_val = klr_const_str(lit->sval, lit->len, m);
             break;
         }
+        case LIT_EXPR_BYTES: {
+            exp->ir_val = klr_const_bytes(lit->sval, lit->len, m);
+            break;
+        }
         case LIT_EXPR_NONE: {
             exp->ir_val = klr_const_none(m);
             break;

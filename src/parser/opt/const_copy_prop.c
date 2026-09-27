@@ -638,6 +638,39 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             break;
         }
 
+        case OP_UNARY_NEG: {
+            // unary negation
+            KlrValue *val = insn_oper_value(insn, 0);
+            if (klr_is_const(val)) {
+                KlrConst *cval = (KlrConst *)val;
+                if (cval->which == CONST_INT || cval->which == CONST_UINT ||
+                    cval->which == CONST_FLT) {
+                    log_info("fold unary neg insn to const int/uint/float:");
+                    log_insn(insn);
+                    uint64_t res = -cval->ival;
+                    KlrValue *const_res = klr_const_int(res, val->ts, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                }
+            }
+            break;
+        }
+
+        case OP_UNARY_NOT: {
+            // bitwise not
+            KlrValue *val = insn_oper_value(insn, 0);
+            if (klr_is_const(val)) {
+                KlrConst *cval = (KlrConst *)val;
+                if (cval->which == CONST_INT || cval->which == CONST_UINT) {
+                    log_info("fold unary not insn to const int:");
+                    log_insn(insn);
+                    uint64_t res = ~cval->ival;
+                    KlrValue *const_res = klr_const_int(res, val->ts, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                }
+            }
+            break;
+        }
+
         case OP_LAND: {
             KlrValue *lhs = insn_oper_value(insn, 0);
             KlrValue *rhs = insn_oper_value(insn, 1);

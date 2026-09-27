@@ -693,6 +693,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_unary(insn, name, fp);
             break;
 
+        case OP_UNARY_NEG:
+            print_unary(insn, name, fp);
+            break;
+
         case OP_BINARY_SHL:
             print_binary(insn, name, fp);
             break;
@@ -1205,6 +1209,12 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_UNREACHABLE:
             fprintf(fp, "%s", name);
+            break;
+
+        case OP_INT_NEG:
+        case OP_FLOAT_NEG:
+        case OP_INT_NOT:
+            print_unary(insn, name, fp);
             break;
 
         default:

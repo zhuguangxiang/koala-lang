@@ -19,11 +19,11 @@ func test_read_line_basic() {
     let buf = Buffer()
 
     ut.assert_eq(br.read_line(buf), 5)
-    ut.assert_eq(buf.to_str(), "hello")
+    ut.assert_eq(buf.to_bytes(), b"hello")
 
     buf.clear()
     ut.assert_eq(br.read_line(buf), 5)
-    ut.assert_eq(buf.to_str(), "world")
+    ut.assert_eq(buf.to_bytes(), b"world")
 
     // stream exhausted exactly at a newline: no trailing line
     buf.clear()
@@ -42,7 +42,7 @@ func test_read_line_empty_and_partial() {
 
     // EOF without newline: -1 but the trailing data is kept in buf
     ut.assert_eq(br.read_line(buf), -1)
-    ut.assert_eq(buf.to_str(), "abc")
+    ut.assert_eq(buf.to_bytes(), b"abc")
 }
 
 @test
@@ -53,7 +53,7 @@ func test_read_line_appends() {
     ut.assert_eq(br.read_line(buf), 2)
     // second call appends to the same buffer (no implicit clear)
     ut.assert_eq(br.read_line(buf), 2)
-    ut.assert_eq(buf.to_str(), "abcd")
+    ut.assert_eq(buf.to_bytes(), b"abcd")
 }
 
 @test
@@ -81,7 +81,7 @@ func test_read_line_long_line() {
 
     buf.clear()
     ut.assert_eq(br.read_line(buf), -1)
-    ut.assert_eq(buf.to_str(), "tail")
+    ut.assert_eq(buf.to_bytes(), b"tail")
 }
 
 @test
@@ -105,7 +105,7 @@ func test_read_byte_nul_is_data() {
     src.write_str("a")
     src.write_byte(0)
     src.write_str("b")
-    let br = io.BufReader(io.BytesIO(src.to_bytes()), 2)
+    let br = io.BufReader(io.BytesIO.from_bytes(src.to_bytes()), 2)
     ut.assert_eq(br.read_byte(), 97)
     ut.assert_eq(br.read_byte(), 0)
     ut.assert_eq(br.read_byte(), 98)
@@ -126,9 +126,9 @@ func test_read_byte_interleaved_with_read_line() {
 
     let buf = Buffer()
     ut.assert_eq(br.read_line(buf), 1)
-    ut.assert_eq(buf.to_str(), "b")
+    ut.assert_eq(buf.to_bytes(), b"b")
 
     buf.clear()
     ut.assert_eq(br.read_line(buf), -1)
-    ut.assert_eq(buf.to_str(), "cd")
+    ut.assert_eq(buf.to_bytes(), b"cd")
 }

@@ -235,6 +235,7 @@ static OpCode get_const_op(KlrConst *c, LowerConstRule *R)
         }
 
         case CONST_STR:
+        case CONST_BYTES:
         case CONST_LIST:
         case CONST_TUPLE:
         case CONST_RANGE:
@@ -1139,6 +1140,29 @@ static void isel_lower_contains(KlrInsn *insn)
     }
 }
 
+static void isel_lower_unary_neg(KlrInsn *insn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    ASSERT(!klr_is_const(obj));
+    TypeSpec *ty = obj->ts;
+    if (ty->kind == TYPE_INT) {
+        insn->code = OP_INT_NEG;
+    } else if (ty->kind == TYPE_FLOAT) {
+        insn->code = OP_FLOAT_NEG;
+    } else {
+        UNREACHABLE();
+    }
+}
+
+static void isel_lower_unary_bit_not(KlrInsn *insn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    ASSERT(!klr_is_const(obj));
+    TypeSpec *ty = obj->ts;
+    ASSERT(ty->kind == TYPE_INT);
+    insn->code = OP_INT_NOT;
+}
+
 static void do_isel(KlrFunc *fn)
 {
     log_info("isel for func '%s'", fn->name);
@@ -1255,6 +1279,16 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_CONTAINS: {
                     isel_lower_contains(insn);
+                    break;
+                }
+
+                case OP_UNARY_NEG: {
+                    isel_lower_unary_neg(insn);
+                    break;
+                }
+
+                case OP_UNARY_NOT: {
+                    isel_lower_unary_bit_not(insn);
                     break;
                 }
 

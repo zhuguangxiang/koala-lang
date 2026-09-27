@@ -57,7 +57,7 @@ func test_splitter_custom_size() {
     }
     let sp = io.BufReader(io.StringIO(text + ",tail"), 8).split(',', 4)
     ut.assert_eq(sp.next_strict().to_str(), text)
-    ut.assert_eq(sp.next_strict().to_str(), "tail")
+    ut.assert_eq(sp.next_strict(), b"tail")
     ut.assert_false(sp.has_next())
 }
 

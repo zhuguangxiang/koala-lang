@@ -20,9 +20,9 @@
 static int semicolon(ParserState *ps)
 {
     static int tokens[] = {
-        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, CHAR_LITERAL, NONE, ID, SELF,
+        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, CHAR_LITERAL, BYTES_LITERAL, NONE, ID, SELF,
         TRUE, FALSE, UINT8, UINT16, UINT32, UINT64, INT8, INT16, INT32, INT64,
-        FLOAT16, FLOAT32, FLOAT64, BFLOAT16, STRING, BOOL, ANY,
+        FLOAT16, FLOAT32, FLOAT64, BFLOAT16, STRING, BYTES, BOOL, ANY,
         RETURN, BREAK, CONTINUE, ')', ']', '}', '?', '_', NOT,
         CONST_PLACEHOLDER,
     };
@@ -186,6 +186,10 @@ static char hex2byte(const char *s)
 #define YY_STR_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
 #define YY_STR_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL);
 
+#define YY_BYTES_BEGIN yyps->multi = 1; RESET_BUF(yyps->sbuf); BEGIN(BYTE_S);
+#define YY_BYTES_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
+#define YY_BYTES_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(BYTES_LITERAL);
+
 #define YY_TXT_BEGIN yyps->multi = 1; RESET_BUF(yyps->sbuf); BEGIN(TXT);
 #define YY_TXT_WRITE(ch) buf_write_char(&yyps->sbuf, ch)
 #define YY_TXT_END yyps->multi = 0; BEGIN(INITIAL); YY_RETURN(STRING_LITERAL);
@@ -199,7 +203,7 @@ static char hex2byte(const char *s)
 %option noinput
 %option never-interactive
 
-%x S STR TXT COMMENT LINE_COMMENT
+%x S STR BYTE_S TXT COMMENT LINE_COMMENT
 
 /* rules */
 
@@ -253,6 +257,7 @@ static char hex2byte(const char *s)
 "bfloat16"  { YY_RETURN(BFLOAT16);  }
 "bool"      { YY_RETURN(BOOL);      }
 "str"       { YY_RETURN(STRING);    }
+"bytes"     { YY_RETURN(BYTES);     }
 "any"       { YY_RETURN(ANY);       }
 "list"      { YY_RETURN(LIST);      }
 "dict"      { YY_RETURN(MAP);       }
@@ -375,6 +380,18 @@ __KOALA_[A-Z_]+__ {
     YY_STR_WRITE(hex2byte(yytext));
 }
 <STR>.          { YY_STR_WRITE(yytext[0]); }
+
+b\"              { YY_BYTES_BEGIN; }
+<BYTE_S>\"       { YY_BYTES_END;   }
+<BYTE_S>\\\"     { YY_BYTES_WRITE('\"'); }
+<BYTE_S>\\n      { YY_BYTES_WRITE('\n'); }
+<BYTE_S>\\t      { YY_BYTES_WRITE('\t'); }
+<BYTE_S>\\r      { YY_BYTES_WRITE('\r'); }
+<BYTE_S>\\\\     { YY_BYTES_WRITE('\\'); }
+<BYTE_S>\\x[0-9A-Fa-f]{2} {
+    YY_BYTES_WRITE(hex2byte(yytext));
+}
+<BYTE_S>.        { YY_BYTES_WRITE(yytext[0]); }
 
 \"\"\"          { YY_TXT_BEGIN;            }
 <TXT>\"\"\"     { YY_TXT_END;              }

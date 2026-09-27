@@ -148,6 +148,8 @@ TypeSpec *va_list_type_spec(TypeSpec *src);
 TypeSpec *va_list_type_spec_intern(TypeSpec *src);
 TypeSpec *pkg_type_spec(char *path);
 
+#define bytes_type_spec() klass_type_spec("std/builtin", "bytes")
+
 static inline int type_is_no_type(TypeSpec *ts) { return ts->kind == TYPE_NO_TYPE; }
 static inline int type_is_optional(TypeSpec *ts) { return ts->kind == TYPE_OPTIONAL; }
 static inline int type_is_bool(TypeSpec *ts) { return ts->kind == TYPE_BOOL; }
@@ -190,6 +192,7 @@ static inline int type_is_tuple(TypeSpec *ts) { return type_is_some_klass(ts, "t
 static inline int type_is_range(TypeSpec *ts) { return type_is_some_klass(ts, "range"); }
 static inline int type_is_list(TypeSpec *ts) { return type_is_some_klass(ts, "list"); }
 static inline int type_is_slice(TypeSpec *ts) { return type_is_some_klass(ts, "slice"); }
+static inline int type_is_bytes(TypeSpec *ts) { return type_is_some_klass(ts, "bytes"); }
 
 int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_ts);
 

@@ -118,10 +118,11 @@ typedef struct _KlrConst {
 #define CONST_FLT   4
 #define CONST_BOOL  5
 #define CONST_STR   6
-#define CONST_TUPLE 7
-#define CONST_RANGE 8
-#define CONST_SLICE 9
-#define CONST_LIST  10
+#define CONST_BYTES 7
+#define CONST_TUPLE 8
+#define CONST_RANGE 9
+#define CONST_SLICE 10
+#define CONST_LIST  11
     int len;
     union {
         uint64_t ival;
@@ -517,6 +518,7 @@ KlrValue *klr_const_uint(uint64_t val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_float(double val, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_bool(int val, KlrModule *m);
 KlrValue *klr_const_str(char *s, int len, KlrModule *m);
+KlrValue *klr_const_bytes(char *s, int len, KlrModule *m);
 KlrValue *klr_const_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m);
 KlrValue *klr_const_none(KlrModule *m);

@@ -3,7 +3,9 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#define _GNU_SOURCE // memrchr
 #include "bytesobj.h"
+#include <string.h>
 #include "buffer.h"
 #include "excobj.h"
 #include "hashmap.h"
@@ -67,6 +69,21 @@ static TValue _bytes_index(TValue *self, TValue *args, int nargs)
     }
 }
 
+static TValue _bytes_rindex(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *bytes = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 3);
+    uint8_t value = kl_arg_uint8(0);
+
+    void *ptr = memrchr(bytes->data + bytes->offset, value, bytes->size);
+    if (ptr) {
+        return int64_value((uint8_t *)ptr - (bytes->data + bytes->offset));
+    } else {
+        return int64_value(-1);
+    }
+}
+
 static TValue _bytes_count(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = SELF_AS(bytes_type);
@@ -103,6 +120,23 @@ static TValue _bytes_copy(TValue *self, TValue *args, int nargs)
     ASSERT(len >= 0 && len <= bytes->size);
 
     memmove(bytes->data + bytes->offset, src_bytes->data + src_bytes->offset + src_start, len);
+    return int64_value(len);
+}
+
+static TValue _bytes_copy_str(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *bytes = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 3);
+    StringObject *src = kl_arg_obj_as(0, str_type);
+    int src_start = kl_arg_int64(1);
+    int src_end = kl_arg_int64(2);
+    if (src_end < 0) src_end = src->size;
+
+    int len = src_end - src_start;
+    ASSERT(len >= 0 && len <= bytes->size);
+
+    memmove(bytes->data + bytes->offset, src->array + src_start, len);
     return int64_value(len);
 }
 
@@ -189,6 +223,57 @@ static TValue _bytes_setitem(TValue *self, TValue *args, int nargs)
     return nil_value;
 }
 
+static TValue _bytes_contains(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *bytes = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 1);
+    uint8_t value = kl_arg_uint8(0);
+    for (int64_t i = 0; i < bytes->size; ++i) {
+        if (bytes->data[bytes->offset + i] == value) {
+            return bool_value(true);
+        }
+    }
+    return bool_value(false);
+}
+
+static TValue _bytes_getslice(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *bytes = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 1);
+    SliceObject *slice = kl_arg_obj_as(0, slice_type);
+    int64_t start = to_int64(&slice->start);
+    int64_t end = to_int64(&slice->end);
+    if (end < 0) end = bytes->size;
+    ASSERT(start >= 0 && end >= 0 && start <= end && end <= bytes->size);
+
+    BytesObject *view = mm_alloc_obj(view);
+    INIT_OBJECT_HEAD(view, &bytes_type, 0);
+    view->offset = bytes->offset + start;
+    view->size = end - start;
+    view->data = bytes->data;
+    return obj_value((Object *)view);
+}
+
+static TValue _bytes_setslice(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *bytes = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 2);
+    SliceObject *slice = kl_arg_obj_as(0, slice_type);
+    int64_t start = to_int64(&slice->start);
+    int64_t end = to_int64(&slice->end);
+    if (end < 0) end = bytes->size;
+    ASSERT(start >= 0 && end >= 0 && start <= end && end <= bytes->size);
+
+    BytesObject *value = kl_arg_obj_as(1, bytes_type);
+    ASSERT(value->size == end - start);
+    memcpy(bytes->data + bytes->offset + start, value->data + value->offset, end - start);
+
+    return nil_value;
+}
+
 static TValue _bytes_eq(TValue *self, TValue *args, int nargs)
 {
     BytesObject *lhs = SELF_AS(bytes_type);
@@ -223,12 +308,17 @@ static MethodDef bytes_methods[] = {
     { "__init__", _bytes_init },
     { "__getitem__", _bytes_getitem },
     { "__setitem__", _bytes_setitem },
+    { "__getslice__", _bytes_getslice },
+    { "__setslice__", _bytes_setslice },
+    { "__contains__", _bytes_contains },
     { "__eq__", _bytes_eq },
     { "__ne__", _bytes_ne },
     { "hash", _bytes_hash },
     { "index", _bytes_index },
+    { "rindex", _bytes_rindex },
     { "count", _bytes_count },
     { "copy", _bytes_copy },
+    { "copy_str", _bytes_copy_str },
     { "fill", _bytes_fill },
     { "zero", _bytes_zero },
     { "view", _bytes_view },
@@ -246,6 +336,17 @@ Object *kl_new_bytes(uint32_t size)
     bytes->offset = 0;
     bytes->size = size;
     bytes->data = mm_alloc(size);
+    return (Object *)bytes;
+}
+
+Object *kl_bytes_from_data(uint8_t *data, uint32_t size)
+{
+    BytesObject *bytes = mm_alloc_obj(bytes);
+    INIT_OBJECT_HEAD(bytes, &bytes_type, 0);
+    bytes->offset = 0;
+    bytes->size = size;
+    bytes->data = mm_alloc(size);
+    memcpy(bytes->data, data, size);
     return (Object *)bytes;
 }
 

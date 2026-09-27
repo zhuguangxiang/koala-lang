@@ -29,11 +29,11 @@ func test_bufreader_bytesio_read() {
     let buf = bytes(16)
 
     ut.assert_eq(br.read(buf), 4)
-    ut.assert_eq(buf.view(0, 4).to_str(), "hell")
+    ut.assert_eq(buf.view(0, 4), b"hell")
     ut.assert_eq(br.read(buf), 4)
-    ut.assert_eq(buf.view(0, 4).to_str(), "o wo")
+    ut.assert_eq(buf.view(0, 4), b"o wo")
     ut.assert_eq(br.read(buf), 3) // short read: only 3 bytes left
-    ut.assert_eq(buf.view(0, 3).to_str(), "rld")
+    ut.assert_eq(buf.view(0, 3), b"rld")
     ut.assert_eq(br.read(buf), 0) // EOF
 }
 
@@ -48,7 +48,7 @@ func test_bufreader_bytesio_peek_discard() {
     // peek triggers a fill but consumes nothing
     let p = br.peek(3)
     ut.assert_eq(len(p), 3)
-    ut.assert_eq(p.to_str(), "abc")
+    ut.assert_eq(p, b"abc")
     ut.assert_eq(br.avail(), 4) // fill pulled 4 bytes, peek left them all
 
     // discard drops bytes without copying them out
@@ -58,7 +58,7 @@ func test_bufreader_bytesio_peek_discard() {
     // the next read serves what is left in the buffer ("cd")
     let buf = bytes(8)
     ut.assert_eq(br.read(buf), 2)
-    ut.assert_eq(buf.view(0, 2).to_str(), "cd")
+    ut.assert_eq(buf.view(0, 2), b"cd")
 }
 
 @test
@@ -69,7 +69,7 @@ func test_bufreader_bytesio_peek_last_bytes() {
     // peek returns exactly the requested count
     let p = br.peek(2)
     ut.assert_eq(len(p), 2)
-    ut.assert_eq(p.to_str(), "xy")
+    ut.assert_eq(p, b"xy")
 
     // after consuming everything, no data is left
     ut.assert_eq(br.discard(2), 2)
@@ -110,12 +110,12 @@ func test_bufreader_bytesio_peek_refills_until_n() {
     // peek(4) compacts the buffered "cd" and refills "ef" to satisfy n
     let p = br.peek(4)
     ut.assert_eq(len(p), 4)
-    ut.assert_eq(p.to_str(), "cdef")
+    ut.assert_eq(p, b"cdef")
 
     // peeking did not consume anything: the position is unchanged
     let out = bytes(4)
     ut.assert_eq(br.read(out), 4)
-    ut.assert_eq(out.to_str(), "cdef")
+    ut.assert_eq(out, b"cdef")
     ut.assert_eq(br.read(out), 0) // EOF
 }
 
@@ -126,17 +126,17 @@ func test_bufreader_bytesio_read_until() {
 
     let out = Buffer()
     ut.assert_eq(br.read_until(out, ','), 5)
-    ut.assert_eq(out.to_str(), "alpha")
+    ut.assert_eq(out.to_bytes(), b"alpha")
 
     out.clear()
     ut.assert_eq(br.read_until(out, ','), 4)
-    ut.assert_eq(out.to_str(), "beta")
+    ut.assert_eq(out.to_bytes(), b"beta")
 
     // no more delimiters: read_until runs to EOF and reports -1; the bytes
     // read before EOF are still appended to out
     out.clear()
     ut.assert_eq(br.read_until(out, ','), -1)
-    ut.assert_eq(out.to_str(), "gamma")
+    ut.assert_eq(out.to_bytes(), b"gamma")
 }
 
 // ---------------------------------------------------------------------------
@@ -150,11 +150,11 @@ func test_bufreader_strio_read() {
     let buf = bytes(16)
 
     ut.assert_eq(br.read(buf), 4)
-    ut.assert_eq(buf.view(0, 4).to_str(), "koal")
+    ut.assert_eq(buf.view(0, 4), b"koal")
     ut.assert_eq(br.read(buf), 4)
-    ut.assert_eq(buf.view(0, 4).to_str(), "a la")
+    ut.assert_eq(buf.view(0, 4), b"a la")
     ut.assert_eq(br.read(buf), 2) // short read: only 2 bytes left
-    ut.assert_eq(buf.view(0, 2).to_str(), "ng")
+    ut.assert_eq(buf.view(0, 2), b"ng")
     ut.assert_eq(br.read(buf), 0) // EOF
 }
 
@@ -165,16 +165,16 @@ func test_bufreader_strio_read_until() {
 
     let out = Buffer()
     ut.assert_eq(br.read_until(out, ';'), 3)
-    ut.assert_eq(out.to_str(), "one")
+    ut.assert_eq(out.to_bytes(), b"one")
 
     out.clear()
     ut.assert_eq(br.read_until(out, ';'), 3)
-    ut.assert_eq(out.to_str(), "two")
+    ut.assert_eq(out.to_bytes(), b"two")
 
     // last field has no trailing delimiter: read_until runs to EOF (-1)
     out.clear()
     ut.assert_eq(br.read_until(out, ';'), -1)
-    ut.assert_eq(out.to_str(), "three")
+    ut.assert_eq(out.to_bytes(), b"three")
 }
 
 @test
@@ -191,7 +191,7 @@ func test_bufreader_strio_read_until_empty_and_eof() {
 
     // the remainder has no delimiter: EOF returns -1 with data appended
     ut.assert_eq(br.read_until(out, ';'), -1)
-    ut.assert_eq(out.to_str(), "tail")
+    ut.assert_eq(out.to_bytes(), b"tail")
 
     // at EOF with nothing left, read_until keeps returning -1
     out.clear()
@@ -224,7 +224,7 @@ func test_bufwriter_bytesio_buffering() {
     bio.seek(0, 0)
     let buf = bytes(64)
     ut.assert_eq(bio.read(buf), 13)
-    ut.assert_eq(buf.view(0, 13).to_str(), "Hello, Koala!")
+    ut.assert_eq(buf.view(0, 13), b"Hello, Koala!")
 }
 
 @test
@@ -240,7 +240,7 @@ func test_bufwriter_bytesio_large_bypass() {
     bio.seek(0, 0)
     let buf = bytes(16)
     ut.assert_eq(bio.read(buf), 6)
-    ut.assert_eq(buf.view(0, 6).to_str(), "abcdef")
+    ut.assert_eq(buf.view(0, 6), b"abcdef")
 }
 
 // ---------------------------------------------------------------------------
@@ -261,7 +261,7 @@ func test_bufio_roundtrip_over_bytesio() {
     let br = io.BufReader(bio, 4)
     let out = Buffer()
     ut.assert_eq(br.read_until(out, ';'), -1)
-    ut.assert_eq(out.to_str(), "The quick brown fox")
+    ut.assert_eq(out.to_bytes(), b"The quick brown fox")
 }
 
 // ---------------------------------------------------------------------------
@@ -463,7 +463,7 @@ func test_words_shared_reader_position() {
     let words = io.Words(br)
     ut.assert_eq(words.next_strict(), "one")
     // Only the word and its first separator are consumed.
-    ut.assert_eq(br.peek(2).to_str(), "tw")
+    ut.assert_eq(br.peek(2), b"tw")
     ut.assert_eq(words.next_strict(), "two")
     ut.assert_eq(words.next_strict(), "three")
     ut.assert_false(words.has_next())
@@ -501,9 +501,9 @@ func test_bufreader_split_factory() {
     let br = io.BufReader(io.StringIO("one;two;three"), 4)
     let it = br.split(';')
     ut.assert(it.has_next())
-    ut.assert_eq(it.next_strict().to_str(), "one")
-    ut.assert_eq(it.next_strict().to_str(), "two")
-    ut.assert_eq(it.next_strict().to_str(), "three")
+    ut.assert_eq(it.next_strict(), b"one")
+    ut.assert_eq(it.next_strict(), b"two")
+    ut.assert_eq(it.next_strict(), b"three")
     ut.assert_false(it.has_next())
     ut.assert(it.next() == nil)
 }
@@ -556,8 +556,8 @@ func test_bufreader_factory_shared_stream() {
     // "ab,", a direct read on br sees exactly the remaining bytes.
     let br = io.BufReader(io.StringIO("ab,cd"), 8)
     let it = br.split(',')
-    ut.assert_eq(it.next_strict().to_str(), "ab")
+    ut.assert_eq(it.next_strict(), b"ab")
     let buf = bytes(8)
     ut.assert_eq(br.read(buf), 2)
-    ut.assert_eq(buf.view(0, 2).to_str(), "cd")
+    ut.assert_eq(buf.view(0, 2), b"cd")
 }

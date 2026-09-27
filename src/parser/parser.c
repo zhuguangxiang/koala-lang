@@ -470,7 +470,9 @@ Symbol *find_type_symbol(ParserState *ps, TypeIdent *pkg, TypeIdent *name)
     }
 
     // find package
-    Symbol *sym = stbl_get(ps->imported, pkg->name);
+    char *_name = strrchr(pkg->name, '/');
+    _name = _name ? _name + 1 : pkg->name;
+    Symbol *sym = stbl_get(ps->imported, _name);
     if (!sym) return NULL;
     ASSERT(sym->kind == SYM_IMPORTED);
     Symbol *origin = ((ImportedSymbol *)sym)->origin;
