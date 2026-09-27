@@ -1,0 +1,134 @@
+// RUN: koala %s --test
+
+import "std/io"
+import "std/ut"
+
+// This file exercises the BufReader.read_line() and BufReader.read_byte()
+// convenience methods (libs/std/io/bufio.kl).
+//
+// read_line appends one '\n'-terminated line to the given buffer (delimiter
+// consumed, not appended, no '\r' stripping) and returns the appended byte
+// count, or -1 at EOF with any trailing bytes still appended.
+// read_byte consumes exactly one byte and returns its value 0-255 (NUL is
+// data, not EOF), or -1 at EOF. Neither method may read ahead of what it
+// reports, so both can be interleaved on the shared stream.
+
+@test
+func test_read_line_basic() {
+    let br = io.BufReader(io.StringIO("hello\nworld\n"), 4)
+    let buf = Buffer()
+
+    ut.assert_eq(br.read_line(buf), 5)
+    ut.assert_eq(buf.to_str(), "hello")
+
+    buf.clear()
+    ut.assert_eq(br.read_line(buf), 5)
+    ut.assert_eq(buf.to_str(), "world")
+
+    // stream exhausted exactly at a newline: no trailing line
+    buf.clear()
+    ut.assert_eq(br.read_line(buf), -1)
+    ut.assert_true(buf.empty())
+}
+
+@test
+func test_read_line_empty_and_partial() {
+    let br = io.BufReader(io.StringIO("\nabc"), 4)
+    let buf = Buffer()
+
+    // empty line: zero bytes appended, delimiter still consumed
+    ut.assert_eq(br.read_line(buf), 0)
+    ut.assert_true(buf.empty())
+
+    // EOF without newline: -1 but the trailing data is kept in buf
+    ut.assert_eq(br.read_line(buf), -1)
+    ut.assert_eq(buf.to_str(), "abc")
+}
+
+@test
+func test_read_line_appends() {
+    let br = io.BufReader(io.StringIO("ab\ncd\n"), 4)
+    let buf = Buffer()
+
+    ut.assert_eq(br.read_line(buf), 2)
+    // second call appends to the same buffer (no implicit clear)
+    ut.assert_eq(br.read_line(buf), 2)
+    ut.assert_eq(buf.to_str(), "abcd")
+}
+
+@test
+func test_read_line_keeps_cr() {
+    // '\r' is NOT stripped: CRLF lines keep the carriage return.
+    let br = io.BufReader(io.StringIO("a\r\nb"), 4)
+    let buf = Buffer()
+    ut.assert_eq(br.read_line(buf), 2)
+    ut.assert_eq(buf.to_str(), "a\r")
+}
+
+@test
+func test_read_line_long_line() {
+    // A line longer than the reader capacity is assembled across refills.
+    var text = ""
+    var i = 0
+    while i < 300 {
+        text = text + "x"
+        i = i + 1
+    }
+    let br = io.BufReader(io.StringIO(text + "\ntail"), 4)
+    let buf = Buffer()
+    ut.assert_eq(br.read_line(buf), 300)
+    ut.assert_eq(buf.to_str(), text)
+
+    buf.clear()
+    ut.assert_eq(br.read_line(buf), -1)
+    ut.assert_eq(buf.to_str(), "tail")
+}
+
+@test
+func test_read_byte_basic() {
+    // capacity 2 forces internal refills between bytes
+    let br = io.BufReader(io.StringIO("abc"), 2)
+    ut.assert_eq(br.read_byte(), 97)
+    ut.assert_eq(br.read_byte(), 98)
+    ut.assert_eq(br.read_byte(), 99)
+    // EOF: -1, and stays -1 on repeated calls
+    ut.assert_eq(br.read_byte(), -1)
+    ut.assert_eq(br.read_byte(), -1)
+}
+
+@test
+func test_read_byte_nul_is_data() {
+    // A NUL byte must be returned as 0, not confused with EOF (-1), and
+    // bytes after it must survive (regression: a read_until-based version
+    // would swallow the stream and lose data).
+    let src = Buffer()
+    src.write_str("a")
+    src.write_byte(0)
+    src.write_str("b")
+    let br = io.BufReader(io.BytesIO(src.to_bytes()), 2)
+    ut.assert_eq(br.read_byte(), 97)
+    ut.assert_eq(br.read_byte(), 0)
+    ut.assert_eq(br.read_byte(), 98)
+    ut.assert_eq(br.read_byte(), -1)
+}
+
+@test
+func test_read_byte_empty() {
+    let br = io.BufReader(io.StringIO(""))
+    ut.assert_eq(br.read_byte(), -1)
+}
+
+@test
+func test_read_byte_interleaved_with_read_line() {
+    // Both methods share the same stream position without over-reading.
+    let br = io.BufReader(io.StringIO("ab\ncd"), 4)
+    ut.assert_eq(br.read_byte(), 97)
+
+    let buf = Buffer()
+    ut.assert_eq(br.read_line(buf), 1)
+    ut.assert_eq(buf.to_str(), "b")
+
+    buf.clear()
+    ut.assert_eq(br.read_line(buf), -1)
+    ut.assert_eq(buf.to_str(), "cd")
+}

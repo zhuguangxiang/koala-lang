@@ -15,13 +15,16 @@
 ///
 /// BufReader also provides peek() and discard() methods for lookahead
 /// operations, and read_until() for delimited reading (used by Splitter,
-/// Lines, and Words iterators).
+/// Lines, and Words iterators). The convenience factories split(),
+/// split_with(), lines(), and words() create those iterators directly on
+/// this reader.
 ///
 /// Example:
 ///     let f = fs.open("data.txt", "r")!
 ///     let br = io.BufReader(f)
-///     let line = io.Lines(br)
-///     // ...
+///     for line in br.lines() {
+///         print(line)
+///     }
 ///     f.close()
 pub class BufReader : Reader {
     /// The underlying reader that provides the raw byte stream.
@@ -90,27 +93,24 @@ pub class BufReader : Reader {
         return end - start
     }
 
-    /// Peek at the next n bytes in the stream without consuming them.
+    /// Peek at the next n bytes without consuming them.
     ///
-    /// The returned bytes are a view into the internal buffer, so they
-    /// remain valid only until the next read, discard, or fill operation.
-    /// If the buffer is empty, it is refilled from the underlying reader.
-    ///
-    /// Arguments
-    /// - `n`: The number of bytes to peek.
-    ///
-    /// Returns
-    /// A view of up to n bytes from the current read position.
-    /// Returns an empty bytes(0) if EOF has been reached.
+    /// Panics if n exceeds the buffer capacity, or if the stream holds fewer
+    /// than n bytes after one fill attempt. The returned view stays valid
+    /// only until the next read, discard, or peek.
     pub func peek(n int) bytes {
-        let avail = end - start
-
-        if avail <= 0 && fill() <= 0 {
-            return bytes(0)
+        if n < 0 || n > len(buf) {
+            panic("peek: n out of range")
         }
 
-        let take = min(n, end - start)
-        return buf.view(start, start + take)
+        if end - start < n {
+            fill()
+            if end - start < n {
+                panic("peek: not enough data in the stream")
+            }
+        }
+
+        return buf.view(start, start + n)
     }
 
     /// Skip (discard) the next n bytes in the stream without reading them
@@ -126,11 +126,11 @@ pub class BufReader : Reader {
     /// The number of bytes actually skipped. May be less than n if EOF
     /// is reached before skipping the requested amount.
     pub func discard(n int) int {
+        if n < 0 { panic("discard: n out of range") }
+
         let avail = end - start
 
-        if avail <= 0 && fill() <= 0 {
-            return 0
-        }
+        if avail <= 0 && fill() <= 0 { return 0 }
 
         let take = min(n, end - start)
         // start += take
@@ -138,19 +138,25 @@ pub class BufReader : Reader {
         return take
     }
 
-    /// Refill the internal buffer from the underlying reader.
+    /// Compact unconsumed bytes to the front, then read once into the free
+    /// tail space. Returns the available byte count after filling; 0 means
+    /// no data (EOF).
     ///
-    /// Resets the buffer position and reads a new chunk of data from
-    /// the underlying reader. This is called internally when the buffer
-    /// is exhausted.
-    ///
-    /// Returns
-    /// The number of bytes read from the underlying reader, or 0 if EOF.
-    func fill() int {
-        start = 0
-        let _end = inner.read(buf)
-        end = _end
-        return _end
+    /// Public so lookahead callers (e.g. io.Words) can probe for EOF without
+    /// the strict requirement of peek().
+    pub func fill() int {
+        if start > 0 {
+            let have = end - start
+            if have > 0 { buf.view(0, have).copy(buf.view(start, end)) }
+            start = 0
+            end = have
+        }
+
+        if end < len(buf) {
+            let r = inner.read(buf.view(end))
+            if r > 0 { end = end + r }
+        }
+        return end - start
     }
 
     /// Read bytes from the stream into the provided buffer until a delimiter
@@ -165,8 +171,11 @@ pub class BufReader : Reader {
     /// - `delim`: The delimiter byte to stop at (not included in output).
     ///
     /// Returns
-    /// The number of bytes appended to the output buffer (excluding the delimiter).
-    /// Returns 0 if EOF was reached before any data was read.
+    /// The number of bytes appended to the output buffer (excluding the
+    /// delimiter) when the delimiter is found; this may be 0 for leading or
+    /// consecutive delimiters. Returns -1 if EOF is reached before the
+    /// delimiter is found; any trailing bytes read before EOF are still
+    /// appended to `out`.
     pub func read_until(out Buffer, delim uint8) int {
         var total = 0
 
@@ -183,7 +192,6 @@ pub class BufReader : Reader {
                     }
 
                     start = i + 1
-                    // print("total:", total)
                     return total
                 }
 
@@ -196,9 +204,96 @@ pub class BufReader : Reader {
                 start = end
             }
 
-            if fill() <= 0 { return total }
+            if fill() <= 0 { return -1 }
         }
     }
+
+    /// Read one line up to '\n', appending it to `buf`.
+    ///
+    /// The '\n' is consumed but not appended, and a trailing '\r' is
+    /// NOT stripped (use Lines for that). Returns the number of bytes appended
+    /// (0 for an empty line), or -1 at EOF; bytes read before EOF are still appended to `buf`.
+    pub func read_line(_buf Buffer) int { return read_until(_buf, '\n') }
+
+    /// Read a single byte and return its value (0-255), or -1 at EOF.
+    ///
+    /// Exactly one byte is consumed, so NUL bytes are returned as 0 and no
+    /// data is ever read ahead or lost.
+    pub func read_byte() int {
+        let tmp = bytes(1)
+        if read(tmp) <= 0 { return -1 }
+        return int(tmp[0])
+    }
+
+    /// Return a Splitter that yields chunks delimited by the given byte.
+    ///
+    /// Convenience factory equivalent to Splitter(self, delim). The iterator
+    /// shares this reader, so interleaving direct reads with iteration
+    /// consumes the same underlying stream.
+    ///
+    /// Arguments
+    /// - `delim`: The single byte used as the delimiter (e.g., b',' or b'\n').
+    ///   The delimiter is consumed but not included in the returned chunks.
+    /// - `size` optionally sets the iterator's initial internal buffer capacity (default 256).
+    ///   It still grows automatically when needed.
+    ///
+    /// Returns
+    /// A Splitter over the remaining bytes of this reader.
+    ///
+    /// Example:
+    ///     for chunk in br.split(',') { print(chunk.to_str()) }
+    pub func split(delim uint8, size = 256) Splitter { return Splitter(self, delim, size) }
+
+    /// Return a SplitterWith that yields chunks delimited by a multi-byte
+    /// separator sequence.
+    ///
+    /// Semantics mirror split(): the separator is consumed but never
+    /// included, leading and consecutive separators produce empty chunks, a
+    /// trailing separator adds no final empty chunk, and a non-empty
+    /// remainder is returned at EOF. The separator may straddle reader
+    /// refills and may be longer than the reader buffer capacity. An empty
+    /// separator panics at construction time. For single-byte delimiters,
+    /// prefer split(), which is faster.
+    ///
+    /// `size` optionally sets the iterator's initial internal buffer capacity (default 256).
+    /// It still grows automatically when needed.
+    ///
+    /// Example:
+    ///     for chunk in br.split_with("::".to_bytes()) { print(chunk.to_str()) }
+    pub func split_with(sep bytes, size = 256) SplitterWith { return SplitterWith(self, sep, size) }
+
+    /// Return a Lines iterator over the remaining lines of the stream.
+    ///
+    /// Convenience factory equivalent to Lines(self). Lines end at '\n'; a
+    /// trailing '\r' of a CRLF line ending is stripped. The iterator shares
+    /// this reader with any other consumer.
+    ///
+    /// Returns
+    /// A Lines iterator over the remaining bytes of this reader.
+    ///
+    /// `size` optionally sets the iterator's initial internal buffer capacity (default 256).
+    /// It still grows automatically when needed.
+    ///
+    /// Example:
+    ///     for line in br.lines() { print(line) }
+    pub func lines(size = 256) Lines { return Lines(self, size) }
+
+    /// Return a Words iterator over whitespace-separated tokens.
+    ///
+    /// Convenience factory equivalent to Words(self). Tokens are separated
+    /// by spaces, tabs, newlines, and carriage returns; one trailing
+    /// delimiter is consumed together with each token. The iterator shares
+    /// this reader with any other consumer.
+    ///
+    /// Returns
+    /// A Words iterator over the remaining bytes of this reader.
+    ///
+    /// `size` optionally sets the iterator's initial internal buffer capacity (default 256).
+    /// It still grows automatically when needed.
+    ///
+    /// Example:
+    ///     for word in br.words() { print(word) }
+    pub func words(size = 256) Words { return Words(self, size) }
 }
 
 /// BufWriter is a buffered wrapper around a Writer that reduces the number

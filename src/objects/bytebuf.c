@@ -75,8 +75,10 @@ static TValue _bytebuf_to_bytes(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     ASSERT(nargs == 0);
-    Object *so = kl_new_nstr(BUF_STR(bb->buf), BUF_LEN(bb->buf));
-    return obj_value(so);
+    uint32_t len = (uint32_t)BUF_LEN(bb->buf);
+    Object *bs = kl_new_bytes(len);
+    memcpy(BYTES_DATA(bs), BUF_STR(bb->buf), len);
+    return obj_value(bs);
 }
 
 static TValue _bytebuf_getitem(TValue *self, TValue *args, int nargs)

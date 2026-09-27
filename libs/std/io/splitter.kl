@@ -9,6 +9,11 @@
 /// into an internal buffer until the delimiter is encountered or EOF is reached.
 /// The delimiter itself is not included in the returned chunk.
 ///
+/// Leading and consecutive delimiters produce empty chunks. The empty
+/// remainder after a trailing delimiter is dropped at EOF, and a non-empty
+/// trailing chunk without a final delimiter is still returned. has_next()
+/// caches its result, so it may be called repeatedly without consuming chunks.
+///
 /// Typical use case: splitting a stream by a custom separator (e.g., CSV fields
 /// separated by ',' or log entries separated by '\x00').
 ///
@@ -29,42 +34,202 @@ pub class Splitter : Iterator[bytes] {
     /// This byte is consumed from the reader but not included in returned chunks.
     let delim uint8
 
+    /// Whether the buffer holds a chunk that has not yet been returned.
+    var ready bool = false
+
+    /// Whether the underlying reader has reached EOF.
+    var done bool = false
+
     /// Create a new Splitter that splits the given reader by the specified delimiter.
     ///
     /// Arguments
     /// - `_br`: The buffered reader to read from.
     /// - `_delim`: The single byte used as the delimiter (e.g., b',' or b'\n').
-    ///
-    /// The internal buffer is initialized with a capacity of 256 bytes and will
-    /// grow automatically if a chunk exceeds this size.
-    pub func __init__(_br BufReader, _delim uint8) {
+    /// - `size`: The initial capacity of the internal buffer in bytes
+    ///   (default 256). The buffer still grows automatically if a chunk
+    ///   exceeds this size. Must be positive.
+    pub func __init__(_br BufReader, _delim uint8, size = 256) {
+        if size <= 0 { panic("Splitter: size must be positive") }
         br = _br
-        buf = Buffer(256)
+        buf = Buffer(size)
         delim = _delim
     }
 
-    /// Read the next chunk from the underlying reader.
+    /// Return true if another chunk is available, buffering it if necessary.
     ///
-    /// Clears the internal buffer and reads until the delimiter or EOF.
-    /// Returns true if at least one byte was read, false if EOF was reached
-    /// before any data.
+    /// Repeated calls do not advance past the pending chunk. A chunk is empty
+    /// when the delimiter appears at the start of the remaining input or when
+    /// two delimiters are consecutive. Iteration stops at EOF; a non-empty
+    /// trailing chunk without a final delimiter is still returned.
     pub func has_next() bool {
+        if ready { return true }
+        if done { return false }
+
         buf.clear()
         let n = br.read_until(buf, delim)
-        return n > 0
+        if n >= 0 {
+            // The delimiter was found: even an empty chunk is a valid result.
+            ready = true
+            return true
+        }
+
+        // EOF: return the trailing partial chunk only when it is non-empty.
+        done = true
+        ready = !buf.empty()
+        return ready
     }
 
-    /// Return the current chunk as bytes.
+    /// Return the next chunk and advance the iterator. Panic if exhausted.
     ///
-    /// Must be called after has_next() returned true.
-    /// The returned bytes do not include the delimiter.
+    /// May be called without a preceding has_next(). The returned bytes do
+    /// not include the delimiter and are independent of the internal buffer,
+    /// so they remain valid after advancing.
     pub func next_strict() bytes {
-        return buf.to_bytes()
+        if !has_next() { panic("No more elements in Splitter") }
+        let chunk = buf.to_bytes()
+        ready = false
+        return chunk
     }
 
     /// Return the next chunk, or nil if EOF has been reached.
     ///
     /// Convenience method that combines has_next() and next_strict().
+    pub func next() bytes? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+}
+
+/// SplitterWith splits a BufReader into chunks delimited by a multi-byte
+/// separator sequence (e.g., "\r\n" or "::").
+///
+/// Semantics mirror Splitter: the separator is consumed but never included,
+/// leading and consecutive separators produce empty chunks, the empty
+/// remainder after a trailing separator is dropped at EOF, and a non-empty
+/// trailing chunk without a final separator is still returned. Separators
+/// may straddle reader refills and may be longer than the reader buffer
+/// capacity; an incomplete separator prefix at EOF is plain data. An empty
+/// separator panics at construction time. For single-byte delimiters prefer
+/// Splitter, which avoids the extra scanning cost. has_next() caches its
+/// result, so it may be called repeatedly without consuming chunks.
+///
+/// Because chunks accumulate in the iterator's own buffer, it may read ahead
+/// of the last returned chunk; interleave direct reads on the underlying
+/// reader with care.
+///
+/// Example:
+///     for chunk in io.SplitterWith(br, "::".to_bytes()) { print(chunk) }
+pub class SplitterWith : Iterator[bytes] {
+    /// The underlying buffered reader that provides the byte stream.
+    let br BufReader
+
+    /// Accumulates bytes until the separator is found; reused across calls.
+    let buf Buffer
+
+    /// Holds the chunk waiting to be returned, so `buf` can already keep
+    /// the remainder that follows the separator.
+    let pending_buf Buffer
+
+    /// The separator sequence; consumed but not included in chunks.
+    let sep bytes
+
+    /// Scratch buffer reused for each read from the underlying reader.
+    let tmp bytes
+
+    /// Whether a chunk is waiting to be returned.
+    var ready bool = false
+
+    /// Whether the underlying reader has reached EOF.
+    var done bool = false
+
+    /// Create a SplitterWith splitting `_br` on the separator `_sep`.
+    ///
+    /// `_sep` must not be empty (panics otherwise). `size` sets the initial
+    /// capacity of the internal buffers and the per-read scratch size
+    /// (default 256); buffers still grow automatically for larger chunks.
+    /// Must be positive.
+    pub func __init__(_br BufReader, _sep bytes, size = 256) {
+        if len(_sep) == 0 { panic("SplitterWith: empty separator") }
+        if size <= 0 { panic("SplitterWith: size must be positive") }
+        br = _br
+        buf = Buffer(size)
+        pending_buf = Buffer(size)
+        sep = _sep
+        tmp = bytes(size)
+    }
+
+    /// Return true if another chunk is available, buffering it if necessary.
+    ///
+    /// Repeated calls do not advance past the pending chunk. A chunk is
+    /// empty when the separator appears at the start of the remaining input
+    /// or when two separators are consecutive. At EOF a non-empty trailing
+    /// chunk is still returned; an incomplete separator prefix is data.
+    pub func has_next() bool {
+        if ready { return true }
+        if done { return false }
+
+        let m = len(sep)
+        // Positions before `_from` in `buf` are known not to start a match.
+        // On entry `buf` may hold an unscanned remainder from the previous
+        // chunk, so scanning always restarts at 0.
+        var _from = 0
+        loop {
+            let data = buf.to_bytes()
+            let n = len(data)
+
+            var i = _from
+            while i + m <= n {
+                var j = 0
+                var matched = true
+                while j < m {
+                    if data[i + j] != sep[j] {
+                        matched = false
+                        break
+                    }
+                    j = j + 1
+                }
+                if matched {
+                    // Hand out the chunk before the separator; keep the
+                    // remainder after it for the next iteration.
+                    pending_buf.clear()
+                    pending_buf.write(data.view(0, i))
+                    buf.clear()
+                    buf.write(data.view(i + m, n))
+                    ready = true
+                    return true
+                }
+                i = i + 1
+            }
+            _from = n - m + 1
+            if _from < 0 { _from = 0 }
+
+            // Pull more data; a short read simply loops, zero ends iteration.
+            let r = br.read(tmp)
+            if r <= 0 {
+                done = true
+                if buf.empty() { return false }
+                pending_buf.clear()
+                pending_buf.write(buf.to_bytes())
+                buf.clear()
+                ready = true
+                return true
+            }
+            buf.write(tmp.view(0, r))
+        }
+    }
+
+    /// Return the next chunk and advance the iterator. Panic if exhausted.
+    ///
+    /// The returned bytes exclude the separator and are independent of the
+    /// internal buffers, so they remain valid after advancing.
+    pub func next_strict() bytes {
+        if !has_next() { panic("No more elements in SplitterWith") }
+        let chunk = pending_buf.to_bytes()
+        ready = false
+        return chunk
+    }
+
+    /// Return the next chunk, or nil if EOF has been reached.
     pub func next() bytes? {
         if !has_next() { return nil }
         return next_strict()
@@ -95,6 +260,16 @@ pub class Lines : Iterator[str] {
     /// Reused across iterations to avoid repeated allocations.
     let buf Buffer
 
+    /// Whether the buffer holds a line that has not yet been returned.
+    var ready bool = false
+
+    /// Whether the underlying reader has reached EOF.
+    var done bool = false
+
+    /// Whether the pending line was terminated by '\n' (so a trailing
+    /// '\r' of a CRLF ending must be stripped).
+    var cr bool = false
+
     /// Create a new Lines iterator that reads lines from the given buffered reader.
     ///
     /// Arguments
@@ -105,27 +280,53 @@ pub class Lines : Iterator[str] {
     ///
     /// Note: Lines handles both Unix ('\n') and Windows ('\r\n') line endings.
     /// The returned strings have both '\n' and trailing '\r' stripped.
-    pub func __init__(_br BufReader) {
+    pub func __init__(_br BufReader, size = 256) {
+        if size <= 0 { panic("Lines: size must be positive") }
         br = _br
-        buf = Buffer(256)
+        buf = Buffer(size)
     }
 
-    /// Read the next line from the underlying reader.
+    /// Return true if another line is available, buffering it if necessary.
     ///
-    /// Clears the internal buffer and reads until '\n' or EOF.
-    /// Returns true if at least one byte was read, false if EOF was reached
-    /// before any data. An empty line (just '\n') returns true with an empty string.
+    /// Repeated calls do not advance past the pending line. An empty line
+    /// (a bare '\n' or consecutive newlines) is returned as an empty string.
+    /// Iteration stops at EOF; a non-empty final line without a trailing
+    /// newline is still returned.
     pub func has_next() bool {
+        if ready { return true }
+        if done { return false }
+
         buf.clear()
         let n = br.read_until(buf, '\n')
-        return n > 0
+        if n >= 0 {
+            // Newline found: even an empty line is a valid result.
+            cr = true
+            ready = true
+            return true
+        }
+
+        // EOF: return the trailing partial line only when it is non-empty.
+        cr = false
+        done = true
+        ready = !buf.empty()
+        return ready
     }
 
-    /// Return the current line as a str, with '\n' and trailing '\r' removed.
+    /// Return the next line and advance the iterator. Panic if exhausted.
     ///
-    /// Must be called after has_next() returned true.
-    /// Handles both Unix ('\n') and Windows ('\r\n') line endings.
-    pub func next_strict() str { return buf.to_str() }
+    /// May be called without a preceding has_next(). The returned string has
+    /// the '\n' line ending and any trailing '\r' of a CRLF ending removed,
+    /// and is independent of the internal buffer.
+    pub func next_strict() str {
+        if !has_next() { panic("No more elements in Lines") }
+        var bs = buf.to_bytes()
+        if cr && len(bs) > 0 && bs[len(bs) - 1] == '\r' {
+            bs = bs.view(0, len(bs) - 1)
+        }
+        let line = bs.to_str()
+        ready = false
+        return line
+    }
 
     /// Return the next line, or nil if EOF has been reached.
     ///
@@ -172,12 +373,13 @@ pub class Words : Iterator[str] {
     ///
     /// Arguments
     /// - `_br`: The buffered reader to read from.
-    ///
-    /// The internal buffer is initialized with a capacity of 256 bytes and will
-    /// grow automatically if a token exceeds this size.
-    pub func __init__(_br BufReader) {
+    /// - `size`: The initial capacity of the internal buffer in bytes
+    ///   (default 256). The buffer still grows automatically if a token
+    ///   exceeds this size. Must be positive.
+    pub func __init__(_br BufReader, size = 256) {
+        if size <= 0 { panic("Words: size must be positive") }
         br = _br
-        buf = Buffer(256)
+        buf = Buffer(size)
     }
 
     /// Return true if another word is available, buffering it if necessary.
@@ -190,15 +392,16 @@ pub class Words : Iterator[str] {
 
         buf.clear()
         loop {
-            // Peek at buffered data, requesting one byte to trigger a refill
-            // when empty. Only the bytes scanned below will be consumed.
-            let chunk = br.peek(max(br.avail(), 1))
-            let n = len(chunk)
-            if n == 0 {
+            // Probe for data without the strict requirement of peek(): an
+            // empty buffer may mean EOF, which ends the iteration instead
+            // of panicking. Only the bytes scanned below will be consumed.
+            if br.avail() == 0 && br.fill() <= 0 {
                 done = true
                 ready = !buf.empty()
                 return ready
             }
+            let chunk = br.peek(br.avail())
+            let n = len(chunk)
 
             var i = 0
             while i < n {

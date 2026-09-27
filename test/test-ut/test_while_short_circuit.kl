@@ -1,0 +1,133 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+// Regression tests for short-circuit '&&' / '||' inside `while` conditions.
+//
+// The compiler used to emit the loop's conditional jump into the stale entry
+// block of the condition diamond instead of the logical-end (merge) block, so
+// `while a && b` behaved like `while a`: the rhs was ignored and the loop ran
+// until the lhs turned false. These tests cover the initial condition
+// emission and the back-edge re-emission (loops that iterate more than once),
+// for '&&', '||', mixed conditions, and interaction with break/continue.
+
+func tval() bool { return true }
+
+func fval() bool { return false }
+
+// boom() must never be reached by the tests below. If the compiler evaluates
+// the rhs eagerly, this panics and the test fails.
+func boom() bool {
+    panic("rhs evaluated: while condition did not short-circuit")
+    return false
+}
+
+@test
+func test_while_and_uses_tighter_bound() {
+    // Original repro: `while a < 5 && a < 2` must stop at a == 2, not 5.
+    var a = 0
+    while a < 5 && a < 2 {
+        a = a + 1
+    }
+    ut.assert_eq(a, 2)
+}
+
+@test
+func test_while_and_rhs_false_stops_loop() {
+    // The rhs turning false must terminate the loop even though the lhs
+    // stays true; the miscompiled form spun until the lhs failed.
+    var a = 0
+    while a < 10 && a < 4 {
+        a = a + 1
+    }
+    ut.assert_eq(a, 4)
+}
+
+@test
+func test_while_and_back_edge_reevaluated() {
+    // Three iterations: the back-edge condition diamond is re-emitted and
+    // both operands must be evaluated on every iteration.
+    var i = 0
+    var sum = 0
+    while i < 3 && sum < 100 {
+        sum = sum + i
+        i = i + 1
+    }
+    ut.assert_eq(i, 3)
+    ut.assert_eq(sum, 3) // 0 + 1 + 2
+}
+
+@test
+func test_while_or_condition() {
+    // 'a < 2 || a < 0' is equivalent to 'a < 2'.
+    var a = 0
+    while a < 2 || a < 0 {
+        a = a + 1
+    }
+    ut.assert_eq(a, 2)
+}
+
+@test
+func test_while_and_or_mixed() {
+    // '&&' binds tighter than '||': (a < 5 && a < 2) || a == 7 stops at 2.
+    var a = 0
+    while a < 5 && a < 2 || a == 7 {
+        a = a + 1
+    }
+    ut.assert_eq(a, 2)
+}
+
+@test
+func test_while_and_short_circuits_rhs() {
+    // lhs false -> rhs (boom) is never evaluated and the body never runs.
+    var a = 0
+    while fval() && boom() {
+        a = a + 1
+    }
+    ut.assert_eq(a, 0)
+}
+
+@test
+func test_while_or_short_circuits_rhs() {
+    // lhs true -> rhs (boom) is never evaluated; the body runs once.
+    while tval() || boom() {
+        break
+    }
+}
+
+@test
+func test_while_and_with_calls() {
+    // Function-call operands on both sides over several iterations.
+    var a = 0
+    while a < 3 && tval() {
+        a = a + 1
+    }
+    ut.assert_eq(a, 3)
+
+    var b = 0
+    while fval() || b < 2 {
+        b = b + 1
+    }
+    ut.assert_eq(b, 2)
+}
+
+@test
+func test_while_logical_with_break_continue() {
+    // break/continue still target the right blocks when the condition is
+    // a short-circuit diamond: continue re-enters the condition, break
+    // leaves the loop.
+    var a = 0
+    var hits = 0
+    while a < 10 && a < 8 {
+        a = a + 1
+        if a == 3 {
+            continue
+        }
+        if a == 5 {
+            break
+        }
+        hits = hits + 1
+    }
+    ut.assert_eq(a, 5)
+    ut.assert_eq(hits, 3) // counted for a == 1, 2, 4; 3 continues; 5 breaks
+}

@@ -1,0 +1,251 @@
+// RUN: koala %s --test
+
+import "std/io"
+import "std/ut"
+
+// This file exercises io.Lines (libs/std/io/splitter.kl), which iterates over
+// '\n'-terminated lines of a BufReader as str values.
+//
+// Coverage:
+//   has_next / next_strict / next (optional) / for-in iteration
+//   cached has_next(), advancing next_strict(), panic when exhausted
+//   missing trailing newline, empty input, empty lines, CRLF stripping,
+//   long lines (> internal 256 buffer)
+//   UTF-8 content, StringIO and BytesIO sources
+//   shared reader position with the underlying BufReader
+//   small reader buffers to force refills inside read_until
+//
+// The documented behaviours are implemented and verified here: a trailing
+// '\r' of a CRLF line ending is stripped, and an empty line ("\n\n") is
+// yielded as "".
+
+// Compile this before constructing Lines or explicitly calling its methods:
+// the imported class and iterator method IR must be created by the for loop.
+func collect_lines(it io.Lines) str {
+    var result = ""
+    for line in it {
+        result = result + line + "|"
+    }
+    return result
+}
+
+// ---------------------------------------------------------------------------
+// Basic protocol: has_next / next_strict / next
+// ---------------------------------------------------------------------------
+
+@test
+func test_lines_basic() {
+    let lines = io.Lines(io.BufReader(io.StringIO("one\ntwo\nthree\n"), 4))
+
+    ut.assert(lines.has_next())
+    ut.assert_eq(lines.next_strict(), "one")
+
+    ut.assert(lines.has_next())
+    ut.assert_eq(lines.next_strict(), "two")
+
+    ut.assert(lines.has_next())
+    ut.assert_eq(lines.next_strict(), "three")
+
+    // exhausted
+    ut.assert_false(lines.has_next())
+    ut.assert(lines.next() == nil)
+}
+
+@test
+func test_lines_next_optional() {
+    let lines = io.Lines(io.BufReader(io.StringIO("a\nb"), 2))
+
+    let first = lines.next()
+    ut.assert(first != nil)
+    ut.assert_eq(first!, "a")
+    ut.assert_eq(lines.next()!, "b")
+
+    // repeated next() at EOF keeps returning nil
+    ut.assert(lines.next() == nil)
+    ut.assert(lines.next() == nil)
+}
+
+@test
+func test_lines_for_loop() {
+    let lines = io.Lines(io.BufReader(io.StringIO("l1\nl2\nl3\n"), 2))
+    ut.assert_eq(collect_lines(lines), "l1|l2|l3|")
+    ut.assert_false(lines.has_next())
+}
+
+@test
+func test_lines_no_trailing_newline() {
+    // The last line does not need a terminating '\n'.
+    let lines = io.Lines(io.BufReader(io.StringIO("x\ny"), 4))
+    ut.assert_eq(collect_lines(lines), "x|y|")
+}
+
+@test
+func test_lines_single_line() {
+    let lines = io.Lines(io.BufReader(io.StringIO("only\n"), 2))
+    ut.assert(lines.has_next())
+    ut.assert_eq(lines.next_strict(), "only")
+    ut.assert_false(lines.has_next())
+}
+
+// ---------------------------------------------------------------------------
+// Edge cases
+// ---------------------------------------------------------------------------
+
+@test
+func test_lines_empty_input() {
+    let lines = io.Lines(io.BufReader(io.StringIO(""), 2))
+    ut.assert_false(lines.has_next())
+    ut.assert_false(lines.has_next()) // idempotent at EOF
+    ut.assert(lines.next() == nil)
+    ut.assert_eq(collect_lines(lines), "")
+}
+
+@test
+func test_lines_empty_lines() {
+    // A bare '\n' and consecutive newlines yield empty lines.
+    let br = io.BufReader(io.StringIO("a\n\nb\n"), 8)
+    let lines = io.Lines(br)
+    ut.assert_eq(collect_lines(lines), "a||b|")
+    ut.assert_eq(br.avail(), 0)
+}
+
+@test
+func test_lines_only_newline() {
+    // A lone newline yields exactly one empty line.
+    let lines = io.Lines(io.BufReader(io.StringIO("\n"), 2))
+    ut.assert(lines.has_next())
+    ut.assert_eq(lines.next_strict(), "")
+    ut.assert_false(lines.has_next())
+}
+
+@test
+func test_lines_empty_lines_across_refills() {
+    // Empty lines stay correct when the reader buffer is tiny and the
+    // newlines straddle refills.
+    for size in [1, 2, 3] {
+        let lines = io.Lines(io.BufReader(io.StringIO("\na\n\n\nb"), size))
+        ut.assert_eq(collect_lines(lines), "|a|||b|")
+    }
+}
+
+@test
+func test_lines_crlf_strips_carriage_return() {
+    // The trailing '\r' of a Windows line ending is stripped.
+    let lines = io.Lines(io.BufReader(io.StringIO("one\r\ntwo\r\n"), 4))
+    ut.assert_eq(collect_lines(lines), "one|two|")
+}
+
+@test
+func test_lines_cr_only_stripped_before_lf() {
+    // A '\r' is only stripped as part of a '\r\n' ending: a final line at EOF
+    // without '\n' keeps its '\r', and a doubled '\r' keeps the first one.
+    let lines = io.Lines(io.BufReader(io.StringIO("a\r\r\nlast\r"), 4))
+    ut.assert_eq(collect_lines(lines), "a\r|last\r|")
+}
+
+@test
+func test_lines_next_strict_without_has_next() {
+    // next_strict() reads and advances on its own, like BytesIter.
+    let lines = io.Lines(io.BufReader(io.StringIO("a\nb"), 4))
+    ut.assert_eq(lines.next_strict(), "a")
+    ut.assert_eq(collect_lines(lines), "b|")
+}
+
+@test
+func test_lines_has_next_is_cached() {
+    // has_next() buffers the pending line: repeated calls do not advance.
+    let lines = io.Lines(io.BufReader(io.StringIO("a\nb\nc"), 2))
+    ut.assert(lines.has_next())
+    ut.assert(lines.has_next())
+    ut.assert_eq(lines.next_strict(), "a")
+    ut.assert(lines.has_next())
+    ut.assert(lines.has_next())
+    ut.assert_eq(lines.next_strict(), "b")
+    ut.assert_eq(lines.next_strict(), "c")
+    ut.assert_false(lines.has_next())
+    ut.assert_false(lines.has_next())
+}
+
+// ---------------------------------------------------------------------------
+// Payloads and sources
+// ---------------------------------------------------------------------------
+
+@test
+func test_lines_utf8() {
+    // Multi-byte characters may be split across reader refills, never
+    // across lines.
+    let lines = io.Lines(io.BufReader(io.StringIO("héllo\n世界\nkoala\n"), 1))
+    ut.assert_eq(collect_lines(lines), "héllo|世界|koala|")
+}
+
+@test
+func test_lines_bytesio_source() {
+    let bio = io.BytesIO.from_str("first\nsecond\n")
+    let lines = io.Lines(io.BufReader(bio, 3))
+    ut.assert_eq(lines.next()!, "first")
+    ut.assert_eq(lines.next()!, "second")
+    ut.assert(lines.next() == nil)
+}
+
+@test
+func test_lines_long_line_grows_buffer() {
+    // A line longer than the initial 256-byte internal buffer forces growth.
+    var long = ""
+    var i = 0
+    while i < 600 {
+        long = long + "y"
+        i = i + 1
+    }
+    let lines = io.Lines(io.BufReader(io.StringIO("head\n" + long + "\ntail"), 7))
+    ut.assert_eq(lines.next()!, "head")
+    ut.assert_eq(lines.next()!, long)
+    ut.assert_eq(lines.next()!, "tail")
+    ut.assert_false(lines.has_next())
+}
+
+// ---------------------------------------------------------------------------
+// Interaction with the underlying BufReader
+// ---------------------------------------------------------------------------
+
+@test
+func test_lines_shared_reader_position() {
+    // Lines consumes exactly "line + '\n'" per iteration, so the reader can
+    // be interleaved between lines.
+    let br = io.BufReader(io.StringIO("skip\nkeep\nrest"), 8)
+    let lines = io.Lines(br)
+    ut.assert_eq(lines.next()!, "skip")
+    // peek refills until 5 bytes are available: "kee" is buffered, the rest
+    // is pulled from the underlying reader.
+    ut.assert_eq(br.peek(5).to_str(), "keep\n")
+    ut.assert_eq(lines.next()!, "keep")
+    ut.assert_eq(lines.next()!, "rest")
+    ut.assert_false(lines.has_next())
+}
+
+@test
+func test_lines_tiny_reader_buffers() {
+    // Every reader buffer size forces refills inside read_until.
+    for size in [1, 2, 3, 4, 7, 8, 4096] {
+        let lines = io.Lines(io.BufReader(io.StringIO("alpha\nbeta\ngamma"), size))
+        ut.assert_eq(collect_lines(lines), "alpha|beta|gamma|")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Error handling
+// ---------------------------------------------------------------------------
+
+@test_expect_panic("No more elements in Lines")
+func test_lines_exhausted_next_strict_panic() {
+    let lines = io.Lines(io.BufReader(io.StringIO("only\n"), 2))
+    ut.assert_eq(lines.next_strict(), "only")
+    lines.next_strict()
+}
+
+@test_expect_panic("I/O operation on closed StringIO")
+func test_lines_closed_reader_panic() {
+    let source = io.StringIO("line")
+    let lines = io.Lines(io.BufReader(source, 2))
+    source.close()
+    lines.has_next()
+}

@@ -62,19 +62,61 @@ func test_bufreader_bytesio_peek_discard() {
 }
 
 @test
-func test_bufreader_bytesio_peek_eof() {
+func test_bufreader_bytesio_peek_last_bytes() {
     let bio = io.BytesIO.from_str("xy")
     let br = io.BufReader(bio, 4)
 
-    // peek returns whatever is available (2 < requested 4)
-    let p = br.peek(4)
+    // peek returns exactly the requested count
+    let p = br.peek(2)
     ut.assert_eq(len(p), 2)
     ut.assert_eq(p.to_str(), "xy")
 
-    // after consuming everything, peek at EOF yields an empty bytes
+    // after consuming everything, no data is left
     ut.assert_eq(br.discard(2), 2)
-    let e = br.peek(4)
-    ut.assert_eq(len(e), 0)
+    ut.assert_eq(br.avail(), 0)
+}
+
+@test_expect_panic("peek: not enough data in the stream")
+func test_bufreader_peek_short_stream_panics() {
+    // the stream holds only 2 bytes, even after a fill
+    let br = io.BufReader(io.BytesIO.from_str("xy"), 4)
+    br.peek(3)
+}
+
+@test_expect_panic("peek: not enough data in the stream")
+func test_bufreader_peek_at_eof_panics() {
+    let br = io.BufReader(io.BytesIO.from_str("xy"), 4)
+    ut.assert_eq(br.discard(2), 2)
+    br.peek(1)
+}
+
+@test_expect_panic("peek: n out of range")
+func test_bufreader_peek_over_capacity_panics() {
+    // n larger than the buffer capacity can never be satisfied
+    let br = io.BufReader(io.BytesIO.from_str("abcdefgh"), 4)
+    br.peek(100)
+}
+
+@test
+func test_bufreader_bytesio_peek_refills_until_n() {
+    let bio = io.BytesIO.from_str("abcdef")
+    let br = io.BufReader(bio, 4)
+
+    // consume "ab"; "cd" stays buffered and the reader still holds "ef"
+    let buf = bytes(2)
+    ut.assert_eq(br.read(buf), 2)
+    ut.assert_eq(br.avail(), 2)
+
+    // peek(4) compacts the buffered "cd" and refills "ef" to satisfy n
+    let p = br.peek(4)
+    ut.assert_eq(len(p), 4)
+    ut.assert_eq(p.to_str(), "cdef")
+
+    // peeking did not consume anything: the position is unchanged
+    let out = bytes(4)
+    ut.assert_eq(br.read(out), 4)
+    ut.assert_eq(out.to_str(), "cdef")
+    ut.assert_eq(br.read(out), 0) // EOF
 }
 
 @test
@@ -90,9 +132,10 @@ func test_bufreader_bytesio_read_until() {
     ut.assert_eq(br.read_until(out, ','), 4)
     ut.assert_eq(out.to_str(), "beta")
 
-    // no more delimiters: read_until runs to EOF and returns what it got
+    // no more delimiters: read_until runs to EOF and reports -1; the bytes
+    // read before EOF are still appended to out
     out.clear()
-    ut.assert_eq(br.read_until(out, ','), 5)
+    ut.assert_eq(br.read_until(out, ','), -1)
     ut.assert_eq(out.to_str(), "gamma")
 }
 
@@ -128,10 +171,32 @@ func test_bufreader_strio_read_until() {
     ut.assert_eq(br.read_until(out, ';'), 3)
     ut.assert_eq(out.to_str(), "two")
 
-    // last field has no trailing delimiter: read_until runs to EOF
+    // last field has no trailing delimiter: read_until runs to EOF (-1)
     out.clear()
-    ut.assert_eq(br.read_until(out, ';'), 5)
+    ut.assert_eq(br.read_until(out, ';'), -1)
     ut.assert_eq(out.to_str(), "three")
+}
+
+@test
+func test_bufreader_strio_read_until_empty_and_eof() {
+    let sio = io.StringIO(";;tail")
+    let br = io.BufReader(sio, 2)
+
+    // leading and consecutive delimiters return 0 with an empty buffer
+    let out = Buffer()
+    ut.assert_eq(br.read_until(out, ';'), 0)
+    ut.assert(out.empty())
+    ut.assert_eq(br.read_until(out, ';'), 0)
+    ut.assert(out.empty())
+
+    // the remainder has no delimiter: EOF returns -1 with data appended
+    ut.assert_eq(br.read_until(out, ';'), -1)
+    ut.assert_eq(out.to_str(), "tail")
+
+    // at EOF with nothing left, read_until keeps returning -1
+    out.clear()
+    ut.assert_eq(br.read_until(out, ';'), -1)
+    ut.assert(out.empty())
 }
 
 // ---------------------------------------------------------------------------
@@ -191,11 +256,11 @@ func test_bufio_roundtrip_over_bytesio() {
     bw.flush()
 
     // rewind and read everything back through a BufReader (no ';' present,
-    // so read_until drains to EOF)
+    // so read_until drains to EOF and reports -1)
     bio.seek(0, 0)
     let br = io.BufReader(bio, 4)
     let out = Buffer()
-    ut.assert_eq(br.read_until(out, ';'), 19)
+    ut.assert_eq(br.read_until(out, ';'), -1)
     ut.assert_eq(out.to_str(), "The quick brown fox")
 }
 
@@ -423,4 +488,76 @@ func test_words_closed_reader_panic() {
     let words = io.Words(io.BufReader(source, 2))
     source.close()
     words.has_next()
+}
+
+// ---------------------------------------------------------------------------
+// BufReader iterator factories: split() / lines() / words()
+// ---------------------------------------------------------------------------
+
+@test
+func test_bufreader_split_factory() {
+    // br.split(delim) is equivalent to io.Splitter(br, delim); the small
+    // buffer forces refills across chunk boundaries.
+    let br = io.BufReader(io.StringIO("one;two;three"), 4)
+    let it = br.split(';')
+    ut.assert(it.has_next())
+    ut.assert_eq(it.next_strict().to_str(), "one")
+    ut.assert_eq(it.next_strict().to_str(), "two")
+    ut.assert_eq(it.next_strict().to_str(), "three")
+    ut.assert_false(it.has_next())
+    ut.assert(it.next() == nil)
+}
+
+@test
+func test_bufreader_split_factory_empty_stream() {
+    // An empty stream yields no chunks and next() stays nil.
+    let br = io.BufReader(io.StringIO(""), 4)
+    let it = br.split(',')
+    ut.assert_false(it.has_next())
+    ut.assert(it.next() == nil)
+}
+
+@test
+func test_bufreader_lines_factory() {
+    // CRLF endings are stripped, an empty line is preserved, and a final
+    // line without a trailing newline is still returned.
+    let br = io.BufReader(io.StringIO("first\r\n\nlast"), 4)
+    let it = br.lines()
+    ut.assert_eq(it.next_strict(), "first")
+    ut.assert_eq(it.next_strict(), "")
+    ut.assert_eq(it.next_strict(), "last")
+    ut.assert_false(it.has_next())
+    ut.assert(it.next() == nil)
+}
+
+@test
+func test_bufreader_lines_factory_for_loop() {
+    // The factory result drives a for loop like a directly constructed
+    // Lines iterator (iterator trait dispatch on the returned object).
+    let br = io.BufReader(io.StringIO("x\ny\nz"), 2)
+    let it = br.lines()
+    var joined = ""
+    for line in it {
+        joined = joined + line + "|"
+    }
+    ut.assert_eq(joined, "x|y|z|")
+}
+
+@test
+func test_bufreader_words_factory() {
+    // Leading, inner, and trailing whitespace are all handled.
+    let br = io.BufReader(io.StringIO("  hello\tworld \n"), 2)
+    ut.assert_eq(collect_words(br.words()), "hello|world|")
+}
+
+@test
+func test_bufreader_factory_shared_stream() {
+    // The iterator and the reader share one stream: after split() consumed
+    // "ab,", a direct read on br sees exactly the remaining bytes.
+    let br = io.BufReader(io.StringIO("ab,cd"), 8)
+    let it = br.split(',')
+    ut.assert_eq(it.next_strict().to_str(), "ab")
+    let buf = bytes(8)
+    ut.assert_eq(br.read(buf), 2)
+    ut.assert_eq(buf.view(0, 2).to_str(), "cd")
 }

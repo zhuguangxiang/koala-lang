@@ -1998,8 +1998,7 @@ static void emit_ir_if_stmt(ParserState *ps, Stmt *stmt)
     ps->scope->bb = if_end;
 }
 
-static void build_while_cond(ParserState *ps, Expr *cond, KlrBasicBlock *bb, KlrBasicBlock *body,
-                             KlrBasicBlock *end)
+static void build_while_cond(ParserState *ps, Expr *cond, KlrBasicBlock *body, KlrBasicBlock *end)
 {
     KlrValue *cond_val = NULL;
     if (cond != NULL) {
@@ -2012,6 +2011,7 @@ static void build_while_cond(ParserState *ps, Expr *cond, KlrBasicBlock *bb, Klr
         cond_val = klr_const_bool(1, MOD);
     }
 
+    KlrBasicBlock *bb = ps->scope->bb;
     KlrBuilder cond_bldr;
     klr_builder_end(&cond_bldr, bb);
     klr_build_jmp_cond(&cond_bldr, cond_val, body, end);
@@ -2043,7 +2043,7 @@ static void emit_ir_while_stmt(ParserState *ps, Stmt *stmt)
     ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK, "while-cond");
     sc->bb = while_cond;
 
-    build_while_cond(ps, cond, sc->bb, while_body, while_end);
+    build_while_cond(ps, cond, while_body, while_end);
 
     exit_scope(ps);
 
@@ -2058,7 +2058,7 @@ static void emit_ir_while_stmt(ParserState *ps, Stmt *stmt)
 
     // add jmp to cond block
     if (!block_has_terminator(sc->bb)) {
-        build_while_cond(ps, cond, sc->bb, while_body, while_end);
+        build_while_cond(ps, cond, while_body, while_end);
     }
 
     exit_scope(ps);
@@ -2691,13 +2691,14 @@ static void emit_ir_if_let_stmt(ParserState *ps, Stmt *stmt)
     ps->scope->bb = if_end;
 }
 
-static void build_while_let_cond(ParserState *ps, Symbol *var_sym, Expr *cond, KlrBasicBlock *bb,
-                                 KlrBasicBlock *body, KlrBasicBlock *end)
+static void build_while_let_cond(ParserState *ps, Symbol *var_sym, Expr *cond, KlrBasicBlock *body,
+                                 KlrBasicBlock *end)
 {
     cond->ctx = EXPR_CTX_LOAD;
     emit_ir_visit_expr(ps, cond);
     if (!cond->ir_val) return;
 
+    KlrBasicBlock *bb = ps->scope->bb;
     KlrBuilder bldr;
     klr_builder_end(&bldr, bb);
     klr_build_move(&bldr, var_sym->ir_val, cond->ir_val);
@@ -2735,7 +2736,7 @@ static void emit_ir_while_let_stmt(ParserState *ps, Stmt *stmt)
     // create local & build condition
     klr_builder_end(&bldr, sc->bb);
     var_sym->ir_val = klr_build_local_var(&bldr, var_sym->ts, var_sym->name);
-    build_while_let_cond(ps, var_sym, cond, sc->bb, while_body, while_end);
+    build_while_let_cond(ps, var_sym, cond, while_body, while_end);
 
     exit_scope(ps);
 
@@ -2750,7 +2751,7 @@ static void emit_ir_while_let_stmt(ParserState *ps, Stmt *stmt)
 
     // add jmp to cond block
     if (!block_has_terminator(sc->bb)) {
-        build_while_let_cond(ps, var_sym, cond, sc->bb, while_body, while_end);
+        build_while_let_cond(ps, var_sym, cond, while_body, while_end);
     }
 
     exit_scope(ps);

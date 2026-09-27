@@ -1,0 +1,235 @@
+// RUN: koala %s --test
+
+import "std/io"
+import "std/ut"
+
+// This file exercises io.Words (libs/std/io/splitter.kl), which tokenizes a
+// BufReader stream on ASCII whitespace (space, '\t', '\n', '\r'). Leading and
+// repeated separators are skipped, tokens keep every other byte (including
+// punctuation and UTF-8), and has_next() caches the pending token so it can
+// be called repeatedly without advancing.
+//
+// Coverage:
+//   has_next / next_strict / next (optional) / for-in iteration
+//   all separator kinds, leading/trailing/repeated separators
+//   empty and whitespace-only input
+//   cached lookahead semantics (contrast with Splitter/Lines)
+//   tokens longer than the internal 256-byte buffer (auto growth)
+//   token independence, shared reader position, StringIO and BytesIO sources
+//   panic paths: exhausted next_strict and closed underlying stream
+
+// Compile this before constructing Words or explicitly calling its methods:
+// the imported class and iterator method IR must be created by the for loop.
+func collect_words(it io.Words) str {
+    var result = ""
+    for word in it {
+        result = result + word + "|"
+    }
+    return result
+}
+
+// ---------------------------------------------------------------------------
+// Basic protocol: has_next / next_strict / next
+// ---------------------------------------------------------------------------
+
+@test
+func test_words_basic() {
+    let words = io.Words(io.BufReader(io.StringIO("one two three"), 4))
+
+    ut.assert(words.has_next())
+    ut.assert_eq(words.next_strict(), "one")
+
+    ut.assert(words.has_next())
+    ut.assert_eq(words.next_strict(), "two")
+
+    ut.assert(words.has_next())
+    ut.assert_eq(words.next_strict(), "three")
+
+    // exhausted
+    ut.assert_false(words.has_next())
+    ut.assert(words.next() == nil)
+}
+
+@test
+func test_words_next_optional() {
+    let words = io.Words(io.BufReader(io.StringIO("a b"), 2))
+
+    let first = words.next()
+    ut.assert(first != nil)
+    ut.assert_eq(first!, "a")
+    ut.assert_eq(words.next()!, "b")
+
+    // repeated next() at EOF keeps returning nil
+    ut.assert(words.next() == nil)
+    ut.assert(words.next() == nil)
+}
+
+@test
+func test_words_for_loop() {
+    let words = io.Words(io.BufReader(io.StringIO("alpha beta gamma"), 3))
+    ut.assert_eq(collect_words(words), "alpha|beta|gamma|")
+    ut.assert_false(words.has_next())
+}
+
+@test
+func test_words_next_strict_without_has_next() {
+    // Like Splitter/Lines, next_strict may be called directly: it performs
+    // the lookahead itself and panics only when no token is left.
+    let words = io.Words(io.BufReader(io.StringIO("x y z"), 2))
+    ut.assert_eq(words.next_strict(), "x")
+    ut.assert_eq(words.next_strict(), "y")
+    ut.assert_eq(words.next_strict(), "z")
+    ut.assert_false(words.has_next())
+}
+
+// ---------------------------------------------------------------------------
+// Separator handling
+// ---------------------------------------------------------------------------
+
+@test
+func test_words_all_separator_kinds() {
+    let words = io.Words(io.BufReader(io.StringIO("a b\tc\nd\r\ne"), 2))
+    ut.assert_eq(collect_words(words), "a|b|c|d|e|")
+}
+
+@test
+func test_words_leading_and_repeated_separators() {
+    let words = io.Words(io.BufReader(io.StringIO("  \t alpha  beta\r\n\n gamma "), 3))
+    ut.assert_eq(collect_words(words), "alpha|beta|gamma|")
+}
+
+@test
+func test_words_empty_input() {
+    let words = io.Words(io.BufReader(io.StringIO(""), 2))
+    ut.assert_false(words.has_next())
+    ut.assert_false(words.has_next()) // idempotent at EOF
+    ut.assert(words.next() == nil)
+    ut.assert_eq(collect_words(words), "")
+}
+
+@test
+func test_words_whitespace_only() {
+    let words = io.Words(io.BufReader(io.StringIO(" \t\r\n "), 2))
+    ut.assert_false(words.has_next())
+    ut.assert(words.next() == nil)
+    ut.assert_eq(collect_words(words), "")
+}
+
+@test
+func test_words_punctuation_and_utf8_kept() {
+    // Only ASCII whitespace separates tokens; anything else is preserved.
+    let words = io.Words(io.BufReader(io.StringIO("a,b  café\t世界! c.d"), 1))
+    ut.assert_eq(collect_words(words), "a,b|café|世界!|c.d|")
+}
+
+@test
+func test_words_has_next_is_cached() {
+    // Like Splitter/Lines, repeated has_next() calls do not advance past
+    // the pending token.
+    let words = io.Words(io.BufReader(io.StringIO("one two"), 2))
+    ut.assert(words.has_next())
+    ut.assert(words.has_next())
+    ut.assert(words.has_next())
+    ut.assert_eq(words.next_strict(), "one")
+    ut.assert(words.has_next())
+    ut.assert_eq(words.next_strict(), "two")
+    ut.assert_false(words.has_next())
+}
+
+// ---------------------------------------------------------------------------
+// Buffer growth and token independence
+// ---------------------------------------------------------------------------
+
+@test
+func test_words_long_token_grows_buffer() {
+    // A token longer than the initial 256-byte internal buffer forces growth.
+    var token = ""
+    var i = 0
+    while i < 600 {
+        token = token + "w"
+        i = i + 1
+    }
+    let words = io.Words(io.BufReader(io.StringIO("head " + token + " tail"), 7))
+    ut.assert_eq(words.next_strict(), "head")
+    ut.assert_eq(words.next_strict(), token)
+    ut.assert_eq(words.next_strict(), "tail")
+    ut.assert_false(words.has_next())
+}
+
+@test
+func test_words_returned_strings_independent() {
+    // Previously returned strings survive clearing and reusing the internal
+    // buffer across iterations.
+    let words = io.Words(io.BufReader(io.StringIO("first second third"), 3))
+    let a = words.next_strict()
+    let b = words.next_strict()
+    let c = words.next_strict()
+    ut.assert_false(words.has_next())
+    ut.assert_eq(a, "first")
+    ut.assert_eq(b, "second")
+    ut.assert_eq(c, "third")
+}
+
+// ---------------------------------------------------------------------------
+// Interaction with the underlying BufReader
+// ---------------------------------------------------------------------------
+
+@test
+func test_words_shared_reader_position() {
+    // A word and its single trailing separator are consumed together, so the
+    // reader can be interleaved between tokens.
+    let br = io.BufReader(io.StringIO("xx one two"), 16)
+    ut.assert_eq(br.discard(3), 3) // drop "xx "
+    let words = io.Words(br)
+    ut.assert_eq(words.next_strict(), "one")
+    // The space after "one" was consumed with the word; peek serves the
+    // buffered remainder without refilling.
+    ut.assert_eq(br.peek(3).to_str(), "two")
+    ut.assert_eq(words.next_strict(), "two")
+    ut.assert_false(words.has_next())
+}
+
+@test
+func test_words_tiny_reader_buffers() {
+    // Every reader buffer size forces refills; tokens may span refills.
+    for size in [1, 2, 3, 4, 7, 8, 4096] {
+        let words = io.Words(io.BufReader(io.StringIO(" \talpha  beta\r\ngamma "), size))
+        ut.assert_eq(collect_words(words), "alpha|beta|gamma|")
+    }
+}
+
+@test
+func test_words_bytesio_source() {
+    let bio = io.BytesIO.from_str("red green\tblue")
+    let words = io.Words(io.BufReader(bio, 4))
+    ut.assert_eq(words.next()!, "red")
+    ut.assert_eq(words.next()!, "green")
+    ut.assert_eq(words.next()!, "blue")
+    ut.assert(words.next() == nil)
+}
+
+// ---------------------------------------------------------------------------
+// Error handling
+// ---------------------------------------------------------------------------
+
+@test_expect_panic("No more elements in Words")
+func test_words_empty_next_strict_panic() {
+    let words = io.Words(io.BufReader(io.StringIO(""), 2))
+    words.next_strict()
+}
+
+@test_expect_panic("No more elements in Words")
+func test_words_exhausted_next_strict_panic() {
+    let words = io.Words(io.BufReader(io.StringIO("only"), 2))
+    ut.assert_eq(words.next_strict(), "only")
+    words.next_strict()
+}
+
+@test_expect_panic("I/O operation on closed StringIO")
+func test_words_closed_reader_panic() {
+    let source = io.StringIO("word")
+    let words = io.Words(io.BufReader(source, 2))
+    source.close()
+    words.has_next()
+}
+

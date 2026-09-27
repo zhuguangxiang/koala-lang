@@ -1,0 +1,138 @@
+// RUN: koala %s --test
+
+import "std/io"
+import "std/ut"
+
+// This file exercises io.SplitterWith and the BufReader.split_with() factory
+// (libs/std/io/splitter.kl, libs/std/io/bufio.kl), which split a stream into
+// bytes chunks on a multi-byte separator sequence. The separator is consumed
+// but never included in the returned chunk.
+//
+// Coverage: iterator protocol (has_next / next_strict / next / for-in);
+// leading, consecutive and trailing separators (empty chunk rules);
+// overlapping matches ("aaab" on "aab"); separators straddling refills and
+// longer than the reader capacity; partial separator at EOF is data; UTF-8
+// separators; chunk independence; >256-byte chunks; empty separator panics;
+// stream sharing with the underlying reader.
+
+// Compile this before constructing SplitterWith or iterating it in a for
+// loop: the imported class and iterator method IR must be created here.
+func collect_chunks_with(it io.SplitterWith) str {
+    var result = ""
+    for chunk in it {
+        result = result + chunk.to_str() + "|"
+    }
+    return result
+}
+
+@test
+func test_splitter_with_basic() {
+    let br = io.BufReader(io.StringIO("alpha::beta::gamma"), 4)
+    let sp = br.split_with("::".to_bytes())
+
+    // has_next() is cached and does not consume.
+    ut.assert(sp.has_next())
+    ut.assert(sp.has_next())
+    ut.assert_eq(sp.next_strict().to_str(), "alpha")
+
+    ut.assert(sp.has_next())
+    ut.assert_eq(sp.next_strict().to_str(), "beta")
+
+    // no trailing separator: the last chunk runs to EOF
+    ut.assert_eq(sp.next_strict().to_str(), "gamma")
+
+    // exhausted
+    ut.assert_false(sp.has_next())
+    ut.assert(sp.next() == nil)
+}
+
+@test
+func test_splitter_with_empty_chunks() {
+    // A leading separator produces an empty first chunk.
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("::a"), 3).split_with("::".to_bytes())), "|a|")
+    // Consecutive separators produce empty chunks; a trailing separator
+    // adds no final empty chunk.
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("a::::b::"), 3).split_with("::".to_bytes())), "a||b|")
+    // Separator-only input yields one empty chunk per separator.
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("::::"), 3).split_with("::".to_bytes())), "||")
+    // Empty input yields no chunks at all.
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO(""), 3).split_with("::".to_bytes())), "")
+}
+
+@test
+func test_splitter_with_overlap() {
+    // "aaab" contains "aab" only at offset 1: a naive matcher that resets on
+    // mismatch would mis-split. The single chunk must be "a".
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("aaab"), 2).split_with("aab".to_bytes())), "a|")
+    // Overlapping occurrences: "aaaa" with sep "aa" splits at 0 and 2.
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("aaaa"), 3).split_with("aa".to_bytes())), "||")
+}
+
+@test
+func test_splitter_with_sep_longer_than_buffer() {
+    // The separator is longer than the reader capacity: matches are still
+    // found because chunks accumulate in the iterator's own buffer.
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("one###two###three"), 2).split_with("###".to_bytes())), "one|two|three|")
+}
+
+@test
+func test_splitter_with_partial_at_eof() {
+    // An incomplete separator prefix at EOF is plain trailing data.
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("xxabxa"), 3).split_with("ab".to_bytes())), "xx|xa|")
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("abc"), 4).split_with("abcd".to_bytes())), "abc|")
+}
+
+@test
+func test_splitter_with_utf8() {
+    // Multi-byte UTF-8 separators and payloads are handled at byte level.
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("世界::和平"), 3).split_with("::".to_bytes())), "世界|和平|")
+    // A 3-byte UTF-8 separator with a reader buffer smaller than the separator.
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("a→b→c"), 2).split_with("→".to_bytes())), "a|b|c|")
+}
+
+@test
+func test_splitter_with_chunk_independence() {
+    let sp = io.BufReader(io.StringIO("ab::cd::ef"), 3).split_with("::".to_bytes())
+    let first = sp.next_strict()
+    let second = sp.next_strict()
+    // Earlier chunks survive the internal buffers being cleared and reused.
+    ut.assert_eq(first.to_str(), "ab")
+    ut.assert_eq(second.to_str(), "cd")
+    ut.assert_eq(sp.next_strict().to_str(), "ef")
+}
+
+@test
+func test_splitter_with_shared_reader() {
+    // Direct reads before iteration consume the same shared stream.
+    let br = io.BufReader(io.StringIO("head a::b"), 16)
+    let prefix = Buffer()
+    br.read_until(prefix, ' ')
+    ut.assert_eq(prefix.to_str(), "head")
+
+    let sp = br.split_with("::".to_bytes())
+    ut.assert_eq(sp.next_strict().to_str(), "a")
+    ut.assert_eq(sp.next_strict().to_str(), "b")
+    ut.assert_false(sp.has_next())
+}
+
+@test_expect_panic("SplitterWith: empty separator")
+func test_splitter_with_empty_sep_panics() {
+    // An empty separator would make every position a boundary: reject it.
+    let br = io.BufReader(io.StringIO("abc"))
+    br.split_with("".to_bytes())
+}
+
+@test
+func test_splitter_with_long_chunk() {
+    // A chunk longer than the 256-byte internal buffer grows automatically.
+    var text = ""
+    var i = 0
+    while i < 600 {
+        text = text + "x"
+        i = i + 1
+    }
+    let sp = io.BufReader(io.StringIO(text + "::end"), 8).split_with("::".to_bytes())
+    ut.assert_eq(sp.next_strict().to_str(), text)
+    ut.assert_eq(sp.next_strict().to_str(), "end")
+    ut.assert_false(sp.has_next())
+}

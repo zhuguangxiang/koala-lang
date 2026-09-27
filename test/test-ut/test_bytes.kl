@@ -79,6 +79,36 @@ func test_view() {
 }
 
 @test
+func test_content_equality() {
+    // == / != compare length and content, not object identity.
+    let a = "abc".to_bytes()
+    let b = "abc".to_bytes()
+    let c = "abd".to_bytes()
+    let d = "ab".to_bytes()
+
+    ut.assert(a == a) // same object
+    ut.assert(a == b) // equal content, distinct objects
+    ut.assert(a != c) // different content
+    ut.assert(a != d) // different length
+    ut.assert_false(a == c)
+    ut.assert_false(a == d)
+
+    // views compare by the bytes they reference
+    ut.assert(a.view(0, 2) == d)
+    ut.assert(a.view(1, 3) == "bc".to_bytes())
+    ut.assert(a.view(0, 2) != a.view(1, 3))
+}
+
+@test
+func test_content_hash() {
+    // Equal content must produce identical hashes (Hashable contract).
+    let a = "abc".to_bytes()
+    let b = "abc".to_bytes()
+    ut.assert_eq(a.hash(), b.hash())
+    ut.assert_eq(a.hash(), a.view(0, 3).hash())
+}
+
+@test
 func test_seq_for() {
     let bs = bytes(10)
     for i in range(len(bs)) {

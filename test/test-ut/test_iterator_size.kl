@@ -1,0 +1,110 @@
+// RUN: koala %s --test
+
+import "std/io"
+import "std/ut"
+
+// This file verifies that the internal buffer size of the BufReader iterator
+// family (Splitter, SplitterWith, Lines, Words) is configurable through the
+// optional `size` argument of their constructors and of the corresponding
+// BufReader factories. A custom size only changes the initial capacity:
+// results must be identical to the default (256) and buffers still grow
+// automatically for larger chunks. Non-positive sizes panic at construction.
+
+// Compile these before constructing the imported iterator classes or calling
+// their methods: the iterator method IR must be created by the for loops.
+func collect_chunks(it io.Splitter) str {
+    var result = ""
+    for chunk in it {
+        result = result + chunk.to_str() + "|"
+    }
+    return result
+}
+
+func collect_chunks_with(it io.SplitterWith) str {
+    var result = ""
+    for chunk in it {
+        result = result + chunk.to_str() + "|"
+    }
+    return result
+}
+
+func collect_lines(it io.Lines) str {
+    var result = ""
+    for line in it {
+        result = result + line + "|"
+    }
+    return result
+}
+
+func collect_words(it io.Words) str {
+    var result = ""
+    for word in it {
+        result = result + word + "|"
+    }
+    return result
+}
+
+@test
+func test_splitter_custom_size() {
+    // Direct construction with a tiny initial buffer.
+    ut.assert_eq(collect_chunks(io.Splitter(io.BufReader(io.StringIO("a,b,cd"), 4), ',', 2)), "a|b|cd|")
+    // Factory passthrough; chunks longer than the initial capacity still grow.
+    var text = ""
+    var i = 0
+    while i < 300 {
+        text = text + "x"
+        i = i + 1
+    }
+    let sp = io.BufReader(io.StringIO(text + ",tail"), 8).split(',', 4)
+    ut.assert_eq(sp.next_strict().to_str(), text)
+    ut.assert_eq(sp.next_strict().to_str(), "tail")
+    ut.assert_false(sp.has_next())
+}
+
+@test
+func test_splitter_with_custom_size() {
+    // Tiny iterator buffer with a larger reader buffer.
+    ut.assert_eq(collect_chunks_with(io.SplitterWith(io.BufReader(io.StringIO("alpha::beta"), 64), "::".to_bytes(), 2)), "alpha|beta|")
+    // Separator longer than both the reader buffer and the iterator size.
+    ut.assert_eq(collect_chunks_with(io.BufReader(io.StringIO("a####b"), 3).split_with("####".to_bytes(), 2)), "a|b|")
+}
+
+@test
+func test_lines_custom_size() {
+    ut.assert_eq(collect_lines(io.Lines(io.BufReader(io.StringIO("one\ntwo\n"), 4), 2)), "one|two|")
+    // CRLF handling is unaffected by the custom size.
+    ut.assert_eq(collect_lines(io.BufReader(io.StringIO("a\r\nb"), 3).lines(2)), "a|b|")
+}
+
+@test
+func test_words_custom_size() {
+    ut.assert_eq(collect_words(io.Words(io.BufReader(io.StringIO("  hello   world\t!\n"), 4), 2)), "hello|world|!|")
+    // A token longer than the tiny initial buffer grows automatically.
+    var text = ""
+    var i = 0
+    while i < 300 {
+        text = text + "y"
+        i = i + 1
+    }
+    ut.assert_eq(collect_words(io.BufReader(io.StringIO(text), 8).words(2)), text + "|")
+}
+
+@test_expect_panic("Splitter: size must be positive")
+func test_splitter_bad_size_panics() {
+    io.Splitter(io.BufReader(io.StringIO("a")), ',', 0)
+}
+
+@test_expect_panic("SplitterWith: size must be positive")
+func test_splitter_with_bad_size_panics() {
+    io.BufReader(io.StringIO("a")).split_with("::".to_bytes(), -1)
+}
+
+@test_expect_panic("Lines: size must be positive")
+func test_lines_bad_size_panics() {
+    io.BufReader(io.StringIO("a")).lines(0)
+}
+
+@test_expect_panic("Words: size must be positive")
+func test_words_bad_size_panics() {
+    io.BufReader(io.StringIO("a")).words(-1)
+}

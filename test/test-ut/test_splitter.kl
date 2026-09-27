@@ -1,0 +1,304 @@
+// RUN: koala %s --test
+
+import "std/io"
+import "std/ut"
+
+// This file exercises io.Splitter (libs/std/io/splitter.kl), which splits a
+// BufReader stream into bytes chunks on a single delimiter byte. The delimiter
+// is consumed but never included in the returned chunk.
+//
+// Coverage:
+//   has_next / next_strict / next (optional) / for-in iteration
+//   cached has_next(), advancing next_strict(), panic when exhausted
+//   leading & consecutive delimiters (empty chunks), trailing delimiter,
+//   delimiter-only and empty input
+//   chunks longer than the internal 256-byte buffer (auto growth)
+//   chunk independence (internal buffer is reused across iterations)
+//   StringIO and BytesIO sources, binary (non-text) delimiters, UTF-8 payload
+//   shared reader position with the underlying BufReader
+//   small reader buffers to force refills inside read_until
+
+// Compile this before constructing Splitter or explicitly calling its methods:
+// the imported class and iterator method IR must be created by the for loop.
+func collect_chunks(it io.Splitter) str {
+    var result = ""
+    for chunk in it {
+        result = result + chunk.to_str() + "|"
+    }
+    return result
+}
+
+// ---------------------------------------------------------------------------
+// Basic protocol: has_next / next_strict / next
+// ---------------------------------------------------------------------------
+
+@test
+func test_splitter_basic() {
+    let sp = io.Splitter(io.BufReader(io.StringIO("alpha,beta,gamma"), 4), ',')
+
+    ut.assert(sp.has_next())
+    ut.assert_eq(sp.next_strict().to_str(), "alpha")
+
+    ut.assert(sp.has_next())
+    ut.assert_eq(sp.next_strict().to_str(), "beta")
+
+    // no trailing delimiter: the last chunk runs to EOF
+    ut.assert(sp.has_next())
+    ut.assert_eq(sp.next_strict().to_str(), "gamma")
+
+    // exhausted
+    ut.assert_false(sp.has_next())
+    ut.assert(sp.next() == nil)
+}
+
+@test
+func test_splitter_next_optional() {
+    let sp = io.Splitter(io.BufReader(io.StringIO("one,two"), 2), ',')
+
+    let first = sp.next()
+    ut.assert(first != nil)
+    ut.assert_eq(first!.to_str(), "one")
+
+    let second = sp.next()
+    ut.assert_eq(second!.to_str(), "two")
+
+    // repeated next() at EOF keeps returning nil
+    ut.assert(sp.next() == nil)
+    ut.assert(sp.next() == nil)
+}
+
+@test
+func test_splitter_for_loop() {
+    let sp = io.Splitter(io.BufReader(io.StringIO("a,b,c,d"), 2), ',')
+    ut.assert_eq(collect_chunks(sp), "a|b|c|d|")
+    ut.assert_false(sp.has_next())
+}
+
+@test
+func test_splitter_has_next_next_strict_mix() {
+    let sp = io.Splitter(io.BufReader(io.StringIO("x,y,z"), 2), ',')
+    // next_strict may follow a successful has_next ...
+    ut.assert(sp.has_next())
+    ut.assert_eq(sp.next_strict().to_str(), "x")
+    // ... and next() combines both steps.
+    ut.assert_eq(sp.next()!.to_str(), "y")
+    ut.assert_eq(sp.next()!.to_str(), "z")
+    ut.assert_false(sp.has_next())
+}
+
+// ---------------------------------------------------------------------------
+// Delimiter edge cases
+// ---------------------------------------------------------------------------
+
+@test
+func test_splitter_no_delimiter() {
+    // The whole stream is a single chunk when the delimiter never appears.
+    let sp = io.Splitter(io.BufReader(io.StringIO("plain text"), 4), ',')
+    ut.assert_eq(collect_chunks(sp), "plain text|")
+}
+
+@test
+func test_splitter_trailing_delimiter() {
+    // A trailing delimiter produces no final empty chunk: read_until reports
+    // EOF with an empty remainder, which has_next() does not return.
+    let sp = io.Splitter(io.BufReader(io.StringIO("a,b,"), 2), ',')
+    ut.assert_eq(collect_chunks(sp), "a|b|")
+}
+
+@test
+func test_splitter_consecutive_delimiters() {
+    // Two consecutive delimiters yield an empty chunk between them; the
+    // reader is fully drained afterwards.
+    let br = io.BufReader(io.StringIO("a,,b"), 8)
+    let sp = io.Splitter(br, ',')
+    ut.assert_eq(collect_chunks(sp), "a||b|")
+    ut.assert_eq(br.avail(), 0)
+}
+
+@test
+func test_splitter_leading_delimiter() {
+    // A delimiter at the very start yields a leading empty chunk.
+    let sp = io.Splitter(io.BufReader(io.StringIO(",a"), 2), ',')
+    ut.assert_eq(collect_chunks(sp), "|a|")
+}
+
+@test
+func test_splitter_delimiter_only() {
+    // A lone delimiter yields exactly one empty chunk.
+    let sp = io.Splitter(io.BufReader(io.StringIO(","), 2), ',')
+    ut.assert(sp.has_next())
+    ut.assert_eq(sp.next_strict(), bytes(0))
+    ut.assert_false(sp.has_next())
+    ut.assert(sp.next() == nil)
+    ut.assert_eq(collect_chunks(io.Splitter(io.BufReader(io.StringIO(","), 2), ',')), "|")
+}
+
+@test
+func test_splitter_empty_input() {
+    let sp = io.Splitter(io.BufReader(io.StringIO(""), 2), ',')
+    ut.assert_false(sp.has_next())
+    ut.assert_false(sp.has_next()) // idempotent at EOF
+    ut.assert(sp.next() == nil)
+    ut.assert_eq(collect_chunks(sp), "")
+}
+
+@test
+func test_splitter_next_strict_without_has_next() {
+    // next_strict() reads and advances on its own, like BytesIter.
+    let sp = io.Splitter(io.BufReader(io.StringIO("a,b"), 4), ',')
+    ut.assert_eq(sp.next_strict().to_str(), "a")
+    ut.assert_eq(collect_chunks(sp), "b|")
+}
+
+@test
+func test_splitter_has_next_is_cached() {
+    // has_next() buffers the pending chunk: repeated calls do not advance.
+    let sp = io.Splitter(io.BufReader(io.StringIO("a,b,c"), 2), ',')
+    ut.assert(sp.has_next())
+    ut.assert(sp.has_next())
+    ut.assert_eq(sp.next_strict().to_str(), "a")
+    ut.assert(sp.has_next())
+    ut.assert(sp.has_next())
+    ut.assert_eq(sp.next_strict().to_str(), "b")
+    ut.assert_eq(sp.next_strict().to_str(), "c")
+    ut.assert_false(sp.has_next())
+    ut.assert_false(sp.has_next())
+}
+
+@test
+func test_splitter_empty_chunks_across_refills() {
+    // Empty chunks stay correct when the reader buffer is tiny and the
+    // delimiters straddle refills.
+    for size in [1, 2, 3] {
+        let sp = io.Splitter(io.BufReader(io.StringIO(",a,,b,"), size), ',')
+        ut.assert_eq(collect_chunks(sp), "|a||b|")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Alternate delimiters and payloads
+// ---------------------------------------------------------------------------
+
+@test
+func test_splitter_newline_delimiter() {
+    let sp = io.Splitter(io.BufReader(io.StringIO("one\ntwo\nthree"), 3), '\n')
+    ut.assert_eq(collect_chunks(sp), "one|two|three|")
+}
+
+@test
+func test_splitter_binary_delimiter() {
+    // NUL-delimited binary payload over a BytesIO source.
+    let data = bytes(7)
+    data[0] = uint8(97) // 'a'
+    data[1] = uint8(98) // 'b'
+    data[2] = 0
+    data[3] = uint8(99) // 'c'
+    data[4] = 0
+    data[5] = uint8(100) // 'd'
+    data[6] = uint8(101) // 'e'
+
+    let sp = io.Splitter(io.BufReader(io.BytesIO.from_bytes(data), 3), 0)
+    ut.assert_eq(collect_chunks(sp), "ab|c|de|")
+}
+
+@test
+func test_splitter_utf8_payload() {
+    // Multi-byte UTF-8 characters survive being split across reader refills.
+    let sp = io.Splitter(io.BufReader(io.StringIO("héllo,世界,koala"), 1), ',')
+    ut.assert_eq(collect_chunks(sp), "héllo|世界|koala|")
+}
+
+@test
+func test_splitter_bytesio_source() {
+    let bio = io.BytesIO.from_str("red;green;blue")
+    let sp = io.Splitter(io.BufReader(bio, 4), ';')
+    ut.assert_eq(sp.next()!.to_str(), "red")
+    ut.assert_eq(sp.next()!.to_str(), "green")
+    ut.assert_eq(sp.next()!.to_str(), "blue")
+    ut.assert_false(sp.has_next())
+}
+
+// ---------------------------------------------------------------------------
+// Buffer growth and chunk independence
+// ---------------------------------------------------------------------------
+
+@test
+func test_splitter_long_chunk_grows_buffer() {
+    // A chunk longer than the initial 256-byte internal buffer forces growth.
+    var token = ""
+    var i = 0
+    while i < 600 {
+        token = token + "x"
+        i = i + 1
+    }
+    let sp = io.Splitter(io.BufReader(io.StringIO("head," + token + ",tail"), 7), ',')
+    ut.assert_eq(sp.next()!.to_str(), "head")
+    let long = sp.next()!
+    ut.assert_eq(len(long), 600)
+    ut.assert_eq(long.to_str(), token)
+    ut.assert_eq(sp.next()!.to_str(), "tail")
+    ut.assert_false(sp.has_next())
+}
+
+@test
+func test_splitter_chunks_are_independent() {
+    // next_strict copies the internal buffer, so previously returned chunks
+    // stay valid while the iterator advances and the buffer is reused.
+    // bytes equality is content-based, so chunks can be compared directly.
+    let sp = io.Splitter(io.BufReader(io.StringIO("first,second,third"), 3), ',')
+    let a = sp.next()!
+    let b = sp.next()!
+    let c = sp.next()!
+    ut.assert(sp.next() == nil)
+    ut.assert(a == "first".to_bytes())
+    ut.assert(b == "second".to_bytes())
+    ut.assert(c == "third".to_bytes())
+    ut.assert(a != b)
+}
+
+// ---------------------------------------------------------------------------
+// Interaction with the underlying BufReader
+// ---------------------------------------------------------------------------
+
+@test
+func test_splitter_shared_reader_position() {
+    // Splitter consumes exactly "chunk + delimiter" per iteration, so the
+    // reader can be interleaved once the splitter is done with a segment.
+    let br = io.BufReader(io.StringIO("xx|yy|zz"), 8)
+    ut.assert_eq(br.discard(3), 3) // drop "xx|"
+    let sp = io.Splitter(br, '|')
+    ut.assert(sp.has_next())
+    ut.assert_eq(sp.next_strict().to_str(), "yy")
+    // The '|' after "yy" was consumed together with the chunk.
+    ut.assert_eq(br.peek(2).to_str(), "zz")
+    ut.assert_eq(sp.next()!.to_str(), "zz")
+    ut.assert_false(sp.has_next())
+}
+
+@test
+func test_splitter_tiny_reader_buffers() {
+    // Every reader buffer size forces refills inside read_until.
+    for size in [1, 2, 3, 4, 7, 8, 4096] {
+        let sp = io.Splitter(io.BufReader(io.StringIO("alpha,beta,gamma"), size), ',')
+        ut.assert_eq(collect_chunks(sp), "alpha|beta|gamma|")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Error handling
+// ---------------------------------------------------------------------------
+
+@test_expect_panic("No more elements in Splitter")
+func test_splitter_exhausted_next_strict_panic() {
+    let sp = io.Splitter(io.BufReader(io.StringIO("only"), 2), ',')
+    ut.assert_eq(sp.next_strict().to_str(), "only")
+    sp.next_strict()
+}
+
+@test_expect_panic("I/O operation on closed StringIO")
+func test_splitter_closed_reader_panic() {
+    let source = io.StringIO("a,b")
+    let sp = io.Splitter(io.BufReader(source, 2), ',')
+    source.close()
+    sp.has_next()
+}

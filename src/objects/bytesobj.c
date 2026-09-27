@@ -6,6 +6,7 @@
 #include "bytesobj.h"
 #include "buffer.h"
 #include "excobj.h"
+#include "hashmap.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -188,12 +189,43 @@ static TValue _bytes_setitem(TValue *self, TValue *args, int nargs)
     return nil_value;
 }
 
+static TValue _bytes_eq(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *lhs = SELF_AS(bytes_type);
+
+    ASSERT(nargs == 1);
+    Object *ob = to_obj(args);
+    ASSERT(IS_BYTES(ob));
+
+    BytesObject *rhs = (BytesObject *)ob;
+    if (lhs->size != rhs->size) return bool_value(false);
+
+    int r = memcmp(lhs->data + lhs->offset, rhs->data + rhs->offset, lhs->size);
+    return bool_value(r == 0);
+}
+
+static TValue _bytes_ne(TValue *self, TValue *args, int nargs)
+{
+    TValue v = _bytes_eq(self, args, nargs);
+    return bool_value(v.ival == 0);
+}
+
+static TValue _bytes_hash(TValue *self, TValue *args, int nargs)
+{
+    BytesObject *bytes = SELF_AS(bytes_type);
+    unsigned int hash = mem_hash(bytes->data + bytes->offset, bytes->size);
+    return int64_value(hash);
+}
+
 static MethodDef bytes_methods[] = {
     { "len", _bytes_len },
     { "__str__", _bytes_str },
     { "__init__", _bytes_init },
     { "__getitem__", _bytes_getitem },
     { "__setitem__", _bytes_setitem },
+    { "__eq__", _bytes_eq },
+    { "__ne__", _bytes_ne },
+    { "hash", _bytes_hash },
     { "index", _bytes_index },
     { "count", _bytes_count },
     { "copy", _bytes_copy },
