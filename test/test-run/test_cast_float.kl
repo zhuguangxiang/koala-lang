@@ -145,11 +145,11 @@ func main() {
 }
 
 // float64 -> float32
-// CHECK: 3.1415927410125732
+// CHECK: 3.14159274
 // CHECK: 0
 // CHECK: -1.5
 // float64 -> float16
-// CHECK: 1.234375
+// CHECK: 1.2344
 // CHECK: 0
 // CHECK: -1.5
 // float32 -> float16
@@ -159,7 +159,7 @@ func main() {
 // float16 -> float64
 // CHECK: 1.5
 // float32 -> float64
-// CHECK: 3.1400000000000001
+// CHECK: 3.1400001
 // float64 -> int
 // CHECK: 100
 // CHECK: -100
@@ -223,7 +223,7 @@ func main() {
 // CHECK: -9223372036854775808
 // CHECK: -1
 // CHECK: 9223372036854775807
-// CHECK: -1
+// CHECK: 18446744073709551615
 // CHECK: -9223372036854775808
 // CHECK: 0
 // NaN

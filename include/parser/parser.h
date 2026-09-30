@@ -170,18 +170,18 @@ void kl_error_detail(ParserState *, Loc *);
     if (ps->errors++ >= MAX_ERRORS) { \
         printf(BOLD("%s: ") ERROR_PREFIX "Too many errors.\n", ps->filename); \
     } else { \
-        Loc loc = _loc; \
+        Loc _loc_ = _loc; \
         printf(BOLD("%s:%d:%d: ") ERROR_PREFIX fmt "\n", \
-            ps->filename, loc.line, loc.col, ##__VA_ARGS__); \
-        kl_error_detail(ps, &loc); \
+            ps->filename, _loc_.line, _loc_.col, ##__VA_ARGS__); \
+        kl_error_detail(ps, &_loc_); \
     } \
 } while (0)
 
 #define kl_warn(_loc, fmt, ...) do { \
-    Loc loc = _loc; \
+    Loc _loc_ = _loc; \
     printf(BOLD("%s:%d:%d: ") WARN_PREFIX fmt "\n", \
-        ps->filename, loc.line, loc.col, ##__VA_ARGS__); \
-    kl_error_detail(ps, &loc); \
+        ps->filename, _loc_.line, _loc_.col, ##__VA_ARGS__); \
+    kl_error_detail(ps, &_loc_); \
 } while (0)
 
 #define kl_error_incompatible_type(_loc, expected, actual) do { \
@@ -194,9 +194,9 @@ void kl_error_detail(ParserState *, Loc *);
         buf_write_str(&buf, "', but got '"); \
         type_spec_print(actual, &buf); \
         buf_write_str(&buf, "'.\n"); \
-        Loc loc = _loc; \
-        printf(BOLD("%s:%d:%d: ") "%s", ps->filename, loc.line, loc.col, BUF_STR(buf)); \
-        kl_error_detail(ps, &loc); \
+        Loc _loc_ = _loc; \
+        printf(BOLD("%s:%d:%d: ") "%s", ps->filename, _loc_.line, _loc_.col, BUF_STR(buf)); \
+        kl_error_detail(ps, &_loc_); \
         FINI_BUF(buf); \
     } \
 } while (0)

@@ -162,12 +162,12 @@ static inline int type_is_int(TypeSpec *ts)
 
 static inline int type_is_int64(TypeSpec *ts)
 {
-    return (ts->kind == TYPE_INT && ts->int_flt_info.sign == 1 && ts->int_flt_info.width == 64);
+    return (ts->kind == TYPE_INT && ts->int_flt_info.sign == 1 && ts->int_flt_info.width == 8);
 }
 
 static inline int type_is_uint64(TypeSpec *ts)
 {
-    return (ts->kind == TYPE_INT && ts->int_flt_info.sign == 0 && ts->int_flt_info.width == 64);
+    return (ts->kind == TYPE_INT && ts->int_flt_info.sign == 0 && ts->int_flt_info.width == 8);
 }
 
 static inline int type_is_uint(TypeSpec *ts)

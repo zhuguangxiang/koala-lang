@@ -306,7 +306,7 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
                                                    (int64_t)rval->ival, &res); \
                 if (r) { \
                     KlrLocInfo *loc = &insn->loc; \
-                    klr_error(loc, "signed integer overflow in binary" #opname); \
+                    klr_error(loc, "signed integer overflow in binary " #opname); \
                     insn->error = 1; \
                     return; \
                 } \
@@ -319,7 +319,7 @@ static int uint64_mod_overflow(uint64_t a, uint64_t b, uint64_t *out)
                 int r = uint64_##opname##_overflow(lval->ival, rval->ival, &res); \
                 if (r) { \
                     KlrLocInfo *loc = &insn->loc; \
-                    klr_error(loc, "unsigned integer overflow in binary" #opname); \
+                    klr_error(loc, "unsigned integer overflow in binary " #opname); \
                     insn->error = 1; \
                     return; \
                 } \
@@ -643,13 +643,27 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             KlrValue *val = insn_oper_value(insn, 0);
             if (klr_is_const(val)) {
                 KlrConst *cval = (KlrConst *)val;
-                if (cval->which == CONST_INT || cval->which == CONST_UINT ||
-                    cval->which == CONST_FLT) {
-                    log_info("fold unary neg insn to const int/uint/float:");
+                if (cval->which == CONST_INT) {
+                    log_info("fold unary neg insn to const int:");
                     log_insn(insn);
-                    uint64_t res = -cval->ival;
-                    KlrValue *const_res = klr_const_int(res, val->ts, fn->module);
+                    int64_t res = -(int64_t)cval->ival;
+                    KlrValue *const_res =
+                        klr_const_int((uint64_t)res, int64_type_spec(), fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (cval->which == CONST_UINT) {
+                    log_info("fold unary neg insn to const uint:");
+                    log_insn(insn);
+                    uint64_t res = -(uint64_t)cval->ival;
+                    KlrValue *const_res = klr_const_uint(res, uint64_type_spec(), fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (cval->which == CONST_FLT) {
+                    log_info("fold unary neg insn to const float:");
+                    log_insn(insn);
+                    double res = -(double)cval->fval;
+                    KlrValue *const_res = klr_const_float(res, float64_type_spec(), fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else {
+                    UNREACHABLE();
                 }
             }
             break;
@@ -660,11 +674,19 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             KlrValue *val = insn_oper_value(insn, 0);
             if (klr_is_const(val)) {
                 KlrConst *cval = (KlrConst *)val;
-                if (cval->which == CONST_INT || cval->which == CONST_UINT) {
+                unsigned int bit_width = cval->len * 8;
+                uint64_t mask = (bit_width >= 64) ? UINT64_MAX : ((1ULL << bit_width) - 1);
+                if (cval->which == CONST_INT) {
                     log_info("fold unary not insn to const int:");
                     log_insn(insn);
-                    uint64_t res = ~cval->ival;
-                    KlrValue *const_res = klr_const_int(res, val->ts, fn->module);
+                    uint64_t res = (~cval->ival) & mask;
+                    KlrValue *const_res = klr_const_int(res, int8_type_spec(), fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (cval->which == CONST_UINT) {
+                    log_info("fold unary not insn to const uint:");
+                    log_insn(insn);
+                    uint64_t res = (~cval->ival) & mask;
+                    KlrValue *const_res = klr_const_uint(res, uint64_type_spec(), fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }

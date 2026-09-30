@@ -1629,8 +1629,7 @@ TARGET(OP_FLOAT_ADD) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].fval = regs[rs].fval + regs[rt].fval;
     regs[rd].tag = TAG_FLOAT64;
@@ -1646,12 +1645,10 @@ TARGET(OP_FLOAT_SUB) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].fval = regs[rs].fval - regs[rt].fval;
     regs[rd].tag = TAG_FLOAT64;
-
     DISPATCH();
 }
 
@@ -1663,8 +1660,7 @@ TARGET(OP_FLOAT_MUL) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].fval = regs[rs].fval * regs[rt].fval;
     regs[rd].tag = TAG_FLOAT64;
@@ -1679,8 +1675,7 @@ TARGET(OP_JMP_FLOAT_EQ) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     if (regs[rs].fval == regs[rt].fval) {
         pc += off;
@@ -1695,8 +1690,7 @@ TARGET(OP_JMP_FLOAT_NE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     if (regs[rs].fval != regs[rt].fval) {
         pc += off;
@@ -1711,8 +1705,7 @@ TARGET(OP_JMP_FLOAT_LT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     if (regs[rs].fval < regs[rt].fval) {
         pc += off;
@@ -1727,8 +1720,7 @@ TARGET(OP_JMP_FLOAT_LE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     if (regs[rs].fval <= regs[rt].fval) {
         pc += off;
@@ -1743,8 +1735,7 @@ TARGET(OP_JMP_FLOAT_GT) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     if (regs[rs].fval > regs[rt].fval) {
         pc += off;
@@ -1759,8 +1750,7 @@ TARGET(OP_JMP_FLOAT_GE) {
 
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     if (regs[rs].fval >= regs[rt].fval) {
         pc += off;
@@ -2238,8 +2228,7 @@ TARGET(OP_FLOAT_DIV) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].fval = regs[rs].fval / regs[rt].fval;
     regs[rd].tag = TAG_FLOAT64;
@@ -2255,8 +2244,7 @@ TARGET(OP_FLOAT_MOD) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].fval = fmod(regs[rs].fval, regs[rt].fval);
     regs[rd].tag = TAG_FLOAT64;
@@ -2272,8 +2260,7 @@ TARGET(OP_FLOAT_EQ) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].ival = regs[rs].fval == regs[rt].fval;
     regs[rd].tag = TAG_BOOL;
@@ -2289,8 +2276,7 @@ TARGET(OP_FLOAT_NE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].ival = regs[rs].fval != regs[rt].fval;
     regs[rd].tag = TAG_BOOL;
@@ -2306,8 +2292,7 @@ TARGET(OP_FLOAT_LT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].ival = regs[rs].fval < regs[rt].fval;
     regs[rd].tag = TAG_BOOL;
@@ -2323,8 +2308,7 @@ TARGET(OP_FLOAT_LE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].ival = regs[rs].fval <= regs[rt].fval;
     regs[rd].tag = TAG_BOOL;
@@ -2340,8 +2324,7 @@ TARGET(OP_FLOAT_GT) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].ival = regs[rs].fval > regs[rt].fval;
     regs[rd].tag = TAG_BOOL;
@@ -2357,8 +2340,7 @@ TARGET(OP_FLOAT_GE) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
     CHECK_REG_ID(rt);
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
-    ASSERT(regs[rt].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs) && is_float(regs + rt));
 
     regs[rd].ival = regs[rs].fval >= regs[rt].fval;
     regs[rd].tag = TAG_BOOL;
@@ -2404,7 +2386,7 @@ TARGET(OP_FLOAT_NEG) {
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
 
-    ASSERT(regs[rs].tag == TAG_FLOAT64);
+    ASSERT(is_float(regs + rs));
 
     regs[rd].fval = -regs[rs].fval;
     regs[rd].tag = TAG_FLOAT64;

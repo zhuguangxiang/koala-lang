@@ -215,7 +215,7 @@ func main() {
 // CHECK: 100000
 // CHECK: 100000
 // UINT32_MAX -> float
-// CHECK: 4294967296
+// CHECK: 4.2949673e+09
 // CHECK: 4294967295
 // uint64 -> float
 // CHECK: 1000

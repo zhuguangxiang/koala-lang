@@ -6,7 +6,8 @@ If:
     include/runtime/vm_ops.h,
     include/common/opcode_list.h,
     include/common/common.h,
-    include/runtime/do_cast.h
+    include/runtime/do_cast,
+    include/parser/literal_as_expected.h,
   ]
 
 Index:

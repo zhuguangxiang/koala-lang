@@ -158,9 +158,9 @@ func main() {
     print(test_i32_to_f16(1000))
     print(test_i32_to_f16(-1000))
     print(test_i32_to_f32(100000))
-    // print(test_i32_to_f32(-100000))  // expect: -100000
+    print(test_i32_to_f32(-100000))
     print(test_i32_to_f64(100000))
-    // print(test_i32_to_f64(-100000))  // expect: -100000
+    print(test_i32_to_f64(-100000))
 
     // --- INT32_MAX -> float32/float64 ---
     print(test_i32_to_f32(2147483647))
@@ -181,23 +181,25 @@ func main() {
     print(test_i64_to_f16(9223372036854775807))
 
     // --- negative int16/int32 literal above 2^11 loses its sign ---
-    // let n16 int16 = -2049
-    // print(n16)                       // expect: -2049
-    // let n16b int16 = -20000
-    // print(n16b)                      // expect: -20000
-    // let n32 int32 = -2049
-    // print(n32)                       // expect: -2049
-    // let n32b int32 = -100000
-    // print(n32b)                      // expect: -100000
-    // print(test_i16_to_f32(-2049))    // expect: -2049
-    // print(test_i32_to_f64(-2049))    // expect: -2049
+    let n16 int16 = -2049
+    print(n16)                       // expect: -2049
+    let n16b int16 = -20000
+    print(n16b)                      // expect: -20000
+    let n32 int32 = -2049
+    print(n32)                       // expect: -2049
+    let n32b int32 = -100000
+    print(n32b)                      // expect: -100000
+    print(test_i16_to_f32(-2049))    // expect: -2049
+    print(test_i32_to_f64(-2049))    // expect: -2049
 }
 
 // int8 -> uint neg
+
 // CHECK: 255
 // CHECK: 65535
 // CHECK: 4294967295
-// CHECK: -1
+// CHECK: 18446744073709551615
+
 // int8 widen
 // CHECK: 42
 // CHECK: 42
@@ -205,59 +207,73 @@ func main() {
 // CHECK: -1
 // CHECK: -1
 // CHECK: -1
+
 // int16 -> int8
 // CHECK: -56
 // CHECK: 56
+
 // int16 -> uint neg
 // CHECK: 255
 // CHECK: 65535
 // CHECK: 4294967295
-// CHECK: -1
+// CHECK: 18446744073709551615
+
 // int16 -> uint8 pos
 // CHECK: 44
 // int16 widen
 // CHECK: 42
 // CHECK: 42
+
 // int32 -> int8/int16
 // CHECK: -56
 // CHECK: 56
 // CHECK: -25536
 // CHECK: 25536
+
 // int32 -> uint neg
 // CHECK: 255
 // CHECK: 65535
 // CHECK: 4294967295
-// CHECK: -1
+// CHECK: 18446744073709551615
+
 // int32 -> uint8/16 pos
 // CHECK: 44
 // CHECK: 4464
+
 // int32 widen
 // CHECK: 42
+
 // int64 -> int8
 // CHECK: 44
 // CHECK: 56
 // CHECK: 127
 // CHECK: -128
 // CHECK: -128
+
 // int64 -> int16
 // CHECK: -25536
 // CHECK: 25536
 // CHECK: 4464
+
 // int64 -> int32
 // CHECK: -1294967296
 // CHECK: 1294967296
+
 // int64 -> uint8
 // CHECK: 255
 // CHECK: 44
 // CHECK: 127
+
 // int64 -> uint16
 // CHECK: 65535
 // CHECK: 4464
+
 // int64 -> uint32
 // CHECK: 4294967295
 // CHECK: 705032704
+
 // int64 -> uint64
-// CHECK: -1
+// CHECK: 18446744073709551615
 
 // int8 -> float
 // CHECK: 42
@@ -266,6 +282,7 @@ func main() {
 // CHECK: -7
 // CHECK: 42
 // CHECK: -7
+
 // int16 -> float
 // CHECK: 1000
 // CHECK: -1000
@@ -273,14 +290,19 @@ func main() {
 // CHECK: -1000
 // CHECK: 1000
 // CHECK: -1000
+
 // int32 -> float
 // CHECK: 1000
 // CHECK: -1000
 // CHECK: 100000
+// CHECK: -100000
 // CHECK: 100000
+// CHECK: -100000
+
 // INT32_MAX -> float
-// CHECK: 2147483648
+// CHECK: 2.14748365e+09
 // CHECK: 2147483647
+
 // int64 -> float
 // CHECK: 1000
 // CHECK: -1000
@@ -288,7 +310,16 @@ func main() {
 // CHECK: -100000
 // CHECK: 100000
 // CHECK: -100000
+
 // 2^53 + 1 -> float64
 // CHECK: 9007199254740992
+
 // INT64_MAX -> float16
 // CHECK: inf
+
+// CHECK: -2049
+// CHECK: -20000
+// CHECK: -2049
+// CHECK: -100000
+// CHECK: -2049
+// CHECK: -2049

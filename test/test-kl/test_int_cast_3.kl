@@ -1,0 +1,9 @@
+// RUN: koalac --opt %s 2>&1 | filecheck %s
+
+func test_7() {
+    var a1 uint64 = 10
+    var b1 uint64 = 20
+    print(a1 - b1)
+}
+
+// CHECK: unsigned integer overflow in binary sub

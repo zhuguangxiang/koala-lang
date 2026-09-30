@@ -70,7 +70,7 @@ pub func assert_false(cond bool, msg = "") {
 /// Example:
 ///     assert_eq(add(1, 2), 3)
 ///     assert_eq(name, "koala")
-pub func assert_eq[T : Equatable[T]](a T, b T) {
+pub func assert_eq[T : Equatable](a T, b T) {
     if a != b { panic(format("assertion failed: {} != {}", a, b)) }
 }
 
@@ -79,6 +79,10 @@ pub func assert_eq_uint8(a uint8, b uint8) {
 }
 
 pub func assert_eq_int64(a int, b int) {
+    if a != b { panic(format("assertion failed: {} != {}", a, b)) }
+}
+
+pub func assert_eq_int8(a int8, b int8) {
     if a != b { panic(format("assertion failed: {} != {}", a, b)) }
 }
 

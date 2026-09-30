@@ -14,11 +14,11 @@ extern "C" {
 static TypeObject *_value_typeof(int tag)
 {
     static TypeObject *_types_mapping[] = {
-        [TAG_NIL] = &nil_type,       [TAG_ERROR] = &exc_type,     [TAG_BOOL] = &bool_type,
-        [TAG_INT8] = &int_type,      [TAG_INT16] = &int_type,     [TAG_INT32] = &int_type,
-        [TAG_INT64] = &int_type,     [TAG_UINT8] = &int_type,     [TAG_UINT16] = &int_type,
-        [TAG_UINT32] = &int_type,    [TAG_UINT64] = &int_type,    [TAG_FLOAT16] = &float_type,
-        [TAG_FLOAT32] = &float_type, [TAG_FLOAT64] = &float_type,
+        [TAG_NIL] = &nil_type,         [TAG_ERROR] = &exc_type,       [TAG_BOOL] = &bool_type,
+        [TAG_INT8] = &int8_type,       [TAG_INT16] = &int16_type,     [TAG_INT32] = &int32_type,
+        [TAG_INT64] = &int64_type,     [TAG_UINT8] = &uint8_type,     [TAG_UINT16] = &uint16_type,
+        [TAG_UINT32] = &uint32_type,   [TAG_UINT64] = &uint64_type,   [TAG_FLOAT16] = &float16_type,
+        [TAG_FLOAT32] = &float32_type, [TAG_FLOAT64] = &float64_type,
     };
 
     ASSERT(tag < COUNT_OF(_types_mapping));

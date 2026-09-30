@@ -1128,6 +1128,21 @@ static void read_const(KlcFile *klc, Vector *vec)
             } else {
                 UNREACHABLE();
             }
+
+            if (sign && len < 8) {
+                switch (len) {
+                    case 1:
+                        ival = (uint64_t)(int8_t)ival;
+                        break;
+                    case 2:
+                        ival = (uint64_t)(int16_t)ival;
+                        break;
+                    case 4:
+                        ival = (uint64_t)(int32_t)ival;
+                        break;
+                }
+            }
+
             item->ival = ival;
             break;
         }

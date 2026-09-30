@@ -29,7 +29,7 @@ TValue foo_swim_func(TValue *self, TValue *args, int nargs)
     TValue *age = &args[1];
 
     ASSERT(kl_typeof(name) == &str_type);
-    ASSERT(kl_typeof(age) == &int_type);
+    ASSERT(kl_typeof(age) == &int64_type);
 
     char *_name = STR_BUF(to_obj(name));
     int _age = to_int64(age);

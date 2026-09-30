@@ -29,7 +29,15 @@ static void dump_const(KlMachConst *kc, int index, int indent)
             break;
 
         case KL_MACH_CONST_FLOAT:
-            printf("float%d = %.17g\n", kc->len * 8, kc->f64);
+            if (kc->len == 2) {
+                printf("float16 = %.5g\n", (double)(_Float16)kc->f64);
+            } else if (kc->len == 4) {
+                printf("float32 = %.9g\n", (double)(float)kc->f64);
+            } else if (kc->len == 8) {
+                printf("float64 = %.17g\n", kc->f64);
+            } else {
+                UNREACHABLE();
+            }
             break;
 
         case KL_MACH_CONST_BOOL:

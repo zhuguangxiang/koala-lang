@@ -459,9 +459,20 @@ extern TypeObject str_type;
 extern TypeObject exc_type;
 // extern TypeObject field_type;
 // shared by all int/uint types
-extern TypeObject int_type;
+extern TypeObject int8_type;
+extern TypeObject int16_type;
+extern TypeObject int32_type;
+extern TypeObject int64_type;
+
+extern TypeObject uint8_type;
+extern TypeObject uint16_type;
+extern TypeObject uint32_type;
+extern TypeObject uint64_type;
+
 // shared by all float types
-extern TypeObject float_type;
+extern TypeObject float16_type;
+extern TypeObject float32_type;
+extern TypeObject float64_type;
 
 TypeObject *kl_typeof(TValue *val);
 void kl_init_type(TypeObject *tp);

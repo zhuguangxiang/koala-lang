@@ -121,7 +121,36 @@ extern "C" {
 static TValue _int_str(TValue *self, TValue *args, int nargs)
 {
     char buf[24];
-    snprintf(buf, 23, "%" PRId64, self->ival);
+    uint64_t tag = self->tag;
+
+    if (is_int_tag(tag)) {
+        if (is_int8(self)) {
+            snprintf(buf, 23, "%" PRId8, (int8_t)self->ival);
+        } else if (is_int16(self)) {
+            snprintf(buf, 23, "%" PRId16, (int16_t)self->ival);
+        } else if (is_int32(self)) {
+            snprintf(buf, 23, "%" PRId32, (int32_t)self->ival);
+        } else if (is_int64(self)) {
+            snprintf(buf, 23, "%" PRId64, (int64_t)self->ival);
+        } else {
+            UNREACHABLE();
+        }
+    } else if (is_uint_tag(tag)) {
+        if (is_uint8(self)) {
+            snprintf(buf, 23, "%" PRIu8, (uint8_t)self->ival);
+        } else if (is_uint16(self)) {
+            snprintf(buf, 23, "%" PRIu16, (uint16_t)self->ival);
+        } else if (is_uint32(self)) {
+            snprintf(buf, 23, "%" PRIu32, (uint32_t)self->ival);
+        } else if (is_uint64(self)) {
+            snprintf(buf, 23, "%" PRIu64, (uint64_t)self->ival);
+        } else {
+            UNREACHABLE();
+        }
+    } else {
+        UNREACHABLE();
+    }
+
     buf[23] = '\0';
     Object *sobj = kl_new_nstr(buf, strlen(buf));
     return obj_value(sobj);
@@ -132,9 +161,58 @@ static MethodDef int_methods[] = {
     { NULL },
 };
 
-TypeObject int_type = {
+TypeObject int8_type = {
+    ._type = &type_type,
+    .name = "int8",
+    .flags = TP_FLAGS_VALUE,
+    .methdefs = int_methods,
+};
+
+TypeObject int16_type = {
+    ._type = &type_type,
+    .name = "int16",
+    .flags = TP_FLAGS_VALUE,
+    .methdefs = int_methods,
+};
+
+TypeObject int32_type = {
+    ._type = &type_type,
+    .name = "int32",
+    .flags = TP_FLAGS_VALUE,
+    .methdefs = int_methods,
+};
+
+TypeObject int64_type = {
     ._type = &type_type,
     .name = "int64",
+    .flags = TP_FLAGS_VALUE,
+    .methdefs = int_methods,
+};
+
+TypeObject uint8_type = {
+    ._type = &type_type,
+    .name = "uint8",
+    .flags = TP_FLAGS_VALUE,
+    .methdefs = int_methods,
+};
+
+TypeObject uint16_type = {
+    ._type = &type_type,
+    .name = "uint16",
+    .flags = TP_FLAGS_VALUE,
+    .methdefs = int_methods,
+};
+
+TypeObject uint32_type = {
+    ._type = &type_type,
+    .name = "uint32",
+    .flags = TP_FLAGS_VALUE,
+    .methdefs = int_methods,
+};
+
+TypeObject uint64_type = {
+    ._type = &type_type,
+    .name = "uint64",
     .flags = TP_FLAGS_VALUE,
     .methdefs = int_methods,
 };

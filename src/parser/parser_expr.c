@@ -50,6 +50,47 @@ static ConstPlaceHolder *get_const_placeholder(char *name)
     return (ConstPlaceHolder *)ret;
 }
 
+#include "literal_as_expected.h"
+
+static int check_literal_as_expected(Literal *lit, Loc loc, TypeSpec *expected, ParserState *ps)
+{
+    ASSERT(lit != NULL);
+    ASSERT(expected != NULL);
+
+    if (lit->which != LIT_INT) return 0;
+
+    int width = expected->int_flt_info.width;
+    int sign = expected->int_flt_info.sign;
+
+    if (sign) {
+        switch (width) {
+            case 1:
+                return expect_lit_as_int8(lit, loc, ps);
+            case 2:
+                return expect_lit_as_int16(lit, loc, ps);
+            case 4:
+                return expect_lit_as_int32(lit, loc, ps);
+            case 8:
+                return expect_lit_as_int64(lit, loc, ps);
+            default:
+                return 0;
+        }
+    } else {
+        switch (width) {
+            case 1:
+                return expect_lit_as_uint8(lit, loc, ps);
+            case 2:
+                return expect_lit_as_uint16(lit, loc, ps);
+            case 4:
+                return expect_lit_as_uint32(lit, loc, ps);
+            case 8:
+                return expect_lit_as_uint64(lit, loc, ps);
+            default:
+                return 0;
+        }
+    }
+}
+
 static void parse_ident(ParserState *ps, Expr *exp)
 {
     IdentExpr *id_exp = (IdentExpr *)exp;
@@ -101,7 +142,24 @@ static void parse_ident(ParserState *ps, Expr *exp)
         }
     }
 
-    exp->ts = sym->ts;
+    if (sym->flags & SYM_FLAGS_CONST && exp->expected) {
+        log_info("resolving constant variable '%s' with expected type:", sym->name);
+        log_type_spec(exp->expected);
+        Literal *lit = ((VarSymbol *)sym)->lit;
+        ASSERT(lit != NULL);
+        if (check_literal_as_expected(lit, id->loc, exp->expected, ps)) {
+            exp->ts = exp->expected;
+        } else {
+            log_info("constant variable '%s' does not match the expected type", sym->name);
+            log_type_spec(exp->expected);
+            exp->ts = sym->ts;
+        }
+    } else {
+        log_info("constant variable '%s' does not have an expected type", sym->name);
+        log_type_spec(sym->ts);
+        exp->ts = sym->ts;
+    }
+
     exp->sym = sym;
 
     log_info("ident resolved: %s", sym->name);
@@ -545,6 +603,17 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
                 if (!e->ts) return;
                 log_info("after parsing literal expr, arg type is:");
                 log_type_spec(e->ts);
+            } else if (e->kind == EXPR_ID_KIND && e->sym && e->sym->kind == SYM_VAR) {
+                VarSymbol *var_sym = (VarSymbol *)e->sym;
+                if (var_sym->flags & SYM_FLAGS_CONST) {
+                    log_info("arg is a constant variable");
+                    e->ctx = EXPR_CTX_LOAD;
+                    e->expected = arg->ts;
+                    parser_visit_expr(ps, e);
+                    if (!e->ts) return;
+                    log_info("after parsing identifier expr, arg type is:");
+                    log_type_spec(e->ts);
+                }
             }
 
             if (!type_spec_compatible(arg->ts, e->ts)) {
@@ -2681,6 +2750,8 @@ static void parse_unary(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, e);
     if (!e->ts) return;
 
+    TypeSpec *orig_ts = e->ts;
+
     if (op == UNARY_PLUS) {
         if (e->ts->kind != TYPE_INT && e->ts->kind != TYPE_FLOAT) {
             kl_error(unary->op_loc, "unary '+' operator requires int or float type.");
@@ -2692,13 +2763,35 @@ static void parse_unary(ParserState *ps, Expr *exp)
             kl_error(unary->op_loc, "unary '-' operator requires int or float type.");
             return;
         }
-        exp->ts = e->ts;
+
+        if (e->ts->kind == TYPE_INT) {
+            if (e->ts->int_flt_info.sign) {
+                exp->ts = int64_type_spec();
+            } else {
+                exp->ts = uint64_type_spec();
+            }
+            log_info("promote integer type from %s%d to %s",
+                     orig_ts->int_flt_info.sign ? "int" : "uint", orig_ts->int_flt_info.width * 8,
+                     exp->ts->int_flt_info.sign ? "int64" : "uint64");
+        } else if (e->ts->kind == TYPE_FLOAT) {
+            exp->ts = float64_type_spec();
+            log_info("promote float type from float%d to float64", orig_ts->int_flt_info.width * 8);
+        }
     } else if (op == UNARY_BIT_NOT) {
         if (e->ts->kind != TYPE_INT) {
             kl_error(unary->op_loc, "unary '~' operator requires int type.");
             return;
         }
-        exp->ts = e->ts;
+
+        if (e->ts->int_flt_info.sign) {
+            exp->ts = int64_type_spec();
+        } else {
+            exp->ts = uint64_type_spec();
+        }
+
+        log_info("promote integer type from %s%d to %s",
+                 orig_ts->int_flt_info.sign ? "int" : "uint", orig_ts->int_flt_info.width * 8,
+                 exp->ts->int_flt_info.sign ? "int64" : "uint64");
     } else if (op == UNARY_NOT) {
         if (e->ts->kind != TYPE_BOOL) {
             kl_error(unary->op_loc, "unary '!' operator requires bool type.");
@@ -2710,6 +2803,36 @@ static void parse_unary(ParserState *ps, Expr *exp)
     } else {
         UNREACHABLE();
     }
+
+    // TODO: check _neg__ exists or not
+}
+
+static int promote_integer_type(Expr *lhs, Expr *rhs)
+{
+    TypeSpec *lhs_ts = lhs->ts;
+    TypeSpec *rhs_ts = rhs->ts;
+
+    if (type_is_uint64(lhs_ts) && type_is_int(rhs_ts)) {
+        return -1;
+    } else if (type_is_uint64(rhs_ts) && type_is_int(lhs_ts)) {
+        return -1;
+    }
+
+    if ((lhs->ts->int_flt_info.sign == 0) && (rhs->ts->int_flt_info.sign == 0)) {
+        lhs->ts = uint64_type_spec();
+        rhs->ts = uint64_type_spec();
+        log_info("promote binary-lhs from uint%d to uint64", lhs->ts->int_flt_info.width * 8);
+        log_info("promote binary-rhs from uint%d to uint64", rhs->ts->int_flt_info.width * 8);
+    } else {
+        lhs->ts = int64_type_spec();
+        rhs->ts = int64_type_spec();
+        log_info("promote binary-lhs from %s%d to int64",
+                 lhs->ts->int_flt_info.sign ? "int" : "uint", lhs->ts->int_flt_info.width * 8);
+        log_info("promote binary-rhs from %s%d to int64",
+                 rhs->ts->int_flt_info.sign ? "int" : "uint", rhs->ts->int_flt_info.width * 8);
+    }
+
+    return 0;
 }
 
 static void parse_binary(ParserState *ps, Expr *exp)
@@ -2721,28 +2844,40 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);
-    if (lhs->ts) {
-        TypeSpec *orig_ts = lhs->ts;
-        if (lhs->ts->kind == TYPE_INT) {
-            if (lhs->ts->int_flt_info.sign) {
-                lhs->ts = int64_type_spec();
-            } else {
-                lhs->ts = uint64_type_spec();
-            }
-            log_info("promote integer type from %s%d to %s",
-                     orig_ts->int_flt_info.sign ? "int" : "uint", orig_ts->int_flt_info.width * 8,
-                     lhs->ts->int_flt_info.sign ? "int64" : "uint64");
-        } else if (lhs->ts->kind == TYPE_FLOAT) {
-            lhs->ts = float64_type_spec();
-            log_info("promote float type from float%d to float64", orig_ts->int_flt_info.width * 8);
-        }
-    }
 
     rhs->ctx = EXPR_CTX_LOAD;
-    rhs->expected = lhs->ts;
+    if (rhs->kind == EXPR_LITERAL_KIND && lhs->ts && type_is_uint64(lhs->ts)) {
+        rhs->expected = lhs->ts;
+    }
     parser_visit_expr(ps, rhs);
 
     if (!lhs->ts || !rhs->ts) return;
+
+    if (rhs->kind == EXPR_ID_KIND) {
+        Symbol *rhs_sym = rhs->sym;
+        if (!type_is_uint64(lhs->ts) && rhs_sym && rhs_sym->flags & SYM_FLAGS_CONST) {
+            rhs->expected = lhs->ts;
+            // re-parse the rhs expression with the expected type set to lhs->ts
+            parser_visit_expr(ps, rhs);
+        }
+    }
+
+    if (!lhs->ts || !rhs->ts) return;
+
+    // Promote integer and float types for binary operations.
+    TypeSpec *orig_ts = lhs->ts;
+    if (lhs->ts->kind == TYPE_INT && rhs->ts->kind == TYPE_INT) {
+        if (promote_integer_type(lhs, rhs)) {
+            kl_error(bin->op_loc,
+                     "cannot do binary operation on int64 and uint64 with different signs.");
+            return;
+        }
+    } else if (lhs->ts->kind == TYPE_FLOAT && rhs->ts->kind == TYPE_FLOAT) {
+        lhs->ts = float64_type_spec();
+        log_info("promote float type from float%d to float64", orig_ts->int_flt_info.width * 8);
+    } else {
+        // fall through for arguments check of functions.
+    }
 
     if (type_is_optional(lhs->ts) && (op != BINARY_EQ && op != BINARY_NEQ)) {
         Symbol *opt_sym = lhs->sym;

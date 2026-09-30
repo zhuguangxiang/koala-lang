@@ -785,7 +785,7 @@ static int float_need_cast(TypeSpec *dst, TypeSpec *src)
 
     log_info("[isel] src=float%d → dst=float%d", src_width * 8, dst_width * 8);
 
-    if (dst_width == src_width) {
+    if (dst_width >= src_width) {
         log_info("[isel] float, no cast needed: same type");
         return 0;
     }

@@ -40,23 +40,20 @@ func test_float_8(n float64) float32 {
 // CHECK: ret r0
 // CHECK-LABEL: @test_float_1_1[1,1]:
 // CHECK: ret r0
-// CHECK-LABEL: @test_float_2[2,3]:
-// CHECK: float.cast r0, r0, ti=0x12, mode=0
+// CHECK-LABEL: @test_float_2[2,2]:
 // CHECK: ret r0
-// CHECK-LABEL: @test_float_3[4,5]:
-// CHECK: float.cast r0, r0, ti=0x13, mode=0
+// CHECK-LABEL: @test_float_3[3,3]:
 // CHECK: ret r0
-// CHECK-LABEL: @test_float_4[6,7]:
+// CHECK-LABEL: @test_float_4[4,5]:
 // CHECK: float.cast r0, r0, ti=0x11, mode=0
 // CHECK: ret r0
-// CHECK-LABEL: @test_float_5[8,8]:
+// CHECK-LABEL: @test_float_5[6,6]:
 // CHECK: ret r0
-// CHECK-LABEL: @test_float_6[9,10]:
-// CHECK: float.cast r0, r0, ti=0x13, mode=0
+// CHECK-LABEL: @test_float_6[7,7]:
 // CHECK: ret r0
-// CHECK-LABEL: @test_float_7[11,12]:
+// CHECK-LABEL: @test_float_7[8,9]:
 // CHECK: float.cast r0, r0, ti=0x11, mode=0
 // CHECK: ret r0
-// CHECK-LABEL: @test_float_8[13,14]:
+// CHECK-LABEL: @test_float_8[10,11]:
 // CHECK: float.cast r0, r0, ti=0x12, mode=0
 // CHECK: ret r0

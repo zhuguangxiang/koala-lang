@@ -1,0 +1,405 @@
+// RUN: koala --test %s
+
+func test_i8_to_i8(n int8) int8 { return n }
+
+func test_i8_to_i16(n int8) int16 { return n }
+
+func test_i8_to_i32(n int8) int32 { return n }
+
+func test_i8_to_i64(n int8) int64 { return n }
+
+// Explicit conversion required:
+//
+// signed and unsigned types cannot be implicitly converted.
+
+func test_i8_to_u8(n int8) uint8 { return uint8(n) }
+
+// Explicit conversion required:
+//
+// signed and unsigned types cannot be implicitly converted.
+
+func test_i8_to_u16(n int8) uint16 { return uint16(n) }
+
+// Explicit conversion required:
+//
+// signed and unsigned types cannot be implicitly converted.
+
+func test_i8_to_u32(n int8) uint32 { return uint32(n) }
+
+// Explicit conversion required:
+//
+// signed and unsigned types cannot be implicitly converted.
+
+func test_i8_to_u64(n int8) uint64 { return uint64(n) }
+
+func test_i8_neg(n int8) int { return -n }
+
+func test_i8_add_i8(n int8, m int8) int { return n + m }
+
+func test_i8_sub_i16(n int8, m int16) int { return n - m }
+
+func test_i8_mul_i32(n int8, m int32) int { return n * m }
+
+func test_i8_div_i64(n int8, m int64) int { return n / m }
+
+func test_i8_mod_u8(n int8, m uint8) int { return n % m }
+
+func test_i8_add_u16(n int8, m uint16) int { return n + m }
+
+func test_i8_add_u32(n int8, m uint32) int { return n + m }
+
+// uint64 cannot implicitly mix with int8.
+
+func test_i8_add_u64(n int8, m uint64) int { return n + int64(m) }
+
+import "std/ut"
+
+@test
+func test_ut_i8_to_i8() {
+    ut.assert(test_i8_to_i8(INT8_MIN) == INT8_MIN)
+    ut.assert(test_i8_to_i8(-1) == -1)
+    ut.assert(test_i8_to_i8(0) == 0)
+    ut.assert(test_i8_to_i8(1) == 1)
+    ut.assert(test_i8_to_i8(INT8_MAX) == INT8_MAX)
+}
+
+@test
+func test_ut_i8_to_i16() {
+    ut.assert(test_i8_to_i16(INT8_MIN) == INT8_MIN)
+    ut.assert(test_i8_to_i16(-1) == -1)
+    ut.assert(test_i8_to_i16(0) == 0)
+    ut.assert(test_i8_to_i16(1) == 1)
+    ut.assert(test_i8_to_i16(INT8_MAX) == INT8_MAX)
+}
+
+@test
+func test_ut_i8_to_i32() {
+    ut.assert(test_i8_to_i32(INT8_MIN) == INT8_MIN)
+    ut.assert(test_i8_to_i32(-1) == -1)
+    ut.assert(test_i8_to_i32(0) == 0)
+    ut.assert(test_i8_to_i32(1) == 1)
+    ut.assert(test_i8_to_i32(INT8_MAX) == INT8_MAX)
+}
+
+@test
+func test_ut_i8_to_i64() {
+    ut.assert(test_i8_to_i64(INT8_MIN) == INT8_MIN)
+    ut.assert(test_i8_to_i64(-1) == -1)
+    ut.assert(test_i8_to_i64(0) == 0)
+    ut.assert(test_i8_to_i64(1) == 1)
+    ut.assert(test_i8_to_i64(INT8_MAX) == INT8_MAX)
+}
+
+@test
+func test_ut_i8_to_u8() {
+    ut.assert(test_i8_to_u8(INT8_MIN) == 128)
+    ut.assert(test_i8_to_u8(-1) == UINT8_MAX)
+    ut.assert(test_i8_to_u8(0) == 0)
+    ut.assert(test_i8_to_u8(1) == 1)
+    ut.assert(test_i8_to_u8(INT8_MAX) == INT8_MAX)
+}
+
+@test
+func test_ut_i8_to_u16() {
+    ut.assert(test_i8_to_u16(INT8_MIN) == 65408)
+    ut.assert(test_i8_to_u16(-1) == UINT16_MAX)
+    ut.assert(test_i8_to_u16(-1) == 65535)
+    ut.assert(test_i8_to_u16(0) == 0)
+    ut.assert(test_i8_to_u16(1) == 1)
+    ut.assert(test_i8_to_u16(INT8_MAX) == INT8_MAX)
+}
+
+@test
+func test_ut_i8_to_u32() {
+    ut.assert(test_i8_to_u32(INT8_MIN) == 4294967168)
+    ut.assert(test_i8_to_u32(-1) == UINT32_MAX)
+    ut.assert(test_i8_to_u32(0) == 0)
+    ut.assert(test_i8_to_u32(1) == 1)
+    ut.assert(test_i8_to_u32(INT8_MAX) == INT8_MAX)
+}
+
+@test
+func test_ut_i8_to_u64() {
+    ut.assert(test_i8_to_u64(INT8_MIN) == 18446744073709551488)
+    ut.assert(test_i8_to_u64(-1) == UINT64_MAX)
+    ut.assert(test_i8_to_u64(0) == 0)
+    ut.assert(test_i8_to_u64(1) == 1)
+    ut.assert(test_i8_to_u64(INT8_MAX) == 127)
+}
+
+@test
+func test_ut_i8_neg() {
+    ut.assert(test_i8_neg(INT8_MIN) == 128)
+    ut.assert(test_i8_neg(-1) == 1)
+    ut.assert(test_i8_neg(0) == 0)
+    ut.assert(test_i8_neg(1) == -1)
+    ut.assert(test_i8_neg(INT8_MAX) == -127)
+}
+
+@test
+func test_ut_i8_add_i8() {
+    // Same-sign positive.
+    ut.assert_eq(test_i8_add_i8(0, 0), 0)
+    ut.assert_eq(test_i8_add_i8(1, 1), 2)
+    ut.assert_eq(test_i8_add_i8(-1, -1), -2)
+    ut.assert_eq(test_i8_add_i8(INT8_MAX, 1), 128)
+
+    // Same-sign negative.
+    ut.assert_eq(test_i8_add_i8(-1, -1), -2)
+    ut.assert_eq(test_i8_add_i8(INT8_MIN, -1), -129)
+
+    // Crossing zero.
+    ut.assert_eq(test_i8_add_i8(-1, 1), 0)
+    ut.assert_eq(test_i8_add_i8(1, -1), 0)
+
+    // Extreme combinations.
+    ut.assert_eq(test_i8_add_i8(INT8_MIN, INT8_MAX), -1)
+    ut.assert_eq(test_i8_add_i8(INT8_MAX, INT8_MAX), 254)
+    ut.assert_eq(test_i8_add_i8(INT8_MIN, INT8_MIN), -256)
+    ut.assert_eq(test_i8_add_i8(INT8_MAX, INT8_MIN), -1)
+}
+
+@test
+func test_ut_i8_sub_i16() {
+    // Zero and identity.
+    ut.assert(test_i8_sub_i16(0, 0) == 0)
+    ut.assert(test_i8_sub_i16(1, 1) == 0)
+    ut.assert(test_i8_sub_i16(-1, -1) == 0)
+
+    // Crossing zero.
+    ut.assert(test_i8_sub_i16(-1, 1) == -2)
+    ut.assert(test_i8_sub_i16(1, -1) == 2)
+
+    // i8 boundary against i16 boundary.
+    ut.assert(test_i8_sub_i16(INT8_MIN, INT16_MAX) == -32895)
+    ut.assert(test_i8_sub_i16(INT8_MAX, INT16_MIN) == 32895)
+
+    // Same extreme.
+    ut.assert(test_i8_sub_i16(INT8_MIN, INT8_MIN) == 0)
+    ut.assert(test_i8_sub_i16(INT8_MAX, INT8_MAX) == 0)
+
+    // Large i16 values.
+    ut.assert(test_i8_sub_i16(INT8_MIN, 32767) == -32895)
+    ut.assert(test_i8_sub_i16(INT8_MAX, -32768) == 32895)
+
+    ut.assert(test_i8_sub_i16(INT8_MAX, INT16_MAX) == -32640)
+    ut.assert(test_i8_sub_i16(INT8_MIN, INT16_MIN) == 32640)
+}
+
+@test
+func test_ut_i8_mul_i32() {
+    // Identity and zero.
+    ut.assert(test_i8_mul_i32(0, 0) == 0)
+    ut.assert(test_i8_mul_i32(INT8_MIN, 0) == 0)
+    ut.assert(test_i8_mul_i32(INT8_MAX, 0) == 0)
+    ut.assert(test_i8_mul_i32(1, 1) == 1)
+    ut.assert(test_i8_mul_i32(-1, 1) == -1)
+    ut.assert(test_i8_mul_i32(1, -1) == -1)
+    ut.assert(test_i8_mul_i32(-1, -1) == 1)
+
+    // Sign combinations.
+    ut.assert(test_i8_mul_i32(2, 3) == 6)
+    ut.assert(test_i8_mul_i32(-2, 3) == -6)
+    ut.assert(test_i8_mul_i32(2, -3) == -6)
+    ut.assert(test_i8_mul_i32(-2, -3) == 6)
+
+    // i8 boundaries.
+    ut.assert(test_i8_mul_i32(INT8_MAX, 1) == 127)
+    ut.assert(test_i8_mul_i32(INT8_MIN, 1) == -128)
+    ut.assert(test_i8_mul_i32(INT8_MAX, -1) == -127)
+    ut.assert(test_i8_mul_i32(INT8_MIN, -1) == 128)
+
+    // Products exceeding int8 range must remain valid int results.
+    ut.assert(test_i8_mul_i32(INT8_MAX, 127) == 16129)
+    ut.assert(test_i8_mul_i32(INT8_MIN, 128) == -16384)
+    ut.assert(test_i8_mul_i32(INT8_MIN, -128) == 16384)
+
+    // Larger int32 operands.
+    ut.assert(test_i8_mul_i32(INT8_MAX, 1000000) == 127000000)
+    ut.assert(test_i8_mul_i32(INT8_MIN, 1000000) == -128000000)
+
+    ut.assert(test_i8_mul_i32(0, 123) == 0)
+
+    ut.assert(test_i8_mul_i32(1, INT32_MAX) == INT32_MAX)
+    ut.assert(test_i8_mul_i32(-1, INT32_MAX) == -INT32_MAX)
+
+    ut.assert(test_i8_mul_i32(INT8_MAX, 2) == 254)
+    ut.assert(test_i8_mul_i32(INT8_MIN, 2) == -256)
+}
+
+@test
+func test_ut_i8_div_i64() {
+    // Identity.
+    ut.assert(test_i8_div_i64(0, 1) == 0)
+    ut.assert(test_i8_div_i64(1, 1) == 1)
+    ut.assert(test_i8_div_i64(-1, 1) == -1)
+
+    // Exact division.
+    ut.assert(test_i8_div_i64(100, 10) == 10)
+    ut.assert(test_i8_div_i64(-100, 10) == -10)
+    ut.assert(test_i8_div_i64(100, -10) == -10)
+    ut.assert(test_i8_div_i64(-100, -10) == 10)
+
+    // Truncation toward zero.
+    ut.assert(test_i8_div_i64(7, 2) == 3)
+    ut.assert(test_i8_div_i64(-7, 2) == -3)
+    ut.assert(test_i8_div_i64(7, -2) == -3)
+    ut.assert(test_i8_div_i64(-7, -2) == 3)
+
+    // i8 boundaries.
+    ut.assert(test_i8_div_i64(INT8_MIN, 1) == -128)
+    ut.assert(test_i8_div_i64(INT8_MIN, -1) == 128)
+    ut.assert(test_i8_div_i64(INT8_MAX, 1) == 127)
+    ut.assert(test_i8_div_i64(INT8_MAX, -1) == -127)
+
+    // Division by a larger-magnitude operand.
+    ut.assert(test_i8_div_i64(127, 128) == 0)
+    ut.assert(test_i8_div_i64(-127, 128) == 0)
+    ut.assert(test_i8_div_i64(127, -128) == 0)
+    ut.assert(test_i8_div_i64(-127, -128) == 0)
+
+    // Large int64 divisors.
+    ut.assert(test_i8_div_i64(127, 9223372036854775807) == 0)
+    ut.assert(test_i8_div_i64(-128, 9223372036854775807) == 0)
+
+    ut.assert(test_i8_div_i64(10, 2) == 5)
+    ut.assert(test_i8_div_i64(-10, 2) == -5)
+    ut.assert(test_i8_div_i64(10, -2) == -5)
+    ut.assert(test_i8_div_i64(-10, -2) == 5)
+
+    ut.assert(test_i8_div_i64(INT8_MAX, INT64_MAX) == 0)
+    ut.assert(test_i8_div_i64(INT8_MIN, INT64_MAX) == 0)
+}
+
+@test
+func test_ut_i8_mod_u8() {
+    // Positive values.
+    ut.assert(test_i8_mod_u8(0, 1) == 0)
+    ut.assert(test_i8_mod_u8(1, 1) == 0)
+    ut.assert(test_i8_mod_u8(7, 3) == 1)
+    ut.assert(test_i8_mod_u8(127, 10) == 7)
+
+    // Negative dividend.
+    ut.assert(test_i8_mod_u8(-1, 2) == -1)
+    ut.assert(test_i8_mod_u8(-7, 3) == -1)
+    ut.assert(test_i8_mod_u8(-7, 4) == -3)
+    ut.assert(test_i8_mod_u8(INT8_MIN, 3) == -2)
+    ut.assert(test_i8_mod_u8(INT8_MIN, 127) == -1)
+
+    // Exact division.
+    ut.assert(test_i8_mod_u8(100, 10) == 0)
+    ut.assert(test_i8_mod_u8(-100, 10) == 0)
+
+    // Modulus boundaries.
+    ut.assert(test_i8_mod_u8(127, UINT8_MAX) == 127)
+    ut.assert(test_i8_mod_u8(-128, UINT8_MAX) == -128)
+    ut.assert(test_i8_mod_u8(127, 128) == 127)
+    ut.assert(test_i8_mod_u8(-128, 128) == 0)
+}
+
+@test
+func test_ut_i8_add_u16() {
+    // Basic cases.
+    ut.assert(test_i8_add_u16(0, 0) == 0)
+    ut.assert(test_i8_add_u16(1, 1) == 2)
+    ut.assert(test_i8_add_u16(-1, 1) == 0)
+    ut.assert(test_i8_add_u16(1, UINT16_MAX) == 65536)
+    ut.assert(test_i8_add_u16(1, 65535) == 65536)
+
+    // i8 boundaries.
+    ut.assert(test_i8_add_u16(INT8_MIN, 0) == -128)
+    ut.assert(test_i8_add_u16(INT8_MAX, 0) == 127)
+    ut.assert(test_i8_add_u16(INT8_MIN, UINT16_MAX) == 65407)
+    ut.assert(test_i8_add_u16(INT8_MAX, UINT16_MAX) == 65662)
+    ut.assert(test_i8_add_u16(INT8_MIN, 65535) == 65407)
+    ut.assert(test_i8_add_u16(INT8_MAX, 65535) == 65662)
+
+    // Negative i8 with large unsigned values.
+    ut.assert(test_i8_add_u16(-1, UINT16_MAX) == 65534)
+    ut.assert(test_i8_add_u16(-128, UINT16_MAX) == 65407)
+    ut.assert(test_i8_add_u16(-1, 65535) == 65534)
+    ut.assert(test_i8_add_u16(-128, 65535) == 65407)
+}
+
+@test
+func test_ut_i8_add_u32() {
+    // Basic cases.
+    ut.assert(test_i8_add_u32(0, 0) == 0)
+    ut.assert(test_i8_add_u32(1, 1) == 2)
+    ut.assert(test_i8_add_u32(-1, 1) == 0)
+
+    // i8 boundaries.
+    ut.assert(test_i8_add_u32(INT8_MIN, 0) == -128)
+    ut.assert(test_i8_add_u32(INT8_MAX, 0) == 127)
+
+    // UINT32 boundary.
+    ut.assert(test_i8_add_u32(1, UINT32_MAX) == 4294967296)
+    ut.assert(test_i8_add_u32(-1, UINT32_MAX) == 4294967294)
+    ut.assert(test_i8_add_u32(INT8_MIN, UINT32_MAX) == 4294967167)
+    ut.assert(test_i8_add_u32(INT8_MAX, UINT32_MAX) == 4294967422)
+
+    // Values around the signed/unsigned boundary.
+    ut.assert(test_i8_add_u32(-128, 128) == 0)
+    ut.assert(test_i8_add_u32(127, 128) == 255)
+}
+
+@test
+func test_ut_i8_add_u64() {
+    // Basic cases.
+    ut.assert(test_i8_add_u64(0, 0) == 0)
+    ut.assert(test_i8_add_u64(1, 1) == 2)
+    ut.assert(test_i8_add_u64(-1, 1) == 0)
+
+    // i8 boundaries.
+    ut.assert(test_i8_add_u64(INT8_MIN, 0) == -128)
+    ut.assert(test_i8_add_u64(INT8_MAX, 0) == 127)
+
+    // Explicit int64 conversion.
+    ut.assert(test_i8_add_u64(1, 9223372036854775807) == -9223372036854775808)
+    ut.assert(test_i8_add_u64(1, INT64_MAX) == INT64_MIN)
+    ut.assert(test_i8_add_u64(-1, INT64_MAX) == INT64_MAX - 1)
+    ut.assert(test_i8_add_u64(INT8_MIN, INT64_MAX) == 9223372036854775679)
+    ut.assert(test_i8_add_u64(INT8_MAX, 9223372036854775807) == -9223372036854775682)
+    ut.assert(test_i8_add_u64(INT8_MAX, INT64_MAX) == -9223372036854775682)
+
+    // UINT64 values that become negative after explicit int64 conversion.
+    ut.assert(test_i8_add_u64(0, UINT64_MAX) == -1)
+    ut.assert(test_i8_add_u64(1, UINT64_MAX) == 0)
+    ut.assert(test_i8_add_u64(-1, UINT64_MAX) == -2)
+
+    // INT64_MIN after explicit conversion.
+    ut.assert(test_i8_add_u64(0, 9223372036854775808) == -9223372036854775808)
+    ut.assert(test_i8_add_u64(1, 9223372036854775808) == -9223372036854775807)
+    ut.assert(test_i8_add_u64(-1, 9223372036854775808) == 9223372036854775807)
+
+    ut.assert(test_i8_add_u64(INT8_MAX, UINT32_MAX) == 4294967422)
+
+    ut.assert(test_i8_add_u64(INT8_MIN, UINT32_MAX) == 4294967167)
+}
+
+func i8_to_u8(v int8) uint8 {
+    return uint8(v)
+}
+
+func u8_to_i8(v uint8) int8 {
+    return int8(v)
+}
+
+@test
+func test_ut_i8_twos_complement() {
+    let a int8 = -1
+    let b int8 = -2
+    let c int8 = INT8_MIN
+
+    ut.assert(i8_to_u8(a) == UINT8_MAX)
+    ut.assert(i8_to_u8(b) == 254)
+    ut.assert(i8_to_u8(c) == 128)
+
+    let d uint8 = UINT8_MAX
+    let e uint8 = 254
+    let f uint8 = 128
+
+    ut.assert(u8_to_i8(d) == -1)
+    ut.assert(u8_to_i8(e) == -2)
+    ut.assert(u8_to_i8(f) == INT8_MIN)
+}

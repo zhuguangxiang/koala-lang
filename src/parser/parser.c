@@ -755,9 +755,35 @@ static int _same_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
          * Rule 3: numeric widening. Semantically compatible but memory
          * layout differs; codegen must insert explicit 'cast' instructions.
          */
-        case TYPE_INT:
+        case TYPE_INT: {
+            /* Fast path: same sign → pure width check (always safe if wider) */
+            if (dst->int_flt_info.sign == src->int_flt_info.sign) {
+                return dst->int_flt_info.width >= src->int_flt_info.width;
+            }
+
+            /*
+             * Cross-sign: only unsigned→signed is potentially safe.
+             * Signed→unsigned is NEVER safe (negative values can't map).
+             */
+            if (dst->int_flt_info.sign == 1 && src->int_flt_info.sign == 0) {
+                /*
+                 * uint(N) → int(M) is safe iff M > N.
+                 * Because max(uint(N)) = 2^N - 1, and max_positive(int(M)) = 2^(M-1) - 1.
+                 * We need 2^N - 1 <= 2^(M-1) - 1, i.e., N <= M - 1, i.e., M > N.
+                 * Example: uint32(width=32) → int64(width=64): 64 > 32 ✓
+                 *          uint64(width=64) → int64(width=64): 64 > 64 ✗
+                 */
+                return dst->int_flt_info.width > src->int_flt_info.width;
+            }
+
+            /* signed → unsigned: never implicitly safe */
+            return 0;
+        }
+
         case TYPE_FLOAT:
-            if (dst->int_flt_info.sign != src->int_flt_info.sign) return 0;
+            /* Float widening remains sign-agnostic (floats have no sign distinction
+             * in the same way integers do; all floats are signed IEEE-754).
+             * Only width matters: f32 → f64 is safe, f64 → f32 is not. */
             return dst->int_flt_info.width >= src->int_flt_info.width;
 
         case TYPE_BFLOAT16:
