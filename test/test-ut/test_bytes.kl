@@ -7,16 +7,16 @@ func test_init_zero() {
     let bs = bytes(10)
     ut.assert_eq(len(bs), 10)
     for i in range(len(bs)) {
-        ut.assert(bs[i] == 0)
+        ut.assert_int_eq(bs[i], 0)
     }
 }
 
 @test
 func test_empty() {
     let bs = bytes(10)
-    ut.assert_eq(bs.empty(), false)
+    ut.assert_false(bs.empty())
     let empty_bs = bytes(0)
-    ut.assert_eq(empty_bs.empty(), true)
+    ut.assert_true(empty_bs.empty())
 }
 
 @test
@@ -28,15 +28,15 @@ func test_index_access() {
     }
 
     for i in range(len(bs)) {
-        ut.assert(bs[i] == (96 + i))
+        ut.assert_int_eq(bs[i], 96 + i)
     }
 
     bs[0] = 0xFF
     bs[1] = 0x00
     bs[2] = 0xAB
-    ut.assert(bs[0] == 0xFF)
-    ut.assert(bs[1] == 0x00)
-    ut.assert(bs[2] == 0xAB)
+    ut.assert_int_eq(bs[0], 0xFF)
+    ut.assert_int_eq(bs[1], 0x00)
+    ut.assert_int_eq(bs[2], 0xAB)
 }
 
 @test_expect_panic("bytes index out of range")
@@ -74,8 +74,8 @@ func test_view() {
     let v = bs.view(3, 6)
     ut.assert_eq(len(v), 3)
     v[0] = 68
-    ut.assert(bs[3] == 68)
-    ut.assert(v[0] == 68)
+    ut.assert_int_eq(bs[3], 68)
+    ut.assert_int_eq(v[0], 68)
 }
 
 @test
@@ -86,17 +86,17 @@ func test_content_equality() {
     let c = "abd".to_bytes()
     let d = "ab".to_bytes()
 
-    ut.assert(a == a) // same object
-    ut.assert(a == b) // equal content, distinct objects
-    ut.assert(a != c) // different content
-    ut.assert(a != d) // different length
-    ut.assert_false(a == c)
-    ut.assert_false(a == d)
+    ut.assert_eq(a, a) // same object
+    ut.assert_eq(a, b) // equal content, distinct objects
+    ut.assert_ne(a, c) // different content
+    ut.assert_ne(a, d) // different length
+    ut.assert_ne(a, c)
+    ut.assert_ne(a, d)
 
     // views compare by the bytes they reference
-    ut.assert(a.view(0, 2) == d)
-    ut.assert(a.view(1, 3) == "bc".to_bytes())
-    ut.assert(a.view(0, 2) != a.view(1, 3))
+    ut.assert_eq(a.view(0, 2), d)
+    ut.assert_eq(a.view(1, 3), "bc".to_bytes())
+    ut.assert_ne(a.view(0, 2), a.view(1, 3))
 }
 
 @test
@@ -104,8 +104,8 @@ func test_content_hash() {
     // Equal content must produce identical hashes (Hashable contract).
     let a = "abc".to_bytes()
     let b = "abc".to_bytes()
-    ut.assert_eq(a.hash(), b.hash())
-    ut.assert_eq(a.hash(), a.view(0, 3).hash())
+    ut.assert_eq(hash(a), b.hash())
+    ut.assert_eq(hash(a), a.view(0, 3).hash())
 }
 
 @test
@@ -117,7 +117,7 @@ func test_seq_for() {
 
     var i = 0
     for b in bs {
-        ut.assert(b == (96 + i))
+        ut.assert_int_eq(b, 96 + i)
         i += 1
     }
 }
@@ -132,7 +132,7 @@ func test_iter_call() {
     let it = bs.iter()
     var i = 0
     while let v = it.next() {
-        ut.assert(v == (96 + i))
+        ut.assert_int_eq(v, 96 + i)
         i += 1
     }
 }
@@ -147,7 +147,7 @@ func test_rev_iter_call() {
     let it = bs.reversed()
     var i = len(bs) - 1
     while let v = it.next() {
-        ut.assert(v == (96 + i))
+        ut.assert_int_eq(v, 96 + i)
         i -= 1
     }
 }
@@ -156,7 +156,7 @@ func test_rev_iter_call() {
 func test_bytes_literal() {
     let b = b"hello"
     ut.assert_eq(len(b), 5)
-    ut.assert(b[0] == 'h')
+    ut.assert_int_eq(b[0], 'h')
 
     let b2 = bytes(10)
     ut.assert_eq(len(b2), 10)
@@ -172,8 +172,8 @@ func test_bytes_literal_empty() {
     let b = b""
     ut.assert_eq(len(b), 0)
     ut.assert(b.empty())
-    ut.assert(b == b"")
-    ut.assert(b != b"x")
+    ut.assert_eq(b, b"")
+    ut.assert_ne(b, b"x")
 }
 
 @test
@@ -181,44 +181,44 @@ func test_bytes_literal_escapes() {
     // \\, \" and \xHH each produce a single byte
     let b = b"a\\b\"c\x41\x7e"
     ut.assert_eq(len(b), 7)
-    ut.assert(b[1] == 0x5C)
-    ut.assert(b[3] == 0x22)
-    ut.assert(b[5] == 0x41)
-    ut.assert(b[6] == 0x7E)
+    ut.assert_int_eq(b[1], 0x5C)
+    ut.assert_int_eq(b[3], 0x22)
+    ut.assert_int_eq(b[5], 0x41)
+    ut.assert_int_eq(b[6], 0x7E)
 
     // high bytes stay raw, no UTF-8 re-encoding
     let hi = b"\xff\x80\x7f"
     ut.assert_eq(len(hi), 3)
-    ut.assert_eq(hi[0], uint8(255))
-    ut.assert_eq(hi[1], uint8(128))
-    ut.assert_eq(hi[2], uint8(127))
+    ut.assert_int_eq(hi[0], 255)
+    ut.assert_int_eq(hi[1], 128)
+    ut.assert_int_eq(hi[2], 127)
 }
 
 @test
 func test_bytes_literal_equality() {
-    ut.assert(b"abc" == b"abc")
-    ut.assert(b"abc" != b"abd")
-    ut.assert(b"abc" != b"ab")
-    ut.assert(b"ab" != b"abc")
+    ut.assert_eq(b"abc", b"abc")
+    ut.assert_ne(b"abc", b"abd")
+    ut.assert_ne(b"abc", b"ab")
+    ut.assert_ne(b"ab", b"abc")
 
     // a literal equals a mutable byte array with the same content
     let m = bytes(4)
     m.fill(uint8(65))
-    ut.assert(m == b"AAAA")
+    ut.assert_eq(m, b"AAAA")
     m[0] = uint8(66)
-    ut.assert(m != b"AAAA")
-    ut.assert(m == b"BAAA")
+    ut.assert_ne(m, b"AAAA")
+    ut.assert_eq(m, b"BAAA")
 }
 
 @test
 func test_bytes_literal_index_slice() {
     let b = b"hello"
-    ut.assert(b[0] == 'h')
-    ut.assert(b[4] == 'o')
-    ut.assert(b[1:3] == b"el")
-    ut.assert(b[0:len(b)] == b)
-    ut.assert(b[0:0] == b"")
-    ut.assert(b"koala".view(0, 2) == b"ko")
+    ut.assert_int_eq(b[0], 'h')
+    ut.assert_int_eq(b[4], 'o')
+    ut.assert_eq(b[1:3], b"el")
+    ut.assert_eq(b[0:len(b)], b)
+    ut.assert_eq(b[0:0], b"")
+    ut.assert_eq(b"koala".view(0, 2), b"ko")
 }
 
 @test
@@ -227,28 +227,28 @@ func test_bytes_literal_copy() {
     let dst = bytes(5)
     let n = dst.copy(src)
     ut.assert_eq(n, 5)
-    ut.assert(dst == src)
-    ut.assert(dst == b"koala")
+    ut.assert_eq(dst, src)
+    ut.assert_eq(dst, b"koala")
 }
 
 @test
 func test_bytes_literal_str_roundtrip() {
     ut.assert_eq(b"hello".to_str(), "hello")
     ut.assert_eq(b"".to_str(), "")
-    ut.assert("hello".to_bytes() == b"hello")
-    ut.assert("".to_bytes() == b"")
+    ut.assert_eq("hello".to_bytes(), b"hello")
+    ut.assert_eq("".to_bytes(), b"")
 }
 
 @test
 func test_bytes_literal_iter() {
     var sum = 0
     for v in b"abc" {
-        sum += int(v)
+        sum += v
     }
     ut.assert_eq(sum, 294)
 
     var n = 0
-    var first = uint8(0)
+    var first = 0
     for v in b"xyz".reversed() {
         if n == 0 {
             first = v
@@ -263,8 +263,8 @@ func echo_bytes(a bytes) bytes { return a }
 
 @test
 func test_bytes_literal_param() {
-    ut.assert(echo_bytes(b"arg") == b"arg")
-    ut.assert(echo_bytes(b"") == b"")
+    ut.assert_eq(echo_bytes(b"arg"), b"arg")
+    ut.assert_eq(echo_bytes(b""), b"")
 }
 
 
@@ -277,7 +277,7 @@ func test_iter() {
 
     var i = 0
     for b in bs.iter() {
-        ut.assert_eq(96 + i, int(b))
+        ut.assert_int_eq(96 + i, b)
         i += 1
     }
 }
@@ -291,7 +291,7 @@ func test_rev_iter() {
 
     var i = len(bs) - 1
     for b in bs.reversed() {
-        ut.assert_eq(96 + i, int(b))
+        ut.assert_int_eq(96 + i, b)
         i -= 1
     }
 }
@@ -301,39 +301,39 @@ var g = b"abc"
 @test
 func test_global_literal() {
     ut.assert_eq(len(g), 3)
-    ut.assert_eq(g[0], uint8(97))
-    ut.assert_eq(g[1], uint8(98))
-    ut.assert_eq(g[2], uint8(99))
+    ut.assert_int_eq(g[0], 97)
+    ut.assert_int_eq(g[1], 98)
+    ut.assert_int_eq(g[2], 99)
 
     g = b"def"
     ut.assert_eq(len(g), 3)
-    ut.assert_eq(g[0], uint8(100))
-    ut.assert_eq(g[1], uint8(101))
-    ut.assert_eq(g[2], uint8(102))
+    ut.assert_int_eq(g[0], 100)
+    ut.assert_int_eq(g[1], 101)
+    ut.assert_int_eq(g[2], 102)
 }
 
 @test
 func test_special_bytes() {
     ut.assert_eq(len(b"\n"), 1)
-    ut.assert_eq(b"\n"[0], uint8(10))
+    ut.assert_int_eq(b"\n"[0], 10)
     ut.assert_eq(len(b"\t"), 1)
-    ut.assert_eq(b"\t"[0], uint8(9))
+    ut.assert_int_eq(b"\t"[0], 9)
     ut.assert_eq(len(b"\r"), 1)
-    ut.assert_eq(b"\r"[0], uint8(13))
+    ut.assert_int_eq(b"\r"[0], 13)
     ut.assert_eq(len(b"\""), 1)
-    ut.assert_eq(b"\""[0], uint8(34))
+    ut.assert_int_eq(b"\""[0], 34)
     ut.assert_eq(len(b"\\"), 1)
-    ut.assert_eq(b"\\"[0], uint8(92))
+    ut.assert_int_eq(b"\\"[0], 92)
 
     ut.assert_eq(len(b"你好"), 6)
     ut.assert(b"你好" == b"\xe4\xbd\xa0\xe5\xa5\xbd")
-    ut.assert(b"你好"[0] == 0xE4)
-    ut.assert(b"你好"[5] == 0xBD)
+    ut.assert_int_eq(b"你好"[0], 0xE4)
+    ut.assert_int_eq(b"你好"[5], 0xBD)
 
     let bs = b"\x00\xff"
     ut.assert_eq(len(bs), 2)
-    ut.assert_eq(bs[0], uint8(0))
-    ut.assert_eq(bs[1], uint8(255))
+    ut.assert_int_eq(bs[0], 0)
+    ut.assert_int_eq(bs[1], 255)
 }
 
 @test
@@ -350,26 +350,27 @@ func test_bytes_contains() {
     ut.assert( 'c' in bs)
     ut.assert_false('d' in bs)
 
-    // ut.assert(bs.contains(uint8(97)))
-    // ut.assert(bs.contains(uint8(98)))
-    // ut.assert(bs.contains(uint8(99)))
-    // ut.assert(!bs.contains(uint8(100)))
+    ut.assert(97 in bs)
+    ut.assert(98 in bs)
+    ut.assert(99 in bs)
+    ut.assert(!(100 in bs))
+    ut.assert_false(100 in bs)
 }
 
 @test
 func test_bytes_misc() {
     let x = int(b"a"[0])
-    ut.assert_eq(x, 97)
-    ut.assert_eq(x + 1, 98)
-    ut.assert_eq(x - 1, 96)
-    ut.assert_eq(x * 2, 194)
-    ut.assert_eq(x / 2, 48)
-    ut.assert_eq(x % 2, 1)
-    ut.assert_eq(-x, -97)
-    ut.assert_eq(~x, ~97)
-    // ut.assert_eq(x & 0xff, 97)
-    ut.assert_eq(x | 1, 97 | 1)
-    ut.assert_eq(x ^ 1, 97 ^ 1)
+    ut.assert_int_eq(x, 97)
+    ut.assert_int_eq(x + 1, 98)
+    ut.assert_int_eq(x - 1, 96)
+    ut.assert_int_eq(x * 2, 194)
+    ut.assert_int_eq(x / 2, 48)
+    ut.assert_int_eq(x % 2, 1)
+    ut.assert_int_eq(-x, -97)
+    ut.assert_int_eq(~x, ~97)
+    // ut.assert_int_eq(x & 0xff, 97)
+    ut.assert_int_eq(x | 1, 97 | 1)
+    ut.assert_int_eq(x ^ 1, 97 ^ 1)
 
     let y = b"a"[0]
     ut.assert_eq(y, uint8(97))
@@ -397,15 +398,15 @@ let gt = b"\n\t"
 func test_global_literal_special() {
     // top-level bytes literals: NUL data, non-ASCII raw bytes, escapes
     ut.assert_eq(len(gn), 2)
-    ut.assert_eq(gn[0], uint8(0))
-    ut.assert_eq(gn[1], uint8(255))
+    ut.assert_int_eq(gn[0], 0)
+    ut.assert_int_eq(gn[1], 255)
     ut.assert_eq(len(gu), 6)
     ut.assert(gu == b"\xe4\xbd\xa0\xe5\xa5\xbd")
-    ut.assert_eq(gu[0], uint8(0xE4))
-    ut.assert_eq(gu[5], uint8(0xBD))
+    ut.assert_int_eq(gu[0], 0xE4)
+    ut.assert_int_eq(gu[5], 0xBD)
     ut.assert_eq(len(gt), 2)
-    ut.assert_eq(gt[0], uint8(10))
-    ut.assert_eq(gt[1], uint8(9))
+    ut.assert_int_eq(gt[0], 10)
+    ut.assert_int_eq(gt[1], 9)
 }
 
 @test
@@ -440,7 +441,7 @@ func test_int_uint8_arith() {
     var s = 0
     let bs = b"abc"
     for i in range(len(bs)) {
-        s = s + int(bs[i])
+        s = s + bs[i]
     }
     ut.assert_eq(s, 294)
 }

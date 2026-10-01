@@ -1,0 +1,7 @@
+[package]
+name = "std/os"
+version = "0.1.0"
+files = ["*.kl"]
+excludes = []
+dependencies = ["std/builtin"]
+natives = ["koala"]

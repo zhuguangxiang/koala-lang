@@ -1,0 +1,9 @@
+[package]
+name = "std/builtin"
+version = "0.1.0"
+files = ["*.kl"]
+excludes = ["enumerate.kl", "zip.kl"]
+dependencies = []
+natives = ["koala"]
+compiler = "koalac"
+options = ["--build-stdlib", "--cgen", "--write-klc", "--fusion"]

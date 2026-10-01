@@ -74,15 +74,24 @@ pub func assert_eq[T : Equatable](a T, b T) {
     if a != b { panic(format("assertion failed: {} != {}", a, b)) }
 }
 
+/// Specialized explicit implementation of `assert_eq` for `int8` values.
+///
+/// If user writes `assert_eq` with `int8` values, this specialized implementation will be used.
+pub func assert_eq_int8(a int8, b int8) {
+    if a != b { panic(format("assertion failed: {} != {}", a, b)) }
+}
+
+/// Specialized explicit implementation of `assert_eq` for `uint8` values.
+///
+/// If user writes `assert_eq` with `uint8` values, this specialized implementation will be used.
 pub func assert_eq_uint8(a uint8, b uint8) {
     if a != b { panic(format("assertion failed: {} != {}", a, b)) }
 }
 
+/// Specialized explicit implementation of `assert_eq` for `int64` values.
+///
+/// If user writes `assert_eq` with `int64` values, this specialized implementation will be used.
 pub func assert_eq_int64(a int, b int) {
-    if a != b { panic(format("assertion failed: {} != {}", a, b)) }
-}
-
-pub func assert_eq_int8(a int8, b int8) {
     if a != b { panic(format("assertion failed: {} != {}", a, b)) }
 }
 
@@ -100,10 +109,23 @@ pub func assert_ne[T : Equatable[T]](a T, b T) {
     }
 }
 
+/// Specialized explicit implementation of `assert_ne` for `int8` values.
+///
+/// If user writes `assert_ne` with `int8` values, this specialized implementation will be used.
+pub func assert_ne_int8(a int8, b int8) {
+    if a == b { panic(format("assertion failed: {} == {}", a, b)) }
+}
+
+/// Specialized explicit implementation of `assert_ne` for `uint8` values.
+///
+/// If user writes `assert_ne` with `uint8` values, this specialized implementation will be used.
 pub func assert_ne_uint8(a uint8, b uint8) {
     if a == b { panic(format("assertion failed: {} == {}", a, b)) }
 }
 
+/// Specialized explicit implementation of `assert_ne` for `int64` values.
+///
+/// If user writes `assert_ne` with `int64` values, this specialized implementation will be used.
 pub func assert_ne_int64(a int, b int) {
     if a == b { panic(format("assertion failed: {} == {}", a, b)) }
 }
@@ -161,9 +183,9 @@ pub func assert_ge[T : Comparable](a T, b T) {
 /// Compares `abs(a - b) <= eps`. Default tolerance `eps` is `1e-9`.
 ///
 /// Example:
-///     assert_close(0.1 + 0.2, 0.3)
-///     assert_close(calculated_pi, 3.1415926, 1e-5)
-pub func assert_close(a float, b float, eps float = 1e-9) {
+///     assert_float_close(0.1 + 0.2, 0.3)
+///     assert_float_close(calculated_pi, 3.1415926, 1e-5)
+pub func assert_float_close(a float, b float, eps float = 1e-9) {
     var diff = a - b
     if diff < 0.0 {
         diff = 0.0 - diff
@@ -171,4 +193,80 @@ pub func assert_close(a float, b float, eps float = 1e-9) {
     if diff > eps {
         panic(format("assertion failed: |{} - {}| = {} > {}", a, b, diff, eps))
     }
+}
+
+/// Assert that two `int` values `a` and `b` are equal (`a == b`).
+///
+/// Thanks to Koala's type promotion system, smaller concrete unsigned integer types
+/// (such as `int8` or `uint8`) will be automatically and implicitly promoted to `int64`
+/// when calling this concrete function.
+///
+/// NOTE: While Koala supports automatic type promotion for concrete parameters,
+/// generic functions (like `assert_eq[T]`) cannot perform type promotion across
+/// type parameters due to strict generic type inference.
+///
+/// On failure, raises a panic displaying both formatting values.
+pub func assert_int_eq(a int, b int) {
+    if a != b { panic(format("assertion failed: {} != {}", a, b)) }
+}
+
+/// Assert that two signed integers `a` and `b` are NOT equal (`a != b`).
+pub func assert_int_ne(a int, b int) {
+    if a == b { panic(format("assertion failed: {} == {}", a, b)) }
+}
+
+/// Assert that `a` is less than `b` (`a < b`).
+pub func assert_int_lt(a int, b int) {
+    if a >= b { panic(format("assertion failed: {} >= {}", a, b)) }
+}
+
+/// Assert that `a` is less than or equal to `b` (`a <= b`).
+pub func assert_int_le(a int, b int) {
+    if a > b { panic(format("assertion failed: {} > {}", a, b)) }
+}
+
+/// Assert that `a` is greater than `b` (`a > b`).
+pub func assert_int_gt(a int, b int) {
+    if a <= b { panic(format("assertion failed: {} <= {}", a, b)) }
+}
+
+/// Assert that `a` is greater than or equal to `b` (`a >= b`).
+pub func assert_int_ge(a int, b int) {
+    if a < b { panic(format("assertion failed: {} < {}", a, b)) }
+}
+
+/// Assert that two unsigned integers `a` and `b` are equal (`a == b`).
+///
+/// Thanks to Koala's type promotion system, smaller concrete unsigned integer
+/// types (such as `uint8` or `uint16`) will be automatically and implicitly
+/// promoted to `uint64` when calling this concrete function.
+///
+/// On failure, raises a panic displaying both formatting values.
+pub func assert_uint_eq(a uint, b uint) {
+    if a != b { panic(format("assertion failed: {} != {}", a, b)) }
+}
+
+/// Assert that two unsigned integers `a` and `b` are NOT equal (`a != b`).
+pub func assert_uint_ne(a uint64, b uint64) {
+    if a == b { panic(format("assertion failed: {} == {}", a, b)) }
+}
+
+/// Assert that unsigned `a` is less than `b` (`a < b`).
+pub func assert_uint_lt(a uint64, b uint64) {
+    if a >= b { panic(format("assertion failed: {} >= {}", a, b)) }
+}
+
+/// Assert that unsigned `a` is less than or equal to `b` (`a <= b`).
+pub func assert_uint_le(a uint64, b uint64) {
+    if a > b { panic(format("assertion failed: {} > {}", a, b)) }
+}
+
+/// Assert that unsigned `a` is greater than `b` (`a > b`).
+pub func assert_uint_gt(a uint64, b uint64) {
+    if a <= b { panic(format("assertion failed: {} <= {}", a, b)) }
+}
+
+/// Assert that unsigned `a` is greater than or equal to `b` (`a >= b`).
+pub func assert_uint_ge(a uint64, b uint64) {
+    if a < b { panic(format("assertion failed: {} < {}", a, b)) }
 }

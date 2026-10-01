@@ -1,0 +1,7 @@
+[package]
+name = "std/fs"
+version = "0.1.0"
+files = ["*.kl"]
+excludes = []
+dependencies = ["std/io"]
+natives = ["koala"]
