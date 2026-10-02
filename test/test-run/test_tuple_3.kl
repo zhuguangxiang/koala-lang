@@ -6,8 +6,10 @@ func main() {
     }
 }
 
-// CHECK-LABEL: @main[0,11]:
+// CHECK-LABEL: @main[0,12]:
 // CHECK: load_int_imm r0, ti=0xb, #0
+// CHECK: jmp_int_lt_imm r0, #3, 1
+// CHECK: ret_void
 // CHECK: loadk r1, #3
 // CHECK: seq.get r1, r1, r0
 // CHECK: move r2, r1
@@ -17,8 +19,7 @@ func main() {
 // CHECK: call flg=0, #3
 // CHECK: data (func_index=1(imported))
 // CHECK: int.add_imm r0, r0, #1
-// CHECK: jmp_int_lt_imm r0, #3, -10
-// CHECK: ret_void
+// CHECK: jmp -12
 
 // CHECK: 1
 // CHECK: 2

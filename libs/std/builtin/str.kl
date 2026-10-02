@@ -216,21 +216,21 @@ pub class str : Sequence & Comparable {
 
     /// Return true if the string starts with `prefix`.
     @native
-    pub func startswith(prefix str) bool {}
+    pub func starts_with(prefix str) bool {}
 
     /// Return true if the string ends with `suffix`.
     @native
-    pub func endswith(suffix str) bool {}
+    pub func ends_with(suffix str) bool {}
 
     /// Return a copy of the string with `prefix` removed
     /// if the string starts with it, otherwise return the string unchanged.
     @native
-    pub func removeprefix(prefix str) str {}
+    pub func remove_prefix(prefix str) str {}
 
     /// Return a copy of the string with `suffix` removed
     /// if the string ends with it, otherwise return the string unchanged.
     @native
-    pub func removesuffix(suffix str) str {}
+    pub func remove_suffix(suffix str) str {}
 
     /// Return a copy of the string with all occurrences of `old` replaced by `new`.
     @native
@@ -282,6 +282,11 @@ pub class str : Sequence & Comparable {
     /// Return true if all cased characters in the string are uppercase.
     @native
     pub func isupper() bool {}
+
+    /// Return a view (substring) of the string from `start` to `end`.
+    /// Negative indices are interpreted relative to the string length.
+    @native
+    pub func view(start = 0, end = -1) str {}
 }
 
 /// An iterator over the characters of a string, from left to right.

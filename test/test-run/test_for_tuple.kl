@@ -1,0 +1,28 @@
+// RUN: koala %s | filecheck %s
+
+func main() {
+	let t = (1, 2, 3, 4, 5)
+
+	for i in t {
+		print(i)
+		if (i == 3) {
+			continue
+		}
+	}
+
+    for i in t {
+		print(i)
+		if (i == 3) {
+			break
+		}
+	}
+}
+
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3
+// CHECK: 4
+// CHECK: 5
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3

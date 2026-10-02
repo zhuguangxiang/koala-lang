@@ -747,6 +747,14 @@ static int compatible_klass(TypeSpec *dst, TypeSpec *src)
     return _base_compatible(dst, bases);
 }
 
+/* union comparison */
+static int compatible_union(TypeSpec *dst, TypeSpec *src)
+{
+    /* Implement union type compatibility check here */
+    ASSERT(0);
+    return 0; /* Placeholder implementation */
+}
+
 /* dst and src share the same kind: dispatch on it */
 static int _same_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
 {
@@ -800,6 +808,9 @@ static int _same_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
 
         case TYPE_KLASS:
             return compatible_klass(dst, src);
+
+        case TYPE_UNION:
+            return compatible_union(dst, src);
 
         default:
             log_error(

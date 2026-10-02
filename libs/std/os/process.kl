@@ -1,0 +1,62 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+
+/// Represents a spawned operating system process handle.
+///
+/// This class relies purely on the generic input/output byte stream contracts
+/// defined in `std/io`, ensuring total architectural decoupling from `std/fs`.
+pub class Process {
+
+    /// The standard input stream (stdin) of the child process.
+    ///
+    /// Write raw bytes to this stream to feed input data into the running command.
+    /// Returns an abstract `io.Writer` interface mapping to the native pipe descriptor.
+    ///
+    /// Example:
+    ///     let p = os.run("passwd", ["user"])
+    ///     p?.stdin().write("new_password\n".to_bytes())
+    @native
+    pub func stdin() io.Writer {}
+
+    /// The standard output stream (stdout) of the child process.
+    ///
+    /// Read from this stream to capture the process execution text or binary output.
+    /// Returns an abstract `io.Reader` interface mapping to the native pipe descriptor.
+    @native
+    pub func stdout() io.Reader {}
+
+    /// The standard error stream (stderr) of the child process.
+    ///
+    /// Read from this stream to capture diagnostic or critical error outputs.
+    /// Returns an abstract `io.Reader` interface mapping to the native pipe descriptor.
+    @native
+    pub func stderr() io.Reader {}
+
+    /// Return the system process ID (PID) allocated to this child process.
+    @native
+    pub func pid() int {}
+
+    /// Return true if the child process has already exited. Non-blocking.
+    @native
+    pub func is_exited() bool {}
+
+    /// Return the exit status code of the process if it has exited.
+    /// Returns `nil` if the process is still actively running.
+    @native
+    pub func exit_code() int? {}
+
+    /// Wait for the process to terminate and return its exit status status code.
+    ///
+    /// This will synchronously block the current execution thread/fiber until
+    /// the child process exits.
+    @native
+    pub func wait() int {}
+
+    /// Forcefully and permanently terminate the child process immediately (SIGKILL).
+    @native
+    pub func kill() {}
+}

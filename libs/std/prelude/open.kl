@@ -31,6 +31,6 @@ import "std/fs"
 /// f?.close()
 ///
 /// See: File.
-pub func open(path_or_fd str | int, mode = "r") fs.File? {
+pub func open(path_or_fd fs.Path | str | int, mode = "r") fs.File? {
     return fs.open(path_or_fd, mode)
 }

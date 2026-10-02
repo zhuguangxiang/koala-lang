@@ -19,3 +19,19 @@ pub func setenv(key str, value str) {}
 pub func unsetenv(key str) {}
 
 // pub func environ() dict[str, str] {}
+
+// --- Process Management ---
+
+/// Execute a system command line string in a subshell and return its exit status code.
+///
+/// This is a synchronous, blocking operation. It passes `cmd` directly to the host OS shell
+/// (e.g., `cmd.exe` on Windows or `/bin/sh` on Unix).
+@native
+pub func system(cmd str) int {}
+
+/// Execute a program with specific arguments, capturing its execution state.
+///
+/// Unlike `system`, this bypasses the shell for safer argument passing, preventing shell injection.
+/// Returns a `Process` handle on success, or `nil` if the executable cannot be found or spawned.
+@native
+pub func run(executable str, args list[str]) Process? {}

@@ -1,0 +1,51 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+
+/// A PipeReader is the read half of an OS-level anonymous pipe.
+///
+/// It physically wraps a native file descriptor and implements the pure
+/// abstract `io.Reader` trait contract.
+pub class PipeReader : io.Reader & io.Closable {
+
+    /// Read raw bytes from the kernel pipe buffer into `data`.
+    /// Satisfies the `io.Reader` trait.
+    @native
+    pub func read(data bytes) int {}
+
+    /// Close the read end of the pipe, releasing the OS resource.
+    @native
+    pub func close() {}
+}
+
+/// A PipeWriter is the write half of an OS-level anonymous pipe.
+///
+/// It physically wraps a native file descriptor and implements the full
+/// `io.Writer` trait contract including string acceleration and flushing control.
+pub class PipeWriter : io.Writer & io.Closable {
+
+    /// Write raw bytes from `bs` into the kernel pipe buffer.
+    /// Satisfies the `io.Writer` trait.
+    @native
+    pub func write(bs bytes) int {}
+
+    /// Encode `s` string as UTF-8 and write it directly to the kernel pipe buffer.
+    ///
+    /// Native implementation may optimize this to avoid intermediate heap allocation.
+    @native
+    pub func write_str(s str) int {}
+
+    /// Flush pending data to the underlying pipe sink.
+    ///
+    /// For unbuffered kernel pipes, this is natively implemented as a no-op
+    /// but must be provided to fulfill the `io.Writer` contract.
+    @native
+    pub func flush() {}
+
+    /// Close the write end of the pipe, flushing remaining data and signaling EOF.
+    @native
+    pub func close() {}
+}

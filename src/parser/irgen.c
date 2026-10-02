@@ -494,8 +494,9 @@ static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *cal
                                 KlrValue **args, int nargs)
 {
     if (nargs == 0) {
-        // list() → empty list constant
-        return klr_const_list(NULL, 0, callee->ts, MOD);
+        // list() → empty list
+        KlrValue *ret = klr_build_intern(bldr, NULL, 0, callee->ts, INTERN_LIST, "");
+        return ret;
     }
 
     ASSERT(nargs == 1);
@@ -2257,6 +2258,7 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     KlrBasicBlock *loop_header = klr_append_block(fn, "loop-header");
     KlrBasicBlock *loop_cond = klr_append_block(fn, "loop-cond");
     KlrBasicBlock *loop_body = klr_append_block(fn, "loop-body");
+    KlrBasicBlock *loop_cond_incr = klr_append_block(fn, "loop-cond-incr");
     KlrBasicBlock *loop_end = klr_append_block(fn, "loop-end");
     KlrValue *range_cur = NULL;
     struct RangeInfo range_info = { 0 };
@@ -2424,7 +2426,7 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     sc->bb = loop_body;
 
     // save continue_bb and break_bb for `break` and `continue`
-    sc->continue_bb = loop_cond;
+    sc->continue_bb = loop_cond_incr;
     sc->break_bb = loop_end;
 
     if (which == GEN_SEQ) {
@@ -2449,37 +2451,30 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
 
     emit_ir_visit_block(ps, s->block);
 
+    ASSERT(!block_has_terminator(ps->scope->bb));
+    klr_builder_end(&bldr, ps->scope->bb);
+    klr_build_jmp(&bldr, loop_cond_incr);
+
+    // add jmp to loop_cond block in loop_cond_incr
     if (which == GEN_RANGE) {
-        klr_builder_end(&bldr, sc->bb);
+        klr_builder_end(&bldr, loop_cond_incr);
         KlrValue *tmp = klr_build_add(&bldr, range_cur, range_info.step, "");
         klr_build_move(&bldr, range_cur, tmp);
+        klr_build_jmp(&bldr, loop_cond);
     } else if (which == GEN_SEQ) {
-        klr_builder_end(&bldr, sc->bb);
+        klr_builder_end(&bldr, loop_cond_incr);
         KlrValue *one = klr_const_int(1, int64_type_spec(), MOD);
         KlrValue *tmp = klr_build_add(&bldr, seq_info.index, one, "");
         klr_build_move(&bldr, seq_info.index, tmp);
+        klr_build_jmp(&bldr, loop_cond);
     } else if (which == GEN_ITERATOR) {
-        // nothing to do
+        klr_builder_end(&bldr, loop_cond_incr);
+        klr_build_jmp(&bldr, loop_cond);
     } else {
         UNREACHABLE();
     }
 
-    // add jmp to loop_body block
-    if (!block_has_terminator(sc->bb)) {
-        klr_builder_end(&bldr, sc->bb);
-        if (which == GEN_RANGE) {
-            build_loop_range_cond(&bldr, range_cur, &range_info, loop_body, loop_end, ps);
-        } else if (which == GEN_SEQ) {
-            KlrValue *cond = klr_build_cmpge(&bldr, seq_info.index, seq_info.len, "");
-            klr_build_jmp_cond(&bldr, cond, loop_end, loop_body);
-        } else if (which == GEN_ITERATOR) {
-            build_loop_iter_cond(&bldr, &it_info, loop_body, loop_end, ps);
-        } else {
-            UNREACHABLE();
-        }
-    }
-
-    exit_scope(ps);
+    exit_scope(ps); // exit loop body block
 
     ps->scope->bb = loop_end;
 }

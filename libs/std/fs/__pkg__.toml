@@ -3,5 +3,5 @@ name = "std/fs"
 version = "0.1.0"
 files = ["*.kl"]
 excludes = []
-dependencies = ["std/io"]
+dependencies = ["std/io", "std/os"]
 natives = ["koala"]

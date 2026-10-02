@@ -32,7 +32,7 @@ link "koala"
 ///
 /// See: `File`.
 @native
-pub func open(path_or_fd str | int, mode = "r") File? {}
+pub func open(path_or_fd Path | str | int, mode = "r") File? {}
 
 /// Read the file `path` into `out` and return the count read.
 ///
@@ -44,7 +44,7 @@ pub func open(path_or_fd str | int, mode = "r") File? {}
 ///
 /// See: `write_bytes`, `File.read`.
 @native
-pub func read_bytes(path str, out bytes) int {}
+pub func read_bytes(path Path | str, out bytes) int {}
 
 /// Write `data` to the file `path`, creating or truncating it.
 ///
@@ -54,7 +54,7 @@ pub func read_bytes(path str, out bytes) int {}
 ///
 /// See: `write_str`, `read_bytes`.
 @native
-pub func write_bytes(path str, data bytes) bool {}
+pub func write_bytes(path Path | str, data bytes) bool {}
 
 /// Encode `data` as UTF-8 and write it to the file `path`,
 /// creating or truncating it.
@@ -65,4 +65,40 @@ pub func write_bytes(path str, data bytes) bool {}
 ///
 /// See: `write_bytes`, `read_bytes`.
 @native
-pub func write_str(path str, data str) bool {}
+pub func write_str(path Path | str, data str) bool {}
+
+// --- Metadata & Queries (Migrated from traditional os.path) ---
+
+/// Return true if the file or directory exists on the physical disk.
+@native
+pub func exists(p Path | str) bool {}
+
+/// Return true if the path points to a regular file.
+@native
+pub func is_file(p Path | str) bool {}
+
+/// Return true if the path points to a directory.
+@native
+pub func is_dir(p Path | str) bool {}
+
+/// Return the size of the file in bytes. Panics if the file does not exist.
+@native
+pub func size(p Path | str) int64 {}
+
+/// Permanently delete a file from the disk. Returns true on success.
+@native
+pub func remove(p Path | str) bool {}
+
+// --- Directory Management ---
+
+/// Create a directory. If `parents = true`, automatically creates missing parent folders (mkdir -p).
+@native
+pub func mkdir(p Path | str, parents bool = false) bool {}
+
+/// Remove an empty directory. Returns false if the directory is not empty.
+@native
+pub func rmdir(p Path | str) bool {}
+
+/// Read the directory contents and return a list of strongly-typed `path.Path` objects.
+@native
+pub func list_dir(p Path | str) list[Path] {}

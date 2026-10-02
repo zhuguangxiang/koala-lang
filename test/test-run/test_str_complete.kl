@@ -130,17 +130,17 @@ func main() {
     print("  x  ".rstrip() == "  x")
 
     // startswith / endswith: true / false / empty prefix
-    print(s.startswith("hello"))
-    print(s.startswith("world"))
-    print(s.startswith(""))
-    print(s.endswith("world"))
-    print(s.endswith("hello"))
+    print(s.starts_with("hello"))
+    print(s.starts_with("world"))
+    print(s.starts_with(""))
+    print(s.ends_with("world"))
+    print(s.ends_with("hello"))
 
     // removeprefix / removesuffix: match / no match unchanged
-    print(s.removeprefix("hello "))
-    print(s.removeprefix("xyz"))
-    print(s.removesuffix(" world"))
-    print(s.removesuffix("xyz"))
+    print(s.remove_prefix("hello "))
+    print(s.remove_prefix("xyz"))
+    print(s.remove_suffix(" world"))
+    print(s.remove_suffix("xyz"))
 
     // replace: all occurrences / delete / no match unchanged
     print("aaa".replace("a", "b"))

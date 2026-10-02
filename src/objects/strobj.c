@@ -1309,6 +1309,18 @@ static TValue _str_contains(TValue *self, TValue *args, int nargs)
     return bool_value(false);
 }
 
+static TValue _str_view(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    int64_t start = kl_arg_int64(0);
+    int64_t end = kl_arg_int64(1);
+    StringObject *sobj = SELF_AS(str_type);
+    TValue items[3] = { args[0], args[1], int64_value(1) };
+    Object *slice = kl_new_slice(items);
+    TValue _args[] = { obj_value(slice) };
+    return _str_getslice(self, _args, 1);
+}
+
 static MethodDef _str_methods[] = {
     { "__init__", _str_init },
     { "len", _str_len },
@@ -1346,10 +1358,10 @@ static MethodDef _str_methods[] = {
     { "strip", _str_strip },
     { "lstrip", _str_lstrip },
     { "rstrip", _str_rstrip },
-    { "startswith", _str_startswith },
-    { "endswith", _str_endswith },
-    { "removeprefix", _str_removeprefix },
-    { "removesuffix", _str_removesuffix },
+    { "starts_with", _str_startswith },
+    { "ends_with", _str_endswith },
+    { "remove_prefix", _str_removeprefix },
+    { "remove_suffix", _str_removesuffix },
     { "replace", _str_replace },
     { "zfill", _str_zfill },
     { "ljust", _str_ljust },
@@ -1361,6 +1373,7 @@ static MethodDef _str_methods[] = {
     { "isspace", _str_isspace },
     { "islower", _str_islower },
     { "isupper", _str_isupper },
+    { "view", _str_view },
     { NULL },
 };
 

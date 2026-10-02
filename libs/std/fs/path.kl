@@ -1,0 +1,214 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/os"
+
+/// The `Path` class represents a structural filesystem path.
+///
+/// It treats paths as clean logical objects rather than raw strings,
+/// automatically handling platform-specific separators (\ for Windows, / for Unix).
+pub class Path : Equatable[Path] & ToString {
+
+    /// The internal string representation of the path.
+    let path str
+
+    /// Create a new `Path` from a string representation.
+    pub func __init__(p str) { path = p }
+
+    /// Return the final component of the path (e.g., returns "file.kl" for "/a/b/file.kl").
+    /// If the path ends in a separator, returns the directory name.
+    pub func name() str {
+        if path.empty() { return "" }
+
+        // Remove trailing separators to get a clean path (e.g., "/a/b/" -> "/a/b")
+        var p = path
+        while (p.ends_with("/") || p.ends_with("\\")) && p.len() > 1 {
+            p = p.view(0, p.len() - 1)
+        }
+
+        // Split the path into components using "/" as the separator,
+        // after normalizing Windows-style backslashes.
+        let parts = p.replace("\\", "/").split("/")
+        if parts.len() > 0 { return parts[parts.len() - 1] }
+        return p
+    }
+
+    /// Return the file extension without the leading dot (e.g., returns "kl" for "file.kl").
+    /// Returns an empty string if no extension exists.
+    pub func ext() str {
+        let n = name()
+        let dot_idx = n.rindex(".")
+        // Ensure the dot exists and is not the first character of the filename
+        // (e.g., ".gitignore" has no ext)
+        if dot_idx > 0 { return n.view(dot_idx + 1, n.len()) }
+        return ""
+    }
+
+    /// Return the pure filename without its extension (e.g., returns "file" for "file.kl").
+    pub func stem() str {
+        let n = name()
+        let dot_idx = n.rindex(".")
+        if dot_idx > 0 { return n.view(0, dot_idx) }
+        return n
+    }
+
+    /// Return a new `Path` object representing the parent directory.
+    /// Returns self if the path is already the root directory.
+    pub func parent() Path {
+        if path.empty() || path == "/" || path == "\\" { return self }
+
+        // Normalize slashes to safely compute the rightmost segment division
+        let p_norm = path.replace("\\", "/")
+        var last_slash = p_norm.rindex("/")
+
+        // Handle path strings trailing with an implicit slash (e.g., "/a/b/")
+        if last_slash == p_norm.len() - 1 && p_norm.len() > 1 {
+            let chopped = p_norm.view(0, p_norm.len() - 1)
+            last_slash = chopped.rindex("/")
+        }
+
+        if last_slash == -1 {
+            // Relative paths without slashes (e.g. "main.kl") resolve to current working directory "."
+            return Path(".")
+        }
+
+        if last_slash == 0 {
+            // Direct child element under the root filesystem scope (e.g., "/config.toml" -> "/")
+            return Path("/")
+        }
+
+        // Leverage zero-allocation view streaming to extract parent segments cleanly
+        return Path(path.view(0, last_slash))
+    }
+
+    /// Return true if the path is absolute.
+    /// (e.g., starts with "/" on Unix or "C:\" on Windows).
+    pub func is_absolute() bool {
+        if path.empty() { return false }
+        if path.starts_with("/") || path.starts_with("\\") { return true }
+
+        // Parse platform-aware Windows drive letters explicitly (e.g., "C:/" or "D:\")
+        if path.len() >= 3 {
+            let drive = path.view(0, 2)
+            let sep = path.view(2, 3)
+            if drive.ends_with(":") && (sep == "/" || sep == "\\") {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Return a normalized version of the path.
+    /// Eliminates redundant separators and up-level references (e.g., "a//b", "a/./b", "a/b/../c" -> "a/c").
+    pub func normalize() Path {
+        if path.empty() { return Path(".") }
+
+        let is_abs = is_absolute()
+        let segments = path.replace("\\", "/").split("/")
+        let stack = list[str]()
+
+        // let segments_len = segments.len()
+        // var idx = 0
+        // while idx < segments_len {
+        //     let seg = segments[idx]
+
+        //     if seg.empty() || seg == "." {
+        //         idx = idx + 1
+        //         continue
+        //     }
+
+        //     if seg == ".." {
+        //         if stack.len() > 0 && stack[stack.len() - 1] != ".." {
+        //             stack.pop(stack.len() - 1)
+        //         } else if !is_abs {
+        //             stack.push("..")
+        //         }
+        //     } else {
+        //         stack.push(seg)
+        //     }
+        //     idx = idx + 1
+        // }
+
+        for seg in segments {
+            let s = seg.strip()
+            if s.empty() || s == "." { continue }
+
+            if s == ".." {
+                if stack.len() > 0 && stack[stack.len() - 1] != ".." {
+                    stack.pop(stack.len() - 1)
+                } else if !is_abs {
+                    stack.push("..")
+                }
+            } else {
+                stack.push(s)
+            }
+        }
+
+        // Reassemble segments back into a unified normalized string representation
+        var res = ""
+        if is_abs { res = "/" }
+
+        var first = true
+        for item in stack {
+            if !first { res = res + "/" }
+            res = res + item
+            first = false
+        }
+
+        if res.empty() { return Path(".") }
+        return Path(res)
+    }
+
+    /// Return an absolute version of the path by lexically expanding relative tokens.
+    pub func absolute() Path {
+        if is_absolute() { return normalize() }
+        // Fetch host process workspace directly via standard environment mappings
+        let cwd = os.getenv("PWD")
+        if cwd != nil { return Path(cwd).cat(path).normalize() }
+        return normalize()
+    }
+
+    /// Explicit programmatic conversion to raw string representation (ToString Trait).
+    pub func to_str() str { return path }
+
+    /// Compare two paths for equality (Equatable[Path] trait).
+    pub func __eq__(rhs Path) bool { return path == rhs.path }
+
+    /// Compare two paths for inequality.
+    pub func __ne__(rhs Path) bool { return path != rhs.path }
+
+    /// Connect a new path segment or another Path to the current one.
+    ///
+    /// Returns a brand new Path object, allowing fluent method chaining.
+    /// Thanks to Koala's union type support, it effortlessly accepts str or Path.
+    ///
+    /// Example:
+    ///     let p = fs.Path("abc").cat("def").cat("ok")
+    @native
+    pub func cat(segment Path | str) Path {
+        // var next_part = ""
+
+        // // Process runtime union type unboxing natively
+        // if segment is str {
+        //     next_part = segment
+        // } else if segment is Path {
+        //     next_part = segment.to_str()
+        // }
+
+        // if next_part.empty() { return self }
+
+        // // Determine if an implicit middle separator must be injected symmetrically
+        // let has_tail_sep = path.ends_with("/") || path.ends_with("\\")
+        // let has_head_sep = next_part.starts_with("/") || next_part.starts_with("\\")
+
+        // var joint = path
+        // if !has_tail_sep && !has_head_sep && !path.empty() {
+        //     joint = joint + "/"
+        // }
+
+        // // Merge tokens and execute a final post-order wash to yield a squeaky clean string
+        // return Path(joint + next_part).normalize()
+    }
+}

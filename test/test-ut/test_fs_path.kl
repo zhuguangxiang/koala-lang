@@ -1,0 +1,121 @@
+// RUN: koala %s --test
+
+import "std/fs"
+import "std/ut"
+
+@test
+func test_path_init_and_to_str() {
+    let p = fs.Path("/a/b/file.kl")
+    ut.assert_eq(p.to_str(), "/a/b/file.kl")
+}
+
+@test
+func test_path_name() {
+    // Basic structural name extraction
+    ut.assert_eq(fs.Path("/a/b/file.kl").name(), "file.kl")
+    ut.assert_eq(fs.Path("file.kl").name(), "file.kl")
+
+    // Boundary check for paths ending with separators
+    ut.assert_eq(fs.Path("/a/b/").name(), "b")
+    ut.assert_eq(fs.Path("/a/b\\\\").name(), "b")
+
+    // Root and boundary configurations
+    ut.assert_eq(fs.Path("/").name(), "")
+    ut.assert_eq(fs.Path("").name(), "")
+}
+
+@test
+func test_path_ext() {
+    ut.assert_eq(fs.Path("/a/b/file.kl").ext(), "kl")
+    ut.assert_eq(fs.Path("archive.tar.gz").ext(), "gz")
+
+    // Edge cases for no extension and hidden system configuration files
+    ut.assert_eq(fs.Path("/a/b/makefile").ext(), "")
+    ut.assert_eq(fs.Path(".gitignore").ext(), "")
+}
+
+@test
+func test_path_stem() {
+    ut.assert_eq(fs.Path("/a/b/file.kl").stem(), "file")
+    ut.assert_eq(fs.Path("archive.tar.gz").stem(), "archive.tar")
+    ut.assert_eq(fs.Path("/a/b/makefile").stem(), "makefile")
+    ut.assert_eq(fs.Path(".gitignore").stem(), ".gitignore")
+}
+
+@test
+func test_path_parent() {
+    ut.assert_eq(fs.Path("/a/b/file.kl").parent().to_str(), "/a/b")
+
+    // Immediate children of root directory
+    ut.assert_eq(fs.Path("/config.toml").parent().to_str(), "/")
+
+    // Trailing slash parsing for parent directory tracking
+    ut.assert_eq(fs.Path("/a/b/").parent().to_str(), "/a")
+
+    // Absolute bounds and empty state evaluation
+    ut.assert_eq(fs.Path("main.kl").parent().to_str(), ".")
+    ut.assert_eq(fs.Path("/").parent().to_str(), "/")
+}
+
+@test
+func test_path_is_absolute() {
+    // POSIX absolute standards
+    ut.assert_eq(fs.Path("/a/b").is_absolute(), true)
+
+    // Windows absolute standards
+    ut.assert_eq(fs.Path("C:\\a\\b").is_absolute(), true)
+    ut.assert_eq(fs.Path("d:/a/b").is_absolute(), true)
+
+    // Relative structures
+    ut.assert_eq(fs.Path("a/b").is_absolute(), false)
+    ut.assert_eq(fs.Path("").is_absolute(), false)
+}
+
+@test
+func test_path_normalize() {
+    // Redundant sequence cleaning
+    ut.assert_eq(fs.Path("a//b").normalize().to_str(), "a/b")
+    ut.assert_eq(fs.Path("a/./b").normalize().to_str(), "a/b")
+
+    // Parent boundary stack flattening
+    ut.assert_eq(fs.Path("a/b/../c").normalize().to_str(), "a/c")
+    ut.assert_eq(fs.Path("/a/b/../../c").normalize().to_str(), "/c")
+
+    // Relative underflow boundaries
+    ut.assert_eq(fs.Path("a/../../b").normalize().to_str(), "../b")
+    ut.assert_eq(fs.Path("").normalize().to_str(), ".")
+}
+
+@test
+func test_path_equality() {
+    let p1 = fs.Path("/a/b")
+    let p2 = fs.Path("/a/b")
+    let p3 = fs.Path("/a/c")
+
+    ut.assert_eq(p1 == p2, true)
+    ut.assert_eq(p1 != p3, true)
+    ut.assert_ne(p1, p3)
+}
+
+// @test
+// func test_path_cat_polymorphism() {
+//     let base = fs.Path("abc")
+
+//     // 1. Validate fluent string-based append chaining
+//     let p_str = base.cat("def").cat("ok")
+//     ut.assert_eq(p_str.to_str(), "abc/def/ok")
+
+//     // 2. Validate polymorphic object-based merge
+//     let sub_path = fs.Path("sub/dir")
+//     let p_path = base.cat(sub_path)
+//     ut.assert_eq(p_path.to_str(), "abc/sub/dir")
+
+//     // 3. Validate safety washes on double slash edge collisions
+//     let p_slash1 = fs.Path("abc/").cat("/def")
+//     let p_slash2 = fs.Path("abc").cat("/def")
+//     ut.assert_eq(p_slash1.to_str(), "abc/def")
+//     ut.assert_eq(p_slash2.to_str(), "abc/def")
+
+//     // 4. Empty append acts as an absolute no-op identity function
+//     ut.assert_eq(base.cat("").to_str(), "abc")
+// }

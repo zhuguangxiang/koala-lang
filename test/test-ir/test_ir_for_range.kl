@@ -11,33 +11,45 @@ for i in range(0, 10) {
 // CHECK: load_int_imm %i int64, 0 int64
 // CHECK: jmp label %bb1
 
-// CHECK: %bb1(loop-body):                                ;; preds = %bb4, %bb0
+// CHECK: %bb1(loop-cond):                                ;; preds = %bb0, %bb3
+// CHECK: jmp_int_lt_imm %i int64, 10 int64, label %bb2, label %bb4
+
+// CHECK: %bb2(loop-body):                                ;; preds = %bb1
 // CHECK: %0 = int.mod_imm %i int64, 2 int64
-// CHECK: jmp_int_eq_imm %0 int64, 0 int64, label %bb3, label %bb4
+// CHECK: jmp_int_eq_imm %0 int64, 0 int64, label %bb5, label %bb3
 
-// CHECK: %bb2(loop-end):                                 ;; preds = %bb4
+// CHECK: %bb3(loop-cond-incr):                           ;; preds = %bb5, %bb2
+// CHECK: %1 = int.add_imm %i int64, 1 int64
+// CHECK: move %i int64, %1 int64
+// CHECK: jmp label %bb1
 
-// CHECK: %bb3(if-then):                                  ;; preds = %bb1
-// CHECK: %1 = local int64        [fixedslot = 0(next)]
-// CHECK: move %1 int64, %i int64
-// CHECK: call @print [path = 'std/prelude']
-// CHECK: jmp label %bb4
+// CHECK: %bb4(loop-end):                                 ;; preds = %bb1
 
-// CHECK: %bb4(if-end):                                   ;; preds = %bb3, %bb1
-// CHECK: %5 = int.add_imm %i int64, 1 int64
-// CHECK: move %i int64, %5 int64
-// CHECK: jmp_int_lt_imm %i int64, 10 int64, label %bb1, label %bb2
+// CHECK: %bb5(if-then):                                  ;; preds = %bb2
+// CHECK: %2 = local int64        [fixedslot = 0(next)]
+// CHECK: move %2 int64, %i int64
+// CHECK: %3 = build_intern @tuple, nargs=1        [fixedslot = 0(next)]
+// CHECK: %4 = local str        [fixedslot = 1(next)]
+// CHECK: loadk %4 str, ' ' str
+// CHECK: %5 = local str        [fixedslot = 2(next)]
+// CHECK: loadk %5 str, '\n' str
+// CHECK: call @print [path = 'std/prelude'], nargs=3
+// CHECK: jmp label %bb3
 
-// CHECK-LABEL: ====== Linearization @__init__(start_pc: 0, insns: 12) ======
+
+// CHECK-LABEL: ====== Linearization @__init__(start_pc: 0, insns: 13) ======
 
 // CHECK: %bb0(loop-header):
 // CHECK: load_int_imm r0, ti=0xb, #0
 
-// CHECK: %bb1(loop-body):
-// CHECK: int.mod_imm r1, r0, #2
-// CHECK: jmp_int_ne_imm r1, #0, 6     ;; -> %bb4(if-end)
+// CHECK: %bb1(loop-cond):
+// CHECK: jmp_int_ge_imm r0, #10, 10   ;; -> %bb4(loop-end)
 
-// CHECK: %bb3(if-then):
+// CHECK: %bb2(loop-body):
+// CHECK: int.mod_imm r1, r0, #2
+// CHECK: jmp_int_ne_imm r1, #0, 6     ;; -> %bb3(loop-cond-incr)
+
+// CHECK: %bb5(if-then):
 // CHECK: move r2, r0
 // CHECK: build_intern r2, @tuple, #1
 // CHECK: loadk r3, #0
@@ -45,9 +57,9 @@ for i in range(0, 10) {
 // CHECK: call flg=0, #3
 // CHECK: data
 
-// CHECK: %bb4(if-end):
+// CHECK: %bb3(loop-cond-incr):
 // CHECK: int.add_imm r0, r0, #1
-// CHECK: jmp_int_lt_imm r0, #10, -10   ;; -> %bb1(loop-body)
+// CHECK: jmp -11                      ;; -> %bb1(loop-cond)
 
-// CHECK: %bb2(loop-end):
+// CHECK: %bb4(loop-end):
 // CHECK: ret_void

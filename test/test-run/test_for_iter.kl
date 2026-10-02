@@ -56,6 +56,20 @@ func main() {
     for j in Foo() {
         print(j)
     }
+
+    for i in Bar() {
+        print(i)
+        if i == 2 {
+            continue
+        }
+    }
+
+    for j in Foo() {
+        print(j)
+        if j == 2 {
+            break
+        }
+    }
 }
 
 
@@ -63,19 +77,17 @@ func main() {
 // CHECK-LABEL: func @main() <NO-TYPE> {
 // CHECK: %1 = call @Bar:iter, %0 test_for_iter.Bar
 // CHECK: %2 = call @BarIter:has_next, %1 test_for_iter.BarIter
-// CHECK: branch %2 bool, label %bb3, label %bb4
+// CHECK: branch %2 bool, label %bb3, label %bb5
 // CHECK: %i = local int64
 // CHECK: %3 = call @BarIter:next_strict, %1 test_for_iter.BarIter
 // CHECK: move %i int64, %3 int64
-// CHECK: %5 = call @BarIter:has_next, %1 test_for_iter.BarIter
-// CHECK: branch %5 bool, label %bb3, label %bb4
+// CHECK: jmp label %bb4
 
-// CHECK: %7 = call @Foo:has_next, %6 test_for_iter.Foo
+// CHECK: %6 = call @Foo:has_next, %5 test_for_iter.Foo
 // CHECK: %j = local int64
-// CHECK: %8 = call @Foo:next_strict, %6 test_for_iter.Foo
-// CHECK: move %j int64, %8 int64
-// CHECK: %10 = call @Foo:has_next, %6 test_for_iter.Foo
-// CHECK: branch %10 bool, label %bb7, label %bb8
+// CHECK: %7 = call @Foo:next_strict, %5 test_for_iter.Foo
+// CHECK: move %j int64, %7 int64
+// CHECK: jmp label %bb9
 
 // CHECK: 1
 // CHECK: 2
@@ -83,3 +95,8 @@ func main() {
 // CHECK: 1
 // CHECK: 2
 // CHECK: 3
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3
+// CHECK: 1
+// CHECK: 2
