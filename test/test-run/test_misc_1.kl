@@ -27,7 +27,7 @@ func main() {
     let f2 = Foo()
     print(f2)
     let i = 100
-    print(hash(i), hash(100))
+    print(i.hash(), 100.hash())
     let i2 = 100
     print(f == f2, f == f)
 

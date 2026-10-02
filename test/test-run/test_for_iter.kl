@@ -6,7 +6,7 @@ class Foo : Iterator[int] & Iterable[int] {
     var index = 0
 
     func has_next() bool {
-        return index < len(lst)
+        return index < lst.len()
     }
 
     func next_strict() int {
@@ -38,7 +38,7 @@ class BarIter : Iterator[int] {
     }
 
     func has_next() bool {
-        return index < len(bar.lst)
+        return index < bar.lst.len()
     }
 
     func next_strict() int {

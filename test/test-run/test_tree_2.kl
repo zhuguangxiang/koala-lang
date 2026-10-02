@@ -68,7 +68,7 @@ class Tree[T: Comparable] {
             stack.push(root!)
         }
 
-        while len(stack) > 0 {
+        while stack.len() > 0 {
             let x = stack.pop(0)
             print(x.value, end=" ")
             if let v = x.left {

@@ -10,10 +10,10 @@ import "std/sys"
 
 func main() {
 	hello(1,2,"hello", true)
-	print(len([1,2,3]))
+	print([1,2,3].len())
 
 	let lst = sys.args()
-	print(lst, lst[0], len(lst))
+	print(lst, lst[0], lst.len())
 }
 
 // CHECK: 2

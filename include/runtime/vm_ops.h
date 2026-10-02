@@ -1185,18 +1185,6 @@ TARGET(OP_INT_MOD_IMM) {
     DISPATCH();
 }
 
-TARGET(OP_HASH) {
-    rd = I_VAL(inst, 12, 12);
-    rs = I_VAL(inst, 0, 12);
-
-    CHECK_REG_ID(rd);
-    CHECK_REG_ID(rs);
-
-    regs[rd] = kl_slot_call_no_arg(regs + rs, SLOT_HASH);
-
-    DISPATCH();
-}
-
 TARGET(OP_STR) {
     rd = I_VAL(inst, 12, 12);
     rs = I_VAL(inst, 0, 12);

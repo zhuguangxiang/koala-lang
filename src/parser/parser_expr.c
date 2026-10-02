@@ -1276,55 +1276,6 @@ static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
     return changed;
 }
 
-static void handle_len_call(ParserState *ps, CallExpr *call)
-{
-    log_info("handle len() call special case.");
-
-    Expr *arg = vector_get(call->args, 0);
-    Symbol *sym = get_type_symbol(arg->ts, ps);
-    ASSERT(sym);
-
-    HashMap *stbl = NULL;
-
-    if (sym->kind == SYM_CLASS) {
-        stbl = sym->stbl;
-    } else if (sym->kind == SYM_INSTANCE) {
-        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
-        Symbol *origin_sym = inst_sym->origin;
-        ASSERT(origin_sym && origin_sym->kind == SYM_CLASS);
-        stbl = origin_sym->stbl;
-    } else {
-        UNREACHABLE();
-    }
-
-    Symbol *len_sym = stbl_get(stbl, "len");
-    if (!len_sym) {
-        kl_error(arg->loc, "object of type '%s' has no len()", arg->ts->signature);
-        return;
-    }
-
-    if (len_sym->kind != SYM_FUNC) {
-        kl_error(arg->loc, "'%s.len' is not a function", arg->ts->signature);
-    }
-
-    FuncSymbol *len_fn_sym = (FuncSymbol *)len_sym;
-    if (!vector_empty(&len_fn_sym->tps)) {
-        kl_error(arg->loc,
-                 "'%s.len' is a generic function, cannot be called without type parameters",
-                 arg->ts->signature);
-    }
-
-    if (!vector_empty(len_fn_sym->params)) {
-        kl_error(arg->loc,
-                 "'%s.len' has parameters, cannot be called without arguments in len() call",
-                 arg->ts->signature);
-    }
-
-    if (!type_is_int(len_fn_sym->ret)) {
-        kl_error(arg->loc, "'%s.len' must return int for len() call", arg->ts->signature);
-    }
-}
-
 // Operator hook dunders must be invoked through their syntax sugar only,
 // never called explicitly as functions (Swift-style rule).
 static const char *operator_dunder_sugar(const char *name)
@@ -1698,15 +1649,6 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
 
     check_call_args(params, call->args, ps, lhs->loc);
-
-    // handle magic function call
-    if (lhs_sym->kind == SYM_FUNC) {
-        FuncSymbol *fn_sym = (FuncSymbol *)lhs_sym;
-        if (is_magic_func(fn_sym) && str_equal(fn_sym->name, "len")) {
-            log_info("handle built-in len() call.");
-            handle_len_call(ps, call);
-        }
-    }
 
     if (ps->errors > 0) return;
 

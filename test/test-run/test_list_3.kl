@@ -15,7 +15,7 @@ func main() {
     print(l)
 
     let l2 = new_list_list(300)
-    print(l2, len(l2), len(l2[0]), len(l2[1]))
+    print(l2, l2.len(), l2[0].len(), l2[1].len())
 
     l[0] = 10
     l[1] = 20
@@ -51,11 +51,11 @@ func main() {
 // CHECK: %2 = call @new_list_list [const], 300 int64
 // CHECK: %l2 = local [immutable] std/builtin.list<Lstd/builtin.list<j>;>
 // CHECK: move %l2 std/builtin.list<Lstd/builtin.list<j>;>, %2 std/builtin.list<Lstd/builtin.list<j>;>
-// CHECK: %3 = call @len [path = 'std/builtin'], %l2 std/builtin.list<Lstd/builtin.list<j>;>
+// CHECK: %3 = call @list:len [path = 'std/builtin'], %l2 std/builtin.list<Lstd/builtin.list<j>;>
 // CHECK: %4 = seq.get %l2 std/builtin.list<Lstd/builtin.list<j>;>, 0 int64
-// CHECK: %5 = call @len [path = 'std/builtin'], %4 std/builtin.list<j>
+// CHECK: %5 = call @list:len [path = 'std/builtin'], %4 std/builtin.list<j>
 // CHECK: %6 = seq.get %l2 std/builtin.list<Lstd/builtin.list<j>;>, 1 int64
-// CHECK: %7 = call @len [path = 'std/builtin'], %6 std/builtin.list<j>
+// CHECK: %7 = call @list:len [path = 'std/builtin'], %6 std/builtin.list<j>
 // CHECK: %8 = build_intern @tuple, %l2 std/builtin.list<Lstd/builtin.list<j>;>, %3 int64, %5 int64, %7 int64
 // CHECK: call @print [path = 'std/prelude'], %8 std/builtin.tuple<Lstd/builtin.list<Lstd/builtin.list<j>;>;jjj>, ' ' str, '\n' str
 // CHECK: seq.set %l std/builtin.list<j>, 0 int64, 10 int64

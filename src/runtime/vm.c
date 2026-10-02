@@ -626,17 +626,23 @@ Object *kl_get_intf_func(TValue *intf, int func_idx)
     return itab->methods[func_idx];
 }
 
-KOALA_EXPORT void koala_run_file(char *path)
+KOALA_EXPORT int koala_run_file(char *path)
 {
     Object *m = kl_load_module(path);
-    if (m) kl_run_main(m);
+    if (m) {
+        kl_run_main(m);
+        return 0;
+    }
+    fprintf(stderr, "koala: failed to load module '%s'\n", path);
+    return -1;
 }
 
 KOALA_EXPORT int koala_test_file(char *path)
 {
     Object *m = kl_load_module(path);
     if (m) return kl_run_tests(m);
-    return 0;
+    fprintf(stderr, "koala: failed to load module '%s'\n", path);
+    return -1;
 }
 
 static void load_modules(void)

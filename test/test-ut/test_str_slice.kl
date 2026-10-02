@@ -115,7 +115,7 @@ func test_str_slice_single_char() {
 @test_expect_panic("step cannot be zero")
 func test_str_slice_step_zero() {
     let s = "hello world"
-    ut.assert_eq(len(s), 11)
+    ut.assert_eq(s.len(), 11)
     // s[::0] // be optimized for no used.
     // let _ = s[::0]
     print(s[::0])
@@ -127,7 +127,7 @@ func test_str_slice_other() {
     let s = "hello world"
     ut.assert_eq(s[::-1][::-1], s)
     ut.assert_eq(s[::1],        s)
-    ut.assert_eq(s[:len(s)],    s)
+    ut.assert_eq(s[:s.len()],    s)
     ut.assert_eq(""[:], "")
     ut.assert_eq(""[::-1], "")
     ut.assert_eq("a"[::-1], "a")

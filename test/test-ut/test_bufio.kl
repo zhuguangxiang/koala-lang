@@ -47,7 +47,7 @@ func test_bufreader_bytesio_peek_discard() {
 
     // peek triggers a fill but consumes nothing
     let p = br.peek(3)
-    ut.assert_eq(len(p), 3)
+    ut.assert_eq(p.len(), 3)
     ut.assert_eq(p, b"abc")
     ut.assert_eq(br.avail(), 4) // fill pulled 4 bytes, peek left them all
 
@@ -68,7 +68,7 @@ func test_bufreader_bytesio_peek_last_bytes() {
 
     // peek returns exactly the requested count
     let p = br.peek(2)
-    ut.assert_eq(len(p), 2)
+    ut.assert_eq(p.len(), 2)
     ut.assert_eq(p, b"xy")
 
     // after consuming everything, no data is left
@@ -109,7 +109,7 @@ func test_bufreader_bytesio_peek_refills_until_n() {
 
     // peek(4) compacts the buffered "cd" and refills "ef" to satisfy n
     let p = br.peek(4)
-    ut.assert_eq(len(p), 4)
+    ut.assert_eq(p.len(), 4)
     ut.assert_eq(p, b"cdef")
 
     // peeking did not consume anything: the position is unchanged

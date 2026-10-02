@@ -317,7 +317,7 @@ pub class StrIter : Iterator[str] {
     /// The cursor starts at index 0 and advances by `step` on each iteration.
     pub func __init__(s str, _step = 1) {
         source = s
-        length = len(s)
+        length = s.len()
         cursor = 0
         step = _step
     }
@@ -384,7 +384,7 @@ pub class StrRevIter : Iterator[str] {
     /// The cursor starts at the last character and moves backward by `step`.
     pub func __init__(s str, _step = 1) {
         source = s
-        length = len(s)
+        length = s.len()
         cursor = length - 1
         step = _step
     }

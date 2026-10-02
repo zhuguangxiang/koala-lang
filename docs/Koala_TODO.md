@@ -3,11 +3,11 @@
 > 记录未完成实现与待定设计：泛型数值协议（§1–4、§7–8）、语言手册（§5）、
 > 版本计划与路线图（§6）、容器协议相关（§9、§11、§12）、Truthiness 设想（§10）、
 > 数值 cast 补全（§13，已完成转语义 / 测试基线记录）、from_str 解析 API（§14，设计定案未实现）、
-> 测试揭示的 WIP 特性（§15）。
+> 测试揭示的 WIP 特性（§15，2026-10-02 复核已消解）、声明-实现欠账清单（§16）。
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-09-12
+> 更新日期：2026-10-02（全面盘点 libs/std 40 文件 × test/ 190 用例后刷新）
 
 ---
 
@@ -21,7 +21,7 @@
 
 **未完成**：位运算族 5 件——AND / OR / XOR / SHL / SHR，opcode 与 slot id
 （`SLOT_BIT_AND` / `SLOT_BIT_OR` / `SLOT_BIT_XOR` / `SLOT_SHL` / `SLOT_SHR`）
-均已定义，缺 VM TARGET handler。
+均已定义，缺 VM TARGET handler。（2026-10-02 复核：vm_ops.h 仍只有 OP_NUM_EQ..MOD 共 11 个 TARGET，位运算族维持未实现。）
 
 **施工方向**：按算术族模式补 5 个 TARGET——`kl_slot_call_one_arg(self, arg,
 SLOT_BIT_AND)` 等。
@@ -59,7 +59,9 @@ SLOT_BIT_AND)` 等。
 
 ## 4. `in` 表达式的语义下降（`__contains__` 语法糖）
 
-**现状**：`koala.y` 已有 `in_expr` 语法规则、AST 已有 `EXPR_IN_KIND`，
+**已完成（2026-10-02 核实，本节关闭）**：全链路已打通——`parse_in`（parser_expr.c 分发表）→ `emit_ir_contains`（irgen.c）→ `OP_CONTAINS` TARGET（vm_ops.h，经 `SLOT_CONTAINS` 槽分发）；test-kl/test_contains.kl 守护类型检查（`100 in "hello"` 报 incompatible type、`1 in 100` 报不支持 `__contains__`）。以下为建立时的原始记录，留档备查：
+
+**现状（原记录，已过时）**：`koala.y` 已有 `in_expr` 语法规则、AST 已有 `EXPR_IN_KIND`，
 但 `parser_visit_expr` 与 irgen 的分发表都没有该 kind 的 handler——
 写 `5 in r` 编译失败（`koala: compilation failed`，不再段错误）。
 
@@ -358,6 +360,7 @@ printer `print_jmp_cond_fused`、cgen `fused_jmp()` + `lower_fused_jmp` 均就�
 - [x] test_generic_14 用户自定义数值类全链路 PASS——2026-08-22
 - [x] 全量 lit-tests 基线：**136/139 通过**（97.84%），2 Unresolved
   （test_bytes.kl / test_io.kl），1 FAIL（test_pkg_4.kl，LD_LIBRARY_PATH 未设置）
+- [x] 2026-10-02 测试基线盘点：lit 发现 **190** 个测试（test-kl 38 / test-ir 36 / test-run 88 / test-ut 28），全部带 RUN 行——§15 的“无 RUN 挂账”全部消解
 
 ### 7.3 决策点（待作者拍板）
 
@@ -479,21 +482,21 @@ handler 不处理负索引，IMM 版本也应拒绝负数（编译期报错）�
 > 与 §9（list push/pop 的 @intrinsic 化）相关但正交：§9 是方法内置，
 > 本节是语法钩子协议指令。三层对应见 Koala_Design_Overview.md §8.3。
 
-**已完成全链路（isel / printer / VM TARGET）——5 条**：
+**已完成全链路（isel / printer / VM TARGET）——7 条**（2026-10-02 复核）：
 
 - [x] OP_SEQ_GET（TARGET 经 kl_slot_call 走 SLOT_GET_ITEM）
 - [x] OP_SEQ_GET_IMM（isel.c:1051 常数下标特化）
 - [x] OP_SEQ_SET（SLOT_SET_ITEM）
 - [x] OP_SEQ_SET_IMM（isel.c:1078）
 - [x] OP_LEN（isel.c:622/632 下降；TARGET 走 SLOT_LEN）
+- [x] OP_CONTAINS（vm_ops.h TARGET 经 SLOT_CONTAINS；`in` 语法全链路见 §4）
+- [x] OP_SEQ_GET_SLICE（vm_ops.h TARGET 经 SLOT_GET_SLICE）
 
-**已定义、未实现——7 条**：
+**已定义、未实现——5 条**：
 
-- [ ] OP_SEQ_GET_SLICE（SLOT_GET_SLICE）
 - [ ] OP_SEQ_SET_SLICE（SLOT_SET_SLICE）
 - [ ] OP_MAP_GET（IR 层已有：insn.c:816 用于成员访问下降；VM TARGET 缺）
 - [ ] OP_MAP_SET（IR 层已有：insn.c:842，dce.c 已识别其副作用；VM TARGET 缺）
-- [ ] OP_CONTAINS（SLOT_CONTAINS；依赖 §4 的 in 表达式语义下降）
 - [ ] OP_LIST_PUSH（IRGen 发射 + TARGET；见 §9）
 - [ ] OP_LIST_POP（OP_CALL + ISEL 特化路径；见 §9）
 
@@ -588,6 +591,7 @@ float → int **不 trap，而是饱和**——这是 `do_cast.h` mode 1 分支�
 
 - [ ] **NYI 1b**：`int64.to_float()` / `uint64.to_float()` native 方法——**未验证**，构造函数路径通了不代表这两个方法通了
 - [ ] **NYI 2b**：`float64.to_int()` native 方法——同上，未验证
+- [ ] **数值 native 方法族未实现（2026-10-02 src/ 全文 grep 核实）**：`int64.pow / abs / to_float`、`uint64.pow / to_float`、`float64.abs / ceil / floor / round / sqrt / pow / to_int / is_nan / is_inf`，以及模块级 `abs_int64` / `abs_float64` / `pow_int64_int64` / `pow_float64_*` 在 src/ 无任何 C 实现——调用将命中 not_impl（汇总见 §16.2）。NYI 1b / 2b 由“未验证”升级为“确认未实现”
 - [ ] **窄整型字面量丢符号**（不是 cast 问题，但它卡住了两个 cast 用例）：超出 ±2048 的负 int16 / int32 字面量变成无符号值。根因在 `isel.c` 的 `get_const_op`——`[-2048, 2047]` 内发 `OP_LOAD_INT_IMM`，之外走 `OP_LOADK`，而 LOADK 路径没有做符号扩展。
   - 因此 `test_cast_int.kl` 中 `test_i32_to_f32(-100000)` 与 `test_i32_to_f64(-100000)` 仍以注释 + `// expect:` 保留，是仅剩的两个未启用跨族用例；同文件末尾另有一组字面量本身的 worklist。
   - `test_const_int_cast_failed.kl` 里 `let a int32 = -40000` / `-100000` 两处目前"因错误的原因"通过（字面量先变成大正数，再触发常量越界报错）；字面量修好后诊断文本不变，**无需改动**。
@@ -649,9 +653,15 @@ pub static func try_from_str(s str, base = 10) int64? {}
 
 ---
 
-## 15. 测试文件揭示的 WIP / 未验证特性（无 RUN 行，lit 标记 Unresolved）
+## 15. 测试文件揭示的 WIP / 未验证特性（2026-10-02 复核：已消解）
 
-> 2026-09-12 建立。通读 test/ 用例时发现以下特性有测试文件但**无 `// RUN:` 行**，lit 不执行、标记 Unresolved（即 §13.5 记录的 5 unresolved 之列，§7.2 亦点名 test_bytes / test_io）。特性是否已落地未经 lit 验证，**不入设计文档**（设计文档只收已确认 finalized 特性），在此挂账跟踪。
+> 2026-09-12 建立时的三个挂账文件（test-run/test_nd_list.kl、test-run/test_bytes.kl、test-run/test_io.kl）**已全部删除**，不再存在于 test/。覆盖迁移情况：
+>
+> - bytes / Buffer 能力 → test-ut/test_bytes.kl、test_buffer.kl（带 RUN 行，`koala --test` 状态码模式）
+> - io 流（BytesIO / BufReader / read 协议）→ test-ut/test_bytesio.kl、test_bufio.kl、test_strio.kl 与 test-run/test_io_split.kl
+> - 多维下标 `a[i, j]`（原 test_nd_list）→ 用例未保留，特性未落地、不再跟踪
+>
+> 现状：190 个测试全部带 `RUN:` 行，“无 RUN 行 → Unresolved”类挂账清零。以下 15.1–15.3 为原记录留档。
 
 ### 15.1 多维下标 `a[i, j]`（test-run/test_nd_list.kl）
 
@@ -671,8 +681,35 @@ pub static func try_from_str(s str, base = 10) int64? {}
 - §7.2 已记录 test_io 为 Unresolved。
 - 待验证：StringIO / BufReader 的 read 协议、与 bytes 缓冲的协作；`while {}` 无限循环形式是否已在其他 passing 测试中实证。
 
-### 15.4 处理建议
+### 15.4 处理结果（2026-10-02）
 
-- 逐个补 RUN 行与 CHECK 断言，跑通后从 Unresolved 转 PASS；
-- 确认落地的特性再迁入设计文档对应章节（下标族 §3、bytes §8.4、io §8/§9）；
-- 未落地者保留在本节跟踪，不污染设计文档的「已确认」边界。
+- 三个文件已删除，无需补 RUN 行；bytes / io 特性以 test-ut 状态码用例重新覆盖，并已入设计文档（§8.4 / §8.9）；
+- 多维下标特性未落地，不再跟踪；将来重启时按新用例重开。
+
+---
+
+## 16. 声明-实现欠账清单（@native 无 C 实现 / 类型未注册）
+
+> 2026-10-02 建立。libs/std 全面盘点（40 个 .kl 全文 × src/ 全文 grep 交叉核实）：
+> 以下声明已进入 .klc 构建，但运行时侧无实现——调用将命中 `not_impl` 哨兵
+> （§7.1：加载期警告 + 调用时 `Exception("... is not implemented.")`）。
+> 设计文档只记设计与声明，欠账在此挂账。
+
+### 16.1 容器与类型
+
+- `dict`：25 个方法全部 `@native`；src/ 无 dict 类型实现与注册，且当前 190 个测试中没有任何 dict 用例。
+- `HashSet` / `TreeSet`：19 / 20 个方法全部 `@native`；无 C 实现、无测试。
+- koala.y 仍留 `set_type` 文法残段（行为行已注释），集合字面量语法未启用。
+
+### 16.2 fs / os / 数值方法
+
+- `fs`：`exists` / `is_file` / `is_dir` / `size` / `remove` / `mkdir` / `rmdir` / `list_dir` 与 `Path.cat`（空体 `@native`，KL 实现整体注释态）无 C 实现；`open` / `read_bytes` / `write_bytes` / `write_str` 与 `File` 方法已实现。
+- `os`：`system` / `run` + `Process` 8 方法 + `PipeReader` / `PipeWriter` 8 方法——声明活跃、native 全缺（仅 `getenv` / `setenv` / `unsetenv` 已实现）。
+- 数值方法族：见 §13.6 新增条目。
+
+### 16.3 命名 / 一致性 WIP（顺手项）
+
+- `MutableSequence.append`（trait，Rust 风格）vs `list.push`（list.kl）——trait 改名后 list.kl 未跟随，遵循名不齐。
+- `Buffer`（bytebuf.kl，原 `ByteBuf`）已收缩为纯 append 式缓冲、不再声明 `MutableSequence[uint8]`；设计文档 §8.4 已同步。
+- seeker.kl 文档提及 `io.StdinReader`——不存在的类（doc-only 残留，示例应改用 `sys.stdin`）。
+- `ut.assert_eq[T : Equatable]`（裸约束）与 `assert_ne[T : Equatable[T]]`（完整形参）约束写法不一致，可顺手统一。

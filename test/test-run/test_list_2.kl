@@ -13,7 +13,7 @@ func main() {
     let v = l[0]
     print(v)
 
-    for i in range(len(l)) {
+    for i in range(l.len()) {
         let v = l[i]
         print(v)
     }
@@ -46,7 +46,7 @@ func main() {
 // CHECK: jmp label %bb1
 
 // CHECK: %bb1(loop-header):                              ;; preds = %bb0
-// CHECK: %4 = call @len [path = 'std/builtin'], %l std/builtin.list<j>
+// CHECK: %4 = call @list:len [path = 'std/builtin'], %l std/builtin.list<j>
 // CHECK: %i = local int64
 // CHECK: move %i int64, 0 int64
 // CHECK: jmp label %bb2

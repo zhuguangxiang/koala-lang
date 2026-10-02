@@ -12,7 +12,7 @@
 ///
 /// Implementations should follow these conventions:
 /// - Return the number of bytes actually written.
-/// - A short write (n < len(bs)) indicates a partial write, which may
+/// - A short write (n < bs.len()) indicates a partial write, which may
 ///   signal an error condition (e.g., disk full, broken pipe).
 /// - Never return a negative value.
 /// - The flush() method should be called to ensure buffered data is
@@ -33,7 +33,7 @@ pub trait Writer {
     /// - `bs`: The source bytes to write.
     ///
     /// Returns
-    /// The number of bytes actually written. A value less than len(bs)
+    /// The number of bytes actually written. A value less than bs.len()
     /// indicates a partial write, which typically signals an error condition.
     ///
     /// # Notes

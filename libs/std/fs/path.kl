@@ -9,7 +9,7 @@ import "std/os"
 ///
 /// It treats paths as clean logical objects rather than raw strings,
 /// automatically handling platform-specific separators (\ for Windows, / for Unix).
-pub class Path : Equatable[Path] & ToString {
+pub class Path : ToString {
 
     /// The internal string representation of the path.
     let path str
@@ -211,4 +211,7 @@ pub class Path : Equatable[Path] & ToString {
         // // Merge tokens and execute a final post-order wash to yield a squeaky clean string
         // return Path(joint + next_part).normalize()
     }
+
+    /// Return the hash code of the current path.
+    pub func hash() int { return path.hash() }
 }

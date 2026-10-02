@@ -67,8 +67,8 @@ func test_ut_u8_to_unsigned_widening() {
     ut.assert(test_u8_to_u32(UINT8_MIN) == UINT32_MIN)
     ut.assert(test_u8_to_u32(UINT8_MAX) == UINT8_MAX)
 
-    ut.assert(test_u8_to_u64(UINT8_MIN) == UINT64_MIN)
-    ut.assert(test_u8_to_u64(UINT8_MAX) == UINT8_MAX)
+    ut.assert_uint_eq(test_u8_to_u64(UINT8_MIN), UINT64_MIN)
+    ut.assert_uint_eq(test_u8_to_u64(UINT8_MAX), UINT8_MAX)
 }
 
 @test
@@ -109,10 +109,10 @@ func test_ut_u8_to_i8() {
 
 @test
 func test_ut_u8_add_u8() {
-    ut.assert(test_u8_add_u8(UINT8_MIN, UINT8_MIN) == UINT8_MIN)
-    ut.assert(test_u8_add_u8(UINT8_MIN, UINT8_MAX) == UINT8_MAX)
+    ut.assert_uint_eq(test_u8_add_u8(UINT8_MIN, UINT8_MIN), UINT8_MIN)
+    ut.assert_uint_eq(test_u8_add_u8(UINT8_MIN, UINT8_MAX), UINT8_MAX)
     ut.assert(test_u8_add_u8(1, UINT8_MAX) == 256)
-    ut.assert(test_u8_add_u8(127, 128) == UINT8_MAX)
+    ut.assert_uint_eq(test_u8_add_u8(127, 128), UINT8_MAX)
     ut.assert(test_u8_add_u8(128, 128) == 256)
     ut.assert(test_u8_add_u8(UINT8_MAX, UINT8_MAX) == 510)
 }
@@ -127,7 +127,7 @@ func test_ut_u8_add_u8() {
 
 @test
 func test_ut_u8_sub_u16() {
-    ut.assert(test_u8_sub_u16(UINT8_MAX, UINT16_MIN) == UINT8_MAX)
+    ut.assert_uint_eq(test_u8_sub_u16(UINT8_MAX, UINT16_MIN), UINT8_MAX)
     ut.assert(test_u8_sub_u16(UINT8_MAX, 1) == 254)
     ut.assert(test_u8_sub_u16(UINT8_MAX, UINT8_MAX) == 0)
 
@@ -148,10 +148,10 @@ func test_ut_u8_mul_u32() {
     ut.assert(test_u8_mul_u32(UINT8_MIN, UINT32_MAX) == 0)
 
     ut.assert(test_u8_mul_u32(1, 1) == 1)
-    ut.assert(test_u8_mul_u32(1, UINT32_MAX) == UINT32_MAX)
+    ut.assert_uint_eq(test_u8_mul_u32(1, UINT32_MAX), UINT32_MAX)
 
-    ut.assert(test_u8_mul_u32(UINT8_MAX, 1) == UINT8_MAX)
-    ut.assert(test_u8_mul_u32(UINT8_MAX, 0x01010101) == UINT32_MAX)
+    ut.assert_uint_eq(test_u8_mul_u32(UINT8_MAX, 1), UINT8_MAX)
+    ut.assert_uint_eq(test_u8_mul_u32(UINT8_MAX, 0x01010101), UINT32_MAX)
 
     ut.assert(test_u8_mul_u32(UINT8_MAX, 0x01000000) == 0xff000000)
 }
@@ -168,7 +168,7 @@ func test_ut_u8_div_u64() {
     ut.assert(test_u8_div_u64(1, 2) == 0)
     ut.assert(test_u8_div_u64(2, 1) == 2)
 
-    ut.assert(test_u8_div_u64(UINT8_MAX, 1) == UINT8_MAX)
+    ut.assert_uint_eq(test_u8_div_u64(UINT8_MAX, 1), UINT8_MAX)
     ut.assert(test_u8_div_u64(UINT8_MAX, 2) == 127)
     ut.assert(test_u8_div_u64(UINT8_MAX, 127) == 2)
     ut.assert(test_u8_div_u64(UINT8_MAX, UINT8_MAX) == 1)

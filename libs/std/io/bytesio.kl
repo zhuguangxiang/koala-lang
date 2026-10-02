@@ -36,7 +36,7 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
     /// The underlying fixed-capacity byte buffer.
     let bs bytes
 
-    /// The logical end of the data written so far, 0 <= end <= len(bs).
+    /// The logical end of the data written so far, 0 <= end <= bs.len().
     var end int = 0
 
     /// The current read/write position within the buffer, 0 <= pos <= end.
@@ -63,7 +63,7 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
 
     /// Create a BytesIO initialized with a copy of the given byte data.
     ///
-    /// The capacity equals len(data), the logical end is len(data), and
+    /// The capacity equals data.len(), the logical end is data.len(), and
     /// the position is 0, so the content can be read back immediately.
     ///
     /// Arguments
@@ -72,7 +72,7 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
     /// Returns
     /// A new BytesIO containing a copy of `data`.
     pub static func from_bytes(data bytes) BytesIO {
-        let bio = BytesIO(len(data))
+        let bio = BytesIO(data.len())
         bio.write(data)
         bio.seek(0, 0)
         return bio
@@ -88,13 +88,13 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
     /// Returns
     /// A new BytesIO containing the UTF-8 bytes of `s`, positioned at 0.
     pub static func from_str(s str) BytesIO {
-        let bio = BytesIO(len(s))
+        let bio = BytesIO(s.len())
         bio.write_str(s)
         bio.seek(0, 0)
         return bio
     }
 
-    /// Read up to len(_bs) bytes from the current position into `_bs`.
+    /// Read up to _bs.len() bytes from the current position into `_bs`.
     ///
     /// Arguments
     /// - `_bs`: The destination buffer to fill with data.
@@ -104,7 +104,7 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
     /// reached the logical end (EOF).
     ///
     /// Notes
-    /// - A short read (n < len(_bs)) means EOF was reached, since all
+    /// - A short read (n < _bs.len()) means EOF was reached, since all
     ///   the data is already in memory.
     /// - Panic if the stream has been closed.
     pub func read(_bs bytes) int {
@@ -117,7 +117,7 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
             return 0
         }
 
-        let n = min(len(_bs), avail)
+        let n = min(_bs.len(), avail)
         _bs.copy(bs.view(pos, pos + n), 0, n)
         pos = pos + n
         return n
@@ -133,7 +133,7 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
     /// - `_bs`: The source bytes to write. It is not mutated.
     ///
     /// Returns
-    /// The number of bytes actually written, always len(_bs).
+    /// The number of bytes actually written, always _bs.len().
     ///
     /// Notes
     /// - Panic if the stream has been closed.
@@ -143,11 +143,12 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
             panic("I/O operation on closed BytesIO")
         }
 
-        let n = len(_bs)
+        let n = _bs.len()
         if n == 0 {
             return 0
         }
-        if pos + n > len(bs) {
+
+        if pos + n > bs.len() {
             panic("BytesIO write exceeds capacity")
         }
 
@@ -271,7 +272,7 @@ pub class BytesIO : Reader & Writer & Seeker & Closable {
 
     /// Return the fixed capacity of the underlying buffer.
     pub func capacity() int {
-        return len(bs)
+        return bs.len()
     }
 
     /// Return a copy of the bytes written so far, from 0 to the logical end.

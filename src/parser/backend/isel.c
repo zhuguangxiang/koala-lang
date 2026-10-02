@@ -617,46 +617,6 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
 {
     KlrValue *fn_val = insn_oper_value(insn, 0);
 
-    if (fn_val->magic) {
-        if (str_equal(fn_val->name, "len")) {
-            log_info("handle built-in len() call.");
-            // special intrinsic: len()
-            ASSERT(insn->num_opers == 2);
-            KlrValue *arg = insn_oper_value(insn, 1);
-
-            if (klr_is_const(arg)) {
-                KlrValue *_arg = lower_const(insn, (KlrConst *)arg);
-                set_operand_at(insn, 0, _arg);
-            } else {
-                set_operand_at(insn, 0, arg);
-            }
-
-            clear_operand_at(insn, 1);
-            insn->num_opers = 1;
-            insn->code = OP_LEN;
-            return;
-        }
-
-        if (str_equal(fn_val->name, "hash")) {
-            log_info("handle built-in hash() call.");
-            // special intrinsic: hash()
-            ASSERT(insn->num_opers == 2);
-            KlrValue *arg = insn_oper_value(insn, 1);
-
-            if (klr_is_const(arg)) {
-                KlrValue *_arg = lower_const(insn, (KlrConst *)arg);
-                set_operand_at(insn, 0, _arg);
-            } else {
-                set_operand_at(insn, 0, arg);
-            }
-
-            clear_operand_at(insn, 1);
-            insn->num_opers = 1;
-            insn->code = OP_HASH;
-            return;
-        }
-    }
-
     if (tail_call_enabled() && is_tailcall(insn, fn)) {
         fn->has_tailcall = 1;
         KlrInsn *last_local = NULL;
@@ -1115,7 +1075,7 @@ static void isel_lower_make_intf(KlrInsn *insn)
     }
 }
 
-static void isel_lower_hash_str(KlrInsn *insn)
+static void isel_lower_str(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     if (klr_is_const(obj)) {
@@ -1266,9 +1226,8 @@ static void do_isel(KlrFunc *fn)
                     break;
                 }
 
-                case OP_HASH:
                 case OP_STR: {
-                    isel_lower_hash_str(insn);
+                    isel_lower_str(insn);
                     break;
                 }
 

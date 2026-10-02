@@ -5,7 +5,7 @@ import "std/ut"
 @test
 func test_buffer_init() {
     let buffer = Buffer()
-    ut.assert_eq(len(buffer), 0)
+    ut.assert_eq(buffer.len(), 0)
     ut.assert(buffer.empty())
 }
 
@@ -13,13 +13,13 @@ func test_buffer_init() {
 func test_buffer_write_byte() {
     let buffer = Buffer()
     buffer.write_byte(65)
-    ut.assert_eq(len(buffer), 1)
+    ut.assert_eq(buffer.len(), 1)
     buffer.clear()
-    ut.assert_eq(len(buffer), 0)
+    ut.assert_eq(buffer.len(), 0)
     ut.assert(buffer.empty())
 
     buffer.write_str("B")
-    ut.assert_eq(len(buffer), 1)
+    ut.assert_eq(buffer.len(), 1)
 }
 
 @test
@@ -27,13 +27,13 @@ func test_buffer_write_str() {
     let buffer = Buffer()
     buffer.write_str("Hello, ")
     buffer.write_str("Koala!")
-    ut.assert_eq(len(buffer), 13)
+    ut.assert_eq(buffer.len(), 13)
     buffer.clear()
-    ut.assert_eq(len(buffer), 0)
+    ut.assert_eq(buffer.len(), 0)
     ut.assert(buffer.empty())
 
     buffer.write_str("Another string")
-    ut.assert_eq(len(buffer), 14)
+    ut.assert_eq(buffer.len(), 14)
     ut.assert_eq(buffer.to_str(), "Another string")
 }
 
@@ -42,9 +42,9 @@ func test_buffer_to_bytes() {
     let buffer = Buffer()
     buffer.write_str("Hello, Koala!")
     let bytes_view = buffer.to_bytes()
-    ut.assert_eq(len(bytes_view), 13)
+    ut.assert_eq(bytes_view.len(), 13)
     buffer.clear()
-    ut.assert_eq(len(buffer), 0)
+    ut.assert_eq(buffer.len(), 0)
     ut.assert(buffer.empty())
 }
 
@@ -54,9 +54,9 @@ func test_buffer_to_str() {
     buffer.write_str("Hello, Koala!")
     let str_view = buffer.to_str()
     ut.assert_eq(str_view, "Hello, Koala!")
-    ut.assert_eq(len(str_view), 13)
+    ut.assert_eq(str_view.len(), 13)
     buffer.clear()
-    ut.assert_eq(len(buffer), 0)
+    ut.assert_eq(buffer.len(), 0)
     ut.assert(buffer.empty())
 }
 
@@ -65,11 +65,11 @@ func test_buffer_write_and_read() {
     let buffer = Buffer()
     buffer.write_str("Hello, Koala!")
     let str_view = buffer.to_str()
-    ut.assert_eq(len(str_view), 13)
+    ut.assert_eq(str_view.len(), 13)
     ut.assert_eq(str_view, "Hello, Koala!")
     let bytes_view = buffer.to_bytes()
-    ut.assert_eq(len(bytes_view), 13)
+    ut.assert_eq(bytes_view.len(), 13)
     buffer.clear()
-    ut.assert_eq(len(buffer), 0)
+    ut.assert_eq(buffer.len(), 0)
     ut.assert(buffer.empty())
 }

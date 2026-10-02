@@ -149,7 +149,7 @@ pub class SplitterWith : Iterator[bytes] {
     /// (default 256); buffers still grow automatically for larger chunks.
     /// Must be positive.
     pub func __init__(_br BufReader, _sep bytes, size = 256) {
-        if len(_sep) == 0 { panic("SplitterWith: empty separator") }
+        if _sep.len() == 0 { panic("SplitterWith: empty separator") }
         if size <= 0 { panic("SplitterWith: size must be positive") }
         br = _br
         buf = Buffer(size)
@@ -168,14 +168,14 @@ pub class SplitterWith : Iterator[bytes] {
         if ready { return true }
         if done { return false }
 
-        let m = len(sep)
+        let m = sep.len()
         // Positions before `_from` in `buf` are known not to start a match.
         // On entry `buf` may hold an unscanned remainder from the previous
         // chunk, so scanning always restarts at 0.
         var _from = 0
         loop {
             let data = buf.to_bytes()
-            let n = len(data)
+            let n = data.len()
 
             var i = _from
             while i + m <= n {
@@ -320,8 +320,9 @@ pub class Lines : Iterator[str] {
     pub func next_strict() str {
         if !has_next() { panic("No more elements in Lines") }
         var bs = buf.to_bytes()
-        if cr && len(bs) > 0 && bs[len(bs) - 1] == '\r' {
-            bs = bs.view(0, len(bs) - 1)
+        let bs_len = bs.len()
+        if cr && bs_len > 0 && bs[bs_len - 1] == '\r' {
+            bs = bs.view(0, bs_len - 1)
         }
         let line = bs.to_str()
         ready = false
@@ -401,7 +402,7 @@ pub class Words : Iterator[str] {
                 return ready
             }
             let chunk = br.peek(br.avail())
-            let n = len(chunk)
+            let n = chunk.len()
 
             var i = 0
             while i < n {

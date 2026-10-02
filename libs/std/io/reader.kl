@@ -11,10 +11,10 @@
 /// strings if needed.
 ///
 /// Implementations should follow these conventions:
-/// - Return the number of bytes actually read (0 ≤ n ≤ len(bs)).
+/// - Return the number of bytes actually read (0 ≤ n ≤ bs.len()).
 /// - Return 0 when EOF is reached (no more data available).
 /// - Never return a negative value.
-/// - A return value less than len(bs) does NOT necessarily mean EOF;
+/// - A return value less than bs.len() does NOT necessarily mean EOF;
 ///   it may simply indicate that fewer bytes are currently available.
 ///
 /// Example:
@@ -26,7 +26,7 @@
 ///     }
 ///     f.close()
 pub trait Reader {
-    /// Read up to len(bs) bytes from the underlying source into the provided buffer.
+    /// Read up to bs.len() bytes from the underlying source into the provided buffer.
     ///
     /// # Arguments
     /// - `bs`: The destination buffer to fill with data.
@@ -36,7 +36,7 @@ pub trait Reader {
     ///
     /// # Notes
     /// - The buffer `bs` is mutated in-place with the read data.
-    /// - A short read (n < len(bs)) is not an error and does not imply EOF.
+    /// - A short read (n < bs.len()) is not an error and does not imply EOF.
     /// - If the resource has been closed, this method should panic.
     func read(bs bytes) int
 }

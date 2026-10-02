@@ -525,7 +525,7 @@ static void lower_make_intf_opers(KlrInsn *insn, KlMachModule *m)
     // so we don't need to set it here.
 }
 
-static void lower_hash_str_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_str_opers(KlrInsn *insn, KlMachModule *m)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     set_raw_reg(&insn->raws[0], insn->vreg);
@@ -682,9 +682,8 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                     break;
                 }
 
-                case OP_HASH:
                 case OP_STR: {
-                    lower_hash_str_opers(insn, m);
+                    lower_str_opers(insn, m);
                     break;
                 }
 

@@ -208,7 +208,7 @@ pub class BytesIter : Iterator[uint8] {
     /// Initialize a forward iterator over `b` with an optional stride `step`.
     pub func __init__(b bytes, _step = 1) {
         source = b
-        length = len(b)
+        length = b.len()
         cursor = 0
         step = _step
     }
@@ -256,7 +256,7 @@ pub class BytesRevIter : Iterator[uint8] {
     /// Initialize a reverse iterator over `b` with an optional stride `step`.
     pub func __init__(b bytes, _step = 1) {
         source = b
-        length = len(b)
+        length = b.len()
         cursor = length - 1
         step = _step
     }

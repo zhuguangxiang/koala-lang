@@ -137,13 +137,13 @@ func test_bytesio_getvalue() {
     // getvalue does not disturb the position
     ut.assert_eq(bio.tell(), 6)
     let v = bio.getvalue()
-    ut.assert_eq(len(v), 6)
+    ut.assert_eq(v.len(), 6)
     ut.assert_eq(v, b"abcdef")
     ut.assert_eq(bio.tell(), 6)
 
     // the result is an independent copy
     bio.write_str("g")
-    ut.assert_eq(len(v), 6)
+    ut.assert_eq(v.len(), 6)
     ut.assert_eq(bio.getvalue(), b"abcdefg")
 }
 

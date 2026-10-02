@@ -13,7 +13,7 @@ func test_fs_toplevel_funcs() {
     let buf = bytes(64)
     let n = fs.read_bytes("/tmp/kl_fs_test.txt", buf)
     ut.assert_eq(n, 18)
-    print(len(buf.to_str()))
+    print(buf.to_str().len())
     ut.assert_eq(buf.to_str(), "hello koala 你好")
 
     // read_bytes with a small buffer -> stops when full

@@ -209,33 +209,6 @@ static inline void load_builtin_module(ParserModule *pm)
     fixup_traits_inherited_methods(pkg_sym->stbl);
 }
 
-static void mark_magic_func(Symbol *sym)
-{
-    if (sym->kind != SYM_FUNC) return;
-
-    Symbol *parent = sym->parent;
-    if (sym->parent) {
-        if (parent->kind != SYM_PACKAGE) return;
-    }
-
-    if (str_equal(sym->name, "len")) {
-        sym->flags |= SYM_FLAGS_MAGIC;
-        log_info("marked magic function '%s'", sym->name);
-    } else if (str_equal(sym->name, "hash")) {
-        sym->flags |= SYM_FLAGS_MAGIC;
-        log_info("marked magic function '%s'", sym->name);
-    }
-}
-
-static void mark_magic_funcs(HashMap *stbl)
-{
-    HashMapIter it = { 0 };
-    while (hashmap_next(stbl, &it)) {
-        Symbol *sym = (Symbol *)it.entry;
-        mark_magic_func(sym);
-    }
-}
-
 void init_parser(ParserModule *pm)
 {
     vector_init_ptr(&pm->pss);
@@ -244,7 +217,6 @@ void init_parser(ParserModule *pm)
     inferred = inferred_map();
     if (!is_build_stdlib()) {
         load_builtin_module(pm);
-        mark_magic_funcs(pm->builtin);
     } else {
         // build builtin module
         pm->builtin = pm->stbl;
@@ -3329,10 +3301,6 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
     exit_scope(ps);
 
     sym->status = SYM_RESOLVED;
-
-    if (is_build_stdlib()) {
-        mark_magic_func((Symbol *)sym);
-    }
 
     if (!has_specialized_meta((Stmt *)fn)) return;
 

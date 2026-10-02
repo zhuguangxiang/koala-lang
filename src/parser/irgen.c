@@ -213,9 +213,6 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
                 Symbol *parent = sym->parent;
                 ASSERT(parent && parent->kind == SYM_PACKAGE);
                 val = klr_add_ext_func(MOD, parent->name, func_sym->ret, sym->name);
-                if (is_magic_func(func_sym)) {
-                    val->magic = 1;
-                }
             } else if (sym->kind == SYM_VAR) {
                 Symbol *parent = sym->parent;
                 ASSERT(parent && parent->kind == SYM_PACKAGE);
@@ -304,9 +301,6 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
 
         case SYM_FUNC: {
             ASSERT(sym->ir_val);
-            if (is_magic_func((FuncSymbol *)sym)) {
-                sym->ir_val->magic = 1;
-            }
             exp->ir_val = sym->ir_val;
             break;
         }
@@ -2100,43 +2094,17 @@ static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
     return 1;
 }
 
-struct SeqInfo {
-    KlrValue *seq;
-    KlrValue *index;
-    KlrValue *len;
-};
-
-static void get_seq_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struct SeqInfo *out)
-{
-    ASSERT(type_is_seq(val->ts));
-    out->seq = val;
-    out->index = klr_build_local_var(bldr, int64_type_spec(), "seq.index");
-
-    if (type_is_tuple(val->ts)) {
-        Symbol *_sym = get_symbol_by_id(val->ts->sym_id);
-        ASSERT(_sym->kind == SYM_INSTANCE);
-        InstanceSymbol *inst_sym = (InstanceSymbol *)_sym;
-        int size = vector_size(inst_sym->tp_args);
-        KlrValue *_len = klr_const_int(size, int64_type_spec(), MOD);
-        out->len = _len;
-    } else {
-        out->len = klr_build_seq_len(bldr, val, "");
-    }
-}
-
-struct IterInfo {
-    KlrValue *it_obj;
-    Symbol *has_next;
-    Symbol *next_strict;
-};
-
 static Symbol *get_iter_func(KlrValue *val, char *name)
 {
     Symbol *owner = get_symbol_by_id(val->ts->sym_id);
     ASSERT(owner);
     Symbol *method = stbl_get(owner->stbl, name);
-    ASSERT(method && (method->kind == SYM_FUNC));
-    return method;
+    if (method) {
+        ASSERT(method->kind == SYM_FUNC);
+        return method;
+    }
+
+    UNREACHABLE();
 }
 
 static KlrValue *build_iter_call(KlrBuilder *bldr, Symbol *method, KlrValue *obj, ParserState *ps)
@@ -2158,6 +2126,38 @@ static KlrValue *build_iter_call(KlrBuilder *bldr, Symbol *method, KlrValue *obj
     KlrValue *callable = get_callable(ps, method);
     return klr_build_call(bldr, callable, fn->ret, args, nargs, "");
 }
+
+struct SeqInfo {
+    KlrValue *seq;
+    KlrValue *index;
+    KlrValue *len;
+};
+
+static void get_seq_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struct SeqInfo *out)
+{
+    ASSERT(type_is_seq(val->ts));
+    out->seq = val;
+    out->index = klr_build_local_var(bldr, int64_type_spec(), "seq.index");
+
+    if (type_is_tuple(val->ts)) {
+        Symbol *_sym = get_symbol_by_id(val->ts->sym_id);
+        ASSERT(_sym->kind == SYM_INSTANCE);
+        InstanceSymbol *inst_sym = (InstanceSymbol *)_sym;
+        int size = vector_size(inst_sym->tp_args);
+        KlrValue *_len = klr_const_int(size, int64_type_spec(), MOD);
+        out->len = _len;
+    } else {
+        // Symbol *len_func = get_iter_func(val, "len");
+        // out->len = build_iter_call(bldr, len_func, val, ps);
+        out->len = klr_build_seq_len(bldr, val, "");
+    }
+}
+
+struct IterInfo {
+    KlrValue *it_obj;
+    Symbol *has_next;
+    Symbol *next_strict;
+};
 
 static KlrValue *build_has_next_call(KlrBuilder *bldr, Symbol *method, KlrValue *obj,
                                      ParserState *ps)

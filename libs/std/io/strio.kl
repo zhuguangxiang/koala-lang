@@ -31,7 +31,7 @@ pub class StringIO : Reader & Seeker & Closable {
     /// All reading is served from this byte view.
     let bs bytes
 
-    /// The current read position in bytes, 0 <= pos <= len(bs).
+    /// The current read position in bytes, 0 <= pos <= bs.len().
     var pos int = 0
 
     /// Whether close() has been called.
@@ -48,7 +48,7 @@ pub class StringIO : Reader & Seeker & Closable {
         bs = s.to_bytes()
     }
 
-    /// Read up to len(_bs) bytes from the current position into `_bs`.
+    /// Read up to _bs.len() bytes from the current position into `_bs`.
     ///
     /// Arguments
     /// - `_bs`: The destination buffer to fill with data.
@@ -58,7 +58,7 @@ pub class StringIO : Reader & Seeker & Closable {
     /// reached the end of the string (EOF).
     ///
     /// Notes
-    /// - A short read (n < len(_bs)) means EOF was reached, since all
+    /// - A short read (n < _bs.len()) means EOF was reached, since all
     ///   the data is already in memory.
     /// - Reading is byte-oriented: a read may end in the middle of a
     ///   multi-byte UTF-8 character.
@@ -68,12 +68,12 @@ pub class StringIO : Reader & Seeker & Closable {
             panic("I/O operation on closed StringIO")
         }
 
-        let avail = len(bs) - pos
+        let avail = bs.len() - pos
         if avail <= 0 {
             return 0
         }
 
-        let n = min(len(_bs), avail)
+        let n = min(_bs.len(), avail)
         _bs.copy(bs.view(pos, pos + n), 0, n)
         pos = pos + n
         return n
@@ -81,7 +81,7 @@ pub class StringIO : Reader & Seeker & Closable {
 
     /// Move the read position to `offset` relative to `whence`.
     ///
-    /// The resulting position is clamped into [0, len(bs)], so it can
+    /// The resulting position is clamped into [0, bs.len()], so it can
     /// never point outside the source string.
     ///
     /// Arguments
@@ -105,15 +105,15 @@ pub class StringIO : Reader & Seeker & Closable {
         } else if whence == 1 {
             np = pos + offset
         } else if whence == 2 {
-            np = len(bs) + offset
+            np = bs.len() + offset
         } else {
             return -1
         }
 
         if np < 0 {
             np = 0
-        } else if np > len(bs) {
-            np = len(bs)
+        } else if np > bs.len() {
+            np = bs.len()
         }
         pos = np
         return pos
@@ -152,7 +152,7 @@ pub class StringIO : Reader & Seeker & Closable {
     /// StringIO is always "ready" since it's in-memory. eof() tells you
     /// whether there is any data left to read.
     pub func eof() bool {
-        return pos >= len(bs)
+        return pos >= bs.len()
     }
 
     /// Return the length of the source string in UTF-8 bytes.
@@ -164,7 +164,7 @@ pub class StringIO : Reader & Seeker & Closable {
         if closed {
             return -1
         }
-        return len(bs)
+        return bs.len()
     }
 
     /// Return the whole source string.

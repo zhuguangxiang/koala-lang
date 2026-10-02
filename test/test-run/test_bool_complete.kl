@@ -50,9 +50,9 @@ func main() {
     print(bne(false, true))
     print(bne(false, false))
 
-    print(hash(true) == hash(true))
-    print(hash(false) == hash(true))
-    print(hash(false) == hash(false))
+    print(true.hash() == true.hash())
+    print(false.hash() == true.hash())
+    print(false.hash() == false.hash())
 
     print(str(true))
     print(str(false))

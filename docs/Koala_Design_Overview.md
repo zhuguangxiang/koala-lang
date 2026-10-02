@@ -284,7 +284,7 @@ pub func pretty(s str) str {}
 - 类型系统信任声明签名，用户从不触碰桥接代码——`unsafe {}` 存在的理由（人在绕过类型系统）被结构性消除。
 - **内存层同样无 unsafe**：shadowstack 将 C / native 代码分配的对象注册为 GC root——native 侧分配的对象与 `.kl` 中分配的命运完全一致，无"记得释放"规则。对照：JNI 局部/全局引用、Python C API 引用计数、Go cgo handle table 均需手动管理。
 - 对照：Java JNI（句柄仪式）、Go cgo（栈切换开销）、Rust（强制 unsafe + transmute）、Python ctypes（运行时 marshal）。
-- 标准库即活证据：`libs/std/native/*.c` 直接实现 Koala 签名函数。
+- 标准库即活证据：`src/modules/*.c`（builtin.c / os.c / time.c / format.c）与 `src/objects/*.c`（类型方法表）直接实现 Koala 签名函数。
 
 ### 7.1 三种函数：三档绑定规则
 
@@ -399,9 +399,11 @@ pub func max[T: Comparable](x T, y T) T { ... }
 
 ## 8. 标准库设计（libs/std）
 
+**包地图（libs/std/__ws__.toml）**：8 个 package——`builtin`（零依赖根包）、`fs`（依赖 io/os）、`io`（唯一纯 Koala 包，零 `@native`）、`os`（依赖 builtin/io）、`sys`（依赖 builtin/os/io/fs）、`time`（依赖 builtin）、`ut`（依赖 builtin）、`prelude`（依赖 builtin/io/fs/sys；向用户 top-level 贡献 `print` / `open`，§8.12）。官方发布库（encoding/bin、encoding/base64、pretty）在 libs/koala，见 §9。
+
 ### 8.1 透明核心
 
-**所有内建类型都在标准库的 `.kl` 源文件中声明**（libs/std/builtin/*.kl）——对比 Go（编译器魔法）、Rust（lang items）、Java（原始类型特殊化），Koala 语言核心零暗角。C 后端实现位于 libs/std/native/。
+**所有内建类型都在标准库的 `.kl` 源文件中声明**（libs/std/builtin/*.kl）——对比 Go（编译器魔法）、Rust（lang items）、Java（原始类型特殊化），Koala 语言核心零暗角。C 后端实现位于 src/modules/（模块级 native）与 src/objects/（类型方法表）。
 
 **Builtin 包自举（里程碑）**：`std/builtin` 是独立 package，不依赖任何 package（依赖 = ∅）。它提供 Koala 标准库最基础的 API 与声明，但从 VM 的视角看，它不是特殊模块。
 
@@ -456,9 +458,11 @@ VM        ↔  runtime
 | `any` | 空根（自动遵循三契约的载体） |
 | `Equatable[T]` / `Comparable[T]` / `Hashable` / `Printable` | 值契约 |
 | `Arithmetic[T]` / `Bitwise[T]` | 算术 / 位运算能力契约（泛型约束用；结构式遵循；见 §3） |
-| `Iterable` / `Iterator` | 迭代协议 |
+| `Iterable` / `Iterator` | 迭代协议（`Iterator[T]`: has_next / next_strict / next；`Iterable[T].iter(step = 1)`，§8.5） |
 | `Sequence` / `MutableSequence` | 序列与可变序列协议 |
 | `Map` / `Set` | 映射与集合协议 |
+| `ToString` | 无损字符串转换契约（`to_str()`），与 `Printable`（显示用 `__str__`）分立 |
+| `Reader` / `Writer` / `Seeker` / `Closable`（std/io） | 流协议四件套（§8.9） |
 
 命名分层原则：**trait 层用跨语言惯例**（Java/Rust 风格的 `remove` / `remove_or`），**class 便利层对齐 Python**（`setdefault` / `update` / `fromkeys`）。
 
@@ -479,9 +483,9 @@ Iterable[T]
 | Trait | 继承 | 方法数 | 核心语义 |
 |-------|------|--------|----------|
 | `Iterable[T]` | — | 1 | 遍历（`iter(step=1)` → `Iterator[T]`；普通方法，非 dunder） |
-| `Sequence[T]` | `Iterable[T]` | 7 | 只读序列：长度、成员判定、下标访问、切片、搜索 |
-| `MutableSequence[T]` | `Sequence[T]` | 9 | 可变序列：写入、追加、插入、删除、清空、反转 |
-| `Map[K, V]` | `Iterable[(K, V)]` | 10 | 键值映射：下标读写、视图、安全读取、删除 |
+| `Sequence[T]` | `Iterable[T]` | 5 | 只读序列：长度、成员判定、下标访问、搜索 |
+| `MutableSequence[T]` | `Sequence[T]` | 7 | 可变序列：写入、追加、插入、删除、清空 |
+| `Map[K, V]` | `Iterable[(K, V)]` | 12 | 键值映射：下标读写、视图、安全读取、删除 |
 | `Set[T]` | `Iterable[T]` | 11 | 数学集合：增删、批量添加、代数运算、子集判定 |
 
 **设计原则**：
@@ -491,44 +495,44 @@ Iterable[T]
 - 扁平化要有度——介于 Java/Python 式深塔与 Go/Rust 式零层次之间。
 - 易用性第一，对齐 Python 语义直觉：所有容器方法都放在 trait 层，用户期望直接能调用。
 
-**Sequence[T]**（7 方法）：
+**Sequence[T]**（5 方法）：
 
 | 方法 | 签名 | 说明 |
 |------|------|------|
 | `len` | `() int` | 元素数量，O(1) |
 | `__contains__` | `(item T) bool` | 成员判定，支撑 `in` 语法 |
 | `__getitem__` | `(index int) T` | 下标访问，支撑 `a[i]` 语法；越界 panic |
-| `__getslice__` | `(r slice) Sequence[T]` | 切片访问，支撑 `a[i:j]` 语法 |
 | `index` | `(value T, start=0, end=-1) int` | 首次出现位置，未找到返回 -1 |
-| `rindex` | `(value T, start=0, end=-1) int` | 末次出现位置，未找到返回 -1 |
 | `count` | `(value T, start=0, end=-1) int` | 出现次数 |
+
+切片钩子 `__getslice__(r slice)`（支撑 `a[i:j]` 语法）与 `rindex` 不进 trait 方法数，由各内建序列类直接实现。
 
 实现者：`str`、`list`、`tuple`、`bytes`、`range`。
 
-**MutableSequence[T]**（9 方法，继承 Sequence 全部方法）：
+**MutableSequence[T]**（7 方法，继承 Sequence 全部方法）：
 
 | 方法 | 签名 | 说明 |
 |------|------|------|
 | `__setitem__` | `(index int, value T)` | 下标赋值，支撑 `a[i] = v` |
-| `__setslice__` | `(r slice, val Iterable[T])` | 切片赋值，支撑 `a[i:j] = [...]` |
-| `push` | `(value T)` | 追加到末尾 |
+| `append` | `(value T)` | 追加到末尾 |
 | `extend` | `(items Iterable[T])` | 批量追加 |
 | `insert` | `(index int, value T)` | 指定位置插入 |
 | `remove` | `(value T)` | 删除首次出现，缺失 panic |
 | `pop` | `(index = -1) T` | 按下标弹出并返回，默认末尾 |
 | `clear` | `()` | 清空 |
-| `reverse` | `()` | 原地反转 |
 
-实现者：`list`、`ByteBuf`。
+切片赋值钩子 `__setslice__` 与 `reverse` 由具体类（`list` 等）直接提供（trait 用 Rust 风格 `append`、`list.kl` 仍是 `push` 的对齐挂账见 Koala_TODO §16.3）。
 
-**Map[K, V]**（10 方法）：
+实现者：`list`。
+
+**Map[K, V]**（12 方法）：
 
 | 方法 | 签名 | 说明 |
 |------|------|------|
 | `len` | `() int` | 键值对数量 |
 | `__contains__` | `(key K) bool` | 按键判定（覆写 Iterable 的 `(K, V)` 检查，同 Python `key in dict`） |
-| `__getsub__` | `(key K) V` | 按键读取，支撑 `m[key]`；缺失 panic |
-| `__setsub__` | `(key K, value V)` | 按键写入，支撑 `m[key] = v` |
+| `__getitem__` | `(key K) V` | 按键读取，支撑 `m[key]`；缺失 panic（与 Sequence 共名，按键重载） |
+| `__setitem__` | `(key K, value V)` | 按键写入，支撑 `m[key] = v` |
 | `keys` | `() Sequence[K]` | 键视图 |
 | `values` | `() Sequence[V]` | 值视图 |
 | `items` | `() Sequence[(K, V)]` | 键值对视图 |
@@ -556,7 +560,7 @@ Iterable[T]
 | `intersect` | `(other Iterable[T]) Set[T]` | 交集，返回新集合 |
 | `diff` | `(other Iterable[T]) Set[T]` | 差集，返回新集合 |
 
-实现者：`HashSet`（哈希集）、`TreeSet`（有序集）。
+实现者：`HashSet`（哈希集）、`TreeSet`（有序集，按 `Comparable` 排序）；trait 不含 `sym_diff`，对称差由具体类提供。
 
 **协议—槽—指令三层对应**（容器 op 重构，opcode_list.h 1914–2157）：
 
@@ -568,9 +572,9 @@ Iterable[T]
 | `a[i] = v` | `__setitem__` | `SLOT_SET_ITEM` | `OP_SEQ_SET`（+ `_IMM`） |
 | `a[i:j]` | `__getslice__` | `SLOT_GET_SLICE` | `OP_SEQ_GET_SLICE` |
 | `a[i:j] = v` | `__setslice__` | `SLOT_SET_SLICE` | `OP_SEQ_SET_SLICE` |
-| `m[k]` | `__getsub__` | `SLOT_GET_SUB` | `OP_MAP_GET` |
-| `m[k] = v` | `__setsub__` | `SLOT_SET_SUB` | `OP_MAP_SET` |
-| `len(x)` | `__len__` | `SLOT_LEN` | `OP_LEN` |
+| `m[k]` | `__getitem__`（按键重载） | `SLOT_GET_SUB` | `OP_MAP_GET` |
+| `m[k] = v` | `__setitem__`（按键重载） | `SLOT_SET_SUB` | `OP_MAP_SET` |
+| `len(x)` | `len()`（普通方法） | `SLOT_LEN` | `OP_LEN` |
 | `x in y` | `__contains__` | `SLOT_CONTAINS` | `OP_CONTAINS` |
 
 - **Collection 删除在指令层的投影**：`OP_LEN` / `OP_CONTAINS` 是跨 Seq/Map/Set 的通用指令（`SLOT_CONTAINS` 由序列与映射协议共享），语法级分发天然覆盖三分支，不依赖类型层超类。
@@ -578,24 +582,28 @@ Iterable[T]
 - `OP_SEQ_SET` 带写屏障，`OP_SEQ_GET` 只读无屏障；IMM 变体（signed 8-bit）服务 `t[0]` / `t[1]` 常数下标热路径，负下标语义待定（Koala_TODO §11）。
 - Set 无专属指令：无下标语法，add/remove 走方法调用，`in` 由 `OP_CONTAINS` 覆盖。
 - `OP_LIST_PUSH` / `OP_LIST_POP` 是 list 的 push/pop 方法内置（intrinsic 化路径，Koala_TODO §9），与协议指令族正交。
-- 实现进度：5 条全链路完成（SEQ_GET / GET_IMM / SET / SET_IMM / LEN），其余 7 条待补（Koala_TODO §12）。
+- 实现进度：7 条全链路完成（SEQ_GET / GET_IMM / SET / SET_IMM / LEN / CONTAINS / SEQ_GET_SLICE），其余 5 条待补（SEQ_SET_SLICE / MAP_GET / MAP_SET / LIST_PUSH / LIST_POP，Koala_TODO §12）。
 
 ### 8.4 类型清单
 
 | 类型 | 要点 |
 |------|------|
-| `str` | 字符串；`str(obj)` 接受 `any` 经 `__str__()` 做通用字符串转换 |
-| `bytes` | 固定长度字节数组，24 方法；位置式写族 |
-| `ByteBuf` | 可变字节缓冲，32 方法；push 式写族 |
+| `str` | 字符串，53 方法（切片、分割、大小写、padding、判定族、`to_int` / `to_float` 族、`format`、`join`、`view`）；`str(obj)` 接受 `any` 经 `__str__()` 做通用字符串转换；`iter` / `reversed` 返回 `Iterator[str]` |
+| `bytes` | 定长字节数组，27 方法（`copy` / `fill` / `zero` / `view` / `replace` / `split` 等位置式写族）+ `iter` / `reversed` |
+| `Buffer` | 可变字节缓冲，append 式写族（`write` / `write_str` / `write_byte`，`to_str` / `to_bytes` 导出） |
 | `list` | 动态数组（泛型擦除，TValue 打包存储；显式 `list[int64]` 等拼写经 `@specialized` 映射到密集类，见 §7.4） |
 | `int64list` / `float64list` / `boollist` | 密集容器三件套（§7.4）：裸 int64 / 裸 double / 位压缩 bool，普通一等类 |
 | `dict` | **插入序**哈希映射；Python 便利方法 + Rust 位置族（pop_first / peek_last）+ Java remove 命名 |
-| `HashSet` / `TreeSet` | 集合并代数 |
-| `tuple` | 不可变元组 |
-| `range` | 区间（编译器将 `range(5)` 补全为 `range(0, 5)`） |
+| `HashSet` / `TreeSet` | 集合代数（19 / 20 方法；`TreeSet` 按 `Comparable` 有序） |
+| `tuple` | 不可变元组（`tuple[infer T]` 支持元素类型推导） |
+| `range` | 区间 `Sequence[int]`（编译器将 `range(5)` 补全为 `range(0, 5)`） |
 | `slice` | 切片（边界由编译器补全为具体 int，统一用 `end` 表排他上界） |
+| `type` | 运行时反射：`name()` / `methods()` / `lro()`（`typeof(x)` 的产物） |
+| `StrIter` / `StrRevIter` / `BytesIter` / `BytesRevIter` | str / bytes 的 `iter` / `reversed` 产物，纯 Koala 具体迭代器类 |
 
-bytes / ByteBuf 的二进制编解码职责已**剥离至官方库 encoding**，本体只保留序列语义。
+dict / HashSet / TreeSet 当前为**声明先行**（方法 @native 空体、运行时实现欠账，清单见 Koala_TODO §16）。
+
+bytes / Buffer 的二进制编解码职责已**剥离至官方库 encoding**，本体只保留序列语义。原 `ByteBuf` 已更名 `Buffer` 并收缩为纯 append 式缓冲（不再声明 `MutableSequence[uint8]`）。
 
 ### 8.5 迭代
 
@@ -606,7 +614,6 @@ bytes / ByteBuf 的二进制编解码职责已**剥离至官方库 encoding**，
 | `has_next()` | `bool` | 是否还有元素；调用 `next_strict()` 前必须先检查 |
 | `next_strict()` | `T` | 取下一元素；**耗尽即 panic**，永不返回 nil（前置：`has_next()` 为 true） |
 | `next()` | `T?` | Option 式安全接口；**耗尽返回 nil、永不 panic**（`while let v = it.next()`；T 本身可空时慎用 while let，nil 元素会提前终止循环） |
-| `next_or(default)` | `T` | 取下一元素，耗尽则返回 `default`（仅对非可空 T 有意义） |
 
 `Iterable[T]` 唯一入口 `iter(step = 1) Iterator[T]`（普通方法，非 dunder；`step` 为每次前进的元素数）。
 
@@ -626,7 +633,7 @@ bytes / ByteBuf 的二进制编解码职责已**剥离至官方库 encoding**，
 
 ### 8.6 包编程规范
 
-- **简单包用单文件**：包内容简单时，一个 `xxx.kl` 文件即可表示（如 `assert.kl`、`pretty.kl`）。
+- **简单包用单文件**：包内容简单时，一个 `xxx.kl` 文件即可表示（如 `pretty.kl`）。
 - **复杂包用目录**：目录名即包名（如 `io/`、`fs/`、`builtin/`），内部结构遵循两条规则：
   - `__<包名>__.kl` 为模块入口，**只放** `link` 语句、全局变量和顶层函数定义，**不放** class / trait 定义。
   - 每个 class / trait 建议单独定义在一个 `xxx.kl` 中，一个类型一个文件（如 `str.kl`、`reader.kl`、`any.kl`）。
@@ -724,11 +731,11 @@ let f = open("test.txt")
 let n = len(items)
 ```
 
-**Top-level function 分类原则**：top-level function 必须是**有独立函数体的真·普通函数**（含 `@native`——C 实现的普通函数，**不是 magic**），按“是否有独立价值”逐项裁定。**不设“top-level → 方法”的 @intrinsic 映射**：Koala 是静态语言，`x.len()` 编译期即按静态类型 / trait bound 解析，再造 `len(x)` 别名只是隐藏改写、零收益（§3.1）。故 len / hash / iter / reversed 只有方法形态、无 top-level；`next` 只是 `Iterator.next()` 方法，同样无 top-level。
+**Top-level function 分类原则**：top-level function 必须是**有独立函数体的真·普通函数**（含 `@native`——C 实现的普通函数，**不是 magic**），按“是否有独立价值”逐项裁定。**不设“top-level → 方法”的无损别名层**：Koala 是静态语言，`x.len()` 编译期即按静态类型 / trait bound 解析，再造运行时别名只是隐藏改写（§3.1）。现状（2026-10 核实）：`len` / `hash` 以 `@intrinsic` 形态存在——调用点改写为 `OP_LEN` / `OP_HASH` 专用指令，是“语法糖直落指令”而非运行时别名；`iter[T]` / `next[T]` 是有独立函数体的真·泛型 top-level 组合子（`iter(x)` ≡ `x.iter()`、`next(it)` ≡ `it.next()`，服务 `while let v = next(it)` 惯用法，test-run/test_for_generic.kl 守护）；`reversed` 仍只有方法形态。
 
-**① 已取消 · top-level → 方法映射**（原 @intrinsic mapping；根因见 §3.1）
+**① 现状（2026-10 核实，替代原“全部取消”裁定）**
 
-`len(x)` / `hash(x)` / `iter(x)` / `reversed(x)` 这类“top-level 名 → 方法调用”的编译期改写**全部取消**：Koala 是静态语言，`x.len()` 编译期即解析，别名层零收益且隐藏。四者一律只有方法形态——`x.len()` / `x.hash()` / `x.iter()` / `x.iter(reversed = true)`，无 top-level 入口。
+`len(obj any)` / `hash(obj any)` 以 `@intrinsic` top-level 形态活在 `__builtin__.kl`——编译期改写为 `OP_LEN` / `OP_HASH` 指令，语义等价 `obj.len()` / `obj.hash()`（any 上的通用长度 / 哈希查询，泛型代码高频，专属指令零分发）。`iter[T](obj Iterable[T])` / `next[T](it Iterator[T])` 是纯 Koala 真·泛型函数（一行转发体），为 `while let v = next(it)` 提供函数式组合子。`reversed` 无 top-level 形态——只有 `x.reversed()` 方法。
 
 **② 已确定 · 普通 top-level functions**（真函数，含 `@native` C 实现；非 mapping、非 magic）
 
@@ -741,7 +748,7 @@ let n = len(items)
 | `print(...)` | 语言级 I/O，无合理 receiver |
 | `typeof(x)` | 类型查询，`@native` 普通函数（非 magic） |
 
-> `str(x)` 不在此列——它是 `str` 类的**构造器**，见 ⑦；`next` 不在此列——只有 `Iterator.next()` 方法，无 top-level `next`。
+> `str(x)` 不在此列——它是 `str` 类的**构造器**，见 ⑦。
 
 **③ 保留能力，但归为 class / type**（非 builtin function）
 
@@ -766,11 +773,11 @@ let n = len(items)
 
 **⑥ 明确抛弃**（不作为 top-level builtin）
 
-`ascii`、`bool`、`breakpoint`、`callable`、`classmethod`、`compile`、`complex`、`delattr`、`dir`、`eval`、`exec`、`getattr`、`globals`、`hasattr`、`help`、`id`、`input`、`isinstance`、`issubclass`、`locals`、`memoryview`、`object`、`open`、`repr`、`setattr`、`staticmethod`、`super`、`type`、`vars`。
+`ascii`、`bool`、`breakpoint`、`callable`、`classmethod`、`compile`、`complex`、`delattr`、`dir`、`eval`、`exec`、`getattr`、`globals`、`hasattr`、`help`、`id`、`input`、`isinstance`、`issubclass`、`locals`、`memoryview`、`object`、`repr`、`setattr`、`staticmethod`、`super`、`type`、`vars`。
 
 - `repr` **坚决不要**：不区分 repr / str，`__str__()` 统一承担。
 - 反射 / 运行时编译族（`globals` / `locals` / `dir` / `vars` / `isinstance` / `issubclass` / `hasattr` / `getattr` / `setattr` / `delattr` / `exec` / `eval` / `compile`）一律不作为 top-level builtin。
-- 若干有 Koala 语言级 / 命名空间替代（非 top-level builtin）：`type` → `typeof`；`classmethod` / `staticmethod` → `static` 关键字；`object` → `any` trait（拆解为 any + 三契约）；`open` → `fs.open`（归 fs 包）；`super` → 无需显式父类调用语法；`property` → `pub let` / `pub func`；`memoryview` → view 只用于定长类型、动态容器用 copy。
+- 若干有 Koala 语言级 / 命名空间替代（非 top-level builtin）：`type` → `typeof`；`classmethod` / `staticmethod` → `static` 关键字；`object` → `any` trait（拆解为 any + 三契约）；`open` → 实现归 fs 包，top-level 入口由 prelude 包转发（§8.12）；`super` → 无需显式父类调用语法；`property` → `pub let` / `pub func`；`memoryview` → view 只用于定长类型、动态容器用 copy。
 
 **⑦ 类 / 构造器 / 方法对照**（保留）
 
@@ -801,6 +808,51 @@ let n = len(items)
 | `bytes()` | 不可变字节构造，`bytes` 类尚无通用构造器 |
 | `aiter()` / `anext()` | 异步迭代协议，Koala 暂无 async 迭代 |
 | `__import__()` | 动态导入，未定 |
+
+### 8.9 IO 流库（std/io）
+
+**纯 Koala 包**：整个 io 零 `@native`——协议与适配器全部写在 Koala 层；`fs.File`、`os.PipeReader` / `os.PipeWriter` 等 C 实现类型以 trait 实现者身份插入同一协议层，进程与文件 I/O 因此与 io 完全解耦。
+
+四个抽象 trait（无默认方法体）：
+
+| Trait | 方法 | 契约 |
+|-------|------|------|
+| `Reader` | `read(bs bytes) int` | `0 ≤ n ≤ len(bs)`；0 表 EOF；短读 ≠ EOF；关闭后 read → panic |
+| `Writer` | `write(bs bytes) int`、`write_str(s str) int`、`flush()` | 返回写入字节数 |
+| `Seeker` | `seek(offset int, whence int) int`、`tell() int` | whence 用 `SEEK_SET / SEEK_CUR / SEEK_END`（包入口常量） |
+| `Closable` | `close()` | close 幂等；关闭后 I/O → panic |
+
+内存流：`BytesIO`（**定容**，`from_bytes` / `from_str` 静态构造，写超容量 panic）、`StringIO`（只读，字节级 UTF-8 定位）。
+
+缓冲层：`BufReader`（`peek` / `discard` / `fill` / `read_until` / `read_line` / `read_byte`，及四个流迭代器工厂 `split` / `split_with` / `lines` / `words`）、`BufWriter`（大块写绕过缓冲；`flush` 级联 inner）。
+
+流迭代器（均为 `Iterator`，`for` 直接可用）：`Splitter`（单字节定界）、`SplitterWith`（多字节分隔，可跨 refill）、`Lines`（剥 `\n` 与 `\r\n`）、`Words`（空白分词）。
+
+### 8.10 文件与路径（std/fs）
+
+- 模块函数族（`@native`）：`open`（`Path | str | int` fd，模式 `r w x a r+ w+ x+ a+`，失败返回 `nil`）、`read_bytes` / `write_bytes` / `write_str`、`exists` / `is_file` / `is_dir` / `size` / `remove` / `mkdir(parents)` / `rmdir` / `list_dir`。
+- `File : io.Reader & io.Writer & io.Seeker & io.Closable`——fd 包装（`sys.stdin/stdout/stderr` 即 `fs.open(0/1/2)!`）。
+- `Path : Equatable[Path] & ToString`——纯路径代数：`name` / `ext` / `stem` / `parent` / `is_absolute` / `normalize` / `absolute` / `to_str`，连接用 `cat`。
+
+### 8.11 进程、时间与运行环境（std/os / std/time / std/sys）
+
+- **os**：环境变量 `getenv` / `setenv` / `unsetenv`（C 实现）；`system` / `run` + `Process`（`stdin` / `stdout` / `stderr` / `pid` / `wait` / `kill`）+ `PipeReader` / `PipeWriter`——进程 I/O 全部落在 io trait 上，与 fs 解耦（声明已并入构建；native 实现欠账见 Koala_TODO §16）。
+- **time**：`now` / `monotonic` / `sleep` / `sleep_until` / `unix_secs` / `unix_nanos`；`Instant`（epoch_ns + 时钟域，跨时钟域运算 / 比较 panic）、`Duration`（`from_secs` / `from_millis` / `from_micros` / `from_nanos`、算术、`__str__` 自适应单位）。
+- **sys**：缓冲标准流 `stdin` / `stdout` / `stderr`（`fs.open(0/1/2)!` 之上包 `BufReader` / `BufWriter`）、`args()`、`version`、模块搜索 `path`（`KOALA_PATH` 种子）。
+
+### 8.12 top-level prelude 包（std/prelude）
+
+§8.8 的 prelude 概念落地为独立 package：`__prelude__.kl`（仅 `link`）+ `open.kl`（把 `fs.open` 转发到 top-level）+ `print.kl`（`print` 经私有 native `print_intern` 写 `sys.stdout`（BufWriter）并 flush；另提供 `fprintf(w, fmt, args)` 格式化写 helper）。prelude 是用户模块的隐式依赖，由普通 module loader 加载（§8.1）。
+
+### 8.13 单元测试断言库（std/ut）
+
+纯 Koala（零 native），失败统一 `panic(format(...))`——即 §6 的 traceback + `--test` 非零退出。28 个断言函数分三族：
+
+- 泛型族：`assert` / `assert_true` / `assert_false`、`assert_eq[T : Equatable]` / `assert_ne[T : Equatable[T]]`、`assert_lt / le / gt / ge[T : Comparable]`；
+- 具体类型族：`assert_eq_int8 / _uint8 / _int64`、`assert_int_*` / `assert_uint_*` 全序族（跨位宽提升是泛型约束表达不了的，显式重载补齐）；
+- 浮点：`assert_float_close(a, b, eps = 1e-9)`。
+
+与 `@test` / `@test_expect_panic` 注解（§11.8）配合，构成 test-ut/ 自验证层。
 
 ---
 
@@ -889,11 +941,12 @@ let n = len(items)
 
 ### 11.6 测试体系
 
-- **基建**：采用 LLVM 项目的 lit + FileCheck 工业标准（lit.cfg / ShTest / RUN 指令），test/ 下 156 个测试、3400+ 行 CHECK 断言。
-- **三层金字塔**：
-  - `test-kl`（35）——前端语言特性（cast、slice、if-let、包管理…）
+- **基建**：采用 LLVM 项目的 lit + FileCheck 工业标准（lit.cfg / ShTest / RUN 指令），test/ 下 190 个测试，全部带 `RUN:` 行（2026-10 盘点）。
+- **四层金字塔**：
+  - `test-kl`（38）——前端语言特性（cast、slice、if-let、static、运算符禁令、`in` 类型检查、诊断定位、`@test` 注解合法性…）
   - `test-ir`（36）——优化器逐 pass 验证（ssa、sccp、isel、lsra、fusion、tailcall…）
-  - `test-run`（85）——端到端运行（泛型、链表/树数据结构、LRO、intf 调用、IO…）
+  - `test-run`（88）——端到端运行（泛型族、for 三协议、kwargs / callable / static、intf 调用、io、LRO、traceback…）
+  - `test-ut`（28）——`@test` + std/ut 断言的标准库自验证层（builtin / io / fs / time 与语言语义：短路求值、泛型类、迭代器尺寸）
 - **观察面全覆盖**：RUN 行覆盖 no-opt-ir / ssa / ir / lir / vreg / code / itable 全部 7 个 dump 阶段——"无隐藏特性"的工程回响：每个可观察阶段都有断言守护。
 - **负向断言文化**：优化器测试大量使用 CHECK-NOT 守护"不过度优化"（如不同常量的 phi 必须保留、死分支常量必须清除），测试的是正确性边界而非仅优化效果——LLVM 测试文化的核心实践。
 - **诊断与开关回归**：编译器错误消息有专门的 `2>&1` 回归测试；--int-trap / --float-trap / --fusion / --tail-call 每个编译开关均有对应测试。
@@ -903,7 +956,7 @@ let n = len(items)
 `vm_ops.h` 的指令 TARGET 不按语义分组、按频率分层物理排布，源码注释即分层标记：
 
 - **hot**（文件头）：`OP_MOVE` / `OP_LOADK` / `OP_LOAD_INT_IMM`、整数 `ADD`/`SUB`（含 IMM 与 uint 变体）、整数序比较跳转 `OP_JMP_INT_LE/GT/LT/GE`、`OP_RET` 族——寄存器搬运、循环计数算术、循环回边分支。
-- **warm**：逻辑分支（EQ/NE、ref-null 判断）、`OP_CALL` / `OP_TAIL_CALL`、字段存取、`OP_NEW`、int 全序比较、位运算与逻辑短路、复杂整数算术（MUL/DIV/MOD）、`OP_NUM_*` 泛型数值、容器协议族（`OP_SEQ_*` 已落地；`OP_LEN` 同段；`OP_MAP_*` / `OP_CONTAINS` / `OP_LIST_PUSH` 落地时按频率归段）、float 基本运算与跳转、intf 构造/上转。
+- **warm**：逻辑分支（EQ/NE、ref-null 判断）、`OP_CALL` / `OP_TAIL_CALL`、字段存取、`OP_NEW`、int 全序比较、位运算与逻辑短路、复杂整数算术（MUL/DIV/MOD）、`OP_NUM_*` 泛型数值、容器协议族（`OP_SEQ_*` / `OP_LEN` / `OP_CONTAINS` / `OP_SEQ_GET_SLICE` 已落地；`OP_MAP_*` / `OP_LIST_PUSH` 落地时按频率归段）、float 基本运算与跳转、intf 构造/上转。
 - **cold**（文件尾）：uint 完整族、global 存取、float 复杂族（DIV/MOD/CMP）、misc（NEG/NOT/LOAD_TAG）、类型转换、`OP_NOP`。
 
 同一语义被热度拆开：`OP_INT_ADD` 在 hot 段、`OP_INT_MUL/DIV` 降到 warm、`OP_INT_NEG` 落进 misc——排布依据是 profile 频率，不是指令族谱。收益：handler 代码热段聚拢，提升 icache 命中；computed-goto 跳转表目标地址集中，利于分支预测器与取指预取；源码注释（hot/warm/cold）让分层意图可审计、可重排。
@@ -915,8 +968,9 @@ let n = len(items)
 Koala 把单元测试做进语言与编译器，无需第三方框架：
 
 - **`@test` 注解**标记测试函数，编译器强制四条合法性规则（test-kl/test_annotation_test.kl 守护）：不能有任何参数；名字必须以 `test_` 前缀开头；不能是泛型函数；不能有返回类型。违反任一条都是编译错误，报错信息直指原因。
+- **`@test_expect_panic("msg")` 注解**：断言被标注函数以指定消息 panic——负向测试（预期失败）的执行器支撑（耗尽迭代器、关闭后的流、断言失败等均以此覆盖）。
 - **`--test` 运行器**：`koala file.kl --test` 收集并运行所有 @test 函数；测试内 panic 会产生 traceback（§6）并以非零码退出。
-- 与 lit/FileCheck 回归测试（§11.6）正交：后者测编译器自身，@test 测用户代码。标准库 `ut` 包提供断言辅助。
+- 与 lit/FileCheck 回归测试（§11.6）正交：后者测编译器自身，@test 测用户代码。标准库 `ut` 包（§8.13，28 个断言函数）提供断言辅助；test-ut/ 目录即该体系的标准库自验证层。
 
 ---
 

@@ -212,7 +212,7 @@ class Reader {
     }
 
     func need(n int) {
-        if pos + n > len(data) {
+        if pos + n > data.len() {
             panic("klc file truncated")
         }
     }
@@ -692,7 +692,7 @@ class TsPrinter {
     }
 
     func peek() str {
-        if pos >= len(s) {
+        if pos >= s.len() {
             return ""
         }
         return s[pos]
@@ -827,7 +827,7 @@ class TsPrinter {
 }
 
 func type_str(sig str) str {
-    if len(sig) == 0 {
+    if sig.len() == 0 {
         return ""
     }
     let p = TsPrinter(sig)
@@ -873,7 +873,7 @@ func const_value(c KConst, pool list[KConst]) str {
     if c.kind == K_SHORT_TUPLE || c.kind == K_TUPLE {
         var out = "("
         var i = 0
-        while i < len(c.items) {
+        while i < c.items.len() {
             if i != 0 {
                 out = out + ", "
             }
@@ -885,7 +885,7 @@ func const_value(c KConst, pool list[KConst]) str {
     if c.kind == K_SHORT_LIST || c.kind == K_LIST {
         var out = "["
         var i = 0
-        while i < len(c.items) {
+        while i < c.items.len() {
             if i != 0 {
                 out = out + ", "
             }
@@ -942,7 +942,7 @@ func const_desc(c KConst, pool list[KConst]) str {
 /* ---------------- meta section display ---------------- */
 
 func get_str(f KlcFile, idx int) str {
-    if idx <= 0 || idx >= len(f.consts) {
+    if idx <= 0 || idx >= f.consts.len() {
         return "<bad-const-" + str_of(idx) + ">"
     }
     return f.consts[idx].sval
@@ -989,7 +989,7 @@ func show_func(f KlcFile, fn KFunc, indent str) {
     line = line + "func " + get_str(f, fn.name_idx) + "("
 
     var i = 0
-    while i < len(fn.args) {
+    while i < fn.args.len() {
         let a = fn.args[i]
         if i != 0 {
             line = line + ", "
@@ -1007,14 +1007,14 @@ func show_func(f KlcFile, fn KFunc, indent str) {
     let ret = type_str(get_str(f, fn.ret_idx))
 
     if (fn.flags & FLG_TRAIT) != 0 {
-        if len(ret) > 0 {
+        if ret.len() > 0 {
             line = line + " " + ret
         }
         print(line)
         return
     }
 
-    if len(ret) > 0 {
+    if ret.len() > 0 {
         line = line + " " + ret
     }
 
@@ -1026,21 +1026,21 @@ func show_func(f KlcFile, fn KFunc, indent str) {
 }
 
 func show_type_params(f KlcFile, tps list[KTp]) str {
-    if len(tps) == 0 {
+    if tps.len() == 0 {
         return ""
     }
     var out = "["
     var i = 0
-    while i < len(tps) {
+    while i < tps.len() {
         let tp = tps[i]
         if i != 0 {
             out = out + ", "
         }
         out = out + get_str(f, tp.name_idx)
-        if len(tp.bounds) > 0 {
+        if tp.bounds.len() > 0 {
             out = out + ": "
             var j = 0
-            while j < len(tp.bounds) {
+            while j < tp.bounds.len() {
                 if j != 0 {
                     out = out + " & "
                 }
@@ -1056,7 +1056,7 @@ func show_type_params(f KlcFile, tps list[KTp]) str {
 func show_type_list(f KlcFile, idxs list[int]) str {
     var out = ""
     var i = 0
-    while i < len(idxs) {
+    while i < idxs.len() {
         if i != 0 {
             out = out + " & "
         }
@@ -1067,7 +1067,7 @@ func show_type_list(f KlcFile, idxs list[int]) str {
 }
 
 func code_name(f KlcFile, idx int) str {
-    if idx < 0 || idx >= len(f.codes) {
+    if idx < 0 || idx >= f.codes.len() {
         return "<bad-code-" + str_of(idx) + ">"
     }
     let c = f.codes[idx]
@@ -1075,18 +1075,18 @@ func code_name(f KlcFile, idx int) str {
 }
 
 func show_intf_table(f KlcFile, k KClass, indent str) {
-    if len(k.intf) == 0 {
+    if k.intf.len() == 0 {
         return
     }
     print(indent + "intf table:")
     var i = 0
-    while i < len(k.intf) {
+    while i < k.intf.len() {
         let e = k.intf[i]
         print(indent + "  [" + str_of(i) + "] trait " + get_str(f, e.name_idx))
 
         var line = indent + "    methods: ["
         var j = 0
-        while j < len(e.methods) {
+        while j < e.methods.len() {
             if j != 0 {
                 line = line + ", "
             }
@@ -1100,10 +1100,10 @@ func show_intf_table(f KlcFile, k KClass, indent str) {
         }
         print(line + "]")
 
-        if len(e.parents) > 0 {
+        if e.parents.len() > 0 {
             line = indent + "    parents: ["
             j = 0
-            while j < len(e.parents) {
+            while j < e.parents.len() {
                 if j != 0 {
                     line = line + ", "
                 }
@@ -1129,7 +1129,7 @@ func show_class(f KlcFile, k KClass) {
     line = line + get_str(f, k.name_idx)
     line = line + show_type_params(f, k.tps)
 
-    if len(k.bases) > 0 {
+    if k.bases.len() > 0 {
         line = line + " : " + show_type_list(f, k.bases)
     }
     print(line + " {")
@@ -1142,10 +1142,10 @@ func show_class(f KlcFile, k KClass) {
         show_func(f, m, "    ")
     }
 
-    if len(k.pip) > 0 {
+    if k.pip.len() > 0 {
         print("    pip: " + show_type_list(f, k.pip))
     }
-    if len(k.lro) > 0 {
+    if k.lro.len() > 0 {
         print("    lro: " + show_type_list(f, k.lro))
     }
 
@@ -1157,7 +1157,7 @@ func show_class(f KlcFile, k KClass) {
 /* ---------------- runtime section display ---------------- */
 
 func get_rt_str(f KlcFile, idx int) str {
-    if idx <= 0 || idx > len(f.rt_consts) {
+    if idx <= 0 || idx > f.rt_consts.len() {
         return "<bad-rt-const-" + str_of(idx) + ">"
     }
     return f.rt_consts[idx - 1].sval
@@ -1166,7 +1166,7 @@ func get_rt_str(f KlcFile, idx int) str {
 func show_rt_consts(f KlcFile) {
     print("\nruntime constants:")
     var i = 0
-    while i < len(f.rt_consts) {
+    while i < f.rt_consts.len() {
         print("  [" + pad2(i + 1) + "] = " + const_desc(f.rt_consts[i], f.rt_consts))
         i = i + 1
     }
@@ -1175,10 +1175,10 @@ func show_rt_consts(f KlcFile) {
 func show_imports(f KlcFile) {
     print("\nimports:")
     var i = 0
-    while i < len(f.imports) {
+    while i < f.imports.len() {
         let imp = f.imports[i]
         var kind = "kind" + str_of(imp.kind)
-        if imp.kind < len(IMPORT_KINDS) {
+        if imp.kind < IMPORT_KINDS.len() {
             kind = IMPORT_KINDS[imp.kind]
         }
         var path = get_rt_str(f, imp.ns_idx)
@@ -1193,7 +1193,7 @@ func show_imports(f KlcFile) {
 func show_links(f KlcFile) {
     print("\nlinks:")
     var i = 0
-    while i < len(f.links) {
+    while i < f.links.len() {
         print("  [" + pad2(i) + "] = " + get_rt_str(f, f.links[i]))
         i = i + 1
     }
@@ -1208,7 +1208,7 @@ func read_insn(codes bytes, pc int) int {
 }
 
 func tag_name(idx int) str {
-    if idx < len(TAG_NAMES) {
+    if idx < TAG_NAMES.len() {
         return TAG_NAMES[idx]
     }
     return "<tag" + str_of(idx) + ">"
@@ -1224,7 +1224,7 @@ func disasm(codes bytes, start int, count int) {
 
         var name = "<bad-opcode>"
         var fmt = FMT_OP
-        if opcode < len(OP_NAMES) {
+        if opcode < OP_NAMES.len() {
             name = OP_NAMES[opcode]
             fmt = OP_FMTS[opcode]
         }
@@ -1236,7 +1236,7 @@ func disasm(codes bytes, start int, count int) {
         } else if fmt == FMT_RTAGIMM {
             let tag = (uinsn >> 8) & 0xFF
             var tagname = "<tag" + str_of(tag) + ">"
-            if tag < len(INTERN_TAGS) {
+            if tag < INTERN_TAGS.len() {
                 tagname = INTERN_TAGS[tag]
             }
             operands = format("r{}, @{}, #{}", (uinsn >> 16) & 0xFF, tagname, uinsn & 0xFF)
@@ -1328,18 +1328,18 @@ func show_codes(f KlcFile) {
     print("\ncodes:")
 
     var codes = bytes(0)
-    if len(f.bytecodes) > 0 {
+    if f.bytecodes.len() > 0 {
         codes = f.bytecodes[0]
     }
 
     var i = 0
-    while i < len(f.codes) {
+    while i < f.codes.len() {
         let c = f.codes[i]
         print("")
         print(format("[{}]@{}(nlocals={}, max_call_args={}, start_pc={}, num_insns={})",
                      i, get_rt_str(f, c.name_idx), c.nlocals, c.max_call_args,
                      c.start_pc, c.num_insns))
-        if len(codes) > 0 {
+        if codes.len() > 0 {
             disasm(codes, c.start_pc, c.num_insns)
         }
         i = i + 1
@@ -1371,7 +1371,7 @@ func read_file_bytes(path str) bytes {
 func main() {
     // os.args() returns only the user arguments (no program name).
     let args = os.args()
-    if len(args) < 1 {
+    if args.len() < 1 {
         print("usage: koala kl-dump.kl <klc file>")
         return
     }
@@ -1388,7 +1388,7 @@ func main() {
 
     print("\nconstants:")
     var i = 0
-    while i < len(f.consts) {
+    while i < f.consts.len() {
         print("  [" + pad2(i + 1) + "] = " + const_desc(f.consts[i], f.consts))
         i = i + 1
     }

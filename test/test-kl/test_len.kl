@@ -7,9 +7,8 @@ class Foo {
 }
 
 func main() {
-    let n = len(200)
-    let n2 = len(Foo())
+    let n = 200.len()
+    let n2 = Foo().len()
 }
 
-// CHECK: object of type 'j' has no len()
-// CHECK: 'Ltest_len.Foo;.len' must return int for len() call
+// CHECK: 'len' is not found in class 'int64'

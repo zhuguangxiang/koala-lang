@@ -1187,10 +1187,6 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_binary(insn, name, fp);
             break;
 
-        case OP_HASH:
-            print_unary(insn, name, fp);
-            break;
-
         case OP_STR:
             print_unary(insn, name, fp);
             break;

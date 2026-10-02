@@ -2,7 +2,7 @@
 
 func main() {
     let s = str("hello world")
-    print(len(s))
+    print(s.len())
     print(s[0])
     print(s.index("world"))
 }

@@ -170,8 +170,8 @@ func main() {
     // print((3).min(7))
     // print((3).max(7))
 
-    print(hash(5) == hash(5))
-    print(hash(4) == hash(5))
+    print(5.hash() == 5.hash())
+    print(4.hash() == 5.hash())
     print(str(5))
     print(str(-5))
 }

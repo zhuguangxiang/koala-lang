@@ -34,13 +34,13 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// User cannot directly create instances of this class.
     func __init__() {}
 
-    /// Read up to `len(bs)` bytes into `bs` and return the count read.
+    /// Read up to `bs.len()` bytes into `bs` and return the count read.
     ///
     /// Return 0 at EOF, or -1 on error. Panic when writing a closed file.
     @native
     pub func read(bs bytes) int {}
 
-    /// Write `len(bs)` bytes from `bs` and return the count written.
+    /// Write `bs.len()` bytes from `bs` and return the count written.
     ///
     /// Return -1 on error. Panic when writing a closed file.
     @native

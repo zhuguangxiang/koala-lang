@@ -27,41 +27,6 @@ pub const UINT32_MAX = 4294967295
 pub const UINT64_MIN = 0
 pub const UINT64_MAX = 18446744073709551615
 
-/// Return the number of items in a collection or the length of an object.
-///
-/// This function is an intrinsic and is resolved at compile time.
-/// Semantically, `len(obj)` is equivalent to calling `obj.len()`.
-///
-/// Any object may define a `len()` method to customize its length behavior.
-/// Built-in container types such as list, dict, tuple, and set provide their own
-/// optimized implementations.
-///
-/// Notes
-///
-/// - As an intrinsic, `len()` does not have a user-level implementation.
-/// - The compiler may lower `len(obj)` to specialized VM instructions
-///   (e.g., `OP_LEN`) when the object's type is known,
-///   enabling high-performance length queries.
-@intrinsic
-pub func len(obj any) int {}
-
-/// Return the hash value of an object.
-///
-/// This function is an intrinsic and is resolved at compile time.
-/// Semantically, `hash(obj)` is equivalent to calling `obj.hash()`.
-///
-/// Any class automatically provides a `hash()` method, and user-defined
-/// types may override it to customize hashing behavior.
-///
-/// Notes
-///
-/// - As an intrinsic, `hash()` does not have a user-level implementation.
-/// - The compiler may lower `hash(obj)` to a specialized VM instruction
-///   (e.g., `OP_HASH`) when the object's type is known, enabling efficient
-///   hashing for built-in and user-defined types.
-@intrinsic
-pub func hash(obj any) int {}
-
 /// Immediately abort program execution with an error message.
 ///
 /// `panic(msg)` raises a fatal runtime error and terminates the current

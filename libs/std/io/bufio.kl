@@ -56,7 +56,7 @@ pub class BufReader : Reader {
         end = 0
     }
 
-    /// Read up to len(out) bytes from the buffered stream into the provided buffer.
+    /// Read up to `out.len()` bytes from the buffered stream into the provided buffer.
     ///
     /// Data is served from the internal buffer first. If the buffer is empty,
     /// it is refilled from the underlying reader before serving the read.
@@ -72,7 +72,7 @@ pub class BufReader : Reader {
         }
 
         let avail = end - start
-        let n = min(avail, len(out))
+        let n = min(avail, out.len())
         let _end = start + n
 
         out.copy(buf, start, _end);
@@ -99,7 +99,7 @@ pub class BufReader : Reader {
     /// than n bytes after one fill attempt. The returned view stays valid
     /// only until the next read, discard, or peek.
     pub func peek(n int) bytes {
-        if n < 0 || n > len(buf) {
+        if n < 0 || n > buf.len() {
             panic("peek: n out of range")
         }
 
@@ -152,7 +152,7 @@ pub class BufReader : Reader {
             end = have
         }
 
-        if end < len(buf) {
+        if end < buf.len() {
             let r = inner.read(buf.view(end))
             if r > 0 { end = end + r }
         }
@@ -366,15 +366,15 @@ pub class BufWriter : Writer {
     ///
     /// Returns
     /// The number of bytes actually written (buffered or flushed).
-    /// A value less than len(data) indicates a partial write.
+    /// A value less than data.len() indicates a partial write.
     ///
     /// Notes
     /// - This method satisfies the Writer trait contract.
     /// - Data may not reach the underlying writer until flush() is called
     ///   or the buffer fills up.
     pub func write(data bytes) int {
-        let data_len = len(data)
-        let buf_len = len(buf)
+        let data_len = data.len()
+        let buf_len = buf.len()
 
         if data_len >= buf_len {
             _flush()

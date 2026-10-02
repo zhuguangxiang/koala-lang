@@ -6,7 +6,7 @@ class Foo : Iterator[int] & Iterable[int] {
     var index = 0
 
     func has_next() bool {
-        return index < len(lst)
+        return index < lst.len()
     }
 
     func next() int? {

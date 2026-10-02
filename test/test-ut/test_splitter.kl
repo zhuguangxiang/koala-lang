@@ -234,7 +234,7 @@ func test_splitter_long_chunk_grows_buffer() {
     let sp = io.Splitter(io.BufReader(io.StringIO("head," + token + ",tail"), 7), ',')
     ut.assert_eq(sp.next()!, b"head")
     let long = sp.next()!
-    ut.assert_eq(len(long), 600)
+    ut.assert_eq(long.len(), 600)
     ut.assert_eq(long.to_str(), token)
     ut.assert_eq(sp.next()!, b"tail")
     ut.assert_false(sp.has_next())
