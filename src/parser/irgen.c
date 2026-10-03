@@ -2991,6 +2991,15 @@ void kl_gen_ir(ParserModule *pm)
         klr_delete_func(m, (KlrFunc *)fn);
         m->init = NULL;
     } else {
+        /*
+        Best-effort early add: pre-RPO last_basic_block() may select an already-terminated block, in
+        which case klr_add_last_return() is a no-op. The authoritative fixup is the post-RPO add in
+        _do_lsra() (lsra.c), which runs after klr_build_rpo() reorders bb_list so last ==
+        layout-last == fall-off end.
+        */
+        KlrBasicBlock *last_bb = last_basic_block((KlrFunc *)fn);
+        klr_add_last_return(last_bb);
+
         // add symbol table entry for __init__ function
         HashMap *stbl = pm->stbl;
         Symbol *sym = stbl_add_func(stbl, "__init__", no_type_spec(), NULL, 0);

@@ -1,0 +1,105 @@
+// RUN: koala %s --dump=code | filecheck %s
+
+// Probe for top-level for-in fix: __init__ must end with ret_void,
+// otherwise pc falls through into the loop body after the loop ends.
+
+// 1. list for-in at top level, with print after loop (original failing case)
+let l = list[int](10, 20, 30)
+for v in l { print(v) }
+print("done-list")
+
+// 2. str for-in at top level
+let s = "abc"
+for c in s { print(c) }
+print("done-str")
+
+// 3. bytes for-in at top level
+let bs = bytes(3)
+bs[0] = 1
+bs[1] = 2
+bs[2] = 3
+for b in bs { print(b) }
+print("done-bytes")
+
+// 4. range for-in at top level (regression, was working before)
+for i in range(3) { print(i) }
+print("done-range")
+
+// 5. two consecutive loops (regression)
+for x in l { print(x) }
+for y in l { print(y) }
+print("done-consecutive")
+
+// 6. nested for-in at top level
+for x in l {
+    for y in l {
+        print(x + y)
+    }
+}
+print("done-nested")
+
+// 7. while loop at top level
+var n = 0
+while n < 3 {
+    print(n)
+    n = n + 1
+}
+print("done-while")
+
+// 8. top-level if/else
+if n == 3 {
+    print("if-ok")
+} else {
+    print("if-bad")
+}
+
+// 9. loop as the LAST statement at top level (no trailing print)
+for v in l { print(v) }
+
+// CHECK-LABEL: ====== Linearization @__init__(start_pc: 0, insns: 196) ======
+
+// CHECK-LABEL: %bb-1(loop-cond):
+// CHECK: jmp_int_ge r1, r2, 1
+// CHECK: jmp 180                      ;; -> %bb-1(loop-body)
+
+// CHECK: 10
+// CHECK: 20
+// CHECK: 30
+// CHECK: done-list
+// CHECK: a
+// CHECK: b
+// CHECK: c
+// CHECK: done-str
+// CHECK: 1
+// CHECK: 2
+// CHECK: 3
+// CHECK: done-bytes
+// CHECK: 0
+// CHECK: 1
+// CHECK: 2
+// CHECK: done-range
+// CHECK: 10
+// CHECK: 20
+// CHECK: 30
+// CHECK: 10
+// CHECK: 20
+// CHECK: 30
+// CHECK: done-consecutive
+// CHECK: 20
+// CHECK: 30
+// CHECK: 40
+// CHECK: 30
+// CHECK: 40
+// CHECK: 50
+// CHECK: 40
+// CHECK: 50
+// CHECK: 60
+// CHECK: done-nested
+// CHECK: 0
+// CHECK: 1
+// CHECK: 2
+// CHECK: done-while
+// CHECK: if-ok
+// CHECK: 10
+// CHECK: 20
+// CHECK: 30

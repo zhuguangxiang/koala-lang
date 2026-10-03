@@ -3,11 +3,12 @@
 > 记录未完成实现与待定设计：泛型数值协议（§1–4、§7–8）、语言手册（§5）、
 > 版本计划与路线图（§6）、容器协议相关（§9、§11、§12）、Truthiness 设想（§10）、
 > 数值 cast 补全（§13，已完成转语义 / 测试基线记录）、from_str 解析 API（§14，设计定案未实现）、
-> 测试揭示的 WIP 特性（§15，2026-10-02 复核已消解）、声明-实现欠账清单（§16）。
+> 测试揭示的 WIP 特性（§15，2026-10-02 复核已消解）、声明-实现欠账清单（§16）、
+> 整型提升三处缺陷（§17）、list 接口全面核对与主流语言对齐（§18）。
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-10-02（全面盘点 libs/std 40 文件 × test/ 190 用例后刷新）
+> 更新日期：2026-10-03（新增 §17 整型提升缺陷、§18 list 接口全面核对）
 
 ---
 
@@ -94,7 +95,7 @@ SLOT_BIT_AND)` 等。
 1. 表达式与运算符基础章节：基础运算符参考（算术/比较/逻辑/位/赋值/复合赋值）+ 优先级表。
 2. Containers 加深：每类容器常用操作示例；set 字面量 `{1,2,3}`；切片 `nums[1:3]` 示例。
 3. Strings 加深：切片 `s[0:5]`、拼接、转义序列。
-4. 内建函数速查表：`print` / `len` / `enumerate` / `zip` 收拢成表。
+4. 内建函数速查表：`print` / `enumerate` / `zip` 收拢成表（顶层 `len` / `hash` 已于 2026-10-02 删除，长度 / 哈希只有 `x.len()` / `x.hash()` 方法形态）。
 5. 词法基础：字面量进制（hex/oct/bin 在 parse_lit_int 有实证）、下划线分隔符待核实。
 
 **P2 —— 可选**
@@ -488,7 +489,7 @@ handler 不处理负索引，IMM 版本也应拒绝负数（编译期报错）�
 - [x] OP_SEQ_GET_IMM（isel.c:1051 常数下标特化）
 - [x] OP_SEQ_SET（SLOT_SET_ITEM）
 - [x] OP_SEQ_SET_IMM（isel.c:1078）
-- [x] OP_LEN（isel.c:622/632 下降；TARGET 走 SLOT_LEN）
+- [x] OP_LEN（2026-10-02 起仅 for-each Sequence 快速路径内部指令：irgen → `klr_build_seq_len` 发射，TARGET 走 SLOT_LEN；原顶层 `len(x)` 的 isel magic 下降分支已删除，用户 `x.len()` 直落 resolved call。`OP_HASH` 已随顶层 `hash()` 退役，零引用）
 - [x] OP_CONTAINS（vm_ops.h TARGET 经 SLOT_CONTAINS；`in` 语法全链路见 §4）
 - [x] OP_SEQ_GET_SLICE（vm_ops.h TARGET 经 SLOT_GET_SLICE）
 
@@ -504,7 +505,7 @@ handler 不处理负索引，IMM 版本也应拒绝负数（编译期报错）�
 isel 规则（如适用）、回归测试。
 
 **源码注释遗留（顺手修正项）**：
-- slotid.h:30 `SLOT_LEN, // OP_SEQ_LEN` — 注释里的指令名过时（现为 OP_LEN）
+- slotid.h:30 `SLOT_LEN, // __len__` — 注释已换成 dunder 名，但 len 无 dunder（普通方法，2026-10-02 裁定）；绑定表实证 `TPSLOT("len", SLOT_LEN)`（klc.c:462），宜改 `// len`。同族 `// __getitem__` 等对应真 dunder，不受影响
 - vm_ops.h:1531 `// TODO: can be negative?` — 即 §11 的负下标问题
 
 ---
@@ -661,7 +662,7 @@ pub static func try_from_str(s str, base = 10) int64? {}
 > - io 流（BytesIO / BufReader / read 协议）→ test-ut/test_bytesio.kl、test_bufio.kl、test_strio.kl 与 test-run/test_io_split.kl
 > - 多维下标 `a[i, j]`（原 test_nd_list）→ 用例未保留，特性未落地、不再跟踪
 >
-> 现状：190 个测试全部带 `RUN:` 行，“无 RUN 行 → Unresolved”类挂账清零。以下 15.1–15.3 为原记录留档。
+> 现状：190 个测试全部带 `RUN:` 行（2026-10-02）；2026-10-03 新增 6 个整型宽度专档后为 196 个，“无 RUN 行 → Unresolved”类挂账仍为零。以下 15.1–15.3 为原记录留档。
 
 ### 15.1 多维下标 `a[i, j]`（test-run/test_nd_list.kl）
 
@@ -697,7 +698,7 @@ pub static func try_from_str(s str, base = 10) int64? {}
 
 ### 16.1 容器与类型
 
-- `dict`：25 个方法全部 `@native`；src/ 无 dict 类型实现与注册，且当前 190 个测试中没有任何 dict 用例。
+- `dict`：25 个方法全部 `@native`；src/ 无 dict 类型实现与注册，且当前 196 个测试中没有任何 dict 用例。
 - `HashSet` / `TreeSet`：19 / 20 个方法全部 `@native`；无 C 实现、无测试。
 - koala.y 仍留 `set_type` 文法残段（行为行已注释），集合字面量语法未启用。
 
@@ -713,3 +714,155 @@ pub static func try_from_str(s str, base = 10) int64? {}
 - `Buffer`（bytebuf.kl，原 `ByteBuf`）已收缩为纯 append 式缓冲、不再声明 `MutableSequence[uint8]`；设计文档 §8.4 已同步。
 - seeker.kl 文档提及 `io.StdinReader`——不存在的类（doc-only 残留，示例应改用 `sys.stdin`）。
 - `ut.assert_eq[T : Equatable]`（裸约束）与 `assert_ne[T : Equatable[T]]`（完整形参）约束写法不一致，可顺手统一。
+
+---
+
+## 17. 整型提升的三处缺陷（rhs 期望类型传播 / 诊断）
+
+> 2026-10-03 建立。源码分析 `src/parser/parser_expr.c` 的 `promote_integer_type` / `parse_binary`
+> （提升规则与两阶段实现已入设计文档 §5、§5.3）时发现的三处问题，**均未修复**。
+> 三个修法的决策完备方案见设计文档 **§5.4**，此处只挂账问题本身。
+
+### 17.1 孤岛规则的错误消息文本不准
+
+- 现状：`parse_binary:2812-2816` 写死 `"cannot do binary operation on int64 and uint64 with different signs."`。
+- 问题：实际触发条件是 **uint64 与任意宽度的有符号类型**（`type_is_int` 只判 `TYPE_INT && sign == 1`，不含宽度），因此 `int8 + uint64`、`int32 * uint64` 都会报出“int64 and uint64”这样的假信息，也不告知用户可用的显式 cast 出路。
+- 影响：诊断误导。196 个测试无一覆盖此错误路径（全是正例）。
+- 修法：设计文档 §5.4 修法一（带上两侧真实 `signature` + 两条 cast 出路）。
+
+### 17.2 提升日志永远打印目标类型，起不到诊断作用
+
+- 现状：`promote_integer_type:2766-2774` 的四条 `log_info` 都在**赋值之后**读 `lhs->ts->int_flt_info.width / sign`，此时已被覆写为 int64 / uint64，故日志恒为 `from int64 to int64` / `from uint64 to uint64`。
+- 函数开头（`:2754-2755`）已把原始类型存进 `lhs_ts` / `rhs_ts`，但四条日志都没用它们。
+- 对照组：同文件 `parse_unary:2703-2736` 用 `orig_ts` 打印，写法正确；`parse_binary:2810` 的 `orig_ts` 只在 float 分支用到。
+- 修法：设计文档 §5.4 修法二（先打印后赋值，或直接引用 `lhs_ts` / `rhs_ts`）。
+
+### 17.3 uint64 左操作数 + 具名常量：期望类型传播的不对称缺口
+
+- 现状：`parse_binary` 有两条把 lhs 类型传给 rhs 的通道，二者对 uint64 的处理互补而不重合：
+  - 字面量通道（`:2791`）：rhs 是 `EXPR_LITERAL_KIND` 且 **lhs 是 uint64** → `rhs->expected = lhs->ts`
+  - 具名常量通道（`:2800`）：rhs 是 `EXPR_ID_KIND` 带 `SYM_FLAGS_CONST` 且 **lhs 不是 uint64** → 设 expected 并重新解析
+- 主缺口：**lhs 是 uint64 且 rhs 是具名常量**时两条都不生效。`x + UINT8_MAX`（x uint64）里 UINT8_MAX 保持自身推断的有符号类型 → 撞孤岛报错；而同一表达式的字面量形式 `x + 255` 合法。**此路径现有测试未覆盖，属源码推演结论、未实测。**
+- 连带误报（同源）：具名常量通道对**窄 lhs + 更宽常量**会报错。`check_literal_as_expected` 超范围时先 `kl_error("Literal value out of range for intN")` 再返回 0（`include/parser/literal_as_expected.h`），故 `n + INT16_MAX`（n int8）报错，而字面量形式 `n + 32767` 因通道不触发而合法。二元运算里的 rhs 类型只是“选公共类型的提示”，不是用户声明的目标类型，报错过严。
+- 字面量 vs 具名常量的结果类型不一致：`u + 100`（u uint8）得 `int`，`u + UINT8_MAX` 得 `uint64`——同量级的值、两种写法，结果类型不同。属同一不对称的另一面。
+- 对照组：函数实参通道（`:597-616`）对字面量与具名常量一视同仁、且不排除 uint64，这正是 `test_u64_add_u8(UINT64_MAX, UINT8_MAX)` 能通过的原因——说明该机制在 uint64 下本就可用。
+- 修法：设计文档 §5.4 修法三（新增不报错的 `int_value_fits` 适配判定 + 两条通道统一条件）。其中“字面量通道放宽到任意窄 lhs”会使 `u + 100` 的结果从 `int` 变 `uint64`，是本修法唯一的语义变化，**需作者确认后再实施**（保守变体见 §5.4 末段）。
+
+---
+
+## 18. list 接口全面核对：声明-实现-trait 三方不一致 + 主流语言对齐
+
+> 2026-10-03 建立。审计方法：对 `libs/std/builtin/list.kl` 声明的 **23 个 `@native` 方法**
+> 逐一编写单文件探针编译 + 运行实测，并与 C 侧 `src/objects/listobj.c` 的 `list_methods[]`
+> 方法表（:239-249，仅注册 8 个：push / pop / len / __str__ / extend / __getitem__ /
+> __setitem__ / __getslice__）交叉核对。
+> 关联条目：§7.1（not_impl 哨兵）、§9（push/pop @intrinsic 化）、§12（OP_SEQ_SET_SLICE
+> 未实现）、§16.3（append/push 命名）、§4（`in`/OP_CONTAINS 链路已通但 list 缺方法实体）。
+
+### 18.1 实测状态总表
+
+**可用（8）**：`__init__` / `len` / `__getitem__` / `__setitem__` / `__getslice__`（`l[a:b]`）/
+`push` / `pop` / `extend`。另有 C 侧实现但 list.kl 未声明的 `__str__`（`print(l)` 输出 `[1, 2, 3]`）。
+
+**声明 @native 但无 C 实现——运行时命中 not_impl 哨兵（`func 'X' of 'list' is not implemented!`），共 11 个**：
+
+| 方法 | 实测现象 |
+|---|---|
+| `empty()` | not implemented |
+| `index(v, start, end)` | not implemented |
+| `rindex(v, start, end)` | not implemented |
+| `count(v, start, end)` | not implemented |
+| `insert(i, v)` | not implemented |
+| `remove(v)` | not implemented |
+| `clear()` | not implemented |
+| `reverse()` | not implemented |
+| `reversed()` | not implemented |
+| `copy(start, end)` | not implemented（含带范围形式） |
+| `iter()` | 直接调用 `l.iter()` 编译报 `'iter' is not found in instance of class 'list'`——for-in 走内建字节码协议，声明的 @native `iter()` 无实体；且缺 `step` 形参（见 18.2 第 2 条） |
+
+**编译报错 / 崩溃，共 4 个**：
+
+| 方法 / 语法 | 实测现象 |
+|---|---|
+| `__contains__`（`v in l`） | 编译报 `type 'list<j>' does not support '__contains__' method`——§4 的 OP_CONTAINS 全链路已通，但 list 缺 SLOT_CONTAINS 方法实体，**`in` 运算符对 list 完全不可用** |
+| `__setslice__`（`l[0:2] = xs`） | 编译报 `cannot resolve expr's type`（对应 §12 OP_SEQ_SET_SLICE 未实现） |
+| `__add__`（`l + xs`） | **崩溃**：`vm.c:50 kl_not_impl_func` 断言失败（`Assertion '(obj)->_type == &cfunc_type' failed`），进程直接 abort，比 not_impl 异常更严重 |
+| `__iadd__`（`l += xs`） | 编译报 `inplace assignment is not supported for 'list' type` |
+
+### 18.2 trait 一致性破损（list vs MutableSequence / Sequence / Iterable）
+
+1. **`append` vs `push`**（§16.3 已挂名，此处补实测结论）：`MutableSequence`（collection.kl:78）
+   要求 `append(value T)`，list 只有 `push`，**没有任何 `append`**；加之 trait 要求的
+   `insert` / `remove` / `clear` 均未实现——list 实际上不满足其声明实现的 MutableSequence。
+   需定案：trait 改名 `push`（Rust/Go 风格），或 list 补 `append`（Python 风格）/ 互为别名。
+2. **`iter` 签名不符**：`Iterable` 要求 `iter(step = 1)`，list 声明无参 `iter()`；
+   实测 `l.iter(2)` 与 `l.iter()` 均不可用（编译报 `'iter' is not found`）。
+3. **`Sequence.__contains__` / `index` / `count`**：trait 要求的三件全部缺失（见 18.1 两表）。
+4. **编译器不强制 trait 一致性**：.kl 中声明存在即可通过编译（即使 @native 无 C 实体、
+   trait 方法整体缺席），所有问题推迟到运行时暴露。是否加编译期一致性检查，属设计决策，另行拍板。
+
+### 18.3 for-in 迭代的两个 bug（2026-10-03 复核细分）
+
+**Bug A（运行时）：顶层 `__init__` 中 for-in 遍历 Sequence 后，收尾阶段多做一次越界访问**
+
+```kl
+// 模块顶层（无 func 包裹）——报错
+let l = list[int](10, 20, 30)
+for v in l { print(v) }   // 10 20 30 全部正常打印
+print("done")             // 打印 done 后抛 Error: list index out of range
+```
+
+- 影响面：**仅模块顶层代码（在 `__init__` 中执行）**对 **list / str / bytes**（Sequence
+  快速路径）的 for-in；循环体本身全部正常执行，错误发生在 `__init__` 收尾
+  （traceback 指向循环后的最后一条语句或裸 `[pc 0006]`）。
+- **不受影响**：普通函数（如 `func main()`）内的 for-in 完全正常；顶层对 `range` 的
+  for-in 也正常 → 问题定位在**顶层上下文 + GEN_SEQ 快速路径**的收尾边界
+  （`index == len` 时多执行一次带边界检查的取元素）。
+- 连续多个顶层 for-in 时各循环输出均正常，仅在 `__init__` 末尾报一次错。
+
+**Bug B（编译器）：for-in 的 iterable 不支持内联构造表达式**
+
+`for v in list[int](1, 2) { ... }` 直接编译失败：`irgen.c:2355: Why goes here?`
+（UNREACHABLE），顶层与函数内一致。irgen.c 的 for-each 分派只处理
+`klr_is_const(it_val)` 下的 range / seq 两类常量（str 字面量 `"ab"` 可迭代），
+构造调用等一般表达式落入 `UNREACHABLE()`。施工方向：先求值 iterable 绑定临时变量
+再分派，或至少把 UNREACHABLE 换成明确的编译诊断。
+
+### 18.4 与 Python / Rust / Go 的对齐分析
+
+参照系：
+- **Python `list`**：append / extend / insert / remove / pop / clear / index / count / **sort** / reverse / copy，加 `len()` / `in` / 切片 / `+` / `+=`。
+- **Rust `Vec`**：push / pop / insert / remove / clear / len / is_empty / contains / **sort / sort_by / dedup / truncate / retain / resize** / reverse / extend / first / last / position。
+- **Go `slices` 包**：Append / Insert / Delete / Contains / Index / **Sort** / Reverse / Clone / Equal。
+
+**缺少（建议补）**：
+1. `sort()` / `sort_by(cmp)`——三语言全都有，koala 只声明了 `reverse`（且未实现），最显眼的缺失；
+2. `append` 与 `push` 的统一（见 18.2 第 1 条）；
+3. `first()` / `last()`——Rust 风格便捷访问，可选；
+4. `truncate` / `resize` / `retain` / `dedup` / `position`——Rust 风格，可用推导式替代，优先级低。
+
+**冗余 / 值得商榷**：
+1. `copy(start, end)` 与 `__getslice__`（`l[a:b]`）功能重叠——Python 的 `copy()` 是无参整体浅拷贝；
+   建议 `copy()` 收敛为无参整体拷贝，范围复制交给切片语法；
+2. `empty()` 等价于 `len() == 0`，命名建议对齐 Rust `is_empty()` / Go 惯例。
+
+**合理应保留**：push / pop / extend / insert / remove / clear / index / rindex / count /
+reverse / reversed / len / 切片 / `+` / `+=`——方向与主流一致，前提是真正实现。
+
+### 18.5 施工优先级
+
+- **P0（崩溃 / 核心功能不可用）**：
+  1. `__add__` 断言崩溃——实现之，或至少降级为 not_impl 异常而非 abort（VM 侧防御）；
+  2. for-in 两个 bug（18.3：Bug A 顶层 `__init__` 收尾越界；Bug B 内联 iterable 编译失败）；
+  3. 实现 `__contains__`，解锁 `in` 运算符（链路已通，只缺 list 方法实体）。
+- **P1（trait 契约兑现）**：实现 18.1 的 11 个 not_impl 方法；`__setslice__`（随 §12
+  OP_SEQ_SET_SLICE 一并落地）；`__iadd__`；append/push 定案统一；`iter(step)` 签名修正。
+- **P2（能力补齐）**：`sort` / `sort_by`；`copy()` 语义收敛；`empty` → `is_empty`；`first` / `last`。
+
+### 18.6 测试现状与挂点
+
+- 现有用例只覆盖可用面：`test/test-run/test_list*.kl`（5 个文件）+ `test/test-kl/test_list.kl`
+  仅使用 `push`（21 处）/ `len`（6 处）/ 下标赋值 / 切片；**test-ut 无 list 用例**。
+- 每实现一个欠账方法，应在 `test/test-ut/test_list.kl`（待新建）补用例，
+  参照 `test/test-ut/test_bytes.kl` 模式（`@test` + `ut.assert_*`，含范围语义与视图/切片交互）。
+

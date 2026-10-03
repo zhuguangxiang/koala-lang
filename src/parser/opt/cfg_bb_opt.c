@@ -96,8 +96,9 @@ int klr_remove_unused_block(KlrFunc *fn, void *data)
             log_info("basic-block: '%s' is unreachable", klr_block_name(bb));
             klr_erase_block(bb);
             changed = 1;
+        } else {
+            bb->visited = 0;
         }
-        bb->visited = 0;
     }
 
     sbb->visited = 0;

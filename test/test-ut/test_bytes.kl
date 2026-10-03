@@ -481,6 +481,236 @@ func test_bitnot_const() {
 }
 
 
+// --- tests for native methods implemented in bytesobj.c ---
+
+@test
+func test_starts_with_ends_with() {
+    let b = b"hello world"
+    ut.assert_true(b.starts_with(b"hello"))
+    ut.assert_true(b.starts_with(b""))
+    ut.assert_true(b.starts_with(b"hello world"))
+    ut.assert_false(b.starts_with(b"world"))
+    ut.assert_false(b.starts_with(b"hello world!"))
+
+    ut.assert_true(b.ends_with(b"world"))
+    ut.assert_true(b.ends_with(b""))
+    ut.assert_true(b.ends_with(b"hello world"))
+    ut.assert_false(b.ends_with(b"hello"))
+    ut.assert_false(b.ends_with(b"!hello world"))
+
+    let e = b""
+    ut.assert_true(e.starts_with(b""))
+    ut.assert_true(e.ends_with(b""))
+    ut.assert_false(e.starts_with(b"x"))
+}
+
+@test
+func test_index_bytes() {
+    let b = b"hello world hello"
+    ut.assert_eq(b.index_bytes(b"hello"), 0)
+    ut.assert_eq(b.index_bytes(b"world"), 6)
+    ut.assert_eq(b.index_bytes(b"o w"), 4)
+    ut.assert_eq(b.index_bytes(b"hello", 1), 12)
+    ut.assert_eq(b.index_bytes(b"hello", 0, 5), 0)
+    ut.assert_eq(b.index_bytes(b"xyz"), -1)
+    ut.assert_eq(b.index_bytes(b"hello", 1, 5), -1)
+    ut.assert_eq(b.index_bytes(b""), 0)
+}
+
+@test
+func test_rindex_bytes() {
+    let b = b"hello world hello"
+    ut.assert_eq(b.rindex_bytes(b"hello"), 12)
+    ut.assert_eq(b.rindex_bytes(b"world"), 6)
+    ut.assert_eq(b.rindex_bytes(b"hello", 0, 5), 0)
+    ut.assert_eq(b.rindex_bytes(b"xyz"), -1)
+    ut.assert_eq(b.rindex_bytes(b""), b.len())
+}
+
+@test
+func test_index_rindex_count_range() {
+    let b = b"abcabc"
+    ut.assert_eq(b.index(uint8('a')), 0)
+    ut.assert_eq(b.index(uint8('a'), 1), 3)
+    ut.assert_eq(b.index(uint8('a'), 0, 1), 0)
+    ut.assert_eq(b.index(uint8('c'), 0, 3), 2)
+    ut.assert_eq(b.index(uint8('z')), -1)
+    ut.assert_eq(b.index(uint8('a'), 4), -1)
+    ut.assert_eq(b.rindex(uint8('c')), 5)
+    ut.assert_eq(b.rindex(uint8('c'), 0, 3), 2)
+    ut.assert_eq(b.rindex(uint8('a')), 3)
+    ut.assert_eq(b.rindex(uint8('z')), -1)
+    ut.assert_eq(b.count(uint8('a')), 2)
+    ut.assert_eq(b.count(uint8('a'), 0, 3), 1)
+    ut.assert_eq(b.count(uint8('a'), 3), 1)
+    ut.assert_eq(b.count(uint8('z')), 0)
+}
+
+@test
+func test_replace() {
+    ut.assert_eq(b"hello world".replace(b"o", b"0"), b"hell0 w0rld")
+    ut.assert_eq(b"aaa".replace(b"a", b"bb"), b"bbbbbb")
+    ut.assert_eq(b"aXbXc".replace(b"X", b"--"), b"a--b--c")
+    ut.assert_eq(b"aXXb".replace(b"XX", b""), b"ab")
+    ut.assert_eq(b"abc".replace(b"abc", b""), b"")
+    ut.assert_eq(b"abc".replace(b"x", b"y"), b"abc")
+    ut.assert_eq(b"abc".replace(b"", b"y"), b"abc")
+    ut.assert_eq(b"abab".replace(b"ab", b"XY"), b"XYXY")
+}
+
+@test
+func test_split() {
+    let parts = b"a,b,c".split(b",")
+    ut.assert_eq(parts.len(), 3)
+    ut.assert_eq(parts[0], b"a")
+    ut.assert_eq(parts[1], b"b")
+    ut.assert_eq(parts[2], b"c")
+
+    let limited = b"a,b,c,d".split(b",", 2)
+    ut.assert_eq(limited.len(), 3)
+    ut.assert_eq(limited[0], b"a")
+    ut.assert_eq(limited[1], b"b")
+    ut.assert_eq(limited[2], b"c,d")
+
+    let multi = b"a::b::c".split(b"::")
+    ut.assert_eq(multi.len(), 3)
+    ut.assert_eq(multi[0], b"a")
+    ut.assert_eq(multi[1], b"b")
+    ut.assert_eq(multi[2], b"c")
+
+    let nosep = b"abc".split(b",")
+    ut.assert_eq(nosep.len(), 1)
+    ut.assert_eq(nosep[0], b"abc")
+
+    let empties = b",a,,b,".split(b",")
+    ut.assert_eq(empties.len(), 5)
+    ut.assert_eq(empties[0], b"")
+    ut.assert_eq(empties[1], b"a")
+    ut.assert_eq(empties[2], b"")
+    ut.assert_eq(empties[3], b"b")
+    ut.assert_eq(empties[4], b"")
+}
+
+
+@test
+func test_rsplit() {
+    let parts = b"a,b,c".rsplit(b",")
+    ut.assert_eq(parts.len(), 3)
+    ut.assert_eq(parts[0], b"a")
+    ut.assert_eq(parts[1], b"b")
+    ut.assert_eq(parts[2], b"c")
+
+    let limited = b"a,b,c,d".rsplit(b",", 2)
+    ut.assert_eq(limited.len(), 3)
+    ut.assert_eq(limited[0], b"a,b")
+    ut.assert_eq(limited[1], b"c")
+    ut.assert_eq(limited[2], b"d")
+
+    let multi = b"a::b::c".rsplit(b"::")
+    ut.assert_eq(multi.len(), 3)
+    ut.assert_eq(multi[0], b"a")
+    ut.assert_eq(multi[2], b"c")
+}
+
+@test
+func test_splitlines() {
+    let lines = b"a\nb\r\nc\rd".splitlines()
+    ut.assert_eq(lines.len(), 4)
+    ut.assert_eq(lines[0], b"a")
+    ut.assert_eq(lines[1], b"b")
+    ut.assert_eq(lines[2], b"c")
+    ut.assert_eq(lines[3], b"d")
+
+    let trailing = b"a\nb\n".splitlines()
+    ut.assert_eq(trailing.len(), 2)
+    ut.assert_eq(trailing[0], b"a")
+    ut.assert_eq(trailing[1], b"b")
+
+    let single = b"abc".splitlines()
+    ut.assert_eq(single.len(), 1)
+    ut.assert_eq(single[0], b"abc")
+
+    ut.assert_eq(b"".splitlines().len(), 0)
+}
+
+@test
+func test_strip() {
+    ut.assert_eq(b"  hello  ".strip(), b"hello")
+    ut.assert_eq(b"\t\nhello\r\n".strip(), b"hello")
+    ut.assert_eq(b"  hello  ".lstrip(), b"hello  ")
+    ut.assert_eq(b"\t\nhello".lstrip(), b"hello")
+    ut.assert_eq(b"  hello  ".rstrip(), b"  hello")
+    ut.assert_eq(b"hello\r\n".rstrip(), b"hello")
+    ut.assert_eq(b"   \t\n ".strip(), b"")
+    ut.assert_eq(b"abc".strip(), b"abc")
+    ut.assert_eq(b"".strip(), b"")
+    ut.assert_eq(b" a b ".strip(), b"a b")
+}
+
+@test
+func test_fill_zero_range() {
+    let b = bytes(5)
+    b.fill(uint8(65))
+    ut.assert_eq(b, b"AAAAA")
+    b.fill(uint8(66), 1, 3)
+    ut.assert_eq(b, b"ABBAA")
+    b.zero(0, 2)
+    ut.assert_eq(b[0], uint8(0))
+    ut.assert_eq(b[1], uint8(0))
+    ut.assert_eq(b[2], uint8(66))
+    ut.assert_eq(b[3], uint8(65))
+    b.zero()
+    ut.assert_eq(b, bytes(5))
+}
+
+@test
+func test_copy_range_and_overflow() {
+    let dst = bytes(3)
+    let n = dst.copy(b"abcdef", 1, 4)
+    ut.assert_eq(n, 3)
+    ut.assert_eq(dst, b"bcd")
+
+    let small = bytes(2)
+    ut.assert_eq(small.copy(b"abcd"), -1)
+    ut.assert_eq(small.copy(b"abcd", 0, 3), -1)
+
+    let exact = bytes(2)
+    ut.assert_eq(exact.copy(b"xy"), 2)
+    ut.assert_eq(exact, b"xy")
+}
+
+@test
+func test_copy_str_range_and_overflow() {
+    let dst = bytes(5)
+    let n = dst.copy_str("hello")
+    ut.assert_eq(n, 5)
+    ut.assert_eq(dst, b"hello")
+
+    let part = bytes(3)
+    let m = part.copy_str("abcdef", 2, 5)
+    ut.assert_eq(m, 3)
+    ut.assert_eq(part, b"cde")
+
+    let small = bytes(2)
+    ut.assert_eq(small.copy_str("abcd"), -1)
+}
+
+@test
+func test_methods_on_view() {
+    let b = b"xxhelloxx"
+    let v = b.view(2, 7)
+    ut.assert_eq(v.len(), 5)
+    ut.assert_true(v.starts_with(b"he"))
+    ut.assert_true(v.ends_with(b"lo"))
+    ut.assert_eq(v.index_bytes(b"ll"), 2)
+    ut.assert_eq(v.replace(b"l", b"L"), b"heLLo")
+    ut.assert_eq(v.strip(), b"hello")
+
+    let padded = b"  pad  ".view(0, 7)
+    ut.assert_eq(padded.strip(), b"pad")
+}
+
+
 // --- known failures (recorded; keep commented out until fixed) ---
 //
 // 1) `~` / unary `-` on a uint operand is still typed uint at compile time,

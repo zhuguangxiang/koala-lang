@@ -24,7 +24,7 @@ pub class list[T] : MutableSequence[T] {
 
     /// Return an iterator over the list.
     @native
-    pub func __iter__() Iterator[T] {}
+    pub func iter() Iterator[T] {}
 
     /// Return the number of items in the list. O(1).
     @native

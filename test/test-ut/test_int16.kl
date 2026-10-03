@@ -1,0 +1,312 @@
+// RUN: koala --test %s
+
+func test_i16_to_i16(n int16) int16 { return n }
+
+// Lossless signed widening: no explicit cast needed
+
+func test_i16_to_i32(n int16) int32 { return n }
+
+func test_i16_to_i64(n int16) int64 { return n }
+
+// Explicit conversion required:
+//
+// signed narrowing cannot be implicit.
+
+func test_i16_to_i8(n int16) int8 { return int8(n) }
+
+// Explicit conversion required:
+//
+// signed and unsigned types cannot be implicitly converted.
+
+func test_i16_to_u8(n int16) uint8 { return uint8(n) }
+
+func test_i16_to_u16(n int16) uint16 { return uint16(n) }
+
+func test_i16_to_u32(n int16) uint32 { return uint32(n) }
+
+func test_i16_to_u64(n int16) uint64 { return uint64(n) }
+
+// Arithmetic promotes int16 to int64 first: the result type is always `int`,
+// never the narrow operand type, so overflow of the narrow range is fine.
+
+func test_i16_neg(n int16) int { return -n }
+
+func test_i16_add_i8(n int16, m int8) int { return n + m }
+
+func test_i16_add_i16(n int16, m int16) int { return n + m }
+
+func test_i16_sub_i32(n int16, m int32) int { return n - m }
+
+func test_i16_mul_i64(n int16, m int64) int { return n * m }
+
+func test_i16_div_i32(n int16, m int32) int { return n / m }
+
+// A small unsigned operand also promotes to int64, so mixing int16 with
+// uint8/uint16/uint32 stays in the signed domain.
+
+func test_i16_mod_u8(n int16, m uint8) int { return n % m }
+
+func test_i16_add_u16(n int16, m uint16) int { return n + m }
+
+func test_i16_add_u32(n int16, m uint32) int { return n + m }
+
+// uint64 cannot implicitly mix with a signed type: explicit int64 cast required.
+
+func test_i16_add_u64(n int16, m uint64) int { return n + int64(m) }
+
+import "std/ut"
+
+// -----------------------------------------------------------------------------
+// Conversion tests
+// -----------------------------------------------------------------------------
+
+@test
+func test_ut_i16_to_i16() {
+    ut.assert(test_i16_to_i16(INT16_MIN) == INT16_MIN)
+    ut.assert(test_i16_to_i16(-1) == -1)
+    ut.assert(test_i16_to_i16(0) == 0)
+    ut.assert(test_i16_to_i16(1) == 1)
+    ut.assert(test_i16_to_i16(INT16_MAX) == INT16_MAX)
+}
+
+@test
+func test_ut_i16_to_i32() {
+    ut.assert(test_i16_to_i32(INT16_MIN) == INT16_MIN)
+    ut.assert(test_i16_to_i32(-1) == -1)
+    ut.assert(test_i16_to_i32(0) == 0)
+    ut.assert(test_i16_to_i32(1) == 1)
+    ut.assert(test_i16_to_i32(INT16_MAX) == INT16_MAX)
+}
+
+@test
+func test_ut_i16_to_i64() {
+    ut.assert(test_i16_to_i64(INT16_MIN) == INT16_MIN)
+    ut.assert(test_i16_to_i64(-1) == -1)
+    ut.assert(test_i16_to_i64(0) == 0)
+    ut.assert(test_i16_to_i64(1) == 1)
+    ut.assert(test_i16_to_i64(INT16_MAX) == INT16_MAX)
+}
+
+// Explicit int16 -> int8: the low 8 bits are kept and reinterpreted (wrap mode).
+
+@test
+func test_ut_i16_to_i8() {
+    ut.assert(test_i16_to_i8(INT16_MIN) == 0)
+    ut.assert(test_i16_to_i8(-256) == 0)
+    ut.assert(test_i16_to_i8(-129) == 127)
+    ut.assert(test_i16_to_i8(-128) == -128)
+    ut.assert(test_i16_to_i8(-1) == -1)
+    ut.assert(test_i16_to_i8(0) == 0)
+    ut.assert(test_i16_to_i8(1) == 1)
+    ut.assert(test_i16_to_i8(INT8_MAX) == INT8_MAX)
+    ut.assert(test_i16_to_i8(128) == INT8_MIN)
+    ut.assert(test_i16_to_i8(255) == -1)
+    ut.assert(test_i16_to_i8(INT16_MAX) == -1)
+}
+
+@test
+func test_ut_i16_to_u8() {
+    ut.assert(test_i16_to_u8(INT16_MIN) == 0)
+    ut.assert(test_i16_to_u8(-1) == UINT8_MAX)
+    ut.assert(test_i16_to_u8(0) == 0)
+    ut.assert(test_i16_to_u8(1) == 1)
+    ut.assert(test_i16_to_u8(127) == 127)
+    ut.assert(test_i16_to_u8(128) == 128)
+    ut.assert(test_i16_to_u8(UINT8_MAX) == UINT8_MAX)
+    ut.assert(test_i16_to_u8(256) == 0)
+    ut.assert(test_i16_to_u8(INT16_MAX) == UINT8_MAX)
+}
+
+@test
+func test_ut_i16_to_u16() {
+    ut.assert(test_i16_to_u16(INT16_MIN) == 32768)
+    ut.assert(test_i16_to_u16(-1) == UINT16_MAX)
+    ut.assert(test_i16_to_u16(0) == 0)
+    ut.assert(test_i16_to_u16(1) == 1)
+    ut.assert(test_i16_to_u16(INT16_MAX) == INT16_MAX)
+}
+
+@test
+func test_ut_i16_to_u32() {
+    ut.assert(test_i16_to_u32(INT16_MIN) == 4294934528)
+    ut.assert(test_i16_to_u32(-1) == UINT32_MAX)
+    ut.assert(test_i16_to_u32(0) == 0)
+    ut.assert(test_i16_to_u32(1) == 1)
+    ut.assert(test_i16_to_u32(INT16_MAX) == INT16_MAX)
+}
+
+@test
+func test_ut_i16_to_u64() {
+    ut.assert_uint_eq(test_i16_to_u64(INT16_MIN), 18446744073709518848)
+    ut.assert_uint_eq(test_i16_to_u64(-1), UINT64_MAX)
+    ut.assert_uint_eq(test_i16_to_u64(0), 0)
+    ut.assert_uint_eq(test_i16_to_u64(1), 1)
+    ut.assert_uint_eq(test_i16_to_u64(INT16_MAX), INT16_MAX)
+}
+
+// -----------------------------------------------------------------------------
+// Unary minus: promoted to int64, so INT16_MIN negates without overflow
+// -----------------------------------------------------------------------------
+
+@test
+func test_ut_i16_neg() {
+    ut.assert(test_i16_neg(INT16_MIN) == 32768)
+    ut.assert(test_i16_neg(-1) == 1)
+    ut.assert(test_i16_neg(0) == 0)
+    ut.assert(test_i16_neg(1) == -1)
+    ut.assert(test_i16_neg(INT16_MAX) == -32767)
+}
+
+// -----------------------------------------------------------------------------
+// int16 in the signed domain: result type is `int`
+// -----------------------------------------------------------------------------
+
+@test
+func test_ut_i16_add_i8() {
+    ut.assert(test_i16_add_i8(0, 0) == 0)
+    ut.assert(test_i16_add_i8(-1, 1) == 0)
+    ut.assert(test_i16_add_i8(INT16_MAX, 1) == 32768)
+    ut.assert(test_i16_add_i8(INT16_MIN, -1) == -32769)
+    ut.assert(test_i16_add_i8(INT16_MAX, INT8_MAX) == 32894)
+    ut.assert(test_i16_add_i8(INT16_MIN, INT8_MIN) == -32896)
+}
+
+@test
+func test_ut_i16_add_i16() {
+    ut.assert(test_i16_add_i16(100, 200) == 300)
+    ut.assert(test_i16_add_i16(-1, -1) == -2)
+    ut.assert(test_i16_add_i16(INT16_MAX, INT16_MAX) == 65534)
+    ut.assert(test_i16_add_i16(INT16_MIN, INT16_MIN) == -65536)
+    ut.assert(test_i16_add_i16(INT16_MAX, INT16_MIN) == -1)
+}
+
+@test
+func test_ut_i16_sub_i32() {
+    ut.assert(test_i16_sub_i32(0, 0) == 0)
+    ut.assert(test_i16_sub_i32(1, 1) == 0)
+    ut.assert(test_i16_sub_i32(-1, 1) == -2)
+    ut.assert(test_i16_sub_i32(INT16_MIN, INT32_MAX) == -2147516415)
+    ut.assert(test_i16_sub_i32(INT16_MAX, INT32_MIN) == 2147516415)
+    ut.assert(test_i16_sub_i32(INT16_MIN, INT16_MAX) == -65535)
+    ut.assert(test_i16_sub_i32(INT16_MAX, INT16_MIN) == 65535)
+}
+
+@test
+func test_ut_i16_mul_i64() {
+    ut.assert(test_i16_mul_i64(0, INT64_MAX) == 0)
+    ut.assert(test_i16_mul_i64(1, INT64_MAX) == INT64_MAX)
+    ut.assert(test_i16_mul_i64(-1, INT64_MAX) == -INT64_MAX)
+    ut.assert(test_i16_mul_i64(2, 3) == 6)
+    ut.assert(test_i16_mul_i64(-2, -3) == 6)
+    ut.assert(test_i16_mul_i64(INT16_MAX, 2) == 65534)
+    ut.assert(test_i16_mul_i64(INT16_MIN, 2) == -65536)
+
+    // Products far beyond the int16 range stay exact in int64.
+    ut.assert(test_i16_mul_i64(INT16_MAX, INT16_MAX) == 1073676289)
+    ut.assert(test_i16_mul_i64(INT16_MIN, INT16_MIN) == 1073741824)
+}
+
+@test
+func test_ut_i16_div_i32() {
+    ut.assert(test_i16_div_i32(0, 1) == 0)
+    ut.assert(test_i16_div_i32(1, 1) == 1)
+    ut.assert(test_i16_div_i32(-1, 1) == -1)
+    ut.assert(test_i16_div_i32(100, 10) == 10)
+    ut.assert(test_i16_div_i32(-100, 10) == -10)
+
+    // Truncation toward zero.
+    ut.assert(test_i16_div_i32(7, 2) == 3)
+    ut.assert(test_i16_div_i32(-7, 2) == -3)
+    ut.assert(test_i16_div_i32(INT16_MAX, 2) == 16383)
+    ut.assert(test_i16_div_i32(INT16_MIN, 2) == -16384)
+
+    // Divisor of larger magnitude.
+    ut.assert(test_i16_div_i32(INT16_MAX, INT32_MAX) == 0)
+    ut.assert(test_i16_div_i32(INT16_MIN, INT32_MAX) == 0)
+}
+
+// -----------------------------------------------------------------------------
+// int16 mixed with small unsigned types: still the signed domain
+// -----------------------------------------------------------------------------
+
+@test
+func test_ut_i16_mod_u8() {
+    ut.assert(test_i16_mod_u8(0, 1) == 0)
+    ut.assert(test_i16_mod_u8(7, 3) == 1)
+    ut.assert(test_i16_mod_u8(-7, 3) == -1)
+    ut.assert(test_i16_mod_u8(100, 10) == 0)
+    ut.assert(test_i16_mod_u8(-100, 10) == 0)
+    ut.assert(test_i16_mod_u8(-1, 2) == -1)
+    ut.assert(test_i16_mod_u8(INT16_MAX, UINT8_MAX) == 127)
+    ut.assert(test_i16_mod_u8(INT16_MIN, UINT8_MAX) == -128)
+    ut.assert(test_i16_mod_u8(127, 128) == 127)
+}
+
+@test
+func test_ut_i16_add_u16() {
+    ut.assert(test_i16_add_u16(0, 0) == 0)
+    ut.assert(test_i16_add_u16(1, 1) == 2)
+    ut.assert(test_i16_add_u16(-1, 1) == 0)
+    ut.assert(test_i16_add_u16(-1, UINT16_MAX) == 65534)
+    ut.assert(test_i16_add_u16(INT16_MIN, 0) == INT16_MIN)
+    ut.assert(test_i16_add_u16(INT16_MAX, 0) == INT16_MAX)
+    ut.assert(test_i16_add_u16(INT16_MAX, UINT16_MAX) == 98302)
+    ut.assert(test_i16_add_u16(INT16_MIN, UINT16_MAX) == 32767)
+}
+
+@test
+func test_ut_i16_add_u32() {
+    ut.assert(test_i16_add_u32(0, 0) == 0)
+    ut.assert(test_i16_add_u32(1, 1) == 2)
+    ut.assert(test_i16_add_u32(-1, 1) == 0)
+    ut.assert(test_i16_add_u32(1, UINT32_MAX) == 4294967296)
+    ut.assert(test_i16_add_u32(-1, UINT32_MAX) == 4294967294)
+    ut.assert(test_i16_add_u32(INT16_MIN, UINT32_MAX) == 4294934527)
+    ut.assert(test_i16_add_u32(INT16_MAX, UINT32_MAX) == 4295000062)
+}
+
+// -----------------------------------------------------------------------------
+// int16 with uint64: only via an explicit int64 cast
+// -----------------------------------------------------------------------------
+
+@test
+func test_ut_i16_add_u64() {
+    ut.assert(test_i16_add_u64(0, 0) == 0)
+    ut.assert(test_i16_add_u64(1, 1) == 2)
+    ut.assert(test_i16_add_u64(-1, 1) == 0)
+    ut.assert(test_i16_add_u64(INT16_MIN, 0) == INT16_MIN)
+    ut.assert(test_i16_add_u64(INT16_MAX, 0) == INT16_MAX)
+
+    // int64(UINT64_MAX) is -1, so the sum stays in the signed domain.
+    ut.assert(test_i16_add_u64(0, UINT64_MAX) == -1)
+    ut.assert(test_i16_add_u64(1, UINT64_MAX) == 0)
+    ut.assert(test_i16_add_u64(INT16_MIN, UINT64_MAX) == -32769)
+
+    // int64(2^63) is INT64_MIN.
+    ut.assert(test_i16_add_u64(1, INT64_MAX) == INT64_MIN)
+    ut.assert(test_i16_add_u64(-1, INT64_MAX) == 9223372036854775806)
+    ut.assert(test_i16_add_u64(INT16_MAX, 9223372036854775808) == -9223372036854743041)
+}
+
+// -----------------------------------------------------------------------------
+// Two's complement round trip
+// -----------------------------------------------------------------------------
+
+func i16_to_u16(v int16) uint16 {
+    return uint16(v)
+}
+
+func u16_to_i16(v uint16) int16 {
+    return int16(v)
+}
+
+@test
+func test_ut_i16_twos_complement() {
+    ut.assert(i16_to_u16(-1) == UINT16_MAX)
+    ut.assert(i16_to_u16(-2) == 65534)
+    ut.assert(i16_to_u16(INT16_MIN) == 32768)
+
+    ut.assert(u16_to_i16(UINT16_MAX) == -1)
+    ut.assert(u16_to_i16(65534) == -2)
+    ut.assert(u16_to_i16(32768) == INT16_MIN)
+}

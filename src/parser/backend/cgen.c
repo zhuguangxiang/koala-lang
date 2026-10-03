@@ -1698,20 +1698,139 @@ static void assign_pc(KlMachFunc *mfn)
 }
 
 /**
- * Phase 2:
- * Processes fused-jump instructions by computing their relative offsets
- * using the current PC layout. If an offset does not fit the fused-jump
- * encoding (e.g., 8-bit short form), this function may rewrite the
- * MachInsn structure (fallback expansion, long-branch insertion, etc.).
- * When structural changes occur, mfn->changed must be set to true so
- * that the final layout can be recomputed before patching.
+ * Returns 1 if the signed offset fits in a 8-bits-wide two's complement field.
+ */
+static int offset_fits_8bits(int offset)
+{
+    int bits = 8;
+    int min = -(1 << (bits - 1));
+    int max = (1 << (bits - 1)) - 1;
+    return offset >= min && offset <= max;
+}
+
+/**
+ * Invariant check for process_fused_jumps(): a branch is an IR block terminator, so a
+ * machine block carries at most one fused branch -- after expanding it, no fused branch
+ * may follow in the same block. Re-reads the instruction vector because the caller's
+ * items/n are stale after vector_insert().
+ */
+static void check_no_fused_branch(KlMachBlock *mb, int from)
+{
+    KlMachInsn **items = VECTOR_ITEMS(&mb->insns, KlMachInsn *);
+    int n = vector_size(&mb->insns);
+
+    for (int i = from; i < n; i++) {
+        OpCode op = items[i]->op;
+        ASSERT(!fused_jmp(op) && !ref_fused_jmp(op));
+    }
+}
+
+/**
+ * Phase 2: expand out-of-range fused conditional jumps.
  *
- * In the initial implementation, only offset checking is performed and
- * no structural modifications are made.
+ * A fused conditional jump (e.g. `jmp_int_lt r1, r2, off`) carries an 8-bit signed offset,
+ * so it can only reach targets within [-128, 127] instructions.
+ * When the current PC layout puts its target out of that range, the jump is rewritten in place
+ * as an inverted conditional jump plus one inserted `jmp` (OP_JMP, 16-bit offset, full reach):
+ *
+ *   (a) the conditional jump is the block terminator; the inverted jump's fixed +1 offset
+ *       lands on the first instruction of the block that follows in the layout -- the
+ *       original fallthrough:
+ *
+ *         jmp_int_lt r1, r2, far   ==>   jmp_int_ge r1, r2, 1
+ *                                        jmp far              ; inserted
+ *
+ *   (b) the conditional jump is followed by the trailing `jmp` synthesized in
+ *       lower_fused_jmp(); the insertion shifts that trailing jump one slot later and the
+ *       fixed +1 offset lands exactly on it -- still the original fallthrough:
+ *
+ *         jmp_int_lt r1, r2, far   ==>   jmp_int_ge r1, r2, 1
+ *         jmp elsewhere                  jmp far              ; inserted
+ *                                        jmp elsewhere
+ *
+ * No new machine blocks are created and no position is assumed: vector_insert() at the slot
+ * right after the conditional jump shifts whatever followed it one slot later, and the
+ * constant +1 offset lands exactly on the original fallthrough successor.
+ *
+ * An expanded jump has `target == NULL` and the fixed offset +1; it is permanently inert
+ * (this scan skips it, patch_branches() leaves it alone). The inserted `jmp` inherits the
+ * original target block.
+ *
+ * This pass assigns no PCs: it scans the layout computed by phase 1 and sets mfn->changed
+ * for each expansion, so phase 3 (assign_pc_and_patch_branches) recomputes the layout and
+ * rescans until stable.
  */
 static void process_fused_jumps(KlMachFunc *mfn)
 {
-    // TODO: Implement fused-jump processing
+    mfn->changed = 0;
+
+    KlMachBlock *mb;
+    list_foreach(mb, link, &mfn->bb_list) {
+        KlMachInsn **items = VECTOR_ITEMS(&mb->insns, KlMachInsn *);
+        int n = vector_size(&mb->insns);
+        int done = 0;
+
+        for (int i = 0; (i < n) && !done; i++) {
+            KlMachInsn *mi = items[i];
+            int is_fused = fused_jmp(mi->op);
+            int is_ref_fused_off8 = ref_fused_jmp(mi->op) && mi->format == FORMAT_RROff;
+            if (!is_fused && !is_ref_fused_off8) continue;
+
+            /* target == NULL: already expanded -- offset is the constant +1 */
+            if (!mi->target) continue;
+
+            int offset = mi->target->start_pc - (mi->pc + 1);
+            // If the offset fits in 8 bits, no need to insert a new `jmp` instruction.
+            if (offset_fits_8bits(offset)) continue;
+
+            /* Out of range:
+             * invert the condition and insert a `jmp` to the original far target right after it.
+             */
+            struct jmp_invert *inv;
+
+            if (is_fused) {
+                inv = &jmp_invert_map[mi->op - OP_JMP_INT_EQ];
+            } else {
+                ASSERT(is_ref_fused_off8);
+                inv = &ref_jmp_invert_map[mi->op - OP_JMP_REF_EQ];
+            }
+
+            KlMachBlock *far_target = mi->target;
+
+            mi->op = inv->op;
+            mi->format = inv->fmt;
+            // The original far target is now handled by the inserted `jmp` instruction.
+            // So here set the target to NULL to indicate that this instruction needn't handle the
+            // far target anymore.
+            mi->target = NULL;
+            // Set the offset to 1, always indicating a short jump to the next instruction(OP_JMP).
+            mi->opers[2] = 1;
+
+            // Use mi->origin as the origin for the newly inserted `jmp` instruction.
+            // Only for debug/print purposes
+            KlMachInsn *jmp_far = build_mach_insn(OP_JMP, mi->origin, mb);
+            jmp_far->target = far_target;
+            vector_insert(&mb->insns, i + 1, &jmp_far);
+
+            /* Insertion shifted PCs: ask phase 3 to re-layout. */
+            mfn->changed = 1;
+
+            /* at most one fused branch per block */
+            check_no_fused_branch(mb, i + 2);
+            done = 1;
+        }
+    }
+
+    if (mfn->changed) {
+        /* Expansions inserted instructions, so the layout priced into m->pc is stale:
+         * rewind the module cursor and zero total_insns; the next assign_pc() re-lays
+         * out from the correct base and recomputes both. Idempotent: with total_insns
+         * already 0, a repeated rewind subtracts zero.
+         */
+        KlMachModule *m = mfn->m;
+        m->pc -= mfn->total_insns;
+        mfn->total_insns = 0;
+    }
 }
 
 static void patch_branches(KlMachFunc *mfn)
@@ -1728,31 +1847,57 @@ static void patch_branches(KlMachFunc *mfn)
                 int target_pc = mi->target->start_pc;
                 ASSERT(target_pc >= 0);
                 /* Relative offset: target - (current + 1) */
-                mi->opers[0] = target_pc - (mi->pc + 1);
+                int rel_offset = target_pc - (mi->pc + 1);
+                mi->opers[0] = rel_offset;
+                ASSERT(rel_offset <= 32767);
+                ASSERT(rel_offset >= -32768);
             } else if (mach_insn_or(mi, OP_JMP_TRUE, OP_JMP_FALSE)) {
                 ASSERT(mi->format == FORMAT_ROff2);
                 ASSERT(mi->target);
                 int target_pc = mi->target->start_pc;
                 ASSERT(target_pc >= 0);
                 /* Relative offset: target - (current + 1) */
-                mi->opers[1] = target_pc - (mi->pc + 1);
+                int rel_offset = target_pc - (mi->pc + 1);
+                mi->opers[1] = rel_offset;
+                ASSERT(rel_offset <= 32767);
+                ASSERT(rel_offset >= -32768);
             } else if (fused_jmp(mi->op)) {
                 ASSERT(mi->format == FORMAT_RROff || mi->format == FORMAT_RImmOff);
-                ASSERT(mi->target);
-                int target_pc = mi->target->start_pc;
-                ASSERT(target_pc >= 0);
-                /* Relative offset: target - (current + 1) */
-                mi->opers[2] = target_pc - (mi->pc + 1);
+                if (!mi->target) {
+                    /* Already expanded by process_fused_jumps(): the offset is the constant +1
+                     * jumping over the inserted `jmp`; nothing to patch.
+                     */
+                    ASSERT(mi->opers[2] == 1);
+                } else {
+                    int target_pc = mi->target->start_pc;
+                    ASSERT(target_pc >= 0);
+                    /* Relative offset: target - (current + 1) */
+                    int rel_offset = target_pc - (mi->pc + 1);
+                    mi->opers[2] = rel_offset;
+                    ASSERT(rel_offset <= 127);
+                    ASSERT(rel_offset >= -128);
+                }
             } else if (ref_fused_jmp(mi->op)) {
                 ASSERT(mi->format == FORMAT_RROff || mi->format == FORMAT_ROff2);
-                ASSERT(mi->target);
-                int target_pc = mi->target->start_pc;
-                ASSERT(target_pc >= 0);
-                /* Relative offset: target - (current + 1) */
-                if (mi->format == FORMAT_RROff) {
-                    mi->opers[2] = target_pc - (mi->pc + 1);
+                if (!mi->target) {
+                    /* Already expanded in process_fused_jumps(): (8-bit RROff form only). */
+                    ASSERT(mi->format == FORMAT_RROff);
+                    ASSERT(mi->opers[2] == 1);
                 } else {
-                    mi->opers[1] = target_pc - (mi->pc + 1);
+                    int target_pc = mi->target->start_pc;
+                    ASSERT(target_pc >= 0);
+                    /* Relative offset: target - (current + 1) */
+                    if (mi->format == FORMAT_RROff) {
+                        int rel_offset = target_pc - (mi->pc + 1);
+                        mi->opers[2] = rel_offset;
+                        ASSERT(rel_offset <= 127);
+                        ASSERT(rel_offset >= -128);
+                    } else {
+                        int rel_offset = target_pc - (mi->pc + 1);
+                        mi->opers[1] = rel_offset;
+                        ASSERT(rel_offset <= 32767);
+                        ASSERT(rel_offset >= -32768);
+                    }
                 }
             } else {
                 // do nothing for non-jump instructions
@@ -1764,17 +1909,19 @@ static void patch_branches(KlMachFunc *mfn)
 /**
  * Phase 3: final layout + branch patching.
  *
- * If process_fused_jumps() modified the MachInsn structure (mfn->changed = true),
- * we must recompute the final PC layout before patching. Otherwise, we only patch.
+ * Each expansion round in process_fused_jumps() inserts instructions and shifts every
+ * following PC: it rewinds m->pc / total_insns itself and leaves mfn->changed set, so
+ * re-layout here starts from a clean base. Layout and expansion feed each other --
+ * re-layout can push more fused jumps out of the 8-bit range -- so alternate until a
+ * scan expands nothing (mfn->changed stays 0), then patch with the final PCs.
  */
 static void assign_pc_and_patch_branches(KlMachFunc *mfn)
 {
-    KlMachBlock *mb;
-    KlMachModule *m = mfn->m;
-
-    if (mfn->changed) {
+    /* process_fused_jumps() clears mfn->changed on entry and rewinds the module PC
+     * cursor itself when it expands, so no extra bookkeeping is needed here. */
+    while (mfn->changed) {
         assign_pc(mfn);
-        mfn->changed = 0;
+        process_fused_jumps(mfn);
     }
 
     patch_branches(mfn);
