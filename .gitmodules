@@ -1,0 +1,3 @@
+[submodule "third_party/ryu"]
+	path = third_party/ryu
+	url = https://github.com/ulfjack/ryu.git
