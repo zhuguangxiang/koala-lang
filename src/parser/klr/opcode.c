@@ -175,6 +175,12 @@ void bytecode_print(uint8_t *code, size_t start, size_t count, size_t num_local_
                 break;
             }
 
+            case FORMAT_PRINT: {
+                int nargs = insn & 0xFFu;
+                printf("#%d", nargs);
+                break;
+            }
+
             case FORMAT_R_TI_Imm12: {
                 int R = (insn >> 16) & 0xFFu;
                 int ti = (insn >> 12) & 0xFu;

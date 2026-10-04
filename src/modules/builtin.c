@@ -31,44 +31,49 @@ static void print_value(TValue *val, Buffer *buf)
 /*
 func print_intern(w io.Writer, _sep str, _end str, objs ...) {}
 */
-static TValue print_intern(TValue *self, TValue *args, int nargs)
+TValue do_print(TValue *args, int nargs)
 {
     ASSERT(nargs == 4);
     TValue writer = args[0];
-    Object *sep = to_obj(&args[1]);
-    Object *end = to_obj(&args[2]);
-    Object *upper_tuple = to_obj(&args[3]);
+    Object *sep = kl_arg_strobj(1);
+    Object *end = kl_arg_strobj(2);
+    Object *upper_tuple = kl_arg_tuple(3);
 
+    // TODO: double tuple wrapper
     TValue *upper_items = TUPLE_ITEMS(upper_tuple);
     ASSERT(TUPLE_SIZE(upper_tuple) == 1);
 
     Object *tuple = to_obj(upper_items);
+    ASSERT(IS_TUPLE(tuple));
     TValue *items = TUPLE_ITEMS(tuple);
     int size = TUPLE_SIZE(tuple);
 
-    BUF(buf);
+    Formatter *fmt = kl_new_formatter(64);
+    TValue fmt_val = obj_value(fmt);
 
     for (int i = 0; i < size; ++i) {
-        print_value(items + i, &buf);
+        kl_slot_call_one_arg(items + i, &fmt_val, SLOT_FMT);
         if (i < size - 1) {
-            buf_write_nstr(&buf, STR_BUF(sep), STR_LEN(sep));
+            kl_fmt_write_str(fmt, STR_BUF(sep), STR_LEN(sep));
         } else {
-            buf_write_nstr(&buf, STR_BUF(end), STR_LEN(end));
+            kl_fmt_write_str(fmt, STR_BUF(end), STR_LEN(end));
         }
     }
 
-    Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
+    Object *s = kl_fmt_result(fmt);
 
     // write_str(s str) int
     Object *write_str_fn = kl_get_intf_func(&writer, 1);
-    TValue _args[] = { writer, obj_value(sobj) };
+    TValue _args[] = { writer, obj_value(s) };
     kl_object_call(write_str_fn, _args, 2);
 
     // flush() int
     Object *flush_fn = kl_get_intf_func(&writer, 2);
     kl_object_call(flush_fn, &writer, 1);
 
-    FINI_BUF(buf);
+    kl_free_str(s);
+    kl_free_formatter(fmt);
+
     return nil_value;
 }
 
@@ -84,7 +89,27 @@ static TValue builtin_panic(TValue *self, TValue *args, int nargs)
     return error_value;
 }
 
-TValue kl_format(TValue *self, TValue *args, int nargs);
+void __kl_format__(Formatter *out, const char *fmt, int len, Object *args);
+
+static TValue builtin_format(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs >= 1 && nargs <= 2);
+
+    if (nargs == 1) {
+        // return the format string itself if no arguments provided
+        return args[0];
+    }
+
+    const char *f = kl_arg_str(0);
+    int flen = strlen(f);
+    Object *tuple = kl_arg_obj_as(1, tuple_type);
+
+    Formatter *out = kl_new_formatter(32);
+    __kl_format__(out, f, flen, tuple);
+    Object *so = kl_new_nstr(BUF_STR(out->buf), BUF_LEN(out->buf));
+    kl_free_formatter(out);
+    return obj_value(so);
+}
 
 static TValue builtin_typeof(TValue *self, TValue *args, int nargs)
 {
@@ -96,7 +121,7 @@ static TValue builtin_typeof(TValue *self, TValue *args, int nargs)
 
 static MethodDef builtin_functions[] = {
     { "panic", builtin_panic },
-    { "format", kl_format },
+    { "format", builtin_format },
     { "typeof", builtin_typeof },
     { NULL },
 };
@@ -106,7 +131,7 @@ static TypeObject *builtin_types[] = {
     &global_type,  &cfunc_type,   &code_type,   &int8_type,   &int16_type,  &int32_type,
     &int64_type,   &uint8_type,   &uint16_type, &uint32_type, &uint64_type, &float16_type,
     &float32_type, &float64_type, &tuple_type,  &range_type,  &slice_type,  &list_type,
-    &bytes_type,   &bytebuf_type,
+    &bytes_type,   &bytebuf_type, &fmt_type,
 };
 
 void builtin_native_lib_init(NativeLib *lib)
@@ -119,20 +144,6 @@ void builtin_native_lib_init(NativeLib *lib)
 
     for (int i = 0; i < COUNT_OF(builtin_types); ++i) {
         kl_reg_type(lib, builtin_types[i]);
-    }
-}
-
-static MethodDef print_lib_functions[] = {
-    { "print_intern", print_intern },
-    { NULL },
-};
-
-void prelude_native_lib_init(NativeLib *lib)
-{
-    MethodDef *methdef = print_lib_functions;
-    while (methdef->name) {
-        kl_reg_func(lib, methdef->name, methdef->cfunc);
-        ++methdef;
     }
 }
 

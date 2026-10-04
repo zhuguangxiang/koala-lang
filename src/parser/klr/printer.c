@@ -109,6 +109,14 @@ static void print_const(KlrConst *v, FILE *fp)
             fprintf(fp, ")");
             break;
         }
+        case CONST_BYTES: {
+            fprintf(fp, "b\"");
+            BUF(buf);
+            escape_str(v->sval, &buf);
+            fprintf(fp, "%s\"", BUF_STR(buf));
+            FINI_BUF(buf);
+            break;
+        }
         default:
             UNREACHABLE();
             break;
@@ -370,6 +378,20 @@ static void print_call(const char *name, KlrInsn *insn, FILE *fp)
     }
 
     fprintf(fp, ", nargs=%d", insn->num_args);
+}
+
+static void print_print(KlrInsn *insn, FILE *fp)
+{
+    fprintf(fp, "print ");
+
+    KlrOper *oper;
+    for (int i = 0; i < insn->num_opers; i++) {
+        if (i != 0) fprintf(fp, ", ");
+        oper = &insn->opers[i];
+        print_operand(oper, fp);
+    }
+
+    if (insn->num_opers == 0) fprintf(fp, "nargs=%d", insn->num_args);
 }
 
 static void print_global_get(KlrInsn *insn, FILE *fp)
@@ -715,6 +737,10 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_TAIL_CALL:
             print_call(name, insn, fp);
+            break;
+
+        case OP_PRINT:
+            print_print(insn, fp);
             break;
 
         case OP_BINARY_EQ:

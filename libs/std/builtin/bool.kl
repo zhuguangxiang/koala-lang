@@ -25,4 +25,12 @@ pub class bool {
     /// Return true if `self` is not equal to `other` (`self != other`).
     @intrinsic
     pub func __ne__(other bool) bool {}
+
+    /// Formats the boolean value for display.
+    @native
+    pub func fmt(f Formatter) {}
+
+    /// Converts the boolean value to its string ("true" or "false").
+    @native
+    pub func to_str() str {}
 }

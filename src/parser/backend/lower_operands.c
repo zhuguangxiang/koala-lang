@@ -360,7 +360,7 @@ static void lower_new_opers(KlrInsn *insn, KlMachModule *m)
     }
 }
 
-static void lower_set_field_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_set_field_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     KlrValue *src = insn_oper_value(insn, 2);
@@ -373,7 +373,7 @@ static void lower_set_field_opers(KlrInsn *insn, KlMachModule *m)
     set_raw_imm(&insn->raws[2], fld->index);
 }
 
-static void lower_get_field_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_get_field_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     set_raw_reg(&insn->raws[0], insn->vreg);
@@ -454,7 +454,7 @@ static void lower_global_get_opers(KlrInsn *insn, KlMachModule *m)
     }
 }
 
-static void lower_move_true_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_move_true_opers(KlrInsn *insn)
 {
     KlrValue *var = insn_oper_value(insn, 0);
     KlrValue *cond = insn_oper_value(insn, 1);
@@ -465,7 +465,7 @@ static void lower_move_true_opers(KlrInsn *insn, KlMachModule *m)
     set_raw_reg(&insn->raws[2], val->vreg);
 }
 
-static void lower_seq_get_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_seq_get_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     KlrValue *index = insn_oper_value(insn, 1);
@@ -481,7 +481,7 @@ static void lower_seq_get_opers(KlrInsn *insn, KlMachModule *m)
     }
 }
 
-static void lower_seq_set_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_seq_set_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     KlrValue *index = insn_oper_value(insn, 1);
@@ -500,14 +500,14 @@ static void lower_seq_set_opers(KlrInsn *insn, KlMachModule *m)
     }
 }
 
-static void lower_seq_len_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_seq_len_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     set_raw_reg(&insn->raws[0], insn->vreg);
     set_raw_reg(&insn->raws[1], obj->vreg);
 }
 
-static void lower_seq_get_slice_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_seq_get_slice_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     KlrValue *index = insn_oper_value(insn, 1);
@@ -516,7 +516,7 @@ static void lower_seq_get_slice_opers(KlrInsn *insn, KlMachModule *m)
     set_raw_reg(&insn->raws[2], index->vreg);
 }
 
-static void lower_make_intf_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_make_intf_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     set_raw_reg(&insn->raws[0], insn->vreg);
@@ -525,14 +525,14 @@ static void lower_make_intf_opers(KlrInsn *insn, KlMachModule *m)
     // so we don't need to set it here.
 }
 
-static void lower_str_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_str_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     set_raw_reg(&insn->raws[0], insn->vreg);
     set_raw_reg(&insn->raws[1], obj->vreg);
 }
 
-static void lower_contains_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_contains_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     KlrValue *val = insn_oper_value(insn, 1);
@@ -541,7 +541,7 @@ static void lower_contains_opers(KlrInsn *insn, KlMachModule *m)
     set_raw_reg(&insn->raws[2], val->vreg);
 }
 
-static void lower_unary_opers(KlrInsn *insn, KlMachModule *m)
+static void lower_unary_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     set_raw_reg(&insn->raws[0], insn->vreg);
@@ -625,12 +625,12 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                 }
 
                 case OP_SET_FIELD: {
-                    lower_set_field_opers(insn, m);
+                    lower_set_field_opers(insn);
                     break;
                 }
 
                 case OP_GET_FIELD: {
-                    lower_get_field_opers(insn, m);
+                    lower_get_field_opers(insn);
                     break;
                 }
 
@@ -655,52 +655,52 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                 }
 
                 case OP_MOVE_TRUE: {
-                    lower_move_true_opers(insn, m);
+                    lower_move_true_opers(insn);
                     break;
                 }
 
                 case OP_SEQ_GET:
                 case OP_SEQ_GET_IMM: {
-                    lower_seq_get_opers(insn, m);
+                    lower_seq_get_opers(insn);
                     break;
                 }
 
                 case OP_LEN: {
-                    lower_seq_len_opers(insn, m);
+                    lower_seq_len_opers(insn);
                     break;
                 }
 
                 case OP_SEQ_SET_IMM:
                 case OP_SEQ_SET: {
-                    lower_seq_set_opers(insn, m);
+                    lower_seq_set_opers(insn);
                     break;
                 }
 
                 case OP_MAKE_INTF:
                 case OP_UPCAST_INTF: {
-                    lower_make_intf_opers(insn, m);
+                    lower_make_intf_opers(insn);
                     break;
                 }
 
                 case OP_STR: {
-                    lower_str_opers(insn, m);
+                    lower_str_opers(insn);
                     break;
                 }
 
                 case OP_SEQ_GET_SLICE: {
-                    lower_seq_get_slice_opers(insn, m);
+                    lower_seq_get_slice_opers(insn);
                     break;
                 }
 
                 case OP_CONTAINS: {
-                    lower_contains_opers(insn, m);
+                    lower_contains_opers(insn);
                     break;
                 }
 
                 case OP_INT_NEG:
                 case OP_INT_NOT:
                 case OP_FLOAT_NEG: {
-                    lower_unary_opers(insn, m);
+                    lower_unary_opers(insn);
                     break;
                 }
 

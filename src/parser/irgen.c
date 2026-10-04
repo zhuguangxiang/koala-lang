@@ -383,10 +383,13 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
     Symbol *sym = exp->sym;
     if (sym->kind == SYM_CLASS) {
         KlassSymbol *kls_sym = (KlassSymbol *)sym;
-        ASSERT(sym->flags & SYM_FLAGS_EXT);
-        Symbol *parent = sym->parent;
-        ASSERT(parent && parent->kind == SYM_PACKAGE);
-        exp->ir_val = klr_add_ext_klass(MOD, parent->name, kls_sym->instance_ts, sym->name);
+        if (sym->flags & SYM_FLAGS_EXT) {
+            Symbol *parent = sym->parent;
+            ASSERT(parent && parent->kind == SYM_PACKAGE);
+            exp->ir_val = klr_add_ext_klass(MOD, parent->name, kls_sym->instance_ts, sym->name);
+        } else {
+            exp->ir_val = klr_add_klass(MOD, kls_sym->instance_ts, sym->name);
+        }
     } else if (sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
         Symbol *origin = inst_sym->origin;
@@ -794,9 +797,16 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_call(&bldr, callee, exp->ts, _args, size, "");
             } else if (!parent || parent->kind == SYM_PACKAGE) {
-                KlrBuilder bldr;
-                klr_builder_end(&bldr, ps->scope->bb);
-                ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+                if (!strcmp(lhs_sym->name, "print_intern") &&
+                    !strcmp(lhs_sym->path, "std/prelude")) {
+                    KlrBuilder bldr;
+                    klr_builder_end(&bldr, ps->scope->bb);
+                    ret = klr_build_print(&bldr, ir_args, size);
+                } else {
+                    KlrBuilder bldr;
+                    klr_builder_end(&bldr, ps->scope->bb);
+                    ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+                }
             } else {
                 UNREACHABLE();
             }

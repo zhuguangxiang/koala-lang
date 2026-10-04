@@ -21,19 +21,10 @@
 /// ```
 pub class str : Sequence & Comparable {
 
-    /// Initialize a string from any Koala object.
+    /// Initialize a string by converting a value with `to_str()`.
     ///
-    /// The constructor accepts `any` because all classes automatically
-    /// provide a `__str__()` method. This allows `str(s)` to serve as the
-    /// universal string-conversion mechanism.
-    ///
-    /// Notes
-    ///
-    /// Koala splits Java’s `Object` into three independent traits
-    /// (`Equatable`, `Hashable`, `Printable`). Classes auto‑conform to
-    /// these traits, while traits remain pure. This enables type‑safe,
-    /// generic equality (`Equatable[T]`) without Java’s `equals(Object)`
-    /// limitation.
+    /// `str(value)` is lowered by the compiler to `OP_STR`, which invokes
+    /// the value's `to_str()` method.
     @native
     pub func __init__(s any) {}
 
@@ -129,6 +120,18 @@ pub class str : Sequence & Comparable {
     @native
     pub func substr(start = 0, end = -1) str {}
 
+    /// Formats the string for display.
+    ///
+    /// Strings are already in their printable form, so no additional
+    /// formatting or conversion is performed.
+    @native
+    pub func fmt(f Formatter) {}
+
+    /// Converts `self` to a string.
+    ///
+    /// This func is unreachable in practice because `self` is already a `str`.
+    pub func to_str() str { panic("str.to_str() should be unreachable") }
+
     /// Parse the string as a decimal integer. Panic if the string is not a valid integer.
     @native
     pub func to_int() int {}
@@ -146,11 +149,6 @@ pub class str : Sequence & Comparable {
     /// Return `default` if the string is not a valid number.
     @native
     pub func to_float_or(default float64) float64 {}
-
-    /// Return a formatted string using `self` as the format.
-    /// `{}` consumes one argument in order.
-    @native
-    pub func format(args ...) str {}
 
     /// Return a new string with `self` followed by `rhs` (`self + rhs`).
     @native
@@ -349,11 +347,18 @@ pub class StrIter : Iterator[str] {
         return ch
     }
 
-    /// Return a human-readable description of the iterator state.
-    ///
+    /// Formats the iterator state for display.
+    /// Produce a human-readable description of the iterator state.
     /// Useful for debugging and logging.
-    pub func __str__() str {
-        return format("StrIter(step={}, cursor={}, length={})", step, cursor, length)
+    pub func fmt(f Formatter) {
+        f.write_fmt("StrIter(step={}, cursor={}, length={})", step, cursor, length)
+    }
+
+    /// Converts the iterator state to a human-readable string.
+    pub func to_str() str {
+        let f = Formatter()
+        fmt(f)
+        return f.result()
     }
 }
 
@@ -415,8 +420,16 @@ pub class StrRevIter : Iterator[str] {
         return ch
     }
 
-    /// Return a human-readable description of the iterator state.
-    pub func __str__() str {
-        return format("StrRevIter(step={}, cursor={}, length={})", step, cursor, length)
+    /// Formats the iterator state for display.
+    /// Produce a human-readable description of the iterator state.
+    pub func fmt(f Formatter) {
+        f.write_fmt("StrRevIter(step={}, cursor={}, length={})", step, cursor, length)
+    }
+
+    /// Converts the iterator state to a human-readable string.
+    pub func to_str() str {
+        let f = Formatter()
+        fmt(f)
+        return f.result()
     }
 }

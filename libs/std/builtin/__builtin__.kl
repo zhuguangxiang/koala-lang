@@ -50,7 +50,7 @@ pub func panic(msg str) {}
 /// Format a string using positional arguments.
 ///
 /// `{}` consumes one argument in order. No named placeholders.
-/// Arguments are converted using `__str__()`.
+/// Arguments are formatted using their `Printable` implementation.
 ///
 /// Examples
 ///

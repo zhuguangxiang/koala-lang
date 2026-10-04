@@ -1,0 +1,40 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// `Formatter` builds formatted text in an internal buffer.
+///
+/// It provides formatted output through [`write_fmt`](#write_fmt). A
+/// `Formatter` is passed to [`Printable`](#printable) implementations so
+/// values can write their human-readable representation directly into the
+/// same buffer without creating intermediate strings.
+pub class Formatter {
+
+    /// Initialize the formatter with an optional buffer size.
+    @native
+    pub func __init__(size = 32) {}
+
+    /// Append a formatted string to the buffer.
+    @native
+    pub func write_fmt(fmt str, args ...) {}
+
+    /// Append a raw string to the buffer.
+    @native
+    pub func write_str(s str) {}
+
+    /// Append a single byte to the buffer.
+    @native
+    pub func write_byte(value uint8) {}
+
+    /// Clear all formatted content from the buffer.
+    @native
+    pub func clear() {}
+
+    /// Return the formatted result.
+    @native
+    pub func result() str {}
+
+    /// Writes the formatted representation of `value` into the formatter.
+    pub func write(value Printable) { value.fmt(self) }
+}

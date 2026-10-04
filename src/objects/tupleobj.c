@@ -14,14 +14,14 @@ extern "C" {
 
 static TValue _tuple_tolist(TValue *self, TValue *args, int nargs)
 {
-    TupleObject *tuple = (TupleObject *)to_obj(self);
+    TupleObject *tuple = SELF_AS(tuple_type);
     Object *lst = kl_list_from_array(tuple->array, tuple->size);
     return obj_value(lst);
 }
 
-static TValue _tuple_str(TValue *self, TValue *args, int nargs)
+static TValue _tuple_to_str(TValue *self, TValue *args, int nargs)
 {
-    TupleObject *tuple = (TupleObject *)to_obj(self);
+    TupleObject *tuple = SELF_AS(tuple_type);
     BUF(buf);
     buf_write_char(&buf, '(');
     for (size_t i = 0; i < tuple->size; i++) {
@@ -39,6 +39,26 @@ static TValue _tuple_str(TValue *self, TValue *args, int nargs)
     return obj_value(sobj);
 }
 
+static TValue _tuple_fmt(TValue *self, TValue *args, int nargs)
+{
+    TupleObject *tuple = SELF_AS(tuple_type);
+    ASSERT(nargs == 1);
+
+    Formatter *fmt = kl_arg_obj_as(0, fmt_type);
+
+    buf_write_char(&fmt->buf, '(');
+    for (size_t i = 0; i < tuple->size; i++) {
+        if (i > 0) {
+            buf_write_str(&fmt->buf, ", ");
+        }
+        TValue *item = &tuple->array[i];
+        kl_fmt_call(fmt, item);
+    }
+    buf_write_char(&fmt->buf, ')');
+
+    return nil_value;
+}
+
 static TValue _tuple_len(TValue *self, TValue *args, int nargs)
 {
     TupleObject *tuple = SELF_AS(tuple_type);
@@ -47,7 +67,7 @@ static TValue _tuple_len(TValue *self, TValue *args, int nargs)
 
 static TValue _tuple_getitem(TValue *self, TValue *args, int nargs)
 {
-    TupleObject *tuple = (TupleObject *)to_obj(self);
+    TupleObject *tuple = SELF_AS(tuple_type);
     size_t index = to_int64(args);
 
     if (index >= tuple->size) {
@@ -58,11 +78,8 @@ static TValue _tuple_getitem(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef tuple_methods[] = {
-    { "to_list", _tuple_tolist },
-    { "__str__", _tuple_str },
-    { "len", _tuple_len },
-    { "__getitem__", _tuple_getitem },
-    { NULL },
+    { "to_list", _tuple_tolist }, { "to_str", _tuple_to_str },       { "fmt", _tuple_fmt },
+    { "len", _tuple_len },        { "__getitem__", _tuple_getitem }, { NULL },
 };
 
 /* pub class tuple[infer T] : Sequence[T] { ... } */

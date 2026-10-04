@@ -63,22 +63,36 @@ pub class Duration {
     /// Return the length in whole seconds, truncated.
     pub func to_secs() int64 { return ns / 1_000_000_000 }
 
-    /// Return a string using the largest unit that fits, truncated:
+    /// Formats the duration for display.
+    /// Produce a string using the largest unit that fits, truncated:
     /// `2s`, `500ms`, `30us` or `10ns`.
-    pub func __str__() str {
+    pub func fmt(f Formatter) {
         if ns >= 1_000_000_000 {
             let s = ns / 1_000_000_000
-            return format("{}s", s)
+            f.write_fmt("{}s", s)
+            return
         }
+
         if ns >= 1_000_000 {
             let ms = ns / 1_000_000
-            return format("{}ms", ms)
+            f.write_fmt("{}ms", ms)
+            return
         }
+
         if ns >= 1_000 {
             let us = ns / 1_000
-            return format("{}us", us)
+            f.write_fmt("{}us", us)
+            return
         }
-        return format("{}ns", ns)
+
+        f.write_fmt("{}ns", ns)
+    }
+
+    /// Converts the duration to a string using the largest unit that fits, truncated.
+    pub func to_str() str {
+        let f = Formatter()
+        fmt(f)
+        return f.result()
     }
 
     /// Return true if both durations have the same length.

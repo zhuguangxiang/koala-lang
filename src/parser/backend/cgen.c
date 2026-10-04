@@ -889,6 +889,11 @@ static void dump_mach_insn(KlMachInsn *mi)
             break;
         }
 
+        case FORMAT_PRINT: {
+            printf("#%d", mi->opers[0]);
+            break;
+        }
+
         case FORMAT_R_TI_Imm12: {
             printf("r%d, ti=0x%x, #%d", mi->opers[0], mi->opers[1], mi->opers[2]);
             break;
@@ -1170,6 +1175,14 @@ static void emit_mach_insn(KlMachInsn *mi, CodeBuffer *buf)
             break;
         }
 
+        case FORMAT_PRINT: {
+            // | op:8 | ----:16 | nargs:8 |
+            uint32_t nargs = mi->opers[0];
+            bytecode |= (op & 0xFFu) << 24;
+            bytecode |= (nargs & 0xFFu);
+            break;
+        }
+
         case FORMAT_R_TI_Imm12: {
             // | op:8 | R:8 | tag:4 | imm:12 |
             uint32_t R = mi->opers[0];
@@ -1331,6 +1344,12 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
                 }
                 mi->opers[0] = 0; // set flag for local function
             }
+            break;
+        }
+
+        case FORMAT_PRINT: {
+            mi->opers[0] = insn->num_args;
+            ASSERT(insn->num_args == 4);
             break;
         }
 

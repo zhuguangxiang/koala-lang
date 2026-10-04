@@ -9,26 +9,10 @@
 extern "C" {
 #endif
 
-static TValue _slice_str(TValue *self, TValue *args, int nargs)
-{
-    SliceObject *slice = SELF_AS(slice_type);
-    int64_t start = slice->start.ival;
-    int64_t end = slice->end.ival;
-    int64_t step = slice->step.ival;
-    Object *sobj = kl_new_fmt_str("slice(%ld, %ld, %ld)", start, end, step);
-    return obj_value(sobj);
-}
-
-static MethodDef slice_methods[] = {
-    { "__str__", _slice_str },
-    { NULL },
-};
-
 TypeObject slice_type = {
     ._type = &type_type,
     .name = "slice",
     .flags = TP_FLAGS_CLASS,
-    .methdefs = slice_methods,
 };
 
 Object *kl_new_slice(TValue *items)

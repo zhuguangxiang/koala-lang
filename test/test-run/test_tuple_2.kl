@@ -67,4 +67,4 @@ func main() {
 // CHECK: [007] str     = " "
 // CHECK: [008] str     = "\n"
 
-// CHECK: 30 world 3.1000000000000001
+// CHECK: 30 world 3.1

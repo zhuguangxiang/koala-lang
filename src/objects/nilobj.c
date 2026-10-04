@@ -9,14 +9,23 @@
 extern "C" {
 #endif
 
-static TValue _nil_str(TValue *self, TValue *args, int nargs)
+static TValue _nil_to_str(TValue *self, TValue *args, int nargs)
 {
     Object *s = kl_new_str("nil");
     return obj_value(s);
 }
 
+static TValue _nil_fmt(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Formatter *fmt = kl_arg_fmt(0);
+    kl_fmt_write_str(fmt, "nil", 3);
+    return nil_value;
+}
+
 static MethodDef _nil_methods[] = {
-    { "__str__", _nil_str },
+    { "to_str", _nil_to_str },
+    { "fmt", _nil_fmt },
     { NULL },
 };
 

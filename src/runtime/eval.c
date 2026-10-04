@@ -73,6 +73,8 @@ static TValue do_nil_check(TValue *val)
     return error_value;
 }
 
+TValue do_print(TValue *args, int nargs);
+
 /* clang-format off */
 
 // save pc for traceback

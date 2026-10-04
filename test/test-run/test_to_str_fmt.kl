@@ -1,0 +1,48 @@
+// RUN: koala %s --dump=no-opt-ir | filecheck %s
+
+func main() {
+    let s = "hello"
+	let s2 = str(s)
+	print(s2)
+
+	let v = '\n'
+	let s3 = str(v)
+	print(s3)
+	print(v)
+
+	let f = Formatter()
+	v.fmt(f)
+	f.write(v)
+	print(f.result())
+
+
+	let bs = b"helloworld"
+	print(str(bs))
+	print(bs.to_str())
+	print(bs)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %s = local [immutable] str
+// CHECK: move %s str, 'hello' str
+// CHECK: %s2 = local [immutable] str
+// CHECK: move %s2 str, %s str
+
+// CHECK: %v = local [immutable] uint8
+// CHECK: move %v uint8, 10 uint8
+// CHECK: %1 = str %v uint8
+// CHECK: %s3 = local [immutable] str
+// CHECK: move %s3 str, %1 str
+
+// CHECK: call @uint8:fmt
+// CHECK: %5 = make_intf %v uint8
+
+// CHECK: hello
+// CHECK: 10
+// CHECK: 10
+// CHECK: 1010
+// CHECK: helloworld
+// CHECK: helloworld
+// CHECK: b"helloworld"

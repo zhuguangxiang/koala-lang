@@ -12,7 +12,7 @@ func test_assert_lt_should_fail() {
     ut.assert_lt(5, 1)
 }
 
-@test_expect_panic("assertion failed: |1 - 2| = 1 > 1.0000000000000001e-09")
+@test_expect_panic("assertion failed: |1 - 2| = 1 > 1e-09")
 func test_assert_close_should_fail() {
     ut.assert_float_close(1.0, 2.0)
 }

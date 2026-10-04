@@ -173,61 +173,54 @@ static void format_str(Buffer *out, const char *s, int len, const FormatSpec *sp
     }
 }
 
-TValue kl_format(TValue *self, TValue *args, int nargs)
+void __kl_format__(Formatter *fmt_obj, const char *fmt, int len, Object *args)
 {
-    ASSERT(nargs >= 1 && nargs <= 2);
+    Buffer *out = &fmt_obj->buf;
 
-    if (nargs == 1) {
-        Object *fmt_obj = kl_arg_obj(0);
-        ASSERT(IS_STR(fmt_obj));
-        return args[0]; // return the format string itself if no arguments provided
-    }
+    ASSERT(IS_TUPLE(args));
+    TValue *items = TUPLE_ITEMS(args);
+    int size = TUPLE_SIZE(args);
 
-    TupleObject *tuple = kl_arg_obj_as(1, tuple_type);
-    TValue *items = TUPLE_ITEMS(tuple);
-    int size = TUPLE_SIZE(tuple);
-
-    const char *f = kl_arg_str(0);
-    int flen = strlen(f);
-
-    BUF(out);
+    Formatter *fmt_tmp = kl_new_formatter(32);
 
     int i = 0;
     int argi = 0;
 
-    while (i < flen) {
+    while (i < len) {
         // "{{" → "{"
-        if (f[i] == '{' && f[i + 1] == '{') {
-            buf_write_byte(&out, '{');
+        if (fmt[i] == '{' && fmt[i + 1] == '{') {
+            buf_write_byte(out, '{');
             i += 2;
             continue;
         }
 
         // "}}" → "}"
-        if (f[i] == '}' && f[i + 1] == '}') {
-            buf_write_byte(&out, '}');
+        if (fmt[i] == '}' && fmt[i + 1] == '}') {
+            buf_write_byte(out, '}');
             i += 2;
             continue;
         }
 
-        // "{}" → call __str__()
-        if (f[i] == '{' && f[i + 1] == '}') {
+        // "{}" → call fmt()
+        if (fmt[i] == '{' && fmt[i + 1] == '}') {
             if (argi >= size) panic("ArgumentError: not enough arguments for {}");
 
             TValue a = items[argi++];
-            Object *s = kl_to_str(&a);
+            kl_fmt_clear(fmt_tmp);
+            kl_fmt_call(fmt_tmp, &a);
+            Object *s = kl_fmt_result(fmt_tmp);
             FormatSpec spec = { 0 };
-            format_str(&out, STR_BUF(s), STR_LEN(s), &spec);
+            format_str(out, STR_BUF(s), STR_LEN(s), &spec);
             i += 2;
             continue;
         }
 
         // "{:...}" → formatted specifier
-        if (f[i] == '{' && f[i + 1] == ':') {
+        if (fmt[i] == '{' && fmt[i + 1] == ':') {
             if (argi >= size) panic("ArgumentError: not enough arguments for format spec");
 
             FormatSpec spec;
-            parse_format_spec(f, &i, &spec);
+            parse_format_spec(fmt, &i, &spec);
 
             TValue a = items[argi++];
 
@@ -235,33 +228,143 @@ TValue kl_format(TValue *self, TValue *args, int nargs)
                 spec.type == 'o') {
                 if (!is_int(&a)) panic("TypeError: expected int for integer format");
 
-                format_int(&out, to_int64(&a), &spec);
+                format_int(out, to_int64(&a), &spec);
             } else if (spec.type == 'f') {
                 if (!is_float(&a)) panic("TypeError: expected float for float format");
 
-                format_float(&out, to_float64(&a), &spec);
-            } else { // default: __str__()
-                Object *s = kl_to_str(&a);
-                format_str(&out, STR_BUF(s), STR_LEN(s), &spec);
+                format_float(out, to_float64(&a), &spec);
+            } else { // default: fmt()
+                kl_fmt_clear(fmt_tmp);
+                kl_fmt_call(fmt_tmp, &a);
+                Object *s = kl_fmt_result(fmt_tmp);
+                format_str(out, STR_BUF(s), STR_LEN(s), &spec);
             }
 
             continue;
         }
 
         // error on unescaped '{' or '}'
-        if (f[i] == '{' || f[i] == '}') {
+        if (fmt[i] == '{' || fmt[i] == '}') {
             panic("FormatError: unescaped '{' or '}'");
         }
 
-        buf_write_byte(&out, f[i]);
+        buf_write_byte(out, fmt[i]);
         i++;
     }
 
-    if (argi < size) panic("ArgumentError: too many arguments for format string");
+    kl_free_formatter(fmt_tmp);
 
-    Object *so = kl_new_nstr(BUF_STR(out), BUF_LEN(out));
-    FINI_BUF(out);
-    return obj_value(so);
+    if (argi < size) panic("ArgumentError: too many arguments for format string");
+}
+
+static TValue _fmt_write_fmt(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs >= 1 && nargs <= 2);
+    Formatter *fmt = SELF_AS(fmt_type);
+
+    if (nargs == 1) {
+        char *s = kl_arg_str(0);
+        buf_write_str(&fmt->buf, s);
+        return nil_value;
+    }
+
+    Object *sobj = kl_arg_strobj(0);
+    Object *args_obj = kl_arg_obj(1);
+    __kl_format__(fmt, STR_BUF(sobj), STR_LEN(sobj), args_obj);
+    return nil_value;
+}
+
+static TValue _fmt_write_str(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Formatter *fmt = SELF_AS(fmt_type);
+    char *s = kl_arg_str(0);
+    buf_write_str(&fmt->buf, s);
+    return nil_value;
+}
+
+static TValue _fmt___int__(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Formatter *fmt = SELF_AS(fmt_type);
+    int64_t size = kl_arg_int64(0);
+    buf_reserve(&fmt->buf, size);
+    return nil_value;
+}
+
+static TValue _fmt_write_byte(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Formatter *fmt = SELF_AS(fmt_type);
+    uint8_t value = kl_arg_uint8(0);
+    buf_write_byte(&fmt->buf, value);
+    return nil_value;
+}
+
+static TValue _fmt_result(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    Formatter *fmt = SELF_AS(fmt_type);
+    Object *res = kl_new_nstr(BUF_STR(fmt->buf), BUF_LEN(fmt->buf));
+    return obj_value(res);
+}
+
+static TValue _fmt_clear(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    Formatter *fmt = SELF_AS(fmt_type);
+    RESET_BUF(fmt->buf);
+    return nil_value;
+}
+
+TypeObject fmt_type = {
+    ._type = &type_type,
+    .name = "Formatter",
+    .flags = TP_FLAGS_CLASS,
+    .priv_size = sizeof(Formatter),
+    .methdefs =
+        (MethodDef[]){
+            { "write_fmt", _fmt_write_fmt },
+            { "write_str", _fmt_write_str },
+            { "write_byte", _fmt_write_byte },
+            { "__init__", _fmt___int__ },
+            { "result", _fmt_result },
+            { "clear", _fmt_clear },
+            { NULL, NULL },
+        },
+};
+
+Formatter *kl_new_formatter(size_t size)
+{
+    Formatter *fmt = mm_alloc_obj(fmt);
+    INIT_OBJECT_HEAD(fmt, &fmt_type, 0);
+    buf_reserve(&fmt->buf, size);
+    return fmt;
+}
+
+void kl_free_formatter(Formatter *fmt)
+{
+    ASSERT(OB_TYPE(fmt) == &fmt_type);
+    FINI_BUF(fmt->buf);
+    mm_free(fmt);
+}
+
+void kl_fmt_write_str(Formatter *fmt, char *s, size_t len)
+{
+    ASSERT(OB_TYPE(fmt) == &fmt_type);
+    buf_write_nstr(&fmt->buf, s, len);
+}
+
+Object *kl_fmt_result(Formatter *fmt)
+{
+    ASSERT(OB_TYPE(fmt) == &fmt_type);
+    return kl_new_nstr(BUF_STR(fmt->buf), BUF_LEN(fmt->buf));
+}
+
+void kl_fmt_clear(Formatter *fmt)
+{
+    ASSERT(OB_TYPE(fmt) == &fmt_type);
+    RESET_BUF(fmt->buf);
 }
 
 #ifdef __cplusplus

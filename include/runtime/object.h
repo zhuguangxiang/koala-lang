@@ -72,9 +72,10 @@ typedef struct _TValue {
 #define TAG_UINT32 0b1110
 #define TAG_UINT64 0b1111
 
-#define TAG_FLOAT16 0b010001
-#define TAG_FLOAT32 0b010010
-#define TAG_FLOAT64 0b010011
+#define TAG_FLOAT16  0b010001
+#define TAG_FLOAT32  0b010010
+#define TAG_FLOAT64  0b010011
+#define TAG_BFLOAT16 0b010100
 
 // beyond this value, it's an object pointer
 #define TAG_VAL_MAX 64
@@ -101,10 +102,10 @@ typedef struct _TValue {
 #define is_uint64(x) ((x)->tag == TAG_UINT64)
 
 /* Floating point */
-#define is_float16(x) ((x)->tag == TAG_FLOAT16)
-#define is_float32(x) ((x)->tag == TAG_FLOAT32)
-#define is_float64(x) ((x)->tag == TAG_FLOAT64)
-// #define is_bfloat16(x) ((x)->tag == TAG_BFLOAT16)
+#define is_float16(x)  ((x)->tag == TAG_FLOAT16)
+#define is_float32(x)  ((x)->tag == TAG_FLOAT32)
+#define is_float64(x)  ((x)->tag == TAG_FLOAT64)
+#define is_bfloat16(x) ((x)->tag == TAG_BFLOAT16)
 
 /* Category checks */
 #define is_int_tag(tag)  (((tag) & 0b1100) == 0b1000)
@@ -112,7 +113,7 @@ typedef struct _TValue {
 
 #define is_int(x)   is_int_tag((x)->tag)
 #define is_uint(x)  is_uint_tag((x)->tag)
-#define is_float(x) (((x)->tag >= TAG_FLOAT16) && ((x)->tag <= TAG_FLOAT64))
+#define is_float(x) (((x)->tag >= TAG_FLOAT16) && ((x)->tag <= TAG_BFLOAT16))
 
 /* Primitive vs reference */
 #define is_val(x) ((x)->tag < TAG_VAL_MAX)
@@ -148,7 +149,7 @@ typedef struct _TValue {
 #define float16_value(x)    (TValue){ .tag = TAG_FLOAT16,  .fval = (double)(x) }
 #define float32_value(x)    (TValue){ .tag = TAG_FLOAT32,  .fval = (double)(x) }
 #define float64_value(x)    (TValue){ .tag = TAG_FLOAT64,  .fval = (double)(x) }
-// #define bfloat16_value(x)   (TValue){ .tag = TAG_BFLOAT16, .fval = (double)(x) }
+#define bfloat16_value(x)   (TValue){ .tag = TAG_BFLOAT16, .fval = (double)(x) }
 
 /* Reference value */
 #define obj_value(x)         (TValue){ .tag = TAG_OBJECT, .obj = (Object *)(x) }
@@ -165,18 +166,22 @@ typedef struct _TValue {
 #define to_int16(v)    ({ ASSERT(is_int16(v)); (int16_t)(v)->ival; })
 #define to_int32(v)    ({ ASSERT(is_int32(v)); (int32_t)(v)->ival; })
 #define to_int64(v)    ({ ASSERT(is_int64(v)); (int64_t)(v)->ival; })
+#define to_int(v)      ({ ASSERT(is_int(v)); (int64_t)(v)->ival; })
 
 /* Unsigned integers */
 #define to_uint8(v)    ({ ASSERT(is_uint8(v)); (uint8_t)(v)->ival; })
 #define to_uint16(v)   ({ ASSERT(is_uint16(v)); (uint16_t)(v)->ival; })
 #define to_uint32(v)   ({ ASSERT(is_uint32(v)); (uint32_t)(v)->ival; })
 #define to_uint64(v)   ({ ASSERT(is_uint64(v)); (uint64_t)(v)->ival; })
+#define to_uint(v)     ({ ASSERT(is_uint(v)); (uint64_t)(v)->ival; })
 
 /* Floating point (TEMP: stored as double; real impl should preserve bit pattern) */
 #define to_float16(v)  ({ ASSERT(is_float16(v)); (_Float16)(v)->fval; })
-#define to_float32(v)  ({ ASSERT(is_float32(v)); (_Float32)(v)->fval; })
-#define to_float64(v)  ({ ASSERT(is_float64(v)); (_Float64)(v)->fval; })
-// #define to_bfloat16(v) ({ ASSERT(is_bfloat16(v)); (v)->fval; })
+#define to_float32(v)  ({ ASSERT(is_float32(v)); (float)(v)->fval; })
+#define to_float64(v)  ({ ASSERT(is_float64(v)); (v)->fval; })
+#define to_bfloat16(v) ({ ASSERT(is_bfloat16(v)); (__bf16)(v)->fval; })
+
+#define to_float(v)    ({ ASSERT(is_float(v)); (double)(v)->fval; })
 
 /* clang-format on */
 
@@ -190,6 +195,7 @@ typedef struct _InstObject {
 } InstObject;
 
 Object *kl_new_instance(struct _TypeObject *tp);
+void kl_free_instance(Object *obj);
 #define NR_FIELDS(obj) ((obj)->_size)
 
 /*---------------------------------------------------------------------------+
@@ -474,6 +480,8 @@ extern TypeObject float16_type;
 extern TypeObject float32_type;
 extern TypeObject float64_type;
 
+extern TypeObject fmt_type;
+
 TypeObject *kl_typeof(TValue *val);
 void kl_init_type(TypeObject *tp);
 TypeObject *kl_new_type(char *name, int flags);
@@ -485,6 +493,45 @@ Object *kl_type_find(TypeObject *tp, char *name);
 void kl_init_gm_stbl(void);
 Object *kl_find_module(char *path);
 void kl_dump_module(Object *m);
+
+typedef struct _Formatter {
+    OBJECT_HEAD
+    Buffer buf;
+} Formatter;
+
+#define IS_FMT(ob) IS_TYPE((ob), &fmt_type)
+
+Formatter *kl_new_formatter(size_t size);
+void kl_free_formatter(Formatter *fmt);
+void kl_fmt_write_str(Formatter *fmt, char *s, size_t len);
+Object *kl_fmt_result(Formatter *fmt);
+void kl_fmt_clear(Formatter *fmt);
+
+/*---------------------------------------------------------------------------+
+ |    Get raw value from TValue helpers                                      |
+ +---------------------------------------------------------------------------*/
+
+static inline int to_raw_bool(TValue *v)
+{
+    if (is_bool(v)) return (int)v->ival;
+
+    ASSERT(is_intf(v));
+    IntfTable *itab = (IntfTable *)(v)->itab;
+    ASSERT(itab);
+    TypeObject *tp = itab->tp;
+    ASSERT(tp == &bool_type);
+
+    return (int)v->ival;
+}
+
+// Interface object structure that holds a reference to the interface table and the actual object.
+typedef struct _IntfObject {
+    IntfTable *itab;
+    Object *obj;
+} IntfObject;
+
+#define to_intf(v) \
+    (IntfObject) { .itab = (v)->itab, .obj = (v)->obj }
 
 /*---------------------------------------------------------------------------+
  |   Argument Helpers — extract typed arguments from args[]                  |
@@ -504,6 +551,12 @@ void kl_dump_module(Object *m);
         (void *)o; \
     })
 
+#define kl_arg_intf(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        to_intf(args + index); \
+    })
+
 #define kl_arg_uint8(index) \
     ({ \
         ASSERT(index >= 0 && index < nargs); \
@@ -516,10 +569,28 @@ void kl_dump_module(Object *m);
         to_int64(args + index); \
     })
 
+#define kl_arg_int(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        to_int(args + index); \
+    })
+
+#define kl_arg_uint(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        to_uint(args + index); \
+    })
+
 #define kl_arg_float64(index) \
     ({ \
         ASSERT(index >= 0 && index < nargs); \
         to_float64(args + index); \
+    })
+
+#define kl_arg_float(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        to_float(args + index); \
     })
 
 #define kl_arg_bool(index) \
@@ -549,6 +620,30 @@ void kl_dump_module(Object *m);
         ASSERT(index >= 0 && index < nargs); \
         Object *o = to_obj(args + index); \
         ASSERT(IS_SLICE(o)); \
+        (void *)o; \
+    })
+
+#define kl_arg_tuple(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        Object *o = to_obj(args + index); \
+        ASSERT(IS_TUPLE(o)); \
+        (void *)o; \
+    })
+
+#define kl_arg_range(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        Object *o = to_obj(args + index); \
+        ASSERT(IS_RANGE(o)); \
+        (void *)o; \
+    })
+
+#define kl_arg_fmt(index) \
+    ({ \
+        ASSERT(index >= 0 && index < nargs); \
+        Object *o = to_obj(args + index); \
+        ASSERT(IS_FMT(o)); \
         (void *)o; \
     })
 
@@ -640,6 +735,10 @@ static inline TValue kl_slot_call_no_arg(TValue *self, int slotid)
     ASSERT(tp);
 
     Object *fn = tp->slots[slotid];
+    if (!fn) {
+        printf("%s: slot %d is not set\n", tp->name, slotid);
+        ASSERT(0);
+    }
     ASSERT(fn);
 
     TValue ret;
@@ -717,6 +816,12 @@ static inline unsigned int kl_hash(TValue *val)
 {
     TValue ret = kl_slot_call_no_arg(val, SLOT_HASH);
     return (unsigned int)to_int64(&ret);
+}
+
+static inline void kl_fmt_call(Formatter *fmt, TValue *obj)
+{
+    TValue arg = obj_value(fmt);
+    kl_slot_call_one_arg(obj, &arg, SLOT_FMT);
 }
 
 int slice_adjust(int64_t *_start, int64_t *_end, int64_t step, int64_t len);

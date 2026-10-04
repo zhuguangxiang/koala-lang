@@ -24,7 +24,7 @@ pub class list[T] : MutableSequence[T] {
 
     /// Return an iterator over the list.
     @native
-    pub func iter() Iterator[T] {}
+    pub func iter(step = 1) Iterator[T] {}
 
     /// Return the number of items in the list. O(1).
     @native
@@ -118,4 +118,12 @@ pub class list[T] : MutableSequence[T] {
     /// Return a reverse iterator over the elements of the list.
     @native
     pub func reversed() Iterator[T] {}
+
+    /// Formats the list for display.
+    @native
+    pub func fmt(f Formatter) {}
+
+    /// Converts the list to its string representation.
+    @native
+    pub func to_str() str {}
 }

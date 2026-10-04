@@ -37,19 +37,8 @@ static TValue _range_index(TValue *self, TValue *args, int nargs)
     return int64_value((value->ival - start) / step);
 }
 
-static TValue _range_str(TValue *self, TValue *args, int nargs)
-{
-    RangeObject *range = (RangeObject *)to_obj(self);
-    int64_t start = to_int64(&range->start);
-    int64_t end = to_int64(&range->end);
-    int64_t step = to_int64(&range->step);
-    Object *sobj = kl_new_fmt_str("range(%ld, %ld, %ld)", start, end, step);
-    return obj_value(sobj);
-}
-
 static MethodDef range_methods[] = {
     { "index", _range_index },
-    { "__str__", _range_str },
     { NULL },
 };
 

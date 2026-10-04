@@ -13,4 +13,4 @@ func main() {
 }
 
 // CHECK: 28
-// CHECK: 3.14{{[0-9]+}}
+// CHECK: 3.14

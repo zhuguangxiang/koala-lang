@@ -87,9 +87,9 @@ func main() {
     print("abc".to_float_or(-1.5))
 
     // format: one arg / multiple args / mixed types
-    print("v={}".format(42))
-    print("a={}, b={}".format(1, "x"))
-    print("{} and {}".format("tom", true))
+    print(format("v={}", 42))
+    print(format("a={}, b={}", 1, "x"))
+    print(format("{} and {}", "tom", true))
 
     // __add__
     print("hello " + "world")
@@ -245,7 +245,7 @@ func main() {
 // CHECK: -456
 // CHECK: 78
 // CHECK: -1
-// CHECK: 3.14{{[0-9]*}}
+// CHECK: 3.14
 // CHECK: -2.5
 // CHECK: 1.5
 // CHECK: -1.5

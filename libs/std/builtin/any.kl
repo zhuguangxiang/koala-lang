@@ -18,6 +18,13 @@ pub trait any {}
 ///
 /// Conforming to `Equatable` allows a type to be used in conditional logic,
 /// comparisons, and other equality-based operations.
+///
+/// NOTES:
+/// Koala splits Java’s `Object` into three independent traits
+/// (`Equatable`, `Hashable`, `Printable`). Classes auto‑conform to
+/// these traits, while traits remain pure. This enables type‑safe,
+/// generic equality (`Equatable[T]`) without Java’s `equals(Object)`
+/// limitation.
 pub trait Equatable[T] {
     /// Return true if `self` is equal to `other` (`self == other`).
     func __eq__(other T) bool
@@ -61,16 +68,13 @@ pub trait Hashable {
     func hash() int
 }
 
-/// `Printable` defines a human-readable string representation for a type,
-/// used by [`print`](#print) and other display mechanisms. It is a display contract,
-/// never a content conversion (e.g. `bytes` displays its hexadecimal form,
-/// while decoding into a `str` uses [`bytes.to_str`](#bytes.to_str)).
+/// `Printable` defines a human-readable representation for a type.
 ///
-/// The returned string should be suitable for display to end users and
-/// represent the value in a clear, readable form.
+/// The representation is written directly to a `Formatter` and is intended
+/// for display, debugging, and other formatting operations.
 pub trait Printable {
-    /// Return a human-readable string representation of `self`.
-    func __str__() str
+    /// Write a human-readable representation of `self` to `f`.
+    func fmt(f Formatter)
 }
 
 /// `ToString` defines a lossless, programmatic conversion to a string representation.

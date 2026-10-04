@@ -644,6 +644,11 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
             }
         }
     }
+
+    // FIXME
+    // if (j__ < vector_size(exprs)) {
+    //     kl_error(fn_loc, "too many arguments in function call.");
+    // }
 }
 
 static void parse_type(ParserState *ps, Expr *exp)
@@ -1324,8 +1329,6 @@ static const char *operator_dunder_sugar(const char *name)
         { "__setitem__", "the subscript syntax 'x[i] = v'" },
         { "__getslice__", "the slice syntax 'x[a:b]'" },
         { "__setslice__", "the slice syntax 'x[a:b] = v'" },
-        // printable
-        { "__str__", "the 'str()' function" },
         // callable
         { "__call__", "the call syntax 'obj(...)'" },
         // membership
@@ -1823,6 +1826,13 @@ static void parse_dot(ParserState *ps, Expr *exp)
             log_type_spec(exp->ts);
         }
         return;
+    }
+
+    // hash(), fmt() are default functions, need to be found in any class
+    if (!strcmp(ident->name, "hash")) {
+        // TODO:
+    } else if (!strcmp(ident->name, "fmt")) {
+        // TODO:
     }
 
     // instance field/method from origin klass

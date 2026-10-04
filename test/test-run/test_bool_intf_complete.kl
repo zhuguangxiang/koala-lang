@@ -16,9 +16,11 @@ func intf_hash[T : Hashable](a T, b T) bool {
 }
 
 // test Printable
-// func intf_str[T : Printable](a T) str {
-//     return a.__str__()
-// }
+func intf_str[T : Printable](a T) str {
+    let fmt = Formatter()
+    a.fmt(fmt)
+    return fmt.result()
+}
 
 func main() {
     print(intf_eq(true, true))

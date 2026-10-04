@@ -75,4 +75,16 @@ pub class range : Sequence[int] {
     /// Return a new range with the elements in reverse order. O(1).
     @native
     pub func reversed() range {}
+
+    /// Formats the range for display.
+    pub func fmt(f Formatter) {
+        f.write_fmt("range({}, {}, {})", start, end, step)
+    }
+
+    /// Converts the range to its string representation.
+    pub func to_str() str {
+        let f = Formatter()
+        fmt(f)
+        return f.result()
+    }
 }

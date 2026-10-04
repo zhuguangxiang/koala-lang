@@ -21,21 +21,23 @@ static TValue _bytes_len(TValue *self, TValue *args, int nargs)
     return int64_value(bytes->size);
 }
 
-static TValue _bytes_str(TValue *self, TValue *args, int nargs)
+static TValue _bytes_fmt(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = SELF_AS(bytes_type);
     int64_t size = bytes->size;
 
-    BUF(buf);
+    ASSERT(nargs == 1);
+    Formatter *fmt = kl_arg_obj_as(0, fmt_type);
+
+    buf_write_str(&fmt->buf, "b\"");
     for (int i = 0; i < size; ++i) {
         uint8_t ch = bytes->data[bytes->offset + i];
         if (ch == 0) break;
-        buf_write_char(&buf, ch);
+        buf_write_char(&fmt->buf, ch);
     }
-    Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
-    FINI_BUF(buf);
+    buf_write_str(&fmt->buf, "\"");
 
-    return obj_value(sobj);
+    return nil_value;
 }
 
 static TValue _bytes_init(TValue *self, TValue *args, int nargs)
@@ -648,7 +650,7 @@ static TValue _bytes_rstrip(TValue *self, TValue *args, int nargs)
 
 static MethodDef bytes_methods[] = {
     { "len", _bytes_len },
-    { "__str__", _bytes_str },
+    { "fmt", _bytes_fmt },
     { "__init__", _bytes_init },
     { "__getitem__", _bytes_getitem },
     { "__setitem__", _bytes_setitem },

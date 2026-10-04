@@ -4,4 +4,4 @@ version = "0.1.0"
 files = ["*.kl"]
 excludes = []
 dependencies = ["std/builtin", "std/io", "std/fs", "std/sys"]
-natives = ["koala"]
+natives = []

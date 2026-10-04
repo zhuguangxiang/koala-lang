@@ -11,9 +11,9 @@ class Node[T : Comparable] {
         right = nil
     }
 
-    func __str__() str {
+    func fmt(f Formatter) {
         print(value)
-        return "Node(" + str(value) + ")"
+        f.write_fmt("Node({})", value)
     }
 }
 

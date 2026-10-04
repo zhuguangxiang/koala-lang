@@ -42,8 +42,18 @@ pub class slice {
         step = _step
     }
 
-    /// Return the string representation of the slice. O(1).
+    /// Formats the slice for display.
+    /// Produce the string representation of the slice.
     /// Uses the form `slice(start, end, step)`.
-    @native
-    pub func __str__() str {}
+    pub func fmt(f Formatter) {
+        f.write_fmt("slice({}, {}, {})", start, end, step)
+    }
+
+    /// Converts the slice to its string representation.
+    /// Uses the form `slice(start, end, step)`.
+    pub func to_str() str {
+        let f = Formatter()
+        fmt(f)
+        return f.result()
+    }
 }

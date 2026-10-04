@@ -22,12 +22,12 @@ typedef enum {
     SLOT_GE, // __ge__
 
     /* hashable protocol -- hit on every dict/set probe */
-    SLOT_HASH, // __hash__
+    SLOT_HASH, // hash
 
     /* warm slots -- second cache line */
 
     /* sequence protocol */
-    SLOT_LEN,      // __len__
+    SLOT_LEN,      // len
     SLOT_GET_ITEM, // __getitem__
     SLOT_SET_ITEM, // __setitem__
     SLOT_CONTAINS, // __contains__
@@ -38,8 +38,11 @@ typedef enum {
 
     /* cold slots */
 
-    /* printable protocol  */
-    SLOT_STR, // __str__
+    /* to_str protocol  */
+    SLOT_STR, // to_str
+
+    /* Printable protocol */
+    SLOT_FMT, // fmt
 
     /* arithmetic protocol */
     SLOT_ADD, // __add__

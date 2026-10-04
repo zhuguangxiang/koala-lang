@@ -102,6 +102,8 @@ Object *kl_new_instance(struct _TypeObject *tp)
     return obj;
 }
 
+void kl_free_instance(Object *obj) { mm_free(obj); }
+
 int kl_tp_add_field(TypeObject *tp, char *name, Object *field)
 {
     vector_push_back(&tp->fields, &field);
@@ -129,7 +131,31 @@ int kl_tp_add_method(TypeObject *tp, char *name, int slotid, Object *meth)
  |  Type(meta) type definition                                               |
  +---------------------------------------------------------------------------*/
 
-static TValue _type_str(TValue *self, TValue *args, int nargs)
+static TValue _type_fmt(TValue *self, TValue *args, int nargs)
+{
+    TypeObject *tp = SELF_AS(type_type);
+
+    ASSERT(nargs == 1);
+    Formatter *fmt = kl_arg_obj_as(0, fmt_type);
+
+    const char *s = kl_mo_path(tp->module);
+
+    if (str_equal(s, "std/builtin")) {
+        buf_write_str(&fmt->buf, "<class '");
+        buf_write_str(&fmt->buf, tp->name);
+        buf_write_str(&fmt->buf, "'>");
+    } else {
+        buf_write_str(&fmt->buf, "<class '");
+        buf_write_str(&fmt->buf, s);
+        buf_write_str(&fmt->buf, ".");
+        buf_write_str(&fmt->buf, tp->name);
+        buf_write_str(&fmt->buf, "'>");
+    }
+
+    return nil_value;
+}
+
+static TValue _type_to_str(TValue *self, TValue *args, int nargs)
 {
     TypeObject *tp = SELF_AS(type_type);
     const char *s = kl_mo_path(tp->module);
@@ -210,11 +236,8 @@ static TValue _type_lro(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef type_methods[] = {
-    { "__str__", _type_str },
-    { "name", _type_name },
-    { "methods", _type_methods },
-    { "lro", _type_lro },
-    { NULL },
+    { "to_str", _type_to_str },   { "fmt", _type_fmt }, { "name", _type_name },
+    { "methods", _type_methods }, { "lro", _type_lro }, { NULL },
 };
 
 TypeObject type_type = {

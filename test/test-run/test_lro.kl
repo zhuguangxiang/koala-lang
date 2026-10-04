@@ -17,7 +17,7 @@ class D : B & C & A & E {}
 
 // CHECK: [1] Printable
 // CHECK:       methods:
-// CHECK:         [0] __str__, code_index=4
+// CHECK:         [0] fmt, code_index=4
 // CHECK:       parents:
 // CHECK:         [0] any
 

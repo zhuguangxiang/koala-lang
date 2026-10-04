@@ -185,6 +185,10 @@ pub class bytes : Sequence[uint8] {
     @native
     pub func rstrip() bytes {}
 
+    /// Formats the byte array for display.
+    @native
+    pub func fmt(f Formatter) {}
+
     /// Decode the bytes as UTF-8 and return a new `str`.
     ///
     /// Panic if the bytes are not valid UTF-8.
@@ -234,9 +238,17 @@ pub class BytesIter : Iterator[uint8] {
         return val
     }
 
-    /// Return a human-readable description of the iterator state.
-    pub func __str__() str {
-        return format("BytesIter(step={}, cursor={}, length={})", step, cursor, length)
+    /// Formats the iterator state for display.
+    /// Produce a human-readable description of the iterator state.
+    pub func fmt(f Formatter) {
+        f.write_fmt("BytesIter(step={}, cursor={}, length={})", step, cursor, length)
+    }
+
+    /// Converts the iterator to a string using the current state.
+    pub func to_str() str {
+        let f = Formatter()
+        fmt(f)
+        return f.result()
     }
 }
 
@@ -282,8 +294,16 @@ pub class BytesRevIter : Iterator[uint8] {
         return val
     }
 
-    /// Return a human-readable description of the iterator state.
-    pub func __str__() str {
-        return format("BytesRevIter(step={}, cursor={}, length={})", step, cursor, length)
+    /// Formats the iterator state for display.
+    /// Produce a human-readable description of the iterator state.
+    pub func fmt(f Formatter) {
+        f.write_fmt("BytesRevIter(step={}, cursor={}, length={})", step, cursor, length)
+    }
+
+    /// Converts the reverse iterator to a string using the current state.
+    pub func to_str() str {
+        let f = Formatter()
+        fmt(f)
+        return f.result()
     }
 }

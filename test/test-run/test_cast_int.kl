@@ -300,7 +300,7 @@ func main() {
 // CHECK: -100000
 
 // INT32_MAX -> float
-// CHECK: 2.14748365e+09
+// CHECK: 2.147484e+09
 // CHECK: 2147483647
 
 // int64 -> float

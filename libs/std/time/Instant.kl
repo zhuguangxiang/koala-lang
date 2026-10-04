@@ -83,8 +83,16 @@ pub class Instant {
     /// Return whole seconds since the Unix epoch.
     pub func to_unix_secs() int64 { return epoch_ns / 1_000_000_000 }
 
-    /// Return a textual representation like `Instant(epoch_ns=123, clock=0)`.
-    pub func __str__() str {
-        return format("Instant(epoch_ns={:d}, clock={:d})", epoch_ns, clock)
+    /// Formats the instant for display.
+    //  Produces a textual representation like `Instant(epoch_ns=123, clock=0)`.
+    pub func fmt(f Formatter) {
+        f.write_fmt("Instant(epoch_ns={:d}, clock={:d})", epoch_ns, clock)
+    }
+
+    /// Converts the instant to a string.
+    pub func to_str() str {
+        let f = Formatter()
+        fmt(f)
+        return f.result()
     }
 }

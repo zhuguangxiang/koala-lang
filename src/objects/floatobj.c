@@ -9,28 +9,62 @@
 extern "C" {
 #endif
 
-static TValue _float_str(TValue *self, TValue *args, int nargs)
+#define FLOAT_BUF_SIZE 64
+
+static int _float_to_buf(char *buf, TValue *self)
 {
-    char buf[32];
+    int len = 0;
 
     if (is_float16(self)) {
-        // float16: 3-4 significant digits, max ~5 chars for normal values
-        snprintf(buf, 31, "%.5g", (double)(_Float16)self->fval);
+        // float16: about 3-4 decimal digits of precision; %.5g preserves
+        // all float16 values without exposing excessive formatting noise.
+        len = snprintf(buf, FLOAT_BUF_SIZE, "%.5g", (double)(_Float16)self->fval);
     } else if (is_float32(self)) {
-        // float32: 7-9 significant digits, use %.9g to guarantee round-trip
-        snprintf(buf, 31, "%.9g", (double)(float)self->fval);
+        // float32: about 7 decimal digits of precision; %.7g avoids
+        // exposing binary floating-point representation noise.
+        len = snprintf(buf, FLOAT_BUF_SIZE, "%.7g", (double)(float)self->fval);
     } else if (is_float64(self)) {
-        // float64: 15-17 significant digits, %.17g is correct
-        snprintf(buf, 31, "%.17g", self->fval);
+        // float64: about 15-16 decimal digits of precision; %.15g avoids
+        // exposing binary floating-point noise such as 3.1400000000000001.
+        len = snprintf(buf, FLOAT_BUF_SIZE, "%.16g", self->fval);
+    } else if (is_bfloat16(self)) {
+        // bfloat16: about 2-3 decimal digits of precision; %.5g preserves
+        // all bfloat16 values without exposing excessive formatting noise.
+        len = snprintf(buf, FLOAT_BUF_SIZE, "%.5g", (double)(__bf16)self->fval);
+    } else {
+        UNREACHABLE();
     }
 
-    buf[31] = '\0';
-    Object *sobj = kl_new_nstr(buf, strlen(buf));
+    return len;
+}
+
+static TValue _float_fmt(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+
+    char buf[FLOAT_BUF_SIZE];
+    int len = _float_to_buf(buf, self);
+    ASSERT(len >= 0 && len < (int)sizeof(buf));
+
+    Formatter *fmt = kl_arg_obj_as(0, fmt_type);
+    buf_write_nstr(&fmt->buf, buf, len);
+
+    return nil_value;
+}
+
+static TValue _float_to_str(TValue *self, TValue *args, int nargs)
+{
+    char buf[FLOAT_BUF_SIZE];
+    int len = _float_to_buf(buf, self);
+    ASSERT(len >= 0 && len < (int)sizeof(buf));
+
+    Object *sobj = kl_new_nstr(buf, len);
     return obj_value(sobj);
 }
 
 static MethodDef float_methods[] = {
-    { "__str__", _float_str },
+    { "fmt", _float_fmt },
+    { "to_str", _float_to_str },
     { NULL },
 };
 

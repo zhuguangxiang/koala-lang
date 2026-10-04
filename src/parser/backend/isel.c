@@ -653,6 +653,25 @@ static void isel_lower_call(KlrInsn *insn, KlrFunc *fn)
     ASSERT(insn->num_args >= 0);
 }
 
+static void isel_lower_print(KlrInsn *insn)
+{
+    KlrValue *fn = insn_oper_value(insn, 0);
+
+    int nargs = insn->num_opers;
+    for (int i = 0; i < nargs; i++) {
+        KlrValue *arg = insn_oper_value(insn, i);
+        lower_call_argument(insn, arg, i);
+    }
+
+    for (int i = 0; i < nargs; i++) {
+        clear_operand_at(insn, i);
+    }
+
+    insn->num_opers = 0;
+    insn->num_args = nargs;
+    ASSERT(insn->num_args == 4);
+}
+
 static void isel_lower_ret(KlrInsn *insn)
 {
     KlrValue *ret = insn_oper_value(insn, 0);
@@ -1138,6 +1157,8 @@ static void do_isel(KlrFunc *fn)
                 max = MAX(max, insn->num_opers - 1);
             } else if (insn_is(insn, OP_BUILD_INTERN)) {
                 max = MAX(max, insn->num_opers);
+            } else if (insn_is(insn, OP_PRINT)) {
+                max = MAX(max, insn->num_opers);
             }
         }
     }
@@ -1248,6 +1269,11 @@ static void do_isel(KlrFunc *fn)
 
                 case OP_UNARY_NOT: {
                     isel_lower_unary_bit_not(insn);
+                    break;
+                }
+
+                case OP_PRINT: {
+                    isel_lower_print(insn);
                     break;
                 }
 

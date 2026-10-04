@@ -427,6 +427,10 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
         return 0;
     }
 
+    if (op == OP_PRINT) {
+        return 0;
+    }
+
     int changed = 0;
 
     KlrUse *use;

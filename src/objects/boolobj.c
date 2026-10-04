@@ -13,14 +13,26 @@ extern "C" {
  |  Boolean type definition                                                  |
  +---------------------------------------------------------------------------*/
 
-static TValue _bool_str(TValue *self, TValue *args, int nargs)
+static TValue _bool_fmt(TValue *self, TValue *args, int nargs)
 {
-    Object *s = kl_new_fmt_str("%s", self->ival ? "true" : "false");
-    return obj_value(s);
+    ASSERT(nargs == 1);
+    int v = to_raw_bool(self);
+    Formatter *fobj = kl_arg_obj_as(0, fmt_type);
+    buf_write_str(&fobj->buf, v ? "true" : "false");
+    return nil_value;
+}
+
+static TValue _bool_to_str(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    int v = to_raw_bool(self);
+    Object *sobj = kl_new_nstr(v ? "true" : "false", v ? 4 : 5);
+    return obj_value(sobj);
 }
 
 static MethodDef bool_methods[] = {
-    { "__str__", _bool_str },
+    { "fmt", _bool_fmt },
+    { "to_str", _bool_to_str },
     { NULL },
 };
 

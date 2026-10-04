@@ -847,6 +847,9 @@ void klr_build_jmp(KlrBuilder *bldr, KlrBasicBlock *target);
 KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, TypeSpec *ret, KlrValue **args, int nargs,
                          char *name);
 
+/* IR: print %argument-list */
+KlrValue *klr_build_print(KlrBuilder *bldr, KlrValue **args, int nargs);
+
 /* IR: ret %var */
 void klr_build_ret(KlrBuilder *bldr, KlrValue *ret);
 

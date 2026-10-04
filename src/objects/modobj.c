@@ -333,6 +333,13 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
                 break;
             }
 
+            case KLC_CONST_BYTES: {
+                Object *bs = kl_bytes_from_data((uint8_t *)item->sval, (size_t)item->len);
+                TValue val = obj_value(bs);
+                vector_push_back(&vec, &val);
+                break;
+            }
+
             default: {
                 NYI();
                 break;

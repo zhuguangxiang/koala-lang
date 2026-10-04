@@ -6,8 +6,8 @@ class MyClass {
         value = v
     }
 
-    func __str__() str {
-        return format("MyClass(value={})", value)
+    func fmt(f Formatter) {
+        f.write_fmt("MyClass(value={})", value)
     }
 }
 
@@ -20,8 +20,8 @@ class Container[T] {
         return item
     }
 
-    func __str__() str {
-        return format("Container(item={})", item)
+    func fmt(f Formatter) {
+        f.write_fmt("Container(item={})", item)
     }
 }
 

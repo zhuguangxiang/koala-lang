@@ -70,6 +70,7 @@ typedef enum {
     FORMAT_DATA,
     FORMAT_Op,
     FORMAT_CALL,
+    FORMAT_PRINT,
     FORMAT_JMP,
     FORMAT_WIDE,
     FORMAT_NEW,

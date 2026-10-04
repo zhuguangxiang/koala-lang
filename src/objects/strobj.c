@@ -15,7 +15,14 @@ extern "C" {
 
 static TValue _str_init(TValue *self, TValue *args, int nargs) { UNREACHABLE(); }
 
-static TValue _str_str(TValue *self, TValue *args, int nargs) { return *self; }
+static TValue _str_fmt(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Object *ob = SELF_AS(str_type);
+    Formatter *fobj = kl_arg_obj_as(0, fmt_type);
+    buf_write_nstr(&fobj->buf, STR_BUF(ob), STR_LEN(ob));
+    return nil_value;
+}
 
 //
 // pub func split(sep = " ", maxsplit = -1) list[str] {}
@@ -299,20 +306,6 @@ static TValue _str_hash(TValue *self, TValue *args, int nargs)
 {
     StringObject *str = SELF_AS(str_type);
     return int64_value(str_hash(str->array));
-}
-
-TValue kl_format(TValue *self, TValue *args, int nargs);
-
-static TValue _str_format(TValue *self, TValue *args, int nargs)
-{
-    StringObject *s = SELF_AS(str_type);
-
-    if (nargs == 0) return *self;
-
-    ASSERT(nargs == 1);
-    TValue _args[] = { *self, *args };
-    TValue v = kl_format(NULL, _args, 2);
-    return v;
 }
 
 static TValue _str_add(TValue *self, TValue *args, int nargs)
@@ -1338,13 +1331,12 @@ static MethodDef _str_methods[] = {
     { "__gt__", _str_gt },
     { "__ge__", _str_ge },
     { "hash", _str_hash },
-    { "__str__", _str_str },
+    { "fmt", _str_fmt },
     { "substr", _str_substr },
     { "to_int", _str_to_int },
     { "to_int_or", _str_to_int_or },
     { "to_float", _str_to_float },
     { "to_float_or", _str_to_float_or },
-    { "format", _str_format },
     { "__add__", _str_add },
     { "__mul__", _str_mul },
     { "join", _str_join },

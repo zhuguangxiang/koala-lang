@@ -9,19 +9,24 @@
 extern "C" {
 #endif
 
-static TValue _default___str__(TValue *self, TValue *args, int nargs)
+static TValue _default_fmt(TValue *self, TValue *args, int nargs)
 {
-    ASSERT(nargs == 0);
+    ASSERT(nargs == 1);
+    Formatter *fmt = kl_arg_obj_as(0, fmt_type);
+
     TypeObject *tp = kl_typeof(self);
     ASSERT(tp);
     unsigned int hash = kl_hash(self);
     ModuleObject *m = (ModuleObject *)tp->module;
 
     Object *s = kl_new_fmt_str("<%s.%s object at 0x%x>", m->path, tp->name, hash);
-    return obj_value(s);
+    kl_fmt_write_str(fmt, STR_BUF(s), STR_LEN(s));
+    kl_free_str(s);
+
+    return nil_value;
 }
 
-static TValue _default___hash__(TValue *self, TValue *args, int nargs)
+static TValue _default_hash(TValue *self, TValue *args, int nargs)
 {
     unsigned int hash = mem_hash(self, sizeof(TValue));
     return int64_value(hash);
@@ -50,11 +55,11 @@ Object *kl_get_native(Object *m, char *name)
         if (ob) return ob;
     }
 
-    if (match_suffix(name, "__str__")) {
-        Object *ob = kl_new_cfunc("__str__", _default___str__, NULL);
+    if (match_suffix(name, "fmt")) {
+        Object *ob = kl_new_cfunc("fmt", _default_fmt, NULL);
         return ob;
     } else if (match_suffix(name, "hash")) {
-        Object *ob = kl_new_cfunc("hash", _default___hash__, NULL);
+        Object *ob = kl_new_cfunc("hash", _default_hash, NULL);
         return ob;
     } else if (match_suffix(name, "__eq__")) {
         Object *ob = kl_new_cfunc("__eq__", _default___eq__, NULL);

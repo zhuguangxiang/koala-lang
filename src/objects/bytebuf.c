@@ -35,10 +35,45 @@ static TValue _bytebuf_write_bytes(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     ASSERT(nargs == 1);
-    Object *obj = to_obj(&args[0]);
-    ASSERT(IS_BYTES(obj));
-    BytesObject *bs = (BytesObject *)obj;
+    BytesObject *bs = kl_arg_obj_as(0, bytes_type);
     buf_write_nstr(&bb->buf, (char *)bs->data + bs->offset, bs->size);
+    return nil_value;
+}
+
+static TValue _bytebuf_write_int(TValue *self, TValue *args, int nargs)
+{
+    ByteBufObject *bb = SELF_AS(bytebuf_type);
+    ASSERT(nargs == 1);
+    int64_t value = kl_arg_int(0);
+    buf_write_nstr(&bb->buf, (const char *)&value, sizeof(value));
+    return nil_value;
+}
+
+static TValue _bytebuf_write_uint(TValue *self, TValue *args, int nargs)
+{
+    ByteBufObject *bb = SELF_AS(bytebuf_type);
+    ASSERT(nargs == 1);
+    uint64_t value = kl_arg_uint(0);
+    buf_write_nstr(&bb->buf, (const char *)&value, sizeof(value));
+    return nil_value;
+}
+
+static TValue _bytebuf_write_float(TValue *self, TValue *args, int nargs)
+{
+    ByteBufObject *bb = SELF_AS(bytebuf_type);
+    ASSERT(nargs == 1);
+    double value = kl_arg_float64(0);
+    buf_write_nstr(&bb->buf, (const char *)&value, sizeof(value));
+    return nil_value;
+}
+
+static TValue _bytebuf_write_bool(TValue *self, TValue *args, int nargs)
+{
+    ByteBufObject *bb = SELF_AS(bytebuf_type);
+    ASSERT(nargs == 1);
+    int value = kl_arg_bool(0);
+    uint8_t byte = value ? 1 : 0;
+    buf_write_byte(&bb->buf, byte);
     return nil_value;
 }
 
@@ -135,7 +170,7 @@ static MethodDef _bytebuf_methods[] = {
 TypeObject bytebuf_type = {
     ._type = &type_type,
     .name = "Buffer",
-    .flags = ((1 << 1)),
+    .flags = TP_FLAGS_CLASS,
     .priv_size = sizeof(ByteBufObject),
     .methdefs = _bytebuf_methods,
 };
@@ -146,6 +181,14 @@ Object *kl_new_bytebuf(size_t size)
     INIT_OBJECT_HEAD(bb, &bytebuf_type, 0);
     buf_reserve(&bb->buf, size);
     return (Object *)bb;
+}
+
+void kl_free_bytebuf(Object *obj)
+{
+    ASSERT(OB_TYPE(obj) == &bytebuf_type);
+    ByteBufObject *bb = (ByteBufObject *)obj;
+    FINI_BUF(bb->buf);
+    mm_free(obj);
 }
 
 #ifdef __cplusplus

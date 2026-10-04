@@ -49,6 +49,7 @@ static int __const_equal(KlcConst *k1, KlcConst *k2)
             return k1->ival == k2->ival;
         }
 
+        case KLC_CONST_BYTES:      // fall-through
         case KLC_CONST_ASCII:      // fall-through
         case KLC_CONST_UTF8:       // fall-through
         case KLC_CONST_SHORT_UTF8: // fall-through
@@ -469,7 +470,9 @@ static SlotDef slotdefs[] = {
     TPSLOT("__getslice__", SLOT_GET_SLICE),
     TPSLOT("__setslice__", SLOT_SET_SLICE),
 
-    TPSLOT("__str__", SLOT_STR),
+    TPSLOT("to_str", SLOT_STR),
+
+    TPSLOT("fmt", SLOT_FMT),
 
     TPSLOT("__add__", SLOT_ADD),
     TPSLOT("__sub__", SLOT_SUB),

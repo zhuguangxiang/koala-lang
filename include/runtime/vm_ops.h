@@ -1042,9 +1042,9 @@ TARGET(OP_JMP_TRUE) {
     off = I_SVAL(inst, 0, 16);
 
     CHECK_REG_ID(rs);
-    ASSERT(regs[rs].tag == TAG_BOOL);
+    int v = to_raw_bool(regs + rs);
 
-    if (regs[rs].ival != 0) {
+    if (v != 0) {
         pc += off;
     }
     DISPATCH();
@@ -1055,9 +1055,9 @@ TARGET(OP_JMP_FALSE) {
     off = I_SVAL(inst, 0, 16);
 
     CHECK_REG_ID(rs);
-    ASSERT(regs[rs].tag == TAG_BOOL);
+    int v = to_raw_bool(regs + rs);
 
-    if (regs[rs].ival == 0) {
+    if (v == 0) {
         pc += off;
     }
     DISPATCH();
@@ -1182,6 +1182,16 @@ TARGET(OP_INT_MOD_IMM) {
     regs[rd].ival = regs[rs].ival % imm;
     regs[rd].tag = TAG_INT64;
 
+    DISPATCH();
+}
+
+TARGET(OP_PRINT) {
+    imm = I_VAL(inst, 0, 8);
+
+    TValue *args = ks->stack_top;
+    SAVE_PC();
+    TValue ret = do_print(args, imm);
+    if (is_error(&ret)) goto error;
     DISPATCH();
 }
 

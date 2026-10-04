@@ -88,7 +88,7 @@ static TValue _list_len(TValue *self, TValue *args, int nargs)
     return int64_value(list->end - list->start);
 }
 
-static TValue _list_str(TValue *self, TValue *args, int nargs)
+static TValue _list_to_str(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = SELF_AS(list_type);
     int64_t start = list->start;
@@ -106,6 +106,25 @@ static TValue _list_str(TValue *self, TValue *args, int nargs)
     Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
     FINI_BUF(buf);
     return obj_value(sobj);
+}
+
+static TValue _list_fmt(TValue *self, TValue *args, int nargs)
+{
+    ListObject *list = SELF_AS(list_type);
+    ASSERT(nargs == 1);
+
+    Formatter *fmt = kl_arg_fmt(0);
+
+    buf_write_char(&fmt->buf, '[');
+    for (size_t i = list->start; i < list->end; ++i) {
+        if (i > list->start) {
+            buf_write_str(&fmt->buf, ", ");
+        }
+        kl_fmt_call(fmt, list->array + i);
+    }
+    buf_write_char(&fmt->buf, ']');
+
+    return nil_value;
 }
 
 static TValue _list_extend(TValue *self, TValue *args, int nargs)
@@ -240,7 +259,8 @@ static MethodDef list_methods[] = {
     { "push", _list_push },
     { "pop", _list_pop },
     { "len", _list_len },
-    { "__str__", _list_str },
+    { "to_str", _list_to_str },
+    { "fmt", _list_fmt },
     { "extend", _list_extend },
     { "__getitem__", _list_getitem },
     { "__setitem__", _list_setitem },

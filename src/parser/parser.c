@@ -1471,6 +1471,8 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
         return NULL;
     }
 
+    sym->path = ps->pm->pkg_path;
+    ASSERT(sym->path);
     FuncSymbol *fn_sym = (FuncSymbol *)sym;
 
     // add tps
@@ -2140,13 +2142,13 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
     bool has_eq = false;
     bool has_ne = false;
     bool has_hash = false;
-    bool has_str = false;
+    bool has_fmt = false;
     Stmt *stmt;
     vector_foreach(stmt, kls->stmts) {
         if (!stmt) continue;
         if (stmt->kind == STMT_VAR_KIND) {
             VarDeclStmt *var_stmt = (VarDeclStmt *)stmt;
-            // TODO: check var name is not __eq__, __ne__, hash and __str__
+            // TODO: check var name is not __eq__, __ne__, hash and fmt
         } else if (stmt->kind == STMT_FUNC_KIND) {
             FuncDeclStmt *fn_stmt = (FuncDeclStmt *)stmt;
             if (str_equal(fn_stmt->id.name, "__eq__"))
@@ -2155,8 +2157,8 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
                 has_ne = true;
             else if (str_equal(fn_stmt->id.name, "hash"))
                 has_hash = true;
-            else if (str_equal(fn_stmt->id.name, "__str__"))
-                has_str = true;
+            else if (str_equal(fn_stmt->id.name, "fmt"))
+                has_fmt = true;
         } else {
             UNREACHABLE();
         }
@@ -2217,10 +2219,15 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
         log_info("add hash for class '%s' automatically", kls->id.name);
     }
 
-    if (!has_str) {
-        Ident id = { .name = "__str__" };
-        TypeSpec *ret = str_type_spec();
-        Stmt *stmt = stmt_from_func_decl(id, NULL, ret, NULL);
+    if (!has_fmt) {
+        Ident id = { .name = "fmt" };
+        TypeSpec *arg_ts = klass_type_spec("std/builtin", "Formatter");
+        Vector *_args = vector_create_ptr();
+        Loc _loc = { 0 };
+        Ident _name = { .name = "f" };
+        ParamDecl *param = param_new(_loc, _name, arg_ts, NULL);
+        vector_push_back(_args, &param);
+        Stmt *stmt = stmt_from_func_decl(id, _args, NULL, NULL);
         PrefixFlags *flags = &((FuncDeclStmt *)stmt)->flags;
         flags->ann.ident = "native";
         flags->pub.flag = 1;
@@ -2229,7 +2236,7 @@ static void try_to_add_root_methods(ParserState *ps, KlassDeclStmt *kls)
             kls->stmts = vector_create_ptr();
         }
         vector_push_back(kls->stmts, &stmt);
-        log_info("add __str__ for class '%s' automatically", kls->id.name);
+        log_info("add 'fmt' for class '%s' automatically", kls->id.name);
     }
 }
 
@@ -3509,6 +3516,8 @@ static Symbol *_add_global(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     var->sym = sym;
     sym->arg = var;
     ((VarSymbol *)sym)->scope = VAR_SCOPE_GLOBAL;
+    sym->path = ps->pm->pkg_path;
+    ASSERT(sym->path);
 
     if (var->which == VAR_DECL_CONST) {
         vector_push_back(&ps->const_globals, &var);

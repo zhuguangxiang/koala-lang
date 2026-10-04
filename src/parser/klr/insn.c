@@ -173,6 +173,7 @@ static OpCode no_regs_codes[] = {
     OP_SEQ_SET,
     OP_MAP_SET,
     OP_SEQ_SET_IMM,
+    OP_PRINT,
 };
 
 int ir_has_value(KlrInsn *insn)
@@ -432,6 +433,17 @@ KlrValue *klr_build_call(KlrBuilder *bldr, KlrValue *fn, TypeSpec *ret, KlrValue
         init_oper(&insn->opers[j + 1], insn, (KlrValue *)args[j], 0);
     }
     insn->ts = ret ? ret : fn->ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_print(KlrBuilder *bldr, KlrValue **args, int nargs)
+{
+    KlrInsn *insn = new_insn(OP_PRINT, nargs, "");
+    for (int j = 0; j < nargs; j++) {
+        init_oper(&insn->opers[j], insn, (KlrValue *)args[j], 0);
+    }
+    insn->ts = no_type_spec();
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

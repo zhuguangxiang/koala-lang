@@ -3,4 +3,69 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-link "koala"
+import "std/fs"
+import "std/io"
+import "std/sys"
+
+/// Opens the file or file descriptor path_or_fd and returns a File object.
+///
+/// path_or_fd is either a path string, or an integer file descriptor
+/// (e.g. 0, 1, 2 for stdin, stdout, stderr).
+///
+/// mode selects the access:
+/// - "r": read-only, the file must exist.
+/// - "w": write-only, create or truncate.
+/// - "x": write-only, exclusive create, fail if the file exists.
+/// - "a": write-only, create if absent, always append at the end.
+/// - "r+": read and write, the file must exist.
+/// - "w+": read and write, create or truncate.
+/// - "x+": read and write, exclusive create, fail if the file exists.
+/// - "a+": read and write, create if absent, always append at the end.
+///
+/// Returns nil if the file cannot be opened (missing file, permission denied,
+/// file already exists for "x"/"x+", invalid descriptor).
+/// Files created by "w", "x", "a" and their "+" variants get
+/// permission 0644.
+///
+/// Example:
+/// let f = open("hello.txt", "w")
+/// f?.write("hello".to_bytes())
+/// f?.close()
+///
+/// See: File.
+pub func open(path_or_fd fs.Path | str | int, mode = "r") fs.File? {
+    return fs.open(path_or_fd, mode)
+}
+
+/// Write objects to `w` with the specified separator and ending.
+///
+/// This function is lowered by the compiler to the `OP_PRINT` instruction.
+/// Each object is formatted through its `Printable` implementation and
+/// written to the specified writer.
+@intrinsic
+func print_intern(w io.Writer, sep str, end str, objs ...) {}
+
+/// Print objects separated by `sep` and followed by `end`.
+///
+/// Each object is formatted through its `Printable` implementation.
+/// If no objects are given, `print()` writes only `end`.
+/// The default separator is a space, and the default ending is a newline.
+/// Output is written to `sys.stdout`.
+///
+/// Examples
+///
+/// ```kl
+/// print("red", "green", "blue", sep = ", ")
+/// ```
+pub func print(objs ..., sep = " ", end = "\n") {
+    let w = sys.stdout
+    print_intern(w, sep, end, objs)
+}
+
+/// Format `args` according to `fmt` and write the result to `w`.
+///
+/// Returns the number of bytes written.
+pub func fprintf(w io.Writer, fmt str, args ...) int {
+    let s = format(fmt, args)
+    return w.write_str(s)
+}

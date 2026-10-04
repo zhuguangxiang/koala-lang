@@ -1,0 +1,113 @@
+// RUN: koala %s | filecheck %s
+
+func main() {
+    let fmt = Formatter()
+	print(fmt)
+// CHECK: <std/builtin.Formatter object at 0x{{[0-9a-f]+}}>
+
+    true.fmt(fmt)
+    print(fmt.result())
+// CHECK: true
+
+    let p Printable = false
+    print(fmt.result())
+// CHECK: true
+
+	fmt.write_byte('\n')
+
+    p.fmt(fmt)
+    print(fmt.result())
+// CHECK: true
+// CHECK: false
+
+	fmt.write_str("!")
+    print(fmt.result())
+// CHECK: true
+// CHECK: false!
+
+	fmt.write_fmt("Point(x={},y={})", 1, 2)
+    print(fmt.result())
+// CHECK: true
+// CHECK: false!Point(x=1,y=2)
+
+	fmt.clear()
+	fmt.write_str("Hello, World!")
+	print(fmt.result())
+// CHECK: Hello, World!
+
+	fmt.clear()
+	let x = 42
+	let y float16 = 3.14
+	let s = "hello"
+	let z float32 = 3.14
+	let z1 float64 = 3.14
+
+	x.fmt(fmt)
+	fmt.write_str(" ")
+	y.fmt(fmt)
+	fmt.write_str(" ")
+	s.fmt(fmt)
+	fmt.write_str(" ")
+	z.fmt(fmt)
+	fmt.write_str(" ")
+	z1.fmt(fmt)
+
+	print(fmt.result())
+	// CHECK: 42 3.1406 hello 3.14 3.14
+
+	test_format()
+}
+
+func test_format() {
+	print(format("Hello\n{}", "James"))
+// CHECK: Hello
+// CHECK: James
+
+	print(format("Hello, {}", "James"))
+// CHECK: Hello, James
+
+	print(format("value = '{:d}'", 42))
+// CHECK: value = '42'
+
+	print(format("value = '{:<8d}'", 42))
+// CHECK: value = '42      '
+
+	print(format("value = '{:>8d}'", 42))
+// CHECK: value = '      42'
+
+	print(format("value = '{:*^8d}'", 42))
+// CHECK: value = '***42***'
+
+	print(format("value = '{:08d}'", 42))
+// CHECK: value = '00000042'
+
+	print(format("pi = '{:f}'", 3.14159))
+// CHECK: pi = '3.141590'
+
+	print(format("pi = '{:.2f}'", 3.14159))
+// CHECK: pi = '3.14'
+
+	print(format("pi = '{:8.2f}'", 3.14159))
+// CHECK: pi = '    3.14'
+
+	print(format("hex = '{:x}'", 255))
+// CHECK: hex = 'ff'
+
+	print(format("HEX = '{:X}'", 255))
+// CHECK: HEX = 'FF'
+
+	print(format("bin = '{:b}'", 13))
+// CHECK: bin = '1101'
+
+	print(format("oct = '{:o}'", 64))
+// CHECK: oct = '100'
+
+	print(format("name = '{:>10}'", "Koala"))
+// CHECK: name = '     Koala'
+
+	print(format("x='{:d}', y='{:d}', z='{:.2f}'", 10, 20, 3.14))
+// CHECK: x='10', y='20', z='3.14'
+
+	print(format("User '{:<10}' | Score '{:>5d}' | Rate '{:>6.2f}'", "James", 98, 0.876))
+// CHECK: User 'James     ' | Score '   98' | Rate '  0.88'
+}

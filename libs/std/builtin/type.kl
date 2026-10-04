@@ -12,10 +12,14 @@ pub class type {
     /// Type objects are created only by the runtime.
     func __init__() {}
 
+    /// Formats the type for display.
+    @native
+    pub func fmt(f Formatter) {}
+
     /// Return the string representation of the type.
     /// Uses the form `"<class 'name'>"`, for example `"<class 'str'>"`.
     @native
-    pub func __str__() str {}
+    pub func to_str() str {}
 
     /// Return the name of the type.
     /// For types outside `std/builtin`, the name is prefixed with the module path.
