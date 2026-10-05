@@ -59,6 +59,7 @@ TypeObject int8_type = {
     ._type = &type_type,
     .name = "int8",
     .flags = TP_FLAGS_VALUE,
+    .tag = TAG_INT8,
     .methdefs = int_methods,
 };
 
@@ -66,6 +67,7 @@ TypeObject int16_type = {
     ._type = &type_type,
     .name = "int16",
     .flags = TP_FLAGS_VALUE,
+    .tag = TAG_INT16,
     .methdefs = int_methods,
 };
 
@@ -73,6 +75,7 @@ TypeObject int32_type = {
     ._type = &type_type,
     .name = "int32",
     .flags = TP_FLAGS_VALUE,
+    .tag = TAG_INT32,
     .methdefs = int_methods,
 };
 
@@ -80,6 +83,7 @@ TypeObject int64_type = {
     ._type = &type_type,
     .name = "int64",
     .flags = TP_FLAGS_VALUE,
+    .tag = TAG_INT64,
     .methdefs = int_methods,
 };
 
@@ -87,6 +91,7 @@ TypeObject uint8_type = {
     ._type = &type_type,
     .name = "uint8",
     .flags = TP_FLAGS_VALUE,
+    .tag = TAG_UINT8,
     .methdefs = int_methods,
 };
 
@@ -94,6 +99,7 @@ TypeObject uint16_type = {
     ._type = &type_type,
     .name = "uint16",
     .flags = TP_FLAGS_VALUE,
+    .tag = TAG_UINT16,
     .methdefs = int_methods,
 };
 
@@ -101,6 +107,7 @@ TypeObject uint32_type = {
     ._type = &type_type,
     .name = "uint32",
     .flags = TP_FLAGS_VALUE,
+    .tag = TAG_UINT32,
     .methdefs = int_methods,
 };
 
@@ -108,6 +115,7 @@ TypeObject uint64_type = {
     ._type = &type_type,
     .name = "uint64",
     .flags = TP_FLAGS_VALUE,
+    .tag = TAG_UINT64,
     .methdefs = int_methods,
 };
 

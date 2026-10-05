@@ -1,0 +1,68 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+// Negative cases: the str(xxx) syntax and the to_str() method are only open
+// to whitelisted types.
+//
+// Three things are verified here:
+//   1. ToString is opt-in: for any type not declaring `: ToString`, str(x)
+//      must be a compile error;
+//   2. A C-side native implementation without a .kl @native declaration is
+//      dead code, invisible to the compiler
+//      (_list_to_str for list, _tuple_to_str for tuple);
+//   3. The static type of the nil literal is optional '_?', which does not
+//      conform to ToString.
+
+import "std/fs"
+
+// ===== Outside the str(x) whitelist: must be a compile error =====
+
+func str_bytes_banned() {
+    // bytes.to_str() is a partial function that may panic (invalid UTF-8),
+    // so the str() syntax is not open for it; the explicit bs.to_str() is
+    // the correct usage (see the positive cases).
+    let bs = b"hello"
+    print(str(bs))
+    // CHECK: Incompatible type: expected 'std/builtin.ToString', but got 'std/builtin.bytes'.
+}
+
+func str_nil_banned() {
+    // The static type of the nil literal is optional '_?', which does not
+    // conform to ToString; NilType no longer provides to_str either
+    // (display goes through fmt, producing "nil").
+    print(str(nil))
+    // CHECK: Incompatible type: expected 'std/builtin.ToString', but got '_?'.
+}
+
+func list_to_str_dead_native() {
+    let l = [1, 2]
+    print(l.to_str())
+    // CHECK: 'to_str' is not found in instance of class 'list<j>'
+}
+
+func tuple_to_str_dead_native() {
+    let t = (1, 2)
+    print(t.to_str())
+    // CHECK: 'to_str' is not found in instance of class 'tuple<jj>'
+}
+
+import "std/time"
+
+func str_slice_banned() {
+    print(str(slice(1, 5, 2)))
+    // CHECK: Incompatible type: expected 'std/builtin.ToString', but got 'std/builtin.slice'.
+}
+
+func str_range_banned() {
+    print(str(range(0, 3)))
+    // CHECK: Incompatible type: expected 'std/builtin.ToString', but got 'std/builtin.range'.
+}
+
+func str_duration_banned() {
+    print(str(time.Duration.from_secs(1)))
+    // CHECK: Incompatible type: expected 'std/builtin.ToString', but got 'std/time.Duration'.
+}
+
+func str_instant_banned() {
+    print(str(time.Instant(0, 0)))
+    // CHECK: Incompatible type: expected 'std/builtin.ToString', but got 'std/time.Instant'.
+}

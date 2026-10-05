@@ -16,7 +16,7 @@ pub class HashSet[T] : Set[T] {
 
     /// Return an iterator over the elements. Order is unspecified.
     @native
-    pub func __iter__() Iterator[T] {}
+    pub func iter(step = 1) Iterator[T] {}
 
     /// Return the number of elements. O(1).
     @native
@@ -106,7 +106,7 @@ pub class TreeSet[T : Comparable] : Set[T] {
 
     /// Return an iterator over the elements in sorted order.
     @native
-    pub func __iter__() Iterator[T] {}
+    pub func iter(step = 1) Iterator[T] {}
 
     /// Return the number of elements. O(1).
     @native

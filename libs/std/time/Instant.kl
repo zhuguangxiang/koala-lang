@@ -90,9 +90,11 @@ pub class Instant {
     }
 
     /// Converts the instant to a string.
+    ///
+    /// This is a plain method, NOT a `ToString` conformance (so `str(i)` is a compile error):
+    /// the result is the debug-oriented form `Instant(epoch_ns=..., clock=...)`, same shape as `fmt`.
+    /// Use `to_unix_ns()` for the raw numeric timestamp.
     pub func to_str() str {
-        let f = Formatter()
-        fmt(f)
-        return f.result()
+        return format("Instant(epoch_ns={:d}, clock={:d})", epoch_ns, clock)
     }
 }

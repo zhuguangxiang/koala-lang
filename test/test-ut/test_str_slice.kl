@@ -19,7 +19,7 @@ func test_slice_create() {
     ut.assert_eq(s.end, 0)
     ut.assert_eq(s.step, 0)
 
-    ut.assert_eq(str(s), "slice(0, 0, 0)")
+    ut.assert_eq(s.to_str(), "slice(0, 0, 0)")
 
     let s1 = "hello world"
     ut.assert_eq(s1[:], "hello world")

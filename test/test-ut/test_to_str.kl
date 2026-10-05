@@ -1,0 +1,65 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+@test
+func test_to_str() {
+    ut.assert_eq(str(true), "true")
+    ut.assert_eq(true.to_str(), "true")
+}
+
+@test
+func test_fmt() {
+    let f = Formatter()
+    true.fmt(f)
+    ut.assert_eq(f.result(), "true")
+}
+
+import "std/ut"
+import "std/fs"
+
+@test
+func test_to_string_conversion() {
+    // All integer and floating-point types support str(x).
+    ut.assert_eq(str(int8(42)), "42")
+    ut.assert_eq(str(int16(42)), "42")
+    ut.assert_eq(str(int32(42)), "42")
+    ut.assert_eq(str(int64(42)), "42")
+
+    ut.assert_eq(str(uint8(42)), "42")
+    ut.assert_eq(str(uint16(42)), "42")
+    ut.assert_eq(str(uint32(42)), "42")
+    ut.assert_eq(str(uint64(42)), "42")
+
+    ut.assert_eq(str(float16(3.5)), "3.5")
+    ut.assert_eq(str(float32(3.5)), "3.5")
+    ut.assert_eq(str(float64(3.5)), "3.5")
+
+    // bool support str(x).
+    // nil does not support str(x).
+    ut.assert_eq(str(true), "true")
+    ut.assert_eq(str(false), "false")
+    // ut.assert_eq(nil.to_str(), "nil")
+
+    // bytes.to_str() returns a UTF-8 decoded string.
+    // It does not mean that bytes implement ToString.
+    ut.assert_eq(b"hello".to_str(), "hello")
+}
+
+@test
+func test_to_string_and_fmt_are_separate() {
+    let p = fs.Path("/a/b")
+
+    // The to_str() conversion gives the raw path text.
+    ut.assert_eq(p.to_str(), "/a/b")
+
+    // The str() conversion gives the raw path text.
+    ut.assert_eq(str(p), "/a/b")
+
+    // The format() function can include type information.
+    ut.assert_eq(format("{}", p), "Path(/a/b)")
+
+    let n = int64(42)
+    ut.assert_eq(str(n), "42")
+    ut.assert_eq(format("{}", n), "42")
+}

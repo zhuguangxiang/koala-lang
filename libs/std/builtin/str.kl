@@ -19,14 +19,14 @@
 /// print(text.upper())
 /// print(text.substr(1, 4))
 /// ```
-pub class str : Sequence & Comparable {
+pub class str : Sequence & Comparable & ToString {
 
     /// Initialize a string by converting a value with `to_str()`.
     ///
     /// `str(value)` is lowered by the compiler to `OP_STR`, which invokes
     /// the value's `to_str()` method.
     @native
-    pub func __init__(s any) {}
+    pub func __init__(s ToString) {}
 
     /// Return an iterator over the characters of the string.
     ///
@@ -129,8 +129,9 @@ pub class str : Sequence & Comparable {
 
     /// Converts `self` to a string.
     ///
-    /// This func is unreachable in practice because `self` is already a `str`.
-    pub func to_str() str { panic("str.to_str() should be unreachable") }
+    /// Returns `self`: a `str` is already its own string form. This keeps
+    /// generic code bounded by `ToString` uniform when `T` is instantiated with `str`.
+    pub func to_str() str { return self }
 
     /// Parse the string as a decimal integer. Panic if the string is not a valid integer.
     @native
@@ -353,13 +354,6 @@ pub class StrIter : Iterator[str] {
     pub func fmt(f Formatter) {
         f.write_fmt("StrIter(step={}, cursor={}, length={})", step, cursor, length)
     }
-
-    /// Converts the iterator state to a human-readable string.
-    pub func to_str() str {
-        let f = Formatter()
-        fmt(f)
-        return f.result()
-    }
 }
 
 /// An iterator over the characters of a string, from right to left.
@@ -424,12 +418,5 @@ pub class StrRevIter : Iterator[str] {
     /// Produce a human-readable description of the iterator state.
     pub func fmt(f Formatter) {
         f.write_fmt("StrRevIter(step={}, cursor={}, length={})", step, cursor, length)
-    }
-
-    /// Converts the iterator state to a human-readable string.
-    pub func to_str() str {
-        let f = Formatter()
-        fmt(f)
-        return f.result()
     }
 }

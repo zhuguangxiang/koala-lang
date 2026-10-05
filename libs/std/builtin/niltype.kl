@@ -15,11 +15,6 @@ pub class NilType {
     /// Users cannot instantiate `NilType` directly. Use `nil` instead.
     func __init__() {}
 
-    /// Return the string representation of `nil`.
-    /// Always returns `"nil"`.
-    @native
-    pub func to_str() str {}
-
     /// Formats `nil` for display.
     /// Always writes `"nil"` to the formatter.
     @native

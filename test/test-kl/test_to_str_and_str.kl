@@ -1,0 +1,8 @@
+// RUN: koala -c %s | filecheck %s
+
+func main() {
+    print(str(nil))
+    // CHECK: Incompatible type: expected 'std/builtin.ToString', but got '_?'.
+    print(str(b"hello"))
+    // CHECK: Incompatible type: expected 'std/builtin.ToString', but got 'std/builtin.bytes'.
+}

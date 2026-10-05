@@ -15,7 +15,7 @@ pub class tuple[infer T] : Sequence[T] {
 
     /// Return an iterator over the tuple.
     @native
-    pub func __iter__() Iterator[T] {}
+    pub func iter(step = 1) Iterator[T] {}
 
     /// Return the number of elements in the tuple. O(1).
     @native
@@ -72,8 +72,4 @@ pub class tuple[infer T] : Sequence[T] {
     /// Formats the tuple for display.
     @native
     pub func fmt(f Formatter) {}
-
-    /// Return a string representation of the tuple.
-    @native
-    pub func to_str() str {}
 }

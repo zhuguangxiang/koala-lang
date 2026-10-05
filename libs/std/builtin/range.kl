@@ -29,7 +29,7 @@ pub class range : Sequence[int] {
 
     /// Return an iterator for the range.
     @native
-    pub func __iter__() Iterator[int] {}
+    pub func iter(_step = 1) Iterator[int] {}
 
     /// Return the number of elements in the range. O(1).
     @native
@@ -83,8 +83,6 @@ pub class range : Sequence[int] {
 
     /// Converts the range to its string representation.
     pub func to_str() str {
-        let f = Formatter()
-        fmt(f)
-        return f.result()
+        return format("range({}, {}, {})", start, end, step)
     }
 }

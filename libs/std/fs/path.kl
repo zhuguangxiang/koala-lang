@@ -9,7 +9,7 @@ import "std/os"
 ///
 /// It treats paths as clean logical objects rather than raw strings,
 /// automatically handling platform-specific separators (\ for Windows, / for Unix).
-pub class Path {
+pub class Path : ToString {
 
     /// The internal string representation of the path.
     let path str

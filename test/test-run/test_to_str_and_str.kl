@@ -1,0 +1,30 @@
+// RUN: koala %s | filecheck %s
+
+func int8_to_str(i int8) str {
+    return str(i)
+}
+
+func bool_to_str(b bool) str {
+    return "flags=" + str(b)
+}
+
+func main() {
+	print(int8_to_str(42))
+	print(int8(100))
+
+	print(bool_to_str(true))
+
+	print(nil)
+	print(format("{} and {}", nil, true))
+
+	print(b"hello")
+	print(b"hello".to_str())
+}
+
+// CHECK: 42
+// CHECK: 100
+// CHECK: flags=true
+// CHECK: nil
+// CHECK: nil and true
+// CHECK: b"hello"
+// CHECK: hello

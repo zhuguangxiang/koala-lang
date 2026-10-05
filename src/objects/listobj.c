@@ -88,26 +88,6 @@ static TValue _list_len(TValue *self, TValue *args, int nargs)
     return int64_value(list->end - list->start);
 }
 
-static TValue _list_to_str(TValue *self, TValue *args, int nargs)
-{
-    ListObject *list = SELF_AS(list_type);
-    int64_t start = list->start;
-    int64_t stop = list->end;
-    BUF(buf);
-    buf_write_char(&buf, '[');
-    for (int i = start; i < stop; ++i) {
-        if (i > start) {
-            buf_write_str(&buf, ", ");
-        }
-        Object *_s = kl_to_str(list->array + i);
-        buf_write_str(&buf, STR_BUF(_s));
-    }
-    buf_write_char(&buf, ']');
-    Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
-    FINI_BUF(buf);
-    return obj_value(sobj);
-}
-
 static TValue _list_fmt(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = SELF_AS(list_type);
@@ -259,7 +239,6 @@ static MethodDef list_methods[] = {
     { "push", _list_push },
     { "pop", _list_pop },
     { "len", _list_len },
-    { "to_str", _list_to_str },
     { "fmt", _list_fmt },
     { "extend", _list_extend },
     { "__getitem__", _list_getitem },

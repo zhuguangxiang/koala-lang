@@ -82,8 +82,8 @@ pub trait Printable {
 /// Unlike `Printable`, which focuses on user-facing display and formatting,
 /// `ToString` is intended for exact data extraction or serialization.
 ///
-/// For example, a `Path` object's `Printable` output might be `Path("/a/b")`
-/// for debugging, but its `ToString.to_str()` must yield the exact raw path `"/a/b"`.
+/// For example, a `Path` object's `Printable` output might be `Path("/a/b")` for debugging,
+/// but its `ToString.to_str()` must yield the exact raw path `"/a/b"`.
 pub trait ToString {
     /// Return the raw, programmatic string representation of `self`.
     func to_str() str

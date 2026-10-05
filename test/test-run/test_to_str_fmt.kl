@@ -17,7 +17,6 @@ func main() {
 
 
 	let bs = b"helloworld"
-	print(str(bs))
 	print(bs.to_str())
 	print(bs)
 }
@@ -43,6 +42,5 @@ func main() {
 // CHECK: 10
 // CHECK: 10
 // CHECK: 1010
-// CHECK: helloworld
 // CHECK: helloworld
 // CHECK: b"helloworld"

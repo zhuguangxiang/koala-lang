@@ -1,6 +1,6 @@
 // RUN: koala %s | filecheck %s
 
-class Foo {
+class Foo : ToString {
     func to_str() str { return "Foo" }
 }
 

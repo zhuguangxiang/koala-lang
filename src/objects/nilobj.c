@@ -9,12 +9,6 @@
 extern "C" {
 #endif
 
-static TValue _nil_to_str(TValue *self, TValue *args, int nargs)
-{
-    Object *s = kl_new_str("nil");
-    return obj_value(s);
-}
-
 static TValue _nil_fmt(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
@@ -24,7 +18,6 @@ static TValue _nil_fmt(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef _nil_methods[] = {
-    { "to_str", _nil_to_str },
     { "fmt", _nil_fmt },
     { NULL },
 };
@@ -33,6 +26,7 @@ TypeObject nil_type = {
     ._type = &type_type,
     .name = "NilType",
     .flags = TP_FLAGS_VALUE,
+    .tag = TAG_NIL,
     .methdefs = _nil_methods,
 };
 

@@ -26,7 +26,7 @@ r.end
 r.step
 
 r.len()
-r.__iter__()
+r.iter()
 
 r.__contains__(5)
 // CHECK: '__contains__' cannot be called explicitly, use the 'in' operator instead.

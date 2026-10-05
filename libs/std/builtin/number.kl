@@ -46,10 +46,14 @@ pub trait Bitwise[T] {
 ///
 /// Used to truncate a wider integer value down to 8 bits. Arithmetic operations
 /// are performed via implicit promotion to `int64`.
-pub class int8 {
+pub class int8 : ToString {
     /// Creates an `int8` by truncating `x` to 8 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Formats the `int8` value for display.
+    @native
+    pub func fmt(f Formatter) {}
 
     /// Converts the `int8` value to its string form.
     @native
@@ -60,10 +64,14 @@ pub class int8 {
 ///
 /// Used to truncate a wider integer value down to 16 bits. Arithmetic operations
 /// are performed via implicit promotion to `int64`.
-pub class int16 {
+pub class int16 : ToString {
     /// Creates an `int16` by truncating `x` to 16 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Formats the `int16` value for display.
+    @native
+    pub func fmt(f Formatter) {}
 
     /// Converts the `int16` value to its string form.
     @native
@@ -74,10 +82,14 @@ pub class int16 {
 ///
 /// Used to truncate a wider integer value down to 32 bits. Arithmetic operations
 /// are performed via implicit promotion to `int64`.
-pub class int32 {
+pub class int32 : ToString {
     /// Creates an `int32` by truncating `x` to 32 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Formats the `int32` value for display.
+    @native
+    pub func fmt(f Formatter) {}
 
     /// Converts the `int32` value to its string form.
     @native
@@ -87,7 +99,7 @@ pub class int32 {
 /// A 64-bit signed integer.
 ///
 /// The primary signed integer type.
-pub class int64 : Comparable & Arithmetic & Bitwise {
+pub class int64 : Comparable & Arithmetic & Bitwise & ToString {
     /// Creates an `int64`.
     ///
     /// The argument `x` can be an integer, a floating-point value, or a string.
@@ -233,10 +245,14 @@ pub class int64 : Comparable & Arithmetic & Bitwise {
 ///
 /// Used to truncate a wider integer value down to 8 bits. Arithmetic operations
 /// are performed via implicit promotion to `uint64`.
-pub class uint8 {
+pub class uint8 : ToString {
     /// Creates a `uint8` by truncating `x` to 8 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Formats the `uint8` value for display.
+    @native
+    pub func fmt(f Formatter) {}
 
     /// Converts the `uint8` value to its string form.
     @native
@@ -247,10 +263,14 @@ pub class uint8 {
 ///
 /// Used to truncate a wider integer value down to 16 bits. Arithmetic operations
 /// are performed via implicit promotion to `uint64`.
-pub class uint16 {
+pub class uint16 : ToString {
     /// Creates a `uint16` by truncating `x` to 16 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Formats the `uint16` value for display.
+    @native
+    pub func fmt(f Formatter) {}
 
     /// Converts the `uint16` value to its string form.
     @native
@@ -261,10 +281,14 @@ pub class uint16 {
 ///
 /// Used to truncate a wider integer value down to 32 bits. Arithmetic operations
 /// are performed via implicit promotion to `uint64`.
-pub class uint32 {
+pub class uint32 : ToString {
     /// Creates a `uint32` by truncating `x` to 32 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Formats the `uint32` value for display.
+    @native
+    pub func fmt(f Formatter) {}
 
     /// Converts the `uint32` value to its string form.
     @native
@@ -274,7 +298,7 @@ pub class uint32 {
 /// A 64-bit unsigned integer.
 ///
 /// The primary unsigned integer type.
-pub class uint64 : Comparable & Arithmetic & Bitwise {
+pub class uint64 : Comparable & Arithmetic & Bitwise & ToString {
     /// Creates a `uint64`.
     ///
     /// The argument `x` can be an integer, a floating-point value, or a string.
@@ -412,10 +436,14 @@ pub class uint64 : Comparable & Arithmetic & Bitwise {
 ///
 /// Used to truncate a `float64` value down to 16 bits. Arithmetic operations
 /// are performed via implicit promotion to `float64`.
-pub class float16 {
+pub class float16 : ToString {
     /// Creates a `float16` by truncating `x` to 16 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Formats the `float16` value for display.
+    @native
+    pub func fmt(f Formatter) {}
 
     /// Converts the `float16` value to its string form.
     @native
@@ -426,11 +454,15 @@ pub class float16 {
 ///
 /// Used to truncate a `float64` value down to 32 bits. Arithmetic operations
 /// are performed via implicit promotion to `float64`.
-pub class float32 {
+pub class float32 : ToString {
 
     /// Creates a `float32` by truncating `x` to 32 bits.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Formats the `float32` value for display.
+    @native
+    pub func fmt(f Formatter) {}
 
     /// Converts the `float32` value to its string form.
     @native
@@ -440,7 +472,7 @@ pub class float32 {
 /// A 64-bit floating-point number (double precision).
 ///
 /// The primary floating-point type, conforming to IEEE 754.
-pub class float64 : Comparable & Arithmetic {
+pub class float64 : Comparable & Arithmetic & ToString {
 
     /// Creates a `float64` from an integer, another floating-point value, or a string.
     @native
@@ -569,7 +601,7 @@ pub class float64 : Comparable & Arithmetic {
 /// dynamic range as `float32` but with reduced precision. It is primarily
 /// designed for machine learning workloads where memory bandwidth and storage
 /// efficiency matter more than exact numerical accuracy.
-pub class bfloat16 {
+pub class bfloat16 : ToString {
     /// Creates a `bfloat16` by truncating the lower bits of `x`.
     ///
     /// When converting from `float64`, the value is rounded to the nearest
@@ -577,6 +609,10 @@ pub class bfloat16 {
     /// exact float representation before truncation.
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
+
+    /// Formats the `bfloat16` value for display.
+    @native
+    pub func fmt(f Formatter) {}
 
     /// Converts the `bfloat16` value to its string form.
     @native

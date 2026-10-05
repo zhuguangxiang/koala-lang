@@ -52,8 +52,6 @@ pub class slice {
     /// Converts the slice to its string representation.
     /// Uses the form `slice(start, end, step)`.
     pub func to_str() str {
-        let f = Formatter()
-        fmt(f)
-        return f.result()
+        return format("slice({}, {}, {})", start, end, step)
     }
 }

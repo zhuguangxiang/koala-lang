@@ -40,6 +40,7 @@ TypeObject bool_type = {
     ._type = &type_type,
     .name = "bool",
     .flags = TP_FLAGS_VALUE,
+    .tag = TAG_BOOL,
     .methdefs = bool_methods,
 };
 

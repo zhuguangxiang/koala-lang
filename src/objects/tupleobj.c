@@ -19,26 +19,6 @@ static TValue _tuple_tolist(TValue *self, TValue *args, int nargs)
     return obj_value(lst);
 }
 
-static TValue _tuple_to_str(TValue *self, TValue *args, int nargs)
-{
-    TupleObject *tuple = SELF_AS(tuple_type);
-    BUF(buf);
-    buf_write_char(&buf, '(');
-    for (size_t i = 0; i < tuple->size; i++) {
-        if (i > 0) {
-            buf_write_str(&buf, ", ");
-        }
-        TValue *item = &tuple->array[i];
-        Object *sobj = kl_to_str(item);
-        buf_write_str(&buf, STR_BUF(sobj));
-    }
-    buf_write_char(&buf, ')');
-
-    Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
-    FINI_BUF(buf);
-    return obj_value(sobj);
-}
-
 static TValue _tuple_fmt(TValue *self, TValue *args, int nargs)
 {
     TupleObject *tuple = SELF_AS(tuple_type);
@@ -78,8 +58,11 @@ static TValue _tuple_getitem(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef tuple_methods[] = {
-    { "to_list", _tuple_tolist }, { "to_str", _tuple_to_str },       { "fmt", _tuple_fmt },
-    { "len", _tuple_len },        { "__getitem__", _tuple_getitem }, { NULL },
+    { "to_list", _tuple_tolist },
+    { "fmt", _tuple_fmt },
+    { "len", _tuple_len },
+    { "__getitem__", _tuple_getitem },
+    { NULL },
 };
 
 /* pub class tuple[infer T] : Sequence[T] { ... } */

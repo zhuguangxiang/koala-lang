@@ -122,8 +122,4 @@ pub class list[T] : MutableSequence[T] {
     /// Formats the list for display.
     @native
     pub func fmt(f Formatter) {}
-
-    /// Converts the list to its string representation.
-    @native
-    pub func to_str() str {}
 }

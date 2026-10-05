@@ -88,12 +88,13 @@ pub class Duration {
         f.write_fmt("{}ns", ns)
     }
 
-    /// Converts the duration to a string using the largest unit that fits, truncated.
-    pub func to_str() str {
-        let f = Formatter()
-        fmt(f)
-        return f.result()
-    }
+    /// Converts the duration to its canonical string form: the nanosecond count
+    /// followed by the unit suffix `ns`, e.g. `"1500000000ns"`.
+    ///
+    /// The suffix keeps the result self-describing and distinguishes it from plain integer text.
+    /// If you need the raw integer nanoseconds, use `to_ns()`;
+    /// for human-readable display (`"1s"`, `"500ms"`), use `fmt` / `format()`.
+    pub func to_str() str { return str(ns) + "ns" }
 
     /// Return true if both durations have the same length.
     pub func __eq__(d Duration) bool {

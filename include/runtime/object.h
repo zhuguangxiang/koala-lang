@@ -108,8 +108,9 @@ typedef struct _TValue {
 #define is_bfloat16(x) ((x)->tag == TAG_BFLOAT16)
 
 /* Category checks */
-#define is_int_tag(tag)  (((tag) & 0b1100) == 0b1000)
-#define is_uint_tag(tag) (((tag) & 0b1100) == 0b1100)
+#define is_int_tag(tag)   (((tag) & 0b1100) == 0b1000)
+#define is_uint_tag(tag)  (((tag) & 0b1100) == 0b1100)
+#define is_float_tag(tag) (((tag) & 0b10000) == 0b10000)
 
 #define is_int(x)   is_int_tag((x)->tag)
 #define is_uint(x)  is_uint_tag((x)->tag)
@@ -247,9 +248,11 @@ typedef struct _TypeObject {
     /* Type name */
     char *name;
     /* size of the C-private opaque payload appended to each object */
-    int priv_size;
+    uint32_t priv_size;
     /* TP_FLAGS_XXX */
-    int flags;
+    uint16_t flags;
+    /* tag value for TP_FLAGS_VALUE */
+    uint16_t tag;
     /* gc mark */
     GcMarkFunc gc_mark;
     /* callable (__call__) */
@@ -520,6 +523,31 @@ static inline int to_raw_bool(TValue *v)
     ASSERT(itab);
     TypeObject *tp = itab->tp;
     ASSERT(tp == &bool_type);
+
+    return (int)v->ival;
+}
+
+static inline double to_raw_float(TValue *v)
+{
+    if (is_float(v)) return v->fval;
+
+    ASSERT(is_intf(v));
+    IntfTable *itab = (IntfTable *)(v)->itab;
+    ASSERT(itab);
+    TypeObject *tp = itab->tp;
+    ASSERT(is_float_tag(tp->tag));
+    return v->fval;
+}
+
+static inline int to_raw_int(TValue *v)
+{
+    if (is_int(v)) return (int)v->ival;
+
+    ASSERT(is_intf(v));
+    IntfTable *itab = (IntfTable *)(v)->itab;
+    ASSERT(itab);
+    TypeObject *tp = itab->tp;
+    ASSERT(is_int_tag(tp->tag));
 
     return (int)v->ival;
 }

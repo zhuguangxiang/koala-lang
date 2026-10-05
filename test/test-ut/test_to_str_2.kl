@@ -1,0 +1,168 @@
+// RUN: koala %s --test
+
+// Positive test cases for the ToString trait and to_str() method separation.
+//
+// Rules (final decisions):
+//   1. str(x) whitelist: numeric types + str (generic passthrough) + bool + Path;
+//      all total and lossless;
+//   2. to_str() as a regular method (does NOT conform to ToString): bytes / Buffer /
+//      slice / range / Duration / Instant — either may panic (invalid UTF-8) or
+//      carries a canonical/debug machine form (e.g. "1500000000ns"), so no str(x)
+//      syntax for them;
+//   3. Display output always goes through fmt / format(), strictly separated from
+//      to_str() conversion (e.g. Duration: fmt gives "1s", to_str gives "1500000000ns");
+//   4. Native implementations on the C side take effect only with a .kl @native
+//      declaration.
+
+import "std/ut"
+import "std/fs"
+import "std/time"
+
+// ---------- 1. str(x)：ToString ----------
+
+@test
+func test_str_signed_numbers() {
+    ut.assert_eq(str(int8(-128)), "-128")
+    ut.assert_eq(str(int16(-300)), "-300")
+    ut.assert_eq(str(int32(-70000)), "-70000")
+    ut.assert_eq(str(-42), "-42")
+    ut.assert_eq(str(int64(0)), "0")
+}
+
+@test
+func test_str_unsigned_numbers() {
+    ut.assert_eq(str(uint8(255)), "255")
+    ut.assert_eq(str(uint16(65535)), "65535")
+    ut.assert_eq(str(uint32(4294967295)), "4294967295")
+    ut.assert_eq(str(uint64(12345678901)), "12345678901")
+}
+
+@test
+func test_str_floats() {
+    ut.assert_eq(str(float32(1.5)), "1.5")
+    ut.assert_eq(str(2.25), "2.25")
+    ut.assert_eq(str(-0.5), "-0.5")
+}
+
+@test
+func test_str_char_is_uint8() {
+    // Literal character values are treated as uint8: str() performs lossless numeric conversion
+    // rather than character expansion.
+    ut.assert_eq(str('\n'), "10")
+    ut.assert_eq(str('A'), "65")
+}
+
+@test
+func test_str_of_str() {
+    // Generic code: str(v) must be valid when the static type of v is exactly str (compile-time move)
+    let s = "hello"
+    ut.assert_eq(str(s), "hello")
+}
+
+// @test
+// func test_str_roundtrip_lossless() {
+//     // ToString's core contract: lossless, round-trip conversion
+//     ut.assert_eq(int(str(123456789)), 123456789)
+//     ut.assert_eq(int(str(-987)), -987)
+//     ut.assert_eq(int(str(int8(-128))), -128)
+// }
+
+// str(x) generic entry point: only accepts types in the ToString whitelist
+func to_text(v ToString) str { return str(v) }
+
+@test
+func test_generic_tostring_bound() {
+    ut.assert_eq(to_text(42), "42")
+    ut.assert_eq(to_text(1.5), "1.5")
+    ut.assert_eq(to_text("raw"), "raw")
+}
+
+// ---------- 2. to_str() as a regular method (no ToString conform): bytes / Buffer ----------
+
+@test
+func test_bytes_to_str_method() {
+    // bytes.to_str() is a UTF-8 decoding operation that may panic if the bytes are not valid UTF-8.
+    // So only used as an explicit method, not via str(bs) syntax.
+    ut.assert_eq(b"hello".to_str(), "hello")
+    ut.assert_eq(b"".to_str(), "")
+    ut.assert_eq("你好".to_bytes().to_str(), "你好")
+}
+
+@test
+func test_buffer_to_str_method() {
+    let buf = Buffer()
+    buf.write_str("koala")
+    buf.write_str("!")
+    ut.assert_eq(buf.to_str(), "koala!")
+}
+
+// Path conforms to ToString: to_str() here is the trait method returning the
+// raw path text; the str(p) syntax form is covered by test_str_path below.
+@test
+func test_path_to_str_method() {
+    ut.assert_eq(fs.Path("/a/b/file.kl").to_str(), "/a/b/file.kl")
+    ut.assert_eq(fs.Path(".").to_str(), ".")
+}
+
+// ---------- 3. fmt as the display channel, separate from to_str() ----------
+
+@test
+func test_fmt_is_display_channel() {
+    ut.assert_eq(format("{}", b"hello"), "b\"hello\"")
+    ut.assert_eq(format("{}", true), "true")
+    ut.assert_eq(format("{}", false), "false")
+    ut.assert_eq(format("{}", int8(65)), "65")
+}
+
+@test
+func test_small_number_fmt_explicit() {
+    let f = Formatter()
+    int8(7).fmt(f)
+    f.write_str(" ")
+    uint8(255).fmt(f)
+    f.write_str(" ")
+    float32(1.5).fmt(f)
+    ut.assert_eq(f.result(), "7 255 1.5")
+}
+
+@test
+func test_duration_display_via_fmt() {
+    ut.assert_eq(format("{}", time.Duration.from_millis(123)), "123ms")
+    ut.assert_eq(format("{}", time.Duration.from_secs(2)), "2s")
+}
+
+@test
+func test_str_to_str_returns_self() {
+    ut.assert_eq("hello".to_str(), "hello")
+    ut.assert_eq("".to_str(), "")
+}
+
+@test
+func test_str_bool() {
+    ut.assert_eq(str(true), "true")
+    ut.assert_eq(str(false), "false")
+}
+
+@test
+func test_str_path() {
+    ut.assert_eq(str(fs.Path("/a/b")), "/a/b")
+}
+
+@test
+func test_duration_to_str_canonical() {
+    let d = time.Duration.from_millis(1500)
+    ut.assert_eq(d.to_str(), "1500000000ns")
+    ut.assert_eq(d.to_ns(), 1500000000)
+    ut.assert_true(time.Duration(d.to_ns()) == d)
+    ut.assert_eq(format("{}", d), "1s")
+}
+
+@test
+func test_instant_to_str_method() {
+    // Instant.to_str() is a plain method (no ToString conform): it returns the
+    // debug-oriented form, same shape as fmt; str(i) stays a compile error
+    // (see test-kl/test_to_str_ban.kl).
+    let i = time.Instant(123, 0)
+    ut.assert_eq(i.to_str(), "Instant(epoch_ns=123, clock=0)")
+    ut.assert_eq(format("{}", i), "Instant(epoch_ns=123, clock=0)")
+}

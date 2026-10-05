@@ -21,7 +21,7 @@ pub class dict[K, V] : Map[K, V] {
 
     /// Return an iterator over the (key, value) pairs in insertion order.
     @native
-    pub func __iter__() Iterator[(K, V)] {}
+    pub func iter(step = 1) Iterator[(K, V)] {}
 
     /// Return the number of key-value pairs. O(1).
     @native

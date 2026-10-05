@@ -4,7 +4,7 @@
  */
 
 /// Represents a logical value that can be either true or false.
-pub class bool {
+pub class bool : ToString {
 
     /// Return the logical AND of `self` and `other` (`self && other`).
     @intrinsic
