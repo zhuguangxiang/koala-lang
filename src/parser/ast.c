@@ -275,6 +275,7 @@ Expr *expr_from_is_expr(Expr *exp, Loc op_loc, TypeSpec *type)
     e->exp = exp;
     e->op_loc = op_loc;
     e->type = type;
+    e->result = RUNTIME_CHECK;
     return (Expr *)e;
 }
 

@@ -1,0 +1,36 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+class Dog {}
+class Cat {}
+
+func is_always_true(x Dog) bool {
+    return x is Dog
+}
+
+func is_always_false(x Dog) bool {
+    return x is Cat
+}
+
+func is_generic_always_true(x list[int]) bool {
+    return x is list[int]
+}
+
+func is_generic_always_false(x list[int]) bool {
+    return x is list[str]
+}
+
+func as_always_true(x Dog) Dog {
+    return x as Dog
+}
+
+func as_always_false(x Dog) Cat? {
+    return x as Cat
+}
+
+// CHECK: 'is' check is always true:
+// CHECK: 'is' check is always false:
+// CHECK: 'is' check is always true:
+// CHECK: 'is' check is always false:
+// CHECK: 'as' check is always true:
+// CHECK: 'as' check is always false:
+// CHECK-NOT: {{.*}}error{{.*}}

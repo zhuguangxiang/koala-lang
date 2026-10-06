@@ -619,6 +619,29 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
                     int res = lval->ival == rval->ival;
                     KlrValue *const_res = klr_const_bool(res, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (lval->which == CONST_FLT && rval->which == CONST_FLT) {
+                    log_info("fold binary cmp_eq(float) insn to const bool:");
+                    log_insn(insn);
+                    int res = lval->fval == rval->fval;
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (lval->which == CONST_BOOL && rval->which == CONST_BOOL) {
+                    log_info("fold binary cmp_eq(bool) insn to const bool:");
+                    log_insn(insn);
+                    int res = lval->bval == rval->bval;
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (lval->which == CONST_STR && rval->which == CONST_STR) {
+                    log_info("fold binary cmp_eq(str) insn to const bool:");
+                    log_insn(insn);
+                    int res = !strcmp(lval->sval, rval->sval);
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (lval->which == CONST_NONE && rval->which == CONST_NONE) {
+                    log_info("fold binary cmp_eq(nil) insn to const bool:");
+                    log_insn(insn);
+                    KlrValue *const_res = klr_const_bool(1, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
             break;
@@ -636,6 +659,29 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
                     log_insn(insn);
                     int res = lval->ival != rval->ival;
                     KlrValue *const_res = klr_const_bool(res, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (lval->which == CONST_FLT && rval->which == CONST_FLT) {
+                    log_info("fold binary cmp_ne(flt) insn to const bool:");
+                    log_insn(insn);
+                    int res = lval->fval != rval->fval;
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (lval->which == CONST_BOOL && rval->which == CONST_BOOL) {
+                    log_info("fold binary cmp_ne(bool) insn to const bool:");
+                    log_insn(insn);
+                    int res = lval->bval != rval->bval;
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (lval->which == CONST_STR && rval->which == CONST_STR) {
+                    log_info("fold binary cmp_ne(str) insn to const bool:");
+                    log_insn(insn);
+                    int res = strcmp(lval->sval, rval->sval);
+                    KlrValue *const_res = klr_const_bool(res, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if (lval->which == CONST_NONE && rval->which == CONST_NONE) {
+                    log_info("fold binary cmp_ne(nil) insn to const bool:");
+                    log_insn(insn);
+                    KlrValue *const_res = klr_const_bool(0, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
@@ -702,7 +748,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             KlrValue *rhs = insn_oper_value(insn, 1);
 
             ASSERT(lhs->ts == rhs->ts);
-            ASSERT(lhs->ts == bool_type_spec());
+            ASSERT(insn_oper_ts(insn, 0) == bool_type_spec());
 
             // Short-circuiting
             if (klr_is_const(lhs)) {
@@ -746,7 +792,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
             KlrValue *rhs = insn_oper_value(insn, 1);
 
             ASSERT(lhs->ts == rhs->ts);
-            ASSERT(lhs->ts == bool_type_spec());
+            ASSERT(insn_oper_ts(insn, 0) == bool_type_spec());
 
             // Short-circuiting
             if (klr_is_const(lhs)) {
@@ -785,7 +831,7 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
 
         case OP_LNOT: {
             KlrValue *val = insn_oper_value(insn, 0);
-            ASSERT(val->ts == bool_type_spec());
+            ASSERT(insn_oper_ts(insn, 0) == bool_type_spec());
 
             if (klr_is_const(val)) {
                 KlrConst *c = (KlrConst *)val;

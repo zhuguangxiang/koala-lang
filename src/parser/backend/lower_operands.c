@@ -360,6 +360,23 @@ static void lower_new_opers(KlrInsn *insn, KlMachModule *m)
     }
 }
 
+static void lower_is_as_opers(KlrInsn *insn, KlMachModule *m)
+{
+    KlrValue *src = insn_oper_value(insn, 0);
+    set_raw_imm(&insn->raws[0], insn->vreg);
+    set_raw_imm(&insn->raws[1], src->vreg);
+
+    KlrValue *target = insn->target_kls;
+    if (target && target->kind == KLR_VALUE_KLASS) {
+        KlrKlass *kls = (KlrKlass *)target;
+        set_raw_imm(&insn->raws[2], kls->index);
+    } else {
+        int index = mach_import_add_klass(m, insn->target_path, insn->target_name);
+        ASSERT(index >= 0 && index <= UINT8_MAX);
+        set_raw_imm(&insn->raws[2], index);
+    }
+}
+
 static void lower_set_field_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
@@ -621,6 +638,12 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_NEW: {
                     lower_new_opers(insn, m);
+                    break;
+                }
+
+                case OP_IS:
+                case OP_AS: {
+                    lower_is_as_opers(insn, m);
                     break;
                 }
 

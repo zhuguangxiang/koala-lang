@@ -244,6 +244,8 @@ char *mangle_type_name(char *base_name, Vector *tp_args);
 char *mangle_func_name(char *base_name, Vector *tp_args);
 TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args);
 
+bool type_spec_equal_exact(TypeSpec *a, TypeSpec *b);
+
 #ifndef NOLOG
 /* clang-format off */
 #define log_type_spec(ts) do {        \

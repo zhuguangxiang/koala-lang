@@ -1,0 +1,61 @@
+
+trait Hello {
+    func hello() str
+    func hi() str
+}
+
+
+class MyClass : Hello {
+    func hello2() str {
+        return "Hello from MyClass!"
+    }
+    func hi() str {
+        return "Hi from MyClass!"
+    }
+
+    func __call__() str {
+        return "MyClass instance called!"
+    }
+}
+
+// TODO: Implement the hello() method for MyClass in top-level code
+// test_misc_4.kl
+// let myObject Hello = MyClass()
+// myObject.hello()
+
+func main() {
+    // let x |int| int = {|a| a}
+    // let y {|int| int} = {|a| a}
+    // let z {|int| int}? = {|a| a}
+
+    // let arr1 = array[int, 2, 2](1, 2, 3, 4.1)
+    // let arr2 = array[int](1,2)
+    // let arr3 = array[int, 10](1,2,3,4,5,6,7,8,9)
+    // let arr4 = array[int, 2, 3](1,2,3,4,5,6,7,8,9,10)
+    // arr4[0, 0] = -1
+    // let N = 2
+    // let arr5 = array[int, _, N](1,2,3,4)
+    // print(test7(2))
+
+    // FIXME:
+    // print(float32(3.14))
+    // print([1,2,3])
+    // print((1,2,3))
+    // print((1,2,3))
+    // CHECK: 1, 2, 3
+    // let tpl = (1,2,3)
+    // print(tpl)
+    // CHECK: (1, 2, 3)
+
+    // let l = [(1, 2), (3, 4), (5, 6)]
+    // // for (x, y) in l {
+    // //     print(format("x={:d}, y={:d}", x, y))
+    // // }
+    // print(l)
+
+    // for x in l {
+    //     print(format("x={:d}, y={:d}", x[0], x[1]))
+    // }
+
+    print(str)
+}

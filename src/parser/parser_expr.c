@@ -1417,7 +1417,8 @@ static void parse_call(ParserState *ps, Expr *exp)
             params = ((FuncSymbol *)call_fn_sym)->params;
             exp->arg = call_fn_sym;
         } else {
-            UNREACHABLE();
+            kl_error(lhs->loc, "'%s' is not callable", lhs_sym->name);
+            return;
         }
     } else if (lhs_sym->kind == SYM_CLASS) {
         // constructor call without type parameters, e.g. Foo(100)
@@ -3029,6 +3030,11 @@ static int check_type_cast(TypeSpec *src, TypeSpec *target, ParserState *ps)
         return 1;
     }
 
+    if (type_spec_equal_exact(src, target)) {
+        log_info("type cast is valid, source and target type are equal. cast is safe.");
+        return 1;
+    }
+
     Symbol *src_sym = get_symbol_by_id(src->sym_id);
     ASSERT(src_sym->kind == SYM_CLASS || src_sym->kind == SYM_INSTANCE ||
            src_sym->kind == SYM_TRAIT);
@@ -3056,59 +3062,266 @@ static int check_type_cast(TypeSpec *src, TypeSpec *target, ParserState *ps)
     return 0;
 }
 
+static int is_class_type_symbol(Symbol *sym)
+{
+    if (!sym) return 0;
+
+    if (sym->kind == SYM_CLASS) return 1;
+
+    if (sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *instance = (InstanceSymbol *)sym;
+        return instance->origin && instance->origin->kind == SYM_CLASS;
+    }
+
+    return 0;
+}
+
+static int is_trait_type_symbol(Symbol *sym)
+{
+    if (!sym) return 0;
+
+    if (sym->kind == SYM_TRAIT) return 1;
+
+    if (sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *instance = (InstanceSymbol *)sym;
+        return instance->origin && instance->origin->kind == SYM_TRAIT;
+    }
+
+    return 0;
+}
+
+static int union_has_member(TypeSpec *union_ts, TypeSpec *target_ts)
+{
+    TypeSpec *member;
+    vector_foreach(member, union_ts->union_type.args) {
+        if (member->sym_id == target_ts->sym_id) return 1;
+    }
+
+    return 0;
+}
+
+/*
+ * Union members and target must be concrete class types.
+ * If the target type is not a member of the union, it is a type error.
+ * If the target type is a member of the union, a runtime check is still required.
+ */
+static int validate_union_target(ParserState *ps, Loc loc, TypeSpec *src_ts, TypeSpec *target_ts)
+{
+    TypeSpec *inner_ts = type_is_optional(src_ts) ? src_ts->opt.src : src_ts;
+    if (inner_ts->kind != TYPE_UNION) return 1;
+
+    if (union_has_member(inner_ts, target_ts)) return 1;
+
+    kl_error(loc, "target type '%s' is not a member of union type '%s'.", target_ts->signature,
+             inner_ts->signature);
+    return 0;
+}
+
+/*
+ * Determines whether the result is statically known or requires a runtime check.
+ * Union membership is validated separately before calling this function.
+ */
+static IsAsResult resolve_cast_check(Expr *src_exp, TypeSpec *src_ts, TypeSpec *target_ts,
+                                     ParserState *ps)
+{
+    int optional = type_is_optional(src_ts);
+    TypeSpec *inner_ts = optional ? src_ts->opt.src : src_ts;
+
+    if (inner_ts->kind == TYPE_UNION) {
+        return RUNTIME_CHECK;
+    }
+
+    // `any` may hold any runtime class, so it cannot be statically classified.
+    if (inner_ts == any_type_spec()) {
+        return RUNTIME_CHECK;
+    }
+
+    Symbol *src_sym = get_symbol_by_id(inner_ts->sym_id);
+    if (!src_sym) return RUNTIME_CHECK;
+
+    if (!is_class_type_symbol(src_sym) && !is_trait_type_symbol(src_sym)) {
+        return RUNTIME_CHECK;
+    }
+
+    // A nullable source may be nil, so even a provable upcast needs a runtime check.
+    if (check_type_cast(inner_ts, target_ts, ps)) {
+        return optional ? RUNTIME_CHECK : ALWAYS_TRUE;
+    }
+
+    if (is_trait_type_symbol(src_sym)) {
+        /*
+         * A trait value may contain a target class only if that class implements
+         * the source trait. If it does, the runtime value still determines the result.
+         */
+        return check_type_cast(target_ts, inner_ts, ps) ? RUNTIME_CHECK : ALWAYS_FALSE;
+    }
+
+    /*
+     * The source is a concrete class (including a specialized class instance).
+     * Class inheritance is unsupported, so a failed upcast means it cannot be
+     * the target class.
+     */
+    return ALWAYS_FALSE;
+}
+
+static char *result_string(IsAsResult result)
+{
+    switch (result) {
+        case RUNTIME_CHECK:
+            return "Runtime Check";
+        case ALWAYS_TRUE:
+            return "Always True";
+        case ALWAYS_FALSE:
+            return "Always False";
+        default:
+            UNREACHABLE();
+            return "Unknown";
+    }
+}
+
+static void warn_static_cast(ParserState *ps, Loc loc, const char *op, IsAsResult result,
+                             TypeSpec *src_ts, TypeSpec *target_ts)
+{
+    if (result == ALWAYS_TRUE) {
+        kl_warn(loc, "'%s' check is always true: '%s' is always '%s'.", op, src_ts->signature,
+                target_ts->signature);
+    } else if (result == ALWAYS_FALSE) {
+        kl_warn(loc, "'%s' check is always false: '%s' can never be '%s'.", op, src_ts->signature,
+                target_ts->signature);
+    }
+}
+
+static int validate_cast_target(ParserState *ps, Loc loc, const char *op, TypeSpec *target_ts)
+{
+    if (target_ts->kind == TYPE_OPTIONAL || target_ts->kind == TYPE_UNION) {
+        kl_error(loc, "target type of '%s' operator must be a class type.", op);
+        return 0;
+    }
+
+    Symbol *target_sym = get_symbol_by_id(target_ts->sym_id);
+    if (!target_sym) {
+        kl_error(loc, "type is not found.");
+        return 0;
+    }
+
+    if (!is_class_type_symbol(target_sym)) {
+        kl_error(loc, "target type of '%s' operator must be a class type.", op);
+        return 0;
+    }
+
+    if (!strcmp(target_sym->name, "NilType")) {
+        kl_error(loc, "target type of '%s' operator cannot be NilType, use '== nil' instead.", op);
+        return 0;
+    }
+
+    return 1;
+}
+
+static int check_src_type(TypeSpec *src_ts)
+{
+    if (src_ts->kind == TYPE_NO_TYPE || src_ts->kind == TYPE_VA_LIST ||
+        src_ts->kind == TYPE_PACKAGE || src_ts->kind == TYPE_PROTO ||
+        src_ts->kind == TYPE_UNRESOLVED || src_ts->kind == TYPE_MANGLED ||
+        src_ts->kind == TYPE_GENERIC_VAR) {
+        return 0;
+    }
+
+    return 1;
+}
+
 static void parse_as(ParserState *ps, Expr *exp)
 {
     AsExpr *as = (AsExpr *)exp;
+    if (exp->ts) {
+        log_info("'as' operator is already resolved, result = %s.", result_string(as->result));
+        return;
+    }
+
     Expr *e = as->exp;
     e->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, e);
     if (!e->ts) return;
 
-    TypeSpec *target_ts = as->type;
+    if (!check_src_type(e->ts)) {
+        kl_error(e->ts->loc, "src of 'as' operator is not a valid type.");
+        return;
+    }
+
+    Loc loc = as->type->loc;
+
+    TypeSpec *target_ts = resolve_type(ps, as->type);
+    if (!target_ts) {
+        kl_error(loc, "type is not found.");
+        return;
+    }
+
+    if (!validate_cast_target(ps, loc, "as", target_ts)) return;
+    if (!validate_union_target(ps, loc, e->ts, target_ts)) return;
+
+    as->target_ts = target_ts;
+    as->result = resolve_cast_check(e, e->ts, target_ts, ps);
+    warn_static_cast(ps, loc, "as", as->result, e->ts, target_ts);
+
+    // A statically successful cast has type T; a runtime or failed cast has type T?.
+    exp->ts = as->result == ALWAYS_TRUE ? target_ts : optional_type_spec(target_ts);
+    exp->sym = get_symbol_by_id(exp->ts->sym_id);
+
     Symbol *target_sym = get_symbol_by_id(target_ts->sym_id);
     if (!target_sym) {
-        kl_error(as->loc, "type is not found.");
+        kl_error(loc, "type is not found.");
         return;
     }
+    as->target_sym = target_sym;
 
-    if (target_sym->kind != SYM_CLASS && target_sym->kind != SYM_TRAIT) {
-        kl_error(as->loc, "target type of 'as' operator must be a class or trait type.");
-        return;
-    }
-
-    as->safe_cast = check_type_cast(e->ts, target_ts, ps);
-
-    exp->ts = target_ts;
-    exp->sym = target_sym;
-    log_info("'as' operator resolved, cast type to '%s'.", target_ts->signature);
+    log_info("'as' operator resolved for target '%s': %s.", target_ts->signature,
+             result_string(as->result));
 }
 
 static void parse_is(ParserState *ps, Expr *exp)
 {
     IsExpr *is = (IsExpr *)exp;
+    if (exp->ts) {
+        log_info("'is' operator is already resolved, result = %s.", result_string(is->result));
+        return;
+    }
+
     Expr *e = is->exp;
     e->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, e);
     if (!e->ts) return;
 
-    TypeSpec *target_ts = is->type;
-    Symbol *target_sym = get_symbol_by_id(target_ts->sym_id);
-    if (!target_sym) {
-        kl_error(is->loc, "type is not found.");
+    if (!check_src_type(e->ts)) {
+        kl_error(e->ts->loc, "src of 'is' operator is not a valid type.");
         return;
     }
 
-    if (target_sym->kind != SYM_CLASS && target_sym->kind != SYM_TRAIT) {
-        kl_error(is->loc, "target type of 'is' operator must be a class or trait type.");
+    Loc loc = is->type->loc;
+
+    TypeSpec *target_ts = resolve_type(ps, is->type);
+    if (!target_ts) {
+        kl_error(loc, "type is not found.");
         return;
     }
 
-    is->result = check_type_cast(e->ts, target_ts, ps);
+    if (!validate_cast_target(ps, loc, "is", target_ts)) return;
+    if (!validate_union_target(ps, loc, e->ts, target_ts)) return;
+
+    is->target_ts = target_ts;
+    is->result = resolve_cast_check(e, e->ts, target_ts, ps);
+    warn_static_cast(ps, loc, "is", is->result, e->ts, target_ts);
 
     exp->ts = bool_type_spec();
     exp->sym = get_symbol_by_id(exp->ts->sym_id);
-    log_info("'is' operator resolved, cast type to '%s' is '%s'.", target_ts->signature,
-             is->result ? "true" : "unknown (maybe false at runtime)");
+
+    Symbol *target_sym = get_symbol_by_id(target_ts->sym_id);
+    if (!target_sym) {
+        kl_error(loc, "type is not found.");
+        return;
+    }
+    is->target_sym = target_sym;
+
+    log_info("'is' operator resolved for target '%s': %s.", target_ts->signature,
+             result_string(is->result));
 }
 
 static void parse_in(ParserState *ps, Expr *exp)

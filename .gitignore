@@ -19,3 +19,4 @@ test_shm_read
 examples/*.klc
 bench/*.klc
 .vscode/*.json
+libs/koala.std.tar

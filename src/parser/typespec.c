@@ -1612,6 +1612,46 @@ TypeSpec *type_spec_specialize(TypeSpec *ts, Vector *tp_args)
     return ts;
 }
 
+bool type_spec_equal_exact(TypeSpec *a, TypeSpec *b)
+{
+    if (a == b) return true;
+    if (!a || !b) return false;
+    if (a->kind != b->kind) return false;
+
+    switch (a->kind) {
+        case TYPE_KLASS: {
+            return !strcmp(a->klass_type.name, b->klass_type.name) &&
+                   !strcmp(a->klass_type.pkg, b->klass_type.pkg);
+        }
+
+        case TYPE_GENERIC_VAR: {
+            if (a->generic_var.index != b->generic_var.index) return false;
+            if (strcmp(a->generic_var.owner, b->generic_var.owner)) return false;
+            if (strcmp(a->generic_var.pkg, b->generic_var.pkg)) return false;
+            if (strcmp(a->generic_var.name, b->generic_var.name)) return false;
+            return true;
+        }
+
+        case TYPE_GENERIC_REF: {
+            if (strcmp(a->generic_ref.pkg, b->generic_ref.pkg)) return false;
+            if (strcmp(a->generic_ref.name, b->generic_ref.name)) return false;
+            if (vector_size(a->generic_ref.args) != vector_size(b->generic_ref.args)) return false;
+            int size = vector_size(a->generic_ref.args);
+            for (int i = 0; i < size; i++) {
+                TypeSpec *arg_a = vector_get(a->generic_ref.args, i);
+                TypeSpec *arg_b = vector_get(b->generic_ref.args, i);
+                if (!type_spec_equal_exact(arg_a, arg_b)) return false;
+            }
+            return true;
+        }
+
+        default: {
+            UNREACHABLE();
+            return false;
+        }
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif

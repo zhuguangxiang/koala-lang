@@ -1,0 +1,125 @@
+// RUN: koala --test %s
+
+from "std/ut" import assert_eq
+
+class Cat {
+    pub func name() str { return "cat" }
+}
+
+func ne_nil(v Cat?) str {
+    if v != nil { return v.name() }
+    return "nil"
+}
+
+func eq_nil_else(v Cat?) str {
+    if v == nil { return "nil" } else { return v.name() }
+}
+
+func not_eq_nil(v Cat?) str {
+    if !(v == nil) { return v.name() }
+    return "nil"
+}
+
+func not_ne_nil_else(v Cat?) str {
+    if !(v != nil) { return "nil" } else { return v.name() }
+}
+
+func if_let(v Cat?) str {
+    if let c = v { return c.name() }
+    return "nil"
+}
+
+func while_ne_nil(v Cat?) str {
+    var i = 0
+    var r = ""
+    while v != nil {
+        r = r + v.name()
+        i = i + 1
+        if i >= 2 { break }
+    }
+    return r
+}
+
+func while_not_eq_nil(v Cat?) str {
+    var i = 0
+    var r = ""
+    while !(v == nil) {
+        r = r + v.name()
+        i = i + 1
+        if i >= 2 { break }
+    }
+    return r
+}
+
+func while_let(v Cat?) str {
+    var i = 0
+    var r = ""
+    while let c = v {
+        r = r + c.name()
+        i = i + 1
+        if i >= 2 { break }
+    }
+    return r
+}
+
+@test
+func test_if_narrow() {
+    assert_eq(ne_nil(Cat()), "cat")
+    assert_eq(ne_nil(nil), "nil")
+    assert_eq(eq_nil_else(Cat()), "cat")
+    assert_eq(eq_nil_else(nil), "nil")
+}
+
+@test
+func test_if_negated_narrow() {
+    assert_eq(not_eq_nil(Cat()), "cat")
+    assert_eq(not_eq_nil(nil), "nil")
+    assert_eq(not_ne_nil_else(Cat()), "cat")
+    assert_eq(not_ne_nil_else(nil), "nil")
+}
+
+@test
+func test_if_let_narrow() {
+    assert_eq(if_let(Cat()), "cat")
+    assert_eq(if_let(nil), "nil")
+}
+
+@test
+func test_while_narrow() {
+    assert_eq(while_ne_nil(Cat()), "catcat")
+    assert_eq(while_ne_nil(nil), "")
+    assert_eq(while_not_eq_nil(Cat()), "catcat")
+    assert_eq(while_not_eq_nil(nil), "")
+    assert_eq(while_let(Cat()), "catcat")
+    assert_eq(while_let(nil), "")
+}
+
+func while_let_as_class(v Cat | str) str {
+    var i = 0
+    var r = ""
+    while let c = v as Cat {
+        r = r + c.name()
+        i = i + 1
+        if i >= 2 { break }
+    }
+    return r
+}
+
+func while_let_as_int(v any) int {
+    var i = 0
+    var r = 0
+    while let n = v as int {
+        r = r + n
+        i = i + 1
+        if i >= 2 { break }
+    }
+    return r
+}
+
+@test
+func test_while_let_as() {
+    assert_eq(while_let_as_class(Cat()), "catcat")
+    assert_eq(while_let_as_class("x"), "")
+    assert_eq(while_let_as_int(5), 10)
+    assert_eq(while_let_as_int("x"), 0)
+}

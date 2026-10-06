@@ -3,6 +3,34 @@
 import "std/fs"
 import "std/ut"
 
+func path_segment_is_str(segment fs.Path | str) bool {
+    return segment is str
+}
+
+func path_segment_is_path(segment fs.Path | str) bool {
+    return segment is fs.Path
+}
+
+func path_segment_if_is_str(segment fs.Path | str) bool {
+    if segment is str {
+        return true
+    } else {
+        return false
+    }
+}
+
+func path_segment_as_str(segment fs.Path | str) str {
+    return (segment as str)!
+}
+
+func path_segment_as_path(segment fs.Path | str) fs.Path {
+    return (segment as fs.Path)!
+}
+
+class PathSegmentCheck {
+    func is_str(segment fs.Path | str) bool { return segment is str }
+}
+
 @test
 func test_path_init_and_to_str() {
     let p = fs.Path("/a/b/file.kl")
@@ -97,25 +125,34 @@ func test_path_equality() {
     ut.assert_ne(p1, p3)
 }
 
-// @test
-// func test_path_cat_polymorphism() {
-//     let base = fs.Path("abc")
+@test
+func test_path_cat_polymorphism() {
+    ut.assert_eq(path_segment_is_str("def"), true)
+    ut.assert_eq(path_segment_is_path("def"), false)
+    ut.assert_eq(path_segment_is_str(fs.Path("def")), false)
+    ut.assert_eq(path_segment_is_path(fs.Path("def")), true)
+    ut.assert_eq(path_segment_if_is_str("def"), true)
+    ut.assert_eq(path_segment_if_is_str(fs.Path("def")), false)
+    ut.assert_eq(path_segment_as_str("def"), "def")
+    ut.assert_eq(path_segment_as_path(fs.Path("def")).to_str(), "def")
+    ut.assert_eq(PathSegmentCheck().is_str("def"), true)
 
-//     // 1. Validate fluent string-based append chaining
-//     let p_str = base.cat("def").cat("ok")
-//     ut.assert_eq(p_str.to_str(), "abc/def/ok")
+    let base = fs.Path("abc")
 
-//     // 2. Validate polymorphic object-based merge
-//     let sub_path = fs.Path("sub/dir")
-//     let p_path = base.cat(sub_path)
-//     ut.assert_eq(p_path.to_str(), "abc/sub/dir")
+    // String segments and Path segments are both accepted by the union parameter.
+    let p_str = base.cat("def").cat("ok")
+    ut.assert_eq(p_str.to_str(), "abc/def/ok")
 
-//     // 3. Validate safety washes on double slash edge collisions
-//     let p_slash1 = fs.Path("abc/").cat("/def")
-//     let p_slash2 = fs.Path("abc").cat("/def")
-//     ut.assert_eq(p_slash1.to_str(), "abc/def")
-//     ut.assert_eq(p_slash2.to_str(), "abc/def")
+    let sub_path = fs.Path("sub/dir")
+    let p_path = base.cat(sub_path)
+    ut.assert_eq(p_path.to_str(), "abc/sub/dir")
 
-//     // 4. Empty append acts as an absolute no-op identity function
-//     ut.assert_eq(base.cat("").to_str(), "abc")
-// }
+    // Existing separators are normalized rather than duplicated.
+    let p_slash1 = fs.Path("abc/").cat("/def")
+    let p_slash2 = fs.Path("abc").cat("/def")
+    ut.assert_eq(p_slash1.to_str(), "abc/def")
+    ut.assert_eq(p_slash2.to_str(), "abc/def")
+
+    // Appending an empty segment leaves the path unchanged.
+    ut.assert_eq(base.cat("").to_str(), "abc")
+}

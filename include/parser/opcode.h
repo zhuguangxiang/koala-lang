@@ -73,7 +73,6 @@ typedef enum {
     FORMAT_PRINT,
     FORMAT_JMP,
     FORMAT_WIDE,
-    FORMAT_NEW,
 
     FORMAT_RTagImm,             // build_intern
 

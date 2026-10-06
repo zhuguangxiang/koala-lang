@@ -1,0 +1,2591 @@
+--- IR Dump After isel [@open] ---
+  func @open(%path_or_fd int64 | str | std/fs.Path, %mode str) std/fs.File? {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@read_bytes] ---
+  func @read_bytes(%path str | std/fs.Path, %out std/builtin.bytes) int64 {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@write_bytes] ---
+  func @write_bytes(%path str | std/fs.Path, %data std/builtin.bytes) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@write_str] ---
+  func @write_str(%path str | std/fs.Path, %data str) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@exists] ---
+  func @exists(%p str | std/fs.Path) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@is_file] ---
+  func @is_file(%p str | std/fs.Path) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@is_dir] ---
+  func @is_dir(%p str | std/fs.Path) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@size] ---
+  func @size(%p str | std/fs.Path) int64 {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@remove] ---
+  func @remove(%p str | std/fs.Path) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@mkdir] ---
+  func @mkdir(%p str | std/fs.Path, %parents bool) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@rmdir] ---
+  func @rmdir(%p str | std/fs.Path) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@list_dir] ---
+  func @list_dir(%p str | std/fs.Path) std/builtin.list<Lstd/fs.Path;> {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::__init__] ---
+  func @File:__init__(%self std/fs.File) <NO-TYPE> {
+  %bb0(entry):
+        ret void
+  }
+--- IR Dump After isel [@File::read] ---
+  func @File:read(%self std/fs.File, %bs std/builtin.bytes) int64 {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::write] ---
+  func @File:write(%self std/fs.File, %bs std/builtin.bytes) int64 {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::write_str] ---
+  func @File:write_str(%self std/fs.File, %s str) int64 {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::seek] ---
+  func @File:seek(%self std/fs.File, %offset int64, %whence int64) int64 {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::tell] ---
+  func @File:tell(%self std/fs.File) int64 {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::truncate] ---
+  func @File:truncate(%self std/fs.File, %size int64) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::close] ---
+  func @File:close(%self std/fs.File) <NO-TYPE> {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::flush] ---
+  func @File:flush(%self std/fs.File) <NO-TYPE> {
+  %bb0(entry):
+        %0 = get_field %self std/fs.File, closed(index=2)
+        branch %0 bool, label %bb1, label %bb2
+
+  %bb1(if-then):                                  ;; preds = %bb0
+        %1 = local str        [fixedslot = 0(next)]
+        loadk %1 str, 'file is closed' str
+        call @panic [path = 'std/builtin', const], nargs=1
+        jmp label %bb2
+
+  %bb2(if-end):                                   ;; preds = %bb1, %bb0
+        ret void
+  }
+--- IR Dump After isel [@File::__eq__] ---
+  func @File:__eq__(%self std/fs.File, %other std/fs.File) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::__ne__] ---
+  func @File:__ne__(%self std/fs.File, %other std/fs.File) bool {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::hash] ---
+  func @File:hash(%self std/fs.File) int64 {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@File::fmt] ---
+  func @File:fmt(%self std/fs.File, %f std/builtin.Formatter) <NO-TYPE> {
+  %bb0(entry):
+        unreachable
+  }
+--- IR Dump After isel [@Path::__init__] ---
+  func @Path:__init__(%self std/fs.Path, %p str) <NO-TYPE> {
+  %bb0(entry):
+        set_field %self std/fs.Path, path(index=0), %p str
+        ret void
+  }
+--- IR Dump After isel [@Path::name] ---
+  func @Path:name(%self std/fs.Path) str {
+  %bb0(entry):
+        %0 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %1 = call @str:empty [path = 'std/builtin'], nargs=1
+        branch %1 bool, label %bb1, label %bb2
+
+  %bb1(if-then):                                  ;; preds = %bb0
+        ret_const '(null)' str
+
+  %bb2(if-end):                                   ;; preds = %bb0
+        %2 = get_field %self std/fs.Path, path(index=0)
+        %p = local str
+        move %p str, %2 str
+        %3 = local str        [fixedslot = 0(next)]
+        move %3 str, %p str
+        %4 = local str        [fixedslot = 1(next)]
+        loadk %4 str, '/' str
+        %5 = call @str:ends_with [path = 'std/builtin'], nargs=2
+        %lor = local bool
+        move %lor bool, %5 bool
+        branch %5 bool, label %bb6, label %bb5
+
+  %bb3(while-body):                               ;; preds = %bb8, %bb12
+        %6 = local str        [fixedslot = 0(next)]
+        move %6 str, %p str
+        %7 = call @str:len [path = 'std/builtin'], nargs=1
+        %8 = int.sub_imm %7 int64, 1 int64        [fixedslot = 2(next)]
+        %9 = local str        [fixedslot = 0(next)]
+        move %9 str, %p str
+        %10 = local int64        [fixedslot = 1(next)]
+        load_int_imm %10 int64, 0 int64
+        %11 = call @str:view [path = 'std/builtin'], nargs=3
+        move %p str, %11 str
+        %12 = local str        [fixedslot = 0(next)]
+        move %12 str, %p str
+        %13 = local str        [fixedslot = 1(next)]
+        loadk %13 str, '/' str
+        %14 = call @str:ends_with [path = 'std/builtin'], nargs=2
+        %lor = local bool
+        move %lor bool, %14 bool
+        branch %14 bool, label %bb10, label %bb9
+
+  %bb4(while-end):                                ;; preds = %bb8, %bb12
+        %15 = local str        [fixedslot = 0(next)]
+        move %15 str, %p str
+        %16 = local str        [fixedslot = 1(next)]
+        loadk %16 str, '\\' str
+        %17 = local str        [fixedslot = 2(next)]
+        loadk %17 str, '/' str
+        %18 = call @str:replace [path = 'std/builtin'], nargs=3        [fixedslot = 0(next)]
+        %19 = local str        [fixedslot = 1(next)]
+        loadk %19 str, '/' str
+        %20 = local int64        [fixedslot = 2(next)]
+        load_int_imm %20 int64, -1 int64
+        %21 = call @str:split [path = 'std/builtin'], nargs=3
+        %parts = local [immutable] std/builtin.list<u>
+        move %parts std/builtin.list<u>, %21 std/builtin.list<u>
+        %22 = local std/builtin.list<u>        [fixedslot = 0(next)]
+        move %22 std/builtin.list<u>, %parts std/builtin.list<u>
+        %23 = call @list:len [path = 'std/builtin'], nargs=1
+        jmp_int_gt_imm %23 int64, 0 int64, label %bb13, label %bb14
+
+  %bb5(logical-rhs):                              ;; preds = %bb2
+        %24 = local str        [fixedslot = 0(next)]
+        move %24 str, %p str
+        %25 = local str        [fixedslot = 1(next)]
+        loadk %25 str, '\\' str
+        %26 = call @str:ends_with [path = 'std/builtin'], nargs=2
+        move %lor bool, %26 bool
+        jmp label %bb6
+
+  %bb6(logical-end):                              ;; preds = %bb5, %bb2
+        %land = local bool
+        move %land bool, %lor bool
+        branch %lor bool, label %bb7, label %bb8
+
+  %bb7(logical-rhs):                              ;; preds = %bb6
+        %27 = local str        [fixedslot = 0(next)]
+        move %27 str, %p str
+        %28 = call @str:len [path = 'std/builtin'], nargs=1
+        %29 = int.gt_imm %28 int64, 1 int64
+        move %land bool, %29 bool
+        jmp label %bb8
+
+  %bb8(logical-end):                              ;; preds = %bb6, %bb7
+        branch %land bool, label %bb3, label %bb4
+
+  %bb9(logical-rhs):                              ;; preds = %bb3
+        %30 = local str        [fixedslot = 0(next)]
+        move %30 str, %p str
+        %31 = local str        [fixedslot = 1(next)]
+        loadk %31 str, '\\' str
+        %32 = call @str:ends_with [path = 'std/builtin'], nargs=2
+        move %lor bool, %32 bool
+        jmp label %bb10
+
+  %bb10(logical-end):                             ;; preds = %bb3, %bb9
+        %land = local bool
+        move %land bool, %lor bool
+        branch %lor bool, label %bb11, label %bb12
+
+  %bb11(logical-rhs):                             ;; preds = %bb10
+        %33 = local str        [fixedslot = 0(next)]
+        move %33 str, %p str
+        %34 = call @str:len [path = 'std/builtin'], nargs=1
+        %35 = int.gt_imm %34 int64, 1 int64
+        move %land bool, %35 bool
+        jmp label %bb12
+
+  %bb12(logical-end):                             ;; preds = %bb10, %bb11
+        branch %land bool, label %bb3, label %bb4
+
+  %bb13(if-then):                                 ;; preds = %bb4
+        %36 = local std/builtin.list<u>        [fixedslot = 0(next)]
+        move %36 std/builtin.list<u>, %parts std/builtin.list<u>
+        %37 = call @list:len [path = 'std/builtin'], nargs=1
+        %38 = int.sub_imm %37 int64, 1 int64
+        %39 = seq.get %parts std/builtin.list<u>, %38 int64
+        ret %39 str
+
+  %bb14(if-end):                                  ;; preds = %bb4
+        ret %p str
+  }
+--- IR Dump After isel [@Path::ext] ---
+  func @Path:ext(%self std/fs.Path) str {
+  %bb0(entry):
+        %0 = local std/fs.Path        [fixedslot = 0(next)]
+        move %0 std/fs.Path, %self std/fs.Path
+        %1 = call @Path:name, nargs=1
+        %2 = local str        [fixedslot = 0(next)]
+        move %2 str, %1 str
+        %3 = local str        [fixedslot = 1(next)]
+        loadk %3 str, '.' str
+        %4 = local int64        [fixedslot = 2(next)]
+        load_int_imm %4 int64, 0 int64
+        %5 = local int64        [fixedslot = 3(next)]
+        load_int_imm %5 int64, -1 int64
+        %6 = call @str:rindex [path = 'std/builtin'], nargs=4
+        jmp_int_gt_imm %6 int64, 0 int64, label %bb1, label %bb2
+
+  %bb1(if-then):                                  ;; preds = %bb0
+        %7 = int.add_imm %6 int64, 1 int64
+        %8 = local str        [fixedslot = 0(next)]
+        move %8 str, %1 str
+        %9 = call @str:len [path = 'std/builtin'], nargs=1        [fixedslot = 2(next)]
+        %10 = local str        [fixedslot = 0(next)]
+        move %10 str, %1 str
+        %11 = local int64        [fixedslot = 1(next)]
+        move %11 int64, %7 int64
+        %12 = call @str:view [path = 'std/builtin'], nargs=3
+        ret %12 str
+
+  %bb2(if-end):                                   ;; preds = %bb0
+        ret_const '(null)' str
+  }
+--- IR Dump After isel [@Path::stem] ---
+  func @Path:stem(%self std/fs.Path) str {
+  %bb0(entry):
+        %0 = local std/fs.Path        [fixedslot = 0(next)]
+        move %0 std/fs.Path, %self std/fs.Path
+        %1 = call @Path:name, nargs=1
+        %2 = local str        [fixedslot = 0(next)]
+        move %2 str, %1 str
+        %3 = local str        [fixedslot = 1(next)]
+        loadk %3 str, '.' str
+        %4 = local int64        [fixedslot = 2(next)]
+        load_int_imm %4 int64, 0 int64
+        %5 = local int64        [fixedslot = 3(next)]
+        load_int_imm %5 int64, -1 int64
+        %6 = call @str:rindex [path = 'std/builtin'], nargs=4
+        jmp_int_gt_imm %6 int64, 0 int64, label %bb1, label %bb2
+
+  %bb1(if-then):                                  ;; preds = %bb0
+        %7 = local str        [fixedslot = 0(next)]
+        move %7 str, %1 str
+        %8 = local int64        [fixedslot = 1(next)]
+        load_int_imm %8 int64, 0 int64
+        %9 = local int64        [fixedslot = 2(next)]
+        move %9 int64, %6 int64
+        %10 = call @str:view [path = 'std/builtin'], nargs=3
+        ret %10 str
+
+  %bb2(if-end):                                   ;; preds = %bb0
+        ret %1 str
+  }
+--- IR Dump After isel [@Path::parent] ---
+  func @Path:parent(%self std/fs.Path) std/fs.Path {
+  %bb0(entry):
+        %0 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %1 = call @str:empty [path = 'std/builtin'], nargs=1
+        %lor = local bool
+        move %lor bool, %1 bool
+        branch %1 bool, label %bb2, label %bb1
+
+  %bb1(logical-rhs):                              ;; preds = %bb0
+        %2 = get_field %self std/fs.Path, path(index=0)
+        %3 = local [immutable] str
+        loadk %3 str, '/' str
+        %4 = num.eq %2 str, %3 str
+        move %lor bool, %4 bool
+        jmp label %bb2
+
+  %bb2(logical-end):                              ;; preds = %bb0, %bb1
+        %lor = local bool
+        move %lor bool, %lor bool
+        branch %lor bool, label %bb4, label %bb3
+
+  %bb3(logical-rhs):                              ;; preds = %bb2
+        %5 = get_field %self std/fs.Path, path(index=0)
+        %6 = local [immutable] str
+        loadk %6 str, '\\' str
+        %7 = num.eq %5 str, %6 str
+        move %lor bool, %7 bool
+        jmp label %bb4
+
+  %bb4(logical-end):                              ;; preds = %bb2, %bb3
+        branch %lor bool, label %bb5, label %bb6
+
+  %bb5(if-then):                                  ;; preds = %bb4
+        ret %self std/fs.Path
+
+  %bb6(if-end):                                   ;; preds = %bb4
+        %8 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %9 = local str        [fixedslot = 1(next)]
+        loadk %9 str, '\\' str
+        %10 = local str        [fixedslot = 2(next)]
+        loadk %10 str, '/' str
+        %11 = call @str:replace [path = 'std/builtin'], nargs=3
+        %12 = local str        [fixedslot = 0(next)]
+        move %12 str, %11 str
+        %13 = local str        [fixedslot = 1(next)]
+        loadk %13 str, '/' str
+        %14 = local int64        [fixedslot = 2(next)]
+        load_int_imm %14 int64, 0 int64
+        %15 = local int64        [fixedslot = 3(next)]
+        load_int_imm %15 int64, -1 int64
+        %16 = call @str:rindex [path = 'std/builtin'], nargs=4
+        %last_slash = local int64
+        move %last_slash int64, %16 int64
+        %17 = local str        [fixedslot = 0(next)]
+        move %17 str, %11 str
+        %18 = call @str:len [path = 'std/builtin'], nargs=1
+        %19 = int.sub_imm %18 int64, 1 int64
+        %20 = int.eq %last_slash int64, %19 int64
+        %land = local bool
+        move %land bool, %20 bool
+        branch %20 bool, label %bb7, label %bb8
+
+  %bb7(logical-rhs):                              ;; preds = %bb6
+        %21 = local str        [fixedslot = 0(next)]
+        move %21 str, %11 str
+        %22 = call @str:len [path = 'std/builtin'], nargs=1
+        %23 = int.gt_imm %22 int64, 1 int64
+        move %land bool, %23 bool
+        jmp label %bb8
+
+  %bb8(logical-end):                              ;; preds = %bb6, %bb7
+        branch %land bool, label %bb9, label %bb10
+
+  %bb9(if-then):                                  ;; preds = %bb8
+        %24 = local str        [fixedslot = 0(next)]
+        move %24 str, %11 str
+        %25 = call @str:len [path = 'std/builtin'], nargs=1
+        %26 = int.sub_imm %25 int64, 1 int64        [fixedslot = 2(next)]
+        %27 = local str        [fixedslot = 0(next)]
+        move %27 str, %11 str
+        %28 = local int64        [fixedslot = 1(next)]
+        load_int_imm %28 int64, 0 int64
+        %29 = call @str:view [path = 'std/builtin'], nargs=3        [fixedslot = 0(next)]
+        %30 = local str        [fixedslot = 1(next)]
+        loadk %30 str, '/' str
+        %31 = local int64        [fixedslot = 2(next)]
+        load_int_imm %31 int64, 0 int64
+        %32 = local int64        [fixedslot = 3(next)]
+        load_int_imm %32 int64, -1 int64
+        %33 = call @str:rindex [path = 'std/builtin'], nargs=4
+        move %last_slash int64, %33 int64
+        jmp label %bb10
+
+  %bb10(if-end):                                  ;; preds = %bb9, %bb8
+        jmp_int_eq_imm %last_slash int64, -1 int64, label %bb11, label %bb12
+
+  %bb11(if-then):                                 ;; preds = %bb10
+        %34 = new @std/fs.Path
+        %35 = local std/fs.Path        [fixedslot = 0(next)]
+        move %35 std/fs.Path, %34 std/fs.Path
+        %36 = local str        [fixedslot = 1(next)]
+        loadk %36 str, '.' str
+        call @Path:__init__, nargs=2
+        ret %34 std/fs.Path
+
+  %bb12(if-end):                                  ;; preds = %bb10
+        jmp_int_eq_imm %last_slash int64, 0 int64, label %bb13, label %bb14
+
+  %bb13(if-then):                                 ;; preds = %bb12
+        %37 = new @std/fs.Path
+        %38 = local std/fs.Path        [fixedslot = 0(next)]
+        move %38 std/fs.Path, %37 std/fs.Path
+        %39 = local str        [fixedslot = 1(next)]
+        loadk %39 str, '/' str
+        call @Path:__init__, nargs=2
+        ret %37 std/fs.Path
+
+  %bb14(if-end):                                  ;; preds = %bb12
+        %40 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %41 = local int64        [fixedslot = 1(next)]
+        load_int_imm %41 int64, 0 int64
+        %42 = local int64        [fixedslot = 2(next)]
+        move %42 int64, %last_slash int64
+        %43 = call @str:view [path = 'std/builtin'], nargs=3        [fixedslot = 1(next)]
+        %44 = new @std/fs.Path
+        %45 = local std/fs.Path        [fixedslot = 0(next)]
+        move %45 std/fs.Path, %44 std/fs.Path
+        call @Path:__init__, nargs=2
+        ret %44 std/fs.Path
+  }
+--- IR Dump After isel [@Path::is_absolute] ---
+  func @Path:is_absolute(%self std/fs.Path) bool {
+  %bb0(entry):
+        %0 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %1 = call @str:empty [path = 'std/builtin'], nargs=1
+        branch %1 bool, label %bb1, label %bb2
+
+  %bb1(if-then):                                  ;; preds = %bb0
+        ret_tag false bool
+
+  %bb2(if-end):                                   ;; preds = %bb0
+        %2 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %3 = local str        [fixedslot = 1(next)]
+        loadk %3 str, '/' str
+        %4 = call @str:starts_with [path = 'std/builtin'], nargs=2
+        %lor = local bool
+        move %lor bool, %4 bool
+        branch %4 bool, label %bb4, label %bb3
+
+  %bb3(logical-rhs):                              ;; preds = %bb2
+        %5 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %6 = local str        [fixedslot = 1(next)]
+        loadk %6 str, '\\' str
+        %7 = call @str:starts_with [path = 'std/builtin'], nargs=2
+        move %lor bool, %7 bool
+        jmp label %bb4
+
+  %bb4(logical-end):                              ;; preds = %bb2, %bb3
+        branch %lor bool, label %bb5, label %bb6
+
+  %bb5(if-then):                                  ;; preds = %bb4
+        ret_tag true bool
+
+  %bb6(if-end):                                   ;; preds = %bb4
+        %8 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %9 = call @str:len [path = 'std/builtin'], nargs=1
+        jmp_int_ge_imm %9 int64, 3 int64, label %bb7, label %bb8
+
+  %bb7(if-then):                                  ;; preds = %bb6
+        %10 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %11 = local int64        [fixedslot = 1(next)]
+        load_int_imm %11 int64, 0 int64
+        %12 = local int64        [fixedslot = 2(next)]
+        load_int_imm %12 int64, 2 int64
+        %13 = call @str:view [path = 'std/builtin'], nargs=3
+        %14 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %15 = local int64        [fixedslot = 1(next)]
+        load_int_imm %15 int64, 2 int64
+        %16 = local int64        [fixedslot = 2(next)]
+        load_int_imm %16 int64, 3 int64
+        %17 = call @str:view [path = 'std/builtin'], nargs=3
+        %18 = local str        [fixedslot = 0(next)]
+        move %18 str, %13 str
+        %19 = local str        [fixedslot = 1(next)]
+        loadk %19 str, ':' str
+        %20 = call @str:ends_with [path = 'std/builtin'], nargs=2
+        %land = local bool
+        move %land bool, %20 bool
+        branch %20 bool, label %bb9, label %bb10
+
+  %bb8(if-end):                                   ;; preds = %bb6, %bb10
+        ret_tag false bool
+
+  %bb9(logical-rhs):                              ;; preds = %bb7
+        %21 = local [immutable] str
+        loadk %21 str, '/' str
+        %22 = num.eq %17 str, %21 str
+        %lor = local bool
+        move %lor bool, %22 bool
+        branch %22 bool, label %bb12, label %bb11
+
+  %bb10(logical-end):                             ;; preds = %bb7, %bb12
+        branch %land bool, label %bb13, label %bb8
+
+  %bb11(logical-rhs):                             ;; preds = %bb9
+        %23 = local [immutable] str
+        loadk %23 str, '\\' str
+        %24 = num.eq %17 str, %23 str
+        move %lor bool, %24 bool
+        jmp label %bb12
+
+  %bb12(logical-end):                             ;; preds = %bb9, %bb11
+        move %land bool, %lor bool
+        jmp label %bb10
+
+  %bb13(if-then):                                 ;; preds = %bb10
+        ret_tag true bool
+  }
+--- IR Dump After isel [@Path::normalize] ---
+  func @Path:normalize(%self std/fs.Path) std/fs.Path {
+  %bb0(entry):
+        %0 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %1 = call @str:empty [path = 'std/builtin'], nargs=1
+        branch %1 bool, label %bb1, label %bb2
+
+  %bb1(if-then):                                  ;; preds = %bb0
+        %2 = new @std/fs.Path
+        %3 = local std/fs.Path        [fixedslot = 0(next)]
+        move %3 std/fs.Path, %2 std/fs.Path
+        %4 = local str        [fixedslot = 1(next)]
+        loadk %4 str, '.' str
+        call @Path:__init__, nargs=2
+        ret %2 std/fs.Path
+
+  %bb2(if-end):                                   ;; preds = %bb0
+        %5 = local std/fs.Path        [fixedslot = 0(next)]
+        move %5 std/fs.Path, %self std/fs.Path
+        %6 = call @Path:is_absolute, nargs=1
+        %7 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %8 = local str        [fixedslot = 1(next)]
+        loadk %8 str, '\\' str
+        %9 = local str        [fixedslot = 2(next)]
+        loadk %9 str, '/' str
+        %10 = call @str:replace [path = 'std/builtin'], nargs=3        [fixedslot = 0(next)]
+        %11 = local str        [fixedslot = 1(next)]
+        loadk %11 str, '/' str
+        %12 = local int64        [fixedslot = 2(next)]
+        load_int_imm %12 int64, -1 int64
+        %13 = call @str:split [path = 'std/builtin'], nargs=3
+        %segments = local [immutable] std/builtin.list<u>
+        move %segments std/builtin.list<u>, %13 std/builtin.list<u>
+        %14 = build_intern @list
+        %stack = local [immutable] std/builtin.list<u>
+        move %stack std/builtin.list<u>, %14 std/builtin.list<u>
+        %seq.index = local int64
+        %15 = len %segments std/builtin.list<u>
+        load_int_imm %seq.index int64, 0 int64
+        jmp label %bb3
+
+  %bb3(loop-cond):                                ;; preds = %bb5, %bb2
+        jmp_int_ge %seq.index int64, %15 int64, label %bb6, label %bb4
+
+  %bb4(loop-body):                                ;; preds = %bb3
+        %seg = local str        [fixedslot = 0(next)]
+        %16 = seq.get %segments std/builtin.list<u>, %seq.index int64
+        move %seg str, %16 str
+        %17 = call @str:strip [path = 'std/builtin'], nargs=1
+        %18 = local str        [fixedslot = 0(next)]
+        move %18 str, %17 str
+        %19 = call @str:empty [path = 'std/builtin'], nargs=1
+        %lor = local bool
+        move %lor bool, %19 bool
+        branch %19 bool, label %bb8, label %bb7
+
+  %bb5(loop-cond-incr):                           ;; preds = %bb8, %bb11, %bb14, %bb16, %bb15
+        %20 = int.add_imm %seq.index int64, 1 int64
+        move %seq.index int64, %20 int64
+        jmp label %bb3
+
+  %bb6(loop-end):                                 ;; preds = %bb3
+        %res = local str
+        loadk %res str, '(null)' str
+        branch %6 bool, label %bb17, label %bb18
+
+  %bb7(logical-rhs):                              ;; preds = %bb4
+        %21 = local [immutable] str
+        loadk %21 str, '.' str
+        %22 = num.eq %17 str, %21 str
+        move %lor bool, %22 bool
+        jmp label %bb8
+
+  %bb8(logical-end):                              ;; preds = %bb4, %bb7
+        branch %lor bool, label %bb5, label %bb9
+
+  %bb9(if-end):                                   ;; preds = %bb8
+        %23 = local [immutable] str
+        loadk %23 str, '..' str
+        %24 = num.eq %17 str, %23 str
+        branch %24 bool, label %bb10, label %bb11
+
+  %bb10(if-then):                                 ;; preds = %bb9
+        %25 = local std/builtin.list<u>        [fixedslot = 0(next)]
+        move %25 std/builtin.list<u>, %stack std/builtin.list<u>
+        %26 = call @list:len [path = 'std/builtin'], nargs=1
+        %27 = int.gt_imm %26 int64, 0 int64
+        %land = local bool
+        move %land bool, %27 bool
+        branch %27 bool, label %bb12, label %bb13
+
+  %bb11(if-else):                                 ;; preds = %bb9
+        %28 = local std/builtin.list<u>        [fixedslot = 0(next)]
+        move %28 std/builtin.list<u>, %stack std/builtin.list<u>
+        %29 = local str        [fixedslot = 1(next)]
+        move %29 str, %17 str
+        call @list:push [path = 'std/builtin'], nargs=2
+        jmp label %bb5
+
+  %bb12(logical-rhs):                             ;; preds = %bb10
+        %30 = local std/builtin.list<u>        [fixedslot = 0(next)]
+        move %30 std/builtin.list<u>, %stack std/builtin.list<u>
+        %31 = call @list:len [path = 'std/builtin'], nargs=1
+        %32 = int.sub_imm %31 int64, 1 int64
+        %33 = seq.get %stack std/builtin.list<u>, %32 int64
+        %34 = local [immutable] str
+        loadk %34 str, '..' str
+        %35 = num.ne %33 str, %34 str
+        move %land bool, %35 bool
+        jmp label %bb13
+
+  %bb13(logical-end):                             ;; preds = %bb10, %bb12
+        branch %land bool, label %bb14, label %bb15
+
+  %bb14(if-then):                                 ;; preds = %bb13
+        %36 = local std/builtin.list<u>        [fixedslot = 0(next)]
+        move %36 std/builtin.list<u>, %stack std/builtin.list<u>
+        %37 = call @list:len [path = 'std/builtin'], nargs=1
+        %38 = int.sub_imm %37 int64, 1 int64        [fixedslot = 1(next)]
+        %39 = local std/builtin.list<u>        [fixedslot = 0(next)]
+        move %39 std/builtin.list<u>, %stack std/builtin.list<u>
+        %40 = call @list:pop [path = 'std/builtin'], nargs=2
+        jmp label %bb5
+
+  %bb15(if-else):                                 ;; preds = %bb13
+        branch %6 bool, label %bb5, label %bb16
+
+  %bb16(if-then):                                 ;; preds = %bb15
+        %41 = local std/builtin.list<u>        [fixedslot = 0(next)]
+        move %41 std/builtin.list<u>, %stack std/builtin.list<u>
+        %42 = local str        [fixedslot = 1(next)]
+        loadk %42 str, '..' str
+        call @list:push [path = 'std/builtin'], nargs=2
+        jmp label %bb5
+
+  %bb17(if-then):                                 ;; preds = %bb6
+        loadk %res str, '/' str
+        jmp label %bb18
+
+  %bb18(if-end):                                  ;; preds = %bb17, %bb6
+        %first = local bool
+        load_tag %first bool, true bool
+        %seq.index = local int64
+        %43 = len %stack std/builtin.list<u>
+        load_int_imm %seq.index int64, 0 int64
+        jmp label %bb19
+
+  %bb19(loop-cond):                               ;; preds = %bb18, %bb23
+        jmp_int_ge %seq.index int64, %43 int64, label %bb21, label %bb20
+
+  %bb20(loop-body):                               ;; preds = %bb19
+        %item = local str
+        %44 = seq.get %stack std/builtin.list<u>, %seq.index int64
+        move %item str, %44 str
+        branch %first bool, label %bb23, label %bb22
+
+  %bb21(loop-end):                                ;; preds = %bb19
+        %45 = local str        [fixedslot = 0(next)]
+        move %45 str, %res str
+        %46 = call @str:empty [path = 'std/builtin'], nargs=1
+        branch %46 bool, label %bb24, label %bb25
+
+  %bb22(if-then):                                 ;; preds = %bb20
+        %47 = local [immutable] str
+        loadk %47 str, '/' str
+        %48 = num.add %res str, %47 str
+        move %res str, %48 str
+        jmp label %bb23
+
+  %bb23(if-end):                                  ;; preds = %bb22, %bb20
+        %49 = num.add %res str, %item str
+        move %res str, %49 str
+        load_tag %first bool, false bool
+        %50 = int.add_imm %seq.index int64, 1 int64
+        move %seq.index int64, %50 int64
+        jmp label %bb19
+
+  %bb24(if-then):                                 ;; preds = %bb21
+        %51 = new @std/fs.Path
+        %52 = local std/fs.Path        [fixedslot = 0(next)]
+        move %52 std/fs.Path, %51 std/fs.Path
+        %53 = local str        [fixedslot = 1(next)]
+        loadk %53 str, '.' str
+        call @Path:__init__, nargs=2
+        ret %51 std/fs.Path
+
+  %bb25(if-end):                                  ;; preds = %bb21
+        %54 = new @std/fs.Path
+        %55 = local std/fs.Path        [fixedslot = 0(next)]
+        move %55 std/fs.Path, %54 std/fs.Path
+        %56 = local str        [fixedslot = 1(next)]
+        move %56 str, %res str
+        call @Path:__init__, nargs=2
+        ret %54 std/fs.Path
+  }
+--- IR Dump After isel [@Path::absolute] ---
+  func @Path:absolute(%self std/fs.Path) std/fs.Path {
+  %bb0(entry):
+        %0 = local std/fs.Path        [fixedslot = 0(next)]
+        move %0 std/fs.Path, %self std/fs.Path
+        %1 = call @Path:is_absolute, nargs=1
+        branch %1 bool, label %bb1, label %bb2
+
+  %bb1(if-then):                                  ;; preds = %bb0
+        %2 = local std/fs.Path        [fixedslot = 0(next)]
+        move %2 std/fs.Path, %self std/fs.Path
+        %3 = call @Path:normalize, nargs=1
+        ret %3 std/fs.Path
+
+  %bb2(if-end):                                   ;; preds = %bb0
+        %4 = local str        [fixedslot = 0(next)]
+        loadk %4 str, 'PWD' str
+        %5 = call @getenv [path = 'std/os', const], nargs=1
+        jmp_ref_ne_null %5 str?, nil, label %bb3, label %bb4
+
+  %bb3(if-then):                                  ;; preds = %bb2
+        %7 = nil_check %5 str? to str        [fixedslot = 1(next)]
+        %8 = new @std/fs.Path
+        %9 = local std/fs.Path        [fixedslot = 0(next)]
+        move %9 std/fs.Path, %8 std/fs.Path
+        call @Path:__init__, nargs=2
+        %10 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 1(next)]
+        %11 = local std/fs.Path        [fixedslot = 0(next)]
+        move %11 std/fs.Path, %8 std/fs.Path
+        %12 = call @Path:cat, nargs=2        [fixedslot = 0(next)]
+        %13 = call @Path:normalize, nargs=1
+        ret %13 std/fs.Path
+
+  %bb4(if-end):                                   ;; preds = %bb2
+        %14 = local std/fs.Path        [fixedslot = 0(next)]
+        move %14 std/fs.Path, %self std/fs.Path
+        %15 = call @Path:normalize, nargs=1
+        ret %15 std/fs.Path
+  }
+--- IR Dump After isel [@Path::to_str] ---
+  func @Path:to_str(%self std/fs.Path) str {
+  %bb0(entry):
+        %0 = get_field %self std/fs.Path, path(index=0)
+        ret %0 str
+  }
+--- IR Dump After isel [@Path::fmt] ---
+  func @Path:fmt(%self std/fs.Path, %f std/builtin.Formatter) <NO-TYPE> {
+  %bb0(entry):
+        %0 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %1 = build_intern @tuple, nargs=1        [fixedslot = 2(next)]
+        %2 = local std/builtin.Formatter        [fixedslot = 0(next)]
+        move %2 std/builtin.Formatter, %f std/builtin.Formatter
+        %3 = local str        [fixedslot = 1(next)]
+        loadk %3 str, 'Path({})' str
+        call @Formatter:write_fmt [path = 'std/builtin'], nargs=3
+        ret void
+  }
+--- IR Dump After isel [@Path::__eq__] ---
+  func @Path:__eq__(%self std/fs.Path, %rhs std/fs.Path) bool {
+  %bb0(entry):
+        %0 = get_field %self std/fs.Path, path(index=0)
+        %1 = get_field %rhs std/fs.Path, path(index=0)
+        %2 = num.eq %0 str, %1 str
+        ret %2 bool
+  }
+--- IR Dump After isel [@Path::__ne__] ---
+  func @Path:__ne__(%self std/fs.Path, %rhs std/fs.Path) bool {
+  %bb0(entry):
+        %0 = get_field %self std/fs.Path, path(index=0)
+        %1 = get_field %rhs std/fs.Path, path(index=0)
+        %2 = num.ne %0 str, %1 str
+        ret %2 bool
+  }
+--- IR Dump After isel [@Path::cat] ---
+  func @Path:cat(%self std/fs.Path, %segment str | std/fs.Path) std/fs.Path {
+  %bb0(entry):
+        %next_part = local str
+        loadk %next_part str, '(null)' str
+        %0 = is %segment str | std/fs.Path, str
+        branch %0 bool, label %bb1, label %bb2
+
+  %bb1(if-then):                                  ;; preds = %bb0
+        %1 = as %segment str | std/fs.Path, str
+        %2 = nil_check %1 str? to str
+        move %next_part str, %2 str
+        jmp label %bb3
+
+  %bb2(if-else):                                  ;; preds = %bb0
+        %3 = is %segment str | std/fs.Path, std/fs.Path
+        branch %3 bool, label %bb4, label %bb3
+
+  %bb3(if-end):                                   ;; preds = %bb1, %bb4, %bb2
+        %4 = local str        [fixedslot = 0(next)]
+        move %4 str, %next_part str
+        %5 = call @str:empty [path = 'std/builtin'], nargs=1
+        branch %5 bool, label %bb5, label %bb6
+
+  %bb4(if-then):                                  ;; preds = %bb2
+        %6 = as %segment str | std/fs.Path, std/fs.Path
+        %7 = nil_check %6 std/fs.Path? to std/fs.Path        [fixedslot = 0(next)]
+        %8 = call @Path:to_str, nargs=1
+        move %next_part str, %8 str
+        jmp label %bb3
+
+  %bb5(if-then):                                  ;; preds = %bb3
+        ret %self std/fs.Path
+
+  %bb6(if-end):                                   ;; preds = %bb3
+        %9 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %10 = local str        [fixedslot = 1(next)]
+        loadk %10 str, '/' str
+        %11 = call @str:ends_with [path = 'std/builtin'], nargs=2
+        %lor = local bool
+        move %lor bool, %11 bool
+        branch %11 bool, label %bb8, label %bb7
+
+  %bb7(logical-rhs):                              ;; preds = %bb6
+        %12 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %13 = local str        [fixedslot = 1(next)]
+        loadk %13 str, '\\' str
+        %14 = call @str:ends_with [path = 'std/builtin'], nargs=2
+        move %lor bool, %14 bool
+        jmp label %bb8
+
+  %bb8(logical-end):                              ;; preds = %bb6, %bb7
+        %15 = local str        [fixedslot = 0(next)]
+        move %15 str, %next_part str
+        %16 = local str        [fixedslot = 1(next)]
+        loadk %16 str, '/' str
+        %17 = call @str:starts_with [path = 'std/builtin'], nargs=2
+        %lor = local bool
+        move %lor bool, %17 bool
+        branch %17 bool, label %bb10, label %bb9
+
+  %bb9(logical-rhs):                              ;; preds = %bb8
+        %18 = local str        [fixedslot = 0(next)]
+        move %18 str, %next_part str
+        %19 = local str        [fixedslot = 1(next)]
+        loadk %19 str, '\\' str
+        %20 = call @str:starts_with [path = 'std/builtin'], nargs=2
+        move %lor bool, %20 bool
+        jmp label %bb10
+
+  %bb10(logical-end):                             ;; preds = %bb8, %bb9
+        %21 = get_field %self std/fs.Path, path(index=0)
+        %joint = local str
+        move %joint str, %21 str
+        %22 = lnot %lor bool
+        %land = local bool
+        move %land bool, %22 bool
+        branch %22 bool, label %bb11, label %bb12
+
+  %bb11(logical-rhs):                             ;; preds = %bb10
+        %23 = lnot %lor bool
+        move %land bool, %23 bool
+        jmp label %bb12
+
+  %bb12(logical-end):                             ;; preds = %bb10, %bb11
+        %land = local bool
+        move %land bool, %land bool
+        branch %land bool, label %bb13, label %bb14
+
+  %bb13(logical-rhs):                             ;; preds = %bb12
+        %24 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %25 = call @str:empty [path = 'std/builtin'], nargs=1
+        %26 = lnot %25 bool
+        move %land bool, %26 bool
+        jmp label %bb14
+
+  %bb14(logical-end):                             ;; preds = %bb12, %bb13
+        branch %land bool, label %bb15, label %bb16
+
+  %bb15(if-then):                                 ;; preds = %bb14
+        %27 = local [immutable] str
+        loadk %27 str, '/' str
+        %28 = num.add %joint str, %27 str
+        move %joint str, %28 str
+        jmp label %bb16
+
+  %bb16(if-end):                                  ;; preds = %bb15, %bb14
+        %29 = num.add %joint str, %next_part str        [fixedslot = 1(next)]
+        %30 = new @std/fs.Path
+        %31 = local std/fs.Path        [fixedslot = 0(next)]
+        move %31 std/fs.Path, %30 std/fs.Path
+        call @Path:__init__, nargs=2
+        %32 = local std/fs.Path        [fixedslot = 0(next)]
+        move %32 std/fs.Path, %30 std/fs.Path
+        %33 = call @Path:normalize, nargs=1
+        ret %33 std/fs.Path
+  }
+--- IR Dump After isel [@Path::hash] ---
+  func @Path:hash(%self std/fs.Path) int64 {
+  %bb0(entry):
+        %0 = get_field %self std/fs.Path, path(index=0)        [fixedslot = 0(next)]
+        %1 = call @str:hash [path = 'std/builtin'], nargs=1
+        ret %1 int64
+  }
+
+====== Linearization @open(start_pc: 0, insns: 1) ======
+
+%bb0(entry):
+   0:  unreachable 
+
+=== End of Linearization @open ====
+
+
+====== Linearization @read_bytes(start_pc: 1, insns: 1) ======
+
+%bb0(entry):
+   1:  unreachable 
+
+=== End of Linearization @read_bytes ====
+
+
+====== Linearization @write_bytes(start_pc: 2, insns: 1) ======
+
+%bb0(entry):
+   2:  unreachable 
+
+=== End of Linearization @write_bytes ====
+
+
+====== Linearization @write_str(start_pc: 3, insns: 1) ======
+
+%bb0(entry):
+   3:  unreachable 
+
+=== End of Linearization @write_str ====
+
+
+====== Linearization @exists(start_pc: 4, insns: 1) ======
+
+%bb0(entry):
+   4:  unreachable 
+
+=== End of Linearization @exists ====
+
+
+====== Linearization @is_file(start_pc: 5, insns: 1) ======
+
+%bb0(entry):
+   5:  unreachable 
+
+=== End of Linearization @is_file ====
+
+
+====== Linearization @is_dir(start_pc: 6, insns: 1) ======
+
+%bb0(entry):
+   6:  unreachable 
+
+=== End of Linearization @is_dir ====
+
+
+====== Linearization @size(start_pc: 7, insns: 1) ======
+
+%bb0(entry):
+   7:  unreachable 
+
+=== End of Linearization @size ====
+
+
+====== Linearization @remove(start_pc: 8, insns: 1) ======
+
+%bb0(entry):
+   8:  unreachable 
+
+=== End of Linearization @remove ====
+
+
+====== Linearization @mkdir(start_pc: 9, insns: 1) ======
+
+%bb0(entry):
+   9:  unreachable 
+
+=== End of Linearization @mkdir ====
+
+
+====== Linearization @rmdir(start_pc: 10, insns: 1) ======
+
+%bb0(entry):
+  10:  unreachable 
+
+=== End of Linearization @rmdir ====
+
+
+====== Linearization @list_dir(start_pc: 11, insns: 1) ======
+
+%bb0(entry):
+  11:  unreachable 
+
+=== End of Linearization @list_dir ====
+
+
+====== Linearization @File::__init__(start_pc: 12, insns: 1) ======
+
+%bb0(entry):
+  12:  ret_void 
+
+=== End of Linearization @File::__init__ ====
+
+
+====== Linearization @File::read(start_pc: 13, insns: 1) ======
+
+%bb0(entry):
+  13:  unreachable 
+
+=== End of Linearization @File::read ====
+
+
+====== Linearization @File::write(start_pc: 14, insns: 1) ======
+
+%bb0(entry):
+  14:  unreachable 
+
+=== End of Linearization @File::write ====
+
+
+====== Linearization @File::write_str(start_pc: 15, insns: 1) ======
+
+%bb0(entry):
+  15:  unreachable 
+
+=== End of Linearization @File::write_str ====
+
+
+====== Linearization @File::seek(start_pc: 16, insns: 1) ======
+
+%bb0(entry):
+  16:  unreachable 
+
+=== End of Linearization @File::seek ====
+
+
+====== Linearization @File::tell(start_pc: 17, insns: 1) ======
+
+%bb0(entry):
+  17:  unreachable 
+
+=== End of Linearization @File::tell ====
+
+
+====== Linearization @File::truncate(start_pc: 18, insns: 1) ======
+
+%bb0(entry):
+  18:  unreachable 
+
+=== End of Linearization @File::truncate ====
+
+
+====== Linearization @File::close(start_pc: 19, insns: 1) ======
+
+%bb0(entry):
+  19:  unreachable 
+
+=== End of Linearization @File::close ====
+
+
+====== Linearization @File::flush(start_pc: 20, insns: 6) ======
+
+%bb0(entry):
+  20:  get_field r0, r0, #2
+  21:  jmp_false r0, 3              ;; -> %bb2(if-end)
+
+%bb1(if-then):
+  22:  loadk r1, #0
+  23:  call flg=0, #1
+  24:  data 
+
+%bb2(if-end):
+  25:  ret_void 
+
+=== End of Linearization @File::flush ====
+
+
+====== Linearization @File::__eq__(start_pc: 26, insns: 1) ======
+
+%bb0(entry):
+  26:  unreachable 
+
+=== End of Linearization @File::__eq__ ====
+
+
+====== Linearization @File::__ne__(start_pc: 27, insns: 1) ======
+
+%bb0(entry):
+  27:  unreachable 
+
+=== End of Linearization @File::__ne__ ====
+
+
+====== Linearization @File::hash(start_pc: 28, insns: 1) ======
+
+%bb0(entry):
+  28:  unreachable 
+
+=== End of Linearization @File::hash ====
+
+
+====== Linearization @File::fmt(start_pc: 29, insns: 1) ======
+
+%bb0(entry):
+  29:  unreachable 
+
+=== End of Linearization @File::fmt ====
+
+
+====== Linearization @Path::__init__(start_pc: 30, insns: 2) ======
+
+%bb0(entry):
+  30:  set_field r0, r1, #0
+  31:  ret_void 
+
+=== End of Linearization @Path::__init__ ====
+
+
+====== Linearization @Path::name(start_pc: 32, insns: 75) ======
+
+%bb0(entry):
+  32:  get_field r3, r0, #0
+  33:  call flg=0, r1, #1
+  34:  data 
+  35:  jmp_false r1, 1              ;; -> %bb2(if-end)
+
+%bb1(if-then):
+  36:  ret_const #1
+
+%bb2(if-end):
+  37:  get_field r0, r0, #0
+  38:  move r1, r0
+  39:  move r3, r1
+  40:  loadk r4, #2
+  41:  call flg=0, r0, #2
+  42:  data 
+  43:  move r2, r0
+  44:  jmp_true r0, 5               ;; -> %bb6(logical-end)
+
+%bb5(logical-rhs):
+  45:  move r3, r1
+  46:  loadk r4, #3
+  47:  call flg=0, r0, #2
+  48:  data 
+  49:  move r2, r0
+
+%bb6(logical-end):
+  50:  move r0, r2
+  51:  jmp_false r2, 5              ;; -> %bb8(logical-end)
+
+%bb7(logical-rhs):
+  52:  move r3, r1
+  53:  call flg=0, r2, #1
+  54:  data 
+  55:  int.gt_imm r2, r2, #1
+  56:  move r0, r2
+
+%bb8(logical-end):
+  57:  jmp_false r0, 28             ;; -> %bb4(while-end)
+
+%bb3(while-body):
+  58:  move r3, r1
+  59:  call flg=0, r0, #1
+  60:  data 
+  61:  int.sub_imm r5, r0, #1
+  62:  move r3, r1
+  63:  load_int_imm r4, ti=0xb, #0
+  64:  call flg=0, r0, #3
+  65:  data 
+  66:  move r1, r0
+  67:  move r3, r1
+  68:  loadk r4, #2
+  69:  call flg=0, r0, #2
+  70:  data 
+  71:  move r2, r0
+  72:  jmp_true r0, 5               ;; -> %bb10(logical-end)
+
+%bb9(logical-rhs):
+  73:  move r3, r1
+  74:  loadk r4, #3
+  75:  call flg=0, r0, #2
+  76:  data 
+  77:  move r2, r0
+
+%bb10(logical-end):
+  78:  move r0, r2
+  79:  jmp_false r2, 5              ;; -> %bb12(logical-end)
+
+%bb11(logical-rhs):
+  80:  move r3, r1
+  81:  call flg=0, r2, #1
+  82:  data 
+  83:  int.gt_imm r2, r2, #1
+  84:  move r0, r2
+
+%bb12(logical-end):
+  85:  jmp_true r0, -28             ;; -> %bb3(while-body)
+
+%bb4(while-end):
+  86:  move r3, r1
+  87:  loadk r4, #3
+  88:  loadk r5, #2
+  89:  call flg=0, r3, #3
+  90:  data 
+  91:  loadk r4, #2
+  92:  load_int_imm r5, ti=0xb, #-1
+  93:  call flg=0, r0, #3
+  94:  data 
+  95:  move r2, r0
+  96:  move r3, r2
+  97:  call flg=0, r0, #1
+  98:  data 
+  99:  jmp_int_le_imm r0, #0, 6     ;; -> %bb14(if-end)
+
+%bb13(if-then):
+ 100:  move r3, r2
+ 101:  call flg=0, r0, #1
+ 102:  data 
+ 103:  int.sub_imm r0, r0, #1
+ 104:  seq.get r0, r2, r0
+ 105:  ret r0
+
+%bb14(if-end):
+ 106:  ret r1
+
+=== End of Linearization @Path::name ====
+
+
+====== Linearization @Path::ext(start_pc: 107, insns: 20) ======
+
+%bb0(entry):
+ 107:  move r2, r0
+ 108:  call flg=0, r0, #1
+ 109:  data 
+ 110:  move r2, r0
+ 111:  loadk r3, #4
+ 112:  load_int_imm r4, ti=0xb, #0
+ 113:  load_int_imm r5, ti=0xb, #-1
+ 114:  call flg=0, r1, #4
+ 115:  data 
+ 116:  jmp_int_le_imm r1, #0, 9     ;; -> %bb2(if-end)
+
+%bb1(if-then):
+ 117:  int.add_imm r1, r1, #1
+ 118:  move r2, r0
+ 119:  call flg=0, r4, #1
+ 120:  data 
+ 121:  move r2, r0
+ 122:  move r3, r1
+ 123:  call flg=0, r0, #3
+ 124:  data 
+ 125:  ret r0
+
+%bb2(if-end):
+ 126:  ret_const #1
+
+=== End of Linearization @Path::ext ====
+
+
+====== Linearization @Path::stem(start_pc: 127, insns: 17) ======
+
+%bb0(entry):
+ 127:  move r2, r0
+ 128:  call flg=0, r0, #1
+ 129:  data 
+ 130:  move r2, r0
+ 131:  loadk r3, #4
+ 132:  load_int_imm r4, ti=0xb, #0
+ 133:  load_int_imm r5, ti=0xb, #-1
+ 134:  call flg=0, r1, #4
+ 135:  data 
+ 136:  jmp_int_le_imm r1, #0, 6     ;; -> %bb2(if-end)
+
+%bb1(if-then):
+ 137:  move r2, r0
+ 138:  load_int_imm r3, ti=0xb, #0
+ 139:  move r4, r1
+ 140:  call flg=0, r1, #3
+ 141:  data 
+ 142:  ret r1
+
+%bb2(if-end):
+ 143:  ret r0
+
+=== End of Linearization @Path::stem ====
+
+
+====== Linearization @Path::parent(start_pc: 144, insns: 80) ======
+
+%bb0(entry):
+ 144:  get_field r5, r0, #0
+ 145:  call flg=0, r1, #1
+ 146:  data 
+ 147:  move r2, r1
+ 148:  jmp_true r1, 4               ;; -> %bb2(logical-end)
+
+%bb1(logical-rhs):
+ 149:  get_field r1, r0, #0
+ 150:  loadk r3, #2
+ 151:  num.eq r1, r1, r3
+ 152:  move r2, r1
+
+%bb2(logical-end):
+ 153:  move r1, r2
+ 154:  jmp_true r2, 4               ;; -> %bb4(logical-end)
+
+%bb3(logical-rhs):
+ 155:  get_field r2, r0, #0
+ 156:  loadk r3, #3
+ 157:  num.eq r2, r2, r3
+ 158:  move r1, r2
+
+%bb4(logical-end):
+ 159:  jmp_false r1, 1              ;; -> %bb6(if-end)
+
+%bb5(if-then):
+ 160:  ret r0
+
+%bb6(if-end):
+ 161:  get_field r5, r0, #0
+ 162:  loadk r6, #3
+ 163:  loadk r7, #2
+ 164:  call flg=0, r1, #3
+ 165:  data 
+ 166:  move r5, r1
+ 167:  loadk r6, #2
+ 168:  load_int_imm r7, ti=0xb, #0
+ 169:  load_int_imm r8, ti=0xb, #-1
+ 170:  call flg=0, r2, #4
+ 171:  data 
+ 172:  move r3, r2
+ 173:  move r5, r1
+ 174:  call flg=0, r2, #1
+ 175:  data 
+ 176:  int.sub_imm r2, r2, #1
+ 177:  int.eq r2, r3, r2
+ 178:  move r4, r2
+ 179:  jmp_false r2, 5              ;; -> %bb8(logical-end)
+
+%bb7(logical-rhs):
+ 180:  move r5, r1
+ 181:  call flg=0, r2, #1
+ 182:  data 
+ 183:  int.gt_imm r2, r2, #1
+ 184:  move r4, r2
+
+%bb8(logical-end):
+ 185:  jmp_false r4, 14             ;; -> %bb10(if-end)
+
+%bb9(if-then):
+ 186:  move r5, r1
+ 187:  call flg=0, r2, #1
+ 188:  data 
+ 189:  int.sub_imm r7, r2, #1
+ 190:  move r5, r1
+ 191:  load_int_imm r6, ti=0xb, #0
+ 192:  call flg=0, r5, #3
+ 193:  data 
+ 194:  loadk r6, #2
+ 195:  load_int_imm r7, ti=0xb, #0
+ 196:  load_int_imm r8, ti=0xb, #-1
+ 197:  call flg=0, r1, #4
+ 198:  data 
+ 199:  move r3, r1
+
+%bb10(if-end):
+ 200:  jmp_int_ne_imm r3, #-1, 6    ;; -> %bb12(if-end)
+
+%bb11(if-then):
+ 201:  new r1, #1
+ 202:  move r5, r1
+ 203:  loadk r6, #4
+ 204:  call flg=0, #2
+ 205:  data 
+ 206:  ret r1
+
+%bb12(if-end):
+ 207:  jmp_int_ne_imm r3, #0, 6     ;; -> %bb14(if-end)
+
+%bb13(if-then):
+ 208:  new r1, #1
+ 209:  move r5, r1
+ 210:  loadk r6, #2
+ 211:  call flg=0, #2
+ 212:  data 
+ 213:  ret r1
+
+%bb14(if-end):
+ 214:  get_field r5, r0, #0
+ 215:  load_int_imm r6, ti=0xb, #0
+ 216:  move r7, r3
+ 217:  call flg=0, r6, #3
+ 218:  data 
+ 219:  new r0, #1
+ 220:  move r5, r0
+ 221:  call flg=0, #2
+ 222:  data 
+ 223:  ret r0
+
+=== End of Linearization @Path::parent ====
+
+
+====== Linearization @Path::is_absolute(start_pc: 224, insns: 49) ======
+
+%bb0(entry):
+ 224:  get_field r4, r0, #0
+ 225:  call flg=0, r1, #1
+ 226:  data 
+ 227:  jmp_false r1, 1              ;; -> %bb2(if-end)
+
+%bb1(if-then):
+ 228:  ret_tag #false
+
+%bb2(if-end):
+ 229:  get_field r4, r0, #0
+ 230:  loadk r5, #2
+ 231:  call flg=0, r1, #2
+ 232:  data 
+ 233:  move r2, r1
+ 234:  jmp_true r1, 5               ;; -> %bb4(logical-end)
+
+%bb3(logical-rhs):
+ 235:  get_field r4, r0, #0
+ 236:  loadk r5, #3
+ 237:  call flg=0, r1, #2
+ 238:  data 
+ 239:  move r2, r1
+
+%bb4(logical-end):
+ 240:  jmp_false r2, 1              ;; -> %bb6(if-end)
+
+%bb5(if-then):
+ 241:  ret_tag #true
+
+%bb6(if-end):
+ 242:  get_field r4, r0, #0
+ 243:  call flg=0, r1, #1
+ 244:  data 
+ 245:  jmp_int_lt_imm r1, #3, 26    ;; -> %bb8(if-end)
+
+%bb7(if-then):
+ 246:  get_field r4, r0, #0
+ 247:  load_int_imm r5, ti=0xb, #0
+ 248:  load_int_imm r6, ti=0xb, #2
+ 249:  call flg=0, r1, #3
+ 250:  data 
+ 251:  get_field r4, r0, #0
+ 252:  load_int_imm r5, ti=0xb, #2
+ 253:  load_int_imm r6, ti=0xb, #3
+ 254:  call flg=0, r0, #3
+ 255:  data 
+ 256:  move r4, r1
+ 257:  loadk r5, #5
+ 258:  call flg=0, r1, #2
+ 259:  data 
+ 260:  move r2, r1
+ 261:  jmp_false r1, 8              ;; -> %bb10(logical-end)
+
+%bb9(logical-rhs):
+ 262:  loadk r1, #2
+ 263:  num.eq r1, r0, r1
+ 264:  move r3, r1
+ 265:  jmp_true r1, 3               ;; -> %bb12(logical-end)
+
+%bb11(logical-rhs):
+ 266:  loadk r1, #3
+ 267:  num.eq r0, r0, r1
+ 268:  move r3, r0
+
+%bb12(logical-end):
+ 269:  move r2, r3
+
+%bb10(logical-end):
+ 270:  jmp_false r2, 1              ;; -> %bb8(if-end)
+
+%bb13(if-then):
+ 271:  ret_tag #true
+
+%bb8(if-end):
+ 272:  ret_tag #false
+
+=== End of Linearization @Path::is_absolute ====
+
+
+====== Linearization @Path::normalize(start_pc: 273, insns: 113) ======
+
+%bb0(entry):
+ 273:  get_field r11, r0, #0
+ 274:  call flg=0, r1, #1
+ 275:  data 
+ 276:  jmp_false r1, 6              ;; -> %bb2(if-end)
+
+%bb1(if-then):
+ 277:  new r1, #1
+ 278:  move r11, r1
+ 279:  loadk r12, #4
+ 280:  call flg=0, #2
+ 281:  data 
+ 282:  ret r1
+
+%bb2(if-end):
+ 283:  move r11, r0
+ 284:  call flg=0, r1, #1
+ 285:  data 
+ 286:  get_field r11, r0, #0
+ 287:  loadk r12, #3
+ 288:  loadk r13, #2
+ 289:  call flg=0, r11, #3
+ 290:  data 
+ 291:  loadk r12, #2
+ 292:  load_int_imm r13, ti=0xb, #-1
+ 293:  call flg=0, r0, #3
+ 294:  data 
+ 295:  move r2, r0
+ 296:  build_intern r0, @list, #0
+ 297:  move r3, r0
+ 298:  len r4, r2
+ 299:  load_int_imm r0, ti=0xb, #0
+
+%bb3(loop-cond):
+ 300:  jmp_int_lt r0, r4, 34        ;; -> %bb4(loop-body)
+
+%bb6(loop-end):
+ 301:  loadk r5, #1
+ 302:  jmp_false r1, 1              ;; -> %bb18(if-end)
+
+%bb17(if-then):
+ 303:  loadk r5, #2
+
+%bb18(if-end):
+ 304:  load_tag r6, #true
+ 305:  len r8, r3
+ 306:  load_int_imm r7, ti=0xb, #0
+
+%bb19(loop-cond):
+ 307:  jmp_int_lt r7, r8, 16        ;; -> %bb20(loop-body)
+
+%bb21(loop-end):
+ 308:  move r11, r5
+ 309:  call flg=0, r9, #1
+ 310:  data 
+ 311:  jmp_false r9, 6              ;; -> %bb25(if-end)
+
+%bb24(if-then):
+ 312:  new r9, #1
+ 313:  move r11, r9
+ 314:  loadk r12, #4
+ 315:  call flg=0, #2
+ 316:  data 
+ 317:  ret r9
+
+%bb25(if-end):
+ 318:  new r9, #1
+ 319:  move r11, r9
+ 320:  move r12, r5
+ 321:  call flg=0, #2
+ 322:  data 
+ 323:  ret r9
+
+%bb20(loop-body):
+ 324:  seq.get r10, r3, r7
+ 325:  move r9, r10
+ 326:  jmp_true r6, 3               ;; -> %bb23(if-end)
+
+%bb22(if-then):
+ 327:  loadk r10, #2
+ 328:  num.add r10, r5, r10
+ 329:  move r5, r10
+
+%bb23(if-end):
+ 330:  num.add r9, r5, r9
+ 331:  move r5, r9
+ 332:  load_tag r6, #false
+ 333:  int.add_imm r7, r7, #1
+ 334:  jmp -28                      ;; -> %bb19(loop-cond)
+
+%bb4(loop-body):
+ 335:  seq.get r5, r2, r0
+ 336:  move r11, r5
+ 337:  call flg=0, r5, #1
+ 338:  data 
+ 339:  move r11, r5
+ 340:  call flg=0, r6, #1
+ 341:  data 
+ 342:  move r7, r6
+ 343:  jmp_true r6, 3               ;; -> %bb8(logical-end)
+
+%bb7(logical-rhs):
+ 344:  loadk r6, #4
+ 345:  num.eq r6, r5, r6
+ 346:  move r7, r6
+
+%bb8(logical-end):
+ 347:  jmp_true r7, 36              ;; -> %bb5(loop-cond-incr)
+
+%bb9(if-end):
+ 348:  loadk r6, #6
+ 349:  num.eq r6, r5, r6
+ 350:  jmp_false r6, 29             ;; -> %bb11(if-else)
+
+%bb10(if-then):
+ 351:  move r11, r3
+ 352:  call flg=0, r6, #1
+ 353:  data 
+ 354:  int.gt_imm r6, r6, #0
+ 355:  move r7, r6
+ 356:  jmp_false r6, 8              ;; -> %bb13(logical-end)
+
+%bb12(logical-rhs):
+ 357:  move r11, r3
+ 358:  call flg=0, r6, #1
+ 359:  data 
+ 360:  int.sub_imm r6, r6, #1
+ 361:  seq.get r6, r3, r6
+ 362:  loadk r8, #6
+ 363:  num.ne r6, r6, r8
+ 364:  move r7, r6
+
+%bb13(logical-end):
+ 365:  jmp_false r7, 8              ;; -> %bb15(if-else)
+
+%bb14(if-then):
+ 366:  move r11, r3
+ 367:  call flg=0, r6, #1
+ 368:  data 
+ 369:  int.sub_imm r12, r6, #1
+ 370:  move r11, r3
+ 371:  call flg=0, #2
+ 372:  data 
+ 373:  jmp 10                       ;; -> %bb5(loop-cond-incr)
+
+%bb15(if-else):
+ 374:  jmp_true r1, 9               ;; -> %bb5(loop-cond-incr)
+
+%bb16(if-then):
+ 375:  move r11, r3
+ 376:  loadk r12, #6
+ 377:  call flg=0, #2
+ 378:  data 
+ 379:  jmp 4                        ;; -> %bb5(loop-cond-incr)
+
+%bb11(if-else):
+ 380:  move r11, r3
+ 381:  move r12, r5
+ 382:  call flg=0, #2
+ 383:  data 
+
+%bb5(loop-cond-incr):
+ 384:  int.add_imm r0, r0, #1
+ 385:  jmp -86                      ;; -> %bb3(loop-cond)
+
+=== End of Linearization @Path::normalize ====
+
+
+====== Linearization @Path::absolute(start_pc: 386, insns: 28) ======
+
+%bb0(entry):
+ 386:  move r2, r0
+ 387:  call flg=0, r1, #1
+ 388:  data 
+ 389:  jmp_false r1, 4              ;; -> %bb2(if-end)
+
+%bb1(if-then):
+ 390:  move r2, r0
+ 391:  call flg=0, r1, #1
+ 392:  data 
+ 393:  ret r1
+
+%bb2(if-end):
+ 394:  loadk r2, #7
+ 395:  call flg=0, r1, #1
+ 396:  data 
+ 397:  jmp_ref_eq_null r1, 12       ;; -> %bb4(if-end)
+
+%bb3(if-then):
+ 398:  nil_check r3, r1
+ 399:  new r1, #1
+ 400:  move r2, r1
+ 401:  call flg=0, #2
+ 402:  data 
+ 403:  get_field r3, r0, #0
+ 404:  move r2, r1
+ 405:  call flg=0, r2, #2
+ 406:  data 
+ 407:  call flg=0, r1, #1
+ 408:  data 
+ 409:  ret r1
+
+%bb4(if-end):
+ 410:  move r2, r0
+ 411:  call flg=0, r0, #1
+ 412:  data 
+ 413:  ret r0
+
+=== End of Linearization @Path::absolute ====
+
+
+====== Linearization @Path::to_str(start_pc: 414, insns: 2) ======
+
+%bb0(entry):
+ 414:  get_field r0, r0, #0
+ 415:  ret r0
+
+=== End of Linearization @Path::to_str ====
+
+
+====== Linearization @Path::fmt(start_pc: 416, insns: 7) ======
+
+%bb0(entry):
+ 416:  get_field r2, r0, #0
+ 417:  build_intern r4, @tuple, #1
+ 418:  move r2, r1
+ 419:  loadk r3, #8
+ 420:  call flg=0, #3
+ 421:  data 
+ 422:  ret_void 
+
+=== End of Linearization @Path::fmt ====
+
+
+====== Linearization @Path::__eq__(start_pc: 423, insns: 4) ======
+
+%bb0(entry):
+ 423:  get_field r0, r0, #0
+ 424:  get_field r1, r1, #0
+ 425:  num.eq r0, r0, r1
+ 426:  ret r0
+
+=== End of Linearization @Path::__eq__ ====
+
+
+====== Linearization @Path::__ne__(start_pc: 427, insns: 4) ======
+
+%bb0(entry):
+ 427:  get_field r0, r0, #0
+ 428:  get_field r1, r1, #0
+ 429:  num.ne r0, r0, r1
+ 430:  ret r0
+
+=== End of Linearization @Path::__ne__ ====
+
+
+====== Linearization @Path::cat(start_pc: 431, insns: 68) ======
+
+%bb0(entry):
+ 431:  loadk r2, #1
+ 432:  is r3, r1, 2
+ 433:  jmp_false r3, 4              ;; -> %bb2(if-else)
+
+%bb1(if-then):
+ 434:  as r3, r1, 2
+ 435:  nil_check r3, r3
+ 436:  move r2, r3
+ 437:  jmp 7                        ;; -> %bb3(if-end)
+
+%bb2(if-else):
+ 438:  is r3, r1, 1
+ 439:  jmp_false r3, 5              ;; -> %bb3(if-end)
+
+%bb4(if-then):
+ 440:  as r1, r1, 1
+ 441:  nil_check r6, r1
+ 442:  call flg=0, r1, #1
+ 443:  data 
+ 444:  move r2, r1
+
+%bb3(if-end):
+ 445:  move r6, r2
+ 446:  call flg=0, r1, #1
+ 447:  data 
+ 448:  jmp_false r1, 1              ;; -> %bb6(if-end)
+
+%bb5(if-then):
+ 449:  ret r0
+
+%bb6(if-end):
+ 450:  get_field r6, r0, #0
+ 451:  loadk r7, #2
+ 452:  call flg=0, r1, #2
+ 453:  data 
+ 454:  move r3, r1
+ 455:  jmp_true r1, 5               ;; -> %bb8(logical-end)
+
+%bb7(logical-rhs):
+ 456:  get_field r6, r0, #0
+ 457:  loadk r7, #3
+ 458:  call flg=0, r1, #2
+ 459:  data 
+ 460:  move r3, r1
+
+%bb8(logical-end):
+ 461:  move r6, r2
+ 462:  loadk r7, #2
+ 463:  call flg=0, r1, #2
+ 464:  data 
+ 465:  move r4, r1
+ 466:  jmp_true r1, 5               ;; -> %bb10(logical-end)
+
+%bb9(logical-rhs):
+ 467:  move r6, r2
+ 468:  loadk r7, #3
+ 469:  call flg=0, r1, #2
+ 470:  data 
+ 471:  move r4, r1
+
+%bb10(logical-end):
+ 472:  get_field r1, r0, #0
+ 473:  move r5, r1
+ 474:  lnot r1, r3
+ 475:  move r3, r1
+ 476:  jmp_false r1, 2              ;; -> %bb12(logical-end)
+
+%bb11(logical-rhs):
+ 477:  lnot r1, r4
+ 478:  move r3, r1
+
+%bb12(logical-end):
+ 479:  move r1, r3
+ 480:  jmp_false r3, 5              ;; -> %bb14(logical-end)
+
+%bb13(logical-rhs):
+ 481:  get_field r6, r0, #0
+ 482:  call flg=0, r0, #1
+ 483:  data 
+ 484:  lnot r0, r0
+ 485:  move r1, r0
+
+%bb14(logical-end):
+ 486:  jmp_false r1, 3              ;; -> %bb16(if-end)
+
+%bb15(if-then):
+ 487:  loadk r0, #2
+ 488:  num.add r0, r5, r0
+ 489:  move r5, r0
+
+%bb16(if-end):
+ 490:  num.add r7, r5, r2
+ 491:  new r0, #1
+ 492:  move r6, r0
+ 493:  call flg=0, #2
+ 494:  data 
+ 495:  move r6, r0
+ 496:  call flg=0, r0, #1
+ 497:  data 
+ 498:  ret r0
+
+=== End of Linearization @Path::cat ====
+
+
+====== Linearization @Path::hash(start_pc: 499, insns: 4) ======
+
+%bb0(entry):
+ 499:  get_field r1, r0, #0
+ 500:  call flg=0, r0, #1
+ 501:  data 
+ 502:  ret r0
+
+=== End of Linearization @Path::hash ====
+
+
+====== Emitted Bytecode (insns: 503) ======
+
+@open:
+[start_pc: 0, insns: 1, nlocals: 2, max_call_args: 0]
+
+@read_bytes:
+[start_pc: 1, insns: 1, nlocals: 2, max_call_args: 0]
+
+@write_bytes:
+[start_pc: 2, insns: 1, nlocals: 2, max_call_args: 0]
+
+@write_str:
+[start_pc: 3, insns: 1, nlocals: 2, max_call_args: 0]
+
+@exists:
+[start_pc: 4, insns: 1, nlocals: 1, max_call_args: 0]
+
+@is_file:
+[start_pc: 5, insns: 1, nlocals: 1, max_call_args: 0]
+
+@is_dir:
+[start_pc: 6, insns: 1, nlocals: 1, max_call_args: 0]
+
+@size:
+[start_pc: 7, insns: 1, nlocals: 1, max_call_args: 0]
+
+@remove:
+[start_pc: 8, insns: 1, nlocals: 1, max_call_args: 0]
+
+@mkdir:
+[start_pc: 9, insns: 1, nlocals: 2, max_call_args: 0]
+
+@rmdir:
+[start_pc: 10, insns: 1, nlocals: 1, max_call_args: 0]
+
+@list_dir:
+[start_pc: 11, insns: 1, nlocals: 1, max_call_args: 0]
+
+@File::__init__:
+[start_pc: 12, insns: 1, nlocals: 1, max_call_args: 0]
+
+@File::read:
+[start_pc: 13, insns: 1, nlocals: 2, max_call_args: 0]
+
+@File::write:
+[start_pc: 14, insns: 1, nlocals: 2, max_call_args: 0]
+
+@File::write_str:
+[start_pc: 15, insns: 1, nlocals: 2, max_call_args: 0]
+
+@File::seek:
+[start_pc: 16, insns: 1, nlocals: 3, max_call_args: 0]
+
+@File::tell:
+[start_pc: 17, insns: 1, nlocals: 1, max_call_args: 0]
+
+@File::truncate:
+[start_pc: 18, insns: 1, nlocals: 2, max_call_args: 0]
+
+@File::close:
+[start_pc: 19, insns: 1, nlocals: 1, max_call_args: 0]
+
+@File::flush:
+[start_pc: 20, insns: 6, nlocals: 1, max_call_args: 1]
+
+@File::__eq__:
+[start_pc: 26, insns: 1, nlocals: 2, max_call_args: 0]
+
+@File::__ne__:
+[start_pc: 27, insns: 1, nlocals: 2, max_call_args: 0]
+
+@File::hash:
+[start_pc: 28, insns: 1, nlocals: 1, max_call_args: 0]
+
+@File::fmt:
+[start_pc: 29, insns: 1, nlocals: 2, max_call_args: 0]
+
+@Path::__init__:
+[start_pc: 30, insns: 2, nlocals: 2, max_call_args: 0]
+
+@Path::name:
+[start_pc: 32, insns: 75, nlocals: 3, max_call_args: 3]
+
+@Path::ext:
+[start_pc: 107, insns: 20, nlocals: 2, max_call_args: 4]
+
+@Path::stem:
+[start_pc: 127, insns: 17, nlocals: 2, max_call_args: 4]
+
+@Path::parent:
+[start_pc: 144, insns: 80, nlocals: 5, max_call_args: 4]
+
+@Path::is_absolute:
+[start_pc: 224, insns: 49, nlocals: 4, max_call_args: 3]
+
+@Path::normalize:
+[start_pc: 273, insns: 113, nlocals: 11, max_call_args: 3]
+
+@Path::absolute:
+[start_pc: 386, insns: 28, nlocals: 2, max_call_args: 2]
+
+@Path::to_str:
+[start_pc: 414, insns: 2, nlocals: 1, max_call_args: 0]
+
+@Path::fmt:
+[start_pc: 416, insns: 7, nlocals: 2, max_call_args: 3]
+
+@Path::__eq__:
+[start_pc: 423, insns: 4, nlocals: 2, max_call_args: 0]
+
+@Path::__ne__:
+[start_pc: 427, insns: 4, nlocals: 2, max_call_args: 0]
+
+@Path::cat:
+[start_pc: 431, insns: 68, nlocals: 6, max_call_args: 2]
+
+@Path::hash:
+[start_pc: 499, insns: 4, nlocals: 1, max_call_args: 1]
+
+@open[0,0]:
+0000:  00000000   unreachable 
+@read_bytes[1,1]:
+0001:  00000000   unreachable 
+@write_bytes[2,2]:
+0002:  00000000   unreachable 
+@write_str[3,3]:
+0003:  00000000   unreachable 
+@exists[4,4]:
+0004:  00000000   unreachable 
+@is_file[5,5]:
+0005:  00000000   unreachable 
+@is_dir[6,6]:
+0006:  00000000   unreachable 
+@size[7,7]:
+0007:  00000000   unreachable 
+@remove[8,8]:
+0008:  00000000   unreachable 
+@mkdir[9,9]:
+0009:  00000000   unreachable 
+@rmdir[10,10]:
+0010:  00000000   unreachable 
+@list_dir[11,11]:
+0011:  00000000   unreachable 
+@File::__init__[12,12]:
+0012:  7A000000   ret_void 
+@File::read[13,13]:
+0013:  00000000   unreachable 
+@File::write[14,14]:
+0014:  00000000   unreachable 
+@File::write_str[15,15]:
+0015:  00000000   unreachable 
+@File::seek[16,16]:
+0016:  00000000   unreachable 
+@File::tell[17,17]:
+0017:  00000000   unreachable 
+@File::truncate[18,18]:
+0018:  00000000   unreachable 
+@File::close[19,19]:
+0019:  00000000   unreachable 
+@File::flush[20,25]:
+0020:  83000002   get_field r0, r0, #2
+0021:  54000003   jmp_false r0, 3
+0022:  05010000   loadk r1, #0
+0023:  730FFF01   call flg=0, #1
+0024:  00000027   data (func_index=39(imported))
+0025:  7A000000   ret_void 
+@File::__eq__[26,26]:
+0026:  00000000   unreachable 
+@File::__ne__[27,27]:
+0027:  00000000   unreachable 
+@File::hash[28,28]:
+0028:  00000000   unreachable 
+@File::fmt[29,29]:
+0029:  00000000   unreachable 
+@Path::__init__[30,31]:
+0030:  84000100   set_field r0, r1, #0
+0031:  7A000000   ret_void 
+@Path::name[32,106]:
+0032:  83030000   get_field r3, r0, #0
+0033:  73000101   call flg=0, r1, #1
+0034:  00000028   data (func_index=40(imported))
+0035:  54010001   jmp_false r1, 1
+0036:  79000001   ret_const #1
+0037:  83000000   get_field r0, r0, #0
+0038:  01001000   move r1, r0
+0039:  01003001   move r3, r1
+0040:  05040002   loadk r4, #2
+0041:  73000002   call flg=0, r0, #2
+0042:  00000029   data (func_index=41(imported))
+0043:  01002000   move r2, r0
+0044:  53000005   jmp_true r0, 5
+0045:  01003001   move r3, r1
+0046:  05040003   loadk r4, #3
+0047:  73000002   call flg=0, r0, #2
+0048:  00000029   data (func_index=41(imported))
+0049:  01002000   move r2, r0
+0050:  01000002   move r0, r2
+0051:  54020005   jmp_false r2, 5
+0052:  01003001   move r3, r1
+0053:  73000201   call flg=0, r2, #1
+0054:  0000002A   data (func_index=42(imported))
+0055:  23020201   int.gt_imm r2, r2, #1
+0056:  01000002   move r0, r2
+0057:  5400001C   jmp_false r0, 28
+0058:  01003001   move r3, r1
+0059:  73000001   call flg=0, r0, #1
+0060:  0000002A   data (func_index=42(imported))
+0061:  09050001   int.sub_imm r5, r0, #1
+0062:  01003001   move r3, r1
+0063:  0204B000   load_int_imm r4, ti=0xb, #0
+0064:  73000003   call flg=0, r0, #3
+0065:  0000002B   data (func_index=43(imported))
+0066:  01001000   move r1, r0
+0067:  01003001   move r3, r1
+0068:  05040002   loadk r4, #2
+0069:  73000002   call flg=0, r0, #2
+0070:  00000029   data (func_index=41(imported))
+0071:  01002000   move r2, r0
+0072:  53000005   jmp_true r0, 5
+0073:  01003001   move r3, r1
+0074:  05040003   loadk r4, #3
+0075:  73000002   call flg=0, r0, #2
+0076:  00000029   data (func_index=41(imported))
+0077:  01002000   move r2, r0
+0078:  01000002   move r0, r2
+0079:  54020005   jmp_false r2, 5
+0080:  01003001   move r3, r1
+0081:  73000201   call flg=0, r2, #1
+0082:  0000002A   data (func_index=42(imported))
+0083:  23020201   int.gt_imm r2, r2, #1
+0084:  01000002   move r0, r2
+0085:  5300FFE4   jmp_true r0, -28
+0086:  01003001   move r3, r1
+0087:  05040003   loadk r4, #3
+0088:  05050002   loadk r5, #2
+0089:  73000303   call flg=0, r3, #3
+0090:  0000002C   data (func_index=44(imported))
+0091:  05040002   loadk r4, #2
+0092:  0205BFFF   load_int_imm r5, ti=0xb, #-1
+0093:  73000003   call flg=0, r0, #3
+0094:  0000002D   data (func_index=45(imported))
+0095:  01002000   move r2, r0
+0096:  01003002   move r3, r2
+0097:  73000001   call flg=0, r0, #1
+0098:  0000002E   data (func_index=46(imported))
+0099:  60000006   jmp_int_le_imm r0, #0, 6
+0100:  01003002   move r3, r2
+0101:  73000001   call flg=0, r0, #1
+0102:  0000002E   data (func_index=46(imported))
+0103:  09000001   int.sub_imm r0, r0, #1
+0104:  8B000200   seq.get r0, r2, r0
+0105:  75000000   ret r0
+0106:  75000001   ret r1
+@Path::ext[107,126]:
+0107:  01002000   move r2, r0
+0108:  73000001   call flg=0, r0, #1
+0109:  0000001A   data (func_index=26(local))
+0110:  01002000   move r2, r0
+0111:  05030004   loadk r3, #4
+0112:  0204B000   load_int_imm r4, ti=0xb, #0
+0113:  0205BFFF   load_int_imm r5, ti=0xb, #-1
+0114:  73000104   call flg=0, r1, #4
+0115:  0000002F   data (func_index=47(imported))
+0116:  60010009   jmp_int_le_imm r1, #0, 9
+0117:  07010101   int.add_imm r1, r1, #1
+0118:  01002000   move r2, r0
+0119:  73000401   call flg=0, r4, #1
+0120:  0000002A   data (func_index=42(imported))
+0121:  01002000   move r2, r0
+0122:  01003001   move r3, r1
+0123:  73000003   call flg=0, r0, #3
+0124:  0000002B   data (func_index=43(imported))
+0125:  75000000   ret r0
+0126:  79000001   ret_const #1
+@Path::stem[127,143]:
+0127:  01002000   move r2, r0
+0128:  73000001   call flg=0, r0, #1
+0129:  0000001A   data (func_index=26(local))
+0130:  01002000   move r2, r0
+0131:  05030004   loadk r3, #4
+0132:  0204B000   load_int_imm r4, ti=0xb, #0
+0133:  0205BFFF   load_int_imm r5, ti=0xb, #-1
+0134:  73000104   call flg=0, r1, #4
+0135:  0000002F   data (func_index=47(imported))
+0136:  60010006   jmp_int_le_imm r1, #0, 6
+0137:  01002000   move r2, r0
+0138:  0203B000   load_int_imm r3, ti=0xb, #0
+0139:  01004001   move r4, r1
+0140:  73000103   call flg=0, r1, #3
+0141:  0000002B   data (func_index=43(imported))
+0142:  75000001   ret r1
+0143:  75000000   ret r0
+@Path::parent[144,223]:
+0144:  83050000   get_field r5, r0, #0
+0145:  73000101   call flg=0, r1, #1
+0146:  00000028   data (func_index=40(imported))
+0147:  01002001   move r2, r1
+0148:  53010004   jmp_true r1, 4
+0149:  83010000   get_field r1, r0, #0
+0150:  05030002   loadk r3, #2
+0151:  A2010103   num.eq r1, r1, r3
+0152:  01002001   move r2, r1
+0153:  01001002   move r1, r2
+0154:  53020004   jmp_true r2, 4
+0155:  83020000   get_field r2, r0, #0
+0156:  05030003   loadk r3, #3
+0157:  A2020203   num.eq r2, r2, r3
+0158:  01001002   move r1, r2
+0159:  54010001   jmp_false r1, 1
+0160:  75000000   ret r0
+0161:  83050000   get_field r5, r0, #0
+0162:  05060003   loadk r6, #3
+0163:  05070002   loadk r7, #2
+0164:  73000103   call flg=0, r1, #3
+0165:  0000002C   data (func_index=44(imported))
+0166:  01005001   move r5, r1
+0167:  05060002   loadk r6, #2
+0168:  0207B000   load_int_imm r7, ti=0xb, #0
+0169:  0208BFFF   load_int_imm r8, ti=0xb, #-1
+0170:  73000204   call flg=0, r2, #4
+0171:  0000002F   data (func_index=47(imported))
+0172:  01003002   move r3, r2
+0173:  01005001   move r5, r1
+0174:  73000201   call flg=0, r2, #1
+0175:  0000002A   data (func_index=42(imported))
+0176:  09020201   int.sub_imm r2, r2, #1
+0177:  1A020302   int.eq r2, r3, r2
+0178:  01004002   move r4, r2
+0179:  54020005   jmp_false r2, 5
+0180:  01005001   move r5, r1
+0181:  73000201   call flg=0, r2, #1
+0182:  0000002A   data (func_index=42(imported))
+0183:  23020201   int.gt_imm r2, r2, #1
+0184:  01004002   move r4, r2
+0185:  5404000E   jmp_false r4, 14
+0186:  01005001   move r5, r1
+0187:  73000201   call flg=0, r2, #1
+0188:  0000002A   data (func_index=42(imported))
+0189:  09070201   int.sub_imm r7, r2, #1
+0190:  01005001   move r5, r1
+0191:  0206B000   load_int_imm r6, ti=0xb, #0
+0192:  73000503   call flg=0, r5, #3
+0193:  0000002B   data (func_index=43(imported))
+0194:  05060002   loadk r6, #2
+0195:  0207B000   load_int_imm r7, ti=0xb, #0
+0196:  0208BFFF   load_int_imm r8, ti=0xb, #-1
+0197:  73000104   call flg=0, r1, #4
+0198:  0000002F   data (func_index=47(imported))
+0199:  01003001   move r3, r1
+0200:  5C03FF06   jmp_int_ne_imm r3, #-1, 6
+0201:  7F010001   new r1, #1
+0202:  01005001   move r5, r1
+0203:  05060004   loadk r6, #4
+0204:  730FFF02   call flg=0, #2
+0205:  00000019   data (func_index=25(local))
+0206:  75000001   ret r1
+0207:  5C030006   jmp_int_ne_imm r3, #0, 6
+0208:  7F010001   new r1, #1
+0209:  01005001   move r5, r1
+0210:  05060002   loadk r6, #2
+0211:  730FFF02   call flg=0, #2
+0212:  00000019   data (func_index=25(local))
+0213:  75000001   ret r1
+0214:  83050000   get_field r5, r0, #0
+0215:  0206B000   load_int_imm r6, ti=0xb, #0
+0216:  01007003   move r7, r3
+0217:  73000603   call flg=0, r6, #3
+0218:  0000002B   data (func_index=43(imported))
+0219:  7F000001   new r0, #1
+0220:  01005000   move r5, r0
+0221:  730FFF02   call flg=0, #2
+0222:  00000019   data (func_index=25(local))
+0223:  75000000   ret r0
+@Path::is_absolute[224,272]:
+0224:  83040000   get_field r4, r0, #0
+0225:  73000101   call flg=0, r1, #1
+0226:  00000028   data (func_index=40(imported))
+0227:  54010001   jmp_false r1, 1
+0228:  78000000   ret_tag #false
+0229:  83040000   get_field r4, r0, #0
+0230:  05050002   loadk r5, #2
+0231:  73000102   call flg=0, r1, #2
+0232:  00000030   data (func_index=48(imported))
+0233:  01002001   move r2, r1
+0234:  53010005   jmp_true r1, 5
+0235:  83040000   get_field r4, r0, #0
+0236:  05050003   loadk r5, #3
+0237:  73000102   call flg=0, r1, #2
+0238:  00000030   data (func_index=48(imported))
+0239:  01002001   move r2, r1
+0240:  54020001   jmp_false r2, 1
+0241:  78000001   ret_tag #true
+0242:  83040000   get_field r4, r0, #0
+0243:  73000101   call flg=0, r1, #1
+0244:  0000002A   data (func_index=42(imported))
+0245:  5E01031A   jmp_int_lt_imm r1, #3, 26
+0246:  83040000   get_field r4, r0, #0
+0247:  0205B000   load_int_imm r5, ti=0xb, #0
+0248:  0206B002   load_int_imm r6, ti=0xb, #2
+0249:  73000103   call flg=0, r1, #3
+0250:  0000002B   data (func_index=43(imported))
+0251:  83040000   get_field r4, r0, #0
+0252:  0205B002   load_int_imm r5, ti=0xb, #2
+0253:  0206B003   load_int_imm r6, ti=0xb, #3
+0254:  73000003   call flg=0, r0, #3
+0255:  0000002B   data (func_index=43(imported))
+0256:  01004001   move r4, r1
+0257:  05050005   loadk r5, #5
+0258:  73000102   call flg=0, r1, #2
+0259:  00000029   data (func_index=41(imported))
+0260:  01002001   move r2, r1
+0261:  54010008   jmp_false r1, 8
+0262:  05010002   loadk r1, #2
+0263:  A2010001   num.eq r1, r0, r1
+0264:  01003001   move r3, r1
+0265:  53010003   jmp_true r1, 3
+0266:  05010003   loadk r1, #3
+0267:  A2000001   num.eq r0, r0, r1
+0268:  01003000   move r3, r0
+0269:  01002003   move r2, r3
+0270:  54020001   jmp_false r2, 1
+0271:  78000001   ret_tag #true
+0272:  78000000   ret_tag #false
+@Path::normalize[273,385]:
+0273:  830B0000   get_field r11, r0, #0
+0274:  73000101   call flg=0, r1, #1
+0275:  00000028   data (func_index=40(imported))
+0276:  54010006   jmp_false r1, 6
+0277:  7F010001   new r1, #1
+0278:  0100B001   move r11, r1
+0279:  050C0004   loadk r12, #4
+0280:  730FFF02   call flg=0, #2
+0281:  00000019   data (func_index=25(local))
+0282:  75000001   ret r1
+0283:  0100B000   move r11, r0
+0284:  73000101   call flg=0, r1, #1
+0285:  0000001E   data (func_index=30(local))
+0286:  830B0000   get_field r11, r0, #0
+0287:  050C0003   loadk r12, #3
+0288:  050D0002   loadk r13, #2
+0289:  73000B03   call flg=0, r11, #3
+0290:  0000002C   data (func_index=44(imported))
+0291:  050C0002   loadk r12, #2
+0292:  020DBFFF   load_int_imm r13, ti=0xb, #-1
+0293:  73000003   call flg=0, r0, #3
+0294:  0000002D   data (func_index=45(imported))
+0295:  01002000   move r2, r0
+0296:  80000300   build_intern r0, @list, #0
+0297:  01003000   move r3, r0
+0298:  93004002   len r4, r2
+0299:  0200B000   load_int_imm r0, ti=0xb, #0
+0300:  5D000422   jmp_int_lt r0, r4, 34
+0301:  05050001   loadk r5, #1
+0302:  54010001   jmp_false r1, 1
+0303:  05050002   loadk r5, #2
+0304:  04000601   load_tag r6, #true
+0305:  93008003   len r8, r3
+0306:  0207B000   load_int_imm r7, ti=0xb, #0
+0307:  5D070810   jmp_int_lt r7, r8, 16
+0308:  0100B005   move r11, r5
+0309:  73000901   call flg=0, r9, #1
+0310:  00000028   data (func_index=40(imported))
+0311:  54090006   jmp_false r9, 6
+0312:  7F090001   new r9, #1
+0313:  0100B009   move r11, r9
+0314:  050C0004   loadk r12, #4
+0315:  730FFF02   call flg=0, #2
+0316:  00000019   data (func_index=25(local))
+0317:  75000009   ret r9
+0318:  7F090001   new r9, #1
+0319:  0100B009   move r11, r9
+0320:  0100C005   move r12, r5
+0321:  730FFF02   call flg=0, #2
+0322:  00000019   data (func_index=25(local))
+0323:  75000009   ret r9
+0324:  8B0A0307   seq.get r10, r3, r7
+0325:  0100900A   move r9, r10
+0326:  53060003   jmp_true r6, 3
+0327:  050A0002   loadk r10, #2
+0328:  980A050A   num.add r10, r5, r10
+0329:  0100500A   move r5, r10
+0330:  98090509   num.add r9, r5, r9
+0331:  01005009   move r5, r9
+0332:  04000600   load_tag r6, #false
+0333:  07070701   int.add_imm r7, r7, #1
+0334:  5200FFE4   jmp -28
+0335:  8B050200   seq.get r5, r2, r0
+0336:  0100B005   move r11, r5
+0337:  73000501   call flg=0, r5, #1
+0338:  00000031   data (func_index=49(imported))
+0339:  0100B005   move r11, r5
+0340:  73000601   call flg=0, r6, #1
+0341:  00000028   data (func_index=40(imported))
+0342:  01007006   move r7, r6
+0343:  53060003   jmp_true r6, 3
+0344:  05060004   loadk r6, #4
+0345:  A2060506   num.eq r6, r5, r6
+0346:  01007006   move r7, r6
+0347:  53070024   jmp_true r7, 36
+0348:  05060006   loadk r6, #6
+0349:  A2060506   num.eq r6, r5, r6
+0350:  5406001D   jmp_false r6, 29
+0351:  0100B003   move r11, r3
+0352:  73000601   call flg=0, r6, #1
+0353:  0000002E   data (func_index=46(imported))
+0354:  23060600   int.gt_imm r6, r6, #0
+0355:  01007006   move r7, r6
+0356:  54060008   jmp_false r6, 8
+0357:  0100B003   move r11, r3
+0358:  73000601   call flg=0, r6, #1
+0359:  0000002E   data (func_index=46(imported))
+0360:  09060601   int.sub_imm r6, r6, #1
+0361:  8B060306   seq.get r6, r3, r6
+0362:  05080006   loadk r8, #6
+0363:  A3060608   num.ne r6, r6, r8
+0364:  01007006   move r7, r6
+0365:  54070008   jmp_false r7, 8
+0366:  0100B003   move r11, r3
+0367:  73000601   call flg=0, r6, #1
+0368:  0000002E   data (func_index=46(imported))
+0369:  090C0601   int.sub_imm r12, r6, #1
+0370:  0100B003   move r11, r3
+0371:  730FFF02   call flg=0, #2
+0372:  00000032   data (func_index=50(imported))
+0373:  5200000A   jmp 10
+0374:  53010009   jmp_true r1, 9
+0375:  0100B003   move r11, r3
+0376:  050C0006   loadk r12, #6
+0377:  730FFF02   call flg=0, #2
+0378:  00000033   data (func_index=51(imported))
+0379:  52000004   jmp 4
+0380:  0100B003   move r11, r3
+0381:  0100C005   move r12, r5
+0382:  730FFF02   call flg=0, #2
+0383:  00000033   data (func_index=51(imported))
+0384:  07000001   int.add_imm r0, r0, #1
+0385:  5200FFAA   jmp -86
+@Path::absolute[386,413]:
+0386:  01002000   move r2, r0
+0387:  73000101   call flg=0, r1, #1
+0388:  0000001E   data (func_index=30(local))
+0389:  54010004   jmp_false r1, 4
+0390:  01002000   move r2, r0
+0391:  73000101   call flg=0, r1, #1
+0392:  0000001F   data (func_index=31(local))
+0393:  75000001   ret r1
+0394:  05020007   loadk r2, #7
+0395:  73000101   call flg=0, r1, #1
+0396:  00000034   data (func_index=52(imported))
+0397:  5701000C   jmp_ref_eq_null r1, 12
+0398:  AA003001   nil_check r3, r1
+0399:  7F010001   new r1, #1
+0400:  01002001   move r2, r1
+0401:  730FFF02   call flg=0, #2
+0402:  00000019   data (func_index=25(local))
+0403:  83030000   get_field r3, r0, #0
+0404:  01002001   move r2, r1
+0405:  73000202   call flg=0, r2, #2
+0406:  00000025   data (func_index=37(local))
+0407:  73000101   call flg=0, r1, #1
+0408:  0000001F   data (func_index=31(local))
+0409:  75000001   ret r1
+0410:  01002000   move r2, r0
+0411:  73000001   call flg=0, r0, #1
+0412:  0000001F   data (func_index=31(local))
+0413:  75000000   ret r0
+@Path::to_str[414,415]:
+0414:  83000000   get_field r0, r0, #0
+0415:  75000000   ret r0
+@Path::fmt[416,422]:
+0416:  83020000   get_field r2, r0, #0
+0417:  80040001   build_intern r4, @tuple, #1
+0418:  01002001   move r2, r1
+0419:  05030008   loadk r3, #8
+0420:  730FFF03   call flg=0, #3
+0421:  00000035   data (func_index=53(imported))
+0422:  7A000000   ret_void 
+@Path::__eq__[423,426]:
+0423:  83000000   get_field r0, r0, #0
+0424:  83010100   get_field r1, r1, #0
+0425:  A2000001   num.eq r0, r0, r1
+0426:  75000000   ret r0
+@Path::__ne__[427,430]:
+0427:  83000000   get_field r0, r0, #0
+0428:  83010100   get_field r1, r1, #0
+0429:  A3000001   num.ne r0, r0, r1
+0430:  75000000   ret r0
+@Path::cat[431,498]:
+0431:  05020001   loadk r2, #1
+0432:  96030102   is r3, r1, 2
+0433:  54030004   jmp_false r3, 4
+0434:  95030102   as r3, r1, 2
+0435:  AA003003   nil_check r3, r3
+0436:  01002003   move r2, r3
+0437:  52000007   jmp 7
+0438:  96030101   is r3, r1, 1
+0439:  54030005   jmp_false r3, 5
+0440:  95010101   as r1, r1, 1
+0441:  AA006001   nil_check r6, r1
+0442:  73000101   call flg=0, r1, #1
+0443:  00000021   data (func_index=33(local))
+0444:  01002001   move r2, r1
+0445:  01006002   move r6, r2
+0446:  73000101   call flg=0, r1, #1
+0447:  00000028   data (func_index=40(imported))
+0448:  54010001   jmp_false r1, 1
+0449:  75000000   ret r0
+0450:  83060000   get_field r6, r0, #0
+0451:  05070002   loadk r7, #2
+0452:  73000102   call flg=0, r1, #2
+0453:  00000029   data (func_index=41(imported))
+0454:  01003001   move r3, r1
+0455:  53010005   jmp_true r1, 5
+0456:  83060000   get_field r6, r0, #0
+0457:  05070003   loadk r7, #3
+0458:  73000102   call flg=0, r1, #2
+0459:  00000029   data (func_index=41(imported))
+0460:  01003001   move r3, r1
+0461:  01006002   move r6, r2
+0462:  05070002   loadk r7, #2
+0463:  73000102   call flg=0, r1, #2
+0464:  00000030   data (func_index=48(imported))
+0465:  01004001   move r4, r1
+0466:  53010005   jmp_true r1, 5
+0467:  01006002   move r6, r2
+0468:  05070003   loadk r7, #3
+0469:  73000102   call flg=0, r1, #2
+0470:  00000030   data (func_index=48(imported))
+0471:  01004001   move r4, r1
+0472:  83010000   get_field r1, r0, #0
+0473:  01005001   move r5, r1
+0474:  4D001003   lnot r1, r3
+0475:  01003001   move r3, r1
+0476:  54010002   jmp_false r1, 2
+0477:  4D001004   lnot r1, r4
+0478:  01003001   move r3, r1
+0479:  01001003   move r1, r3
+0480:  54030005   jmp_false r3, 5
+0481:  83060000   get_field r6, r0, #0
+0482:  73000001   call flg=0, r0, #1
+0483:  00000028   data (func_index=40(imported))
+0484:  4D000000   lnot r0, r0
+0485:  01001000   move r1, r0
+0486:  54010003   jmp_false r1, 3
+0487:  05000002   loadk r0, #2
+0488:  98000500   num.add r0, r5, r0
+0489:  01005000   move r5, r0
+0490:  98070502   num.add r7, r5, r2
+0491:  7F000001   new r0, #1
+0492:  01006000   move r6, r0
+0493:  730FFF02   call flg=0, #2
+0494:  00000019   data (func_index=25(local))
+0495:  01006000   move r6, r0
+0496:  73000001   call flg=0, r0, #1
+0497:  0000001F   data (func_index=31(local))
+0498:  75000000   ret r0
+@Path::hash[499,502]:
+0499:  83010000   get_field r1, r0, #0
+0500:  73000001   call flg=0, r0, #1
+0501:  00000036   data (func_index=54(imported))
+0502:  75000000   ret r0
+
+=== End of Emitted Bytecode ====
+
+Constant Pool:
+  [000] str     = "file is closed"
+  [001] str     = ""
+  [002] str     = "/"
+  [003] str     = "\\"
+  [004] str     = "."
+  [005] str     = ":"
+  [006] str     = ".."
+  [007] str     = "PWD"
+  [008] str     = "Path({})"
+Import Table:
+  [000] type   std/builtin::str, slot_index: 2
+  [001] func   std/builtin::panic, slot_index: 39
+  [002] method std/builtin::str::empty, slot_index: 40
+  [003] method std/builtin::str::ends_with, slot_index: 41
+  [004] method std/builtin::str::len, slot_index: 42
+  [005] method std/builtin::str::view, slot_index: 43
+  [006] method std/builtin::str::replace, slot_index: 44
+  [007] method std/builtin::str::split, slot_index: 45
+  [008] method std/builtin::list::len, slot_index: 46
+  [009] method std/builtin::str::rindex, slot_index: 47
+  [010] method std/builtin::str::starts_with, slot_index: 48
+  [011] method std/builtin::str::strip, slot_index: 49
+  [012] method std/builtin::list::pop, slot_index: 50
+  [013] method std/builtin::list::push, slot_index: 51
+  [014] func   std/os::getenv, slot_index: 52
+  [015] method std/builtin::Formatter::write_fmt, slot_index: 53
+  [016] method std/builtin::str::hash, slot_index: 54

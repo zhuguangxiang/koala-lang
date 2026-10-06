@@ -1,0 +1,143 @@
+// RUN: koala --test %s
+
+from "std/ut" import assert_eq
+
+class Cat {
+    pub func name() str { return "cat" }
+}
+
+class Dog {
+    pub func bark() str { return "woof" }
+}
+
+// Auto narrowing: members of the narrowed type are directly accessible.
+func narrow_auto(v Cat | Dog) str {
+    if v is Cat {
+        return v.name()
+    } else if v is Dog {
+        return v.bark()
+    }
+    return ""
+}
+
+// Auto narrowing followed by an explicit 'as' on the narrowed variable.
+func narrow_then_as(v Cat | Dog) str {
+    if v is Cat {
+        let c = v as Cat
+        return c.name()
+    }
+    return "other"
+}
+
+// No narrowing: 'as' is required to access the member.
+func no_narrow_as(v Cat | Dog) str {
+    let c = v as Cat
+    if c != nil {
+        return c.name()
+    }
+    let d = v as Dog
+    if d != nil {
+        return d.bark()
+    }
+    return ""
+}
+
+// Narrowing of a mutable variable inside the if-block.
+func narrow_var(v Cat | Dog) str {
+    var r = ""
+    if v is Dog {
+        r = v.bark()
+    }
+    return r
+}
+
+// Negated condition narrows the else branch.
+func narrow_negated_else(v Cat | Dog) str {
+    if !(v is Cat) {
+        return "not cat"
+    } else {
+        return v.name()
+    }
+}
+
+// Early return: after `if !(v is T) { return }`, v is narrowed to T.
+func narrow_early_return(v Cat | Dog) str {
+    if !(v is Cat) {
+        return "not cat"
+    }
+    return v.name()
+}
+
+// An even number of negations behaves like the positive form.
+func narrow_double_negated(v Cat | Dog) str {
+    if !!(v is Dog) {
+        return v.bark()
+    }
+    return "not dog"
+}
+
+func narrow_triple_negated(v Cat | Dog) str {
+    if !!!(v is Dog) {
+        return "not dog"
+    }
+    return v.bark()
+}
+
+func narrow_while(v Cat | Dog) str {
+    var r = ""
+    while v is Cat {
+        r = v.name()
+        break
+    }
+    return r
+}
+
+@test
+func test_narrow_auto() {
+    assert_eq(narrow_auto(Cat()), "cat")
+    assert_eq(narrow_auto(Dog()), "woof")
+}
+
+@test
+func test_narrow_then_as() {
+    assert_eq(narrow_then_as(Cat()), "cat")
+    assert_eq(narrow_then_as(Dog()), "other")
+}
+
+@test
+func test_no_narrow_as() {
+    assert_eq(no_narrow_as(Cat()), "cat")
+    assert_eq(no_narrow_as(Dog()), "woof")
+}
+
+@test
+func test_narrow_var() {
+    assert_eq(narrow_var(Dog()), "woof")
+    assert_eq(narrow_var(Cat()), "")
+}
+
+@test
+func test_narrow_negated_else() {
+    assert_eq(narrow_negated_else(Cat()), "cat")
+    assert_eq(narrow_negated_else(Dog()), "not cat")
+}
+
+@test
+func test_narrow_early_return() {
+    assert_eq(narrow_early_return(Cat()), "cat")
+    assert_eq(narrow_early_return(Dog()), "not cat")
+}
+
+@test
+func test_narrow_multi_negated() {
+    assert_eq(narrow_double_negated(Dog()), "woof")
+    assert_eq(narrow_double_negated(Cat()), "not dog")
+    assert_eq(narrow_triple_negated(Dog()), "woof")
+    assert_eq(narrow_triple_negated(Cat()), "not dog")
+}
+
+@test
+func test_narrow_while() {
+    assert_eq(narrow_while(Cat()), "cat")
+    assert_eq(narrow_while(Dog()), "")
+}

@@ -1,0 +1,4 @@
+[package]
+name = "koala-http"
+version = "0.3.2"
+edition = "2026"

@@ -251,6 +251,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<type_spec> optional_type
 %type<type_spec> param_type
 %type<type_spec> type
+%type<type_spec> type_opt
 %type<type_spec> list_type
 %type<type_spec> map_type
 %type<type_spec> set_type
@@ -695,6 +696,17 @@ optional_type
     ;
 
 base_type
+    : type_opt
+    {
+        $$ = $1;
+    }
+    | array_type
+    {
+        $$ = $1;
+    }
+    ;
+
+type_opt
     : type
     {
         $$ = $1;
@@ -703,10 +715,6 @@ base_type
     {
         $$ = optional_type_spec($1);
         type_spec_loc($$, lloc(@1, @2));
-    }
-    | array_type
-    {
-        $$ = $1;
     }
     ;
 
@@ -1535,24 +1543,7 @@ func_proto_decl
     }
     | FUNC ID error
     {
-        printf("func proto error1\n");
-        $$ = NULL;
-    }
-    | FUNC ID '(' param_list ')' error
-    {
-        printf("func proto error2\n");
-        $$ = NULL;
-    }
-    | FUNC ID '(' ')' error
-    {
-        $$ = NULL;
-    }
-    | FUNC ID '[' error
-    {
-        $$ = NULL;
-    }
-    | FUNC ID '[' tp_decl_list ']' error
-    {
+        kl_error(loc(@2), "expected a function prototype.");
         $$ = NULL;
     }
     ;
@@ -2171,13 +2162,13 @@ trait_method_list
     ;
 
 trait_method
-    : func_proto_decl semi
+    : func_proto_decl
     {
         $$ = $1;
         PrefixFlags flags = { .pub.flag = 1 };
         stmt_set_prefix($$, flags);
     }
-    | access func_proto_decl semi
+    | access func_proto_decl
     {
         $$ = $2;
         $1.pub.flag = 1;
@@ -2562,12 +2553,12 @@ expr
         yy_clear_ok;
         $$ = NULL;
     }
-    | or_expr IS type
+    | or_expr IS type_opt
     {
         $$ = expr_from_is_expr($1, loc(@2), $3);
         expr_set_loc($$, lloc(@1, @3));
     }
-    | or_expr AS type
+    | or_expr AS type_opt
     {
         $$ = expr_from_as_expr($1, loc(@2), $3);
         expr_set_loc($$, lloc(@1, @3));
@@ -2971,9 +2962,9 @@ call_expr
     }
     | primary_expr '(' call_arg_list error
     {
-        // expr_free($1);
+        expr_free($1);
         // free_call_arg_list($3);
-        kl_error(loc(@4), "expected ')'.");
+        kl_error(loc(@4), "expected an expr list or ')'.");
         yy_clear_ok;
         $$ = NULL;
     }
@@ -3037,16 +3028,6 @@ dot_expr
         IDENT(id, $3, loc(@3));
         $$ = expr_from_dot($1, &id, DOT_BANG);
         expr_set_loc($$, lloc(@1, @3));
-    }
-    | primary_expr '.' AS '(' type ')'
-    {
-        $$ = expr_from_as_expr($1, loc(@3), $5);
-        expr_set_loc($$, lloc(@1, @6));
-    }
-    | primary_expr '.' IS '(' type ')'
-    {
-        $$ = expr_from_is_expr($1, loc(@3), $5);
-        expr_set_loc($$, lloc(@1, @6));
     }
     | primary_expr '.' error
     {

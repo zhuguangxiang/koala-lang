@@ -1,0 +1,35 @@
+// RUN: koala --test %s
+
+from "std/ut" import assert, assert_false
+
+class Dog {
+    func value() int { return 7 }
+}
+
+class Cat {}
+
+@test
+func test_is_always_true() {
+    let dog = Dog()
+    assert(dog is Dog)
+}
+
+@test
+func test_is_always_false() {
+    let dog = Dog()
+    assert_false(dog is Cat)
+}
+
+@test
+func test_as_always_true() {
+    let dog = Dog()
+    let same = dog as Dog
+    assert(same.value() == 7)
+}
+
+@test
+func test_as_always_false() {
+    let dog = Dog()
+    let cat = dog as Cat
+    assert(cat == nil)
+}

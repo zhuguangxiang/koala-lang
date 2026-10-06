@@ -450,6 +450,7 @@ static void print_new(const char *name, KlrInsn *insn, FILE *fp)
     TypeSpec *ts = insn->ts;
 
     klr_print_value_name((KlrValue *)insn, fp);
+
     if (ts->kind == TYPE_KLASS) {
         if (ts->klass_type.pkg) {
             fprintf(fp, " = %s @%s.%s", name, ts->klass_type.pkg, ts->klass_type.name);
@@ -472,6 +473,15 @@ static void print_new(const char *name, KlrInsn *insn, FILE *fp)
         }
         fprintf(fp, "]");
     }
+}
+
+static void print_is_as(const char *name, KlrInsn *insn, FILE *fp)
+{
+    klr_print_value_name((KlrValue *)insn, fp);
+    fprintf(fp, " = %s ", name);
+    print_operand(&insn->opers[0], fp);
+    fprintf(fp, ",");
+    print_type(insn->target_ts, fp);
 }
 
 static void print_build_intern(KlrInsn *insn, FILE *fp)
@@ -1143,6 +1153,11 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_NEW:
             print_new(name, insn, fp);
+            break;
+
+        case OP_IS:
+        case OP_AS:
+            print_is_as(name, insn, fp);
             break;
 
         case OP_BUILD_INTERN:

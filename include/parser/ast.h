@@ -164,12 +164,20 @@ Expr *expr_from_ident(Ident *id);
 Expr *expr_from_under(void);
 Expr *expr_from_self(void);
 
+typedef enum _IsAsResult {
+    RUNTIME_CHECK = 0,
+    ALWAYS_TRUE = 1,
+    ALWAYS_FALSE = 2,
+} IsAsResult;
+
 typedef struct _IsExpr {
     EXPR_HEAD
     Expr *exp;
     Loc op_loc;
     TypeSpec *type;
-    int result;
+    TypeSpec *target_ts;
+    Symbol *target_sym;
+    IsAsResult result;
 } IsExpr;
 
 typedef struct _AsExpr {
@@ -177,7 +185,9 @@ typedef struct _AsExpr {
     Expr *exp;
     Loc op_loc;
     TypeSpec *type;
-    int safe_cast;
+    TypeSpec *target_ts;
+    Symbol *target_sym;
+    IsAsResult result;
 } AsExpr;
 
 typedef struct _InExpr {

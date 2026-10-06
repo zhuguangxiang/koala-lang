@@ -109,28 +109,6 @@ pub class Path : ToString {
         let segments = path.replace("\\", "/").split("/")
         let stack = list[str]()
 
-        // let segments_len = segments.len()
-        // var idx = 0
-        // while idx < segments_len {
-        //     let seg = segments[idx]
-
-        //     if seg.empty() || seg == "." {
-        //         idx = idx + 1
-        //         continue
-        //     }
-
-        //     if seg == ".." {
-        //         if stack.len() > 0 && stack[stack.len() - 1] != ".." {
-        //             stack.pop(stack.len() - 1)
-        //         } else if !is_abs {
-        //             stack.push("..")
-        //         }
-        //     } else {
-        //         stack.push(seg)
-        //     }
-        //     idx = idx + 1
-        // }
-
         for seg in segments {
             let s = seg.strip()
             if s.empty() || s == "." { continue }
@@ -193,30 +171,26 @@ pub class Path : ToString {
     ///
     /// Example:
     ///     let p = fs.Path("abc").cat("def").cat("ok")
-    @native
     pub func cat(segment Path | str) Path {
-        // var next_part = ""
+        var next_part = ""
 
-        // // Process runtime union type unboxing natively
-        // if segment is str {
-        //     next_part = segment
-        // } else if segment is Path {
-        //     next_part = segment.to_str()
-        // }
+        if segment is str {
+            next_part = segment
+        } else if segment is Path {
+            next_part = segment.to_str()
+        }
 
-        // if next_part.empty() { return self }
+        if next_part.empty() { return self }
 
-        // // Determine if an implicit middle separator must be injected symmetrically
-        // let has_tail_sep = path.ends_with("/") || path.ends_with("\\")
-        // let has_head_sep = next_part.starts_with("/") || next_part.starts_with("\\")
+        let has_tail_sep = path.ends_with("/") || path.ends_with("\\")
+        let has_head_sep = next_part.starts_with("/") || next_part.starts_with("\\")
 
-        // var joint = path
-        // if !has_tail_sep && !has_head_sep && !path.empty() {
-        //     joint = joint + "/"
-        // }
+        var joint = path
+        if !has_tail_sep && !has_head_sep && !path.empty() {
+            joint = joint + "/"
+        }
 
-        // // Merge tokens and execute a final post-order wash to yield a squeaky clean string
-        // return Path(joint + next_part).normalize()
+        return Path(joint + next_part).normalize()
     }
 
     /// Return the hash code of the current path.

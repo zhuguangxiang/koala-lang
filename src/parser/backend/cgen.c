@@ -1353,7 +1353,6 @@ static void fill_mach_insn(KlMachInsn *mi, KlrInsn *insn, KlMachModule *m)
             break;
         }
 
-        case FORMAT_NEW:
         case FORMAT_Op: {
             // no operand, nothing to fill
             break;

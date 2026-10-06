@@ -93,6 +93,10 @@ typedef struct _ShadowVarSymbol {
     HashMap *owner;
     Symbol *origin;
     int is_null;
+    // narrowed by 'is' check, not by nil check
+    int is_narrow;
+    // narrow applies to the opposite branch ('!(x is T)'), the symbol is not in any stbl
+    int narrow_negated;
 } ShadowVarSymbol;
 
 typedef struct _TypeParamSymbol {
@@ -247,6 +251,7 @@ Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *origin_
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);
+Symbol *stbl_add_narrow_var(HashMap *stbl, Symbol *origin, TypeSpec *narrow_ts);
 Symbol *stbl_add_imported(HashMap *stbl, Symbol *origin, char *name);
 Symbol *stbl_remove(HashMap *stbl, char *name);
 

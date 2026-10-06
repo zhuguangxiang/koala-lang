@@ -1,0 +1,82 @@
+// RUN: koala --test %s
+
+from "std/ut" import assert, assert_false
+
+trait Pet {
+    func name() str
+}
+
+class Cat: Pet {
+    func name() str { return "cat" }
+}
+
+class Dog: Pet {
+    func name() str { return "dog" }
+}
+
+func is_dog(p Pet) bool {
+    return p is Dog
+}
+
+func as_dog(p Pet) Dog? {
+    return p as Dog
+}
+
+func is_primitive(p any) bool {
+    return p is int
+}
+
+func as_primitive(p any) int? {
+    return p as int
+}
+
+@test
+func test_is_runtime_check() {
+    let dog Pet = Dog()
+    let cat Pet = Cat()
+
+    assert(is_dog(dog))
+    assert_false(is_dog(cat))
+}
+
+@test
+func test_as_runtime_check() {
+    let dog Pet = Dog()
+    let cat Pet = Cat()
+
+    let maybe_dog = as_dog(dog)
+    assert(maybe_dog != nil)
+    assert(maybe_dog!.name() == "dog")
+
+    assert(as_dog(cat) == nil)
+}
+
+@test
+func test_is_primitive_runtime_check() {
+    assert(is_primitive(42))
+    assert_false(is_primitive("not an int"))
+}
+
+@test
+func test_as_primitive_runtime_check() {
+    let maybe_int = as_primitive(42)
+    assert(maybe_int != nil)
+    assert(maybe_int! == 42)
+
+    assert(as_primitive("not an int") == nil)
+}
+
+func is_li(v any) bool { return v is list[int] }
+
+func is_ls(v any) bool { return v is list[str] }
+func as_li(v any) list[int]? { return v as list[int] }
+
+@test
+func test_is_li_ls_li_opt() {
+    assert(is_li([1,2,3]))
+    // TODO: vm erase subtype?
+    assert(is_ls([1,2,3]))
+    assert_false(is_li("x"))
+    assert(as_li([1,2,3]) != nil)
+    assert(as_li("x") == nil)
+}

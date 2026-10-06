@@ -244,6 +244,12 @@ static inline void *vector_get(Vector *vec, int index)
 }
 
 #define vector_at(vec, index) vector_get(vec, index)
+#define vector_at_obj(vec, index, type) \
+    ({ \
+        type *obj_p__ = vector_get_ptr(vec, index); \
+        ASSERT(obj_p__ != NULL); \
+        *obj_p__; \
+    })
 
 /* qsort for vector */
 static inline void vector_sort(Vector *vec, int (*cmp)(const void *, const void *))

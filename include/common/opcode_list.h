@@ -2096,31 +2096,27 @@ X(OP_CONTAINS, FORMAT_RRR, "contains")
  * OP_AS — safe cast
  *
  * FORMAT_Ax:
- *     | op:8 | ---:12 | Ax(obj):12 |
+ *     | op:8 | rd:8 | rs:8 | type_index(local):8 |
  *
  * Details:
  *     Performs a safe cast of obj to the target type encoded in
  *     the following instruction (usually OP_WIDE or a metadata
  *     operand). If the cast succeeds, pushes the casted value.
  *     If it fails, pushes 'none' instead of raising.
- *
- *     This is equivalent to C#'s "as" operator.
  */
-X(OP_AS, FORMAT_Op, "as")
+X(OP_AS, FORMAT_RROff, "as")
 
 /**
  * OP_IS — type test
  *
  * FORMAT_Ax:
- *     | op:8 | ---:12 | Ax(obj):12 |
+ *     | op:8 | rd:8 | rs:8 | type_index(local):8 |
  *
  * Details:
  *     Tests whether obj is of the target type encoded in the
  *     following instruction. Pushes true or false.
- *
- *     This is equivalent to C#'s "is" operator.
  */
-X(OP_IS, FORMAT_Op, "is")
+X(OP_IS, FORMAT_RROff, "is")
 
 /*---------------------------------------------------------------+
  |  Miscellaneous / Special Instructions                         |

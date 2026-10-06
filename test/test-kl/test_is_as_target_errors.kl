@@ -1,0 +1,76 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+trait Pet {}
+trait Marker[T] {}
+
+class Dog {}
+class Cat {}
+class Robot {}
+
+func is_trait_target(x Dog) bool {
+    return x is Pet
+    // CHECK: target type of 'is' operator must be a class type.
+}
+
+func as_trait_target(x Dog) Pet? {
+    return x as Pet
+    // CHECK: target type of 'as' operator must be a class type.
+}
+
+func is_instantiated_trait_target(x Dog) bool {
+    return x is Marker[int]
+    // CHECK: target type of 'is' operator must be a class type.
+}
+
+func as_instantiated_trait_target(x Dog) Marker[int]? {
+    return x as Marker[int]
+    // CHECK: target type of 'as' operator must be a class type.
+}
+
+func is_optional_target(x Dog) bool {
+    return x is Dog?
+    // CHECK: target type of 'is' operator must be a class type.
+}
+
+func as_optional_target(x Dog) Dog? {
+    return x as Dog?
+    // CHECK: target type of 'as' operator must be a class type.
+}
+
+func is_union_nonmember(x Dog | Cat) bool {
+    return x is Robot
+    // CHECK: {{.*}}is not a member of union type{{.*}}
+}
+
+func as_union_nonmember(x Dog | Cat) Robot? {
+    return x as Robot
+    // CHECK: {{.*}}is not a member of union type{{.*}}
+}
+
+func is_union_nonmember_optional(x (Dog | Cat)) bool {
+    return x is Robot
+    // CHECK: {{.*}}is not a member of union type{{.*}}
+}
+
+func as_union_nonmember_optional(x (Dog | Cat)?) Robot? {
+    return x as Robot
+    // CHECK: {{.*}}is not a member of union type{{.*}}.
+}
+
+func as_union_nonmember2(x (Dog | Cat)) Robot {
+    return x as Dog
+    // CHECK: return type mismatch in function 'as_union_nonmember2'
+}
+
+func garply(u ...) bool {
+    return u as Dog
+    // CHECK: src of 'as' operator is not a valid type.
+}
+
+class Dog {}
+
+func is_nil(q Dog?) bool { return q is NilType }
+
+// CHECK: target type of 'is' operator cannot be NilType, use '== nil' instead.
+
+// CHECK-NOT: {{.}}

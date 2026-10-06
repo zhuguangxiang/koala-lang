@@ -1,0 +1,45 @@
+// RUN: koalac %s | filecheck %s
+
+class Cat {
+    pub func name() str { return "cat" }
+}
+
+class Dog {
+    pub func bark() str { return "woof" }
+}
+
+func fn1(v Cat | Dog) str {
+    if v is Cat {
+        return v.name()
+    } else if v is Dog {
+        return v.bark()
+    }
+    return ""
+}
+
+func fn2(v Cat | Dog) str {
+    if v is Cat {
+        v.bark()
+        // CHECK: 'bark' is not found in class 'Cat'
+    }
+    v.name()
+    // CHECK-NEXT: type symbol is not found.
+    return ""
+}
+
+func fn3(v Cat | Dog) str {
+    if !(v is Cat) {
+        v.name()
+        // CHECK-NEXT: type symbol is not found.
+    }
+    return ""
+}
+
+func fn4(v Cat | Dog) str {
+    if v is Cat {
+        return ""
+    }
+    v.name()
+    // CHECK-NEXT: type symbol is not found.
+    return ""
+}

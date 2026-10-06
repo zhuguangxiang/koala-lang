@@ -19,7 +19,7 @@ static TValue _default_fmt(TValue *self, TValue *args, int nargs)
     unsigned int hash = kl_hash(self);
     ModuleObject *m = (ModuleObject *)tp->module;
 
-    Object *s = kl_new_fmt_str("<%s.%s object at 0x%x>", m->path, tp->name, hash);
+    Object *s = kl_new_fmt_str("<%s.%s object at 0x%x>", m->path, tp->name, self->obj);
     kl_fmt_write_str(fmt, STR_BUF(s), STR_LEN(s));
     kl_free_str(s);
 

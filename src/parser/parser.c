@@ -829,6 +829,37 @@ int type_spec_compatible(TypeSpec *dst, TypeSpec *src)
 
 static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls);
 
+static void check_union_subtypes(Vector *vec, Vector *locations, ParserState *ps)
+{
+    // all subtypes in the union should be final class, primitive types or instance class
+    Symbol *sym;
+    TypeSpec *ts;
+    vector_foreach(ts, vec) {
+        if (!ts) continue;
+        if (type_is_optional(ts) || type_is_valist(ts)) {
+            Loc loc = vector_at_obj(locations, i__, Loc);
+            kl_error(loc, "Union subtype cannot be an optional or va_list type");
+            continue;
+        }
+        sym = get_symbol_by_id(ts->sym_id);
+        if (!sym) {
+            Loc loc = vector_at_obj(locations, i__, Loc);
+            kl_error(loc, "Union subtype symbol not found");
+        } else {
+            if (sym->kind == SYM_INSTANCE) {
+                Symbol *origin = ((InstanceSymbol *)sym)->origin;
+                if (origin->kind != SYM_CLASS) {
+                    Loc loc = vector_at_obj(locations, i__, Loc);
+                    kl_error(loc, "Union subtype must be a final class");
+                }
+            } else if (sym->kind != SYM_CLASS) {
+                Loc loc = vector_at_obj(locations, i__, Loc);
+                kl_error(loc, "Union subtype must be a class");
+            }
+        }
+    }
+}
+
 TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
 {
     if (!_ts) return NULL;
@@ -837,14 +868,19 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
         ASSERT(_ts->type_id < 0);
         TypeSpec *arg;
         Vector *vec = vector_create_ptr();
+        Vector locations;
+        vector_init(&locations, sizeof(Loc));
         vector_foreach(arg, _ts->union_type.args) {
             if (!arg) continue;
+            vector_push_back(&locations, &arg->loc);
             TypeSpec *ret = resolve_type(ps, arg);
             vector_push_back(vec, &ret);
         }
         vector_destroy(_ts->union_type.args);
         _ts->union_type.args = NULL;
         type_spec_free(_ts);
+        check_union_subtypes(vec, &locations, ps);
+        vector_fini(&locations);
         return union_type_spec_intern(vec);
     }
 
@@ -1572,7 +1608,9 @@ static void parse_block(ParserState *ps, Vector *stmts, int *has_terminal)
             ShadowVarSymbol *_sym;
             vector_foreach(_sym, &ps->shadows) {
                 if (!_sym) continue;
-                if (_sym->is_null) {
+                if (_sym->is_narrow) {
+                    stbl_add_narrow_var(_sc->stbl, _sym->origin, _sym->ts);
+                } else if (_sym->is_null) {
                     stbl_add_shadow_var(_sc->stbl, _sym->origin, 0);
                     log_trace("add shadow variable '%s' as non-null.", _sym->name);
                 } else {
@@ -1761,6 +1799,50 @@ static void unwrap_optional(ParserState *ps, Expr *exp, Vector *shadows)
     }
 }
 
+// Narrow the type of a variable by `x is T`, `!(x is T)`, `!!(x is T)`...
+// Positive: narrowed in the current (if/while) block.
+// Negated: narrowed in the opposite branch, kept as a detached symbol in 'shadows'.
+static void unwrap_is_as(ParserState *ps, Expr *exp, Vector *shadows)
+{
+    if (!exp) return;
+
+    Expr *e = exp;
+    int negated = 0;
+    while (e->kind == EXPR_UNARY_KIND && ((UnaryExpr *)e)->op == UNARY_NOT) {
+        negated = !negated;
+        e = ((UnaryExpr *)e)->exp;
+    }
+
+    if (e->kind != EXPR_IS_KIND) return;
+
+    IsExpr *is = (IsExpr *)e;
+    if (is->result != RUNTIME_CHECK || !is->target_ts) return;
+
+    Symbol *sym = is->exp->sym;
+    if (!sym || sym->kind != SYM_VAR) return;
+
+    ParserScope *sc = ps->scope;
+    Symbol *narrow;
+    if (negated) {
+        if (!shadows) return;
+        narrow = stbl_add_narrow_var(NULL, sym, is->target_ts);
+        ((ShadowVarSymbol *)narrow)->narrow_negated = 1;
+    } else {
+        narrow = stbl_add_narrow_var(sc->stbl, sym, is->target_ts);
+    }
+    if (!narrow) return;
+
+    log_trace("'%s' is narrowed to '%s'(%s) in scope '%s'", sym->name, is->target_ts->signature,
+              negated ? "negated" : "positive", sc->name);
+    if (shadows) vector_push_back(shadows, &narrow);
+}
+
+static void unwrap_for_if(ParserState *ps, Expr *exp, Vector *shadows)
+{
+    unwrap_optional(ps, exp, shadows);
+    unwrap_is_as(ps, exp, shadows);
+}
+
 static void parse_if(ParserState *ps, Stmt *stmt)
 {
     IfStmt *s = (IfStmt *)stmt;
@@ -1776,7 +1858,7 @@ static void parse_if(ParserState *ps, Stmt *stmt)
 
     ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "if-block");
     Vector shadows = VECTOR_INIT_PTR;
-    unwrap_optional(ps, cond, &shadows);
+    unwrap_for_if(ps, cond, &shadows);
     int has_terminal = 0;
     parse_block(ps, s->block, &has_terminal);
     ASSERT(vector_empty(&ps->shadows));
@@ -1791,6 +1873,12 @@ static void parse_if(ParserState *ps, Stmt *stmt)
             ShadowVarSymbol *sym;
             vector_foreach(sym, &shadows) {
                 ASSERT(sym->kind == SYM_SHADOW_VAR);
+                if (sym->is_narrow) {
+                    if (sym->narrow_negated) {
+                        stbl_add_narrow_var(sc->stbl, sym->origin, sym->ts);
+                    }
+                    continue;
+                }
                 stbl_add_shadow_var(sc->stbl, (Symbol *)sym->origin, !sym->is_null);
                 log_trace("added shadow variable '%s'(%s) in scope '%s'", sym->name,
                           sym->is_null ? "null" : "non-null", sc->name);
@@ -1825,8 +1913,9 @@ static void parse_if(ParserState *ps, Stmt *stmt)
             if (has_terminal) {
                 ParserScope *_sc = ps->scope;
                 log_trace("if-block is terminal, saved shadows to parent scope(%s)", _sc->name);
-                Symbol *sym;
+                ShadowVarSymbol *sym;
                 vector_foreach(sym, &shadows) {
+                    if (sym->is_narrow && !sym->narrow_negated) continue;
                     log_trace("move shadow variable '%s' to parent scope", sym->name);
                     vector_push_back(&ps->shadows, &sym);
                 }
@@ -2083,7 +2172,7 @@ static void parse_while(ParserState *ps, Stmt *stmt)
     }
 
     enter_scope(ps, SCOPE_BLOCK, WHILE_BLOCK, "while-block");
-    unwrap_optional(ps, cond, NULL);
+    unwrap_for_if(ps, cond, NULL);
     parse_block(ps, s->block, NULL);
     ASSERT(vector_empty(&ps->shadows));
     exit_scope(ps);
@@ -3258,11 +3347,17 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
             }
         } else {
             Expr *e = param->value;
+            if (!e) {
+                kl_error(param->id.loc, "parameter '%s' must have a valid type", param->id.name);
+                continue;
+            }
+
             if (e->kind != EXPR_LITERAL_KIND) {
                 kl_error(param->id.loc, "parameter '%s' needs a literal default value",
                          param->id.name);
-                return;
+                continue;
             }
+
             e->ctx = EXPR_CTX_LOAD;
             parser_visit_expr(ps, e);
             if (!e->ts) return;

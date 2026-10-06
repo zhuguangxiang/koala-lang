@@ -2216,6 +2216,47 @@ TARGET(OP_GLOBAL_GET) {
     DISPATCH();
 }
 
+/* IS & AS */
+TARGET(OP_IS) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    idx = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    TypeObject *dst_tp = TYPE(idx);
+    TypeObject *src_tp = kl_typeof(regs + rs);
+    ASSERT(src_tp && dst_tp);
+
+    regs[rd].ival = (src_tp == dst_tp);
+    regs[rd].tag = TAG_BOOL;
+
+    DISPATCH();
+}
+
+TARGET(OP_AS) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    idx = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+
+    TypeObject *dst_tp = TYPE(idx);
+    TypeObject *src_tp = kl_typeof(regs + rs);
+    ASSERT(src_tp && dst_tp);
+
+    if (src_tp == dst_tp) {
+        regs[rd] = regs[rs];
+    } else {
+        regs[rd].ival = 0; // nil
+        regs[rd].tag = TAG_NIL;
+    }
+
+    DISPATCH();
+}
+
 /* Float Complex */
 
 TARGET(OP_FLOAT_DIV) {

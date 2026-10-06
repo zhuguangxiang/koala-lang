@@ -262,6 +262,30 @@ Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null)
     return (Symbol *)sym;
 }
 
+Symbol *stbl_add_narrow_var(HashMap *stbl, Symbol *origin, TypeSpec *narrow_ts)
+{
+    ASSERT(origin->kind == SYM_VAR);
+    ShadowVarSymbol *sym = mm_alloc_obj(sym);
+    hashmap_entry_init(sym, str_hash(origin->name));
+    sym->kind = SYM_SHADOW_VAR;
+    sym->name = origin->name;
+    sym->owner = stbl;
+
+    // stbl == NULL creates a detached symbol, which is attached to a scope later
+    if (stbl && hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    } else {
+        sym->ts = narrow_ts;
+        sym->origin = origin;
+        sym->is_null = 0;
+        sym->is_narrow = 1;
+        add_to_global(sym);
+    }
+
+    return (Symbol *)sym;
+}
+
 Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, int flags)
 {
     FuncSymbol *sym = mm_alloc_obj(sym);

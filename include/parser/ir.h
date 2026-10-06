@@ -91,6 +91,20 @@ typedef struct _KlrValue {
     (val)->tag = -1; \
     (val)->name = _name ? _name : "";
 
+typedef enum _KlrConstKind {
+    CONST_NONE = 1,
+    CONST_INT,
+    CONST_UINT,
+    CONST_FLT,
+    CONST_BOOL,
+    CONST_STR,
+    CONST_BYTES,
+    CONST_TUPLE,
+    CONST_RANGE,
+    CONST_SLICE,
+    CONST_LIST,
+} KlrConstKind;
+
 /* literal constant */
 typedef struct _KlrConst {
     KLR_VALUE_HEAD
@@ -109,18 +123,8 @@ typedef struct _KlrConst {
 #define TAG_EMPTY_LIST     9
 #define TAG_EMPTY_DICT     10
 
-    int which;
-#define CONST_NONE  1
-#define CONST_INT   2
-#define CONST_UINT  3
-#define CONST_FLT   4
-#define CONST_BOOL  5
-#define CONST_STR   6
-#define CONST_BYTES 7
-#define CONST_TUPLE 8
-#define CONST_RANGE 9
-#define CONST_SLICE 10
-#define CONST_LIST  11
+    KlrConstKind which;
+
     int len;
     union {
         uint64_t ival;
@@ -446,6 +450,12 @@ typedef struct _KlrRawOper {
 #define KLR_INSN_FLAGS_CONST   1
 #define KLR_INSN_FLAGS_DEAD    2
 #define KLR_INSN_FLAGS_VISITED 3 // phi only, used in trivial phi elimination
+/*
+ * An unwrapping 'move %n T, %v T?'(if-let) was propagated into this insn, so its
+ * 'T?' operands are known to be non-null and are seen as 'T'.
+ * Only 'move' and nil-compare may take a 'T?' as is.
+ */
+#define KLR_INSN_FLAGS_UNWRAPPED 4
 
 /* instruction */
 typedef struct _KlrInsn {
@@ -492,6 +502,16 @@ typedef struct _KlrInsn {
     KlrValue *target;
 
     InternTag intern_tag;
+
+    /* target type for 'is' and 'as' instructions */
+    TypeSpec *target_ts;
+
+    /* target extern(path.name) for 'is' and 'as' instructions */
+    char *target_path;
+    char *target_name;
+
+    /* target local KlrValue of 'is' and 'as' instructions */
+    KlrValue *target_kls;
 
     /* Raw operands for MachInsn */
     KlrRawOper raws[3];
@@ -921,6 +941,16 @@ static inline int insn_is_terminator(KlrInsn *insn)
     oper_value(oper); \
 })
 
+/* the type of the operand, 'T?' is seen as 'T' if the insn is flagged UNWRAPPED */
+#define insn_oper_ts(insn, i) ({ \
+    KlrOper *oper__ = insn_operand(insn, i); \
+    TypeSpec *ts__ = oper_value(oper__)->ts; \
+    if ((insn)->flags & KLR_INSN_FLAGS_UNWRAPPED) { \
+        if (ts__->kind == TYPE_OPTIONAL) ts__ = ts__->opt.src; \
+    } \
+    ts__; \
+})
+
 #define insn_oper_value_as_bb(insn, i) ({ \
     KlrOper *oper = insn_operand(insn, i); \
     KlrValue *val = oper_value(oper); \
@@ -1107,6 +1137,8 @@ KlrValue *klr_build_seq_len(KlrBuilder *bldr, KlrValue *obj, char *name);
 KlrValue *klr_build_str(KlrBuilder *bldr, KlrValue *obj, char *name);
 KlrValue *klr_build_slice_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
                               char *name);
+KlrValue *klr_build_is(KlrBuilder *bldr, KlrValue *val, KlrValue *kls, TypeSpec *ts, char *name);
+KlrValue *klr_build_as(KlrBuilder *bldr, KlrValue *val, KlrValue *kls, TypeSpec *ts, char *name);
 KlrValue *klr_build_contains(KlrBuilder *bldr, KlrValue *obj, KlrValue *val, char *name);
 KlrValue *klr_build_unreachable(KlrBuilder *bldr);
 

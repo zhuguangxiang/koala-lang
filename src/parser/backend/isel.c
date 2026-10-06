@@ -299,7 +299,7 @@ static void isel_lower_binary(KlrInsn *insn)
     KlrValue *lhs = insn_oper_value(insn, 0);
     KlrValue *rhs = insn_oper_value(insn, 1);
 
-    BinaryRule *R = find_binary_rule(insn->code, lhs->ts);
+    BinaryRule *R = find_binary_rule(insn->code, insn_oper_ts(insn, 0));
     if (R == NULL) {
         isel_lower_num_ops(insn);
         return;
@@ -821,6 +821,8 @@ static void isel_lower_cast(KlrInsn *insn)
     } else if (type_is_optional(src_ts) && !type_is_optional(dst_ts)) {
         insn->code = OP_NIL_CHECK;
         insn->cast_flag = 0;
+    } else if (src_ts->kind == TYPE_UNION) {
+        // narrowed by 'is' check: the runtime value is already the target type, keep OP_IR_CAST.
     } else {
         NYI();
     }
@@ -1123,7 +1125,7 @@ static void isel_lower_unary_neg(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     ASSERT(!klr_is_const(obj));
-    TypeSpec *ty = obj->ts;
+    TypeSpec *ty = insn_oper_ts(insn, 0);
     if (ty->kind == TYPE_INT) {
         insn->code = OP_INT_NEG;
     } else if (ty->kind == TYPE_FLOAT) {
@@ -1137,7 +1139,7 @@ static void isel_lower_unary_bit_not(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
     ASSERT(!klr_is_const(obj));
-    TypeSpec *ty = obj->ts;
+    TypeSpec *ty = insn_oper_ts(insn, 0);
     ASSERT(ty->kind == TYPE_INT);
     insn->code = OP_INT_NOT;
 }

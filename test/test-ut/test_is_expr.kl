@@ -1,0 +1,211 @@
+// RUN: koala --test %s
+
+from "std/ut" import assert, assert_false, assert_eq
+
+@test
+func test_is_1() {
+    // error: target type of 'is' operator must be a class type.
+    // assert(true is any)
+    // assert(100 is ToString)
+    // assert(100 is Arithmetic[int])
+
+    // warning: 'is' check is always true
+    assert([1,2,3] is list[int])
+    assert_false([1,2,3] is list[str])
+}
+
+trait Speaker { func speak() str }
+trait Pet     { func cuddle() str }
+trait ShowPet : Pet { func show() str }
+
+class Dog: Speaker & Pet {
+    func speak() str { return "woof" }
+    func cuddle() str { return "hug" }
+    func fetch() str { return "ball" }
+}
+
+class Cat: Speaker & Pet {
+    func speak() str { return "meow" }
+    func cuddle() str { return "purr" }
+}
+
+class Poodle: ShowPet {
+    func cuddle() str { return "soft" }
+    func show() str   { return "ta-da" }
+}
+
+class Robot: Speaker {
+    func speak() str { return "beep" }
+}
+
+@test
+func test_is_2() {
+    let d = Dog()
+    let c = Cat()
+
+    // error: target type of 'is' operator must be a class type.
+    // assert(d is Pet)
+    // assert(c is Pet)
+
+    // assert(d is Speaker)
+    // assert(c is Speaker)
+
+    // assert_false(d is Cat)
+    // assert_false(c is Dog)
+}
+
+@test
+func test_is_always_self() {
+    let d = Dog()
+    // warning: 'is' check is always true
+    assert(d is Dog)
+}
+
+@test
+func test_is_always_impl_trait() {
+    let d = Dog()
+    // error: target type of 'is' operator must be a class type.
+    // assert_eq(d is Speaker, true)
+    // assert_eq(d is Pet, true)
+}
+
+@test
+func test_is_always_via_trait_inherit() {
+    let p = Poodle()
+    // error: target type of 'is' operator must be a class type.
+    // assert_eq(p is ShowPet, true)
+    // assert_eq(p is Pet, true)
+}
+
+@test
+func test_is_always_trait_up() {
+    let s ShowPet = Poodle()
+    // error: target type of 'is' operator must be a class type.
+    // assert_eq(s is Pet, true)
+}
+
+// @test
+// func test_as_always_exact_type() {
+//     let d = Dog()
+//     let s = d as Speaker
+//     assert_eq(s.speak(), "woof")
+// }
+
+@test
+func test_is_always_true() {
+    let d = Dog()
+    // warning: 'is' check is always true
+    assert(d is Dog)
+
+    // error: target type of 'is' operator must be a class type.
+    // assert(d is Pet)
+    // assert(d is Speaker)
+    // assert(d is any)
+
+    let p = Poodle()
+    // error: target type of 'is' operator must be a class type.
+    // assert(p is ShowPet)
+    // assert(p is Pet)
+}
+
+@test
+func test_is_always_false() {
+    let d = Dog()
+    assert_false(d is Cat)
+    assert_false(d is Robot)
+    assert_false(d is Poodle)
+    // warning: 'is' check is always false
+    assert_false([1, 2, 3] is list[str])
+}
+
+// error: is not a member of the union type
+// func is_robot(x Dog | Cat) bool { return x is Robot }
+
+@test
+func test_is_union_always_false() {
+    // assert_false(is_robot(Dog()))
+    // assert_false(is_robot(Cat()))
+}
+
+// @test
+// func test_as_always_true() {
+//     let d = Dog()
+//     let p = d as Pet          // type Pet, not Pet?
+//     assert(p.cuddle() == "hug")
+
+//     let sp = Poodle() as Pet  // via ShowPet
+//     assert(sp.cuddle() == "soft")
+// }
+
+// @test
+// func test_as_always_false() {
+//     let d = Dog()
+//     let c = d as Cat          // Cat?, folded to nil
+//     assert(c == nil)
+// }
+
+// func is_dog(x Dog | Cat) bool { return x is Dog }
+// func is_cat(x Dog | Cat) bool { return x is Cat }
+// func is_robot(x Dog | Cat) bool { return x is Robot }
+// func is_pet(x Dog | Cat) bool { return x is Pet }
+// func is_speaker(x Dog | Robot) bool { return x is Speaker }
+// func is_pet2(x Dog | Robot) bool { return x is Pet }
+// func opt_is_dog(x (Dog | Cat)?) bool { return x is Dog }
+
+// func as_dog(x Dog | Cat) Dog? { return x as Dog }
+// func as_cat(x Dog | Cat) Cat? { return x as Cat }
+// func as_robot(x Dog | Cat) Robot? { return x as Robot }
+
+// @test
+// func test_is_union_member() {
+//     assert(is_dog(Dog()))
+//     assert_false(is_dog(Cat()))
+//     assert(is_cat(Cat()))
+//     assert_false(is_cat(Dog()))
+// }
+
+// @test
+// func test_is_union_not_member() {
+//     // Robot is not a member and there is no inheritance: folded to false
+//     assert_false(is_robot(Dog()))
+//     assert_false(is_robot(Cat()))
+// }
+
+// @test
+// func test_is_union_trait() {
+//     // trait target: decided at runtime
+//     assert(is_pet(Dog()))
+//     assert(is_pet(Cat()))
+//     assert(is_speaker(Robot()))
+//     assert_false(is_pet2(Robot()))
+//     assert(is_pet2(Dog()))
+// }
+
+// @test
+// func test_is_union_optional() {
+//     assert_false(opt_is_dog(nil))
+//     assert(opt_is_dog(Dog()))
+//     assert_false(opt_is_dog(Cat()))
+// }
+
+// @test
+// func test_as_union() {
+//     let d = as_dog(Dog())
+//     assert(d != nil)
+//     assert(d!.fetch() == "ball")
+
+//     assert(as_cat(Dog()) == nil)
+//     assert(as_cat(Cat()) != nil)
+
+//     // Robot is not a member: folded to nil
+//     assert(as_robot(Dog()) == nil)
+// }
+
+// @test
+// func test_is_optional() {
+//     let p Pet = Dog()
+//     let q Pet? = p
+
+    // assert(p is Pet?)
+//     // assert(q is Dog)
+// }

@@ -1,0 +1,263 @@
+// RUN: cd %S && koala %s | filecheck %s
+
+import "std/io"
+from "std/io" import SEEK_SET
+
+let f = open("ex.toml", "r")!
+let br = io.BufReader(f)
+let lines = io.Lines(br)
+
+while lines.has_next() {
+    let v = lines.next_strict()
+    print(v)
+}
+
+// CHECK: [package]
+// CHECK: name = "koala-http"
+// CHECK: version = "0.3.2"
+// CHECK: edition = "2026"
+
+print(next(lines))
+
+// CHECK: nil
+
+f.seek(0, SEEK_SET)
+for v in io.Lines(br) {
+    print(v)
+}
+
+// CHECK: [package]
+// CHECK: name = "koala-http"
+// CHECK: version = "0.3.2"
+// CHECK: edition = "2026"
+
+f.seek(0, SEEK_SET)
+let bs = bytes(80)
+br.read(bs)
+print(bs.to_str())
+
+// CHECK: [package]
+// CHECK: name = "koala-http"
+// CHECK: version = "0.3.2"
+// CHECK: edition = "2026"
+
+f.seek(0, SEEK_SET)
+let buf = Buffer(80)
+br.read_until(buf, '\n')
+print(buf.to_str())
+
+// CHECK: [package]
+
+buf.clear()
+br.read_until(buf, '\n')
+print(buf.to_str())
+
+// CHECK: name = "koala-http"
+
+print(f.closed)
+// CHECK: false
+
+print(f.path, f.mode)
+// CHECK: ex.toml r
+
+f.close()
+print(f.closed)
+// CHECK: true
+
+let i = 'a'
+let n = '\n'
+let m ="""
+hello,world
+ok
+"""
+print(i)
+print(n)
+print(m)
+
+// CHECK: 97
+// CHECK: 10
+// CHECK: hello,world
+// CHECK: ok
+
+import "test_pkg/pkg1"
+
+print(pkg1.Point(1, 2))
+print(pkg1.PI)
+print(pkg1.ANSWER)
+// CHECK: <test_pkg/pkg1.Point object at 0x{{[0-9a-fA-F]+}}>
+// CHECK: 3.14159
+// CHECK: 42
+
+print(max(float32(1.5), float32(2.5)))
+// CHECK: 2.5
+
+let s = "hello"
+for c in s { print(c) }
+print(s.upper())
+// CHECK: h
+// CHECK: e
+// CHECK: l
+// CHECK: l
+// CHECK: o
+// CHECK: HELLO
+
+let it Iterator[str] = s.iter()
+print(it.next())
+// CHECK: h
+
+for c in it { print(c) }
+// CHECK: e
+// CHECK: l
+// CHECK: l
+// CHECK: o
+
+print(max(10, 20))
+print(max_int64(10, 20))
+print(abs(-10))
+print(abs_int64(-10))
+print(max(10, 20))
+// CHECK: 20
+// CHECK: 20
+// CHECK: 10
+// CHECK: 10
+// CHECK: 20
+
+print("he" in "hello world")
+// CHECK: true
+
+let s1 = slice(2, -1, 3)
+print(s1)
+// CHECK: slice(2, -1, 3)
+
+let r = range(10)
+print(r, r.end)
+// CHECK: range(0, 10, 1) 10
+
+print(b"hello")
+// CHECK: b"hello"
+
+// TODO:
+// let lst = [1,2,3]
+// print(lst)
+// UNCHECKED: [1, 2, 3]
+
+// print((1,2,3))
+// UNCHECKED: 1, 2, 3
+
+// let tpl = (1,2,3)
+// print(tpl)
+// UNCHECKED: (1, 2, 3)
+
+let sio = io.StringIO("helloworldgoodluck")
+
+let br2 = io.BufReader(sio)
+let bs2 = bytes(10)
+loop {
+    let n = br2.read(bs2)
+    print(bs2.to_str(), n)
+    if n <= 0 { break }
+}
+// CHECK: helloworld 10
+// CHECK: goodluckld 8
+// CHECK: goodluckld 0
+
+import "std/fs"
+
+let f2 fs.File? = fs.open("test.txt", "r");
+if f2 == nil {
+    print("failed to open file")
+}
+// CHECK: failed to open file
+
+print(__KOALA_VERSION__)
+// CHECK: 0.7.0
+
+let buf3 = Buffer()
+for i in range(10) {
+    buf3.write_byte(uint8(97 + i))
+}
+print(buf3.len(), buf3)
+// CHECK: 10 <std/builtin.Buffer object at 0x{{[0-9a-fA-F]+}}>
+
+import "std/os"
+let path = os.getenv("PATH")
+let splits = path!.split(":")
+print(splits[0])
+// CHECK: {{.+}}
+
+import "std/sys"
+let args = sys.args()
+print(args)
+// CHECK: []
+
+print(sys.stdin)
+// CHECK: <std/io.BufReader object at 0x{{[0-9a-fA-F]+}}>
+
+let _stdin fs.File? = fs.open(0)
+if let __stdin = _stdin {
+    print(__stdin.path)
+}
+// CHECK: nil
+
+
+trait Hello {
+    func hello() str
+    func hi() str
+}
+
+class MyClass : Hello {
+    func hello() str {
+        return "Hello from MyClass!"
+    }
+    func hi() str {
+        return "Hi from MyClass!"
+    }
+
+    func __call__() str {
+        return "MyClass instance called!"
+    }
+}
+
+func test_my_class() {
+    let myObject Hello = MyClass()
+    print(myObject.hello())
+    print(myObject.hi())
+    let obj = MyClass()
+    print(obj())
+
+    print(typeof(myObject).lro())
+    print(typeof(myObject).methods())
+}
+
+test_my_class()
+// CHECK: Hello from MyClass!
+// CHECK: Hi from MyClass!
+// CHECK: MyClass instance called!
+// CHECK: [any, Printable, Hashable, Equatable, Hello]
+// CHECK: [hello, hi, __call__, __init__, __eq__, __ne__, hash, fmt]
+
+print("Type of s:", typeof(s))
+// CHECK: Type of s: <class 'str'>
+
+print(typeof(42))
+// CHECK: <class 'int64'>
+
+print(typeof(int8(42)))
+// CHECK: <class 'int8'>
+
+let lst = list[int]()
+print(typeof(lst))
+// CHECK: <class 'list'>
+
+print(typeof(s).name())
+print(typeof(42).name())
+print(typeof(lst).name())
+// CHECK: str
+// CHECK: int64
+// CHECK: list
+
+print(typeof(bytes(10)).methods())
+print(typeof(MyClass()).lro())
+
+// CHECK: [__init__, iter, reversed, len, empty, __getitem__, __getslice__, __setitem__, __setslice__, __contains__, copy, copy_str, fill, zero, view, index, rindex, count, index_bytes, rindex_bytes, starts_with, ends_with, replace, split, rsplit, splitlines, strip, lstrip, rstrip, fmt, to_str, __eq__, __ne__, hash]
+// CHECK: [any, Printable, Hashable, Equatable, Hello]

@@ -1,0 +1,57 @@
+// RUN: koalac %s | filecheck %s
+
+trait Speaker { func speak() str }
+trait Pet     { func cuddle() str }
+trait ShowPet : Pet { func show() str }
+
+class Dog: Speaker & Pet {
+    func speak() str { return "woof" }
+    func cuddle() str { return "hug" }
+    func fetch() str { return "ball" }
+}
+
+class Cat: Speaker & Pet {
+    func speak() str { return "meow" }
+    func cuddle() str { return "purr" }
+}
+
+class Poodle: ShowPet {
+    func cuddle() str { return "soft" }
+    func show() str   { return "ta-da" }
+}
+
+class Robot: Speaker {
+    func speak() str { return "beep" }
+}
+
+func test_1(u Cat | Pet) str {
+    return "no cuddle available"
+}
+// CHECK: Union subtype must be a class
+
+func bar(u (Cat | Pet)?) str {
+    return "no cuddle available"
+}
+// CHECK: Union subtype must be a class
+
+func baz(u int | str) str {
+    return "no cuddle available"
+}
+
+func qux(u (int | str)?) str {
+    return "no cuddle available"
+}
+
+func quux(u Dog | ...) str {
+    return "no cuddle available"
+}
+// CHECK: parameter 'u' must have a valid type
+
+func corge(u list[int]) str {
+    return "no cuddle available"
+}
+func grault[T](u list[T]) str {
+    return "no cuddle available"
+}
+
+// CHECK-NOT: {{.}}

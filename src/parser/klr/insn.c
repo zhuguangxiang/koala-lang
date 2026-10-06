@@ -98,6 +98,10 @@ int replace_all_uses_with(KlrValue *val, KlrValue *def)
             continue;
         }
         set_operand(use->oper, use->insn, val);
+        if (type_is_optional(val->ts) && !type_is_optional(def->ts)) {
+            // unwrapping move(if-let) is propagated, the operand is known to be non-null.
+            use->insn->flags |= KLR_INSN_FLAGS_UNWRAPPED;
+        }
         changed = 1;
     }
     return changed;
@@ -896,6 +900,38 @@ KlrValue *klr_build_slice_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, 
     init_oper(&insn->opers[1], insn, index, 0);
 
     insn->ts = ts;
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_is(KlrBuilder *bldr, KlrValue *val, KlrValue *kls, TypeSpec *ts, char *name)
+{
+    if (val->kind != KLR_VALUE_INSN && val->kind != KLR_VALUE_PARAM &&
+        val->kind != KLR_VALUE_CONST) {
+        panic("'is' op requires a reg/param/const value for val");
+    }
+
+    KlrInsn *insn = new_insn(OP_IS, 1, name);
+    init_oper(&insn->opers[0], insn, val, 0);
+    insn->target_ts = ts;
+    insn->target_kls = kls;
+    insn->ts = bool_type_spec();
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_as(KlrBuilder *bldr, KlrValue *val, KlrValue *kls, TypeSpec *ts, char *name)
+{
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
+        val->kind != KLR_VALUE_PARAM) {
+        panic("'as' op requires a reg/param/const value for val");
+    }
+
+    KlrInsn *insn = new_insn(OP_AS, 1, name);
+    init_oper(&insn->opers[0], insn, val, 0);
+    insn->ts = optional_type_spec(ts);
+    insn->target_ts = ts;
+    insn->target_kls = kls;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

@@ -1,0 +1,77 @@
+// RUN: koala --test %s
+
+from "std/ut" import assert_eq
+
+class Cat {
+    pub func name() str { return "cat" }
+}
+
+func let_int(v int?) int {
+    if let n = v { return n + 1 }
+    return 0
+}
+
+func let_float(v float64?) float64 {
+    if let n = v { return n + 1.5 }
+    return 0.0
+}
+
+func let_bool(v bool?) bool {
+    if let n = v { return !n }
+    return false
+}
+
+func let_logic(v bool?, w bool) bool {
+    if let n = v { return (n && w) || (!n && !w) }
+    return false
+}
+
+func let_str(v str?) str {
+    if let n = v { return n + "!" }
+    return ""
+}
+
+func let_class(v Cat?) str {
+    if let c = v { return c.name() }
+    return "nil"
+}
+
+func let_as_int(v any) int {
+    if let n = v as int { return n + 1 }
+    return 0
+}
+
+func let_as_class(v Cat | str) str {
+    if let c = v as Cat { return c.name() }
+    return "other"
+}
+
+@test
+func test_if_let_value_types() {
+    assert_eq(let_int(1), 2)
+    assert_eq(let_int(nil), 0)
+    assert_eq(let_float(1.0), 2.5)
+    assert_eq(let_bool(true), false)
+    assert_eq(let_bool(false), true)
+    assert_eq(let_bool(nil), false)
+    assert_eq(let_logic(true, true), true)
+    assert_eq(let_logic(true, false), false)
+    assert_eq(let_logic(false, false), true)
+    assert_eq(let_logic(nil, true), false)
+    assert_eq(let_str("a"), "a!")
+    assert_eq(let_str(nil), "")
+}
+
+@test
+func test_if_let_class() {
+    assert_eq(let_class(Cat()), "cat")
+    assert_eq(let_class(nil), "nil")
+}
+
+@test
+func test_if_let_as() {
+    assert_eq(let_as_int(1), 2)
+    assert_eq(let_as_int("x"), 0)
+    assert_eq(let_as_class(Cat()), "cat")
+    assert_eq(let_as_class("s"), "other")
+}

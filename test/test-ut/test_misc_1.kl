@@ -1,0 +1,25 @@
+// RUN: koala --test %s
+
+class Foo {
+    func to_str() str? {
+        return "nil"
+    }
+
+    func to_str2() str? {
+        return nil
+    }
+}
+
+from "std/ut" import assert_eq
+
+@test
+func test_1() {
+    let foo = Foo()
+    assert_eq(foo.to_str()!.upper(), "NIL")
+}
+
+@test_expect_panic("forced unwrap (`!`) of a nil value")
+func test_2() {
+    let foo = Foo()
+    foo.to_str2()!.upper()
+}

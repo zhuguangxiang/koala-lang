@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include "atom.h"
 #include "cmd.h"
 #include "parser.h"
 #include "vector.h"
@@ -261,7 +262,8 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
 
         case SYM_SHADOW_VAR: {
             Symbol *origin = ((ShadowVarSymbol *)sym)->origin;
-            ASSERT(type_is_optional(origin->ts));
+            ShadowVarSymbol *shadow = (ShadowVarSymbol *)sym;
+            ASSERT(shadow->is_narrow || type_is_optional(origin->ts));
             VarSymbol *var_sym = (VarSymbol *)origin;
 
             int readonly = origin->flags & SYM_FLAGS_MUTABLE ? 0 : 1;
@@ -1674,6 +1676,96 @@ static void emit_ir_const_placeholder(ParserState *ps, Expr *exp)
     SET_IR_LOC(exp->ir_val, exp);
 }
 
+static KlrValue *emit_is_as_operand(ParserState *ps, Expr *operand)
+{
+    operand->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, operand);
+    return operand->ir_val;
+}
+
+static void emit_ir_is(ParserState *ps, Expr *exp)
+{
+    IsExpr *is = (IsExpr *)exp;
+    KlrValue *operand = emit_is_as_operand(ps, is->exp);
+    if (!operand) return;
+
+    switch (is->result) {
+        case ALWAYS_TRUE: {
+            exp->ir_val = klr_const_bool(1, MOD);
+            break;
+        }
+
+        case ALWAYS_FALSE: {
+            exp->ir_val = klr_const_bool(0, MOD);
+            break;
+        }
+
+        case RUNTIME_CHECK: {
+            KlrBuilder bldr;
+            klr_builder_end(&bldr, ps->scope->bb);
+
+            Symbol *target_sym = is->target_sym;
+            exp->ir_val = klr_build_is(&bldr, operand, target_sym->ir_val, is->target_ts, "");
+            KlrInsn *insn = (KlrInsn *)exp->ir_val;
+
+            if (target_sym->kind == SYM_INSTANCE) {
+                target_sym = ((InstanceSymbol *)target_sym)->origin;
+            }
+            ASSERT(target_sym && target_sym->path && target_sym->name);
+            insn->target_path = atom(target_sym->path);
+            insn->target_name = atom(target_sym->name);
+            break;
+        }
+
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+}
+
+static void emit_ir_as(ParserState *ps, Expr *exp)
+{
+    AsExpr *as = (AsExpr *)exp;
+    KlrValue *operand = emit_is_as_operand(ps, as->exp);
+    if (!operand) return;
+
+    switch (as->result) {
+        case ALWAYS_TRUE: {
+            ASSERT(as->exp->ts->sym_id == as->target_ts->sym_id);
+            exp->ir_val = operand;
+            break;
+        }
+
+        case ALWAYS_FALSE: {
+            exp->ir_val = klr_const_none(MOD);
+            break;
+        }
+
+        case RUNTIME_CHECK: {
+            KlrBuilder bldr;
+            klr_builder_end(&bldr, ps->scope->bb);
+
+            Symbol *target_sym = as->target_sym;
+            exp->ir_val = klr_build_as(&bldr, operand, target_sym->ir_val, as->target_ts, "");
+            KlrInsn *insn = (KlrInsn *)exp->ir_val;
+
+            if (target_sym->kind == SYM_INSTANCE) {
+                target_sym = ((InstanceSymbol *)target_sym)->origin;
+            }
+            ASSERT(target_sym && target_sym->path && target_sym->name);
+            insn->target_path = atom(target_sym->path);
+            insn->target_name = atom(target_sym->name);
+            break;
+        }
+
+        default: {
+            UNREACHABLE();
+            break;
+        }
+    }
+}
+
 static void emit_ir_contains(ParserState *ps, Expr *exp)
 {
     InExpr *in = (InExpr *)exp;
@@ -1715,6 +1807,8 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_UNARY_KIND]   = emit_ir_unary,
         [EXPR_BINARY_KIND]  = emit_ir_binary,
         [EXPR_KW_KIND]      = emit_ir_kw,
+        [EXPR_IS_KIND]      = emit_ir_is,
+        [EXPR_AS_KIND]      = emit_ir_as,
         [EXPR_IN_KIND]      = emit_ir_contains,
         [EXPR_BANG_KIND]    = emit_ir_bang,
         [EXPR_CONST_PLACEHOLDER] = emit_ir_const_placeholder,

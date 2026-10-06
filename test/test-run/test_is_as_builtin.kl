@@ -1,0 +1,99 @@
+// RUN: koala %s | filecheck %s
+
+func is_int8(v any) bool { return v is int8 }
+func as_int8(v any) int8? { return v as int8 }
+func is_int16(v any) bool { return v is int16 }
+func as_int16(v any) int16? { return v as int16 }
+func is_int32(v any) bool { return v is int32 }
+func as_int32(v any) int32? { return v as int32 }
+func is_int64(v any) bool { return v is int64 }
+func as_int64(v any) int64? { return v as int64 }
+
+func is_uint8(v any) bool { return v is uint8 }
+func as_uint8(v any) uint8? { return v as uint8 }
+func is_uint16(v any) bool { return v is uint16 }
+func as_uint16(v any) uint16? { return v as uint16 }
+func is_uint32(v any) bool { return v is uint32 }
+func as_uint32(v any) uint32? { return v as uint32 }
+func is_uint64(v any) bool { return v is uint64 }
+func as_uint64(v any) uint64? { return v as uint64 }
+
+func is_float16(v any) bool { return v is float16 }
+func as_float16(v any) float16? { return v as float16 }
+func is_float32(v any) bool { return v is float32 }
+func as_float32(v any) float32? { return v as float32 }
+func is_float64(v any) bool { return v is float64 }
+func as_float64(v any) float64? { return v as float64 }
+
+func is_bool(v any) bool { return v is bool }
+func as_bool(v any) bool? { return v as bool }
+func is_str(v any) bool { return v is str }
+func as_str(v any) str? { return v as str }
+func is_bytes(v any) bool { return v is bytes }
+func as_bytes(v any) bytes? { return v as bytes }
+func is_nil_type(v any?) bool { return v == nil }
+
+func main() {
+    print("int8 is", is_int8(int8(11)), is_int8("x"))
+    print("int8 as", as_int8(int8(11))!)
+    print("int16 is", is_int16(int16(12)), is_int16("x"))
+    print("int16 as", as_int16(int16(12))!)
+    print("int32 is", is_int32(int32(13)), is_int32("x"))
+    print("int32 as", as_int32(int32(13))!)
+    print("int64 is", is_int64(int64(14)), is_int64("x"))
+    print("int64 as", as_int64(int64(14))!)
+
+    print("uint8 is", is_uint8(uint8(21)), is_uint8("x"))
+    print("uint8 as", as_uint8(uint8(21))!)
+    print("uint16 is", is_uint16(uint16(22)), is_uint16("x"))
+    print("uint16 as", as_uint16(uint16(22))!)
+    print("uint32 is", is_uint32(uint32(23)), is_uint32("x"))
+    print("uint32 as", as_uint32(uint32(23))!)
+    print("uint64 is", is_uint64(uint64(24)), is_uint64("x"))
+    print("uint64 as", as_uint64(uint64(24))!)
+
+    print("float16 is", is_float16(float16(1.5)), is_float16("x"))
+    print("float16 as", as_float16(float16(1.5))!)
+    print("float32 is", is_float32(float32(2.5)), is_float32("x"))
+    print("float32 as", as_float32(float32(2.5))!)
+    print("float64 is", is_float64(float64(3.5)), is_float64("x"))
+    print("float64 as", as_float64(float64(3.5))!)
+
+    print("bool is", is_bool(true), is_bool("x"))
+    print("bool as", as_bool(false)!)
+    print("str is", is_str("koala"), is_str(false))
+    print("str as", as_str("koala")!)
+    print("bytes is", is_bytes(b"koala"), is_bytes("koala"))
+    print("bytes as", as_bytes(b"koala")!)
+    print("nil", is_nil_type(nil))
+}
+
+// CHECK: int8 is true false
+// CHECK: int8 as 11
+// CHECK: int16 is true false
+// CHECK: int16 as 12
+// CHECK: int32 is true false
+// CHECK: int32 as 13
+// CHECK: int64 is true false
+// CHECK: int64 as 14
+// CHECK: uint8 is true false
+// CHECK: uint8 as 21
+// CHECK: uint16 is true false
+// CHECK: uint16 as 22
+// CHECK: uint32 is true false
+// CHECK: uint32 as 23
+// CHECK: uint64 is true false
+// CHECK: uint64 as 24
+// CHECK: float16 is true false
+// CHECK: float16 as 1.5
+// CHECK: float32 is true false
+// CHECK: float32 as 2.5
+// CHECK: float64 is true false
+// CHECK: float64 as 3.5
+// CHECK: bool is true false
+// CHECK: bool as false
+// CHECK: str is true false
+// CHECK: str as koala
+// CHECK: bytes is true false
+// CHECK: bytes as b"koala"
+// CHECK: nil true
