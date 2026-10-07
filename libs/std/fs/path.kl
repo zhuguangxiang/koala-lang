@@ -117,10 +117,10 @@ pub class Path : ToString {
                 if stack.len() > 0 && stack[stack.len() - 1] != ".." {
                     stack.pop(stack.len() - 1)
                 } else if !is_abs {
-                    stack.push("..")
+                    stack.append("..")
                 }
             } else {
-                stack.push(s)
+                stack.append(s)
             }
         }
 

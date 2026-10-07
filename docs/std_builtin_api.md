@@ -359,7 +359,7 @@ If `end` is `-1`, the search extends to the end of the sequence.
 pub trait MutableSequence[T] : Sequence[T] {
     func __setitem__(index int, value T)
     func put(index int, value T)
-    func push(value T)
+    func append(value T)
     func pop(index = -1) T
     func extend(items Iterable[T])
     func insert(index int, value T)
@@ -398,9 +398,9 @@ Errors
 
 Panic if `index` is negative or is not less than the sequence length.
 
-<a id="mutablesequence.push"></a>
+<a id="mutablesequence.append"></a>
 
-**`push(value T)`**
+**`append(value T)`**
 
 Append `value` to the end of the sequence.
 
@@ -1895,7 +1895,7 @@ pub class list[T] : MutableSequence[T] {
     pub func count(value T, start = 0, end = -1) int
     pub func __setitem__(index int, value T)
     pub func __setslice__(r slice, val Iterable[T])
-    pub func push(value T)
+    pub func append(value T)
     pub func extend(items Iterable[T])
     pub func insert(index int, value T)
     pub func remove(value T)
@@ -1921,7 +1921,7 @@ Examples
 
 ```kl
 let values = list[int](1, 2, 3)
-values.push(4)
+values.append(4)
 print(values[0])
 print(values.pop())
 ```
@@ -2014,11 +2014,11 @@ Panic if the index is out of range.
 Replace a slice of the list with elements from the iterable `val`.
 This may change the length of the list.
 
-<a id="list.push"></a>
+<a id="list.append"></a>
 
-**`push(value T)`** — *`@native`*
+**`append(value T)`** — *`@native`*
 
-Push a new item with `value` to the end of the list.
+Append a new item with `value` to the end of the list.
 
 <a id="list.extend"></a>
 

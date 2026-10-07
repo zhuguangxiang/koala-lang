@@ -128,5 +128,5 @@ pub class dict[K, V] : Map[K, V] {
     /// Return a reverse iterator over the (key, value) pairs
     /// in reverse insertion order.
     @native
-    pub func reversed() Iterator[(K, V)] {}
+    pub func reversed(step = 1) Iterator[(K, V)] {}
 }

@@ -3339,7 +3339,15 @@ static void parse_in(ParserState *ps, Expr *exp)
 
     Symbol *container_ts_sym = get_symbol_by_id(container->ts->sym_id);
     ASSERT(container_ts_sym);
-    Symbol *_fn_sym = stbl_get(container_ts_sym->stbl, "__contains__");
+
+    Symbol *_fn_sym = NULL;
+
+    if (container_ts_sym->kind == SYM_INSTANCE) {
+        _fn_sym = get_instance_method((InstanceSymbol *)container_ts_sym, "__contains__", ps);
+    } else if (container_ts_sym->kind == SYM_CLASS || container_ts_sym->kind == SYM_TRAIT) {
+        _fn_sym = stbl_get(container_ts_sym->stbl, "__contains__");
+    }
+
     if (!_fn_sym) {
         kl_error(in->op_loc, "type '%s' does not support '__contains__' method.",
                  container_ts_sym->name);

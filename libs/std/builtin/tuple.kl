@@ -17,11 +17,11 @@ pub class tuple[infer T] : Sequence[T] {
     @native
     pub func iter(step = 1) Iterator[T] {}
 
-    /// Return the number of elements in the tuple. O(1).
+    /// Return the number of elements in the tuple.
     @native
     pub func len() int {}
 
-    /// Return true if the tuple is empty, false otherwise. O(1).
+    /// Return true if the tuple is empty, false otherwise.
     @native
     pub func empty() bool {}
 
@@ -36,23 +36,17 @@ pub class tuple[infer T] : Sequence[T] {
     @native
     pub func __getslice__(r slice) tuple[T] {}
 
-    /// Return true if the tuple contains the specified value `v`. O(n).
+    /// Return true if the tuple contains the specified value `v`.
     @native
     pub func __contains__(v T) bool {}
 
-    /// Return the first index of `value` in `[start, end)`. O(n).
+    /// Return the first index of `value` in `[start, end)`.
     /// If `end` is `-1`, the search extends to the end of the tuple.
     /// Return `-1` if the value is not present.
     @native
     pub func index(value T, start = 0, end = -1) int {}
 
-    /// Return the last index of `value` in `[start, end)`. O(n).
-    /// If `end` is `-1`, the search extends to the end of the tuple.
-    /// Return `-1` if the value is not present.
-    @native
-    pub func rindex(value T, start = 0, end = -1) int {}
-
-    /// Return the number of occurrences of `value` in `[start, end)`. O(n).
+    /// Return the number of occurrences of `value` in `[start, end)`.
     /// If `end` is `-1`, the search extends to the end of the tuple.
     @native
     pub func count(value T, start = 0, end = -1) int {}
@@ -61,13 +55,9 @@ pub class tuple[infer T] : Sequence[T] {
     @native
     pub func to_list() list[T] {}
 
-    /// Return a new tuple with elements of `self` followed by `other` (`self + other`).
-    @native
-    pub func __add__(other tuple[T]) tuple[T] {}
-
     /// Return a reverse iterator over the elements of the tuple.
     @native
-    pub func reversed() Iterator[T] {}
+    pub func reversed(step = 1) Iterator[T] {}
 
     /// Formats the tuple for display.
     @native

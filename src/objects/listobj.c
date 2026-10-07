@@ -52,7 +52,7 @@ void kl_list_prepend(Object *ob, TValue item)
     list->end++;
 }
 
-static TValue _list_push(TValue *self, TValue *args, int nargs)
+static TValue _list_append(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = SELF_AS(list_type);
     expand_capacity(list, list->end + 1);
@@ -86,6 +86,13 @@ static TValue _list_len(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = SELF_AS(list_type);
     return int64_value(list->end - list->start);
+}
+
+static TValue _list_empty(TValue *self, TValue *args, int nargs)
+{
+    ListObject *list = SELF_AS(list_type);
+    ASSERT(nargs == 0);
+    return bool_value(list->end == list->start);
 }
 
 static TValue _list_fmt(TValue *self, TValue *args, int nargs)
@@ -236,14 +243,27 @@ static TValue _list_getslice(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef list_methods[] = {
-    { "push", _list_push },
+    { "append", _list_append },
     { "pop", _list_pop },
     { "len", _list_len },
+    { "empty", _list_empty },
     { "fmt", _list_fmt },
     { "extend", _list_extend },
+    // { "__contains__", _list_contains },
+    // { "index", _list_index },
+    // { "rindex", _list_rindex },
+    // { "count", _list_count },
     { "__getitem__", _list_getitem },
     { "__setitem__", _list_setitem },
     { "__getslice__", _list_getslice },
+    // { "__setslice__", _list_set_slice },
+    // { "insert", _list_insert },
+    // { "remove", _list_remove },
+    // { "clear", _list_clear },
+    // { "reverse", _list_reverse },
+    // { "__add__", _list_add },
+    // { "__iadd__", _list_iadd },
+    // { "copy", _list_copy },
     { NULL },
 };
 

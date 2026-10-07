@@ -1,0 +1,59 @@
+// RUN: koala %s | filecheck %s
+
+func print_hello() {
+    print("hello")
+}
+
+func get_value() int = 42
+
+func get_text() str = "hello"
+
+func get_value2() int = get_value() + 1
+
+func identity(value int) int = value
+
+func get_negative() int = -42
+
+func get_list() list[int] = [40, 2]
+
+// func get_index() int = get_list()[1]
+
+// func get_slice_len() int = get_list()[0:2].len()
+
+func get_pair() (int, str) = (42, "hello")
+
+// func get_radix_value() int = int("2A", base = 16)
+
+func is_integer() bool = 42 is int
+
+func cast_integer(value any) int? = value as int
+
+func get_optional() int? = 42
+
+func unwrap_optional() int = get_optional()!
+
+func main() {
+    print_hello()
+    print(get_value())
+    print(get_text() + " world")
+    print(get_value2() + 1, "koala")
+    print(identity(42), get_negative())
+    // print(get_list(), get_index(), get_slice_len())
+    print(get_list())
+    // print(get_pair(), get_radix_value())
+    print(get_pair())
+    print(is_integer(), cast_integer(42)!, unwrap_optional())
+
+    let lst = get_list()
+    print(lst[1], lst[:2].len())
+}
+
+// CHECK: hello
+// CHECK: 42
+// CHECK: hello world
+// CHECK: 44 koala
+// CHECK: 42 -42
+// CHECK: [40, 2]
+// CHECK: (42, hello)
+// CHECK: true 42 42
+// CHECK: 2 2

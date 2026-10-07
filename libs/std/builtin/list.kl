@@ -12,7 +12,7 @@
 ///
 /// ```kl
 /// let values = list[int](1, 2, 3)
-/// values.push(4)
+/// values.append(4)
 /// print(values[0])
 /// print(values.pop())
 /// ```
@@ -22,7 +22,7 @@ pub class list[T] : MutableSequence[T] {
     @native
     pub func __init__(args ...T) {}
 
-    /// Return an iterator over the list.
+    /// Return an iterator over the list, advancing by `step` elements.
     @native
     pub func iter(step = 1) Iterator[T] {}
 
@@ -52,12 +52,6 @@ pub class list[T] : MutableSequence[T] {
     @native
     pub func index(value T, start = 0, end = -1) int {}
 
-    /// Return the last index of `value` in `[start, end)`. O(n).
-    /// If `end` is `-1`, the search extends to the end of the list.
-    /// Return `-1` if the value is not present.
-    @native
-    pub func rindex(value T, start = 0, end = -1) int {}
-
     /// Return the number of occurrences of `value` in `[start, end)`. O(n).
     /// If `end` is `-1`, the search extends to the end of the list.
     @native
@@ -72,9 +66,9 @@ pub class list[T] : MutableSequence[T] {
     @native
     pub func __setslice__(r slice, val Iterable[T]) {}
 
-    /// Push a new item with `value` to the end of the list.
+    /// Append a new item with `value` to the end of the list.
     @native
-    pub func push(value T) {}
+    pub func append(value T) {}
 
     /// Extend the list by appending all items from `items`.
     @native
@@ -115,9 +109,14 @@ pub class list[T] : MutableSequence[T] {
     @native
     pub func copy(start = 0, end = -1) list[T] {}
 
+    /// Return a view of the list from `start` (inclusive) to `end` (exclusive).
+    /// If `end` is `-1`, the view extends to the end of the list.
+    @native
+    pub func view(start = 0, end = -1) list[T] {}
+
     /// Return a reverse iterator over the elements of the list.
     @native
-    pub func reversed() Iterator[T] {}
+    pub func reversed(step = 1) Iterator[T] {}
 
     /// Formats the list for display.
     @native

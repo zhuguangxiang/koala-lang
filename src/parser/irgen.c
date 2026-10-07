@@ -1898,10 +1898,27 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
         emit_ir_fields(ps, scope, fn->data);
     }
 
-    Stmt *s;
-    vector_foreach(s, fn->body) {
-        if (!s) continue;
-        emit_ir_stmt(ps, s);
+    int need_emit_body = 1;
+    if (vector_size(fn->body) == 1) {
+        Stmt *s = vector_at(fn->body, 0);
+        if (s->kind == STMT_EXPR_KIND) {
+            emit_ir_stmt(ps, s);
+            Expr *exp = ((ExprStmt *)s)->exp;
+            if (exp && !type_is_no_type(exp->ts) && exp->ir_val) {
+                KlrBuilder bldr;
+                klr_builder_end(&bldr, scope->bb);
+                klr_build_ret(&bldr, exp->ir_val);
+            }
+            need_emit_body = 0;
+        }
+    }
+
+    if (need_emit_body) {
+        Stmt *s;
+        vector_foreach(s, fn->body) {
+            if (!s) continue;
+            emit_ir_stmt(ps, s);
+        }
     }
 
     KlrBasicBlock *last = scope->bb;

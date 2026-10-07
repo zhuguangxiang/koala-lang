@@ -322,9 +322,7 @@ pub class StrIter : Iterator[str] {
     }
 
     /// Return true if there are remaining characters to iterate.
-    pub func has_next() bool {
-        return cursor < length
-    }
+    pub func has_next() bool = cursor < length
 
     /// Return the next character and advance the cursor by `step`.
     ///

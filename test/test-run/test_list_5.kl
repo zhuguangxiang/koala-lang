@@ -2,7 +2,7 @@
 
 func foo(x list[int], out list[int]) {
     for v in x {
-        out.push(v)
+        out.append(v)
     }
 }
 
@@ -16,11 +16,11 @@ func main() {
     foo(l, out)
 
     for v in new_list() {
-        out.push(v)
+        out.append(v)
     }
 
     for v in [1,2,3] {
-        out.push(v)
+        out.append(v)
     }
 
     print(out)
@@ -45,7 +45,7 @@ func main() {
 // CHECK: %v = local int64
 // CHECK: %2 = seq.get %x std/builtin.list<j>, %seq.index int64
 // CHECK: move %v int64, %2 int64
-// CHECK: call @list:push [path = 'std/builtin'], %out std/builtin.list<j>, %v int64
+// CHECK: call @list:append [path = 'std/builtin'], %out std/builtin.list<j>, %v int64
 // CHECK: jmp label %bb4
 
 // CHECK: %bb4(loop-cond-incr):                           ;; preds = %bb3

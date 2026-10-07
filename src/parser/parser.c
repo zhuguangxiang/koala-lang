@@ -1684,6 +1684,49 @@ static void check_param_name_with_field_name(ParserState *ps, Vector *params)
     }
 }
 
+static void parse_single_expr_stmt(ParserState *ps, Stmt *stmt, FuncSymbol *fn)
+{
+    ASSERT(fn != NULL);
+    TypeSpec *ret_ts = fn->ret;
+    ASSERT(ret_ts);
+
+    ExprStmt *s = (ExprStmt *)stmt;
+    Expr *exp = s->exp;
+    ASSERT(exp);
+
+    exp->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, exp);
+
+    TypeSpec *ts = exp->ts;
+    // If the expr has no type, there must have error reported already.
+    // Here needn't to check func's return type.
+    if (!ts) return;
+
+    log_info("parsed single expr stmt with type '%s'", ts->signature);
+
+    if (type_is_no_type(ret_ts)) {
+        log_info("func '%s' has no ret-type yet, setting it to '%s'", fn->name, ts->signature);
+        fn->ret = ts;
+        return;
+    }
+
+    // skip panic call, no ned to check return type
+    if (exp->kind == EXPR_CALL_KIND) {
+        CallExpr *call = (CallExpr *)exp;
+        Symbol *sym = call->lhs->sym;
+        if (sym && sym->kind == SYM_FUNC) {
+            if (!strcmp(sym->name, "panic") && !strcmp(sym->path, "std/builtin")) {
+                return;
+            }
+        }
+    }
+
+    if (!type_spec_compatible(ret_ts, ts)) {
+        kl_error(stmt->loc, "type of expr '%s' does not match func ret-type '%s'", ts->signature,
+                 ret_ts->signature);
+    }
+}
+
 static void parse_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
@@ -1700,8 +1743,19 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
     sc->stbl = sym->stbl;
     sc->sym = (Symbol *)sym;
 
+    int need_parse_block = 1;
+
     /* parse body */
-    parse_block(ps, fn->body, NULL);
+    if (vector_size(fn->body) == 1) {
+        // single statement body
+        Stmt *s = vector_at(fn->body, 0);
+        if (s->kind == STMT_EXPR_KIND) {
+            parse_single_expr_stmt(ps, s, sym);
+            need_parse_block = 0;
+        }
+    }
+
+    if (need_parse_block) parse_block(ps, fn->body, NULL);
 
     ASSERT(vector_empty(&ps->shadows));
 
@@ -3032,21 +3086,31 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
     AssignOpKind op = assign->op;
 
     Symbol *kls_sym = get_symbol_by_id(lhs->ts->sym_id);
-    if (kls_sym->kind != SYM_CLASS) {
+    ASSERT(kls_sym);
+
+    if (kls_sym->kind != SYM_CLASS && kls_sym->kind != SYM_INSTANCE) {
         kl_error(assign->loc, "inplace assignment is not supported for '%s' type.", kls_sym->name);
         return -1;
     }
 
-    Symbol *op_sym = stbl_get(((KlassSymbol *)kls_sym)->stbl, get_inplace_op_str(op));
+    char *op_name = get_inplace_op_str(op);
+    Symbol *op_sym;
+
+    if (kls_sym->kind == SYM_INSTANCE) {
+        InstanceSymbol *inst_sym = (InstanceSymbol *)kls_sym;
+        op_sym = get_instance_method(inst_sym, op_name, ps);
+    } else {
+        op_sym = stbl_get(kls_sym->stbl, op_name);
+    }
+
     if (!op_sym) {
-        kl_error(assign->loc, "inplace operator '%s' is not defined for class '%s'.",
-                 get_inplace_op_str(op), kls_sym->name);
+        kl_error(assign->loc, "inplace operator '%s' is not defined for class '%s'.", op_name,
+                 kls_sym->name);
         return -1;
     }
 
     if (op_sym->kind != SYM_FUNC) {
-        kl_error(assign->loc, "'%s' in class '%s' is not a function.", get_inplace_op_str(op),
-                 kls_sym->name);
+        kl_error(assign->loc, "'%s' in class '%s' is not a function.", op_name, kls_sym->name);
         return -1;
     }
 
@@ -3055,7 +3119,7 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
         kl_error(assign->loc,
                  "inplace operator '%s' in class '%s' must have exactly one "
                  "parameter.",
-                 get_inplace_op_str(op), kls_sym->name);
+                 op_name, kls_sym->name);
         return -1;
     }
 
@@ -3078,19 +3142,21 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
     log_info("  rhs type:");
     log_type_spec(rhs->ts);
 
-    Symbol *bi_op_sym = stbl_get(((KlassSymbol *)kls_sym)->stbl, get_inplace_binary_op_str(op));
+    char *bi_op_name = get_inplace_binary_op_str(op);
+    Symbol *bi_op_sym = stbl_get(kls_sym->stbl, bi_op_name);
+
     if (bi_op_sym) {
         log_info(
             "binary operator '%s' is also defined for class '%s', inplace assignment can be "
             "desugared to binary operation.",
-            get_inplace_binary_op_str(op), kls_sym->name);
+            bi_op_name, kls_sym->name);
         assign->bin_exp = expr_from_binary(get_inplace_binary_op(op), assign->op_loc, lhs, rhs);
         expr_set_loc(assign->bin_exp, assign->loc);
     } else {
         log_info(
             "binary operator '%s' is not defined for class '%s', inplace assignment cannot be "
             "desugared to binary operation.",
-            get_inplace_binary_op_str(op), kls_sym->name);
+            bi_op_name, kls_sym->name);
         assign->bin_exp = NULL;
     }
 

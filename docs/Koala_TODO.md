@@ -401,11 +401,11 @@ printer `print_jmp_cond_fused`、cgen `fused_jmp()` + `lower_fused_jmp` 均就�
 
 ---
 
-## 9. list 的 push/pop 注解升级：@native → @intrinsic
+## 9. list 的 append/pop 注解升级：@native → @intrinsic
 
 > 2026-08-31 建立。
 
-**现状**：`list.kl` 中 `push(value T)` 和 `pop(index = -1) T` 标记为 `@native`。
+**现状**：`list.kl` 中 `append(value T)` 和 `pop(index = -1) T` 标记为 `@native`。
 
 **目标**：改为 `@intrinsic`，让编译器直接发射专用 VM 指令：
 - `push` → `OP_LIST_PUSH`（IRGen 已直接发射，无需 ISEL 特化）
@@ -416,7 +416,7 @@ printer `print_jmp_cond_fused`、cgen `fused_jmp()` + `lower_fused_jmp` 均就�
 
 **施工方向**：
 1. `list.kl`：`@native` → `@intrinsic`（push、pop 两个方法）
-2. 确认 IRGen 对 `list.push()` 发射 `OP_LIST_PUSH`（已有逻辑）
+2. 确认 IRGen 对 `list.append()` 发射 `OP_LIST_PUSH`（已有逻辑）
 3. 确认 ISEL 对 `list.pop()` 的 OP_CALL 特化为 `OP_LIST_POP`（需核实）
 4. 全量回归测试
 
@@ -710,7 +710,7 @@ pub static func try_from_str(s str, base = 10) int64? {}
 
 ### 16.3 命名 / 一致性 WIP（顺手项）
 
-- `MutableSequence.append`（trait，Rust 风格）vs `list.push`（list.kl）——trait 改名后 list.kl 未跟随，遵循名不齐。
+- `MutableSequence.append` 与 `list.append` 已统一。
 - `Buffer`（bytebuf.kl，原 `ByteBuf`）已收缩为纯 append 式缓冲、不再声明 `MutableSequence[uint8]`；设计文档 §8.4 已同步。
 - seeker.kl 文档提及 `io.StdinReader`——不存在的类（doc-only 残留，示例应改用 `sys.stdin`）。
 - `ut.assert_eq[T : Equatable]`（裸约束）与 `assert_ne[T : Equatable[T]]`（完整形参）约束写法不一致，可顺手统一。
@@ -757,12 +757,12 @@ pub static func try_from_str(s str, base = 10) int64? {}
 > 方法表（:239-249，仅注册 8 个：push / pop / len / __str__ / extend / __getitem__ /
 > __setitem__ / __getslice__）交叉核对。
 > 关联条目：§7.1（not_impl 哨兵）、§9（push/pop @intrinsic 化）、§12（OP_SEQ_SET_SLICE
-> 未实现）、§16.3（append/push 命名）、§4（`in`/OP_CONTAINS 链路已通但 list 缺方法实体）。
+> 未实现）、§16.3（append 命名已统一）、§4（`in`/OP_CONTAINS 链路已通但 list 缺方法实体）。
 
 ### 18.1 实测状态总表
 
 **可用（8）**：`__init__` / `len` / `__getitem__` / `__setitem__` / `__getslice__`（`l[a:b]`）/
-`push` / `pop` / `extend`。另有 C 侧实现但 list.kl 未声明的 `__str__`（`print(l)` 输出 `[1, 2, 3]`）。
+`append` / `pop` / `extend`。另有 C 侧实现但 list.kl 未声明的 `__str__`（`print(l)` 输出 `[1, 2, 3]`）。
 
 **声明 @native 但无 C 实现——运行时命中 not_impl 哨兵（`func 'X' of 'list' is not implemented!`），共 11 个**：
 
@@ -791,10 +791,9 @@ pub static func try_from_str(s str, base = 10) int64? {}
 
 ### 18.2 trait 一致性破损（list vs MutableSequence / Sequence / Iterable）
 
-1. **`append` vs `push`**（§16.3 已挂名，此处补实测结论）：`MutableSequence`（collection.kl:78）
-   要求 `append(value T)`，list 只有 `push`，**没有任何 `append`**；加之 trait 要求的
-   `insert` / `remove` / `clear` 均未实现——list 实际上不满足其声明实现的 MutableSequence。
-   需定案：trait 改名 `push`（Rust/Go 风格），或 list 补 `append`（Python 风格）/ 互为别名。
+1. **`append` 接口一致性**（§16.3 已定名）：`MutableSequence`（collection.kl）
+   要求 `append(value T)`，list 现已使用 `append`；trait 要求的
+   `insert` / `remove` / `clear` 仍未实现——list 实际上不满足其声明实现的 MutableSequence。
 2. **`iter` 签名不符**：`Iterable` 要求 `iter(step = 1)`，list 声明无参 `iter()`；
    实测 `l.iter(2)` 与 `l.iter()` 均不可用（编译报 `'iter' is not found`）。
 3. **`Sequence.__contains__` / `index` / `count`**：trait 要求的三件全部缺失（见 18.1 两表）。
@@ -865,4 +864,3 @@ reverse / reversed / len / 切片 / `+` / `+=`——方向与主流一致，前�
   仅使用 `push`（21 处）/ `len`（6 处）/ 下标赋值 / 切片；**test-ut 无 list 用例**。
 - 每实现一个欠账方法，应在 `test/test-ut/test_list.kl`（待新建）补用例，
   参照 `test/test-ut/test_bytes.kl` 模式（`@test` + `ut.assert_*`，含范围语义与视图/切片交互）。
-

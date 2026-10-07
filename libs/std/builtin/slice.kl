@@ -5,52 +5,41 @@
 
 /// A slice object represents a set of indices specified by `[start:end:step]`.
 ///
-/// It is internally created by the compiler when the `:` syntax is used
-/// inside subscript brackets `[]`. Omitted and negative bounds are completed
-/// by the compiler against the target sequence length, so all fields are
-/// concrete integers. Follows Python's slicing semantics, including
-/// negative steps for reverse slicing.
+/// It is created by the compiler when the `:` syntax is used inside subscript
+/// brackets `[]`. Omitted bounds are represented internally by `INT_MIN` and
+/// resolved against the target sequence length when the slice is applied.
 pub class slice {
     /// The starting index of the slice (inclusive).
     pub let start int
 
     /// The ending index of the slice (exclusive).
-    /// For reverse slices it may be `-1`, meaning the slice goes down to index 0.
+    ///
+    /// For reverse slices, `-1` means the slice extends through index 0.
     pub let end int
 
-    /// The step value of the slice. A negative step reverses the direction.
-    /// Must not be zero; a zero step triggers a panic.
+    /// The step value of the slice.
+    ///
+    /// A negative step reverses the direction. Must not be zero.
     pub let step int
 
-    /// Initialize a new slice object.
+    /// Initialize a slice.
     ///
-    /// Typically constructed by the `build_intern` op when the compiler
-    /// translates the `[start:end:step]` syntax. Users may also construct
-    /// slice objects explicitly via `slice(start, end, step)`.
+    /// Pass `INT_MIN` for `_start` or `_end` to represent an omitted bound.
+    /// The bound is resolved against the target sequence length when the slice is applied.
     ///
-    /// Pass `INT_MIN` for `_start` or `_end` to indicate that the bound is
-    /// omitted; the runtime will resolve it to the appropriate default based
-    /// on the sign of `_step` (positive step → start=0 / end=len,
-    /// negative step → start=len-1 / end=-1). This sentinel applies equally
-    /// whether the slice originates from compiler-generated syntax or
-    /// user-facing construction.
-    ///
-    /// `_step` defaults to 1 and must not be zero; a zero step triggers a panic.
+    /// `_step` defaults to 1 and must not be zero.
     pub func __init__(_start int, _end int, _step = 1) {
         start = _start
         end = _end
         step = _step
     }
 
-    /// Formats the slice for display.
-    /// Produce the string representation of the slice.
-    /// Uses the form `slice(start, end, step)`.
+    /// Format the slice as `slice(start, end, step)`.
     pub func fmt(f Formatter) {
         f.write_fmt("slice({}, {}, {})", start, end, step)
     }
 
-    /// Converts the slice to its string representation.
-    /// Uses the form `slice(start, end, step)`.
+    /// Convert the slice to its string representation.
     pub func to_str() str {
         return format("slice({}, {}, {})", start, end, step)
     }

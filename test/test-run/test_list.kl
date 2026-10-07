@@ -2,7 +2,7 @@
 
 func new_list(x int) list[int] {
     let l = [100, 200]
-    l.push(x)
+    l.append(x)
     return l
 }
 
@@ -12,7 +12,7 @@ func main() {
 
     let l = [1, 2, 3]
     print("length of l:", l.len())
-    l.push(4)
+    l.append(4)
     print(l)
     print("length of l:", l.len())
 
@@ -34,7 +34,7 @@ func main() {
 // CHECK: %1 = call @list:len [path = 'std/builtin'], %l std/builtin.list<j>
 // CHECK: %2 = build_intern @tuple, 'length of l:' str, %1 int64
 // CHECK: call @print [path = 'std/prelude'], %2 std/builtin.tuple<uj>, ' ' str, '\n' str
-// CHECK: call @list:push [path = 'std/builtin'], %l std/builtin.list<j>, 4 int64
+// CHECK: call @list:append [path = 'std/builtin'], %l std/builtin.list<j>, 4 int64
 // CHECK: %3 = build_intern @tuple, %l std/builtin.list<j>
 // CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
 // CHECK: %4 = call @list:len [path = 'std/builtin'], %l std/builtin.list<j>
@@ -118,7 +118,7 @@ func main() {
 // CHECK:     [2] nil
 
 // CHECK-LABEL: Import Table:
-// CHECK: [000] method std/builtin::list::push
+// CHECK: [000] method std/builtin::list::append
 // CHECK: [001] func   std/prelude::print
 // CHECK: [002] method std/builtin::list::len, slot_index: 4
 

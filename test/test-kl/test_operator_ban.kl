@@ -75,7 +75,7 @@ func t_upcast_ret(v int) Arithmetic[float] {
 func protocol_hooks(l list[int], s str) {
     // protocol hooks are NOT operators and remain explicitly callable
     l.len()
-    l.push(1)
+    l.append(1)
     s.__str__()
 }
 

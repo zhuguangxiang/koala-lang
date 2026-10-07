@@ -1,0 +1,14 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+func mismatched_return() int = "hello"
+// CHECK: type of expr 'u' does not match func ret-type 'j'
+
+func another_mismatched_return() str { 42 }
+// CHECK: type of expr 'j' does not match func ret-type 'u'
+
+func yet_another_mismatched_return() bool { 42; }
+// CHECK: type of expr 'j' does not match func ret-type 'z'
+
+func print_hello() int { panic("hello") }
+
+// CHECK-NOT: {{.}}

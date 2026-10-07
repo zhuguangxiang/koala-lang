@@ -178,7 +178,7 @@ pub class TreeSet[T : Comparable] : Set[T] {
 
     /// Return a reverse iterator over the elements in reverse sorted order.
     @native
-    pub func reversed() Iterator[T] {}
+    pub func reversed(step = 1) Iterator[T] {}
 
     /// Return a list of all elements in sorted order.
     @native

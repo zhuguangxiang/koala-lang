@@ -65,17 +65,17 @@ class Tree[T: Comparable] {
         let stack = list[Node[T]]()
 
         if (root != nil) {
-            stack.push(root!)
+            stack.append(root!)
         }
 
         while stack.len() > 0 {
             let x = stack.pop(0)
             print(x.value, end=" ")
             if let v = x.left {
-                stack.push(v)
+                stack.append(v)
             }
             if let v = x.right {
-                stack.push(v)
+                stack.append(v)
             }
         }
         print("")
