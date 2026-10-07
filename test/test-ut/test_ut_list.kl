@@ -1,0 +1,485 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+// A penguin is identified by its name and age. Two separately built
+// penguins with the same name and age count as equal, so matching in a
+// list goes through __eq__ — the SLOT_EQ branch on the C side.
+class Penguin {
+    let name str
+    let age int
+
+    func __init__(_name str, _age int) {
+        name = _name
+        age = _age
+    }
+
+    func __eq__(rhs Penguin) bool {
+        return name == rhs.name && age == rhs.age
+    }
+
+    func __ne__(rhs Penguin) bool {
+        return name != rhs.name || age != rhs.age
+    }
+}
+
+@test
+func test_list_contains() {
+    let values = list[int](1, 2, 2, 3)
+    ut.assert_true(2 in values)
+    ut.assert_true(1 in values)
+    ut.assert_true(3 in values)
+    ut.assert_false(9 in values)
+
+    let empty = list[int]()
+    ut.assert_false(1 in empty)
+
+    let words = list[str]("apple", "pear", "fig")
+    ut.assert_true("pear" in words)
+    ut.assert_false("orange" in words)
+}
+
+@test
+func test_list_index() {
+    let values = list[int](1, 2, 2, 3)
+    ut.assert_eq(values.index(1), 0)
+    ut.assert_eq(values.index(2), 1)
+    ut.assert_eq(values.index(2, 2), 2)     // skip first match via start
+    ut.assert_eq(values.index(3), 3)
+    ut.assert_eq(values.index(9), -1)       // not present
+    ut.assert_eq(values.index(2, 4), -1)    // start beyond range
+    ut.assert_eq(values.index(3, 0, 3), -1) // end excludes the match at 3
+    ut.assert_eq(values.index(2, 0, 3), 1)
+}
+
+@test
+func test_list_count() {
+    let values = list[int](1, 2, 2, 3, 2)
+    ut.assert_eq(values.count(2), 3)
+    ut.assert_eq(values.count(1), 1)
+    ut.assert_eq(values.count(3), 1)
+    ut.assert_eq(values.count(9), 0)
+    ut.assert_eq(values.count(2, 1, 2), 1)  // [1,2) -> one 2
+    ut.assert_eq(values.count(2, 1, 4), 2)  // [1,4) -> two 2s
+
+    let empty = list[int]()
+    ut.assert_eq(empty.count(1), 0)
+}
+
+@test
+func test_list_with_penguins() {
+    let flock = [Penguin("Ping", 2), Penguin("Pong", 3), Penguin("Pong", 3), Penguin("Tux", 5)]
+
+    // value-equal but distinct identity -> must still match
+    ut.assert_true(Penguin("Pong", 3) in flock)
+    ut.assert_false(Penguin("Pang", 1) in flock)
+
+    // same name, different age -> NOT equal (compound equality)
+    ut.assert_false(Penguin("Pong", 2) in flock)
+
+    ut.assert_eq(flock.index(Penguin("Ping", 2)), 0)
+    ut.assert_eq(flock.index(Penguin("Pong", 3)), 1)
+    ut.assert_eq(flock.index(Penguin("Pong", 3), 2), 2)  // skip the first equal match
+    ut.assert_eq(flock.index(Penguin("Tux", 5)), 3)
+    ut.assert_eq(flock.index(Penguin("Ghost", 0)), -1)
+
+    ut.assert_eq(flock.count(Penguin("Pong", 3)), 2)
+    ut.assert_eq(flock.count(Penguin("Ping", 2)), 1)
+    ut.assert_eq(flock.count(Penguin("Ghost", 0)), 0)
+
+    // confirm the matched slot is the expected penguin
+    ut.assert_eq(flock[flock.index(Penguin("Tux", 5))].age, 5)
+}
+
+// ---------------------------------------------------------------------------
+// insert
+// ---------------------------------------------------------------------------
+@test
+func test_list_insert() {
+    let values = list[int](2, 3)
+    values.insert(0, 1)   // head    -> [1, 2, 3]
+    values.insert(2, 9)   // middle  -> [1, 2, 9, 3]
+    values.insert(4, 4)   // index == len -> append -> [1, 2, 9, 3, 4]
+
+    ut.assert_eq(values.len(), 5)
+    ut.assert_eq(values[0], 1)
+    ut.assert_eq(values[1], 2)
+    ut.assert_eq(values[2], 9)
+    ut.assert_eq(values[3], 3)
+    ut.assert_eq(values[4], 4)
+
+    // empty list: index 0 == len(0) is a valid insert position
+    let empty = list[int]()
+    empty.insert(0, 7)
+    ut.assert_eq(empty.len(), 1)
+    ut.assert_eq(empty[0], 7)
+
+    // duplicates: first match is not special for insert, all shift right
+    let dups = list[int](1, 1, 1)
+    dups.insert(1, 0)     // [1, 0, 1, 1]
+    ut.assert_eq(dups.len(), 4)
+    ut.assert_eq(dups[0], 1)
+    ut.assert_eq(dups[1], 0)
+    ut.assert_eq(dups[2], 1)
+}
+
+// ---------------------------------------------------------------------------
+// remove
+// ---------------------------------------------------------------------------
+@test
+func test_list_remove() {
+    let values = list[int](1, 2, 2, 3)
+    values.remove(2)                 // removes the FIRST 2 -> [1, 2, 3]
+    ut.assert_eq(values.len(), 3)
+    ut.assert_eq(values[0], 1)
+    ut.assert_eq(values[1], 2)       // the remaining 2 shifted left
+    ut.assert_eq(values[2], 3)
+    ut.assert_eq(values.count(2), 1)
+
+    values.remove(1)                 // head -> [2, 3]
+    ut.assert_eq(values[0], 2)
+    ut.assert_eq(values[1], 3)
+
+    values.remove(3)                 // tail -> [2]
+    ut.assert_eq(values.len(), 1)
+    ut.assert_eq(values[0], 2)
+
+    // value-equal object removal goes through __eq__ (SLOT_EQ)
+    let flock = [Penguin("Ping", 2), Penguin("Pong", 3), Penguin("Ping", 2)]
+    flock.remove(Penguin("Ping", 2)) // removes the FIRST value-equal item
+    ut.assert_eq(flock.len(), 2)
+    ut.assert_eq(flock[0].name, "Pong")
+    ut.assert_eq(flock[1].name, "Ping")
+}
+
+// ---------------------------------------------------------------------------
+// clear
+// ---------------------------------------------------------------------------
+@test
+func test_list_clear() {
+    let values = list[int](1, 2, 3)
+    values.clear()
+    ut.assert_true(values.empty())
+    ut.assert_eq(values.len(), 0)
+
+    values.append(9)                 // reuse the buffer after clear
+    ut.assert_eq(values.len(), 1)
+    ut.assert_eq(values[0], 9)
+
+    values.clear()                   // clearing an already-populated list again
+    ut.assert_eq(values.len(), 0)
+
+    // clear on an already-empty list is a no-op
+    let already = list[int]()
+    already.clear()
+    ut.assert_true(already.empty())
+
+    // regression: clear on a windowed slice view must reset start to 0 so
+    // len = end - start stays 0 (no size_t underflow), and must not touch the
+    // parent list's contents.
+    let base = list[int](0, 1, 2, 3, 4)
+    let view = base[1:4]             // view = [1, 2, 3], shares backing (start > 0)
+    ut.assert_eq(view.len(), 3)
+    view.clear()
+    ut.assert_true(view.empty())
+    ut.assert_eq(view.len(), 0)
+    ut.assert_eq(base.len(), 5)      // parent intact
+    ut.assert_eq(base[1], 1)
+    ut.assert_eq(base[3], 3)
+}
+
+// ---------------------------------------------------------------------------
+// reverse
+// ---------------------------------------------------------------------------
+@test
+func test_list_reverse() {
+    // even length
+    let values = list[int](1, 2, 3, 4)
+    values.reverse()
+    ut.assert_eq(values[0], 4)
+    ut.assert_eq(values[1], 3)
+    ut.assert_eq(values[2], 2)
+    ut.assert_eq(values[3], 1)
+
+    values.reverse()                 // double reverse restores original order
+    ut.assert_eq(values[0], 1)
+    ut.assert_eq(values[3], 4)
+
+    // odd length
+    let odd = list[int](1, 2, 3, 4, 5)
+    odd.reverse()
+    ut.assert_eq(odd[0], 5)
+    ut.assert_eq(odd[2], 3)          // middle stays put
+    ut.assert_eq(odd[4], 1)
+
+    // single element and empty are no-ops (guards the n-1 underflow)
+    let one = list[int](7)
+    one.reverse()
+    ut.assert_eq(one[0], 7)
+    let empty = list[int]()
+    empty.reverse()
+    ut.assert_true(empty.empty())
+
+    // objects are reordered in place (identity moves, no __eq__ needed)
+    let flock = [Penguin("Ping", 2), Penguin("Pong", 3), Penguin("Tux", 5)]
+    flock.reverse()
+    ut.assert_eq(flock[0].name, "Tux")
+    ut.assert_eq(flock[1].name, "Pong")
+    ut.assert_eq(flock[2].name, "Ping")
+}
+
+// ---------------------------------------------------------------------------
+// panic boundaries (remove-missing / insert-out-of-range)
+// NOTE: uses @test_expect_panic (recognized in src/parser/parser.c); drop these
+// two if the expect_panic path is not yet wired in the ut harness.
+// ---------------------------------------------------------------------------
+@test_expect_panic("list.remove(x): x not in list")
+func test_list_remove_missing_panics() {
+    let values = list[int](1, 2, 3)
+    values.remove(99)                // not present -> panic
+}
+
+@test_expect_panic("list insert index out of range")
+func test_list_insert_out_of_range_panics() {
+    let values = list[int](1, 2, 3)
+    values.insert(10, 4)             // index > len -> panic
+}
+
+@test
+func test_list_add() {
+    // basic: self ++ seq yields a brand-new list
+    let a = list[int](1, 2, 3)
+    let b = list[int](4, 5)
+    let c = a + b
+
+    ut.assert_eq(c.len(), 5)
+    ut.assert_eq(c[0], 1)
+    ut.assert_eq(c[1], 2)
+    ut.assert_eq(c[2], 3)
+    ut.assert_eq(c[3], 4)
+    ut.assert_eq(c[4], 5)
+
+    // non-mutating: operands unchanged
+    ut.assert_eq(a.len(), 3)
+    ut.assert_eq(b.len(), 2)
+    ut.assert_eq(a[2], 3)
+    ut.assert_eq(b[0], 4)
+
+    // result is independent: mutating c must not touch a or b
+    c.append(99)
+    ut.assert_eq(a.len(), 3)
+    ut.assert_eq(b.len(), 2)
+
+    // empty operand on either / both sides
+    let e = list[int]()
+    ut.assert_eq((a + e).len(), 3)
+    ut.assert_eq((e + a).len(), 3)
+    ut.assert_eq((e + e).len(), 0)
+
+    // str list
+    let s = list[str]("a", "b") + list[str]("c")
+    ut.assert_eq(s.len(), 3)
+    ut.assert_eq(s[2], "c")
+
+    // window-view operand: shares backing in source, result stays independent
+    let w = list[int](0, 1, 2, 3, 4)
+    let view = w[1:4]                 // logical [1, 2, 3]
+    let r = view + list[int](7, 8)
+    ut.assert_eq(r.len(), 5)
+    ut.assert_eq(r[0], 1)
+    ut.assert_eq(r[2], 3)
+    ut.assert_eq(r[3], 7)
+    ut.assert_eq(r[4], 8)
+    ut.assert_eq(w.len(), 5)          // parent untouched
+}
+
+@test
+func test_list_add_penguin() {
+    // reuse the Penguin class (Equatable by name+age) declared earlier in this file
+    let a = list[Penguin](Penguin("Popo", 3), Penguin("Tux", 5))
+    let b = list[Penguin](Penguin("Ek", 1))
+    let c = a + b
+
+    ut.assert_eq(c.len(), 3)
+    ut.assert_eq(c[0].name, "Popo")
+    ut.assert_eq(c[1].name, "Tux")
+    ut.assert_eq(c[2].name, "Ek")
+    ut.assert_eq(c[2].age, 1)
+
+    // user __eq__ still matches element-wise after concatenation
+    ut.assert_true(c[0] == Penguin("Popo", 3))
+    ut.assert_false(c[0] == Penguin("Popo", 4))
+
+    // non-mutating: operands untouched
+    ut.assert_eq(a.len(), 2)
+    ut.assert_eq(b.len(), 1)
+
+    // result independent: appending to c does not resize a or b
+    c.append(Penguin("New", 9))
+    ut.assert_eq(a.len(), 2)
+    ut.assert_eq(b.len(), 1)
+    ut.assert_eq(c.len(), 4)
+
+    // references preserved; empty tail is a no-op copy
+    let solo = list[Penguin](Penguin("Solo", 7))
+    let d = solo + list[Penguin]()
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d[0].name, "Solo")
+    ut.assert_eq(solo.len(), 1)
+}
+
+@test
+func test_list_extend_list() {
+    let values = list[int](1, 2, 3)
+    values.extend(list[int](4, 5))
+    ut.assert_eq(values.len(), 5)
+    ut.assert_eq(values[3], 4)
+    ut.assert_eq(values[4], 5)
+
+    // empty source: no-op
+    values.extend(list[int]())
+    ut.assert_eq(values.len(), 5)
+
+    // source list untouched (extend reads, never mutates arg)
+    let src = list[int](7, 8, 9)
+    values.extend(src)
+    ut.assert_eq(values.len(), 8)
+    ut.assert_eq(values[5], 7)
+    ut.assert_eq(values[7], 9)
+    ut.assert_eq(src.len(), 3)
+
+    // window-view SOURCE: only its logical window is appended
+    let big = list[int](0, 1, 2, 3, 4)
+    values.extend(big[1:4])          // appends [1, 2, 3]
+    ut.assert_eq(values.len(), 11)
+    ut.assert_eq(values[8], 1)
+    ut.assert_eq(values[10], 3)
+    ut.assert_eq(big.len(), 5)
+}
+
+@test
+func test_list_extend_tuple() {
+    let values = list[int](1, 2)
+    values.extend((10, 20, 30))
+    ut.assert_eq(values.len(), 5)
+    ut.assert_eq(values[2], 10)
+    ut.assert_eq(values[4], 30)
+
+    // single value round-trips through the tuple fast path
+    let s = list[str]("x")
+    s.extend(("y", "z"))
+    ut.assert_eq(s.len(), 3)
+    ut.assert_eq(s[2], "z")
+}
+
+@test
+func test_list_extend_range() {
+    let values = list[int](0)
+    values.extend(range(1, 5))       // 1,2,3,4
+    ut.assert_eq(values.len(), 5)
+    ut.assert_eq(values[1], 1)
+    ut.assert_eq(values[4], 4)
+
+    // stepped range
+    let s = list[int]()
+    s.extend(range(0, 10, 3))        // 0,3,6,9
+    ut.assert_eq(s.len(), 4)
+    ut.assert_eq(s[0], 0)
+    ut.assert_eq(s[1], 3)
+    ut.assert_eq(s[2], 6)
+    ut.assert_eq(s[3], 9)
+
+    // reverse (negative-step) range
+    let r = list[int]()
+    r.extend(range(3, 0, -1))        // 3,2,1
+    ut.assert_eq(r.len(), 3)
+    ut.assert_eq(r[0], 3)
+    ut.assert_eq(r[1], 2)
+    ut.assert_eq(r[2], 1)
+
+    // empty range: no-op
+    let e = list[int](7)
+    e.extend(range(5, 5))
+    ut.assert_eq(e.len(), 1)
+}
+
+@test
+func test_list_iter_while() {
+    let values = list[int](1, 2, 3, 4, 5)
+    let it = values.iter()
+    var acc = 0
+    while it.has_next() {
+        acc = acc + it.next_strict()
+    }
+    ut.assert_eq(acc, 15)
+    ut.assert_false(it.has_next())
+    ut.assert_true(it.next() == nil)
+}
+
+@test
+func test_list_iter_step() {
+    let values = list[int](1, 2, 3, 4, 5)
+    let it = values.iter(2)          // 1, 3, 5
+    ut.assert_eq(it.next_strict(), 1)
+    ut.assert_eq(it.next_strict(), 3)
+    ut.assert_eq(it.next_strict(), 5)
+    ut.assert_false(it.has_next())
+    ut.assert_true(it.next() == nil)
+}
+
+@test
+func test_list_iter_for_explicit() {
+    let values = list[int](10, 20, 30, 40)
+    var n = 0
+    var sum = 0
+    for v in values.iter() {         // explicit iterator, not the Sequence fast path
+        n = n + 1
+        sum = sum + v
+    }
+    ut.assert_eq(n, 4)
+    ut.assert_eq(sum, 100)
+
+    var s = 0
+    for v in values.iter(2) {        // 10, 30
+        s = s + v
+    }
+    ut.assert_eq(s, 40)
+}
+
+// @test
+// func test_list_reversed_while() {
+//     let values = list[int](1, 2, 3)
+//     let it = values.reversed()       // 3, 2, 1
+//     var out = list[int]()
+//     while it.has_next() {
+//         out.append(it.next_strict())
+//     }
+//     ut.assert_eq(out.len(), 3)
+//     ut.assert_eq(out[0], 3)
+//     ut.assert_eq(out[2], 1)
+// }
+
+// @test
+// func test_list_reversed_step() {
+//     let big = list[int](1, 2, 3, 4, 5, 6)
+//     var s = 0
+//     var n = 0
+//     for v in big.reversed(2) {       // 6, 4, 2
+//         s = s + v
+//         n = n + 1
+//     }
+//     ut.assert_eq(n, 3)
+//     ut.assert_eq(s, 12)
+// }
+
+// @test
+// func test_list_iter_empty() {
+//     let e = list[int]()
+//     let it = e.iter()
+//     ut.assert_false(it.has_next())
+//     ut.assert_true(it.next() == nil)
+
+//     let rit = e.reversed()
+//     ut.assert_false(rit.has_next())
+//     ut.assert_true(rit.next() == nil)
+// }

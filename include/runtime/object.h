@@ -846,6 +846,8 @@ static inline unsigned int kl_hash(TValue *val)
     return (unsigned int)to_int64(&ret);
 }
 
+static inline TValue kl_equal(TValue *a, TValue *b) { return kl_slot_call_one_arg(a, b, SLOT_EQ); }
+
 static inline void kl_fmt_call(Formatter *fmt, TValue *obj)
 {
     TValue arg = obj_value(fmt);

@@ -38,6 +38,8 @@ void _raise_exc_str(KoalaState *ks, char *str);
         _raise_exc_str(ks, str); \
     } while (0)
 
+#define raise_exc(str) raise_exc_str(str)
+
 char *kl_exc_get_msg(Object *exc);
 void kl_free_exc(Object *exc);
 

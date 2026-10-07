@@ -23,41 +23,40 @@ pub class list[T] : MutableSequence[T] {
     pub func __init__(args ...T) {}
 
     /// Return an iterator over the list, advancing by `step` elements.
-    @native
-    pub func iter(step = 1) Iterator[T] {}
+    pub func iter(step = 1) Iterator[T] { let it Iterator[T] = ListIter[T](self, step); return it; }
 
-    /// Return the number of items in the list. O(1).
+    /// Return the number of items in the list.
     @native
     pub func len() int {}
 
-    /// Return true if the list is empty, false otherwise. O(1).
+    /// Return true if the list is empty, false otherwise.
     @native
     pub func empty() bool {}
 
-    /// Get the item at the specified index. O(1). Panic if the index is out of range.
+    /// Get the item at the specified index.  Panic if the index is out of range.
     @native
     pub func __getitem__(index int) T {}
 
-    /// Return a new list that is a sub-slice of the current list.
+    /// Return a list that is a sub-slice of the current list.
     @native
     pub func __getslice__(r slice) list[T] {}
 
-    /// Return true if the list contains the specified value `v`. O(n).
+    /// Return true if the list contains the specified value `v`.
     @native
     pub func __contains__(v T) bool {}
 
-    /// Return the first index of `value` in `[start, end)`. O(n).
+    /// Return the first index of `value` in `[start, end)`.
     /// If `end` is `-1`, the search extends to the end of the list.
     /// Return `-1` if the value is not present.
     @native
     pub func index(value T, start = 0, end = -1) int {}
 
-    /// Return the number of occurrences of `value` in `[start, end)`. O(n).
+    /// Return the number of occurrences of `value` in `[start, end)`.
     /// If `end` is `-1`, the search extends to the end of the list.
     @native
     pub func count(value T, start = 0, end = -1) int {}
 
-    /// Set the item at the specified index to `value`. O(1). Panic if the index is out of range.
+    /// Set the item at the specified index to `value`.  Panic if the index is out of range.
     @native
     pub func __setitem__(index int, value T) {}
 
@@ -75,7 +74,6 @@ pub class list[T] : MutableSequence[T] {
     pub func extend(items Iterable[T]) {}
 
     /// Insert a new item with `value` at the given `index`.
-    /// Elements at or after the index are shifted to the right.
     @native
     pub func insert(index int, value T) {}
 
@@ -96,29 +94,123 @@ pub class list[T] : MutableSequence[T] {
     @native
     pub func reverse() {}
 
-    /// Return a new list with items of `self` followed by `seq` (`self + seq`).
+    /// Return a new list with items of `self` followed by `seq`
     @native
-    pub func __add__(seq Sequence[T]) list[T] {}
+    pub func __add__(seq list[T]) list[T] {}
 
-    /// Extend the list in place by appending all items from `seq` (`self += seq`).
+    /// Extend the list in place by appending all items from `seq`
     @native
-    pub func __iadd__(seq Sequence[T]) list[T] {}
-
-    /// Return a copy of the list from `start` (inclusive) to `end` (exclusive).
-    /// If `end` is `-1`, the copy extends to the end of the list.
-    @native
-    pub func copy(start = 0, end = -1) list[T] {}
-
-    /// Return a view of the list from `start` (inclusive) to `end` (exclusive).
-    /// If `end` is `-1`, the view extends to the end of the list.
-    @native
-    pub func view(start = 0, end = -1) list[T] {}
+    pub func __iadd__(seq Iterable[T]) list[T] {}
 
     /// Return a reverse iterator over the elements of the list.
-    @native
-    pub func reversed(step = 1) Iterator[T] {}
+    pub func reversed(step = 1) Iterator[T] = ListRevIter[T](self, step)
 
     /// Formats the list for display.
     @native
     pub func fmt(f Formatter) {}
+
+    /// Sort the elements of the list in place.
+    @native
+    pub func sort() {}
+}
+
+/// A forward iterator over a `list`, advancing by `step` elements each turn.
+///
+/// It yields `source[0]`, `source[step]`, `source[2*step]`, ... while the
+/// cursor stays within the list. The iterator is stateful and does not
+/// support rewinding; the length is snapshotted at construction, so
+/// mutating the source during traversal is undefined.
+pub class ListIter[T] : Iterator[T] {
+    let source list[T]
+    var cursor int
+    let step int
+    let len int
+
+    /// Initialize a forward iterator over `_source`, advancing by `_step`
+    /// elements per step. `_step` must be positive; defaults to 1.
+    /// Panic if `_step <= 0`.
+    pub func __init__(_source list[T], _step = 1) {
+        if _step <= 0 { panic("Step must be positive") }
+        source = _source
+        cursor = 0
+        step = _step
+        len = _source.len()
+    }
+
+    /// Return true if another element is available (the cursor is within bounds).
+    pub func has_next() bool = (cursor < len)
+
+    /// Return the element at the current cursor and advance by `step`.
+    /// Panic if the iterator is exhausted.
+    pub func next_strict() T {
+        if cursor >= len { panic("No more elements in ListIter") }
+        let item = source[cursor]
+        cursor = cursor + step
+        return item
+    }
+
+    /// Return the element at the current cursor and advance by `step`,
+    /// or `nil` if the iterator is exhausted.
+    pub func next() T? {
+        if cursor >= len { return nil }
+        let item = source[cursor]
+        cursor = cursor + step
+        return item
+    }
+
+    /// Formats the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_fmt("ListIter(step={}, cursor={}, len={})", step, cursor, len)
+    }
+}
+
+/// A reverse iterator over a `list`, moving backward by `step` elements each turn.
+///
+/// It yields `source[len-1]`, `source[len-1-step]`, ... while the cursor stays
+/// at or above index 0, i.e. `reversed` traversal with a positive stride. The
+/// iterator is stateful and does not support rewinding; the length is
+/// snapshotted at construction, so mutating the source during traversal is
+/// undefined.
+pub class ListRevIter[T] : Iterator[T] {
+    let source list[T]
+    var cursor int
+    let step int
+    let len int
+
+    /// Initialize a reverse iterator over `_source`, moving backward by
+    /// `_step` elements per step. `_step` must be positive; defaults to 1.
+    /// Panic if `_step <= 0`.
+    pub func __init__(_source list[T], _step = 1) {
+        if _step <= 0 { panic("Step must be positive") }
+        source = _source
+        step = _step
+        len = _source.len()
+        cursor = len - 1
+    }
+
+    /// Return true if another element is available (the cursor is at or above index 0).
+    pub func has_next() bool = (cursor >= 0)
+
+    /// Return the element at the current cursor and move backward by `step`.
+    /// Panic if the iterator is exhausted.
+    pub func next_strict() T {
+        if cursor < 0 { panic("No more elements in ListRevIter") }
+        let item = source[cursor]
+        cursor = cursor - step
+        return item
+    }
+
+    /// Return the element at the current cursor and move backward by `step`,
+    /// or `nil` if the iterator is exhausted.
+    pub func next() T? {
+        if cursor < 0 { return nil }
+        let item = source[cursor]
+        cursor = cursor - step
+        return item
+    }
+
+    /// Formats the iterator for display.
+    pub func fmt(f Formatter) {
+        f.write_fmt("ListRevIter(step={}, cursor={}, len={})", step, cursor, len)
+    }
 }

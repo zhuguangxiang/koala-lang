@@ -394,6 +394,15 @@ static KlrValue *lower_push_const(KlrConst *c, KlrInsn *insn, OpCode op)
     return (KlrValue *)klr_build_push(&bldr, (KlrValue *)c, op);
 }
 
+static int allow_fixedslot(KlrInsn *insn)
+{
+    if (insn->use_count != 1) return 0;
+    if (insn->code >= OP_NUM_ADD && insn->code <= OP_NUM_GE) {
+        return 0;
+    }
+    return 1;
+}
+
 // Lower a single call argument into a fixed call-slot.
 // 'pos' is the slot index counted from the end of the frame.
 static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
@@ -472,7 +481,8 @@ static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
 
     // Generic SSA value: force it into a fixed call-slot.
     // If the value has a single use, reuse the defining instruction.
-    if (arg->use_count == 1) {
+
+    if (allow_fixedslot((KlrInsn *)arg)) {
         KlrInsn *_insn = (KlrInsn *)arg;
         _insn->fixedslot = 1;   // mark as fixed slot
         _insn->slotindex = pos; // assign slot index

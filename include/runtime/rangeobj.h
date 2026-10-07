@@ -23,6 +23,8 @@ extern TypeObject range_type;
 #define IS_RANGE(ob) IS_TYPE((ob), &range_type)
 
 Object *kl_new_range(TValue *items);
+int kl_range_len(RangeObject *range, int64_t *out);
+int kl_range_index(RangeObject *range, int64_t value, int64_t *out);
 
 #ifdef __cplusplus
 }

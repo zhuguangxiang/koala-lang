@@ -446,6 +446,7 @@ TARGET(OP_CALL) {
         NativeFunc func = cfunc->func;
         Object *owner = cfunc->owner;
         TValue *args = ks->stack_top;
+        ks->stack_top += imm;
         if (IS_MODULE(owner) || (cfunc->not_impl)) {
             TValue val = obj_value(fn);
             ret = func(&val, args, imm);
@@ -454,6 +455,7 @@ TARGET(OP_CALL) {
             ASSERT(imm > 0);
             ret = func(args, args + 1, imm - 1);
         }
+        ks->stack_top -= imm;
     } else {
         ASSERT(IS_CODE(fn));
         TValue val = obj_value(fn);

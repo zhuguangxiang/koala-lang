@@ -9,42 +9,37 @@
 extern "C" {
 #endif
 
-static TValue _int_fmt(TValue *self, TValue *args, int nargs)
+static int _int_to_buf(char *buf, size_t size, TValue *self)
 {
-    char buf[64];
-
     uint64_t tag = self->tag;
     if (is_int_tag(tag)) {
-        snprintf(buf, sizeof(buf), "%" PRId64, (int64_t)self->ival);
+        return snprintf(buf, size, "%" PRId64, (int64_t)self->ival);
     } else if (is_uint_tag(tag)) {
-        snprintf(buf, sizeof(buf), "%" PRIu64, (uint64_t)self->ival);
+        return snprintf(buf, size, "%" PRIu64, (uint64_t)self->ival);
     } else {
         UNREACHABLE();
+        return 0;
     }
+}
 
-    buf[sizeof(buf) - 1] = '\0';
-
+static TValue _int_fmt(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char buf[64];
+    int len = _int_to_buf(buf, sizeof(buf), self);
+    ASSERT(len >= 0 && len < (int)sizeof(buf));
     Formatter *fmt = kl_arg_obj_as(0, fmt_type);
-    buf_write_nstr(&fmt->buf, buf, strlen(buf));
+    buf_write_nstr(&fmt->buf, buf, len);
 
     return nil_value;
 }
 
 static TValue _int_to_str(TValue *self, TValue *args, int nargs)
 {
+    ASSERT(nargs == 0);
     char buf[64];
-    int len = 0;
-
-    uint64_t tag = self->tag;
-    if (is_int_tag(tag)) {
-        len = snprintf(buf, sizeof(buf), "%" PRId64, (int64_t)self->ival);
-    } else if (is_uint_tag(tag)) {
-        len = snprintf(buf, sizeof(buf), "%" PRIu64, (uint64_t)self->ival);
-    } else {
-        UNREACHABLE();
-    }
-
-    ASSERT(len >= 0);
+    int len = _int_to_buf(buf, sizeof(buf), self);
+    ASSERT(len >= 0 && len < (int)sizeof(buf));
     Object *sobj = kl_new_nstr(buf, len);
     return obj_value(sobj);
 }
