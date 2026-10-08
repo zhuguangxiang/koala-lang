@@ -17,7 +17,7 @@ TValue test_pkg_foo_func(TValue *self, TValue *args, int nargs)
     Object *fn = kl_get_intf_func(args, 0);
     TValue _args[] = { args[0], obj_value(kl_new_str("Eagle")), int64_value(3) };
     // printf("test_pkg_foo_func is called\n");
-    return kl_object_call(fn, _args, 3);
+    return kl_call_code(fn, _args, 3);
 }
 
 // func swim(name str, age int) str

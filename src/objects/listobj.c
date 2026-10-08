@@ -67,7 +67,7 @@ static TValue list_item_equal(TValue *a, TValue *b)
     if (is_bool(a) && is_bool(b)) return bool_value(a->ival == b->ival);
     if (is_nil(a) && is_nil(b)) return bool_value(true);
     if (is_nil(a) || is_nil(b)) return bool_value(false);
-    return kl_equal(a, b);
+    return kl_call_cmp(a, b, SLOT_EQ);
 }
 
 /* pub func __contains__(v T) bool */
@@ -193,7 +193,7 @@ static TValue _list_fmt(TValue *self, TValue *args, int nargs)
         if (i > list->start) {
             buf_write_str(&fmt->buf, ", ");
         }
-        kl_fmt_call(fmt, list->array + i);
+        kl_call_fmt(list->array + i, fmt);
     }
     buf_write_char(&fmt->buf, ']');
 

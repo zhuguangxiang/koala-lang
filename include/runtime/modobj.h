@@ -94,7 +94,7 @@ extern TypeObject module_type;
 
 typedef struct _TestCase {
     char *name;
-    CodeObject *co;
+    Object *co;
     int expect_panic;
     char *msg;
     long long elapsed_ns;
@@ -107,7 +107,7 @@ void kl_free_module(Object *m);
 #define kl_mo_path(m) (((ModuleObject *)(m))->path)
 void kl_mo_set_code(Object *_m, uint32_t *insns, size_t n);
 int kl_mo_add_func(Object *_m, char *name, Object *obj);
-int kl_mo_add_test(Object *_m, char *name, CodeObject *obj, int expect_panic, char *msg);
+int kl_mo_add_test(Object *_m, char *name, Object *obj, int expect_panic, char *msg);
 int kl_mo_add_type(Object *_m, TypeObject *tp);
 int kl_mo_add_const(Object *_m, TValue *val);
 int kl_mo_add_str(Object *_m, char *s);
@@ -124,6 +124,11 @@ int kl_mo_add_list(Object *_m, Vector *list);
 int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *name,
                      int slot_index);
 Object *kl_mo_find(Object *_m, char *name);
+
+void kl_init_module_stbl(void);
+Object *kl_find_module(char *path);
+Object *kl_load_module(char *path);
+void kl_dump_module(Object *m);
 
 #ifdef __cplusplus
 }

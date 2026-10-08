@@ -207,7 +207,7 @@ void __kl_format__(Formatter *fmt_obj, const char *fmt, int len, Object *args)
 
             TValue a = items[argi++];
             kl_fmt_clear(fmt_tmp);
-            kl_fmt_call(fmt_tmp, &a);
+            kl_call_fmt(&a, fmt_tmp);
             Object *s = kl_fmt_result(fmt_tmp);
             FormatSpec spec = { 0 };
             format_str(out, STR_BUF(s), STR_LEN(s), &spec);
@@ -235,7 +235,7 @@ void __kl_format__(Formatter *fmt_obj, const char *fmt, int len, Object *args)
                 format_float(out, to_float64(&a), &spec);
             } else { // default: fmt()
                 kl_fmt_clear(fmt_tmp);
-                kl_fmt_call(fmt_tmp, &a);
+                kl_call_fmt(&a, fmt_tmp);
                 Object *s = kl_fmt_result(fmt_tmp);
                 format_str(out, STR_BUF(s), STR_LEN(s), &spec);
             }

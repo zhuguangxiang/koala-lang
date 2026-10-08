@@ -2650,7 +2650,7 @@ static void add_root_traits(ParserState *ps, KlassDeclStmt *kls)
             has_equatable = true;
     }
 
-    TypeIdent name;
+    TypeIdent name = { 0 };
     TypeSpec *ts;
     if (!has_equatable) {
         name.name = "Equatable";

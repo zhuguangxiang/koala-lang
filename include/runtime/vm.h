@@ -85,6 +85,10 @@ static inline KoalaState *__ks(void) { return __ts->current; }
 KoalaState *kl_new_ks(void);
 void kl_free_ks(KoalaState *ks);
 
+void kl_run_main(Object *m);
+void kl_run_init(Object *m);
+int kl_run_tests(Object *m);
+
 #ifdef __cplusplus
 }
 #endif

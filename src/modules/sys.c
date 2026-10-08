@@ -10,14 +10,13 @@
 extern "C" {
 #endif
 
-extern KoalaOptions kl_cmd_opt;
-
 static TValue os_args(TValue *self, TValue *args, int nargs)
 {
     Object *list = kl_new_list();
 
-    for (int i = 1; i < kl_cmd_opt.argc; i++) {
-        TValue s = kl_val_str(kl_cmd_opt.argv[i]);
+    KoalaOptions *opt = kl_get_cmd_opt();
+    for (int i = 1; i < opt->argc; i++) {
+        TValue s = kl_val_str(opt->argv[i]);
         kl_list_append(list, s);
     }
 

@@ -49,10 +49,9 @@ TValue do_print(TValue *args, int nargs)
     int size = TUPLE_SIZE(tuple);
 
     Formatter *fmt = kl_new_formatter(64);
-    TValue fmt_val = obj_value(fmt);
 
     for (int i = 0; i < size; ++i) {
-        kl_slot_call_one_arg(items + i, &fmt_val, SLOT_FMT);
+        kl_call_fmt(items + i, fmt);
         if (i < size - 1) {
             kl_fmt_write_str(fmt, STR_BUF(sep), STR_LEN(sep));
         } else {
@@ -65,11 +64,11 @@ TValue do_print(TValue *args, int nargs)
     // write_str(s str) int
     Object *write_str_fn = kl_get_intf_func(&writer, 1);
     TValue _args[] = { writer, obj_value(s) };
-    kl_object_call(write_str_fn, _args, 2);
+    kl_call_code(write_str_fn, _args, 2);
 
     // flush() int
     Object *flush_fn = kl_get_intf_func(&writer, 2);
-    kl_object_call(flush_fn, &writer, 1);
+    kl_call_code(flush_fn, &writer, 1);
 
     kl_free_str(s);
     kl_free_formatter(fmt);

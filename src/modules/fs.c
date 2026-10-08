@@ -87,7 +87,7 @@ static TValue file_close(TValue *self, TValue *args, int nargs)
     int fd = to_int64(&fobj->fd);
     ASSERT(nargs == 0);
     close(fd);
-    fobj->closed = BOOL_TRUE;
+    fobj->closed = bool_value(1);
     fobj->fd = int64_value(-1);
     return nil_value;
 }
@@ -210,7 +210,7 @@ static Object *kl_new_file(TValue path, TValue mode, int fd)
     INIT_OBJECT_HEAD(fobj, &file_type, 5);
     fobj->path = path;
     fobj->mode = mode;
-    fobj->closed = BOOL_FALSE;
+    fobj->closed = bool_value(0);
     fobj->fd = int64_value(fd);
     fobj->is_tty = bool_value(isatty(fd));
     return (Object *)fobj;
@@ -327,7 +327,7 @@ static TValue fs_write_bytes(TValue *self, TValue *args, int nargs)
     BytesObject *buf = kl_arg_obj_as(1, bytes_type);
 
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd < 0) return BOOL_FALSE;
+    if (fd < 0) return bool_value(0);
 
     int r = _write_all(fd, buf->data + buf->offset, buf->size);
     close(fd);
@@ -345,7 +345,7 @@ static TValue fs_write_str(TValue *self, TValue *args, int nargs)
     StringObject *sobj = kl_arg_obj_as(1, str_type);
 
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd < 0) return BOOL_FALSE;
+    if (fd < 0) return bool_value(0);
 
     int r = _write_all(fd, STR_BUF(sobj), STR_LEN(sobj));
     close(fd);

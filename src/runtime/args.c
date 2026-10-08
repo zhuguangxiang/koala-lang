@@ -14,6 +14,10 @@
 extern "C" {
 #endif
 
+static KoalaOptions kl_cmd_opt;
+
+KoalaOptions *kl_get_cmd_opt(void) { return &kl_cmd_opt; }
+
 static void print_usage(const char *prog)
 {
     printf(
@@ -71,8 +75,10 @@ static void version(void)
     }
 }
 
-int kl_parse_args(int argc, char *argv[], KoalaOptions *opt)
+int kl_parse_args(int argc, char *argv[])
 {
+    KoalaOptions *opt = &kl_cmd_opt;
+
     static struct option long_opts[] = {
         { "dump", required_argument, 0, 1 },
         { "int-trap", no_argument, 0, 2 },

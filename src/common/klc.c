@@ -460,6 +460,11 @@ static SlotDef slotdefs[] = {
     TPSLOT("__ge__", SLOT_GE),
 
     TPSLOT("hash", SLOT_HASH),
+    TPSLOT("fmt", SLOT_FMT),
+
+    TPSLOT("iter", SLOT_ITER),
+    TPSLOT("next", SLOT_NEXT),
+
     TPSLOT("len", SLOT_LEN),
 
     TPSLOT("__contains__", SLOT_CONTAINS),
@@ -469,10 +474,6 @@ static SlotDef slotdefs[] = {
 
     TPSLOT("__getslice__", SLOT_GET_SLICE),
     TPSLOT("__setslice__", SLOT_SET_SLICE),
-
-    TPSLOT("to_str", SLOT_STR),
-
-    TPSLOT("fmt", SLOT_FMT),
 
     TPSLOT("__add__", SLOT_ADD),
     TPSLOT("__sub__", SLOT_SUB),
@@ -490,6 +491,8 @@ static SlotDef slotdefs[] = {
 
     TPSLOT("__init__", SLOT_INIT),
     TPSLOT("__fini__", SLOT_FINI),
+
+    TPSLOT("to_str", SLOT_STR),
 
     TPSLOT(NULL, 0),
 };

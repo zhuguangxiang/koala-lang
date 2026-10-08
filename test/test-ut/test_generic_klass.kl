@@ -52,13 +52,13 @@ func test_normal_case() {
     ut.assert_eq(d.swim(), 42)
 }
 
-@test_expect_panic("func 'Baz::eat' for 'Swim' is not implemented!")
+@test_expect_panic("func 'Swim::eat' for 'Baz' is not implemented!")
 func test_Swim_Baz_eat_not_impl() {
     let b Swim = Baz()
     b.eat()
 }
 
-@test_expect_panic("func 'Baz::swim' for 'Swim' is not implemented!")
+@test_expect_panic("func 'Swim::swim' for 'Baz' is not implemented!")
 func test_Swim_Baz_swim_not_impl() {
     let b Swim = Baz()
     b.swim()

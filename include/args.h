@@ -27,9 +27,9 @@ typedef struct KoalaOptions {
     char **argv;
 } KoalaOptions;
 
-int kl_parse_args(int argc, char *argv[], KoalaOptions *opt);
+int kl_parse_args(int argc, char *argv[]);
 
-extern KoalaOptions kl_cmd_opt;
+KoalaOptions *kl_get_cmd_opt(void);
 
 #ifdef __cplusplus
 }

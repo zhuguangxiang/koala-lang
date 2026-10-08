@@ -32,7 +32,7 @@ static TValue _tuple_fmt(TValue *self, TValue *args, int nargs)
             buf_write_str(&fmt->buf, ", ");
         }
         TValue *item = &tuple->array[i];
-        kl_fmt_call(fmt, item);
+        kl_call_fmt(item, fmt);
     }
     buf_write_char(&fmt->buf, ')');
 

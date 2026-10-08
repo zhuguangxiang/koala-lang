@@ -44,7 +44,6 @@ TypeObject code_type = {
     .name = "code",
     .flags = TP_FLAGS_CLASS,
     .methdefs = code_methods,
-    .call = kl_eval_code,
 };
 
 Object *kl_new_code(char *name, Object *owner)
@@ -80,22 +79,6 @@ static TValue _cfunc_str(TValue *self, TValue *args, int nargs)
     return obj_value(r);
 }
 
-TValue kl_cfunc_call(TValue *self, TValue *args, int nargs)
-{
-    Object *obj = to_obj(self);
-    ASSERT(IS_CFUNC(obj));
-    CFuncObject *cfunc = (CFuncObject *)obj;
-    Object *owner = cfunc->owner;
-    if (IS_MODULE(owner)) {
-        return cfunc->func(self, args, nargs);
-    }
-
-    ASSERT(IS_TYPE(owner, &type_type));
-    ASSERT(nargs >= 1);
-    ASSERT(!cfunc->not_impl);
-    return cfunc->func(args, args + 1, nargs - 1);
-}
-
 static MethodDef cfunc_methods[] = {
     { "__str__", _cfunc_str },
     { NULL },
@@ -106,7 +89,6 @@ TypeObject cfunc_type = {
     .name = "cfunc",
     .flags = TP_FLAGS_CLASS,
     .methdefs = cfunc_methods,
-    .call = kl_cfunc_call,
 };
 
 Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner)

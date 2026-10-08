@@ -10,7 +10,6 @@
 #include "codespec.h"
 #include "common.h"
 #include "hashmap.h"
-#include "slotid.h"
 #include "vector.h"
 
 #ifdef __cplusplus
@@ -255,8 +254,6 @@ typedef struct _TypeObject {
     uint16_t tag;
     /* gc mark */
     GcMarkFunc gc_mark;
-    /* callable (__call__) */
-    CallFunc call;
 
     /* fields */
     Vector fields;
@@ -377,47 +374,6 @@ Object *kl_new_code(char *name, Object *owner);
 Object *kl_new_cfunc(char *name, NativeFunc fn, Object *owner);
 
 /*---------------------------------------------------------------------------+
- |  Bool related                                                             |
- +---------------------------------------------------------------------------*/
-
-/* Rich comparison opcodes */
-#define CMP_EQ 0
-#define CMP_NE 1
-#define CMP_LT 2
-#define CMP_LE 3
-#define CMP_GT 4
-#define CMP_GE 5
-
-#define BOOL_TRUE  bool_value(1)
-#define BOOL_FALSE bool_value(0)
-
-#define RETURN_TRUE  return BOOL_TRUE
-#define RETURN_FALSE return BOOL_FALSE
-
-/*
- * Macro for implementing rich comparisons
- *
- * C-comparison to Koala's rich comparison
- */
-
-// clang-format off
-
-#define RETURN_RICHCOMPARE(val, op) do {                     \
-    switch (op) {                                            \
-    case CMP_EQ: if ((val) == 0) RETURN_TRUE; RETURN_FALSE;  \
-    case CMP_NE: if ((val) != 0) RETURN_TRUE; RETURN_FALSE;  \
-    case CMP_LT: if ((val) < 0) RETURN_TRUE; RETURN_FALSE;   \
-    case CMP_GT: if ((val) > 0) RETURN_TRUE; RETURN_FALSE;   \
-    case CMP_LE: if ((val) <= 0) RETURN_TRUE; RETURN_FALSE;  \
-    case CMP_GE: if ((val) >= 0) RETURN_TRUE; RETURN_FALSE;  \
-    default:                                                 \
-        UNREACHABLE();                                       \
-    }                                                        \
-} while (0)
-
-// clang-format on
-
-/*---------------------------------------------------------------------------+
  |  String related                                                           |
  +---------------------------------------------------------------------------*/
 
@@ -492,10 +448,6 @@ int kl_tp_add_field(TypeObject *tp, char *name, Object *field);
 int kl_tp_add_method(TypeObject *tp, char *name, int slotid, Object *meth);
 
 Object *kl_type_find(TypeObject *tp, char *name);
-
-void kl_init_gm_stbl(void);
-Object *kl_find_module(char *path);
-void kl_dump_module(Object *m);
 
 typedef struct _Formatter {
     OBJECT_HEAD
@@ -718,143 +670,16 @@ int kl_reg_func(NativeLib *lib, char *name, NativeFunc fn);
 int kl_reg_meth(NativeLib *lib, char *cls, char *meth, NativeFunc fn);
 int kl_reg_type(NativeLib *lib, TypeObject *tp);
 
-/*---------------------------------------------------------------------------+
- |  Eval & Run                                                               |
- +---------------------------------------------------------------------------*/
-
-TValue kl_eval_code(TValue *self, TValue *args, int nargs);
-TValue kl_cfunc_call(TValue *self, TValue *args, int nargs);
-
-void kl_run_main(Object *m);
-void kl_run_init(Object *m);
-int kl_run_tests(Object *m);
-
-/*---------------------------------------------------------------------------+
- |  Slot Call                                                                |
- +---------------------------------------------------------------------------*/
-
-/* Any object is callable, if it implements the call protocol. */
-static inline TValue kl_do_call(TValue *callable, TValue *args, int nargs)
-{
-    TypeObject *tp = kl_typeof(callable);
-    CallFunc call = tp->call;
-    ASSERT(call != NULL);
-    return call(callable, args, nargs);
-}
-
-static inline TValue kl_do_call_no_arg(TValue *callable) { return kl_do_call(callable, NULL, 0); }
-
-static inline TValue kl_do_call_one_arg(TValue *callable, TValue *arg)
-{
-    return kl_do_call(callable, arg, 1);
-}
-
-static inline TValue kl_object_call(Object *callable, TValue *args, int nargs)
-{
-    TValue _call = obj_value(callable);
-    return kl_do_call(&_call, args, nargs);
-}
-
-static inline TValue kl_slot_call_no_arg(TValue *self, int slotid)
-{
-    ASSERT(slotid < SLOT_MAX);
-
-    TypeObject *tp = kl_typeof(self);
-    ASSERT(tp);
-
-    Object *fn = tp->slots[slotid];
-    if (!fn) {
-        printf("%s: slot %d is not set\n", tp->name, slotid);
-        ASSERT(0);
-    }
-    ASSERT(fn);
-
-    TValue ret;
-
-    if (IS_CFUNC(fn)) {
-        CFuncObject *cfn = (CFuncObject *)fn;
-        ret = cfn->func(self, NULL, 0);
-    } else {
-        ASSERT(IS_CODE(fn));
-        TValue val = obj_value(fn);
-        ret = kl_eval_code(&val, self, 1);
-    }
-
-    return ret;
-}
-
-static inline TValue kl_slot_call_one_arg(TValue *self, TValue *arg, int slotid)
-{
-    ASSERT(slotid < SLOT_MAX);
-
-    TypeObject *tp = kl_typeof(self);
-    ASSERT(tp);
-
-    Object *fn = tp->slots[slotid];
-    ASSERT(fn);
-
-    TValue ret;
-
-    if (IS_CFUNC(fn)) {
-        CFuncObject *cfn = (CFuncObject *)fn;
-        ret = cfn->func(self, arg, 1);
-    } else {
-        ASSERT(IS_CODE(fn));
-        TValue val = obj_value(fn);
-        TValue args[] = { *self, *arg };
-        ret = kl_eval_code(&val, args, 2);
-    }
-
-    return ret;
-}
-
-static inline TValue kl_slot_call_two_args(TValue *self, TValue *arg0, TValue *arg1, int slotid)
-{
-    ASSERT(slotid < SLOT_MAX);
-
-    TypeObject *tp = kl_typeof(self);
-    ASSERT(tp);
-
-    Object *fn = tp->slots[slotid];
-    ASSERT(fn);
-
-    TValue ret;
-
-    if (IS_CFUNC(fn)) {
-        CFuncObject *cfn = (CFuncObject *)fn;
-        TValue args[] = { *arg0, *arg1 };
-        ret = cfn->func(self, args, 2);
-    } else {
-        ASSERT(IS_CODE(fn));
-        TValue val = obj_value(fn);
-        TValue args[] = { *self, *arg0, *arg1 };
-        ret = kl_eval_code(&val, args, 3);
-    }
-
-    return ret;
-}
-
-static inline Object *kl_to_str(TValue *val)
-{
-    TValue s = kl_slot_call_no_arg(val, SLOT_STR);
-    return to_obj(&s);
-}
-
-static inline unsigned int kl_hash(TValue *val)
-{
-    TValue ret = kl_slot_call_no_arg(val, SLOT_HASH);
-    return (unsigned int)to_int64(&ret);
-}
-
-static inline TValue kl_equal(TValue *a, TValue *b) { return kl_slot_call_one_arg(a, b, SLOT_EQ); }
-
-static inline void kl_fmt_call(Formatter *fmt, TValue *obj)
-{
-    TValue arg = obj_value(fmt);
-    kl_slot_call_one_arg(obj, &arg, SLOT_FMT);
-}
-
 int slice_adjust(int64_t *_start, int64_t *_end, int64_t step, int64_t len);
+
+/*---------------------------------------------------------------------------+
+ |  Call code, cfunc and slot                                                |
+ +---------------------------------------------------------------------------*/
+
+TValue kl_call_code(Object *code, TValue *args, int nargs);
+TValue kl_call_slot(TValue *args, int nargs, int slotid);
+
+#include "slotcalls.h"
 
 #ifdef __cplusplus
 }

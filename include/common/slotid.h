@@ -24,25 +24,27 @@ typedef enum {
     /* hashable protocol -- hit on every dict/set probe */
     SLOT_HASH, // hash
 
+    /* Printable protocol */
+    SLOT_FMT, // fmt
+
     /* warm slots -- second cache line */
+
+    /* iterator protocol */
+    SLOT_ITER, // iter
+    SLOT_NEXT, // next
 
     /* sequence protocol */
     SLOT_LEN,      // len
+    SLOT_CONTAINS, // __contains__
+
     SLOT_GET_ITEM, // __getitem__
     SLOT_SET_ITEM, // __setitem__
-    SLOT_CONTAINS, // __contains__
 
     /* slice protocol */
     SLOT_GET_SLICE, // __getslice__
     SLOT_SET_SLICE, // __setslice__
 
     /* cold slots */
-
-    /* to_str protocol  */
-    SLOT_STR, // to_str
-
-    /* Printable protocol */
-    SLOT_FMT, // fmt
 
     /* arithmetic protocol */
     SLOT_ADD, // __add__
@@ -63,6 +65,9 @@ typedef enum {
     /* other slots */
     SLOT_INIT, // __init__
     SLOT_FINI, // __fini__
+
+    /* to_str protocol  */
+    SLOT_STR, // to_str
 
     SLOT_MAX
 } SlotId;
