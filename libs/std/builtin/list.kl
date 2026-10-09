@@ -23,7 +23,7 @@ pub class list[T] : MutableSequence[T] {
     pub func __init__(args ...T) {}
 
     /// Return an iterator over the list, advancing by `step` elements.
-    pub func iter(step = 1) Iterator[T] { let it Iterator[T] = ListIter[T](self, step); return it; }
+    pub func iter(step = 1) Iterator[T] = ListIter[T](self, step)
 
     /// Return the number of items in the list.
     @native

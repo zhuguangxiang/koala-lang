@@ -92,8 +92,6 @@ set(KOALA_SHARED_SOURCES
     runtime/slice_adjust.c
     runtime/symtbl.c
     runtime/native_libs.c
-    runtime/run_test.c
-    runtime/load_module.c
     runtime/args.c
     modules/builtin.c
     modules/fs.c
@@ -108,6 +106,8 @@ target_link_libraries(koala koala_common pthread m dl ffi)
 set(KOALA_SOURCES
     runtime/vm.c
     runtime/eval.c
+    runtime/run_test.c
+    runtime/load_module.c
     koala.c
     )
 add_executable(koala_out ${KOALA_SOURCES})

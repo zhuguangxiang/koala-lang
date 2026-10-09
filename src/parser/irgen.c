@@ -1885,6 +1885,33 @@ static void emit_ir_fields(ParserState *ps, ParserScope *scope, Vector *fields)
     }
 }
 
+static void build_return(ParserState *ps, KlrValue *exp_val)
+{
+    FuncSymbol *fn_sym = get_current_function(ps);
+    TypeSpec *ret_ts = fn_sym->ret;
+
+    KlrValue *ret_ir_val = _build_obj_intf_upcast(ps, exp_val, ret_ts, "");
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+
+    if (!ret_ir_val) {
+        KlrValue *cast = exp_val;
+        ret_ir_val = cast;
+        if (cast->ts != ret_ts) {
+            if (!type_is_optional(ret_ts)) {
+                log_info("implicit cast from");
+                log_type_spec(cast->ts);
+                log_info("  to");
+                log_type_spec(ret_ts);
+                ret_ir_val = klr_build_cast(&bldr, cast, ret_ts, "");
+            }
+        }
+    }
+
+    klr_build_ret(&bldr, ret_ir_val);
+}
+
 static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
 {
     FuncDeclStmt *fn = (FuncDeclStmt *)stmt;
@@ -1905,9 +1932,7 @@ static void emit_ir_func_decl(ParserState *ps, Stmt *stmt)
             emit_ir_stmt(ps, s);
             Expr *exp = ((ExprStmt *)s)->exp;
             if (exp && !type_is_no_type(exp->ts) && exp->ir_val) {
-                KlrBuilder bldr;
-                klr_builder_end(&bldr, scope->bb);
-                klr_build_ret(&bldr, exp->ir_val);
+                build_return(ps, exp->ir_val);
             }
             need_emit_body = 0;
         }
@@ -2012,29 +2037,7 @@ static void emit_ir_return(ParserState *ps, Stmt *stmt)
     emit_ir_visit_expr(ps, exp);
     if (!exp->ir_val) return;
 
-    FuncSymbol *fn_sym = get_current_function(ps);
-    TypeSpec *fn_ret_ts = fn_sym->ret;
-
-    KlrBuilder bldr;
-    KlrValue *ret_ir_val = _build_obj_intf_upcast(ps, exp->ir_val, fn_ret_ts, "");
-
-    klr_builder_end(&bldr, ps->scope->bb);
-
-    if (!ret_ir_val) {
-        KlrValue *cast = exp->ir_val;
-        ret_ir_val = cast;
-        if (cast->ts != fn_ret_ts) {
-            if (!type_is_optional(fn_ret_ts)) {
-                log_info("implicit cast from");
-                log_type_spec(cast->ts);
-                log_info("  to");
-                log_type_spec(fn_ret_ts);
-                ret_ir_val = klr_build_cast(&bldr, cast, fn_ret_ts, "");
-            }
-        }
-    }
-
-    klr_build_ret(&bldr, ret_ir_val);
+    build_return(ps, exp->ir_val);
 
     // add a dead block after return to avoid generating code after return
     // ps->scope->bb = klr_append_block(CURRENT_FUNC, "dead.code");
@@ -2268,8 +2271,22 @@ static void get_seq_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struc
         KlrValue *_len = klr_const_int(size, int64_type_spec(), MOD);
         out->len = _len;
     } else {
-        // Symbol *len_func = get_iter_func(val, "len");
-        // out->len = build_iter_call(bldr, len_func, val, ps);
+        /* replace seq.len with directly call len func
+        Symbol *_sym = get_symbol_by_id(val->ts->sym_id);
+        Symbol *fn_sym = stbl_get(_sym->stbl, "len");
+
+        if (!fn_sym) {
+            if (_sym->kind == SYM_INSTANCE) {
+                fn_sym = get_instance_method((InstanceSymbol *)_sym, "len", ps);
+                ASSERT(fn_sym);
+            } else {
+                UNREACHABLE();
+            }
+        }
+
+        KlrValue *len_func = get_callable(ps, fn_sym);
+        out->len = klr_build_call(bldr, len_func, int64_type_spec(), &val, 1, "");
+        */
         out->len = klr_build_seq_len(bldr, val, "");
     }
 }
