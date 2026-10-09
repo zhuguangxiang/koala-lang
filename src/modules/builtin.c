@@ -62,13 +62,17 @@ TValue do_print(TValue *args, int nargs)
     Object *s = kl_fmt_result(fmt);
 
     // write_str(s str) int
-    Object *write_str_fn = kl_get_intf_func(&writer, 1);
     TValue _args[] = { writer, obj_value(s) };
-    kl_call_code(write_str_fn, _args, 2);
+    TValue ret = kl_call_intf(_args, 2, 1);
+    if (is_error(&ret)) {
+        return ret;
+    }
 
     // flush() int
-    Object *flush_fn = kl_get_intf_func(&writer, 2);
-    kl_call_code(flush_fn, &writer, 1);
+    ret = kl_call_intf(&writer, 1, 2);
+    if (is_error(&ret)) {
+        return ret;
+    }
 
     kl_free_str(s);
     kl_free_formatter(fmt);

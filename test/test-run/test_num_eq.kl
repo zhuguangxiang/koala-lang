@@ -1,0 +1,36 @@
+// RUN: koala %s --dump=lir | filecheck %s
+
+class Penguin {
+    let name str
+    let age int
+
+    func __init__(_name str, _age int) {
+        name = _name
+        age = _age
+    }
+
+    func __eq__(rhs Penguin) bool {
+        return name == rhs.name && age == rhs.age
+    }
+
+    func __ne__(rhs Penguin) bool {
+        return name != rhs.name || age != rhs.age
+    }
+}
+
+func main() {
+    let p1 = Penguin("Ping", 2)
+    let p2 = Penguin("Pong", 3)
+    let p3 = Penguin("Pong", 3)
+    print(p1 == p2, p2 == p3, p3 == p1, p1 != p2, p2 != p3, p3 != p1)
+}
+
+// CHECK-LABEL: --- IR Dump After isel [@main] ---
+// CHECK: %12 = num.eq %p1 test_num_eq.Penguin, %p2 test_num_eq.Penguin        [fixedslot = 0(next)]
+// CHECK: %13 = num.eq %p2 test_num_eq.Penguin, %p3 test_num_eq.Penguin        [fixedslot = 1(next)]
+// CHECK: %14 = num.eq %p3 test_num_eq.Penguin, %p1 test_num_eq.Penguin        [fixedslot = 2(next)]
+// CHECK: %15 = num.ne %p1 test_num_eq.Penguin, %p2 test_num_eq.Penguin        [fixedslot = 3(next)]
+// CHECK: %16 = num.ne %p2 test_num_eq.Penguin, %p3 test_num_eq.Penguin        [fixedslot = 4(next)]
+// CHECK: %17 = num.ne %p3 test_num_eq.Penguin, %p1 test_num_eq.Penguin        [fixedslot = 5(next)]
+
+// CHECK: false true false true false true

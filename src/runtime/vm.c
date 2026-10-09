@@ -39,15 +39,6 @@ void kl_free_ks(KoalaState *ks)
     mm_free(ks);
 }
 
-Object *kl_get_intf_func(TValue *intf, int func_idx)
-{
-    ASSERT(is_intf(intf));
-    IntfTable *itab = intf->itab;
-    ASSERT(itab);
-    ASSERT(func_idx >= 0 && func_idx < itab->num_funcs);
-    return itab->methods[func_idx];
-}
-
 int koala_run_file(char *path)
 {
     Object *m = kl_load_module(path);

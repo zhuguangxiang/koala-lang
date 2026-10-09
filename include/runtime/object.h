@@ -214,8 +214,6 @@ typedef struct _MethodDef {
 typedef void (*GcMarkFunc)(Object *self);
 typedef TValue (*CallFunc)(TValue *self, TValue *args, int nargs);
 
-Object *kl_get_intf_func(TValue *intf, int func_idx);
-
 #define TP_FLAGS_VALUE (1 << 0)
 #define TP_FLAGS_CLASS (1 << 1)
 #define TP_FLAGS_READY (1 << 2)
@@ -678,6 +676,7 @@ int slice_adjust(int64_t *_start, int64_t *_end, int64_t step, int64_t len);
 
 TValue kl_call_code(Object *code, TValue *args, int nargs);
 TValue kl_call_slot(TValue *args, int nargs, int slotid);
+TValue kl_call_intf(TValue *args, int nargs, int intf_idx);
 
 #include "slotcalls.h"
 

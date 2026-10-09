@@ -394,12 +394,12 @@ static KlrValue *lower_push_const(KlrConst *c, KlrInsn *insn, OpCode op)
     return (KlrValue *)klr_build_push(&bldr, (KlrValue *)c, op);
 }
 
-static int allow_fixedslot(KlrInsn *insn)
+static inline int allow_fixedslot(KlrInsn *insn)
 {
     if (insn->use_count != 1) return 0;
-    if (insn->code >= OP_NUM_ADD && insn->code <= OP_NUM_GE) {
-        return 0;
-    }
+    // if (insn->code >= OP_NUM_ADD && insn->code <= OP_NUM_GE) {
+    //     return 0;
+    // }
     return 1;
 }
 

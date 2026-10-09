@@ -35,15 +35,15 @@ sys.stdout = io.BufWriter(f)
 print("hello world to file")
 f.close()
 
-// The buffered data has not necessarily been written yet.
-print("hello world to file after close()")
-
 // The actual I/O happens here and should fail.
 // sys.stdout.flush()
 
 sys.stdout = io.BufWriter(sys._stdout)
 print("hello world to console")
 print("file is closed:", f.closed)
+
+// The buffered data has not necessarily been written yet.
+print("hello world to after close(), output to console")
 
 // CHECK: 1us 1s
 
@@ -55,3 +55,4 @@ print("file is closed:", f.closed)
 // CHECK-NOT: hello world to file
 // CHECK: hello world to console
 // CHECK: file is closed: true
+// CHECK: hello world to after close(), output to console

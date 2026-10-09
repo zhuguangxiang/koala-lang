@@ -286,6 +286,18 @@ TValue kl_call_code(Object *code, TValue *args, int nargs)
     return result;
 }
 
+static inline void _incr_stack_top(KoalaState *ks)
+{
+    int max_call_args = ks->cf->code->cs.max_call_args;
+    ks->stack_top += max_call_args;
+}
+
+static inline void _decr_stack_top(KoalaState *ks)
+{
+    int max_call_args = ks->cf->code->cs.max_call_args;
+    ks->stack_top -= max_call_args;
+}
+
 static TValue kl_call_cfunc(Object *code, TValue *args, int nargs)
 {
     ASSERT(IS_CFUNC(code));
@@ -318,6 +330,10 @@ TValue kl_call_slot(TValue *args, int nargs, int slotid)
 
     TValue ret;
 
+    KoalaState *ks = __ks();
+
+    _incr_stack_top(ks);
+
     if (IS_CFUNC(fn)) {
         ret = kl_call_cfunc(fn, args, nargs);
     } else {
@@ -325,7 +341,36 @@ TValue kl_call_slot(TValue *args, int nargs, int slotid)
         ret = kl_call_code(fn, args, nargs);
     }
 
+    _decr_stack_top(ks);
+
     return ret;
+}
+
+static Object *_get_intf_func(TValue *intf, int func_idx)
+{
+    ASSERT(is_intf(intf));
+    IntfTable *itab = intf->itab;
+    ASSERT(itab);
+    ASSERT(func_idx >= 0 && func_idx < itab->num_funcs);
+    return itab->methods[func_idx];
+}
+
+TValue kl_call_intf(TValue *args, int nargs, int intf_idx)
+{
+    ASSERT(nargs >= 1);
+    TValue *self = &args[0];
+    Object *fn = _get_intf_func(self, intf_idx);
+    if (!fn) {
+        raise_exc_fmt("intf %d is not implemented", intf_idx);
+        return error_value;
+    }
+
+    if (IS_CFUNC(fn)) {
+        return kl_call_cfunc(fn, args, nargs);
+    } else {
+        ASSERT(IS_CODE(fn));
+        return kl_call_code(fn, args, nargs);
+    }
 }
 
 void kl_run_main(Object *_m)

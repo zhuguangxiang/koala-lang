@@ -443,9 +443,9 @@ TARGET(OP_CALL) {
 
     if (IS_CFUNC(fn)) {
         TValue *args = ks->stack_top;
-        ks->stack_top += imm;
+        // ks->stack_top += imm;
         ret = kl_call_cfunc(fn, args, imm);
-        ks->stack_top -= imm;
+        // ks->stack_top -= imm;
     } else {
         ASSERT(IS_CODE(fn));
         ret = kl_call_code(fn, NULL, 0);
