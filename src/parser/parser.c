@@ -1406,17 +1406,17 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
         return;
     }
 
-    if (str_equal(ann->ident, "test_expect_panic")) {
+    if (str_equal(ann->ident, "should_panic")) {
         if (!match_prefix(fn->id.name, "test_")) {
             kl_error(fn->id.loc,
-                     "func '%s' with 'test_expect_panic' annotation needs to be named with 'test_' "
+                     "func '%s' with 'should_panic' annotation needs to be named with 'test_' "
                      "prefix.",
                      fn->id.name);
         }
 
         if (!vector_empty(fn->tps)) {
             kl_error(fn->id.loc,
-                     "func '%s' is a generic function. The 'test_expect_panic' annotation only be "
+                     "func '%s' is a generic function. The 'should_panic' annotation only be "
                      "used for "
                      "non-generic function.",
                      fn->id.name);
@@ -1424,19 +1424,19 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
 
         if (!vector_empty(ann->types)) {
             kl_error(ann->id_loc,
-                     "func '%s' with 'test_expect_panic' annotation cannot have any type.",
+                     "func '%s' with 'should_panic' annotation cannot have any type.",
                      fn->id.name);
         }
 
         if (!vector_empty(fn->args)) {
             kl_error(fn->id.loc,
-                     "func '%s' with 'test_expect_panic' annotation cannot have any argument.",
+                     "func '%s' with 'should_panic' annotation cannot have any argument.",
                      fn->id.name);
         }
 
         if (fn->ret) {
             kl_error(fn->id.loc,
-                     "func '%s' with 'test_expect_panic' annotation cannot have return type.",
+                     "func '%s' with 'should_panic' annotation cannot have return type.",
                      fn->id.name);
         }
 
@@ -1535,10 +1535,10 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
         fn_sym->ann = fn->flags.ann.ident;
     }
 
-    if (match_prefix(fn->flags.ann.ident, "test_expect_panic")) {
-        // only functions with 'test_expect_panic' prefix get this annotation
+    if (match_prefix(fn->flags.ann.ident, "should_panic")) {
+        // only functions with 'should_panic' prefix get this annotation
         fn_sym->ann = fn->flags.ann.ident;
-        fn_sym->ann_val = fn->flags.ann.value;
+        fn_sym->ann_val = fn->flags.ann.value ? fn->flags.ann.value : "";
     }
 
     if (!has_specialized_meta((Stmt *)fn)) return sym;

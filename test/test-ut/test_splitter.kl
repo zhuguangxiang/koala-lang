@@ -288,14 +288,14 @@ func test_splitter_tiny_reader_buffers() {
 // Error handling
 // ---------------------------------------------------------------------------
 
-@test_expect_panic("No more elements in Splitter")
+@should_panic("No more elements in Splitter")
 func test_splitter_exhausted_next_strict_panic() {
     let sp = io.Splitter(io.BufReader(io.StringIO("only"), 2), ',')
     ut.assert_eq(sp.next_strict(), b"only")
     sp.next_strict()
 }
 
-@test_expect_panic("I/O operation on closed StringIO")
+@should_panic("I/O operation on closed StringIO")
 func test_splitter_closed_reader_panic() {
     let source = io.StringIO("a,b")
     let sp = io.Splitter(io.BufReader(source, 2), ',')

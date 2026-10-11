@@ -112,7 +112,7 @@ func test_str_slice_single_char() {
     ut.assert_eq(s[11:11],    "")
 }
 
-@test_expect_panic("step cannot be zero")
+@should_panic("step cannot be zero")
 func test_str_slice_step_zero() {
     let s = "hello world"
     ut.assert_eq(s.len(), 11)

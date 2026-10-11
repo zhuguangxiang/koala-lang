@@ -415,10 +415,10 @@ static Object *_load_module(char *path)
             KlcAnnot *ann = vector_get(&fn_item->anns, 1);
             if (!ann) continue;
             char *_name = klc_get_str(klc, ann->name_index);
-            if (!match_prefix(_name, "test")) continue;
+            if (!str_equal(_name, "test") && !str_equal(_name, "should_panic")) continue;
             Object *_co = vector_get(&mo->funcs, fn_item->code_index);
             ASSERT(_co && IS_CODE(_co));
-            int expect_panic = match_prefix(_name, "test_expect_panic");
+            int expect_panic = str_equal(_name, "should_panic");
             char *msg = NULL;
             if (expect_panic) {
                 log_info("test '%s' expects panic", _name);

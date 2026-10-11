@@ -235,14 +235,14 @@ func test_lines_tiny_reader_buffers() {
 // Error handling
 // ---------------------------------------------------------------------------
 
-@test_expect_panic("No more elements in Lines")
+@should_panic("No more elements in Lines")
 func test_lines_exhausted_next_strict_panic() {
     let lines = io.Lines(io.BufReader(io.StringIO("only\n"), 2))
     ut.assert_eq(lines.next_strict(), "only")
     lines.next_strict()
 }
 
-@test_expect_panic("I/O operation on closed StringIO")
+@should_panic("I/O operation on closed StringIO")
 func test_lines_closed_reader_panic() {
     let source = io.StringIO("line")
     let lines = io.Lines(io.BufReader(source, 2))

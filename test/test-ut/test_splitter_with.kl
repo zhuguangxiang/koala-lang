@@ -115,7 +115,7 @@ func test_splitter_with_shared_reader() {
     ut.assert_false(sp.has_next())
 }
 
-@test_expect_panic("SplitterWith: empty separator")
+@should_panic("SplitterWith: empty separator")
 func test_splitter_with_empty_sep_panics() {
     // An empty separator would make every position a boundary: reject it.
     let br = io.BufReader(io.StringIO("abc"))

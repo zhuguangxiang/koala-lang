@@ -39,13 +39,13 @@ func test_index_access() {
     ut.assert_int_eq(bs[2], 0xAB)
 }
 
-@test_expect_panic("bytes index out of range")
+@should_panic("bytes index out of range")
 func test_index_set_error() {
     let bs = bytes(10)
     bs[10] = 42
 }
 
-@test_expect_panic("bytes index out of range")
+@should_panic("bytes index out of range")
 func test_index_get_error() {
     let bs = bytes(10)
     print(bs[10])

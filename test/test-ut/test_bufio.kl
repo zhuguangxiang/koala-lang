@@ -76,21 +76,21 @@ func test_bufreader_bytesio_peek_last_bytes() {
     ut.assert_eq(br.avail(), 0)
 }
 
-@test_expect_panic("peek: not enough data in the stream")
+@should_panic("peek: not enough data in the stream")
 func test_bufreader_peek_short_stream_panics() {
     // the stream holds only 2 bytes, even after a fill
     let br = io.BufReader(io.BytesIO.from_str("xy"), 4)
     br.peek(3)
 }
 
-@test_expect_panic("peek: not enough data in the stream")
+@should_panic("peek: not enough data in the stream")
 func test_bufreader_peek_at_eof_panics() {
     let br = io.BufReader(io.BytesIO.from_str("xy"), 4)
     ut.assert_eq(br.discard(2), 2)
     br.peek(1)
 }
 
-@test_expect_panic("peek: n out of range")
+@should_panic("peek: n out of range")
 func test_bufreader_peek_over_capacity_panics() {
     // n larger than the buffer capacity can never be satisfied
     let br = io.BufReader(io.BytesIO.from_str("abcdefgh"), 4)
@@ -469,20 +469,20 @@ func test_words_shared_reader_position() {
     ut.assert_false(words.has_next())
 }
 
-@test_expect_panic("No more elements in Words")
+@should_panic("No more elements in Words")
 func test_words_empty_next_strict_panic() {
     let words = io.Words(io.BufReader(io.StringIO(""), 2))
     words.next_strict()
 }
 
-@test_expect_panic("No more elements in Words")
+@should_panic("No more elements in Words")
 func test_words_exhausted_next_strict_panic() {
     let words = io.Words(io.BufReader(io.StringIO("only"), 2))
     ut.assert_eq(words.next_strict(), "only")
     words.next_strict()
 }
 
-@test_expect_panic("I/O operation on closed StringIO")
+@should_panic("I/O operation on closed StringIO")
 func test_words_closed_reader_panic() {
     let source = io.StringIO("word")
     let words = io.Words(io.BufReader(source, 2))

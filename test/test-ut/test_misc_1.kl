@@ -18,7 +18,7 @@ func test_1() {
     assert_eq(foo.to_str()!.upper(), "NIL")
 }
 
-@test_expect_panic("forced unwrap (`!`) of a nil value")
+@should_panic("forced unwrap (`!`) of a nil value")
 func test_2() {
     let foo = Foo()
     foo.to_str2()!.upper()

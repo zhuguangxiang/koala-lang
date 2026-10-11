@@ -180,7 +180,7 @@ func test_strio_with_bufreader() {
     ut.assert_eq(br.read(buf), 0)
 }
 
-@test_expect_panic("I/O operation on closed StringIO")
+@should_panic("I/O operation on closed StringIO")
 func test_strio_read_after_close_should_panic() {
     let sio = io.StringIO("data")
     sio.close()
@@ -188,7 +188,7 @@ func test_strio_read_after_close_should_panic() {
     sio.read(buf)
 }
 
-@test_expect_panic("I/O operation on closed StringIO")
+@should_panic("I/O operation on closed StringIO")
 func test_strio_getvalue_after_close_should_panic() {
     let sio = io.StringIO("data")
     sio.close()

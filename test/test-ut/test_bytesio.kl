@@ -191,7 +191,7 @@ func test_bytesio_with_bufreader() {
     ut.assert_eq(br.read(buf), 0)
 }
 
-@test_expect_panic("I/O operation on closed BytesIO")
+@should_panic("I/O operation on closed BytesIO")
 func test_bytesio_read_after_close_should_panic() {
     let bio = io.BytesIO.from_str("data")
     bio.close()
@@ -199,28 +199,28 @@ func test_bytesio_read_after_close_should_panic() {
     bio.read(buf)
 }
 
-@test_expect_panic("I/O operation on closed BytesIO")
+@should_panic("I/O operation on closed BytesIO")
 func test_bytesio_write_after_close_should_panic() {
     let bio = io.BytesIO(8)
     bio.close()
     bio.write_str("x")
 }
 
-@test_expect_panic("I/O operation on closed BytesIO")
+@should_panic("I/O operation on closed BytesIO")
 func test_bytesio_flush_after_close_should_panic() {
     let bio = io.BytesIO(8)
     bio.close()
     bio.flush()
 }
 
-@test_expect_panic("BytesIO write exceeds capacity")
+@should_panic("BytesIO write exceeds capacity")
 func test_bytesio_write_overflow_should_panic() {
     let bio = io.BytesIO(4)
     bio.write_str("abcd")
     bio.write_str("e")
 }
 
-@test_expect_panic("BytesIO size must be >= 0")
+@should_panic("BytesIO size must be >= 0")
 func test_bytesio_negative_size_should_panic() {
     let bio = io.BytesIO(-1)
     bio.flush()

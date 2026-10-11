@@ -86,7 +86,7 @@ int kl_run_tests(Object *_m)
 
         if (_case->expect_panic) {
             char *exc_str = kl_exc_get_msg(exc);
-            if (str_equal(exc_str, _case->msg)) {
+            if (!_case->msg || !_case->msg[0] || (exc_str && str_equal(exc_str, _case->msg))) {
                 // eat this exception as it matches the expected panic
                 kl_free_exc(exc);
                 _case->exc = NULL;

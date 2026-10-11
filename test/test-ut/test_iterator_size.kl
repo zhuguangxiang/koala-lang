@@ -89,22 +89,22 @@ func test_words_custom_size() {
     ut.assert_eq(collect_words(io.BufReader(io.StringIO(text), 8).words(2)), text + "|")
 }
 
-@test_expect_panic("Splitter: size must be positive")
+@should_panic("Splitter: size must be positive")
 func test_splitter_bad_size_panics() {
     io.Splitter(io.BufReader(io.StringIO("a")), ',', 0)
 }
 
-@test_expect_panic("SplitterWith: size must be positive")
+@should_panic("SplitterWith: size must be positive")
 func test_splitter_with_bad_size_panics() {
     io.BufReader(io.StringIO("a")).split_with("::".to_bytes(), -1)
 }
 
-@test_expect_panic("Lines: size must be positive")
+@should_panic("Lines: size must be positive")
 func test_lines_bad_size_panics() {
     io.BufReader(io.StringIO("a")).lines(0)
 }
 
-@test_expect_panic("Words: size must be positive")
+@should_panic("Words: size must be positive")
 func test_words_bad_size_panics() {
     io.BufReader(io.StringIO("a")).words(-1)
 }

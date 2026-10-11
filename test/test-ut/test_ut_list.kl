@@ -230,16 +230,16 @@ func test_list_reverse() {
 
 // ---------------------------------------------------------------------------
 // panic boundaries (remove-missing / insert-out-of-range)
-// NOTE: uses @test_expect_panic (recognized in src/parser/parser.c); drop these
+// NOTE: uses @should_panic (recognized in src/parser/parser.c); drop these
 // two if the expect_panic path is not yet wired in the ut harness.
 // ---------------------------------------------------------------------------
-@test_expect_panic("list.remove(x): x not in list")
+@should_panic("list.remove(x): x not in list")
 func test_list_remove_missing_panics() {
     let values = list[int](1, 2, 3)
     values.remove(99)                // not present -> panic
 }
 
-@test_expect_panic("list insert index out of range")
+@should_panic("list insert index out of range")
 func test_list_insert_out_of_range_panics() {
     let values = list[int](1, 2, 3)
     values.insert(10, 4)             // index > len -> panic
@@ -714,13 +714,13 @@ func test_list_pop_head_tail() {
     ut.assert_eq(w[1], 9)
 }
 
-@test_expect_panic("pop from empty list")
+@should_panic("pop from empty list")
 func test_list_pop_empty_head_panics() {
     let v = list[int]()
     v.pop(0)
 }
 
-@test_expect_panic("pop from empty list")
+@should_panic("pop from empty list")
 func test_list_pop_empty_tail_panics() {
     let v = list[int]()
     v.pop()
@@ -773,13 +773,13 @@ func test_list_getitem_setitem_ok() {
     ut.assert_eq(v.len(), 3)
 }
 
-@test_expect_panic("list index out of range")
+@should_panic("list index out of range")
 func test_list_getitem_oor_panics() {
     let v = [1, 2, 3]
     ut.assert_true(v[3] == 3)
 }
 
-@test_expect_panic("list index out of range")
+@should_panic("list index out of range")
 func test_list_setitem_oor_panics() {
     let v = [1, 2, 3]
     v[3] = 9
@@ -810,7 +810,7 @@ func test_list_insert_positions() {
     ut.assert_eq(dups[1], 0)
 }
 
-@test_expect_panic("list insert index out of range")
+@should_panic("list insert index out of range")
 func test_list_insert_negative_panics() {
     let v = [1, 2]
     v.insert(-1, 9)
@@ -1143,7 +1143,7 @@ func test_list_iter_drain_edges() {
     ut.assert_true(ri.next() == nil)
 }
 
-@test_expect_panic("No more elements in ListIter")
+@should_panic("No more elements in ListIter")
 func test_list_iter_next_strict_past_end_panics() {
     let v = [1]
     let it = v.iter()
@@ -1151,7 +1151,7 @@ func test_list_iter_next_strict_past_end_panics() {
     it.next_strict()                 // exhausted -> panic
 }
 
-@test_expect_panic("No more elements in ListRevIter")
+@should_panic("No more elements in ListRevIter")
 func test_list_reviter_next_strict_past_end_panics() {
     let v = [1]
     let it = v.reversed()
@@ -1162,13 +1162,13 @@ func test_list_reviter_next_strict_past_end_panics() {
 // ---------------------------------------------------------------------------
 // iter / reversed construction guard: step <= 0 panics
 // ---------------------------------------------------------------------------
-@test_expect_panic("Step must be positive")
+@should_panic("Step must be positive")
 func test_list_iter_zero_step_panics() {
     let v = [1, 2, 3]
     let it = v.iter(0)
 }
 
-@test_expect_panic("Step must be positive")
+@should_panic("Step must be positive")
 func test_list_reviter_negative_step_panics() {
     let v = [1, 2, 3]
     let it = v.reversed(-1)

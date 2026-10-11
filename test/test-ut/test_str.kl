@@ -71,14 +71,14 @@ pub func test_str_empty_reversed() {
     ut.assert(iter.next() == nil)
 }
 
-@test_expect_panic("No more elements in StrRevIter")
+@should_panic("No more elements in StrRevIter")
 pub func test_str_empty_reversed_panic() {
     var s = ""
     var iter = s.reversed()
     iter.next_strict()
 }
 
-@test_expect_panic("No more elements in StrIter")
+@should_panic("No more elements in StrIter")
 pub func test_str_empty_panic() {
     var s = ""
     var iter = s.iter()
