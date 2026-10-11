@@ -1,0 +1,133 @@
+// RUN: koalac %s --opt --dump=ir | filecheck %s
+
+// 同块重复表达式：a*3+b 与 b+a*3（加法可交换）同余。
+// lvn 只 RAUW 不删：第二条 mul(%2) 的操作数换成 leader(%0) 后，
+// 第二条 add(%3) 规范化键后与 %1 相同，也被 RAUW——lvn 的 dump 里
+// %2/%3 仍残留（use_count 已零）；dce 的 dump 里双双消失。
+func test_lvn_cse(a int, b int) int {
+    var m = a * 3 + b
+    var n = b + a * 3
+    return m + n
+}
+
+// CHECK-LABEL: --- IR Dump After lvn (Iter 1) [@test_lvn_cse] ---
+// CHECK: %0 = mul %a int64, 3 int64
+// CHECK: %1 = add %0 int64, %b int64
+// CHECK: %2 = mul %a int64, 3 int64
+// CHECK: %3 = add %b int64, %0 int64
+// CHECK: move %n int64, %1 int64
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_lvn_cse] ---
+// CHECK: %0 = mul %a int64, 3 int64
+// CHECK-NOT: mul
+// CHECK: move %n int64, %1 int64
+
+// 同余谓词：两条 (a+b) > 10 在同一块内。第二条 add(%2) 被 RAUW 到
+// %0，随后 cmpgt(%3) 与 leader %1 键相同也被 RAUW（move %y 改读 %1）。
+// RAUW 后两条比较"语法相同"，正是 cfg_bb_opt tail-merge 需要的形态。
+func test_lvn_cmp(a int, b int) bool {
+    var x = a + b > 10
+    var y = b + a > 10
+    return x && y
+}
+
+// CHECK-LABEL: --- IR Dump After lvn (Iter 1) [@test_lvn_cmp] ---
+// CHECK: %0 = add %a int64, %b int64
+// CHECK: %1 = cmpgt %0 int64, 10 int64
+// CHECK: %2 = add %b int64, %a int64
+// CHECK: %3 = cmpgt %0 int64, 10 int64
+// CHECK: move %y bool, %1 bool
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_lvn_cmp] ---
+// CHECK: %0 = add %a int64, %b int64
+// CHECK-NOT: add
+// CHECK: %1 = cmpgt %0 int64, 10 int64
+// CHECK-NOT: cmpgt
+// CHECK: move %y bool, %1 bool
+
+class Point {
+    var x int
+    var y int
+    func __init__(a int, b int) {}
+}
+
+// 三次 p.x：纯读且无中间写，后两次被 RAUW 到第一次。
+func test_lvn_field(p Point) int {
+    var a = p.x + p.x
+    return a + p.x
+}
+
+// CHECK-LABEL: --- IR Dump After lvn (Iter 1) [@test_lvn_field] ---
+// CHECK: %0 = get_field %p test_ir_lvn.Point, x(index=0)
+// CHECK: %1 = get_field %p test_ir_lvn.Point, x(index=0)
+// CHECK: %2 = add %0 int64, %0 int64
+// CHECK: %3 = get_field %p test_ir_lvn.Point, x(index=0)
+// CHECK: %4 = add %a int64, %0 int64
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_lvn_field] ---
+// CHECK: %0 = get_field %p test_ir_lvn.Point, x(index=0)
+// CHECK-NOT: get_field
+// CHECK: %1 = add %0 int64, %0 int64
+
+// 写失效：p.x = 10 清空 loads 表，写后的 p.x 是新 leader，
+// 不能与写前合并。
+func test_lvn_field_write(p Point) int {
+    var a = p.x
+    p.x = 10
+    return a + p.x
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_lvn_field_write] ---
+// CHECK: %0 = get_field %p test_ir_lvn.Point, x(index=0)
+// CHECK: set_field %p test_ir_lvn.Point, x(index=0), 10 int64
+// CHECK: %2 = get_field %p test_ir_lvn.Point, x(index=0)
+// CHECK: %3 = add %a int64, %2 int64
+
+func peek(p Point) int {
+    return p.x
+}
+
+// 反向失效 case：调用与堆写只清 loads 表，exprs 表不受影响——
+// peek(p) 与 p.x = 7 之后的 (a + b) 仍与 leader 同余被 RAUW。
+// （纯值运算只依赖 SSA 操作数指针，内存/调用改不了它们。）
+func test_lvn_binary_survive(a int, b int, p Point) int {
+    var m = a + b
+    var n = peek(p)
+    p.x = 7
+    return m + (a + b) + n
+}
+
+// lvn 后：%3 = add %a,%b 仍在（死亡残留，本 pass 不删），
+// 但它的使用点已全部改指 leader：%4 = add %m, %0。
+// CHECK-LABEL: --- IR Dump After lvn (Iter 1) [@test_lvn_binary_survive] ---
+// CHECK: %0 = add %a int64, %b int64
+// CHECK: %1 = call @peek, %p test_ir_lvn.Point
+// CHECK: set_field %p test_ir_lvn.Point, x(index=0), 7 int64
+// CHECK: %3 = add %a int64, %b int64
+// CHECK: %4 = add %m int64, %0 int64
+
+// dce 后：%3 消失，call/set_field 作为副作用指令保留。
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_lvn_binary_survive] ---
+// CHECK: %0 = add %a int64, %b int64
+// CHECK: %1 = call @peek, %p test_ir_lvn.Point
+// CHECK: set_field %p test_ir_lvn.Point, x(index=0), 7 int64
+// CHECK-NOT: add %a int64, %b int64
+// CHECK: %3 = add %m int64, %0 int64
+
+// 调用是失效边界：callee（peek 读 p.x）理论上也能写域，
+// 键里又看不出别名关系，故 call 到达时整张 loads 清空——
+// call 后的 p.x 新立 leader，绝不能与 call 前的合并。
+func test_lvn_field_across_call(p Point) int {
+    var a = p.x
+    var b = peek(p)
+    var c = p.x
+    return a + b + c
+}
+
+// CHECK-LABEL: --- IR Dump After lvn (Iter 1) [@test_lvn_field_across_call] ---
+// 两次 get_field 都是活的（%0 与 %2），无任何 RAUW 改写痕迹：
+// 后面的 add 链分别引用 %a（←%0）与 %c（←%2）两个 local。
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@test_lvn_field_across_call] ---
+// CHECK: %0 = get_field %p test_ir_lvn.Point, x(index=0)
+// CHECK: call @peek, %p test_ir_lvn.Point
+// CHECK: %2 = get_field %p test_ir_lvn.Point, x(index=0)

@@ -40,6 +40,7 @@ set(PARSER_SRC
     parser/opt/dce.c
     parser/opt/cfg_bb_opt.c
     parser/opt/normalize.c
+    parser/opt/lvn.c
     parser/opt/opt.c
     parser/opt/pass.c
     parser/opt/phi_coalescing.c

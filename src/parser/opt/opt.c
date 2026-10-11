@@ -23,6 +23,12 @@ static KlrPass normalize_pass = {
     .run = klr_normalize_pass,
 };
 
+/* lvn */
+static KlrPass lvn_pass = {
+    .name = "lvn",
+    .run = klr_lvn_pass,
+};
+
 /* cfg-bb-opt */
 static KlrPass cfg_remove_only_jump_pass = {
     .name = "cfg-remove-only-jump",
@@ -61,8 +67,12 @@ void kl_optimize(KlrModule *m)
 
     // const_copy_prop_pass
     pm_add_pass(&pm, &const_copy_prop_pass, dump);
+
     // normalize_pass
     pm_add_pass(&pm, &normalize_pass, dump);
+
+    // local value numbering (lvn) pass
+    pm_add_pass(&pm, &lvn_pass, dump);
 
     // cfg_bb_opt_pass
     KlrPassManager cfg_bb_opt_pm;
