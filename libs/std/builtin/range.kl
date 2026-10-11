@@ -63,10 +63,6 @@ pub class range : Sequence[int] {
     @native
     pub func count(value int, _start = 0, _end = -1) int {}
 
-    /// Return a new range with the elements in reverse order.
-    @native
-    pub func reverse() range {}
-
     /// Formats the range for display.
     pub func fmt(f Formatter) {
         f.write_fmt("range({}, {}, {})", start, end, step)

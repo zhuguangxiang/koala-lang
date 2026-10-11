@@ -144,7 +144,7 @@ static TValue _list_append(TValue *self, TValue *args, int nargs)
     expand_capacity(list, list->end + 1);
     // write_barrier(list, args[0]);
     list->array[list->end++] = args[0];
-    return nil_value;
+    return no_value;
 }
 
 static TValue _list_pop(TValue *self, TValue *args, int nargs)
@@ -166,6 +166,15 @@ static TValue _list_pop(TValue *self, TValue *args, int nargs)
         }
         return list->array[--list->end];
     }
+}
+
+static TValue _list_copy(TValue *self, TValue *args, int nargs)
+{
+    ListObject *list = SELF_AS(list_type);
+    ASSERT(nargs == 0);
+
+    Object *copy = kl_list_from_array(list->array + list->start, list->end - list->start);
+    return obj_value(copy);
 }
 
 static TValue _list_len(TValue *self, TValue *args, int nargs)
@@ -197,7 +206,7 @@ static TValue _list_fmt(TValue *self, TValue *args, int nargs)
     }
     buf_write_char(&fmt->buf, ']');
 
-    return nil_value;
+    return no_value;
 }
 
 static TValue _list_extend(TValue *self, TValue *args, int nargs)
@@ -209,34 +218,66 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
     if (IS_LIST(ob)) {
         ListObject *other = (ListObject *)ob;
         int m = other->end - other->start;
-        if (m <= 0) return nil_value;
+        if (m <= 0) return no_value;
         expand_capacity(list, list->end + m);
         memcpy(list->array + list->end, other->array + other->start, sizeof(TValue) * m);
         list->end += m;
-        return nil_value;
-    } else if (IS_TUPLE(ob)) {
+        return no_value;
+    }
+
+    if (IS_TUPLE(ob)) {
         TupleObject *other = (TupleObject *)ob;
         int m = other->size;
-        if (m <= 0) return nil_value;
+        if (m <= 0) return no_value;
         expand_capacity(list, list->end + m);
         memcpy(list->array + list->end, other->array, sizeof(TValue) * m);
         list->end += m;
-        return nil_value;
-    } else if (IS_RANGE(ob)) {
+        return no_value;
+    }
+
+    if (IS_RANGE(ob)) {
         RangeObject *other = (RangeObject *)ob;
         int64_t len;
         if (!kl_range_len(other, &len)) return error_value;
-        if (len <= 0) return nil_value;
+        if (len <= 0) return no_value;
         expand_capacity(list, list->end + len);
         for (int64_t i = 0; i < len; ++i) {
             int64_t value;
             if (!kl_range_index(other, i, &value)) return error_value;
             list->array[list->end++] = int64_value(value);
         }
-        return nil_value;
-    } else {
-        NYI();
+        return no_value;
     }
+
+    if (kl_is_seq(ob)) {
+        TValue len = kl_call_len(args + 1);
+        if (is_error(&len)) return error_value;
+        size_t m = (size_t)to_int64(&len);
+        if (m <= 0) return no_value;
+        expand_capacity(list, list->end + m);
+        for (size_t i = 0; i < m; ++i) {
+            TValue idx = int64_value((int64_t)i);
+            TValue item = kl_call_get_item(args + 1, &idx);
+            if (is_error(&item)) return error_value;
+            list->array[list->end++] = item;
+        }
+        return no_value;
+    }
+
+    if (kl_is_iter(ob)) {
+        TValue it = kl_call_iter(args + 1, 1);
+        if (is_error(&it)) return error_value;
+
+        TValue item;
+        while (!(item = kl_call_next(&it), is_error(&item) ? 0 : 1)) {
+            list->array[list->end++] = item;
+        }
+        if (is_error(&item)) return error_value;
+        return no_value;
+    }
+
+    raise_exc_str("list.extend unreachable!");
+    return error_value;
 }
 
 /* pub func __iadd__(seq Iterable[T]) list[T] */
@@ -270,26 +311,7 @@ static TValue _list_setitem(TValue *self, TValue *args, int nargs)
     }
     // write_barrier(list, args[1]);
     list->array[list->start + index] = args[1];
-    return nil_value;
-}
-
-static inline void _slice_adjust(int64_t *start, int64_t *end, int64_t step, size_t n)
-{
-    if (step > 0) {
-        if (*start < 0) *start += (int64_t)n;
-        if (*start < 0) *start = 0;
-        if (*start > (int64_t)n) *start = (int64_t)n;
-        if (*end < 0) *end += (int64_t)n;
-        if (*end < 0) *end = 0;
-        if (*end > (int64_t)n) *end = (int64_t)n;
-    } else {
-        if (*start < 0) *start += (int64_t)n;
-        if (*start < -1) *start = -1;
-        if (*start > (int64_t)n - 1) *start = (int64_t)n - 1;
-        if (*end < 0) *end += (int64_t)n;
-        if (*end < -1) *end = -1;
-        if (*end > (int64_t)n - 1) *end = (int64_t)n - 1;
-    }
+    return no_value;
 }
 
 static Object *list_slice(ListObject *list, SliceObject *slice)
@@ -300,24 +322,24 @@ static Object *list_slice(ListObject *list, SliceObject *slice)
     int64_t end = slice->end.ival;
     int64_t step = slice->step.ival;
 
-    size_t n = list->end - list->start; /* 逻辑长度 */
-    _slice_adjust(&start, &end, step, n);
+    size_t n = list->end - list->start;
+    slice_adjust(&start, &end, step, n);
 
-    /* --- step == 1：零拷贝共享视图 --- */
+    // step == 1, return shared view of the original list
     if (step == 1) {
         if (end <= start) {
-            return kl_new_list(); /* 空结果 */
+            return kl_new_list();
         }
         Object *obj = kl_new_list();
         ListObject *sub = (ListObject *)obj;
-        sub->array = list->array; /* 共享 backing */
+        sub->array = list->array;
         sub->start = list->start + (size_t)start;
         sub->end = list->start + (size_t)end;
-        sub->capacity = (size_t)(end - start); /* 锁死：push 触发 COW */
+        sub->capacity = (size_t)(end - start);
         return obj;
     }
 
-    /* --- step != 1：元素不连续，拷到新数组 --- */
+    // step != 1, copy elements to a new array
     size_t count;
     if (step > 0) {
         count = (end > start) ? (size_t)((end - start + step - 1) / step) : 0;
@@ -357,6 +379,118 @@ static TValue _list_getslice(TValue *self, TValue *args, int nargs)
     return obj_value(list_slice(list, slice));
 }
 
+static TValue _list_set_slice(TValue *self, TValue *args, int nargs)
+{
+    ListObject *list = SELF_AS(list_type);
+    ASSERT(nargs == 2);
+    SliceObject *slice = kl_arg_slice(0);
+    Object *iter = kl_arg_obj(1);
+
+    ASSERT(slice->step.ival != 0);
+
+    int64_t start = slice->start.ival;
+    int64_t end = slice->end.ival;
+    int64_t step = slice->step.ival;
+
+    int64_t n = list->end - list->start;
+    int r = slice_adjust(&start, &end, step, n);
+    if (r < 0) {
+        raise_exc_str("list.set_slice: index out of range");
+        return error_value;
+    }
+
+    if (r == 0) return no_value;
+
+    int64_t slots = slice_count(start, end, step);
+    TValue *dst_base = list->array + list->start;
+
+    if (IS_LIST(iter)) {
+        ListObject *rhs = (ListObject *)iter;
+        int64_t m = rhs->end - rhs->start;
+        int64_t count = MIN(m, slots);
+        TValue *src_base = rhs->array + rhs->start;
+
+        if (step == 1) {
+            if (count) memmove(dst_base + start, src_base, count * sizeof(TValue));
+        } else {
+            int64_t i = start;
+            for (int64_t j = 0; j < count; ++j, i += step) {
+                dst_base[i] = src_base[j];
+            }
+        }
+        return no_value;
+    }
+
+    if (IS_RANGE(iter)) {
+        RangeObject *rhs = (RangeObject *)iter;
+        int64_t m;
+        if (!kl_range_len(rhs, &m)) return error_value;
+
+        int64_t count = MIN(m, slots);
+
+        int64_t i = start;
+        for (int64_t j = 0; j < count; ++j, i += step) {
+            int64_t value;
+            if (!kl_range_index(rhs, (int64_t)j, &value)) return error_value;
+            dst_base[i] = int64_value(value);
+        }
+
+        return no_value;
+    }
+
+    if (IS_TUPLE(iter)) {
+        TupleObject *rhs = (TupleObject *)iter;
+        int64_t m = rhs->size;
+        int64_t count = MIN(m, slots);
+        TValue *src_base = rhs->array;
+
+        if (step == 1) {
+            if (count) memmove(dst_base + start, src_base, count * sizeof(TValue));
+        } else {
+            int64_t i = start;
+            for (int64_t j = 0; j < count; ++j, i += step) {
+                dst_base[i] = src_base[j];
+            }
+        }
+        return no_value;
+    }
+
+    if (kl_is_seq(iter)) {
+        TValue len = kl_call_len(args + 1);
+        if (is_error(&len)) return error_value;
+
+        int64_t m = (int64_t)to_int64(&len);
+        int64_t count = MIN(m, slots);
+
+        int64_t i = start;
+        for (int64_t j = 0; j < count; ++j, i += step) {
+            TValue idx = int64_value((int64_t)j);
+            TValue item = kl_call_get_item(args + 1, &idx);
+            if (is_error(&item)) return error_value;
+            dst_base[i] = item;
+        }
+
+        return no_value;
+    }
+
+    if (kl_is_iter(iter)) {
+        TValue it = kl_call_iter(args + 1, 1);
+        if (is_error(&it)) return error_value;
+
+        int64_t i = start;
+        for (int64_t j = 0; j < slots; ++j, i += step) {
+            TValue item = kl_call_next(&it);
+            if (is_error(&item)) return error_value;
+            dst_base[i] = item;
+        }
+
+        return no_value;
+    }
+
+    raise_exc_str("list.set_slice unreachable!");
+    return error_value;
+}
+
 /* pub func insert(index int, value T) */
 static TValue _list_insert(TValue *self, TValue *args, int nargs)
 {
@@ -366,23 +500,22 @@ static TValue _list_insert(TValue *self, TValue *args, int nargs)
     int64_t index = kl_arg_int64(0);
     TValue value = args[1];
 
-    size_t n = list->end - list->start;
-    if (index < 0 || (uint64_t)index > n) {
+    int64_t n = list->end - list->start;
+    if (index < 0 || index > n) {
         raise_exc_str("list insert index out of range");
         return error_value;
     }
 
-    size_t idx = (size_t)index;
     /* Grow by absolute position (end+1): correct even for windowed views.
      * expand_capacity may realloc, so recompute base afterwards. */
     expand_capacity(list, list->end + 1);
     TValue *base = list->array + list->start;
 
     /* Shift [idx, n) one slot to the right, then place the new value. */
-    memmove(base + idx + 1, base + idx, (n - idx) * sizeof(TValue));
-    base[idx] = value;
+    memmove(base + index + 1, base + index, (n - index) * sizeof(TValue));
+    base[index] = value;
     list->end++;
-    return nil_value;
+    return no_value;
 }
 
 /* pub func remove(value T) */
@@ -392,11 +525,11 @@ static TValue _list_remove(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 1);
 
     TValue *target = args + 0;
-    size_t n = list->end - list->start;
+    int64_t n = list->end - list->start;
     TValue *base = list->array + list->start;
 
-    size_t found = n;
-    for (size_t i = 0; i < n; ++i) {
+    int64_t found = n;
+    for (int64_t i = 0; i < n; ++i) {
         TValue eq = list_item_equal(target, base + i);
         if (is_error(&eq)) return error_value;
         if (to_bool(&eq)) {
@@ -413,7 +546,7 @@ static TValue _list_remove(TValue *self, TValue *args, int nargs)
     /* Shift the tail one slot to the left to overwrite the removed element. */
     memmove(base + found, base + found + 1, (n - found - 1) * sizeof(TValue));
     list->end--;
-    return nil_value;
+    return no_value;
 }
 
 /* pub func clear() */
@@ -424,7 +557,7 @@ static TValue _list_clear(TValue *self, TValue *args, int nargs)
 
     /* Logical empty; keep the backing buffer for reuse. */
     list->end = list->start = 0;
-    return nil_value;
+    return no_value;
 }
 
 /* pub func reverse() */
@@ -433,16 +566,16 @@ static TValue _list_reverse(TValue *self, TValue *args, int nargs)
     ListObject *list = SELF_AS(list_type);
     ASSERT(nargs == 0);
 
-    size_t n = list->end - list->start;
-    if (n < 2) return nil_value; /* empty / single: nothing to swap (and guards underflow) */
+    int64_t n = list->end - list->start;
+    if (n < 2) return no_value; /* empty / single: nothing to swap (and guards underflow) */
 
     TValue *base = list->array + list->start;
-    for (size_t i = 0, j = n - 1; i < j; ++i, --j) {
+    for (int64_t i = 0, j = n - 1; i < j; ++i, --j) {
         TValue tmp = base[i];
         base[i] = base[j];
         base[j] = tmp;
     }
-    return nil_value;
+    return no_value;
 }
 
 /* pub func __add__(seq list[T]) list[T] */
@@ -453,8 +586,8 @@ static TValue _list_add(TValue *self, TValue *args, int nargs)
 
     ListObject *other = kl_arg_obj_as(0, list_type);
 
-    size_t n = list->end - list->start;   /* self logical length */
-    size_t m = other->end - other->start; /* seq  logical length */
+    int64_t n = list->end - list->start;   /* self logical length */
+    int64_t m = other->end - other->start; /* seq  logical length */
 
     /* fresh 0-based result: one allocation, two memcpys, no shared backing */
     Object *res = kl_new_list();
@@ -467,19 +600,20 @@ static TValue _list_add(TValue *self, TValue *args, int nargs)
 }
 
 static MethodDef list_methods[] = {
-    { "append", _list_append },
-    { "pop", _list_pop },
     { "len", _list_len },
     { "empty", _list_empty },
-    { "fmt", _list_fmt },
-    { "extend", _list_extend },
+    { "__getitem__", _list_getitem },
+    { "__setitem__", _list_setitem },
     { "__contains__", _list_contains },
     { "index", _list_index },
     { "count", _list_count },
-    { "__getitem__", _list_getitem },
-    { "__setitem__", _list_setitem },
     { "__getslice__", _list_getslice },
-    // { "__setslice__", _list_set_slice },
+    { "__setslice__", _list_set_slice },
+    { "append", _list_append },
+    { "pop", _list_pop },
+    { "copy", _list_copy },
+    { "fmt", _list_fmt },
+    { "extend", _list_extend },
     { "insert", _list_insert },
     { "remove", _list_remove },
     { "clear", _list_clear },

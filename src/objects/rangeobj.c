@@ -68,14 +68,9 @@ static TValue _range_len(TValue *self, TValue *args, int nargs)
     int64_t end = to_int64(&range->end);
     int64_t step = to_int64(&range->step);
 
-    if (step > 0) {
-        return int64_value((end - start + step - 1) / step);
-    } else if (step < 0) {
-        return int64_value((start - end - step - 1) / (-step));
-    } else {
-        raise_exc("range step cannot be zero");
-        return error_value;
-    }
+    int64_t len;
+    if (!kl_range_len(range, &len)) return error_value;
+    return int64_value(len);
 }
 
 static TValue _range_empty(TValue *self, TValue *args, int nargs)
@@ -86,14 +81,9 @@ static TValue _range_empty(TValue *self, TValue *args, int nargs)
     int64_t end = to_int64(&range->end);
     int64_t step = to_int64(&range->step);
 
-    if (step > 0) {
-        return bool_value(start >= end);
-    } else if (step < 0) {
-        return bool_value(start <= end);
-    } else {
-        raise_exc("range step cannot be zero");
-        return error_value;
-    }
+    int64_t len;
+    if (!kl_range_len(range, &len)) return error_value;
+    return bool_value(len == 0);
 }
 
 static TValue _range_index(TValue *self, TValue *args, int nargs)
@@ -105,23 +95,9 @@ static TValue _range_index(TValue *self, TValue *args, int nargs)
     int64_t end = to_int64(&range->end);
     int64_t step = to_int64(&range->step);
 
-    if (step > 0) {
-        if (value->ival < start || value->ival >= end) {
-            return int64_value(-1); // Not found
-        }
-    } else if (step < 0) {
-        if (value->ival > start || value->ival <= end) {
-            return int64_value(-1); // Not found
-        }
-    } else {
-        UNREACHABLE(); // Step cannot be zero, should have been checked during range creation
-    }
-
-    if ((value->ival - start) % step != 0) {
-        return int64_value(-1); // Not found
-    }
-
-    return int64_value((value->ival - start) / step);
+    int64_t index;
+    if (!kl_range_index(range, to_int64(value), &index)) return error_value;
+    return int64_value(index);
 }
 
 static TValue _range_get_item(TValue *self, TValue *args, int nargs)

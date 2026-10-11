@@ -86,6 +86,10 @@ pub class list[T] : MutableSequence[T] {
     @native
     pub func pop(index = -1) T {}
 
+    /// Return a shallow copy of the list.
+    @native
+    pub func copy() list[T] {}
+
     /// Remove all items from the list, leaving it empty.
     @native
     pub func clear() {}

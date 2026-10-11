@@ -24,6 +24,12 @@ class MyClass : Hello {
 // myObject.hello()
 
 func main() {
+
+    let lst list[int?] = list[int?]()
+    lst.append(1)
+    lst.append(nil)
+    lst.append(6)
+
     // let x |int| int = {|a| a}
     // let y {|int| int} = {|a| a}
     // let z {|int| int}? = {|a| a}

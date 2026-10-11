@@ -133,6 +133,35 @@ int slice_adjust(int64_t *_start, int64_t *_end, int64_t step, int64_t len)
     return 1;
 }
 
+/*
+ * Number of elements selected by a slice [start:end:step].
+ *
+ * Returns:
+ *  -1  - invalid (step == 0); caller must raise an exception
+ *   0  - empty/degenerate range; caller should skip iteration
+ *  >0  - number of stride positions selected
+ *
+ * Expects `start`/`end` already normalized by a successful slice_adjust:
+ * positive step -> start < end, negative step -> start > end.
+ *
+ * The "+abs_step - 1" term is ceiling division: a partial stride still
+ * counts the element it lands on. Stepping backwards from 5 to 2 by -2
+ * selects {5,3} = 2, and 10 down to 0 by -2 selects 6, not 5.
+ */
+int64_t slice_count(int64_t start, int64_t end, int64_t step)
+{
+    /* A zero step is invalid. */
+    if (step == 0) return -1;
+
+    if (step > 0) {
+        if (start >= end) return 0;
+        return (end - start + step - 1) / step;
+    }
+
+    if (start <= end) return 0;
+    return (start - end - step - 1) / (-step);
+}
+
 #ifdef __cplusplus
 }
 #endif

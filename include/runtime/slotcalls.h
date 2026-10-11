@@ -7,6 +7,13 @@ static inline TValue kl_call_cmp(TValue *a, TValue *b, int slot)
     return kl_call_slot(args, 2, slot);
 }
 
+static inline TValue kl_call_eq(TValue *a, TValue *b) { return kl_call_cmp(a, b, SLOT_EQ); }
+static inline TValue kl_call_ne(TValue *a, TValue *b) { return kl_call_cmp(a, b, SLOT_NE); }
+static inline TValue kl_call_lt(TValue *a, TValue *b) { return kl_call_cmp(a, b, SLOT_LT); }
+static inline TValue kl_call_le(TValue *a, TValue *b) { return kl_call_cmp(a, b, SLOT_LE); }
+static inline TValue kl_call_gt(TValue *a, TValue *b) { return kl_call_cmp(a, b, SLOT_GT); }
+static inline TValue kl_call_ge(TValue *a, TValue *b) { return kl_call_cmp(a, b, SLOT_GE); }
+
 static inline unsigned int kl_hash(TValue *val)
 {
     TValue ret = kl_call_slot(val, 1, SLOT_HASH);
@@ -26,6 +33,8 @@ static inline TValue kl_call_iter(TValue *obj, int64_t step)
 }
 
 static inline TValue kl_call_next(TValue *obj) { return kl_call_slot(obj, 1, SLOT_NEXT); }
+
+static inline TValue kl_call_len(TValue *obj) { return kl_call_slot(obj, 1, SLOT_LEN); }
 
 static inline TValue kl_call_get_item(TValue *obj, TValue *index)
 {

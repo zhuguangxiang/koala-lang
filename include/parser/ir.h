@@ -404,8 +404,9 @@ typedef struct _KlrIndexInfo {
     KlrValue *obj;
     KlrValue *index;
     int which;
-#define KLR_SEQ_SET 1
-#define KLR_MAP_SET 2
+#define KLR_SEQ_SET  1
+#define KLR_MAP_SET  2
+#define KLR_SICE_SET 3
 } KlrIndexInfo;
 
 /* def-use */
@@ -1137,6 +1138,7 @@ KlrValue *klr_build_seq_len(KlrBuilder *bldr, KlrValue *obj, char *name);
 KlrValue *klr_build_str(KlrBuilder *bldr, KlrValue *obj, char *name);
 KlrValue *klr_build_slice_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
                               char *name);
+void klr_build_slice_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val);
 KlrValue *klr_build_is(KlrBuilder *bldr, KlrValue *val, KlrValue *kls, TypeSpec *ts, char *name);
 KlrValue *klr_build_as(KlrBuilder *bldr, KlrValue *val, KlrValue *kls, TypeSpec *ts, char *name);
 KlrValue *klr_build_contains(KlrBuilder *bldr, KlrValue *obj, KlrValue *val, char *name);

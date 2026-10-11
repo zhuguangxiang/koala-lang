@@ -1227,7 +1227,7 @@ TARGET(OP_NUM_EQ) {
         ret = bool_value(v1->ival == v2->ival);
     } else {
         SAVE_PC();
-        ret = kl_call_cmp(regs + rs, regs + rt, SLOT_EQ);
+        ret = kl_call_eq(regs + rs, regs + rt);
         if (is_error(&ret)) goto error;
     }
 
@@ -1263,7 +1263,7 @@ TARGET(OP_NUM_NE) {
         ret = bool_value(v1->ival != v2->ival);
     } else {
         SAVE_PC();
-        ret = kl_call_cmp(regs + rs, regs + rt, SLOT_NE);
+        ret = kl_call_ne(regs + rs, regs + rt);
         if (is_error(&ret)) goto error;
     }
 
@@ -1296,7 +1296,7 @@ TARGET(OP_NUM_LT) {
         ret = bool_value((uint64_t)v1->ival < (uint64_t)v2->ival);
     } else {
         SAVE_PC();
-        ret = kl_call_cmp(regs + rs, regs + rt, SLOT_LT);
+        ret = kl_call_lt(regs + rs, regs + rt);
         if (is_error(&ret)) goto error;
     }
 
@@ -1329,7 +1329,7 @@ TARGET(OP_NUM_LE) {
         ret = bool_value((uint64_t)v1->ival <= (uint64_t)v2->ival);
     } else {
         SAVE_PC();
-        ret = kl_call_cmp(regs + rs, regs + rt, SLOT_LE);
+        ret = kl_call_le(regs + rs, regs + rt);
         if (is_error(&ret)) goto error;
     }
 
@@ -1362,7 +1362,7 @@ TARGET(OP_NUM_GT) {
         ret = bool_value((uint64_t)v1->ival > (uint64_t)v2->ival);
     } else {
         SAVE_PC();
-        ret = kl_call_cmp(regs + rs, regs + rt, SLOT_GT);
+        ret = kl_call_gt(regs + rs, regs + rt);
         if (is_error(&ret)) goto error;
     }
 
@@ -1395,7 +1395,7 @@ TARGET(OP_NUM_GE) {
         ret = bool_value((uint64_t)v1->ival >= (uint64_t)v2->ival);
     } else {
         SAVE_PC();
-        ret = kl_call_cmp(regs + rs, regs + rt, SLOT_GE);
+        ret = kl_call_ge(regs + rs, regs + rt);
         if (is_error(&ret)) goto error;
     }
 
@@ -1565,7 +1565,7 @@ TARGET(OP_LEN) {
     CHECK_REG_ID(rs);
 
     SAVE_PC();
-    TValue ret = kl_call_slot(regs + rs, 1, SLOT_LEN);
+    TValue ret = kl_call_len(regs + rs);
     if (is_error(&ret)) goto error;
 
     if (rd != 0xFFFu) regs[rd] = ret;
@@ -1605,6 +1605,22 @@ TARGET(OP_SEQ_GET_SLICE) {
     if (is_error(&ret)) goto error;
 
     regs[rd] = ret;
+    DISPATCH();
+}
+
+TARGET(OP_SEQ_SET_SLICE) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    SAVE_PC();
+    TValue ret = kl_call_set_slice(regs + rd, regs + rt, regs + rs);
+    if (is_error(&ret)) goto error;
+
     DISPATCH();
 }
 

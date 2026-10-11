@@ -57,9 +57,10 @@ typedef struct _TValue {
  |   Tag Constants                                                           |
  +---------------------------------------------------------------------------*/
 
-#define TAG_NIL   0
-#define TAG_ERROR 1
-#define TAG_BOOL  2
+#define TAG_NIL      0
+#define TAG_ERROR    1
+#define TAG_BOOL     2
+#define TAG_NO_VALUE 3
 
 #define TAG_INT8  0b1000
 #define TAG_INT16 0b1001
@@ -84,9 +85,10 @@ typedef struct _TValue {
  |   Type Checking                                                           |
  +---------------------------------------------------------------------------*/
 
-#define is_nil(x)   ((x)->tag == TAG_NIL)
-#define is_error(x) ((x)->tag == TAG_ERROR)
-#define is_bool(x)  ((x)->tag == TAG_BOOL)
+#define is_nil(x)      ((x)->tag == TAG_NIL)
+#define is_error(x)    ((x)->tag == TAG_ERROR)
+#define is_bool(x)     ((x)->tag == TAG_BOOL)
+#define is_no_value(x) ((x)->tag == TAG_NO_VALUE)
 
 /* Signed integers */
 #define is_int8(x)  ((x)->tag == TAG_INT8)
@@ -132,6 +134,7 @@ typedef struct _TValue {
 #define nil_value           (TValue){ .tag = TAG_NIL,    .ival = 0 }
 #define error_value         (TValue){ .tag = TAG_ERROR,  .ival = -1 }
 #define bool_value(x)       (TValue){ .tag = TAG_BOOL,   .ival = (int)(x) }
+#define no_value            (TValue){ .tag = TAG_NO_VALUE, .ival = 0 }
 
 /* Signed integers */
 #define int8_value(x)       (TValue){ .tag = TAG_INT8,    .ival = (int8_t)(x) }
@@ -407,6 +410,9 @@ extern TypeObject slice_type;
 
 Object *kl_new_slice(TValue *items);
 
+int slice_adjust(int64_t *_start, int64_t *_end, int64_t step, int64_t len);
+int64_t slice_count(int64_t start, int64_t end, int64_t step);
+
 /*---------------------------------------------------------------------------+
  |  APIs of Object, TValue, TypeObject & ModuleObject                        |
  +---------------------------------------------------------------------------*/
@@ -668,8 +674,6 @@ int kl_reg_func(NativeLib *lib, char *name, NativeFunc fn);
 int kl_reg_meth(NativeLib *lib, char *cls, char *meth, NativeFunc fn);
 int kl_reg_type(NativeLib *lib, TypeObject *tp);
 
-int slice_adjust(int64_t *_start, int64_t *_end, int64_t step, int64_t len);
-
 /*---------------------------------------------------------------------------+
  |  Call code, cfunc and slot                                                |
  +---------------------------------------------------------------------------*/
@@ -679,6 +683,22 @@ TValue kl_call_slot(TValue *args, int nargs, int slotid);
 TValue kl_call_intf(TValue *args, int nargs, int intf_idx);
 
 #include "slotcalls.h"
+
+static inline int kl_is_seq(Object *self)
+{
+    TypeObject *tp = OB_TYPE(self);
+    ASSERT(tp);
+    if (tp->slots[SLOT_GET_ITEM] && tp->slots[SLOT_LEN]) return 1;
+    return 0;
+}
+
+static inline int kl_is_iter(Object *self)
+{
+    TypeObject *tp = OB_TYPE(self);
+    ASSERT(tp);
+    if (tp->slots[SLOT_NEXT] && tp->slots[SLOT_ITER]) return 1;
+    return 0;
+}
 
 #ifdef __cplusplus
 }

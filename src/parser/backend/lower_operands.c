@@ -533,6 +533,17 @@ static void lower_seq_get_slice_opers(KlrInsn *insn)
     set_raw_reg(&insn->raws[2], index->vreg);
 }
 
+static void lower_seq_set_slice_opers(KlrInsn *insn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    KlrValue *index = insn_oper_value(insn, 1);
+    KlrValue *val = insn_oper_value(insn, 2);
+
+    set_raw_reg(&insn->raws[0], obj->vreg);
+    set_raw_reg(&insn->raws[1], val->vreg);
+    set_raw_reg(&insn->raws[2], index->vreg);
+}
+
 static void lower_make_intf_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
@@ -712,6 +723,11 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_SEQ_GET_SLICE: {
                     lower_seq_get_slice_opers(insn);
+                    break;
+                }
+
+                case OP_SEQ_SET_SLICE: {
+                    lower_seq_set_slice_opers(insn);
                     break;
                 }
 

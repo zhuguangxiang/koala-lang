@@ -13,8 +13,6 @@
 extern "C" {
 #endif
 
-void init_tag_mappings(void);
-
 /* max stack size */
 #define MAX_STACK_SIZE (2 * 64 * 1024)
 
@@ -85,9 +83,6 @@ void koala_initialize(void)
     ThreadState *ts = mm_alloc_obj(ts);
     ts->current = kl_new_ks();
     __ts = ts;
-
-    /* initialize tag mappings */
-    init_tag_mappings();
 
     load_modules();
 }

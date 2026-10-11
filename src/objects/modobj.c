@@ -326,6 +326,12 @@ int kl_mo_add_list(Object *_m, Vector *list)
     KlcConst *item;
     vector_foreach(item, list) {
         switch (item->type) {
+            case KLC_CONST_NONE: {
+                TValue val = nil_value;
+                vector_push_back(&vec, &val);
+                break;
+            }
+
             case KLC_CONST_INT: {
                 TValue val = { .tag = item->type_info, .ival = item->ival };
                 vector_push_back(&vec, &val);

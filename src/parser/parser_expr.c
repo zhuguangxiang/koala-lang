@@ -2097,6 +2097,63 @@ static void parse_slice_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
     log_type_spec(index->ts);
 }
 
+static void parse_slice_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index, Expr *value)
+{
+    Expr *lhs = index->lhs;
+
+    Symbol *__fn_sym = stbl_get(lhs_sym->stbl, "__setslice__");
+
+    if (lhs_sym->kind == SYM_INSTANCE) {
+        if (!__fn_sym) {
+            // try to find __setslice__ from origin klass
+            InstanceSymbol *inst_sym = (InstanceSymbol *)lhs_sym;
+            KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+            __fn_sym = stbl_get(origin->stbl, "__setslice__");
+            if (!__fn_sym) {
+                kl_error(lhs->loc, "type '%s' is not subscriptable (missing __setslice__)",
+                         lhs_sym->name);
+                return;
+            }
+
+            // create function symbol for instance __setslice__
+            Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
+            __fn_sym = inst_fn_sym;
+        }
+    }
+
+    TypeSpec *fn_ts = __fn_sym->ts;
+    if (fn_ts->kind != TYPE_PROTO) {
+        kl_error(lhs->loc, "symbol '%s' is not a func", __fn_sym->name);
+        return;
+    }
+
+    Vector *params = fn_ts->proto_type.args;
+    if (vector_size(params) != 2) {
+        kl_error(lhs->loc, "func '%s' must have 2 parameters", __fn_sym->name);
+        return;
+    }
+
+    TypeSpec *ret_ts = fn_ts->proto_type.ret;
+    if (ret_ts->kind != TYPE_NO_TYPE) {
+        kl_error(lhs->loc, "func '%s' must return None", __fn_sym->name);
+        return;
+    }
+
+    TypeSpec *arg1_ts = vector_at(params, 0);
+    TypeSpec *arg2_ts = vector_at(params, 1);
+
+    Expr *arg1 = vector_at(index->vec, 0);
+    if (!type_spec_compatible(arg1_ts, arg1->ts)) {
+        kl_error(arg1->loc,
+                 "argument type is not compatible with __setslice__ first parameter type");
+    }
+
+    if (!type_spec_compatible(arg2_ts, value->ts)) {
+        kl_error(value->loc,
+                 "value type is not compatible with __setslice__ second parameter type");
+    }
+}
+
 /**
  * Check whether `ts` satisfies all bounds declared on `tp`.
  *
@@ -2386,7 +2443,7 @@ static void parse_index(ParserState *ps, Expr *exp)
             }
         } else if (index->ctx == EXPR_CTX_STORE) {
             if (arg->kind == EXPR_SLICE_KIND) {
-                // parse_slice_store(ps, ts_sym, index);
+                parse_slice_store(ps, ts_sym, index, exp->arg);
             } else {
                 parse_index_store(ps, ts_sym, index);
             }
@@ -2403,7 +2460,7 @@ static void parse_index(ParserState *ps, Expr *exp)
             }
         } else if (index->ctx == EXPR_CTX_STORE) {
             if (arg->kind == EXPR_SLICE_KIND) {
-                // parse_slice_store(ps, lhs_sym, index);
+                parse_slice_store(ps, lhs_sym, index, exp->arg);
             } else {
                 parse_index_store(ps, lhs_sym, index);
             }
@@ -2428,6 +2485,7 @@ static void parse_slice(ParserState *ps, Expr *exp)
         }
     } else {
         start = expr_from_lit_int("-9223372036854775808", 1, 0, INT64_MIN);
+        // start = expr_from_lit_int("0", 1, 0, 0);
         start->ctx = EXPR_CTX_LOAD;
         parser_visit_expr(ps, start);
         slice->start = start;
@@ -3427,7 +3485,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
 
     handlers[exp->kind](ps, exp);
 
-    if (!exp->ts) {
+    if (!exp->ts && exp->ctx != EXPR_CTX_STORE) {
         if (ps->errors == 0) {
             kl_error(exp->loc, "cannot resolve expr's type.");
         }

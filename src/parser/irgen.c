@@ -1180,7 +1180,12 @@ static void emit_ir_index(ParserState *ps, Expr *exp)
                     item = klr_build_slice_get(&bldr, lhs->ir_val, ir_val, lhs->ts, "");
                 }
             } else {
-                item = klr_new_index(&bldr, lhs->ir_val, ir_val, KLR_SEQ_SET);
+                if (type_is_int(ir_val->ts)) {
+                    item = klr_new_index(&bldr, lhs->ir_val, ir_val, KLR_SEQ_SET);
+                } else {
+                    ASSERT(type_is_slice(ir_val->ts));
+                    item = klr_new_index(&bldr, lhs->ir_val, ir_val, KLR_SICE_SET);
+                }
             }
         } else if (type_is_map(lhs->ts)) {
             // map index
@@ -2655,6 +2660,8 @@ static void emit_ir_simple_assignment(ParserState *ps, Expr *lhs, Expr *rhs)
             klr_build_seq_set(&bldr, index_info->obj, index_info->index, rhs->ir_val);
         } else if (index_info->which == KLR_MAP_SET) {
             klr_build_map_set(&bldr, index_info->obj, index_info->index, rhs->ir_val);
+        } else if (index_info->which == KLR_SICE_SET) {
+            klr_build_slice_set(&bldr, index_info->obj, index_info->index, rhs->ir_val);
         } else {
             UNREACHABLE();
         }

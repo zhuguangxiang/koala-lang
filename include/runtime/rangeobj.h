@@ -17,6 +17,7 @@ typedef struct _RangeObject {
     TValue start;
     TValue end;
     TValue step;
+    int64_t len;
 } RangeObject;
 
 extern TypeObject range_type;

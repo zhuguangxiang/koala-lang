@@ -178,6 +178,7 @@ static OpCode no_regs_codes[] = {
     OP_MAP_SET,
     OP_SEQ_SET_IMM,
     OP_PRINT,
+    OP_SEQ_SET_SLICE,
 };
 
 int ir_has_value(KlrInsn *insn)
@@ -902,6 +903,31 @@ KlrValue *klr_build_slice_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, 
     insn->ts = ts;
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
+}
+
+void klr_build_slice_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
+        obj->kind != KLR_VALUE_CONST) {
+        panic("'seq_set' op requires a reg/param/const value for obj");
+    }
+
+    if (index->kind != KLR_VALUE_CONST && index->kind != KLR_VALUE_INSN &&
+        index->kind != KLR_VALUE_PARAM) {
+        panic("'seq_set' op requires a reg/param/const value for index");
+    }
+
+    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
+        val->kind != KLR_VALUE_PARAM) {
+        panic("'seq_set' op requires a reg/param/const value for val");
+    }
+
+    KlrInsn *insn = new_insn(OP_SEQ_SET_SLICE, 3, "");
+    init_oper(&insn->opers[0], insn, obj, 0);
+    init_oper(&insn->opers[1], insn, index, 0);
+    init_oper(&insn->opers[2], insn, val, 0);
+
+    klr_append_insn(bldr, insn);
 }
 
 KlrValue *klr_build_is(KlrBuilder *bldr, KlrValue *val, KlrValue *kls, TypeSpec *ts, char *name)
