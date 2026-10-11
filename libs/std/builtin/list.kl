@@ -109,7 +109,7 @@ pub class list[T] : MutableSequence[T] {
     /// Return a reverse iterator over the elements of the list.
     pub func reversed(step = 1) Iterator[T] = ListRevIter[T](self, step)
 
-    /// Formats the list for display.
+    /// Format the list for display.
     @native
     pub func fmt(f Formatter) {}
 
@@ -162,7 +162,7 @@ pub class ListIter[T] : Iterator[T] {
         return item
     }
 
-    /// Formats the iterator for display.
+    /// Format the iterator for display.
     pub func fmt(f Formatter) {
         f.write_fmt("ListIter(step={}, cursor={}, len={})", step, cursor, len)
     }
@@ -213,7 +213,7 @@ pub class ListRevIter[T] : Iterator[T] {
         return item
     }
 
-    /// Formats the iterator for display.
+    /// Format the iterator for display.
     pub func fmt(f Formatter) {
         f.write_fmt("ListRevIter(step={}, cursor={}, len={})", step, cursor, len)
     }

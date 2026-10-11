@@ -120,14 +120,14 @@ pub class str : Sequence & Comparable & ToString {
     @native
     pub func substr(start = 0, end = -1) str {}
 
-    /// Formats the string for display.
+    /// Format the string for display.
     ///
     /// Strings are already in their printable form, so no additional
     /// formatting or conversion is performed.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts `self` to a string.
+    /// Convert `self` to a string.
     ///
     /// Returns `self`: a `str` is already its own string form. This keeps
     /// generic code bounded by `ToString` uniform when `T` is instantiated with `str`.
@@ -341,7 +341,7 @@ pub class StrIter : Iterator[str] {
         return ch
     }
 
-    /// Formats the iterator state for display.
+    /// Format the iterator state for display.
     /// Produce a human-readable description of the iterator state.
     /// Useful for debugging and logging.
     pub func fmt(f Formatter) {
@@ -407,7 +407,7 @@ pub class StrRevIter : Iterator[str] {
         return ch
     }
 
-    /// Formats the iterator state for display.
+    /// Format the iterator state for display.
     /// Produce a human-readable description of the iterator state.
     pub func fmt(f Formatter) {
         f.write_fmt("StrRevIter(step={}, cursor={}, length={})", step, cursor, length)

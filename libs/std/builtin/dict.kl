@@ -6,10 +6,10 @@
 /// A dict is a mutable, insertion-ordered hash map that maps unique keys
 /// to values.
 ///
-/// It implements `Map`, providing key lookup, insertion, removal,
+/// It implements `MutableMap`, providing key lookup, insertion, removal,
 /// and iteration over key-value pairs. Iteration, `keys()`, `values()` and
 /// `items()` all follow insertion order.
-pub class dict[K, V] : Map[K, V] {
+pub class dict[K, V] : MutableMap[K, V] {
 
     /// Create an empty dict.
     @native
@@ -39,21 +39,22 @@ pub class dict[K, V] : Map[K, V] {
     @native
     pub func __getitem__(key K) V {}
 
-    /// Associate `value` with `key`, replacing any existing mapping.
+    /// Associate `value` with `key`, inserting a new mapping if `key` is absent
+    /// or replacing its associated value if `key` already exists.
     @native
     pub func __setitem__(key K, value V) {}
 
-    /// Return a list of all keys in the dict, in insertion order.
+    /// Return an iterable over all keys in the dict, in insertion order.
     @native
-    pub func keys() list[K] {}
+    pub func keys() Iterable[K] {}
 
-    /// Return a list of all values in the dict, in insertion order.
+    /// Return an iterable over all values in the dict, in insertion order.
     @native
-    pub func values() list[V] {}
+    pub func values() Iterable[V] {}
 
-    /// Return a list of all (key, value) pairs in the dict, in insertion order.
+    /// Return an iterable over all (key, value) pairs in the dict, in insertion order.
     @native
-    pub func items() list[(K, V)] {}
+    pub func items() Iterable[(K, V)] {}
 
     /// Remove all mappings from the dict, leaving it empty.
     @native
@@ -129,4 +130,8 @@ pub class dict[K, V] : Map[K, V] {
     /// in reverse insertion order.
     @native
     pub func reversed(step = 1) Iterator[(K, V)] {}
+
+    /// Format the dict for display.
+    @native
+    pub func fmt(f Formatter) {}
 }

@@ -59,7 +59,7 @@ pub class tuple[infer T] : Sequence[T] {
     @native
     pub func reversed(step = 1) Iterator[T] {}
 
-    /// Formats the tuple for display.
+    /// Format the tuple for display.
     @native
     pub func fmt(f Formatter) {}
 }

@@ -148,12 +148,12 @@ pub class Path : ToString {
         return normalize()
     }
 
-    /// Converts the path to its string form.
+    /// Convert the path to its string form.
     ///
     /// This returns the path itself without adding a display-oriented wrapper.
     pub func to_str() str { return path }
 
-    /// Formats the path for display.
+    /// Format the path for display.
     ///
     /// The display form includes the `Path(...)` wrapper.
     pub func fmt(f Formatter) { f.write_fmt("Path({})", path) }

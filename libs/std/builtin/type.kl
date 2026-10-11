@@ -12,7 +12,7 @@ pub class type {
     /// Type objects are created only by the runtime.
     func __init__() {}
 
-    /// Formats the type for display.
+    /// Format the type for display.
     @native
     pub func fmt(f Formatter) {}
 

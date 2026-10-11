@@ -104,7 +104,7 @@ pub trait MutableSequence[T] : Sequence[T] {
     func clear()
 }
 
-/// A Map is a collection of key-value mappings.
+/// A Map is a read-only view of a collection of key-value mappings.
 ///
 /// A map cannot contain duplicate keys; each key maps to at most one value.
 pub trait Map[K, V] : Iterable[(K, V)] {
@@ -117,19 +117,31 @@ pub trait Map[K, V] : Iterable[(K, V)] {
     /// Return the value associated with `key`. Panic if `key` is not present.
     func __getitem__(key K) V
 
-    /// Associate `value` with `key`.
+    /// Return an iterable over the keys in the map.
+    func keys() Iterable[K]
+
+    /// Return an iterable over the values in the map.
+    func values() Iterable[V]
+
+    /// Return an iterable over the key-value pairs in the map.
+    func items() Iterable[(K, V)]
+
+    /// Return the value associated with `key`, or `nil` if `key` is not present.
     ///
-    /// If `key` already exists, its associated value is replaced.
+    /// Unlike indexing with `map[key]`, this method does not panic when
+    /// `key` is not present and is intended for use with `if let`.
+    func get(key K) V?
+
+    /// Return the value associated with `key`, or `default_value` if `key` is
+    /// not present.
+    func get_or(key K, default_value V) V
+}
+
+/// A MutableMap is a map whose mappings can be added, replaced, and removed.
+pub trait MutableMap[K, V] : Map[K, V] {
+    /// Associate `value` with `key`, inserting a new mapping if `key` is absent
+    /// or replacing its associated value if `key` already exists.
     func __setitem__(key K, value V)
-
-    /// Return a sequence containing all keys in the map.
-    func keys() Sequence[K]
-
-    /// Return a sequence containing all values in the map.
-    func values() Sequence[V]
-
-    /// Return a sequence containing all key-value pairs in the map.
-    func items() Sequence[(K, V)]
 
     /// Remove all mappings from the map, leaving it empty.
     func clear()
@@ -141,16 +153,6 @@ pub trait Map[K, V] : Iterable[(K, V)] {
     ///
     /// If `key` is not present, return `default_value`.
     func remove_or(key K, default_value V) V
-
-    /// Return the value associated with `key`, or `nil` if `key` is not present.
-    ///
-    /// Unlike indexing with `map[key]`, this method does not panic when
-    /// `key` is not present and is intended for use with `if let`.
-    func get(key K) V?
-
-    /// Return the value associated with `key`, or `default_value` if `key` is
-    /// not present.
-    func get_or(key K, default_value V) V
 }
 
 /// A Set is a collection that contains no duplicate elements.

@@ -26,11 +26,11 @@ pub class bool : ToString {
     @intrinsic
     pub func __ne__(other bool) bool {}
 
-    /// Formats the boolean value for display.
+    /// Format the boolean value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the boolean value to its string ("true" or "false").
+    /// Convert the boolean value to its string ("true" or "false").
     @native
     pub func to_str() str {}
 }

@@ -63,12 +63,12 @@ pub class range : Sequence[int] {
     @native
     pub func count(value int, _start = 0, _end = -1) int {}
 
-    /// Formats the range for display.
+    /// Format the range for display.
     pub func fmt(f Formatter) {
         f.write_fmt("range({}, {}, {})", start, end, step)
     }
 
-    /// Converts the range to its string representation.
+    /// Convert the range to its string representation.
     pub func to_str() str {
         return format("range({}, {}, {})", start, end, step)
     }

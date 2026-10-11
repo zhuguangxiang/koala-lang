@@ -51,11 +51,11 @@ pub class int8 : ToString {
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
 
-    /// Formats the `int8` value for display.
+    /// Format the `int8` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `int8` value to its string form.
+    /// Convert the `int8` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -69,11 +69,11 @@ pub class int16 : ToString {
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
 
-    /// Formats the `int16` value for display.
+    /// Format the `int16` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `int16` value to its string form.
+    /// Convert the `int16` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -87,11 +87,11 @@ pub class int32 : ToString {
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
 
-    /// Formats the `int32` value for display.
+    /// Format the `int32` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `int32` value to its string form.
+    /// Convert the `int32` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -188,15 +188,15 @@ pub class int64 : Comparable & Arithmetic & Bitwise & ToString {
     @native
     pub func abs() int64 {}
 
-    /// Converts `self` to a `float64`.
+    /// Convert `self` to a `float64`.
     @native
     pub func to_float() float64 {}
 
-    /// Formats the `int64` value for display.
+    /// Format the `int64` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `int64` value to its string form.
+    /// Convert the `int64` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -210,11 +210,11 @@ pub class uint8 : ToString {
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
 
-    /// Formats the `uint8` value for display.
+    /// Format the `uint8` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `uint8` value to its string form.
+    /// Convert the `uint8` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -228,11 +228,11 @@ pub class uint16 : ToString {
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
 
-    /// Formats the `uint16` value for display.
+    /// Format the `uint16` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `uint16` value to its string form.
+    /// Convert the `uint16` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -246,11 +246,11 @@ pub class uint32 : ToString {
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
 
-    /// Formats the `uint32` value for display.
+    /// Format the `uint32` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `uint32` value to its string form.
+    /// Convert the `uint32` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -339,15 +339,15 @@ pub class uint64 : Comparable & Arithmetic & Bitwise & ToString {
     @native
     pub func pow(x uint64) uint64 {}
 
-    /// Converts `self` to a `float64`.
+    /// Convert `self` to a `float64`.
     @native
     pub func to_float() float64 {}
 
-    /// Formats the `uint64` value for display.
+    /// Format the `uint64` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `uint64` value to its string form.
+    /// Convert the `uint64` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -361,11 +361,11 @@ pub class float16 : ToString {
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
 
-    /// Formats the `float16` value for display.
+    /// Format the `float16` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `float16` value to its string form.
+    /// Convert the `float16` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -380,11 +380,11 @@ pub class float32 : ToString {
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
 
-    /// Formats the `float32` value for display.
+    /// Format the `float32` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `float32` value to its string form.
+    /// Convert the `float32` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -474,7 +474,7 @@ pub class float64 : Comparable & Arithmetic & ToString {
     @native
     pub func pow(x float64) float64 {}
 
-    /// Converts `self` to an `int64`, truncating toward zero.
+    /// Convert `self` to an `int64`, truncating toward zero.
     @native
     pub func to_int() int64 {}
 
@@ -486,11 +486,11 @@ pub class float64 : Comparable & Arithmetic & ToString {
     @native
     pub func is_inf() bool {}
 
-    /// Formats the `float64` value for display.
+    /// Format the `float64` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `float64` value to its string form.
+    /// Convert the `float64` value to its string form.
     @native
     pub func to_str() str {}
 }
@@ -510,11 +510,11 @@ pub class bfloat16 : ToString {
     @intrinsic
     pub func __init__(x int64 | uint64 | float64) {}
 
-    /// Formats the `bfloat16` value for display.
+    /// Format the `bfloat16` value for display.
     @native
     pub func fmt(f Formatter) {}
 
-    /// Converts the `bfloat16` value to its string form.
+    /// Convert the `bfloat16` value to its string form.
     @native
     pub func to_str() str {}
 }

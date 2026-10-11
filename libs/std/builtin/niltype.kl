@@ -15,7 +15,7 @@ pub class NilType {
     /// Users cannot instantiate `NilType` directly. Use `nil` instead.
     func __init__() {}
 
-    /// Formats `nil` for display.
+    /// Format `nil` for display.
     /// Always writes `"nil"` to the formatter.
     @native
     pub func fmt(f Formatter) {}

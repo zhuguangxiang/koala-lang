@@ -63,7 +63,7 @@ pub class Duration {
     /// Return the length in whole seconds, truncated.
     pub func to_secs() int64 { return ns / 1_000_000_000 }
 
-    /// Formats the duration for display.
+    /// Format the duration for display.
     /// Produce a string using the largest unit that fits, truncated:
     /// `2s`, `500ms`, `30us` or `10ns`.
     pub func fmt(f Formatter) {
@@ -88,7 +88,7 @@ pub class Duration {
         f.write_fmt("{}ns", ns)
     }
 
-    /// Converts the duration to its canonical string form: the nanosecond count
+    /// Convert the duration to its canonical string form: the nanosecond count
     /// followed by the unit suffix `ns`, e.g. `"1500000000ns"`.
     ///
     /// The suffix keeps the result self-describing and distinguishes it from plain integer text.
