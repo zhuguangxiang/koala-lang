@@ -3186,7 +3186,7 @@ atom_expr
     }
     | map_expr
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | tuple_expr
     {
@@ -3341,18 +3341,20 @@ map_expr
     }
     | '{' map_list semi '}'
     {
-
+        $$ = expr_from_map($2);
+        expr_set_loc($$, lloc(@1, @4));
     }
     | '{' map_list ',' '}'
     {
-
+        $$ = expr_from_map($2);
+        expr_set_loc($$, lloc(@1, @4));
     }
     | MAP
     {
-        // Type *ty = map_type(NULL, NULL);
-        // type_set_loc(ty, loc(@1));
-        // $$ = expr_from_type(ty);
-        // expr_set_loc($$, loc(@1));
+        TypeSpec *ty = klass_type_spec(STD_BUILTIN_PATH, "dict");
+        type_spec_loc(ty, loc(@1));
+        $$ = expr_from_type(ty);
+        expr_set_loc($$, loc(@1));
     }
     | '{' error
     {

@@ -2001,52 +2001,6 @@ X(OP_SEQ_GET_SLICE, FORMAT_RRR, "seq.get_slice")
 X(OP_SEQ_SET_SLICE, FORMAT_RRR, "seq.set_slice")
 
 /*---------------------------------------------------------------+
- |  Map Protocol Instructions                                    |
- +---------------------------------------------------------------*/
-
-/**
- * OP_MAP_GET — load value from a map via key lookup
- *
- * FORMAT_RRR:
- *     | op:8 | rd:8 | rs:8 | rk:8 |
- *
- * Semantics:
- *     rd = rs[rk]
- *
- * Description:
- *     Loads the value associated with key in register rk
- *     from the map in register rs.
- *
- * Behavior:
- *     - rs must be a map object
- *     - rk is a TValue key (string/int/tuple/etc.)
- *     - Performs a key lookup according to the mapping's semantics.
- *     - panic if the key is not present
- */
-X(OP_MAP_GET, FORMAT_RRR, "map.get")
-
-/**
- * OP_MAP_SET — store value into a map via key lookup
- *
- * FORMAT_RRR:
- *     | op:8 | rs:8 | rk:8 | rv:8 |
- *
- * Semantics:
- *     rs[rk] = rv
- *
- * Description:
- *     Stores the value in register rv into the map in register rs
- *     under key in register rk.
- *
- * Behavior:
- *     - rs must be a map object
- *     - rk is a TValue key
- *     - Performs hash lookup and inserts or updates the entry
- *     - Write barrier is applied when storing into map
- */
-X(OP_MAP_SET, FORMAT_RRR, "map.set")
-
-/*---------------------------------------------------------------+
  |  Container(Seq&Map) Common Instructions                       |
  +---------------------------------------------------------------*/
 

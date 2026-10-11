@@ -16,7 +16,7 @@ static TValue _default_fmt(TValue *self, TValue *args, int nargs)
 
     TypeObject *tp = kl_typeof(self);
     ASSERT(tp);
-    unsigned int hash = kl_hash(self);
+    unsigned int hash = kl_call_hash(self);
     ModuleObject *m = (ModuleObject *)tp->module;
 
     Object *s = kl_new_fmt_str("<%s.%s object at 0x%x>", m->path, tp->name, self->obj);

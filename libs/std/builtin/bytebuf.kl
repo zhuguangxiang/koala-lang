@@ -42,11 +42,11 @@ pub class Buffer {
     @native
     pub func to_bytes() bytes {}
 
-    /// Return the current number of bytes in the buffer. O(1).
+    /// Return the current number of bytes in the buffer.
     @native
     pub func len() int {}
 
-    /// Return true if the buffer contains no bytes. O(1).
+    /// Return true if the buffer contains no bytes.
     pub func empty() bool { return len() == 0 }
 
     /// Clear the buffer, resetting its length to zero.

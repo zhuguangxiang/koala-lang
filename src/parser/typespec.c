@@ -809,7 +809,8 @@ int match_type_spec(TypeSpec *ts, char *name, TypeSpec **it_ts, TypeSpec **arg_t
         bases = inst_sym->bases;
 
         if (!strcmp(origin_sym->name, name)) {
-            ASSERT(vector_size(inst_sym->tp_args) == 1);
+            // TODO:
+            // ASSERT(vector_size(inst_sym->tp_args) == 1);
             if (it_ts) {
                 *it_ts = inst_sym->instance_ts;
                 log_info("%s itself type: %s", name, (*it_ts)->signature);

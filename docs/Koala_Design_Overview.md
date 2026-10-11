@@ -974,7 +974,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
 - 具体类型族：`assert_eq_int8 / _uint8 / _int64`、`assert_int_*` / `assert_uint_*` 全序族（跨位宽提升是泛型约束表达不了的，显式重载补齐）；
 - 浮点：`assert_float_close(a, b, eps = 1e-9)`。
 
-与 `@test` / `@test_expect_panic` 注解（§11.8）配合，构成 test-ut/ 自验证层。
+与 `@test` / `@should_panic` 注解（§11.8）配合，构成 test-ut/ 自验证层。
 
 ---
 
@@ -1090,7 +1090,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
 Koala 把单元测试做进语言与编译器，无需第三方框架：
 
 - **`@test` 注解**标记测试函数，编译器强制四条合法性规则（test-kl/test_annotation_test.kl 守护）：不能有任何参数；名字必须以 `test_` 前缀开头；不能是泛型函数；不能有返回类型。违反任一条都是编译错误，报错信息直指原因。
-- **`@test_expect_panic("msg")` 注解**：断言被标注函数以指定消息 panic——负向测试（预期失败）的执行器支撑（耗尽迭代器、关闭后的流、断言失败等均以此覆盖）。
+- **`@should_panic("msg")` 注解**：断言被标注函数以指定消息 panic；省略消息或传入空消息时只检查是否发生 panic——负向测试（预期失败）的执行器支撑（耗尽迭代器、关闭后的流、断言失败等均以此覆盖）。
 - **`--test` 运行器**：`koala file.kl --test` 收集并运行所有 @test 函数；测试内 panic 会产生 traceback（§6）并以非零码退出。
 - 与 lit/FileCheck 回归测试（§11.6）正交：后者测编译器自身，@test 测用户代码。标准库 `ut` 包（§8.13，28 个断言函数）提供断言辅助；test-ut/ 目录即该体系的标准库自验证层。
 

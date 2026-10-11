@@ -23,11 +23,11 @@ pub class dict[K, V] : MutableMap[K, V] {
     @native
     pub func iter(step = 1) Iterator[(K, V)] {}
 
-    /// Return the number of key-value pairs. O(1).
+    /// Return the number of key-value pairs.
     @native
     pub func len() int {}
 
-    /// Return true if the dict is empty, false otherwise. O(1).
+    /// Return true if the dict is empty, false otherwise.
     @native
     pub func empty() bool {}
 
@@ -35,7 +35,7 @@ pub class dict[K, V] : MutableMap[K, V] {
     @native
     pub func __contains__(key K) bool {}
 
-    /// Return the value mapped to `key`. O(1). Panic if `key` is not present.
+    /// Return the value mapped to `key`. Panic if `key` is not present.
     @native
     pub func __getitem__(key K) V {}
 
@@ -60,25 +60,25 @@ pub class dict[K, V] : MutableMap[K, V] {
     @native
     pub func clear() {}
 
-    /// Remove the mapping for `key` and return its value. O(1).
+    /// Remove the mapping for `key` and return its value.
     ///
     /// Panic if `key` is not present.
     @native
     pub func remove(key K) V {}
 
-    /// Remove the mapping for `key` and return its value. O(1).
+    /// Remove the mapping for `key` and return its value.
     /// If the key is not found, return `default_value`.
     @native
     pub func remove_or(key K, default_value V) V {}
 
-    /// Return the value for `key` if present, else `nil`. O(1).
+    /// Return the value for `key` if present, else `nil`.
     ///
     /// Missing keys return `nil` instead of panicking; use `if let`
     /// to unwrap the result.
     @native
     pub func get(key K) V? {}
 
-    /// Return the value for `key` if present, else `default_value`. O(1).
+    /// Return the value for `key` if present, else `default_value`.
     @native
     pub func get_or(key K, default_value V) V {}
 

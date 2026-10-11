@@ -18,11 +18,11 @@ pub class HashSet[T] : Set[T] {
     @native
     pub func iter(step = 1) Iterator[T] {}
 
-    /// Return the number of elements. O(1).
+    /// Return the number of elements.
     @native
     pub func len() int {}
 
-    /// Return true if the set is empty, false otherwise. O(1).
+    /// Return true if the set is empty, false otherwise.
     @native
     pub func empty() bool {}
 
@@ -108,11 +108,11 @@ pub class TreeSet[T : Comparable] : Set[T] {
     @native
     pub func iter(step = 1) Iterator[T] {}
 
-    /// Return the number of elements. O(1).
+    /// Return the number of elements.
     @native
     pub func len() int {}
 
-    /// Return true if the set is empty, false otherwise. O(1).
+    /// Return true if the set is empty, false otherwise.
     @native
     pub func empty() bool {}
 

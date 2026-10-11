@@ -175,7 +175,6 @@ static OpCode no_regs_codes[] = {
     OP_GLOBAL_SET,
     OP_TAIL_CALL,
     OP_SEQ_SET,
-    OP_MAP_SET,
     OP_SEQ_SET_IMM,
     OP_PRINT,
     OP_SEQ_SET_SLICE,
@@ -819,53 +818,6 @@ KlrValue *klr_build_seq_len(KlrBuilder *bldr, KlrValue *obj, char *name)
     insn->ts = int64_type_spec();
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
-}
-
-KlrValue *klr_build_map_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
-                            char *name)
-{
-    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
-        obj->kind != KLR_VALUE_CONST) {
-        panic("'map_get' op requires a reg/param/const value for obj");
-    }
-
-    if (index->kind != KLR_VALUE_CONST && index->kind != KLR_VALUE_INSN &&
-        index->kind != KLR_VALUE_PARAM) {
-        panic("'map_get' op requires a reg/param/const value for index");
-    }
-
-    KlrInsn *insn = new_insn(OP_MAP_GET, 2, name);
-    init_oper(&insn->opers[0], insn, obj, 0);
-    init_oper(&insn->opers[1], insn, index, 0);
-
-    insn->ts = ts;
-    klr_append_insn(bldr, insn);
-    return (KlrValue *)insn;
-}
-
-void klr_build_map_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val)
-{
-    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
-        obj->kind != KLR_VALUE_CONST) {
-        panic("'map_set' op requires a reg/param/const value for obj");
-    }
-
-    if (index->kind != KLR_VALUE_CONST && index->kind != KLR_VALUE_INSN &&
-        index->kind != KLR_VALUE_PARAM) {
-        panic("'map_set' op requires a reg/param/const value for index");
-    }
-
-    if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
-        val->kind != KLR_VALUE_PARAM) {
-        panic("'map_set' op requires a reg/param/const value for val");
-    }
-
-    KlrInsn *insn = new_insn(OP_MAP_SET, 3, "");
-    init_oper(&insn->opers[0], insn, obj, 0);
-    init_oper(&insn->opers[1], insn, index, 0);
-    init_oper(&insn->opers[2], insn, val, 0);
-
-    klr_append_insn(bldr, insn);
 }
 
 KlrValue *klr_build_str(KlrBuilder *bldr, KlrValue *obj, char *name)

@@ -24,7 +24,6 @@ static int has_side_effect(KlrInsn *insn)
         case OP_SET_FIELD:
         case OP_SET_FIELD_EXT:
         case OP_SEQ_SET:
-        case OP_MAP_SET:
         case OP_SEQ_SET_IMM:
         case OP_PRINT:
         case OP_SEQ_SET_SLICE:

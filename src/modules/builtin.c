@@ -5,6 +5,7 @@
 
 #include "bytebuf.h"
 #include "bytesobj.h"
+#include "dictobj.h"
 #include "excobj.h"
 #include "listobj.h"
 #include "rangeobj.h"
@@ -134,7 +135,7 @@ static TypeObject *builtin_types[] = {
     &global_type,  &cfunc_type,   &code_type,   &int8_type,   &int16_type,  &int32_type,
     &int64_type,   &uint8_type,   &uint16_type, &uint32_type, &uint64_type, &float16_type,
     &float32_type, &float64_type, &tuple_type,  &range_type,  &slice_type,  &list_type,
-    &bytes_type,   &bytebuf_type, &fmt_type,
+    &bytes_type,   &bytebuf_type, &fmt_type,    &dict_type,
 };
 
 void builtin_native_lib_init(NativeLib *lib)

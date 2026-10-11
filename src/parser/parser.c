@@ -1423,8 +1423,7 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
         }
 
         if (!vector_empty(ann->types)) {
-            kl_error(ann->id_loc,
-                     "func '%s' with 'should_panic' annotation cannot have any type.",
+            kl_error(ann->id_loc, "func '%s' with 'should_panic' annotation cannot have any type.",
                      fn->id.name);
         }
 

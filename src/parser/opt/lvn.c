@@ -193,7 +193,6 @@ static int lvn_invalidates_loads(KlrInsn *insn)
         case OP_SEQ_SET:
         case OP_SEQ_SET_IMM:
         case OP_SEQ_SET_SLICE:
-        case OP_MAP_SET:
         case OP_IR_CALL:
             return 1;
         default:

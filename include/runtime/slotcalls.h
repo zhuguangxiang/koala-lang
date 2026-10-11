@@ -14,7 +14,7 @@ static inline TValue kl_call_le(TValue *a, TValue *b) { return kl_call_cmp(a, b,
 static inline TValue kl_call_gt(TValue *a, TValue *b) { return kl_call_cmp(a, b, SLOT_GT); }
 static inline TValue kl_call_ge(TValue *a, TValue *b) { return kl_call_cmp(a, b, SLOT_GE); }
 
-static inline unsigned int kl_hash(TValue *val)
+static inline unsigned int kl_call_hash(TValue *val)
 {
     TValue ret = kl_call_slot(val, 1, SLOT_HASH);
     return (unsigned int)to_int64(&ret);

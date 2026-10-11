@@ -85,7 +85,7 @@ set(KOALA_SHARED_SOURCES
     objects/rangeobj.c
     objects/sliceobj.c
     objects/listobj.c
-    # objects/dictobj.c
+    objects/dictobj.c
     objects/bytesobj.c
     objects/bytebuf.c
     objects/excobj.c
