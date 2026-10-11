@@ -240,16 +240,18 @@ static void emit_ir_ident(ParserState *ps, Expr *exp)
     switch (sym->kind) {
         case SYM_VAR: {
             VarSymbol *var_sym = (VarSymbol *)sym;
-            if (exp->ctx == EXPR_CTX_LOAD) {
+            if (exp->ctx == EXPR_CTX_LOAD || exp->ctx == EXPR_CTX_LOAD_STORE) {
                 if (var_sym->scope == VAR_SCOPE_GLOBAL) {
                     exp->ir_val = klr_build_get_global(&bldr, sym->ir_val);
+                    if (exp->ctx == EXPR_CTX_LOAD_STORE) exp->arg = sym->ir_val;
                 } else if (var_sym->scope == VAR_SCOPE_FIELD) {
                     KlrValue *self = METHOD_SELF;
                     exp->ir_val = klr_build_get_field(&bldr, self, sym->ir_val, exp->ts, "");
+                    if (exp->ctx == EXPR_CTX_LOAD_STORE) exp->arg = self;
                 } else {
                     exp->ir_val = sym->ir_val;
                 }
-            } else if (exp->ctx == EXPR_CTX_STORE || exp->ctx == EXPR_CTX_LOAD_STORE) {
+            } else if (exp->ctx == EXPR_CTX_STORE) {
                 exp->ir_val = sym->ir_val;
             } else if (exp->ctx == EXPR_CTX_CALL) {
                 // __call__()
@@ -888,6 +890,20 @@ static KlrValue *build_get_field(TypeSpec *ts, char *name, KlrBuilder *bldr, Klr
     return NULL;
 }
 
+static KlrValue *get_field_ir_value(TypeSpec *ts, char *name)
+{
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (sym->kind == SYM_INSTANCE) {
+        sym = ((InstanceSymbol *)sym)->origin;
+    }
+    ASSERT(sym->kind == SYM_CLASS);
+
+    Symbol *field = stbl_get(((KlassSymbol *)sym)->stbl, name);
+    ASSERT(field && field->kind == SYM_VAR);
+    ASSERT(field->ir_val);
+    return field->ir_val;
+}
+
 static KlrValue *get_ext_global_value(char *name, Symbol *sym, ParserState *ps)
 {
     ASSERT(sym->kind == SYM_PACKAGE);
@@ -1093,6 +1109,11 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
             SET_IR_LOC(val, exp);
             exp->ir_val = val;
         }
+    } else if (exp->ctx == EXPR_CTX_LOAD_STORE) {
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        exp->arg = lhs->ir_val;
+        exp->ir_val = build_get_field(lhs->ts, dot->id.name, &bldr, lhs->ir_val, exp->ts, ps);
     } else {
         // store field
         ASSERT(exp->ctx == EXPR_CTX_STORE);
@@ -2646,7 +2667,6 @@ static void emit_ir_simple_assignment(ParserState *ps, Expr *lhs, Expr *rhs)
         if (lhs->kind == EXPR_DOT_KIND) {
             Expr *obj = ((DotExpr *)lhs)->lhs;
             Symbol *sym = obj->sym;
-            ASSERT(sym->kind == SYM_VAR || sym->kind == SYM_SHADOW_VAR);
             klr_build_set_field(&bldr, obj->ir_val, val, rhs->ir_val);
         } else if (lhs->kind == EXPR_ID_KIND) {
             KlrValue *self = METHOD_SELF;
@@ -2686,14 +2706,38 @@ static void emit_ir_inplace_assignment(ParserState *ps, AssignStmt *s)
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
         KlrValue *args[] = { lhs->ir_val, rhs->ir_val };
-        val = klr_build_call(&bldr, s->fn_sym->ir_val, s->fn_sym->ret, args, 2, "");
+        KlrValue *callable = get_callable(ps, (Symbol *)s->fn_sym);
+        val = klr_build_call(&bldr, callable, s->fn_sym->ret, args, 2, "");
         SET_IR_LOC(val, s);
     }
 
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
     KlrValue *var = lhs->ir_val;
-    if (var->kind == KLR_VALUE_GLOBAL) {
+    if (lhs->kind == EXPR_DOT_KIND) {
+        DotExpr *dot = (DotExpr *)lhs;
+        KlrValue *obj = lhs->arg;
+        KlrValue *field = get_field_ir_value(dot->lhs->ts, dot->id.name);
+        if (field->kind == KLR_VALUE_EXT_FIELD) {
+            klr_build_set_field_ext(&bldr, obj, field, val);
+        } else {
+            klr_build_set_field(&bldr, obj, field, val);
+        }
+    } else if (lhs->sym && lhs->sym->kind == SYM_VAR) {
+        VarSymbol *var_sym = (VarSymbol *)lhs->sym;
+        if (var_sym->scope == VAR_SCOPE_FIELD) {
+            KlrValue *obj = lhs->arg;
+            if (var_sym->ir_val->kind == KLR_VALUE_EXT_FIELD) {
+                klr_build_set_field_ext(&bldr, obj, var_sym->ir_val, val);
+            } else {
+                klr_build_set_field(&bldr, obj, var_sym->ir_val, val);
+            }
+        } else if (var_sym->scope == VAR_SCOPE_GLOBAL) {
+            klr_build_set_global(&bldr, lhs->arg, val);
+        } else {
+            klr_build_move(&bldr, var, val);
+        }
+    } else if (var->kind == KLR_VALUE_GLOBAL || var->kind == KLR_VALUE_EXT_GLOBAL) {
         klr_build_set_global(&bldr, var, val);
     } else {
         klr_build_move(&bldr, var, val);
@@ -2707,18 +2751,21 @@ static void emit_ir_assignment(ParserState *ps, Stmt *stmt)
     Expr *lhs = s->lhs;
     Expr *rhs = s->rhs;
 
-    rhs->ctx = EXPR_CTX_LOAD;
-    emit_ir_visit_expr(ps, rhs);
-
     if (op == OP_ASSIGN) {
+        rhs->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, rhs);
         lhs->ctx = EXPR_CTX_STORE;
         emit_ir_visit_expr(ps, lhs);
         if (!lhs->ir_val || !rhs->ir_val) return;
         emit_ir_simple_assignment(ps, lhs, rhs);
     } else {
+        if (!s->bin_exp) {
+            rhs->ctx = EXPR_CTX_LOAD;
+            emit_ir_visit_expr(ps, rhs);
+        }
         lhs->ctx = EXPR_CTX_LOAD_STORE;
         emit_ir_visit_expr(ps, lhs);
-        if (!lhs->ir_val || !rhs->ir_val) return;
+        if (!lhs->ir_val || (!s->bin_exp && !rhs->ir_val)) return;
         emit_ir_inplace_assignment(ps, s);
     }
 }

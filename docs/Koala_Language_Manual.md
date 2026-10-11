@@ -792,6 +792,10 @@ and an explicit call is a compile error:
 p.__add__(q)        // compile error: use the '+' operator instead
 ```
 
+Compound assignment uses the matching in-place dunder when the type defines one. If it does not,
+it falls back to the corresponding binary operator and assigns its result back to the left-hand
+side. If neither operator is defined, compilation fails.
+
 Protocol hooks such as `__len__`, `__str__`, `__hash__` and the iterator dunders are not operator
 hooks and may be called normally.
 

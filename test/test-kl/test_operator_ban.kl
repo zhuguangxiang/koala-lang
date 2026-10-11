@@ -5,8 +5,6 @@
 func concrete(a int, b int) {
     a.__add__(b)
     // CHECK: '__add__' cannot be called explicitly, use the '+' operator instead.
-    a.__imul__(b)
-    // CHECK: '__imul__' cannot be called explicitly, use the '*=' operator instead.
     a.__shl__(b)
     // CHECK: '__shl__' cannot be called explicitly, use the '<<' operator instead.
     a.__ge__(b)

@@ -592,7 +592,7 @@ TARGET(OP_INT_EQ_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
 
     regs[rd].ival = (regs[rs].ival == imm);
     regs[rd].tag = TAG_BOOL;
@@ -636,7 +636,7 @@ TARGET(OP_INT_NE_IMM) {
 
     CHECK_REG_ID(rd);
     CHECK_REG_ID(rs);
-    ASSERT(is_int(regs + rs) || is_uint(regs + rs));
+    ASSERT(is_int(regs + rs) || is_uint(regs + rs) || is_bool(regs + rs));
 
     regs[rd].ival = regs[rs].ival != imm;
     regs[rd].tag = TAG_BOOL;

@@ -11,4 +11,4 @@ func foo(n int, s str) int {
 }
 
 // CHECK: cannot assign to immutable variable 'i'
-// CHECK: inplace operator '__isub__' is not defined for class 'str'.
+// CHECK: neither '__isub__' nor '__sub__' is defined for class 'str'.

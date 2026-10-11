@@ -1,0 +1,28 @@
+// RUN: koala %s --dump=no-opt-ir,lir 2>&1 | filecheck %s
+
+func main() {
+    var s = "hello"
+    s += " world"
+
+    var i = 100
+    i += 50
+    print(s, i)
+
+    var it = s.iter()
+    var res = ""
+    while it.has_next() {
+        res += it.next_strict()
+    }
+    print(res)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK: %0 = add %s str, ' world' str
+// CHECK: %1 = add %i int64, 50 int64
+
+// CHECK-LABEL: --- IR Dump After isel [@main] ---
+// CHECK: %2 = num.add %0 str, %1 str
+// CHECK: load_int_imm %4 int64, 150 int64
+
+// CHECK: hello world 150
+// CHECK: hello

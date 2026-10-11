@@ -1,0 +1,75 @@
+// RUN: koala %s | filecheck %s
+
+class Counter {
+    let value int
+
+    func __init__(_value int) {
+        value = _value
+    }
+
+    func __add__(rhs Counter) Counter {
+        return Counter(value + rhs.value + 100)
+    }
+
+    func __iadd__(rhs Counter) Counter {
+        return Counter(value + rhs.value + 10)
+    }
+}
+
+class Point {
+    let value int
+
+    func __init__(_value int) {
+        value = _value
+    }
+
+    func __add__(rhs Point) Point {
+        return Point(value + rhs.value)
+    }
+}
+
+class Holder {
+    var value Counter
+
+    func __init__(_value Counter) {
+        value = _value
+    }
+
+    func add(rhs Counter) {
+        value += rhs
+    }
+}
+
+func main() {
+    var a = Counter(1)
+    let b = Counter(2)
+
+    let c = a + b
+    print(c.value)
+
+    a += b
+    print(a.value)
+
+    var p = Point(3)
+    p += Point(4)
+    print(p.value)
+
+    let holder = Holder(Counter(5))
+    holder.value += Counter(6)
+    print(holder.value.value)
+    holder.add(Counter(7))
+    print(holder.value.value)
+
+    var values = [1, 2, 3]
+    values += [4, 5]
+    print(values.len())
+    print(values[3])
+}
+
+// CHECK: 103
+// CHECK: 13
+// CHECK: 7
+// CHECK: 21
+// CHECK: 38
+// CHECK: 5
+// CHECK: 4

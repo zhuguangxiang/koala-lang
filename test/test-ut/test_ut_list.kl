@@ -7,7 +7,7 @@ import "std/ut"
 // list goes through __eq__ — the SLOT_EQ branch on the C side.
 class Penguin {
     let name str
-    let age int
+    var age int
 
     func __init__(_name str, _age int) {
         name = _name
@@ -896,16 +896,16 @@ func test_list_index_count_window_view() {
 // ---------------------------------------------------------------------------
 @test
 func test_list_contains_value_types() {
-    // let fs = list[float](1.0, 2.0, 3.0)
-    // ut.assert_true(2.0 in fs)
-    // ut.assert_false(2.5 in fs)
-    // ut.assert_eq(fs.count(2.0), 1)
+    let fs = list[float](1.0, 2.0, 3.0)
+    ut.assert_true(2.0 in fs)
+    ut.assert_false(2.5 in fs)
+    ut.assert_eq(fs.count(2.0), 1)
 
-    // let bs = list[bool](true, false, true)
-    // ut.assert_true(false in bs)
-    // ut.assert_true(true in bs)
-    // ut.assert_eq(bs.count(true), 2)
-    // ut.assert_eq(bs.count(false), 1)
+    let bs = list[bool](true, false, true)
+    ut.assert_true(false in bs)
+    ut.assert_true(true in bs)
+    ut.assert_eq(bs.count(true), 2)
+    ut.assert_eq(bs.count(false), 1)
 }
 
 // ---------------------------------------------------------------------------
@@ -959,24 +959,24 @@ func test_list_add_edges() {
 // ---------------------------------------------------------------------------
 // __iadd__ (delegates to extend) with list / range / tuple
 // ---------------------------------------------------------------------------
-// @test
-// func test_list_iadd_sources() {
-//     let a = [1, 2, 3]
-//     a += [4, 5]                      // __iadd__ wraps extend
-//     ut.assert_eq(a.len(), 5)
-//     ut.assert_eq(a[3], 4)
-//     ut.assert_eq(a[4], 5)
+@test
+func test_list_iadd_sources() {
+    var a = [1, 2, 3]
+    a += [4, 5]                      // __iadd__ wraps extend
+    ut.assert_eq(a.len(), 5)
+    ut.assert_eq(a[3], 4)
+    ut.assert_eq(a[4], 5)
 
-//     let b = [0]
-//     b += range(1, 4)                 // 1,2,3
-//     ut.assert_eq(b.len(), 4)
-//     ut.assert_eq(b[3], 3)
+    var b = [0]
+    b += range(1, 4)                 // 1,2,3
+    ut.assert_eq(b.len(), 4)
+    ut.assert_eq(b[3], 3)
 
-//     let c = [10]
-//     c += (20, 30)                    // tuple source
-//     ut.assert_eq(c.len(), 3)
-//     ut.assert_eq(c[2], 30)
-// }
+    var c = [10]
+    c += (20, 30)                    // tuple source
+    ut.assert_eq(c.len(), 3)
+    ut.assert_eq(c[2], 30)
+}
 
 // ---------------------------------------------------------------------------
 // __getslice__ positive-step variants + boundary clamping
@@ -1186,7 +1186,7 @@ func test_list_iter_fresh_each_call() {
     ut.assert_eq(a.next_strict(), 1)
     ut.assert_eq(b.next_strict(), 1)  // b starts from scratch, unaffected by a
     ut.assert_eq(a.next_strict(), 2)
-    // ut.assert_false(b.has_next() == false && a.has_next() == false)
+    ut.assert_false(b.has_next() == false && a.has_next() == false)
     ut.assert_eq(b.next_strict(), 2)
 }
 
@@ -1281,8 +1281,8 @@ func test_list_copy_object_identity() {
     // same referenced instances (shallow), value-equal and identity-equal
     ut.assert_true(c[0] == p)
     ut.assert_true(orig[0] == c[0])
-    // c[0].age = 99                          // mutate through the copy
-    // ut.assert_eq(p.age, 99)                // shared instance -> orig sees it
+    c[0].age = 99                          // mutate through the copy
+    ut.assert_eq(p.age, 99)                // shared instance -> orig sees it
     ut.assert_eq(orig.len(), 2)            // containers still independent
 }
 
@@ -1478,23 +1478,23 @@ func test_list_setitem_window_view() {
 // ---------------------------------------------------------------------------
 // __iadd__ chains and leaves the list usable by other methods
 // ---------------------------------------------------------------------------
-// @test
-// func test_list_iadd_chain() {
-//     let a = [1]
-//     a += [2]
-//     a += [3, 4]
-//     a += range(5, 7)                 // 5,6
-//     ut.assert_eq(a.len(), 6)
-//     ut.assert_eq(a[0], 1)
-//     ut.assert_eq(a[3], 4)
-//     ut.assert_eq(a[5], 6)
+@test
+func test_list_iadd_chain() {
+    var a = [1]
+    a += [2]
+    a += [3, 4]
+    a += range(5, 7)                 // 5,6
+    ut.assert_eq(a.len(), 6)
+    ut.assert_eq(a[0], 1)
+    ut.assert_eq(a[3], 4)
+    ut.assert_eq(a[5], 6)
 
-//     // still a normal list afterwards
-//     a.reverse()
-//     ut.assert_eq(a[0], 6)
-//     ut.assert_eq(a.index(1), 5)
-//     ut.assert_eq(a.count(1), 1)
-// }
+    // still a normal list afterwards
+    a.reverse()
+    ut.assert_eq(a[0], 6)
+    ut.assert_eq(a.index(1), 5)
+    ut.assert_eq(a.count(1), 1)
+}
 
 // ---------------------------------------------------------------------------
 // pop every element down to empty
@@ -1578,10 +1578,13 @@ func test_list_remove_window_view() {
     let base = [1, 2, 3, 4, 5]
     let v = base[1:4]                // logical [2,3,4]
     v.remove(3)                      // remove the middle logical element
+
     ut.assert_eq(v.len(), 2)
     ut.assert_eq(v[0], 2)
     ut.assert_eq(v[1], 4)
-    // ut.assert_true(3 in base)        // parent still holds the other copy
+
+    ut.assert_false(3 in base)
+    ut.assert_true(4 in base)
 }
 
 // ===========================================================================
@@ -1760,4 +1763,163 @@ func test_list_setslice_str_elements() {
     l[2:4] = ("m", "n")
     ut.assert_eq(l[2], "m")
     ut.assert_eq(l[3], "n")
+}
+
+class Item {
+    let value int
+
+    func __init__(_value int) {
+        value = _value
+    }
+}
+
+class TestIntIterator : Iterator[int] {
+    var value int
+    let end int
+    let step int
+
+    func __init__(_start int, _end int, _step int) {
+        value = _start
+        end = _end
+        step = _step
+    }
+
+    func has_next() bool {
+        return value < end
+    }
+
+    func next_strict() int {
+        if !has_next() { panic("iterator exhausted") }
+        let item = value
+        value = value + step
+        return item
+    }
+
+    func next() int? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+}
+
+class TestIntIterable : Iterable[int] {
+    let end int
+
+    func __init__(_end int) {
+        end = _end
+    }
+
+    func iter(step = 1) Iterator[int] {
+        return TestIntIterator(0, end, step)
+    }
+}
+
+@test
+func test_list_mutation_and_search() {
+    let values = list[int](1, 2, 2, 3)
+    ut.assert_eq(values.len(), 4)
+    ut.assert_false(values.empty())
+    ut.assert(2 in values)
+    ut.assert_false(9 in values)
+    ut.assert_eq(values.index(2), 1)
+    ut.assert_eq(values.index(2, 2), 2)
+    ut.assert_eq(values.count(2), 2)
+    ut.assert_eq(values.count(2, 2, 3), 1)
+    ut.assert_eq(values.index(9), -1)
+
+    values.insert(1, 9)
+    ut.assert_eq(values[1], 9)
+    values.remove(2)
+    ut.assert_eq(values.count(2), 1)
+    ut.assert_eq(values.pop(1), 9)
+    ut.assert_eq(values.pop(-1), 3)
+    ut.assert_eq(values.len(), 2)
+
+    values.reverse()
+    ut.assert_eq(values[0], 2)
+    ut.assert_eq(values[1], 1)
+    values.clear()
+    ut.assert_true(values.empty())
+    ut.assert_eq(values.len(), 0)
+}
+
+@test
+func test_list_extend_slice_and_copy() {
+    let values = list[int](0, 1, 2, 3, 4)
+    let suffix = list[int](5, 6)
+    values.extend(suffix)
+    ut.assert_eq(values.len(), 7)
+    let custom_iterable = TestIntIterable(3)
+    let from_iterable = list[int]()
+    from_iterable.extend(custom_iterable)
+    ut.assert_eq(from_iterable.len(), 3)
+    ut.assert_eq(from_iterable[0], 0)
+    ut.assert_eq(from_iterable[1], 1)
+    ut.assert_eq(from_iterable[2], 2)
+    values[1:3] = [10, 11, 12]
+    ut.assert_eq(values.len(), 7)
+    ut.assert_eq(values[0], 0)
+    ut.assert_eq(values[1], 10)
+    ut.assert_eq(values[2], 11)
+    ut.assert_eq(values[3], 3)
+    ut.assert_eq(values[4], 4)
+    ut.assert_eq(values[5], 5)
+    ut.assert_eq(values[6], 6)
+
+    values[::2] = [20, 21, 22, 23]
+    print(values)
+    ut.assert_eq(values[0], 20)
+    ut.assert_eq(values[2], 21)
+    ut.assert_eq(values[4], 22)
+    ut.assert_eq(values[6], 23)
+
+    let sliced = values[1:3]
+    ut.assert_eq(sliced.len(), 2)
+    ut.assert_eq(sliced[0], 10)
+    ut.assert_eq(sliced[1], 21)
+
+    let copied = values.copy(1, 4)
+    ut.assert_eq(copied.len(), 3)
+    ut.assert_eq(copied[0], 10)
+    copied[0] = 99
+    ut.assert_eq(values[1], 10)
+
+    let concatenated = values + suffix
+    ut.assert_eq(concatenated.len(), values.len() + suffix.len())
+    ut.assert_eq(concatenated[concatenated.len() - 1], 6)
+}
+
+@test
+func test_list_iadd() {
+    var values = list[int](1, 2, 3)
+    let suffix = list[int](4, 5)
+
+    values += suffix                 // extend in place, returns self
+    ut.assert_eq(values.len(), 5)
+    ut.assert_eq(values[0], 1)
+    ut.assert_eq(values[4], 5)
+
+    values += list[int]()            // empty append is a no-op
+    ut.assert_eq(values.len(), 5)
+}
+
+@test
+func test_list_iterators_and_generics() {
+    let strings = list[str]("a", "b", "c", "d")
+    let stepped = strings.iter(2)
+    ut.assert_eq(stepped.next_strict(), "a")
+    ut.assert_eq(stepped.next_strict(), "c")
+    ut.assert_false(stepped.has_next())
+
+    let reversed = strings.reversed()
+    ut.assert_eq(reversed.next_strict(), "d")
+    ut.assert_eq(reversed.next_strict(), "c")
+    ut.assert_eq(reversed.next_strict(), "b")
+    ut.assert_eq(reversed.next_strict(), "a")
+    ut.assert_false(reversed.has_next())
+
+    let items = list[Item](Item(1), Item(2))
+    items.append(Item(3))
+    ut.assert_eq(items.len(), 3)
+    ut.assert_eq(items[2].value, 3)
+    ut.assert_eq(items.pop().value, 3)
 }

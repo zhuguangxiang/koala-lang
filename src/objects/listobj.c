@@ -151,29 +151,62 @@ static TValue _list_pop(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = SELF_AS(list_type);
     ASSERT(nargs == 1);
-    int64_t index = to_int64(&args[0]);
+
+    int64_t n = (int64_t)(list->end - list->start); /* logical length */
+    if (n == 0) {
+        raise_exc_str("pop from empty list");
+        return error_value;
+    }
+
+    int64_t index = kl_arg_int64(0);
+    if (index < 0) index += n; /* normalize negative index */
+    if (index < 0 || index >= n) {
+        raise_exc_str("pop index out of range");
+        return error_value;
+    }
+
+    TValue *base = list->array + list->start; /* window base */
+
     if (index == 0) {
-        // pop head
-        if (list->end == list->start) {
-            raise_exc_str("pop from empty list");
-            return error_value;
-        }
+        /* pop head: O(1), advance start */
         return list->array[list->start++];
-    } else {
-        if (list->end == list->start) {
-            raise_exc_str("pop from empty list");
-            return error_value;
-        }
+    }
+
+    if (index == n - 1) {
+        /* pop tail: O(1), shrink end */
         return list->array[--list->end];
     }
+
+    /* pop middle: read value, shift tail left, shrink end */
+    TValue value = base[index];
+    memmove(base + index, base + index + 1, (size_t)(n - 1 - index) * sizeof(TValue));
+    list->end--;
+    return value;
 }
 
 static TValue _list_copy(TValue *self, TValue *args, int nargs)
 {
     ListObject *list = SELF_AS(list_type);
-    ASSERT(nargs == 0);
+    ASSERT(nargs == 2);
 
-    Object *copy = kl_list_from_array(list->array + list->start, list->end - list->start);
+    int64_t n = (int64_t)(list->end - list->start);
+    int64_t start = to_int64(&args[0]);
+    int64_t end = to_int64(&args[1]);
+
+    /* negative defaults: start < 0 → 0, end < 0 → n ("to end") */
+    if (start < 0) start = 0;
+    if (end < 0) end = n;
+
+    /* clamp to [0, n] */
+    if (start > n) start = n;
+    if (end > n) end = n;
+    if (start > end) start = end;
+
+    int64_t len = end - start;
+    if (len == 0) return obj_value(kl_new_list());
+
+    TValue *src = list->array + list->start + start;
+    Object *copy = kl_list_from_array(src, len);
     return obj_value(copy);
 }
 
@@ -250,14 +283,14 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
     }
 
     if (kl_is_seq(ob)) {
-        TValue len = kl_call_len(args + 1);
+        TValue len = kl_call_len(args);
         if (is_error(&len)) return error_value;
         size_t m = (size_t)to_int64(&len);
         if (m <= 0) return no_value;
         expand_capacity(list, list->end + m);
         for (size_t i = 0; i < m; ++i) {
             TValue idx = int64_value((int64_t)i);
-            TValue item = kl_call_get_item(args + 1, &idx);
+            TValue item = kl_call_get_item(args, &idx);
             if (is_error(&item)) return error_value;
             list->array[list->end++] = item;
         }
@@ -265,14 +298,26 @@ static TValue _list_extend(TValue *self, TValue *args, int nargs)
     }
 
     if (kl_is_iter(ob)) {
-        TValue it = kl_call_iter(args + 1, 1);
+        TValue it = kl_call_iter(args, 1);
         if (is_error(&it)) return error_value;
 
+        Vector items;
+        vector_init(&items, sizeof(TValue));
+
         TValue item;
-        while (!(item = kl_call_next(&it), is_error(&item) ? 0 : 1)) {
-            list->array[list->end++] = item;
+        while ((item = kl_call_next(&it), ((is_error(&item) || is_nil(&item)) ? 0 : 1))) {
+            vector_push_back(&items, &item);
         }
+
         if (is_error(&item)) return error_value;
+
+        int size = vector_size(&items);
+        expand_capacity(list, size);
+
+        TValue *items_array = VECTOR_ITEMS(&items, TValue);
+        memcpy(list->array + list->start, items_array, sizeof(TValue) * size);
+
+        list->end += size;
         return no_value;
     }
 
@@ -481,6 +526,7 @@ static TValue _list_set_slice(TValue *self, TValue *args, int nargs)
         for (int64_t j = 0; j < slots; ++j, i += step) {
             TValue item = kl_call_next(&it);
             if (is_error(&item)) return error_value;
+            if (is_nil(&item)) break;
             dst_base[i] = item;
         }
 

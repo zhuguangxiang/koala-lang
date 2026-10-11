@@ -696,7 +696,7 @@ static inline int kl_is_iter(Object *self)
 {
     TypeObject *tp = OB_TYPE(self);
     ASSERT(tp);
-    if (tp->slots[SLOT_NEXT] && tp->slots[SLOT_ITER]) return 1;
+    if (tp->slots[SLOT_ITER]) return 1;
     return 0;
 }
 

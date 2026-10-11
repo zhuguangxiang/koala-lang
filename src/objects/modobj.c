@@ -344,6 +344,12 @@ int kl_mo_add_list(Object *_m, Vector *list)
                 break;
             }
 
+            case KLC_CONST_BOOL: {
+                TValue val = bool_value(item->ival);
+                vector_push_back(&vec, &val);
+                break;
+            }
+
             case KLC_CONST_SHORT_ASCII:
             case KLC_CONST_SHORT_UTF8:
             case KLC_CONST_ASCII:

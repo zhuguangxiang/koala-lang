@@ -1,0 +1,23 @@
+// RUN: koalac %s 2>&1 | filecheck %s
+
+class Counter {
+    func __iadd__(rhs Counter) Counter {
+        return self
+    }
+}
+
+func add(counter Counter) {
+    counter += Counter()
+}
+
+// CHECK: cannot assign to immutable variable 'counter'
+
+class Point {
+}
+
+func foo() {
+    var p = Point()
+    p += p
+}
+
+// CHECK: neither '__iadd__' nor '__add__' is defined for class 'Point'.

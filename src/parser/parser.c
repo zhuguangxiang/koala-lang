@@ -3104,9 +3104,29 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
     }
 
     if (!op_sym) {
-        kl_error(assign->loc, "inplace operator '%s' is not defined for class '%s'.", op_name,
-                 kls_sym->name);
-        return -1;
+        char *bi_op_name = get_inplace_binary_op_str(op);
+        if (kls_sym->kind == SYM_INSTANCE) {
+            InstanceSymbol *inst_sym = (InstanceSymbol *)kls_sym;
+            op_sym = get_instance_method(inst_sym, bi_op_name, ps);
+        } else {
+            op_sym = stbl_get(kls_sym->stbl, bi_op_name);
+        }
+
+        if (!op_sym) {
+            kl_error(assign->loc, "neither '%s' nor '%s' is defined for class '%s'.", op_name,
+                     bi_op_name, kls_sym->name);
+            return -1;
+        }
+
+        if (op_sym->kind != SYM_FUNC) {
+            kl_error(assign->loc, "binary operator '%s' in class '%s' is not a function.",
+                     bi_op_name, kls_sym->name);
+            return -1;
+        }
+
+        assign->bin_exp = expr_from_binary(get_inplace_binary_op(op), assign->op_loc, lhs, rhs);
+        expr_set_loc(assign->bin_exp, assign->loc);
+        return 0;
     }
 
     if (op_sym->kind != SYM_FUNC) {
@@ -3136,31 +3156,13 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
         return -1;
     }
 
+    assign->fn_sym = fn_sym;
+
     log_info("inplace assignment type check passed.");
     log_info("  lhs type:");
     log_type_spec(param_ts);
     log_info("  rhs type:");
     log_type_spec(rhs->ts);
-
-    char *bi_op_name = get_inplace_binary_op_str(op);
-    Symbol *bi_op_sym = stbl_get(kls_sym->stbl, bi_op_name);
-
-    if (bi_op_sym) {
-        log_info(
-            "binary operator '%s' is also defined for class '%s', inplace assignment can be "
-            "desugared to binary operation.",
-            bi_op_name, kls_sym->name);
-        assign->bin_exp = expr_from_binary(get_inplace_binary_op(op), assign->op_loc, lhs, rhs);
-        expr_set_loc(assign->bin_exp, assign->loc);
-    } else {
-        log_info(
-            "binary operator '%s' is not defined for class '%s', inplace assignment cannot be "
-            "desugared to binary operation.",
-            bi_op_name, kls_sym->name);
-        assign->bin_exp = NULL;
-    }
-
-    assign->fn_sym = fn_sym;
 
     return 0;
 }

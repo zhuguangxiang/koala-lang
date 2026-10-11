@@ -20,7 +20,7 @@ static inline int fits_in_uimm16(uint64_t x) { return x <= UINT16_MAX; }
 
 static void check_in_imm8(KlrConst *kc)
 {
-    if (kc->which == CONST_INT) {
+    if (kc->which == CONST_INT || kc->which == CONST_BOOL) {
         if (!fits_in_imm8(kc->ival)) {
             panic("Constant %ld does not fit in 8-bit immediate", kc->ival);
         }

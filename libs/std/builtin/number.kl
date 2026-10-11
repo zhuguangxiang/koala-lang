@@ -180,46 +180,6 @@ pub class int64 : Comparable & Arithmetic & Bitwise & ToString {
     @intrinsic
     pub func __ne__(rhs int64) bool {}
 
-    /// Adds `rhs` to `self` in place (`self += rhs`).
-    @intrinsic
-    pub func __iadd__(rhs int64) int64 {}
-
-    /// Subtracts `rhs` from `self` in place (`self -= rhs`).
-    @intrinsic
-    pub func __isub__(rhs int64) int64 {}
-
-    /// Multiplies `self` by `rhs` in place (`self *= rhs`).
-    @intrinsic
-    pub func __imul__(rhs int64) int64 {}
-
-    /// Divides `self` by `rhs` in place (`self /= rhs`).
-    @intrinsic
-    pub func __idiv__(rhs int64) int64 {}
-
-    /// Assigns the remainder of `self` divided by `rhs` in place (`self %= rhs`).
-    @intrinsic
-    pub func __imod__(rhs int64) int64 {}
-
-    /// Left shifts `self` by `rhs` in place (`self <<= rhs`).
-    @intrinsic
-    pub func __ishl__(rhs int64) int64 {}
-
-    /// Right shifts `self` by `rhs` in place (`self >>= rhs`).
-    @intrinsic
-    pub func __ishr__(rhs int64) int64 {}
-
-    /// Bitwise ANDs `self` with `rhs` in place (`self &= rhs`).
-    @intrinsic
-    pub func __ibitand__(rhs int64) int64 {}
-
-    /// Bitwise ORs `self` with `rhs` in place (`self |= rhs`).
-    @intrinsic
-    pub func __ibitor__(rhs int64) int64 {}
-
-    /// Bitwise XORs `self` with `rhs` in place (`self ^= rhs`).
-    @intrinsic
-    pub func __ibitxor__(rhs int64) int64 {}
-
     /// Raises `self` to the power `x`.
     @native
     pub func pow(x int64) int64 {}
@@ -375,46 +335,6 @@ pub class uint64 : Comparable & Arithmetic & Bitwise & ToString {
     @intrinsic
     pub func __ne__(rhs uint64) bool {}
 
-    /// Adds `rhs` to `self` in place (`self += rhs`).
-    @intrinsic
-    pub func __iadd__(rhs uint64) uint64 {}
-
-    /// Subtracts `rhs` from `self` in place (`self -= rhs`).
-    @intrinsic
-    pub func __isub__(rhs uint64) uint64 {}
-
-    /// Multiplies `self` by `rhs` in place (`self *= rhs`).
-    @intrinsic
-    pub func __imul__(rhs uint64) uint64 {}
-
-    /// Divides `self` by `rhs` in place (`self /= rhs`).
-    @intrinsic
-    pub func __idiv__(rhs uint64) uint64 {}
-
-    /// Assigns the remainder of `self` divided by `rhs` in place (`self %= rhs`).
-    @intrinsic
-    pub func __imod__(rhs uint64) uint64 {}
-
-    /// Left shifts `self` by `rhs` in place (`self <<= rhs`).
-    @intrinsic
-    pub func __ishl__(rhs uint64) uint64 {}
-
-    /// Right shifts `self` by `rhs` in place (`self >>= rhs`).
-    @intrinsic
-    pub func __ishr__(rhs uint64) uint64 {}
-
-    /// Bitwise ANDs `self` with `rhs` in place (`self &= rhs`).
-    @intrinsic
-    pub func __ibitand__(rhs uint64) uint64 {}
-
-    /// Bitwise ORs `self` with `rhs` in place (`self |= rhs`).
-    @intrinsic
-    pub func __ibitor__(rhs uint64) uint64 {}
-
-    /// Bitwise XORs `self` with `rhs` in place (`self ^= rhs`).
-    @intrinsic
-    pub func __ibitxor__(rhs uint64) uint64 {}
-
     /// Raises `self` to the power `x`.
     @native
     pub func pow(x uint64) uint64 {}
@@ -529,26 +449,6 @@ pub class float64 : Comparable & Arithmetic & ToString {
     /// Returns a hash value for `self`.
     @native
     pub func hash() int {}
-
-    /// Adds `rhs` to `self` in place (`self += rhs`).
-    @intrinsic
-    pub func __iadd__(rhs float64) float64 {}
-
-    /// Subtracts `rhs` from `self` in place (`self -= rhs`).
-    @intrinsic
-    pub func __isub__(rhs float64) float64 {}
-
-    /// Multiplies `self` by `rhs` in place (`self *= rhs`).
-    @intrinsic
-    pub func __imul__(rhs float64) float64 {}
-
-    /// Divides `self` by `rhs` in place (`self /= rhs`).
-    @intrinsic
-    pub func __idiv__(rhs float64) float64 {}
-
-    /// Assigns the remainder of `self` divided by `rhs` in place (`self %= rhs`).
-    @intrinsic
-    pub func __imod__(rhs float64) float64 {}
 
     /// Returns the absolute value of `self`.
     @native
