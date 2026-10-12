@@ -15,20 +15,6 @@
 extern "C" {
 #endif
 
-static void print_value(TValue *val, Buffer *buf)
-{
-    if (is_ref(val)) {
-        Object *obj = to_obj(val);
-        if (IS_STR(obj)) {
-            buf_write_nstr(buf, STR_BUF(obj), STR_LEN(obj));
-            return;
-        }
-    }
-
-    Object *sobj = kl_to_str(val);
-    buf_write_nstr(buf, STR_BUF(sobj), STR_LEN(sobj));
-}
-
 /*
 func print_intern(w io.Writer, _sep str, _end str, objs ...) {}
 */
@@ -86,10 +72,9 @@ func panic(msg str)
 */
 static TValue builtin_panic(TValue *self, TValue *args, int nargs)
 {
-    BUF(buf);
-    print_value(args, &buf);
-    raise_exc_str(BUF_STR(buf));
-    FINI_BUF(buf);
+    ASSERT(nargs == 1);
+    char *s = kl_arg_str(0);
+    raise_exc_str(s);
     return error_value;
 }
 

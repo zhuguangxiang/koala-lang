@@ -32,7 +32,10 @@ static TValue vm_tag_mappings[11] = {
 
 #define TAG_VALUE(tag) (vm_tag_mappings[(tag)])
 
-#include "do_cast.h"
+void do_int_cast(TValue *regs, int rd, int rs, int mode, int dst_ti);
+void do_float_cast(TValue *regs, int rd, int rs, int mode, int dst_ti);
+void do_int_to_float(TValue *regs, int rd, int rs, int mode, int dst_ti);
+void do_float_to_int(TValue *regs, int rd, int rs, int mode, int dst_ti);
 
 static Object *do_build_intern(TValue *values, InternTag tag, int count)
 {
@@ -61,15 +64,6 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
         }
     }
 }
-
-static TValue do_nil_check(TValue *val)
-{
-    if (!is_nil(val)) return nil_value;
-
-    raise_exc_str("forced unwrap (`!`) of a nil value");
-    return error_value;
-}
-
 static TValue kl_call_cfunc(Object *code, TValue *args, int nargs);
 
 TValue do_print(TValue *args, int nargs);
@@ -367,34 +361,6 @@ TValue kl_call_intf(TValue *args, int nargs, int intf_idx)
     } else {
         ASSERT(IS_CODE(fn));
         return kl_call_code(fn, args, nargs);
-    }
-}
-
-void kl_run_main(Object *_m)
-{
-    ModuleObject *m = (ModuleObject *)_m;
-
-    if (!m->main) return;
-
-    TValue val = kl_call_code(m->main, NULL, 0);
-    if (is_error(&val)) {
-        Object *exc = pop_exc();
-        ASSERT(exc);
-        print_exc_and_free(exc);
-    }
-}
-
-void kl_run_init(Object *_m)
-{
-    ModuleObject *m = (ModuleObject *)_m;
-
-    if (!m->__init__) return;
-
-    TValue val = kl_call_code(m->__init__, NULL, 0);
-    if (is_error(&val)) {
-        Object *exc = pop_exc();
-        ASSERT(exc);
-        print_exc_and_free(exc);
     }
 }
 

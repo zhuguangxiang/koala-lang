@@ -1062,8 +1062,11 @@ TARGET(OP_NIL_CHECK) {
     CHECK_REG_ID(rs);
 
     SAVE_PC();
-    TValue ret = do_nil_check(regs + rs);
-    if (is_error(&ret)) goto error;
+
+    if (is_nil(regs + rs)) {
+        raise_exc_str("forced unwrap (`!`) of a nil value");
+        goto error;
+    }
 
     if (rd != rs) {
         regs[rd] = regs[rs];

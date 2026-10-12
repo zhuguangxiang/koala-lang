@@ -1,3 +1,14 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+#include <math.h>
+#include "object.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static char *int_type_names[] = {
     "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64",
@@ -103,7 +114,7 @@ static void do_int_wrap(int tag, int64_t *val)
     }
 }
 
-static void do_int_cast(TValue *regs, int rd, int rs, int mode, int dst_ti)
+void do_int_cast(TValue *regs, int rd, int rs, int mode, int dst_ti)
 {
     ASSERT(dst_ti >= TAG_INT8 && dst_ti <= TAG_UINT64);
 
@@ -204,7 +215,7 @@ static void do_float_wrap(int tag, double *val)
     }
 }
 
-static void do_float_cast(TValue *regs, int rd, int rs, int mode, int dst_ti)
+void do_float_cast(TValue *regs, int rd, int rs, int mode, int dst_ti)
 {
     ASSERT(dst_ti >= TAG_FLOAT16 && dst_ti <= TAG_FLOAT64);
 
@@ -244,7 +255,7 @@ static int map_tag_to_int_names_idx(int tag)
 #define FLOAT64_UPPER_BOUND_FOR_UINT64 18446744073709551616.0
 #define FLOAT32_UPPER_BOUND_FOR_UINT64 18446744073709551616.0f
 
-static void do_int_to_float(TValue *regs, int rd, int rs, int mode, int dst_ti)
+void do_int_to_float(TValue *regs, int rd, int rs, int mode, int dst_ti)
 {
     ASSERT(dst_ti >= TAG_FLOAT16 && dst_ti <= TAG_FLOAT64);
 
@@ -307,7 +318,7 @@ static void do_int_to_float(TValue *regs, int rd, int rs, int mode, int dst_ti)
     regs[rd].tag = dst_ti;
 }
 
-static void do_float_to_int(TValue *regs, int rd, int rs, int mode, int dst_ti)
+void do_float_to_int(TValue *regs, int rd, int rs, int mode, int dst_ti)
 {
     ASSERT(dst_ti >= TAG_INT8 && dst_ti <= TAG_UINT64);
 
@@ -391,3 +402,7 @@ static void do_float_to_int(TValue *regs, int rd, int rs, int mode, int dst_ti)
         regs[rd].tag = dst_ti;
     }
 }
+
+#ifdef __cplusplus
+}
+#endif

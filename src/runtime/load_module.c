@@ -485,6 +485,20 @@ static int isdotklc(char *filename)
     return 0;
 }
 
+static void kl_run_init(Object *_m)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+
+    if (!m->__init__) return;
+
+    TValue val = kl_call_code(m->__init__, NULL, 0);
+    if (is_error(&val)) {
+        Object *exc = pop_exc();
+        ASSERT(exc);
+        print_exc_and_free(exc);
+    }
+}
+
 Object *kl_load_module(char *path)
 {
     Object *m = _find_module(path);

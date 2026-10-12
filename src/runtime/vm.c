@@ -5,6 +5,7 @@
 
 #include "vm.h"
 #include "atom.h"
+#include "excobj.h"
 #include "log.h"
 #include "mm.h"
 #include "modobj.h"
@@ -37,6 +38,20 @@ void kl_free_ks(KoalaState *ks)
     mm_free(ks);
 }
 
+static void kl_run_main(Object *_m)
+{
+    ModuleObject *m = (ModuleObject *)_m;
+
+    if (!m->main) return;
+
+    TValue val = kl_call_code(m->main, NULL, 0);
+    if (is_error(&val)) {
+        Object *exc = pop_exc();
+        ASSERT(exc);
+        print_exc_and_free(exc);
+    }
+}
+
 int koala_run_file(char *path)
 {
     Object *m = kl_load_module(path);
@@ -44,14 +59,6 @@ int koala_run_file(char *path)
         kl_run_main(m);
         return 0;
     }
-    fprintf(stderr, "koala: failed to load module '%s'\n", path);
-    return -1;
-}
-
-int koala_test_file(char *path)
-{
-    Object *m = kl_load_module(path);
-    if (m) return kl_run_tests(m);
     fprintf(stderr, "koala: failed to load module '%s'\n", path);
     return -1;
 }

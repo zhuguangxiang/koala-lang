@@ -1036,8 +1036,13 @@ static void isel_lower_seq_get(KlrInsn *insn)
 
     if (klr_is_const(index)) {
         KlrConst *kc = (KlrConst *)index;
-        ASSERT(kc->which == CONST_INT);
-        insn->code = OP_SEQ_GET_IMM;
+        if (kc->which == CONST_INT) {
+            insn->code = OP_SEQ_GET_IMM;
+        } else {
+            // Handle non-integer constant index
+            KlrValue *_index = lower_const(insn, (KlrConst *)index);
+            set_operand_at(insn, 1, _index);
+        }
     }
 }
 
@@ -1063,8 +1068,13 @@ static void isel_lower_seq_set(KlrInsn *insn)
 
     if (klr_is_const(index)) {
         KlrConst *kc = (KlrConst *)index;
-        ASSERT(kc->which == CONST_INT);
-        insn->code = OP_SEQ_SET_IMM;
+        if (kc->which == CONST_INT) {
+            insn->code = OP_SEQ_SET_IMM;
+        } else {
+            // Handle non-integer constant index
+            KlrValue *_index = lower_const(insn, (KlrConst *)index);
+            set_operand_at(insn, 1, _index);
+        }
     }
 }
 

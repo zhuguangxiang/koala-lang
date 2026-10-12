@@ -94,6 +94,7 @@ set(KOALA_SHARED_SOURCES
     runtime/symtbl.c
     runtime/native_libs.c
     runtime/args.c
+    runtime/do_cast.c
     modules/builtin.c
     modules/fs.c
     modules/os.c
@@ -113,6 +114,7 @@ set(KOALA_SOURCES
     )
 add_executable(koala_out ${KOALA_SOURCES})
 
+# target_link_options(koala_out PRIVATE -rdynamic)
 target_link_libraries(koala_out koala)
 set_target_properties(koala_out PROPERTIES
     OUTPUT_NAME koala)

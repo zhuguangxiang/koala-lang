@@ -45,7 +45,7 @@ static void print_test_progress(int err, int index, int total)
     fflush(stdout);
 }
 
-int kl_run_tests(Object *_m)
+static int kl_run_tests(Object *_m)
 {
     ModuleObject *m = (ModuleObject *)_m;
 
@@ -148,6 +148,14 @@ int kl_run_tests(Object *_m)
     if (failed == 0) printf("\nAll tests passed.\n");
 
     return failed;
+}
+
+int koala_test_file(char *path)
+{
+    Object *m = kl_load_module(path);
+    if (m) return kl_run_tests(m);
+    fprintf(stderr, "koala: failed to load module '%s'\n", path);
+    return -1;
 }
 
 #ifdef __cplusplus
