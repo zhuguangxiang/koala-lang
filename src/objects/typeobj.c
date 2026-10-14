@@ -152,7 +152,7 @@ static TValue _type_fmt(TValue *self, TValue *args, int nargs)
         buf_write_str(&fmt->buf, "'>");
     }
 
-    return nil_value;
+    return no_value;
 }
 
 static TValue _type_to_str(TValue *self, TValue *args, int nargs)

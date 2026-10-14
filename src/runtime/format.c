@@ -265,13 +265,13 @@ static TValue _fmt_write_fmt(TValue *self, TValue *args, int nargs)
     if (nargs == 1) {
         char *s = kl_arg_str(0);
         buf_write_str(&fmt->buf, s);
-        return nil_value;
+        return no_value;
     }
 
     Object *sobj = kl_arg_strobj(0);
     Object *args_obj = kl_arg_obj(1);
     __kl_format__(fmt, STR_BUF(sobj), STR_LEN(sobj), args_obj);
-    return nil_value;
+    return no_value;
 }
 
 static TValue _fmt_write_str(TValue *self, TValue *args, int nargs)
@@ -280,7 +280,7 @@ static TValue _fmt_write_str(TValue *self, TValue *args, int nargs)
     Formatter *fmt = SELF_AS(fmt_type);
     char *s = kl_arg_str(0);
     buf_write_str(&fmt->buf, s);
-    return nil_value;
+    return no_value;
 }
 
 static TValue _fmt___int__(TValue *self, TValue *args, int nargs)
@@ -289,7 +289,7 @@ static TValue _fmt___int__(TValue *self, TValue *args, int nargs)
     Formatter *fmt = SELF_AS(fmt_type);
     int64_t size = kl_arg_int64(0);
     buf_reserve(&fmt->buf, size);
-    return nil_value;
+    return no_value;
 }
 
 static TValue _fmt_write_byte(TValue *self, TValue *args, int nargs)
@@ -298,7 +298,7 @@ static TValue _fmt_write_byte(TValue *self, TValue *args, int nargs)
     Formatter *fmt = SELF_AS(fmt_type);
     uint8_t value = kl_arg_uint8(0);
     buf_write_byte(&fmt->buf, value);
-    return nil_value;
+    return no_value;
 }
 
 static TValue _fmt_result(TValue *self, TValue *args, int nargs)
@@ -314,7 +314,7 @@ static TValue _fmt_clear(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 0);
     Formatter *fmt = SELF_AS(fmt_type);
     RESET_BUF(fmt->buf);
-    return nil_value;
+    return no_value;
 }
 
 TypeObject fmt_type = {

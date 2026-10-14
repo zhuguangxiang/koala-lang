@@ -14,7 +14,7 @@ static TValue _nil_fmt(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 1);
     Formatter *fmt = kl_arg_fmt(0);
     kl_fmt_write_str(fmt, "nil", 3);
-    return nil_value;
+    return no_value;
 }
 
 static MethodDef _nil_methods[] = {

@@ -21,7 +21,7 @@ static TValue _str_fmt(TValue *self, TValue *args, int nargs)
     Object *ob = SELF_AS(str_type);
     Formatter *fobj = kl_arg_obj_as(0, fmt_type);
     buf_write_nstr(&fobj->buf, STR_BUF(ob), STR_LEN(ob));
-    return nil_value;
+    return no_value;
 }
 
 //

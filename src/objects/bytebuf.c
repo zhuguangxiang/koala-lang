@@ -11,13 +11,27 @@
 extern "C" {
 #endif
 
+static TValue _bytebuf_init(TValue *self, TValue *args, int nargs)
+{
+    ByteBufObject *bb = SELF_AS(bytebuf_type);
+    ASSERT(nargs == 1);
+    int64_t size = kl_arg_int64(0);
+    if (size < 0) {
+        raise_exc_str("bytebuf size must be >= 0");
+        return error_value;
+    }
+    ASSERT(BUF_LEN(bb->buf) == 0);
+    buf_reserve(&bb->buf, (size_t)size);
+    return no_value;
+}
+
 static TValue _bytebuf_write_byte(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     ASSERT(nargs == 1);
     uint8_t value = kl_arg_uint8(0);
     buf_write_byte(&bb->buf, value);
-    return nil_value;
+    return no_value;
 }
 
 static TValue _bytebuf_write_str(TValue *self, TValue *args, int nargs)
@@ -28,7 +42,7 @@ static TValue _bytebuf_write_str(TValue *self, TValue *args, int nargs)
     const char *data = STR_BUF(sobj);
     size_t len = STR_LEN(sobj);
     buf_write_nstr(&bb->buf, data, len);
-    return nil_value;
+    return no_value;
 }
 
 static TValue _bytebuf_write_bytes(TValue *self, TValue *args, int nargs)
@@ -37,44 +51,7 @@ static TValue _bytebuf_write_bytes(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 1);
     BytesObject *bs = kl_arg_obj_as(0, bytes_type);
     buf_write_nstr(&bb->buf, (char *)bs->data + bs->offset, bs->size);
-    return nil_value;
-}
-
-static TValue _bytebuf_write_int(TValue *self, TValue *args, int nargs)
-{
-    ByteBufObject *bb = SELF_AS(bytebuf_type);
-    ASSERT(nargs == 1);
-    int64_t value = kl_arg_int(0);
-    buf_write_nstr(&bb->buf, (const char *)&value, sizeof(value));
-    return nil_value;
-}
-
-static TValue _bytebuf_write_uint(TValue *self, TValue *args, int nargs)
-{
-    ByteBufObject *bb = SELF_AS(bytebuf_type);
-    ASSERT(nargs == 1);
-    uint64_t value = kl_arg_uint(0);
-    buf_write_nstr(&bb->buf, (const char *)&value, sizeof(value));
-    return nil_value;
-}
-
-static TValue _bytebuf_write_float(TValue *self, TValue *args, int nargs)
-{
-    ByteBufObject *bb = SELF_AS(bytebuf_type);
-    ASSERT(nargs == 1);
-    double value = kl_arg_float64(0);
-    buf_write_nstr(&bb->buf, (const char *)&value, sizeof(value));
-    return nil_value;
-}
-
-static TValue _bytebuf_write_bool(TValue *self, TValue *args, int nargs)
-{
-    ByteBufObject *bb = SELF_AS(bytebuf_type);
-    ASSERT(nargs == 1);
-    int value = kl_arg_bool(0);
-    uint8_t byte = value ? 1 : 0;
-    buf_write_byte(&bb->buf, byte);
-    return nil_value;
+    return no_value;
 }
 
 static TValue _bytebuf_len(TValue *self, TValue *args, int nargs)
@@ -92,20 +69,6 @@ static TValue _bytebuf_to_str(TValue *self, TValue *args, int nargs)
     return obj_value(so);
 }
 
-static TValue _bytebuf_init(TValue *self, TValue *args, int nargs)
-{
-    ByteBufObject *bb = SELF_AS(bytebuf_type);
-    ASSERT(nargs == 1);
-    int64_t size = kl_arg_int64(0);
-    if (size < 0) {
-        raise_exc_str("bytebuf size must be >= 0");
-        return error_value;
-    }
-    ASSERT(BUF_LEN(bb->buf) == 0);
-    buf_reserve(&bb->buf, (size_t)size);
-    return nil_value;
-}
-
 static TValue _bytebuf_to_bytes(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
@@ -116,39 +79,12 @@ static TValue _bytebuf_to_bytes(TValue *self, TValue *args, int nargs)
     return obj_value(bs);
 }
 
-static TValue _bytebuf_getitem(TValue *self, TValue *args, int nargs)
-{
-    ByteBufObject *bb = SELF_AS(bytebuf_type);
-    ASSERT(nargs == 1);
-    int64_t index = to_int64(&args[0]);
-    if (index < 0 || index >= BUF_LEN(bb->buf)) {
-        raise_exc_str("Buffer index out of range");
-        return error_value;
-    }
-    uint8_t value = (uint8_t)BUF_STR(bb->buf)[index];
-    return uint8_value(value);
-}
-
-static TValue _bytebuf_setitem(TValue *self, TValue *args, int nargs)
-{
-    ByteBufObject *bb = SELF_AS(bytebuf_type);
-    ASSERT(nargs == 2);
-    int64_t index = to_int64(&args[0]);
-    if (index < 0 || index >= BUF_LEN(bb->buf)) {
-        raise_exc_str("Buffer index out of range");
-        return error_value;
-    }
-    uint8_t value = to_uint8(&args[1]);
-    BUF_STR(bb->buf)[index] = value;
-    return nil_value;
-}
-
 static TValue _bytebuf_clear(TValue *self, TValue *args, int nargs)
 {
     ByteBufObject *bb = SELF_AS(bytebuf_type);
     ASSERT(nargs == 0);
     RESET_BUF(bb->buf);
-    return nil_value;
+    return no_value;
 }
 
 static MethodDef _bytebuf_methods[] = {
@@ -157,8 +93,6 @@ static MethodDef _bytebuf_methods[] = {
     { "write_str", _bytebuf_write_str },
     { "write", _bytebuf_write_bytes },
     { "len", _bytebuf_len },
-    { "__setitem__", _bytebuf_setitem },
-    { "__getitem__", _bytebuf_getitem },
     { "to_str", _bytebuf_to_str },
     { "to_bytes", _bytebuf_to_bytes },
     { "clear", _bytebuf_clear },

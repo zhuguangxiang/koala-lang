@@ -40,23 +40,27 @@ pub class Process {
     @native
     pub func pid() int {}
 
-    /// Return true if the child process has already exited. Non-blocking.
+    /// Check whether the process has exited without blocking.
+    ///
+    /// Returns the exit status when the process has exited, or `nil` while it
+    /// is still running. A process terminated by a signal returns the negative
+    /// signal number.
     @native
-    pub func is_exited() bool {}
+    pub func poll() int? {}
 
-    /// Return the exit status code of the process if it has exited.
-    /// Returns `nil` if the process is still actively running.
-    @native
-    pub func exit_code() int? {}
-
-    /// Wait for the process to terminate and return its exit status status code.
+    /// Wait for the process to terminate and return its exit status code.
+    /// A process terminated by a signal returns the negative signal number.
     ///
     /// This will synchronously block the current execution thread/fiber until
     /// the child process exits.
     @native
     pub func wait() int {}
 
-    /// Forcefully and permanently terminate the child process immediately (SIGKILL).
+    /// Request termination of the child process (SIGTERM).
+    @native
+    pub func terminate() {}
+
+    /// Forcefully terminate the child process immediately (SIGKILL).
     @native
     pub func kill() {}
 }

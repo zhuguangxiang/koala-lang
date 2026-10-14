@@ -68,7 +68,7 @@ pub class str : Sequence & Comparable & ToString {
 
     /// Return the substring defined by the slice.
     @native
-    pub func __getslice__(r slice) str {}
+    pub func __getslice__(s slice) str {}
 
     /// Return true if the string contains the substring `sub`.
     @native

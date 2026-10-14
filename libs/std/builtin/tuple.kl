@@ -34,7 +34,7 @@ pub class tuple[infer T] : Sequence[T] {
 
     /// Return the sub-tuple defined by the slice.
     @native
-    pub func __getslice__(r slice) tuple[T] {}
+    pub func __getslice__(s slice) tuple[T] {}
 
     /// Return true if the tuple contains the specified value `v`.
     @native

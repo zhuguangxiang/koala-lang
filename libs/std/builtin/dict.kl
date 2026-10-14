@@ -135,3 +135,7 @@ pub class dict[K, V] : MutableMap[K, V] {
     @native
     pub func fmt(f Formatter) {}
 }
+
+pub class DictIter[K, V] : Iterator[(K, V)] {
+
+}

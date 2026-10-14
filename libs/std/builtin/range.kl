@@ -44,7 +44,7 @@ pub class range : Sequence[int] {
 
     /// Return a new range that is a sub-slice of the current range.
     @native
-    pub func __getslice__(r slice) range {}
+    pub func __getslice__(s slice) range {}
 
     /// Return true if the specified item is part of the range.
     @native

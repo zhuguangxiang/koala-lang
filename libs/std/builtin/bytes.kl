@@ -39,9 +39,9 @@ pub class bytes : Sequence[uint8] {
     @native
     pub func __getitem__(index int) uint8 {}
 
-    /// Return a copy of the byte array defined by `r`.
+    /// Return a copy of the byte array defined by `s`.
     @native
-    pub func __getslice__(r slice) bytes {}
+    pub func __getslice__(s slice) bytes {}
 
     /// Set the byte at `index` to `value`.
     ///
@@ -53,7 +53,7 @@ pub class bytes : Sequence[uint8] {
     ///
     /// The length of the byte array never changes.
     @native
-    pub func __setslice__(r slice, val bytes) {}
+    pub func __setslice__(s slice, val bytes) {}
 
     /// Return true if the byte array contains `value`.
     @native

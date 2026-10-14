@@ -19,7 +19,7 @@ static TValue _bool_fmt(TValue *self, TValue *args, int nargs)
     int v = to_raw_bool(self);
     Formatter *fobj = kl_arg_obj_as(0, fmt_type);
     buf_write_str(&fobj->buf, v ? "true" : "false");
-    return nil_value;
+    return no_value;
 }
 
 static TValue _bool_to_str(TValue *self, TValue *args, int nargs)

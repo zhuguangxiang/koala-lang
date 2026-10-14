@@ -36,7 +36,7 @@ static TValue _tuple_fmt(TValue *self, TValue *args, int nargs)
     }
     buf_write_char(&fmt->buf, ')');
 
-    return nil_value;
+    return no_value;
 }
 
 static TValue _tuple_len(TValue *self, TValue *args, int nargs)

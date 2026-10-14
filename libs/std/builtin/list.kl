@@ -39,7 +39,7 @@ pub class list[T] : MutableSequence[T] {
 
     /// Return a list that is a sub-slice of the current list.
     @native
-    pub func __getslice__(r slice) list[T] {}
+    pub func __getslice__(s slice) list[T] {}
 
     /// Return true if the list contains the specified value `v`.
     @native
@@ -61,9 +61,9 @@ pub class list[T] : MutableSequence[T] {
     pub func __setitem__(index int, value T) {}
 
     /// Replace a slice of the list with elements from the iterable `val`.
-    /// This may change the length of the list.
+    /// The length of the list never changes.
     @native
-    pub func __setslice__(r slice, val Iterable[T]) {}
+    pub func __setslice__(s slice, val Iterable[T]) {}
 
     /// Append a new item with `value` to the end of the list.
     @native
@@ -80,6 +80,12 @@ pub class list[T] : MutableSequence[T] {
     /// Remove the first occurrence of `value` from the list. Panic if `value` is not present.
     @native
     pub func remove(value T) {}
+
+    /// Remove elements in the index range `[start, end)`.
+    /// If `end` is `nil`, it removes elements from `start` to the end of the list.
+    /// Panic if `start` is out of bounds. An empty range (start >= end) is a no-op.
+    @native
+    pub func delete(start int, end int? = nil) {}
 
     /// Remove and return the item at the given `index`.
     /// If no index is specified, removes and returns the last item (`index = -1`).

@@ -23,7 +23,7 @@ static TValue _default_fmt(TValue *self, TValue *args, int nargs)
     kl_fmt_write_str(fmt, STR_BUF(s), STR_LEN(s));
     kl_free_str(s);
 
-    return nil_value;
+    return no_value;
 }
 
 static TValue _default_hash(TValue *self, TValue *args, int nargs)

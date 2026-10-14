@@ -61,7 +61,7 @@ static TValue _float_fmt(TValue *self, TValue *args, int nargs)
     Formatter *fmt = kl_arg_obj_as(0, fmt_type);
     buf_write_nstr(&fmt->buf, buf, len);
 
-    return nil_value;
+    return no_value;
 }
 
 static TValue _float_to_str(TValue *self, TValue *args, int nargs)

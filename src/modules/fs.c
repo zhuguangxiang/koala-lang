@@ -89,7 +89,7 @@ static TValue file_close(TValue *self, TValue *args, int nargs)
     close(fd);
     fobj->closed = bool_value(1);
     fobj->fd = int64_value(-1);
-    return nil_value;
+    return no_value;
 }
 
 /// Move the file offset to `offset` bytes.
@@ -179,11 +179,10 @@ static TValue file_truncate(TValue *self, TValue *args, int nargs)
     int64_t size = kl_arg_int64(0);
 
     if (ftruncate(fd, (off_t)size) == -1) {
-        raise_exc_fmt("truncate failed: %s", strerror(errno));
-        return error_value;
+        return bool_value(0);
     }
 
-    return nil_value;
+    return bool_value(1);
 }
 
 static TypeObject file_type = {

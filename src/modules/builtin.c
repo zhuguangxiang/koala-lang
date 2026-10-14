@@ -64,7 +64,7 @@ TValue do_print(TValue *args, int nargs)
     kl_free_str(s);
     kl_free_formatter(fmt);
 
-    return nil_value;
+    return no_value;
 }
 
 /*

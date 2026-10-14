@@ -37,7 +37,7 @@ static TValue _bytes_fmt(TValue *self, TValue *args, int nargs)
     }
     buf_write_str(&fmt->buf, "\"");
 
-    return nil_value;
+    return no_value;
 }
 
 static TValue _bytes_init(TValue *self, TValue *args, int nargs)
@@ -54,7 +54,7 @@ static TValue _bytes_init(TValue *self, TValue *args, int nargs)
     void *data = mm_alloc(size);
     bytes->data = (uint8_t *)data;
     bytes->size = size;
-    return nil_value;
+    return no_value;
 }
 
 static TValue _bytes_index(TValue *self, TValue *args, int nargs)
@@ -183,10 +183,10 @@ static TValue _bytes_fill(TValue *self, TValue *args, int nargs)
     if (end < 0) end = size;
     if (start < 0) start = 0;
     if (end > size) end = size;
-    if (start >= end) return nil_value;
+    if (start >= end) return no_value;
 
     memset(bytes->data + bytes->offset + start, value, end - start);
-    return nil_value;
+    return no_value;
 }
 
 static TValue _bytes_zero(TValue *self, TValue *args, int nargs)
@@ -201,10 +201,10 @@ static TValue _bytes_zero(TValue *self, TValue *args, int nargs)
     if (end < 0) end = size;
     if (start < 0) start = 0;
     if (end > size) end = size;
-    if (start >= end) return nil_value;
+    if (start >= end) return no_value;
 
     memset(bytes->data + bytes->offset + start, 0, end - start);
-    return nil_value;
+    return no_value;
 }
 
 static TValue _bytes_view(TValue *self, TValue *args, int nargs)
@@ -268,7 +268,7 @@ static TValue _bytes_setitem(TValue *self, TValue *args, int nargs)
 
     uint8_t value = kl_arg_uint8(1);
     bytes->data[bytes->offset + index] = value;
-    return nil_value;
+    return no_value;
 }
 
 static TValue _bytes_contains(TValue *self, TValue *args, int nargs)
@@ -319,7 +319,7 @@ static TValue _bytes_setslice(TValue *self, TValue *args, int nargs)
     ASSERT(value->size == end - start);
     memcpy(bytes->data + bytes->offset + start, value->data + value->offset, end - start);
 
-    return nil_value;
+    return no_value;
 }
 
 static TValue _bytes_eq(TValue *self, TValue *args, int nargs)

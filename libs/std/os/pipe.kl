@@ -7,11 +7,11 @@ import "std/io"
 
 /// A PipeReader is the read half of an OS-level anonymous pipe.
 ///
-/// It physically wraps a native file descriptor and implements the pure
-/// abstract `io.Reader` trait contract.
+/// Reads block until data is available or the writer closes the pipe.
 pub class PipeReader : io.Reader & io.Closable {
 
-    /// Read raw bytes from the kernel pipe buffer into `data`.
+    /// Read raw bytes from the kernel pipe buffer into `data`, blocking until
+    /// data is available or EOF is reached.
     /// Satisfies the `io.Reader` trait.
     @native
     pub func read(data bytes) int {}
@@ -25,6 +25,7 @@ pub class PipeReader : io.Reader & io.Closable {
 ///
 /// It physically wraps a native file descriptor and implements the full
 /// `io.Writer` trait contract including string acceleration and flushing control.
+/// Writes block when the kernel pipe buffer has no available capacity.
 pub class PipeWriter : io.Writer & io.Closable {
 
     /// Write raw bytes from `bs` into the kernel pipe buffer.
@@ -45,7 +46,8 @@ pub class PipeWriter : io.Writer & io.Closable {
     @native
     pub func flush() {}
 
-    /// Close the write end of the pipe, flushing remaining data and signaling EOF.
+    /// Close the write end of the pipe and release its file descriptor.
+    /// Once all write ends are closed, readers observe EOF.
     @native
     pub func close() {}
 }
