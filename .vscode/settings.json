@@ -181,7 +181,7 @@
             }
         ]
     },
-    "terminal.integrated.fontSize": 16,
+    "terminal.integrated.fontSize": 15,
     // "terminal.integrated.fontWeight": "100",
     "cmake.buildDirectory": "${workspaceFolder}/build/debug",
     "cmake.options.statusBarVisibility": "icon",

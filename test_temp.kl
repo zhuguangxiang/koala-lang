@@ -1,0 +1,86 @@
+
+// let g = [1,2,3]
+
+// func f1() {
+//    let l = [1,2,3]
+//    l.append(4)
+//    print(l)
+// }
+
+// func f2() {
+//    let l = [1,2,3]
+//    l[1] = 4
+//    print(l)
+// }
+
+// class Foo {
+//     func to_str() str? {
+//         return "nil"
+//     }
+
+//     func to_str2() str? {
+//         return nil
+//     }
+// }
+
+
+import "std/os"
+
+// os.system("koala -c test_temp.kl --dump=code")
+
+// func test_list(lst list[str]? = nil) list[str]? {
+//     // let lst2 = list[list[str]?]()
+//     if lst != nil {
+//         for s in lst {
+//             print(s)
+//         }
+//     }
+//     return lst
+// }
+
+import "test_pkg/pkg1" as zz
+
+func main() {
+    zz.print_str_list(["hello", "world"])
+
+    // print(test_list(["hello", "world"]))
+
+    let p = os.run("ls", ["./"])!
+
+    // // // stdin() 返回 io.Writer（底层是 File，包装管道写端）
+    // // p.stdin().write("hello\n".to_bytes())
+    // // // p.stdin().close()
+
+    // // // stdout() 返回 io.Reader（底层是 File，包装管道读端）
+    // // let bs = bytes(100)
+    // // p.stdout().read(bs)
+    // // print(bs.to_str())
+    // // 等待退出
+    let code = p.wait()
+    print(code)
+
+//    let foo = Foo()
+//    print(foo.to_str()!.upper())
+   // let lst = list[int]()
+   // lst.append(1)
+   // print(lst, lst.len(), lst.empty())
+
+//    let map = dict[int, int]()
+//    print(map, map.len(), map.empty())
+//    map[0] = 42
+//    print(map, map.len(), map.empty())
+//    print(map[0])
+
+//    let m2 = dict[str, int]()
+//    print(m2, m2.len(), m2.empty())
+//    m2["hello"] = 123
+//    print(m2, m2.len(), m2.empty())
+//    print(m2["hello"])
+
+//    f1()
+
+   // let l2 = [1,2,3]
+   // l2.append(5)
+   // print(l2)
+
+}

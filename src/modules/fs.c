@@ -203,7 +203,7 @@ static TypeObject file_type = {
         },
 };
 
-static Object *kl_new_file(TValue path, TValue mode, int fd)
+Object *kl_new_file(TValue path, TValue mode, int fd)
 {
     FileObject *fobj = mm_alloc_obj(fobj);
     INIT_OBJECT_HEAD(fobj, &file_type, 5);

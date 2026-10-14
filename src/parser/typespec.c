@@ -975,12 +975,19 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
                 buf_write_str(buf, ts->mangled.path);
                 buf_write_char(buf, '.');
             }
+
             buf_write_str(buf, ts->mangled.name);
 
-            TypeSpec *arg;
-            vector_foreach(arg, ts->mangled.args) {
-                if (!arg) continue;
-                type_spec_to_str(arg, buf);
+            if (vector_size(ts->mangled.args) > 0) {
+                buf_write_char(buf, '<');
+
+                TypeSpec *arg;
+                vector_foreach(arg, ts->mangled.args) {
+                    if (!arg) continue;
+                    type_spec_to_str(arg, buf);
+                }
+
+                buf_write_char(buf, '>');
             }
 
             buf_write_char(buf, ';');

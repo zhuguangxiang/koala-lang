@@ -28,6 +28,23 @@ Object *kl_list_from_array(TValue *items, int size);
 void kl_list_append(Object *ob, TValue item);
 void kl_list_prepend(Object *ob, TValue item);
 
+static inline int kl_list_len(Object *ob)
+{
+    if (ob == NULL) return 0;
+
+    ASSERT(IS_LIST(ob));
+    ListObject *list = (ListObject *)ob;
+    return (int)(list->end - list->start);
+}
+
+static inline TValue *kl_list_get(Object *ob, int index)
+{
+    ASSERT(IS_LIST(ob));
+    ListObject *list = (ListObject *)ob;
+    ASSERT(index >= 0 && index < (int)(list->end - list->start));
+    return &list->array[list->start + index];
+}
+
 #ifdef __cplusplus
 }
 #endif

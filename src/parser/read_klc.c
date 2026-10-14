@@ -169,8 +169,8 @@ static void fixup_type_spec(TypeSpec **ts_ptr, LoadContext *ctx)
         }
     } else if (ts->kind == TYPE_OPTIONAL) {
         if (ts->opt.src->sym_id < 0) {
-            TypeSpec *_src_ts = ts->opt.src;
-            fixup_type_spec(&_src_ts, ctx);
+            TypeSpec **_src_ts = &ts->opt.src;
+            fixup_type_spec(_src_ts, ctx);
         }
     } else {
         UNREACHABLE();
