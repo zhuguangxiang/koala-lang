@@ -1021,6 +1021,25 @@ static void isel_lower_select(KlrInsn *insn)
     replace_all_uses_with(local, (KlrValue *)insn);
 }
 
+// Whether a constant index may use the *_IMM opcode form. The imm field is
+// read back as a signed 8-bit value by the VM (I_SVAL, vm_ops.h), so a
+// CONST_INT must stay within INT8_MIN..INT8_MAX, and a CONST_UINT (never
+// negative) within 0..INT8_MAX; everything else is materialized instead.
+static int seq_index_fits_imm8(KlrConst *kc)
+{
+    if (kc->which == CONST_INT) {
+        int64_t imm = (int64_t)kc->ival;
+        return imm >= INT8_MIN && imm <= INT8_MAX;
+    }
+
+    if (kc->which == CONST_UINT) {
+        uint64_t uimm = kc->ival;
+        return uimm <= INT8_MAX;
+    }
+
+    return 0;
+}
+
 static void isel_lower_seq_get(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
@@ -1036,10 +1055,11 @@ static void isel_lower_seq_get(KlrInsn *insn)
 
     if (klr_is_const(index)) {
         KlrConst *kc = (KlrConst *)index;
-        if (kc->which == CONST_INT) {
+        if (seq_index_fits_imm8(kc)) {
             insn->code = OP_SEQ_GET_IMM;
         } else {
-            // Handle non-integer constant index
+            // Handle non-integer or out-of-imm8-range constant index
+            // by materializing it into a register
             KlrValue *_index = lower_const(insn, (KlrConst *)index);
             set_operand_at(insn, 1, _index);
         }
@@ -1068,10 +1088,11 @@ static void isel_lower_seq_set(KlrInsn *insn)
 
     if (klr_is_const(index)) {
         KlrConst *kc = (KlrConst *)index;
-        if (kc->which == CONST_INT) {
+        if (seq_index_fits_imm8(kc)) {
             insn->code = OP_SEQ_SET_IMM;
         } else {
-            // Handle non-integer constant index
+            // Handle non-integer or out-of-imm8-range constant index
+            // by materializing it into a register
             KlrValue *_index = lower_const(insn, (KlrConst *)index);
             set_operand_at(insn, 1, _index);
         }

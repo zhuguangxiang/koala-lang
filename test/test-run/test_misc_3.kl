@@ -38,7 +38,10 @@ f.close()
 // The actual I/O happens here and should fail.
 // sys.stdout.flush()
 
-sys.stdout = io.BufWriter(sys._stdout)
+import "std/os"
+
+sys.stdout = io.BufWriter(os.RawWriter(1))
+
 print("hello world to console")
 print("file is closed:", f.closed)
 

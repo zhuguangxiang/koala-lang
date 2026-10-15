@@ -18,7 +18,48 @@ pub func setenv(key str, value str) {}
 @native
 pub func unsetenv(key str) {}
 
-// pub func environ() dict[str, str] {}
+/// Return a snapshot of the current process's environment variables.
+///
+/// Returns a dictionary mapping variable names to their values.
+/// Note: This is a one-time snapshot; changes to the environment after
+/// this call will not be reflected in the returned dictionary.
+///
+/// Example:
+///     let env = os.environ()
+///     print(env["PATH"])
+///     if "HOME" in env {
+///         print("Home directory: ", env["HOME"])
+///     }
+@native
+pub func environ() dict[str, str] {}
+
+// --- Pipe ---
+
+/// Create an anonymous pipe for inter-process or inter-task communication.
+///
+/// Returns a tuple containing a `RawReader` (the read end) and a `RawWriter`
+/// (the write end). Data written to the write end can be read from the read end.
+///
+/// If all write ends of the pipe are closed, subsequent reads from the read end
+/// will return 0 (EOF).
+///
+/// Returns `nil` if the pipe cannot be created (e.g., the process has reached
+/// the maximum number of open file descriptors).
+///
+/// Example:
+///     let (reader, writer) = os.pipe()?
+///
+///     // Write data in one task/thread
+///     writer.write_str("hello from pipe")
+///     writer.close()
+///
+///     // Read data in another task/thread
+///     let buf = bytes(1024)
+///     let n = reader.read(buf)
+///     print("read ", n, " bytes")
+///     reader.close()
+@native
+pub func pipe() (RawReader, RawWriter)? {}
 
 // --- Process Management ---
 
@@ -34,4 +75,4 @@ pub func system(cmd str) int {}
 /// Unlike `system`, this bypasses the shell for safer argument passing.
 /// Returns a `Process` handle on success, or `nil` if spawning fails.
 @native
-pub func run(executable str, args list[str]) Process? {}
+pub func run(executable str, args list[str]? = nil) Process? {}

@@ -13,8 +13,7 @@ import "std/io"
 /// See: `fs.open` and `open`.
 pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// The filesystem path this file was opened from.
-    /// Nil if the file was wrapped from a raw file descriptor.
-    pub let path str?
+    pub let path str
 
     /// The mode string passed to `fs.open`: `"r"`, `"w"`, `"x"`,
     /// `"a"`, `"r+"`, `"w+"`, `"x+"` or `"a+"`.

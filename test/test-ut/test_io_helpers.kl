@@ -1,0 +1,236 @@
+// RUN: koala %s --test
+//
+// Retry and failure paths of io.write_all / io.read_all / io.read_exact,
+// driven by in-memory test doubles that force short transfers:
+// - ShortWriter / FailWriter: partial writes, and a write error (0)
+// - ShortReader / FailReader: partial reads, and a read error (-1)
+// Plus a real-file round trip and a copy() regression where the destination
+// only accepts 3 bytes per call yet must receive the whole payload.
+
+import "std/fs"
+import "std/io"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// Test doubles
+// ---------------------------------------------------------------------------
+
+/// A writer that accepts at most `chunk` bytes per write() call.
+class ShortWriter : io.Writer {
+    let out Buffer
+    let chunk int
+
+    func __init__(_chunk = 1) {
+        out = Buffer()
+        chunk = _chunk
+    }
+
+    pub func write(bs bytes) int {
+        var k = bs.len()
+        if k > chunk { k = chunk }
+        out.write(bs.view(0, k))
+        return k
+    }
+
+    pub func write_str(s str) int {
+        return write(s.to_bytes())
+    }
+
+    pub func flush() {}
+}
+
+/// A writer that accepts `limit` bytes in total, then fails (returns 0).
+class FailWriter : io.Writer {
+    let out Buffer
+    let limit int
+
+    func __init__(_limit = 4) {
+        out = Buffer()
+        limit = _limit
+    }
+
+    pub func write(bs bytes) int {
+        if out.len() >= limit { return 0 }
+
+        var k = bs.len()
+        if k > limit - out.len() { k = limit - out.len() }
+        out.write(bs.view(0, k))
+        return k
+    }
+
+    pub func write_str(s str) int {
+        return write(s.to_bytes())
+    }
+
+    pub func flush() {}
+}
+
+/// A reader that returns at most `chunk` bytes per read() call.
+class ShortReader : io.Reader {
+    let data bytes
+    let chunk int
+    var pos int
+
+    func __init__(_data bytes, _chunk = 1) {
+        data = _data
+        chunk = _chunk
+        pos = 0
+    }
+
+    pub func read(bs bytes) int {
+        if pos >= data.len() { return 0 } // EOF
+
+        var k = chunk
+        if k > data.len() - pos { k = data.len() - pos }
+        if k > bs.len() { k = bs.len() }
+        bs.copy(data, pos, pos + k)
+        pos += k
+        return k
+    }
+}
+
+/// A reader that errors (returns -1) once all data has been consumed,
+/// unlike a well-behaved reader which returns 0 (EOF).
+class FailReader : io.Reader {
+    let data bytes
+    var pos int
+
+    func __init__(_data bytes) {
+        data = _data
+        pos = 0
+    }
+
+    pub func read(bs bytes) int {
+        if pos >= data.len() { return -1 } // read error, not EOF
+
+        var k = data.len() - pos
+        if k > bs.len() { k = bs.len() }
+        bs.copy(data, pos, pos + k)
+        pos += k
+        return k
+    }
+}
+
+// ---------------------------------------------------------------------------
+// write_all
+// ---------------------------------------------------------------------------
+
+// Happy path against a real std writer.
+@test
+func test_write_all_bytesio() {
+    let bio = io.BytesIO()
+    let n = io.write_all(bio, b"hello koala")
+    ut.assert_eq(n, 11)
+    ut.assert_eq(bio.getvalue().to_str(), "hello koala")
+}
+
+// Partial writes (3 bytes per call) are retried until the whole buffer is out.
+@test
+func test_write_all_partial_writes() {
+    let sw = ShortWriter(3)
+    let n = io.write_all(sw, b"hello koala")
+    ut.assert_eq(n, 11)
+    ut.assert_eq(sw.out.to_str(), "hello koala")
+}
+
+// A writer that fails after 4 bytes: write_all returns the partial count
+// and the sink holds exactly the accepted prefix.
+@test
+func test_write_all_stops_on_error() {
+    let fw = FailWriter(4)
+    let n = io.write_all(fw, b"hello koala")
+    ut.assert_eq(n, 4)
+    ut.assert_eq(fw.out.to_str(), "hell")
+}
+
+// ---------------------------------------------------------------------------
+// read_exact
+// ---------------------------------------------------------------------------
+
+// Short reads are retried until the destination buffer is full.
+@test
+func test_read_exact_partial_reads() {
+    let sr = ShortReader(b"hello koala", 3)
+    let dst = bytes(11)
+    let n = io.read_exact(sr, dst)
+    ut.assert_eq(n, 11)
+    ut.assert_eq(dst.to_str(), "hello koala")
+}
+
+// EOF before the buffer is full: read_exact returns the partial count.
+@test
+func test_read_exact_stops_at_eof() {
+    let sr = ShortReader(b"hello", 2)
+    let dst = bytes(8)
+    let n = io.read_exact(sr, dst)
+    ut.assert_eq(n, 5)
+    ut.assert_eq(dst.view(0, 5).to_str(), "hello")
+}
+
+// ---------------------------------------------------------------------------
+// read_all
+// ---------------------------------------------------------------------------
+
+// Content is assembled across many 3-byte reads.
+@test
+func test_read_all_multi_chunk() {
+    let sr = ShortReader(b"hello koala", 3)
+    let all = io.read_all(sr)
+    ut.assert_eq(all.len(), 11)
+    ut.assert_eq(all.to_str(), "hello koala")
+}
+
+// A read error (-1) is folded like EOF: read_all returns what it has.
+@test
+func test_read_all_folds_error() {
+    let fr = FailReader(b"abc")
+    let all = io.read_all(fr)
+    ut.assert_eq(all.len(), 3)
+    ut.assert_eq(all.to_str(), "abc")
+}
+
+// ---------------------------------------------------------------------------
+// copy() integration: the destination only accepts 3 bytes per write,
+// yet the whole payload must arrive byte-exact (write_all retries).
+// ---------------------------------------------------------------------------
+
+@test
+func test_copy_short_write_dst() {
+    let src = ShortReader(b"0123456789", 4)
+    let dst = ShortWriter(3)
+    let n = io.copy(dst, src)
+    ut.assert_eq(n, 10)
+    ut.assert_eq(dst.out.to_str(), "0123456789")
+}
+
+// ---------------------------------------------------------------------------
+// Real-file round trip: write_all -> read_all / read_exact
+// ---------------------------------------------------------------------------
+
+@test
+func test_file_roundtrip() {
+    let f = fs.open("/tmp/kl_io_helpers.txt", "w")!
+    let n = io.write_all(f, b"round trip bytes")
+    f.close()
+    ut.assert_eq(n, 16)
+
+    let rf = fs.open("/tmp/kl_io_helpers.txt", "r")!
+    let all = io.read_all(rf)
+    rf.close()
+    ut.assert_eq(all.len(), 16)
+    ut.assert_eq(all.to_str(), "round trip bytes")
+
+    let rf2 = fs.open("/tmp/kl_io_helpers.txt", "r")!
+    let buf = bytes(16)
+    let m = io.read_exact(rf2, buf)
+    rf2.close()
+    ut.assert_eq(m, 16)
+    ut.assert_eq(buf.to_str(), "round trip bytes")
+
+    // Requesting more than the file holds: partial count at EOF.
+    let rf3 = fs.open("/tmp/kl_io_helpers.txt", "r")!
+    let buf2 = bytes(64)
+    let m2 = io.read_exact(rf3, buf2)
+    rf3.close()
+    ut.assert_eq(m2, 16)
+}

@@ -1,0 +1,76 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+
+/// A RawReader is the read half of an OS-level file descriptor or handle.
+///
+/// It can wrap a pipe (from `os.pipe` or `os.run`), a regular file,
+/// or a network socket. Reads block until data is available or the
+/// writer closes the stream.
+pub class RawReader : io.Reader & io.Closable {
+
+    /// Wrap the read half of the file descriptor `fd`, taking ownership of it.
+    ///
+    /// Panic if `fd` is invalid or not open for reading.
+    @native
+    pub func __init__(fd int) {}
+
+    /// Read raw bytes from the underlying OS buffer into `data`, blocking until
+    /// data is available or EOF is reached.
+    /// Satisfies the `io.Reader` trait.
+    @native
+    pub func read(data bytes) int {}
+
+    /// Read all remaining bytes from the stream until EOF, returning them
+    /// as a single `bytes` object.
+    ///
+    /// Blocks until the writer side closes. Panic if the stream is already
+    /// closed or the underlying read fails.
+    @native
+    pub func read_all() bytes {}
+
+    /// Close the read end of the stream, releasing the OS resource.
+    @native
+    pub func close() {}
+}
+
+/// A RawWriter is the write half of an OS-level file descriptor or handle.
+///
+/// It can wrap a pipe, a regular file, or a network socket. It implements
+/// the full `io.Writer` trait contract including string acceleration and
+/// flushing control. Writes block when the underlying OS buffer has no
+/// available capacity.
+pub class RawWriter : io.Writer & io.Closable {
+
+    /// Wrap the write half of the file descriptor `fd`, taking ownership of it.
+    ///
+    /// Panic if `fd` is invalid or not open for writing.
+    @native
+    pub func __init__(fd int) {}
+
+    /// Write raw bytes from `bs` into the underlying OS buffer.
+    /// Satisfies the `io.Writer` trait.
+    @native
+    pub func write(bs bytes) int {}
+
+    /// Encode `s` string as UTF-8 and write it directly to the underlying OS buffer.
+    ///
+    /// The native implementation optimizes this to avoid intermediate heap allocation.
+    @native
+    pub func write_str(s str) int {}
+
+    /// Flush pending data to the underlying sink.
+    ///
+    /// For unbuffered kernel descriptors (like pipes or sockets), this is natively
+    /// implemented as a no-op, but must be provided to fulfill the `io.Writer` contract.
+    @native
+    pub func flush() {}
+
+    /// Close the write end of the stream and release its file descriptor.
+    /// Once all write ends are closed, readers observe EOF.
+    @native
+    pub func close() {}
+}

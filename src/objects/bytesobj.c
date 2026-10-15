@@ -53,6 +53,7 @@ static TValue _bytes_init(TValue *self, TValue *args, int nargs)
 
     void *data = mm_alloc(size);
     bytes->data = (uint8_t *)data;
+    bytes->offset = 0;
     bytes->size = size;
     return no_value;
 }
@@ -214,12 +215,19 @@ static TValue _bytes_view(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 2);
     int64_t start = kl_arg_int64(0);
     int64_t end = kl_arg_int64(1);
-    if (end < 0) end = bytes->size;
-    ASSERT(start >= 0 && end >= 0 && start <= end && end <= bytes->size);
+
+    /* Clamp like fill/zero/index: a negative start clamps to 0 and any
+     * negative end extends to the end; never assert on out-of-range args. */
+    int64_t size = bytes->size;
+    if (start < 0) start = 0;
+    if (end < 0) end = size;
+    if (end > size) end = size;
+    if (start > size) start = size;
+    if (start > end) start = end;
 
     BytesObject *view_bytes = mm_alloc_obj(view_bytes);
     INIT_OBJECT_HEAD(view_bytes, &bytes_type, 0);
-    view_bytes->offset += start;
+    view_bytes->offset = bytes->offset + start;
     view_bytes->size = end - start;
     view_bytes->data = bytes->data;
     return obj_value((Object *)view_bytes);
@@ -293,15 +301,43 @@ static TValue _bytes_getslice(TValue *self, TValue *args, int nargs)
     SliceObject *slice = kl_arg_obj_as(0, slice_type);
     int64_t start = to_int64(&slice->start);
     int64_t end = to_int64(&slice->end);
-    if (end < 0) end = bytes->size;
-    ASSERT(start >= 0 && end >= 0 && start <= end && end <= bytes->size);
+    int64_t step = to_int64(&slice->step);
 
-    BytesObject *view = mm_alloc_obj(view);
-    INIT_OBJECT_HEAD(view, &bytes_type, 0);
-    view->offset = bytes->offset + start;
-    view->size = end - start;
-    view->data = bytes->data;
-    return obj_value((Object *)view);
+    if (step == 0) {
+        raise_exc_str("step cannot be zero");
+        return error_value;
+    }
+
+    int r = slice_adjust(&start, &end, step, bytes->size);
+    if (r < 0) {
+        raise_exc_str("invalid slice");
+        return error_value;
+    }
+
+    if (r == 0) {
+        return obj_value(kl_new_bytes(0));
+    }
+
+    if (step == 1) {
+        /* zero-copy view; offset composes with the parent so views of
+         * views address the right range */
+        BytesObject *view = mm_alloc_obj(view);
+        INIT_OBJECT_HEAD(view, &bytes_type, 0);
+        view->offset = bytes->offset + start;
+        view->size = end - start;
+        view->data = bytes->data;
+        return obj_value((Object *)view);
+    }
+
+    /* stepped slice: copy the selected bytes out, mirroring str's general path */
+    int64_t count = slice_count(start, end, step);
+    BytesObject *res = (BytesObject *)kl_new_bytes((uint32_t)count);
+    int64_t idx = start;
+    for (int64_t i = 0; i < count; i++) {
+        res->data[i] = bytes->data[bytes->offset + idx];
+        idx += step;
+    }
+    return obj_value((Object *)res);
 }
 
 static TValue _bytes_setslice(TValue *self, TValue *args, int nargs)
@@ -312,12 +348,36 @@ static TValue _bytes_setslice(TValue *self, TValue *args, int nargs)
     SliceObject *slice = kl_arg_obj_as(0, slice_type);
     int64_t start = to_int64(&slice->start);
     int64_t end = to_int64(&slice->end);
-    if (end < 0) end = bytes->size;
-    ASSERT(start >= 0 && end >= 0 && start <= end && end <= bytes->size);
+    int64_t step = to_int64(&slice->step);
+
+    if (step == 0) {
+        raise_exc_str("step cannot be zero");
+        return error_value;
+    }
+
+    int r = slice_adjust(&start, &end, step, bytes->size);
+    if (r < 0) {
+        raise_exc_str("invalid slice");
+        return error_value;
+    }
 
     BytesObject *value = kl_arg_obj_as(1, bytes_type);
-    ASSERT(value->size == end - start);
-    memcpy(bytes->data + bytes->offset + start, value->data + value->offset, end - start);
+    int64_t count = (r == 0) ? 0 : slice_count(start, end, step);
+    if (value->size != count) {
+        raise_exc_fmt("bytes slice length mismatch: %d != %d", (int)value->size, (int)count);
+        return error_value;
+    }
+    if (count == 0) return no_value;
+
+    if (step == 1) {
+        memmove(bytes->data + bytes->offset + start, value->data + value->offset, count);
+    } else {
+        int64_t idx = start;
+        for (int64_t i = 0; i < count; i++) {
+            bytes->data[bytes->offset + idx] = value->data[value->offset + i];
+            idx += step;
+        }
+    }
 
     return no_value;
 }

@@ -153,63 +153,45 @@ func test_list_remove() {
 }
 
 // ---------------------------------------------------------------------------
-// erase
+// delete
 // ---------------------------------------------------------------------------
 @test
-func test_list_erase() {
+func test_list_delete() {
     let contiguous = list[int](0, 1, 2, 3, 4, 5)
-    contiguous.erase(slice(1, 4))
+    contiguous.delete(1, 4)
     ut.assert_eq(contiguous.len(), 3)
     ut.assert_eq(contiguous[0], 0)
     ut.assert_eq(contiguous[1], 4)
     ut.assert_eq(contiguous[2], 5)
 
-    let strided = list[int](0, 1, 2, 3, 4, 5, 6)
-    strided.erase(slice(1, 6, 2))
-    ut.assert_eq(strided.len(), 4)
-    ut.assert_eq(strided[0], 0)
-    ut.assert_eq(strided[1], 2)
-    ut.assert_eq(strided[2], 4)
-    ut.assert_eq(strided[3], 6)
-
-    let reverse = list[int](0, 1, 2, 3, 4, 5, 6)
-    reverse.erase(slice(5, 1, -2))
-    ut.assert_eq(reverse.len(), 5)
-    ut.assert_eq(reverse[0], 0)
-    ut.assert_eq(reverse[1], 1)
-    ut.assert_eq(reverse[2], 2)
-    ut.assert_eq(reverse[3], 4)
-    ut.assert_eq(reverse[4], 6)
+    let to_end = list[int](0, 1, 2, 3, 4, 5)
+    to_end.delete(2)
+    ut.assert_eq(to_end.len(), 2)
+    ut.assert_eq(to_end[0], 0)
+    ut.assert_eq(to_end[1], 1)
 
     let negative_bounds = list[int](0, 1, 2, 3, 4, 5)
-    negative_bounds.erase(slice(-3, -1))
+    negative_bounds.delete(-3, -1)
     ut.assert_eq(negative_bounds.len(), 4)
     ut.assert_eq(negative_bounds[0], 0)
     ut.assert_eq(negative_bounds[1], 1)
     ut.assert_eq(negative_bounds[2], 2)
     ut.assert_eq(negative_bounds[3], 5)
 
-    let empty = list[int](1, 2, 3)
-    empty.erase(slice(1, 1))
-    ut.assert_eq(empty.len(), 3)
+    let empty_range = list[int](1, 2, 3)
+    empty_range.delete(1, 1)
+    ut.assert_eq(empty_range.len(), 3)
+
+    let end_clamped = list[int](1, 2, 3)
+    end_clamped.delete(1, 100)
+    ut.assert_eq(end_clamped.len(), 1)
+    ut.assert_eq(end_clamped[0], 1)
 }
 
-@should_panic("list.erase: slice index out of range")
-func test_list_erase_out_of_range() {
+@should_panic("list delete: start out of bounds")
+func test_list_delete_start_out_of_range() {
     let values = list[int](1, 2, 3)
-    values.erase(slice(-4, 2))
-}
-
-@should_panic("list.erase: slice index out of range")
-func test_list_erase_end_out_of_range() {
-    let values = list[int](1, 2, 3)
-    values.erase(slice(0, 4))
-}
-
-@should_panic("list.erase: slice step cannot be zero")
-func test_list_erase_zero_step() {
-    let values = list[int](1, 2, 3)
-    values.erase(slice(0, 2, 0))
+    values.delete(-4, 2)
 }
 
 // ---------------------------------------------------------------------------

@@ -11,3 +11,123 @@ pub const SEEK_CUR = 1
 
 /// Seek whence: relative to the end of content.
 pub const SEEK_END = 2
+
+/// Write all bytes of `bs` to `dst`, retrying on partial writes until the
+/// whole buffer is written or `dst` fails.
+///
+/// # Arguments
+/// - `dst`: The destination writer.
+/// - `bs`: The bytes to write.
+///
+/// # Returns
+/// The number of bytes actually written. If `dst.write` returns 0 or a
+/// negative value, the loop stops and the partial count is returned; callers
+/// can compare the result with `bs.len()` to detect an incomplete write.
+///
+/// # Notes
+/// - `dst` is not flushed; buffered writers must be flushed/closed by the caller.
+pub func write_all(dst Writer, bs bytes) int {
+    let n = bs.len()
+    var written = 0
+
+    while written < n {
+        let w = dst.write(bs.view(written, n))
+        if w <= 0 { break } // writer failure: stop, return partial count
+        written += w
+    }
+    return written
+}
+
+/// Read all remaining bytes from `src` until EOF and return them as `bytes`.
+///
+/// Useful when the total size is unknown upfront (e.g., reading an entire
+/// file or process output). Chunks are accumulated into a growable buffer,
+/// so the result is assembled incrementally.
+///
+/// # Arguments
+/// - `src`: The source reader.
+///
+/// # Returns
+/// A `bytes` holding everything read. The loop stops at the first read that
+/// returns 0 (EOF) or a negative value (I/O error), so the result contains
+/// only the bytes read before that point.
+pub func read_all(src Reader) bytes {
+    let chunk = bytes(8192)
+    let acc = Buffer(8192)
+
+    loop {
+        let n = src.read(chunk)
+        if n <= 0 { break } // stop on EOF (0) or read error (negative)
+        acc.write(chunk.view(0, n))
+    }
+    return acc.to_bytes()
+}
+
+/// Read exactly `bs.len()` bytes from `src` into `bs`, retrying on short reads.
+///
+/// # Arguments
+/// - `src`: The source reader.
+/// - `bs`: The destination buffer to fill.
+///
+/// # Returns
+/// The number of bytes actually read. The loop stops early only at EOF (0) or
+/// a read error (negative); callers can compare the result with `bs.len()` to
+/// detect a short fill.
+///
+/// # Notes
+/// - `bs` is mutated in-place with the read data.
+pub func read_exact(src Reader, bs bytes) int {
+    let n = bs.len()
+    var done = 0
+
+    while done < n {
+        let r = src.read(bs.view(done, n))
+        if r <= 0 { break } // EOF or read error: return the partial count
+        done += r
+    }
+    return done
+}
+
+/// Copy bytes from `src` to `dst` until the source reaches EOF.
+///
+/// Data is pumped through an internal 8192-byte buffer and written to `dst`
+/// chunk by chunk, so the whole stream is never held in memory. This makes
+/// copy suitable for files as well as interactive streams (e.g., process pipes).
+///
+/// # Arguments
+/// - `dst`: The destination writer.
+/// - `src`: The source reader.
+///
+/// # Returns
+/// The total number of bytes actually written to `dst`. The loop stops at the
+/// first read that returns 0 (EOF) or a negative value (I/O error), and also
+/// if a write fails partway, so the result counts only the bytes transferred
+/// before that point.
+///
+/// # Notes
+/// - `dst` is not flushed; buffered writers must be flushed/closed by the caller.
+/// - Each chunk is written via `write_all`, so a partial write by `dst` is
+///   completed before moving on; if `dst` fails, copy stops and returns the
+///   bytes written so far.
+///
+/// Example:
+///     let src = fs.open("in.bin", "r")!
+///     let dst = fs.open("out.bin", "w")!
+///     let n = copy(dst, src)
+///     src.close()
+///     dst.close()
+pub func copy(dst Writer, src Reader) int {
+    let buf = bytes(8192)
+    var total = 0
+
+    loop {
+        let n = src.read(buf)
+        if n <= 0 { break } // stop on EOF (0) or read error (negative)
+
+        // write_all(dst, buf[:n])
+        let w = write_all(dst, buf.view(0, n))
+        total += w
+        if w < n { break } // dst failed mid-chunk: stop writing to a dead writer
+    }
+    return total
+}

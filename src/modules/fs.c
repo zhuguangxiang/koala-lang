@@ -203,7 +203,7 @@ static TypeObject file_type = {
         },
 };
 
-Object *kl_new_file(TValue path, TValue mode, int fd)
+static Object *kl_new_file(TValue path, TValue mode, int fd)
 {
     FileObject *fobj = mm_alloc_obj(fobj);
     INIT_OBJECT_HEAD(fobj, &file_type, 5);
@@ -227,17 +227,6 @@ Object *kl_new_file(TValue path, TValue mode, int fd)
 static TValue file_open(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 2);
-
-    if (is_int64(&args[0])) {
-        int fd = (int)kl_arg_int64(0);
-
-        if (fcntl(fd, F_GETFD) == -1) {
-            return nil_value;
-        }
-
-        Object *fobj = kl_new_file(nil_value, args[1], fd);
-        return obj_value(fobj);
-    }
 
     char *path = kl_arg_str(0);
     char *mode = kl_arg_str(1);

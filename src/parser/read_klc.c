@@ -21,6 +21,7 @@ typedef enum {
     FIXUP_KLASS_BASE,
     FIXUP_GENERIC_VAR,
     FIXUP_FUNC_PROTO,
+    FIXUP_VAR_TYPE,
 } FixupKind;
 
 typedef struct _FixupEntry {
@@ -71,6 +72,26 @@ static void add_fixup_entry(FixupEntry *entry, TypeSpec *ts, LoadContext *ctx)
 static void add_stage_2_fixup_entry(FixupEntry *entry, LoadContext *ctx)
 {
     vector_push_back(&ctx->stage_2_fixups, entry);
+}
+
+/* Type specs of global variables and class fields live on the symbol itself;
+ * register a fixup for them so cross-package class types are resolved at
+ * module load time, instead of keeping sym_id == -1 forever. */
+static void add_var_fixup_entry(Symbol *var_sym, TypeSpec *ts, LoadContext *ctx)
+{
+    if (!ts_need_fixup(ts)) return;
+
+    FixupEntry entry = {
+        .kind = FIXUP_VAR_TYPE,
+        .owner = var_sym,
+        .index = -1,
+    };
+
+    if (ts->kind == TYPE_MANGLED) {
+        add_stage_2_fixup_entry(&entry, ctx);
+    } else {
+        add_fixup_entry(&entry, ts, ctx);
+    }
 }
 
 static Symbol *_get_symbol(char *pkg, char *name, LoadContext *ctx)
@@ -221,6 +242,12 @@ static void __do_fixup(Vector *fixups, LoadContext *ctx)
                 fn_sym->ts = func_type_spec_from_arginfo(fn_sym->params, fn_sym->ret);
                 log_info("created proto type for function '%s'", fn_sym->name);
                 log_type_spec(fn_sym->ts);
+                break;
+            }
+            case FIXUP_VAR_TYPE: {
+                Symbol *var_sym = entry->owner;
+                TypeSpec **ts_ptr = &var_sym->ts;
+                fixup_type_spec(ts_ptr, ctx);
                 break;
             }
             default: {
@@ -492,6 +519,7 @@ static void load_field(KlcVar *field, KlassSymbol *kls_sym, LoadContext *ctx)
     sym->parent = kls_sym;
     sym->status = SYM_RESOLVED;
     vector_push_back(kls_sym->fields, &sym);
+    add_var_fixup_entry(sym, ts, ctx);
 }
 
 static void load_klass(KlcKlass *kls, LoadContext *ctx)
@@ -595,6 +623,7 @@ static void load_globals(LoadContext *ctx)
         sym->parent = ctx->pkg_sym;
         sym->path = ctx->path;
         sym->status = SYM_RESOLVED;
+        add_var_fixup_entry(sym, ts, ctx);
     }
 
     vector_foreach(item, klc->objs + ITEM_CONST_VAR) {
@@ -613,6 +642,7 @@ static void load_globals(LoadContext *ctx)
         sym->path = ctx->path;
         ((VarSymbol *)sym)->lit = klc_const_to_literal(konst_val);
         sym->status = SYM_RESOLVED;
+        add_var_fixup_entry(sym, ts, ctx);
     }
 }
 

@@ -112,6 +112,17 @@ func test_str_slice_single_char() {
     ut.assert_eq(s[11:11],    "")
 }
 
+@test
+func test_str_view() {
+    let s = "hello world"
+    ut.assert_eq(s.view(2), "llo world")      // default end -> the end
+    ut.assert_eq(s.view(-5), "world")         // negative start is relative
+    ut.assert_eq(s.view(0, 5), "hello")
+    ut.assert_eq(s.view(2, -1), "llo world")  // explicit -1 -> the end
+    ut.assert_eq(s.view(2, -3), "llo wo")     // other negatives are relative
+    ut.assert_eq(s.view(100), "")             // start beyond length -> empty
+}
+
 @should_panic("step cannot be zero")
 func test_str_slice_step_zero() {
     let s = "hello world"

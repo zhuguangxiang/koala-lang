@@ -76,6 +76,92 @@ func test_view() {
     v[0] = 68
     ut.assert_int_eq(bs[3], 68)
     ut.assert_int_eq(v[0], 68)
+
+    // nested views compose: indices are relative to the parent view
+    let v2 = v.view(1, 3)
+    ut.assert_eq(v2.len(), 2)
+    ut.assert_eq(v2, bs.view(4, 6))
+    v2[0] = 70
+    ut.assert_int_eq(v[1], 70)
+    ut.assert_int_eq(bs[4], 70)
+
+    // out-of-range bounds clamp instead of crashing
+    ut.assert_eq(bs.view(-2, -1).len(), bs.len()) // start below 0 clamps to 0
+    ut.assert_eq(bs.view(0, 100).len(), bs.len()) // end beyond size clamps
+    ut.assert_eq(bs.view(8, 2).len(), 0)          // start > end -> empty view
+}
+
+@test
+func test_slice() {
+    let b = b"hello world"
+    ut.assert_eq(b[0:5], b"hello")
+    ut.assert_eq(b[:5], b"hello")       // omitted start defaults to 0
+    ut.assert_eq(b[6:], b"world")       // omitted end defaults to len
+    ut.assert_eq(b[:], b)                // full range
+    ut.assert_eq(b[3:8], b"lo wo")
+    ut.assert_eq(b[0:100], b)            // end beyond length clamps
+    ut.assert_eq(b[-5:], b"world")       // negative start counts from the end
+    ut.assert_eq(b[:-6], b"hello")       // negative end counts from the end
+    ut.assert_eq(b[-5:-1], b"worl")      // both negative
+    ut.assert_eq(b[2:-1], b"llo worl")   // mixed sign indices
+    ut.assert_eq(b[100:], b"")           // start beyond length -> empty
+    ut.assert_eq(b[:-100], b"")          // negative end clamps to 0 -> empty
+    ut.assert_eq(b[5:3], b"")            // reversed bounds -> empty
+}
+
+@test
+func test_slice_step() {
+    let b = b"hello world"
+    ut.assert_eq(b[::2], b"hlowrd")
+    ut.assert_eq(b[1::2], b"el ol")
+    ut.assert_eq(b[:6:2], b"hlo")
+    ut.assert_eq(b[1:8:3], b"eoo")
+    ut.assert_eq(b[::-1], b"dlrow olleh")
+    ut.assert_eq(b[::-2], b"drwolh")
+    ut.assert_eq(b[10::-1], b"dlrow olleh")
+    ut.assert_eq(b[8:2:-1], b"row ol")
+    ut.assert_eq(b[7:1:-2], b"o l")
+    ut.assert_eq(b[:5:-1], b"dlrow")
+}
+
+@test
+func test_set_slice() {
+    // b"..." literals are shared module-level constants: mutating one writes
+    // into the constant pool and every identical literal in the module sees
+    // it. Build mutable buffers via bytes(n) + copy instead.
+    let b = bytes(11)
+    b.copy(b"hello world")
+    ut.assert_eq(b, b"hello world")
+
+    b[0:5] = b"HELLO"
+    ut.assert_eq(b, b"HELLO world")
+
+    b[-5:] = b"koala"
+    ut.assert_eq(b, b"HELLO koala")
+
+    let c = bytes(6)
+    c.copy(b"123456")
+    c[1:5:2] = b"xy"      // slots 1 and 3
+    ut.assert_eq(c, b"1x3y56")
+
+    c[4:0:-1] = b"abcd"   // slots 4, 3, 2, 1
+    ut.assert_eq(c, b"1dcba6")
+
+    c[2:2] = b""          // empty slice with empty value is a no-op
+    ut.assert_eq(c, b"1dcba6")
+}
+
+@should_panic("step cannot be zero")
+func test_slice_step_zero() {
+    let b = b"hello"
+    print(b[::0])
+}
+
+@should_panic("bytes slice length mismatch: 4 != 2")
+func test_set_slice_length_mismatch() {
+    let b = bytes(6)
+    b.copy(b"abcdef")
+    b[1:3] = b"xyzw"
 }
 
 @test

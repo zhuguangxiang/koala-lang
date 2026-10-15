@@ -5,10 +5,7 @@
 
 link "koala"
 
-/// Open the file or file descriptor `path_or_fd` and return a `File` object.
-///
-/// `path_or_fd` is either a path string, or an integer file descriptor
-/// (e.g. 0, 1, 2 for stdin, stdout, stderr).
+/// Open the file at `path` and return a `File` object.
 ///
 /// `mode` selects the access:
 /// - `"r"`: read-only, the file must exist.
@@ -21,7 +18,7 @@ link "koala"
 /// - `"a+"`: read and write, create if absent, always append at the end.
 ///
 /// Return nil if the file cannot be opened (missing file, permission
-/// denied, file already exists for `"x"`/`"x+"`, invalid descriptor).
+/// denied, or file already exists for `"x"`/`"x+"`).
 /// Files created by `"w"`, `"x"`, `"a"` and their `"+"` variants get
 /// permission 0644.
 ///
@@ -32,7 +29,7 @@ link "koala"
 ///
 /// See: `File`.
 @native
-pub func open(path_or_fd Path | str | int, mode = "r") File? {}
+pub func open(path str, mode = "r") File? {}
 
 /// Read the file `path` into `out` and return the count read.
 ///

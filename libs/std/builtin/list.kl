@@ -82,6 +82,7 @@ pub class list[T] : MutableSequence[T] {
     pub func remove(value T) {}
 
     /// Remove elements in the index range `[start, end)`.
+    /// Negative `start` or `end` counts from the end of the list.
     /// If `end` is `nil`, it removes elements from `start` to the end of the list.
     /// Panic if `start` is out of bounds. An empty range (start >= end) is a no-op.
     @native

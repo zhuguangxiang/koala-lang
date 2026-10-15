@@ -1,0 +1,162 @@
+// RUN: koala %s --test
+//
+// io.copy() typical scenarios, unbuffered and buffered:
+// file -> file, process stdout -> file, file -> process stdin, and
+// pipe -> file. All payloads are tiny (well under the 64 KiB pipe
+// buffer), so no read/write interleaving is needed.
+
+import "std/fs"
+import "std/io"
+import "std/os"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// Scene 1: file -> file (like `cp`)
+// ---------------------------------------------------------------------------
+
+@test
+func test_copy_file_to_file() {
+    ut.assert(fs.write_str("/tmp/kl_io_copy_src.txt", "hello copy\n"))
+
+    let src = fs.open("/tmp/kl_io_copy_src.txt", "r")!
+    let dst = fs.open("/tmp/kl_io_copy_dst.txt", "w")!
+    let n = io.copy(dst, src)
+    src.close()
+    dst.close()
+    ut.assert_eq(n, 11)
+
+    let buf = bytes(64)
+    let m = fs.read_bytes("/tmp/kl_io_copy_dst.txt", buf)
+    ut.assert_eq(buf.view(0, m).to_str(), "hello copy\n")
+}
+
+// Same scene through buffered wrappers: BufReader over the source and
+// BufWriter over the destination. copy() does NOT flush, so the buffered
+// destination must be flushed before closing.
+@test
+func test_copy_file_to_file_buffered() {
+    ut.assert(fs.write_str("/tmp/kl_io_copy_src.txt", "hello copy\n"))
+
+    let src = fs.open("/tmp/kl_io_copy_src.txt", "r")!
+    let dst = fs.open("/tmp/kl_io_copy_dst.txt", "w")!
+
+    let br = io.BufReader(src)
+    let bw = io.BufWriter(dst)
+    let n = io.copy(bw, br)
+    bw.flush()
+    src.close()
+    dst.close()
+    ut.assert_eq(n, 11)
+
+    let buf = bytes(64)
+    let m = fs.read_bytes("/tmp/kl_io_copy_dst.txt", buf)
+    ut.assert_eq(buf.view(0, m).to_str(), "hello copy\n")
+}
+
+// ---------------------------------------------------------------------------
+// Scene 2: process stdout -> file (like `ls -l > out.txt`)
+// ---------------------------------------------------------------------------
+
+@test
+func test_copy_process_output_to_file() {
+    let p = os.run("cat")!
+    p.stdin().write_str("hello")
+    p.stdin().close() // EOF: the child echoes and exits
+
+    let log = fs.open("/tmp/kl_io_copy_log.txt", "w")!
+    let n = io.copy(log, p.stdout())
+    ut.assert_eq(p.wait(), 0)
+    log.close()
+    ut.assert_eq(n, 5)
+
+    let buf = bytes(64)
+    let m = fs.read_bytes("/tmp/kl_io_copy_log.txt", buf)
+    ut.assert_eq(buf.view(0, m).to_str(), "hello")
+}
+
+// Buffered destination variant: BufWriter over the log file; copy() leaves
+// data in the writer's buffer, so flush() is required before close().
+@test
+func test_copy_process_output_to_file_buffered() {
+    let p = os.run("cat")!
+    p.stdin().write_str("buffered hello\n")
+    p.stdin().close()
+
+    let log = fs.open("/tmp/kl_io_copy_log.txt", "w")!
+    let bw = io.BufWriter(log)
+    let n = io.copy(bw, p.stdout())
+    bw.flush()
+    ut.assert_eq(p.wait(), 0)
+    log.close()
+    ut.assert_eq(n, 15)
+
+    let buf = bytes(64)
+    let m = fs.read_bytes("/tmp/kl_io_copy_log.txt", buf)
+    ut.assert_eq(buf.view(0, m).to_str(), "buffered hello\n")
+}
+
+// ---------------------------------------------------------------------------
+// Scene 3: file -> process stdin (like `grep error < syslog.txt`)
+// ---------------------------------------------------------------------------
+
+// Closing stdin is what sends EOF to the child; without it the child keeps
+// waiting for more input and wait() would block forever.
+@test
+func test_copy_file_to_process_stdin() {
+    ut.assert(fs.write_str("/tmp/kl_io_copy_src.txt", "line1\nerror found\nline3\n"))
+
+    let p = os.run("grep", ["error"])!
+    let data = fs.open("/tmp/kl_io_copy_src.txt", "r")!
+    let n = io.copy(p.stdin(), data)
+    data.close()
+    p.stdin().close() // EOF: grep filters and exits
+
+    let out = p.stdout().read_all()
+    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(n, 24)
+
+    ut.assert_eq(out.to_str(), "error found\n")
+}
+
+// Buffered source variant: BufReader over the input file.
+@test
+func test_copy_file_to_process_stdin_buffered() {
+    ut.assert(fs.write_str("/tmp/kl_io_copy_src.txt", "line1\nerror found\nline3\n"))
+
+    let p = os.run("grep", ["error"])!
+    let data = fs.open("/tmp/kl_io_copy_src.txt", "r")!
+    let br = io.BufReader(data)
+    let n = io.copy(p.stdin(), br)
+    data.close()
+    p.stdin().close()
+
+    let out = p.stdout().read_all()
+    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(n, 24)
+
+    ut.assert_eq(out.to_str(), "error found\n")
+}
+
+// ---------------------------------------------------------------------------
+// Scene 4: pipe -> file
+// ---------------------------------------------------------------------------
+
+@test
+func test_copy_pipe_to_file() {
+    let ends = os.pipe()!
+    let r = ends[0]
+    let w = ends[1]
+
+    w.write_str("pipe-to-file\n")
+    w.close() // EOF for the read end
+
+    let f = fs.open("/tmp/kl_io_copy_pipe.txt", "w")!
+    let n = io.copy(f, r)
+    f.close()
+    r.close()
+    ut.assert_eq(n, 13)
+
+    let buf = bytes(32)
+    let m = fs.read_bytes("/tmp/kl_io_copy_pipe.txt", buf)
+    ut.assert_eq(buf.view(0, m).to_str(), "pipe-to-file\n")
+}

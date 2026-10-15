@@ -146,14 +146,24 @@ static TValue _dict_get_item(TValue *self, TValue *args, int nargs)
     }
 }
 
+static TValue _dict_contains(TValue *self, TValue *args, int nargs)
+{
+    DictObject *dict = SELF_AS(dict_type);
+    ASSERT(nargs == 1);
+    TValue *key = &args[0];
+
+    DictEntry key_entry = { .key = *key };
+    unsigned int hash = kl_call_hash(key);
+    hashmap_entry_init(&key_entry, hash);
+    DictEntry *entry = hashmap_get(&dict->map, &key_entry);
+    return bool_value(entry != NULL);
+}
+
 static MethodDef dict_methods[] = {
-    { "__init__", _dict_init },
-    { "len", _dict_len },
-    { "empty", _dict_empty },
-    { "fmt", _dict_fmt },
-    { "__setitem__", _dict_set_item },
-    { "__getitem__", _dict_get_item },
-    { NULL },
+    { "__init__", _dict_init },         { "len", _dict_len },
+    { "empty", _dict_empty },           { "fmt", _dict_fmt },
+    { "__setitem__", _dict_set_item },  { "__getitem__", _dict_get_item },
+    { "__contains__", _dict_contains }, { NULL },
 };
 
 /* pub class dict[K, V] : Map[K, V] { ... } */

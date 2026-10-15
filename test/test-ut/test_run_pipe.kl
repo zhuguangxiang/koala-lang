@@ -1,0 +1,251 @@
+// RUN: koala %s --test
+//
+// Pipe plumbing tests for os.run(): stdin -> stdout echo, EOF handling,
+// bulk transfer, interactive round-trips, read_all draining, buffered
+// BufReader/BufWriter wrappers, separated stderr / exit code, and constant
+// subscripts beyond the 8-bit immediate range.
+
+import "std/io"
+import "std/os"
+import "std/ut"
+
+// `cat` without file arguments reads from stdin and echoes it to stdout.
+// A single atomic write of three lines must come back as one 18-byte chunk.
+@test
+func test_run_stdin_to_stdout() {
+    let p = os.run("cat")!
+    p.stdin().write("line1\nline2\nline3\n".to_bytes())
+    p.stdin().close()
+
+    let bs = bytes(64)
+    let n = p.stdout().read(bs)
+    ut.assert_eq(n, 18)
+    ut.assert_eq(bs.view(0, n).to_str(), "line1\nline2\nline3\n")
+    ut.assert_eq(p.wait(), 0)
+}
+
+// Closing stdin without writing anything: stdout reaches EOF immediately
+// (read returns 0) and `cat` exits cleanly.
+@test
+func test_run_empty_stdin() {
+    let p = os.run("cat")!
+    p.stdin().close()
+
+    let bs = bytes(16)
+    ut.assert_eq(p.stdout().read(bs), 0)
+    ut.assert_eq(p.wait(), 0)
+}
+
+// Bulk flow: 100 writes of 17 bytes, then read until EOF. The total must be
+// exactly 1700 regardless of how the kernel splits the reads.
+@test
+func test_run_bulk_echo() {
+    let p = os.run("cat")!
+    let line = "0123456789abcdef\n".to_bytes()
+    var i = 0
+    while i < 100 {
+        p.stdin().write(line)
+        i = i + 1
+    }
+    p.stdin().close()
+
+    let bs = bytes(4096)
+    var total = 0
+    var n = p.stdout().read(bs)
+    while n > 0 {
+        total = total + n
+        n = p.stdout().read(bs)
+    }
+    ut.assert_eq(total, 1700)
+    ut.assert_eq(p.wait(), 0)
+}
+
+// Interactive ping-pong: every write is answered immediately without
+// closing stdin first.
+@test
+func test_run_ping_pong() {
+    let p = os.run("cat")!
+
+    var i = 0
+    while i < 3 {
+        p.stdin().write("ping\n".to_bytes())
+
+        let bs = bytes(16)
+        let n = p.stdout().read(bs)
+        ut.assert_eq(n, 5)
+        ut.assert_eq(bs.view(0, n).to_str(), "ping\n")
+
+        i = i + 1
+    }
+    p.stdin().close()
+    ut.assert_eq(p.wait(), 0)
+}
+
+// stdout and stderr are separate pipes: stdout stays empty, stderr carries
+// the whole message, and the child's exit code is propagated by wait().
+@test
+func test_run_stderr_and_exit_code() {
+    let p = os.run("sh", ["-c", "echo err 1>&2; exit 7"])!
+    p.stdin().close()
+
+    let ob = bytes(16)
+    ut.assert_eq(p.stdout().read(ob), 0)
+
+    let eb = bytes(256)
+    let en = p.stderr().read(eb)
+    ut.assert_eq(en, 4)
+    ut.assert_eq(eb.view(0, en).to_str(), "err\n")
+
+    ut.assert_eq(p.wait(), 7)
+}
+
+// read_all(): drains the pipe until EOF and returns one bytes object.
+@test
+func test_run_read_all() {
+    let p = os.run("cat")!
+    p.stdin().write("line1\nline2\nline3\n".to_bytes())
+    p.stdin().close()
+
+    let all = p.stdout().read_all()
+    ut.assert_eq(all.len(), 18)
+    ut.assert_eq(all.to_str(), "line1\nline2\nline3\n")
+    ut.assert_eq(p.wait(), 0)
+}
+
+// read_all() on an empty stream: EOF immediately -> zero-length bytes.
+@test
+func test_run_read_all_empty() {
+    let p = os.run("cat")!
+    p.stdin().close()
+
+    let all = p.stdout().read_all()
+    ut.assert_eq(all.len(), 0)
+    ut.assert_eq(all.to_str(), "")
+    ut.assert_eq(p.wait(), 0)
+}
+
+// read_all() across internal buffer growth: 1000 x 17 = 17000 bytes,
+// which exceeds the initial 8192-byte accumulation capacity.
+@test
+func test_run_read_all_large() {
+    let p = os.run("cat")!
+    let line = "0123456789abcdef\n".to_bytes()
+    var i = 0
+    while i < 1000 {
+        p.stdin().write(line)
+        i = i + 1
+    }
+    p.stdin().close()
+
+    let all = p.stdout().read_all()
+    ut.assert_eq(all.len(), 17000)
+    ut.assert(all[0] == 48) // '0' at the very beginning
+    ut.assert(all[16999] == 10) // '\n' at the very end: const index beyond imm8
+    let last = all.len() - 1
+    ut.assert(all[last] == 10) // same byte reached with a runtime index
+    ut.assert_eq(p.wait(), 0)
+}
+
+// ---------------------------------------------------------------------------
+// Buffered wrappers over the pipe ends
+// ---------------------------------------------------------------------------
+
+// Buffered round trip: BufWriter batches both write_str calls into a single
+// flush; a 4-byte BufReader forces one refill per read across the pipe.
+@test
+func test_run_buffered_roundtrip() {
+    let p = os.run("cat")!
+
+    let w = p.stdin()
+    let bw = io.BufWriter(w)
+    bw.write_str("line1\n")
+    bw.write_str("line2\n")
+    bw.flush()
+    w.close() // BufWriter has no close(); close the inner RawWriter for EOF
+
+    let br = io.BufReader(p.stdout(), 4) // 12 bytes -> 3 refills
+    let bs = bytes(64)
+    ut.assert_eq(br.read(bs), 4)
+    ut.assert_eq(bs.view(0, 4), b"line")
+    ut.assert_eq(br.read(bs), 4)
+    ut.assert_eq(bs.view(0, 4), b"1\nli")
+    ut.assert_eq(br.read(bs), 4)
+    ut.assert_eq(bs.view(0, 4), b"ne2\n")
+    ut.assert_eq(br.read(bs), 0) // EOF
+    ut.assert_eq(p.wait(), 0)
+}
+
+// Line-oriented buffered reading: read_line() appends each line (without
+// the '\n') to a Buffer and returns -1 at EOF.
+@test
+func test_run_bufreader_read_line() {
+    let p = os.run("cat")!
+
+    let w = p.stdin()
+    let bw = io.BufWriter(w)
+    bw.write_str("first\nsecond\n")
+    bw.flush()
+    w.close()
+
+    let br = io.BufReader(p.stdout())
+    let bb = Buffer()
+
+    ut.assert_eq(br.read_line(bb), 5) // "first", '\n' consumed
+    ut.assert_eq(bb.to_str(), "first")
+
+    ut.assert_eq(br.read_line(bb), 6) // appends "second"
+    ut.assert_eq(bb.to_str(), "firstsecond")
+
+    ut.assert_eq(br.read_line(bb), -1) // EOF, buffer unchanged
+    ut.assert_eq(bb.to_str(), "firstsecond")
+
+    ut.assert_eq(p.wait(), 0)
+}
+
+// io.Lines over the pipe: yields str lines with the '\n' consumed.
+@test
+func test_run_bufreader_lines() {
+    let p = os.run("cat")!
+
+    let w = p.stdin()
+    let bw = io.BufWriter(w)
+    bw.write_str("alpha\nbeta\ngamma\n")
+    bw.flush()
+    w.close()
+
+    let br = io.BufReader(p.stdout())
+
+    let got = list[str]()
+    for line in br.lines() {
+        got.append(line)
+    }
+    ut.assert_eq(got.len(), 3)
+    ut.assert_eq(got[0], "alpha")
+    ut.assert_eq(got[1], "beta")
+    ut.assert_eq(got[2], "gamma")
+
+    ut.assert_eq(p.wait(), 0)
+}
+
+// ---------------------------------------------------------------------------
+// Constant subscripts beyond the 8-bit immediate range
+// ---------------------------------------------------------------------------
+
+// Regression: constant subscripts outside -128..127 used to abort the compiler
+// ("does not fit in 8-bit immediate"); isel now materializes such indices into
+// a register and keeps the register-index form (OP_SEQ_GET / OP_SEQ_SET), while
+// indices up to 127 still take the imm8 fast path.
+@test
+func test_const_index_beyond_imm8() {
+    let lst = list[int]()
+    var i = 0
+    while i < 200 {
+        lst.append(i)
+        i = i + 1
+    }
+    ut.assert(lst[127] == 127) // last index on the imm8 fast path
+    ut.assert(lst[128] == 128) // first index beyond imm8 (materialized)
+    ut.assert(lst[199] == 199) // get with a large constant index
+    lst[199] = 7 // set with a large constant index
+    ut.assert(lst[199] == 7)
+}

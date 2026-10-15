@@ -7,10 +7,7 @@ import "std/fs"
 import "std/io"
 import "std/sys"
 
-/// Opens the file or file descriptor path_or_fd and returns a File object.
-///
-/// path_or_fd is either a path string, or an integer file descriptor
-/// (e.g. 0, 1, 2 for stdin, stdout, stderr).
+/// Opens the file at path and returns a File object.
 ///
 /// mode selects the access:
 /// - "r": read-only, the file must exist.
@@ -23,7 +20,7 @@ import "std/sys"
 /// - "a+": read and write, create if absent, always append at the end.
 ///
 /// Returns nil if the file cannot be opened (missing file, permission denied,
-/// file already exists for "x"/"x+", invalid descriptor).
+/// or file already exists for "x"/"x+").
 /// Files created by "w", "x", "a" and their "+" variants get
 /// permission 0644.
 ///
@@ -33,8 +30,8 @@ import "std/sys"
 /// f?.close()
 ///
 /// See: File.
-pub func open(path_or_fd fs.Path | str | int, mode = "r") fs.File? {
-    return fs.open(path_or_fd, mode)
+pub func open(path str, mode = "r") fs.File? {
+    return fs.open(path, mode)
 }
 
 /// Write objects to `w` with the specified separator and ending.

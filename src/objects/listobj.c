@@ -595,6 +595,41 @@ static TValue _list_remove(TValue *self, TValue *args, int nargs)
     return no_value;
 }
 
+/* pub func delete(start int, end int? = nil) */
+static TValue _list_delete(TValue *self, TValue *args, int nargs)
+{
+    ListObject *list = SELF_AS(list_type);
+    ASSERT(nargs == 2);
+
+    int64_t n = (int64_t)(list->end - list->start);
+
+    /* Negative `start` counts from the end, like pop/__getitem__ */
+    int64_t start = kl_arg_int64(0);
+    if (start < 0) start += n;
+
+    /* Panic if `start` is out of bounds */
+    if (start < 0 || start > n) {
+        raise_exc_str("list delete: start out of bounds");
+        return error_value;
+    }
+
+    /* nil end means "to the end of the list" */
+    int64_t end = is_nil(&args[1]) ? n : kl_arg_int64(1);
+    if (end < 0) end += n;
+
+    /* An empty range (start >= end) is a no-op */
+    if (end <= start) return no_value;
+
+    /* Clamp `end` to the current length */
+    if (end > n) end = n;
+
+    /* Remove [start, end) by shifting the rest down, inside the window */
+    TValue *base = list->array + list->start;
+    memmove(base + start, base + end, (size_t)(n - end) * sizeof(TValue));
+    list->end -= (end - start);
+    return no_value;
+}
+
 /* pub func clear() */
 static TValue _list_clear(TValue *self, TValue *args, int nargs)
 {
@@ -662,6 +697,7 @@ static MethodDef list_methods[] = {
     { "extend", _list_extend },
     { "insert", _list_insert },
     { "remove", _list_remove },
+    { "delete", _list_delete },
     { "clear", _list_clear },
     { "reverse", _list_reverse },
     { "__add__", _list_add },

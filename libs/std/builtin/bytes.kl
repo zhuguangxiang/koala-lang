@@ -39,7 +39,11 @@ pub class bytes : Sequence[uint8] {
     @native
     pub func __getitem__(index int) uint8 {}
 
-    /// Return a copy of the byte array defined by `s`.
+    /// Return the bytes selected by `s` (the `b[start:end:step]` syntax).
+    ///
+    /// Indices follow Python slice semantics: negative indices count from
+    /// the end, omitted bounds default to the ends, and `step` may be
+    /// negative. A `step` of 1 returns a zero-copy view; other steps copy.
     @native
     pub func __getslice__(s slice) bytes {}
 
@@ -49,9 +53,10 @@ pub class bytes : Sequence[uint8] {
     @native
     pub func __setitem__(index int, value uint8) {}
 
-    /// Replace the byte array defined by `r` with `val`.
+    /// Replace the bytes selected by `s` with `val` (the `b[start:end:step] = val` syntax).
     ///
-    /// The length of the byte array never changes.
+    /// `val` must supply exactly one byte per selected slot; the length of
+    /// the byte array never changes.
     @native
     pub func __setslice__(s slice, val bytes) {}
 
@@ -95,6 +100,7 @@ pub class bytes : Sequence[uint8] {
     /// Return a view of the bytes in `[start, end)`, sharing the same storage.
     ///
     /// If `end` is `-1`, the view extends to the end of the byte array.
+    /// Out-of-range bounds clamp instead of panicking.
     @native
     pub func view(start = 0, end = -1) bytes {}
 

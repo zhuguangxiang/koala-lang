@@ -697,6 +697,17 @@ static int compatible_generic_ref(TypeSpec *dst, TypeSpec *src)
 /* same-kind klass comparison through src's inheritance chain */
 static int compatible_klass(TypeSpec *dst, TypeSpec *src)
 {
+    /* -1 is the 'unresolved' sentinel, never a valid symbol id. It must be
+     * rejected before the identity check (two distinct unresolved classes
+     * would otherwise compare as equal) and before get_symbol_by_id(). */
+    if (dst->sym_id < 0 || src->sym_id < 0) {
+        log_error(
+            "compatible_klass: unresolved TypeSpec (dst='%s' sym_id=%d, src='%s' "
+            "sym_id=%d)",
+            dst->signature, dst->sym_id, src->signature, src->sym_id);
+        return 0;
+    }
+
     /* Identity check by sym_id, NOT pointer equality.
      * Two TypeSpec objects representing the same class may be
      * distinct heap allocations across compilation units. */

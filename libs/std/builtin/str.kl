@@ -278,7 +278,9 @@ pub class str : Sequence & Comparable & ToString {
     pub func isupper() bool {}
 
     /// Return a view (substring) of the string from `start` to `end`.
-    /// Negative indices are interpreted relative to the string length.
+    ///
+    /// If `end` is `-1`, the view extends to the end of the string.
+    /// Other negative indices are interpreted relative to the string length.
     @native
     pub func view(start = 0, end = -1) str {}
 }

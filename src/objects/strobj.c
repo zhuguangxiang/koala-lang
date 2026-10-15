@@ -1308,7 +1308,13 @@ static TValue _str_view(TValue *self, TValue *args, int nargs)
     int64_t start = kl_arg_int64(0);
     int64_t end = kl_arg_int64(1);
     StringObject *sobj = SELF_AS(str_type);
-    TValue items[3] = { args[0], args[1], int64_value(1) };
+
+    /* end == -1 is the documented "to the end" convention; map it to the
+     * slice sentinel so slice_adjust treats it as unspecified instead of the
+     * relative index len - 1 (which silently dropped the last character). */
+    if (end == -1) end = INT64_MIN;
+
+    TValue items[3] = { int64_value(start), int64_value(end), int64_value(1) };
     Object *slice = kl_new_slice(items);
     TValue _args[] = { obj_value(slice) };
     return _str_getslice(self, _args, 1);

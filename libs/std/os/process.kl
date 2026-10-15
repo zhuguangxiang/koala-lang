@@ -3,8 +3,6 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
-import "std/io"
-
 /// Represents a spawned operating system process handle.
 ///
 /// This class relies purely on the generic input/output byte stream contracts
@@ -14,27 +12,27 @@ pub class Process {
     /// The standard input stream (stdin) of the child process.
     ///
     /// Write raw bytes to this stream to feed input data into the running command.
-    /// Returns an abstract `io.Writer` interface mapping to the native pipe descriptor.
+    /// Returns a `RawWriter` wrapping the parent-side write end of the pipe.
     ///
     /// Example:
-    ///     let p = os.run("passwd", ["user"])
-    ///     p?.stdin().write("new_password\n".to_bytes())
+    ///     let p = os.run("passwd", ["user"])!
+    ///     p.stdin().write("new_password\n".to_bytes())
     @native
-    pub func stdin() io.Writer {}
+    pub func stdin() RawWriter {}
 
     /// The standard output stream (stdout) of the child process.
     ///
     /// Read from this stream to capture the process execution text or binary output.
-    /// Returns an abstract `io.Reader` interface mapping to the native pipe descriptor.
+    /// Returns a `RawReader` wrapping the parent-side read end of the pipe.
     @native
-    pub func stdout() io.Reader {}
+    pub func stdout() RawReader {}
 
     /// The standard error stream (stderr) of the child process.
     ///
     /// Read from this stream to capture diagnostic or critical error outputs.
-    /// Returns an abstract `io.Reader` interface mapping to the native pipe descriptor.
+    /// Returns a `RawReader` wrapping the parent-side read end of the pipe.
     @native
-    pub func stderr() io.Reader {}
+    pub func stderr() RawReader {}
 
     /// Return the system process ID (PID) allocated to this child process.
     @native

@@ -193,13 +193,6 @@ print(args)
 print(sys.stdin)
 // CHECK: <std/io.BufReader object at 0x{{[0-9a-fA-F]+}}>
 
-let _stdin fs.File? = fs.open(0)
-if let __stdin = _stdin {
-    print(__stdin.path)
-}
-// CHECK: nil
-
-
 trait Hello {
     func hello() str
     func hi() str

@@ -4,7 +4,6 @@
  */
 
 import "std/io"
-import "std/fs"
 import "std/os"
 
 link "koala"
@@ -14,23 +13,14 @@ pub let version = __KOALA_VERSION__
 
 // pub let date = __KOALA_BUILD_DATE__
 
-/// The standard input file.
-pub let _stdin = fs.open(0)!
-
-/// The standard output file.
-pub let _stdout = fs.open(1)!
-
-/// The standard error file.
-pub let _stderr = fs.open(2)!
-
 /// The buffered standard input reader.
-pub var stdin = io.BufReader(_stdin)
+pub var stdin = io.BufReader(os.RawReader(0))
 
 /// The buffered standard output writer.
-pub var stdout = io.BufWriter(_stdout)
+pub var stdout = io.BufWriter(os.RawWriter(1))
 
 /// The buffered standard error writer.
-pub var stderr = io.BufWriter(_stderr)
+pub var stderr = io.BufWriter(os.RawWriter(2))
 
 /// The list of directories in the Koala module search path.
 pub let path = ["./"]
