@@ -107,6 +107,8 @@ pub trait MutableSequence[T] : Sequence[T] {
 /// A Map is a read-only view of a collection of key-value mappings.
 ///
 /// A map cannot contain duplicate keys; each key maps to at most one value.
+/// Iterating a map yields `(key, value)` pairs; the order is determined by
+/// the concrete implementation (e.g. `dict` uses insertion order).
 pub trait Map[K, V] : Iterable[(K, V)] {
     /// Return the number of mappings in the map.
     func len() int
@@ -122,9 +124,6 @@ pub trait Map[K, V] : Iterable[(K, V)] {
 
     /// Return an iterable over the values in the map.
     func values() Iterable[V]
-
-    /// Return an iterable over the key-value pairs in the map.
-    func items() Iterable[(K, V)]
 
     /// Return the value associated with `key`, or `nil` if `key` is not present.
     ///

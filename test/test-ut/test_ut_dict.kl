@@ -1,0 +1,1190 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+// A user class used as a dict key. Every Koala class auto-injects default
+// __eq__/hash (identity semantics), but a value-semantic key must override
+// BOTH so that equal values collide on the same bucket and compare equal
+// inside the bucket chain — the equal-values-same-hash contract. Without
+// the explicit hash() override, dict lookups with an equivalent-but-distinct
+// instance would miss.
+class Point {
+    let x int
+    let y int
+
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    func __eq__(rhs Point) bool {
+        return x == rhs.x && y == rhs.y
+    }
+
+    func __ne__(rhs Point) bool {
+        return x != rhs.x || y != rhs.y
+    }
+
+    func hash() int {
+        // Any deterministic combination works; the only requirement is that
+        // __eq__-equal points produce identical hashes.
+        return x * 31 + y
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Construction / basic state
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_init_empty() {
+    let d = dict[str, int]()
+    ut.assert_eq(d.len(), 0)
+    ut.assert_true(d.empty())
+}
+
+@test
+func test_dict_init_empty_int_keys() {
+    let d = dict[int, str]()
+    ut.assert_eq(d.len(), 0)
+    ut.assert_true(d.empty())
+}
+
+// ---------------------------------------------------------------------------
+// __setitem__ / __getitem__
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_setitem_getitem_str_keys() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+
+    ut.assert_eq(d["a"], 1)
+    ut.assert_eq(d["b"], 2)
+    ut.assert_eq(d["c"], 3)
+    ut.assert_eq(d.len(), 3)
+    ut.assert_false(d.empty())
+}
+
+@test
+func test_dict_setitem_getitem_int_keys() {
+    let d = dict[int, str]()
+    d[1] = "one"
+    d[2] = "two"
+    d[10] = "ten"
+
+    ut.assert_eq(d[1], "one")
+    ut.assert_eq(d[2], "two")
+    ut.assert_eq(d[10], "ten")
+    ut.assert_eq(d.len(), 3)
+}
+
+@test
+func test_dict_setitem_replace_preserves_len() {
+    let d = dict[str, int]()
+    d["k"] = 1
+    d["k"] = 100
+    d["k"] = -5
+
+    ut.assert_eq(d["k"], -5)
+    ut.assert_eq(d.len(), 1)
+}
+
+@test
+func test_dict_setitem_replace_mixed() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["a"] = 10     // replace existing
+    d["c"] = 3      // new
+
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d["a"], 10)
+    ut.assert_eq(d["b"], 2)
+    ut.assert_eq(d["c"], 3)
+}
+
+// ---------------------------------------------------------------------------
+// __contains__
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_contains_present_and_missing() {
+    let d = dict[str, int]()
+    d["apple"] = 1
+    d["pear"] = 2
+
+    ut.assert_true("apple" in d)
+    ut.assert_true("pear" in d)
+    ut.assert_false("orange" in d)
+    ut.assert_false("" in d)
+}
+
+@test
+func test_dict_contains_int_keys() {
+    let d = dict[int, int]()
+    d[7] = 70
+    d[-1] = -10
+
+    ut.assert_true(7 in d)
+    ut.assert_true(-1 in d)
+    ut.assert_false(0 in d)
+    ut.assert_false(70 in d)     // value, not key
+}
+
+@test
+func test_dict_contains_empty() {
+    let d = dict[str, int]()
+    ut.assert_false("anything" in d)
+}
+
+// ---------------------------------------------------------------------------
+// len / empty transitions
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_len_grows_with_inserts() {
+    let d = dict[int, int]()
+    ut.assert_eq(d.len(), 0)
+    for i in range(10) {
+        d[i] = i * i
+    }
+    ut.assert_eq(d.len(), 10)
+    ut.assert_false(d.empty())
+}
+
+// ---------------------------------------------------------------------------
+// fmt (via format("{}", d))
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_fmt_empty() {
+    let d = dict[str, int]()
+    ut.assert_eq(format("{}", d), "{}")
+}
+
+@test
+func test_dict_fmt_str_int_insertion_order() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+    // dict is insertion-ordered; str.fmt writes raw bytes (no quotes).
+    ut.assert_eq(format("{}", d), "{a: 1, b: 2, c: 3}")
+}
+
+@test
+func test_dict_fmt_int_str() {
+    let d = dict[int, str]()
+    d[1] = "one"
+    d[2] = "two"
+    ut.assert_eq(format("{}", d), "{1: one, 2: two}")
+}
+
+@test
+func test_dict_fmt_after_replace_keeps_position() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["a"] = 99     // value replaced, insertion slot preserved
+    ut.assert_eq(format("{}", d), "{a: 99, b: 2}")
+}
+
+// ---------------------------------------------------------------------------
+// remove(key) V   — panic on missing key
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_remove_returns_value_and_shrinks() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+
+    let v = d.remove("b")
+    ut.assert_eq(v, 2)
+    ut.assert_eq(d.len(), 2)
+    ut.assert_false("b" in d)
+    ut.assert_true("a" in d)
+    ut.assert_true("c" in d)
+}
+
+@test
+func test_dict_remove_all_entries_one_by_one() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+
+    ut.assert_eq(d.remove("a"), 1)
+    ut.assert_eq(d.remove("b"), 2)
+    ut.assert_eq(d.remove("c"), 3)
+
+    ut.assert_eq(d.len(), 0)
+    ut.assert_true(d.empty())
+    ut.assert_false("a" in d)
+}
+
+@test
+func test_dict_remove_int_key() {
+    let d = dict[int, str]()
+    d[1] = "one"
+    d[2] = "two"
+    d[3] = "three"
+
+    ut.assert_eq(d.remove(2), "two")
+    ut.assert_eq(d.len(), 2)
+    ut.assert_false(2 in d)
+    ut.assert_eq(d[1], "one")
+    ut.assert_eq(d[3], "three")
+}
+
+@test
+func test_dict_remove_then_reinsert() {
+    let d = dict[str, int]()
+    d["k"] = 1
+    ut.assert_eq(d.remove("k"), 1)
+    ut.assert_false("k" in d)
+
+    // reinsert after removal works and value is the fresh one
+    d["k"] = 42
+    ut.assert_true("k" in d)
+    ut.assert_eq(d["k"], 42)
+    ut.assert_eq(d.len(), 1)
+}
+
+@should_panic("Key not found")
+func test_dict_remove_missing_panics() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.remove("zzz")     // not present -> panic
+}
+
+@should_panic("Key not found")
+func test_dict_remove_from_empty_panics() {
+    let d = dict[str, int]()
+    d.remove("anything")
+}
+
+@should_panic("Key not found")
+func test_dict_remove_twice_panics() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.remove("a")
+    d.remove("a")       // second removal -> panic
+}
+
+// ---------------------------------------------------------------------------
+// remove_or(key, default_value) V   — no panic on missing key
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_remove_or_present_returns_value() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+
+    let v = d.remove_or("a", -1)
+    ut.assert_eq(v, 1)
+    ut.assert_eq(d.len(), 1)
+    ut.assert_false("a" in d)
+    ut.assert_true("b" in d)
+}
+
+@test
+func test_dict_remove_or_missing_returns_default() {
+    let d = dict[str, int]()
+    d["a"] = 1
+
+    let v = d.remove_or("zzz", -999)
+    ut.assert_eq(v, -999)
+    // dict must be untouched when key was absent
+    ut.assert_eq(d.len(), 1)
+    ut.assert_true("a" in d)
+    ut.assert_eq(d["a"], 1)
+}
+
+@test
+func test_dict_remove_or_from_empty_returns_default() {
+    let d = dict[str, int]()
+    let v = d.remove_or("k", 123)
+    ut.assert_eq(v, 123)
+    ut.assert_eq(d.len(), 0)
+    ut.assert_true(d.empty())
+}
+
+@test
+func test_dict_remove_or_str_value_default() {
+    let d = dict[int, str]()
+    d[1] = "one"
+
+    ut.assert_eq(d.remove_or(1, "fallback"), "one")
+    ut.assert_eq(d.remove_or(2, "fallback"), "fallback")
+    ut.assert_eq(d.len(), 0)
+}
+
+@test
+func test_dict_remove_or_repeated_missing_keeps_default() {
+    let d = dict[str, int]()
+    // repeatedly calling remove_or with an absent key is idempotent
+    ut.assert_eq(d.remove_or("k", 0), 0)
+    ut.assert_eq(d.remove_or("k", 1), 1)
+    ut.assert_eq(d.remove_or("k", 2), 2)
+    ut.assert_eq(d.len(), 0)
+}
+
+// ---------------------------------------------------------------------------
+// clear()
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_clear_non_empty() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+    ut.assert_eq(d.len(), 3)
+
+    d.clear()
+
+    ut.assert_eq(d.len(), 0)
+    ut.assert_true(d.empty())
+    ut.assert_false("a" in d)
+    ut.assert_false("b" in d)
+    ut.assert_false("c" in d)
+}
+
+@test
+func test_dict_clear_empty_is_noop() {
+    let d = dict[str, int]()
+    d.clear()     // safe on empty dict
+    d.clear()     // and idempotent
+    ut.assert_eq(d.len(), 0)
+    ut.assert_true(d.empty())
+}
+
+@test
+func test_dict_reuse_after_clear() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d.clear()
+
+    // dict must be fully usable again after clear
+    d["x"] = 10
+    d["y"] = 20
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d["x"], 10)
+    ut.assert_eq(d["y"], 20)
+    ut.assert_true("x" in d)
+    ut.assert_false("a" in d)
+}
+
+@test
+func test_dict_clear_then_fmt_empty() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d.clear()
+    ut.assert_eq(format("{}", d), "{}")
+}
+
+@test
+func test_dict_clear_then_remove_or_returns_default() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.clear()
+    // after clear, previous keys must be gone: remove_or yields default
+    ut.assert_eq(d.remove_or("a", -1), -1)
+    ut.assert_eq(d.len(), 0)
+}
+
+// ---------------------------------------------------------------------------
+// Class keys with user-defined __eq__ + hash (value semantics)
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_class_key_setitem_getitem() {
+    let d = dict[Point, int]()
+    let p1 = Point(1, 2)
+    let p2 = Point(3, 4)
+    d[p1] = 100
+    d[p2] = 200
+
+    ut.assert_eq(d.len(), 2)
+    ut.assert_false(d.empty())
+    // lookup by the very same instances
+    ut.assert_eq(d[p1], 100)
+    ut.assert_eq(d[p2], 200)
+}
+
+@test
+func test_dict_class_key_lookup_by_equal_instance() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d[Point(3, 4)] = 200
+
+    // Fresh instances that are __eq__-equal must hit the same entry.
+    // This is the core value-semantics guarantee: hash() puts them in the
+    // same bucket, __eq__ matches inside the bucket chain.
+    ut.assert_eq(d[Point(1, 2)], 100)
+    ut.assert_eq(d[Point(3, 4)], 200)
+}
+
+@test
+func test_dict_class_key_replace_preserves_len() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d[Point(1, 2)] = 999     // equal key -> replace value
+
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d[Point(1, 2)], 999)
+}
+
+@test
+func test_dict_class_key_distinct_points_coexist() {
+    let d = dict[Point, int]()
+    // same x, different y -> distinct keys
+    d[Point(1, 2)] = 10
+    d[Point(1, 3)] = 20
+    // same y, different x -> distinct keys
+    d[Point(2, 2)] = 30
+    // both different
+    d[Point(5, 6)] = 40
+
+    ut.assert_eq(d.len(), 4)
+    ut.assert_eq(d[Point(1, 2)], 10)
+    ut.assert_eq(d[Point(1, 3)], 20)
+    ut.assert_eq(d[Point(2, 2)], 30)
+    ut.assert_eq(d[Point(5, 6)], 40)
+}
+
+@test
+func test_dict_class_key_contains() {
+    let d = dict[Point, str]()
+    d[Point(0, 0)] = "origin"
+    d[Point(1, 1)] = "diag"
+
+    ut.assert_true(Point(0, 0) in d)
+    ut.assert_true(Point(1, 1) in d)
+    ut.assert_false(Point(2, 2) in d)
+    ut.assert_false(Point(0, 1) in d)
+    ut.assert_false(Point(1, 0) in d)
+}
+
+@test
+func test_dict_class_key_remove() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d[Point(3, 4)] = 200
+    d[Point(5, 6)] = 300
+
+    // remove by an equal-but-distinct instance
+    let v = d.remove(Point(3, 4))
+    ut.assert_eq(v, 200)
+    ut.assert_eq(d.len(), 2)
+    ut.assert_false(Point(3, 4) in d)
+    ut.assert_true(Point(1, 2) in d)
+    ut.assert_true(Point(5, 6) in d)
+    ut.assert_eq(d[Point(1, 2)], 100)
+    ut.assert_eq(d[Point(5, 6)], 300)
+}
+
+@test
+func test_dict_class_key_remove_all_one_by_one() {
+    let d = dict[Point, int]()
+    d[Point(1, 1)] = 1
+    d[Point(2, 2)] = 2
+    d[Point(3, 3)] = 3
+
+    ut.assert_eq(d.remove(Point(1, 1)), 1)
+    ut.assert_eq(d.remove(Point(2, 2)), 2)
+    ut.assert_eq(d.remove(Point(3, 3)), 3)
+
+    ut.assert_eq(d.len(), 0)
+    ut.assert_true(d.empty())
+}
+
+@should_panic("Key not found")
+func test_dict_class_key_remove_missing_panics() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d.remove(Point(9, 9))     // not present -> panic
+}
+
+@should_panic("Key not found")
+func test_dict_class_key_remove_twice_panics() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d.remove(Point(1, 2))
+    d.remove(Point(1, 2))     // second removal -> panic
+}
+
+@test
+func test_dict_class_key_remove_or_present() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d[Point(3, 4)] = 200
+
+    let v = d.remove_or(Point(1, 2), -1)
+    ut.assert_eq(v, 100)
+    ut.assert_eq(d.len(), 1)
+    ut.assert_false(Point(1, 2) in d)
+    ut.assert_true(Point(3, 4) in d)
+}
+
+@test
+func test_dict_class_key_remove_or_missing_returns_default() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+
+    let v = d.remove_or(Point(9, 9), -999)
+    ut.assert_eq(v, -999)
+    // dict untouched when key absent
+    ut.assert_eq(d.len(), 1)
+    ut.assert_true(Point(1, 2) in d)
+    ut.assert_eq(d[Point(1, 2)], 100)
+}
+
+@test
+func test_dict_class_key_clear() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d[Point(3, 4)] = 200
+    d[Point(5, 6)] = 300
+
+    d.clear()
+
+    ut.assert_eq(d.len(), 0)
+    ut.assert_true(d.empty())
+    ut.assert_false(Point(1, 2) in d)
+    ut.assert_false(Point(3, 4) in d)
+    ut.assert_false(Point(5, 6) in d)
+}
+
+@test
+func test_dict_class_key_reuse_after_clear() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d.clear()
+
+    // fresh inserts must work and old keys must stay gone
+    d[Point(7, 8)] = 700
+    d[Point(1, 2)] = 999     // re-inserting a previously-cleared key is fine
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[Point(7, 8)], 700)
+    ut.assert_eq(d[Point(1, 2)], 999)
+}
+
+@test
+func test_dict_class_key_hash_collision_still_distinguishes() {
+    // The hash formula x*31+y collides for (0, 31) and (1, 0):
+    //   0*31 + 31 == 31, 1*31 + 0 == 31
+    // Both land in the same bucket, so the bucket chain must fall back to
+    // __eq__ to tell them apart. This exercises _dict_entry_eq_'s slow path.
+    let d = dict[Point, str]()
+    d[Point(0, 31)] = "a"
+    d[Point(1, 0)] = "b"
+
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[Point(0, 31)], "a")
+    ut.assert_eq(d[Point(1, 0)], "b")
+    ut.assert_true(Point(0, 31) in d)
+    ut.assert_true(Point(1, 0) in d)
+
+    // removing one must not disturb the other
+    ut.assert_eq(d.remove(Point(0, 31)), "a")
+    ut.assert_eq(d.len(), 1)
+    ut.assert_false(Point(0, 31) in d)
+    ut.assert_true(Point(1, 0) in d)
+    ut.assert_eq(d[Point(1, 0)], "b")
+}
+
+// ---------------------------------------------------------------------------
+// Interaction: remove / remove_or / clear preserve fmt output
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_fmt_reflects_remove() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+
+    d.remove("b")
+    ut.assert_eq(format("{}", d), "{a: 1, c: 3}")
+
+    d.remove("a")
+    ut.assert_eq(format("{}", d), "{c: 3}")
+}
+
+@test
+func test_dict_fmt_reflects_remove_or() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+
+    // missing key: dict unchanged
+    d.remove_or("zzz", 0)
+    ut.assert_eq(format("{}", d), "{a: 1, b: 2}")
+
+    // present key: entry removed
+    d.remove_or("a", 0)
+    ut.assert_eq(format("{}", d), "{b: 2}")
+}
+
+// ---------------------------------------------------------------------------
+// get(key) V?   — returns nil on missing key (no panic)
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_get_present() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+
+    if let v = d.get("a") {
+        ut.assert_eq(v, 1)
+    } else {
+        ut.assert(false, "expected Some for present key")
+    }
+
+    if let v = d.get("b") {
+        ut.assert_eq(v, 2)
+    } else {
+        ut.assert(false, "expected Some for present key")
+    }
+}
+
+@test
+func test_dict_get_missing_returns_nil() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    // missing key must yield nil, NOT panic (contrast with d["zzz"])
+    ut.assert_true(d.get("zzz") == nil)
+    ut.assert_true(d.get("") == nil)
+}
+
+@test
+func test_dict_get_from_empty_returns_nil() {
+    let d = dict[str, int]()
+    ut.assert_true(d.get("anything") == nil)
+}
+
+@test
+func test_dict_get_int_keys() {
+    let d = dict[int, str]()
+    d[1] = "one"
+    d[-5] = "neg five"
+
+    if let v = d.get(1) {
+        ut.assert_eq(v, "one")
+    } else {
+        ut.assert(false, "expected Some")
+    }
+    if let v = d.get(-5) {
+        ut.assert_eq(v, "neg five")
+    } else {
+        ut.assert(false, "expected Some")
+    }
+    ut.assert_true(d.get(0) == nil)
+    ut.assert_true(d.get(999) == nil)
+}
+
+@test
+func test_dict_get_after_remove_returns_nil() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.remove("a")
+    // key was present, then removed: get must now yield nil
+    ut.assert_true(d.get("a") == nil)
+    ut.assert_eq(d.len(), 0)
+}
+
+@test
+func test_dict_get_after_clear_returns_nil() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d.clear()
+    ut.assert_true(d.get("a") == nil)
+    ut.assert_true(d.get("b") == nil)
+}
+
+@test
+func test_dict_get_does_not_mutate() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    // repeated reads must not change the dict
+    ut.assert_true(d.get("zzz") == nil)
+    ut.assert_true(d.get("zzz") == nil)
+    if let v = d.get("a") { ut.assert_eq(v, 1) }
+    ut.assert_eq(d.len(), 1)
+    ut.assert_true("a" in d)
+    ut.assert_eq(d["a"], 1)
+}
+
+@test
+func test_dict_get_class_key_present() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d[Point(3, 4)] = 200
+
+    // lookup by an equal-but-distinct instance must succeed
+    if let v = d.get(Point(1, 2)) {
+        ut.assert_eq(v, 100)
+    } else {
+        ut.assert(false, "expected Some for equal Point key")
+    }
+    if let v = d.get(Point(3, 4)) {
+        ut.assert_eq(v, 200)
+    } else {
+        ut.assert(false, "expected Some for equal Point key")
+    }
+}
+
+@test
+func test_dict_get_class_key_missing_returns_nil() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+
+    ut.assert_true(d.get(Point(9, 9)) == nil)
+    ut.assert_true(d.get(Point(1, 3)) == nil)     // same x, different y
+    ut.assert_true(d.get(Point(2, 2)) == nil)     // different x, same y
+
+    let empty = dict[Point, int]()
+    ut.assert_true(empty.get(Point(0, 0)) == nil)
+}
+
+@test
+func test_dict_get_class_key_hash_collision() {
+    // (0, 31) and (1, 0) collide under x*31+y; get must still resolve each
+    // to its own value via the __eq__ bucket-chain walk.
+    let d = dict[Point, str]()
+    d[Point(0, 31)] = "a"
+    d[Point(1, 0)] = "b"
+
+    if let v = d.get(Point(0, 31)) { ut.assert_eq(v, "a") }
+    if let v = d.get(Point(1, 0)) { ut.assert_eq(v, "b") }
+    ut.assert_true(d.get(Point(2, 29)) == nil)   // also collides but absent
+}
+
+// ---------------------------------------------------------------------------
+// get_or(key, default_value) V   — returns default on missing key (no panic)
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_get_or_present_returns_value() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+
+    ut.assert_eq(d.get_or("a", -1), 1)
+    ut.assert_eq(d.get_or("b", -1), 2)
+}
+
+@test
+func test_dict_get_or_missing_returns_default() {
+    let d = dict[str, int]()
+    d["a"] = 1
+
+    ut.assert_eq(d.get_or("zzz", -999), -999)
+    ut.assert_eq(d.get_or("", 0), 0)
+    // dict must be untouched
+    ut.assert_eq(d.len(), 1)
+    ut.assert_true("a" in d)
+    ut.assert_false("zzz" in d)
+}
+
+@test
+func test_dict_get_or_from_empty_returns_default() {
+    let d = dict[str, int]()
+    ut.assert_eq(d.get_or("k", 42), 42)
+    ut.assert_eq(d.len(), 0)
+    ut.assert_true(d.empty())
+}
+
+@test
+func test_dict_get_or_str_value_default() {
+    let d = dict[int, str]()
+    d[1] = "one"
+
+    ut.assert_eq(d.get_or(1, "fallback"), "one")
+    ut.assert_eq(d.get_or(2, "fallback"), "fallback")
+    ut.assert_eq(d.get_or(-1, ""), "")
+}
+
+@test
+func test_dict_get_or_after_remove_returns_default() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.remove("a")
+    ut.assert_eq(d.get_or("a", -1), -1)
+}
+
+@test
+func test_dict_get_or_after_clear_returns_default() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d.clear()
+    ut.assert_eq(d.get_or("a", -1), -1)
+    ut.assert_eq(d.get_or("b", -2), -2)
+}
+
+@test
+func test_dict_get_or_does_not_mutate() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    // repeated reads (present or missing) must never insert or remove
+    ut.assert_eq(d.get_or("a", 0), 1)
+    ut.assert_eq(d.get_or("zzz", 0), 0)
+    ut.assert_eq(d.get_or("zzz", 0), 0)
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d["a"], 1)
+    ut.assert_false("zzz" in d)
+}
+
+@test
+func test_dict_get_or_class_key_present() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+
+    ut.assert_eq(d.get_or(Point(1, 2), -1), 100)
+}
+
+@test
+func test_dict_get_or_class_key_missing_returns_default() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+
+    ut.assert_eq(d.get_or(Point(9, 9), -1), -1)
+    // dict untouched
+    ut.assert_eq(d.len(), 1)
+    ut.assert_true(Point(1, 2) in d)
+    ut.assert_false(Point(9, 9) in d)
+}
+
+@test
+func test_dict_get_or_class_key_hash_collision() {
+    // (0, 31) and (1, 0) collide; get_or must pick the right value via __eq__
+    let d = dict[Point, str]()
+    d[Point(0, 31)] = "a"
+    d[Point(1, 0)] = "b"
+
+    ut.assert_eq(d.get_or(Point(0, 31), "?"), "a")
+    ut.assert_eq(d.get_or(Point(1, 0), "?"), "b")
+    ut.assert_eq(d.get_or(Point(2, 29), "?"), "?")   // collides but absent
+}
+
+// ---------------------------------------------------------------------------
+// update(src Iterable[(K, V)])   — merge all pairs, replacing existing keys
+//
+// TODO(KLC_CONST_TUPLE): All update tests below rely on tuple literals
+// (e.g. `(("a", 1), ("b", 2))` or the argument tuple inside
+// `list.append(("x", 10))`). The compiler folds them into constant-pool
+// entries KLC_CONST_SHORT_TUPLE / KLC_CONST_TUPLE, but the corresponding
+// branch in src/objects/modobj.c:205 is currently NYI(), so the module
+// loader aborts and no test in this file can run. The tests themselves
+// are valid; keep them commented out as a whole and simply strip the
+// /* */ wrapper once the constant-tuple loading branch in modobj lands.
+// ---------------------------------------------------------------------------
+/*
+@test
+func test_dict_update_from_tuple_of_pairs() {
+    let d = dict[str, int]()
+    // tuple-of-tuples: tuple is a Sequence, so update() takes the fast path
+    let pairs = (("a", 1), ("b", 2), ("c", 3))
+    d.update(pairs)
+
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d["a"], 1)
+    ut.assert_eq(d["b"], 2)
+    ut.assert_eq(d["c"], 3)
+}
+
+@test
+func test_dict_update_from_list_of_pairs() {
+    let d = dict[str, int]()
+    let pairs = list[tuple[str, int]]()
+    pairs.append(("x", 10))
+    pairs.append(("y", 20))
+    d.update(pairs)
+
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d["x"], 10)
+    ut.assert_eq(d["y"], 20)
+}
+
+@test
+func test_dict_update_replaces_existing_values() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+
+    d.update((("a", 100), ("c", 300)))
+
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d["a"], 100)     // replaced
+    ut.assert_eq(d["b"], 2)       // untouched
+    ut.assert_eq(d["c"], 300)     // newly inserted
+}
+
+@test
+func test_dict_update_preserves_insertion_order() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    // update replaces value of "a" but must NOT move its slot;
+    // new key "c" is appended at the end.
+    d.update((("a", 99), ("c", 3)))
+
+    ut.assert_eq(format("{}", d), "{a: 99, b: 2, c: 3}")
+}
+
+@test
+func test_dict_update_empty_src_is_noop() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    // TODO(empty-tuple): the empty tuple literal `()` is not yet accepted by
+    // the parser; add a `d.update(())` case here (expected: no-op) once it is.
+    let empty_list = list[tuple[str, int]]()
+    d.update(empty_list)       // empty list
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d["a"], 1)
+}
+
+@test
+func test_dict_update_into_empty_dict() {
+    let d = dict[str, int]()
+    ut.assert_true(d.empty())
+    d.update((("k1", 1), ("k2", 2)))
+    ut.assert_false(d.empty())
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d["k1"], 1)
+    ut.assert_eq(d["k2"], 2)
+}
+
+@test
+func test_dict_update_int_keys() {
+    let d = dict[int, str]()
+    d.update(((1, "one"), (2, "two"), (3, "three")))
+
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d[1], "one")
+    ut.assert_eq(d[2], "two")
+    ut.assert_eq(d[3], "three")
+
+    // replace one, add one
+    d.update(((2, "TWO"), (4, "four")))
+    ut.assert_eq(d.len(), 4)
+    ut.assert_eq(d[2], "TWO")
+    ut.assert_eq(d[4], "four")
+}
+
+@test
+func test_dict_update_multiple_calls_accumulate() {
+    let d = dict[str, int]()
+    // A single-element source must be carried by a list: `(("a", 1))` is
+    // folded by the parser into a plain 2-tuple `(str, int)` rather than a
+    // "1-tuple of 2-tuple", so it cannot serve as an Iterable.
+    let p1 = list[tuple[str, int]]()
+    p1.append(("a", 1))
+    d.update(p1)
+
+    let p2 = list[tuple[str, int]]()
+    p2.append(("b", 2))
+    d.update(p2)
+
+    let p3 = list[tuple[str, int]]()
+    p3.append(("c", 3))
+    d.update(p3)
+
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(format("{}", d), "{a: 1, b: 2, c: 3}")
+}
+
+@test
+func test_dict_update_after_clear() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.clear()
+    d.update((("x", 10), ("y", 20)))
+
+    ut.assert_eq(d.len(), 2)
+    ut.assert_false("a" in d)
+    ut.assert_eq(d["x"], 10)
+    ut.assert_eq(d["y"], 20)
+}
+
+@test
+func test_dict_update_class_key() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+
+    // Point(1,2) already present -> value replaced, slot preserved.
+    // Point(3,4) is new -> appended.
+    d.update(((Point(1, 2), 999), (Point(3, 4), 300)))
+
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[Point(1, 2)], 999)
+    ut.assert_eq(d[Point(3, 4)], 300)
+    ut.assert_true(Point(1, 2) in d)
+    ut.assert_true(Point(3, 4) in d)
+}
+
+@test
+func test_dict_update_class_key_fresh_instances() {
+    // Update using equal-but-distinct Point instances must still hit the
+    // existing entries (hash + __eq__ contract).
+    let d = dict[Point, str]()
+    d[Point(0, 0)] = "origin"
+
+    d.update(((Point(0, 0), "ORIGIN"), (Point(1, 1), "diag")))
+
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[Point(0, 0)], "ORIGIN")
+    ut.assert_eq(d[Point(1, 1)], "diag")
+}
+*/
+
+// ---------------------------------------------------------------------------
+// setdefault(key, default_value) V
+//   - present key: return the existing value, DO NOT overwrite
+//   - absent key: insert (key, default_value) and return default_value
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_setdefault_present_returns_existing() {
+    let d = dict[str, int]()
+    d["a"] = 1
+
+    let v = d.setdefault("a", 999)
+    ut.assert_eq(v, 1)              // existing value, not the default
+    ut.assert_eq(d["a"], 1)         // dict untouched
+    ut.assert_eq(d.len(), 1)
+}
+
+@test
+func test_dict_setdefault_missing_inserts_default() {
+    let d = dict[str, int]()
+
+    let v = d.setdefault("k", 42)
+    ut.assert_eq(v, 42)
+    ut.assert_eq(d.len(), 1)
+    ut.assert_true("k" in d)
+    ut.assert_eq(d["k"], 42)
+}
+
+@test
+func test_dict_setdefault_from_empty() {
+    let d = dict[str, int]()
+    ut.assert_true(d.empty())
+
+    ut.assert_eq(d.setdefault("a", 1), 1)
+    ut.assert_eq(d.setdefault("b", 2), 2)
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d["a"], 1)
+    ut.assert_eq(d["b"], 2)
+}
+
+@test
+func test_dict_setdefault_repeated_present_is_idempotent() {
+    let d = dict[str, int]()
+    d["a"] = 1
+
+    // repeated calls with different defaults must all return the same
+    // existing value and never mutate the entry
+    ut.assert_eq(d.setdefault("a", 100), 1)
+    ut.assert_eq(d.setdefault("a", 200), 1)
+    ut.assert_eq(d.setdefault("a", 300), 1)
+    ut.assert_eq(d["a"], 1)
+    ut.assert_eq(d.len(), 1)
+}
+
+@test
+func test_dict_setdefault_repeated_missing_inserts_once() {
+    let d = dict[str, int]()
+
+    ut.assert_eq(d.setdefault("k", 1), 1)
+    // second call: key now present, returns existing 1 (NOT the new default)
+    ut.assert_eq(d.setdefault("k", 2), 1)
+    ut.assert_eq(d.setdefault("k", 3), 1)
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d["k"], 1)
+}
+
+@test
+func test_dict_setdefault_int_keys() {
+    let d = dict[int, str]()
+    ut.assert_eq(d.setdefault(1, "one"), "one")
+    ut.assert_eq(d.setdefault(1, "ONE"), "one")   // present -> existing
+    ut.assert_eq(d.setdefault(2, "two"), "two")
+
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[1], "one")
+    ut.assert_eq(d[2], "two")
+}
+
+@test
+func test_dict_setdefault_preserves_insertion_order() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.setdefault("b", 2)     // new -> appended after "a"
+    d.setdefault("a", 99)    // present -> no move, no overwrite
+    d.setdefault("c", 3)     // new -> appended at end
+
+    ut.assert_eq(format("{}", d), "{a: 1, b: 2, c: 3}")
+}
+
+@test
+func test_dict_setdefault_class_key_present() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+
+    // equal-but-distinct key hits the existing entry
+    let v = d.setdefault(Point(1, 2), 999)
+    ut.assert_eq(v, 100)
+    ut.assert_eq(d[Point(1, 2)], 100)
+    ut.assert_eq(d.len(), 1)
+}
+
+@test
+func test_dict_setdefault_class_key_missing_inserts() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+
+    let v = d.setdefault(Point(3, 4), 200)
+    ut.assert_eq(v, 200)
+    ut.assert_eq(d.len(), 2)
+    ut.assert_true(Point(3, 4) in d)
+    ut.assert_eq(d[Point(3, 4)], 200)
+    // original entry untouched
+    ut.assert_eq(d[Point(1, 2)], 100)
+}
+
+@test
+func test_dict_setdefault_after_remove_reinserts() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.remove("a")
+
+    // key was present, then removed: setdefault must insert afresh
+    ut.assert_eq(d.setdefault("a", 42), 42)
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d["a"], 42)
+}
+
+@test
+func test_dict_setdefault_after_clear() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.clear()
+
+    ut.assert_eq(d.setdefault("a", 99), 99)
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d["a"], 99)
+}
+

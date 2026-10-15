@@ -7,17 +7,13 @@
 /// to values.
 ///
 /// It implements `MutableMap`, providing key lookup, insertion, removal,
-/// and iteration over key-value pairs. Iteration, `keys()`, `values()` and
-/// `items()` all follow insertion order.
+/// and iteration over key-value pairs. Iteration, `keys()` and `values()`
+/// all follow insertion order.
 pub class dict[K, V] : MutableMap[K, V] {
 
     /// Create an empty dict.
     @native
     pub func __init__() {}
-
-    /// Create a new dict with keys from `keys` and all values set to `value`.
-    @native
-    pub static func fromkeys(keys Iterable[K], value V) dict[K, V] {}
 
     /// Return an iterator over the (key, value) pairs in insertion order.
     @native
@@ -51,10 +47,6 @@ pub class dict[K, V] : MutableMap[K, V] {
     /// Return an iterable over all values in the dict, in insertion order.
     @native
     pub func values() Iterable[V] {}
-
-    /// Return an iterable over all (key, value) pairs in the dict, in insertion order.
-    @native
-    pub func items() Iterable[(K, V)] {}
 
     /// Remove all mappings from the dict, leaving it empty.
     @native
@@ -92,30 +84,6 @@ pub class dict[K, V] : MutableMap[K, V] {
     @native
     pub func setdefault(key K, default_value V) V {}
 
-    /// Return the first inserted (key, value) pair without removing it.
-    ///
-    /// Panic if the dict is empty.
-    @native
-    pub func peek_first() (K, V) {}
-
-    /// Return the last inserted (key, value) pair without removing it.
-    ///
-    /// Panic if the dict is empty.
-    @native
-    pub func peek_last() (K, V) {}
-
-    /// Remove and return the first inserted (key, value) pair.
-    ///
-    /// Panic if the dict is empty.
-    @native
-    pub func pop_first() (K, V) {}
-
-    /// Remove and return the last inserted (key, value) pair.
-    ///
-    /// Panic if the dict is empty.
-    @native
-    pub func pop_last() (K, V) {}
-
     /// Return a new dict with mappings of `self` followed by `src` (`self | src`).
     /// Values from `src` replace those of duplicate keys.
     @native
@@ -134,8 +102,4 @@ pub class dict[K, V] : MutableMap[K, V] {
     /// Format the dict for display.
     @native
     pub func fmt(f Formatter) {}
-}
-
-pub class DictIter[K, V] : Iterator[(K, V)] {
-
 }
