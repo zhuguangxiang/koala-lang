@@ -424,18 +424,15 @@ static int _mkdir_all(char *path)
     return (stat(buf, &sb) == 0 && S_ISDIR(sb.st_mode)) ? 0 : -1;
 }
 
-/// Create the directory `path`.
-/// If `parents` is true, missing parents are created (mkdir -p) and an
-/// existing directory is treated as success.
+/// Create the directory `path`, including any missing parent directories (mkdir -p).
+/// An existing directory is treated as success.
 /// Return true on success, false on failure.
 static TValue fs_mkdir(TValue *self, TValue *args, int nargs)
 {
-    ASSERT(nargs == 2);
+    ASSERT(nargs == 1);
     char *path = kl_arg_str(0);
-    int parents = kl_arg_bool(1);
 
-    int r = parents ? _mkdir_all(path) : mkdir(path, 0755);
-    return bool_value(r == 0);
+    return bool_value(_mkdir_all(path) == 0);
 }
 
 /// Remove the empty directory `path`.

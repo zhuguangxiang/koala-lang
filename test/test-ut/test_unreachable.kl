@@ -1,0 +1,8 @@
+// RUN: koala %s --test
+
+import "std/ut"
+
+@should_panic("unreachable")
+func test_unreachable_panics() {
+    unreachable()
+}

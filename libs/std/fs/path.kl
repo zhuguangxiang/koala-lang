@@ -178,6 +178,8 @@ pub class Path : ToString {
             next_part = segment
         } else if segment is Path {
             next_part = segment.to_str()
+        } else {
+            unreachable()
         }
 
         if next_part.empty() { return self }

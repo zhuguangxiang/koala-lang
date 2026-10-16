@@ -78,6 +78,16 @@ static TValue builtin_panic(TValue *self, TValue *args, int nargs)
     return error_value;
 }
 
+/*
+func UNREACHABLE()
+*/
+static TValue builtin_unreachable(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    raise_exc_str("unreachable");
+    return error_value;
+}
+
 void __kl_format__(Formatter *out, const char *fmt, int len, Object *args);
 
 static TValue builtin_format(TValue *self, TValue *args, int nargs)
@@ -110,6 +120,7 @@ static TValue builtin_typeof(TValue *self, TValue *args, int nargs)
 
 static MethodDef builtin_functions[] = {
     { "panic", builtin_panic },
+    { "unreachable", builtin_unreachable },
     { "format", builtin_format },
     { "typeof", builtin_typeof },
     { NULL },

@@ -47,6 +47,17 @@ pub const UINT64_MAX = 18446744073709551615
 @native
 pub func panic(msg str) {}
 
+/// Signal that execution has reached code that should be unreachable.
+///
+/// `unreachable()` raises a fatal runtime error indicating a logic bug.
+/// It is used to mark code paths that should never execute (e.g., after
+/// exhaustive pattern matching or in default branches that should be
+/// impossible to reach).
+///
+/// If execution reaches `unreachable()`, it indicates a bug in the program.
+@native
+pub func unreachable() {}
+
 /// Format a string using positional arguments.
 ///
 /// `{}` consumes one argument in order. No named placeholders.

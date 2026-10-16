@@ -41,7 +41,7 @@ func _path_str(p Path | str) str {
     } else if p is Path {
         return p.to_str()
     } else {
-        panic("unreachable")
+        unreachable()
     }
 }
 
@@ -74,7 +74,7 @@ func _size(p str) int64 {}
 func _remove(p str) bool {}
 
 @native
-func _mkdir(p str, parents bool) bool {}
+func _mkdir(p str) bool {}
 
 @native
 func _rmdir(p str) bool {}
@@ -147,13 +147,11 @@ pub func remove(p Path | str) bool {
 
 // --- Directory Management ---
 
-/// Create a directory.
-///
-/// If `parents = true`, automatically creates missing parent folders
-/// (mkdir -p), and an existing directory is treated as success.
+/// Create a directory, including any missing parent directories (mkdir -p).
+/// An existing directory is treated as success.
 /// Return true on success, false on failure.
-pub func mkdir(p Path | str, parents bool = false) bool {
-    return _mkdir(_path_str(p), parents)
+pub func mkdir(p Path | str) bool {
+    return _mkdir(_path_str(p))
 }
 
 /// Remove an empty directory. Returns false if the directory is not empty.

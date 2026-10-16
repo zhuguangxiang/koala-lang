@@ -1,0 +1,11 @@
+
+// TODO:
+// _write_rt_const
+// let pairs = (("a", 1), ("b", 2), ("c", 3))
+// print(pairs)
+
+func UNREACHABLE() {}
+
+func main() {
+    UNREACHABLE()
+}

@@ -31,13 +31,13 @@ func test_fs_exists_is_file_is_dir() {
     ut.assert(fs.is_file("/tmp/kl_fs_meta_probe.txt"))
     ut.assert_false(fs.is_dir("/tmp/kl_fs_meta_probe.txt"))
 
-    // ut.assert(fs.mkdir("/tmp/kl_fs_meta_probe_dir"))
-    // ut.assert(fs.exists("/tmp/kl_fs_meta_probe_dir"))
-    // ut.assert(fs.is_dir("/tmp/kl_fs_meta_probe_dir"))
-    // ut.assert_false(fs.is_file("/tmp/kl_fs_meta_probe_dir"))
+    ut.assert(fs.mkdir("/tmp/kl_fs_meta_probe_dir"))
+    ut.assert(fs.exists("/tmp/kl_fs_meta_probe_dir"))
+    ut.assert(fs.is_dir("/tmp/kl_fs_meta_probe_dir"))
+    ut.assert_false(fs.is_file("/tmp/kl_fs_meta_probe_dir"))
 
-    // ut.assert(fs.remove("/tmp/kl_fs_meta_probe.txt"))
-    // ut.assert(fs.rmdir("/tmp/kl_fs_meta_probe_dir"))
+    ut.assert(fs.remove("/tmp/kl_fs_meta_probe.txt"))
+    ut.assert(fs.rmdir("/tmp/kl_fs_meta_probe_dir"))
 }
 
 @test
@@ -64,69 +64,66 @@ func test_fs_size() {
 // }
 
 @test
-func test_fs_mkdir_parents() {
+func test_fs_mkdir() {
     cleanup_fs_meta()
 
     let deep = "/tmp/kl_fs_meta_dir/a/b/c"
 
-    // Missing parents require `parents = true`.
-    // ut.assert_false(fs.mkdir(deep))
-    // ut.assert_false(fs.exists(deep))
+    // mkdir creates the whole chain (mkdir -p semantics).
+    ut.assert(fs.mkdir(deep))
+    ut.assert(fs.is_dir("/tmp/kl_fs_meta_dir"))
+    ut.assert(fs.is_dir(deep))
 
-    // `parents = true` creates the whole chain; a Path argument is accepted.
-    // ut.assert(fs.mkdir(fs.Path(deep), true))
-    // ut.assert(fs.is_dir("/tmp/kl_fs_meta_dir"))
-    // ut.assert(fs.is_dir(deep))
+    // An existing directory is success.
+    ut.assert(fs.mkdir(deep))
 
-    // An existing directory is success with `parents = true` ...
-    // ut.assert(fs.mkdir(deep, true))
-    // // ... but fails with a plain `mkdir`.
-    // ut.assert_false(fs.mkdir(deep))
+    // A Path argument is accepted.
+    ut.assert(fs.mkdir(fs.Path(deep)))
 
     // rmdir removes only empty directories, bottom-up.
-    // ut.assert_false(fs.rmdir("/tmp/kl_fs_meta_dir"))
-    // ut.assert(fs.rmdir(deep))
-    // ut.assert(fs.rmdir("/tmp/kl_fs_meta_dir/a/b"))
-    // ut.assert(fs.rmdir("/tmp/kl_fs_meta_dir/a"))
-    // ut.assert(fs.rmdir("/tmp/kl_fs_meta_dir"))
-    // ut.assert_false(fs.exists("/tmp/kl_fs_meta_dir"))
+    ut.assert_false(fs.rmdir("/tmp/kl_fs_meta_dir"))
+    ut.assert(fs.rmdir(deep))
+    ut.assert(fs.rmdir("/tmp/kl_fs_meta_dir/a/b"))
+    ut.assert(fs.rmdir("/tmp/kl_fs_meta_dir/a"))
+    ut.assert(fs.rmdir("/tmp/kl_fs_meta_dir"))
+    ut.assert_false(fs.exists("/tmp/kl_fs_meta_dir"))
 
-    // ut.assert_false(fs.rmdir("/tmp/kl_fs_meta_missing_dir"))
+    ut.assert_false(fs.rmdir("/tmp/kl_fs_meta_missing_dir"))
 }
 
 @test
 func test_fs_list_dir() {
     cleanup_fs_meta()
 
-    // ut.assert(fs.mkdir("/tmp/kl_fs_meta_list/sub", true))
-    // ut.assert(fs.write_str("/tmp/kl_fs_meta_list/b.txt", "b"))
-    // ut.assert(fs.write_str("/tmp/kl_fs_meta_list/a.txt", "a"))
+    ut.assert(fs.mkdir("/tmp/kl_fs_meta_list/sub"))
+    ut.assert(fs.write_str("/tmp/kl_fs_meta_list/b.txt", "b"))
+    ut.assert(fs.write_str("/tmp/kl_fs_meta_list/a.txt", "a"))
 
-    // let items = fs.list_dir("/tmp/kl_fs_meta_list")
+    let items = fs.list_dir("/tmp/kl_fs_meta_list")
 
-    // // Entries are joined with the directory and sorted ascending;
-    // // `.` and `..` are skipped.
-    // ut.assert_eq(items.len(), 3)
-    // ut.assert_eq(items[0].to_str(), "/tmp/kl_fs_meta_list/a.txt")
-    // ut.assert_eq(items[1].to_str(), "/tmp/kl_fs_meta_list/b.txt")
-    // ut.assert_eq(items[2].to_str(), "/tmp/kl_fs_meta_list/sub")
+    // Entries are joined with the directory and sorted ascending;
+    // `.` and `..` are skipped.
+    ut.assert_eq(items.len(), 3)
+    ut.assert_eq(items[0].to_str(), "/tmp/kl_fs_meta_list/a.txt")
+    ut.assert_eq(items[1].to_str(), "/tmp/kl_fs_meta_list/b.txt")
+    ut.assert_eq(items[2].to_str(), "/tmp/kl_fs_meta_list/sub")
 
-    // // The entries are strongly-typed `Path` objects, directly usable
-    // // with the fs functions; the base name stays accessible.
-    // ut.assert_eq(items[0].name(), "a.txt")
-    // ut.assert_eq(items[0].ext(), "txt")
-    // ut.assert(fs.is_file(items[0]))
-    // ut.assert(fs.is_dir(items[2]))
+    // The entries are strongly-typed `Path` objects, directly usable
+    // with the fs functions; the base name stays accessible.
+    ut.assert_eq(items[0].name(), "a.txt")
+    ut.assert_eq(items[0].ext(), "txt")
+    ut.assert(fs.is_file(items[0]))
+    ut.assert(fs.is_dir(items[2]))
 
-    // // A `Path` argument is accepted as well.
-    // let items2 = fs.list_dir(fs.Path("/tmp/kl_fs_meta_list"))
-    // ut.assert_eq(items2.len(), 3)
+    // A `Path` argument is accepted as well.
+    let items2 = fs.list_dir(fs.Path("/tmp/kl_fs_meta_list"))
+    ut.assert_eq(items2.len(), 3)
 
-    // // Cleanup.
-    // ut.assert(fs.remove(items[0]))
-    // ut.assert(fs.remove(items[1]))
-    // ut.assert(fs.rmdir(items[2]))
-    // ut.assert(fs.rmdir(fs.Path("/tmp/kl_fs_meta_list")))
+    // Cleanup.
+    ut.assert(fs.remove(items[0]))
+    ut.assert(fs.remove(items[1]))
+    ut.assert(fs.rmdir(items[2]))
+    ut.assert(fs.rmdir(fs.Path("/tmp/kl_fs_meta_list")))
 }
 
 // @should_panic
