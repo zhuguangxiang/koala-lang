@@ -3,10 +3,14 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <dirent.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include "bytesobj.h"
 #include "excobj.h"
+#include "listobj.h"
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -340,12 +344,163 @@ static TValue fs_write_str(TValue *self, TValue *args, int nargs)
     return bool_value(r == 0);
 }
 
+/// Permanently delete the file `path` from the disk.
+/// Return true on success, false on failure.
+static TValue fs_remove(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = kl_arg_str(0);
+    return bool_value(unlink(path) == 0);
+}
+
+/// Return true if the file or directory `path` exists on the disk.
+static TValue fs_exists(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = kl_arg_str(0);
+
+    struct stat sb;
+    return bool_value(stat(path, &sb) == 0);
+}
+
+/// Return true if `path` exists and points to a regular file.
+static TValue fs_is_file(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = kl_arg_str(0);
+
+    struct stat sb;
+    return bool_value(stat(path, &sb) == 0 && S_ISREG(sb.st_mode));
+}
+
+/// Return true if `path` exists and points to a directory.
+static TValue fs_is_dir(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = kl_arg_str(0);
+
+    struct stat sb;
+    return bool_value(stat(path, &sb) == 0 && S_ISDIR(sb.st_mode));
+}
+
+/// Return the number of bytes of the file `path`, raise an error on failure.
+static TValue fs_size(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = kl_arg_str(0);
+
+    struct stat sb;
+    if (stat(path, &sb) != 0) {
+        raise_exc_fmt("stat '%s' failed: %s", path, strerror(errno));
+        return error_value;
+    }
+
+    return int64_value(sb.st_size);
+}
+
+/* Create `path` and every missing parent directory (mkdir -p).
+   An existing final directory is treated as success.
+   Return 0 on success, -1 on failure. */
+static int _mkdir_all(char *path)
+{
+    char buf[PATH_MAX];
+    size_t len = strlen(path);
+
+    if (len == 0 || len >= sizeof(buf)) return -1;
+    memcpy(buf, path, len + 1);
+
+    while (len > 1 && buf[len - 1] == '/') buf[--len] = '\0';
+
+    for (char *p = buf + 1; *p; ++p) {
+        if (*p != '/') continue;
+        *p = '\0';
+        if (mkdir(buf, 0755) != 0 && errno != EEXIST) return -1;
+        *p = '/';
+    }
+
+    if (mkdir(buf, 0755) != 0 && errno != EEXIST) return -1;
+
+    struct stat sb;
+    return (stat(buf, &sb) == 0 && S_ISDIR(sb.st_mode)) ? 0 : -1;
+}
+
+/// Create the directory `path`.
+/// If `parents` is true, missing parents are created (mkdir -p) and an
+/// existing directory is treated as success.
+/// Return true on success, false on failure.
+static TValue fs_mkdir(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *path = kl_arg_str(0);
+    int parents = kl_arg_bool(1);
+
+    int r = parents ? _mkdir_all(path) : mkdir(path, 0755);
+    return bool_value(r == 0);
+}
+
+/// Remove the empty directory `path`.
+/// Return true on success, false if it is not empty or cannot be removed.
+static TValue fs_rmdir(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = kl_arg_str(0);
+    return bool_value(rmdir(path) == 0);
+}
+
+static int _name_cmp(const void *a, const void *b) { return strcmp(*(char **)a, *(char **)b); }
+
+/// Read the directory `path` and return the entry names as a sorted list
+/// of `str`, the special entries `.` and `..` are skipped.
+/// Raise an error if the directory cannot be opened.
+static TValue fs_list_dir(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = kl_arg_str(0);
+
+    DIR *dir = opendir(path);
+    if (dir == NULL) {
+        raise_exc_fmt("open directory '%s' failed: %s", path, strerror(errno));
+        return error_value;
+    }
+
+    Vector names = VECTOR_INIT_PTR;
+    struct dirent *dent;
+    while ((dent = readdir(dir))) {
+        if (strcmp(dent->d_name, ".") == 0 || strcmp(dent->d_name, "..") == 0) continue;
+        char *name = str_dup(dent->d_name);
+        vector_push_back(&names, &name);
+    }
+    closedir(dir);
+
+    vector_sort(&names, _name_cmp);
+
+    Object *list = kl_new_list();
+    char *name;
+    vector_foreach(name, &names) {
+        kl_list_append(list, kl_val_str(name));
+        mm_free(name);
+    }
+    vector_fini(&names);
+
+    return obj_value(list);
+}
+
 void fs_native_lib_init(NativeLib *lib)
 {
+    /* `_`-prefixed functions take a raw `str` path; the public `Path | str`
+       wrappers in `__fs__.kl` normalize the argument before forwarding. */
     kl_reg_func(lib, "open", file_open);
-    kl_reg_func(lib, "read_bytes", fs_read_bytes);
-    kl_reg_func(lib, "write_bytes", fs_write_bytes);
-    kl_reg_func(lib, "write_str", fs_write_str);
+    kl_reg_func(lib, "_read_bytes", fs_read_bytes);
+    kl_reg_func(lib, "_write_bytes", fs_write_bytes);
+    kl_reg_func(lib, "_write_str", fs_write_str);
+    kl_reg_func(lib, "_exists", fs_exists);
+    kl_reg_func(lib, "_is_file", fs_is_file);
+    kl_reg_func(lib, "_is_dir", fs_is_dir);
+    kl_reg_func(lib, "_size", fs_size);
+    kl_reg_func(lib, "_remove", fs_remove);
+    kl_reg_func(lib, "_mkdir", fs_mkdir);
+    kl_reg_func(lib, "_rmdir", fs_rmdir);
+    kl_reg_func(lib, "_list_dir", fs_list_dir);
     kl_reg_type(lib, &file_type);
 }
 

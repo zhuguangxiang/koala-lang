@@ -704,7 +704,7 @@ pub static func try_from_str(s str, base = 10) int64? {}
 
 ### 16.2 fs / os / 数值方法
 
-- `fs`：`exists` / `is_file` / `is_dir` / `size` / `remove` / `mkdir` / `rmdir` / `list_dir` 与 `Path.cat`（空体 `@native`，KL 实现整体注释态）无 C 实现；`open` / `read_bytes` / `write_bytes` / `write_str` 与 `File` 方法已实现。
+- `fs`：C 侧全部已实现——`open` / `read_bytes` / `write_bytes` / `write_str` / `exists` / `is_file` / `is_dir` / `size` / `remove` / `mkdir` / `rmdir` / `list_dir` 与 `File` 方法；`Path` 方法为纯 KL 实现。
 - `os`：`system` / `run` + `Process` 8 方法 + `PipeReader` / `PipeWriter` 8 方法——声明活跃、native 全缺（仅 `getenv` / `setenv` / `unsetenv` 已实现）。
 - 数值方法族：见 §13.6 新增条目。
 

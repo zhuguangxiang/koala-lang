@@ -1,0 +1,20 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A TOML float value.
+pub class TomFloat : TomValue {
+    /// The float content.
+    pub let value float
+
+    /// Create a float value holding `_value`.
+    pub func __init__(_value float) {
+        value = _value
+    }
+
+    /// Write the decimal representation to `f`.
+    pub func fmt(f Formatter) {
+        f.write_str(str(value))
+    }
+}

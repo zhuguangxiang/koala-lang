@@ -1,0 +1,23 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A TOML array value.
+///
+/// Elements are stored as `TomValue`, so strings, integers, floats and
+/// booleans may be mixed freely.
+pub class TomArray : TomValue {
+    /// The elements of the array.
+    pub let value = list[TomValue]()
+
+    /// Append a value to the end of the array.
+    pub func add(v TomValue) {
+        value.append(v)
+    }
+
+    /// Format the elements for display.
+    pub func fmt(f Formatter) {
+        value.fmt(f)
+    }
+}

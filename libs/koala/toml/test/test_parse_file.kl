@@ -1,0 +1,42 @@
+// RUN: koala %s --test
+
+import "koala/toml"
+import "std/fs"
+import "std/ut"
+
+@test
+func test_parse_file() {
+    let path = "/tmp/kl_toml_test.toml"
+    let content = "title = \"koala\"\n\n[server]\nhost = \"localhost\"\nport = 8080\n"
+    fs.write_str(path, content)
+
+    let root = toml.parse_file(path)
+    let title = (root.get("title") as toml.TomString)!
+    ut.assert_eq(title.value, "koala")
+
+    let server = (root.get("server") as toml.TomTable)!
+    let host = (server.get("host") as toml.TomString)!
+    let port = (server.get("port") as toml.TomInteger)!
+    ut.assert_eq(host.value, "localhost")
+    ut.assert_eq(port.value, 8080)
+
+    fs.remove(path)
+}
+
+@test
+func test_parse_file_matches_parse_str() {
+    let path = "/tmp/kl_toml_test.toml"
+    let content = "nums = [1, 2, 3]\nflag = true\n"
+    fs.write_str(path, content)
+
+    let from_file = toml.parse_file(path)
+    let from_str = toml.parse_str(content)
+    ut.assert_eq(format("{}", from_file), format("{}", from_str))
+
+    fs.remove(path)
+}
+
+@should_panic
+func test_parse_file_missing_panics() {
+    let root = toml.parse_file("/tmp/kl_toml_no_such_file.toml")
+}

@@ -1,0 +1,20 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A TOML string value.
+pub class TomString : TomValue {
+    /// The string content, without the surrounding quotes.
+    pub let value str
+
+    /// Create a string value holding `_value`.
+    pub func __init__(_value str) {
+        value = _value
+    }
+
+    /// Write the string content to `f`.
+    pub func fmt(f Formatter) {
+        f.write_str(value)
+    }
+}

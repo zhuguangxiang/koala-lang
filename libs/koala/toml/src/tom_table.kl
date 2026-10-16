@@ -1,0 +1,30 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A TOML table value: an ordered mapping from string keys to values.
+pub class TomTable : TomValue {
+    /// The key-value mappings, in insertion order.
+    pub let data = dict[str, TomValue]()
+
+    /// Associate `_value` with `_key`, replacing an existing mapping.
+    pub func add(_key str, _value TomValue) {
+        data[_key] = _value
+    }
+
+    /// Return the value mapped to `_key`. Panic if `_key` is not present.
+    pub func get(_key str) TomValue {
+        return data[_key]
+    }
+
+    /// Return true if the table contains a mapping for `_key`.
+    pub func __contains__(_key str) bool {
+        return _key in data
+    }
+
+    /// Format the mappings for display.
+    pub func fmt(f Formatter) {
+        data.fmt(f)
+    }
+}

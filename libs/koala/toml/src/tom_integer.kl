@@ -1,0 +1,20 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A TOML integer value.
+pub class TomInteger : TomValue {
+    /// The integer content, with `_` separators removed.
+    pub let value int
+
+    /// Create an integer value holding `_value`.
+    pub func __init__(_value int) {
+        value = _value
+    }
+
+    /// Write the decimal representation to `f`.
+    pub func fmt(f Formatter) {
+        f.write_str(str(value))
+    }
+}

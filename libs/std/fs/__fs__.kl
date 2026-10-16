@@ -31,6 +31,57 @@ link "koala"
 @native
 pub func open(path str, mode = "r") File? {}
 
+/// Convert a `Path | str` argument to the raw `str` path.
+///
+/// Public functions accept `Path | str`; the `@native` primitives they
+/// forward to only take a plain `str`.
+func _path_str(p Path | str) str {
+    if p is str {
+        return p
+    } else if p is Path {
+        return p.to_str()
+    } else {
+        panic("unreachable")
+    }
+}
+
+// --- Native primitives ---
+// Raw `str`-path implementations; the public functions below normalize
+// `Path | str` via `_path_str` before forwarding.
+
+@native
+func _read_bytes(path str, out bytes) int {}
+
+@native
+func _write_bytes(path str, data bytes) bool {}
+
+@native
+func _write_str(path str, data str) bool {}
+
+@native
+func _exists(p str) bool {}
+
+@native
+func _is_file(p str) bool {}
+
+@native
+func _is_dir(p str) bool {}
+
+@native
+func _size(p str) int64 {}
+
+@native
+func _remove(p str) bool {}
+
+@native
+func _mkdir(p str, parents bool) bool {}
+
+@native
+func _rmdir(p str) bool {}
+
+@native
+func _list_dir(p str) list[str] {}
+
 /// Read the file `path` into `out` and return the count read.
 ///
 /// Reading stops when `out` is full or end of file is reached, so
@@ -40,8 +91,9 @@ pub func open(path str, mode = "r") File? {}
 /// The file is closed before returning.
 ///
 /// See: `write_bytes`, `File.read`.
-@native
-pub func read_bytes(path Path | str, out bytes) int {}
+pub func read_bytes(path Path | str, out bytes) int {
+    return _read_bytes(_path_str(path), out)
+}
 
 /// Write `data` to the file `path`, creating or truncating it.
 ///
@@ -50,8 +102,9 @@ pub func read_bytes(path Path | str, out bytes) int {}
 /// The file is closed before returning.
 ///
 /// See: `write_str`, `read_bytes`.
-@native
-pub func write_bytes(path Path | str, data bytes) bool {}
+pub func write_bytes(path Path | str, data bytes) bool {
+    return _write_bytes(_path_str(path), data)
+}
 
 /// Encode `data` as UTF-8 and write it to the file `path`,
 /// creating or truncating it.
@@ -61,41 +114,66 @@ pub func write_bytes(path Path | str, data bytes) bool {}
 /// The file is closed before returning.
 ///
 /// See: `write_bytes`, `read_bytes`.
-@native
-pub func write_str(path Path | str, data str) bool {}
+pub func write_str(path Path | str, data str) bool {
+    return _write_str(_path_str(path), data)
+}
 
 // --- Metadata & Queries (Migrated from traditional os.path) ---
 
 /// Return true if the file or directory exists on the physical disk.
-@native
-pub func exists(p Path | str) bool {}
+pub func exists(p Path | str) bool {
+    return _exists(_path_str(p))
+}
 
 /// Return true if the path points to a regular file.
-@native
-pub func is_file(p Path | str) bool {}
+pub func is_file(p Path | str) bool {
+    return _is_file(_path_str(p))
+}
 
 /// Return true if the path points to a directory.
-@native
-pub func is_dir(p Path | str) bool {}
+pub func is_dir(p Path | str) bool {
+    return _is_dir(_path_str(p))
+}
 
 /// Return the size of the file in bytes. Panics if the file does not exist.
-@native
-pub func size(p Path | str) int64 {}
+pub func size(p Path | str) int64 {
+    return _size(_path_str(p))
+}
 
 /// Permanently delete a file from the disk. Returns true on success.
-@native
-pub func remove(p Path | str) bool {}
+pub func remove(p Path | str) bool {
+    return _remove(_path_str(p))
+}
 
 // --- Directory Management ---
 
-/// Create a directory. If `parents = true`, automatically creates missing parent folders (mkdir -p).
-@native
-pub func mkdir(p Path | str, parents bool = false) bool {}
+/// Create a directory.
+///
+/// If `parents = true`, automatically creates missing parent folders
+/// (mkdir -p), and an existing directory is treated as success.
+/// Return true on success, false on failure.
+pub func mkdir(p Path | str, parents bool = false) bool {
+    return _mkdir(_path_str(p), parents)
+}
 
 /// Remove an empty directory. Returns false if the directory is not empty.
-@native
-pub func rmdir(p Path | str) bool {}
+pub func rmdir(p Path | str) bool {
+    return _rmdir(_path_str(p))
+}
 
 /// Read the directory contents and return a list of strongly-typed `path.Path` objects.
-@native
-pub func list_dir(p Path | str) list[Path] {}
+///
+/// Each entry is joined with the directory path (e.g. `list_dir("/tmp")`
+/// yields `Path("/tmp/a.txt")`), so the returned paths can be used
+/// directly; the base name is still available via `Path.name`.
+/// The special entries `.` and `..` are skipped and the result is
+/// sorted in ascending order. Panics if the directory cannot be opened.
+pub func list_dir(p Path | str) list[Path] {
+    let dir = Path(_path_str(p))
+    let names = _list_dir(dir.to_str())
+    let paths = list[Path]()
+    for name in names {
+        paths.append(dir.cat(name))
+    }
+    return paths
+}

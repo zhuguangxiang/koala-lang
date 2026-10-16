@@ -156,3 +156,18 @@ func test_path_cat_polymorphism() {
     // Appending an empty segment leaves the path unchanged.
     ut.assert_eq(base.cat("").to_str(), "abc")
 }
+
+@test
+func test_path_with_fs_functions() {
+    // The fs top-level functions accept a Path where a path string is expected.
+    let p = fs.Path("/tmp/kl_fs_path_probe.txt")
+
+    ut.assert(fs.write_str(p, "path arg"))
+
+    let buf = bytes(64)
+    ut.assert_eq(fs.read_bytes(p, buf), 8)
+    ut.assert_eq(buf.view(0, 8).to_str(), "path arg")
+
+    ut.assert(fs.remove(p))
+    ut.assert_false(fs.remove(p)) // the file is already gone
+}

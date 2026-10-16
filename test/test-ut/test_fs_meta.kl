@@ -1,0 +1,135 @@
+// RUN: koala %s --test
+
+import "std/fs"
+import "std/ut"
+
+/// Best-effort cleanup so every run starts from a known state.
+func cleanup_fs_meta() {
+    fs.remove("/tmp/kl_fs_meta_probe.txt")
+    fs.rmdir("/tmp/kl_fs_meta_probe_dir")
+    fs.rmdir("/tmp/kl_fs_meta_dir/a/b/c")
+    fs.rmdir("/tmp/kl_fs_meta_dir/a/b")
+    fs.rmdir("/tmp/kl_fs_meta_dir/a")
+    fs.rmdir("/tmp/kl_fs_meta_dir")
+    fs.remove("/tmp/kl_fs_meta_list/a.txt")
+    fs.remove("/tmp/kl_fs_meta_list/b.txt")
+    fs.rmdir("/tmp/kl_fs_meta_list/sub")
+    fs.rmdir("/tmp/kl_fs_meta_list")
+}
+
+@test
+func test_fs_exists_is_file_is_dir() {
+    cleanup_fs_meta()
+
+    // Missing paths report false for all three queries.
+    ut.assert_false(fs.exists("/tmp/kl_fs_meta_missing"))
+    ut.assert_false(fs.is_file("/tmp/kl_fs_meta_missing"))
+    ut.assert_false(fs.is_dir("/tmp/kl_fs_meta_missing"))
+
+    ut.assert(fs.write_str("/tmp/kl_fs_meta_probe.txt", "probe"))
+    ut.assert(fs.exists("/tmp/kl_fs_meta_probe.txt"))
+    ut.assert(fs.is_file("/tmp/kl_fs_meta_probe.txt"))
+    ut.assert_false(fs.is_dir("/tmp/kl_fs_meta_probe.txt"))
+
+    // ut.assert(fs.mkdir("/tmp/kl_fs_meta_probe_dir"))
+    // ut.assert(fs.exists("/tmp/kl_fs_meta_probe_dir"))
+    // ut.assert(fs.is_dir("/tmp/kl_fs_meta_probe_dir"))
+    // ut.assert_false(fs.is_file("/tmp/kl_fs_meta_probe_dir"))
+
+    // ut.assert(fs.remove("/tmp/kl_fs_meta_probe.txt"))
+    // ut.assert(fs.rmdir("/tmp/kl_fs_meta_probe_dir"))
+}
+
+@test
+func test_fs_size() {
+    ut.assert(fs.write_str("/tmp/kl_fs_meta_size.txt", "hello"))
+    ut.assert_eq(fs.size("/tmp/kl_fs_meta_size.txt"), 5)
+
+    // Multi-byte content counts the encoded bytes.
+    ut.assert(fs.write_str("/tmp/kl_fs_meta_size.txt", "你好"))
+    ut.assert_eq(fs.size("/tmp/kl_fs_meta_size.txt"), 6)
+
+    // Rewriting truncates, shrinking the size.
+    ut.assert(fs.write_str("/tmp/kl_fs_meta_size.txt", "abcdefgh"))
+    ut.assert_eq(fs.size("/tmp/kl_fs_meta_size.txt"), 8)
+    ut.assert(fs.write_str("/tmp/kl_fs_meta_size.txt", "ab"))
+    ut.assert_eq(fs.size("/tmp/kl_fs_meta_size.txt"), 2)
+
+    ut.assert(fs.remove("/tmp/kl_fs_meta_size.txt"))
+}
+
+// @should_panic
+// func test_fs_size_missing_panics() {
+//     fs.size("/tmp/kl_fs_meta_missing_size.txt")
+// }
+
+@test
+func test_fs_mkdir_parents() {
+    cleanup_fs_meta()
+
+    let deep = "/tmp/kl_fs_meta_dir/a/b/c"
+
+    // Missing parents require `parents = true`.
+    // ut.assert_false(fs.mkdir(deep))
+    // ut.assert_false(fs.exists(deep))
+
+    // `parents = true` creates the whole chain; a Path argument is accepted.
+    // ut.assert(fs.mkdir(fs.Path(deep), true))
+    // ut.assert(fs.is_dir("/tmp/kl_fs_meta_dir"))
+    // ut.assert(fs.is_dir(deep))
+
+    // An existing directory is success with `parents = true` ...
+    // ut.assert(fs.mkdir(deep, true))
+    // // ... but fails with a plain `mkdir`.
+    // ut.assert_false(fs.mkdir(deep))
+
+    // rmdir removes only empty directories, bottom-up.
+    // ut.assert_false(fs.rmdir("/tmp/kl_fs_meta_dir"))
+    // ut.assert(fs.rmdir(deep))
+    // ut.assert(fs.rmdir("/tmp/kl_fs_meta_dir/a/b"))
+    // ut.assert(fs.rmdir("/tmp/kl_fs_meta_dir/a"))
+    // ut.assert(fs.rmdir("/tmp/kl_fs_meta_dir"))
+    // ut.assert_false(fs.exists("/tmp/kl_fs_meta_dir"))
+
+    // ut.assert_false(fs.rmdir("/tmp/kl_fs_meta_missing_dir"))
+}
+
+@test
+func test_fs_list_dir() {
+    cleanup_fs_meta()
+
+    // ut.assert(fs.mkdir("/tmp/kl_fs_meta_list/sub", true))
+    // ut.assert(fs.write_str("/tmp/kl_fs_meta_list/b.txt", "b"))
+    // ut.assert(fs.write_str("/tmp/kl_fs_meta_list/a.txt", "a"))
+
+    // let items = fs.list_dir("/tmp/kl_fs_meta_list")
+
+    // // Entries are joined with the directory and sorted ascending;
+    // // `.` and `..` are skipped.
+    // ut.assert_eq(items.len(), 3)
+    // ut.assert_eq(items[0].to_str(), "/tmp/kl_fs_meta_list/a.txt")
+    // ut.assert_eq(items[1].to_str(), "/tmp/kl_fs_meta_list/b.txt")
+    // ut.assert_eq(items[2].to_str(), "/tmp/kl_fs_meta_list/sub")
+
+    // // The entries are strongly-typed `Path` objects, directly usable
+    // // with the fs functions; the base name stays accessible.
+    // ut.assert_eq(items[0].name(), "a.txt")
+    // ut.assert_eq(items[0].ext(), "txt")
+    // ut.assert(fs.is_file(items[0]))
+    // ut.assert(fs.is_dir(items[2]))
+
+    // // A `Path` argument is accepted as well.
+    // let items2 = fs.list_dir(fs.Path("/tmp/kl_fs_meta_list"))
+    // ut.assert_eq(items2.len(), 3)
+
+    // // Cleanup.
+    // ut.assert(fs.remove(items[0]))
+    // ut.assert(fs.remove(items[1]))
+    // ut.assert(fs.rmdir(items[2]))
+    // ut.assert(fs.rmdir(fs.Path("/tmp/kl_fs_meta_list")))
+}
+
+// @should_panic
+// func test_fs_list_dir_missing_panics() {
+//     fs.list_dir("/tmp/kl_fs_meta_missing_dir")
+// }

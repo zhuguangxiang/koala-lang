@@ -1,0 +1,105 @@
+// RUN: koala %s --test
+
+import "koala/toml"
+import "std/ut"
+
+@test
+func test_parse_empty_array() {
+    let root = toml.parse_str("items = []")
+    let arr = (root.get("items") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 0)
+}
+
+@test
+func test_parse_integer_array() {
+    let root = toml.parse_str("nums = [1, 2, 3]")
+    let arr = (root.get("nums") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 3)
+
+    let first = (arr.value[0] as toml.TomInteger)!
+    let last = (arr.value[2] as toml.TomInteger)!
+    ut.assert_eq(first.value, 1)
+    ut.assert_eq(last.value, 3)
+}
+
+@test
+func test_parse_float_array() {
+    let root = toml.parse_str("scales = [0.5, 1.5]")
+    let arr = (root.get("scales") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 2)
+
+    let a = (arr.value[0] as toml.TomFloat)!
+    let b = (arr.value[1] as toml.TomFloat)!
+    ut.assert_float_close(a.value, 0.5)
+    ut.assert_float_close(b.value, 1.5)
+}
+
+@test
+func test_parse_string_array() {
+    let root = toml.parse_str("names = [\"a\", \"b\", \"c\"]")
+    let arr = (root.get("names") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 3)
+
+    let second = (arr.value[1] as toml.TomString)!
+    ut.assert_eq(second.value, "b")
+}
+
+@test
+func test_parse_boolean_array() {
+    let root = toml.parse_str("flags = [true, false, true]")
+    let arr = (root.get("flags") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 3)
+
+    let first = (arr.value[0] as toml.TomBoolean)!
+    let second = (arr.value[1] as toml.TomBoolean)!
+    ut.assert_true(first.value)
+    ut.assert_false(second.value)
+}
+
+@test
+func test_parse_mixed_array() {
+    let root = toml.parse_str("mixed = [1, \"two\", 3.0, false]")
+    let arr = (root.get("mixed") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 4)
+
+    let e0 = (arr.value[0] as toml.TomInteger)!
+    ut.assert_eq(e0.value, 1)
+    let e1 = (arr.value[1] as toml.TomString)!
+    ut.assert_eq(e1.value, "two")
+    let e2 = (arr.value[2] as toml.TomFloat)!
+    ut.assert_float_close(e2.value, 3.0)
+    let e3 = (arr.value[3] as toml.TomBoolean)!
+    ut.assert_false(e3.value)
+}
+
+@test
+func test_parse_multiline_array() {
+    let src = "ports = [\n  8080,\n  8081,\n  8082\n]"
+    let root = toml.parse_str(src)
+    let arr = (root.get("ports") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 3)
+
+    let first = (arr.value[0] as toml.TomInteger)!
+    let last = (arr.value[2] as toml.TomInteger)!
+    ut.assert_eq(first.value, 8080)
+    ut.assert_eq(last.value, 8082)
+}
+
+@test
+func test_parse_array_with_underscore_numbers() {
+    let root = toml.parse_str("sizes = [1_000, 2_000]")
+    let arr = (root.get("sizes") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 2)
+
+    let first = (arr.value[0] as toml.TomInteger)!
+    let second = (arr.value[1] as toml.TomInteger)!
+    ut.assert_eq(first.value, 1000)
+    ut.assert_eq(second.value, 2000)
+}
+
+@test
+func test_array_fmt() {
+    let root = toml.parse_str("nums = [1, 2]")
+    let arr = (root.get("nums") as toml.TomArray)!
+    ut.assert_eq(format("{}", arr), "[1, 2]")
+}

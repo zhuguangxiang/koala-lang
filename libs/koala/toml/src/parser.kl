@@ -1,0 +1,213 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A line-oriented parser for a practical subset of TOML.
+///
+/// Supported syntax:
+/// - table headers: `[name]` (single level)
+/// - key-value pairs: `key = value`
+/// - values: double-quoted strings, integers, floats, booleans, arrays
+/// - comments: `#` outside of strings
+/// - integers and floats with `_` separators, e.g. `10_000`
+/// - statements spanning multiple lines, e.g. arrays
+///
+/// A number is treated as a float when it contains `.` or an exponent
+/// marker; underscore separators are removed before conversion.
+pub class Parser {
+    let src list[str]
+    let root = TomTable()
+    var current = root
+
+    /// Create a parser for the given source lines.
+    pub func __init__(_src list[str]) {
+        src = _src
+    }
+
+    /// Parse all source lines and return the root table.
+    ///
+    /// Lines are accumulated until the pending text is a complete
+    /// statement, so arrays may span multiple lines. Blank lines and
+    /// comment-only lines are ignored.
+    pub func parse() TomTable {
+        let pending = Buffer()
+
+        for raw_line in src {
+            let line = strip_toml_comment(raw_line)
+            if !pending.empty() {
+                pending.write_byte('\n')
+            }
+            pending.write_str(line)
+
+            if is_complete(pending) {
+                parse_line(pending.to_str())
+                pending.clear()
+            }
+        }
+
+        return root
+    }
+
+    /// Return true if `pending` is a complete statement, i.e. the bracket
+    /// depth is balanced and no string is left open.
+    func is_complete(pending Buffer) bool {
+        let bs = pending.to_bytes()
+        var i = 0
+        var depth = 0
+        var in_string = false
+
+        while i < bs.len() {
+            let c = bs[i]
+
+            // Skip the escaped character inside a string, e.g. \"
+            if in_string && c == '\\' {
+                i += 2
+                continue
+            }
+
+            // Toggle the string state on a quote
+            if c == 34 { // '"'
+                in_string = !in_string
+            } else if !in_string {
+                // Track the bracket depth of [] and {}
+                if c == '[' || c == '{' {
+                    depth += 1
+                } else if c == ']' || c == '}' {
+                    depth -= 1
+                }
+            }
+            i += 1
+        }
+
+        // Complete only when the depth is balanced and no string is open.
+        return depth <= 0 && !in_string
+    }
+
+    /// Strip the trailing comment from `line`.
+    ///
+    /// A '#' outside of a string starts a comment; everything before it is
+    /// returned. The line is returned unchanged when there is no comment.
+    func strip_toml_comment(line str) str {
+        let b = line.to_bytes()
+        var i = 0
+        var in_string = false
+
+        while i < b.len() {
+            let c = b[i]
+
+            // Skip the escaped character inside a string, e.g. \"
+            if in_string && c == 92 { // '\\'
+                i += 2
+                continue
+            }
+
+            // Toggle the string state on a quote
+            if c == 34 { // '"'
+                in_string = !in_string
+            }
+
+            // A '#' outside of a string starts a comment
+            if !in_string && c == '#' {
+                return line.substr(0, i)
+            }
+
+            i += 1
+        }
+        return line
+    }
+
+    /// Dispatch one complete statement to the header or pair parser.
+    func parse_line(line str) {
+        var clean_line = line.strip()
+
+        if clean_line.empty() { return }
+
+        if clean_line.starts_with("[") {
+            parse_table_header(clean_line)
+        } else {
+            parse_key_value(clean_line)
+        }
+    }
+
+    /// Parse a `[name]` header and switch the active table to it.
+    func parse_table_header(line str) {
+        let name = line.substr(1, line.len() - 1).strip()
+
+        if !(name in root) {
+            root.add(name, TomTable())
+        }
+
+        current = (root.get(name) as TomTable)!
+    }
+
+    /// Parse a `key = value` pair into the active table.
+    func parse_key_value(line str) {
+        let index = line.index("=")
+        if index == -1 { return }
+
+        let key = line.substr(0, index).strip()
+        let value = line.substr(index + 1).strip()
+        let res = parse_value(value)
+        current.add(key, res)
+    }
+
+    /// Parse a value: string, array, boolean, or number.
+    func parse_value(value str) TomValue {
+        if value.starts_with("\"") {
+            return TomString(value.substr(1, value.len() - 1))
+        } else if value.starts_with("[") {
+            return parse_array(value)
+        } else if value == "true" {
+            return TomBoolean(true)
+        } else if value == "false" {
+            return TomBoolean(false)
+        } else {
+            return parse_number(value)
+        }
+    }
+
+    /// Parse an integer or a float, removing `_` separators.
+    func parse_number(s str) TomValue {
+        // TOML allows '_' separators, e.g. 1_000_000; remove them before
+        // conversion.
+        let clean_s = s.replace("_", "")
+
+        if clean_s.len() == 0 {
+            panic("Invalid empty number")
+        }
+
+        // A float contains a decimal point or an exponent marker.
+        let is_float = clean_s.index(".") != -1 || clean_s.index("e") != -1 || clean_s.index("E") != -1
+
+        if is_float {
+            return TomFloat(clean_s.to_float())
+        } else {
+            return TomInteger(clean_s.to_int())
+        }
+    }
+
+    /// Parse a `[a, b, c]` array whose elements are strings, booleans or
+    /// numbers.
+    func parse_array(value str) TomArray {
+        let s = value.substr(1, value.len() - 1)
+        let arr = TomArray()
+
+        if s.len() == 0 { return arr }
+
+        let items = s.split(",")
+        for item in items {
+            let v = item.strip()
+            if v.starts_with("\"") && v.ends_with("\"") {
+                arr.add(TomString(v.substr(1, v.len() - 1)))
+            } else if v == "true" {
+                arr.add(TomBoolean(true))
+            } else if v == "false" {
+                arr.add(TomBoolean(false))
+            } else {
+                arr.add(parse_number(v))
+            }
+        }
+        return arr
+    }
+}

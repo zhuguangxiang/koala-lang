@@ -1,0 +1,75 @@
+// RUN: koala %s --test
+
+import "koala/toml"
+import "std/ut"
+
+@test
+func test_parse_single_table() {
+    let root = toml.parse_str("[server]\nhost = \"localhost\"\nport = 8080")
+
+    ut.assert_true("server" in root)
+    ut.assert_false("host" in root)
+
+    let server = (root.get("server") as toml.TomTable)!
+    let host = (server.get("host") as toml.TomString)!
+    let port = (server.get("port") as toml.TomInteger)!
+    ut.assert_eq(host.value, "localhost")
+    ut.assert_eq(port.value, 8080)
+}
+
+@test
+func test_parse_top_level_keys_before_table() {
+    let src = "title = \"demo\"\n\n[owner]\nname = \"james\""
+    let root = toml.parse_str(src)
+
+    let title = (root.get("title") as toml.TomString)!
+    ut.assert_eq(title.value, "demo")
+
+    let owner = (root.get("owner") as toml.TomTable)!
+    let name = (owner.get("name") as toml.TomString)!
+    ut.assert_eq(name.value, "james")
+}
+
+@test
+func test_parse_multiple_tables() {
+    let src = "[a]\nx = 1\n\n[b]\ny = 2"
+    let root = toml.parse_str(src)
+
+    let a = (root.get("a") as toml.TomTable)!
+    let b = (root.get("b") as toml.TomTable)!
+    let x = (a.get("x") as toml.TomInteger)!
+    let y = (b.get("y") as toml.TomInteger)!
+    ut.assert_eq(x.value, 1)
+    ut.assert_eq(y.value, 2)
+}
+
+@test
+func test_parse_reused_table_header_accumulates() {
+    let src = "[a]\nx = 1\n\n[b]\ny = 2\n\n[a]\nz = 3"
+    let root = toml.parse_str(src)
+
+    let a = (root.get("a") as toml.TomTable)!
+    let x = (a.get("x") as toml.TomInteger)!
+    let z = (a.get("z") as toml.TomInteger)!
+    ut.assert_eq(x.value, 1)
+    ut.assert_eq(z.value, 3)
+
+    let b = (root.get("b") as toml.TomTable)!
+    let y = (b.get("y") as toml.TomInteger)!
+    ut.assert_eq(y.value, 2)
+}
+
+@test
+func test_parse_table_header_with_spaces() {
+    let root = toml.parse_str("[ server ]\nhost = \"localhost\"")
+    let server = (root.get("server") as toml.TomTable)!
+    let host = (server.get("host") as toml.TomString)!
+    ut.assert_eq(host.value, "localhost")
+}
+
+@test
+func test_parse_table_fmt() {
+    let root = toml.parse_str("[point]\nx = 1\ny = 2")
+    let point = (root.get("point") as toml.TomTable)!
+    ut.assert_eq(format("{}", point), "{x: 1, y: 2}")
+}

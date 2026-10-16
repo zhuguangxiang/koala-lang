@@ -1,0 +1,39 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Parse the TOML file at `path` and return its root table.
+///
+/// See [`Parser`](#parser) for the supported TOML subset.
+///
+/// Errors
+///
+/// Panic if the file cannot be opened, or if its content is not valid
+/// TOML within the supported subset.
+pub func parse_file(path str) TomTable {
+    let f = open(path, "r")!
+
+    // Read the whole file in chunks; `read` returns 0 at EOF and a
+    // negative value on error.
+    let chunk = bytes(8192)
+    let acc = Buffer(8192)
+
+    loop {
+        let n = f.read(chunk)
+        if n <= 0 { break } // stop on EOF (0) or read error (negative)
+        acc.write(chunk.view(0, n))
+    }
+
+    f.close()
+
+    return parse_str(acc.to_str())
+}
+
+/// Parse the TOML text `s` and return its root table.
+///
+/// See [`Parser`](#parser) for the supported TOML subset.
+pub func parse_str(s str) TomTable {
+    let parser = Parser(s.splitlines())
+    return parser.parse()
+}

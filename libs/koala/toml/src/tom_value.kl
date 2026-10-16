@@ -1,0 +1,11 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The root trait of all TOML values.
+///
+/// Every TOML value conforms to `TomValue`: strings, integers, floats,
+/// booleans, arrays and tables. It allows heterogeneous values to be
+/// stored uniformly in [`TomArray`](#tomarray) and [`TomTable`](#tomtable).
+pub trait TomValue {}

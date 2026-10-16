@@ -1,0 +1,130 @@
+// RUN: koala %s --test
+
+import "koala/toml"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// strings
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_string() {
+    let root = toml.parse_str("name = \"koala\"")
+    let v = (root.get("name") as toml.TomString)!
+    ut.assert_eq(v.value, "koala")
+}
+
+@test
+func test_parse_string_with_spaces() {
+    let root = toml.parse_str("msg = \"hello world\"")
+    let v = (root.get("msg") as toml.TomString)!
+    ut.assert_eq(v.value, "hello world")
+}
+
+@test
+func test_parse_string_with_equals() {
+    let root = toml.parse_str("expr = \"a=b\"")
+    let v = (root.get("expr") as toml.TomString)!
+    ut.assert_eq(v.value, "a=b")
+}
+
+@test
+func test_parse_string_keeps_hash() {
+    let root = toml.parse_str("color = \"#ff0000\"")
+    let v = (root.get("color") as toml.TomString)!
+    ut.assert_eq(v.value, "#ff0000")
+}
+
+// ---------------------------------------------------------------------------
+// numbers
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_integer() {
+    let root = toml.parse_str("port = 8080")
+    let v = (root.get("port") as toml.TomInteger)!
+    ut.assert_eq(v.value, 8080)
+}
+
+@test
+func test_parse_integer_with_underscores() {
+    let root = toml.parse_str("size = 10_000")
+    let v = (root.get("size") as toml.TomInteger)!
+    ut.assert_eq(v.value, 10000)
+}
+
+@test
+func test_parse_negative_integer() {
+    let root = toml.parse_str("offset = -42")
+    let v = (root.get("offset") as toml.TomInteger)!
+    ut.assert_eq(v.value, -42)
+}
+
+@test
+func test_parse_float() {
+    let root = toml.parse_str("pi = 3.5")
+    let v = (root.get("pi") as toml.TomFloat)!
+    ut.assert_float_close(v.value, 3.5)
+}
+
+@test
+func test_parse_float_with_exponent() {
+    let root = toml.parse_str("speed = 1.5e2")
+    let v = (root.get("speed") as toml.TomFloat)!
+    ut.assert_float_close(v.value, 150.0)
+}
+
+// ---------------------------------------------------------------------------
+// booleans
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_booleans() {
+    let root = toml.parse_str("enabled = true\ndebug = false")
+    let t = (root.get("enabled") as toml.TomBoolean)!
+    let f = (root.get("debug") as toml.TomBoolean)!
+    ut.assert_true(t.value)
+    ut.assert_false(f.value)
+}
+
+// ---------------------------------------------------------------------------
+// comments, blank lines and empty input
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_strips_trailing_comment() {
+    let root = toml.parse_str("port = 8080 # the listen port")
+    let v = (root.get("port") as toml.TomInteger)!
+    ut.assert_eq(v.value, 8080)
+}
+
+@test
+func test_parse_ignores_blank_and_comment_lines() {
+    let root = toml.parse_str("\n# a comment\nname = \"koala\"\n\n")
+    ut.assert_true("name" in root)
+    let v = (root.get("name") as toml.TomString)!
+    ut.assert_eq(v.value, "koala")
+}
+
+@test
+func test_parse_empty_input() {
+    let root = toml.parse_str("")
+    ut.assert_eq(root.data.len(), 0)
+}
+
+@should_panic("Invalid empty number")
+func test_parse_empty_value_panics() {
+    let root = toml.parse_str("x = ")
+}
+
+// ---------------------------------------------------------------------------
+// fmt
+// ---------------------------------------------------------------------------
+
+@test
+func test_fmt_values() {
+    ut.assert_eq(format("{}", toml.TomString("hi")), "hi")
+    ut.assert_eq(format("{}", toml.TomInteger(42)), "42")
+    ut.assert_eq(format("{}", toml.TomBoolean(true)), "true")
+    ut.assert_eq(format("{}", toml.TomBoolean(false)), "false")
+}
