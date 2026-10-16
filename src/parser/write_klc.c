@@ -319,6 +319,18 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
 
 static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
 {
+    /*
+     * The machine const pool adds a container's elements before the container
+     * itself, and write_rt_data() walks the pool in order. So a sub-const
+     * shared by several containers is already written when we get here: reuse
+     * its klc index instead of emitting it twice, which would shift all later
+     * const indices and corrupt every loadk that references them.
+     */
+    int written = vector_size(klc->objs + ITEM_RT_CONST) - 1;
+    if (kc->index < written) {
+        return (uint16_t)(kc->index + 1);
+    }
+
     switch (kc->tag) {
         case KL_MACH_CONST_NONE:
             return klc_add_rt_none(klc);

@@ -881,17 +881,8 @@ func test_dict_get_or_class_key_hash_collision() {
 
 // ---------------------------------------------------------------------------
 // update(src Iterable[(K, V)])   — merge all pairs, replacing existing keys
-//
-// TODO(KLC_CONST_TUPLE): All update tests below rely on tuple literals
-// (e.g. `(("a", 1), ("b", 2))` or the argument tuple inside
-// `list.append(("x", 10))`). The compiler folds them into constant-pool
-// entries KLC_CONST_SHORT_TUPLE / KLC_CONST_TUPLE, but the corresponding
-// branch in src/objects/modobj.c:205 is currently NYI(), so the module
-// loader aborts and no test in this file can run. The tests themselves
-// are valid; keep them commented out as a whole and simply strip the
-// /* */ wrapper once the constant-tuple loading branch in modobj lands.
 // ---------------------------------------------------------------------------
-/*
+
 @test
 func test_dict_update_from_tuple_of_pairs() {
     let d = dict[str, int]()
@@ -1048,7 +1039,6 @@ func test_dict_update_class_key_fresh_instances() {
     ut.assert_eq(d[Point(0, 0)], "ORIGIN")
     ut.assert_eq(d[Point(1, 1)], "diag")
 }
-*/
 
 // ---------------------------------------------------------------------------
 // setdefault(key, default_value) V
@@ -1188,3 +1178,468 @@ func test_dict_setdefault_after_clear() {
     ut.assert_eq(d["a"], 99)
 }
 
+// ---------------------------------------------------------------------------
+// __bitor__ / __ior__  (self | src, self |= src)
+//   - `|` returns a NEW dict: the mappings of self followed by `src`; values
+//     from `src` replace those of duplicate keys; neither operand is mutated
+//   - `|=` merges `src` into the receiver in place (the same object, so
+//     aliases observe the change) and returns the receiver
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_or_basic() {
+    let a = dict[str, int]()
+    a["a"] = 1
+    a["b"] = 2
+    let b = dict[str, int]()
+    b["c"] = 3
+
+    let c = a | b
+    ut.assert_eq(c.len(), 3)
+    ut.assert_eq(c["a"], 1)
+    ut.assert_eq(c["b"], 2)
+    ut.assert_eq(c["c"], 3)
+    // self's mappings first, src's new keys appended
+    ut.assert_eq(format("{}", c), "{a: 1, b: 2, c: 3}")
+}
+
+@test
+func test_dict_or_duplicate_keys_src_wins() {
+    let a = dict[str, int]()
+    a["x"] = 1
+    a["y"] = 2
+    let b = dict[str, int]()
+    b["y"] = 99
+    b["z"] = 3
+
+    let c = a | b
+    ut.assert_eq(c.len(), 3)
+    ut.assert_eq(c["x"], 1)
+    ut.assert_eq(c["y"], 99)    // src replaces the duplicate value
+    ut.assert_eq(c["z"], 3)
+    // a duplicate keeps self's slot
+    ut.assert_eq(format("{}", c), "{x: 1, y: 99, z: 3}")
+}
+
+@test
+func test_dict_or_preserves_operands() {
+    let a = dict[str, int]()
+    a["x"] = 1
+    let b = dict[str, int]()
+    b["y"] = 2
+    b["x"] = 99
+
+    let c = a | b
+    ut.assert_eq(c.len(), 2)
+
+    // both operands stay untouched ...
+    ut.assert_eq(a.len(), 1)
+    ut.assert_eq(a["x"], 1)
+    ut.assert_eq(b.len(), 2)
+    ut.assert_eq(b["x"], 99)
+
+    // ... and `c` is a fresh dict: mutating it must not leak into a/b
+    c["z"] = 3
+    ut.assert_false("z" in a)
+    ut.assert_false("z" in b)
+}
+
+@test
+func test_dict_or_empty_operands() {
+    let a = dict[str, int]()
+    a["x"] = 1
+    let e = dict[str, int]()
+
+    let c1 = a | e
+    ut.assert_eq(c1.len(), 1)
+    ut.assert_eq(c1["x"], 1)
+
+    let c2 = e | a
+    ut.assert_eq(c2.len(), 1)
+    ut.assert_eq(c2["x"], 1)
+
+    let c3 = e | e
+    ut.assert_eq(c3.len(), 0)
+    ut.assert_true(c3.empty())
+}
+
+@test
+func test_dict_or_int_keys() {
+    let a = dict[int, str]()
+    a[1] = "one"
+    let b = dict[int, str]()
+    b[1] = "ONE"
+    b[2] = "two"
+
+    let c = a | b
+    ut.assert_eq(c.len(), 2)
+    ut.assert_eq(c[1], "ONE")
+    ut.assert_eq(c[2], "two")
+}
+
+@test
+func test_dict_or_chained() {
+    let a = dict[str, int]()
+    a["a"] = 1
+    let b = dict[str, int]()
+    b["b"] = 2
+    let c = dict[str, int]()
+    c["b"] = 20
+    c["c"] = 3
+
+    // left-associative: (a | b) | c
+    let d = a | b | c
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d["a"], 1)
+    ut.assert_eq(d["b"], 20)
+    ut.assert_eq(d["c"], 3)
+    ut.assert_eq(format("{}", d), "{a: 1, b: 20, c: 3}")
+
+    // the operands of the intermediate union stay untouched too
+    ut.assert_eq(a.len(), 1)
+    ut.assert_eq(a["a"], 1)
+    ut.assert_eq(b.len(), 1)
+    ut.assert_eq(b["b"], 2)
+}
+
+@test
+func test_dict_or_iterable_source() {
+    // `src` is Iterable[(K, V)]: a tuple of pairs ...
+    let a = dict[str, int]()
+    a["x"] = 1
+
+    let c = a | (("y", 2), ("x", 9))
+    ut.assert_eq(c.len(), 2)
+    ut.assert_eq(c["x"], 9)
+    ut.assert_eq(c["y"], 2)
+    ut.assert_eq(format("{}", c), "{x: 9, y: 2}")
+
+    // ... or a list of pairs
+    let pairs = list[tuple[str, int]]()
+    pairs.append(("z", 3))
+    let c2 = a | pairs
+    ut.assert_eq(c2.len(), 2)
+    ut.assert_eq(c2["z"], 3)
+}
+
+@test
+func test_dict_or_class_key() {
+    let a = dict[Point, int]()
+    a[Point(1, 2)] = 100
+    let b = dict[Point, int]()
+    b[Point(1, 2)] = 999          // equal-but-distinct key replaces
+    b[Point(3, 4)] = 300
+
+    let c = a | b
+    ut.assert_eq(c.len(), 2)
+    ut.assert_eq(c[Point(1, 2)], 999)
+    ut.assert_eq(c[Point(3, 4)], 300)
+    ut.assert_eq(a[Point(1, 2)], 100)    // original untouched
+}
+
+@test
+func test_dict_ior_basic() {
+    var a = dict[str, int]()
+    a["x"] = 1
+    let b = dict[str, int]()
+    b["y"] = 2
+    b["x"] = 99
+
+    a |= b
+    ut.assert_eq(a.len(), 2)
+    ut.assert_eq(a["x"], 99)    // src replaces the duplicate
+    ut.assert_eq(a["y"], 2)
+    ut.assert_eq(format("{}", a), "{x: 99, y: 2}")
+}
+
+@test
+func test_dict_ior_in_place_same_object() {
+    var a = dict[str, int]()
+    a["x"] = 1
+    let alias = a
+    let b = dict[str, int]()
+    b["y"] = 2
+
+    a |= b
+    // in-place merge: the alias observes the change (same object)
+    ut.assert_eq(alias.len(), 2)
+    ut.assert_eq(alias["y"], 2)
+    ut.assert_eq(format("{}", alias), "{x: 1, y: 2}")
+}
+
+@test
+func test_dict_ior_empty_src_is_noop() {
+    var a = dict[str, int]()
+    a["x"] = 1
+    let e = dict[str, int]()
+
+    a |= e
+    ut.assert_eq(a.len(), 1)
+    ut.assert_eq(a["x"], 1)
+    ut.assert_eq(format("{}", a), "{x: 1}")
+}
+
+@test
+func test_dict_ior_accumulates() {
+    var a = dict[str, int]()
+    a["a"] = 1
+    let b = dict[str, int]()
+    b["b"] = 2
+    let c = dict[str, int]()
+    c["c"] = 3
+
+    a |= b
+    a |= c
+    ut.assert_eq(a.len(), 3)
+    ut.assert_eq(format("{}", a), "{a: 1, b: 2, c: 3}")
+}
+
+@test
+func test_dict_ior_iterable_source() {
+    var a = dict[str, int]()
+    a["k"] = 1
+
+    a |= (("m", 2), ("k", 3))    // tuple of pairs
+    ut.assert_eq(a.len(), 2)
+    ut.assert_eq(a["k"], 3)
+    ut.assert_eq(a["m"], 2)
+
+    let pairs = list[tuple[str, int]]()
+    pairs.append(("n", 4))
+    a |= pairs                   // list of pairs
+    ut.assert_eq(a.len(), 3)
+    ut.assert_eq(a["n"], 4)
+}
+
+@test
+func test_dict_ior_class_key() {
+    var a = dict[Point, int]()
+    a[Point(1, 2)] = 100
+    let b = dict[Point, int]()
+    b[Point(1, 2)] = 999
+    b[Point(5, 6)] = 500
+
+    a |= b
+    ut.assert_eq(a.len(), 2)
+    ut.assert_eq(a[Point(1, 2)], 999)
+    ut.assert_eq(a[Point(5, 6)], 500)
+}
+
+// ---------------------------------------------------------------------------
+// keys() Iterable[K]
+// ---------------------------------------------------------------------------
+
+/*
+
+@test
+func test_dict_keys_empty() {
+    let d = dict[str, int]()
+    let ks = list[str]()
+    for k in d.keys() {
+        ks.append(k)
+    }
+    ut.assert_eq(ks.len(), 0)
+}
+
+@test
+func test_dict_keys_insertion_order() {
+    let d = dict[str, int]()
+    d["c"] = 3
+    d["a"] = 1
+    d["b"] = 2
+
+    let ks = list[str]()
+    for k in d.keys() {
+        ks.append(k)
+    }
+    ut.assert_eq(ks.len(), 3)
+    ut.assert_eq(ks[0], "c")
+    ut.assert_eq(ks[1], "a")
+    ut.assert_eq(ks[2], "b")
+}
+
+@test
+func test_dict_keys_after_replace_no_reorder() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["a"] = 99   // replace value, key order unchanged
+
+    let ks = list[str]()
+    for k in d.keys() {
+        ks.append(k)
+    }
+    ut.assert_eq(ks[0], "a")
+    ut.assert_eq(ks[1], "b")
+}
+
+@test
+func test_dict_keys_after_remove() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+    d.remove("b")
+
+    let ks = list[str]()
+    for k in d.keys() {
+        ks.append(k)
+    }
+    ut.assert_eq(ks.len(), 2)
+    ut.assert_eq(ks[0], "a")
+    ut.assert_eq(ks[1], "c")
+}
+
+@test
+func test_dict_keys_after_clear() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.clear()
+
+    let ks = list[str]()
+    for k in d.keys() {
+        ks.append(k)
+    }
+    ut.assert_eq(ks.len(), 0)
+}
+
+@test
+func test_dict_keys_int_keys() {
+    let d = dict[int, str]()
+    d[10] = "ten"
+    d[20] = "twenty"
+    d[5] = "five"
+
+    let ks = list[int]()
+    for k in d.keys() {
+        ks.append(k)
+    }
+    ut.assert_eq(ks.len(), 3)
+    ut.assert_eq(ks[0], 10)
+    ut.assert_eq(ks[1], 20)
+    ut.assert_eq(ks[2], 5)
+}
+
+@test
+func test_dict_keys_class_key() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d[Point(3, 4)] = 200
+
+    let ks = list[Point]()
+    for k in d.keys() {
+        ks.append(k)
+    }
+    ut.assert_eq(ks.len(), 2)
+    ut.assert_true(ks[0] == Point(1, 2))
+    ut.assert_true(ks[1] == Point(3, 4))
+}
+
+// ---------------------------------------------------------------------------
+// values() Iterable[V]
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_values_empty() {
+    let d = dict[str, int]()
+    let vs = list[int]()
+    for v in d.values() {
+        vs.append(v)
+    }
+    ut.assert_eq(vs.len(), 0)
+}
+
+@test
+func test_dict_values_insertion_order() {
+    let d = dict[str, int]()
+    d["c"] = 3
+    d["a"] = 1
+    d["b"] = 2
+
+    let vs = list[int]()
+    for v in d.values() {
+        vs.append(v)
+    }
+    ut.assert_eq(vs.len(), 3)
+    ut.assert_eq(vs[0], 3)
+    ut.assert_eq(vs[1], 1)
+    ut.assert_eq(vs[2], 2)
+}
+
+@test
+func test_dict_values_after_replace() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["a"] = 99
+
+    let vs = list[int]()
+    for v in d.values() {
+        vs.append(v)
+    }
+    ut.assert_eq(vs[0], 99)
+    ut.assert_eq(vs[1], 2)
+}
+
+@test
+func test_dict_values_after_remove() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+    d.remove("b")
+
+    let vs = list[int]()
+    for v in d.values() {
+        vs.append(v)
+    }
+    ut.assert_eq(vs.len(), 2)
+    ut.assert_eq(vs[0], 1)
+    ut.assert_eq(vs[1], 3)
+}
+
+@test
+func test_dict_values_after_clear() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d.clear()
+
+    let vs = list[int]()
+    for v in d.values() {
+        vs.append(v)
+    }
+    ut.assert_eq(vs.len(), 0)
+}
+
+@test
+func test_dict_values_str_type() {
+    let d = dict[int, str]()
+    d[1] = "one"
+    d[2] = "two"
+    d[3] = "three"
+
+    let vs = list[str]()
+    for v in d.values() {
+        vs.append(v)
+    }
+    ut.assert_eq(vs.len(), 3)
+    ut.assert_eq(vs[0], "one")
+    ut.assert_eq(vs[1], "two")
+    ut.assert_eq(vs[2], "three")
+}
+
+@test
+func test_dict_values_class_key() {
+    let d = dict[Point, int]()
+    d[Point(1, 2)] = 100
+    d[Point(3, 4)] = 200
+
+    let vs = list[int]()
+    for v in d.values() {
+        vs.append(v)
+    }
+    ut.assert_eq(vs.len(), 2)
+    ut.assert_eq(vs[0], 100)
+    ut.assert_eq(vs[1], 200)
+}
+*/

@@ -1004,14 +1004,35 @@ static Vector *infer_tp_from_new(KlassSymbol *cls_sym, FuncSymbol *fn_sym, CallE
             log_info("param '%s' is generic var '%s'", arg->name, ts->generic_var.name);
             ASSERT(!strcmp(ts->generic_var.owner, cls_sym->name));
 
-            TpInfo *info = mm_alloc_obj(info);
-            info->name = ts->generic_var.name;
-            info->real = real;
-            hashmap_entry_init(info, str_hash(info->name));
-            void *r = hashmap_put(&map, info);
-            ASSERT(!r);
+            TpInfo key = { .name = ts->generic_var.name };
+            hashmap_entry_init(&key, str_hash(key.name));
+            TpInfo *info = hashmap_get(&map, &key);
+            if (info) {
+                // the same type parameter may be bound by several parameters,
+                // e.g. __init__(k K, d dict[K, V]) or __init__(k K, v K).
+                if (!type_spec_compatible(info->real, real)) {
+                    kl_error(e->loc, "generic type '%s' is inferred as '%s', but got '%s'",
+                             info->name, info->real->signature, real->signature);
+                    hashmap_fini(&map, __tpinfo_free__, NULL);
+                    vector_destroy(result);
+                    return NULL;
+                }
+            } else {
+                info = mm_alloc_obj(info);
+                info->name = ts->generic_var.name;
+                info->real = real;
+                hashmap_entry_init(info, str_hash(info->name));
+                void *r = hashmap_put(&map, info);
+                ASSERT(!r);
+            }
         } else if (ts->kind == TYPE_GENERIC_REF) {
-            NYI();
+            log_info("param '%s' is generic ref '%s'", arg->name, ts->signature);
+            // reuse the generic ref type inference shared with 'infer_tp_from_call'.
+            if (!infer_tp_from_generic_ref(&map, ts, real, cls_sym->name, e->loc, ps)) {
+                hashmap_fini(&map, __tpinfo_free__, NULL);
+                vector_destroy(result);
+                return NULL;
+            }
         } else if (ts->kind == TYPE_VA_LIST) {
             // var-arg must be last one parameter.
             log_info("param '%s' is var-arg", arg->name);
@@ -2962,8 +2983,24 @@ static void parse_binary(ParserState *ps, Expr *exp)
         return;
     }
 
+    /* `&&` / `||` are bool-only and are not overloadable: a container class
+     * declaring `__or__` (the logic or hook) must not make `d1 || d2` resolve —
+     * fail early instead of emitting a non-bool branch.
+     */
+    if ((op == BINARY_AND || op == BINARY_OR) && !type_is_bool(lhs->ts)) {
+        kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.", get_binary_op_str(op),
+                 sym->name);
+        return;
+    }
+
     Symbol *fn = NULL;
     char *op_name = get_binary_op_name(op);
+    /* `|` fallback: `__bitor__` is the bit-or hook name.
+     * bool is excluded on purpose: its `__or__` intrinsic is the `||` marker,
+     * so `true | false` must stay a compile error.
+     */
+    char *or_op_name = (op == BINARY_BIT_OR && !type_is_bool(lhs->ts)) ? "__bitor__" : NULL;
+
     if (sym->kind == SYM_TYPE_PARAM) {
         fn = get_func_from_tp(ps, (TypeParamSymbol *)sym, op_name);
         if (!fn) {
@@ -2975,6 +3012,11 @@ static void parse_binary(ParserState *ps, Expr *exp)
         // trait-typed operand, e.g. 'a Arithmetic[int]': resolve the operator
         // dunder through the instance interface like an explicit member call
         fn = get_instance_method((InstanceSymbol *)sym, op_name, ps);
+
+        if (!fn && or_op_name) {
+            fn = get_instance_method((InstanceSymbol *)sym, or_op_name, ps);
+        }
+
         if (!fn) {
             kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.",
                      get_binary_op_str(op), sym->name);
@@ -2983,6 +3025,11 @@ static void parse_binary(ParserState *ps, Expr *exp)
     } else {
         HashMap *stbl = ((KlassSymbol *)sym)->stbl;
         fn = stbl_get(stbl, op_name);
+
+        if (!fn && or_op_name) {
+            fn = stbl_get(stbl, or_op_name);
+        }
+
         if (!fn) {
             kl_error(bin->op_loc, "operator '%s' is not defined in type '%s'.",
                      get_binary_op_str(op), sym->name);

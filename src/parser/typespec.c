@@ -951,7 +951,7 @@ int type_spec_to_str(TypeSpec *ts, Buffer *buf)
             break;
         }
         case TYPE_TYPE: {
-            buf_write_str(buf, "Lbuiltin.type;");
+            buf_write_str(buf, "Lstd/builtin.type;");
             break;
         }
         case TYPE_OPTIONAL: {

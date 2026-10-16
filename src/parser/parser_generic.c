@@ -51,10 +51,6 @@ static TpInfo *get_tpinfo(HashMap *map, char *name)
     return (TpInfo *)ret;
 }
 
-/* Forward declaration, the definition is below. */
-static int infer_tp_from_generic_ref(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
-                                     char *tp_owner_name, Loc loc, ParserState *ps);
-
 Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *call_exp,
                            ParserState *ps)
 {
@@ -119,7 +115,6 @@ Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *c
 
         if (ts->kind == TYPE_GENERIC_REF) {
             log_info("param '%s' is generic ref '%s'", arg->name, ts->signature);
-            // AI code
             if (!infer_tp_from_generic_ref(&map, ts, exp->ts, tp_owner_name, call_exp->loc, ps))
                 goto error;
             continue;
@@ -254,7 +249,6 @@ static inline int tps_are_generic(Vector *tp_args)
     return 0;
 }
 
-// AI code
 static Symbol *_unwrap_origin_symbol(Symbol *sym)
 {
     while (sym) {
@@ -274,7 +268,6 @@ static Symbol *_unwrap_origin_symbol(Symbol *sym)
  * The sym_id of a generic_ref may point to an instance symbol (created by
  * find_or_add_instance), or it may be unset (e.g. loaded from klc).
  */
-// AI code
 static Symbol *generic_ref_origin_sym(TypeSpec *ts, ParserModule *pm)
 {
     ASSERT(ts && ts->kind == TYPE_GENERIC_REF);
@@ -297,7 +290,6 @@ static Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserStat
  * type arguments of it. The returned vector is borrowed from the symbol
  * table, do not free it.
  */
-// AI code
 static Vector *find_matched_tp_args_in_bases(Symbol *origin, Vector *bases, ParserState *ps)
 {
     if (!bases) return NULL;
@@ -316,7 +308,6 @@ static Vector *find_matched_tp_args_in_bases(Symbol *origin, Vector *bases, Pars
  * correspond to the 'origin' class/trait. The returned vector is borrowed
  * from the symbol table, do not free it.
  */
-// AI code
 static Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserState *ps)
 {
     if (!arg_ts) return NULL;
@@ -370,7 +361,6 @@ static Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserStat
  * Binds the type parameters found in the arguments of 'param_ts' (a
  * TYPE_GENERIC_REF) to the corresponding types in 'matched_args'.
  */
-// AI code
 static int bind_tp_from_matched_args(HashMap *map, TypeSpec *param_ts, Vector *matched_args,
                                      char *tp_owner_name, Loc loc, ParserState *ps)
 {
@@ -419,9 +409,8 @@ static int bind_tp_from_matched_args(HashMap *map, TypeSpec *param_ts, Vector *m
  * parameter type is a TYPE_GENERIC_REF, e.g. param 'Iterator[T]' with a class
  * argument which inherits 'Iterator[int]' infers 'T' as int.
  */
-// AI code
-static int infer_tp_from_generic_ref(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
-                                     char *tp_owner_name, Loc loc, ParserState *ps)
+int infer_tp_from_generic_ref(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
+                              char *tp_owner_name, Loc loc, ParserState *ps)
 {
     ASSERT(param_ts->kind == TYPE_GENERIC_REF);
 

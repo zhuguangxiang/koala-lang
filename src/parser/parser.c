@@ -675,11 +675,12 @@ static int compatible_generic_ref(TypeSpec *dst, TypeSpec *src)
             return _base_compatible(dst, &((KlassSymbol *)sym)->bases);
         }
         if (sym->kind == SYM_INSTANCE) {
+            /* the instance's bases are specialized with its own type
+             * arguments, e.g. 'DictKeysIter[K, V]'(whose bases contain
+             * 'Iterator[K]') matches 'Iterator[K]'. The origin class's
+             * unspecialized bases must not be used here. */
             InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
-            Symbol *origin_sym = inst_sym->origin;
-            if (origin_sym && origin_sym->kind == SYM_CLASS) {
-                return _base_compatible(dst, &((KlassSymbol *)origin_sym)->bases);
-            }
+            return _base_compatible(dst, inst_sym->bases);
         }
         return 0;
     }
@@ -3089,6 +3090,16 @@ static BiOpKind get_inplace_binary_op(AssignOpKind op)
     }
 }
 
+/* Resolve a method name against a class or an instance symbol. Compound
+ * assignment probes the in-place / binary operator hooks through this. */
+static Symbol *get_operator_method(ParserState *ps, Symbol *kls_sym, char *name)
+{
+    if (kls_sym->kind == SYM_INSTANCE) {
+        return get_instance_method((InstanceSymbol *)kls_sym, name, ps);
+    }
+    return stbl_get(kls_sym->stbl, name);
+}
+
 static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
 {
     Expr *lhs = assign->lhs;
@@ -3104,22 +3115,21 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
     }
 
     char *op_name = get_inplace_op_str(op);
-    Symbol *op_sym;
-
-    if (kls_sym->kind == SYM_INSTANCE) {
-        InstanceSymbol *inst_sym = (InstanceSymbol *)kls_sym;
-        op_sym = get_instance_method(inst_sym, op_name, ps);
-    } else {
-        op_sym = stbl_get(kls_sym->stbl, op_name);
+    /* `|=` fallback: `__ior__` is the in-place bit-or hook (dict declares it).
+     * bool is excluded on purpose: its `__or__` marker belongs to the `||`
+     * operator, so `b |= x` must stay a compile error. */
+    char *or_op_name = (op == OP_OR_ASSIGN && !type_is_bool(lhs->ts)) ? "__ior__" : NULL;
+    Symbol *op_sym = get_operator_method(ps, kls_sym, op_name);
+    if (!op_sym && or_op_name) {
+        op_sym = get_operator_method(ps, kls_sym, or_op_name);
     }
 
     if (!op_sym) {
         char *bi_op_name = get_inplace_binary_op_str(op);
-        if (kls_sym->kind == SYM_INSTANCE) {
-            InstanceSymbol *inst_sym = (InstanceSymbol *)kls_sym;
-            op_sym = get_instance_method(inst_sym, bi_op_name, ps);
-        } else {
-            op_sym = stbl_get(kls_sym->stbl, bi_op_name);
+        char *bi_or_op_name = (op == OP_OR_ASSIGN && !type_is_bool(lhs->ts)) ? "__or__" : NULL;
+        op_sym = get_operator_method(ps, kls_sym, bi_op_name);
+        if (!op_sym && bi_or_op_name) {
+            op_sym = get_operator_method(ps, kls_sym, bi_or_op_name);
         }
 
         if (!op_sym) {

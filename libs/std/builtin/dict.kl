@@ -87,7 +87,7 @@ pub class dict[K, V] : MutableMap[K, V] {
     /// Return a new dict with mappings of `self` followed by `src` (`self | src`).
     /// Values from `src` replace those of duplicate keys.
     @native
-    pub func __or__(src Iterable[(K, V)]) dict[K, V] {}
+    pub func __bitor__(src Iterable[(K, V)]) dict[K, V] {}
 
     /// Merge all (key, value) pairs from `src` into the dict in place,
     /// replacing the values of existing keys (`self |= src`).

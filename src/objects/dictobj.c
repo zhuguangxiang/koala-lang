@@ -5,6 +5,7 @@
 
 #include "dictobj.h"
 #include "excobj.h"
+#include "listobj.h"
 #include "tupleobj.h"
 
 #ifdef __cplusplus
@@ -259,21 +260,36 @@ static inline void _dict_update_one(DictObject *dict, TValue *item)
     _dict_insert(dict, &kv[0], &kv[1]);
 }
 
-static TValue _dict_update(TValue *self, TValue *args, int nargs)
+/* Merge every (key, value) pair yielded by `src` into `dict`, replacing the
+ * values of existing keys. Shared by update(), __or__() and __ior__(); `src`
+ * is the single argument of those methods and its type Iterable[(K, V)] is
+ * enforced by the compiler, so every yielded element is a 2-tuple of (K, V).
+ * Returns no_value on success, error_value if the protocol call failed. */
+static TValue _dict_merge(DictObject *dict, TValue *src)
 {
-    DictObject *dict = SELF_AS(dict_type);
-    ASSERT(nargs == 1);
-    Object *src = kl_arg_obj(0);
+    /* Dict fast-path: a dict is both Sequence-like (len + __getitem__) and
+     * Iterable, but merging must not go through integer-index lookup; iterate
+     * the source's entries directly in insertion order. */
+    Object *src_obj = to_obj(src);
+    if (IS_DICT(src_obj)) {
+        DictObject *src_dict = (DictObject *)src_obj;
+        HashMapIter it = { 0 };
+        while (hashmap_next(&src_dict->map, &it)) {
+            DictEntry *entry = (DictEntry *)hashmap_entry(&it);
+            _dict_insert(dict, &entry->key, &entry->value);
+        }
+        return no_value;
+    }
 
     /* Sequence fast-path (list / tuple / str / bytes): use len + __getitem__
      * because Sequence types do not register SLOT_ITER. */
-    if (kl_is_seq(src)) {
-        TValue len = kl_call_len(args);
+    if (kl_is_seq(src_obj)) {
+        TValue len = kl_call_len(src);
         if (is_error(&len)) return error_value;
         size_t m = (size_t)to_int64(&len);
         for (size_t i = 0; i < m; ++i) {
             TValue idx = int64_value((int64_t)i);
-            TValue item = kl_call_get_item(args, &idx);
+            TValue item = kl_call_get_item(src, &idx);
             if (is_error(&item)) return error_value;
             _dict_update_one(dict, &item);
         }
@@ -281,8 +297,8 @@ static TValue _dict_update(TValue *self, TValue *args, int nargs)
     }
 
     /* Generic Iterable path: iter() + next() until next yields nil. */
-    if (kl_is_iter(src)) {
-        TValue it = kl_call_iter(args, 1);
+    if (kl_is_iter(src_obj)) {
+        TValue it = kl_call_iter(src, 1);
         if (is_error(&it)) return error_value;
 
         TValue item;
@@ -298,6 +314,81 @@ static TValue _dict_update(TValue *self, TValue *args, int nargs)
     /* The compiler rejects non-Iterable arguments at the call site, so this
      * point is unreachable in a well-typed program. */
     UNREACHABLE();
+}
+
+static TValue _dict_update(TValue *self, TValue *args, int nargs)
+{
+    DictObject *dict = SELF_AS(dict_type);
+    ASSERT(nargs == 1);
+    return _dict_merge(dict, &args[0]);
+}
+
+/* pub func __bitor__(src Iterable[(K, V)]) dict[K, V]
+ *
+ * Return a new dict with the mappings of `self` followed by `src`
+ * (`self | src`). Values from `src` replace those of duplicate keys; the
+ * receiver is left untouched. */
+static TValue _dict_bitor(TValue *self, TValue *args, int nargs)
+{
+    DictObject *dict = SELF_AS(dict_type);
+    ASSERT(nargs == 1);
+
+    Object *res = kl_new_dict();
+    DictObject *new_dict = (DictObject *)res;
+
+    /* Copy self's mappings first; HashMapIter follows insertion order, so the
+     * result keeps self's order and appends keys fresh from `src`. */
+    HashMapIter it = { 0 };
+    while (hashmap_next(&dict->map, &it)) {
+        DictEntry *entry = (DictEntry *)hashmap_entry(&it);
+        _dict_insert(new_dict, &entry->key, &entry->value);
+    }
+
+    TValue ret = _dict_merge(new_dict, &args[0]);
+    if (is_error(&ret)) return ret;
+    return obj_value(res);
+}
+
+/* pub func __ior__(src Iterable[(K, V)]) dict[K, V]
+ *
+ * Merge all (key, value) pairs from `src` into the dict in place
+ * (`self |= src`), replacing the values of existing keys. Returns the
+ * receiver so the compound assignment keeps the same object. */
+static TValue _dict_ior(TValue *self, TValue *args, int nargs)
+{
+    DictObject *dict = SELF_AS(dict_type);
+    ASSERT(nargs == 1);
+    TValue ret = _dict_merge(dict, &args[0]);
+    if (is_error(&ret)) return ret;
+    return *self;
+}
+
+static TValue _dict_keys(TValue *self, TValue *args, int nargs)
+{
+    DictObject *dict = SELF_AS(dict_type);
+    ASSERT(nargs == 0);
+    Object *list = kl_new_list();
+    HashMapIter it = { 0 };
+    while (hashmap_next(&dict->map, &it)) {
+        DictEntry *entry = (DictEntry *)hashmap_entry(&it);
+        kl_list_append(list, entry->key);
+    }
+    TValue list_tv = obj_value(list);
+    return kl_call_iter(&list_tv, 1);
+}
+
+static TValue _dict_values(TValue *self, TValue *args, int nargs)
+{
+    DictObject *dict = SELF_AS(dict_type);
+    ASSERT(nargs == 0);
+    Object *list = kl_new_list();
+    HashMapIter it = { 0 };
+    while (hashmap_next(&dict->map, &it)) {
+        DictEntry *entry = (DictEntry *)hashmap_entry(&it);
+        kl_list_append(list, entry->value);
+    }
+    TValue list_tv = obj_value(list);
+    return kl_call_iter(&list_tv, 1);
 }
 
 static TValue _dict_setdefault(TValue *self, TValue *args, int nargs)
@@ -338,6 +429,10 @@ static MethodDef dict_methods[] = {
     { "get_or", _dict_get_or },
     { "update", _dict_update },
     { "setdefault", _dict_setdefault },
+    { "__bitor__", _dict_bitor },
+    { "__ior__", _dict_ior },
+    { "keys", _dict_keys },
+    { "values", _dict_values },
     { NULL },
 };
 

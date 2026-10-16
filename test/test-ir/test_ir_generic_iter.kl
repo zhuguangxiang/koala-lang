@@ -1,0 +1,83 @@
+// RUN: koalac %s --cgen --dump=lir,code | filecheck %s
+
+// Generic class method constructing another generic class: 'iter' builds a
+// 'DictKeysIter' sharing its own K/V type parameters and widens it to the
+// 'Iterator' interface. Exercises constructor type-parameter inference across
+// classes (generic-ref parameter 'd dict[K, V]') and instance-to-trait
+// conformance in codegen.
+
+class DictKeys[K, V] : Iterable[K] {
+    let _dict dict[K, V]
+
+    func __init__(d dict[K, V]) { _dict = d }
+
+    func iter(step = 1) Iterator[K] { return DictKeysIter(_dict, step) }
+}
+
+/// One-shot iterator over dict keys in insertion order.
+class DictKeysIter[K, V] : Iterator[K] {
+    @native
+    func __init__(d dict[K, V], step int) {}
+
+    @native
+    func has_next() bool {}
+
+    @native
+    func next() K? {}
+}
+
+// __init__ stores the dict into the only field.
+// CHECK-LABEL: --- IR Dump After isel [@DictKeys::__init__] ---
+// CHECK: func @DictKeys:__init__(%self test_ir_generic_iter.DictKeys, %d std/builtin.dict[DictKeys:K, DictKeys:V]) <NO-TYPE> {
+// CHECK: set_field %self test_ir_generic_iter.DictKeys, _dict(index=0), %d std/builtin.dict[DictKeys:K, DictKeys:V]
+// CHECK: ret void
+
+// iter: load _dict, allocate DictKeysIter with the caller's K/V, call the
+// constructor (self, d, step) and widen the instance to Iterator.
+// CHECK-LABEL: --- IR Dump After isel [@DictKeys::iter] ---
+// CHECK: func @DictKeys:iter(%self test_ir_generic_iter.DictKeys, %step int64) std/builtin.Iterator[DictKeys:K] {
+// CHECK: %0 = get_field %self test_ir_generic_iter.DictKeys, _dict(index=0)
+// CHECK: [fixedslot = 1(next)]
+// CHECK: %1 = new @test_ir_generic_iter.DictKeysIter[DictKeys:K, DictKeys:V]
+// CHECK: [fixedslot = 0(next)]
+// CHECK: move %2 test_ir_generic_iter.DictKeysIter[DictKeys:K, DictKeys:V], %1 test_ir_generic_iter.DictKeysIter[DictKeys:K, DictKeys:V]
+// CHECK: [fixedslot = 2(next)]
+// CHECK: move %3 int64, %step int64
+// CHECK: call @DictKeysIter:__init__, nargs=3
+// CHECK: %4 = make_intf %1 test_ir_generic_iter.DictKeysIter[DictKeys:K, DictKeys:V] [intf-table-index = 4] to std/builtin.Iterator
+// CHECK: ret %4 std/builtin.Iterator
+
+// native methods have no koala body: only an unreachable placeholder remains.
+// CHECK-LABEL: --- IR Dump After isel [@DictKeysIter::__init__] ---
+// CHECK: func @DictKeysIter:__init__(%self test_ir_generic_iter.DictKeysIter, %d std/builtin.dict[DictKeysIter:K, DictKeysIter:V], %step int64) <NO-TYPE> {
+// CHECK: unreachable
+
+// CHECK-LABEL: ====== Linearization @DictKeys::iter(start_pc: 2, insns: 8) ======
+// CHECK: get_field r3, r0, #0
+// CHECK: new r0, #1
+// CHECK: move r2, r0
+// CHECK: move r4, r1
+// CHECK: call flg=0, #3
+// CHECK: make_intf r0, r0, #4
+// CHECK: ret r0
+
+// CHECK-LABEL: @DictKeys::iter:
+// CHECK: [start_pc: 2, insns: 8, nlocals: 2, max_call_args: 3]
+
+// CHECK-LABEL: @DictKeys::__init__[0,1]:
+// CHECK: set_field r0, r1, #0
+// CHECK: ret_void
+
+// CHECK-LABEL: @DictKeys::iter[2,9]:
+// CHECK: get_field r3, r0, #0
+// CHECK: new r0, #1
+// CHECK: move r2, r0
+// CHECK: move r4, r1
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=6(local))
+// CHECK: make_intf r0, r0, #4
+// CHECK: ret r0
+
+// CHECK-LABEL: @DictKeysIter::__init__[14,15]:
+// CHECK: unreachable
+// CHECK: ret_void

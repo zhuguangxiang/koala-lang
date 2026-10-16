@@ -2246,10 +2246,10 @@ X(OP_NUM_AND, FORMAT_RRR, "num.and")
  *     Performs bitwise OR on ra and rb using the number protocol.
  *
  * Behavior:
- *     - Operands must implement __or__
+ *     - Operands must implement __bitor__
  *
  * Types:
- *     - User-defined numeric types implementing __or__
+ *     - User-defined numeric types implementing __bitor__
  *
  * Notes:
  *     - Protocol-level bitwise OR; built-in int/float use dedicated opcodes

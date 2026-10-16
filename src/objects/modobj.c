@@ -157,7 +157,14 @@ int kl_mo_add_bytes(Object *_m, char *s, int len)
     return kl_mo_add_const(_m, &val);
 }
 
-int kl_mo_add_tuple(Object *_m, Vector *list)
+static Object *__new_const_list(Object *_m, Vector *list);
+
+/*
+ * Build a tuple object from klc const items. Nested tuples/lists are built
+ * recursively and are NOT appended to the module const pool — only the
+ * top-level const gets a pool slot, matching the compiler's mach pool layout.
+ */
+static Object *__new_const_tuple(Object *_m, Vector *list)
 {
     ModuleObject *m = (ModuleObject *)_m;
     Vector vec;
@@ -202,11 +209,10 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
 
             case KLC_CONST_SHORT_TUPLE:
             case KLC_CONST_TUPLE: {
-                NYI();
-                // Vector *_sub = item->val;
-                // int _index = kl_mo_add_tuple(_m, _sub);
-                // TValue val = { .tag = item->type_info, .ival = _index };
-                // vector_push_back(&vec, &val);
+                Vector *_sub = item->val;
+                Object *tobj = __new_const_tuple(_m, _sub);
+                TValue val = obj_value(tobj);
+                vector_push_back(&vec, &val);
                 break;
             }
 
@@ -245,8 +251,8 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
             case KLC_CONST_SHORT_LIST:
             case KLC_CONST_LIST: {
                 Vector *_sub = item->val;
-                int _index = kl_mo_add_list(_m, _sub);
-                TValue val = { .tag = item->type_info, .ival = _index };
+                Object *lobj = __new_const_list(_m, _sub);
+                TValue val = obj_value(lobj);
                 vector_push_back(&vec, &val);
                 break;
             }
@@ -268,8 +274,14 @@ int kl_mo_add_tuple(Object *_m, Vector *list)
     TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
     Object *tobj = kl_new_tuple(items, size);
-    TValue val = obj_value(tobj);
     vector_fini(&vec);
+    return tobj;
+}
+
+int kl_mo_add_tuple(Object *_m, Vector *list)
+{
+    Object *tobj = __new_const_tuple(_m, list);
+    TValue val = obj_value(tobj);
     return kl_mo_add_const(_m, &val);
 }
 
@@ -319,6 +331,13 @@ int kl_mo_add_slice(Object *_m, Vector *list)
 
 int kl_mo_add_list(Object *_m, Vector *list)
 {
+    Object *lobj = __new_const_list(_m, list);
+    TValue val = obj_value(lobj);
+    return kl_mo_add_const(_m, &val);
+}
+
+static Object *__new_const_list(Object *_m, Vector *list)
+{
     ModuleObject *m = (ModuleObject *)_m;
     Vector vec;
     vector_init(&vec, sizeof(TValue));
@@ -363,8 +382,8 @@ int kl_mo_add_list(Object *_m, Vector *list)
             case KLC_CONST_SHORT_TUPLE:
             case KLC_CONST_TUPLE: {
                 Vector *_sub = item->val;
-                int _index = kl_mo_add_tuple(_m, _sub);
-                TValue val = { .tag = item->type_info, .ival = _index };
+                Object *tobj = __new_const_tuple(_m, _sub);
+                TValue val = obj_value(tobj);
                 vector_push_back(&vec, &val);
                 break;
             }
@@ -404,8 +423,8 @@ int kl_mo_add_list(Object *_m, Vector *list)
             case KLC_CONST_SHORT_LIST:
             case KLC_CONST_LIST: {
                 Vector *_sub = item->val;
-                int _index = kl_mo_add_list(_m, _sub);
-                TValue val = { .tag = item->type_info, .ival = _index };
+                Object *_lobj = __new_const_list(_m, _sub);
+                TValue val = obj_value(_lobj);
                 vector_push_back(&vec, &val);
                 break;
             }
@@ -420,9 +439,8 @@ int kl_mo_add_list(Object *_m, Vector *list)
     TValue *items = VECTOR_ITEMS(&vec, TValue);
     int size = vector_size(&vec);
     Object *tobj = kl_list_from_array(items, size);
-    TValue val = obj_value(tobj);
     vector_fini(&vec);
-    return kl_mo_add_const(_m, &val);
+    return tobj;
 }
 
 int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *name, int slot_index)

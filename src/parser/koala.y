@@ -725,7 +725,7 @@ type
     }
     | map_type
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | tuple_type
     {
@@ -941,8 +941,13 @@ int_lit_list
 map_type
     : MAP '[' type ',' optional_type ']'
     {
-        // $$ = map_type($3, $5);
-        // type_set_loc($$, lloc(@1, @6));
+        NAME_ID(id, "dict", loc(@1));
+        Vector *args = vector_create_ptr();
+        vector_push_back(args, &$3);
+        vector_push_back(args, &$5);
+        MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
+        $$ = unresolved_type_spec(&mod, id, args);
+        type_spec_loc($$, lloc(@1, @6));
     }
     | MAP '[' error
     {

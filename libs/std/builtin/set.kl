@@ -76,11 +76,11 @@ pub class HashSet[T] : Set[T] {
 
     /// Return a new set with elements from the set and `other` (`self | other`).
     @native
-    pub func __or__(other Iterable[T]) HashSet[T] {}
+    pub func __bitor__(other Iterable[T]) HashSet[T] {}
 
     /// Return a new set with elements common to the set and `other` (`self & other`).
     @native
-    pub func __and__(other Iterable[T]) HashSet[T] {}
+    pub func __bitand__(other Iterable[T]) HashSet[T] {}
 
     /// Return a new set with elements in the set that are not in `other` (`self - other`).
     @native

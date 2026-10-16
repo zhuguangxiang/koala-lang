@@ -200,6 +200,7 @@ static int __mach_const_eq__(void *a, void *b)
             KlMachConst **raw_b = VECTOR_ITEMS(kb->list, KlMachConst *);
             return !memcmp(raw_a, raw_b, sizeof(void *) * 3);
         }
+        case KL_MACH_CONST_LIST:
         case KL_MACH_CONST_TUPLE: {
             Vector *list_a = ka->list;
             Vector *list_b = kb->list;
@@ -244,6 +245,7 @@ static unsigned int mach_const_hash(void *key)
         case KL_MACH_CONST_SLICE:
             KlMachConst **raw = VECTOR_ITEMS(kc->list, KlMachConst *);
             return mem_hash(raw, sizeof(void *) * 3);
+        case KL_MACH_CONST_LIST:
         case KL_MACH_CONST_TUPLE: {
             Vector *list = kc->list;
             int count = vector_size(list);
@@ -502,15 +504,22 @@ static KlMachConst *kl_mach_add_list(KlMachModule *m, Vector *items)
         vector_push_back(list, &kc);
     }
 
-    KlMachConst *entry = mm_alloc_obj(entry);
-    entry->tag = KL_MACH_CONST_LIST;
-    entry->list = list;
+    /*
+     * Unlike tuples/ranges/slices, lists are MUTABLE, so identical list
+     * literals must not share one const pool entry: const-folded call sites
+     * would alias the same object and mutations would leak between them.
+     * Always append a fresh entry; the LIST hash/eq cases above are still
+     * needed for list elements nested inside deduped tuple/range consts.
+     */
+    KlMachConst *new_entry = mm_alloc_obj(new_entry);
+    new_entry->tag = KL_MACH_CONST_LIST;
+    new_entry->list = list;
 
-    vector_push_back(&m->const_pool, &entry);
+    vector_push_back(&m->const_pool, &new_entry);
     int index = vector_size(&m->const_pool) - 1;
-    entry->index = index;
+    new_entry->index = index;
     log_info("Added new const entry for list (index: %d)", index);
-    return entry;
+    return new_entry;
 }
 
 static KlMachConst *kl_mach_add_slice(KlMachModule *m, Vector *items)

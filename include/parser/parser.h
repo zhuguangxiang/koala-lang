@@ -237,6 +237,8 @@ void init_const_placeholder(void);
 
 Vector *infer_tp_from_call(FuncSymbol *fn_sym, KlassSymbol *cls_sym, CallExpr *call_exp,
                            ParserState *ps);
+int infer_tp_from_generic_ref(HashMap *map, TypeSpec *param_ts, TypeSpec *arg_ts,
+                              char *tp_owner_name, Loc loc, ParserState *ps);
 Symbol *find_or_add_func_instance(FuncSymbol *origin, Vector *tp_args, HashMap *stbl,
                                   ParserState *ps);
 
