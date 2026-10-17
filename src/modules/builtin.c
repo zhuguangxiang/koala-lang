@@ -145,6 +145,11 @@ void builtin_native_lib_init(NativeLib *lib)
     for (int i = 0; i < COUNT_OF(builtin_types); ++i) {
         kl_reg_type(lib, builtin_types[i]);
     }
+
+    dict_keys_iter_register(lib);
+    dict_values_iter_register(lib);
+    dict_view_iter_register(lib);
+    dict_rev_iter_register(lib);
 }
 
 #ifdef __cplusplus

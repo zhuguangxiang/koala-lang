@@ -414,6 +414,198 @@ static TValue _dict_setdefault(TValue *self, TValue *args, int nargs)
     return *default_value;
 }
 
+/* DictKeysIter field layout, must match 'class DictKeysIter' in dict.kl. */
+enum { KEYS_ITER_DICT = 0, KEYS_ITER_STEP = 1, KEYS_ITER_POS = 2 };
+
+/* Return the entry at insertion index `pos`, or NULL when out of range. */
+static DictEntry *_dict_entry_at(DictObject *dict, int64_t pos)
+{
+    if (pos < 0 || pos >= (int64_t)dict->map.count) return NULL;
+    HashMapIter it = { 0 };
+    while (hashmap_next(&dict->map, &it)) {
+        if (pos-- == 0) return (DictEntry *)hashmap_entry(&it);
+    }
+    return NULL;
+}
+
+static TValue _keys_iter_has_next(TValue *self, TValue *args, int nargs)
+{
+    InstObject *inst = (InstObject *)to_obj(self);
+    DictObject *dict = (DictObject *)to_obj(&inst->fields[KEYS_ITER_DICT]);
+    return bool_value(inst->fields[KEYS_ITER_POS].ival < (int64_t)dict->map.count);
+}
+
+/* Yield the current key and advance by `step`; NULL when exhausted. */
+static DictEntry *_keys_iter_advance(TValue *self)
+{
+    InstObject *inst = (InstObject *)to_obj(self);
+    DictObject *dict = (DictObject *)to_obj(&inst->fields[KEYS_ITER_DICT]);
+    TValue *pos = &inst->fields[KEYS_ITER_POS];
+    DictEntry *entry = _dict_entry_at(dict, pos->ival);
+    if (entry) pos->ival += inst->fields[KEYS_ITER_STEP].ival;
+    return entry;
+}
+
+static TValue _keys_iter_next_strict(TValue *self, TValue *args, int nargs)
+{
+    DictEntry *entry = _keys_iter_advance(self);
+    if (!entry) {
+        raise_exc("No more keys in DictKeysIter");
+        return error_value;
+    }
+    return entry->key;
+}
+
+static TValue _keys_iter_next(TValue *self, TValue *args, int nargs)
+{
+    DictEntry *entry = _keys_iter_advance(self);
+    return entry ? entry->key : nil_value;
+}
+
+void dict_keys_iter_register(NativeLib *lib)
+{
+    kl_reg_meth(lib, "DictKeysIter", "has_next", _keys_iter_has_next);
+    kl_reg_meth(lib, "DictKeysIter", "next_strict", _keys_iter_next_strict);
+    kl_reg_meth(lib, "DictKeysIter", "next", _keys_iter_next);
+}
+
+/* DictValuesIter field layout, must match 'class DictValuesIter' in dict.kl. */
+enum { VALUES_ITER_DICT = 0, VALUES_ITER_STEP = 1, VALUES_ITER_POS = 2 };
+
+static TValue _values_iter_has_next(TValue *self, TValue *args, int nargs)
+{
+    InstObject *inst = (InstObject *)to_obj(self);
+    DictObject *dict = (DictObject *)to_obj(&inst->fields[VALUES_ITER_DICT]);
+    return bool_value(inst->fields[VALUES_ITER_POS].ival < (int64_t)dict->map.count);
+}
+
+/* Yield the current value and advance by `step`; NULL when exhausted. */
+static DictEntry *_values_iter_advance(TValue *self)
+{
+    InstObject *inst = (InstObject *)to_obj(self);
+    DictObject *dict = (DictObject *)to_obj(&inst->fields[VALUES_ITER_DICT]);
+    TValue *pos = &inst->fields[VALUES_ITER_POS];
+    DictEntry *entry = _dict_entry_at(dict, pos->ival);
+    if (entry) pos->ival += inst->fields[VALUES_ITER_STEP].ival;
+    return entry;
+}
+
+static TValue _values_iter_next_strict(TValue *self, TValue *args, int nargs)
+{
+    DictEntry *entry = _values_iter_advance(self);
+    if (!entry) {
+        raise_exc("No more values in DictValuesIter");
+        return error_value;
+    }
+    return entry->value;
+}
+
+static TValue _values_iter_next(TValue *self, TValue *args, int nargs)
+{
+    DictEntry *entry = _values_iter_advance(self);
+    return entry ? entry->value : nil_value;
+}
+
+void dict_values_iter_register(NativeLib *lib)
+{
+    kl_reg_meth(lib, "DictValuesIter", "has_next", _values_iter_has_next);
+    kl_reg_meth(lib, "DictValuesIter", "next_strict", _values_iter_next_strict);
+    kl_reg_meth(lib, "DictValuesIter", "next", _values_iter_next);
+}
+
+/* DictViewIter field layout, must match 'class DictViewIter' in dict.kl. */
+enum { VIEW_ITER_DICT = 0, VIEW_ITER_STEP = 1, VIEW_ITER_POS = 2 };
+
+static TValue _view_iter_has_next(TValue *self, TValue *args, int nargs)
+{
+    InstObject *inst = (InstObject *)to_obj(self);
+    DictObject *dict = (DictObject *)to_obj(&inst->fields[VIEW_ITER_DICT]);
+    return bool_value(inst->fields[VIEW_ITER_POS].ival < (int64_t)dict->map.count);
+}
+
+/* Yield the current entry and advance by `step`; NULL when exhausted. */
+static DictEntry *_view_iter_advance(TValue *self)
+{
+    InstObject *inst = (InstObject *)to_obj(self);
+    DictObject *dict = (DictObject *)to_obj(&inst->fields[VIEW_ITER_DICT]);
+    TValue *pos = &inst->fields[VIEW_ITER_POS];
+    DictEntry *entry = _dict_entry_at(dict, pos->ival);
+    if (entry) pos->ival += inst->fields[VIEW_ITER_STEP].ival;
+    return entry;
+}
+
+static TValue _view_iter_next_strict(TValue *self, TValue *args, int nargs)
+{
+    DictEntry *entry = _view_iter_advance(self);
+    if (!entry) {
+        raise_exc("No more items in DictViewIter");
+        return error_value;
+    }
+    TValue items[2] = { entry->key, entry->value };
+    return obj_value(kl_new_tuple(items, 2));
+}
+
+static TValue _view_iter_next(TValue *self, TValue *args, int nargs)
+{
+    DictEntry *entry = _view_iter_advance(self);
+    if (!entry) return nil_value;
+    TValue items[2] = { entry->key, entry->value };
+    return obj_value(kl_new_tuple(items, 2));
+}
+
+void dict_view_iter_register(NativeLib *lib)
+{
+    kl_reg_meth(lib, "DictViewIter", "has_next", _view_iter_has_next);
+    kl_reg_meth(lib, "DictViewIter", "next_strict", _view_iter_next_strict);
+    kl_reg_meth(lib, "DictViewIter", "next", _view_iter_next);
+}
+
+/* DictRevIter field layout, must match 'class DictRevIter' in dict.kl. */
+enum { REV_ITER_DICT = 0, REV_ITER_STEP = 1, REV_ITER_POS = 2 };
+
+static TValue _rev_iter_has_next(TValue *self, TValue *args, int nargs)
+{
+    InstObject *inst = (InstObject *)to_obj(self);
+    return bool_value(inst->fields[REV_ITER_POS].ival >= 0);
+}
+
+/* Yield the current entry and retreat by `step`; NULL when exhausted. */
+static DictEntry *_rev_iter_advance(TValue *self)
+{
+    InstObject *inst = (InstObject *)to_obj(self);
+    DictObject *dict = (DictObject *)to_obj(&inst->fields[REV_ITER_DICT]);
+    TValue *pos = &inst->fields[REV_ITER_POS];
+    DictEntry *entry = _dict_entry_at(dict, pos->ival);
+    if (entry) pos->ival -= inst->fields[REV_ITER_STEP].ival;
+    return entry;
+}
+
+static TValue _rev_iter_next_strict(TValue *self, TValue *args, int nargs)
+{
+    DictEntry *entry = _rev_iter_advance(self);
+    if (!entry) {
+        raise_exc("No more items in DictRevIter");
+        return error_value;
+    }
+    TValue items[2] = { entry->key, entry->value };
+    return obj_value(kl_new_tuple(items, 2));
+}
+
+static TValue _rev_iter_next(TValue *self, TValue *args, int nargs)
+{
+    DictEntry *entry = _rev_iter_advance(self);
+    if (!entry) return nil_value;
+    TValue items[2] = { entry->key, entry->value };
+    return obj_value(kl_new_tuple(items, 2));
+}
+
+void dict_rev_iter_register(NativeLib *lib)
+{
+    kl_reg_meth(lib, "DictRevIter", "has_next", _rev_iter_has_next);
+    kl_reg_meth(lib, "DictRevIter", "next_strict", _rev_iter_next_strict);
+    kl_reg_meth(lib, "DictRevIter", "next", _rev_iter_next);
+}
+
 static MethodDef dict_methods[] = {
     { "__init__", _dict_init },
     { "len", _dict_len },

@@ -1429,7 +1429,71 @@ func test_dict_ior_class_key() {
 // keys() Iterable[K]
 // ---------------------------------------------------------------------------
 
-/*
+@test
+func test_dict_keys_iter_has_next_next() {
+    let d = dict[int, str]()
+    d[10] = "a"
+    d[20] = "b"
+    d[30] = "c"
+
+    let it = d.keys().iter(1)
+    ut.assert_true(it.has_next())
+    ut.assert_eq(it.next_strict(), 10)
+    ut.assert_eq(it.next_strict(), 20)
+    ut.assert_true(it.has_next())
+    ut.assert_eq(it.next_strict(), 30)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_keys_iter_next_nil_when_exhausted() {
+    let d = dict[str, int]()
+    d["x"] = 1
+
+    let it = d.keys().iter(1)
+    if let k = it.next() {
+        ut.assert_eq(k, "x")
+    } else {
+        ut.assert_true(false, "expected a key")
+    }
+    ut.assert_true(it.next() == nil)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_keys_iter_empty() {
+    let d = dict[int, int]()
+    let it = d.keys().iter(1)
+    ut.assert_false(it.has_next())
+    ut.assert_true(it.next() == nil)
+}
+
+@test
+func test_dict_keys_iter_step() {
+    let d = dict[int, int]()
+    for i in range(5) { d[i] = i * 10 }
+
+    let it = d.keys().iter(2)
+    ut.assert_eq(it.next_strict(), 0)
+    ut.assert_eq(it.next_strict(), 2)
+    ut.assert_eq(it.next_strict(), 4)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_keys_for_in_insertion_order() {
+    let d = dict[str, int]()
+    d["b"] = 2
+    d["a"] = 1
+    d["c"] = 3
+
+    let ks = list[str]()
+    for k in d.keys() { ks.append(k) }
+    ut.assert_eq(ks.len(), 3)
+    ut.assert_eq(ks[0], "b")
+    ut.assert_eq(ks[1], "a")
+    ut.assert_eq(ks[2], "c")
+}
 
 @test
 func test_dict_keys_empty() {
@@ -1540,6 +1604,72 @@ func test_dict_keys_class_key() {
 // ---------------------------------------------------------------------------
 
 @test
+func test_dict_values_iter_has_next_next() {
+    let d = dict[int, str]()
+    d[10] = "a"
+    d[20] = "b"
+    d[30] = "c"
+
+    let it = d.values().iter(1)
+    ut.assert_true(it.has_next())
+    ut.assert_eq(it.next_strict(), "a")
+    ut.assert_eq(it.next_strict(), "b")
+    ut.assert_true(it.has_next())
+    ut.assert_eq(it.next_strict(), "c")
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_values_iter_next_nil_when_exhausted() {
+    let d = dict[str, int]()
+    d["x"] = 1
+
+    let it = d.values().iter(1)
+    if let v = it.next() {
+        ut.assert_eq(v, 1)
+    } else {
+        ut.assert_true(false, "expected a value")
+    }
+    ut.assert_true(it.next() == nil)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_values_iter_empty() {
+    let d = dict[int, int]()
+    let it = d.values().iter(1)
+    ut.assert_false(it.has_next())
+    ut.assert_true(it.next() == nil)
+}
+
+@test
+func test_dict_values_iter_step() {
+    let d = dict[int, int]()
+    for i in range(5) { d[i] = i * 10 }
+
+    let it = d.values().iter(2)
+    ut.assert_eq(it.next_strict(), 0)
+    ut.assert_eq(it.next_strict(), 20)
+    ut.assert_eq(it.next_strict(), 40)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_values_for_in_insertion_order() {
+    let d = dict[str, int]()
+    d["b"] = 2
+    d["a"] = 1
+    d["c"] = 3
+
+    let vs = list[int]()
+    for v in d.values() { vs.append(v) }
+    ut.assert_eq(vs.len(), 3)
+    ut.assert_eq(vs[0], 2)
+    ut.assert_eq(vs[1], 1)
+    ut.assert_eq(vs[2], 3)
+}
+
+@test
 func test_dict_values_empty() {
     let d = dict[str, int]()
     let vs = list[int]()
@@ -1564,6 +1694,22 @@ func test_dict_values_insertion_order() {
     ut.assert_eq(vs[0], 3)
     ut.assert_eq(vs[1], 1)
     ut.assert_eq(vs[2], 2)
+}
+
+@test
+func test_dict_values_after_replace_no_reorder() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["a"] = 99   // replace value, key order unchanged
+
+    let vs = list[int]()
+    for v in d.values() {
+        vs.append(v)
+    }
+    ut.assert_eq(vs.len(), 2)
+    ut.assert_eq(vs[0], 99)
+    ut.assert_eq(vs[1], 2)
 }
 
 @test
@@ -1642,4 +1788,344 @@ func test_dict_values_class_key() {
     ut.assert_eq(vs[0], 100)
     ut.assert_eq(vs[1], 200)
 }
-*/
+
+// ---------------------------------------------------------------------------
+// iter() Iterator[(K, V)]
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_iter_has_next_next() {
+    let d = dict[int, str]()
+    d[10] = "a"
+    d[20] = "b"
+    d[30] = "c"
+
+    let it = d.iter(1)
+    ut.assert_true(it.has_next())
+    let kv1 = it.next_strict()
+    ut.assert_eq(kv1[0], 10)
+    ut.assert_eq(kv1[1], "a")
+    let kv2 = it.next_strict()
+    ut.assert_eq(kv2[0], 20)
+    ut.assert_eq(kv2[1], "b")
+    ut.assert_true(it.has_next())
+    let kv3 = it.next_strict()
+    ut.assert_eq(kv3[0], 30)
+    ut.assert_eq(kv3[1], "c")
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_iter_next_nil_when_exhausted() {
+    let d = dict[str, int]()
+    d["x"] = 1
+
+    let it = d.iter(1)
+    if let kv = it.next() {
+        ut.assert_eq(kv[0], "x")
+        ut.assert_eq(kv[1], 1)
+    } else {
+        ut.assert_true(false, "expected a pair")
+    }
+    ut.assert_true(it.next() == nil)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_iter_empty() {
+    let d = dict[int, int]()
+    let it = d.iter(1)
+    ut.assert_false(it.has_next())
+    ut.assert_true(it.next() == nil)
+}
+
+@test
+func test_dict_iter_step() {
+    let d = dict[int, int]()
+    for i in range(5) { d[i] = i * 10 }
+
+    let it = d.iter(2)
+    let kv1 = it.next_strict()
+    ut.assert_eq(kv1[0], 0)
+    ut.assert_eq(kv1[1], 0)
+    let kv2 = it.next_strict()
+    ut.assert_eq(kv2[0], 2)
+    ut.assert_eq(kv2[1], 20)
+    let kv3 = it.next_strict()
+    ut.assert_eq(kv3[0], 4)
+    ut.assert_eq(kv3[1], 40)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_iter_for_in_insertion_order() {
+    let d = dict[str, int]()
+    d["b"] = 2
+    d["a"] = 1
+    d["c"] = 3
+
+    let ks = list[str]()
+    let vs = list[int]()
+    for kv in d.iter() {
+        ks.append(kv[0])
+        vs.append(kv[1])
+    }
+    ut.assert_eq(ks.len(), 3)
+    ut.assert_eq(vs.len(), 3)
+    ut.assert_eq(ks[0], "b")
+    ut.assert_eq(vs[0], 2)
+    ut.assert_eq(ks[1], "a")
+    ut.assert_eq(vs[1], 1)
+    ut.assert_eq(ks[2], "c")
+    ut.assert_eq(vs[2], 3)
+}
+
+@test
+func test_dict_iter_empty_dict() {
+    let d = dict[str, int]()
+    let ks = list[str]()
+    for kv in d.iter() {
+        ks.append(kv[0])
+    }
+    ut.assert_eq(ks.len(), 0)
+}
+
+@test
+func test_dict_iter_insertion_order() {
+    let d = dict[str, int]()
+    d["c"] = 3
+    d["a"] = 1
+    d["b"] = 2
+
+    let ks = list[str]()
+    let vs = list[int]()
+    for kv in d.iter() {
+        ks.append(kv[0])
+        vs.append(kv[1])
+    }
+    ut.assert_eq(ks.len(), 3)
+    ut.assert_eq(ks[0], "c")
+    ut.assert_eq(vs[0], 3)
+    ut.assert_eq(ks[1], "a")
+    ut.assert_eq(vs[1], 1)
+    ut.assert_eq(ks[2], "b")
+    ut.assert_eq(vs[2], 2)
+}
+
+// ---------------------------------------------------------------------------
+// reversed() Iterator[(K, V)]
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_reversed_has_next_next() {
+    let d = dict[int, str]()
+    d[10] = "a"
+    d[20] = "b"
+    d[30] = "c"
+
+    let it = d.reversed(1)
+    ut.assert_true(it.has_next())
+    let kv1 = it.next_strict()
+    ut.assert_eq(kv1[0], 30)
+    ut.assert_eq(kv1[1], "c")
+    let kv2 = it.next_strict()
+    ut.assert_eq(kv2[0], 20)
+    ut.assert_eq(kv2[1], "b")
+    ut.assert_true(it.has_next())
+    let kv3 = it.next_strict()
+    ut.assert_eq(kv3[0], 10)
+    ut.assert_eq(kv3[1], "a")
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_reversed_next_nil_when_exhausted() {
+    let d = dict[str, int]()
+    d["x"] = 1
+
+    let it = d.reversed(1)
+    if let kv = it.next() {
+        ut.assert_eq(kv[0], "x")
+        ut.assert_eq(kv[1], 1)
+    } else {
+        ut.assert_true(false, "expected a pair")
+    }
+    ut.assert_true(it.next() == nil)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_reversed_empty() {
+    let d = dict[int, int]()
+    let it = d.reversed(1)
+    ut.assert_false(it.has_next())
+    ut.assert_true(it.next() == nil)
+}
+
+@test
+func test_dict_reversed_step() {
+    let d = dict[int, int]()
+    for i in range(5) { d[i] = i * 10 }
+
+    let it = d.reversed(2)
+    let kv1 = it.next_strict()
+    ut.assert_eq(kv1[0], 4)
+    ut.assert_eq(kv1[1], 40)
+    let kv2 = it.next_strict()
+    ut.assert_eq(kv2[0], 2)
+    ut.assert_eq(kv2[1], 20)
+    let kv3 = it.next_strict()
+    ut.assert_eq(kv3[0], 0)
+    ut.assert_eq(kv3[1], 0)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_reversed_for_in_reverse_order() {
+    let d = dict[str, int]()
+    d["b"] = 2
+    d["a"] = 1
+    d["c"] = 3
+
+    let ks = list[str]()
+    let vs = list[int]()
+    for kv in d.reversed() {
+        ks.append(kv[0])
+        vs.append(kv[1])
+    }
+    ut.assert_eq(ks.len(), 3)
+    ut.assert_eq(vs.len(), 3)
+    ut.assert_eq(ks[0], "c")
+    ut.assert_eq(vs[0], 3)
+    ut.assert_eq(ks[1], "a")
+    ut.assert_eq(vs[1], 1)
+    ut.assert_eq(ks[2], "b")
+    ut.assert_eq(vs[2], 2)
+}
+
+@test
+func test_dict_reversed_empty_dict() {
+    let d = dict[str, int]()
+    let ks = list[str]()
+    for kv in d.reversed() {
+        ks.append(kv[0])
+    }
+    ut.assert_eq(ks.len(), 0)
+}
+
+@test
+func test_dict_reversed_reverse_insertion_order() {
+    let d = dict[str, int]()
+    d["c"] = 3
+    d["a"] = 1
+    d["b"] = 2
+
+    let ks = list[str]()
+    let vs = list[int]()
+    for kv in d.reversed() {
+        ks.append(kv[0])
+        vs.append(kv[1])
+    }
+    ut.assert_eq(ks.len(), 3)
+    ut.assert_eq(ks[0], "b")
+    ut.assert_eq(vs[0], 2)
+    ut.assert_eq(ks[1], "a")
+    ut.assert_eq(vs[1], 1)
+    ut.assert_eq(ks[2], "c")
+    ut.assert_eq(vs[2], 3)
+}
+
+@test
+func test_dict_reversed_after_replace_no_reorder() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["a"] = 99   // replace value, key order unchanged
+
+    let ks = list[str]()
+    let vs = list[int]()
+    for kv in d.reversed() {
+        ks.append(kv[0])
+        vs.append(kv[1])
+    }
+    ut.assert_eq(ks.len(), 2)
+    ut.assert_eq(ks[0], "b")
+    ut.assert_eq(vs[0], 2)
+    ut.assert_eq(ks[1], "a")
+    ut.assert_eq(vs[1], 99)
+}
+
+@test
+func test_dict_iter_after_replace_no_reorder() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["a"] = 99   // replace value, key order unchanged
+
+    let ks = list[str]()
+    let vs = list[int]()
+    for kv in d.iter() {
+        ks.append(kv[0])
+        vs.append(kv[1])
+    }
+    ut.assert_eq(ks.len(), 2)
+    ut.assert_eq(ks[0], "a")
+    ut.assert_eq(vs[0], 99)
+    ut.assert_eq(ks[1], "b")
+    ut.assert_eq(vs[1], 2)
+}
+
+@test
+func test_dict_for_in_direct() {
+    let d = dict[str, int]()
+    d["b"] = 2
+    d["a"] = 1
+    d["c"] = 3
+
+    let ks = list[str]()
+    let vs = list[int]()
+    for kv in d {
+        ks.append(kv[0])
+        vs.append(kv[1])
+    }
+    ut.assert_eq(ks.len(), 3)
+    ut.assert_eq(vs.len(), 3)
+    ut.assert_eq(ks[0], "b")
+    ut.assert_eq(vs[0], 2)
+    ut.assert_eq(ks[1], "a")
+    ut.assert_eq(vs[1], 1)
+    ut.assert_eq(ks[2], "c")
+    ut.assert_eq(vs[2], 3)
+}
+
+@test
+func test_dict_for_in_direct_empty() {
+    let d = dict[str, int]()
+    let ks = list[str]()
+    for kv in d {
+        ks.append(kv[0])
+    }
+    ut.assert_eq(ks.len(), 0)
+}
+
+@test
+func test_dict_for_in_direct_insertion_order() {
+    let d = dict[str, int]()
+    d["c"] = 3
+    d["a"] = 1
+    d["b"] = 2
+
+    let ks = list[str]()
+    let vs = list[int]()
+    for kv in d {
+        ks.append(kv[0])
+        vs.append(kv[1])
+    }
+    ut.assert_eq(ks.len(), 3)
+    ut.assert_eq(ks[0], "c")
+    ut.assert_eq(vs[0], 3)
+    ut.assert_eq(ks[1], "a")
+    ut.assert_eq(vs[1], 1)
+    ut.assert_eq(ks[2], "b")
+    ut.assert_eq(vs[2], 2)
+}
