@@ -125,6 +125,9 @@ pub trait Map[K, V] : Iterable[(K, V)] {
     /// Return an iterable over the values in the map.
     func values() Iterable[V]
 
+    /// Return an iterable over the key-value pairs in the map.
+    func items() Iterable[(K, V)]
+
     /// Return the value associated with `key`, or `nil` if `key` is not present.
     ///
     /// Unlike indexing with `map[key]`, this method does not panic when

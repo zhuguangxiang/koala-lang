@@ -28,15 +28,15 @@ class DictKeysIter[K, V] : Iterator[K] {
 
 // __init__ stores the dict into the only field.
 // CHECK-LABEL: --- IR Dump After isel [@DictKeys::__init__] ---
-// CHECK: func @DictKeys:__init__(%self test_ir_generic_iter.DictKeys, %d std/builtin.dict[DictKeys:K, DictKeys:V]) <NO-TYPE> {
-// CHECK: set_field %self test_ir_generic_iter.DictKeys, _dict(index=0), %d std/builtin.dict[DictKeys:K, DictKeys:V]
+// CHECK: func @DictKeys:__init__(%self test_ir_generic_iter.DictKeys[DictKeys:K, DictKeys:V], %d std/builtin.dict[DictKeys:K, DictKeys:V]) <NO-TYPE> {
+// CHECK: set_field %self test_ir_generic_iter.DictKeys[DictKeys:K, DictKeys:V], _dict(index=0), %d std/builtin.dict[DictKeys:K, DictKeys:V]
 // CHECK: ret void
 
 // iter: load _dict, allocate DictKeysIter with the caller's K/V, call the
 // constructor (self, d, step) and widen the instance to Iterator.
 // CHECK-LABEL: --- IR Dump After isel [@DictKeys::iter] ---
-// CHECK: func @DictKeys:iter(%self test_ir_generic_iter.DictKeys, %step int64) std/builtin.Iterator[DictKeys:K] {
-// CHECK: %0 = get_field %self test_ir_generic_iter.DictKeys, _dict(index=0)
+// CHECK: func @DictKeys:iter(%self test_ir_generic_iter.DictKeys[DictKeys:K, DictKeys:V], %step int64) std/builtin.Iterator[DictKeys:K] {
+// CHECK: %0 = get_field %self test_ir_generic_iter.DictKeys[DictKeys:K, DictKeys:V], _dict(index=0)
 // CHECK: [fixedslot = 1(next)]
 // CHECK: %1 = new @test_ir_generic_iter.DictKeysIter[DictKeys:K, DictKeys:V]
 // CHECK: [fixedslot = 0(next)]
@@ -49,7 +49,7 @@ class DictKeysIter[K, V] : Iterator[K] {
 
 // native methods have no koala body: only an unreachable placeholder remains.
 // CHECK-LABEL: --- IR Dump After isel [@DictKeysIter::__init__] ---
-// CHECK: func @DictKeysIter:__init__(%self test_ir_generic_iter.DictKeysIter, %d std/builtin.dict[DictKeysIter:K, DictKeysIter:V], %step int64) <NO-TYPE> {
+// CHECK: func @DictKeysIter:__init__(%self test_ir_generic_iter.DictKeysIter[DictKeysIter:K, DictKeysIter:V], %d std/builtin.dict[DictKeysIter:K, DictKeysIter:V], %step int64) <NO-TYPE> {
 // CHECK: unreachable
 
 // CHECK-LABEL: ====== Linearization @DictKeys::iter(start_pc: 2, insns: 8) ======

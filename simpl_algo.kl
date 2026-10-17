@@ -1,0 +1,47 @@
+
+func bubble_sort(lst list[int]) {
+    let n = lst.len()
+    for i in range(n - 1) {
+        var ok = false
+
+        for j in range(n - i - 1) {
+            if lst[j] > lst[j + 1] {
+                let tmp = lst[j]
+                lst[j] = lst[j + 1]
+                lst[j + 1] = tmp
+                ok = true
+            }
+        }
+
+        if !ok {
+            break
+        }
+    }
+}
+
+func quick_sort(lst list[int]) list[int] {
+    let n = lst.len()
+    if n <= 1 { return lst }
+
+    let pivot = lst[0]
+    let left = list[int]()
+    let right = list[int]()
+
+    for x in lst[1:] {
+        if x < pivot {
+            left.append(x)
+        } else {
+            right.append(x)
+        }
+    }
+
+    return quick_sort(left) + [pivot] + quick_sort(right)
+}
+
+let v = [7, 4, 2, 1, 8, 3, 6, 5]
+let n = v.len()
+
+// bubble_sort(v)
+print(quick_sort(v))
+
+print(v)

@@ -347,8 +347,18 @@ static Vector *find_matched_tp_args(Symbol *origin, TypeSpec *arg_ts, ParserStat
 
     if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
         if (sym->id == origin->id) {
-            // bare origin type carries no type arguments, nothing to match
-            return NULL;
+            // bare origin type, e.g. 'self' inside 'class dict[K, V]': its type
+            // arguments are the class's own type parameters.
+            KlassSymbol *kls = (KlassSymbol *)sym;
+            if (vector_empty(&kls->tps)) return NULL;
+            Vector *self_args = vector_create_ptr();
+            TypeParamSymbol *tp_sym;
+            vector_foreach(tp_sym, &kls->tps) {
+                TypeSpec *gv = generic_var_type_spec(tp_sym->name, tp_sym->index, tp_sym->id,
+                                                     tp_sym->owner->name);
+                vector_push_back(self_args, &gv);
+            }
+            return self_args;
         }
         // normal class, e.g. 'Foo' which inherits 'Iterator[int]'
         return find_matched_tp_args_in_bases(origin, &((KlassSymbol *)sym)->bases, ps);

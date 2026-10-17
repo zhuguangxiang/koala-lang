@@ -3009,7 +3009,22 @@ static void _add_func(KlrModule *m, FuncDeclStmt *fn)
     sym->ir_val = fval;
 }
 
-static void _add_method(KlrKlass *kls, FuncDeclStmt *meth)
+// 'self' of a generic class is typed with its own type parameters, e.g. 'Foo[Foo:K]'.
+static TypeSpec *_self_type_of(KlassSymbol *sym, ParserModule *pm)
+{
+    if (!sym || vector_empty(&sym->tps)) return NULL;
+    Vector *args = vector_create_ptr();
+    TypeParamSymbol *tp;
+    vector_foreach(tp, &sym->tps) {
+        TypeSpec *gv = generic_var_type_spec(tp->name, tp->index, tp->id, tp->owner->name);
+        vector_push_back(args, &gv);
+    }
+    InstanceSymbol *inst = find_or_add_instance(pm->stbl, (Symbol *)sym, args, pm);
+    vector_destroy(args);
+    return inst ? inst->instance_ts : NULL;
+}
+
+static void _add_method(KlrKlass *kls, FuncDeclStmt *meth, TypeSpec *self_ts)
 {
     Ident *id = &meth->id;
     FuncSymbol *_sym = (FuncSymbol *)meth->sym;
@@ -3017,7 +3032,7 @@ static void _add_method(KlrKlass *kls, FuncDeclStmt *meth)
     KlrValue *fval = klr_add_method(kls, _sym->ret, id->name);
 
     if (!(_sym->flags & SYM_FLAGS_STATIC)) {
-        ((KlrFunc *)fval)->self = klr_func_add_param(fval, kls->ts, "self");
+        ((KlrFunc *)fval)->self = klr_func_add_param(fval, self_ts ? self_ts : kls->ts, "self");
     }
 
     KlrValue *param;
@@ -3030,11 +3045,12 @@ static void _add_method(KlrKlass *kls, FuncDeclStmt *meth)
     _sym->ir_val = fval;
 }
 
-static void _add_klass(KlrModule *m, KlassDeclStmt *kls)
+static void _add_klass(KlrModule *m, KlassDeclStmt *kls, ParserModule *pm)
 {
     Ident *id = &kls->id;
     KlassSymbol *sym = (KlassSymbol *)kls->sym;
     KlrValue *kval = klr_add_klass(m, sym->instance_ts, id->name);
+    TypeSpec *self_ts = _self_type_of(sym, pm);
 
     Stmt *s;
     vector_foreach(s, kls->stmts) {
@@ -3046,7 +3062,7 @@ static void _add_klass(KlrModule *m, KlassDeclStmt *kls)
             _sym->ir_val = klr_add_field(kval, _sym->name, _sym->ts);
         } else if (s->kind == STMT_FUNC_KIND) {
             FuncDeclStmt *fn = (FuncDeclStmt *)s;
-            _add_method((KlrKlass *)kval, fn);
+            _add_method((KlrKlass *)kval, fn, self_ts);
         } else {
             UNREACHABLE();
         }
@@ -3117,7 +3133,7 @@ void kl_gen_ir(ParserModule *pm)
                 _add_func(m, fn);
             } else if (s->kind == STMT_CLASS_KIND) {
                 KlassDeclStmt *kls = (KlassDeclStmt *)s;
-                _add_klass(m, kls);
+                _add_klass(m, kls, pm);
             } else if (s->kind == STMT_TRAIT_KIND) {
                 KlassDeclStmt *kls = (KlassDeclStmt *)s;
                 _add_trait(m, kls);

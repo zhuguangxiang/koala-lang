@@ -16,8 +16,7 @@ pub class dict[K, V] : MutableMap[K, V] {
     pub func __init__() {}
 
     /// Return an iterator over the (key, value) pairs in insertion order.
-    @native
-    pub func iter(step = 1) Iterator[(K, V)] {}
+    pub func iter(step = 1) Iterator[(K, V)] = DictItemsIter[K, V](self, step)
 
     /// Return the number of key-value pairs.
     @native
@@ -41,12 +40,13 @@ pub class dict[K, V] : MutableMap[K, V] {
     pub func __setitem__(key K, value V) {}
 
     /// Return an iterable over all keys in the dict, in insertion order.
-    @native
-    pub func keys() Iterable[K] {}
+    pub func keys() Iterable[K] = DictKeys[K, V](self)
 
     /// Return an iterable over all values in the dict, in insertion order.
-    @native
-    pub func values() Iterable[V] {}
+    pub func values() Iterable[V] = DictValues(self)
+
+    /// Return an iterable over the key-value pairs in the map.
+    pub func items() Iterable[(K, V)] = DictItems(self)
 
     /// Remove all mappings from the dict, leaving it empty.
     @native
@@ -102,4 +102,100 @@ pub class dict[K, V] : MutableMap[K, V] {
     /// Format the dict for display.
     @native
     pub func fmt(f Formatter) {}
+}
+
+/// Lightweight view returned by `dict.keys()`. keys are returned in insertion order.
+class DictKeys[K, V] : Iterable[K] {
+    /// internal reference to the underlying dictionary.
+    let _dict dict[K, V]
+
+    /// Initialize the DictKeys view with the given dictionary.
+    func __init__(d dict[K, V]) { _dict = d }
+
+    /// Return an iterator over the keys in the dict.
+    func iter(step = 1) Iterator[K] { return DictKeysIter(_dict, step) }
+}
+
+/// Iterator over dict keys in insertion order.
+class DictKeysIter[K, V] : Iterator[K] {
+
+    /// Initialize the DictKeysIter with the given dictionary and step size.
+    @native
+    func __init__(d dict[K, V], step int) {}
+
+    /// Return true if there are more keys to iterate over.
+    @native
+    func has_next() bool {}
+
+    /// Return the next value in the iteration. Raises an error if iteration is complete.
+    @native
+    func next_strict() K {}
+
+    /// Return the next key in the iteration, or `nil` if iteration is complete.
+    @native
+    func next() K? {}
+}
+
+/// Lightweight view returned by `dict.values()`. Values are returned in insertion order.
+class DictValues[K, V] : Iterable[V] {
+    /// internal reference to the underlying dictionary.
+    let _dict dict[K, V]
+
+    /// Initialize the DictValues view with the given dictionary.
+    func __init__(d dict[K, V]) { _dict = d }
+
+    /// Return an iterator over the values in the dict.
+    func iter(step = 1) Iterator[V] { return DictValuesIter(_dict, step) }
+}
+
+/// Iterator over dict values in insertion order.
+class DictValuesIter[K, V] : Iterator[V] {
+
+    /// Initialize the DictValuesIter with the given dictionary and step size.
+    @native
+    func __init__(d dict[K, V], step int) {}
+
+    /// Return true if there are more values to iterate over.
+    @native
+    func has_next() bool {}
+
+    /// Return the next value in the iteration. Raises an error if iteration is complete.
+    @native
+    func next_strict() V {}
+
+    /// Return the next value in the iteration, or `nil` if iteration is complete.
+    @native
+    func next() V? {}
+}
+
+/// Lightweight view returned by `dict.items()`. Key-value pairs are returned in insertion order.
+class DictItems[K, V] : Iterable[(K, V)] {
+    /// internal reference to the underlying dictionary.
+    let _dict dict[K, V]
+
+    /// Initialize the DictItems view with the given dictionary.
+    func __init__(d dict[K, V]) { _dict = d }
+
+    /// Return an iterator over the key-value pairs in the dict.
+    func iter(step = 1) Iterator[(K, V)] { return DictItemsIter(_dict, step) }
+}
+
+/// Iterator over dict items in insertion order. Used by `DictItems` and `dict.iter()` to provide iteration functionality.
+class DictItemsIter[K, V] : Iterator[(K, V)] {
+
+    /// Initialize the DictItemsIter with the given dictionary and step size.
+    @native
+    func __init__(d dict[K, V], step int) {}
+
+    /// Return true if there are more items to iterate over.
+    @native
+    func has_next() bool {}
+
+    /// Return the next key-value pair in the iteration. Raises an error if iteration is complete.
+    @native
+    func next_strict() (K, V) {}
+
+    /// Return the next key-value pair in the iteration, or `nil` if iteration is complete.
+    @native
+    func next() (K, V)? {}
 }
