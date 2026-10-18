@@ -31,7 +31,7 @@ func black_hole(n int) int {
 //CHECK-LABEL: func @black_hole(%n int64) int64
 //CHECK: %i = local int64
 //CHECK: move %i int64, 0 int64
-//CHECK: %0 = cmpge %n int64, 0 int64
+//CHECK: %0 = cmpgt %n int64, 0 int64
 //CHECK: branch %0 bool, label %bb1, label %bb2
 
 //CHECK: %j = local int64

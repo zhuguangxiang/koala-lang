@@ -708,6 +708,8 @@ PkgSymbol *load_module(char *pkg_path, ParserModule *pm)
     int count = str_sep(&koala_path, ':', &prefix);
     while (count > 0) {
         buf_write_nstr(&buf, prefix, count);
+        // append a separator if the prefix has no trailing slash
+        if (prefix[count - 1] != '/') buf_write_char(&buf, '/');
         buf_write_str(&buf, pkg_path);
         buf_write_str(&buf, ".klc");
         sym = __load(BUF_STR(buf), pm);

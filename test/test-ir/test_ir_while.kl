@@ -101,7 +101,7 @@ func fib_with_break(n int, a int) {
 
 // CHECK: %i = local int64
 // CHECK: move %i int64, 0 int64
-// CHECK: %0 = cmpge %n int64, 0 int64
+// CHECK: %0 = cmpgt %n int64, 0 int64
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
 // CHECK: %1 = cmpgt %a int64, 1000 int64

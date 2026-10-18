@@ -46,7 +46,7 @@ func test_while(n int) {
 // CHECK-LABEL: ====== Linearization @test_while(start_pc: 18, insns: 7) ======
 // CHECK: %bb-1(entry):
 // CHECK: load_int_imm r1, ti=0xb, #0
-// CHECK: int.ge_imm r2, r0, #0
+// CHECK: int.gt_imm r2, r0, #0
 // CHECK: jmp_false r2, 3              ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
@@ -73,12 +73,12 @@ func test_nested_loop(n int) {
 
 // CHECK: %bb-1(entry):
 // CHECK: load_int_imm r1, ti=0xb, #0
-// CHECK: int.ge_imm r2, r0, #0
+// CHECK: int.gt_imm r2, r0, #0
 // CHECK: jmp_false r2, 15             ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):
 // CHECK: load_int_imm r2, ti=0xb, #0
-// CHECK: int.ge_imm r3, r1, #0
+// CHECK: int.gt_imm r3, r1, #0
 // CHECK: jmp_false r3, 9              ;; -> %bb-1(while-end)
 
 // CHECK: %bb-1(while-body):

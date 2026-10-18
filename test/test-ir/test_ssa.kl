@@ -287,7 +287,7 @@ func test10(a int) int {
 // CHECK-LABEL: func @test5(%n int64) int64
 // CHECK: %lc.i.phi.0 = local int64
 // CHECK: move %lc.i.phi.0 int64, 0 int64
-// CHECK: %0 = cmpge %n int64, 0 int64
+// CHECK: %0 = cmpgt %n int64, 0 int64
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
 // CHECK: %1 = add %lc.i.phi.0 int64, 1

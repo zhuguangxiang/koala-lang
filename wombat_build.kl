@@ -177,12 +177,13 @@ func find_package(ws Workspace, name str) Package {
 }
 
 /// Topological sort by dependency.
+///
+/// Returns package names in build order, or an empty list on a cycle.
 func topo_sort(pkgs list[Package]) list[str] {
     let order = list[str]()
     let done = list[str]()
-    let total = pkgs.len()
 
-    while order.len() < total {
+    while order.len() < pkgs.len() {
         var progressed = false
         for pkg in pkgs {
             if pkg.name in done { continue }

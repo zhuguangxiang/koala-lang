@@ -40,7 +40,7 @@ func test_while(n int) {
 // CHECK: %bb0(entry):
 // CHECK: %i = local int64
 // CHECK: load_int_imm %i int64, 0 int64
-// CHECK: %0 = int.ge_imm %n int64, 0 int64
+// CHECK: %0 = int.gt_imm %n int64, 0 int64
 // CHECK: branch %0 bool, label %bb1, label %bb2
 // CHECK: %bb1(while-body):
 // CHECK: %1 = int.add_imm %i int64, 1 int64
@@ -67,13 +67,13 @@ func test_nested_loop(n int) {
 
 // CHECK: %i = local int64
 // CHECK: load_int_imm %i int64, 0 int64
-// CHECK: %0 = int.ge_imm %n int64, 0 int64
+// CHECK: %0 = int.gt_imm %n int64, 0 int64
 // CHECK: branch %0 bool, label %bb1, label %bb2
 
 
 // CHECK: %j = local int64
 // CHECK: load_int_imm %j int64, 0 int64
-// CHECK: %1 = int.ge_imm %i int64, 0 int64
+// CHECK: %1 = int.gt_imm %i int64, 0 int64
 // CHECK: branch %1 bool, label %bb3, label %bb4
 
 // CHECK: ret void

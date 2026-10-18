@@ -524,6 +524,8 @@ Object *kl_load_module(char *path)
     int count = str_sep(&koala_path, ':', &prefix);
     while (count > 0) {
         buf_write_nstr(&buf, prefix, count);
+        // append a separator if the prefix has no trailing slash
+        if (prefix[count - 1] != '/') buf_write_char(&buf, '/');
         buf_write_str(&buf, path);
         if (!isdotklc(path)) buf_write_str(&buf, ".klc");
         m = _load_module(BUF_STR(buf));

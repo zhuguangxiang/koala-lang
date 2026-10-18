@@ -1,0 +1,26 @@
+// RUN: koala --dump=no-opt-ir,ir,code %s | filecheck %s
+
+func zero() int {
+    return 0
+}
+
+func main() {
+    var i = 0
+    let n = zero()
+    while i < n {
+        print("inside, should not happen")
+        i += 1
+    }
+    print("done")
+}
+
+// CHECK: %1 = cmplt %i int64, %n int64
+
+// CHECK-LABEL: --- IR Dump After cfg_bb_opt_pass (Iter 3) [@main] ---
+// CHECK: %1 = cmpgt %0 int64, 0 int64
+
+// CHECK-LABEL: Import Table
+
+// CHECK-NOT: inside
+// CHECK: done
+// CHECK-NOT: {{.}}

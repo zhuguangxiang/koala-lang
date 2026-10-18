@@ -38,7 +38,7 @@ int klr_normalize_pass(KlrFunc *fn, void *data)
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {
                     set_operand_at(insn, 0, rhs);
                     set_operand_at(insn, 1, lhs);
-                    insn->code = OP_BINARY_GE;
+                    insn->code = OP_BINARY_GT;
                     change = 1;
                 }
             } else if (insn->code == OP_BINARY_LE) {
@@ -47,7 +47,7 @@ int klr_normalize_pass(KlrFunc *fn, void *data)
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {
                     set_operand_at(insn, 0, rhs);
                     set_operand_at(insn, 1, lhs);
-                    insn->code = OP_BINARY_GT;
+                    insn->code = OP_BINARY_GE;
                     change = 1;
                 }
             } else if (insn->code == OP_BINARY_GT) {
@@ -56,7 +56,7 @@ int klr_normalize_pass(KlrFunc *fn, void *data)
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {
                     set_operand_at(insn, 0, rhs);
                     set_operand_at(insn, 1, lhs);
-                    insn->code = OP_BINARY_LE;
+                    insn->code = OP_BINARY_LT;
                     change = 1;
                 }
             } else if (insn->code == OP_BINARY_GE) {
@@ -65,7 +65,7 @@ int klr_normalize_pass(KlrFunc *fn, void *data)
                 if (klr_is_const(lhs) && !klr_is_const(rhs)) {
                     set_operand_at(insn, 0, rhs);
                     set_operand_at(insn, 1, lhs);
-                    insn->code = OP_BINARY_LT;
+                    insn->code = OP_BINARY_LE;
                     change = 1;
                 }
             } else if (insn->code == OP_BINARY_NE) {
