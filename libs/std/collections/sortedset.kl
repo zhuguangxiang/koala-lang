@@ -1,0 +1,98 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A SortedSet is a mutable, sorted collection of unique elements,
+/// backed by a balanced tree.
+///
+/// It implements `MutableSet`, providing membership tests, insertion, removal,
+/// and set algebra. Elements are ordered by their `Comparable` ordering.
+/// Iteration and `to_list()` follow that order; `reversed()` traverses it
+/// in reverse.
+pub class SortedSet[T : Comparable] : MutableSet[T] {
+
+    /// Create an empty tree set.
+    @native
+    pub func __init__() {}
+
+    /// Return an iterator over the elements in sorted order.
+    @native
+    pub func iter(step = 1) Iterator[T] {}
+
+    /// Return the number of elements.
+    @native
+    pub func len() int {}
+
+    /// Return true if the set is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Return true if the set contains `v`.
+    @native
+    pub func __contains__(v T) bool {}
+
+    /// Add an element to the set.
+    /// Return true if the element was not already present.
+    @native
+    pub func add(v T) bool {}
+
+    /// Add all elements from `items` to the set.
+    /// Unlike `add` which inserts a single element, `update` inserts
+    /// multiple elements from any iterable source in one call.
+    @native
+    pub func update(items Iterable[T]) {}
+
+    /// Remove an element from the set.
+    /// Return true if the element was present.
+    @native
+    pub func remove(v T) bool {}
+
+    /// Remove all elements from the set, leaving it empty.
+    @native
+    pub func clear() {}
+
+    /// Return true if every element in the set is in `other`.
+    @native
+    pub func is_subset(other Iterable[T]) bool {}
+
+    /// Return true if every element in `other` is in the set.
+    @native
+    pub func is_superset(other Iterable[T]) bool {}
+
+    /// Return a new sorted set with elements from the set and `other`.
+    @native
+    pub func union(other Iterable[T]) SortedSet[T] {}
+
+    /// Return a new sorted set with elements common to the set and `other`.
+    @native
+    pub func intersect(other Iterable[T]) SortedSet[T] {}
+
+    /// Return a new sorted set with elements in the set that are not in `other`.
+    @native
+    pub func diff(other Iterable[T]) SortedSet[T] {}
+
+    /// Return a new sorted set with elements in the set or `other`, but not both.
+    @native
+    pub func sym_diff(other Iterable[T]) SortedSet[T] {}
+
+    /// Return a new sorted set with elements from the set and `other` (`self | other`).
+    @native
+    pub func __or__(other Iterable[T]) SortedSet[T] {}
+
+    /// Return a new sorted set with elements common to the set and `other` (`self & other`).
+    @native
+    pub func __and__(other Iterable[T]) SortedSet[T] {}
+
+    /// Return a new sorted set with elements in the set that are not in `other` (`self - other`).
+    @native
+    pub func __sub__(other Iterable[T]) SortedSet[T] {}
+
+    /// Return a reverse iterator over the elements in reverse sorted order.
+    @native
+    pub func reversed(step = 1) Iterator[T] {}
+
+    /// Return a list of all elements in sorted order.
+    @native
+    pub func to_list() list[T] {}
+}

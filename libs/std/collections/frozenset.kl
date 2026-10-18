@@ -1,0 +1,56 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A FrozenSet is an immutable, unordered collection of unique elements.
+///
+/// It implements `Set` (read-only), providing membership tests and set algebra.
+/// Once created, elements cannot be added or removed.
+/// FrozenSet is hashable and can be used as a dict key or set element.
+pub class FrozenSet[T] : Set[T] {
+
+    /// Create a FrozenSet from an iterable of elements.
+    @native
+    pub func __init__(items Iterable[T]) {}
+
+    /// Return an iterator over the elements.
+    @native
+    pub func iter(step = 1) Iterator[T] {}
+
+    /// Return the number of elements.
+    @native
+    pub func len() int {}
+
+    /// Return true if the set is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Return true if the set contains `v`.
+    @native
+    pub func __contains__(v T) bool {}
+
+    /// Return true if every element in the set is in `other`.
+    @native
+    pub func is_subset(other Iterable[T]) bool {}
+
+    /// Return true if every element in `other` is in the set.
+    @native
+    pub func is_superset(other Iterable[T]) bool {}
+
+    /// Return a new FrozenSet with elements from the set and `other`.
+    @native
+    pub func union(other Iterable[T]) FrozenSet[T] {}
+
+    /// Return a new FrozenSet with elements common to the set and `other`.
+    @native
+    pub func intersect(other Iterable[T]) FrozenSet[T] {}
+
+    /// Return a new FrozenSet with elements in the set that are not in `other`.
+    @native
+    pub func diff(other Iterable[T]) FrozenSet[T] {}
+
+    /// Format the set for display.
+    @native
+    pub func fmt(f Formatter) {}
+}

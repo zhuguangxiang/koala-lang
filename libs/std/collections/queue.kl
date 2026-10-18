@@ -1,0 +1,44 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A Queue is a first-in, first-out (FIFO) collection.
+///
+/// Elements are added to the back and removed from the front.
+/// Queue does not implement `Sequence` because it does not support
+/// indexed access.
+pub class Queue[T] {
+
+    /// Create an empty queue.
+    @native
+    pub func __init__() {}
+
+    /// Return the number of elements.
+    @native
+    pub func len() int {}
+
+    /// Return true if the queue is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Add `v` to the back of the queue.
+    @native
+    pub func push(v T) {}
+
+    /// Remove and return the front element. Panic if empty.
+    @native
+    pub func pop() T {}
+
+    /// Return the front element without removing it. Panic if empty.
+    @native
+    pub func peek() T {}
+
+    /// Remove all elements from the queue, leaving it empty.
+    @native
+    pub func clear() {}
+
+    /// Format the queue for display.
+    @native
+    pub func fmt(f Formatter) {}
+}

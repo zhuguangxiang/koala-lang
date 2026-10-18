@@ -1,0 +1,45 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A FrozenList is an immutable, ordered sequence of elements.
+///
+/// It implements `Sequence` (read-only), providing random access and iteration.
+/// Once created, elements cannot be added, removed, or modified.
+/// FrozenList is hashable (if all elements are hashable) and can be used
+/// as a dict key or set element.
+pub class FrozenList[T] : Sequence[T] {
+
+    /// Create a FrozenList from an iterable of elements.
+    @native
+    pub func __init__(items Iterable[T]) {}
+
+    /// Return an iterator over the elements.
+    @native
+    pub func iter(step = 1) Iterator[T] {}
+
+    /// Return the number of elements.
+    @native
+    pub func len() int {}
+
+    /// Return true if the list is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Return true if the list contains `v`.
+    @native
+    pub func __contains__(v T) bool {}
+
+    /// Return the element at `index`. Panic if out of bounds.
+    @native
+    pub func __getitem__(index int) T {}
+
+    /// Return a reverse iterator over the elements.
+    @native
+    pub func reversed(step = 1) Iterator[T] {}
+
+    /// Format the list for display.
+    @native
+    pub func fmt(f Formatter) {}
+}

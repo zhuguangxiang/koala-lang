@@ -468,7 +468,7 @@ Koala ships the usual container family, all declared in the standard library:
 | `list` | dynamic array |
 | `tuple` | immutable fixed-size sequence |
 | `dict` | hash map preserving insertion order |
-| `HashSet` / `TreeSet` | sets with algebra operations |
+| `hashset` / `TreeSet` | sets with algebra operations |
 | `range` | integer interval, used heavily by `for` |
 | `bytes` | fixed-length byte array |
 | `ByteBuf` | mutable byte buffer |

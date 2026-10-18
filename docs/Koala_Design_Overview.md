@@ -183,7 +183,7 @@ Koala 的运算符重载由 **dunder 本身授予（语法钩子），而不是�
 - **泛型约束**：如 `T : Comparable[T]`；缺少约束只在泛型参数要求时报错。
 - **自类型推断**：裸遵循自动推断自类型参数（如 Equatable → Equatable[bool]），无 Self 关键字。
 - **LRO（线性化）**：`--dump=itable` 可见每个类的 Intf-Table——槽位含方法名 + code_index + parents。线性化顺序：`[0] any` 打头，紧接编译器自动遵循的三契约 `[1] Printable / [2] Hashable / [3] Equatable`（§2.2），之后才是用户声明的 trait（按 C3 线性化，菱形继承去重，test-run/test_lro.kl・test_lro_2.kl 守护）。类型内省可见全部遵循关系与编译器插入的内容，无隐藏。
-- **变型**：参数与返回值一律**不变**（invariant），不支持协变 / 逆变。根因：泛型场景下协变返回值无法适配——intf-table 槽里存的是实现类的具体方法，返回值原样拷贝，没有 concrete→trait 的适配层（上述三轨分发不含“返回类型改写”一轨），协变返回在泛型分发下无法静态保证类型一致，故一律收为不变。落地要求：实现侧必须按 trait 声明的原类型收发——`iter()` 声明 `Iterator[T]` 就只能返回 `Iterator[T]`（不能返回 `StrIter`），`Map.keys()` 声明 `Sequence[K]` 就只能返回 `Sequence[K]`（不能返回 `list[K]`），`Set.union()` 声明 `Set[T]` 就只能返回 `Set[T]`（不能返回 `HashSet[T]`）；具体实现仍可在函数体内构造具体类，由返回下降完成 make_intf 上转。“宽进”不靠覆写期变型，而靠 trait 设计期选最小能力类型（如参数一律 `Iterable[T]`）。
+- **变型**：参数与返回值一律**不变**（invariant），不支持协变 / 逆变。根因：泛型场景下协变返回值无法适配——intf-table 槽里存的是实现类的具体方法，返回值原样拷贝，没有 concrete→trait 的适配层（上述三轨分发不含“返回类型改写”一轨），协变返回在泛型分发下无法静态保证类型一致，故一律收为不变。落地要求：实现侧必须按 trait 声明的原类型收发——`iter()` 声明 `Iterator[T]` 就只能返回 `Iterator[T]`（不能返回 `StrIter`），`Map.keys()` 声明 `Sequence[K]` 就只能返回 `Sequence[K]`（不能返回 `list[K]`），`Set.union()` 声明 `Set[T]` 就只能返回 `Set[T]`（不能返回 `hashset[T]`）；具体实现仍可在函数体内构造具体类，由返回下降完成 make_intf 上转。“宽进”不靠覆写期变型，而靠 trait 设计期选最小能力类型（如参数一律 `Iterable[T]`）。
 
 **三轨分发，零运行期名字解析**——Koala 全部调用形态归入三条轨道，没有一轨需要 vtable 式的方法名运行时查找：
 
@@ -597,7 +597,9 @@ Iterable[T]
 ├── Sequence[T]
 │   └── MutableSequence[T]
 ├── Map[K, V]
+│   └── MutableMap[K, V]
 └── Set[T]
+    └── MutableSet[T]
 ```
 
 每层有独立语义贡献，无装饰性中间层（如 Java `AbstractList`）。
@@ -607,8 +609,10 @@ Iterable[T]
 | `Iterable[T]` | — | 1 | 遍历（`iter(step=1)` → `Iterator[T]`；普通方法，非 dunder） |
 | `Sequence[T]` | `Iterable[T]` | 5 | 只读序列：长度、成员判定、下标访问、搜索 |
 | `MutableSequence[T]` | `Sequence[T]` | 7 | 可变序列：写入、追加、插入、删除、清空 |
-| `Map[K, V]` | `Iterable[(K, V)]` | 12 | 键值映射：下标读写、视图、安全读取、删除 |
-| `Set[T]` | `Iterable[T]` | 11 | 数学集合：增删、批量添加、代数运算、子集判定 |
+| `Map[K, V]` | `Iterable[(K, V)]` | 8 | 只读映射：长度、成员判定、下标读取、视图、安全读取 |
+| `MutableMap[K, V]` | `Map[K, V]` | 4 | 可变映射：写入、删除、清空 |
+| `Set[T]` | `Iterable[T]` | 7 | 只读集合：长度、成员判定、代数运算、子集判定 |
+| `MutableSet[T]` | `Set[T]` | 4 | 可变集合：增删、批量添加、清空 |
 
 **设计原则**：
 
@@ -666,23 +670,28 @@ Iterable[T]
 
 实现者：`dict`（插入序哈希映射）。
 
-**Set[T]**（11 方法）：
+**Set[T]**（7 方法）：
 
 | 方法 | 签名 | 说明 |
 |------|------|------|
 | `len` | `() int` | 元素数量 |
 | `__contains__` | `(v T) bool` | 成员判定，支撑 `in` 语法 |
-| `add` | `(v T) bool` | 添加元素，返回 true 表示新插入 |
-| `update` | `(items Iterable[T])` | 批量添加 |
-| `remove` | `(v T) bool` | 删除元素，返回 true 表示曾存在 |
-| `clear` | `()` | 清空 |
 | `is_subset` | `(other Iterable[T]) bool` | 子集判定 |
 | `is_superset` | `(other Iterable[T]) bool` | 超集判定 |
 | `union` | `(other Iterable[T]) Set[T]` | 并集，返回新集合 |
 | `intersect` | `(other Iterable[T]) Set[T]` | 交集，返回新集合 |
 | `diff` | `(other Iterable[T]) Set[T]` | 差集，返回新集合 |
 
-实现者：`HashSet`（哈希集）、`TreeSet`（有序集，按 `Comparable` 排序）；trait 不含 `sym_diff`，对称差由具体类提供。
+**MutableSet[T]**（4 方法，继承 Set 全部方法）：
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `add` | `(v T) bool` | 添加元素，返回 true 表示新插入 |
+| `update` | `(items Iterable[T])` | 批量添加 |
+| `remove` | `(v T) bool` | 删除元素，返回 true 表示曾存在 |
+| `clear` | `()` | 清空 |
+
+实现者：`hashset`（哈希集）、`TreeSet`（有序集，按 `Comparable` 排序）；trait 不含 `sym_diff`，对称差由具体类提供。
 
 **协议—槽—指令三层对应**（容器 op 重构，opcode_list.h 1914–2157）：
 
@@ -711,21 +720,33 @@ Iterable[T]
 | 类型 | 要点 |
 |------|------|
 | `str` | 字符串，53 方法（切片、分割、大小写、padding、判定族、`to_int` / `to_float` 族、`format`、`join`、`view`）；`str(obj)` 接受 `any` 经 `__str__()` 做通用字符串转换；`iter` / `reversed` 返回 `Iterator[str]` |
-| `bytes` | 定长字节数组，27 方法（`copy` / `fill` / `zero` / `view` / `replace` / `split` 等位置式写族）+ `iter` / `reversed` |
+| `bytes` | **固定长度可读写字节数组**（类似 C `uint8_t[N]`、Rust `[u8; N]`、Go `[N]byte`；大小构造时确定，内容可写），27 方法（`copy` / `fill` / `zero` / `view` / `replace` / `split` 等位置式写族）+ `iter` / `reversed` |
 | `Buffer` | 可变字节缓冲，append 式写族（`write` / `write_str` / `write_byte`，`to_str` / `to_bytes` 导出） |
 | `list` | 动态数组（泛型擦除，TValue 打包存储；显式 `list[int64]` 等拼写经 `@specialized` 映射到密集类，见 §7.4） |
 | `int64list` / `float64list` / `boollist` | 密集容器三件套（§7.4）：裸 int64 / 裸 double / 位压缩 bool，普通一等类 |
 | `dict` | **插入序**哈希映射；Python 便利方法 + Rust 位置族（pop_first / peek_last）+ Java remove 命名 |
-| `HashSet` / `TreeSet` | 集合代数（19 / 20 方法；`TreeSet` 按 `Comparable` 有序） |
+| `hashset` / `SortedSet` | 集合代数（`hashset` 哈希集；`SortedSet` 按 `Comparable` 有序，平衡树） |
 | `tuple` | 不可变元组（`tuple[infer T]` 支持元素类型推导） |
 | `range` | 区间 `Sequence[int]`（编译器将 `range(5)` 补全为 `range(0, 5)`） |
 | `slice` | 切片（边界由编译器补全为具体 int，统一用 `end` 表排他上界） |
 | `type` | 运行时反射：`name()` / `methods()` / `lro()`（`typeof(x)` 的产物） |
 | `StrIter` / `StrRevIter` / `BytesIter` / `BytesRevIter` | str / bytes 的 `iter` / `reversed` 产物，纯 Koala 具体迭代器类 |
 
-dict / HashSet / TreeSet 当前为**声明先行**（方法 @native 空体、运行时实现欠账，清单见 Koala_TODO §16）。
+dict / hashset / SortedSet 当前为**声明先行**（方法 @native 空体、运行时实现欠账，清单见 Koala_TODO §16）。
 
 bytes / Buffer 的二进制编解码职责已**剥离至官方库 encoding**，本体只保留序列语义。原 `ByteBuf` 已更名 `Buffer` 并收缩为纯 append 式缓冲（不再声明 `MutableSequence[uint8]`）。
+
+**bytes 语义说明**：Koala `bytes` 是固定长度、可读写的字节数组，与 C/Rust/Go 的定长字节数组语义一致。不可变字节序列（对应 Python `bytes`）由 `collections` 包的 `FrozenBytes` 提供。
+
+**`std/collections/` 包**（需 import，包别名 `co`）：
+
+| 分类 | 类型 | 要点 |
+|------|------|------|
+| 有序结构 | `SortedSet` / `SortedDict` | 平衡树，按 `Comparable` 排序 |
+| 不可变结构 | `FrozenSet` / `FrozenDict` / `FrozenList` / `FrozenBytes` | 只实现只读 trait（`Set` / `Map` / `Sequence`），可哈希能力待 C 侧实现内容语义 |
+| 链式队列 | `LinkedList` / `Deque` | 实现 `MutableSequence`，补 push/pop_front/back |
+| 队列 | `Queue` / `Stack` | 不实现 trait，只有 push/pop/peek/len/empty |
+| 优先队列 | `Heap[T : Comparable]` | 待新增，不实现 trait |
 
 ### 8.5 迭代
 
@@ -908,7 +929,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
 | `range()` | `range` 类 | 编译器补全 |
 | `str()` | `str` 类 | 构造器：Koala 无 `new`，`str(x)` 即 new 字符串对象，转换经 `__str__` |
 | `slice()` | `slice` 类 | 编译器补全 |
-| `set()` | `HashSet` / `TreeSet` | — |
+| `set()` | `hashset` / `TreeSet` | — |
 | `list()` | `list(args ...T)` | 变长参数构造，不支持 `list(iterable)` 形式 |
 | `dict()` | `dict()` | — |
 | `tuple()` | `tuple(args ...T)` | — |

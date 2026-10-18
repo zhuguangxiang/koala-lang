@@ -1,0 +1,57 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A FrozenDict is an immutable, unordered hash map that maps unique keys
+/// to values.
+///
+/// It implements `Map` (read-only), providing key lookup and iteration
+/// over key-value pairs. Once created, mappings cannot be added or removed.
+/// FrozenDict is hashable and can be used as a dict key or set element.
+pub class FrozenDict[K, V] : Map[K, V] {
+
+    /// Create a FrozenDict from an iterable of (key, value) pairs.
+    @native
+    pub func __init__(items Iterable[(K, V)]) {}
+
+    /// Return an iterator over the (key, value) pairs.
+    @native
+    pub func iter(step = 1) Iterator[(K, V)] {}
+
+    /// Return the number of key-value pairs.
+    @native
+    pub func len() int {}
+
+    /// Return true if the dict is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Return true if the dict contains a mapping for `key`.
+    @native
+    pub func __contains__(key K) bool {}
+
+    /// Return the value mapped to `key`. Panic if `key` is not present.
+    @native
+    pub func __getitem__(key K) V {}
+
+    /// Return an iterable over all keys in the dict.
+    @native
+    pub func keys() Iterable[K] {}
+
+    /// Return an iterable over all values in the dict.
+    @native
+    pub func values() Iterable[V] {}
+
+    /// Return the value for `key` if present, else `nil`.
+    @native
+    pub func get(key K) V? {}
+
+    /// Return the value for `key` if present, else `default_value`.
+    @native
+    pub func get_or(key K, default_value V) V {}
+
+    /// Format the dict for display.
+    @native
+    pub func fmt(f Formatter) {}
+}

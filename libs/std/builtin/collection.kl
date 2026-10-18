@@ -157,31 +157,16 @@ pub trait MutableMap[K, V] : Map[K, V] {
     func remove_or(key K, default_value V) V
 }
 
-/// A Set is a collection that contains no duplicate elements.
+/// A Set is a read-only collection that contains no duplicate elements.
 ///
-/// It models the mathematical set abstraction.
+/// It models the mathematical set abstraction, providing membership tests
+/// and set algebra without modification.
 pub trait Set[T] : Iterable[T] {
     /// Return the number of elements in the set.
     func len() int
 
     /// Return true if the set contains `value`.
     func __contains__(value T) bool
-
-    /// Add `value` to the set.
-    ///
-    /// Return true if `value` was not already present.
-    func add(value T) bool
-
-    /// Add all elements from `items` to the set.
-    func update(items Iterable[T])
-
-    /// Remove `value` from the set.
-    ///
-    /// Return true if `value` was present.
-    func remove(value T) bool
-
-    /// Remove all elements from the set.
-    func clear()
 
     /// Return true if every element in the set is contained in `other`.
     func is_subset(other Iterable[T]) bool
@@ -197,4 +182,23 @@ pub trait Set[T] : Iterable[T] {
 
     /// Return a new set containing the elements in the set but not in `other`.
     func diff(other Iterable[T]) Set[T]
+}
+
+/// A MutableSet is a set whose elements can be added and removed.
+pub trait MutableSet[T] : Set[T] {
+    /// Add `value` to the set.
+    ///
+    /// Return true if `value` was not already present.
+    func add(value T) bool
+
+    /// Add all elements from `items` to the set.
+    func update(items Iterable[T])
+
+    /// Remove `value` from the set.
+    ///
+    /// Return true if `value` was present.
+    func remove(value T) bool
+
+    /// Remove all elements from the set.
+    func clear()
 }

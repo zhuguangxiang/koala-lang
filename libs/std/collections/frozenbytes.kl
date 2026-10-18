@@ -1,0 +1,44 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// FrozenBytes is an immutable, fixed-size sequence of bytes.
+///
+/// It implements `Sequence[uint8]` (read-only), providing random access
+/// and iteration. Once created, bytes cannot be modified.
+/// FrozenBytes is hashable and can be used as a dict key or set element.
+pub class FrozenBytes : Sequence[uint8] {
+
+    /// Create a FrozenBytes from a byte array or iterable.
+    @native
+    pub func __init__(data Iterable[uint8]) {}
+
+    /// Return an iterator over the bytes.
+    @native
+    pub func iter(step = 1) Iterator[uint8] {}
+
+    /// Return the number of bytes.
+    @native
+    pub func len() int {}
+
+    /// Return true if the byte sequence is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Return true if the byte sequence contains `v`.
+    @native
+    pub func __contains__(v uint8) bool {}
+
+    /// Return the byte at `index`. Panic if out of bounds.
+    @native
+    pub func __getitem__(index int) uint8 {}
+
+    /// Return a reverse iterator over the bytes.
+    @native
+    pub func reversed(step = 1) Iterator[uint8] {}
+
+    /// Format the byte sequence for display.
+    @native
+    pub func fmt(f Formatter) {}
+}

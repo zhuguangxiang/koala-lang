@@ -1,0 +1,93 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A SortedDict is a mutable, sorted hash map that maps unique keys
+/// to values, ordered by key.
+///
+/// It implements `MutableMap`, providing key lookup, insertion, removal,
+/// and iteration over key-value pairs. Keys are ordered by their
+/// `Comparable` ordering; iteration follows that order.
+pub class SortedDict[K : Comparable, V] : MutableMap[K, V] {
+
+    /// Create an empty sorted dict.
+    @native
+    pub func __init__() {}
+
+    /// Return an iterator over the (key, value) pairs in key order.
+    @native
+    pub func iter(step = 1) Iterator[(K, V)] {}
+
+    /// Return the number of key-value pairs.
+    @native
+    pub func len() int {}
+
+    /// Return true if the dict is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Return true if the dict contains a mapping for `key`.
+    @native
+    pub func __contains__(key K) bool {}
+
+    /// Return the value mapped to `key`. Panic if `key` is not present.
+    @native
+    pub func __getitem__(key K) V {}
+
+    /// Associate `value` with `key`.
+    @native
+    pub func __setitem__(key K, value V) {}
+
+    /// Return an iterable over all keys in the dict, in key order.
+    @native
+    pub func keys() Iterable[K] {}
+
+    /// Return an iterable over all values in the dict, in key order.
+    @native
+    pub func values() Iterable[V] {}
+
+    /// Return an iterable over the key-value pairs in the map.
+    @native
+    pub func items() Iterable[(K, V)] {}
+
+    /// Remove all mappings from the dict, leaving it empty.
+    @native
+    pub func clear() {}
+
+    /// Remove the mapping for `key` and return its value.
+    /// Panic if `key` is not present.
+    @native
+    pub func remove(key K) V {}
+
+    /// Remove the mapping for `key` and return its value.
+    /// If the key is not found, return `default_value`.
+    @native
+    pub func remove_or(key K, default_value V) V {}
+
+    /// Return the value for `key` if present, else `nil`.
+    @native
+    pub func get(key K) V? {}
+
+    /// Return the value for `key` if present, else `default_value`.
+    @native
+    pub func get_or(key K, default_value V) V {}
+
+    /// Merge all (key, value) pairs from `src` into the dict,
+    /// replacing the values of existing keys.
+    @native
+    pub func update(src Iterable[(K, V)]) {}
+
+    /// Return the value for `key` if it is in the dict.
+    /// Otherwise insert `key` with `default_value` and return `default_value`.
+    @native
+    pub func setdefault(key K, default_value V) V {}
+
+    /// Return a reverse iterator over the (key, value) pairs in reverse key order.
+    @native
+    pub func reversed(step = 1) Iterator[(K, V)] {}
+
+    /// Format the dict for display.
+    @native
+    pub func fmt(f Formatter) {}
+}

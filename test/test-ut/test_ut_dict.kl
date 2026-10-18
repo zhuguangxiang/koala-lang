@@ -2216,3 +2216,39 @@ func test_dict_iter_insert_while_iterating() {
     ut.assert_eq(it.next_strict(), 3)
     ut.assert_false(it.has_next())
 }
+
+@test
+func test_dict_for_in_remove_current() {
+    let d = dict[int, int]()
+    for i in range(5) { d[i] = i * 10 }
+
+    let seen_keys = list[int]()
+    for kv in d {
+        seen_keys.append(kv[0])
+        d.remove(kv[0])
+    }
+    ut.assert_eq(seen_keys.len(), 5)
+    ut.assert_eq(d.len(), 0)
+    for i in range(5) {
+        ut.assert_eq(seen_keys[i], i)
+    }
+}
+
+@test
+func test_dict_keys_remove_current_order() {
+    let d = dict[str, int]()
+    d["a"] = 1
+    d["b"] = 2
+    d["c"] = 3
+
+    let seen = list[str]()
+    for k in d.keys() {
+        seen.append(k)
+        d.remove(k)
+    }
+    ut.assert_eq(seen.len(), 3)
+    ut.assert_eq(seen[0], "a")
+    ut.assert_eq(seen[1], "b")
+    ut.assert_eq(seen[2], "c")
+    ut.assert_eq(d.len(), 0)
+}

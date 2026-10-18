@@ -1,0 +1,44 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A Stack is a last-in, first-out (LIFO) collection.
+///
+/// Elements are added and removed from the top.
+/// Stack does not implement `Sequence` because it does not support
+/// indexed access.
+pub class Stack[T] {
+
+    /// Create an empty stack.
+    @native
+    pub func __init__() {}
+
+    /// Return the number of elements.
+    @native
+    pub func len() int {}
+
+    /// Return true if the stack is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Push `v` onto the top of the stack.
+    @native
+    pub func push(v T) {}
+
+    /// Remove and return the top element. Panic if empty.
+    @native
+    pub func pop() T {}
+
+    /// Return the top element without removing it. Panic if empty.
+    @native
+    pub func peek() T {}
+
+    /// Remove all elements from the stack, leaving it empty.
+    @native
+    pub func clear() {}
+
+    /// Format the stack for display.
+    @native
+    pub func fmt(f Formatter) {}
+}

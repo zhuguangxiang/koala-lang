@@ -1,0 +1,89 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A Deque (double-ended queue) is a generalization of a queue that supports
+/// efficient insertion and removal at both ends.
+///
+/// It implements `MutableSequence`, providing indexed access, insertion,
+/// and removal. Deque is typically backed by a circular buffer or linked
+/// structure, offering O(1) amortized push/pop at both ends.
+pub class Deque[T] : MutableSequence[T] {
+
+    /// Create an empty deque.
+    @native
+    pub func __init__() {}
+
+    /// Return an iterator over the elements.
+    @native
+    pub func iter(step = 1) Iterator[T] {}
+
+    /// Return the number of elements.
+    @native
+    pub func len() int {}
+
+    /// Return true if the deque is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Return true if the deque contains `v`.
+    @native
+    pub func __contains__(v T) bool {}
+
+    /// Return the element at `index`. Panic if out of bounds.
+    @native
+    pub func __getitem__(index int) T {}
+
+    /// Set the element at `index` to `v`. Panic if out of bounds.
+    @native
+    pub func __setitem__(index int, v T) {}
+
+    /// Append `v` to the end of the deque.
+    @native
+    pub func append(v T) {}
+
+    /// Insert `v` at `index`. Panic if out of bounds.
+    @native
+    pub func insert(index int, v T) {}
+
+    /// Remove the element at `index`. Panic if out of bounds.
+    @native
+    pub func remove(index int) {}
+
+    /// Remove all elements from the deque, leaving it empty.
+    @native
+    pub func clear() {}
+
+    /// Return a reverse iterator over the elements.
+    @native
+    pub func reversed(step = 1) Iterator[T] {}
+
+    /// Prepend `v` to the front of the deque. O(1) amortized.
+    @native
+    pub func push_front(v T) {}
+
+    /// Append `v` to the end of the deque. O(1) amortized.
+    @native
+    pub func push_back(v T) {}
+
+    /// Remove and return the first element. Panic if empty. O(1) amortized.
+    @native
+    pub func pop_front() T {}
+
+    /// Remove and return the last element. Panic if empty. O(1) amortized.
+    @native
+    pub func pop_back() T {}
+
+    /// Return the first element without removing it. Panic if empty. O(1).
+    @native
+    pub func peek_front() T {}
+
+    /// Return the last element without removing it. Panic if empty. O(1).
+    @native
+    pub func peek_back() T {}
+
+    /// Format the deque for display.
+    @native
+    pub func fmt(f Formatter) {}
+}

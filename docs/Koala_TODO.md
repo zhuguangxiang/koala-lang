@@ -700,7 +700,7 @@ pub static func try_from_str(s str, base = 10) int64? {}
 ### 16.1 容器与类型
 
 - `dict`：25 个方法全部 `@native`；src/ 无 dict 类型实现与注册，且当前 196 个测试中没有任何 dict 用例。
-- `HashSet` / `TreeSet`：19 / 20 个方法全部 `@native`；无 C 实现、无测试。
+- `hashset` / `TreeSet`：19 / 20 个方法全部 `@native`；无 C 实现、无测试。
 - koala.y 仍留 `set_type` 文法残段（行为行已注释），集合字面量语法未启用。
 
 ### 16.2 fs / os / 数值方法

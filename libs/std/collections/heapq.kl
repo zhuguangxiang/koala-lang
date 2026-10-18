@@ -1,0 +1,44 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A Heap is a min-heap priority queue backed by a binary heap.
+///
+/// Elements are ordered by their `Comparable` ordering; the smallest
+/// element is always at the front. Heap does not implement `Sequence`
+/// because it does not support indexed access.
+pub class Heap[T : Comparable] {
+
+    /// Create an empty heap.
+    @native
+    pub func __init__() {}
+
+    /// Push `v` into the heap. O(log n).
+    @native
+    pub func push(v T) {}
+
+    /// Remove and return the smallest element. Panic if empty. O(log n).
+    @native
+    pub func pop() T {}
+
+    /// Return the smallest element without removing it. Panic if empty. O(1).
+    @native
+    pub func peek() T {}
+
+    /// Return the number of elements.
+    @native
+    pub func len() int {}
+
+    /// Return true if the heap is empty, false otherwise.
+    @native
+    pub func empty() bool {}
+
+    /// Remove all elements from the heap, leaving it empty.
+    @native
+    pub func clear() {}
+
+    /// Format the heap for display.
+    @native
+    pub func fmt(f Formatter) {}
+}
