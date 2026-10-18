@@ -10,7 +10,7 @@ _wombat() {
     local cmd="${COMP_WORDS[1]}"
     case "$cmd" in
         build|check|run|test|fmt)
-            COMPREPLY=( $(compgen -W "--release --workspace --all-targets -p --package --target -j --jobs" -- "$cur") )
+            COMPREPLY=( $(compgen -W "--release --workspace --all-targets -p --package --target -j --jobs --src -o --output" -- "$cur") )
             ;;
         new)
             COMPREPLY=( $(compgen -W "package workspace --lib --path --vcs --edition" -- "$cur") )

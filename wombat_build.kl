@@ -1,0 +1,399 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/os"
+import "std/fs"
+import "koala/toml"
+
+/// A single package in the workspace.
+///
+/// Fields mirror `__pkg__.toml`'s `[package]` table. `dir_name` is the
+/// path relative to the workspace root; `src` and `test` are the
+/// source and test subdirectories inside it. `wombat build` reads
+/// `src`; `wombat test` reads `test`. Both default to `""` (flat
+/// layout: the `.kl` files sit directly under `dir_name`).
+class Package {
+    var name = ""
+    var dir_name = ""
+    var src = ""
+    var test = ""
+    var version = "0.1.0"
+    var files = list[str]()
+    var excludes = list[str]()
+    var deps = list[str]()
+    var natives = list[str]()
+    var compiler = ""
+    var options = list[str]()
+}
+
+/// The workspace being built.
+class Workspace {
+    var name = ""
+    var version = "0.1.0"
+    var root = "."
+    var packages = list[Package]()
+}
+
+/// Top-level entry: load the workspace and build every package.
+///
+/// `src_dir` must point at a directory containing `__ws__.toml`.
+/// When `wombat build` runs without `--src`, the caller passes "."
+/// (see `BuildOptions.path`), so the current directory is used.
+/// Both `src_dir` and `output_dir` are resolved to absolute paths
+/// before any `cd`.
+pub func build_all(src_dir str, output_dir str) int {
+    let src_abs = fs.Path(src_dir).absolute().to_str()
+    let out_abs = fs.Path(output_dir).absolute().to_str()
+
+    print("🚀 Wombat Build Started...")
+
+    let ws = load_workspace(src_abs)
+    if ws.packages.len() == 0 {
+        print("wombat build: no packages to build")
+        return 1
+    }
+
+    print("🏗  Building Workspace: " + ws.name + " (v" + ws.version + ")")
+
+    return build_workspace(ws, out_abs)
+}
+
+/// Read a string field from a TOML table, returning "" when absent.
+///
+/// `TomTable.get` panics on a missing key, so presence is checked
+/// first via `__contains__`.
+func toml_str(tbl toml.TomTable, key str) str {
+    if key in tbl {
+        let val = (tbl.get(key) as toml.TomString)!
+        return val.value
+        // FIXME:
+        // return (tbl.get(key) as toml.TomString)!.value
+    }
+    return ""
+}
+
+/// Read a string-array field from a TOML table.
+///
+/// Missing fields yield an empty list. `TomArray` stores elements in
+/// its `value` list; every element in a string array is a `TomString`.
+func toml_str_list(tbl toml.TomTable, key str) list[str] {
+    let out = list[str]()
+    if key in tbl {
+        let arr = (tbl.get(key) as toml.TomArray)!
+        for item in arr.value {
+            let str_item = (item as toml.TomString)!
+            out.append(str_item.value)
+            // FIXME:
+            // out.append((item as toml.TomString)!.value)
+        }
+    }
+    return out
+}
+
+/// Join `xs` with `sep`, returning "None" for an empty list.
+func join_or_none(xs list[str], sep str) str {
+    if xs.len() == 0 { return "None" }
+    var r = ""
+    var first = true
+    for x in xs {
+        if !first { r = r + sep }
+        r = r + x
+        first = false
+    }
+    return r
+}
+
+/// Load the workspace from `<root>/__ws__.toml` and each package's
+/// `<root>/<dir>/__pkg__.toml`.
+///
+/// A package whose `__pkg__.toml` is missing or lacks `[package] name`
+/// is a hard error: skipping it would surface later as a misleading
+/// dependency-cycle report.
+func load_workspace(root str) Workspace {
+    let ws = Workspace()
+    ws.root = root
+
+    let ws_path = fs.Path(root).cat("__ws__.toml").to_str()
+    if !fs.exists(ws_path) {
+        print("wombat build: no __ws__.toml found")
+        print("  expected: " + ws_path)
+        return ws
+    }
+
+    let root_tbl = toml.parse_file(ws_path)
+    if !("workspace" in root_tbl) {
+        print("wombat build: missing [workspace] table in " + ws_path)
+        return ws
+    }
+    let sec = (root_tbl.get("workspace") as toml.TomTable)!
+
+    ws.name = toml_str(sec, "name")
+    let ver = toml_str(sec, "version")
+    if !ver.empty() { ws.version = ver }
+
+    for dir_name in toml_str_list(sec, "packages") {
+        let pkg = load_package(root, dir_name)
+        if pkg.name.empty() {
+            print("wombat build: missing [package] name in " +
+                  fs.Path(root).cat(dir_name).cat("__pkg__.toml").to_str())
+            return ws
+        }
+        ws.packages.append(pkg)
+    }
+
+    return ws
+}
+
+/// Read `<root>/<dir_name>/__pkg__.toml` and fill a `Package`.
+///
+/// `dir_name` is recorded even when the file is missing or `name` is
+/// empty, so `load_workspace` can decide to abort while the caller
+/// still sees the directory it came from.
+func load_package(root str, dir_name str) Package {
+    let pkg = Package()
+    pkg.dir_name = dir_name
+
+    let pkg_path = fs.Path(root).cat(dir_name).cat("__pkg__.toml").to_str()
+    if !fs.exists(pkg_path) {
+        print("wombat build: package config not found: " + pkg_path)
+        return pkg
+    }
+
+    let root_tbl = toml.parse_file(pkg_path)
+    if !("package" in root_tbl) {
+        print("wombat build: missing [package] table in " + pkg_path)
+        return pkg
+    }
+    let sec = (root_tbl.get("package") as toml.TomTable)!
+
+    pkg.name = toml_str(sec, "name")
+    pkg.src = toml_str(sec, "src")
+    pkg.test = toml_str(sec, "test")
+    let ver = toml_str(sec, "version")
+    if !ver.empty() { pkg.version = ver }
+    pkg.compiler = toml_str(sec, "compiler")
+
+    pkg.files = toml_str_list(sec, "files")
+    pkg.excludes = toml_str_list(sec, "excludes")
+    pkg.deps = toml_str_list(sec, "dependencies")
+    pkg.natives = toml_str_list(sec, "natives")
+    pkg.options = toml_str_list(sec, "options")
+
+    return pkg
+}
+
+func find_package(ws Workspace, name str) Package {
+    for pkg in ws.packages {
+        if pkg.name == name { return pkg }
+    }
+    // Caller only passes names from the package list.
+    let empty = Package()
+    return empty
+}
+
+/// Topological sort by dependency.
+///
+/// Returns package names in build order, or an empty list on a cycle.
+func topo_sort(pkgs list[Package]) list[str] {
+    let order = list[str]()
+    let done = list[str]()
+
+    while order.len() < pkgs.len() {
+        var progressed = false
+        for pkg in pkgs {
+            if pkg.name in done { continue }
+            var ready = true
+            for dep in pkg.deps {
+                if !(dep in done) {
+                    ready = false
+                    break
+                }
+            }
+            if ready {
+                order.append(pkg.name)
+                done.append(pkg.name)
+                progressed = true
+            }
+        }
+        if !progressed {
+            print("wombat build: cannot resolve dependencies for package ")
+            unreachable()
+            // FIXME; why here failed?
+            // return list[str]()
+        }
+    }
+    return order
+}
+
+/// Print the dependency map for every package, in the order they
+/// appear in `__ws__.toml`.
+func print_dep_map(ws Workspace) {
+    print("")
+    print("📦 Subpackage Dependency Mapping:")
+    for pkg in ws.packages {
+        print("  ▪ [" + pkg.name + "] -> Dependencies: " +
+              join_or_none(pkg.deps, ", "))
+    }
+}
+
+/// Print the compilation order using directory names.
+func print_order(ws Workspace, order list[str]) {
+    print("")
+    print("📋 Calculated Compilation Order:")
+
+    var s = ""
+    var first = true
+    for name in order {
+        let pkg = find_package(ws, name)
+        if !first { s = s + " -> " }
+        s = s + pkg.dir_name
+        first = false
+    }
+    print("  " + s)
+}
+
+/// Verify that required native libraries exist on standard search paths.
+func check_natives(pkg Package, ws Workspace) int {
+    if pkg.natives.len() == 0 { return 0 }
+
+    let search = list[str]()
+    search.append("/usr/lib")
+    search.append("/usr/local/lib")
+    search.append("/lib")
+    search.append(fs.Path(ws.root).cat(pkg.dir_name).cat("native").to_str())
+
+    let ld = os.getenv("LD_LIBRARY_PATH")
+    if ld != nil {
+        if !ld.empty() {
+            for dir in ld.split(":") {
+                search.append(dir)
+            }
+        }
+    }
+
+    for native in pkg.natives {
+        let filename = "lib" + native + ".so"
+        var found = false
+        for dir in search {
+            let full = fs.Path(dir).cat(filename).to_str()
+            if fs.exists(full) {
+                print("🔍 Found required native library: " + full)
+                found = true
+                break
+            }
+        }
+        if !found {
+            print("wombat build: package " + pkg.name +
+                  " requires native library '" + filename +
+                  "' but it cannot be found")
+            return 1
+        }
+    }
+    return 0
+}
+
+/// Return the artifact path for `pkg`, relative to `output_dir`.
+///
+/// The layout mirrors the workspace name: `<ws>/<dir_name>.klc`, where
+/// `<ws>` is the workspace root's basename (e.g. `std` or `koala`).
+func artifact_rel(ws Workspace, pkg Package) str {
+    let ws_name = fs.Path(ws.root).name()
+    return ws_name + "/" + pkg.dir_name + ".klc"
+}
+
+/// Return the source directory for `pkg`, relative to the workspace
+/// root's parent directory.
+///
+/// The compiler embeds this path (plus the file name) into `.klc` for
+/// diagnostics. It must match the path `build.py` produces so the
+/// runtime can locate the original source when an exception is
+/// thrown: `<ws>/<dir>[/<src>]`, e.g. `std/io` or `koala/toml/src`.
+///
+/// The `test` directory is never touched here; tests run through
+/// `wombat test` separately.
+func src_rel(ws Workspace, pkg Package) str {
+    let ws_name = fs.Path(ws.root).name()
+    if pkg.src.empty() {
+        return ws_name + "/" + pkg.dir_name
+    }
+    return ws_name + "/" + pkg.dir_name + "/" + pkg.src
+}
+
+/// Build the compiler command for one package.
+func build_cmd(pkg Package, ws Workspace, output_dir str) str {
+    let out = fs.Path(output_dir).cat(artifact_rel(ws, pkg)).to_str()
+
+    var cmd = ""
+    if !pkg.compiler.empty() {
+        cmd = pkg.compiler
+        for opt in pkg.options {
+            cmd = cmd + " " + opt
+        }
+        cmd = cmd + " -o " + out
+    } else {
+        cmd = "koala -c -o " + out
+        for opt in pkg.options {
+            cmd = cmd + " " + opt
+        }
+    }
+
+    cmd = cmd + " --package-name=" + pkg.name
+    cmd = cmd + " " + src_rel(ws, pkg)
+    return cmd
+}
+
+/// Compile every package in dependency order.
+func build_workspace(ws Workspace, output_dir str) int {
+    let order = topo_sort(ws.packages)
+    if order.len() != ws.packages.len() {
+        print("wombat build: circular dependency detected")
+        return 1
+    }
+
+    print_dep_map(ws)
+    print_order(ws, order)
+
+    let old_path = os.getenv("KOALA_PATH")
+    var koala_path = output_dir
+    if old_path != nil {
+        if !old_path.empty() {
+            koala_path = output_dir + ":" + old_path
+        }
+    }
+    print("🌐 Dynamic KOALA_PATH set to: " + koala_path)
+    print("")
+
+    // Commands run from the workspace root's parent, matching the
+    // base directory that `.klc` source paths are relative to. This
+    // keeps `std/prelude/__prelude__.kl` resolvable at runtime when
+    // an exception needs to report the original source location.
+    let ws_parent = fs.Path(ws.root).parent().to_str()
+
+    for name in order {
+        let pkg = find_package(ws, name)
+
+        let rc = check_natives(pkg, ws)
+        if rc != 0 { return rc }
+
+        let sub = build_cmd(pkg, ws, output_dir)
+        let out = fs.Path(output_dir).cat(artifact_rel(ws, pkg)).to_str()
+        let parent = fs.Path(out).parent().to_str()
+
+        let full = "cd " + ws_parent +
+                   " && mkdir -p " + parent +
+                   " && KOALA_PATH=" + koala_path + " " + sub
+
+        print("🚀 Running: " + sub)
+        let rc2 = os.system(full)
+        if rc2 != 0 {
+            print("wombat build: compilation failed for " + pkg.name)
+            return rc2
+        }
+        print("✅ Generated artifact: " + out)
+    }
+
+    print("wombat build: " + order.len().to_str() + " package(s) built")
+    return 0
+}

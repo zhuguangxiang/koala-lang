@@ -198,6 +198,7 @@ pub class Parser {
         let items = s.split(",")
         for item in items {
             let v = item.strip()
+            if v.empty() { continue }
             if v.starts_with("\"") && v.ends_with("\"") {
                 arr.add(TomString(v.substr(1, v.len() - 1)))
             } else if v == "true" {

@@ -4,14 +4,9 @@
 // let pairs = (("a", 1), ("b", 2), ("c", 3))
 // print(pairs)
 
-func main() {
-    let d = dict[int, str]()
-    d[10] = "a"
-    d[20] = "b"
-    d[30] = "c"
+import "std/collections" as co
 
-    let it = d.reversed(1)
-    print(it.has_next())
-    let kv1 = it.next_strict()
-    print(kv1)
+func main() {
+    let stack = co.Stack[int]()
+    print(stack)
 }

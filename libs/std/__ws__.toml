@@ -1,4 +1,14 @@
 [workspace]
 name = "koala.std"
 version = "0.1.0"
-packages = ["builtin", "fs", "io", "os", "sys", "time", "ut", "prelude"]
+packages = [
+    "builtin",
+    "fs",
+    "io",
+    "os",
+    "sys",
+    "time",
+    "ut",
+    "prelude",
+    "collections",
+]

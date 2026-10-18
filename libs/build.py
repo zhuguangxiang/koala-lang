@@ -158,6 +158,8 @@ def execute_compile_workspace(ws_dir, output_dir):
     package_src_mappings = {}
     package_klc_paths = {} # To keep track of exactly generated artifacts per package name
 
+    base_dir = os.path.dirname(os.path.abspath(ws_dir))
+
     for pkg_name in compile_order:
         pkg = packages[pkg_name]
         check_native_libraries(pkg_name, pkg["natives"], pkg["dir_path"])
@@ -168,12 +170,12 @@ def execute_compile_workspace(ws_dir, output_dir):
 
         package_src_mappings[pkg["dir_name"]] = src_files
 
-        # 🛠️ ZERO HARDCODING FIX:
-        # The structure directory path is determined purely by the package name mapping!
-        # e.g., name = "std/io" -> output_klc_path = "dist/std/io.klc"
-        # e.g., name = "std/xxx/yyy" -> output_klc_path = "dist/std/xxx/yyy.klc"
-        output_klc_path = os.path.join(abs_output_dir, f"{pkg_name}.klc")
-        package_klc_paths[pkg["dir_name"]] = f"{pkg_name}.klc"
+        # Output klc path is derived from the directory structure, not the package name.
+        # e.g., dir = "std/collections" -> output = "dist/std/collections.klc"
+        # even if pkg_name = "std/co".
+        rel_pkg_path = os.path.relpath(pkg["dir_path"], base_dir)
+        output_klc_path = os.path.join(abs_output_dir, f"{rel_pkg_path}.klc")
+        package_klc_paths[pkg["dir_name"]] = f"{rel_pkg_path}.klc"
 
         # Ensure deep namespace subfolders exist dynamically
         os.makedirs(os.path.dirname(output_klc_path), exist_ok=True)
@@ -190,7 +192,6 @@ def execute_compile_workspace(ws_dir, output_dir):
                 cmd.extend(pkg["options"])
 
         cmd.append(f"--package-name={pkg_name}")
-        base_dir = os.path.dirname(os.path.abspath(ws_dir))
         cmd.append(os.path.relpath(pkg["dir_path"], base_dir))
 
         print(f"🚀 Running: {' '.join(cmd)}")

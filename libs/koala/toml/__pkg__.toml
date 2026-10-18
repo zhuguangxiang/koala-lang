@@ -1,7 +1,7 @@
 [package]
 name = "koala/toml"
 version = "0.1.0"
-files = ["src/*.kl"]
-excludes = []
+src = "src"
+test = "test"
 dependencies = []
 natives = []

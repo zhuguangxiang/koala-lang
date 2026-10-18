@@ -103,3 +103,43 @@ func test_array_fmt() {
     let arr = (root.get("nums") as toml.TomArray)!
     ut.assert_eq(format("{}", arr), "[1, 2]")
 }
+
+@test
+func test_parse_trailing_comma() {
+    let root = toml.parse_str("nums = [1, 2, 3,]")
+    let arr = (root.get("nums") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 3)
+
+    let first = (arr.value[0] as toml.TomInteger)!
+    let last = (arr.value[2] as toml.TomInteger)!
+    ut.assert_eq(first.value, 1)
+    ut.assert_eq(last.value, 3)
+}
+
+@test
+func test_parse_multiline_trailing_comma() {
+    let src = "packages = [\n    \"builtin\",\n    \"fs\",\n    \"io\",\n]"
+    let root = toml.parse_str(src)
+    let arr = (root.get("packages") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 3)
+
+    let first = (arr.value[0] as toml.TomString)!
+    let second = (arr.value[1] as toml.TomString)!
+    let third = (arr.value[2] as toml.TomString)!
+    ut.assert_eq(first.value, "builtin")
+    ut.assert_eq(second.value, "fs")
+    ut.assert_eq(third.value, "io")
+}
+
+@test
+func test_parse_multiline_strings() {
+    let src = "names = [\n    \"alice\",\n    \"bob\",\n    \"carol\"\n]"
+    let root = toml.parse_str(src)
+    let arr = (root.get("names") as toml.TomArray)!
+    ut.assert_eq(arr.value.len(), 3)
+
+    let first = (arr.value[0] as toml.TomString)!
+    let last = (arr.value[2] as toml.TomString)!
+    ut.assert_eq(first.value, "alice")
+    ut.assert_eq(last.value, "carol")
+}

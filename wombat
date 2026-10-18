@@ -6,11 +6,12 @@
  */
 
 import "std/sys"
+import "wombat_build" as wb
 
 let KOALAC = "koalac"
 let KOALAFMT = "koalafmt"
 
-/// `koala` command line entry point.
+/// `wombat` command line entry point.
 ///
 /// The CLI is deliberately thin: it parses argv, prints user-facing
 /// diagnostics, and dispatches to one handler per subcommand. All real
@@ -21,20 +22,18 @@ let KOALAFMT = "koalafmt"
 pub func main() {
     let argv = sys.args()
     let code = dispatch(argv)
-    // if code != 0 {
-    //     sys.exit(code)
-    // }
+    if code != 0 { sys.exit(code) }
 }
 
 /// Route the first user argument to its handler.
 ///
 /// `argv` is the argument list *after* the program name, i.e.
-/// `koala build -p core` arrives as ["build", "-p", "core"] and bare
-/// `koala` arrives as []. If `sys.args()` ever includes the program
+/// `wombat build -p core` arrives as ["build", "-p", "core"] and bare
+/// `wombat` arrives as []. If `sys.args()` ever includes the program
 /// name, only this function and the option index in
 /// `parse_build_options` / `cmd_new` need to shift.
 func dispatch(argv list[str]) int {
-    // Bare `koala` prints short help and exits 0, matching cargo.
+    // Bare `wombat` prints short help and exits 0, matching cargo.
     // No side effects: never trigger a build by accident.
     if argv.len() == 0 {
         print_brief_help()
@@ -69,11 +68,11 @@ func dispatch(argv list[str]) int {
     if cmd == "clean" { return cmd_clean(argv) }
 
     print("wombat: unknown command '" + cmd + "'")
-    print("Run `koala help` for usage.")
+    print("Run `wombat help` for usage.")
     return 2
 }
 
-/// Print the short help shown for bare `koala`.
+/// Print the short help shown for bare `wombat`.
 ///
 /// Kept short on purpose: the first screen must fit a typical terminal.
 /// Once `workspace` is wired in, this should also print the detected
@@ -81,7 +80,7 @@ func dispatch(argv list[str]) int {
 func print_brief_help() {
     print("wombat 0.1.0 — build system & package manager")
     print("")
-    print("Usage: koala <command> [options]")
+    print("Usage: wombat <command> [options]")
     print("")
     print("Common commands:")
     print("  new        Create a new package or workspace")
@@ -95,22 +94,22 @@ func print_brief_help() {
     print("  add        Add a dependency")
     print("  clean      Remove build artifacts")
     print("")
-    print("Run `koala help <command>` for details.")
+    print("Run `wombat help <command>` for details.")
 }
 
-/// Print the full command list, shown by `koala help`.
+/// Print the full command list, shown by `wombat help`.
 func print_full_help() {
     print_brief_help()
     print("")
     print("See also:")
-    print("  koala help <command>   Show options for one command")
-    print("  koala version          Print the koala version")
+    print("  wombat help <command>  Show options for one command")
+    print("  wombat version         Print the wombat version")
 }
 
 /// Print per-command help. Fallback to the full help on unknown names.
 func print_command_help(name str) {
     if name == "build" || name == "check" {
-        print("Usage: koala " + name + " [options]")
+        print("Usage: wombat " + name + " [options]")
         print("")
         print("Options:")
         print("  -p, --package <name>    Select one package in the workspace")
@@ -119,10 +118,13 @@ func print_command_help(name str) {
         print("  -j, --jobs <n>          Parallel build jobs (0 = auto)")
         print("      --release           Build with the release profile")
         print("      --all-targets       Also build tests and benches")
+        print("      --src <dir>         Workspace root (default: .)")
+        print("  -o, --output <dir>      Output directory (default: ./dist)")
         return
     }
+
     if name == "new" {
-        print("Usage: koala new <package|workspace> <name> [options]")
+        print("Usage: wombat new <package|workspace> <name> [options]")
         print("")
         print("Options:")
         print("      --lib               Create a library package")
@@ -131,6 +133,7 @@ func print_command_help(name str) {
         print("      --edition <year>    Set the package edition")
         return
     }
+
     print_full_help()
 }
 
@@ -143,9 +146,10 @@ class BuildOptions {
     var target = ""
     var jobs = 0
     var path = "."
+    var output = "./dist"
 }
 
-/// `koala build [--release] [-p PKG] [--workspace] [--target TRIPLE]`
+/// `wombat build [--src DIR] [-o DIR] [--release] [-p PKG] [--workspace]`
 func cmd_build(argv list[str]) int {
     let opts = BuildOptions()
     let err = parse_build_options(argv, opts)
@@ -153,11 +157,10 @@ func cmd_build(argv list[str]) int {
         print("wombat build: " + err)
         return 2
     }
-    // return driver.build(opts)
-    return 0
+    return wb.build_all(opts.path, opts.output)
 }
 
-/// `koala check` — same options as `build`, skips codegen.
+/// `wombat check` — same options as `build`, skips codegen.
 func cmd_check(argv list[str]) int {
     let opts = BuildOptions()
     let err = parse_build_options(argv, opts)
@@ -169,10 +172,10 @@ func cmd_check(argv list[str]) int {
     return 0
 }
 
-/// `koala run [-- args...]` — same options as `build`, then exec.
+/// `wombat run [-- args...]` — same options as `build`, then exec.
 ///
 /// Everything after a bare `--` is forwarded to the program rather
-/// than interpreted by the koala CLI itself.
+/// than interpreted by the wombat CLI itself.
 func cmd_run(argv list[str]) int {
     let opts = BuildOptions()
     let err = parse_build_options(argv, opts)
@@ -180,12 +183,11 @@ func cmd_run(argv list[str]) int {
         print("wombat run: " + err)
         return 2
     }
-
     // return driver.run(opts)
     return 0
 }
 
-/// `koala test` — same build options, compiles and runs tests.
+/// `wombat test` — same build options, compiles and runs tests.
 func cmd_test(argv list[str]) int {
     let opts = BuildOptions()
     let err = parse_build_options(argv, opts)
@@ -199,14 +201,42 @@ func cmd_test(argv list[str]) int {
 
 /// Parse build-family options starting at argv[1].
 ///
-/// Returns an empty string on success, or a message describing the
-/// first usage error. Unknown `-x` / `--xx` flags are reported instead
-/// of being silently ignored so that CI typos fail fast.
+/// Iterates with `for ... in` instead of `argv.len()` + `argv[i]`.
+/// On some runtimes `len()` reports the underlying capacity rather
+/// than the number of iterable elements, which caused
+/// `list index out of range` on `wombat build` (no options).
+///
+/// Options that take a value (`-p`, `--target`, `-j`, `-o`, `--src`)
+/// set `pending` and consume the next element on the following
+/// iteration.
 func parse_build_options(argv list[str], opts BuildOptions) str {
-    print("Parsing build options...", argv)
-    var i = 1
-    while i < argv.len() {
-        let a = argv[i]
+    var idx = 0
+    var pending = ""
+    var err = ""
+
+    for a in argv {
+        idx += 1
+        // Skip argv[0], the subcommand name itself.
+        if idx == 1 {
+            continue
+        }
+
+        // Consume the value of the previous option.
+        if pending != "" {
+            if pending == "-p" {
+                opts.package = a
+            } else if pending == "--target" {
+                opts.target = a
+            } else if pending == "-j" {
+                opts.jobs = a.to_int()
+            } else if pending == "-o" {
+                opts.output = a
+            } else if pending == "--src" {
+                opts.path = a
+            }
+            pending = ""
+            continue
+        }
 
         if a == "--release" {
             opts.release = true
@@ -215,36 +245,34 @@ func parse_build_options(argv list[str], opts BuildOptions) str {
         } else if a == "--all-targets" {
             opts.all_targets = true
         } else if a == "-p" || a == "--package" {
-            i += 1
-            if i >= argv.len() {
-                return "-p requires a package name"
-            }
-            opts.package = argv[i]
+            pending = "-p"
         } else if a == "--target" {
-            i += 1
-            if i >= argv.len() {
-                return "--target requires a triple"
-            }
-            opts.target = argv[i]
+            pending = "--target"
         } else if a == "-j" || a == "--jobs" {
-            i += 1
-            if i >= argv.len() {
-                return "-j requires a number"
-            }
-            // to_int() currently panics on bad input; replace with a
-            // non-panicking parse once the language exposes one.
-            opts.jobs = argv[i].to_int()
+            pending = "-j"
+        } else if a == "-o" || a == "--output" {
+            pending = "-o"
+        } else if a == "--src" {
+            pending = "--src"
         } else if a.starts_with("-") && a.len() > 1 {
-            return "unknown option '" + a + "'"
+            if err.empty() {
+                err = "unknown option '" + a + "'"
+            }
         } else {
             opts.path = a
         }
-        i += 1
+    }
+
+    if !err.empty() {
+        return err
+    }
+    if pending != "" {
+        return pending + " requires a value"
     }
     return ""
 }
 
-/// Options for `koala new`.
+/// Options for `wombat new`.
 class NewOptions {
     var path = ""
     var lib = false
@@ -253,11 +281,11 @@ class NewOptions {
     var edition = ""
 }
 
-/// `koala new <package|workspace> <name> [options]`
+/// `wombat new <package|workspace> <name> [options]`
 func cmd_new(argv list[str]) int {
     if argv.len() < 2 {
         print("wombat new: missing kind or name")
-        print("Usage: koala new <package|workspace> <name>")
+        print("Usage: wombat new <package|workspace> <name>")
         return 2
     }
 
@@ -316,7 +344,7 @@ func cmd_new(argv list[str]) int {
     return 0
 }
 
-/// `koala fmt [--check] [--workspace] [-p PKG]`
+/// `wombat fmt [--check] [--workspace] [-p PKG]`
 func cmd_fmt(argv list[str]) int {
     let opts = BuildOptions()
     let err = parse_build_options(argv, opts)
