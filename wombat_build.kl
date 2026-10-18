@@ -9,40 +9,33 @@ import "koala/toml"
 
 /// A single package in the workspace.
 ///
-/// Fields mirror `__pkg__.toml`'s `[package]` table. `dir_name` is the
-/// path relative to the workspace root; `src` and `test` are the
-/// source and test subdirectories inside it. `wombat build` reads
-/// `src`; `wombat test` reads `test`. Both default to `""` (flat
-/// layout: the `.kl` files sit directly under `dir_name`).
-class Package {
-    var name = ""
-    var dir_name = ""
-    var src = ""
-    var test = ""
-    var version = "0.1.0"
-    var files = list[str]()
-    var excludes = list[str]()
-    var deps = list[str]()
-    var natives = list[str]()
-    var compiler = ""
-    var options = list[str]()
+/// `dir_name` is the path relative to the workspace root. `src` and
+/// `test` default to "" (flat layout: the `.kl` files sit directly
+/// under `dir_name`). Set `src = "src"` / `test = "test"` for a
+/// Cargo-style layout with dedicated subdirectories.
+pub class Package {
+    pub var name = ""
+    pub var dir_name = ""
+    pub var src = ""
+    pub var test = ""
+    pub var version = "0.1.0"
+    pub var files = list[str]()
+    pub var excludes = list[str]()
+    pub var deps = list[str]()
+    pub var natives = list[str]()
+    pub var compiler = ""
+    pub var options = list[str]()
 }
 
 /// The workspace being built.
-class Workspace {
-    var name = ""
-    var version = "0.1.0"
-    var root = "."
-    var packages = list[Package]()
+pub class Workspace {
+    pub var name = ""
+    pub var version = "0.1.0"
+    pub var root = "."
+    pub var packages = list[Package]()
 }
 
 /// Top-level entry: load the workspace and build every package.
-///
-/// `src_dir` must point at a directory containing `__ws__.toml`.
-/// When `wombat build` runs without `--src`, the caller passes "."
-/// (see `BuildOptions.path`), so the current directory is used.
-/// Both `src_dir` and `output_dir` are resolved to absolute paths
-/// before any `cd`.
 pub func build_all(src_dir str, output_dir str) int {
     let src_abs = fs.Path(src_dir).absolute().to_str()
     let out_abs = fs.Path(output_dir).absolute().to_str()
@@ -61,9 +54,6 @@ pub func build_all(src_dir str, output_dir str) int {
 }
 
 /// Read a string field from a TOML table, returning "" when absent.
-///
-/// `TomTable.get` panics on a missing key, so presence is checked
-/// first via `__contains__`.
 func toml_str(tbl toml.TomTable, key str) str {
     if key in tbl {
         let val = (tbl.get(key) as toml.TomString)!
@@ -75,9 +65,6 @@ func toml_str(tbl toml.TomTable, key str) str {
 }
 
 /// Read a string-array field from a TOML table.
-///
-/// Missing fields yield an empty list. `TomArray` stores elements in
-/// its `value` list; every element in a string array is a `TomString`.
 func toml_str_list(tbl toml.TomTable, key str) list[str] {
     let out = list[str]()
     if key in tbl {
@@ -107,11 +94,7 @@ func join_or_none(xs list[str], sep str) str {
 
 /// Load the workspace from `<root>/__ws__.toml` and each package's
 /// `<root>/<dir>/__pkg__.toml`.
-///
-/// A package whose `__pkg__.toml` is missing or lacks `[package] name`
-/// is a hard error: skipping it would surface later as a misleading
-/// dependency-cycle report.
-func load_workspace(root str) Workspace {
+pub func load_workspace(root str) Workspace {
     let ws = Workspace()
     ws.root = root
 
@@ -148,9 +131,10 @@ func load_workspace(root str) Workspace {
 
 /// Read `<root>/<dir_name>/__pkg__.toml` and fill a `Package`.
 ///
-/// `dir_name` is recorded even when the file is missing or `name` is
-/// empty, so `load_workspace` can decide to abort while the caller
-/// still sees the directory it came from.
+/// `src` and `test` stay "" when the field is missing or empty, which
+/// means the flat layout: the `.kl` files sit directly under
+/// `dir_name`. A non-empty value selects a subdirectory, e.g.
+/// `src = "src"` for a Cargo-style package.
 func load_package(root str, dir_name str) Package {
     let pkg = Package()
     pkg.dir_name = dir_name
@@ -188,19 +172,17 @@ func find_package(ws Workspace, name str) Package {
     for pkg in ws.packages {
         if pkg.name == name { return pkg }
     }
-    // Caller only passes names from the package list.
     let empty = Package()
     return empty
 }
 
 /// Topological sort by dependency.
-///
-/// Returns package names in build order, or an empty list on a cycle.
 func topo_sort(pkgs list[Package]) list[str] {
     let order = list[str]()
     let done = list[str]()
+    let total = pkgs.len()
 
-    while order.len() < pkgs.len() {
+    while order.len() < total {
         var progressed = false
         for pkg in pkgs {
             if pkg.name in done { continue }
@@ -227,8 +209,6 @@ func topo_sort(pkgs list[Package]) list[str] {
     return order
 }
 
-/// Print the dependency map for every package, in the order they
-/// appear in `__ws__.toml`.
 func print_dep_map(ws Workspace) {
     print("")
     print("📦 Subpackage Dependency Mapping:")
@@ -238,7 +218,6 @@ func print_dep_map(ws Workspace) {
     }
 }
 
-/// Print the compilation order using directory names.
 func print_order(ws Workspace, order list[str]) {
     print("")
     print("📋 Calculated Compilation Order:")
@@ -254,7 +233,6 @@ func print_order(ws Workspace, order list[str]) {
     print("  " + s)
 }
 
-/// Verify that required native libraries exist on standard search paths.
 func check_natives(pkg Package, ws Workspace) int {
     if pkg.natives.len() == 0 { return 0 }
 
@@ -294,25 +272,16 @@ func check_natives(pkg Package, ws Workspace) int {
     return 0
 }
 
-/// Return the artifact path for `pkg`, relative to `output_dir`.
-///
-/// The layout mirrors the workspace name: `<ws>/<dir_name>.klc`, where
-/// `<ws>` is the workspace root's basename (e.g. `std` or `koala`).
+/// Artifact path for `pkg`, relative to `output_dir`.
 func artifact_rel(ws Workspace, pkg Package) str {
     let ws_name = fs.Path(ws.root).name()
     return ws_name + "/" + pkg.dir_name + ".klc"
 }
 
-/// Return the source directory for `pkg`, relative to the workspace
-/// root's parent directory.
+/// Source path for `pkg`, relative to the workspace root's parent.
 ///
-/// The compiler embeds this path (plus the file name) into `.klc` for
-/// diagnostics. It must match the path `build.py` produces so the
-/// runtime can locate the original source when an exception is
-/// thrown: `<ws>/<dir>[/<src>]`, e.g. `std/io` or `koala/toml/src`.
-///
-/// The `test` directory is never touched here; tests run through
-/// `wombat test` separately.
+/// `src = ""` yields the flat form `<ws>/<dir>`. Otherwise it is
+/// `<ws>/<dir>/<src>`, e.g. `koala/toml/src`.
 func src_rel(ws Workspace, pkg Package) str {
     let ws_name = fs.Path(ws.root).name()
     if pkg.src.empty() {
@@ -321,7 +290,6 @@ func src_rel(ws Workspace, pkg Package) str {
     return ws_name + "/" + pkg.dir_name + "/" + pkg.src
 }
 
-/// Build the compiler command for one package.
 func build_cmd(pkg Package, ws Workspace, output_dir str) str {
     let out = fs.Path(output_dir).cat(artifact_rel(ws, pkg)).to_str()
 
@@ -345,6 +313,11 @@ func build_cmd(pkg Package, ws Workspace, output_dir str) str {
 }
 
 /// Compile every package in dependency order.
+///
+/// `KOALA_PATH` is set per command, so the parent shell's environment
+/// is untouched. `output_dir` gets a trailing slash because koala
+/// concatenates `<entry>/<module>.klc`; without it, `demo/dist` +
+/// `demo/math.klc` becomes `demo/distdemo/math.klc`.
 func build_workspace(ws Workspace, output_dir str) int {
     let order = topo_sort(ws.packages)
     if order.len() != ws.packages.len() {
@@ -355,20 +328,17 @@ func build_workspace(ws Workspace, output_dir str) int {
     print_dep_map(ws)
     print_order(ws, order)
 
+    let out_entry = output_dir + "/"
     let old_path = os.getenv("KOALA_PATH")
-    var koala_path = output_dir
+    var koala_path = out_entry
     if old_path != nil {
         if !old_path.empty() {
-            koala_path = output_dir + ":" + old_path
+            koala_path = out_entry + ":" + old_path
         }
     }
     print("🌐 Dynamic KOALA_PATH set to: " + koala_path)
     print("")
 
-    // Commands run from the workspace root's parent, matching the
-    // base directory that `.klc` source paths are relative to. This
-    // keeps `std/prelude/__prelude__.kl` resolvable at runtime when
-    // an exception needs to report the original source location.
     let ws_parent = fs.Path(ws.root).parent().to_str()
 
     for name in order {

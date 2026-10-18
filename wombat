@@ -7,6 +7,7 @@
 
 import "std/sys"
 import "wombat_build" as wb
+import "wombat_test" as wt
 
 let KOALAC = "koalac"
 let KOALAFMT = "koalafmt"
@@ -123,6 +124,19 @@ func print_command_help(name str) {
         return
     }
 
+    if name == "test" {
+        print("Usage: wombat test [options]")
+        print("")
+        print("Options:")
+        print("  -p, --package <name>    Select one package in the workspace")
+        print("      --workspace         Test every workspace member")
+        print("      --src <dir>         Workspace root (default: .)")
+        print("")
+        print("Run `wombat build` first to refresh the `.klc` artifacts")
+        print("that tests import.")
+        return
+    }
+
     if name == "new" {
         print("Usage: wombat new <package|workspace> <name> [options]")
         print("")
@@ -187,7 +201,10 @@ func cmd_run(argv list[str]) int {
     return 0
 }
 
-/// `wombat test` — same build options, compiles and runs tests.
+/// `wombat test [--src DIR] [-p PKG] [--workspace]`
+///
+/// Does not build. Run `wombat build` first so the `.klc` artifacts
+/// that tests import are up to date on `KOALA_PATH`.
 func cmd_test(argv list[str]) int {
     let opts = BuildOptions()
     let err = parse_build_options(argv, opts)
@@ -195,8 +212,7 @@ func cmd_test(argv list[str]) int {
         print("wombat test: " + err)
         return 2
     }
-    // return driver.test(opts)
-    return 0
+    return wt.test_all(opts.path)
 }
 
 /// Parse build-family options starting at argv[1].

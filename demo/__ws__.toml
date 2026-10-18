@@ -1,0 +1,4 @@
+[workspace]
+name = "demo"
+version = "0.1.0"
+packages = ["math", "text", "app"]

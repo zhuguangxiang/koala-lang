@@ -1,0 +1,23 @@
+
+import "std/ut"
+import "demo/math"
+
+@test
+func test_add() {
+    ut.assert_eq(math.add(1, 2), 3)
+    ut.assert_eq(math.add(-1, 1), 0)
+    ut.assert_eq(math.add(0, 0), 0)
+}
+
+@test
+func test_sub() {
+    ut.assert_eq(math.sub(5, 3), 2)
+    ut.assert_eq(math.sub(0, 5), -5)
+}
+
+@test
+func test_mul() {
+    ut.assert_eq(math.mul(3, 4), 12)
+    ut.assert_eq(math.mul(0, 5), 0)
+    ut.assert_eq(math.mul(-2, 3), -6)
+}

@@ -1,0 +1,7 @@
+[package]
+name = "demo/app"
+version = "0.1.0"
+src = "src"
+test = "test"
+dependencies = ["demo/math", "demo/text"]
+natives = []

@@ -1,0 +1,17 @@
+// RUN: koala %s --test
+
+import "std/ut"
+import "demo/app"
+
+@test
+func test_greet() {
+    ut.assert_eq(app.greet("koala"), "Hello, koala!")
+    ut.assert_eq(app.greet("wombat"), "Hello, wombat!")
+}
+
+@test
+func test_compute() {
+    ut.assert_eq(app.compute(1, 2, 3), 9)
+    ut.assert_eq(app.compute(0, 0, 5), 0)
+    ut.assert_eq(app.compute(-1, 1, 100), 0)
+}

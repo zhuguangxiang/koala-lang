@@ -1,0 +1,17 @@
+// RUN: koala %s --test
+
+import "std/ut"
+import "demo/text"
+
+@test
+func test_concat() {
+    ut.assert_eq(text.concat("hello", " world"), "hello world")
+    ut.assert_eq(text.concat("", "x"), "x")
+    ut.assert_eq(text.concat("a", ""), "a")
+}
+
+@test
+func test_length() {
+    ut.assert_eq(text.length("hello"), 5)
+    ut.assert_eq(text.length(""), 0)
+}
