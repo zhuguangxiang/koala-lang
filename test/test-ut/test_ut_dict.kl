@@ -2129,3 +2129,90 @@ func test_dict_for_in_direct_insertion_order() {
     ut.assert_eq(ks[2], "b")
     ut.assert_eq(vs[2], 2)
 }
+
+// ---------------------------------------------------------------------------
+// iterator cursor (HashMapIter kept in the C-private area)
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_values_iter_step_cursor() {
+    let d = dict[int, int]()
+    for i in range(5) { d[i] = i * 10 }
+
+    let it = d.values().iter(2)
+    ut.assert_eq(it.next_strict(), 0)
+    ut.assert_eq(it.next_strict(), 20)
+    ut.assert_true(it.has_next())
+    ut.assert_eq(it.next_strict(), 40)
+    ut.assert_false(it.has_next())
+    ut.assert_true(it.next() == nil)
+}
+
+@test
+func test_dict_step_stops_when_stride_overshoots() {
+    let d = dict[int, int]()
+    for i in range(4) { d[i] = i }
+
+    // 0, 2 then the next stride runs past the end, so has_next is already false
+    let it = d.keys().iter(2)
+    ut.assert_eq(it.next_strict(), 0)
+    ut.assert_eq(it.next_strict(), 2)
+    ut.assert_false(it.has_next())
+    ut.assert_true(it.next() == nil)
+}
+
+@test
+func test_dict_reversed_step_cursor() {
+    let d = dict[int, int]()
+    for i in range(5) { d[i] = i * 10 }
+
+    let it = d.reversed(2)
+    let kv1 = it.next_strict()
+    ut.assert_eq(kv1[0], 4)
+    let kv2 = it.next_strict()
+    ut.assert_eq(kv2[0], 2)
+    let kv3 = it.next_strict()
+    ut.assert_eq(kv3[0], 0)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_iter_exhausted_stays_exhausted() {
+    let d = dict[int, int]()
+    d[1] = 1
+
+    let it = d.keys().iter(1)
+    ut.assert_eq(it.next_strict(), 1)
+    ut.assert_true(it.next() == nil)
+    // a finished iterator must not restart from the beginning
+    ut.assert_true(it.next() == nil)
+    ut.assert_false(it.has_next())
+}
+
+@test
+func test_dict_iter_remove_visited_entries() {
+    let d = dict[int, int]()
+    for i in range(5) { d[i] = i }
+
+    let seen = list[int]()
+    for k in d.keys() {
+        seen.append(k)
+        d.remove(k)
+    }
+    ut.assert_eq(seen.len(), 5)
+    ut.assert_eq(d.len(), 0)
+}
+
+@test
+func test_dict_iter_insert_while_iterating() {
+    let d = dict[int, int]()
+    d[1] = 1
+    d[2] = 2
+
+    let it = d.keys().iter(1)
+    ut.assert_eq(it.next_strict(), 1)
+    d[3] = 3
+    ut.assert_eq(it.next_strict(), 2)
+    ut.assert_eq(it.next_strict(), 3)
+    ut.assert_false(it.has_next())
+}

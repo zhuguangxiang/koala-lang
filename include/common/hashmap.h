@@ -102,24 +102,29 @@ typedef struct _HashMap {
 
 /* Hashmap iterator context */
 typedef struct _HashMapIter {
-    /* internal state */
-    int state;
+    /* reverse iteration flag */
+    int reverse;
+    /* step size for iteration */
+    int step;
     /* current node */
     HashMapEntry *entry;
     /* next node */
     HashMapEntry *next;
-    /* closure */
-    void *arg;
+    /* reference to the hashmap being iterated */
+    HashMap *map;
 } HashMapIter;
 
-/* next() iterator, 1 continue, 0 finished */
-int hashmap_next(HashMap *self, HashMapIter *it);
+/* Initialize an iterator for the hashmap. */
+int hashmap_iter_init(HashMap *self, HashMapIter *it, int reverse, int step);
 
-/* prev() iterator, 1 continue, 0 finished */
-int hashmap_prev(HashMap *self, HashMapIter *it);
+/* has_next() iterator, 1 has next, 0 no next */
+static inline int hashmap_iter_has_next(HashMapIter *it) { return it->next != NULL; }
+
+/* next() iterator, 1 continue, 0 finished */
+int hashmap_iter_next(HashMapIter *it);
 
 /* get entry from iterator */
-#define hashmap_entry(it) ((it)->entry)
+#define hashmap_iter_entry(it) ((void *)(it)->entry)
 
 /* Initialize a HashMapEntry structure. */
 static inline void hashmap_entry_init(void *entry, uint64_t hash)

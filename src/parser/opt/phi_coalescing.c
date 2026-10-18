@@ -288,11 +288,12 @@ static void _dump_congruence_classes(KlrCoalesceContext *ctx, const char *phase_
 
     int class_counter = 0;
 
-    HashMapIter it = { 0 };
+    HashMapIter it;
+    hashmap_iter_init(&ctx->member_map, &it, 0, 1);
 
-    while (hashmap_next(&ctx->member_map, &it)) {
+    while (hashmap_iter_next(&it)) {
         /* Adjust the function call to match your actual iterator macro layout if required */
-        KlrCongruenceMember *member = (KlrCongruenceMember *)it.entry;
+        KlrCongruenceMember *member = (KlrCongruenceMember *)hashmap_iter_entry(&it);
         if (!member || !member->cls) {
             continue;
         }
@@ -309,10 +310,9 @@ static void _dump_congruence_classes(KlrCoalesceContext *ctx, const char *phase_
         class_counter++;
         int class_size = vector_size(&cls->members);
 
-        log_info(
-            "[COALESCE] Class #%d [Leader repr: %s, Base LiveInterval: [%d, %d), Members: %d]",
-            class_counter, klr_value_name(cls->repr->val), cls->repr->start, cls->repr->end,
-            class_size);
+        log_info("[COALESCE] Class #%d [Leader repr: %s, Base LiveInterval: [%d, %d), Members: %d]",
+                 class_counter, klr_value_name(cls->repr->val), cls->repr->start, cls->repr->end,
+                 class_size);
 
         /* Step inside the class master roster vector to dump all active sub-members */
         for (int i = 0; i < class_size; i++) {
@@ -336,10 +336,11 @@ static void _dump_congruence_classes(KlrCoalesceContext *ctx, const char *phase_
  */
 static void _collect_final_classes(KlrCoalesceContext *ctx)
 {
-    HashMapIter it = { 0 };
+    HashMapIter it;
+    hashmap_iter_init(&ctx->member_map, &it, 0, 1);
 
-    while (hashmap_next(&ctx->member_map, &it)) {
-        KlrCongruenceMember *member = (KlrCongruenceMember *)it.entry;
+    while (hashmap_iter_next(&it)) {
+        KlrCongruenceMember *member = (KlrCongruenceMember *)hashmap_iter_entry(&it);
         if (!member || !member->cls) {
             continue;
         }
@@ -512,8 +513,8 @@ static void klr_coalesce_rewrite(KlrFunc *fn, KlrCoalesceContext *ctx)
         klr_builder_head(&bldr, entry_bb);
         KlrValue *lc = klr_build_local_var(&bldr, leader_val->ts, atom(lc_name));
 
-        log_info("[COALESCE] Created local %s for class led by %s (%d members)",
-                 klr_value_name(lc), klr_value_name(leader_val), vector_size(&cls->members));
+        log_info("[COALESCE] Created local %s for class led by %s (%d members)", klr_value_name(lc),
+                 klr_value_name(leader_val), vector_size(&cls->members));
 
         /* Step 2: Process each member that is an eliminated PHI */
 
@@ -538,8 +539,8 @@ static void klr_coalesce_rewrite(KlrFunc *fn, KlrCoalesceContext *ctx)
             /* ONLY process PHI nodes. Non-PHI members are untouched. */
             if (_insn->code != OP_IR_PHI) continue;
 
-            log_info("[COALESCE] Eliminating PHI %s -> replacing uses with %s",
-                     klr_value_name(val), klr_value_name(lc));
+            log_info("[COALESCE] Eliminating PHI %s -> replacing uses with %s", klr_value_name(val),
+                     klr_value_name(lc));
 
             /* Insert move in each predecessor for this eliminated PHI */
             for (int i = 0; i < _insn->num_opers; i++) {

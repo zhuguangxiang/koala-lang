@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=lir | filecheck %s
+// RUN: koala %s ++ --dump=lir | filecheck %s
 
 func test_int_cast(n int16) uint32 {
     return uint32(n)

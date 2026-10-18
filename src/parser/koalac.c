@@ -298,7 +298,7 @@ static void parse_command(int argc, char *argv[])
     }
 }
 
-int isdotkl(char *filename)
+static int isdotkl(char *filename)
 {
     char *dot = strrchr(filename, '.');
     if (dot == NULL || strlen(dot) != 3) return 0;
@@ -306,7 +306,7 @@ int isdotkl(char *filename)
     return 0;
 }
 
-int isdotklc(char *filename)
+static int isdotklc(char *filename)
 {
     char *dot = strrchr(filename, '.');
     if (dot == NULL || strlen(dot) != 4) return 0;
@@ -314,7 +314,7 @@ int isdotklc(char *filename)
     return 0;
 }
 
-int check_dotkl(char *path)
+static int check_input_file(char *path)
 {
     struct stat sb;
 
@@ -328,18 +328,23 @@ int check_dotkl(char *path)
         return -1;
     }
 
-    char *dir = str_ndup(path, strlen(path) - 3);
-    if (!lstat(dir, &sb)) {
-        printf("%s: The same name file or directory exist", dir);
+    char *slash = strrchr(path, '/');
+    char *dot = strrchr(slash ? slash + 1 : path, '.');
+
+    if (dot && strcmp(dot, ".kl") == 0) {
+        char *dir = str_ndup(path, dot - path);
+        if (!lstat(dir, &sb)) {
+            printf("%s: The same name file or directory exist\n", dir);
+            mm_free(dir);
+            return -1;
+        }
         mm_free(dir);
-        return -1;
     }
 
-    mm_free(dir);
     return 0;
 }
 
-int check_dir(char *path)
+static int check_dir(char *path)
 {
     struct stat sb;
 
@@ -429,11 +434,24 @@ static void build_dir(char *path, ParserModule *pm)
 
 static void compile(ParserModule *pm)
 {
-    if (isdotkl(input)) {
-        // single source file
-        if (check_dotkl(input)) return;
+    struct stat st;
+    int is_directory = 0;
 
-        char *dot = strrchr(input, '.');
+    if (stat(input, &st) == 0 && S_ISDIR(st.st_mode)) {
+        is_directory = 1;
+    }
+
+    if (isdotkl(input) || !is_directory) {
+        if (access(input, F_OK) != 0) {
+            fprintf(stderr, "koala compile: file '%s' does not exist\n", input);
+            return;
+        }
+
+        // single source file
+        if (check_input_file(input)) return;
+
+        char *slash = strrchr(input, '/');
+        char *dot = strrchr(slash ? slash + 1 : input, '.');
 
         if (strlen(output) == 0) {
             if (dot) {
@@ -444,13 +462,14 @@ static void compile(ParserModule *pm)
         }
 
         if (pm->pkg_path == NULL) {
-            char *slash = strrchr(input, '/');
+            char *end_ptr = dot ? dot : (input + strlen(input));
             if (slash) {
-                pm->pkg_path = str_ndup(slash + 1, dot - slash - 1);
+                pm->pkg_path = str_ndup(slash + 1, end_ptr - (slash + 1));
             } else {
-                pm->pkg_path = str_ndup(input, dot - input);
+                pm->pkg_path = str_ndup(input, end_ptr - input);
             }
         }
+        // printf("Compiling single source file: %s -> %s\n", input, output);
         new_parser_state(pm, input);
     } else {
         // package directory

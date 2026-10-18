@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir,ir | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir,ir | filecheck %s
 
 import "test_pkg/pkg1" as zz
 

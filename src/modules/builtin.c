@@ -127,11 +127,38 @@ static MethodDef builtin_functions[] = {
 };
 
 static TypeObject *builtin_types[] = {
-    &type_type,    &nil_type,     &bool_type,   &str_type,    &exc_type,    &field_type,
-    &global_type,  &cfunc_type,   &code_type,   &int8_type,   &int16_type,  &int32_type,
-    &int64_type,   &uint8_type,   &uint16_type, &uint32_type, &uint64_type, &float16_type,
-    &float32_type, &float64_type, &tuple_type,  &range_type,  &slice_type,  &list_type,
-    &bytes_type,   &bytebuf_type, &fmt_type,    &dict_type,
+    &type_type,
+    &nil_type,
+    &bool_type,
+    &str_type,
+    &exc_type,
+    &field_type,
+    &global_type,
+    &cfunc_type,
+    &code_type,
+    &int8_type,
+    &int16_type,
+    &int32_type,
+    &int64_type,
+    &uint8_type,
+    &uint16_type,
+    &uint32_type,
+    &uint64_type,
+    &float16_type,
+    &float32_type,
+    &float64_type,
+    &tuple_type,
+    &range_type,
+    &slice_type,
+    &list_type,
+    &bytes_type,
+    &bytebuf_type,
+    &fmt_type,
+    &dict_type,
+    &dict_keys_iter_type,
+    &dict_values_iter_type,
+    &dict_view_iter_type,
+    &dict_rev_iter_type,
 };
 
 void builtin_native_lib_init(NativeLib *lib)
@@ -145,11 +172,6 @@ void builtin_native_lib_init(NativeLib *lib)
     for (int i = 0; i < COUNT_OF(builtin_types); ++i) {
         kl_reg_type(lib, builtin_types[i]);
     }
-
-    dict_keys_iter_register(lib);
-    dict_values_iter_register(lib);
-    dict_view_iter_register(lib);
-    dict_rev_iter_register(lib);
 }
 
 #ifdef __cplusplus

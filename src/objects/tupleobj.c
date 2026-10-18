@@ -66,7 +66,13 @@ static MethodDef tuple_methods[] = {
 };
 
 /* pub class tuple[infer T] : Sequence[T] { ... } */
-DEFINE_TYPE(tuple, TP_FLAGS_CLASS, sizeof(TupleObject), tuple_methods, NULL);
+TypeObject tuple_type = {
+    ._type = &type_type,
+    .name = "tuple",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(TupleObject),
+    .methdefs = tuple_methods,
+};
 
 Object *kl_new_tuple(TValue *items, int count)
 {

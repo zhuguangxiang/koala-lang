@@ -706,7 +706,13 @@ static MethodDef list_methods[] = {
 };
 
 /* pub class list[T] : MutableSequence[T] { ... } */
-DEFINE_TYPE(list, TP_FLAGS_CLASS, sizeof(ListObject), list_methods, NULL);
+TypeObject list_type = {
+    ._type = &type_type,
+    .name = "list",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(ListObject),
+    .methdefs = list_methods,
+};
 
 Object *kl_new_list(void)
 {

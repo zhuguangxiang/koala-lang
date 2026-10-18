@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <stdlib.h>
 #include "args.h"
 #include "listobj.h"
 
@@ -23,7 +24,22 @@ static TValue os_args(TValue *self, TValue *args, int nargs)
     return obj_value(list);
 }
 
-void sys_native_lib_init(NativeLib *lib) { kl_reg_func(lib, "args", os_args); }
+/*
+func exit(code = 0)
+*/
+static TValue sys_exit(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    int64_t code = kl_arg_int(0);
+    exit((int)code);
+    return no_value; // unreachable
+}
+
+void sys_native_lib_init(NativeLib *lib)
+{
+    kl_reg_func(lib, "args", os_args);
+    kl_reg_func(lib, "exit", sys_exit);
+}
 
 #ifdef __cplusplus
 }

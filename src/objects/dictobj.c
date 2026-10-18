@@ -112,10 +112,11 @@ static TValue _dict_fmt(TValue *self, TValue *args, int nargs)
 
     /* Iterate in insertion order via the ordered list. HashMapEntry is the
      * first member of DictEntry, so the entry pointer casts directly. */
-    HashMapIter it = { 0 };
+    HashMapIter it;
+    hashmap_iter_init(&dict->map, &it, 0, 1);
     int first = 1;
-    while (hashmap_next(&dict->map, &it)) {
-        DictEntry *entry = (DictEntry *)hashmap_entry(&it);
+    while (hashmap_iter_next(&it)) {
+        DictEntry *entry = hashmap_iter_entry(&it);
         if (!first) buf_write_str(buf, ", ");
         first = 0;
         kl_call_fmt(&entry->key, f);
@@ -273,9 +274,10 @@ static TValue _dict_merge(DictObject *dict, TValue *src)
     Object *src_obj = to_obj(src);
     if (IS_DICT(src_obj)) {
         DictObject *src_dict = (DictObject *)src_obj;
-        HashMapIter it = { 0 };
-        while (hashmap_next(&src_dict->map, &it)) {
-            DictEntry *entry = (DictEntry *)hashmap_entry(&it);
+        HashMapIter it;
+        hashmap_iter_init(&src_dict->map, &it, 0, 1);
+        while (hashmap_iter_next(&it)) {
+            DictEntry *entry = hashmap_iter_entry(&it);
             _dict_insert(dict, &entry->key, &entry->value);
         }
         return no_value;
@@ -338,9 +340,10 @@ static TValue _dict_bitor(TValue *self, TValue *args, int nargs)
 
     /* Copy self's mappings first; HashMapIter follows insertion order, so the
      * result keeps self's order and appends keys fresh from `src`. */
-    HashMapIter it = { 0 };
-    while (hashmap_next(&dict->map, &it)) {
-        DictEntry *entry = (DictEntry *)hashmap_entry(&it);
+    HashMapIter it;
+    hashmap_iter_init(&dict->map, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        DictEntry *entry = hashmap_iter_entry(&it);
         _dict_insert(new_dict, &entry->key, &entry->value);
     }
 
@@ -368,9 +371,10 @@ static TValue _dict_keys(TValue *self, TValue *args, int nargs)
     DictObject *dict = SELF_AS(dict_type);
     ASSERT(nargs == 0);
     Object *list = kl_new_list();
-    HashMapIter it = { 0 };
-    while (hashmap_next(&dict->map, &it)) {
-        DictEntry *entry = (DictEntry *)hashmap_entry(&it);
+    HashMapIter it;
+    hashmap_iter_init(&dict->map, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        DictEntry *entry = hashmap_iter_entry(&it);
         kl_list_append(list, entry->key);
     }
     TValue list_tv = obj_value(list);
@@ -382,9 +386,10 @@ static TValue _dict_values(TValue *self, TValue *args, int nargs)
     DictObject *dict = SELF_AS(dict_type);
     ASSERT(nargs == 0);
     Object *list = kl_new_list();
-    HashMapIter it = { 0 };
-    while (hashmap_next(&dict->map, &it)) {
-        DictEntry *entry = (DictEntry *)hashmap_entry(&it);
+    HashMapIter it;
+    hashmap_iter_init(&dict->map, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        DictEntry *entry = hashmap_iter_entry(&it);
         kl_list_append(list, entry->value);
     }
     TValue list_tv = obj_value(list);
@@ -414,197 +419,202 @@ static TValue _dict_setdefault(TValue *self, TValue *args, int nargs)
     return *default_value;
 }
 
-/* DictKeysIter field layout, must match 'class DictKeysIter' in dict.kl. */
-enum { KEYS_ITER_DICT = 0, KEYS_ITER_STEP = 1, KEYS_ITER_POS = 2 };
+/*
+ * Dict iterators (DictKeysIter, DictValuesIter, DictViewIter, DictRevIter).
+ */
+typedef struct _DictIterObject {
+    OBJECT_HEAD;
+    DictObject *dict;
+    int64_t step;
+    HashMapIter iter;
+} DictIterObject;
 
-/* Return the entry at insertion index `pos`, or NULL when out of range. */
-static DictEntry *_dict_entry_at(DictObject *dict, int64_t pos)
+static TValue _init_dict_iter(DictIterObject *iter, TValue *args, int nargs, int reverse)
 {
-    if (pos < 0 || pos >= (int64_t)dict->map.count) return NULL;
-    HashMapIter it = { 0 };
-    while (hashmap_next(&dict->map, &it)) {
-        if (pos-- == 0) return (DictEntry *)hashmap_entry(&it);
-    }
-    return NULL;
-}
-
-static TValue _keys_iter_has_next(TValue *self, TValue *args, int nargs)
-{
-    InstObject *inst = (InstObject *)to_obj(self);
-    DictObject *dict = (DictObject *)to_obj(&inst->fields[KEYS_ITER_DICT]);
-    return bool_value(inst->fields[KEYS_ITER_POS].ival < (int64_t)dict->map.count);
-}
-
-/* Yield the current key and advance by `step`; NULL when exhausted. */
-static DictEntry *_keys_iter_advance(TValue *self)
-{
-    InstObject *inst = (InstObject *)to_obj(self);
-    DictObject *dict = (DictObject *)to_obj(&inst->fields[KEYS_ITER_DICT]);
-    TValue *pos = &inst->fields[KEYS_ITER_POS];
-    DictEntry *entry = _dict_entry_at(dict, pos->ival);
-    if (entry) pos->ival += inst->fields[KEYS_ITER_STEP].ival;
-    return entry;
-}
-
-static TValue _keys_iter_next_strict(TValue *self, TValue *args, int nargs)
-{
-    DictEntry *entry = _keys_iter_advance(self);
-    if (!entry) {
-        raise_exc("No more keys in DictKeysIter");
+    ASSERT(nargs == 2);
+    DictObject *dict = kl_arg_obj_as(0, dict_type);
+    int64_t step = kl_arg_int64(1);
+    if (step <= 0) {
+        raise_exc("step must be positive");
         return error_value;
     }
+
+    iter->dict = dict;
+    iter->step = step;
+    hashmap_iter_init(&dict->map, &iter->iter, reverse, step);
+    return no_value;
+}
+
+static TValue dict_iter_init(TValue *self, TValue *args, int nargs)
+{
+    Object *ob = to_obj(self);
+    TypeObject *tp = OB_TYPE(ob);
+    ASSERT(tp == &dict_keys_iter_type || tp == &dict_values_iter_type ||
+           tp == &dict_view_iter_type);
+
+    DictIterObject *iter = (DictIterObject *)ob;
+    return _init_dict_iter(iter, args, nargs, 0);
+}
+
+static TValue dict_rev_iter_init(TValue *self, TValue *args, int nargs)
+{
+    Object *ob = to_obj(self);
+    ASSERT(OB_TYPE(ob) == &dict_rev_iter_type);
+
+    DictIterObject *iter = (DictIterObject *)ob;
+    return _init_dict_iter(iter, args, nargs, 1);
+}
+
+static TValue dict_iter_has_next(TValue *self, TValue *args, int nargs)
+{
+    Object *ob = to_obj(self);
+    TypeObject *tp = OB_TYPE(ob);
+
+    ASSERT(tp == &dict_keys_iter_type || tp == &dict_values_iter_type ||
+           tp == &dict_view_iter_type || tp == &dict_rev_iter_type);
+
+    DictIterObject *iter = (DictIterObject *)ob;
+    int has_next = hashmap_iter_has_next(&iter->iter);
+    return bool_value(has_next);
+}
+
+static TValue dict_keys_iter_next(TValue *self, TValue *args, int nargs)
+{
+    DictIterObject *iter = SELF_AS(dict_keys_iter_type);
+    int ret = hashmap_iter_next(&iter->iter);
+    if (!ret) return nil_value;
+    DictEntry *entry = hashmap_iter_entry(&iter->iter);
     return entry->key;
 }
 
-static TValue _keys_iter_next(TValue *self, TValue *args, int nargs)
+static TValue dict_keys_iter_next_strict(TValue *self, TValue *args, int nargs)
 {
-    DictEntry *entry = _keys_iter_advance(self);
-    return entry ? entry->key : nil_value;
-}
-
-void dict_keys_iter_register(NativeLib *lib)
-{
-    kl_reg_meth(lib, "DictKeysIter", "has_next", _keys_iter_has_next);
-    kl_reg_meth(lib, "DictKeysIter", "next_strict", _keys_iter_next_strict);
-    kl_reg_meth(lib, "DictKeysIter", "next", _keys_iter_next);
-}
-
-/* DictValuesIter field layout, must match 'class DictValuesIter' in dict.kl. */
-enum { VALUES_ITER_DICT = 0, VALUES_ITER_STEP = 1, VALUES_ITER_POS = 2 };
-
-static TValue _values_iter_has_next(TValue *self, TValue *args, int nargs)
-{
-    InstObject *inst = (InstObject *)to_obj(self);
-    DictObject *dict = (DictObject *)to_obj(&inst->fields[VALUES_ITER_DICT]);
-    return bool_value(inst->fields[VALUES_ITER_POS].ival < (int64_t)dict->map.count);
-}
-
-/* Yield the current value and advance by `step`; NULL when exhausted. */
-static DictEntry *_values_iter_advance(TValue *self)
-{
-    InstObject *inst = (InstObject *)to_obj(self);
-    DictObject *dict = (DictObject *)to_obj(&inst->fields[VALUES_ITER_DICT]);
-    TValue *pos = &inst->fields[VALUES_ITER_POS];
-    DictEntry *entry = _dict_entry_at(dict, pos->ival);
-    if (entry) pos->ival += inst->fields[VALUES_ITER_STEP].ival;
-    return entry;
-}
-
-static TValue _values_iter_next_strict(TValue *self, TValue *args, int nargs)
-{
-    DictEntry *entry = _values_iter_advance(self);
-    if (!entry) {
-        raise_exc("No more values in DictValuesIter");
+    TValue ret = dict_keys_iter_next(self, args, nargs);
+    if (is_nil(&ret)) {
+        raise_exc("No more keys in DictKeysIter");
         return error_value;
     }
+    return ret;
+}
+
+static TValue dict_values_iter_next(TValue *self, TValue *args, int nargs)
+{
+    DictIterObject *iter = SELF_AS(dict_values_iter_type);
+    int ret = hashmap_iter_next(&iter->iter);
+    if (!ret) return nil_value;
+    DictEntry *entry = hashmap_iter_entry(&iter->iter);
     return entry->value;
 }
 
-static TValue _values_iter_next(TValue *self, TValue *args, int nargs)
+static TValue dict_values_iter_next_strict(TValue *self, TValue *args, int nargs)
 {
-    DictEntry *entry = _values_iter_advance(self);
-    return entry ? entry->value : nil_value;
-}
-
-void dict_values_iter_register(NativeLib *lib)
-{
-    kl_reg_meth(lib, "DictValuesIter", "has_next", _values_iter_has_next);
-    kl_reg_meth(lib, "DictValuesIter", "next_strict", _values_iter_next_strict);
-    kl_reg_meth(lib, "DictValuesIter", "next", _values_iter_next);
-}
-
-/* DictViewIter field layout, must match 'class DictViewIter' in dict.kl. */
-enum { VIEW_ITER_DICT = 0, VIEW_ITER_STEP = 1, VIEW_ITER_POS = 2 };
-
-static TValue _view_iter_has_next(TValue *self, TValue *args, int nargs)
-{
-    InstObject *inst = (InstObject *)to_obj(self);
-    DictObject *dict = (DictObject *)to_obj(&inst->fields[VIEW_ITER_DICT]);
-    return bool_value(inst->fields[VIEW_ITER_POS].ival < (int64_t)dict->map.count);
-}
-
-/* Yield the current entry and advance by `step`; NULL when exhausted. */
-static DictEntry *_view_iter_advance(TValue *self)
-{
-    InstObject *inst = (InstObject *)to_obj(self);
-    DictObject *dict = (DictObject *)to_obj(&inst->fields[VIEW_ITER_DICT]);
-    TValue *pos = &inst->fields[VIEW_ITER_POS];
-    DictEntry *entry = _dict_entry_at(dict, pos->ival);
-    if (entry) pos->ival += inst->fields[VIEW_ITER_STEP].ival;
-    return entry;
-}
-
-static TValue _view_iter_next_strict(TValue *self, TValue *args, int nargs)
-{
-    DictEntry *entry = _view_iter_advance(self);
-    if (!entry) {
-        raise_exc("No more items in DictViewIter");
+    TValue ret = dict_values_iter_next(self, args, nargs);
+    if (is_nil(&ret)) {
+        raise_exc("No more values in DictValuesIter");
         return error_value;
     }
-    TValue items[2] = { entry->key, entry->value };
-    return obj_value(kl_new_tuple(items, 2));
+    return ret;
 }
 
-static TValue _view_iter_next(TValue *self, TValue *args, int nargs)
+static TValue dict_view_iter_next(TValue *self, TValue *args, int nargs)
 {
-    DictEntry *entry = _view_iter_advance(self);
-    if (!entry) return nil_value;
-    TValue items[2] = { entry->key, entry->value };
-    return obj_value(kl_new_tuple(items, 2));
+    DictIterObject *iter = SELF_AS(dict_view_iter_type);
+    int ret = hashmap_iter_next(&iter->iter);
+    if (!ret) return nil_value;
+    DictEntry *entry = hashmap_iter_entry(&iter->iter);
+    Object *tuple = kl_new_tuple(&entry->key, 2);
+    return obj_value(tuple);
 }
 
-void dict_view_iter_register(NativeLib *lib)
+static TValue dict_view_iter_next_strict(TValue *self, TValue *args, int nargs)
 {
-    kl_reg_meth(lib, "DictViewIter", "has_next", _view_iter_has_next);
-    kl_reg_meth(lib, "DictViewIter", "next_strict", _view_iter_next_strict);
-    kl_reg_meth(lib, "DictViewIter", "next", _view_iter_next);
-}
-
-/* DictRevIter field layout, must match 'class DictRevIter' in dict.kl. */
-enum { REV_ITER_DICT = 0, REV_ITER_STEP = 1, REV_ITER_POS = 2 };
-
-static TValue _rev_iter_has_next(TValue *self, TValue *args, int nargs)
-{
-    InstObject *inst = (InstObject *)to_obj(self);
-    return bool_value(inst->fields[REV_ITER_POS].ival >= 0);
-}
-
-/* Yield the current entry and retreat by `step`; NULL when exhausted. */
-static DictEntry *_rev_iter_advance(TValue *self)
-{
-    InstObject *inst = (InstObject *)to_obj(self);
-    DictObject *dict = (DictObject *)to_obj(&inst->fields[REV_ITER_DICT]);
-    TValue *pos = &inst->fields[REV_ITER_POS];
-    DictEntry *entry = _dict_entry_at(dict, pos->ival);
-    if (entry) pos->ival -= inst->fields[REV_ITER_STEP].ival;
-    return entry;
-}
-
-static TValue _rev_iter_next_strict(TValue *self, TValue *args, int nargs)
-{
-    DictEntry *entry = _rev_iter_advance(self);
-    if (!entry) {
-        raise_exc("No more items in DictRevIter");
+    TValue ret = dict_view_iter_next(self, args, nargs);
+    if (is_nil(&ret)) {
+        raise_exc("No more values in DictViewIter");
         return error_value;
     }
-    TValue items[2] = { entry->key, entry->value };
-    return obj_value(kl_new_tuple(items, 2));
+    return ret;
 }
 
-static TValue _rev_iter_next(TValue *self, TValue *args, int nargs)
+static TValue dict_rev_iter_next(TValue *self, TValue *args, int nargs)
 {
-    DictEntry *entry = _rev_iter_advance(self);
-    if (!entry) return nil_value;
-    TValue items[2] = { entry->key, entry->value };
-    return obj_value(kl_new_tuple(items, 2));
+    DictIterObject *iter = SELF_AS(dict_rev_iter_type);
+    int ret = hashmap_iter_next(&iter->iter);
+    if (!ret) return nil_value;
+    DictEntry *entry = hashmap_iter_entry(&iter->iter);
+    Object *tuple = kl_new_tuple(&entry->key, 2);
+    return obj_value(tuple);
 }
 
-void dict_rev_iter_register(NativeLib *lib)
+static TValue dict_rev_iter_next_strict(TValue *self, TValue *args, int nargs)
 {
-    kl_reg_meth(lib, "DictRevIter", "has_next", _rev_iter_has_next);
-    kl_reg_meth(lib, "DictRevIter", "next_strict", _rev_iter_next_strict);
-    kl_reg_meth(lib, "DictRevIter", "next", _rev_iter_next);
+    TValue ret = dict_rev_iter_next(self, args, nargs);
+    if (is_nil(&ret)) {
+        raise_exc("No more values in DictRevIter");
+        return error_value;
+    }
+    return ret;
 }
+
+TypeObject dict_keys_iter_type = {
+    ._type = &type_type,
+    .name = "DictKeysIter",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(DictIterObject),
+    .methdefs =
+        (MethodDef[]){
+            { "__init__", dict_iter_init },
+            { "has_next", dict_iter_has_next },
+            { "next", dict_keys_iter_next },
+            { "next_strict", dict_keys_iter_next_strict },
+            { NULL, NULL },
+        },
+};
+
+TypeObject dict_values_iter_type = {
+    ._type = &type_type,
+    .name = "DictValuesIter",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(DictIterObject),
+    .methdefs =
+        (MethodDef[]){
+            { "__init__", dict_iter_init },
+            { "has_next", dict_iter_has_next },
+            { "next", dict_values_iter_next },
+            { "next_strict", dict_values_iter_next_strict },
+            { NULL, NULL },
+        },
+};
+
+TypeObject dict_view_iter_type = {
+    ._type = &type_type,
+    .name = "DictViewIter",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(DictIterObject),
+    .methdefs =
+        (MethodDef[]){
+            { "__init__", dict_iter_init },
+            { "has_next", dict_iter_has_next },
+            { "next", dict_view_iter_next },
+            { "next_strict", dict_view_iter_next_strict },
+            { NULL, NULL },
+        },
+};
+
+TypeObject dict_rev_iter_type = {
+    ._type = &type_type,
+    .name = "DictRevIter",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(DictIterObject),
+    .methdefs =
+        (MethodDef[]){
+            { "__init__", dict_rev_iter_init },
+            { "has_next", dict_iter_has_next },
+            { "next", dict_rev_iter_next },
+            { "next_strict", dict_rev_iter_next_strict },
+            { NULL, NULL },
+        },
+};
 
 static MethodDef dict_methods[] = {
     { "__init__", _dict_init },
@@ -629,7 +639,13 @@ static MethodDef dict_methods[] = {
 };
 
 /* pub class dict[K, V] : Map[K, V] { ... } */
-DEFINE_TYPE(dict, TP_FLAGS_CLASS, sizeof(DictObject), dict_methods, NULL);
+TypeObject dict_type = {
+    ._type = &type_type,
+    .name = "dict",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(DictObject),
+    .methdefs = dict_methods,
+};
 
 Object *kl_new_dict(void)
 {

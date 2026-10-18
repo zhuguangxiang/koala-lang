@@ -1,0 +1,350 @@
+#!/usr/bin/env koala
+
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/sys"
+
+let KOALAC = "koalac"
+let KOALAFMT = "koalafmt"
+
+/// `koala` command line entry point.
+///
+/// The CLI is deliberately thin: it parses argv, prints user-facing
+/// diagnostics, and dispatches to one handler per subcommand. All real
+/// work lives in the library packages so that IDEs and CI can call the
+/// same code without spawning a process.
+///
+/// Exit codes: 0 success, 1 build/runtime failure, 2 usage error.
+pub func main() {
+    let argv = sys.args()
+    let code = dispatch(argv)
+    // if code != 0 {
+    //     sys.exit(code)
+    // }
+}
+
+/// Route the first user argument to its handler.
+///
+/// `argv` is the argument list *after* the program name, i.e.
+/// `koala build -p core` arrives as ["build", "-p", "core"] and bare
+/// `koala` arrives as []. If `sys.args()` ever includes the program
+/// name, only this function and the option index in
+/// `parse_build_options` / `cmd_new` need to shift.
+func dispatch(argv list[str]) int {
+    // Bare `koala` prints short help and exits 0, matching cargo.
+    // No side effects: never trigger a build by accident.
+    if argv.len() == 0 {
+        print_brief_help()
+        return 0
+    }
+
+    let cmd = argv[0]
+
+    if cmd == "help" || cmd == "-h" || cmd == "--help" {
+        if argv.len() >= 2 {
+            print_command_help(argv[1])
+        } else {
+            print_full_help()
+        }
+        return 0
+    }
+
+    if cmd == "version" || cmd == "-V" || cmd == "--version" {
+        print("wombat 0.1.0")
+        return 0
+    }
+
+    if cmd == "new"   { return cmd_new(argv)   }
+    if cmd == "build" { return cmd_build(argv) }
+    if cmd == "check" { return cmd_check(argv) }
+    if cmd == "run"   { return cmd_run(argv)   }
+    if cmd == "test"  { return cmd_test(argv)  }
+    if cmd == "fmt"   { return cmd_fmt(argv)   }
+    if cmd == "lint"  { return cmd_lint(argv)  }
+    if cmd == "doc"   { return cmd_doc(argv)   }
+    if cmd == "add"   { return cmd_add(argv)   }
+    if cmd == "clean" { return cmd_clean(argv) }
+
+    print("wombat: unknown command '" + cmd + "'")
+    print("Run `koala help` for usage.")
+    return 2
+}
+
+/// Print the short help shown for bare `koala`.
+///
+/// Kept short on purpose: the first screen must fit a typical terminal.
+/// Once `workspace` is wired in, this should also print the detected
+/// members and default-members below the command list.
+func print_brief_help() {
+    print("wombat 0.1.0 — build system & package manager")
+    print("")
+    print("Usage: koala <command> [options]")
+    print("")
+    print("Common commands:")
+    print("  new        Create a new package or workspace")
+    print("  build      Compile the current package")
+    print("  check      Check without producing binaries (fast)")
+    print("  run        Build and run")
+    print("  test       Run tests")
+    print("  fmt        Format source code")
+    print("  lint       Static analysis")
+    print("  doc        Generate documentation")
+    print("  add        Add a dependency")
+    print("  clean      Remove build artifacts")
+    print("")
+    print("Run `koala help <command>` for details.")
+}
+
+/// Print the full command list, shown by `koala help`.
+func print_full_help() {
+    print_brief_help()
+    print("")
+    print("See also:")
+    print("  koala help <command>   Show options for one command")
+    print("  koala version          Print the koala version")
+}
+
+/// Print per-command help. Fallback to the full help on unknown names.
+func print_command_help(name str) {
+    if name == "build" || name == "check" {
+        print("Usage: koala " + name + " [options]")
+        print("")
+        print("Options:")
+        print("  -p, --package <name>    Select one package in the workspace")
+        print("      --workspace         Build every workspace member")
+        print("      --target <triple>   Cross-compile for a target triple")
+        print("  -j, --jobs <n>          Parallel build jobs (0 = auto)")
+        print("      --release           Build with the release profile")
+        print("      --all-targets       Also build tests and benches")
+        return
+    }
+    if name == "new" {
+        print("Usage: koala new <package|workspace> <name> [options]")
+        print("")
+        print("Options:")
+        print("      --lib               Create a library package")
+        print("      --path <dir>        Place the package in <dir>")
+        print("      --vcs <kind>        git (default) or none")
+        print("      --edition <year>    Set the package edition")
+        return
+    }
+    print_full_help()
+}
+
+/// Options shared by the build-family commands.
+class BuildOptions {
+    var release = false
+    var workspace = false
+    var all_targets = false
+    var package = ""
+    var target = ""
+    var jobs = 0
+    var path = "."
+}
+
+/// `koala build [--release] [-p PKG] [--workspace] [--target TRIPLE]`
+func cmd_build(argv list[str]) int {
+    let opts = BuildOptions()
+    let err = parse_build_options(argv, opts)
+    if !err.empty() {
+        print("wombat build: " + err)
+        return 2
+    }
+    // return driver.build(opts)
+    return 0
+}
+
+/// `koala check` — same options as `build`, skips codegen.
+func cmd_check(argv list[str]) int {
+    let opts = BuildOptions()
+    let err = parse_build_options(argv, opts)
+    if !err.empty() {
+        print("wombat check: " + err)
+        return 2
+    }
+    // return driver.check(opts)
+    return 0
+}
+
+/// `koala run [-- args...]` — same options as `build`, then exec.
+///
+/// Everything after a bare `--` is forwarded to the program rather
+/// than interpreted by the koala CLI itself.
+func cmd_run(argv list[str]) int {
+    let opts = BuildOptions()
+    let err = parse_build_options(argv, opts)
+    if !err.empty() {
+        print("wombat run: " + err)
+        return 2
+    }
+
+    // return driver.run(opts)
+    return 0
+}
+
+/// `koala test` — same build options, compiles and runs tests.
+func cmd_test(argv list[str]) int {
+    let opts = BuildOptions()
+    let err = parse_build_options(argv, opts)
+    if !err.empty() {
+        print("wombat test: " + err)
+        return 2
+    }
+    // return driver.test(opts)
+    return 0
+}
+
+/// Parse build-family options starting at argv[1].
+///
+/// Returns an empty string on success, or a message describing the
+/// first usage error. Unknown `-x` / `--xx` flags are reported instead
+/// of being silently ignored so that CI typos fail fast.
+func parse_build_options(argv list[str], opts BuildOptions) str {
+    print("Parsing build options...", argv)
+    var i = 1
+    while i < argv.len() {
+        let a = argv[i]
+
+        if a == "--release" {
+            opts.release = true
+        } else if a == "--workspace" {
+            opts.workspace = true
+        } else if a == "--all-targets" {
+            opts.all_targets = true
+        } else if a == "-p" || a == "--package" {
+            i += 1
+            if i >= argv.len() {
+                return "-p requires a package name"
+            }
+            opts.package = argv[i]
+        } else if a == "--target" {
+            i += 1
+            if i >= argv.len() {
+                return "--target requires a triple"
+            }
+            opts.target = argv[i]
+        } else if a == "-j" || a == "--jobs" {
+            i += 1
+            if i >= argv.len() {
+                return "-j requires a number"
+            }
+            // to_int() currently panics on bad input; replace with a
+            // non-panicking parse once the language exposes one.
+            opts.jobs = argv[i].to_int()
+        } else if a.starts_with("-") && a.len() > 1 {
+            return "unknown option '" + a + "'"
+        } else {
+            opts.path = a
+        }
+        i += 1
+    }
+    return ""
+}
+
+/// Options for `koala new`.
+class NewOptions {
+    var path = ""
+    var lib = false
+    var workspace = false
+    var vcs = "git"
+    var edition = ""
+}
+
+/// `koala new <package|workspace> <name> [options]`
+func cmd_new(argv list[str]) int {
+    if argv.len() < 2 {
+        print("wombat new: missing kind or name")
+        print("Usage: koala new <package|workspace> <name>")
+        return 2
+    }
+
+    let kind = argv[1]
+    if kind != "package" && kind != "workspace" {
+        print("wombat new: expected 'package' or 'workspace', got '" + kind + "'")
+        return 2
+    }
+
+    if argv.len() < 3 {
+        print("wombat new " + kind + ": missing name")
+        return 2
+    }
+
+    let name = argv[2]
+    let opts = NewOptions()
+    opts.workspace = (kind == "workspace")
+
+    var i = 3
+    while i < argv.len() {
+        let a = argv[i]
+        if a == "--lib" {
+            opts.lib = true
+        } else if a == "--path" {
+            i += 1
+            if i >= argv.len() {
+                print("wombat new: --path requires a directory")
+                return 2
+            }
+            opts.path = argv[i]
+        } else if a == "--vcs" {
+            i += 1
+            if i >= argv.len() {
+                print("wombat new: --vcs requires a value")
+                return 2
+            }
+            opts.vcs = argv[i]
+        } else if a == "--edition" {
+            i += 1
+            if i >= argv.len() {
+                print("wombat new: --edition requires a value")
+                return 2
+            }
+            opts.edition = argv[i]
+        } else if a.starts_with("-") {
+            print("wombat new: unknown option '" + a + "'")
+            return 2
+        } else {
+            print("wombat new: unexpected argument '" + a + "'")
+            return 2
+        }
+        i += 1
+    }
+
+    // return scaffold.new_project(name, opts)
+    return 0
+}
+
+/// `koala fmt [--check] [--workspace] [-p PKG]`
+func cmd_fmt(argv list[str]) int {
+    let opts = BuildOptions()
+    let err = parse_build_options(argv, opts)
+    if !err.empty() {
+        print("wombat fmt: " + err)
+        return 2
+    }
+    // return formatter.run(opts)
+    return 0
+}
+
+/// Stubs for commands that land in later milestones.
+func cmd_lint(argv list[str]) int {
+    print("wombat lint: not implemented yet")
+    return 1
+}
+
+func cmd_doc(argv list[str]) int {
+    print("wombat doc: not implemented yet")
+    return 1
+}
+
+func cmd_add(argv list[str]) int {
+    print("wombat add: not implemented yet")
+    return 1
+}
+
+func cmd_clean(argv list[str]) int {
+    print("wombat clean: not implemented yet")
+    return 1
+}

@@ -1,4 +1,75 @@
 
+let x Int = foo()              // ✅ 单变量标注
+let (a Int, b String) = t      // ✅ 元组元素标注
+let (a, b) = t                 // ✅ 推断
+
+if let x = optFoo() { }        // ✅ 不标
+if let (x, y) = optPair { }    // ✅ 不标，右边必须是optional的大小一样的元组
+
+while let x = xxx {}           // ✅ 不标
+while let (x, y) = optPair { } // ✅ 不标，右边必须是optional的大小一样的元组
+
+for x in arr { }               // ✅ 不标
+for (x, y) in pairs { }        // ✅ 不标，右边必须是非optional的大小一样的元组
+
+(x, y) = expr          // 解构赋值：x、y 必须是已存在的变量
+
+----------------------------
+
+let v (Int, String)? = ...
+if let (x, y) = v { }        // ✅ v 是 (Int, String)?，解包后 x: Int, y: String
+
+let w (Int?, String?) = ...
+if let (x, y) = w { }        // ❌ w 不是 Optional，应写 let (x, y) = w
+
+let u (Int?, String?)? = ...
+if let (x, y) = u { }        // ✅ 解包后 x: Int?, y: String?，元素 Optional 保留
+
+let t (Int, String)?? = ...
+if let (x, y) = t { }        // ❌ 解包一层是 (Int, String)?，不是元组
+
+
+let pairs [(Int, String)] = ...
+for (x, y) in pairs { }      // ✅ 元素是 (Int, String)，x: Int, y: String
+
+let optPairs [(Int, String)?] = ...
+for (x, y) in optPairs { }   // ❌ 元素是 Optional，不是元组
+for p in optPairs { if let (x, y) = p { } }  // ✅ 先绑定再解包
+
+let elemOpts [(Int?, String?)] = ...
+for (x, y) in elemOpts { }   // ✅ 元素是 (Int?, String?)，x: Int?, y: String?
+
+let maybeArr [(Int, String)]? = ...
+for (x, y) in maybeArr { }   // ❌ 右边是 Optional，需先解包
+
+
+let v (Int, String)? = ...
+(x, y) = v                    // ❌ 右边是 Optional
+
+let t (Int, String) = ...
+(x, y) = t                    // ✅ 非 Optional 元组
+
+
+let v (Int, String)? = ...
+if let (x, y, z) = v { }      // ❌ 解包后是二元组，左边三元组
+
+let arr [(Int, String, Bool)] = ...
+for (x, y) in arr { }         // ❌ 元素是三元组，左边二元组
+
+
+let v ((Int, String), Bool)? = ...
+if let ((x, y), z) = v { }    // ✅ x: Int, y: String, z: Bool
+if let (x, y) = v { }         // ❌ 解包后是 ((Int,String), Bool)，不是二元组
+
+
+let v (Int, String, Bool)? = ...
+if let (x, _, z) = v { }      // ✅ x: Int, z: Bool，至少绑定一个变量
+
+
+let (a Int, b) = t          // ✅ 只标 a，b 推断
+let (a Int, b String) = t   // ✅ 都标
+let (a, b) = t              // ✅ 都不标
+
 trait Hello {
     func hello() str
     func hi() str

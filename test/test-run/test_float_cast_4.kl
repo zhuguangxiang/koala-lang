@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=code | filecheck %s
+// RUN: koala %s ++ --dump=code | filecheck %s
 
 func to_int(f float64) int {
     return int(f)

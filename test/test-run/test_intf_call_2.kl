@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir,lir | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir,lir | filecheck %s
 
 trait Fly {
     func fly() str

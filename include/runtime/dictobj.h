@@ -22,17 +22,10 @@ extern TypeObject dict_type;
 
 Object *kl_new_dict(void);
 
-/* Register the native methods of 'DictKeysIter' (std/builtin/dict.kl). */
-void dict_keys_iter_register(NativeLib *lib);
-
-/* Register the native methods of 'DictValuesIter' (std/builtin/dict.kl). */
-void dict_values_iter_register(NativeLib *lib);
-
-/* Register the native methods of 'DictViewIter' (std/builtin/dict.kl). */
-void dict_view_iter_register(NativeLib *lib);
-
-/* Register the native methods of 'DictRevIter' (std/builtin/dict.kl). */
-void dict_rev_iter_register(NativeLib *lib);
+extern TypeObject dict_keys_iter_type;
+extern TypeObject dict_values_iter_type;
+extern TypeObject dict_view_iter_type;
+extern TypeObject dict_rev_iter_type;
 
 #ifdef __cplusplus
 }

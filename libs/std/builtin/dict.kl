@@ -116,15 +116,10 @@ class DictKeys[K, V] : Iterable[K] {
 
 /// Iterator over dict keys in insertion order.
 class DictKeysIter[K, V] : Iterator[K] {
-    /// internal reference to the underlying dictionary and step size.
-    let _dict dict[K, V]
-    /// Step size for iteration.
-    let _step int
-    /// index of the next key to yield, in insertion order.
-    var _pos int
 
     /// Initialize the DictKeysIter with the given dictionary and step size.
-    func __init__(d dict[K, V], step int) { _dict = d; _step = step; _pos = 0; }
+    @native
+    func __init__(d dict[K, V], step int) {}
 
     /// Return true if there are more keys to iterate over.
     @native
@@ -153,15 +148,10 @@ class DictValues[K, V] : Iterable[V] {
 
 /// Iterator over dict values in insertion order.
 class DictValuesIter[K, V] : Iterator[V] {
-    /// internal reference to the underlying dictionary and step size.
-    let _dict dict[K, V]
-    /// Step size for iteration.
-    let _step int
-    /// index of the next value to yield, in insertion order.
-    let _pos int
 
     /// Initialize the DictValuesIter with the given dictionary and step size.
-    func __init__(d dict[K, V], step int) { _dict = d; _step = step; _pos = 0; }
+    @native
+    func __init__(d dict[K, V], step int) {}
 
     /// Return true if there are more values to iterate over.
     @native
@@ -191,15 +181,10 @@ class DictView[K, V] : Iterable[(K, V)] {
 /// Iterator over dict items in insertion order.
 /// Used by `DictItems` and `dict.iter()` to provide iteration functionality.
 class DictViewIter[K, V] : Iterator[(K, V)] {
-    /// internal reference to the underlying dictionary and step size.
-    let _dict dict[K, V]
-    /// Step size for iteration.
-    let _step int
-    /// index of the next item to yield, in insertion order.
-    let _pos int
 
     /// Initialize the DictViewIter with the given dictionary and step size.
-    func __init__(d dict[K, V], step int) { _dict = d; _step = step; _pos = 0; }
+    @native
+    func __init__(d dict[K, V], step int) {}
 
     /// Return true if there are more items to iterate over.
     @native
@@ -217,15 +202,10 @@ class DictViewIter[K, V] : Iterator[(K, V)] {
 /// Iterator over dict items in reverse insertion order.
 /// Used by `dict.reversed()` to provide reverse iteration functionality.
 class DictRevIter[K, V] : Iterator[(K, V)] {
-    /// internal reference to the underlying dictionary and step size.
-    let _dict dict[K, V]
-    /// Step size for iteration.
-    let _step int
-    /// index of the next item to yield, in reverse insertion order.
-    let _pos int
 
     /// Initialize the DictRevIter with the given dictionary and step size.
-    func __init__(d dict[K, V], step int) { _dict = d; _step = step; _pos = _dict.len() - 1; }
+    @native
+    func __init__(d dict[K, V], step int) {}
 
     /// Return true if there are more items to iterate over.
     @native

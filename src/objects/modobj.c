@@ -37,7 +37,7 @@ TypeObject module_type = {
     ._type = &type_type,
     .name = "module",
     .flags = TP_FLAGS_CLASS,
-    .priv_size = sizeof(ModuleObject),
+    .objsize = sizeof(ModuleObject),
 };
 
 int kl_mo_add_func(Object *_m, char *name, Object *obj)

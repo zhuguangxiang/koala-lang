@@ -1,0 +1,96 @@
+// RUN:
+
+// Tests for koala command-line parsing (kl_parse_args).
+//
+// Layout parsed by the VM:
+//   koala [VM options] <script.kl> [script args] [++ VM options]
+//
+//   - Stage 1: VM options before the script path.
+//   - Stage 2: locate the "++" delimiter.
+//   - Stage 3: copy script args (before getopt permutes argv).
+//   - Stage 4: VM options after "++"; unknown options fail.
+//
+// The test script prints one line per script argument:
+//   argc=<n>
+//   arg=<value>   (one per arg)
+
+// Case 1: script with no arguments.
+// RUN: %koala %S/inputs/args.kl | filecheck %s --check-prefix=EMPTY
+// EMPTY: argc=0
+
+// Case 2: VM option before the script path is consumed by the VM.
+// RUN: %koala --dump=code %S/inputs/args.kl | filecheck %s --check-prefix=PRE
+// PRE: argc=0
+
+// Case 3: VM option before the script, script args after.
+// RUN: %koala --dump=code %S/inputs/args.kl --lib --path /tmp/demo | filecheck %s --check-prefix=PARGS
+// PARGS: argc=3
+// PARGS-NEXT: arg=--lib
+// PARGS-NEXT: arg=--path
+// PARGS-NEXT: arg=/tmp/demo
+
+// Case 4: without "++", a VM-known option after the script belongs to the script.
+// RUN: %koala %S/inputs/args.kl --dump=code | filecheck %s --check-prefix=SDUMP
+// SDUMP: argc=1
+// SDUMP-NEXT: arg=--dump=code
+
+// Case 5: "++" splits script args from VM options.
+// RUN: %koala %S/inputs/args.kl --lib --path /tmp/demo ++ --dump=code | filecheck %s --check-prefix=DELIM
+// DELIM: argc=3
+// DELIM-NEXT: arg=--lib
+// DELIM-NEXT: arg=--path
+// DELIM-NEXT: arg=/tmp/demo
+
+// Case 6: multiple VM options after "++".
+// RUN: %koala %S/inputs/args.kl foo ++ --dump=ast --ssa | filecheck %s --check-prefix=DMULTI
+// DMULTI: argc=1
+// DMULTI-NEXT: arg=foo
+
+// Case 7: "++" with nothing after it.
+// RUN: %koala %S/inputs/args.kl foo ++ | filecheck %s --check-prefix=DEMPTY
+// DEMPTY: argc=1
+// DEMPTY-NEXT: arg=foo
+
+// Case 8: "++" with no script args before it.
+// RUN: %koala %S/inputs/args.kl ++ --dump=code | filecheck %s --check-prefix=DNOARGS
+// DNOARGS: argc=0
+
+// Case 9: unknown option after "++" must fail.
+// RUN: not %koala %S/inputs/args.kl ++ --bogus > /dev/null 2>&1
+
+// Case 9b: error message for unknown option after "++".
+// RUN: not %koala %S/inputs/args.kl ++ --bogus 2>&1 | filecheck %s --check-prefix=DERR
+// DERR: {{[Uu]nrecognized option}}
+
+// Case 10: positional argument after "++" must fail.
+// RUN: not %koala %S/inputs/args.kl ++ foo > /dev/null 2>&1
+
+// Case 11: no script path must fail and print usage.
+// RUN: not %koala > /dev/null 2>&1
+// RUN: not %koala 2>&1 | filecheck %s --check-prefix=NOSCRIPT
+// NOSCRIPT: {{[Uu]sage}}
+
+// Case 12: only VM options, no script path.
+// RUN: not %koala --dump=code > /dev/null 2>&1
+// RUN: not %koala --dump=code 2>&1 | filecheck %s --check-prefix=ONLYOPTS
+// ONLYOPTS: {{[Uu]sage}}
+
+// Case 13: VM options both before the script and after "++".
+// RUN: %koala --dump=code %S/inputs/args.kl --lib ++ --ssa | filecheck %s --check-prefix=BOTH
+// BOTH: argc=1
+// BOTH-NEXT: arg=--lib
+
+// Case 14: many script args pass through unchanged.
+// RUN: %koala %S/inputs/args.kl a b c d e | filecheck %s --check-prefix=MANY
+// MANY: argc=5
+// MANY-NEXT: arg=a
+// MANY-NEXT: arg=b
+// MANY-NEXT: arg=c
+// MANY-NEXT: arg=d
+// MANY-NEXT: arg=e
+
+// Case 15: flags with "=" and flags without both pass through.
+// RUN: %koala %S/inputs/args.kl --foo=1 --bar | filecheck %s --check-prefix=EQUALS
+// EQUALS: argc=2
+// EQUALS-NEXT: arg=--foo=1
+// EQUALS-NEXT: arg=--bar

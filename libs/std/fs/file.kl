@@ -31,6 +31,7 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     /// Private constructor.
     ///
     /// User cannot directly create instances of this class.
+    @native
     func __init__() {}
 
     /// Read up to `bs.len()` bytes into `bs` and return the count read.

@@ -551,9 +551,10 @@ Symbol *stbl_get(HashMap *stbl, char *name)
 
 void stbl_show(HashMap *stbl)
 {
-    HashMapIter it = { 0 };
-    while (hashmap_next(stbl, &it)) {
-        Symbol *sym = (Symbol *)it.entry;
+    HashMapIter it;
+    hashmap_iter_init(stbl, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        Symbol *sym = hashmap_iter_entry(&it);
         switch (sym->kind) {
             case SYM_VAR: {
                 VarSymbol *var = (VarSymbol *)sym;
@@ -668,9 +669,10 @@ void build_intf_table(HashMap *stbl)
 {
     log_info("building interface table for classes...");
 
-    HashMapIter it = { 0 };
-    while (hashmap_next(stbl, &it)) {
-        Symbol *sym = (Symbol *)it.entry;
+    HashMapIter it;
+    hashmap_iter_init(stbl, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        Symbol *sym = (Symbol *)hashmap_iter_entry(&it);
         if (sym->kind != SYM_CLASS) continue;
         build_class_intf_table(sym);
     }
@@ -740,9 +742,10 @@ void dump_intf_table(HashMap *stbl)
 {
     printf("\n");
 
-    HashMapIter it = { 0 };
-    while (hashmap_next(stbl, &it)) {
-        Symbol *sym = (Symbol *)it.entry;
+    HashMapIter it;
+    hashmap_iter_init(stbl, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        Symbol *sym = (Symbol *)hashmap_iter_entry(&it);
         if (sym->kind != SYM_CLASS) continue;
         KlassSymbol *kls = (KlassSymbol *)sym;
         dump_class_intf_table(sym);

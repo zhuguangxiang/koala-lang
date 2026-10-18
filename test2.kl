@@ -4,8 +4,14 @@
 // let pairs = (("a", 1), ("b", 2), ("c", 3))
 // print(pairs)
 
-func UNREACHABLE() {}
-
 func main() {
-    UNREACHABLE()
+    let d = dict[int, str]()
+    d[10] = "a"
+    d[20] = "b"
+    d[30] = "c"
+
+    let it = d.reversed(1)
+    print(it.has_next())
+    let kv1 = it.next_strict()
+    print(kv1)
 }

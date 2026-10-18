@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
 
 // @specialized(int, float)
 // class Foo[T: Arithmetic, U] : Sequence[T] {

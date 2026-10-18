@@ -189,9 +189,9 @@ def execute_compile_workspace(ws_dir, output_dir):
             if pkg["options"]:
                 cmd.extend(pkg["options"])
 
+        cmd.append(f"--package-name={pkg_name}")
         base_dir = os.path.dirname(os.path.abspath(ws_dir))
         cmd.append(os.path.relpath(pkg["dir_path"], base_dir))
-        cmd.append(f"--package-name={pkg_name}")
 
         print(f"🚀 Running: {' '.join(cmd)}")
         try:

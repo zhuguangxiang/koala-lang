@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir,lir,code | filecheck %s
+// RUN: koala --dump=no-opt-ir,lir,code %s | filecheck %s
 
 func show(cond bool, msg str?) {
     if cond == false {

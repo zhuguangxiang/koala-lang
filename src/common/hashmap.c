@@ -239,57 +239,48 @@ void *hashmap_remove(HashMap *self, void *key)
     return e;
 }
 
-int hashmap_next(HashMap *self, HashMapIter *it)
+int hashmap_iter_init(HashMap *self, HashMapIter *it, int reverse, int step)
 {
-    if (!self || !self->entries) return 0;
+    if (!self || !it) return -1;
 
-    HashMapEntry *next;
-    if (!it->state) {
-        next = list_first(&self->ord_list, HashMapEntry, ord_node);
-        if (!next) return 0;
+    ASSERT(step > 0);
 
-        it->entry = next;
-        it->next = list_next(next, ord_node, &self->ord_list);
-        it->state = 1;
-        return 1;
+    it->reverse = reverse;
+    it->step = step;
+    it->map = self;
+    it->entry = NULL;
+
+    if (it->reverse) {
+        it->next = list_last(&self->ord_list, HashMapEntry, ord_node);
+    } else {
+        it->next = list_first(&self->ord_list, HashMapEntry, ord_node);
     }
 
-    next = it->next;
-    if (!next) {
-        it->entry = NULL;
-        it->state = 0;
-        return 0;
-    }
-
-    it->entry = next;
-    it->next = list_next(next, ord_node, &self->ord_list);
-    return 1;
+    return 0;
 }
 
-int hashmap_prev(HashMap *self, HashMapIter *it)
+int hashmap_iter_next(HashMapIter *it)
 {
-    if (!self || !self->entries) return 0;
-
-    HashMapEntry *next;
-    if (!it->state) {
-        next = list_last(&self->ord_list, HashMapEntry, ord_node);
-        if (!next) return 0;
-
-        it->entry = next;
-        it->next = list_prev(next, ord_node, &self->ord_list);
-        it->state = 1;
-        return 1;
-    }
-
-    next = it->next;
+    HashMapEntry *next = it->next;
     if (!next) {
         it->entry = NULL;
-        it->state = 0;
         return 0;
     }
 
+    HashMap *self = it->map;
     it->entry = next;
-    it->next = list_prev(next, ord_node, &self->ord_list);
+
+    for (int i = 0; i < it->step; ++i) {
+        if (it->reverse) {
+            next = list_prev(next, ord_node, &self->ord_list);
+        } else {
+            next = list_next(next, ord_node, &self->ord_list);
+        }
+        if (!next) break;
+    }
+
+    it->next = next;
+
     return 1;
 }
 

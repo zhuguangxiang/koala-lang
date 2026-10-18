@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=code | filecheck %s
+// RUN: koala %s ++ --dump=code | filecheck %s
 
 // Probe for top-level for-in fix: __init__ must end with ret_void,
 // otherwise pc falls through into the loop body after the loop ends.

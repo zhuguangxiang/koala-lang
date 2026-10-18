@@ -960,7 +960,7 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
 
 - **os**：环境变量 `getenv` / `setenv` / `unsetenv`（C 实现）；`system` / `run` + `Process`（`stdin` / `stdout` / `stderr` / `pid` / `wait` / `kill`）+ `PipeReader` / `PipeWriter`——进程 I/O 全部落在 io trait 上，与 fs 解耦（声明已并入构建；native 实现欠账见 Koala_TODO §16）。
 - **time**：`now` / `monotonic` / `sleep` / `sleep_until` / `unix_secs` / `unix_nanos`；`Instant`（epoch_ns + 时钟域，跨时钟域运算 / 比较 panic）、`Duration`（`from_secs` / `from_millis` / `from_micros` / `from_nanos`、算术、`__str__` 自适应单位）。
-- **sys**：缓冲标准流 `stdin` / `stdout` / `stderr`（`fs.open(0/1/2)!` 之上包 `BufReader` / `BufWriter`）、`args()`、`version`、模块搜索 `path`（`KOALA_PATH` 种子）。
+- **sys**：缓冲标准流 `stdin` / `stdout` / `stderr`（`fs.open(0/1/2)!` 之上包 `BufReader` / `BufWriter`）、`args()`、`version`、模块搜索 `path`（`KOALA_PATH` 种子）、`exit(code = 0)`——立即终止进程，不返回、不 flush Koala 层缓冲（`print` 自带 flush 不受影响；`BufWriter` 需调用前显式 `flush()`）；学 Python `sys.exit` 的归属位置，但语义是立即终止而非抛可捕获异常。
 
 ### 8.12 top-level prelude 包（std/prelude）
 

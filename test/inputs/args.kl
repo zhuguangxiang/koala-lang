@@ -1,0 +1,9 @@
+import "std/sys"
+
+func main() {
+    let args = sys.args()
+    print("argc=" + str(args.len()))
+    for a in args {
+        print("arg=" + a)
+    }
+}

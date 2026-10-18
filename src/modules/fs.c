@@ -193,7 +193,6 @@ static TypeObject file_type = {
     ._type = &type_type,
     .name = "File",
     .flags = TP_FLAGS_CLASS,
-    .priv_size = 0,
     .methdefs =
         (MethodDef[]){
             { "read", file_read },

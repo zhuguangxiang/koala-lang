@@ -321,7 +321,7 @@ TypeObject fmt_type = {
     ._type = &type_type,
     .name = "Formatter",
     .flags = TP_FLAGS_CLASS,
-    .priv_size = sizeof(Formatter),
+    .objsize = sizeof(Formatter),
     .methdefs =
         (MethodDef[]){
             { "write_fmt", _fmt_write_fmt },

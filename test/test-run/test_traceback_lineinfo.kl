@@ -1,4 +1,4 @@
-// RUN: ! koala %s --test 2>&1 | filecheck %s
+// RUN: ! koala %s ++ --test 2>&1 | filecheck %s
 
 // Function f1 triggers panic
 func f1() {

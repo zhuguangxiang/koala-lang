@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=code | filecheck %s
+// RUN: koala %s ++ --dump=code | filecheck %s
 
 func main() {
     for v in (1,2,3) {

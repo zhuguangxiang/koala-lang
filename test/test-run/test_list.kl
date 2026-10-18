@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir,code | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir,code | filecheck %s
 
 func new_list(x int) list[int] {
     let l = [100, 200]

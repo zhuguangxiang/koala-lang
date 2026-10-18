@@ -181,9 +181,10 @@ static void build_class_types(HashMap *stbl)
     TypeSpec *type_ts = type_type_spec();
     TypeSpec *ts;
 
-    HashMapIter it = { 0 };
-    while (hashmap_next(stbl, &it)) {
-        Symbol *sym = (Symbol *)it.entry;
+    HashMapIter it;
+    hashmap_iter_init(stbl, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        Symbol *sym = hashmap_iter_entry(&it);
         if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) continue;
         if (sym->ts) continue; // already built
 

@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir,code | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir,code | filecheck %s
 
 func foo(x int) int {
     return x

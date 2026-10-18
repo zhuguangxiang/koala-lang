@@ -333,9 +333,10 @@ KlrValue *klr_get_local_var(KlrBasicBlock *bb, KlrInsn *local)
 int klr_clear_local_var_map(KlrBasicBlock *bb)
 {
     HashMap *map = &bb->local_var_map;
-    HashMapIter it = { 0 };
-    while (hashmap_next(map, &it)) {
-        LocalVarMapEntry *e = (LocalVarMapEntry *)it.entry;
+    HashMapIter it;
+    hashmap_iter_init(map, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        LocalVarMapEntry *e = (LocalVarMapEntry *)hashmap_iter_entry(&it);
         e->val = NULL;
         e->move = NULL;
     }

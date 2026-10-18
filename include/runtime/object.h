@@ -24,16 +24,16 @@ extern "C" {
     /* object's meta type object */ \
     struct _TypeObject *_type; \
     /* Size of the Koala-visible fields (dynamic size) */ \
-    size_t _size;
+    size_t _nfields;
 
 typedef struct _Object {
     OBJECT_HEAD
 } Object;
 
 /* Assigns the type of a newly allocated object. */
-#define INIT_OBJECT_HEAD(ob, type, size) \
+#define INIT_OBJECT_HEAD(ob, type, nfields) \
     (ob)->_type = (type); \
-    (ob)->_size = (size);
+    (ob)->_nfields = (nfields);
 
 /** Retrieve the TypeObject of any Koala object. */
 #define OB_TYPE(ob) ((ob)->_type)
@@ -199,7 +199,7 @@ typedef struct _InstObject {
 
 Object *kl_new_instance(struct _TypeObject *tp);
 void kl_free_instance(Object *obj);
-#define NR_FIELDS(obj) ((obj)->_size)
+#define NR_FIELDS(obj) ((obj)->_nfields)
 
 /*---------------------------------------------------------------------------+
  |  Type Object                                                              |
@@ -214,7 +214,9 @@ typedef struct _MethodDef {
     NativeFunc cfunc;
 } MethodDef;
 
-typedef void (*GcMarkFunc)(Object *self);
+typedef Object *(*AllocFunc)(struct _TypeObject *tp);
+typedef void (*FreeFunc)(Object *self);
+typedef void (*MarkFunc)(Object *self);
 typedef TValue (*CallFunc)(TValue *self, TValue *args, int nargs);
 
 #define TP_FLAGS_VALUE (1 << 0)
@@ -247,14 +249,18 @@ typedef struct _TypeObject {
 
     /* Type name */
     char *name;
-    /* size of the C-private opaque payload appended to each object */
-    uint32_t priv_size;
+    /* size of the object */
+    uint32_t objsize;
     /* TP_FLAGS_XXX */
     uint16_t flags;
     /* tag value for TP_FLAGS_VALUE */
     uint16_t tag;
-    /* gc mark */
-    GcMarkFunc gc_mark;
+    /* alloc function */
+    AllocFunc _alloc;
+    /* free function */
+    FreeFunc _free;
+    /* gc mark function */
+    MarkFunc _mark;
 
     /* fields */
     Vector fields;
@@ -293,16 +299,6 @@ static inline Object *to_obj(TValue *v)
     if (is_ref(v)) return v->obj;
     return intf_to_obj(v);
 }
-
-#define DEFINE_TYPE(_name, _flags, _priv_size, _methods, _gc_mark) \
-    TypeObject _name##_type = { \
-        ._type = &type_type, \
-        .name = #_name, \
-        .flags = (_flags), \
-        .priv_size = (_priv_size), \
-        .methdefs = (_methods), \
-        .gc_mark = (_gc_mark), \
-    }
 
 /*---------------------------------------------------------------------------+
  |  Field Object                                                             |

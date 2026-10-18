@@ -1376,7 +1376,13 @@ static MethodDef _str_methods[] = {
 };
 
 /* pub class str : Sequence & Comparable { ... } */
-DEFINE_TYPE(str, TP_FLAGS_CLASS, sizeof(StringObject), _str_methods, NULL);
+TypeObject str_type = {
+    ._type = &type_type,
+    .name = "str",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(StringObject),
+    .methdefs = _str_methods,
+};
 
 static StringObject empty_str = {
     ._type = &str_type,

@@ -94,9 +94,22 @@ TypeObject *kl_new_type(char *name, int flags)
 
 Object *kl_new_instance(struct _TypeObject *tp)
 {
+    // 1. If the type has a custom allocation function, use it.
+    if (tp->_alloc) return tp->_alloc(tp);
+
+    // 2. Calculate the memory size for the instance based on objsize or number of fields.
     size_t nfields = vector_size(&tp->fields);
-    int msize = sizeof(InstObject) + sizeof(TValue) * nfields;
-    msize += tp->priv_size;
+
+    size_t msize;
+
+    if (tp->objsize > 0) {
+        // 2.1 If objsize is specified, use it as the memory size for the instance.
+        msize = tp->objsize;
+    } else {
+        // 2.2 Otherwise, calculate the memory size based on the number of fields.
+        msize = sizeof(InstObject) + sizeof(TValue) * nfields;
+    }
+
     Object *obj = mm_alloc(msize);
     INIT_OBJECT_HEAD(obj, tp, nfields);
     return obj;

@@ -192,9 +192,11 @@ static void do_trait_inherit_methods(KlassSymbol *sym)
 
 static void fixup_traits_inherited_methods(HashMap *stbl)
 {
-    HashMapIter it = { 0 };
-    while (hashmap_next(stbl, &it)) {
-        Symbol *sym = (Symbol *)it.entry;
+    HashMapIter it;
+    hashmap_iter_init(stbl, &it, 0, 1);
+
+    while (hashmap_iter_next(&it)) {
+        Symbol *sym = hashmap_iter_entry(&it);
         if (sym->kind != SYM_TRAIT) continue;
         do_trait_inherit_methods((KlassSymbol *)sym);
     }

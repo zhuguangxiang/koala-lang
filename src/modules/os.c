@@ -238,7 +238,7 @@ static TypeObject raw_reader_type = {
     ._type = &type_type,
     .name = "RawReader",
     .flags = TP_FLAGS_CLASS,
-    .priv_size = sizeof(RawObject),
+    .objsize = sizeof(RawObject),
     .methdefs = raw_reader_methods,
 };
 
@@ -365,7 +365,7 @@ static TypeObject raw_writer_type = {
     ._type = &type_type,
     .name = "RawWriter",
     .flags = TP_FLAGS_CLASS,
-    .priv_size = sizeof(RawObject),
+    .objsize = sizeof(RawObject),
     .methdefs = raw_writer_methods,
 };
 
@@ -591,7 +591,7 @@ static TypeObject process_type = {
     ._type = &type_type,
     .name = "Process",
     .flags = TP_FLAGS_CLASS,
-    .priv_size = sizeof(Process),
+    .objsize = sizeof(Process),
     .methdefs = process_methods,
 };
 

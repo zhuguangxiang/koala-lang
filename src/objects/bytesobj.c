@@ -744,7 +744,13 @@ static MethodDef bytes_methods[] = {
 };
 
 /* pub class bytes : Sequence[uint8] { ... } */
-DEFINE_TYPE(bytes, TP_FLAGS_CLASS, 2 * sizeof(uint32_t) + sizeof(uint8_t *), bytes_methods, NULL);
+TypeObject bytes_type = {
+    ._type = &type_type,
+    .name = "bytes",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = (sizeof(BytesObject)),
+    .methdefs = (bytes_methods),
+};
 
 Object *kl_new_bytes(uint32_t size)
 {

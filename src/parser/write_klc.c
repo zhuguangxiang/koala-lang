@@ -257,9 +257,10 @@ static void write_meta_klass(KlassSymbol *kls_sym, KlcFile *klc)
 static void write_meta(HashMap *stbl, KlcFile *klc)
 {
     // write global variables, functions and classes&traits
-    HashMapIter it = { 0 };
-    while (hashmap_next(stbl, &it)) {
-        Symbol *sym = (Symbol *)it.entry;
+    HashMapIter it;
+    hashmap_iter_init(stbl, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        Symbol *sym = (Symbol *)hashmap_iter_entry(&it);
         switch (sym->kind) {
             case SYM_VAR: {
                 VarSymbol *var = (VarSymbol *)sym;
@@ -303,9 +304,10 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
     }
 
     // write interface table for each class
-    HashMapIter it2 = { 0 };
-    while (hashmap_next(stbl, &it2)) {
-        Symbol *sym = (Symbol *)it2.entry;
+    HashMapIter it2;
+    hashmap_iter_init(stbl, &it2, 0, 1);
+    while (hashmap_iter_next(&it2)) {
+        Symbol *sym = (Symbol *)hashmap_iter_entry(&it2);
         if (sym->kind != SYM_CLASS) continue;
         // add interface table
         KlassSymbol *kls_sym = (KlassSymbol *)sym;

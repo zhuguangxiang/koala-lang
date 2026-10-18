@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "*.kl": "swift",
+        "wombat": "swift",
         "*.y": "yacc",
         "*.h": "c",
         "cstdlib": "cpp",
@@ -181,13 +182,13 @@
             }
         ]
     },
-    "terminal.integrated.fontSize": 15,
+    "terminal.integrated.fontSize": 14,
     // "terminal.integrated.fontWeight": "100",
     "cmake.buildDirectory": "${workspaceFolder}/build/debug",
     "cmake.options.statusBarVisibility": "icon",
     "editor.cursorSurroundingLines": 0,
     "cmake.setBuildTypeOnMultiConfig": true,
-    "editor.accessibilityPageSize": 15,
+    "editor.accessibilityPageSize": 14,
     "C_Cpp.errorSquiggles": "disabled",
     "dateTime.use24HourClock": false,
     "dateTime.showAMPM": true,

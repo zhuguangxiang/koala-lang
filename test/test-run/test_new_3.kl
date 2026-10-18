@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir --package-name=z | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir --package-name=z | filecheck %s
 
 class BAR {
     var x = 100

@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir,lir | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir,lir | filecheck %s
 
 func foo(r range) {
     print(r.start, r.end, r.step)

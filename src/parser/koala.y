@@ -1333,6 +1333,24 @@ let_decl
         yy_clear_ok;
         $$ = NULL;
     }
+    | LET '(' id2_list ')' '=' expr
+    {
+        NYI();
+    }
+    | LET '(' id_type_2_list ')' '=' expr
+    {
+        NYI();
+    }
+    ;
+
+id2_list
+    : ID ',' ID
+    | id2_list ',' ID
+    ;
+
+id_type_2_list
+    : ID optional_type ',' ID optional_type
+    | id_type_2_list ',' ID optional_type
     ;
 
 const_decl
@@ -1477,6 +1495,14 @@ var_decl
         kl_error(loc(@5), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
+    }
+    | VAR '(' id2_list ')' '=' expr
+    {
+        NYI();
+    }
+    | VAR '(' id_type_2_list ')' '=' expr
+    {
+        NYI();
     }
     ;
 
@@ -2311,6 +2337,10 @@ assignment
         yy_clear_ok;
         $$ = NULL;
     }
+    | tuple_expr assign_operator expr
+    {
+        NYI();
+    }
     ;
 
 assign_left_expr
@@ -2429,6 +2459,30 @@ if_stmt
         $$ = stmt_from_if_let(&id, $6, $8, $9);
         stmt_set_loc($$, lloc(@1, @9));
     }
+    | IF LET ID type '=' expr block elseif_stmt
+    {
+        NYI();
+    }
+    | IF '(' LET ID type '=' expr ')' block elseif_stmt
+    {
+        NYI();
+    }
+    | IF LET '(' id2_list ')' '=' expr block elseif_stmt
+    {
+        NYI();
+    }
+    | IF '(' LET '(' id2_list ')' '=' expr ')' block elseif_stmt
+    {
+        NYI();
+    }
+    | IF LET '(' id_type_2_list ')' '=' expr block elseif_stmt
+    {
+        NYI();
+    }
+    | IF '(' LET '(' id_type_2_list ')' '=' expr ')' block elseif_stmt
+    {
+        NYI();
+    }
     ;
 
 elseif_stmt
@@ -2465,6 +2519,30 @@ while_stmt
         $$ = stmt_from_while_let(&id, $6, $8);
         stmt_set_loc($$, lloc(@1, @8));
     }
+    | WHILE LET ID type '=' expr block
+    {
+        NYI();
+    }
+    | WHILE '(' LET ID type '=' expr ')' block
+    {
+        NYI();
+    }
+    | WHILE LET '(' id2_list ')' '=' expr block
+    {
+        NYI();
+    }
+    | WHILE '(' LET '(' id2_list ')' '=' expr ')' block
+    {
+        NYI();
+    }
+    | WHILE LET '(' id_type_2_list ')' '=' expr block
+    {
+        NYI();
+    }
+    | WHILE '(' LET '(' id_type_2_list ')' '=' expr ')' block
+    {
+        NYI();
+    }
     | LOOP block
     {
         $$ = stmt_from_while(NULL, $2);
@@ -2482,6 +2560,14 @@ for_stmt
     {
         $$ = stmt_from_for($3, $6, $7);
         stmt_set_loc($$, lloc(@1, @7));
+    }
+    | FOR id_type_2_list IN expr block
+    {
+        NYI();
+    }
+    | FOR '(' id_type_2_list ')' IN expr block
+    {
+        NYI();
     }
     ;
 

@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=no-opt-ir,lir | filecheck %s
+// RUN: koala --dump=no-opt-ir,lir %s | filecheck %s
 
 func hello(name str) str {
     return name

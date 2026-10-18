@@ -1,4 +1,4 @@
-// RUN: koala %s --dump=lir | filecheck %s
+// RUN: koala %s ++ --dump=lir | filecheck %s
 
 func test_float(n float16) float32 {
     return float32(n + 1.5)
