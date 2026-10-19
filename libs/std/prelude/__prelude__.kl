@@ -64,5 +64,22 @@ pub func print(objs ..., sep = " ", end = "\n") {
 /// Returns the number of bytes written.
 pub func fprintf(w io.Writer, fmt str, args ...) int {
     let s = format(fmt, args)
-    return w.write_str(s)
+    let n = w.write_str(s)
+    w.flush()
+    return n
+}
+
+/// Format `args` according to `fmt` and print the result to stdout.
+///
+/// Examples
+///
+/// ```kl
+/// printf("Hello, {}!", "world")
+/// printf("x = {}, y = {}", 10, 20)
+/// ```
+pub func printf(fmt str, args ...) {
+    let w = sys.stdout
+    let s = format(fmt, args)
+    w.write_str(s)
+    w.flush()
 }
