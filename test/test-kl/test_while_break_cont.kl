@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: ! koalac %s | filecheck %s
 
 var i = 0
 

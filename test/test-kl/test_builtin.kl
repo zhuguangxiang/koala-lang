@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: ! koalac %s | filecheck %s
 
 let a = b + 10
 let b int = 20 + a

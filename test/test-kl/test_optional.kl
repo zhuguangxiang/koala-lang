@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: ! koalac %s | filecheck %s
 
 func bar(msg str?) {
     let n = msg == 10

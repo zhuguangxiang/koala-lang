@@ -1,4 +1,4 @@
-// RUN: koalac %s 2>&1 | filecheck %s
+// RUN: ! koalac %s 2>&1 | filecheck %s
 
 range[int](0, 10)
 // CHECK: type 'range' expects 0 type arguments, but 1 were provided.

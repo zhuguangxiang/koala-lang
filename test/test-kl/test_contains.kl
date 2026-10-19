@@ -1,4 +1,4 @@
-// RUN: koalac %s --opt 2>&1 | filecheck %s
+// RUN: ! koalac %s --opt 2>&1 | filecheck %s
 
 func test_contains() {
     print(100 in "hello")

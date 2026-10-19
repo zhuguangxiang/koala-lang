@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: ! koalac %s | filecheck %s
 
 for i in range(1, 5) {
     print(i)

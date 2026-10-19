@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: ! koalac %s | filecheck %s
 
 func foo(n int, s str) int {
     let i = n

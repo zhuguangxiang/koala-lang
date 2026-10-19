@@ -1,0 +1,10 @@
+/*
+ * demo/math — extra arithmetic helpers, in a second source file.
+ * Confirms `wombat build` compiles every `.kl` under `src/`,
+ * not just the entry file.
+ */
+
+/// Return a * b.
+pub func mul(a int, b int) int {
+    return a * b
+}

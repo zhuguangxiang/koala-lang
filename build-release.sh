@@ -10,3 +10,8 @@ cmake -G Ninja ../.. \
 cmake --build . --target clean
 cmake --build . --target all
 cmake --build . --target install
+
+cd ../..
+
+koala -c --package-name=wombat_build wombat_build.kl
+koala -c --package-name=wombat_test wombat_test.kl

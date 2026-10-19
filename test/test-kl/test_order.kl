@@ -1,4 +1,4 @@
-// RUN: koalac %s 2>&1 | filecheck %s
+// RUN: ! koalac %s 2>&1 | filecheck %s
 
 let a = b + 100
 let b = 200

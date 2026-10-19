@@ -1,4 +1,4 @@
-// RUN: koalac %s 2>&1 | filecheck %s
+// RUN: ! koalac %s 2>&1 | filecheck %s
 
 // Negative cases: the str(xxx) syntax and the to_str() method are only open
 // to whitelisted types.

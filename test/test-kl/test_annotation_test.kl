@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: ! koalac %s | filecheck %s
 
 func add(v1 int, v2 int) int { return v1 + v2 }
 

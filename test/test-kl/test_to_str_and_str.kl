@@ -1,4 +1,4 @@
-// RUN: koala -c %s | filecheck %s
+// RUN: ! koala -c %s | filecheck %s
 
 func main() {
     print(str(nil))

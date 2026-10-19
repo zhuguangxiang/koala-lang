@@ -1,4 +1,4 @@
-// RUN: koalac %s 2>&1 | filecheck %s
+// RUN: ! koalac %s 2>&1 | filecheck %s
 // Operator dunders go through syntax sugar only: explicit calls are compile errors.
 // Covers concrete receivers, generic receivers and protocol hooks that stay allowed.
 

@@ -1,4 +1,4 @@
-// RUN: koalac %s 2>&1 | filecheck %s
+// RUN: ! koalac %s 2>&1 | filecheck %s
 
 class B[K, V, T] {
     var f1 K

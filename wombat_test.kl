@@ -91,7 +91,7 @@ pub func test_all(src_dir str) int {
             total += 1
             if rc != 0 {
                 failed += 1
-                printf("❌ FAIL: {}\n", rel)
+                printf("❌️ FAIL: {}\n", rel)
             } else {
                 printf("✅ PASS: {}\n", rel)
             }

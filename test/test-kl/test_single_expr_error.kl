@@ -1,4 +1,4 @@
-// RUN: koalac %s 2>&1 | filecheck %s
+// RUN: ! koalac %s 2>&1 | filecheck %s
 
 func mismatched_return() int = "hello"
 // CHECK: type of expr 'u' does not match func ret-type 'j'

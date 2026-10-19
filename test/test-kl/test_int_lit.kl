@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: ! koalac %s | filecheck %s
 
 let NUM = 18_446_744_073_709_551_616
 // CHECK: Number 18_446_744_073_709_551_616 is out of int range

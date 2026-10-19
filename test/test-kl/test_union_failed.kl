@@ -1,4 +1,4 @@
-// RUN: koalac %s | filecheck %s
+// RUN: not koalac %s | filecheck %s
 
 trait Speaker { func speak() str }
 trait Pet     { func cuddle() str }

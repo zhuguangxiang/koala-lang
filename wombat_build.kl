@@ -9,14 +9,18 @@ import "koala/toml"
 
 /// A single package in the workspace.
 ///
-/// `dir_name` is the path relative to the workspace root. `src` and
-/// `test` default to "" (flat layout: the `.kl` files sit directly
-/// under `dir_name`). Set `src = "src"` / `test = "test"` for a
-/// Cargo-style layout with dedicated subdirectories.
+/// `dir_name` is the path relative to the workspace root. Source
+/// files sit directly under it (`<dir_name>/*.kl`); `koala -c` scans
+/// only that directory and does not recurse, so `test/` stays out of
+/// the compiled artifact. No `src` subdirectory is needed: the
+/// import path, source path, and artifact path all agree, e.g.
+/// `demo/math`, `demo/math`, `dist/demo/math.klc`.
+///
+/// `test` names the test subdirectory; empty means the package has
+/// no tests.
 pub class Package {
     pub var name = ""
     pub var dir_name = ""
-    pub var src = ""
     pub var test = ""
     pub var version = "0.1.0"
     pub var files = list[str]()
@@ -125,10 +129,8 @@ pub func load_workspace(root str) Workspace {
 
 /// Read `<root>/<dir_name>/__pkg__.toml` and fill a `Package`.
 ///
-/// `src` and `test` stay "" when the field is missing or empty, which
-/// means the flat layout: the `.kl` files sit directly under
-/// `dir_name`. A non-empty value selects a subdirectory, e.g.
-/// `src = "src"` for a Cargo-style package.
+/// A `src` field in the config is ignored: source files always live
+/// directly under `dir_name`, so there is no subdirectory to resolve.
 func load_package(root str, dir_name str) Package {
     let pkg = Package()
     pkg.dir_name = dir_name
@@ -147,7 +149,6 @@ func load_package(root str, dir_name str) Package {
     let sec = (root_tbl.get("package") as toml.TomTable)!
 
     pkg.name = toml_str(sec, "name")
-    pkg.src = toml_str(sec, "src")
     pkg.test = toml_str(sec, "test")
     let ver = toml_str(sec, "version")
     if !ver.empty() { pkg.version = ver }
@@ -265,6 +266,9 @@ func check_natives(pkg Package, ws Workspace) int {
 }
 
 /// Artifact path for `pkg`, relative to `output_dir`.
+///
+/// `<ws>/<dir>.klc`, matching the source layout: `demo/math` compiles
+/// to `dist/demo/math.klc`, imported as `demo/math`.
 func artifact_rel(ws Workspace, pkg Package) str {
     let ws_name = fs.Path(ws.root).name()
     return ws_name + "/" + pkg.dir_name + ".klc"
@@ -272,14 +276,12 @@ func artifact_rel(ws Workspace, pkg Package) str {
 
 /// Source path for `pkg`, relative to the workspace root's parent.
 ///
-/// `src = ""` yields the flat form `<ws>/<dir>`. Otherwise it is
-/// `<ws>/<dir>/<src>`, e.g. `koala/toml/src`.
+/// Always `<ws>/<dir>`. Source files sit directly under `dir_name`,
+/// so the import path, source path, and artifact path all agree:
+/// `demo/math`, `demo/math`, `dist/demo/math.klc`.
 func src_rel(ws Workspace, pkg Package) str {
     let ws_name = fs.Path(ws.root).name()
-    if pkg.src.empty() {
-        return ws_name + "/" + pkg.dir_name
-    }
-    return ws_name + "/" + pkg.dir_name + "/" + pkg.src
+    return ws_name + "/" + pkg.dir_name
 }
 
 func build_cmd(pkg Package, ws Workspace, output_dir str) str {
@@ -350,7 +352,7 @@ func build_workspace(ws Workspace, output_dir str) int {
         printf("🚀 Running: {}\n", sub)
         let rc2 = os.system(full)
         if rc2 != 0 {
-            printf("wombat build: compilation failed for {}\n", pkg.name)
+            printf("❌️ Failed artifact: {}\n", out)
             return rc2
         }
         printf("✅ Generated artifact: {}\n\n", out)

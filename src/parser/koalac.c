@@ -432,7 +432,7 @@ static void build_dir(char *path, ParserModule *pm)
     vector_fini(&filenames);
 }
 
-static void compile(ParserModule *pm)
+static int compile(ParserModule *pm)
 {
     struct stat st;
     int is_directory = 0;
@@ -444,11 +444,11 @@ static void compile(ParserModule *pm)
     if (isdotkl(input) || !is_directory) {
         if (access(input, F_OK) != 0) {
             fprintf(stderr, "koala compile: file '%s' does not exist\n", input);
-            return;
+            return -1;
         }
 
         // single source file
-        if (check_input_file(input)) return;
+        if (check_input_file(input)) return -1;
 
         char *slash = strrchr(input, '/');
         char *dot = strrchr(slash ? slash + 1 : input, '.');
@@ -473,7 +473,7 @@ static void compile(ParserModule *pm)
         new_parser_state(pm, input);
     } else {
         // package directory
-        if (check_dir(input)) return;
+        if (check_dir(input)) return -1;
 
         if (strlen(output) == 0) {
             snprintf(output, MAX_PATH_LEN + 7, "%s.klc", input);
@@ -519,7 +519,7 @@ static void compile(ParserModule *pm)
 
     if (errors > 0) {
         errno = -1;
-        return;
+        return -1;
     }
 
     build_intf_table(pm->stbl);
@@ -553,6 +553,7 @@ static void compile(ParserModule *pm)
     if (write_klc_enabled()) {
         write_to_klc(pm);
     }
+    return 0;
 }
 
 int main(int argc, char *argv[])
@@ -577,11 +578,11 @@ int main(int argc, char *argv[])
     init_const_placeholder();
 
     init_parser(&module);
-    compile(&module);
+    int rc = compile(&module);
     fini_parser(&module);
 
     typespec_fini();
     fini_log();
     fini_atom();
-    return 0;
+    return rc;
 }
