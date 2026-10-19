@@ -1237,14 +1237,33 @@ static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
     }
 
     if (!vector_empty(vec)) {
-        log_info(
-            "[handle_valist_and_dfl_args] var-arg is passed by positional arguments(%d-%d), "
-            "build "
-            "tuple for caller.",
-            param_info.valist_index, arg_info.npos - 1);
-        Expr *valist = expr_from_tuple(vec);
-        vector_push_back(real_args, &valist);
-        changed = 1;
+        // If a single va_list variable is passed to a va_list parameter,
+        // skip tuple wrapping to avoid double encapsulation.
+        int skip_tuple = 0;
+        ArgInfo *valist_param = vector_get(params, param_info.valist_index);
+        if (vector_size(vec) == 1 && type_is_valist(valist_param->ts)) {
+            Expr *e = vector_get(vec, 0);
+            if (e->ts && type_is_valist(e->ts)) {
+                log_info(
+                    "[handle_valist_and_dfl_args] var-arg is already a va_list value, "
+                    "pass directly without tuple wrapping.");
+                vector_push_back(real_args, &e);
+                skip_tuple = 1;
+            }
+        }
+
+        if (skip_tuple) {
+            vector_destroy(vec);
+            vec = NULL;
+        } else {
+            log_info(
+                "[handle_valist_and_dfl_args] var-arg is passed by positional arguments(%d-%d), "
+                "build tuple for caller.",
+                param_info.valist_index, arg_info.npos - 1);
+            Expr *valist = expr_from_tuple(vec);
+            vector_push_back(real_args, &valist);
+            changed = 1;
+        }
     } else {
         log_info("[handle_valist_and_dfl_args] no var-arg is passed by positional arguments.");
         vector_destroy(vec);

@@ -24,14 +24,7 @@ TValue do_print(TValue *args, int nargs)
     TValue writer = args[0];
     Object *sep = kl_arg_strobj(1);
     Object *end = kl_arg_strobj(2);
-    Object *upper_tuple = kl_arg_tuple(3);
-
-    // TODO: double tuple wrapper
-    TValue *upper_items = TUPLE_ITEMS(upper_tuple);
-    ASSERT(TUPLE_SIZE(upper_tuple) == 1);
-
-    Object *tuple = to_obj(upper_items);
-    ASSERT(IS_TUPLE(tuple));
+    Object *tuple = kl_arg_tuple(3);
     TValue *items = TUPLE_ITEMS(tuple);
     int size = TUPLE_SIZE(tuple);
 

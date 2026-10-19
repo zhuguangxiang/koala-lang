@@ -1,0 +1,42 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s
+// When a va_list variable is passed to another function's va_list parameter,
+// no extra tuple wrapping (build_intern @tuple) should be generated.
+
+import "std/io"
+import "std/sys"
+
+@intrinsic
+func my_print_intern(w io.Writer, sep str, end str, objs ...) {}
+
+pub func my_print(objs ..., sep = " ", end = "\n") {
+    let w = sys.stdout
+    my_print_intern(w, sep, end, objs)
+}
+
+func main() {
+    let lst = [1, 2, 3]
+    print(len(lst))
+}
+
+// va_list passthrough: objs is passed directly to my_print_intern,
+// no build_intern @tuple should appear.
+// CHECK-LABEL: func @my_print(%objs ...any, %sep str, %end str) <NO-TYPE> {
+// CHECK: %bb0(entry):
+// CHECK: global_get %stdout std/io.BufWriter [pkg = std/sys]
+// CHECK: %w = local [immutable] std/io.BufWriter
+// CHECK: move %w std/io.BufWriter, {{%[0-9]+}} std/io.BufWriter
+// CHECK: make_intf %w std/io.BufWriter [intf-table-index = {{[0-9]+}}] to std/io.Writer
+// CHECK-NOT: build_intern @tuple
+// CHECK: call @my_print_intern, {{%[0-9]+}} std/io.Writer, %sep str, %end str, %objs ...any
+// CHECK: ret void
+
+// normal case: len(lst) result is wrapped in a tuple before calling print.
+// CHECK-LABEL: func @main() <NO-TYPE> {
+// CHECK: %bb0(entry):
+// CHECK: %lst = local [immutable] std/builtin.list<j>
+// CHECK: move %lst std/builtin.list<j>, list[1, 2, 3] std/builtin.list<j>
+// CHECK: make_intf %lst std/builtin.list<j> [intf-table-index = {{[0-9]+}}] to std/builtin.Sized
+// CHECK: len {{%[0-9]+}} std/builtin.Sized
+// CHECK: build_intern @tuple, {{%[0-9]+}} int64
+// CHECK: call @print [path = 'std/prelude'], {{%[0-9]+}} std/builtin.tuple<j>, ' ' str, '\n' str
+// CHECK: ret void
