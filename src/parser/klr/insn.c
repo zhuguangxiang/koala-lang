@@ -805,11 +805,11 @@ void klr_build_seq_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValu
     klr_append_insn(bldr, insn);
 }
 
-KlrValue *klr_build_seq_len(KlrBuilder *bldr, KlrValue *obj, char *name)
+KlrValue *klr_build_len(KlrBuilder *bldr, KlrValue *obj, char *name)
 {
     if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
         obj->kind != KLR_VALUE_CONST) {
-        panic("'seq_len' op requires a reg/param/const value for obj");
+        panic("'len' op requires a reg/param/const value for obj");
     }
 
     KlrInsn *insn = new_insn(OP_LEN, 1, name);
@@ -840,12 +840,12 @@ KlrValue *klr_build_slice_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, 
 {
     if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
         obj->kind != KLR_VALUE_CONST) {
-        panic("'seq_get' op requires a reg/param/const value for obj");
+        panic("'slice_get' op requires a reg/param/const value for obj");
     }
 
     if (index->kind != KLR_VALUE_CONST && index->kind != KLR_VALUE_INSN &&
         index->kind != KLR_VALUE_PARAM) {
-        panic("'index_get' op requires a reg/param/const value for index");
+        panic("'slice_get' op requires a reg/param/const value for index");
     }
 
     KlrInsn *insn = new_insn(OP_SEQ_GET_SLICE, 2, name);
@@ -861,17 +861,17 @@ void klr_build_slice_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrVa
 {
     if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
         obj->kind != KLR_VALUE_CONST) {
-        panic("'seq_set' op requires a reg/param/const value for obj");
+        panic("'slice_set' op requires a reg/param/const value for obj");
     }
 
     if (index->kind != KLR_VALUE_CONST && index->kind != KLR_VALUE_INSN &&
         index->kind != KLR_VALUE_PARAM) {
-        panic("'seq_set' op requires a reg/param/const value for index");
+        panic("'slice_set' op requires a reg/param/const value for index");
     }
 
     if (val->kind != KLR_VALUE_CONST && val->kind != KLR_VALUE_INSN &&
         val->kind != KLR_VALUE_PARAM) {
-        panic("'seq_set' op requires a reg/param/const value for val");
+        panic("'slice_set' op requires a reg/param/const value for val");
     }
 
     KlrInsn *insn = new_insn(OP_SEQ_SET_SLICE, 3, "");

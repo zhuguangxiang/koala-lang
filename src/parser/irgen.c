@@ -767,6 +767,7 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
 
         Symbol *lhs_sym = lhs->sym;
         if (lhs_sym->kind == SYM_FUNC) {
+            // Try to build type arguments cast for the original function if it exists.
             FuncSymbol *origin_fn = ((FuncSymbol *)lhs_sym)->origin;
             if (origin_fn) {
                 Symbol *_parent = lhs_sym->parent;
@@ -823,9 +824,16 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                     klr_builder_end(&bldr, ps->scope->bb);
                     ret = klr_build_print(&bldr, ir_args, size);
                 } else {
-                    KlrBuilder bldr;
-                    klr_builder_end(&bldr, ps->scope->bb);
-                    ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+                    // If it is len() call, try to build a OP_LEN instruction.
+                    if (str_equal(lhs_sym->name, "len") && size == 1) {
+                        KlrBuilder bldr;
+                        klr_builder_end(&bldr, ps->scope->bb);
+                        ret = klr_build_len(&bldr, ir_args[0], "");
+                    } else {
+                        KlrBuilder bldr;
+                        klr_builder_end(&bldr, ps->scope->bb);
+                        ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+                    }
                 }
             } else {
                 UNREACHABLE();
@@ -2341,7 +2349,7 @@ static void get_seq_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, struc
         KlrValue *len_func = get_callable(ps, fn_sym);
         out->len = klr_build_call(bldr, len_func, int64_type_spec(), &val, 1, "");
         */
-        out->len = klr_build_seq_len(bldr, val, "");
+        out->len = klr_build_len(bldr, val, "");
     }
 }
 

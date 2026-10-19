@@ -94,6 +94,10 @@ pub func next[T](it Iterator[T]) T? {
     return it.next()
 }
 
+/// Return the number of elements in a sized collection.
+@intrinsic
+pub func len(obj Sized) int {}
+
 /*
  * USER GUIDE: Generic Shells vs. @specialized Functions
  *

@@ -1129,7 +1129,7 @@ KlrValue *klr_build_seq_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, Ty
                             char *name);
 void klr_build_seq_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val);
 
-KlrValue *klr_build_seq_len(KlrBuilder *bldr, KlrValue *obj, char *name);
+KlrValue *klr_build_len(KlrBuilder *bldr, KlrValue *obj, char *name);
 KlrValue *klr_build_str(KlrBuilder *bldr, KlrValue *obj, char *name);
 KlrValue *klr_build_slice_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
                               char *name);
