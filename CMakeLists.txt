@@ -29,9 +29,8 @@ set(CMAKE_C_EXTENSIONS on)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 
-set(ENV{KOALA_PATH} "${PROJECT_SOURCE_DIR}/libs/dist/:$ENV{HOME}/.local/lib/koala/libs/:./")
 set(KOALA_LD_LIBRARY_PATH "${PROJECT_SOURCE_DIR}/test/test_pkg:$ENV{LD_LIBRARY_PATH}")
-set(KOALA_PATH_FOR_LIT "${PROJECT_SOURCE_DIR}/libs/dist/:$ENV{HOME}/.local/lib/koala/libs/:${PROJECT_SOURCE_DIR}/test/:./")
+set(KOALA_PATH_FOR_LIT "${PROJECT_SOURCE_DIR}/libs/std/dist/:${PROJECT_SOURCE_DIR}/libs/koala/dist/:${PROJECT_SOURCE_DIR}/test/:./")
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE debug)

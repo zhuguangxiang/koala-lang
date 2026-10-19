@@ -36,6 +36,16 @@ pub trait Iterable[T] {
     func iter(step = 1) Iterator[T]
 }
 
+/// A Sized has a known length, obtainable without traversing its elements.
+///
+/// It is the common protocol for collections whose number of items can be
+/// queried directly, independent of any traversal capability.
+pub trait Sized {
+
+    /// Return the number of items.
+    func len() int
+}
+
 /// A Sequence provides indexed access to an ordered collection of elements.
 ///
 /// It provides random access and searching capabilities without modification.
