@@ -1,7 +1,5 @@
 [package]
 name = "demo/text"
 version = "0.1.0"
-src = "src"
-test = "test"
 dependencies = []
 natives = []

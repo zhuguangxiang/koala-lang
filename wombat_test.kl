@@ -34,23 +34,14 @@ pub func test_all(src_dir str) int {
     var skipped_pkgs = 0
 
     for pkg in ws.packages {
-        // 1. No `test` field: this package does not ship tests.
-        if pkg.test.empty() {
-            skipped_pkgs += 1
-            continue
-        }
-
-        // 2. `test` is configured but the directory is missing.
-        //    This is a configuration error: `__pkg__.toml` claims
-        //    tests exist, but the path does not resolve.
+        // 1. Tests live in `<dir_name>/<test>/`, where `test` defaults
+        // to "test" and can be overridden in `__pkg__.toml`. A
+        // missing directory means the package has no tests; skip
+        // silently without counting it as skipped.
         let test_dir_abs = fs.Path(ws.root).cat(pkg.dir_name).cat(pkg.test).to_str()
-        if !fs.exists(test_dir_abs) {
-            printf("❌ {}: test directory '{}' not found (expected: {})\n",
-                   pkg.name, pkg.test, test_dir_abs)
-            return 1
-        }
+        if !fs.exists(test_dir_abs) { continue }
 
-        // 3. Collect `.kl` files in the test directory. `list_dir`
+        // 2. Collect `.kl` files in the test directory. `list_dir`
         //    returns full Paths; only the file name is kept so the
         //    command uses a path relative to `ws_parent`, matching
         //    the base that `wombat build` uses.
@@ -68,7 +59,7 @@ pub func test_all(src_dir str) int {
             continue
         }
 
-        // 4. Run each test file in its own process.
+        // 3. Run each test file in its own process.
         tested_pkgs += 1
         print("")
         printf("🧪 Testing package: {} ({} files)\n",

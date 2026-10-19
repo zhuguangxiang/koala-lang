@@ -21,7 +21,7 @@ import "koala/toml"
 pub class Package {
     pub var name = ""
     pub var dir_name = ""
-    pub var test = ""
+    pub var test = "test"
     pub var version = "0.1.0"
     pub var files = list[str]()
     pub var excludes = list[str]()
@@ -149,7 +149,8 @@ func load_package(root str, dir_name str) Package {
     let sec = (root_tbl.get("package") as toml.TomTable)!
 
     pkg.name = toml_str(sec, "name")
-    pkg.test = toml_str(sec, "test")
+    let t = toml_str(sec, "test")
+    if !t.empty() { pkg.test = t }
     let ver = toml_str(sec, "version")
     if !ver.empty() { pkg.version = ver }
     pkg.compiler = toml_str(sec, "compiler")
