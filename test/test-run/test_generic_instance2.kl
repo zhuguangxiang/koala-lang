@@ -1,0 +1,159 @@
+// RUN: koala %s | filecheck %s
+// RUN: koalac %s --opt --dump=ir 2>&1 | filecheck -check-prefix=IR %s
+
+// External generic class Box[T] imported from test_pkg/pkg3.
+//
+// This file also verifies the shared ext klass container keeps the origin
+// class type: box_value[T] touches Box[T].get_value() before any concrete
+// instance is constructed, then the concrete constructors below must still
+// lower to the same test_pkg/pkg3.Box container.
+//
+// Local generic class, list, dict, tuple, range, list-literal and slice
+// cases are covered by test_generic_instance.kl.
+
+import "test_pkg/pkg3" as p3
+
+// Must stay before the concrete constructors: the ext klass container is
+// created here and must carry the origin class type, not Box[T].
+func box_value[T](b p3.Box[T]) T {
+    return b.get_value()
+}
+
+// Lists whose element type is an external generic class
+func new_box_int_list() list[p3.Box[int]] = list[p3.Box[int]]()
+
+func new_box_str_list() list[p3.Box[str]] = list[p3.Box[str]]()
+
+// External generic class instances
+func new_int_box() p3.Box[int] = p3.Box[int](7)
+
+func new_str_box() p3.Box[str] = p3.Box[str]("hello")
+
+// Multi-level generic instantiations
+func new_box_list() p3.Box[list[int]] = p3.Box[list[int]](list[int](1, 2))
+
+func new_list_box_list() list[p3.Box[list[int]]] = list[p3.Box[list[int]]]()
+
+func new_box_box() p3.Box[p3.Box[int]] = p3.Box[p3.Box[int]](p3.Box[int](9))
+
+func new_box_dict() dict[str, p3.Box[int]] = dict[str, p3.Box[int]]()
+
+func main() {
+    // Box[T] method access through a generic function before any concrete
+    // Box instance is constructed at compile time.
+    print(box_value[int](p3.Box[int](11)))
+    // CHECK: 11
+    print(box_value[str](p3.Box[str]("container")))
+    // CHECK: container
+
+    // list[p3.Box[int]]
+    let box_ints = new_box_int_list()
+    print(box_ints.len())
+    // CHECK: 0
+    box_ints.append(p3.Box[int](8))
+    print(box_ints[0].get_value())
+    // CHECK: 8
+
+    // list[p3.Box[str]]
+    let box_strs = new_box_str_list()
+    print(box_strs.len())
+    // CHECK: 0
+    box_strs.append(p3.Box[str]("world"))
+    print(box_strs[0].get_value())
+    // CHECK: world
+
+    // p3.Box[int] / p3.Box[str]
+    let box = new_int_box()
+    print(box.get_value())
+    // CHECK: 7
+    let box2 = new_str_box()
+    print(box2.get_value())
+    // CHECK: hello
+
+    // p3.Box[list[int]]: generic class wrapping a generic class instance
+    let box_list = new_box_list()
+    let items = box_list.get_value()
+    print(items.len())
+    // CHECK: 2
+    print(items[0])
+    // CHECK: 1
+    print(items[1])
+    // CHECK: 2
+
+    // list[p3.Box[list[int]]]: three nesting levels
+    let list_box_list = new_list_box_list()
+    print(list_box_list.len())
+    // CHECK: 0
+    list_box_list.append(p3.Box[list[int]](list[int](3, 4)))
+    let nested = list_box_list[0].get_value()
+    print(nested.len())
+    // CHECK: 2
+    print(nested[0])
+    // CHECK: 3
+
+    // p3.Box[p3.Box[int]]: external generic nested in itself
+    let box_box = new_box_box()
+    print(box_box.get_value().get_value())
+    // CHECK: 9
+
+    // dict[str, p3.Box[int]]: external generic as a container element
+    let d = new_box_dict()
+    print(d.len())
+    // CHECK: 0
+    d["k"] = p3.Box[int](5)
+    print(d["k"].get_value())
+    // CHECK: 5
+
+// IR verification: all Box instances share the same origin class container
+// and lower without spurious casts.
+// IR-LABEL: func @box_value
+// IR: call @Box:get_value
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_box_int_list()
+// IR: build_intern @list
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_box_str_list()
+// IR: build_intern @list
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_int_box()
+// IR: new @test_pkg/pkg3.Box
+// IR: call @Box:__init__
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_str_box()
+// IR: new @test_pkg/pkg3.Box
+// IR: call @Box:__init__
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_box_list()
+// IR: new @test_pkg/pkg3.Box
+// IR: call @Box:__init__
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_list_box_list()
+// IR: build_intern @list
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_box_box()
+// IR: new @test_pkg/pkg3.Box
+// IR: call @Box:__init__
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_box_dict()
+// IR: new @
+// IR: call @dict:__init__
+// IR-NOT: cast
+// IR: ret
+
+}

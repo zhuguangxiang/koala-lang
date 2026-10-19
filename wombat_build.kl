@@ -48,7 +48,7 @@ pub func build_all(src_dir str, output_dir str) int {
         return 1
     }
 
-    print("🏗  Building Workspace: " + ws.name + " (v" + ws.version + ")")
+    print(format("🏗  Building Workspace: {} (v{})", ws.name, ws.version))
 
     return build_workspace(ws, out_abs)
 }
@@ -56,10 +56,7 @@ pub func build_all(src_dir str, output_dir str) int {
 /// Read a string field from a TOML table, returning "" when absent.
 func toml_str(tbl toml.TomTable, key str) str {
     if key in tbl {
-        let val = (tbl.get(key) as toml.TomString)!
-        return val.value
-        // FIXME:
-        // return (tbl.get(key) as toml.TomString)!.value
+        return (tbl.get(key) as toml.TomString)!.value
     }
     return ""
 }
@@ -70,10 +67,7 @@ func toml_str_list(tbl toml.TomTable, key str) list[str] {
     if key in tbl {
         let arr = (tbl.get(key) as toml.TomArray)!
         for item in arr.value {
-            let str_item = (item as toml.TomString)!
-            out.append(str_item.value)
-            // FIXME:
-            // out.append((item as toml.TomString)!.value)
+            out.append((item as toml.TomString)!.value)
         }
     }
     return out
@@ -101,13 +95,13 @@ pub func load_workspace(root str) Workspace {
     let ws_path = fs.Path(root).cat("__ws__.toml").to_str()
     if !fs.exists(ws_path) {
         print("wombat build: no __ws__.toml found")
-        print("  expected: " + ws_path)
+        print(format("  expected: {}", ws_path))
         return ws
     }
 
     let root_tbl = toml.parse_file(ws_path)
     if !("workspace" in root_tbl) {
-        print("wombat build: missing [workspace] table in " + ws_path)
+        print(format("wombat build: missing [workspace] table in {}", ws_path))
         return ws
     }
     let sec = (root_tbl.get("workspace") as toml.TomTable)!
@@ -119,8 +113,8 @@ pub func load_workspace(root str) Workspace {
     for dir_name in toml_str_list(sec, "packages") {
         let pkg = load_package(root, dir_name)
         if pkg.name.empty() {
-            print("wombat build: missing [package] name in " +
-                  fs.Path(root).cat(dir_name).cat("__pkg__.toml").to_str())
+            print(format("wombat build: missing [package] name in {}",
+                         fs.Path(root).cat(dir_name).cat("__pkg__.toml").to_str()))
             return ws
         }
         ws.packages.append(pkg)
@@ -141,13 +135,13 @@ func load_package(root str, dir_name str) Package {
 
     let pkg_path = fs.Path(root).cat(dir_name).cat("__pkg__.toml").to_str()
     if !fs.exists(pkg_path) {
-        print("wombat build: package config not found: " + pkg_path)
+        print(format("wombat build: package config not found: {}", pkg_path))
         return pkg
     }
 
     let root_tbl = toml.parse_file(pkg_path)
     if !("package" in root_tbl) {
-        print("wombat build: missing [package] table in " + pkg_path)
+        print(format("wombat build: missing [package] table in {}", pkg_path))
         return pkg
     }
     let sec = (root_tbl.get("package") as toml.TomTable)!
@@ -202,9 +196,7 @@ func topo_sort(pkgs list[Package]) list[str] {
         }
         if !progressed {
             print("wombat build: cannot resolve dependencies for package ")
-            unreachable()
-            // FIXME; why here failed?
-            // return list[str]()
+            return list[str]()
         }
     }
     return order
@@ -214,8 +206,8 @@ func print_dep_map(ws Workspace) {
     print("")
     print("📦 Subpackage Dependency Mapping:")
     for pkg in ws.packages {
-        print("  ▪ [" + pkg.name + "] -> Dependencies: " +
-              join_or_none(pkg.deps, ", "))
+        print(format("  ▪ [{}] -> Dependencies: {}",
+                     pkg.name, join_or_none(pkg.deps, ", ")))
     }
 }
 
@@ -231,7 +223,7 @@ func print_order(ws Workspace, order list[str]) {
         s = s + pkg.dir_name
         first = false
     }
-    print("  " + s)
+    print(format("  {}", s))
 }
 
 func check_natives(pkg Package, ws Workspace) int {
@@ -258,15 +250,14 @@ func check_natives(pkg Package, ws Workspace) int {
         for dir in search {
             let full = fs.Path(dir).cat(filename).to_str()
             if fs.exists(full) {
-                print("🔍 Found required native library: " + full)
+                print(format("🔍 Found required native library: {}", full))
                 found = true
                 break
             }
         }
         if !found {
-            print("wombat build: package " + pkg.name +
-                  " requires native library '" + filename +
-                  "' but it cannot be found")
+            print(format("wombat build: package {} requires native library '{}' but it cannot be found",
+                         pkg.name, filename))
             return 1
         }
     }
@@ -337,7 +328,7 @@ func build_workspace(ws Workspace, output_dir str) int {
             koala_path = out_entry + ":" + old_path
         }
     }
-    print("🌐 Dynamic KOALA_PATH set to: " + koala_path)
+    print(format("🌐 Dynamic KOALA_PATH set to: {}", koala_path))
     print("")
 
     let ws_parent = fs.Path(ws.root).parent().to_str()
@@ -356,15 +347,15 @@ func build_workspace(ws Workspace, output_dir str) int {
                    " && mkdir -p " + parent +
                    " && KOALA_PATH=" + koala_path + " " + sub
 
-        print("🚀 Running: " + sub)
+        print(format("🚀 Running: {}", sub))
         let rc2 = os.system(full)
         if rc2 != 0 {
-            print("wombat build: compilation failed for " + pkg.name)
+            print(format("wombat build: compilation failed for {}", pkg.name))
             return rc2
         }
-        print("✅ Generated artifact: " + out)
+        print(format("✅ Generated artifact: {}\n", out))
     }
 
-    print("wombat build: " + order.len().to_str() + " package(s) built")
+    print(format("wombat build: {} package(s) built", order.len().to_str()))
     return 0
 }

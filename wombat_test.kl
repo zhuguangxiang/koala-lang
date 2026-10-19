@@ -45,8 +45,8 @@ pub func test_all(src_dir str) int {
         //    tests exist, but the path does not resolve.
         let test_dir_abs = fs.Path(ws.root).cat(pkg.dir_name).cat(pkg.test).to_str()
         if !fs.exists(test_dir_abs) {
-            print("❌ " + pkg.name + ": test directory '" + pkg.test +
-                  "' not found (expected: " + test_dir_abs + ")")
+            print(format("❌ {}: test directory '{}' not found (expected: {})",
+                         pkg.name, pkg.test, test_dir_abs))
             return 1
         }
 
@@ -62,7 +62,8 @@ pub func test_all(src_dir str) int {
             }
         }
         if test_files.len() == 0 {
-            print("⏭️  " + pkg.name + ": no test files in '" + pkg.test + "', skipped")
+            print(format("⏭️  {}: no test files in '{}', skipped",
+                         pkg.name, pkg.test))
             skipped_pkgs += 1
             continue
         }
@@ -70,14 +71,14 @@ pub func test_all(src_dir str) int {
         // 4. Run each test file in its own process.
         tested_pkgs += 1
         print("")
-        print("🧪 Testing package: " + pkg.name +
-              " (" + test_files.len().to_str() + " files)")
+        print(format("🧪 Testing package: {} ({} files)",
+                     pkg.name, test_files.len().to_str()))
 
         let test_rel = ws_name + "/" + pkg.dir_name + "/" + pkg.test
         for name in test_files {
             let rel = test_rel + "/" + name
             print("")
-            print("🚀 Running: koala --test " + rel)
+            print(format("🚀 Running: koala --test {}", rel))
 
             let full = "cd " + ws_parent +
                        " && koala --test " + rel
@@ -90,9 +91,9 @@ pub func test_all(src_dir str) int {
             total += 1
             if rc != 0 {
                 failed += 1
-                print("❌ FAIL: " + rel)
+                print(format("❌ FAIL: {}", rel))
             } else {
-                print("✅ PASS: " + rel)
+                print(format("✅ PASS: {}", rel))
             }
         }
     }
@@ -100,11 +101,11 @@ pub func test_all(src_dir str) int {
     let passed = total - failed
     print("")
     if total > 0 {
-        print("wombat test: " + passed.to_str() + " passed, " +
-              failed.to_str() + " failed, " + total.to_str() + " total")
+        print(format("wombat test: {} passed, {} failed, {} total",
+                     passed.to_str(), failed.to_str(), total.to_str()))
     }
-    print("wombat test: " + tested_pkgs.to_str() + " package(s) tested, " +
-          skipped_pkgs.to_str() + " skipped")
+    print(format("wombat test: {} package(s) tested, {} skipped",
+                 tested_pkgs.to_str(), skipped_pkgs.to_str()))
 
     if total == 0 {
         print("wombat test: no test files found")

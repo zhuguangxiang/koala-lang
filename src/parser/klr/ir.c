@@ -13,7 +13,10 @@ extern "C" {
 
 int check_name(char *name)
 {
-    if (strchr(name, '<')) return 0;
+    /* klass names may carry the mangled generic form, e.g. list<u> for an
+     * instantiated list<str>, so angle brackets are legal in module klass
+     * names; only an empty name is rejected */
+    if (!name || !*name) return 0;
     return 1;
 }
 

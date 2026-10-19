@@ -1,0 +1,179 @@
+// RUN: koala %s | filecheck %s
+// RUN: koalac %s --opt --dump=ir 2>&1 | filecheck -check-prefix=IR %s
+
+// Test generic class instance IR lowering:
+// - External generic classes (list, dict, tuple) via build_intern
+// - Local generic classes via new + __init__
+// - No spurious cast instructions
+
+pub class Box[T] {
+    pub func __init__() {}
+}
+
+// This must stay before the concrete list constructors: touching list[T]
+// through a method must not seed the shared ext klass container with the
+// generic instance type (it would make list[int]() hit the NYI path).
+func len_of[T](x list[T]) int {
+    return x.len()
+}
+
+// External generic: list (build_intern path)
+func new_str_list() list[str] = list[str]()
+
+func new_int_list() list[int] = list[int]()
+
+// External generic with local generic element types
+func new_box_int_list() list[Box[int]] = list[Box[int]]()
+
+func new_box_str_list() list[Box[str]] = list[Box[str]]()
+
+// External generic: dict (new + call path)
+func new_dict() dict[str, int] = dict[str, int]()
+
+// Local generic class
+func new_int_box() Box[int] = Box[int]()
+
+// Tuple with runtime args (build_intern @tuple)
+func make_tuple(x int, y str) tuple[int, str] = tuple[int, str](x, y)
+
+// Range with runtime args (build_intern @range)
+func make_range(start int, end int) range = range(start, end)
+
+// List literal with runtime items (build_intern @list)
+func make_list(x int, y int) list[int] = [x, y]
+
+// Slice with runtime indices (build_intern @slice)
+func slice_list(a list[int], start int, end int) list[int] = a[start:end]
+
+func main() {
+    // Generic method access on list[T] before a concrete constructor
+    print(len_of[str](new_str_list()))
+    // CHECK: 0
+
+    // Test list
+    let lst = new_str_list()
+    print(lst.len())
+    // CHECK: 0
+    lst.append("hello")
+    print(lst[0])
+    // CHECK: hello
+
+    // Test list return values for primitive and generic element types
+    let ints = new_int_list()
+    print(ints.len())
+    // CHECK: 0
+    ints.append(7)
+    print(ints[0])
+    // CHECK: 7
+
+    let box_ints = new_box_int_list()
+    print(box_ints.len())
+    // CHECK: 0
+    box_ints.append(Box[int]())
+    print(box_ints.len())
+    // CHECK: 1
+
+    let box_strs = new_box_str_list()
+    print(box_strs.len())
+    // CHECK: 0
+    box_strs.append(Box[str]())
+    print(box_strs.len())
+    // CHECK: 1
+
+    // Test dict
+    let d = new_dict()
+    print(d.len())
+    // CHECK: 0
+
+    // Test local generic class
+    let box = new_int_box()
+    print("box created")
+    // CHECK: box created
+
+    // Test tuple with runtime args
+    let t = make_tuple(42, "hello")
+    print(t[0])
+    // CHECK: 42
+    print(t[1])
+    // CHECK: hello
+
+    // Test range with runtime args
+    let r = make_range(1, 5)
+    for x in r {
+        print(x)
+    }
+    // CHECK: 1
+    // CHECK: 2
+    // CHECK: 3
+    // CHECK: 4
+
+    // Test list literal with runtime items
+    let lst2 = make_list(10, 20)
+    print(lst2[0])
+    // CHECK: 10
+    print(lst2[1])
+    // CHECK: 20
+
+    // Test slice with runtime indices
+    let lst3 = list[int](1, 2, 3, 4, 5)
+    let sliced = slice_list(lst3, 1, 4)
+    print(sliced.len())
+    // CHECK: 3
+    print(sliced[0])
+    // CHECK: 2
+    print(sliced[2])
+    // CHECK: 4
+
+// IR verification: no spurious cast instructions
+// IR-LABEL: func @new_str_list()
+// IR: build_intern @list
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_int_list()
+// IR: build_intern @list
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_box_int_list()
+// IR: build_intern @list
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_box_str_list()
+// IR: build_intern @list
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_dict()
+// IR: new @
+// IR: call @dict:__init__
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @new_int_box()
+// IR: new @
+// IR: call @Box:__init__
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @make_tuple(
+// IR: build_intern @tuple
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @make_range(
+// IR: build_intern @range
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @make_list(
+// IR: build_intern @list
+// IR-NOT: cast
+// IR: ret
+
+// IR-LABEL: func @slice_list(
+// IR: build_intern
+// IR-NOT: cast
+// IR: ret
+}

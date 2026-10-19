@@ -1,0 +1,11 @@
+pub class Box[T] {
+    let value T
+
+    pub func __init__(_value T) {
+        value = _value
+    }
+
+    pub func get_value() T {
+        return value
+    }
+}

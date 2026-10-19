@@ -1,0 +1,24 @@
+// RUN: koala %s | filecheck %s
+
+// Two `!.` unwraps of the same optional local. The second unwrap still reads
+// the register defined by the `move` before the first `nil_check`, so cgen
+// must keep that move. Marking it dead makes the second nil_check read an
+// uninitialized register and crashes with:
+//   _eval_frame: Assertion `off < ((inst_obj)->_nfields)' failed
+class W {
+    var value int
+
+    func __init__() {
+        value = 0
+    }
+}
+
+func main() {
+    let w W? = W()
+    w!.value = 7
+    print(w!.value)
+    // CHECK: 7
+    w!.value = 8
+    print(w!.value)
+    // CHECK: 8
+}

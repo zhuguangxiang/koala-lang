@@ -2107,10 +2107,16 @@ static int peephole(KlMachFunc *mfn)
             if (a->op == OP_NIL_CHECK && b->op == OP_MOVE) {
                 // match: move S <- R ; nil_check D <- S
                 if (a->opers[1] == b->opers[0]) {
-                    // rewrite nil_check D <- R
-                    a->opers[1] = b->opers[1];
-                    // delete move
-                    b->dead = 1;
+                    ASSERT(a->origin && b->origin);
+                    KlrValue *s = insn_oper_value(b->origin, 0);
+                    ASSERT(s == insn_oper_value(a->origin, 0));
+                    // move S, R; nil_check D, S -> nil_check D, R
+                    // only when S has no other use, so the move is dead
+                    if (s->use_count == 1) {
+                        a->opers[1] = b->opers[1];
+                        // delete move
+                        b->dead = 1;
+                    }
                 }
             }
         }

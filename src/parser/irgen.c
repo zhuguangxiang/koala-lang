@@ -396,11 +396,26 @@ static void emit_ir_type(ParserState *ps, Expr *exp)
         }
     } else if (sym->kind == SYM_INSTANCE) {
         InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
+        // follow the function instance logic (SYM_INSTANCE_FUNC reuses
+        // origin->ir_val): a class instance reuses the origin klass IR;
+        // the bound type args live in instance_ts
         Symbol *origin = inst_sym->origin;
+        ASSERT(origin && origin->kind == SYM_CLASS);
         if (!origin->ir_val) {
             // TODO: why is null?
             ASSERT(str_equal(origin->name, "tuple") || str_equal(origin->name, "list"));
         }
+        // ASSERT(origin->ir_val);
+        // TODO:
+        // if (!origin->ir_val) {
+        //     // external origin class, create its ext klass container
+        //     ASSERT(origin->flags & SYM_FLAGS_EXT);
+        //     Symbol *parent = origin->parent;
+        //     ASSERT(parent && parent->kind == SYM_PACKAGE);
+        //     KlassSymbol *origin_kls = (KlassSymbol *)origin;
+        //     origin->ir_val =
+        //         klr_add_ext_klass(MOD, parent->name, origin_kls->instance_ts, origin->name);
+        // }
         exp->ir_val = origin->ir_val;
     }
     sym->ir_val = exp->ir_val;
@@ -492,11 +507,11 @@ static KlrValue *emit_tuple_call(ParserState *ps, KlrBuilder *bldr, KlrValue *ca
 }
 
 static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *callee,
-                                KlrValue **args, int nargs)
+                                KlrValue **args, int nargs, TypeSpec *ret_ts)
 {
     if (nargs == 0) {
         // list() → empty list
-        KlrValue *ret = klr_build_intern(bldr, NULL, 0, callee->ts, INTERN_LIST, "");
+        KlrValue *ret = klr_build_intern(bldr, NULL, 0, ret_ts, INTERN_LIST, "");
         return ret;
     }
 
@@ -510,14 +525,14 @@ static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *cal
         Vector *vec = kc->list;
         KlrValue **_args = VECTOR_ITEMS(vec, KlrValue *);
         int _nargs = vector_size(vec);
-        return klr_const_list(_args, _nargs, callee->ts, MOD);
+        return klr_const_list(_args, _nargs, ret_ts, MOD);
     } else {
         // build_intern @tuple(...) → build_intern @list(...)
         ASSERT(arg->kind == KLR_VALUE_INSN);
         KlrInsn *insn = (KlrInsn *)arg;
         ASSERT(insn->code == OP_BUILD_INTERN && insn->intern_tag == INTERN_TUPLE);
         insn->intern_tag = INTERN_LIST;
-        insn->ts = callee->ts;
+        insn->ts = ret_ts;
         return arg;
     }
 }
@@ -564,12 +579,13 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
     } else if (type_is_tuple(ts)) {
         ret = emit_tuple_call(ps, &bldr, callee, args, nargs);
     } else if (type_is_list(ts)) {
-        ret = emit_list_call(ps, &bldr, callee, args, nargs);
+        ret = emit_list_call(ps, &bldr, callee, args, nargs, ret_ts);
     } else if (ts->kind == TYPE_KLASS) {
         ASSERT(init_fn);
         log_info("emit type call for klass(klr_build_new), ts:");
         log_type_spec(ret_ts);
         ret = klr_build_new(&bldr, callee, ret_ts, "");
+        SET_IR_LOC(ret, e);
         KlrValue *_args[nargs + 1];
         _args[0] = ret;
         for (int i = 0; i < nargs; i++) {
@@ -591,8 +607,8 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
         }
         update_call_args(ps, _args + 1, nargs, init_fn_ts);
         klr_builder_end(&bldr, ps->scope->bb);
-        KlrValue *ret = klr_build_call(&bldr, init_fn, no_type_spec(), _args, nargs + 1, "");
-        SET_IR_LOC(ret, e);
+        KlrValue *_ret = klr_build_call(&bldr, init_fn, no_type_spec(), _args, nargs + 1, "");
+        SET_IR_LOC(_ret, e);
     } else {
         NYI();
     }
@@ -952,6 +968,7 @@ static KlrValue *get_callable(ParserState *ps, Symbol *sym)
     if (owner->kind == SYM_INSTANCE) {
         InstanceSymbol *inst = (InstanceSymbol *)owner;
         Symbol *origin = inst->origin;
+
         if (!(origin->flags & SYM_FLAGS_EXT)) {
             Symbol *method = stbl_get(origin->stbl, sym->name);
             ASSERT(method && method->ir_val);
@@ -961,8 +978,11 @@ static KlrValue *get_callable(ParserState *ps, Symbol *sym)
             ASSERT(parent && parent->kind == SYM_PACKAGE);
             if (origin->kind == SYM_CLASS) {
                 if (!owner->ir_val) {
-                    owner->ir_val =
-                        klr_add_ext_klass(MOD, parent->name, inst->instance_ts, origin->name);
+                    // the ext klass container is shared by all instances of the  origin,
+                    // so it must carry the origin class type, not the type of whichever
+                    // instance happens to create it first
+                    owner->ir_val = klr_add_ext_klass(
+                        MOD, parent->name, ((KlassSymbol *)origin)->instance_ts, origin->name);
                 }
                 ASSERT(owner->ir_val->kind == KLR_VALUE_EXT_KLASS);
                 sym->ir_val = klr_add_ext_method((KlrExtKlass *)owner->ir_val,
@@ -970,8 +990,8 @@ static KlrValue *get_callable(ParserState *ps, Symbol *sym)
             } else {
                 ASSERT(origin->kind == SYM_TRAIT);
                 if (!owner->ir_val) {
-                    owner->ir_val =
-                        klr_add_ext_trait(MOD, parent->name, inst->instance_ts, owner->name);
+                    owner->ir_val = klr_add_ext_trait(
+                        MOD, parent->name, ((KlassSymbol *)origin)->instance_ts, owner->name);
                     _add_instance_used_intf_to_trait((KlrExtTrait *)owner->ir_val, inst);
                 }
                 ASSERT(owner->ir_val->kind == KLR_VALUE_EXT_TRAIT);
@@ -1019,6 +1039,14 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
             SET_IR_LOC(v, lhs);
             lhs->ir_val = v;
         }
+    }
+
+    // for `expr!.field` the member is resolved against the unwrapped type:
+    // lhs->ts is still 'T?' (its sym_id is -1), which build_get_field can't
+    // use to look up the class symbol
+    TypeSpec *obj_ts = lhs->ts;
+    if (opt_or_bang == DOT_BANG && obj_ts && type_is_optional(obj_ts)) {
+        obj_ts = obj_ts->opt.src;
     }
 
     Symbol *sym = exp->sym;
@@ -1105,7 +1133,7 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
             // load field
             KlrBuilder bldr;
             klr_builder_end(&bldr, ps->scope->bb);
-            KlrValue *val = build_get_field(lhs->ts, dot->id.name, &bldr, lhs_val, exp->ts, ps);
+            KlrValue *val = build_get_field(obj_ts, dot->id.name, &bldr, lhs_val, exp->ts, ps);
             SET_IR_LOC(val, exp);
             exp->ir_val = val;
         }
@@ -1113,11 +1141,11 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
         exp->arg = lhs->ir_val;
-        exp->ir_val = build_get_field(lhs->ts, dot->id.name, &bldr, lhs->ir_val, exp->ts, ps);
+        exp->ir_val = build_get_field(obj_ts, dot->id.name, &bldr, lhs->ir_val, exp->ts, ps);
     } else {
         // store field
         ASSERT(exp->ctx == EXPR_CTX_STORE);
-        Symbol *lhs_ts_sym = get_symbol_by_id(lhs->ts->sym_id);
+        Symbol *lhs_ts_sym = get_symbol_by_id(obj_ts->sym_id);
         if (lhs_ts_sym->kind == SYM_CLASS) {
             KlassSymbol *kls_sym = (KlassSymbol *)lhs_ts_sym;
             Symbol *fld_sym = stbl_get(kls_sym->stbl, dot->id.name);

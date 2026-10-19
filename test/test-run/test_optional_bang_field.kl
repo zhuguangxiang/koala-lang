@@ -1,0 +1,18 @@
+// RUN: koala %s | filecheck %s
+
+// (expr as Type)!.field: `as` produces an optional, `!.` unwraps it and
+// reads the field, extracted from test1.kl.
+import "koala/toml"
+
+func get_tom_value() toml.TomValue {
+    return toml.TomString("hello")
+}
+
+func as_bang_field() str {
+    return (get_tom_value() as toml.TomString)!.value
+}
+
+func main() {
+    print(as_bang_field())
+    // CHECK: hello
+}
