@@ -6,8 +6,7 @@
  */
 
 import "std/sys"
-import "wombat_build" as wb
-import "wombat_test" as wt
+import "koala/wombat" as wb
 
 let KOALAC = "koalac"
 let KOALAFMT = "koalafmt"
@@ -212,7 +211,7 @@ func cmd_test(argv list[str]) int {
         print("wombat test: " + err)
         return 2
     }
-    return wt.test_all(opts.path)
+    return wb.test_all(opts.path)
 }
 
 /// Parse build-family options starting at argv[1].

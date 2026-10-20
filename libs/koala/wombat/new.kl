@@ -1,0 +1,205 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/os"
+import "std/fs"
+import "koala/toml"
+
+/// Basename of `path`: "demo/math" -> "math".
+func base_name(path str) str = fs.Path(path).name()
+
+/// Walk up from `start` until a directory containing `__ws__.toml`
+/// is found. Returns "" when none.
+func find_ws_root(start str) str {
+    var dir = fs.Path(start).absolute()
+    while true {
+        if fs.exists(dir.cat("__ws__.toml").to_str()) {
+            return dir.to_str()
+        }
+        let parent = dir.parent()
+        if parent.to_str() == dir.to_str() {
+            return ""
+        }
+        dir = parent
+    }
+    return ""
+}
+
+/// Path of `path` relative to `base` when `path` lives under it.
+func rel_path(base str, path str) str {
+    let prefix = base + "/"
+    if path.starts_with(prefix) {
+        return path.substr(prefix.len(), path.len())
+    }
+    return path
+}
+
+/// Write `<ws_dir>/__ws__.toml` from a TOML object.
+///
+/// The file is fully regenerated; comments and custom fields are not
+/// preserved. `__ws__.toml` is a tool-maintained file.
+func write_ws_toml(ws_dir str, name str, version str, entries list[str]) int {
+    let sec = toml.TomTable()
+    sec.add("name", toml.TomString(name))
+    sec.add("version", toml.TomString(version))
+
+    let pkgs = toml.TomArray()
+    for e in entries {
+        pkgs.add(toml.TomString(e))
+    }
+    sec.add("packages", pkgs)
+
+    let root = toml.TomTable()
+    root.add("workspace", sec)
+
+    // fs.write_str(ws_dir + "/__ws__.toml", toml.dump(root))
+    fs.write_str(ws_dir + "/__ws__.toml", format("{}", root))
+    return 0
+}
+
+/// Append `entry` to the `packages` list in `<ws_dir>/__ws__.toml`.
+/// No-op when already present.
+func add_ws_package(ws_dir str, entry str) int {
+    let ws_path = ws_dir + "/__ws__.toml"
+    if !fs.exists(ws_path) {
+        printf("❌️ wombat new: cannot find {}\n", ws_path)
+        return 1
+    }
+
+    let root_tbl = toml.parse_file(ws_path)
+    if !("workspace" in root_tbl) {
+        printf("❌️ wombat new: missing [workspace] table in {}\n", ws_path)
+        return 1
+    }
+    let sec = (root_tbl.get("workspace") as toml.TomTable)!
+
+    let name = toml_str(sec, "name")
+    let version = toml_str(sec, "version")
+    let entries = toml_str_list(sec, "packages")
+
+    for e in entries {
+        if e == entry {
+            return 0
+        }
+    }
+    entries.append(entry)
+
+    write_ws_toml(ws_dir, name, version, entries)
+    printf("📝 Added '{}' to packages in {}\n", entry, ws_path)
+    return 0
+}
+
+/// Write `build-and-test.sh` into `ws_dir` and make it executable.
+///
+/// Every line goes through `Buffer.write_str`, so `$`, `{`, `(` inside
+/// the shell script are never interpreted by Koala.
+func write_build_script(ws_dir str) int {
+    let buf = Buffer()
+    buf.write_str("#!/bin/bash\n")
+    buf.write_str("#\n")
+    buf.write_str("# Build and test the workspace containing this script.\n")
+    buf.write_str("#\n")
+    buf.write_str("# `KOALA_PATH` is never exported. It is set only for the `wombat test`\n")
+    buf.write_str("# command, so the parent shell's environment is untouched and no\n")
+    buf.write_str("# workspace's `dist` leaks into another workspace's builds.\n")
+    buf.write_str("\n")
+    buf.write_str("set -e\n")
+    buf.write_str("\n")
+    buf.write_str("SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n")
+    buf.write_str("cd \"$SCRIPT_DIR\"\n")
+    buf.write_str("\n")
+    buf.write_str("DIST=\"$SCRIPT_DIR/dist\"\n")
+    buf.write_str("\n")
+    buf.write_str("echo \"==============================================\"\n")
+    buf.write_str("echo \" workspace: build\"\n")
+    buf.write_str("echo \"==============================================\"\n")
+    buf.write_str("wombat build\n")
+    buf.write_str("\n")
+    buf.write_str("echo \"\"\n")
+    buf.write_str("echo \"==============================================\"\n")
+    buf.write_str("echo \" workspace: test\"\n")
+    buf.write_str("echo \"==============================================\"\n")
+    buf.write_str("\n")
+    buf.write_str("# Per-command environment. Not exported, so this script leaves\n")
+    buf.write_str("# KOALA_PATH alone after it exits.\n")
+    buf.write_str("KOALA_PATH=\"$DIST/:$KOALA_PATH\" wombat test\n")
+
+    let path = ws_dir + "/build-and-test.sh"
+    fs.write_str(path, buf.to_str())
+    return os.system("chmod +x " + path)
+}
+
+/// Create `<name>/` with a minimal `__ws__.toml` and
+/// `build-and-test.sh`.
+pub func new_workspace(name str) int {
+    if fs.exists(name) {
+        printf("❌️ wombat new: directory '{}' already exists\n", name)
+        return 1
+    }
+
+    if os.system("mkdir -p " + name) != 0 {
+        printf("❌️ wombat new: failed to create {}\n", name)
+        return 1
+    }
+
+    write_ws_toml(name, base_name(name), "0.1.0", list[str]())
+
+    if write_build_script(name) != 0 {
+        print("❌️ wombat new: failed to create build-and-test.sh")
+        return 1
+    }
+
+    printf("✅ Created workspace `{}` at {}\n", base_name(name), name)
+    printf("  next: cd {} && wombat new pkg <name>\n", name)
+    return 0
+}
+
+/// Create `<name>/` with `__pkg__.toml` and an entry `.kl` that
+/// prints "hello world".
+///
+/// When a `__ws__.toml` exists in the current directory or any parent,
+/// the new package's path relative to the workspace root is appended
+/// to its `packages` list.
+pub func new_package(name str) int {
+    if fs.exists(name) {
+        printf("❌️ wombat new: directory '{}' already exists\n", name)
+        return 1
+    }
+
+    var pkg_name = name
+    let base = base_name(name)
+
+    let ws_root = find_ws_root(".")
+    if !ws_root.empty() {
+        pkg_name = base_name(ws_root) + "/" + name
+    }
+
+    if os.system("mkdir -p " + name) != 0 {
+        printf("❌️ wombat new: failed to create {}\n", name)
+        return 1
+    }
+
+    let pkg_sec = toml.TomTable()
+    pkg_sec.add("name", toml.TomString(pkg_name))
+    pkg_sec.add("version", toml.TomString("0.1.0"))
+    pkg_sec.add("dependencies", toml.TomArray())
+    pkg_sec.add("natives", toml.TomArray())
+
+    let pkg_root = toml.TomTable()
+    pkg_root.add("package", pkg_sec)
+    fs.write_str(name + "/__pkg__.toml", format("{}", pkg_root))
+    // fs.write_str(name + "/__pkg__.toml", toml.dump(pkg_root))
+
+    let entry = name + "/__" + base + ".kl"
+    fs.write_str(entry, "print(\"hello world\")\n")
+
+    if !ws_root.empty() {
+        let dir_abs = fs.Path(name).absolute().to_str()
+        add_ws_package(ws_root, rel_path(ws_root, dir_abs))
+    }
+
+    printf("✅ Created package `{}` at {}\n", pkg_name, name)
+    return 0
+}

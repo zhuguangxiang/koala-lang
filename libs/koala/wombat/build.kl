@@ -1,0 +1,344 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/os"
+import "std/fs"
+import "koala/toml"
+
+/// A package in the workspace.
+class Package {
+    var name = ""
+    var dir_name = ""
+    var test = "test"
+    var version = "0.1.0"
+    var files = list[str]()
+    var excludes = list[str]()
+    var deps = list[str]()
+    var natives = list[str]()
+    var compiler = ""
+    var options = list[str]()
+}
+
+/// The workspace being built.
+class Workspace {
+    var name = ""
+    var version = "0.1.0"
+    var root = "."
+    var packages = list[Package]()
+}
+
+/// Load the workspace and build every package in dependency order.
+///
+/// `output_dir` is resolved against the workspace root when relative.
+pub func build_all(src_dir str, output_dir str) int {
+    let src_abs = fs.Path(src_dir).absolute().to_str()
+
+    print("🚀 Wombat Build Started...")
+
+    let ws = load_workspace(src_abs)
+    if ws.packages.len() == 0 {
+        print("wombat build: no packages to build")
+        return 1
+    }
+
+    var out = output_dir
+    if !fs.Path(out).is_absolute() {
+        out = fs.Path(ws.root).cat(out).to_str()
+    }
+    let out_abs = fs.Path(out).absolute().to_str()
+
+    printf("🏗  Building Workspace: {} (v{})\n", ws.name, ws.version)
+
+    return build_workspace(ws, out_abs)
+}
+
+/// Read a string field, returning "" when absent.
+func toml_str(tbl toml.TomTable, key str) str {
+    if key in tbl {
+        return (tbl.get(key) as toml.TomString)!.value
+    }
+    return ""
+}
+
+/// Read a string-array field.
+func toml_str_list(tbl toml.TomTable, key str) list[str] {
+    let out = list[str]()
+    if key in tbl {
+        let arr = (tbl.get(key) as toml.TomArray)!
+        for item in arr.value {
+            out.append((item as toml.TomString)!.value)
+        }
+    }
+    return out
+}
+
+/// Join `xs` with `sep`, or "None" if empty.
+func join_or_none(xs list[str], sep str) str {
+    if xs.len() == 0 { return "None" }
+    var r = ""
+    var first = true
+    for x in xs {
+        if !first { r = r + sep }
+        r = r + x
+        first = false
+    }
+    return r
+}
+
+/// Load `<root>/__ws__.toml` and each package's `__pkg__.toml`.
+func load_workspace(root str) Workspace {
+    let ws = Workspace()
+    ws.root = root
+
+    let ws_path = fs.Path(root).cat("__ws__.toml").to_str()
+    if !fs.exists(ws_path) {
+        print("wombat build: no __ws__.toml found")
+        printf("  expected: {}\n", ws_path)
+        return ws
+    }
+
+    let root_tbl = toml.parse_file(ws_path)
+    if !("workspace" in root_tbl) {
+        printf("wombat build: missing [workspace] table in {}\n", ws_path)
+        return ws
+    }
+    let sec = (root_tbl.get("workspace") as toml.TomTable)!
+
+    ws.name = toml_str(sec, "name")
+    let ver = toml_str(sec, "version")
+    if !ver.empty() { ws.version = ver }
+
+    for dir_name in toml_str_list(sec, "packages") {
+        let pkg = load_package(root, dir_name)
+        if pkg.name.empty() {
+            printf("wombat build: missing [package] name in {}\n",
+                   fs.Path(root).cat(dir_name).cat("__pkg__.toml").to_str())
+            return ws
+        }
+        ws.packages.append(pkg)
+    }
+
+    return ws
+}
+
+/// Read `<root>/<dir_name>/__pkg__.toml`.
+func load_package(root str, dir_name str) Package {
+    let pkg = Package()
+    pkg.dir_name = dir_name
+
+    let pkg_path = fs.Path(root).cat(dir_name).cat("__pkg__.toml").to_str()
+    if !fs.exists(pkg_path) {
+        printf("wombat build: package config not found: {}\n", pkg_path)
+        return pkg
+    }
+
+    let root_tbl = toml.parse_file(pkg_path)
+    if !("package" in root_tbl) {
+        printf("wombat build: missing [package] table in {}\n", pkg_path)
+        return pkg
+    }
+    let sec = (root_tbl.get("package") as toml.TomTable)!
+
+    pkg.name = toml_str(sec, "name")
+    let t = toml_str(sec, "test")
+    if !t.empty() { pkg.test = t }
+    let ver = toml_str(sec, "version")
+    if !ver.empty() { pkg.version = ver }
+    pkg.compiler = toml_str(sec, "compiler")
+
+    pkg.files = toml_str_list(sec, "files")
+    pkg.excludes = toml_str_list(sec, "excludes")
+    pkg.deps = toml_str_list(sec, "dependencies")
+    pkg.natives = toml_str_list(sec, "natives")
+    pkg.options = toml_str_list(sec, "options")
+
+    return pkg
+}
+
+func find_package(ws Workspace, name str) Package {
+    for pkg in ws.packages {
+        if pkg.name == name { return pkg }
+    }
+    return Package()
+}
+
+/// Topological sort by `dependencies`. Empty on cycle.
+func topo_sort(pkgs list[Package]) list[str] {
+    let order = list[str]()
+    let done = list[str]()
+
+    while order.len() < pkgs.len() {
+        var progressed = false
+        for pkg in pkgs {
+            if pkg.name in done { continue }
+            var ready = true
+            for dep in pkg.deps {
+                if !(dep in done) {
+                    ready = false
+                    break
+                }
+            }
+            if ready {
+                order.append(pkg.name)
+                done.append(pkg.name)
+                progressed = true
+            }
+        }
+        if !progressed {
+            return list[str]()
+        }
+    }
+    return order
+}
+
+func print_dep_map(ws Workspace) {
+    print("")
+    print("📦 Subpackage Dependency Mapping:")
+    for pkg in ws.packages {
+        printf("  ▪ [{}] -> Dependencies: {}\n",
+               pkg.name, join_or_none(pkg.deps, ", "))
+    }
+}
+
+func print_order(ws Workspace, order list[str]) {
+    print("")
+    print("📋 Calculated Compilation Order:")
+
+    var s = ""
+    var first = true
+    for name in order {
+        let pkg = find_package(ws, name)
+        if !first { s = s + " -> " }
+        s = s + pkg.dir_name
+        first = false
+    }
+    printf("  {}\n", s)
+}
+
+func check_natives(pkg Package, ws Workspace) int {
+    if pkg.natives.len() == 0 { return 0 }
+
+    let search = list[str]()
+    search.append("/usr/lib")
+    search.append("/usr/local/lib")
+    search.append("/lib")
+    search.append(fs.Path(ws.root).cat(pkg.dir_name).cat("native").to_str())
+
+    let ld = os.getenv("LD_LIBRARY_PATH")
+    if ld != nil {
+        if !ld.empty() {
+            for dir in ld.split(":") {
+                search.append(dir)
+            }
+        }
+    }
+
+    for native in pkg.natives {
+        let filename = "lib" + native + ".so"
+        var found = false
+        for dir in search {
+            let full = fs.Path(dir).cat(filename).to_str()
+            if fs.exists(full) {
+                printf("🔍 Found required native library: {}\n", full)
+                found = true
+                break
+            }
+        }
+        if !found {
+            printf("wombat build: package {} requires native library '{}' but it cannot be found\n",
+                   pkg.name, filename)
+            return 1
+        }
+    }
+    return 0
+}
+
+/// Artifact path: `<ws>/<dir>.klc`.
+func artifact_rel(ws Workspace, pkg Package) str {
+    let ws_name = fs.Path(ws.root).name()
+    return ws_name + "/" + pkg.dir_name + ".klc"
+}
+
+/// Source path: `<ws>/<dir>`, relative to the workspace's parent.
+func src_rel(ws Workspace, pkg Package) str {
+    let ws_name = fs.Path(ws.root).name()
+    return ws_name + "/" + pkg.dir_name
+}
+
+func build_cmd(pkg Package, ws Workspace, output_dir str) str {
+    let out = fs.Path(output_dir).cat(artifact_rel(ws, pkg)).to_str()
+
+    var cmd = ""
+    if !pkg.compiler.empty() {
+        cmd = pkg.compiler
+        for opt in pkg.options {
+            cmd = cmd + " " + opt
+        }
+        cmd = cmd + " -o " + out
+    } else {
+        cmd = "koala -c -o " + out
+        for opt in pkg.options {
+            cmd = cmd + " " + opt
+        }
+    }
+
+    cmd = cmd + " --package-name=" + pkg.name
+    cmd = cmd + " " + src_rel(ws, pkg)
+    return cmd
+}
+
+/// Compile every package in dependency order.
+///
+/// `KOALA_PATH` gets a trailing slash so `<entry>` + `<module>.klc`
+/// concatenates correctly.
+func build_workspace(ws Workspace, output_dir str) int {
+    let order = topo_sort(ws.packages)
+    if order.len() != ws.packages.len() {
+        print("wombat build: circular dependency detected")
+        return 1
+    }
+
+    print_dep_map(ws)
+    print_order(ws, order)
+
+    let out_entry = output_dir + "/"
+    let old_path = os.getenv("KOALA_PATH")
+    var koala_path = out_entry
+    if old_path != nil {
+        if !old_path.empty() {
+            koala_path = out_entry + ":" + old_path
+        }
+    }
+    printf("🌐 Dynamic KOALA_PATH set to: {}\n", koala_path)
+    print("")
+
+    let ws_parent = fs.Path(ws.root).parent().to_str()
+
+    for name in order {
+        let pkg = find_package(ws, name)
+
+        let rc = check_natives(pkg, ws)
+        if rc != 0 { return rc }
+
+        let sub = build_cmd(pkg, ws, output_dir)
+        let out = fs.Path(output_dir).cat(artifact_rel(ws, pkg)).to_str()
+        let parent = fs.Path(out).parent().to_str()
+
+        let full = "cd " + ws_parent +
+                   " && mkdir -p " + parent +
+                   " && KOALA_PATH=" + koala_path + " " + sub
+
+        printf("🚀 Running: {}\n", sub)
+        let rc2 = os.system(full)
+        if rc2 != 0 {
+            printf("❌️ Failed artifact: {}\n", out)
+            return rc2
+        }
+        printf("✅ Generated artifact: {}\n\n", out)
+    }
+
+    printf("wombat build: {} package(s) built\n", order.len().to_str())
+    return 0
+}

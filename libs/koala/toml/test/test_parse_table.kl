@@ -73,3 +73,121 @@ func test_parse_table_fmt() {
     let point = (root.get("point") as toml.TomTable)!
     ut.assert_eq(format("{}", point), "{x: 1, y: 2}")
 }
+
+// ---------------------------------------------------------------------------
+// building: add_table
+// ---------------------------------------------------------------------------
+
+@test
+func test_add_table_returns_subtable() {
+    let root = toml.TomTable()
+    let server = root.add_table("server")
+
+    server.add("host", toml.TomString("localhost"))
+    ut.assert_true("server" in root)
+
+    let s = (root.get("server") as toml.TomTable)!
+    let host = (s.get("host") as toml.TomString)!
+    ut.assert_eq(host.value, "localhost")
+}
+
+@test
+func test_add_table_nested() {
+    let root = toml.TomTable()
+    let server = root.add_table("server")
+    let db = server.add_table("db")
+    db.add("name", toml.TomString("main"))
+
+    let s = (root.get("server") as toml.TomTable)!
+    let d = (s.get("db") as toml.TomTable)!
+    let name = (d.get("name") as toml.TomString)!
+    ut.assert_eq(name.value, "main")
+}
+
+@test
+func test_add_table_replaces_existing() {
+    let root = toml.TomTable()
+    let old = root.add_table("a")
+    old.add("x", toml.TomInteger(1))
+
+    let fresh = root.add_table("a")
+    ut.assert_eq(root.data.len(), 1)
+
+    let t = (root.get("a") as toml.TomTable)!
+    ut.assert_eq(t.data.len(), 0)
+
+    fresh.add("y", toml.TomInteger(2))
+    ut.assert_eq(t.data.len(), 1)
+}
+
+@test
+func test_built_table_fmt() {
+    let root = toml.TomTable()
+    let server = root.add_table("server")
+    server.add("host", toml.TomString("localhost"))
+    server.add("port", toml.TomInteger(8080))
+    ut.assert_eq(format("{}", server), "{host: localhost, port: 8080}")
+}
+
+// ---------------------------------------------------------------------------
+// building: update
+// ---------------------------------------------------------------------------
+
+@test
+func test_update_merges_into_empty_table() {
+    let root = toml.TomTable()
+
+    let src = dict[str, toml.TomValue]()
+    src["a"] = toml.TomInteger(1)
+    src["b"] = toml.TomString("two")
+    root.update(src)
+
+    ut.assert_eq(root.data.len(), 2)
+    let a = (root.get("a") as toml.TomInteger)!
+    let b = (root.get("b") as toml.TomString)!
+    ut.assert_eq(a.value, 1)
+    ut.assert_eq(b.value, "two")
+}
+
+@test
+func test_update_merges_and_overrides() {
+    let root = toml.TomTable()
+    root.add("a", toml.TomInteger(1))
+    root.add("keep", toml.TomString("k"))
+
+    let src = dict[str, toml.TomValue]()
+    src["a"] = toml.TomInteger(99)
+    src["c"] = toml.TomInteger(3)
+    root.update(src)
+
+    ut.assert_eq(root.data.len(), 3)
+    let a = (root.get("a") as toml.TomInteger)!
+    ut.assert_eq(a.value, 99)
+    let keep = (root.get("keep") as toml.TomString)!
+    ut.assert_eq(keep.value, "k")
+    let c = (root.get("c") as toml.TomInteger)!
+    ut.assert_eq(c.value, 3)
+}
+
+@test
+func test_update_does_not_share_dict() {
+    let root = toml.TomTable()
+
+    let src = dict[str, toml.TomValue]()
+    src["a"] = toml.TomInteger(1)
+    root.update(src)
+
+    src["b"] = toml.TomInteger(2)
+    ut.assert_eq(root.data.len(), 1)
+}
+
+@test
+func test_update_empty_dict_noop() {
+    let root = toml.TomTable()
+    root.add("a", toml.TomInteger(1))
+
+    let src = dict[str, toml.TomValue]()
+    root.update(src)
+
+    ut.assert_eq(root.data.len(), 1)
+}

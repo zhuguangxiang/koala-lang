@@ -1,0 +1,102 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/os"
+import "std/fs"
+
+/// Run tests for every package. Each `test_*.kl` file under a
+/// package's `<pkg.test>` directory is compiled and run by
+/// `koala --test` on the fly.
+///
+/// A package has tests when `<dir>/<pkg.test>` exists.
+pub func test_all(src_dir str) int {
+    print("🧪 Wombat Test Started...")
+
+    let src_abs = fs.Path(src_dir).absolute().to_str()
+    let ws = load_workspace(src_abs)
+    if ws.packages.len() == 0 {
+        print("wombat test: no packages to test")
+        return 1
+    }
+
+    let ws_parent = fs.Path(ws.root).parent().to_str()
+    let ws_name = fs.Path(ws.root).name()
+    var total = 0
+    var failed = 0
+    var tested_pkgs = 0
+    var skipped_pkgs = 0
+
+    for pkg in ws.packages {
+        // 1. Tests live in `<dir_name>/<test>/`, where `test` defaults
+        // to "test" and can be overridden in `__pkg__.toml`. A
+        // missing directory means the package has no tests; skip
+        // silently without counting it as skipped.
+        let test_dir_abs = fs.Path(ws.root).cat(pkg.dir_name).cat(pkg.test).to_str()
+        if !fs.exists(test_dir_abs) { continue }
+
+        // 2. Collect `.kl` files in the test directory. `list_dir`
+        //    returns full Paths; only the file name is kept so the
+        //    command uses a path relative to `ws_parent`, matching
+        //    the base that `wombat build` uses.
+        let entries = fs.list_dir(test_dir_abs)
+        let test_files = list[str]()
+        for e in entries {
+            if e.name().ends_with(".kl") {
+                test_files.append(e.name())
+            }
+        }
+        if test_files.len() == 0 {
+            printf("⏭️  {}: no test files in '{}', skipped\n",
+                   pkg.name, pkg.test)
+            skipped_pkgs += 1
+            continue
+        }
+
+        // 3. Run each test file in its own process.
+        tested_pkgs += 1
+        print("")
+        printf("🧪 Testing package: {} ({} files)\n",
+               pkg.name, test_files.len().to_str())
+
+        let test_rel = ws_name + "/" + pkg.dir_name + "/" + pkg.test
+        for name in test_files {
+            let rel = test_rel + "/" + name
+            print("")
+            printf("🚀 Running: koala --test {}\n", rel)
+
+            let full = "cd " + ws_parent +
+                       " && koala --test " + rel
+
+            let rc = os.system(full)
+
+            // Blank line separates koala's test output ("All tests
+            // passed.") from wombat's own PASS/FAIL line.
+            print("")
+            total += 1
+            if rc != 0 {
+                failed += 1
+                printf("❌️ FAIL: {}\n", rel)
+            } else {
+                printf("✅ PASS: {}\n", rel)
+            }
+        }
+    }
+
+    let passed = total - failed
+    print("")
+    if total > 0 {
+        printf("wombat test: {} passed, {} failed, {} total\n",
+               passed.to_str(), failed.to_str(), total.to_str())
+    }
+    printf("wombat test: {} package(s) tested, {} skipped\n",
+           tested_pkgs.to_str(), skipped_pkgs.to_str())
+
+    if total == 0 {
+        print("wombat test: no test files found")
+        return 0
+    }
+    if failed > 0 { return 1 }
+    return 0
+}

@@ -1,0 +1,100 @@
+// RUN: koala --test %s
+
+from "std/ut" import assert_eq
+import "koala/toml"
+
+// `TomTable.data` holds `TomValue` (the root trait), and `get` returns that
+// trait. So recovering the concrete `TomTable` class requires an `is`/`as`
+// narrowing — the exact shape exercised in test2.kl, whose narrow + unbox
+// used to crash isel with `NYI()`.
+
+// Build a table whose values mix scalar values and a nested table.
+func build_root() toml.TomTable {
+    let root = toml.TomTable()
+    root.add("count", toml.TomInteger(7))
+    root.add("name", toml.TomString("koala"))
+    let sub = root.add_table("settings")
+    sub.add("on", toml.TomInteger(1))
+    sub.add("verbosity", toml.TomInteger(3))
+    return root
+}
+
+// trait -> class narrowing: access the narrowed class member directly.
+func narrow_member(v toml.TomValue) int {
+    if v is toml.TomTable {
+        return v.data.len()
+    }
+    return -1
+}
+
+// trait -> class narrowing followed by an explicit 'as'.
+func narrow_then_as(v toml.TomValue) int {
+    if v is toml.TomTable {
+        let t = v as toml.TomTable
+        return t.data.len()
+    }
+    return -1
+}
+
+// Early-return narrowing via the negated check.
+func narrow_early_return(v toml.TomValue) int {
+    if !(v is toml.TomTable) {
+        return -1
+    }
+    return v.data.len()
+}
+
+// No narrowing: 'as' yields an optional and needs a nil check.
+func no_narrow_as(v toml.TomValue) int {
+    let t = v as toml.TomTable
+    if t != nil {
+        return t.data.len()
+    }
+    return -1
+}
+
+// The exact test2.kl shape: loop + `if !(v is T) { continue }` + `v as T`.
+func sum_table_keys(root toml.TomTable) int {
+    var n = 0
+    for k in root.keys() {
+        let v = root.get(k)
+        if !(v is toml.TomTable) { continue }
+        let t = v as toml.TomTable
+        n = n + t.data.len()
+    }
+    return n
+}
+
+@test
+func test_trait_narrow_member() {
+    let root = build_root()
+    assert_eq(narrow_member(root.get("settings")), 2)
+    assert_eq(narrow_member(root.get("count")), -1)
+}
+
+@test
+func test_trait_narrow_then_as() {
+    let root = build_root()
+    assert_eq(narrow_then_as(root.get("settings")), 2)
+    assert_eq(narrow_then_as(root.get("count")), -1)
+}
+
+@test
+func test_trait_narrow_early_return() {
+    let root = build_root()
+    assert_eq(narrow_early_return(root.get("settings")), 2)
+    assert_eq(narrow_early_return(root.get("count")), -1)
+}
+
+@test
+func test_trait_no_narrow_as() {
+    let root = build_root()
+    assert_eq(no_narrow_as(root.get("settings")), 2)
+    assert_eq(no_narrow_as(root.get("count")), -1)
+}
+
+@test
+func test_trait_narrow_loop() {
+    let root = build_root()
+    assert_eq(sum_table_keys(root), 2)
+}

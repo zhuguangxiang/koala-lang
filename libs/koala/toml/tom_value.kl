@@ -8,4 +8,6 @@
 /// Every TOML value conforms to `TomValue`: strings, integers, floats,
 /// booleans, arrays and tables. It allows heterogeneous values to be
 /// stored uniformly in [`TomArray`](#tomarray) and [`TomTable`](#tomtable).
-pub trait TomValue {}
+pub trait TomValue {
+    func to_toml() str
+}

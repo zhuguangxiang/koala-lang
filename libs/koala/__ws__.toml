@@ -1,4 +1,4 @@
 [workspace]
 name = "koala.koala"
 version = "0.1.0"
-packages = ["toml"]
+packages = ["toml", "wombat"]

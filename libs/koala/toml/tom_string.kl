@@ -13,6 +13,10 @@ pub class TomString : TomValue {
         value = _value
     }
 
+    pub func to_toml() str {
+        return "\"" + value + "\""
+    }
+
     /// Write the string content to `f`.
     pub func fmt(f Formatter) {
         f.write_str(value)

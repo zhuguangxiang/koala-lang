@@ -11,6 +11,30 @@ pub class TomArray : TomValue {
     /// The elements of the array.
     pub let value = list[TomValue]()
 
+    pub func __init__() {}
+
+    /// Append all values from `values` to the end of the array.
+    pub func extend(values Iterable[TomValue]) {
+        value.extend(values)
+    }
+
+    /// Serialize to `[elem, elem, ...]`, recursively.
+    ///
+    /// Elements are joined with `", "`. Mixed types are allowed, matching
+    /// what the parser accepts.
+    pub func to_toml() str {
+        let buf = Buffer()
+        buf.write_str("[")
+        var first = true
+        for elem in value {
+            if !first { buf.write_str(", ") }
+            buf.write_str(elem.to_toml())
+            first = false
+        }
+        buf.write_str("]")
+        return buf.to_str()
+    }
+
     /// Append a value to the end of the array.
     pub func add(v TomValue) {
         value.append(v)
