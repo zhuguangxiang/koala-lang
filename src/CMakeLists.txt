@@ -137,6 +137,10 @@ install(DIRECTORY ${PROJECT_BINARY_DIR}/include/
 
 install(TARGETS koala_dump DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
 
+# `wombat` build tool script, installed alongside koala/koalac
+install(PROGRAMS ${PROJECT_SOURCE_DIR}/tools/wombat
+    DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
+
 include(${PROJECT_SOURCE_DIR}/cmake/symlink.cmake)
 
 install_symlink(
@@ -158,6 +162,10 @@ install_symlink(
 install_symlink(
     ../lib/koala/bin/klc-dump
     ${CMAKE_INSTALL_PREFIX}/../bin/klc-dump)
+
+install_symlink(
+    ../lib/koala/bin/wombat
+    ${CMAKE_INSTALL_PREFIX}/../bin/wombat)
 
 install_symlink(
     ./koala/lib/libkoala.so

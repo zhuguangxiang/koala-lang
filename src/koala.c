@@ -4,6 +4,7 @@
  */
 
 #include "koala.h"
+#include <limits.h>
 #include <spawn.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,45 @@
 #include <unistd.h>
 #include "args.h"
 #include "mm.h"
+
+// Derive the default library search path from the executable location,
+// e.g. <prefix>/bin/koala -> <prefix>/lib/koala-lib, and merge it into
+// KOALA_PATH. User entries come first so they override/extend defaults.
+// The merged value is inherited by the spawned `koalac` via environ.
+static void setup_default_koala_path(void)
+{
+    char exe[PATH_MAX];
+
+    ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+    if (n <= 0) return;
+    exe[n] = '\0';
+
+    char *slash = strrchr(exe, '/');
+    if (!slash) return;
+    *slash = '\0'; // executable directory, e.g. <prefix>/bin
+
+    static const char suffix[] = "/../lib/koala-lib/";
+    const char *user = getenv("KOALA_PATH");
+
+    // strip trailing colons so merging never creates an empty entry;
+    // the path search loop (str_sep) stops at empty entries.
+    size_t ulen = user ? strlen(user) : 0;
+    while (ulen > 0 && user[ulen - 1] == ':') ulen--;
+
+    size_t len = strlen(exe) + sizeof(suffix);
+    if (ulen) len += ulen + 1;
+
+    char *path = malloc(len);
+    if (!path) return;
+
+    if (ulen)
+        snprintf(path, len, "%.*s:%s%s", (int)ulen, user, exe, suffix);
+    else
+        snprintf(path, len, "%s%s", exe, suffix);
+
+    setenv("KOALA_PATH", path, 1);
+    free(path);
+}
 
 static int run_cmd(char *argv[])
 {
@@ -151,6 +191,8 @@ static int run_klc(const char *input)
 int main(int argc, char *argv[])
 {
     // double t0 = now_ms();
+
+    setup_default_koala_path();
 
     if (kl_parse_args(argc, argv)) return -1;
 

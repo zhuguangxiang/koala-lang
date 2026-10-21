@@ -318,7 +318,9 @@ static int check_input_file(char *path)
 {
     struct stat sb;
 
-    if (lstat(path, &sb)) {
+    // use stat() to follow symlinks, e.g. `wombat` is installed
+    // as a symlink under ~/.local/bin/.
+    if (stat(path, &sb)) {
         printf("%s: %s", path, strerror(errno));
         return -1;
     }
