@@ -13,12 +13,38 @@ pub class TomString : TomValue {
         value = _value
     }
 
-    pub func to_toml() str {
-        return "\"" + value + "\""
-    }
-
     /// Write the string content to `f`.
     pub func fmt(f Formatter) {
         f.write_str(value)
+    }
+
+    /// Serialize to a double-quoted string.
+    ///
+    /// `"`, `\`, `\n`, `\t`, `\r` are escaped. All other bytes, including
+    /// multi-byte UTF-8 sequences, are passed through unchanged.
+    pub func to_toml() str {
+        let buf = Buffer()
+        buf.write_str("\"")
+        let bs = value.to_bytes()
+        var i = 0
+        while i < bs.len() {
+            let b = bs[i]
+            if b == '"' {
+                buf.write_str("\\\"")
+            } else if b == '\\' {
+                buf.write_str("\\\\")
+            } else if b == '\n' {
+                buf.write_str("\\n")
+            } else if b == '\t' {
+                buf.write_str("\\t")
+            } else if b == '\r' {
+                buf.write_str("\\r")
+            } else {
+                buf.write_byte(b)
+            }
+            i += 1
+        }
+        buf.write_str("\"")
+        return buf.to_str()
     }
 }

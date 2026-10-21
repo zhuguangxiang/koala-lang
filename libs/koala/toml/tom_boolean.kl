@@ -17,4 +17,7 @@ pub class TomBoolean : TomValue {
     pub func fmt(f Formatter) {
         f.write_str(str(value))
     }
+
+    /// Serialize to `true` or `false`.
+    pub func to_toml() str = str(value)
 }

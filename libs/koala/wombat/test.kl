@@ -6,19 +6,40 @@
 import "std/os"
 import "std/fs"
 
-/// Run tests for every package. Each `test_*.kl` file under a
-/// package's `<pkg.test>` directory is compiled and run by
-/// `koala --test` on the fly.
+/// Run tests for every package in a workspace or a single package.
 ///
-/// A package has tests when `<dir>/<pkg.test>` exists.
+/// Does not build. The output directory is prepended to `KOALA_PATH`
+/// for each test process, so tests can import the `.klc` artifacts
+/// produced by a prior `wombat build`. The parent shell's environment
+/// is not touched.
+///
+/// A package has tests when `<dir>/<pkg.test>` exists. An empty test
+/// directory is reported and skipped.
 pub func test_all(src_dir str) int {
     print("🧪 Wombat Test Started...")
 
     let src_abs = fs.Path(src_dir).absolute().to_str()
-    let ws = load_workspace(src_abs)
+    let ws = load_workspace_or_package(src_abs)
     if ws.packages.len() == 0 {
         print("wombat test: no packages to test")
         return 1
+    }
+
+    // Same dist resolution as build_all: `./dist` is resolved against
+    // the workspace root, or against the package directory when the
+    // package sits outside a workspace.
+    var dist = fs.Path(ws.root).cat("dist").to_str()
+    if ws.packages.len() == 1 && !fs.exists(fs.Path(ws.root).cat("__ws__.toml").to_str()) {
+        dist = fs.Path(ws.root).cat(ws.packages[0].dir_name).cat("dist").to_str()
+    }
+    let dist_entry = dist + "/"
+
+    let old_path = os.getenv("KOALA_PATH")
+    var koala_path = dist_entry
+    if old_path != nil {
+        if !old_path.empty() {
+            koala_path = dist_entry + ":" + old_path
+        }
     }
 
     let ws_parent = fs.Path(ws.root).parent().to_str()
@@ -67,7 +88,8 @@ pub func test_all(src_dir str) int {
             printf("🚀 Running: koala --test {}\n", rel)
 
             let full = "cd " + ws_parent +
-                       " && koala --test " + rel
+                       " && KOALA_PATH=" + koala_path +
+                       " koala --test " + rel
 
             let rc = os.system(full)
 

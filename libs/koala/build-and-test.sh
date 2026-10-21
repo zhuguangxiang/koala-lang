@@ -16,7 +16,12 @@ DIST="$SCRIPT_DIR/dist"
 echo "=============================================="
 echo " workspace: build"
 echo "=============================================="
-wombat build
+
+if ! wombat build; then
+    echo ""
+    echo "build failed, skipping test"
+    exit 1
+fi
 
 echo ""
 echo "=============================================="

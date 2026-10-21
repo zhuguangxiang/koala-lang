@@ -17,4 +17,7 @@ pub class TomFloat : TomValue {
     pub func fmt(f Formatter) {
         f.write_str(str(value))
     }
+
+    /// Serialize to a bare float, e.g. `3.14`.
+    pub func to_toml() str = str(value)
 }

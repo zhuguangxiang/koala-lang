@@ -17,4 +17,7 @@ pub class TomInteger : TomValue {
     pub func fmt(f Formatter) {
         f.write_str(str(value))
     }
+
+    /// Serialize to a bare integer, e.g. `8080`.
+    pub func to_toml() str = str(value)
 }

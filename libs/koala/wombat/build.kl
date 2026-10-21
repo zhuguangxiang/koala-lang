@@ -29,29 +29,85 @@ class Workspace {
     var packages = list[Package]()
 }
 
-/// Load the workspace and build every package in dependency order.
+/// Load a workspace or a single package and build it.
 ///
-/// `output_dir` is resolved against the workspace root when relative.
+/// `src_dir` may contain `__ws__.toml` (workspace mode) or
+/// `__pkg__.toml` (single-package mode). A relative `output_dir` is
+/// resolved against the workspace root in workspace mode, and against
+/// the package directory in single-package mode.
 pub func build_all(src_dir str, output_dir str) int {
     let src_abs = fs.Path(src_dir).absolute().to_str()
 
     print("🚀 Wombat Build Started...")
 
-    let ws = load_workspace(src_abs)
+    let ws = load_workspace_or_package(src_abs)
     if ws.packages.len() == 0 {
         print("wombat build: no packages to build")
         return 1
     }
 
+    let base = fs.Path(ws.root).cat(ws.packages[0].dir_name).to_str()
     var out = output_dir
     if !fs.Path(out).is_absolute() {
-        out = fs.Path(ws.root).cat(out).to_str()
+        if ws.packages.len() == 1 && !fs.exists(fs.Path(ws.root).cat("__ws__.toml").to_str()) {
+            out = fs.Path(base).cat(out).to_str()
+        } else {
+            out = fs.Path(ws.root).cat(out).to_str()
+        }
     }
     let out_abs = fs.Path(out).absolute().to_str()
 
-    printf("🏗  Building Workspace: {} (v{})\n", ws.name, ws.version)
+    if fs.exists(fs.Path(ws.root).cat("__ws__.toml").to_str()) {
+        printf("🏗  Building Workspace: {} (v{})\n", ws.name, ws.version)
+    } else {
+        printf("🏗  Building Package: {} (v{})\n", ws.name, ws.version)
+    }
 
     return build_workspace(ws, out_abs)
+}
+
+/// Load a workspace if `__ws__.toml` exists, or a single-package
+/// workspace if `__pkg__.toml` exists instead.
+func load_workspace_or_package(root str) Workspace {
+    if fs.exists(fs.Path(root).cat("__ws__.toml").to_str()) {
+        return load_workspace(root)
+    }
+    if fs.exists(fs.Path(root).cat("__pkg__.toml").to_str()) {
+        return load_single_package(root)
+    }
+    print("wombat build: no __ws__.toml or __pkg__.toml found")
+    printf("  expected one of: {}/__ws__.toml, {}/__pkg__.toml\n", root, root)
+    return Workspace()
+}
+
+/// Build a workspace-like structure from a single package directory.
+///
+/// `ws.root` is the package's parent, so `src_rel` yields
+/// `<parent>/<pkg>` and `artifact_rel` yields `<parent>/<pkg>.klc`,
+/// the same layout workspace mode would produce.
+///
+/// Dependencies are cleared: a single-package build does not resolve
+/// or order them. Packages the target imports must already be on
+/// `KOALA_PATH`, produced by a prior workspace or single-package
+/// build.
+func load_single_package(pkg_dir str) Workspace {
+    let ws = Workspace()
+    ws.root = fs.Path(pkg_dir).parent().to_str()
+
+    let dir_name = fs.Path(pkg_dir).name()
+    let pkg = load_package(ws.root, dir_name)
+    if pkg.name.empty() {
+        return ws
+    }
+
+    // Single-package mode ignores `dependencies`: there is no graph to
+    // sort, and a missing dependency would otherwise look like a cycle.
+    pkg.deps = list[str]()
+
+    ws.name = pkg.name
+    ws.version = pkg.version
+    ws.packages.append(pkg)
+    return ws
 }
 
 /// Read a string field, returning "" when absent.
@@ -77,14 +133,14 @@ func toml_str_list(tbl toml.TomTable, key str) list[str] {
 /// Join `xs` with `sep`, or "None" if empty.
 func join_or_none(xs list[str], sep str) str {
     if xs.len() == 0 { return "None" }
-    var r = ""
+    let buf = Buffer()
     var first = true
     for x in xs {
-        if !first { r = r + sep }
-        r = r + x
+        if !first { buf.write_str(sep) }
+        buf.write_str(x)
         first = false
     }
-    return r
+    return buf.to_str()
 }
 
 /// Load `<root>/__ws__.toml` and each package's `__pkg__.toml`.
@@ -206,15 +262,16 @@ func print_order(ws Workspace, order list[str]) {
     print("")
     print("📋 Calculated Compilation Order:")
 
-    var s = ""
+    let buf = Buffer()
     var first = true
     for name in order {
         let pkg = find_package(ws, name)
-        if !first { s = s + " -> " }
-        s = s + pkg.dir_name
+        if !first { buf.write_str(" -> ") }
+        buf.write_str(pkg.dir_name)
         first = false
     }
-    printf("  {}\n", s)
+    printf("  {}\n", buf.to_str())
+    print("")
 }
 
 func check_natives(pkg Package, ws Workspace) int {
@@ -270,29 +327,31 @@ func src_rel(ws Workspace, pkg Package) str {
 func build_cmd(pkg Package, ws Workspace, output_dir str) str {
     let out = fs.Path(output_dir).cat(artifact_rel(ws, pkg)).to_str()
 
-    var cmd = ""
+    let buf = Buffer()
     if !pkg.compiler.empty() {
-        cmd = pkg.compiler
+        buf.write_str(pkg.compiler)
         for opt in pkg.options {
-            cmd = cmd + " " + opt
+            buf.write_str(" ")
+            buf.write_str(opt)
         }
-        cmd = cmd + " -o " + out
+        buf.write_str(" -o ")
+        buf.write_str(out)
     } else {
-        cmd = "koala -c -o " + out
+        buf.write_str("koala -c -o ")
+        buf.write_str(out)
         for opt in pkg.options {
-            cmd = cmd + " " + opt
+            buf.write_str(" ")
+            buf.write_str(opt)
         }
     }
-
-    cmd = cmd + " --package-name=" + pkg.name
-    cmd = cmd + " " + src_rel(ws, pkg)
-    return cmd
+    buf.write_str(" --package-name=")
+    buf.write_str(pkg.name)
+    buf.write_str(" ")
+    buf.write_str(src_rel(ws, pkg))
+    return buf.to_str()
 }
 
 /// Compile every package in dependency order.
-///
-/// `KOALA_PATH` gets a trailing slash so `<entry>` + `<module>.klc`
-/// concatenates correctly.
 func build_workspace(ws Workspace, output_dir str) int {
     let order = topo_sort(ws.packages)
     if order.len() != ws.packages.len() {
@@ -334,7 +393,7 @@ func build_workspace(ws Workspace, output_dir str) int {
         let rc2 = os.system(full)
         if rc2 != 0 {
             printf("❌️ Failed artifact: {}\n", out)
-            return rc2
+            return 1
         }
         printf("✅ Generated artifact: {}\n\n", out)
     }

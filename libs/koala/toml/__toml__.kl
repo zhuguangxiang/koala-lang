@@ -37,3 +37,46 @@ pub func parse_str(s str) TomTable {
     let parser = Parser(s.splitlines())
     return parser.parse()
 }
+
+/// Serialize `root` to TOML text.
+///
+/// Scalar keys are emitted first, then nested tables as `[name]`
+/// sections. Dotted headers are used for nested tables. Arrays of
+/// tables (`[[name]]`) are not supported.
+pub func dump(root TomTable) str {
+    let buf = Buffer()
+    dump_table(buf, root, "")
+    return buf.to_str()
+}
+
+/// Write `tbl` into `buf`. `prefix` is the dotted path of the
+/// enclosing table, used to build nested `[a.b]` headers.
+func dump_table(buf Buffer, tbl TomTable, prefix str) {
+    let keys = tbl.keys()
+
+    // Scalar keys first, so they land under the current section.
+    for k in keys {
+        let v = tbl.get(k)
+        if v is TomTable { continue }
+        buf.write_str(k)
+        buf.write_str(" = ")
+        buf.write_str(v.to_toml())
+        buf.write_str("\n")
+    }
+
+    // Nested tables as separate `[path]` sections.
+    for k in keys {
+        let v = tbl.get(k)
+        if !(v is TomTable) { continue }
+
+        var full = k
+        if len(prefix) > 0 {
+            full = prefix + "." + k
+        }
+
+        buf.write_str("\n[")
+        buf.write_str(full)
+        buf.write_str("]\n")
+        dump_table(buf, v, full)
+    }
+}
