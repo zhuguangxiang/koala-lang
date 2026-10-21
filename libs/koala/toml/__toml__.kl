@@ -11,7 +11,7 @@
 ///
 /// Panic if the file cannot be opened, or if its content is not valid
 /// TOML within the supported subset.
-pub func parse_file(path str) TomTable {
+pub func parse_file(path str) Table {
     let f = open(path, "r")!
 
     // Read the whole file in chunks; `read` returns 0 at EOF and a
@@ -33,7 +33,7 @@ pub func parse_file(path str) TomTable {
 /// Parse the TOML text `s` and return its root table.
 ///
 /// See [`Parser`](#parser) for the supported TOML subset.
-pub func parse_str(s str) TomTable {
+pub func parse_str(s str) Table {
     let parser = Parser(s.splitlines())
     return parser.parse()
 }
@@ -43,7 +43,7 @@ pub func parse_str(s str) TomTable {
 /// Scalar keys are emitted first, then nested tables as `[name]`
 /// sections. Dotted headers are used for nested tables. Arrays of
 /// tables (`[[name]]`) are not supported.
-pub func dump(root TomTable) str {
+pub func dump(root Table) str {
     let buf = Buffer()
     dump_table(buf, root, "")
     return buf.to_str()
@@ -51,13 +51,13 @@ pub func dump(root TomTable) str {
 
 /// Write `tbl` into `buf`. `prefix` is the dotted path of the
 /// enclosing table, used to build nested `[a.b]` headers.
-func dump_table(buf Buffer, tbl TomTable, prefix str) {
+func dump_table(buf Buffer, tbl Table, prefix str) {
     let keys = tbl.keys()
 
     // Scalar keys first, so they land under the current section.
     for k in keys {
         let v = tbl.get(k)
-        if v is TomTable { continue }
+        if v is Table { continue }
         buf.write_str(k)
         buf.write_str(" = ")
         buf.write_str(v.to_toml())
@@ -67,7 +67,7 @@ func dump_table(buf Buffer, tbl TomTable, prefix str) {
     // Nested tables as separate `[path]` sections.
     for k in keys {
         let v = tbl.get(k)
-        if !(v is TomTable) { continue }
+        if !(v is Table) { continue }
 
         var full = k
         if len(prefix) > 0 {

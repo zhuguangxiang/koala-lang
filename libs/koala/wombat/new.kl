@@ -24,17 +24,17 @@ func rel_path(base str, path str) str {
 /// The file is fully regenerated; comments and custom fields are not
 /// preserved. `__ws__.toml` is a tool-maintained file.
 func write_ws_toml(ws_dir str, name str, version str, entries list[str]) int {
-    let sec = toml.TomTable()
-    sec.add("name", toml.TomString(name))
-    sec.add("version", toml.TomString(version))
+    let sec = toml.Table()
+    sec.add("name", toml.String(name))
+    sec.add("version", toml.String(version))
 
-    let pkgs = toml.TomArray()
+    let pkgs = toml.Array()
     for e in entries {
-        pkgs.add(toml.TomString(e))
+        pkgs.add(toml.String(e))
     }
     sec.add("packages", pkgs)
 
-    let root = toml.TomTable()
+    let root = toml.Table()
     root.add("workspace", sec)
 
     fs.write_str(ws_dir + "/__ws__.toml", toml.dump(root))
@@ -55,7 +55,7 @@ func add_ws_package(ws_dir str, entry str) int {
         printf("❌️ wombat new: missing [workspace] table in {}\n", ws_path)
         return 1
     }
-    let sec = (root_tbl.get("workspace") as toml.TomTable)!
+    let sec = (root_tbl.get("workspace") as toml.Table)!
 
     let name = toml_str(sec, "name")
     let version = toml_str(sec, "version")
@@ -164,13 +164,13 @@ pub func new_package(name str) int {
         return 1
     }
 
-    let pkg_sec = toml.TomTable()
-    pkg_sec.add("name", toml.TomString(pkg_name))
-    pkg_sec.add("version", toml.TomString("0.1.0"))
-    pkg_sec.add("dependencies", toml.TomArray())
-    pkg_sec.add("natives", toml.TomArray())
+    let pkg_sec = toml.Table()
+    pkg_sec.add("name", toml.String(pkg_name))
+    pkg_sec.add("version", toml.String("0.1.0"))
+    pkg_sec.add("dependencies", toml.Array())
+    pkg_sec.add("natives", toml.Array())
 
-    let pkg_root = toml.TomTable()
+    let pkg_root = toml.Table()
     pkg_root.add("package", pkg_sec)
     fs.write_str(name + "/__pkg__.toml", toml.dump(pkg_root))
 

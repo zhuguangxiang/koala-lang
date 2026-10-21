@@ -4,7 +4,7 @@
  */
 
 /// A TOML float value.
-pub class TomFloat : TomValue {
+pub class Float : Value {
     /// The float content.
     pub let value float
 

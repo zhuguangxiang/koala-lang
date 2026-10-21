@@ -4,7 +4,7 @@
  */
 
 /// A TOML string value.
-pub class TomString : TomValue {
+pub class String : Value {
     /// The string content, without the surrounding quotes.
     pub let value str
 

@@ -10,28 +10,28 @@ import "std/ut"
 @test
 func test_parse_string() {
     let root = toml.parse_str("name = \"koala\"")
-    let v = (root.get("name") as toml.TomString)!
+    let v = (root.get("name") as toml.String)!
     ut.assert_eq(v.value, "koala")
 }
 
 @test
 func test_parse_string_with_spaces() {
     let root = toml.parse_str("msg = \"hello world\"")
-    let v = (root.get("msg") as toml.TomString)!
+    let v = (root.get("msg") as toml.String)!
     ut.assert_eq(v.value, "hello world")
 }
 
 @test
 func test_parse_string_with_equals() {
     let root = toml.parse_str("expr = \"a=b\"")
-    let v = (root.get("expr") as toml.TomString)!
+    let v = (root.get("expr") as toml.String)!
     ut.assert_eq(v.value, "a=b")
 }
 
 @test
 func test_parse_string_keeps_hash() {
     let root = toml.parse_str("color = \"#ff0000\"")
-    let v = (root.get("color") as toml.TomString)!
+    let v = (root.get("color") as toml.String)!
     ut.assert_eq(v.value, "#ff0000")
 }
 
@@ -42,35 +42,35 @@ func test_parse_string_keeps_hash() {
 @test
 func test_parse_integer() {
     let root = toml.parse_str("port = 8080")
-    let v = (root.get("port") as toml.TomInteger)!
+    let v = (root.get("port") as toml.Integer)!
     ut.assert_eq(v.value, 8080)
 }
 
 @test
 func test_parse_integer_with_underscores() {
     let root = toml.parse_str("size = 10_000")
-    let v = (root.get("size") as toml.TomInteger)!
+    let v = (root.get("size") as toml.Integer)!
     ut.assert_eq(v.value, 10000)
 }
 
 @test
 func test_parse_negative_integer() {
     let root = toml.parse_str("offset = -42")
-    let v = (root.get("offset") as toml.TomInteger)!
+    let v = (root.get("offset") as toml.Integer)!
     ut.assert_eq(v.value, -42)
 }
 
 @test
 func test_parse_float() {
     let root = toml.parse_str("pi = 3.5")
-    let v = (root.get("pi") as toml.TomFloat)!
+    let v = (root.get("pi") as toml.Float)!
     ut.assert_float_close(v.value, 3.5)
 }
 
 @test
 func test_parse_float_with_exponent() {
     let root = toml.parse_str("speed = 1.5e2")
-    let v = (root.get("speed") as toml.TomFloat)!
+    let v = (root.get("speed") as toml.Float)!
     ut.assert_float_close(v.value, 150.0)
 }
 
@@ -81,8 +81,8 @@ func test_parse_float_with_exponent() {
 @test
 func test_parse_booleans() {
     let root = toml.parse_str("enabled = true\ndebug = false")
-    let t = (root.get("enabled") as toml.TomBoolean)!
-    let f = (root.get("debug") as toml.TomBoolean)!
+    let t = (root.get("enabled") as toml.Boolean)!
+    let f = (root.get("debug") as toml.Boolean)!
     ut.assert_true(t.value)
     ut.assert_false(f.value)
 }
@@ -94,7 +94,7 @@ func test_parse_booleans() {
 @test
 func test_parse_strips_trailing_comment() {
     let root = toml.parse_str("port = 8080 # the listen port")
-    let v = (root.get("port") as toml.TomInteger)!
+    let v = (root.get("port") as toml.Integer)!
     ut.assert_eq(v.value, 8080)
 }
 
@@ -102,7 +102,7 @@ func test_parse_strips_trailing_comment() {
 func test_parse_ignores_blank_and_comment_lines() {
     let root = toml.parse_str("\n# a comment\nname = \"koala\"\n\n")
     ut.assert_true("name" in root)
-    let v = (root.get("name") as toml.TomString)!
+    let v = (root.get("name") as toml.String)!
     ut.assert_eq(v.value, "koala")
 }
 
@@ -123,8 +123,8 @@ func test_parse_empty_value_panics() {
 
 @test
 func test_fmt_values() {
-    ut.assert_eq(format("{}", toml.TomString("hi")), "hi")
-    ut.assert_eq(format("{}", toml.TomInteger(42)), "42")
-    ut.assert_eq(format("{}", toml.TomBoolean(true)), "true")
-    ut.assert_eq(format("{}", toml.TomBoolean(false)), "false")
+    ut.assert_eq(format("{}", toml.String("hi")), "hi")
+    ut.assert_eq(format("{}", toml.Integer(42)), "42")
+    ut.assert_eq(format("{}", toml.Boolean(true)), "true")
+    ut.assert_eq(format("{}", toml.Boolean(false)), "false")
 }

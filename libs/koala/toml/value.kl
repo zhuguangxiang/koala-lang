@@ -5,9 +5,9 @@
 
 /// The root trait of all TOML values.
 ///
-/// Every TOML value conforms to `TomValue`: strings, integers, floats,
+/// Every TOML value conforms to `Value`: strings, integers, floats,
 /// booleans, arrays and tables. It allows heterogeneous values to be
-/// stored uniformly in [`TomArray`](#tomarray) and [`TomTable`](#tomtable).
-pub trait TomValue {
+/// stored uniformly in [`Array`](#array) and [`Table`](#table).
+pub trait Value {
     func to_toml() str
 }

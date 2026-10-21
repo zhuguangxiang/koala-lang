@@ -10,9 +10,9 @@ func test_parse_single_table() {
     ut.assert_true("server" in root)
     ut.assert_false("host" in root)
 
-    let server = (root.get("server") as toml.TomTable)!
-    let host = (server.get("host") as toml.TomString)!
-    let port = (server.get("port") as toml.TomInteger)!
+    let server = (root.get("server") as toml.Table)!
+    let host = (server.get("host") as toml.String)!
+    let port = (server.get("port") as toml.Integer)!
     ut.assert_eq(host.value, "localhost")
     ut.assert_eq(port.value, 8080)
 }
@@ -22,11 +22,11 @@ func test_parse_top_level_keys_before_table() {
     let src = "title = \"demo\"\n\n[owner]\nname = \"james\""
     let root = toml.parse_str(src)
 
-    let title = (root.get("title") as toml.TomString)!
+    let title = (root.get("title") as toml.String)!
     ut.assert_eq(title.value, "demo")
 
-    let owner = (root.get("owner") as toml.TomTable)!
-    let name = (owner.get("name") as toml.TomString)!
+    let owner = (root.get("owner") as toml.Table)!
+    let name = (owner.get("name") as toml.String)!
     ut.assert_eq(name.value, "james")
 }
 
@@ -35,10 +35,10 @@ func test_parse_multiple_tables() {
     let src = "[a]\nx = 1\n\n[b]\ny = 2"
     let root = toml.parse_str(src)
 
-    let a = (root.get("a") as toml.TomTable)!
-    let b = (root.get("b") as toml.TomTable)!
-    let x = (a.get("x") as toml.TomInteger)!
-    let y = (b.get("y") as toml.TomInteger)!
+    let a = (root.get("a") as toml.Table)!
+    let b = (root.get("b") as toml.Table)!
+    let x = (a.get("x") as toml.Integer)!
+    let y = (b.get("y") as toml.Integer)!
     ut.assert_eq(x.value, 1)
     ut.assert_eq(y.value, 2)
 }
@@ -48,29 +48,29 @@ func test_parse_reused_table_header_accumulates() {
     let src = "[a]\nx = 1\n\n[b]\ny = 2\n\n[a]\nz = 3"
     let root = toml.parse_str(src)
 
-    let a = (root.get("a") as toml.TomTable)!
-    let x = (a.get("x") as toml.TomInteger)!
-    let z = (a.get("z") as toml.TomInteger)!
+    let a = (root.get("a") as toml.Table)!
+    let x = (a.get("x") as toml.Integer)!
+    let z = (a.get("z") as toml.Integer)!
     ut.assert_eq(x.value, 1)
     ut.assert_eq(z.value, 3)
 
-    let b = (root.get("b") as toml.TomTable)!
-    let y = (b.get("y") as toml.TomInteger)!
+    let b = (root.get("b") as toml.Table)!
+    let y = (b.get("y") as toml.Integer)!
     ut.assert_eq(y.value, 2)
 }
 
 @test
 func test_parse_table_header_with_spaces() {
     let root = toml.parse_str("[ server ]\nhost = \"localhost\"")
-    let server = (root.get("server") as toml.TomTable)!
-    let host = (server.get("host") as toml.TomString)!
+    let server = (root.get("server") as toml.Table)!
+    let host = (server.get("host") as toml.String)!
     ut.assert_eq(host.value, "localhost")
 }
 
 @test
 func test_parse_table_fmt() {
     let root = toml.parse_str("[point]\nx = 1\ny = 2")
-    let point = (root.get("point") as toml.TomTable)!
+    let point = (root.get("point") as toml.Table)!
     ut.assert_eq(format("{}", point), "{x: 1, y: 2}")
 }
 
@@ -80,52 +80,52 @@ func test_parse_table_fmt() {
 
 @test
 func test_add_table_returns_subtable() {
-    let root = toml.TomTable()
+    let root = toml.Table()
     let server = root.add_table("server")
 
-    server.add("host", toml.TomString("localhost"))
+    server.add("host", toml.String("localhost"))
     ut.assert_true("server" in root)
 
-    let s = (root.get("server") as toml.TomTable)!
-    let host = (s.get("host") as toml.TomString)!
+    let s = (root.get("server") as toml.Table)!
+    let host = (s.get("host") as toml.String)!
     ut.assert_eq(host.value, "localhost")
 }
 
 @test
 func test_add_table_nested() {
-    let root = toml.TomTable()
+    let root = toml.Table()
     let server = root.add_table("server")
     let db = server.add_table("db")
-    db.add("name", toml.TomString("main"))
+    db.add("name", toml.String("main"))
 
-    let s = (root.get("server") as toml.TomTable)!
-    let d = (s.get("db") as toml.TomTable)!
-    let name = (d.get("name") as toml.TomString)!
+    let s = (root.get("server") as toml.Table)!
+    let d = (s.get("db") as toml.Table)!
+    let name = (d.get("name") as toml.String)!
     ut.assert_eq(name.value, "main")
 }
 
 @test
 func test_add_table_replaces_existing() {
-    let root = toml.TomTable()
+    let root = toml.Table()
     let old = root.add_table("a")
-    old.add("x", toml.TomInteger(1))
+    old.add("x", toml.Integer(1))
 
     let fresh = root.add_table("a")
     ut.assert_eq(root.data.len(), 1)
 
-    let t = (root.get("a") as toml.TomTable)!
+    let t = (root.get("a") as toml.Table)!
     ut.assert_eq(t.data.len(), 0)
 
-    fresh.add("y", toml.TomInteger(2))
+    fresh.add("y", toml.Integer(2))
     ut.assert_eq(t.data.len(), 1)
 }
 
 @test
 func test_built_table_fmt() {
-    let root = toml.TomTable()
+    let root = toml.Table()
     let server = root.add_table("server")
-    server.add("host", toml.TomString("localhost"))
-    server.add("port", toml.TomInteger(8080))
+    server.add("host", toml.String("localhost"))
+    server.add("port", toml.Integer(8080))
     ut.assert_eq(format("{}", server), "{host: localhost, port: 8080}")
 }
 
@@ -135,58 +135,58 @@ func test_built_table_fmt() {
 
 @test
 func test_update_merges_into_empty_table() {
-    let root = toml.TomTable()
+    let root = toml.Table()
 
-    let src = dict[str, toml.TomValue]()
-    src["a"] = toml.TomInteger(1)
-    src["b"] = toml.TomString("two")
+    let src = dict[str, toml.Value]()
+    src["a"] = toml.Integer(1)
+    src["b"] = toml.String("two")
     root.update(src)
 
     ut.assert_eq(root.data.len(), 2)
-    let a = (root.get("a") as toml.TomInteger)!
-    let b = (root.get("b") as toml.TomString)!
+    let a = (root.get("a") as toml.Integer)!
+    let b = (root.get("b") as toml.String)!
     ut.assert_eq(a.value, 1)
     ut.assert_eq(b.value, "two")
 }
 
 @test
 func test_update_merges_and_overrides() {
-    let root = toml.TomTable()
-    root.add("a", toml.TomInteger(1))
-    root.add("keep", toml.TomString("k"))
+    let root = toml.Table()
+    root.add("a", toml.Integer(1))
+    root.add("keep", toml.String("k"))
 
-    let src = dict[str, toml.TomValue]()
-    src["a"] = toml.TomInteger(99)
-    src["c"] = toml.TomInteger(3)
+    let src = dict[str, toml.Value]()
+    src["a"] = toml.Integer(99)
+    src["c"] = toml.Integer(3)
     root.update(src)
 
     ut.assert_eq(root.data.len(), 3)
-    let a = (root.get("a") as toml.TomInteger)!
+    let a = (root.get("a") as toml.Integer)!
     ut.assert_eq(a.value, 99)
-    let keep = (root.get("keep") as toml.TomString)!
+    let keep = (root.get("keep") as toml.String)!
     ut.assert_eq(keep.value, "k")
-    let c = (root.get("c") as toml.TomInteger)!
+    let c = (root.get("c") as toml.Integer)!
     ut.assert_eq(c.value, 3)
 }
 
 @test
 func test_update_does_not_share_dict() {
-    let root = toml.TomTable()
+    let root = toml.Table()
 
-    let src = dict[str, toml.TomValue]()
-    src["a"] = toml.TomInteger(1)
+    let src = dict[str, toml.Value]()
+    src["a"] = toml.Integer(1)
     root.update(src)
 
-    src["b"] = toml.TomInteger(2)
+    src["b"] = toml.Integer(2)
     ut.assert_eq(root.data.len(), 1)
 }
 
 @test
 func test_update_empty_dict_noop() {
-    let root = toml.TomTable()
-    root.add("a", toml.TomInteger(1))
+    let root = toml.Table()
+    root.add("a", toml.Integer(1))
 
-    let src = dict[str, toml.TomValue]()
+    let src = dict[str, toml.Value]()
     root.update(src)
 
     ut.assert_eq(root.data.len(), 1)

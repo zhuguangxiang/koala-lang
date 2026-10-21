@@ -6,18 +6,18 @@ import "std/ut"
 @test
 func test_parse_empty_array() {
     let root = toml.parse_str("items = []")
-    let arr = (root.get("items") as toml.TomArray)!
+    let arr = (root.get("items") as toml.Array)!
     ut.assert_eq(arr.value.len(), 0)
 }
 
 @test
 func test_parse_integer_array() {
     let root = toml.parse_str("nums = [1, 2, 3]")
-    let arr = (root.get("nums") as toml.TomArray)!
+    let arr = (root.get("nums") as toml.Array)!
     ut.assert_eq(arr.value.len(), 3)
 
-    let first = (arr.value[0] as toml.TomInteger)!
-    let last = (arr.value[2] as toml.TomInteger)!
+    let first = (arr.value[0] as toml.Integer)!
+    let last = (arr.value[2] as toml.Integer)!
     ut.assert_eq(first.value, 1)
     ut.assert_eq(last.value, 3)
 }
@@ -25,11 +25,11 @@ func test_parse_integer_array() {
 @test
 func test_parse_float_array() {
     let root = toml.parse_str("scales = [0.5, 1.5]")
-    let arr = (root.get("scales") as toml.TomArray)!
+    let arr = (root.get("scales") as toml.Array)!
     ut.assert_eq(arr.value.len(), 2)
 
-    let a = (arr.value[0] as toml.TomFloat)!
-    let b = (arr.value[1] as toml.TomFloat)!
+    let a = (arr.value[0] as toml.Float)!
+    let b = (arr.value[1] as toml.Float)!
     ut.assert_float_close(a.value, 0.5)
     ut.assert_float_close(b.value, 1.5)
 }
@@ -37,21 +37,21 @@ func test_parse_float_array() {
 @test
 func test_parse_string_array() {
     let root = toml.parse_str("names = [\"a\", \"b\", \"c\"]")
-    let arr = (root.get("names") as toml.TomArray)!
+    let arr = (root.get("names") as toml.Array)!
     ut.assert_eq(arr.value.len(), 3)
 
-    let second = (arr.value[1] as toml.TomString)!
+    let second = (arr.value[1] as toml.String)!
     ut.assert_eq(second.value, "b")
 }
 
 @test
 func test_parse_boolean_array() {
     let root = toml.parse_str("flags = [true, false, true]")
-    let arr = (root.get("flags") as toml.TomArray)!
+    let arr = (root.get("flags") as toml.Array)!
     ut.assert_eq(arr.value.len(), 3)
 
-    let first = (arr.value[0] as toml.TomBoolean)!
-    let second = (arr.value[1] as toml.TomBoolean)!
+    let first = (arr.value[0] as toml.Boolean)!
+    let second = (arr.value[1] as toml.Boolean)!
     ut.assert_true(first.value)
     ut.assert_false(second.value)
 }
@@ -59,16 +59,16 @@ func test_parse_boolean_array() {
 @test
 func test_parse_mixed_array() {
     let root = toml.parse_str("mixed = [1, \"two\", 3.0, false]")
-    let arr = (root.get("mixed") as toml.TomArray)!
+    let arr = (root.get("mixed") as toml.Array)!
     ut.assert_eq(arr.value.len(), 4)
 
-    let e0 = (arr.value[0] as toml.TomInteger)!
+    let e0 = (arr.value[0] as toml.Integer)!
     ut.assert_eq(e0.value, 1)
-    let e1 = (arr.value[1] as toml.TomString)!
+    let e1 = (arr.value[1] as toml.String)!
     ut.assert_eq(e1.value, "two")
-    let e2 = (arr.value[2] as toml.TomFloat)!
+    let e2 = (arr.value[2] as toml.Float)!
     ut.assert_float_close(e2.value, 3.0)
-    let e3 = (arr.value[3] as toml.TomBoolean)!
+    let e3 = (arr.value[3] as toml.Boolean)!
     ut.assert_false(e3.value)
 }
 
@@ -76,11 +76,11 @@ func test_parse_mixed_array() {
 func test_parse_multiline_array() {
     let src = "ports = [\n  8080,\n  8081,\n  8082\n]"
     let root = toml.parse_str(src)
-    let arr = (root.get("ports") as toml.TomArray)!
+    let arr = (root.get("ports") as toml.Array)!
     ut.assert_eq(arr.value.len(), 3)
 
-    let first = (arr.value[0] as toml.TomInteger)!
-    let last = (arr.value[2] as toml.TomInteger)!
+    let first = (arr.value[0] as toml.Integer)!
+    let last = (arr.value[2] as toml.Integer)!
     ut.assert_eq(first.value, 8080)
     ut.assert_eq(last.value, 8082)
 }
@@ -88,11 +88,11 @@ func test_parse_multiline_array() {
 @test
 func test_parse_array_with_underscore_numbers() {
     let root = toml.parse_str("sizes = [1_000, 2_000]")
-    let arr = (root.get("sizes") as toml.TomArray)!
+    let arr = (root.get("sizes") as toml.Array)!
     ut.assert_eq(arr.value.len(), 2)
 
-    let first = (arr.value[0] as toml.TomInteger)!
-    let second = (arr.value[1] as toml.TomInteger)!
+    let first = (arr.value[0] as toml.Integer)!
+    let second = (arr.value[1] as toml.Integer)!
     ut.assert_eq(first.value, 1000)
     ut.assert_eq(second.value, 2000)
 }
@@ -100,18 +100,18 @@ func test_parse_array_with_underscore_numbers() {
 @test
 func test_array_fmt() {
     let root = toml.parse_str("nums = [1, 2]")
-    let arr = (root.get("nums") as toml.TomArray)!
+    let arr = (root.get("nums") as toml.Array)!
     ut.assert_eq(format("{}", arr), "[1, 2]")
 }
 
 @test
 func test_parse_trailing_comma() {
     let root = toml.parse_str("nums = [1, 2, 3,]")
-    let arr = (root.get("nums") as toml.TomArray)!
+    let arr = (root.get("nums") as toml.Array)!
     ut.assert_eq(arr.value.len(), 3)
 
-    let first = (arr.value[0] as toml.TomInteger)!
-    let last = (arr.value[2] as toml.TomInteger)!
+    let first = (arr.value[0] as toml.Integer)!
+    let last = (arr.value[2] as toml.Integer)!
     ut.assert_eq(first.value, 1)
     ut.assert_eq(last.value, 3)
 }
@@ -120,12 +120,12 @@ func test_parse_trailing_comma() {
 func test_parse_multiline_trailing_comma() {
     let src = "packages = [\n    \"builtin\",\n    \"fs\",\n    \"io\",\n]"
     let root = toml.parse_str(src)
-    let arr = (root.get("packages") as toml.TomArray)!
+    let arr = (root.get("packages") as toml.Array)!
     ut.assert_eq(arr.value.len(), 3)
 
-    let first = (arr.value[0] as toml.TomString)!
-    let second = (arr.value[1] as toml.TomString)!
-    let third = (arr.value[2] as toml.TomString)!
+    let first = (arr.value[0] as toml.String)!
+    let second = (arr.value[1] as toml.String)!
+    let third = (arr.value[2] as toml.String)!
     ut.assert_eq(first.value, "builtin")
     ut.assert_eq(second.value, "fs")
     ut.assert_eq(third.value, "io")
@@ -135,11 +135,11 @@ func test_parse_multiline_trailing_comma() {
 func test_parse_multiline_strings() {
     let src = "names = [\n    \"alice\",\n    \"bob\",\n    \"carol\"\n]"
     let root = toml.parse_str(src)
-    let arr = (root.get("names") as toml.TomArray)!
+    let arr = (root.get("names") as toml.Array)!
     ut.assert_eq(arr.value.len(), 3)
 
-    let first = (arr.value[0] as toml.TomString)!
-    let last = (arr.value[2] as toml.TomString)!
+    let first = (arr.value[0] as toml.String)!
+    let last = (arr.value[2] as toml.String)!
     ut.assert_eq(first.value, "alice")
     ut.assert_eq(last.value, "carol")
 }
@@ -150,69 +150,69 @@ func test_parse_multiline_strings() {
 
 @test
 func test_extend_into_empty_array() {
-    let arr = toml.TomArray()
+    let arr = toml.Array()
 
-    let src = list[toml.TomValue]()
-    src.append(toml.TomInteger(1))
-    src.append(toml.TomString("two"))
+    let src = list[toml.Value]()
+    src.append(toml.Integer(1))
+    src.append(toml.String("two"))
     arr.extend(src)
 
     ut.assert_eq(arr.value.len(), 2)
-    let e0 = (arr.value[0] as toml.TomInteger)!
+    let e0 = (arr.value[0] as toml.Integer)!
     ut.assert_eq(e0.value, 1)
-    let e1 = (arr.value[1] as toml.TomString)!
+    let e1 = (arr.value[1] as toml.String)!
     ut.assert_eq(e1.value, "two")
 }
 
 @test
 func test_extend_appends_after_existing() {
-    let arr = toml.TomArray()
-    arr.add(toml.TomInteger(1))
+    let arr = toml.Array()
+    arr.add(toml.Integer(1))
 
-    let src = list[toml.TomValue]()
-    src.append(toml.TomInteger(2))
-    src.append(toml.TomInteger(3))
+    let src = list[toml.Value]()
+    src.append(toml.Integer(2))
+    src.append(toml.Integer(3))
     arr.extend(src)
 
     ut.assert_eq(arr.value.len(), 3)
-    let last = (arr.value[2] as toml.TomInteger)!
+    let last = (arr.value[2] as toml.Integer)!
     ut.assert_eq(last.value, 3)
 }
 
 @test
 func test_extend_empty_list_noop() {
-    let arr = toml.TomArray()
+    let arr = toml.Array()
 
-    let src = list[toml.TomValue]()
+    let src = list[toml.Value]()
     arr.extend(src)
     ut.assert_eq(arr.value.len(), 0)
 }
 
 @test
 func test_extend_does_not_share_list() {
-    let arr = toml.TomArray()
+    let arr = toml.Array()
 
-    let src = list[toml.TomValue]()
-    src.append(toml.TomInteger(1))
+    let src = list[toml.Value]()
+    src.append(toml.Integer(1))
     arr.extend(src)
 
-    src.append(toml.TomInteger(2))
+    src.append(toml.Integer(2))
     ut.assert_eq(arr.value.len(), 1)
 }
 
 @test
 func test_extend_from_tuple() {
-    let arr = toml.TomArray()
+    let arr = toml.Array()
 
-    let src = tuple[toml.TomValue, toml.TomValue](toml.TomInteger(1), toml.TomString("two"))
+    let src = tuple[toml.Value, toml.Value](toml.Integer(1), toml.String("two"))
     arr.extend(src)
     ut.assert_eq(arr.value.len(), 2)
-    let e0 = (arr.value[0] as toml.TomInteger)!
-    let e1 = (arr.value[1] as toml.TomString)!
+    let e0 = (arr.value[0] as toml.Integer)!
+    let e1 = (arr.value[1] as toml.String)!
     ut.assert_eq(e0.value, 1)
     ut.assert_eq(e1.value, "two")
 
     // TODO: support empty tuple?
-    // arr.extend(tuple[toml.TomValue]()) // empty tuple: no-op
+    // arr.extend(tuple[toml.Value]()) // empty tuple: no-op
     // ut.assert_eq(arr.value.len(), 2)
 }

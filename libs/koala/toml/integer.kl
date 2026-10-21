@@ -4,7 +4,7 @@
  */
 
 /// A TOML integer value.
-pub class TomInteger : TomValue {
+pub class Integer : Value {
     /// The integer content, with `_` separators removed.
     pub let value int
 

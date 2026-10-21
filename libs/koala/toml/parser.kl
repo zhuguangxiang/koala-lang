@@ -17,7 +17,7 @@
 /// marker; underscore separators are removed before conversion.
 pub class Parser {
     let src list[str]
-    let root = TomTable()
+    let root = Table()
     var current = root
 
     /// Create a parser for the given source lines.
@@ -30,7 +30,7 @@ pub class Parser {
     /// Lines are accumulated until the pending text is a complete
     /// statement, so arrays may span multiple lines. Blank lines and
     /// comment-only lines are ignored.
-    pub func parse() TomTable {
+    pub func parse() Table {
         let pending = Buffer()
 
         for raw_line in src {
@@ -135,10 +135,10 @@ pub class Parser {
         let name = line.substr(1, line.len() - 1).strip()
 
         if !(name in root) {
-            root.add(name, TomTable())
+            root.add(name, Table())
         }
 
-        current = (root.get(name) as TomTable)!
+        current = (root.get(name) as Table)!
     }
 
     /// Parse a `key = value` pair into the active table.
@@ -153,22 +153,22 @@ pub class Parser {
     }
 
     /// Parse a value: string, array, boolean, or number.
-    func parse_value(value str) TomValue {
+    func parse_value(value str) Value {
         if value.starts_with("\"") {
-            return TomString(value.substr(1, value.len() - 1))
+            return String(value.substr(1, value.len() - 1))
         } else if value.starts_with("[") {
             return parse_array(value)
         } else if value == "true" {
-            return TomBoolean(true)
+            return Boolean(true)
         } else if value == "false" {
-            return TomBoolean(false)
+            return Boolean(false)
         } else {
             return parse_number(value)
         }
     }
 
     /// Parse an integer or a float, removing `_` separators.
-    func parse_number(s str) TomValue {
+    func parse_number(s str) Value {
         // TOML allows '_' separators, e.g. 1_000_000; remove them before
         // conversion.
         let clean_s = s.replace("_", "")
@@ -181,17 +181,17 @@ pub class Parser {
         let is_float = clean_s.index(".") != -1 || clean_s.index("e") != -1 || clean_s.index("E") != -1
 
         if is_float {
-            return TomFloat(clean_s.to_float())
+            return Float(clean_s.to_float())
         } else {
-            return TomInteger(clean_s.to_int())
+            return Integer(clean_s.to_int())
         }
     }
 
     /// Parse a `[a, b, c]` array whose elements are strings, booleans or
     /// numbers.
-    func parse_array(value str) TomArray {
+    func parse_array(value str) Array {
         let s = value.substr(1, value.len() - 1)
-        let arr = TomArray()
+        let arr = Array()
 
         if s.len() == 0 { return arr }
 
@@ -200,11 +200,11 @@ pub class Parser {
             let v = item.strip()
             if v.empty() { continue }
             if v.starts_with("\"") && v.ends_with("\"") {
-                arr.add(TomString(v.substr(1, v.len() - 1)))
+                arr.add(String(v.substr(1, v.len() - 1)))
             } else if v == "true" {
-                arr.add(TomBoolean(true))
+                arr.add(Boolean(true))
             } else if v == "false" {
-                arr.add(TomBoolean(false))
+                arr.add(Boolean(false))
             } else {
                 arr.add(parse_number(v))
             }

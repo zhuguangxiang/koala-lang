@@ -5,16 +5,16 @@
 
 /// A TOML array value.
 ///
-/// Elements are stored as `TomValue`, so strings, integers, floats and
+/// Elements are stored as `Value`, so strings, integers, floats and
 /// booleans may be mixed freely.
-pub class TomArray : TomValue {
+pub class Array : Value {
     /// The elements of the array.
-    pub let value = list[TomValue]()
+    pub let value = list[Value]()
 
     pub func __init__() {}
 
     /// Append all values from `values` to the end of the array.
-    pub func extend(values Iterable[TomValue]) {
+    pub func extend(values Iterable[Value]) {
         value.extend(values)
     }
 
@@ -36,7 +36,7 @@ pub class TomArray : TomValue {
     }
 
     /// Append a value to the end of the array.
-    pub func add(v TomValue) {
+    pub func add(v Value) {
         value.append(v)
     }
 

@@ -4,19 +4,19 @@
  */
 
 /// A TOML table value: an ordered mapping from string keys to values.
-pub class TomTable : TomValue {
+pub class Table : Value {
     /// The key-value mappings, in insertion order.
-    pub let data = dict[str, TomValue]()
+    pub let data = dict[str, Value]()
 
     pub func __init__() {}
 
     /// Associate `_value` with `_key`, replacing an existing mapping.
-    pub func add(_key str, _value TomValue) {
+    pub func add(_key str, _value Value) {
         data[_key] = _value
     }
 
     /// Return the value mapped to `_key`. Panic if `_key` is not present.
-    pub func get(_key str) TomValue {
+    pub func get(_key str) Value {
         return data[_key]
     }
 
@@ -26,14 +26,14 @@ pub class TomTable : TomValue {
     }
 
     /// Create a subtable under `_key` and return it.
-    pub func add_table(_key str) TomTable {
-        let sub = TomTable()
+    pub func add_table(_key str) Table {
+        let sub = Table()
         data[_key] = sub
         return sub
     }
 
     /// Merge all mappings from `_data` into the table.
-    pub func update(_data dict[str, TomValue]) {
+    pub func update(_data dict[str, Value]) {
         data.update(_data)
     }
 

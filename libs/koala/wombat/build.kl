@@ -111,20 +111,20 @@ func load_single_package(pkg_dir str) Workspace {
 }
 
 /// Read a string field, returning "" when absent.
-func toml_str(tbl toml.TomTable, key str) str {
+func toml_str(tbl toml.Table, key str) str {
     if key in tbl {
-        return (tbl.get(key) as toml.TomString)!.value
+        return (tbl.get(key) as toml.String)!.value
     }
     return ""
 }
 
 /// Read a string-array field.
-func toml_str_list(tbl toml.TomTable, key str) list[str] {
+func toml_str_list(tbl toml.Table, key str) list[str] {
     let out = list[str]()
     if key in tbl {
-        let arr = (tbl.get(key) as toml.TomArray)!
+        let arr = (tbl.get(key) as toml.Array)!
         for item in arr.value {
-            out.append((item as toml.TomString)!.value)
+            out.append((item as toml.String)!.value)
         }
     }
     return out
@@ -160,7 +160,7 @@ func load_workspace(root str) Workspace {
         printf("wombat build: missing [workspace] table in {}\n", ws_path)
         return ws
     }
-    let sec = (root_tbl.get("workspace") as toml.TomTable)!
+    let sec = (root_tbl.get("workspace") as toml.Table)!
 
     ws.name = toml_str(sec, "name")
     let ver = toml_str(sec, "version")
@@ -195,7 +195,7 @@ func load_package(root str, dir_name str) Package {
         printf("wombat build: missing [package] table in {}\n", pkg_path)
         return pkg
     }
-    let sec = (root_tbl.get("package") as toml.TomTable)!
+    let sec = (root_tbl.get("package") as toml.Table)!
 
     pkg.name = toml_str(sec, "name")
     let t = toml_str(sec, "test")

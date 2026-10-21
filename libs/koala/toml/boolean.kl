@@ -4,7 +4,7 @@
  */
 
 /// A TOML boolean value.
-pub class TomBoolean : TomValue {
+pub class Boolean : Value {
     /// The boolean content.
     pub let value bool
 

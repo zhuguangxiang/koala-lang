@@ -11,12 +11,12 @@ func test_parse_file() {
     fs.write_str(path, content)
 
     let root = toml.parse_file(path)
-    let title = (root.get("title") as toml.TomString)!
+    let title = (root.get("title") as toml.String)!
     ut.assert_eq(title.value, "koala")
 
-    let server = (root.get("server") as toml.TomTable)!
-    let host = (server.get("host") as toml.TomString)!
-    let port = (server.get("port") as toml.TomInteger)!
+    let server = (root.get("server") as toml.Table)!
+    let host = (server.get("host") as toml.String)!
+    let port = (server.get("port") as toml.Integer)!
     ut.assert_eq(host.value, "localhost")
     ut.assert_eq(port.value, 8080)
 

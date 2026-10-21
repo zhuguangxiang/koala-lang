@@ -4,12 +4,12 @@
 // reads the field, extracted from test1.kl.
 import "koala/toml"
 
-func get_tom_value() toml.TomValue {
-    return toml.TomString("hello")
+func get_tom_value() toml.Value {
+    return toml.String("hello")
 }
 
 func as_bang_field() str {
-    return (get_tom_value() as toml.TomString)!.value
+    return (get_tom_value() as toml.String)!.value
 }
 
 func main() {
