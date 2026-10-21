@@ -30,6 +30,11 @@ TValue do_print(TValue *args, int nargs)
 
     Formatter *fmt = kl_new_formatter(64);
 
+    if (size == 0) {
+        // print() with no objects writes only `end`
+        kl_fmt_write_str(fmt, STR_BUF(end), STR_LEN(end));
+    }
+
     for (int i = 0; i < size; ++i) {
         kl_call_fmt(items + i, fmt);
         if (i < size - 1) {

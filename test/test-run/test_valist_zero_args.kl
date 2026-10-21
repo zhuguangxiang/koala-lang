@@ -1,0 +1,167 @@
+// RUN: koala %s | filecheck %s
+
+// Calling variadic functions/methods/constructors with zero variadic
+// arguments: the variadic slot is normalized to an empty tuple.
+
+func count(args ...) int {
+    var n = 0
+    for v in args {
+        n = n + 1
+    }
+    return n
+}
+
+func f(a int, b ...) {
+    print(a, count(b))
+}
+
+func g[T](a ...T) {
+    print(count(a))
+}
+
+func p(objs ...) {
+    print(count(objs))
+}
+
+// multiple normal params before the variadic one
+func f2(a int, b str, c ...int) {
+    print(a, b, count(c))
+}
+
+// variadic followed by keyword params with defaults (print-like shape)
+func f3(objs ...int, k int = 9) {
+    print(count(objs), k)
+}
+
+// va_list passthrough chain
+func pass(args ...) int {
+    return count(args)
+}
+
+func chain(args ...) int {
+    return pass(args)
+}
+
+// generic class with a variadic method
+class G[T] {
+    pub func m(args ...T) int {
+        return count(args)
+    }
+}
+
+// trait with a variadic method, dispatched through an interface value
+trait V {
+    func tv(a int, rest ...) int
+}
+
+class E : V {
+    pub func tv(a int, rest ...) int {
+        return count(rest)
+    }
+}
+
+class C[T] {
+    pub func __init__(args ...T) {
+        print(count(args))
+    }
+}
+
+class D {
+    pub func m(a int, b ...) {
+        print(a, count(b))
+    }
+}
+
+func main() {
+    printf("Hello\n")
+    // CHECK: Hello
+    printf("{}-{}\n", 1, 2)
+    // CHECK: 1-2
+    print("x", "y")
+    // CHECK: x y
+    print(sep = ",")
+    print(1, 2, 3)
+    // CHECK: 1 2 3
+    print("a", "b", sep = "-")
+    // CHECK: a-b
+    // print() with zero objects writes only `end`
+    print("x", end = "!")
+    print("")
+    // CHECK: x!
+    print(end = "")
+    print("ok")
+    // CHECK: ok
+
+    f(1)
+    // CHECK: 1 0
+    f(1, 2, 3)
+    // CHECK: 1 2
+    f2(1, "s")
+    // CHECK: 1 s 0
+    f2(1, "s", 7, 8)
+    // CHECK: 1 s 2
+    f3()
+    // CHECK: 0 9
+    f3(k = 5)
+    // CHECK: 0 5
+    f3(1, 2)
+    // CHECK: 2 9
+    f3(1, 2, k = 5)
+    // CHECK: 2 5
+
+    g[int]()
+    // CHECK: 0
+    p()
+    // CHECK: 0
+    p(1, 2)
+    // CHECK: 2
+    print(pass())
+    // CHECK: 0
+    print(chain())
+    // CHECK: 0
+    print(chain(1, 2, 3))
+    // CHECK: 3
+
+    let gi = G[int]()
+    print(gi.m())
+    // CHECK: 0
+    print(gi.m(1, 2))
+    // CHECK: 2
+
+    let v V = E()
+    print(v.tv(1))
+    // CHECK: 0
+    print(v.tv(1, 2))
+    // CHECK: 1
+
+    let d = D()
+    d.m(1)
+    // CHECK: 1 0
+    d.m(1, 2, 3)
+    // CHECK: 1 2
+    let c = C[int]()
+    // CHECK: 0
+    let c2 = C[int](1, 2)
+    // CHECK: 2
+
+    let l = list[int]()
+    let l2 = list[int](1, 2, 3)
+    print(len(l), len(l2))
+    // CHECK: 0 3
+    print(l)
+    // CHECK: []
+    print(l2)
+    // CHECK: [1, 2, 3]
+
+    // every evaluation of list[T]() creates a fresh, mutable list
+    let l3 = list[int]()
+    let l4 = list[int]()
+    l3.append(1)
+    print(len(l3), len(l4))
+    // CHECK: 1 0
+    print(list[str]())
+    // CHECK: []
+    print(list[str]("a"))
+    // CHECK: [a]
+}
+

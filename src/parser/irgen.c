@@ -523,8 +523,15 @@ static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *cal
         ASSERT(kc->which == CONST_TUPLE);
         // list[tuple(...)]
         Vector *vec = kc->list;
-        KlrValue **_args = VECTOR_ITEMS(vec, KlrValue *);
         int _nargs = vector_size(vec);
+        if (_nargs == 0) {
+            // list[T]() with zero variadic arguments is normalized to an empty
+            // tuple by the parser; keep the build_intern path so that every
+            // evaluation creates a fresh mutable list (same as nargs == 0).
+            return klr_build_intern(bldr, NULL, 0, ret_ts, INTERN_LIST, "");
+        }
+
+        KlrValue **_args = VECTOR_ITEMS(vec, KlrValue *);
         return klr_const_list(_args, _nargs, ret_ts, MOD);
     } else {
         // build_intern @tuple(...) → build_intern @list(...)

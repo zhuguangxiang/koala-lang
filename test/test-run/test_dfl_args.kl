@@ -1,0 +1,149 @@
+// RUN: koala %s | filecheck %s
+
+// Default argument passing: defaults are filled in by the parser when the
+// corresponding keyword argument is omitted, including combination with a
+// variadic parameter that receives zero variadic arguments (normalized to
+// an empty tuple).
+
+func count(args ...) int {
+    var n = 0
+    for v in args {
+        n = n + 1
+    }
+    return n
+}
+
+// plain default params, mixed positional/keyword filling
+func d1(a int, b = 10, c = "s") {
+    print(a, b, c)
+}
+
+// defaults of other literal types (bool, float)
+func d3(b = true, f = 1.5) {
+    print(b, f)
+}
+
+// variadic + two keyword defaults
+func d2(a int, v ..., sep = "-", end = 1) {
+    print(a, count(v), sep, end)
+}
+
+// variadic + default, returning a value
+func d4(v ..., k = 9) int {
+    return count(v) + k
+}
+
+class DM {
+    pub func m(a int, b = 3) {
+        print(a, b)
+    }
+}
+
+class DM2 {
+    pub func m(v ...int, k = 2) {
+        print(count(v), k)
+    }
+}
+
+class DC {
+    let a int
+    let b int
+
+    pub func __init__(x int, y = 100) {
+        a = x
+        b = y
+    }
+}
+
+class DC2 {
+    pub func __init__(args ...int, k = 8) {
+        print(count(args), k)
+    }
+}
+
+func main() {
+    // plain defaults: all omitted / filled positionally / filled by keyword
+    d1(1)
+    // CHECK: 1 10 s
+    d1(1, 2)
+    // CHECK: 1 2 s
+    d1(1, 2, "x")
+    // CHECK: 1 2 x
+    d1(1, c = "y")
+    // CHECK: 1 10 y
+    d1(1, b = 5, c = "z")
+    // CHECK: 1 5 z
+
+    d1(2, c = "A", b = 7)
+    // CHECK: 2 7 A
+
+    // bool/float literal defaults
+    d3()
+    // CHECK: true 1.5
+    d3(false)
+    // CHECK: false 1.5
+    d3(false, 2.5)
+    // CHECK: false 2.5
+    d3(f = 3.5)
+    // CHECK: true 3.5
+
+    // variadic + defaults, including zero variadic arguments
+    d2(1)
+    // CHECK: 1 0 - 1
+    d2(1, 2)
+    // CHECK: 1 1 - 1
+    d2(1, end = 7)
+    // CHECK: 1 0 - 7
+    d2(1, 2, 3, sep = "+")
+    // CHECK: 1 2 + 1
+    d2(1, 2, 3, sep = "+", end = 7)
+    // CHECK: 1 2 + 7
+
+    // default value participates in the returned result
+    print(d4())
+    // CHECK: 9
+    print(d4(k = 1))
+    // CHECK: 1
+    print(d4(1))
+    // CHECK: 10
+    print(d4(1, 2, k = 100))
+    // CHECK: 102
+
+    // method defaults
+    let dm = DM()
+    dm.m(1)
+    // CHECK: 1 3
+    dm.m(1, 4)
+    // CHECK: 1 4
+    dm.m(1, b = 6)
+    // CHECK: 1 6
+
+    // method variadic + default
+    let dm2 = DM2()
+    dm2.m()
+    // CHECK: 0 2
+    dm2.m(1, 2)
+    // CHECK: 2 2
+    dm2.m(k = 5)
+    // CHECK: 0 5
+    dm2.m(1, 2, k = 5)
+    // CHECK: 2 5
+
+    // constructor defaults
+    print(DC(1).b)
+    // CHECK: 100
+    print(DC(1, 2).b)
+    // CHECK: 2
+    print(DC(1, y = 3).b)
+    // CHECK: 3
+
+    // constructor variadic + default
+    DC2()
+    // CHECK: 0 8
+    DC2(k = 4)
+    // CHECK: 0 4
+    DC2(1, 2)
+    // CHECK: 2 8
+    DC2(1, 2, k = 4)
+    // CHECK: 2 4
+}

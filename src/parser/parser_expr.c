@@ -455,6 +455,15 @@ static void parse_tuple(ParserState *ps, Expr *exp)
         vector_push_back(tp_args, &e->ts);
     }
 
+    if (vector_empty(tp_args)) {
+        // An empty tuple (also synthesized for a variadic parameter that
+        // receives zero variadic arguments) is typed as tuple<any>: without a
+        // type argument, the mangled instance name would be the bare "tuple",
+        // which collides with the builtin tuple class in symbol lookups.
+        TypeSpec *any = any_type_spec();
+        vector_push_back(tp_args, &any);
+    }
+
     TypeSpec *infer_ts = find_lub(tp_args);
     log_info("infer tuple type:");
     log_type_spec(infer_ts);
@@ -1266,7 +1275,18 @@ static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
         }
     } else {
         log_info("[handle_valist_and_dfl_args] no var-arg is passed by positional arguments.");
-        vector_destroy(vec);
+        if (param_info.valist_index >= 0) {
+            // The variadic parameter still occupies one positional slot even when
+            // zero variadic arguments are passed. Fill the slot with an empty
+            // tuple so that the call argument count always matches the prototype
+            // parameter count (see update_call_args in irgen).
+            log_info("[handle_valist_and_dfl_args] build an empty tuple for var-arg parameter.");
+            Expr *valist = expr_from_tuple(vec);
+            vector_push_back(real_args, &valist);
+            changed = 1;
+        } else {
+            vector_destroy(vec);
+        }
         vec = NULL;
     }
 

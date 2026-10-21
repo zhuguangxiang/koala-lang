@@ -1422,6 +1422,12 @@ Object *kl_new_fmt_str(char *fmt, ...)
 void kl_free_str(Object *obj)
 {
     StringObject *sobj = (StringObject *)obj;
+
+    // the shared empty string singleton is static, never free it
+    if (sobj == &empty_str) {
+        return;
+    }
+
     if (sobj->size > 0) {
         mm_free(sobj->array);
     }
