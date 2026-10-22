@@ -86,9 +86,53 @@ static TValue _float_to_str(TValue *self, TValue *args, int nargs)
     return obj_value(sobj);
 }
 
+/* Float hash: normalize -0.0 to +0.0 before hashing so numerically-equal
+ * zeros collide on the same bucket, matching the eq fast-path
+ * (`a->fval == b->fval`, IEEE numeric comparison). Without this the
+ * equal-values-same-hash contract is broken and containers such as
+ * dict[float, V] / hashset[float] would keep both zeros as distinct
+ * elements. Aligns with Python / JavaScript / Go / C# semantics. NaN
+ * passes through unchanged: NaN != NaN under the eq fast-path, so each
+ * NaN insertion is a fresh element and hash stability is irrelevant. */
+static TValue _float_hash(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    double v = to_raw_float(self);
+    if (v == 0.0) v = 0.0;
+    unsigned int hash = mem_hash(&v, sizeof(v));
+    return int64_value(hash);
+}
+
+/* Float equality via IEEE numeric comparison, NOT the memcmp default.
+ * Rationale: _default___eq__ compares TValue bytes, so -0.0 vs +0.0
+ * would report unequal even though `a == b` at the VM OP_EQ fast-path
+ * and inside container eq fast-paths reports equal — an inconsistency
+ * that leaks whenever a caller reaches SLOT_EQ directly (e.g. via
+ * kl_call_eq on an Equatable[T] generic instantiation). NaN semantics
+ * fall out of IEEE `==` / `!=` for free: NaN != NaN, so __eq__ returns
+ * false and __ne__ returns true. */
+static TValue _float_eq(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return bool_value(a == b);
+}
+
+static TValue _float_ne(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double a = to_raw_float(self);
+    double b = to_raw_float(&args[0]);
+    return bool_value(a != b);
+}
+
 static MethodDef float_methods[] = {
     { "fmt", _float_fmt },
     { "to_str", _float_to_str },
+    { "hash", _float_hash },
+    { "__eq__", _float_eq },
+    { "__ne__", _float_ne },
     { NULL },
 };
 

@@ -733,7 +733,7 @@ type
     }
     | set_type
     {
-        $$ = NULL;
+        $$ = $1;
     }
     | klass_type
     {
@@ -1012,8 +1012,12 @@ tuple_type
 set_type
     : SET '[' optional_type ']'
     {
-        // $$ = set_type($3);
-        // type_set_loc($$, lloc(@1, @4));
+        NAME_ID(id, "hashset", loc(@1));
+        Vector *args = vector_create_ptr();
+        vector_push_back(args, &$3);
+        MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
+        $$ = unresolved_type_spec(&mod, id, args);
+        type_spec_loc($$, lloc(@1, @4));
     }
     | SET '[' error
     {
@@ -1871,8 +1875,8 @@ class_name
     }
     | SET
     {
-        Ident id = {"set", loc(@1)};
-        TypeSpec *ts = klass_type_spec(STD_BUILTIN_PATH, "set");
+        Ident id = {"hashset", loc(@1)};
+        TypeSpec *ts = klass_type_spec(STD_BUILTIN_PATH, "hashset");
         $$ = (IdentType){id, ts};
     }
     | RANGE
@@ -3402,7 +3406,10 @@ list_expr
     }
     | SET
     {
-        $$ = NULL;
+        TypeSpec *ty = klass_type_spec(STD_BUILTIN_PATH, "hashset");
+        type_spec_loc(ty, loc(@1));
+        $$ = expr_from_type(ty);
+        expr_set_loc($$, loc(@1));
     }
     | '[' error
     {

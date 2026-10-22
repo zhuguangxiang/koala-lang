@@ -1492,6 +1492,23 @@ TARGET(OP_NUM_MOD) {
     DISPATCH();
 }
 
+TARGET(OP_NUM_AND) {
+    rd = I_VAL(inst, 16, 8);
+    rs = I_VAL(inst, 8, 8);
+    rt = I_VAL(inst, 0, 8);
+
+    CHECK_REG_ID(rd);
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    SAVE_PC();
+    TValue ret = kl_call_bit_and(regs + rs, regs + rt);
+    if (is_error(&ret)) goto error;
+
+    regs[rd] = ret;
+    DISPATCH();
+}
+
 TARGET(OP_NUM_OR) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);

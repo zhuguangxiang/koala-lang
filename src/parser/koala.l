@@ -261,7 +261,7 @@ static char hex2byte(const char *s)
 "any"       { YY_RETURN(ANY);       }
 "list"      { YY_RETURN(LIST);      }
 "dict"      { YY_RETURN(MAP);       }
-"set"       { YY_RETURN(SET);       }
+"hashset"   { YY_RETURN(SET);       }
 "tuple"     { YY_RETURN(TUPLE);     }
 "type"      { YY_RETURN(TYPE);      }
 "range"     { YY_RETURN(RANGE);     }

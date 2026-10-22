@@ -7,6 +7,7 @@
 #include "bytesobj.h"
 #include "dictobj.h"
 #include "excobj.h"
+#include "hashset.h"
 #include "listobj.h"
 #include "rangeobj.h"
 #include "tupleobj.h"
@@ -157,6 +158,8 @@ static TypeObject *builtin_types[] = {
     &dict_values_iter_type,
     &dict_view_iter_type,
     &dict_rev_iter_type,
+    &hashset_type,
+    &hashset_iter_type,
 };
 
 void builtin_native_lib_init(NativeLib *lib)

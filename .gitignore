@@ -16,7 +16,7 @@ perf.data
 perf.data.old
 test_shm_open
 test_shm_read
-examples/*.klc
+examples/**/*.klc
 bench/*.klc
 .vscode/*.json
 libs/koala.std.tar

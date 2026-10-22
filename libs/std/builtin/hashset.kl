@@ -10,13 +10,12 @@
 /// and set algebra. Iteration order is unspecified.
 pub class hashset[T] : MutableSet[T] {
 
-    /// Create an empty hash set.
+    /// Create an empty hash set, or populate from `items` if provided.
     @native
-    pub func __init__() {}
+    pub func __init__(items Iterable[T]? = nil) {}
 
     /// Return an iterator over the elements. Order is unspecified.
-    @native
-    pub func iter(step = 1) Iterator[T] {}
+    pub func iter(step = 1) Iterator[T] = HashSetIter[T](self, step)
 
     /// Return the number of elements.
     @native
@@ -89,4 +88,25 @@ pub class hashset[T] : MutableSet[T] {
     /// Return a list of all elements. Order is unspecified.
     @native
     pub func to_list() list[T] {}
+}
+
+/// Iterator over hashset elements. Order is unspecified.
+class HashSetIter[T] : Iterator[T] {
+
+    /// Initialize the HashSetIter with the given hashset and step size.
+    /// `step` must be positive; panics otherwise.
+    @native
+    func __init__(s hashset[T], step int) {}
+
+    /// Return true if there are more elements to iterate over.
+    @native
+    func has_next() bool {}
+
+    /// Return the next element in the iteration. Panic if the iterator is exhausted.
+    @native
+    func next_strict() T {}
+
+    /// Return the next element in the iteration, or `nil` if iteration is complete.
+    @native
+    func next() T? {}
 }

@@ -86,6 +86,7 @@ set(KOALA_SHARED_SOURCES
     objects/sliceobj.c
     objects/listobj.c
     objects/dictobj.c
+    objects/hashset.c
     objects/bytesobj.c
     objects/bytebuf.c
     objects/excobj.c
