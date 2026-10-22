@@ -141,6 +141,10 @@ install(TARGETS koala_dump DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
 install(PROGRAMS ${PROJECT_SOURCE_DIR}/tools/wombat
     DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
 
+install(FILES ../tools/completions/wombat.bash
+    DESTINATION $ENV{HOME}/.local/share/bash-completion/completions
+    RENAME wombat)
+
 include(${PROJECT_SOURCE_DIR}/cmake/symlink.cmake)
 
 install_symlink(

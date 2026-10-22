@@ -1,0 +1,166 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/os"
+import "std/fs"
+
+/// Walk up from `start` until a directory containing `__ws__.toml` is
+/// found. Returns "" when none.
+func find_ws_root(start str) str {
+    var dir = fs.Path(start).absolute()
+    while true {
+        let d = dir.to_str()
+        if fs.exists(fs.Path(d).cat("__ws__.toml").to_str()) {
+            return d
+        }
+        let parent = dir.parent()
+        if parent.to_str() == d {
+            return ""
+        }
+        dir = parent
+    }
+    return ""
+}
+
+/// If `name` matches a package in the workspace at `ws_root`, return
+/// `<ws_root>/dist/<ws_name>/<name>.klc`. Otherwise return "".
+func resolve_ws_package(ws_root str, name str) str {
+    if "/" in name {
+    // TODO: add this conviently method.
+    // if name.contains("/") {
+        return ""
+    }
+    let pkg_dir = fs.Path(ws_root).cat(name).to_str()
+    if !fs.exists(fs.Path(pkg_dir).cat("__pkg__.toml").to_str()) {
+        return ""
+    }
+    let ws_name = fs.Path(ws_root).name()
+    let out = fs.Path(ws_root).cat("dist").cat(ws_name).cat(name + ".klc").to_str()
+    if !fs.exists(out) {
+        return ""
+    }
+    return out
+}
+
+/// `wombat run <target> [args...]`
+///
+/// `<target>` resolution order:
+///
+/// 1. `<target>.kl` / `<target>.klc` as given.
+/// 2. If `<target>` is a package name in the current workspace, the
+///    built artifact `<ws>/dist/<ws>/<target>.klc`.
+/// 3. `<target>.klc`, then `<target>.kl` in the current directory.
+///
+/// The workspace's `dist/` directory is prepended to `KOALA_PATH` for
+/// the child process, so the program can `import` packages built by
+/// `wombat build` without the caller setting `KOALA_PATH` by hand.
+pub func run(target str, args list[str]) int {
+    var file = target
+
+    if !target.ends_with(".kl") && !target.ends_with(".klc") {
+        let ws_root = find_ws_root(".")
+        var resolved = ""
+        if ws_root.len() > 0 {
+            resolved = resolve_ws_package(ws_root, target)
+        }
+        if resolved.len() > 0 {
+            file = resolved
+        } else {
+            let klc = target + ".klc"
+            let kl = target + ".kl"
+            if fs.exists(klc) {
+                file = klc
+            } else if fs.exists(kl) {
+                file = kl
+            } else {
+                printf("wombat run: cannot find '{}', '{}', or a package named '{}'\n",
+                       klc, kl, target)
+                return 1
+            }
+        }
+    }
+
+    let buf = Buffer()
+
+    let dist = find_dist_dir(fs.Path(file).parent().to_str())
+    if dist.len() > 0 {
+        let old = os.getenv("KOALA_PATH")
+        var kp = dist + "/"
+        if old != nil {
+            if old.len() > 0 {
+                kp = kp + ":" + old
+            }
+        }
+        buf.write_str("KOALA_PATH=")
+        quote_arg(buf, kp)
+        buf.write_byte(' ')
+    }
+
+    buf.write_str("koala ")
+    quote_arg(buf, file)
+    for a in args {
+        buf.write_byte(' ')
+        quote_arg(buf, a)
+    }
+
+    let rc = os.system(buf.to_str())
+    if rc < 0 { return 1 }
+    // TODO: & 0xFF -> unsigned int?
+    return (rc >> 8) & int(0xFF)
+}
+
+/// Walk up from `start` until a directory containing `__ws__.toml` or
+/// `__pkg__.toml` is found, then return its `dist/` directory.
+func find_dist_dir(start str) str {
+    var dir = fs.Path(start).absolute()
+    while true {
+        let d = dir.to_str()
+        if fs.exists(fs.Path(d).cat("__ws__.toml").to_str()) ||
+           fs.exists(fs.Path(d).cat("__pkg__.toml").to_str()) {
+            return fs.Path(d).cat("dist").to_str()
+        }
+        let parent = dir.parent()
+        if parent.to_str() == d {
+            return ""
+        }
+        dir = parent
+    }
+    return ""
+}
+
+/// Append `s` to `buf`, wrapped in single quotes if it contains
+/// characters the shell would otherwise split or interpret.
+func quote_arg(buf Buffer, s str) {
+    var need = false
+    let bs = s.to_bytes()
+    var i = 0
+    while i < bs.len() {
+        let b = bs[i]
+        if b == ' ' || b == '\t' || b == '\n' ||
+           b == '\'' || b == '"' || b == '$' || b == '\\' ||
+           b == '&' || b == ';' || b == '|' || b == '(' || b == ')' ||
+           b == '<' || b == '>' || b == '*' || b == '?' || b == '[' {
+            need = true
+            break
+        }
+        i += 1
+    }
+    if !need {
+        buf.write_str(s)
+        return
+    }
+    buf.write_byte('\'')
+    i = 0
+    while i < bs.len() {
+        let b = bs[i]
+        if b == '\'' {
+            buf.write_str("'\\''")
+        } else {
+            buf.write_byte(b)
+        }
+        i += 1
+    }
+    buf.write_byte('\'')
+}

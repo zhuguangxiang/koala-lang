@@ -14,45 +14,69 @@
 #include <time.h>
 #include <unistd.h>
 #include "args.h"
+#include "buffer.h"
 #include "mm.h"
 
-// Derive the default library search path from the executable location,
-// e.g. <prefix>/bin/koala -> <prefix>/lib/koala-lib, and merge it into
-// KOALA_PATH. User entries come first so they override/extend defaults.
-// The merged value is inherited by the spawned `koalac` via environ.
+// Append each non-empty entry of `list` (a ':'-separated search path) to `out`.
+// Empty entries — produced by leading, trailing, or duplicate ':' — are dropped.
+// Every emitted entry is guaranteed to end with '/'. Entries are separated by
+// a single ':' in the output; if `out` is already non-empty, a leading ':'
+// separator is inserted before the first emitted entry.
+static void append_normalized_path_list(Buffer *out, const char *list)
+{
+    if (!list) return;
+
+    size_t ulen = strlen(list);
+    size_t i = 0;
+    while (i <= ulen) {
+        size_t j = i;
+        while (j < ulen && list[j] != ':') j++;
+        if (j > i) {
+            if (out->len > 0) buf_write_char(out, ':');
+            buf_write_nstr(out, list + i, (int)(j - i));
+            if (list[j - 1] != '/') buf_write_char(out, '/');
+        }
+        if (j >= ulen) break;
+        i = j + 1;
+    }
+}
+
 static void setup_default_koala_path(void)
 {
-    char exe[PATH_MAX];
+    // Resolve executable directory: /proc/self/exe -> <prefix>/bin
+    BUF(exe);
+    buf_reserve(&exe, PATH_MAX);
+    ssize_t n = readlink("/proc/self/exe", BUF_STR(exe), PATH_MAX - 1);
+    if (n <= 0) {
+        FINI_BUF(exe);
+        return;
+    }
+    BUF_STR(exe)[n] = '\0';
+    exe.len = (int)n;
 
-    ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
-    if (n <= 0) return;
-    exe[n] = '\0';
+    char *slash = strrchr(BUF_STR(exe), '/');
+    if (!slash) {
+        FINI_BUF(exe);
+        return;
+    }
+    *slash = '\0';
+    exe.len = (int)(slash - BUF_STR(exe));
 
-    char *slash = strrchr(exe, '/');
-    if (!slash) return;
-    *slash = '\0'; // executable directory, e.g. <prefix>/bin
+    // Order: user KOALA_PATH > current dir > derived default lib.
+    BUF(path);
+    append_normalized_path_list(&path, getenv("KOALA_PATH"));
 
-    static const char suffix[] = "/../lib/koala-lib/";
-    const char *user = getenv("KOALA_PATH");
+    if (BUF_LEN(path) > 0) buf_write_char(&path, ':');
+    buf_write_str(&path, "./");
 
-    // strip trailing colons so merging never creates an empty entry;
-    // the path search loop (str_sep) stops at empty entries.
-    size_t ulen = user ? strlen(user) : 0;
-    while (ulen > 0 && user[ulen - 1] == ':') ulen--;
+    buf_write_char(&path, ':');
+    buf_write_str(&path, BUF_STR(exe));
+    buf_write_str(&path, "/../lib/koala-lib/");
 
-    size_t len = strlen(exe) + sizeof(suffix);
-    if (ulen) len += ulen + 1;
+    FINI_BUF(exe);
 
-    char *path = malloc(len);
-    if (!path) return;
-
-    if (ulen)
-        snprintf(path, len, "%.*s:%s%s", (int)ulen, user, exe, suffix);
-    else
-        snprintf(path, len, "%s%s", exe, suffix);
-
-    setenv("KOALA_PATH", path, 1);
-    free(path);
+    setenv("KOALA_PATH", BUF_STR(path), 1);
+    FINI_BUF(path);
 }
 
 static int run_cmd(char *argv[])
@@ -170,6 +194,20 @@ static char *default_output_path(const char *input)
     return out;
 }
 
+static char *normalize_input(const char *input)
+{
+    size_t len = strlen(input);
+    if (len > 4 && !strcmp(input + len - 4, ".klc")) {
+        return strdup(input);
+    }
+
+    char *out = malloc(len + 5);
+    if (!out) return NULL;
+    memcpy(out, input, len);
+    strcpy(out + len, ".klc");
+    return out;
+}
+
 static int run_klc(const char *input)
 {
     koala_initialize();
@@ -188,6 +226,12 @@ static int run_klc(const char *input)
     return failure;
 }
 
+static int file_exists(const char *path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
 int main(int argc, char *argv[])
 {
     // double t0 = now_ms();
@@ -200,6 +244,7 @@ int main(int argc, char *argv[])
 
     const char *input = opt->input;
 
+    // cache hit: if this is a .klc file, run it directly.
     if (match_suffix(input, ".klc")) {
         if (opt->compile_only) {
             fprintf(stderr, "koala: -c cannot be used with .klc\n");
@@ -210,6 +255,22 @@ int main(int argc, char *argv[])
         // fprintf(stderr, "[args] %.3f ms\n", t1 - t0);
 
         return run_klc(input);
+    }
+
+    // Cache hit: for a .kl input (or a package directory) with no explicit -c
+    // if the sibling .klc already exists, run it directly.
+    // No freshness check on purpose: input may be a directory, whose mtime
+    // does not reflect source content changes.
+    if (!opt->compile_only) {
+        char *klc_file = normalize_input(input);
+        if (klc_file) {
+            if (file_exists(klc_file)) {
+                int rc = run_klc(klc_file);
+                free(klc_file);
+                return rc;
+            }
+            free(klc_file);
+        }
     }
 
     char *temp = NULL;

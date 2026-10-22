@@ -14,3 +14,12 @@ pub func greet(name str) str {
 pub func compute(a int, b int, c int) int {
     return math.mul(math.add(a, b), c)
 }
+
+import "std/sys"
+
+func main() {
+    print(sys.args())
+    print(greet("wombat"))
+    print(compute(1,2,3))
+    print(sys.path)
+}

@@ -1,0 +1,14 @@
+
+
+pub class Foo {
+
+    pub let v = 100
+
+    pub func __init__() {}
+}
+
+pub func hello() { print("hello"); print(Foo(), Foo().v); }
+
+func main() {
+    print("hello")
+}

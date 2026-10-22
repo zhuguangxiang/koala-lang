@@ -1,6 +1,6 @@
 # Return subdirectories of the current directory that contain
-# `__ws__.toml` or `__pkg__.toml`. Only these are valid targets for
-# `wombat build <dir>` and the other `[dir]` commands.
+# `__ws__.toml` or `__pkg__.toml`. Used for `wombat build <dir>`,
+# `wombat test <pkg>`, and `wombat run <pkg>` completion.
 _wombat_ws_dirs() {
     local d
     for d in */; do
@@ -32,8 +32,29 @@ _wombat() {
                 COMPREPLY=( $(compgen -W "$(_wombat_ws_dirs)" -- "$cur") )
             fi
             ;;
-        check|run|test|fmt|doc|clean)
-            # `wombat <cmd> [dir]`: only workspace/package directories.
+        run)
+            # `wombat run <target> [args...]`
+            #
+            # <target> may be a package name, a .kl source file, or a
+            # .klc artifact. Arguments after <target> belong to the
+            # program, so no wombat-level candidates are offered there.
+            if [ "$COMP_CWORD" -eq 2 ]; then
+                if [[ "$cur" == -* ]]; then
+                    COMPREPLY=()
+                    compopt +o default
+                else
+                    local dirs="$( _wombat_ws_dirs )"
+                    local files="$( compgen -f -X '!*.@(kl|klc)' -- "$cur" 2>/dev/null )"
+                    COMPREPLY=( $(compgen -W "$dirs $files" -- "$cur") )
+                fi
+            else
+                # Program arguments: no wombat-level candidates.
+                COMPREPLY=()
+                compopt +o default
+            fi
+            ;;
+        test|check|fmt|doc|clean)
+            # `wombat <cmd> [pkg]`: only workspace/package directories.
             if [[ "$cur" == -* ]]; then
                 COMPREPLY=()
                 compopt +o default
