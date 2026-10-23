@@ -1,4 +1,4 @@
-// RUN: koala %s --test
+// RUN: koala --test %s
 //
 // io.copy() typical scenarios, unbuffered and buffered:
 // file -> file, process stdout -> file, file -> process stdin, and

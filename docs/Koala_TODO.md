@@ -591,9 +591,16 @@ float → int **不 trap，而是饱和**——这是 `do_cast.h` mode 1 分支�
 
 ### 13.6 遗留
 
-- [ ] **NYI 1b**：`int64.to_float()` / `uint64.to_float()` native 方法——**未验证**，构造函数路径通了不代表这两个方法通了
-- [ ] **NYI 2b**：`float64.to_int()` native 方法——同上，未验证
-- [ ] **数值 native 方法族未实现（2026-10-02 src/ 全文 grep 核实）**：`int64.pow / abs / to_float`、`uint64.pow / to_float`、`float64.abs / ceil / floor / round / sqrt / pow / to_int / is_nan / is_inf`，以及模块级 `abs_int64` / `abs_float64` / `pow_int64_int64` / `pow_float64_*` 在 src/ 无任何 C 实现——调用将命中 not_impl（汇总见 §16.2）。NYI 1b / 2b 由“未验证”升级为“确认未实现”
+- [x] **NYI 1b**：`int64.to_float()` / `uint64.to_float()` native 方法——已实现（2026-10-23，`intobj.c` `_int_to_float`，按 self tag 区分符号，`UINT64_MAX.to_float()` 正确得 `1.844674407370955e+19` 而非 −1）
+- [x] **NYI 2b**：`float64.to_int()` native 方法——已实现（2026-10-23，`floatobj.c`，向零截断，NaN→0、越界饱和到 INT64_MIN/MAX，与 do_cast.c wrap 模式一致）
+- [x] **数值 native 方法族未实现（2026-10-02 src/ 全文 grep 核实；2026-10-23 全部销账）**：~~`int64.pow / abs / to_float`、`uint64.pow / to_float`~~ 已于 2026-10-23 在 `intobj.c` 实现并注册进 `int_methods[]`（pow 用 uint64 二进制快速幂、溢出 wrap 无符号 UB；int64.pow 负指数按数学结果向零截断：base ±1 → ±1，其余 → 0；abs 的 INT64_MIN wrap 到自身）。~~模块级 `pow_int64_int64` / `pow_float64_int64` / `pow_float64_float64`~~ 已于 2026-10-23 在 `src/modules/builtin.c` 实现并注册进 `builtin_functions[]`（int64 版语义与 `int64.pow` 一致；`pow_float64_int64` 平方求幂、负指数取倒数、`0.0^负 → inf`；`pow_float64_float64` 直通 C `pow()`，`(-1.0)^0.5 → NaN`）。更正：`abs_int64` / `abs_float64` 本就是 `__builtin__.kl` 中的**纯 KL 实现**（非 @native），无需 C 实现，原记录有误。~~`float64.abs / ceil / floor / round / sqrt / pow / to_int / is_nan / is_inf`~~ 已于 2026-10-23 在 `floatobj.c` 全部实现并注册进 `float_methods[]`（json.dump 的 NaN/inf panic 路径依赖 `is_nan` / `is_inf`，libs/koala/json 全部测试通过）
+- [x] **声明 Bug：`pow_int64_int64` 缺返回类型**（2026-10-23）：`__builtin__.kl` 中声明为 `pub func pow_int64_int64(base int, exp int) {}`（无 `int` 返回类型），导致 `let x = pow_int64_int64(...)` 编译报 `expr has not value`，且作为 print 多参数嵌套调用时触发 VM 断言 `(rs) < max_regs` 崩溃；已补 `int` 返回类型并 `wombat build` 重建 std dist
+- [x] **编译器 Bug：常量 cast 报错后 `--write-klc` 段错误 + 诊断被吞**（2026-10-23 修复）：`int64(3.7)` / `uint8(300)` 等常量窄化构造经 `koala` CLI（带 `--write-klc`）编译时 SIGSEGV。根因链：const-copy-prop 检出错误（`klr_error` → stdout printf，重定向时全缓冲）→ `m->errors++` 但管线不检查、继续执行 → codegen 对错误模块不设置 `mach` → `write_to_klc` 只判 `pm->m` 非空即调 `write_rt_data(mach=NULL)` 解引用崩溃 → 崩溃时 stdout 缓冲未 flush，**错误消息随 core 丢失**，用户只见 "compilation failed"。修复（两层）：① `koalac.c` `compile()` 在 `--write-klc` 前检查 `m->errors > 0` 则 return −1（**中间 pass 不早退**——lit 的 `test_const_*_cast_failed` / `test_int_cast_2` 依赖错误后继续 dump IR 且 exit 0）；② `write_klc.c` `write_to_klc` 防御性改判 `pm->m && pm->m->mach`。修复后诊断正常显示（`constant float/integer overflow in cast: ...`），lit 245/245 全绿
+- [x] **数值 API 去重决策执行**（2026-10-23）：删除数值类上与顶层函数/构造器重复的方法，**只动 `number.kl` + `intobj.c` + `floatobj.c` 三个文件**：① `int64.pow(x)` / `uint64.pow(x)` / `float64.pow(x)` 方法（KL 声明 + `_int_pow` / `_float_pow` C 实现 + methods 表项）——顶层 `pow(T,U)` 泛型壳路由修复后，`pow_*` 手动实例化是唯一 pow 入口；② `int64.to_float()` / `uint64.to_float()` / `float64.to_int()` 方法（KL 声明 + `_int_to_float` / `_float_to_int` C 实现 + 仅被 `_float_to_int` 使用的 `FLOAT64_UPPER/LOWER_BOUND_FOR_INT64` 宏）——数值构造器 `float64(x)` / `int64(x)` 是唯一转换路径；③ **追加：`int64.abs()` / `float64.abs()` 方法**（KL 声明 + `_int_abs` / `_float_abs` C 实现 + methods 表项）——顶层 `abs[T]` 壳已有纯 KL 手动实例化 `abs_int64` / `abs_float64`（`__builtin__.kl:131/139`，`if a < 0 { return 0 - a }`），路由修复后 `abs(-5)` 即落于此；语义一致性已核（INT64_MIN 情形：C 版特判 wrap 到自身，KL 版 `0 - a` 的 int64 wrap 减法行为相同）；`.abs()` 删前 grep 确认零活跃调用点（仅 test_int64_complete.kl 两处已注释调用）。**明确不动**：`str.to_int/to_float`（json/toml 解析器真实依赖）、`ceil/floor/round/sqrt/is_nan/is_inf` 等其余方法、`pow_int64_int64` / `abs_int64` 等顶层实例化（KL 声明 + builtin.c 实现）、do_cast.c 的字节码 cast。删除后调用点报干净编译错误（`'abs' is not found in class 'int64'`）；验证 `abs(-5)`=5、`abs(-2.5)`=2.5、`pow(2,10)`=1024、`int64(f: float)` 运行时截断=3、str 方法照常；lit 245/245、json 6/6 全绿。注：上文 NYI 1b/2b 及"数值 native 方法族"记录中的 to_float/to_int/pow/abs 方法实现已随本次清理删除，构造器语义（截断/饱和）由 do_cast.c 承担不变
+- [x] **~~"Generic Shell Pattern" 编译器路由未实现~~（原记录定性错误，2026-10-23 更正并修复）**：路由**早已实现**——`parser_expr.c` 调用点经 `find_or_add_func_instance`（`parser_generic.c:573`）用 `mangle_func_name(name, tp_args)` 的 mangled 名 `stbl_get` 查现有符号，命中即路由到手动实例化 / `@specialized` 生成函数（abs/min/max 一直正常）。真正的 bug 在 `typespec.c` `mangle_func_name`：**多类型参数之间不写分隔符**，`pow[T,U]@[int64,int64]` mangle 成 `pow_int64int64`，与手写实例化符号 `pow_int64_int64` 不匹配 → 查找 miss → **静默实例化 panic 壳体** → 运行期报 `pow is not implemented for these types`（误导为"类型不支持"）。单类型参数壳体 mangling 恰好正确，掩盖了此缺陷；`pow[T,U]` 是全仓库唯一活跃的多类型参数泛型函数（zip.kl 的 `[T,U]` 均为注释）。修复：循环内在每个类型参数前写 `_`（单参数 mangled 名不变，完全向后兼容；类实例走 `mangle_type_name` 的 `<...>` 约定，不受影响）。验证：`pow(2,10)`→`call @pow_int64_int64`=1024（二进制快速幂）、`pow(2.0,10)`→`@pow_float64_int64`=1024、`pow(2.0,0.5)`→`@pow_float64_float64`=1.414213562373095；不支持组合（如 uint 变量）仍按设计运行期 panic 壳体。回归测试加入 `test_specializd.kl`（IR 路由 CHECK + 运行输出 CHECK），lit 245/245、json 6/6 全绿，`ninja install` 后 CLI 链路验证通过
+- [ ] **外部泛型函数显式类型参数断言崩溃**（2026-10-23 pow 路由修复时新发现的**存量 bug**，与 mangling 修复无关）：`abs[int](-5)` / `min[int](3,1)` / `pow[int,int](2,10)` 等对 **std/builtin 外部符号**的显式实例化调用触发 `irgen.c:1217 emit_ir_index` 断言 `exp->ir_val` 失败（SIGABRT）；本地 `@specialized` 函数 `max[int](1,2)` 正常（test_specializd.kl 覆盖）。疑似 IndexExpr 携带显式 tp_args 且命中外部 SYM_FUNC 时 lhs 的 ir_val 未生成。隐式推断路径（`pow(2,10)`）不受影响
+- [x] **数值 API test-ut 覆盖 + 测试基础设施修复：坏 RUN 行静默跳过 36 个 ut 文件**（2026-10-23）：① 新增 `test/test-ut/test_number_methods.kl`（16 个 `@test`，实测语义后写期望值）：pow int64 实例化（基本幂/负指数截断语义 `pow(2,-1)`=0、`pow(-1,-3)`=-1 奇偶/uint64 wrap 溢出 `pow(2,63)`=INT64_MIN、`pow(2,64)`=0/经函数参数的运行时路径）、pow float64_int64（`pow(2.0,-2)`=0.25、`pow(0.0,-1)`=inf）、pow float64_float64（`pow(2.0,0.5)`≈√2、`pow(-1.0,0.5)` NaN）、abs 路由（含 `abs(INT64_MIN)`=INT64_MIN wrap 语义、运行时路径）、float64 保留方法（ceil/floor 负数、round 半数远离零 2.5→3 / -2.5→-3、sqrt 负数 NaN、is_nan/is_inf 经 0.0/0.0 与 1.0/0.0、hash 稳定性）。② **发现并修复测试基础设施 bug**：`koala <file> --test`（无 `++` 分隔符）形式**静默不执行任何测试、exit 0**——test-ut 下 36/55 个存量文件的 RUN 行正是此坏形式（`// RUN: koala %s --test`），在 lit 中一直"假通过"（包括带 `@should_panic` 的 test_ut_fail.kl）；批量 sed 修正为 `// RUN: koala --test %s`（用户确认的正确形式：`koala --test <file>` 或 `koala <file> ++ --test`）。修正后抽查确认真实执行（test_ut_assert 3/3、test_ut_fail 7/7、test_str_slice 11/11、test_splitter 23/23，故意失败断言正确报 `1024 != 9999` 且 exit 1），存量 36 文件的测试本身全部健康；lit 246/246 全绿。**遗留注意**：新增 ut 文件 RUN 行务必用 `koala --test %s` 或 `koala %s ++ --test`，切勿写 `koala %s --test`
+- [x] **`++` CLI 新语义下 test-ir / test-run / test-kl 全量 RUN 行排查**（2026-10-23）：`++` 分隔符是昨日新增的 CLI 约定（`args.c` `kl_parse_args` 四阶段解析：STAGE 1 只认**文件前**的选项（getopt `+` POSIX 模式）；文件后到 `++` 前一律作为**脚本 argv**；`++` 后再解析 VM 选项且未知选项报错），上述 36 个 ut 坏 RUN 行是历史遗留而非本来错误。逐一排查三目录所有非 koalac 的 RUN 行形式：`koala --dump=... %s` ×3（test_bug_normalize/test_call/test_bool）✓ 有效；`koala %s ex2.toml`（test_valist_for）✓ ex2.toml 是有意的脚本参数；`! koala -c %s`（test_to_str_and_str）✓；`koala %s ++ ...` ×30+ ✓；`koala %s | filecheck %s` ×49 ✓。**发现 2 个静默失效**：`test_misc_2.kl` 的 `koala %s --package-name=foo` 与 `test_sccp.kl` 的 `koala %s --ssa`——选项落入脚本 argv 被忽略（包名未设置 / SSA 管线未启用），因 CHECK 只查程序输出而一直假绿；均改为 `koala %s ++ <opt>` 形式，实测选项生效且 filecheck 通过，lit 246/246 全绿
 - [ ] **窄整型字面量丢符号**（不是 cast 问题，但它卡住了两个 cast 用例）：超出 ±2048 的负 int16 / int32 字面量变成无符号值。根因在 `isel.c` 的 `get_const_op`——`[-2048, 2047]` 内发 `OP_LOAD_INT_IMM`，之外走 `OP_LOADK`，而 LOADK 路径没有做符号扩展。
   - 因此 `test_cast_int.kl` 中 `test_i32_to_f32(-100000)` 与 `test_i32_to_f64(-100000)` 仍以注释 + `// expect:` 保留，是仅剩的两个未启用跨族用例；同文件末尾另有一组字面量本身的 worklist。
   - `test_const_int_cast_failed.kl` 里 `let a int32 = -40000` / `-100000` 两处目前"因错误的原因"通过（字面量先变成大正数，再触发常量越界报错）；字面量修好后诊断文本不变，**无需改动**。
@@ -885,3 +892,138 @@ reverse / reversed / len / 切片 / `+` / `+=`——方向与主流一致，前�
    代价是 parser 需加 main 签名约束。保底方案：明确规定 `main()` 无返回，退出码只有 `sys.exit` 一条通道。
 
 **测试**：退出码无法用现有 `--test` 断言，需 lit 层 `sh` 跑独立进程比对 `$?`。
+
+---
+
+## 20. float 的 NaN / Inf 构造途径（待定）
+
+**现状**：标准库能**判定**非有限值，但无法**构造**：
+
+- `libs/std/builtin/number.kl:449-455` 有 `is_nan()` / `is_inf()`，没有对应的构造入口。
+- `libs/std/builtin/__builtin__.kl:13-28` 有 16 个整数边界常量（`INT8_MIN` … `UINT64_MAX`），
+  **没有任何 float 常量**（无 `FLOAT_MAX` / `NAN` / `INF`）。
+- 目前只能靠表达式 hack，实测编译期常量折叠不拦截：`0.0 / 0.0` → nan，
+  `1e308 * 10.0` → inf，`-1e308 * 10.0` → -inf，`inf - inf` → nan。
+  `libs/koala/json/test/test_dump.kl` 的 4 个 non-finite 用例、以及
+  `test/test-ut/test_float_round_trip.kl` 的 `test_to_str_exact_non_finite` 都是这么写的。
+
+**两条相关新事实（2026-10-24，写 `to_str_exact` 测试时实测）**：
+
+- **NaN 的文本形式不唯一**：`%g` 的输出取决于符号位，而 `0.0 / 0.0` 的符号位是
+  implementation-defined，glibc 可能给出 `"-nan"` 而非 `"nan"`。所以断言 NaN 文本只能用
+  `index("nan") != -1`，不能写精确相等（`inf` / `-inf` 的符号是确定的，可以精确断言）。
+- **非有限值的文本无法回喂 `to_float()`**：`str_to_float`（`src/common/mm.c:189`）有
+  `if (!isfinite(val)) return 0.0;`，`"nan"` / `"inf"` 一律被拒并 panic `invalid float literal`。
+  所以 NaN / Inf 没有往返可断言——这与本条「无法构造」是同一个缺口的两面：
+  既造不出常量，也解析不回文本。
+
+**已排除的方案**：
+
+1. `pub const NAN = 0.0 / 0.0` —— **`const` 不接受表达式**，实测报
+   `error: syntax error`。`const` 只接受字面量（`const B = 1e308` 可行，输出 `1e+308`）。
+2. 字面量语法 —— 词法器不识别 `nan` / `inf`（`src/parser/koala.l` 中仅 `"infer"` 关键字命中）。
+3. **函数路线（作者 2026-10-24 明确否决）**：`@native pub func nan() float64` 或
+   `pub static func nan()`。相关事实备查：builtin 类型（`libs/std/builtin/*.kl`）**无
+   `static func` 先例**；顶层 `@native` 自由函数有先例（`__builtin__.kl:47-84` 的 `panic` /
+   `unreachable` / `format` / `typeof`）；`static func` 先例只在普通 .kl 类
+   （`libs/std/io/bytesio.kl:74`、`libs/std/time/duration.kl:38`，且均为纯 .kl 实现体，非 `@native`）。
+
+**待定方向**（需作者裁定）：
+
+1. **词法器加 `nan` / `inf` 字面量**：与 `true` / `false` / `null` 同级的关键字，最直接，
+   代价是扩充语言表面。
+2. **`const` 支持编译期常量表达式**：让 `pub const NAN = 0.0 / 0.0` 成立，顺带满足其他
+   常量折叠需求，改动面落在 parser 与常量折叠。
+3. 其他作者倾向的形式。
+
+**关联**：与 §21 同属 float 表面完整性。
+
+---
+
+## 21. `str(float)` 只有 16 位有效数字，导致 json 浮点往返 panic（已修复）
+
+**现状**（2026-10-24 实测复现，**已修复**，见下文「已落地方案」）：`libs/koala/json/float.kl` 的 `format_number`
+用 `str(v)` 序列化，而 `str(float)` 只输出 16 位有效数字——16 位不足以唯一命名每个 double，
+需要 17 位。后果是 json 序列化极值浮点后，**产出的文本自己解析不回来**：
+
+```
+parse_str("2.2250738585072014e-308")   → 成功（DBL_MIN）
+  .to_json()                           → "2.225073858507201e-308"
+parse_str(上一行那个文本)               → panic: invalid float literal
+```
+
+**根因链**：截断后的值小于 DBL_MIN → `strtod` underflow 置 `ERANGE` → `src/common/mm.c:189`
+的 `str_to_float` 命中 `if (errno == ERANGE) return 0.0;` → `ok = 0` → `src/objects/strobj.c:576`
+的 `_str_to_float` 抛 `invalid float literal`。DBL_MAX `1.7976931348623157e308` 同理
+（16 位四舍五入后变大 → overflow → 同样 panic）。
+
+**旁证**：`str(0.1 + 0.2)` 输出 `0.3`，而 IEEE754 真值是 `0.30000000000000004`；
+`str(123456789.123456789)` 输出 `123456789.1234568`。
+
+**作者裁定（2026-10-24）：不改 `str(float)`**。理由是改后 `print(0.1 + 0.2)` 会输出
+`0.30000000000000004`，可读性损失太大。所以 `src/objects/floatobj.c` 的 `_float_to_buf`
+（第 15-40 行，`TAG_FLOAT64` 分支用 `%.16g`）**维持原样**，print 行为不变。
+
+**已查清的技术约束（决定了 json 层无法在纯 .kl 内自行修复）**：
+
+1. `format` 的浮点路径 `format_float`（`src/runtime/format.c:129-155`）**硬编码 `%f`**
+   （定点表示），不支持 `e` / `g` 类型字符；`__kl_format__`（同文件 232 行）只在
+   `spec.type == 'f'` 时才走 `format_float`。所以 `format("{:.17f}", DBL_MIN)` 会输出
+   308 个零开头的定点数，而且 `char tmp[128]` 装不下（被 snprintf 截断）。json
+   需要的是科学计数法，拿不到。
+2. shortest-round-trip 必须「输出后 reparse 与原值比对」，但 `str.to_float()` 对 `ERANGE`
+   是**直接 panic**（`src/objects/strobj.c:576`）而不是返回错误值，所以 .kl 层无法安全地
+   做这个比对——恰好在最需要比对的极值上会炸。
+
+⇒ 选了改 C 侧。
+
+**已落地方案（2026-10-24）：给 `float64` 新增 `to_str_exact()`**，语义是「最短可往返表示」，
+json 序列化改用它，`print` / `str()` / `fmt()` 仍走 16 位的 `_float_to_buf`，**print 行为完全不变**
+（`print(0.1 + 0.2)` 仍输出 `0.3`）。三处落点：
+
+- `src/objects/floatobj.c`：新增助手 `_float_to_buf_exact`（`ASSERT(tag == TAG_FLOAT64)` +
+  `for (prec = 15; prec <= 17; prec++)` 试 `%.*g`，用**裸 `strtod`** 比对——不是 `str_to_float`，
+  避开 ERANGE panic——相等即 break）与方法 `_float_to_str_exact`，并在 `float_methods[]`
+  注册 `"to_str_exact"`。
+- `libs/std/builtin/number.kl`：float64 块 `to_str()` 之后加 `@native pub func to_str_exact() str {}`。
+- `libs/koala/json/float.kl`：`format_number` 里 `str(v)` → `v.to_str_exact()`（1 行）。
+
+**命名定为 `to_str_exact` 而非 `repr`**：`repr` 是 Python 惯例，但 Python 的 `str(float)` 本身
+就是 shortest-round-trip，Koala 这里是刻意让两者不同；`to_str` + `_exact` 后缀既顺着
+`to_int` / `to_int_or` 的「基础名 + 后缀」既有先例，也直接点出与 `to_str()` 的区别。`exact`
+只承诺可还原、不承诺位数（实现是 shortest，不是无脑 17 位），比 `full` / `precise` 准确。
+
+**只实现 float64**：`.kl` 侧仅在 float64 块声明，而编译器只认声明过的名字，所以共用
+`float_methods[]` 的 float32 / float16 / bfloat16 调不到它，C 侧用 `ASSERT(tag == TAG_FLOAT64)`
+收窄即可。这也避开了一个坑：float32 的往返比对必须把 `strtod` 结果窄化回 `float` 再比
+（否则 `(double)(float)0.1` 永远不等于 `strtod("0.1")`）；将来要给 float32 加，需单独处理窄化。
+
+**未采纳「接受为已知限制」**：改动面只有约 20 行 C + 7 行 .kl，且是纯新增方法、不改任何
+现有行为，没有理由留着这个缺陷。
+
+**附（已处理，2026-10-24）**：`_float_to_buf` 的注释原写「`%.15g` avoids exposing binary
+floating-point noise such as 3.1400000000000001」而代码实际是 `%.16g`（疑似从 15 改到 16
+时漏改），已把注释里的 `%.15g` 改成 `%.16g`。作者要求**只改这一个字符，不在 C 注释里
+附加局限说明**——16 位不保证 round-trip 这类分析留在本文档里就够了。
+
+**测试**：已新建 `test/test-ut/test_float_round_trip.kl`（7 用例，实测 **7 passed / 0 failed**），
+覆盖：常见值不增位（`3.5`→`"3.5"`、`1.0`→`"1"`、`1e30`→`"1e+30"`）、15 位不够时退 16 位
+（`1.0/3.0`）、DBL_MIN 与 DBL_MAX 的文本级往返、`0.1+0.2` 与 `0.3` 被区分开（`to_str()` 把
+两者都映成 `"0.3"`）、非有限值不 abort、跳量级往返。
+
+两条测试设计纪律：**往返断言一律用 `ut.assert_eq` 而非 `assert_float_close`**（默认 eps=1e-9
+会把 DBL_MIN 的漂移绿着放过，而这正是该方法存在的唯一理由）；**NaN 不断言精确文本**
+（符号位 implementation-defined，glibc 可能输出 `"-nan"`，故只断言 `index("nan") != -1`）。
+
+**刻意未写 subnormal 往返**：最小 subnormal `4.9406564584124654e-324` 的 `to_str_exact()` 能
+正确产出 17 位文本，但 `to_float()` 解析它时 glibc 置 `ERANGE`、被 `mm.c:189` 一律拒绝而 panic。
+这是 `str_to_float` 的严格策略（上文根因链的第 ③ 因素），不是 `to_str_exact` 的缺陷；
+DBL_MIN 是规格化数，解析它不触发 ERANGE，所以那条用例是干净的。
+
+**由此暴露一个独立的待定设计问题**：`str_to_float` 对 `ERANGE` 一律拒绝，**不区分 overflow
+与 underflow-to-subnormal**。C 标准里后者置 `ERANGE` 是**可选**的，多数实现接受 subnormal
+而不报错，glibc 会报。结果是 Koala 无法通过文本解析得到任何 subnormal 值（`5e-324` 这类
+输入直接 panic），而 subnormal 在 IEEE754 里是合法值。是否放宽（underflow 到 subnormal 时
+接受而不报错）需作者裁定；若放宽，`to_str_exact` 的 subnormal 往返用例即可补上。
+
+json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可以补了**（缺陷已修），尚未补。

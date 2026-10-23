@@ -1,0 +1,25 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A JSON integer value.
+///
+/// JSON numbers without a fraction or an exponent are stored as integers.
+pub class Integer : Value {
+    /// The integer content.
+    pub let value int
+
+    /// Create an integer value holding `_value`.
+    pub func __init__(_value int) {
+        value = _value
+    }
+
+    /// Write the decimal representation to `f`.
+    pub func fmt(f Formatter) {
+        f.write_str(str(value))
+    }
+
+    /// Serialize to a bare integer, e.g. `8080`.
+    pub func to_json() str = str(value)
+}

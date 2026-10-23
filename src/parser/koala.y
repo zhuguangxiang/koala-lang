@@ -3524,6 +3524,11 @@ tuple_expr
         $$ = expr_from_tuple($2);
         expr_set_loc($$, lloc(@1, @5));
     }
+    /* | '(' ')'
+    {
+        $$ = expr_from_tuple(NULL);
+        expr_set_loc($$, lloc(@1, @2));
+    } */
     | TUPLE
     {
         TypeSpec *ty = klass_type_spec(STD_BUILTIN_PATH, "tuple");

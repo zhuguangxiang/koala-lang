@@ -107,8 +107,7 @@ pub func run(target str, args list[str]) int {
 
     let rc = os.system(buf.to_str())
     if rc < 0 { return 1 }
-    // TODO: & 0xFF -> unsigned int?
-    return (rc >> 8) & int(0xFF)
+    return (rc >> 8) & 0xFF
 }
 
 /// Walk up from `start` until a directory containing `__ws__.toml` or

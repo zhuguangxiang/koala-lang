@@ -1,0 +1,179 @@
+// RUN: koala --test %s
+
+// Unit tests for the numeric API after the 2026-10-23 de-duplication:
+//
+//   * `pow` / `abs` are top-level generic shells in std/builtin. Calls are
+//     routed by the compiler to manual instantiations (pow_int64_int64,
+//     pow_float64_int64, pow_float64_float64, abs_int64, abs_float64)
+//     via mangled-name lookup: pow[T, U] @ [int64, int64] -> pow_int64_int64.
+//   * The duplicated methods int64.pow/abs/to_float, uint64.pow/to_float and
+//     float64.pow/to_int/abs were REMOVED; numeric constructors (int64(x),
+//     float64(x)) are the only conversion path.
+//   * Remaining float64 methods (ceil/floor/round/sqrt/is_nan/is_inf) are
+//     covered here as well.
+
+import "std/ut"
+
+// -----------------------------------------------------------------------------
+// pow: int64 instantiation (binary exponentiation, wrapping overflow)
+// -----------------------------------------------------------------------------
+
+@test
+func test_pow_int64() {
+    ut.assert_int_eq(pow(2, 10), 1024)
+    ut.assert_int_eq(pow(3, 4), 81)
+    ut.assert_int_eq(pow(2, 0), 1)
+    ut.assert_int_eq(pow(0, 0), 1)
+    ut.assert_int_eq(pow(-2, 3), -8)
+    ut.assert_int_eq(pow(-2, 4), 16)
+    ut.assert_int_eq(pow(10, 18), 1000000000000000000)
+}
+
+@test
+func test_pow_int64_negative_exp() {
+    // Negative exponent truncates the exact mathematical result toward zero:
+    // base 1 -> 1, base -1 -> +/-1 by parity, every other base -> 0.
+    ut.assert_int_eq(pow(2, -1), 0)
+    ut.assert_int_eq(pow(1, -5), 1)
+    ut.assert_int_eq(pow(-1, -3), -1)
+    ut.assert_int_eq(pow(-1, -4), 1)
+    ut.assert_int_eq(pow(0, -1), 0)
+}
+
+@test
+func test_pow_int64_overflow_wrap() {
+    // Binary exponentiation is performed in uint64 so overflow wraps
+    // deterministically (no signed-overflow UB).
+    ut.assert_int_eq(pow(2, 62), 4611686018427387904)
+    ut.assert_int_eq(pow(2, 63), INT64_MIN)
+    ut.assert_int_eq(pow(2, 64), 0)
+}
+
+// Non-constant arguments: same routing, but exercised at runtime instead of
+// being folded away by constant propagation.
+func do_pow(b int, e int) int { return pow(b, e) }
+
+@test
+func test_pow_int64_runtime_args() {
+    ut.assert_int_eq(do_pow(2, 10), 1024)
+    ut.assert_int_eq(do_pow(-3, 3), -27)
+    ut.assert_int_eq(do_pow(5, 0), 1)
+}
+
+// -----------------------------------------------------------------------------
+// pow: float64-int64 instantiation (exponentiation by squaring)
+// -----------------------------------------------------------------------------
+
+@test
+func test_pow_float64_int64() {
+    ut.assert(pow(2.0, 10) == 1024.0)
+    ut.assert(pow(1.5, 2) == 2.25)
+    ut.assert(pow(2.0, 0) == 1.0)
+    // Negative exponent takes the reciprocal.
+    ut.assert(pow(2.0, -2) == 0.25)
+    // 0.0 raised to a negative power -> +inf.
+    ut.assert_true(pow(0.0, -1).is_inf())
+}
+
+// -----------------------------------------------------------------------------
+// pow: float64-float64 instantiation (delegates to C pow)
+// -----------------------------------------------------------------------------
+
+@test
+func test_pow_float64_float64() {
+    ut.assert_float_close(pow(2.0, 0.5), 1.414213562373095)
+    ut.assert_float_close(pow(9.0, 0.5), 3.0)
+    ut.assert(pow(2.0, 1.0) == 2.0)
+    // (-1.0)^0.5 is NaN (C pow semantics).
+    ut.assert_true(pow(-1.0, 0.5).is_nan())
+}
+
+// -----------------------------------------------------------------------------
+// abs: int64 / float64 instantiations (pure KL bodies in __builtin__.kl)
+// -----------------------------------------------------------------------------
+
+@test
+func test_abs_int64() {
+    ut.assert_int_eq(abs(-5), 5)
+    ut.assert_int_eq(abs(5), 5)
+    ut.assert_int_eq(abs(0), 0)
+    // INT64_MIN has no positive counterpart: 0 - INT64_MIN wraps to itself.
+    ut.assert_int_eq(abs(INT64_MIN), INT64_MIN)
+    ut.assert_int_eq(abs(INT64_MAX), INT64_MAX)
+}
+
+@test
+func test_abs_float64() {
+    ut.assert(abs(-2.5) == 2.5)
+    ut.assert(abs(2.5) == 2.5)
+    ut.assert(abs(0.0) == 0.0)
+    ut.assert(abs(-0.0) == 0.0)
+}
+
+func do_abs(a int) int { return abs(a) }
+
+@test
+func test_abs_runtime_args() {
+    ut.assert_int_eq(do_abs(-42), 42)
+    ut.assert_int_eq(do_abs(42), 42)
+}
+
+// -----------------------------------------------------------------------------
+// Remaining float64 methods
+// -----------------------------------------------------------------------------
+
+@test
+func test_float64_ceil() {
+    ut.assert((2.3).ceil() == 3.0)
+    ut.assert((-2.3).ceil() == -2.0)
+    ut.assert((2.0).ceil() == 2.0)
+    ut.assert((-2.0).ceil() == -2.0)
+}
+
+@test
+func test_float64_floor() {
+    ut.assert((2.7).floor() == 2.0)
+    ut.assert((-2.7).floor() == -3.0)
+    ut.assert((2.0).floor() == 2.0)
+    ut.assert((-2.0).floor() == -2.0)
+}
+
+@test
+func test_float64_round() {
+    // C round(): halves go away from zero.
+    ut.assert((2.5).round() == 3.0)
+    ut.assert((-2.5).round() == -3.0)
+    ut.assert((2.4).round() == 2.0)
+    ut.assert((-2.4).round() == -2.0)
+}
+
+@test
+func test_float64_sqrt() {
+    ut.assert((4.0).sqrt() == 2.0)
+    ut.assert((0.0).sqrt() == 0.0)
+    ut.assert_float_close((2.0).sqrt(), 1.414213562373095)
+    // sqrt of a negative value is NaN.
+    ut.assert_true((-1.0).sqrt().is_nan())
+}
+
+@test
+func test_float64_is_nan() {
+    ut.assert_true((0.0 / 0.0).is_nan())
+    ut.assert_false((1.0).is_nan())
+    ut.assert_false((0.0).is_nan())
+    ut.assert_false((1.0 / 0.0).is_nan())
+}
+
+@test
+func test_float64_is_inf() {
+    ut.assert_true((1.0 / 0.0).is_inf())
+    ut.assert_true((-1.0 / 0.0).is_inf())
+    ut.assert_false((1.0).is_inf())
+    ut.assert_false((0.0 / 0.0).is_inf())
+}
+
+@test
+func test_float64_hash_stable() {
+    ut.assert((1.5).hash() == (1.5).hash())
+    ut.assert((0.0).hash() == (-0.0).hash())
+}

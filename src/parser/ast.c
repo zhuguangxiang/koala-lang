@@ -371,14 +371,6 @@ Expr *expr_from_tuple(Vector *vec)
     return (Expr *)exp;
 }
 
-Expr *expr_from_set(Vector *vec)
-{
-    SetExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_SET_KIND;
-    exp->vec = vec;
-    return (Expr *)exp;
-}
-
 Expr *expr_from_call(Expr *lhs, Vector *args)
 {
     CallExpr *exp = mm_alloc_obj(exp);
@@ -452,7 +444,6 @@ static void list_expr_free(Expr *exp)
 static void map_expr_free(Expr *exp) { mm_free(exp); }
 static void map_entry_expr_free(Expr *exp) { mm_free(exp); }
 static void tuple_expr_free(Expr *exp) { mm_free(exp); }
-static void set_expr_free(Expr *exp) { mm_free(exp); }
 static void anony_expr_free(Expr *exp) { mm_free(exp); }
 static void type_expr_free(Expr *exp) { mm_free(exp); }
 
@@ -551,7 +542,6 @@ void expr_free(Expr *exp)
         [EXPR_MAP_KIND] = map_expr_free,
         [EXPR_MAP_ENTRY_KIND] = map_entry_expr_free,
         [EXPR_TUPLE_KIND] = tuple_expr_free,
-        [EXPR_SET_KIND] = set_expr_free,
         [EXPR_ANONY_KIND] = anony_expr_free,
         [EXPR_TYPE_KIND] = type_expr_free,
         [EXPR_CALL_KIND] = call_expr_free,

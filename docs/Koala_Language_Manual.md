@@ -181,12 +181,22 @@ The integer family is:
 | `int8`, `int16`, `int32`, `int64` | signed integers of 8/16/32/64 bits |
 | `uint8`, `uint16`, `uint32`, `uint64` | unsigned integers of 8/16/32/64 bits |
 
-Integer literals are written in decimal, and negative literals are supported:
+Integer literals are written in decimal, binary, octal or hexadecimal, and negative literals are
+supported. A literal is `int` (int64) by default, whatever base it is written in. It only becomes
+`uint64` when its value does not fit into int64, and a negative literal below INT64_MIN is rejected:
 
 ```kl
-let a = 100          // int (int64)
-let b int8 = -128    // narrow literal accepted at initialization
+let a = 100                // int (int64)
+let b = 0xFF               // int (int64), value 255
+let c = 0b1010             // int (int64), value 10
+let d = 0o17               // int (int64), value 15
+let e = 0xFFFFFFFFFFFFFFFF  // uint64, does not fit into int64
+let f int8 = -128          // narrow literal accepted at initialization
 ```
+
+When a literal appears where a type is expected, that type wins: the value is checked against the
+target range, and a non-decimal literal is read as a bit pattern, so `0xFF` is -1 when it is
+initialized as an `int8`.
 
 Narrow integer types are *init-only*: they accept narrow literals at initialization, while in
 expressions values are automatically promoted to the natural operand width (int8/int16/int32 to

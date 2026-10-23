@@ -1,0 +1,150 @@
+// RUN: koala %s --test
+
+import "koala/json"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// objects
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_empty_object() {
+    let v = json.parse_str("{}")
+    let obj = (v as json.Object)!
+    ut.assert_eq(obj.len(), 0)
+    ut.assert_eq(obj.keys().len(), 0)
+}
+
+@test
+func test_parse_flat_object() {
+    let v = json.parse_str("{\"name\":\"koala\",\"port\":8080}")
+    let obj = (v as json.Object)!
+    ut.assert_eq(obj.len(), 2)
+
+    let name = (obj.get("name") as json.String)!
+    let port = (obj.get("port") as json.Integer)!
+    ut.assert_eq(name.value, "koala")
+    ut.assert_eq(port.value, 8080)
+}
+
+@test
+func test_parse_object_contains_key() {
+    let v = json.parse_str("{\"a\":1}")
+    let obj = (v as json.Object)!
+    ut.assert_true("a" in obj)
+    ut.assert_false("b" in obj)
+}
+
+@test
+func test_parse_object_keeps_key_order() {
+    let v = json.parse_str("{\"b\":1,\"a\":2,\"c\":3}")
+    let obj = (v as json.Object)!
+
+    let keys = obj.keys()
+    ut.assert_eq(keys.len(), 3)
+    ut.assert_eq(keys[0], "b")
+    ut.assert_eq(keys[1], "a")
+    ut.assert_eq(keys[2], "c")
+}
+
+@test
+func test_parse_nested_object() {
+    let v = json.parse_str("{\"server\":{\"host\":\"localhost\",\"port\":8080}}")
+    let obj = (v as json.Object)!
+
+    let server = (obj.get("server") as json.Object)!
+    let host = (server.get("host") as json.String)!
+    let port = (server.get("port") as json.Integer)!
+    ut.assert_eq(host.value, "localhost")
+    ut.assert_eq(port.value, 8080)
+}
+
+@test
+func test_parse_object_with_mixed_values() {
+    let v = json.parse_str("{\"s\":\"x\",\"i\":1,\"f\":1.5,\"b\":true,\"n\":null}")
+    let obj = (v as json.Object)!
+
+    let s = (obj.get("s") as json.String)!
+    let i = (obj.get("i") as json.Integer)!
+    let f = (obj.get("f") as json.Float)!
+    let b = (obj.get("b") as json.Boolean)!
+    ut.assert_eq(s.value, "x")
+    ut.assert_eq(i.value, 1)
+    ut.assert_float_close(f.value, 1.5)
+    ut.assert_true(b.value)
+    ut.assert_true(obj.get("n") is json.Null)
+}
+
+@test
+func test_parse_object_duplicate_key_keeps_last() {
+    let v = json.parse_str("{\"a\":1,\"a\":2}")
+    let obj = (v as json.Object)!
+    ut.assert_eq(obj.len(), 1)
+
+    let a = (obj.get("a") as json.Integer)!
+    ut.assert_eq(a.value, 2)
+}
+
+@test
+func test_parse_object_ignores_whitespace() {
+    let v = json.parse_str("{\n  \"a\" : 1 ,\n  \"b\" : 2\n}")
+    let obj = (v as json.Object)!
+    ut.assert_eq(obj.len(), 2)
+
+    let a = (obj.get("a") as json.Integer)!
+    let b = (obj.get("b") as json.Integer)!
+    ut.assert_eq(a.value, 1)
+    ut.assert_eq(b.value, 2)
+}
+
+// ---------------------------------------------------------------------------
+// building objects
+// ---------------------------------------------------------------------------
+
+@test
+func test_build_object() {
+    let obj = json.Object()
+    obj.add("name", json.String("koala"))
+    obj.add("port", json.Integer(8080))
+
+    ut.assert_eq(obj.len(), 2)
+    ut.assert_true("name" in obj)
+
+    let name = (obj.get("name") as json.String)!
+    ut.assert_eq(name.value, "koala")
+}
+
+@test
+func test_build_object_replaces_value() {
+    let obj = json.Object()
+    obj.add("a", json.Integer(1))
+    obj.add("a", json.Integer(2))
+
+    ut.assert_eq(obj.len(), 1)
+    let a = (obj.get("a") as json.Integer)!
+    ut.assert_eq(a.value, 2)
+}
+
+// ---------------------------------------------------------------------------
+// errors
+// ---------------------------------------------------------------------------
+
+@should_panic("Expected a string key in JSON object")
+func test_parse_object_requires_string_key_panics() {
+    let v = json.parse_str("{1:2}")
+}
+
+@should_panic("Expected ':' after a key in JSON object")
+func test_parse_object_requires_colon_panics() {
+    let v = json.parse_str("{\"a\" 1}")
+}
+
+@should_panic("Expected ',' or '}' in JSON object")
+func test_parse_object_requires_comma_panics() {
+    let v = json.parse_str("{\"a\":1 \"b\":2}")
+}
+
+@should_panic("Unexpected end of JSON input")
+func test_parse_unterminated_object_panics() {
+    let v = json.parse_str("{\"a\":1")
+}

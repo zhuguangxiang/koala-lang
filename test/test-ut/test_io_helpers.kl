@@ -1,4 +1,4 @@
-// RUN: koala %s --test
+// RUN: koala --test %s
 //
 // Retry and failure paths of io.write_all / io.read_all / io.read_exact,
 // driven by in-memory test doubles that force short transfers:

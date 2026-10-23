@@ -1,0 +1,75 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A JSON string value.
+pub class String : Value {
+    /// The string content, without the surrounding quotes.
+    pub let value str
+
+    /// Create a string value holding `_value`.
+    pub func __init__(_value str) {
+        value = _value
+    }
+
+    /// Write the string content to `f`.
+    pub func fmt(f Formatter) {
+        f.write_str(value)
+    }
+
+    /// Serialize to a double-quoted JSON string.
+    ///
+    /// `"`, `\`, `\b`, `\f`, `\n`, `\r` and `\t` are escaped. The other
+    /// control characters are written as `\u00XX`. All other bytes,
+    /// including multi-byte UTF-8 sequences, are passed through unchanged.
+    pub func to_json() str = quote(value)
+}
+
+/// Return `s` as a quoted JSON string, including the surrounding double
+/// quotes.
+///
+/// The escape sequences follow the JSON grammar: `"`, `\`, `\b`, `\f`,
+/// `\n`, `\r` and `\t` have a short form and the remaining control
+/// characters are written as `\u00XX`. Every other byte, including
+/// multi-byte UTF-8 sequences, is copied unchanged.
+func quote(s str) str {
+    let buf = Buffer()
+    buf.write_str("\"")
+    let bs = s.to_bytes()
+    var i = 0
+    while i < bs.len() {
+        let b = bs[i]
+        if b == '"' {
+            buf.write_str("\\\"")
+        } else if b == '\\' {
+            buf.write_str("\\\\")
+        } else if b == '\n' {
+            buf.write_str("\\n")
+        } else if b == '\t' {
+            buf.write_str("\\t")
+        } else if b == '\r' {
+            buf.write_str("\\r")
+        } else if b == '\x08' {
+            buf.write_str("\\b")
+        } else if b == '\x0c' {
+            buf.write_str("\\f")
+        } else if b < '\x20' {
+            buf.write_str("\\u00")
+            buf.write_str(hex_byte(b))
+        } else {
+            buf.write_byte(b)
+        }
+        i += 1
+    }
+    buf.write_str("\"")
+    return buf.to_str()
+}
+
+/// Return the two-digit lowercase hexadecimal representation of the byte
+/// `b`.
+func hex_byte(b uint8) str {
+    let digits = "0123456789abcdef"
+    let n = b.to_str().to_int()
+    return digits[n / 16] + digits[n % 16]
+}

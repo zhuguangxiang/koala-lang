@@ -1,0 +1,133 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Parse the JSON file at `path` and return its root value.
+///
+/// See [`Parser`](#parser) for the supported JSON syntax.
+///
+/// Errors
+///
+/// Panic if the file cannot be opened, or if its content is not valid
+/// JSON.
+pub func parse_file(path str) Value {
+    let f = open(path, "r")!
+
+    // Read the whole file in chunks; `read` returns 0 at EOF and a
+    // negative value on error.
+    let chunk = bytes(8192)
+    let acc = Buffer(8192)
+
+    loop {
+        let n = f.read(chunk)
+        if n <= 0 { break } // stop on EOF (0) or read error (negative)
+        acc.write(chunk.view(0, n))
+    }
+
+    f.close()
+
+    return parse_str(acc.to_str())
+}
+
+/// Parse the JSON text `s` and return its root value.
+///
+/// See [`Parser`](#parser) for the supported JSON syntax.
+///
+/// Errors
+///
+/// Panic if `s` is not valid JSON.
+pub func parse_str(s str) Value {
+    let parser = Parser(s)
+    return parser.parse()
+}
+
+/// Serialize `v` to JSON text.
+///
+/// The output is compact by default. A positive `indent` produces a
+/// pretty-printed text, where every nested level is indented by that
+/// many spaces.
+///
+/// Example
+///
+/// ```kl
+/// print(json.dump(json.parse_str("{\"a\":[1,2]}")))
+/// print(json.dump(json.parse_str("{\"a\":[1,2]}"), 2))
+/// ```
+pub func dump(v Value, indent = 0) str {
+    if indent <= 0 {
+        return v.to_json()
+    }
+
+    let buf = Buffer()
+    write_value(buf, v, indent, 0)
+    return buf.to_str()
+}
+
+/// Write the value `v` to `buf`.
+func write_value(buf Buffer, v Value, indent int, level int) {
+    if v is Object {
+        write_object(buf, v, indent, level)
+    } else if v is Array {
+        write_array(buf, v, indent, level)
+    } else {
+        buf.write_str(v.to_json())
+    }
+}
+
+/// Write the object `obj` to `buf`.
+func write_object(buf Buffer, obj Object, indent int, level int) {
+    let keys = obj.keys()
+    if keys.len() == 0 {
+        buf.write_str("{}")
+        return
+    }
+
+    buf.write_str("{")
+    var first = true
+    for k in keys {
+        if !first {
+            buf.write_str(",")
+        }
+        first = false
+        write_break(buf, indent, level + 1)
+        buf.write_str(quote(k))
+        buf.write_str(": ")
+        write_value(buf, obj.get(k), indent, level + 1)
+    }
+    write_break(buf, indent, level)
+    buf.write_str("}")
+}
+
+/// Write the array `arr` to `buf`.
+func write_array(buf Buffer, arr Array, indent int, level int) {
+    if arr.len() == 0 {
+        buf.write_str("[]")
+        return
+    }
+
+    buf.write_str("[")
+    var first = true
+    for elem in arr.value {
+        if !first {
+            buf.write_str(",")
+        }
+        first = false
+        write_break(buf, indent, level + 1)
+        write_value(buf, elem, indent, level + 1)
+    }
+    write_break(buf, indent, level)
+    buf.write_str("]")
+}
+
+/// Write a line break followed by the indentation of the level `level`.
+func write_break(buf Buffer, indent int, level int) {
+    buf.write_str("\n")
+
+    let count = level * indent
+    var i = 0
+    while i < count {
+        buf.write_str(" ")
+        i += 1
+    }
+}

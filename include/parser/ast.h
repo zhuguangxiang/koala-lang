@@ -61,7 +61,6 @@ typedef enum _ExprKind {
     EXPR_MAP_KIND,
     EXPR_MAP_ENTRY_KIND,
     EXPR_TUPLE_KIND,
-    EXPR_SET_KIND,
     EXPR_ANONY_KIND,
     EXPR_TYPE_KIND,
     EXPR_CALL_KIND,
@@ -305,13 +304,6 @@ typedef struct _TupleExpr {
 } TupleExpr;
 
 Expr *expr_from_tuple(Vector *vec);
-
-typedef struct _SetExpr {
-    EXPR_HEAD
-    Vector *vec;
-} SetExpr;
-
-Expr *expr_from_set(Vector *vec);
 
 typedef struct _CallExpr {
     EXPR_HEAD

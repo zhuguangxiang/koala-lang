@@ -1,4 +1,4 @@
-// RUN: koala %s --test
+// RUN: koala --test %s
 //
 // Pipe plumbing tests for os.run(): stdin -> stdout echo, EOF handling,
 // bulk transfer, interactive round-trips, read_all draining, buffered

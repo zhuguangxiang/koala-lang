@@ -3,6 +3,7 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <math.h>
 #include "bytebuf.h"
 #include "bytesobj.h"
 #include "dictobj.h"
@@ -117,11 +118,88 @@ static TValue builtin_typeof(TValue *self, TValue *args, int nargs)
     return obj_value(tp_obj);
 }
 
+/*
+func pow_int64_int64(base int, exp int) int
+
+Specialization of the generic pow() for an int64 base and exponent.
+Binary exponentiation performed entirely in uint64_t so that overflow wraps
+deterministically (no signed-overflow UB), consistent with int64.pow().
+
+A negative exponent yields the truncation toward zero of the exact
+mathematical result: `1` for base 1, `±1` for base -1 (by parity), and `0`
+for every other base (|base| >= 2 or base == 0).
+*/
+static TValue builtin_pow_int64_int64(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    int64_t base = kl_arg_int(0);
+    int64_t exp = kl_arg_int(1);
+
+    if (exp < 0) {
+        if (base == 1) return int64_value(1);
+        if (base == -1) return int64_value((exp & 1) ? -1 : 1);
+        return int64_value(0);
+    }
+
+    uint64_t b = (uint64_t)base;
+    uint64_t e = (uint64_t)exp;
+    uint64_t r = 1;
+    while (e) {
+        if (e & 1) r *= b;
+        b *= b;
+        e >>= 1;
+    }
+    return int64_value((int64_t)r);
+}
+
+/*
+func pow_float64_int64(base float, exp int) float
+
+Specialization of the generic pow() for a float64 base and an int64 exponent.
+Fast exponentiation by squaring; a negative exponent takes the reciprocal of
+the positive-exponent result (base 0.0 then naturally yields ±inf per IEEE
+754). The negation is done in uint64_t so that exp == INT64_MIN is safe.
+*/
+static TValue builtin_pow_float64_int64(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    double base = kl_arg_float(0);
+    int64_t exp = kl_arg_int(1);
+
+    uint64_t e = exp < 0 ? (uint64_t)(-(exp + 1)) + 1 : (uint64_t)exp;
+    double b = base;
+    double r = 1.0;
+    while (e) {
+        if (e & 1) r *= b;
+        b *= b;
+        e >>= 1;
+    }
+    if (exp < 0) r = 1.0 / r;
+    return float64_value(r);
+}
+
+/*
+func pow_float64_float64(base float, exp float) float
+
+Specialization of the generic pow() for float64 base and exponent.
+Routes directly to the C math library's pow().
+*/
+static TValue builtin_pow_float64_float64(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    double base = kl_arg_float(0);
+    double exp = kl_arg_float(1);
+    return float64_value(pow(base, exp));
+}
+
 static MethodDef builtin_functions[] = {
     { "panic", builtin_panic },
     { "unreachable", builtin_unreachable },
     { "format", builtin_format },
     { "typeof", builtin_typeof },
+    { "pow_int64_int64", builtin_pow_int64_int64 },
+    { "pow_float64_int64", builtin_pow_float64_int64 },
+    { "pow_float64_float64", builtin_pow_float64_float64 },
     { NULL },
 };
 

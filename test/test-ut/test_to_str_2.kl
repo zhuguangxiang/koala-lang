@@ -1,4 +1,4 @@
-// RUN: koala %s --test
+// RUN: koala --test %s
 
 // Positive test cases for the ToString trait and to_str() method separation.
 //

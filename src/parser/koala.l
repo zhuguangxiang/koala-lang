@@ -41,10 +41,22 @@ static int file_input(ParserState *ps, char *buf, int size, FILE *in)
     return (int)n;
 }
 
-/* Remove underscores and commas from numeric literals */
+/* Remove underscores and commas from numeric literals.
+   An optional sign is kept, the base prefix of binary and octal
+   literals is dropped here. The "0x" prefix is left in place because
+   strtoull expects it when the base is 16. */
 static void replace_comma_under(int base, char *s, int len, Buffer *buf)
 {
-    if (base == 2 || base == 8) s += 2;
+    if (len > 0 && (s[0] == '-' || s[0] == '+')) {
+        buf_write_char(buf, s[0]);
+        s += 1;
+        len -= 1;
+    }
+
+    if (base == 2 || base == 8) {
+        s += 2;
+        len -= 2;
+    }
 
     char *end = s + len;
 
@@ -108,15 +120,38 @@ static void parse_int_literal(ParserState *ps, YYSTYPE *yyval, char *s, int len,
     char *_s = BUF_STR(buf);
     if (base != 10) {
         errno = 0;
+
+        /* The sign of the literal text is independent from the sign of
+           its type: a literal is int64 by default and only falls back to
+           uint64 when its value does not fit into int64. */
+        int negative = 0;
         if (_s[0] == '-') {
-            ps->sign = 1;
+            negative = 1;
             _s += 1;
-        } else {
-            ps->sign = 0;
+        } else if (_s[0] == '+') {
+            _s += 1;
         }
+
+        ps->sign = 1;
+
         yyval->ival = (__int128)strtoull(_s, NULL, base);
         ps->bit_mode = 1;
-        if (ps->sign) { yyval->ival = -yyval->ival; }
+
+        if (errno) {
+            /* Beyond UINT64_MAX, no integer type can hold it. */
+            errno = 1;
+        } else if (negative) {
+            if (yyval->ival > (__int128)9223372036854775808ULL) {
+                errno = 1;
+            } else if (yyval->ival == (__int128)9223372036854775808ULL) {
+                yyval->ival = (__int128)-9223372036854775807LL - 1;
+            } else {
+                yyval->ival = -yyval->ival;
+            }
+        } else if (yyval->ival > (__int128)9223372036854775807ULL) {
+            /* Does not fit into int64, so it is a uint64 literal. */
+            ps->sign = 0;
+        }
     } else {
         parse_decimal_int_literal(ps, yyval, _s);
     }

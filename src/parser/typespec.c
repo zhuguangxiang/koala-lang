@@ -1584,9 +1584,19 @@ char *mangle_func_name(char *base_name, Vector *tp_args)
     buf_write_str(&buf, base_name);
 
     if (vector_size(tp_args) > 0) {
-        buf_write_char(&buf, '_');
+        // Write a '_' separator BEFORE each type argument so that
+        // multi-type-parameter generic functions mangle to readable,
+        // unambiguous names, e.g.:
+        //   abs[T]     @ [int64]          -> abs_int64
+        //   pow[T, U]  @ [int64, int64]   -> pow_int64_int64
+        // Without the per-arg separator, pow mangled to "pow_int64int64",
+        // which never matched the manually instantiated symbol
+        // "pow_int64_int64" in std/builtin, so generic-shell routing
+        // silently fell back to instantiating the panic() shell body.
         TypeSpec *ts;
         vector_foreach(ts, tp_args) {
+            if (!ts) continue;
+            buf_write_char(&buf, '_');
             type_spec_str_func_name(ts, &buf);
         }
     }

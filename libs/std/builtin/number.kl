@@ -180,18 +180,6 @@ pub class int64 : Comparable & Arithmetic & Bitwise & ToString {
     @intrinsic
     pub func __ne__(rhs int64) bool {}
 
-    /// Raises `self` to the power `x`.
-    @native
-    pub func pow(x int64) int64 {}
-
-    /// Returns the absolute value of `self`.
-    @native
-    pub func abs() int64 {}
-
-    /// Convert `self` to a `float64`.
-    @native
-    pub func to_float() float64 {}
-
     /// Format the `int64` value for display.
     @native
     pub func fmt(f Formatter) {}
@@ -335,14 +323,6 @@ pub class uint64 : Comparable & Arithmetic & Bitwise & ToString {
     @intrinsic
     pub func __ne__(rhs uint64) bool {}
 
-    /// Raises `self` to the power `x`.
-    @native
-    pub func pow(x uint64) uint64 {}
-
-    /// Convert `self` to a `float64`.
-    @native
-    pub func to_float() float64 {}
-
     /// Format the `uint64` value for display.
     @native
     pub func fmt(f Formatter) {}
@@ -450,10 +430,6 @@ pub class float64 : Comparable & Arithmetic & ToString {
     @native
     pub func hash() int {}
 
-    /// Returns the absolute value of `self`.
-    @native
-    pub func abs() float64 {}
-
     /// Returns the smallest integer greater than or equal to `self`.
     @native
     pub func ceil() float64 {}
@@ -470,14 +446,6 @@ pub class float64 : Comparable & Arithmetic & ToString {
     @native
     pub func sqrt() float64 {}
 
-    /// Raises `self` to the power `x`.
-    @native
-    pub func pow(x float64) float64 {}
-
-    /// Convert `self` to an `int64`, truncating toward zero.
-    @native
-    pub func to_int() int64 {}
-
     /// Returns `true` if `self` is NaN (not a number).
     @native
     pub func is_nan() bool {}
@@ -493,6 +461,13 @@ pub class float64 : Comparable & Arithmetic & ToString {
     /// Convert the `float64` value to its string form.
     @native
     pub func to_str() str {}
+
+    /// Convert the `float64` value to the shortest string that parses back to
+    /// the exact same value. Prefer this over `to_str()` when the text will be
+    /// stored or transmitted: `to_str()` keeps 16 significant digits for
+    /// readability, which cannot name every `float64`.
+    @native
+    pub func to_str_exact() str {}
 }
 
 /// A 16-bit brain floating-point type (bfloat16).

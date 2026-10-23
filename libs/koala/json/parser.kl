@@ -1,0 +1,415 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The deepest nesting level the parser accepts, counting each object and
+/// each array. Real-world JSON stays far below this; the limit exists so that
+/// a hostile document raises instead of running the process out of stack.
+const MAX_DEPTH = 64
+
+/// A recursive descent parser for JSON.
+///
+/// The parser walks over the bytes of the source text, so the multi-byte
+/// UTF-8 sequences of a string are copied unchanged.
+///
+/// Supported syntax:
+/// - objects: `{"key":value,...}`
+/// - arrays: `[value,...]`
+/// - strings: double-quoted, with the `\uXXXX` escape and the surrogate
+///   pairs
+/// - numbers: integers and floats, with an optional fraction and an
+///   optional exponent
+/// - literals: `true`, `false` and `null`
+/// - whitespace: space, tab, carriage return and line feed
+pub class Parser {
+    let src str
+    var pos = 0
+    var depth = 0
+
+    /// Create a parser for the source text `_src`.
+    pub func __init__(_src str) {
+        src = _src
+    }
+
+    /// Parse the whole source text and return the root value.
+    ///
+    /// Errors
+    ///
+    /// Panic if the source text is not valid JSON.
+    pub func parse() Value {
+        skip_ws()
+        let v = parse_value()
+        skip_ws()
+        if pos < src.len() {
+            panic("Unexpected trailing content in JSON input")
+        }
+        return v
+    }
+
+    /// Parse one value at the current position.
+    func parse_value() Value {
+        if pos >= src.len() {
+            panic("Unexpected end of JSON input")
+        }
+
+        let ch = src[pos]
+        if ch == "{" {
+            enter_nested()
+            let obj = parse_object()
+            depth -= 1
+            return obj
+        }
+        if ch == "[" {
+            enter_nested()
+            let arr = parse_array()
+            depth -= 1
+            return arr
+        }
+        if ch == "\"" {
+            return String(parse_string())
+        }
+        if ch == "t" {
+            expect_word("true")
+            return Boolean(true)
+        }
+        if ch == "f" {
+            expect_word("false")
+            return Boolean(false)
+        }
+        if ch == "n" {
+            expect_word("null")
+            return Null()
+        }
+        return parse_number()
+    }
+
+    /// Parse a `{...}` object at the current position.
+    func parse_object() Object {
+        let obj = Object()
+        pos += 1 // consume the '{'
+
+        skip_ws()
+        if pos < src.len() && src[pos] == "}" {
+            pos += 1
+            return obj
+        }
+
+        var done = false
+        while !done {
+            skip_ws()
+            if pos >= src.len() {
+                panic("Unexpected end of JSON input")
+            }
+            if src[pos] != "\"" {
+                panic("Expected a string key in JSON object")
+            }
+            let key = parse_string()
+
+            skip_ws()
+            if pos >= src.len() {
+                panic("Unexpected end of JSON input")
+            }
+            if src[pos] != ":" {
+                panic("Expected ':' after a key in JSON object")
+            }
+            pos += 1
+
+            skip_ws()
+            let value = parse_value()
+            obj.add(key, value)
+
+            skip_ws()
+            if pos >= src.len() {
+                panic("Unexpected end of JSON input")
+            }
+            let ch = src[pos]
+            if ch == "," {
+                pos += 1
+            } else if ch == "}" {
+                pos += 1
+                done = true
+            } else {
+                panic("Expected ',' or '}' in JSON object")
+            }
+        }
+        return obj
+    }
+
+    /// Parse a `[...]` array at the current position.
+    func parse_array() Array {
+        let arr = Array()
+        pos += 1 // consume the '['
+
+        skip_ws()
+        if pos < src.len() && src[pos] == "]" {
+            pos += 1
+            return arr
+        }
+
+        var done = false
+        while !done {
+            skip_ws()
+            let value = parse_value()
+            arr.add(value)
+
+            skip_ws()
+            if pos >= src.len() {
+                panic("Unexpected end of JSON input")
+            }
+            let ch = src[pos]
+            if ch == "," {
+                pos += 1
+            } else if ch == "]" {
+                pos += 1
+                done = true
+            } else {
+                panic("Expected ',' or ']' in JSON array")
+            }
+        }
+        return arr
+    }
+
+    /// Parse a double-quoted string at the current position.
+    func parse_string() str {
+        pos += 1 // consume the opening quote
+
+        let buf = Buffer()
+        var done = false
+        while !done {
+            if pos >= src.len() {
+                panic("Unterminated string in JSON input")
+            }
+
+            let ch = src[pos]
+            if ch == "\"" {
+                pos += 1
+                done = true
+            } else if ch == "\\" {
+                pos += 1
+                parse_escape(buf)
+            } else {
+                if ch < " " {
+                    panic("Unescaped control character in JSON string")
+                }
+                buf.write_str(ch)
+                pos += 1
+            }
+        }
+        return buf.to_str()
+    }
+
+    /// Parse the escape sequence at the current position and write the
+    /// decoded text to `buf`.
+    func parse_escape(buf Buffer) {
+        if pos >= src.len() {
+            panic("Unexpected end of JSON input")
+        }
+
+        let ch = src[pos]
+        pos += 1
+        if ch == "\"" {
+            buf.write_str("\"")
+        } else if ch == "\\" {
+            buf.write_str("\\")
+        } else if ch == "/" {
+            buf.write_str("/")
+        } else if ch == "b" {
+            buf.write_byte('\x08')
+        } else if ch == "f" {
+            buf.write_byte('\x0c')
+        } else if ch == "n" {
+            buf.write_byte('\n')
+        } else if ch == "r" {
+            buf.write_byte('\r')
+        } else if ch == "t" {
+            buf.write_byte('\t')
+        } else if ch == "u" {
+            parse_unicode_escape(buf)
+        } else {
+            panic("Invalid escape sequence in JSON string")
+        }
+    }
+
+    /// Parse a `\uXXXX` escape sequence at the current position and write
+    /// the decoded text to `buf`.
+    ///
+    /// A high surrogate must be followed by a low surrogate, so that the
+    /// pair is decoded as a single code point above the basic plane.
+    func parse_unicode_escape(buf Buffer) {
+        let unit = parse_hex4()
+        if unit >= 0xD800 && unit <= 0xDBFF {
+            // A high surrogate, the low surrogate must follow.
+            if pos + 1 >= src.len() || src[pos] != "\\" || src[pos + 1] != "u" {
+                panic("Invalid surrogate pair in JSON string")
+            }
+            pos += 2
+            let low = parse_hex4()
+            if low < 0xDC00 || low > 0xDFFF {
+                panic("Invalid surrogate pair in JSON string")
+            }
+            write_codepoint(buf, 0x10000 + (unit - 0xD800) * 0x400 + (low - 0xDC00))
+        } else if unit >= 0xDC00 && unit <= 0xDFFF {
+            // A low surrogate without a high surrogate.
+            panic("Invalid surrogate pair in JSON string")
+        } else {
+            write_codepoint(buf, unit)
+        }
+    }
+
+    /// Parse the four hexadecimal digits of a `\uXXXX` escape sequence at
+    /// the current position.
+    func parse_hex4() int {
+        var value = 0
+        var i = 0
+        while i < 4 {
+            if pos >= src.len() {
+                panic("Unexpected end of JSON input")
+            }
+            let digit = hex_value(src[pos])
+            if digit < 0 {
+                panic("Invalid \\u escape in JSON string")
+            }
+            value = value * 16 + digit
+            pos += 1
+            i += 1
+        }
+        return value
+    }
+
+    /// Return the numeric value of the hexadecimal digit `ch`, or `-1` if
+    /// `ch` is not a hexadecimal digit.
+    func hex_value(ch str) int {
+        let digits = "0123456789abcdefABCDEF"
+        let index = digits.index(ch)
+        if index < 0 {
+            return -1
+        }
+        if index < 16 {
+            return index
+        }
+        return index - 6
+    }
+
+    /// Write the UTF-8 encoding of the code point `cp` to `buf`.
+    func write_codepoint(buf Buffer, cp int) {
+        if cp < 0x80 {
+            buf.write_byte(uint8(cp))
+        } else if cp < 0x800 {
+            buf.write_byte(uint8(0xC0 | (cp >> 6)))
+            buf.write_byte(uint8(0x80 | (cp & 0x3F)))
+        } else if cp < 0x10000 {
+            buf.write_byte(uint8(0xE0 | (cp >> 12)))
+            buf.write_byte(uint8(0x80 | ((cp >> 6) & 0x3F)))
+            buf.write_byte(uint8(0x80 | (cp & 0x3F)))
+        } else {
+            buf.write_byte(uint8(0xF0 | (cp >> 18)))
+            buf.write_byte(uint8(0x80 | ((cp >> 12) & 0x3F)))
+            buf.write_byte(uint8(0x80 | ((cp >> 6) & 0x3F)))
+            buf.write_byte(uint8(0x80 | (cp & 0x3F)))
+        }
+    }
+
+    /// Parse a JSON number at the current position.
+    ///
+    /// A number without a fraction and without an exponent is an integer,
+    /// otherwise it is a float.
+    func parse_number() Value {
+        let start = pos
+
+        if pos < src.len() && src[pos] == "-" {
+            pos += 1
+        }
+
+        // The integer part is either a single '0' or a non-zero digit
+        // followed by more digits.
+        if pos >= src.len() || !is_digit(src[pos]) {
+            panic("Invalid JSON number")
+        }
+        if src[pos] == "0" {
+            pos += 1
+        } else {
+            while pos < src.len() && is_digit(src[pos]) {
+                pos += 1
+            }
+        }
+
+        var is_float = false
+
+        // The optional fraction.
+        if pos < src.len() && src[pos] == "." {
+            is_float = true
+            pos += 1
+            if pos >= src.len() || !is_digit(src[pos]) {
+                panic("Invalid JSON number")
+            }
+            while pos < src.len() && is_digit(src[pos]) {
+                pos += 1
+            }
+        }
+
+        // The optional exponent.
+        if pos < src.len() && (src[pos] == "e" || src[pos] == "E") {
+            is_float = true
+            pos += 1
+            if pos < src.len() && (src[pos] == "+" || src[pos] == "-") {
+                pos += 1
+            }
+            if pos >= src.len() || !is_digit(src[pos]) {
+                panic("Invalid JSON number")
+            }
+            while pos < src.len() && is_digit(src[pos]) {
+                pos += 1
+            }
+        }
+
+        let text = src.substr(start, pos)
+        if is_float {
+            return Float(text.to_float())
+        }
+        return Integer(text.to_int())
+    }
+
+    /// Count one more level of object or array nesting.
+    ///
+    /// Errors
+    ///
+    /// Panic if the nesting would go deeper than `MAX_DEPTH`.
+    func enter_nested() {
+        depth += 1
+        if depth > MAX_DEPTH {
+            panic("JSON nesting too deep")
+        }
+    }
+
+    /// Skip the whitespace at the current position.
+    func skip_ws() {
+        var done = false
+        while !done {
+            if pos >= src.len() {
+                done = true
+            } else {
+                let ch = src[pos]
+                if ch == " " || ch == "\t" || ch == "\n" || ch == "\r" {
+                    pos += 1
+                } else {
+                    done = true
+                }
+            }
+        }
+    }
+
+    /// Return true if `ch` is a decimal digit.
+    func is_digit(ch str) bool {
+        return ch >= "0" && ch <= "9"
+    }
+
+    /// Consume the literal `word` at the current position.
+    func expect_word(word str) {
+        let end = pos + word.len()
+        if end > src.len() || src.substr(pos, end) != word {
+            panic("Invalid JSON literal")
+        }
+        pos = end
+    }
+}

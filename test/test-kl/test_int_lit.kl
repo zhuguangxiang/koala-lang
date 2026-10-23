@@ -38,7 +38,7 @@ var e int16 = -0xFF       // Success: -255 (mathematical value within range)
 var f int8 = -0x80        // Success: -128 (exactly reaches the int8 lower limit)
 
 var g int64 = 0x7FFFFFFFFFFFFFFF  // Success: INT64_MAX
-var h int64 = 0x8000000000000000  // Success: bit pattern interpreted as INT64_MIN
+var h int64 = 0x8000000000000000  // Success: INT64_MIN (bit pattern interpreted as signed)
 var i uint64 = 0xFFFFFFFFFFFFFFFF // Success: UINT64_MAX
 var j int64 = -9223372036854775808 // Success: INT64_MIN (parsed using int128 for precision)
 
@@ -84,16 +84,29 @@ var y = 0xFFFFFFFFFFFFFFFF // Success: inferred as uint64
 
 var z = -0x88 // Success: inferred as int64
 
-var z1 int8 = 0x88 // Success: -120 (overflow/truncated to int8)
+var z1 int8 = 0x88 // Success: -120 (bit pattern 1000 1000 interpreted as signed)
 
 var v5 int8 = 300 // Error: constant 300 overflows int8 (if applicable)
 
 // CHECK-NEXT: Value 300 overflows 'int8' range
 
-var z12 int8 = 0x88 // Success: -120 (interpreted as bit pattern)
+var z12 int8 = 0x88 // Success: -120 (same as z1)
 
 var z2 int8 = -0x88 // Error: value -136 overflows int8 range
 
 // CHECK-NEXT: Negative hex literal -0x88 overflows 'int8' range
+
+// --- Default Type Inference For Non-Decimal Literals ---
+// A literal is int64 by default, whatever base it is written in; only a
+// value that does not fit into int64 degrades to uint64. These declarations
+// must all compile, the type itself is checked in test-ut/test_int_literal.kl.
+var lit_hex = 0xFF
+var lit_bin = 0b1010
+var lit_oct = 0o17
+var lit_neg_bin = -0b1010
+var lit_pos_hex = +0xFF
+var lit_max = 0x7FFFFFFFFFFFFFFF
+var lit_big = 0x8000000000000000
+var lit_umax = 0xFFFFFFFFFFFFFFFF
 
 // CHECK-NOT: {{.}}

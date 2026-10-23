@@ -1,0 +1,184 @@
+// RUN: koala %s --test
+
+import "koala/json"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// arrays
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_empty_array() {
+    let v = json.parse_str("[]")
+    let arr = (v as json.Array)!
+    ut.assert_eq(arr.len(), 0)
+    ut.assert_eq(arr.value.len(), 0)
+}
+
+@test
+func test_parse_integer_array() {
+    let v = json.parse_str("[1,2,3]")
+    let arr = (v as json.Array)!
+    ut.assert_eq(arr.len(), 3)
+
+    let first = (arr.value[0] as json.Integer)!
+    let last = (arr.value[2] as json.Integer)!
+    ut.assert_eq(first.value, 1)
+    ut.assert_eq(last.value, 3)
+}
+
+@test
+func test_parse_mixed_array() {
+    let v = json.parse_str("[1,\"two\",3.5,true,null]")
+    let arr = (v as json.Array)!
+    ut.assert_eq(arr.len(), 5)
+
+    let i = (arr.value[0] as json.Integer)!
+    let s = (arr.value[1] as json.String)!
+    let f = (arr.value[2] as json.Float)!
+    let b = (arr.value[3] as json.Boolean)!
+    ut.assert_eq(i.value, 1)
+    ut.assert_eq(s.value, "two")
+    ut.assert_float_close(f.value, 3.5)
+    ut.assert_true(b.value)
+    ut.assert_true(arr.value[4] is json.Null)
+}
+
+@test
+func test_parse_nested_array() {
+    let v = json.parse_str("[[1,2],[3]]")
+    let arr = (v as json.Array)!
+    ut.assert_eq(arr.len(), 2)
+
+    let inner = (arr.value[0] as json.Array)!
+    ut.assert_eq(inner.len(), 2)
+
+    let e = (inner.value[1] as json.Integer)!
+    ut.assert_eq(e.value, 2)
+}
+
+@test
+func test_parse_array_of_objects() {
+    let v = json.parse_str("[{\"a\":1},{\"b\":2}]")
+    let arr = (v as json.Array)!
+    ut.assert_eq(arr.len(), 2)
+
+    let first = (arr.value[0] as json.Object)!
+    let a = (first.get("a") as json.Integer)!
+    ut.assert_eq(a.value, 1)
+}
+
+@test
+func test_parse_array_ignores_whitespace() {
+    let v = json.parse_str("[\n  1,\n  2\n]")
+    let arr = (v as json.Array)!
+    ut.assert_eq(arr.len(), 2)
+
+    let first = (arr.value[0] as json.Integer)!
+    let last = (arr.value[1] as json.Integer)!
+    ut.assert_eq(first.value, 1)
+    ut.assert_eq(last.value, 2)
+}
+
+// ---------------------------------------------------------------------------
+// building arrays
+// ---------------------------------------------------------------------------
+
+@test
+func test_build_array() {
+    let arr = json.Array()
+    arr.add(json.Integer(1))
+    arr.add(json.String("two"))
+
+    ut.assert_eq(arr.len(), 2)
+    let i = (arr.value[0] as json.Integer)!
+    ut.assert_eq(i.value, 1)
+}
+
+@test
+func test_extend_into_empty_array() {
+    let arr = json.Array()
+
+    let src = list[json.Value]()
+    src.append(json.Integer(1))
+    src.append(json.String("two"))
+    arr.extend(src)
+
+    ut.assert_eq(arr.len(), 2)
+    let i = (arr.value[0] as json.Integer)!
+    let s = (arr.value[1] as json.String)!
+    ut.assert_eq(i.value, 1)
+    ut.assert_eq(s.value, "two")
+}
+
+// ---------------------------------------------------------------------------
+// errors
+// ---------------------------------------------------------------------------
+
+@should_panic("Expected ',' or ']' in JSON array")
+func test_parse_array_requires_comma_panics() {
+    let v = json.parse_str("[1 2]")
+}
+
+@should_panic("Invalid JSON number")
+func test_parse_array_rejects_trailing_comma_panics() {
+    let v = json.parse_str("[1,2,]")
+}
+
+@should_panic("Unexpected end of JSON input")
+func test_parse_unterminated_array_panics() {
+    let v = json.parse_str("[1,2")
+}
+
+// ---------------------------------------------------------------------------
+// nesting depth
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_nesting_at_the_limit() {
+    // MAX_DEPTH levels are still accepted; the limit counts every object and
+    // array on the way down.
+    var text = "1"
+    var i = 0
+    while i < 64 {
+        text = "[" + text + "]"
+        i += 1
+    }
+
+    var cur = json.parse_str(text)
+    var j = 0
+    while j < 64 {
+        let arr = (cur as json.Array)!
+        cur = arr.value[0]
+        j += 1
+    }
+
+    let n = (cur as json.Integer)!
+    ut.assert_eq(n.value, 1)
+}
+
+@should_panic("JSON nesting too deep")
+func test_parse_nesting_past_the_limit_panics() {
+    var text = "1"
+    var i = 0
+    while i < 65 {
+        text = "[" + text + "]"
+        i += 1
+    }
+    let v = json.parse_str(text)
+}
+
+@should_panic("JSON nesting too deep")
+func test_parse_nesting_past_the_limit_panics_in_object() {
+    // the same counter guards objects, and it is shared with arrays so that
+    // mixing the two cannot add up to more than MAX_DEPTH levels: 33 rounds of
+    // one array plus one object is 66 levels
+    var text = "1"
+    var i = 0
+    while i < 33 {
+        text = "[" + text + "]"
+        text = "{\"k\":" + text + "}"
+        i += 1
+    }
+    let v = json.parse_str(text)
+}

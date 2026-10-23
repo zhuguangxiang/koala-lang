@@ -1,4 +1,4 @@
-// RUN: koala %s --ssa | filecheck %s
+// RUN: koala %s ++ --ssa | filecheck %s
 
 // Test: Runtime verification that SCCP optimizations preserve correctness.
 // This program mixes constant and variable computations so that SCCP

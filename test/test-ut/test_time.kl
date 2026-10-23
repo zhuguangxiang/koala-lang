@@ -1,4 +1,4 @@
-// RUN: koala %s --test
+// RUN: koala --test %s
 
 import "std/time"
 import "std/ut"

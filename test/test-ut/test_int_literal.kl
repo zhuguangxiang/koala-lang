@@ -1,0 +1,117 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+// -----------------------------------------------------------------------------
+// Integer literal typing
+//
+// An integer literal is int64 by default, whatever base it is written in. It
+// only degrades to uint64 when its value does not fit into int64, and a
+// negative literal below INT64_MIN is rejected. The decimal and the
+// non-decimal forms therefore follow exactly the same rule.
+//
+// These tests check the literal *type*, not only its value. A value-only
+// check cannot tell int64 from uint64, because the range check performed for
+// an expected type only looks at the magnitude.
+// -----------------------------------------------------------------------------
+
+// Returning a literal as int64 only compiles when the literal is int64: a
+// uint64 literal needs an explicit cast to become int64.
+
+func ret_hex() int { return 0xFF }
+func ret_bin() int { return 0b1010 }
+func ret_oct() int { return 0o17 }
+func ret_neg_hex() int { return -0x88 }
+func ret_neg_bin() int { return -0b1010 }
+
+@test
+func test_ut_literal_is_int64_in_return_position() {
+    ut.assert_int_eq(ret_hex(), 255)
+    ut.assert_int_eq(ret_bin(), 10)
+    ut.assert_int_eq(ret_oct(), 15)
+    ut.assert_int_eq(ret_neg_hex(), -136)
+    ut.assert_int_eq(ret_neg_bin(), -10)
+}
+
+// A literal mixes with a signed operand as int64, so it never reaches the
+// uint64 island.
+
+@test
+func test_ut_literal_mixes_with_signed_operand() {
+    let i int64 = 1
+    ut.assert(i + 0xFF == 256)
+    ut.assert(i + 0b1010 == 11)
+    ut.assert(i + 0o17 == 16)
+    ut.assert(i - 0xFF == -254)
+    ut.assert(i * 0x2 == 2)
+}
+
+// The values are the plain mathematical ones.
+
+@test
+func test_ut_literal_values() {
+    ut.assert_int_eq(0xFF, 255)
+    ut.assert_int_eq(0x7FFFFFFFFFFFFFFF, 9223372036854775807)
+    ut.assert_int_eq(-0x88, -136)
+    ut.assert_int_eq(-0x8000000000000000, -9223372036854775808)
+    ut.assert_int_eq(0b1010, 10)
+    ut.assert_int_eq(0b1111_1111, 255)
+    ut.assert_int_eq(-0b1010, -10)
+    ut.assert_int_eq(0o17, 15)
+    ut.assert_int_eq(0o777, 511)
+    ut.assert_int_eq(-0o17, -15)
+}
+
+// A value that does not fit into int64 stays uint64.
+
+func ret_big_hex() uint { return 0x8000000000000000 }
+func ret_max_hex() uint { return 0xFFFFFFFFFFFFFFFF }
+
+@test
+func test_ut_literal_beyond_int64_is_uint64() {
+    ut.assert_uint_eq(ret_big_hex(), 9223372036854775808)
+    ut.assert_uint_eq(ret_max_hex(), 18446744073709551615)
+}
+
+// A uint64 operand still absorbs the literal, so the uint64 island is not
+// triggered in that direction either.
+
+@test
+func test_ut_uint64_operand_absorbs_literal() {
+    let u uint64 = 100
+    ut.assert_uint_eq(u + 0xFF, 355)
+}
+
+// The expected type drives how a non-decimal literal is read: it is checked
+// against the bit width of the target type instead of its numeric range, so
+// 0xFF is accepted by an int8 even though 255 does not fit the int8 numeric
+// range. The pattern is then interpreted in the target's signedness, so 0xFF
+// becomes -1 as an int8, while an unsigned or a wider signed target keeps 255.
+
+@test
+func test_ut_expected_type_drives_bit_pattern() {
+    let a int8 = 0xFF
+    let b uint8 = 0xFF
+    let c int16 = 0xFF
+    let d int8 = 0x80
+    let e int8 = 0x88
+    let f int64 = 0x8000000000000000
+    let g int64 = 0xFFFFFFFFFFFFFFFF
+    ut.assert_int_eq(a, -1)
+    ut.assert_uint_eq(b, 255)
+    ut.assert_int_eq(c, 255)
+    ut.assert_int_eq(d, -128)
+    ut.assert_int_eq(e, -120)
+    ut.assert_int_eq(f, -9223372036854775808)
+    ut.assert_int_eq(g, -1)
+}
+
+// Underscores are allowed in any base.
+
+@test
+func test_ut_literal_separators() {
+    ut.assert_int_eq(0xFF_FF, 65535)
+    ut.assert_int_eq(0b1010_1010, 170)
+    ut.assert_int_eq(0o7_7, 63)
+    ut.assert_int_eq(1_000_000, 1000000)
+}

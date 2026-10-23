@@ -1,0 +1,155 @@
+// RUN: koala %s --test
+
+import "koala/json"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// short escape sequences
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_escaped_quote() {
+    // The JSON text is: "a\"b"
+    let v = json.parse_str("\"a\\\"b\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "a\"b")
+}
+
+@test
+func test_parse_escaped_backslash() {
+    // The JSON text is: "a\\b"
+    let v = json.parse_str("\"a\\\\b\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "a\\b")
+}
+
+@test
+func test_parse_escaped_slash() {
+    // The JSON text is: "a\/b"
+    let v = json.parse_str("\"a\\/b\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "a/b")
+}
+
+@test
+func test_parse_escaped_backspace() {
+    // The JSON text is: "\b"
+    let v = json.parse_str("\"\\b\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "\x08")
+}
+
+@test
+func test_parse_escaped_form_feed() {
+    // The JSON text is: "\f"
+    let v = json.parse_str("\"\\f\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "\x0c")
+}
+
+@test
+func test_parse_escaped_newline() {
+    // The JSON text is: "\n"
+    let v = json.parse_str("\"\\n\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "\n")
+}
+
+@test
+func test_parse_escaped_carriage_return() {
+    // The JSON text is: "\r"
+    let v = json.parse_str("\"\\r\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "\r")
+}
+
+@test
+func test_parse_escaped_tab() {
+    // The JSON text is: "\t"
+    let v = json.parse_str("\"\\t\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "\t")
+}
+
+// ---------------------------------------------------------------------------
+// unicode escape sequences
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_unicode_escape_ascii() {
+    // The JSON text is: "\u0041"
+    let v = json.parse_str("\"\\u0041\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "A")
+}
+
+@test
+func test_parse_unicode_escape_two_bytes() {
+    // The JSON text is: "\u00e9", which is the code point U+00E9.
+    let v = json.parse_str("\"\\u00e9\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "\xc3\xa9")
+}
+
+@test
+func test_parse_unicode_escape_three_bytes() {
+    // The JSON text is: "\u4e2d", which is the code point U+4E2D.
+    let v = json.parse_str("\"\\u4e2d\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "\xe4\xb8\xad")
+}
+
+@test
+func test_parse_surrogate_pair() {
+    // The JSON text is: "\ud83d\ude00", which is the code point U+1F600.
+    let v = json.parse_str("\"\\ud83d\\ude00\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "\xf0\x9f\x98\x80")
+}
+
+// ---------------------------------------------------------------------------
+// raw text
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_keeps_raw_utf8() {
+    // The JSON text is: "中文"
+    let v = json.parse_str("\"中文\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "中文")
+}
+
+// ---------------------------------------------------------------------------
+// errors
+// ---------------------------------------------------------------------------
+
+@should_panic("Invalid escape sequence in JSON string")
+func test_parse_invalid_escape_panics() {
+    let v = json.parse_str("\"\\q\"")
+}
+
+@should_panic("Invalid \\u escape in JSON string")
+func test_parse_invalid_unicode_escape_panics() {
+    let v = json.parse_str("\"\\uZZZZ\"")
+}
+
+@should_panic("Invalid surrogate pair in JSON string")
+func test_parse_lone_high_surrogate_panics() {
+    let v = json.parse_str("\"\\ud83d\"")
+}
+
+@should_panic("Invalid surrogate pair in JSON string")
+func test_parse_lone_low_surrogate_panics() {
+    let v = json.parse_str("\"\\ude00\"")
+}
+
+@should_panic("Unterminated string in JSON input")
+func test_parse_unterminated_string_panics() {
+    let v = json.parse_str("\"abc")
+}
+
+@should_panic("Unescaped control character in JSON string")
+func test_parse_unescaped_control_character_panics() {
+    // The JSON text is: "<TAB>"
+    let v = json.parse_str("\"\t\"")
+}

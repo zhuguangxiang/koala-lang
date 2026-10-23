@@ -1,0 +1,59 @@
+// RUN: koala %s --test
+
+import "koala/json"
+import "std/fs"
+import "std/ut"
+
+@test
+func test_parse_file() {
+    let path = "/tmp/kl_json_test.json"
+    let content = "{\"name\":\"koala\",\"port\":8080}"
+    fs.write_str(path, content)
+
+    let v = json.parse_file(path)
+    let obj = (v as json.Object)!
+
+    let name = (obj.get("name") as json.String)!
+    let port = (obj.get("port") as json.Integer)!
+    ut.assert_eq(name.value, "koala")
+    ut.assert_eq(port.value, 8080)
+
+    fs.remove(path)
+}
+
+@test
+func test_parse_file_with_nested_values() {
+    let path = "/tmp/kl_json_test.json"
+    let content = "{\"nums\":[1,2,3],\"nested\":{\"flag\":true}}\n"
+    fs.write_str(path, content)
+
+    let v = json.parse_file(path)
+    let obj = (v as json.Object)!
+
+    let nums = (obj.get("nums") as json.Array)!
+    ut.assert_eq(nums.len(), 3)
+
+    let nested = (obj.get("nested") as json.Object)!
+    let flag = (nested.get("flag") as json.Boolean)!
+    ut.assert_true(flag.value)
+
+    fs.remove(path)
+}
+
+@test
+func test_parse_file_matches_parse_str() {
+    let path = "/tmp/kl_json_test.json"
+    let content = "{\"nums\":[1,2,3],\"flag\":true}\n"
+    fs.write_str(path, content)
+
+    let from_file = json.parse_file(path)
+    let from_str = json.parse_str(content)
+    ut.assert_eq(json.dump(from_file), json.dump(from_str))
+
+    fs.remove(path)
+}
+
+@should_panic
+func test_parse_file_missing_panics() {
+    let v = json.parse_file("/tmp/kl_json_no_such_file.json")
+}

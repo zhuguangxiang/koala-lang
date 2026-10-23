@@ -175,7 +175,7 @@ pub func pow[T, U](base T, exp U) any {
 /// If user writes `pow(2, 10)`, the compiler will route the call to
 /// `pow_int64_int64(2, 10)`.
 @native
-pub func pow_int64_int64(base int, exp int) {}
+pub func pow_int64_int64(base int, exp int) int {}
 
 /// Specialized explicit implementation for float base and integer exponent.
 ///

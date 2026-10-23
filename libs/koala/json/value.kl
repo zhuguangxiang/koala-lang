@@ -1,0 +1,14 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The root trait of all JSON values.
+///
+/// Every JSON value conforms to `Value`: objects, arrays, strings,
+/// numbers, booleans and null. It allows heterogeneous values to be
+/// stored uniformly in [`Array`](#array) and [`Object`](#object).
+pub trait Value {
+    /// Serialize the value to compact JSON text.
+    func to_json() str
+}

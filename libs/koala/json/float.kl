@@ -1,0 +1,49 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A JSON float value.
+///
+/// JSON numbers with a fraction or an exponent are stored as floats.
+pub class Float : Value {
+    /// The float content.
+    pub let value float
+
+    /// Create a float value holding `_value`.
+    pub func __init__(_value float) {
+        value = _value
+    }
+
+    /// Write the decimal representation to `f`.
+    pub func fmt(f Formatter) {
+        f.write_str(format_number(value))
+    }
+
+    /// Serialize to a bare float, e.g. `3.14`.
+    pub func to_json() str = format_number(value)
+}
+
+/// Return the JSON text of the float `v`.
+///
+/// A float always keeps a fraction or an exponent so that it stays
+/// distinguishable from an integer. Non-finite values have no JSON
+/// representation and are rejected.
+///
+/// Errors
+///
+/// Panic if `v` is NaN or infinite.
+func format_number(v float) str {
+    if v.is_nan() {
+        panic("JSON cannot represent NaN")
+    }
+    if v.is_inf() {
+        panic("JSON cannot represent infinity")
+    }
+
+    let text = v.to_str_exact()
+    if text.index(".") != -1 || text.index("e") != -1 || text.index("E") != -1 {
+        return text
+    }
+    return text + ".0"
+}

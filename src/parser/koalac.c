@@ -553,6 +553,10 @@ static int compile(ParserModule *pm)
     }
 
     if (write_klc_enabled()) {
+        if (m && m->errors > 0) {
+            errno = -1;
+            return -1;
+        }
         write_to_klc(pm);
     }
     return 0;

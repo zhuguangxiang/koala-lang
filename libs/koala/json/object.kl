@@ -1,0 +1,64 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A JSON object value: an ordered mapping from string keys to values.
+pub class Object : Value {
+    /// The key-value mappings, in insertion order.
+    pub let data = dict[str, Value]()
+
+    pub func __init__() {}
+
+    /// Associate `_value` with `_key`, replacing an existing mapping.
+    pub func add(_key str, _value Value) {
+        data[_key] = _value
+    }
+
+    /// Return the value mapped to `_key`. Panic if `_key` is not present.
+    pub func get(_key str) Value {
+        return data[_key]
+    }
+
+    /// Return true if the object contains a mapping for `_key`.
+    pub func __contains__(_key str) bool {
+        return _key in data
+    }
+
+    /// Return the number of mappings.
+    pub func len() int {
+        return data.len()
+    }
+
+    /// Return the keys in insertion order.
+    pub func keys() list[str] {
+        let out = list[str]()
+        for k in data.keys() {
+            out.append(k)
+        }
+        return out
+    }
+
+    /// Format the mappings for display.
+    pub func fmt(f Formatter) {
+        data.fmt(f)
+    }
+
+    /// Serialize to a JSON object, e.g. `{"a":1,"b":2}`.
+    pub func to_json() str {
+        let buf = Buffer()
+        buf.write_str("{")
+        var first = true
+        for k in data.keys() {
+            if !first {
+                buf.write_str(",")
+            }
+            first = false
+            buf.write_str(quote(k))
+            buf.write_str(":")
+            buf.write_str(data[k].to_json())
+        }
+        buf.write_str("}")
+        return buf.to_str()
+    }
+}

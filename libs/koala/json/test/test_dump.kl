@@ -1,0 +1,173 @@
+// RUN: koala %s --test
+
+import "koala/json"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// compact output
+// ---------------------------------------------------------------------------
+
+@test
+func test_dump_scalar() {
+    ut.assert_eq(json.dump(json.Integer(42)), "42")
+    ut.assert_eq(json.dump(json.Integer(-42)), "-42")
+    ut.assert_eq(json.dump(json.Float(3.5)), "3.5")
+    ut.assert_eq(json.dump(json.Boolean(true)), "true")
+    ut.assert_eq(json.dump(json.Boolean(false)), "false")
+    ut.assert_eq(json.dump(json.Null()), "null")
+    ut.assert_eq(json.dump(json.String("koala")), "\"koala\"")
+}
+
+@test
+func test_dump_float_keeps_fraction() {
+    ut.assert_eq(json.dump(json.Float(1.0)), "1.0")
+}
+
+@test
+func test_dump_float_with_exponent() {
+    ut.assert_eq(json.dump(json.Float(1e30)), "1e+30")
+}
+
+@test
+func test_dump_object() {
+    let v = json.parse_str("{\"a\":1,\"b\":\"two\"}")
+    ut.assert_eq(json.dump(v), "{\"a\":1,\"b\":\"two\"}")
+}
+
+@test
+func test_dump_array() {
+    let v = json.parse_str("[1,\"two\",true,null]")
+    ut.assert_eq(json.dump(v), "[1,\"two\",true,null]")
+}
+
+@test
+func test_dump_nested() {
+    let v = json.parse_str("{\"a\":{\"b\":[1,2]}}")
+    ut.assert_eq(json.dump(v), "{\"a\":{\"b\":[1,2]}}")
+}
+
+@test
+func test_dump_escapes_strings() {
+    let v = json.parse_str("\"a\\nb\"")
+    ut.assert_eq(json.dump(v), "\"a\\nb\"")
+}
+
+@test
+func test_dump_escapes_control_characters() {
+    let v = json.parse_str("\"\\u0001\"")
+    ut.assert_eq(json.dump(v), "\"\\u0001\"")
+}
+
+@test
+func test_dump_keeps_raw_utf8() {
+    let v = json.parse_str("\"中文\"")
+    ut.assert_eq(json.dump(v), "\"中文\"")
+}
+
+// ---------------------------------------------------------------------------
+// pretty output
+// ---------------------------------------------------------------------------
+
+@test
+func test_dump_pretty_object() {
+    let v = json.parse_str("{\"a\":1,\"b\":2}")
+    let expected = "{\n  \"a\": 1,\n  \"b\": 2\n}"
+    ut.assert_eq(json.dump(v, 2), expected)
+}
+
+@test
+func test_dump_pretty_nested() {
+    let v = json.parse_str("{\"a\":[1,2]}")
+    let expected = "{\n  \"a\": [\n    1,\n    2\n  ]\n}"
+    ut.assert_eq(json.dump(v, 2), expected)
+}
+
+@test
+func test_dump_pretty_empty_containers() {
+    let v = json.parse_str("{\"o\":{},\"a\":[]}")
+    let expected = "{\n  \"o\": {},\n  \"a\": []\n}"
+    ut.assert_eq(json.dump(v, 2), expected)
+}
+
+@test
+func test_dump_pretty_scalar() {
+    let v = json.parse_str("42")
+    ut.assert_eq(json.dump(v, 2), "42")
+}
+
+@test
+func test_dump_pretty_four_spaces() {
+    let v = json.parse_str("{\"a\":1}")
+    let expected = "{\n    \"a\": 1\n}"
+    ut.assert_eq(json.dump(v, 4), expected)
+}
+
+// ---------------------------------------------------------------------------
+// round trip
+// ---------------------------------------------------------------------------
+
+@test
+func test_dump_round_trip() {
+    let text = "{\"a\":[1,2,{\"b\":null}],\"c\":\"x\"}"
+    let v = json.parse_str(text)
+    ut.assert_eq(json.dump(v), text)
+}
+
+// ---------------------------------------------------------------------------
+// building values
+// ---------------------------------------------------------------------------
+
+@test
+func test_build_and_dump_object() {
+    let obj = json.Object()
+    obj.add("name", json.String("koala"))
+    obj.add("port", json.Integer(8080))
+    obj.add("debug", json.Boolean(true))
+    obj.add("ratio", json.Float(0.5))
+    obj.add("nothing", json.Null())
+
+    let expected = "{\"name\":\"koala\",\"port\":8080,\"debug\":true,\"ratio\":0.5,\"nothing\":null}"
+    ut.assert_eq(json.dump(obj), expected)
+}
+
+@test
+func test_build_and_dump_array() {
+    let arr = json.Array()
+    arr.add(json.Integer(1))
+    arr.add(json.String("two"))
+    arr.add(json.Null())
+
+    ut.assert_eq(json.dump(arr), "[1,\"two\",null]")
+}
+
+// ---------------------------------------------------------------------------
+// non-finite floats
+// ---------------------------------------------------------------------------
+
+@should_panic("JSON cannot represent NaN")
+func test_dump_nan_panics() {
+    let v = json.Float(0.0 / 0.0)
+    let s = v.to_json()
+}
+
+@should_panic("JSON cannot represent infinity")
+func test_dump_inf_panics() {
+    let v = json.Float(1e308 * 10.0)
+    let s = v.to_json()
+}
+
+@should_panic("JSON cannot represent infinity")
+func test_dump_negative_inf_panics() {
+    let v = json.Float(-1e308 * 10.0)
+    let s = v.to_json()
+}
+
+@should_panic("JSON cannot represent NaN")
+func test_dump_nan_inside_object_panics() {
+    // The guard lives in format_number(), which fmt() calls as well, so a
+    // non-finite float is rejected through json.dump() and not only through
+    // to_json().
+    let obj = json.Object()
+    obj.add("bad", json.Float(0.0 / 0.0))
+    let s = json.dump(obj)
+}

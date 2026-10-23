@@ -1,0 +1,17 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A JSON null value.
+pub class Null : Value {
+    pub func __init__() {}
+
+    /// Write `null` to `f`.
+    pub func fmt(f Formatter) {
+        f.write_str("null")
+    }
+
+    /// Serialize to `null`.
+    pub func to_json() str = "null"
+}

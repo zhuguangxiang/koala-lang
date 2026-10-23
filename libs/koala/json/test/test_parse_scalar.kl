@@ -1,0 +1,206 @@
+// RUN: koala %s --test
+
+import "koala/json"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// strings
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_string() {
+    let v = json.parse_str("\"koala\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "koala")
+}
+
+@test
+func test_parse_string_with_spaces() {
+    let v = json.parse_str("\"hello world\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "hello world")
+}
+
+@test
+func test_parse_empty_string() {
+    let v = json.parse_str("\"\"")
+    let s = (v as json.String)!
+    ut.assert_eq(s.value, "")
+}
+
+// ---------------------------------------------------------------------------
+// numbers
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_integer() {
+    let v = json.parse_str("8080")
+    let n = (v as json.Integer)!
+    ut.assert_eq(n.value, 8080)
+}
+
+@test
+func test_parse_negative_integer() {
+    let v = json.parse_str("-42")
+    let n = (v as json.Integer)!
+    ut.assert_eq(n.value, -42)
+}
+
+@test
+func test_parse_zero() {
+    let v = json.parse_str("0")
+    let n = (v as json.Integer)!
+    ut.assert_eq(n.value, 0)
+}
+
+@test
+func test_parse_float() {
+    let v = json.parse_str("3.5")
+    let n = (v as json.Float)!
+    ut.assert_float_close(n.value, 3.5)
+}
+
+@test
+func test_parse_float_with_exponent() {
+    let v = json.parse_str("1.5e2")
+    let n = (v as json.Float)!
+    ut.assert_float_close(n.value, 150.0)
+}
+
+@test
+func test_parse_float_with_negative_exponent() {
+    let v = json.parse_str("2e-3")
+    let n = (v as json.Float)!
+    ut.assert_float_close(n.value, 0.002)
+}
+
+@test
+func test_parse_int64_max() {
+    let v = json.parse_str("9223372036854775807")
+    let n = (v as json.Integer)!
+    ut.assert_eq(n.value, 9223372036854775807)
+}
+
+@test
+func test_parse_int64_min() {
+    let v = json.parse_str("-9223372036854775808")
+    let n = (v as json.Integer)!
+    ut.assert_eq(n.value, -9223372036854775808)
+}
+
+@test
+func test_parse_float_round_trip() {
+    // `str(float)` emits 16 significant digits, which names every double that
+    // does not need 17, so a parse-dump-parse cycle keeps the value.
+    let v = json.parse_str("0.1")
+    let again = json.parse_str(v.to_json())
+    ut.assert_float_close((v as json.Float)!.value, (again as json.Float)!.value)
+}
+
+@test
+func test_parse_float_keeps_16_digits() {
+    let v = json.parse_str("3.141592653589793")
+    let n = (v as json.Float)!
+    ut.assert_eq(n.to_json(), "3.141592653589793")
+}
+
+// ---------------------------------------------------------------------------
+// booleans and null
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_true() {
+    let v = json.parse_str("true")
+    let b = (v as json.Boolean)!
+    ut.assert_true(b.value)
+}
+
+@test
+func test_parse_false() {
+    let v = json.parse_str("false")
+    let b = (v as json.Boolean)!
+    ut.assert_false(b.value)
+}
+
+@test
+func test_parse_null() {
+    let v = json.parse_str("null")
+    ut.assert_true(v is json.Null)
+}
+
+// ---------------------------------------------------------------------------
+// whitespace
+// ---------------------------------------------------------------------------
+
+@test
+func test_parse_ignores_surrounding_whitespace() {
+    let v = json.parse_str(" \t\r\n 42 \t\r\n ")
+    let n = (v as json.Integer)!
+    ut.assert_eq(n.value, 42)
+}
+
+// ---------------------------------------------------------------------------
+// errors
+// ---------------------------------------------------------------------------
+
+@should_panic("Invalid JSON number")
+func test_parse_invalid_number_panics() {
+    let v = json.parse_str("1.")
+}
+
+@should_panic("Unexpected end of JSON input")
+func test_parse_empty_input_panics() {
+    let v = json.parse_str("")
+}
+
+@should_panic("Invalid JSON literal")
+func test_parse_invalid_literal_panics() {
+    let v = json.parse_str("tru")
+}
+
+@should_panic("Unexpected trailing content in JSON input")
+func test_parse_trailing_content_panics() {
+    let v = json.parse_str("1 2")
+}
+
+@should_panic("invalid integer literal")
+func test_parse_integer_above_int64_panics() {
+    let v = json.parse_str("99999999999999999999")
+}
+
+@should_panic("invalid integer literal")
+func test_parse_integer_below_int64_panics() {
+    let v = json.parse_str("-99999999999999999999")
+}
+
+@should_panic("invalid float literal")
+func test_parse_float_overflowing_to_inf_panics() {
+    // strtod yields inf here, which str_to_float rejects through isfinite()
+    let v = json.parse_str("1e999")
+}
+
+@should_panic("invalid integer literal")
+func test_parse_overlong_number_panics() {
+    // str_to_int copies into a 256-byte buffer and gives up past it, so a
+    // syntactically valid JSON number of 300 digits is still refused.
+    var digits = ""
+    var i = 0
+    while i < 300 {
+        digits = digits + "1"
+        i += 1
+    }
+    let v = json.parse_str(digits)
+}
+
+// ---------------------------------------------------------------------------
+// fmt
+// ---------------------------------------------------------------------------
+
+@test
+func test_fmt_values() {
+    ut.assert_eq(format("{}", json.String("hi")), "hi")
+    ut.assert_eq(format("{}", json.Integer(42)), "42")
+    ut.assert_eq(format("{}", json.Boolean(true)), "true")
+    ut.assert_eq(format("{}", json.Boolean(false)), "false")
+    ut.assert_eq(format("{}", json.Null()), "null")
+}

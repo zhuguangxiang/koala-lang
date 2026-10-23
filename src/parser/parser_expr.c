@@ -225,8 +225,18 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
                          (sign ? "int" : "uint"), width * 8);
                 return;
             }
+            /* notes: allow 0xFF to be assigned to int8 as -1.
+               The pattern is read in the target's signedness: when a signed
+               target has its high bit set the value turns negative, and it is
+               stored sign-extended to 64 bits, exactly as the decimal path
+               stores -1. A 64-bit target needs no adjustment here because its
+               slot already reinterprets the pattern. */
+            if (sign && val > (__int128)(phys_max >> 1)) {
+                val -= (__int128)1 << (width * 8);
+                lit->ival = (uint64_t)val;
+                lit->ival_128 = val;
+            }
         }
-        // notes: allow 0xFF to be assigned to int8 as -1.
     } else {
         __int128 min_limit, max_limit;
         if (sign) {
@@ -424,7 +434,7 @@ static void parse_list(ParserState *ps, Expr *exp)
 
     Symbol *origin = stbl_get(ps->pm->builtin, "list");
     InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, origin, tp_args, ps->pm);
-    inst_sym->arg = infer_ts; // save infered tuple type for later use
+    inst_sym->arg = infer_ts; // save infered list type for later use
 
     exp->ts = inst_sym->instance_ts;
     exp->sym = (Symbol *)inst_sym;
@@ -477,6 +487,10 @@ static void parse_tuple(ParserState *ps, Expr *exp)
     log_info("tuple type resolved:");
     log_type_spec(exp->ts);
 }
+
+static void parse_map(ParserState *ps, Expr *exp) { MapExpr *map_exp = (MapExpr *)exp; }
+
+static void parse_map_entry(ParserState *ps, Expr *exp) {}
 
 static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i__)
 {
@@ -3552,6 +3566,8 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_LITERAL_KIND] = parse_literal,
         [EXPR_SELF_KIND]    = parse_self,
         [EXPR_LIST_KIND]    = parse_list,
+        [EXPR_MAP_KIND]     = parse_map,
+        [EXPR_MAP_ENTRY_KIND] = parse_map_entry,
         [EXPR_TUPLE_KIND]   = parse_tuple,
         [EXPR_TYPE_KIND]    = parse_type,
         [EXPR_CALL_KIND]    = parse_call,
