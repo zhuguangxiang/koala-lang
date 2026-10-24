@@ -1,0 +1,361 @@
+// RUN: koala --test %s
+
+import "std/ut"
+import "std/collections" as co
+
+// ==================== 构造与初始化 ====================
+
+@test
+func test_init_zero() {
+    let bs = co.BitSet(10)
+    ut.assert_eq(bs.size(), 10)
+    ut.assert_eq(bs.count(), 0)
+    for i in range(10) {
+        ut.assert_false(bs.test(i))
+    }
+}
+
+@test
+func test_init_various_sizes() {
+    let sizes = [1, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 100, 128, 256]
+    for size in sizes {
+        let bs = co.BitSet(size)
+        ut.assert_eq(bs.size(), size)
+        ut.assert_eq(bs.count(), 0)
+    }
+}
+
+// ==================== set/clear/test ====================
+
+@test
+func test_set_single_bit() {
+    let bs = co.BitSet(10)
+    bs.set(5)
+    ut.assert_true(bs.test(5))
+    ut.assert_eq(bs.count(), 1)
+}
+
+@test
+func test_set_multiple_bits() {
+    let bs = co.BitSet(20)
+    bs.set(0)
+    bs.set(5)
+    bs.set(10)
+    bs.set(19)
+    ut.assert_true(bs.test(0))
+    ut.assert_true(bs.test(5))
+    ut.assert_true(bs.test(10))
+    ut.assert_true(bs.test(19))
+    ut.assert_false(bs.test(1))
+    ut.assert_false(bs.test(9))
+    ut.assert_eq(bs.count(), 4)
+}
+
+@test
+func test_clear_bit() {
+    let bs = co.BitSet(10)
+    bs.set(5)
+    ut.assert_true(bs.test(5))
+    bs.clear(5)
+    ut.assert_false(bs.test(5))
+    ut.assert_eq(bs.count(), 0)
+}
+
+@test
+func test_set_clear_cycle() {
+    let bs = co.BitSet(10)
+    for i in range(3) {
+        bs.set(5)
+        ut.assert_true(bs.test(5))
+        bs.clear(5)
+        ut.assert_false(bs.test(5))
+    }
+}
+
+@should_panic("bit index 10 out of range [0, 10)")
+func test_set_out_of_range() {
+    let bs = co.BitSet(10)
+    bs.set(10)
+}
+
+@should_panic("bit index 10 out of range [0, 10)")
+func test_test_out_of_range() {
+    let bs = co.BitSet(10)
+    bs.test(10)
+}
+
+@should_panic("bit index 10 out of range [0, 10)")
+func test_clear_out_of_range() {
+    let bs = co.BitSet(10)
+    bs.clear(10)
+}
+
+// ==================== flip ====================
+
+@test
+func test_flip_zero_to_one() {
+    let bs = co.BitSet(10)
+    ut.assert_false(bs.test(5))
+    bs.flip(5)
+    ut.assert_true(bs.test(5))
+}
+
+@test
+func test_flip_one_to_zero() {
+    let bs = co.BitSet(10)
+    bs.set(5)
+    ut.assert_true(bs.test(5))
+    bs.flip(5)
+    ut.assert_false(bs.test(5))
+}
+
+@test
+func test_flip_multiple() {
+    let bs = co.BitSet(10)
+    bs.flip(0)
+    bs.flip(5)
+    bs.flip(9)
+    ut.assert_true(bs.test(0))
+    ut.assert_true(bs.test(5))
+    ut.assert_true(bs.test(9))
+    ut.assert_eq(bs.count(), 3)
+
+    bs.flip(5)
+    ut.assert_false(bs.test(5))
+    ut.assert_eq(bs.count(), 2)
+}
+
+// ==================== count ====================
+
+@test
+func test_count_empty() {
+    let bs = co.BitSet(100)
+    ut.assert_eq(bs.count(), 0)
+}
+
+@test
+func test_count_full() {
+    let bs = co.BitSet(10)
+    for i in range(10) {
+        bs.set(i)
+    }
+    ut.assert_eq(bs.count(), 10)
+}
+
+@test
+func test_count_partial() {
+    let bs = co.BitSet(20)
+    bs.set(0)
+    bs.set(5)
+    bs.set(10)
+    bs.set(15)
+    ut.assert_eq(bs.count(), 4)
+}
+
+// ==================== size ====================
+
+@test
+func test_size_various() {
+    ut.assert_eq(co.BitSet(1).size(), 1)
+    ut.assert_eq(co.BitSet(8).size(), 8)
+    ut.assert_eq(co.BitSet(32).size(), 32)
+    ut.assert_eq(co.BitSet(100).size(), 100)
+}
+
+// ==================== 位运算 ====================
+
+@test
+func test_bitand() {
+    let a = co.BitSet(8)
+    let b = co.BitSet(8)
+    a.set(0)
+    a.set(1)
+    a.set(2)
+    b.set(1)
+    b.set(2)
+    b.set(3)
+
+    let c = a & b
+    ut.assert_false(c.test(0))
+    ut.assert_true(c.test(1))
+    ut.assert_true(c.test(2))
+    ut.assert_false(c.test(3))
+    ut.assert_eq(c.count(), 2)
+}
+
+@test
+func test_bitor() {
+    let a = co.BitSet(8)
+    let b = co.BitSet(8)
+    a.set(0)
+    a.set(1)
+    b.set(2)
+    b.set(3)
+
+    let c = a | b
+    ut.assert_true(c.test(0))
+    ut.assert_true(c.test(1))
+    ut.assert_true(c.test(2))
+    ut.assert_true(c.test(3))
+    ut.assert_eq(c.count(), 4)
+}
+
+@test
+func test_bitxor() {
+    let a = co.BitSet(8)
+    let b = co.BitSet(8)
+    a.set(0)
+    a.set(1)
+    a.set(2)
+    b.set(1)
+    b.set(2)
+    b.set(3)
+
+    let c = a ^ b
+    ut.assert_true(c.test(0))
+    ut.assert_false(c.test(1))
+    ut.assert_false(c.test(2))
+    ut.assert_true(c.test(3))
+    ut.assert_eq(c.count(), 2)
+}
+
+// @test
+// func test_bitnot() {
+//     let a = co.BitSet(8)
+//     a.set(0)
+//     a.set(2)
+//     a.set(4)
+// TODO: unary '~' operator requires int type.
+//     let b = ~a
+//     ut.assert_false(b.test(0))
+//     ut.assert_true(b.test(1))
+//     ut.assert_false(b.test(2))
+//     ut.assert_true(b.test(3))
+//     ut.assert_false(b.test(4))
+//     ut.assert_true(b.test(5))
+//     ut.assert_true(b.test(6))
+//     ut.assert_true(b.test(7))
+//     ut.assert_eq(b.count(), 5)
+// }
+
+@should_panic("BitSet size mismatch: 8 vs 10")
+func test_bitand_size_mismatch() {
+    let a = co.BitSet(8)
+    let b = co.BitSet(10)
+    let c = a & b
+    print(c)
+}
+
+// ==================== to_bytes / from_bytes ====================
+
+@test
+func test_to_bytes_empty() {
+    let bs = co.BitSet(16)
+    let data = bs.to_bytes()
+    ut.assert_eq(data.len(), 2)
+    ut.assert_int_eq(data[0], 0)
+    ut.assert_int_eq(data[1], 0)
+}
+
+@test
+func test_to_bytes_with_bits() {
+    let bs = co.BitSet(16)
+    bs.set(0)
+    bs.set(7)
+    bs.set(8)
+    bs.set(15)
+    let data = bs.to_bytes()
+    ut.assert_eq(data.len(), 2)
+    ut.assert_int_eq(data[0], 0x81)  // bits 0 and 7
+    ut.assert_int_eq(data[1], 0x81)  // bits 8 and 15
+}
+
+@test
+func test_from_bytes() {
+    let data = bytes(2)
+    data[0] = 0xFF
+    data[1] = 0x0F
+    let bs = co.BitSet.from_bytes(data)
+    ut.assert_eq(bs.size(), 16)
+    for i in range(8) {
+        ut.assert_true(bs.test(i))
+    }
+    for i in range(8, 12) {
+        ut.assert_true(bs.test(i))
+    }
+    for i in range(12, 16) {
+        ut.assert_false(bs.test(i))
+    }
+}
+
+@test
+func test_roundtrip_bytes() {
+    let original = co.BitSet(32)
+    original.set(0)
+    original.set(10)
+    original.set(20)
+    original.set(31)
+
+    let data = original.to_bytes()
+    let restored = co.BitSet.from_bytes(data)
+
+    ut.assert_eq(restored.size(), original.size())
+    ut.assert_eq(restored.count(), original.count())
+    ut.assert_true(restored.test(0))
+    ut.assert_true(restored.test(10))
+    ut.assert_true(restored.test(20))
+    ut.assert_true(restored.test(31))
+    ut.assert_false(restored.test(1))
+    ut.assert_false(restored.test(15))
+}
+
+// ==================== fmt ====================
+
+@test
+func test_fmt_small() {
+    let bs = co.BitSet(8)
+    bs.set(0)
+    bs.set(7)
+    let f = Formatter()
+    bs.fmt(f)
+    let s = f.result()
+    ut.assert("nbits=8" in s)
+    ut.assert("bits=10000001" in s)
+}
+
+@test
+func test_fmt_truncated() {
+    let bs = co.BitSet(100)
+    bs.set(0)
+    bs.set(50)
+    let f = Formatter()
+    bs.fmt(f)
+    let s = f.result()
+    ut.assert("nbits=100" in s)
+    ut.assert("..." in s)
+}
+
+// ==================== dump ====================
+
+@test
+func test_dump_format() {
+    let bs = co.BitSet(40)
+    bs.set(0)
+    bs.set(8)
+    bs.set(16)
+    bs.set(24)
+    bs.set(32)
+    let s = bs.dump()
+    // Should have newlines and spaces
+    ut.assert("\n" in s)
+    ut.assert(" " in s)
+}
+
+@test
+func test_dump_small() {
+    let bs = co.BitSet(8)
+    bs.set(0)
+    bs.set(7)
+    let s = bs.dump()
+    ut.assert("10000001" in s)
+}

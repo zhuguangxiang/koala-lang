@@ -5,12 +5,12 @@
 > 数值 cast 补全（§13，已完成转语义 / 测试基线记录）、from_str 解析 API（§14，设计定案未实现）、
 > 测试揭示的 WIP 特性（§15，2026-10-02 复核已消解）、声明-实现欠账清单（§16）、
 > 整型提升三处缺陷（§17）、list 接口全面核对与主流语言对齐（§18）、
-> 退出码模型（§19，panic 退出码与 main 返回值语义）、float 的 NaN/Inf 构造途径（§20，待定）、
+> 退出码模型（§19，panic 退出码与 main 返回值语义）、float 的 NaN/Inf 构造途径（§20，已修复）、
 > `str(float)` 16 位有效数字缺陷（§21，已修复）、数值构造器接收 `str` 的语义（§22，待定，讨论中）。
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-10-24（新增 §20–§22：§21 已修复，§20 / §22 待定）
+> 更新日期：2026-10-24（§20 / §21 均已修复，§22 待定）
 
 ---
 
@@ -898,49 +898,23 @@ reverse / reversed / len / 切片 / `+` / `+=`——方向与主流一致，前�
 
 ---
 
-## 20. float 的 NaN / Inf 构造途径（待定）
+## 20. float 的 NaN / Inf 构造途径（已修复）
 
-**现状**：标准库能**判定**非有限值，但无法**构造**：
+**已落地方案（2026-10-24）**：`libs/koala/math/__math__.kl` 提供 `pub let` 常量：
 
-- `libs/std/builtin/number.kl:449-455` 有 `is_nan()` / `is_inf()`，没有对应的构造入口。
-- `libs/std/builtin/__builtin__.kl:13-28` 有 16 个整数边界常量（`INT8_MIN` … `UINT64_MAX`），
-  **没有任何 float 常量**（无 `FLOAT_MAX` / `NAN` / `INF`）。
-- 目前只能靠表达式 hack，实测编译期常量折叠不拦截：`0.0 / 0.0` → nan，
-  `1e308 * 10.0` → inf，`-1e308 * 10.0` → -inf，`inf - inf` → nan。
-  `libs/koala/json/test/test_dump.kl` 的 4 个 non-finite 用例、以及
-  `test/test-ut/test_float_round_trip.kl` 的 `test_to_str_exact_non_finite` 都是这么写的。
+```kl
+pub let INF = 1.0 / 0.0  // 第 25 行
+pub let NAN = 0.0 / 0.0  // 第 28 行
+```
 
-**两条相关新事实（2026-10-24，写 `to_str_exact` 测试时实测）**：
+使用 `pub let`（而非 `pub const`）是因为 `const` 不接受表达式（实测报 `error: syntax error`），
+只接受字面量。`let` 允许编译期常量表达式，且 `pub` 使其成为模块级公开常量。
 
-- **NaN 的文本形式不唯一**：`%g` 的输出取决于符号位，而 `0.0 / 0.0` 的符号位是
-  implementation-defined，glibc 可能给出 `"-nan"` 而非 `"nan"`。所以断言 NaN 文本只能用
-  `index("nan") != -1`，不能写精确相等（`inf` / `-inf` 的符号是确定的，可以精确断言）。
-- **非有限值的文本无法回喂 `to_float()`**：`str_to_float`（`src/common/mm.c:189`）有
-  `if (!isfinite(val)) return 0.0;`，`"nan"` / `"inf"` 一律被拒并 panic `invalid float literal`。
-  所以 NaN / Inf 没有往返可断言——这与本条「无法构造」是同一个缺口的两面：
-  既造不出常量，也解析不回文本。
+**使用方式**：`math.INF` / `math.NAN`，负无穷写作 `-math.INF`。
 
-**已排除的方案**：
-
-1. `pub const NAN = 0.0 / 0.0` —— **`const` 不接受表达式**，实测报
-   `error: syntax error`。`const` 只接受字面量（`const B = 1e308` 可行，输出 `1e+308`）。
-2. 字面量语法 —— 词法器不识别 `nan` / `inf`（`src/parser/koala.l` 中仅 `"infer"` 关键字命中）。
-3. **函数路线（作者 2026-10-24 明确否决）**：`@native pub func nan() float64` 或
-   `pub static func nan()`。相关事实备查：builtin 类型（`libs/std/builtin/*.kl`）**无
-   `static func` 先例**；顶层 `@native` 自由函数有先例（`__builtin__.kl:47-84` 的 `panic` /
-   `unreachable` / `format` / `typeof`）；`static func` 先例只在普通 .kl 类
-   （`libs/std/io/bytesio.kl:74`、`libs/std/time/duration.kl:38`，且均为纯 .kl 实现体，非 `@native`）。
-
-**待定方向**（需作者裁定）：
-
-1. **词法器加 `nan` / `inf` 字面量**：与 `true` / `false` / `null` 同级的关键字，最直接，
-   代价是扩充语言表面。
-2. **`const` 支持编译期常量表达式**：让 `pub const NAN = 0.0 / 0.0` 成立，顺带满足其他
-   常量折叠需求，改动面落在 parser 与常量折叠。
-3. 其他作者倾向的形式。
-
-**关联**：与 §21 同属 float 表面完整性；§22 记录了相关的分层现象——目前
-`float64("inf")` 可在编译期通过，而运行时路径（`"inf".to_float()`）仍拒绝，何时统一待裁定。
+**历史背景**：本条原记录「标准库能判定不能构造」的缺陷，现已被 math 包的 `pub let` 方案解决。
+原记录的三条排除路径（`const` 不接受表达式、词法器不识别 `nan`/`inf` 字面量、函数路线被否决）
+均已被更简洁的 `pub let` 方案绕过。
 
 ---
 

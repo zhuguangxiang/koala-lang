@@ -102,6 +102,8 @@ set(KOALA_SHARED_SOURCES
     modules/time.c
     modules/sys.c
     modules/math.c
+    modules/collections.c
+    objects/collections/bitsetobj.c
     )
 
 add_library(koala SHARED ${KOALA_SHARED_SOURCES})

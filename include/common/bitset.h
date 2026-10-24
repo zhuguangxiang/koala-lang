@@ -22,9 +22,10 @@ typedef struct _BitSet {
     uint8_t *bits;
 } BitSet;
 
-#define ROW_SIZE   (sizeof(uint8_t) * 8)
-#define BIT_ROW(i) ((i) / ROW_SIZE)
-#define BIT_COL(i) (1 << ((i) % ROW_SIZE))
+#define ROW_SIZE     (sizeof(uint8_t) * 8)
+#define BIT_ROW(i)   ((i) / ROW_SIZE)
+#define BIT_COL(i)   (1 << ((i) % ROW_SIZE))
+#define BIT_SIZE(bs) ((bs)->size)
 
 /* initialize a bitset */
 static inline void init_bitset(BitSet *bs, int nbits)

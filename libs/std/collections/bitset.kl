@@ -1,0 +1,86 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A fixed-size sequence of bits.
+///
+/// BitSet provides efficient storage for boolean values using individual bits.
+/// Supports arbitrary-length bit operations and bitwise operators.
+pub class BitSet {
+    /// Create a BitSet with `size` bits, all initialized to 0.
+    @native
+    pub func __init__(size int) {}
+
+    /// Format the BitSet for display.
+    @native
+    pub func fmt(f Formatter) {}
+
+    /// Set the bit at position `bit` to 1.
+    ///
+    /// Panic if `bit` is out of range [0, size).
+    @native
+    pub func set(bit int) {}
+
+    /// Clear the bit at position `bit` to 0.
+    ///
+    /// Panic if `bit` is out of range [0, size).
+    @native
+    pub func clear(bit int) {}
+
+    /// Return `true` if the bit at position `bit` is 1.
+    ///
+    /// Panic if `bit` is out of range [0, size).
+    @native
+    pub func test(bit int) bool {}
+
+    /// Flip the bit at position `bit`.
+    ///
+    /// Panic if `bit` is out of range [0, size).
+    @native
+    pub func flip(bit int) {}
+
+    /// Return the number of bits set to 1.
+    @native
+    pub func count() int {}
+
+    /// Return the total number of bits in the BitSet.
+    @native
+    pub func size() int {}
+
+    /// Dump all bits in formatted groups (8 bits per group, 4 groups per line).
+    @native
+    pub func dump() str {}
+
+    /// Return a new BitSet that is the bitwise AND of `self` and `other`.
+    ///
+    /// Panic if `self` and `other` have different sizes.
+    @native
+    pub func __bitand__(other BitSet) BitSet {}
+
+    /// Return a new BitSet that is the bitwise OR of `self` and `other`.
+    ///
+    /// Panic if `self` and `other` have different sizes.
+    @native
+    pub func __bitor__(other BitSet) BitSet {}
+
+    /// Return a new BitSet that is the bitwise XOR of `self` and `other`.
+    ///
+    /// Panic if `self` and `other` have different sizes.
+    @native
+    pub func __bitxor__(other BitSet) BitSet {}
+
+    /// Return a new BitSet with all bits inverted.
+    @native
+    pub func __bitnot__() BitSet {}
+
+    /// Return the byte representation of this BitSet.
+    @native
+    pub func to_bytes() bytes {}
+
+    /// Create a BitSet from bytes data.
+    ///
+    /// The resulting BitSet has `data.len() * 8` bits.
+    @native
+    pub static func from_bytes(data bytes) BitSet {}
+}
