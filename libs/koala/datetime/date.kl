@@ -1,0 +1,216 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/time"
+
+/// The smallest year supported by `Date` (matches Python's `MINYEAR`).
+pub const MINYEAR = 1
+
+/// The largest year supported by `Date` (matches Python's `MAXYEAR`).
+pub const MAXYEAR = 9999
+
+/// Parse a fixed-width all-digit ISO segment into an int; panic on any non-digit.
+/// Used by `from_str` so a malformed field reports a datetime-specific message
+/// instead of a generic integer-parse failure.
+func parse_num(seg str) int {
+    var i = 0
+    while i < seg.len() {
+        let c = seg.substr(i, i + 1)
+        if c < "0" || c > "9" { panic("datetime: non-digit in ISO field") }
+        i += 1
+    }
+    return seg.to_int()
+}
+
+/// Whole days spanned by `ns` nanoseconds, rounded toward negative infinity
+/// (matches Python's `timedelta.days` semantics for negative durations).
+func floor_days(ns int) int {
+    var days = ns / NANOS_PER_DAY
+    if ns % NANOS_PER_DAY < 0 { days -= 1 }
+    return days
+}
+
+/// Return true if `y` is a leap year in the proleptic Gregorian calendar.
+pub func is_leap_year(y int) bool {
+    return (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+}
+
+/// Return the number of days in month `m` (1-12) of year `y`.
+///
+/// Panic if `m` is outside 1..12.
+pub func days_in_month(y int, m int) int {
+    if m < 1 || m > 12 { panic("datetime: month out of range 1..12") }
+    if m == 2 {
+        if is_leap_year(y) { return 29 }
+        return 28
+    }
+    if m == 4 || m == 6 || m == 9 || m == 11 { return 30 }
+    return 31
+}
+
+/// Return the day count from the Unix epoch (1970-01-01 == 0) to the civil
+/// date `(y, m, d)`; negative before the epoch.
+///
+/// Howard Hinnant's `days_from_civil`. The era adjustment keeps it correct
+/// under Koala's truncating (toward-zero) integer division.
+func days_from_civil(y int, m int, d int) int {
+    var yy = y
+    if m <= 2 { yy -= 1 }
+    var era = 0
+    if yy >= 0 { era = yy / 400 } else { era = (yy - 399) / 400 }
+    let yoe = yy - era * 400                                   // [0, 399]
+    var mp = m + 9
+    if m > 2 { mp = m - 3 }                                    // [0, 11]
+    let doy = (153 * mp + 2) / 5 + d - 1                       // [0, 365]
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy            // [0, 146096]
+    return era * 146097 + doe - 719468
+}
+
+/// Return the civil date `(year, month, day)` for a day count `z` from the
+/// Unix epoch (1970-01-01 == 0); the inverse of `days_from_civil`.
+func civil_from_days(z int) (int, int, int) {
+    var zz = z + 719468
+    var era = 0
+    if zz >= 0 { era = zz / 146097 } else { era = (zz - 146096) / 146097 }
+    let doe = zz - era * 146097                                // [0, 146096]
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365  // [0, 399]
+    let y = yoe + era * 400
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)          // [0, 365]
+    let mpi = (5 * doy + 2) / 153                              // [0, 11]
+    let d = doy - (153 * mpi + 2) / 5 + 1                      // [1, 31]
+    var m = mpi - 9
+    if mpi < 10 { m = mpi + 3 }                                // [1, 12]
+    var year = y
+    if m <= 2 { year = y + 1 }
+    return (year, m, d)
+}
+
+/// A calendar date in the proleptic Gregorian calendar, with no time or
+/// timezone.
+///
+/// Build one with `Date(year, month, day)`; dates are immutable, so
+/// arithmetic like `add_days` returns a new `Date`. Internally a date maps
+/// to a day count with the Unix epoch (1970-01-01) as day 0.
+pub class Date : ToString {
+    /// The year, `MINYEAR`..`MAXYEAR`.
+    pub let year int
+    /// The month, 1 (January)..12 (December).
+    pub let month int
+    /// The day of month, 1..`days_in_month(year, month)`.
+    pub let day int
+
+    /// Create a date from a year, month (1-12) and day.
+    ///
+    /// Panic if the year is outside `MINYEAR`..`MAXYEAR`, the month is
+    /// outside 1..12, or the day is outside 1..`days_in_month`.
+    pub func __init__(y int, m int, d int) {
+        if y < MINYEAR || y > MAXYEAR { panic("datetime.Date: year out of range 1..9999") }
+        if m < 1 || m > 12 { panic("datetime.Date: month out of range 1..12") }
+        if d < 1 || d > days_in_month(y, m) { panic("datetime.Date: day out of range for month") }
+        year = y
+        month = m
+        day = d
+    }
+
+    /// Create the date `z` days from the Unix epoch (1970-01-01 == day 0).
+    pub static func from_days(z int) Date {
+        let t = civil_from_days(z)
+        return Date(t[0], t[1], t[2])
+    }
+
+    /// Parse an ISO 8601 calendar date `YYYY-MM-DD` (the inverse of [`to_str`](#to_str)).
+    ///
+    /// Panic if the text is malformed or a field is out of range.
+    pub static func from_str(s str) Date {
+        if s.len() != 10 { panic("datetime.Date: invalid ISO date, expected YYYY-MM-DD") }
+        if s.substr(4, 5) != "-" || s.substr(7, 8) != "-" { panic("datetime.Date: invalid ISO date, expected YYYY-MM-DD") }
+        return Date(parse_num(s.substr(0, 4)), parse_num(s.substr(5, 7)), parse_num(s.substr(8, 10)))
+    }
+
+    /// Return today's date in UTC. Koala has no local-timezone detection, so
+    /// this is the calendar date from the realtime clock read as UTC.
+    pub static func today() Date {
+        return DateTime.now().date()
+    }
+
+    /// Return the day count from the Unix epoch to this date; negative
+    /// before 1970-01-01.
+    pub func to_days() int {
+        return days_from_civil(year, month, day)
+    }
+
+    /// Return the weekday, Monday == 0 through Sunday == 6.
+    pub func weekday() int {
+        var w = (to_days() + 3) % 7
+        if w < 0 { w += 7 }
+        return w
+    }
+
+    /// Return a new date `n` days after this one; `n` may be negative.
+    pub func add_days(n int) Date {
+        return Date.from_days(to_days() + n)
+    }
+
+    /// Return a date advanced by the whole days in `d` (`date + timedelta`);
+    /// any sub-day remainder is ignored.
+    pub func __add__(d time.Duration) Date {
+        return Date.from_days(to_days() + floor_days(d.to_ns()))
+    }
+
+    /// Return a date moved back by the whole days in `d` (`date - timedelta`);
+    /// any sub-day remainder is ignored.
+    pub func __sub__(d time.Duration) Date {
+        return Date.from_days(to_days() - floor_days(d.to_ns()))
+    }
+
+    /// Return the elapsed time between two dates as a `time.Duration`
+    /// (Python's `date - date`); negative when `self` precedes `o`. Koala does
+    /// not overload the `-` operator, so the two-operand difference is a method.
+    pub func diff(o Date) time.Duration {
+        return time.Duration.from_nanos((to_days() - o.to_days()) * NANOS_PER_DAY)
+    }
+
+    /// Return a hash consistent with equality (dates compare by day count).
+    /// Value-semantic classes must override the default identity hash so that
+    /// equal dates hash identically for dict/set keys.
+    pub func hash() int { return to_days().hash() }
+
+    /// Return a date with the given fields replaced (Python's `date.replace()`).
+    /// A negative (or omitted) argument keeps the current value; the result is
+    /// re-validated by the `Date` constructor.
+    pub func replace(y = -1, mo = -1, d = -1) Date {
+        var yy = y
+        if yy < 0 { yy = year }
+        var mm = mo
+        if mm < 0 { mm = month }
+        var dd = d
+        if dd < 0 { dd = day }
+        return Date(yy, mm, dd)
+    }
+
+    /// Return the ISO-8601 form `YYYY-MM-DD`.
+    pub func to_str() str {
+        return format("{:04d}-{:02d}-{:02d}", year, month, day)
+    }
+
+    /// Format for display (Printable): the debug-oriented `Date(...)` wrapper.
+    /// The raw ISO form is [`to_str`](#to_str).
+    pub func fmt(f Formatter) {
+        f.write_fmt("Date({:04d}-{:02d}-{:02d})", year, month, day)
+    }
+
+    /// Return true if both dates fall on the same day.
+    pub func __eq__(o Date) bool { return to_days() == o.to_days() }
+    /// Return true if the two dates differ.
+    pub func __ne__(o Date) bool { return to_days() != o.to_days() }
+    /// Return true if `self` is earlier than `o`.
+    pub func __lt__(o Date) bool { return to_days() < o.to_days() }
+    /// Return true if `self` is not later than `o`.
+    pub func __le__(o Date) bool { return to_days() <= o.to_days() }
+    /// Return true if `self` is later than `o`.
+    pub func __gt__(o Date) bool { return to_days() > o.to_days() }
+    /// Return true if `self` is not earlier than `o`.
+    pub func __ge__(o Date) bool { return to_days() >= o.to_days() }
+}

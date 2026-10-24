@@ -517,6 +517,25 @@ static void dump_value(TValue *val)
     }
 }
 
+/* Human readable name of an import kind, used by the module dump. */
+static const char *import_kind_name(ImportKind kind)
+{
+    switch (kind) {
+        case IMPORT_KIND_FUNC:
+            return "func";
+        case IMPORT_KIND_GLOBAL:
+            return "global";
+        case IMPORT_KIND_TYPE:
+            return "type";
+        case IMPORT_KIND_METHOD:
+            return "method";
+        case IMPORT_KIND_FIELD:
+            return "field";
+        default:
+            return "unknown";
+    }
+}
+
 void kl_dump_module(Object *_m)
 {
     ModuleObject *m = (ModuleObject *)_m;
@@ -545,12 +564,7 @@ void kl_dump_module(Object *_m)
     vector_foreach_ptr(e, &m->import_table) {
         const char *mod = e->path;
         const char *sym = e->name;
-        const char *kind = (e->kind == IMPORT_KIND_FUNC)     ? "func"
-                           : (e->kind == IMPORT_KIND_GLOBAL) ? "global"
-                           : (e->kind == IMPORT_KIND_TYPE)   ? "type"
-                           : (e->kind == IMPORT_KIND_METHOD) ? "method"
-                           : (e->kind == IMPORT_KIND_FIELD)  ? "field"
-                                                             : "unknown";
+        const char *kind = import_kind_name(e->kind);
 
         printf("  %03d  %-8s %-22s %-22s %p\n", i__, kind, mod, sym, e->address);
     }

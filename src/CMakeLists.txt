@@ -62,6 +62,7 @@ set(COMMON_SOURCES
     common/mm.c
     common/lldq.c
     common/vector.c
+    common/ring.c
     common/hashmap.c
     common/buffer.c
     common/bitset.c
@@ -106,6 +107,9 @@ set(KOALA_SHARED_SOURCES
     modules/collections.c
     objects/collections/bitsetobj.c
     objects/collections/stackobj.c
+    objects/collections/queueobj.c
+    objects/collections/linkedlistobj.c
+    objects/collections/dequeobj.c
     )
 
 add_library(koala SHARED ${KOALA_SHARED_SOURCES})

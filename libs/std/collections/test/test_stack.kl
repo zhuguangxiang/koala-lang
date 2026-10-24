@@ -3,7 +3,7 @@
 import "std/ut"
 import "std/collections" as co
 
-// 用户自定义类元素
+// User-defined class element
 class Point {
     var x int
     var y int
@@ -18,7 +18,7 @@ class Point {
     }
 }
 
-// 用户自定义泛型类元素
+// User-defined generic class element
 class Foo[T] {
     var value T
 
@@ -35,7 +35,7 @@ class Foo[T] {
     }
 }
 
-// ==================== 构造与基本属性 ====================
+// ==================== Construction and basic properties ====================
 
 @test
 func test_init_empty() {
@@ -93,7 +93,7 @@ func test_str_elements() {
     ut.assert_eq(s.pop(), "a")
 }
 
-// ==================== 扩容 / 大容量 ====================
+// ==================== Growth / large capacity ====================
 
 @test
 func test_grow_many() {
@@ -120,7 +120,7 @@ func test_interleaved_push_pop() {
     }
 }
 
-// ==================== 异常 ====================
+// ==================== Exceptions ====================
 
 @should_panic("pop from empty stack")
 func test_pop_empty() {
@@ -180,7 +180,7 @@ func test_fmt_truncated() {
     ut.assert("Stack([0, 1, 2, 3, ..., 16, 17, 18, 19])" in text)
 }
 
-// ==================== 用户自定义类元素 ====================
+// ==================== User-defined class element ====================
 
 @test
 func test_user_class_lifo() {
@@ -210,7 +210,7 @@ func test_user_class_identity() {
     let p = Point(1, 2)
     s.push(p)
 
-    // pop 出来的是同一个对象实例（浅拷贝引用）
+    // pop returns the same object instance (the reference is shallow copied)
     let q = s.pop()
     q.x = 100
     ut.assert_eq(p.x, 100)
@@ -292,7 +292,7 @@ func test_fmt_generic_class_truncated() {
     ut.assert("Stack([Foo(0), Foo(1), Foo(2), Foo(3), ..., Foo(8), Foo(9), Foo(10), Foo(11)])" in text)
 }
 
-// ==================== 内置泛型类元素：list[int] ====================
+// ==================== Built-in generic class element: list[int] ====================
 
 @test
 func test_list_elements() {
@@ -324,7 +324,7 @@ func test_list_element_identity() {
     let l = list[int](1, 2)
     s.push(l)
 
-    // 存的是同一个 list 实例，通过弹出的引用修改对原变量可见
+    // the same list instance is stored, so mutating it through the popped reference is visible
     let r = s.pop()
     r.append(3)
     ut.assert_eq(l.len(), 3)
@@ -358,12 +358,12 @@ func test_fmt_list_elements() {
     ut.assert("Stack([[1, 2], [3, 4]])" in f.result())
 }
 
-// ==================== 接口类型元素：Sequence[int] ====================
+// ==================== Interface type element: Sequence[int] ====================
 
 @test
 func test_sequence_interface_elements() {
     let s = co.Stack[Sequence[int]]()
-    // list[int] 与 range 都实现了 Sequence[int]，可放入同一个栈
+    // both list[int] and range implement Sequence[int], so they can live in one stack
     s.push(list[int](1, 2, 3))
     s.push(range(7, 10))
     ut.assert_eq(s.len(), 2)

@@ -6,11 +6,12 @@
 > 测试揭示的 WIP 特性（§15，2026-10-02 复核已消解）、声明-实现欠账清单（§16）、
 > 整型提升三处缺陷（§17）、list 接口全面核对与主流语言对齐（§18）、
 > 退出码模型（§19，panic 退出码与 main 返回值语义）、float 的 NaN/Inf 构造途径（§20，已修复）、
-> `str(float)` 16 位有效数字缺陷（§21，已修复）、数值构造器接收 `str` 的语义（§22，待定，讨论中）。
+> `str(float)` 16 位有效数字缺陷（§21，已修复）、数值构造器接收 `str` 的语义（§22，待定，讨论中）、
+> datetime 固定偏移时区（§23，待设计）、运算符按操作数类型重载以支持同类相减（§24，编译器级，待讨论）。
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-10-24（§20 / §21 均已修复，§22 待定）
+> 更新日期：2026-10-24（§20 / §21 均已修复，§22 待定；datetime 包 Date/Time/DateTime 已收工，仅剩时区见 §23；§24 为运算符重载语言待办）
 
 ---
 
@@ -713,6 +714,50 @@ pub static func try_from_str(s str, base = 10) int64? {}
 - `hashset` / `TreeSet`：19 / 20 个方法全部 `@native`；无 C 实现、无测试。
 - koala.y 仍留 `set_type` 文法残段（行为行已注释），集合字面量语法未启用。
 
+### 16.1b collections 模块实现状态（2026-10-24 全量核对）
+
+> 逐个核对 `libs/std/collections/*.kl` 的 `@native` 声明、`src/objects/collections/*.c`
+> 的方法表条数、`src/modules/collections.c` 的 `kl_reg_type` 注册，并实测每个类型能否构造实例。
+> `Deque` 本轮已补齐，其余 7 个模块仍是"只有声明、没有运行时"。
+
+**已实现：声明 / C 方法表 / 类型注册 / 测试 四项对齐**
+
+| 模块 | 类型 | @native | C 方法表 | 注册 | 测试 |
+| --- | --- | --- | --- | --- | --- |
+| `bitset.kl` | `BitSet` | 15 | 15 | ✅ | `test_bitset.kl`（28） |
+| `stack.kl` | `Stack[T]` | 8 | 8 | ✅ | `test_stack.kl`（28） |
+| `queue.kl` | `Queue[T]` | 8 | 8 | ✅ | `test_queue.kl`（34） |
+| `linkedlist.kl` | `LinkedList[T]` + 2 迭代器 | 29 | 29 | ✅ | `test_linkedlist.kl`（50） |
+| `deque.kl` | `Deque[T]` + 2 迭代器 | 29 | 29 | ✅ | `test_deque.kl`（67） |
+
+合计 207 用例全通过；`valgrind -q` 下 `test_deque` 零错误；`clang-format` 与编译均无告警。
+
+**未实现：7 个模块 / 85 个 `@native` 方法（C 侧零实现、零注册、零测试）**
+
+| 模块 | 类型（trait） | @native | 实测症状 |
+| --- | --- | --- | --- |
+| `frozenbytes.kl` | `FrozenBytes : Sequence[uint8]` | 8 | 运行期 `Error: func 'FrozenBytes::__init__' is not implemented!` |
+| `frozendict.kl` | `FrozenDict[K, V] : Map[K, V]` | 11 | 运行期同上（`FrozenDict::__init__`） |
+| `sorteddict.kl` | `SortedDict[K : Comparable, V] : MutableMap[K, V]` | 19 | 运行期同上（`SortedDict::__init__`） |
+| `frozenlist.kl` | `FrozenList[T] : Sequence[T]` | 8 | **编译期崩溃**：`symbol.c:699: Why goes here?` |
+| `frozenset.kl` | `FrozenSet[T] : Set[T]` | 11 | 编译期崩溃，同上 |
+| `heapq.kl` | `Heap[T : Comparable]` | 8 | 编译期崩溃，同上 |
+| `sortedset.kl` | `SortedSet[T : Comparable] : MutableSet[T]` | 20 | 编译期崩溃，同上 |
+
+**顺带发现的编译器缺陷**：实例化"全部方法 `@native` 且 C 侧无实现"的类时，报错方式随
+类型参数个数而变——单类型参数的（`Heap` / `SortedSet` / `FrozenList` / `FrozenSet`）在
+`src/parser/symbol.c` 的 `UNREACHABLE()` 处崩溃（打印 `Why goes here?` 后 `compilation failed`，
+无任何诊断信息）；零参数的 `FrozenBytes` 与双类型参数的 `FrozenDict` / `SortedDict` 则能正常
+编译到运行期，调用时命中 `not_impl` 哨兵（§7.1 的预期路径）。即"缺实现"这一种状态有两种报错
+方式，单参数泛型那条缺诊断，根因待查（疑在 lro / 接口索引计算）。
+
+**建议实现顺序**（性价比从高到低）
+
+1. `heapq`：8 个方法、无索引访问语义，可独立实现二叉堆；顺带修掉上面那个单参数泛型的编译期崩溃。
+2. `frozenbytes` / `frozenlist` / `frozenset` / `frozendict`：只读视图，方法少；但 `FrozenDict`
+   依赖 dict 本体（§16.1 仍是欠账），`FrozenSet` 同理依赖 set。
+3. `sorteddict` / `sortedset`：39 个方法，需要平衡树或跳表，并依赖 `Comparable` 的跨类型比较分发。
+
 ### 16.2 fs / os / 数值方法
 
 - `fs`：C 侧全部已实现——`open` / `read_bytes` / `write_bytes` / `write_str` / `exists` / `is_file` / `is_dir` / `size` / `remove` / `mkdir` / `rmdir` / `list_dir` 与 `File` 方法；`Path` 方法为纯 KL 实现。
@@ -1119,3 +1164,53 @@ json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可
 ### 22.5 作者裁定（待填）
 
 - （待讨论：先定第 1、3、10 三条，其余可跟随）
+
+---
+
+## 23. datetime 固定偏移时区（待设计）
+
+`libs/koala/datetime` 的 `Date` / `Time` / `DateTime` 三类已收工并全绿（构造校验、`to_str`/`fmt`、
+`from_str`、比较、`hash`、`+`/`-` 与 `diff`、`Date.today`、`DateTime.combine`/`replace`、
+`timestamp` 家族、`now`/`to_instant`/`from_instant`）。**唯一未落地的设计缺口是固定偏移时区**
+（作者 2026-10 决定排到最后，届时单独拍板）。
+
+当前 `DateTime` 隐含 UTC，无偏移字段、不输出 `+08:00`/`Z`、无从偏移串解析、无 `astimezone()`。
+现状仅靠 `to_instant`/`from_instant` 与 `std/time` 的 realtime(UTC) 时钟桥接。
+
+### 23.1 约束前提
+
+- Koala `Instant`/`sys_clock` 全走 UTC，**无本地时区探测、无命名时区数据库**（`ZoneInfo`/tzdata/DST 出局，已定）。
+- 因此只能做「UTC + 显式固定偏移」，对齐 Python `timezone(timedelta(...))`，非 `tzinfo` 全功能。
+- 纯 Koala 实现，零新增 C native（沿用「能用 koala 实现就用 koala」约束）。
+
+### 23.2 两个待拍设计点（作者开工前定）
+
+1. **类型形态**：
+   - A 新建独立 `Timezone` 类存固定偏移（对齐 Python `tzinfo`）；`DateTime` 加可选 `tz Timezone?` 字段，`nil` = naive。可区分 naive vs UTC-aware。
+   - B 直接在 `DateTime` 加 `offset_seconds int`（0=UTC）。更轻，但无法区分 naive 与 UTC-aware。
+2. **本轮范围**：
+   - 小步：先做建模 + `to_str`/`from_str` 读写偏移（`+08:00`/`Z`）+ 构造带 tz；比较/`astimezone` 留下一轮。
+   - 大步：一次做完 aware/naive 比较规则（跨时区按绝对时刻、naive 不与 aware 比）+ `astimezone()` + 全部测试。
+
+### 23.3 备注
+
+- 落 `from_str` 通用 ISO（含 `Z`/`±HH:MM`）与时区解析应与此块合并考虑（当前 `from_str` 定案为严格模式，仅逆向 `to_str`）。
+- `Timezone` 类型若新增须遵循包内命名纪律（类名不重复 `datetime` 前缀）与 `pub let` 只读字段约定。
+
+---
+
+## 24. 运算符按操作数类型重载（`-` 同类相减）——编译器级，待讨论
+
+**诉求**：Python 的 `datetime - datetime → timedelta` 与 `datetime - timedelta → datetime` 共用 `-`
+运算符，靠操作数类型区分。Koala 目前**不允许同名 dunder 运算符方法按参数类型重载**
+（写两个 `__sub__` 触发 `error: redefinition of '__sub__'`，实证于 `libs/koala/datetime/date.kl`、
+`datetime.kl`），`a - b` 只能绑**唯一一个**签名。
+
+**当前库侧妥协**：`-` 绑 `±Duration` 移位，两值求差降级为具名方法 `diff(o) -> Duration`；
+`Date`/`DateTime` 皆如此。功能不缺，但与 Python 心智不一致，`diff()` 是明显的语言限制外溢。
+
+**为何属编译器级而非库改动**：要让 `dt2 - dt1` 也走 `-`，需 parser/type 层支持「同一运算符方法
+按实参类型分派到不同签名」，是语言机制扩展，不是 datetime 能自行解决的。
+
+**状态**：本轮不动，作语言待办登记；是否实现、以何形态实现（重载 vs 多分派表 vs 其它）待后续讨论。
+关联：§23 时区落地后若引入 `Timezone`，`DateTime` 上的运算符组合会更复杂，宜一并纳入本节权衡。

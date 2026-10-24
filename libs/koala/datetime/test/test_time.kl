@@ -1,0 +1,156 @@
+// RUN: koala --test %s
+
+import "koala/datetime"
+import "std/ut"
+
+@test
+func test_time_fields_defaults() {
+    let t = datetime.Time(13, 30, 45, 123456789)
+    ut.assert_eq(t.hour, 13)
+    ut.assert_eq(t.minute, 30)
+    ut.assert_eq(t.second, 45)
+    ut.assert_eq(t.nanosecond, 123456789)
+    // trailing components default to 0
+    let midnight = datetime.Time(0)
+    ut.assert_eq(midnight.to_nanos(), 0)
+    let t2 = datetime.Time(8, 15)
+    ut.assert_eq(t2.minute, 15)
+    ut.assert_eq(t2.second, 0)
+    ut.assert_eq(t2.nanosecond, 0)
+}
+
+@test
+func test_time_to_nanos() {
+    ut.assert_eq(datetime.Time(0, 0, 0, 0).to_nanos(), 0)
+    ut.assert_eq(datetime.Time(0, 0, 1).to_nanos(), 1_000_000_000)
+    ut.assert_eq(datetime.Time(0, 1, 0).to_nanos(), 60_000_000_000)
+    ut.assert_eq(datetime.Time(1, 0, 0).to_nanos(), 3_600_000_000_000)
+    ut.assert_eq(datetime.Time(12, 0, 0).to_nanos(), 43_200_000_000_000)
+    ut.assert_eq(datetime.Time(1, 2, 3, 4).to_nanos(), 3_723_000_000_004)
+}
+
+@test
+func test_time_from_nanos() {
+    ut.assert_eq(datetime.Time.from_nanos(0).to_str(), "00:00:00")
+    ut.assert_eq(datetime.Time.from_nanos(3_723_000_000_004).to_str(), "01:02:03.000000004")
+    ut.assert_eq(datetime.Time.from_nanos(43_200_000_000_000).to_str(), "12:00:00")
+}
+
+@test
+func test_time_roundtrip() {
+    var n = 0
+    let end = 86_400_000_000_000   // nanoseconds per day (exclusive)
+    while n < end {
+        let t = datetime.Time.from_nanos(n)
+        ut.assert_eq(t.to_nanos(), n)
+        n += 99_999_999_937   // large stride: ~865 samples across the day, not an exhaustive scan
+    }
+    // last representable nanosecond of the day
+    let last = datetime.Time.from_nanos(end - 1)
+    ut.assert_eq(last.to_str(), "23:59:59.999999999")
+    ut.assert_eq(last.to_nanos(), end - 1)
+}
+
+@test
+func test_time_to_str() {
+    ut.assert_eq(datetime.Time(0, 0, 0).to_str(), "00:00:00")
+    ut.assert_eq(datetime.Time(9, 5, 3).to_str(), "09:05:03")
+    ut.assert_eq(datetime.Time(23, 59, 59).to_str(), "23:59:59")
+    ut.assert_eq(datetime.Time(1, 2, 3, 4).to_str(), "01:02:03.000000004")
+    ut.assert_eq(datetime.Time(1, 2, 3, 123456789).to_str(), "01:02:03.123456789")
+    ut.assert_eq(datetime.Time(0, 0, 0, 1).to_str(), "00:00:00.000000001")
+}
+
+@test
+func test_time_display() {
+    // to_str (ToString) is the raw ISO form; fmt (Printable) wraps it in `Time(...)`.
+    ut.assert_eq(str(datetime.Time(13, 30, 45)), "13:30:45")
+    ut.assert_eq(format("{}", datetime.Time(13, 30, 45)), "Time(13:30:45)")
+    ut.assert_eq(format("{}", datetime.Time(1, 2, 3, 123456789)), "Time(01:02:03.123456789)")
+}
+
+@test
+func test_time_comparisons() {
+    let a = datetime.Time(10, 0, 0)
+    let b = datetime.Time(10, 0, 1)
+    let a2 = datetime.Time(10, 0, 0)
+    ut.assert_true(a == a2)
+    ut.assert_true(a != b)
+    ut.assert_true(a < b)
+    ut.assert_true(a <= b)
+    ut.assert_true(b > a)
+    ut.assert_true(b >= a)
+    ut.assert_true(a <= a2)
+    ut.assert_true(a >= a2)
+}
+
+@should_panic("datetime.Time: hour out of range 0..23")
+func test_time_invalid_hour_high() { datetime.Time(24) }
+
+@should_panic("datetime.Time: hour out of range 0..23")
+func test_time_invalid_hour_low() { datetime.Time(-1) }
+
+@should_panic("datetime.Time: minute out of range 0..59")
+func test_time_invalid_minute() { datetime.Time(10, 60) }
+
+@should_panic("datetime.Time: second out of range 0..59")
+func test_time_invalid_second() { datetime.Time(10, 30, 60) }
+
+@should_panic("datetime.Time: nanosecond out of range 0..999999999")
+func test_time_invalid_nano() { datetime.Time(10, 30, 0, 1_000_000_000) }
+
+@should_panic("datetime.Time: nanoseconds out of range for a day")
+func test_time_from_nanos_negative() { datetime.Time.from_nanos(-1) }
+
+@should_panic("datetime.Time: nanoseconds out of range for a day")
+func test_time_from_nanos_too_large() { datetime.Time.from_nanos(86_400_000_000_000) }
+
+@test
+func test_time_from_str() {
+    // round-trip representative times: whole-second (no fraction), nanosecond
+    // fractions with leading zeros, and day boundaries
+    let t1 = datetime.Time(0, 0, 0)
+    ut.assert_eq(datetime.Time.from_str(t1.to_str()), t1)
+    let t2 = datetime.Time(13, 30, 45)
+    ut.assert_eq(datetime.Time.from_str(t2.to_str()), t2)
+    let t3 = datetime.Time(23, 59, 59, 999999999)
+    ut.assert_eq(datetime.Time.from_str(t3.to_str()), t3)
+    let t4 = datetime.Time(0, 0, 0, 1)
+    ut.assert_eq(datetime.Time.from_str(t4.to_str()), t4)
+    let t5 = datetime.Time(12, 0, 0, 500000000)
+    ut.assert_eq(datetime.Time.from_str(t5.to_str()), t5)
+    ut.assert_eq(datetime.Time.from_str("13:30:45"), datetime.Time(13, 30, 45))
+    ut.assert_eq(datetime.Time.from_str("23:59:59.999999999"), datetime.Time(23, 59, 59, 999999999))
+    ut.assert_eq(datetime.Time.from_str("00:00:00.000000001"), datetime.Time(0, 0, 0, 1))
+}
+
+@should_panic("datetime.Time: invalid ISO time, expected HH:MM:SS[.nnnnnnnnn]")
+func test_time_from_str_bad_len() { datetime.Time.from_str("13:30") }
+
+@should_panic("datetime.Time: invalid ISO time, expected HH:MM:SS[.nnnnnnnnn]")
+func test_time_from_str_bad_sep() { datetime.Time.from_str("13-30-45") }
+
+@should_panic("datetime.Time: invalid ISO time, expected HH:MM:SS[.nnnnnnnnn]")
+func test_time_from_str_bad_dot() { datetime.Time.from_str("13:30:45-123456789") }
+
+@should_panic("datetime.Time: hour out of range 0..23")
+func test_time_from_str_bad_hour() { datetime.Time.from_str("24:00:00") }
+
+@test
+func test_time_hash() {
+    ut.assert_eq(datetime.Time(13, 30, 45).hash(), datetime.Time(13, 30, 45).hash())
+    ut.assert_eq(datetime.Time(1, 2, 3, 4).hash(), datetime.Time(1, 2, 3, 4).to_nanos().hash())
+}
+
+@test
+func test_time_replace() {
+    let base = datetime.Time(13, 30, 45, 123)
+    ut.assert_eq(base.replace(h = 1), datetime.Time(1, 30, 45, 123))
+    ut.assert_eq(base.replace(mi = 0), datetime.Time(13, 0, 45, 123))
+    ut.assert_eq(base.replace(ns = 0), datetime.Time(13, 30, 45, 0))
+    ut.assert_eq(base.replace(), base)
+    ut.assert_eq(base.replace(h = 0, mi = 0, s = 0, ns = 0), datetime.Time(0))
+}
+
+@should_panic("datetime.Time: hour out of range 0..23")
+func test_time_replace_invalid() { datetime.Time(13).replace(h = 24) }

@@ -1,0 +1,207 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/time"
+
+/// A date and time of day, in UTC, with nanosecond precision.
+///
+/// Combines a calendar [`Date`] and a wall-clock [`Time`]. Bridge to `std/time`:
+/// [`to_instant`](#to_instant) / [`from_instant`](#from_instant) convert to/from a
+/// `time.Instant`, and [`add`](#add) shifts by a `time.Duration`.
+///
+/// The canonical string form ([`to_str`](#to_str), `ToString`) is ISO 8601 with a `T`
+/// separator, e.g. `"2026-10-24T13:30:45"`; the display form ([`fmt`](#fmt), `Printable`)
+/// wraps it as `DateTime(...)`.
+pub class DateTime : ToString {
+
+    /// The year (`MINYEAR`..`MAXYEAR`).
+    pub let year int
+    /// The month (1..12).
+    pub let month int
+    /// The day of the month (1..days_in_month).
+    pub let day int
+    /// The hour (0..23).
+    pub let hour int
+    /// The minute (0..59).
+    pub let minute int
+    /// The second (0..59; no leap second).
+    pub let second int
+    /// The nanosecond (0..999999999).
+    pub let nanosecond int
+
+    /// Create a `DateTime` from its fields (UTC). Date and time ranges are validated
+    /// by reusing [`Date`] and [`Time`]. `mi`, `s`, `ns` default to 0.
+    pub func __init__(y int, mo int, d int, h int, mi = 0, s = 0, ns = 0) {
+        let dd = Date(y, mo, d)
+        let tt = Time(h, mi, s, ns)
+        year = dd.year
+        month = dd.month
+        day = dd.day
+        hour = tt.hour
+        minute = tt.minute
+        second = tt.second
+        nanosecond = tt.nanosecond
+    }
+
+    /// Return the current UTC date and time (backed by `time.now()`).
+    pub static func now() DateTime { return DateTime.from_instant(time.now()) }
+
+    /// Build a `DateTime` from a `time.Instant` (UTC), using its Unix nanoseconds.
+    pub static func from_instant(i time.Instant) DateTime {
+        return DateTime.from_epoch_nanos(i.to_unix_ns())
+    }
+
+    /// Parse an ISO 8601 datetime `YYYY-MM-DDTHH:MM:SS`, optionally with a
+    /// `.nnnnnnnnn` nanosecond fraction (the inverse of [`to_str`](#to_str)).
+    ///
+    /// Panic if the text is malformed or a field is out of range.
+    pub static func from_str(s str) DateTime {
+        if s.len() != 19 && s.len() != 29 { panic("datetime.DateTime: invalid ISO datetime, expected YYYY-MM-DDTHH:MM:SS[.nnnnnnnnn]") }
+        if s.substr(10, 11) != "T" { panic("datetime.DateTime: invalid ISO datetime, expected YYYY-MM-DDTHH:MM:SS[.nnnnnnnnn]") }
+        let dd = Date.from_str(s.substr(0, 10))
+        let tt = Time.from_str(s.substr(11, s.len()))
+        return DateTime(dd.year, dd.month, dd.day, tt.hour, tt.minute, tt.second, tt.nanosecond)
+    }
+
+    /// Combine a `Date` and a `Time` into a `DateTime` (Python's `datetime.combine`).
+    pub static func combine(d Date, t Time) DateTime {
+        return DateTime(d.year, d.month, d.day, t.hour, t.minute, t.second, t.nanosecond)
+    }
+
+    /// Build a `DateTime` from nanoseconds since the Unix epoch.
+    ///
+    /// Negative values (before 1970) are floored so the time-of-day stays in
+    /// `[0, 86400e9)`: e.g. `-1` ns is `1969-12-31T23:59:59.999999999`.
+    static func from_epoch_nanos(ns int) DateTime {
+        var days = ns / NANOS_PER_DAY
+        var nod = ns % NANOS_PER_DAY
+        if nod < 0 {
+            nod += NANOS_PER_DAY
+            days -= 1
+        }
+        let dd = Date.from_days(days)
+        let tt = Time.from_nanos(nod)
+        return DateTime(dd.year, dd.month, dd.day, tt.hour, tt.minute, tt.second, tt.nanosecond)
+    }
+
+    /// Return seconds since the Unix epoch as a `float64` (Python's
+    /// `datetime.timestamp()`). Because a nanosecond epoch magnitude can exceed
+    /// `float64`'s exact-integer range, this is approximate at sub-microsecond
+    /// levels; use [`timestamp_nanos`](#timestamp_nanos) for exact values.
+    pub func timestamp() float64 {
+        return float(to_epoch_nanos()) / float(NANOS_PER_SEC)
+    }
+
+    /// Return nanoseconds since the Unix epoch, exact (no float rounding).
+    pub func timestamp_nanos() int {
+        return to_epoch_nanos()
+    }
+
+    /// Build a `DateTime` from seconds since the Unix epoch (Python's
+    /// `datetime.fromtimestamp()`).
+    pub static func from_timestamp(secs float64) DateTime {
+        return DateTime.from_epoch_nanos(int(secs * float(NANOS_PER_SEC)))
+    }
+
+    /// Build a `DateTime` from exact nanoseconds since the Unix epoch.
+    pub static func from_timestamp_nanos(ns int) DateTime {
+        return DateTime.from_epoch_nanos(ns)
+    }
+
+    /// Convert to a `time.Instant` on the realtime (wall) clock.
+    pub func to_instant() time.Instant {
+        return time.Instant.from_unix_ns(to_epoch_nanos())
+    }
+
+    /// Return a new `DateTime` shifted by the duration `dur`.
+    pub func add(dur time.Duration) DateTime {
+        return DateTime.from_epoch_nanos(to_epoch_nanos() + dur.to_ns())
+    }
+
+    /// Return a new datetime advanced by `d` (`datetime + timedelta`).
+    pub func __add__(d time.Duration) DateTime {
+        return DateTime.from_epoch_nanos(to_epoch_nanos() + d.to_ns())
+    }
+
+    /// Return a new datetime moved back by `d` (`datetime - timedelta`).
+    pub func __sub__(d time.Duration) DateTime {
+        return DateTime.from_epoch_nanos(to_epoch_nanos() - d.to_ns())
+    }
+
+    /// Return the elapsed time between two datetimes as a `time.Duration`
+    /// (Python's `datetime - datetime`); negative when `self` precedes `o`.
+    /// Koala does not overload `-`, so the difference is a method.
+    pub func diff(o DateTime) time.Duration {
+        return time.Duration.from_nanos(to_epoch_nanos() - o.to_epoch_nanos())
+    }
+
+    /// Return a hash consistent with datetime equality (compared by absolute
+    /// nanoseconds since the epoch), overriding the default identity hash.
+    pub func hash() int { return to_epoch_nanos().hash() }
+
+    /// Return the date part.
+    pub func date() Date { return Date(year, month, day) }
+
+    /// Return the time-of-day part.
+    pub func time_of_day() Time { return Time(hour, minute, second, nanosecond) }
+
+    /// Return a datetime with the given fields replaced (Python's
+    /// `datetime.replace()`). A negative (or omitted) argument keeps the current
+    /// value; the result is re-validated by the `DateTime` constructor.
+    pub func replace(y = -1, mo = -1, d = -1, h = -1, mi = -1, s = -1, ns = -1) DateTime {
+        var yy = y
+        if yy < 0 { yy = year }
+        var mm = mo
+        if mm < 0 { mm = month }
+        var dd = d
+        if dd < 0 { dd = day }
+        var hh = h
+        if hh < 0 { hh = hour }
+        var mmin = mi
+        if mmin < 0 { mmin = minute }
+        var ss = s
+        if ss < 0 { ss = second }
+        var nns = ns
+        if nns < 0 { nns = nanosecond }
+        return DateTime(yy, mm, dd, hh, mmin, ss, nns)
+    }
+
+    /// Nanoseconds since the Unix epoch (1970-01-01T00:00:00Z); negative before it.
+    func to_epoch_nanos() int {
+        return date().to_days() * NANOS_PER_DAY + time_of_day().to_nanos()
+    }
+
+    /// Return the raw ISO 8601 string (ToString): `YYYY-MM-DDTHH:MM:SS`, with
+    /// `.NNNNNNNNN` appended when [`nanosecond`](#nanosecond) is non-zero.
+    pub func to_str() str {
+        if nanosecond == 0 {
+            return format("{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}", year, month, day, hour, minute, second)
+        }
+        return format("{:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}.{:09d}", year, month, day, hour, minute, second, nanosecond)
+    }
+
+    /// Format for display (Printable): the debug-oriented `DateTime(...)` wrapper.
+    /// The raw ISO form is [`to_str`](#to_str).
+    pub func fmt(f Formatter) {
+        if nanosecond == 0 {
+            f.write_fmt("DateTime({:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d})", year, month, day, hour, minute, second)
+        } else {
+            f.write_fmt("DateTime({:04d}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}.{:09d})", year, month, day, hour, minute, second, nanosecond)
+        }
+    }
+
+    /// Return true if equal to `o` (Equatable[DateTime]).
+    pub func __eq__(o DateTime) bool { return to_epoch_nanos() == o.to_epoch_nanos() }
+    /// Return true if not equal to `o`.
+    pub func __ne__(o DateTime) bool { return to_epoch_nanos() != o.to_epoch_nanos() }
+    /// Return true if earlier than `o` (Comparable[DateTime]).
+    pub func __lt__(o DateTime) bool { return to_epoch_nanos() < o.to_epoch_nanos() }
+    /// Return true if not later than `o`.
+    pub func __le__(o DateTime) bool { return to_epoch_nanos() <= o.to_epoch_nanos() }
+    /// Return true if later than `o`.
+    pub func __gt__(o DateTime) bool { return to_epoch_nanos() > o.to_epoch_nanos() }
+    /// Return true if not earlier than `o`.
+    pub func __ge__(o DateTime) bool { return to_epoch_nanos() >= o.to_epoch_nanos() }
+}

@@ -1,0 +1,546 @@
+// RUN: koala --test %s
+
+import "std/ut"
+import "std/collections" as co
+
+// User-defined class element
+class Point {
+    var x int
+    var y int
+
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    func fmt(f Formatter) {
+        f.write_fmt("Point({}, {})", x, y)
+    }
+}
+
+// User-defined generic class element
+class Foo[T] {
+    var value T
+
+    func __init__(v T) {
+        value = v
+    }
+
+    func get() T {
+        return value
+    }
+
+    func fmt(f Formatter) {
+        f.write_fmt("Foo({})", value)
+    }
+}
+
+// ==================== Construction and basic properties ====================
+
+@test
+func test_init_empty() {
+    let q = co.Queue[int]()
+    ut.assert_eq(q.len(), 0)
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_push_pop_fifo() {
+    let q = co.Queue[int]()
+    q.push(1)
+    q.push(2)
+    q.push(3)
+    ut.assert_eq(q.len(), 3)
+    ut.assert_false(q.empty())
+    ut.assert_eq(q.pop(), 1)
+    ut.assert_eq(q.pop(), 2)
+    ut.assert_eq(q.pop(), 3)
+    ut.assert_eq(q.len(), 0)
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_peek_not_remove() {
+    let q = co.Queue[int]()
+    q.push(42)
+    ut.assert_eq(q.peek(), 42)
+    ut.assert_eq(q.len(), 1)
+    ut.assert_eq(q.pop(), 42)
+}
+
+@test
+func test_clear_and_reuse() {
+    let q = co.Queue[int]()
+    for i in range(10) {
+        q.push(i)
+    }
+    q.clear()
+    ut.assert_eq(q.len(), 0)
+    ut.assert_true(q.empty())
+    q.push(7)
+    ut.assert_eq(q.peek(), 7)
+    ut.assert_eq(q.pop(), 7)
+}
+
+@test
+func test_str_elements() {
+    let q = co.Queue[str]()
+    q.push("a")
+    q.push("b")
+    q.push("c")
+    ut.assert_eq(q.peek(), "a")
+    ut.assert_eq(q.pop(), "a")
+    ut.assert_eq(q.pop(), "b")
+    ut.assert_eq(q.pop(), "c")
+}
+
+// ==================== Growth / large capacity ====================
+
+@test
+func test_grow_many() {
+    let q = co.Queue[int]()
+    for i in range(1000) {
+        q.push(i)
+    }
+    ut.assert_eq(q.len(), 1000)
+    for i in range(1000) {
+        ut.assert_eq(q.pop(), i)
+    }
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_interleaved_push_pop() {
+    let q = co.Queue[int]()
+    for i in range(100) {
+        q.push(i)
+        ut.assert_eq(q.peek(), 0)
+    }
+    for i in range(100) {
+        ut.assert_eq(q.pop(), i)
+    }
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_reuse_after_drain() {
+    let q = co.Queue[int]()
+    for i in range(50) {
+        q.push(i)
+    }
+    for i in range(50) {
+        ut.assert_eq(q.pop(), i)
+    }
+    ut.assert_true(q.empty())
+
+    // after a full drain the ring keeps its buffer and simply refills it
+    q.push(100)
+    q.push(101)
+    ut.assert_eq(q.len(), 2)
+    ut.assert_eq(q.pop(), 100)
+    ut.assert_eq(q.pop(), 101)
+}
+
+@test
+func test_order_after_partial_drain() {
+    // pops advance the ring head, so the live range eventually wraps around;
+    // the following pushes must not disturb the FIFO order (this exercises the
+    // wrap-around path)
+    let q = co.Queue[int]()
+    for i in range(100) {
+        q.push(i)
+    }
+    for i in range(60) {
+        ut.assert_eq(q.pop(), i)
+    }
+    ut.assert_eq(q.len(), 40)
+
+    for i in range(100, 160) {
+        q.push(i)
+    }
+    ut.assert_eq(q.len(), 100)
+
+    for i in range(60, 100) {
+        ut.assert_eq(q.pop(), i)
+    }
+    for i in range(100, 160) {
+        ut.assert_eq(q.pop(), i)
+    }
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_grow_while_wrapped() {
+    // Drain most of a full ring so the live range sits near the end of the
+    // buffer, then push past the capacity: the ring has to grow while the
+    // live range straddles the buffer end (two-piece copy), and the FIFO
+    // order must survive it.
+    let q = co.Queue[int]()
+    for i in range(100) {
+        q.push(i)
+    }
+    for i in range(90) {
+        ut.assert_eq(q.pop(), i)
+    }
+    ut.assert_eq(q.len(), 10)
+
+    // 10 live elements starting at slot 90 of a 128-slot buffer, so the
+    // following pushes wrap around from slot 127 back to slot 0
+    for i in range(100, 240) {
+        q.push(i)
+    }
+    ut.assert_eq(q.len(), 150)
+
+    for i in range(90, 100) {
+        ut.assert_eq(q.pop(), i)
+    }
+    for i in range(100, 240) {
+        ut.assert_eq(q.pop(), i)
+    }
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_fifo_alternating() {
+    let q = co.Queue[int]()
+    var next = 0
+    var expect = 0
+    for round in range(200) {
+        q.push(next)
+        next = next + 1
+        if round % 2 == 1 {
+            ut.assert_eq(q.pop(), expect)
+            expect = expect + 1
+        }
+    }
+    while !q.empty() {
+        ut.assert_eq(q.pop(), expect)
+        expect = expect + 1
+    }
+    ut.assert_eq(expect, 200)
+}
+
+// ==================== Exceptions ====================
+
+@should_panic("pop from empty queue")
+func test_pop_empty() {
+    let q = co.Queue[int]()
+    let v = q.pop()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("peek from empty queue")
+func test_peek_empty() {
+    let q = co.Queue[int]()
+    let v = q.peek()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("pop from empty queue")
+func test_pop_after_clear() {
+    let q = co.Queue[int]()
+    q.push(1)
+    q.clear()
+    let v = q.pop()
+    ut.assert_eq(v, 0)
+}
+
+// ==================== fmt ====================
+
+@test
+func test_fmt_small() {
+    let q = co.Queue[int]()
+    q.push(1)
+    q.push(2)
+    q.push(3)
+    let f = Formatter()
+    q.fmt(f)
+    let text = f.result()
+    ut.assert("Queue([1, 2, 3])" in text)
+}
+
+@test
+func test_fmt_empty() {
+    let q = co.Queue[int]()
+    let f = Formatter()
+    q.fmt(f)
+    let text = f.result()
+    ut.assert("Queue([])" in text)
+}
+
+@test
+func test_fmt_truncated() {
+    let q = co.Queue[int]()
+    for i in range(20) {
+        q.push(i)
+    }
+    let f = Formatter()
+    q.fmt(f)
+    let text = f.result()
+    ut.assert("Queue([0, 1, 2, 3, ..., 16, 17, 18, 19])" in text)
+}
+
+@test
+func test_fmt_boundary() {
+    // 10 items: everything is printed
+    let a = co.Queue[int]()
+    for i in range(10) {
+        a.push(i)
+    }
+    let f1 = Formatter()
+    a.fmt(f1)
+    ut.assert("Queue([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])" in f1.result())
+
+    // 11 items: first 4, "...", last 4
+    let b = co.Queue[int]()
+    for i in range(11) {
+        b.push(i)
+    }
+    let f2 = Formatter()
+    b.fmt(f2)
+    ut.assert("Queue([0, 1, 2, 3, ..., 7, 8, 9, 10])" in f2.result())
+}
+
+@test
+func test_fmt_starts_at_front() {
+    // fmt must start at the front element, not at the first buffer slot
+    let q = co.Queue[int]()
+    for i in range(20) {
+        q.push(i)
+    }
+    for i in range(5) {
+        ut.assert_eq(q.pop(), i)
+    }
+    let f = Formatter()
+    q.fmt(f)
+    ut.assert("Queue([5, 6, 7, 8, ..., 16, 17, 18, 19])" in f.result())
+}
+
+@test
+func test_fmt_after_compaction() {
+    let q = co.Queue[int]()
+    for i in range(100) {
+        q.push(i)
+    }
+    // popping 60 elements crosses the compaction threshold
+    for i in range(60) {
+        ut.assert_eq(q.pop(), i)
+    }
+    ut.assert_eq(q.len(), 40)
+    let f = Formatter()
+    q.fmt(f)
+    ut.assert("Queue([60, 61, 62, 63, ..., 96, 97, 98, 99])" in f.result())
+}
+
+@test
+func test_write_fmt() {
+    let q = co.Queue[int]()
+    q.push(1)
+    q.push(2)
+    let f = Formatter()
+    f.write_fmt("{}", q)
+    ut.assert("Queue([1, 2])" in f.result())
+}
+
+// ==================== User-defined class element ====================
+
+@test
+func test_user_class_fifo() {
+    let q = co.Queue[Point]()
+    q.push(Point(1, 2))
+    q.push(Point(3, 4))
+    ut.assert_eq(q.len(), 2)
+
+    let front = q.peek()
+    ut.assert_eq(front.x, 1)
+    ut.assert_eq(front.y, 2)
+    ut.assert_eq(q.len(), 2)
+
+    let p1 = q.pop()
+    ut.assert_eq(p1.x, 1)
+    ut.assert_eq(p1.y, 2)
+
+    let p2 = q.pop()
+    ut.assert_eq(p2.x, 3)
+    ut.assert_eq(p2.y, 4)
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_user_class_identity() {
+    let q = co.Queue[Point]()
+    let p = Point(1, 2)
+    q.push(p)
+
+    // pop returns the same object instance (the reference is shallow copied)
+    let r = q.pop()
+    r.x = 100
+    ut.assert_eq(p.x, 100)
+}
+
+@test
+func test_user_class_grow() {
+    let q = co.Queue[Point]()
+    for i in range(100) {
+        q.push(Point(i, i * 2))
+    }
+    ut.assert_eq(q.len(), 100)
+
+    for i in range(100) {
+        let p = q.pop()
+        ut.assert_eq(p.x, i)
+        ut.assert_eq(p.y, i * 2)
+    }
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_generic_class_elements() {
+    let q = co.Queue[Foo[int]]()
+    q.push(Foo[int](10))
+    q.push(Foo[int](20))
+    ut.assert_eq(q.len(), 2)
+
+    ut.assert_eq(q.peek().get(), 10)
+    ut.assert_eq(q.pop().get(), 10)
+    ut.assert_eq(q.pop().get(), 20)
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_generic_class_element_grow() {
+    let q = co.Queue[Foo[int]]()
+    for i in range(100) {
+        q.push(Foo[int](i))
+    }
+    ut.assert_eq(q.len(), 100)
+
+    for i in range(100) {
+        ut.assert_eq(q.pop().get(), i)
+    }
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_fmt_user_class() {
+    let q = co.Queue[Point]()
+    q.push(Point(1, 2))
+    q.push(Point(3, 4))
+    let f = Formatter()
+    q.fmt(f)
+    ut.assert("Queue([Point(1, 2), Point(3, 4)])" in f.result())
+}
+
+@test
+func test_fmt_generic_class_truncated() {
+    let q = co.Queue[Foo[int]]()
+    for i in range(12) {
+        q.push(Foo[int](i))
+    }
+    let f = Formatter()
+    q.fmt(f)
+    let text = f.result()
+    ut.assert("Queue([Foo(0), Foo(1), Foo(2), Foo(3), ..., Foo(8), Foo(9), Foo(10), Foo(11)])" in text)
+}
+
+// ==================== Built-in generic class element: list[int] ====================
+
+@test
+func test_list_elements() {
+    let q = co.Queue[list[int]]()
+    q.push(list[int](1, 2, 3))
+    q.push(list[int](4, 5))
+    ut.assert_eq(q.len(), 2)
+
+    let front = q.peek()
+    ut.assert_eq(front.len(), 3)
+    ut.assert_eq(front[0], 1)
+    ut.assert_eq(front[2], 3)
+    ut.assert_eq(q.len(), 2)
+
+    let a = q.pop()
+    ut.assert_eq(a.len(), 3)
+    ut.assert_eq(a[1], 2)
+
+    let b = q.pop()
+    ut.assert_eq(b.len(), 2)
+    ut.assert_eq(b[0], 4)
+    ut.assert_eq(b[1], 5)
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_list_element_identity() {
+    let q = co.Queue[list[int]]()
+    let inner = list[int](1, 2)
+    q.push(inner)
+
+    // mutating through the popped reference is visible on the original list
+    let r = q.pop()
+    r.append(3)
+    ut.assert_eq(inner.len(), 3)
+    ut.assert_eq(inner[2], 3)
+}
+
+@test
+func test_fmt_list_elements() {
+    let q = co.Queue[list[int]]()
+    q.push(list[int](1, 2))
+    q.push(list[int](3, 4))
+    let f = Formatter()
+    q.fmt(f)
+    ut.assert("Queue([[1, 2], [3, 4]])" in f.result())
+}
+
+// ==================== Interface type element: Sequence[int] ====================
+
+@test
+func test_sequence_interface_elements() {
+    let q = co.Queue[Sequence[int]]()
+    // both list[int] and range implement Sequence[int], so they can live in one queue
+    q.push(list[int](1, 2, 3))
+    q.push(range(7, 10))
+    ut.assert_eq(q.len(), 2)
+
+    let front = q.peek()
+    ut.assert_eq(front.len(), 3)
+    ut.assert_eq(front[0], 1)
+    ut.assert_eq(front[2], 3)
+    ut.assert_eq(q.len(), 2)
+
+    let l = q.pop()
+    ut.assert_eq(l.len(), 3)
+    ut.assert_eq(l[1], 2)
+
+    let r = q.pop()
+    ut.assert_eq(r.len(), 3)
+    ut.assert_eq(r[0], 7)
+    ut.assert_eq(r[2], 9)
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_sequence_interface_element_grow() {
+    let q = co.Queue[Sequence[int]]()
+    for i in range(100) {
+        q.push(list[int](i))
+    }
+    ut.assert_eq(q.len(), 100)
+
+    for i in range(100) {
+        let seq = q.pop()
+        ut.assert_eq(seq.len(), 1)
+        ut.assert_eq(seq[0], i)
+    }
+    ut.assert_true(q.empty())
+}
+
+@test
+func test_fmt_sequence_interface_elements() {
+    let q = co.Queue[Sequence[int]]()
+    q.push(list[int](1, 2))
+    q.push(range(3, 5))
+    let f = Formatter()
+    q.fmt(f)
+    ut.assert("Queue([[1, 2], range(3, 5, 1)])" in f.result())
+}

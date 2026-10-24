@@ -3,7 +3,7 @@
 import "std/ut"
 import "std/collections" as co
 
-// ==================== 构造与初始化 ====================
+// ==================== Construction and initialization ====================
 
 @test
 func test_init_zero() {
@@ -162,7 +162,7 @@ func test_size_various() {
     ut.assert_eq(co.BitSet(100).size(), 100)
 }
 
-// ==================== 位运算 ====================
+// ==================== Bit operations ====================
 
 @test
 func test_bitand() {

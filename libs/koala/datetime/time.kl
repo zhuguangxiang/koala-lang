@@ -1,0 +1,123 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+const NANOS_PER_SEC = 1_000_000_000
+const NANOS_PER_MIN = 60_000_000_000
+const NANOS_PER_HOUR = 3_600_000_000_000
+const NANOS_PER_DAY = 86_400_000_000_000
+
+/// A time of day with nanosecond resolution, without a date or timezone.
+///
+/// Build one with `Time(hour, minute, second, nanosecond)`; `minute`,
+/// `second` and `nanosecond` default to 0. Times are immutable, and the
+/// canonical ordering compares by nanoseconds since midnight.
+pub class Time : ToString {
+    /// The hour, 0..23.
+    pub let hour int
+    /// The minute, 0..59.
+    pub let minute int
+    /// The second, 0..59 (leap seconds are not represented).
+    pub let second int
+    /// The nanosecond within the second, 0..999_999_999.
+    pub let nanosecond int
+
+    /// Create a time from an hour (0-23) and optional minute, second and
+    /// nanosecond (each defaulting to 0).
+    ///
+    /// Panic if any component is outside its valid range.
+    pub func __init__(h int, m = 0, s = 0, ns = 0) {
+        if h < 0 || h > 23 { panic("datetime.Time: hour out of range 0..23") }
+        if m < 0 || m > 59 { panic("datetime.Time: minute out of range 0..59") }
+        if s < 0 || s > 59 { panic("datetime.Time: second out of range 0..59") }
+        if ns < 0 || ns > 999_999_999 { panic("datetime.Time: nanosecond out of range 0..999999999") }
+        hour = h
+        minute = m
+        second = s
+        nanosecond = ns
+    }
+
+    /// Create the time `n` nanoseconds after midnight.
+    ///
+    /// Panic if `n` is outside 0..86_399_999_999_999 (one day).
+    pub static func from_nanos(n int) Time {
+        if n < 0 || n >= NANOS_PER_DAY { panic("datetime.Time: nanoseconds out of range for a day") }
+        let h = n / NANOS_PER_HOUR
+        let m = (n / NANOS_PER_MIN) % 60
+        let s = (n / NANOS_PER_SEC) % 60
+        let ns = n % NANOS_PER_SEC
+        return Time(h, m, s, ns)
+    }
+
+    /// Parse an ISO 8601 time `HH:MM:SS` or `HH:MM:SS.nnnnnnnnn` (the inverse of
+    /// [`to_str`](#to_str)).
+    ///
+    /// Panic if the text is malformed or a field is out of range.
+    pub static func from_str(s str) Time {
+        if s.len() != 8 && s.len() != 18 { panic("datetime.Time: invalid ISO time, expected HH:MM:SS[.nnnnnnnnn]") }
+        if s.substr(2, 3) != ":" || s.substr(5, 6) != ":" { panic("datetime.Time: invalid ISO time, expected HH:MM:SS[.nnnnnnnnn]") }
+        var ns = 0
+        if s.len() == 18 {
+            if s.substr(8, 9) != "." { panic("datetime.Time: invalid ISO time, expected HH:MM:SS[.nnnnnnnnn]") }
+            ns = parse_num(s.substr(9, 18))
+        }
+        return Time(parse_num(s.substr(0, 2)), parse_num(s.substr(3, 5)), parse_num(s.substr(6, 8)), ns)
+    }
+
+    /// Return the number of nanoseconds since midnight, 0..86_399_999_999_999.
+    pub func to_nanos() int {
+        return ((hour * 60 + minute) * 60 + second) * NANOS_PER_SEC + nanosecond
+    }
+
+    /// Return a hash consistent with time equality (compared by nanoseconds
+    /// since midnight), overriding the default identity hash.
+    pub func hash() int { return to_nanos().hash() }
+
+    /// Return a time with the given fields replaced (Python's `time.replace()`).
+    /// A negative (or omitted) argument keeps the current value; the result is
+    /// re-validated by the `Time` constructor.
+    pub func replace(h = -1, mi = -1, s = -1, ns = -1) Time {
+        var hh = h
+        if hh < 0 { hh = hour }
+        var mmin = mi
+        if mmin < 0 { mmin = minute }
+        var ss = s
+        if ss < 0 { ss = second }
+        var nns = ns
+        if nns < 0 { nns = nanosecond }
+        return Time(hh, mmin, ss, nns)
+    }
+
+    /// Return the ISO-8601 form `HH:MM:SS`, adding `.NNNNNNNNN` when the
+    /// nanosecond component is non-zero.
+    pub func to_str() str {
+        if nanosecond == 0 {
+            return format("{:02d}:{:02d}:{:02d}", hour, minute, second)
+        }
+        return format("{:02d}:{:02d}:{:02d}.{:09d}", hour, minute, second, nanosecond)
+    }
+
+    /// Format for display (Printable): the debug-oriented `Time(...)` wrapper.
+    /// The raw ISO form is [`to_str`](#to_str).
+    pub func fmt(f Formatter) {
+        if nanosecond == 0 {
+            f.write_fmt("Time({:02d}:{:02d}:{:02d})", hour, minute, second)
+        } else {
+            f.write_fmt("Time({:02d}:{:02d}:{:02d}.{:09d})", hour, minute, second, nanosecond)
+        }
+    }
+
+    /// Return true if both times are the same point within the day.
+    pub func __eq__(o Time) bool { return to_nanos() == o.to_nanos() }
+    /// Return true if the two times differ.
+    pub func __ne__(o Time) bool { return to_nanos() != o.to_nanos() }
+    /// Return true if `self` is earlier in the day than `o`.
+    pub func __lt__(o Time) bool { return to_nanos() < o.to_nanos() }
+    /// Return true if `self` is not later in the day than `o`.
+    pub func __le__(o Time) bool { return to_nanos() <= o.to_nanos() }
+    /// Return true if `self` is later in the day than `o`.
+    pub func __gt__(o Time) bool { return to_nanos() > o.to_nanos() }
+    /// Return true if `self` is not earlier in the day than `o`.
+    pub func __ge__(o Time) bool { return to_nanos() >= o.to_nanos() }
+}

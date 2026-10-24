@@ -18,6 +18,15 @@ pub class Instant {
         clock = _clock
     }
 
+    /// Create a realtime (`CLOCK_REALTIME`) instant from Unix nanoseconds.
+    ///
+    /// The controlled counterpart to `to_unix_ns()`: it hides the clock id — a
+    /// private detail of `std/time` — from callers that only want a wall-clock
+    /// instant at a given epoch timestamp.
+    pub static func from_unix_ns(ns int) Instant {
+        return Instant(ns, CLOCK_REALTIME)
+    }
+
     /// Return a new instant shifted forward by the duration `d` (`self + d`).
     pub func __add__(d Duration) Instant {
         return Instant(epoch_ns + d.ns, clock)

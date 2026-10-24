@@ -1,0 +1,16 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// LinkedList deliberately does NOT implement `__getslice__`: slicing a linked
+// list has no idiomatic meaning (use `iter()` / `extend` instead) and would
+// silently copy at O(n) per element. `ll[a:b]` must therefore be a
+// *compile-time* error, not a runtime one. `ll[i]` (indexing) is unaffected.
+
+import "std/collections" as co
+
+func main() {
+    let ll = co.LinkedList[int]()
+    ll.push_back(1)
+    let sub = ll[0:1]
+    // CHECK: is not subscriptable (missing __getslice__)
+    print(sub)
+}

@@ -1,0 +1,221 @@
+// RUN: koala --test %s
+
+import "koala/datetime"
+import "std/time"
+import "std/ut"
+
+@test
+func test_is_leap_year() {
+    ut.assert_true(datetime.is_leap_year(2000))    // divisible by 400
+    ut.assert_true(datetime.is_leap_year(1600))
+    ut.assert_true(datetime.is_leap_year(2024))    // divisible by 4, not 100
+    ut.assert_false(datetime.is_leap_year(1900))   // divisible by 100, not 400
+    ut.assert_false(datetime.is_leap_year(1700))
+    ut.assert_false(datetime.is_leap_year(2023))   // not divisible by 4
+}
+
+@test
+func test_days_in_month() {
+    ut.assert_eq(datetime.days_in_month(2023, 1), 31)
+    ut.assert_eq(datetime.days_in_month(2023, 2), 28)
+    ut.assert_eq(datetime.days_in_month(2024, 2), 29)   // leap
+    ut.assert_eq(datetime.days_in_month(1900, 2), 28)   // century, not leap
+    ut.assert_eq(datetime.days_in_month(2000, 2), 29)   // 400-year, leap
+    ut.assert_eq(datetime.days_in_month(2023, 4), 30)
+    ut.assert_eq(datetime.days_in_month(2023, 12), 31)
+}
+
+@test
+func test_fields() {
+    let d = datetime.Date(2026, 10, 24)
+    ut.assert_eq(d.year, 2026)
+    ut.assert_eq(d.month, 10)
+    ut.assert_eq(d.day, 24)
+}
+
+@test
+func test_epoch_anchor() {
+    ut.assert_eq(datetime.Date(1970, 1, 1).to_days(), 0)
+    ut.assert_eq(datetime.Date.from_days(0).to_str(), "1970-01-01")
+}
+
+@test
+func test_known_day_counts() {
+    ut.assert_eq(datetime.Date(1970, 1, 2).to_days(), 1)
+    ut.assert_eq(datetime.Date(1969, 12, 31).to_days(), -1)
+    ut.assert_eq(datetime.Date(1969, 1, 1).to_days(), -365)
+    ut.assert_eq(datetime.Date(2000, 1, 1).to_days(), 10957)
+}
+
+@test
+func test_pre_epoch_roundtrip() {
+    ut.assert_eq(datetime.Date.from_days(-1).to_str(), "1969-12-31")
+    ut.assert_eq(datetime.Date.from_days(-365).to_str(), "1969-01-01")
+    ut.assert_eq(datetime.Date.from_days(-719162).to_str(), "0001-01-01")
+}
+
+@test
+func test_roundtrip_full_range() {
+    var z = -719162          // 0001-01-01, minimum representable day
+    let end = 2932896        // 9999-12-31, maximum representable day
+    while z <= end {
+        let d = datetime.Date.from_days(z)
+        ut.assert_eq(d.to_days(), z)
+        z += 99991
+    }
+    ut.assert_eq(datetime.Date.from_days(2932896).to_str(), "9999-12-31")
+}
+
+@test
+func test_weekday() {
+    ut.assert_eq(datetime.Date(1970, 1, 1).weekday(), 3)    // Thursday
+    ut.assert_eq(datetime.Date(2000, 1, 1).weekday(), 5)    // Saturday
+    ut.assert_eq(datetime.Date(2026, 10, 24).weekday(), 5)  // Saturday
+    ut.assert_eq(datetime.Date(1969, 12, 29).weekday(), 0)  // Monday (pre-epoch)
+    ut.assert_eq(datetime.Date(1969, 12, 28).weekday(), 6)  // Sunday (pre-epoch)
+}
+
+@test
+func test_add_days() {
+    let d = datetime.Date(2026, 10, 24)
+    ut.assert_eq(d.add_days(0).to_str(), "2026-10-24")
+    ut.assert_eq(d.add_days(1).to_str(), "2026-10-25")
+    ut.assert_eq(d.add_days(-1).to_str(), "2026-10-23")
+    ut.assert_eq(datetime.Date(2026, 10, 31).add_days(1).to_str(), "2026-11-01")
+    ut.assert_eq(datetime.Date(2026, 12, 31).add_days(1).to_str(), "2027-01-01")
+    ut.assert_eq(datetime.Date(2024, 2, 28).add_days(1).to_str(), "2024-02-29")
+    ut.assert_eq(datetime.Date(2024, 2, 29).add_days(1).to_str(), "2024-03-01")
+    ut.assert_eq(datetime.Date(1970, 1, 1).add_days(-1).to_str(), "1969-12-31")
+}
+
+@test
+func test_to_str_padding() {
+    ut.assert_eq(datetime.Date(2026, 1, 5).to_str(), "2026-01-05")
+    ut.assert_eq(datetime.Date(1, 1, 1).to_str(), "0001-01-01")
+    ut.assert_eq(datetime.Date(9999, 12, 31).to_str(), "9999-12-31")
+}
+
+@test
+func test_date_display() {
+    // to_str (ToString) is the raw ISO form; fmt (Printable) wraps it in `Date(...)`.
+    ut.assert_eq(str(datetime.Date(2026, 10, 24)), "2026-10-24")
+    ut.assert_eq(format("{}", datetime.Date(2026, 10, 24)), "Date(2026-10-24)")
+}
+
+@test
+func test_comparisons() {
+    let a = datetime.Date(2026, 1, 1)
+    let b = datetime.Date(2026, 1, 2)
+    let a2 = datetime.Date(2026, 1, 1)
+    ut.assert_true(a == a2)
+    ut.assert_true(a != b)
+    ut.assert_true(a < b)
+    ut.assert_true(a <= b)
+    ut.assert_true(b > a)
+    ut.assert_true(b >= a)
+    ut.assert_true(a <= a2)
+    ut.assert_true(a >= a2)
+}
+
+@should_panic("datetime.Date: year out of range 1..9999")
+func test_invalid_year_low() { datetime.Date(0, 1, 1) }
+
+@should_panic("datetime.Date: year out of range 1..9999")
+func test_invalid_year_high() { datetime.Date(10000, 1, 1) }
+
+@should_panic("datetime.Date: month out of range 1..12")
+func test_invalid_month() { datetime.Date(2026, 13, 1) }
+
+@should_panic("datetime.Date: day out of range for month")
+func test_invalid_day() { datetime.Date(2026, 2, 30) }
+
+@should_panic("datetime.Date: day out of range for month")
+func test_invalid_day_non_leap() { datetime.Date(2023, 2, 29) }
+
+@test
+func test_date_from_str() {
+    // round-trip: from_str(d.to_str()) == d across the supported range
+    var z = -719162
+    let endz = 2932896
+    while z <= endz {
+        let d = datetime.Date.from_days(z)
+        ut.assert_eq(datetime.Date.from_str(d.to_str()), d)
+        z += 99991
+    }
+    ut.assert_eq(datetime.Date.from_str("2026-10-24"), datetime.Date(2026, 10, 24))
+    ut.assert_eq(datetime.Date.from_str("0001-01-01"), datetime.Date(1, 1, 1))
+    ut.assert_eq(datetime.Date.from_str("9999-12-31"), datetime.Date(9999, 12, 31))
+}
+
+@should_panic("datetime.Date: invalid ISO date, expected YYYY-MM-DD")
+func test_date_from_str_bad_len() { datetime.Date.from_str("2026-10-2") }
+
+@should_panic("datetime.Date: invalid ISO date, expected YYYY-MM-DD")
+func test_date_from_str_bad_sep() { datetime.Date.from_str("2026/10/24") }
+
+@should_panic("datetime: non-digit in ISO field")
+func test_date_from_str_non_digit() { datetime.Date.from_str("20x6-10-24") }
+
+@should_panic("datetime.Date: month out of range 1..12")
+func test_date_from_str_bad_month() { datetime.Date.from_str("2026-13-01") }
+
+@test
+func test_date_operator_add_sub() {
+    let d = datetime.Date(2026, 10, 24)
+    let week = time.Duration.from_days(7)
+    ut.assert_eq(d + week, datetime.Date(2026, 10, 31))
+    ut.assert_eq(d - week, datetime.Date(2026, 10, 17))
+    ut.assert_eq(d.diff(datetime.Date(2026, 10, 24)), time.Duration.from_secs(0))
+    ut.assert_eq(datetime.Date(2026, 10, 24).diff(d), time.Duration.from_secs(0))
+    ut.assert_eq(datetime.Date(2026, 11, 1).diff(d), time.Duration.from_days(8))
+    // cross-month
+    ut.assert_eq(datetime.Date(2026, 3, 1).diff(datetime.Date(2026, 2, 28)), time.Duration.from_days(1))
+    ut.assert_eq(datetime.Date(2024, 3, 1).diff(datetime.Date(2024, 2, 28)), time.Duration.from_days(2))
+    // month boundary
+    ut.assert_eq(datetime.Date(2026, 3, 1) + time.Duration.from_days(1), datetime.Date(2026, 3, 2))
+    ut.assert_eq(datetime.Date(2026, 1, 1) - time.Duration.from_days(1), datetime.Date(2025, 12, 31))
+}
+
+@test
+func test_date_operator_floor() {
+    // sub-day Duration against a Date: only whole days count
+    let d = datetime.Date(2026, 1, 10)
+    ut.assert_eq(d + time.Duration.from_secs(3600), d)
+    ut.assert_eq(d - time.Duration.from_secs(3600), d)
+    ut.assert_eq(d + time.Duration.from_secs(86400 + 3600), datetime.Date(2026, 1, 11))
+    // 86400*3 = 3 days exactly, no remainder
+    ut.assert_eq(d + time.Duration.from_secs(3 * 86400), datetime.Date(2026, 1, 13))
+    // subtraction: positive difference
+    ut.assert_eq(d.diff(datetime.Date(2026, 1, 1)), time.Duration.from_secs(9 * 86400))
+}
+
+@should_panic("datetime.Date: year out of range 1..9999")
+func test_date_operator_overflow() { datetime.Date(9999, 12, 31) + time.Duration.from_secs(86400) }
+
+@test
+func test_date_hash() {
+    // content equality => identical hash (the value-class hash contract)
+    ut.assert_eq(datetime.Date(2026, 10, 24).hash(), datetime.Date(2026, 10, 24).hash())
+    ut.assert_eq(datetime.Date(2026, 10, 24).hash(), datetime.Date(2026, 10, 24).to_days().hash())
+}
+
+@test
+func test_date_today() {
+    let t = datetime.Date.today()
+    ut.assert_true(t.year >= 2000 && t.year <= 9999)
+    ut.assert_true(t.month >= 1 && t.month <= 12)
+    ut.assert_true(t.day >= 1 && t.day <= 31)
+}
+
+@test
+func test_date_replace() {
+    let base = datetime.Date(2026, 10, 24)
+    ut.assert_eq(base.replace(y = 2027), datetime.Date(2027, 10, 24))
+    ut.assert_eq(base.replace(mo = 1), datetime.Date(2026, 1, 24))
+    ut.assert_eq(base.replace(d = 1), datetime.Date(2026, 10, 1))
+    ut.assert_eq(base.replace(), base)
+    ut.assert_eq(base.replace(y = 2000, mo = 2, d = 29), datetime.Date(2000, 2, 29))
+}
+
+@should_panic("datetime.Date: day out of range for month")
+func test_date_replace_invalid() { datetime.Date(2026, 10, 24).replace(mo = 2, d = 30) }

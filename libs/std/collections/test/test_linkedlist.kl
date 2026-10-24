@@ -1,0 +1,771 @@
+// RUN: koala --test %s
+
+import "std/ut"
+import "std/collections" as co
+
+// User-defined class element
+class Point {
+    var x int
+    var y int
+
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    func fmt(f Formatter) {
+        f.write_fmt("Point({}, {})", x, y)
+    }
+}
+
+// User-defined generic class element
+class Foo[T] {
+    var value T
+
+    func __init__(v T) {
+        value = v
+    }
+
+    func get() T {
+        return value
+    }
+
+    func fmt(f Formatter) {
+        f.write_fmt("Foo({})", value)
+    }
+}
+
+// ==================== Construction and basic properties ====================
+
+@test
+func test_init_empty() {
+    let l = co.LinkedList[int]()
+    ut.assert_eq(l.len(), 0)
+    ut.assert_true(l.empty())
+}
+
+@test
+func test_append_and_ends() {
+    let l = co.LinkedList[int]()
+    l.append(2)
+    l.push_back(3)
+    l.push_front(1)
+    ut.assert_eq(l.len(), 3)
+    ut.assert_false(l.empty())
+    ut.assert_eq(l[0], 1)
+    ut.assert_eq(l[1], 2)
+    ut.assert_eq(l[2], 3)
+    ut.assert_eq(l.peek_front(), 1)
+    ut.assert_eq(l.peek_back(), 3)
+    ut.assert_eq(l.len(), 3)
+}
+
+@test
+func test_pop_ends() {
+    let l = co.LinkedList[int]()
+    for i in range(4) {
+        l.push_back(i)
+    }
+    ut.assert_eq(l.pop_front(), 0)
+    ut.assert_eq(l.pop_back(), 3)
+    ut.assert_eq(l.pop_front(), 1)
+    ut.assert_eq(l.pop_back(), 2)
+    ut.assert_true(l.empty())
+}
+
+@test
+func test_setitem() {
+    let l = co.LinkedList[int]()
+    for i in range(3) {
+        l.push_back(i)
+    }
+    l[1] = 42
+    ut.assert_eq(l[0], 0)
+    ut.assert_eq(l[1], 42)
+    ut.assert_eq(l[2], 2)
+    ut.assert_eq(l.len(), 3)
+}
+
+// ==================== Insert / remove ====================
+
+@test
+func test_insert() {
+    let l = co.LinkedList[int]()
+    l.insert(0, 10) // insert at head of empty list
+    l.insert(1, 30) // append at tail
+    l.insert(1, 20) // insert in the middle
+    ut.assert_eq(l.len(), 3)
+    ut.assert_eq(l[0], 10)
+    ut.assert_eq(l[1], 20)
+    ut.assert_eq(l[2], 30)
+}
+
+@test
+func test_remove_value() {
+    let l = co.LinkedList[int]()
+    for i in range(5) {
+        l.push_back(i)
+    }
+    l.remove(2)
+    ut.assert_eq(l.len(), 4)
+    ut.assert_eq(l[0], 0)
+    ut.assert_eq(l[1], 1)
+    ut.assert_eq(l[2], 3)
+    ut.assert_eq(l[3], 4)
+    ut.assert_false(2 in l)
+    ut.assert_true(3 in l)
+}
+
+@test
+func test_pop_index() {
+    let l = co.LinkedList[int]()
+    for i in range(4) {
+        l.push_back(i)
+    }
+    ut.assert_eq(l.pop(), 3) // default pops the tail
+    ut.assert_eq(l.pop(0), 0) // head
+    ut.assert_eq(l.pop(1), 2) // middle
+    ut.assert_eq(l.len(), 1)
+    ut.assert_eq(l[0], 1)
+}
+
+@test
+func test_clear_and_reuse() {
+    let l = co.LinkedList[int]()
+    for i in range(100) {
+        l.push_back(i)
+    }
+    l.clear()
+    ut.assert_eq(l.len(), 0)
+    ut.assert_true(l.empty())
+    l.push_back(7)
+    ut.assert_eq(l.len(), 1)
+    ut.assert_eq(l.pop_front(), 7)
+}
+
+// ==================== Lookup: contains / index / count ====================
+
+@test
+func test_contains() {
+    let l = co.LinkedList[int]()
+    for i in range(5) {
+        l.push_back(i * 2) // 0, 2, 4, 6, 8
+    }
+    ut.assert_true(0 in l)
+    ut.assert_true(8 in l)
+    ut.assert_false(3 in l)
+    ut.assert_false(9 in l)
+}
+
+@test
+func test_index_and_count() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    l.push_back(2)
+    l.push_back(1)
+    l.push_back(3)
+    l.push_back(1)
+
+    ut.assert_eq(l.index(1), 0)
+    ut.assert_eq(l.index(3), 3)
+    ut.assert_eq(l.index(9), -1)
+
+    // version with range
+    ut.assert_eq(l.index(1, 1), 2)
+    ut.assert_eq(l.index(1, 3), 4)
+    ut.assert_eq(l.index(1, 1, 2), -1)
+
+    ut.assert_eq(l.count(1), 3)
+    ut.assert_eq(l.count(2), 1)
+    ut.assert_eq(l.count(9), 0)
+    ut.assert_eq(l.count(1, 1), 2)
+    ut.assert_eq(l.count(1, 0, 3), 2)
+}
+
+// ==================== extend ====================
+
+@test
+func test_extend_from_list_and_range() {
+    let l = co.LinkedList[int]()
+    l.extend(list[int](1, 2))
+    ut.assert_eq(l.len(), 2)
+
+    l.extend(range(3)) // 0, 1, 2
+    ut.assert_eq(l.len(), 5)
+    ut.assert_eq(l[2], 0)
+    ut.assert_eq(l[4], 2)
+
+    l.extend(list[int]()) // empty sequence
+    ut.assert_eq(l.len(), 5)
+}
+
+@test
+func test_extend_from_linkedlist() {
+    let a = co.LinkedList[int]()
+    for i in range(3) {
+        a.push_back(i)
+    }
+    let b = co.LinkedList[int]()
+    b.push_back(9)
+    b.extend(a)
+    ut.assert_eq(b.len(), 4)
+    ut.assert_eq(b[0], 9)
+    ut.assert_eq(b[1], 0)
+    ut.assert_eq(b[3], 2)
+    // source list is unaffected
+    ut.assert_eq(a.len(), 3)
+}
+
+@test
+func test_extend_self() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    l.push_back(2)
+    l.extend(l)
+    ut.assert_eq(l.len(), 4)
+    ut.assert_eq(l[0], 1)
+    ut.assert_eq(l[1], 2)
+    ut.assert_eq(l[2], 1)
+    ut.assert_eq(l[3], 2)
+}
+
+// ==================== Iterators ====================
+
+@test
+func test_iter_forward() {
+    let l = co.LinkedList[int]()
+    for i in range(4) {
+        l.push_back(i * 10)
+    }
+
+    var sum = 0
+    var n = 0
+    for v in l.iter() {
+        n = n + 1
+        sum = sum + v
+    }
+    ut.assert_eq(n, 4)
+    ut.assert_eq(sum, 60)
+
+    // empty list
+    let empty = co.LinkedList[int]()
+    var m = 0
+    for v in empty.iter() {
+        m = m + 1
+    }
+    ut.assert_eq(m, 0)
+}
+
+@test
+func test_iter_step() {
+    let l = co.LinkedList[int]()
+    for i in range(5) {
+        l.push_back(i)
+    }
+
+    var got = list[int]()
+    for v in l.iter(2) {
+        got.append(v)
+    }
+    ut.assert_eq(got.len(), 3)
+    ut.assert_eq(got[0], 0)
+    ut.assert_eq(got[1], 2)
+    ut.assert_eq(got[2], 4)
+
+    var s = 0
+    for v in l.iter(3) {
+        s = s + v
+    }
+    ut.assert_eq(s, 3) // 0 + 3
+}
+
+@test
+func test_reversed_iterator() {
+    let l = co.LinkedList[int]()
+    for i in range(4) {
+        l.push_back(i)
+    }
+
+    let it = l.reversed()
+    var got = list[int]()
+    while it.has_next() {
+        got.append(it.next_strict())
+    }
+    ut.assert_eq(got.len(), 4)
+    ut.assert_eq(got[0], 3)
+    ut.assert_eq(got[3], 0)
+
+    // step 2: 3, 1
+    var s = 0
+    for v in l.reversed(2) {
+        s = s + v
+    }
+    ut.assert_eq(s, 4)
+}
+
+@test
+func test_iterator_next_returns_nil_at_end() {
+    let l = co.LinkedList[int]()
+    l.push_back(7)
+    let it = l.iter()
+    ut.assert_true(it.has_next())
+
+    var seen = 0
+    while let v = it.next() {
+        seen = seen + 1
+        ut.assert_eq(v, 7)
+    }
+    ut.assert_eq(seen, 1)
+    ut.assert_false(it.has_next())
+    ut.assert(it.next() == nil)
+}
+
+// ==================== fmt ====================
+
+@test
+func test_fmt() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    l.push_back(2)
+    l.push_back(3)
+    let f = Formatter()
+    l.fmt(f)
+    ut.assert("LinkedList([1, 2, 3])" in f.result())
+}
+
+@test
+func test_fmt_empty() {
+    let l = co.LinkedList[int]()
+    let f = Formatter()
+    l.fmt(f)
+    ut.assert("LinkedList([])" in f.result())
+}
+
+@test
+func test_fmt_user_class() {
+    let l = co.LinkedList[Point]()
+    l.push_back(Point(1, 2))
+    l.push_back(Point(3, 4))
+    let f = Formatter()
+    l.fmt(f)
+    ut.assert("LinkedList([Point(1, 2), Point(3, 4)])" in f.result())
+}
+
+@test
+func test_write_fmt() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    l.push_back(2)
+    let f = Formatter()
+    f.write_fmt("{}", l)
+    ut.assert("LinkedList([1, 2])" in f.result())
+}
+
+// ==================== User-defined class element ====================
+
+@test
+func test_user_class_elements() {
+    let l = co.LinkedList[Point]()
+    l.push_back(Point(1, 2))
+    l.push_back(Point(3, 4))
+    l.push_front(Point(0, 0))
+    ut.assert_eq(l.len(), 3)
+    ut.assert_eq(l[0].x, 0)
+    ut.assert_eq(l[1].x, 1)
+    ut.assert_eq(l[2].y, 4)
+    ut.assert_eq(l.peek_front().x, 0)
+    ut.assert_eq(l.peek_back().y, 4)
+
+    let p = l.pop_front()
+    ut.assert_eq(p.x, 0)
+    let e = l.pop_back()
+    ut.assert_eq(e.y, 4)
+    ut.assert_eq(l.len(), 1)
+}
+
+@test
+func test_user_class_identity() {
+    let l = co.LinkedList[Point]()
+    let p = Point(1, 2)
+    l.push_back(p)
+
+    // the same instance is stored, so mutating it through the returned reference is visible
+    let r = l[0]
+    r.x = 9
+    ut.assert_eq(p.x, 9)
+}
+
+@test
+func test_user_class_iteration() {
+    let l = co.LinkedList[Point]()
+    l.push_back(Point(1, 1))
+    l.push_back(Point(2, 2))
+    var sum = 0
+    for p in l.iter() {
+        sum = sum + p.x
+    }
+    ut.assert_eq(sum, 3)
+}
+
+@test
+func test_fmt_generic_class() {
+    let l = co.LinkedList[Foo[int]]()
+    for i in range(12) {
+        l.push_back(Foo[int](i))
+    }
+    let f = Formatter()
+    l.fmt(f)
+    ut.assert("LinkedList([Foo(0), Foo(1), Foo(2), Foo(3), ..., Foo(8), Foo(9), Foo(10), Foo(11)])" in f.result())
+}
+
+@test
+func test_fmt_boundary() {
+    // 10 items: everything is printed
+    let a = co.LinkedList[int]()
+    for i in range(10) {
+        a.push_back(i)
+    }
+    let f1 = Formatter()
+    a.fmt(f1)
+    ut.assert("LinkedList([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])" in f1.result())
+
+    // 11 items: first 4, "...", last 4
+    let b = co.LinkedList[int]()
+    for i in range(11) {
+        b.push_back(i)
+    }
+    let f2 = Formatter()
+    b.fmt(f2)
+    ut.assert("LinkedList([0, 1, 2, 3, ..., 7, 8, 9, 10])" in f2.result())
+
+    // the last 4 are the logical tail, even after push_front
+    let c = co.LinkedList[int]()
+    for i in range(20) {
+        c.push_front(i)
+    }
+    let f3 = Formatter()
+    c.fmt(f3)
+    ut.assert("LinkedList([19, 18, 17, 16, ..., 3, 2, 1, 0])" in f3.result())
+}
+
+// ==================== Built-in generic class element: list[int] ====================
+
+@test
+func test_list_elements() {
+    let l = co.LinkedList[list[int]]()
+    l.push_back(list[int](1, 2, 3))
+    l.push_back(list[int](4, 5))
+    ut.assert_eq(l.len(), 2)
+
+    // the same instance is stored, not a copy
+    let tail = l.peek_back()
+    ut.assert_eq(tail.len(), 2)
+    ut.assert_eq(tail[0], 4)
+    ut.assert_eq(tail[1], 5)
+    ut.assert_eq(l.len(), 2)
+
+    let a = l.pop_back()
+    ut.assert_eq(a.len(), 2)
+    ut.assert_eq(a[1], 5)
+
+    let b = l.pop_back()
+    ut.assert_eq(b.len(), 3)
+    ut.assert_eq(b[0], 1)
+    ut.assert_eq(b[2], 3)
+    ut.assert_true(l.empty())
+}
+
+@test
+func test_list_element_identity() {
+    let l = co.LinkedList[list[int]]()
+    let inner = list[int](1, 2)
+    l.push_back(inner)
+
+    // mutating through the popped reference is visible on the original list
+    let r = l.pop_back()
+    r.append(3)
+    ut.assert_eq(inner.len(), 3)
+    ut.assert_eq(inner[2], 3)
+}
+
+@test
+func test_list_element_grow() {
+    let l = co.LinkedList[list[int]]()
+    for i in range(100) {
+        l.push_back(list[int](i, i + 1))
+    }
+    ut.assert_eq(l.len(), 100)
+
+    for i in range(100) {
+        let e = l.pop_back()
+        ut.assert_eq(e.len(), 2)
+        ut.assert_eq(e[0], 99 - i)
+        ut.assert_eq(e[1], 100 - i)
+    }
+    ut.assert_true(l.empty())
+}
+
+@test
+func test_fmt_list_elements() {
+    let l = co.LinkedList[list[int]]()
+    l.push_back(list[int](1, 2))
+    l.push_back(list[int](3, 4))
+    let f = Formatter()
+    l.fmt(f)
+    ut.assert("LinkedList([[1, 2], [3, 4]])" in f.result())
+}
+
+// ==================== Interface type element: Sequence[int] ====================
+
+@test
+func test_sequence_interface_elements() {
+    let l = co.LinkedList[Sequence[int]]()
+    // both list[int] and range implement Sequence[int], so they can live in one list
+    l.push_back(list[int](1, 2, 3))
+    l.push_back(range(7, 10))
+    ut.assert_eq(l.len(), 2)
+
+    let tail = l.peek_back()
+    ut.assert_eq(tail.len(), 3)
+    ut.assert_eq(tail[0], 7)
+    ut.assert_eq(tail[2], 9)
+    ut.assert_eq(l.len(), 2)
+
+    let r = l.pop_back()
+    ut.assert_eq(r.len(), 3)
+    ut.assert_eq(r[1], 8)
+
+    let e = l.pop_back()
+    ut.assert_eq(e.len(), 3)
+    ut.assert_eq(e[0], 1)
+    ut.assert_eq(e[2], 3)
+    ut.assert_true(l.empty())
+}
+
+@test
+func test_sequence_interface_element_grow() {
+    let l = co.LinkedList[Sequence[int]]()
+    for i in range(100) {
+        l.push_back(list[int](i))
+    }
+    ut.assert_eq(l.len(), 100)
+
+    for i in range(100) {
+        let seq = l.pop_back()
+        ut.assert_eq(seq.len(), 1)
+        ut.assert_eq(seq[0], 99 - i)
+    }
+    ut.assert_true(l.empty())
+}
+
+@test
+func test_fmt_sequence_interface_elements() {
+    let l = co.LinkedList[Sequence[int]]()
+    l.push_back(list[int](1, 2))
+    l.push_back(range(3, 5))
+    let f = Formatter()
+    l.fmt(f)
+    ut.assert("LinkedList([[1, 2], range(3, 5, 1)])" in f.result())
+}
+
+// ==================== Interface type: MutableSequence[int] ====================
+
+@test
+func test_mutable_sequence_interface() {
+    let l = co.LinkedList[int]()
+    let ms MutableSequence[int] = l
+
+    ms.append(1)
+    ms.append(2)
+    ms.insert(0, 0)
+    ut.assert_eq(ms.len(), 3)
+    ut.assert_eq(l[0], 0)
+    ut.assert_eq(l.peek_back(), 2)
+
+    // remove deletes by value, not by index
+    ms.remove(1)
+    ut.assert_eq(l.len(), 2)
+    ut.assert_eq(l[0], 0)
+    ut.assert_eq(l[1], 2)
+
+    ut.assert_eq(ms.pop(), 2)
+    ut.assert_eq(ms.count(0), 1)
+    ut.assert_eq(ms.index(0), 0)
+    ut.assert_true(0 in ms)
+
+    let it = ms.iter()
+    var n = 0
+    while it.has_next() {
+        it.next_strict()
+        n = n + 1
+    }
+    ut.assert_eq(n, 1)
+
+    ms.clear()
+    ut.assert_true(l.empty())
+}
+
+// ==================== Large data sets ====================
+
+@test
+func test_large_push_pop() {
+    let l = co.LinkedList[int]()
+    for i in range(2000) {
+        l.push_back(i)
+    }
+    ut.assert_eq(l.len(), 2000)
+    ut.assert_eq(l[0], 0)
+    ut.assert_eq(l[1999], 1999)
+
+    var sum = 0
+    for v in l.iter() {
+        sum = sum + v
+    }
+    ut.assert_eq(sum, 1999 * 2000 / 2)
+
+    for i in range(2000) {
+        ut.assert_eq(l.pop_front(), i)
+    }
+    ut.assert_true(l.empty())
+}
+
+@test
+func test_large_clear() {
+    let l = co.LinkedList[int]()
+    for i in range(1000) {
+        l.push_back(i)
+    }
+    l.clear()
+    ut.assert_true(l.empty())
+    ut.assert_eq(l.len(), 0)
+}
+
+// ==================== Exceptions ====================
+
+@should_panic("pop from empty LinkedList")
+func test_pop_front_empty() {
+    let l = co.LinkedList[int]()
+    let v = l.pop_front()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("pop from empty LinkedList")
+func test_pop_back_empty() {
+    let l = co.LinkedList[int]()
+    let v = l.pop_back()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("peek from empty LinkedList")
+func test_peek_front_empty() {
+    let l = co.LinkedList[int]()
+    let v = l.peek_front()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("peek from empty LinkedList")
+func test_peek_back_empty() {
+    let l = co.LinkedList[int]()
+    let v = l.peek_back()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("LinkedList index out of range")
+func test_getitem_out_of_range() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    let v = l[1]
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("LinkedList index out of range")
+func test_setitem_out_of_range() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    l[3] = 9
+}
+
+@should_panic("pop index out of range")
+func test_pop_index_out_of_range() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    let v = l.pop(5)
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("pop from empty LinkedList")
+func test_pop_after_clear() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    l.clear()
+    let v = l.pop()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("LinkedList.remove(x): x not in LinkedList")
+func test_remove_missing() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    l.remove(7)
+}
+
+@should_panic("LinkedList insert index out of range")
+func test_insert_out_of_range() {
+    let l = co.LinkedList[int]()
+    l.insert(3, 1)
+}
+
+@should_panic("LinkedList modified during iteration")
+func test_modify_during_iteration() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    l.push_back(2)
+    l.push_back(3)
+    for v in l.iter() {
+        l.push_back(v)
+    }
+}
+
+@should_panic("step must be positive")
+func test_iter_bad_step() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    for v in l.iter(0) {
+        ut.assert_eq(v, 0)
+    }
+}
+
+// ==================== Interop with built-in containers ====================
+
+@test
+func test_for_sequence_fast_path() {
+    let l = co.LinkedList[int]()
+    for i in range(3) {
+        l.push_back(i)
+    }
+
+    // 'for v in l' takes the Sequence fast path (index based); the result must match the iterator
+    var sum = 0
+    var n = 0
+    for v in l {
+        n = n + 1
+        sum = sum + v
+    }
+    ut.assert_eq(n, 3)
+    ut.assert_eq(sum, 3)
+}
+
+@test
+func test_list_extend_from_linkedlist() {
+    let l = co.LinkedList[int]()
+    l.push_back(1)
+    l.push_back(2)
+
+    // list.extend walks the LinkedList via SLOT_ITER/SLOT_NEXT
+    let dst = list[int](0)
+    dst.extend(l)
+    ut.assert_eq(dst.len(), 3)
+    ut.assert_eq(dst[0], 0)
+    ut.assert_eq(dst[1], 1)
+    ut.assert_eq(dst[2], 2)
+}

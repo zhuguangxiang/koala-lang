@@ -26,7 +26,8 @@ static TValue _bool_to_str(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 0);
     int v = to_raw_bool(self);
-    Object *sobj = kl_new_nstr(v ? "true" : "false", v ? 4 : 5);
+    char *text = v ? "true" : "false";
+    Object *sobj = kl_new_nstr(text, strlen(text));
     return obj_value(sobj);
 }
 

@@ -1184,7 +1184,9 @@ static TValue _str_zfill(TValue *self, TValue *args, int nargs)
 
     for (int64_t i = 0; i < pad; i++) out[oi++] = '0';
 
-    memcpy(out + oi, buf + (has_sign ? 1 : 0), len - (has_sign ? 1 : 0));
+    /* The sign character has already been copied above, skip it in the payload. */
+    size_t skip = has_sign ? 1 : 0;
+    memcpy(out + oi, buf + skip, len - skip);
 
     Object *sobj = kl_new_nstr(out, out_len);
     mm_free(out);

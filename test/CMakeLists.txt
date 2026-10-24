@@ -37,4 +37,17 @@ add_custom_target(lit-tests
     DEPENDS koalac_out
     COMMENT "Running Koala lit test suite...")
 
+# C unit tests, one executable per common module, registered as c_<module>
+add_subdirectory(test-c)
+
+get_property(c_test_targets GLOBAL PROPERTY KOALA_C_TEST_TARGETS)
+
+if(c_test_targets)
+    # Define a custom target to run all C unit tests via 'cmake --build . --target koala-c-tests'
+    add_custom_target(koala-c-tests
+        COMMAND ${CMAKE_CTEST_COMMAND} -R "^c_" --output-on-failure
+        DEPENDS ${c_test_targets}
+        COMMENT "Executing Koala C unit test suite...")
+endif()
+
 # why gone?

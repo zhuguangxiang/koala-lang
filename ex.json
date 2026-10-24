@@ -1,0 +1,26 @@
+{
+  "name": "张三",
+  "age": 28,
+  "isStudent": false,
+  "email": "zhangsan@example.com",
+  "skills": [
+    "Python",
+    "JavaScript",
+    "SQL"
+  ],
+  "address": {
+    "city": "北京",
+    "district": "海淀区",
+    "zipCode": "100080"
+  },
+  "projects": [
+    {
+      "title": "数据分析平台",
+      "status": "completed"
+    },
+    {
+      "title": "移动端App",
+      "status": "in-progress"
+    }
+  ]
+}

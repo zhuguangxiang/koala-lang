@@ -1,5 +1,5 @@
 [package]
 name = "koala/wombat"
 version = "0.1.0"
-dependencies = []
+dependencies = ["koala/toml"]
 natives = []

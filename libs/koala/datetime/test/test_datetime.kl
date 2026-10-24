@@ -1,0 +1,229 @@
+// RUN: koala --test %s
+
+import "koala/datetime"
+import "std/time"
+import "std/ut"
+
+@test
+func test_datetime_fields() {
+    let dt = datetime.DateTime(2026, 10, 24, 13, 30, 45, 123456789)
+    ut.assert_eq(dt.year, 2026)
+    ut.assert_eq(dt.month, 10)
+    ut.assert_eq(dt.day, 24)
+    ut.assert_eq(dt.hour, 13)
+    ut.assert_eq(dt.minute, 30)
+    ut.assert_eq(dt.second, 45)
+    ut.assert_eq(dt.nanosecond, 123456789)
+    // minute, second and nanosecond default to 0
+    let d2 = datetime.DateTime(2026, 10, 24, 13)
+    ut.assert_eq(d2.hour, 13)
+    ut.assert_eq(d2.minute, 0)
+    ut.assert_eq(d2.second, 0)
+    ut.assert_eq(d2.nanosecond, 0)
+}
+
+@test
+func test_datetime_to_str_and_display() {
+    // to_str (ToString): raw ISO 8601 with a 'T' separator.
+    ut.assert_eq(datetime.DateTime(2026, 10, 24, 13, 30, 45).to_str(), "2026-10-24T13:30:45")
+    ut.assert_eq(datetime.DateTime(2026, 10, 24, 13, 30, 45, 123456789).to_str(), "2026-10-24T13:30:45.123456789")
+    ut.assert_eq(str(datetime.DateTime(2026, 10, 24, 13, 30, 45)), "2026-10-24T13:30:45")
+    // fmt (Printable): the type-wrapped display form.
+    ut.assert_eq(format("{}", datetime.DateTime(2026, 10, 24, 13, 30, 45)), "DateTime(2026-10-24T13:30:45)")
+    ut.assert_eq(format("{}", datetime.DateTime(2026, 10, 24, 13, 30, 45, 123456789)), "DateTime(2026-10-24T13:30:45.123456789)")
+}
+
+@test
+func test_datetime_parts() {
+    let dt = datetime.DateTime(2026, 10, 24, 13, 30, 45)
+    ut.assert_eq(dt.date(), datetime.Date(2026, 10, 24))
+    ut.assert_eq(dt.time_of_day(), datetime.Time(13, 30, 45))
+}
+
+@test
+func test_datetime_instant_roundtrip() {
+    // Unix epoch.
+    let epoch = datetime.DateTime(1970, 1, 1, 0, 0, 0)
+    ut.assert_eq(epoch.to_instant().to_unix_ns(), 0)
+    ut.assert_eq(datetime.DateTime.from_instant(time.Instant.from_unix_ns(0)), epoch)
+    // 2000-01-01T00:00:00Z is 10957 days after the epoch.
+    let y2k_ns = 10957 * 86_400_000_000_000
+    let y2k = datetime.DateTime(2000, 1, 1, 0, 0, 0)
+    ut.assert_eq(y2k.to_instant().to_unix_ns(), y2k_ns)
+    ut.assert_eq(datetime.DateTime.from_instant(time.Instant.from_unix_ns(y2k_ns)), y2k)
+    // Sub-second precision survives the round trip.
+    let dt = datetime.DateTime(2026, 10, 24, 13, 30, 45, 123456789)
+    ut.assert_eq(datetime.DateTime.from_instant(dt.to_instant()), dt)
+}
+
+@test
+func test_datetime_pre_epoch_instant() {
+    // 1969-12-31T23:59:59Z is exactly -1 second.
+    let a = datetime.DateTime(1969, 12, 31, 23, 59, 59)
+    ut.assert_eq(a.to_instant().to_unix_ns(), -1_000_000_000)
+    ut.assert_eq(datetime.DateTime.from_instant(time.Instant.from_unix_ns(-1_000_000_000)), a)
+    // 1969-12-31T00:00:00Z is an exact (negative) day boundary.
+    let b = datetime.DateTime(1969, 12, 31, 0, 0, 0)
+    ut.assert_eq(b.to_instant().to_unix_ns(), -86_400_000_000_000)
+    ut.assert_eq(datetime.DateTime.from_instant(time.Instant.from_unix_ns(-86_400_000_000_000)), b)
+    // A negative instant with a fraction floors correctly: -0.5s is 23:59:59.5.
+    let c = datetime.DateTime(1969, 12, 31, 23, 59, 59, 500_000_000)
+    ut.assert_eq(c.to_instant().to_unix_ns(), -500_000_000)
+    ut.assert_eq(datetime.DateTime.from_instant(time.Instant.from_unix_ns(-500_000_000)), c)
+}
+
+@test
+func test_datetime_add() {
+    let dt = datetime.DateTime(2026, 10, 24, 13, 30, 45)
+    ut.assert_eq(dt.add(time.Duration.from_hours(1)), datetime.DateTime(2026, 10, 24, 14, 30, 45))
+    ut.assert_eq(dt.add(time.Duration.from_days(1)), datetime.DateTime(2026, 10, 25, 13, 30, 45))
+    // A negative duration shifts backward within the same day.
+    ut.assert_eq(dt.add(time.Duration.from_secs(-45)), datetime.DateTime(2026, 10, 24, 13, 30, 0))
+    // Sub-second durations are honoured.
+    ut.assert_eq(dt.add(time.Duration.from_nanos(1)), datetime.DateTime(2026, 10, 24, 13, 30, 45, 1))
+}
+
+@test
+func test_datetime_comparisons() {
+    let a = datetime.DateTime(2026, 10, 24, 13, 30, 45)
+    let b = datetime.DateTime(2026, 10, 24, 13, 30, 46)
+    ut.assert_true(a < b)
+    ut.assert_true(a <= b)
+    ut.assert_true(b > a)
+    ut.assert_true(b >= a)
+    ut.assert_true(a != b)
+    ut.assert_true(a == datetime.DateTime(2026, 10, 24, 13, 30, 45))
+    // Sub-second ordering.
+    let c = datetime.DateTime(2026, 10, 24, 13, 30, 45, 1)
+    ut.assert_true(a < c)
+    ut.assert_true(a <= c)
+    ut.assert_true(c > a)
+}
+
+@test
+func test_datetime_now_is_sane() {
+    let n = datetime.DateTime.now()
+    ut.assert_true(n.year >= 2024)
+    ut.assert_true(n.year <= 9999)
+    // now() round-trips through its instant.
+    ut.assert_eq(datetime.DateTime.from_instant(n.to_instant()), n)
+}
+
+@should_panic("datetime.Date: month out of range 1..12")
+func test_datetime_bad_month() { datetime.DateTime(2026, 13, 1, 0) }
+
+@should_panic("datetime.Date: day out of range for month")
+func test_datetime_bad_day() { datetime.DateTime(2026, 2, 30, 0) }
+
+@should_panic("datetime.Time: hour out of range 0..23")
+func test_datetime_bad_hour() { datetime.DateTime(2026, 10, 24, 24) }
+
+@should_panic("datetime.Time: nanosecond out of range 0..999999999")
+func test_datetime_bad_nanos() { datetime.DateTime(2026, 10, 24, 13, 0, 0, 1_000_000_000) }
+
+@test
+func test_datetime_from_str() {
+    ut.assert_eq(datetime.DateTime.from_str("2026-10-24T13:30:45"), datetime.DateTime(2026, 10, 24, 13, 30, 45))
+    ut.assert_eq(datetime.DateTime.from_str("2026-10-24T13:30:45.123456789"), datetime.DateTime(2026, 10, 24, 13, 30, 45, 123456789))
+    ut.assert_eq(datetime.DateTime.from_str("1970-01-01T00:00:00"), datetime.DateTime(1970, 1, 1, 0))
+    ut.assert_eq(datetime.DateTime.from_str("1969-12-31T23:59:59"), datetime.DateTime(1969, 12, 31, 23, 59, 59))
+    ut.assert_eq(datetime.DateTime.from_str("0001-01-01T00:00:00"), datetime.DateTime(1, 1, 1, 0, 0, 0))
+    ut.assert_eq(datetime.DateTime.from_str("9999-12-31T23:59:59.999999999"), datetime.DateTime(9999, 12, 31, 23, 59, 59, 999999999))
+    // round-trip a few instants through to_str/from_str (epoch, sub-second,
+    // far future, pre-epoch)
+    let a = datetime.DateTime.from_instant(time.Instant.from_unix_ns(0))
+    ut.assert_eq(datetime.DateTime.from_str(a.to_str()), a)
+    let b = datetime.DateTime.from_instant(time.Instant.from_unix_ns(863_999_999_983))
+    ut.assert_eq(datetime.DateTime.from_str(b.to_str()), b)
+    let c = datetime.DateTime.from_instant(time.Instant.from_unix_ns(1_000_000_000_000_000_000))
+    ut.assert_eq(datetime.DateTime.from_str(c.to_str()), c)
+    let d = datetime.DateTime.from_instant(time.Instant.from_unix_ns(-5_000_000_000))
+    ut.assert_eq(datetime.DateTime.from_str(d.to_str()), d)
+}
+
+@should_panic("datetime.DateTime: invalid ISO datetime, expected YYYY-MM-DDTHH:MM:SS[.nnnnnnnnn]")
+func test_datetime_from_str_bad_sep() { datetime.DateTime.from_str("2026-10-24 13:30:45") }
+
+@should_panic("datetime.DateTime: invalid ISO datetime, expected YYYY-MM-DDTHH:MM:SS[.nnnnnnnnn]")
+func test_datetime_from_str_bad_len() { datetime.DateTime.from_str("2026-10-24T13:30") }
+
+@should_panic("datetime.Date: invalid ISO date, expected YYYY-MM-DD")
+func test_datetime_from_str_bad_date() { datetime.DateTime.from_str("2026/10/24T13:30:45") }
+
+@test
+func test_datetime_operator_add_sub() {
+    let dt = datetime.DateTime(2026, 10, 24, 13, 30, 45)
+    ut.assert_eq(dt + time.Duration.from_secs(3600), datetime.DateTime(2026, 10, 24, 14, 30, 45))
+    ut.assert_eq(dt - time.Duration.from_secs(3600), datetime.DateTime(2026, 10, 24, 12, 30, 45))
+    ut.assert_eq(dt + time.Duration.from_nanos(1), datetime.DateTime(2026, 10, 24, 13, 30, 45, 1))
+    // negative and zero differences
+    ut.assert_eq(dt.diff(dt), time.Duration.from_nanos(0))
+    ut.assert_eq(dt.diff(datetime.DateTime(2026, 10, 24, 13, 30, 45)), time.Duration.from_nanos(0))
+    ut.assert_eq(dt + time.Duration.from_secs(-3600), datetime.DateTime(2026, 10, 24, 12, 30, 45))
+    ut.assert_eq(dt - time.Duration.from_secs(-3600), datetime.DateTime(2026, 10, 24, 14, 30, 45))
+    // cross day boundary
+    ut.assert_eq(dt + time.Duration.from_secs(86400), datetime.DateTime(2026, 10, 25, 13, 30, 45))
+    ut.assert_eq(dt - time.Duration.from_secs(86400), datetime.DateTime(2026, 10, 23, 13, 30, 45))
+}
+
+@test
+func test_datetime_operator_difference() {
+    let a = datetime.DateTime(2026, 10, 24, 13, 30, 45)
+    let b = a + time.Duration.from_secs(3600)
+    ut.assert_eq(b.diff(a), time.Duration.from_secs(3600))
+    ut.assert_eq(a.diff(b), time.Duration.from_secs(-3600))
+    let c = datetime.DateTime(2026, 10, 24, 13, 30, 45, 100)
+    ut.assert_eq(c.diff(a), time.Duration.from_nanos(100))
+    ut.assert_eq(a.diff(c), time.Duration.from_nanos(-100))
+}
+
+@test
+func test_datetime_hash() {
+    let a = datetime.DateTime(2026, 10, 24, 13, 30, 45, 123)
+    let b = datetime.DateTime(2026, 10, 24, 13, 30, 45, 123)
+    ut.assert_eq(a.hash(), b.hash())
+}
+
+@test
+func test_datetime_combine() {
+    let d = datetime.Date(2026, 10, 24)
+    let t = datetime.Time(13, 30, 45, 123)
+    ut.assert_eq(datetime.DateTime.combine(d, t), datetime.DateTime(2026, 10, 24, 13, 30, 45, 123))
+}
+
+@test
+func test_datetime_replace() {
+    let base = datetime.DateTime(2026, 10, 24, 13, 30, 45, 123)
+    ut.assert_eq(base.replace(y = 2027), datetime.DateTime(2027, 10, 24, 13, 30, 45, 123))
+    ut.assert_eq(base.replace(h = 0), datetime.DateTime(2026, 10, 24, 0, 30, 45, 123))
+    ut.assert_eq(base.replace(ns = 0), datetime.DateTime(2026, 10, 24, 13, 30, 45, 0))
+    ut.assert_eq(base.replace(), base)
+    ut.assert_eq(base.replace(y = 2024, mo = 2, d = 29), datetime.DateTime(2024, 2, 29, 13, 30, 45, 123))
+}
+
+@should_panic("datetime.Date: day out of range for month")
+func test_datetime_replace_invalid() { datetime.DateTime(2026, 10, 24, 0).replace(mo = 2, d = 30) }
+
+@test
+func test_datetime_timestamp() {
+    let epoch = datetime.DateTime(1970, 1, 1, 0)
+    ut.assert_eq(epoch.timestamp_nanos(), 0)
+    ut.assert_eq(epoch.timestamp(), 0.0)
+
+    let one_sec = datetime.DateTime(1970, 1, 1, 0, 0, 1)
+    ut.assert_eq(one_sec.timestamp_nanos(), 1_000_000_000)
+    ut.assert_eq(one_sec.timestamp(), 1.0)
+    ut.assert_eq(datetime.DateTime.from_timestamp(1.0), one_sec)
+
+    let day = datetime.DateTime(1970, 1, 2, 0)
+    ut.assert_eq(day.timestamp(), 86400.0)
+    ut.assert_eq(datetime.DateTime.from_timestamp(86400.0), day)
+
+    let pre = datetime.DateTime(1969, 12, 31, 23, 59, 59)
+    ut.assert_eq(pre.timestamp_nanos(), -1_000_000_000)
+    ut.assert_eq(datetime.DateTime.from_timestamp(-1.0), pre)
+
+    // exact nanosecond round-trip at large magnitude (float seconds lose precision)
+    let dt = datetime.DateTime(2026, 10, 24, 13, 30, 45, 123456789)
+    ut.assert_eq(datetime.DateTime.from_timestamp_nanos(dt.timestamp_nanos()), dt)
+}

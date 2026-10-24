@@ -1,0 +1,903 @@
+// RUN: koala --test %s
+
+import "std/ut"
+import "std/collections" as co
+
+// User-defined class element
+class Point {
+    var x int
+    var y int
+
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    func fmt(f Formatter) {
+        f.write_fmt("Point({}, {})", x, y)
+    }
+}
+
+// User-defined generic class element
+class Foo[T] {
+    var value T
+
+    func __init__(v T) {
+        value = v
+    }
+
+    func get() T {
+        return value
+    }
+
+    func fmt(f Formatter) {
+        f.write_fmt("Foo({})", value)
+    }
+}
+
+// ==================== Construction and basic properties ====================
+
+@test
+func test_init_empty() {
+    let d = co.Deque[int]()
+    ut.assert_eq(d.len(), 0)
+    ut.assert_true(d.empty())
+}
+
+@test
+func test_push_back_order() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.push_back(2)
+    d.push_back(3)
+    ut.assert_eq(d.len(), 3)
+    ut.assert_false(d.empty())
+    ut.assert_eq(d[0], 1)
+    ut.assert_eq(d[1], 2)
+    ut.assert_eq(d[2], 3)
+}
+
+@test
+func test_push_front_order() {
+    let d = co.Deque[int]()
+    d.push_front(3)
+    d.push_front(2)
+    d.push_front(1)
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d[0], 1)
+    ut.assert_eq(d[1], 2)
+    ut.assert_eq(d[2], 3)
+}
+
+@test
+func test_push_both_ends() {
+    let d = co.Deque[int]()
+    d.push_back(3)
+    d.push_front(2)
+    d.push_back(4)
+    d.push_front(1)
+    // 1 2 3 4
+    ut.assert_eq(d.len(), 4)
+    for i in range(4) {
+        ut.assert_eq(d[i], i + 1)
+    }
+}
+
+@test
+func test_append_is_push_back() {
+    let d = co.Deque[int]()
+    d.append(1)
+    d.append(2)
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[1], 2)
+}
+
+@test
+func test_pop_front_back() {
+    let d = co.Deque[int]()
+    for i in range(4) {
+        d.push_back(i)
+    }
+
+    ut.assert_eq(d.pop_front(), 0)
+    ut.assert_eq(d.pop_back(), 3)
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d.pop_front(), 1)
+    ut.assert_eq(d.pop_back(), 2)
+    ut.assert_true(d.empty())
+}
+
+@test
+func test_peek_both_ends() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.push_back(2)
+    d.push_back(3)
+    ut.assert_eq(d.peek_front(), 1)
+    ut.assert_eq(d.peek_back(), 3)
+
+    // peeking does not remove
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d[0], 1)
+    ut.assert_eq(d[2], 3)
+}
+
+@test
+func test_single_element_both_ends() {
+    let d = co.Deque[int]()
+    d.push_front(7)
+    ut.assert_eq(d.peek_front(), 7)
+    ut.assert_eq(d.peek_back(), 7)
+    ut.assert_eq(d.pop_back(), 7)
+    ut.assert_true(d.empty())
+}
+
+@test
+func test_clear_and_reuse() {
+    let d = co.Deque[int]()
+    for i in range(5) {
+        d.push_back(i)
+    }
+    d.clear()
+    ut.assert_true(d.empty())
+    ut.assert_eq(d.len(), 0)
+
+    d.push_back(9)
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d[0], 9)
+    ut.assert_eq(d.pop_front(), 9)
+}
+
+@test
+func test_str_elements() {
+    let d = co.Deque[str]()
+    d.push_back("a")
+    d.push_front("b")
+    ut.assert_eq(d[0], "b")
+    ut.assert_eq(d[1], "a")
+    ut.assert_eq(d.pop_back(), "a")
+}
+
+// ==================== Indexed access and lookup ====================
+
+@test
+func test_getitem_after_wrap() {
+    let d = co.Deque[int]()
+    // Fill, drain from the front so the live range wraps, then refill.
+    for i in range(4) {
+        d.push_back(i)
+    }
+    d.pop_front()
+    d.pop_front()
+    for i in range(4) {
+        d.push_back(100 + i)
+    }
+    // 2 3 100 101 102 103
+    ut.assert_eq(d.len(), 6)
+    ut.assert_eq(d[0], 2)
+    ut.assert_eq(d[1], 3)
+    ut.assert_eq(d[2], 100)
+    ut.assert_eq(d[5], 103)
+}
+
+@test
+func test_setitem() {
+    let d = co.Deque[int]()
+    for i in range(3) {
+        d.push_back(i)
+    }
+    d[1] = 20
+    ut.assert_eq(d[0], 0)
+    ut.assert_eq(d[1], 20)
+    ut.assert_eq(d[2], 2)
+    ut.assert_eq(d.len(), 3)
+}
+
+@test
+func test_contains() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.push_back(2)
+    ut.assert_true(2 in d)
+    ut.assert_false(7 in d)
+}
+
+@test
+func test_index_of() {
+    let d = co.Deque[int]()
+    for i in range(5) {
+        d.push_back(i)
+    }
+    ut.assert_eq(d.index(3), 3)
+    ut.assert_eq(d.index(3, 4), -1)
+    ut.assert_eq(d.index(3, 0, 3), -1)
+    ut.assert_eq(d.index(3, 0, 4), 3)
+    ut.assert_eq(d.index(9), -1)
+}
+
+@test
+func test_count_value() {
+    let d = co.Deque[int]()
+    for v in [1, 2, 1, 3, 1] {
+        d.push_back(v)
+    }
+    ut.assert_eq(d.count(1), 3)
+    ut.assert_eq(d.count(2), 1)
+    ut.assert_eq(d.count(9), 0)
+    ut.assert_eq(d.count(1, 1), 2)
+    ut.assert_eq(d.count(1, 0, 1), 1)
+}
+
+// ==================== Structural modification ====================
+
+@test
+func test_insert_middle() {
+    let d = co.Deque[int]()
+    for i in range(3) {
+        d.push_back(i)
+    }
+    d.insert(1, 9)
+    ut.assert_eq(d.len(), 4)
+    ut.assert_eq(d[0], 0)
+    ut.assert_eq(d[1], 9)
+    ut.assert_eq(d[2], 1)
+    ut.assert_eq(d[3], 2)
+}
+
+@test
+func test_insert_at_ends() {
+    let d = co.Deque[int]()
+    d.insert(0, 1)
+    d.insert(1, 2)
+    d.insert(0, 0)
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d[0], 0)
+    ut.assert_eq(d[1], 1)
+    ut.assert_eq(d[2], 2)
+}
+
+@test
+func test_insert_into_wrapped() {
+    let d = co.Deque[int]()
+    for i in range(4) {
+        d.push_back(i)
+    }
+    d.pop_front()
+    d.pop_front()
+    for i in range(2) {
+        d.push_back(10 + i)
+    }
+    // 2 3 10 11
+    d.insert(2, 99)
+    ut.assert_eq(d.len(), 5)
+    ut.assert_eq(d[0], 2)
+    ut.assert_eq(d[1], 3)
+    ut.assert_eq(d[2], 99)
+    ut.assert_eq(d[3], 10)
+    ut.assert_eq(d[4], 11)
+}
+
+@test
+func test_remove_value() {
+    let d = co.Deque[int]()
+    for i in range(3) {
+        d.push_back(i)
+    }
+    d.remove(1)
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[0], 0)
+    ut.assert_eq(d[1], 2)
+    ut.assert_false(1 in d)
+}
+
+@test
+func test_remove_first_occurrence_only() {
+    let d = co.Deque[int]()
+    for v in [1, 2, 1] {
+        d.push_back(v)
+    }
+    d.remove(1)
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[0], 2)
+    ut.assert_eq(d[1], 1)
+}
+
+@test
+func test_pop_by_index() {
+    let d = co.Deque[int]()
+    for i in range(5) {
+        d.push_back(i)
+    }
+    ut.assert_eq(d.pop(0), 0)
+    ut.assert_eq(d.pop(2), 3)
+    ut.assert_eq(d.pop(0), 1)
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[0], 2)
+    ut.assert_eq(d[1], 4)
+}
+
+@test
+func test_pop_default_is_last() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.push_back(2)
+    ut.assert_eq(d.pop(), 2)
+    ut.assert_eq(d.len(), 1)
+}
+
+@test
+func test_pop_negative_index() {
+    let d = co.Deque[int]()
+    for i in range(3) {
+        d.push_back(i)
+    }
+    ut.assert_eq(d.pop(-1), 2)
+    ut.assert_eq(d.pop(-2), 0)
+    ut.assert_eq(d.len(), 1)
+}
+
+// ==================== extend ====================
+
+@test
+func test_extend_from_list() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.extend([2, 3])
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d[0], 1)
+    ut.assert_eq(d[1], 2)
+    ut.assert_eq(d[2], 3)
+}
+
+@test
+func test_extend_from_range() {
+    let d = co.Deque[int]()
+    d.extend(range(4))
+    ut.assert_eq(d.len(), 4)
+    ut.assert_eq(d[0], 0)
+    ut.assert_eq(d[3], 3)
+}
+
+@test
+func test_extend_from_deque() {
+    let src = co.Deque[int]()
+    src.push_back(1)
+    src.push_back(2)
+
+    let d = co.Deque[int]()
+    d.push_back(0)
+    d.extend(src)
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d[0], 0)
+    ut.assert_eq(d[1], 1)
+    ut.assert_eq(d[2], 2)
+}
+
+@test
+func test_extend_self_terminates() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.push_back(2)
+    d.extend(d)
+    ut.assert_eq(d.len(), 4)
+    ut.assert_eq(d[0], 1)
+    ut.assert_eq(d[3], 2)
+}
+
+@test
+func test_extend_from_iterable() {
+    // A LinkedList is Iterable but not indexable, so `extend` walks it
+    // through the iterator protocol.
+    let src = co.LinkedList[int]()
+    for i in range(3) {
+        src.push_back(i)
+    }
+    let d = co.Deque[int]()
+    d.extend(src)
+    ut.assert_eq(d.len(), 3)
+    ut.assert_eq(d[0], 0)
+    ut.assert_eq(d[2], 2)
+}
+
+// ==================== Growth and a wrapped buffer ====================
+
+@test
+func test_grow_many() {
+    let d = co.Deque[int]()
+    for i in range(100) {
+        d.push_back(i)
+    }
+    ut.assert_eq(d.len(), 100)
+    for i in range(100) {
+        ut.assert_eq(d[i], i)
+    }
+}
+
+@test
+func test_grow_at_front() {
+    let d = co.Deque[int]()
+    for i in range(50) {
+        d.push_front(i)
+    }
+    // 49 48 ... 0
+    ut.assert_eq(d.len(), 50)
+    ut.assert_eq(d[0], 49)
+    ut.assert_eq(d[49], 0)
+    ut.assert_eq(d.pop_front(), 49)
+    ut.assert_eq(d.pop_back(), 0)
+}
+
+@test
+func test_order_after_wrap() {
+    let d = co.Deque[int]()
+    for i in range(6) {
+        d.push_back(i)
+    }
+    // Drain the front so the live range wraps, then push more.
+    for i in range(4) {
+        ut.assert_eq(d.pop_front(), i)
+    }
+    for i in range(6, 10) {
+        d.push_back(i)
+    }
+    // 4 5 6 7 8 9
+    ut.assert_eq(d.len(), 6)
+    for i in range(6) {
+        ut.assert_eq(d[i], i + 4)
+    }
+}
+
+@test
+func test_interleaved_ends() {
+    let d = co.Deque[int]()
+    for i in range(10) {
+        d.push_back(i)
+        d.push_front(100 + i)
+    }
+    ut.assert_eq(d.len(), 20)
+    ut.assert_eq(d[0], 109)
+    ut.assert_eq(d[9], 100)
+    ut.assert_eq(d[10], 0)
+    ut.assert_eq(d[19], 9)
+}
+
+// ==================== Iterators ====================
+
+@test
+func test_iter_forward() {
+    let d = co.Deque[int]()
+    for i in range(4) {
+        d.push_back(i * 10)
+    }
+
+    var sum = 0
+    var n = 0
+    for v in d.iter() {
+        n = n + 1
+        sum = sum + v
+    }
+    ut.assert_eq(n, 4)
+    ut.assert_eq(sum, 60)
+
+    // empty deque
+    let empty = co.Deque[int]()
+    var m = 0
+    for v in empty.iter() {
+        m = m + 1
+    }
+    ut.assert_eq(m, 0)
+}
+
+@test
+func test_iter_step() {
+    let d = co.Deque[int]()
+    for i in range(5) {
+        d.push_back(i)
+    }
+
+    var got = list[int]()
+    for v in d.iter(2) {
+        got.append(v)
+    }
+    ut.assert_eq(got.len(), 3)
+    ut.assert_eq(got[0], 0)
+    ut.assert_eq(got[1], 2)
+    ut.assert_eq(got[2], 4)
+
+    var s = 0
+    for v in d.iter(3) {
+        s = s + v
+    }
+    ut.assert_eq(s, 3) // 0 + 3
+}
+
+@test
+func test_reversed_iterator() {
+    let d = co.Deque[int]()
+    for i in range(4) {
+        d.push_back(i)
+    }
+
+    let it = d.reversed()
+    var got = list[int]()
+    while it.has_next() {
+        got.append(it.next_strict())
+    }
+    ut.assert_eq(got.len(), 4)
+    ut.assert_eq(got[0], 3)
+    ut.assert_eq(got[3], 0)
+
+    // step 2: 3, 1
+    var s = 0
+    for v in d.reversed(2) {
+        s = s + v
+    }
+    ut.assert_eq(s, 4)
+}
+
+@test
+func test_iter_over_wrapped() {
+    let d = co.Deque[int]()
+    for i in range(4) {
+        d.push_back(i)
+    }
+    d.pop_front()
+    d.pop_front()
+    d.push_back(4)
+    d.push_back(5)
+    // 2 3 4 5
+    var sum = 0
+    for v in d.iter() {
+        sum = sum + v
+    }
+    ut.assert_eq(sum, 14)
+
+    var rsum = 0
+    for v in d.reversed() {
+        rsum = rsum + v
+    }
+    ut.assert_eq(rsum, 14)
+}
+
+@test
+func test_iterator_next_returns_nil_at_end() {
+    let d = co.Deque[int]()
+    d.push_back(7)
+    let it = d.iter()
+    ut.assert_true(it.has_next())
+
+    var seen = 0
+    while let v = it.next() {
+        seen = seen + 1
+        ut.assert_eq(v, 7)
+    }
+    ut.assert_eq(seen, 1)
+    ut.assert_false(it.has_next())
+    ut.assert(it.next() == nil)
+}
+
+@test
+func test_rev_iterator_next_returns_nil_at_end() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    let it = d.reversed()
+    ut.assert_eq(it.next_strict(), 1)
+    ut.assert_false(it.has_next())
+    ut.assert(it.next() == nil)
+}
+
+// ==================== Exceptions ====================
+
+@should_panic("pop from empty Deque")
+func test_pop_front_empty() {
+    let d = co.Deque[int]()
+    let v = d.pop_front()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("pop from empty Deque")
+func test_pop_back_empty() {
+    let d = co.Deque[int]()
+    let v = d.pop_back()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("pop from empty Deque")
+func test_pop_empty() {
+    let d = co.Deque[int]()
+    let v = d.pop()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("pop from empty Deque")
+func test_pop_after_clear() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.clear()
+    let v = d.pop_front()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("peek from empty Deque")
+func test_peek_front_empty() {
+    let d = co.Deque[int]()
+    let v = d.peek_front()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("peek from empty Deque")
+func test_peek_back_empty() {
+    let d = co.Deque[int]()
+    let v = d.peek_back()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("Deque index out of range")
+func test_getitem_out_of_range() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    let v = d[1]
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("Deque index out of range")
+func test_getitem_negative() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    let v = d[-1]
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("Deque index out of range")
+func test_setitem_out_of_range() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d[3] = 9
+}
+
+@should_panic("Deque insert index out of range")
+func test_insert_out_of_range() {
+    let d = co.Deque[int]()
+    d.insert(3, 1)
+}
+
+@should_panic("Deque insert index out of range")
+func test_insert_negative() {
+    let d = co.Deque[int]()
+    d.insert(-1, 1)
+}
+
+@should_panic("Deque.remove(x): x not in Deque")
+func test_remove_missing() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.remove(7)
+}
+
+@should_panic("pop index out of range")
+func test_pop_index_out_of_range() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    let v = d.pop(5)
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("Deque modified during iteration")
+func test_modify_during_iteration() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.push_back(2)
+    d.push_back(3)
+    for v in d.iter() {
+        d.push_back(v)
+    }
+}
+
+@should_panic("Deque modified during iteration")
+func test_pop_front_during_iteration() {
+    let d = co.Deque[int]()
+    for i in range(5) {
+        d.push_back(i)
+    }
+    // Removing from the front shifts every remaining element, so the cursor
+    // would repeat an element: the iterator must raise instead.
+    for v in d.iter() {
+        d.pop_front()
+    }
+}
+
+@should_panic("step must be positive")
+func test_iter_bad_step() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    for v in d.iter(0) {
+        ut.assert_eq(v, 0)
+    }
+}
+
+// ==================== fmt ====================
+
+@test
+func test_fmt_small() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.push_back(2)
+    d.push_back(3)
+    let f = Formatter()
+    d.fmt(f)
+    ut.assert("Deque([1, 2, 3])" in f.result())
+}
+
+@test
+func test_fmt_empty() {
+    let d = co.Deque[int]()
+    let f = Formatter()
+    d.fmt(f)
+    ut.assert("Deque([])" in f.result())
+}
+
+@test
+func test_fmt_truncated() {
+    let d = co.Deque[int]()
+    for i in range(20) {
+        d.push_back(i)
+    }
+    let f = Formatter()
+    d.fmt(f)
+    ut.assert("Deque([0, 1, 2, 3, ..., 16, 17, 18, 19])" in f.result())
+}
+
+@test
+func test_fmt_boundary() {
+    // 10 items: everything is printed
+    let a = co.Deque[int]()
+    for i in range(10) {
+        a.push_back(i)
+    }
+    let f1 = Formatter()
+    a.fmt(f1)
+    ut.assert("Deque([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])" in f1.result())
+
+    // 11 items: first 4, "...", last 4
+    let b = co.Deque[int]()
+    for i in range(11) {
+        b.push_back(i)
+    }
+    let f2 = Formatter()
+    b.fmt(f2)
+    ut.assert("Deque([0, 1, 2, 3, ..., 7, 8, 9, 10])" in f2.result())
+}
+
+@test
+func test_fmt_starts_at_front_after_wrap() {
+    let d = co.Deque[int]()
+    for i in range(6) {
+        d.push_back(i)
+    }
+    d.pop_front()
+    d.pop_front()
+    d.push_back(6)
+    d.push_back(7)
+    // 2 3 4 5 6 7
+    let f = Formatter()
+    d.fmt(f)
+    ut.assert("Deque([2, 3, 4, 5, 6, 7])" in f.result())
+}
+
+@test
+func test_write_fmt() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.push_back(2)
+    let f = Formatter()
+    f.write_fmt("{}", d)
+    ut.assert("Deque([1, 2])" in f.result())
+}
+
+// ==================== User-defined class element ====================
+
+@test
+func test_user_class_both_ends() {
+    let d = co.Deque[Point]()
+    d.push_back(Point(1, 2))
+    d.push_front(Point(0, 0))
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[0].x, 0)
+    ut.assert_eq(d[1].x, 1)
+    ut.assert_eq(d[1].y, 2)
+
+    let p = d.pop_back()
+    ut.assert_eq(p.x, 1)
+    ut.assert_eq(d.len(), 1)
+}
+
+@test
+func test_user_class_fmt() {
+    let d = co.Deque[Point]()
+    d.push_back(Point(1, 2))
+    let f = Formatter()
+    d.fmt(f)
+    ut.assert("Deque([Point(1, 2)])" in f.result())
+}
+
+@test
+func test_generic_class_element() {
+    let d = co.Deque[Foo[int]]()
+    d.push_back(Foo[int](1))
+    d.push_front(Foo[int](2))
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[0].get(), 2)
+    ut.assert_eq(d[1].get(), 1)
+}
+
+@test
+func test_user_class_identity() {
+    let a = Point(1, 1)
+    let d = co.Deque[Point]()
+    d.push_back(a)
+    ut.assert_true(d[0] == a)
+}
+
+// ==================== MutableSequence interface ====================
+
+@test
+func test_mutable_sequence_interface() {
+    let d = co.Deque[int]()
+    let ms MutableSequence[int] = d
+
+    ms.append(1)
+    ms.append(3)
+    ms.insert(1, 2)
+    ut.assert_eq(ms.len(), 3)
+    ut.assert_eq(ms[0], 1)
+    ut.assert_eq(ms[1], 2)
+    ut.assert_eq(ms[2], 3)
+    ut.assert_eq(ms.count(2), 1)
+    ut.assert_eq(ms.index(3), 2)
+
+    ms.remove(2)
+    ut.assert_eq(ms.len(), 2)
+    ut.assert_eq(ms.pop(), 3)
+    ut.assert_eq(ms.pop(0), 1)
+    ut.assert_true(ms.len() == 0)
+
+    // the interface sees the same object as the concrete type
+    ms.append(7)
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d[0], 7)
+}
+
+// ==================== Interop with built-in containers ====================
+
+@test
+func test_for_sequence_fast_path() {
+    let d = co.Deque[int]()
+    for i in range(3) {
+        d.push_back(i)
+    }
+
+    // 'for v in d' takes the Sequence fast path (index based); the result must match the iterator
+    var sum = 0
+    var n = 0
+    for v in d {
+        n = n + 1
+        sum = sum + v
+    }
+    ut.assert_eq(n, 3)
+    ut.assert_eq(sum, 3)
+}
+
+@test
+func test_list_extend_from_deque() {
+    let d = co.Deque[int]()
+    d.push_back(1)
+    d.push_back(2)
+
+    // list.extend walks the Deque via SLOT_ITER/SLOT_NEXT
+    let dst = list[int](0)
+    dst.extend(d)
+    ut.assert_eq(dst.len(), 3)
+    ut.assert_eq(dst[0], 0)
+    ut.assert_eq(dst[1], 1)
+    ut.assert_eq(dst[2], 2)
+}

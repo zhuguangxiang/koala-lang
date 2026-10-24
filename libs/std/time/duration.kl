@@ -1,8 +1,9 @@
 
 /// A span of time with nanosecond resolution.
 ///
-/// Create durations with the `from_secs`, `from_millis`, `from_micros` and
-/// `from_nanos` constructors, combine them with `+`, `-`, `*` and `/`, and
+/// Create durations with the `from_days`, `from_hours`, `from_secs`,
+/// `from_millis`, `from_micros` and `from_nanos` constructors, combine them
+/// with `+`, `-`, `*` and `/`, and
 /// pass them to `time.sleep`.
 pub class Duration {
     /// Length of the duration in nanoseconds.
@@ -34,6 +35,16 @@ pub class Duration {
     }
 
     // constructors
+    /// Create a duration of `d` days (24-hour days).
+    pub static func from_days(d int) Duration {
+        return Duration(d * 86_400_000_000_000)
+    }
+
+    /// Create a duration of `h` hours.
+    pub static func from_hours(h int) Duration {
+        return Duration(h * 3_600_000_000_000)
+    }
+
     /// Create a duration of `s` seconds.
     pub static func from_secs(s int) Duration {
         return Duration(s * 1_000_000_000)

@@ -1,5 +1,5 @@
 [package]
 name = "koala/json"
 version = "0.1.0"
-dependencies = []
+dependencies = ["koala/math"]
 natives = []

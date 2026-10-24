@@ -1,96 +1,28 @@
-
-// TODO:
-// _write_rt_const
-// let pairs = (("a", 1), ("b", 2), ("c", 3))
-// print(pairs)
-
-// import "std/collections" as co
-
-import "test_pkg/pkg1" as zz
-
-import "koala/wombat" as wb
-
-import "koala/toml"
-
-/*
- * This file is part of the koala project with MIT License.
- * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
- */
-
-/// Serialize `root` to TOML text.
-///
-/// Scalar keys are emitted first, then nested tables as `[name]`
-/// sections. Dotted headers are used for nested tables. Arrays of
-/// tables (`[[name]]`) are not supported.
-pub func dump(root toml.TomTable) str {
-    let buf = Buffer()
-    dump_table(buf, root, "")
-    return buf.to_str()
-}
-
-/// Write `tbl` into `buf`. `prefix` is the dotted path of the
-/// enclosing table, used to build nested `[a.b]` headers.
-func dump_table(buf Buffer, tbl toml.TomTable, prefix str) {
-    print("Dumping table with prefix: " + prefix)
-    let keys = tbl.keys()
-
-    // Scalar keys first, so they land under the current section.
-    for k in keys {
-        let v = tbl.get(k)
-        if v is toml.TomTable { continue }
-        buf.write_str(k)
-        buf.write_str(" = ")
-        buf.write_str(v.to_toml())
-        buf.write_str("\n")
-    }
-
-    // Nested tables as separate `[path]` sections.
-    for k in keys {
-        let v = tbl.get(k)
-        if !(v is toml.TomTable) { continue }
-
-        let full = prefix + "." + k
-
-        buf.write_str("\n[")
-        buf.write_str(full)
-        buf.write_str("]\n")
-        dump_table(buf, v, full)
-    }
-}
+import "koala/datetime"
+import "std/time"
 
 func main() {
-    // let stack = co.Stack[int]()
-    // print(stack)
-    // pkg1_1.hello()
-    // print(pkg1_1.Point(1, 2).show())
-    // print(Foo())
-    // TODO:
-    // printf("Hello, world!\n")
-    // let b = zz.Bar()
-    // b.data.append("test")
-    // print(b.data)
-    // let b2 = zz.Bar()
-    // print(b2.data)
-    // b2.data.append("test2")
-    // print(b2.data)
-    // let s = list[str]()
-    // s.append("hello")
-    // print(s)
-    // print(b.data)
-    // print(b.keys())
-    // b.data.append("another_test")
-    // print(b.data)
-    // print(b.keys())
-    // wb.new_workspace("my_workspace")
-    // wb.new_package("my_package")
+    // Date —— print 走 fmt(显示形态)，to_str 是裸 ISO(规范形态)
+    let d = datetime.Date(2026, 10, 24)
+    print(d)                        // Date(2026-10-24)
+    print(d.to_str())               // 2026-10-24
+    print(d.weekday())              // 5  (周六)
+    print(d.add_days(7).to_str())   // 2026-10-31
 
-    let pkg_sec = toml.TomTable()
-    pkg_sec.add("name", toml.TomString("koala/my_package"))
-    pkg_sec.add("version", toml.TomString("0.1.0"))
-    pkg_sec.add("dependencies", toml.TomArray())
-    pkg_sec.add("natives", toml.TomArray())
+    // Time
+    let t = datetime.Time(13, 30, 45)
+    print(t)                        // Time(13:30:45)
+    print(t.to_str())               // 13:30:45
 
-    let root = toml.TomTable()
-    root.add("package", pkg_sec)
-    print(dump(root))
+    // DateTime —— 组合 + 与 std/time 桥接
+    let dt = datetime.DateTime(2026, 10, 24, 13, 30, 45)
+    print(dt)                       // DateTime(2026-10-24T13:30:45)
+    print(dt.to_str())              // 2026-10-24T13:30:45
+    print(dt.date())                // Date(2026-10-24)
+    print(dt.time_of_day())         // Time(13:30:45)
+    print(dt.add(time.Duration.from_secs(3600)).to_str())  // 2026-10-24T14:30:45
+
+    // 比较 + 当前 UTC 时刻
+    print(dt < datetime.DateTime(2026, 10, 24, 14, 0, 0))  // true
+    print(datetime.DateTime.now())  // DateTime(2026-...T...)  (此刻)
 }

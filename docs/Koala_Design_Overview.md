@@ -744,8 +744,9 @@ bytes / Buffer 的二进制编解码职责已**剥离至官方库 encoding**，�
 |------|------|------|
 | 有序结构 | `SortedSet` / `SortedDict` | 平衡树，按 `Comparable` 排序 |
 | 不可变结构 | `FrozenSet` / `FrozenDict` / `FrozenList` / `FrozenBytes` | 只实现只读 trait（`Set` / `Map` / `Sequence`），可哈希能力待 C 侧实现内容语义 |
-| 链式队列 | `LinkedList` / `Deque` | 实现 `MutableSequence`，补 push/pop_front/back |
-| 队列 | `Queue` / `Stack` | 不实现 trait，只有 push/pop/peek/len/empty |
+| 链式队列 | `LinkedList` | C 原生侵入式双向链表（哨兵 + 缓存长度）：`MutableSequence` 全套 + `push/pop/peek_front/back`；**不支持切片**（不实现 `__getslice__`，`ll[a:b]` 编译期报错，改用 `iter()` / `extend`）；`LinkedListIter` / `LinkedListRevIter` 为 C 原生迭代器（游标持节点，整趟 O(n)），结构性修改后再迭代会 panic；`fmt` 与 `Stack` 一致（超过 10 个元素只打印首 4 + `...` + 尾 4）。因 `for` 对 `Sequence` 走下标 fast-path（§8.5），大表遍历请写 `for v in ll.iter()` |
+| 链式队列 | `Deque` | 声明先行（实现欠账，见 Koala_TODO §16） |
+| 队列 | `Queue` / `Stack` | 不实现 trait，只有 `push/pop/peek/len/empty/clear/fmt`。`Queue` 为 FIFO：C 原生 `Vector` + 头偏移，`push`/`pop` 摊还 O(1)（死槽攒够后一次 memmove 压缩），空队列 `pop`/`peek` 报 `pop from empty queue` / `peek from empty queue`；`fmt` 与 `Stack` 一致（超过 10 个元素只打印首 4 + `...` + 尾 4） |
 | 优先队列 | `Heap[T : Comparable]` | 待新增，不实现 trait |
 
 ### 8.5 迭代

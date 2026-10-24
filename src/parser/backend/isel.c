@@ -798,8 +798,14 @@ static int encode_float_cast_flag(TypeSpec *dst, TypeSpec *src)
     flag |= ti << 2;
     flag |= mode;
 
-    log_info("[isel] encode_float_cast_flag: 0x%x (src=%s%d → dst=float%d)", flag,
-             src->kind == TYPE_FLOAT ? "float" : (src->int_flt_info.sign ? "int" : "uint"),
+    const char *src_kind;
+    if (src->kind == TYPE_FLOAT) {
+        src_kind = "float";
+    } else {
+        src_kind = src->int_flt_info.sign ? "int" : "uint";
+    }
+
+    log_info("[isel] encode_float_cast_flag: 0x%x (src=%s%d → dst=float%d)", flag, src_kind,
              src->int_flt_info.width * 8, dst_width * 8);
 
     return flag;
