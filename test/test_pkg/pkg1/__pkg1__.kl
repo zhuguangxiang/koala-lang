@@ -24,6 +24,10 @@ pub class Point {
     pub func show() {
         print("Point(", x, ", ", y, ")", sep="")
     }
+
+    pub static func origin() Point {
+        return Point(0, 0)
+    }
 }
 
 pub class Foo {
@@ -83,6 +87,12 @@ link "pkg1_native"
 
 @native
 pub func test_pkg_foo(a Animal) {}
+
+// static method implemented in C (native)
+pub class NativeMath {
+    @native
+    pub static func magic_add(a int, b int) int {}
+}
 
 pub const PI = 3.14159
 pub const E = 2.71828

@@ -339,6 +339,7 @@ static Object *_load_module(char *path)
                 ASSERT(IS_CFUNC(_co));
                 CFuncObject *cfn = (CFuncObject *)_co;
                 cfn->owner = (Object *)tp;
+                if (meth->flags & KLC_FLAGS_STATIC) cfn->is_static = 1;
             }
             kl_tp_add_method(tp, kc->sval, meth->slot_id, _co);
         }

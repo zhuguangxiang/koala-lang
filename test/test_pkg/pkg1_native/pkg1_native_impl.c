@@ -37,6 +37,29 @@ TValue foo_swim_func(TValue *self, TValue *args, int nargs)
     return obj_value(s);
 }
 
-void pkg1_native_lib_init(NativeLib *lib) { kl_reg_func(lib, "test_pkg_foo", test_pkg_foo_func); }
+/* pub static func magic_add(a int, b int) int (class NativeMath in pkg1) */
+TValue native_math_magic_add_func(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    return int64_value(kl_arg_int64(0) + kl_arg_int64(1));
+}
+
+/* pub static func magic_mul(a int, b int) int (class NativeUtil in test_static_methods.kl) */
+TValue native_util_magic_mul_func(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    return int64_value(kl_arg_int64(0) * kl_arg_int64(1));
+}
+
+void pkg1_native_lib_init(NativeLib *lib)
+{
+    kl_reg_func(lib, "test_pkg_foo", test_pkg_foo_func);
+    kl_reg_meth(lib, "NativeMath", "magic_add", native_math_magic_add_func);
+}
 
 void test_pkg_4_native_lib_init(NativeLib *lib) { kl_reg_meth(lib, "Foo", "swim", foo_swim_func); }
+
+void test_static_methods_native_lib_init(NativeLib *lib)
+{
+    kl_reg_meth(lib, "NativeUtil", "magic_mul", native_util_magic_mul_func);
+}

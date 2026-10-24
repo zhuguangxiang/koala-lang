@@ -1,0 +1,28 @@
+// RUN: koalac %s --opt 2>&1 | filecheck %s
+
+// str -> float64 only accepts valid float string literals, which are
+// validated at compile time. Runtime strings must use 'to_float()'.
+
+// ===== invalid literal =====
+func test_invalid_literal() {
+    print(float64("abc"))
+}
+// CHECK: invalid float literal 'abc'
+
+// ===== empty literal =====
+func test_empty_literal() {
+    print(float64(""))
+}
+// CHECK: invalid float literal ''
+
+// ===== trailing garbage =====
+func test_trailing_garbage() {
+    print(float64("3.14abc"))
+}
+// CHECK: invalid float literal '3.14abc'
+
+// ===== runtime str variable =====
+func test_runtime_str(s str) {
+    print(float64(s))
+}
+// CHECK: cannot convert a runtime str to 'float64', use 'to_float()' instead

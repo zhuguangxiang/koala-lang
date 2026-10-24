@@ -192,3 +192,38 @@ pub func pow_float64_int64(base float, exp int) float {}
 /// `pow_float64_float64(2.0, 10.0)`.
 @native
 pub func pow_float64_float64(base float, exp float) float {}
+
+/// Return `x` rounded to the nearest integer value (as a float).
+@native
+pub func round(x float) float {}
+
+/// Return the largest integer value less than or equal to `x` (as a float).
+@native
+pub func floor(x float) float {}
+
+/// Return the smallest integer value greater than or equal to `x` (as a float).
+@native
+pub func ceil(x float) float {}
+
+/// Return `(a / b, a % b)` as a tuple.
+///
+/// Panic if `divmod` is not implemented for the given type.
+pub func divmod[T](a T, b T) (T, T) {
+    panic("divmod is not implemented for this type")
+}
+
+/// Specialized implementation of `divmod()` for 64-bit signed integers.
+pub func divmod_int64(a int, b int) (int, int) {
+    return (a / b, a % b)
+}
+
+/// Specialized implementation of `divmod()` for 64-bit floating-point numbers.
+///
+/// Returns `(q, r)` such that `a = q * b + r` and `q = floor(a / b)`.
+/// This matches Python's `divmod` behavior (floor division).
+/// The remainder `r` has the same sign as the divisor `b`.
+pub func divmod_float64(a float, b float) (float, float) {
+    let q = floor(a / b)
+    let r = a - q * b
+    return (q, r)
+}

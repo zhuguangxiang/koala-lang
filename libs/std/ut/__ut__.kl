@@ -195,6 +195,27 @@ pub func assert_float_close(a float, b float, eps float = 1e-9) {
     }
 }
 
+/// Assert that two `float` values `a` and `b` are exactly equal (`a == b`).
+///
+/// For practical floating-point comparisons where exact equality may fail due to
+/// rounding errors, prefer `assert_float_close` with an appropriate tolerance.
+///
+/// On failure, raises a panic displaying both values.
+pub func assert_float_eq(a float, b float) {
+    if a != b {
+        panic(format("assertion failed: {} != {}", a, b))
+    }
+}
+
+/// Assert that two `float` values `a` and `b` are not equal (`a != b`).
+///
+/// On failure, raises a panic displaying the value.
+pub func assert_float_ne(a float, b float) {
+    if a == b {
+        panic(format("assertion failed: {} == {}", a, b))
+    }
+}
+
 /// Assert that two `int` values `a` and `b` are equal (`a == b`).
 ///
 /// Thanks to Koala's type promotion system, smaller concrete unsigned integer types

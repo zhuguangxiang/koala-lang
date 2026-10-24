@@ -41,6 +41,9 @@ pub trait Bitwise[T] {
     func __bitnot__() T
 }
 
+// Byte order constants for to_bytes/from_bytes
+pub const BIG_ENDIAN = 0
+pub const LITTLE_ENDIAN = 1
 
 /// An 8-bit signed integer.
 ///
@@ -187,6 +190,40 @@ pub class int64 : Comparable & Arithmetic & Bitwise & ToString {
     /// Convert the `int64` value to its string form.
     @native
     pub func to_str() str {}
+
+    // Bit manipulation methods
+
+    /// Returns the number of bits required to represent `self`.
+    @native
+    pub func bit_length() int {}
+
+    /// Returns the number of 1-bits in the binary representation of `self`.
+    @native
+    pub func bit_count() int {}
+
+    /// Returns the number of trailing 0-bits in the binary representation of `self`.
+    @native
+    pub func bit_ctz() int {}
+
+    /// Returns the number of leading 0-bits in the binary representation of `self`.
+    @native
+    pub func bit_clz() int {}
+
+    /// Returns the position of the first set bit (1-indexed), or 0 if `self` is 0.
+    @native
+    pub func bit_ffs() int {}
+
+    /// Returns the value with bits reversed (bit 0 swaps with bit 63, etc.).
+    @native
+    pub func bit_reverse() int {}
+
+    /// Converts `self` to a byte array of the specified `length` and `byteorder`.
+    @native
+    pub func to_bytes(length int, byteorder int) bytes {}
+
+    /// Creates an `int64` from a byte array with the specified `byteorder`.
+    @native
+    pub static func from_bytes(b bytes, byteorder int) int64 {}
 }
 
 /// An 8-bit unsigned integer.
@@ -330,6 +367,40 @@ pub class uint64 : Comparable & Arithmetic & Bitwise & ToString {
     /// Convert the `uint64` value to its string form.
     @native
     pub func to_str() str {}
+
+    // Bit manipulation methods
+
+    /// Returns the number of bits required to represent `self`.
+    @native
+    pub func bit_length() int {}
+
+    /// Returns the number of 1-bits in the binary representation of `self`.
+    @native
+    pub func bit_count() int {}
+
+    /// Returns the number of trailing 0-bits in the binary representation of `self`.
+    @native
+    pub func bit_ctz() int {}
+
+    /// Returns the number of leading 0-bits in the binary representation of `self`.
+    @native
+    pub func bit_clz() int {}
+
+    /// Returns the position of the first set bit (1-indexed), or 0 if `self` is 0.
+    @native
+    pub func bit_ffs() int {}
+
+    /// Returns the value with bits reversed (bit 0 swaps with bit 63, etc.).
+    @native
+    pub func bit_reverse() int {}
+
+    /// Converts `self` to a byte array of the specified `length` and `byteorder`.
+    @native
+    pub func to_bytes(length int, byteorder int) bytes {}
+
+    /// Creates a `uint64` from a byte array with the specified `byteorder`.
+    @native
+    pub static func from_bytes(b bytes, byteorder int) uint64 {}
 }
 
 /// A 16-bit floating-point number (half precision).
@@ -430,30 +501,6 @@ pub class float64 : Comparable & Arithmetic & ToString {
     @native
     pub func hash() int {}
 
-    /// Returns the smallest integer greater than or equal to `self`.
-    @native
-    pub func ceil() float64 {}
-
-    /// Returns the largest integer less than or equal to `self`.
-    @native
-    pub func floor() float64 {}
-
-    /// Returns the nearest integer to `self`.
-    @native
-    pub func round() float64 {}
-
-    /// Returns the square root of `self`.
-    @native
-    pub func sqrt() float64 {}
-
-    /// Returns `true` if `self` is NaN (not a number).
-    @native
-    pub func is_nan() bool {}
-
-    /// Returns `true` if `self` is positive or negative infinity.
-    @native
-    pub func is_inf() bool {}
-
     /// Format the `float64` value for display.
     @native
     pub func fmt(f Formatter) {}
@@ -468,6 +515,14 @@ pub class float64 : Comparable & Arithmetic & ToString {
     /// readability, which cannot name every `float64`.
     @native
     pub func to_str_exact() str {}
+
+    /// Returns `true` if `self` is an integer value.
+    @native
+    pub func is_integer() bool {}
+
+    /// Returns a pair (numerator, denominator) such that `self = numerator / denominator`.
+    @native
+    pub func as_integer_ratio() (int64, int64) {}
 }
 
 /// A 16-bit brain floating-point type (bfloat16).

@@ -192,6 +192,45 @@ static TValue builtin_pow_float64_float64(TValue *self, TValue *args, int nargs)
     return float64_value(pow(base, exp));
 }
 
+/*
+func round(x float) float
+
+Return `x` rounded to the nearest integer value (as a float).
+Routes directly to the C math library's round().
+*/
+static TValue builtin_round(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double x = kl_arg_float(0);
+    return float64_value(round(x));
+}
+
+/*
+func floor(x float) float
+
+Return the largest integer value less than or equal to `x` (as a float).
+Routes directly to the C math library's floor().
+*/
+static TValue builtin_floor(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double x = kl_arg_float(0);
+    return float64_value(floor(x));
+}
+
+/*
+func ceil(x float) float
+
+Return the smallest integer value greater than or equal to `x` (as a float).
+Routes directly to the C math library's ceil().
+*/
+static TValue builtin_ceil(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    double x = kl_arg_float(0);
+    return float64_value(ceil(x));
+}
+
 static MethodDef builtin_functions[] = {
     { "panic", builtin_panic },
     { "unreachable", builtin_unreachable },
@@ -200,6 +239,9 @@ static MethodDef builtin_functions[] = {
     { "pow_int64_int64", builtin_pow_int64_int64 },
     { "pow_float64_int64", builtin_pow_float64_int64 },
     { "pow_float64_float64", builtin_pow_float64_float64 },
+    { "round", builtin_round },
+    { "floor", builtin_floor },
+    { "ceil", builtin_ceil },
     { NULL },
 };
 

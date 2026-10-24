@@ -4,7 +4,8 @@
  */
 
 #include <math.h>
-#include "object.h"
+#include "excobj.h"
+#include "tupleobj.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -171,46 +172,68 @@ static TValue _float_ne(TValue *self, TValue *args, int nargs)
     return bool_value(a != b);
 }
 
-/* Returns the smallest integer greater than or equal to `self`. */
-static TValue _float_ceil(TValue *self, TValue *args, int nargs)
+//
+// Float utility methods
+//
+
+/* Returns true if `self` is an integer value. */
+static TValue _float_is_integer(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 0);
-    return float64_value(ceil(to_raw_float(self)));
+    double val = to_raw_float(self);
+    if (isnan(val) || isinf(val)) {
+        return bool_value(0);
+    }
+    return bool_value(val == floor(val));
 }
 
-/* Returns the largest integer less than or equal to `self`. */
-static TValue _float_floor(TValue *self, TValue *args, int nargs)
+/* Returns (numerator, denominator) such that self = numerator / denominator. */
+static TValue _float_as_integer_ratio(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 0);
-    return float64_value(floor(to_raw_float(self)));
-}
+    double val = to_raw_float(self);
 
-/* Returns the nearest integer to `self` (half-way cases away from zero). */
-static TValue _float_round(TValue *self, TValue *args, int nargs)
-{
-    ASSERT(nargs == 0);
-    return float64_value(round(to_raw_float(self)));
-}
+    if (isnan(val) || isinf(val)) {
+        raise_exc_str("as_integer_ratio: cannot convert NaN or Infinity");
+        return error_value;
+    }
 
-/* Returns the square root of `self` (NaN for negative values). */
-static TValue _float_sqrt(TValue *self, TValue *args, int nargs)
-{
-    ASSERT(nargs == 0);
-    return float64_value(sqrt(to_raw_float(self)));
-}
+    if (val == 0.0) {
+        // Return (0, 1)
+        TValue tuple[2];
+        tuple[0] = int64_value(0);
+        tuple[1] = int64_value(1);
+        Object *tobj = kl_new_tuple(tuple, 2);
+        return obj_value(tobj);
+    }
 
-/* Returns true if `self` is NaN (not a number). */
-static TValue _float_is_nan(TValue *self, TValue *args, int nargs)
-{
-    ASSERT(nargs == 0);
-    return bool_value(isnan(to_raw_float(self)));
-}
+    // Use Python's algorithm based on frexp
+    int exp;
+    double mantissa = frexp(val, &exp);
 
-/* Returns true if `self` is positive or negative infinity. */
-static TValue _float_is_inf(TValue *self, TValue *args, int nargs)
-{
-    ASSERT(nargs == 0);
-    return bool_value(isinf(to_raw_float(self)));
+    // mantissa is in [0.5, 1.0), multiply by 2^53 to get integer
+    int64_t numerator = (int64_t)(mantissa * 9007199254740992.0); // 2^53
+    int exp_shift = exp - 53;
+
+    int64_t denominator;
+    if (exp_shift >= 0) {
+        numerator <<= exp_shift;
+        denominator = 1;
+    } else {
+        denominator = 1LL << (-exp_shift);
+    }
+
+    // Simplify by removing common factors of 2
+    while ((numerator & 1) == 0 && (denominator & 1) == 0 && denominator > 1) {
+        numerator >>= 1;
+        denominator >>= 1;
+    }
+
+    TValue tuple[2];
+    tuple[0] = int64_value(numerator);
+    tuple[1] = int64_value(denominator);
+    Object *tobj = kl_new_tuple(tuple, 2);
+    return obj_value(tobj);
 }
 
 static MethodDef float_methods[] = {
@@ -219,13 +242,9 @@ static MethodDef float_methods[] = {
     { "hash", _float_hash },
     { "__eq__", _float_eq },
     { "__ne__", _float_ne },
-    { "ceil", _float_ceil },
-    { "floor", _float_floor },
-    { "round", _float_round },
-    { "sqrt", _float_sqrt },
-    { "is_nan", _float_is_nan },
-    { "is_inf", _float_is_inf },
     { "to_str_exact", _float_to_str_exact },
+    { "is_integer", _float_is_integer },
+    { "as_integer_ratio", _float_as_integer_ratio },
     { NULL },
 };
 

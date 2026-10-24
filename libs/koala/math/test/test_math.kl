@@ -1,0 +1,160 @@
+// RUN: koala --test %s
+
+// Unit tests for the math package (libs/koala/math).
+
+import "std/ut"
+import "koala/math"
+
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
+
+@test
+func test_constants() {
+    ut.assert_float_close(math.PI, 3.14159265358979323846, 1e-15)
+    ut.assert_float_close(math.E, 2.71828182845904523536, 1e-15)
+}
+
+// -----------------------------------------------------------------------------
+// Power and root functions
+// -----------------------------------------------------------------------------
+
+@test
+func test_sqrt() {
+    ut.assert_float_eq(math.sqrt(4.0), 2.0)
+    ut.assert_float_eq(math.sqrt(9.0), 3.0)
+    ut.assert_float_eq(math.sqrt(2.0), 1.4142135623730951)
+    ut.assert_float_eq(math.sqrt(0.0), 0.0)
+}
+
+@test
+func test_pow() {
+    ut.assert_float_eq(math.pow(2.0, 3.0), 8.0)
+    ut.assert_float_eq(math.pow(3.0, 2.0), 9.0)
+    ut.assert_float_eq(math.pow(2.0, 0.5), 1.4142135623730951)
+    ut.assert_float_eq(math.pow(10.0, 0.0), 1.0)
+}
+
+// -----------------------------------------------------------------------------
+// Trigonometric functions
+// -----------------------------------------------------------------------------
+
+@test
+func test_sin() {
+    ut.assert_float_close(math.sin(0.0), 0.0, 1e-9)
+    ut.assert_float_close(math.sin(math.PI / float(2)), 1.0, 1e-9)
+    ut.assert_float_close(math.sin(math.PI), 0.0, 1e-9)
+    ut.assert_float_close(math.sin(float(3) * math.PI / float(2)), -1.0, 1e-9)
+}
+
+@test
+func test_cos() {
+    ut.assert_float_close(math.cos(0.0), 1.0, 1e-9)
+    ut.assert_float_close(math.cos(math.PI / float(2)), 0.0, 1e-9)
+    ut.assert_float_close(math.cos(math.PI), -1.0, 1e-9)
+    ut.assert_float_close(math.cos(float(3) * math.PI / float(2)), 0.0, 1e-9)
+}
+
+@test
+func test_tan() {
+    ut.assert_float_close(math.tan(0.0), 0.0, 1e-9)
+    ut.assert_float_close(math.tan(math.PI / float(4)), 1.0, 1e-9)
+    ut.assert_float_close(math.tan(-math.PI / float(4)), -1.0, 1e-9)
+}
+
+@test
+func test_asin() {
+    ut.assert_float_close(math.asin(0.0), 0.0, 1e-9)
+    ut.assert_float_close(math.asin(1.0), math.PI / float(2), 1e-9)
+    ut.assert_float_close(math.asin(-1.0), -math.PI / float(2), 1e-9)
+    ut.assert_float_close(math.asin(0.5), math.PI / float(6), 1e-9)
+}
+
+@test
+func test_acos() {
+    ut.assert_float_close(math.acos(1.0), 0.0, 1e-9)
+    ut.assert_float_close(math.acos(0.0), math.PI / float(2), 1e-9)
+    ut.assert_float_close(math.acos(-1.0), math.PI, 1e-9)
+}
+
+@test
+func test_atan() {
+    ut.assert_float_close(math.atan(0.0), 0.0, 1e-9)
+    ut.assert_float_close(math.atan(1.0), math.PI / float(4), 1e-9)
+    ut.assert_float_close(math.atan(-1.0), -math.PI / float(4), 1e-9)
+}
+
+@test
+func test_atan2() {
+    ut.assert_float_close(math.atan2(0.0, 1.0), 0.0, 1e-9)
+    ut.assert_float_close(math.atan2(1.0, 0.0), math.PI / float(2), 1e-9)
+    ut.assert_float_close(math.atan2(0.0, -1.0), math.PI, 1e-9)
+    ut.assert_float_close(math.atan2(-1.0, 0.0), -math.PI / float(2), 1e-9)
+    ut.assert_float_close(math.atan2(1.0, 1.0), math.PI / float(4), 1e-9)
+}
+
+// -----------------------------------------------------------------------------
+// Exponential and logarithmic functions
+// -----------------------------------------------------------------------------
+
+@test
+func test_exp() {
+    ut.assert_float_close(math.exp(0.0), 1.0, 1e-9)
+    ut.assert_float_close(math.exp(1.0), math.E, 1e-9)
+    ut.assert_float_close(math.exp(2.0), math.E * math.E, 1e-9)
+}
+
+@test
+func test_log() {
+    ut.assert_float_close(math.log(1.0), 0.0, 1e-9)
+    ut.assert_float_close(math.log(math.E), 1.0, 1e-9)
+    ut.assert_float_close(math.log(math.E * math.E), 2.0, 1e-9)
+}
+
+@should_panic("math.log: non-positive input")
+func test_log_non_positive() {
+    math.log(0.0)
+}
+
+@test
+func test_log10() {
+    ut.assert_float_close(math.log10(1.0), 0.0, 1e-9)
+    ut.assert_float_close(math.log10(10.0), 1.0, 1e-9)
+    ut.assert_float_close(math.log10(100.0), 2.0, 1e-9)
+}
+
+@should_panic("math.log10: non-positive input")
+func test_log10_non_positive() {
+    math.log10(-1.0)
+}
+
+@test
+func test_log2() {
+    ut.assert_float_close(math.log2(1.0), 0.0, 1e-9)
+    ut.assert_float_close(math.log2(2.0), 1.0, 1e-9)
+    ut.assert_float_close(math.log2(8.0), 3.0, 1e-9)
+}
+
+@should_panic("math.log2: non-positive input")
+func test_log2_non_positive() {
+    math.log2(0.0)
+}
+
+// -----------------------------------------------------------------------------
+// Predicate functions
+// -----------------------------------------------------------------------------
+
+@test
+func test_isnan() {
+    ut.assert_true(math.isnan(math.NAN))
+    ut.assert_false(math.isnan(1.0))
+    ut.assert_false(math.isnan(math.INF))
+}
+
+@test
+func test_isinf() {
+    ut.assert_true(math.isinf(math.INF))
+    ut.assert_true(math.isinf(-math.INF))
+    ut.assert_false(math.isinf(1.0))
+    ut.assert_false(math.isinf(math.NAN))
+}

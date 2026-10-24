@@ -1,0 +1,69 @@
+// RUN: koala %s | filecheck %s
+
+// Tests for static methods:
+//  1. defined in the current module, implemented in koala
+//  2. defined in the current module, implemented in C (@native)
+//  3. defined in an external module, implemented in koala
+//  4. defined in an external module, implemented in C (@native)
+//  5. defined in std/builtin, implemented in C (@native)
+
+import "test_pkg/pkg1" as zz
+
+link "pkg1_native"
+
+class MathUtil {
+    let base int
+
+    pub func __init__(b int) {
+        base = b
+    }
+
+    pub func add_base(v int) int {
+        return base + v
+    }
+
+    // (1) static method implemented in koala (current module)
+    pub static func add(a int, b int) int {
+        return a + b
+    }
+
+    // static method can create and return instances
+    pub static func zero() MathUtil {
+        return MathUtil(0)
+    }
+}
+
+// (2) static method implemented in C (current module, see pkg1_native_impl.c)
+class NativeUtil {
+    @native
+    pub static func magic_mul(a int, b int) int {}
+}
+
+func main() {
+    // (1) current module, koala impl
+    print(MathUtil.add(1, 2))
+    print(MathUtil.zero().add_base(7))
+
+    // (2) current module, C impl
+    print(NativeUtil.magic_mul(6, 7))
+
+    // (3) external module, koala impl
+    let p = zz.Point.origin()
+    p.show()
+
+    // (4) external module, C impl
+    print(zz.NativeMath.magic_add(10, 20))
+
+    // (5) builtin type, C impl (int64.from_bytes in std/builtin)
+    let b = 258.to_bytes(2, BIG_ENDIAN)
+    print(int64.from_bytes(b, BIG_ENDIAN))
+    print(int64.from_bytes(b, LITTLE_ENDIAN))
+}
+
+// CHECK: 3
+// CHECK: 7
+// CHECK: 42
+// CHECK: Point(0, 0)
+// CHECK: 30
+// CHECK: 258
+// CHECK: 513

@@ -300,8 +300,13 @@ static TValue kl_call_cfunc(Object *code, TValue *args, int nargs)
     }
 
     ASSERT(IS_TYPE(owner, &type_type));
-    ASSERT(nargs >= 1);
     ASSERT(!cfunc->not_impl);
+    if (cfunc->is_static) {
+        /* static native method: caller passes no 'self', pass the owner type as self */
+        TValue tp_val = obj_value(owner);
+        return cfunc->func(&tp_val, args, nargs);
+    }
+    ASSERT(nargs >= 1);
     return cfunc->func(args, args + 1, nargs - 1);
 }
 

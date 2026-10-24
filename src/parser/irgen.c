@@ -3,6 +3,9 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <stdlib.h>
+#include <string.h>
+
 #include "atom.h"
 #include "cmd.h"
 #include "parser.h"
@@ -439,7 +442,32 @@ static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **ar
     NYI();
 }
 
-static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **args, int nargs)
+// Parse a string literal as a float constant for `float64("...")` style
+// conversions. The literal is validated at compile time, so the folded
+// float constant can be passed directly without any runtime conversion.
+// Like float literals in source code, "inf"/"-inf"/"nan" spellings are
+// accepted and overflow (e.g. "1e400") folds to +/-inf (strtod semantics).
+// Returns 1 on success, 0 if the literal is not a valid float.
+static int parse_str_to_float(const char *buf, int len, double *out)
+{
+    if (len <= 0 || len >= 256) return 0;
+
+    char tmp[256];
+    memcpy(tmp, buf, len);
+    tmp[len] = '\0';
+
+    char *endptr = NULL;
+    double val = strtod(tmp, &endptr);
+
+    // strict mode: must consume all characters
+    if (endptr != tmp + len) return 0;
+
+    *out = val;
+    return 1;
+}
+
+static KlrValue *emit_float_call(ParserState *ps, KlrBuilder *bldr, KlrValue *callee,
+                                 KlrValue **args, int nargs, Expr *e)
 {
     ASSERT(nargs == 1);
     KlrValue *arg = args[0];
@@ -451,7 +479,33 @@ static KlrValue *emit_float_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **
         return ret;
     }
 
-    NYI();
+    // str -> float only supports string literals: validate the literal at
+    // compile time, then fold it into a float constant and pass it directly.
+    // Runtime strings should use the native methods 'to_float()'/'to_float_or()'.
+    if (!klr_is_const(arg) || ((KlrConst *)arg)->which != CONST_STR) {
+        BUF(buf);
+        type_spec_print(ts, &buf);
+        kl_error(e->loc, "cannot convert a runtime str to '%s', use 'to_float()' instead",
+                 BUF_STR(buf));
+        FINI_BUF(buf);
+        return klr_const_float(0.0, ts, MOD);
+    }
+
+    KlrConst *c = (KlrConst *)arg;
+    double val = 0.0;
+    if (!parse_str_to_float(c->sval, c->len, &val)) {
+        kl_error(e->loc, "invalid float literal '%.*s'", c->len, c->sval);
+        return klr_const_float(0.0, ts, MOD);
+    }
+
+    // narrow to the target float width, same as runtime float casts
+    if (ts->int_flt_info.width == 4) {
+        val = (double)(float)val;
+    } else if (ts->int_flt_info.width == 2) {
+        val = (double)(_Float16)val;
+    }
+
+    return klr_const_float(val, ts, MOD);
 }
 
 static KlrValue *emit_str_call(KlrBuilder *bldr, KlrValue **args, int nargs)
@@ -578,7 +632,7 @@ static KlrValue *emit_type_call(ParserState *ps, KlrValue *callee, KlrValue *ini
     if (ts->kind == TYPE_INT) {
         ret = emit_int_call(&bldr, callee, args, nargs);
     } else if (ts->kind == TYPE_FLOAT) {
-        ret = emit_float_call(&bldr, callee, args, nargs);
+        ret = emit_float_call(ps, &bldr, callee, args, nargs, e);
     } else if (type_is_str(ts)) {
         ret = emit_str_call(&bldr, args, nargs);
     } else if (type_is_range(ts)) {

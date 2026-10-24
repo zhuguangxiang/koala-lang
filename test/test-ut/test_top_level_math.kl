@@ -1,0 +1,144 @@
+// RUN: koala --test %s
+
+// Unit tests for top-level math functions added on 2026-10-24:
+//   - round(x: float) -> float: Rust style, returns float
+//   - floor(x: float) -> float: floor function
+//   - ceil(x: float) -> float: ceiling function
+//   - divmod[T](a T, b T) -> (T, T): generic shell + int64/float64 specializations
+
+import "std/ut"
+
+// -----------------------------------------------------------------------------
+// round: top-level function (Rust style, returns float)
+// -----------------------------------------------------------------------------
+
+@test
+func test_round_positive() {
+    ut.assert_float_eq(round(3.7), 4.0)
+    ut.assert_float_eq(round(3.2), 3.0)
+    ut.assert_float_eq(round(3.5), 4.0)  // half away from zero
+    ut.assert_float_eq(round(0.5), 1.0)
+    ut.assert_float_eq(round(0.4), 0.0)
+    ut.assert_float_eq(round(0.0), 0.0)
+}
+
+@test
+func test_round_negative() {
+    ut.assert_float_eq(round(-3.7), -4.0)
+    ut.assert_float_eq(round(-3.2), -3.0)
+    ut.assert_float_eq(round(-3.5), -4.0)  // half away from zero
+    ut.assert_float_eq(round(-0.5), -1.0)
+    ut.assert_float_eq(round(-0.4), 0.0)
+}
+
+@test
+func test_round_large_values() {
+    ut.assert_float_eq(round(100.9), 101.0)
+    ut.assert_float_eq(round(-100.9), -101.0)
+    ut.assert_float_eq(round(1e10 + 0.5), 1e10 + 1.0)
+}
+
+// -----------------------------------------------------------------------------
+// ceil: top-level function (returns float)
+// -----------------------------------------------------------------------------
+
+@test
+func test_ceil_positive() {
+    ut.assert_float_eq(ceil(3.2), 4.0)
+    ut.assert_float_eq(ceil(3.7), 4.0)
+    ut.assert_float_eq(ceil(3.0), 3.0)
+    ut.assert_float_eq(ceil(0.1), 1.0)
+    ut.assert_float_eq(ceil(0.0), 0.0)
+}
+
+@test
+func test_ceil_negative() {
+    ut.assert_float_eq(ceil(-3.7), -3.0)
+    ut.assert_float_eq(ceil(-3.2), -3.0)
+    ut.assert_float_eq(ceil(-3.0), -3.0)
+    ut.assert_float_eq(ceil(-0.1), 0.0)
+}
+
+// -----------------------------------------------------------------------------
+// divmod: top-level generic function with int64/float64 specializations
+// -----------------------------------------------------------------------------
+
+@test
+func test_divmod_int64_basic() {
+    let result1 = divmod(7, 3)
+    ut.assert_int_eq(result1[0], 2)
+    ut.assert_int_eq(result1[1], 1)
+    
+    let result2 = divmod(10, 2)
+    ut.assert_int_eq(result2[0], 5)
+    ut.assert_int_eq(result2[1], 0)
+    
+    let result3 = divmod(0, 5)
+    ut.assert_int_eq(result3[0], 0)
+    ut.assert_int_eq(result3[1], 0)
+}
+
+@test
+func test_divmod_int64_negative() {
+    // C division truncates toward zero
+    let result1 = divmod(-7, 3)
+    ut.assert_int_eq(result1[0], -2)  // quotient
+    ut.assert_int_eq(result1[1], -1)  // remainder
+    
+    let result2 = divmod(7, -3)
+    ut.assert_int_eq(result2[0], -2)
+    ut.assert_int_eq(result2[1], 1)
+    
+    let result3 = divmod(-7, -3)
+    ut.assert_int_eq(result3[0], 2)
+    ut.assert_int_eq(result3[1], -1)
+}
+
+@test
+func test_divmod_float64_basic() {
+    let result1 = divmod(7.5, 2.5)
+    ut.assert_float_eq(result1[0], 3.0)  // floor(7.5 / 2.5) = floor(3.0) = 3.0
+    ut.assert_float_eq(result1[1], 0.0)  // 7.5 - 3.0 * 2.5 = 0.0
+    
+    // Python-style divmod uses floor division
+    let result2 = divmod(7.5, 2.0)
+    ut.assert_float_eq(result2[0], 3.0)  // floor(7.5 / 2.0) = floor(3.75) = 3.0
+    ut.assert_float_eq(result2[1], 1.5)  // 7.5 - 3.0 * 2.0 = 1.5
+    
+    let result3 = divmod(10.0, 3.0)
+    ut.assert_float_eq(result3[0], 3.0)  // floor(10.0 / 3.0) = floor(3.333...) = 3.0
+    ut.assert_float_close(result3[1], 1.0, 1e-9)  // 10.0 - 3.0 * 3.0 = 1.0
+}
+
+@test
+func test_divmod_float64_negative() {
+    // Python-style divmod: floor division, remainder has same sign as divisor
+    let result1 = divmod(-7.5, 2.5)
+    ut.assert_float_eq(result1[0], -3.0)  // floor(-7.5 / 2.5) = floor(-3.0) = -3.0
+    ut.assert_float_eq(result1[1], 0.0)   // -7.5 - (-3.0) * 2.5 = 0.0
+    
+    let result2 = divmod(7.5, -2.5)
+    ut.assert_float_eq(result2[0], -3.0)  // floor(7.5 / -2.5) = floor(-3.0) = -3.0
+    ut.assert_float_eq(result2[1], 0.0)   // 7.5 - (-3.0) * (-2.5) = 0.0
+}
+
+// -----------------------------------------------------------------------------
+// Verify that round and divmod coexist with existing functions
+// -----------------------------------------------------------------------------
+
+@test
+func test_coexistence_with_abs_pow() {
+    // round should work alongside abs and pow
+    let x = -3.7
+    let rounded = round(x)
+    let absolute = abs(rounded)
+    ut.assert_float_eq(absolute, 4.0)
+    
+    // divmod should work alongside pow
+    let result = divmod(10, 3)
+    let q = result[0]
+    let r = result[1]
+    let power = pow(q, 2)
+    let final = power + r  // 3^2 + 1 = 10
+    ut.assert_int_eq(final, 10)
+}

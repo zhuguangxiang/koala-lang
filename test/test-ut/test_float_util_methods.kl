@@ -1,0 +1,105 @@
+// RUN: koala --test %s
+
+// Unit tests for float64 utility methods.
+
+import "std/ut"
+
+//
+// is_integer
+//
+
+@test
+func test_is_integer_true() {
+    ut.assert_true(0.0.is_integer())
+    ut.assert_true(1.0.is_integer())
+    ut.assert_true((-1.0).is_integer())
+    ut.assert_true(3.0.is_integer())
+    ut.assert_true(100.0.is_integer())
+    ut.assert_true((-0.0).is_integer())
+}
+
+@test
+func test_is_integer_false() {
+    ut.assert_false(0.5.is_integer())
+    ut.assert_false(1.5.is_integer())
+    ut.assert_false((-2.3).is_integer())
+    ut.assert_true(3.14159.is_integer() == false)
+}
+
+@test
+func test_is_integer_special() {
+    ut.assert_false(float64("inf").is_integer())
+    ut.assert_false(float64("-inf").is_integer())
+    ut.assert_false(float64("nan").is_integer())
+}
+
+//
+// as_integer_ratio
+//
+
+@test
+func test_as_integer_ratio_zero() {
+    let r = 0.0.as_integer_ratio()
+    ut.assert_int_eq(r[0], 0)
+    ut.assert_int_eq(r[1], 1)
+}
+
+@test
+func test_as_integer_ratio_one() {
+    let r = 1.0.as_integer_ratio()
+    ut.assert_int_eq(r[0], 1)
+    ut.assert_int_eq(r[1], 1)
+}
+
+@test
+func test_as_integer_ratio_half() {
+    let r = 0.5.as_integer_ratio()
+    ut.assert_int_eq(r[0], 1)
+    ut.assert_int_eq(r[1], 2)
+}
+
+@test
+func test_as_integer_ratio_quarter() {
+    let r = 0.25.as_integer_ratio()
+    ut.assert_int_eq(r[0], 1)
+    ut.assert_int_eq(r[1], 4)
+}
+
+@test
+func test_as_integer_ratio_three_halves() {
+    let r = 1.5.as_integer_ratio()
+    ut.assert_int_eq(r[0], 3)
+    ut.assert_int_eq(r[1], 2)
+}
+
+@test
+func test_as_integer_ratio_negative() {
+    let r = (-2.5).as_integer_ratio()
+    ut.assert_int_eq(r[0], -5)
+    ut.assert_int_eq(r[1], 2)
+}
+
+@test
+func test_as_integer_ratio_large() {
+    let r = 100.0.as_integer_ratio()
+    ut.assert_int_eq(r[0], 100)
+    ut.assert_int_eq(r[1], 1)
+}
+
+@test
+func test_as_integer_ratio_small() {
+    let r = 0.125.as_integer_ratio()
+    ut.assert_int_eq(r[0], 1)
+    ut.assert_int_eq(r[1], 8)
+}
+
+@test
+func test_as_integer_ratio_verify() {
+    // Verify that numerator / denominator == original value
+    let values = [0.5, 1.5, 2.25, 0.125, 100.0, 0.0625]
+    for v in values {
+        let r = v.as_integer_ratio()
+        let reconstructed = float64(r[0]) / float64(r[1])
+        ut.assert_float_eq(reconstructed, v)
+    }
+}

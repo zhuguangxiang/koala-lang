@@ -9,10 +9,11 @@
 //   * The duplicated methods int64.pow/abs/to_float, uint64.pow/to_float and
 //     float64.pow/to_int/abs were REMOVED; numeric constructors (int64(x),
 //     float64(x)) are the only conversion path.
-//   * Remaining float64 methods (ceil/floor/round/sqrt/is_nan/is_inf) are
-//     covered here as well.
+//   * float64 methods ceil/floor/round/sqrt/is_nan/is_inf were REMOVED;
+//     use top-level ceil/floor/round and math.sqrt/isnan/isinf instead.
 
 import "std/ut"
+import "koala/math"
 
 // -----------------------------------------------------------------------------
 // pow: int64 instantiation (binary exponentiation, wrapping overflow)
@@ -72,7 +73,7 @@ func test_pow_float64_int64() {
     // Negative exponent takes the reciprocal.
     ut.assert(pow(2.0, -2) == 0.25)
     // 0.0 raised to a negative power -> +inf.
-    ut.assert_true(pow(0.0, -1).is_inf())
+    ut.assert_true(math.isinf(pow(0.0, -1)))
 }
 
 // -----------------------------------------------------------------------------
@@ -85,7 +86,7 @@ func test_pow_float64_float64() {
     ut.assert_float_close(pow(9.0, 0.5), 3.0)
     ut.assert(pow(2.0, 1.0) == 2.0)
     // (-1.0)^0.5 is NaN (C pow semantics).
-    ut.assert_true(pow(-1.0, 0.5).is_nan())
+    ut.assert_true(math.isnan(pow(-1.0, 0.5)))
 }
 
 // -----------------------------------------------------------------------------
@@ -119,57 +120,60 @@ func test_abs_runtime_args() {
 }
 
 // -----------------------------------------------------------------------------
-// Remaining float64 methods
+// Top-level ceil/floor/round and math.sqrt/isnan/isinf
 // -----------------------------------------------------------------------------
 
 @test
-func test_float64_ceil() {
-    ut.assert((2.3).ceil() == 3.0)
-    ut.assert((-2.3).ceil() == -2.0)
-    ut.assert((2.0).ceil() == 2.0)
-    ut.assert((-2.0).ceil() == -2.0)
+func test_ceil() {
+    ut.assert(ceil(2.3) == 3.0)
+    ut.assert(ceil(-2.3) == -2.0)
+    ut.assert(ceil(2.0) == 2.0)
+    ut.assert(ceil(-2.0) == -2.0)
 }
 
 @test
-func test_float64_floor() {
-    ut.assert((2.7).floor() == 2.0)
-    ut.assert((-2.7).floor() == -3.0)
-    ut.assert((2.0).floor() == 2.0)
-    ut.assert((-2.0).floor() == -2.0)
+func test_floor() {
+    ut.assert(floor(2.7) == 2.0)
+    ut.assert(floor(-2.7) == -3.0)
+    ut.assert(floor(2.0) == 2.0)
+    ut.assert(floor(-2.0) == -2.0)
 }
 
 @test
-func test_float64_round() {
+func test_round() {
     // C round(): halves go away from zero.
-    ut.assert((2.5).round() == 3.0)
-    ut.assert((-2.5).round() == -3.0)
-    ut.assert((2.4).round() == 2.0)
-    ut.assert((-2.4).round() == -2.0)
+    ut.assert(round(2.5) == 3.0)
+    ut.assert(round(-2.5) == -3.0)
+    ut.assert(round(2.4) == 2.0)
+    ut.assert(round(-2.4) == -2.0)
 }
 
 @test
-func test_float64_sqrt() {
-    ut.assert((4.0).sqrt() == 2.0)
-    ut.assert((0.0).sqrt() == 0.0)
-    ut.assert_float_close((2.0).sqrt(), 1.414213562373095)
-    // sqrt of a negative value is NaN.
-    ut.assert_true((-1.0).sqrt().is_nan())
+func test_sqrt() {
+    ut.assert(math.sqrt(4.0) == 2.0)
+    ut.assert(math.sqrt(0.0) == 0.0)
+    ut.assert_float_close(math.sqrt(2.0), 1.414213562373095)
+}
+
+@should_panic("math.sqrt: negative input")
+func test_sqrt_negative() {
+    math.sqrt(-1.0)
 }
 
 @test
-func test_float64_is_nan() {
-    ut.assert_true((0.0 / 0.0).is_nan())
-    ut.assert_false((1.0).is_nan())
-    ut.assert_false((0.0).is_nan())
-    ut.assert_false((1.0 / 0.0).is_nan())
+func test_isnan() {
+    ut.assert_true(math.isnan(0.0 / 0.0))
+    ut.assert_false(math.isnan(1.0))
+    ut.assert_false(math.isnan(0.0))
+    ut.assert_false(math.isnan(1.0 / 0.0))
 }
 
 @test
-func test_float64_is_inf() {
-    ut.assert_true((1.0 / 0.0).is_inf())
-    ut.assert_true((-1.0 / 0.0).is_inf())
-    ut.assert_false((1.0).is_inf())
-    ut.assert_false((0.0 / 0.0).is_inf())
+func test_isinf() {
+    ut.assert_true(math.isinf(1.0 / 0.0))
+    ut.assert_true(math.isinf(-1.0 / 0.0))
+    ut.assert_false(math.isinf(1.0))
+    ut.assert_false(math.isinf(0.0 / 0.0))
 }
 
 @test

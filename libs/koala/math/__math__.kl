@@ -1,0 +1,126 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+link "koala"
+
+/// Mathematical constants and functions.
+///
+/// This package provides transcendental functions (sqrt, sin, cos, etc.),
+/// mathematical constants (PI, E), and predicate functions (isnan, isinf).
+/// All functions are implemented as native C routines.
+
+//
+// Constants
+//
+
+/// The mathematical constant π (pi) ≈ 3.14159265358979323846.
+pub const PI = 3.14159265358979323846
+
+/// The mathematical constant e (Euler's number) ≈ 2.71828182845904523536.
+pub const E = 2.71828182845904523536
+
+/// Positive infinity.
+pub let INF = 1.0 / 0.0
+
+/// Not a number (NaN).
+pub let NAN = 0.0 / 0.0
+
+//
+// Power and root functions
+//
+
+/// Return the square root of `x`.
+///
+/// Panic if `x` is negative.
+@native
+pub func sqrt(x float) float {}
+
+/// Return `x` raised to the power `y` (floating-point version).
+///
+/// Note: This is the floating-point power function. For integer exponentiation,
+/// use the top-level `pow(base, exp)` function.
+@native
+pub func pow(x float, y float) float {}
+
+//
+// Trigonometric functions
+//
+
+/// Return the sine of `x` (measured in radians).
+@native
+pub func sin(x float) float {}
+
+/// Return the cosine of `x` (measured in radians).
+@native
+pub func cos(x float) float {}
+
+/// Return the tangent of `x` (measured in radians).
+@native
+pub func tan(x float) float {}
+
+/// Return the arc sine of `x`, in radians.
+///
+/// The result is in the range [-π/2, π/2].
+/// Panic if `x` is not in the range [-1.0, 1.0].
+@native
+pub func asin(x float) float {}
+
+/// Return the arc cosine of `x`, in radians.
+///
+/// The result is in the range [0, π].
+/// Panic if `x` is not in the range [-1.0, 1.0].
+@native
+pub func acos(x float) float {}
+
+/// Return the arc tangent of `x`, in radians.
+///
+/// The result is in the range [-π/2, π/2].
+@native
+pub func atan(x float) float {}
+
+/// Return the arc tangent of `y/x`, in radians, using the signs of both
+/// arguments to determine the quadrant of the return value.
+///
+/// The result is in the range [-π, π].
+@native
+pub func atan2(y float, x float) float {}
+
+//
+// Exponential and logarithmic functions
+//
+
+/// Return e raised to the power `x`.
+@native
+pub func exp(x float) float {}
+
+/// Return the natural logarithm of `x` (base e).
+///
+/// Panic if `x` is negative or zero.
+@native
+pub func log(x float) float {}
+
+/// Return the base-10 logarithm of `x`.
+///
+/// Panic if `x` is negative or zero.
+@native
+pub func log10(x float) float {}
+
+/// Return the base-2 logarithm of `x`.
+///
+/// Panic if `x` is negative or zero.
+@native
+pub func log2(x float) float {}
+
+//
+// Predicate functions
+//
+
+/// Return `true` if `x` is NaN (not a number).
+@native
+pub func isnan(x float) bool {}
+
+/// Return `true` if `x` is positive or negative infinity.
+@native
+pub func isinf(x float) bool {}

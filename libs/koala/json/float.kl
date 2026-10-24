@@ -3,6 +3,8 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+import "koala/math"
+
 /// A JSON float value.
 ///
 /// JSON numbers with a fraction or an exponent are stored as floats.
@@ -34,10 +36,10 @@ pub class Float : Value {
 ///
 /// Panic if `v` is NaN or infinite.
 func format_number(v float) str {
-    if v.is_nan() {
+    if math.isnan(v) {
         panic("JSON cannot represent NaN")
     }
-    if v.is_inf() {
+    if math.isinf(v) {
         panic("JSON cannot represent infinity")
     }
 

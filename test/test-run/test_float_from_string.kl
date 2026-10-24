@@ -1,0 +1,64 @@
+// RUN: koala %s ++ --dump=code | filecheck %s
+
+// str -> float64 conversion is folded at compile time: the compiler
+// validates the string literal, then passes the float constant directly.
+// Special values (inf/-inf/nan) fold to interned tags (ret_tag), ordinary
+// values fold to constant pool entries (ret_const). No runtime conversion.
+
+func get_inf() float64 {
+    return float64("inf")
+}
+
+func get_ninf() float64 {
+    return float64("-inf")
+}
+
+func get_nan() float64 {
+    return float64("nan")
+}
+
+func get_pi() float64 {
+    return float64("3.14")
+}
+
+func main() {
+    print(float64("inf"))
+    print(float64("-inf"))
+    print(float64("nan"))
+    print(float64("3.14"))
+    print(float64("42"))
+    print(float64("1e400"))    // overflow folds to +inf, same as float literals
+    print(float64("INF"))      // spelling is case-insensitive
+
+    // special values are not integers
+    print(get_inf().is_integer())
+    print(get_ninf().is_integer())
+    print(get_nan().is_integer())
+
+    print(get_pi())
+}
+
+// CHECK-LABEL: ====== Linearization @get_inf(start_pc: 0, insns: 1) ======
+// CHECK: ret_tag #+inf
+
+// CHECK-LABEL: ====== Linearization @get_ninf(start_pc: 1, insns: 1) ======
+// CHECK: ret_tag #-inf
+
+// CHECK-LABEL: ====== Linearization @get_nan(start_pc: 2, insns: 1) ======
+// CHECK: ret_tag #NaN
+
+// CHECK-LABEL: ====== Linearization @get_pi(start_pc: 3, insns: 1) ======
+// CHECK: ret_const #0
+
+// CHECK-LABEL: Import Table:
+// CHECK: inf
+// CHECK: -inf
+// CHECK: nan
+// CHECK: 3.14
+// CHECK: 42
+// CHECK: inf
+// CHECK: inf
+// CHECK: false
+// CHECK: false
+// CHECK: false
+// CHECK: 3.14

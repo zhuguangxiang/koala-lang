@@ -348,6 +348,7 @@ typedef struct _CFuncObject {
     Object *owner;
     NativeFunc func;
     int not_impl;
+    int is_static; /* static method: caller passes no 'self' */
     char *name;
     void *priv;
 } CFuncObject;
@@ -491,9 +492,9 @@ static inline double to_raw_float(TValue *v)
     return v->fval;
 }
 
-static inline int to_raw_int(TValue *v)
+static inline int64_t to_raw_int(TValue *v)
 {
-    if (is_int(v)) return (int)v->ival;
+    if (is_int(v)) return v->ival;
 
     ASSERT(is_intf(v));
     IntfTable *itab = (IntfTable *)(v)->itab;
@@ -501,7 +502,20 @@ static inline int to_raw_int(TValue *v)
     TypeObject *tp = itab->tp;
     ASSERT(is_int_tag(tp->tag));
 
-    return (int)v->ival;
+    return v->ival;
+}
+
+static inline uint64_t to_raw_uint(TValue *v)
+{
+    if (is_uint(v)) return (uint64_t)v->ival;
+
+    ASSERT(is_intf(v));
+    IntfTable *itab = (IntfTable *)(v)->itab;
+    ASSERT(itab);
+    TypeObject *tp = itab->tp;
+    ASSERT(is_uint_tag(tp->tag));
+
+    return (uint64_t)v->ival;
 }
 
 // Interface object structure that holds a reference to the interface table and the actual object.

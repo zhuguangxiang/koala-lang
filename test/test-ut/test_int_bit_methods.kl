@@ -1,0 +1,184 @@
+// RUN: koala --test %s
+
+// Unit tests for int64 bit manipulation methods.
+
+import "std/ut"
+
+//
+// bit_length
+//
+
+@test
+func test_bit_length() {
+    ut.assert_int_eq(0.bit_length(), 0)
+    ut.assert_int_eq(1.bit_length(), 1)
+    ut.assert_int_eq(2.bit_length(), 2)
+    ut.assert_int_eq(3.bit_length(), 2)
+    ut.assert_int_eq(4.bit_length(), 3)
+    ut.assert_int_eq(7.bit_length(), 3)
+    ut.assert_int_eq(8.bit_length(), 4)
+    ut.assert_int_eq(255.bit_length(), 8)
+    ut.assert_int_eq(256.bit_length(), 9)
+    ut.assert_int_eq((-1).bit_length(), 1)
+    ut.assert_int_eq((-8).bit_length(), 4)
+}
+
+//
+// bit_count
+//
+
+@test
+func test_bit_count() {
+    ut.assert_int_eq(0.bit_count(), 0)
+    ut.assert_int_eq(1.bit_count(), 1)
+    ut.assert_int_eq(2.bit_count(), 1)
+    ut.assert_int_eq(3.bit_count(), 2)
+    ut.assert_int_eq(7.bit_count(), 3)
+    ut.assert_int_eq(8.bit_count(), 1)
+    ut.assert_int_eq(255.bit_count(), 8)
+    ut.assert_int_eq(0xFF.bit_count(), 8)
+    ut.assert_int_eq(0b10101010.bit_count(), 4)
+}
+
+//
+// ctz (count trailing zeros)
+//
+
+@test
+func test_bit_ctz() {
+    ut.assert_int_eq(0.bit_ctz(), 64)
+    ut.assert_int_eq(1.bit_ctz(), 0)
+    ut.assert_int_eq(2.bit_ctz(), 1)
+    ut.assert_int_eq(4.bit_ctz(), 2)
+    ut.assert_int_eq(8.bit_ctz(), 3)
+    ut.assert_int_eq(16.bit_ctz(), 4)
+    ut.assert_int_eq(0b1000.bit_ctz(), 3)
+    ut.assert_int_eq(0b1010.bit_ctz(), 1)
+}
+
+//
+// bit_clz (count leading zeros)
+//
+
+@test
+func test_bit_clz() {
+    ut.assert_int_eq(0.bit_clz(), 64)
+    ut.assert_int_eq(1.bit_clz(), 63)
+    ut.assert_int_eq(2.bit_clz(), 62)
+    ut.assert_int_eq(4.bit_clz(), 61)
+    ut.assert_int_eq(0x8000000000000000.bit_clz(), 0)
+    ut.assert_int_eq(0x4000000000000000.bit_clz(), 1)
+}
+
+//
+// bit_ffs (find first set, 1-indexed)
+//
+
+@test
+func test_bit_ffs() {
+    ut.assert_int_eq(0.bit_ffs(), 0)
+    ut.assert_int_eq(1.bit_ffs(), 1)
+    ut.assert_int_eq(2.bit_ffs(), 2)
+    ut.assert_int_eq(4.bit_ffs(), 3)
+    ut.assert_int_eq(8.bit_ffs(), 4)
+    ut.assert_int_eq(0b1010.bit_ffs(), 2)
+}
+
+//
+// bit_reverse
+//
+
+@test
+func test_bit_reverse() {
+    // 0 reversed is still 0
+    ut.assert_int_eq(0.bit_reverse(), 0)
+    
+    // 1 (bit 0 set) reversed should have bit 63 set
+    ut.assert_int_eq(1.bit_reverse(), 0x8000000000000000)
+    
+    // 0x8000000000000000 (bit 63 set) reversed should have bit 0 set
+    ut.assert_int_eq(0x8000000000000000.bit_reverse(), 1)
+    
+    // Double reverse should give back the original
+    let x = 0x123456789ABCDEF0
+    ut.assert_int_eq(x.bit_reverse().bit_reverse(), x)
+}
+
+//
+// to_bytes
+//
+
+@test
+func test_to_bytes_big_endian() {
+    let b1 = 258.to_bytes(2, BIG_ENDIAN)
+    ut.assert_int_eq(b1[0], 1)
+    ut.assert_int_eq(b1[1], 2)
+    
+    let b2 = 0x12345678.to_bytes(4, BIG_ENDIAN)
+    ut.assert_int_eq(b2[0], 0x12)
+    ut.assert_int_eq(b2[1], 0x34)
+    ut.assert_int_eq(b2[2], 0x56)
+    ut.assert_int_eq(b2[3], 0x78)
+}
+
+@test
+func test_to_bytes_little_endian() {
+    let b1 = 258.to_bytes(2, LITTLE_ENDIAN)
+    ut.assert_int_eq(b1[0], 2)
+    ut.assert_int_eq(b1[1], 1)
+    
+    let b2 = 0x12345678.to_bytes(4, LITTLE_ENDIAN)
+    ut.assert_int_eq(b2[0], 0x78)
+    ut.assert_int_eq(b2[1], 0x56)
+    ut.assert_int_eq(b2[2], 0x34)
+    ut.assert_int_eq(b2[3], 0x12)
+}
+
+//
+// from_bytes
+//
+
+@test
+func test_from_bytes_big_endian() {
+    let b1 = bytes(2)
+    b1[0] = 1
+    b1[1] = 2
+    ut.assert_int_eq(int64.from_bytes(b1, BIG_ENDIAN), 258)
+    
+    let b2 = bytes(4)
+    b2[0] = 0x12
+    b2[1] = 0x34
+    b2[2] = 0x56
+    b2[3] = 0x78
+    ut.assert_int_eq(int64.from_bytes(b2, BIG_ENDIAN), 0x12345678)
+}
+
+@test
+func test_from_bytes_little_endian() {
+    let b1 = bytes(2)
+    b1[0] = 2
+    b1[1] = 1
+    ut.assert_int_eq(int64.from_bytes(b1, LITTLE_ENDIAN), 258)
+    
+    let b2 = bytes(4)
+    b2[0] = 0x78
+    b2[1] = 0x56
+    b2[2] = 0x34
+    b2[3] = 0x12
+    ut.assert_int_eq(int64.from_bytes(b2, LITTLE_ENDIAN), 0x12345678)
+}
+
+//
+// Round-trip tests
+//
+
+@test
+func test_round_trip() {
+    let values = [0, 1, 255, 256, 0x12345678, 0xDEADBEEF]
+    for v in values {
+        let b_be = v.to_bytes(8, BIG_ENDIAN)
+        let b_le = v.to_bytes(8, LITTLE_ENDIAN)
+        ut.assert_int_eq(int64.from_bytes(b_be, BIG_ENDIAN), v)
+        ut.assert_int_eq(int64.from_bytes(b_le, LITTLE_ENDIAN), v)
+    }
+}
