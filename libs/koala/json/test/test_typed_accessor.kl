@@ -1,0 +1,264 @@
+// RUN: koala %s --test
+
+import "koala/json"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// Object typed accessors - success cases
+// ---------------------------------------------------------------------------
+
+@test
+func test_object_get_str() {
+    let obj = (json.parse_str("{\"name\":\"koala\"}") as json.Object)!
+    ut.assert_eq(obj.get_str("name"), "koala")
+}
+
+@test
+func test_object_get_int() {
+    let obj = (json.parse_str("{\"port\":8080}") as json.Object)!
+    ut.assert_eq(obj.get_int("port"), 8080)
+}
+
+@test
+func test_object_get_float() {
+    let obj = (json.parse_str("{\"pi\":3.14159}") as json.Object)!
+    let pi = obj.get_float("pi")
+    ut.assert(pi > 3.14 && pi < 3.15)
+}
+
+@test
+func test_object_get_bool_true() {
+    let obj = (json.parse_str("{\"enabled\":true}") as json.Object)!
+    ut.assert_true(obj.get_bool("enabled"))
+}
+
+@test
+func test_object_get_bool_false() {
+    let obj = (json.parse_str("{\"disabled\":false}") as json.Object)!
+    ut.assert_false(obj.get_bool("disabled"))
+}
+
+@test
+func test_object_get_object() {
+    let obj = (json.parse_str("{\"server\":{\"host\":\"localhost\"}}") as json.Object)!
+    let server = obj.get_object("server")
+    ut.assert_eq(server.get_str("host"), "localhost")
+}
+
+@test
+func test_object_get_array() {
+    let obj = (json.parse_str("{\"ports\":[8080,8081]}") as json.Object)!
+    let ports = obj.get_array("ports")
+    ut.assert_eq(ports.len(), 2)
+    ut.assert_eq(ports.get_int(0), 8080)
+    ut.assert_eq(ports.get_int(1), 8081)
+}
+
+@test
+func test_object_multiple_typed_accessors() {
+    let obj = (json.parse_str("{\"name\":\"koala\",\"port\":8080,\"pi\":3.14,\"enabled\":true}") as json.Object)!
+    ut.assert_eq(obj.get_str("name"), "koala")
+    ut.assert_eq(obj.get_int("port"), 8080)
+    ut.assert_eq(obj.get_float("pi"), 3.14)
+    ut.assert_true(obj.get_bool("enabled"))
+}
+
+// ---------------------------------------------------------------------------
+// Object typed accessors - panic cases
+// ---------------------------------------------------------------------------
+
+@should_panic("Key not found")
+func test_object_get_str_missing_key() {
+    let obj = (json.parse_str("{\"name\":\"koala\"}") as json.Object)!
+    obj.get_str("missing")
+}
+
+@should_panic("Key not found")
+func test_object_get_int_missing_key() {
+    let obj = (json.parse_str("{\"port\":8080}") as json.Object)!
+    obj.get_int("missing")
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_object_get_str_type_mismatch() {
+    let obj = (json.parse_str("{\"port\":8080}") as json.Object)!
+    obj.get_str("port")  // port is Integer, not String
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_object_get_int_type_mismatch() {
+    let obj = (json.parse_str("{\"name\":\"koala\"}") as json.Object)!
+    obj.get_int("name")  // name is String, not Integer
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_object_get_bool_type_mismatch() {
+    let obj = (json.parse_str("{\"port\":8080}") as json.Object)!
+    obj.get_bool("port")  // port is Integer, not Boolean
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_object_get_object_type_mismatch() {
+    let obj = (json.parse_str("{\"name\":\"koala\"}") as json.Object)!
+    obj.get_object("name")  // name is String, not Object
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_object_get_array_type_mismatch() {
+    let obj = (json.parse_str("{\"name\":\"koala\"}") as json.Object)!
+    obj.get_array("name")  // name is String, not Array
+}
+
+// ---------------------------------------------------------------------------
+// Array typed accessors - success cases
+// ---------------------------------------------------------------------------
+
+@test
+func test_array_get_str() {
+    let arr = (json.parse_str("[\"koala\",\"bear\"]") as json.Array)!
+    ut.assert_eq(arr.get_str(0), "koala")
+    ut.assert_eq(arr.get_str(1), "bear")
+}
+
+@test
+func test_array_get_int() {
+    let arr = (json.parse_str("[8080,8081,8082]") as json.Array)!
+    ut.assert_eq(arr.get_int(0), 8080)
+    ut.assert_eq(arr.get_int(1), 8081)
+    ut.assert_eq(arr.get_int(2), 8082)
+}
+
+@test
+func test_array_get_float() {
+    let arr = (json.parse_str("[3.14,2.71]") as json.Array)!
+    let pi = arr.get_float(0)
+    let e = arr.get_float(1)
+    ut.assert_eq(pi, 3.14)
+    ut.assert_eq(e, 2.71)
+}
+
+@test
+func test_array_get_bool() {
+    let arr = (json.parse_str("[true,false,true]") as json.Array)!
+    ut.assert_true(arr.get_bool(0))
+    ut.assert_false(arr.get_bool(1))
+    ut.assert_true(arr.get_bool(2))
+}
+
+@test
+func test_array_get_object() {
+    let arr = (json.parse_str("[{\"name\":\"koala\"},{\"name\":\"bear\"}]") as json.Array)!
+    let first = arr.get_object(0)
+    let second = arr.get_object(1)
+    ut.assert_eq(first.get_str("name"), "koala")
+    ut.assert_eq(second.get_str("name"), "bear")
+}
+
+@test
+func test_array_get_array() {
+    let arr = (json.parse_str("[[1,2],[3,4]]") as json.Array)!
+    let first = arr.get_array(0)
+    let second = arr.get_array(1)
+    ut.assert_eq(first.get_int(0), 1)
+    ut.assert_eq(first.get_int(1), 2)
+    ut.assert_eq(second.get_int(0), 3)
+    ut.assert_eq(second.get_int(1), 4)
+}
+
+@test
+func test_array_mixed_types() {
+    let arr = (json.parse_str("[\"koala\",8080,true,3.14]") as json.Array)!
+    ut.assert_eq(arr.get_str(0), "koala")
+    ut.assert_eq(arr.get_int(1), 8080)
+    ut.assert_true(arr.get_bool(2))
+    ut.assert_eq(arr.get_float(3), 3.14)
+}
+
+// ---------------------------------------------------------------------------
+// Array typed accessors - panic cases
+// ---------------------------------------------------------------------------
+
+@should_panic("list index out of range")
+func test_array_get_str_out_of_range() {
+    let arr = (json.parse_str("[\"koala\"]") as json.Array)!
+    arr.get_str(5)
+}
+
+@should_panic("list index out of range")
+func test_array_get_int_out_of_range() {
+    let arr = (json.parse_str("[8080]") as json.Array)!
+    arr.get_int(10)
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_array_get_str_type_mismatch() {
+    let arr = (json.parse_str("[8080]") as json.Array)!
+    arr.get_str(0)  // element is Integer, not String
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_array_get_int_type_mismatch() {
+    let arr = (json.parse_str("[\"koala\"]") as json.Array)!
+    arr.get_int(0)  // element is String, not Integer
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_array_get_bool_type_mismatch() {
+    let arr = (json.parse_str("[8080]") as json.Array)!
+    arr.get_bool(0)  // element is Integer, not Boolean
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_array_get_object_type_mismatch() {
+    let arr = (json.parse_str("[\"koala\"]") as json.Array)!
+    arr.get_object(0)  // element is String, not Object
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_array_get_array_type_mismatch() {
+    let arr = (json.parse_str("[\"koala\"]") as json.Array)!
+    arr.get_array(0)  // element is String, not Array
+}
+
+// ---------------------------------------------------------------------------
+// Nested access patterns
+// ---------------------------------------------------------------------------
+
+@test
+func test_nested_object_array_object() {
+    let data = (json.parse_str("{\"servers\":[{\"host\":\"a\",\"port\":80},{\"host\":\"b\",\"port\":443}]}") as json.Object)!
+    let servers = data.get_array("servers")
+    let first = servers.get_object(0)
+    let second = servers.get_object(1)
+    
+    ut.assert_eq(first.get_str("host"), "a")
+    ut.assert_eq(first.get_int("port"), 80)
+    ut.assert_eq(second.get_str("host"), "b")
+    ut.assert_eq(second.get_int("port"), 443)
+}
+
+@test
+func test_nested_array_object_array() {
+    let data = (json.parse_str("[{\"ports\":[80,443]},{\"ports\":[8080,8443]}]") as json.Array)!
+    let first = data.get_object(0)
+    let second = data.get_object(1)
+    
+    let first_ports = first.get_array("ports")
+    let second_ports = second.get_array("ports")
+    
+    ut.assert_eq(first_ports.get_int(0), 80)
+    ut.assert_eq(first_ports.get_int(1), 443)
+    ut.assert_eq(second_ports.get_int(0), 8080)
+    ut.assert_eq(second_ports.get_int(1), 8443)
+}
+
+@test
+func test_deeply_nested_access() {
+    let data = (json.parse_str("{\"a\":{\"b\":{\"c\":{\"d\":\"deep\"}}}}") as json.Object)!
+    let a = data.get_object("a")
+    let b = a.get_object("b")
+    let c = b.get_object("c")
+    let d = c.get_str("d")
+    
+    ut.assert_eq(d, "deep")
+}

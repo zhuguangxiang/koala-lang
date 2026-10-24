@@ -1,0 +1,250 @@
+// RUN: koala %s --test
+
+import "koala/toml"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// Table typed accessors - success cases
+// ---------------------------------------------------------------------------
+
+@test
+func test_table_get_str() {
+    let tbl = toml.parse_str("name = \"koala\"")
+    ut.assert_eq(tbl.get_str("name"), "koala")
+}
+
+@test
+func test_table_get_int() {
+    let tbl = toml.parse_str("port = 8080")
+    ut.assert_eq(tbl.get_int("port"), 8080)
+}
+
+@test
+func test_table_get_float() {
+    let tbl = toml.parse_str("pi = 3.14")
+    let pi = tbl.get_float("pi")
+    ut.assert_eq(pi, 3.14)
+}
+
+@test
+func test_table_get_bool_true() {
+    let tbl = toml.parse_str("enabled = true")
+    ut.assert_true(tbl.get_bool("enabled"))
+}
+
+@test
+func test_table_get_bool_false() {
+    let tbl = toml.parse_str("disabled = false")
+    ut.assert_false(tbl.get_bool("disabled"))
+}
+
+@test
+func test_table_get_table() {
+    let tbl = toml.parse_str("[server]\nhost = \"localhost\"")
+    let server = tbl.get_table("server")
+    ut.assert_eq(server.get_str("host"), "localhost")
+}
+
+@test
+func test_table_get_array() {
+    let tbl = toml.parse_str("ports = [80, 443]")
+    let ports = tbl.get_array("ports")
+    ut.assert_eq(ports.len(), 2)
+    ut.assert_eq(ports.get_int(0), 80)
+    ut.assert_eq(ports.get_int(1), 443)
+}
+
+@test
+func test_table_multiple_typed_accessors() {
+    let src = "name = \"koala\"\nport = 8080\npi = 3.14\nenabled = true"
+    let tbl = toml.parse_str(src)
+    ut.assert_eq(tbl.get_str("name"), "koala")
+    ut.assert_eq(tbl.get_int("port"), 8080)
+    ut.assert_eq(tbl.get_float("pi"), 3.14)
+    ut.assert_true(tbl.get_bool("enabled"))
+}
+
+// ---------------------------------------------------------------------------
+// Table typed accessors - panic cases
+// ---------------------------------------------------------------------------
+
+@should_panic("Key not found")
+func test_table_get_str_missing_key() {
+    let tbl = toml.parse_str("name = \"koala\"")
+    tbl.get_str("missing")
+}
+
+@should_panic("Key not found")
+func test_table_get_int_missing_key() {
+    let tbl = toml.parse_str("port = 8080")
+    tbl.get_int("missing")
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_table_get_str_type_mismatch() {
+    let tbl = toml.parse_str("port = 8080")
+    tbl.get_str("port")  // port is Integer, not String
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_table_get_int_type_mismatch() {
+    let tbl = toml.parse_str("name = \"koala\"")
+    tbl.get_int("name")  // name is String, not Integer
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_table_get_bool_type_mismatch() {
+    let tbl = toml.parse_str("port = 8080")
+    tbl.get_bool("port")  // port is Integer, not Boolean
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_table_get_table_type_mismatch() {
+    let tbl = toml.parse_str("name = \"koala\"")
+    tbl.get_table("name")  // name is String, not Table
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_table_get_array_type_mismatch() {
+    let tbl = toml.parse_str("name = \"koala\"")
+    tbl.get_array("name")  // name is String, not Array
+}
+
+// ---------------------------------------------------------------------------
+// Array typed accessors - success cases
+// ---------------------------------------------------------------------------
+
+@test
+func test_array_get_str() {
+    let tbl = toml.parse_str("names = [\"koala\", \"bear\"]")
+    let names = tbl.get_array("names")
+    ut.assert_eq(names.get_str(0), "koala")
+    ut.assert_eq(names.get_str(1), "bear")
+}
+
+@test
+func test_array_get_int() {
+    let tbl = toml.parse_str("ports = [8080, 8081, 8082]")
+    let ports = tbl.get_array("ports")
+    ut.assert_eq(ports.get_int(0), 8080)
+    ut.assert_eq(ports.get_int(1), 8081)
+    ut.assert_eq(ports.get_int(2), 8082)
+}
+
+@test
+func test_array_get_float() {
+    let tbl = toml.parse_str("values = [3.14, 2.71]")
+    let values = tbl.get_array("values")
+    let pi = values.get_float(0)
+    let e = values.get_float(1)
+    ut.assert_eq(pi, 3.14)
+    ut.assert_eq(e, 2.71)
+}
+
+@test
+func test_array_get_bool() {
+    let tbl = toml.parse_str("flags = [true, false, true]")
+    let flags = tbl.get_array("flags")
+    ut.assert_true(flags.get_bool(0))
+    ut.assert_false(flags.get_bool(1))
+    ut.assert_true(flags.get_bool(2))
+}
+
+@test
+func test_array_mixed_types() {
+    let tbl = toml.parse_str("mixed = [\"koala\", 8080, 3.14, true]")
+    let mixed = tbl.get_array("mixed")
+    ut.assert_eq(mixed.get_str(0), "koala")
+    ut.assert_eq(mixed.get_int(1), 8080)
+    ut.assert_eq(mixed.get_float(2), 3.14)
+    ut.assert_true(mixed.get_bool(3))
+}
+
+// ---------------------------------------------------------------------------
+// Array typed accessors - panic cases
+// ---------------------------------------------------------------------------
+
+@should_panic("list index out of range")
+func test_array_get_str_out_of_range() {
+    let tbl = toml.parse_str("names = [\"koala\"]")
+    let names = tbl.get_array("names")
+    names.get_str(5)
+}
+
+@should_panic("list index out of range")
+func test_array_get_int_out_of_range() {
+    let tbl = toml.parse_str("ports = [8080]")
+    let ports = tbl.get_array("ports")
+    ports.get_int(10)
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_array_get_str_type_mismatch() {
+    let tbl = toml.parse_str("ports = [8080]")
+    let ports = tbl.get_array("ports")
+    ports.get_str(0)  // element is Integer, not String
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_array_get_int_type_mismatch() {
+    let tbl = toml.parse_str("names = [\"koala\"]")
+    let names = tbl.get_array("names")
+    names.get_int(0)  // element is String, not Integer
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_array_get_bool_type_mismatch() {
+    let tbl = toml.parse_str("ports = [8080]")
+    let ports = tbl.get_array("ports")
+    ports.get_bool(0)  // element is Integer, not Boolean
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_array_get_table_type_mismatch() {
+    let tbl = toml.parse_str("names = [\"koala\"]")
+    let names = tbl.get_array("names")
+    names.get_table(0)  // element is String, not Table
+}
+
+@should_panic("forced unwrap (`!`) of a nil value")
+func test_array_get_array_type_mismatch() {
+    let tbl = toml.parse_str("names = [\"koala\"]")
+    let names = tbl.get_array("names")
+    names.get_array(0)  // element is String, not Array
+}
+
+// ---------------------------------------------------------------------------
+// Nested access
+// ---------------------------------------------------------------------------
+
+@test
+func test_nested_table_table() {
+    let src = "[server]\nhost = \"localhost\"\nport = 8080"
+    let tbl = toml.parse_str(src)
+    let server = tbl.get_table("server")
+    ut.assert_eq(server.get_str("host"), "localhost")
+    ut.assert_eq(server.get_int("port"), 8080)
+}
+
+@test
+func test_nested_table_array() {
+    let src = "[config]\nports = [80, 443, 8080]"
+    let tbl = toml.parse_str(src)
+    let config = tbl.get_table("config")
+    let ports = config.get_array("ports")
+    ut.assert_eq(ports.get_int(0), 80)
+    ut.assert_eq(ports.get_int(1), 443)
+    ut.assert_eq(ports.get_int(2), 8080)
+}
+
+@test
+func test_nested_manual_construction() {
+    let root = toml.Table()
+    let server = root.add_table("server")
+    let db = server.add_table("db")
+    db.add("name", toml.String("main"))
+    
+    let s = root.get_table("server")
+    let d = s.get_table("db")
+    ut.assert_eq(d.get_str("name"), "main")
+}

@@ -20,6 +20,48 @@ pub class Object : Value {
         return data[_key]
     }
 
+    /// Return the string value mapped to `_key`.
+    ///
+    /// Panic if `_key` is not present or if the value is not a String.
+    pub func get_str(_key str) str {
+        return (get(_key) as String)!.value
+    }
+
+    /// Return the integer value mapped to `_key`.
+    ///
+    /// Panic if `_key` is not present or if the value is not an Integer.
+    pub func get_int(_key str) int {
+        return (get(_key) as Integer)!.value
+    }
+
+    /// Return the float value mapped to `_key`.
+    ///
+    /// Panic if `_key` is not present or if the value is not a Float.
+    pub func get_float(_key str) float {
+        return (get(_key) as Float)!.value
+    }
+
+    /// Return the boolean value mapped to `_key`.
+    ///
+    /// Panic if `_key` is not present or if the value is not a Boolean.
+    pub func get_bool(_key str) bool {
+        return (get(_key) as Boolean)!.value
+    }
+
+    /// Return the object value mapped to `_key`.
+    ///
+    /// Panic if `_key` is not present or if the value is not an Object.
+    pub func get_object(_key str) Object {
+        return (get(_key) as Object)!
+    }
+
+    /// Return the array value mapped to `_key`.
+    ///
+    /// Panic if `_key` is not present or if the value is not an Array.
+    pub func get_array(_key str) Array {
+        return (get(_key) as Array)!
+    }
+
     /// Return true if the object contains a mapping for `_key`.
     pub func __contains__(_key str) bool {
         return _key in data

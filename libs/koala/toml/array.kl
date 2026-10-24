@@ -40,6 +40,58 @@ pub class Array : Value {
         value.append(v)
     }
 
+    /// Return the number of elements.
+    pub func len() int {
+        return value.len()
+    }
+
+    /// Return the value at `_idx`. Panic if `_idx` is out of range.
+    pub func get(_idx int) Value {
+        return value[_idx]
+    }
+
+    /// Return the string element at `_idx`.
+    ///
+    /// Panic if `_idx` is out of range or if the element is not a String.
+    pub func get_str(_idx int) str {
+        return (get(_idx) as String)!.value
+    }
+
+    /// Return the integer element at `_idx`.
+    ///
+    /// Panic if `_idx` is out of range or if the element is not an Integer.
+    pub func get_int(_idx int) int {
+        return (get(_idx) as Integer)!.value
+    }
+
+    /// Return the float element at `_idx`.
+    ///
+    /// Panic if `_idx` is out of range or if the element is not a Float.
+    pub func get_float(_idx int) float {
+        return (get(_idx) as Float)!.value
+    }
+
+    /// Return the boolean element at `_idx`.
+    ///
+    /// Panic if `_idx` is out of range or if the element is not a Boolean.
+    pub func get_bool(_idx int) bool {
+        return (get(_idx) as Boolean)!.value
+    }
+
+    /// Return the table at `_idx`.
+    ///
+    /// Panic if `_idx` is out of range or if the element is not a Table.
+    pub func get_table(_idx int) Table {
+        return (get(_idx) as Table)!
+    }
+
+    /// Return the array at `_idx`.
+    ///
+    /// Panic if `_idx` is out of range or if the element is not an Array.
+    pub func get_array(_idx int) Array {
+        return (get(_idx) as Array)!
+    }
+
     /// Format the elements for display.
     pub func fmt(f Formatter) {
         value.fmt(f)
