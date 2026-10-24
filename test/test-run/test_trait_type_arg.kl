@@ -1,0 +1,24 @@
+// RUN: koala %s | filecheck %s
+// A trait together with its type arguments is a valid generic type argument,
+// e.g. Stack[Sequence[int]] holds any Sequence[int] implementation.
+
+import "std/collections" as co
+
+// heterogeneous concrete types behind one interface type parameter
+func main() {
+    let s = co.Stack[Sequence[int]]()
+    s.push(list[int](1, 2, 3))
+    s.push(range(7, 10))
+    print("len", s.len())
+    // CHECK: len 2
+
+    let top = s.pop()
+    print("toplen", top.len())
+    // CHECK: toplen 3
+    print("top0", top[0])
+    // CHECK: top0 7
+
+    let bottom = s.pop()
+    print("bottom2", bottom[2])
+    // CHECK: bottom2 3
+}

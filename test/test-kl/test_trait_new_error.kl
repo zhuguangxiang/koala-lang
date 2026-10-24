@@ -1,0 +1,7 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// A trait is not instantiable, even when its type arguments are provided.
+
+func trait_new() {
+    let x = Sequence[int]()
+    // CHECK: trait 'Sequence' cannot be instantiated.
+}

@@ -1,0 +1,103 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+link "koala"
+
+/// Random number generation and sampling.
+///
+/// This package provides functions for generating random numbers,
+/// selecting random elements from sequences, and shuffling.
+
+//
+// Core random number generators (native)
+//
+
+/// Return a random float in the range [0.0, 1.0).
+@native
+pub func random() float {}
+
+/// Return a random integer in the range [a, b] (inclusive).
+///
+/// Panic if `a > b`.
+@native
+pub func randint(a int, b int) int {}
+
+/// Return a random integer in the range [0, stop).
+///
+/// Panic if `stop <= 0`.
+@native
+pub func randrange(stop int) int {}
+
+/// Return a random integer in the range [start, stop) with the given step.
+///
+/// Panic if `step == 0` or if the range is empty.
+@native
+pub func randrange_step(start int, stop int, step int) int {}
+
+/// Return a random float in the range [a, b].
+///
+/// Panic if `a > b`.
+@native
+pub func uniform(a float, b float) float {}
+
+/// Set the random seed for reproducibility.
+@native
+pub func seed(s int) {}
+
+//
+// Sequence operations (pure Koala, built on core generators)
+//
+
+/// Return a random element from a non-empty sequence.
+///
+/// Panic if the sequence is empty.
+pub func choice[T](seq Sequence[T]) T {
+    let n = seq.len()
+    if n == 0 {
+        panic("cannot choose from an empty sequence")
+    }
+    return seq[randint(0, n - 1)]
+}
+
+/// Shuffle a mutable sequence in place.
+pub func shuffle[T](seq MutableSequence[T]) {
+    let n = seq.len()
+    for i in range(n - 1, 0, -1) {
+        let j = randint(0, i)
+        if i != j {
+            let tmp = seq[i]
+            seq[i] = seq[j]
+            seq[j] = tmp
+        }
+    }
+}
+
+/// Return a list of `k` unique elements sampled from the sequence.
+///
+/// Panic if `k` is negative or greater than the sequence length.
+pub func sample[T](seq Sequence[T], k int) list[T] {
+    let n = seq.len()
+    if k < 0 {
+        panic("sample size must be non-negative")
+    }
+    if k > n {
+        panic("sample size larger than population")
+    }
+
+    // For small k, use selection sampling
+    let result = list[T]()
+    let selected = dict[int, bool]()
+
+    for i in range(k) {
+        var j = randint(0, n - 1)
+        while j in selected {
+            j = randint(0, n - 1)
+        }
+        selected[j] = true
+        result.append(seq[j])
+    }
+
+    return result
+}

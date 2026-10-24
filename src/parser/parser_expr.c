@@ -867,15 +867,22 @@ static Symbol *add_instance_method(InstanceSymbol *inst_sym, FuncSymbol *origin_
     KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
     ASSERT(origin);
 
-    Vector *inst_params = build_instance_params(origin_fn_sym->params, inst_sym, ps);
-    TypeSpec *origin_ret_ts = origin_fn_sym->ret;
+    // If origin_fn_sym is an inherited symbol, get the actual function symbol
+    FuncSymbol *actual_fn_sym = origin_fn_sym;
+    if (origin_fn_sym->kind == SYM_INHERITED) {
+        actual_fn_sym = ((InheritedFunc *)origin_fn_sym)->origin;
+        ASSERT(actual_fn_sym);
+    }
+
+    Vector *inst_params = build_instance_params(actual_fn_sym->params, inst_sym, ps);
+    TypeSpec *origin_ret_ts = actual_fn_sym->ret;
     TypeSpec *inst_ret_ts = instance_type_spec(origin_ret_ts, origin, inst_sym, ps);
 
-    Symbol *inst_fn_sym = stbl_add_func(inst_sym->stbl, origin_fn_sym->name, inst_ret_ts,
-                                        inst_params, origin_fn_sym->flags);
+    Symbol *inst_fn_sym = stbl_add_func(inst_sym->stbl, actual_fn_sym->name, inst_ret_ts,
+                                        inst_params, actual_fn_sym->flags);
     inst_fn_sym->parent = inst_sym;
     inst_fn_sym->ts = func_type_spec_from_arginfo(inst_params, inst_ret_ts);
-    ((FuncSymbol *)inst_fn_sym)->origin = origin_fn_sym;
+    ((FuncSymbol *)inst_fn_sym)->origin = actual_fn_sym;
     return inst_fn_sym;
 }
 
@@ -1681,6 +1688,10 @@ static void parse_call(ParserState *ps, Expr *exp)
         log_info("call lhs is instance of class '%s' with type parameters:", lhs_sym->name);
 
         KlassSymbol *origin = (KlassSymbol *)inst_sym->origin;
+        if (origin->kind == SYM_TRAIT) {
+            kl_error(lhs->loc, "trait '%s' cannot be instantiated.", origin->name);
+            return;
+        }
         if (origin->flags & SYM_FLAGS_EXT) inst_sym->flags |= SYM_FLAGS_EXT;
 
         Symbol *init_fn_sym = get___init___instance(inst_sym, ps);
@@ -2308,8 +2319,8 @@ static void parse_index_new_type(ParserState *ps, IndexExpr *index)
 
     // generic types, e.g. List[int], Dict[str, int], ListNode[T]
 
-    if (kls_sym->kind != SYM_CLASS) {
-        kl_error(lhs->loc, "type '%s' is not a class type.", lhs->sym->name);
+    if (kls_sym->kind != SYM_CLASS && kls_sym->kind != SYM_TRAIT) {
+        kl_error(lhs->loc, "type '%s' is not a class or trait type.", lhs->sym->name);
         return;
     }
 

@@ -1,0 +1,294 @@
+// RUN: koala %s --test
+
+import "koala/random"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// Core random number generators - basic functionality
+// ---------------------------------------------------------------------------
+
+@test
+func test_random_range() {
+    // Test that random() returns values in [0.0, 1.0)
+    for i in range(100) {
+        let r = random.random()
+        ut.assert(r >= 0.0)
+        ut.assert(r < 1.0)
+    }
+}
+
+@test
+func test_randint_range() {
+    // Test that randint(a, b) returns values in [a, b]
+    for i in range(100) {
+        let r = random.randint(1, 10)
+        ut.assert(r >= 1)
+        ut.assert(r <= 10)
+    }
+}
+
+@test
+func test_randint_single_value() {
+    // Test randint with a == b
+    for i in range(10) {
+        let r = random.randint(5, 5)
+        ut.assert_eq(r, 5)
+    }
+}
+
+@test
+func test_randrange_stop() {
+    // Test that randrange(stop) returns values in [0, stop)
+    for i in range(100) {
+        let r = random.randrange(10)
+        ut.assert(r >= 0)
+        ut.assert(r < 10)
+    }
+}
+
+@test
+func test_randrange_step() {
+    // Test randrange_step with positive step
+    for i in range(100) {
+        let r = random.randrange_step(0, 10, 2)
+        ut.assert(r >= 0)
+        ut.assert(r < 10)
+        ut.assert(r % 2 == 0)
+    }
+}
+
+@test
+func test_randrange_step_negative() {
+    // Test randrange_step with negative step
+    for i in range(100) {
+        let r = random.randrange_step(10, 0, -2)
+        ut.assert(r > 0)
+        ut.assert(r <= 10)
+        ut.assert(r % 2 == 0)
+    }
+}
+
+@test
+func test_uniform_range() {
+    // Test that uniform(a, b) returns values in [a, b]
+    for i in range(100) {
+        let r = random.uniform(1.0, 5.0)
+        ut.assert(r >= 1.0)
+        ut.assert(r <= 5.0)
+    }
+}
+
+@test
+func test_uniform_single_value() {
+    // Test uniform with a == b
+    for i in range(10) {
+        let r = random.uniform(3.14, 3.14)
+        ut.assert_eq(r, 3.14)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Seed and reproducibility
+// ---------------------------------------------------------------------------
+
+@test
+func test_seed_reproducibility() {
+    // Test that the same seed produces the same sequence
+    random.seed(42)
+    let a1 = random.random()
+    let a2 = random.randint(1, 100)
+    let a3 = random.uniform(0.0, 1.0)
+    
+    random.seed(42)
+    let b1 = random.random()
+    let b2 = random.randint(1, 100)
+    let b3 = random.uniform(0.0, 1.0)
+    
+    ut.assert_eq(a1, b1)
+    ut.assert_eq(a2, b2)
+    ut.assert_eq(a3, b3)
+}
+
+@test
+func test_seed_different_values() {
+    // Test that different seeds produce different sequences
+    random.seed(42)
+    let a = random.random()
+    
+    random.seed(123)
+    let b = random.random()
+    
+    ut.assert(a != b)
+}
+
+// ---------------------------------------------------------------------------
+// Sequence operations - choice
+// ---------------------------------------------------------------------------
+
+@test
+func test_choice_list() {
+    let items = [1, 2, 3, 4, 5]
+    for i in range(100) {
+        let r = random.choice(items)
+        ut.assert(r in items)
+    }
+}
+
+@test
+func test_choice_single_element() {
+    let items = [42]
+    for i in range(10) {
+        let r = random.choice(items)
+        ut.assert_eq(r, 42)
+    }
+}
+
+@should_panic("cannot choose from an empty sequence")
+func test_choice_empty() {
+    let items = list[int]()
+    random.choice(items)
+}
+
+// ---------------------------------------------------------------------------
+// Sequence operations - shuffle
+// ---------------------------------------------------------------------------
+
+@test
+func test_shuffle_preserves_elements() {
+    let items = [1, 2, 3, 4, 5]
+    let original = items.copy()
+    random.shuffle(items)
+    
+    // Check that all original elements are still present
+    ut.assert_eq(items.len(), original.len())
+    for x in original {
+        ut.assert(x in items)
+    }
+}
+
+@test
+func test_shuffle_changes_order() {
+    // With a large enough list, shuffle should change the order
+    random.seed(42)
+    let items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    let original = items.copy()
+    random.shuffle(items)
+    
+    // It's extremely unlikely that a shuffle of 10 elements produces the same order
+    var same = true
+    for i in range(items.len()) {
+        if items[i] != original[i] {
+            same = false
+            break
+        }
+    }
+    ut.assert_false(same)
+}
+
+@test
+func test_shuffle_empty() {
+    let items = list[int]()
+    random.shuffle(items)
+    ut.assert_eq(items.len(), 0)
+}
+
+@test
+func test_shuffle_single_element() {
+    let items = [42]
+    random.shuffle(items)
+    ut.assert_eq(items.len(), 1)
+    ut.assert_eq(items[0], 42)
+}
+
+// ---------------------------------------------------------------------------
+// Sequence operations - sample
+// ---------------------------------------------------------------------------
+
+@test
+func test_sample_unique_elements() {
+    let items = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    let sampled = random.sample(items, 5)
+    
+    ut.assert_eq(sampled.len(), 5)
+    
+    // Check that all sampled elements are unique
+    let seen = dict[int, bool]()
+    for x in sampled {
+        ut.assert_false(x in seen)
+        seen[x] = true
+    }
+    
+    // Check that all sampled elements are from the original list
+    for x in sampled {
+        ut.assert(x in items)
+    }
+}
+
+@test
+func test_sample_all_elements() {
+    let items = [1, 2, 3]
+    let sampled = random.sample(items, 3)
+    
+    ut.assert_eq(sampled.len(), 3)
+    for x in items {
+        ut.assert(x in sampled)
+    }
+}
+
+@test
+func test_sample_zero() {
+    let items = [1, 2, 3]
+    let sampled = random.sample(items, 0)
+    ut.assert_eq(sampled.len(), 0)
+}
+
+@should_panic("sample size must be non-negative")
+func test_sample_negative() {
+    let items = [1, 2, 3]
+    random.sample(items, -1)
+}
+
+@should_panic("sample size larger than population")
+func test_sample_too_large() {
+    let items = [1, 2, 3]
+    random.sample(items, 5)
+}
+
+// ---------------------------------------------------------------------------
+// Error cases
+// ---------------------------------------------------------------------------
+
+@should_panic("random.randint: a must be <= b")
+func test_randint_invalid_range() {
+    random.randint(10, 1)
+}
+
+@should_panic("random.randrange: stop must be > 0")
+func test_randrange_zero_stop() {
+    random.randrange(0)
+}
+
+@should_panic("random.randrange: stop must be > 0")
+func test_randrange_negative_stop() {
+    random.randrange(-5)
+}
+
+@should_panic("random.randrange_step: step must not be zero")
+func test_randrange_step_zero() {
+    random.randrange_step(0, 10, 0)
+}
+
+@should_panic("random.randrange_step: empty range")
+func test_randrange_step_empty_positive() {
+    random.randrange_step(10, 0, 2)
+}
+
+@should_panic("random.randrange_step: empty range")
+func test_randrange_step_empty_negative() {
+    random.randrange_step(0, 10, -2)
+}
+
+@should_panic("random.uniform: a must be <= b")
+func test_uniform_invalid_range() {
+    random.uniform(5.0, 1.0)
+}

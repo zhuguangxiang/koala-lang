@@ -1,0 +1,75 @@
+// RUN: koala %s | filecheck %s
+// RUN: koalac %s --opt --dump=ir 2>&1 | filecheck -check-prefix=IR %s
+
+// Regression test for subscript on a generic MutableSequence[T] parameter:
+//   - seq[0]     -> __getitem__ inherited from Sequence[T]     (read path)
+//   - seq[0] = v -> __setitem__ declared on MutableSequence[T] (write path)
+// Both must resolve the trait method without crashing the compiler and must
+// run correctly after generic specialization.
+
+// read path (the original minimal repro)
+pub func first[T](seq MutableSequence[T]) T {
+    let tmp = seq[0]
+    return tmp
+}
+
+// write path
+pub func set_first[T](seq MutableSequence[T], v T) {
+    seq[0] = v
+}
+
+// read + write together (swap core of a shuffle)
+pub func swap_first_two[T](seq MutableSequence[T]) {
+    let tmp = seq[0]
+    seq[0] = seq[1]
+    seq[1] = tmp
+}
+
+func main() {
+    let a = list[int](10, 20, 30)
+    print(first[int](a))
+    // CHECK: 10
+
+    set_first[int](a, 99)
+    print(a[0])
+    // CHECK: 99
+
+    let b = list[str]("x", "y", "z")
+    swap_first_two[str](b)
+    print(b[0])
+    // CHECK: y
+    print(b[1])
+    // CHECK: x
+}
+
+// IR verification: subscript on the generic MutableSequence[T] parameter must
+// lower to seq.get / seq.set on the interface type, with no crash and no
+// spurious cast. IR is identical across all opt passes.
+
+// read path: seq[0] -> seq.get on the inherited __getitem__
+// IR-LABEL: func @first(%seq std/builtin.MutableSequence[first:T]) first:T {
+// IR: %0 = seq.get %seq std/builtin.MutableSequence[first:T], 0 int64
+// IR: move %tmp first:T, %0 first:T
+// IR: ret %tmp first:T
+
+// write path: seq[0] = v -> seq.set on __setitem__
+// IR-LABEL: func @set_first(%seq std/builtin.MutableSequence[set_first:T], %v set_first:T) <NO-TYPE> {
+// IR: seq.set %seq std/builtin.MutableSequence[set_first:T], 0 int64, %v set_first:T
+// IR: ret void
+
+// read + write together
+// IR-LABEL: func @swap_first_two(%seq std/builtin.MutableSequence[swap_first_two:T]) <NO-TYPE> {
+// IR: %0 = seq.get %seq std/builtin.MutableSequence[swap_first_two:T], 0 int64
+// IR: %1 = seq.get %seq std/builtin.MutableSequence[swap_first_two:T], 1 int64
+// IR: seq.set %seq std/builtin.MutableSequence[swap_first_two:T], 0 int64, %1 swap_first_two:T
+// IR: seq.set %seq std/builtin.MutableSequence[swap_first_two:T], 1 int64, %tmp swap_first_two:T
+// IR: ret void
+
+// call site: concrete list boxed into the MutableSequence interface
+// IR-LABEL: func @main() <NO-TYPE> {
+// IR: make_intf %a std/builtin.list<j> [intf-table-index = 7] to std/builtin.MutableSequence
+// IR: call @first, %0 std/builtin.MutableSequence
+// IR: call @set_first, %3 std/builtin.MutableSequence, 99 int64
+// IR: make_intf %b std/builtin.list<u> [intf-table-index = 7] to std/builtin.MutableSequence
+// IR: call @swap_first_two, %6 std/builtin.MutableSequence
+// IR: ret void

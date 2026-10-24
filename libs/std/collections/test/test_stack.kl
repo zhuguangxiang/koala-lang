@@ -1,0 +1,412 @@
+// RUN: koala --test %s
+
+import "std/ut"
+import "std/collections" as co
+
+// 用户自定义类元素
+class Point {
+    var x int
+    var y int
+
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    func fmt(f Formatter) {
+        f.write_fmt("Point({}, {})", x, y)
+    }
+}
+
+// 用户自定义泛型类元素
+class Foo[T] {
+    var value T
+
+    func __init__(v T) {
+        value = v
+    }
+
+    func get() T {
+        return value
+    }
+
+    func fmt(f Formatter) {
+        f.write_fmt("Foo({})", value)
+    }
+}
+
+// ==================== 构造与基本属性 ====================
+
+@test
+func test_init_empty() {
+    let s = co.Stack[int]()
+    ut.assert_eq(s.len(), 0)
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_push_pop_lifo() {
+    let s = co.Stack[int]()
+    s.push(1)
+    s.push(2)
+    s.push(3)
+    ut.assert_eq(s.len(), 3)
+    ut.assert_false(s.empty())
+    ut.assert_eq(s.pop(), 3)
+    ut.assert_eq(s.pop(), 2)
+    ut.assert_eq(s.pop(), 1)
+    ut.assert_eq(s.len(), 0)
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_peek_not_remove() {
+    let s = co.Stack[int]()
+    s.push(42)
+    ut.assert_eq(s.peek(), 42)
+    ut.assert_eq(s.len(), 1)
+    ut.assert_eq(s.pop(), 42)
+}
+
+@test
+func test_clear_and_reuse() {
+    let s = co.Stack[int]()
+    for i in range(10) {
+        s.push(i)
+    }
+    s.clear()
+    ut.assert_eq(s.len(), 0)
+    ut.assert_true(s.empty())
+    s.push(7)
+    ut.assert_eq(s.pop(), 7)
+}
+
+@test
+func test_str_elements() {
+    let s = co.Stack[str]()
+    s.push("a")
+    s.push("b")
+    s.push("c")
+    ut.assert_eq(s.peek(), "c")
+    ut.assert_eq(s.pop(), "c")
+    ut.assert_eq(s.pop(), "b")
+    ut.assert_eq(s.pop(), "a")
+}
+
+// ==================== 扩容 / 大容量 ====================
+
+@test
+func test_grow_many() {
+    let s = co.Stack[int]()
+    for i in range(1000) {
+        s.push(i)
+    }
+    ut.assert_eq(s.len(), 1000)
+    for i in range(1000) {
+        ut.assert_eq(s.pop(), 999 - i)
+    }
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_interleaved_push_pop() {
+    let s = co.Stack[int]()
+    for i in range(100) {
+        s.push(i)
+        ut.assert_eq(s.peek(), i)
+    }
+    for i in range(100) {
+        ut.assert_eq(s.pop(), 99 - i)
+    }
+}
+
+// ==================== 异常 ====================
+
+@should_panic("pop from empty stack")
+func test_pop_empty() {
+    let s = co.Stack[int]()
+    let v = s.pop()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("peek from empty stack")
+func test_peek_empty() {
+    let s = co.Stack[int]()
+    let v = s.peek()
+    ut.assert_eq(v, 0)
+}
+
+@should_panic("pop from empty stack")
+func test_pop_after_clear() {
+    let s = co.Stack[int]()
+    s.push(1)
+    s.clear()
+    let v = s.pop()
+    ut.assert_eq(v, 0)
+}
+
+// ==================== fmt ====================
+
+@test
+func test_fmt_small() {
+    let s = co.Stack[int]()
+    s.push(1)
+    s.push(2)
+    s.push(3)
+    let f = Formatter()
+    s.fmt(f)
+    let text = f.result()
+    ut.assert("Stack([1, 2, 3])" in text)
+}
+
+@test
+func test_fmt_empty() {
+    let s = co.Stack[int]()
+    let f = Formatter()
+    s.fmt(f)
+    let text = f.result()
+    ut.assert("Stack([])" in text)
+}
+
+@test
+func test_fmt_truncated() {
+    let s = co.Stack[int]()
+    for i in range(20) {
+        s.push(i)
+    }
+    let f = Formatter()
+    s.fmt(f)
+    let text = f.result()
+    ut.assert("Stack([0, 1, 2, 3, ..., 16, 17, 18, 19])" in text)
+}
+
+// ==================== 用户自定义类元素 ====================
+
+@test
+func test_user_class_lifo() {
+    let s = co.Stack[Point]()
+    s.push(Point(1, 2))
+    s.push(Point(3, 4))
+    ut.assert_eq(s.len(), 2)
+
+    let top = s.peek()
+    ut.assert_eq(top.x, 3)
+    ut.assert_eq(top.y, 4)
+    ut.assert_eq(s.len(), 2)
+
+    let p2 = s.pop()
+    ut.assert_eq(p2.x, 3)
+    ut.assert_eq(p2.y, 4)
+
+    let p1 = s.pop()
+    ut.assert_eq(p1.x, 1)
+    ut.assert_eq(p1.y, 2)
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_user_class_identity() {
+    let s = co.Stack[Point]()
+    let p = Point(1, 2)
+    s.push(p)
+
+    // pop 出来的是同一个对象实例（浅拷贝引用）
+    let q = s.pop()
+    q.x = 100
+    ut.assert_eq(p.x, 100)
+}
+
+@test
+func test_user_class_grow() {
+    let s = co.Stack[Point]()
+    for i in range(100) {
+        s.push(Point(i, i * 2))
+    }
+    ut.assert_eq(s.len(), 100)
+
+    for i in range(100) {
+        let p = s.pop()
+        ut.assert_eq(p.x, 99 - i)
+        ut.assert_eq(p.y, (99 - i) * 2)
+    }
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_generic_class_elements() {
+    let s = co.Stack[Foo[int]]()
+    s.push(Foo[int](10))
+    s.push(Foo[int](20))
+    ut.assert_eq(s.len(), 2)
+
+    ut.assert_eq(s.peek().get(), 20)
+    ut.assert_eq(s.pop().get(), 20)
+    ut.assert_eq(s.pop().get(), 10)
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_generic_class_element_grow() {
+    let s = co.Stack[Foo[int]]()
+    for i in range(100) {
+        s.push(Foo[int](i))
+    }
+    ut.assert_eq(s.len(), 100)
+
+    for i in range(100) {
+        ut.assert_eq(s.pop().get(), 99 - i)
+    }
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_nested_generic_class_elements() {
+    let s = co.Stack[Foo[Point]]()
+    s.push(Foo[Point](Point(5, 6)))
+
+    let p = s.pop().get()
+    ut.assert_eq(p.x, 5)
+    ut.assert_eq(p.y, 6)
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_fmt_user_class() {
+    let s = co.Stack[Point]()
+    s.push(Point(1, 2))
+    s.push(Point(3, 4))
+    let f = Formatter()
+    s.fmt(f)
+    ut.assert("Stack([Point(1, 2), Point(3, 4)])" in f.result())
+}
+
+@test
+func test_fmt_generic_class_truncated() {
+    let s = co.Stack[Foo[int]]()
+    for i in range(12) {
+        s.push(Foo[int](i))
+    }
+    let f = Formatter()
+    s.fmt(f)
+    let text = f.result()
+    ut.assert("Stack([Foo(0), Foo(1), Foo(2), Foo(3), ..., Foo(8), Foo(9), Foo(10), Foo(11)])" in text)
+}
+
+// ==================== 内置泛型类元素：list[int] ====================
+
+@test
+func test_list_elements() {
+    let s = co.Stack[list[int]]()
+    s.push(list[int](1, 2, 3))
+    s.push(list[int](4, 5))
+    ut.assert_eq(s.len(), 2)
+
+    let top = s.peek()
+    ut.assert_eq(top.len(), 2)
+    ut.assert_eq(top[0], 4)
+    ut.assert_eq(top[1], 5)
+    ut.assert_eq(s.len(), 2)
+
+    let a = s.pop()
+    ut.assert_eq(a.len(), 2)
+    ut.assert_eq(a[1], 5)
+
+    let b = s.pop()
+    ut.assert_eq(b.len(), 3)
+    ut.assert_eq(b[0], 1)
+    ut.assert_eq(b[2], 3)
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_list_element_identity() {
+    let s = co.Stack[list[int]]()
+    let l = list[int](1, 2)
+    s.push(l)
+
+    // 存的是同一个 list 实例，通过弹出的引用修改对原变量可见
+    let r = s.pop()
+    r.append(3)
+    ut.assert_eq(l.len(), 3)
+    ut.assert_eq(l[2], 3)
+}
+
+@test
+func test_list_element_grow() {
+    let s = co.Stack[list[int]]()
+    for i in range(100) {
+        s.push(list[int](i, i + 1))
+    }
+    ut.assert_eq(s.len(), 100)
+
+    for i in range(100) {
+        let l = s.pop()
+        ut.assert_eq(l.len(), 2)
+        ut.assert_eq(l[0], 99 - i)
+        ut.assert_eq(l[1], 100 - i)
+    }
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_fmt_list_elements() {
+    let s = co.Stack[list[int]]()
+    s.push(list[int](1, 2))
+    s.push(list[int](3, 4))
+    let f = Formatter()
+    s.fmt(f)
+    ut.assert("Stack([[1, 2], [3, 4]])" in f.result())
+}
+
+// ==================== 接口类型元素：Sequence[int] ====================
+
+@test
+func test_sequence_interface_elements() {
+    let s = co.Stack[Sequence[int]]()
+    // list[int] 与 range 都实现了 Sequence[int]，可放入同一个栈
+    s.push(list[int](1, 2, 3))
+    s.push(range(7, 10))
+    ut.assert_eq(s.len(), 2)
+
+    let top = s.peek()
+    ut.assert_eq(top.len(), 3)
+    ut.assert_eq(top[0], 7)
+    ut.assert_eq(top[2], 9)
+    ut.assert_eq(s.len(), 2)
+
+    let r = s.pop()
+    ut.assert_eq(r.len(), 3)
+    ut.assert_eq(r[1], 8)
+
+    let l = s.pop()
+    ut.assert_eq(l.len(), 3)
+    ut.assert_eq(l[0], 1)
+    ut.assert_eq(l[2], 3)
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_sequence_interface_element_grow() {
+    let s = co.Stack[Sequence[int]]()
+    for i in range(100) {
+        s.push(list[int](i))
+    }
+    ut.assert_eq(s.len(), 100)
+
+    for i in range(100) {
+        let seq = s.pop()
+        ut.assert_eq(seq.len(), 1)
+        ut.assert_eq(seq[0], 99 - i)
+    }
+    ut.assert_true(s.empty())
+}
+
+@test
+func test_fmt_sequence_interface_elements() {
+    let s = co.Stack[Sequence[int]]()
+    s.push(list[int](1, 2))
+    s.push(range(3, 5))
+    let f = Formatter()
+    s.fmt(f)
+    ut.assert("Stack([[1, 2], range(3, 5, 1)])" in f.result())
+}
