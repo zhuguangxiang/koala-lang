@@ -15,6 +15,12 @@ func cleanup_fs_meta() {
     fs.remove("/tmp/kl_fs_meta_list/b.txt")
     fs.rmdir("/tmp/kl_fs_meta_list/sub")
     fs.rmdir("/tmp/kl_fs_meta_list")
+    fs.remove("/tmp/kl_fs_meta_old.txt")
+    fs.remove("/tmp/kl_fs_meta_new.txt")
+    fs.remove("/tmp/kl_fs_meta_renamed.txt")
+    fs.remove("/tmp/kl_fs_meta_x.txt")
+    fs.rmdir("/tmp/kl_fs_meta_rdir")
+    fs.rmdir("/tmp/kl_fs_meta_rdir2")
 }
 
 @test
@@ -89,6 +95,37 @@ func test_fs_mkdir() {
     ut.assert_false(fs.exists("/tmp/kl_fs_meta_dir"))
 
     ut.assert_false(fs.rmdir("/tmp/kl_fs_meta_missing_dir"))
+}
+
+@test
+func test_fs_rename() {
+    cleanup_fs_meta()
+
+    // Rename a file: the old path is gone, the new path carries the content.
+    ut.assert(fs.write_str("/tmp/kl_fs_meta_old.txt", "data"))
+    ut.assert(fs.rename("/tmp/kl_fs_meta_old.txt", "/tmp/kl_fs_meta_new.txt"))
+    ut.assert_false(fs.exists("/tmp/kl_fs_meta_old.txt"))
+    ut.assert(fs.is_file("/tmp/kl_fs_meta_new.txt"))
+
+    let buf = bytes(16)
+    ut.assert_eq(fs.read_bytes("/tmp/kl_fs_meta_new.txt", buf), 4)
+    ut.assert_eq(buf.view(0, 4).to_str(), "data")
+
+    // Renaming a missing source fails.
+    ut.assert_false(fs.rename("/tmp/kl_fs_meta_missing.txt", "/tmp/kl_fs_meta_x.txt"))
+
+    // A Path argument is accepted on both ends.
+    ut.assert(fs.rename(fs.Path("/tmp/kl_fs_meta_new.txt"), fs.Path("/tmp/kl_fs_meta_renamed.txt")))
+    ut.assert(fs.is_file("/tmp/kl_fs_meta_renamed.txt"))
+
+    // A directory can be renamed as well.
+    ut.assert(fs.mkdir("/tmp/kl_fs_meta_rdir"))
+    ut.assert(fs.rename("/tmp/kl_fs_meta_rdir", "/tmp/kl_fs_meta_rdir2"))
+    ut.assert_false(fs.exists("/tmp/kl_fs_meta_rdir"))
+    ut.assert(fs.is_dir("/tmp/kl_fs_meta_rdir2"))
+
+    ut.assert(fs.remove("/tmp/kl_fs_meta_renamed.txt"))
+    ut.assert(fs.rmdir("/tmp/kl_fs_meta_rdir2"))
 }
 
 @test

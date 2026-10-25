@@ -33,6 +33,25 @@ pub func unsetenv(key str) {}
 @native
 pub func environ() dict[str, str] {}
 
+// --- Working Directory ---
+
+/// Return the absolute pathname of the current working directory.
+///
+/// Panic if it cannot be determined (e.g. the directory was removed).
+///
+/// Example:
+///     let cwd = os.getcwd()
+///     print("working in ", cwd)
+@native
+pub func getcwd() str {}
+
+/// Change the current working directory to `path`.
+///
+/// Return true on success, false if the directory cannot be entered
+/// (missing path or permission denied).
+@native
+pub func chdir(path str) bool {}
+
 // --- Pipe ---
 
 /// Create an anonymous pipe for inter-process or inter-task communication.

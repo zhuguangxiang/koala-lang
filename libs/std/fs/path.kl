@@ -142,10 +142,9 @@ pub class Path : ToString {
     /// Return an absolute version of the path by lexically expanding relative tokens.
     pub func absolute() Path {
         if is_absolute() { return normalize() }
-        // Fetch host process workspace directly via standard environment mappings
-        let cwd = os.getenv("PWD")
-        if cwd != nil { return Path(cwd).cat(path).normalize() }
-        return normalize()
+        // Resolve against the real process working directory (getcwd), not the
+        // possibly-unset or stale PWD environment variable.
+        return Path(os.getcwd()).cat(path).normalize()
     }
 
     /// Convert the path to its string form.

@@ -5,6 +5,7 @@
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include "bytesobj.h"
@@ -15,6 +16,37 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* A `Path` instance (see `libs/std/fs/path.kl`) carries exactly one field, the
+   path string. This C layout mirrors the Koala instance layout (`OBJECT_HEAD`
+   followed by the first field), so a native function can read the string
+   straight out of a `Path | str` argument with no `.kl` normalization shim.
+   The type is registered under the name "Path" so the Koala class binds to it
+   (see `_load_module` -> `find_tp_from_native`), which makes
+   `IS_TYPE(o, &path_type)` a valid check on a `.kl`-created `Path`. */
+typedef struct _PathObject {
+    OBJECT_HEAD
+    TValue path;
+} PathObject;
+
+static TypeObject path_type = {
+    ._type = &type_type,
+    .name = "Path",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(PathObject),
+};
+
+/* Extract the raw C string from a `Path | str` argument: a `str` is used
+   directly; a `Path` yields the string held in its single `path` field. */
+static char *_arg_path_str(TValue *args, int nargs, int index)
+{
+    ASSERT(index >= 0 && index < nargs);
+    Object *o = to_obj(args + index);
+    if (IS_STR(o)) return STR_BUF(o);
+    ASSERT(IS_TYPE(o, &path_type));
+    PathObject *pobj = (PathObject *)o;
+    return STR_BUF(to_obj(&pobj->path));
+}
 
 typedef struct _FileObject {
     OBJECT_HEAD
@@ -286,7 +318,7 @@ static int _write_all(int fd, const void *data, size_t len)
 static TValue fs_read_bytes(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 2);
-    char *path = kl_arg_str(0);
+    char *path = _arg_path_str(args, nargs, 0);
     BytesObject *out = kl_arg_obj_as(1, bytes_type);
 
     int fd = open(path, O_RDONLY);
@@ -314,7 +346,7 @@ static TValue fs_read_bytes(TValue *self, TValue *args, int nargs)
 static TValue fs_write_bytes(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 2);
-    char *path = kl_arg_str(0);
+    char *path = _arg_path_str(args, nargs, 0);
     BytesObject *buf = kl_arg_obj_as(1, bytes_type);
 
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -332,7 +364,7 @@ static TValue fs_write_bytes(TValue *self, TValue *args, int nargs)
 static TValue fs_write_str(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 2);
-    char *path = kl_arg_str(0);
+    char *path = _arg_path_str(args, nargs, 0);
     StringObject *sobj = kl_arg_obj_as(1, str_type);
 
     int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -348,15 +380,27 @@ static TValue fs_write_str(TValue *self, TValue *args, int nargs)
 static TValue fs_remove(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
-    char *path = kl_arg_str(0);
+    char *path = _arg_path_str(args, nargs, 0);
     return bool_value(unlink(path) == 0);
 }
 
+/// Rename or move `src` to `dst` within the same filesystem.
+/// Return true on success, false on failure (e.g. cross-device move,
+/// missing `src`, or a non-empty `dst` directory).
+static TValue fs_rename(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *src = _arg_path_str(args, nargs, 0);
+    char *dst = _arg_path_str(args, nargs, 1);
+    return bool_value(rename(src, dst) == 0);
+}
+
 /// Return true if the file or directory `path` exists on the disk.
+/// Accepts a `Path | str` directly; no `.kl` normalization shim is needed.
 static TValue fs_exists(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
-    char *path = kl_arg_str(0);
+    char *path = _arg_path_str(args, nargs, 0);
 
     struct stat sb;
     return bool_value(stat(path, &sb) == 0);
@@ -366,7 +410,7 @@ static TValue fs_exists(TValue *self, TValue *args, int nargs)
 static TValue fs_is_file(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
-    char *path = kl_arg_str(0);
+    char *path = _arg_path_str(args, nargs, 0);
 
     struct stat sb;
     return bool_value(stat(path, &sb) == 0 && S_ISREG(sb.st_mode));
@@ -376,7 +420,7 @@ static TValue fs_is_file(TValue *self, TValue *args, int nargs)
 static TValue fs_is_dir(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
-    char *path = kl_arg_str(0);
+    char *path = _arg_path_str(args, nargs, 0);
 
     struct stat sb;
     return bool_value(stat(path, &sb) == 0 && S_ISDIR(sb.st_mode));
@@ -386,7 +430,7 @@ static TValue fs_is_dir(TValue *self, TValue *args, int nargs)
 static TValue fs_size(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
-    char *path = kl_arg_str(0);
+    char *path = _arg_path_str(args, nargs, 0);
 
     struct stat sb;
     if (stat(path, &sb) != 0) {
@@ -429,7 +473,7 @@ static int _mkdir_all(char *path)
 static TValue fs_mkdir(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
-    char *path = kl_arg_str(0);
+    char *path = _arg_path_str(args, nargs, 0);
 
     return bool_value(_mkdir_all(path) == 0);
 }
@@ -439,7 +483,7 @@ static TValue fs_mkdir(TValue *self, TValue *args, int nargs)
 static TValue fs_rmdir(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
-    char *path = kl_arg_str(0);
+    char *path = _arg_path_str(args, nargs, 0);
     return bool_value(rmdir(path) == 0);
 }
 
@@ -483,21 +527,30 @@ static TValue fs_list_dir(TValue *self, TValue *args, int nargs)
 
 void fs_native_lib_init(NativeLib *lib)
 {
-    /* `_`-prefixed functions take a raw `str` path; the public `Path | str`
-       wrappers in `__fs__.kl` normalize the argument before forwarding. */
     kl_reg_func(lib, "open", file_open);
-    kl_reg_func(lib, "_read_bytes", fs_read_bytes);
-    kl_reg_func(lib, "_write_bytes", fs_write_bytes);
-    kl_reg_func(lib, "_write_str", fs_write_str);
-    kl_reg_func(lib, "_exists", fs_exists);
-    kl_reg_func(lib, "_is_file", fs_is_file);
-    kl_reg_func(lib, "_is_dir", fs_is_dir);
-    kl_reg_func(lib, "_size", fs_size);
-    kl_reg_func(lib, "_remove", fs_remove);
-    kl_reg_func(lib, "_mkdir", fs_mkdir);
-    kl_reg_func(lib, "_rmdir", fs_rmdir);
+
+    /* Public natives read a `Path | str` argument directly (see
+       `_arg_path_str`), so no `.kl` `_path_str` shim is needed. */
+    kl_reg_func(lib, "read_bytes", fs_read_bytes);
+    kl_reg_func(lib, "write_bytes", fs_write_bytes);
+    kl_reg_func(lib, "write_str", fs_write_str);
+    kl_reg_func(lib, "exists", fs_exists);
+    kl_reg_func(lib, "is_file", fs_is_file);
+    kl_reg_func(lib, "is_dir", fs_is_dir);
+    kl_reg_func(lib, "size", fs_size);
+    kl_reg_func(lib, "remove", fs_remove);
+    kl_reg_func(lib, "rename", fs_rename);
+    kl_reg_func(lib, "mkdir", fs_mkdir);
+    kl_reg_func(lib, "rmdir", fs_rmdir);
+
+    /* `list_dir` stays a `.kl` wrapper over the raw `_list_dir` primitive,
+       which still takes a plain `str` and returns `list[str]`. */
     kl_reg_func(lib, "_list_dir", fs_list_dir);
+
     kl_reg_type(lib, &file_type);
+    /* Bind the Koala `Path` class to the C `path_type` so natives can read a
+       `Path | str` argument directly. No methdefs: `Path` is pure Koala. */
+    kl_reg_type(lib, &path_type);
 }
 
 #ifdef __cplusplus

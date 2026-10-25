@@ -4,8 +4,10 @@
  */
 
 #include <fcntl.h>
+#include <limits.h>
 #include <spawn.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #include "atom.h"
 #include "bytesobj.h"
 #include "dictobj.h"
@@ -77,6 +79,40 @@ static TValue os_system(TValue *self, TValue *args, int nargs)
     char *cmd = kl_arg_str(0);
     int ret = system(cmd);
     return int64_value(ret);
+}
+
+// --- Working Directory ---
+
+/*
+ * pub func getcwd() str
+ *
+ * Return the absolute pathname of the current working directory.
+ * Panic if it cannot be determined (e.g. the directory was removed).
+ */
+static TValue os_getcwd(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+
+    char buf[PATH_MAX];
+    if (getcwd(buf, sizeof(buf)) == NULL) {
+        raise_exc_fmt("getcwd failed: %s", strerror(errno));
+        return error_value;
+    }
+
+    return kl_val_str(buf);
+}
+
+/*
+ * pub func chdir(path str) bool
+ *
+ * Change the current working directory to `path`.
+ * Return true on success, false if the directory cannot be entered.
+ */
+static TValue os_chdir(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = kl_arg_str(0);
+    return bool_value(chdir(path) == 0);
 }
 
 // --- Raw Reader/Writer ---
@@ -740,6 +776,8 @@ void os_native_lib_init(NativeLib *lib)
     kl_reg_func(lib, "setenv", os_setenv);
     kl_reg_func(lib, "unsetenv", os_unsetenv);
     kl_reg_func(lib, "environ", os_environ);
+    kl_reg_func(lib, "getcwd", os_getcwd);
+    kl_reg_func(lib, "chdir", os_chdir);
     kl_reg_func(lib, "pipe", os_pipe);
     kl_reg_func(lib, "system", os_system);
     kl_reg_func(lib, "run", os_run);

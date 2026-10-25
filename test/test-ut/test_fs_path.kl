@@ -1,6 +1,7 @@
 // RUN: koala --test %s
 
 import "std/fs"
+import "std/os"
 import "std/ut"
 
 func path_segment_is_str(segment fs.Path | str) bool {
@@ -164,10 +165,51 @@ func test_path_with_fs_functions() {
 
     ut.assert(fs.write_str(p, "path arg"))
 
+    // `exists` is native and reads a `Path` argument directly (no str shim).
+    ut.assert(fs.exists(p))
+    ut.assert_false(fs.exists(fs.Path("/tmp/kl_fs_path_no_such_file")))
+
     let buf = bytes(64)
     ut.assert_eq(fs.read_bytes(p, buf), 8)
     ut.assert_eq(buf.view(0, 8).to_str(), "path arg")
 
     ut.assert(fs.remove(p))
     ut.assert_false(fs.remove(p)) // the file is already gone
+    ut.assert_false(fs.exists(p)) // gone: native `exists` with a `Path`
+}
+
+@test
+func test_os_getcwd_chdir() {
+    // getcwd returns the real, absolute working directory.
+    let orig = os.getcwd()
+    ut.assert(orig.len() > 0)
+    ut.assert(orig.starts_with("/"))
+
+    // chdir into a fresh directory; getcwd reflects the move.
+    // The name suffix is checked rather than the full path, since a
+    // symlinked prefix (e.g. /tmp -> /private/tmp) is resolved by getcwd.
+    ut.assert(fs.mkdir("/tmp/kl_fs_path_cwd_dir"))
+    ut.assert(os.chdir("/tmp/kl_fs_path_cwd_dir"))
+    ut.assert(os.getcwd().ends_with("kl_fs_path_cwd_dir"))
+
+    // Restore the original cwd so later tests are unaffected.
+    ut.assert(os.chdir(orig))
+    ut.assert_eq(os.getcwd(), orig)
+
+    // Entering a missing directory fails.
+    ut.assert_false(os.chdir("/tmp/kl_fs_path_no_such_dir"))
+
+    ut.assert(fs.rmdir("/tmp/kl_fs_path_cwd_dir"))
+}
+
+@test
+func test_path_absolute() {
+    // An absolute path only normalizes.
+    ut.assert_eq(fs.Path("/a/b/../c").absolute().to_str(), "/a/c")
+
+    // A relative path resolves against the real cwd (getcwd), not PWD.
+    let cwd = os.getcwd()
+    let abs = fs.Path("sub/file.kl").absolute().to_str()
+    ut.assert(abs.starts_with(cwd))
+    ut.assert(abs.ends_with("sub/file.kl"))
 }

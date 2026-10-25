@@ -57,3 +57,38 @@ func test_fs_toplevel_funcs() {
     let ok3 = fs.write_str("/nonexistent_dir/x.txt", "x")
     ut.assert_false(ok3)
 }
+
+@test
+func test_fs_read_all() {
+    // read_str round-trips UTF-8 text.
+    ut.assert(fs.write_str("/tmp/kl_fs_ra.txt", "hello koala 你好"))
+    ut.assert_eq(fs.read_str("/tmp/kl_fs_ra.txt"), "hello koala 你好")
+
+    // read_all returns exactly the file bytes.
+    let b = fs.read_all("/tmp/kl_fs_ra.txt")
+    ut.assert_eq(b.len(), 18)
+    ut.assert_eq(b.to_str(), "hello koala 你好")
+
+    // A Path argument works too (native reads `Path | str` directly).
+    let p = fs.Path("/tmp/kl_fs_ra.txt")
+    ut.assert_eq(fs.read_str(p), "hello koala 你好")
+
+    // Empty file -> empty bytes, no panic.
+    ut.assert(fs.write_bytes("/tmp/kl_fs_ra_empty.bin", bytes(0)))
+    ut.assert_eq(fs.read_all("/tmp/kl_fs_ra_empty.bin").len(), 0)
+
+    // An explicit larger cap is honored; -1 means unlimited.
+    ut.assert_eq(fs.read_all("/tmp/kl_fs_ra.txt", 1024).len(), 18)
+    ut.assert_eq(fs.read_all("/tmp/kl_fs_ra.txt", -1).len(), 18)
+
+    fs.remove("/tmp/kl_fs_ra.txt")
+    fs.remove("/tmp/kl_fs_ra_empty.bin")
+}
+
+@should_panic
+func test_fs_read_all_exceeds_cap() {
+    // 100 bytes on disk but the caller caps the read at 10: read_all must
+    // panic *before* allocating, rather than loading an over-large file.
+    ut.assert(fs.write_bytes("/tmp/kl_fs_ra_big.bin", bytes(100)))
+    fs.read_all("/tmp/kl_fs_ra_big.bin", 10)
+}

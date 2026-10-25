@@ -33,8 +33,8 @@ pub func open(path str, mode = "r") File? {}
 
 /// Convert a `Path | str` argument to the raw `str` path.
 ///
-/// Public functions accept `Path | str`; the `@native` primitives they
-/// forward to only take a plain `str`.
+/// Now only used by `list_dir` (which stays a `.kl` wrapper); every other
+/// `Path | str` function is a direct `@native` that reads its argument in C.
 func _path_str(p Path | str) str {
     if p is str {
         return p
@@ -45,39 +45,10 @@ func _path_str(p Path | str) str {
     }
 }
 
-// --- Native primitives ---
-// Raw `str`-path implementations; the public functions below normalize
-// `Path | str` via `_path_str` before forwarding.
-
-@native
-func _read_bytes(path str, out bytes) int {}
-
-@native
-func _write_bytes(path str, data bytes) bool {}
-
-@native
-func _write_str(path str, data str) bool {}
-
-@native
-func _exists(p str) bool {}
-
-@native
-func _is_file(p str) bool {}
-
-@native
-func _is_dir(p str) bool {}
-
-@native
-func _size(p str) int64 {}
-
-@native
-func _remove(p str) bool {}
-
-@native
-func _mkdir(p str) bool {}
-
-@native
-func _rmdir(p str) bool {}
+// --- Native primitive (list_dir only) ---
+// `list_dir` returns strongly-typed `list[Path]`, so it stays a `.kl` wrapper
+// over this raw primitive that reads a `str` directory and returns `list[str]`.
+// Every other `Path | str` function is a direct `@native` (C reads the arg).
 
 @native
 func _list_dir(p str) list[str] {}
@@ -91,9 +62,8 @@ func _list_dir(p str) list[str] {}
 /// The file is closed before returning.
 ///
 /// See: `write_bytes`, `File.read`.
-pub func read_bytes(path Path | str, out bytes) int {
-    return _read_bytes(_path_str(path), out)
-}
+@native
+pub func read_bytes(path Path | str, out bytes) int {}
 
 /// Write `data` to the file `path`, creating or truncating it.
 ///
@@ -102,9 +72,8 @@ pub func read_bytes(path Path | str, out bytes) int {
 /// The file is closed before returning.
 ///
 /// See: `write_str`, `read_bytes`.
-pub func write_bytes(path Path | str, data bytes) bool {
-    return _write_bytes(_path_str(path), data)
-}
+@native
+pub func write_bytes(path Path | str, data bytes) bool {}
 
 /// Encode `data` as UTF-8 and write it to the file `path`,
 /// creating or truncating it.
@@ -114,50 +83,54 @@ pub func write_bytes(path Path | str, data bytes) bool {
 /// The file is closed before returning.
 ///
 /// See: `write_bytes`, `read_bytes`.
-pub func write_str(path Path | str, data str) bool {
-    return _write_str(_path_str(path), data)
-}
+@native
+pub func write_str(path Path | str, data str) bool {}
 
 // --- Metadata & Queries (Migrated from traditional os.path) ---
 
 /// Return true if the file or directory exists on the physical disk.
-pub func exists(p Path | str) bool {
-    return _exists(_path_str(p))
-}
+///
+/// Implemented natively: the C side reads a `Path | str` argument directly,
+/// so no `_path_str` normalization shim is needed.
+@native
+pub func exists(p Path | str) bool {}
 
 /// Return true if the path points to a regular file.
-pub func is_file(p Path | str) bool {
-    return _is_file(_path_str(p))
-}
+@native
+pub func is_file(p Path | str) bool {}
 
 /// Return true if the path points to a directory.
-pub func is_dir(p Path | str) bool {
-    return _is_dir(_path_str(p))
-}
+@native
+pub func is_dir(p Path | str) bool {}
 
 /// Return the size of the file in bytes. Panics if the file does not exist.
-pub func size(p Path | str) int64 {
-    return _size(_path_str(p))
-}
+@native
+pub func size(p Path | str) int64 {}
 
 /// Permanently delete a file from the disk. Returns true on success.
-pub func remove(p Path | str) bool {
-    return _remove(_path_str(p))
-}
+@native
+pub func remove(p Path | str) bool {}
+
+/// Rename or move the file/directory `src` to `dst`.
+///
+/// Both paths must be on the same filesystem; a cross-device move returns
+/// false (use a copy + remove sequence for that case). An existing `dst`
+/// file is overwritten; an existing `dst` directory must be empty.
+/// Return true on success, false on failure.
+@native
+pub func rename(src Path | str, dst Path | str) bool {}
 
 // --- Directory Management ---
 
 /// Create a directory, including any missing parent directories (mkdir -p).
 /// An existing directory is treated as success.
 /// Return true on success, false on failure.
-pub func mkdir(p Path | str) bool {
-    return _mkdir(_path_str(p))
-}
+@native
+pub func mkdir(p Path | str) bool {}
 
 /// Remove an empty directory. Returns false if the directory is not empty.
-pub func rmdir(p Path | str) bool {
-    return _rmdir(_path_str(p))
-}
+@native
+pub func rmdir(p Path | str) bool {}
 
 /// Read the directory contents and return a list of strongly-typed `path.Path` objects.
 ///
@@ -174,4 +147,47 @@ pub func list_dir(p Path | str) list[Path] {
         paths.append(dir.cat(name))
     }
     return paths
+}
+
+// --- Whole-file convenience ---
+
+/// Read the entire file `path` into a new `bytes`.
+///
+/// A convenience over `open` + a chunked `File.read` loop: it `stat`s the file
+/// for its size, allocates exactly that many bytes, and reads them in one shot.
+///
+/// Because the whole file is loaded into memory, the read is guarded by `max`:
+/// if the file is larger than `max` bytes it panics *before* allocating. The
+/// default cap is 64 KiB, chosen for memory-constrained (embedded) targets;
+/// pass a larger `max`, or `-1` for unlimited, to override.
+///
+/// For a file that legitimately does not fit in memory, stream it instead:
+/// `fs.open(path)` + `File.read(chunk)` in a loop, or `io.read_all(reader)` /
+/// `io.lines(...)`. `read_all` is meant for small files.
+///
+/// Panics if the file does not exist (via `size`) or cannot be read.
+///
+/// See: `read_str`, `read_bytes`, `write_bytes`.
+pub func read_all(path Path | str, max = 65_536) bytes {
+    let n = size(path)
+    if (max >= 0) && (n > max) {
+        panic("read_all: '" + _path_str(path) + "' is " + n.to_str() + " bytes, exceeds cap " + max.to_str() + " (pass a larger max, or -1 for unlimited)")
+    }
+    let buf = bytes(n)
+    let r = read_bytes(path, buf)
+    if r < 0 { panic("read_all: failed to read '" + _path_str(path) + "'") }
+    return buf.view(0, r)
+}
+
+/// Read the entire file `path` and decode it as UTF-8 into a `str`.
+///
+/// Same size guard and streaming guidance as `read_all`; this is simply
+/// `read_all(path, max).to_str()`.
+///
+/// Panics if the file does not exist, exceeds `max` (default 64 KiB, `-1` for
+/// unlimited), or cannot be read.
+///
+/// See: `read_all`, `write_str`.
+pub func read_str(path Path | str, max = 65_536) str {
+    return read_all(path, max).to_str()
 }
