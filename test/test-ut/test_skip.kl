@@ -1,0 +1,25 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+@test
+func test_normal_pass() {
+    ut.assert_eq(1 + 1, 2)
+}
+
+@skip
+func test_skipped_one() {
+    // This test should be skipped
+    ut.assert_eq(1, 2) // would fail if executed
+}
+
+@skip
+func test_skipped_two() {
+    // This test should also be skipped
+    unreachable() // would panic if executed
+}
+
+@test
+func test_normal_pass2() {
+    ut.assert(true)
+}

@@ -127,7 +127,7 @@ func test_run_read_all_empty() {
 // TODO: cause zombie process
 // read_all() across internal buffer growth: 1000 x 17 = 17000 bytes,
 // which exceeds the initial 8192-byte accumulation capacity.
-// @test
+@skip
 func test_run_read_all_large() {
     let p = os.run("cat")!
     let line = "0123456789abcdef\n".to_bytes()

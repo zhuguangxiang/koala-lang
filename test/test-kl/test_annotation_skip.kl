@@ -1,0 +1,32 @@
+// RUN: ! koalac %s | filecheck %s
+
+func add(v1 int, v2 int) int { return v1 + v2 }
+
+@test
+func test_add_bad(v int) {}
+
+@test("reason")
+func test_add_with_param() {}
+
+@skip
+func test_skip_bad_name(v int) {}
+
+@skip
+func skip_no_prefix() {}
+
+@skip
+func test_skip_generic[T]() {}
+
+@skip
+func test_skip_with_return() int {}
+
+@skip("reason")
+func test_skip_with_param() {}
+
+// CHECK: func 'test_add_bad' with 'test' annotation cannot have any argument.
+// CHECK: func 'test_add_with_param' with 'test' annotation cannot have any parameter.
+// CHECK: func 'test_skip_bad_name' with 'skip' annotation cannot have any argument.
+// CHECK: func 'skip_no_prefix' with 'skip' annotation needs to be named with 'test_' prefix.
+// CHECK: func 'test_skip_generic' is a generic function. The 'skip' annotation only be used for non-generic function.
+// CHECK: func 'test_skip_with_return' with 'skip' annotation cannot have return type.
+// CHECK: func 'test_skip_with_param' with 'skip' annotation cannot have any parameter.

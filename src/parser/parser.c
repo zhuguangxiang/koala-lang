@@ -1407,6 +1407,11 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
                      fn->id.name);
         }
 
+        if (ann->value) {
+            kl_error(ann->id_loc, "func '%s' with 'test' annotation cannot have any parameter.",
+                     fn->id.name);
+        }
+
         if (!vector_empty(fn->args)) {
             kl_error(fn->id.loc, "func '%s' with 'test' annotation cannot have any argument.",
                      fn->id.name);
@@ -1450,6 +1455,46 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
         if (fn->ret) {
             kl_error(fn->id.loc,
                      "func '%s' with 'should_panic' annotation cannot have return type.",
+                     fn->id.name);
+        }
+
+        return;
+    }
+
+    if (str_equal(ann->ident, "skip")) {
+        if (!match_prefix(fn->id.name, "test_")) {
+            kl_error(fn->id.loc,
+                     "func '%s' with 'skip' annotation needs to be named with 'test_' "
+                     "prefix.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(fn->tps)) {
+            kl_error(fn->id.loc,
+                     "func '%s' is a generic function. The 'skip' annotation only be used for "
+                     "non-generic function.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(ann->types)) {
+            kl_error(ann->id_loc, "func '%s' with 'skip' annotation cannot have any type.",
+                     fn->id.name);
+        }
+
+        if (ann->value) {
+            kl_error(ann->id_loc, "func '%s' with 'skip' annotation cannot have any parameter.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(fn->args)) {
+            kl_error(fn->id.loc,
+                     "func '%s' with 'skip' annotation cannot have any argument.",
+                     fn->id.name);
+        }
+
+        if (fn->ret) {
+            kl_error(fn->id.loc,
+                     "func '%s' with 'skip' annotation cannot have return type.",
                      fn->id.name);
         }
 
@@ -1552,6 +1597,11 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
         // only functions with 'should_panic' prefix get this annotation
         fn_sym->ann = fn->flags.ann.ident;
         fn_sym->ann_val = fn->flags.ann.value ? fn->flags.ann.value : "";
+    }
+
+    if (match_prefix(fn->flags.ann.ident, "skip")) {
+        // only functions with 'skip' prefix get this annotation
+        fn_sym->ann = fn->flags.ann.ident;
     }
 
     if (!has_specialized_meta((Stmt *)fn)) return sym;

@@ -99,6 +99,7 @@ typedef struct _TestCase {
     char *msg;
     long long elapsed_ns;
     int passed;
+    int skipped;
     Object *exc;
 } TestCase;
 
@@ -107,7 +108,7 @@ void kl_free_module(Object *m);
 #define kl_mo_path(m) (((ModuleObject *)(m))->path)
 void kl_mo_set_code(Object *_m, uint32_t *insns, size_t n);
 int kl_mo_add_func(Object *_m, char *name, Object *obj);
-int kl_mo_add_test(Object *_m, char *name, Object *obj, int expect_panic, char *msg);
+int kl_mo_add_test(Object *_m, char *name, Object *obj, int expect_panic, char *msg, int skipped);
 int kl_mo_add_type(Object *_m, TypeObject *tp);
 int kl_mo_add_const(Object *_m, TValue *val);
 int kl_mo_add_str(Object *_m, char *s);

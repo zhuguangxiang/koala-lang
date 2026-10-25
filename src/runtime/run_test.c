@@ -11,11 +11,10 @@
 extern "C" {
 #endif
 
-static void print_test_progress(int err, int index, int total)
-{
-    static char results[4096]; // store all test results
-    results[index] = err ? 'F' : '.';
+static char test_results[4096]; // store all test results
 
+static void render_progress(int index, int total)
+{
     const int window = 50; // number of symbols to show
     int start = 0;
 
@@ -29,11 +28,13 @@ static void print_test_progress(int err, int index, int total)
 
     printf("\r[");
     for (int i = start; i < start + window && i < total; i++) {
-        char c = results[i];
+        char c = test_results[i];
         if (i > index) {
             printf(" "); // not executed yet
         } else if (c == 'F') {
             printf("\x1b[31mF\x1b[0m"); // red F
+        } else if (c == 'S') {
+            printf("\x1b[33mS\x1b[0m"); // yellow S
         } else {
             printf("\x1b[32m.\x1b[0m"); // green dot
         }
@@ -43,6 +44,18 @@ static void print_test_progress(int err, int index, int total)
     if (index + 1 == total) printf("\n");
 
     fflush(stdout);
+}
+
+static void print_test_progress(int err, int index, int total)
+{
+    test_results[index] = err ? 'F' : '.';
+    render_progress(index, total);
+}
+
+static void print_test_progress_skip(int index, int total)
+{
+    test_results[index] = 'S';
+    render_progress(index, total);
 }
 
 static int kl_run_tests(Object *_m)
@@ -58,6 +71,14 @@ static int kl_run_tests(Object *_m)
 
     TestCase *_case;
     vector_foreach_ptr(_case, tests) {
+        // skip tests marked with @skip
+        if (_case->skipped) {
+            _case->elapsed_ns = 0;
+            _case->passed = 1;
+            print_test_progress_skip(i__, total);
+            continue;
+        }
+
         long long start_ns = now_ns();
         TValue val = kl_call_code(_case->co, NULL, 0);
         long long end_ns = now_ns();
@@ -86,7 +107,7 @@ static int kl_run_tests(Object *_m)
 
         if (_case->expect_panic) {
             char *exc_str = kl_exc_get_msg(exc);
-            if (!_case->msg || !_case->msg[0] || (exc_str && str_equal(exc_str, _case->msg))) {
+            if (!_case->msg || (exc_str && str_equal(exc_str, _case->msg))) {
                 // eat this exception as it matches the expected panic
                 kl_free_exc(exc);
                 _case->exc = NULL;
@@ -107,8 +128,14 @@ static int kl_run_tests(Object *_m)
 
     long long total_ns = 0;
     int pass = 0;
+    int skipped = 0;
     vector_foreach_ptr(_case, tests) {
         total_ns += _case->elapsed_ns;
+
+        if (_case->skipped) {
+            skipped++;
+            continue;
+        }
 
         if (_case->passed) {
             ASSERT(_case->exc == NULL);
@@ -125,7 +152,7 @@ static int kl_run_tests(Object *_m)
                 printf(
                     "\n\x1b[31mError:\x1b[0m Test '%s' failed.\n  Expected Exception:\n    %s\n  "
                     "But no exception was raised.\n",
-                    _case->name, _case->msg);
+                    _case->name, _case->msg ? _case->msg : "(any)");
                 printf(
                     "\nHint: It seems this feature was recently implemented, but the negative\n"
                     "  test case was not updated.\n");
@@ -133,7 +160,7 @@ static int kl_run_tests(Object *_m)
                 printf(
                     "\nError: Test '%s' failed.\n  Expected Exception:\n    %s\n  But no exception "
                     "was raised.\n",
-                    _case->name, _case->msg);
+                    _case->name, _case->msg ? _case->msg : "(any)");
                 printf(
                     "\nHint: It seems this feature was recently implemented, but the negative\n"
                     "  test case was not updated.\n");
@@ -143,8 +170,13 @@ static int kl_run_tests(Object *_m)
 
     // 3. print result
     double total_ms = (double)total_ns / 1e6;
-    int failed = total - pass;
-    printf("\nResult: %d passed, %d failed in %.3f ms\n", pass, failed, total_ms);
+    int failed = total - pass - skipped;
+    if (skipped > 0) {
+        printf("\nResult: %d passed, %d failed, %d skipped in %.3f ms\n", pass, failed, skipped,
+               total_ms);
+    } else {
+        printf("\nResult: %d passed, %d failed in %.3f ms\n", pass, failed, total_ms);
+    }
     if (failed == 0) printf("\nAll tests passed.\n");
 
     return failed;
