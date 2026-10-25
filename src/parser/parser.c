@@ -1389,12 +1389,6 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
     }
 
     if (str_equal(ann->ident, "test")) {
-        if (!match_prefix(fn->id.name, "test_")) {
-            kl_error(fn->id.loc,
-                     "func '%s' with 'test' annotation needs to be named with 'test_' prefix.",
-                     fn->id.name);
-        }
-
         if (!vector_empty(fn->tps)) {
             kl_error(fn->id.loc,
                      "func '%s' is a generic function. The 'test' annotation only be used for "
@@ -1426,13 +1420,6 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
     }
 
     if (str_equal(ann->ident, "should_panic")) {
-        if (!match_prefix(fn->id.name, "test_")) {
-            kl_error(fn->id.loc,
-                     "func '%s' with 'should_panic' annotation needs to be named with 'test_' "
-                     "prefix.",
-                     fn->id.name);
-        }
-
         if (!vector_empty(fn->tps)) {
             kl_error(fn->id.loc,
                      "func '%s' is a generic function. The 'should_panic' annotation only be "
@@ -1462,13 +1449,6 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
     }
 
     if (str_equal(ann->ident, "skip")) {
-        if (!match_prefix(fn->id.name, "test_")) {
-            kl_error(fn->id.loc,
-                     "func '%s' with 'skip' annotation needs to be named with 'test_' "
-                     "prefix.",
-                     fn->id.name);
-        }
-
         if (!vector_empty(fn->tps)) {
             kl_error(fn->id.loc,
                      "func '%s' is a generic function. The 'skip' annotation only be used for "
@@ -1487,15 +1467,62 @@ static void check_func_prefix(ParserState *ps, FuncDeclStmt *fn)
         }
 
         if (!vector_empty(fn->args)) {
-            kl_error(fn->id.loc,
-                     "func '%s' with 'skip' annotation cannot have any argument.",
+            kl_error(fn->id.loc, "func '%s' with 'skip' annotation cannot have any argument.",
                      fn->id.name);
         }
 
         if (fn->ret) {
-            kl_error(fn->id.loc,
-                     "func '%s' with 'skip' annotation cannot have return type.",
+            kl_error(fn->id.loc, "func '%s' with 'skip' annotation cannot have return type.",
                      fn->id.name);
+        }
+
+        return;
+    }
+
+    if (str_equal(ann->ident, "bench")) {
+        if (!vector_empty(fn->tps)) {
+            kl_error(fn->id.loc,
+                     "func '%s' is a generic function. The 'bench' annotation only be used for "
+                     "non-generic function.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(ann->types)) {
+            kl_error(ann->id_loc, "func '%s' with 'bench' annotation cannot have any type.",
+                     fn->id.name);
+        }
+
+        if (ann->value) {
+            kl_error(ann->id_loc, "func '%s' with 'bench' annotation cannot have string parameter.",
+                     fn->id.name);
+        }
+
+        if (!vector_empty(fn->args)) {
+            kl_error(fn->id.loc, "func '%s' with 'bench' annotation cannot have any argument.",
+                     fn->id.name);
+        }
+
+        if (fn->ret) {
+            kl_error(fn->id.loc, "func '%s' with 'bench' annotation cannot have return type.",
+                     fn->id.name);
+        }
+
+        // validate params: only 'warmup' and 'runs' are allowed, both must be int
+        if (ann->params) {
+            AnnotParam *param;
+            vector_foreach(param, ann->params) {
+                if (!str_equal(param->key, "warmup") && !str_equal(param->key, "runs")) {
+                    kl_error(ann->id_loc,
+                             "func '%s' with 'bench' annotation has unknown parameter '%s'. "
+                             "Allowed parameters: 'warmup', 'runs'.",
+                             fn->id.name, param->key);
+                }
+                if (param->which != ANNOT_PARAM_INT) {
+                    kl_error(ann->id_loc,
+                             "func '%s' with 'bench' annotation parameter '%s' must be an integer.",
+                             fn->id.name, param->key);
+                }
+            }
         }
 
         return;
@@ -1602,6 +1629,12 @@ static Symbol *_add_func(ParserState *ps, HashMap *stbl, FuncDeclStmt *fn, int t
     if (match_prefix(fn->flags.ann.ident, "skip")) {
         // only functions with 'skip' prefix get this annotation
         fn_sym->ann = fn->flags.ann.ident;
+    }
+
+    if (match_prefix(fn->flags.ann.ident, "bench")) {
+        // only functions with 'bench' prefix get this annotation
+        fn_sym->ann = fn->flags.ann.ident;
+        fn_sym->ann_params = fn->flags.ann.params;
     }
 
     if (!has_specialized_meta((Stmt *)fn)) return sym;

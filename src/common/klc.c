@@ -609,7 +609,31 @@ int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value)
     ann->name_index = name_index;
     ann->key_index = key_index;
     ann->value_index = value_index;
+    vector_init_ptr(&ann->params);
     vector_push_back(&fn->anns, &ann);
+    return 0;
+}
+
+int klc_func_add_ann_param(KlcFunc *fn, KlcAnnot *ann, char *key, int which, int64_t ival,
+                           char *sval)
+{
+    KlcFile *klc = fn->filp;
+
+    int len = key ? strlen(key) : 0;
+    uint16_t key_index = key ? klc_add_str(klc, key, len) : 0;
+
+    uint16_t sval_index = 0;
+    if (which == 2 && sval) {
+        len = strlen(sval);
+        sval_index = klc_add_str(klc, sval, len);
+    }
+
+    KlcAnnotParam *param = mm_alloc_obj(param);
+    param->key_index = key_index;
+    param->which = which;
+    param->ival = ival;
+    param->sval_index = sval_index;
+    vector_push_back(&ann->params, &param);
     return 0;
 }
 
@@ -898,6 +922,21 @@ static void write_anns(KlcFile *klc, Vector *vec)
         write_uint16(klc, item->name_index);
         write_uint16(klc, item->key_index);
         write_uint16(klc, item->value_index);
+        // write params
+        size_t param_size = vector_size(&item->params);
+        write_uint8(klc, (uint8_t)param_size);
+        KlcAnnotParam *param;
+        vector_foreach(param, &item->params) {
+            write_uint16(klc, param->key_index);
+            write_uint8(klc, param->which);
+            if (param->which == 1) {
+                // int value
+                write_uint64(klc, (uint64_t)param->ival);
+            } else if (param->which == 2) {
+                // string value
+                write_uint16(klc, param->sval_index);
+            }
+        }
     }
 }
 
@@ -1349,10 +1388,29 @@ static void read_anns(KlcFile *klc, Vector *vec)
     KlcAnnot *ann;
     for (int i = 0; i < size; i++) {
         ann = mm_alloc_obj(ann);
+        vector_init_ptr(&ann->params);
         vector_push_back(vec, &ann);
         read_uint16(klc, &ann->name_index);
         read_uint16(klc, &ann->key_index);
         read_uint16(klc, &ann->value_index);
+        // read params
+        int param_size = 0;
+        read_uint8(klc, (uint8_t *)&param_size);
+        for (int j = 0; j < param_size; j++) {
+            KlcAnnotParam *param = mm_alloc_obj(param);
+            read_uint16(klc, &param->key_index);
+            read_uint8(klc, &param->which);
+            if (param->which == 1) {
+                // int value
+                uint64_t val;
+                read_uint64(klc, &val);
+                param->ival = (int64_t)val;
+            } else if (param->which == 2) {
+                // string value
+                read_uint16(klc, &param->sval_index);
+            }
+            vector_push_back(&ann->params, &param);
+        }
     }
 }
 

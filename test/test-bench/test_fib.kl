@@ -1,0 +1,11 @@
+import "std/ut"
+
+func fib(n int) int {
+    if n < 2 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+@bench(warmup=3, runs=10)
+func bench_fib() {
+    fib(30)
+}

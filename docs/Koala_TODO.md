@@ -10,11 +10,12 @@
 > datetime 固定偏移时区（§23，待设计）、运算符按操作数类型重载以支持同类相减（§24，编译器级，待讨论）、
 > Koala std/能力包 vs Python 标准库的场景×热度对比（§25，现状盘点，非待办）、
 > `build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断（§26，待施工）、
-> 全常量 dict 字面量直接作 `print` / `format` 实参时报 `modobj.c: Not Yet Implemented`（§27，待修）。
+> 全常量 dict 字面量直接作 `print` / `format` 实参时报 `modobj.c: Not Yet Implemented`（§27，待修）、
+> os.run 子进程管道大 payload「先写后读」死锁 + Process/Raw* 无 finalizer 致 fd 泄漏与 zombie（§28，待修）。
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-10-25（新增 §26：`build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断，待施工；§27：全常量 dict 字面量直接作实参报 `modobj.c` 未实现，待修；§20 / §21 均已修复，§22 待定；datetime 包 Date/Time/DateTime 已收工，仅剩时区见 §23；§24 为运算符重载语言待办；§25 为 Koala vs Python 标准库场景×热度对比盘点）
+> 更新日期：2026-10-25（新增 §26：`build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断，待施工；§27：全常量 dict 字面量直接作实参报 `modobj.c` 未实现，待修；§28：os.run 子进程管道大 payload 先写后读死锁、Process/Raw* 无 finalizer 致 fd 泄漏与 zombie，待修；§20 / §21 均已修复，§22 待定；datetime 包 Date/Time/DateTime 已收工，仅剩时区见 §23；§24 为运算符重载语言待办；§25 为 Koala vs Python 标准库场景×热度对比盘点）
 
 ---
 
@@ -1331,3 +1332,28 @@ json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可
 应能直接通过。
 
 **关联**：§26（`build_intern` 操作数个数上限）同属 `build_intern` / const-pool 折叠区域。
+
+---
+
+## 28. os.run 子进程管道：大 payload「先写后读」死锁 + 无 finalizer 致 fd 泄漏与 zombie
+
+**现象一（死锁）**：对 `os.run` 返回的 Process，若「先把 stdin 全部写完，再 `read_all()` 读 stdout」，
+当 payload 超过管道容量时死锁——父进程阻塞在 `write(stdin)`、子进程阻塞在 `write(stdout)`，两侧永久睡眠
+（`ps` TIME=00:00:00，wchan 分别为 `anon_pipe_write` / `pipe_wait_writable`）。
+`test/test-ut/test_run_pipe.kl:130` 的 `test_run_read_all_large` 已因此被 `@skip`（头部注 `// TODO: cause zombie process`）。
+
+**阈值**：`src/modules/os.c:422` 的 `kl_pipe_cloexec` 用裸 `pipe()`（全仓无 `F_SETPIPE_SZ`），容量为 Linux 默认 64KB。
+子进程为 echo（如 `cat`）时：stdout 管道灌满 64KB → 子进程停读 stdin → stdin 管道再灌满 64KB → 父进程停写，
+故 payload 越过 ~128KB（2×64KB）即死锁；≤128KB 则写完 close、`read_all` 抽干后子进程退出，正常。
+当前 `test_run_read_all_large` 为 1000×17=17000 字节，远低于阈值，单跑可过（死锁需更大 payload）。
+
+**现象二（fd 泄漏 / zombie）**：`process_type`（os.c:626）、`raw_reader_type`（os.c:273）、`raw_writer_type`（os.c:400）
+均未注册 `_free` finalizer；运行时也从不调用 `_free`（`kl_free_instance` 仅 `mm_free`，`src/objects/typeobj.c:118`），且无 SIGCHLD 处理。后果：
+① `read_all()`（os.c:205）读完不关 fd，测试一般只 `close` stdin，故每个 os.run 泄漏 stdout/stderr 两个读端 fd；
+② 未显式 `wait()` 的子进程永不回收 → zombie。
+
+**待办**：
+1. 给 Process 增 `communicate()` 式 API：用 `poll`/`select` 非阻塞地边写 stdin 边抽 stdout/stderr（对标 Python `subprocess.communicate`），从根上消除大 payload 死锁；随后解除 `test_run_read_all_large` 的 `@skip`。
+2. 为 Process/RawReader/RawWriter 注册 `_free`（关闭各自 fd；Process 额外回收子进程），并把运行时对象释放路径接上 `_free` 调用。
+
+**关联**：finalizer 机制在 `TypeObject` 已声明 `_free`/`_mark`（`include/runtime/object.h:261-263`）但全仓未接线；亦见 §16（声明-实现欠账）。

@@ -56,7 +56,6 @@ set_target_properties(koalac_out PROPERTIES
     OUTPUT_NAME koalac)
 
 set(COMMON_SOURCES
-    common/sds.c
     common/atom.c
     common/log.c
     common/mm.c

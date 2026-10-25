@@ -133,6 +133,7 @@ typedef struct _FuncSymbol {
     char *ann;
     char *ann_key;
     char *ann_val;
+    Vector *ann_params; // Vector<AnnotParam*>
     /* return type */
     TypeSpec *ret;
     /* ArgInfo list */

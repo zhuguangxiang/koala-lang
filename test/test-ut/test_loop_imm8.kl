@@ -1,0 +1,81 @@
+// Stripped from test_run_pipe.kl: controlled comparison for a loop-bound
+// constant crossing the imm8 boundary. The only variable is the bound:
+// 127 (INT8_MAX, imm8-encodable) vs 128 (first value isel must materialize
+// into a register, see src/parser/backend/isel.c).
+//
+// Run manually (the beyond-imm8 cases spin at 100% CPU while the bug is live):
+//     timeout 5 koala --test misc/test_loop_imm8.kl
+// Correct build: every case finishes instantly and all asserts pass.
+// Buggy build: control (<= 127) passes; experiment (> 127) never reaches its assert.
+
+import "std/ut"
+
+// Control: bound 127 fits imm8 -> the loop stops exactly at the bound.
+@test
+func test_bound_127_within_imm8() {
+    var i = 0
+    var n = 0
+    while i < 127 {
+        n = n + 1
+        i = i + 1
+    }
+    ut.assert_eq(i, 127)
+    ut.assert_eq(n, 127)
+}
+
+// Experiment: bound 128 is the first value beyond imm8; identical body.
+@test
+func test_bound_128_beyond_imm8() {
+    var i = 0
+    var n = 0
+    while i < 128 {
+        n = n + 1
+        i = i + 1
+    }
+    ut.assert_eq(i, 128)
+    ut.assert_eq(n, 128)
+}
+
+// Experiment: the exact magnitude that hung in test_run_pipe.kl (bound 1000).
+@test
+func test_bound_1000_beyond_imm8() {
+    var i = 0
+    var n = 0
+    while i < 1000 {
+        n = n + 1
+        i = i + 1
+    }
+    ut.assert_eq(i, 1000)
+    ut.assert_eq(n, 1000)
+}
+
+// Mechanism discriminator: the original runaway body was a native call (write).
+// These two keep a cheap, non-blocking, non-allocating native call (bytes.len())
+// in the body. If the pure-arithmetic cases above PASS but these beyond-imm8
+// cases run away, the defect is a register clobbered across the native call
+// rather than the comparison lowering itself.
+@test
+func test_call_body_127_within_imm8() {
+    let line = "0123456789abcdef\n".to_bytes() // len() == 17
+    var i = 0
+    var n = 0
+    while i < 127 {
+        if line.len() == 17 { n = n + 1 }
+        i = i + 1
+    }
+    ut.assert_eq(i, 127)
+    ut.assert_eq(n, 127)
+}
+
+@test
+func test_call_body_128_beyond_imm8() {
+    let line = "0123456789abcdef\n".to_bytes()
+    var i = 0
+    var n = 0
+    while i < 128 {
+        if line.len() == 17 { n = n + 1 }
+        i = i + 1
+    }
+    ut.assert_eq(i, 128)
+    ut.assert_eq(n, 128)
+}

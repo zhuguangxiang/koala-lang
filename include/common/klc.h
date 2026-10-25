@@ -138,6 +138,17 @@ typedef struct _KlcTypeParam {
     Vector bounds;
 } KlcTypeParam;
 
+typedef struct _KlcAnnotParam {
+    /* ITEM_CONST */
+    uint16_t key_index;
+    /* value type: 0=none, 1=int, 2=string */
+    uint8_t which;
+    /* int value (if which == 1) */
+    int64_t ival;
+    /* ITEM_CONST (if which == 2) */
+    uint16_t sval_index;
+} KlcAnnotParam;
+
 typedef struct _KlcAnnot {
     /* ITEM_CONST */
     uint16_t name_index;
@@ -145,6 +156,8 @@ typedef struct _KlcAnnot {
     uint16_t key_index;
     /* ITEM_CONST */
     uint16_t value_index;
+    /* Vector<KlcAnnotParam*> */
+    Vector params;
 } KlcAnnot;
 
 typedef struct _KlcIntfEntry {
@@ -222,6 +235,8 @@ KlcFunc *klc_add_func(KlcFile *klc, char *name, char *type, int flags);
 int klc_func_add_arg(KlcFunc *fn, char *name, char *type, uint16_t index);
 KlcTypeParam *klc_func_add_tp(KlcFunc *fn, char *name);
 int klc_func_add_ann(KlcFunc *fn, char *name, char *key, char *value);
+int klc_func_add_ann_param(KlcFunc *fn, KlcAnnot *ann, char *key, int which, int64_t ival,
+                           char *sval);
 
 KlcKlass *klc_add_klass(KlcFile *klc, char *name, int flags);
 KlcTypeParam *klc_klass_add_tp(KlcKlass *kls, char *name);

@@ -423,19 +423,39 @@ static Object *_load_module(char *path)
             if (!ann) continue;
             char *_name = klc_get_str(klc, ann->name_index);
             if (!str_equal(_name, "test") && !str_equal(_name, "should_panic") &&
-                !str_equal(_name, "skip"))
+                !str_equal(_name, "skip") && !str_equal(_name, "bench"))
                 continue;
             Object *_co = vector_get(&mo->funcs, fn_item->code_index);
             ASSERT(_co && IS_CODE(_co));
-            int expect_panic = str_equal(_name, "should_panic");
-            int skipped = str_equal(_name, "skip");
-            char *msg = NULL;
-            if (expect_panic) {
+
+            TestCase test_case = { 0 };
+            test_case.name = klc_get_str(klc, fn_item->name_index);
+            test_case.co = _co;
+
+            if (str_equal(_name, "should_panic")) {
+                test_case.expect_panic = 1;
                 log_info("test '%s' expects panic", _name);
-                msg = klc_get_str(klc, ann->value_index);
+                test_case.msg = klc_get_str(klc, ann->value_index);
+            } else if (str_equal(_name, "skip")) {
+                test_case.skipped = 1;
+            } else if (str_equal(_name, "bench")) {
+                test_case.is_bench = 1;
+                test_case.bench_config = mm_alloc_obj(test_case.bench_config);
+                test_case.bench_config->warmup = 0;
+                test_case.bench_config->runs = 1;
+                // parse params from ann->params
+                KlcAnnotParam *param;
+                vector_foreach(param, &ann->params) {
+                    char *key = klc_get_str(klc, param->key_index);
+                    if (str_equal(key, "warmup") && param->which == 1) {
+                        test_case.bench_config->warmup = (int)param->ival;
+                    } else if (str_equal(key, "runs") && param->which == 1) {
+                        test_case.bench_config->runs = (int)param->ival;
+                    }
+                }
             }
-            _name = klc_get_str(klc, fn_item->name_index);
-            kl_mo_add_test(m, _name, _co, expect_panic, msg, skipped);
+
+            kl_mo_add_test(m, &test_case);
         }
     }
 

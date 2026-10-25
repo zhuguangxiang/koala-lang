@@ -67,17 +67,21 @@ int kl_mo_add_func(Object *_m, char *name, Object *obj)
     return 0;
 }
 
-int kl_mo_add_test(Object *_m, char *name, Object *obj, int expect_panic, char *msg, int skipped)
+int kl_mo_add_test(Object *_m, TestCase *test_case)
 {
     ModuleObject *m = (ModuleObject *)_m;
-    TestCase test_case = {
-        .name = atom(name),
-        .co = obj,
-        .expect_panic = expect_panic,
-        .msg = (msg && msg[0]) ? atom(msg) : NULL,
-        .skipped = skipped,
-    };
-    vector_push_back(&m->tests, &test_case);
+    // atomize name if present
+    if (test_case->name) {
+        test_case->name = atom(test_case->name);
+    }
+    // atomize msg if present
+    if (test_case->msg && test_case->msg[0]) {
+        test_case->msg = atom(test_case->msg);
+    } else {
+        test_case->msg = NULL;
+    }
+    vector_init(&test_case->bench_times, sizeof(long long));
+    vector_push_back(&m->tests, test_case);
     return 0;
 }
 

@@ -142,6 +142,14 @@ static void write_meta_func(FuncSymbol *fn_sym, KlcKlass *klass, KlcFile *klc)
     // add annotations
     if (fn_sym->ann) {
         klc_func_add_ann(fn, fn_sym->ann, fn_sym->ann_key, fn_sym->ann_val);
+        // add params for bench annotation
+        if (fn_sym->ann_params) {
+            KlcAnnot *ann = vector_get(&fn->anns, vector_size(&fn->anns) - 1);
+            AnnotParam *param;
+            vector_foreach(param, fn_sym->ann_params) {
+                klc_func_add_ann_param(fn, ann, param->key, param->which, param->ival, param->sval);
+            }
+        }
     }
 }
 

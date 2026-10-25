@@ -1,0 +1,36 @@
+import "std/os"
+import "std/ut"
+
+// Control: bound 100 (imm8). Writes 1700 B < 64 KiB pipe -> drains, passes.
+@test
+func test_bound_100() {
+    let p = os.run("cat")!
+    let line = "0123456789abcdef\n".to_bytes()
+    var i = 0
+    while i < 100 {
+        p.stdin().write(line)
+        i = i + 1
+    }
+    p.stdin().close()
+    let all = p.stdout().read_all()
+    ut.assert_eq(all.len(), 1700)
+    ut.assert_eq(p.wait(), 0)
+}
+
+// Experiment: bound 1000 (materialized), body identical. Exact mirror of the
+// disabled test_run_read_all_large. If the loop runs away this deadlocks and
+// `timeout` kills it; the IR dump is printed at compile time, before the run.
+@test
+func test_bound_1000() {
+    let p = os.run("cat")!
+    let line = "0123456789abcdef\n".to_bytes()
+    var i = 0
+    while i < 1000 {
+        p.stdin().write(line)
+        i = i + 1
+    }
+    p.stdin().close()
+    let all = p.stdout().read_all()
+    ut.assert_eq(all.len(), 17000)
+    ut.assert_eq(p.wait(), 0)
+}

@@ -19,11 +19,21 @@ typedef struct _SimpleFlag {
     Loc loc;
 } SimpleFlag;
 
+typedef struct _AnnotParam {
+    char *key;
+    int64_t ival;
+    char *sval;
+    int which;
+#define ANNOT_PARAM_INT 1
+#define ANNOT_PARAM_STR 2
+} AnnotParam;
+
 typedef struct _Annotation {
     Loc id_loc;
     char *ident;
     char *value;
     Vector *types;
+    Vector *params; // Vector<AnnotParam*>
 } Annotation;
 
 typedef struct _PrefixFlags {

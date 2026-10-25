@@ -92,6 +92,11 @@ extern TypeObject module_type;
 
 #define IS_MODULE(ob) IS_TYPE((ob), &module_type)
 
+typedef struct _BenchConfig {
+    int warmup;
+    int runs;
+} BenchConfig;
+
 typedef struct _TestCase {
     char *name;
     Object *co;
@@ -100,6 +105,9 @@ typedef struct _TestCase {
     long long elapsed_ns;
     int passed;
     int skipped;
+    int is_bench;
+    BenchConfig *bench_config;
+    Vector bench_times; // store each run's elapsed time in ns
     Object *exc;
 } TestCase;
 
@@ -108,7 +116,7 @@ void kl_free_module(Object *m);
 #define kl_mo_path(m) (((ModuleObject *)(m))->path)
 void kl_mo_set_code(Object *_m, uint32_t *insns, size_t n);
 int kl_mo_add_func(Object *_m, char *name, Object *obj);
-int kl_mo_add_test(Object *_m, char *name, Object *obj, int expect_panic, char *msg, int skipped);
+int kl_mo_add_test(Object *_m, TestCase *test_case);
 int kl_mo_add_type(Object *_m, TypeObject *tp);
 int kl_mo_add_const(Object *_m, TValue *val);
 int kl_mo_add_str(Object *_m, char *s);

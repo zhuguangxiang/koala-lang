@@ -5,6 +5,12 @@ file(GLOB KL_TEST_FILES "*.kl")
 
 foreach(test_file ${KL_TEST_FILES})
     get_filename_component(test_name "${test_file}" NAME_WE)
+    get_filename_component(test_dir "${test_file}" DIRECTORY)
+
+    # Skip bench tests in regular test run
+    if("${test_dir}" MATCHES "test-bench")
+        continue()
+    endif()
 
     add_test(
         NAME "${test_name}"

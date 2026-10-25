@@ -102,6 +102,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
     TypeParamDecl *tpval;
     ParamDecl *param;
     IdentType kls_name;
+    AnnotParam *annot_param;
 }
 
 %token FROM
@@ -294,6 +295,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<vec> call_kw_arg_list
 %type<vec> id_list
 %type<vec> int_lit_list
+%type<vec> annot_param_list
 
 %token<sval> ID
 %token<ival> INT_LITERAL
@@ -304,6 +306,7 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<prefix_flags> annotation
 %type<prefix_flags> prefix
 %type<prefix_flags> access
+%type<annot_param> annot_param
 %type<ival> assign_operator
 %type<kls_name> class_name
 %type<kls_name> trait_name
@@ -630,10 +633,51 @@ annotation
         Buffer *buf = &ps->sbuf;
         ann->value = atom_nstr(buf->buf, buf->len);
     }
+    | '@' ID '(' annot_param_list ')' semi
+    {
+        memset(&$$, 0, sizeof($$));
+        Annotation *ann = &$$.ann;
+        ann->ident = $2;
+        ann->id_loc = loc(@2);
+        ann->params = $4;
+    }
     | '@' ID '(' error
     {
         kl_error(loc(@4), "expected primitive types list.");
         yyclearin; yyerrok;
+    }
+    ;
+
+annot_param_list
+    : annot_param
+    {
+        $$ = vector_create_ptr();
+        vector_push_back($$, &$1);
+    }
+    | annot_param_list ',' annot_param
+    {
+        vector_push_back($1, &$3);
+        $$ = $1;
+    }
+    ;
+
+annot_param
+    : ID '=' INT_LITERAL
+    {
+        AnnotParam *param = mm_alloc_obj(param);
+        param->key = $1;
+        param->ival = $3;
+        param->which = ANNOT_PARAM_INT;
+        $$ = param;
+    }
+    | ID '=' STRING_LITERAL
+    {
+        AnnotParam *param = mm_alloc_obj(param);
+        param->key = $1;
+        Buffer *buf = &ps->sbuf;
+        param->sval = atom_nstr(buf->buf, buf->len);
+        param->which = ANNOT_PARAM_STR;
+        $$ = param;
     }
     ;
 

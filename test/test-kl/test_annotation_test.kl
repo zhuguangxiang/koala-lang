@@ -15,6 +15,5 @@ func test_mul[T]() {}
 func test_div() int {}
 
 // CHECK: func 'test_add' with 'test' annotation cannot have any argument.
-// CHECK: func 'testx_sub' with 'test' annotation needs to be named with 'test_' prefix.
 // CHECK: func 'test_mul' is a generic function. The 'test' annotation only be used for non-generic function.
 // CHECK: func 'test_div' with 'test' annotation cannot have return type.
