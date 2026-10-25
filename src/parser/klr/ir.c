@@ -6,6 +6,7 @@
 #include "ir.h"
 #include "log.h"
 #include "mm.h"
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -218,6 +219,126 @@ KlrValue *klr_const_tuple(KlrValue **items, int size, TypeSpec *ts, KlrModule *m
 {
     KlrValue *lit = klr_const_list(items, size, ts, m);
     ((KlrConst *)lit)->which = CONST_TUPLE;
+    return lit;
+}
+
+/* A map key takes part in duplicate-key merging only when it is a basic-type
+ * constant (int/uint/bool/str/float) or a read-only compound of them
+ * (tuple/range). Floats are compared with `==`, exactly like the runtime dict
+ * does in _dict_entry_eq_(): 0.0 and -0.0 are the same key, while NaN never
+ * equals itself and therefore is never merged. Lists and maps are excluded
+ * because they are mutable: the runtime may compare them by identity, not by
+ * content. */
+static int is_mergeable_key(KlrValue *key)
+{
+    if (!klr_is_const(key)) return 0;
+
+    switch (((KlrConst *)key)->which) {
+        case CONST_INT:
+        case CONST_UINT:
+        case CONST_FLT:
+        case CONST_BOOL:
+        case CONST_STR:
+        case CONST_TUPLE:
+        case CONST_RANGE:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+/* Deep equality for mergeable map keys. Tuples and ranges are read-only, so
+ * comparing their elements is enough. An incomparable element (list, map)
+ * makes the whole key unequal, which only disables a merge - it can never
+ * merge two keys the runtime considers distinct. */
+static int mergeable_key_equal(KlrValue *k1, KlrValue *k2)
+{
+    if (!klr_is_const(k1) || !klr_is_const(k2)) return 0;
+
+    KlrConst *c1 = (KlrConst *)k1;
+    KlrConst *c2 = (KlrConst *)k2;
+
+    if (c1->which != c2->which) return 0;
+
+    switch (c1->which) {
+        case CONST_INT:
+        case CONST_UINT:
+            return c1->len == c2->len && c1->ival == c2->ival;
+        case CONST_FLT:
+            /* same rule as _dict_entry_eq_() in the runtime: 0.0 == -0.0, and
+             * NaN != NaN so two NaN keys stay separate. The width is ignored on
+             * purpose, a float32 key and a float64 key of equal value are the
+             * same dict key at runtime as well. */
+            return c1->fval == c2->fval;
+        case CONST_BOOL:
+            return c1->bval == c2->bval;
+        case CONST_STR:
+            /* string constants are interned per module, so the pointer check
+             * usually hits and the content compare is only a fallback */
+            if (c1->sval == c2->sval) return 1;
+            return c1->len == c2->len && !memcmp(c1->sval, c2->sval, c1->len);
+        case CONST_TUPLE:
+        case CONST_RANGE: {
+            int len = vector_size(c1->list);
+            if (len != vector_size(c2->list)) return 0;
+            for (int i = 0; i < len; i++) {
+                if (!mergeable_key_equal(vector_at(c1->list, i), vector_at(c2->list, i))) {
+                    return 0;
+                }
+            }
+            return 1;
+        }
+        default:
+            return 0;
+    }
+}
+
+KlrValue *klr_const_merged_list(KlrValue **items, int size, TypeSpec *ts, KlrModule *m)
+{
+    ASSERT((size % 2) == 0);
+
+    int nent = size / 2;
+    int out = 0;
+
+    for (int i = 0; i < nent; i++) {
+        KlrValue *key = items[i * 2];
+        KlrValue *val = items[i * 2 + 1];
+
+        if (is_mergeable_key(key)) {
+            int dup = -1;
+            for (int j = 0; j < out; j++) {
+                if (is_mergeable_key(items[j * 2]) && mergeable_key_equal(key, items[j * 2])) {
+                    dup = j;
+                    break;
+                }
+            }
+
+            if (dup >= 0) {
+                /* keep the position of the first occurrence, the last value
+                 * wins, the same way the runtime dict overwrites an entry */
+                items[dup * 2 + 1] = val;
+                continue;
+            }
+        }
+
+        /* `out` never runs ahead of `i`, so compacting in place is safe */
+        items[out * 2] = key;
+        items[out * 2 + 1] = val;
+        out++;
+    }
+
+    return klr_const_list(items, out * 2, ts, m);
+}
+
+/* A constant map literal, e.g. {1: 2, 3: 4}. The operands keep the source
+ * order used by `build_intern @map`: key0, value0, key1, value1, ...
+ * Duplicated comparable keys are merged here, see klr_const_merged_list().
+ * NOTE: dicts are mutable, a constant map is a *template* that must be
+ * instantiated into a fresh object whenever it is evaluated. */
+KlrValue *klr_const_map(KlrValue **items, int nargs, TypeSpec *ts, KlrModule *m)
+{
+    KlrValue *lit = klr_const_merged_list(items, nargs, ts, m);
+    ((KlrConst *)lit)->which = CONST_MAP;
     return lit;
 }
 

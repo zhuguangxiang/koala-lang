@@ -396,6 +396,27 @@ uint16_t klc_add_rt_list(KlcFile *klc, Vector *list)
     return index;
 }
 
+uint16_t klc_add_rt_dict(KlcFile *klc, Vector *list)
+{
+    /*
+     * Dicts are MUTABLE like lists, so identical literals must not be merged
+     * into one const entry: every loadk site needs its own template object.
+     * `list` holds pairwise uint16_t const indices (k0, v0, k1, v1, ...).
+     */
+    KlcConst *item = mm_alloc_obj(item);
+    int size = vector_size(list);
+    item->type = KLC_CONST_DICT;
+    item->len = size;
+    item->val = list;
+
+    Vector *objs = klc->objs + ITEM_RT_CONST;
+    vector_push_back(objs, &item);
+    uint16_t index = vector_size(objs) - 1;
+    ASSERT(index > 0);
+
+    return index;
+}
+
 void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym, int slot_index)
 {
     KlcImport *imp = mm_alloc_obj(imp);
@@ -767,7 +788,8 @@ static void write_const(KlcFile *klc, KlcConst *item)
             break;
         }
         case KLC_CONST_TUPLE:
-        case KLC_CONST_LIST: {
+        case KLC_CONST_LIST:
+        case KLC_CONST_DICT: {
             Vector *vec = item->val;
             int size = vector_size(vec);
             write_uint32(klc, (uint32_t)size);
@@ -1209,7 +1231,8 @@ static void read_const(KlcFile *klc, Vector *vec)
             break;
         }
         case KLC_CONST_TUPLE:
-        case KLC_CONST_LIST: {
+        case KLC_CONST_LIST:
+        case KLC_CONST_DICT: {
             len = 0;
             read_uint32(klc, (uint32_t *)&len);
             Vector *_vec = vector_create_ptr();

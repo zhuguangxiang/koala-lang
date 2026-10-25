@@ -1,0 +1,72 @@
+// RUN: koalac %s --opt --dump=ir | filecheck %s
+//
+// map 字面量在 opt 层不参与折叠：全常量字面量在 irgen 阶段就变成 `dict[...]`
+// 常量（见 test_map_literal.kl），含变量 key/value 的字面量是
+// `build_intern @map, ...`。opt 的 5 个 pass（const-copy-prop、normalize、
+// lvn、cfg-bb-opt、dce）都不认识 CONST_MAP 也不认识 build_intern @map，
+// 因此必须原样保留它们 —— 本文件锁住这一点。
+//
+// 有意保留的边界（与 list 字面量一致）：
+//   * opt 不会把"常量经传播后操作数全为常量"的 build_intern 折回常量池；
+//   * 结果未被使用的 build_intern（对象未逃逸、分配不可观察）被 dce 删除。
+
+func const_map() dict[int, int] {
+    let m = {1: 2, 3: 4}
+    return m
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@const_map] ---
+// CHECK: move %m std/builtin.dict<jj>, dict[1: 2, 3: 4] std/builtin.dict<jj>
+// CHECK-NOT: build_intern
+// CHECK: ret %m std/builtin.dict<jj>
+
+func build_map(x int) dict[int, int] {
+    let m = {1: x}
+    return m
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@build_map] ---
+// CHECK: %0 = build_intern @map, 1 int64, %x int64
+// CHECK-NOT: dict[
+// CHECK: ret %m std/builtin.dict<jj>
+
+// 两个分支各自的常量 map 都被保留，不会被 cfg-bb-opt 合并/丢弃
+func branches(x bool) dict[int, int] {
+    var m = {1: 2}
+    if x {
+        m = {3: 4}
+    }
+    return m
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@branches] ---
+// CHECK: %bb0(entry):
+// CHECK: move %m std/builtin.dict<jj>, dict[1: 2] std/builtin.dict<jj>
+// CHECK: %bb1(if-then):
+// CHECK: move %m std/builtin.dict<jj>, dict[3: 4] std/builtin.dict<jj>
+// CHECK: %bb2(if-end):
+// CHECK: ret %m std/builtin.dict<jj>
+
+// 常量传播把 %k 换成 1 之后，所有操作数都是常量，但仍然保持
+// build_intern @map：dict 可变，即使能折叠成模板，求值时也必须新建对象。
+func prop_key() dict[int, int] {
+    let k = 1
+    let m = {k: 2}
+    return m
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@prop_key] ---
+// CHECK: %0 = build_intern @map, 1 int64, 2 int64
+// CHECK-NOT: dict[
+// CHECK: ret %m std/builtin.dict<jj>
+
+func dead_map(x int) int {
+    let m = {1: x}
+    return 0
+}
+
+// CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@dead_map] ---
+// CHECK-NEXT: func @dead_map(%x int64) int64 {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: ret 0 int64
+// CHECK-NEXT: }

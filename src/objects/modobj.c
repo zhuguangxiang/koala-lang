@@ -6,6 +6,7 @@
 #include "modobj.h"
 #include "atom.h"
 #include "bytesobj.h"
+#include "dictobj.h"
 #include "klc.h"
 #include "listobj.h"
 #include "rangeobj.h"
@@ -441,6 +442,123 @@ static Object *__new_const_list(Object *_m, Vector *list)
     Object *tobj = kl_list_from_array(items, size);
     vector_fini(&vec);
     return tobj;
+}
+
+/*
+ * Convert one klc const item into a TValue, building nested containers
+ * recursively. Mirrors the per-element dispatch inside __new_const_list().
+ */
+static TValue __const_to_tvalue(Object *_m, KlcConst *item)
+{
+    switch (item->type) {
+        case KLC_CONST_NONE: {
+            return nil_value;
+        }
+
+        case KLC_CONST_INT: {
+            TValue val = { .tag = item->type_info, .ival = item->ival };
+            return val;
+        }
+
+        case KLC_CONST_FLT: {
+            TValue val = { .tag = item->type_info, .fval = item->fval };
+            return val;
+        }
+
+        case KLC_CONST_BOOL: {
+            return bool_value(item->ival);
+        }
+
+        case KLC_CONST_SHORT_ASCII:
+        case KLC_CONST_SHORT_UTF8:
+        case KLC_CONST_ASCII:
+        case KLC_CONST_UTF8: {
+            Object *sobj = kl_new_str(item->sval);
+            return obj_value(sobj);
+        }
+
+        case KLC_CONST_BYTES: {
+            Object *bs = kl_bytes_from_data((uint8_t *)item->sval, (size_t)item->len);
+            return obj_value(bs);
+        }
+
+        case KLC_CONST_SHORT_TUPLE:
+        case KLC_CONST_TUPLE: {
+            Vector *_sub = item->val;
+            Object *tobj = __new_const_tuple(_m, _sub);
+            return obj_value(tobj);
+        }
+
+        case KLC_CONST_RANGE: {
+            Vector *_sub = item->val;
+            TValue values[3];
+
+            KlcConst *_item;
+            vector_foreach(_item, _sub) {
+                ASSERT(_item->type == KLC_CONST_INT);
+                values[i__] = int64_value(_item->ival);
+            }
+
+            Object *robj = kl_new_range(values);
+            return obj_value(robj);
+        }
+
+        case KLC_CONST_SLICE: {
+            Vector *_sub = item->val;
+            TValue values[3];
+
+            KlcConst *_item;
+            vector_foreach(_item, _sub) {
+                ASSERT(_item->type == KLC_CONST_INT);
+                values[i__] = int64_value(_item->ival);
+            }
+
+            Object *sobj = kl_new_slice(values);
+            return obj_value(sobj);
+        }
+
+        case KLC_CONST_SHORT_LIST:
+        case KLC_CONST_LIST: {
+            Vector *_sub = item->val;
+            Object *lobj = __new_const_list(_m, _sub);
+            return obj_value(lobj);
+        }
+
+        default: {
+            NYI();
+            return nil_value;
+        }
+    }
+}
+
+/*
+ * Build a dict object from klc const items. `list` holds pairwise consts
+ * (k0, v0, k1, v1, ...), the same layout the mach/klc const pool uses.
+ * Dicts are mutable like lists: only the top-level const takes a pool slot,
+ * nested containers are built recursively and stay unpooled.
+ */
+static Object *__new_const_dict(Object *_m, Vector *list)
+{
+    Object *dobj = kl_new_dict();
+
+    int count = vector_size(list);
+    for (int i = 0; i + 1 < count; i += 2) {
+        KlcConst *kitem = vector_at(list, i);
+        KlcConst *vitem = vector_at(list, i + 1);
+
+        TValue key = __const_to_tvalue(_m, kitem);
+        TValue val = __const_to_tvalue(_m, vitem);
+        kl_dict_add(dobj, &key, &val);
+    }
+
+    return dobj;
+}
+
+int kl_mo_add_dict(Object *_m, Vector *list)
+{
+    Object *dobj = __new_const_dict(_m, list);
+    TValue val = obj_value(dobj);
+    return kl_mo_add_const(_m, &val);
 }
 
 int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *name, int slot_index)

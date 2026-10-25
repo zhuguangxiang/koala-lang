@@ -392,6 +392,18 @@ static uint16_t _write_rt_const(KlcFile *klc, KlMachConst *kc)
             }
             return klc_add_rt_list(klc, list);
         }
+        case KL_MACH_CONST_DICT: {
+            /* pairwise k/v indices, in source order */
+            Vector *list = vector_create(sizeof(uint16_t));
+            Vector *vec = kc->list;
+            KlMachConst *pair;
+            vector_foreach(pair, vec) {
+                if (!pair) continue;
+                uint16_t idx = _write_rt_const(klc, pair);
+                vector_push_back(list, &idx);
+            }
+            return klc_add_rt_dict(klc, list);
+        }
         default:
             UNREACHABLE();
     }

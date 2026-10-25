@@ -1,0 +1,64 @@
+// RUN: koala %s ++ --dump=no-opt-ir,code | filecheck %s
+//
+// A map literal lowers like a list literal:
+//   * all-constant -> folded into the const pool and loaded with `loadk`.
+//     A dict is mutable, so the const is only a template: a fresh object is
+//     created on every evaluation (a runtime concern, not an IR one);
+//   * any non-constant key/value -> `build_intern @map`, operands in source
+//     order, i.e. key0, value0, key1, value1, ...
+func main() {
+    let d0 = {:}
+    print(d0)
+
+    let d = {1: 2, 3: 4}
+    print(d)
+
+    let x = 5
+    let d2 = {1: x, 3: 4}
+    print(d2)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: %d0 = local [immutable] std/builtin.dict<oo>
+// CHECK: move %d0 std/builtin.dict<oo>, dict[] std/builtin.dict<oo>
+// CHECK: %d = local [immutable] std/builtin.dict<jj>
+// CHECK: move %d std/builtin.dict<jj>, dict[1: 2, 3: 4] std/builtin.dict<jj>
+// CHECK: %x = local [immutable] int64
+// CHECK: move %x int64, 5 int64
+// CHECK: %2 = build_intern @map, 1 int64, %x int64, 3 int64, 4 int64
+// CHECK: %d2 = local [immutable] std/builtin.dict<jj>
+// CHECK: move %d2 std/builtin.dict<jj>, %2 std/builtin.dict<jj>
+// CHECK: ret void
+
+// Every map literal is all-constant by isel time and folds into a `loadk`.
+// `d2` is still `@map` in the IR because its value is a variable, but opt
+// copies the constant into the operand, so isel folds it too and the pool
+// gets its own `dict[1: 5, 3: 4]` template. Only print's argument tuple
+// still goes through `build_intern`.
+// CHECK-LABEL: @main[0,19]:
+// CHECK: loadk r1, #0
+// CHECK: build_intern r1, @tuple, #1
+// CHECK: loadk r1, #7
+// CHECK: loadk r0, #9
+// CHECK: move r1, r0
+
+// CHECK-LABEL: Constant Pool:
+// CHECK: [000] dict(0):
+// CHECK: [007] dict(2):
+// CHECK: [0] key: int64   = 1
+// CHECK: [0] val: int64   = 2
+// CHECK: [1] key: int64   = 3
+// CHECK: [1] val: int64   = 4
+// The folded `{1: x, 3: 4}` template is a separate entry, with the copied-in
+// value baked in.
+// CHECK: [009] dict(2):
+// CHECK: [0] key: int64   = 1
+// CHECK: [0] val: int64   = 5
+
+// CHECK-LABEL: Import Table:
+// CHECK: [000] func   std/prelude::print, slot_index: 1
+
+// CHECK:{}
+// CHECK:{1: 2, 3: 4}
+// CHECK:{1: 5, 3: 4}

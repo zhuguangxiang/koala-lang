@@ -7,11 +7,14 @@
 > 整型提升三处缺陷（§17）、list 接口全面核对与主流语言对齐（§18）、
 > 退出码模型（§19，panic 退出码与 main 返回值语义）、float 的 NaN/Inf 构造途径（§20，已修复）、
 > `str(float)` 16 位有效数字缺陷（§21，已修复）、数值构造器接收 `str` 的语义（§22，待定，讨论中）、
-> datetime 固定偏移时区（§23，待设计）、运算符按操作数类型重载以支持同类相减（§24，编译器级，待讨论）。
+> datetime 固定偏移时区（§23，待设计）、运算符按操作数类型重载以支持同类相减（§24，编译器级，待讨论）、
+> Koala std/能力包 vs Python 标准库的场景×热度对比（§25，现状盘点，非待办）、
+> `build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断（§26，待施工）、
+> 全常量 dict 字面量直接作 `print` / `format` 实参时报 `modobj.c: Not Yet Implemented`（§27，待修）。
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-10-24（§20 / §21 均已修复，§22 待定；datetime 包 Date/Time/DateTime 已收工，仅剩时区见 §23；§24 为运算符重载语言待办）
+> 更新日期：2026-10-25（新增 §26：`build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断，待施工；§27：全常量 dict 字面量直接作实参报 `modobj.c` 未实现，待修；§20 / §21 均已修复，§22 待定；datetime 包 Date/Time/DateTime 已收工，仅剩时区见 §23；§24 为运算符重载语言待办；§25 为 Koala vs Python 标准库场景×热度对比盘点）
 
 ---
 
@@ -1214,3 +1217,117 @@ json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可
 
 **状态**：本轮不动，作语言待办登记；是否实现、以何形态实现（重载 vs 多分派表 vs 其它）待后续讨论。
 关联：§23 时区落地后若引入 `Timezone`，`DateTime` 上的运算符组合会更复杂，宜一并纳入本节权衡。
+
+---
+
+## 25. Koala 标准库 vs Python 标准库：场景 × 热度对比（现状盘点，非待办）
+
+本节是对 Koala 已交付库面与 Python stdlib 的横向盘点，按「使用场景」分离、按「使用热度」（真实项目里的 import 频率）分档。**收录判据沿用 Koala 哲学**：「能组合就不建包 / 非核心不加」，故大量 Python 模块的缺席是有意取舍，不等同缺口；本节末尾单独区分「真缺口」与「按设计不缺」。
+
+**Koala 库清单基线**（以 `libs/{std,koala}/__ws__.toml` 的 packages 为准）：
+
+- `std/builtin`：str / bytes / ByteBuf / int64·float64·uint64 / bool / list / dict / HashSet / tuple / range / slice / enumerate / zip / Formatter / Exception / TypeObject / Number
+- `std/collections`：BitSet / deque / stack / queue / heapq / linkedlist / sorteddict / sortedset / frozenlist·dict·set·bytes
+- `std` 系统层：fs（Path·文件）、io（BufReader/BufWriter/BytesIO/StringIO/WordScanner）、os（run/system/env/进程）、sys、time（Instant/Duration/now/sleep）、ut、prelude
+- `koala` 能力包：json / toml / math / random / datetime / wombat
+
+### 25.1 超高频 ★★★★★
+
+| 场景 | Python 模块 | Koala 对应 | 覆盖 |
+|---|---|---|---|
+| 容器/数据结构 | list, dict, set, tuple, collections(deque/Counter/defaultdict/OrderedDict) | list/dict/HashSet/tuple + deque/stack/queue/heapq/linkedlist/sorteddict/sortedset/frozen*/BitSet | **强于** Python std（sorted/frozen/BitSet 内置；Python 需第三方 sortedcontainers/bitarray） |
+| 字符串/字节 | str, bytes, string, textwrap | str / bytes / ByteBuf / Formatter | 齐；`in` 代替 contains（作者裁定）、format("{}",x) 承担 f-string 语义 |
+| 文件/路径 I/O | open, os.path, pathlib, io, shutil, tempfile | fs.Path·文件、io 读写器/BytesIO/StringIO | 核心齐；shutil/tempfile 判为可组合，不建包 |
+
+### 25.2 高频 ★★★★
+
+| 场景 | Python 模块 | Koala 对应 | 覆盖 |
+|---|---|---|---|
+| 日期时间 | datetime, time, calendar, zoneinfo | **datetime**(Date/Time/DateTime 全功能) + time(Instant/Duration) | 无时区部分已齐；zoneinfo/calendar 缺（时区见 §23 待设计） |
+| 数据序列化 | json, csv, pickle, xml, configparser, tomllib | **json / toml**（typed accessor 已补） | json/toml 齐；csv/xml/pickle/configparser 缺（csv 判可组合，xml/pickle 非核心） |
+| 数值/数学 | math, statistics, decimal, fractions, random | **math / random** | 常用数学齐；statistics/decimal/fractions 缺（判第三方/可组合） |
+| 正则 | re, difflib | **无** | ⚠️ **真缺口**——超高频、需专用引擎、无法用现有 API 组合 |
+| 日志 | logging | **无** | ⚠️ 热度高；是否建包按 Koala 哲学可能倾向第三方 |
+| 异常/错误 | try/except, traceback | panic + Exception（**刻意不给 try/catch**） | 设计取舍，非缺口 |
+
+### 25.3 中频 ★★★
+
+| 场景 | Python 模块 | Koala 对应 | 覆盖 |
+|---|---|---|---|
+| 系统/环境 | os, sys, platform, signal, subprocess | os(run/system/env) / sys | 齐；os.run 直执行不经 shell |
+| 迭代/函数式 | itertools, functools, operator | for/range/zip/enumerate（语言级） | 基础齐；itertools/functools/operator 缺（判可组合） |
+| 内省/类型 | inspect, types, typing, dataclasses, enum | TypeObject / is / as（静态类型 + 编译期泛型推导） | 静态语言路线，运行时 typing/dataclass 无对应物（范式差异，非缺口） |
+| 测试 | unittest, doctest, pdb | **ut**(@test/@should_panic/assert_*) | 单测框架齐；doctest/pdb 缺 |
+| 并发/异步 | threading, asyncio, multiprocessing | 运行时有**绿线程调度**，但 std **无并发 API 面** | ⚠️ 半成品：VM 已具备，语言层 API 未暴露 |
+
+### 25.4 低频 / 生态型 ★★
+
+| 场景 | Python 模块 | Koala | 说明 |
+|---|---|---|---|
+| 网络 | socket, http, urllib, ssl | **全无** | 最大空白区，属重生态，通常第三方承担 |
+| 加密/编码/压缩 | hashlib, hmac, base64, zlib, gzip, codecs | **无**（`.hash()` 是 FNV-1a 内部哈希，非加密） | base64/zlib 实用但非语言核心 |
+| 命令行解析 | argparse, getopt, shlex | **无**（wombat 是构建工具，非 CLI 解析器） | 判第三方 |
+| 结构化配置 | enum, dataclasses | 无 | 范式差异 |
+
+### 25.5 综合判断
+
+**真缺口（三类）**：
+
+1. **正则 `re`** — 超高频、需专用引擎、不可组合替代，最该补。
+2. **时区（zoneinfo 对应物）** — datetime 已列 §23 待设计（受限于无 tzdata/DST 基建）。
+3. **并发 API 面** — 运行时绿线程已就绪，缺语言层暴露（threading/asyncio 对应物），属「半成品」而非「没做」。
+
+**已强于 Python std 的地方**：sorted/frozen 系列、BitSet、heapq 全部内置；datetime 单个纯 .kl 包即覆盖 Date/Time/DateTime/from_str/replace/timestamp/hash。
+
+**按设计不缺（不得当缺陷）**：无 try/catch（刻意）、无运行时 typing/dataclass（静态类型 + 编译期泛型已覆盖）、csv/itertools/statistics/socket/argparse/base64（可组合或第三方生态承担）。
+
+**一句话**：Koala std 在「数据结构 + 文件 I/O + 序列化 + 日期 + 数学」几条超高频线上已达甚至超过 Python std；短板集中在正则、并发 API、网络/加密生态——前两者是语言层真待补，后者按哲学本应留给第三方。
+
+---
+
+## 26. `build_intern` 操作数个数溢出 `nargs:8` 上限——前端缺诊断，待施工
+
+**编码约束**：`OP_BUILD_INTERN` 的指令格式为 `| op:8 | rd:8 | tag:8 | nargs:8 |`
+（见 `include/common/opcode_list.h:1685` 的格式注释），操作数个数只占 8 位，
+可表示 0–255；即 `@map` / `@list` / `@tuple` 一个字面量最多 255 个元素。
+
+**VM 侧取用**：`include/runtime/vm_ops.h:546` 直接 `imm = I_VAL(inst, 0, 8)`
+交给 `do_build_intern()`，不做范围校验。
+
+**待办**：当字面量的元素个数（`build_intern` 的 `num_opers`）越过该字段可表示的
+范围时，编译器前端应在生成 `build_intern` 指令处报编译错误，错误信息需带字面量
+位置与元素个数；不得让溢出 / 截断后的 `nargs` 进入字节码交给 VM。
+
+**现状**：isel 生成路径（`src/parser/backend/isel.c` 的 `isel_lower_build_intern()`
+及指令编码处）按 `insn->num_opers` 直接遍历，未做上限检查；parser / 诊断层亦无
+对应报错。属待施工项。
+
+**关联**：§12（容器协议指令族）——若后续给 `build_intern` 换用更宽的指令格式，
+本节随之失效。
+
+---
+
+## 27. 全常量 dict 字面量直接作实参时报 `modobj.c: Not Yet Implemented`
+
+**现象**（2026-10-25 实测，Debug 构建，flag `++`）：
+
+| 写法 | 结果 |
+|---|---|
+| `print(format("{}", {1: 2}))` | `modobj.c:269: Not Yet Implemented`，程序中止 |
+| `print({1: 2})` | 同上 |
+| `let d = {1: 2}; print(format("{}", d))` | 正常，输出 `{1: 2}` |
+| `let x = 2; print(format("{}", {1: x}))` | 正常，输出 `{1: 2}` |
+| `func keep(d dict[int, int]) dict[int, int] { return d }` 后 `print(format("{}", keep({1: 2})))` | 正常，输出 `{1: 2}` |
+| `print(format("{}", [1, 2]))` | 正常，输出 `[1, 2]` |
+
+**范围**：`print` 与 `format` 都受影响。受影响的写法都是「全常量 dict 字面量直接出现在实参
+位置」；含变量的 dict 字面量、先绑定到 `let` / `var` 的、经一层函数调用传入的均正常，list
+字面量直传也正常。
+
+**影响**：dict 字面量不能直接当实参用，必须先绑定局部变量再传。`test/test-ut/test_ut_dict_literal.kl`
+的头部注释已按此约定记录，用例全部走「先 `let` 再传」。
+
+**待办**：修掉该路径，使 dict 字面量在实参位置与先绑定后的行为一致；修好后上面两行报错的写法
+应能直接通过。
+
+**关联**：§26（`build_intern` 操作数个数上限）同属 `build_intern` / const-pool 折叠区域。

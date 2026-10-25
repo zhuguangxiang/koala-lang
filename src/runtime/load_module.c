@@ -147,6 +147,12 @@ static void __load_const(Object *m, KlcConst *item)
             break;
         }
 
+        case KLC_CONST_DICT: {
+            Vector *vec = item->val;
+            kl_mo_add_dict(m, vec);
+            break;
+        }
+
         default: {
             NYI();
             break;

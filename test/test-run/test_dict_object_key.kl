@@ -1,0 +1,41 @@
+// RUN: koala %s ++ --dump=no-opt-ir,code | filecheck %s
+//
+// Object keys go through `build_intern @map` too: the key operands are the
+// object values themselves, still in source order (k0, v0, k1, v1, ...).
+// Two empty lists are distinct keys; three `Key()` objects are equal because
+// Key::hash/__eq__ say so, hence only the last entry survives.
+class Key {
+    func hash() int = 100
+    func __eq__(other Key) bool = true
+    func __ne__(other Key) bool = false
+}
+
+func main() {
+    let l = {list[int](): "hi", list[int](): "bye"}
+    print(l)
+
+    let k = {Key(): "bar", Key(): "baz", Key(): "qux"}
+    print(k)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: %0 = build_intern @list
+// CHECK: %1 = build_intern @list
+// CHECK: %2 = build_intern @map, %0 std/builtin.list<j>, 'hi' str, %1 std/builtin.list<j>, 'bye' str
+// CHECK: %l = local [immutable] std/builtin.dict<Lstd/builtin.list<j>;u>
+// CHECK: move %l std/builtin.dict<Lstd/builtin.list<j>;u>, %2 std/builtin.dict<Lstd/builtin.list<j>;u>
+// CHECK: %4 = new @test_dict_object_key.Key
+// CHECK: call @Key:__init__, %4 test_dict_object_key.Key
+// CHECK: %7 = build_intern @map, %4 test_dict_object_key.Key, 'bar' str, %5 test_dict_object_key.Key, 'baz' str, %6 test_dict_object_key.Key, 'qux' str
+// CHECK: %k = local [immutable] std/builtin.dict<Ltest_dict_object_key.Key;u>
+// CHECK: ret void
+
+// CHECK-LABEL: @main[0,36]:
+// CHECK: build_intern r3, @list, #0
+// CHECK: build_intern r5, @list, #0
+// CHECK: build_intern r0, @map, #4
+// CHECK: build_intern r0, @map, #6
+
+// CHECK:{[]: hi, []: bye}
+// CHECK:{<test_dict_object_key.Key object at {{0x[0-9a-f]+}}>: qux}

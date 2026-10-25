@@ -249,6 +249,7 @@ uint16_t klc_add_rt_bytes(KlcFile *klc, char *s, int len);
 uint16_t klc_add_rt_tuple(KlcFile *klc, Vector *list);
 uint16_t klc_add_rt_range(KlcFile *klc, Vector *list);
 uint16_t klc_add_rt_list(KlcFile *klc, Vector *list);
+uint16_t klc_add_rt_dict(KlcFile *klc, Vector *list);
 uint16_t klc_add_rt_slice(KlcFile *klc, Vector *list);
 
 void klc_add_import(KlcFile *klc, int kind, char *ns, char *kls, char *sym, int slot_index);

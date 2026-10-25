@@ -5,6 +5,7 @@
 
 #include <math.h>
 #include <pthread.h>
+#include "dictobj.h"
 #include "excobj.h"
 #include "listobj.h"
 #include "modobj.h"
@@ -51,6 +52,16 @@ static Object *do_build_intern(TValue *values, InternTag tag, int count)
 
         case INTERN_LIST: {
             return kl_list_from_array(values, count);
+        }
+
+        case INTERN_MAP: {
+            /* values hold pairwise (k0, v0, k1, v1, ...) */
+            ASSERT((count % 2) == 0);
+            Object *dobj = kl_new_dict();
+            for (int i = 0; i < count; i += 2) {
+                kl_dict_add(dobj, &values[i], &values[i + 1]);
+            }
+            return dobj;
         }
 
         case INTERN_SLICE: {
@@ -328,16 +339,17 @@ TValue kl_call_slot(TValue *args, int nargs, int slotid)
 
     KoalaState *ks = __ks();
 
-    _incr_stack_top(ks);
+    // TODO: when load module, need to call slot func
+    if (ks->cf) _incr_stack_top(ks);
 
     if (IS_CFUNC(fn)) {
         ret = kl_call_cfunc(fn, args, nargs);
     } else {
-        ASSERT(IS_CODE(fn));
+        ASSERT(ks->cf && IS_CODE(fn));
         ret = kl_call_code(fn, args, nargs);
     }
 
-    _decr_stack_top(ks);
+    if (ks->cf) _decr_stack_top(ks);
 
     return ret;
 }

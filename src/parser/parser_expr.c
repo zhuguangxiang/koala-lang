@@ -488,9 +488,169 @@ static void parse_tuple(ParserState *ps, Expr *exp)
     log_type_spec(exp->ts);
 }
 
-static void parse_map(ParserState *ps, Expr *exp) { MapExpr *map_exp = (MapExpr *)exp; }
+/*
+ * Parse a literal map, e.g. {1: "one", 2: "two"}.
+ *
+ * The map literal is always a 'dict' instance. Its key/value types come from
+ * the expected type when we are in a typed context (variable initializer,
+ * return statement, ...); otherwise they are inferred from the entries, just
+ * like list/tuple literals do.
+ */
+static void parse_map(ParserState *ps, Expr *exp)
+{
+    MapExpr *map_exp = (MapExpr *)exp;
 
-static void parse_map_entry(ParserState *ps, Expr *exp) {}
+    if (exp->sym) {
+        log_info("map type already resolved:");
+        log_type_spec(exp->ts);
+        return;
+    }
+
+    /* expected map type drives the key/value types of the entries */
+    TypeSpec *map_ts = exp->expected;
+    if (map_ts && type_is_optional(map_ts)) {
+        map_ts = map_ts->opt.src;
+    }
+
+    TypeSpec *key_ts = NULL;
+    TypeSpec *val_ts = NULL;
+
+    if (map_ts && type_is_map(map_ts)) {
+        Symbol *map_sym = get_symbol_by_id(map_ts->sym_id);
+        if (map_sym && map_sym->kind == SYM_INSTANCE) {
+            Vector *map_args = ((InstanceSymbol *)map_sym)->tp_args;
+            if (vector_size(map_args) == 2) {
+                key_ts = vector_get(map_args, 0);
+                val_ts = vector_get(map_args, 1);
+            }
+        }
+    }
+
+    Vector *key_types = vector_create_ptr();
+    Vector *val_types = vector_create_ptr();
+    int has_error = 0;
+
+    Expr *e;
+    vector_foreach(e, map_exp->vec) {
+        if (!e) continue;
+
+        /* a map entry inherits the expected type of its enclosing map */
+        e->expected = map_ts;
+        e->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, e);
+        if (!e->ts) {
+            /* the error has been reported, keep checking the other entries */
+            has_error = 1;
+            continue;
+        }
+
+        MapEntryExpr *entry = (MapEntryExpr *)e;
+        vector_push_back(key_types, &entry->key->ts);
+        vector_push_back(val_types, &entry->val->ts);
+    }
+
+    if (has_error) {
+        vector_destroy(key_types);
+        vector_destroy(val_types);
+        return;
+    }
+
+    /* no expected map type, infer key/value types from the entries */
+    if (!key_ts) key_ts = find_lub(key_types);
+    if (!val_ts) val_ts = find_lub(val_types);
+
+    vector_destroy(key_types);
+    vector_destroy(val_types);
+
+    log_info("infer map key type:");
+    log_type_spec(key_ts);
+    log_info("infer map value type:");
+    log_type_spec(val_ts);
+
+    Vector *tp_args = vector_create_ptr();
+    vector_push_back(tp_args, &key_ts);
+    vector_push_back(tp_args, &val_ts);
+
+    Symbol *origin = stbl_get(ps->pm->builtin, "dict");
+    if (!origin) {
+        kl_error(exp->loc, "builtin class 'dict' is not found.");
+        vector_destroy(tp_args);
+        return;
+    }
+
+    InstanceSymbol *inst_sym = find_or_add_instance(ps->pm->stbl, origin, tp_args, ps->pm);
+    vector_destroy(tp_args);
+
+    exp->ts = inst_sym->instance_ts;
+    exp->sym = (Symbol *)inst_sym;
+
+    log_info("map type resolved:");
+    log_type_spec(exp->ts);
+}
+
+/*
+ * Parse one key:value pair of a map literal.
+ *
+ * The expected type of an entry is the type of its enclosing map, set by
+ * parse_map. Keys and values are typed against its type arguments so that
+ * literals adapt to the declared type (e.g. map[int8, str]).
+ */
+static void parse_map_entry(ParserState *ps, Expr *exp)
+{
+    MapEntryExpr *entry = (MapEntryExpr *)exp;
+
+    TypeSpec *map_ts = exp->expected;
+    if (map_ts && type_is_optional(map_ts)) {
+        map_ts = map_ts->opt.src;
+    }
+
+    TypeSpec *key_ts = NULL;
+    TypeSpec *val_ts = NULL;
+
+    if (map_ts && type_is_map(map_ts)) {
+        Symbol *map_sym = get_symbol_by_id(map_ts->sym_id);
+        if (map_sym && map_sym->kind == SYM_INSTANCE) {
+            Vector *map_args = ((InstanceSymbol *)map_sym)->tp_args;
+            if (vector_size(map_args) == 2) {
+                key_ts = vector_get(map_args, 0);
+                val_ts = vector_get(map_args, 1);
+            }
+        }
+    }
+
+    Expr *key = entry->key;
+    key->ctx = EXPR_CTX_LOAD;
+    key->expected = key_ts;
+    parser_visit_expr(ps, key);
+
+    Expr *val = entry->val;
+    val->ctx = EXPR_CTX_LOAD;
+    val->expected = val_ts;
+    parser_visit_expr(ps, val);
+
+    if (!key->ts || !val->ts) return;
+
+    /* report both the key and the value so one entry can yield two errors */
+    int compatible = 1;
+    if (key_ts && !type_spec_compatible(key_ts, key->ts)) {
+        kl_error_incompatible_type(key->loc, key_ts, key->ts);
+        compatible = 0;
+    }
+
+    if (val_ts && !type_spec_compatible(val_ts, val->ts)) {
+        kl_error_incompatible_type(val->loc, val_ts, val->ts);
+        compatible = 0;
+    }
+
+    if (!compatible) return;
+
+    /*
+     * A map entry is not a standalone value, it only exists inside a map
+     * literal. Take the value's type so visiting it as an expression does
+     * not report a missing type.
+     */
+    exp->ts = val->ts;
+}
 
 static void check_kw_arg(ParserState *ps, Vector *params, KeyWordExpr *kw, int i__)
 {
@@ -1444,6 +1604,11 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
 
     Expr *lhs = call->lhs;
+
+    /* callee may be NULL after the `primary_expr '.' error` recovery rule, e.g.
+     * `l.0(1)`; the error is already reported. */
+    if (!lhs) return;
+
     lhs->ctx = EXPR_CTX_CALL;
     lhs->arg = call;
     parser_visit_expr(ps, call->lhs);
@@ -1784,6 +1949,13 @@ static void parse_dot(ParserState *ps, Expr *exp)
     int opt_or_bang = dot->opt_or_bang;
 
     Expr *lhs = dot->lhs;
+
+    /* The error-recovery rule `primary_expr '.' error` (koala.y) reports the
+     * error and yields NULL, so a chained access such as `l.0.len()` reaches
+     * this handler with a NULL lhs. The error has already been reported, just
+     * stop analysing the expression instead of dereferencing NULL. */
+    if (!lhs) return;
+
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);
     if (!lhs->ts) return;
@@ -2488,6 +2660,11 @@ static void parse_index(ParserState *ps, Expr *exp)
 {
     IndexExpr *index = (IndexExpr *)exp;
     Expr *lhs = index->lhs;
+
+    /* lhs may be NULL after the `primary_expr '.' error` recovery rule, e.g.
+     * `l.0[0]`; the error is already reported. */
+    if (!lhs) return;
+
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);
     if (!lhs->ts) return;
@@ -2836,6 +3013,11 @@ static void parse_unary(ParserState *ps, Expr *exp)
     UnOpKind op = unary->op;
 
     Expr *e = unary->exp;
+
+    /* operand may be NULL after the `primary_expr '.' error` recovery rule,
+     * e.g. `-l.0`; the error is already reported. */
+    if (!e) return;
+
     e->ctx = EXPR_CTX_LOAD;
 
     // optimize unary '!' on comparison operator
@@ -2937,6 +3119,10 @@ static void parse_binary(ParserState *ps, Expr *exp)
     BiOpKind op = bin->op;
     Expr *lhs = bin->lhs;
     Expr *rhs = bin->rhs;
+
+    /* an operand may be NULL after the `primary_expr '.' error` recovery rule,
+     * e.g. `l.0 + 1`; the error is already reported. */
+    if (!lhs || !rhs) return;
 
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);

@@ -655,6 +655,12 @@ Object *kl_new_dict(void)
     return (Object *)dict;
 }
 
+void kl_dict_add(Object *dict, TValue *key, TValue *value)
+{
+    ASSERT(IS_DICT(dict));
+    _dict_insert((DictObject *)dict, key, value);
+}
+
 #ifdef __cplusplus
 }
 #endif

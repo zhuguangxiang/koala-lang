@@ -1,0 +1,50 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Type errors of map literals: an annotated map type must be matched by every
+// key and value, including entries after the first one and nested maps.
+
+// key type mismatch
+let m1 Map[int, int] = {"a": 1}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// value type mismatch
+let m2 Map[int, int] = {1: "a"}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// key type mismatch in a later entry
+let m3 Map[int, int] = {1: 2, "a": 3}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// value type mismatch in a later entry
+let m4 Map[int, int] = {1: 2, 3: "a"}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// nested map: the inner literal inherits the inner key/value types
+let m5 Map[int, Map[int, int]] = {1: {2: "a"}}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// optional map type drives the literal type as well
+let m6 Map[int, int]? = {"a": 1}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// return type context
+func make() Map[int, int] {
+    return {1: "a"}
+}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// both the key and the value of one entry are checked
+let m7 Map[int, int] = {"a": "b"}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+// CHECK-NEXT: Incompatible type: expected 'int64', but got 'str'.
+
+// every bad entry is reported, not only the first one
+let m8 Map[int, int] = {1: 2, "a": 3, 4: "b"}
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+// CHECK-NEXT: Incompatible type: expected 'int64', but got 'str'.
+
+// indexing a map with the wrong key type
+let m9 Map[int, int] = {1: 2}
+let v = m9["a"]
+// CHECK: Incompatible type: expected 'int64', but got 'str'.
+
+// CHECK-NOT: {{.}}

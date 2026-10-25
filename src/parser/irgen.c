@@ -5,7 +5,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-
 #include "atom.h"
 #include "cmd.h"
 #include "parser.h"
@@ -1733,6 +1732,52 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
     }
 }
 
+/* map literal: {k0: v0, k1: v1, ...} lowers to build_intern @map exactly like
+ * list literals do, with operands in source order: k0, v0, k1, v1, ...
+ * A map is always built by `build_intern @map`, even when every key and value
+ * is a constant: a dict is mutable, so sharing one instance through the const
+ * pool would leak mutations between evaluations (and the machine-level
+ * constant loader has no dict form). `exp->ts` is already resolved by
+ * parse_map().
+ * NOTE: emit_ir_type() must not be called here - it only accepts tuple/list
+ * origins (see its ASSERT) and OP_BUILD_INTERN carries no klass operand. */
+static void emit_ir_map(ParserState *ps, Expr *exp)
+{
+    MapExpr *map = (MapExpr *)exp;
+
+    int size = vector_size(map->vec);
+    int nargs = size * 2;
+    KlrValue *items[nargs > 0 ? nargs : 1];
+    int konst = 1;
+
+    Expr *e;
+    vector_foreach(e, map->vec) {
+        MapEntryExpr *entry = (MapEntryExpr *)e;
+
+        Expr *key = entry->key;
+        key->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, key);
+        if (!key->ir_val) return;
+        items[i__ * 2] = key->ir_val;
+        if (!klr_is_const(key->ir_val)) konst = 0;
+
+        Expr *val = entry->val;
+        val->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, val);
+        if (!val->ir_val) return;
+        items[i__ * 2 + 1] = val->ir_val;
+        if (!klr_is_const(val->ir_val)) konst = 0;
+    }
+
+    if (konst) {
+        exp->ir_val = klr_const_map(items, nargs, exp->ts, MOD);
+    } else {
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        exp->ir_val = klr_build_intern(&bldr, items, nargs, exp->ts, INTERN_MAP, "");
+    }
+}
+
 static void emit_ir_kw(ParserState *ps, Expr *exp) { UNREACHABLE(); }
 
 static void emit_ir_bang(ParserState *ps, Expr *exp)
@@ -1922,6 +1967,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_SELF_KIND]    = emit_ir_self,
         [EXPR_LIST_KIND]    = emit_ir_list,
         [EXPR_TUPLE_KIND]   = emit_ir_tuple,
+        [EXPR_MAP_KIND]     = emit_ir_map,
         [EXPR_TYPE_KIND]    = emit_ir_type,
         [EXPR_CALL_KIND]    = emit_ir_call,
         [EXPR_DOT_KIND]     = emit_ir_dot,
@@ -1938,7 +1984,13 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
     };
     /* clang-format on */
 
-    handlers[exp->kind](ps, exp);
+    /* every expression kind must be handled; a missing entry means an
+     * unimplemented lowering, fail loudly instead of calling a NULL handler */
+    void (*handler)(ParserState *, Expr *) = handlers[exp->kind];
+    if (!handler) {
+        panic("irgen: unsupported expression kind %d", exp->kind);
+    }
+    handler(ps, exp);
 }
 
 static void emit_ir_import(ParserState *ps, Stmt *stmt) {}

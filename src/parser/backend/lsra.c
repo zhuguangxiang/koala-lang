@@ -48,8 +48,8 @@ static void klr_lsra_dump(KlrLSRAContext *ctx)
 
     KlrBasicBlock *bb;
     basic_block_foreach(bb, fn) {
-        fprintf(stdout, "\n%%%s[idx:%d,pos:%d-%d]:\n", klr_block_name(bb), bb->index,
-                bb->first_pos, bb->last_pos - 1);
+        fprintf(stdout, "\n%%%s[idx:%d,pos:%d-%d]:\n", klr_block_name(bb), bb->index, bb->first_pos,
+                bb->last_pos - 1);
 
         KlrInsn *insn;
         insn_foreach(insn, bb) {
@@ -72,8 +72,8 @@ static void klr_lsra_dump(KlrLSRAContext *ctx)
         bb_succ_foreach(succ, bb) {
             if (succ == fn->ebb) continue; // skip end block
             if (succ->index <= bb->index) {
-                fprintf(stdout, "      [BACK-EDGE] %s -> %s (Target POS: %d)\n",
-                        klr_block_name(bb), klr_block_name(succ), succ->first_pos);
+                fprintf(stdout, "      [BACK-EDGE] %s -> %s (Target POS: %d)\n", klr_block_name(bb),
+                        klr_block_name(succ), succ->first_pos);
             }
         }
     }

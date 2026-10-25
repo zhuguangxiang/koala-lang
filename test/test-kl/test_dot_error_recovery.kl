@@ -1,0 +1,37 @@
+// RUN: ! koalac %s | filecheck %s
+//
+// A field access whose member is not an identifier (e.g. the tuple index `l.0`)
+// is a syntax error: the recovery rule `primary_expr '.' error` in koala.y
+// reports it and yields a NULL expression. Chaining anything onto that NULL
+// expression (`.len()`, `[0]`, `(1)`, unary/binary operators) used to crash the
+// parser with a NULL dereference; the original diagnostic must be reported once
+// and the enclosing expression is simply not analysed further.
+
+func main() {
+    let l = [[1], [2]]
+
+    print(l.0.len())
+    // CHECK: expected an identifer.
+
+    let t = (1, 2)
+    print(t.0.len())
+    // CHECK-NEXT: expected an identifer.
+
+    print(l.0[0])
+    // CHECK-NEXT: expected an identifer.
+
+    print(l.0(1))
+    // CHECK-NEXT: expected an identifer.
+
+    let n = -l.0
+    // CHECK-NEXT: expected an identifer.
+
+    let s = l.0 + 1
+    // CHECK-NEXT: expected an identifer.
+
+    let u = l.0?.len()
+    // CHECK-NEXT: expected an identifer.
+
+    let v = l.0!.len()
+    // CHECK-NEXT: expected an identifer.
+}

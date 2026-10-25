@@ -336,6 +336,16 @@ static void lower_ref_eq_ne_null_opers(KlrInsn *insn)
 
 static void lower_build_intern_opers(KlrInsn *insn)
 {
+    // TODO: if build_intern has too many operands, compiler needs to report error.
+    // | op:8 | R:8 | tag:8 | nargs:8 | -- the operand count is encoded in an
+    // 8-bit immediate. A map passes its arguments as key/value pairs
+    // (k0, v0, k1, v1, ...), so one 'build_intern @map' can carry at most
+    // 127 pairs; fail loudly here instead of letting the encoder truncate it.
+    if (!fits_in_uimm8((uint64_t)insn->num_args)) {
+        panic("'build_intern @%s' has %d operands, which do not fit in an 8-bit immediate",
+              intern_tag_name[insn->intern_tag], insn->num_args);
+    }
+
     set_raw_reg(&insn->raws[0], insn->vreg);
     set_raw_imm(&insn->raws[1], insn->intern_tag);
     set_raw_imm(&insn->raws[2], insn->num_args);

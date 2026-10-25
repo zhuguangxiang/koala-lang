@@ -22,6 +22,10 @@ extern TypeObject dict_type;
 
 Object *kl_new_dict(void);
 
+/* Insert or replace a (key, value) mapping. Used by the module loader to
+ * materialize constant dict literals, mirroring how lists are built. */
+void kl_dict_add(Object *dict, TValue *key, TValue *value);
+
 extern TypeObject dict_keys_iter_type;
 extern TypeObject dict_values_iter_type;
 extern TypeObject dict_view_iter_type;

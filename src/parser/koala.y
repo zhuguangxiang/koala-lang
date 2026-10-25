@@ -43,27 +43,27 @@ static int need_clear(int token)
 
 static void free_optional_type_list(Vector *vec)
 {
-    TypeSpec **item;
+    TypeSpec *item;
     vector_foreach(item, vec) {
-        type_spec_free(*item);
+        type_spec_free(item);
     }
     vector_destroy(vec);
 }
 
 static void free_expr_list(Vector *vec)
 {
-    Expr **item;
+    Expr *item;
     vector_foreach(item, vec) {
-        expr_free(*item);
+        expr_free(item);
     }
     vector_destroy(vec);
 }
 
 static void free_map_list(Vector *vec)
 {
-    Expr **item;
+    Expr *item;
     vector_foreach(item, vec) {
-        expr_free(*item);
+        expr_free(item);
     }
     vector_destroy(vec);
 }

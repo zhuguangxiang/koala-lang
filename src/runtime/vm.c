@@ -67,7 +67,7 @@ static void load_modules(void)
 {
     // It's not necessary to load standard builtin module here.
     // because it will be loaded automatically when needed.
-    // kl_load_module("std/builtin");
+    kl_load_module("std/builtin");
 }
 
 void koala_initialize(void)

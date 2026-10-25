@@ -962,7 +962,7 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
             } else {
                 // dst is var: local propagation, only one basic block, no SSA
                 // needed
-                if (klr_is_const(src)) {
+                if (klr_is_const(src) && type_allowed_to_prop(src->ts)) {
                     log_info("update var local's const value in bb '%s'", klr_block_name(insn->bb));
                     log_insn(insn);
                     /* Record the latest constant value in the local BB map */
@@ -998,7 +998,7 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
                             }
                         }
                     } else {
-                        UNREACHABLE();
+                        // do nothing for other kinds of values
                     }
                 }
             }

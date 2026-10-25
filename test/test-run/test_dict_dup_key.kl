@@ -1,0 +1,69 @@
+// RUN: koala %s ++ --dump=no-opt-ir,code | filecheck %s
+//
+// A duplicated key in an all-constant map literal is merged when the key can be
+// compared at compile time: int/uint/bool/str/float and the read-only compounds
+// tuple/range. The first occurrence keeps its position and the value of the
+// last occurrence wins, the same way the runtime dict overwrites an existing
+// entry. Floats follow the runtime rule in _dict_entry_eq_() (`==`), so 0.0 and
+// -0.0 are the same key while NaN never equals itself and is never merged.
+func main() {
+    let d = {1: "a", 2: "b", 1: "c"}
+    print(d)
+
+    let e = {"x": 1, "y": 2, "x": 3}
+    print(e)
+
+    let f = {1: "a", 1.5: "f", 2: "b", 1: "c"}
+    print(f)
+
+    let g = {1.5: "a", 2.5: "b", 1.5: "c"}
+    print(g)
+
+    let h = {0.0: "a", -0.0: "b"}
+    print(h)
+
+    let t = {(1, 2): "a", (3, 4): "b", (1, 2): "c"}
+    print(t)
+
+    let r = {range(0, 3, 1): "a", range(0, 5, 1): "b", range(0, 3, 1): "c"}
+    print(r)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: move %d std/builtin.dict<ju>, dict[1: 'c', 2: 'b'] std/builtin.dict<ju>
+// CHECK: move %e std/builtin.dict<uj>, dict['x': 3, 'y': 2] std/builtin.dict<uj>
+// CHECK: move %f std/builtin.dict<ou>, dict[1: 'c', 1.500000: 'f', 2: 'b'] std/builtin.dict<ou>
+// CHECK: move %g std/builtin.dict<du>, dict[1.500000: 'c', 2.500000: 'b'] std/builtin.dict<du>
+// CHECK: move %h std/builtin.dict<du>, dict[0.000000: 'b'] std/builtin.dict<du>
+// CHECK: move %t std/builtin.dict<Lstd/builtin.tuple<jj>;u>, dict[tuple(1, 2): 'c', tuple(3, 4): 'b'] std/builtin.dict<Lstd/builtin.tuple<jj>;u>
+// CHECK: move %r std/builtin.dict<Lstd/builtin.range;u>, dict[range(0, 3, 1): 'c', range(0, 5, 1): 'b'] std/builtin.dict<Lstd/builtin.range;u>
+// CHECK: ret void
+
+// Seven const entries of 2, 2, 3, 2, 1, 2 and 2 entries: the duplicated keys are
+// gone. 0.0 and -0.0 are one key, so `%h` keeps the first key and the last value.
+// CHECK-LABEL: @main[0,42]:
+// CHECK: loadk r0, #4
+// CHECK: loadk r0, #10
+// CHECK: loadk r0, #13
+// CHECK: loadk r0, #15
+// CHECK: loadk r0, #17
+// CHECK: loadk r0, #21
+// CHECK: loadk r0, #26
+
+// CHECK-LABEL: Constant Pool:
+// CHECK: [004] dict(2):
+// CHECK: [010] dict(2):
+// CHECK: [013] dict(3):
+// CHECK: [015] dict(2):
+// CHECK: [017] dict(1):
+// CHECK: [021] dict(2):
+// CHECK: [026] dict(2):
+
+// CHECK:{1: c, 2: b}
+// CHECK:{x: 3, y: 2}
+// CHECK:{1: c, 1.5: f, 2: b}
+// CHECK:{1.5: c, 2.5: b}
+// CHECK:{0: b}
+// CHECK:{(1, 2): c, (3, 4): b}
+// CHECK:{range(0, 3, 1): c, range(0, 5, 1): b}

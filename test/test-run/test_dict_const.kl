@@ -1,0 +1,32 @@
+// RUN: koala %s ++ --dump=no-opt-ir,code | filecheck %s
+//
+// Two identical all-constant map literals must not share one const-pool
+// template: a dict is mutable, so each literal gets its own const entry and
+// its own `loadk`, otherwise mutating one would be visible through the other.
+func main() {
+    let a = {1: 2, 3: 4}
+    let b = {1: 2, 3: 4}
+    print(a)
+    print(b)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: %a = local [immutable] std/builtin.dict<jj>
+// CHECK: move %a std/builtin.dict<jj>, dict[1: 2, 3: 4] std/builtin.dict<jj>
+// CHECK: %b = local [immutable] std/builtin.dict<jj>
+// CHECK: move %b std/builtin.dict<jj>, dict[1: 2, 3: 4] std/builtin.dict<jj>
+// CHECK-NOT: build_intern @map
+// CHECK: ret void
+
+// Two separate const slots: the literals were not folded together.
+// CHECK-LABEL: @main[0,13]:
+// CHECK: loadk r1, #4
+// CHECK: loadk r0, #5
+
+// CHECK-LABEL: Constant Pool:
+// CHECK: [004] dict(2):
+// CHECK: [005] dict(2):
+
+// CHECK:{1: 2, 3: 4}
+// CHECK:{1: 2, 3: 4}

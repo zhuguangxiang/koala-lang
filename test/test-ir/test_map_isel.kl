@@ -1,0 +1,52 @@
+// RUN: koalac %s --isel --dump=lir | filecheck %s
+//
+// isel 对 map 字面量的处理（与 list 对称）：
+//   * 全常量 map 是模块常量池里的模板 -> `loadk`（`get_const_op()` 必须把
+//     CONST_MAP 和 CONST_LIST/TUPLE 一样归到 `load_op`，不能走立即数形式）；
+//   * 含变量 key/value -> `build_intern @map`，操作数按 k0, v0, k1, v1 ...
+//     的顺序落到连续参数槽位（fixedslot = 0,1,...）；tag 与 nargs 编码在
+//     FORMAT_RTagImm 的 tag:8 / nargs:8 中，`INTERN_MAP`(=4) 直接透传；
+//   * CONST_MAP 本身也可能作为 build_intern 的操作数（{x: {1: 2}}），
+//     此时它自己走 `loadk`。
+
+func const_map() dict[int, int] {
+    let m = {1: 2, 3: 4}
+    return m
+}
+
+// CHECK-LABEL: --- IR Dump After isel [@const_map] ---
+// CHECK: loadk %m std/builtin.dict<jj>, dict[1: 2, 3: 4] std/builtin.dict<jj>
+// CHECK-NOT: build_intern
+// CHECK: ret %m std/builtin.dict<jj>
+
+func empty_map() dict[int, int] {
+    let m dict[int, int] = {:}
+    return m
+}
+
+// CHECK-LABEL: --- IR Dump After isel [@empty_map] ---
+// CHECK: loadk %m std/builtin.dict<jj>, dict[] std/builtin.dict<jj>
+
+func build_map(x int) dict[int, int] {
+    let m = {1: x}
+    return m
+}
+
+// CHECK-LABEL: --- IR Dump After isel [@build_map] ---
+// CHECK: %0 = local int64
+// CHECK: load_int_imm %0 int64, 1 int64
+// CHECK: %1 = local int64
+// CHECK: move %1 int64, %x int64
+// CHECK: %2 = build_intern @map, nargs=2
+// CHECK-NOT: dict[
+// CHECK: move %m std/builtin.dict<jj>, %2 std/builtin.dict<jj>
+
+func mixed(x int) dict[int, dict[int, int]] {
+    let m = {x: {1: 2}}
+    return m
+}
+
+// CHECK-LABEL: --- IR Dump After isel [@mixed] ---
+// CHECK: %1 = local std/builtin.dict<jj>
+// CHECK: loadk %1 std/builtin.dict<jj>, dict[1: 2] std/builtin.dict<jj>
+// CHECK: %2 = build_intern @map, nargs=2

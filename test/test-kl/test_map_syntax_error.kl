@@ -1,0 +1,60 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Malformed map literals. Each case exercises one error production of the
+// 'map_expr' grammar rule.
+
+// missing ':' between a key and its value
+let m1 = {1 2}
+// CHECK: expected ':'.
+
+// missing value expression
+let m2 = {1: }
+// CHECK: expected an expr.
+// CHECK: expected ',' or '}'.
+
+// missing ',' between two entries
+let m3 = {1: 2 3}
+// CHECK: expected ',' or '}'.
+
+// dangling ',' before the closing brace
+let m4 = {1: 2,,}
+// CHECK: expected map key-value expr.
+
+// ',' before the first entry
+let m5 = {,}
+// CHECK: expected key:value pairs.
+
+// key-value separator mixed up with the empty-map form '{:}'
+let m6 = {: 1}
+// CHECK: expected key:value pairs.
+
+// missing ':' in the second entry
+let m7 = {1: 2, 3}
+// CHECK: expected ':'.
+// CHECK: expected ',' or '}'.
+
+// missing ':' in the first entry
+let m8 = {1, 2: 3}
+// CHECK: expected ':'.
+// CHECK: expected ',' or '}'.
+
+// consecutive ',' between entries
+let m9 = {1: 2, , 3: 4}
+// CHECK: expected map key-value expr.
+// CHECK: expected ',' or '}'.
+
+// missing ',' between two entries that both have a key and a value
+let m10 = {1: 2 3: 4}
+// CHECK: expected ',' or '}'.
+
+// '{}' is not the empty map literal; the empty map is '{:}'
+let empty = {}
+// CHECK: expected key:value pairs.
+
+// missing '}' at end of input
+let unclosed = {1: 2
+// CHECK: expected ',' or '}'.
+
+// the failed '{}' literal leaves the variable without an initializer
+// CHECK: variable 'empty' needs a type or an initializer
+
+// CHECK-NOT: {{.}}

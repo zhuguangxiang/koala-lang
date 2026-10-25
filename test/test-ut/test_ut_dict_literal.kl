@@ -1,0 +1,177 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+// Literal dicts (`{k: v, ...}`), as opposed to the `dict[K, V]()` form that
+// test_ut_dict.kl covers. The shape is fixed by the elements, the key/value
+// types are inferred from them, and a duplicated key collapses onto its last
+// occurrence — the same rule the runtime dict applies on overwrite.
+//
+// Three things worth knowing while reading these tests:
+//
+// * `{}` is not a valid empty dict literal: the parser asks for key:value
+//   pairs. An empty dict has to be built with `dict[K, V]()`.
+// * A literal passed straight into a call is currently rejected in the backend
+//   (`modobj.c: Not Yet Implemented`), so each test binds it to a local with
+//   `let` first and passes the local. Binding is enough: nothing is dead-code
+//   eliminated, because the folded `loadk` result is consumed.
+// * The mutation section asserts that writes to a literal stick, both for the
+//   all-constant form (folded into a const-pool template by isel) and for the
+//   form built at runtime by build_intern.
+
+// ---------------------------------------------------------------------------
+// Shape / lookup
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_literal_len_and_get() {
+    let d = {1: 2, 3: 4}
+    ut.assert_eq(d.len(), 2)
+    ut.assert_false(d.empty())
+    ut.assert_eq(d[1], 2)
+    ut.assert_eq(d[3], 4)
+}
+
+@test
+func test_dict_literal_contains() {
+    let d = {1: 2, 3: 4}
+    ut.assert_true(1 in d)
+    ut.assert_true(3 in d)
+    ut.assert_false(9 in d)
+}
+
+@test
+func test_dict_literal_str_keys() {
+    let d = {"a": 1, "b": 2}
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d["a"], 1)
+    ut.assert_eq(d["b"], 2)
+    ut.assert_false("c" in d)
+}
+
+// The explicit annotation only accepts the literal if `{1: 2}` infers
+// `dict<int, int>`; the str variant pins the key type the same way.
+@test
+func test_dict_literal_type_inference() {
+    let di dict[int, int] = {1: 2}
+    ut.assert_eq(di[1], 2)
+
+    let ds dict[str, int] = {"a": 7}
+    ut.assert_eq(ds["a"], 7)
+}
+
+// ---------------------------------------------------------------------------
+// Duplicated key: last occurrence wins, len counts distinct keys
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_literal_duplicate_key_last_wins() {
+    let d = {1: 2, 3: 4, 1: 5}
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[1], 5)
+    ut.assert_eq(d[3], 4)
+}
+
+@test
+func test_dict_literal_duplicate_key_three_times() {
+    let d = {"k": 1, "k": 2, "k": 3}
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d["k"], 3)
+}
+
+// ---------------------------------------------------------------------------
+// Operands may be variables
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_literal_var_key_and_value() {
+    let k = 1
+    let v = 2
+    let d = {k: v}
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d[k], 2)
+}
+
+@test
+func test_dict_literal_mixed_const_and_var() {
+    let v = 4
+    let d = {1: 2, 3: v}
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[3], 4)
+}
+
+// ---------------------------------------------------------------------------
+// Printing / formatting
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_literal_format() {
+    let d = {1: 2, 3: 4}
+    ut.assert_eq(format("{}", d), "{1: 2, 3: 4}")
+
+    let s = {"a": 1}
+    ut.assert_eq(format("{}", s), "{a: 1}")
+}
+
+// ---------------------------------------------------------------------------
+// Iteration over the literal's keys
+// ---------------------------------------------------------------------------
+
+@test
+func test_dict_literal_keys_iter() {
+    let d = {1: 2, 3: 4}
+    let it = d.keys().iter(1)
+    var seen = list[int]()
+    while it.has_next() {
+        seen.append(it.next_strict())
+    }
+    ut.assert_eq(seen.len(), 2)
+    ut.assert_true(1 in seen)
+    ut.assert_true(3 in seen)
+}
+
+// ---------------------------------------------------------------------------
+// Mutation
+// ---------------------------------------------------------------------------
+
+// The all-constant literal is folded into a const-pool template by isel; the
+// template must be instantiated so that the write lands on this object only.
+@test
+func test_dict_literal_insert_new_key() {
+    var d = {5: 6}
+    d[7] = 8
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[7], 8)
+    ut.assert_eq(d[5], 6)
+}
+
+// Same for an overwrite: the existing entry is replaced in place, len stays 1.
+@test
+func test_dict_literal_overwrite_existing_key() {
+    var d = {5: 6}
+    d[5] = 9
+    ut.assert_eq(d.len(), 1)
+    ut.assert_eq(d[5], 9)
+}
+
+// Two literals with the same content must not share storage: writing to `b`
+// leaves `a` untouched.
+@test
+func test_dict_literal_two_literals_independent() {
+    var a = {1: 2}
+    var b = {1: 2}
+    b[1] = 99
+    ut.assert_eq(a[1], 2)
+    ut.assert_eq(b[1], 99)
+}
+
+// The same writes on a literal that mentions a variable, i.e. one built at
+// runtime by build_intern rather than folded into a const-pool template.
+@test
+func test_dict_literal_with_var_operand_mutation() {
+    let x = 6
+    var d = {5: x}
+    d[7] = 8
+    ut.assert_eq(d.len(), 2)
+    ut.assert_eq(d[7], 8)
+}

@@ -1,0 +1,77 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s
+//
+// A map literal lowers exactly like a list literal does: the operands are the
+// entries in source order, i.e. key0, value0, key1, value1, ...
+//
+// * every key/value is a constant -> the literal is folded into the const pool
+//   and printed as `dict[k0: v0, ...]`, the dict counterpart of `list[...]`
+//   (see the all-constant `[1, 2, 3]` case);
+// * any key/value is not a constant -> `build_intern @map, ...`, the dict
+//   counterpart of `build_intern @list, ...`.
+//
+// A constant map is only a template: a dict is mutable, so a fresh object is
+// created on every evaluation (that is a runtime concern, not an IR one).
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @new_map(%x int64) std/builtin.dict<jj>
+// CHECK-LABEL: %bb0(entry):
+// CHECK: %0 = build_intern @map, 100 int64, 200 int64, %x int64, 300 int64
+// CHECK: %m = local [immutable] std/builtin.dict<jj>
+// CHECK: move %m std/builtin.dict<jj>, %0 std/builtin.dict<jj>
+// CHECK: ret %m std/builtin.dict<jj>
+func new_map(x int) dict[int, int] {
+    let m = {100: 200, x: 300}
+    return m
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @const_map() std/builtin.dict<jj>
+// CHECK-LABEL: %bb0(entry):
+// CHECK-NOT: build_intern
+// CHECK: %m = local [immutable] std/builtin.dict<jj>
+// CHECK: move %m std/builtin.dict<jj>, dict[1: 2, 3: 4] std/builtin.dict<jj>
+// CHECK: ret %m std/builtin.dict<jj>
+func const_map() dict[int, int] {
+    let m = {1: 2, 3: 4}
+    return m
+}
+
+// a non-constant key keeps the build_intern path, operands in source order
+// CHECK-LABEL: func @var_key(%x int64) std/builtin.dict<jj>
+// CHECK: %0 = build_intern @map, %x int64, 2 int64
+func var_key(x int) dict[int, int] {
+    let m = {x: 2}
+    return m
+}
+
+// an empty map is all-constant too: the empty dict const
+// CHECK-LABEL: func @empty_map() std/builtin.dict<jj>
+// CHECK: move %m std/builtin.dict<jj>, dict[] std/builtin.dict<jj>
+func empty_map() dict[int, int] {
+    let m dict[int, int] = {:}
+    return m
+}
+
+// CHECK-LABEL: func @nested_mixed(%x int64) std/builtin.dict<jLstd/builtin.dict<jj>;>
+// CHECK: %0 = build_intern @map, %x int64, 2 int64
+// CHECK: %1 = build_intern @map, 1 int64, %0 std/builtin.dict<jj>
+func nested_mixed(x int) dict[int, dict[int, int]] {
+    let m = {1: {x: 2}}
+    return m
+}
+
+// an all-constant nested map folds recursively
+// CHECK-LABEL: func @nested_const() std/builtin.dict<jLstd/builtin.dict<jj>;>
+// CHECK: move %m std/builtin.dict<jLstd/builtin.dict<jj>;>, dict[1: dict[2: 3]] std/builtin.dict<jLstd/builtin.dict<jj>;>
+func nested_const() dict[int, dict[int, int]] {
+    let m = {1: {2: 3}}
+    return m
+}
+
+// A map literal assigned to a trait-typed variable is upcast with make_intf,
+// the same as any other dict value.
+// CHECK-LABEL: func @map_to_trait() <NO-TYPE> {
+// CHECK: %0 = make_intf dict[1: 2] std/builtin.dict<jj> [intf-table-index = {{[0-9]+}}] to std/builtin.Map
+func map_to_trait() {
+    let m Map[int, int] = {1: 2}
+}

@@ -24,6 +24,8 @@ static void dump_header(uint8_t *magic, uint32_t version)
     fprintf(stdout, "\nversion: %" PRIu32 " (%d.%d.%d)\n", version, major, minor, patch);
 }
 
+static void dump_const_value(KlcConst *item);
+
 static void dump_const(KlcConst *item)
 {
     switch (item->type) {
@@ -63,6 +65,34 @@ static void dump_const(KlcConst *item)
         case KLC_CONST_ASCII:
         case KLC_CONST_UTF8: {
             fprintf(stdout, "str, \"%s\"\n", item->sval);
+            break;
+        }
+        case KLC_CONST_SHORT_TUPLE:
+        case KLC_CONST_SHORT_LIST:
+        case KLC_CONST_TUPLE:
+        case KLC_CONST_LIST: {
+            Vector *vec = item->val;
+            int n = vector_size(vec);
+            fprintf(stdout, "[");
+            for (int i = 0; i < n; i++) {
+                if (i > 0) fprintf(stdout, ", ");
+                dump_const_value(vector_at(vec, i));
+            }
+            fprintf(stdout, "]\n");
+            break;
+        }
+        case KLC_CONST_DICT: {
+            /* indices are pairwise: k0, v0, k1, v1, ... */
+            Vector *vec = item->val;
+            int n = vector_size(vec);
+            fprintf(stdout, "{");
+            for (int i = 0; i + 1 < n; i += 2) {
+                if (i > 0) fprintf(stdout, ", ");
+                dump_const_value(vector_at(vec, i));
+                fprintf(stdout, ": ");
+                dump_const_value(vector_at(vec, i + 1));
+            }
+            fprintf(stdout, "}\n");
             break;
         }
         default: {

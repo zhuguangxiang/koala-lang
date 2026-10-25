@@ -121,6 +121,7 @@ int kl_mo_add_float(Object *_m, double k, int type_info);
 int kl_mo_add_bool(Object *_m, int v);
 int kl_mo_add_none(Object *_m);
 int kl_mo_add_list(Object *_m, Vector *list);
+int kl_mo_add_dict(Object *_m, Vector *list);
 int kl_mo_add_import(Object *_m, ImportKind kind, char *path, char *kls, char *name,
                      int slot_index);
 Object *kl_mo_find(Object *_m, char *name);

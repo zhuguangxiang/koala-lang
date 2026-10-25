@@ -76,6 +76,22 @@ static void print_const(KlrConst *v, FILE *fp)
             fprintf(fp, "]");
             break;
         }
+        case CONST_MAP: {
+            /* entries are stored in source order: key0, value0, key1, ... */
+            fprintf(fp, "dict[");
+            int len = vector_size(v->list);
+            KlrValue *item;
+            vector_foreach(item, v->list) {
+                print_const_item(item, fp);
+                if (i__ % 2) {
+                    if (i__ < len - 1) fprintf(fp, ", ");
+                } else {
+                    fprintf(fp, ": ");
+                }
+            }
+            fprintf(fp, "]");
+            break;
+        }
         case CONST_TUPLE: {
             fprintf(fp, "tuple(");
             int len = vector_size(v->list);
