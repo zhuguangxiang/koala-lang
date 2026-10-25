@@ -37,7 +37,7 @@ DOC_PREFIX = "///"
 ANNOT_RE = re.compile(r"^\s*@(\w+(?:\s*\(.*\))?)\s*$")
 DECL_RE = re.compile(
     r"^\s*(?P<pub>pub\s+)?(?P<static>static\s+)?"
-    r"(?P<kind>class|trait|func)\s+(?P<name>\w+)(?P<rest>.*)$"
+    r"(?P<kind>class|trait|func|const)\s+(?P<name>\w+)(?P<rest>.*)$"
 )
 FIELD_RE = re.compile(
     r"^\s*(?P<pub>pub\s+)?(?P<kind>var|let)\s+(?P<name>\w+)(?P<rest>.*)$"
@@ -100,6 +100,49 @@ def first_paragraph(text):
     """First paragraph of a doc text, for Contents summaries."""
     para = re.split(r"\n[ \t]*\n", text.strip(), maxsplit=1)[0]
     return " ".join(line.strip() for line in para.splitlines())
+
+
+def _strip_expr_body(header):
+    """Strip an ``= expression`` function body from a declaration header.
+
+    Koala supports ``func foo() int = expr`` as a shorthand for a one-line
+    body.  The ``=`` must sit outside any parentheses (to avoid confusion
+    with default-argument values like ``func f(x = 10)``).
+    """
+    depth = 0
+    eq_pos = -1
+    for i, ch in enumerate(header):
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif ch == "=" and depth == 0:
+            eq_pos = i
+    if eq_pos != -1:
+        header = header[:eq_pos].rstrip()
+    return header
+
+
+def _strip_inline_body(header):
+    """Strip an inline ``{ ... }`` body from a declaration header.
+
+    Handles both empty bodies (``func f() {}``) and non-empty single-line
+    bodies (``func f() int { return 42 }``).  Only braces at the top level
+    (outside parentheses/brackets) are considered, so default values that
+    happen to contain braces are not affected.
+    """
+    depth = 0
+    last_open = -1
+    for i, ch in enumerate(header):
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif ch == "{" and depth == 0:
+            last_open = i
+    if last_open != -1:
+        header = header[:last_open].rstrip()
+    return header
 
 
 @dataclass
@@ -196,6 +239,11 @@ def parse_source(text):
                 header = (header + " " + cont_line.strip()).strip()
             header = BRACE_RE.sub("", header)
             header = OPEN_BRACE_RE.sub("", header)
+            header = _strip_inline_body(header)
+            # ``= expr`` bodies only apply to funcs; for consts the ``=``
+            # is part of the value initialiser.
+            if m.group("kind") == "func":
+                header = _strip_expr_body(header)
             header = re.sub(r"\s+", " ", header).strip()
             # tidy whitespace left over from joining multi-line signatures
             header = re.sub(r"\(\s+", "(", header)
@@ -265,9 +313,9 @@ def render_doc(doc):
 
 
 def short_sig(item):
-    """Signature without the leading `pub class/trait/func` keywords."""
+    """Signature without the leading `pub class/trait/func/const` keywords."""
     return re.sub(
-        r"^(?:pub\s+)?(static\s+)?(?:class|trait|func)\s+",
+        r"^(?:pub\s+)?(static\s+)?(?:class|trait|func|const)\s+",
         r"\1",
         item.signature,
     )
@@ -365,7 +413,12 @@ def render_package(pkg_name, files):
     lines.append("")
     lines.append("## Contents")
     lines.append("")
-    groups = (("Traits", "trait"), ("Classes", "class"), ("Functions", "func"))
+    groups = (
+        ("Traits", "trait"),
+        ("Classes", "class"),
+        ("Functions", "func"),
+        ("Constants", "const"),
+    )
     for title, kind in groups:
         entries = [
             it for _, items in files for it in items if it.kind == kind

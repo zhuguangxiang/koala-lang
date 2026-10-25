@@ -1,6 +1,6 @@
 {
     "files.associations": {
-        "*.kl": "swift",
+        "*.kl": "koala",
         "wombat": "swift",
         "*.y": "yacc",
         "*.h": "c",
