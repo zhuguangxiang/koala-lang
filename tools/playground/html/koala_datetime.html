@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>koala/datetime - Koala API</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <style>
+:root {
+    --sidebar-width: 280px;
+    --content-max-width: 900px;
+    --bg: #0d1117;
+    --sidebar-bg: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-light: #8b949e;
+    --link: #58a6ff;
+    --code-bg: #1f2428;
+    --heading: #f0f6fc;
+    --badge-bg: #30363d;
+    --badge-text: #c9d1d9;
+    --accent: #238636;
+    --accent-hover: #2ea043;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Modern Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: #6e7681;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #30363d transparent;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--text);
+    background: var(--bg);
+    display: flex;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#sidebar {
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#sidebar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#sidebar h2 {
+    font-size: 40px;
+    font-weight: 700;
+    padding: 0 20px 15px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 15px;
+    color: var(--text-light);
+}
+
+#sidebar .workspace { margin-bottom: 20px; }
+
+#sidebar .workspace-title {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 20px;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+#sidebar .workspace-title:hover {
+    color: var(--text);
+}
+
+#sidebar .ws-arrow {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+#sidebar .workspace-title.collapsed .ws-arrow {
+    transform: rotate(-90deg);
+}
+
+#sidebar .workspace-items.hidden {
+    display: none;
+}
+
+#sidebar .package { margin-bottom: 2px; }
+
+#sidebar .package > a {
+    display: block;
+    padding: 8px 20px 8px 30px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    border-left: 2px solid transparent;
+}
+
+#sidebar .package > a:hover {
+    background: rgba(88, 166, 255, 0.08);
+    border-left-color: var(--link);
+}
+
+#sidebar .package > a.active {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--link);
+    border-left-color: var(--link);
+    font-weight: 500;
+}
+
+#search-box {
+    width: calc(100% - 40px);
+    margin: 0 20px 15px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 15px;
+    background: var(--code-bg);
+    color: var(--text);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#search-box:focus {
+    outline: none;
+    border-color: var(--link);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+#search-box::placeholder {
+    color: var(--text-light);
+}
+
+#content {
+    margin-left: var(--sidebar-width);
+    margin-right: auto;
+    flex: 1;
+    padding: 40px;
+    max-width: var(--content-max-width);
+}
+
+h1 {
+    font-size: 40px;
+    font-weight: 700;
+    color: var(--text-light);
+    margin-bottom: 10px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -0.5px;
+}
+
+h2 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 40px;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.3px;
+}
+
+h3 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 30px;
+    margin-bottom: 10px;
+}
+
+h4.section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 25px;
+    margin-bottom: 12px;
+}
+
+.item {
+    margin-bottom: 40px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+}
+
+.member-item {
+    margin-bottom: 30px;
+    scroll-margin-top: 20px;
+}
+
+.collapsible-section {
+    margin-top: 20px;
+}
+
+.collapse-toggle {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.2s;
+}
+
+.collapse-toggle:hover {
+    color: var(--text);
+}
+
+.collapse-toggle .arrow {
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.collapse-toggle.collapsed .arrow {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    margin-top: 15px;
+    padding-left: 10px;
+    border-left: 2px solid var(--border);
+}
+
+.collapsible-content.hidden {
+    display: none;
+}
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.item-header h3 { margin: 0; font-family: "SF Mono", Monaco, monospace; }
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+}
+
+.badge.trait { background: #1a3a4a; color: #5bc0de; }
+.badge.class { background: #3a1a4a; color: #c77dff; }
+.badge.func { background: #1a3a1a; color: #7ddf7d; }
+.badge.const { background: #4a3a1a; color: #ffb347; }
+
+.signature {
+    background: var(--code-bg);
+    padding: 14px 18px;
+    border-radius: 8px;
+    border-left: 3px solid var(--link);
+    margin-bottom: 15px;
+    overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.signature code {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.bases {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 15px;
+}
+
+.bases strong { color: var(--text); }
+
+.doc-content { margin-bottom: 15px; }
+.doc-content p { margin-bottom: 12px; line-height: 1.7; }
+
+.doc-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.doc-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-content pre code { background: none; padding: 0; border: none; font-size: 14px; }
+
+.member {
+    margin-left: 20px;
+    margin-bottom: 20px;
+    padding-left: 15px;
+    border-left: 2px solid var(--border);
+}
+
+.member-sig {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--heading);
+    margin-bottom: 5px;
+}
+
+.member-tag {
+    font-size: 12px;
+    color: var(--text-light);
+    font-style: italic;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+th, td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 15px;
+}
+
+th {
+    background: var(--sidebar-bg);
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+td a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+td a:hover { color: #79c0ff; }
+
+.summary { color: var(--text-light); font-size: 15px; }
+a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #79c0ff; }
+
+.manual-toc {
+    background: var(--sidebar-bg);
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-toc h2 {
+    margin-top: 0;
+    font-size: 20px;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.manual-toc ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.manual-toc ul ul {
+    padding-left: 20px;
+    margin-top: 5px;
+}
+
+.manual-toc li {
+    margin-bottom: 8px;
+}
+
+.manual-toc a {
+    color: var(--text);
+    text-decoration: none;
+    transition: all 0.2s;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    font-size: 16px;
+}
+
+.manual-toc a:hover {
+    color: var(--link);
+    background: rgba(88, 166, 255, 0.08);
+}
+
+.manual-content {
+    margin-bottom: 20px;
+}
+
+.manual-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 15px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.manual-content pre code {
+    background: none;
+    padding: 0;
+    border: none;
+    font-size: 14px;
+}
+
+.doc-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin: 30px 0;
+}
+
+.doc-card {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-card:hover {
+    border-color: var(--link);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(88, 166, 255, 0.15);
+}
+
+.doc-card h3 {
+    margin: 0 0 12px;
+    font-size: 22px;
+    color: var(--heading);
+    font-weight: 600;
+}
+
+.doc-card p {
+    color: var(--text-light);
+    margin-bottom: 16px;
+    line-height: 1.7;
+}
+
+.doc-card-link {
+    display: inline-block;
+    color: var(--link);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(88, 166, 255, 0.1);
+}
+
+.doc-card-link:hover {
+    color: #79c0ff;
+    background: rgba(88, 166, 255, 0.2);
+}
+
+/* Playground styles */
+.playground-section {
+    background: #1a1a2e;
+    border: 1px solid #2d2d44;
+    border-radius: 8px;
+    padding: 24px;
+    margin: 24px 0;
+}
+
+.playground-section h2 {
+    margin-top: 0;
+    color: #7bb8ff;
+}
+
+.playground-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.playground-editor {
+    position: relative;
+}
+
+.playground-editor textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 16px;
+    background: #0d0d1a;
+    color: #e0e0e0;
+    border: 1px solid #2d2d44;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    tab-size: 4;
+}
+
+.playground-editor textarea:focus {
+    outline: none;
+    border-color: #7bb8ff;
+}
+
+.playground-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.playground-btn {
+    padding: 8px 20px;
+    background: #2d5a3d;
+    color: #a0e0a0;
+    border: 1px solid #3a7a4a;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.playground-btn:hover {
+    background: #3a7a4a;
+}
+
+.playground-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.playground-btn.secondary {
+    background: #2d2d44;
+    color: #a0a0c0;
+    border-color: #3d3d5c;
+}
+
+.playground-btn.secondary:hover {
+    background: #3d3d5c;
+}
+
+.playground-result {
+    padding: 12px 16px;
+    background: #1a2a1a;
+    border: 1px solid #2d5a3d;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 13px;
+    color: #a0e0a0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 60px;
+}
+
+.playground-result.error {
+    background: #2a1a1a;
+    border-color: #5a2d2d;
+    color: #e0a0a0;
+}
+
+.playground-result .result-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.7;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        width: 100%;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+    #content { margin-left: 0; padding: 20px; }
+    body { flex-direction: column; }
+}
+
+.github-link {
+    display: block;
+    margin: 0 20px 15px;
+    padding: 8px 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.github-link:hover {
+    border-color: var(--link);
+    background: rgba(91, 163, 245, 0.1);
+}
+
+.github-link::before {
+    content: "🐙 ";
+}
+
+/* Table of Contents (Right Sidebar) */
+#toc {
+    position: fixed;
+    right: 30px;
+    top: 80px;
+    width: 280px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--sidebar-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#toc::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#toc-title {
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+#toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#toc li {
+    margin: 8px 0;
+}
+
+#toc a {
+    color: var(--text-light);
+    text-decoration: none;
+    display: block;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    line-height: 1.5;
+}
+
+#toc a:hover {
+    background: var(--code-bg);
+    color: var(--link);
+}
+
+#toc a.active {
+    background: rgba(88, 166, 255, 0.1);
+    color: var(--link);
+    border-left: 2px solid var(--link);
+}
+
+#toc ul ul {
+    margin-left: 16px;
+    margin-top: 6px;
+}
+
+#toc ul ul a {
+    font-size: 13px;
+    padding: 4px 12px;
+}
+
+#toc li.toc-h3 a {
+    padding-left: 24px;
+    font-size: 13px;
+}
+
+/* Home button at top */
+#toc-home {
+    display: block;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+#toc-home:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+/* Back to top button */
+#back-to-top {
+    display: none;
+    width: 100%;
+    padding: 10px 16px;
+    margin-top: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#back-to-top:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+#back-to-top.visible {
+    display: block;
+}
+
+/* TOC always visible */
+#content {
+    margin-right: 320px;
+}
+
+/* Scrollbar for TOC */
+#toc::-webkit-scrollbar {
+    width: 6px;
+}
+
+#toc::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#toc::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+#toc::-webkit-scrollbar-thumb:hover {
+    background: var(--text-light);
+}
+</style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2><a href="index.html" style="color:inherit;text-decoration:none;">Koala Docs</a></h2>
+        <a href="https://github.com/zhuguangxiang/koala-lang" class="github-link" target="_blank">GitHub Repository</a>
+        <input type="text" id="search-box" placeholder="Search...">
+        <div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">Guide <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="manual.html">Language Manual</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">std <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="std_builtin.html">builtin</a>
+</div>
+<div class="package">
+<a href="std_collections.html">collections</a>
+</div>
+<div class="package">
+<a href="std_fs.html">fs</a>
+</div>
+<div class="package">
+<a href="std_io.html">io</a>
+</div>
+<div class="package">
+<a href="std_os.html">os</a>
+</div>
+<div class="package">
+<a href="std_prelude.html">prelude</a>
+</div>
+<div class="package">
+<a href="std_sys.html">sys</a>
+</div>
+<div class="package">
+<a href="std_time.html">time</a>
+</div>
+<div class="package">
+<a href="std_ut.html">ut</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">koala <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="koala_datetime.html" class="active">datetime</a>
+</div>
+<div class="package">
+<a href="koala_encoding_base64.html">encoding/base64</a>
+</div>
+<div class="package">
+<a href="koala_encoding_bin.html">encoding/bin</a>
+</div>
+<div class="package">
+<a href="koala_json.html">json</a>
+</div>
+<div class="package">
+<a href="koala_math.html">math</a>
+</div>
+<div class="package">
+<a href="koala_random.html">random</a>
+</div>
+<div class="package">
+<a href="koala_toml.html">toml</a>
+</div>
+<div class="package">
+<a href="koala_wombat.html">wombat</a>
+</div>
+</div>
+</div>
+    </div>
+    <div id="content">
+        <h1>koala/datetime</h1>
+<h2>Classes</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#date">Date</a></td><td class="summary">A calendar date in the proleptic Gregorian calendar, with no time or timezone.</td></tr>
+<tr><td><a href="#datetime">DateTime</a></td><td class="summary">A date and time of day, in UTC, with nanosecond precision.</td></tr>
+<tr><td><a href="#time">Time</a></td><td class="summary">A time of day with nanosecond resolution, without a date or timezone.</td></tr>
+</table>
+<h2>Functions</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#parse_num">parse_num</a></td><td class="summary">Parse a fixed-width all-digit ISO segment into an int; panic on any non-digit. Used by `from_str` so a malformed field reports a datetime-specific message instead of a generic integer-parse failure.</td></tr>
+<tr><td><a href="#floor_days">floor_days</a></td><td class="summary">Whole days spanned by `ns` nanoseconds, rounded toward negative infinity (matches Python's `timedelta.days` semantics for negative durations).</td></tr>
+<tr><td><a href="#is_leap_year">is_leap_year</a></td><td class="summary">Return true if `y` is a leap year in the proleptic Gregorian calendar.</td></tr>
+<tr><td><a href="#days_in_month">days_in_month</a></td><td class="summary">Return the number of days in month `m` (1-12) of year `y`.</td></tr>
+<tr><td><a href="#days_from_civil">days_from_civil</a></td><td class="summary">Return the day count from the Unix epoch (1970-01-01 == 0) to the civil date `(y, m, d)`; negative before the epoch.</td></tr>
+<tr><td><a href="#civil_from_days">civil_from_days</a></td><td class="summary">Return the civil date `(year, month, day)` for a day count `z` from the Unix epoch (1970-01-01 == 0); the inverse of `days_from_civil`.</td></tr>
+</table>
+<h2>Constants</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#minyear">MINYEAR</a></td><td class="summary">The smallest year supported by `Date` (matches Python's `MINYEAR`).</td></tr>
+<tr><td><a href="#maxyear">MAXYEAR</a></td><td class="summary">The largest year supported by `Date` (matches Python's `MAXYEAR`).</td></tr>
+<tr><td><a href="#nanos_per_sec">NANOS_PER_SEC</a></td><td class="summary"></td></tr>
+<tr><td><a href="#nanos_per_min">NANOS_PER_MIN</a></td><td class="summary"></td></tr>
+<tr><td><a href="#nanos_per_hour">NANOS_PER_HOUR</a></td><td class="summary"></td></tr>
+<tr><td><a href="#nanos_per_day">NANOS_PER_DAY</a></td><td class="summary"></td></tr>
+</table>
+<h2>Classes</h2>
+
+<div class="item" id="date">
+    <div class="signature"><code>pub class Date : ToString</code></div>
+    
+    <div class="doc-content"><p>A calendar date in the proleptic Gregorian calendar, with no time or</p>
+<p>timezone.</p>
+
+<p>Build one with <code>Date(year, month, day)</code>; dates are immutable, so</p>
+<p>arithmetic like <code>add_days</code> returns a new <code>Date</code>. Internally a date maps</p>
+<p>to a day count with the Unix epoch (1970-01-01) as day 0.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(y int, m int, d int)</code></div>
+    <div class="doc-content"><p>Create a date from a year, month (1-12) and day.</p>
+
+<p>Panic if the year is outside <code>MINYEAR</code>..<code>MAXYEAR</code>, the month is</p>
+<p>outside 1..12, or the day is outside 1..<code>days_in_month</code>.</p></div>
+</div>
+
+<div class="member-item" id="from_days">
+    <div class="signature"><code>pub static func from_days(z int) Date</code></div>
+    <div class="doc-content"><p>Create the date <code>z</code> days from the Unix epoch (1970-01-01 == day 0).</p></div>
+</div>
+
+<div class="member-item" id="from_str">
+    <div class="signature"><code>pub static func from_str(s str) Date</code></div>
+    <div class="doc-content"><p>Parse an ISO 8601 calendar date <code>YYYY-MM-DD</code> (the inverse of <a href="#to_str"><code>to_str</code></a>).</p>
+
+<p>Panic if the text is malformed or a field is out of range.</p></div>
+</div>
+
+<div class="member-item" id="today">
+    <div class="signature"><code>pub static func today() Date</code></div>
+    <div class="doc-content"><p>Return today's date in UTC. Koala has no local-timezone detection, so</p>
+<p>this is the calendar date from the realtime clock read as UTC.</p></div>
+</div>
+
+<div class="member-item" id="to_days">
+    <div class="signature"><code>pub func to_days() int</code></div>
+    <div class="doc-content"><p>Return the day count from the Unix epoch to this date; negative</p>
+<p>before 1970-01-01.</p></div>
+</div>
+
+<div class="member-item" id="weekday">
+    <div class="signature"><code>pub func weekday() int</code></div>
+    <div class="doc-content"><p>Return the weekday, Monday == 0 through Sunday == 6.</p></div>
+</div>
+
+<div class="member-item" id="add_days">
+    <div class="signature"><code>pub func add_days(n int) Date</code></div>
+    <div class="doc-content"><p>Return a new date <code>n</code> days after this one; <code>n</code> may be negative.</p></div>
+</div>
+
+<div class="member-item" id="__add__">
+    <div class="signature"><code>pub func __add__(d time.Duration) Date</code></div>
+    <div class="doc-content"><p>Return a date advanced by the whole days in <code>d</code> (<code>date + timedelta</code>);</p>
+<p>any sub-day remainder is ignored.</p></div>
+</div>
+
+<div class="member-item" id="__sub__">
+    <div class="signature"><code>pub func __sub__(d time.Duration) Date</code></div>
+    <div class="doc-content"><p>Return a date moved back by the whole days in <code>d</code> (<code>date - timedelta</code>);</p>
+<p>any sub-day remainder is ignored.</p></div>
+</div>
+
+<div class="member-item" id="diff">
+    <div class="signature"><code>pub func diff(o Date) time.Duration</code></div>
+    <div class="doc-content"><p>Return the elapsed time between two dates as a <code>time.Duration</code></p>
+<p>(Python's <code>date - date</code>); negative when <code>self</code> precedes <code>o</code>. Koala does</p>
+<p>not overload the <code>-</code> operator, so the two-operand difference is a method.</p></div>
+</div>
+
+<div class="member-item" id="hash">
+    <div class="signature"><code>pub func hash() int</code></div>
+    <div class="doc-content"><p>Return a hash consistent with equality (dates compare by day count).</p>
+<p>Value-semantic classes must override the default identity hash so that</p>
+<p>equal dates hash identically for dict/set keys.</p></div>
+</div>
+
+<div class="member-item" id="replace">
+    <div class="signature"><code>pub func replace(y = -1, mo = -1, d = -1) Date</code></div>
+    <div class="doc-content"><p>Return a date with the given fields replaced (Python's <code>date.replace()</code>).</p>
+<p>A negative (or omitted) argument keeps the current value; the result is</p>
+<p>re-validated by the <code>Date</code> constructor.</p></div>
+</div>
+
+<div class="member-item" id="to_str">
+    <div class="signature"><code>pub func to_str() str</code></div>
+    <div class="doc-content"><p>Return the ISO-8601 form <code>YYYY-MM-DD</code>.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format for display (Printable): the debug-oriented <code>Date(...)</code> wrapper.</p>
+<p>The raw ISO form is <a href="#to_str"><code>to_str</code></a>.</p></div>
+</div>
+
+<div class="member-item" id="__eq__">
+    <div class="signature"><code>pub func __eq__(o Date) bool</code></div>
+    <div class="doc-content"><p>Return true if both dates fall on the same day.</p></div>
+</div>
+
+<div class="member-item" id="__ne__">
+    <div class="signature"><code>pub func __ne__(o Date) bool</code></div>
+    <div class="doc-content"><p>Return true if the two dates differ.</p></div>
+</div>
+
+<div class="member-item" id="__lt__">
+    <div class="signature"><code>pub func __lt__(o Date) bool</code></div>
+    <div class="doc-content"><p>Return true if <code>self</code> is earlier than <code>o</code>.</p></div>
+</div>
+
+<div class="member-item" id="__le__">
+    <div class="signature"><code>pub func __le__(o Date) bool</code></div>
+    <div class="doc-content"><p>Return true if <code>self</code> is not later than <code>o</code>.</p></div>
+</div>
+
+<div class="member-item" id="__gt__">
+    <div class="signature"><code>pub func __gt__(o Date) bool</code></div>
+    <div class="doc-content"><p>Return true if <code>self</code> is later than <code>o</code>.</p></div>
+</div>
+
+<div class="member-item" id="__ge__">
+    <div class="signature"><code>pub func __ge__(o Date) bool</code></div>
+    <div class="doc-content"><p>Return true if <code>self</code> is not earlier than <code>o</code>.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="datetime">
+    <div class="signature"><code>pub class DateTime : ToString</code></div>
+    
+    <div class="doc-content"><p>A date and time of day, in UTC, with nanosecond precision.</p>
+
+<p>Combines a calendar [<code>Date</code>] and a wall-clock [<code>Time</code>]. Bridge to <code>std/time</code>:</p>
+<p><a href="#to_instant"><code>to_instant</code></a> / <a href="#from_instant"><code>from_instant</code></a> convert to/from a</p>
+<p><code>time.Instant</code>, and <a href="#add"><code>add</code></a> shifts by a <code>time.Duration</code>.</p>
+
+<p>The canonical string form (<a href="#to_str"><code>to_str</code></a>, <code>ToString</code>) is ISO 8601 with a <code>T</code></p>
+<p>separator, e.g. <code>"2026-10-24T13:30:45"</code>; the display form (<a href="#fmt"><code>fmt</code></a>, <code>Printable</code>)</p>
+<p>wraps it as <code>DateTime(...)</code>.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(y int, mo int, d int, h int, mi = 0, s = 0, ns = 0)</code></div>
+    <div class="doc-content"><p>Create a <code>DateTime</code> from its fields (UTC). Date and time ranges are validated</p>
+<p>by reusing [<code>Date</code>] and [<code>Time</code>]. <code>mi</code>, <code>s</code>, <code>ns</code> default to 0.</p></div>
+</div>
+
+<div class="member-item" id="now">
+    <div class="signature"><code>pub static func now() DateTime</code></div>
+    <div class="doc-content"><p>Return the current UTC date and time (backed by <code>time.now()</code>).</p></div>
+</div>
+
+<div class="member-item" id="from_instant">
+    <div class="signature"><code>pub static func from_instant(i time.Instant) DateTime</code></div>
+    <div class="doc-content"><p>Build a <code>DateTime</code> from a <code>time.Instant</code> (UTC), using its Unix nanoseconds.</p></div>
+</div>
+
+<div class="member-item" id="from_str">
+    <div class="signature"><code>pub static func from_str(s str) DateTime</code></div>
+    <div class="doc-content"><p>Parse an ISO 8601 datetime <code>YYYY-MM-DDTHH:MM:SS</code>, optionally with a</p>
+<p><code>.nnnnnnnnn</code> nanosecond fraction (the inverse of <a href="#to_str"><code>to_str</code></a>).</p>
+
+<p>Panic if the text is malformed or a field is out of range.</p></div>
+</div>
+
+<div class="member-item" id="combine">
+    <div class="signature"><code>pub static func combine(d Date, t Time) DateTime</code></div>
+    <div class="doc-content"><p>Combine a <code>Date</code> and a <code>Time</code> into a <code>DateTime</code> (Python's <code>datetime.combine</code>).</p></div>
+</div>
+
+<div class="member-item" id="from_epoch_nanos">
+    <div class="signature"><code>static func from_epoch_nanos(ns int) DateTime</code></div>
+    <div class="doc-content"><p>Build a <code>DateTime</code> from nanoseconds since the Unix epoch.</p>
+
+<p>Negative values (before 1970) are floored so the time-of-day stays in</p>
+<p><code>[0, 86400e9)</code>: e.g. <code>-1</code> ns is <code>1969-12-31T23:59:59.999999999</code>.</p></div>
+</div>
+
+<div class="member-item" id="timestamp">
+    <div class="signature"><code>pub func timestamp() float64</code></div>
+    <div class="doc-content"><p>Return seconds since the Unix epoch as a <code>float64</code> (Python's</p>
+<p><code>datetime.timestamp()</code>). Because a nanosecond epoch magnitude can exceed</p>
+<p><code>float64</code>'s exact-integer range, this is approximate at sub-microsecond</p>
+<p>levels; use <a href="#timestamp_nanos"><code>timestamp_nanos</code></a> for exact values.</p></div>
+</div>
+
+<div class="member-item" id="timestamp_nanos">
+    <div class="signature"><code>pub func timestamp_nanos() int</code></div>
+    <div class="doc-content"><p>Return nanoseconds since the Unix epoch, exact (no float rounding).</p></div>
+</div>
+
+<div class="member-item" id="from_timestamp">
+    <div class="signature"><code>pub static func from_timestamp(secs float64) DateTime</code></div>
+    <div class="doc-content"><p>Build a <code>DateTime</code> from seconds since the Unix epoch (Python's</p>
+<p><code>datetime.fromtimestamp()</code>).</p></div>
+</div>
+
+<div class="member-item" id="from_timestamp_nanos">
+    <div class="signature"><code>pub static func from_timestamp_nanos(ns int) DateTime</code></div>
+    <div class="doc-content"><p>Build a <code>DateTime</code> from exact nanoseconds since the Unix epoch.</p></div>
+</div>
+
+<div class="member-item" id="to_instant">
+    <div class="signature"><code>pub func to_instant() time.Instant</code></div>
+    <div class="doc-content"><p>Convert to a <code>time.Instant</code> on the realtime (wall) clock.</p></div>
+</div>
+
+<div class="member-item" id="add">
+    <div class="signature"><code>pub func add(dur time.Duration) DateTime</code></div>
+    <div class="doc-content"><p>Return a new <code>DateTime</code> shifted by the duration <code>dur</code>.</p></div>
+</div>
+
+<div class="member-item" id="__add__">
+    <div class="signature"><code>pub func __add__(d time.Duration) DateTime</code></div>
+    <div class="doc-content"><p>Return a new datetime advanced by <code>d</code> (<code>datetime + timedelta</code>).</p></div>
+</div>
+
+<div class="member-item" id="__sub__">
+    <div class="signature"><code>pub func __sub__(d time.Duration) DateTime</code></div>
+    <div class="doc-content"><p>Return a new datetime moved back by <code>d</code> (<code>datetime - timedelta</code>).</p></div>
+</div>
+
+<div class="member-item" id="diff">
+    <div class="signature"><code>pub func diff(o DateTime) time.Duration</code></div>
+    <div class="doc-content"><p>Return the elapsed time between two datetimes as a <code>time.Duration</code></p>
+<p>(Python's <code>datetime - datetime</code>); negative when <code>self</code> precedes <code>o</code>.</p>
+<p>Koala does not overload <code>-</code>, so the difference is a method.</p></div>
+</div>
+
+<div class="member-item" id="hash">
+    <div class="signature"><code>pub func hash() int</code></div>
+    <div class="doc-content"><p>Return a hash consistent with datetime equality (compared by absolute</p>
+<p>nanoseconds since the epoch), overriding the default identity hash.</p></div>
+</div>
+
+<div class="member-item" id="date">
+    <div class="signature"><code>pub func date() Date</code></div>
+    <div class="doc-content"><p>Return the date part.</p></div>
+</div>
+
+<div class="member-item" id="time_of_day">
+    <div class="signature"><code>pub func time_of_day() Time</code></div>
+    <div class="doc-content"><p>Return the time-of-day part.</p></div>
+</div>
+
+<div class="member-item" id="replace">
+    <div class="signature"><code>pub func replace(y = -1, mo = -1, d = -1, h = -1, mi = -1, s = -1, ns = -1) DateTime</code></div>
+    <div class="doc-content"><p>Return a datetime with the given fields replaced (Python's</p>
+<p><code>datetime.replace()</code>). A negative (or omitted) argument keeps the current</p>
+<p>value; the result is re-validated by the <code>DateTime</code> constructor.</p></div>
+</div>
+
+<div class="member-item" id="to_epoch_nanos">
+    <div class="signature"><code>func to_epoch_nanos() int</code></div>
+    <div class="doc-content"><p>Nanoseconds since the Unix epoch (1970-01-01T00:00:00Z); negative before it.</p></div>
+</div>
+
+<div class="member-item" id="to_str">
+    <div class="signature"><code>pub func to_str() str</code></div>
+    <div class="doc-content"><p>Return the raw ISO 8601 string (ToString): <code>YYYY-MM-DDTHH:MM:SS</code>, with</p>
+<p><code>.NNNNNNNNN</code> appended when <a href="#nanosecond"><code>nanosecond</code></a> is non-zero.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format for display (Printable): the debug-oriented <code>DateTime(...)</code> wrapper.</p>
+<p>The raw ISO form is <a href="#to_str"><code>to_str</code></a>.</p></div>
+</div>
+
+<div class="member-item" id="__eq__">
+    <div class="signature"><code>pub func __eq__(o DateTime) bool</code></div>
+    <div class="doc-content"><p>Return true if equal to <code>o</code> (Equatable[DateTime]).</p></div>
+</div>
+
+<div class="member-item" id="__ne__">
+    <div class="signature"><code>pub func __ne__(o DateTime) bool</code></div>
+    <div class="doc-content"><p>Return true if not equal to <code>o</code>.</p></div>
+</div>
+
+<div class="member-item" id="__lt__">
+    <div class="signature"><code>pub func __lt__(o DateTime) bool</code></div>
+    <div class="doc-content"><p>Return true if earlier than <code>o</code> (Comparable[DateTime]).</p></div>
+</div>
+
+<div class="member-item" id="__le__">
+    <div class="signature"><code>pub func __le__(o DateTime) bool</code></div>
+    <div class="doc-content"><p>Return true if not later than <code>o</code>.</p></div>
+</div>
+
+<div class="member-item" id="__gt__">
+    <div class="signature"><code>pub func __gt__(o DateTime) bool</code></div>
+    <div class="doc-content"><p>Return true if later than <code>o</code>.</p></div>
+</div>
+
+<div class="member-item" id="__ge__">
+    <div class="signature"><code>pub func __ge__(o DateTime) bool</code></div>
+    <div class="doc-content"><p>Return true if not earlier than <code>o</code>.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="time">
+    <div class="signature"><code>pub class Time : ToString</code></div>
+    
+    <div class="doc-content"><p>A time of day with nanosecond resolution, without a date or timezone.</p>
+
+<p>Build one with <code>Time(hour, minute, second, nanosecond)</code>; <code>minute</code>,</p>
+<p><code>second</code> and <code>nanosecond</code> default to 0. Times are immutable, and the</p>
+<p>canonical ordering compares by nanoseconds since midnight.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(h int, m = 0, s = 0, ns = 0)</code></div>
+    <div class="doc-content"><p>Create a time from an hour (0-23) and optional minute, second and</p>
+<p>nanosecond (each defaulting to 0).</p>
+
+<p>Panic if any component is outside its valid range.</p></div>
+</div>
+
+<div class="member-item" id="from_nanos">
+    <div class="signature"><code>pub static func from_nanos(n int) Time</code></div>
+    <div class="doc-content"><p>Create the time <code>n</code> nanoseconds after midnight.</p>
+
+<p>Panic if <code>n</code> is outside 0..86_399_999_999_999 (one day).</p></div>
+</div>
+
+<div class="member-item" id="from_str">
+    <div class="signature"><code>pub static func from_str(s str) Time</code></div>
+    <div class="doc-content"><p>Parse an ISO 8601 time <code>HH:MM:SS</code> or <code>HH:MM:SS.nnnnnnnnn</code> (the inverse of</p>
+<p><a href="#to_str"><code>to_str</code></a>).</p>
+
+<p>Panic if the text is malformed or a field is out of range.</p></div>
+</div>
+
+<div class="member-item" id="to_nanos">
+    <div class="signature"><code>pub func to_nanos() int</code></div>
+    <div class="doc-content"><p>Return the number of nanoseconds since midnight, 0..86_399_999_999_999.</p></div>
+</div>
+
+<div class="member-item" id="hash">
+    <div class="signature"><code>pub func hash() int</code></div>
+    <div class="doc-content"><p>Return a hash consistent with time equality (compared by nanoseconds</p>
+<p>since midnight), overriding the default identity hash.</p></div>
+</div>
+
+<div class="member-item" id="replace">
+    <div class="signature"><code>pub func replace(h = -1, mi = -1, s = -1, ns = -1) Time</code></div>
+    <div class="doc-content"><p>Return a time with the given fields replaced (Python's <code>time.replace()</code>).</p>
+<p>A negative (or omitted) argument keeps the current value; the result is</p>
+<p>re-validated by the <code>Time</code> constructor.</p></div>
+</div>
+
+<div class="member-item" id="to_str">
+    <div class="signature"><code>pub func to_str() str</code></div>
+    <div class="doc-content"><p>Return the ISO-8601 form <code>HH:MM:SS</code>, adding <code>.NNNNNNNNN</code> when the</p>
+<p>nanosecond component is non-zero.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format for display (Printable): the debug-oriented <code>Time(...)</code> wrapper.</p>
+<p>The raw ISO form is <a href="#to_str"><code>to_str</code></a>.</p></div>
+</div>
+
+<div class="member-item" id="__eq__">
+    <div class="signature"><code>pub func __eq__(o Time) bool</code></div>
+    <div class="doc-content"><p>Return true if both times are the same point within the day.</p></div>
+</div>
+
+<div class="member-item" id="__ne__">
+    <div class="signature"><code>pub func __ne__(o Time) bool</code></div>
+    <div class="doc-content"><p>Return true if the two times differ.</p></div>
+</div>
+
+<div class="member-item" id="__lt__">
+    <div class="signature"><code>pub func __lt__(o Time) bool</code></div>
+    <div class="doc-content"><p>Return true if <code>self</code> is earlier in the day than <code>o</code>.</p></div>
+</div>
+
+<div class="member-item" id="__le__">
+    <div class="signature"><code>pub func __le__(o Time) bool</code></div>
+    <div class="doc-content"><p>Return true if <code>self</code> is not later in the day than <code>o</code>.</p></div>
+</div>
+
+<div class="member-item" id="__gt__">
+    <div class="signature"><code>pub func __gt__(o Time) bool</code></div>
+    <div class="doc-content"><p>Return true if <code>self</code> is later in the day than <code>o</code>.</p></div>
+</div>
+
+<div class="member-item" id="__ge__">
+    <div class="signature"><code>pub func __ge__(o Time) bool</code></div>
+    <div class="doc-content"><p>Return true if <code>self</code> is not earlier in the day than <code>o</code>.</p></div>
+</div>
+</div></div>
+</div>
+
+<h2>Functions</h2>
+
+<div class="item" id="parse_num">
+    <div class="signature"><code>func parse_num(seg str) int</code></div>
+    
+    <div class="doc-content"><p>Parse a fixed-width all-digit ISO segment into an int; panic on any non-digit.</p>
+<p>Used by <code>from_str</code> so a malformed field reports a datetime-specific message</p>
+<p>instead of a generic integer-parse failure.</p></div>
+    
+</div>
+
+
+<div class="item" id="floor_days">
+    <div class="signature"><code>func floor_days(ns int) int</code></div>
+    
+    <div class="doc-content"><p>Whole days spanned by <code>ns</code> nanoseconds, rounded toward negative infinity</p>
+<p>(matches Python's <code>timedelta.days</code> semantics for negative durations).</p></div>
+    
+</div>
+
+
+<div class="item" id="is_leap_year">
+    <div class="signature"><code>pub func is_leap_year(y int) bool</code></div>
+    
+    <div class="doc-content"><p>Return true if <code>y</code> is a leap year in the proleptic Gregorian calendar.</p></div>
+    
+</div>
+
+
+<div class="item" id="days_in_month">
+    <div class="signature"><code>pub func days_in_month(y int, m int) int</code></div>
+    
+    <div class="doc-content"><p>Return the number of days in month <code>m</code> (1-12) of year <code>y</code>.</p>
+
+<p>Panic if <code>m</code> is outside 1..12.</p></div>
+    
+</div>
+
+
+<div class="item" id="days_from_civil">
+    <div class="signature"><code>func days_from_civil(y int, m int, d int) int</code></div>
+    
+    <div class="doc-content"><p>Return the day count from the Unix epoch (1970-01-01 == 0) to the civil</p>
+<p>date <code>(y, m, d)</code>; negative before the epoch.</p>
+
+<p>Howard Hinnant's <code>days_from_civil</code>. The era adjustment keeps it correct</p>
+<p>under Koala's truncating (toward-zero) integer division.</p></div>
+    
+</div>
+
+
+<div class="item" id="civil_from_days">
+    <div class="signature"><code>func civil_from_days(z int) (int, int, int)</code></div>
+    
+    <div class="doc-content"><p>Return the civil date <code>(year, month, day)</code> for a day count <code>z</code> from the</p>
+<p>Unix epoch (1970-01-01 == 0); the inverse of <code>days_from_civil</code>.</p></div>
+    
+</div>
+
+<h2>Constants</h2>
+
+<div class="item" id="minyear">
+    <div class="item-header">
+        <h3>MINYEAR</h3>
+        <span class="badge const">Const</span>
+    </div>
+    <div class="signature"><code>pub const MINYEAR = 1</code></div>
+    
+    <div class="doc-content"><p>The smallest year supported by <code>Date</code> (matches Python's <code>MINYEAR</code>).</p></div>
+    
+</div>
+
+
+<div class="item" id="maxyear">
+    <div class="item-header">
+        <h3>MAXYEAR</h3>
+        <span class="badge const">Const</span>
+    </div>
+    <div class="signature"><code>pub const MAXYEAR = 9999</code></div>
+    
+    <div class="doc-content"><p>The largest year supported by <code>Date</code> (matches Python's <code>MAXYEAR</code>).</p></div>
+    
+</div>
+
+
+<div class="item" id="nanos_per_sec">
+    <div class="item-header">
+        <h3>NANOS_PER_SEC</h3>
+        <span class="badge const">Const</span>
+    </div>
+    <div class="signature"><code>const NANOS_PER_SEC = 1_000_000_000</code></div>
+    
+    <div class="doc-content"></div>
+    
+</div>
+
+
+<div class="item" id="nanos_per_min">
+    <div class="item-header">
+        <h3>NANOS_PER_MIN</h3>
+        <span class="badge const">Const</span>
+    </div>
+    <div class="signature"><code>const NANOS_PER_MIN = 60_000_000_000</code></div>
+    
+    <div class="doc-content"></div>
+    
+</div>
+
+
+<div class="item" id="nanos_per_hour">
+    <div class="item-header">
+        <h3>NANOS_PER_HOUR</h3>
+        <span class="badge const">Const</span>
+    </div>
+    <div class="signature"><code>const NANOS_PER_HOUR = 3_600_000_000_000</code></div>
+    
+    <div class="doc-content"></div>
+    
+</div>
+
+
+<div class="item" id="nanos_per_day">
+    <div class="item-header">
+        <h3>NANOS_PER_DAY</h3>
+        <span class="badge const">Const</span>
+    </div>
+    <div class="signature"><code>const NANOS_PER_DAY = 86_400_000_000_000</code></div>
+    
+    <div class="doc-content"></div>
+    
+</div>
+
+    </div>
+    <nav id="toc">
+        <a href="index.html" id="toc-home">🏠 Home</a>
+        <ul id="toc-list"></ul>
+        <button id="back-to-top" title="Back to top">↑ Top</button>
+    </nav>
+    <script>
+    // Toggle collapsible sections
+    function toggleSection(button) {
+        const content = button.nextElementSibling;
+        
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            button.classList.remove('collapsed');
+        } else {
+            content.classList.add('hidden');
+            button.classList.add('collapsed');
+        }
+    }
+    
+    // Toggle workspace sections in sidebar
+    function toggleWorkspace(title) {
+        const items = title.nextElementSibling;
+        
+        if (items.classList.contains('hidden')) {
+            items.classList.remove('hidden');
+            title.classList.remove('collapsed');
+        } else {
+            items.classList.add('hidden');
+            title.classList.add('collapsed');
+        }
+    }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBox = document.getElementById('search-box');
+    const sidebar = document.getElementById('sidebar');
+    const content = document.getElementById('content');
+    
+    // Restore sidebar scroll position
+    if (sidebar) {
+        const savedScroll = localStorage.getItem('sidebar-scroll');
+        if (savedScroll) {
+            sidebar.scrollTop = parseInt(savedScroll, 10);
+        }
+        
+        // Save sidebar scroll position on scroll
+        sidebar.addEventListener('scroll', function() {
+            localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+        });
+        
+        // Save scroll position before navigating
+        sidebar.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', function() {
+                localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+            });
+        });
+    }
+    
+    // Generate Table of Contents
+    const tocList = document.getElementById('toc-list');
+    if (tocList && content) {
+        const headings = content.querySelectorAll('h2, h3');
+        if (headings.length > 0) {
+            headings.forEach(function(heading, index) {
+                // Generate ID if not exists
+                if (!heading.id) {
+                    heading.id = 'section-' + index;
+                }
+                
+                // Create TOC item
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#' + heading.id;
+                a.textContent = heading.textContent;
+                a.dataset.target = heading.id;
+                
+                // Add class for h3 (nested)
+                if (heading.tagName === 'H3') {
+                    li.className = 'toc-h3';
+                }
+                
+                li.appendChild(a);
+                tocList.appendChild(li);
+            });
+            
+            // Scroll spy - highlight current section
+            const tocLinks = tocList.querySelectorAll('a');
+            let lastActive = null;
+            
+            function updateActiveLink() {
+                const scrollPos = window.scrollY + 100;
+                let current = null;
+                
+                headings.forEach(function(heading) {
+                    if (heading.offsetTop <= scrollPos) {
+                        current = heading;
+                    }
+                });
+                
+                if (current && current.id) {
+                    const activeLink = tocList.querySelector('a[data-target="' + current.id + '"]');
+                    if (activeLink && activeLink !== lastActive) {
+                        if (lastActive) lastActive.classList.remove('active');
+                        activeLink.classList.add('active');
+                        lastActive = activeLink;
+                    }
+                }
+            }
+            
+            window.addEventListener('scroll', updateActiveLink);
+            updateActiveLink();
+        }
+    }
+    
+    // Back to top button functionality
+    const backToTopBtn = document.getElementById('back-to-top');
+    if (backToTopBtn) {
+        // Show button when user scrolls down
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > 300) {
+                backToTopBtn.classList.add('visible');
+            } else {
+                backToTopBtn.classList.remove('visible');
+            }
+        });
+        
+        // Scroll to top when clicked
+        backToTopBtn.addEventListener('click', function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    }
+    
+    if (!searchBox) return;
+    const packages = document.querySelectorAll('.package');
+    searchBox.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        packages.forEach(pkg => {
+            const link = pkg.querySelector('a');
+            if (link) {
+                const text = link.textContent.toLowerCase();
+                pkg.style.display = text.includes(query) ? '' : 'none';
+            }
+        });
+    });
+});
+</script>
+</body>
+</html>

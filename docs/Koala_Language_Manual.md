@@ -80,7 +80,7 @@ A Koala program may define a `main` function. The classic hello world looks like
 
 ```kl
 func main() {
-    print('hello, world')
+    print("hello, world")
 }
 ```
 

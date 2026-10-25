@@ -1,0 +1,2189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>std/collections - Koala API</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <style>
+:root {
+    --sidebar-width: 280px;
+    --content-max-width: 900px;
+    --bg: #0d1117;
+    --sidebar-bg: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-light: #8b949e;
+    --link: #58a6ff;
+    --code-bg: #1f2428;
+    --heading: #f0f6fc;
+    --badge-bg: #30363d;
+    --badge-text: #c9d1d9;
+    --accent: #238636;
+    --accent-hover: #2ea043;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Modern Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: #6e7681;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #30363d transparent;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--text);
+    background: var(--bg);
+    display: flex;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#sidebar {
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#sidebar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#sidebar h2 {
+    font-size: 40px;
+    font-weight: 700;
+    padding: 0 20px 15px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 15px;
+    color: var(--text-light);
+}
+
+#sidebar .workspace { margin-bottom: 20px; }
+
+#sidebar .workspace-title {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 20px;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+#sidebar .workspace-title:hover {
+    color: var(--text);
+}
+
+#sidebar .ws-arrow {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+#sidebar .workspace-title.collapsed .ws-arrow {
+    transform: rotate(-90deg);
+}
+
+#sidebar .workspace-items.hidden {
+    display: none;
+}
+
+#sidebar .package { margin-bottom: 2px; }
+
+#sidebar .package > a {
+    display: block;
+    padding: 8px 20px 8px 30px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    border-left: 2px solid transparent;
+}
+
+#sidebar .package > a:hover {
+    background: rgba(88, 166, 255, 0.08);
+    border-left-color: var(--link);
+}
+
+#sidebar .package > a.active {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--link);
+    border-left-color: var(--link);
+    font-weight: 500;
+}
+
+#search-box {
+    width: calc(100% - 40px);
+    margin: 0 20px 15px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 15px;
+    background: var(--code-bg);
+    color: var(--text);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#search-box:focus {
+    outline: none;
+    border-color: var(--link);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+#search-box::placeholder {
+    color: var(--text-light);
+}
+
+#content {
+    margin-left: var(--sidebar-width);
+    margin-right: auto;
+    flex: 1;
+    padding: 40px;
+    max-width: var(--content-max-width);
+}
+
+h1 {
+    font-size: 40px;
+    font-weight: 700;
+    color: var(--text-light);
+    margin-bottom: 10px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -0.5px;
+}
+
+h2 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 40px;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.3px;
+}
+
+h3 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 30px;
+    margin-bottom: 10px;
+}
+
+h4.section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 25px;
+    margin-bottom: 12px;
+}
+
+.item {
+    margin-bottom: 40px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+}
+
+.member-item {
+    margin-bottom: 30px;
+    scroll-margin-top: 20px;
+}
+
+.collapsible-section {
+    margin-top: 20px;
+}
+
+.collapse-toggle {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.2s;
+}
+
+.collapse-toggle:hover {
+    color: var(--text);
+}
+
+.collapse-toggle .arrow {
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.collapse-toggle.collapsed .arrow {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    margin-top: 15px;
+    padding-left: 10px;
+    border-left: 2px solid var(--border);
+}
+
+.collapsible-content.hidden {
+    display: none;
+}
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.item-header h3 { margin: 0; font-family: "SF Mono", Monaco, monospace; }
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+}
+
+.badge.trait { background: #1a3a4a; color: #5bc0de; }
+.badge.class { background: #3a1a4a; color: #c77dff; }
+.badge.func { background: #1a3a1a; color: #7ddf7d; }
+.badge.const { background: #4a3a1a; color: #ffb347; }
+
+.signature {
+    background: var(--code-bg);
+    padding: 14px 18px;
+    border-radius: 8px;
+    border-left: 3px solid var(--link);
+    margin-bottom: 15px;
+    overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.signature code {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.bases {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 15px;
+}
+
+.bases strong { color: var(--text); }
+
+.doc-content { margin-bottom: 15px; }
+.doc-content p { margin-bottom: 12px; line-height: 1.7; }
+
+.doc-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.doc-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-content pre code { background: none; padding: 0; border: none; font-size: 14px; }
+
+.member {
+    margin-left: 20px;
+    margin-bottom: 20px;
+    padding-left: 15px;
+    border-left: 2px solid var(--border);
+}
+
+.member-sig {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--heading);
+    margin-bottom: 5px;
+}
+
+.member-tag {
+    font-size: 12px;
+    color: var(--text-light);
+    font-style: italic;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+th, td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 15px;
+}
+
+th {
+    background: var(--sidebar-bg);
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+td a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+td a:hover { color: #79c0ff; }
+
+.summary { color: var(--text-light); font-size: 15px; }
+a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #79c0ff; }
+
+.manual-toc {
+    background: var(--sidebar-bg);
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-toc h2 {
+    margin-top: 0;
+    font-size: 20px;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.manual-toc ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.manual-toc ul ul {
+    padding-left: 20px;
+    margin-top: 5px;
+}
+
+.manual-toc li {
+    margin-bottom: 8px;
+}
+
+.manual-toc a {
+    color: var(--text);
+    text-decoration: none;
+    transition: all 0.2s;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    font-size: 16px;
+}
+
+.manual-toc a:hover {
+    color: var(--link);
+    background: rgba(88, 166, 255, 0.08);
+}
+
+.manual-content {
+    margin-bottom: 20px;
+}
+
+.manual-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 15px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.manual-content pre code {
+    background: none;
+    padding: 0;
+    border: none;
+    font-size: 14px;
+}
+
+.doc-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin: 30px 0;
+}
+
+.doc-card {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-card:hover {
+    border-color: var(--link);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(88, 166, 255, 0.15);
+}
+
+.doc-card h3 {
+    margin: 0 0 12px;
+    font-size: 22px;
+    color: var(--heading);
+    font-weight: 600;
+}
+
+.doc-card p {
+    color: var(--text-light);
+    margin-bottom: 16px;
+    line-height: 1.7;
+}
+
+.doc-card-link {
+    display: inline-block;
+    color: var(--link);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(88, 166, 255, 0.1);
+}
+
+.doc-card-link:hover {
+    color: #79c0ff;
+    background: rgba(88, 166, 255, 0.2);
+}
+
+/* Playground styles */
+.playground-section {
+    background: #1a1a2e;
+    border: 1px solid #2d2d44;
+    border-radius: 8px;
+    padding: 24px;
+    margin: 24px 0;
+}
+
+.playground-section h2 {
+    margin-top: 0;
+    color: #7bb8ff;
+}
+
+.playground-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.playground-editor {
+    position: relative;
+}
+
+.playground-editor textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 16px;
+    background: #0d0d1a;
+    color: #e0e0e0;
+    border: 1px solid #2d2d44;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    tab-size: 4;
+}
+
+.playground-editor textarea:focus {
+    outline: none;
+    border-color: #7bb8ff;
+}
+
+.playground-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.playground-btn {
+    padding: 8px 20px;
+    background: #2d5a3d;
+    color: #a0e0a0;
+    border: 1px solid #3a7a4a;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.playground-btn:hover {
+    background: #3a7a4a;
+}
+
+.playground-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.playground-btn.secondary {
+    background: #2d2d44;
+    color: #a0a0c0;
+    border-color: #3d3d5c;
+}
+
+.playground-btn.secondary:hover {
+    background: #3d3d5c;
+}
+
+.playground-result {
+    padding: 12px 16px;
+    background: #1a2a1a;
+    border: 1px solid #2d5a3d;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 13px;
+    color: #a0e0a0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 60px;
+}
+
+.playground-result.error {
+    background: #2a1a1a;
+    border-color: #5a2d2d;
+    color: #e0a0a0;
+}
+
+.playground-result .result-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.7;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        width: 100%;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+    #content { margin-left: 0; padding: 20px; }
+    body { flex-direction: column; }
+}
+
+.github-link {
+    display: block;
+    margin: 0 20px 15px;
+    padding: 8px 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.github-link:hover {
+    border-color: var(--link);
+    background: rgba(91, 163, 245, 0.1);
+}
+
+.github-link::before {
+    content: "🐙 ";
+}
+
+/* Table of Contents (Right Sidebar) */
+#toc {
+    position: fixed;
+    right: 30px;
+    top: 80px;
+    width: 280px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--sidebar-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#toc::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#toc-title {
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+#toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#toc li {
+    margin: 8px 0;
+}
+
+#toc a {
+    color: var(--text-light);
+    text-decoration: none;
+    display: block;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    line-height: 1.5;
+}
+
+#toc a:hover {
+    background: var(--code-bg);
+    color: var(--link);
+}
+
+#toc a.active {
+    background: rgba(88, 166, 255, 0.1);
+    color: var(--link);
+    border-left: 2px solid var(--link);
+}
+
+#toc ul ul {
+    margin-left: 16px;
+    margin-top: 6px;
+}
+
+#toc ul ul a {
+    font-size: 13px;
+    padding: 4px 12px;
+}
+
+#toc li.toc-h3 a {
+    padding-left: 24px;
+    font-size: 13px;
+}
+
+/* Home button at top */
+#toc-home {
+    display: block;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+#toc-home:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+/* Back to top button */
+#back-to-top {
+    display: none;
+    width: 100%;
+    padding: 10px 16px;
+    margin-top: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#back-to-top:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+#back-to-top.visible {
+    display: block;
+}
+
+/* TOC always visible */
+#content {
+    margin-right: 320px;
+}
+
+/* Scrollbar for TOC */
+#toc::-webkit-scrollbar {
+    width: 6px;
+}
+
+#toc::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#toc::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+#toc::-webkit-scrollbar-thumb:hover {
+    background: var(--text-light);
+}
+</style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2><a href="index.html" style="color:inherit;text-decoration:none;">Koala Docs</a></h2>
+        <a href="https://github.com/zhuguangxiang/koala-lang" class="github-link" target="_blank">GitHub Repository</a>
+        <input type="text" id="search-box" placeholder="Search...">
+        <div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">Guide <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="manual.html">Language Manual</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">std <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="std_builtin.html">builtin</a>
+</div>
+<div class="package">
+<a href="std_collections.html" class="active">collections</a>
+</div>
+<div class="package">
+<a href="std_fs.html">fs</a>
+</div>
+<div class="package">
+<a href="std_io.html">io</a>
+</div>
+<div class="package">
+<a href="std_os.html">os</a>
+</div>
+<div class="package">
+<a href="std_prelude.html">prelude</a>
+</div>
+<div class="package">
+<a href="std_sys.html">sys</a>
+</div>
+<div class="package">
+<a href="std_time.html">time</a>
+</div>
+<div class="package">
+<a href="std_ut.html">ut</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">koala <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="koala_datetime.html">datetime</a>
+</div>
+<div class="package">
+<a href="koala_encoding_base64.html">encoding/base64</a>
+</div>
+<div class="package">
+<a href="koala_encoding_bin.html">encoding/bin</a>
+</div>
+<div class="package">
+<a href="koala_json.html">json</a>
+</div>
+<div class="package">
+<a href="koala_math.html">math</a>
+</div>
+<div class="package">
+<a href="koala_random.html">random</a>
+</div>
+<div class="package">
+<a href="koala_toml.html">toml</a>
+</div>
+<div class="package">
+<a href="koala_wombat.html">wombat</a>
+</div>
+</div>
+</div>
+    </div>
+    <div id="content">
+        <h1>std/collections</h1>
+<h2>Classes</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#bitset">BitSet</a></td><td class="summary">A fixed-size sequence of bits.</td></tr>
+<tr><td><a href="#deque">Deque</a></td><td class="summary">A Deque (double-ended queue) is a generalization of a queue that supports efficient insertion and removal at both ends.</td></tr>
+<tr><td><a href="#dequeiter">DequeIter</a></td><td class="summary">A forward iterator over a `Deque`, advancing by `step` slots each turn.</td></tr>
+<tr><td><a href="#dequereviter">DequeRevIter</a></td><td class="summary">A backward iterator over a `Deque`, advancing by `step` slots each turn.</td></tr>
+<tr><td><a href="#frozenbytes">FrozenBytes</a></td><td class="summary">FrozenBytes is an immutable, fixed-size sequence of bytes.</td></tr>
+<tr><td><a href="#frozendict">FrozenDict</a></td><td class="summary">A FrozenDict is an immutable, unordered hash map that maps unique keys to values.</td></tr>
+<tr><td><a href="#frozenlist">FrozenList</a></td><td class="summary">A FrozenList is an immutable, ordered sequence of elements.</td></tr>
+<tr><td><a href="#frozenset">FrozenSet</a></td><td class="summary">A FrozenSet is an immutable, unordered collection of unique elements.</td></tr>
+<tr><td><a href="#heap">Heap</a></td><td class="summary">A Heap is a min-heap priority queue backed by a binary heap.</td></tr>
+<tr><td><a href="#linkedlist">LinkedList</a></td><td class="summary">A LinkedList is a doubly-linked list that supports efficient insertion and deletion at both ends.</td></tr>
+<tr><td><a href="#linkedlistiter">LinkedListIter</a></td><td class="summary">A forward iterator over a `LinkedList`, advancing by `step` nodes each turn.</td></tr>
+<tr><td><a href="#linkedlistreviter">LinkedListRevIter</a></td><td class="summary">A backward iterator over a `LinkedList`, advancing by `step` nodes each turn.</td></tr>
+<tr><td><a href="#queue">Queue</a></td><td class="summary">A Queue is a first-in, first-out (FIFO) collection.</td></tr>
+<tr><td><a href="#sorteddict">SortedDict</a></td><td class="summary">A SortedDict is a mutable, sorted hash map that maps unique keys to values, ordered by key.</td></tr>
+<tr><td><a href="#sortedset">SortedSet</a></td><td class="summary">A SortedSet is a mutable, sorted collection of unique elements, backed by a balanced tree.</td></tr>
+<tr><td><a href="#stack">Stack</a></td><td class="summary">A Stack is a last-in, first-out (LIFO) collection.</td></tr>
+</table>
+<h2>Classes</h2>
+
+<div class="item" id="bitset">
+    <div class="signature"><code>pub class BitSet</code></div>
+    
+    <div class="doc-content"><p>A fixed-size sequence of bits.</p>
+
+<p>BitSet provides efficient storage for boolean values using individual bits.</p>
+<p>Supports arbitrary-length bit operations and bitwise operators.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(size int)</code></div>
+    <div class="doc-content"><p>Create a BitSet with <code>size</code> bits, all initialized to 0.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the BitSet for display.</p></div>
+</div>
+
+<div class="member-item" id="set">
+    <div class="signature"><code>pub func set(bit int)</code></div>
+    <div class="doc-content"><p>Set the bit at position <code>bit</code> to 1.</p>
+
+<p>Panic if <code>bit</code> is out of range [0, size).</p></div>
+</div>
+
+<div class="member-item" id="clear">
+    <div class="signature"><code>pub func clear(bit int)</code></div>
+    <div class="doc-content"><p>Clear the bit at position <code>bit</code> to 0.</p>
+
+<p>Panic if <code>bit</code> is out of range [0, size).</p></div>
+</div>
+
+<div class="member-item" id="test">
+    <div class="signature"><code>pub func test(bit int) bool</code></div>
+    <div class="doc-content"><p>Return <code>true</code> if the bit at position <code>bit</code> is 1.</p>
+
+<p>Panic if <code>bit</code> is out of range [0, size).</p></div>
+</div>
+
+<div class="member-item" id="flip">
+    <div class="signature"><code>pub func flip(bit int)</code></div>
+    <div class="doc-content"><p>Flip the bit at position <code>bit</code>.</p>
+
+<p>Panic if <code>bit</code> is out of range [0, size).</p></div>
+</div>
+
+<div class="member-item" id="count">
+    <div class="signature"><code>pub func count() int</code></div>
+    <div class="doc-content"><p>Return the number of bits set to 1.</p></div>
+</div>
+
+<div class="member-item" id="size">
+    <div class="signature"><code>pub func size() int</code></div>
+    <div class="doc-content"><p>Return the total number of bits in the BitSet.</p></div>
+</div>
+
+<div class="member-item" id="dump">
+    <div class="signature"><code>pub func dump() str</code></div>
+    <div class="doc-content"><p>Dump all bits in formatted groups (8 bits per group, 4 groups per line).</p></div>
+</div>
+
+<div class="member-item" id="__bitand__">
+    <div class="signature"><code>pub func __bitand__(other BitSet) BitSet</code></div>
+    <div class="doc-content"><p>Return a new BitSet that is the bitwise AND of <code>self</code> and <code>other</code>.</p>
+
+<p>Panic if <code>self</code> and <code>other</code> have different sizes.</p></div>
+</div>
+
+<div class="member-item" id="__bitor__">
+    <div class="signature"><code>pub func __bitor__(other BitSet) BitSet</code></div>
+    <div class="doc-content"><p>Return a new BitSet that is the bitwise OR of <code>self</code> and <code>other</code>.</p>
+
+<p>Panic if <code>self</code> and <code>other</code> have different sizes.</p></div>
+</div>
+
+<div class="member-item" id="__bitxor__">
+    <div class="signature"><code>pub func __bitxor__(other BitSet) BitSet</code></div>
+    <div class="doc-content"><p>Return a new BitSet that is the bitwise XOR of <code>self</code> and <code>other</code>.</p>
+
+<p>Panic if <code>self</code> and <code>other</code> have different sizes.</p></div>
+</div>
+
+<div class="member-item" id="__bitnot__">
+    <div class="signature"><code>pub func __bitnot__() BitSet</code></div>
+    <div class="doc-content"><p>Return a new BitSet with all bits inverted.</p></div>
+</div>
+
+<div class="member-item" id="to_bytes">
+    <div class="signature"><code>pub func to_bytes() bytes</code></div>
+    <div class="doc-content"><p>Return the byte representation of this BitSet.</p></div>
+</div>
+
+<div class="member-item" id="from_bytes">
+    <div class="signature"><code>pub static func from_bytes(data bytes) BitSet</code></div>
+    <div class="doc-content"><p>Create a BitSet from bytes data.</p>
+
+<p>The resulting BitSet has <code>data.len() * 8</code> bits.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="deque">
+    <div class="signature"><code>pub class Deque[T] : MutableSequence[T]</code></div>
+    
+    <div class="doc-content"><p>A Deque (double-ended queue) is a generalization of a queue that supports</p>
+<p>efficient insertion and removal at both ends.</p>
+
+<p>It implements <code>MutableSequence</code>, providing indexed access, insertion,</p>
+<p>and removal. Deque is typically backed by a circular buffer or linked</p>
+<p>structure, offering O(1) amortized push/pop at both ends.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__()</code></div>
+    <div class="doc-content"><p>Create an empty deque.</p></div>
+</div>
+
+<div class="member-item" id="iter">
+    <div class="signature"><code>pub func iter(step = 1) Iterator[T]</code></div>
+    <div class="doc-content"><p>Return an iterator over the elements, advancing by <code>step</code> slots.</p>
+
+<p>The cursor is an index rather than a buffer pointer, so growing the deque</p>
+<p>never invalidates it; the deque must not be structurally modified</p>
+<p>during traversal.</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of elements.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the deque is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="__contains__">
+    <div class="signature"><code>pub func __contains__(v T) bool</code></div>
+    <div class="doc-content"><p>Return true if the deque contains <code>v</code>.</p></div>
+</div>
+
+<div class="member-item" id="__getitem__">
+    <div class="signature"><code>pub func __getitem__(index int) T</code></div>
+    <div class="doc-content"><p>Return the element at <code>index</code>. Panic if out of bounds.</p></div>
+</div>
+
+<div class="member-item" id="__setitem__">
+    <div class="signature"><code>pub func __setitem__(index int, v T)</code></div>
+    <div class="doc-content"><p>Set the element at <code>index</code> to <code>v</code>. Panic if out of bounds.</p></div>
+</div>
+
+<div class="member-item" id="index">
+    <div class="signature"><code>pub func index(value T, start = 0, end = -1) int</code></div>
+    <div class="doc-content"><p>Return the index of the first occurrence of <code>value</code> in <code>[start, end)</code>,</p>
+<p>or -1 if it is not present.</p></div>
+</div>
+
+<div class="member-item" id="count">
+    <div class="signature"><code>pub func count(value T, start = 0, end = -1) int</code></div>
+    <div class="doc-content"><p>Return the number of occurrences of <code>value</code> in <code>[start, end)</code>.</p></div>
+</div>
+
+<div class="member-item" id="append">
+    <div class="signature"><code>pub func append(v T)</code></div>
+    <div class="doc-content"><p>Append <code>v</code> to the end of the deque.</p></div>
+</div>
+
+<div class="member-item" id="extend">
+    <div class="signature"><code>pub func extend(items Iterable[T])</code></div>
+    <div class="doc-content"><p>Append all items from <code>items</code> to the end of the deque.</p></div>
+</div>
+
+<div class="member-item" id="insert">
+    <div class="signature"><code>pub func insert(index int, v T)</code></div>
+    <div class="doc-content"><p>Insert <code>v</code> at <code>index</code>. Panic if out of bounds.</p></div>
+</div>
+
+<div class="member-item" id="remove">
+    <div class="signature"><code>pub func remove(v T)</code></div>
+    <div class="doc-content"><p>Remove the first occurrence of <code>v</code>. Panic if it is not present.</p></div>
+</div>
+
+<div class="member-item" id="pop">
+    <div class="signature"><code>pub func pop(index = -1) T</code></div>
+    <div class="doc-content"><p>Remove and return the element at <code>index</code>.</p>
+<p>If no index is specified, removes and returns the last element.</p></div>
+</div>
+
+<div class="member-item" id="clear">
+    <div class="signature"><code>pub func clear()</code></div>
+    <div class="doc-content"><p>Remove all elements from the deque, leaving it empty.</p></div>
+</div>
+
+<div class="member-item" id="reversed">
+    <div class="signature"><code>pub func reversed(step = 1) Iterator[T]</code></div>
+    <div class="doc-content"><p>Return a reverse iterator over the elements, advancing by <code>step</code> slots.</p></div>
+</div>
+
+<div class="member-item" id="push_front">
+    <div class="signature"><code>pub func push_front(v T)</code></div>
+    <div class="doc-content"><p>Prepend <code>v</code> to the front of the deque. O(1) amortized.</p></div>
+</div>
+
+<div class="member-item" id="push_back">
+    <div class="signature"><code>pub func push_back(v T)</code></div>
+    <div class="doc-content"><p>Append <code>v</code> to the end of the deque. O(1) amortized.</p></div>
+</div>
+
+<div class="member-item" id="pop_front">
+    <div class="signature"><code>pub func pop_front() T</code></div>
+    <div class="doc-content"><p>Remove and return the first element. Panic if empty. O(1) amortized.</p></div>
+</div>
+
+<div class="member-item" id="pop_back">
+    <div class="signature"><code>pub func pop_back() T</code></div>
+    <div class="doc-content"><p>Remove and return the last element. Panic if empty. O(1) amortized.</p></div>
+</div>
+
+<div class="member-item" id="peek_front">
+    <div class="signature"><code>pub func peek_front() T</code></div>
+    <div class="doc-content"><p>Return the first element without removing it. Panic if empty. O(1).</p></div>
+</div>
+
+<div class="member-item" id="peek_back">
+    <div class="signature"><code>pub func peek_back() T</code></div>
+    <div class="doc-content"><p>Return the last element without removing it. Panic if empty. O(1).</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the deque for display.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="dequeiter">
+    <div class="signature"><code>class DequeIter[T] : Iterator[T]</code></div>
+    
+    <div class="doc-content"><p>A forward iterator over a <code>Deque</code>, advancing by <code>step</code> slots each turn.</p>
+
+<p>A push may reallocate the backing buffer, so the cursor is an index rather</p>
+<p>than a pointer into it. The element sequence itself must not change during</p>
+<p>traversal; doing so raises <code>Deque modified during iteration</code>.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>func __init__(src Deque[T], step int)</code></div>
+    <div class="doc-content"><p>Initialize a forward iterator over <code>src</code>, advancing by <code>step</code> slots.</p>
+<p><code>step</code> must be positive.</p></div>
+</div>
+
+<div class="member-item" id="has_next">
+    <div class="signature"><code>func has_next() bool</code></div>
+    <div class="doc-content"><p>Return true if another element is available.</p></div>
+</div>
+
+<div class="member-item" id="next_strict">
+    <div class="signature"><code>func next_strict() T</code></div>
+    <div class="doc-content"><p>Return the next element. Panic if the iterator is exhausted.</p></div>
+</div>
+
+<div class="member-item" id="next">
+    <div class="signature"><code>func next() T?</code></div>
+    <div class="doc-content"><p>Return the next element, or <code>nil</code> if the iterator is exhausted.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="dequereviter">
+    <div class="signature"><code>class DequeRevIter[T] : Iterator[T]</code></div>
+    
+    <div class="doc-content"><p>A backward iterator over a <code>Deque</code>, advancing by <code>step</code> slots each turn.</p>
+
+<p>It yields the last element first, walking towards the front.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>func __init__(src Deque[T], step int)</code></div>
+    <div class="doc-content"><p>Initialize a backward iterator over <code>src</code>, advancing by <code>step</code> slots.</p>
+<p><code>step</code> must be positive.</p></div>
+</div>
+
+<div class="member-item" id="has_next">
+    <div class="signature"><code>func has_next() bool</code></div>
+    <div class="doc-content"><p>Return true if another element is available.</p></div>
+</div>
+
+<div class="member-item" id="next_strict">
+    <div class="signature"><code>func next_strict() T</code></div>
+    <div class="doc-content"><p>Return the next element. Panic if the iterator is exhausted.</p></div>
+</div>
+
+<div class="member-item" id="next">
+    <div class="signature"><code>func next() T?</code></div>
+    <div class="doc-content"><p>Return the next element, or <code>nil</code> if the iterator is exhausted.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="frozenbytes">
+    <div class="signature"><code>pub class FrozenBytes : Sequence[uint8]</code></div>
+    
+    <div class="doc-content"><p>FrozenBytes is an immutable, fixed-size sequence of bytes.</p>
+
+<p>It implements <code>Sequence[uint8]</code> (read-only), providing random access</p>
+<p>and iteration. Once created, bytes cannot be modified.</p>
+<p>FrozenBytes is hashable and can be used as a dict key or set element.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(data Iterable[uint8])</code></div>
+    <div class="doc-content"><p>Create a FrozenBytes from a byte array or iterable.</p></div>
+</div>
+
+<div class="member-item" id="iter">
+    <div class="signature"><code>pub func iter(step = 1) Iterator[uint8]</code></div>
+    <div class="doc-content"><p>Return an iterator over the bytes.</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of bytes.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the byte sequence is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="__contains__">
+    <div class="signature"><code>pub func __contains__(v uint8) bool</code></div>
+    <div class="doc-content"><p>Return true if the byte sequence contains <code>v</code>.</p></div>
+</div>
+
+<div class="member-item" id="__getitem__">
+    <div class="signature"><code>pub func __getitem__(index int) uint8</code></div>
+    <div class="doc-content"><p>Return the byte at <code>index</code>. Panic if out of bounds.</p></div>
+</div>
+
+<div class="member-item" id="reversed">
+    <div class="signature"><code>pub func reversed(step = 1) Iterator[uint8]</code></div>
+    <div class="doc-content"><p>Return a reverse iterator over the bytes.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the byte sequence for display.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="frozendict">
+    <div class="signature"><code>pub class FrozenDict[K, V] : Map[K, V]</code></div>
+    
+    <div class="doc-content"><p>A FrozenDict is an immutable, unordered hash map that maps unique keys</p>
+<p>to values.</p>
+
+<p>It implements <code>Map</code> (read-only), providing key lookup and iteration</p>
+<p>over key-value pairs. Once created, mappings cannot be added or removed.</p>
+<p>FrozenDict is hashable and can be used as a dict key or set element.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(items Iterable[(K, V)])</code></div>
+    <div class="doc-content"><p>Create a FrozenDict from an iterable of (key, value) pairs.</p></div>
+</div>
+
+<div class="member-item" id="iter">
+    <div class="signature"><code>pub func iter(step = 1) Iterator[(K, V)]</code></div>
+    <div class="doc-content"><p>Return an iterator over the (key, value) pairs.</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of key-value pairs.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the dict is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="__contains__">
+    <div class="signature"><code>pub func __contains__(key K) bool</code></div>
+    <div class="doc-content"><p>Return true if the dict contains a mapping for <code>key</code>.</p></div>
+</div>
+
+<div class="member-item" id="__getitem__">
+    <div class="signature"><code>pub func __getitem__(key K) V</code></div>
+    <div class="doc-content"><p>Return the value mapped to <code>key</code>. Panic if <code>key</code> is not present.</p></div>
+</div>
+
+<div class="member-item" id="keys">
+    <div class="signature"><code>pub func keys() Iterable[K]</code></div>
+    <div class="doc-content"><p>Return an iterable over all keys in the dict.</p></div>
+</div>
+
+<div class="member-item" id="values">
+    <div class="signature"><code>pub func values() Iterable[V]</code></div>
+    <div class="doc-content"><p>Return an iterable over all values in the dict.</p></div>
+</div>
+
+<div class="member-item" id="get">
+    <div class="signature"><code>pub func get(key K) V?</code></div>
+    <div class="doc-content"><p>Return the value for <code>key</code> if present, else <code>nil</code>.</p></div>
+</div>
+
+<div class="member-item" id="get_or">
+    <div class="signature"><code>pub func get_or(key K, default_value V) V</code></div>
+    <div class="doc-content"><p>Return the value for <code>key</code> if present, else <code>default_value</code>.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the dict for display.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="frozenlist">
+    <div class="signature"><code>pub class FrozenList[T] : Sequence[T]</code></div>
+    
+    <div class="doc-content"><p>A FrozenList is an immutable, ordered sequence of elements.</p>
+
+<p>It implements <code>Sequence</code> (read-only), providing random access and iteration.</p>
+<p>Once created, elements cannot be added, removed, or modified.</p>
+<p>FrozenList is hashable (if all elements are hashable) and can be used</p>
+<p>as a dict key or set element.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(items Iterable[T])</code></div>
+    <div class="doc-content"><p>Create a FrozenList from an iterable of elements.</p></div>
+</div>
+
+<div class="member-item" id="iter">
+    <div class="signature"><code>pub func iter(step = 1) Iterator[T]</code></div>
+    <div class="doc-content"><p>Return an iterator over the elements.</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of elements.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the list is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="__contains__">
+    <div class="signature"><code>pub func __contains__(v T) bool</code></div>
+    <div class="doc-content"><p>Return true if the list contains <code>v</code>.</p></div>
+</div>
+
+<div class="member-item" id="__getitem__">
+    <div class="signature"><code>pub func __getitem__(index int) T</code></div>
+    <div class="doc-content"><p>Return the element at <code>index</code>. Panic if out of bounds.</p></div>
+</div>
+
+<div class="member-item" id="reversed">
+    <div class="signature"><code>pub func reversed(step = 1) Iterator[T]</code></div>
+    <div class="doc-content"><p>Return a reverse iterator over the elements.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the list for display.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="frozenset">
+    <div class="signature"><code>pub class FrozenSet[T] : Set[T]</code></div>
+    
+    <div class="doc-content"><p>A FrozenSet is an immutable, unordered collection of unique elements.</p>
+
+<p>It implements <code>Set</code> (read-only), providing membership tests and set algebra.</p>
+<p>Once created, elements cannot be added or removed.</p>
+<p>FrozenSet is hashable and can be used as a dict key or set element.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(items Iterable[T])</code></div>
+    <div class="doc-content"><p>Create a FrozenSet from an iterable of elements.</p></div>
+</div>
+
+<div class="member-item" id="iter">
+    <div class="signature"><code>pub func iter(step = 1) Iterator[T]</code></div>
+    <div class="doc-content"><p>Return an iterator over the elements.</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of elements.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the set is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="__contains__">
+    <div class="signature"><code>pub func __contains__(v T) bool</code></div>
+    <div class="doc-content"><p>Return true if the set contains <code>v</code>.</p></div>
+</div>
+
+<div class="member-item" id="is_subset">
+    <div class="signature"><code>pub func is_subset(other Iterable[T]) bool</code></div>
+    <div class="doc-content"><p>Return true if every element in the set is in <code>other</code>.</p></div>
+</div>
+
+<div class="member-item" id="is_superset">
+    <div class="signature"><code>pub func is_superset(other Iterable[T]) bool</code></div>
+    <div class="doc-content"><p>Return true if every element in <code>other</code> is in the set.</p></div>
+</div>
+
+<div class="member-item" id="union">
+    <div class="signature"><code>pub func union(other Iterable[T]) FrozenSet[T]</code></div>
+    <div class="doc-content"><p>Return a new FrozenSet with elements from the set and <code>other</code>.</p></div>
+</div>
+
+<div class="member-item" id="intersect">
+    <div class="signature"><code>pub func intersect(other Iterable[T]) FrozenSet[T]</code></div>
+    <div class="doc-content"><p>Return a new FrozenSet with elements common to the set and <code>other</code>.</p></div>
+</div>
+
+<div class="member-item" id="diff">
+    <div class="signature"><code>pub func diff(other Iterable[T]) FrozenSet[T]</code></div>
+    <div class="doc-content"><p>Return a new FrozenSet with elements in the set that are not in <code>other</code>.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the set for display.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="heap">
+    <div class="signature"><code>pub class Heap[T : Comparable]</code></div>
+    
+    <div class="doc-content"><p>A Heap is a min-heap priority queue backed by a binary heap.</p>
+
+<p>Elements are ordered by their <code>Comparable</code> ordering; the smallest</p>
+<p>element is always at the front. Heap does not implement <code>Sequence</code></p>
+<p>because it does not support indexed access.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__()</code></div>
+    <div class="doc-content"><p>Create an empty heap.</p></div>
+</div>
+
+<div class="member-item" id="push">
+    <div class="signature"><code>pub func push(v T)</code></div>
+    <div class="doc-content"><p>Push <code>v</code> into the heap. O(log n).</p></div>
+</div>
+
+<div class="member-item" id="pop">
+    <div class="signature"><code>pub func pop() T</code></div>
+    <div class="doc-content"><p>Remove and return the smallest element. Panic if empty. O(log n).</p></div>
+</div>
+
+<div class="member-item" id="peek">
+    <div class="signature"><code>pub func peek() T</code></div>
+    <div class="doc-content"><p>Return the smallest element without removing it. Panic if empty. O(1).</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of elements.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the heap is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="clear">
+    <div class="signature"><code>pub func clear()</code></div>
+    <div class="doc-content"><p>Remove all elements from the heap, leaving it empty.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the heap for display.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="linkedlist">
+    <div class="signature"><code>pub class LinkedList[T] : MutableSequence[T]</code></div>
+    
+    <div class="doc-content"><p>A LinkedList is a doubly-linked list that supports efficient insertion</p>
+<p>and deletion at both ends.</p>
+
+<p>It implements <code>MutableSequence</code>, providing indexed access, insertion,</p>
+<p>and removal. Unlike <code>list</code>, LinkedList offers O(1) push/pop at the front,</p>
+<p>but O(n) random access by index.</p>
+
+<p>Examples</p>
+
+<pre><code class="language-koala">let values = LinkedList[int]()
+values.push_back(2)
+values.push_front(1)
+values.append(3)
+print(values[0])
+print(values.pop_front())</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__()</code></div>
+    <div class="doc-content"><p>Create an empty linked list.</p></div>
+</div>
+
+<div class="member-item" id="iter">
+    <div class="signature"><code>pub func iter(step = 1) Iterator[T]</code></div>
+    <div class="doc-content"><p>Return an iterator over the elements, advancing by <code>step</code> nodes.</p></div>
+</div>
+
+<div class="member-item" id="reversed">
+    <div class="signature"><code>pub func reversed(step = 1) Iterator[T]</code></div>
+    <div class="doc-content"><p>Return a reverse iterator over the elements, advancing by <code>step</code> nodes.</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of elements.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the list is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="__contains__">
+    <div class="signature"><code>pub func __contains__(v T) bool</code></div>
+    <div class="doc-content"><p>Return true if the list contains <code>v</code>.</p></div>
+</div>
+
+<div class="member-item" id="__getitem__">
+    <div class="signature"><code>pub func __getitem__(index int) T</code></div>
+    <div class="doc-content"><p>Return the element at <code>index</code>. Panic if out of bounds.</p></div>
+</div>
+
+<div class="member-item" id="__setitem__">
+    <div class="signature"><code>pub func __setitem__(index int, v T)</code></div>
+    <div class="doc-content"><p>Set the element at <code>index</code> to <code>v</code>. Panic if out of bounds.</p></div>
+</div>
+
+<div class="member-item" id="index">
+    <div class="signature"><code>pub func index(value T, start = 0, end = -1) int</code></div>
+    <div class="doc-content"><p>Return the index of the first occurrence of <code>value</code> in <code>[start, end)</code>,</p>
+<p>or -1 if it is not present.</p></div>
+</div>
+
+<div class="member-item" id="count">
+    <div class="signature"><code>pub func count(value T, start = 0, end = -1) int</code></div>
+    <div class="doc-content"><p>Return the number of occurrences of <code>value</code> in <code>[start, end)</code>.</p></div>
+</div>
+
+<div class="member-item" id="append">
+    <div class="signature"><code>pub func append(v T)</code></div>
+    <div class="doc-content"><p>Append <code>v</code> to the end of the list.</p></div>
+</div>
+
+<div class="member-item" id="extend">
+    <div class="signature"><code>pub func extend(items Iterable[T])</code></div>
+    <div class="doc-content"><p>Append all items from <code>items</code> to the end of the list.</p></div>
+</div>
+
+<div class="member-item" id="insert">
+    <div class="signature"><code>pub func insert(index int, v T)</code></div>
+    <div class="doc-content"><p>Insert <code>v</code> at <code>index</code>. <code>index</code> may be equal to <code>len</code>, which appends.</p>
+<p>Panic if out of bounds.</p></div>
+</div>
+
+<div class="member-item" id="remove">
+    <div class="signature"><code>pub func remove(value T)</code></div>
+    <div class="doc-content"><p>Remove the first occurrence of <code>value</code>. Panic if it is not present.</p></div>
+</div>
+
+<div class="member-item" id="pop">
+    <div class="signature"><code>pub func pop(index = -1) T</code></div>
+    <div class="doc-content"><p>Remove and return the element at <code>index</code>.</p>
+<p>If no index is specified, removes and returns the last element.</p></div>
+</div>
+
+<div class="member-item" id="clear">
+    <div class="signature"><code>pub func clear()</code></div>
+    <div class="doc-content"><p>Remove all elements from the list, leaving it empty.</p></div>
+</div>
+
+<div class="member-item" id="push_front">
+    <div class="signature"><code>pub func push_front(v T)</code></div>
+    <div class="doc-content"><p>Prepend <code>v</code> to the front of the list. O(1).</p></div>
+</div>
+
+<div class="member-item" id="push_back">
+    <div class="signature"><code>pub func push_back(v T)</code></div>
+    <div class="doc-content"><p>Append <code>v</code> to the end of the list. O(1).</p></div>
+</div>
+
+<div class="member-item" id="pop_front">
+    <div class="signature"><code>pub func pop_front() T</code></div>
+    <div class="doc-content"><p>Remove and return the first element. Panic if empty. O(1).</p></div>
+</div>
+
+<div class="member-item" id="pop_back">
+    <div class="signature"><code>pub func pop_back() T</code></div>
+    <div class="doc-content"><p>Remove and return the last element. Panic if empty. O(1).</p></div>
+</div>
+
+<div class="member-item" id="peek_front">
+    <div class="signature"><code>pub func peek_front() T</code></div>
+    <div class="doc-content"><p>Return the first element without removing it. Panic if empty. O(1).</p></div>
+</div>
+
+<div class="member-item" id="peek_back">
+    <div class="signature"><code>pub func peek_back() T</code></div>
+    <div class="doc-content"><p>Return the last element without removing it. Panic if empty. O(1).</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the list for display. Like <code>Stack</code>, lists longer than 10</p>
+<p>elements only show the first 4 and the last 4, separated by <code>...</code>.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="linkedlistiter">
+    <div class="signature"><code>class LinkedListIter[T] : Iterator[T]</code></div>
+    
+    <div class="doc-content"><p>A forward iterator over a <code>LinkedList</code>, advancing by <code>step</code> nodes each turn.</p>
+
+<p>The cursor holds a node, so a full traversal is O(n) instead of O(n^2).</p>
+<p>The source must not be structurally modified during traversal; doing so</p>
+<p>raises <code>LinkedList modified during iteration</code>.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>func __init__(src LinkedList[T], step int)</code></div>
+    <div class="doc-content"><p>Initialize a forward iterator over <code>src</code>, advancing by <code>step</code> nodes.</p>
+<p><code>step</code> must be positive.</p></div>
+</div>
+
+<div class="member-item" id="has_next">
+    <div class="signature"><code>func has_next() bool</code></div>
+    <div class="doc-content"><p>Return true if another element is available.</p></div>
+</div>
+
+<div class="member-item" id="next_strict">
+    <div class="signature"><code>func next_strict() T</code></div>
+    <div class="doc-content"><p>Return the next element. Panic if the iterator is exhausted.</p></div>
+</div>
+
+<div class="member-item" id="next">
+    <div class="signature"><code>func next() T?</code></div>
+    <div class="doc-content"><p>Return the next element, or <code>nil</code> if the iterator is exhausted.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="linkedlistreviter">
+    <div class="signature"><code>class LinkedListRevIter[T] : Iterator[T]</code></div>
+    
+    <div class="doc-content"><p>A backward iterator over a <code>LinkedList</code>, advancing by <code>step</code> nodes each turn.</p>
+
+<p>It yields the last element first, walking towards the front.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>func __init__(src LinkedList[T], step int)</code></div>
+    <div class="doc-content"><p>Initialize a backward iterator over <code>src</code>, advancing by <code>step</code> nodes.</p>
+<p><code>step</code> must be positive.</p></div>
+</div>
+
+<div class="member-item" id="has_next">
+    <div class="signature"><code>func has_next() bool</code></div>
+    <div class="doc-content"><p>Return true if another element is available.</p></div>
+</div>
+
+<div class="member-item" id="next_strict">
+    <div class="signature"><code>func next_strict() T</code></div>
+    <div class="doc-content"><p>Return the next element. Panic if the iterator is exhausted.</p></div>
+</div>
+
+<div class="member-item" id="next">
+    <div class="signature"><code>func next() T?</code></div>
+    <div class="doc-content"><p>Return the next element, or <code>nil</code> if the iterator is exhausted.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="queue">
+    <div class="signature"><code>pub class Queue[T]</code></div>
+    
+    <div class="doc-content"><p>A Queue is a first-in, first-out (FIFO) collection.</p>
+
+<p>Elements are added to the back and removed from the front.</p>
+<p>Queue does not implement <code>Sequence</code> because it does not support</p>
+<p>indexed access.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__()</code></div>
+    <div class="doc-content"><p>Create an empty queue.</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of elements.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the queue is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="push">
+    <div class="signature"><code>pub func push(v T)</code></div>
+    <div class="doc-content"><p>Add <code>v</code> to the back of the queue.</p></div>
+</div>
+
+<div class="member-item" id="pop">
+    <div class="signature"><code>pub func pop() T</code></div>
+    <div class="doc-content"><p>Remove and return the front element. Panic if empty.</p></div>
+</div>
+
+<div class="member-item" id="peek">
+    <div class="signature"><code>pub func peek() T</code></div>
+    <div class="doc-content"><p>Return the front element without removing it. Panic if empty.</p></div>
+</div>
+
+<div class="member-item" id="clear">
+    <div class="signature"><code>pub func clear()</code></div>
+    <div class="doc-content"><p>Remove all elements from the queue, leaving it empty.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the queue for display.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="sorteddict">
+    <div class="signature"><code>pub class SortedDict[K : Comparable, V] : MutableMap[K, V]</code></div>
+    
+    <div class="doc-content"><p>A SortedDict is a mutable, sorted hash map that maps unique keys</p>
+<p>to values, ordered by key.</p>
+
+<p>It implements <code>MutableMap</code>, providing key lookup, insertion, removal,</p>
+<p>and iteration over key-value pairs. Keys are ordered by their</p>
+<p><code>Comparable</code> ordering; iteration follows that order.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__()</code></div>
+    <div class="doc-content"><p>Create an empty sorted dict.</p></div>
+</div>
+
+<div class="member-item" id="iter">
+    <div class="signature"><code>pub func iter(step = 1) Iterator[(K, V)]</code></div>
+    <div class="doc-content"><p>Return an iterator over the (key, value) pairs in key order.</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of key-value pairs.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the dict is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="__contains__">
+    <div class="signature"><code>pub func __contains__(key K) bool</code></div>
+    <div class="doc-content"><p>Return true if the dict contains a mapping for <code>key</code>.</p></div>
+</div>
+
+<div class="member-item" id="__getitem__">
+    <div class="signature"><code>pub func __getitem__(key K) V</code></div>
+    <div class="doc-content"><p>Return the value mapped to <code>key</code>. Panic if <code>key</code> is not present.</p></div>
+</div>
+
+<div class="member-item" id="__setitem__">
+    <div class="signature"><code>pub func __setitem__(key K, value V)</code></div>
+    <div class="doc-content"><p>Associate <code>value</code> with <code>key</code>.</p></div>
+</div>
+
+<div class="member-item" id="keys">
+    <div class="signature"><code>pub func keys() Iterable[K]</code></div>
+    <div class="doc-content"><p>Return an iterable over all keys in the dict, in key order.</p></div>
+</div>
+
+<div class="member-item" id="values">
+    <div class="signature"><code>pub func values() Iterable[V]</code></div>
+    <div class="doc-content"><p>Return an iterable over all values in the dict, in key order.</p></div>
+</div>
+
+<div class="member-item" id="items">
+    <div class="signature"><code>pub func items() Iterable[(K, V)]</code></div>
+    <div class="doc-content"><p>Return an iterable over the key-value pairs in the map.</p></div>
+</div>
+
+<div class="member-item" id="clear">
+    <div class="signature"><code>pub func clear()</code></div>
+    <div class="doc-content"><p>Remove all mappings from the dict, leaving it empty.</p></div>
+</div>
+
+<div class="member-item" id="remove">
+    <div class="signature"><code>pub func remove(key K) V</code></div>
+    <div class="doc-content"><p>Remove the mapping for <code>key</code> and return its value.</p>
+<p>Panic if <code>key</code> is not present.</p></div>
+</div>
+
+<div class="member-item" id="remove_or">
+    <div class="signature"><code>pub func remove_or(key K, default_value V) V</code></div>
+    <div class="doc-content"><p>Remove the mapping for <code>key</code> and return its value.</p>
+<p>If the key is not found, return <code>default_value</code>.</p></div>
+</div>
+
+<div class="member-item" id="get">
+    <div class="signature"><code>pub func get(key K) V?</code></div>
+    <div class="doc-content"><p>Return the value for <code>key</code> if present, else <code>nil</code>.</p></div>
+</div>
+
+<div class="member-item" id="get_or">
+    <div class="signature"><code>pub func get_or(key K, default_value V) V</code></div>
+    <div class="doc-content"><p>Return the value for <code>key</code> if present, else <code>default_value</code>.</p></div>
+</div>
+
+<div class="member-item" id="update">
+    <div class="signature"><code>pub func update(src Iterable[(K, V)])</code></div>
+    <div class="doc-content"><p>Merge all (key, value) pairs from <code>src</code> into the dict,</p>
+<p>replacing the values of existing keys.</p></div>
+</div>
+
+<div class="member-item" id="setdefault">
+    <div class="signature"><code>pub func setdefault(key K, default_value V) V</code></div>
+    <div class="doc-content"><p>Return the value for <code>key</code> if it is in the dict.</p>
+<p>Otherwise insert <code>key</code> with <code>default_value</code> and return <code>default_value</code>.</p></div>
+</div>
+
+<div class="member-item" id="reversed">
+    <div class="signature"><code>pub func reversed(step = 1) Iterator[(K, V)]</code></div>
+    <div class="doc-content"><p>Return a reverse iterator over the (key, value) pairs in reverse key order.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the dict for display.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="sortedset">
+    <div class="signature"><code>pub class SortedSet[T : Comparable] : MutableSet[T]</code></div>
+    
+    <div class="doc-content"><p>A SortedSet is a mutable, sorted collection of unique elements,</p>
+<p>backed by a balanced tree.</p>
+
+<p>It implements <code>MutableSet</code>, providing membership tests, insertion, removal,</p>
+<p>and set algebra. Elements are ordered by their <code>Comparable</code> ordering.</p>
+<p>Iteration and <code>to_list()</code> follow that order; <code>reversed()</code> traverses it</p>
+<p>in reverse.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__()</code></div>
+    <div class="doc-content"><p>Create an empty tree set.</p></div>
+</div>
+
+<div class="member-item" id="iter">
+    <div class="signature"><code>pub func iter(step = 1) Iterator[T]</code></div>
+    <div class="doc-content"><p>Return an iterator over the elements in sorted order.</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of elements.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the set is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="__contains__">
+    <div class="signature"><code>pub func __contains__(v T) bool</code></div>
+    <div class="doc-content"><p>Return true if the set contains <code>v</code>.</p></div>
+</div>
+
+<div class="member-item" id="add">
+    <div class="signature"><code>pub func add(v T) bool</code></div>
+    <div class="doc-content"><p>Add an element to the set.</p>
+<p>Return true if the element was not already present.</p></div>
+</div>
+
+<div class="member-item" id="update">
+    <div class="signature"><code>pub func update(items Iterable[T])</code></div>
+    <div class="doc-content"><p>Add all elements from <code>items</code> to the set.</p>
+<p>Unlike <code>add</code> which inserts a single element, <code>update</code> inserts</p>
+<p>multiple elements from any iterable source in one call.</p></div>
+</div>
+
+<div class="member-item" id="remove">
+    <div class="signature"><code>pub func remove(v T) bool</code></div>
+    <div class="doc-content"><p>Remove an element from the set.</p>
+<p>Return true if the element was present.</p></div>
+</div>
+
+<div class="member-item" id="clear">
+    <div class="signature"><code>pub func clear()</code></div>
+    <div class="doc-content"><p>Remove all elements from the set, leaving it empty.</p></div>
+</div>
+
+<div class="member-item" id="is_subset">
+    <div class="signature"><code>pub func is_subset(other Iterable[T]) bool</code></div>
+    <div class="doc-content"><p>Return true if every element in the set is in <code>other</code>.</p></div>
+</div>
+
+<div class="member-item" id="is_superset">
+    <div class="signature"><code>pub func is_superset(other Iterable[T]) bool</code></div>
+    <div class="doc-content"><p>Return true if every element in <code>other</code> is in the set.</p></div>
+</div>
+
+<div class="member-item" id="union">
+    <div class="signature"><code>pub func union(other Iterable[T]) SortedSet[T]</code></div>
+    <div class="doc-content"><p>Return a new sorted set with elements from the set and <code>other</code>.</p></div>
+</div>
+
+<div class="member-item" id="intersect">
+    <div class="signature"><code>pub func intersect(other Iterable[T]) SortedSet[T]</code></div>
+    <div class="doc-content"><p>Return a new sorted set with elements common to the set and <code>other</code>.</p></div>
+</div>
+
+<div class="member-item" id="diff">
+    <div class="signature"><code>pub func diff(other Iterable[T]) SortedSet[T]</code></div>
+    <div class="doc-content"><p>Return a new sorted set with elements in the set that are not in <code>other</code>.</p></div>
+</div>
+
+<div class="member-item" id="sym_diff">
+    <div class="signature"><code>pub func sym_diff(other Iterable[T]) SortedSet[T]</code></div>
+    <div class="doc-content"><p>Return a new sorted set with elements in the set or <code>other</code>, but not both.</p></div>
+</div>
+
+<div class="member-item" id="__or__">
+    <div class="signature"><code>pub func __or__(other Iterable[T]) SortedSet[T]</code></div>
+    <div class="doc-content"><p>Return a new sorted set with elements from the set and <code>other</code> (<code>self | other</code>).</p></div>
+</div>
+
+<div class="member-item" id="__and__">
+    <div class="signature"><code>pub func __and__(other Iterable[T]) SortedSet[T]</code></div>
+    <div class="doc-content"><p>Return a new sorted set with elements common to the set and <code>other</code> (<code>self & other</code>).</p></div>
+</div>
+
+<div class="member-item" id="__sub__">
+    <div class="signature"><code>pub func __sub__(other Iterable[T]) SortedSet[T]</code></div>
+    <div class="doc-content"><p>Return a new sorted set with elements in the set that are not in <code>other</code> (<code>self - other</code>).</p></div>
+</div>
+
+<div class="member-item" id="reversed">
+    <div class="signature"><code>pub func reversed(step = 1) Iterator[T]</code></div>
+    <div class="doc-content"><p>Return a reverse iterator over the elements in reverse sorted order.</p></div>
+</div>
+
+<div class="member-item" id="to_list">
+    <div class="signature"><code>pub func to_list() list[T]</code></div>
+    <div class="doc-content"><p>Return a list of all elements in sorted order.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="stack">
+    <div class="signature"><code>pub class Stack[T]</code></div>
+    
+    <div class="doc-content"><p>A Stack is a last-in, first-out (LIFO) collection.</p>
+
+<p>Elements are added and removed from the top.</p>
+<p>Stack does not implement <code>Sequence</code> because it does not support</p>
+<p>indexed access.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__()</code></div>
+    <div class="doc-content"><p>Create an empty stack.</p></div>
+</div>
+
+<div class="member-item" id="len">
+    <div class="signature"><code>pub func len() int</code></div>
+    <div class="doc-content"><p>Return the number of elements.</p></div>
+</div>
+
+<div class="member-item" id="empty">
+    <div class="signature"><code>pub func empty() bool</code></div>
+    <div class="doc-content"><p>Return true if the stack is empty, false otherwise.</p></div>
+</div>
+
+<div class="member-item" id="push">
+    <div class="signature"><code>pub func push(v T)</code></div>
+    <div class="doc-content"><p>Push <code>v</code> onto the top of the stack.</p></div>
+</div>
+
+<div class="member-item" id="pop">
+    <div class="signature"><code>pub func pop() T</code></div>
+    <div class="doc-content"><p>Remove and return the top element. Panic if empty.</p></div>
+</div>
+
+<div class="member-item" id="peek">
+    <div class="signature"><code>pub func peek() T</code></div>
+    <div class="doc-content"><p>Return the top element without removing it. Panic if empty.</p></div>
+</div>
+
+<div class="member-item" id="clear">
+    <div class="signature"><code>pub func clear()</code></div>
+    <div class="doc-content"><p>Remove all elements from the stack, leaving it empty.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the stack for display.</p></div>
+</div>
+</div></div>
+</div>
+
+    </div>
+    <nav id="toc">
+        <a href="index.html" id="toc-home">🏠 Home</a>
+        <ul id="toc-list"></ul>
+        <button id="back-to-top" title="Back to top">↑ Top</button>
+    </nav>
+    <script>
+    // Toggle collapsible sections
+    function toggleSection(button) {
+        const content = button.nextElementSibling;
+        
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            button.classList.remove('collapsed');
+        } else {
+            content.classList.add('hidden');
+            button.classList.add('collapsed');
+        }
+    }
+    
+    // Toggle workspace sections in sidebar
+    function toggleWorkspace(title) {
+        const items = title.nextElementSibling;
+        
+        if (items.classList.contains('hidden')) {
+            items.classList.remove('hidden');
+            title.classList.remove('collapsed');
+        } else {
+            items.classList.add('hidden');
+            title.classList.add('collapsed');
+        }
+    }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBox = document.getElementById('search-box');
+    const sidebar = document.getElementById('sidebar');
+    const content = document.getElementById('content');
+    
+    // Restore sidebar scroll position
+    if (sidebar) {
+        const savedScroll = localStorage.getItem('sidebar-scroll');
+        if (savedScroll) {
+            sidebar.scrollTop = parseInt(savedScroll, 10);
+        }
+        
+        // Save sidebar scroll position on scroll
+        sidebar.addEventListener('scroll', function() {
+            localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+        });
+        
+        // Save scroll position before navigating
+        sidebar.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', function() {
+                localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+            });
+        });
+    }
+    
+    // Generate Table of Contents
+    const tocList = document.getElementById('toc-list');
+    if (tocList && content) {
+        const headings = content.querySelectorAll('h2, h3');
+        if (headings.length > 0) {
+            headings.forEach(function(heading, index) {
+                // Generate ID if not exists
+                if (!heading.id) {
+                    heading.id = 'section-' + index;
+                }
+                
+                // Create TOC item
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#' + heading.id;
+                a.textContent = heading.textContent;
+                a.dataset.target = heading.id;
+                
+                // Add class for h3 (nested)
+                if (heading.tagName === 'H3') {
+                    li.className = 'toc-h3';
+                }
+                
+                li.appendChild(a);
+                tocList.appendChild(li);
+            });
+            
+            // Scroll spy - highlight current section
+            const tocLinks = tocList.querySelectorAll('a');
+            let lastActive = null;
+            
+            function updateActiveLink() {
+                const scrollPos = window.scrollY + 100;
+                let current = null;
+                
+                headings.forEach(function(heading) {
+                    if (heading.offsetTop <= scrollPos) {
+                        current = heading;
+                    }
+                });
+                
+                if (current && current.id) {
+                    const activeLink = tocList.querySelector('a[data-target="' + current.id + '"]');
+                    if (activeLink && activeLink !== lastActive) {
+                        if (lastActive) lastActive.classList.remove('active');
+                        activeLink.classList.add('active');
+                        lastActive = activeLink;
+                    }
+                }
+            }
+            
+            window.addEventListener('scroll', updateActiveLink);
+            updateActiveLink();
+        }
+    }
+    
+    // Back to top button functionality
+    const backToTopBtn = document.getElementById('back-to-top');
+    if (backToTopBtn) {
+        // Show button when user scrolls down
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > 300) {
+                backToTopBtn.classList.add('visible');
+            } else {
+                backToTopBtn.classList.remove('visible');
+            }
+        });
+        
+        // Scroll to top when clicked
+        backToTopBtn.addEventListener('click', function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    }
+    
+    if (!searchBox) return;
+    const packages = document.querySelectorAll('.package');
+    searchBox.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        packages.forEach(pkg => {
+            const link = pkg.querySelector('a');
+            if (link) {
+                const text = link.textContent.toLowerCase();
+                pkg.style.display = text.includes(query) ? '' : 'none';
+            }
+        });
+    });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language Manual - Koala API</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <style>
+:root {
+    --sidebar-width: 280px;
+    --content-max-width: 900px;
+    --bg: #0d1117;
+    --sidebar-bg: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-light: #8b949e;
+    --link: #58a6ff;
+    --code-bg: #1f2428;
+    --heading: #f0f6fc;
+    --badge-bg: #30363d;
+    --badge-text: #c9d1d9;
+    --accent: #238636;
+    --accent-hover: #2ea043;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Modern Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: #6e7681;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #30363d transparent;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--text);
+    background: var(--bg);
+    display: flex;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#sidebar {
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#sidebar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#sidebar h2 {
+    font-size: 40px;
+    font-weight: 700;
+    padding: 0 20px 15px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 15px;
+    color: var(--text-light);
+}
+
+#sidebar .workspace { margin-bottom: 20px; }
+
+#sidebar .workspace-title {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 20px;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+#sidebar .workspace-title:hover {
+    color: var(--text);
+}
+
+#sidebar .ws-arrow {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+#sidebar .workspace-title.collapsed .ws-arrow {
+    transform: rotate(-90deg);
+}
+
+#sidebar .workspace-items.hidden {
+    display: none;
+}
+
+#sidebar .package { margin-bottom: 2px; }
+
+#sidebar .package > a {
+    display: block;
+    padding: 8px 20px 8px 30px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    border-left: 2px solid transparent;
+}
+
+#sidebar .package > a:hover {
+    background: rgba(88, 166, 255, 0.08);
+    border-left-color: var(--link);
+}
+
+#sidebar .package > a.active {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--link);
+    border-left-color: var(--link);
+    font-weight: 500;
+}
+
+#search-box {
+    width: calc(100% - 40px);
+    margin: 0 20px 15px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 15px;
+    background: var(--code-bg);
+    color: var(--text);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#search-box:focus {
+    outline: none;
+    border-color: var(--link);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+#search-box::placeholder {
+    color: var(--text-light);
+}
+
+#content {
+    margin-left: var(--sidebar-width);
+    margin-right: auto;
+    flex: 1;
+    padding: 40px;
+    max-width: var(--content-max-width);
+}
+
+h1 {
+    font-size: 40px;
+    font-weight: 700;
+    color: var(--text-light);
+    margin-bottom: 10px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -0.5px;
+}
+
+h2 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 40px;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.3px;
+}
+
+h3 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 30px;
+    margin-bottom: 10px;
+}
+
+h4.section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 25px;
+    margin-bottom: 12px;
+}
+
+.item {
+    margin-bottom: 40px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+}
+
+.member-item {
+    margin-bottom: 30px;
+    scroll-margin-top: 20px;
+}
+
+.collapsible-section {
+    margin-top: 20px;
+}
+
+.collapse-toggle {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.2s;
+}
+
+.collapse-toggle:hover {
+    color: var(--text);
+}
+
+.collapse-toggle .arrow {
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.collapse-toggle.collapsed .arrow {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    margin-top: 15px;
+    padding-left: 10px;
+    border-left: 2px solid var(--border);
+}
+
+.collapsible-content.hidden {
+    display: none;
+}
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.item-header h3 { margin: 0; font-family: "SF Mono", Monaco, monospace; }
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+}
+
+.badge.trait { background: #1a3a4a; color: #5bc0de; }
+.badge.class { background: #3a1a4a; color: #c77dff; }
+.badge.func { background: #1a3a1a; color: #7ddf7d; }
+.badge.const { background: #4a3a1a; color: #ffb347; }
+
+.signature {
+    background: var(--code-bg);
+    padding: 14px 18px;
+    border-radius: 8px;
+    border-left: 3px solid var(--link);
+    margin-bottom: 15px;
+    overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.signature code {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.bases {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 15px;
+}
+
+.bases strong { color: var(--text); }
+
+.doc-content { margin-bottom: 15px; }
+.doc-content p { margin-bottom: 12px; line-height: 1.7; }
+
+.doc-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.doc-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-content pre code { background: none; padding: 0; border: none; font-size: 14px; }
+
+.member {
+    margin-left: 20px;
+    margin-bottom: 20px;
+    padding-left: 15px;
+    border-left: 2px solid var(--border);
+}
+
+.member-sig {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--heading);
+    margin-bottom: 5px;
+}
+
+.member-tag {
+    font-size: 12px;
+    color: var(--text-light);
+    font-style: italic;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+th, td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 15px;
+}
+
+th {
+    background: var(--sidebar-bg);
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+td a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+td a:hover { color: #79c0ff; }
+
+.summary { color: var(--text-light); font-size: 15px; }
+a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #79c0ff; }
+
+.manual-toc {
+    background: var(--sidebar-bg);
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-toc h2 {
+    margin-top: 0;
+    font-size: 20px;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.manual-toc ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.manual-toc ul ul {
+    padding-left: 20px;
+    margin-top: 5px;
+}
+
+.manual-toc li {
+    margin-bottom: 8px;
+}
+
+.manual-toc a {
+    color: var(--text);
+    text-decoration: none;
+    transition: all 0.2s;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    font-size: 16px;
+}
+
+.manual-toc a:hover {
+    color: var(--link);
+    background: rgba(88, 166, 255, 0.08);
+}
+
+.manual-content {
+    margin-bottom: 20px;
+}
+
+.manual-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 15px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.manual-content pre code {
+    background: none;
+    padding: 0;
+    border: none;
+    font-size: 14px;
+}
+
+.doc-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin: 30px 0;
+}
+
+.doc-card {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-card:hover {
+    border-color: var(--link);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(88, 166, 255, 0.15);
+}
+
+.doc-card h3 {
+    margin: 0 0 12px;
+    font-size: 22px;
+    color: var(--heading);
+    font-weight: 600;
+}
+
+.doc-card p {
+    color: var(--text-light);
+    margin-bottom: 16px;
+    line-height: 1.7;
+}
+
+.doc-card-link {
+    display: inline-block;
+    color: var(--link);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(88, 166, 255, 0.1);
+}
+
+.doc-card-link:hover {
+    color: #79c0ff;
+    background: rgba(88, 166, 255, 0.2);
+}
+
+/* Playground styles */
+.playground-section {
+    background: #1a1a2e;
+    border: 1px solid #2d2d44;
+    border-radius: 8px;
+    padding: 24px;
+    margin: 24px 0;
+}
+
+.playground-section h2 {
+    margin-top: 0;
+    color: #7bb8ff;
+}
+
+.playground-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.playground-editor {
+    position: relative;
+}
+
+.playground-editor textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 16px;
+    background: #0d0d1a;
+    color: #e0e0e0;
+    border: 1px solid #2d2d44;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    tab-size: 4;
+}
+
+.playground-editor textarea:focus {
+    outline: none;
+    border-color: #7bb8ff;
+}
+
+.playground-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.playground-btn {
+    padding: 8px 20px;
+    background: #2d5a3d;
+    color: #a0e0a0;
+    border: 1px solid #3a7a4a;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.playground-btn:hover {
+    background: #3a7a4a;
+}
+
+.playground-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.playground-btn.secondary {
+    background: #2d2d44;
+    color: #a0a0c0;
+    border-color: #3d3d5c;
+}
+
+.playground-btn.secondary:hover {
+    background: #3d3d5c;
+}
+
+.playground-result {
+    padding: 12px 16px;
+    background: #1a2a1a;
+    border: 1px solid #2d5a3d;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 13px;
+    color: #a0e0a0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 60px;
+}
+
+.playground-result.error {
+    background: #2a1a1a;
+    border-color: #5a2d2d;
+    color: #e0a0a0;
+}
+
+.playground-result .result-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.7;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        width: 100%;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+    #content { margin-left: 0; padding: 20px; }
+    body { flex-direction: column; }
+}
+
+.github-link {
+    display: block;
+    margin: 0 20px 15px;
+    padding: 8px 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.github-link:hover {
+    border-color: var(--link);
+    background: rgba(91, 163, 245, 0.1);
+}
+
+.github-link::before {
+    content: "🐙 ";
+}
+
+/* Table of Contents (Right Sidebar) */
+#toc {
+    position: fixed;
+    right: 30px;
+    top: 80px;
+    width: 280px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--sidebar-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#toc::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#toc-title {
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+#toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#toc li {
+    margin: 8px 0;
+}
+
+#toc a {
+    color: var(--text-light);
+    text-decoration: none;
+    display: block;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    line-height: 1.5;
+}
+
+#toc a:hover {
+    background: var(--code-bg);
+    color: var(--link);
+}
+
+#toc a.active {
+    background: rgba(88, 166, 255, 0.1);
+    color: var(--link);
+    border-left: 2px solid var(--link);
+}
+
+#toc ul ul {
+    margin-left: 16px;
+    margin-top: 6px;
+}
+
+#toc ul ul a {
+    font-size: 13px;
+    padding: 4px 12px;
+}
+
+#toc li.toc-h3 a {
+    padding-left: 24px;
+    font-size: 13px;
+}
+
+/* Home button at top */
+#toc-home {
+    display: block;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+#toc-home:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+/* Back to top button */
+#back-to-top {
+    display: none;
+    width: 100%;
+    padding: 10px 16px;
+    margin-top: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#back-to-top:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+#back-to-top.visible {
+    display: block;
+}
+
+/* TOC always visible */
+#content {
+    margin-right: 320px;
+}
+
+/* Scrollbar for TOC */
+#toc::-webkit-scrollbar {
+    width: 6px;
+}
+
+#toc::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#toc::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+#toc::-webkit-scrollbar-thumb:hover {
+    background: var(--text-light);
+}
+</style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2><a href="index.html" style="color:inherit;text-decoration:none;">Koala Docs</a></h2>
+        <a href="https://github.com/zhuguangxiang/koala-lang" class="github-link" target="_blank">GitHub Repository</a>
+        <input type="text" id="search-box" placeholder="Search...">
+        <div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">Guide <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="manual.html" class="active">Language Manual</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">std <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="std_builtin.html">builtin</a>
+</div>
+<div class="package">
+<a href="std_collections.html">collections</a>
+</div>
+<div class="package">
+<a href="std_fs.html">fs</a>
+</div>
+<div class="package">
+<a href="std_io.html">io</a>
+</div>
+<div class="package">
+<a href="std_os.html">os</a>
+</div>
+<div class="package">
+<a href="std_prelude.html">prelude</a>
+</div>
+<div class="package">
+<a href="std_sys.html">sys</a>
+</div>
+<div class="package">
+<a href="std_time.html">time</a>
+</div>
+<div class="package">
+<a href="std_ut.html">ut</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">koala <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="koala_datetime.html">datetime</a>
+</div>
+<div class="package">
+<a href="koala_encoding_base64.html">encoding/base64</a>
+</div>
+<div class="package">
+<a href="koala_encoding_bin.html">encoding/bin</a>
+</div>
+<div class="package">
+<a href="koala_json.html">json</a>
+</div>
+<div class="package">
+<a href="koala_math.html">math</a>
+</div>
+<div class="package">
+<a href="koala_random.html">random</a>
+</div>
+<div class="package">
+<a href="koala_toml.html">toml</a>
+</div>
+<div class="package">
+<a href="koala_wombat.html">wombat</a>
+</div>
+</div>
+</div>
+    </div>
+    <div id="content">
+        <h1>Koala Language Manual</h1>
+<nav class="manual-toc">
+<h2>Contents</h2>
+<ul>
+<li><a href="#contents">Contents</a>
+<ul>
+</ul>
+</li>
+<li><a href="#hello-world">Hello World</a>
+<ul>
+</ul>
+</li>
+<li><a href="#basics">Basics</a>
+<ul>
+<li><a href="#constants-and-variables">Constants and Variables</a></li>
+<li><a href="#comments-and-doc-comments">Comments and Doc Comments</a></li>
+<li><a href="#integers">Integers</a></li>
+<li><a href="#floating-point-numbers">Floating-Point Numbers</a></li>
+<li><a href="#integer-conversions">Integer Conversions</a></li>
+<li><a href="#integer-floating-point-conversions">Integer-Floating-Point Conversions</a></li>
+<li><a href="#booleans">Booleans</a></li>
+<li><a href="#tuples-and-variadic-types">Tuples and Variadic Types</a></li>
+<li><a href="#null-safety">Null Safety</a></li>
+<li><a href="#union-types">Union Types</a></li>
+</ul>
+</li>
+<li><a href="#strings-and-characters">Strings and Characters</a>
+<ul>
+</ul>
+</li>
+<li><a href="#containers">Containers</a>
+<ul>
+</ul>
+</li>
+<li><a href="#branching-and-loops">Branching and Loops</a>
+<ul>
+</ul>
+</li>
+<li><a href="#functions-and-closures">Functions and Closures</a>
+<ul>
+</ul>
+</li>
+<li><a href="#classes-and-interfaces">Classes and Interfaces</a>
+<ul>
+</ul>
+</li>
+<li><a href="#generics">Generics</a>
+<ul>
+</ul>
+</li>
+<li><a href="#operator-overloading">Operator Overloading</a>
+<ul>
+</ul>
+</li>
+<li><a href="#error-handling">Error Handling</a>
+<ul>
+</ul>
+</li>
+<li><a href="#memory-management">Memory Management</a>
+<ul>
+</ul>
+</li>
+<li><a href="#package-management">Package Management</a>
+<ul>
+</ul>
+</li>
+<li><a href="#native-extensions">Native Extensions</a>
+<ul>
+<li><a href="#the-koala-side">The Koala side</a></li>
+<li><a href="#the-c-side">The C side</a></li>
+<li><a href="#the-c-interfaces">The C interfaces</a></li>
+<li><a href="#building-the-library">Building the library</a></li>
+<li><a href="#binding-rules">Binding rules</a></li>
+</ul>
+</li>
+</ul>
+</nav>
+<h2 id="hello-world">Hello World</h2>
+<div class="manual-content">
+<p>A Koala program may define a <code>main</code> function. The classic hello world looks like this:</p>
+
+<pre><code class="language-koala">func main() {
+    print("hello, world")
+}</code></pre>
+
+<p>Compile a source file with the command below; it produces a bytecode file with the <code>.klc</code> suffix:</p>
+
+<pre><code class="language-bash">koala -c hello.kl</code></pre>
+
+<p>Run a <code>.kl</code> source file directly:</p>
+
+<pre><code class="language-bash">koala hello.kl</code></pre>
+
+<p>Or run a compiled <code>.klc</code> bytecode file:</p>
+
+<pre><code class="language-bash">koala hello.klc</code></pre>
+</div>
+<h2 id="basics">Basics</h2>
+<div class="manual-content">
+<p>Koala provides a rich set of basic data types — integers, floating-point numbers, booleans and</p>
+<p>strings — as well as container types such as list, tuple, dict, set and range.</p>
+</div>
+<h3 id="constants-and-variables">Constants and Variables</h3>
+<div class="manual-content">
+<p>Variables are declared with <code>let</code> (immutable binding) or <code>var</code> (mutable binding):</p>
+
+<pre><code class="language-koala">let name = "koala"      // type inferred as str, cannot be reassigned
+var count = 0           // type inferred as int, can be reassigned
+count = count + 1</code></pre>
+
+<p>An explicit type annotation may be given; the initializer must match it:</p>
+
+<pre><code class="language-koala">var total int = 0
+let msg str? = null</code></pre>
+
+<p>Local variables inside functions follow the same rules:</p>
+
+<pre><code class="language-koala">func foo(n int) {
+    var i = 0
+    while i &lt; n {
+        print(i)
+        i += 1
+    }
+}</code></pre>
+
+<p>Every variable must be definitely assigned before it is read; the compiler rejects uses of</p>
+<p>uninitialized values. There is no uninitialized-state undefined behavior.</p>
+
+<p>Type inference works wherever an initializer or a context provides enough information: parameter</p>
+<p>types may be omitted when a default value pins them down, and generic type arguments are inferred</p>
+<p>from the call site (see <a href="#generics">Generics</a>).</p>
+</div>
+<h3 id="comments-and-doc-comments">Comments and Doc Comments</h3>
+<div class="manual-content">
+<p>Line comments start with <code>//</code>, block comments are written <code>/* ... */</code>:</p>
+
+<pre><code class="language-koala">// a line comment
+/* a block comment,
+   spanning several lines */</code></pre>
+
+<p>Documentation comments use the Rust style <code>///</code>. They are bound to the declaration that immediately</p>
+<p>follows them (a blank line breaks the binding) and are extracted by the documentation tool</p>
+<p><code>tools/kl-doc.py</code>:</p>
+
+<pre><code class="language-koala">/// Return the larger of two values.
+///
+/// Example:
+///     print(max(3, 4))
+func max(a int, b int) int {
+    if a &gt;= b { return a }
+    return b
+}</code></pre>
+
+<p>The first line is a summary written in the third person and verb-first. Label lines such as</p>
+<p><code>Example:</code>, <code>Note:</code>, <code>Precondition:</code>, <code>Panics:</code> and <code>See:</code> receive special rendering.</p>
+</div>
+<h3 id="integers">Integers</h3>
+<div class="manual-content">
+<p>The integer family is:</p>
+
+<p>| Type | Description |</p>
+<p>|------|-------------|</p>
+<p>| <code>int</code> | machine-word signed integer (alias of <code>int64</code>) |</p>
+<p>| <code>int8</code>, <code>int16</code>, <code>int32</code>, <code>int64</code> | signed integers of 8/16/32/64 bits |</p>
+<p>| <code>uint8</code>, <code>uint16</code>, <code>uint32</code>, <code>uint64</code> | unsigned integers of 8/16/32/64 bits |</p>
+
+<p>Integer literals are written in decimal, binary, octal or hexadecimal, and negative literals are</p>
+<p>supported. A literal is <code>int</code> (int64) by default, whatever base it is written in. It only becomes</p>
+<p><code>uint64</code> when its value does not fit into int64, and a negative literal below INT64_MIN is rejected:</p>
+
+<pre><code class="language-koala">let a = 100                // int (int64)
+let b = 0xFF               // int (int64), value 255
+let c = 0b1010             // int (int64), value 10
+let d = 0o17               // int (int64), value 15
+let e = 0xFFFFFFFFFFFFFFFF  // uint64, does not fit into int64
+let f int8 = -128          // narrow literal accepted at initialization</code></pre>
+
+<p>When a literal appears where a type is expected, that type wins: the value is checked against the</p>
+<p>target range, and a non-decimal literal is read as a bit pattern, so <code>0xFF</code> is -1 when it is</p>
+<p>initialized as an <code>int8</code>.</p>
+
+<p>Narrow integer types are *init-only*: they accept narrow literals at initialization, while in</p>
+<p>expressions values are automatically promoted to the natural operand width (int8/int16/int32 to</p>
+<p>int64, unsigned types to uint64). The promotion is a compiler mechanism; nothing hidden appears in</p>
+<p>the standard library sources.</p>
+
+<p>Integer overflow is safe by definition. The implementation provides trap and wrap overflow</p>
+<p>policies, controlled at the compiler/VM level; literal values that do not fit the annotated type are</p>
+<p>rejected at compile time:</p>
+
+<pre><code class="language-koala">let x int8 = 300    // compile-time error: overflows 'int8' range</code></pre>
+</div>
+<h3 id="floating-point-numbers">Floating-Point Numbers</h3>
+<div class="manual-content">
+<p>The floating-point family is <code>float16</code>, <code>float32</code> and <code>float64</code>; <code>float</code> is an alias of <code>float64</code>:</p>
+
+<pre><code class="language-koala">let pi = 3.14159     // float (float64)
+let eps float32 = 0.001</code></pre>
+
+<p>Like narrow integers, narrow float types are init-only and are promoted to <code>float64</code> inside</p>
+<p>expressions. Floating-point overflow behavior is likewise a defined trap/wrap policy, not undefined</p>
+<p>behavior.</p>
+</div>
+<h3 id="integer-conversions">Integer Conversions</h3>
+<div class="manual-content">
+<p>Conversions between integer types are explicit and use constructor-call syntax. Narrowing always</p>
+<p>requires an explicit conversion:</p>
+
+<pre><code class="language-koala">func wrap(n int) int8 {
+    return int8(n)        // explicit narrowing conversion
+}
+
+func widen(n int16) uint32 {
+    return uint32(n)      // explicit conversion between integer types
+}</code></pre>
+
+<p>Widening between same-sign integer widths is implicit: where a wider type is expected, the compiler</p>
+<p>inserts the conversion automatically.</p>
+
+<p>Conversions that lose information are checked: converting a value that does not fit the target range</p>
+<p>produces a runtime panic (for example, casting <code>300</code> to <code>int8</code>).</p>
+</div>
+<h3 id="integer-floating-point-conversions">Integer-Floating-Point Conversions</h3>
+<div class="manual-content">
+<p>Conversions between integers and floating-point numbers are always explicit:</p>
+
+<pre><code class="language-koala">let n = int(3.9)        // float -&gt; int
+let f = float(42)       // int -&gt; float
+let g = float32(2.5)    // to a narrower float type</code></pre>
+
+<p>No silent precision loss happens through implicit conversion: the programmer states the intent, the</p>
+<p>compiler checks the rest.</p>
+</div>
+<h3 id="booleans">Booleans</h3>
+<div class="manual-content">
+<p>The boolean type is <code>bool</code> with the two values <code>true</code> and <code>false</code>. Boolean operators are <code>&&</code>,</p>
+<p><code>||</code> and <code>!</code>, with short-circuit evaluation; comparison operators produce <code>bool</code>:</p>
+
+<pre><code class="language-koala">let ok = a &gt; 0 &amp;&amp; b &lt; 10
+let flag = !ok || c == 0</code></pre>
+
+<p>A <code>bool</code> value is also what <code>if</code>, <code>while</code> and <code>guard</code> conditions expect.</p>
+</div>
+<h3 id="tuples-and-variadic-types">Tuples and Variadic Types</h3>
+<div class="manual-content">
+<p>Tuples are written with parentheses and may mix element types:</p>
+
+<pre><code class="language-koala">let t = (1, "a", true)
+let pair = (6, 7)</code></pre>
+
+<p>Tuple types appear in signatures both for parameters and for multiple return values:</p>
+
+<pre><code class="language-koala">func foo(x int, y int, z (int, int)) (int, int, int, int, (int, int)) {
+    return (x, y, x + y, x - y, (x * y, x / y))
+}</code></pre>
+
+<p>Variadic arguments are declared with <code>...</code> after the parameter name. Inside the function the</p>
+<p>collected arguments behave as a tuple:</p>
+
+<pre><code class="language-koala">func log(msgs ..., sep = ' ') {
+    // msgs is a tuple of all collected arguments
+}</code></pre>
+
+<p>The <code>print</code> builtin is the canonical example: <code>print(objs ..., sep = ' ', end = '\n')</code>.</p>
+</div>
+<h3 id="null-safety">Null Safety</h3>
+<div class="manual-content">
+<p>Koala is null-safe: there is no null pointer at the type level. A value that may be absent is</p>
+<p>declared with a trailing <code>?</code> on its type, such as <code>int?</code> or <code>str?</code>. The empty value is written</p>
+<p><code>null</code>:</p>
+
+<pre><code class="language-koala">let v int? = 100
+let empty str? = null</code></pre>
+
+<p><strong>Automatic unwrapping.</strong> A <code>T?</code> value can be compared against <code>null</code> directly; inside the branch</p>
+<p>where the value is known to be present, it is used as the unwrapped type automatically — no</p>
+<p>explicit unwrap needed:</p>
+
+<pre><code class="language-koala">func show(msg str?) {
+    if msg == null {
+        print("no message")
+    } else {
+        // msg is narrowed from str? to str here
+        print(len(msg))
+        print(msg)
+    }
+}</code></pre>
+
+<p>The same narrowing works with <code>!=</code>:</p>
+
+<pre><code class="language-koala">func first_char(msg str?) {
+    if msg != null {
+        // msg is str inside this branch
+        print(msg[0])
+    }
+}</code></pre>
+
+<p><strong><code>if let</code>.</strong> <code>if let</code> binds the unwrapped value to a new name for the branch; the binding has</p>
+<p>type <code>T</code> and costs nothing at runtime:</p>
+
+<pre><code class="language-koala">func foo(v int?) int {
+    if let x = v {
+        return x
+    } else {
+        return 0
+    }
+}
+
+func double_or_default(v int?, d int) int {
+    if let x = v {
+        return x * 2
+    }
+    return d
+}</code></pre>
+
+<p><strong><code>while let</code>.</strong> <code>while let</code> unwraps repeatedly until the value becomes <code>null</code>, which makes it</p>
+<p>the idiomatic way to walk nullable chains such as linked-list nodes:</p>
+
+<pre><code class="language-koala">class ListNode {
+    let value int
+    var next ListNode?
+
+    func __init__(_value int) {
+        value = _value
+        next = null
+    }
+}
+
+func find_tail(head ListNode?) ListNode? {
+    if head == null {
+        return null
+    }
+    var curr = head
+    // next has type ListNode inside the loop body
+    while let next = curr.next {
+        curr = next
+    }
+    return curr
+}</code></pre>
+
+<p><strong>Member access requires an unwrapped value.</strong> A <code>T?</code> value cannot be used with the plain dot</p>
+<p>operator — accessing a field or calling a method on it is a compile error:</p>
+
+<pre><code class="language-koala">class Box {
+    var value int = 0
+
+    func get() int {
+        return value
+    }
+}
+
+let b Box? = Box()
+
+let v1 = b.get()     // compile error: optional cannot use dot operator.</code></pre>
+
+<p>Two forms are sanctioned. Optional chaining <code>?.</code> passes <code>null</code> through and yields an optional</p>
+<p>result; force-unwrapping with <code>!</code> followed by <code>.</code> calls directly:</p>
+
+<pre><code class="language-koala">let v2 = b?.get()    // OK, and v2 has type int?
+let v3 = b!.get()    // OK, v3 has type int; panics if b is null</code></pre>
+
+<p>Narrowing first works too — inside the branch the value is already unwrapped:</p>
+
+<pre><code class="language-koala">if let x = b {
+    print(x.get())   // x is Box here
+}</code></pre>
+
+<p>The postfix <code>!</code> forces an unwrap where the caller knows the value is present; forcing a <code>null</code></p>
+<p>value panics:</p>
+
+<pre><code class="language-koala">func must(v int?) int {
+    return v!
+}</code></pre>
+</div>
+<h3 id="union-types">Union Types</h3>
+<div class="manual-content">
+<p>A union type <code>A | B</code> lets a value be one of several concrete types. It is the sanctioned way to</p>
+<p>accept heterogeneous inputs without overloading or <code>any</code>:</p>
+
+<pre><code class="language-koala">pub func __init__(s str | bytes) {}                          // str accepts bytes too
+pub func open(path_or_fd str | int, mode = "r") File? {}     // a path or an open descriptor
+
+var v int | str = 0
+v = "hello"      // also fine</code></pre>
+
+<p>Every member of a union must be a final class — traits are never allowed as union members. Since</p>
+<p>all Koala classes are final by construction, the constraint is naturally satisfiable; it simply</p>
+<p>keeps unions concrete and statically checkable.</p>
+
+<p>A union-typed value must be narrowed before use: comparing values of different static types</p>
+<p>(such as <code>1 == "abc"</code>) is a compile error, and the value must be narrowed to a member type before</p>
+<p>its type-specific operations become available.</p>
+
+</div>
+<h2 id="strings-and-characters">Strings and Characters</h2>
+<div class="manual-content">
+<p>The string type is <code>str</code> — an immutable sequence of UTF-8 characters. String literals use single or</p>
+<p>double quotes:</p>
+
+<pre><code class="language-koala">let s1 = "hello world"
+let s2 = 'koala'</code></pre>
+
+<p>Strings support length, indexing and searching:</p>
+
+<pre><code class="language-koala">let s = str("hello world")
+print(len(s))            // 11
+print(s[0])              // first character
+print(s.find("world"))   // position of a substring</code></pre>
+
+<p>Strings are values of the <code>str</code> class declared in the standard library itself — like every builtin</p>
+<p>type, it has no hidden compiler magic and its full API is visible in <code>libs/std/builtin/str.kl</code>.</p>
+</div>
+<h2 id="containers">Containers</h2>
+<div class="manual-content">
+<p>Koala ships the usual container family, all declared in the standard library:</p>
+
+<p>| Type | Description |</p>
+<p>|------|-------------|</p>
+<p>| <code>list</code> | dynamic array |</p>
+<p>| <code>tuple</code> | immutable fixed-size sequence |</p>
+<p>| <code>dict</code> | hash map preserving insertion order |</p>
+<p>| <code>hashset</code> / <code>TreeSet</code> | sets with algebra operations |</p>
+<p>| <code>range</code> | integer interval, used heavily by <code>for</code> |</p>
+<p>| <code>bytes</code> | fixed-length byte array |</p>
+<p>| <code>ByteBuf</code> | mutable byte buffer |</p>
+
+<p>List literals and generic instantiation:</p>
+
+<pre><code class="language-koala">let nums = [1, 2, 3]
+let more list[int] = list[int]()</code></pre>
+
+<p><code>dict</code> literals are written <code>{key: value}</code> and preserve insertion order, just like Python:</p>
+
+<pre><code class="language-koala">let m = {1: 2, 3: 4}</code></pre>
+
+<p>Containers are indexed and sliced with the usual syntax; slicing bounds follow the half-open</p>
+<p><code>[start, end)</code> convention:</p>
+
+<pre><code class="language-koala">let head = nums[0]</code></pre>
+
+<p>Iterating containers is covered in <a href="#branching-and-loops">Branching and Loops</a>: <code>for</code> accepts ranges, tuples, lists,</p>
+<p>dicts and anything implementing the iterator protocol.</p>
+</div>
+<h2 id="branching-and-loops">Branching and Loops</h2>
+<div class="manual-content">
+<p>Conditions use the C-family keywords; braces are mandatory:</p>
+
+<pre><code class="language-koala">if a &gt; b {
+    print(a)
+} else if a == b {
+    print("equal")
+} else {
+    print(b)
+}</code></pre>
+
+<p>Loops come in two forms. <code>while</code> repeats on a condition, and <code>while let</code> repeats on a <code>T?</code> value:</p>
+
+<pre><code class="language-koala">var i = 0
+while i &lt; n {
+    i += 1
+}
+
+while let x = next_node {
+    // x has the unwrapped type here
+}</code></pre>
+
+<p><code>for</code> iterates ranges, containers and iterators. A <code>range</code> loop is compiled directly into loop</p>
+<p>code — no range object and no iterator dispatch are created on this hot path:</p>
+
+<pre><code class="language-koala">for i in range(0, 10) {
+    if (i % 2 == 0) { print(i) }
+}
+
+for i in range(n) {
+    // range(n) is completed by the compiler to range(0, n)
+}</code></pre>
+
+<p><code>for</code> also unpacks tuple-shaped elements and iterates user types through the iterator protocol</p>
+<p>(<code>__iter__</code> / <code>__next__</code> / <code>__has_next__</code>). Loop bodies may use <code>break</code> and <code>continue</code>.</p>
+
+<p>Top-level iteration combinators <code>enumerate</code> and <code>zip</code> are available.</p>
+</div>
+<h2 id="functions-and-closures">Functions and Closures</h2>
+<div class="manual-content">
+<p>Functions are declared with <code>func</code>. The return type may be omitted when the function returns</p>
+<p>nothing:</p>
+
+<pre><code class="language-koala">func add(a int, b int) int {
+    return a + b
+}
+
+func greet(name str) {
+    print("hello", name)
+}</code></pre>
+
+<p>Parameters with default values omit the type annotation — the default pins the type:</p>
+
+<pre><code class="language-koala">func foo(n int, msg = "hello") {
+    // msg is str, defaults to "hello"
+}
+
+foo(5, "hi")     // positional
+foo(5)           // msg defaults to "hello"</code></pre>
+
+<p>Arguments may also be passed by name:</p>
+
+<pre><code class="language-koala">print("hello", "world", sep=',', end='\n')</code></pre>
+
+<p>Multiple values are returned as tuples:</p>
+
+<pre><code class="language-koala">func split(x int) (int, int) {
+    return (x / 2, x % 2)
+}</code></pre>
+
+<p>Generic functions constrain type parameters with traits (see the next chapter):</p>
+
+<pre><code class="language-koala">func add_pair[T : Arithmetic](a T, b T) T {
+    return a + b
+}</code></pre>
+
+<p>Anonymous functions and closures are not part of the current language: named functions — including</p>
+<p>functions defined inside packages — are the supported unit of abstraction.</p>
+</div>
+<h2 id="classes-and-interfaces">Classes and Interfaces</h2>
+<div class="manual-content">
+<p>Classes are declared with <code>class</code>. A class is always final: no class may inherit from another.</p>
+<p>Fields are declared with <code>var</code>, and <code>__init__</code> is the initializer:</p>
+
+<pre><code class="language-koala">class Foo[T] {
+    var value T
+
+    func __init__(_value T) {
+        value = _value
+    }
+
+    func get_value() T {
+        return value
+    }
+}
+
+let foo = Foo[int](42)
+print(foo.get_value())</code></pre>
+
+<p>Traits serve as interfaces and are the only form of subtype relationship. A class conforms to a</p>
+<p>trait by listing it after <code>:</code>; trait inheritance is composition:</p>
+
+<pre><code class="language-koala">trait Fly {
+    func fly() str
+}
+
+class Foo : Fly {
+    func fly() str {
+        return "Foo is flying"
+    }
+}</code></pre>
+
+<p>Dispatch is fully static: every type carries an intf-table built at compile time, so a trait call</p>
+<p>is one indirect slot call (O(1), no lookup), and a direct class method call is a plain direct call.</p>
+<p>Partial trait implementation is allowed: a conforming class may leave some methods unimplemented;</p>
+<p>they are filled with a placeholder and panic only if actually called.</p>
+
+<p>Generics are written with square brackets and constrained with trait bounds. Bare conformance infers</p>
+<p>the self type automatically (a class conforming to <code>Equatable</code> becomes <code>Equatable[Self]</code> without</p>
+<p>spelling it out):</p>
+
+<pre><code class="language-koala">func max[T : Comparable](a T, b T) T {
+    if a &gt;= b { return a }
+    return b
+}</code></pre>
+
+<p>Operators are syntax hooks: implementing <code>__add__</code> makes <code>a + b</code> work, with no declaration ceremony.</p>
+<p>Operator dunders may never be called by name — the syntax is the only entry point. The traits</p>
+<p><code>Arithmetic[T]</code> and <code>BitwiseOperators[T]</code> exist as generic constraints, so functions like</p>
+<p><code>add_pair</code> above may require operator capabilities of an unknown type.</p>
+
+<p>A concrete value can be used wherever a trait instance is expected; the value is widened to the</p>
+<p>trait type (for example <code>int</code> where <code>Arithmetic[int]</code> is required). The reverse direction —</p>
+<p>recovering the concrete type from a trait value — is not allowed.</p>
+
+<p>Every class automatically conforms to the root contracts <code>Equatable</code> / <code>Hashable</code> / <code>Printable</code></p>
+<p>with identity defaults; value types override them with value semantics. The empty trait <code>any</code> is the</p>
+<p>universal root type.</p>
+
+<p>The error model — expected failures as return values, unexpected failures as panics — is covered</p>
+<p>in its own chapter: <a href="#error-handling">Error Handling</a>.</p>
+</div>
+<h2 id="generics">Generics</h2>
+<div class="manual-content">
+<p>Generic classes and functions declare type parameters in square brackets:</p>
+
+<pre><code class="language-koala">class Foo[T] {
+    var value T
+
+    func __init__(_value T) {
+        value = _value
+    }
+
+    func get_value() T {
+        return value
+    }
+}
+
+func add_pair[T : Arithmetic](a T, b T) T {
+    return a + b
+}</code></pre>
+
+<p>A trait bound such as <code>T : Arithmetic</code> states what the unknown type must be able to do; without a</p>
+<p>bound, only the universally available capabilities may be used.</p>
+
+<p><strong>Type arguments are inferred.</strong> Koala performs generic inference so that type arguments are</p>
+<p>written only when necessary:</p>
+
+<p>- At a call site, the type argument is inferred from the arguments — the caller writes nothing:</p>
+
+<pre><code class="language-koala">print(add_pair(3, 4))        // T inferred as int
+let foo = Foo(42)            // T inferred as int
+let bar = Foo("koala")       // T inferred as str</code></pre>
+
+<p>- In a base list, a generic trait may be written <strong>bare</strong> — the type argument is inferred as the</p>
+<p>  conforming type itself. <code>Comparable</code> means <code>Comparable[int64]</code> on <code>int64</code>; there is no <code>Self</code></p>
+<p>  keyword because none is needed. This is how the standard library declares the numeric types:</p>
+
+<pre><code class="language-koala">pub class int64 : Comparable &amp; Arithmetic &amp; BitwiseOperators { ... }
+pub class float64 : Comparable &amp; Arithmetic { ... }</code></pre>
+
+<p>  Explicit instantiation remains available when the argument differs from the conforming type,</p>
+<p>  for example <code>Equatable[int]</code>.</p>
+
+<p><strong>Four conformances are added automatically.</strong> Every class automatically conforms to <code>any</code>,</p>
+<p><code>Equatable</code>, <code>Hashable</code> and <code>Printable</code> — they are never written in the base list. The three</p>
+<p>contracts start with identity defaults (<code>__eq__</code> compares pointers, <code>__hash__</code> derives from the</p>
+<p>pointer, <code>__str__</code> prints <code>Foo@0x7fXXXX</code>), and a class may override any of them with value</p>
+<p>semantics; overriding <code>__eq__</code> without overriding <code>__hash__</code> produces a compiler warning. The</p>
+<p>automatic conformances are visible through type introspection — nothing is hidden.</p>
+
+<p>Where inference cannot apply, the argument is spelled out — for instance, instantiating a generic</p>
+<p>class without arguments to infer from:</p>
+
+<pre><code class="language-koala">let foo = Foo[int](42)
+let empty list[int] = list[int]()</code></pre>
+
+<p>Note the asymmetry for parameter types: a bare trait name is not a valid parameter type —</p>
+<p>concrete trait instances such as <code>Arithmetic[int]</code> must be spelled out there.</p>
+</div>
+<h2 id="operator-overloading">Operator Overloading</h2>
+<div class="manual-content">
+<p>Operator overloading in Koala is a *syntax hook*: the capability is granted by the dunder method</p>
+<p>itself, not by any trait declaration. Implementing <code>__add__</code> makes <code>+</code> work on your type — there is</p>
+<p>no conformance ceremony. Writing the operator traits into a base list may be omitted entirely:</p>
+<p>implementing the dunders *is* the conformance (structural conformance), and at generic call sites</p>
+<p>the type arguments are inferred automatically.</p>
+
+<pre><code class="language-koala">class Point {
+    var x int = 0
+    var y int = 0
+
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+
+    func __add__(other Point) Point {
+        return Point(x + other.x, y + other.y)
+    }
+
+    func __sub__(other Point) Point {
+        return Point(x - other.x, y - other.y)
+    }
+
+    func __neg__() Point {
+        return Point(-x, -y)
+    }
+
+    func __eq__(other Point) bool {
+        return x == other.x &amp;&amp; y == other.y
+    }
+}
+
+let p = Point(1, 2)
+let q = Point(3, 4)
+print(p + q)        // Point(4, 6)
+print(p - q)        // Point(-2, -2)
+print(-p)           // Point(-1, -2)
+print(p == q)       // false</code></pre>
+
+<p>Each type defines the operand types of its operators freely; the result type is taken from the</p>
+<p>dunder's return type. The dunder families are:</p>
+
+<p>| Operators | Dunder methods |</p>
+<p>|-----------|----------------|</p>
+<p>| <code>+ - * / %</code> | <code>__add__</code> <code>__sub__</code> <code>__mul__</code> <code>__div__</code> <code>__mod__</code> |</p>
+<p>| unary <code>-</code> | <code>__neg__</code> |</p>
+<p>| <code>+= -= *= /= %=</code> | <code>__iadd__</code> <code>__isub__</code> <code>__imul__</code> <code>__idiv__</code> <code>__imod__</code> |</p>
+<p>| <code>& \| ^ ~ << >></code> | <code>__bitand__</code> <code>__bitor__</code> <code>__bitxor__</code> <code>__bitnot__</code> <code>__shl__</code> <code>__shr__</code> |</p>
+<p>| <code>== != < <= > >=</code> | <code>__eq__</code> <code>__ne__</code> <code>__lt__</code> <code>__le__</code> <code>__gt__</code> <code>__ge__</code> |</p>
+<p>| <code>x[i]</code>, <code>x[i] = v</code> | <code>__getitem__</code>, <code>__setitem__</code> |</p>
+<p>| <code>x[a:b]</code>, <code>x[a:b] = v</code> | <code>__getslice__</code>, <code>__setslice__</code> |</p>
+<p>| <code>obj(...)</code> | <code>__call__</code> |</p>
+<p>| <code>x in seq</code> | <code>__contains__</code> |</p>
+
+<p>Operator dunders can never be called by name — the corresponding syntax is the only entry point,</p>
+<p>and an explicit call is a compile error:</p>
+
+<pre><code class="language-koala">p.__add__(q)        // compile error: use the '+' operator instead</code></pre>
+
+<p>Compound assignment uses the matching in-place dunder when the type defines one. If it does not,</p>
+<p>it falls back to the corresponding binary operator and assigns its result back to the left-hand</p>
+<p>side. If neither operator is defined, compilation fails.</p>
+
+<p>Protocol hooks such as <code>__len__</code>, <code>__str__</code>, <code>__hash__</code> and the iterator dunders are not operator</p>
+<p>hooks and may be called normally.</p>
+
+<p>The traits <code>Arithmetic[T]</code> and <code>BitwiseOperators[T]</code> do not grant operator capability; they exist</p>
+<p>purely as generic constraints. A function that wants to use operators on an unknown type states</p>
+<p>the bound once, and the caller writes nothing extra — the type argument is inferred:</p>
+
+<pre><code class="language-koala">func add_pair[T : Arithmetic](a T, b T) T {
+    return a + b
+}
+
+print(add_pair(3, 4))        // T inferred as int; prints 7
+print(add_pair(p, q))        // T inferred as Point</code></pre>
+
+<p>On a trait-typed value, operators follow the substituted instance signature: with</p>
+<p><code>a Arithmetic[int]</code>, the expression <code>a + 100</code> is valid because <code>100</code> matches the right-hand type</p>
+<p><code>int</code>, while <code>a + b</code> with another trait value <code>b</code> is a natural type error.</p>
+</div>
+<h2 id="error-handling">Error Handling</h2>
+<div class="manual-content">
+<p>Koala's error model is a deliberate design, not a missing feature. There are exactly two kinds of</p>
+<p>failure, and each has exactly one mechanism:</p>
+
+<p><strong>Expected failures are return values.</strong> When a failure is part of the normal contract — a lookup</p>
+<p>that may miss, a parse that may reject — the function reports it through its return value, C</p>
+<p>style: an int-returning function returns <code>-1</code>, a lookup returns a caller-provided default:</p>
+
+<pre><code class="language-koala">// str.to_int() panics on invalid input; to_int_or returns the default instead
+let n = "42".to_int_or(0)
+
+// dict access: get_or never panics on a missing key
+let v = m.get_or(key, -1)
+let old = m.remove_or(key, 0)</code></pre>
+
+<p><strong>Unexpected failures are panics.</strong> A panic means the code is wrong — an out-of-range index, a</p>
+<p>forced unwrap of <code>null</code>, a violated precondition. Panics are lightweight, unrecoverable and</p>
+<p>uncatchable: there is no try/catch and no error propagation ceremony. The fix is always to fix the</p>
+<p>code.</p>
+
+<p>This model works because memory never depends on stack unwinding: the semi-automatic memory</p>
+<p>management (see below) means a panic can simply stop the program — no destructors to run, no</p>
+<p>resources to leak, no unwind tables to maintain. That is what keeps panics truly lightweight.</p>
+
+<p>The fallible-conversion idiom is uniform across the standard library: a panic-on-failure primary</p>
+<p>method plus a <code>_or(default)</code> variant — <code>to_int()</code> / <code>to_int_or(0)</code>, <code>to_float()</code> /</p>
+<p><code>to_float_or(0.0)</code>, <code>get()</code> / <code>get_or()</code>, <code>remove()</code> / <code>remove_or()</code>.</p>
+
+<p>Explicitly rejected alternatives: Java-style try/catch, Go-style defer, and Result-type</p>
+<p>composition — none of them was found to beat return values plus panic on clarity.</p>
+</div>
+<h2 id="memory-management">Memory Management</h2>
+<div class="manual-content">
+<p>> <strong>Status: not yet implemented.</strong> The model below is the announced design target of Koala's memory</p>
+<p>> management; its pieces are on the roadmap rather than shipped behavior. Do not rely on any of it</p>
+<p>> in current code.</p>
+
+<p>Koala's memory model is officially named <strong>semi-automatic</strong>: deterministic release is the main</p>
+<p>channel, and a collector exists as a safety valve rather than the primary mechanism.</p>
+
+<p><strong>Explicit <code>free</code>.</strong> When the lifetime of an object is known, the programmer may reclaim it</p>
+<p>early:</p>
+
+<pre><code class="language-koala">free(obj)</code></pre>
+
+<p><strong>Compiler-inserted <code>free</code>.</strong> Where lifetimes are self-evident, the compiler does the work — no</p>
+<p>programmer attention required:</p>
+
+<p>- Short-lived temporaries produced inside <code>for</code> loop iterations are reclaimed per iteration, so</p>
+<p>  hot loops never accumulate garbage.</p>
+<p>- Variadic arguments are automatically boxed into a tuple object; that tuple is freed</p>
+<p>  automatically after the call. The hidden allocation and the hidden release are paired — the</p>
+<p>  programmer never tracks either.</p>
+
+<p><strong>Escape analysis and <code>noesc</code>.</strong> The compiler tracks whether objects escape their scope; objects</p>
+<p>marked <code>noesc</code> stay out of the collector's jurisdiction entirely.</p>
+
+<p><strong>A CMS collector stands by.</strong> A concurrent mark-sweep implementation exists in the repository but</p>
+<p>is not enabled — the deterministic channel is the design intent, and the collector's dormant state</p>
+<p>is public knowledge, not a secret.</p>
+
+<p>The payoff is a flat memory profile: hot loops with many short-lived objects reclaim them on the</p>
+<p>spot instead of piling pressure toward a stop-the-world pause. In design-space terms, Koala lands</p>
+<p>in the unoccupied zone between Rust/C++ (deterministic but ceremony-heavy) and Go/Java</p>
+<p>(ceremony-free but nondeterministic): deterministic *and* low-ceremony, because the compiler</p>
+<p>inserts <code>free</code> where no thinking is needed and the programmer intervenes only for earlier</p>
+<p>reclamation.</p>
+</div>
+<h2 id="package-management">Package Management</h2>
+<div class="manual-content">
+<p>Packages are imported by path; an alias may be attached with <code>as</code>:</p>
+
+<pre><code class="language-koala">import "test_pkg/pkg1"
+import "test_pkg/pkg1" as z</code></pre>
+
+<p>Imported symbols are accessed through the package name:</p>
+
+<pre><code class="language-koala">pkg1.hello()
+let p = pkg1.Point(1, 2)
+let fly pkg1.Fly = foo      // a value typed as an imported trait</code></pre>
+
+<p>Visibility is controlled with <code>pub</code> (public). Symbols without <code>pub</code> stay inside their package.</p>
+
+<p>The standard library is a regular package (<code>std/builtin</code>) written in Koala itself: every builtin</p>
+<p>type is declared in plain <code>.kl</code> sources under <code>libs/std/builtin</code>, so the language core contains no</p>
+<p>hidden compiler magic. Package layout follows two simple rules: a simple package is a single</p>
+<p><code>xxx.kl</code> file; a complex package is a directory whose name is the package name, with</p>
+<p><code>__<package>__.kl</code> as the entry file holding only <code>link</code> statements, global variables and top-level</p>
+<p>functions, and one class or trait per <code>xxx.kl</code> file.</p>
+
+<p>Native code is attached with a <code>link</code> declaration and <code>@native</code> functions:</p>
+
+<pre><code class="language-koala">link "koala_ext_native"
+
+@native
+pub func pretty(s str) str {}</code></pre>
+
+<p>The compiler bridges the call; there is no <code>unsafe</code> and no manual marshaling, and objects allocated</p>
+<p>on the native side are managed by the same memory machinery as Koala objects.</p>
+</div>
+<h2 id="native-extensions">Native Extensions</h2>
+<div class="manual-content">
+<p>Native code ships as shared libraries (<code>.so</code>). This section shows how to build one and which C</p>
+<p>interfaces are involved.</p>
+</div>
+<h3 id="the-koala-side">The Koala side</h3>
+<div class="manual-content">
+<p>A package declares the library with <code>link</code> and the foreign functions with <code>@native</code> — the body</p>
+<p>stays empty, the ordinary Koala signature is the whole contract:</p>
+
+<pre><code class="language-koala">link "pkg1_native"
+
+@native
+pub func test_pkg_foo(a Animal) {}</code></pre>
+
+<p>When the module is loaded, the VM <code>dlopen</code>s <code>libpkg1_native.so</code> and looks up an initializer named</p>
+<p>after the last package segment plus <code>_native_lib_init</code> — for this package, <code>pkg1_native_lib_init</code>.</p>
+</div>
+<h3 id="the-c-side">The C side</h3>
+<div class="manual-content">
+<p>Native functions share one signature — <code>self</code>, an argument array, and an argument count, returning</p>
+<p>a <code>TValue</code>:</p>
+
+<pre><code class="language-c">#include "object.h"
+
+// func swim(name str, age int) str
+TValue foo_swim_func(TValue *self, TValue *args, int nargs)
+{
+    TValue *name = &amp;args[0];
+    TValue *age = &amp;args[1];
+
+    char *_name = STR_BUF(to_obj(name));
+    int _age = to_int64(age);
+
+    Object *s = kl_new_fmt_str("&lt;%s is swimming, age %d&gt;", _name, _age);
+    return obj_value(s);
+}</code></pre>
+
+<p>The initializer registers everything the library provides:</p>
+
+<pre><code class="language-c">void pkg1_native_lib_init(NativeLib *lib)
+{
+    kl_reg_func(lib, "test_pkg_foo", test_pkg_foo_func);   // a top-level function
+    kl_reg_meth(lib, "Foo", "swim", foo_swim_func);        // a method on class Foo
+    kl_reg_type(lib, &amp;file_type);                          // a native-defined type
+}</code></pre>
+</div>
+<h3 id="the-c-interfaces">The C interfaces</h3>
+<div class="manual-content">
+<p>Registration (declared in <code>object.h</code>):</p>
+
+<p>| Interface | Purpose |</p>
+<p>|-----------|---------|</p>
+<p>| <code>kl_reg_func(lib, name, fn)</code> | Register a top-level function |</p>
+<p>| <code>kl_reg_meth(lib, cls, meth, fn)</code> | Register a method on class <code>cls</code> |</p>
+<p>| <code>kl_reg_type(lib, tp)</code> | Register a native-defined type |</p>
+
+<p>Value construction and extraction:</p>
+
+<p>| Interface | Purpose |</p>
+<p>|-----------|---------|</p>
+<p>| <code>int64_value(v)</code>, <code>bool_value(v)</code>, <code>obj_value(o)</code>, <code>nil_value</code> | Build a <code>TValue</code> |</p>
+<p>| <code>to_int64(v)</code>, <code>to_obj(v)</code> | Extract an int64 / object from a <code>TValue</code> |</p>
+<p>| <code>STR_BUF(o)</code> | Get the C string buffer of a str object |</p>
+<p>| <code>kl_new_str(s)</code>, <code>kl_new_fmt_str(fmt, ...)</code> | Create str objects |</p>
+<p>| <code>kl_typeof(v)</code> | Runtime type of a value |</p>
+
+<p>Calling back into Koala (for example, invoking a trait method on a passed object):</p>
+
+<pre><code class="language-c">Object *fn = kl_get_intf_func(args, 0);                  // fetch a method slot
+TValue _args[] = { args[0], obj_value(kl_new_str("Eagle")), int64_value(3) };
+return kl_object_call(fn, _args, 3);                     // call it</code></pre>
+</div>
+<h3 id="building-the-library">Building the library</h3>
+<div class="manual-content">
+<p>Compile the C file as a shared library and link against the Koala runtime:</p>
+
+<pre><code class="language-bash">gcc -fPIC -shared pkg1_native_impl.c -o libpkg1_native.so \
+    -Iinclude/runtime -Iinclude/common \
+    -Lbuild/DebugTest/lib -lkoala</code></pre>
+</div>
+<h3 id="binding-rules">Binding rules</h3>
+<div class="manual-content">
+<p>- <code>@native</code> with a matching C implementation binds at module load; a missing implementation fills</p>
+<p>  a placeholder and prints a warning — calling it panics with "user must implement it".</p>
+<p>- A plain Koala function may be *overridden* by a same-name C implementation — the hot-path entry</p>
+<p>  for optimization.</p>
+<p>- There is no <code>unsafe</code>: the type system trusts the declared Koala signature, and objects allocated</p>
+<p>  on the C side are registered as GC roots through the shadow stack, so they live and die exactly</p>
+<p>  like objects allocated in <code>.kl</code> code.</p>
+</div>
+    </div>
+    <nav id="toc">
+        <a href="index.html" id="toc-home">🏠 Home</a>
+        <ul id="toc-list"></ul>
+        <button id="back-to-top" title="Back to top">↑ Top</button>
+    </nav>
+    <script>
+    // Toggle collapsible sections
+    function toggleSection(button) {
+        const content = button.nextElementSibling;
+        
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            button.classList.remove('collapsed');
+        } else {
+            content.classList.add('hidden');
+            button.classList.add('collapsed');
+        }
+    }
+    
+    // Toggle workspace sections in sidebar
+    function toggleWorkspace(title) {
+        const items = title.nextElementSibling;
+        
+        if (items.classList.contains('hidden')) {
+            items.classList.remove('hidden');
+            title.classList.remove('collapsed');
+        } else {
+            items.classList.add('hidden');
+            title.classList.add('collapsed');
+        }
+    }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBox = document.getElementById('search-box');
+    const sidebar = document.getElementById('sidebar');
+    const content = document.getElementById('content');
+    
+    // Restore sidebar scroll position
+    if (sidebar) {
+        const savedScroll = localStorage.getItem('sidebar-scroll');
+        if (savedScroll) {
+            sidebar.scrollTop = parseInt(savedScroll, 10);
+        }
+        
+        // Save sidebar scroll position on scroll
+        sidebar.addEventListener('scroll', function() {
+            localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+        });
+        
+        // Save scroll position before navigating
+        sidebar.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', function() {
+                localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+            });
+        });
+    }
+    
+    // Generate Table of Contents
+    const tocList = document.getElementById('toc-list');
+    if (tocList && content) {
+        const headings = content.querySelectorAll('h2, h3');
+        if (headings.length > 0) {
+            headings.forEach(function(heading, index) {
+                // Generate ID if not exists
+                if (!heading.id) {
+                    heading.id = 'section-' + index;
+                }
+                
+                // Create TOC item
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#' + heading.id;
+                a.textContent = heading.textContent;
+                a.dataset.target = heading.id;
+                
+                // Add class for h3 (nested)
+                if (heading.tagName === 'H3') {
+                    li.className = 'toc-h3';
+                }
+                
+                li.appendChild(a);
+                tocList.appendChild(li);
+            });
+            
+            // Scroll spy - highlight current section
+            const tocLinks = tocList.querySelectorAll('a');
+            let lastActive = null;
+            
+            function updateActiveLink() {
+                const scrollPos = window.scrollY + 100;
+                let current = null;
+                
+                headings.forEach(function(heading) {
+                    if (heading.offsetTop <= scrollPos) {
+                        current = heading;
+                    }
+                });
+                
+                if (current && current.id) {
+                    const activeLink = tocList.querySelector('a[data-target="' + current.id + '"]');
+                    if (activeLink && activeLink !== lastActive) {
+                        if (lastActive) lastActive.classList.remove('active');
+                        activeLink.classList.add('active');
+                        lastActive = activeLink;
+                    }
+                }
+            }
+            
+            window.addEventListener('scroll', updateActiveLink);
+            updateActiveLink();
+        }
+    }
+    
+    // Back to top button functionality
+    const backToTopBtn = document.getElementById('back-to-top');
+    if (backToTopBtn) {
+        // Show button when user scrolls down
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > 300) {
+                backToTopBtn.classList.add('visible');
+            } else {
+                backToTopBtn.classList.remove('visible');
+            }
+        });
+        
+        // Scroll to top when clicked
+        backToTopBtn.addEventListener('click', function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    }
+    
+    if (!searchBox) return;
+    const packages = document.querySelectorAll('.package');
+    searchBox.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        packages.forEach(pkg => {
+            const link = pkg.querySelector('a');
+            if (link) {
+                const text = link.textContent.toLowerCase();
+                pkg.style.display = text.includes(query) ? '' : 'none';
+            }
+        });
+    });
+});
+</script>
+</body>
+</html>

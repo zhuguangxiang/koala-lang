@@ -1,0 +1,2 @@
+import "std/sys"
+print(sys.path)

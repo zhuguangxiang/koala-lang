@@ -1,0 +1,2304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>std/io - Koala API</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <style>
+:root {
+    --sidebar-width: 280px;
+    --content-max-width: 900px;
+    --bg: #0d1117;
+    --sidebar-bg: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-light: #8b949e;
+    --link: #58a6ff;
+    --code-bg: #1f2428;
+    --heading: #f0f6fc;
+    --badge-bg: #30363d;
+    --badge-text: #c9d1d9;
+    --accent: #238636;
+    --accent-hover: #2ea043;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Modern Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: #6e7681;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #30363d transparent;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--text);
+    background: var(--bg);
+    display: flex;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#sidebar {
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#sidebar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#sidebar h2 {
+    font-size: 40px;
+    font-weight: 700;
+    padding: 0 20px 15px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 15px;
+    color: var(--text-light);
+}
+
+#sidebar .workspace { margin-bottom: 20px; }
+
+#sidebar .workspace-title {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 20px;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+#sidebar .workspace-title:hover {
+    color: var(--text);
+}
+
+#sidebar .ws-arrow {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+#sidebar .workspace-title.collapsed .ws-arrow {
+    transform: rotate(-90deg);
+}
+
+#sidebar .workspace-items.hidden {
+    display: none;
+}
+
+#sidebar .package { margin-bottom: 2px; }
+
+#sidebar .package > a {
+    display: block;
+    padding: 8px 20px 8px 30px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    border-left: 2px solid transparent;
+}
+
+#sidebar .package > a:hover {
+    background: rgba(88, 166, 255, 0.08);
+    border-left-color: var(--link);
+}
+
+#sidebar .package > a.active {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--link);
+    border-left-color: var(--link);
+    font-weight: 500;
+}
+
+#search-box {
+    width: calc(100% - 40px);
+    margin: 0 20px 15px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 15px;
+    background: var(--code-bg);
+    color: var(--text);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#search-box:focus {
+    outline: none;
+    border-color: var(--link);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+#search-box::placeholder {
+    color: var(--text-light);
+}
+
+#content {
+    margin-left: var(--sidebar-width);
+    margin-right: auto;
+    flex: 1;
+    padding: 40px;
+    max-width: var(--content-max-width);
+}
+
+h1 {
+    font-size: 40px;
+    font-weight: 700;
+    color: var(--text-light);
+    margin-bottom: 10px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -0.5px;
+}
+
+h2 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 40px;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.3px;
+}
+
+h3 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 30px;
+    margin-bottom: 10px;
+}
+
+h4.section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 25px;
+    margin-bottom: 12px;
+}
+
+.item {
+    margin-bottom: 40px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+}
+
+.member-item {
+    margin-bottom: 30px;
+    scroll-margin-top: 20px;
+}
+
+.collapsible-section {
+    margin-top: 20px;
+}
+
+.collapse-toggle {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.2s;
+}
+
+.collapse-toggle:hover {
+    color: var(--text);
+}
+
+.collapse-toggle .arrow {
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.collapse-toggle.collapsed .arrow {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    margin-top: 15px;
+    padding-left: 10px;
+    border-left: 2px solid var(--border);
+}
+
+.collapsible-content.hidden {
+    display: none;
+}
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.item-header h3 { margin: 0; font-family: "SF Mono", Monaco, monospace; }
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+}
+
+.badge.trait { background: #1a3a4a; color: #5bc0de; }
+.badge.class { background: #3a1a4a; color: #c77dff; }
+.badge.func { background: #1a3a1a; color: #7ddf7d; }
+.badge.const { background: #4a3a1a; color: #ffb347; }
+
+.signature {
+    background: var(--code-bg);
+    padding: 14px 18px;
+    border-radius: 8px;
+    border-left: 3px solid var(--link);
+    margin-bottom: 15px;
+    overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.signature code {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.bases {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 15px;
+}
+
+.bases strong { color: var(--text); }
+
+.doc-content { margin-bottom: 15px; }
+.doc-content p { margin-bottom: 12px; line-height: 1.7; }
+
+.doc-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.doc-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-content pre code { background: none; padding: 0; border: none; font-size: 14px; }
+
+.member {
+    margin-left: 20px;
+    margin-bottom: 20px;
+    padding-left: 15px;
+    border-left: 2px solid var(--border);
+}
+
+.member-sig {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--heading);
+    margin-bottom: 5px;
+}
+
+.member-tag {
+    font-size: 12px;
+    color: var(--text-light);
+    font-style: italic;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+th, td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 15px;
+}
+
+th {
+    background: var(--sidebar-bg);
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+td a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+td a:hover { color: #79c0ff; }
+
+.summary { color: var(--text-light); font-size: 15px; }
+a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #79c0ff; }
+
+.manual-toc {
+    background: var(--sidebar-bg);
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-toc h2 {
+    margin-top: 0;
+    font-size: 20px;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.manual-toc ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.manual-toc ul ul {
+    padding-left: 20px;
+    margin-top: 5px;
+}
+
+.manual-toc li {
+    margin-bottom: 8px;
+}
+
+.manual-toc a {
+    color: var(--text);
+    text-decoration: none;
+    transition: all 0.2s;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    font-size: 16px;
+}
+
+.manual-toc a:hover {
+    color: var(--link);
+    background: rgba(88, 166, 255, 0.08);
+}
+
+.manual-content {
+    margin-bottom: 20px;
+}
+
+.manual-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 15px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.manual-content pre code {
+    background: none;
+    padding: 0;
+    border: none;
+    font-size: 14px;
+}
+
+.doc-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin: 30px 0;
+}
+
+.doc-card {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-card:hover {
+    border-color: var(--link);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(88, 166, 255, 0.15);
+}
+
+.doc-card h3 {
+    margin: 0 0 12px;
+    font-size: 22px;
+    color: var(--heading);
+    font-weight: 600;
+}
+
+.doc-card p {
+    color: var(--text-light);
+    margin-bottom: 16px;
+    line-height: 1.7;
+}
+
+.doc-card-link {
+    display: inline-block;
+    color: var(--link);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(88, 166, 255, 0.1);
+}
+
+.doc-card-link:hover {
+    color: #79c0ff;
+    background: rgba(88, 166, 255, 0.2);
+}
+
+/* Playground styles */
+.playground-section {
+    background: #1a1a2e;
+    border: 1px solid #2d2d44;
+    border-radius: 8px;
+    padding: 24px;
+    margin: 24px 0;
+}
+
+.playground-section h2 {
+    margin-top: 0;
+    color: #7bb8ff;
+}
+
+.playground-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.playground-editor {
+    position: relative;
+}
+
+.playground-editor textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 16px;
+    background: #0d0d1a;
+    color: #e0e0e0;
+    border: 1px solid #2d2d44;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    tab-size: 4;
+}
+
+.playground-editor textarea:focus {
+    outline: none;
+    border-color: #7bb8ff;
+}
+
+.playground-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.playground-btn {
+    padding: 8px 20px;
+    background: #2d5a3d;
+    color: #a0e0a0;
+    border: 1px solid #3a7a4a;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.playground-btn:hover {
+    background: #3a7a4a;
+}
+
+.playground-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.playground-btn.secondary {
+    background: #2d2d44;
+    color: #a0a0c0;
+    border-color: #3d3d5c;
+}
+
+.playground-btn.secondary:hover {
+    background: #3d3d5c;
+}
+
+.playground-result {
+    padding: 12px 16px;
+    background: #1a2a1a;
+    border: 1px solid #2d5a3d;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 13px;
+    color: #a0e0a0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 60px;
+}
+
+.playground-result.error {
+    background: #2a1a1a;
+    border-color: #5a2d2d;
+    color: #e0a0a0;
+}
+
+.playground-result .result-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.7;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        width: 100%;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+    #content { margin-left: 0; padding: 20px; }
+    body { flex-direction: column; }
+}
+
+.github-link {
+    display: block;
+    margin: 0 20px 15px;
+    padding: 8px 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.github-link:hover {
+    border-color: var(--link);
+    background: rgba(91, 163, 245, 0.1);
+}
+
+.github-link::before {
+    content: "🐙 ";
+}
+
+/* Table of Contents (Right Sidebar) */
+#toc {
+    position: fixed;
+    right: 30px;
+    top: 80px;
+    width: 280px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--sidebar-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#toc::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#toc-title {
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+#toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#toc li {
+    margin: 8px 0;
+}
+
+#toc a {
+    color: var(--text-light);
+    text-decoration: none;
+    display: block;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    line-height: 1.5;
+}
+
+#toc a:hover {
+    background: var(--code-bg);
+    color: var(--link);
+}
+
+#toc a.active {
+    background: rgba(88, 166, 255, 0.1);
+    color: var(--link);
+    border-left: 2px solid var(--link);
+}
+
+#toc ul ul {
+    margin-left: 16px;
+    margin-top: 6px;
+}
+
+#toc ul ul a {
+    font-size: 13px;
+    padding: 4px 12px;
+}
+
+#toc li.toc-h3 a {
+    padding-left: 24px;
+    font-size: 13px;
+}
+
+/* Home button at top */
+#toc-home {
+    display: block;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+#toc-home:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+/* Back to top button */
+#back-to-top {
+    display: none;
+    width: 100%;
+    padding: 10px 16px;
+    margin-top: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#back-to-top:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+#back-to-top.visible {
+    display: block;
+}
+
+/* TOC always visible */
+#content {
+    margin-right: 320px;
+}
+
+/* Scrollbar for TOC */
+#toc::-webkit-scrollbar {
+    width: 6px;
+}
+
+#toc::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#toc::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+#toc::-webkit-scrollbar-thumb:hover {
+    background: var(--text-light);
+}
+</style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2><a href="index.html" style="color:inherit;text-decoration:none;">Koala Docs</a></h2>
+        <a href="https://github.com/zhuguangxiang/koala-lang" class="github-link" target="_blank">GitHub Repository</a>
+        <input type="text" id="search-box" placeholder="Search...">
+        <div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">Guide <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="manual.html">Language Manual</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">std <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="std_builtin.html">builtin</a>
+</div>
+<div class="package">
+<a href="std_collections.html">collections</a>
+</div>
+<div class="package">
+<a href="std_fs.html">fs</a>
+</div>
+<div class="package">
+<a href="std_io.html" class="active">io</a>
+</div>
+<div class="package">
+<a href="std_os.html">os</a>
+</div>
+<div class="package">
+<a href="std_prelude.html">prelude</a>
+</div>
+<div class="package">
+<a href="std_sys.html">sys</a>
+</div>
+<div class="package">
+<a href="std_time.html">time</a>
+</div>
+<div class="package">
+<a href="std_ut.html">ut</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">koala <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="koala_datetime.html">datetime</a>
+</div>
+<div class="package">
+<a href="koala_encoding_base64.html">encoding/base64</a>
+</div>
+<div class="package">
+<a href="koala_encoding_bin.html">encoding/bin</a>
+</div>
+<div class="package">
+<a href="koala_json.html">json</a>
+</div>
+<div class="package">
+<a href="koala_math.html">math</a>
+</div>
+<div class="package">
+<a href="koala_random.html">random</a>
+</div>
+<div class="package">
+<a href="koala_toml.html">toml</a>
+</div>
+<div class="package">
+<a href="koala_wombat.html">wombat</a>
+</div>
+</div>
+</div>
+    </div>
+    <div id="content">
+        <h1>std/io</h1>
+<h2>Traits</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#closable">Closable</a></td><td class="summary">Closable represents a resource that can be explicitly closed to release underlying system resources (file descriptors, network sockets, etc.).</td></tr>
+<tr><td><a href="#reader">Reader</a></td><td class="summary">Reader is the core interface for reading raw bytes from any byte source.</td></tr>
+<tr><td><a href="#seeker">Seeker</a></td><td class="summary">An object with a movable cursor over its content.</td></tr>
+<tr><td><a href="#writer">Writer</a></td><td class="summary">Writer is the core interface for writing raw bytes or strings to any byte sink.</td></tr>
+</table>
+<h2>Classes</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#bufreader">BufReader</a></td><td class="summary">BufReader is a buffered wrapper around a Reader that reduces the number of system calls by reading data in large chunks and serving smaller reads from an internal buffer.</td></tr>
+<tr><td><a href="#bufwriter">BufWriter</a></td><td class="summary">BufWriter is a buffered wrapper around a Writer that reduces the number of system calls by accumulating writes in an internal buffer and flushing them to the underlying writer in large chunks.</td></tr>
+<tr><td><a href="#bytesio">BytesIO</a></td><td class="summary">BytesIO is an in-memory byte stream that implements Reader, Writer, Seeker and Closable. It provides a file-like API for reading and writing binary data entirely in memory, without disk I/O.</td></tr>
+<tr><td><a href="#splitter">Splitter</a></td><td class="summary">Splitter splits a BufReader into chunks delimited by a single byte.</td></tr>
+<tr><td><a href="#splitterwith">SplitterWith</a></td><td class="summary">SplitterWith splits a BufReader into chunks delimited by a multi-byte separator sequence (e.g., "\r\n" or "::").</td></tr>
+<tr><td><a href="#lines">Lines</a></td><td class="summary">Lines iterates over lines of text from a BufReader.</td></tr>
+<tr><td><a href="#words">Words</a></td><td class="summary">Words iterates over whitespace-separated tokens from a BufReader.</td></tr>
+<tr><td><a href="#stringio">StringIO</a></td><td class="summary">StringIO is an in-memory text stream that implements Reader, Seeker and Closable. It wraps a UTF-8 string and provides file-like reading operations without touching the filesystem.</td></tr>
+</table>
+<h2>Functions</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#write_all">write_all</a></td><td class="summary">Write all bytes of `bs` to `dst`, retrying on partial writes until the whole buffer is written or `dst` fails.</td></tr>
+<tr><td><a href="#read_all">read_all</a></td><td class="summary">Read all remaining bytes from `src` until EOF and return them as `bytes`.</td></tr>
+<tr><td><a href="#read_exact">read_exact</a></td><td class="summary">Read exactly `bs.len()` bytes from `src` into `bs`, retrying on short reads.</td></tr>
+<tr><td><a href="#copy">copy</a></td><td class="summary">Copy bytes from `src` to `dst` until the source reaches EOF.</td></tr>
+</table>
+<h2>Constants</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#seek_set">SEEK_SET</a></td><td class="summary">Seek whence: absolute position from the start of content.</td></tr>
+<tr><td><a href="#seek_cur">SEEK_CUR</a></td><td class="summary">Seek whence: relative to the current position.</td></tr>
+<tr><td><a href="#seek_end">SEEK_END</a></td><td class="summary">Seek whence: relative to the end of content.</td></tr>
+</table>
+<h2>Traits</h2>
+
+<div class="item" id="closable">
+    <div class="signature"><code>pub trait Closable</code></div>
+    
+    <div class="doc-content"><p>Closable represents a resource that can be explicitly closed to release</p>
+<p>underlying system resources (file descriptors, network sockets, etc.).</p>
+
+<p>Implementing this trait signals that the resource holds external state</p>
+<p>that should be cleaned up when no longer needed. Users are expected to</p>
+<p>call close() when done, or use a context manager / defer pattern if</p>
+<p>available.</p>
+
+<p>Typical implementations: File, Socket, Pipe, and buffered wrappers</p>
+<p>like BufReader / BufWriter that need to propagate close to their</p>
+<p>underlying reader or writer.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let f = fs.open("data.txt", "r")!
+f.close()
+// ... use f</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="close">
+    <div class="signature"><code>func close()</code></div>
+    <div class="doc-content"><p>Close the underlying resource and release associated system handles.</p>
+
+<p>After calling close(), any subsequent read/write operations on this</p>
+<p>resource should panic with an "I/O operation on closed file" error.</p>
+
+<p>Calling close() multiple times is safe — subsequent calls are no-ops.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="reader">
+    <div class="signature"><code>pub trait Reader</code></div>
+    
+    <div class="doc-content"><p>Reader is the core interface for reading raw bytes from any byte source.</p>
+
+<p>Implementations can wrap files, network sockets, stdin, or in-memory buffers.</p>
+<p>The trait deliberately operates on raw bytes rather than strings to keep</p>
+<p>IO encoding-agnostic — callers are responsible for decoding bytes into</p>
+<p>strings if needed.</p>
+
+<p>Implementations should follow these conventions:</p>
+<p>- Return the number of bytes actually read (0 ≤ n ≤ bs.len()).</p>
+<p>- Return 0 when EOF is reached (no more data available).</p>
+<p>- Never return a negative value.</p>
+<p>- A return value less than bs.len() does NOT necessarily mean EOF;</p>
+<p>  it may simply indicate that fewer bytes are currently available.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let f = fs.open("data.bin", "r")!
+let buf = bytes(1024)
+let n = f.read(buf)
+if n &gt; 0 {
+    process(buf[:n])
+}
+f.close()</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="read">
+    <div class="signature"><code>func read(bs bytes) int</code></div>
+    <div class="doc-content"><p>Read up to bs.len() bytes from the underlying source into the provided buffer.</p>
+
+<p># Arguments</p>
+<p>- <code>bs</code>: The destination buffer to fill with data.</p>
+
+<p># Returns</p>
+<p>The number of bytes actually read, or 0 if EOF has been reached.</p>
+
+<p># Notes</p>
+<p>- The buffer <code>bs</code> is mutated in-place with the read data.</p>
+<p>- A short read (n < bs.len()) is not an error and does not imply EOF.</p>
+<p>- If the resource has been closed, this method should panic.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="seeker">
+    <div class="signature"><code>pub trait Seeker</code></div>
+    
+    <div class="doc-content"><p>An object with a movable cursor over its content.</p>
+
+<p>Implementers: <code>fs.File</code>, <code>io.BytesIO</code>, <code>io.StrIO</code>.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="seek">
+    <div class="signature"><code>func seek(offset int, whence int) int</code></div>
+    <div class="doc-content"><p>Move the cursor by <code>offset</code> relative to <code>whence</code> and return</p>
+<p>the new absolute position, or -1 on error.</p>
+
+<p><code>whence</code>: 0 = start of content, 1 = current position,</p>
+<p>2 = end of content (POSIX values).</p>
+
+<p>See: <code>SEEK_SET</code>, <code>SEEK_CUR</code>, <code>SEEK_END</code>.</p></div>
+</div>
+
+<div class="member-item" id="tell">
+    <div class="signature"><code>func tell() int</code></div>
+    <div class="doc-content"><p>Return the current cursor position, or -1 on error.</p>
+
+<p>Equivalent to <code>seek(0, 1)</code>, provided for readability.</p>
+
+<p>See: <code>seek</code>.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="writer">
+    <div class="signature"><code>pub trait Writer</code></div>
+    
+    <div class="doc-content"><p>Writer is the core interface for writing raw bytes or strings to any byte sink.</p>
+
+<p>Implementations can wrap files, network sockets, stdout, stderr, or</p>
+<p>in-memory buffers. It provides both byte-level and string-level write</p>
+<p>operations to accommodate different caller needs while remaining</p>
+<p>encoding-agnostic at the trait level.</p>
+
+<p>Implementations should follow these conventions:</p>
+<p>- Return the number of bytes actually written.</p>
+<p>- A short write (n < bs.len()) indicates a partial write, which may</p>
+<p>  signal an error condition (e.g., disk full, broken pipe).</p>
+<p>- Never return a negative value.</p>
+<p>- The flush() method should be called to ensure buffered data is</p>
+<p>  pushed to the underlying sink.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let f = fs.open("output.bin", "w")!
+let n = f.write(b"hello")
+let m = f.write_str("world")
+if n + m == 10 {
+    f.flush()
+}
+f.close()</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="write">
+    <div class="signature"><code>func write(bs bytes) int</code></div>
+    <div class="doc-content"><p>Write the contents of the provided byte slice to the underlying sink.</p>
+
+<p>Arguments</p>
+<p>- <code>bs</code>: The source bytes to write.</p>
+
+<p>Returns</p>
+<p>The number of bytes actually written. A value less than bs.len()</p>
+<p>indicates a partial write, which typically signals an error condition.</p>
+
+<p># Notes</p>
+<p>- The buffer <code>bs</code> is not mutated.</p>
+<p>- For buffered writers, data may be held in an internal buffer until</p>
+<p>  flush() is called or the buffer is full.</p>
+<p>- If the resource has been closed, this method should panic.</p></div>
+</div>
+
+<div class="member-item" id="write_str">
+    <div class="signature"><code>func write_str(s str) int</code></div>
+    <div class="doc-content"><p>Write the given string to the underlying sink.</p>
+
+<p>This is a convenience method for callers who have string data and</p>
+<p>want to avoid manually encoding to bytes. The implementation is</p>
+<p>responsible for converting the string to its UTF-8 byte representation</p>
+<p>before writing.</p>
+
+<p>Arguments</p>
+<p>- <code>s</code>: The source string to write.</p>
+
+<p>Returns</p>
+<p>The number of bytes actually written (not the number of characters).</p>
+<p>A value less than the UTF-8 byte length of <code>s</code> indicates a partial write.</p>
+
+<p>Notes</p>
+<p>- The string <code>s</code> is not mutated.</p>
+<p>- This method is semantically equivalent to <code>write(s.to_bytes())</code> but</p>
+<p>  may be more efficient in implementations that can avoid an intermediate</p>
+<p>  allocation.</p>
+<p>- If the resource has been closed, this method should panic.</p></div>
+</div>
+
+<div class="member-item" id="flush">
+    <div class="signature"><code>func flush()</code></div>
+    <div class="doc-content"><p>Flush any internally buffered data to the underlying sink.</p>
+
+<p>For unbuffered writers (e.g., raw File), this is typically a no-op.</p>
+<p>For buffered writers (e.g., BufWriter), this forces all pending data</p>
+<p>to be written out immediately.</p>
+
+<p>Notes</p>
+<p>- Should be called after a series of write() / write_str() calls when</p>
+<p>  data must be guaranteed to reach the underlying sink (e.g., before</p>
+<p>  close(), or when writing log entries that must not be lost).</p>
+<p>- If the resource has been closed, this method should panic.</p></div>
+</div>
+</div></div>
+</div>
+
+<h2>Classes</h2>
+
+<div class="item" id="bufreader">
+    <div class="signature"><code>pub class BufReader : Reader</code></div>
+    
+    <div class="doc-content"><p>BufReader is a buffered wrapper around a Reader that reduces the number</p>
+<p>of system calls by reading data in large chunks and serving smaller</p>
+<p>reads from an internal buffer.</p>
+
+<p>It is especially useful when the underlying reader performs expensive</p>
+<p>operations per call (e.g., file I/O, network sockets). Instead of</p>
+<p>calling read() for every small request, BufReader fetches data in</p>
+<p>configurable block sizes (default 8192 bytes) and serves subsequent</p>
+<p>reads from memory.</p>
+
+<p>BufReader also provides peek() and discard() methods for lookahead</p>
+<p>operations, and read_until() for delimited reading (used by Splitter,</p>
+<p>Lines, and Words iterators). The convenience factories split(),</p>
+<p>split_with(), lines(), and words() create those iterators directly on</p>
+<p>this reader.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let f = fs.open("data.txt", "r")!
+let br = io.BufReader(f)
+for line in br.lines() {
+    print(line)
+}
+f.close()</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(_inner Reader, size = 8192)</code></div>
+    <div class="doc-content"><p>Create a new BufReader wrapping the given reader with the specified buffer size.</p>
+
+<p>Arguments</p>
+<p>- <code>_inner</code>: The underlying reader to wrap.</p>
+<p>- <code>size</code>: The internal buffer size in bytes. Defaults to 8192.</p>
+
+<p>The buffer is allocated immediately. Larger sizes reduce system call frequency</p>
+<p>but increase memory usage.</p></div>
+</div>
+
+<div class="member-item" id="read">
+    <div class="signature"><code>pub func read(out bytes) int</code></div>
+    <div class="doc-content"><p>Read up to <code>out.len()</code> bytes from the buffered stream into the provided buffer.</p>
+
+<p>Data is served from the internal buffer first. If the buffer is empty,</p>
+<p>it is refilled from the underlying reader before serving the read.</p>
+
+<p>Arguments</p>
+<p>- <code>out</code>: The destination buffer to fill with data.</p>
+
+<p>Returns</p>
+<p>The number of bytes actually read, or 0 if EOF has been reached.</p></div>
+</div>
+
+<div class="member-item" id="avail">
+    <div class="signature"><code>pub func avail() int</code></div>
+    <div class="doc-content"><p>Return the number of bytes currently available in the internal buffer</p>
+<p>without triggering a refill from the underlying reader.</p>
+
+<p>This is useful for checking whether data is ready to be consumed</p>
+<p>without blocking or performing I/O.</p>
+
+<p>Returns</p>
+<p>The number of unconsumed bytes in the buffer (end - start).</p></div>
+</div>
+
+<div class="member-item" id="peek">
+    <div class="signature"><code>pub func peek(n int) bytes</code></div>
+    <div class="doc-content"><p>Peek at the next n bytes without consuming them.</p>
+
+<p>Panics if n exceeds the buffer capacity, or if the stream holds fewer</p>
+<p>than n bytes after one fill attempt. The returned view stays valid</p>
+<p>only until the next read, discard, or peek.</p></div>
+</div>
+
+<div class="member-item" id="discard">
+    <div class="signature"><code>pub func discard(n int) int</code></div>
+    <div class="doc-content"><p>Skip (discard) the next n bytes in the stream without reading them</p>
+<p>into a caller-provided buffer.</p>
+
+<p>This is more efficient than reading into a temporary buffer when</p>
+<p>the data is not needed, as it avoids copying.</p>
+
+<p>Arguments</p>
+<p>- <code>n</code>: The number of bytes to skip.</p>
+
+<p>Returns</p>
+<p>The number of bytes actually skipped. May be less than n if EOF</p>
+<p>is reached before skipping the requested amount.</p></div>
+</div>
+
+<div class="member-item" id="fill">
+    <div class="signature"><code>pub func fill() int</code></div>
+    <div class="doc-content"><p>Compact unconsumed bytes to the front, then read once into the free</p>
+<p>tail space. Returns the available byte count after filling; 0 means</p>
+<p>no data (EOF).</p>
+
+<p>Public so lookahead callers (e.g. io.Words) can probe for EOF without</p>
+<p>the strict requirement of peek().</p></div>
+</div>
+
+<div class="member-item" id="read_until">
+    <div class="signature"><code>pub func read_until(out Buffer, delim uint8) int</code></div>
+    <div class="doc-content"><p>Read bytes from the stream into the provided buffer until a delimiter</p>
+<p>byte is encountered or EOF is reached.</p>
+
+<p>The delimiter byte is consumed from the stream but NOT included in</p>
+<p>the output buffer. This is the core method used by Splitter, Lines,</p>
+<p>and Words iterators.</p>
+
+<p>Arguments</p>
+<p>- <code>out</code>: The destination buffer to append read bytes to.</p>
+<p>- <code>delim</code>: The delimiter byte to stop at (not included in output).</p>
+
+<p>Returns</p>
+<p>The number of bytes appended to the output buffer (excluding the</p>
+<p>delimiter) when the delimiter is found; this may be 0 for leading or</p>
+<p>consecutive delimiters. Returns -1 if EOF is reached before the</p>
+<p>delimiter is found; any trailing bytes read before EOF are still</p>
+<p>appended to <code>out</code>.</p></div>
+</div>
+
+<div class="member-item" id="read_line">
+    <div class="signature"><code>pub func read_line(_buf Buffer) int</code></div>
+    <div class="doc-content"><p>Read one line up to '\n', appending it to <code>buf</code>.</p>
+
+<p>The '\n' is consumed but not appended, and a trailing '\r' is</p>
+<p>NOT stripped (use Lines for that). Returns the number of bytes appended</p>
+<p>(0 for an empty line), or -1 at EOF; bytes read before EOF are still appended to <code>buf</code>.</p></div>
+</div>
+
+<div class="member-item" id="read_byte">
+    <div class="signature"><code>pub func read_byte() int</code></div>
+    <div class="doc-content"><p>Read a single byte and return its value (0-255), or -1 at EOF.</p>
+
+<p>Exactly one byte is consumed, so NUL bytes are returned as 0 and no</p>
+<p>data is ever read ahead or lost.</p></div>
+</div>
+
+<div class="member-item" id="split">
+    <div class="signature"><code>pub func split(delim uint8, size = 256) Splitter</code></div>
+    <div class="doc-content"><p>Return a Splitter that yields chunks delimited by the given byte.</p>
+
+<p>Convenience factory equivalent to Splitter(self, delim). The iterator</p>
+<p>shares this reader, so interleaving direct reads with iteration</p>
+<p>consumes the same underlying stream.</p>
+
+<p>Arguments</p>
+<p>- <code>delim</code>: The single byte used as the delimiter (e.g., b',' or b'\n').</p>
+<p>  The delimiter is consumed but not included in the returned chunks.</p>
+<p>- <code>size</code> optionally sets the iterator's initial internal buffer capacity (default 256).</p>
+<p>  It still grows automatically when needed.</p>
+
+<p>Returns</p>
+<p>A Splitter over the remaining bytes of this reader.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">for chunk in br.split(',') { print(chunk.to_str()) }</code></pre></div>
+</div>
+
+<div class="member-item" id="split_with">
+    <div class="signature"><code>pub func split_with(sep bytes, size = 256) SplitterWith</code></div>
+    <div class="doc-content"><p>Return a SplitterWith that yields chunks delimited by a multi-byte</p>
+<p>separator sequence.</p>
+
+<p>Semantics mirror split(): the separator is consumed but never</p>
+<p>included, leading and consecutive separators produce empty chunks, a</p>
+<p>trailing separator adds no final empty chunk, and a non-empty</p>
+<p>remainder is returned at EOF. The separator may straddle reader</p>
+<p>refills and may be longer than the reader buffer capacity. An empty</p>
+<p>separator panics at construction time. For single-byte delimiters,</p>
+<p>prefer split(), which is faster.</p>
+
+<p><code>size</code> optionally sets the iterator's initial internal buffer capacity (default 256).</p>
+<p>It still grows automatically when needed.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">for chunk in br.split_with("::".to_bytes()) { print(chunk.to_str()) }</code></pre></div>
+</div>
+
+<div class="member-item" id="lines">
+    <div class="signature"><code>pub func lines(size = 256) Lines</code></div>
+    <div class="doc-content"><p>Return a Lines iterator over the remaining lines of the stream.</p>
+
+<p>Convenience factory equivalent to Lines(self). Lines end at '\n'; a</p>
+<p>trailing '\r' of a CRLF line ending is stripped. The iterator shares</p>
+<p>this reader with any other consumer.</p>
+
+<p>Returns</p>
+<p>A Lines iterator over the remaining bytes of this reader.</p>
+
+<p><code>size</code> optionally sets the iterator's initial internal buffer capacity (default 256).</p>
+<p>It still grows automatically when needed.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">for line in br.lines() { print(line) }</code></pre></div>
+</div>
+
+<div class="member-item" id="words">
+    <div class="signature"><code>pub func words(size = 256) Words</code></div>
+    <div class="doc-content"><p>Return a Words iterator over whitespace-separated tokens.</p>
+
+<p>Convenience factory equivalent to Words(self). Tokens are separated</p>
+<p>by spaces, tabs, newlines, and carriage returns; one trailing</p>
+<p>delimiter is consumed together with each token. The iterator shares</p>
+<p>this reader with any other consumer.</p>
+
+<p>Returns</p>
+<p>A Words iterator over the remaining bytes of this reader.</p>
+
+<p><code>size</code> optionally sets the iterator's initial internal buffer capacity (default 256).</p>
+<p>It still grows automatically when needed.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">for word in br.words() { print(word) }</code></pre></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="bufwriter">
+    <div class="signature"><code>pub class BufWriter : Writer</code></div>
+    
+    <div class="doc-content"><p>BufWriter is a buffered wrapper around a Writer that reduces the number</p>
+<p>of system calls by accumulating writes in an internal buffer and flushing</p>
+<p>them to the underlying writer in large chunks.</p>
+
+<p>It is especially useful when the underlying writer performs expensive</p>
+<p>operations per call (e.g., file I/O, network sockets). Instead of</p>
+<p>writing every small piece of data immediately, BufWriter batches writes</p>
+<p>and sends them in configurable block sizes (default 8192 bytes).</p>
+
+<p>BufWriter automatically flushes its buffer when:</p>
+<p>- The buffer is full.</p>
+<p>- A write larger than the buffer size is performed (bypasses buffer).</p>
+<p>- flush() is called explicitly.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let f = fs.open("output.txt", "w")!
+let bw = io.BufWriter(f)
+bw.write_str("Hello, World!")
+bw.flush()
+f.close()</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(_inner Writer, buf_size = 8192)</code></div>
+    <div class="doc-content"><p>Create a new BufWriter wrapping the given writer with the specified buffer size.</p>
+
+<p>Arguments</p>
+<p>- <code>_inner</code>: The underlying writer to wrap.</p>
+<p>- <code>buf_size</code>: The internal buffer size in bytes. Defaults to 8192.</p>
+
+<p>The buffer is allocated immediately. Larger sizes reduce system call</p>
+<p>frequency but increase memory usage.</p></div>
+</div>
+
+<div class="member-item" id="_flush">
+    <div class="signature"><code>func _flush()</code></div>
+    <div class="doc-content"><p>Flush the internal buffer to the underlying writer.</p>
+
+<p>This is an internal method called automatically when the buffer is</p>
+<p>full or when a large write bypasses the buffer. Users should call</p>
+<p>the public flush() method instead, which also flushes the underlying writer.</p></div>
+</div>
+
+<div class="member-item" id="write">
+    <div class="signature"><code>pub func write(data bytes) int</code></div>
+    <div class="doc-content"><p>Write the provided byte slice to the buffered stream.</p>
+
+<p>Data is accumulated in the internal buffer. If the data exceeds the</p>
+<p>buffer capacity, the buffer is flushed first, and then:</p>
+<p>- If the data is larger than the entire buffer, it is written directly</p>
+<p>  to the underlying writer (bypassing the buffer).</p>
+<p>- Otherwise, the data is copied into the now-empty buffer.</p>
+
+<p>Arguments</p>
+<p>- <code>data</code>: The source bytes to write.</p>
+
+<p>Returns</p>
+<p>The number of bytes actually written (buffered or flushed).</p>
+<p>A value less than data.len() indicates a partial write.</p>
+
+<p>Notes</p>
+<p>- This method satisfies the Writer trait contract.</p>
+<p>- Data may not reach the underlying writer until flush() is called</p>
+<p>  or the buffer fills up.</p></div>
+</div>
+
+<div class="member-item" id="write_str">
+    <div class="signature"><code>pub func write_str(s str) int</code></div>
+    <div class="doc-content"><p>Write the UTF-8 encoding of the string to the buffered stream.</p>
+
+<p>This is a convenience method equivalent to write(s.to_bytes()).</p>
+<p>Data is accumulated in the internal buffer. If the UTF-8 encoded data</p>
+<p>exceeds the buffer capacity, the buffer is flushed first, and then:</p>
+<p>- If the encoded data is larger than the entire buffer, it is written</p>
+<p>  directly to the underlying writer (bypassing the buffer).</p>
+<p>- Otherwise, the data is copied into the now-empty buffer.</p>
+
+<p>Arguments</p>
+<p>- <code>s</code>: The source string to encode and write.</p>
+
+<p>Returns</p>
+<p>The number of bytes actually written (buffered or flushed).</p>
+<p>A value less than the UTF-8 byte length of <code>s</code> indicates a partial write.</p></div>
+</div>
+
+<div class="member-item" id="flush">
+    <div class="signature"><code>pub func flush()</code></div>
+    <div class="doc-content"><p>Flush all buffered data to the underlying writer and then flush</p>
+<p>the underlying writer itself.</p>
+
+<p>This ensures that all data written so far has been pushed through</p>
+<p>to the final destination (e.g., disk, network).</p>
+
+<p>Notes</p>
+<p>- Should be called when data must be guaranteed to reach the</p>
+<p>  underlying sink (e.g., before close(), or when writing log entries).</p>
+<p>- After calling flush(), the internal buffer is empty and ready</p>
+<p>  for new writes.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="bytesio">
+    <div class="signature"><code>pub class BytesIO : Reader &amp; Writer &amp; Seeker &amp; Closable</code></div>
+    
+    <div class="doc-content"><p>BytesIO is an in-memory byte stream that implements Reader, Writer,</p>
+<p>Seeker and Closable. It provides a file-like API for reading and</p>
+<p>writing binary data entirely in memory, without disk I/O.</p>
+
+<p>Unlike Python's BytesIO (which uses a dynamically resizing buffer),</p>
+<p>Koala's BytesIO wraps a fixed-capacity bytes buffer. The capacity is</p>
+<p>determined at construction time and never changes. The stream keeps</p>
+<p>track of the logical end of the data written so far, which never</p>
+<p>exceeds the capacity:</p>
+<p>- Reading serves bytes from the current position up to the logical end,</p>
+<p>  and returns 0 once the position reaches the end (EOF).</p>
+<p>- Writing at or beyond the logical end appends data and moves the end</p>
+<p>  forward; writing before the end overwrites existing bytes without</p>
+<p>  changing the end.</p>
+
+<p>BytesIO is useful for:</p>
+<p>- Building binary data incrementally before sending over a network.</p>
+<p>- Testing code that expects a Reader / Writer without touching the filesystem.</p>
+<p>- Temporary storage of binary data (e.g., image processing, serialization).</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let bio = io.BytesIO(64)
+bio.write_str("Hello, ")
+bio.write_str("BytesIO!")
+bio.seek(0, 0)
+let buf = bytes(64)
+let n = bio.read(buf)          // n == 15
+print(buf.view(0, n).to_str()) // "Hello, BytesIO!"</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(size = 8192)</code></div>
+    <div class="doc-content"><p>Create an empty BytesIO with the given buffer capacity.</p>
+
+<p>Arguments</p>
+<p>- <code>size</code>: The fixed buffer capacity in bytes. Defaults to 8192.</p>
+
+<p>The buffer is allocated and zero-filled. The logical end and the</p>
+<p>read/write position both start at 0.</p>
+
+<p>Panic if <code>size</code> is negative.</p></div>
+</div>
+
+<div class="member-item" id="from_bytes">
+    <div class="signature"><code>pub static func from_bytes(data bytes) BytesIO</code></div>
+    <div class="doc-content"><p>Create a BytesIO initialized with a copy of the given byte data.</p>
+
+<p>The capacity equals data.len(), the logical end is data.len(), and</p>
+<p>the position is 0, so the content can be read back immediately.</p>
+
+<p>Arguments</p>
+<p>- <code>data</code>: The initial byte data. It is not mutated.</p>
+
+<p>Returns</p>
+<p>A new BytesIO containing a copy of <code>data</code>.</p></div>
+</div>
+
+<div class="member-item" id="from_str">
+    <div class="signature"><code>pub static func from_str(s str) BytesIO</code></div>
+    <div class="doc-content"><p>Create a BytesIO initialized with the UTF-8 encoding of the given string.</p>
+
+<p>This is a convenience method equivalent to BytesIO.from_bytes(s.to_bytes()).</p>
+
+<p>Arguments</p>
+<p>- <code>s</code>: The initial string data.</p>
+
+<p>Returns</p>
+<p>A new BytesIO containing the UTF-8 bytes of <code>s</code>, positioned at 0.</p></div>
+</div>
+
+<div class="member-item" id="read">
+    <div class="signature"><code>pub func read(_bs bytes) int</code></div>
+    <div class="doc-content"><p>Read up to _bs.len() bytes from the current position into <code>_bs</code>.</p>
+
+<p>Arguments</p>
+<p>- <code>_bs</code>: The destination buffer to fill with data.</p>
+
+<p>Returns</p>
+<p>The number of bytes actually read, or 0 if the position has</p>
+<p>reached the logical end (EOF).</p>
+
+<p>Notes</p>
+<p>- A short read (n < _bs.len()) means EOF was reached, since all</p>
+<p>  the data is already in memory.</p>
+<p>- Panic if the stream has been closed.</p></div>
+</div>
+
+<div class="member-item" id="write">
+    <div class="signature"><code>pub func write(_bs bytes) int</code></div>
+    <div class="doc-content"><p>Write <code>_bs</code> at the current position.</p>
+
+<p>Writing at or beyond the logical end appends data and moves the</p>
+<p>end forward; writing before the end overwrites existing bytes.</p>
+<p>After the call the position is just past the written data.</p>
+
+<p>Arguments</p>
+<p>- <code>_bs</code>: The source bytes to write. It is not mutated.</p>
+
+<p>Returns</p>
+<p>The number of bytes actually written, always _bs.len().</p>
+
+<p>Notes</p>
+<p>- Panic if the stream has been closed.</p>
+<p>- Panic if the write would exceed the fixed capacity.</p></div>
+</div>
+
+<div class="member-item" id="write_str">
+    <div class="signature"><code>pub func write_str(s str) int</code></div>
+    <div class="doc-content"><p>Write the UTF-8 encoding of the given string at the current position.</p>
+
+<p>This is a convenience method equivalent to write(s.to_bytes()).</p>
+
+<p>Arguments</p>
+<p>- <code>s</code>: The string to write.</p>
+
+<p>Returns</p>
+<p>The number of bytes actually written (not the number of characters).</p>
+
+<p>Notes</p>
+<p>- Panic if the stream has been closed.</p>
+<p>- Panic if the write would exceed the fixed capacity.</p></div>
+</div>
+
+<div class="member-item" id="flush">
+    <div class="signature"><code>pub func flush()</code></div>
+    <div class="doc-content"><p>Flush buffered data to the underlying sink.</p>
+
+<p>BytesIO keeps everything in memory, so this is a no-op. It exists</p>
+<p>to satisfy the Writer trait and to panic on a closed stream like</p>
+<p>the other I/O operations.</p>
+
+<p>Panic if the stream has been closed.</p></div>
+</div>
+
+<div class="member-item" id="seek">
+    <div class="signature"><code>pub func seek(offset int, whence int) int</code></div>
+    <div class="doc-content"><p>Move the read/write position to <code>offset</code> relative to <code>whence</code>.</p>
+
+<p>The resulting position is clamped into [0, end]. Seeking past the</p>
+<p>logical end does not create gaps: the next write appends at the</p>
+<p>end and extends it.</p>
+
+<p>Arguments</p>
+<p>- <code>offset</code>: The byte offset relative to <code>whence</code>. May be negative.</p>
+<p>- <code>whence</code>: The reference point for the offset:</p>
+<p>  - 0: Start of the data (SEEK_SET).</p>
+<p>  - 1: Current position (SEEK_CUR).</p>
+<p>  - 2: Logical end of the data (SEEK_END).</p>
+
+<p>Returns</p>
+<p>The new absolute position, or -1 if <code>whence</code> is invalid or the</p>
+<p>stream has been closed.</p></div>
+</div>
+
+<div class="member-item" id="tell">
+    <div class="signature"><code>pub func tell() int</code></div>
+    <div class="doc-content"><p>Return the current read/write position.</p>
+
+<p>Returns</p>
+<p>The current byte offset from the start of the buffer,</p>
+<p>or -1 if the stream has been closed.</p></div>
+</div>
+
+<div class="member-item" id="close">
+    <div class="signature"><code>pub func close()</code></div>
+    <div class="doc-content"><p>Close this BytesIO.</p>
+
+<p>Since BytesIO operates entirely in memory, no system resources are</p>
+<p>released; the stream is only marked as closed. Subsequent read,</p>
+<p>write, write_str and flush operations panic; seek returns -1 and</p>
+<p>tell returns -1. Calling close() multiple times is safe.</p></div>
+</div>
+
+<div class="member-item" id="is_closed">
+    <div class="signature"><code>pub func is_closed() bool</code></div>
+    <div class="doc-content"><p>Return true if close() has been called.</p></div>
+</div>
+
+<div class="member-item" id="size">
+    <div class="signature"><code>pub func size() int</code></div>
+    <div class="doc-content"><p>Return the logical end of the data written so far.</p>
+
+<p>Returns</p>
+<p>The number of valid bytes from the start of the buffer,</p>
+<p>or -1 if the stream has been closed.</p></div>
+</div>
+
+<div class="member-item" id="capacity">
+    <div class="signature"><code>pub func capacity() int</code></div>
+    <div class="doc-content"><p>Return the fixed capacity of the underlying buffer.</p></div>
+</div>
+
+<div class="member-item" id="getvalue">
+    <div class="signature"><code>pub func getvalue() bytes</code></div>
+    <div class="doc-content"><p>Return a copy of the bytes written so far, from 0 to the logical end.</p>
+
+<p>The position is not changed. The result is an independent copy:</p>
+<p>later writes to the stream do not affect it.</p>
+
+<p>Panic if the stream has been closed.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="splitter">
+    <div class="signature"><code>pub class Splitter : Iterator[bytes]</code></div>
+    
+    <div class="doc-content"><p>Splitter splits a BufReader into chunks delimited by a single byte.</p>
+
+<p>It reads from the underlying reader on each iteration, accumulating bytes</p>
+<p>into an internal buffer until the delimiter is encountered or EOF is reached.</p>
+<p>The delimiter itself is not included in the returned chunk.</p>
+
+<p>Leading and consecutive delimiters produce empty chunks. The empty</p>
+<p>remainder after a trailing delimiter is dropped at EOF, and a non-empty</p>
+<p>trailing chunk without a final delimiter is still returned. has_next()</p>
+<p>caches its result, so it may be called repeatedly without consuming chunks.</p>
+
+<p>Typical use case: splitting a stream by a custom separator (e.g., CSV fields</p>
+<p>separated by ',' or log entries separated by '\x00').</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let br = io.BufReader(io.StdinReader())
+for chunk in io.Splitter(br, ',') {
+    print(chunk)
+}</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(_br BufReader, _delim uint8, size = 256)</code></div>
+    <div class="doc-content"><p>Create a new Splitter that splits the given reader by the specified delimiter.</p>
+
+<p>Arguments</p>
+<p>- <code>_br</code>: The buffered reader to read from.</p>
+<p>- <code>_delim</code>: The single byte used as the delimiter (e.g., b',' or b'\n').</p>
+<p>- <code>size</code>: The initial capacity of the internal buffer in bytes</p>
+<p>  (default 256). The buffer still grows automatically if a chunk</p>
+<p>  exceeds this size. Must be positive.</p></div>
+</div>
+
+<div class="member-item" id="has_next">
+    <div class="signature"><code>pub func has_next() bool</code></div>
+    <div class="doc-content"><p>Return true if another chunk is available, buffering it if necessary.</p>
+
+<p>Repeated calls do not advance past the pending chunk. A chunk is empty</p>
+<p>when the delimiter appears at the start of the remaining input or when</p>
+<p>two delimiters are consecutive. Iteration stops at EOF; a non-empty</p>
+<p>trailing chunk without a final delimiter is still returned.</p></div>
+</div>
+
+<div class="member-item" id="next_strict">
+    <div class="signature"><code>pub func next_strict() bytes</code></div>
+    <div class="doc-content"><p>Return the next chunk and advance the iterator. Panic if exhausted.</p>
+
+<p>May be called without a preceding has_next(). The returned bytes do</p>
+<p>not include the delimiter and are independent of the internal buffer,</p>
+<p>so they remain valid after advancing.</p></div>
+</div>
+
+<div class="member-item" id="next">
+    <div class="signature"><code>pub func next() bytes?</code></div>
+    <div class="doc-content"><p>Return the next chunk, or nil if EOF has been reached.</p>
+
+<p>Convenience method that combines has_next() and next_strict().</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="splitterwith">
+    <div class="signature"><code>pub class SplitterWith : Iterator[bytes]</code></div>
+    
+    <div class="doc-content"><p>SplitterWith splits a BufReader into chunks delimited by a multi-byte</p>
+<p>separator sequence (e.g., "\r\n" or "::").</p>
+
+<p>Semantics mirror Splitter: the separator is consumed but never included,</p>
+<p>leading and consecutive separators produce empty chunks, the empty</p>
+<p>remainder after a trailing separator is dropped at EOF, and a non-empty</p>
+<p>trailing chunk without a final separator is still returned. Separators</p>
+<p>may straddle reader refills and may be longer than the reader buffer</p>
+<p>capacity; an incomplete separator prefix at EOF is plain data. An empty</p>
+<p>separator panics at construction time. For single-byte delimiters prefer</p>
+<p>Splitter, which avoids the extra scanning cost. has_next() caches its</p>
+<p>result, so it may be called repeatedly without consuming chunks.</p>
+
+<p>Because chunks accumulate in the iterator's own buffer, it may read ahead</p>
+<p>of the last returned chunk; interleave direct reads on the underlying</p>
+<p>reader with care.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">for chunk in io.SplitterWith(br, "::".to_bytes()) { print(chunk) }</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(_br BufReader, _sep bytes, size = 256)</code></div>
+    <div class="doc-content"><p>Create a SplitterWith splitting <code>_br</code> on the separator <code>_sep</code>.</p>
+
+<p><code>_sep</code> must not be empty (panics otherwise). <code>size</code> sets the initial</p>
+<p>capacity of the internal buffers and the per-read scratch size</p>
+<p>(default 256); buffers still grow automatically for larger chunks.</p>
+<p>Must be positive.</p></div>
+</div>
+
+<div class="member-item" id="has_next">
+    <div class="signature"><code>pub func has_next() bool</code></div>
+    <div class="doc-content"><p>Return true if another chunk is available, buffering it if necessary.</p>
+
+<p>Repeated calls do not advance past the pending chunk. A chunk is</p>
+<p>empty when the separator appears at the start of the remaining input</p>
+<p>or when two separators are consecutive. At EOF a non-empty trailing</p>
+<p>chunk is still returned; an incomplete separator prefix is data.</p></div>
+</div>
+
+<div class="member-item" id="next_strict">
+    <div class="signature"><code>pub func next_strict() bytes</code></div>
+    <div class="doc-content"><p>Return the next chunk and advance the iterator. Panic if exhausted.</p>
+
+<p>The returned bytes exclude the separator and are independent of the</p>
+<p>internal buffers, so they remain valid after advancing.</p></div>
+</div>
+
+<div class="member-item" id="next">
+    <div class="signature"><code>pub func next() bytes?</code></div>
+    <div class="doc-content"><p>Return the next chunk, or nil if EOF has been reached.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="lines">
+    <div class="signature"><code>pub class Lines : Iterator[str]</code></div>
+    
+    <div class="doc-content"><p>Lines iterates over lines of text from a BufReader.</p>
+
+<p>Each iteration reads until a newline character ('\n') is encountered.</p>
+<p>The newline character and any trailing carriage return ('\r') are stripped</p>
+<p>from the returned string, so each yielded line is clean text without line endings.</p>
+
+<p>This is the most common way to read a text file or stream line by line</p>
+<p>without loading the entire content into memory.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let f = fs.open("data.txt")!
+let br = io.BufReader(f)
+for line in io.Lines(br) {
+    print(line)
+}
+f.close()</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(_br BufReader, size = 256)</code></div>
+    <div class="doc-content"><p>Create a new Lines iterator that reads lines from the given buffered reader.</p>
+
+<p>Arguments</p>
+<p>- <code>_br</code>: The buffered reader to read from.</p>
+
+<p>The internal buffer is initialized with a capacity of 256 bytes and will</p>
+<p>grow automatically if a line exceeds this size.</p>
+
+<p>Note: Lines handles both Unix ('\n') and Windows ('\r\n') line endings.</p>
+<p>The returned strings have both '\n' and trailing '\r' stripped.</p></div>
+</div>
+
+<div class="member-item" id="has_next">
+    <div class="signature"><code>pub func has_next() bool</code></div>
+    <div class="doc-content"><p>Return true if another line is available, buffering it if necessary.</p>
+
+<p>Repeated calls do not advance past the pending line. An empty line</p>
+<p>(a bare '\n' or consecutive newlines) is returned as an empty string.</p>
+<p>Iteration stops at EOF; a non-empty final line without a trailing</p>
+<p>newline is still returned.</p></div>
+</div>
+
+<div class="member-item" id="next_strict">
+    <div class="signature"><code>pub func next_strict() str</code></div>
+    <div class="doc-content"><p>Return the next line and advance the iterator. Panic if exhausted.</p>
+
+<p>May be called without a preceding has_next(). The returned string has</p>
+<p>the '\n' line ending and any trailing '\r' of a CRLF ending removed,</p>
+<p>and is independent of the internal buffer.</p></div>
+</div>
+
+<div class="member-item" id="next">
+    <div class="signature"><code>pub func next() str?</code></div>
+    <div class="doc-content"><p>Return the next line, or nil if EOF has been reached.</p>
+
+<p>Convenience method that combines has_next() and next_strict().</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="words">
+    <div class="signature"><code>pub class Words : Iterator[str]</code></div>
+    
+    <div class="doc-content"><p>Words iterates over whitespace-separated tokens from a BufReader.</p>
+
+<p>It splits on ASCII space, tab, newline, and carriage return, skipping</p>
+<p>leading and repeated separators. Other bytes, including UTF-8 text, are</p>
+<p>preserved. Empty input or trailing whitespace produces no extra iterations.</p>
+<p>Tokens may span any number of buffered reads.</p>
+
+<p>This is useful for tokenizing input where fields are separated by</p>
+<p>arbitrary amounts of whitespace, such as parsing command output or</p>
+<p>simple data formats.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let br = io.BufReader(io.StdinReader())
+for word in io.Words(br) {
+    print(word)
+}</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(_br BufReader, size = 256)</code></div>
+    <div class="doc-content"><p>Create a new Words iterator that tokenizes the given buffered reader</p>
+<p>by whitespace (spaces, tabs, newlines, carriage returns).</p>
+
+<p>Arguments</p>
+<p>- <code>_br</code>: The buffered reader to read from.</p>
+<p>- <code>size</code>: The initial capacity of the internal buffer in bytes</p>
+<p>  (default 256). The buffer still grows automatically if a token</p>
+<p>  exceeds this size. Must be positive.</p></div>
+</div>
+
+<div class="member-item" id="has_next">
+    <div class="signature"><code>pub func has_next() bool</code></div>
+    <div class="doc-content"><p>Return true if another word is available, buffering it if necessary.</p>
+
+<p>Repeated calls do not advance past the pending word. Leading whitespace</p>
+<p>is skipped, and word fragments are copied before the reader is refilled.</p></div>
+</div>
+
+<div class="member-item" id="next_strict">
+    <div class="signature"><code>pub func next_strict() str</code></div>
+    <div class="doc-content"><p>Return the next word and advance the iterator. Panic if exhausted.</p>
+
+<p>May be called without a preceding has_next(). The returned string is</p>
+<p>independent of the internal buffer and remains valid after advancing.</p></div>
+</div>
+
+<div class="member-item" id="next">
+    <div class="signature"><code>pub func next() str?</code></div>
+    <div class="doc-content"><p>Return the next token, or nil if EOF has been reached.</p>
+
+<p>Convenience method that combines has_next() and next_strict().</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="stringio">
+    <div class="signature"><code>pub class StringIO : Reader &amp; Seeker &amp; Closable</code></div>
+    
+    <div class="doc-content"><p>StringIO is an in-memory text stream that implements Reader, Seeker</p>
+<p>and Closable. It wraps a UTF-8 string and provides file-like reading</p>
+<p>operations without touching the filesystem.</p>
+
+<p>StringIO is read-only: it implements no Writer methods, and the</p>
+<p>underlying string never changes. Reading operates at the byte level</p>
+<p>as required by the Reader trait — positions and counts are UTF-8</p>
+<p>byte offsets, not character counts.</p>
+
+<p>StringIO is useful for:</p>
+<p>- Testing code that expects a Reader without touching the filesystem.</p>
+<p>- Feeding in-memory text into byte-oriented consumers such as</p>
+<p>  BufReader, Lines, Words and Splitter.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let sio = io.StringIO("Hello, StringIO!")
+let buf = bytes(64)
+let n = sio.read(buf)          // n == 16
+print(buf.view(0, n).to_str()) // "Hello, StringIO!"</code></pre></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(s str)</code></div>
+    <div class="doc-content"><p>Create a StringIO reading from the given string.</p>
+
+<p>Arguments</p>
+<p>- <code>s</code>: The source string. It is not mutated.</p>
+
+<p>The read position starts at 0.</p></div>
+</div>
+
+<div class="member-item" id="read">
+    <div class="signature"><code>pub func read(_bs bytes) int</code></div>
+    <div class="doc-content"><p>Read up to _bs.len() bytes from the current position into <code>_bs</code>.</p>
+
+<p>Arguments</p>
+<p>- <code>_bs</code>: The destination buffer to fill with data.</p>
+
+<p>Returns</p>
+<p>The number of bytes actually read, or 0 if the position has</p>
+<p>reached the end of the string (EOF).</p>
+
+<p>Notes</p>
+<p>- A short read (n < _bs.len()) means EOF was reached, since all</p>
+<p>  the data is already in memory.</p>
+<p>- Reading is byte-oriented: a read may end in the middle of a</p>
+<p>  multi-byte UTF-8 character.</p>
+<p>- Panic if the stream has been closed.</p></div>
+</div>
+
+<div class="member-item" id="seek">
+    <div class="signature"><code>pub func seek(offset int, whence int) int</code></div>
+    <div class="doc-content"><p>Move the read position to <code>offset</code> relative to <code>whence</code>.</p>
+
+<p>The resulting position is clamped into [0, bs.len()], so it can</p>
+<p>never point outside the source string.</p>
+
+<p>Arguments</p>
+<p>- <code>offset</code>: The byte offset relative to <code>whence</code>. May be negative.</p>
+<p>- <code>whence</code>: The reference point for the offset:</p>
+<p>  - 0: Start of the string (SEEK_SET).</p>
+<p>  - 1: Current position (SEEK_CUR).</p>
+<p>  - 2: End of the string (SEEK_END).</p>
+
+<p>Returns</p>
+<p>The new absolute position, or -1 if <code>whence</code> is invalid or the</p>
+<p>stream has been closed.</p></div>
+</div>
+
+<div class="member-item" id="tell">
+    <div class="signature"><code>pub func tell() int</code></div>
+    <div class="doc-content"><p>Return the current read position.</p>
+
+<p>Returns</p>
+<p>The current byte offset from the start of the string,</p>
+<p>or -1 if the stream has been closed.</p></div>
+</div>
+
+<div class="member-item" id="close">
+    <div class="signature"><code>pub func close()</code></div>
+    <div class="doc-content"><p>Close this StringIO.</p>
+
+<p>Since StringIO operates entirely in memory, no system resources are</p>
+<p>released; the stream is only marked as closed. Subsequent read and</p>
+<p>getvalue operations panic; seek and tell return -1. Calling close()</p>
+<p>multiple times is safe.</p></div>
+</div>
+
+<div class="member-item" id="is_closed">
+    <div class="signature"><code>pub func is_closed() bool</code></div>
+    <div class="doc-content"><p>Return true if close() has been called.</p></div>
+</div>
+
+<div class="member-item" id="eof">
+    <div class="signature"><code>pub func eof() bool</code></div>
+    <div class="doc-content"><p>Return true if the read position has reached the end of the string.</p>
+
+<p>Unlike Java's ready() which checks if the next read will block,</p>
+<p>StringIO is always "ready" since it's in-memory. eof() tells you</p>
+<p>whether there is any data left to read.</p></div>
+</div>
+
+<div class="member-item" id="size">
+    <div class="signature"><code>pub func size() int</code></div>
+    <div class="doc-content"><p>Return the length of the source string in UTF-8 bytes.</p>
+
+<p>Returns</p>
+<p>The total number of readable bytes,</p>
+<p>or -1 if the stream has been closed.</p></div>
+</div>
+
+<div class="member-item" id="getvalue">
+    <div class="signature"><code>pub func getvalue() str</code></div>
+    <div class="doc-content"><p>Return the whole source string.</p>
+
+<p>The read position is not changed. The string is immutable, so the</p>
+<p>result always reflects the full content regardless of the position.</p>
+
+<p>Panic if the stream has been closed.</p></div>
+</div>
+</div></div>
+</div>
+
+<h2>Functions</h2>
+
+<div class="item" id="write_all">
+    <div class="signature"><code>pub func write_all(dst Writer, bs bytes) int</code></div>
+    
+    <div class="doc-content"><p>Write all bytes of <code>bs</code> to <code>dst</code>, retrying on partial writes until the</p>
+<p>whole buffer is written or <code>dst</code> fails.</p>
+
+<p># Arguments</p>
+<p>- <code>dst</code>: The destination writer.</p>
+<p>- <code>bs</code>: The bytes to write.</p>
+
+<p># Returns</p>
+<p>The number of bytes actually written. If <code>dst.write</code> returns 0 or a</p>
+<p>negative value, the loop stops and the partial count is returned; callers</p>
+<p>can compare the result with <code>bs.len()</code> to detect an incomplete write.</p>
+
+<p># Notes</p>
+<p>- <code>dst</code> is not flushed; buffered writers must be flushed/closed by the caller.</p></div>
+    
+</div>
+
+
+<div class="item" id="read_all">
+    <div class="signature"><code>pub func read_all(src Reader) bytes</code></div>
+    
+    <div class="doc-content"><p>Read all remaining bytes from <code>src</code> until EOF and return them as <code>bytes</code>.</p>
+
+<p>Useful when the total size is unknown upfront (e.g., reading an entire</p>
+<p>file or process output). Chunks are accumulated into a growable buffer,</p>
+<p>so the result is assembled incrementally.</p>
+
+<p># Arguments</p>
+<p>- <code>src</code>: The source reader.</p>
+
+<p># Returns</p>
+<p>A <code>bytes</code> holding everything read. The loop stops at the first read that</p>
+<p>returns 0 (EOF) or a negative value (I/O error), so the result contains</p>
+<p>only the bytes read before that point.</p></div>
+    
+</div>
+
+
+<div class="item" id="read_exact">
+    <div class="signature"><code>pub func read_exact(src Reader, bs bytes) int</code></div>
+    
+    <div class="doc-content"><p>Read exactly <code>bs.len()</code> bytes from <code>src</code> into <code>bs</code>, retrying on short reads.</p>
+
+<p># Arguments</p>
+<p>- <code>src</code>: The source reader.</p>
+<p>- <code>bs</code>: The destination buffer to fill.</p>
+
+<p># Returns</p>
+<p>The number of bytes actually read. The loop stops early only at EOF (0) or</p>
+<p>a read error (negative); callers can compare the result with <code>bs.len()</code> to</p>
+<p>detect a short fill.</p>
+
+<p># Notes</p>
+<p>- <code>bs</code> is mutated in-place with the read data.</p></div>
+    
+</div>
+
+
+<div class="item" id="copy">
+    <div class="signature"><code>pub func copy(dst Writer, src Reader) int</code></div>
+    
+    <div class="doc-content"><p>Copy bytes from <code>src</code> to <code>dst</code> until the source reaches EOF.</p>
+
+<p>Data is pumped through an internal 8192-byte buffer and written to <code>dst</code></p>
+<p>chunk by chunk, so the whole stream is never held in memory. This makes</p>
+<p>copy suitable for files as well as interactive streams (e.g., process pipes).</p>
+
+<p># Arguments</p>
+<p>- <code>dst</code>: The destination writer.</p>
+<p>- <code>src</code>: The source reader.</p>
+
+<p># Returns</p>
+<p>The total number of bytes actually written to <code>dst</code>. The loop stops at the</p>
+<p>first read that returns 0 (EOF) or a negative value (I/O error), and also</p>
+<p>if a write fails partway, so the result counts only the bytes transferred</p>
+<p>before that point.</p>
+
+<p># Notes</p>
+<p>- <code>dst</code> is not flushed; buffered writers must be flushed/closed by the caller.</p>
+<p>- Each chunk is written via <code>write_all</code>, so a partial write by <code>dst</code> is</p>
+<p>  completed before moving on; if <code>dst</code> fails, copy stops and returns the</p>
+<p>  bytes written so far.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let src = fs.open("in.bin", "r")!
+let dst = fs.open("out.bin", "w")!
+let n = copy(dst, src)
+src.close()
+dst.close()</code></pre></div>
+    
+</div>
+
+<h2>Constants</h2>
+
+<div class="item" id="seek_set">
+    <div class="item-header">
+        <h3>SEEK_SET</h3>
+        <span class="badge const">Const</span>
+    </div>
+    <div class="signature"><code>pub const SEEK_SET = 0</code></div>
+    
+    <div class="doc-content"><p>Seek whence: absolute position from the start of content.</p></div>
+    
+</div>
+
+
+<div class="item" id="seek_cur">
+    <div class="item-header">
+        <h3>SEEK_CUR</h3>
+        <span class="badge const">Const</span>
+    </div>
+    <div class="signature"><code>pub const SEEK_CUR = 1</code></div>
+    
+    <div class="doc-content"><p>Seek whence: relative to the current position.</p></div>
+    
+</div>
+
+
+<div class="item" id="seek_end">
+    <div class="item-header">
+        <h3>SEEK_END</h3>
+        <span class="badge const">Const</span>
+    </div>
+    <div class="signature"><code>pub const SEEK_END = 2</code></div>
+    
+    <div class="doc-content"><p>Seek whence: relative to the end of content.</p></div>
+    
+</div>
+
+    </div>
+    <nav id="toc">
+        <a href="index.html" id="toc-home">🏠 Home</a>
+        <ul id="toc-list"></ul>
+        <button id="back-to-top" title="Back to top">↑ Top</button>
+    </nav>
+    <script>
+    // Toggle collapsible sections
+    function toggleSection(button) {
+        const content = button.nextElementSibling;
+        
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            button.classList.remove('collapsed');
+        } else {
+            content.classList.add('hidden');
+            button.classList.add('collapsed');
+        }
+    }
+    
+    // Toggle workspace sections in sidebar
+    function toggleWorkspace(title) {
+        const items = title.nextElementSibling;
+        
+        if (items.classList.contains('hidden')) {
+            items.classList.remove('hidden');
+            title.classList.remove('collapsed');
+        } else {
+            items.classList.add('hidden');
+            title.classList.add('collapsed');
+        }
+    }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBox = document.getElementById('search-box');
+    const sidebar = document.getElementById('sidebar');
+    const content = document.getElementById('content');
+    
+    // Restore sidebar scroll position
+    if (sidebar) {
+        const savedScroll = localStorage.getItem('sidebar-scroll');
+        if (savedScroll) {
+            sidebar.scrollTop = parseInt(savedScroll, 10);
+        }
+        
+        // Save sidebar scroll position on scroll
+        sidebar.addEventListener('scroll', function() {
+            localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+        });
+        
+        // Save scroll position before navigating
+        sidebar.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', function() {
+                localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+            });
+        });
+    }
+    
+    // Generate Table of Contents
+    const tocList = document.getElementById('toc-list');
+    if (tocList && content) {
+        const headings = content.querySelectorAll('h2, h3');
+        if (headings.length > 0) {
+            headings.forEach(function(heading, index) {
+                // Generate ID if not exists
+                if (!heading.id) {
+                    heading.id = 'section-' + index;
+                }
+                
+                // Create TOC item
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#' + heading.id;
+                a.textContent = heading.textContent;
+                a.dataset.target = heading.id;
+                
+                // Add class for h3 (nested)
+                if (heading.tagName === 'H3') {
+                    li.className = 'toc-h3';
+                }
+                
+                li.appendChild(a);
+                tocList.appendChild(li);
+            });
+            
+            // Scroll spy - highlight current section
+            const tocLinks = tocList.querySelectorAll('a');
+            let lastActive = null;
+            
+            function updateActiveLink() {
+                const scrollPos = window.scrollY + 100;
+                let current = null;
+                
+                headings.forEach(function(heading) {
+                    if (heading.offsetTop <= scrollPos) {
+                        current = heading;
+                    }
+                });
+                
+                if (current && current.id) {
+                    const activeLink = tocList.querySelector('a[data-target="' + current.id + '"]');
+                    if (activeLink && activeLink !== lastActive) {
+                        if (lastActive) lastActive.classList.remove('active');
+                        activeLink.classList.add('active');
+                        lastActive = activeLink;
+                    }
+                }
+            }
+            
+            window.addEventListener('scroll', updateActiveLink);
+            updateActiveLink();
+        }
+    }
+    
+    // Back to top button functionality
+    const backToTopBtn = document.getElementById('back-to-top');
+    if (backToTopBtn) {
+        // Show button when user scrolls down
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > 300) {
+                backToTopBtn.classList.add('visible');
+            } else {
+                backToTopBtn.classList.remove('visible');
+            }
+        });
+        
+        // Scroll to top when clicked
+        backToTopBtn.addEventListener('click', function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    }
+    
+    if (!searchBox) return;
+    const packages = document.querySelectorAll('.package');
+    searchBox.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        packages.forEach(pkg => {
+            const link = pkg.querySelector('a');
+            if (link) {
+                const text = link.textContent.toLowerCase();
+                pkg.style.display = text.includes(query) ? '' : 'none';
+            }
+        });
+    });
+});
+</script>
+</body>
+</html>

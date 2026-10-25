@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>koala/wombat - Koala API</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <style>
+:root {
+    --sidebar-width: 280px;
+    --content-max-width: 900px;
+    --bg: #0d1117;
+    --sidebar-bg: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-light: #8b949e;
+    --link: #58a6ff;
+    --code-bg: #1f2428;
+    --heading: #f0f6fc;
+    --badge-bg: #30363d;
+    --badge-text: #c9d1d9;
+    --accent: #238636;
+    --accent-hover: #2ea043;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Modern Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: #6e7681;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #30363d transparent;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--text);
+    background: var(--bg);
+    display: flex;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#sidebar {
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#sidebar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#sidebar h2 {
+    font-size: 40px;
+    font-weight: 700;
+    padding: 0 20px 15px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 15px;
+    color: var(--text-light);
+}
+
+#sidebar .workspace { margin-bottom: 20px; }
+
+#sidebar .workspace-title {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 20px;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+#sidebar .workspace-title:hover {
+    color: var(--text);
+}
+
+#sidebar .ws-arrow {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+#sidebar .workspace-title.collapsed .ws-arrow {
+    transform: rotate(-90deg);
+}
+
+#sidebar .workspace-items.hidden {
+    display: none;
+}
+
+#sidebar .package { margin-bottom: 2px; }
+
+#sidebar .package > a {
+    display: block;
+    padding: 8px 20px 8px 30px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    border-left: 2px solid transparent;
+}
+
+#sidebar .package > a:hover {
+    background: rgba(88, 166, 255, 0.08);
+    border-left-color: var(--link);
+}
+
+#sidebar .package > a.active {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--link);
+    border-left-color: var(--link);
+    font-weight: 500;
+}
+
+#search-box {
+    width: calc(100% - 40px);
+    margin: 0 20px 15px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 15px;
+    background: var(--code-bg);
+    color: var(--text);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#search-box:focus {
+    outline: none;
+    border-color: var(--link);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+#search-box::placeholder {
+    color: var(--text-light);
+}
+
+#content {
+    margin-left: var(--sidebar-width);
+    margin-right: auto;
+    flex: 1;
+    padding: 40px;
+    max-width: var(--content-max-width);
+}
+
+h1 {
+    font-size: 40px;
+    font-weight: 700;
+    color: var(--text-light);
+    margin-bottom: 10px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -0.5px;
+}
+
+h2 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 40px;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.3px;
+}
+
+h3 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 30px;
+    margin-bottom: 10px;
+}
+
+h4.section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 25px;
+    margin-bottom: 12px;
+}
+
+.item {
+    margin-bottom: 40px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+}
+
+.member-item {
+    margin-bottom: 30px;
+    scroll-margin-top: 20px;
+}
+
+.collapsible-section {
+    margin-top: 20px;
+}
+
+.collapse-toggle {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.2s;
+}
+
+.collapse-toggle:hover {
+    color: var(--text);
+}
+
+.collapse-toggle .arrow {
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.collapse-toggle.collapsed .arrow {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    margin-top: 15px;
+    padding-left: 10px;
+    border-left: 2px solid var(--border);
+}
+
+.collapsible-content.hidden {
+    display: none;
+}
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.item-header h3 { margin: 0; font-family: "SF Mono", Monaco, monospace; }
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+}
+
+.badge.trait { background: #1a3a4a; color: #5bc0de; }
+.badge.class { background: #3a1a4a; color: #c77dff; }
+.badge.func { background: #1a3a1a; color: #7ddf7d; }
+.badge.const { background: #4a3a1a; color: #ffb347; }
+
+.signature {
+    background: var(--code-bg);
+    padding: 14px 18px;
+    border-radius: 8px;
+    border-left: 3px solid var(--link);
+    margin-bottom: 15px;
+    overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.signature code {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.bases {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 15px;
+}
+
+.bases strong { color: var(--text); }
+
+.doc-content { margin-bottom: 15px; }
+.doc-content p { margin-bottom: 12px; line-height: 1.7; }
+
+.doc-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.doc-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-content pre code { background: none; padding: 0; border: none; font-size: 14px; }
+
+.member {
+    margin-left: 20px;
+    margin-bottom: 20px;
+    padding-left: 15px;
+    border-left: 2px solid var(--border);
+}
+
+.member-sig {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--heading);
+    margin-bottom: 5px;
+}
+
+.member-tag {
+    font-size: 12px;
+    color: var(--text-light);
+    font-style: italic;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+th, td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 15px;
+}
+
+th {
+    background: var(--sidebar-bg);
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+td a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+td a:hover { color: #79c0ff; }
+
+.summary { color: var(--text-light); font-size: 15px; }
+a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #79c0ff; }
+
+.manual-toc {
+    background: var(--sidebar-bg);
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-toc h2 {
+    margin-top: 0;
+    font-size: 20px;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.manual-toc ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.manual-toc ul ul {
+    padding-left: 20px;
+    margin-top: 5px;
+}
+
+.manual-toc li {
+    margin-bottom: 8px;
+}
+
+.manual-toc a {
+    color: var(--text);
+    text-decoration: none;
+    transition: all 0.2s;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    font-size: 16px;
+}
+
+.manual-toc a:hover {
+    color: var(--link);
+    background: rgba(88, 166, 255, 0.08);
+}
+
+.manual-content {
+    margin-bottom: 20px;
+}
+
+.manual-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 15px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.manual-content pre code {
+    background: none;
+    padding: 0;
+    border: none;
+    font-size: 14px;
+}
+
+.doc-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin: 30px 0;
+}
+
+.doc-card {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-card:hover {
+    border-color: var(--link);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(88, 166, 255, 0.15);
+}
+
+.doc-card h3 {
+    margin: 0 0 12px;
+    font-size: 22px;
+    color: var(--heading);
+    font-weight: 600;
+}
+
+.doc-card p {
+    color: var(--text-light);
+    margin-bottom: 16px;
+    line-height: 1.7;
+}
+
+.doc-card-link {
+    display: inline-block;
+    color: var(--link);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(88, 166, 255, 0.1);
+}
+
+.doc-card-link:hover {
+    color: #79c0ff;
+    background: rgba(88, 166, 255, 0.2);
+}
+
+/* Playground styles */
+.playground-section {
+    background: #1a1a2e;
+    border: 1px solid #2d2d44;
+    border-radius: 8px;
+    padding: 24px;
+    margin: 24px 0;
+}
+
+.playground-section h2 {
+    margin-top: 0;
+    color: #7bb8ff;
+}
+
+.playground-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.playground-editor {
+    position: relative;
+}
+
+.playground-editor textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 16px;
+    background: #0d0d1a;
+    color: #e0e0e0;
+    border: 1px solid #2d2d44;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    tab-size: 4;
+}
+
+.playground-editor textarea:focus {
+    outline: none;
+    border-color: #7bb8ff;
+}
+
+.playground-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.playground-btn {
+    padding: 8px 20px;
+    background: #2d5a3d;
+    color: #a0e0a0;
+    border: 1px solid #3a7a4a;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.playground-btn:hover {
+    background: #3a7a4a;
+}
+
+.playground-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.playground-btn.secondary {
+    background: #2d2d44;
+    color: #a0a0c0;
+    border-color: #3d3d5c;
+}
+
+.playground-btn.secondary:hover {
+    background: #3d3d5c;
+}
+
+.playground-result {
+    padding: 12px 16px;
+    background: #1a2a1a;
+    border: 1px solid #2d5a3d;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 13px;
+    color: #a0e0a0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 60px;
+}
+
+.playground-result.error {
+    background: #2a1a1a;
+    border-color: #5a2d2d;
+    color: #e0a0a0;
+}
+
+.playground-result .result-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.7;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        width: 100%;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+    #content { margin-left: 0; padding: 20px; }
+    body { flex-direction: column; }
+}
+
+.github-link {
+    display: block;
+    margin: 0 20px 15px;
+    padding: 8px 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.github-link:hover {
+    border-color: var(--link);
+    background: rgba(91, 163, 245, 0.1);
+}
+
+.github-link::before {
+    content: "🐙 ";
+}
+
+/* Table of Contents (Right Sidebar) */
+#toc {
+    position: fixed;
+    right: 30px;
+    top: 80px;
+    width: 280px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--sidebar-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#toc::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#toc-title {
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+#toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#toc li {
+    margin: 8px 0;
+}
+
+#toc a {
+    color: var(--text-light);
+    text-decoration: none;
+    display: block;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    line-height: 1.5;
+}
+
+#toc a:hover {
+    background: var(--code-bg);
+    color: var(--link);
+}
+
+#toc a.active {
+    background: rgba(88, 166, 255, 0.1);
+    color: var(--link);
+    border-left: 2px solid var(--link);
+}
+
+#toc ul ul {
+    margin-left: 16px;
+    margin-top: 6px;
+}
+
+#toc ul ul a {
+    font-size: 13px;
+    padding: 4px 12px;
+}
+
+#toc li.toc-h3 a {
+    padding-left: 24px;
+    font-size: 13px;
+}
+
+/* Home button at top */
+#toc-home {
+    display: block;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+#toc-home:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+/* Back to top button */
+#back-to-top {
+    display: none;
+    width: 100%;
+    padding: 10px 16px;
+    margin-top: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#back-to-top:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+#back-to-top.visible {
+    display: block;
+}
+
+/* TOC always visible */
+#content {
+    margin-right: 320px;
+}
+
+/* Scrollbar for TOC */
+#toc::-webkit-scrollbar {
+    width: 6px;
+}
+
+#toc::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#toc::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+#toc::-webkit-scrollbar-thumb:hover {
+    background: var(--text-light);
+}
+</style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2><a href="index.html" style="color:inherit;text-decoration:none;">Koala Docs</a></h2>
+        <a href="https://github.com/zhuguangxiang/koala-lang" class="github-link" target="_blank">GitHub Repository</a>
+        <input type="text" id="search-box" placeholder="Search...">
+        <div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">Guide <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="manual.html">Language Manual</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">std <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="std_builtin.html">builtin</a>
+</div>
+<div class="package">
+<a href="std_collections.html">collections</a>
+</div>
+<div class="package">
+<a href="std_fs.html">fs</a>
+</div>
+<div class="package">
+<a href="std_io.html">io</a>
+</div>
+<div class="package">
+<a href="std_os.html">os</a>
+</div>
+<div class="package">
+<a href="std_prelude.html">prelude</a>
+</div>
+<div class="package">
+<a href="std_sys.html">sys</a>
+</div>
+<div class="package">
+<a href="std_time.html">time</a>
+</div>
+<div class="package">
+<a href="std_ut.html">ut</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">koala <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="koala_datetime.html">datetime</a>
+</div>
+<div class="package">
+<a href="koala_encoding_base64.html">encoding/base64</a>
+</div>
+<div class="package">
+<a href="koala_encoding_bin.html">encoding/bin</a>
+</div>
+<div class="package">
+<a href="koala_json.html">json</a>
+</div>
+<div class="package">
+<a href="koala_math.html">math</a>
+</div>
+<div class="package">
+<a href="koala_random.html">random</a>
+</div>
+<div class="package">
+<a href="koala_toml.html">toml</a>
+</div>
+<div class="package">
+<a href="koala_wombat.html" class="active">wombat</a>
+</div>
+</div>
+</div>
+    </div>
+    <div id="content">
+        <h1>koala/wombat</h1>
+<h2>Classes</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#package">Package</a></td><td class="summary">A package in the workspace.</td></tr>
+<tr><td><a href="#workspace">Workspace</a></td><td class="summary">The workspace being built.</td></tr>
+</table>
+<h2>Functions</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#build_all">build_all</a></td><td class="summary">Load a workspace or a single package and build it.</td></tr>
+<tr><td><a href="#load_workspace_or_package">load_workspace_or_package</a></td><td class="summary">Load a workspace if `__ws__.toml` exists, or a single-package workspace if `__pkg__.toml` exists instead.</td></tr>
+<tr><td><a href="#load_single_package">load_single_package</a></td><td class="summary">Build a workspace-like structure from a single package directory.</td></tr>
+<tr><td><a href="#toml_str">toml_str</a></td><td class="summary">Read a string field, returning "" when absent.</td></tr>
+<tr><td><a href="#toml_str_list">toml_str_list</a></td><td class="summary">Read a string-array field.</td></tr>
+<tr><td><a href="#join_or_none">join_or_none</a></td><td class="summary">Join `xs` with `sep`, or "None" if empty.</td></tr>
+<tr><td><a href="#load_workspace">load_workspace</a></td><td class="summary">Load `&lt;root&gt;/__ws__.toml` and each package's `__pkg__.toml`.</td></tr>
+<tr><td><a href="#load_package">load_package</a></td><td class="summary">Read `&lt;root&gt;/&lt;dir_name&gt;/__pkg__.toml`.</td></tr>
+<tr><td><a href="#find_package">find_package</a></td><td class="summary"></td></tr>
+<tr><td><a href="#topo_sort">topo_sort</a></td><td class="summary">Topological sort by `dependencies`. Empty on cycle.</td></tr>
+<tr><td><a href="#print_dep_map">print_dep_map</a></td><td class="summary"></td></tr>
+<tr><td><a href="#print_order">print_order</a></td><td class="summary"></td></tr>
+<tr><td><a href="#check_natives">check_natives</a></td><td class="summary"></td></tr>
+<tr><td><a href="#artifact_rel">artifact_rel</a></td><td class="summary">Artifact path: `&lt;ws&gt;/&lt;dir&gt;.klc`.</td></tr>
+<tr><td><a href="#src_rel">src_rel</a></td><td class="summary">Source path: `&lt;ws&gt;/&lt;dir&gt;`, relative to the workspace's parent.</td></tr>
+<tr><td><a href="#build_cmd">build_cmd</a></td><td class="summary"></td></tr>
+<tr><td><a href="#build_workspace">build_workspace</a></td><td class="summary">Compile every package in dependency order.</td></tr>
+<tr><td><a href="#base_name">base_name</a></td><td class="summary">Basename of `path`: "demo/math" -&gt; "math".</td></tr>
+<tr><td><a href="#rel_path">rel_path</a></td><td class="summary">Path of `path` relative to `base` when `path` lives under it.</td></tr>
+<tr><td><a href="#write_ws_toml">write_ws_toml</a></td><td class="summary">Write `&lt;ws_dir&gt;/__ws__.toml` from a TOML object.</td></tr>
+<tr><td><a href="#add_ws_package">add_ws_package</a></td><td class="summary">Append `entry` to the `packages` list in `&lt;ws_dir&gt;/__ws__.toml`. No-op when already present.</td></tr>
+<tr><td><a href="#write_build_script">write_build_script</a></td><td class="summary">Write `build-and-test.sh` into `ws_dir` and make it executable.</td></tr>
+<tr><td><a href="#new_workspace">new_workspace</a></td><td class="summary">Create `&lt;name&gt;/` with a minimal `__ws__.toml` and `build-and-test.sh`.</td></tr>
+<tr><td><a href="#new_package">new_package</a></td><td class="summary">Create `&lt;name&gt;/` with `__pkg__.toml` and an entry `.kl` that prints "hello world".</td></tr>
+<tr><td><a href="#new_auto">new_auto</a></td><td class="summary">Create a workspace when the current directory has no `__ws__.toml`, otherwise create a package inside it.</td></tr>
+<tr><td><a href="#find_ws_root">find_ws_root</a></td><td class="summary">Walk up from `start` until a directory containing `__ws__.toml` is found. Returns "" when none.</td></tr>
+<tr><td><a href="#resolve_ws_package">resolve_ws_package</a></td><td class="summary">If `name` matches a package in the workspace at `ws_root`, return `&lt;ws_root&gt;/dist/&lt;ws_name&gt;/&lt;name&gt;.klc`. Otherwise return "".</td></tr>
+<tr><td><a href="#run">run</a></td><td class="summary">`wombat run &lt;target&gt; [args...]`</td></tr>
+<tr><td><a href="#find_dist_dir">find_dist_dir</a></td><td class="summary">Walk up from `start` until a directory containing `__ws__.toml` or `__pkg__.toml` is found, then return its `dist/` directory.</td></tr>
+<tr><td><a href="#quote_arg">quote_arg</a></td><td class="summary">Append `s` to `buf`, wrapped in single quotes if it contains characters the shell would otherwise split or interpret.</td></tr>
+<tr><td><a href="#test_all">test_all</a></td><td class="summary">Run tests for every package in a workspace or a single package.</td></tr>
+</table>
+<h2>Classes</h2>
+
+<div class="item" id="package">
+    <div class="signature"><code>class Package</code></div>
+    
+    <div class="doc-content"><p>A package in the workspace.</p></div>
+    
+</div>
+
+
+<div class="item" id="workspace">
+    <div class="signature"><code>class Workspace</code></div>
+    
+    <div class="doc-content"><p>The workspace being built.</p></div>
+    
+</div>
+
+<h2>Functions</h2>
+
+<div class="item" id="build_all">
+    <div class="signature"><code>pub func build_all(src_dir str, output_dir str) int</code></div>
+    
+    <div class="doc-content"><p>Load a workspace or a single package and build it.</p>
+
+<p><code>src_dir</code> may contain <code>__ws__.toml</code> (workspace mode) or</p>
+<p><code>__pkg__.toml</code> (single-package mode). A relative <code>output_dir</code> is</p>
+<p>resolved against the workspace root in workspace mode, and against</p>
+<p>the package directory in single-package mode.</p></div>
+    
+</div>
+
+
+<div class="item" id="load_workspace_or_package">
+    <div class="signature"><code>func load_workspace_or_package(root str) Workspace</code></div>
+    
+    <div class="doc-content"><p>Load a workspace if <code>__ws__.toml</code> exists, or a single-package</p>
+<p>workspace if <code>__pkg__.toml</code> exists instead.</p></div>
+    
+</div>
+
+
+<div class="item" id="load_single_package">
+    <div class="signature"><code>func load_single_package(pkg_dir str) Workspace</code></div>
+    
+    <div class="doc-content"><p>Build a workspace-like structure from a single package directory.</p>
+
+<p><code>ws.root</code> is the package's parent, so <code>src_rel</code> yields</p>
+<p><code><parent>/<pkg></code> and <code>artifact_rel</code> yields <code><parent>/<pkg>.klc</code>,</p>
+<p>the same layout workspace mode would produce.</p>
+
+<p>Dependencies are cleared: a single-package build does not resolve</p>
+<p>or order them. Packages the target imports must already be on</p>
+<p><code>KOALA_PATH</code>, produced by a prior workspace or single-package</p>
+<p>build.</p></div>
+    
+</div>
+
+
+<div class="item" id="toml_str">
+    <div class="signature"><code>func toml_str(tbl toml.Table, key str) str</code></div>
+    
+    <div class="doc-content"><p>Read a string field, returning "" when absent.</p></div>
+    
+</div>
+
+
+<div class="item" id="toml_str_list">
+    <div class="signature"><code>func toml_str_list(tbl toml.Table, key str) list[str]</code></div>
+    
+    <div class="doc-content"><p>Read a string-array field.</p></div>
+    
+</div>
+
+
+<div class="item" id="join_or_none">
+    <div class="signature"><code>func join_or_none(xs list[str], sep str) str</code></div>
+    
+    <div class="doc-content"><p>Join <code>xs</code> with <code>sep</code>, or "None" if empty.</p></div>
+    
+</div>
+
+
+<div class="item" id="load_workspace">
+    <div class="signature"><code>func load_workspace(root str) Workspace</code></div>
+    
+    <div class="doc-content"><p>Load <code><root>/__ws__.toml</code> and each package's <code>__pkg__.toml</code>.</p></div>
+    
+</div>
+
+
+<div class="item" id="load_package">
+    <div class="signature"><code>func load_package(root str, dir_name str) Package</code></div>
+    
+    <div class="doc-content"><p>Read <code><root>/<dir_name>/__pkg__.toml</code>.</p></div>
+    
+</div>
+
+
+<div class="item" id="find_package">
+    <div class="signature"><code>func find_package(ws Workspace, name str) Package</code></div>
+    
+    <div class="doc-content"></div>
+    
+</div>
+
+
+<div class="item" id="topo_sort">
+    <div class="signature"><code>func topo_sort(pkgs list[Package]) list[str]</code></div>
+    
+    <div class="doc-content"><p>Topological sort by <code>dependencies</code>. Empty on cycle.</p></div>
+    
+</div>
+
+
+<div class="item" id="print_dep_map">
+    <div class="signature"><code>func print_dep_map(ws Workspace)</code></div>
+    
+    <div class="doc-content"></div>
+    
+</div>
+
+
+<div class="item" id="print_order">
+    <div class="signature"><code>func print_order(ws Workspace, order list[str])</code></div>
+    
+    <div class="doc-content"></div>
+    
+</div>
+
+
+<div class="item" id="check_natives">
+    <div class="signature"><code>func check_natives(pkg Package, ws Workspace) int</code></div>
+    
+    <div class="doc-content"></div>
+    
+</div>
+
+
+<div class="item" id="artifact_rel">
+    <div class="signature"><code>func artifact_rel(ws Workspace, pkg Package) str</code></div>
+    
+    <div class="doc-content"><p>Artifact path: <code><ws>/<dir>.klc</code>.</p></div>
+    
+</div>
+
+
+<div class="item" id="src_rel">
+    <div class="signature"><code>func src_rel(ws Workspace, pkg Package) str</code></div>
+    
+    <div class="doc-content"><p>Source path: <code><ws>/<dir></code>, relative to the workspace's parent.</p></div>
+    
+</div>
+
+
+<div class="item" id="build_cmd">
+    <div class="signature"><code>func build_cmd(pkg Package, ws Workspace, output_dir str) str</code></div>
+    
+    <div class="doc-content"></div>
+    
+</div>
+
+
+<div class="item" id="build_workspace">
+    <div class="signature"><code>func build_workspace(ws Workspace, output_dir str) int</code></div>
+    
+    <div class="doc-content"><p>Compile every package in dependency order.</p></div>
+    
+</div>
+
+
+<div class="item" id="base_name">
+    <div class="signature"><code>func base_name(path str) str</code></div>
+    
+    <div class="doc-content"><p>Basename of <code>path</code>: "demo/math" -> "math".</p></div>
+    
+</div>
+
+
+<div class="item" id="rel_path">
+    <div class="signature"><code>func rel_path(base str, path str) str</code></div>
+    
+    <div class="doc-content"><p>Path of <code>path</code> relative to <code>base</code> when <code>path</code> lives under it.</p></div>
+    
+</div>
+
+
+<div class="item" id="write_ws_toml">
+    <div class="signature"><code>func write_ws_toml(ws_dir str, name str, version str, entries list[str]) int</code></div>
+    
+    <div class="doc-content"><p>Write <code><ws_dir>/__ws__.toml</code> from a TOML object.</p>
+
+<p>The file is fully regenerated; comments and custom fields are not</p>
+<p>preserved. <code>__ws__.toml</code> is a tool-maintained file.</p></div>
+    
+</div>
+
+
+<div class="item" id="add_ws_package">
+    <div class="signature"><code>func add_ws_package(ws_dir str, entry str) int</code></div>
+    
+    <div class="doc-content"><p>Append <code>entry</code> to the <code>packages</code> list in <code><ws_dir>/__ws__.toml</code>.</p>
+<p>No-op when already present.</p></div>
+    
+</div>
+
+
+<div class="item" id="write_build_script">
+    <div class="signature"><code>func write_build_script(ws_dir str) int</code></div>
+    
+    <div class="doc-content"><p>Write <code>build-and-test.sh</code> into <code>ws_dir</code> and make it executable.</p>
+
+<p>Every line goes through <code>Buffer.write_str</code>, so <code>$</code>, <code>{</code>, <code>(</code> inside</p>
+<p>the shell script are never interpreted by Koala.</p></div>
+    
+</div>
+
+
+<div class="item" id="new_workspace">
+    <div class="signature"><code>pub func new_workspace(name str) int</code></div>
+    
+    <div class="doc-content"><p>Create <code><name>/</code> with a minimal <code>__ws__.toml</code> and</p>
+<p><code>build-and-test.sh</code>.</p></div>
+    
+</div>
+
+
+<div class="item" id="new_package">
+    <div class="signature"><code>pub func new_package(name str) int</code></div>
+    
+    <div class="doc-content"><p>Create <code><name>/</code> with <code>__pkg__.toml</code> and an entry <code>.kl</code> that</p>
+<p>prints "hello world".</p>
+
+<p>The current directory is treated as the workspace root; the</p>
+<p>package's path relative to it is appended to <code>__ws__.toml</code>.</p></div>
+    
+</div>
+
+
+<div class="item" id="new_auto">
+    <div class="signature"><code>pub func new_auto(name str) int</code></div>
+    
+    <div class="doc-content"><p>Create a workspace when the current directory has no</p>
+<p><code>__ws__.toml</code>, otherwise create a package inside it.</p></div>
+    
+</div>
+
+
+<div class="item" id="find_ws_root">
+    <div class="signature"><code>func find_ws_root(start str) str</code></div>
+    
+    <div class="doc-content"><p>Walk up from <code>start</code> until a directory containing <code>__ws__.toml</code> is</p>
+<p>found. Returns "" when none.</p></div>
+    
+</div>
+
+
+<div class="item" id="resolve_ws_package">
+    <div class="signature"><code>func resolve_ws_package(ws_root str, name str) str</code></div>
+    
+    <div class="doc-content"><p>If <code>name</code> matches a package in the workspace at <code>ws_root</code>, return</p>
+<p><code><ws_root>/dist/<ws_name>/<name>.klc</code>. Otherwise return "".</p></div>
+    
+</div>
+
+
+<div class="item" id="run">
+    <div class="signature"><code>pub func run(target str, args list[str]) int</code></div>
+    
+    <div class="doc-content"><p><code>wombat run <target> [args...]</code></p>
+
+<p><code><target></code> resolution order:</p>
+
+<p>1. <code><target>.kl</code> / <code><target>.klc</code> as given.</p>
+<p>2. If <code><target></code> is a package name in the current workspace, the</p>
+<p>   built artifact <code><ws>/dist/<ws>/<target>.klc</code>.</p>
+<p>3. <code><target>.klc</code>, then <code><target>.kl</code> in the current directory.</p>
+
+<p>The workspace's <code>dist/</code> directory is prepended to <code>KOALA_PATH</code> for</p>
+<p>the child process, so the program can <code>import</code> packages built by</p>
+<p><code>wombat build</code> without the caller setting <code>KOALA_PATH</code> by hand.</p></div>
+    
+</div>
+
+
+<div class="item" id="find_dist_dir">
+    <div class="signature"><code>func find_dist_dir(start str) str</code></div>
+    
+    <div class="doc-content"><p>Walk up from <code>start</code> until a directory containing <code>__ws__.toml</code> or</p>
+<p><code>__pkg__.toml</code> is found, then return its <code>dist/</code> directory.</p></div>
+    
+</div>
+
+
+<div class="item" id="quote_arg">
+    <div class="signature"><code>func quote_arg(buf Buffer, s str)</code></div>
+    
+    <div class="doc-content"><p>Append <code>s</code> to <code>buf</code>, wrapped in single quotes if it contains</p>
+<p>characters the shell would otherwise split or interpret.</p></div>
+    
+</div>
+
+
+<div class="item" id="test_all">
+    <div class="signature"><code>pub func test_all(src_dir str) int</code></div>
+    
+    <div class="doc-content"><p>Run tests for every package in a workspace or a single package.</p>
+
+<p>Does not build. The output directory is prepended to <code>KOALA_PATH</code></p>
+<p>for each test process, so tests can import the <code>.klc</code> artifacts</p>
+<p>produced by a prior <code>wombat build</code>. The parent shell's environment</p>
+<p>is not touched.</p>
+
+<p>A package has tests when <code><dir>/<pkg.test></code> exists. An empty test</p>
+<p>directory is reported and skipped.</p></div>
+    
+</div>
+
+    </div>
+    <nav id="toc">
+        <a href="index.html" id="toc-home">🏠 Home</a>
+        <ul id="toc-list"></ul>
+        <button id="back-to-top" title="Back to top">↑ Top</button>
+    </nav>
+    <script>
+    // Toggle collapsible sections
+    function toggleSection(button) {
+        const content = button.nextElementSibling;
+        
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            button.classList.remove('collapsed');
+        } else {
+            content.classList.add('hidden');
+            button.classList.add('collapsed');
+        }
+    }
+    
+    // Toggle workspace sections in sidebar
+    function toggleWorkspace(title) {
+        const items = title.nextElementSibling;
+        
+        if (items.classList.contains('hidden')) {
+            items.classList.remove('hidden');
+            title.classList.remove('collapsed');
+        } else {
+            items.classList.add('hidden');
+            title.classList.add('collapsed');
+        }
+    }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBox = document.getElementById('search-box');
+    const sidebar = document.getElementById('sidebar');
+    const content = document.getElementById('content');
+    
+    // Restore sidebar scroll position
+    if (sidebar) {
+        const savedScroll = localStorage.getItem('sidebar-scroll');
+        if (savedScroll) {
+            sidebar.scrollTop = parseInt(savedScroll, 10);
+        }
+        
+        // Save sidebar scroll position on scroll
+        sidebar.addEventListener('scroll', function() {
+            localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+        });
+        
+        // Save scroll position before navigating
+        sidebar.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', function() {
+                localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+            });
+        });
+    }
+    
+    // Generate Table of Contents
+    const tocList = document.getElementById('toc-list');
+    if (tocList && content) {
+        const headings = content.querySelectorAll('h2, h3');
+        if (headings.length > 0) {
+            headings.forEach(function(heading, index) {
+                // Generate ID if not exists
+                if (!heading.id) {
+                    heading.id = 'section-' + index;
+                }
+                
+                // Create TOC item
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#' + heading.id;
+                a.textContent = heading.textContent;
+                a.dataset.target = heading.id;
+                
+                // Add class for h3 (nested)
+                if (heading.tagName === 'H3') {
+                    li.className = 'toc-h3';
+                }
+                
+                li.appendChild(a);
+                tocList.appendChild(li);
+            });
+            
+            // Scroll spy - highlight current section
+            const tocLinks = tocList.querySelectorAll('a');
+            let lastActive = null;
+            
+            function updateActiveLink() {
+                const scrollPos = window.scrollY + 100;
+                let current = null;
+                
+                headings.forEach(function(heading) {
+                    if (heading.offsetTop <= scrollPos) {
+                        current = heading;
+                    }
+                });
+                
+                if (current && current.id) {
+                    const activeLink = tocList.querySelector('a[data-target="' + current.id + '"]');
+                    if (activeLink && activeLink !== lastActive) {
+                        if (lastActive) lastActive.classList.remove('active');
+                        activeLink.classList.add('active');
+                        lastActive = activeLink;
+                    }
+                }
+            }
+            
+            window.addEventListener('scroll', updateActiveLink);
+            updateActiveLink();
+        }
+    }
+    
+    // Back to top button functionality
+    const backToTopBtn = document.getElementById('back-to-top');
+    if (backToTopBtn) {
+        // Show button when user scrolls down
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > 300) {
+                backToTopBtn.classList.add('visible');
+            } else {
+                backToTopBtn.classList.remove('visible');
+            }
+        });
+        
+        // Scroll to top when clicked
+        backToTopBtn.addEventListener('click', function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    }
+    
+    if (!searchBox) return;
+    const packages = document.querySelectorAll('.package');
+    searchBox.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        packages.forEach(pkg => {
+            const link = pkg.querySelector('a');
+            if (link) {
+                const text = link.textContent.toLowerCase();
+                pkg.style.display = text.includes(query) ? '' : 'none';
+            }
+        });
+    });
+});
+</script>
+</body>
+</html>

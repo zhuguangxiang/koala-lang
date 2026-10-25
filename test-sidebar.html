@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Sidebar Toggle Test</title>
+    <style>
+        :root {
+            --sidebar-width: 280px;
+        }
+        
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        
+        #sidebar {
+            width: var(--sidebar-width);
+            background: #161b22;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            transition: transform 0.3s ease;
+            z-index: 100;
+        }
+        
+        #sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+        
+        #content {
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            transition: margin-left 0.3s ease;
+        }
+        
+        #content.expanded {
+            margin-left: 0;
+        }
+        
+        #sidebar-toggle {
+            position: fixed;
+            top: 50%;
+            left: var(--sidebar-width);
+            transform: translateY(-50%);
+            width: 24px;
+            height: 48px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-left: none;
+            border-radius: 0 8px 8px 0;
+            color: #8b949e;
+            cursor: pointer;
+            z-index: 1000;
+            transition: left 0.3s ease;
+        }
+        
+        #sidebar-toggle.collapsed {
+            left: 0;
+            transform: translateY(-50%);
+        }
+    </style>
+</head>
+<body>
+    <button id="sidebar-toggle" title="Toggle Sidebar">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+    </button>
+    
+    <div id="sidebar">
+        <h2 style="color: white; padding: 20px;">Sidebar</h2>
+        <p style="color: #8b949e; padding: 0 20px;">This is the sidebar content</p>
+    </div>
+    
+    <div id="content">
+        <h1>Main Content</h1>
+        <p>Click the button on the right edge of the sidebar to toggle it.</p>
+        <p>Check the browser console for debug messages.</p>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const toggleBtn = document.getElementById('sidebar-toggle');
+            const content = document.getElementById('content');
+            
+            console.log('✅ Elements found:');
+            console.log('  sidebar:', sidebar);
+            console.log('  toggleBtn:', toggleBtn);
+            console.log('  content:', content);
+            
+            if (toggleBtn && sidebar && content) {
+                console.log('✅ All elements found, adding click listener');
+                
+                toggleBtn.addEventListener('click', function() {
+                    console.log('🎯 Button clicked!');
+                    
+                    const isCollapsed = sidebar.classList.toggle('collapsed');
+                    toggleBtn.classList.toggle('collapsed');
+                    content.classList.toggle('expanded');
+                    
+                    console.log('  sidebar classes:', sidebar.className);
+                    console.log('  toggleBtn classes:', toggleBtn.className);
+                    console.log('  content classes:', content.className);
+                    console.log('  isCollapsed:', isCollapsed);
+                });
+            } else {
+                console.error('❌ Some elements not found!');
+            }
+        });
+    </script>
+</body>
+</html>

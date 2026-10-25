@@ -77,6 +77,18 @@ KEYWORDS = {
 }
 VALUE_KEYWORDS = {"self", "true", "false", "nil"}
 
+# keywords after which koala.l's semicolon() auto-inserts `;` at a newline;
+# every other keyword (operators, `list`/`dict`/`func`/`if`/...) suppresses it,
+# so the statement continues on the next line
+ASI_ENDER_KEYWORDS = {
+    "self", "true", "false", "nil",
+    "uint8", "uint16", "uint32", "uint64", "uint",
+    "int8", "int16", "int32", "int64", "int",
+    "float16", "float32", "float64", "bfloat16", "float",
+    "bool", "str", "bytes", "any",
+    "return", "break", "continue",
+}
+
 # tokens after which a `-` / `+` is a binary operator (an operand just ended)
 OPERAND_END = {IDENT, NUMBER, STRING, CHAR, BYTES, TEXT,
                "rparen", "rbracket", "rbrace", "qmark"}
@@ -108,12 +120,13 @@ DIGITS = set("0123456789")
 
 
 class Tok:
-    __slots__ = ("role", "text", "unary")
+    __slots__ = ("role", "text", "unary", "gap")
 
     def __init__(self, role, text):
         self.role = role
         self.text = text
         self.unary = False
+        self.gap = ""            # whitespace that preceded this token
 
     def __repr__(self):
         return "Tok(%r,%r)" % (self.role, self.text)
@@ -167,7 +180,11 @@ def tokenize(src):
             continue
 
         if c in " \t\r":
-            i += 1
+            j = i
+            while j < n and src[j] in " \t\r":
+                j += 1
+            toks.append(Tok(WS, src[i:j]))
+            i = j
             continue
 
         # comments
@@ -281,7 +298,19 @@ def tokenize(src):
         toks.append(Tok("op", c))
         i += 1
 
-    return toks
+    # fold each whitespace run into the following token's `gap`, then drop the
+    # WS tokens: `gap` recovers a line's original indent (the first token after
+    # a newline) and a trailing comment's original alignment padding
+    folded = []
+    pending = ""
+    for t in toks:
+        if t.role == WS:
+            pending += t.text
+            continue
+        t.gap = pending
+        pending = ""
+        folded.append(t)
+    return folded
 
 
 def _scan_quoted(s, i, quote):
@@ -337,9 +366,64 @@ def _mark_unary(line_toks):
     """
     prev = None
     for t in line_toks:
+        # comments are transparent, so `1 /* c */ + 2` keeps `+` binary
+        if t.role in (LINE_COMMENT, BLOCK_COMMENT):
+            continue
         if t.role == "op" and t.text in ("-", "+", "!"):
             t.unary = not _is_operand_end(prev)
         prev = t
+
+
+def _is_asi_ender(tok):
+    """Mirror koala.l semicolon(): True when a newline right after `tok`
+    auto-inserts `;`, i.e. `tok` can legally end a statement. Its complement
+    (operators, open brackets, `,` `.` `:` ...) suppresses insertion, which is
+    why a continued statement keeps its operator at the end of the line.
+    """
+    if tok is None:
+        return False
+    r = tok.role
+    if r in (NUMBER, STRING, CHAR, BYTES, TEXT, IDENT):
+        return True
+    if r == KEYWORD:
+        return tok.text in ASI_ENDER_KEYWORDS
+    if r in ("rparen", "rbracket", "rbrace", "qmark"):
+        return True
+    if r == "op" and tok.text == "!":
+        return True                        # NOT (postfix force-unwrap)
+    return False
+
+
+def _last_code_token(line):
+    """Last non-comment token of a line. Comments never update koala.l's
+    ps->token, so they are transparent to semicolon insertion."""
+    for t in reversed(line.tokens):
+        if t.role not in (LINE_COMMENT, BLOCK_COMMENT):
+            return t
+    return None
+
+
+def _is_continuation(lines, idx):
+    """True when line `idx` is an operand continuation of a multi-line
+    expression: the previous line ends with a token that suppresses ASI (an
+    operator, `,`, `.`, ...). Comment-only lines are transparent and a blank
+    line ends the statement. A trailing block opener (`{` / `{|`) is excluded:
+    the next line is then a block body, indented by the context stack, not a
+    hand-aligned operand.
+    """
+    j = idx - 1
+    while j >= 0:
+        prev = lines[j]
+        if not prev.tokens:                # blank line breaks the continuation
+            return False
+        last = _last_code_token(prev)
+        if last is None:                   # comment-only line: look further up
+            j -= 1
+            continue
+        if _is_asi_ender(last):
+            return False
+        return last.role not in ("lbrace", "lambda")
+    return False
 
 
 def _need_space(prev, cur, line_toks):
@@ -376,7 +460,7 @@ def _need_space(prev, cur, line_toks):
     if pr == "at":
         return False
 
-    # colon: slice / case / base handled by caller via _colon_space
+    # colon: bound / slice / dict / case / base, via _colon_space
     if cr == "colon" or pr == "colon":
         return _colon_space(prev, cur, line_toks)
 
@@ -415,6 +499,9 @@ def _need_space(prev, cur, line_toks):
             return True
         if pr == KEYWORD and prev.text in SPACE_BEFORE_GROUP_KEYWORDS:
             return True
+        # a tuple/array return type keeps its space: `func f() (T, T)`
+        if pr == "rparen" and _closes_func_params(line_toks, prev):
+            return True
         return False
 
     # a block brace / lambda always takes a space before it
@@ -436,30 +523,42 @@ def _need_space(prev, cur, line_toks):
 def _colon_space(prev, cur, line_toks):
     """Spacing around `:`.
 
-    Four shapes exist in Koala and are told apart by the innermost bracket
-    enclosing the colon on this line plus a leading `case` keyword:
-      - slice `a[1:2]`      -> no space either side
-      - dict `{"k": v}`     -> hug left, space after
-      - case `case 1:`      -> hug left, space after
-      - base `class X : B`  -> a space on each side
+    Five shapes exist in Koala, told apart by the innermost bracket that
+    encloses the colon on this line plus a leading `case` keyword:
+      - generic bound `func f[T : C]` -> a space on each side
+      - base class   `class X : B`    -> a space on each side
+      - dict literal `{k: v}`         -> hug left, space after
+      - case label   `case 1:`        -> hug left, space after
+      - slice        `a[1:2]`         -> no space either side
+    A `[` introduces a bound only when it opens a declaration's generic
+    parameter list (`func`/`class`/`trait`/`type` NAME `[`); any other `[`
+    is a subscript, so its colon is a slice.
     """
     target = cur if cur.role == "colon" else prev
-    inner = _innermost_bracket(line_toks, target)
+    oi = _innermost_opener(line_toks, target)
+    opener = line_toks[oi] if oi is not None else None
     is_case = bool(line_toks) and line_toks[0].role == KEYWORD \
         and line_toks[0].text == "case"
 
+    if opener is not None and opener.role == "lbracket":
+        kind = "bound" if _is_generic_params(line_toks, oi) else "slice"
+    elif opener is None:
+        kind = "case" if is_case else "base"
+    else:
+        kind = "dict"                       # {k: v}, or a stray `:` in (...)
+
+    if kind in ("bound", "base"):
+        return True                         # a space on each side
     if cur.role == "colon":                 # space before the colon?
-        if is_case or inner is not None:     # slice / dict / case all hug
-            return False
-        return True                          # base colon
-    # prev is the colon: space after?
-    if inner == "[":                         # slice
-        return False
-    return True
+        return False                        # dict / case / slice hug left
+    return kind != "slice"                  # space after, except a slice
 
 
-def _innermost_bracket(line_toks, target):
-    """The opener char of the innermost unclosed bracket before `target`."""
+def _innermost_opener(line_toks, target):
+    """Index of the opener of the innermost unclosed bracket before `target`.
+
+    Returns None when `target` sits at bracket depth zero on its line.
+    """
     idx = None
     for k, t in enumerate(line_toks):
         if t is target:
@@ -468,13 +567,60 @@ def _innermost_bracket(line_toks, target):
     if idx is None:
         return None
     stack = []
-    for t in line_toks[:idx]:
+    for k, t in enumerate(line_toks[:idx]):
         if t.role in ("lparen", "lbracket", "lbrace", "lambda"):
-            stack.append(t.text[0])
+            stack.append(k)
         elif t.role in ("rparen", "rbracket", "rbrace"):
             if stack:
                 stack.pop()
     return stack[-1] if stack else None
+
+
+def _is_generic_params(line_toks, oi):
+    """True when the `[` at index `oi` opens a declaration's generic parameter
+    list, written `func`/`class`/`trait`/`type` NAME `[`. Only such a list may
+    hold a `T : Bound` colon; every other `[` is a subscript (a slice colon).
+    """
+    if oi - 2 < 0:
+        return False
+    name, kw = line_toks[oi - 1], line_toks[oi - 2]
+    return name.role == IDENT and kw.role == KEYWORD \
+        and kw.text in ("func", "class", "trait", "type")
+
+
+def _closes_func_params(line_toks, target):
+    """True when `target` is the `)` closing a func's parameter list.
+
+    Lets a tuple/array return type keep its separating space, as in
+    `func divmod(a, b) (T, T)`, while a chained call `f()(x)` stays tight.
+    """
+    fi = None
+    for k, t in enumerate(line_toks):
+        if t.role == KEYWORD and t.text == "func":
+            fi = k
+            break
+    if fi is None:
+        return False
+    depth = 0                 # nesting of [ ] / { } before the param list
+    paren = 0                 # nesting inside the parameter list
+    opened = False
+    for t in line_toks[fi + 1:]:
+        if not opened:
+            if t.role in ("lbracket", "lbrace", "lambda"):
+                depth += 1
+            elif t.role in ("rbracket", "rbrace"):
+                depth -= 1
+            elif t.role == "lparen" and depth == 0:
+                opened = True
+                paren = 1
+            continue
+        if t.role == "lparen":
+            paren += 1
+        elif t.role == "rparen":
+            paren -= 1
+            if paren == 0:
+                return t is target
+    return False
 
 
 # --- comment wrapping -----------------------------------------------------
@@ -499,10 +645,27 @@ def _comment_prefix(text):
     return head
 
 
+def _is_directive(stripped):
+    """True for a lit/FileCheck directive such as `CHECK:`, `CHECK-LABEL:`,
+    `IR-NOT:` or `RUN:`. Wrapping one would split it across lines and the test
+    harness would mis-read it, so these are never wrapped. Any leading
+    all-caps label (`TODO:`, `NOTE:`, ...) is treated the same safe way.
+    """
+    if not stripped or not ("A" <= stripped[0] <= "Z"):
+        return False
+    i, n = 1, len(stripped)
+    while i < n and ("A" <= stripped[i] <= "Z"
+                     or stripped[i].isdigit() or stripped[i] == "_"):
+        i += 1
+    return i < n and stripped[i] in "-:"
+
+
 def _is_unwrappable(body):
     """A comment body that must not be word-wrapped."""
     stripped = body.strip()
     if not stripped:
+        return True
+    if _is_directive(stripped):
         return True
     if stripped.startswith(_FENCE):
         return True
@@ -595,8 +758,9 @@ def format_source(src):
 
     stack = []
     out = []
+    stmt_indent = 0
 
-    for line in lines:
+    for idx, line in enumerate(lines):
         if not line.tokens:
             out.append(_PhysicalLine("", []))
             continue
@@ -604,14 +768,26 @@ def format_source(src):
         _mark_unary(line.tokens)
 
         # decide this line's indent from the context stack
+        cont = _is_continuation(lines, idx)
         if _starts_with_closer(line) and stack:
             indent = stack[-1].closer_indent
+        elif stack and stack[-1].kind == "align":
+            indent = stack[-1].content_indent       # A2: align under bracket
+        elif cont:
+            # operator continuation outside any bracket: keep the author's
+            # hand-alignment (never reflowed, so ASI stays intact)
+            indent = len(line.tokens[0].gap.expandtabs(INDENT_WIDTH))
         elif stack:
             indent = stack[-1].content_indent
         else:
             indent = 0
 
-        body, stack = _render_line(line.tokens, indent, stack)
+        # a block opener on a continuation line still closes at the statement's
+        # own indent, so track where the current statement began
+        if not cont:
+            stmt_indent = indent
+
+        body, stack = _render_line(line.tokens, indent, stack, stmt_indent)
         text = (" " * indent + body) if body else ""
         out.append(_PhysicalLine(text, line.tokens))
 
@@ -627,12 +803,14 @@ class _PhysicalLine:
         self.blank = (text.strip() == "")
 
 
-def _render_line(tokens, indent, stack):
+def _render_line(tokens, indent, stack, stmt_indent=None):
     """Emit one logical line's tokens, updating the indent stack.
 
     Returns (body_text, stack). Verbatim multi-line tokens (text blocks,
     block comments) are emitted untouched, including their own newlines.
     """
+    if stmt_indent is None:
+        stmt_indent = indent
     parts = []
     col = indent
     prev = None
@@ -642,9 +820,14 @@ def _render_line(tokens, indent, stack):
         t = tokens[i]
         text = t.text
 
-        if prev is not None and _need_space(prev, t, tokens):
-            parts.append(" ")
-            col += 1
+        if prev is not None:
+            if t.role == LINE_COMMENT and t.gap:
+                # keep the author's alignment padding before a trailing comment
+                parts.append(t.gap)
+                col += len(t.gap)
+            elif _need_space(prev, t, tokens):
+                parts.append(" ")
+                col += 1
 
         # verbatim multi-line token: emit as-is, keep internal newlines
         if t.role in (TEXT, BLOCK_COMMENT) and "\n" in text:
@@ -660,7 +843,7 @@ def _render_line(tokens, indent, stack):
 
         # maintain the indent stack for brackets
         if t.role in ("lbrace", "lambda"):
-            stack.append(Ctx("block", indent + INDENT_WIDTH, indent))
+            stack.append(Ctx("block", stmt_indent + INDENT_WIDTH, stmt_indent))
         elif t.role in ("lparen", "lbracket"):
             stack.append(Ctx("align", col, indent))
         elif t.role in ("rparen", "rbracket", "rbrace"):
@@ -716,9 +899,18 @@ def _maybe_wrap(item):
         # contains a verbatim multi-line token (text block / block comment):
         # keep untouched, interior lines are content
         return [text]
+    toks = item.tokens
     # standalone comment line: the only case we word-wrap
-    if len(item.tokens) == 1 and item.tokens[0].role == LINE_COMMENT:
+    if len(toks) == 1 and toks[0].role == LINE_COMMENT:
         return wrap_comment(text, COMMENT_LIMIT)
+    # a trailing comment that pushes the line over the limit moves onto its own
+    # line above the code; ASI-safe, since a comment never updates ps->token
+    if (len(toks) >= 2 and toks[-1].role == LINE_COMMENT
+            and len(text) > COMMENT_LIMIT and text.endswith(toks[-1].text)):
+        comment = toks[-1].text
+        indent = len(text) - len(text.lstrip(" "))
+        code = text[:-len(comment)].rstrip()
+        return wrap_comment(" " * indent + comment, COMMENT_LIMIT) + [code]
     return [text]
 
 

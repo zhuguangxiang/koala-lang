@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>std/fs - Koala API</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <style>
+:root {
+    --sidebar-width: 280px;
+    --content-max-width: 900px;
+    --bg: #0d1117;
+    --sidebar-bg: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-light: #8b949e;
+    --link: #58a6ff;
+    --code-bg: #1f2428;
+    --heading: #f0f6fc;
+    --badge-bg: #30363d;
+    --badge-text: #c9d1d9;
+    --accent: #238636;
+    --accent-hover: #2ea043;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Modern Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: #6e7681;
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #30363d transparent;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--text);
+    background: var(--bg);
+    display: flex;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#sidebar {
+    width: var(--sidebar-width);
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#sidebar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#sidebar h2 {
+    font-size: 40px;
+    font-weight: 700;
+    padding: 0 20px 15px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 15px;
+    color: var(--text-light);
+}
+
+#sidebar .workspace { margin-bottom: 20px; }
+
+#sidebar .workspace-title {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 20px;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+#sidebar .workspace-title:hover {
+    color: var(--text);
+}
+
+#sidebar .ws-arrow {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+#sidebar .workspace-title.collapsed .ws-arrow {
+    transform: rotate(-90deg);
+}
+
+#sidebar .workspace-items.hidden {
+    display: none;
+}
+
+#sidebar .package { margin-bottom: 2px; }
+
+#sidebar .package > a {
+    display: block;
+    padding: 8px 20px 8px 30px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 16px;
+    transition: all 0.2s ease;
+    border-left: 2px solid transparent;
+}
+
+#sidebar .package > a:hover {
+    background: rgba(88, 166, 255, 0.08);
+    border-left-color: var(--link);
+}
+
+#sidebar .package > a.active {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--link);
+    border-left-color: var(--link);
+    font-weight: 500;
+}
+
+#search-box {
+    width: calc(100% - 40px);
+    margin: 0 20px 15px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 15px;
+    background: var(--code-bg);
+    color: var(--text);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#search-box:focus {
+    outline: none;
+    border-color: var(--link);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1);
+}
+
+#search-box::placeholder {
+    color: var(--text-light);
+}
+
+#content {
+    margin-left: var(--sidebar-width);
+    margin-right: auto;
+    flex: 1;
+    padding: 40px;
+    max-width: var(--content-max-width);
+}
+
+h1 {
+    font-size: 40px;
+    font-weight: 700;
+    color: var(--text-light);
+    margin-bottom: 10px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -0.5px;
+}
+
+h2 {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 40px;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.3px;
+}
+
+h3 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 30px;
+    margin-bottom: 10px;
+}
+
+h4.section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-top: 25px;
+    margin-bottom: 12px;
+}
+
+.item {
+    margin-bottom: 40px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 20px;
+}
+
+.member-item {
+    margin-bottom: 30px;
+    scroll-margin-top: 20px;
+}
+
+.collapsible-section {
+    margin-top: 20px;
+}
+
+.collapse-toggle {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: color 0.2s;
+}
+
+.collapse-toggle:hover {
+    color: var(--text);
+}
+
+.collapse-toggle .arrow {
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.collapse-toggle.collapsed .arrow {
+    transform: rotate(-90deg);
+}
+
+.collapsible-content {
+    margin-top: 15px;
+    padding-left: 10px;
+    border-left: 2px solid var(--border);
+}
+
+.collapsible-content.hidden {
+    display: none;
+}
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.item-header h3 { margin: 0; font-family: "SF Mono", Monaco, monospace; }
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+}
+
+.badge.trait { background: #1a3a4a; color: #5bc0de; }
+.badge.class { background: #3a1a4a; color: #c77dff; }
+.badge.func { background: #1a3a1a; color: #7ddf7d; }
+.badge.const { background: #4a3a1a; color: #ffb347; }
+
+.signature {
+    background: var(--code-bg);
+    padding: 14px 18px;
+    border-radius: 8px;
+    border-left: 3px solid var(--link);
+    margin-bottom: 15px;
+    overflow-x: auto;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.signature code {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.bases {
+    font-size: 14px;
+    color: var(--text-light);
+    margin-bottom: 15px;
+}
+
+.bases strong { color: var(--text); }
+
+.doc-content { margin-bottom: 15px; }
+.doc-content p { margin-bottom: 12px; line-height: 1.7; }
+
+.doc-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.doc-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-content pre code { background: none; padding: 0; border: none; font-size: 14px; }
+
+.member {
+    margin-left: 20px;
+    margin-bottom: 20px;
+    padding-left: 15px;
+    border-left: 2px solid var(--border);
+}
+
+.member-sig {
+    font-family: "SF Mono", Monaco, monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--heading);
+    margin-bottom: 5px;
+}
+
+.member-tag {
+    font-size: 12px;
+    color: var(--text-light);
+    font-style: italic;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+th, td {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 15px;
+}
+
+th {
+    background: var(--sidebar-bg);
+    font-weight: 600;
+    color: var(--text-light);
+}
+
+td a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+td a:hover { color: #79c0ff; }
+
+.summary { color: var(--text-light); font-size: 15px; }
+a { color: var(--link); text-decoration: none; transition: color 0.2s; }
+a:hover { color: #79c0ff; }
+
+.manual-toc {
+    background: var(--sidebar-bg);
+    padding: 24px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-toc h2 {
+    margin-top: 0;
+    font-size: 20px;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.manual-toc ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.manual-toc ul ul {
+    padding-left: 20px;
+    margin-top: 5px;
+}
+
+.manual-toc li {
+    margin-bottom: 8px;
+}
+
+.manual-toc a {
+    color: var(--text);
+    text-decoration: none;
+    transition: all 0.2s;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    font-size: 16px;
+}
+
+.manual-toc a:hover {
+    color: var(--link);
+    background: rgba(88, 166, 255, 0.08);
+}
+
+.manual-content {
+    margin-bottom: 20px;
+}
+
+.manual-content pre {
+    background: var(--code-bg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 15px 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.manual-content code {
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    border: 1px solid var(--border);
+}
+
+.manual-content pre code {
+    background: none;
+    padding: 0;
+    border: none;
+    font-size: 14px;
+}
+
+.doc-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin: 30px 0;
+}
+
+.doc-card {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.doc-card:hover {
+    border-color: var(--link);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(88, 166, 255, 0.15);
+}
+
+.doc-card h3 {
+    margin: 0 0 12px;
+    font-size: 22px;
+    color: var(--heading);
+    font-weight: 600;
+}
+
+.doc-card p {
+    color: var(--text-light);
+    margin-bottom: 16px;
+    line-height: 1.7;
+}
+
+.doc-card-link {
+    display: inline-block;
+    color: var(--link);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(88, 166, 255, 0.1);
+}
+
+.doc-card-link:hover {
+    color: #79c0ff;
+    background: rgba(88, 166, 255, 0.2);
+}
+
+/* Playground styles */
+.playground-section {
+    background: #1a1a2e;
+    border: 1px solid #2d2d44;
+    border-radius: 8px;
+    padding: 24px;
+    margin: 24px 0;
+}
+
+.playground-section h2 {
+    margin-top: 0;
+    color: #7bb8ff;
+}
+
+.playground-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.playground-editor {
+    position: relative;
+}
+
+.playground-editor textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 16px;
+    background: #0d0d1a;
+    color: #e0e0e0;
+    border: 1px solid #2d2d44;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    tab-size: 4;
+}
+
+.playground-editor textarea:focus {
+    outline: none;
+    border-color: #7bb8ff;
+}
+
+.playground-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.playground-btn {
+    padding: 8px 20px;
+    background: #2d5a3d;
+    color: #a0e0a0;
+    border: 1px solid #3a7a4a;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.playground-btn:hover {
+    background: #3a7a4a;
+}
+
+.playground-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.playground-btn.secondary {
+    background: #2d2d44;
+    color: #a0a0c0;
+    border-color: #3d3d5c;
+}
+
+.playground-btn.secondary:hover {
+    background: #3d3d5c;
+}
+
+.playground-result {
+    padding: 12px 16px;
+    background: #1a2a1a;
+    border: 1px solid #2d5a3d;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 13px;
+    color: #a0e0a0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 60px;
+}
+
+.playground-result.error {
+    background: #2a1a1a;
+    border-color: #5a2d2d;
+    color: #e0a0a0;
+}
+
+.playground-result .result-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.7;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+    #sidebar {
+        width: 100%;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+    }
+    #content { margin-left: 0; padding: 20px; }
+    body { flex-direction: column; }
+}
+
+.github-link {
+    display: block;
+    margin: 0 20px 15px;
+    padding: 8px 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.github-link:hover {
+    border-color: var(--link);
+    background: rgba(91, 163, 245, 0.1);
+}
+
+.github-link::before {
+    content: "🐙 ";
+}
+
+/* Table of Contents (Right Sidebar) */
+#toc {
+    position: fixed;
+    right: 30px;
+    top: 80px;
+    width: 280px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--sidebar-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+}
+
+#toc::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+#toc-title {
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+#toc ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#toc li {
+    margin: 8px 0;
+}
+
+#toc a {
+    color: var(--text-light);
+    text-decoration: none;
+    display: block;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    line-height: 1.5;
+}
+
+#toc a:hover {
+    background: var(--code-bg);
+    color: var(--link);
+}
+
+#toc a.active {
+    background: rgba(88, 166, 255, 0.1);
+    color: var(--link);
+    border-left: 2px solid var(--link);
+}
+
+#toc ul ul {
+    margin-left: 16px;
+    margin-top: 6px;
+}
+
+#toc ul ul a {
+    font-size: 13px;
+    padding: 4px 12px;
+}
+
+#toc li.toc-h3 a {
+    padding-left: 24px;
+    font-size: 13px;
+}
+
+/* Home button at top */
+#toc-home {
+    display: block;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+#toc-home:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+/* Back to top button */
+#back-to-top {
+    display: none;
+    width: 100%;
+    padding: 10px 16px;
+    margin-top: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#back-to-top:hover {
+    background: var(--link);
+    color: #fff;
+    border-color: var(--link);
+}
+
+#back-to-top.visible {
+    display: block;
+}
+
+/* TOC always visible */
+#content {
+    margin-right: 320px;
+}
+
+/* Scrollbar for TOC */
+#toc::-webkit-scrollbar {
+    width: 6px;
+}
+
+#toc::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#toc::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+#toc::-webkit-scrollbar-thumb:hover {
+    background: var(--text-light);
+}
+</style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2><a href="index.html" style="color:inherit;text-decoration:none;">Koala Docs</a></h2>
+        <a href="https://github.com/zhuguangxiang/koala-lang" class="github-link" target="_blank">GitHub Repository</a>
+        <input type="text" id="search-box" placeholder="Search...">
+        <div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">Guide <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="manual.html">Language Manual</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">std <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="std_builtin.html">builtin</a>
+</div>
+<div class="package">
+<a href="std_collections.html">collections</a>
+</div>
+<div class="package">
+<a href="std_fs.html" class="active">fs</a>
+</div>
+<div class="package">
+<a href="std_io.html">io</a>
+</div>
+<div class="package">
+<a href="std_os.html">os</a>
+</div>
+<div class="package">
+<a href="std_prelude.html">prelude</a>
+</div>
+<div class="package">
+<a href="std_sys.html">sys</a>
+</div>
+<div class="package">
+<a href="std_time.html">time</a>
+</div>
+<div class="package">
+<a href="std_ut.html">ut</a>
+</div>
+</div>
+</div>
+<div class="workspace">
+<div class="workspace-title" onclick="toggleWorkspace(this)">koala <span class="ws-arrow">▼</span></div>
+<div class="workspace-items">
+<div class="package">
+<a href="koala_datetime.html">datetime</a>
+</div>
+<div class="package">
+<a href="koala_encoding_base64.html">encoding/base64</a>
+</div>
+<div class="package">
+<a href="koala_encoding_bin.html">encoding/bin</a>
+</div>
+<div class="package">
+<a href="koala_json.html">json</a>
+</div>
+<div class="package">
+<a href="koala_math.html">math</a>
+</div>
+<div class="package">
+<a href="koala_random.html">random</a>
+</div>
+<div class="package">
+<a href="koala_toml.html">toml</a>
+</div>
+<div class="package">
+<a href="koala_wombat.html">wombat</a>
+</div>
+</div>
+</div>
+    </div>
+    <div id="content">
+        <h1>std/fs</h1>
+<h2>Classes</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#file">File</a></td><td class="summary">An opened file providing byte-level read, write and seek access.</td></tr>
+<tr><td><a href="#path">Path</a></td><td class="summary">The `Path` class represents a structural filesystem path.</td></tr>
+</table>
+<h2>Functions</h2>
+<table>
+<tr><th>Name</th><th>Summary</th></tr>
+<tr><td><a href="#open">open</a></td><td class="summary">Open the file at `path` and return a `File` object.</td></tr>
+<tr><td><a href="#_path_str">_path_str</a></td><td class="summary">Convert a `Path | str` argument to the raw `str` path.</td></tr>
+<tr><td><a href="#_list_dir">_list_dir</a></td><td class="summary"></td></tr>
+<tr><td><a href="#read_bytes">read_bytes</a></td><td class="summary">Read the file `path` into `out` and return the count read.</td></tr>
+<tr><td><a href="#write_bytes">write_bytes</a></td><td class="summary">Write `data` to the file `path`, creating or truncating it.</td></tr>
+<tr><td><a href="#write_str">write_str</a></td><td class="summary">Encode `data` as UTF-8 and write it to the file `path`, creating or truncating it.</td></tr>
+<tr><td><a href="#exists">exists</a></td><td class="summary">Return true if the file or directory exists on the physical disk.</td></tr>
+<tr><td><a href="#is_file">is_file</a></td><td class="summary">Return true if the path points to a regular file.</td></tr>
+<tr><td><a href="#is_dir">is_dir</a></td><td class="summary">Return true if the path points to a directory.</td></tr>
+<tr><td><a href="#size">size</a></td><td class="summary">Return the size of the file in bytes. Panics if the file does not exist.</td></tr>
+<tr><td><a href="#remove">remove</a></td><td class="summary">Permanently delete a file from the disk. Returns true on success.</td></tr>
+<tr><td><a href="#rename">rename</a></td><td class="summary">Rename or move the file/directory `src` to `dst`.</td></tr>
+<tr><td><a href="#mkdir">mkdir</a></td><td class="summary">Create a directory, including any missing parent directories (mkdir -p). An existing directory is treated as success. Return true on success, false on failure.</td></tr>
+<tr><td><a href="#rmdir">rmdir</a></td><td class="summary">Remove an empty directory. Returns false if the directory is not empty.</td></tr>
+<tr><td><a href="#list_dir">list_dir</a></td><td class="summary">Read the directory contents and return a list of strongly-typed `path.Path` objects.</td></tr>
+<tr><td><a href="#read_all">read_all</a></td><td class="summary">Read the entire file `path` into a new `bytes`.</td></tr>
+<tr><td><a href="#read_str">read_str</a></td><td class="summary">Read the entire file `path` and decode it as UTF-8 into a `str`.</td></tr>
+</table>
+<h2>Classes</h2>
+
+<div class="item" id="file">
+    <div class="signature"><code>pub class File : io.Reader &amp; io.Writer &amp; io.Seeker &amp; io.Closable</code></div>
+    
+    <div class="doc-content"><p>An opened file providing byte-level read, write and seek access.</p>
+
+<p>It implements the <code>io.Reader</code>, <code>io.Writer</code>, <code>io.Seeker</code> and <code>io.Closable</code> protocols.</p>
+<p>Obtain instances via <code>fs.open</code> or <code>open</code> only.</p>
+
+<p>See: <code>fs.open</code> and <code>open</code>.</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>func __init__()</code></div>
+    <div class="doc-content"><p>Private constructor.</p>
+
+<p>User cannot directly create instances of this class.</p></div>
+</div>
+
+<div class="member-item" id="read">
+    <div class="signature"><code>pub func read(bs bytes) int</code></div>
+    <div class="doc-content"><p>Read up to <code>bs.len()</code> bytes into <code>bs</code> and return the count read.</p>
+
+<p>Return 0 at EOF, or -1 on error. Panic when writing a closed file.</p></div>
+</div>
+
+<div class="member-item" id="write">
+    <div class="signature"><code>pub func write(bs bytes) int</code></div>
+    <div class="doc-content"><p>Write <code>bs.len()</code> bytes from <code>bs</code> and return the count written.</p>
+
+<p>Return -1 on error. Panic when writing a closed file.</p></div>
+</div>
+
+<div class="member-item" id="write_str">
+    <div class="signature"><code>pub func write_str(s str) int</code></div>
+    <div class="doc-content"><p>Write the UTF-8 encoding of the string to the file.</p>
+
+<p>Returns the number of bytes actually written.</p>
+<p>Return -1 on error. Panic when writing a closed file.</p></div>
+</div>
+
+<div class="member-item" id="seek">
+    <div class="signature"><code>pub func seek(offset int, whence int) int</code></div>
+    <div class="doc-content"><p>Move the file cursor by <code>offset</code> relative to <code>whence</code> and return the new absolute position.</p>
+
+<p><code>whence</code>: 0 = start of file, 1 = current position, 2 = end of file.</p>
+
+<p>Return -1 on error. Panic when seeking a closed file.</p>
+
+<p>See: <code>io.SEEK_SET</code>, <code>io.SEEK_CUR</code>, <code>io.SEEK_END</code> for the <code>whence</code> values.</p></div>
+</div>
+
+<div class="member-item" id="tell">
+    <div class="signature"><code>pub func tell() int</code></div>
+    <div class="doc-content"><p>Return the current cursor position.</p>
+
+<p>Return -1 on error. Panic when querying the position of a closed file.</p></div>
+</div>
+
+<div class="member-item" id="truncate">
+    <div class="signature"><code>pub func truncate(size = -1) bool</code></div>
+    <div class="doc-content"><p>Truncate the file to <code>size</code> bytes.</p>
+
+<p>If <code>size</code> is -1, truncate at the current cursor position. The cursor itself is not moved.</p>
+
+<p>Return true on success, false on error. Panic when truncating a closed file.</p></div>
+</div>
+
+<div class="member-item" id="close">
+    <div class="signature"><code>pub func close()</code></div>
+    <div class="doc-content"><p>Close the file and release the underlying file descriptor.</p>
+
+<p>Subsequent I/O operations on this file will panic.</p></div>
+</div>
+
+<div class="member-item" id="flush">
+    <div class="signature"><code>pub func flush()</code></div>
+    <div class="doc-content"><p>Satisfy the <code>io.Writer</code> protocol; a raw file is unbuffered, so this only checks</p>
+<p>if the file is closed.</p></div>
+</div>
+</div></div>
+</div>
+
+
+<div class="item" id="path">
+    <div class="signature"><code>pub class Path : ToString</code></div>
+    
+    <div class="doc-content"><p>The <code>Path</code> class represents a structural filesystem path.</p>
+
+<p>It treats paths as clean logical objects rather than raw strings,</p>
+<p>automatically handling platform-specific separators (\ for Windows, / for Unix).</p></div>
+    <div class="collapsible-section"><button class="collapse-toggle collapsed" onclick="toggleSection(this)">Methods <span class="arrow">▼</span></button><div class="collapsible-content hidden">
+<div class="member-item" id="__init__">
+    <div class="signature"><code>pub func __init__(p str)</code></div>
+    <div class="doc-content"><p>Create a new <code>Path</code> from a string representation.</p></div>
+</div>
+
+<div class="member-item" id="name">
+    <div class="signature"><code>pub func name() str</code></div>
+    <div class="doc-content"><p>Return the final component of the path (e.g., returns "file.kl" for "/a/b/file.kl").</p>
+<p>If the path ends in a separator, returns the directory name.</p></div>
+</div>
+
+<div class="member-item" id="ext">
+    <div class="signature"><code>pub func ext() str</code></div>
+    <div class="doc-content"><p>Return the file extension without the leading dot (e.g., returns "kl" for "file.kl").</p>
+<p>Returns an empty string if no extension exists.</p></div>
+</div>
+
+<div class="member-item" id="stem">
+    <div class="signature"><code>pub func stem() str</code></div>
+    <div class="doc-content"><p>Return the pure filename without its extension (e.g., returns "file" for "file.kl").</p></div>
+</div>
+
+<div class="member-item" id="parent">
+    <div class="signature"><code>pub func parent() Path</code></div>
+    <div class="doc-content"><p>Return a new <code>Path</code> object representing the parent directory.</p>
+<p>Returns self if the path is already the root directory.</p></div>
+</div>
+
+<div class="member-item" id="is_absolute">
+    <div class="signature"><code>pub func is_absolute() bool</code></div>
+    <div class="doc-content"><p>Return true if the path is absolute.</p>
+<p>(e.g., starts with "/" on Unix or "C:\" on Windows).</p></div>
+</div>
+
+<div class="member-item" id="normalize">
+    <div class="signature"><code>pub func normalize() Path</code></div>
+    <div class="doc-content"><p>Return a normalized version of the path.</p>
+<p>Eliminates redundant separators and up-level references (e.g., "a//b", "a/./b", "a/b/../c" -> "a/c").</p></div>
+</div>
+
+<div class="member-item" id="absolute">
+    <div class="signature"><code>pub func absolute() Path</code></div>
+    <div class="doc-content"><p>Return an absolute version of the path by lexically expanding relative tokens.</p></div>
+</div>
+
+<div class="member-item" id="to_str">
+    <div class="signature"><code>pub func to_str() str</code></div>
+    <div class="doc-content"><p>Convert the path to its string form.</p>
+
+<p>This returns the path itself without adding a display-oriented wrapper.</p></div>
+</div>
+
+<div class="member-item" id="fmt">
+    <div class="signature"><code>pub func fmt(f Formatter)</code></div>
+    <div class="doc-content"><p>Format the path for display.</p>
+
+<p>The display form includes the <code>Path(...)</code> wrapper.</p></div>
+</div>
+
+<div class="member-item" id="__eq__">
+    <div class="signature"><code>pub func __eq__(rhs Path) bool</code></div>
+    <div class="doc-content"><p>Compare two paths for equality (Equatable[Path] trait).</p></div>
+</div>
+
+<div class="member-item" id="__ne__">
+    <div class="signature"><code>pub func __ne__(rhs Path) bool</code></div>
+    <div class="doc-content"><p>Compare two paths for inequality.</p></div>
+</div>
+
+<div class="member-item" id="cat">
+    <div class="signature"><code>pub func cat(segment Path | str) Path</code></div>
+    <div class="doc-content"><p>Connect a new path segment or another Path to the current one.</p>
+
+<p>Returns a brand new Path object, allowing fluent method chaining.</p>
+<p>Thanks to Koala's union type support, it effortlessly accepts str or Path.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let p = fs.Path("abc").cat("def").cat("ok")</code></pre></div>
+</div>
+
+<div class="member-item" id="hash">
+    <div class="signature"><code>pub func hash() int</code></div>
+    <div class="doc-content"><p>Return the hash code of the current path.</p></div>
+</div>
+</div></div>
+</div>
+
+<h2>Functions</h2>
+
+<div class="item" id="open">
+    <div class="signature"><code>pub func open(path str, mode = "r") File?</code></div>
+    
+    <div class="doc-content"><p>Open the file at <code>path</code> and return a <code>File</code> object.</p>
+
+<p><code>mode</code> selects the access:</p>
+<p>- <code>"r"</code>: read-only, the file must exist.</p>
+<p>- <code>"w"</code>: write-only, create or truncate.</p>
+<p>- <code>"x"</code>: write-only, exclusive create, fail if the file exists.</p>
+<p>- <code>"a"</code>: write-only, create if absent, always append at the end.</p>
+<p>- <code>"r+"</code>: read and write, the file must exist.</p>
+<p>- <code>"w+"</code>: read and write, create or truncate.</p>
+<p>- <code>"x+"</code>: read and write, exclusive create, fail if the file exists.</p>
+<p>- <code>"a+"</code>: read and write, create if absent, always append at the end.</p>
+
+<p>Return nil if the file cannot be opened (missing file, permission</p>
+<p>denied, or file already exists for <code>"x"</code>/<code>"x+"</code>).</p>
+<p>Files created by <code>"w"</code>, <code>"x"</code>, <code>"a"</code> and their <code>"+"</code> variants get</p>
+<p>permission 0644.</p>
+
+<p>Example:</p>
+<pre><code class="language-koala">let f = fs.open("hello.txt", "w")
+f?.write("hello".to_bytes())
+f?.close()</code></pre>
+
+<p>See: <code>File</code>.</p></div>
+    
+</div>
+
+
+<div class="item" id="_path_str">
+    <div class="signature"><code>func _path_str(p Path | str) str</code></div>
+    
+    <div class="doc-content"><p>Convert a <code>Path | str</code> argument to the raw <code>str</code> path.</p>
+
+<p>Now only used by <code>list_dir</code> (which stays a <code>.kl</code> wrapper); every other</p>
+<p><code>Path | str</code> function is a direct <code>@native</code> that reads its argument in C.</p></div>
+    
+</div>
+
+
+<div class="item" id="_list_dir">
+    <div class="signature"><code>func _list_dir(p str) list[str]</code></div>
+    
+    <div class="doc-content"></div>
+    
+</div>
+
+
+<div class="item" id="read_bytes">
+    <div class="signature"><code>pub func read_bytes(path Path | str, out bytes) int</code></div>
+    
+    <div class="doc-content"><p>Read the file <code>path</code> into <code>out</code> and return the count read.</p>
+
+<p>Reading stops when <code>out</code> is full or end of file is reached, so</p>
+<p>the caller controls the memory used.</p>
+
+<p>Return 0 for an empty file, or -1 if the file cannot be opened or read.</p>
+<p>The file is closed before returning.</p>
+
+<p>See: <code>write_bytes</code>, <code>File.read</code>.</p></div>
+    
+</div>
+
+
+<div class="item" id="write_bytes">
+    <div class="signature"><code>pub func write_bytes(path Path | str, data bytes) bool</code></div>
+    
+    <div class="doc-content"><p>Write <code>data</code> to the file <code>path</code>, creating or truncating it.</p>
+
+<p>All bytes are written or the operation fails; return true on success,</p>
+<p>false if the file cannot be opened or written.</p>
+<p>The file is closed before returning.</p>
+
+<p>See: <code>write_str</code>, <code>read_bytes</code>.</p></div>
+    
+</div>
+
+
+<div class="item" id="write_str">
+    <div class="signature"><code>pub func write_str(path Path | str, data str) bool</code></div>
+    
+    <div class="doc-content"><p>Encode <code>data</code> as UTF-8 and write it to the file <code>path</code>,</p>
+<p>creating or truncating it.</p>
+
+<p>All bytes are written or the operation fails; return true on success,</p>
+<p>false if the file cannot be opened or written.</p>
+<p>The file is closed before returning.</p>
+
+<p>See: <code>write_bytes</code>, <code>read_bytes</code>.</p></div>
+    
+</div>
+
+
+<div class="item" id="exists">
+    <div class="signature"><code>pub func exists(p Path | str) bool</code></div>
+    
+    <div class="doc-content"><p>Return true if the file or directory exists on the physical disk.</p>
+
+<p>Implemented natively: the C side reads a <code>Path | str</code> argument directly,</p>
+<p>so no <code>_path_str</code> normalization shim is needed.</p></div>
+    
+</div>
+
+
+<div class="item" id="is_file">
+    <div class="signature"><code>pub func is_file(p Path | str) bool</code></div>
+    
+    <div class="doc-content"><p>Return true if the path points to a regular file.</p></div>
+    
+</div>
+
+
+<div class="item" id="is_dir">
+    <div class="signature"><code>pub func is_dir(p Path | str) bool</code></div>
+    
+    <div class="doc-content"><p>Return true if the path points to a directory.</p></div>
+    
+</div>
+
+
+<div class="item" id="size">
+    <div class="signature"><code>pub func size(p Path | str) int64</code></div>
+    
+    <div class="doc-content"><p>Return the size of the file in bytes. Panics if the file does not exist.</p></div>
+    
+</div>
+
+
+<div class="item" id="remove">
+    <div class="signature"><code>pub func remove(p Path | str) bool</code></div>
+    
+    <div class="doc-content"><p>Permanently delete a file from the disk. Returns true on success.</p></div>
+    
+</div>
+
+
+<div class="item" id="rename">
+    <div class="signature"><code>pub func rename(src Path | str, dst Path | str) bool</code></div>
+    
+    <div class="doc-content"><p>Rename or move the file/directory <code>src</code> to <code>dst</code>.</p>
+
+<p>Both paths must be on the same filesystem; a cross-device move returns</p>
+<p>false (use a copy + remove sequence for that case). An existing <code>dst</code></p>
+<p>file is overwritten; an existing <code>dst</code> directory must be empty.</p>
+<p>Return true on success, false on failure.</p></div>
+    
+</div>
+
+
+<div class="item" id="mkdir">
+    <div class="signature"><code>pub func mkdir(p Path | str) bool</code></div>
+    
+    <div class="doc-content"><p>Create a directory, including any missing parent directories (mkdir -p).</p>
+<p>An existing directory is treated as success.</p>
+<p>Return true on success, false on failure.</p></div>
+    
+</div>
+
+
+<div class="item" id="rmdir">
+    <div class="signature"><code>pub func rmdir(p Path | str) bool</code></div>
+    
+    <div class="doc-content"><p>Remove an empty directory. Returns false if the directory is not empty.</p></div>
+    
+</div>
+
+
+<div class="item" id="list_dir">
+    <div class="signature"><code>pub func list_dir(p Path | str) list[Path]</code></div>
+    
+    <div class="doc-content"><p>Read the directory contents and return a list of strongly-typed <code>path.Path</code> objects.</p>
+
+<p>Each entry is joined with the directory path (e.g. <code>list_dir("/tmp")</code></p>
+<p>yields <code>Path("/tmp/a.txt")</code>), so the returned paths can be used</p>
+<p>directly; the base name is still available via <code>Path.name</code>.</p>
+<p>The special entries <code>.</code> and <code>..</code> are skipped and the result is</p>
+<p>sorted in ascending order. Panics if the directory cannot be opened.</p></div>
+    
+</div>
+
+
+<div class="item" id="read_all">
+    <div class="signature"><code>pub func read_all(path Path | str, max = 65_536) bytes</code></div>
+    
+    <div class="doc-content"><p>Read the entire file <code>path</code> into a new <code>bytes</code>.</p>
+
+<p>A convenience over <code>open</code> + a chunked <code>File.read</code> loop: it <code>stat</code>s the file</p>
+<p>for its size, allocates exactly that many bytes, and reads them in one shot.</p>
+
+<p>Because the whole file is loaded into memory, the read is guarded by <code>max</code>:</p>
+<p>if the file is larger than <code>max</code> bytes it panics *before* allocating. The</p>
+<p>default cap is 64 KiB, chosen for memory-constrained (embedded) targets;</p>
+<p>pass a larger <code>max</code>, or <code>-1</code> for unlimited, to override.</p>
+
+<p>For a file that legitimately does not fit in memory, stream it instead:</p>
+<p><code>fs.open(path)</code> + <code>File.read(chunk)</code> in a loop, or <code>io.read_all(reader)</code> /</p>
+<p><code>io.lines(...)</code>. <code>read_all</code> is meant for small files.</p>
+
+<p>Panics if the file does not exist (via <code>size</code>) or cannot be read.</p>
+
+<p>See: <code>read_str</code>, <code>read_bytes</code>, <code>write_bytes</code>.</p></div>
+    
+</div>
+
+
+<div class="item" id="read_str">
+    <div class="signature"><code>pub func read_str(path Path | str, max = 65_536) str</code></div>
+    
+    <div class="doc-content"><p>Read the entire file <code>path</code> and decode it as UTF-8 into a <code>str</code>.</p>
+
+<p>Same size guard and streaming guidance as <code>read_all</code>; this is simply</p>
+<p><code>read_all(path, max).to_str()</code>.</p>
+
+<p>Panics if the file does not exist, exceeds <code>max</code> (default 64 KiB, <code>-1</code> for</p>
+<p>unlimited), or cannot be read.</p>
+
+<p>See: <code>read_all</code>, <code>write_str</code>.</p></div>
+    
+</div>
+
+    </div>
+    <nav id="toc">
+        <a href="index.html" id="toc-home">🏠 Home</a>
+        <ul id="toc-list"></ul>
+        <button id="back-to-top" title="Back to top">↑ Top</button>
+    </nav>
+    <script>
+    // Toggle collapsible sections
+    function toggleSection(button) {
+        const content = button.nextElementSibling;
+        
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            button.classList.remove('collapsed');
+        } else {
+            content.classList.add('hidden');
+            button.classList.add('collapsed');
+        }
+    }
+    
+    // Toggle workspace sections in sidebar
+    function toggleWorkspace(title) {
+        const items = title.nextElementSibling;
+        
+        if (items.classList.contains('hidden')) {
+            items.classList.remove('hidden');
+            title.classList.remove('collapsed');
+        } else {
+            items.classList.add('hidden');
+            title.classList.add('collapsed');
+        }
+    }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBox = document.getElementById('search-box');
+    const sidebar = document.getElementById('sidebar');
+    const content = document.getElementById('content');
+    
+    // Restore sidebar scroll position
+    if (sidebar) {
+        const savedScroll = localStorage.getItem('sidebar-scroll');
+        if (savedScroll) {
+            sidebar.scrollTop = parseInt(savedScroll, 10);
+        }
+        
+        // Save sidebar scroll position on scroll
+        sidebar.addEventListener('scroll', function() {
+            localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+        });
+        
+        // Save scroll position before navigating
+        sidebar.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', function() {
+                localStorage.setItem('sidebar-scroll', sidebar.scrollTop.toString());
+            });
+        });
+    }
+    
+    // Generate Table of Contents
+    const tocList = document.getElementById('toc-list');
+    if (tocList && content) {
+        const headings = content.querySelectorAll('h2, h3');
+        if (headings.length > 0) {
+            headings.forEach(function(heading, index) {
+                // Generate ID if not exists
+                if (!heading.id) {
+                    heading.id = 'section-' + index;
+                }
+                
+                // Create TOC item
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#' + heading.id;
+                a.textContent = heading.textContent;
+                a.dataset.target = heading.id;
+                
+                // Add class for h3 (nested)
+                if (heading.tagName === 'H3') {
+                    li.className = 'toc-h3';
+                }
+                
+                li.appendChild(a);
+                tocList.appendChild(li);
+            });
+            
+            // Scroll spy - highlight current section
+            const tocLinks = tocList.querySelectorAll('a');
+            let lastActive = null;
+            
+            function updateActiveLink() {
+                const scrollPos = window.scrollY + 100;
+                let current = null;
+                
+                headings.forEach(function(heading) {
+                    if (heading.offsetTop <= scrollPos) {
+                        current = heading;
+                    }
+                });
+                
+                if (current && current.id) {
+                    const activeLink = tocList.querySelector('a[data-target="' + current.id + '"]');
+                    if (activeLink && activeLink !== lastActive) {
+                        if (lastActive) lastActive.classList.remove('active');
+                        activeLink.classList.add('active');
+                        lastActive = activeLink;
+                    }
+                }
+            }
+            
+            window.addEventListener('scroll', updateActiveLink);
+            updateActiveLink();
+        }
+    }
+    
+    // Back to top button functionality
+    const backToTopBtn = document.getElementById('back-to-top');
+    if (backToTopBtn) {
+        // Show button when user scrolls down
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > 300) {
+                backToTopBtn.classList.add('visible');
+            } else {
+                backToTopBtn.classList.remove('visible');
+            }
+        });
+        
+        // Scroll to top when clicked
+        backToTopBtn.addEventListener('click', function() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        });
+    }
+    
+    if (!searchBox) return;
+    const packages = document.querySelectorAll('.package');
+    searchBox.addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        packages.forEach(pkg => {
+            const link = pkg.querySelector('a');
+            if (link) {
+                const text = link.textContent.toLowerCase();
+                pkg.style.display = text.includes(query) ? '' : 'none';
+            }
+        });
+    });
+});
+</script>
+</body>
+</html>

@@ -1,28 +1,14 @@
-import "koala/datetime"
-import "std/time"
+class Foo[T] {
+    var value T
 
-func main() {
-    // Date —— print 走 fmt(显示形态)，to_str 是裸 ISO(规范形态)
-    let d = datetime.Date(2026, 10, 24)
-    print(d)                        // Date(2026-10-24)
-    print(d.to_str())               // 2026-10-24
-    print(d.weekday())              // 5  (周六)
-    print(d.add_days(7).to_str())   // 2026-10-31
+    func __init__(_value T) {
+        value = _value
+    }
 
-    // Time
-    let t = datetime.Time(13, 30, 45)
-    print(t)                        // Time(13:30:45)
-    print(t.to_str())               // 13:30:45
-
-    // DateTime —— 组合 + 与 std/time 桥接
-    let dt = datetime.DateTime(2026, 10, 24, 13, 30, 45)
-    print(dt)                       // DateTime(2026-10-24T13:30:45)
-    print(dt.to_str())              // 2026-10-24T13:30:45
-    print(dt.date())                // Date(2026-10-24)
-    print(dt.time_of_day())         // Time(13:30:45)
-    print(dt.add(time.Duration.from_secs(3600)).to_str())  // 2026-10-24T14:30:45
-
-    // 比较 + 当前 UTC 时刻
-    print(dt < datetime.DateTime(2026, 10, 24, 14, 0, 0))  // true
-    print(datetime.DateTime.now())  // DateTime(2026-...T...)  (此刻)
+    func get_value() T {
+        return value
+    }
 }
+
+let foo = Foo[int](42)
+print(foo.get_value())
