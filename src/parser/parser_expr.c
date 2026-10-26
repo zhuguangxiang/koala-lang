@@ -3565,14 +3565,14 @@ static int validate_cast_target(ParserState *ps, Loc loc, const char *op, TypeSp
     }
 
     if (!strcmp(target_sym->name, "NilType")) {
-        kl_error(loc, "target type of '%s' operator cannot be NilType, use '== nil' instead.", op);
+        kl_error(loc, "target type of '%s' operator cannot be NilType.", op);
         return 0;
     }
 
     return 1;
 }
 
-static int check_src_type(TypeSpec *src_ts)
+static int check_is_src_type(TypeSpec *src_ts)
 {
     if (src_ts->kind == TYPE_NO_TYPE || src_ts->kind == TYPE_VA_LIST ||
         src_ts->kind == TYPE_PACKAGE || src_ts->kind == TYPE_PROTO ||
@@ -3581,7 +3581,31 @@ static int check_src_type(TypeSpec *src_ts)
         return 0;
     }
 
+    if (type_is_optional(src_ts)) return 0;
+
     return 1;
+}
+
+// A builtin value type (int, str, ...) can never be narrowed by 'as'.
+static int check_as_src_type(TypeSpec *src_ts)
+{
+    if (!check_is_src_type(src_ts)) return 0;
+
+    return !(src_ts->kind == TYPE_INT || src_ts->kind == TYPE_FLOAT ||
+             src_ts->kind == TYPE_BFLOAT16 || src_ts->kind == TYPE_BOOL ||
+             src_ts->kind == TYPE_STR);
+}
+
+// Two instances of the same generic class with different type arguments, e.g. list[int] and list[str].
+static int is_different_instance_of_same_origin(TypeSpec *src_ts, TypeSpec *target_ts)
+{
+    Symbol *src_sym = get_symbol_by_id(src_ts->sym_id);
+    Symbol *target_sym = get_symbol_by_id(target_ts->sym_id);
+    if (!src_sym || !target_sym) return 0;
+    if (src_sym->kind != SYM_INSTANCE || target_sym->kind != SYM_INSTANCE) return 0;
+    if (src_sym == target_sym) return 0;
+
+    return ((InstanceSymbol *)src_sym)->origin == ((InstanceSymbol *)target_sym)->origin;
 }
 
 static void parse_as(ParserState *ps, Expr *exp)
@@ -3597,8 +3621,8 @@ static void parse_as(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, e);
     if (!e->ts) return;
 
-    if (!check_src_type(e->ts)) {
-        kl_error(e->ts->loc, "src of 'as' operator is not a valid type.");
+    if (!check_as_src_type(e->ts)) {
+        kl_error(as->loc, "src of 'as' operator is not a valid type.");
         return;
     }
 
@@ -3612,6 +3636,18 @@ static void parse_as(ParserState *ps, Expr *exp)
 
     if (!validate_cast_target(ps, loc, "as", target_ts)) return;
     if (!validate_union_target(ps, loc, e->ts, target_ts)) return;
+
+    if (is_different_instance_of_same_origin(e->ts, target_ts)) {
+        BUF(src_buf);
+        BUF(target_buf);
+        type_spec_print(e->ts, &src_buf);
+        type_spec_print(target_ts, &target_buf);
+        kl_error(loc, "cannot cast '%s' to '%s' with 'as': type arguments are different.",
+                 BUF_STR(src_buf), BUF_STR(target_buf));
+        FINI_BUF(src_buf);
+        FINI_BUF(target_buf);
+        return;
+    }
 
     as->target_ts = target_ts;
     as->result = resolve_cast_check(e, e->ts, target_ts, ps);
@@ -3645,8 +3681,8 @@ static void parse_is(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, e);
     if (!e->ts) return;
 
-    if (!check_src_type(e->ts)) {
-        kl_error(e->ts->loc, "src of 'is' operator is not a valid type.");
+    if (!check_is_src_type(e->ts)) {
+        kl_error(is->loc, "src of 'is' operator is not a valid type.");
         return;
     }
 

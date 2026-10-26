@@ -52,7 +52,7 @@ func is_union_nonmember_optional(x (Dog | Cat)) bool {
     // CHECK: {{.*}}is not a member of union type{{.*}}
 }
 
-func as_union_nonmember_optional(x (Dog | Cat)?) Robot? {
+func as_union_nonmember_optional(x (Dog | Cat)) Robot? {
     return x as Robot
     // CHECK: {{.*}}is not a member of union type{{.*}}.
 }
@@ -62,6 +62,61 @@ func as_union_nonmember2(x (Dog | Cat)) Robot {
     // CHECK: return type mismatch in function 'as_union_nonmember2'
 }
 
+func is_optional_src(x Dog?) bool {
+    return x is Dog
+    // CHECK: src of 'is' operator is not a valid type.
+}
+
+func as_optional_src(x Dog?) Dog? {
+    return x as Dog
+    // CHECK: src of 'as' operator is not a valid type.
+}
+
+func is_optional_builtin_src(x int?) bool {
+    return x is int
+    // CHECK: src of 'is' operator is not a valid type.
+}
+
+func as_optional_builtin_src(x int?) int8? {
+    return x as int8
+    // CHECK: src of 'as' operator is not a valid type.
+}
+
+func is_optional_union_src(x (Dog | Cat)?) bool {
+    return x is Dog
+    // CHECK: src of 'is' operator is not a valid type.
+}
+
+func as_optional_union_src(x (Dog | Cat)?) Dog? {
+    return x as Dog
+    // CHECK: src of 'as' operator is not a valid type.
+}
+
+func is_optional_builtin_target(x any) bool {
+    return x is int?
+    // CHECK: target type of 'is' operator must be a class type.
+}
+
+func as_optional_builtin_target(x any) int? {
+    return x as int?
+    // CHECK: target type of 'as' operator must be a class type.
+}
+
+func as_builtin_src(x int) int8? {
+    return x as int8
+    // CHECK: src of 'as' operator is not a valid type.
+}
+
+func as_generic_different_args(x list[int]) list[str]? {
+    return x as list[str]
+    // CHECK: cannot cast {{.*}} with 'as': type arguments are different.
+}
+
+func is_variadic_src(u ...) bool {
+    return u is Dog
+    // CHECK: src of 'is' operator is not a valid type.
+}
+
 func garply(u ...) bool {
     return u as Dog
     // CHECK: src of 'as' operator is not a valid type.
@@ -69,8 +124,11 @@ func garply(u ...) bool {
 
 class Dog {}
 
-func is_nil(q Dog?) bool { return q is NilType }
+func is_nil(q Dog) bool { return q is NilType }
 
-// CHECK: target type of 'is' operator cannot be NilType, use '== nil' instead.
+func as_nil(q Dog) NilType? { return q as NilType }
+
+// CHECK: target type of 'is' operator cannot be NilType.
+// CHECK: target type of 'as' operator cannot be NilType.
 
 // CHECK-NOT: {{.}}

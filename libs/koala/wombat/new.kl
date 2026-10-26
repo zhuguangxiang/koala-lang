@@ -174,7 +174,7 @@ pub func new_package(name str) int {
     pkg_root.add("package", pkg_sec)
     fs.write_str(name + "/__pkg__.toml", toml.dump(pkg_root))
 
-    let entry = name + "/__" + base + ".kl"
+    let entry = name + "/__" + base + "__.kl"
     fs.write_str(entry, "print(\"hello world\")\n")
 
     let dir_abs = fs.Path(name).absolute().to_str()

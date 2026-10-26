@@ -27,10 +27,15 @@ func as_always_false(x Dog) Cat? {
     return x as Cat
 }
 
+func as_generic_always_true(x list[int]) list[int] {
+    return x as list[int]
+}
+
 // CHECK: 'is' check is always true:
 // CHECK: 'is' check is always false:
 // CHECK: 'is' check is always true:
 // CHECK: 'is' check is always false:
 // CHECK: 'as' check is always true:
 // CHECK: 'as' check is always false:
+// CHECK: 'as' check is always true:
 // CHECK-NOT: {{.*}}error{{.*}}

@@ -172,12 +172,10 @@
     "editor.tokenColorCustomizations": {
         "textMateRules": [
             {
-                "scope": [
-                    "comment",
-                    "punctuation.definition.comment",
-                ],
+                "scope": "comment.block.documentation",
                 "settings": {
-                    "fontStyle": ""
+                    "foreground": "#6A9955",
+                    "fontStyle": "italic"
                 }
             }
         ]
