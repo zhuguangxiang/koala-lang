@@ -1664,6 +1664,18 @@ static void remove_unreachable(Vector *stmts, int from_index)
     vector_clear_to_end(stmts, from_index);
 }
 
+// panic() and unreachable() never return. They are ordinary native funcs,
+// match the resolved symbols in 'std/builtin', not the names, a user-defined
+// 'panic' may return.
+static int is_noreturn_call(Expr *exp)
+{
+    if (!exp || exp->kind != EXPR_CALL_KIND) return 0;
+    Symbol *sym = ((CallExpr *)exp)->lhs->sym;
+    if (!sym || sym->kind != SYM_FUNC) return 0;
+    if (strcmp(sym->name, "panic") && strcmp(sym->name, "unreachable")) return 0;
+    return !strcmp(sym->path, "std/builtin");
+}
+
 static int is_terminal(Stmt *stmt)
 {
     if (!stmt) return 0;
@@ -1671,6 +1683,9 @@ static int is_terminal(Stmt *stmt)
     if (stmt->kind == STMT_RETURN_KIND) return 1;
     if (stmt->kind == STMT_BREAK_KIND) return 1;
     if (stmt->kind == STMT_CONTINUE_KIND) return 1;
+
+    // panic() and unreachable() never return
+    if (stmt->kind == STMT_EXPR_KIND && is_noreturn_call(((ExprStmt *)stmt)->exp)) return 1;
 
     if (stmt->kind == STMT_BLOCK_KIND) {
         BlockStmt *block = (BlockStmt *)stmt;
@@ -1806,16 +1821,8 @@ static void parse_single_expr_stmt(ParserState *ps, Stmt *stmt, FuncSymbol *fn)
         return;
     }
 
-    // skip panic call, no ned to check return type
-    if (exp->kind == EXPR_CALL_KIND) {
-        CallExpr *call = (CallExpr *)exp;
-        Symbol *sym = call->lhs->sym;
-        if (sym && sym->kind == SYM_FUNC) {
-            if (!strcmp(sym->name, "panic") && !strcmp(sym->path, "std/builtin")) {
-                return;
-            }
-        }
-    }
+    // skip panic() / unreachable() call, no need to check return type
+    if (is_noreturn_call(exp)) return;
 
     if (!type_spec_compatible(ret_ts, ts)) {
         kl_error(stmt->loc, "type of expr '%s' does not match func ret-type '%s'", ts->signature,
@@ -1998,6 +2005,24 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     IfStmt *s = (IfStmt *)stmt;
     Expr *cond = s->cond;
 
+    if (s->is_let_else) {
+        // let-else: check 'v' is optional after visiting 'v == nil',
+        // otherwise the user gets a confusing error on the generated '=='
+        ASSERT(cond->kind == EXPR_BINARY_KIND);
+        Expr *v = ((BinaryExpr *)cond)->lhs;
+        ASSERT(v->kind == EXPR_ID_KIND);
+        v->ctx = EXPR_CTX_LOAD;
+        parser_visit_expr(ps, v);
+        if (!v->ts) return;
+        if (!type_is_optional(v->ts)) {
+            BUF(buf);
+            type_spec_print(v->ts, &buf);
+            kl_error(v->loc, "'let-else' requires an optional value, but got '%s'.", BUF_STR(buf));
+            FINI_BUF(buf);
+            return;
+        }
+    }
+
     cond->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, cond);
     if (!cond->ts) return;
@@ -2059,6 +2084,16 @@ static void parse_if(ParserState *ps, Stmt *stmt)
         }
         */
         log_trace("NO ELSE BLOCK");
+
+        if (s->is_let_else && !has_terminal) {
+            kl_error(stmt->loc,
+                     "'let-else' block must exit the current scope (use return, break, continue, "
+                     "panic or unreachable).");
+            // error recovery: treat the block as exiting, so 'v' is still narrowed
+            // and the following uses of 'v' don't report cascading errors
+            has_terminal = 1;
+        }
+
         if (!vector_empty(&shadows)) {
             if (has_terminal) {
                 ParserScope *_sc = ps->scope;
@@ -2194,6 +2229,8 @@ static void parse_for(ParserState *ps, Stmt *stmt)
         if (resolve_iterator_method(it, ps)) return;
     }
 
+    s->elem_ts = elem_ts;
+
     Vector locals;
     vector_init(&locals, sizeof(IdentType));
 
@@ -2236,8 +2273,20 @@ __do_for_body:
 
     IdentType *id_type;
     vector_foreach_ptr(id_type, &locals) {
+        // '_' binds nothing, keep its position with an invalid sym id
+        if (str_equal(id_type->id.name, "_")) {
+            int no_sym = -1;
+            vector_push_back(&s->sym_ids, &no_sym);
+            continue;
+        }
         Symbol *sym = stbl_add_var(sc->stbl, id_type->id.name, id_type->ts, SYM_FLAGS_MUTABLE);
-        ASSERT(sym);
+        if (!sym) {
+            kl_error(id_type->id.loc, "duplicate loop variable '%s'.", id_type->id.name);
+            // keep its position like '_'
+            int no_sym = -1;
+            vector_push_back(&s->sym_ids, &no_sym);
+            continue;
+        }
         ((VarSymbol *)sym)->scope = VAR_SCOPE_LOCAL;
         log_info("added loop variable '%s' with type '%s'", sym->name, id_type->ts->signature);
         vector_push_back(&s->sym_ids, &sym->id);
@@ -2247,6 +2296,111 @@ __do_for_body:
     parse_block(ps, s->block, NULL);
 
     exit_scope(ps);
+}
+
+static void parse_tuple_decl(ParserState *ps, Stmt *stmt)
+{
+    TupleDeclStmt *s = (TupleDeclStmt *)stmt;
+    Vector *ids = s->ids;
+    Expr *exp = s->exp;
+
+    IdentType *it;
+    vector_foreach_ptr(it, ids) {
+        if (!it->ts) continue;
+        it->ts = resolve_type(ps, it->ts);
+        if (!check_type(ps, it->ts)) return;
+    }
+
+    // a tuple literal takes the given types as the expected types of its elements,
+    // e.g. let (a int8, b int?) = (1, nil)
+    if (exp->kind == EXPR_TUPLE_KIND) {
+        Vector *elems = ((TupleExpr *)exp)->vec;
+        if (vector_size(elems) == vector_size(ids)) {
+            for (int i = 0; i < vector_size(ids); i++) {
+                it = vector_get_ptr(ids, i);
+                if (!it->ts) continue;
+                Expr *e = vector_get(elems, i);
+                e->expected = it->ts;
+            }
+        }
+    }
+
+    exp->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, exp);
+    if (!exp->ts) return;
+
+    InstanceSymbol *inst_sym = NULL;
+    if (type_is_tuple(exp->ts)) {
+        Symbol *sym = get_symbol_by_id(exp->ts->sym_id);
+        if (sym && sym->kind == SYM_INSTANCE) inst_sym = (InstanceSymbol *)sym;
+    }
+
+    if (!inst_sym) {
+        BUF(buf);
+        type_spec_print(exp->ts, &buf);
+        kl_error(exp->loc, "cannot destructure non-tuple type '%s'.", BUF_STR(buf));
+        FINI_BUF(buf);
+        return;
+    }
+
+    int size = vector_size(inst_sym->tp_args);
+    if (vector_size(ids) != size) {
+        kl_error(exp->loc, "%d names cannot destructure a tuple of %d elements.", vector_size(ids),
+                 size);
+        return;
+    }
+
+    ParserScope *sc = ps->scope;
+    int flags = (s->which == VAR_DECL_VAR) ? SYM_FLAGS_MUTABLE : 0;
+
+    for (int i = 0; i < size; i++) {
+        it = vector_get_ptr(ids, i);
+        Ident *id = &it->id;
+        int no_sym = -1;
+
+        // '_' binds nothing, keep its position with an invalid sym id
+        if (str_equal(id->name, "_")) {
+            vector_push_back(&s->sym_ids, &no_sym);
+            continue;
+        }
+
+        TypeSpec *elem_ts = vector_get(inst_sym->tp_args, i);
+        TypeSpec *ts = elem_ts;
+        if (it->ts) {
+            // the given type is the type of the variable
+            if (!type_spec_compatible(it->ts, elem_ts)) {
+                BUF(lhs);
+                BUF(rhs);
+                type_spec_print(it->ts, &lhs);
+                type_spec_print(elem_ts, &rhs);
+                kl_error(id->loc, "variable '%s' of type '%s' cannot hold element of type '%s'.",
+                         id->name, BUF_STR(lhs), BUF_STR(rhs));
+                FINI_BUF(lhs);
+                FINI_BUF(rhs);
+                vector_push_back(&s->sym_ids, &no_sym);
+                continue;
+            }
+            ts = it->ts;
+        } else if (type_is_optional(elem_ts) && !elem_ts->opt.src) {
+            // the element is 'nil', its type cannot be inferred
+            kl_error(id->loc, "cannot assign 'nil' to variable '%s' without explicit type",
+                     id->name);
+            vector_push_back(&s->sym_ids, &no_sym);
+            continue;
+        }
+
+        Symbol *sym = stbl_add_var(sc->stbl, id->name, ts, flags);
+        if (!sym) {
+            kl_error(id->loc, "redefinition of '%s'", id->name);
+            vector_push_back(&s->sym_ids, &no_sym);
+            continue;
+        }
+
+        ((VarSymbol *)sym)->scope = VAR_SCOPE_LOCAL;
+        sym->status = SYM_RESOLVED;
+        log_info("added variable '%s' with type '%s'", sym->name, ts->signature);
+        vector_push_back(&s->sym_ids, &sym->id);
+    }
 }
 
 static void parse_if_let(ParserState *ps, Stmt *stmt)
@@ -3363,6 +3517,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_FOR_KIND]       = parse_for,
         [STMT_IF_LET_KIND]    = parse_if_let,
         [STMT_WHILE_LET_KIND] = parse_while_let,
+        [STMT_TUPLE_DECL_KIND] = parse_tuple_decl,
     };
     /* clang-format on */
 

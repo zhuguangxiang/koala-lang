@@ -58,12 +58,12 @@ reference: https://en.wikipedia.org/wiki/Garbage_collection_(computer_science)
 		// a is none, do nothing
 	}
 	```
-	- if-let-else
+	- let-else (replaces guard)
 	```
-	if let a = opt-var else {
-		// a is none, do nothing
+	let a = opt-var else {
+		// a is nil, must exit: return / break / continue / panic()
 	}
-	// a is NOT none
+	// a is NOT nil
 	```
 	 - with
 	```

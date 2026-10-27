@@ -1,0 +1,25 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+func find(k int) int? {
+    if k > 0 { return k * 10 }
+    return nil
+}
+
+// block does not exit, only one error is reported,
+// 'v' is still narrowed for error recovery
+func no_exit(k int) int {
+    let v = find(k) else {
+        print("missing")
+    }
+    return v + 1
+}
+// CHECK: 'let-else' block must exit the current scope (use return, break, continue, panic or unreachable).
+
+// value is not optional, no confusing error on the generated '=='
+func non_optional(k int) int {
+    let v = k * 2 else { return -1 }
+    return v + 1
+}
+// CHECK-NEXT: 'let-else' requires an optional value, but got 'int64'.
+
+// CHECK-NOT: {{.}}

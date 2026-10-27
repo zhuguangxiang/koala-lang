@@ -1,14 +1,18 @@
-class Foo[T] {
-    var value T
 
-    func __init__(_value T) {
-        value = _value
-    }
+// func mk(x int) list[int] { var a = [0]; a.append(x); return a; }
+// func mk2(x int) list[int] { var a = [0, 200];         a.append(x); return a; }
 
-    func get_value() T {
-        return value
+// func main() {
+//     print(mk(1), mk(2))
+//     print(mk2(1), mk2(2))
+// }
+
+
+func for_list() {
+    let pairs = [(1, "a"), (2, "b"), (3, "c")]
+    for (n, s) in pairs {
+        print(n, s)
     }
 }
 
-let foo = Foo[int](42)
-print(foo.get_value())
+for_list()

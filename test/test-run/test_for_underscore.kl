@@ -1,0 +1,127 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+// range path, a hidden counter is still needed
+func for_range() {
+    var count = 0
+    for _ in range(3) {
+        count += 1
+    }
+    print(count)
+}
+
+// sequence path, single '_'
+func for_list() {
+    let xs = [10, 20, 30]
+    var count = 0
+    for _ in xs {
+        count += 1
+    }
+    print(count)
+}
+
+// iterator path, single '_', next_strict still advances the iterator
+func for_iter() {
+    let d = {"x": 1, "y": 2, "z": 3}
+    var count = 0
+    for _ in d.items() {
+        count += 1
+    }
+    print(count)
+}
+
+// '_' in multiple vars, sequence path
+func for_pairs() {
+    let pairs = [(1, "a"), (2, "b"), (3, "c")]
+    for (n, _) in pairs {
+        print(n)
+    }
+    for _, s in pairs {
+        print(s)
+    }
+    var count = 0
+    for (_, _) in pairs {
+        count += 1
+    }
+    print(count)
+}
+
+// '_' in multiple vars, iterator path
+func for_dict_values() {
+    let d = {"x": 1, "y": 2, "z": 3}
+    var total = 0
+    for (_, v) in d.items() {
+        total += v
+    }
+    print(total)
+}
+
+for_range()
+for_list()
+for_iter()
+for_pairs()
+for_dict_values()
+
+// range path: '_' binds nothing, a hidden 'range.cur' counter drives the loop
+// CHECK-LABEL: func @for_range() <NO-TYPE> {
+// CHECK: %bb1(loop-header):
+// CHECK-NEXT: %range.cur = local int64
+// CHECK-NEXT: move %range.cur int64, 0 int64
+// CHECK: %1 = cmplt %range.cur int64, 3 int64
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %4 = add %count int64, 1 int64
+// CHECK: %bb4(loop-cond-incr):
+// CHECK-NEXT: %5 = add %range.cur int64, 1 int64
+// CHECK-NEXT: move %range.cur int64, %5 int64
+
+// sequence path, single '_': no element is fetched
+// CHECK-LABEL: func @for_list() <NO-TYPE> {
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %2 = add %count int64, 1 int64
+
+// iterator path, single '_': next_strict is still called, its result is unused
+// CHECK-LABEL: func @for_iter() <NO-TYPE> {
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %3 = call @std/builtin.Iterator<Lstd/builtin.tuple<uj>;>:next_strict [intf-index = 1], %1 std/builtin.Iterator<Lstd/builtin.tuple<uj>;>
+// CHECK-NEXT: %4 = add %count int64, 1 int64
+
+// '_' in multiple vars: only the bound fields are unpacked
+// CHECK-LABEL: func @for_pairs() <NO-TYPE> {
+// (n, _): only field 0
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %2 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %n = local int64
+// CHECK-NEXT: %3 = seq.get %2 std/builtin.tuple<ju>, 0 int64
+// CHECK-NEXT: move %n int64, %3 int64
+// CHECK-NEXT: %4 = build_intern @tuple, %n int64
+// _, s: only field 1
+// CHECK: %bb8(loop-body):
+// CHECK-NEXT: %8 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %s = local str
+// CHECK-NEXT: %9 = seq.get %8 std/builtin.tuple<ju>, 1 int64
+// CHECK-NEXT: move %s str, %9 str
+// CHECK-NEXT: %10 = build_intern @tuple, %s str
+// (_, _): the element is fetched, no field is unpacked
+// CHECK: %bb13(loop-body):
+// CHECK-NEXT: %14 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %15 = add %count int64, 1 int64
+
+// '_' in multiple vars, iterator path: only field 1
+// CHECK-LABEL: func @for_dict_values() <NO-TYPE> {
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %3 = call @std/builtin.Iterator<Lstd/builtin.tuple<uj>;>:next_strict [intf-index = 1], %1 std/builtin.Iterator<Lstd/builtin.tuple<uj>;>
+// CHECK-NEXT: %v = local int64
+// CHECK-NEXT: %4 = seq.get %3 std/builtin.tuple<uj>, 1 int64
+// CHECK-NEXT: move %v int64, %4 int64
+// CHECK-NEXT: %5 = add %total int64, %v int64
+
+// CHECK: {{^}}3{{$}}
+// CHECK-NEXT: {{^}}3{{$}}
+// CHECK-NEXT: {{^}}3{{$}}
+// CHECK-NEXT: {{^}}1{{$}}
+// CHECK-NEXT: {{^}}2{{$}}
+// CHECK-NEXT: {{^}}3{{$}}
+// CHECK-NEXT: {{^}}a{{$}}
+// CHECK-NEXT: {{^}}b{{$}}
+// CHECK-NEXT: {{^}}c{{$}}
+// CHECK-NEXT: {{^}}3{{$}}
+// CHECK-NEXT: {{^}}6{{$}}

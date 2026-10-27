@@ -1,0 +1,27 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+func dup_pair() {
+    let pairs = [(1, 2), (3, 4)]
+    for (x, x) in pairs {
+        print(x)
+    }
+}
+// CHECK: duplicate loop variable 'x'.
+
+func dup_triple() {
+    let t = [(1, 2, 3)]
+    for a, b, a in t {
+        print(a, b)
+    }
+}
+// CHECK-NEXT: duplicate loop variable 'a'.
+
+// '_' may appear many times, no error
+func many_underscores() {
+    let pairs = [(1, 2), (3, 4)]
+    for (_, _) in pairs {
+        print("x")
+    }
+}
+
+// CHECK-NOT: {{.}}

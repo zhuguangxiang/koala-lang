@@ -41,8 +41,8 @@ From these principles follow a number of advanced features that most languages d
   failures are panics — unrecoverable and uncatchable, a signal that the code must be fixed. No
   exceptions, no try/catch, no defer.
 - **Null safety without ceremony.** There is no null in the language; optionality is expressed with
-  `T?`, narrowed automatically in branches, and unwrapped with `if let` / `while let` at zero
-  runtime cost.
+  `T?`, narrowed automatically in branches, and unwrapped with `if let` / `while let` /
+  `let-else` at zero runtime cost.
 - **Classes are always final.** No class inheritance exists; traits serve as interfaces, and trait
   inheritance is composition in essence.
 - **Safe integer overflow.** Overflow is defined behavior under trap/wrap policies — never
@@ -65,7 +65,7 @@ From these principles follow a number of advanced features that most languages d
 - [Strings and Characters](#strings-and-characters)
 - [Containers](#containers)
 - [Branching and Loops](#branching-and-loops)
-- [Functions and Closures](#functions-and-closures)
+- [Functions](#functions)
 - [Classes and Interfaces](#classes-and-interfaces)
 - [Generics](#generics)
 - [Operator Overloading](#operator-overloading)
@@ -102,6 +102,10 @@ Or run a compiled `.klc` bytecode file:
 koala hello.klc
 ```
 
+`koala` is the driver: it runs the compiler `koalac` on a `.kl` source and then executes the
+result, and `koala -c` stops after compiling. `koalac` can also be called directly, which is what
+the compiler's own tests do.
+
 ## Basics
 
 Koala provides a rich set of basic data types — integers, floating-point numbers, booleans and
@@ -121,7 +125,7 @@ An explicit type annotation may be given; the initializer must match it:
 
 ```kl
 var total int = 0
-let msg str? = null
+let msg str? = nil
 ```
 
 Local variables inside functions follow the same rules:
@@ -268,7 +272,7 @@ let ok = a > 0 && b < 10
 let flag = !ok || c == 0
 ```
 
-A `bool` value is also what `if`, `while` and `guard` conditions expect.
+A `bool` value is also what `if` and `while` conditions expect.
 
 ### Tuples and Variadic Types
 
@@ -287,6 +291,31 @@ func foo(x int, y int, z (int, int)) (int, int, int, int, (int, int)) {
 }
 ```
 
+**Destructuring.** A tuple can be unpacked into one variable per element with `let` or `var`;
+`_` skips an element:
+
+```kl
+func divmod(a int, b int) (int, int) {
+    return (a / b, a % b)
+}
+
+let (q, r) = divmod(17, 5)       // q is int, r is int
+var (n, s) = (1, "x")            // both mutable
+let (first, _) = divmod(17, 5)   // the second element is skipped
+```
+
+The types come from the tuple. A name may carry a type when the element needs one, such as `nil`
+or a narrow literal; it is the expected type of that element, as in a plain `let`:
+
+```kl
+let (a int8, b uint8) = (1, 200)
+let (x, y int?) = (1, nil)
+```
+
+The value must be a tuple with as many elements as there are names, the names must be distinct,
+and at least two names are required; all of this is checked at compile time. Destructuring is
+available for local variables only.
+
 Variadic arguments are declared with `...` after the parameter name. Inside the function the
 collected arguments behave as a tuple:
 
@@ -302,20 +331,20 @@ The `print` builtin is the canonical example: `print(objs ..., sep = ' ', end = 
 
 Koala is null-safe: there is no null pointer at the type level. A value that may be absent is
 declared with a trailing `?` on its type, such as `int?` or `str?`. The empty value is written
-`null`:
+`nil`:
 
 ```kl
 let v int? = 100
-let empty str? = null
+let empty str? = nil
 ```
 
-**Automatic unwrapping.** A `T?` value can be compared against `null` directly; inside the branch
+**Automatic unwrapping.** A `T?` value can be compared against `nil` directly; inside the branch
 where the value is known to be present, it is used as the unwrapped type automatically — no
 explicit unwrap needed:
 
 ```kl
 func show(msg str?) {
-    if msg == null {
+    if msg == nil {
         print("no message")
     } else {
         // msg is narrowed from str? to str here
@@ -329,7 +358,7 @@ The same narrowing works with `!=`:
 
 ```kl
 func first_char(msg str?) {
-    if msg != null {
+    if msg != nil {
         // msg is str inside this branch
         print(msg[0])
     }
@@ -356,7 +385,7 @@ func double_or_default(v int?, d int) int {
 }
 ```
 
-**`while let`.** `while let` unwraps repeatedly until the value becomes `null`, which makes it
+**`while let`.** `while let` unwraps repeatedly until the value becomes `nil`, which makes it
 the idiomatic way to walk nullable chains such as linked-list nodes:
 
 ```kl
@@ -366,13 +395,13 @@ class ListNode {
 
     func __init__(_value int) {
         value = _value
-        next = null
+        next = nil
     }
 }
 
 func find_tail(head ListNode?) ListNode? {
-    if head == null {
-        return null
+    if head == nil {
+        return nil
     }
     var curr = head
     // next has type ListNode inside the loop body
@@ -382,6 +411,43 @@ func find_tail(head ListNode?) ListNode? {
     return curr
 }
 ```
+
+**`let-else`.** `let v = expr else { ... }` unwraps a `T?` value for the rest of the enclosing
+scope: if `expr` is `nil` the `else` block runs, otherwise `v` has type `T` from the next statement
+on. It is the early-exit counterpart of `if let`, and keeps the main path unindented:
+
+```kl
+func find(key str) int? { ... }
+
+func lookup(key str) int {
+    let v = find(key) else { return -1 }
+    return v + 1                  // v is int here
+}
+
+func sum_found(keys list[str]) int {
+    var total = 0
+    for k in keys {
+        let v int? = find(k) else {
+            print("missing", k)
+            continue
+        }
+        total += v
+    }
+    return total
+}
+```
+
+Three rules apply, all checked at compile time:
+
+- The `else` block must exit the current scope — end with `return`, `break`, `continue`,
+  `panic(...)` or `unreachable()`. A block that can fall through is an error, because `v` would then be `nil` while
+  typed `T`.
+- `expr` must be optional; `let v = 42 else { ... }` is an error.
+- Only a single `let` binding is allowed: no `var`, and no multi-value destructuring.
+
+A type annotation, when given, is the optional type itself (`let v int? = ... else { ... }`); `v`
+is narrowed to `int` after the statement. `let-else` costs nothing at runtime — it is the same
+`if v == nil { ... }` early-exit narrowing described above.
 
 **Member access requires an unwrapped value.** A `T?` value cannot be used with the plain dot
 operator — accessing a field or calling a method on it is a compile error:
@@ -400,12 +466,12 @@ let b Box? = Box()
 let v1 = b.get()     // compile error: optional cannot use dot operator.
 ```
 
-Two forms are sanctioned. Optional chaining `?.` passes `null` through and yields an optional
+Two forms are sanctioned. Optional chaining `?.` passes `nil` through and yields an optional
 result; force-unwrapping with `!` followed by `.` calls directly:
 
 ```kl
 let v2 = b?.get()    // OK, and v2 has type int?
-let v3 = b!.get()    // OK, v3 has type int; panics if b is null
+let v3 = b!.get()    // OK, v3 has type int; panics if b is nil
 ```
 
 Narrowing first works too — inside the branch the value is already unwrapped:
@@ -416,7 +482,7 @@ if let x = b {
 }
 ```
 
-The postfix `!` forces an unwrap where the caller knows the value is present; forcing a `null`
+The postfix `!` forces an unwrap where the caller knows the value is present; forcing a `nil`
 value panics:
 
 ```kl
@@ -546,12 +612,52 @@ for i in range(n) {
 }
 ```
 
-`for` also unpacks tuple-shaped elements and iterates user types through the iterator protocol
-(`__iter__` / `__next__` / `__has_next__`). Loop bodies may use `break` and `continue`.
+`for` also iterates user types through the iterator protocol (`iter()` / `has_next()` /
+`next_strict()`). Loop bodies may use `break` and `continue`.
+
+**Unpacking tuple elements.** When the elements are tuples, `for` binds one variable per field.
+The parentheses are optional, as in Python:
+
+```kl
+let pairs = [(1, "a"), (2, "b")]
+for (n, s) in pairs {        // n is int, s is str
+    print(n, s)
+}
+for n, s in pairs {          // same loop, without parentheses
+    print(s, n)
+}
+
+let d = {"x": 1, "y": 2}
+for (k, v) in d.items() {    // dict items are (K, V) tuples
+    print(k, v)
+}
+```
+
+The element type must be a tuple with exactly as many fields as there are variables, and the names
+must be distinct; both are checked at compile time. Each tuple field is read once per iteration,
+straight into its variable.
+
+**`_` placeholder.** `_` skips a value without binding a name. It works for a single loop variable
+and inside a tuple, and may appear any number of times:
+
+```kl
+for _ in range(3) {          // repeat three times
+    print("hi")
+}
+for (_, v) in d.items() {    // values only
+    print(v)
+}
+```
+
+`_` costs nothing: no variable is created and the skipped field is never read. Over an iterator,
+`for _ in it` still advances the iterator once per iteration.
+
+Loop variables carry no type annotation — `for (k str, v int) in m` is not valid syntax. Their types
+always come from the iterable, as in Python, Go and Rust.
 
 Top-level iteration combinators `enumerate` and `zip` are available.
 
-## Functions and Closures
+## Functions
 
 Functions are declared with `func`. The return type may be omitted when the function returns
 nothing:
@@ -591,13 +697,7 @@ func split(x int) (int, int) {
 }
 ```
 
-Generic functions constrain type parameters with traits (see the next chapter):
-
-```kl
-func add_pair[T : Arithmetic](a T, b T) T {
-    return a + b
-}
-```
+Generic functions constrain their type parameters with traits; see [Generics](#generics).
 
 Anonymous functions and closures are not part of the current language: named functions — including
 functions defined inside packages — are the supported unit of abstraction.
@@ -608,21 +708,24 @@ Classes are declared with `class`. A class is always final: no class may inherit
 Fields are declared with `var`, and `__init__` is the initializer:
 
 ```kl
-class Foo[T] {
-    var value T
+class Counter {
+    var count int = 0
 
-    func __init__(_value T) {
-        value = _value
+    func __init__(start int) {
+        count = start
     }
 
-    func get_value() T {
-        return value
+    func incr() {
+        count += 1
     }
 }
 
-let foo = Foo[int](42)
-print(foo.get_value())
+let c = Counter(10)
+c.incr()
+print(c.count)          // 11
 ```
+
+Classes may also take type parameters; see [Generics](#generics).
 
 Traits serve as interfaces and are the only form of subtype relationship. A class conforms to a
 trait by listing it after `:`; trait inheritance is composition:
@@ -657,8 +760,8 @@ func max[T : Comparable](a T, b T) T {
 
 Operators are syntax hooks: implementing `__add__` makes `a + b` work, with no declaration ceremony.
 Operator dunders may never be called by name — the syntax is the only entry point. The traits
-`Arithmetic[T]` and `BitwiseOperators[T]` exist as generic constraints, so functions like
-`add_pair` above may require operator capabilities of an unknown type.
+`Arithmetic[T]` and `BitwiseOperators[T]` exist as generic constraints, so a generic function may
+require operator capabilities of an unknown type (see [Operator Overloading](#operator-overloading)).
 
 A concrete value can be used wherever a trait instance is expected; the value is widened to the
 trait type (for example `int` where `Arithmetic[int]` is required). The reverse direction —
@@ -721,9 +824,9 @@ pub class float64 : Comparable & Arithmetic { ... }
 
 **Four conformances are added automatically.** Every class automatically conforms to `any`,
 `Equatable`, `Hashable` and `Printable` — they are never written in the base list. The three
-contracts start with identity defaults (`__eq__` compares pointers, `__hash__` derives from the
-pointer, `__str__` prints `Foo@0x7fXXXX`), and a class may override any of them with value
-semantics; overriding `__eq__` without overriding `__hash__` produces a compiler warning. The
+contracts start with identity defaults (`__eq__` compares pointers, `hash()` derives from the
+pointer, `fmt()` prints `Foo@0x7fXXXX`), and a class may override any of them with value
+semantics; overriding `__eq__` without overriding `hash()` produces a compiler warning. The
 automatic conformances are visible through type introspection — nothing is hidden.
 
 Where inference cannot apply, the argument is spelled out — for instance, instantiating a generic
@@ -770,6 +873,11 @@ class Point {
     func __eq__(other Point) bool {
         return x == other.x && y == other.y
     }
+
+    // Printable: how print shows a Point
+    func fmt(f Formatter) {
+        f.write_fmt("Point({}, {})", x, y)
+    }
 }
 
 let p = Point(1, 2)
@@ -806,20 +914,18 @@ Compound assignment uses the matching in-place dunder when the type defines one.
 it falls back to the corresponding binary operator and assigns its result back to the left-hand
 side. If neither operator is defined, compilation fails.
 
-Protocol hooks such as `__len__`, `__str__`, `__hash__` and the iterator dunders are not operator
-hooks and may be called normally.
+Protocol methods such as `len()`, `hash()`, `fmt()` and the iterator methods (`iter()`,
+`has_next()`, `next_strict()`) are not operator hooks; they are ordinary methods and may be called
+normally.
 
 The traits `Arithmetic[T]` and `BitwiseOperators[T]` do not grant operator capability; they exist
 purely as generic constraints. A function that wants to use operators on an unknown type states
-the bound once, and the caller writes nothing extra — the type argument is inferred:
+the bound once, and the caller writes nothing extra — the type argument is inferred. With
+`add_pair` from [Generics](#generics):
 
 ```kl
-func add_pair[T : Arithmetic](a T, b T) T {
-    return a + b
-}
-
 print(add_pair(3, 4))        // T inferred as int; prints 7
-print(add_pair(p, q))        // T inferred as Point
+print(add_pair(p, q))        // T inferred as Point; prints Point(4, 6)
 ```
 
 On a trait-typed value, operators follow the substituted instance signature: with
@@ -845,7 +951,7 @@ let old = m.remove_or(key, 0)
 ```
 
 **Unexpected failures are panics.** A panic means the code is wrong — an out-of-range index, a
-forced unwrap of `null`, a violated precondition. Panics are lightweight, unrecoverable and
+forced unwrap of `nil`, a violated precondition. Panics are lightweight, unrecoverable and
 uncatchable: there is no try/catch and no error propagation ceremony. The fix is always to fix the
 code.
 

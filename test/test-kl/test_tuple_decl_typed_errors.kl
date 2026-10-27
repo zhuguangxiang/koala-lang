@@ -1,0 +1,48 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+func divmod(a int, b int) (int, int) {
+    return (a / b, a % b)
+}
+
+// the given type does not match the element type
+func type_mismatch() {
+    let (a str, b) = divmod(7, 2)
+}
+// CHECK: variable 'a' of type 'str' cannot hold element of type 'int64'.
+
+// 'nil' element needs an explicit type
+func nil_without_type() {
+    let (a, b) = (1, nil)
+}
+// CHECK-NEXT: cannot assign 'nil' to variable 'b' without explicit type
+
+func opt_pair() (int?, int) {
+    let v int? = nil
+    return (v, 1)
+}
+
+// T? -> T: an optional element cannot go into a non-optional variable
+func optional_to_non_optional() {
+    let (a int, b) = opt_pair()
+}
+// CHECK-NEXT: variable 'a' of type 'int64' cannot hold element of type 'int64?'.
+
+// nil -> T: 'nil' cannot go into a non-optional variable
+func nil_to_non_optional() {
+    let (a int, b) = (nil, 1)
+}
+// CHECK-NEXT: variable 'a' of type 'int64' cannot hold element of type '_?'.
+
+// wrong type with a tuple literal: the given type is the expected type of the literal
+func literal_mismatch() {
+    let (a str, b) = (1, 2)
+}
+// CHECK-NEXT: variable 'a' of type 'str' cannot hold element of type 'int64'.
+
+// var takes the same check as let
+func var_type_mismatch() {
+    var (a str, b) = divmod(7, 2)
+}
+// CHECK-NEXT: variable 'a' of type 'str' cannot hold element of type 'int64'.
+
+// CHECK-NOT: {{.}}

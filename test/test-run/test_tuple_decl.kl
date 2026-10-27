@@ -1,0 +1,120 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+func divmod(a int, b int) (int, int) {
+    return (a / b, a % b)
+}
+
+// let from a function result
+func from_call() {
+    let (q, r) = divmod(17, 5)
+    print(q, r)
+}
+
+// var: both names are mutable
+func mutable() {
+    var (a, b) = (1, "x")
+    a += 10
+    b = "y"
+    print(a, b)
+}
+
+// '_' skips fields, may repeat
+func placeholder() {
+    let (q, _) = divmod(17, 5)
+    print(q)
+    let (_, s, _) = (1, "mid", true)
+    print(s)
+}
+
+// nested tuple, destructured step by step
+func nested() {
+    let p = ((1, 2), "p")
+    let (inner, name) = p
+    let (x, y) = inner
+    print(x + y, name)
+}
+
+// in a loop body, each iteration binds new names
+func in_loop() {
+    for i in range(2) {
+        let (q, r) = divmod(i + 7, 2)
+        print(q, r)
+    }
+}
+
+from_call()
+mutable()
+placeholder()
+nested()
+in_loop()
+
+// let: the call result is computed once, each field is read into an immutable local
+// CHECK-LABEL: func @from_call() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = call @divmod [const], 17 int64, 5 int64
+// CHECK-NEXT: %q = local [immutable] int64
+// CHECK-NEXT: %1 = seq.get %0 std/builtin.tuple<jj>, 0 int64
+// CHECK-NEXT: move %q int64, %1 int64
+// CHECK-NEXT: %r = local [immutable] int64
+// CHECK-NEXT: %2 = seq.get %0 std/builtin.tuple<jj>, 1 int64
+// CHECK-NEXT: move %r int64, %2 int64
+
+// var: the locals are mutable
+// CHECK-LABEL: func @mutable() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %a = local int64
+// CHECK-NEXT: %0 = seq.get tuple(1, 'x') std/builtin.tuple<ju>, 0 int64
+// CHECK-NEXT: move %a int64, %0 int64
+// CHECK-NEXT: %b = local str
+// CHECK-NEXT: %1 = seq.get tuple(1, 'x') std/builtin.tuple<ju>, 1 int64
+// CHECK-NEXT: move %b str, %1 str
+// CHECK-NEXT: %2 = add %a int64, 10 int64
+// CHECK-NEXT: move %a int64, %2 int64
+// CHECK-NEXT: move %b str, 'y' str
+
+// '_': the skipped fields are never read
+// CHECK-LABEL: func @placeholder() <NO-TYPE> {
+// CHECK: %q = local [immutable] int64
+// CHECK-NEXT: %1 = seq.get %0 std/builtin.tuple<jj>, 0 int64
+// CHECK-NEXT: move %q int64, %1 int64
+// CHECK-NEXT: %2 = build_intern @tuple, %q int64
+// CHECK: %s = local [immutable] str
+// CHECK-NEXT: %3 = seq.get tuple(1, 'mid', true) std/builtin.tuple<juz>, 1 int64
+// CHECK-NEXT: move %s str, %3 str
+// CHECK-NEXT: %4 = build_intern @tuple, %s str
+
+// nested: the inner tuple is bound first, then destructured
+// CHECK-LABEL: func @nested() <NO-TYPE> {
+// CHECK: %inner = local [immutable] std/builtin.tuple<jj>
+// CHECK-NEXT: %0 = seq.get %p std/builtin.tuple<Lstd/builtin.tuple<jj>;u>, 0 int64
+// CHECK-NEXT: move %inner std/builtin.tuple<jj>, %0 std/builtin.tuple<jj>
+// CHECK-NEXT: %name = local [immutable] str
+// CHECK-NEXT: %1 = seq.get %p std/builtin.tuple<Lstd/builtin.tuple<jj>;u>, 1 int64
+// CHECK-NEXT: move %name str, %1 str
+// CHECK-NEXT: %x = local [immutable] int64
+// CHECK-NEXT: %2 = seq.get %inner std/builtin.tuple<jj>, 0 int64
+// CHECK-NEXT: move %x int64, %2 int64
+// CHECK-NEXT: %y = local [immutable] int64
+// CHECK-NEXT: %3 = seq.get %inner std/builtin.tuple<jj>, 1 int64
+// CHECK-NEXT: move %y int64, %3 int64
+// CHECK-NEXT: %4 = add %x int64, %y int64
+
+// in a loop body: destructured on every iteration
+// CHECK-LABEL: func @in_loop() <NO-TYPE> {
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %4 = add %i int64, 7 int64
+// CHECK-NEXT: %5 = call @divmod, %4 int64, 2 int64
+// CHECK-NEXT: %q = local [immutable] int64
+// CHECK-NEXT: %6 = seq.get %5 std/builtin.tuple<jj>, 0 int64
+// CHECK-NEXT: move %q int64, %6 int64
+// CHECK-NEXT: %r = local [immutable] int64
+// CHECK-NEXT: %7 = seq.get %5 std/builtin.tuple<jj>, 1 int64
+// CHECK-NEXT: move %r int64, %7 int64
+
+// CHECK: {{^}}3 2{{$}}
+// CHECK-NEXT: {{^}}11 y{{$}}
+// CHECK-NEXT: {{^}}3{{$}}
+// CHECK-NEXT: {{^}}mid{{$}}
+// CHECK-NEXT: {{^}}3 p{{$}}
+// CHECK-NEXT: {{^}}3 1{{$}}
+// CHECK-NEXT: {{^}}4 0{{$}}

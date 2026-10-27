@@ -410,6 +410,8 @@ typedef enum _StmtKind {
     /* if-let */
     STMT_IF_LET_KIND,
     STMT_WHILE_LET_KIND,
+    /* let (a, b) = t, var (a, b) = t */
+    STMT_TUPLE_DECL_KIND,
     STMT_MAX_KIND
 } StmtKind;
 
@@ -467,6 +469,20 @@ typedef struct _VarDeclStmt {
 } VarDeclStmt;
 
 Stmt *stmt_from_var_decl(Ident id, TypeSpec *ty, int which, Expr *e);
+
+/* let (a, b) = t, var (a, _) = t, let (a int8, b int?) = (1, nil) */
+typedef struct _TupleDeclStmt {
+    STMT_HEAD
+    // IdentType, ts is NULL if no type is given; '_' is a placeholder
+    Vector *ids;
+    // VAR_DECL_VAR or VAR_DECL_LET
+    int which;
+    Expr *exp;
+    // sym id per name, -1 for '_'
+    Vector sym_ids;
+} TupleDeclStmt;
+
+Stmt *stmt_from_tuple_decl(Vector *ids, int which, Expr *exp);
 #define var_set_where(stmt, _where) ((VarDeclStmt *)stmt)->where = _where;
 
 typedef struct _TypeParamDecl {
@@ -556,6 +572,8 @@ typedef struct _IfStmt {
     Expr *cond;
     Vector *block;
     Stmt *_else;
+    // desugared from 'let v = expr else { ... }', block must exit
+    int is_let_else;
 } IfStmt;
 
 Stmt *stmt_from_if(Expr *cond, Vector *block, Stmt *_else);
@@ -602,6 +620,8 @@ typedef struct _ForStmt {
     Expr *iterable;
     Vector *block;
     Vector sym_ids;
+    // element type of iterable, a tuple for multiple vars
+    TypeSpec *elem_ts;
 } ForStmt;
 
 Stmt *stmt_from_for(Vector *ids, Expr *iterable, Vector *block);

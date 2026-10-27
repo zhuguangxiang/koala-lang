@@ -60,6 +60,7 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 - **构造函数**：偏好联合类型参数的单一 `__init__`，不用静态工厂方法族。
 - **带默认值的参数**：省略类型注解。
 - **变量声明**：支持默认值与**类型推导**——有初始化表达式即可省略类型注解。
+- **Tuple destructuring (decided 2026-10-27)**: `let (a, b) = t` / `var (a, b) = t`, with `_` to skip an element. Types are inferred from the tuple; each name may optionally carry a type (`let (a int8, b int?) = (1, nil)`), which is the expected type of that element, following single `let` (per-field annotations, as in Kotlin, rather than a whole-pattern type). The value must be a tuple with exactly as many elements, names must be distinct, and at least two names are required. Locals only for now; nested patterns are not supported. Implemented as its own `TupleDeclStmt`: the value is evaluated once, then each element is read with `seq.get` and converted to the variable's type, sharing `build_unpack_vars()` with `for` unpacking.
 - **泛型自动推导**：泛型类型参数由编译器从上下文推断，调用侧无需手写类型实参。
 - **手动泛型展开**：`@specialized` 注解按放置位置分流——挂在具体声明上映射（`list[int64]` → `int64list`），挂在泛型类 / 泛型函数上由编译器生成特化声明；实例化无论显式书写或推断所得，注解即开关，未关联则擦除（见 §7.4）。
 
@@ -68,6 +69,7 @@ Koala 的每一个设计决策都可以向上追溯到这三条原则：
 - **无 null**：语言中不存在 null，可选值用 `T?` 表达——从根上消灭 NullPointerException 这一问题类别。`nil` 在 IR 中为 `none` 值，打印为 `none`。
 - **分支自动窄化（flow-sensitive smart cast）**：`if v != nil { ... }` 块内、`if v == nil { return }` 之后，`v` 自动窄化为 `T`，可直接参与运算；窄化随作用域精确进出（裸块、嵌套、死代码、对 `var` 重新赋值都正确失效），IR 下降为 `cast T? to T`。诊断区分“optional type cannot be used with '+' operator”（未窄化）与“…when value is nil”（已判 nil 分支内）。
 - **if let / while let 自动解包**：`if let v = expr { ... } else { ... }` 绑定**不可变**量 v（else 分支不可见 v）；`while let next = curr.next { ... }` 循环解包。解包即窄化，零运行时代价。
+- **let-else, early-exit unwrapping (replaces `guard`, decided 2026-10-27)**: `let v = expr else { ... }` runs the else block when `expr` is nil; otherwise `v` has type `T` in the enclosing scope from the next statement on. It is a pure syntactic desugaring: `let_else_stmts()` in `koala.y` emits two **sibling** statements, `let v = expr` and `if v == nil { ... }` (`IfStmt.is_let_else = 1`), reusing the early-return narrowing above, with no new symbol kind and no new IR. `parse_if()` runs two independent checks on it: `expr` must be optional (checked before the generated `==` is visited, so the error never points at a comparison the user didn't write); and the else block must exit (return / break / continue / `panic()`), otherwise it reports an error and then treats the block as exiting, to avoid cascading errors. Single-value `let` only: no `var`, no destructuring, and no bare `else return x` form.
 - **可选链 `?.`**：`f.foo()?.get_id()`——接收者为 nil 时整个链短路为 nil，不 panic。
 - **强制解包 `!`（后缀）**：`v!` 断言 `T?` 非 nil 并取值，IR 下降为 `nil_check`（opcode `OP_NIL_CHECK`，`FORMAT_RxRx`）；对 nil **触发运行时异常**（消息 ``forced unwrap (`!`) of a nil value``）——本轮 `fix unwrap(!) bug` 修复了此前对 nil 静默返回 `none` 的行为。作用于非可选值时仅告警并原样透传。是“我确知非 nil”的逃生口，不替代窄化，也**不是错误处理通道**——可失败转换用 `_or` / `try_`（见 §6）。
 - **展开 `!`（后缀，变参位）**：`f(l!)` 把 list `l` 的元素展开为变参实参（与强制解包同形不同义，按上下文区分）。
@@ -769,7 +771,13 @@ bytes / Buffer 的二进制编解码职责已**剥离至官方库 encoding**，�
 
 **排序依据**：优先级 2 先于 3——若对象同时是 `Iterator` 与 `Iterable`（其 `iter()` 按惯例返回自身），直接走 iterator 协议，省掉一次 `iter()` 自调用。三层整体按“`for` 需现场构造的机制由少到多”排序：Sequence 零 iterator → Iterator 零 `iter()` → Iterable 需 `iter()`。
 
-`for` 支持元组解包（`for i, c in ...`）。
+`for` 支持元组解包（`for i, c in ...`）。**Multi-value unpacking and the `_` placeholder (decided 2026-10-27)**:
+
+- **Two equivalent forms**: `for (k, v) in m` and `for k, v in m` (parentheses optional, as in Python). The element type must be a tuple with as many fields as there are variables, and names must be distinct (`for (x, x) in ...` reports `duplicate loop variable`); all checked at compile time.
+- **irgen lowering**: on both the Sequence and the Iterator path, each iteration fetches the whole tuple element once (`seq.get` or `next_strict`), then writes each field into its variable with `seq.get elem, i` (`build_loop_vars_unpack()`). The element type is recorded in `ForStmt.elem_ts`.
+- **`_` placeholder**: binding positions only (`for _ in range(n)`, `for (_, v) in m`), and may repeat. No symbol is created (`-1` in `sym_ids` keeps the field positions), and a skipped field is never read. On the range path `for _` still gets a hidden `range.cur` counter; on the Iterator path a single `_` still calls `next_strict()` to advance the iterator. `let _ = expr` is not supported (an expression statement already discards the value).
+- **No type annotations on loop variables**: `for (k str, v int) in m` was removed from the grammar. The types always come from the iterable, so an annotation could only repeat or contradict them; this follows Python / Go / Rust.
+- **Not supported yet**: nested destructuring (`for (i, (k, v)) in ...`).
 - **内建容器原生展开**：for 对 range / tuple / list / dict / bytes 等内建类型做原生展开——尤其 `range` 循环**不创建 range 对象、不走 iterator 协议**，编译器直接生成循环体，热路径零分配零分发。
 - **顶层组合子现状**：`enumerate` / `zip` 已从 `__builtin__.kl` 移入 `zip.kl`，为**注释态路线图**（设计归为 class / type，见 §8.8 ③）；`filter` / `map` / `reduce` 同为注释态路线图，设计上应为 `Iterable` 的普通方法（`items.map(f)` / `items.filter(pred)`，见 §8.8 ⑤）。
 - **聚合 / 排序待定**：`sum` / `sorted` / `any` / `all` 有 top-level 表达价值但 API 未定（见 §8.8 ④）；`any` / `all` 另依赖 truthiness 机制（若引入 Truthiness trait 可重开，Koala_TODO §10）。`min` / `max` 已实现为泛型函数 `min[T: Comparable]` / `max[T: Comparable]`，`@specialized(int, uint, float)` 生成单态（见 §7.4）。

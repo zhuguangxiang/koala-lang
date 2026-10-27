@@ -1,0 +1,70 @@
+// RUN: koala --test %s
+
+from "std/ut" import assert_eq
+
+func find(k int) int? {
+    if k > 0 { return k * 10 }
+    return nil
+}
+
+// panic() exits, so the let-else block is accepted and 'v' is narrowed
+func f(k int) int {
+    let v = find(k) else { panic("not found") }
+    return v + 1
+}
+
+// early-return narrowing also accepts panic()
+func g(k int) int {
+    let v = find(k)
+    if v == nil {
+        print("missing")
+        panic("not found")
+    }
+    return v + 2
+}
+
+@test
+func test_let_else_panic_ok() {
+    assert_eq(f(3), 31)
+}
+
+@should_panic("not found")
+func test_let_else_panic() {
+    f(0)
+}
+
+@test
+func test_if_nil_panic_ok() {
+    assert_eq(g(4), 42)
+}
+
+@should_panic("not found")
+func test_if_nil_panic() {
+    g(0)
+}
+
+// unreachable() exits too, so the let-else block is accepted
+func h(k int) int {
+    let v = find(k) else { unreachable() }
+    return v + 3
+}
+
+// unreachable() as the only stmt of a func with a return type
+func never() int {
+    unreachable()
+}
+
+@test
+func test_let_else_unreachable_ok() {
+    assert_eq(h(5), 53)
+}
+
+@should_panic
+func test_let_else_unreachable() {
+    h(0)
+}
+
+@should_panic
+func test_unreachable_body() {
+    never()
+}

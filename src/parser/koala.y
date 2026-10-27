@@ -87,6 +87,54 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
     vector_destroy(stmts);
 }
 
+/*
+ * let v = expr else { ... }
+ * desugared into two sibling stmts (must not be wrapped in a block,
+ * otherwise 'v' is invisible to the following stmts):
+ *   let v = expr
+ *   if v == nil { ... }
+ * 'v' is narrowed to non-null by the early-return shadow logic.
+ */
+static Vector *let_else_stmts(Ident *id, TypeSpec *type, Expr *exp, Vector *block,
+                              Loc decl_loc, Loc else_loc, Loc if_loc)
+{
+    Stmt *decl = stmt_from_var_decl(*id, type, 1, exp);
+    stmt_set_loc(decl, decl_loc);
+    var_set_where(decl, VAR_LOCAL);
+
+    Expr *lhs = expr_from_ident(id);
+    expr_set_loc(lhs, id->loc);
+    Expr *rhs = expr_from_lit_none();
+    expr_set_loc(rhs, else_loc);
+    Expr *cond = expr_from_binary(BINARY_EQ, else_loc, lhs, rhs);
+    expr_set_loc(cond, decl_loc);
+
+    Stmt *s = stmt_from_if(cond, block, NULL);
+    ((IfStmt *)s)->is_let_else = 1;
+    stmt_set_loc(s, if_loc);
+
+    Vector *stmts = vector_create_ptr();
+    vector_push_back(stmts, &decl);
+    vector_push_back(stmts, &s);
+    return stmts;
+}
+
+// let (a, b) = t: at least two names, 'let (a) = t' is not a destructuring
+static Stmt *tuple_decl_stmt(ParserState *ps, Vector *ids, int which, Expr *exp, Loc ids_loc,
+                             Loc loc)
+{
+    if (vector_size(ids) < 2) {
+        kl_error(ids_loc, "destructuring needs at least two names.");
+        vector_destroy(ids);
+        expr_free(exp);
+        return NULL;
+    }
+
+    Stmt *s = stmt_from_tuple_decl(ids, which, exp);
+    stmt_set_loc(s, loc);
+    return s;
+}
+
 %}
 
 %union {
@@ -275,6 +323,9 @@ static void yyparse_module(ParserState *ps, Vector *stmts)
 %type<vec> base_type_list
 %type<vec> block
 %type<vec> local_list
+%type<vec> let_else_stmt
+%type<stmt> tuple_decl
+%type<vec> tuple_decl_list
 %type<vec> map_list
 %type<vec> expr_list
 %type<vec> index_expr_list
@@ -1381,25 +1432,33 @@ let_decl
         yy_clear_ok;
         $$ = NULL;
     }
-    | LET '(' id2_list ')' '=' expr
+    ;
+
+let_else_stmt
+    : LET ID '=' expr ELSE block
     {
-        NYI();
+        Ident id = {$2, loc(@2)};
+        $$ = let_else_stmts(&id, NULL, $4, $6, lloc(@1, @4), loc(@5), lloc(@5, @6));
     }
-    | LET '(' id_type_2_list ')' '=' expr
+    | LET ID optional_type '=' expr ELSE block
     {
-        NYI();
+        Ident id = {$2, loc(@2)};
+        $$ = let_else_stmts(&id, $3, $5, $7, lloc(@1, @5), loc(@6), lloc(@6, @7));
+    }
+    | LET ID '=' expr ELSE error
+    {
+        kl_error(loc(@6), "expected '{' after 'else' in let-else.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | LET ID optional_type '=' expr ELSE error
+    {
+        kl_error(loc(@7), "expected '{' after 'else' in let-else.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
-id2_list
-    : ID ',' ID
-    | id2_list ',' ID
-    ;
-
-id_type_2_list
-    : ID optional_type ',' ID optional_type
-    | id_type_2_list ',' ID optional_type
-    ;
 
 const_decl
     : CONST ID '=' const_expr
@@ -1544,13 +1603,90 @@ var_decl
         yy_clear_ok;
         $$ = NULL;
     }
-    | VAR '(' id2_list ')' '=' expr
+    ;
+
+/*
+ * let (a, b) = t
+ * var (a, _) = t
+ * let (a int8, b int?) = (1, nil)
+ * only for local variables; '_' binds nothing.
+ * Each name may have a type, it is the expected type of that element.
+ */
+tuple_decl
+    : LET '(' tuple_decl_list ')' '=' expr
     {
-        NYI();
+        $$ = tuple_decl_stmt(ps, $3, VAR_DECL_LET, $6, lloc(@2, @4), lloc(@1, @6));
     }
-    | VAR '(' id_type_2_list ')' '=' expr
+    | VAR '(' tuple_decl_list ')' '=' expr
     {
-        NYI();
+        $$ = tuple_decl_stmt(ps, $3, VAR_DECL_VAR, $6, lloc(@2, @4), lloc(@1, @6));
+    }
+    | LET '(' tuple_decl_list error
+    {
+        vector_destroy($3);
+        kl_error(loc(@4), "expected ')'.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | VAR '(' tuple_decl_list error
+    {
+        vector_destroy($3);
+        kl_error(loc(@4), "expected ')'.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | LET '(' tuple_decl_list ')' error
+    {
+        vector_destroy($3);
+        kl_error(loc(@5), "expected '='.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | VAR '(' tuple_decl_list ')' error
+    {
+        vector_destroy($3);
+        kl_error(loc(@5), "expected '='.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    ;
+
+tuple_decl_list
+    : ID
+    {
+        IdentType it = {{$1, loc(@1)}, NULL};
+        $$ = vector_create(sizeof(IdentType));
+        vector_push_back($$, &it);
+    }
+    | ID optional_type
+    {
+        IdentType it = {{$1, loc(@1)}, $2};
+        $$ = vector_create(sizeof(IdentType));
+        vector_push_back($$, &it);
+    }
+    | '_'
+    {
+        IdentType it = {{"_", loc(@1)}, NULL};
+        $$ = vector_create(sizeof(IdentType));
+        vector_push_back($$, &it);
+    }
+    | tuple_decl_list ',' ID
+    {
+        $$ = $1;
+        IdentType it = {{$3, loc(@3)}, NULL};
+        vector_push_back($$, &it);
+    }
+    | tuple_decl_list ',' ID optional_type
+    {
+        $$ = $1;
+        IdentType it = {{$3, loc(@3)}, $4};
+        vector_push_back($$, &it);
+    }
+    | tuple_decl_list ',' '_'
+    {
+        $$ = $1;
+        IdentType it = {{"_", loc(@3)}, NULL};
+        vector_push_back($$, &it);
     }
     ;
 
@@ -2310,6 +2446,21 @@ local_list
         $$ = $1;
         if ($2) vector_push_back($$, &$2);
     }
+    | let_else_stmt
+    {
+        $$ = $1 ? $1 : vector_create_ptr();
+    }
+    | local_list let_else_stmt
+    {
+        $$ = $1;
+        if ($2) {
+            Stmt *s;
+            vector_foreach(s, $2) {
+                vector_push_back($$, &s);
+            }
+            vector_destroy($2);
+        }
+    }
     ;
 
 local
@@ -2332,6 +2483,10 @@ local
     {
         $$ = $1;
         var_set_where($$, VAR_LOCAL);
+    }
+    | tuple_decl semi
+    {
+        $$ = $1;
     }
     | assignment semi
     {
@@ -2507,30 +2662,6 @@ if_stmt
         $$ = stmt_from_if_let(&id, $6, $8, $9);
         stmt_set_loc($$, lloc(@1, @9));
     }
-    | IF LET ID type '=' expr block elseif_stmt
-    {
-        NYI();
-    }
-    | IF '(' LET ID type '=' expr ')' block elseif_stmt
-    {
-        NYI();
-    }
-    | IF LET '(' id2_list ')' '=' expr block elseif_stmt
-    {
-        NYI();
-    }
-    | IF '(' LET '(' id2_list ')' '=' expr ')' block elseif_stmt
-    {
-        NYI();
-    }
-    | IF LET '(' id_type_2_list ')' '=' expr block elseif_stmt
-    {
-        NYI();
-    }
-    | IF '(' LET '(' id_type_2_list ')' '=' expr ')' block elseif_stmt
-    {
-        NYI();
-    }
     ;
 
 elseif_stmt
@@ -2567,30 +2698,6 @@ while_stmt
         $$ = stmt_from_while_let(&id, $6, $8);
         stmt_set_loc($$, lloc(@1, @8));
     }
-    | WHILE LET ID type '=' expr block
-    {
-        NYI();
-    }
-    | WHILE '(' LET ID type '=' expr ')' block
-    {
-        NYI();
-    }
-    | WHILE LET '(' id2_list ')' '=' expr block
-    {
-        NYI();
-    }
-    | WHILE '(' LET '(' id2_list ')' '=' expr ')' block
-    {
-        NYI();
-    }
-    | WHILE LET '(' id_type_2_list ')' '=' expr block
-    {
-        NYI();
-    }
-    | WHILE '(' LET '(' id_type_2_list ')' '=' expr ')' block
-    {
-        NYI();
-    }
     | LOOP block
     {
         $$ = stmt_from_while(NULL, $2);
@@ -2609,16 +2716,35 @@ for_stmt
         $$ = stmt_from_for($3, $6, $7);
         stmt_set_loc($$, lloc(@1, @7));
     }
-    | FOR id_type_2_list IN expr block
+    | FOR id_list error
     {
-        NYI();
+        vector_destroy($2);
+        kl_error(loc(@3), "expected 'in' after loop variables.");
+        yy_clear_ok;
+        $$ = NULL;
     }
-    | FOR '(' id_type_2_list ')' IN expr block
+    | FOR '(' id_list error
     {
-        NYI();
+        vector_destroy($3);
+        kl_error(loc(@4), "expected ')'.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | FOR '(' id_list ')' error
+    {
+        vector_destroy($3);
+        kl_error(loc(@5), "expected 'in' after loop variables.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
+/*
+ * '_' is a placeholder, no variable is bound for it:
+ *   for _ in range(n)
+ *   for (_, v) in m.items()
+ * It is never an ID, the lexer returns '_' token for it.
+ */
 id_list
     : ID
     {
@@ -2626,10 +2752,22 @@ id_list
         $$ = vector_create(sizeof(Ident));
         vector_push_back($$, &id);
     }
+    | '_'
+    {
+        Ident id = {"_", loc(@1)};
+        $$ = vector_create(sizeof(Ident));
+        vector_push_back($$, &id);
+    }
     | id_list ',' ID
     {
         $$ = $1;
         Ident id = {$3, loc(@3)};
+        vector_push_back($$, &id);
+    }
+    | id_list ',' '_'
+    {
+        $$ = $1;
+        Ident id = {"_", loc(@3)};
         vector_push_back($$, &id);
     }
     ;

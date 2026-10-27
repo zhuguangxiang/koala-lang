@@ -12,11 +12,11 @@
 > `build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断（§26，待施工）、
 > 全常量 dict 字面量直接作 `print` / `format` 实参时报 `modobj.c: Not Yet Implemented`（§27，待修）、
 > os.run 子进程管道大 payload「先写后读」死锁 + Process/Raw* 无 finalizer 致 fd 泄漏与 zombie（§28，待修）、
-> `is` / `as` 运算符语义评估与遗留项（§29，2026-10-26 评估）。
+> `is` / `as` 运算符语义评估与遗留项（§29，2026-10-26 评估）、let-else and `panic()`-as-terminal leftovers (§30, closed).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-10-26（新增 §29：`is` / `as` 语义评估与遗留项）；2026-10-25（新增 §26：`build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断，待施工；§27：全常量 dict 字面量直接作实参报 `modobj.c` 未实现，待修；§28：os.run 子进程管道大 payload 先写后读死锁、Process/Raw* 无 finalizer 致 fd 泄漏与 zombie，待修；§20 / §21 均已修复，§22 待定；datetime 包 Date/Time/DateTime 已收工，仅剩时区见 §23；§24 为运算符重载语言待办；§25 为 Koala vs Python 标准库场景×热度对比盘点）
+> 更新日期：2026-10-28 (§30 closed: `unreachable()` is terminal; no `unreachable` after `panic()`, to keep code size); 2026-10-27 (added §30: let-else is implemented); 2026-10-26（新增 §29：`is` / `as` 语义评估与遗留项）；2026-10-25（新增 §26：`build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断，待施工；§27：全常量 dict 字面量直接作实参报 `modobj.c` 未实现，待修；§28：os.run 子进程管道大 payload 先写后读死锁、Process/Raw* 无 finalizer 致 fd 泄漏与 zombie，待修；§20 / §21 均已修复，§22 待定；datetime 包 Date/Time/DateTime 已收工，仅剩时区见 §23；§24 为运算符重载语言待办；§25 为 Koala vs Python 标准库场景×热度对比盘点）
 
 ---
 
@@ -91,6 +91,9 @@ SLOT_BIT_AND)` 等。
 第 4 项独立，且因 __contains__ 显式调用被禁而成为功能性阻断，建议优先。
 ```
 
+**Update (2026-10-28)**: item 4 is closed (2026-10-02), so it no longer blocks anything; `in`
+works end to end.
+
 ---
 
 ## 5. 语言手册（Koala_Language_Manual.md）后续项
@@ -113,14 +116,28 @@ SLOT_BIT_AND)` 等。
 
 **优化（事实性/一致性问题）**
 
-8. 重复内容合并：`class Foo[T]` 例子在 Classes and Interfaces 与 Generics 逐字重复；
-   `add_pair` 出现 3 次（Functions / Generics / Operator Overloading）。
-9. 运算符表 `x in seq` 一行：`in` 语义未落地（见上文第 4 项），需标注或暂时移除。
-10. Operator Overloading 的 Point 示例输出注释失实：未实现 `__str__` 时按 Printable identity
-    默认打印 `Point@0x7fXXXX`，不是 `Point(4, 6)`；给示例加 `__str__` 或改注释。
-11. `guard` 悬空：Booleans 提到 guard 但全文无说明（语法存在、无测试实证）；删除该词或补说明。
-12. 章节名 "Functions and Closures" 与正文（闭包不存在）矛盾，可考虑改为 "Functions"。
-13. Hello World 的 `koala -c` 与测试体系用的 `koalac` 是否一致，待作者确认。
+8. ~~重复内容合并：`class Foo[T]` 例子在 Classes and Interfaces 与 Generics 逐字重复；
+   `add_pair` 出现 3 次（Functions / Generics / Operator Overloading）。~~
+   **Resolved (2026-10-28)**: `class Foo[T]` and `add_pair` are defined once, in Generics.
+   Classes and Interfaces uses a plain `Counter` class; Functions and Operator Overloading refer
+   to Generics.
+9. ~~运算符表 `x in seq` 一行：`in` 语义未落地（见上文第 4 项），需标注或暂时移除。~~
+   **Resolved (2026-10-28)**: `in` works now (`OP_CONTAINS` handler in `vm_ops.h`, used by
+   `test-ut/test_ut_list.kl`), so the table row stays as it is.
+10. ~~Operator Overloading 的 Point 示例输出注释失实：未实现 `__str__` 时按 Printable identity
+    默认打印 `Point@0x7fXXXX`，不是 `Point(4, 6)`；给示例加 `__str__` 或改注释。~~
+    **Resolved (2026-10-28)**: `Point` implements `Printable.fmt()` (`f.write_fmt(...)`), so the
+    output comments hold. The stale `__str__` / `__hash__` / `__len__` names in the manual are
+    now `fmt()` / `hash()` / `len()`.
+11. ~~`guard` 悬空：Booleans 提到 guard 但全文无说明（语法存在、无测试实证）；删除该词或补说明。~~
+    **Resolved (2026-10-27)**: `guard` is replaced by `let-else`; the word is removed from
+    Booleans, and Null Safety has a new `let-else` subsection.
+12. ~~章节名 "Functions and Closures" 与正文（闭包不存在）矛盾，可考虑改为 "Functions"。~~
+    **Resolved (2026-10-28)**: the chapter is renamed "Functions".
+13. ~~Hello World 的 `koala -c` 与测试体系用的 `koalac` 是否一致，待作者确认。~~
+    **Resolved (2026-10-28)**: both are right. `koala` is the driver that runs `koalac`, and
+    `koala -c` (`compile_only` in `args.h`) stops after compiling; the tests call `koalac`
+    directly. Hello World now says so.
 
 ---
 
@@ -819,6 +836,7 @@ pub static func try_from_str(s str, base = 10) int64? {}
 > __setitem__ / __getslice__）交叉核对。
 > 关联条目：§7.1（not_impl 哨兵）、§9（push/pop @intrinsic 化）、§12（OP_SEQ_SET_SLICE
 > 未实现）、§16.3（append 命名已统一）、§4（`in`/OP_CONTAINS 链路已通但 list 缺方法实体）。
+> Update (2026-10-28): `in` on list works now; see the `__contains__` row below.
 
 ### 18.1 实测状态总表
 
@@ -845,7 +863,7 @@ pub static func try_from_str(s str, base = 10) int64? {}
 
 | 方法 / 语法 | 实测现象 |
 |---|---|
-| `__contains__`（`v in l`） | 编译报 `type 'list<j>' does not support '__contains__' method`——§4 的 OP_CONTAINS 全链路已通，但 list 缺 SLOT_CONTAINS 方法实体，**`in` 运算符对 list 完全不可用** |
+| ~~`__contains__`（`v in l`）~~ | ~~编译报 `type 'list<j>' does not support '__contains__' method`——§4 的 OP_CONTAINS 全链路已通，但 list 缺 SLOT_CONTAINS 方法实体，**`in` 运算符对 list 完全不可用**~~ **Resolved (verified 2026-10-28)**: `list.__contains__` is declared (`list.kl:46`) and `v in l` works; `test-ut/test_ut_list.kl` (`test_list_contains`) covers it |
 | `__setslice__`（`l[0:2] = xs`） | 编译报 `cannot resolve expr's type`（对应 §12 OP_SEQ_SET_SLICE 未实现） |
 | `__add__`（`l + xs`） | **崩溃**：`vm.c:50 kl_not_impl_func` 断言失败（`Assertion '(obj)->_type == &cfunc_type' failed`），进程直接 abort，比 not_impl 异常更严重 |
 | `__iadd__`（`l += xs`） | 编译报 `inplace assignment is not supported for 'list' type` |
@@ -1419,3 +1437,33 @@ class 一律 final、没有 class 继承，只有 trait 构成子类型关系。
 `Dog?` / `int?` / `(Dog | Cat)?` 作源、`int?` 目标、`NilType` 目标、`...` 作源；`as` 额外覆盖：内建值类型作源、
 同一泛型不同实参。警告（`test_is_as_warnings.kl`）：`is` 覆盖 class / 泛型的 always true/false；`as` 覆盖 class 的 always true/false 与泛型的 always true（泛型 `always false` 已改为报错，在 `test_is_as_target_errors.kl` 的 `as_generic_different_args`）。
 缺口：`as` 恒等内建类型（待 29.3-① 实现后补）、`is` 与 `as` 对 trait 源且目标未实现该 trait 的用例。
+
+---
+
+## 30. `let-else` and `panic()` as a terminal statement: leftovers (2026-10-27)
+
+**Status**: `let v = expr else { ... }` is implemented (single value only, no destructuring). The
+grammar desugars it in `let_else_stmts()` (`koala.y`) into two sibling statements, `let v = expr`
+and `if v == nil { ... }` (`IfStmt.is_let_else = 1`), reusing the early-return shadow narrowing.
+`parse_if()` runs two checks on `is_let_else`: `v` must be optional (checked before the generated
+`v == nil` is visited), and the else block must exit (return / break / continue / panic).
+`panic()` counts as terminal in `is_terminal()` through `is_panic_call()`, which matches the
+resolved `std/builtin.panic` symbol.
+
+**Pending**:
+
+1. **irgen: no fall-through after `panic()`.** `panic` is an ordinary `@native` function, so the
+   block holding the call still has an edge into the following code (never taken at runtime: the
+   VM has stopped). For let-else / early-return narrowing, that fake edge is an IR path where `v`
+   is nil yet flows into a non-null use, and the optimizer still reasons about it and keeps the
+   merge point.
+   **Fix**: in `emit_ir_expr()`, after a call where `is_panic_call(exp)` is true, emit
+   `klr_build_unreachable` (already used for native function bodies in `irgen.c`) and treat the
+   current block like return / break / continue, with no fall-through jump.
+   **Decided not to do (2026-10-28)**: the extra `unreachable` instruction only increases the code
+   size; the fall-through edge is never taken at runtime, so it stays.
+2. ~~**`unreachable()` should also be terminal.** `std/builtin.unreachable()` never returns either,
+   but `is_terminal()` doesn't recognise it, so `let v = e else { unreachable() }` reports "block
+   must exit".~~
+   **Resolved (2026-10-27)**: `is_panic_call()` became `is_noreturn_call()`, matching both `panic`
+   and `unreachable` in `std/builtin`; it is used by `is_terminal()` and by the return-type check.

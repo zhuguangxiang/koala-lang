@@ -398,8 +398,9 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
     Symbol *sym = stbl_add_func(stbl, k->sval, ret_ts, params, flags);
     ASSERT(sym);
     sym->parent = kls_sym;
+    // both funcs and methods belong to this package
+    sym->path = ctx->path;
     if (!kls_sym) {
-        sym->path = ctx->path;
         sym->parent = ctx->pkg_sym;
     }
 

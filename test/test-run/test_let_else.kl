@@ -1,0 +1,87 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+func find(k int) int? {
+    if k > 0 { return k * 10 }
+    return nil
+}
+
+func lookup(v int, limit int) int? {
+    if v < limit { return v }
+    return nil
+}
+
+// let-else with return, 'v' is narrowed to int after it
+func f(k int) int {
+    let v = find(k) else { return -1 }
+    return v + 1
+}
+
+// let-else with type annotation and multi-stmt block
+func g(k int) int {
+    let v int? = find(k) else {
+        print("missing")
+        return -2
+    }
+    return v + 2
+}
+
+// let-else with continue / break, and nested if-return in block
+func h(k int, limit int) int {
+    var sum = 0
+    for i in range(k) {
+        let v = find(i) else { continue }
+        let w int? = lookup(v, limit) else {
+            if v > 100 { return -1 }
+            break
+        }
+        sum += w
+    }
+    return sum
+}
+
+print(f(3))
+print(f(0))
+print(g(4))
+print(g(0))
+print(h(4, 1000))
+print(h(4, 25))
+print(h(20, 105))
+print(h(0, 1000))
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @f(%k int64) int64 {
+// CHECK: %v = local [immutable] int64?
+// CHECK: %1 = cmpeq %v int64?, nil
+// CHECK-NEXT: branch %1 bool, label %bb1, label %bb2
+// CHECK: %bb1(if-then):
+// CHECK-NEXT: ret -1 int64
+// CHECK: %bb3(if-end):
+// CHECK-NEXT: %2 = cast %v int64? to int64
+// CHECK-NEXT: %3 = add %2 int64, 1 int64
+// CHECK-NEXT: ret %3 int64
+
+// CHECK-LABEL: func @g(%k int64) int64 {
+// CHECK: %v = local [immutable] int64?
+// CHECK: %1 = cmpeq %v int64?, nil
+// CHECK-NEXT: branch %1 bool, label %bb1, label %bb2
+// CHECK: %bb1(if-then):
+// CHECK-NEXT: call @print
+// CHECK-NEXT: ret -2 int64
+// CHECK: %bb3(if-end):
+// CHECK-NEXT: %2 = cast %v int64? to int64
+// CHECK-NEXT: %3 = add %2 int64, 2 int64
+// CHECK-NEXT: ret %3 int64
+
+// CHECK-LABEL: func @h(%k int64, %limit int64) int64 {
+// CHECK: cmpeq %v int64?, nil
+// CHECK: cmpeq %w int64?, nil
+
+// CHECK: {{^}}31{{$}}
+// CHECK-NEXT: {{^}}-1{{$}}
+// CHECK-NEXT: {{^}}42{{$}}
+// CHECK-NEXT: {{^}}missing{{$}}
+// CHECK-NEXT: {{^}}-2{{$}}
+// CHECK-NEXT: {{^}}60{{$}}
+// CHECK-NEXT: {{^}}30{{$}}
+// CHECK-NEXT: {{^}}-1{{$}}
+// CHECK-NEXT: {{^}}0{{$}}

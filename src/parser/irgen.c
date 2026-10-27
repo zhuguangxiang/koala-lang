@@ -2525,11 +2525,58 @@ static Symbol *get_loop_var_symbol(ForStmt *s)
 {
     ASSERT(vector_size(&s->sym_ids) == 1);
     int *sym_id = vector_get_ptr(&s->sym_ids, 0);
+    // '_' binds nothing
+    if (*sym_id < 0) return NULL;
     Symbol *sym = get_symbol_by_id(*sym_id);
     ASSERT(sym->kind == SYM_VAR);
     VarSymbol *var_sym = (VarSymbol *)sym;
     ASSERT(var_sym->scope == VAR_SCOPE_LOCAL);
     return sym;
+}
+
+// for (x, y) in ... and let (x, y) = ...: unpack the tuple into the vars
+static void build_unpack_vars(KlrBuilder *bldr, Vector *sym_ids, KlrValue *elem, ParserState *ps)
+{
+    Symbol *tuple_sym = get_symbol_by_id(elem->ts->sym_id);
+    ASSERT(tuple_sym && tuple_sym->kind == SYM_INSTANCE);
+    Vector *elem_types = ((InstanceSymbol *)tuple_sym)->tp_args;
+
+    int size = vector_size(sym_ids);
+    for (int i = 0; i < size; i++) {
+        int *sym_id = vector_get_ptr(sym_ids, i);
+        // '_' binds nothing, skip this field
+        if (*sym_id < 0) continue;
+        Symbol *sym = get_symbol_by_id(*sym_id);
+        ASSERT(sym->kind == SYM_VAR);
+        if (sym->flags & SYM_FLAGS_MUTABLE) {
+            sym->ir_val = klr_build_local_var(bldr, sym->ts, sym->name);
+        } else {
+            sym->ir_val = klr_build_local(bldr, sym->ts, sym->name);
+        }
+        // read the field with its own type, the var may have a given type,
+        // e.g. let (a Fly, b int?) = (foo, 1)
+        TypeSpec *elem_ts = vector_get(elem_types, i);
+        KlrValue *index = klr_const_int(i, int64_type_spec(), MOD);
+        KlrValue *val = klr_build_seq_get(bldr, elem, index, elem_ts, "");
+        KlrValue *_val = _build_obj_intf_upcast(ps, val, sym->ts, "");
+        if (!_val) _val = val;
+        klr_builder_end(bldr, ps->scope->bb);
+        klr_build_move(bldr, sym->ir_val, _val);
+    }
+}
+
+static void emit_ir_tuple_decl(ParserState *ps, Stmt *stmt)
+{
+    TupleDeclStmt *s = (TupleDeclStmt *)stmt;
+    Expr *exp = s->exp;
+
+    exp->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, exp);
+    if (!exp->ir_val) return;
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    build_unpack_vars(&bldr, &s->sym_ids, exp->ir_val, ps);
 }
 
 static void build_loop_range_cond(KlrBuilder *bldr, KlrValue *range_cur,
@@ -2675,13 +2722,18 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
 
     if (which == GEN_RANGE) {
         Symbol *sym = get_loop_var_symbol(s);
-        if (sym->flags & SYM_FLAGS_MUTABLE) {
-            sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+        if (!sym) {
+            // 'for _ in range', a hidden counter is still needed
+            range_cur = klr_build_local_var(&bldr, s->elem_ts, "range.cur");
         } else {
-            sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+            if (sym->flags & SYM_FLAGS_MUTABLE) {
+                sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+            } else {
+                sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+            }
+            range_cur = sym->ir_val;
         }
-        klr_build_move(&bldr, sym->ir_val, range_info.start);
-        range_cur = sym->ir_val;
+        klr_build_move(&bldr, range_cur, range_info.start);
     } else if (which == GEN_SEQ) {
         // v is generated in loop body, i is generated in loop header.
         // initialize index to 0
@@ -2744,22 +2796,43 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
 
     if (which == GEN_SEQ) {
         klr_builder_end(&bldr, sc->bb);
-        Symbol *sym = get_loop_var_symbol(s);
-        if (sym->flags & SYM_FLAGS_MUTABLE) {
-            sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+        if (vector_size(&s->sym_ids) > 1) {
+            KlrValue *elem =
+                klr_build_seq_get(&bldr, seq_info.seq, seq_info.index, s->elem_ts, "");
+            build_unpack_vars(&bldr, &s->sym_ids, elem, ps);
         } else {
-            sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+            Symbol *sym = get_loop_var_symbol(s);
+            // 'for _ in seq' binds nothing, no need to get the element
+            if (sym) {
+                if (sym->flags & SYM_FLAGS_MUTABLE) {
+                    sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+                } else {
+                    sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+                }
+                KlrValue *_val =
+                    klr_build_seq_get(&bldr, seq_info.seq, seq_info.index, sym->ts, "");
+                klr_build_move(&bldr, sym->ir_val, _val);
+            }
         }
-        KlrValue *_val = klr_build_seq_get(&bldr, seq_info.seq, seq_info.index, sym->ts, "");
-        klr_build_move(&bldr, sym->ir_val, _val);
     } else if (which == GEN_ITERATOR) {
-        // create local variable
         klr_builder_end(&bldr, sc->bb);
-        Symbol *sym = get_loop_var_symbol(s);
-        sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
-        KlrValue *next_val =
-            build_next_strict_call(&bldr, it_info.next_strict, it_info.it_obj, sym->ts, ps);
-        klr_build_move(&bldr, sym->ir_val, next_val);
+        if (vector_size(&s->sym_ids) > 1) {
+            KlrValue *elem =
+                build_next_strict_call(&bldr, it_info.next_strict, it_info.it_obj, s->elem_ts, ps);
+            build_unpack_vars(&bldr, &s->sym_ids, elem, ps);
+        } else {
+            Symbol *sym = get_loop_var_symbol(s);
+            if (!sym) {
+                // 'for _ in iter', still call next_strict to advance the iterator
+                build_next_strict_call(&bldr, it_info.next_strict, it_info.it_obj, s->elem_ts, ps);
+            } else {
+                // create local variable
+                sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+                KlrValue *next_val =
+                    build_next_strict_call(&bldr, it_info.next_strict, it_info.it_obj, sym->ts, ps);
+                klr_build_move(&bldr, sym->ir_val, next_val);
+            }
+        }
     }
 
     emit_ir_visit_block(ps, s->block);
@@ -3126,6 +3199,7 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
         [STMT_FOR_KIND]       = emit_ir_for_stmt,
         [STMT_IF_LET_KIND]    = emit_ir_if_let_stmt,
         [STMT_WHILE_LET_KIND] = emit_ir_while_let_stmt,
+        [STMT_TUPLE_DECL_KIND] = emit_ir_tuple_decl,
     };
     /* clang-format on */
 

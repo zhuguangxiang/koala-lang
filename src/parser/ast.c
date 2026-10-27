@@ -709,6 +709,17 @@ Stmt *stmt_from_for(Vector *ids, Expr *iterable, Vector *block)
     return (Stmt *)s;
 }
 
+Stmt *stmt_from_tuple_decl(Vector *ids, int which, Expr *exp)
+{
+    TupleDeclStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_TUPLE_DECL_KIND;
+    s->ids = ids;
+    s->which = which;
+    s->exp = exp;
+    vector_init(&s->sym_ids, sizeof(int));
+    return (Stmt *)s;
+}
+
 Stmt *stmt_from_expr(Expr *exp)
 {
     ExprStmt *s = mm_alloc_obj(s);
@@ -897,6 +908,15 @@ static void for_stmt_free(Stmt *stmt)
     mm_free(s);
 }
 
+static void tuple_decl_stmt_free(Stmt *stmt)
+{
+    TupleDeclStmt *s = (TupleDeclStmt *)stmt;
+    vector_destroy(s->ids);
+    expr_free(s->exp);
+    vector_fini(&s->sym_ids);
+    mm_free(s);
+}
+
 static void if_let_stmt_free(Stmt *stmt)
 {
     IfLetStmt *s = (IfLetStmt *)stmt;
@@ -959,6 +979,7 @@ void stmt_free(Stmt *stmt)
         [STMT_WHILE_KIND] = while_stmt_free,
         [STMT_IF_LET_KIND] = if_let_stmt_free,
         [STMT_WHILE_LET_KIND] = while_let_stmt_free,
+        [STMT_TUPLE_DECL_KIND] = tuple_decl_stmt_free,
     };
 
     free_handlers[stmt->kind](stmt);

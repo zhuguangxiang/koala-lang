@@ -1041,6 +1041,8 @@ static Symbol *add_instance_method(InstanceSymbol *inst_sym, FuncSymbol *origin_
     Symbol *inst_fn_sym = stbl_add_func(inst_sym->stbl, actual_fn_sym->name, inst_ret_ts,
                                         inst_params, actual_fn_sym->flags);
     inst_fn_sym->parent = inst_sym;
+    // an instance method belongs to the package of its origin method
+    inst_fn_sym->path = actual_fn_sym->path;
     inst_fn_sym->ts = func_type_spec_from_arginfo(inst_params, inst_ret_ts);
     ((FuncSymbol *)inst_fn_sym)->origin = actual_fn_sym;
     return inst_fn_sym;
@@ -1101,6 +1103,8 @@ inherit:
             inst_fn_sym = stbl_add_func(inst_sym->stbl, _fn_sym->name, _fn_sym->ret, real_params,
                                         _fn_sym->flags);
             inst_fn_sym->parent = inst_sym;
+            // an instance method belongs to the package of its origin method
+            inst_fn_sym->path = _fn_sym->path;
             inst_fn_sym->ts = func_type_spec_from_arginfo(real_params, _fn_sym->ret);
             return inst_fn_sym;
         }
@@ -1682,6 +1686,8 @@ static void parse_call(ParserState *ps, Expr *exp)
                          lhs_sym->name);
                 _fn_sym = stbl_add_func(cls_sym->stbl, "__init__", no_type_spec(), NULL,
                                         cls_sym->flags | SYM_FLAGS_PUBLIC);
+                // the default __init__ belongs to the package of its class
+                _fn_sym->path = cls_sym->path;
             }
         }
 
@@ -3596,7 +3602,8 @@ static int check_as_src_type(TypeSpec *src_ts)
              src_ts->kind == TYPE_STR);
 }
 
-// Two instances of the same generic class with different type arguments, e.g. list[int] and list[str].
+// Two instances of the same generic class with different type arguments,
+// e.g. list[int] and list[str].
 static int is_different_instance_of_same_origin(TypeSpec *src_ts, TypeSpec *target_ts)
 {
     Symbol *src_sym = get_symbol_by_id(src_ts->sym_id);

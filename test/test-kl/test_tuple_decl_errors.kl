@@ -1,0 +1,29 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// reported by the grammar, so it comes first
+func single_name() {
+    let (a) = (1, 2)
+}
+// CHECK: destructuring needs at least two names.
+
+func non_tuple() {
+    let (a, b) = 5
+}
+// CHECK-NEXT: cannot destructure non-tuple type 'int64'.
+
+func count_mismatch() {
+    let (a, b, c) = (1, 2)
+}
+// CHECK-NEXT: 3 names cannot destructure a tuple of 2 elements.
+
+func duplicate_name() {
+    var (a, a) = (1, 2)
+}
+// CHECK-NEXT: redefinition of 'a'
+
+// '_' may repeat, no error
+func many_underscores() {
+    let (_, _) = (1, 2)
+}
+
+// CHECK-NOT: {{.}}

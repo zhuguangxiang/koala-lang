@@ -1,0 +1,126 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+// list of tuples, sequence path
+func for_list() {
+    let pairs = [(1, "a"), (2, "b"), (3, "c")]
+    for (n, s) in pairs {
+        print(n, s)
+    }
+}
+
+// without parentheses
+func for_list_no_paren() {
+    let pairs = [(1, "a"), (2, "b"), (3, "c")]
+    for n, s in pairs {
+        print(s, n)
+    }
+}
+
+// tuple of tuples, sequence path
+func for_tuple() {
+    let t = ((1, 2), (3, 4))
+    for (a, b) in t {
+        print(a + b)
+    }
+}
+
+// continue and break with multiple vars
+func for_jump() {
+    let pairs = [(1, "a"), (2, "b"), (3, "c"), (4, "d")]
+    for (n, s) in pairs {
+        if n == 2 { continue }
+        if n == 4 { break }
+        print(s)
+    }
+}
+
+// dict.items(), iterator path
+func for_dict_items() {
+    let d = {"x": 1, "y": 2, "z": 3}
+    var total = 0
+    for (k, v) in d.items() {
+        total += v
+    }
+    print(total)
+}
+
+for_list()
+for_list_no_paren()
+for_tuple()
+for_jump()
+for_dict_items()
+
+// sequence path: get the tuple element once, then unpack each field
+// CHECK-LABEL: func @for_list() <NO-TYPE> {
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %2 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %n = local int64
+// CHECK-NEXT: %3 = seq.get %2 std/builtin.tuple<ju>, 0 int64
+// CHECK-NEXT: move %n int64, %3 int64
+// CHECK-NEXT: %s = local str
+// CHECK-NEXT: %4 = seq.get %2 std/builtin.tuple<ju>, 1 int64
+// CHECK-NEXT: move %s str, %4 str
+// CHECK-NEXT: %5 = build_intern @tuple, %n int64, %s str
+
+// CHECK-LABEL: func @for_list_no_paren() <NO-TYPE> {
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %2 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %n = local int64
+// CHECK-NEXT: %3 = seq.get %2 std/builtin.tuple<ju>, 0 int64
+// CHECK-NEXT: move %n int64, %3 int64
+// CHECK-NEXT: %s = local str
+// CHECK-NEXT: %4 = seq.get %2 std/builtin.tuple<ju>, 1 int64
+// CHECK-NEXT: move %s str, %4 str
+// CHECK-NEXT: %5 = build_intern @tuple, %s str, %n int64
+
+// tuple of tuples: tuple length is a constant
+// CHECK-LABEL: func @for_tuple() <NO-TYPE> {
+// CHECK: %0 = cmpge %seq.index int64, 2 int64
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %1 = seq.get %t std/builtin.tuple<Lstd/builtin.tuple<jj>;Lstd/builtin.tuple<jj>;>, %seq.index int64
+// CHECK-NEXT: %a = local int64
+// CHECK-NEXT: %2 = seq.get %1 std/builtin.tuple<jj>, 0 int64
+// CHECK-NEXT: move %a int64, %2 int64
+// CHECK-NEXT: %b = local int64
+// CHECK-NEXT: %3 = seq.get %1 std/builtin.tuple<jj>, 1 int64
+// CHECK-NEXT: move %b int64, %3 int64
+// CHECK-NEXT: %4 = add %a int64, %b int64
+
+// continue jumps to loop-cond-incr, break jumps to loop-end
+// CHECK-LABEL: func @for_jump() <NO-TYPE> {
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %2 = seq.get %pairs std/builtin.list<Lstd/builtin.tuple<ju>;>, %seq.index int64
+// CHECK-NEXT: %n = local int64
+// CHECK-NEXT: %3 = seq.get %2 std/builtin.tuple<ju>, 0 int64
+// CHECK-NEXT: move %n int64, %3 int64
+// CHECK-NEXT: %s = local str
+// CHECK-NEXT: %4 = seq.get %2 std/builtin.tuple<ju>, 1 int64
+// CHECK-NEXT: move %s str, %4 str
+// CHECK: %bb6(if-then):
+// CHECK-NEXT: jmp label %bb4
+// CHECK: %bb9(if-then):
+// CHECK-NEXT: jmp label %bb5
+
+// iterator path: get the tuple element from next_strict, then unpack
+// CHECK-LABEL: func @for_dict_items() <NO-TYPE> {
+// CHECK: %bb3(loop-body):
+// CHECK-NEXT: %3 = call @std/builtin.Iterator<Lstd/builtin.tuple<uj>;>:next_strict [intf-index = 1], %1 std/builtin.Iterator<Lstd/builtin.tuple<uj>;>
+// CHECK-NEXT: %k = local str
+// CHECK-NEXT: %4 = seq.get %3 std/builtin.tuple<uj>, 0 int64
+// CHECK-NEXT: move %k str, %4 str
+// CHECK-NEXT: %v = local int64
+// CHECK-NEXT: %5 = seq.get %3 std/builtin.tuple<uj>, 1 int64
+// CHECK-NEXT: move %v int64, %5 int64
+// CHECK-NEXT: %6 = add %total int64, %v int64
+
+// CHECK: {{^}}1 a{{$}}
+// CHECK-NEXT: {{^}}2 b{{$}}
+// CHECK-NEXT: {{^}}3 c{{$}}
+// CHECK-NEXT: {{^}}a 1{{$}}
+// CHECK-NEXT: {{^}}b 2{{$}}
+// CHECK-NEXT: {{^}}c 3{{$}}
+// CHECK-NEXT: {{^}}3{{$}}
+// CHECK-NEXT: {{^}}7{{$}}
+// CHECK-NEXT: {{^}}a{{$}}
+// CHECK-NEXT: {{^}}c{{$}}
+// CHECK-NEXT: {{^}}6{{$}}

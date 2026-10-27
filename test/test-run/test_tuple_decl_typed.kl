@@ -1,0 +1,116 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+trait Fly {
+    func fly() str
+}
+
+class Bird : Fly {
+    func fly() str {
+        return "flying"
+    }
+}
+
+func divmod(a int, b int) (int, int) {
+    return (a / b, a % b)
+}
+
+// the given types are the expected types of the tuple literal's elements
+func narrow_ints() {
+    let (a int8, b uint8) = (1, 200)
+    print(a, b)
+}
+
+// only the field that needs a type has one; 'nil' needs it
+func with_nil() {
+    let (a, b int?) = (1, nil)
+    print(a)
+    if b == nil {
+        print("nil")
+    }
+}
+
+// var with a given optional type can be reassigned to nil
+func mutable_optional() {
+    var (x int?, y) = (5, "s")
+    x = nil
+    print(x == nil, y)
+}
+
+// class -> trait: the element is upcast to the given trait type
+func trait_type() {
+    let (f Fly, n) = (Bird(), 3)
+    print(f.fly(), n)
+}
+
+// not a tuple literal: types are only checked
+func from_call() {
+    let (q int, r int) = divmod(7, 2)
+    print(q, r)
+}
+
+narrow_ints()
+with_nil()
+mutable_optional()
+trait_type()
+from_call()
+
+// the literal is typed by the given types: tuple<int8, uint8>
+// CHECK-LABEL: func @narrow_ints() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %a = local [immutable] int8
+// CHECK-NEXT: %0 = seq.get tuple(1, 200) std/builtin.tuple<cC>, 0 int64
+// CHECK-NEXT: move %a int8, %0 int8
+// CHECK-NEXT: %b = local [immutable] uint8
+// CHECK-NEXT: %1 = seq.get tuple(1, 200) std/builtin.tuple<cC>, 1 int64
+// CHECK-NEXT: move %b uint8, %1 uint8
+
+// the 'nil' element is read with its own type, the var has the given 'int?'
+// CHECK-LABEL: func @with_nil() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %a = local [immutable] int64
+// CHECK-NEXT: %0 = seq.get tuple(1, nil) std/builtin.tuple<j_?>, 0 int64
+// CHECK-NEXT: move %a int64, %0 int64
+// CHECK-NEXT: %b = local [immutable] int64?
+// CHECK-NEXT: %1 = seq.get tuple(1, nil) std/builtin.tuple<j_?>, 1 int64
+// CHECK-NEXT: move %b int64?, %1 _?
+
+// var: an 'int' element goes into an 'int?' local, which is reassigned to nil
+// CHECK-LABEL: func @mutable_optional() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %x = local int64?
+// CHECK-NEXT: %0 = seq.get tuple(5, 's') std/builtin.tuple<ju>, 0 int64
+// CHECK-NEXT: move %x int64?, %0 int64
+// CHECK-NEXT: %y = local str
+// CHECK-NEXT: %1 = seq.get tuple(5, 's') std/builtin.tuple<ju>, 1 int64
+// CHECK-NEXT: move %y str, %1 str
+// CHECK-NEXT: move %x int64?, nil
+
+// class -> trait: the element is read as 'Bird', then upcast to 'Fly'
+// CHECK-LABEL: func @trait_type() <NO-TYPE> {
+// CHECK: %1 = build_intern @tuple, %0 test_tuple_decl_typed.Bird, 3 int64
+// CHECK-NEXT: %f = local [immutable] test_tuple_decl_typed.Fly
+// CHECK-NEXT: %2 = seq.get %1 std/builtin.tuple<Ltest_tuple_decl_typed.Bird;j>, 0 int64
+// CHECK-NEXT: %3 = make_intf %2 test_tuple_decl_typed.Bird [intf-table-index = 4] to test_tuple_decl_typed.Fly
+// CHECK-NEXT: move %f test_tuple_decl_typed.Fly, %3 test_tuple_decl_typed.Fly
+// CHECK-NEXT: %n = local [immutable] int64
+// CHECK-NEXT: %4 = seq.get %1 std/builtin.tuple<Ltest_tuple_decl_typed.Bird;j>, 1 int64
+// CHECK-NEXT: move %n int64, %4 int64
+// CHECK-NEXT: %5 = call @Fly:fly [intf-index = 0], %f test_tuple_decl_typed.Fly
+
+// not a tuple literal: the types are only checked, the IR is the same as untyped
+// CHECK-LABEL: func @from_call() <NO-TYPE> {
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = call @divmod [const], 7 int64, 2 int64
+// CHECK-NEXT: %q = local [immutable] int64
+// CHECK-NEXT: %1 = seq.get %0 std/builtin.tuple<jj>, 0 int64
+// CHECK-NEXT: move %q int64, %1 int64
+// CHECK-NEXT: %r = local [immutable] int64
+// CHECK-NEXT: %2 = seq.get %0 std/builtin.tuple<jj>, 1 int64
+// CHECK-NEXT: move %r int64, %2 int64
+
+// CHECK: {{^}}1 200{{$}}
+// CHECK-NEXT: {{^}}1{{$}}
+// CHECK-NEXT: {{^}}nil{{$}}
+// CHECK-NEXT: {{^}}true s{{$}}
+// CHECK-NEXT: {{^}}flying 3{{$}}
+// CHECK-NEXT: {{^}}3 1{{$}}

@@ -1,0 +1,5 @@
+[package]
+name = "std/socket"
+version = "0.1.0"
+dependencies = []
+natives = []
