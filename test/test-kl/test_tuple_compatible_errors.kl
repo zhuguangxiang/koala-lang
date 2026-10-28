@@ -1,0 +1,22 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// a tuple is compatible element by element: nil fits T? only, other types stay invariant
+
+func take(p (int, int)) {}
+func take_opt(p (int?, int)) {}
+
+func nil_for_plain() {
+    take((nil, 1))
+}
+// CHECK: Incompatible type: expected 'std/builtin.tuple<jj>', but got 'std/builtin.tuple<_?j>'.
+
+func wrong_type() {
+    take_opt(("x", 1))
+}
+// CHECK: Incompatible type: expected 'std/builtin.tuple<j?j>', but got 'std/builtin.tuple<uj>'.
+
+func wrong_size() {
+    take((1, 2, 3))
+}
+// CHECK: Incompatible type: expected 'std/builtin.tuple<jj>', but got 'std/builtin.tuple<jjj>'.
+// CHECK-NOT: error:

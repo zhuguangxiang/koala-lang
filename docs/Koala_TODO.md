@@ -1467,3 +1467,251 @@ resolved `std/builtin.panic` symbol.
    must exit".~~
    **Resolved (2026-10-27)**: `is_panic_call()` became `is_noreturn_call()`, matching both `panic`
    and `unreachable` in `std/builtin`; it is used by `is_terminal()` and by the return-type check.
+
+---
+
+## 31. Destructuring, `for` and narrowing: deferred tasks (2026-10-28)
+
+**Status**: `for (x, y) in ...` / `for x, y in ...` with `_`, local `let (a, b) = t` /
+`var (a, b) = t` (optional per-field types), and quiet error recovery for a bad `for` header are
+done. The tasks below are not started; planned for about a month later (around 2026-11-28).
+
+1. **`enumerate` / `zip`** (size M, design first). Goal: `for (i, x) in enumerate(xs)` and
+   `for (a, b) in zip(xs, ys)`.
+   Open questions: free functions in `std/builtin` (Python style) or iterator methods
+   (`xs.iter().enumerate()`, Rust style); the produced type (`Iterator[(int, T)]` /
+   `Iterator[(A, B)]` classes, e.g. `EnumerateIter[T]` / `ZipIter[A, B]`); whether `zip` stops at
+   the shorter input; whether they take anything with `__iter__` or only sequences.
+   Files: `libs/std/builtin/*.kl` (or native C), and the 3 docs. Risk: may expose gaps in generic
+   iterator inference.
+   Checked (2026-10-28): not solved. `libs/std/builtin/enumerate.kl` and `zip.kl` only hold
+   commented-out stubs (`Enumerate[T] : Iterator[(int, T)]`, `Zip[T, U] : Iterator[(T, U)]`),
+   so `enumerate(xs)` / `zip(xs, ys)` report "'enumerate' is not found". The §25 inventory lists
+   them under `std/builtin`, but they are not implemented yet.
+
+2. **Destructuring at top level and in class fields** (size M–L). Goal: `let (a, b) = f()` at
+   module level, maybe `var (x, y) = (0, 0)` in a class body.
+   Work: allow `tuple_decl` in the top-level (and class-member) grammar; `parse_tuple_decl` only
+   handles `VAR_SCOPE_LOCAL` today and needs global / field variants with the global-init order;
+   irgen must store into globals in the module init (or fields in `__init__`); each name must be
+   exported to `.klc` like a normal `let` / `var`.
+   Open question: are class fields worth it (Rust / Go don't allow it)? Suggestion: top level only.
+   Files: `koala.y`, `parser.c`, `irgen.c`, maybe `write_klc.c`.
+
+3. **Nested destructuring** (size M). Goal: `let ((a, b), c) = t` and `for (k, (x, y)) in m`.
+   Work: parenthesised items inside `tuple_decl_list` / `id_list`; the `IdentType` items become a
+   pattern tree in the AST; recursive type / count checks; recursive `build_unpack_vars`.
+   Open question: typed items at inner levels (suggestion: yes, same as the top level).
+   Files: `koala.y`, `ast.h` / `ast.c`, `parser.c`, `irgen.c`. Risk: changes the AST shape shared
+   by `for` and `tuple_decl`.
+
+4. **Narrowing through `&&` / `||` / `!`** (size M).
+   Level 1: `if x != nil && y != nil { x + y }` narrows both in the then-block.
+   Level 2: `if x == nil || y == nil { return }` narrows both after the `if` (and in the else
+   block); a real `!` flips the facts; any nesting depth.
+   Constraint: change only the narrowing code; no detached symbols (`stbl == NULL`), no refactor
+   of `parse_if` / `parse_block` / `symbol.c` without agreement first.
+   Open design point: how to carry the else-only facts of `||` to the else block and to the
+   early-return path without detached symbols.
+   Tests: a test-run case for the narrowed results; a test-kl case for the non-narrowed ones
+   (`||` in the then-block, `&&` in the else block, `&&` + early return).
+
+5. **Narrowing inside the right operand (level 3)** (size S–M, after item 4). Goal:
+   `if s != nil && s.len() > 0`, where `s` is already narrowed while `s.len()` is checked.
+   Work: when visiting `A && B`, visit `B` in a temporary scope holding the true facts of `A`
+   (for `A || B`, the false facts); this happens during the expression visit (`parser_expr.c`).
+   Risk: the IR of `B` must use the narrowed symbol.
+
+---
+
+## 32. Tuple literals and expected types: failing cases (2026-10-28, to discuss)
+
+**Status**: `parse_tuple()` gives each element the element type of an expected tuple type as
+its `expected`, and records `T?` in the tuple type when an element is `nil` or exactly `T`
+and `T?` is expected. So `return (nil, 1)` for `(int?, int)`, `let t (int8, int?) = (1, nil)`
+and `(x, y) = (7, nil)` with `x int8` work. Open point: pass the expected type only to the
+elements that need it (literals), so an element never takes the type of the left side
+instead of resolving its own.
+**Decided (2026-10-28)**: keep the current `parse_tuple()` behaviour; an element whose type
+cannot be resolved still reports its own error, it never falls back to the left side's type.
+
+The cases below still fail, except item 1 (resolved). They are recorded to discuss later;
+nothing else is decided yet. Re-checked on 2026-10-28 after item 1: items 2–7 still fail with
+the errors shown.
+
+### 32.1 Tuple related
+
+1. **`nil` in a call argument.**
+   ```koala
+   func take(p (int?, int)) {}
+   take((nil, 1))
+   // Incompatible type: expected 'std/builtin.tuple<j?j>', but got 'std/builtin.tuple<_?j>'.
+   ```
+   Cause: `nil` has only the nil type `_?`, no `src`, so the tuple is `tuple<_?j>`. A
+   `return` passes because `parse_tuple()` rewrites the tuple type; a call argument does not
+   get there (why is not confirmed yet).
+   **Resolved (2026-10-28)**: `type_spec_compatible()` compares two tuple instances element by
+   element (`compatible_tuple()`, called from `compatible_klass()`): an element is accepted if
+   it is the same type, `nil` (`_?`) for any `T?`, or a nested tuple checked the same way.
+   Other element types stay invariant. Known gap: the value keeps its own runtime type
+   (`tuple<_?j>`), so `is` / `==` on such a tuple may not see the declared type.
+
+2. **A class value for a trait element.**
+   ```koala
+   func one() (Fly, int) {
+       return (Bird(), 1)    // return type mismatch in function 'one'
+   }
+   ```
+   Cause: `tuple<Bird, int64>` does not match `tuple<Fly, int64>`, generics are invariant.
+   A trait value also has another representation, so even with covariance irgen must upcast
+   each element (`_build_obj_intf_upcast()`, as `build_unpack_vars()` does).
+
+3. **An `any` element.**
+   ```koala
+   let t (any, int) = (1, 2)
+   // lhs: std/builtin.tuple<oj> =/= rhs: std/builtin.tuple<jj>
+   ```
+   Cause: generics are invariant, `tuple<jj>` is not `tuple<oj>`; `var a any = 1` works.
+   Open question: is `tuple` a special case of generics, compatible element by element?
+   This would also solve item 1.
+
+4. **Tuples in a list literal.**
+   ```koala
+   let l list[(int?, int)] = [(nil, 1), (2, 3)]
+   // lhs: list<tuple<j?j>> =/= rhs: list<o>
+   ```
+   Cause: generics are invariant; and the list literal does not pass the expected element
+   type to its elements, so the tuples are `tuple<_?j>` and `tuple<jj>`, and their LUB makes
+   `list<any>`. Needs `parse_list()` to pass `expected`.
+
+### 32.2 Not tuple related (a single value fails the same way)
+
+5. **A binary expression for `int8`.**
+   ```koala
+   let t (int8, int) = (1 + 2, 3)    // var x int8 = 1 + 2 fails too
+   ```
+   Cause: a literal is `int64` by default; `expected` is not passed to the operands of
+   `1 + 2`, so the result is `int64`. Possible improvement: a binary expression passes
+   `expected` to its literal operands.
+
+6. **`int` for `float`.**
+   ```koala
+   let t (float, int) = (1, 2)       // var f float = 1 fails too
+   ```
+   Cause: `int64` is not converted to `float` implicitly, `float(1)` is needed. This is the
+   language rule, not a bug.
+
+7. **An empty list.**
+   ```koala
+   func g() (list[int], int) {
+       return ([], 1)                // 'return []' for 'list[int]' fails too
+   }
+   ```
+   Cause: `[]` is `list<any>` (`list[o]`), generics are invariant, it does not match
+   `list[int]`. Possible improvement: an empty `[]` takes its element type from `expected`.
+
+### 32.3 Runtime type of a tuple
+
+8. **A tuple's runtime type may differ from its declared type (`is` / `==`).**
+   ```koala
+   func take(p (int?, int)) {
+       print(p is (int?, int))   // the value was created as tuple<_?j>
+   }
+   take((nil, 1))
+   ```
+   Cause: since item 1, `type_spec_compatible()` accepts `tuple<_?j>` where `tuple<j?j>` is
+   expected, but the value keeps the instance it was created with (`tuple<_?j>`). The static
+   type says `(int?, int)`, the runtime type says `(nil, int)`. So a runtime type check (`is`,
+   `as`) or an operator that compares the two types (`==` between a `(nil, 1)` value and an
+   `(int?, int)` value) may give a wrong result or an error. `return (nil, 1)` is not affected:
+   `parse_tuple()` already builds that value as `tuple<j?j>`.
+   To check: what `is` / `as` / `==` do on such a tuple today. Possible fixes: build the value
+   with the declared type when it is passed (an argument, an assignment), or compare tuple
+   instances element by element at runtime too.
+   Checked (2026-10-28): not observed yet.
+   - `p is (int?, int)` / `p as (int?, int)` on the declared type are decided at compile time
+     ("'is' check is always true"), the runtime type is not looked at.
+   - A runtime check through `any` (`let a any = p` in `take((nil, 1))`, then
+     `a is (int?, int)`) prints `true`.
+   - `==` cannot show it: `==` between two tuples does not compile at all (item 9).
+   Keep this item open until `==` on tuples works and the runtime `is` on tuples is understood.
+
+### 32.4 Found while checking the cases above
+
+9. **`==` between two tuples does not compile.**
+   ```koala
+   let a (int, int) = (1, 2)
+   let b (int, int) = (1, 2)
+   print(a == b)   // argument type mismatch for operator '==' of type 'tuple<jj>'.
+   ```
+   Not related to optional elements: plain `(int, int)` fails the same way.
+
+10. **A runtime `is` on an `any` value held by a `let` local crashes the VM.**
+    ```koala
+    let b any = 1
+    print(b is int)
+    // koala: include/runtime/vm_ops.h:2287: _eval_frame: Assertion `(rs) < max_regs' failed.
+    ```
+    The same at top level and inside a function, for an `int` or a tuple value. A parameter
+    assigned to an `any` local (`let a any = p`) works.
+
+11. **`v = nil` inside `if v != nil { ... }` fails in isel.**
+    ```koala
+    func narrowed() {
+        var v int? = 1
+        if v != nil {
+            v = nil
+        }
+        print(v)
+    }
+    // isel.c:317: Why goes here?
+    ```
+    Both operands of a binary op reach `isel_lower_binary()` as constants, and its constant
+    folding branch is only `UNREACHABLE()` (`src/parser/backend/isel.c:316`).
+
+---
+
+## 33. Bugs found on 2026-10-28 (to fix)
+
+Bugs seen during the `koala.y` recovery / memory work and the tuple work. The tuple-related
+bugs are in §32.4 (items 9–11: `==` on tuples, the VM crash on `is` with an `any` local, the
+isel failure for `v = nil` under `if v != nil`).
+
+1. **`a ?: b` evaluates to `a`.**
+   ```koala
+   let x int? = nil
+   let y = x ?: 5
+   print(y)   // prints nil, should print 5
+   ```
+   Cause: the lexer returns `OPT_DEF` for `?:`, but the action of `or_expr OPT_DEF or_expr`
+   (`koala.y`) was never written (its old body was commented out). It keeps the default
+   `$$ = $1` and frees `b`, so no error is reported and the result is just `a`, with `a`'s
+   optional type. Fix: implement it (a new expr: `a` must be `T?`, `b` must be `T`, the result
+   is `T`; irgen: a nil check and a branch), or report "'?:' is not supported yet." until then.
+   `?:` is not in the 3 docs.
+
+2. **Memory leaks on every compile, outside the parser.** `valgrind --leak-check=full koalac`
+   on a valid program reports about 22–29 KB "definitely lost". The parser and the AST frees
+   leak nothing after the `%destructor` work and the tuple / map free fixes. The rest:
+   - `.klc` loading: `read_intf_table()` (`klc.c:1460`, about 36 KB in 3 blocks) and
+     `klc_const_to_literal()` (`read_klc.c:310`, about 5 KB);
+   - semantic pass: `handle_valist_and_dfl_args()` (`parser_expr.c`, the old `KeyWordExpr`
+     nodes are dropped, see its `// TODO: free old args`), `parse_tuple()` (the `tp_args`
+     vector), `find_or_add_instance()` (`parser_generic.c:511`), `stbl_new()`, `str_ndup()`.
+
+3. **Annotation values can leak after a syntax error.** `koala.y` has no `%destructor` for
+   `<prefix_flags>` / `<annot_param>` (annotations and prefix flags) and for the nested type-list
+   vectors `specialized_types_list` / `atom_primitive_type_lists`, so their values leak when
+   bison discards them during recovery. They were left out on purpose: some of their rules may
+   not fully initialise the struct, and a destructor on garbage would crash. Fix: make every
+   rule set the whole value first, then add the destructors.
+
+4. **Tuples with generic type arguments are still compared invariantly.** The element-wise
+   check (§32 item 1, `compatible_tuple()`) only covers concrete tuple instances (`TYPE_KLASS`).
+   A tuple type whose elements contain a type parameter is a `TYPE_GENERIC_REF` and goes through
+   `compatible_generic_ref()`, which needs every argument to be strictly equal. So in
+   `func f[T](x T) (T?, int)`, `return (nil, 1)` may still fail.
+
+5. **Noisy recovery after `tuple = x`.** Since the tuple-assignment rule spells out
+   `'(' expr_list ',' expr ')'`, `tuple = x` (the `tuple` keyword on the left) is a syntax
+   error, but the recovery adds follow-on errors: "expected '}'." and "'x' is not found".

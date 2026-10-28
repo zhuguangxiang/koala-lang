@@ -1,0 +1,113 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+func divmod(a int, b int) (int, int) {
+    return (a / b, a % b)
+}
+
+func compound_op() {
+    var a = 1
+    var b = 2
+    (a, b) += (1, 2)
+    (a, b) -= (1, 2)
+}
+// CHECK: only '=' can assign to a tuple.
+// CHECK: only '=' can assign to a tuple.
+
+func not_variable() {
+    var a = 1
+    let l = [1, 2]
+    (a, l[0]) = (1, 2)
+}
+// CHECK: only variables can be assigned in a tuple assignment.
+
+func not_found() {
+    var a = 1
+    (a, missing) = (1, 2)
+}
+// CHECK: 'missing' is not found
+
+func immutable() {
+    let a = 1
+    var b = 2
+    (a, b) = (3, 4)
+}
+// CHECK: cannot assign to immutable variable 'a'
+
+func not_tuple() {
+    var a = 1
+    var b = 2
+    (a, b) = [1, 2]
+}
+// CHECK: cannot destructure non-tuple type
+
+func wrong_count() {
+    var a = 1
+    var b = 2
+    (a, b) = (1, 2, 3)
+}
+// CHECK: 2 names cannot destructure a tuple of 3 elements.
+
+func wrong_type() {
+    var a = 1
+    var s = ""
+    (a, s) = divmod(7, 2)
+}
+// CHECK: Types of two sides are not matched.
+// CHECK-NEXT: lhs: str =/= rhs: int64
+
+func maybe() (int?, int) {
+    let o int? = nil
+    return (o, 1)
+}
+
+class Dog {}
+class Cat {}
+
+// T? element -> T variable
+func optional_to_plain() {
+    var a = 0
+    var b = 0
+    let o int? = 1
+    (a, b) = (o, 2)
+}
+// CHECK: Types of two sides are not matched.
+// CHECK-NEXT: lhs: int64 =/= rhs: int64?
+
+// T? element from a function result -> T variable
+func optional_from_call() {
+    var a = 0
+    var b = 0
+    (a, b) = maybe()
+}
+// CHECK: Types of two sides are not matched.
+// CHECK-NEXT: lhs: int64 =/= rhs: int64?
+
+// nil element -> T variable
+func nil_to_plain() {
+    var a = 0
+    var b = 0
+    (a, b) = (nil, 2)
+}
+// CHECK: Types of two sides are not matched.
+// CHECK-NEXT: lhs: int64 =/= rhs: _?
+
+// a different class
+func other_class() {
+    var d = Dog()
+    var b = 0
+    (d, b) = (Cat(), 1)
+}
+// CHECK: Types of two sides are not matched.
+// CHECK-NEXT: lhs: test_tuple_assign_errors.Dog =/= rhs: test_tuple_assign_errors.Cat
+
+// every incompatible element is reported
+func both_wrong() {
+    var a = 0
+    var s = ""
+    (a, s) = ("x", 1)
+}
+// CHECK: Types of two sides are not matched.
+// CHECK-NEXT: lhs: int64 =/= rhs: str
+// CHECK-NEXT: Types of two sides are not matched.
+// CHECK-NEXT: lhs: str =/= rhs: int64
+// CHECK-NOT: error:

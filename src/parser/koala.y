@@ -59,23 +59,68 @@ static void free_expr_list(Vector *vec)
     vector_destroy(vec);
 }
 
-static void free_map_list(Vector *vec)
+static void free_stmt_list(Vector *vec)
 {
-    Expr *item;
+    Stmt *item;
     vector_foreach(item, vec) {
-        expr_free(item);
+        if (item) stmt_free(item);
     }
     vector_destroy(vec);
 }
 
+// klass_list: TypeSpec * items
 static void free_klass_list(Vector *vec)
 {
-
+    free_optional_type_list(vec);
 }
 
+static void free_tp_decl(TypeParamDecl *tp)
+{
+    if (!tp) return;
+    if (tp->which == TP_DECL_NORMAL) {
+        free_klass_list(tp->bound);
+    } else if (tp->which == TP_DECL_CONST) {
+        type_spec_free(tp->const_type);
+    }
+    mm_free(tp);
+}
+
+// tp_decl_list / type_param_list: TypeParamDecl * items
 static void free_tp_list(Vector *vec)
 {
+    TypeParamDecl *tp;
+    vector_foreach(tp, vec) {
+        free_tp_decl(tp);
+    }
+    vector_destroy(vec);
+}
 
+static void free_param_decl(ParamDecl *p)
+{
+    if (!p) return;
+    type_spec_free(p->type);
+    expr_free(p->value);
+    mm_free(p);
+}
+
+// param_list / id_type_arg_list / kw_arg_list: ParamDecl * items
+static void free_param_list(Vector *vec)
+{
+    ParamDecl *p;
+    vector_foreach(p, vec) {
+        free_param_decl(p);
+    }
+    vector_destroy(vec);
+}
+
+// tuple_decl_list: IdentType items, the type is optional
+static void free_ident_type_list(Vector *vec)
+{
+    IdentType *item;
+    vector_foreach_ptr(item, vec) {
+        type_spec_free(item->ts);
+    }
+    vector_destroy(vec);
 }
 
 static void yyparse_module(ParserState *ps, Vector *stmts)
@@ -125,7 +170,7 @@ static Stmt *tuple_decl_stmt(ParserState *ps, Vector *ids, int which, Expr *exp,
 {
     if (vector_size(ids) < 2) {
         kl_error(ids_loc, "destructuring needs at least two names.");
-        vector_destroy(ids);
+        free_ident_type_list(ids);
         expr_free(exp);
         return NULL;
     }
@@ -364,6 +409,30 @@ static Stmt *tuple_decl_stmt(ParserState *ps, Vector *ids, int which, Expr *exp,
 %type<tpval> type_param_decl
 %type<param> kw_arg
 
+/*
+ * Free the values bison discards during error recovery (popped states and
+ * the discarded lookahead) or when the parse is aborted. A value passed to
+ * a reduced rule is never destroyed, its action owns it.
+ * Not destroyed: tokens (ID is an atom), class/trait names (interned type),
+ * annotations / prefix flags (by-value structs).
+ */
+%destructor { expr_free($$); } <expr>
+%destructor { stmt_free($$); } <stmt>
+%destructor { type_spec_free($$); } <type_spec>
+%destructor { free_tp_decl($$); } <tpval>
+%destructor { free_param_decl($$); } <param>
+%destructor { free_expr_list($$); }
+    const_expr_list expr_list index_expr_list call_arg_list call_kw_arg_list map_list
+%destructor { free_stmt_list($$); }
+    top_stmts block local_list let_else_stmt class_members_or_empty field_list method_list
+    trait_members_or_empty trait_method_list
+%destructor { free_optional_type_list($$); }
+    optional_type_list base_type_list atom_primitive_type_list klass_list extends
+%destructor { free_tp_list($$); } type_param_list const_tp_list tp_decl_list
+%destructor { free_param_list($$); } param_list id_type_arg_list kw_arg_list
+%destructor { free_ident_type_list($$); } tuple_decl_list
+%destructor { vector_destroy($$); } id_as_list id_list int_lit_list
+
 %locations
 %parse-param {ParserState *ps}
 %parse-param {void *scanner}
@@ -408,34 +477,51 @@ import_stmt
     }
     | IMPORT STRING_LITERAL AS ID error
     {
+        kl_error(loc(@5), "expected end of import.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | IMPORT STRING_LITERAL AS error
     {
+        kl_error(loc(@4), "expected an identifier after 'as'.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | IMPORT STRING_LITERAL error
     {
+        kl_error(loc(@3), "expected 'as' or end of import.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | IMPORT error
     {
+        kl_error(loc(@2), "expected a package path string.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | FROM STRING_LITERAL IMPORT id_as_list error
     {
+        vector_destroy($4);
+        kl_error(loc(@5), "expected ',' or end of import.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | FROM STRING_LITERAL IMPORT error
     {
+        kl_error(loc(@4), "expected an identifier list.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | FROM STRING_LITERAL error
     {
+        kl_error(loc(@3), "expected 'import'.");
+        yy_clear_ok;
         $$ = NULL;
     }
     | FROM error
     {
+        kl_error(loc(@2), "expected a package path string.");
+        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -627,7 +713,13 @@ top_stmt
 
 type_alias
     : TYPE ID '=' base_type
+    {
+        type_spec_free($4);
+    }
     | TYPE ID '=' lambda_type
+    {
+        type_spec_free($4);
+    }
     ;
 
 semi
@@ -694,8 +786,9 @@ annotation
     }
     | '@' ID '(' error
     {
+        memset(&$$, 0, sizeof($$));
         kl_error(loc(@4), "expected primitive types list.");
-        yyclearin; yyerrok;
+        yy_clear_ok;
     }
     ;
 
@@ -786,6 +879,7 @@ optional_type
     | lambda_type
     {
         printf("anonymous func type\n");
+        type_spec_free($1);
         $$ = NULL;
     }
     ;
@@ -844,26 +938,36 @@ lambda_type
     : '|' base_type_list '|' base_type
     {
         printf("optional func-type\n");
+        free_optional_type_list($2);
+        type_spec_free($4);
+        $$ = NULL;
     }
     | '|' base_type_list '|'
     {
         printf("no return func-type\n");
+        free_optional_type_list($2);
+        $$ = NULL;
     }
     | OR base_type
     {
         printf("no parameter func-type\n");
+        type_spec_free($2);
+        $$ = NULL;
     }
     | OR
     {
         printf("no return no parameter func-type\n");
+        $$ = NULL;
     }
     | anony_type_with_brackets
     {
         printf("anonymous func type with brackets\n");
+        $$ = NULL;
     }
     | anony_type_with_brackets '?'
     {
         printf("optional anonymous func type with brackets\n");
+        $$ = NULL;
     }
     ;
 
@@ -884,14 +988,18 @@ anony_type_with_brackets
     : LAMBDA_START base_type_list '|' base_type '}'
     {
         printf("optional func-type\n");
+        free_optional_type_list($2);
+        type_spec_free($4);
     }
     | LAMBDA_START base_type_list '|' '}'
     {
         printf("no return func-type\n");
+        free_optional_type_list($2);
     }
     | LAMBDA_START_OR base_type '}'
     {
         printf("no parameter func-type\n");
+        type_spec_free($2);
     }
     | LAMBDA_START_OR '}'
     {
@@ -911,15 +1019,16 @@ union_type
     }
     | type '|' error
     {
-        // free_type($1);
+        type_spec_free($1);
         kl_error(loc(@3), "expected type.");
-        yyclearin; yyerrok;
+        yy_clear_ok;
         $$ = NULL;
     }
     | union_type '|' error
     {
+        type_spec_free($1);
         kl_error(loc(@3), "expected type.");
-        yyclearin; yyerrok;
+        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -958,7 +1067,7 @@ list_type
     }
     | LIST '[' optional_type error
     {
-        // free_type($3);
+        type_spec_free($3);
         kl_error(loc(@4), "expected ']'.");
         yy_clear_ok;
         $$ = NULL;
@@ -974,6 +1083,7 @@ array_type
         MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
         $$ = unresolved_type_spec(&mod, id, args);
         // $$->unresolved.shapes = $5;
+        vector_destroy($5);
         type_spec_loc($$, lloc(@1, @6));
     }
     | '[' int_lit_list ']' type
@@ -984,6 +1094,7 @@ array_type
         MOD_ID(mod, STD_BUILTIN_PATH, loc(@1));
         $$ = unresolved_type_spec(&mod, id, args);
         // $$->unresolved.shapes = $2;
+        vector_destroy($2);
         type_spec_loc($$, lloc(@1, @4));
     }
     | ARRAY '[' error ']'
@@ -1052,22 +1163,22 @@ map_type
     }
     | MAP '[' type  error
     {
-        // free_type($3);
+        type_spec_free($3);
         kl_error(loc(@4), "expected a ','.");
         yy_clear_ok;
         $$ = NULL;
     }
     | MAP '[' type ',' error
     {
-        // free_type($3);
+        type_spec_free($3);
         kl_error(loc(@5), "expected a type.");
         yy_clear_ok;
         $$ = NULL;
     }
     | MAP '[' type ',' optional_type error
     {
-        // free_type($3);
-        // free_type($5);
+        type_spec_free($3);
+        type_spec_free($5);
         kl_error(loc(@6), "expected a ']'.");
         yy_clear_ok;
         $$ = NULL;
@@ -1122,7 +1233,7 @@ set_type
     }
     | SET '[' type error
     {
-        // free_type($3);
+        type_spec_free($3);
         kl_error(loc(@4), "expected ']'.");
         yy_clear_ok;
         $$ = NULL;
@@ -1303,7 +1414,7 @@ optional_type_list
     }
     | optional_type_list ',' error
     {
-        free_optional_type_list($$);
+        free_optional_type_list($1);
         kl_error(loc(@3), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
@@ -1420,14 +1531,14 @@ let_decl
     }
     | LET ID optional_type error
     {
-        // free_type($3);
+        type_spec_free($3);
         kl_error(loc(@4), "expected '='.");
         yy_clear_ok;
         $$ = NULL;
     }
     | LET ID optional_type '=' error
     {
-        // free_type($3);
+        type_spec_free($3);
         kl_error(loc(@5), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
@@ -1447,12 +1558,15 @@ let_else_stmt
     }
     | LET ID '=' expr ELSE error
     {
+        expr_free($4);
         kl_error(loc(@6), "expected '{' after 'else' in let-else.");
         yy_clear_ok;
         $$ = NULL;
     }
     | LET ID optional_type '=' expr ELSE error
     {
+        type_spec_free($3);
+        expr_free($5);
         kl_error(loc(@7), "expected '{' after 'else' in let-else.");
         yy_clear_ok;
         $$ = NULL;
@@ -1585,7 +1699,7 @@ var_decl
     }
     | VAR ID optional_type error
     {
-        // free_type($3);
+        type_spec_free($3);
         kl_error(loc(@4), "expected ';' or '='.");
         yy_clear_ok;
         $$ = NULL;
@@ -1598,7 +1712,7 @@ var_decl
     }
     | VAR ID optional_type '=' error
     {
-        // free_type($3);
+        type_spec_free($3);
         kl_error(loc(@5), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
@@ -1623,28 +1737,28 @@ tuple_decl
     }
     | LET '(' tuple_decl_list error
     {
-        vector_destroy($3);
+        free_ident_type_list($3);
         kl_error(loc(@4), "expected ')'.");
         yy_clear_ok;
         $$ = NULL;
     }
     | VAR '(' tuple_decl_list error
     {
-        vector_destroy($3);
+        free_ident_type_list($3);
         kl_error(loc(@4), "expected ')'.");
         yy_clear_ok;
         $$ = NULL;
     }
     | LET '(' tuple_decl_list ')' error
     {
-        vector_destroy($3);
+        free_ident_type_list($3);
         kl_error(loc(@5), "expected '='.");
         yy_clear_ok;
         $$ = NULL;
     }
     | VAR '(' tuple_decl_list ')' error
     {
-        vector_destroy($3);
+        free_ident_type_list($3);
         kl_error(loc(@5), "expected '='.");
         yy_clear_ok;
         $$ = NULL;
@@ -1758,7 +1872,8 @@ func_proto_decl
     }
     | FUNC ID error
     {
-        kl_error(loc(@2), "expected a function prototype.");
+        kl_error(loc(@3), "expected a function prototype.");
+        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -1880,8 +1995,7 @@ kw_arg
     | ID '=' error
     {
         kl_error(loc(@3), "expected an expr.");
-        yyclearin;
-        yyerrok;
+        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -1911,28 +2025,29 @@ class_decl
     {
         kl_error(loc(@4), "expected field-decl or method-decl.");
         yy_clear_ok;
-        yyclearin;
         $$ = NULL;
     }
     | CLASS class_name '[' error ']' extends '{' class_members_or_empty '}'
     {
+        free_klass_list($6);
+        free_stmt_list($8);
         kl_error(loc(@4), "expected type-parameter decl-list.");
         yy_clear_ok;
-        yyclearin;
         $$ = NULL;
     }
     | CLASS class_name '[' tp_decl_list ']' extends '{' error '}'
     {
+        free_tp_list($4);
+        free_klass_list($6);
         kl_error(loc(@8), "expected field-decl or method-decl.");
         yy_clear_ok;
-        yyclearin;
         $$ = NULL;
     }
     | CLASS class_name '[' tp_decl_list ']' '{' error '}'
     {
+        free_tp_list($4);
         kl_error(loc(@7), "expected field-decl or method-decl.");
         yy_clear_ok;
-        yyclearin;
         $$ = NULL;
     }
     | CLASS TUPLE '[' INFER ID ']' extends '{' class_members_or_empty '}'
@@ -2127,8 +2242,8 @@ type_param_list
     | type_param_list ',' error
     {
         free_tp_list($1);
-        yyclearin;
-        yyerrok;
+        kl_error(loc(@3), "expected a type parameter.");
+        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -2152,15 +2267,13 @@ type_param_decl
     | ID ':' error
     {
         kl_error(loc(@3), "expected up-bound.");
-        yyclearin;
-        yyerrok;
+        yy_clear_ok;
         $$ = NULL;
     }
     | ID error
     {
         kl_error(loc(@2), "expected ':' up-bound.");
-        yyclearin;
-        yyerrok;
+        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -2173,8 +2286,7 @@ extends
     | ':' error
     {
         kl_error(loc(@2), "expected class or trait-list");
-        yyclearin;
-        yyerrok;
+        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -2194,14 +2306,14 @@ klass_list
     {
         free_klass_list($1);
         kl_error(loc(@3), "expected a type.");
-        yyclearin;
+        yy_clear_ok;
         $$ = NULL;
     }
     | klass_list error
     {
         free_klass_list($1);
         kl_error(loc(@2), "expected '&' and type.");
-        yyclearin;
+        yy_clear_ok;
         $$ = NULL;
     }
     ;
@@ -2428,7 +2540,7 @@ block
     }
     | '{' local_list error
     {
-        // free_local_list($2);
+        free_stmt_list($2);
         kl_error(loc(@3), "expected '}'.");
         yy_clear_ok;
         $$ = NULL;
@@ -2471,7 +2583,7 @@ local
     }
     | const_decl semi
     {
-        // $$ = $1;
+        $$ = $1;
         // var_set_where($$, VAR_LOCAL);
     }
     | let_decl semi
@@ -2535,14 +2647,19 @@ assignment
     }
     | assign_left_expr assign_operator error
     {
-        // expr_free($1);
+        expr_free($1);
         kl_error(loc(@3), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
     }
-    | tuple_expr assign_operator expr
+    | '(' expr_list ',' expr ')' assign_operator expr
     {
-        NYI();
+        // (a, b) = t: the targets are a tuple literal of at least two items
+        vector_push_back($2, &$4);
+        Expr *lhs = expr_from_tuple($2);
+        expr_set_loc(lhs, lloc(@1, @5));
+        $$ = stmt_from_tuple_assign($6, loc(@6), lhs, $7);
+        stmt_set_loc($$, lloc(@1, @7));
     }
     ;
 
@@ -2716,25 +2833,32 @@ for_stmt
         $$ = stmt_from_for($3, $6, $7);
         stmt_set_loc($$, lloc(@1, @7));
     }
-    | FOR id_list error
+    /*
+     * A bad header skips the tokens up to the loop body, and the body is
+     * dropped, so its uses of the loop variables are not reported.
+     */
+    | FOR id_list error block
     {
         vector_destroy($2);
+        free_stmt_list($4);
         kl_error(loc(@3), "expected 'in' after loop variables.");
-        yy_clear_ok;
+        yyerrok;
         $$ = NULL;
     }
-    | FOR '(' id_list error
+    | FOR '(' id_list error block
     {
         vector_destroy($3);
+        free_stmt_list($5);
         kl_error(loc(@4), "expected ')'.");
-        yy_clear_ok;
+        yyerrok;
         $$ = NULL;
     }
-    | FOR '(' id_list ')' error
+    | FOR '(' id_list ')' error block
     {
         vector_destroy($3);
+        free_stmt_list($6);
         kl_error(loc(@5), "expected 'in' after loop variables.");
-        yy_clear_ok;
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -2774,6 +2898,9 @@ id_list
 
 match_stmt
     : MATCH expr '{' case_list '}'
+    {
+        expr_free($2);
+    }
     ;
 
 case_list
@@ -2793,7 +2920,13 @@ case_pattern_list
 case_pattern
     : expr
     | IN expr
+    {
+        expr_free($2);
+    }
     | IS type
+    {
+        type_spec_free($2);
+    }
     ;
 
 case_block
@@ -2822,10 +2955,12 @@ expr
     {
         // $$ = expr_from_is_expr($1, loc(@2), $3);
         // expr_set_loc($$, lloc(@1, @3));
+        $$ = $1;
+        expr_free($3);
     }
     | or_expr OPT_DEF error
     {
-        // expr_free($1);
+        expr_free($1);
         kl_error(loc(@3), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
@@ -3240,7 +3375,7 @@ call_expr
     | primary_expr '(' call_arg_list error
     {
         expr_free($1);
-        // free_call_arg_list($3);
+        free_expr_list($3);
         kl_error(loc(@4), "expected an expr list or ')'.");
         yy_clear_ok;
         $$ = NULL;
@@ -3292,6 +3427,8 @@ dot_expr
     {
         // for type only: z.Foo? in List[z.Foo?]
         printf("NYI: type only: z.Foo?\n");
+        expr_free($1);
+        $$ = NULL;
         NYI();
     }
     | primary_expr OPT_DOT ID
@@ -3330,6 +3467,9 @@ index_expr
     {
         // for type only: List[List[z.Foo]?]
         printf("NYI: type only: List[List[z.Foo]?]\n");
+        expr_free($1);
+        free_expr_list($3);
+        $$ = NULL;
         NYI();
     }
     | primary_expr '[' error
@@ -3341,8 +3481,8 @@ index_expr
     }
     | primary_expr '[' index_expr_list error
     {
-        // expr_free($1);
-        // free_expr_list($3);
+        expr_free($1);
+        free_expr_list($3);
         kl_error(loc(@4), "expected ']'.");
         yy_clear_ok;
         $$ = NULL;
@@ -3476,6 +3616,7 @@ atom_expr
     }
     | atom_type '?'
     {
+        type_spec_free($1);
         $$ = NULL;
     }
     | ARRAY
@@ -3644,7 +3785,7 @@ map_expr
     }
     | '{' map_list error
     {
-        free_map_list($2);
+        free_expr_list($2);
         kl_error(loc(@3), "expected ',' or '}'.");
         yy_clear_ok;
         $$ = NULL;
@@ -3664,7 +3805,7 @@ map_list
     }
     | map_list ',' error
     {
-        free_map_list($1);
+        free_expr_list($1);
         kl_error(loc(@3), "expected map key-value expr.");
         yy_clear_ok;
         $$ = NULL;
@@ -3738,9 +3879,13 @@ tuple_expr
 lambda_expr
     : LAMBDA_START lambda_params '|' expr '}'
     {
+        expr_free($4);
+        $$ = NULL;
     }
     | LAMBDA_START_OR expr '}'
     {
+        expr_free($2);
+        $$ = NULL;
     }
     ;
 
@@ -3759,6 +3904,7 @@ lambda_param
     }
     | ID base_type
     {
+        type_spec_free($2);
     }
     ;
 

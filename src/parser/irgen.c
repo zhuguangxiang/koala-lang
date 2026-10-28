@@ -2990,6 +2990,57 @@ static void emit_ir_assignment(ParserState *ps, Stmt *stmt)
     }
 }
 
+// (a, b) = t: store 'val' into the target, a variable only (local, global or
+// a field through 'self')
+static void build_tuple_target_store(ParserState *ps, Expr *target, KlrValue *val)
+{
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    KlrValue *var = target->ir_val;
+    if (var->kind == KLR_VALUE_GLOBAL || var->kind == KLR_VALUE_EXT_GLOBAL) {
+        klr_build_set_global(&bldr, var, val);
+    } else if (var->kind == KLR_VALUE_FIELD) {
+        klr_build_set_field(&bldr, METHOD_SELF, var, val);
+    } else {
+        klr_build_move(&bldr, var, val);
+    }
+}
+
+// (a, b) = t: read each element of the tuple and store it into its target
+static void emit_ir_tuple_assign(ParserState *ps, Stmt *stmt)
+{
+    TupleAssignStmt *s = (TupleAssignStmt *)stmt;
+    Expr *rhs = s->rhs;
+
+    rhs->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, rhs);
+    if (!rhs->ir_val) return;
+
+    KlrValue *tuple = rhs->ir_val;
+    Symbol *tuple_sym = get_symbol_by_id(tuple->ts->sym_id);
+    ASSERT(tuple_sym && tuple_sym->kind == SYM_INSTANCE);
+    Vector *elem_types = ((InstanceSymbol *)tuple_sym)->tp_args;
+
+    Vector *targets = ((TupleExpr *)s->lhs)->vec;
+    for (int i = 0; i < vector_size(targets); i++) {
+        Expr *target = vector_get(targets, i);
+
+        // read the element with its own type, the target may be a trait or optional
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        TypeSpec *elem_ts = vector_get(elem_types, i);
+        KlrValue *index = klr_const_int(i, int64_type_spec(), MOD);
+        KlrValue *val = klr_build_seq_get(&bldr, tuple, index, elem_ts, "");
+        KlrValue *_val = _build_obj_intf_upcast(ps, val, target->ts, "");
+        if (!_val) _val = val;
+
+        target->ctx = EXPR_CTX_STORE;
+        emit_ir_visit_expr(ps, target);
+        if (!target->ir_val) return;
+        build_tuple_target_store(ps, target, _val);
+    }
+}
+
 static void emit_ir_break(ParserState *ps, Stmt *stmt)
 {
     ParserScope *sc = find_loop_scope(ps);
@@ -3200,6 +3251,7 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
         [STMT_IF_LET_KIND]    = emit_ir_if_let_stmt,
         [STMT_WHILE_LET_KIND] = emit_ir_while_let_stmt,
         [STMT_TUPLE_DECL_KIND] = emit_ir_tuple_decl,
+        [STMT_TUPLE_ASSIGN_KIND] = emit_ir_tuple_assign,
     };
     /* clang-format on */
 

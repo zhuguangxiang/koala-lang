@@ -16,3 +16,19 @@ func for_list() {
 }
 
 for_list()
+
+func test(j int) {
+    var i int
+    if j > 10 { i  = 10 } else { }
+    print(i, typeof(i))
+}
+
+test(2)
+
+func test2(i uint8) {
+    let s = "hello"
+    print(s[int(i)])
+}
+
+test2(10)
+print(typeof(nil))

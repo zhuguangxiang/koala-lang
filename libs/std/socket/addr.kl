@@ -21,10 +21,6 @@
 const HEX_LOWER = "0123456789abcdef"
 const HEX_UPPER = "0123456789ABCDEF"
 
-//
-// Ipv4Addr
-//
-
 /// A 32-bit IPv4 address.
 ///
 /// The address is stored as four octets in network byte order. Use
@@ -48,6 +44,8 @@ pub class Ipv4Addr {
         let parts = s.split(".")
         if parts.len() != 4 { return nil }
 
+        // Collect the four octets into a byte buffer, validating each
+        // segment as a decimal number in 0..255.
         let buf = Buffer(4)
         for part in parts {
             if part.len() == 0 || part.len() > 3 { return nil }
@@ -55,7 +53,6 @@ pub class Ipv4Addr {
 
             let n = part.to_int()
             if n > 255 { return nil }
-
             buf.write_byte(uint8(n))
         }
         return Ipv4Addr(buf.to_bytes())
@@ -80,11 +77,6 @@ pub class Ipv4Addr {
     }
 }
 
-
-//
-// Ipv6Addr
-//
-
 /// A 128-bit IPv6 address.
 ///
 /// The address is stored as sixteen octets in network byte order. `to_str`
@@ -106,7 +98,9 @@ pub class Ipv6Addr {
     /// of zero groups). Returns nil when the input is not a valid IPv6
     /// literal. Does not perform DNS resolution.
     pub static func parse(s str) Ipv6Addr? {
-        // Split at the "::" compression marker, if present.
+        // Split the literal at the "::" compression marker, if present.
+        // The leading and trailing parts are parsed independently; the
+        // missing groups in the middle are filled with zeros.
         var left = s
         var right = ""
         var compressed = false
@@ -118,24 +112,22 @@ pub class Ipv6Addr {
             right = s.substr(idx + 2, s.len())
         }
 
-        var left_groups list[str] = []
-        if left.len() > 0 {
-            left_groups = left.split(":")
-        }
+        var left_groups = list[str]()
+        if left.len() > 0 { left_groups = left.split(":") }
 
-        var right_groups list[str] = []
-        if compressed && right.len() > 0 {
-            right_groups = right.split(":")
-        }
+        var right_groups = list[str]()
+        if compressed && right.len() > 0 { right_groups = right.split(":") }
 
-        // Parse the leading groups.
-        var groups list[int] = []
+        // Parse the leading groups into 16-bit integers.
+        var groups = list[int]()
         for g in left_groups {
             let v = _parse_hex16(g) else { return nil }
             groups.append(v)
         }
 
-        // Fill the compressed middle with zeros.
+        // Fill the compressed middle with zero groups. A valid IPv6
+        // address has exactly eight groups; anything more means the
+        // literal is malformed.
         if compressed {
             if groups.len() + right_groups.len() > 7 { return nil }
 
@@ -155,28 +147,30 @@ pub class Ipv6Addr {
 
         if groups.len() != 8 { return nil }
 
+        // Pack the eight groups into sixteen network-order bytes.
         let buf = Buffer(16)
         for g in groups {
             buf.write_byte(uint8((g >> 8) & 0xff))
             buf.write_byte(uint8(g & 0xff))
         }
-        return Ipv6Addr(octets: buf.to_bytes())
+        return Ipv6Addr(buf.to_bytes())
     }
 
     /// Render the address in compressed textual form.
     pub func to_str() str {
         if _octets.len() != 16 { return "::" }
 
-        // Pack into eight 16-bit groups.
-        var groups list[int] = []
+        // Pack the bytes into eight 16-bit groups.
+        var groups = list[int]()
         var i = 0
         while i < 16 {
             groups.append(int(_octets[i]) * 256 + int(_octets[i + 1]))
             i += 2
         }
 
-        // Find the longest run of zero groups; compression needs at least
-        // two consecutive zero groups.
+        // Find the longest run of zero groups. Compression with "::"
+        // requires at least two consecutive zero groups; a single zero
+        // group is written out in full.
         var best_start = -1
         var best_len = 0
         var cur_start = -1
@@ -198,7 +192,9 @@ pub class Ipv6Addr {
         }
         if best_len < 2 { best_start = -1 }
 
-        // Emit groups; the chosen run is replaced by "::".
+        // Emit the groups separated by ":", replacing the chosen zero
+        // run with "::". `just_compressed` suppresses the separator that
+        // would otherwise follow "::".
         let buf = Buffer(46)
         var k = 0
         var just_compressed = false
@@ -209,9 +205,7 @@ pub class Ipv6Addr {
                 just_compressed = true
                 continue
             }
-            if !just_compressed && k > 0 {
-                buf.write_str(":")
-            }
+            if !just_compressed && k > 0 { buf.write_str(":") }
             just_compressed = false
             _write_hex16(buf, groups[k])
             k += 1
@@ -244,11 +238,11 @@ pub class Ipv6Addr {
     }
 }
 
-
 // Parse one IPv6 group (1..4 hex digits) into a 16-bit integer.
 func _parse_hex16(g str) int? {
     if g.len() == 0 || g.len() > 4 { return nil }
 
+    // Accept both cases; try lowercase first, then uppercase.
     var v = 0
     for c in g {
         var d = HEX_LOWER.index(c)
@@ -261,7 +255,6 @@ func _parse_hex16(g str) int? {
     return v
 }
 
-
 // Append the hexadecimal text of `v` (no leading zeros) to `buf`.
 func _write_hex16(buf Buffer, v int) {
     if v == 0 {
@@ -269,6 +262,9 @@ func _write_hex16(buf Buffer, v int) {
         return
     }
 
+    // Extract digits from least significant to most significant; they
+    // come out in reverse and are emitted back-to-front below. Each
+    // nibble is stored as a raw byte in 0..15, not as an ASCII digit.
     let tmp = Buffer(4)
     var n = v
     while n > 0 {
@@ -279,15 +275,11 @@ func _write_hex16(buf Buffer, v int) {
     let digits = tmp.to_bytes()
     var i = digits.len() - 1
     while i >= 0 {
-        buf.write_byte(uint8(HEX_LOWER[int(digits[i])]))
+        let d = int8(digits[i]);
+        buf.write_str(HEX_LOWER[d])
         i -= 1
     }
 }
-
-
-//
-// IpAddr
-//
 
 /// An IP address, either IPv4 or IPv6.
 ///
@@ -317,12 +309,12 @@ pub class IpAddr {
 
     /// Wrap an IPv4 address.
     static func from_v4(a Ipv4Addr) IpAddr {
-        return IpAddr(is_v4: true, v4: a, v6: nil)
+        return IpAddr(true, a, nil)
     }
 
     /// Wrap an IPv6 address.
     static func from_v6(a Ipv6Addr) IpAddr {
-        return IpAddr(is_v4: false, v4: nil, v6: a)
+        return IpAddr(false, nil, a)
     }
 
     /// Parse an IP literal.
@@ -332,11 +324,12 @@ pub class IpAddr {
     /// DNS resolution.
     pub static func parse(s str) IpAddr? {
         if ":" in s {
-            if let a = Ipv6Addr.parse(s) { return IpAddr.from_v6(a) }
+            let a = Ipv6Addr.parse(s) else { return nil }
+            return IpAddr.from_v6(a)
         } else {
-            if let a = Ipv4Addr.parse(s) { return IpAddr.from_v4(a) }
+            let a = Ipv4Addr.parse(s) else { return nil }
+            return IpAddr.from_v4(a)
         }
-        return nil
     }
 
     /// True when the address is IPv4.
@@ -366,11 +359,6 @@ pub class IpAddr {
         return _v6!.is_loopback()
     }
 }
-
-
-//
-// SocketAddr
-//
 
 /// A complete socket address: an IP address paired with a port.
 ///
@@ -404,37 +392,35 @@ pub class SocketAddr {
     /// Returns nil when the input is malformed or the port is out of range.
     /// Does not perform DNS resolution.
     pub static func parse(s str) SocketAddr? {
-        var ip_str str
-        var port_str str
-
         if s.starts_with("[") {
-            // IPv6 literal in brackets: [addr]:port
+            // IPv6 literal in brackets: [addr]:port. The closing bracket
+            // marks where the address ends; a colon must follow it.
             let close = s.index("]")
             if close < 0 { return nil }
-            ip_str = s.substr(1, close)
             if close + 1 >= s.len() || s[close + 1] != ":" { return nil }
-            port_str = s.substr(close + 2, s.len())
+            return _parse_ip_port(s.substr(1, close), s.substr(close + 2, s.len()))
         } else {
+            // IPv4 or bare IPv6 without brackets: split at the last colon,
+            // which separates the address from the port.
             let colon = s.rindex(":")
             if colon < 0 { return nil }
-            ip_str = s.substr(0, colon)
-            port_str = s.substr(colon + 1, s.len())
+            return _parse_ip_port(s.substr(0, colon), s.substr(colon + 1, s.len()))
         }
-
-        let ip = IpAddr.parse(ip_str) else { return nil }
-        let port = _parse_port(port_str) else { return nil }
-        return SocketAddr(ip: ip, port: port)
     }
 
     /// Render back to text. IPv6 addresses are wrapped in brackets.
     pub func to_str() str {
-        if _ip.is_v4() {
-            return _ip.to_str() + ":" + _port.to_str()
-        }
+        if _ip.is_v4() { return _ip.to_str() + ":" + _port.to_str() }
         return "[" + _ip.to_str() + "]:" + _port.to_str()
     }
 }
 
+// Parse an IP string and a port string into a SocketAddr.
+func _parse_ip_port(ip_str str, port_str str) SocketAddr? {
+    let ip = IpAddr.parse(ip_str) else { return nil }
+    let port = _parse_port(port_str) else { return nil }
+    return SocketAddr(ip, port)
+}
 
 // Parse a decimal port number in 0..65535. Returns nil on malformed input.
 func _parse_port(s str) int? {
@@ -446,19 +432,12 @@ func _parse_port(s str) int? {
     return n
 }
 
-
-//
-// host:port helpers
-//
-
 /// Join a host string and a port into a "host:port" form.
 ///
 /// Adds square brackets around the host when it contains a colon, so that
 /// the result round-trips through `split_host_port` and `SocketAddr.parse`.
 pub func join_host_port(host str, port int) str {
-    if ":" in host {
-        return "[" + host + "]:" + port.to_str()
-    }
+    if ":" in host { return "[" + host + "]:" + port.to_str() }
     return host + ":" + port.to_str()
 }
 
@@ -469,6 +448,7 @@ pub func join_host_port(host str, port int) str {
 /// a domain name, in which case it should be passed to `resolve`.
 pub func split_host_port(s str) (str, int)? {
     if s.starts_with("[") {
+        // Bracketed form: [v6]:port.
         let close = s.index("]")
         if close < 0 { return nil }
         if close + 1 >= s.len() || s[close + 1] != ":" { return nil }
@@ -477,8 +457,10 @@ pub func split_host_port(s str) (str, int)? {
         let port = _parse_port(s.substr(close + 2, s.len())) else { return nil }
         return (host, port)
     } else {
+        // Unbracketed form: split at the last colon. This handles
+        // "host:port" and leaves the host free to be a domain name.
         let colon = s.rindex(":")
-        if colon < 0 { return nil }
+        if colon <= 0 { return nil }
 
         let host = s.substr(0, colon)
         let port = _parse_port(s.substr(colon + 1, s.len())) else { return nil }

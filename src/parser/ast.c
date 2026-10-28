@@ -441,9 +441,36 @@ static void list_expr_free(Expr *exp)
     mm_free(exp);
 }
 
-static void map_expr_free(Expr *exp) { mm_free(exp); }
-static void map_entry_expr_free(Expr *exp) { mm_free(exp); }
-static void tuple_expr_free(Expr *exp) { mm_free(exp); }
+static void map_expr_free(Expr *exp)
+{
+    MapExpr *map = (MapExpr *)exp;
+    Expr *e;
+    vector_foreach(e, map->vec) {
+        if (!e) continue;
+        expr_free(e);
+    }
+    vector_destroy(map->vec);
+    mm_free(exp);
+}
+
+static void map_entry_expr_free(Expr *exp)
+{
+    MapEntryExpr *entry = (MapEntryExpr *)exp;
+    expr_free(entry->key);
+    expr_free(entry->val);
+    mm_free(exp);
+}
+static void tuple_expr_free(Expr *exp)
+{
+    TupleExpr *tuple = (TupleExpr *)exp;
+    Expr *e;
+    vector_foreach(e, tuple->vec) {
+        if (!e) continue;
+        expr_free(e);
+    }
+    vector_destroy(tuple->vec);
+    mm_free(exp);
+}
 static void anony_expr_free(Expr *exp) { mm_free(exp); }
 static void type_expr_free(Expr *exp) { mm_free(exp); }
 
@@ -720,6 +747,17 @@ Stmt *stmt_from_tuple_decl(Vector *ids, int which, Expr *exp)
     return (Stmt *)s;
 }
 
+Stmt *stmt_from_tuple_assign(AssignOpKind op, Loc op_loc, Expr *lhs, Expr *rhs)
+{
+    TupleAssignStmt *s = mm_alloc_obj(s);
+    s->kind = STMT_TUPLE_ASSIGN_KIND;
+    s->op = op;
+    s->op_loc = op_loc;
+    s->lhs = lhs;
+    s->rhs = rhs;
+    return (Stmt *)s;
+}
+
 Stmt *stmt_from_expr(Expr *exp)
 {
     ExprStmt *s = mm_alloc_obj(s);
@@ -917,6 +955,14 @@ static void tuple_decl_stmt_free(Stmt *stmt)
     mm_free(s);
 }
 
+static void tuple_assign_stmt_free(Stmt *stmt)
+{
+    TupleAssignStmt *s = (TupleAssignStmt *)stmt;
+    expr_free(s->lhs);
+    expr_free(s->rhs);
+    mm_free(s);
+}
+
 static void if_let_stmt_free(Stmt *stmt)
 {
     IfLetStmt *s = (IfLetStmt *)stmt;
@@ -980,6 +1026,7 @@ void stmt_free(Stmt *stmt)
         [STMT_IF_LET_KIND] = if_let_stmt_free,
         [STMT_WHILE_LET_KIND] = while_let_stmt_free,
         [STMT_TUPLE_DECL_KIND] = tuple_decl_stmt_free,
+        [STMT_TUPLE_ASSIGN_KIND] = tuple_assign_stmt_free,
     };
 
     free_handlers[stmt->kind](stmt);

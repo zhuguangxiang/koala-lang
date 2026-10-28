@@ -697,6 +697,47 @@ static int compatible_generic_ref(TypeSpec *dst, TypeSpec *src)
     return 1;
 }
 
+static int compatible_tuple(TypeSpec *dst, TypeSpec *src);
+
+/*
+ * An element of a tuple: the same type, 'nil' for any 'T?', or a nested tuple
+ * checked the same way. Other types stay invariant as generic arguments.
+ */
+static int compatible_tuple_elem(TypeSpec *dst, TypeSpec *src)
+{
+    if (dst == src || type_spec_equal_strict(dst, src)) return 1;
+
+    // 'nil' has the null type '_?', it fits any 'T?'
+    if (type_is_optional(dst) && type_is_optional(src) && !src->opt.src) return 1;
+
+    if (dst->kind == TYPE_KLASS && src->kind == TYPE_KLASS && dst->sym_id >= 0 &&
+        src->sym_id >= 0 && type_is_tuple(dst) && type_is_tuple(src)) {
+        return compatible_tuple(dst, src);
+    }
+
+    return 0;
+}
+
+/* tuples are compared element by element, e.g. (nil, 1) for (int?, int) */
+static int compatible_tuple(TypeSpec *dst, TypeSpec *src)
+{
+    Symbol *dst_sym = get_symbol_by_id(dst->sym_id);
+    Symbol *src_sym = get_symbol_by_id(src->sym_id);
+    if (!dst_sym || dst_sym->kind != SYM_INSTANCE) return 0;
+    if (!src_sym || src_sym->kind != SYM_INSTANCE) return 0;
+
+    Vector *dst_args = ((InstanceSymbol *)dst_sym)->tp_args;
+    Vector *src_args = ((InstanceSymbol *)src_sym)->tp_args;
+    if (vector_size(dst_args) != vector_size(src_args)) return 0;
+
+    for (int i = 0; i < vector_size(dst_args); i++) {
+        TypeSpec *d = vector_get(dst_args, i);
+        TypeSpec *s = vector_get(src_args, i);
+        if (!compatible_tuple_elem(d, s)) return 0;
+    }
+    return 1;
+}
+
 /* same-kind klass comparison through src's inheritance chain */
 static int compatible_klass(TypeSpec *dst, TypeSpec *src)
 {
@@ -715,6 +756,8 @@ static int compatible_klass(TypeSpec *dst, TypeSpec *src)
      * Two TypeSpec objects representing the same class may be
      * distinct heap allocations across compilation units. */
     if (dst->sym_id == src->sym_id) return 1;
+
+    if (type_is_tuple(dst) && type_is_tuple(src)) return compatible_tuple(dst, src);
 
     Symbol *sym = get_symbol_by_id(src->sym_id);
     if (!sym) return 0;
@@ -3459,6 +3502,101 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
     }
 }
 
+// (a, b) = t: the targets must be variables and all of them must be mutable
+static int check_var_list(ParserState *ps, Vector *targets)
+{
+    int ok = 1;
+    Expr *target;
+    vector_foreach(target, targets) {
+        if (target->kind != EXPR_ID_KIND) {
+            kl_error(target->loc, "only variables can be assigned in a tuple assignment.");
+            ok = 0;
+            continue;
+        }
+        // a narrowed variable has no flags, they are on its origin
+        Symbol *sym = target->sym;
+        if (sym->kind == SYM_SHADOW_VAR) sym = ((ShadowVarSymbol *)sym)->origin;
+        if (!(sym->flags & SYM_FLAGS_MUTABLE)) {
+            kl_error(target->loc, "cannot assign to immutable variable '%s'", sym->name);
+            ok = 0;
+        }
+    }
+    return ok ? 0 : -1;
+}
+
+// (a, b) = t: 't' must be a tuple, return its instance symbol or NULL
+static InstanceSymbol *get_tuple_instance(ParserState *ps, Expr *exp)
+{
+    if (type_is_tuple(exp->ts)) {
+        Symbol *sym = get_symbol_by_id(exp->ts->sym_id);
+        if (sym && sym->kind == SYM_INSTANCE) return (InstanceSymbol *)sym;
+    }
+
+    BUF(buf);
+    type_spec_print(exp->ts, &buf);
+    kl_error(exp->loc, "cannot destructure non-tuple type '%s'.", BUF_STR(buf));
+    FINI_BUF(buf);
+    return NULL;
+}
+
+static void parse_tuple_assign(ParserState *ps, Stmt *stmt)
+{
+    TupleAssignStmt *s = (TupleAssignStmt *)stmt;
+    Expr *lhs = s->lhs;
+    Expr *rhs = s->rhs;
+
+    // 1. the grammar only accepts a tuple literal as the targets
+    ASSERT(lhs->kind == EXPR_TUPLE_KIND);
+
+    // 2. only '=', no '+=', '-=' ...
+    if (s->op != OP_ASSIGN) {
+        kl_error(s->op_loc, "only '=' can assign to a tuple.");
+        return;
+    }
+
+    // 3. visit lhs, an unknown variable is reported here
+    lhs->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, lhs);
+    if (!lhs->ts) return;
+
+    // 4. lhs must be a list of mutable variables
+    Vector *targets = ((TupleExpr *)lhs)->vec;
+    if (check_var_list(ps, targets) < 0) return;
+
+    // 5. visit rhs, a tuple literal takes the types of the variables,
+    //    e.g. (a, b) = (1, nil) with 'a int8' and 'b int?'
+    rhs->expected = lhs->ts;
+    rhs->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, rhs);
+    if (!rhs->ts) return;
+
+    // 6. rhs must be a tuple
+    InstanceSymbol *inst_sym = get_tuple_instance(ps, rhs);
+    if (!inst_sym) return;
+
+    // 7. the two sizes must be equal
+    int size = vector_size(targets);
+    if (vector_size(inst_sym->tp_args) != size) {
+        kl_error(rhs->loc, "%d names cannot destructure a tuple of %d elements.", size,
+                 vector_size(inst_sym->tp_args));
+        return;
+    }
+
+    // 8. each element must be compatible with its variable
+    for (int i = 0; i < size; i++) {
+        Expr *target = vector_get(targets, i);
+        TypeSpec *elem_ts = vector_get(inst_sym->tp_args, i);
+        if (!type_spec_compatible(target->ts, elem_ts)) {
+            kl_error(target->loc, "Types of two sides are not matched.");
+            printf("lhs:");
+            print_type_spec(target->ts);
+            printf(" =/= rhs:");
+            print_type_spec(elem_ts);
+            printf("\n");
+        }
+    }
+}
+
 ParserScope *find_loop_scope(ParserState *ps)
 {
     ParserScope *sc = ps->scope;
@@ -3508,6 +3646,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_TRAIT_KIND]     = parse_klass,
         [STMT_RETURN_KIND]    = parse_return,
         [STMT_ASSIGN_KIND]    = parse_assign,
+        [STMT_TUPLE_ASSIGN_KIND] = parse_tuple_assign,
         [STMT_BREAK_KIND]     = parse_break,
         [STMT_CONTINUE_KIND]  = parse_continue,
         [STMT_EXPR_KIND]      = parse_expr,
@@ -3888,7 +4027,18 @@ ParserState *new_parser_state(ParserModule *pm, char *path)
     yyscan_t scanner;
     yylex_init_extra(ps, &scanner);
     yyset_in(in, scanner);
-    yyparse(ps, scanner);
+    // make sure an aborted parse is not silent: 1 is a syntax error the
+    // recovery cannot handle (top_stmt catches errors, so it is the end of
+    // file), 2 is out of memory
+    int ret = yyparse(ps, scanner);
+    if (ret != 0 && ps->errors == 0) {
+        if (ret == 2) {
+            printf(BOLD("%s: ") ERROR_PREFIX "out of memory while parsing.\n", ps->filename);
+        } else {
+            printf(BOLD("%s: ") ERROR_PREFIX "unexpected end of file.\n", ps->filename);
+        }
+        ps->errors++;
+    }
     yylex_destroy(scanner);
 
     fclose(in);

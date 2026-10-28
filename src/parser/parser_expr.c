@@ -454,15 +454,44 @@ static void parse_tuple(ParserState *ps, Expr *exp)
         return;
     }
 
+    /* expected tuple type drives the types of the elements,
+       e.g. 'return (nil, 1)' for '(int?, int)' */
+    TypeSpec *tuple_ts = exp->expected;
+    if (tuple_ts && type_is_optional(tuple_ts)) {
+        tuple_ts = tuple_ts->opt.src;
+    }
+
+    Vector *elem_types = NULL;
+    if (tuple_ts && type_is_tuple(tuple_ts)) {
+        Symbol *tuple_sym = get_symbol_by_id(tuple_ts->sym_id);
+        if (tuple_sym && tuple_sym->kind == SYM_INSTANCE) {
+            Vector *args = ((InstanceSymbol *)tuple_sym)->tp_args;
+            if (vector_size(args) == vector_size(tuple_exp->vec)) elem_types = args;
+        }
+    }
+
     Vector *tp_args = vector_create_ptr();
     Expr *e;
+    int i = 0;
     vector_foreach(e, tuple_exp->vec) {
         if (!e->sym) {
+            /* an expected type given to the element itself is kept */
+            if (elem_types && !e->expected) e->expected = vector_get(elem_types, i);
             e->ctx = EXPR_CTX_LOAD;
             parser_visit_expr(ps, e);
             if (!e->ts) return;
         }
-        vector_push_back(tp_args, &e->ts);
+
+        /* nil or T for an expected T?: the element takes the optional type,
+           its value needs no conversion */
+        TypeSpec *ts = e->ts;
+        TypeSpec *elem_ts = elem_types ? vector_get(elem_types, i) : NULL;
+        if (elem_ts && type_is_optional(elem_ts)) {
+            int is_nil = type_is_optional(ts) && !ts->opt.src;
+            if (is_nil || elem_ts->opt.src == ts) ts = elem_ts;
+        }
+        vector_push_back(tp_args, &ts);
+        i++;
     }
 
     if (vector_empty(tp_args)) {

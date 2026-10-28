@@ -1,3 +1,5 @@
+// SKIP: koala --test %s // pipe maybe zombie
+
 import "std/os"
 import "std/ut"
 

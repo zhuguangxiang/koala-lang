@@ -1,0 +1,24 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// error recovery: bad imports are reported (they were silent before),
+// and an error inside a class body does not drop the next declaration
+
+import "std/os" garbage
+import 42
+from "std/os" garbage
+
+class Foo {
+    123
+}
+
+func after_class() {
+    print(not_defined)
+}
+
+// syntax errors are reported first, then the semantic errors
+// CHECK: expected 'as' or end of import.
+// CHECK-NEXT: expected a package path string.
+// CHECK-NEXT: expected 'import'.
+// CHECK-NEXT: expected field-decl or method-decl.
+// CHECK-NEXT: 'not_defined' is not found
+// CHECK-NOT: error:

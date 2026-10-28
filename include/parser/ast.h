@@ -412,6 +412,8 @@ typedef enum _StmtKind {
     STMT_WHILE_LET_KIND,
     /* let (a, b) = t, var (a, b) = t */
     STMT_TUPLE_DECL_KIND,
+    /* (a, b) = t */
+    STMT_TUPLE_ASSIGN_KIND,
     STMT_MAX_KIND
 } StmtKind;
 
@@ -558,6 +560,20 @@ typedef struct _AssignStmt {
 } AssignStmt;
 
 Stmt *stmt_from_assignment(AssignOpKind op, Expr *lhs, Expr *rhs);
+
+/*
+ * (a, b) = t, the targets are variables only and the operator is '=' only.
+ * The tuple is evaluated once before any target is set.
+ */
+typedef struct _TupleAssignStmt {
+    STMT_HEAD
+    AssignOpKind op;
+    Loc op_loc;
+    Expr *lhs;
+    Expr *rhs;
+} TupleAssignStmt;
+
+Stmt *stmt_from_tuple_assign(AssignOpKind op, Loc op_loc, Expr *lhs, Expr *rhs);
 
 typedef struct _BlockStmt {
     STMT_HEAD

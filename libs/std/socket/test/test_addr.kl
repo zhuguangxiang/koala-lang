@@ -1,0 +1,257 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Unit tests for std/socket/addr.kl.
+//
+// Five sections:
+//
+//   - Ipv4Addr:   parsing, rendering, predicates
+//   - Ipv6Addr:   parsing (with compression), rendering, predicates
+//   - IpAddr:     v4 / v6 dispatch
+//   - SocketAddr: parse / render round trips
+//   - host:port:  join / split helpers
+
+import "std/ut"
+from "std/socket" import Ipv4Addr, Ipv6Addr, IpAddr, SocketAddr,
+    join_host_port, split_host_port
+
+//
+// Ipv4Addr
+//
+
+@test
+func test_v4_parse_valid() {
+    ut.assert_eq(Ipv4Addr.parse("0.0.0.0")!.to_str(), "0.0.0.0")
+    ut.assert_eq(Ipv4Addr.parse("1.2.3.4")!.to_str(), "1.2.3.4")
+    ut.assert_eq(Ipv4Addr.parse("127.0.0.1")!.to_str(), "127.0.0.1")
+    ut.assert_eq(Ipv4Addr.parse("255.255.255.255")!.to_str(), "255.255.255.255")
+}
+
+@test
+func test_v4_parse_invalid() {
+    ut.assert_true(Ipv4Addr.parse("") == nil)
+    ut.assert_true(Ipv4Addr.parse("1.2.3") == nil)
+    ut.assert_true(Ipv4Addr.parse("1.2.3.4.5") == nil)
+    ut.assert_true(Ipv4Addr.parse("1.2.3.") == nil)
+    ut.assert_true(Ipv4Addr.parse(".1.2.3") == nil)
+    ut.assert_true(Ipv4Addr.parse("256.1.1.1") == nil)
+    ut.assert_true(Ipv4Addr.parse("1.2.3.256") == nil)
+    ut.assert_true(Ipv4Addr.parse("a.b.c.d") == nil)
+    ut.assert_true(Ipv4Addr.parse("1.2.3.-1") == nil)
+}
+
+@test
+func test_v4_leading_zeros() {
+    // The current parser accepts leading zeros and normalises them on
+    // output; no octal interpretation is applied.
+    ut.assert_eq(Ipv4Addr.parse("01.02.03.04")!.to_str(), "1.2.3.4")
+}
+
+@test
+func test_v4_predicates() {
+    ut.assert_true(Ipv4Addr.parse("127.0.0.1")!.is_loopback())
+    ut.assert_true(Ipv4Addr.parse("127.255.255.255")!.is_loopback())
+    ut.assert_false(Ipv4Addr.parse("128.0.0.1")!.is_loopback())
+
+    ut.assert_true(Ipv4Addr.parse("0.0.0.0")!.is_unspecified())
+    ut.assert_false(Ipv4Addr.parse("0.0.0.1")!.is_unspecified())
+}
+
+//
+// Ipv6Addr
+//
+
+@test
+func test_v6_parse_full() {
+    ut.assert_eq(Ipv6Addr.parse("1:2:3:4:5:6:7:8")!.to_str(), "1:2:3:4:5:6:7:8")
+}
+
+@test
+func test_v6_parse_compressed() {
+    ut.assert_eq(Ipv6Addr.parse("::")!.to_str(), "::")
+    ut.assert_eq(Ipv6Addr.parse("::1")!.to_str(), "::1")
+    ut.assert_eq(Ipv6Addr.parse("1::")!.to_str(), "1::")
+    ut.assert_eq(Ipv6Addr.parse("1::8")!.to_str(), "1::8")
+    ut.assert_eq(Ipv6Addr.parse("2001:db8::1")!.to_str(), "2001:db8::1")
+    ut.assert_eq(Ipv6Addr.parse("::ffff")!.to_str(), "::ffff")
+}
+
+@test
+func test_v6_parse_case_insensitive() {
+    ut.assert_eq(Ipv6Addr.parse("::FFFF")!.to_str(), "::ffff")
+    ut.assert_eq(Ipv6Addr.parse("2001:DB8::1")!.to_str(), "2001:db8::1")
+}
+
+@test
+func test_v6_parse_invalid() {
+    ut.assert_true(Ipv6Addr.parse("") == nil)
+    ut.assert_true(Ipv6Addr.parse(":") == nil)
+    ut.assert_true(Ipv6Addr.parse("1:2:3:4:5:6:7") == nil)
+    ut.assert_true(Ipv6Addr.parse("1:2:3:4:5:6:7:8:9") == nil)
+    ut.assert_true(Ipv6Addr.parse("::1:2:3:4:5:6:7:8") == nil)
+    ut.assert_true(Ipv6Addr.parse("1::2::3") == nil)
+    ut.assert_true(Ipv6Addr.parse("12345::") == nil)
+    ut.assert_true(Ipv6Addr.parse("gggg::") == nil)
+}
+
+@test
+func test_v6_to_str_compression() {
+    // All zero groups collapse to "::".
+    ut.assert_eq(Ipv6Addr.parse("0:0:0:0:0:0:0:0")!.to_str(), "::")
+    ut.assert_eq(Ipv6Addr.parse("0:0:0:0:0:0:0:1")!.to_str(), "::1")
+
+    // The longest run of zero groups is the one that gets compressed.
+    ut.assert_eq(Ipv6Addr.parse("2001:db8:0:0:0:0:0:1")!.to_str(), "2001:db8::1")
+    ut.assert_eq(Ipv6Addr.parse("2001:0:0:1:0:0:1:1")!.to_str(), "2001::1:0:0:1:1")
+
+    // A single zero group is not compressed.
+    ut.assert_eq(Ipv6Addr.parse("1:0:2:3:4:5:6:7")!.to_str(), "1:0:2:3:4:5:6:7")
+
+    // A run of exactly two zero groups is compressed.
+    ut.assert_eq(Ipv6Addr.parse("1:2:0:0:5:6:7:8")!.to_str(), "1:2::5:6:7:8")
+}
+
+@test
+func test_v6_predicates() {
+    ut.assert_true(Ipv6Addr.parse("::1")!.is_loopback())
+    ut.assert_false(Ipv6Addr.parse("::2")!.is_loopback())
+    ut.assert_false(Ipv6Addr.parse("::")!.is_loopback())
+
+    ut.assert_true(Ipv6Addr.parse("::")!.is_unspecified())
+    ut.assert_false(Ipv6Addr.parse("::1")!.is_unspecified())
+}
+
+//
+// IpAddr
+//
+
+@test
+func test_ipaddr_parse() {
+    let v4 = IpAddr.parse("1.2.3.4")!
+    ut.assert_true(v4.is_v4())
+    ut.assert_eq(v4.to_str(), "1.2.3.4")
+
+    let v6 = IpAddr.parse("::1")!
+    ut.assert_false(v6.is_v4())
+    ut.assert_eq(v6.to_str(), "::1")
+
+    ut.assert_true(IpAddr.parse("") == nil)
+    ut.assert_true(IpAddr.parse("1.2.3") == nil)
+    ut.assert_true(IpAddr.parse("gggg::") == nil)
+}
+
+@test
+func test_ipaddr_loopback() {
+    ut.assert_true(IpAddr.parse("127.0.0.1")!.is_loopback())
+    ut.assert_true(IpAddr.parse("::1")!.is_loopback())
+    ut.assert_false(IpAddr.parse("8.8.8.8")!.is_loopback())
+    ut.assert_false(IpAddr.parse("2001:db8::1")!.is_loopback())
+}
+
+//
+// SocketAddr
+//
+
+@test
+func test_socketaddr_parse_v4() {
+    let a = SocketAddr.parse("1.2.3.4:80")!
+    ut.assert_eq(a.to_str(), "1.2.3.4:80")
+    ut.assert_eq(a.port(), 80)
+
+    let b = SocketAddr.parse("0.0.0.0:0")!
+    ut.assert_eq(b.port(), 0)
+
+    let c = SocketAddr.parse("255.255.255.255:65535")!
+    ut.assert_eq(c.port(), 65535)
+}
+
+@test
+func test_socketaddr_parse_v6() {
+    let a = SocketAddr.parse("[::1]:8080")!
+    ut.assert_eq(a.to_str(), "[::1]:8080")
+    ut.assert_eq(a.port(), 8080)
+
+    let b = SocketAddr.parse("[::]:0")!
+    ut.assert_eq(b.to_str(), "[::]:0")
+}
+
+@test
+func test_socketaddr_parse_invalid() {
+    ut.assert_true(SocketAddr.parse("") == nil)
+    ut.assert_true(SocketAddr.parse("1.2.3.4") == nil)
+    ut.assert_true(SocketAddr.parse(":80") == nil)
+    ut.assert_true(SocketAddr.parse("1.2.3.4:") == nil)
+    ut.assert_true(SocketAddr.parse("1.2.3.4:65536") == nil)
+    ut.assert_true(SocketAddr.parse("1.2.3.4:abc") == nil)
+    ut.assert_true(SocketAddr.parse("1.2.3.4:-1") == nil)
+    ut.assert_true(SocketAddr.parse("[::1") == nil)
+    ut.assert_true(SocketAddr.parse("[::1]") == nil)
+    ut.assert_true(SocketAddr.parse("[::1]80") == nil)
+    ut.assert_true(SocketAddr.parse("[::1]:abc") == nil)
+}
+
+@test
+func test_socketaddr_roundtrip() {
+    let inputs = list[str]()
+    inputs.append("1.2.3.4:80")
+    inputs.append("0.0.0.0:0")
+    inputs.append("127.0.0.1:8080")
+    inputs.append("[::1]:80")
+    inputs.append("[::]:0")
+    inputs.append("[2001:db8::1]:443")
+
+    for s in inputs {
+        let a = SocketAddr.parse(s)!
+        ut.assert_eq(SocketAddr.parse(a.to_str())!.to_str(), a.to_str())
+    }
+}
+
+//
+// host:port helpers
+//
+
+@test
+func test_join_host_port() {
+    ut.assert_eq(join_host_port("example.com", 80), "example.com:80")
+    ut.assert_eq(join_host_port("1.2.3.4", 0), "1.2.3.4:0")
+    ut.assert_eq(join_host_port("::1", 8080), "[::1]:8080")
+    ut.assert_eq(join_host_port("2001:db8::1", 443), "[2001:db8::1]:443")
+}
+
+@test
+func test_split_host_port() {
+    let (h1, p1) = split_host_port("example.com:80")!
+    ut.assert_eq(h1, "example.com")
+    ut.assert_eq(p1, 80)
+
+    let (h2, p2) = split_host_port("[::1]:8080")!
+    ut.assert_eq(h2, "::1")
+    ut.assert_eq(p2, 8080)
+}
+
+@test
+func test_split_host_port_invalid() {
+    ut.assert_true(split_host_port("example.com") == nil)
+    ut.assert_true(split_host_port(":80") == nil)
+    ut.assert_true(split_host_port("example.com:abc") == nil)
+    ut.assert_true(split_host_port("[::1]") == nil)
+    ut.assert_true(split_host_port("[::1]80") == nil)
+}
+
+@test
+func test_join_split_roundtrip() {
+    let hosts = list[str]()
+    hosts.append("example.com")
+    hosts.append("1.2.3.4")
+    hosts.append("::1")
+    hosts.append("2001:db8::1")
+
+    for h in hosts {
+        let s = join_host_port(h, 8080)
+        let (h2, p2) = split_host_port(s)!
+        ut.assert_eq(h2, h)
+        ut.assert_eq(p2, 8080)
+    }
+}

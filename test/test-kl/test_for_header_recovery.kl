@@ -1,0 +1,48 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// error recovery for a bad 'for' header: only the header error is reported,
+// the loop body is skipped, and parsing goes on after the loop
+
+func for_missing_paren() {
+    let pairs = [(1, 2)]
+    for (k, v in pairs {
+        print(k + v)
+    }
+    print(after1)
+}
+
+func for_missing_in() {
+    let pairs = [(1, 2)]
+    for k, v pairs {
+        print(k + v)
+    }
+    print(after2)
+}
+
+func for_paren_missing_in() {
+    let pairs = [(1, 2)]
+    for (k, v) pairs {
+        print(k + v)
+    }
+    print(after3)
+}
+
+// a good loop after the bad ones still works
+func for_ok() {
+    let pairs = [(1, 2)]
+    for (k, v) in pairs {
+        print(k + v)
+    }
+    print(after4)
+}
+
+// syntax errors are reported first, then the semantic errors
+// CHECK: expected ')'.
+// CHECK-NEXT: expected 'in' after loop variables.
+// CHECK-NEXT: expected 'in' after loop variables.
+// CHECK-NOT: 'k' is not found
+// CHECK: 'after1' is not found
+// CHECK-NEXT: 'after2' is not found
+// CHECK-NEXT: 'after3' is not found
+// CHECK-NEXT: 'after4' is not found
+// CHECK-NOT: error:

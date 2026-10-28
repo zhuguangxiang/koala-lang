@@ -1,3 +1,5 @@
+// RUN: koala --test %s
+
 // Stripped from test_run_pipe.kl: controlled comparison for a loop-bound
 // constant crossing the imm8 boundary. The only variable is the bound:
 // 127 (INT8_MAX, imm8-encodable) vs 128 (first value isel must materialize

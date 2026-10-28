@@ -1,0 +1,77 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+// a tuple literal takes the element types of the expected tuple type
+
+// return: nil and T for T?
+func maybe() (int?, int) {
+    return (nil, 1)
+}
+
+func some() (int?, int) {
+    return (1, 2)
+}
+
+// return: an int literal for int8
+func small() (int8, int?) {
+    return (1, nil)
+}
+
+// a tuple is compatible element by element: nil fits any T?
+func take(p (int?, int)) {
+    print(p)
+}
+
+func take_nested(p ((int?, str?), int)) {
+    print(p)
+}
+
+class Dog {}
+
+func take_dog(p (Dog?, int)) {
+    print(p)
+}
+
+func main() {
+    let (a, b) = maybe()
+    print(a, b)
+    let (c, d) = some()
+    print(c, d)
+    let (e, f) = small()
+    print(e, f)
+
+    // let with a tuple type
+    let t (int8, int?) = (1, nil)
+    print(t)
+
+    // tuple assignment: the variables give the element types
+    var x int8 = 0
+    var y int? = 5
+    (x, y) = (7, nil)
+    print(x, y)
+
+    // call arguments, nested tuples, a class optional and a tuple variable
+    take((nil, 1))
+    take_nested(((nil, nil), 1))
+    take_dog((nil, 2))
+    let n = (nil, 3)
+    take(n)
+}
+
+// CHECK-LABEL: func @maybe()
+// CHECK: ret tuple(nil, 1) std/builtin.tuple<j?j>
+
+// CHECK-LABEL: func @some()
+// CHECK: ret tuple(1, 2) std/builtin.tuple<j?j>
+
+// CHECK-LABEL: func @small()
+// CHECK: ret tuple(1, nil) std/builtin.tuple<cj?>
+
+// CHECK: {{^}}nil 1{{$}}
+// CHECK-NEXT: {{^}}1 2{{$}}
+// CHECK-NEXT: {{^}}1 nil{{$}}
+// CHECK-NEXT: {{^}}(1, nil){{$}}
+// CHECK-NEXT: {{^}}7 nil{{$}}
+// CHECK-NEXT: {{^}}(nil, 1){{$}}
+// CHECK-NEXT: {{^}}((nil, nil), 1){{$}}
+// CHECK-NEXT: {{^}}(nil, 2){{$}}
+// CHECK-NEXT: {{^}}(nil, 3){{$}}

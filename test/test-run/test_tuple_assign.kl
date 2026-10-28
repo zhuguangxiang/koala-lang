@@ -1,0 +1,107 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+func divmod(a int, b int) (int, int) {
+    return (a / b, a % b)
+}
+
+// the tuple is evaluated before any target is set
+func swap() {
+    var a = 1
+    var b = 2
+    (a, b) = (b, a)
+    print(a, b)
+}
+
+// from a function result, three targets of different types
+func from_call() {
+    var q = 0
+    var r = 0
+    (q, r) = divmod(17, 5)
+    print(q, r)
+    var x = 0
+    var s = ""
+    var ok = false
+    (x, s, ok) = (7, "seven", true)
+    print(x, s, ok)
+}
+
+// a nil element can be assigned to an optional target
+func with_nil() {
+    var a = 0
+    var b int? = 1
+    (a, b) = (100, nil)
+    print(a, b)
+}
+
+// the tuple can use a narrowed variable, and assign it
+func narrowed(v int?) {
+    var x = v
+    var n = 0
+    if x != nil {
+        (x, n) = (x + 1, 2)
+    }
+    print(x, n)
+}
+
+// two tuple assignments in the same scope
+func twice() {
+    var a = 1
+    var b = 2
+    (a, b) = (b, a)
+    (a, b) = (a * 10, b * 10)
+    print(a, b)
+}
+
+// in a loop: fibonacci
+func fib(n int) int {
+    var a = 0
+    var b = 1
+    for _ in range(n) {
+        (a, b) = (b, a + b)
+    }
+    return a
+}
+
+// fields of the class, set through 'self'
+class Point {
+    var x int
+    var y int
+    func __init__(a int, b int) {
+        x = a
+        y = b
+    }
+    func flip() {
+        (x, y) = (y, x)
+    }
+}
+
+swap()
+from_call()
+with_nil()
+narrowed(1)
+narrowed(nil)
+twice()
+print(fib(10))
+let p = Point(1, 2)
+p.flip()
+print(p.x, p.y)
+
+// the tuple is built first, then each target is set from one of its elements
+// CHECK-LABEL: func @swap()
+// CHECK: %a = local int64
+// CHECK: %b = local int64
+// CHECK: %0 = build_intern @tuple, %b int64, %a int64
+// CHECK-NEXT: %1 = seq.get %0 std/builtin.tuple<jj>, 0 int64
+// CHECK-NEXT: move %a int64, %1 int64
+// CHECK-NEXT: %2 = seq.get %0 std/builtin.tuple<jj>, 1 int64
+// CHECK-NEXT: move %b int64, %2 int64
+
+// CHECK: {{^}}2 1{{$}}
+// CHECK-NEXT: {{^}}3 2{{$}}
+// CHECK-NEXT: {{^}}7 seven true{{$}}
+// CHECK-NEXT: {{^}}100 nil{{$}}
+// CHECK-NEXT: {{^}}2 2{{$}}
+// CHECK-NEXT: {{^}}nil 0{{$}}
+// CHECK-NEXT: {{^}}20 10{{$}}
+// CHECK-NEXT: {{^}}55{{$}}
+// CHECK-NEXT: {{^}}2 1{{$}}
