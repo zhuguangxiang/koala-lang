@@ -17,9 +17,7 @@ import "std/ut"
 from "std/socket" import Ipv4Addr, Ipv6Addr, IpAddr, SocketAddr,
     join_host_port, split_host_port
 
-//
-// Ipv4Addr
-//
+import "std/socket" as so
 
 @test
 func test_v4_parse_valid() {
@@ -58,10 +56,6 @@ func test_v4_predicates() {
     ut.assert_true(Ipv4Addr.parse("0.0.0.0")!.is_unspecified())
     ut.assert_false(Ipv4Addr.parse("0.0.0.1")!.is_unspecified())
 }
-
-//
-// Ipv6Addr
-//
 
 @test
 func test_v6_parse_full() {
@@ -123,10 +117,6 @@ func test_v6_predicates() {
     ut.assert_false(Ipv6Addr.parse("::1")!.is_unspecified())
 }
 
-//
-// IpAddr
-//
-
 @test
 func test_ipaddr_parse() {
     let v4 = IpAddr.parse("1.2.3.4")!
@@ -149,10 +139,6 @@ func test_ipaddr_loopback() {
     ut.assert_false(IpAddr.parse("8.8.8.8")!.is_loopback())
     ut.assert_false(IpAddr.parse("2001:db8::1")!.is_loopback())
 }
-
-//
-// SocketAddr
-//
 
 @test
 func test_socketaddr_parse_v4() {
@@ -208,10 +194,6 @@ func test_socketaddr_roundtrip() {
     }
 }
 
-//
-// host:port helpers
-//
-
 @test
 func test_join_host_port() {
     ut.assert_eq(join_host_port("example.com", 80), "example.com:80")
@@ -254,4 +236,230 @@ func test_join_split_roundtrip() {
         ut.assert_eq(h2, h)
         ut.assert_eq(p2, 8080)
     }
+}
+
+//
+// Ipv4Addr: __eq__ / __ne__ / hash
+//
+
+@test
+func test_v4_eq_same() {
+    let a = so.Ipv4Addr.parse("1.2.3.4")!
+    let b = so.Ipv4Addr.parse("1.2.3.4")!
+    ut.assert_true(a == b)
+    ut.assert_false(a != b)
+}
+
+@test
+func test_v4_eq_different() {
+    let a = so.Ipv4Addr.parse("1.2.3.4")!
+    let b = so.Ipv4Addr.parse("1.2.3.5")!
+    ut.assert_false(a == b)
+    ut.assert_true(a != b)
+}
+
+@test
+func test_v4_eq_leading_zeros() {
+    // Leading zeros are normalised by parse, so "01.02.03.04" and
+    // "1.2.3.4" produce the same four octets and must compare equal.
+    let a = so.Ipv4Addr.parse("01.02.03.04")!
+    let b = so.Ipv4Addr.parse("1.2.3.4")!
+    ut.assert_true(a == b)
+}
+
+@test
+func test_v4_hash_eq_consistent() {
+    let a = so.Ipv4Addr.parse("1.2.3.4")!
+    let b = so.Ipv4Addr.parse("1.2.3.4")!
+    ut.assert_eq(a.hash(), b.hash())
+}
+
+@test
+func test_v4_hash_distinct() {
+    // Not a guarantee of any hash function, but holds for the current
+    // folding formula on these two inputs.
+    let a = so.Ipv4Addr.parse("1.2.3.4")!
+    let b = so.Ipv4Addr.parse("4.3.2.1")!
+    ut.assert_true(a.hash() != b.hash())
+}
+
+//
+// Ipv6Addr: __eq__ / __ne__ / hash
+//
+
+@test
+func test_v6_eq_same() {
+    let a = so.Ipv6Addr.parse("::1")!
+    let b = so.Ipv6Addr.parse("::1")!
+    ut.assert_true(a == b)
+    ut.assert_false(a != b)
+}
+
+@test
+func test_v6_eq_different() {
+    let a = so.Ipv6Addr.parse("::1")!
+    let b = so.Ipv6Addr.parse("::2")!
+    ut.assert_false(a == b)
+    ut.assert_true(a != b)
+}
+
+@test
+func test_v6_eq_compressed_and_full() {
+    // "1:2:3:4:5:6:7:8" and its compressed equivalents all denote the
+    // same address; parse normalises them to the same octets, so the
+    // resulting values must compare equal regardless of the textual
+    // form the user typed.
+    let a = so.Ipv6Addr.parse("2001:db8:0:0:0:0:0:1")!
+    let b = so.Ipv6Addr.parse("2001:db8::1")!
+    ut.assert_true(a == b)
+}
+
+@test
+func test_v6_eq_case_insensitive() {
+    // Hex digits may be upper or lower case; parse normalises them.
+    let a = so.Ipv6Addr.parse("::FFFF")!
+    let b = so.Ipv6Addr.parse("::ffff")!
+    ut.assert_true(a == b)
+}
+
+@test
+func test_v6_hash_eq_consistent() {
+    let a = so.Ipv6Addr.parse("2001:db8::1")!
+    let b = so.Ipv6Addr.parse("2001:db8::1")!
+    ut.assert_eq(a.hash(), b.hash())
+}
+
+@test
+func test_v6_hash_distinct() {
+    let a = so.Ipv6Addr.parse("::1")!
+    let b = so.Ipv6Addr.parse("::2")!
+    ut.assert_true(a.hash() != b.hash())
+}
+
+//
+// IpAddr: __eq__ / __ne__ / hash
+//
+
+@test
+func test_hash_debug() {
+    let a = so.Ipv4Addr.parse("1.2.3.4")!
+    print("octets: ", a)
+    print("v4 hash: ", a.hash())
+    print("ip hash: ", so.IpAddr.parse("1.2.3.4")!.hash())
+    let built = so.IpAddr.from_v4(so.Ipv4Addr.parse("1.2.3.4")!)
+    print("built hash: ", built.hash())
+}
+
+@test
+func test_hash_debug2() {
+    let a = so.Ipv4Addr.parse("1.2.3.4")!
+    let ip = so.IpAddr.from_v4(a)
+
+    print("a.hash():              ", a.hash())
+    print("ip.v4()!.hash():       ", ip.v4()!.hash())
+    print("ip.is_v4():            ", ip.is_v4())
+    print("ip.hash():             ", ip.hash())
+}
+
+@test
+func test_ipaddr_eq_same_family() {
+    let a = so.IpAddr.parse("1.2.3.4")!
+    let b = so.IpAddr.parse("1.2.3.4")!
+    ut.assert_true(a == b)
+
+    let c = so.IpAddr.parse("::1")!
+    let d = so.IpAddr.parse("::1")!
+    ut.assert_true(c == d)
+}
+
+@test
+func test_ipaddr_eq_different_value() {
+    let a = so.IpAddr.parse("1.2.3.4")!
+    let b = so.IpAddr.parse("1.2.3.5")!
+    ut.assert_false(a == b)
+    ut.assert_true(a != b)
+}
+
+@test
+func test_ipaddr_eq_different_family() {
+    // Even if the textual forms were somehow conflated, v4 and v6
+    // addresses must never compare equal: the discriminator is part
+    // of the equality check.
+    let a = so.IpAddr.parse("0.0.0.0")!
+    let b = so.IpAddr.parse("::")!
+    ut.assert_false(a == b)
+    ut.assert_true(a != b)
+}
+
+@test
+func test_ipaddr_hash_delegates_to_family() {
+    // IpAddr.hash delegates to the embedded address, so two IpAddr
+    // values built from the same v4 address must hash identically
+    // whether they were parsed from text or constructed via from_v4.
+    let parsed = so.IpAddr.parse("1.2.3.4")!
+    let built  = so.IpAddr.from_v4(so.Ipv4Addr.parse("1.2.3.4")!)
+    ut.assert_eq(parsed.hash(), built.hash())
+    ut.assert_true(parsed == built)
+}
+
+@test
+func test_ipaddr_hash_distinct() {
+    let a = so.IpAddr.parse("1.2.3.4")!
+    let b = so.IpAddr.parse("5.6.7.8")!
+    ut.assert_true(a.hash() != b.hash())
+}
+
+//
+// SocketAddr: __eq__ / __ne__ / hash
+//
+
+@test
+func test_socketaddr_eq_same() {
+    let a = so.SocketAddr.parse("1.2.3.4:80")!
+    let b = so.SocketAddr.parse("1.2.3.4:80")!
+    ut.assert_true(a == b)
+    ut.assert_false(a != b)
+}
+
+@test
+func test_socketaddr_eq_different_port() {
+    let a = so.SocketAddr.parse("1.2.3.4:80")!
+    let b = so.SocketAddr.parse("1.2.3.4:443")!
+    ut.assert_false(a == b)
+    ut.assert_true(a != b)
+}
+
+@test
+func test_socketaddr_eq_different_ip() {
+    let a = so.SocketAddr.parse("1.2.3.4:80")!
+    let b = so.SocketAddr.parse("1.2.3.5:80")!
+    ut.assert_false(a == b)
+}
+
+@test
+func test_socketaddr_eq_v6() {
+    let a = so.SocketAddr.parse("[::1]:8080")!
+    let b = so.SocketAddr.parse("[::1]:8080")!
+    ut.assert_true(a == b)
+}
+
+@test
+func test_socketaddr_hash_eq_consistent() {
+    let a = so.SocketAddr.parse("1.2.3.4:80")!
+    let b = so.SocketAddr.parse("1.2.3.4:80")!
+    ut.assert_eq(a.hash(), b.hash())
+}
+
+@test
+func test_socketaddr_hash_distinct_by_port() {
+    let a = so.SocketAddr.parse("1.2.3.4:80")!
+    let b = so.SocketAddr.parse("1.2.3.4:443")!
+    ut.assert_true(a.hash() != b.hash())
+}
+
+@test
+func test_socketaddr_hash_distinct_by_ip() {
+    let a = so.SocketAddr.parse("1.2.3.4:80")!
+    let b = so.SocketAddr.parse("5.6.7.8:80")!
+    ut.assert_true(a.hash() != b.hash())
 }

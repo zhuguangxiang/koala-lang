@@ -1,0 +1,575 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Connected socket trait and its three implementations.
+///
+/// `Conn` is the uniform contract for every connected socket. It
+/// inherits `read` / `write` / `write_str` / `flush` from `io.Reader`
+/// and `io.Writer`. The I/O trait contracts apply: `read` returns 0 on
+/// EOF, `write` returns the byte count (a short write is a failure),
+/// and a closed or broken descriptor panics.
+///
+/// The semantics of `read` / `write` depend on `socket_type()`. TCP's
+/// `write` loops until every byte is written; UDP and raw `write` one
+/// complete datagram. Every I/O method is written as a loop over the
+/// syscall with an `EAGAIN` branch, so that a coroutine suspension
+/// hook can be inserted later without changing the shape of the method.
+///
+/// `read_exact` and `read_to_end` are repeated on each concrete class
+/// rather than living on the trait: Koala traits do not support
+/// default method bodies, and a shared free function cannot take a
+/// `Conn` parameter because Koala does not implicitly convert a
+/// concrete class instance to a trait parameter. When either of those
+/// changes, the two methods can be factored out.
+
+import "std/io"
+import "std/os"
+
+/// Uniform contract for connected sockets.
+pub trait Conn : io.Reader & io.Writer & io.Closable {
+    /// Local address of the socket.
+    func local_addr() SocketAddr
+
+    /// Remote address of the socket.
+    func remote_addr() SocketAddr
+
+    /// Transport kind; one of the `SOCKTYPE_*` constants.
+    func socket_type() int
+
+    /// Set read timeout in milliseconds. 0 clears it.
+    func set_read_timeout(ms int) bool
+
+    /// Set write timeout in milliseconds. 0 clears it.
+    func set_write_timeout(ms int) bool
+
+    /// Switch between blocking and non-blocking mode.
+    func set_blocking(blocking bool) bool
+
+    /// Fetch and clear the pending socket error (SO_ERROR).
+    ///
+    /// Returns nil when there is no pending error.
+    func take_error() int?
+}
+
+/// An established TCP connection.
+///
+/// Use `conn as TcpConn` to reach the TCP-specific options
+/// (`set_nodelay`, `set_keepalive`, `shutdown_write`, `peek`, ...).
+pub class TcpConn : Conn {
+    let _fd int
+    var _local SocketAddr? = nil
+    var _remote SocketAddr? = nil
+
+    /// Wrap a file descriptor.
+    ///
+    /// Prefer `dial` or `Listener.accept()` over calling this directly.
+    func __init__(fd int) { _fd = fd }
+
+    pub func local_addr() SocketAddr {
+        if _local == nil { _local = _getsockname(_fd) }
+        return _local!
+    }
+
+    pub func remote_addr() SocketAddr {
+        if _remote == nil {
+            let peer = _getpeername(_fd) else { return _zero_addr() }
+            _remote = peer
+        }
+        return _remote!
+    }
+
+    pub func socket_type() int { return SOCKTYPE_TCP }
+
+    pub func read(bs bytes) int {
+        loop {
+            let r = sys_recv(_fd, bs, 0)
+            if r >= 0 { return r }
+            let err = os.errno()
+            if err == EINTR { continue }
+            panic("TcpConn.read: syscall failed")
+        }
+    }
+
+    pub func write(bs bytes) int {
+        let n = bs.len()
+        var total = 0
+        while total < n {
+            let r = sys_send(_fd, bs[total:n], 0)
+            if r > 0 {
+                total += r
+                continue
+            }
+            let err = os.errno()
+            if err == EINTR { continue }
+            panic("TcpConn.write: syscall failed")
+        }
+        return total
+    }
+
+    pub func write_str(s str) int { return write(s.to_bytes()) }
+
+    pub func flush() {}
+
+    pub func close() { _close(_fd) }
+
+    pub func set_read_timeout(ms int) bool { return _set_read_timeout(_fd, ms) }
+
+    pub func set_write_timeout(ms int) bool { return _set_write_timeout(_fd, ms) }
+
+    pub func set_blocking(blocking bool) bool { return _set_blocking(_fd, blocking) }
+
+    pub func take_error() int? { return _take_error(_fd) }
+
+    /// Read exactly `n` bytes. Returns nil on EOF or short read.
+    pub func read_exact(n int) bytes? {
+        let scratch = bytes(n)
+        var got = 0
+        while got < n {
+            let r = read(scratch[got:n])
+            if r == 0 { return nil }
+            got += r
+        }
+        return scratch
+    }
+
+    /// Read until EOF and return everything.
+    pub func read_to_end() bytes? {
+        let buf = Buffer(4096)
+        let scratch = bytes(4096)
+        loop {
+            let r = read(scratch)
+            if r == 0 { return buf.to_bytes() }
+            buf.write(scratch[0:r])
+        }
+    }
+
+    /// Enable or disable TCP_NODELAY.
+    pub func set_nodelay(on bool) bool {
+        // TODO: x ? 1 : 0
+        var _on = 0
+        if on { _on = 1 }
+        return sys_setsockopt_int(_fd, IP_PROTO_TCP, TCP_NODELAY, _on) == 0
+    }
+
+    /// Query the current TCP_NODELAY setting.
+    pub func nodelay() bool? {
+        let v = sys_getsockopt_int(_fd, IP_PROTO_TCP, TCP_NODELAY)
+        if v < 0 { return nil }
+        return v != 0
+    }
+
+    /// Enable or disable TCP keepalive.
+    pub func set_keepalive(on bool) bool {
+        // TODO: x ? 1 : 0
+        var _on = 0
+        if on { _on = 1 }
+        return sys_setsockopt_int(_fd, SOL_SOCKET, SO_KEEPALIVE, _on) == 0
+    }
+
+    /// Set the keepalive idle interval in seconds.
+    pub func set_keepalive_period(seconds int) bool {
+        return sys_setsockopt_int(_fd, IP_PROTO_TCP, TCP_KEEPIDLE, seconds) == 0
+    }
+
+    /// Set the IP time-to-live of outgoing packets.
+    pub func set_ttl(ttl int) bool {
+        return sys_setsockopt_int(_fd, IP_PROTO_IP, IP_TTL, ttl) == 0
+    }
+
+    /// Half-close the write side.
+    pub func shutdown_write() bool { return sys_shutdown(_fd, SHUT_WR) == 0 }
+
+    /// Half-close the read side.
+    pub func shutdown_read() bool { return sys_shutdown(_fd, SHUT_RD) == 0 }
+
+    /// Peek at the next bytes without consuming them.
+    ///
+    /// Returns the number of bytes peeked, 0 if the peer has closed, or
+    /// -1 on error. Unlike `read`, a failure does not panic: peeking is
+    /// a best-effort operation and the caller decides whether to retry.
+    pub func peek(bs bytes) int {
+        return sys_recv(_fd, bs, MSG_PEEK)
+    }
+}
+
+/// A UDP socket.
+///
+/// Before `connect()` it is used through `recv_from` / `send_to`;
+/// after `connect()` it also supports `read` / `write` against the
+/// default peer.
+pub class UdpConn : Conn {
+    let _fd int
+    var _local SocketAddr? = nil
+    var _remote SocketAddr? = nil
+
+    /// Wrap a file descriptor.
+    ///
+    /// Prefer `dial` or `listen_packet` over calling this directly.
+    func __init__(fd int) { _fd = fd }
+
+    pub func local_addr() SocketAddr {
+        if _local == nil { _local = _getsockname(_fd) }
+        return _local!
+    }
+
+    pub func remote_addr() SocketAddr {
+        if _remote == nil {
+            let peer = _getpeername(_fd) else { return _zero_addr() }
+            _remote = peer
+        }
+        return _remote!
+    }
+
+    pub func socket_type() int { return SOCKTYPE_UDP }
+
+    pub func read(bs bytes) int {
+        loop {
+            let r = sys_recv(_fd, bs, 0)
+            if r >= 0 { return r }
+            let err = os.errno()
+            if err == EINTR { continue }
+            panic("UdpConn.read: syscall failed")
+        }
+    }
+
+    pub func write(bs bytes) int {
+        let r = sys_send(_fd, bs, 0)
+        if r > 0 { return r }
+        panic("UdpConn.write: syscall failed")
+    }
+
+    pub func write_str(s str) int { return write(s.to_bytes()) }
+
+    pub func flush() {}
+
+    pub func close() { _close(_fd) }
+
+    pub func set_read_timeout(ms int) bool { return _set_read_timeout(_fd, ms) }
+
+    pub func set_write_timeout(ms int) bool { return _set_write_timeout(_fd, ms) }
+
+    pub func set_blocking(blocking bool) bool { return _set_blocking(_fd, blocking) }
+
+    pub func take_error() int? { return _take_error(_fd) }
+
+    /// Read exactly `n` bytes. Returns nil on EOF or short read.
+    pub func read_exact(n int) bytes? {
+        let scratch = bytes(n)
+        var got = 0
+        while got < n {
+            let r = read(scratch[got:n])
+            if r == 0 { return nil }
+            got += r
+        }
+        return scratch
+    }
+
+    /// Read until EOF and return everything.
+    pub func read_to_end() bytes? {
+        let buf = Buffer(4096)
+        let scratch = bytes(4096)
+        loop {
+            let r = read(scratch)
+            if r == 0 { return buf.to_bytes() }
+            buf.write(scratch[0:r])
+        }
+    }
+
+    /// Receive one datagram into `buf`.
+    ///
+    /// On success `buf` holds the datagram and `RecvFromResult.n()` is
+    /// the number of bytes received. The `Buffer` is supplied by the
+    /// caller so that a server loop can reuse one allocation across
+    /// packets.
+    pub func recv_from(buf Buffer) RecvFromResult {
+        let (n, peer) = sys_recvfrom(_fd, buf, 0)
+        if n >= 0 { return RecvFromResult(IO_OK, n, peer, "") }
+        return RecvFromResult(_errno_to_status(os.errno()), 0, nil, "")
+    }
+
+    /// Peek at the next datagram without consuming it.
+    ///
+    /// The datagram stays in the kernel queue and will be returned
+    /// again by the next `recv_from`.
+    pub func peek_from(buf Buffer) RecvFromResult {
+        let (n, peer) = sys_recvfrom(_fd, buf, MSG_PEEK)
+        if n >= 0 { return RecvFromResult(IO_OK, n, peer, "") }
+        return RecvFromResult(_errno_to_status(os.errno()), 0, nil, "")
+    }
+
+    /// Send one datagram to `addr`.
+    pub func send_to(bs bytes, addr SocketAddr) SendResult {
+        let r = sys_sendto(_fd, bs, addr, 0)
+        if r >= 0 { return SendResult(IO_OK, r, "") }
+        return SendResult(_errno_to_status(os.errno()), 0, "")
+    }
+
+    /// Set the default peer.
+    ///
+    /// Afterwards, `read` / `write` operate on it without an explicit
+    /// address.
+    pub func connect(addr SocketAddr) bool {
+        if sys_connect(_fd, addr) != 0 { return false }
+        _remote = addr
+        return true
+    }
+
+    /// Enable or disable sending to broadcast addresses.
+    pub func set_broadcast(on bool) bool {
+        // TODO:
+        var _on = 0
+        if on { _on = 1 }
+        return sys_setsockopt_int(_fd, SOL_SOCKET, SO_BROADCAST, _on) == 0
+    }
+
+    /// Set the IP time-to-live of outgoing packets.
+    pub func set_ttl(ttl int) bool {
+        return sys_setsockopt_int(_fd, IP_PROTO_IP, IP_TTL, ttl) == 0
+    }
+}
+
+/// A raw IP socket.
+///
+/// `send_to` takes an `IpAddr` because raw sockets have no ports.
+/// `recv_payload` strips the IP header; `recv_raw` keeps it.
+pub class RawConn : Conn {
+    let _fd int
+    let _proto int
+    var _local SocketAddr? = nil
+
+    /// Wrap a file descriptor.
+    ///
+    /// Prefer `dial` over calling this directly.
+    func __init__(fd int, proto int) {
+        _fd = fd
+        _proto = proto
+    }
+
+    pub func local_addr() SocketAddr {
+        if _local == nil { _local = _getsockname(_fd) }
+        return _local!
+    }
+
+    /// Raw sockets have no fixed peer; this always returns 0.0.0.0:0.
+    pub func remote_addr() SocketAddr { return _zero_addr() }
+
+    pub func socket_type() int { return SOCKTYPE_RAW }
+
+    pub func read(bs bytes) int {
+        loop {
+            let r = sys_recv(_fd, bs, 0)
+            if r >= 0 { return r }
+            let err = os.errno()
+            if err == EINTR { continue }
+            panic("RawConn.read: syscall failed")
+        }
+    }
+
+    pub func write(bs bytes) int {
+        // `write` has no well-defined meaning for raw sockets; use
+        // `send_to`. Panicking here makes the misuse visible at once
+        // instead of silently dropping data.
+        panic("RawConn.write: use send_to")
+    }
+
+    pub func write_str(s str) int { panic("RawConn.write_str: use send_to") }
+
+    pub func flush() {}
+
+    pub func close() { _close(_fd) }
+
+    pub func set_read_timeout(ms int) bool { return _set_read_timeout(_fd, ms) }
+
+    pub func set_write_timeout(ms int) bool { return _set_write_timeout(_fd, ms) }
+
+    pub func set_blocking(blocking bool) bool { return _set_blocking(_fd, blocking) }
+
+    pub func take_error() int? { return _take_error(_fd) }
+
+    /// Read exactly `n` bytes. Returns nil on EOF or short read.
+    pub func read_exact(n int) bytes? {
+        let scratch = bytes(n)
+        var got = 0
+        while got < n {
+            let r = read(scratch[got:n])
+            if r == 0 { return nil }
+            got += r
+        }
+        return scratch
+    }
+
+    /// Read until EOF and return everything.
+    pub func read_to_end() bytes? {
+        let buf = Buffer(4096)
+        let scratch = bytes(4096)
+        loop {
+            let r = read(scratch)
+            if r == 0 { return buf.to_bytes() }
+            buf.write(scratch[0:r])
+        }
+    }
+
+    /// Send a raw packet to `ip`.
+    pub func send_to(bs bytes, ip IpAddr) int? {
+        let r = _send_to_ip_from(_fd, bs, ip)
+        if r >= 0 { return r }
+        return nil
+    }
+
+    /// Receive a raw packet into `buf`, stripping the IP header.
+    pub func recv_payload(buf Buffer) RecvPayloadResult {
+        let (n, addr) = _recv_payload_into(_fd, buf, 1)
+        if n >= 0 { return RecvPayloadResult(IO_OK, n, addr, "") }
+        return RecvPayloadResult(_errno_to_status(os.errno()), 0, nil, "")
+    }
+
+    /// Receive a raw packet into `buf`, keeping the IP header.
+    pub func recv_raw(buf Buffer) RecvPayloadResult {
+        let (n, addr) = _recv_payload_into(_fd, buf, 0)
+        if n >= 0 { return RecvPayloadResult(IO_OK, n, addr, "") }
+        return RecvPayloadResult(_errno_to_status(os.errno()), 0, nil, "")
+    }
+
+    /// Set the IP time-to-live of outgoing packets.
+    pub func set_ttl(ttl int) bool {
+        return sys_setsockopt_int(_fd, IP_PROTO_IP, IP_TTL, ttl) == 0
+    }
+
+    /// Set the SO_RCVBUF size in bytes.
+    pub func set_recv_buffer_size(n int) bool {
+        return sys_setsockopt_int(_fd, SOL_SOCKET, SO_RCVBUF, n) == 0
+    }
+
+    /// Set the SO_SNDBUF size in bytes.
+    pub func set_send_buffer_size(n int) bool {
+        return sys_setsockopt_int(_fd, SOL_SOCKET, SO_SNDBUF, n) == 0
+    }
+}
+
+// Close `fd`. Negative descriptors are ignored so that a second call
+// to close() is harmless.
+func _close(fd int) {
+    if fd >= 0 { sys_close(fd) }
+}
+
+// Set or clear the O_NONBLOCK flag on `fd`.
+func _set_blocking(fd int, blocking bool) bool {
+    let flags = sys_fcntl(fd, F_GETFL, 0)
+    if flags < 0 { return false }
+    if blocking { return sys_fcntl(fd, F_SETFL, flags & ~O_NONBLOCK) >= 0 }
+    return sys_fcntl(fd, F_SETFL, flags | O_NONBLOCK) >= 0
+}
+
+// Set SO_RCVTIMEO to `ms` milliseconds. 0 clears it.
+func _set_read_timeout(fd int, ms int) bool {
+    return sys_setsockopt_timeout(fd, SO_RCVTIMEO, ms) == 0
+}
+
+// Set SO_SNDTIMEO to `ms` milliseconds. 0 clears it.
+func _set_write_timeout(fd int, ms int) bool {
+    return sys_setsockopt_timeout(fd, SO_SNDTIMEO, ms) == 0
+}
+
+// Fetch and clear the pending socket error. Returns nil when there is
+// none, or when the query itself failed.
+func _take_error(fd int) int? {
+    let err = sys_getsockopt_int(fd, SOL_SOCKET, SO_ERROR)
+    if err <= 0 { return nil }
+    return _errno_to_status(err)
+}
+
+// Return a 0.0.0.0:0 address, used where a socket has no meaningful
+// local or remote address (raw sockets, unconnected UDP).
+func _zero_addr() SocketAddr {
+    return SocketAddr(IpAddr.from_v4(Ipv4Addr(bytes(4))), 0)
+}
+
+//
+// Native functions
+//
+// The declarations below are the FFI boundary for this file. Each one
+// is provided by the VM; the call shapes are chosen so that every
+// parameter and return value is a Koala type. Pointer arithmetic and
+// sockaddr encoding stay entirely inside the VM.
+//
+
+/// Receive into `bs`. On success returns the number of bytes received
+/// (0 on EOF); returns -1 on error.
+@native
+func sys_recv(fd int, bs bytes, flags int) int {}
+
+/// Send `bs`. Returns the number of bytes accepted by the kernel, or
+/// -1 on error.
+@native
+func sys_send(fd int, bs bytes, flags int) int {}
+
+/// Receive a datagram into `buf`, also returning the source address.
+///
+/// The VM writes the bytes into `buf`'s underlying storage and
+/// updates its logical length, so the caller can read the payload
+/// back with `buf.to_bytes()`.
+@native
+func sys_recvfrom(fd int, buf Buffer, flags int) (int, SocketAddr?) {}
+
+/// Send a datagram to a specific address.
+@native
+func sys_sendto(fd int, bs bytes, addr SocketAddr, flags int) int {}
+
+/// Connect a socket to a remote address. Returns 0 on success, -1 on
+/// error.
+@native
+func sys_connect(fd int, addr SocketAddr) int {}
+
+/// Close a file descriptor. Returns 0 on success.
+@native
+func sys_close(fd int) int {}
+
+/// Manipulate file descriptor flags. Returns the old or new flag
+/// value, or -1 on error.
+@native
+func sys_fcntl(fd int, cmd int, arg int) int {}
+
+/// Shut down part of a full-duplex connection. Returns 0 on success.
+@native
+func sys_shutdown(fd int, how int) int {}
+
+/// Set an integer-valued socket option. Returns 0 on success.
+@native
+func sys_setsockopt_int(fd int, level int, name int, val int) int {}
+
+/// Set a millisecond timeout option (SO_RCVTIMEO / SO_SNDTIMEO).
+/// Returns 0 on success.
+@native
+func sys_setsockopt_timeout(fd int, name int, ms int) int {}
+
+/// Get an integer-valued socket option. Returns the value, or -1 on
+/// error.
+@native
+func sys_getsockopt_int(fd int, level int, name int) int {}
+
+/// Return the local address of `fd`.
+@native
+func _getsockname(fd int) SocketAddr {}
+
+/// Return the peer address of `fd`, or nil if it has none.
+@native
+func _getpeername(fd int) SocketAddr? {}
+
+/// Send a raw packet to `ip`.
+@native
+func _send_to_ip_from(fd int, bs bytes, ip IpAddr) int {}
+
+/// Receive a raw packet into `buf`. `strip` = 1 drops the IP header;
+/// `strip` = 0 keeps it. The VM updates `buf`'s logical length, so the
+/// caller can read the payload back with `buf.to_bytes()`.
+@native
+func _recv_payload_into(fd int, buf Buffer, strip int) (int, IpAddr?) {}
+
+/// Map a platform errno value to an `IO_*` status.
+///
+/// Implemented by the VM, which owns the platform-specific errno
+/// table. Unrecognized values map to `IO_IO`.
+@native
+func _errno_to_status(e int) int {}

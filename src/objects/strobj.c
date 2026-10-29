@@ -1202,7 +1202,9 @@ static TValue _str_len(TValue *self, TValue *args, int nargs)
 static TValue _str_getitem(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
-    int64_t index = kl_arg_int64(0);
+    // FIXME:
+    // int64_t index = kl_arg_int64(0);
+    int64_t index = kl_arg_int(0);
     StringObject *s = SELF_AS(str_type);
     if (index < 0) index += s->size;
     if (index < 0 || index >= (int64_t)s->size) {

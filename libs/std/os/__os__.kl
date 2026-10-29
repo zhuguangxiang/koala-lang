@@ -95,3 +95,11 @@ pub func system(cmd str) int {}
 /// Returns a `Process` handle on success, or `nil` if spawning fails.
 @native
 pub func run(executable str, args list[str]? = nil) Process? {}
+
+// --- Error Handling ---
+
+/// Return the last error code from the operating system.
+///
+/// This is typically used after a failed system call to determine the reason for the failure.
+@native
+pub func errno() int {}

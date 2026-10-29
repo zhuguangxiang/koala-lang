@@ -109,6 +109,7 @@ set(KOALA_SHARED_SOURCES
     objects/collections/queueobj.c
     objects/collections/linkedlistobj.c
     objects/collections/dequeobj.c
+    modules/socket.c
     )
 
 add_library(koala SHARED ${KOALA_SHARED_SOURCES})

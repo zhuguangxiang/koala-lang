@@ -1953,6 +1953,141 @@ static void emit_ir_contains(ParserState *ps, Expr *exp)
     exp->ir_val = klr_build_contains(&bldr, obj->ir_val, val->ir_val, "");
 }
 
+/* Adapt a fallback value to the coalesce result type: the same type moves
+ * as-is, a compatible distinct type goes through `cast` (the insn behind
+ * `as`). Optional values always move: casting them would insert a runtime
+ * nil check that could trap on a known-nil shadow value, and casting TO an
+ * optional is rejected by klr_build_cast. */
+static KlrValue *coalesce_fit(ParserState *ps, KlrValue *val, TypeSpec *res_ts)
+{
+    if (!val->ts || !res_ts || val->ts == res_ts) return val;
+    if (type_spec_equal_exact(val->ts, res_ts)) return val;
+    if (type_is_optional(val->ts) || type_is_optional(res_ts)) return val;
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    return klr_build_cast(&bldr, val, res_ts, "");
+}
+
+/*
+ * Lower `??` to a short-circuiting CFG diamond, mirroring emit_ir_logical.
+ * The SSA construction pass inserts the phi for the result local at end_bb
+ * (two predecessors, def_count == 2).
+ *
+ *   entry:  %cond = cmpne %lhs, nil
+ *           branch %cond, label %unwrap, label %rhs
+ *   unwrap: %u = cast %lhs -> T        (the same unwrap `!` uses)
+ *           move %result, %u ; jmp %end
+ *   rhs:    <eval rhs>                 (ONLY when lhs is nil: lazy rhs)
+ *           move %result, %rhs ; jmp %end
+ *   end:    %result
+ *
+ * Compile-time folds (no diamond):
+ *   - non-optional lhs: only a shadow variable known to be nil survives the
+ *     semantic pass here, so the result is always rhs and the lhs load is dead;
+ *   - bare `nil` lhs (CONST_NONE once loaded): same, the result is rhs;
+ *   - bare `nil` rhs: `a ?? nil` is exactly `a`, alias the lhs value.
+ *
+ * The chained form `T? ?? U?` keeps an optional result: with the same
+ * unwrapped type the lhs optional value moves as-is; with distinct types it
+ * is unwrapped then cast T -> U (cast rejects optional targets).
+ */
+static void emit_ir_coalesce(ParserState *ps, Expr *exp)
+{
+    KlrValue *fn = CURRENT_FUNC;
+    CoalesceExpr *co = (CoalesceExpr *)exp;
+    Expr *lhs = co->lhs;
+    Expr *rhs = co->rhs;
+
+    /* operands may be NULL after the `coalesce_expr COALESCE error` recovery
+     * rule; exp->ts is NULL when the semantic pass bailed out. */
+    if (!lhs || !rhs || !exp->ts) return;
+
+    TypeSpec *res_ts = exp->ts;
+
+    /* fold: a non-optional lhs can only be a shadow variable known to be nil
+     * (every other never-nil lhs is a semantic error), the result is rhs and
+     * the dead lhs local is not even loaded. */
+    if (!type_is_optional(lhs->ts)) {
+        rhs->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, rhs);
+        if (!rhs->ir_val) return;
+        exp->ir_val = coalesce_fit(ps, rhs->ir_val, res_ts);
+        SET_IR_LOC(exp->ir_val, exp);
+        return;
+    }
+
+    /* 1) evaluate lhs once in the current block (T?) */
+    lhs->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, lhs);
+    if (!lhs->ir_val) return;
+
+    /* fold: bare `nil` lhs loads to CONST_NONE, the result is always rhs */
+    if (klr_is_const_none(lhs->ir_val)) {
+        rhs->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, rhs);
+        if (!rhs->ir_val) return;
+        exp->ir_val = coalesce_fit(ps, rhs->ir_val, res_ts);
+        SET_IR_LOC(exp->ir_val, exp);
+        return;
+    }
+
+    /* fold: bare `nil` rhs keeps the lhs optional value unchanged, no branch
+     * needed (the semantic pass typed the result as lhs->ts exactly here) */
+    if (type_is_optional(rhs->ts) && !rhs->ts->opt.src) {
+        exp->ir_val = lhs->ir_val;
+        SET_IR_LOC(exp->ir_val, exp);
+        return;
+    }
+
+    KlrBasicBlock *unwrap_bb = klr_append_block(fn, "coalesce-unwrap");
+    KlrBasicBlock *rhs_bb = klr_append_block(fn, "coalesce-rhs");
+    KlrBasicBlock *end_bb = klr_append_block(fn, "coalesce-end");
+
+    /* 2) result local + nil test; non-nil takes the unwrap path */
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    KlrValue *result = klr_build_local_var(&bldr, res_ts, "coalesce");
+    KlrValue *cond = klr_build_cmpne(&bldr, lhs->ir_val, klr_const_none(MOD), "");
+    klr_build_jmp_cond(&bldr, cond, unwrap_bb, rhs_bb);
+
+    /* 3) unwrap path: strip the optional the same way `!` does */
+    KlrBuilder b1;
+    klr_builder_end(&b1, unwrap_bb);
+    TypeSpec *lhs_src = lhs->ts->opt.src;
+    KlrValue *val = lhs->ir_val;
+    if (!type_is_optional(res_ts)) {
+        /* `T? ?? T`: the result is the unwrapped value */
+        val = klr_build_cast(&b1, val, lhs_src, "");
+    } else if (!type_spec_equal_exact(lhs_src, res_ts->opt.src)) {
+        /* `T? ?? U?` with distinct unwrapped types: unwrap then convert */
+        val = klr_build_cast(&b1, val, lhs_src, "");
+        val = klr_build_cast(&b1, val, res_ts->opt.src, "");
+    }
+    /* else: chained form with the same unwrapped type, the optional lhs
+     * value itself is the result (move accepts the type mix). */
+    klr_build_move(&b1, result, val);
+    klr_build_jmp(&b1, end_bb);
+
+    /* 4) rhs path: evaluated ONLY when lhs is nil (may create/switch blocks,
+     * so re-read the current bb before the move) */
+    ps->scope->bb = rhs_bb;
+    rhs->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, rhs);
+    if (!rhs->ir_val) return;
+
+    KlrValue *fit = coalesce_fit(ps, rhs->ir_val, res_ts);
+    KlrBuilder b2;
+    klr_builder_end(&b2, ps->scope->bb);
+    klr_build_move(&b2, result, fit);
+    klr_build_jmp(&b2, end_bb);
+
+    /* 5) join: subsequent IR attaches to end_bb; SSA inserts the phi here */
+    ps->scope->bb = end_bb;
+    exp->ir_val = result;
+    SET_IR_LOC(result, exp);
+}
+
+
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -1980,6 +2115,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_AS_KIND]      = emit_ir_as,
         [EXPR_IN_KIND]      = emit_ir_contains,
         [EXPR_BANG_KIND]    = emit_ir_bang,
+        [EXPR_COALESCE_KIND] = emit_ir_coalesce,
         [EXPR_CONST_PLACEHOLDER] = emit_ir_const_placeholder,
     };
     /* clang-format on */

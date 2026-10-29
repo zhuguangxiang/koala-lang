@@ -1,1 +1,173 @@
-print("hello world")
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Top-level entry points for `std/socket`.
+///
+/// Four entry points:
+///
+///   - `dial(url, spec, options?)`      — TCP / UDP / Raw unified client
+///   - `listen(url, options?)`          — TCP server
+///   - `listen_packet(url, options?)`   — UDP server
+///   - `resolve(host)`                  — DNS resolution
+///
+
+link "koala"
+
+import "std/os"
+
+/// Connect to the remote specified by `url`.
+///
+/// `url` accepts "host:port" or "[v6]:port"; domain names are resolved
+/// internally. `spec` selects the transport:
+///
+///   - `SocketTypeSpec.tcp()`:       full handshake, returns `TcpConn`
+///   - `SocketTypeSpec.udp()`:       bind an ephemeral port and set peer
+///   - `SocketTypeSpec.raw(proto)`:  open a raw socket; url port must be 0
+///
+/// Returns nil on any failure: bad url, DNS failure, socket creation
+/// failure, bind failure, or connect failure.
+// pub func dial(url str, spec SocketTypeSpec, options DialOptions?) Conn? {
+//     let (host, port) = split_host_port(url) else { return nil }
+
+//     if spec.kind() == SOCKTYPE_RAW && port != 0 { return nil }
+
+//     let rr = resolve(host)
+//     if rr.status() != DNS_OK { return nil }
+
+    // let addrs = rr.addrs()
+    // if addrs.len() == 0 { return nil }
+
+//     let target = SocketAddr(addrs[0], port)
+//     let opts = options ?: DialOptions()
+//     return _dial_one(target, spec, opts)
+// }
+
+// // Connect to one concrete address. All failure paths collapse to nil;
+// // the caller (dial) has no way to distinguish them.
+// func _dial_one(addr SocketAddr, spec SocketTypeSpec, opts DialOptions) Conn? {
+//     var domain = AF_INET
+//     if !addr.ip().is_v4() { domain = AF_INET6 }
+
+//     var sock_type = SOCK_STREAM
+//     if spec.kind() == SOCKTYPE_UDP { sock_type = SOCK_DGRAM }
+//     if spec.kind() == SOCKTYPE_RAW { sock_type = SOCK_RAW }
+
+//     var proto = 0
+//     if spec.kind() == SOCKTYPE_RAW { proto = spec.protocol()! }
+
+//     let fd = sys_socket(domain, sock_type, proto)
+//     if fd < 0 { return nil }
+
+//     let local = opts.local_addr()
+//     if local != nil {
+//         if sys_bind(fd, local!) != 0 {
+//             sys_close(fd)
+//             return nil
+//         }
+//     }
+
+//     if opts.timeout_ms() > 0 {
+//         sys_setsockopt_timeout(fd, SO_SNDTIMEO, opts.timeout_ms())
+//     }
+
+//     if sys_connect(fd, addr) != 0 {
+//         sys_close(fd)
+//         return nil
+//     }
+
+//     if spec.kind() == SOCKTYPE_TCP {
+//         let c = TcpConn(fd)
+//         if opts.nodelay() { c.set_nodelay(true) }
+//         if opts.keepalive_s() > 0 {
+//             c.set_keepalive(true)
+//             c.set_keepalive_period(opts.keepalive_s())
+//         }
+//         return c
+//     }
+
+//     if spec.kind() == SOCKTYPE_UDP {
+//         let c = UdpConn(fd)
+//         // Cache the peer so remote_addr() does not require a syscall.
+//         c._remote = addr
+//         return c
+//     }
+
+//     return RawConn(fd, spec.protocol()!)
+// }
+
+// /// Bind and listen on `url`; returns a `TcpListener`.
+// ///
+// /// `url` must be a local address of the form "host:port". Returns nil
+// /// on any failure: bad url, socket creation failure, bind failure, or
+// /// listen failure.
+// pub func listen(url str, options ListenOptions?) Listener? {
+//     let addr = SocketAddr.parse(url) else { return nil }
+
+//     var domain = AF_INET
+//     if !addr.ip().is_v4() { domain = AF_INET6 }
+
+//     var opts = options ?: ListenOptions()
+
+//     let fd = sys_socket(domain, SOCK_STREAM, 0)
+//     if fd < 0 { return nil }
+
+//     if opts.reuse_addr() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEADDR, 1) }
+//     if opts.reuse_port() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEPORT, 1) }
+
+//     if sys_bind(fd, addr) != 0 {
+//         sys_close(fd)
+//         return nil
+//     }
+
+//     if sys_listen(fd, opts.backlog()) < 0 {
+//         sys_close(fd)
+//         return nil
+//     }
+
+//     return TcpListener(fd)
+// }
+
+// /// Bind a UDP socket on `url`; returns a `UdpConn`.
+// ///
+// /// Returns nil on any failure: bad url, socket creation failure, or bind failure.
+// pub func listen_packet(url str, options UdpOptions?) UdpConn? {
+//     let addr = SocketAddr.parse(url) else { return nil }
+
+//     var domain = AF_INET
+//     if !addr.ip().is_v4() { domain = AF_INET6 }
+
+//     var opts = options ?: UdpOptions()
+
+//     let fd = sys_socket(domain, SOCK_DGRAM, 0)
+//     if fd < 0 { return nil }
+
+//     if opts.reuse_addr() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEADDR, 1) }
+//     if opts.reuse_port() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEPORT, 1) }
+//     if opts.broadcast()  { sys_setsockopt_int(fd, SOL_SOCKET, SO_BROADCAST, 1) }
+
+//     if sys_bind(fd, addr) != 0 {
+//         sys_close(fd)
+//         return nil
+//     }
+
+//     return UdpConn(fd)
+// }
+
+/// Resolve `host` to a list of IP addresses.
+///
+/// Never returns nil; failure is expressed through the result status.
+/// On success `addrs()` is non-empty.
+pub func resolve(host str) ResolveResult {
+    let (status, addrs, msg) = _resolve(host)
+    return ResolveResult(status, addrs, msg)
+}
+
+/// Native DNS resolution.
+///
+/// Returns `(status, addrs, message)`: `status` is one of the `DNS_*`
+/// constants, `addrs` is non-empty when `status` is `DNS_OK`, and
+/// `message` carries a human-readable description on failure.
+@native
+func _resolve(host str) (int, list[IpAddr], str) {}

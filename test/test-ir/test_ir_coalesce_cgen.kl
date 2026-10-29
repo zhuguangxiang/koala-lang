@@ -1,0 +1,117 @@
+// RUN: koalac %s --cgen --dump=lir | filecheck -check-prefix=LIR %s
+// RUN: koalac %s --cgen --dump=code | filecheck -check-prefix=CODE %s
+//
+// `??` backend stages for parameterized operands (int? / Foo? / list[Foo]?):
+// isel selection (LIR) -- ref.ne_null for the nil compare, nil_check for the
+// unwrap cast, load_int_imm / ret_int_imm for constants -- and the final
+// linearized VM instructions (CODE).
+// Lowering-shape checks live in test_ir_coalesce.kl and
+// test_ir_coalesce_param.kl.
+
+class Foo {
+    let a int
+    let b int
+    pub func __init__(x int, y int) {
+        a = x
+        b = y
+    }
+}
+
+func f_param_int(a int?, d int) int { return a ?? d }
+func f_param_foo(f Foo?, d Foo) Foo { return f ?? d }
+func f_foo_default(f Foo?) Foo { return f ?? Foo(1, 2) }
+func f_list_default(l list[Foo]?) list[Foo] { return l ?? list[Foo]() }
+func f_fold_lhs() int { return nil ?? 5 }
+
+// ===== Stage 3: lir (after isel) =====
+
+// LIR-CHECK-LABEL: --- IR Dump After isel [@f_param_int] ---
+// LIR-CHECK-LABEL: func @f_param_int(%a int64?, %d int64) int64 {
+// LIR: %0 = ref.ne_null %a int64?
+// LIR: branch %0 bool, label %bb1, label %bb2
+// LIR: %bb1(coalesce-unwrap):
+// LIR: %1 = nil_check %a int64? to int64
+// LIR: %bb2(coalesce-rhs):
+// LIR: move %coalesce int64, %d int64
+// LIR: %bb3(coalesce-end):
+// LIR: ret %coalesce int64
+
+// LIR-CHECK-LABEL: --- IR Dump After isel [@f_param_foo] ---
+// LIR: %0 = ref.ne_null %f test_ir_coalesce_cgen.Foo?
+// LIR: %bb1(coalesce-unwrap):
+// LIR: %1 = nil_check %f test_ir_coalesce_cgen.Foo? to test_ir_coalesce_cgen.Foo
+// LIR: %bb2(coalesce-rhs):
+// LIR: move %coalesce test_ir_coalesce_cgen.Foo, %d test_ir_coalesce_cgen.Foo
+// LIR: ret %coalesce test_ir_coalesce_cgen.Foo
+
+// The lazy Foo default becomes new + immediate arg loads + __init__ call.
+// LIR-CHECK-LABEL: --- IR Dump After isel [@f_foo_default] ---
+// LIR: %bb2(coalesce-rhs):
+// LIR: new @test_ir_coalesce_cgen.Foo
+// LIR: load_int_imm
+// LIR: load_int_imm
+// LIR: call @Foo:__init__, nargs=3
+// LIR: move %coalesce test_ir_coalesce_cgen.Foo
+
+// LIR-CHECK-LABEL: --- IR Dump After isel [@f_list_default] ---
+// LIR: %0 = ref.ne_null %l std/builtin.list<Ltest_ir_coalesce_cgen.Foo;>?
+// LIR: %bb1(coalesce-unwrap):
+// LIR: nil_check %l std/builtin.list<Ltest_ir_coalesce_cgen.Foo;>? to std/builtin.list<Ltest_ir_coalesce_cgen.Foo;>
+// LIR: %bb2(coalesce-rhs):
+// LIR: build_intern @list
+// LIR: ret %coalesce std/builtin.list<Ltest_ir_coalesce_cgen.Foo;>
+
+// The irgen fold of `nil ?? 5` becomes a single immediate return.
+// LIR-CHECK-LABEL: --- IR Dump After isel [@f_fold_lhs] ---
+// LIR: ret_int_imm 5 int64
+
+// ===== Stage 4: code (linearized VM instructions) =====
+
+// Full diamond for the int? parameter: ne_null test, false-jump to the rhs
+// block, nil_check unwrap, join at the end block, single ret.
+// CODE-CHECK-LABEL: ====== Linearization @f_param_int(
+// CODE: ref.ne_null
+// CODE: jmp_false
+// CODE: %bb-1(coalesce-unwrap):
+// CODE: nil_check
+// CODE: move
+// CODE: jmp
+// CODE: %bb-1(coalesce-rhs):
+// CODE: move
+// CODE: %bb-1(coalesce-end):
+// CODE: ret
+
+// Class references linearize to the same shape.
+// CODE-CHECK-LABEL: ====== Linearization @f_param_foo(
+// CODE: ref.ne_null
+// CODE: jmp_false
+// CODE: nil_check
+// CODE: %bb-1(coalesce-rhs):
+// CODE: move
+// CODE: %bb-1(coalesce-end):
+// CODE: ret
+
+// The lazy Foo default: new + __init__ call + data slot live in the rhs
+// block between the false-jump and the join.
+// CODE-CHECK-LABEL: ====== Linearization @f_foo_default(
+// CODE: ref.ne_null
+// CODE: jmp_false
+// CODE: nil_check
+// CODE: %bb-1(coalesce-rhs):
+// CODE: new
+// CODE: call flg=0, #3
+// CODE: data
+// CODE: %bb-1(coalesce-end):
+// CODE: ret
+
+// CODE-CHECK-LABEL: ====== Linearization @f_list_default(
+// CODE: ref.ne_null
+// CODE: jmp_false
+// CODE: nil_check
+// CODE: %bb-1(coalesce-rhs):
+// CODE: build_intern
+// CODE: %bb-1(coalesce-end):
+// CODE: ret
+
+// CODE-CHECK-LABEL: ====== Linearization @f_fold_lhs(
+// CODE: ret_int_imm

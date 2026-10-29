@@ -1,0 +1,103 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Transport type descriptors for the socket package.
+///
+/// `SocketType` is represented with integer constants until enums
+/// land. The protocol for raw sockets is one of the `IP_PROTO_*`
+/// constants from const.kl; the kernel accepts those values directly,
+/// so a raw spec's protocol can be passed straight to `sys_socket`
+/// without translation.
+
+// Transport type tags. Values are arbitrary; they only need to be
+// distinct from one another, and from the `SOCK_*` values in const.kl,
+// so that passing a `SOCKTYPE_*` where a `SOCK_*` is expected stands
+// out as a bug.
+pub const SOCKTYPE_TCP = 0
+pub const SOCKTYPE_UDP = 1
+pub const SOCKTYPE_RAW = 2
+
+/// Type descriptor passed to `dial`.
+///
+/// Carries the protocol for raw sockets. Construct instances via the
+/// static helpers rather than the fields directly, so that the
+/// invariant "protocol is set iff kind is raw" is respected.
+pub class SocketTypeSpec {
+    /// Transport kind; one of the `SOCKTYPE_*` constants.
+    let _kind int
+
+    /// Protocol number; only meaningful when `_kind` is `SOCKTYPE_RAW`.
+    /// This is one of the `IP_PROTO_*` constants from const.kl.
+    let _protocol int?
+
+    /// Construct a spec from its parts.
+    ///
+    /// Prefer `tcp()` / `udp()` / `raw()` over calling this directly.
+    func __init__(kind int, protocol int?) {
+        _kind = kind
+        _protocol = protocol
+    }
+
+    /// Create a spec for a TCP connection.
+    pub static func tcp() SocketTypeSpec {
+        return SocketTypeSpec(SOCKTYPE_TCP, nil)
+    }
+
+    /// Create a spec for a UDP connection.
+    pub static func udp() SocketTypeSpec {
+        return SocketTypeSpec(SOCKTYPE_UDP, nil)
+    }
+
+    /// Create a spec for a raw IP socket with the given protocol.
+    ///
+    /// `p` is one of the `IP_PROTO_*` constants from const.kl, which
+    /// is exactly what `sys_socket` expects.
+    pub static func raw(p int) SocketTypeSpec {
+        return SocketTypeSpec(SOCKTYPE_RAW, p)
+    }
+
+    /// Transport kind; one of the `SOCKTYPE_*` constants.
+    pub func kind() int { return _kind }
+
+    /// Protocol number, non-nil only when `kind()` is `SOCKTYPE_RAW`.
+    pub func protocol() int? { return _protocol }
+
+    /// True when both specs have the same kind and the same protocol.
+    pub func __eq__(rhs SocketTypeSpec) bool {
+        if _kind != rhs._kind { return false }
+        // Non-raw specs always carry a nil protocol, so equal kind is
+        // enough here.
+        if _kind != SOCKTYPE_RAW { return true }
+        return _protocol! == rhs._protocol!
+    }
+
+    /// True when the specs differ.
+    pub func __ne__(rhs SocketTypeSpec) bool {
+        return !__eq__(rhs)
+    }
+
+    /// Hash the spec by combining kind and protocol.
+    pub func hash() int {
+        if _kind != SOCKTYPE_RAW { return _kind }
+        return _kind * 31 + _protocol!
+    }
+
+    /// Write the spec to a Formatter.
+    ///
+    /// Used by `print` / `format` for debugging. The output is a short
+    /// tag naming the transport: `tcp`, `udp`, or `raw(proto)`, where
+    /// `proto` is the numeric IP protocol.
+    pub func fmt(f Formatter) {
+        if _kind == SOCKTYPE_TCP {
+            f.write_str("tcp")
+        } else if _kind == SOCKTYPE_UDP {
+            f.write_str("udp")
+        } else if _kind == SOCKTYPE_RAW {
+            f.write_fmt("raw({})", _protocol!)
+        } else {
+            f.write_fmt("unknown({})", _kind)
+        }
+    }
+}

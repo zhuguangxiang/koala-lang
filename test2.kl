@@ -30,5 +30,12 @@ func test2(i uint8) {
     print(s[int(i)])
 }
 
-test2(10)
+// test2(10)
 print(typeof(nil))
+
+func main() {
+    let a int? = 10
+    print(a ?? 5)
+}
+// let a int? = 10
+// print(a ?? 5)

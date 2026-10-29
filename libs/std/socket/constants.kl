@@ -1,0 +1,75 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Kernel constants used by the socket package.
+///
+/// These values must match the Linux socket-kernel ABI: they are
+/// passed unchanged to `socket()`, `bind()`, `setsockopt()`,
+/// `shutdown()`, `fcntl()`, and the other system calls, so any value
+/// that drifts from `<sys/socket.h>`, `<netinet/in.h>`,
+/// `<netinet/tcp.h>`, `<fcntl.h>`, or `<errno.h>` would make those
+/// calls misbehave. The errno values are also compared against
+/// `os.errno()`, which returns the raw platform errno.
+///
+/// These are Linux x86_64 glibc values. They do not match macOS or
+/// the BSDs: `AF_INET6`, the `SO_*` option numbers, `EAGAIN`,
+/// `O_NONBLOCK`, and several other constants differ across platforms.
+/// Porting the socket package to another kernel means revisiting
+/// every value in this file.
+
+// Address families.
+pub const AF_INET  = 2
+pub const AF_INET6 = 10
+
+// Socket types.
+pub const SOCK_STREAM = 1
+pub const SOCK_DGRAM  = 2
+pub const SOCK_RAW    = 3
+
+// IP protocol numbers (kernel values). These are accepted by the
+// protocol argument of sys_socket for SOCK_RAW.
+pub const IP_PROTO_ICMP = 1
+pub const IP_PROTO_IGMP = 2
+pub const IP_PROTO_TCP  = 6
+pub const IP_PROTO_UDP  = 17
+
+// shutdown directions.
+pub const SHUT_RD   = 0
+pub const SHUT_WR   = 1
+pub const SHUT_RDWR = 2
+
+// errno values used by this package.
+pub const EINTR        = 4
+pub const EAGAIN       = 11
+pub const EWOULDBLOCK  = 11
+pub const ECONNABORTED = 103
+
+// fcntl commands and flags.
+pub const F_GETFL    = 3
+pub const F_SETFL    = 4
+pub const O_NONBLOCK = 0x800
+
+// setsockopt levels and option names.
+pub const SOL_SOCKET   = 1
+pub const SO_REUSEADDR = 2
+pub const SO_REUSEPORT = 15
+pub const SO_BROADCAST = 6
+pub const SO_RCVTIMEO  = 20
+pub const SO_SNDTIMEO  = 21
+pub const SO_ERROR     = 4
+pub const SO_KEEPALIVE = 9
+pub const SO_RCVBUF    = 8
+pub const SO_SNDBUF    = 7
+
+// setsockopt IP-level options.
+pub const IP_PROTO_IP = 0
+pub const IP_TTL      = 2
+
+// setsockopt TCP-level options.
+pub const TCP_NODELAY  = 1
+pub const TCP_KEEPIDLE = 4
+
+// recv/send flags.
+pub const MSG_PEEK = 2

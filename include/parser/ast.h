@@ -85,6 +85,7 @@ typedef enum _ExprKind {
     EXPR_IN_KIND,
     EXPR_BANG_KIND,
     EXPR_CONST_PLACEHOLDER,
+    EXPR_COALESCE_KIND,
     EXPR_MAX_KIND,
 } ExprKind;
 
@@ -368,6 +369,14 @@ typedef struct _BangExpr {
 } BangExpr;
 
 Expr *expr_from_bang(Expr *exp);
+
+typedef struct _CoalesceExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Expr *rhs;
+} CoalesceExpr;
+
+Expr *expr_from_coalesce(Expr *lhs, Expr *rhs);
 
 static inline int expr_is_literal_null(Expr *e)
 {

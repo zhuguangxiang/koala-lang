@@ -328,9 +328,9 @@ static char hex2byte(const char *s)
 "<<"        { YY_RETURN(L_SHIFT);      }
 ">>"        { YY_RETURN(R_SHIFT);      }
 
-"?:"        { YY_RETURN(OPT_DEF);   }
 "?."        { YY_RETURN(OPT_DOT);   }
 "!."        { YY_RETURN(BANG_DOT);  }
+"??"        { YY_RETURN(COALESCE);  }
 
 "?"         { YY_RETURN('?'); }
 "@"         { YY_RETURN('@'); }

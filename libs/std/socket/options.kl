@@ -1,0 +1,153 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Configuration objects for `dial` / `listen` / `listen_packet`.
+///
+/// Every field has a declared default, so the compiler-generated
+/// default constructor is enough: `DialOptions()` / `ListenOptions()` /
+/// `UdpOptions()` produce a fully-populated object. Pass `nil` for the
+/// options argument to get the same behaviour. Setters return `self`
+/// so that configuration can be built inline:
+///
+/// ```kl
+/// let opts = DialOptions().set_timeout_ms(5000).set_nodelay(false)
+/// ```
+
+/// Connection configuration.
+pub class DialOptions {
+    /// Local address to bind before connecting. nil lets the kernel
+    /// pick the source address.
+    var _local_addr SocketAddr? = nil
+
+    /// Connect timeout in milliseconds. 0 means no timeout.
+    var _timeout_ms int = 0
+
+    /// TCP keepalive interval in seconds. 0 disables keepalive.
+    var _keepalive_s int = 0
+
+    /// Whether to enable TCP_NODELAY. Enabled by default: most
+    /// request/response protocols want the reduced latency.
+    var _nodelay bool = true
+
+    /// Local address to bind before connecting.
+    pub func local_addr() SocketAddr? { return _local_addr }
+
+    /// Connect timeout in milliseconds.
+    pub func timeout_ms() int { return _timeout_ms }
+
+    /// TCP keepalive interval in seconds.
+    pub func keepalive_s() int { return _keepalive_s }
+
+    /// Whether TCP_NODELAY is enabled.
+    pub func nodelay() bool { return _nodelay }
+
+    /// Set the local bind address.
+    pub func set_local_addr(a SocketAddr?) DialOptions {
+        _local_addr = a
+        return self
+    }
+
+    /// Set the connect timeout.
+    pub func set_timeout_ms(ms int) DialOptions {
+        _timeout_ms = ms
+        return self
+    }
+
+    /// Set the keepalive interval.
+    pub func set_keepalive_s(s int) DialOptions {
+        _keepalive_s = s
+        return self
+    }
+
+    /// Enable or disable TCP_NODELAY.
+    pub func set_nodelay(on bool) DialOptions {
+        _nodelay = on
+        return self
+    }
+}
+
+/// Listening configuration.
+pub class ListenOptions {
+    /// Whether to set SO_REUSEADDR. Enabled by default so that
+    /// restarting a server does not hit EADDRINUSE.
+    var _reuse_addr bool = true
+
+    /// Whether to set SO_REUSEPORT. Disabled by default: it lets
+    /// several processes bind the same port, which is rarely what a
+    /// single server wants.
+    var _reuse_port bool = false
+
+    /// Length of the accept queue.
+    var _backlog int = 128
+
+    /// Whether SO_REUSEADDR is set.
+    pub func reuse_addr() bool { return _reuse_addr }
+
+    /// Whether SO_REUSEPORT is set.
+    pub func reuse_port() bool { return _reuse_port }
+
+    /// Length of the accept queue.
+    pub func backlog() int { return _backlog }
+
+    /// Set SO_REUSEADDR.
+    pub func set_reuse_addr(on bool) ListenOptions {
+        _reuse_addr = on
+        return self
+    }
+
+    /// Set SO_REUSEPORT.
+    pub func set_reuse_port(on bool) ListenOptions {
+        _reuse_port = on
+        return self
+    }
+
+    /// Set the accept queue length.
+    pub func set_backlog(n int) ListenOptions {
+        _backlog = n
+        return self
+    }
+}
+
+/// UDP configuration.
+pub class UdpOptions {
+    /// Whether to set SO_REUSEADDR. Enabled by default, for the same
+    /// reason as in `ListenOptions`.
+    var _reuse_addr bool = true
+
+    /// Whether to set SO_REUSEPORT.
+    var _reuse_port bool = false
+
+    /// Whether outgoing broadcast is allowed (SO_BROADCAST). Disabled
+    /// by default: broadcasting requires the same privilege as any
+    /// other network operation but is rarely desired implicitly.
+    var _broadcast bool = false
+
+    /// Whether SO_REUSEADDR is set.
+    pub func reuse_addr() bool { return _reuse_addr }
+
+    /// Whether SO_REUSEPORT is set.
+    pub func reuse_port() bool { return _reuse_port }
+
+    /// Whether broadcast is allowed.
+    pub func broadcast() bool { return _broadcast }
+
+    /// Set SO_REUSEADDR.
+    pub func set_reuse_addr(on bool) UdpOptions {
+        _reuse_addr = on
+        return self
+    }
+
+    /// Set SO_REUSEPORT.
+    pub func set_reuse_port(on bool) UdpOptions {
+        _reuse_port = on
+        return self
+    }
+
+    /// Allow or forbid outgoing broadcast.
+    pub func set_broadcast(on bool) UdpOptions {
+        _broadcast = on
+        return self
+    }
+}

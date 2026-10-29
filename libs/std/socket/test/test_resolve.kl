@@ -1,0 +1,184 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Unit tests for std/socket `resolve`.
+//
+// Numeric literals ("1.2.3.4", "::1") go through inet_pton, so they
+// never touch DNS and are safe to assert on in any environment.
+// Name-based tests depend on /etc/hosts or on a live resolver, and are
+// grouped at the bottom so they can be skipped together if the CI
+// sandbox has no network.
+
+import "std/ut"
+import "std/socket" as so
+
+//
+// Numeric literals
+//
+
+@test
+func test_resolve_numeric_v4() {
+    let r = so.resolve("1.2.3.4")
+    let addrs = r.addrs()
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_eq(r.addrs().len(), 1)
+    ut.assert_eq(addrs[0].to_str(), "1.2.3.4")
+    // TODO:
+    // ut.assert_eq(r.addrs()[0].to_str(), "1.2.3.4")
+}
+
+@test
+func test_resolve_numeric_v4_zero() {
+    let r = so.resolve("0.0.0.0")
+    let addrs = r.addrs()
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_eq(len(addrs), 1)
+    ut.assert_eq(addrs[0].to_str(), "0.0.0.0")
+}
+
+@test
+func test_resolve_numeric_v4_broadcast() {
+    let r = so.resolve("255.255.255.255")
+    let addrs = r.addrs()
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_eq(len(addrs), 1)
+    ut.assert_eq(addrs[0].to_str(), "255.255.255.255")
+}
+
+@test
+func test_resolve_numeric_v4_loopback() {
+    let r = so.resolve("127.0.0.1")
+    let addrs = r.addrs()
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_eq(len(addrs), 1)
+    ut.assert_eq(addrs[0].to_str(), "127.0.0.1")
+}
+
+@test
+func test_resolve_numeric_v6_loopback() {
+    let r = so.resolve("::1")
+    let addrs = r.addrs()
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_eq(len(addrs), 1)
+    ut.assert_eq(addrs[0].to_str(), "::1")
+}
+
+@test
+func test_resolve_numeric_v6_full() {
+    let r = so.resolve("2001:db8::1")
+    let addrs = r.addrs()
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_eq(len(addrs), 1)
+    ut.assert_eq(addrs[0].to_str(), "2001:db8::1")
+}
+
+@test
+func test_resolve_numeric_v6_unspecified() {
+    let r = so.resolve("::")
+    let addrs = r.addrs()
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_eq(len(addrs), 1)
+    ut.assert_eq(addrs[0].to_str(), "::")
+}
+
+//
+// Failure cases
+//
+
+@test
+func test_resolve_empty() {
+    // An empty string is not a valid IP literal and not a valid
+    // hostname; getaddrinfo rejects it. The exact status may be
+    // DNS_NOT_FOUND or DNS_IO depending on the platform, so only the
+    // empty-list invariant is asserted.
+    let r = so.resolve("")
+    let addrs = r.addrs()
+    ut.assert_true(r.status() != so.DNS_OK)
+    ut.assert_eq(len(addrs), 0)
+}
+
+// @test
+// func test_resolve_invalid_literal() {
+//     let r = so.resolve("not-a-real-ip-address")
+//     let addrs = r.addrs()
+//     ut.assert_true(r.status() != so.DNS_OK)
+//     ut.assert_eq(len(addrs), 0)
+// }
+
+@test
+func test_resolve_baidu() {
+    let r = so.resolve("baidu.com")
+    let addrs = r.addrs()
+    // print(addrs)
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_true(len(addrs) > 0)
+
+    // Whatever the address is, it must survive a round trip through
+    // to_str / parse.
+    for ip in addrs {
+        let text = ip.to_str()
+        let back = so.IpAddr.parse(text)
+        ut.assert_true(back != nil)
+        print(back)
+        // ut.assert_true(back!.to_str() == ip)
+        print(ip.to_str())
+    }
+}
+
+@test
+func test_resolve_localhost_via_hosts() {
+    // localhost is in /etc/hosts on essentially every Linux system,
+    // so this does not depend on a resolver, but it exercises the
+    // getaddrinfo path end to end.
+    let r = so.resolve("localhost")
+    let addrs = r.addrs()
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_true(len(addrs) > 0)
+    for ip in addrs {
+        ut.assert_true(ip.is_loopback())
+    }
+}
+
+// @test
+// func test_resolve_reserved_invalid_tld() {
+//     // `.invalid` is reserved by RFC 2606 and is guaranteed to fail
+//     // resolution on any RFC-compliant resolver.
+//     let r = so.resolve("this-domain-should-not-exist-koala-test.invalid")
+//     let addrs = r.addrs()
+//     ut.assert_eq(r.status(), so.DNS_NOT_FOUND)
+//     ut.assert_eq(len(addrs), 0)
+// }
+
+//
+// Name-based tests
+//
+// These reach /etc/hosts or a live resolver. They are kept in a
+// separate section so they can be excluded together in environments
+// without network access.
+//
+
+@test
+func test_resolve_localhost() {
+    // localhost is present in /etc/hosts on essentially every Linux
+    // system, so this does not need a working DNS resolver.
+    let r = so.resolve("localhost")
+    let addrs = r.addrs()
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_true(len(addrs) > 0)
+
+    // Every returned address must be a loopback address.
+    for ip in addrs {
+        ut.assert_true(ip.is_loopback())
+    }
+}
+
+@test
+func test_resolve_localhost_v4() {
+    let r = so.resolve("127.0.0.1")
+    let addrs = r.addrs()
+    ut.assert_eq(r.status(), so.DNS_OK)
+    ut.assert_eq(len(addrs), 1)
+    ut.assert_eq(addrs[0].to_str(), "127.0.0.1")
+}

@@ -285,6 +285,13 @@ static LatticeValue fold_binary(SCCPContext *ctx, KlrInsn *insn, LatticeValue lv
             if (lc->which == CONST_FLT && rc->which == CONST_FLT) {
                 return lv_const(klr_const_bool(lc->fval == rc->fval, m));
             }
+            if (lc->which == CONST_NONE && rc->which == CONST_NONE) {
+                return lv_const(klr_const_bool(1, m));
+            }
+            /* nil is only equal to nil: a known non-nil constant never is */
+            if ((lc->which == CONST_NONE) != (rc->which == CONST_NONE)) {
+                return lv_const(klr_const_bool(0, m));
+            }
             return lv_bottom();
         }
 
@@ -335,6 +342,13 @@ static LatticeValue fold_binary(SCCPContext *ctx, KlrInsn *insn, LatticeValue lv
             }
             if (lc->which == CONST_FLT && rc->which == CONST_FLT) {
                 return lv_const(klr_const_bool(lc->fval != rc->fval, m));
+            }
+            if (lc->which == CONST_NONE && rc->which == CONST_NONE) {
+                return lv_const(klr_const_bool(0, m));
+            }
+            /* nil is only equal to nil: a known non-nil constant never is */
+            if ((lc->which == CONST_NONE) != (rc->which == CONST_NONE)) {
+                return lv_const(klr_const_bool(1, m));
             }
             return lv_bottom();
         }

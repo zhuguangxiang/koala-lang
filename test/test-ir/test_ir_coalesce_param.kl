@@ -1,0 +1,148 @@
+// RUN: koalac %s --cgen --dump=no-opt-ir | filecheck %s
+// RUN: koalac %s --cgen --dump=ir | filecheck -check-prefix=OPT %s
+//
+// `??` with parameterized operands -- int? / Foo? / list[Foo]? inputs --
+// checked at the raw-lowering stage and after the optimizer: the diamond
+// must stay intact (nothing is const-known) and class/list defaults must
+// stay inside the coalesce-rhs block (laziness is structural).
+// Basic expression forms (constants, nil folds, nesting) live in
+// test_ir_coalesce.kl; the isel and VM-linearization stages for these
+// parameter shapes live in test_ir_coalesce_cgen.kl.
+// Note: `--dump=ir` re-dumps after every opt pass, so OPT checks are
+// anchored at each function's first (const-copy-prop Iter 1) dump.
+
+class Foo {
+    let a int
+    let b int
+    pub func __init__(x int, y int) {
+        a = x
+        b = y
+    }
+}
+
+func f_param_int(a int?, d int) int { return a ?? d }
+func f_param_foo(f Foo?, d Foo) Foo { return f ?? d }
+func f_foo_default(f Foo?) Foo { return f ?? Foo(1, 2) }
+func f_list(l list[Foo]?, d list[Foo]) list[Foo] { return l ?? d }
+func f_list_default(l list[Foo]?) list[Foo] { return l ?? list[Foo]() }
+
+// ===== Stage 1: no-opt-ir (raw lowering shapes) =====
+
+// int? parameter with a parameter default: full diamond, nothing folded.
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @f_param_int(%a int64?, %d int64) int64 {
+// CHECK: %bb0(entry):
+// CHECK: %coalesce = local int64
+// CHECK: %0 = cmpne %a int64?, nil
+// CHECK: branch %0 bool, label %bb1, label %bb2
+//
+// CHECK: %bb1(coalesce-unwrap):
+// CHECK: %1 = cast %a int64? to int64
+// CHECK: move %coalesce int64, %1 int64
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb2(coalesce-rhs):
+// CHECK: move %coalesce int64, %d int64
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK: ret %coalesce int64
+
+// Foo? parameter: class references use the same cmpne/cast diamond.
+// CHECK-LABEL: func @f_param_foo(%f test_ir_coalesce_param.Foo?, %d test_ir_coalesce_param.Foo) test_ir_coalesce_param.Foo {
+// CHECK: %bb0(entry):
+// CHECK: %coalesce = local test_ir_coalesce_param.Foo
+// CHECK: %0 = cmpne %f test_ir_coalesce_param.Foo?, nil
+// CHECK: branch %0 bool, label %bb1, label %bb2
+//
+// CHECK: %bb1(coalesce-unwrap):
+// CHECK: %1 = cast %f test_ir_coalesce_param.Foo? to test_ir_coalesce_param.Foo
+// CHECK: move %coalesce test_ir_coalesce_param.Foo, %1 test_ir_coalesce_param.Foo
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb2(coalesce-rhs):
+// CHECK: move %coalesce test_ir_coalesce_param.Foo, %d test_ir_coalesce_param.Foo
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK: ret %coalesce test_ir_coalesce_param.Foo
+
+// Foo(1, 2) default: the whole construction (new + __init__ call) lives in
+// the coalesce-rhs block only.
+// CHECK-LABEL: func @f_foo_default(%f test_ir_coalesce_param.Foo?) test_ir_coalesce_param.Foo {
+// CHECK: %bb0(entry):
+// CHECK: %coalesce = local test_ir_coalesce_param.Foo
+// CHECK: %0 = cmpne %f test_ir_coalesce_param.Foo?, nil
+// CHECK: branch %0 bool, label %bb1, label %bb2
+//
+// CHECK: %bb1(coalesce-unwrap):
+// CHECK: %1 = cast %f test_ir_coalesce_param.Foo? to test_ir_coalesce_param.Foo
+// CHECK: move %coalesce test_ir_coalesce_param.Foo, %1 test_ir_coalesce_param.Foo
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb2(coalesce-rhs):
+// CHECK: %2 = new @test_ir_coalesce_param.Foo
+// CHECK: call @Foo:__init__, %2 test_ir_coalesce_param.Foo, 1 int64, 2 int64
+// CHECK: move %coalesce test_ir_coalesce_param.Foo, %2 test_ir_coalesce_param.Foo
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK: ret %coalesce test_ir_coalesce_param.Foo
+
+// list[Foo]? parameter: generic instantiation flows through the diamond.
+// CHECK-LABEL: func @f_list(%l std/builtin.list<Ltest_ir_coalesce_param.Foo;>?, %d std/builtin.list<Ltest_ir_coalesce_param.Foo;>) std/builtin.list<Ltest_ir_coalesce_param.Foo;> {
+// CHECK: %bb0(entry):
+// CHECK: %coalesce = local std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: %0 = cmpne %l std/builtin.list<Ltest_ir_coalesce_param.Foo;>?, nil
+// CHECK: branch %0 bool, label %bb1, label %bb2
+//
+// CHECK: %bb1(coalesce-unwrap):
+// CHECK: %1 = cast %l std/builtin.list<Ltest_ir_coalesce_param.Foo;>? to std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: move %coalesce std/builtin.list<Ltest_ir_coalesce_param.Foo;>, %1 std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb2(coalesce-rhs):
+// CHECK: move %coalesce std/builtin.list<Ltest_ir_coalesce_param.Foo;>, %d std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK: ret %coalesce std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+
+// list[Foo]() default: the empty-list build sits in the rhs block.
+// CHECK-LABEL: func @f_list_default(%l std/builtin.list<Ltest_ir_coalesce_param.Foo;>?) std/builtin.list<Ltest_ir_coalesce_param.Foo;> {
+// CHECK: %bb0(entry):
+// CHECK: %0 = cmpne %l std/builtin.list<Ltest_ir_coalesce_param.Foo;>?, nil
+// CHECK: branch %0 bool, label %bb1, label %bb2
+//
+// CHECK: %bb1(coalesce-unwrap):
+// CHECK: %1 = cast %l std/builtin.list<Ltest_ir_coalesce_param.Foo;>? to std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb2(coalesce-rhs):
+// CHECK: %2 = build_intern @list
+// CHECK: move %coalesce std/builtin.list<Ltest_ir_coalesce_param.Foo;>, %2 std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK: ret %coalesce std/builtin.list<Ltest_ir_coalesce_param.Foo;>
+
+// ===== Stage 2: ir (first dump, after const-copy-prop Iter 1) =====
+
+// Unknown parameters: const propagation leaves the diamond untouched.
+// OPT-CHECK-LABEL: --- IR Dump After const-copy-prop (Iter 1) [@f_param_int] ---
+// OPT-CHECK-LABEL: func @f_param_int(%a int64?, %d int64) int64 {
+// OPT: %0 = cmpne %a int64?, nil
+// OPT: branch %0 bool, label %bb1, label %bb2
+// OPT: %bb1(coalesce-unwrap):
+// OPT: %1 = cast %a int64? to int64
+// OPT: %bb2(coalesce-rhs):
+// OPT: move %coalesce int64, %d int64
+// OPT: %bb3(coalesce-end):
+// OPT: ret %coalesce int64
+
+// The Foo default construction stays inside the rhs block after opt.
+// OPT-CHECK-LABEL: --- IR Dump After const-copy-prop (Iter 1) [@f_foo_default] ---
+// OPT: %bb2(coalesce-rhs):
+// OPT: %2 = new @test_ir_coalesce_param.Foo
+// OPT: call @Foo:__init__, %2 test_ir_coalesce_param.Foo, 1 int64, 2 int64
+// OPT: ret %coalesce test_ir_coalesce_param.Foo

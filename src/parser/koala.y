@@ -282,9 +282,9 @@ static Stmt *tuple_decl_stmt(ParserState *ps, Vector *ids, int which, Expr *exp,
 %token L_SHIFT
 %token R_SHIFT
 
-%token OPT_DEF
 %token OPT_DOT
 %token BANG_DOT
+%token COALESCE
 
 %token CONST_PLACEHOLDER
 
@@ -314,6 +314,7 @@ static Stmt *tuple_decl_stmt(ParserState *ps, Vector *ids, int which, Expr *exp,
 %type<expr> const_expr
 %type<expr> const_tuple_expr
 %type<expr> expr
+%type<expr> coalesce_expr
 %type<expr> or_expr
 %type<expr> in_expr
 %type<expr> and_expr
@@ -2943,7 +2944,7 @@ case_tail
     ;
 
 expr
-    : or_expr
+    : coalesce_expr
     {
         $$ = $1;
     }
@@ -2951,29 +2952,34 @@ expr
     {
         $$ = $1;
     }
-    | or_expr OPT_DEF or_expr
+    | coalesce_expr IS type_opt
     {
-        // $$ = expr_from_is_expr($1, loc(@2), $3);
-        // expr_set_loc($$, lloc(@1, @3));
-        $$ = $1;
-        expr_free($3);
+        $$ = expr_from_is_expr($1, loc(@2), $3);
+        expr_set_loc($$, lloc(@1, @3));
     }
-    | or_expr OPT_DEF error
+    | coalesce_expr AS type_opt
+    {
+        $$ = expr_from_as_expr($1, loc(@2), $3);
+        expr_set_loc($$, lloc(@1, @3));
+    }
+    ;
+
+coalesce_expr
+    : or_expr
+    {
+        $$ = $1;
+    }
+    | coalesce_expr COALESCE or_expr
+    {
+        $$ = expr_from_coalesce($1, $3);
+        expr_set_loc($$, lloc(@1, @3));
+    }
+    | coalesce_expr COALESCE error
     {
         expr_free($1);
         kl_error(loc(@3), "expected an expr.");
         yy_clear_ok;
         $$ = NULL;
-    }
-    | or_expr IS type_opt
-    {
-        $$ = expr_from_is_expr($1, loc(@2), $3);
-        expr_set_loc($$, lloc(@1, @3));
-    }
-    | or_expr AS type_opt
-    {
-        $$ = expr_from_as_expr($1, loc(@2), $3);
-        expr_set_loc($$, lloc(@1, @3));
     }
     ;
 

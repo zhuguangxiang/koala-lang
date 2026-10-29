@@ -770,6 +770,8 @@ error:
     return nil_value;
 }
 
+static TValue os_errno(TValue *self, TValue *args, int nargs) { return int64_value(errno); }
+
 void os_native_lib_init(NativeLib *lib)
 {
     kl_reg_func(lib, "getenv", os_getenv);
@@ -781,6 +783,7 @@ void os_native_lib_init(NativeLib *lib)
     kl_reg_func(lib, "pipe", os_pipe);
     kl_reg_func(lib, "system", os_system);
     kl_reg_func(lib, "run", os_run);
+    kl_reg_func(lib, "errno", os_errno);
     kl_reg_type(lib, &raw_reader_type);
     kl_reg_type(lib, &raw_writer_type);
     kl_reg_type(lib, &process_type);

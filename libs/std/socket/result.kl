@@ -1,0 +1,181 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Status constants and result classes for socket operations.
+///
+/// Operations that distinguish several failure modes return a result
+/// class; operations with a single failure mode return `T?`. This file
+/// holds the result classes that depend only on `addr.kl`;
+/// `AcceptResult` lives in `listener.kl` because it carries a
+/// `TcpConn`.
+///
+/// `IO_*` is the cross-platform status set used by every socket
+/// operation, so callers never see raw errno values.
+
+// Cross-platform I/O status constants.
+pub const IO_OK             = 0
+pub const IO_TIMEDOUT       = 1
+pub const IO_REFUSED        = 2
+pub const IO_RESET          = 3
+pub const IO_ABORTED        = 4
+pub const IO_ADDR_IN_USE    = 5
+pub const IO_ADDR_NOT_AVAIL = 6
+pub const IO_PERMISSION     = 7
+pub const IO_INTERRUPTED    = 8
+pub const IO_WOULDBLOCK     = 9
+pub const IO_INVALID_INPUT  = 10
+pub const IO_IO             = 11
+
+/// True when `s` is `IO_OK`.
+pub func io_is_ok(s int) bool {
+    return s == IO_OK
+}
+
+/// True when `s` is a transient status; retrying may succeed.
+pub func io_is_transient(s int) bool {
+    return s == IO_INTERRUPTED || s == IO_WOULDBLOCK
+}
+
+// DNS resolution status constants.
+pub const DNS_OK         = 0
+pub const DNS_NOT_FOUND  = 1
+pub const DNS_NO_RECORDS = 2
+pub const DNS_TIMEOUT    = 3
+pub const DNS_IO         = 4
+
+/// Result of a DNS resolution.
+///
+/// On success `addrs()` is non-empty and `message()` is empty. On
+/// failure `addrs()` is empty and `message()` carries a human-readable
+/// description.
+pub class ResolveResult {
+    /// Overall status; one of the DNS_* constants.
+    let _status int
+
+    /// Resolved addresses.
+    let _addrs list[IpAddr]
+
+    /// Human-readable error description.
+    let _message str
+
+    /// Construct a result from its parts.
+    func __init__(status int, addrs list[IpAddr], message str) {
+        _status = status
+        _addrs = addrs
+        _message = message
+    }
+
+    /// Overall status.
+    pub func status() int { return _status }
+
+    /// Resolved addresses.
+    pub func addrs() list[IpAddr] { return _addrs }
+
+    /// Human-readable error description.
+    pub func message() str { return _message }
+
+    /// Display
+    pub func fmt(f Formatter) {
+        f.write_fmt("ResolveResult(status={})", _status);
+    }
+}
+
+/// Result of a UDP `recv_from` or `peek_from`.
+pub class RecvFromResult {
+    /// Overall status; one of the IO_* constants.
+    let _status int
+
+    /// Number of bytes received.
+    let _n int
+
+    /// Peer address; non-nil on success.
+    let _peer SocketAddr?
+
+    /// Human-readable error description.
+    let _message str
+
+    /// Construct a result from its parts.
+    func __init__(status int, n int, peer SocketAddr?, message str) {
+        _status = status
+        _n = n
+        _peer = peer
+        _message = message
+    }
+
+    /// Overall status.
+    pub func status() int { return _status }
+
+    /// Number of bytes received.
+    pub func n() int { return _n }
+
+    /// Peer address; non-nil on success.
+    pub func peer() SocketAddr? { return _peer }
+
+    /// Human-readable error description.
+    pub func message() str { return _message }
+}
+
+/// Result of a UDP `send_to`.
+pub class SendResult {
+    /// Overall status; one of the IO_* constants.
+    let _status int
+
+    /// Number of bytes sent.
+    let _n int
+
+    /// Human-readable error description.
+    let _message str
+
+    /// Construct a result from its parts.
+    func __init__(status int, n int, message str) {
+        _status = status
+        _n = n
+        _message = message
+    }
+
+    /// Overall status.
+    pub func status() int { return _status }
+
+    /// Number of bytes sent.
+    pub func n() int { return _n }
+
+    /// Human-readable error description.
+    pub func message() str { return _message }
+}
+
+/// Result of a raw `recv_payload` or `recv_raw`.
+pub class RecvPayloadResult {
+    /// Overall status; one of the IO_* constants.
+    let _status int
+
+    /// Number of bytes received.
+    let _n int
+
+    /// Source address; non-nil on success.
+    let _addr IpAddr?
+
+    /// Human-readable error description.
+    let _message str
+
+    /// Construct a result from its parts.
+    func __init__(status int, n int, addr IpAddr?, message str) {
+        _status = status
+        _n = n
+        _addr = addr
+        _message = message
+    }
+
+    /// Overall status.
+    pub func status() int { return _status }
+
+    /// Number of bytes received.
+    pub func n() int { return _n }
+
+    /// Source address; non-nil on success.
+    pub func addr() IpAddr? { return _addr }
+
+    /// Human-readable error description.
+    pub func message() str { return _message }
+}

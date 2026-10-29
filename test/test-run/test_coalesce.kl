@@ -1,0 +1,148 @@
+// RUN: cd %S && koala %s | filecheck %s
+//
+// Value semantics and result-type (typeof) checks for the `??` nil-coalescing
+// operator, lowered by emit_ir_coalesce to a short-circuit CFG diamond:
+// the lhs is evaluated exactly once, the rhs only when the lhs is nil.
+// The IR-shape checks (nil compare / branch diamond / cast / join for phi)
+// live in test-ir/test_ir_coalesce.kl.
+
+func boom() int {
+    print("evaluated")
+    return 0
+}
+
+class Foo {
+    let a int
+    let b int
+    pub func __init__(x int, y int) {
+        a = x
+        b = y
+    }
+}
+
+func loud() Foo {
+    print("built")
+    return Foo(0, 0)
+}
+
+// parameterized coalesce helpers: int? / Foo? / list[Foo]? inputs
+func pick_int(v int?, d int) int { return v ?? d }
+func pick_foo(v Foo?, d Foo) Foo { return v ?? d }
+func pick_list(v list[Foo]?, d list[Foo]) list[Foo] { return v ?? d }
+func make_foo(v Foo?) Foo { return v ?? Foo(9, 9) }
+func make_list(v list[Foo]?) list[Foo] { return v ?? list[Foo]() }
+func pick_loud(v Foo?) Foo { return v ?? loud() }
+
+class Bar {
+    let x int?
+    pub func __init__(v int?) { x = v }
+    pub func get_or(d int) int { return x ?? d }
+}
+
+func field_or(b Bar, d int) int { return b.x ?? d }
+
+func main() {
+    // non-nil lhs wins; `T? ?? T` result type is the unwrapped T
+    let a int? = 10
+    print(a ?? 5)
+    // CHECK: 10
+    print(typeof(a ?? 5).name())
+    // CHECK: int64
+
+    // nil lhs falls back to the rhs default
+    let b int? = nil
+    print(b ?? 5)
+    // CHECK: 5
+    print(typeof(b ?? 5).name())
+    // CHECK: int64
+
+    // rhs is lazy: boom() must not run when the lhs is non-nil
+    print(a ?? boom())
+    // CHECK-NOT: evaluated
+    // CHECK: 10
+
+    // chained without parentheses, left associative: (b ?? d) ?? 7
+    let d int? = nil
+    print(b ?? d ?? 7)
+    // CHECK: 7
+    let e int? = 3
+    print(b ?? e ?? 7)
+    // CHECK: 3
+
+    // string defaults keep their type
+    let s str? = nil
+    print(s ?? "anon")
+    // CHECK: anon
+    print(typeof(s ?? "anon").name())
+    // CHECK: str
+
+    // `T? ?? U?` stays optional: the chain intermediate keeps nil-ness
+    let f int? = b ?? d
+    print(f == nil)
+    // CHECK: true
+    let g int? = e ?? d
+    print(g == nil)
+    // CHECK: false
+
+    // bare nil lhs takes the rhs type
+    print(typeof(nil ?? 5).name())
+    // CHECK: int64
+
+    // int? parameter: non-nil wins, nil takes the default
+    print(pick_int(10, 3))
+    // CHECK: 10
+    print(pick_int(nil, 3))
+    // CHECK: 3
+
+    // Foo? parameter: class reference coalesce picks the right instance
+    let f1 = Foo(1, 2)
+    let f2 = Foo(7, 8)
+    let pf = pick_foo(f1, f2)
+    print(pf.a, pf.b)
+    // CHECK: 1 2
+    let pd = pick_foo(nil, f2)
+    print(pd.a, pd.b)
+    // CHECK: 7 8
+
+    // Foo? default constructed by ??: only on the nil path
+    let mf = make_foo(nil)
+    print(mf.a, mf.b)
+    // CHECK: 9 9
+    let mf2 = make_foo(f1)
+    print(mf2.a, mf2.b)
+    // CHECK: 1 2
+
+    // rhs laziness with a side-effecting class default
+    let pl = pick_loud(f1)
+    // CHECK-NOT: built
+    print(pl.a)
+    // CHECK: 1
+    let pl2 = pick_loud(nil)
+    // CHECK: built
+    print(pl2.a)
+    // CHECK: 0
+
+    // list[Foo]? parameter and list default
+    let l1 = list[Foo](f1)
+    let l2 = list[Foo](f1, f2)
+    print(pick_list(l1, l2).len())
+    // CHECK: 1
+    print(pick_list(nil, l2).len())
+    // CHECK: 2
+    print(make_list(nil).len())
+    // CHECK: 0
+    print(make_list(l1).len())
+    // CHECK: 1
+
+    // ?? inside a method body and on an optional field access
+    let bar1 = Bar(10)
+    let bar2 = Bar(nil)
+    print(bar1.get_or(3))
+    // CHECK: 10
+    print(bar2.get_or(3))
+    // CHECK: 3
+    print(field_or(bar1, 5))
+    // CHECK: 10
+    print(field_or(bar2, 5))
+    // CHECK: 5
+}

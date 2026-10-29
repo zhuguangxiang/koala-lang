@@ -491,6 +491,21 @@ func must(v int?) int {
 }
 ```
 
+The `??` operator coalesces: `a ?? b` yields `a` when `a` is non-nil and otherwise `b`. The
+left operand is evaluated exactly once, the right operand only when the left is `nil`:
+
+```kl
+func name_of(u User?) str {
+    return u?.name ?? "anon"      // "anon" when u is nil or u.name is nil
+}
+
+let timeout = cfg?.timeout ?? 30  // int; the default is evaluated lazily
+```
+
+`T? ?? T` has the unwrapped type `T`; when both operands stay optional (`T? ?? U?`) the result
+is optional again, so `??` chains: `a ?? b ?? c`. A `nil` operand is folded at compile time —
+`nil ?? x` is `x` and `x ?? nil` is `x`.
+
 ### Union Types
 
 A union type `A | B` lets a value be one of several concrete types. It is the sanctioned way to

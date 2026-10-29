@@ -1,0 +1,35 @@
+// RUN: ! koalac %s | filecheck %s
+//
+// Type-checking diagnostics for the `??` nil-coalescing operator (Step 4
+// semantics). Value and typeof() checks live in test/test-run/test_coalesce.kl,
+// which stays XFAIL until IR lowering (Step 5) lands.
+//
+// Parse-time diagnostics are emitted before semantic ones, so the grammar
+// recovery error (e4 below) is checked first regardless of file position;
+// the semantic diagnostics then follow in source order.
+// NOTE: patterns match the message body only -- the "error: " / "warning: "
+// prefix embeds ANSI resets (common.h), same convention as other test-kl files.
+// CHECK: expected an expr.
+// CHECK: default value type is not compatible with unwrapped type for '??' operator.
+// CHECK: default value type is not compatible with unwrapped type for '??' operator.
+// CHECK: left operand of '??' must be an optional type.
+
+func main() {
+    let a int? = nil
+
+    // e1: rhs type must be compatible with the unwrapped lhs type
+    let e1 int = a ?? "str"
+
+    // e2: a chain type-checks pairwise; the inner `a ?? b` stays int? and is
+    // fine, the outer `?? "s"` mismatches
+    let b int? = nil
+    let e2 int = a ?? b ?? "s"
+
+    // e3: non-optional lhs is rejected: `??` requires an optional left
+    // operand, a never-nil lhs would make the rhs dead code
+    let c int = 5
+    let e3 int = c ?? "s"
+
+    // e4: grammar recovery for a missing rhs operand (parse-time diagnostic)
+    let e4 int = a ?? ;
+}

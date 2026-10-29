@@ -638,6 +638,12 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
                     log_insn(insn);
                     KlrValue *const_res = klr_const_bool(1, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if ((lval->which == CONST_NONE) != (rval->which == CONST_NONE)) {
+                    // nil is only equal to nil: a known non-nil constant never is
+                    log_info("fold binary cmp_eq(nil-mixed) insn to const bool:");
+                    log_insn(insn);
+                    KlrValue *const_res = klr_const_bool(0, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }
             break;
@@ -678,6 +684,12 @@ static int do_fold(KlrInsn *insn, KlrFunc *fn)
                     log_info("fold binary cmp_ne(nil) insn to const bool:");
                     log_insn(insn);
                     KlrValue *const_res = klr_const_bool(0, fn->module);
+                    replace_all_uses_with(const_res, (KlrValue *)insn);
+                } else if ((lval->which == CONST_NONE) != (rval->which == CONST_NONE)) {
+                    // nil is only equal to nil: a known non-nil constant never is
+                    log_info("fold binary cmp_ne(nil-mixed) insn to const bool:");
+                    log_insn(insn);
+                    KlrValue *const_res = klr_const_bool(1, fn->module);
                     replace_all_uses_with(const_res, (KlrValue *)insn);
                 }
             }

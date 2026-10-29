@@ -3821,6 +3821,114 @@ static void parse_const_placeholder(ParserState *ps, Expr *exp)
     exp->sym = get_symbol_by_id(exp->ts->sym_id);
 }
 
+static void parse_coalesce(ParserState *ps, Expr *exp)
+{
+    CoalesceExpr *co = (CoalesceExpr *)exp;
+    Expr *lhs = co->lhs;
+    Expr *rhs = co->rhs;
+
+    /* operands may be NULL after the `coalesce_expr COALESCE error` recovery
+     * rule; the error is already reported. */
+    if (!lhs || !rhs) return;
+
+    lhs->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, lhs);
+    if (!lhs->ts) return;
+
+    /* `src_ts` is the unwrapped value type of lhs:
+     *   - lhs is `T?`         => src_ts = T
+     *   - lhs is non-optional => rejected: `??` requires an optional lhs, a
+     *                            never-nil lhs makes the rhs dead code; the
+     *                            only exception is a shadow variable known to
+     *                            be nil, whose static type is non-optional
+     *   - lhs is bare `nil`   => src_ts = NULL, the result takes rhs type */
+    TypeSpec *src_ts = NULL;
+
+    if (!type_is_optional(lhs->ts)) {
+        Symbol *sym = lhs->sym;
+        if (sym && sym->kind == SYM_SHADOW_VAR) {
+            /* unlike `!`, a shadow variable known to be nil is a legitimate
+             * `\?\?` operand: nil-coalescing is designed exactly for that;
+             * a shadow variable known to be non-nil is rejected like any
+             * other never-nil lhs. */
+            ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)sym;
+            log_info("  note: symbol '%s' is a shadow variable.", sym->name);
+            log_info("  value is nil: %s", shadow_sym->is_null ? "true" : "false");
+            if (!shadow_sym->is_null) {
+                kl_error(co->loc, "'\?\?' operator cannot be applied when value is never nil.");
+                return;
+            }
+        } else {
+            /* the rhs would be dead code: `??` on a value that can never be
+             * nil is meaningless, reject it instead of silently degrading. */
+            kl_error(co->loc, "left operand of '\?\?' must be an optional type.");
+            return;
+        }
+        src_ts = lhs->ts;
+    } else {
+        src_ts = lhs->ts->opt.src;
+    }
+
+    /* give rhs a type hint so literal defaults get the concrete type */
+    rhs->ctx = EXPR_CTX_LOAD;
+    if (src_ts && rhs->kind == EXPR_LITERAL_KIND) rhs->expected = src_ts;
+    parser_visit_expr(ps, rhs);
+    if (!rhs->ts) return;
+
+    if (!src_ts) {
+        /* lhs is bare `nil`: the result is simply rhs type */
+        exp->ts = rhs->ts;
+        exp->sym = get_symbol_by_id(exp->ts->sym_id);
+        log_info("'\?\?' operator resolved, lhs is nil type, take rhs type.");
+        log_type_spec(exp->ts);
+        return;
+    }
+
+    if (type_is_optional(rhs->ts)) {
+        TypeSpec *rhs_src = rhs->ts->opt.src;
+        if (!rhs_src) {
+            /* rhs is bare `nil`: `T? ?? nil` stays `T?` */
+            exp->ts = lhs->ts;
+            exp->sym = lhs->sym;
+            log_info("'\?\?' operator resolved, rhs is nil type, take lhs type.");
+            log_type_spec(exp->ts);
+            return;
+        }
+        /* chained form: `T? ?? U?` stays optional, so `a ?? b ?? c` needs no
+         * parentheses; unwrapped types must be compatible. */
+        if (!type_spec_compatible(src_ts, rhs_src)) {
+            kl_error(co->loc, "two optional types are not compatible for '\?\?' operator.");
+            log_info("lhs type:");
+            log_type_spec(lhs->ts);
+            log_info("rhs type:");
+            log_type_spec(rhs->ts);
+            return;
+        }
+        exp->ts = rhs->ts;
+        exp->sym = lhs->sym;
+        log_info("'\?\?' operator resolved, rhs is optional, result stays optional.");
+        log_type_spec(exp->ts);
+        return;
+    }
+
+    /* `T? ?? T` gives `T`: rhs provides the non-optional default value */
+    if (!type_spec_compatible(src_ts, rhs->ts)) {
+        kl_error(co->loc,
+                 "default value type is not compatible with unwrapped type for '\?\?' "
+                 "operator.");
+        log_info("lhs unwrapped type:");
+        log_type_spec(src_ts);
+        log_info("rhs type:");
+        log_type_spec(rhs->ts);
+        return;
+    }
+
+    exp->ts = src_ts;
+    exp->sym = lhs->sym;
+    log_info("'\?\?' operator resolved, unwrap optional type with default value.");
+    log_type_spec(exp->ts);
+}
+
 void parser_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -3850,6 +3958,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_AS_KIND]      = parse_as,
         [EXPR_IN_KIND]      = parse_in,
         [EXPR_BANG_KIND]    = parse_bang,
+        [EXPR_COALESCE_KIND] = parse_coalesce,
         [EXPR_CONST_PLACEHOLDER] = parse_const_placeholder,
     };
     /* clang-format on */

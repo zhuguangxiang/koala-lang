@@ -1,0 +1,116 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s
+//
+// IR lowering of the `??` nil-coalescing operator (emit_ir_coalesce):
+// a short-circuiting CFG diamond -- cmpne against nil, the non-nil path
+// unwraps with the same cast `!` uses, the nil path evaluates the rhs
+// (lazily) -- joined by the result local where the SSA pass inserts the
+// phi. Compile-time folds: a bare `nil` lhs collapses to the rhs, a bare
+// `nil` rhs aliases the lhs (`a ?? nil` is exactly `a`). The chained form
+// `T? ?? U?` keeps an optional result so nil-ness survives.
+// Compile-side checks of the raw lowering; parameter shapes (int? / Foo? /
+// list[Foo]?) across all backend stages live in test_ir_coalesce_param.kl
+// and test_ir_coalesce_cgen.kl, runtime semantics in test-run/test_coalesce.kl.
+
+func f_normal(a int?) int {
+    return a ?? 5
+}
+
+func f_chain(a int?, b int?) int? {
+    return a ?? b
+}
+
+func f_fold_lhs() int {
+    return nil ?? 5
+}
+
+func f_fold_rhs(a int?) int? {
+    return a ?? nil
+}
+
+func f_nested(b int?, d int?) int {
+    return (b ?? d) ?? 7
+}
+
+// `T? ?? T`: full diamond, unwrap cast on the non-nil path, the constant
+// default is moved only on the nil path.
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @f_normal(%a int64?) int64 {
+// CHECK: %bb0(entry):
+// CHECK: %coalesce = local int64
+// CHECK: %0 = cmpne %a int64?, nil
+// CHECK: branch %0 bool, label %bb1, label %bb2
+//
+// CHECK: %bb1(coalesce-unwrap):
+// CHECK: %1 = cast %a int64? to int64
+// CHECK: move %coalesce int64, %1 int64
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb2(coalesce-rhs):
+// CHECK: move %coalesce int64, 5 int64
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK: ret %coalesce int64
+
+// `T? ?? U?` chained form: the result stays optional; with the same
+// unwrapped type the lhs optional value moves as-is (no cast).
+// CHECK-LABEL: func @f_chain(%a int64?, %b int64?) int64? {
+// CHECK: %bb0(entry):
+// CHECK: %coalesce = local int64?
+// CHECK: %0 = cmpne %a int64?, nil
+// CHECK: branch %0 bool, label %bb1, label %bb2
+//
+// CHECK: %bb1(coalesce-unwrap):
+// CHECK: move %coalesce int64?, %a int64?
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb2(coalesce-rhs):
+// CHECK: move %coalesce int64?, %b int64?
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK: ret %coalesce int64?
+
+// fold: bare `nil` lhs -- the whole expression collapses to the rhs
+// constant, no diamond at all.
+// CHECK-LABEL: func @f_fold_lhs() int64 {
+// CHECK: %bb0(entry):
+// CHECK: ret 5 int64
+
+// fold: bare `nil` rhs -- `a ?? nil` aliases the lhs optional value.
+// CHECK-LABEL: func @f_fold_rhs(%a int64?) int64? {
+// CHECK: %bb0(entry):
+// CHECK: ret %a int64?
+
+// nested `(b ?? d) ?? 7`: the inner chained diamond feeds the outer
+// normal-form diamond, whose unwrap path casts the inner result.
+// CHECK-LABEL: func @f_nested(%b int64?, %d int64?) int64 {
+// CHECK: %bb0(entry):
+// CHECK: %coalesce = local int64?
+// CHECK: %0 = cmpne %b int64?, nil
+// CHECK: branch %0 bool, label %bb1, label %bb2
+//
+// CHECK: %bb1(coalesce-unwrap):
+// CHECK: move %coalesce int64?, %b int64?
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb2(coalesce-rhs):
+// CHECK: move %coalesce int64?, %d int64?
+// CHECK: jmp label %bb3
+//
+// CHECK: %bb3(coalesce-end):                             ;; preds = %bb1, %bb2
+// CHECK: %coalesce = local int64
+// CHECK: %1 = cmpne %coalesce int64?, nil
+// CHECK: branch %1 bool, label %bb4, label %bb5
+//
+// CHECK: %bb4(coalesce-unwrap):                          ;; preds = %bb3
+// CHECK: %2 = cast %coalesce int64? to int64
+// CHECK: move %coalesce int64, %2 int64
+// CHECK: jmp label %bb6
+//
+// CHECK: %bb5(coalesce-rhs):                             ;; preds = %bb3
+// CHECK: move %coalesce int64, 7 int64
+// CHECK: jmp label %bb6
+//
+// CHECK: %bb6(coalesce-end):                             ;; preds = %bb4, %bb5
+// CHECK: ret %coalesce int64

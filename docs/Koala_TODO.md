@@ -1677,18 +1677,10 @@ Bugs seen during the `koala.y` recovery / memory work and the tuple work. The tu
 bugs are in §32.4 (items 9–11: `==` on tuples, the VM crash on `is` with an `any` local, the
 isel failure for `v = nil` under `if v != nil`).
 
-1. **`a ?: b` evaluates to `a`.**
-   ```koala
-   let x int? = nil
-   let y = x ?: 5
-   print(y)   // prints nil, should print 5
-   ```
-   Cause: the lexer returns `OPT_DEF` for `?:`, but the action of `or_expr OPT_DEF or_expr`
-   (`koala.y`) was never written (its old body was commented out). It keeps the default
-   `$$ = $1` and frees `b`, so no error is reported and the result is just `a`, with `a`'s
-   optional type. Fix: implement it (a new expr: `a` must be `T?`, `b` must be `T`, the result
-   is `T`; irgen: a nil check and a branch), or report "'?:' is not supported yet." until then.
-   `?:` is not in the 3 docs.
+1. **`a ?: b` removed (2026-10-29).** The `?:` token (`OPT_DEF`) and the `or_expr OPT_DEF or_expr`
+   rule were deleted from `koala.l` / `koala.y`; the rule used to silently evaluate to `a`.
+   `?:` conflicts with the Elvis meaning in other languages. A null-coalescing `a ?? b` may be
+   added later.
 
 2. **Memory leaks on every compile, outside the parser.** `valgrind --leak-check=full koalac`
    on a valid program reports about 22–29 KB "definitely lost". The parser and the AST frees
