@@ -1,0 +1,30 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+enum A {
+    X,
+    Y = 5,
+}
+
+func f(a A) bool {
+    return a == A.Y
+}
+
+func g() {
+    var v A = A.X
+    v = 5
+    let i int = A.Y
+    print(f(v), i)
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @f(%a A) bool {
+// CHECK: %0 = cmpeq %a A, 5 int64
+// CHECK: ret %0 bool
+
+// CHECK-LABEL: func @g() <NO-TYPE> {
+// CHECK: %v = local A
+// CHECK: move %v A, 0 int64
+// CHECK: move %v A, 5 int64
+// CHECK: %i = local [immutable] int64
+// CHECK: move %i int64, 5 int64
+// CHECK: %0 = call @f, %v A

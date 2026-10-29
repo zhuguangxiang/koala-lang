@@ -83,6 +83,10 @@ static void __free_inner_stbl(Symbol *sym)
             ASSERT(!sym->stbl);
             break;
         }
+        case SYM_ENUM: {
+            ASSERT(!sym->stbl);
+            break;
+        }
         default: {
             UNREACHABLE();
             break;
@@ -169,6 +173,11 @@ static void __symbol_free(Symbol *sym)
         }
         case SYM_IMPORTED: {
             // nothing
+            ASSERT(!sym->stbl);
+            break;
+        }
+        case SYM_ENUM: {
+            vector_fini(&((EnumSymbol *)sym)->members);
             ASSERT(!sym->stbl);
             break;
         }
@@ -355,6 +364,25 @@ KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait)
         vector_init_ptr(&sym->scm);
         vector_init_ptr(&sym->intf_table);
         vector_init_ptr(&sym->not_impl);
+        add_to_global(sym);
+    }
+
+    return sym;
+}
+
+EnumSymbol *stbl_add_enum(HashMap *stbl, char *name, int flags)
+{
+    EnumSymbol *sym = mm_alloc_obj(sym);
+    hashmap_entry_init(sym, str_hash(name));
+    sym->kind = SYM_ENUM;
+    sym->name = name;
+
+    if (hashmap_put_absent(stbl, sym) < 0) {
+        mm_free(sym);
+        sym = NULL;
+    } else {
+        sym->flags = flags;
+        vector_init(&sym->members, sizeof(EnumMemberSym));
         add_to_global(sym);
     }
 
@@ -590,6 +618,10 @@ void stbl_show(HashMap *stbl)
             case SYM_INSTANCE_FUNC: {
                 InstanceFuncSymbol *inst_fn = (InstanceFuncSymbol *)sym;
                 log_info("function instance symbol: '%s'", sym->name);
+                break;
+            }
+            case SYM_ENUM: {
+                log_info("enum symbol: '%s'", sym->name);
                 break;
             }
             default: {

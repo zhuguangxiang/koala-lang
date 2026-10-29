@@ -299,6 +299,11 @@ static void write_meta(HashMap *stbl, KlcFile *klc)
                 break;
             }
 
+            case SYM_ENUM: {
+                // enums are not exported yet
+                break;
+            }
+
             default: {
                 UNREACHABLE();
                 break;

@@ -1,0 +1,49 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Enum compound assignment and sealed assignment.
+
+enum A {
+    X,
+}
+
+enum B {
+    X,
+}
+
+func enum_errors() {
+    var i int = 1
+    var v A = A.X
+    let a A = A.X
+    let bv B = B.X
+    v += a
+    // CHECK: enum does not support compound assignment.
+    v -= a
+    // CHECK: enum does not support compound assignment.
+    v *= a
+    // CHECK: enum does not support compound assignment.
+    v /= a
+    // CHECK: enum does not support compound assignment.
+    v %= a
+    // CHECK: enum does not support compound assignment.
+    v &= a
+    // CHECK: enum does not support compound assignment.
+    v |= a
+    // CHECK: enum does not support compound assignment.
+    v ^= a
+    // CHECK: enum does not support compound assignment.
+    v <<= a
+    // CHECK: enum does not support compound assignment.
+    v >>= a
+    // CHECK: enum does not support compound assignment.
+    v += 1
+    // CHECK: enum does not support compound assignment.
+    i += a
+    // CHECK: enum does not support compound assignment.
+    v = 6
+    // CHECK: 6 is not a valid value of enum 'A'
+    v = i
+    // CHECK: Types of two sides are not matched.
+    v = bv
+    // CHECK: Types of two sides are not matched.
+    v = B.X
+    // CHECK: Types of two sides are not matched.
+}

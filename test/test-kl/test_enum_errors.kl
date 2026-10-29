@@ -1,0 +1,97 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Enum is a sealed int64 type, only comparison is allowed.
+
+enum A {
+    X,
+    Y = 5,
+    Z,
+}
+
+enum B {
+    X,
+}
+
+enum Bad1 {
+    lower,
+    // CHECK: enum member 'lower' must be upper case letters, digits or '_'
+}
+
+enum Bad2 {
+    M,
+    M,
+    // CHECK: duplicate enum member 'M'
+}
+
+enum Bad3 {
+    N = 5,
+    P = 5,
+    // CHECK: enum member 'P' has the same value 5 as 'N'
+}
+
+enum Bad4 {
+    Q = 9223372036854775807,
+    R,
+    // CHECK: enum member 'R' overflows int64
+}
+
+enum B {
+    Y,
+    // CHECK: redefinition of 'B'
+}
+
+func f(a A) {
+}
+
+func enum_errors() {
+    var i int = 1
+    let a A = A.X
+    let b A = 7
+    // CHECK: 7 is not a valid value of enum 'A'
+    let c A = i
+    // CHECK: Types of two sides are not matched.
+    let d A = B.X
+    // CHECK: Types of two sides are not matched.
+    f(B.X)
+    // CHECK: Incompatible type: expected 'A', but got 'B'.
+    let bv B = B.X
+    let e1 A = bv
+    // CHECK: Types of two sides are not matched.
+    f(bv)
+    // CHECK: Incompatible type: expected 'A', but got 'B'.
+    let e2 = a == bv
+    // CHECK: cannot compare different enums.
+    let e = A.X == B.X
+    // CHECK: cannot compare different enums.
+    let gt1 = A.X > B.X
+    // CHECK: cannot compare different enums.
+    let gt2 = a >= bv
+    // CHECK: cannot compare different enums.
+    let lt1 = a < bv
+    // CHECK: cannot compare different enums.
+    let g = A.X + 1
+    // CHECK: enum only supports comparison operators, not '+'.
+    let h = -A.X
+    // CHECK: enum does not support unary operators.
+    i += A.X
+    // CHECK: enum does not support compound assignment.
+    let g2 = a + a
+    // CHECK: enum only supports comparison operators, not '+'.
+    let h2 = -a
+    // CHECK: enum does not support unary operators.
+    i += a
+    // CHECK: enum does not support compound assignment.
+    let j = A.Q
+    // CHECK: enum 'A' has no member 'Q'
+    let k = A
+    // CHECK: enum 'A' is not a value, use 'A.MEMBER'
+    let l A[int] = A.X
+    // CHECK: 'A' is an enum, not a generic type
+    A.X = 1
+    // CHECK: cannot assign to enum member 'X'
+    let m = A?.X
+    // CHECK: enum member can't use `!.` or `?.`
+    let n = A!.X
+    // CHECK: enum member can't use `!.` or `?.`
+    a.foo()
+    // CHECK: enum 'A' has no members.
+}

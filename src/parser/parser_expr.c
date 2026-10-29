@@ -101,6 +101,11 @@ static void parse_ident(ParserState *ps, Expr *exp)
         return;
     }
 
+    if (sym->kind == SYM_ENUM) {
+        kl_error(id->loc, "enum '%s' is not a value, use '%s.MEMBER'", id->name, id->name);
+        return;
+    }
+
     if (sym->kind == SYM_VAR) {
         if (sym->status == SYM_UNRESOLVED) {
             parse_stmt(ps, sym->arg);
@@ -194,6 +199,13 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
     //     return;
     // }
 
+    /* an enum literal is parsed as an int64 first, the member check is done last */
+    TypeSpec *enum_ts = NULL;
+    if (type_is_enum(ts)) {
+        enum_ts = ts;
+        ts = int64_type_spec();
+    }
+
     __int128 val = lit->ival_128;
     lit->ival = (uint64_t)val;
 
@@ -252,6 +264,18 @@ static void parse_lit_int(ParserState *ps, LitExpr *lit)
                      (sign ? "int" : "uint"), width * 8);
             return;
         }
+    }
+
+    if (enum_ts) {
+        EnumSymbol *enum_sym = get_symbol_by_id(enum_ts->sym_id);
+        EnumMemberSym *item;
+        vector_foreach_ptr(item, &enum_sym->members) {
+            if (item->val == (int64_t)val) {
+                lit->ts = enum_ts;
+                return;
+            }
+        }
+        kl_error(lit->loc, "%s is not a valid value of enum '%s'", lit->orginal, enum_sym->name);
     }
 }
 
@@ -1978,6 +2002,31 @@ static void copy_tps(Vector *dst, Vector *src)
     }
 }
 
+static void parse_enum_member(ParserState *ps, DotExpr *dot, EnumSymbol *enum_sym)
+{
+    Expr *exp = (Expr *)dot;
+    if (dot->opt_or_bang != DOT_NORMAL) {
+        kl_error(dot->id.loc, "enum member can't use `!.` or `?.`");
+        return;
+    }
+
+    if (exp->ctx == EXPR_CTX_STORE || exp->ctx == EXPR_CTX_LOAD_STORE) {
+        kl_error(dot->id.loc, "cannot assign to enum member '%s'", dot->id.name);
+        return;
+    }
+
+    EnumMemberSym *item;
+    vector_foreach_ptr(item, &enum_sym->members) {
+        if (str_equal(item->name, dot->id.name)) {
+            exp->ts = enum_sym->ts;
+            exp->sym = (Symbol *)enum_sym;
+            return;
+        }
+    }
+
+    kl_error(dot->id.loc, "enum '%s' has no member '%s'", enum_sym->name, dot->id.name);
+}
+
 static void parse_dot(ParserState *ps, Expr *exp)
 {
     DotExpr *dot = (DotExpr *)exp;
@@ -1990,6 +2039,14 @@ static void parse_dot(ParserState *ps, Expr *exp)
      * this handler with a NULL lhs. The error has already been reported, just
      * stop analysing the expression instead of dereferencing NULL. */
     if (!lhs) return;
+
+    if (lhs->kind == EXPR_ID_KIND) {
+        Symbol *esym = find_symbol(ps, &((IdentExpr *)lhs)->id);
+        if (esym && esym->kind == SYM_ENUM) {
+            parse_enum_member(ps, dot, (EnumSymbol *)esym);
+            return;
+        }
+    }
 
     lhs->ctx = EXPR_CTX_LOAD;
     parser_visit_expr(ps, lhs);
@@ -2092,6 +2149,10 @@ static void parse_dot(ParserState *ps, Expr *exp)
     }
 
     HashMap *lhs_stbl = lhs_ts_sym->stbl;
+    if (lhs_ts_sym->kind == SYM_ENUM) {
+        kl_error(lhs->loc, "enum '%s' has no members.", lhs_ts_sym->name);
+        return;
+    }
     Ident *ident = &dot->id;
     Symbol *sym = stbl_get(lhs_stbl, ident->name);
     if (sym) {
@@ -3065,6 +3126,11 @@ static void parse_unary(ParserState *ps, Expr *exp)
 
     TypeSpec *orig_ts = e->ts;
 
+    if (type_is_enum(e->ts)) {
+        kl_error(unary->op_loc, "enum does not support unary operators.");
+        return;
+    }
+
     if (op == UNARY_PLUS) {
         if (e->ts->kind != TYPE_INT && e->ts->kind != TYPE_FLOAT) {
             kl_error(unary->op_loc, "unary '+' operator requires int or float type.");
@@ -3180,6 +3246,22 @@ static void parse_binary(ParserState *ps, Expr *exp)
     }
 
     if (!lhs->ts || !rhs->ts) return;
+
+    if (type_is_enum(lhs->ts) || type_is_enum(rhs->ts)) {
+        int is_cmp = (op >= BINARY_GT && op <= BINARY_NEQ);
+        if (!is_cmp) {
+            kl_error(bin->op_loc, "enum only supports comparison operators, not '%s'.",
+                     get_binary_op_str(op));
+            return;
+        }
+        if (type_is_enum(lhs->ts) && type_is_enum(rhs->ts) && lhs->ts != rhs->ts) {
+            kl_error(bin->op_loc, "cannot compare different enums.");
+            return;
+        }
+        /* all enum operations are int64 operations */
+        if (type_is_enum(lhs->ts)) lhs->ts = int64_type_spec();
+        if (type_is_enum(rhs->ts)) rhs->ts = int64_type_spec();
+    }
 
     // Promote integer and float types for binary operations.
     TypeSpec *orig_ts = lhs->ts;

@@ -479,25 +479,6 @@ static void parse_link(ParserState *ps, Stmt *stmt)
 }
 
 /**
- * Determines if a TypeSpec is a value type.
- * Value types (primitive types like int, float, bool) require exact
- * memory layout matching and are strictly invariant as generic parameters.
- */
-static int is_value_type(TypeSpec *type)
-{
-    if (!type) return 0;
-    switch (type->kind) {
-        case TYPE_INT:
-        case TYPE_FLOAT:
-        case TYPE_BFLOAT16:
-        case TYPE_BOOL:
-            return 1;
-        default:
-            return 0;
-    }
-}
-
-/**
  * Checks for strict identity between two types.
  * Required for value-type generic parameters to ensure binary compatibility.
  */
@@ -577,6 +558,9 @@ static int _optional_compatible_check(TypeSpec *dst, TypeSpec *src)
  */
 static int _diff_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
 {
+    /* enum -> int is allowed only for int64, its underlying type */
+    if (src->kind == TYPE_ENUM) return type_spec_compatible(dst, int64_type_spec());
+
     /* A type parameter src satisfies dst via one of its bounds */
     if (src->kind == TYPE_GENERIC_VAR) {
         TypeParamSymbol *sym = get_symbol_by_id(src->sym_id);
@@ -841,6 +825,10 @@ static int _same_kind_compatible_check(TypeSpec *dst, TypeSpec *src)
         case TYPE_UNION:
             return compatible_union(dst, src);
 
+        /* enum is sealed: dst != src here means different enums */
+        case TYPE_ENUM:
+            return 0;
+
         default:
             log_error(
                 "_same_kind_compatible_check: unhandled TypeKind %d "
@@ -1101,6 +1089,15 @@ TypeSpec *resolve_type(ParserState *ps, TypeSpec *_ts)
             log_type_spec(ret);
             return ret;
         }
+    } else if (sym->kind == SYM_ENUM) {
+        if (tp_args != NULL) {
+            kl_error(_ts->loc, "'%s' is an enum, not a generic type", _ts->unresolved.name.name);
+            vector_destroy(tp_args);
+            return NULL;
+        }
+        TypeSpec *ret = sym->ts;
+        type_spec_free(_ts);
+        return ret;
     } else {
         UNREACHABLE();
     }
@@ -3261,6 +3258,14 @@ static int parse_simple_assign(ParserState *ps, AssignStmt *assign)
     return -1;
 
 check_compatiable:
+    if (rhs->kind == EXPR_LITERAL_KIND) {
+        log_info("rhs is literal, parse literal expr again with the type of lhs");
+        rhs->ctx = EXPR_CTX_LOAD;
+        rhs->expected = lhs->ts;
+        parser_visit_expr(ps, rhs);
+        if (!rhs->ts) return -1;
+    }
+
     if (!type_spec_compatible(lhs->ts, rhs->ts)) {
         if (!type_is_optional(lhs->ts) && expr_is_literal_null(rhs)) {
             kl_error(assign->loc, "Cannot assign nil to non-nullable type.");
@@ -3387,6 +3392,11 @@ static int parse_inplace_assign(ParserState *ps, AssignStmt *assign)
     Expr *lhs = assign->lhs;
     Expr *rhs = assign->rhs;
     AssignOpKind op = assign->op;
+
+    if (type_is_enum(lhs->ts) || type_is_enum(rhs->ts)) {
+        kl_error(assign->loc, "enum does not support compound assignment.");
+        return -1;
+    }
 
     Symbol *kls_sym = get_symbol_by_id(lhs->ts->sym_id);
     ASSERT(kls_sym);
@@ -3629,6 +3639,11 @@ static void parse_continue(ParserState *ps, Stmt *s)
     }
 }
 
+// enum is fully declared when the top level statements are collected
+static void parse_enum_decl(ParserState *ps, Stmt *stmt)
+{
+}
+
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -3657,6 +3672,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
         [STMT_IF_LET_KIND]    = parse_if_let,
         [STMT_WHILE_LET_KIND] = parse_while_let,
         [STMT_TUPLE_DECL_KIND] = parse_tuple_decl,
+        [STMT_ENUM_KIND]      = parse_enum_decl,
     };
     /* clang-format on */
 
@@ -4099,6 +4115,72 @@ static Symbol *_add_global(ParserState *ps, HashMap *stbl, VarDeclStmt *var)
     return sym;
 }
 
+static int enum_name_is_valid(char *name)
+{
+    for (char *p = name; *p; ++p) {
+        int upper = (*p >= 'A' && *p <= 'Z') || *p == '_';
+        int digit = (p != name && *p >= '0' && *p <= '9');
+        if (!upper && !digit) return 0;
+    }
+    return 1;
+}
+
+static Symbol *_add_enum(ParserState *ps, HashMap *stbl, EnumDeclStmt *e)
+{
+    Ident *id = &e->id;
+    EnumSymbol *sym = stbl_add_enum(stbl, id->name, parse_flags(&e->flags));
+    if (!sym) {
+        kl_error(id->loc, "redefinition of '%s'", id->name);
+        return NULL;
+    }
+
+    sym->path = ps->pm->pkg_path;
+    sym->status = SYM_RESOLVED;
+    sym->ts = enum_type_spec(sym->id);
+
+    int64_t next = 0;
+    int overflow = 0;
+    EnumMember *m;
+    vector_foreach_ptr(m, e->members) {
+        Ident *mid = &m->id;
+        if (!enum_name_is_valid(mid->name)) {
+            kl_error(mid->loc, "enum member '%s' must be upper case letters, digits or '_'",
+                     mid->name);
+            continue;
+        }
+
+        if (!m->has_val && overflow) {
+            kl_error(mid->loc, "enum member '%s' overflows int64", mid->name);
+            continue;
+        }
+        int64_t val = m->has_val ? m->val : next;
+
+        int dup = 0;
+        EnumMemberSym *old;
+        vector_foreach_ptr(old, &sym->members) {
+            if (str_equal(old->name, mid->name)) {
+                kl_error(mid->loc, "duplicate enum member '%s'", mid->name);
+                dup = 1;
+                break;
+            }
+            if (old->val == val) {
+                kl_error(mid->loc, "enum member '%s' has the same value %lld as '%s'", mid->name,
+                         (long long)val, old->name);
+                dup = 1;
+                break;
+            }
+        }
+        if (dup) continue;
+
+        EnumMemberSym item = { mid->name, val };
+        vector_push_back(&sym->members, &item);
+        overflow = (val == INT64_MAX);
+        next = overflow ? 0 : val + 1;
+    }
+
+    return (Symbol *)sym;
+}
+
 void parse_top_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -4139,6 +4221,12 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
             vector_push_back(&ps->kls_stmts, &stmt);
             sym->ps = ps;
             sym->arg = kls;
+            break;
+        }
+        case STMT_ENUM_KIND: {
+            sym = _add_enum(ps, ps->pm->stbl, (EnumDeclStmt *)stmt);
+            if (!sym) return;
+            sym->ps = ps;
             break;
         }
         case STMT_IMPORT_KIND: {

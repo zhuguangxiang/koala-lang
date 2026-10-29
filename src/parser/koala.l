@@ -253,6 +253,7 @@ static char hex2byte(const char *s)
 "func"      { YY_RETURN(FUNC);      }
 "class"     { YY_RETURN(CLASS);     }
 "trait"     { YY_RETURN(TRAIT);     }
+"enum"      { YY_RETURN(ENUM);      }
 "if"        { YY_RETURN(IF);        }
 "else"      { YY_RETURN(ELSE);      }
 "while"     { YY_RETURN(WHILE);     }

@@ -391,6 +391,8 @@ typedef enum _StmtKind {
     STMT_CLASS_KIND,
     /* trait */
     STMT_TRAIT_KIND,
+    /* enum */
+    STMT_ENUM_KIND,
     /* return */
     STMT_RETURN_KIND,
     /* assignment */
@@ -663,6 +665,20 @@ Stmt *stmt_from_type(StmtKind kind, IdentType name, Vector *tps, Vector *bases, 
     stmt_from_type(STMT_CLASS_KIND, name, tps, bases, stmts)
 #define stmt_from_trait(name, tps, bases, stmts) \
     stmt_from_type(STMT_TRAIT_KIND, name, tps, bases, stmts)
+
+typedef struct _EnumMember {
+    Ident id;
+    int has_val;
+    int64_t val;
+} EnumMember;
+
+typedef struct _EnumDeclStmt {
+    STMT_HEAD
+    Ident id;
+    Vector *members; /* EnumMember */
+} EnumDeclStmt;
+
+Stmt *stmt_from_enum(Ident id, Vector *members);
 
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_continue(void);

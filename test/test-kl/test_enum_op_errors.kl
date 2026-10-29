@@ -1,0 +1,53 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Enum only supports comparison operators.
+
+enum A {
+    X,
+}
+
+enum B {
+    X,
+}
+
+func enum_errors() {
+    var i int = 1
+    var v A = A.X
+    let a A = A.X
+    let bv B = B.X
+    let bin0 = a + a
+    // CHECK: enum only supports comparison operators, not '+'.
+    let bin1 = a - a
+    // CHECK: enum only supports comparison operators, not '-'.
+    let bin2 = a * a
+    // CHECK: enum only supports comparison operators, not '*'.
+    let bin3 = a / a
+    // CHECK: enum only supports comparison operators, not '/'.
+    let bin4 = a % a
+    // CHECK: enum only supports comparison operators, not '%'.
+    let bin5 = a & a
+    // CHECK: enum only supports comparison operators, not '&'.
+    let bin6 = a | a
+    // CHECK: enum only supports comparison operators, not '|'.
+    let bin7 = a ^ a
+    // CHECK: enum only supports comparison operators, not '^'.
+    let bin8 = a << a
+    // CHECK: enum only supports comparison operators, not '<<'.
+    let bin9 = a >> a
+    // CHECK: enum only supports comparison operators, not '>>'.
+    let bin10 = a && a
+    // CHECK: enum only supports comparison operators, not '&&'.
+    let bin11 = a || a
+    // CHECK: enum only supports comparison operators, not '||'.
+    let rl = 1 + a
+    // CHECK: enum only supports comparison operators, not '+'.
+    let ri = i * a
+    // CHECK: enum only supports comparison operators, not '*'.
+    let un0 = !a
+    // CHECK: enum does not support unary operators.
+    let un1 = ~a
+    // CHECK: enum does not support unary operators.
+    let un2 = +a
+    // CHECK: enum does not support unary operators.
+    let un3 = -a
+    // CHECK: enum does not support unary operators.
+}

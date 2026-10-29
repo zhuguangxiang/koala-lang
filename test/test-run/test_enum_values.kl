@@ -1,0 +1,52 @@
+// RUN: koala %s | filecheck %s
+// Enum member values: auto increment, explicit and negative values.
+
+enum Color {
+    RED,
+    GREEN,
+    BLUE = 10,
+    ALPHA,
+    NEG = -3,
+    MY_CONST_1,
+}
+
+enum Level { LOW = 1, HIGH = 2 }
+
+func pick(c Color) Color {
+    return c
+}
+
+func is_alpha(c Color) bool {
+    return c == Color.ALPHA
+}
+
+func main() {
+    let a int = Color.RED
+    let b int = Color.GREEN
+    let c int = Color.BLUE
+    let d int = Color.ALPHA
+    let e int = Color.NEG
+    let f int = Color.MY_CONST_1
+    print(a, b, c, d, e, f)
+    // CHECK: 0 1 10 11 -3 -2
+
+    print(is_alpha(11), is_alpha(Color.BLUE), pick(10) == Color.BLUE)
+    // CHECK: true false true
+
+    var cur Color = Color.RED
+    var n = 0
+    while cur != Color.BLUE {
+        n += 1
+        if (n == 1) {
+            cur = Color.GREEN
+        } else {
+            cur = 10
+        }
+    }
+    print(n, cur == Color.BLUE, cur > Color.GREEN)
+    // CHECK: 2 true true
+
+    let lv Level = Level.HIGH
+    print(lv == Level.HIGH, lv < Level.HIGH, lv >= 2)
+    // CHECK: true false true
+}

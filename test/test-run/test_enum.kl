@@ -1,0 +1,31 @@
+// RUN: koala %s | filecheck %s
+// Enum is a sealed int64: same-enum assign, enum -> int, comparison only.
+
+enum A {
+    ICMP,
+    TCP = 5,
+    UDP,
+}
+
+func f(p A) A {
+    return p
+}
+
+func g(i int) int {
+    return i
+}
+
+func main() {
+    let a A = A.ICMP
+    let b A = A.TCP
+    let i int = A.TCP
+    let c A = 6
+    print(a == b, a != b, a < b, a <= b, a > b, a >= b)
+    // CHECK: false true true true false false
+    print(i, c == A.UDP, a < 3, f(b) == A.TCP, g(A.UDP))
+    // CHECK: 5 true true true 6
+    var v A = A.ICMP
+    v = 5
+    print(v == A.TCP)
+    // CHECK: true
+}

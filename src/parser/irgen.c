@@ -337,10 +337,12 @@ static void emit_ir_literal(ParserState *ps, Expr *exp)
 
     switch (lit->which) {
         case LIT_EXPR_INT: {
+            /* an enum literal is an int64 constant at run time */
+            TypeSpec *lit_ts = type_is_enum(lit->ts) ? int64_type_spec() : lit->ts;
             if (lit->sign) {
-                exp->ir_val = klr_const_int(lit->ival, lit->ts, m);
+                exp->ir_val = klr_const_int(lit->ival, lit_ts, m);
             } else {
-                exp->ir_val = klr_const_uint(lit->ival, lit->ts, m);
+                exp->ir_val = klr_const_uint(lit->ival, lit_ts, m);
             }
             break;
         }
@@ -1091,6 +1093,18 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
 {
     DotExpr *dot = (DotExpr *)exp;
     int opt_or_bang = dot->opt_or_bang;
+
+    if (exp->sym && exp->sym->kind == SYM_ENUM) {
+        EnumMemberSym *item;
+        vector_foreach_ptr(item, &((EnumSymbol *)exp->sym)->members) {
+            if (str_equal(item->name, dot->id.name)) {
+                exp->ir_val = klr_const_int((uint64_t)item->val, int64_type_spec(), MOD);
+                SET_IR_LOC(exp->ir_val, exp);
+                return;
+            }
+        }
+        UNREACHABLE();
+    }
 
     Expr *lhs = dot->lhs;
     lhs->ctx = EXPR_CTX_LOAD;
@@ -2797,8 +2811,7 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     if (which == GEN_SEQ) {
         klr_builder_end(&bldr, sc->bb);
         if (vector_size(&s->sym_ids) > 1) {
-            KlrValue *elem =
-                klr_build_seq_get(&bldr, seq_info.seq, seq_info.index, s->elem_ts, "");
+            KlrValue *elem = klr_build_seq_get(&bldr, seq_info.seq, seq_info.index, s->elem_ts, "");
             build_unpack_vars(&bldr, &s->sym_ids, elem, ps);
         } else {
             Symbol *sym = get_loop_var_symbol(s);
@@ -3224,6 +3237,11 @@ static void emit_ir_while_let_stmt(ParserState *ps, Stmt *stmt)
     ps->scope->bb = while_end;
 }
 
+// enum members are folded into int64 constants at their use
+static void emit_ir_enum_decl(ParserState *ps, Stmt *stmt)
+{
+}
+
 static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
 {
     if (!stmt) return;
@@ -3252,6 +3270,7 @@ static void emit_ir_stmt(ParserState *ps, Stmt *stmt)
         [STMT_WHILE_LET_KIND] = emit_ir_while_let_stmt,
         [STMT_TUPLE_DECL_KIND] = emit_ir_tuple_decl,
         [STMT_TUPLE_ASSIGN_KIND] = emit_ir_tuple_assign,
+        [STMT_ENUM_KIND]      = emit_ir_enum_decl,
     };
     /* clang-format on */
 

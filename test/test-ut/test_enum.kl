@@ -1,0 +1,221 @@
+// RUN: koala --test %s
+
+import "std/ut"
+
+enum Proto {
+    ICMP,
+    TCP = 6,
+    UDP = 17,
+    MY_CONST_1,
+}
+
+enum Sign {
+    NEG = -1,
+    ZERO,
+    POS,
+}
+
+enum One { ONLY = 42 }
+
+enum Trailing {
+    P,
+    Q,
+}
+
+enum Inline { R, S }
+
+var g_proto Proto = Proto.TCP
+let g_const Proto = Proto.UDP
+
+func echo(p Proto) Proto {
+    return p
+}
+
+func to_int(i int) int {
+    return i
+}
+
+func is_tcp(p Proto) bool {
+    return p == Proto.TCP
+}
+
+func next_proto(p Proto) Proto {
+    if (p == Proto.ICMP) {
+        return Proto.TCP
+    }
+    if (p == Proto.TCP) {
+        return 17
+    }
+    return Proto.ICMP
+}
+
+class Packet {
+    pub var proto Proto
+    pub var len int
+
+    pub func __init__(p Proto, n int) {
+        proto = p
+        len = n
+    }
+
+    pub func is_udp() bool {
+        return proto == Proto.UDP
+    }
+}
+
+@test
+func test_member_values() {
+    ut.assert_int_eq(Proto.ICMP, 0)
+    ut.assert_int_eq(Proto.TCP, 6)
+    ut.assert_int_eq(Proto.UDP, 17)
+    ut.assert_int_eq(Proto.MY_CONST_1, 18)
+    ut.assert_int_eq(Sign.NEG, -1)
+    ut.assert_int_eq(Sign.ZERO, 0)
+    ut.assert_int_eq(Sign.POS, 1)
+    ut.assert_int_eq(One.ONLY, 42)
+    ut.assert_int_eq(Trailing.Q, 1)
+    ut.assert_int_eq(Inline.S, 1)
+}
+
+@test
+func test_same_enum_assign() {
+    let a Proto = Proto.ICMP
+    let b Proto = Proto.TCP
+    var c Proto = a
+    ut.assert_true(c == Proto.ICMP)
+    c = b
+    ut.assert_true(c == Proto.TCP)
+    c = Proto.UDP
+    ut.assert_true(c == Proto.UDP)
+}
+
+@test
+func test_enum_to_int() {
+    let i int = Proto.TCP
+    ut.assert_int_eq(i, 6)
+    let j int64 = Proto.UDP
+    ut.assert_int_eq(j, 17)
+    ut.assert_int_eq(to_int(Proto.UDP), 17)
+    var k int = 0
+    k = Proto.TCP
+    ut.assert_int_eq(k, 6)
+}
+
+@test
+func test_literal_to_enum() {
+    let a Proto = 6
+    ut.assert_true(a == Proto.TCP)
+    var b Proto = Proto.ICMP
+    b = 17
+    ut.assert_true(b == Proto.UDP)
+    b = 0
+    ut.assert_true(b == Proto.ICMP)
+    ut.assert_true(echo(18) == Proto.MY_CONST_1)
+    let s Sign = -1
+    ut.assert_true(s == Sign.NEG)
+}
+
+@test
+func test_comparison() {
+    let a Proto = Proto.ICMP
+    let b Proto = Proto.TCP
+    ut.assert_true(a == a)
+    ut.assert_false(a == b)
+    ut.assert_true(a != b)
+    ut.assert_false(a != a)
+    ut.assert_true(a < b)
+    ut.assert_false(b < a)
+    ut.assert_true(a <= b)
+    ut.assert_true(a <= a)
+    ut.assert_true(b > a)
+    ut.assert_false(a > b)
+    ut.assert_true(b >= a)
+    ut.assert_true(b >= b)
+}
+
+@test
+func test_compare_with_int() {
+    let a Proto = Proto.TCP
+    var i int = 6
+    ut.assert_true(a == 6)
+    ut.assert_true(6 == a)
+    ut.assert_true(a == i)
+    ut.assert_true(i == a)
+    ut.assert_true(a != 7)
+    ut.assert_true(a > 5)
+    ut.assert_true(a < 7)
+    ut.assert_true(a >= 6)
+    ut.assert_true(a <= i)
+    ut.assert_false(a < 6)
+}
+
+@test
+func test_function_arg_and_return() {
+    let a Proto = Proto.TCP
+    ut.assert_true(echo(a) == Proto.TCP)
+    ut.assert_true(echo(Proto.UDP) == Proto.UDP)
+    ut.assert_true(echo(6) == Proto.TCP)
+    ut.assert_true(is_tcp(a))
+    ut.assert_true(is_tcp(6))
+    ut.assert_false(is_tcp(Proto.UDP))
+    ut.assert_true(next_proto(Proto.ICMP) == Proto.TCP)
+    ut.assert_true(next_proto(Proto.TCP) == Proto.UDP)
+    ut.assert_true(next_proto(Proto.UDP) == Proto.ICMP)
+}
+
+@test
+func test_control_flow() {
+    var p Proto = Proto.ICMP
+    var steps = 0
+    while p != Proto.ICMP || steps == 0 {
+        p = next_proto(p)
+        steps += 1
+    }
+    ut.assert_int_eq(steps, 3)
+
+    if (p == Proto.ICMP) {
+        steps = 100
+    } else {
+        steps = 200
+    }
+    ut.assert_int_eq(steps, 100)
+
+    let r Proto = Proto.UDP
+    var hit = 0
+    if (r >= Proto.TCP && r <= Proto.UDP) {
+        hit = 1
+    }
+    ut.assert_int_eq(hit, 1)
+}
+
+@test
+func test_global() {
+    ut.assert_true(g_proto == Proto.TCP)
+    ut.assert_true(g_const == Proto.UDP)
+    g_proto = Proto.ICMP
+    ut.assert_true(g_proto == Proto.ICMP)
+    g_proto = 17
+    ut.assert_true(g_proto == Proto.UDP)
+    g_proto = Proto.TCP
+}
+
+@test
+func test_class_field() {
+    let p = Packet(Proto.UDP, 10)
+    ut.assert_true(p.proto == Proto.UDP)
+    ut.assert_true(p.is_udp())
+    p.proto = Proto.TCP
+    ut.assert_false(p.is_udp())
+    p.proto = 17
+    ut.assert_true(p.is_udp())
+}
+
+@test
+func test_multiple_enums() {
+    let a Proto = Proto.TCP
+    let s Sign = Sign.POS
+    ut.assert_true(a > Proto.ICMP)
+    ut.assert_true(s > Sign.NEG)
+    ut.assert_true(s == 1)
+    ut.assert_true(a == 6)
+}

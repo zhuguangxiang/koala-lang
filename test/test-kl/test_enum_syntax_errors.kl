@@ -1,0 +1,6 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// An enum must have at least one member.
+
+enum Empty {
+}
+// CHECK: syntax error

@@ -196,6 +196,7 @@ static Stmt *tuple_decl_stmt(ParserState *ps, Vector *ids, int which, Expr *exp,
     ParamDecl *param;
     IdentType kls_name;
     AnnotParam *annot_param;
+    EnumMember enum_member;
 }
 
 %token FROM
@@ -207,6 +208,7 @@ static Stmt *tuple_decl_stmt(ParserState *ps, Vector *ids, int which, Expr *exp,
 %token FUNC
 %token CLASS
 %token TRAIT
+%token ENUM
 %token IF
 %token ELSE
 %token WHILE
@@ -307,6 +309,10 @@ static Stmt *tuple_decl_stmt(ParserState *ps, Vector *ids, int which, Expr *exp,
 %type<stmt> prefix_field_decl
 %type<stmt> method_decl
 %type<stmt> trait_decl
+%type<stmt> enum_decl
+%type<vec> enum_member_list
+%type<vec> enum_body
+%type<enum_member> enum_member
 %type<stmt> class_decl
 %type<stmt> func_proto_decl
 %type<stmt> trait_method
@@ -657,6 +663,15 @@ top_stmt
         $$ = $1;
     }
     | access trait_decl
+    {
+        $$ = $2;
+        stmt_set_prefix($$, $1);
+    }
+    | enum_decl
+    {
+        $$ = $1;
+    }
+    | access enum_decl
     {
         $$ = $2;
         stmt_set_prefix($$, $1);
@@ -2446,6 +2461,58 @@ trait_decl
     {
         $$ = stmt_from_trait($2, $4, $6, $8);
         stmt_set_loc($$, lloc(@1, @9));
+    }
+    ;
+
+enum_decl
+    : ENUM ID '{' enum_body '}'
+    {
+        Ident id = {$2, loc(@2)};
+        $$ = stmt_from_enum(id, $4);
+        stmt_set_loc($$, lloc(@1, @5));
+    }
+    ;
+
+enum_body
+    : enum_member_list
+    {
+        $$ = $1;
+    }
+    | enum_member_list ','
+    {
+        $$ = $1;
+    }
+    | enum_member_list semi
+    {
+        $$ = $1;
+    }
+    | enum_member_list ',' semi
+    {
+        $$ = $1;
+    }
+    ;
+
+enum_member_list
+    : enum_member
+    {
+        $$ = vector_create(sizeof(EnumMember));
+        vector_push_back($$, &$1);
+    }
+    | enum_member_list ',' enum_member
+    {
+        $$ = $1;
+        vector_push_back($$, &$3);
+    }
+    ;
+
+enum_member
+    : ID
+    {
+        $$ = (EnumMember){ {$1, loc(@1)}, 0, 0 };
+    }
+    | ID '=' INT_LITERAL
+    {
+        $$ = (EnumMember){ {$1, loc(@1)}, 1, (int64_t)$3 };
     }
     ;
 
