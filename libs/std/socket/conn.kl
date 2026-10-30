@@ -99,13 +99,10 @@ pub class TcpConn : Conn {
     }
 
     pub func write(bs bytes) int {
-        // TODO:
-        let fd = _fd
         let n = bs.len()
         var total = 0
         while total < n {
-            // let r = sys_send(_fd, bs[total:n], 0)
-            let r = sys_send(fd, bs[total:n], 0)
+            let r = sys_send(_fd, bs[total:n], 0)
             if r > 0 {
                 total += r
                 continue

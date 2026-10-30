@@ -407,6 +407,22 @@ static inline int allow_fixedslot(KlrInsn *insn)
     return 1;
 }
 
+// Does `insn` overwrite the call slot `pos`? Calls, build_intern and print lower
+// their operands into the fixed call slots 0..n-1 (see lower_call_argument()), so
+// a value pinned to such a slot before them is overwritten. A call is treated as
+// overwriting every slot (conservative). build_intern and print write exactly n
+// slots: do_isel() lowers the calls first, so they are usually not lowered yet
+// (n is num_opers, as for max_call_args); once lowered, n is num_args.
+static int clobbers_call_slot(KlrInsn *insn, int pos)
+{
+    if (klr_is_call((KlrValue *)insn) || insn->code == OP_TAIL_CALL) return 1;
+    if (insn->code == OP_BUILD_INTERN || insn->code == OP_PRINT) {
+        int n = insn->num_args ? insn->num_args : insn->num_opers;
+        return pos < n;
+    }
+    return 0;
+}
+
 // Lower a single call argument into a fixed call-slot.
 // 'pos' is the slot index counted from the end of the frame.
 static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
@@ -464,8 +480,10 @@ static void lower_call_argument(KlrInsn *insn, KlrValue *arg, int pos)
 
     KlrInsn *next = insn_next(def, insn->bb);
     while (next && next != insn) {
-        if (klr_is_call((KlrValue *)next)) {
-            // Calls in the same bb require spilling to avoid clobbering live values.
+        if (clobbers_call_slot(next, pos)) {
+            // Calls (and build_intern / print, which use the same slots) in the same bb
+            // require spilling to avoid clobbering live values, e.g. `f(_fd, bs[1:n])`:
+            // the `@slice` operands of `bs[1:n]` would overwrite `_fd` in slot 0.
             // This is a conservative heuristic that may introduce some unnecessary spills,
             // but it keeps the implementation simple and correct.
             KlrBuilder bldr;

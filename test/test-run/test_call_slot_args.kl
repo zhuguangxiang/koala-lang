@@ -1,0 +1,75 @@
+// RUN: koala %s ++ --dump=lir | filecheck %s
+// Call arguments and the fixed call slots (lower_call_argument() in isel.c).
+//
+// A single-use value defined before the call is pinned to its call slot. When
+// another insn that uses the call slots comes in between -- not only a call, but
+// also build_intern (@slice, @tuple, @list) -- its operands overwrite that slot,
+// so the value must be moved into the slot right before the call instead.
+// `send(_fd, bs[1:n], 0)` printed fd 1 (the slice start) instead of 42.
+
+func send(fd int, bs bytes, flags int) str {
+    return "send(" + fd.to_str() + ", " + bs.len().to_str() + ", " + flags.to_str() + ")"
+}
+
+func with_pair(fd int, p (int, int), flags int) str {
+    return "pair(" + fd.to_str() + ", " + p[0].to_str() + p[1].to_str() + ", " + flags.to_str() + ")"
+}
+
+func with_list(fd int, l list[int], flags int) str {
+    return "list(" + fd.to_str() + ", " + l.len().to_str() + ", " + flags.to_str() + ")"
+}
+
+class Conn {
+    let _fd int
+
+    func __init__(fd int) {
+        _fd = fd
+    }
+
+    // the @slice operands of bs[1:n] use the call slots 0..2
+    func write(bs bytes) str {
+        let n = bs.len()
+        return send(_fd, bs[1:n], 0)
+    }
+
+    // a tuple literal argument is built with @tuple in the call slots
+    func pair(a int, b int) str {
+        return with_pair(_fd, (a, b), 9)
+    }
+
+    // a list literal argument is built with @list in the call slots
+    func items(a int) str {
+        return with_list(_fd, [a, a, a], 8)
+    }
+}
+
+let c = Conn(42)
+print(c.write(b"hello"))
+print(c.pair(3, 4))
+print(c.items(5))
+
+// _fd is read first, then moved into slot 0 after the @slice is built
+// CHECK-LABEL: func @Conn:write(
+// CHECK: %[[FD1:[0-9]+]] = get_field %self test_call_slot_args.Conn, _fd(index=0){{$}}
+// CHECK: build_intern @slice, nargs=3
+// CHECK: %[[SFD1:[0-9]+]] = local int64 [fixedslot = 0(next)]
+// CHECK-NEXT: move %[[SFD1]] int64, %[[FD1]] int64
+// CHECK: call @send, nargs=3
+
+// CHECK-LABEL: func @Conn:pair(
+// CHECK: %[[FD2:[0-9]+]] = get_field %self test_call_slot_args.Conn, _fd(index=0){{$}}
+// CHECK: build_intern @tuple, nargs=2
+// CHECK-NEXT: %[[SFD2:[0-9]+]] = local int64 [fixedslot = 0(next)]
+// CHECK-NEXT: move %[[SFD2]] int64, %[[FD2]] int64
+// CHECK: call @with_pair, nargs=3
+
+// CHECK-LABEL: func @Conn:items(
+// CHECK: %[[FD3:[0-9]+]] = get_field %self test_call_slot_args.Conn, _fd(index=0){{$}}
+// CHECK: build_intern @list, nargs=3
+// CHECK-NEXT: %[[SFD3:[0-9]+]] = local int64 [fixedslot = 0(next)]
+// CHECK-NEXT: move %[[SFD3]] int64, %[[FD3]] int64
+// CHECK: call @with_list, nargs=3
+
+// CHECK: {{^}}send(42, 4, 0){{$}}
+// CHECK-NEXT: {{^}}pair(42, 34, 9){{$}}
+// CHECK-NEXT: {{^}}list(42, 3, 8){{$}}

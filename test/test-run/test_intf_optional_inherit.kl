@@ -1,0 +1,75 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// Methods of an *optional* derived trait, own and inherited, called after the
+// optional is unwrapped (`!`, `if let`).
+//
+// A's slot table: hi=0 (inherited from B), hello=1 (its own). After the unwrap
+// the call is resolved in A's table, so `hi` is slot 0 of A, not of B.
+//
+// Not here yet: `a?.hi(...)` aborts in irgen (docs/Koala_TODO.md §33 item 9).
+// The `A?` -> `C?` upcast is covered by test_intf_optional_upcast.kl.
+
+trait B {
+    func hi(s str) int
+}
+
+trait A : B {
+    func hello() str
+}
+
+class Foo : A {
+    func hi(s str) int {
+        return s.len()
+    }
+
+    func hello() str {
+        return "hello() from Foo"
+    }
+}
+
+// a class value returned as an optional derived trait
+func foo(ok bool) A? {
+    if ok {
+        return Foo()
+    }
+    return nil
+}
+
+func main() {
+    let a = foo(true)
+
+    // '!': an own method and an inherited one
+    print(a!.hello())
+    print(a!.hi("test"))
+
+    // 'if let': the same calls on the unwrapped value
+    if let x = a {
+        print(x.hi("abc"), x.hello())
+    }
+
+    // a nil value takes the else path
+    let n = foo(false)
+    if let y = n {
+        print(y.hello())
+    } else {
+        print("nil")
+    }
+}
+
+// a class value returned as an optional derived trait is made an A first
+// CHECK-LABEL: func @foo(
+// CHECK: make_intf %{{[0-9]+}} test_intf_optional_inherit.Foo [intf-table-index = 5] to test_intf_optional_inherit.A
+
+// after '!' and 'if let' every call is resolved in A's table: hi=0, hello=1
+// CHECK-LABEL: func @main()
+// CHECK: cast %a test_intf_optional_inherit.A? to test_intf_optional_inherit.A
+// CHECK-NEXT: call @A:hello [intf-index = 1]
+// CHECK: cast %a test_intf_optional_inherit.A? to test_intf_optional_inherit.A
+// CHECK-NEXT: call @A:hi [intf-index = 0]
+// CHECK: call @A:hi [intf-index = 0], %x test_intf_optional_inherit.A, 'abc' str
+// CHECK-NEXT: call @A:hello [intf-index = 1], %x test_intf_optional_inherit.A
+// CHECK: call @A:hello [intf-index = 1], %y test_intf_optional_inherit.A
+
+// CHECK: {{^}}hello() from Foo{{$}}
+// CHECK-NEXT: {{^}}4{{$}}
+// CHECK-NEXT: {{^}}3 hello() from Foo{{$}}
+// CHECK-NEXT: {{^}}nil{{$}}

@@ -86,7 +86,6 @@ func _dial_one(addr SocketAddr, spec SocketTypeSpec, opts DialOptions) Conn? {
             c.set_keepalive(true)
             c.set_keepalive_period(opts.keepalive_s())
         }
-        print("_dial_one: TcpConn._fd=", c._fd)
         return c
     }
 

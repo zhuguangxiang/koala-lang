@@ -1995,6 +1995,12 @@ static void parse_dot(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, lhs);
     if (!lhs->ts) return;
 
+    // '?.' is disabled for now: it type-checks but irgen cannot emit it yet
+    if (opt_or_bang == DOT_OPTIONAL) {
+        kl_error(exp->loc, "'?.' is not supported yet, use 'if let' or '!.'.");
+        return;
+    }
+
     if (lhs->kind == EXPR_SELF_KIND) {
         kl_error(lhs->loc, "cannot access field/method by self.");
         return;
@@ -2735,41 +2741,32 @@ static void parse_index(ParserState *ps, Expr *exp)
         if (!arg->ts) return;
     }
 
-    if (lhs->sym->kind == SYM_VAR) {
-        TypeSpec *ts = lhs->sym->ts;
-        Symbol *ts_sym = get_type_symbol(ts, ps);
-        if (index->ctx == EXPR_CTX_LOAD) {
-            if (arg->kind == EXPR_SLICE_KIND) {
-                parse_slice_load(ps, ts_sym, index);
-            } else {
-                parse_index_load(ps, ts_sym, index);
-            }
-        } else if (index->ctx == EXPR_CTX_STORE) {
-            if (arg->kind == EXPR_SLICE_KIND) {
-                parse_slice_store(ps, ts_sym, index, exp->arg);
-            } else {
-                parse_index_store(ps, ts_sym, index);
-            }
+    // the symbol of the indexed type: a variable gives its type's symbol; a call result
+    // has no symbol (e.g. 'r.addrs()[0]'), it gives the symbol of its result type
+    Symbol *lhs_sym = lhs->sym;
+    if (!lhs_sym || lhs_sym->kind == SYM_VAR) {
+        TypeSpec *ts = lhs_sym ? lhs_sym->ts : lhs->ts;
+        lhs_sym = get_type_symbol(ts, ps);
+        if (!lhs_sym) {
+            kl_error(lhs->loc, "type '%s' is not subscriptable", ts->signature);
+            return;
+        }
+    }
+
+    if (index->ctx == EXPR_CTX_LOAD) {
+        if (arg->kind == EXPR_SLICE_KIND) {
+            parse_slice_load(ps, lhs_sym, index);
         } else {
-            ASSERT(index->ctx == EXPR_CTX_LOAD_STORE);
+            parse_index_load(ps, lhs_sym, index);
+        }
+    } else if (index->ctx == EXPR_CTX_STORE) {
+        if (arg->kind == EXPR_SLICE_KIND) {
+            parse_slice_store(ps, lhs_sym, index, exp->arg);
+        } else {
+            parse_index_store(ps, lhs_sym, index);
         }
     } else {
-        Symbol *lhs_sym = lhs->sym;
-        if (index->ctx == EXPR_CTX_LOAD) {
-            if (arg->kind == EXPR_SLICE_KIND) {
-                parse_slice_load(ps, lhs_sym, index);
-            } else {
-                parse_index_load(ps, lhs_sym, index);
-            }
-        } else if (index->ctx == EXPR_CTX_STORE) {
-            if (arg->kind == EXPR_SLICE_KIND) {
-                parse_slice_store(ps, lhs_sym, index, exp->arg);
-            } else {
-                parse_index_store(ps, lhs_sym, index);
-            }
-        } else {
-            ASSERT(index->ctx == EXPR_CTX_LOAD_STORE);
-        }
+        ASSERT(index->ctx == EXPR_CTX_LOAD_STORE);
     }
 }
 

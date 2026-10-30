@@ -1,0 +1,65 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// Indexing the result of a call, e.g. `r.addrs()[0].to_str()`. A call expr has
+// no symbol, only its result type; parse_index() used to read `lhs->sym->kind`
+// and crashed koalac (SIGSEGV, reported by koala as "compilation failed").
+
+class Item {
+    let n str
+    func __init__(_n str) {
+        n = _n
+    }
+    func name() str = "item-" + n
+}
+class Box {
+    func items() list[Item] {
+        let l = list[Item]()
+        l.append(Item("a"))
+        l.append(Item("b"))
+        return l
+    }
+}
+func nums() list[int] {
+    return [10, 20, 30]
+}
+func word() str = "koala"
+func pair() (int, str) = (7, "seven")
+func grid() list[list[int]] {
+    return [[1, 2], [3, 4]]
+}
+func table() dict[str, int] {
+    return {"one": 1, "two": 2}
+}
+func boxes() list[Box] {
+    let l = list[Box]()
+    l.append(Box())
+    return l
+}
+func main() {
+    print("fn:", nums()[1])
+    print("str:", word()[0])
+    print("tuple:", pair()[0], pair()[1])
+    print("slice:", nums()[1:3])
+    print("nested:", grid()[1][0])
+    print("dict:", table()["two"])
+    let b = Box()
+    print("method:", b.items()[1].name())
+    print("chain:", boxes()[0].items()[0].name())
+    let l = nums()
+    l[0] = 5
+    print("store:", l[0])
+}
+
+// the call result is indexed directly, no temporary local is needed
+// CHECK-LABEL: func @main()
+// CHECK: %0 = call @nums
+// CHECK-NEXT: %1 = seq.get %0 std/builtin.list<j>, 1 int64
+
+// CHECK: {{^}}fn: 20{{$}}
+// CHECK-NEXT: {{^}}str: k{{$}}
+// CHECK-NEXT: {{^}}tuple: 7 seven{{$}}
+// CHECK-NEXT: {{^}}slice: [20, 30]{{$}}
+// CHECK-NEXT: {{^}}nested: 3{{$}}
+// CHECK-NEXT: {{^}}dict: 2{{$}}
+// CHECK-NEXT: {{^}}method: item-b{{$}}
+// CHECK-NEXT: {{^}}chain: item-a{{$}}
+// CHECK-NEXT: {{^}}store: 5{{$}}

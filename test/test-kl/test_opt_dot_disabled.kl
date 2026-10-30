@@ -1,0 +1,67 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Optional chaining `?.` is disabled for now: it type-checks but irgen cannot emit
+// it yet (docs/Koala_TODO.md §33 item 9). Every use reports an error instead of
+// aborting the compiler; `!.` and `if let` on the same values still compile.
+
+trait Named {
+    func name() str
+}
+
+class Item : Named {
+    var v int
+
+    func __init__() {
+        v = 7
+    }
+
+    func name() str = "item"
+
+    func next() Item? = nil
+}
+
+func opt_item() Item? {
+    return Item()
+}
+
+func method_call() {
+    let it = opt_item()
+    print(it?.name())
+}
+// CHECK: '?.' is not supported yet, use 'if let' or '!.'.
+
+func field() {
+    let it = opt_item()
+    print(it?.v)
+}
+// CHECK-NEXT: '?.' is not supported yet, use 'if let' or '!.'.
+
+func trait_method() {
+    let n Named? = Item()
+    print(n?.name())
+}
+// CHECK-NEXT: '?.' is not supported yet, use 'if let' or '!.'.
+
+func str_method() {
+    let s str? = "abc"
+    print(s?.len())
+}
+// CHECK-NEXT: '?.' is not supported yet, use 'if let' or '!.'.
+
+func chained() {
+    let it = Item()
+    print(it.next()?.name())
+}
+// CHECK-NEXT: '?.' is not supported yet, use 'if let' or '!.'.
+
+// the supported forms compile without an error
+func bang_and_if_let() {
+    let it = opt_item()
+    print(it!.name(), it!.v)
+    if let x = it {
+        print(x.name(), x.v)
+    }
+    let s str? = "abc"
+    print(s!.len())
+}
+
+// CHECK-NOT: error:

@@ -225,7 +225,6 @@ static TValue _sys_socket(TValue *self, TValue *args, int nargs)
     int protocol = (int)kl_arg_int64(2);
 
     int fd = socket(domain, type_, protocol);
-    printf("_sys_socket: %d, protocal: %d, type: %d\n", fd, protocol, type_);
     return int64_value(fd);
 }
 
@@ -322,7 +321,6 @@ static TValue _sys_send(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 3);
 
     int fd = (int)kl_arg_int64(0);
-    printf("_sys_send: %d\n", fd);
     BytesObject *bs = kl_arg_obj_as(1, bytes_type);
     int flags = (int)kl_arg_int64(2);
 

@@ -1,0 +1,10 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+// indexing a call result whose type has no __getitem__ is an error, not a crash
+func n() int = 1
+
+func f() {
+    print(n()[0])
+}
+// CHECK: type 'int64' is not subscriptable (missing __getitem__)
+// CHECK-NOT: error:

@@ -70,10 +70,12 @@ func fn2(f1 Foo?) int {
 }
 
 func fn3(f Foo) {
-    if let id = f.foo()?.get_id() {
-        id + 1
-        id = 100
-        // CHECK-NEXT: cannot assign to immutable variable 'id'
+    if let x = f.foo() {
+        if let id = x.get_id() {
+            id + 1
+            id = 100
+            // CHECK-NEXT: cannot assign to immutable variable 'id'
+        }
     }
 }
 

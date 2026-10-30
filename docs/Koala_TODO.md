@@ -1772,6 +1772,48 @@ isel failure for `v = nil` under `if v != nil`).
    trait is stored as is; a derived trait is upcast to the base. Tested by
    `test/test-run/test_intf_assign.kl`.
 
+8. **`A?` -> `C?` between optional traits is not upcast, a wrong method is called (found
+   2026-10-31).**
+   ```koala
+   trait B { func b1() str }
+   trait C { func c1() str }
+   trait A : B & C { func a1() str }
+   // Foo : A implements all three
+   let a A? = Foo()
+   let c C? = a
+   print(c!.c1())    // prints "b1": B's method
+   ```
+   The IR is `move %c C?, %a A?`: no `upcast_intf`. `_build_obj_intf_upcast()` finds no symbol
+   for the optional source type `A?` and returns without a conversion (its step 5). The value
+   keeps A's itable, and the call takes C's slot 0 in it, which is A's `b1`. With a single
+   base the bug is hidden, because a base's methods are always a prefix of the derived
+   trait's table. The non-optional `let c C = a` is correct (`upcast_intf ... to C`).
+   Fix: unwrap an optional source too, and emit the upcast under a nil check (nil stays nil),
+   for declarations, assignments, arguments and returns.
+   **Resolved (2026-10-31)**: `_build_obj_intf_upcast()` hands an optional source to the new
+   `_build_opt_obj_intf_upcast()`: when `_intf_upcast_needed()` says the inner type needs a
+   conversion, it emits a result local (`nil`), a nil check, and on the not-nil path
+   `cast A? to A` + `upcast_intf` (`make_intf` for a class) into the local. Every caller goes
+   through it (declarations, globals, assignments, arguments, returns, tuple elements, fields);
+   the same trait (`A?` -> `A?`) is still a plain move. Tested by
+   `test/test-run/test_intf_optional_upcast.kl`.
+
+9. **Optional chaining with a method call aborts in irgen (found 2026-10-31).**
+   ```koala
+   let c C? = C()
+   print(c?.m())     // koalac: irgen.c:668: update_call_args:
+                     //         Assertion `proto_ts->kind == TYPE_PROTO' failed.
+   ```
+   The same for a trait (`a?.hello()`) and for `str?` (`s?.len()`); `c?.v` on a field also
+   fails (`koala` reports "compilation failed" while `koalac` exits 0, not looked into). The
+   Manual documents `b?.get()` as supported (Optional chaining). No test uses `?.` with a
+   call yet.
+   **Disabled (2026-10-31)**: `parse_dot()` reports "'?.' is not supported yet, use 'if let' or
+   '!.'." instead of letting irgen abort; the grammar rule, `DOT_OPTIONAL` and its type
+   inference are kept, and the Manual says it is not supported yet. To implement later: the
+   method call and the field access, with the nil short-circuit of a whole chain, then remove
+   the error. Tested by `test/test-kl/test_opt_dot_disabled.kl`.
+
 ---
 
 ## 34. 泛型 bound 实参未转接口：泛型自由函数与泛型类 `__init__`（2026-10-30 发现，待修）

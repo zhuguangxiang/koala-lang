@@ -1,0 +1,119 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// An optional value converted to another optional trait (`A?` -> `C?`). The value
+// keeps the itable of its own type, so it must be unwrapped and upcast under a nil
+// check; nil stays nil. With two base traits C's methods are not a prefix of A's
+// table, so a missing upcast called B's method instead of C's (`c1` printed `b1`).
+// Covered: a global, a declaration, an optional class, an argument, a return, a
+// reassignment, a tuple element with a given type, a field, and the same trait
+// (no conversion at all).
+
+trait B {
+    func b1() str
+}
+trait C {
+    func c1() str
+}
+trait A : B & C {
+    func a1() str
+}
+class Foo : A {
+    func b1() str = "b1"
+    func c1() str = "c1"
+    func a1() str = "a1"
+}
+class Holder {
+    var c C?
+    func __init__(a A?) {
+        c = a
+    }
+}
+func some_a(ok bool) A? {
+    if ok {
+        return Foo()
+    }
+    return nil
+}
+func show(c C?) str {
+    if let x = c {
+        return x.c1()
+    }
+    return "nil"
+}
+func ret_c(ok bool) C? {
+    return some_a(ok)
+}
+func pair() (A?, int) {
+    return (some_a(true), 1)
+}
+
+// a global initialized from an optional derived trait
+let g_c C? = some_a(true)
+
+func main() {
+    print("global:", show(g_c))
+
+    // declaration: a value and nil
+    let c1 C? = some_a(true)
+    let c2 C? = some_a(false)
+    print("decl:", show(c1), show(c2))
+
+    // an optional class value
+    let f Foo? = Foo()
+    let c3 C? = f
+    print("class:", show(c3))
+
+    // argument and return
+    print("arg:", show(some_a(true)), show(some_a(false)))
+    print("ret:", show(ret_c(true)), show(ret_c(false)))
+
+    // reassignment
+    var c4 C? = nil
+    c4 = some_a(true)
+    print("assign:", show(c4))
+    c4 = some_a(false)
+    print("assign-nil:", show(c4))
+
+    // a tuple element with a given type
+    let (c5 C?, n) = pair()
+    print("tuple:", show(c5), n)
+
+    // a field
+    let h = Holder(some_a(true))
+    print("field:", show(h.c))
+
+    // the same trait: no conversion, no branch
+    let a1 A? = some_a(true)
+    let a2 A? = a1
+    print("same:", a2!.a1())
+}
+
+// return: nil check, unwrap, upcast into the result local, which is returned
+// CHECK-LABEL: func @ret_c(%ok bool) test_intf_optional_upcast.C? {
+// CHECK: %0 = call @some_a, %ok bool
+// CHECK-NEXT: %1 = local test_intf_optional_upcast.C?
+// CHECK-NEXT: move %1 test_intf_optional_upcast.C?, nil
+// CHECK-NEXT: %2 = cmpne %0 test_intf_optional_upcast.A?, nil
+// CHECK-NEXT: branch %2 bool, label %bb1, label %bb2
+// CHECK: %bb1(intf-some):
+// CHECK-NEXT: %3 = cast %0 test_intf_optional_upcast.A? to test_intf_optional_upcast.A
+// CHECK-NEXT: %4 = upcast_intf %3 test_intf_optional_upcast.A [intf-table-index = 2] to test_intf_optional_upcast.C
+// CHECK-NEXT: move %1 test_intf_optional_upcast.C?, %4 test_intf_optional_upcast.C
+// CHECK-NEXT: jmp label %bb2
+// CHECK: %bb2(intf-end):
+// CHECK-NEXT: ret %1 test_intf_optional_upcast.C?
+
+// an optional class is made a C (make_intf), the same trait is moved as is
+// CHECK-LABEL: func @main()
+// CHECK: make_intf %{{[0-9]+}} test_intf_optional_upcast.Foo [intf-table-index = 5] to test_intf_optional_upcast.C
+// CHECK: move %a2 test_intf_optional_upcast.A?, %a1 test_intf_optional_upcast.A?
+
+// CHECK: {{^}}global: c1{{$}}
+// CHECK-NEXT: {{^}}decl: c1 nil{{$}}
+// CHECK-NEXT: {{^}}class: c1{{$}}
+// CHECK-NEXT: {{^}}arg: c1 nil{{$}}
+// CHECK-NEXT: {{^}}ret: c1 nil{{$}}
+// CHECK-NEXT: {{^}}assign: c1{{$}}
+// CHECK-NEXT: {{^}}assign-nil: nil{{$}}
+// CHECK-NEXT: {{^}}tuple: c1 1{{$}}
+// CHECK-NEXT: {{^}}field: c1{{$}}
+// CHECK-NEXT: {{^}}same: a1{{$}}

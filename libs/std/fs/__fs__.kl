@@ -23,9 +23,10 @@ link "koala"
 /// permission 0644.
 ///
 /// Example:
-///     let f = fs.open("hello.txt", "w")
-///     f?.write("hello".to_bytes())
-///     f?.close()
+///     if let f = fs.open("hello.txt", "w") {
+///         f.write("hello".to_bytes())
+///         f.close()
+///     }
 ///
 /// See: `File`.
 @native

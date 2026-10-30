@@ -482,13 +482,15 @@ let b Box? = Box()
 let v1 = b.get()     // compile error: optional cannot use dot operator.
 ```
 
-Two forms are sanctioned. Optional chaining `?.` passes `nil` through and yields an optional
-result; force-unwrapping with `!` followed by `.` calls directly:
+Force-unwrapping with `!` followed by `.` calls directly:
 
 ```kl
-let v2 = b?.get()    // OK, and v2 has type int?
 let v3 = b!.get()    // OK, v3 has type int; panics if b is nil
 ```
+
+Optional chaining `?.` (`b?.get()`, passing `nil` through as an optional result) is **not
+supported yet**: it is reserved in the grammar but reports "'?.' is not supported yet, use
+'if let' or '!.'." Use `!.` when the value is known to be present, or narrow it first.
 
 Narrowing first works too — inside the branch the value is already unwrapped:
 
@@ -512,10 +514,14 @@ left operand is evaluated exactly once, the right operand only when the left is 
 
 ```kl
 func name_of(u User?) str {
-    return u?.name ?? "anon"      // "anon" when u is nil or u.name is nil
+    if let v = u {
+        return v.name ?? "anon"   // "anon" when u.name is nil
+    }
+    return "anon"
 }
 
-let timeout = cfg?.timeout ?? 30  // int; the default is evaluated lazily
+let limit int? = nil
+let timeout = limit ?? 30         // int; the default is evaluated lazily
 ```
 
 `T? ?? T` has the unwrapped type `T`; when both operands stay optional (`T? ?? U?`) the result

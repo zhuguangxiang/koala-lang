@@ -340,26 +340,27 @@ func test_v6_hash_distinct() {
 // IpAddr: __eq__ / __ne__ / hash
 //
 
-@test
-func test_hash_debug() {
-    let a = so.Ipv4Addr.parse("1.2.3.4")!
-    print("octets: ", a)
-    print("v4 hash: ", a.hash())
-    print("ip hash: ", so.IpAddr.parse("1.2.3.4")!.hash())
-    let built = so.IpAddr.from_v4(so.Ipv4Addr.parse("1.2.3.4")!)
-    print("built hash: ", built.hash())
-}
+// TODO: change to assert
+// @test
+// func test_hash_debug() {
+//     let a = so.Ipv4Addr.parse("1.2.3.4")!
+//     print("octets: ", a)
+//     print("v4 hash: ", a.hash())
+//     print("ip hash: ", so.IpAddr.parse("1.2.3.4")!.hash())
+//     let built = so.IpAddr.from_v4(so.Ipv4Addr.parse("1.2.3.4")!)
+//     print("built hash: ", built.hash())
+// }
 
-@test
-func test_hash_debug2() {
-    let a = so.Ipv4Addr.parse("1.2.3.4")!
-    let ip = so.IpAddr.from_v4(a)
+// @test
+// func test_hash_debug2() {
+//     let a = so.Ipv4Addr.parse("1.2.3.4")!
+//     let ip = so.IpAddr.from_v4(a)
 
-    print("a.hash():              ", a.hash())
-    print("ip.v4()!.hash():       ", ip.v4()!.hash())
-    print("ip.is_v4():            ", ip.is_v4())
-    print("ip.hash():             ", ip.hash())
-}
+//     print("a.hash():              ", a.hash())
+//     print("ip.v4()!.hash():       ", ip.v4()!.hash())
+//     print("ip.is_v4():            ", ip.is_v4())
+//     print("ip.hash():             ", ip.hash())
+// }
 
 @test
 func test_ipaddr_eq_same_family() {

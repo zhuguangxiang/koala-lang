@@ -28,14 +28,15 @@ f!.foo()
 // CHECK: only optional type can use bang dot operator.
 
 f?.foo()
-// CHECK-NEXT: only optional type can use optional dot operator.
+// CHECK-NEXT: '?.' is not supported yet, use 'if let' or '!.'.
 
 f.foo()
 
 let v = Foo().foo().bar()
 // CHECK-NEXT: optional cannot use dot operator.
 
-let v2 = Foo().foo()?.bar()
+// '?.' is disabled, an optional result comes from a given type
+let v2 int? = Foo().foo()!.bar()
 
 v2 + 5
 
@@ -45,14 +46,14 @@ let v3 = Foo().foo()!.bar()
 
 v3 + 5
 
-let v4 = Foo().foo()?.get_id()
+let v4 = Foo().foo()!.get_id()
 
 
 var f1 Foo? = Foo()
 
-let a = f1?.test1() // 应推导为 int?
+let a = f1!.test1()
 
-let b = f1?.test2() // 应推导为 int? (由于你的扁平化逻辑，不再是 int??)
+let b = f1!.test2()
 
 let f2 Foo? = nil // OK
 

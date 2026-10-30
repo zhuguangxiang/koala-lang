@@ -25,8 +25,7 @@ func test_resolve_numeric_v4() {
     ut.assert_eq(r.status(), so.DNS_OK)
     ut.assert_eq(r.addrs().len(), 1)
     ut.assert_eq(addrs[0].to_str(), "1.2.3.4")
-    // TODO:
-    // ut.assert_eq(r.addrs()[0].to_str(), "1.2.3.4")
+    ut.assert_eq(r.addrs()[0].to_str(), "1.2.3.4")
 }
 
 @test
@@ -121,9 +120,7 @@ func test_resolve_baidu() {
         let text = ip.to_str()
         let back = so.IpAddr.parse(text)
         ut.assert_true(back != nil)
-        print(back)
-        // ut.assert_true(back!.to_str() == ip)
-        print(ip.to_str())
+        ut.assert_true(back! == ip)
     }
 }
 

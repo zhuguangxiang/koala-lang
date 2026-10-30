@@ -127,6 +127,9 @@ static void _intf_index_error(ParserState *ps, TypeSpec *obj_ts, TypeSpec *ts, L
     FINI_BUF(buf2);
 }
 
+static KlrValue *_build_opt_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec *ts,
+                                            char *name);
+
 // obj: class or trait type
 // ts: target trait type
 static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec *ts, char *name)
@@ -138,6 +141,11 @@ static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec
 
     // 2. if target is any, no cast needed
     if (type_is_any(ts)) return NULL;
+
+    // an optional source (`A?` -> `C?`): its value is converted under a nil check
+    if (type_is_optional(obj->ts) && obj->ts->opt.src) {
+        return _build_opt_obj_intf_upcast(ps, obj, ts, name);
+    }
 
     // 3. normalize the target: `A?` denotes the same interface as `A`, and a generic
     //    instance (`Iterable[int]`) or an open generic ref (`Iterable<T>`, e.g. the
@@ -193,6 +201,75 @@ static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec
     } else {
         return NULL;
     }
+}
+
+// The same decision as _build_obj_intf_upcast() without emitting anything: a value of
+// `src_ts` (a class or a trait) needs a conversion to the trait `ts`.
+static int _intf_upcast_needed(TypeSpec *src_ts, TypeSpec *ts)
+{
+    if (!src_ts || !ts || type_is_any(ts)) return 0;
+
+    ts = intf_canonical_ts(ts);
+    if (!ts || ts == src_ts) return 0;
+
+    Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
+    Symbol *obj_sym = get_symbol_by_id(src_ts->sym_id);
+    if (!ts_sym || !obj_sym) return 0;
+
+    if (ts_sym->kind == SYM_INSTANCE) ts_sym = ((InstanceSymbol *)ts_sym)->origin;
+    if (ts_sym->kind != SYM_TRAIT) return 0;
+
+    if (obj_sym->kind == SYM_INSTANCE) obj_sym = ((InstanceSymbol *)obj_sym)->origin;
+    if (ts_sym == obj_sym) return 0;
+
+    return obj_sym->kind == SYM_CLASS || obj_sym->kind == SYM_TRAIT;
+}
+
+/*
+ * `A?` -> `C?`: an optional value keeps the itable of its own type, so it is unwrapped,
+ * upcast and stored in a result local; nil stays nil.
+ *
+ *      %r = local C?
+ *      move %r, nil
+ *      branch (obj != nil), intf-some, intf-end
+ *  intf-some:
+ *      %v = cast obj A? to A
+ *      %u = upcast_intf %v A to C      (make_intf for a class)
+ *      move %r, %u
+ *      jmp intf-end
+ *  intf-end:                           (the current block from now on)
+ */
+static KlrValue *_build_opt_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec *ts,
+                                            char *name)
+{
+    TypeSpec *src_ts = obj->ts->opt.src;
+    // the type checker only lets an optional value go into an optional target
+    if (!type_is_optional(ts)) return NULL;
+    if (!_intf_upcast_needed(src_ts, ts)) return NULL;
+
+    KlrValue *fn = CURRENT_FUNC;
+    KlrBasicBlock *some_bb = klr_append_block(fn, "intf-some");
+    KlrBasicBlock *end_bb = klr_append_block(fn, "intf-end");
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    KlrValue *result = klr_build_local_var(&bldr, ts, name);
+    klr_build_move(&bldr, result, klr_const_none(MOD));
+    KlrValue *cond = klr_build_cmpne(&bldr, obj, klr_const_none(MOD), "");
+    klr_build_jmp_cond(&bldr, cond, some_bb, end_bb);
+
+    // the not-nil path: unwrap the same way `!` does, then upcast
+    ps->scope->bb = some_bb;
+    klr_builder_end(&bldr, some_bb);
+    KlrValue *val = klr_build_cast(&bldr, obj, src_ts, "");
+    KlrValue *_val = _build_obj_intf_upcast(ps, val, ts, "");
+    if (!_val) _val = val;
+    klr_builder_end(&bldr, ps->scope->bb);
+    klr_build_move(&bldr, result, _val);
+    klr_build_jmp(&bldr, end_bb);
+
+    ps->scope->bb = end_bb;
+    return result;
 }
 
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp);

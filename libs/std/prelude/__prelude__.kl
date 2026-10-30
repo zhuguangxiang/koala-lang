@@ -25,9 +25,10 @@ import "std/sys"
 /// permission 0644.
 ///
 /// Example:
-/// let f = open("hello.txt", "w")
-/// f?.write("hello".to_bytes())
-/// f?.close()
+/// if let f = open("hello.txt", "w") {
+///     f.write("hello".to_bytes())
+///     f.close()
+/// }
 ///
 /// See: File.
 pub func open(path str, mode = "r") fs.File? {
