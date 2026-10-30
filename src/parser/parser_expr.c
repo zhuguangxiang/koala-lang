@@ -2333,6 +2333,12 @@ static void parse_index_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
 
     vector_destroy(args);
 
+    // irgen converts the stored value to it, e.g. a class value into list[Trait]
+    if (vector_size(fn_sym->params) == 2) {
+        ArgInfo *value_param = vector_get(fn_sym->params, 1);
+        index->value_ts = value_param->ts;
+    }
+
     index->ts = e->ts;
     index->sym = get_symbol_by_id(index->ts->sym_id);
 

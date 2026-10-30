@@ -1,0 +1,58 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+
+func pair() (int, int)? {
+    return (1, 2)
+}
+
+func plain() (int, int) {
+    return (1, 2)
+}
+
+func number() int? {
+    return 1
+}
+
+// the value must be optional
+func not_optional() int {
+    let (a, b) = plain() else { return 0 }
+    return 0
+}
+
+// the optional value must be a tuple
+func not_tuple() int {
+    let (a, b) = number() else { return 0 }
+    return 0
+}
+
+// the names must match the size of the tuple
+func wrong_size() int {
+    let (a, b, c) = pair() else { return 0 }
+    return 0
+}
+
+// the else block must exit
+func no_exit() int {
+    let (a, b) = pair() else { print("none") }
+    return a + b
+}
+
+// the names are not visible in the else block
+func name_in_block() int {
+    let (a, b) = pair() else { return a }
+    return a + b
+}
+
+// the else block must start with '{'
+func no_block() int {
+    let (a, b) = pair() else return 0
+    return 0
+}
+
+// the syntax error is reported first, then the semantic errors
+// CHECK: expected '{' after 'else' in let-else.
+// CHECK-NEXT: 'let-else' requires an optional value, but got 'std/builtin.tuple<jj>'.
+// CHECK-NEXT: cannot destructure non-tuple type 'int64?'.
+// CHECK-NEXT: 3 names cannot destructure a tuple of 2 elements.
+// CHECK-NEXT: 'let-else' block must exit the current scope (use return, break, continue, panic or unreachable).
+// CHECK-NEXT: 'a' is not found
+// CHECK-NOT: error:

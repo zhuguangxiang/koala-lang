@@ -1,0 +1,40 @@
+// RUN: koala --test %s
+
+from "std/ut" import assert_eq
+
+func pair(k int) (int, int)? {
+    if k > 0 { return (k, k * 10) }
+    return nil
+}
+
+// panic() exits, so the tuple let-else block is accepted
+func f(k int) int {
+    let (a, b) = pair(k) else { panic("no pair") }
+    return a + b
+}
+
+// unreachable() exits too
+func g(k int) int {
+    let (a, _) = pair(k) else { unreachable() }
+    return a
+}
+
+@test
+func test_tuple_let_else_panic_ok() {
+    assert_eq(f(3), 33)
+}
+
+@should_panic("no pair")
+func test_tuple_let_else_panic() {
+    f(0)
+}
+
+@test
+func test_tuple_let_else_unreachable_ok() {
+    assert_eq(g(4), 4)
+}
+
+@should_panic
+func test_tuple_let_else_unreachable() {
+    g(0)
+}

@@ -1,0 +1,101 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+
+func split_host_port(url str) (str, int)? {
+    if url == "" {
+        return nil
+    }
+    return (url, 80)
+}
+
+// let: destructured when not nil, the else block returns early
+func connect(url str) str? {
+    let (host, port) = split_host_port(url) else { return nil }
+    return host + ":" + str(port)
+}
+
+// var: the names are mutable
+func next_port(url str) int {
+    var (_, port) = split_host_port(url) else { return -1 }
+    port += 1
+    return port
+}
+
+// a given type for a name
+func port_only(url str) int? {
+    let (_, port int?) = split_host_port(url) else { return nil }
+    return port
+}
+
+// break and continue as the exit of the else block
+func count_ports(urls list[str]) int {
+    var sum = 0
+    for url in urls {
+        let (_, port) = split_host_port(url) else { continue }
+        sum += port
+    }
+    for url in urls {
+        let (host, _) = split_host_port(url) else { break }
+        print(host)
+    }
+    return sum
+}
+
+// one element is T, the other is T?: after the unwrap 'host' is str and 'port' is int?,
+// 'port' is unwrapped again with 'if let' before it is used
+func split_opt_port(url str) (str, int?)? {
+    if url == "" {
+        return nil
+    }
+    if url == "noport" {
+        return (url, nil)
+    }
+    return (url, 8000)
+}
+
+func port_plus_one(url str) int {
+    let (host, port) = split_opt_port(url) else { return -1 }
+    if let p = port {
+        print(host)
+        return p + 1
+    }
+    return 0
+}
+
+print(connect("example.com"))
+print(connect(""))
+print(next_port("a"))
+print(next_port(""))
+print(port_only("b"))
+print(count_ports(["x", "", "y"]))
+print(port_plus_one("host"))
+print(port_plus_one("noport"))
+print(port_plus_one(""))
+
+// nil goes to the else block, otherwise the tuple is unpacked
+// CHECK-LABEL: func @connect(%url str) str? {
+// CHECK: %0 = call @split_host_port, %url str
+// CHECK-NEXT: %1 = cmpne %0 std/builtin.tuple<uj>?, nil
+// CHECK-NEXT: branch %1 bool, label %bb2, label %bb1
+// CHECK: %bb1(let-else):
+// CHECK-NEXT: ret nil
+// CHECK: %bb2(let-ok):
+// CHECK-NEXT: %2 = local [immutable] std/builtin.tuple<uj>
+// CHECK-NEXT: move %2 std/builtin.tuple<uj>, %0 std/builtin.tuple<uj>?
+// CHECK-NEXT: %host = local [immutable] str
+// CHECK-NEXT: %3 = seq.get %2 std/builtin.tuple<uj>, 0 int64
+// CHECK-NEXT: move %host str, %3 str
+// CHECK-NEXT: %port = local [immutable] int64
+// CHECK-NEXT: %4 = seq.get %2 std/builtin.tuple<uj>, 1 int64
+// CHECK-NEXT: move %port int64, %4 int64
+
+// CHECK: {{^}}example.com:80{{$}}
+// CHECK-NEXT: {{^}}nil{{$}}
+// CHECK-NEXT: {{^}}81{{$}}
+// CHECK-NEXT: {{^}}-1{{$}}
+// CHECK-NEXT: {{^}}80{{$}}
+// CHECK-NEXT: {{^}}x{{$}}
+// CHECK-NEXT: {{^}}160{{$}}
+// CHECK-NEXT: {{^}}host{{$}}
+// CHECK-NEXT: {{^}}8001{{$}}
+// CHECK-NEXT: {{^}}0{{$}}
+// CHECK-NEXT: {{^}}-1{{$}}

@@ -1,0 +1,63 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// Methods inherited between *external generic* traits, called through a local
+// variable and a parameter:
+//     Sequence[T] : Iterable[T] & Sized
+//     MutableSequence[T] : Sequence[T]
+// `len()` is declared by `Sized` and `iter()` by `Iterable[T]`; through
+// `Sequence[int]` they are resolved in Sequence's own slot table.
+
+// through a parameter
+func total(s Sequence[int]) int {
+    var n = 0
+    for x in s.iter() {
+        n += x
+    }
+    return n + s.len()
+}
+
+func main() {
+    let l = [1, 2, 3]
+
+    // through a local of the inheriting trait
+    let s Sequence[int] = l
+    print(s.len(), s[1])
+    var sum = 0
+    for x in s.iter() {
+        sum += x
+    }
+    print(sum)
+
+    // through a trait that inherits the inheriting trait
+    let m MutableSequence[int] = l
+    print(m.len())
+
+    // through the base trait itself
+    let it Iterable[int] = l
+    for x in it.iter() {
+        print(x)
+    }
+
+    print(total(l))
+}
+
+// slot table of Sequence[T]: iter=0 (from Iterable), len=1 (from Sized)
+// CHECK-LABEL: func @total(%s std/builtin.Sequence<j>)
+// CHECK: call @std/builtin.Sequence<j>:iter [intf-index = 0], %s std/builtin.Sequence<j>
+// CHECK: call @std/builtin.Sequence<j>:len [intf-index = 1], %s std/builtin.Sequence<j>
+
+// CHECK-LABEL: func @main()
+// CHECK: make_intf %l std/builtin.list<j> [intf-table-index = 6] to std/builtin.Sequence
+// CHECK: call @std/builtin.Sequence<j>:len [intf-index = 1], %s std/builtin.Sequence<j>
+// CHECK: call @std/builtin.Sequence<j>:iter [intf-index = 0], %s std/builtin.Sequence<j>
+// CHECK: make_intf %l std/builtin.list<j> [intf-table-index = 7] to std/builtin.MutableSequence
+// CHECK: call @std/builtin.MutableSequence<j>:len [intf-index = 1], %m std/builtin.MutableSequence<j>
+// CHECK: make_intf %l std/builtin.list<j> [intf-table-index = 4] to std/builtin.Iterable
+// CHECK: call @std/builtin.Iterable<j>:iter [intf-index = 0], %it std/builtin.Iterable<j>
+
+// CHECK: {{^}}3 2{{$}}
+// CHECK-NEXT: {{^}}6{{$}}
+// CHECK-NEXT: {{^}}3{{$}}
+// CHECK-NEXT: {{^}}1{{$}}
+// CHECK-NEXT: {{^}}2{{$}}
+// CHECK-NEXT: {{^}}3{{$}}
+// CHECK-NEXT: {{^}}9{{$}}

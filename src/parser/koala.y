@@ -180,6 +180,19 @@ static Stmt *tuple_decl_stmt(ParserState *ps, Vector *ids, int which, Expr *exp,
     return s;
 }
 
+// let (a, b) = t else { ... }: a tuple decl with the else block of let-else
+static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *exp,
+                                 Vector *block, Loc ids_loc, Loc loc)
+{
+    Stmt *s = tuple_decl_stmt(ps, ids, which, exp, ids_loc, loc);
+    if (!s) {
+        free_stmt_list(block);
+        return NULL;
+    }
+    ((TupleDeclStmt *)s)->else_block = block;
+    return s;
+}
+
 %}
 
 %union {
@@ -1735,6 +1748,30 @@ tuple_decl
     | VAR '(' tuple_decl_list ')' '=' expr
     {
         $$ = tuple_decl_stmt(ps, $3, VAR_DECL_VAR, $6, lloc(@2, @4), lloc(@1, @6));
+    }
+    | LET '(' tuple_decl_list ')' '=' expr ELSE block
+    {
+        $$ = tuple_let_else_stmt(ps, $3, VAR_DECL_LET, $6, $8, lloc(@2, @4), lloc(@1, @8));
+    }
+    | VAR '(' tuple_decl_list ')' '=' expr ELSE block
+    {
+        $$ = tuple_let_else_stmt(ps, $3, VAR_DECL_VAR, $6, $8, lloc(@2, @4), lloc(@1, @8));
+    }
+    | LET '(' tuple_decl_list ')' '=' expr ELSE error
+    {
+        free_ident_type_list($3);
+        expr_free($6);
+        kl_error(loc(@8), "expected '{' after 'else' in let-else.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | VAR '(' tuple_decl_list ')' '=' expr ELSE error
+    {
+        free_ident_type_list($3);
+        expr_free($6);
+        kl_error(loc(@8), "expected '{' after 'else' in let-else.");
+        yy_clear_ok;
+        $$ = NULL;
     }
     | LET '(' tuple_decl_list error
     {

@@ -5,6 +5,7 @@
 
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/socket.h>
 #include "bytesobj.h"
@@ -64,6 +65,20 @@ TypeObject ip_addr_type = {
     .name = "IpAddr",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(IpAddrObject),
+};
+
+typedef struct _SocketAddrObject {
+    OBJECT_HEAD
+    TValue ip;   // IpAddr
+    TValue port; // int
+} SocketAddrObject;
+
+TypeObject socket_addr_type = {
+    ._type = &type_type,
+    ._nfields = 2,
+    .name = "SocketAddr",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(SocketAddrObject),
 };
 
 // Build an Ipv4Addr from a 4-byte network-order address.
@@ -200,13 +215,150 @@ static TValue resolve_dns(TValue *self, TValue *args, int nargs)
     return _resolve_tuple(DNS_OK, list, "");
 }
 
+// func sys_socket(domain int, type_ int, proto int) int {}
+static TValue _sys_socket(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 3);
+
+    int domain = (int)kl_arg_int64(0);
+    int type_ = (int)kl_arg_int64(1);
+    int protocol = (int)kl_arg_int64(2);
+
+    int fd = socket(domain, type_, protocol);
+    printf("_sys_socket: %d, protocal: %d, type: %d\n", fd, protocol, type_);
+    return int64_value(fd);
+}
+
+// Convert a Koala SocketAddr into a sockaddr_storage. Returns the
+// sockaddr length, or 0 on failure.
+//
+// The address bytes are already in network order (Ipv4Addr / Ipv6Addr
+// store them that way), so they are copied verbatim into sin_addr /
+// sin6_addr. Only the port needs htons().
+static socklen_t _to_sockaddr(SocketAddrObject *addr, struct sockaddr_storage *ss)
+{
+    IpAddrObject *ip = (IpAddrObject *)to_obj(&addr->ip);
+    int port = (int)to_int64(&addr->port);
+
+    if (to_bool(&ip->is_v4)) {
+        Ipv4AddrObject *v4 = (Ipv4AddrObject *)to_obj(&ip->v4);
+        BytesObject *octets = (BytesObject *)to_obj(&v4->octets);
+
+        struct sockaddr_in *sin = (struct sockaddr_in *)ss;
+        memset(sin, 0, sizeof(*sin));
+        sin->sin_family = AF_INET;
+        sin->sin_port = htons((uint16_t)port);
+        memcpy(&sin->sin_addr, octets->data, 4);
+        return sizeof(*sin);
+    }
+
+    Ipv6AddrObject *v6 = (Ipv6AddrObject *)to_obj(&ip->v6);
+    BytesObject *octets = (BytesObject *)to_obj(&v6->octets);
+
+    struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ss;
+    memset(sin6, 0, sizeof(*sin6));
+    sin6->sin6_family = AF_INET6;
+    sin6->sin6_port = htons((uint16_t)port);
+    memcpy(&sin6->sin6_addr, octets->data, 16);
+    return sizeof(*sin6);
+}
+
+// func sys_connect(fd int, addr SocketAddr) int {}
+static TValue _sys_connect(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+
+    int fd = (int)kl_arg_int64(0);
+    SocketAddrObject *addr = kl_arg_obj_as(1, socket_addr_type);
+
+    struct sockaddr_storage ss;
+    socklen_t sslen = _to_sockaddr(addr, &ss);
+
+    int r = connect(fd, (struct sockaddr *)&ss, sslen);
+    return int64_value(r);
+}
+
+static TValue _sys_bind(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+
+    int fd = (int)kl_arg_int64(0);
+    SocketAddrObject *addr = kl_arg_obj_as(1, socket_addr_type);
+
+    struct sockaddr_storage ss;
+    socklen_t sslen = _to_sockaddr(addr, &ss);
+
+    int r = bind(fd, (struct sockaddr *)&ss, sslen);
+    return int64_value(r);
+}
+
+// func sys_close(fd int) int {}
+static TValue _sys_close(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+
+    int fd = (int)kl_arg_int64(0);
+    int r = close(fd);
+    return int64_value(r);
+}
+
+// func sys_setsockopt_int(fd int, level int, name int, val int) int {}
+static TValue _sys_setsockopt_int(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 4);
+
+    int fd = (int)kl_arg_int64(0);
+    int level = (int)kl_arg_int64(1);
+    int name = (int)kl_arg_int64(2);
+    int val = (int)kl_arg_int64(3);
+
+    int r = setsockopt(fd, level, name, &val, sizeof(val));
+    return int64_value(r);
+}
+
+// func sys_send(fd int, bs bytes, flags int) int {}
+static TValue _sys_send(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 3);
+
+    int fd = (int)kl_arg_int64(0);
+    printf("_sys_send: %d\n", fd);
+    BytesObject *bs = kl_arg_obj_as(1, bytes_type);
+    int flags = (int)kl_arg_int64(2);
+
+    ssize_t n = send(fd, bs->data + bs->offset, bs->size, flags);
+    return int64_value((int)n);
+}
+
+// func sys_recv(fd int, bs bytes, flags int) int {}
+static TValue _sys_recv(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 3);
+
+    int fd = (int)kl_arg_int64(0);
+    BytesObject *bs = kl_arg_obj_as(1, bytes_type);
+    int flags = (int)kl_arg_int64(2);
+
+    ssize_t n = recv(fd, bs->data + bs->offset, bs->size, flags);
+    return int64_value((int)n);
+}
+
 static MethodDef socket_functions[] = {
+    { "sys_socket", _sys_socket },
+    { "sys_connect", _sys_connect },
+    { "sys_bind", _sys_bind },
+    { "sys_close", _sys_close },
+    { "sys_setsockopt_int", _sys_setsockopt_int },
+    { "sys_send", _sys_send },
+    { "sys_recv", _sys_recv },
     { "_resolve", resolve_dns },
     { NULL },
 };
 
 void socket_native_lib_init(NativeLib *lib)
 {
+    signal(SIGPIPE, SIG_IGN);
+
     MethodDef *methdef = socket_functions;
     while (methdef->name) {
         kl_reg_func(lib, methdef->name, methdef->cfunc);
@@ -216,6 +368,7 @@ void socket_native_lib_init(NativeLib *lib)
     kl_reg_type(lib, &ipv4_addr_type);
     kl_reg_type(lib, &ipv6_addr_type);
     kl_reg_type(lib, &ip_addr_type);
+    kl_reg_type(lib, &socket_addr_type);
 }
 
 #ifdef __cplusplus

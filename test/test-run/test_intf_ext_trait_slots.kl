@@ -1,0 +1,62 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// Slot indexes of methods called through an *external* trait that itself
+// inherits other external traits: `std/socket.Conn : io.Reader & io.Writer &
+// io.Closable`. The calls are resolved in Conn's own slot table, built from its
+// lro with the inherited copies skipped (see _add_all_intf_to_trait()):
+//
+//     read=0  write=1  write_str=2  flush=3  close=4
+//     local_addr=5 ... socket_type=7 ... take_error=11  read_exact=12  read_to_end=13
+//
+// An upcast to a base trait switches to that trait's own slot table:
+//     io.Reader: read=0   io.Writer: write=0 write_str=1 flush=2   io.Closable: close=0
+//
+// `use()` is never called: a real Conn needs a socket, the IR is what is checked.
+
+import "std/io"
+import "std/socket" as so
+
+func use(c so.Conn) {
+    // methods inherited from the std/io base traits
+    c.read(bytes(1))
+    c.write(b"a")
+    c.write_str("x")
+    c.flush()
+    c.close()
+
+    // Conn's own methods come after the inherited ones
+    c.socket_type()
+    c.take_error()
+    c.read_exact(2)
+    c.read_to_end()
+
+    // upcasts to the external base traits use their own slot tables
+    let r io.Reader = c
+    r.read(bytes(1))
+    let w io.Writer = c
+    w.write_str("y")
+    w.flush()
+    let cl io.Closable = c
+    cl.close()
+}
+
+print("ok")
+
+// CHECK-LABEL: func @use(%c std/socket.Conn)
+// CHECK: call @std/socket.Conn:read [intf-index = 0], %c std/socket.Conn
+// CHECK: call @std/socket.Conn:write [intf-index = 1], %c std/socket.Conn
+// CHECK: call @std/socket.Conn:write_str [intf-index = 2], %c std/socket.Conn
+// CHECK: call @std/socket.Conn:flush [intf-index = 3], %c std/socket.Conn
+// CHECK: call @std/socket.Conn:close [intf-index = 4], %c std/socket.Conn
+// CHECK: call @std/socket.Conn:socket_type [intf-index = 7], %c std/socket.Conn
+// CHECK: call @std/socket.Conn:take_error [intf-index = 11], %c std/socket.Conn
+// CHECK: call @std/socket.Conn:read_exact [intf-index = 12], %c std/socket.Conn
+// CHECK: call @std/socket.Conn:read_to_end [intf-index = 13], %c std/socket.Conn
+// CHECK: upcast_intf %c std/socket.Conn [intf-table-index = 1] to std/io.Reader
+// CHECK: call @std/io.Reader:read [intf-index = 0]
+// CHECK: upcast_intf %c std/socket.Conn [intf-table-index = 2] to std/io.Writer
+// CHECK: call @std/io.Writer:write_str [intf-index = 1]
+// CHECK: call @std/io.Writer:flush [intf-index = 2]
+// CHECK: upcast_intf %c std/socket.Conn [intf-table-index = 3] to std/io.Closable
+// CHECK: call @std/io.Closable:close [intf-index = 0]
+
+// CHECK: {{^}}ok{{$}}

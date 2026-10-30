@@ -1,0 +1,57 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// Upcasts of a class from *another package* to its traits.
+//
+// The intf table of `pkg.Gadget` is only built while its own package is
+// compiled, so here get_intf_index() falls back to the class's lro. The index
+// must still be the one of the runtime itable of `Gadget`
+// (`koala test_pkg/pkg_intf/__pkg_intf__.kl ++ --dump=itable`):
+//
+//     [0] any  [1] Printable  [2] Hashable  [3] Equatable
+//     [4] Sized  [5] Named  [6] Tagged (name=0 tag=1)
+//
+// A wrong index picks another trait's methods, and the calls print the wrong
+// strings below.
+
+import "test_pkg/pkg_intf" as pkg
+
+func show_tagged(t pkg.Tagged) str {
+    return t.name() + "/" + t.tag()
+}
+
+func main() {
+    let g = pkg.Gadget("box")
+
+    let s pkg.Sized = g
+    print("size:", s.size())
+
+    let n pkg.Named = g
+    print("named:", n.name())
+
+    let t pkg.Tagged = g
+    print("tagged:", t.name(), t.tag())
+
+    // a trait -> base trait upcast of the other package's trait
+    let n2 pkg.Named = t
+    print("named2:", n2.name())
+
+    // a class argument is wrapped for the parameter's trait
+    print("param:", show_tagged(g))
+}
+
+// CHECK-LABEL: func @main()
+// CHECK: make_intf %g test_pkg/pkg_intf.Gadget [intf-table-index = 4] to test_pkg/pkg_intf.Sized
+// CHECK: call @test_pkg/pkg_intf.Sized:size [intf-index = 0]
+// CHECK: make_intf %g test_pkg/pkg_intf.Gadget [intf-table-index = 5] to test_pkg/pkg_intf.Named
+// CHECK: call @test_pkg/pkg_intf.Named:name [intf-index = 0]
+// CHECK: make_intf %g test_pkg/pkg_intf.Gadget [intf-table-index = 6] to test_pkg/pkg_intf.Tagged
+// CHECK: call @test_pkg/pkg_intf.Tagged:name [intf-index = 0]
+// CHECK: call @test_pkg/pkg_intf.Tagged:tag [intf-index = 1]
+// CHECK: upcast_intf %t test_pkg/pkg_intf.Tagged [intf-table-index = 1] to test_pkg/pkg_intf.Named
+// CHECK: call @test_pkg/pkg_intf.Named:name [intf-index = 0], %n2
+// CHECK: make_intf %g test_pkg/pkg_intf.Gadget [intf-table-index = 6] to test_pkg/pkg_intf.Tagged
+
+// CHECK: {{^}}size: 3{{$}}
+// CHECK-NEXT: {{^}}named: name:box{{$}}
+// CHECK-NEXT: {{^}}tagged: name:box tag:box{{$}}
+// CHECK-NEXT: {{^}}named2: name:box{{$}}
+// CHECK-NEXT: {{^}}param: name:box/tag:box{{$}}

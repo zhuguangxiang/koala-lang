@@ -1,0 +1,265 @@
+// RUN: koala %s ++ --dump=no-opt-ir,lir | filecheck %s
+
+// Interface upcasts whose target type is *optional* (`Shape?`) or a *generic
+// instance* (`Getter[int]`, `Iterator[int]`, an open `T` of a bounded generic).
+//
+// The runtime itable is keyed by the canonical trait type spec, so `Shape?`,
+// `Getter[int]` and the type param `T` of `Doubler[T: Shape]` must all be
+// normalized to the origin trait before its slot index is looked up. Without
+// the normalization the lookup missed and the compiler aborted while
+// generating IR (this is the `std/builtin.HashSet[T: Hashable]` shape).
+//
+// It also covers optional interface types in parameter and return position.
+
+trait Shape {
+    func area() int
+}
+
+class Rect : Shape {
+    var w int
+    var h int
+
+    func __init__(_w int, _h int) {
+        w = _w
+        h = _h
+    }
+
+    func area() int {
+        return w * h
+    }
+}
+
+class Circle : Shape {
+    var r int
+
+    func __init__(_r int) {
+        r = _r
+    }
+
+    func area() int {
+        return 3 * r * r
+    }
+}
+
+// a local generic trait: `Getter[int]` is an instance of it
+trait Getter[T] {
+    func get() T
+}
+
+class IntGetter : Getter[int] {
+    func get() int {
+        return 7
+    }
+}
+
+// an external generic trait with an optional return type (`next() T?`)
+class CountDown : Iterator[int] {
+    var n int
+
+    func __init__(_n int) {
+        n = _n
+    }
+
+    func has_next() bool {
+        return n > 0
+    }
+
+    func next_strict() int {
+        n = n - 1
+        return n + 1
+    }
+
+    func next() int? {
+        if n > 0 {
+            return next_strict()
+        }
+        return nil
+    }
+}
+
+// generic class with a trait bound: arguments of the generic parameters are
+// converted to the bound trait before the call
+class Doubler[T: Shape] {
+    var v T
+
+    func area() int {
+        return v.area()
+    }
+
+    func store(_x T) int {
+        v = _x
+        return v.area()
+    }
+}
+
+// return type is an optional interface
+func make_shape(kind str) Shape? {
+    if kind == "rect" {
+        return Rect(2, 3)
+    }
+    if kind == "circle" {
+        return Circle(2)
+    }
+    return nil
+}
+
+// parameter type is an optional interface
+func area_of(s Shape?) int {
+    if let v = s {
+        return v.area()
+    }
+    return -1
+}
+
+// upcast target is an optional interface
+func wrap(s Shape) Shape? {
+    return s
+}
+
+// NOTE: a generic *free* function with a trait bound cannot call the bound's
+// methods yet -- `try_to_build_tp_args_cast()` (src/parser/irgen.c) only runs
+// for methods of a generic class instance, so `func f[T: Shape](v T)` receives
+// a raw object while its body emits an interface call (VM abort). The same holds
+// for a generic class `__init__`: its `T` arguments are not converted either, so
+// the bounded generic below is filled through the `store()` method instead.
+// Tracked as docs/Koala_TODO.md §34; the cases that must work once it is fixed
+// are kept ready in test/test-run/test_intf_generic_bounds.kl.disabled.
+
+// parameter type is an optional generic interface instance
+func get_or(g Getter[int]?, dflt int) int {
+    if let v = g {
+        return v.get()
+    }
+    return dflt
+}
+
+func main() {
+    // optional interface variable as the upcast target
+    let s Shape? = Rect(2, 3)
+    if let v = s {
+        print("opt var:", v.area())
+    }
+
+    let plain Shape = Rect(3, 4)
+    print("plain:", plain.area())
+
+    // optional interfaces in parameter and return position
+    print("area_of(s):", area_of(s))
+    print("area_of(plain):", area_of(plain))
+    print("area_of(nil):", area_of(nil))
+    print("make rect:", area_of(make_shape("rect")))
+    print("make circle:", area_of(make_shape("circle")))
+    print("make none:", area_of(make_shape("none")))
+
+    // optional interface returned from a function taking an interface
+    print("wrap circle:", area_of(wrap(Circle(1))))
+    print("wrap rect:", area_of(wrap(Rect(5, 2))))
+
+    // bounded generic class: a method argument typed with the generic parameter
+    // is wrapped with `make_intf` to the bound trait before the call
+    let d = Doubler[Rect]()
+    print("store(3,4):", d.store(Rect(3, 4)))
+    print("area 1:", d.area())
+    print("store(2,5):", d.store(Rect(2, 5)))
+    print("area 2:", d.area())
+
+    // local generic trait instance and its optional form
+    let g Getter[int] = IntGetter()
+    print("getter:", g.get())
+    print("get_or(g):", get_or(g, -1))
+
+    let og Getter[int]? = IntGetter()
+    print("get_or(opt):", get_or(og, -1))
+    print("get_or(nil):", get_or(nil, -1))
+
+    // external generic trait instance and its optional form
+    let it Iterator[int] = CountDown(3)
+    while it.has_next() {
+        print("iter:", it.next_strict())
+    }
+
+    let oit Iterator[int]? = CountDown(2)
+    if let i = oit {
+        if let x = i.next() {
+            print("opt iter:", x)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ir-gen: `Shape?` normalizes to `Shape` for the upcast, and a generic instance
+// (`Getter[int]`, `Iterator[int]`) uses the canonical -- open -- type spec of
+// its origin trait. Both are the keys the lro/itables are built with, so a
+// lookup without the normalization missed and the compiler aborted.
+// ---------------------------------------------------------------------------
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// a bounded generic dispatches its type parameter through the bound trait
+// CHECK-LABEL: func @Doubler:area(
+// CHECK: call @Shape:area [intf-index = 0], {{%[0-9]+}} Doubler:T
+// CHECK-LABEL: func @Doubler:store(
+// CHECK: call @Shape:area [intf-index = 0], {{%[0-9]+}} Doubler:T
+// `Shape?` as a return type still builds the interface of `Shape`
+// CHECK-LABEL: func @make_shape(
+// CHECK: make_intf {{%[0-9]+}} test_intf_optional.Rect [intf-table-index = 4] to test_intf_optional.Shape
+// CHECK: make_intf {{%[0-9]+}} test_intf_optional.Circle [intf-table-index = 4] to test_intf_optional.Shape
+// `Shape?` as a parameter type dispatches through Shape's slot table
+// CHECK-LABEL: func @area_of(
+// CHECK: call @Shape:area [intf-index = 0], %v test_intf_optional.Shape
+// `Getter[int]?` as a parameter type dispatches through Getter's slot table
+// CHECK-LABEL: func @get_or(
+// CHECK: call @Getter:get [intf-index = 0], %v test_intf_optional.Getter<j>
+
+// CHECK-LABEL: func @main()
+// CHECK: make_intf {{%[0-9]+}} test_intf_optional.Rect [intf-table-index = 4] to test_intf_optional.Shape
+// CHECK: call @Shape:area [intf-index = 0], %v test_intf_optional.Shape
+// CHECK: call @Shape:area [intf-index = 0], %plain test_intf_optional.Shape
+// a method argument of a generic parameter is wrapped to the bound trait
+// CHECK: make_intf {{%[0-9]+}} test_intf_optional.Rect [intf-table-index = 4] to Doubler:T
+// generic instances are wrapped with the canonical type spec of the origin trait
+// CHECK: make_intf {{%[0-9]+}} test_intf_optional.IntGetter [intf-table-index = 4] to test_intf_optional.Getter
+// CHECK: call @Getter:get [intf-index = 0], %g test_intf_optional.Getter<j>
+// CHECK: make_intf {{%[0-9]+}} test_intf_optional.CountDown [intf-table-index = 4] to std/builtin.Iterator
+// CHECK: call @std/builtin.Iterator<j>:has_next [intf-index = 0], %it std/builtin.Iterator<j>
+// CHECK: call @std/builtin.Iterator<j>:next_strict [intf-index = 1], %it std/builtin.Iterator<j>
+// CHECK: call @std/builtin.Iterator<j>:next [intf-index = 2], %i std/builtin.Iterator<j>
+// the value already carries its trait's itable, so merely adding nullability
+// (`Shape` -> `Shape?`, `Getter[int]` -> `Getter[int]?`) must not emit an
+// upcast: that would swap the itable for one of its parent slots
+// CHECK-NOT: upcast_intf
+
+// isel keeps every index
+// CHECK-LABEL: --- IR Dump After isel [@main] ---
+// CHECK: make_intf {{%[0-9]+}} test_intf_optional.Rect [intf-table-index = 4] to test_intf_optional.Shape
+// CHECK: call @Shape:area [intf-index = 0], nargs=1
+// CHECK: make_intf {{%[0-9]+}} test_intf_optional.Rect [intf-table-index = 4] to Doubler:T
+// CHECK: make_intf {{%[0-9]+}} test_intf_optional.IntGetter [intf-table-index = 4] to test_intf_optional.Getter
+// CHECK: call @Getter:get [intf-index = 0], nargs=1
+// CHECK: make_intf {{%[0-9]+}} test_intf_optional.CountDown [intf-table-index = 4] to std/builtin.Iterator
+// CHECK: call @std/builtin.Iterator<j>:has_next [intf-index = 0], nargs=1
+// CHECK: call @std/builtin.Iterator<j>:next_strict [intf-index = 1], nargs=1
+// CHECK-NOT: upcast_intf
+
+// runtime
+// CHECK: opt var: 6
+// CHECK: plain: 12
+// CHECK: area_of(s): 6
+// CHECK: area_of(plain): 12
+// CHECK: area_of(nil): -1
+// CHECK: make rect: 6
+// CHECK: make circle: 12
+// CHECK: make none: -1
+// CHECK: wrap circle: 3
+// CHECK: wrap rect: 10
+// CHECK: store(3,4): 12
+// CHECK: area 1: 12
+// CHECK: store(2,5): 10
+// CHECK: area 2: 10
+// CHECK: getter: 7
+// CHECK: get_or(g): 7
+// CHECK: get_or(opt): 7
+// CHECK: get_or(nil): -1
+// CHECK: iter: 3
+// CHECK: iter: 2
+// CHECK: iter: 1
+// CHECK: opt iter: 2
+

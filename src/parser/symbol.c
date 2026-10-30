@@ -310,7 +310,8 @@ Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, 
     return (Symbol *)sym;
 }
 
-Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *origin_trait)
+Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *owner_kls,
+                               KlassSymbol *origin_trait)
 {
     ASSERT(sym->kind == SYM_FUNC);
     FuncSymbol *origin = (FuncSymbol *)sym;
@@ -326,7 +327,12 @@ Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *origin_
     } else {
         inherited->origin = origin;
         inherited->trait = origin_trait;
-        // inherited->ts = origin->ts;
+        // `owner_kls` is the trait whose symbol table holds this inherited method.
+        // irgen needs it to compute interface slots in the receiver's static type's slot
+        // space: the runtime itable is built from the owner's method order (see
+        // build_class_intf_table() and _add_all_intf_to_trait()), not from the order of
+        // the base trait that declares the method.
+        inherited->parent = owner_kls;
         add_to_global(inherited);
     }
 
@@ -678,10 +684,46 @@ void build_intf_table(HashMap *stbl)
     }
 }
 
+// Normalize a type spec to the canonical one that denotes the same interface.
+//
+// `A?`, `A<int>`, `A<T>`(open generic ref) and `A`'s own instance ts all denote the
+// interface of the origin klass `A`, and it is that canonical instance ts which is
+// stored in the lro and used to key the interface tables.
+TypeSpec *intf_canonical_ts(TypeSpec *ts)
+{
+    if (!ts) return NULL;
+
+    // the optional wrapper only changes nullability, not the interface slot table
+    if (type_is_optional(ts)) ts = ts->opt.src;
+    if (!ts) return NULL;
+
+    Symbol *sym = get_symbol_by_id(ts->sym_id);
+    if (!sym) return ts;
+
+    if (sym->kind == SYM_INSTANCE) sym = ((InstanceSymbol *)sym)->origin;
+
+    if (sym && (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT)) {
+        KlassSymbol *kls = (KlassSymbol *)sym;
+        if (kls->instance_ts) return kls->instance_ts;
+    }
+
+    return ts;
+}
+
 int get_intf_index(Symbol *sym, TypeSpec *trait_ts)
 {
     ASSERT(sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT);
     KlassSymbol *kls = (KlassSymbol *)sym;
+
+    TypeSpec *canon_ts = intf_canonical_ts(trait_ts);
+    Symbol *trait_sym = get_symbol_by_id(canon_ts->sym_id);
+
+    // the intf table is the authoritative source of the runtime slot index, but it is
+    // only built for the classes of the module being compiled(see build_intf_table()).
+    if (sym->kind == SYM_CLASS && !vector_empty(&kls->intf_table)) {
+        IntfEntry *entry = get_intf_entry(&kls->intf_table, trait_sym);
+        if (entry) return entry->index;
+    }
 
     int index = 0;
 
@@ -689,14 +731,18 @@ int get_intf_index(Symbol *sym, TypeSpec *trait_ts)
     vector_foreach(ts, &kls->lro) {
         if (!ts) continue;
 
-        if (ts == trait_ts) {
-            return index;
-        }
+        if (ts == trait_ts || ts == canon_ts) return index;
+        if (trait_sym && get_symbol_by_id(ts->sym_id) == trait_sym) return index;
 
         ++index;
     }
 
-    UNREACHABLE();
+    // Not an internal error: a wrong index would silently call another method at
+    // runtime, so report it and let the caller emit a diagnostic.
+    log_error("type '%s' does not implement interface '%s'", sym->name,
+              trait_sym ? trait_sym->name
+                        : (canon_ts->signature ? canon_ts->signature : "<unknown>"));
+    return -1;
 }
 
 static void dump_class_intf_table(Symbol *sym)

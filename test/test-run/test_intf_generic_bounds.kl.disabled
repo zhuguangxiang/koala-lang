@@ -1,0 +1,84 @@
+// RUN: koala %s ++ --dump=no-opt-ir,lir | filecheck %s
+//
+// DISABLED -- rename to `test_intf_generic_bounds.kl` to enable, after the two gaps
+// recorded in docs/Koala_TODO.md §34 are fixed. lit only collects `.kl` / `.test`
+// (test/lit.cfg: config.suffixes), so this file is inert until renamed.
+//
+// Both cases abort in the VM today, because a generic free function and a generic
+// class `__init__` receive their `T: Bound` argument as a bare object instead of an
+// interface value:
+//   koala: include/runtime/vm_ops.h:430: _eval_frame:
+//          Assertion `((callable)->tag > (64 + 1))' failed.
+//
+// Root cause: `try_to_build_tp_args_cast()` (src/parser/irgen.c:738) has a single
+// call site (irgen.c:900) guarded by `lhs_sym->origin && parent->kind == SYM_INSTANCE`,
+// i.e. only method calls on a generic class *instance*. Free-function calls and the
+// `emit_type_call()` construction path (irgen.c:858) bypass it.
+//
+// Gap 2 is intermittent: `peek()` on the value stored by `__init__` aborts, while a
+// field later overwritten by `store()` (which does convert) works -- so the expected
+// output below is only reachable once both gaps are fixed.
+//
+// Expected IR after the fix -- the `make_intf` that instance methods already emit.
+// Indices/names may need a light touch-up when enabling; the point is that each
+// call operand is the bound interface (`wrap:T` / `Doubler:T`), never a bare class.
+//
+// CHECK: make_intf %{{[0-9]+}} test_intf_generic_bounds.Rect [intf-table-index = {{[0-9]+}}] to wrap:T
+// CHECK: call @wrap, %{{[0-9]+}} wrap:T
+// CHECK: make_intf %{{[0-9]+}} test_intf_generic_bounds.Circle [intf-table-index = {{[0-9]+}}] to Doubler:T
+// CHECK: call @Doubler:__init__, %{{[0-9]+}} Doubler<Ltest_intf_generic_bounds.Circle;>, %{{[0-9]+}} Doubler:T
+// CHECK: call @Shape:area [intf-index = 0], %{{[0-9]+}} Doubler:T
+// CHECK: make_intf %{{[0-9]+}} test_intf_generic_bounds.Circle [intf-table-index = {{[0-9]+}}] to Doubler:T
+// CHECK: call @Doubler:store
+// CHECK-NOT: Assertion
+// CHECK: 10
+// CHECK: 20
+// CHECK: 20
+import "std/prelude"
+
+trait Shape {
+    func area() int
+}
+
+class Rect : Shape {
+    func area() int { return 10 }
+}
+
+class Circle : Shape {
+    func area() int { return 20 }
+}
+
+// gap 1: a generic free function with a trait bound. The body calls through the
+// bound interface, but the argument is passed as a bare Rect.
+func wrap[T: Shape](v T) int {
+    return v.area()
+}
+
+class Doubler[T: Shape] {
+    var v T
+
+    // gap 2: the constructor's `T` argument is not converted either, so `v` holds a
+    // bare object until some other method overwrites it.
+    func __init__(_v T) {
+        v = _v
+    }
+
+    func peek() int {
+        return v.area()
+    }
+
+    // already correct today: instance-method calls go through
+    // try_to_build_tp_args_cast() and emit `make_intf ... to Doubler:T`.
+    func store(_x T) int {
+        v = _x
+        return v.area()
+    }
+}
+
+func main() {
+    print(wrap(Rect()))
+
+    let d = Doubler[Circle](Circle())
+    print(d.peek())
+    print(d.store(Circle()))
+}

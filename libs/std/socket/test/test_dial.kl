@@ -1,0 +1,15 @@
+
+import "std/ut"
+import "std/socket" as so
+
+@test
+func test_dial_tcp_baidu() {
+    let c = so.dial("baidu.com:80", so.SocketTypeSpec.tcp(), nil)
+    ut.assert_true(c != nil)
+    let conn = c!
+    conn.write_str("GET / HTTP/1.0\r\nHost: baidu.com\r\n\r\n")
+    let resp = conn.read_to_end()
+    ut.assert_true(resp != nil)
+    ut.assert_true(resp!.len() > 0)
+    conn.close()
+}

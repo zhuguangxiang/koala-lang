@@ -970,6 +970,12 @@ static void tuple_decl_stmt_free(Stmt *stmt)
     vector_destroy(s->ids);
     expr_free(s->exp);
     vector_fini(&s->sym_ids);
+    Stmt *_s;
+    vector_foreach(_s, s->else_block) {
+        if (!_s) continue;
+        stmt_free(_s);
+    }
+    vector_destroy(s->else_block);
     mm_free(s);
 }
 

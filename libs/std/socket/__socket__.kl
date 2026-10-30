@@ -28,74 +28,77 @@ import "std/os"
 ///
 /// Returns nil on any failure: bad url, DNS failure, socket creation
 /// failure, bind failure, or connect failure.
-// pub func dial(url str, spec SocketTypeSpec, options DialOptions?) Conn? {
-//     let (host, port) = split_host_port(url) else { return nil }
+pub func dial(url str, spec SocketTypeSpec, options DialOptions?) Conn? {
+    let (host, port) = split_host_port(url) else { return nil }
+    // let _host_port = split_host_port(url) else { return nil }
+    // let (host, port) = _host_port
 
-//     if spec.kind() == SOCKTYPE_RAW && port != 0 { return nil }
+    if spec.kind() == SOCKTYPE_RAW && port != 0 { return nil }
 
-//     let rr = resolve(host)
-//     if rr.status() != DNS_OK { return nil }
+    let rr = resolve(host)
+    if rr.status() != DNS_OK { return nil }
 
-    // let addrs = rr.addrs()
-    // if addrs.len() == 0 { return nil }
+    let addrs = rr.addrs()
+    if addrs.len() == 0 { return nil }
 
-//     let target = SocketAddr(addrs[0], port)
-//     let opts = options ?: DialOptions()
-//     return _dial_one(target, spec, opts)
-// }
+    let target = SocketAddr(addrs[0], port)
+    let opts = options ?? DialOptions()
+    return _dial_one(target, spec, opts)
+}
 
-// // Connect to one concrete address. All failure paths collapse to nil;
-// // the caller (dial) has no way to distinguish them.
-// func _dial_one(addr SocketAddr, spec SocketTypeSpec, opts DialOptions) Conn? {
-//     var domain = AF_INET
-//     if !addr.ip().is_v4() { domain = AF_INET6 }
+// Connect to one concrete address. All failure paths collapse to nil;
+// the caller (dial) has no way to distinguish them.
+func _dial_one(addr SocketAddr, spec SocketTypeSpec, opts DialOptions) Conn? {
+    var domain = AF_INET
+    if !addr.ip().is_v4() { domain = AF_INET6 }
 
-//     var sock_type = SOCK_STREAM
-//     if spec.kind() == SOCKTYPE_UDP { sock_type = SOCK_DGRAM }
-//     if spec.kind() == SOCKTYPE_RAW { sock_type = SOCK_RAW }
+    var sock_type = SOCK_STREAM
+    if spec.kind() == SOCKTYPE_UDP { sock_type = SOCK_DGRAM }
+    if spec.kind() == SOCKTYPE_RAW { sock_type = SOCK_RAW }
 
-//     var proto = 0
-//     if spec.kind() == SOCKTYPE_RAW { proto = spec.protocol()! }
+    var proto = 0
+    if spec.kind() == SOCKTYPE_RAW { proto = spec.protocol()! }
 
-//     let fd = sys_socket(domain, sock_type, proto)
-//     if fd < 0 { return nil }
+    let fd = sys_socket(domain, sock_type, proto)
+    if fd < 0 { return nil }
 
-//     let local = opts.local_addr()
-//     if local != nil {
-//         if sys_bind(fd, local!) != 0 {
-//             sys_close(fd)
-//             return nil
-//         }
-//     }
+    let local = opts.local_addr()
+    if local != nil {
+        if sys_bind(fd, local) != 0 {
+            sys_close(fd)
+            return nil
+        }
+    }
 
-//     if opts.timeout_ms() > 0 {
-//         sys_setsockopt_timeout(fd, SO_SNDTIMEO, opts.timeout_ms())
-//     }
+    if opts.timeout_ms() > 0 {
+        sys_setsockopt_timeout(fd, SO_SNDTIMEO, opts.timeout_ms())
+    }
 
-//     if sys_connect(fd, addr) != 0 {
-//         sys_close(fd)
-//         return nil
-//     }
+    if sys_connect(fd, addr) != 0 {
+        sys_close(fd)
+        return nil
+    }
 
-//     if spec.kind() == SOCKTYPE_TCP {
-//         let c = TcpConn(fd)
-//         if opts.nodelay() { c.set_nodelay(true) }
-//         if opts.keepalive_s() > 0 {
-//             c.set_keepalive(true)
-//             c.set_keepalive_period(opts.keepalive_s())
-//         }
-//         return c
-//     }
+    if spec.kind() == SOCKTYPE_TCP {
+        let c = TcpConn(fd)
+        if opts.nodelay() { c.set_nodelay(true) }
+        if opts.keepalive_s() > 0 {
+            c.set_keepalive(true)
+            c.set_keepalive_period(opts.keepalive_s())
+        }
+        print("_dial_one: TcpConn._fd=", c._fd)
+        return c
+    }
 
-//     if spec.kind() == SOCKTYPE_UDP {
-//         let c = UdpConn(fd)
-//         // Cache the peer so remote_addr() does not require a syscall.
-//         c._remote = addr
-//         return c
-//     }
+    if spec.kind() == SOCKTYPE_UDP {
+        let c = UdpConn(fd)
+        // Cache the peer so remote_addr() does not require a syscall.
+        c._remote = addr
+        return c
+    }
 
-//     return RawConn(fd, spec.protocol()!)
-// }
+    return RawConn(fd, spec.protocol()!)
+}
 
 // /// Bind and listen on `url`; returns a `TcpListener`.
 // ///
@@ -163,6 +166,14 @@ pub func resolve(host str) ResolveResult {
     let (status, addrs, msg) = _resolve(host)
     return ResolveResult(status, addrs, msg)
 }
+
+/// Create a socket. Returns a non-negative fd, or -1 on error.
+@native
+func sys_socket(domain int, type_ int, proto int) int {}
+
+/// Bind a socket to a local address. Returns 0 on success, -1 on error.
+@native
+func sys_bind(fd int, addr SocketAddr) int {}
 
 /// Native DNS resolution.
 ///

@@ -1,0 +1,81 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Typed names in tuple destructuring that are not compatible with the element types.
+// Interfaces are nominal: Cat has a 'name()' method but does not declare Named.
+
+trait Named {
+    func name() str
+}
+trait Fly : Named {
+    func fly() str
+}
+class Bird : Fly {
+    func name() str = "bird"
+    func fly() str = "flying"
+}
+class Cat {
+    func name() str = "cat"
+}
+class Dog {}
+func make_cat() (Cat, int) {
+    return (Cat(), 1)
+}
+func maybe_cat() (Cat, int)? {
+    return nil
+}
+func big() (int, int) {
+    return (300, 1)
+}
+func signed() (int8, int) {
+    let x int8 = -1
+    return (x, 1)
+}
+// a class that does not implement the trait
+func not_implemented() {
+    let (f Fly, n) = make_cat()
+}
+// trait -> class: no downcast
+func trait_to_class() {
+    let fly Fly = Bird()
+    let (b Bird, n) = (fly, 1)
+}
+// base trait -> derived trait
+func base_to_derived() {
+    let nm Named = Bird()
+    let (f Fly, n) = (nm, 1)
+}
+// a different class
+func other_class() {
+    let (d Dog, n) = make_cat()
+}
+// int64 -> int8: no narrowing of a non-literal value
+func narrowing() {
+    let (a int8, b) = big()
+}
+// int8 -> uint8: signed to unsigned
+func sign_change() {
+    let (a uint8, b) = signed()
+}
+// optional class -> trait
+func optional_class() {
+    let c Cat? = nil
+    let (n Named, m) = (c, 1)
+}
+// a literal that does not fit the given type
+func literal_overflow() {
+    let (a int8, b) = (300, 1)
+}
+// let-else checks the given types too
+func let_else_mismatch() {
+    let (f Fly, n) = maybe_cat() else { return }
+}
+
+// CHECK: variable 'f' of type 'test_tuple_decl_trait_errors.Fly' cannot hold element of type 'test_tuple_decl_trait_errors.Cat'.
+// CHECK-NEXT: variable 'b' of type 'test_tuple_decl_trait_errors.Bird' cannot hold element of type 'test_tuple_decl_trait_errors.Fly'.
+// CHECK-NEXT: variable 'f' of type 'test_tuple_decl_trait_errors.Fly' cannot hold element of type 'test_tuple_decl_trait_errors.Named'.
+// CHECK-NEXT: variable 'd' of type 'test_tuple_decl_trait_errors.Dog' cannot hold element of type 'test_tuple_decl_trait_errors.Cat'.
+// CHECK-NEXT: variable 'a' of type 'int8' cannot hold element of type 'int64'.
+// CHECK-NEXT: variable 'a' of type 'uint8' cannot hold element of type 'int8'.
+// CHECK-NEXT: variable 'n' of type 'test_tuple_decl_trait_errors.Named' cannot hold element of type 'test_tuple_decl_trait_errors.Cat?'.
+// CHECK-NEXT: Value 300 overflows 'int8' range
+// CHECK-NEXT: variable 'f' of type 'test_tuple_decl_trait_errors.Fly' cannot hold element of type 'test_tuple_decl_trait_errors.Cat'.
+// CHECK-NOT: error:

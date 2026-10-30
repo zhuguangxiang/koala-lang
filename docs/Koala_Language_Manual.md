@@ -443,11 +443,27 @@ Three rules apply, all checked at compile time:
   `panic(...)` or `unreachable()`. A block that can fall through is an error, because `v` would then be `nil` while
   typed `T`.
 - `expr` must be optional; `let v = 42 else { ... }` is an error.
-- Only a single `let` binding is allowed: no `var`, and no multi-value destructuring.
+- A single name is bound with `let` only (no `var v = ... else`). To bind several names, use the
+  tuple form below.
 
 A type annotation, when given, is the optional type itself (`let v int? = ... else { ... }`); `v`
 is narrowed to `int` after the statement. `let-else` costs nothing at runtime — it is the same
 `if v == nil { ... }` early-exit narrowing described above.
+
+**Tuple `let-else`.** `let (a, b) = expr else { ... }` (or `var (a, b) = ...`) combines `let-else`
+with tuple destructuring: `expr` must be an optional tuple `(T1, T2, ...)?`. If it is `nil` the
+`else` block runs and must exit, as above; otherwise the tuple is destructured exactly like
+`let (a, b) = t` — `_` skips a field, a name may give its type, and the number of names must match
+the size of the tuple. The names are not visible inside the `else` block.
+
+```kl
+func split_host_port(url str) (str, int)? { ... }
+
+func connect(url str) str? {
+    let (host, port) = split_host_port(url) else { return nil }
+    return host + ":" + str(port)
+}
+```
 
 **Member access requires an unwrapped value.** A `T?` value cannot be used with the plain dot
 operator — accessing a field or calling a method on it is a compile error:

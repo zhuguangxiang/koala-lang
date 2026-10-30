@@ -40,6 +40,18 @@ func not_tuple() {
 }
 // CHECK: cannot destructure non-tuple type
 
+func maybe_pair() (int, int)? {
+    return (1, 2)
+}
+
+// an optional tuple must be unwrapped first
+func optional_rhs() {
+    var a = 1
+    var b = 2
+    (a, b) = maybe_pair()
+}
+// CHECK: cannot destructure optional type 'std/builtin.tuple<jj>?', unwrap it first.
+
 func wrong_count() {
     var a = 1
     var b = 2

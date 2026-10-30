@@ -21,6 +21,21 @@ func duplicate_name() {
 }
 // CHECK-NEXT: redefinition of 'a'
 
+func maybe_pair() (int, int)? {
+    return (1, 2)
+}
+
+// an optional tuple needs let-else
+func optional_let() {
+    let (a, b) = maybe_pair()
+}
+// CHECK-NEXT: cannot destructure optional type 'std/builtin.tuple<jj>?', use 'let (...) = t else { ... }'.
+
+func optional_var() {
+    var (a, b) = maybe_pair()
+}
+// CHECK-NEXT: cannot destructure optional type 'std/builtin.tuple<jj>?', use 'let (...) = t else { ... }'.
+
 // '_' may repeat, no error
 func many_underscores() {
     let (_, _) = (1, 2)

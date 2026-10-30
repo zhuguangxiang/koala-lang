@@ -1,0 +1,124 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// Typed names in tuple destructuring that are compatible with the element types:
+// class -> trait (from a call, with var, with let-else), trait -> base trait,
+// class -> optional trait, T -> T?, integer widening, -> any, a nested tuple type.
+
+trait Named {
+    func name() str
+}
+trait Fly : Named {
+    func fly() str
+}
+class Bird : Fly {
+    func name() str = "bird"
+    func fly() str = "flying"
+}
+func make() (Bird, int) {
+    return (Bird(), 1)
+}
+func maybe_bird(ok bool) (Bird, int)? {
+    if ok {
+        return (Bird(), 2)
+    }
+    return nil
+}
+func divmod(a int, b int) (int, int) {
+    return (a / b, a % b)
+}
+func small() (int8, int) {
+    let x int8 = 7
+    return (x, 1)
+}
+// class -> trait from a call result: the element is read as Bird, then make_intf
+func call_result() {
+    let (f Fly, n) = make()
+    print("call:", f.fly(), n)
+}
+// var: the same conversion, the names are mutable
+func var_trait() {
+    var (f Fly, n) = make()
+    n += 10
+    print("var:", f.fly(), n)
+}
+// let-else: the unwrapped tuple is converted the same way
+func let_else(ok bool) {
+    let (f Fly, n) = maybe_bird(ok) else {
+        print("let-else: none")
+        return
+    }
+    print("let-else:", f.fly(), n)
+}
+// trait -> base trait: upcast_intf to the base slot table
+func base_trait() {
+    let fly Fly = Bird()
+    let (nm Named, n) = (fly, 3)
+    print("base:", nm.name(), n)
+}
+// class -> optional trait
+func opt_trait() {
+    let (f Fly?, n) = make()
+    if let g = f {
+        print("opt:", g.fly(), n)
+    }
+}
+// T -> T? from a call result
+func opt_from_call() {
+    let (a int?, b) = divmod(7, 2)
+    print("opt-int:", a, b)
+}
+// int8 -> int: widened by the move, as for a single let
+func widen() {
+    let (a int, b) = small()
+    print("widen:", a + 1, b)
+}
+// any accepts every element type
+func to_any() {
+    let (a any, b) = (1, "s")
+    print("any:", a, b)
+}
+// a nested tuple type: nil fits the inner int?
+func nested() {
+    let (p (int?, int), s) = ((nil, 1), "x")
+    print("nested:", p, s)
+}
+call_result()
+var_trait()
+let_else(true)
+let_else(false)
+base_trait()
+opt_trait()
+opt_from_call()
+widen()
+to_any()
+nested()
+
+// class -> trait: the element is read with its own type 'Bird', then made a 'Fly'
+// CHECK-LABEL: func @call_result()
+// CHECK: make_intf %{{[0-9]+}} test_tuple_decl_trait.Bird [intf-table-index = 5] to test_tuple_decl_trait.Fly
+// CHECK-NEXT: move %f test_tuple_decl_trait.Fly, %{{[0-9]+}} test_tuple_decl_trait.Fly
+
+// let-else: the same conversion after the nil check
+// CHECK-LABEL: func @let_else(
+// CHECK: make_intf %{{[0-9]+}} test_tuple_decl_trait.Bird [intf-table-index = 5] to test_tuple_decl_trait.Fly
+// CHECK-NEXT: move %f test_tuple_decl_trait.Fly, %{{[0-9]+}} test_tuple_decl_trait.Fly
+
+// trait -> base trait: upcast to Named's slot table
+// CHECK-LABEL: func @base_trait()
+// CHECK: upcast_intf %{{[0-9]+}} test_tuple_decl_trait.Fly [intf-table-index = 1] to test_tuple_decl_trait.Named
+// CHECK-NEXT: move %nm test_tuple_decl_trait.Named, %{{[0-9]+}} test_tuple_decl_trait.Named
+
+// class -> optional trait: made a 'Fly', stored in the 'Fly?' local
+// CHECK-LABEL: func @opt_trait()
+// CHECK: make_intf %{{[0-9]+}} test_tuple_decl_trait.Bird [intf-table-index = 5] to test_tuple_decl_trait.Fly
+// CHECK-NEXT: move %f test_tuple_decl_trait.Fly?, %{{[0-9]+}} test_tuple_decl_trait.Fly
+
+// CHECK: {{^}}call: flying 1{{$}}
+// CHECK-NEXT: {{^}}var: flying 11{{$}}
+// CHECK-NEXT: {{^}}let-else: flying 2{{$}}
+// CHECK-NEXT: {{^}}let-else: none{{$}}
+// CHECK-NEXT: {{^}}base: bird 3{{$}}
+// CHECK-NEXT: {{^}}opt: flying 1{{$}}
+// CHECK-NEXT: {{^}}opt-int: 3 1{{$}}
+// CHECK-NEXT: {{^}}widen: 8 1{{$}}
+// CHECK-NEXT: {{^}}any: 1 s{{$}}
+// CHECK-NEXT: {{^}}nested: (nil, 1) x{{$}}

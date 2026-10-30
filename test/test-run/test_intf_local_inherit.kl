@@ -1,0 +1,204 @@
+// RUN: koala %s ++ --dump=no-opt-ir,lir | filecheck %s
+
+// Slot indexes of methods inherited between *local* traits.
+//
+// Every trait owns an independent slot table: the inherited traits come first
+// (in declaration order, deduplicated) and the trait's own methods last. A
+// call must be resolved in the slot table of the receiver's static type, so
+// the *same* method has different indexes depending on the trait used:
+//
+//     Named       : name=0
+//     Sized       : size=0
+//     NamedSized  : name=0  size=1  label=2
+//     Deep        : name=0  size=1  label=2  deep=3
+//     Left        : name=0  left=1
+//     Right       : name=0  right=1
+//     Diamond     : name=0  left=1  right=2  both=3   (Named deduplicated)
+//
+// Each method returns its own tag string, so dispatching through a wrong slot
+// prints the wrong tag instead of the expected one.
+
+trait Named {
+    func name() str
+}
+
+trait Sized {
+    func size() int
+}
+
+trait NamedSized : Named & Sized {
+    func label() str
+}
+
+trait Deep : NamedSized {
+    func deep() str
+}
+
+// diamond: `Named` is inherited twice and must occupy a single slot
+trait Left : Named {
+    func left() str
+}
+
+trait Right : Named {
+    func right() str
+}
+
+trait Diamond : Left & Right {
+    func both() str
+}
+
+class Widget : Deep {
+    var n str
+
+    func __init__(_n str) {
+        n = _n
+    }
+
+    func name() str {
+        return n
+    }
+
+    func size() int {
+        return n.len()
+    }
+
+    func label() str {
+        return "label(" + name() + ")"
+    }
+
+    func deep() str {
+        return "deep(" + label() + ")"
+    }
+}
+
+class Gem : Diamond {
+    func name() str {
+        return "gem"
+    }
+
+    func left() str {
+        return "left(" + name() + ")"
+    }
+
+    func right() str {
+        return "right(" + name() + ")"
+    }
+
+    func both() str {
+        return "both(" + left() + "," + right() + ")"
+    }
+}
+
+// a trait typed parameter is wrapped in the slot space of the parameter's trait
+func identify(ns NamedSized) str {
+    return ns.name() + "/" + ns.size().to_str() + "/" + ns.label()
+}
+
+func main() {
+    let w = Widget("abcd")
+
+    // through Deep: every slot comes from Deep's slot table
+    let d Deep = w
+    print("deep:", d.name(), d.size(), d.label(), d.deep())
+
+    // through NamedSized: the same methods, but resolved in NamedSized's table
+    let ns NamedSized = d
+    print("namedsized:", ns.name(), ns.size(), ns.label())
+
+    // through the single-method base traits
+    let nm Named = ns
+    print("named:", nm.name())
+    let sz Sized = w
+    print("sized:", sz.size())
+
+    // NamedSized -> Named upcast keeps dispatching to Widget's own method
+    let nm2 Named = ns
+    print("named2:", nm2.name())
+
+    print("identify(w):", identify(w))
+    print("identify(ns):", identify(ns))
+
+    // diamond inheritance: `Named` occupies a single slot in Diamond's table
+    let g = Gem()
+    let dia Diamond = g
+    print("diamond:", dia.name(), dia.left(), dia.right(), dia.both())
+
+    let l Left = dia
+    print("left:", l.name(), l.left())
+
+    let r Right = dia
+    print("right:", r.name(), r.right())
+
+    let nm3 Named = dia
+    print("named3:", nm3.name())
+}
+
+// ---------------------------------------------------------------------------
+// ir-gen: every trait owns an independent slot table and a call is resolved in
+// the slot table of the receiver's static type:
+//     Named      : name=0
+//     Sized      : size=0
+//     NamedSized : name=0  size=1  label=2
+//     Deep       : name=0  size=1  label=2  deep=3
+//     Left/Right : name=0 left=1 / name=0 right=1
+//     Diamond    : name=0  left=1  right=2  both=3   (`Named` deduplicated)
+// ---------------------------------------------------------------------------
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @identify(
+// CHECK: call @NamedSized:name [intf-index = 0], %ns test_intf_local_inherit.NamedSized
+// CHECK: call @NamedSized:size [intf-index = 1], %ns test_intf_local_inherit.NamedSized
+// CHECK: call @NamedSized:label [intf-index = 2], %ns test_intf_local_inherit.NamedSized
+
+// CHECK-LABEL: func @main()
+// CHECK: make_intf %w test_intf_local_inherit.Widget [intf-table-index = 7] to test_intf_local_inherit.Deep
+// CHECK: call @Deep:name [intf-index = 0], %d test_intf_local_inherit.Deep
+// CHECK: call @Deep:size [intf-index = 1], %d test_intf_local_inherit.Deep
+// CHECK: call @Deep:label [intf-index = 2], %d test_intf_local_inherit.Deep
+// CHECK: call @Deep:deep [intf-index = 3], %d test_intf_local_inherit.Deep
+// trait -> trait upcast: the itable switches to the parent trait's slot table
+// CHECK: upcast_intf %d test_intf_local_inherit.Deep [intf-table-index = 3] to test_intf_local_inherit.NamedSized
+// CHECK: call @NamedSized:name [intf-index = 0], %ns test_intf_local_inherit.NamedSized
+// CHECK: call @NamedSized:size [intf-index = 1], %ns test_intf_local_inherit.NamedSized
+// CHECK: call @NamedSized:label [intf-index = 2], %ns test_intf_local_inherit.NamedSized
+// CHECK: upcast_intf %ns test_intf_local_inherit.NamedSized [intf-table-index = 1] to test_intf_local_inherit.Named
+// CHECK: call @Named:name [intf-index = 0], %nm test_intf_local_inherit.Named
+// CHECK: make_intf %w test_intf_local_inherit.Widget [intf-table-index = 5] to test_intf_local_inherit.Sized
+// CHECK: call @Sized:size [intf-index = 0], %sz test_intf_local_inherit.Sized
+// CHECK: make_intf %w test_intf_local_inherit.Widget [intf-table-index = 6] to test_intf_local_inherit.NamedSized
+// diamond: `Named` occupies a single slot, so left/right/both are not shifted
+// CHECK: make_intf %g test_intf_local_inherit.Gem [intf-table-index = 7] to test_intf_local_inherit.Diamond
+// CHECK: call @Diamond:name [intf-index = 0], %dia test_intf_local_inherit.Diamond
+// CHECK: call @Diamond:left [intf-index = 1], %dia test_intf_local_inherit.Diamond
+// CHECK: call @Diamond:right [intf-index = 2], %dia test_intf_local_inherit.Diamond
+// CHECK: call @Diamond:both [intf-index = 3], %dia test_intf_local_inherit.Diamond
+// CHECK: upcast_intf %dia test_intf_local_inherit.Diamond [intf-table-index = 2] to test_intf_local_inherit.Left
+// CHECK: call @Left:left [intf-index = 1], %l test_intf_local_inherit.Left
+// CHECK: upcast_intf %dia test_intf_local_inherit.Diamond [intf-table-index = 3] to test_intf_local_inherit.Right
+// CHECK: call @Right:right [intf-index = 1], %r test_intf_local_inherit.Right
+// CHECK: upcast_intf %dia test_intf_local_inherit.Diamond [intf-table-index = 1] to test_intf_local_inherit.Named
+// CHECK: call @Named:name [intf-index = 0], %nm3 test_intf_local_inherit.Named
+
+// isel keeps every index
+// CHECK-LABEL: --- IR Dump After isel [@main] ---
+// CHECK: call @Deep:name [intf-index = 0], nargs=1
+// CHECK: call @Deep:size [intf-index = 1], nargs=1
+// CHECK: call @Deep:label [intf-index = 2], nargs=1
+// CHECK: call @Deep:deep [intf-index = 3], nargs=1
+// CHECK: call @NamedSized:name [intf-index = 0], nargs=1
+// CHECK: call @NamedSized:label [intf-index = 2], nargs=1
+// CHECK: call @Diamond:left [intf-index = 1], nargs=1
+// CHECK: call @Diamond:both [intf-index = 3], nargs=1
+
+// runtime: every method returns its own tag, so a wrong slot prints a wrong tag
+// CHECK: deep: abcd 4 label(abcd) deep(label(abcd))
+// CHECK: namedsized: abcd 4 label(abcd)
+// CHECK: named: abcd
+// CHECK: sized: 4
+// CHECK: named2: abcd
+// CHECK: identify(w): abcd/4/label(abcd)
+// CHECK: identify(ns): abcd/4/label(abcd)
+// CHECK: diamond: gem left(gem) right(gem) both(left(gem),right(gem))
+// CHECK: left: gem left(gem)
+// CHECK: right: gem right(gem)
+// CHECK: named3: gem
+

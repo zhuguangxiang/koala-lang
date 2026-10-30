@@ -1,0 +1,143 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// A class value stored into a trait-typed target must become an interface
+// value (make_intf) first, whatever the store is: a global's initializer, a later
+// assignment to a global, a local, a name bound by tuple destructuring, a list
+// element (`__setitem__`'s value type) or a field. A trait value of the same
+// trait is stored as is, a derived trait is upcast to the base trait.
+// Without the conversion the bare object was stored and the next call through
+// it aborted in the VM (vm_ops.h:430).
+
+trait Named {
+    func name() str
+}
+trait Fly : Named {
+    func fly() str
+}
+class Bird : Fly {
+    let n str
+    func __init__(_n str) {
+        n = _n
+    }
+    func name() str = "bird-" + n
+    func fly() str = "fly-" + n
+}
+class Cage {
+    var pet Fly
+    func __init__(b Bird) {
+        pet = b
+    }
+    func swap(b Bird) {
+        pet = b
+    }
+}
+func make() (Bird, int) {
+    return (Bird("t"), 1)
+}
+
+// trait-typed globals: initialized and reassigned with a class value
+let g_seq Sequence[int] = [1, 2, 3]
+var g_fly Fly = Bird("g1")
+print("global:", g_seq.len(), g_fly.fly())
+g_fly = Bird("g2")
+print("global2:", g_fly.fly())
+
+func locals() {
+    // reassigning a local
+    var f Fly = Bird("a")
+    f = Bird("b")
+    print("local:", f.fly())
+
+    // a trait value into a variable of the same trait: no conversion
+    let other Fly = Bird("c")
+    f = other
+    print("same:", f.fly())
+
+    // a derived-trait value into a base-trait variable
+    var nm Named = Bird("d")
+    nm = other
+    print("base:", nm.name())
+
+    // an optional trait variable
+    var o Fly? = nil
+    o = Bird("e")
+    if let x = o {
+        print("opt:", x.fly())
+    }
+    o = nil
+    print("opt-nil:", o == nil)
+
+    // a name bound by tuple destructuring
+    var (t Fly, n) = make()
+    t = Bird("u")
+    print("tuple:", t.fly(), n)
+
+    // an element of a list of traits
+    let l = list[Fly]()
+    l.append(Bird("l0"))
+    l[0] = Bird("l1")
+    print("list:", l[0].fly())
+
+    // a field of trait type, in __init__ and in a method
+    let c = Cage(Bird("p1"))
+    print("field:", c.pet.fly())
+    c.swap(Bird("p2"))
+    print("field2:", c.pet.fly())
+    c.pet = Bird("p3")
+    print("field3:", c.pet.fly())
+}
+locals()
+
+// a field assigned in a method
+// CHECK-LABEL: func @Cage:swap(
+// CHECK: make_intf %b test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
+// CHECK-NEXT: set_field %self test_intf_assign.Cage, pet(index=0), %{{[0-9]+}} test_intf_assign.Fly
+
+// CHECK-LABEL: func @locals()
+// a local, initialized and reassigned
+// CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
+// CHECK-NEXT: move %f test_intf_assign.Fly, %{{[0-9]+}} test_intf_assign.Fly
+// CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
+// CHECK-NEXT: move %f test_intf_assign.Fly, %{{[0-9]+}} test_intf_assign.Fly
+// the same trait: stored as is
+// CHECK: move %f test_intf_assign.Fly, %other test_intf_assign.Fly
+// a derived trait into a base-trait variable
+// CHECK: upcast_intf %other test_intf_assign.Fly [intf-table-index = 1] to test_intf_assign.Named
+// CHECK-NEXT: move %nm test_intf_assign.Named, %{{[0-9]+}} test_intf_assign.Named
+// an optional trait variable: nil as is, a class value converted
+// CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
+// CHECK-NEXT: move %o test_intf_assign.Fly?, %{{[0-9]+}} test_intf_assign.Fly
+// CHECK: move %o test_intf_assign.Fly?, nil
+// a name bound by tuple destructuring, then reassigned
+// CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
+// CHECK-NEXT: move %t test_intf_assign.Fly, %{{[0-9]+}} test_intf_assign.Fly
+// CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
+// CHECK-NEXT: move %t test_intf_assign.Fly, %{{[0-9]+}} test_intf_assign.Fly
+// a list element: converted to __setitem__'s value type
+// CHECK: call @list:append
+// CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
+// CHECK-NEXT: seq.set %l std/builtin.list<Ltest_intf_assign.Fly;>, 0 int64, %{{[0-9]+}} test_intf_assign.Fly
+// a field assigned from outside
+// CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
+// CHECK-NEXT: set_field %c test_intf_assign.Cage, pet(index=0), %{{[0-9]+}} test_intf_assign.Fly
+
+// globals: the initializer and a later assignment are both converted
+// CHECK-LABEL: func @__init__()
+// CHECK: make_intf list[1, 2, 3] std/builtin.list<j> [intf-table-index = 6] to std/builtin.Sequence
+// CHECK-NEXT: global_set @g_seq std/builtin.Sequence<j>, %{{[0-9]+}} std/builtin.Sequence
+// CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
+// CHECK-NEXT: global_set @g_fly test_intf_assign.Fly, %{{[0-9]+}} test_intf_assign.Fly
+// CHECK: make_intf %{{[0-9]+}} test_intf_assign.Bird [intf-table-index = 5] to test_intf_assign.Fly
+// CHECK-NEXT: global_set @g_fly test_intf_assign.Fly, %{{[0-9]+}} test_intf_assign.Fly
+
+// CHECK: {{^}}global: 3 fly-g1{{$}}
+// CHECK-NEXT: {{^}}global2: fly-g2{{$}}
+// CHECK-NEXT: {{^}}local: fly-b{{$}}
+// CHECK-NEXT: {{^}}same: fly-c{{$}}
+// CHECK-NEXT: {{^}}base: bird-c{{$}}
+// CHECK-NEXT: {{^}}opt: fly-e{{$}}
+// CHECK-NEXT: {{^}}opt-nil: true{{$}}
+// CHECK-NEXT: {{^}}tuple: fly-u 1{{$}}
+// CHECK-NEXT: {{^}}list: fly-l1{{$}}
+// CHECK-NEXT: {{^}}field: fly-p1{{$}}
+// CHECK-NEXT: {{^}}field2: fly-p2{{$}}
+// CHECK-NEXT: {{^}}field3: fly-p3{{$}}

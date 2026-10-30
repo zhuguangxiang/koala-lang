@@ -12,11 +12,15 @@
 > `build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断（§26，待施工）、
 > 全常量 dict 字面量直接作 `print` / `format` 实参时报 `modobj.c: Not Yet Implemented`（§27，待修）、
 > os.run 子进程管道大 payload「先写后读」死锁 + Process/Raw* 无 finalizer 致 fd 泄漏与 zombie（§28，待修）、
-> `is` / `as` 运算符语义评估与遗留项（§29，2026-10-26 评估）、let-else and `panic()`-as-terminal leftovers (§30, closed).
+> `is` / `as` 运算符语义评估与遗留项（§29，2026-10-26 评估）、let-else and `panic()`-as-terminal leftovers (§30, closed)、
+> 泛型 bound 实参未转接口：泛型自由函数与泛型类 `__init__`（§34，待修，用例已留档为
+> `test/test-run/test_intf_generic_bounds.kl.disabled`）。
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
-> 更新日期：2026-10-28 (§30 closed: `unreachable()` is terminal; no `unreachable` after `panic()`, to keep code size); 2026-10-27 (added §30: let-else is implemented); 2026-10-26（新增 §29：`is` / `as` 语义评估与遗留项）；2026-10-25（新增 §26：`build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断，待施工；§27：全常量 dict 字面量直接作实参报 `modobj.c` 未实现，待修；§28：os.run 子进程管道大 payload 先写后读死锁、Process/Raw* 无 finalizer 致 fd 泄漏与 zombie，待修；§20 / §21 均已修复，§22 待定；datetime 包 Date/Time/DateTime 已收工，仅剩时区见 §23；§24 为运算符重载语言待办；§25 为 Koala vs Python 标准库场景×热度对比盘点）
+> 更新日期：2026-10-30（新增 §34：泛型 bound 实参未转接口——泛型自由函数与泛型类 `__init__`，
+> 用例留档为 `test/test-run/test_intf_generic_bounds.kl.disabled`；同批已修的接口槽位三 bug
+> 见 §34.4，回归测试为 `test/test-run/test_intf_{ext_inherit,local_inherit,optional}.kl`）; 2026-10-28 (§30 closed: `unreachable()` is terminal; no `unreachable` after `panic()`, to keep code size); 2026-10-27 (added §30: let-else is implemented); 2026-10-26（新增 §29：`is` / `as` 语义评估与遗留项）；2026-10-25（新增 §26：`build_intern` 操作数个数溢出 `nargs:8` 后前端缺诊断，待施工；§27：全常量 dict 字面量直接作实参报 `modobj.c` 未实现，待修；§28：os.run 子进程管道大 payload 先写后读死锁、Process/Raw* 无 finalizer 致 fd 泄漏与 zombie，待修；§20 / §21 均已修复，§22 待定；datetime 包 Date/Time/DateTime 已收工，仅剩时区见 §23；§24 为运算符重载语言待办；§25 为 Koala vs Python 标准库场景×热度对比盘点）
 
 ---
 
@@ -1522,6 +1526,29 @@ done. The tasks below are not started; planned for about a month later (around 2
    (for `A || B`, the false facts); this happens during the expression visit (`parser_expr.c`).
    Risk: the IR of `B` must use the narrowed symbol.
 
+6. **`if let (a, b) = t` / `while let (a, b) = t`：可选元组的解构**（规模 M，暂不实现，2026-10-30 记录）。
+   目标：`t` 是可选元组 `(T1, T2)?`，不为 `nil` 时解构并进入 then 块（或循环体），规则与元组
+   let-else 相同：支持 `_`、名字可带类型、名字个数必须与元组大小一致。
+   ```koala
+   if let (host, port) = split_host_port(url) {
+       print(host, port)
+   }
+   ```
+   **为什么暂不实现**：
+   - 常见的需求是"取到值，否则提前退出"，已经由元组 let-else（`let (a, b) = t else { ... }`）覆盖；
+     `if let` 用于"只有存在时才做某事"，配合元组的场景较少。
+   - 现有写法只多一行，可以接受：`if let t = f() { let (a, b) = t ... }`。
+   - 实现不是零成本：需要新增 `IF LET '(' tuple_decl_list ')' ...` 和 `WHILE LET ...` 语法规则；
+     `parse_if_let()` / `parse_while_let()` 现在只绑定一个符号，要改为绑定多个名字；irgen 要在 then 块
+     （或循环体）开头用 `build_unpack_vars()` 解构。
+   **为什么以后可能要支持**：
+   - 补齐一致性：`let (a, b) = t`、`let (a, b) = t else { }`、`for (a, b) in ...` 都已支持解构，
+     `if let` / `while let` 是剩下的地方。
+   - 其他语言都有：Rust `if let Some((a, b)) = f() { }`，Swift `if let (a, b) = f() { }`。
+   **注意区分**：这不是之前已经放弃的"多值 if let / while let"（8 条 NYI 规则，同时要求多个可选值都不为
+   `nil`，例如 `if let a = x, b = y`）。这里只有一个可选元组，语义与元组 let-else 一致，不会推翻那个决定。
+   等实际代码需要时再实现。
+
 ---
 
 ## 32. Tuple literals and expected types: failing cases (2026-10-28, to discuss)
@@ -1707,3 +1734,130 @@ isel failure for `v = nil` under `if v != nil`).
 5. **Noisy recovery after `tuple = x`.** Since the tuple-assignment rule spells out
    `'(' expr_list ',' expr ')'`, `tuple = x` (the `tuple` keyword on the left) is a syntax
    error, but the recovery adds follow-on errors: "expected '}'." and "'x' is not found".
+
+6. **A trait-typed global is stored without `make_intf` (found 2026-10-30).**
+   ```koala
+   let l = [1, 2, 3]
+   let s Sequence[int] = l
+   print(s.len())
+   // koala: include/runtime/vm_ops.h:430: _eval_frame: Assertion `((callable)->tag > (64 + 1))' failed.
+   ```
+   The module `__init__` emits `global_set @s std/builtin.Sequence<j>, %0 std/builtin.list<j>`:
+   the bare object is stored, not an interface value, so every method call through the global
+   dispatches on a non-interface object. A local trait fails the same way (`let n Named = W()`
+   at top level). The same code inside a function is fine (`make_intf ... to
+   std/builtin.Sequence`). Fix: convert the initial value with `_build_obj_intf_upcast()`
+   before the `global_set` (and on later assignments to such a global), as the local path
+   does. `test/test-run/test_intf_ext_generic_inherit.kl` keeps its values in locals until then.
+   **Resolved (2026-10-31)**: the global branch of `emit_ir_var_decl()` converts the initial
+   value with `_build_obj_intf_upcast()` before `global_set`; later assignments are covered by
+   item 7. Tested by `test/test-run/test_intf_assign.kl`.
+
+7. **Assigning a class value to an existing trait-typed variable skips `make_intf` (found
+   2026-10-31).**
+   ```koala
+   var x Fly = Bird()   // fine: make_intf ... to Fly
+   x = Bird()           // move %x Fly, %2 Bird -- the bare object is stored
+   print(x.fly())       // koala: vm_ops.h:430: Assertion `((callable)->tag > (64 + 1))' failed.
+   ```
+   The declaration converts the value, a later plain assignment does not:
+   `emit_ir_simple_assignment()` moves `rhs->ir_val` as is. The same happens for a name bound
+   by `var (f Fly, n) = ...` and then assigned. Fix: convert with `_build_obj_intf_upcast()`
+   before the store in the assignment path (locals, fields and globals), as the declaration
+   does. Likely the same root as item 6.
+   **Resolved (2026-10-31)**: `emit_ir_simple_assignment()` converts the value to the target's
+   type first, for locals, globals, fields and list elements. For an index store the target
+   type is `__setitem__`'s value parameter, kept in the new `IndexExpr.value_ts` by
+   `parse_index_store()` (the index expr's own type is the index's). A trait value of the same
+   trait is stored as is; a derived trait is upcast to the base. Tested by
+   `test/test-run/test_intf_assign.kl`.
+
+---
+
+## 34. 泛型 bound 实参未转接口：泛型自由函数与泛型类 `__init__`（2026-10-30 发现，待修）
+
+> 背景：为接口 IR 的三个槽位 bug（外模块 trait 继承取到祖先 trait 的槽、`A?` / 泛型接口 ts
+> 未归一到 origin trait、`get_intf_index()` 返回 -1 时直接 abort）补回归测试时发现的两处**同源**
+> 缺口。那三个 bug 已修，回归测试为 `test/test-run/test_intf_ext_inherit.kl`、
+> `test_intf_local_inherit.kl`、`test_intf_optional.kl`（三者同时校验 no-opt-ir / lir 与运行输出，
+> 全量 lit 298 个用例通过）。
+> 本节两个缺口的用例已写好留档：**`test/test-run/test_intf_generic_bounds.kl.disabled`**
+> （lit 只收集 `.kl` / `.test`，见 `test/lit.cfg` 的 `config.suffixes`，故当前不会被执行；
+> 修复后去掉 `.disabled` 即启用）。
+
+### 34.1 现状
+
+两处症状相同：被调函数体内按 bound 接口调用（`call @Shape:area [intf-index = 0], %v wrap:T`），
+但实参是裸对象、没有 `make_intf` 包装 → VM 断言 abort（进程直接死，不是可捕获的 error）：
+
+```
+koala: include/runtime/vm_ops.h:430: _eval_frame: Assertion `((callable)->tag > (64 + 1))' failed.
+```
+
+1. **泛型自由函数**：`func wrap[T: Shape](v T)` + `wrap(Rect())` → **必崩**。
+
+   ```
+   %0 = call @Shape:area [intf-index = 0], %v wrap:T     ← 体内按接口调用
+   %1 = call @wrap, %1 wrap.Rect                         ← 实参裸对象，缺 make_intf
+   ```
+
+2. **泛型类 `__init__`**：`Doubler[Rect](Rect())` 的构造实参不转换。
+
+   ```
+   %1 = call @Shape:area [intf-index = 0], %0 Doubler:T
+   call @Doubler:__init__, %1 Doubler<L Rect;>, %0 Doubler.Rect    ← 缺 make_intf
+   ```
+
+   **间歇性**（比第 1 条更难定位）：只有直接使用 `__init__` 存下的字段才崩（`peek()`）；
+   若该字段后来被实例方法写过一次（`store()`），那次写入走了转换、字段被替换成接口值，
+   程序就输出正确结果——实测 `print(d.store(Rect()))` → `10`。即崩溃与否取决于
+   "字段是否被非 `__init__` 路径写过"，会随调用顺序时隐时现。
+
+   对照（已正确，`test_intf_optional.kl` 已固化该 IR）：
+
+   ```
+   %34 = make_intf %33 test_intf_optional.Rect [intf-table-index = 4] to Doubler:T
+   call @Doubler:store, %35 Doubler<L Rect;>, %34 Doubler:T
+   ```
+
+### 34.2 根因
+
+`try_to_build_tp_args_cast()`（`src/parser/irgen.c:738`）只有**一个**调用点（`irgen.c:900`），
+前置条件是 `lhs_sym->origin != NULL` 且 `ASSERT(_parent && _parent->kind == SYM_INSTANCE)`
+（`irgen.c:896-899`）——即"泛型**类实例**的方法调用"。
+
+- 泛型自由函数调用没有 `origin`，`parent` 是 `SYM_PACKAGE` → 进不了这条分支；
+- 类构造 `Doubler[Rect](...)` 走 `emit_type_call()`（`irgen.c:858`）→ 同样绕过。
+
+### 34.3 施工方向
+
+把"形参声明类型是开放泛型 `T`（带 bound）→ 对实参发 `make_intf`"从实例方法路径里抽出来，
+改为按**被调函数的形参类型**统一处理，建议落在 `update_call_args()`（`irgen.c:889`）内或紧随其后，
+一次覆盖三条路径：普通/泛型自由函数调用、`emit_type_call()` 构造调用、现有实例方法调用。
+
+注意点：
+
+- 形参类型是 `T?`、`list[T]` 等**含 T 的复合类型**时的逐层转换（现有 helper 只处理裸 `T`）；
+- itable index 来自 `get_intf_index(obj_sym, bound)`，为 -1 时必须报 `_intf_index_error()`
+  而不是继续（本次已在 `try_to_build_tp_args_cast()` 与 `_build_obj_intf_upcast()` 两处补上）；
+- 修复后启用 `test/test-run/test_intf_generic_bounds.kl.disabled`（预期输出 `10 / 20 / 20`），
+  并把 `test_intf_optional.kl` 中"绕开该缺口"的注释与 `Doubler` 用例改回用 `__init__` 直接填充。
+
+### 34.4 同批已修（交叉参考，非待办）
+
+1. **外模块 trait 的继承方法取错槽**：`get_callable()` 现接受 `SYM_INHERITED` 并以 `sym->parent`
+   （= 接收者的静态类型）为 owner；`_get_ext_trait()` 按需建槽表；`_add_all_intf_to_trait()`
+   跳过 `SYM_INHERITED` 项。例：`Conn:write_str` 用 `intf-index = 3`（Conn 的槽表），
+   `io.Writer:write_str` 用 1（Writer 自己的槽表）——同一方法两个索引。此 bug 曾表现为
+   `libs/std/socket/conn.kl` 的 `TcpConn.write_str` 运行时打到错误槽位。
+2. **`A?` / 泛型接口 ts 未归一**：`_build_obj_intf_upcast()` 先用新增的 `intf_canonical_ts()`
+   （`src/parser/symbol.c`）把 `Getter[int]?` / `Getter[T]` 归一到 origin trait 的规范 ts，
+   否则 `get_intf_index()` / `get_intf_table_index()` 的 lro 线性查找失配。连带修掉：只增加可空性
+   （`Getter[int]` → `Getter[int]?`）时**不得**发 `upcast_intf`（`ts_sym == obj_sym` 短路），
+   否则会把 itable 换成某个父槽 → `vm_ops.h:1848 Assertion 'idx < itab->num_parents'`。
+3. **`get_intf_index()` 返回 -1 无诊断**：新增 `_intf_index_error()`，两处调用点改为报
+   `'%s' does not implement interface '%s'` 而非 abort。该路径目前无法从用户代码触达
+   （`let s Shape = Nope()` 被 "Types of two sides are not matched" 拦下、`Doubler[Nope]` 被
+   "generic bound not satisfied" 拦下、`n as Shape` 被 "target type of 'as' operator must be a
+   class type" 拦下），属防御性改动。
+

@@ -341,6 +341,8 @@ typedef struct _IndexExpr {
     EXPR_HEAD
     Expr *lhs;
     Vector *vec;
+    // index store: the type of the stored value (the value param of __setitem__)
+    TypeSpec *value_ts;
 } IndexExpr;
 
 Expr *expr_from_index(Expr *lhs, Vector *vec);
@@ -491,6 +493,8 @@ typedef struct _TupleDeclStmt {
     Expr *exp;
     // sym id per name, -1 for '_'
     Vector sym_ids;
+    // let (a, b) = t else { ... }, NULL otherwise
+    Vector *else_block;
 } TupleDeclStmt;
 
 Stmt *stmt_from_tuple_decl(Vector *ids, int which, Expr *exp);

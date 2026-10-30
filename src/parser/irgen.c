@@ -26,7 +26,6 @@ static void _add_all_intf_to_trait(KlrExtTrait *trait, KlassSymbol *kls_sym)
     ASSERT(vector_size(&trait->intfs) == 0);
 
     Vector *lro = &kls_sym->lro;
-    int index = 0;
 
     TypeSpec *ts;
     vector_foreach(ts, lro) {
@@ -39,6 +38,11 @@ static void _add_all_intf_to_trait(KlrExtTrait *trait, KlassSymbol *kls_sym)
         KlassSymbol *trait_kls = (KlassSymbol *)sym;
         Symbol *fn;
         vector_foreach(fn, trait_kls->funcs) {
+            // The lro walk visits every base trait on its own, so an inherited entry here
+            // is only a copy of a method that is added when its declaring trait is
+            // visited. Skipping it keeps the slot order equal to the trait's `funcs`
+            // order, which is the order build_class_intf_table() uses for the itable.
+            if (fn->kind == SYM_INHERITED) continue;
             ASSERT(fn->kind == SYM_FUNC);
             FuncSymbol *func_sym = (FuncSymbol *)fn;
             klr_add_ext_intf(trait, func_sym->ret, func_sym->name);
@@ -57,7 +61,6 @@ static void _add_instance_used_intf_to_trait(KlrExtTrait *trait, InstanceSymbol 
     KlassSymbol *kls_sym = (KlassSymbol *)inst_sym->origin;
 
     Vector *lro = &kls_sym->lro;
-    int index = 0;
 
     TypeSpec *ts;
     vector_foreach(ts, lro) {
@@ -90,6 +93,40 @@ static void _add_instance_used_intf_to_trait(KlrExtTrait *trait, InstanceSymbol 
     }
 }
 
+// Get the KlrExtTrait of an external trait, creating it on demand with all of its
+// interface slots filled (see _add_all_intf_to_trait).
+static KlrExtTrait *_get_ext_trait(ParserState *ps, KlassSymbol *trait_sym)
+{
+    ASSERT(trait_sym && trait_sym->kind == SYM_TRAIT);
+    ASSERT(trait_sym->flags & SYM_FLAGS_EXT);
+
+    if (!trait_sym->ir_val) {
+        Symbol *parent = trait_sym->parent;
+        ASSERT(parent && parent->kind == SYM_PACKAGE);
+        trait_sym->ir_val =
+            klr_add_ext_trait(MOD, parent->name, trait_sym->instance_ts, trait_sym->name);
+    }
+    ASSERT(trait_sym->ir_val->kind == KLR_VALUE_EXT_TRAIT);
+
+    KlrExtTrait *ext_trait = (KlrExtTrait *)trait_sym->ir_val;
+    // klr_add_ext_trait() reuses the container of an already known trait of the same
+    // name, so the slots may have been filled by somebody else already.
+    if (vector_empty(&ext_trait->intfs)) _add_all_intf_to_trait(ext_trait, trait_sym);
+
+    return ext_trait;
+}
+
+static void _intf_index_error(ParserState *ps, TypeSpec *obj_ts, TypeSpec *ts, Loc loc)
+{
+    BUF(buf1);
+    type_spec_print(obj_ts, &buf1);
+    BUF(buf2);
+    type_spec_print(ts, &buf2);
+    kl_error(loc, "'%s' does not implement interface '%s'", BUF_STR(buf1), BUF_STR(buf2));
+    FINI_BUF(buf1);
+    FINI_BUF(buf2);
+}
+
 // obj: class or trait type
 // ts: target trait type
 static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec *ts, char *name)
@@ -102,32 +139,56 @@ static KlrValue *_build_obj_intf_upcast(ParserState *ps, KlrValue *obj, TypeSpec
     // 2. if target is any, no cast needed
     if (type_is_any(ts)) return NULL;
 
+    // 3. normalize the target: `A?` denotes the same interface as `A`, and a generic
+    //    instance (`Iterable[int]`) or an open generic ref (`Iterable<T>`, e.g. the
+    //    unspecialized `__init__` prototype of a generic class) both denote the origin
+    //    trait, whose canonical type spec is what the lro/itables are keyed by.
+    ts = intf_canonical_ts(ts);
+
+    // 4. the same type after normalization, no cast needed
+    if (ts == obj->ts) return NULL;
+
     Symbol *ts_sym = get_symbol_by_id(ts->sym_id);
     Symbol *obj_sym = get_symbol_by_id(obj->ts->sym_id);
 
-    // 3. no symbol found, optional type, no cast needed
+    // 5. no symbol found(e.g. an optional object type), no cast needed
     if (!ts_sym || !obj_sym) return NULL;
 
-    // 4. if ts is an instance, use its origin for upcast
+    // 6. an instance target denotes its origin trait (normally already done by
+    //    intf_canonical_ts(), this keeps the upcast when it cannot normalize)
     if (ts_sym->kind == SYM_INSTANCE) {
         ts_sym = ((InstanceSymbol *)ts_sym)->origin;
-        ts = ((KlassSymbol *)ts_sym)->instance_ts;
     }
 
-    // 5. only support class/trait -> trait upcast for now
+    // 7. only support class/trait -> trait upcast for now
     if (ts_sym->kind != SYM_TRAIT) return NULL;
 
     if (obj_sym->kind == SYM_INSTANCE) {
         obj_sym = ((InstanceSymbol *)obj_sym)->origin;
     }
 
+    // 8. both sides denote the same trait, no cast needed. The type specs still
+    //    differ when the target only adds nullability(`Getter[int]?`) or when one
+    //    side is a closed instance and the other the open generic ref(`Getter[int]`
+    //    vs. `Getter<T>`). The value already carries that trait's itable, so an
+    //    upcast would wrongly swap it for one of its parent slots.
+    if (ts_sym == obj_sym) return NULL;
+
     if (obj_sym->kind == SYM_CLASS) {
         klr_builder_end(&bldr, ps->scope->bb);
         int intf_index = get_intf_index(obj_sym, ts);
+        if (intf_index < 0) {
+            _intf_index_error(ps, obj->ts, ts, obj->loc.loc);
+            return NULL;
+        }
         return klr_build_make_intf(&bldr, obj, ts, intf_index, name);
     } else if (obj_sym->kind == SYM_TRAIT) {
         klr_builder_end(&bldr, ps->scope->bb);
         int intf_index = get_intf_index(obj_sym, ts);
+        if (intf_index < 0) {
+            _intf_index_error(ps, obj->ts, ts, obj->loc.loc);
+            return NULL;
+        }
         return klr_build_upcast_intf(&bldr, obj, ts, intf_index, name);
     } else {
         return NULL;
@@ -703,6 +764,10 @@ static void try_to_build_tp_args_cast(FuncSymbol *origin_fn, KlassSymbol *origin
         }
 
         int intf_index = get_intf_index(obj_sym, bound);
+        if (intf_index < 0) {
+            _intf_index_error(ps, arg_ts, bound, arg->loc.loc);
+            continue;
+        }
 
         KlrBuilder bldr;
         klr_builder_end(&bldr, ps->scope->bb);
@@ -1031,9 +1096,13 @@ static KlrValue *get_class_method(ParserState *ps, Symbol *sym)
 static KlrValue *get_callable(ParserState *ps, Symbol *sym)
 {
     if (sym->ir_val) return sym->ir_val;
-    ASSERT(sym->kind == SYM_FUNC);
+    // SYM_INHERITED: a base trait's method inherited by `sym->parent`. The parent is the
+    // receiver's static type, so it owns the interface slots that must be used.
+    ASSERT(sym->kind == SYM_FUNC || sym->kind == SYM_INHERITED);
     Symbol *owner = sym->parent;
+    ASSERT(owner);
     if (owner->kind == SYM_INSTANCE) {
+        ASSERT(sym->kind == SYM_FUNC);
         InstanceSymbol *inst = (InstanceSymbol *)owner;
         Symbol *origin = inst->origin;
 
@@ -1069,19 +1138,14 @@ static KlrValue *get_callable(ParserState *ps, Symbol *sym)
     } else if (owner->kind == SYM_CLASS) {
         return get_class_method(ps, sym);
     } else if (owner->kind == SYM_PACKAGE) {
+        ASSERT(sym->kind == SYM_FUNC);
         ASSERT(owner->ir_val && owner->ir_val->kind == KLR_VALUE_EXT_MODULE);
         sym->ir_val = klr_add_ext_func(MOD, owner->name, ((FuncSymbol *)sym)->ret, sym->name);
     } else {
+        // For a local trait all slots are created up-front by _add_trait(), which also
+        // caches them on the symbols, so only external traits can reach here.
         ASSERT(owner->kind == SYM_TRAIT && (owner->flags & SYM_FLAGS_EXT));
-        if (!owner->ir_val) {
-            Symbol *parent = owner->parent;
-            ASSERT(parent && parent->kind == SYM_PACKAGE);
-            owner->ir_val = klr_add_ext_trait(MOD, parent->name,
-                                              ((KlassSymbol *)owner)->instance_ts, owner->name);
-            _add_all_intf_to_trait((KlrExtTrait *)owner->ir_val, (KlassSymbol *)owner);
-        }
-        ASSERT(owner->ir_val->kind == KLR_VALUE_EXT_TRAIT);
-        sym->ir_val = klr_get_ext_intf((KlrExtTrait *)owner->ir_val, sym->name);
+        sym->ir_val = klr_get_ext_intf(_get_ext_trait(ps, (KlassSymbol *)owner), sym->name);
     }
     ASSERT(sym->ir_val);
     return sym->ir_val;
@@ -1168,10 +1232,11 @@ static void emit_ir_dot(ParserState *ps, Expr *exp)
 
     if (sym->kind == SYM_INHERITED) {
         if (exp->ctx == EXPR_CTX_CALL) {
-            if (!sym->ir_val) {
-                NYI();
-            }
-            exp->ir_val = sym->ir_val;
+            // `sym->parent` is the trait that inherits the method, i.e. the receiver's
+            // static type, whose method order defines the runtime itable slots. Using
+            // the declaring base trait instead would take a slot from the base's own
+            // (shorter) slot table and silently call the wrong method.
+            exp->ir_val = get_callable(ps, sym);
             // use expr's arg to save the lhs's ir_val, so that we can use it in emit_ir_call
             exp->arg = lhs->ir_val;
         } else {
@@ -2087,7 +2152,6 @@ static void emit_ir_coalesce(ParserState *ps, Expr *exp)
     SET_IR_LOC(result, exp);
 }
 
-
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -2148,7 +2212,11 @@ static void emit_ir_var_decl(ParserState *ps, Stmt *stmt)
     VarSymbol *sym = (VarSymbol *)var->sym;
     if (sym->scope == VAR_SCOPE_GLOBAL) {
         if (exp) {
-            klr_build_set_global(&bldr, sym->ir_val, exp->ir_val);
+            // a class value stored in a trait-typed global is made an interface value
+            KlrValue *_val = _build_obj_intf_upcast(ps, exp->ir_val, sym->ts, "");
+            if (!_val) _val = exp->ir_val;
+            klr_builder_end(&bldr, ps->scope->bb);
+            klr_build_set_global(&bldr, sym->ir_val, _val);
         }
     } else if (sym->scope == VAR_SCOPE_LOCAL) {
         if (sym->flags & SYM_FLAGS_MUTABLE) {
@@ -2710,9 +2778,41 @@ static void emit_ir_tuple_decl(ParserState *ps, Stmt *stmt)
     emit_ir_visit_expr(ps, exp);
     if (!exp->ir_val) return;
 
+    KlrValue *tuple = exp->ir_val;
+
+    // let (a, b) = t else { ... }: jump to the else block when 't' is nil, otherwise
+    // unpack 't' as a non-optional tuple
+    if (s->else_block) {
+        KlrValue *fn = CURRENT_FUNC;
+        KlrBasicBlock *else_bb = klr_append_block(fn, "let-else");
+        KlrBasicBlock *ok_bb = klr_append_block(fn, "let-ok");
+
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        KlrValue *cond = klr_build_cmpne(&bldr, tuple, klr_const_none(MOD), "");
+        klr_build_jmp_cond(&bldr, cond, ok_bb, else_bb);
+
+        ParserScope *sc = enter_scope(ps, SCOPE_BLOCK, ELSE_BLOCK, "let-else-block");
+        sc->bb = else_bb;
+        emit_ir_visit_block(ps, s->else_block);
+        // the front-end guarantees the block exits
+        if (!block_has_terminator(sc->bb)) {
+            KlrBuilder _bldr;
+            klr_builder_end(&_bldr, sc->bb);
+            klr_build_jmp(&_bldr, ok_bb);
+        }
+        exit_scope(ps);
+
+        ps->scope->bb = ok_bb;
+        klr_builder_end(&bldr, ok_bb);
+        KlrValue *val = klr_build_local(&bldr, exp->ts->opt.src, "");
+        klr_build_move(&bldr, val, tuple);
+        tuple = val;
+    }
+
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
-    build_unpack_vars(&bldr, &s->sym_ids, exp->ir_val, ps);
+    build_unpack_vars(&bldr, &s->sym_ids, tuple, ps);
 }
 
 static void build_loop_range_cond(KlrBuilder *bldr, KlrValue *range_cur,
@@ -2933,8 +3033,7 @@ static void emit_ir_for_stmt(ParserState *ps, Stmt *stmt)
     if (which == GEN_SEQ) {
         klr_builder_end(&bldr, sc->bb);
         if (vector_size(&s->sym_ids) > 1) {
-            KlrValue *elem =
-                klr_build_seq_get(&bldr, seq_info.seq, seq_info.index, s->elem_ts, "");
+            KlrValue *elem = klr_build_seq_get(&bldr, seq_info.seq, seq_info.index, s->elem_ts, "");
             build_unpack_vars(&bldr, &s->sym_ids, elem, ps);
         } else {
             Symbol *sym = get_loop_var_symbol(s);
@@ -3014,35 +3113,43 @@ static void emit_ir_block(ParserState *ps, Stmt *stmt)
 
 static void emit_ir_simple_assignment(ParserState *ps, Expr *lhs, Expr *rhs)
 {
+    // a class value assigned to a trait-typed target is made an interface value first
+    // (an index store's own type is the index's, the value type is kept apart)
+    TypeSpec *target_ts = lhs->ts;
+    if (lhs->kind == EXPR_INDEX_KIND) target_ts = ((IndexExpr *)lhs)->value_ts;
+    KlrValue *rhs_val = NULL;
+    if (target_ts) rhs_val = _build_obj_intf_upcast(ps, rhs->ir_val, target_ts, "");
+    if (!rhs_val) rhs_val = rhs->ir_val;
+
     KlrBuilder bldr;
     klr_builder_end(&bldr, ps->scope->bb);
     KlrValue *val = lhs->ir_val;
     if (val->kind == KLR_VALUE_GLOBAL) {
-        klr_build_set_global(&bldr, val, rhs->ir_val);
+        klr_build_set_global(&bldr, val, rhs_val);
     } else if (val->kind == KLR_VALUE_EXT_GLOBAL) {
-        klr_build_set_global(&bldr, val, rhs->ir_val);
+        klr_build_set_global(&bldr, val, rhs_val);
     } else if (val->kind == KLR_VALUE_FIELD) {
         if (lhs->kind == EXPR_DOT_KIND) {
             Expr *obj = ((DotExpr *)lhs)->lhs;
             Symbol *sym = obj->sym;
-            klr_build_set_field(&bldr, obj->ir_val, val, rhs->ir_val);
+            klr_build_set_field(&bldr, obj->ir_val, val, rhs_val);
         } else if (lhs->kind == EXPR_ID_KIND) {
             KlrValue *self = METHOD_SELF;
-            klr_build_set_field(&bldr, self, val, rhs->ir_val);
+            klr_build_set_field(&bldr, self, val, rhs_val);
         } else {
             UNREACHABLE();
         }
     } else if (val->kind == KLR_VALUE_INDEX) {
         KlrIndexInfo *index_info = (KlrIndexInfo *)val;
         if (index_info->which == KLR_SEQ_SET) {
-            klr_build_seq_set(&bldr, index_info->obj, index_info->index, rhs->ir_val);
+            klr_build_seq_set(&bldr, index_info->obj, index_info->index, rhs_val);
         } else if (index_info->which == KLR_SLICE_SET) {
-            klr_build_slice_set(&bldr, index_info->obj, index_info->index, rhs->ir_val);
+            klr_build_slice_set(&bldr, index_info->obj, index_info->index, rhs_val);
         } else {
             UNREACHABLE();
         }
     } else {
-        klr_build_move(&bldr, val, rhs->ir_val);
+        klr_build_move(&bldr, val, rhs_val);
     }
 }
 

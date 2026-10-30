@@ -1,0 +1,38 @@
+// koala -c test/test_pkg/pkg_intf --package-name=test_pkg/pkg_intf
+//
+// A class of another package that implements several traits, one of them
+// inheriting another. A module that imports it upcasts `Gadget` to each trait
+// itself, so the interface table index comes from the class's lro (its intf
+// table is only built while this package is compiled, see get_intf_index()).
+
+pub trait Named {
+    func name() str
+}
+
+pub trait Sized {
+    func size() int
+}
+
+pub trait Tagged : Named {
+    func tag() str
+}
+
+pub class Gadget : Sized & Tagged {
+    let n str
+
+    pub func __init__(_n str) {
+        n = _n
+    }
+
+    pub func name() str {
+        return "name:" + n
+    }
+
+    pub func size() int {
+        return n.len()
+    }
+
+    pub func tag() str {
+        return "tag:" + n
+    }
+}

@@ -1,0 +1,167 @@
+// RUN: koala %s ++ --dump=no-opt-ir,lir | filecheck %s
+
+// Slot indexes of methods inherited from traits of an *external* module.
+//
+// `Conn` below has the same shape as `std/socket.Conn`: it inherits several
+// std/io traits and adds methods of its own. An object's runtime itable is
+// laid out in the slot space of the receiver's *static* type, so a call
+// through `Conn` must be resolved in Conn's own slot table:
+//
+//     read=0  close=1  write=2  write_str=3  flush=4  kind=5
+//
+// Resolving it in the slot table of the trait that *declares* the method
+// (io.Writer: write=0, write_str=1, flush=2) picks another slot and silently
+// dispatches to the wrong method at runtime.
+
+import "std/io"
+
+trait Conn : io.Reader & io.Closable & io.Writer {
+    func kind() str
+}
+
+class MemConn : Conn {
+    var sent str
+    var closed bool
+
+    func __init__() {
+        sent = ""
+        closed = false
+    }
+
+    func read(bs bytes) int {
+        return bs.len()
+    }
+
+    func close() {
+        closed = true
+        sent = sent + "<close>"
+    }
+
+    func write(bs bytes) int {
+        sent = sent + bs.to_str()
+        return bs.len()
+    }
+
+    func write_str(s str) int {
+        sent = sent + "[" + s + "]"
+        return s.len()
+    }
+
+    func flush() {
+        sent = sent + "<flush>"
+    }
+
+    func kind() str {
+        return "mem"
+    }
+}
+
+// interface typed parameters: the argument is wrapped with `make_intf` in the
+// slot space of the parameter's own trait.
+func describe(c Conn) str {
+    return c.kind() + ":" + c.write_str("param").to_str()
+}
+
+func count(w io.Writer, s str) int {
+    return w.write_str(s)
+}
+
+func main() {
+    let c = MemConn()
+
+    // direct call on the concrete class: no itable involved
+    print("direct kind:", c.kind())
+
+    // calls through the inheriting trait: every slot comes from Conn's table
+    let conn Conn = c
+    print("conn kind:", conn.kind())
+    print("conn write_str:", conn.write_str("hello"))
+    print("conn write:", conn.write(b"bytes"))
+    conn.flush()
+    print("conn read:", conn.read(bytes(4)))
+    conn.close()
+    print("sent:", c.sent)
+    print("closed:", c.closed)
+
+    // calls through the external base traits: slots of their own slot tables
+    let w io.Writer = conn
+    print("writer write_str:", w.write_str("via-writer"))
+    print("writer param:", count(w, "counted"))
+
+    let r io.Reader = conn
+    print("reader read:", r.read(bytes(2)))
+
+    let cl io.Closable = conn
+    cl.close()
+    print("closable closed:", c.closed)
+
+    // interface typed parameters: a trait value is passed through as is, while
+    // a concrete class argument is wrapped with `make_intf` first
+    print("describe(conn):", describe(conn))
+    print("count(c):", count(c, "direct"))
+    print("describe(c):", describe(c))
+    print("sent:", c.sent)
+}
+
+// ---------------------------------------------------------------------------
+// ir-gen: every call through `Conn` is resolved in Conn's own slot table
+// (read=0 close=1 write=2 write_str=3 flush=4 kind=5), never in the slot table
+// of the std/io trait that declares the method -- io.Writer's own table would
+// give write_str=1, which is Conn's `close`.
+// ---------------------------------------------------------------------------
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @describe(
+// CHECK: call @Conn:kind [intf-index = 5], %c test_intf_ext_inherit.Conn
+// CHECK: call @Conn:write_str [intf-index = 3], %c test_intf_ext_inherit.Conn, 'param' str
+
+// CHECK-LABEL: func @count(
+// CHECK: call @std/io.Writer:write_str [intf-index = 1], %w std/io.Writer, %s str
+
+// CHECK-LABEL: func @main()
+// CHECK: make_intf %c test_intf_ext_inherit.MemConn [intf-table-index = 7] to test_intf_ext_inherit.Conn
+// CHECK: call @Conn:kind [intf-index = 5], %conn test_intf_ext_inherit.Conn
+// CHECK: call @Conn:write_str [intf-index = 3], %conn test_intf_ext_inherit.Conn, 'hello' str
+// CHECK: call @Conn:write [intf-index = 2], %conn test_intf_ext_inherit.Conn, b"bytes" std/builtin.bytes
+// CHECK: call @Conn:flush [intf-index = 4], %conn test_intf_ext_inherit.Conn
+// CHECK: call @Conn:read [intf-index = 0], %conn test_intf_ext_inherit.Conn
+// CHECK: call @Conn:close [intf-index = 1], %conn test_intf_ext_inherit.Conn
+// the std/io base traits are addressed through their own slot tables
+// CHECK: upcast_intf %conn test_intf_ext_inherit.Conn [intf-table-index = 3] to std/io.Writer
+// CHECK: call @std/io.Writer:write_str [intf-index = 1], %w std/io.Writer, 'via-writer' str
+// CHECK: upcast_intf %conn test_intf_ext_inherit.Conn [intf-table-index = 1] to std/io.Reader
+// CHECK: call @std/io.Reader:read [intf-index = 0], %r std/io.Reader
+// CHECK: upcast_intf %conn test_intf_ext_inherit.Conn [intf-table-index = 2] to std/io.Closable
+// CHECK: call @std/io.Closable:close [intf-index = 0], %cl std/io.Closable
+// a class argument is wrapped in the slot space of the parameter's own trait
+// CHECK: make_intf %c test_intf_ext_inherit.MemConn [intf-table-index = 6] to std/io.Writer
+// CHECK: make_intf %c test_intf_ext_inherit.MemConn [intf-table-index = 7] to test_intf_ext_inherit.Conn
+
+// isel keeps every index
+// CHECK-LABEL: --- IR Dump After isel [@main] ---
+// CHECK: call @Conn:kind [intf-index = 5], nargs=1
+// CHECK: call @Conn:write_str [intf-index = 3], nargs=2
+// CHECK: call @Conn:write [intf-index = 2], nargs=2
+// CHECK: call @Conn:flush [intf-index = 4], nargs=1
+// CHECK: call @Conn:read [intf-index = 0], nargs=2
+// CHECK: call @Conn:close [intf-index = 1], nargs=1
+// CHECK: call @std/io.Writer:write_str [intf-index = 1], nargs=2
+// CHECK: call @std/io.Reader:read [intf-index = 0], nargs=2
+// CHECK: call @std/io.Closable:close [intf-index = 0], nargs=1
+
+// runtime: every call above dispatched to the method it names
+// CHECK: direct kind: mem
+// CHECK: conn kind: mem
+// CHECK: conn write_str: 5
+// CHECK: conn write: 5
+// CHECK: conn read: 4
+// CHECK: sent: [hello]bytes<flush><close>
+// CHECK: closed: true
+// CHECK: writer write_str: 10
+// CHECK: writer param: 7
+// CHECK: reader read: 2
+// CHECK: closable closed: true
+// CHECK: describe(conn): mem:5
+// CHECK: count(c): 6
+// CHECK: describe(c): mem:5
+// CHECK: sent: [hello]bytes<flush><close>[via-writer][counted]<close>[param][direct][param]
+

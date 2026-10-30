@@ -220,9 +220,18 @@ typedef struct _InstanceFuncSymbol {
     TypeSpec *ret_ts;
 } InstanceFuncSymbol;
 
+/* A method of a base trait, inherited by a trait (a class implements the method
+ * itself, it never holds an inherited one).
+ *
+ * `parent` (see SYMBOL_HEAD) is the trait that inherits the method, i.e. the
+ * receiver's static type. It owns the runtime interface slot table, so irgen must use
+ * it (and not `trait`) to compute an interface slot index.
+ */
 typedef struct _InheritedFunc {
     SYMBOL_HEAD
+    /* the method as declared in the base trait */
     FuncSymbol *origin;
+    /* the base trait that declares it */
     KlassSymbol *trait;
 } InheritedFunc;
 
@@ -248,7 +257,8 @@ void free_all_symbols(void);
 Symbol *stbl_add(HashMap *stbl, Symbol *sym);
 Symbol *stbl_add_var(HashMap *stbl, char *name, TypeSpec *ts, int flags);
 Symbol *stbl_add_func(HashMap *stbl, char *name, TypeSpec *ret, Vector *params, int flags);
-Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *origin_trait);
+Symbol *stbl_add_inherited_func(HashMap *stbl, Symbol *sym, KlassSymbol *owner_kls,
+                               KlassSymbol *origin_trait);
 KlassSymbol *stbl_add_klass(HashMap *stbl, char *name, int flags, int is_trait);
 TypeParamSymbol *stbl_add_type_param(HashMap *stbl, char *name, Symbol *owner);
 Symbol *stbl_add_shadow_var(HashMap *stbl, Symbol *origin, int is_null);
@@ -285,6 +295,7 @@ TypeSpec *find_lub(Vector *types);
 
 void build_intf_table(HashMap *stbl);
 void dump_intf_table(HashMap *stbl);
+TypeSpec *intf_canonical_ts(TypeSpec *ts);
 int get_intf_index(Symbol *sym, TypeSpec *trait_ts);
 
 #ifdef __cplusplus

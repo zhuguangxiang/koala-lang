@@ -178,8 +178,8 @@ static void do_trait_inherit_methods(KlassSymbol *sym)
             Symbol *existing_fn = stbl_get(sym->stbl, fn_sym->name);
             ASSERT(!existing_fn);
 
-            // inherit method
-            Symbol *inherited_fn = stbl_add_inherited_func(sym->stbl, fn_sym, trait_sym);
+            // inherit method; `sym` owns it and defines its interface slot order
+            Symbol *inherited_fn = stbl_add_inherited_func(sym->stbl, fn_sym, sym, trait_sym);
             vector_push_back(funcs, &inherited_fn);
             log_info("inherited method '%s' from trait '%s'", fn_sym->name, trait_sym->name);
         }
@@ -209,6 +209,7 @@ static inline void load_builtin_module(ParserModule *pm)
     pm->builtin = pkg_sym->stbl;
     install_builtin_types(pm->builtin);
     fixup_traits_inherited_methods(pkg_sym->stbl);
+    pkg_sym->status = SYM_RESOLVED;
 }
 
 void init_parser(ParserModule *pm)
@@ -2341,6 +2342,12 @@ __do_for_body:
     exit_scope(ps);
 }
 
+// 'ts' is an optional tuple '(T1, T2, ...)?'
+static int is_optional_tuple(TypeSpec *ts)
+{
+    return type_is_optional(ts) && ts->opt.src && type_is_tuple(ts->opt.src);
+}
+
 static void parse_tuple_decl(ParserState *ps, Stmt *stmt)
 {
     TupleDeclStmt *s = (TupleDeclStmt *)stmt;
@@ -2372,16 +2379,50 @@ static void parse_tuple_decl(ParserState *ps, Stmt *stmt)
     parser_visit_expr(ps, exp);
     if (!exp->ts) return;
 
+    // let (a, b) = t else { ... }: 't' is an optional tuple, it is destructured when it is
+    // not nil, otherwise the else block runs and must exit
+    TypeSpec *tuple_ts = exp->ts;
+    if (s->else_block) {
+        if (!type_is_optional(exp->ts)) {
+            BUF(buf);
+            type_spec_print(exp->ts, &buf);
+            kl_error(exp->loc, "'let-else' requires an optional value, but got '%s'.",
+                     BUF_STR(buf));
+            FINI_BUF(buf);
+            return;
+        }
+        tuple_ts = exp->ts->opt.src;
+
+        // the names are not added yet, the block cannot use them
+        enter_scope(ps, SCOPE_BLOCK, IF_BLOCK, "let-else-block");
+        int has_terminal = 0;
+        parse_block(ps, s->else_block, &has_terminal);
+        ASSERT(vector_empty(&ps->shadows));
+        exit_scope(ps);
+        if (!has_terminal) {
+            kl_error(stmt->loc,
+                     "'let-else' block must exit the current scope (use return, break, continue, "
+                     "panic or unreachable).");
+        }
+    }
+
     InstanceSymbol *inst_sym = NULL;
-    if (type_is_tuple(exp->ts)) {
-        Symbol *sym = get_symbol_by_id(exp->ts->sym_id);
+    if (tuple_ts && type_is_tuple(tuple_ts)) {
+        Symbol *sym = get_symbol_by_id(tuple_ts->sym_id);
         if (sym && sym->kind == SYM_INSTANCE) inst_sym = (InstanceSymbol *)sym;
     }
 
     if (!inst_sym) {
         BUF(buf);
         type_spec_print(exp->ts, &buf);
-        kl_error(exp->loc, "cannot destructure non-tuple type '%s'.", BUF_STR(buf));
+        if (is_optional_tuple(exp->ts)) {
+            // a plain 'let (a, b) = t' cannot take an optional tuple, let-else unwraps it
+            kl_error(exp->loc,
+                     "cannot destructure optional type '%s', use 'let (...) = t else { ... }'.",
+                     BUF_STR(buf));
+        } else {
+            kl_error(exp->loc, "cannot destructure non-tuple type '%s'.", BUF_STR(buf));
+        }
         FINI_BUF(buf);
         return;
     }
@@ -3534,7 +3575,12 @@ static InstanceSymbol *get_tuple_instance(ParserState *ps, Expr *exp)
 
     BUF(buf);
     type_spec_print(exp->ts, &buf);
-    kl_error(exp->loc, "cannot destructure non-tuple type '%s'.", BUF_STR(buf));
+    if (is_optional_tuple(exp->ts)) {
+        kl_error(exp->loc, "cannot destructure optional type '%s', unwrap it first.",
+                 BUF_STR(buf));
+    } else {
+        kl_error(exp->loc, "cannot destructure non-tuple type '%s'.", BUF_STR(buf));
+    }
     FINI_BUF(buf);
     return NULL;
 }
@@ -3698,8 +3744,8 @@ static void inherit_trait_methods(KlassSymbol *sym, Loc loc, ParserState *ps)
                 continue;
             }
 
-            // inherit method
-            Symbol *inherited_fn = stbl_add_inherited_func(sym->stbl, fn_sym, trait_sym);
+            // inherit method; `sym` owns it and defines its interface slot order
+            Symbol *inherited_fn = stbl_add_inherited_func(sym->stbl, fn_sym, sym, trait_sym);
             vector_push_back(funcs, &inherited_fn);
             log_info("inherited method '%s' from trait '%s'", fn_sym->name, trait_sym->name);
         }
@@ -4145,7 +4191,10 @@ void parse_top_stmt(ParserState *ps, Stmt *stmt)
             ImportStmt *s = (ImportStmt *)stmt;
             ASSERT(s->path);
             PkgSymbol *pkg = import_package(ps->pm, s->path);
-            fixup_traits_inherited_methods(pkg->stbl);
+            if (pkg->status != SYM_RESOLVED) {
+                fixup_traits_inherited_methods(pkg->stbl);
+                pkg->status = SYM_RESOLVED;
+            }
 
             if (s->alias) {
                 ASSERT(!s->names);

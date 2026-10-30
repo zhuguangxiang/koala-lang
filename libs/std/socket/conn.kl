@@ -51,6 +51,12 @@ pub trait Conn : io.Reader & io.Writer & io.Closable {
     ///
     /// Returns nil when there is no pending error.
     func take_error() int?
+
+    /// Read exactly `n` bytes. Returns nil on EOF or short read.
+    func read_exact(n int) bytes?
+
+    /// Read until EOF and return everything.
+    func read_to_end() bytes?
 }
 
 /// An established TCP connection.
@@ -93,10 +99,13 @@ pub class TcpConn : Conn {
     }
 
     pub func write(bs bytes) int {
+        // TODO:
+        let fd = _fd
         let n = bs.len()
         var total = 0
         while total < n {
-            let r = sys_send(_fd, bs[total:n], 0)
+            // let r = sys_send(_fd, bs[total:n], 0)
+            let r = sys_send(fd, bs[total:n], 0)
             if r > 0 {
                 total += r
                 continue
