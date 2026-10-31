@@ -13,33 +13,48 @@
 extern "C" {
 #endif
 
-#define EXPAND_MIN_SIZE 4
+#define EXPAND_MIN_SIZE   16
+#define EXPAND_SMALL_SIZE 4096
+
+/* The new allocated size for a buffer of 'size' bytes that needs 'need' bytes. */
+static int grow_size(int size, int need)
+{
+    int newsize;
+    if (size < EXPAND_MIN_SIZE) {
+        newsize = EXPAND_MIN_SIZE;
+    } else if (size < EXPAND_SMALL_SIZE) {
+        /* small (text) buffers: double, few reallocations */
+        newsize = size * 2;
+    } else {
+        /* large buffers: 1.5x, less unused memory */
+        newsize = size + (size >> 1);
+    }
+    /* a large request gets just what it needs */
+    if (newsize < need) newsize = need;
+    return newsize;
+}
 
 static int expand(Buffer *self, int min)
 {
-    int size = self->len + min + 1;
-    int newsize = self->size;
-    while (newsize <= size) {
-        newsize = (newsize > 0) ? (newsize * 2) : EXPAND_MIN_SIZE;
-    }
+    /* the data and 'min' more bytes */
+    int newsize = grow_size(self->size, self->len + min);
 
-    char *newbuf = mm_alloc(newsize);
+    /* may grow in place; the new tail is not cleared */
+    char *newbuf = mm_realloc(self->buf, newsize);
     if (!newbuf) return -1;
 
-    if (self->buf) {
-        memcpy(newbuf, self->buf, self->len);
-        mm_free(self->buf);
-    }
     self->buf = newbuf;
     self->size = newsize;
     return 0;
 }
 
+/* Make room for 'size' more bytes, -1 on failure, else the spare bytes left.
+   Raw writes take exactly what they need; text writes ask one more for the '\0'. */
 static int reserve(Buffer *self, int size)
 {
-    int left = self->size - self->len - 1;
-    if (left <= size && expand(self, size)) return -1;
-    return self->size - self->len - 1 - size;
+    int left = self->size - self->len;
+    if (left < size && expand(self, size)) return -1;
+    return self->size - self->len - size;
 }
 
 int buf_reserve(Buffer *self, size_t size) { return reserve(self, (int)size); }
@@ -48,9 +63,10 @@ void buf_write_nstr(Buffer *self, const char *s, int len)
 {
     if (!s) return;
     if (len <= 0) return;
-    if (reserve(self, len) <= 0) return;
-    strncat(self->buf + self->len, s, len);
+    if (reserve(self, len + 1) < 0) return;
+    memcpy(self->buf + self->len, s, len);
     self->len += len;
+    self->buf[self->len] = '\0';
 }
 
 void buf_write_str(Buffer *self, const char *s)
@@ -74,19 +90,20 @@ void buf_nwrite(Buffer *self, int count, ...)
 
 void buf_write_char(Buffer *self, char ch)
 {
-    if (reserve(self, 1) <= 0) return;
+    if (reserve(self, 2) < 0) return;
     self->buf[self->len++] = ch;
+    self->buf[self->len] = '\0';
 }
 
 void buf_write_byte(Buffer *self, uint8_t val)
 {
-    if (reserve(self, 1) <= 0) return;
+    if (reserve(self, 1) < 0) return;
     self->buf[self->len++] = val;
 }
 
 void buf_write_word(Buffer *self, uint16_t val)
 {
-    if (reserve(self, 2) <= 0) return;
+    if (reserve(self, 2) < 0) return;
     uint16_t *ptr = (uint16_t *)(self->buf + self->len);
     *ptr = val;
     self->len += 2;
@@ -101,7 +118,7 @@ void buf_write_uint8_hex(Buffer *self, uint8_t val)
 
 void buf_write_uint32(Buffer *self, uint32_t val)
 {
-    if (reserve(self, 4) <= 0) return;
+    if (reserve(self, 4) < 0) return;
     uint32_t *ptr = (uint32_t *)(self->buf + self->len);
     *ptr = val;
     self->len += 4;
@@ -180,19 +197,21 @@ void buf_write_vfmt(Buffer *self, const char *fmt, va_list ap)
     }
 
     if (n < (int)sizeof(stack_buf)) {
-        /* Fast path: result fit in the stack buffer */
-        buf_reserve(self, n);
-        memcpy(self->buf + self->len, stack_buf, n);
-        self->len += n;
+        /* Fast path: result fit in the stack buffer, copy it with its '\0' */
+        if (reserve(self, n + 1) >= 0) {
+            memcpy(self->buf + self->len, stack_buf, n + 1);
+            self->len += n;
+        }
     } else {
         /*
          * Slow path: output exceeded stack buffer.
          * 'n' holds the exact number of characters needed (excluding '\0').
          * Re-format directly into the heap buffer.
          */
-        buf_reserve(self, n);
-        vsnprintf(self->buf + self->len, n + 1, fmt, ap_copy);
-        self->len += n;
+        if (reserve(self, n + 1) >= 0) {
+            vsnprintf(self->buf + self->len, n + 1, fmt, ap_copy);
+            self->len += n;
+        }
     }
 
     va_end(ap_copy);

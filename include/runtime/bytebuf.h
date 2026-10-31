@@ -22,7 +22,16 @@ extern TypeObject bytebuf_type;
 #define IS_BYTEBUF(ob) IS_TYPE((ob), &bytebuf_type)
 Object *kl_new_bytebuf(size_t size);
 void kl_free_bytebuf(Object *obj);
-#define BYTEBUF_BUF(bb) (((ByteBufObject *)(bb))->buf)
+
+#define BYTEBUF_BUF(bb)  (((ByteBufObject *)(bb))->buf)
+#define BYTEBUF_DATA(bb) (((ByteBufObject *)(bb))->buf.buf)
+#define BYTEBUF_LEN(bb)  (((ByteBufObject *)(bb))->buf.len)
+#define BYTEBUF_SIZE(bb) (((ByteBufObject *)(bb))->buf.size)
+
+static inline void kl_bytebuf_reserve(ByteBufObject *bb, size_t size)
+{
+    buf_reserve(&bb->buf, size);
+}
 
 #ifdef __cplusplus
 }

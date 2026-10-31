@@ -31,6 +31,11 @@ pub class DialOptions {
     /// request/response protocols want the reduced latency.
     var _nodelay bool = true
 
+    /// Construct a DialOptions with every field at its declared
+    /// default. Exposed so that callers outside this package can build
+    /// one with `DialOptions()`.
+    pub func __init__() {}
+
     /// Local address to bind before connecting.
     pub func local_addr() SocketAddr? { return _local_addr }
 
@@ -82,6 +87,11 @@ pub class ListenOptions {
     /// Length of the accept queue.
     var _backlog int = 128
 
+    /// Construct a ListenOptions with every field at its declared
+    /// default. Exposed so that callers outside this package can build
+    /// one with `ListenOptions()`.
+    pub func __init__() {}
+
     /// Whether SO_REUSEADDR is set.
     pub func reuse_addr() bool { return _reuse_addr }
 
@@ -123,6 +133,11 @@ pub class UdpOptions {
     /// by default: broadcasting requires the same privilege as any
     /// other network operation but is rarely desired implicitly.
     var _broadcast bool = false
+
+    /// Construct a UdpOptions with every field at its declared
+    /// default. Exposed so that callers outside this package can build
+    /// one with `UdpOptions()`.
+    pub func __init__() {}
 
     /// Whether SO_REUSEADDR is set.
     pub func reuse_addr() bool { return _reuse_addr }

@@ -44,7 +44,8 @@ typedef struct _Buffer {
 /* Get the buffer length */
 #define BUF_LEN(name) (name).len
 
-/* Reserve space in the buffer. */
+/* Reserve space for 'size' more bytes, exactly (no room for a '\0' is added).
+   The string writers keep a '\0' after the data; the byte/word/uint32 writers do not. */
 int buf_reserve(Buffer *self, size_t size);
 
 /* Write a NULL-terminated string. */

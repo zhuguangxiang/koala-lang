@@ -1,0 +1,122 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Raw socket tests.
+//
+// Raw sockets require CAP_NET_RAW. When the test runs without it,
+// `dial` returns nil and the test verifies that the open path fails
+// cleanly instead of asserting a full round trip. On a privileged
+// machine the ICMP echo test sends to loopback and checks the reply.
+
+import "std/ut"
+import "std/socket" as so
+
+@test
+func test_raw_open() {
+    // Either the environment grants CAP_NET_RAW (returns a RawConn)
+    // or it does not (returns nil). Both are acceptable; the point is
+    // that the open path does not crash.
+    let c = so.dial("127.0.0.1:0", so.SocketTypeSpec.raw(so.IP_PROTO_ICMP), nil)
+    if c != nil {
+        ut.assert_eq(c.socket_type(), so.SOCKTYPE_RAW)
+        c.close()
+    }
+}
+
+@test
+func test_raw_port_must_be_zero() {
+    // Raw sockets have no ports; a non-zero port in the url is
+    // rejected before the socket is even created.
+    let c = so.dial("127.0.0.1:53", so.SocketTypeSpec.raw(so.IP_PROTO_ICMP), nil)
+    ut.assert_true(c == nil)
+}
+
+@test
+func test_raw_icmp_loopback() {
+    let c = so.dial("127.0.0.1:0", so.SocketTypeSpec.raw(so.IP_PROTO_ICMP), nil)
+    if c == nil {
+        // No CAP_NET_RAW; the open path was already exercised by
+        // test_raw_open.
+        return
+    }
+
+    let raw = (c as so.RawConn)!
+    raw.set_read_timeout(2000)
+
+    // A minimal ICMP Echo Request: type 8, code 0, checksum, id, seq,
+    // then payload. Checksum is computed over the whole ICMP message
+    // with the checksum field set to 0.
+    let payload = bytes(4)
+    payload[0] = uint8(0x41)
+    payload[1] = uint8(0x42)
+    payload[2] = uint8(0x43)
+    payload[3] = uint8(0x44)
+
+    // Build the 8-byte ICMP header.
+    let icmp = bytes(8 + payload.len())
+    icmp[0] = uint8(8)           // Echo Request
+    icmp[1] = uint8(0)           // Code
+    icmp[2] = uint8(0)           // Checksum, zero for now
+    icmp[3] = uint8(0)
+    icmp[4] = uint8(0x12)        // Identifier high
+    icmp[5] = uint8(0x34)        // Identifier low
+    icmp[6] = uint8(0)           // Sequence high
+    icmp[7] = uint8(1)           // Sequence low
+    icmp[8] = payload[0]
+    icmp[9] = payload[1]
+    icmp[10] = payload[2]
+    icmp[11] = payload[3]
+
+    let cs = _icmp_checksum(icmp)
+    icmp[2] = uint8((cs >> 8) & 0xFF)
+    icmp[3] = uint8(cs & 0xFF)
+
+    let n = raw.send_to(icmp, so.IpAddr.parse("127.0.0.1")!)
+    ut.assert_true(n != nil)
+    ut.assert_eq(n!, icmp.len())
+
+    // A raw ICMP socket on loopback receives every ICMP packet the
+    // kernel sees, including the Echo Request we just sent. Read
+    // until an Echo Reply (type 0) arrives or the timeout fires.
+    let buf = bytes(65535)
+    loop {
+        let r = raw.recv_payload(buf)
+        if r.status() != so.IO_OK { break }
+        if r.n() == 0 { break }
+
+        let type_ = buf[0]
+        if type_ == uint8(0) {
+            // Echo Reply: the identifier and sequence in the reply
+            // must match the request we sent.
+            ut.assert_eq(buf[4], uint8(0x12))
+            ut.assert_eq(buf[5], uint8(0x34))
+            ut.assert_eq(buf[6], uint8(0))
+            ut.assert_eq(buf[7], uint8(1))
+            break
+        }
+        // Not an Echo Reply (probably our own Echo Request bounced
+        // back through loopback); keep reading.
+    }
+
+    raw.close()
+}
+
+// Standard one's-complement checksum used by ICMP, TCP, and UDP. The
+// input is the full message with any checksum field already zeroed.
+func _icmp_checksum(data bytes) int {
+    var sum = 0
+    var i = 0
+    while i + 1 < data.len() {
+        sum += (int(data[i]) << 8) | int(data[i + 1])
+        i += 2
+    }
+    if i < data.len() {
+        sum += int(data[i]) << 8
+    }
+    while (sum >> 16) != 0 {
+        sum = (sum & 0xFFFF) + (sum >> 16)
+    }
+    return (~sum) & 0xFFFF
+}

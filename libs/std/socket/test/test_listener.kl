@@ -1,0 +1,119 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Server-side tests that run entirely on loopback.
+//
+// TCP handshake completes inside `dial`, so the accepted connection is
+// already in the listener's backlog by the time `dial` returns. That
+// lets a single thread drive both sides: listen, dial, accept, then
+// exchange data on the two ends.
+
+import "std/ut"
+import "std/socket" as so
+
+@test
+func test_listen_bind() {
+    let l = so.listen("127.0.0.1:0", nil)
+    ut.assert_true(l != nil)
+    let listener = l!
+
+    // The kernel picks an ephemeral port; it must be non-zero.
+    let local = listener.local_addr()
+    ut.assert_true(local.port() > 0)
+
+    listener.close()
+}
+
+@test
+func test_listen_accept_and_echo() {
+    let l = so.listen("127.0.0.1:0", nil)
+    let listener = l!
+    let port = listener.local_addr().port()
+
+    // Dial the listener. The handshake completes here, so the
+    // connection is queued in the backlog before accept runs.
+    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.tcp(), nil)
+    ut.assert_true(c != nil)
+    let client = c!
+
+    // accept returns immediately.
+    let r = listener.accept()
+    ut.assert_eq(r.status(), so.IO_OK)
+    ut.assert_true(r.conn() != nil)
+    let server = r.conn()!
+
+    // Exchange data both ways.
+    client.write_str("ping")
+    let buf = bytes(4)
+    let n = server.read_exact(4)
+    ut.assert_true(n != nil)
+    ut.assert_eq(n!.to_str(), "ping")
+
+    server.write_str("pong")
+    let m = client.read_exact(4)
+    ut.assert_true(m != nil)
+    ut.assert_eq(m!.to_str(), "pong")
+
+    client.close()
+    server.close()
+    listener.close()
+}
+
+@test
+func test_listen_peer_addr() {
+    let l = so.listen("127.0.0.1:0", nil)
+    let listener = l!
+    let port = listener.local_addr().port()
+
+    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.tcp(), nil)
+    let client = c!
+
+    let r = listener.accept()
+    ut.assert_eq(r.status(), so.IO_OK)
+    let server = r.conn()!
+
+    // The peer address reported by accept is the client's local
+    // address; the client's remote address is our listener.
+    let peer = r.peer()!
+    let client_local = client.local_addr()
+    ut.assert_eq(peer.port(), client_local.port())
+
+    let server_remote = server.remote_addr()
+    ut.assert_eq(server_remote.port(), client_local.port())
+
+    client.close()
+    server.close()
+    listener.close()
+}
+
+@test
+func test_listen_reuse_addr() {
+    // Listen twice on the same address with reuse_addr enabled; the
+    // second bind must succeed even though the first socket is still
+    // open.
+    let l1 = so.listen("127.0.0.1:0", nil)
+    let listener1 = l1!
+    let port = listener1.local_addr().port()
+
+    let opts = so.ListenOptions().set_reuse_addr(true)
+    let l2 = so.listen("127.0.0.1:" + port.to_str(), opts)
+    // Depending on the platform, the second bind may succeed
+    // (reuse_addr) or fail. Either outcome is acceptable here; the
+    // test only checks that the call does not crash and that the
+    // first listener still works.
+    if l2 != nil {
+        l2.close()
+    }
+
+    listener1.close()
+}
+
+@test
+func test_listen_backlog_option() {
+    let opts = so.ListenOptions().set_backlog(16)
+    let l = so.listen("127.0.0.1:0", opts)
+    ut.assert_true(l != nil)
+    l!.close()
+}

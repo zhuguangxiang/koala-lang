@@ -21,8 +21,10 @@ typedef struct _Block {
     uint32_t unused[2];
 } Block;
 
-/* allocated memory size */
-static int used_size = 0;
+/* allocated memory size, updated atomically: the runtime has several threads */
+static int64_t used_size = 0;
+
+#define USED_ADD(n) __atomic_fetch_add(&used_size, (int64_t)(n), __ATOMIC_RELAXED)
 
 /* memory is cleared to zero. */
 void *mm_alloc(int size)
@@ -36,7 +38,7 @@ void *mm_alloc(int size)
 
     blk->size = size;
     blk->magic = GUARD_MAGIC;
-    used_size += size;
+    USED_ADD(size);
 
     return (void *)(blk + 1);
 }
@@ -52,6 +54,7 @@ void *mm_realloc(void *ptr, int new_size)
         abort();
     }
 
+    new_size = ALIGN(new_size, 16);
     int old_size = blk->size;
     blk = (Block *)realloc(blk, OBJ_SIZE(blk) + new_size);
     if (!blk) {
@@ -61,7 +64,7 @@ void *mm_realloc(void *ptr, int new_size)
 
     blk->size = new_size;
     blk->magic = GUARD_MAGIC;
-    used_size += (new_size - old_size);
+    USED_ADD(new_size - old_size);
 
     return (void *)(blk + 1);
 }
@@ -78,7 +81,7 @@ void *mm_alloc_fast(int size)
 
     blk->size = size;
     blk->magic = GUARD_MAGIC;
-    used_size += size;
+    USED_ADD(size);
 
     return (void *)(blk + 1);
 }
@@ -94,14 +97,16 @@ void mm_free(void *ptr)
         abort();
     }
 
-    used_size -= blk->size;
+    USED_ADD(-(int64_t)blk->size);
+    /* a second free of the same pointer fails the magic check */
+    blk->magic = 0;
     free(blk);
 }
 
 void mm_stat(void)
 {
     puts("------ Memory Usage ------");
-    printf("%d bytes used\n", used_size);
+    printf("%ld bytes used\n", (long)__atomic_load_n(&used_size, __ATOMIC_RELAXED));
     puts("--------------------------");
 }
 

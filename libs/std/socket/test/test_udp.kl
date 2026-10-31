@@ -1,0 +1,148 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// UDP tests on loopback.
+//
+// Both ends bind an ephemeral port with `listen_packet`, so the tests
+// exercise the unconnected `send_to` / `recv_from` path. Connected UDP
+// (via `dial(..., .udp())`) is covered by a separate test.
+
+import "std/ut"
+import "std/socket" as so
+
+@test
+func test_udp_send_recv() {
+    let s = so.listen_packet("127.0.0.1:0", nil)
+    ut.assert_true(s != nil)
+    let server = s!
+    let server_port = server.local_addr().port()
+    ut.assert_true(server_port > 0)
+    let server_addr = so.SocketAddr.parse("127.0.0.1:" + server_port.to_str())!
+
+    let c = so.listen_packet("127.0.0.1:0", nil)
+    ut.assert_true(c != nil)
+    let client = c!
+
+    // Client → server.
+    let sr = client.send_to("hello".to_bytes(), server_addr)
+    ut.assert_eq(sr.status(), so.IO_OK)
+    ut.assert_eq(sr.n(), 5)
+
+    let buf = bytes(65535)
+    let rr = server.recv_from(buf)
+    ut.assert_eq(rr.status(), so.IO_OK)
+    ut.assert_eq(rr.n(), 5)
+    ut.assert_eq(buf.to_str(), "hello")
+
+    // Server → client, using the peer address from the datagram.
+    let peer = rr.peer()!
+    let back = server.send_to("world".to_bytes(), peer)
+    ut.assert_eq(back.status(), so.IO_OK)
+    ut.assert_eq(back.n(), 5)
+
+    let buf2 = bytes(65535)
+    let cr = client.recv_from(buf2)
+    ut.assert_eq(cr.status(), so.IO_OK)
+    ut.assert_eq(cr.n(), 5)
+    ut.assert_eq(buf2.to_str(), "world")
+
+    client.close()
+    server.close()
+}
+
+@test
+func test_udp_empty_datagram() {
+    let s = so.listen_packet("127.0.0.1:0", nil)!
+    let port = s.local_addr().port()
+    let server_addr = so.SocketAddr.parse("127.0.0.1:" + port.to_str())!
+
+    let client = so.listen_packet("127.0.0.1:0", nil)!
+
+    // Zero-length datagram is legal for UDP and must round-trip.
+    let sr = client.send_to(bytes(0), server_addr)
+    ut.assert_eq(sr.status(), so.IO_OK)
+    ut.assert_eq(sr.n(), 0)
+
+    let buf = bytes(65535)
+    let rr = s.recv_from(buf)
+    ut.assert_eq(rr.status(), so.IO_OK)
+    ut.assert_eq(rr.n(), 0)
+
+    client.close()
+    s.close()
+}
+
+@test
+func test_udp_peek_from() {
+    let s = so.listen_packet("127.0.0.1:0", nil)!
+    let port = s.local_addr().port()
+    let server_addr = so.SocketAddr.parse("127.0.0.1:" + port.to_str())!
+
+    let client = so.listen_packet("127.0.0.1:0", nil)!
+
+    client.send_to("peekme".to_bytes(), server_addr)
+
+    // Peek does not consume the datagram.
+    let pbuf = bytes(65535)
+    let pr = s.peek_from(pbuf)
+    ut.assert_eq(pr.status(), so.IO_OK)
+    ut.assert_eq(pr.n(), 6)
+    ut.assert_eq(pbuf.to_str(), "peekme")
+
+    // The next recv_from returns the same datagram.
+    let rbuf = bytes(65535)
+    let rr = s.recv_from(rbuf)
+    ut.assert_eq(rr.status(), so.IO_OK)
+    ut.assert_eq(rr.n(), 6)
+    ut.assert_eq(rbuf.to_str(), "peekme")
+
+    client.close()
+    s.close()
+}
+
+@test
+func test_udp_connected_client() {
+    // dial(..., .udp()) binds an ephemeral port and sets the default
+    // peer. After that, write / read go to that peer.
+    let s = so.listen_packet("127.0.0.1:0", nil)!
+    let port = s.local_addr().port()
+
+    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.udp(), nil)
+    ut.assert_true(c != nil)
+    let client = c!
+
+    ut.assert_eq(client.socket_type(), so.SOCKTYPE_UDP)
+
+    // Connected UDP: write goes to the default peer.
+    let n = client.write("ping".to_bytes())
+    ut.assert_eq(n, 4)
+
+    let buf = bytes(65535)
+    let rr = s.recv_from(buf)
+    ut.assert_eq(rr.status(), so.IO_OK)
+    ut.assert_eq(rr.n(), 4)
+    ut.assert_eq(buf.to_str(), "ping")
+
+    // Reply to the client and read on the connected side.
+    let peer = rr.peer()!
+    s.send_to("pong".to_bytes(), peer)
+
+    let rbuf = bytes(65535)
+    let cr = (client as so.UdpConn)!.recv_from(rbuf)
+    ut.assert_eq(cr.status(), so.IO_OK)
+    ut.assert_eq(rbuf.to_str(), "pong")
+
+    client.close()
+    s.close()
+}
+
+@test
+func test_udp_local_addr() {
+    let s = so.listen_packet("127.0.0.1:0", nil)!
+    let local = s.local_addr()
+    ut.assert_true(local.port() > 0)
+    ut.assert_true(local.ip().is_loopback())
+    s.close()
+}

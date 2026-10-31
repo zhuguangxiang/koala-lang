@@ -1,0 +1,105 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// TCP listener trait and its implementation.
+///
+/// `Listener` is responsible for one thing: accepting new connections.
+/// UDP does not use `Listener`, since UDP has no notion of accepting a
+/// connection; that role is filled by `UdpConn` from `conn.kl`.
+///
+/// Like `TcpConn`, the Koala side never sees errno: every `accept`
+/// failure is reported as an `IO_*` status through `AcceptResult`.
+
+import "std/io"
+
+/// Result of a TCP accept.
+pub class AcceptResult {
+    /// Overall status; one of the IO_* constants.
+    let _status int
+
+    /// Established connection; non-nil on success.
+    let _conn TcpConn?
+
+    /// Peer address; non-nil on success.
+    let _peer SocketAddr?
+
+    /// Human-readable error description.
+    let _message str
+
+    /// Construct a result from its parts.
+    func __init__(status int, conn TcpConn?, peer SocketAddr?, message str) {
+        _status = status
+        _conn = conn
+        _peer = peer
+        _message = message
+    }
+
+    /// Overall status.
+    pub func status() int { return _status }
+
+    /// Established connection; non-nil on success.
+    pub func conn() TcpConn? { return _conn }
+
+    /// Peer address; non-nil on success.
+    pub func peer() SocketAddr? { return _peer }
+
+    /// Human-readable error description.
+    pub func message() str { return _message }
+}
+
+/// Contract for TCP listeners.
+pub trait Listener : io.Closable {
+    /// Block until a new connection arrives.
+    ///
+    /// Failure is expressed through `AcceptResult.status()`; the result
+    /// always carries a non-nil `conn` on success.
+    func accept() AcceptResult
+
+    /// Local listening address.
+    func local_addr() SocketAddr
+}
+
+/// TCP listener.
+pub class TcpListener : Listener {
+    let _fd int
+    var _local SocketAddr? = nil
+
+    /// Wrap a file descriptor.
+    ///
+    /// Prefer `listen` over calling this directly.
+    pub func __init__(fd int) { _fd = fd }
+
+    pub func accept() AcceptResult {
+        loop {
+            let (fd, peer) = sys_accept(_fd)
+            if fd >= 0 {
+                return AcceptResult(IO_OK, TcpConn(fd), peer, "")
+            }
+            // The peer aborted before accept returned; retry.
+            if _last_io_status() == IO_ABORTED { continue }
+            return AcceptResult(_last_io_status(), nil, nil, "")
+        }
+    }
+
+    pub func local_addr() SocketAddr {
+        if _local == nil {
+            let local = _getsockname(_fd)
+            _local = local
+        }
+        return _local!
+    }
+
+    pub func close() { _close(_fd) }
+
+    /// Control the accept timeout. `ms == 0` clears it.
+    pub func set_deadline(ms int) bool {
+        return sys_setsockopt_timeout(_fd, SO_RCVTIMEO, ms) == 0
+    }
+}
+
+/// Accept a pending connection. Returns `(fd, peer)`, where `fd` is
+/// -1 on error and `peer` is the peer's address on success.
+@native
+func sys_accept(fd int) (int, SocketAddr?) {}

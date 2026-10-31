@@ -1,0 +1,139 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// Exercise the TcpConn API surface on loopback.
+//
+// A local listener is brought up on an ephemeral port, the client dials
+// it, and the listener accepts the queued connection. The TCP handshake
+// completes inside dial, so accept returns immediately — the whole test
+// needs no coroutine and no network.
+
+import "std/ut"
+import "std/socket" as so
+
+// Bring up a connected pair on loopback. Returns the client side, the
+// server side, and the listener (caller closes all three).
+func _pair() (so.Conn, so.Conn, so.Listener) {
+    let l = so.listen("127.0.0.1:0", nil)!
+    let port = l.local_addr().port()
+    let c = so.dial("127.0.0.1:" + port.to_str(), so.SocketTypeSpec.tcp(), nil)!
+    let r = l.accept()
+    let s so.Conn = r.conn()!
+    return (c, s, l)
+}
+
+@test
+func test_conn_basic() {
+    let (client, server, listener) = _pair()
+
+    ut.assert_eq(client.socket_type(), so.SOCKTYPE_TCP)
+    ut.assert_true(client.local_addr().port() > 0)
+    ut.assert_eq(client.remote_addr().port(), listener.local_addr().port())
+
+    client.close()
+    server.close()
+    listener.close()
+}
+
+@test
+func test_conn_options() {
+    let (client, server, listener) = _pair()
+    let tcp = (client as so.TcpConn)!
+
+    ut.assert_eq(tcp.nodelay()!, true)
+    ut.assert_true(tcp.set_nodelay(false))
+    ut.assert_eq(tcp.nodelay()!, false)
+    ut.assert_true(tcp.set_nodelay(true))
+
+    ut.assert_true(tcp.set_keepalive(true))
+    ut.assert_true(tcp.set_keepalive_period(30))
+    ut.assert_true(tcp.set_keepalive(false))
+
+    ut.assert_true(tcp.set_ttl(64))
+
+    ut.assert_true(client.set_read_timeout(1000))
+    ut.assert_true(client.set_write_timeout(1000))
+    ut.assert_true(client.set_read_timeout(0))
+    ut.assert_true(client.set_write_timeout(0))
+
+    ut.assert_true(client.set_blocking(false))
+    ut.assert_true(client.set_blocking(true))
+
+    ut.assert_true(client.take_error() == nil)
+
+    client.close()
+    server.close()
+    listener.close()
+}
+
+@test
+func test_conn_io() {
+    let (client, server, listener) = _pair()
+
+    let n = client.write_str("hello")
+    ut.assert_eq(n, 5)
+
+    let got = server.read_exact(5)
+    ut.assert_true(got != nil)
+    ut.assert_eq(got!.to_str(), "hello")
+
+    server.write_str("world")
+    let back = client.read_exact(5)
+    ut.assert_true(back != nil)
+    ut.assert_eq(back!.to_str(), "world")
+
+    client.close()
+    server.close()
+    listener.close()
+}
+
+@test
+func test_conn_shutdown() {
+    let (client, server, listener) = _pair()
+    let tcp = (client as so.TcpConn)!
+
+    client.write_str("hello")
+    ut.assert_true(tcp.shutdown_write())
+
+    // The server reads the payload, then sees EOF on the next read.
+    let got = server.read_exact(5)
+    ut.assert_true(got != nil)
+    ut.assert_eq(got!.to_str(), "hello")
+
+    let tail = bytes(4)
+    let n = server.read(tail)
+    ut.assert_eq(n, 0)
+
+    server.write_str("bye")
+    let back = client.read_exact(3)
+    ut.assert_true(back != nil)
+    ut.assert_eq(back!.to_str(), "bye")
+
+    client.close()
+    server.close()
+    listener.close()
+}
+
+@test
+func test_conn_peek() {
+    let (client, server, listener) = _pair()
+    let tcp = (client as so.TcpConn)!
+
+    server.write_str("peekme")
+
+    let buf = bytes(6)
+    let n = tcp.peek(buf)
+    ut.assert_eq(n, 6)
+    ut.assert_eq(buf[0:6].to_str(), "peekme")
+
+    // Data is still there after peek.
+    let got = client.read_exact(6)
+    ut.assert_true(got != nil)
+    ut.assert_eq(got!.to_str(), "peekme")
+
+    client.close()
+    server.close()
+    listener.close()
+}

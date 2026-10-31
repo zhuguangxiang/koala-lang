@@ -3432,7 +3432,8 @@ static void parse_bang(ParserState *ps, Expr *exp)
 
     if (!type_is_optional(e->ts)) {
         Symbol *sym = e->sym;
-        if (sym->kind == SYM_SHADOW_VAR) {
+        /* a call result or other temporary has no symbol */
+        if (sym && sym->kind == SYM_SHADOW_VAR) {
             // check shadow variable nil state
             ShadowVarSymbol *shadow_sym = (ShadowVarSymbol *)sym;
             log_info("  note: symbol '%s' is a shadow variable.", sym->name);

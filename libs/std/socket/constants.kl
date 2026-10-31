@@ -9,15 +9,18 @@
 /// passed unchanged to `socket()`, `bind()`, `setsockopt()`,
 /// `shutdown()`, `fcntl()`, and the other system calls, so any value
 /// that drifts from `<sys/socket.h>`, `<netinet/in.h>`,
-/// `<netinet/tcp.h>`, `<fcntl.h>`, or `<errno.h>` would make those
-/// calls misbehave. The errno values are also compared against
-/// `os.errno()`, which returns the raw platform errno.
+/// `<netinet/tcp.h>`, or `<fcntl.h>` would make those calls
+/// misbehave.
 ///
 /// These are Linux x86_64 glibc values. They do not match macOS or
-/// the BSDs: `AF_INET6`, the `SO_*` option numbers, `EAGAIN`,
-/// `O_NONBLOCK`, and several other constants differ across platforms.
-/// Porting the socket package to another kernel means revisiting
-/// every value in this file.
+/// the BSDs: `AF_INET6`, the `SO_*` option numbers, `O_NONBLOCK`, and
+/// several other constants differ across platforms. Porting the
+/// socket package to another kernel means revisiting every value in
+/// this file.
+///
+/// errno values are deliberately absent: the Koala side never sees
+/// them. Every sys_* failure is translated to an IO_* status inside
+/// the VM, and only IO_* constants are exposed to Koala code.
 
 // Address families.
 pub const AF_INET  = 2
@@ -39,12 +42,6 @@ pub const IP_PROTO_UDP  = 17
 pub const SHUT_RD   = 0
 pub const SHUT_WR   = 1
 pub const SHUT_RDWR = 2
-
-// errno values used by this package.
-pub const EINTR        = 4
-pub const EAGAIN       = 11
-pub const EWOULDBLOCK  = 11
-pub const ECONNABORTED = 103
 
 // fcntl commands and flags.
 pub const F_GETFL    = 3

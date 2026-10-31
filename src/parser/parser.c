@@ -1332,7 +1332,11 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
     exp->ctx = EXPR_CTX_LOAD;
     exp->expected = ts;
     parser_visit_expr(ps, exp);
-    if (!exp->ts) return;
+    if (!exp->ts) {
+        /* the initializer error is reported, uses of the variable are not a circular reference */
+        sym->status = SYM_RESOLVED;
+        return;
+    }
 
     if (exp->kind == EXPR_LITERAL_KIND) {
         Literal *lit = expr_to_literal(exp);

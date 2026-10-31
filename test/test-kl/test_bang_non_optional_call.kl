@@ -1,0 +1,39 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// '!' on a non-optional call result is an error, not a crash (a call result has no symbol).
+// A tuple return is not covariant: '(Conn, TcpConn)' is not '(Conn, Conn)'.
+
+trait Conn {
+    func id() int
+}
+class TcpConn : Conn {
+    func id() int = 1
+}
+
+class Result {
+    func conn() TcpConn? = TcpConn()
+}
+
+func make() Result = Result()
+
+func bang_call() {
+    let r = make()!
+    // CHECK: only optional type/Sequence's subtype can use bang operator.
+    let m = Result().conn()!.id()!
+    // CHECK-NEXT: only optional type/Sequence's subtype can use bang operator.
+    // a use of a variable whose initializer failed reports nothing more
+    print(r.conn(), m)
+    // CHECK-NOT: circular reference
+}
+
+func pair() (Conn, Conn) {
+    let c Conn = TcpConn()
+    return (c, make().conn()!)
+    // CHECK-NEXT: return type mismatch in function 'pair'
+}
+
+// OK
+func pair_ok() (Conn, Conn) {
+    let c Conn = TcpConn()
+    let d Conn = make().conn()!
+    return (c, d)
+}

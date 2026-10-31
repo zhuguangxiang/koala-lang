@@ -99,63 +99,62 @@ func _dial_one(addr SocketAddr, spec SocketTypeSpec, opts DialOptions) Conn? {
     return RawConn(fd, spec.protocol()!)
 }
 
-// /// Bind and listen on `url`; returns a `TcpListener`.
-// ///
-// /// `url` must be a local address of the form "host:port". Returns nil
-// /// on any failure: bad url, socket creation failure, bind failure, or
-// /// listen failure.
-// pub func listen(url str, options ListenOptions?) Listener? {
-//     let addr = SocketAddr.parse(url) else { return nil }
+/// Bind and listen on `url`; returns a `TcpListener`.
+///
+/// `url` must be a local address of the form "host:port". Returns nil
+/// on any failure: bad url, socket creation failure, bind failure, or listen failure.
+pub func listen(url str, options ListenOptions?) Listener? {
+    let addr = SocketAddr.parse(url) else { return nil }
 
-//     var domain = AF_INET
-//     if !addr.ip().is_v4() { domain = AF_INET6 }
+    var domain = AF_INET
+    if !addr.ip().is_v4() { domain = AF_INET6 }
 
-//     var opts = options ?: ListenOptions()
+    var opts = options ?? ListenOptions()
 
-//     let fd = sys_socket(domain, SOCK_STREAM, 0)
-//     if fd < 0 { return nil }
+    let fd = sys_socket(domain, SOCK_STREAM, 0)
+    if fd < 0 { return nil }
 
-//     if opts.reuse_addr() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEADDR, 1) }
-//     if opts.reuse_port() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEPORT, 1) }
+    if opts.reuse_addr() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEADDR, 1) }
+    if opts.reuse_port() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEPORT, 1) }
 
-//     if sys_bind(fd, addr) != 0 {
-//         sys_close(fd)
-//         return nil
-//     }
+    if sys_bind(fd, addr) != 0 {
+        sys_close(fd)
+        return nil
+    }
 
-//     if sys_listen(fd, opts.backlog()) < 0 {
-//         sys_close(fd)
-//         return nil
-//     }
+    if sys_listen(fd, opts.backlog()) < 0 {
+        sys_close(fd)
+        return nil
+    }
 
-//     return TcpListener(fd)
-// }
+    return TcpListener(fd)
+}
 
-// /// Bind a UDP socket on `url`; returns a `UdpConn`.
-// ///
-// /// Returns nil on any failure: bad url, socket creation failure, or bind failure.
-// pub func listen_packet(url str, options UdpOptions?) UdpConn? {
-//     let addr = SocketAddr.parse(url) else { return nil }
+/// Bind a UDP socket on `url`; returns a `UdpConn`.
+///
+/// Returns nil on any failure: bad url, socket creation failure, or bind failure.
+pub func listen_packet(url str, options UdpOptions?) UdpConn? {
+    let addr = SocketAddr.parse(url) else { return nil }
 
-//     var domain = AF_INET
-//     if !addr.ip().is_v4() { domain = AF_INET6 }
+    var domain = AF_INET
+    if !addr.ip().is_v4() { domain = AF_INET6 }
 
-//     var opts = options ?: UdpOptions()
+    var opts = options ?? UdpOptions()
 
-//     let fd = sys_socket(domain, SOCK_DGRAM, 0)
-//     if fd < 0 { return nil }
+    let fd = sys_socket(domain, SOCK_DGRAM, 0)
+    if fd < 0 { return nil }
 
-//     if opts.reuse_addr() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEADDR, 1) }
-//     if opts.reuse_port() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEPORT, 1) }
-//     if opts.broadcast()  { sys_setsockopt_int(fd, SOL_SOCKET, SO_BROADCAST, 1) }
+    if opts.reuse_addr() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEADDR, 1) }
+    if opts.reuse_port() { sys_setsockopt_int(fd, SOL_SOCKET, SO_REUSEPORT, 1) }
+    if opts.broadcast()  { sys_setsockopt_int(fd, SOL_SOCKET, SO_BROADCAST, 1) }
 
-//     if sys_bind(fd, addr) != 0 {
-//         sys_close(fd)
-//         return nil
-//     }
+    if sys_bind(fd, addr) != 0 {
+        sys_close(fd)
+        return nil
+    }
 
-//     return UdpConn(fd)
-// }
+    return UdpConn(fd)
+}
 
 /// Resolve `host` to a list of IP addresses.
 ///
@@ -181,3 +180,8 @@ func sys_bind(fd int, addr SocketAddr) int {}
 /// `message` carries a human-readable description on failure.
 @native
 func _resolve(host str) (int, list[IpAddr], str) {}
+
+/// Mark a socket as accepting connections. Returns 0 on success,
+/// -1 on error.
+@native
+func sys_listen(fd int, backlog int) int {}

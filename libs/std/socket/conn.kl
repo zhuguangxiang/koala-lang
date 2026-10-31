@@ -6,26 +6,30 @@
 /// Connected socket trait and its three implementations.
 ///
 /// `Conn` is the uniform contract for every connected socket. It
-/// inherits `read` / `write` / `write_str` / `flush` from `io.Reader`
-/// and `io.Writer`. The I/O trait contracts apply: `read` returns 0 on
-/// EOF, `write` returns the byte count (a short write is a failure),
-/// and a closed or broken descriptor panics.
+/// inherits `read` from `io.Reader` and `write` / `write_str` /
+/// `flush` from `io.Writer`. The I/O trait contracts apply: `read`
+/// returns 0 on EOF, `write` returns the byte count (a short write
+/// is a failure), and a closed or broken descriptor panics.
 ///
 /// The semantics of `read` / `write` depend on `socket_type()`. TCP's
 /// `write` loops until every byte is written; UDP and raw `write` one
-/// complete datagram. Every I/O method is written as a loop over the
-/// syscall with an `EAGAIN` branch, so that a coroutine suspension
-/// hook can be inserted later without changing the shape of the method.
+/// complete datagram. Every I/O method loops on EINTR and treats any
+/// other failure as fatal. The blocking sockets this package creates
+/// never return EAGAIN, so the loop only needs the EINTR retry; a
+/// coroutine-backed socket would surface EAGAIN as IO_WOULDBLOCK, and
+/// the suspension hook would go on that branch.
 ///
-/// `read_exact` and `read_to_end` are repeated on each concrete class
-/// rather than living on the trait: Koala traits do not support
-/// default method bodies, and a shared free function cannot take a
-/// `Conn` parameter because Koala does not implicitly convert a
-/// concrete class instance to a trait parameter. When either of those
-/// changes, the two methods can be factored out.
+/// `read_exact` and `read_to_end` are declared as pure virtuals on the
+/// trait and implemented in each concrete class: Koala traits do not
+/// support default method bodies. When they do, the bodies move up to
+/// `Conn` and the per-class duplication goes away.
+///
+/// The Koala side never sees errno. Every sys_* failure is translated
+/// to an IO_* status inside the VM; `_last_io_status()` reads the
+/// current one, and `_take_io_error()` reads and clears the pending
+/// SO_ERROR. The `IO_*` constants come from `result.kl`.
 
 import "std/io"
-import "std/os"
 
 /// Uniform contract for connected sockets.
 pub trait Conn : io.Reader & io.Writer & io.Closable {
@@ -92,8 +96,7 @@ pub class TcpConn : Conn {
         loop {
             let r = sys_recv(_fd, bs, 0)
             if r >= 0 { return r }
-            let err = os.errno()
-            if err == EINTR { continue }
+            if _last_io_status() == IO_INTERRUPTED { continue }
             panic("TcpConn.read: syscall failed")
         }
     }
@@ -107,8 +110,7 @@ pub class TcpConn : Conn {
                 total += r
                 continue
             }
-            let err = os.errno()
-            if err == EINTR { continue }
+            if _last_io_status() == IO_INTERRUPTED { continue }
             panic("TcpConn.write: syscall failed")
         }
         return total
@@ -126,7 +128,7 @@ pub class TcpConn : Conn {
 
     pub func set_blocking(blocking bool) bool { return _set_blocking(_fd, blocking) }
 
-    pub func take_error() int? { return _take_error(_fd) }
+    pub func take_error() int? { return _take_io_error(_fd) }
 
     /// Read exactly `n` bytes. Returns nil on EOF or short read.
     pub func read_exact(n int) bytes? {
@@ -228,8 +230,7 @@ pub class UdpConn : Conn {
         loop {
             let r = sys_recv(_fd, bs, 0)
             if r >= 0 { return r }
-            let err = os.errno()
-            if err == EINTR { continue }
+            if _last_io_status() == IO_INTERRUPTED { continue }
             panic("UdpConn.read: syscall failed")
         }
     }
@@ -252,7 +253,7 @@ pub class UdpConn : Conn {
 
     pub func set_blocking(blocking bool) bool { return _set_blocking(_fd, blocking) }
 
-    pub func take_error() int? { return _take_error(_fd) }
+    pub func take_error() int? { return _take_io_error(_fd) }
 
     /// Read exactly `n` bytes. Returns nil on EOF or short read.
     pub func read_exact(n int) bytes? {
@@ -279,31 +280,37 @@ pub class UdpConn : Conn {
 
     /// Receive one datagram into `buf`.
     ///
-    /// On success `buf` holds the datagram and `RecvFromResult.n()` is
-    /// the number of bytes received. The `Buffer` is supplied by the
-    /// caller so that a server loop can reuse one allocation across
+    /// `buf` is a writable `bytes` that must be large enough to hold the
+    /// incoming datagram; a datagram longer than `buf` is truncated.
+    /// `bytes(65535)` covers every possible UDP datagram. On success the
+    /// first `RecvFromResult.n()` bytes of `buf` hold this datagram —
+    /// anything after that is leftover from a previous call and must be
+    /// ignored. On failure `buf` is left unchanged. The caller supplies
+    /// the buffer so that a server loop can reuse one allocation across
     /// packets.
-    pub func recv_from(buf Buffer) RecvFromResult {
+    pub func recv_from(buf bytes) RecvFromResult {
         let (n, peer) = sys_recvfrom(_fd, buf, 0)
         if n >= 0 { return RecvFromResult(IO_OK, n, peer, "") }
-        return RecvFromResult(_errno_to_status(os.errno()), 0, nil, "")
+        return RecvFromResult(_last_io_status(), 0, nil, "")
     }
 
     /// Peek at the next datagram without consuming it.
     ///
-    /// The datagram stays in the kernel queue and will be returned
-    /// again by the next `recv_from`.
-    pub func peek_from(buf Buffer) RecvFromResult {
+    /// The datagram stays in the kernel queue and will be returned again
+    /// by the next `recv_from`. The same buffer-size rules as `recv_from`
+    /// apply: `buf` must be large enough for the datagram, and only the
+    /// first `RecvFromResult.n()` bytes are meaningful.
+    pub func peek_from(buf bytes) RecvFromResult {
         let (n, peer) = sys_recvfrom(_fd, buf, MSG_PEEK)
         if n >= 0 { return RecvFromResult(IO_OK, n, peer, "") }
-        return RecvFromResult(_errno_to_status(os.errno()), 0, nil, "")
+        return RecvFromResult(_last_io_status(), 0, nil, "")
     }
 
     /// Send one datagram to `addr`.
     pub func send_to(bs bytes, addr SocketAddr) SendResult {
         let r = sys_sendto(_fd, bs, addr, 0)
         if r >= 0 { return SendResult(IO_OK, r, "") }
-        return SendResult(_errno_to_status(os.errno()), 0, "")
+        return SendResult(_last_io_status(), 0, "")
     }
 
     /// Set the default peer.
@@ -358,8 +365,7 @@ pub class RawConn : Conn {
         loop {
             let r = sys_recv(_fd, bs, 0)
             if r >= 0 { return r }
-            let err = os.errno()
-            if err == EINTR { continue }
+            if _last_io_status() == IO_INTERRUPTED { continue }
             panic("RawConn.read: syscall failed")
         }
     }
@@ -383,7 +389,7 @@ pub class RawConn : Conn {
 
     pub func set_blocking(blocking bool) bool { return _set_blocking(_fd, blocking) }
 
-    pub func take_error() int? { return _take_error(_fd) }
+    pub func take_error() int? { return _take_io_error(_fd) }
 
     /// Read exactly `n` bytes. Returns nil on EOF or short read.
     pub func read_exact(n int) bytes? {
@@ -416,17 +422,27 @@ pub class RawConn : Conn {
     }
 
     /// Receive a raw packet into `buf`, stripping the IP header.
-    pub func recv_payload(buf Buffer) RecvPayloadResult {
+    ///
+    /// `buf` must be large enough for the packet including the IP header
+    /// (which is removed before returning). `bytes(65535)` covers every
+    /// possible IPv4 packet. On success the first `RecvPayloadResult.n()`
+    /// bytes of `buf` hold the payload — anything after that is leftover
+    /// from a previous call. On failure `buf` is left unchanged.
+    pub func recv_payload(buf bytes) RecvPayloadResult {
         let (n, addr) = _recv_payload_into(_fd, buf, 1)
         if n >= 0 { return RecvPayloadResult(IO_OK, n, addr, "") }
-        return RecvPayloadResult(_errno_to_status(os.errno()), 0, nil, "")
+        return RecvPayloadResult(_last_io_status(), 0, nil, "")
     }
 
     /// Receive a raw packet into `buf`, keeping the IP header.
-    pub func recv_raw(buf Buffer) RecvPayloadResult {
+    ///
+    /// Same buffer-size rules as `recv_payload`; the difference is that
+    /// the IP header stays in `buf`, so `RecvPayloadResult.n()` is the
+    /// full packet length.
+    pub func recv_raw(buf bytes) RecvPayloadResult {
         let (n, addr) = _recv_payload_into(_fd, buf, 0)
         if n >= 0 { return RecvPayloadResult(IO_OK, n, addr, "") }
-        return RecvPayloadResult(_errno_to_status(os.errno()), 0, nil, "")
+        return RecvPayloadResult(_last_io_status(), 0, nil, "")
     }
 
     /// Set the IP time-to-live of outgoing packets.
@@ -469,14 +485,6 @@ func _set_write_timeout(fd int, ms int) bool {
     return sys_setsockopt_timeout(fd, SO_SNDTIMEO, ms) == 0
 }
 
-// Fetch and clear the pending socket error. Returns nil when there is
-// none, or when the query itself failed.
-func _take_error(fd int) int? {
-    let err = sys_getsockopt_int(fd, SOL_SOCKET, SO_ERROR)
-    if err <= 0 { return nil }
-    return _errno_to_status(err)
-}
-
 // Return a 0.0.0.0:0 address, used where a socket has no meaningful
 // local or remote address (raw sockets, unconnected UDP).
 func _zero_addr() SocketAddr {
@@ -502,13 +510,11 @@ func sys_recv(fd int, bs bytes, flags int) int {}
 @native
 func sys_send(fd int, bs bytes, flags int) int {}
 
-/// Receive a datagram into `buf`, also returning the source address.
-///
-/// The VM writes the bytes into `buf`'s underlying storage and
-/// updates its logical length, so the caller can read the payload
-/// back with `buf.to_bytes()`.
+/// Receive a datagram into `bs`. The kernel fills the first `n` bytes
+/// of `bs`; the caller reads them back as `bs[0:n]`. Returns the byte
+/// count and the source address, or -1 and nil on error.
 @native
-func sys_recvfrom(fd int, buf Buffer, flags int) (int, SocketAddr?) {}
+func sys_recvfrom(fd int, bs bytes, flags int) (int, SocketAddr?) {}
 
 /// Send a datagram to a specific address.
 @native
@@ -558,15 +564,27 @@ func _getpeername(fd int) SocketAddr? {}
 @native
 func _send_to_ip_from(fd int, bs bytes, ip IpAddr) int {}
 
-/// Receive a raw packet into `buf`. `strip` = 1 drops the IP header;
-/// `strip` = 0 keeps it. The VM updates `buf`'s logical length, so the
-/// caller can read the payload back with `buf.to_bytes()`.
+/// Receive a raw packet into `bs`. `strip` = 1 drops the IP header
+/// in place with memmove; `strip` = 0 keeps it. Returns the payload
+/// length (after stripping, if requested) and the source address, or
+/// -1 and nil on error.
 @native
-func _recv_payload_into(fd int, buf Buffer, strip int) (int, IpAddr?) {}
+func _recv_payload_into(fd int, bs bytes, strip int) (int, IpAddr?) {}
 
-/// Map a platform errno value to an `IO_*` status.
+/// Return the `IO_*` status corresponding to the last system-call
+/// failure.
 ///
-/// Implemented by the VM, which owns the platform-specific errno
-/// table. Unrecognized values map to `IO_IO`.
+/// Called immediately after a `sys_*` function returns a negative
+/// value, before any other system call can overwrite errno. The VM
+/// owns the platform-specific errno table, so Koala code never sees
+/// errno values directly.
 @native
-func _errno_to_status(e int) int {}
+func _last_io_status() int {}
+
+/// Read and clear the pending socket error (SO_ERROR), mapped to an
+/// `IO_*` status.
+///
+/// Returns nil when there is no pending error, or when the query
+/// itself failed.
+@native
+func _take_io_error(fd int) int? {}
