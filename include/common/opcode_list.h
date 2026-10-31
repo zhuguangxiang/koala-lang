@@ -2554,6 +2554,52 @@ X(OP_STR, FORMAT_RxRx, "str")
  */
 X(OP_NIL_CHECK, FORMAT_RxRx, "nil_check")
 
+/**
+ * OP_HASH — hash value of any object
+ *
+ * FORMAT_RxRx:
+ *     | op:8 | rd:12 | rs:12 |
+ *
+ * Semantics:
+ *     rd = hash(rs)
+ *
+ * Description:
+ *     Calls the `hash` slot of the runtime type of the value in register
+ *     `rs` and loads the int result into register `rd`. Every type has the
+ *     slot (Hashable is an automatic conformance), and an interface value
+ *     keeps its object's type, so it works on a value of a type parameter.
+ *
+ * Notes:
+ *     - Lowered from the `hash(x)` builtin and from `t.hash()` on a value of a
+ *       type parameter whose bound has no `hash`
+ *     - Appended after the last executable opcode, so the opcodes stored in
+ *       existing .klc files keep their numbers
+ */
+X(OP_HASH, FORMAT_RxRx, "hash")
+
+/**
+ * OP_FMT — write the Printable representation of any object
+ *
+ * FORMAT_RxRx:
+ *     | op:8 | rs:12 | rf:12 |
+ *
+ * Semantics:
+ *     rs.fmt(rf)
+ *
+ * Description:
+ *     Calls the `fmt` slot of the runtime type of the value in register
+ *     `rs` with the Formatter in register `rf`. No result. Every type has
+ *     the slot (Printable is an automatic conformance), and an interface
+ *     value keeps its object's type, so it works on a value of a type
+ *     parameter.
+ *
+ * Notes:
+ *     - Lowered from `t.fmt(f)` on a value of a type parameter
+ *     - Appended after the last executable opcode, so the opcodes stored in
+ *       existing .klc files keep their numbers
+ */
+X(OP_FMT, FORMAT_RxRx, "fmt")
+
 /*---------------------------------------------------------------+
  |  IR-Only Pseudo Instructions                                  |
  +---------------------------------------------------------------*/

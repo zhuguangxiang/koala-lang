@@ -1144,6 +1144,8 @@ KlrValue *klr_build_seq_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, Ty
 void klr_build_seq_set(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, KlrValue *val);
 
 KlrValue *klr_build_len(KlrBuilder *bldr, KlrValue *obj, char *name);
+KlrValue *klr_build_hash(KlrBuilder *bldr, KlrValue *obj, char *name);
+KlrValue *klr_build_fmt(KlrBuilder *bldr, KlrValue *obj, KlrValue *fmt);
 KlrValue *klr_build_str(KlrBuilder *bldr, KlrValue *obj, char *name);
 KlrValue *klr_build_slice_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
                               char *name);

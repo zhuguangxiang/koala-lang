@@ -1,0 +1,22 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// A field initializer is checked after all signatures are known, so the arguments
+// of its calls are checked like anywhere else.
+
+func mk(a int, b int) int {
+    return a + b
+}
+
+class Foo {
+    let a int = mk(1, 2, 3)
+    // CHECK: too many arguments in function call.
+    let b int = mk("x", 2)
+    // CHECK-NEXT: Incompatible type: expected 'int64', but got 'str'.
+    let c Bar = Bar()
+    // CHECK-NEXT: too few arguments in function call.
+}
+
+class Bar {
+    func __init__(_x int) {}
+}
+
+// CHECK-NOT: error:

@@ -1,0 +1,34 @@
+// RUN: koala %s | filecheck %s
+// Class fields are parsed after all method and top-level function signatures, so a
+// field initializer can call a constructor of a class declared later, or any top-level
+// function, with its arguments fully checked.
+
+func mk(a int, b int) int {
+    return a + b
+}
+
+class Foo {
+    let b Bar = Bar(10, 20)
+    let n int = mk(1, 2)
+    let m = add_one(41)
+}
+
+class Bar {
+    var x int
+    var y int
+    func __init__(_x int, _y int) {
+        x = _x
+        y = _y
+    }
+}
+
+func add_one(v int) int {
+    return v + 1
+}
+
+func main() {
+    let f = Foo()
+    print(f.b.x, f.b.y, f.n, f.m)
+}
+
+// CHECK: {{^}}10 20 3 42{{$}}

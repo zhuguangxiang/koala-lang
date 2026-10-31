@@ -116,6 +116,8 @@ top-level 函数必须有**独立函数体**——包括 `@native`（C 实现）
 
 **取消 top-level → 方法的 @intrinsic 映射**（`len(x)`、`hash(x)`、`iter(x)`、`reversed(x)`）。根因：Python 是动态语言，`len(x)` 是运行期鸭子分派（`type(x).__len__`）的全局入口，别无选择；**Koala 是静态语言**，`x.len()` 编译期即按静态类型 / trait bound 解析并类型检查，再放一个 top-level 别名只是多一层隐藏改写、零收益（违背 nothing hidden / simplicity）。故 len / hash / iter / reversed 一律走方法，**无 top-level 形态**；`next` 同理只是 `Iterator.next()` 方法，无 top-level `next`。
 
+**Update (2026-10-31)**: `len(x)` (already an `@intrinsic` in `__builtin__.kl`) and `hash(x)` exist as top-level intrinsics after all. `hash(x)` lowers to the new `OP_HASH`, which calls the hash slot of the value's own runtime type, so it works on any value, including a value of a type parameter (an interface value keeps its object's type). For the same reason a type parameter gets `==` / `!=` and `t.hash()` from the automatic `Equatable` / `Hashable` even when its bound does not declare them: `get_func_from_tp()` looks in the bound first, then in these two traits; `==` / `!=` lower to a plain compare (`OP_NUM_EQ` → `kl_call_eq`), `t.hash()` to `OP_HASH`. `iter` / `reversed` / `next` stay methods only. The automatic `Printable` is handled the same way: `t.fmt(f)` on a type parameter lowers to the new `OP_FMT`, which calls the fmt slot of the value's own type.
+
 > **`str(x)` 不是 top-level 函数**：`str` 是 **class**，Koala 没有 `new`，`str(x)` 就是 str 类的**构造函数**（new 一个字符串对象），转换经 `__str__`；归 §8.8 ⑦（类 / 构造器）。
 
 **三类机制方向对照：**

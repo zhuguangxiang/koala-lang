@@ -42,6 +42,7 @@ class List[T] {
 }
 
 var l List[int] = List[int](10)
+// CHECK: too many arguments in function call.
 
 trait Bar {
 }
@@ -61,10 +62,12 @@ var l2_1 List[Baz];
 
 var l3 List[Bar] = List[Baz](Baz())
 
+// CHECK: too many arguments in function call.
 // CHECK: Types of two sides are not matched.
 // CHECK-NEXT: lhs: z.List<Lz.Bar;> =/= rhs: z.List<Lz.Baz;>
 
 var l4 List[Baz] = List[Baz](Baz())
+// CHECK-NEXT: too many arguments in function call.
 
 var l5 = List()
 

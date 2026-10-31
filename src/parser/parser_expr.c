@@ -857,10 +857,11 @@ static void check_call_args(Vector *params, Vector *exprs, ParserState *ps, Loc 
         }
     }
 
-    // FIXME
-    // if (j__ < vector_size(exprs)) {
-    //     kl_error(fn_loc, "too many arguments in function call.");
-    // }
+    // all parameters are matched, an argument left over is an extra one
+    if (j__ < vector_size(exprs)) {
+        Expr *e = vector_get(exprs, j__);
+        kl_error(e->loc, "too many arguments in function call.");
+    }
 }
 
 static void parse_type(ParserState *ps, Expr *exp)
@@ -1142,6 +1143,26 @@ inherit:
     return NULL;
 }
 
+// Every type conforms to Hashable, Equatable and Printable automatically (the class does not
+// list them), so a type parameter has their methods even when its bound does not.
+static Symbol *get_auto_trait_func(ParserState *ps, char *name)
+{
+    char *traits[] = { "Hashable", "Equatable", "Printable" };
+    for (int i = 0; i < COUNT_OF(traits); i++) {
+        Symbol *trait = stbl_get(ps->pm->builtin, traits[i]);
+        if (!trait) continue;
+        Symbol *fn = stbl_get(trait->stbl, name);
+        if (fn) return fn;
+    }
+    return NULL;
+}
+
+// the method comes from an automatic trait, not from the bound of a type parameter
+static int is_auto_trait_func(ParserState *ps, Symbol *fn)
+{
+    return fn && get_auto_trait_func(ps, fn->name) == fn;
+}
+
 static Symbol *get_func_from_tp(ParserState *ps, TypeParamSymbol *tp_sym, char *name)
 {
     Symbol *fn = NULL;
@@ -1159,6 +1180,9 @@ static Symbol *get_func_from_tp(ParserState *ps, TypeParamSymbol *tp_sym, char *
         }
         if (fn) break;
     }
+
+    // the bound first, then the automatic Hashable / Equatable / Printable
+    if (!fn) fn = get_auto_trait_func(ps, name);
 
     return fn;
 }
@@ -2241,13 +2265,18 @@ static void parse_index_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
                 return;
             }
 
-            // create function symbol for instance __getitem__
-            Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
+            if (__fn_sym->kind == SYM_INHERITED) {
+                // inherited from a base type: resolve it through the bases (no own tps)
+                __fn_sym = get_instance_method(inst_sym, "__getitem__", ps);
+            } else {
+                // create function symbol for instance __getitem__
+                Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
 
-            // copy __getitem__'s tps to instance __getitem__
-            // TODO: comments copy_tps, some tests are failed.
-            copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
-            __fn_sym = inst_fn_sym;
+                // copy __getitem__'s tps to instance __getitem__
+                // TODO: comments copy_tps, some tests are failed.
+                copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
+                __fn_sym = inst_fn_sym;
+            }
         }
     } else if (lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_TRAIT) {
         // do nothing, __getitem__ is defined on class/trait type itself, no need to
@@ -2303,13 +2332,18 @@ static void parse_index_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
                 return;
             }
 
-            // create function symbol for instance __setitem__
-            Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
+            if (__fn_sym->kind == SYM_INHERITED) {
+                // inherited from a base type: resolve it through the bases (no own tps)
+                __fn_sym = get_instance_method(inst_sym, "__setitem__", ps);
+            } else {
+                // create function symbol for instance __setitem__
+                Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
 
-            // copy __setitem__'s tps to instance __setitem__
-            // TODO: comments copy_tps, no failed.
-            // copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
-            __fn_sym = inst_fn_sym;
+                // copy __setitem__'s tps to instance __setitem__
+                // TODO: comments copy_tps, no failed.
+                // copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
+                __fn_sym = inst_fn_sym;
+            }
         }
     } else if (lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_TRAIT) {
         // do nothing, __setitem__ is defined on class/trait type itself, no need to
@@ -2370,13 +2404,18 @@ static void parse_slice_load(ParserState *ps, Symbol *lhs_sym, IndexExpr *index)
                 return;
             }
 
-            // create function symbol for instance __getslice__
-            Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
+            if (__fn_sym->kind == SYM_INHERITED) {
+                // inherited from a base type: resolve it through the bases (no own tps)
+                __fn_sym = get_instance_method(inst_sym, "__getslice__", ps);
+            } else {
+                // create function symbol for instance __getslice__
+                Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
 
-            // copy __getslice__'s tps to instance __getslice__
-            // TODO: comments copy_tps, no failed.
-            // copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
-            __fn_sym = inst_fn_sym;
+                // copy __getslice__'s tps to instance __getslice__
+                // TODO: comments copy_tps, no failed.
+                // copy_tps(&((FuncSymbol *)inst_fn_sym)->tps, &((FuncSymbol *)__fn_sym)->tps);
+                __fn_sym = inst_fn_sym;
+            }
         }
     } else if (lhs_sym->kind == SYM_CLASS || lhs_sym->kind == SYM_TRAIT) {
         // do nothing, __getslice__ is defined on class/trait type itself, no need to
@@ -2419,9 +2458,14 @@ static void parse_slice_store(ParserState *ps, Symbol *lhs_sym, IndexExpr *index
                 return;
             }
 
-            // create function symbol for instance __setslice__
-            Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
-            __fn_sym = inst_fn_sym;
+            if (__fn_sym->kind == SYM_INHERITED) {
+                // inherited from a base type: resolve it through the bases (no own tps)
+                __fn_sym = get_instance_method(inst_sym, "__setslice__", ps);
+            } else {
+                // create function symbol for instance __setslice__
+                Symbol *inst_fn_sym = add_instance_method(inst_sym, (FuncSymbol *)__fn_sym, ps);
+                __fn_sym = inst_fn_sym;
+            }
         }
     }
 
@@ -3294,6 +3338,18 @@ static void parse_binary(ParserState *ps, Expr *exp)
         if (!fn) {
             kl_error(bin->op_loc, "operator '%s' is not defined for type parameter '%s'.",
                      get_binary_op_str(op), sym->name);
+            return;
+        }
+
+        // the automatic Equatable: the operands are two values of the type parameter,
+        // compared at runtime by their own __eq__ / __ne__ (irgen emits a plain compare)
+        if (is_auto_trait_func(ps, fn)) {
+            if (!type_spec_compatible(lhs->ts, rhs->ts)) {
+                kl_error(bin->op_loc, "argument type mismatch for operator '%s' of type '%s'.",
+                         get_binary_op_str(op), sym->name);
+                return;
+            }
+            exp->ts = bool_type_spec();
             return;
         }
     } else if (sym->kind == SYM_INSTANCE) {

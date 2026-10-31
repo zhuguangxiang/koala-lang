@@ -1223,6 +1223,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             break;
 
         case OP_LEN:
+        case OP_HASH:
             print_unary(insn, name, fp);
             break;
 
@@ -1268,6 +1269,13 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
 
         case OP_CONTAINS:
             print_contains(name, insn, fp);
+            break;
+
+        case OP_FMT:
+            fprintf(fp, "%s ", name);
+            print_operand(&insn->opers[0], fp);
+            fprintf(fp, ", ");
+            print_operand(&insn->opers[1], fp);
             break;
 
         case OP_NIL_CHECK:

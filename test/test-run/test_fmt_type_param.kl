@@ -1,0 +1,57 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// Every type is Printable automatically, so a type parameter has fmt() without
+// declaring Printable in its bound: t.fmt(f) lowers to OP_FMT, which calls the fmt
+// slot of the value's own type (also for an interface value of a bounded T).
+
+trait Shape {
+    func area() int
+}
+class Sq : Shape {
+    func area() int = 4
+    func fmt(f Formatter) { f.write_str("Sq") }
+}
+class K {
+    let n int
+    func __init__(_n int) { n = _n }
+    func fmt(f Formatter) { f.write_fmt("K({})", n) }
+}
+class Plain {}
+
+// unbounded T
+func show[T](a T) str {
+    let f = Formatter()
+    a.fmt(f)
+    return f.result()
+}
+// bounded T: Shape has no fmt, the automatic Printable is used
+func show_s[T: Shape](a T) str {
+    let f = Formatter()
+    a.fmt(f)
+    return f.result()
+}
+// explicit Printable bound
+func show_p[T: Printable](a T) str {
+    let f = Formatter()
+    a.fmt(f)
+    return f.result()
+}
+
+func main() {
+    print("T:", show(K(3)), show(10), show("ab"), show(1.5))
+    print("T: Shape:", show_s(Sq()))
+    print("T: Printable:", show_p(K(7)))
+    let p = Plain()
+    print("default:", show(p) == format("{}", p))
+}
+
+// CHECK-LABEL: func @show(%a show:T) str {
+// CHECK: fmt %a show:T, %f std/builtin.Formatter
+// CHECK-LABEL: func @show_s(%a show_s:T) str {
+// CHECK: fmt %a show_s:T, %f std/builtin.Formatter
+// CHECK-LABEL: func @show_p(%a show_p:T) str {
+// CHECK: fmt %a show_p:T, %f std/builtin.Formatter
+
+// CHECK: {{^}}T: K(3) 10 ab 1.5{{$}}
+// CHECK-NEXT: {{^}}T: Shape: Sq{{$}}
+// CHECK-NEXT: {{^}}T: Printable: K(7){{$}}
+// CHECK-NEXT: {{^}}default: true{{$}}

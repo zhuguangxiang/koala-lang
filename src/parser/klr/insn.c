@@ -178,6 +178,7 @@ static OpCode no_regs_codes[] = {
     OP_SEQ_SET_IMM,
     OP_PRINT,
     OP_SEQ_SET_SLICE,
+    OP_FMT,
 };
 
 int ir_has_value(KlrInsn *insn)
@@ -816,6 +817,40 @@ KlrValue *klr_build_len(KlrBuilder *bldr, KlrValue *obj, char *name)
     init_oper(&insn->opers[0], insn, obj, 0);
 
     insn->ts = int64_type_spec();
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_hash(KlrBuilder *bldr, KlrValue *obj, char *name)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
+        obj->kind != KLR_VALUE_CONST) {
+        panic("'hash' op requires a reg/param/const value for obj");
+    }
+
+    KlrInsn *insn = new_insn(OP_HASH, 1, name);
+    init_oper(&insn->opers[0], insn, obj, 0);
+
+    insn->ts = int64_type_spec();
+    klr_append_insn(bldr, insn);
+    return (KlrValue *)insn;
+}
+
+KlrValue *klr_build_fmt(KlrBuilder *bldr, KlrValue *obj, KlrValue *fmt)
+{
+    if (obj->kind != KLR_VALUE_INSN && obj->kind != KLR_VALUE_PARAM &&
+        obj->kind != KLR_VALUE_CONST) {
+        panic("'fmt' op requires a reg/param/const value for obj");
+    }
+
+    if (fmt->kind != KLR_VALUE_INSN && fmt->kind != KLR_VALUE_PARAM) {
+        panic("'fmt' op requires a reg/param value for fmt");
+    }
+
+    KlrInsn *insn = new_insn(OP_FMT, 2, "");
+    init_oper(&insn->opers[0], insn, obj, 0);
+    init_oper(&insn->opers[1], insn, fmt, 0);
+
     klr_append_insn(bldr, insn);
     return (KlrValue *)insn;
 }

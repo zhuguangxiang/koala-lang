@@ -866,6 +866,25 @@ pointer, `fmt()` prints `Foo@0x7fXXXX`), and a class may override any of them wi
 semantics; overriding `__eq__` without overriding `hash()` produces a compiler warning. The
 automatic conformances are visible through type introspection — nothing is hidden.
 
+Because every type has them, a type parameter can use `==`, `!=`, `hash()` and `fmt()` without
+declaring `Equatable`, `Hashable` or `Printable` in its bound — `T: Hashable & Equatable[T]` is
+never needed:
+
+```kl
+func same[T](a T, b T) bool {
+    return a == b && a.hash() == b.hash()   // the value's own __eq__ and hash()
+}
+
+func show[T](a T) str {
+    let f = Formatter()
+    a.fmt(f)                                // the value's own fmt()
+    return f.result()
+}
+```
+
+The builtin `hash(x)` returns the hash of any value, like `x.hash()`. Ordering (`<`, `>`, ...) is
+not automatic: it still needs a `Comparable` bound.
+
 Where inference cannot apply, the argument is spelled out — for instance, instantiating a generic
 class without arguments to infer from:
 

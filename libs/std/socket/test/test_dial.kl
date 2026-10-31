@@ -11,5 +11,6 @@ func test_dial_tcp_baidu() {
     let resp = conn.read_to_end()
     ut.assert_true(resp != nil)
     ut.assert_true(resp!.len() > 0)
+    print(resp)
     conn.close()
 }

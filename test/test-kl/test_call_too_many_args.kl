@@ -1,0 +1,38 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Extra arguments are reported at the first extra one, for user functions, methods,
+// constructors and builtins. Variadic and default parameters still take theirs.
+
+func one(x int) int = x
+func dfl(x int, y = 1) int = x + y
+func va(x int, rest ...int) int = x
+
+class Foo {
+    func __init__(_x int) {}
+    func get(i int) int = i
+}
+
+func main() {
+    one(1, 2)
+    // CHECK: too many arguments in function call.
+    Foo(1, 2)
+    // CHECK-NEXT: too many arguments in function call.
+    Foo(1).get(1, 2, 3)
+    // CHECK-NEXT: too many arguments in function call.
+    typeof(1, 2)
+    // CHECK-NEXT: too many arguments in function call.
+    hash(1, 2)
+    // CHECK-NEXT: too many arguments in function call.
+    dfl(1, 2, 3)
+    // CHECK-NEXT: too many positional arguments in function call.
+
+    // OK
+    one(1)
+    dfl(1)
+    dfl(1, 2)
+    dfl(1, y = 2)
+    va(1)
+    va(1, 2, 3)
+    print(format("{} {}", 1, 2))
+}
+
+// CHECK-NOT: error:

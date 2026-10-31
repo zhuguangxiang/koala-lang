@@ -1627,6 +1627,37 @@ TARGET(OP_LEN) {
     DISPATCH();
 }
 
+TARGET(OP_HASH) {
+    rd = I_VAL(inst, 12, 12);
+    rs = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rs);
+
+    // the hash slot of the value's own type, also for an interface value
+    SAVE_PC();
+    unsigned int hash = kl_call_hash(regs + rs);
+    if (ks->exc) goto error;
+
+    if (rd != 0xFFFu) regs[rd] = int64_value(hash);
+
+    DISPATCH();
+}
+
+TARGET(OP_FMT) {
+    rs = I_VAL(inst, 12, 12);
+    rt = I_VAL(inst, 0, 12);
+
+    CHECK_REG_ID(rs);
+    CHECK_REG_ID(rt);
+
+    // the fmt slot of the value's own type, also for an interface value
+    SAVE_PC();
+    kl_call_fmt(regs + rs, (Formatter *)to_obj(regs + rt));
+    if (ks->exc) goto error;
+
+    DISPATCH();
+}
+
 TARGET(OP_CONTAINS) {
     rd = I_VAL(inst, 16, 8);
     rs = I_VAL(inst, 8, 8);

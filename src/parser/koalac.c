@@ -513,6 +513,13 @@ static int compile(ParserModule *pm)
         errors += ps->errors;
     }
 
+    // class fields after all signatures, their initializers may call any of them
+    vector_foreach(ps, &pm->pss) {
+        if (!ps) continue;
+        kl_parse_ast_klass_field_meta(ps);
+        errors += ps->errors;
+    }
+
     vector_foreach(ps, &pm->pss) {
         if (!ps) continue;
         kl_parse_ast(ps);

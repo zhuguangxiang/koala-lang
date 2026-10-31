@@ -3948,13 +3948,37 @@ static void parse_klass_member_meta(ParserState *ps, KlassDeclStmt *kls)
         inherit_trait_methods(sym, kls->loc, ps);
     }
 
+    // fields are parsed later by parse_klass_field_meta(), after all signatures
+    Stmt *stmt;
+    vector_foreach(stmt, kls->stmts) {
+        if (!stmt) continue;
+        if (stmt->kind == STMT_FUNC_KIND) {
+            parse_func_meta(ps, (FuncDeclStmt *)stmt, 0);
+        }
+    }
+
+    exit_scope(ps);
+}
+
+// A field initializer may call any method or top-level function, so fields are parsed
+// after the signatures of all of them (see kl_parse_ast_klass_field_meta()).
+static void parse_klass_field_meta(ParserState *ps, KlassDeclStmt *kls)
+{
+    KlassSymbol *sym = (KlassSymbol *)kls->sym;
+
+    log_info("parsing klass/trait '%s' fields' meta info", sym->name);
+
+    ScopeKind scope_kind = (kls->kind == STMT_CLASS_KIND) ? SCOPE_CLASS : SCOPE_TRAIT;
+
+    ParserScope *sc = enter_scope(ps, scope_kind, 0, sym->name);
+    sc->stbl = sym->stbl;
+    sc->sym = (Symbol *)sym;
+
     Stmt *stmt;
     vector_foreach(stmt, kls->stmts) {
         if (!stmt) continue;
         if (stmt->kind == STMT_VAR_KIND) {
             parse_var_decl(ps, stmt);
-        } else if (stmt->kind == STMT_FUNC_KIND) {
-            parse_func_meta(ps, (FuncDeclStmt *)stmt, 0);
         }
     }
 
@@ -3984,6 +4008,20 @@ void kl_parse_ast_klass_func_meta(ParserState *ps)
     vector_foreach(kls, &ps->kls_stmts) {
         if (!kls) continue;
         parse_klass_member_meta(ps, kls);
+    }
+
+    exit_scope(ps);
+}
+
+void kl_parse_ast_klass_field_meta(ParserState *ps)
+{
+    ParserScope *scope = enter_scope(ps, SCOPE_TOP, 0, "top");
+    scope->stbl = ps->pm->stbl;
+
+    KlassDeclStmt *kls;
+    vector_foreach(kls, &ps->kls_stmts) {
+        if (!kls) continue;
+        parse_klass_field_meta(ps, kls);
     }
 
     exit_scope(ps);

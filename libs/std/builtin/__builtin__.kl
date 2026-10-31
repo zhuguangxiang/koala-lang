@@ -98,6 +98,21 @@ pub func next[T](it Iterator[T]) T? {
 @intrinsic
 pub func len(obj Sized) int {}
 
+/// Return the hash value of any value.
+///
+/// Every type is `Hashable` automatically, so `hash` accepts any value and calls
+/// its own `hash()` (the default derives from the identity). It also works on a
+/// value of a generic type parameter, whatever its bound is.
+///
+/// Examples
+///
+/// ```kl
+/// let h = hash("koala")
+/// print(hash(10) == 10.hash())   // true
+/// ```
+@intrinsic
+pub func hash(obj any) int {}
+
 /*
  * USER GUIDE: Generic Shells vs. @specialized Functions
  *

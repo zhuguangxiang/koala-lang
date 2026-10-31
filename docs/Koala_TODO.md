@@ -1814,6 +1814,24 @@ isel failure for `v = nil` under `if v != nil`).
    method call and the field access, with the nil short-circuit of a whole chain, then remove
    the error. Tested by `test/test-kl/test_opt_dot_disabled.kl`.
 
+10. **Too many arguments in a call are not reported (found 2026-10-31).**
+    ```koala
+    func one(x int) int = x
+    one(1, 2)          // compiles without an error
+    typeof(1, 2)       // the same for builtins
+    hash(1, 2)
+    ```
+    Too few arguments are reported ("too few arguments in function call."), extra ones are
+    accepted silently, for user functions and builtins alike.
+    **Resolved (2026-10-31)**: `check_call_args()` reports "too many arguments in function
+    call." at the first extra argument. Enabling it showed that class field initializers were
+    visited before the signatures they call were parsed (before later classes' methods and before
+    all top-level functions), so their arguments were never checked. Fields now have their own
+    pass, `kl_parse_ast_klass_field_meta()` (`koalac.c`), after the method and top-level function
+    signatures and before the bodies. Tested by `test/test-kl/test_call_too_many_args.kl`,
+    `test/test-kl/test_field_init_call_errors.kl` and `test/test-run/test_field_init_call.kl`;
+    `test/test-kl/test_call.kl` now also expects its three real extra-argument errors.
+
 ---
 
 ## 34. 泛型 bound 实参未转接口：泛型自由函数与泛型类 `__init__`（2026-10-30 发现，待修）
@@ -1903,3 +1921,44 @@ koala: include/runtime/vm_ops.h:430: _eval_frame: Assertion `((callable)->tag > 
    "generic bound not satisfied" 拦下、`n as Shape` 被 "target type of 'as' operator must be a
    class type" 拦下），属防御性改动。
 
+
+## 35. A type parameter value passed as an automatic trait (2026-10-31, to support later)
+
+A type parameter `T` already gets the methods of the automatic traits without declaring them in
+its bound: `==` / `!=` (`Equatable`), `t.hash()` / `hash(t)` (`Hashable`, `OP_HASH`) and
+`t.fmt(f)` (`Printable`, `OP_FMT`). Tests: `test/test-run/test_hash_type_param.kl`,
+`test/test-run/test_fmt_type_param.kl`.
+
+Not supported yet: **converting** a `T` value to one of these traits, e.g. passing it to a
+`Printable` parameter:
+
+```kl
+func show[T](t T) str {
+    let f = Formatter()
+    f.write(t)          // write(value Printable)
+    return f.result()
+}
+// error: Incompatible type: expected 'std/builtin.Printable', but got 'show:T'.
+```
+
+The same applies to `Hashable` / `Equatable` parameters, `let p Printable = t`, returns, fields
+and container elements of these types.
+
+Where it fails / what is needed:
+
+1. **Type check**: `_diff_kind_compatible_check()` (`src/parser/parser.c`) accepts a
+   `TYPE_GENERIC_VAR` source only through its declared bounds. It should also accept `any`-like
+   automatic traits (`Printable`, `Hashable`, `Equatable[T]`) for every type parameter.
+2. **irgen**: `_build_obj_intf_upcast()` (`src/parser/irgen.c`) returns NULL (no conversion) when
+   the source is a type parameter, so the raw value (unbounded `T`) or an interface value of the
+   bound (`T: Shape`) would reach the callee, whose `value.fmt(self)` is an interface call → wrong
+   slot or the VM assertion `_eval_frame: Assertion '((callable)->tag > (64 + 1))'`.
+   Idea: emit `make_intf` with the automatic trait's itable index. `OP_MAKE_INTF` takes the
+   itable from `kl_typeof()` of the value (the object's own type, also for an interface value),
+   so it works for both cases **if** the automatic traits have the same itable index in every
+   type (classes: `[0] any [1] Printable [2] Hashable [3] Equatable`). To verify for the builtin
+   types (`int`, `float`, `str`, `list`, ...) before relying on it; otherwise a new op that looks
+   the trait up by identity is needed.
+3. Tests: unbounded `T`, `T: Shape`, `T` instantiated with `int` / `str` / a class with and
+   without its own `fmt` / `hash` / `__eq__`; `f.write(t)`, `let h Hashable = t`, `list[Printable]`
+   element.

@@ -579,6 +579,14 @@ static void lower_contains_opers(KlrInsn *insn)
     set_raw_reg(&insn->raws[2], val->vreg);
 }
 
+static void lower_fmt_opers(KlrInsn *insn)
+{
+    KlrValue *obj = insn_oper_value(insn, 0);
+    KlrValue *fmt = insn_oper_value(insn, 1);
+    set_raw_reg(&insn->raws[0], obj->vreg);
+    set_raw_reg(&insn->raws[1], fmt->vreg);
+}
+
 static void lower_unary_opers(KlrInsn *insn)
 {
     KlrValue *obj = insn_oper_value(insn, 0);
@@ -709,7 +717,8 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
                     break;
                 }
 
-                case OP_LEN: {
+                case OP_LEN:
+                case OP_HASH: {
                     lower_seq_len_opers(insn);
                     break;
                 }
@@ -743,6 +752,11 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *m)
 
                 case OP_CONTAINS: {
                     lower_contains_opers(insn);
+                    break;
+                }
+
+                case OP_FMT: {
+                    lower_fmt_opers(insn);
                     break;
                 }
 

@@ -1401,7 +1401,9 @@ static void do_isel(KlrFunc *fn)
                     break;
                 }
 
-                case OP_LEN: {
+                case OP_LEN:
+                case OP_HASH: {
+                    // a const operand is loaded into a register first
                     isel_lower_seq_len(insn);
                     break;
                 }
@@ -1425,7 +1427,9 @@ static void do_isel(KlrFunc *fn)
                     break;
                 }
 
-                case OP_CONTAINS: {
+                case OP_CONTAINS:
+                case OP_FMT: {
+                    // a const operand is loaded into a register first
                     isel_lower_contains(insn);
                     break;
                 }

@@ -1,0 +1,19 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Only hash(), == and != come for free on a type parameter (automatic Hashable /
+// Equatable); ordering needs a Comparable bound, other methods need a bound.
+
+func less[T](a T, b T) bool {
+    return a < b
+}
+// CHECK: operator '<' is not defined for type parameter 'T'.
+
+func other[T](a T) int {
+    return a.len()
+}
+// CHECK-NEXT: 'len' is not found in  'T'
+
+func hash_none() int {
+    return hash()
+}
+// CHECK-NEXT: too few arguments in function call.
+// CHECK-NOT: error:

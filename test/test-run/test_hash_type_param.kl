@@ -1,0 +1,76 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// Every type is Hashable and Equatable automatically, so a type parameter has
+// hash(), == and != without declaring them in its bound:
+//   - the builtin hash(x) and t.hash() lower to OP_HASH, which calls the hash slot
+//     of the value's own type (also for an interface value of a bounded T);
+//   - == / != lower to a plain compare, which calls the value's own __eq__ / __ne__.
+// A free generic function with a bound still gets a bare object (docs/Koala_TODO.md
+// §34), so only hash() and == are used through T: Shape here.
+
+trait Shape {
+    func area() int
+}
+class K : Shape {
+    let n int
+    func __init__(_n int) { n = _n }
+    func area() int = n
+    func hash() int = n * 10
+    func __eq__(o K) bool = n == o.n
+    func __ne__(o K) bool = n != o.n
+}
+class Plain {}
+
+// unbounded T
+func h[T](a T) int {
+    return a.hash()
+}
+// bounded T: Shape has no hash, the automatic Hashable is used
+func hs[T: Shape](a T) int {
+    return a.hash()
+}
+// explicit Hashable bound
+func hh[T: Hashable](a T) int {
+    return a.hash()
+}
+// the builtin on a type parameter
+func hb[T](a T) int {
+    return hash(a)
+}
+func eq[T](a T, b T) bool {
+    return a == b && !(a != b)
+}
+func eqs[T: Shape](a T, b T) bool {
+    return a == b
+}
+
+func main() {
+    print("builtin:", hash(K(3)), hash(7) == 7.hash(), hash("koala") == "koala".hash())
+    print("T:", h(K(4)), h(7) == 7.hash(), h("x") == "x".hash())
+    print("T: Shape:", hs(K(5)))
+    print("T: Hashable:", hh(K(6)))
+    print("hash(T):", hb(K(8)))
+    let p = Plain()
+    print("default:", h(p) == p.hash(), hash(p) == p.hash())
+    print("eq:", eq(K(1), K(1)), eq(K(1), K(2)), eq(3, 3), eq("a", "b"))
+    print("eq T: Shape:", eqs(K(2), K(2)), eqs(K(2), K(9)))
+}
+
+// CHECK-LABEL: func @h(%a h:T) int64 {
+// CHECK: %0 = hash %a h:T
+// CHECK-LABEL: func @hs(%a hs:T) int64 {
+// CHECK: %0 = hash %a hs:T
+// CHECK-LABEL: func @hh(%a hh:T) int64 {
+// CHECK: %0 = hash %a hh:T
+// CHECK-LABEL: func @hb(%a hb:T) int64 {
+// CHECK: %0 = hash %a hb:T
+// CHECK-LABEL: func @eq(%a eq:T, %b eq:T) bool {
+// CHECK: cmpeq %a eq:T, %b eq:T
+
+// CHECK: {{^}}builtin: 30 true true{{$}}
+// CHECK-NEXT: {{^}}T: 40 true true{{$}}
+// CHECK-NEXT: {{^}}T: Shape: 50{{$}}
+// CHECK-NEXT: {{^}}T: Hashable: 60{{$}}
+// CHECK-NEXT: {{^}}hash(T): 80{{$}}
+// CHECK-NEXT: {{^}}default: true true{{$}}
+// CHECK-NEXT: {{^}}eq: true false true false{{$}}
+// CHECK-NEXT: {{^}}eq T: Shape: true false{{$}}

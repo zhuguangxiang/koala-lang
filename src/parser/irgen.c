@@ -859,6 +859,28 @@ static void try_to_build_tp_args_cast(FuncSymbol *origin_fn, KlassSymbol *origin
     }
 }
 
+// `self.<name>()` where self is a value of a type parameter and the method is <name>() of
+// std/builtin's <trait> (the bound's own, or the automatic one, see get_func_from_tp())
+static int is_type_param_auto_func(KlrValue *self, Symbol *fn, char *trait_name, char *name)
+{
+    if (!self->ts || self->ts->kind != TYPE_GENERIC_VAR) return 0;
+    if (!fn || !str_equal(fn->name, name)) return 0;
+    Symbol *trait = fn->parent;
+    if (!trait || trait->kind != SYM_TRAIT || !str_equal(trait->name, trait_name)) return 0;
+    Symbol *pkg = trait->parent;
+    return pkg && pkg->kind == SYM_PACKAGE && !strcmp(pkg->name, "std/builtin");
+}
+
+static int is_type_param_hash(KlrValue *self, Symbol *fn)
+{
+    return is_type_param_auto_func(self, fn, "Hashable", "hash");
+}
+
+static int is_type_param_fmt(KlrValue *self, Symbol *fn)
+{
+    return is_type_param_auto_func(self, fn, "Printable", "fmt");
+}
+
 static void emit_ir_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
@@ -992,6 +1014,19 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_call(&bldr, callee, exp->ts, ir_args, size, "");
+            } else if (size == 0 && is_type_param_hash(self, lhs->sym)) {
+                // t.hash() on a value of a type parameter: the value carries the itable
+                // of its bound (or none), not Hashable's, so OP_HASH calls the hash
+                // slot of its own type instead of an interface call
+                KlrBuilder bldr;
+                klr_builder_end(&bldr, ps->scope->bb);
+                ret = klr_build_hash(&bldr, self, "");
+            } else if (size == 1 && is_type_param_fmt(self, lhs->sym)) {
+                // t.fmt(f) on a value of a type parameter: OP_FMT calls the fmt slot of
+                // its own type, the same as t.hash() above
+                KlrBuilder bldr;
+                klr_builder_end(&bldr, ps->scope->bb);
+                ret = klr_build_fmt(&bldr, self, ir_args[0]);
             } else {
                 // method call
                 KlrValue *_args[size + 1];
@@ -1031,6 +1066,12 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                         KlrBuilder bldr;
                         klr_builder_end(&bldr, ps->scope->bb);
                         ret = klr_build_len(&bldr, ir_args[0], "");
+                    } else if (str_equal(lhs_sym->name, "hash") && size == 1 &&
+                               lhs_sym->path && !strcmp(lhs_sym->path, "std/builtin")) {
+                        // the builtin hash(): OP_HASH calls the value's own hash slot
+                        KlrBuilder bldr;
+                        klr_builder_end(&bldr, ps->scope->bb);
+                        ret = klr_build_hash(&bldr, ir_args[0], "");
                     } else {
                         KlrBuilder bldr;
                         klr_builder_end(&bldr, ps->scope->bb);
