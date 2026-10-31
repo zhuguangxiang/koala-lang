@@ -9,6 +9,7 @@
 | [`File`](#file) | An opened file providing byte-level read, write and seek access. |
 | [`Path`](#path) | The `Path` class represents a structural filesystem path. |
 | [`Stat`](#stat) | Metadata of a file, directory or symbolic link, as returned by `fs.stat`. |
+| [`Walker`](#walker) | An iterator over a directory tree, returned by `fs.walk`. |
 
 **Functions**
 
@@ -16,7 +17,7 @@
 |------|---------|
 | [`open`](#open) | Open the file at `path` and return a `File` object. |
 | [`_path_str`](#_path_str) | Convert a `Path \| str` argument to the raw `str` path. |
-| [`_list_dir`](#_list_dir) |  |
+| [`_try_list_dir`](#_try_list_dir) |  |
 | [`read_bytes`](#read_bytes) | Read the file `path` into `out` and return the count read. |
 | [`write_bytes`](#write_bytes) | Write `data` to the file `path`, creating or truncating it. |
 | [`write_str`](#write_str) | Encode `data` as UTF-8 and write it to the file `path`, creating or truncating it. |
@@ -24,13 +25,16 @@
 | [`is_file`](#is_file) | Return true if the path points to a regular file. |
 | [`is_dir`](#is_dir) | Return true if the path points to a directory. |
 | [`is_symlink`](#is_symlink) | Return true if the path itself is a symbolic link. |
-| [`_stat`](#_stat) |  |
 | [`stat`](#stat) | Return the metadata (size, modification time, mode) of `p`. |
+| [`real_path`](#real_path) | Return the absolute path of `p` with every symbolic link, `.` and `..` resolved against the disk. |
 | [`size`](#size) | Return the size of the file in bytes. Panics if the file does not exist. |
 | [`remove`](#remove) | Permanently delete a file from the disk. Returns true on success. |
 | [`rename`](#rename) | Rename or move the file/directory `src` to `dst`. |
 | [`mkdir`](#mkdir) | Create a directory, including any missing parent directories (mkdir -p). An existing directory is treated as success. Return true on success, false on failure. |
 | [`rmdir`](#rmdir) | Remove an empty directory. Returns false if the directory is not empty. |
+| [`remove_all`](#remove_all) | Remove `p` and, if it is a directory, everything below it (rm -r). |
+| [`copy`](#copy) | Copy the content and the permission bits of the file `src` to `dst`, creating or truncating `dst` (like `cp src dst`). |
+| [`walk`](#walk) | Walk the directory tree below `top`, yielding `(dir, dirs, files)` for `top` and every directory below it. |
 | [`list_dir`](#list_dir) | Read the directory contents and return a list of strongly-typed `path.Path` objects. |
 | [`read_all`](#read_all) | Read the entire file `path` into a new `bytes`. |
 | [`read_str`](#read_str) | Read the entire file `path` and decode it as UTF-8 into a `str`. |
@@ -197,6 +201,10 @@ pub class Path : ToString {
     pub func is_absolute() bool
     pub func normalize() Path
     pub func absolute() Path
+    pub func parts() list[str]
+    pub func with_name(new_name str) Path
+    pub func with_ext(new_ext str) Path
+    pub func relative_to(base Path | str) Path?
     pub func to_str() str
     pub func fmt(f Formatter)
     pub func __eq__(rhs Path) bool
@@ -275,6 +283,59 @@ Eliminates redundant separators and up-level references (e.g., "a//b", "a/./b", 
 **`absolute() Path`**
 
 Return an absolute version of the path by lexically expanding relative tokens.
+
+<a id="path.parts"></a>
+
+**`parts() list[str]`**
+
+Return the components of the path, without empty and `.` components.
+
+An absolute path starts with its root (`"/"`, or a drive like `"C:/"`).
+`..` is kept: this is lexical, use `normalize` first to fold it.
+
+Example:
+    fs.Path("/usr//lib/./x.so").parts()   // ["/", "usr", "lib", "x.so"]
+    fs.Path("a/../b").parts()             // ["a", "..", "b"]
+
+<a id="path.with_name"></a>
+
+**`with_name(new_name str) Path`**
+
+Return a new path with the final component replaced by `new_name`.
+
+Panic if the path has no final component (empty, `"."`, `".."` or a
+root), or if `new_name` is empty or contains a separator.
+
+Example:
+    fs.Path("src/main.kl").with_name("util.kl")   // Path("src/util.kl")
+
+<a id="path.with_ext"></a>
+
+**`with_ext(new_ext str) Path`**
+
+Return a new path with the extension replaced by `new_ext`, given
+without the leading dot (as `ext` returns it); an empty `new_ext`
+removes the extension.
+
+Panic as `with_name` does, or if `new_ext` starts with a dot.
+
+Example:
+    fs.Path("src/main.kl").with_ext("klc")   // Path("src/main.klc")
+    fs.Path("a.tar.gz").with_ext("")         // Path("a.tar")
+
+<a id="path.relative_to"></a>
+
+**`relative_to(base Path | str) Path?`**
+
+Return this path relative to `base`, or nil if it is not below `base`.
+
+Purely lexical: both paths are normalized first, symbolic links are
+not resolved, and an absolute path is never below a relative one (or
+the other way round). The same path gives `Path(".")`.
+
+Example:
+    fs.Path("/a/b/c.kl").relative_to("/a")   // Path("b/c.kl")
+    fs.Path("/a/b").relative_to("/x")        // nil
 
 <a id="path.to_str"></a>
 
@@ -406,6 +467,87 @@ Return true if this is a symbolic link.
 Only a `Stat` from `fs.stat(p, false)` can be a link: by default
 `fs.stat` follows links and describes the target.
 
+<a id="walker"></a>
+
+### `Walker`
+
+```kl
+pub class Walker : Iterator[(Path, list[Path], list[Path])] {
+    let stack list[Path]
+    var pending list[Path]? = nil
+    var ready (Path, list[Path], list[Path])? = nil
+    pub func __init__(top Path)
+    pub func has_next() bool
+    pub func next_strict() (Path, list[Path], list[Path])
+    pub func next() (Path, list[Path], list[Path])?
+}
+```
+**Bases:** `Iterator[(Path, list[Path], list[Path])]`
+
+
+An iterator over a directory tree, returned by `fs.walk`.
+
+Each step yields `(dir, dirs, files)` for one directory: `dir` is the
+directory itself, `dirs` its subdirectories and `files` every other entry,
+all as full paths (as `list_dir` returns them), sorted by name.
+
+Directories are visited top-down and depth-first: a directory comes before
+its subdirectories, which follow in the order of `dirs`. The subdirectories
+are read only when the next step is taken, so removing entries from `dirs`
+before that skips them (pruning).
+
+Symbolic links are never followed: a link, also one to a directory, is
+listed in `files`. A directory that cannot be read (permission denied, or
+removed meanwhile) is skipped without an error.
+
+See: `fs.walk`.
+
+---
+
+**Fields**
+
+<a id="walker.stack"></a>
+
+**`let stack list[Path]`**
+
+Directories still to visit; the last one is visited next.
+
+<a id="walker.pending"></a>
+
+**`var pending list[Path]? = nil`**
+
+The `dirs` list of the step returned last, pushed on the next step.
+
+<a id="walker.ready"></a>
+
+**`var ready (Path, list[Path], list[Path])? = nil`**
+
+The step found by `has_next` and not yet returned.
+
+<a id="walker.__init__"></a>
+
+**`__init__(top Path)`**
+
+Create a `Walker` starting at `top`; `fs.walk` is the normal way to get one.
+
+<a id="walker.has_next"></a>
+
+**`has_next() bool`**
+
+Return true if another directory is available, reading it if necessary.
+
+<a id="walker.next_strict"></a>
+
+**`next_strict() (Path, list[Path], list[Path])`**
+
+Return the next `(dir, dirs, files)` and advance. Panic if exhausted.
+
+<a id="walker.next"></a>
+
+**`next() (Path, list[Path], list[Path])?`**
+
+Return the next `(dir, dirs, files)`, or nil when the whole tree is visited.
+
 ## Functions
 
 <a id="open"></a>
@@ -453,15 +595,15 @@ func _path_str(p Path | str) str
 
 Convert a `Path | str` argument to the raw `str` path.
 
-Now only used by `list_dir` (which stays a `.kl` wrapper); every other
-`Path | str` function is a direct `@native` that reads its argument in C.
+Used by the `.kl` functions (`walk`, `read_all`); every `@native` function
+reads a `Path | str` argument directly in C.
 
-<a id="_list_dir"></a>
+<a id="_try_list_dir"></a>
 
-### `_list_dir`
+### `_try_list_dir`
 
 ```kl
-func _list_dir(p str) list[str]
+func _try_list_dir(p Path | str) list[Path]?
 ```
 
 *`@native`*
@@ -577,16 +719,6 @@ Return true if the path itself is a symbolic link.
 The link is not followed, so a dangling link (whose target is missing)
 is still a link, while `exists` and `is_file` follow it and return false.
 
-<a id="_stat"></a>
-
-### `_stat`
-
-```kl
-func _stat(p Path | str, follow_links bool) (int, float64, int, int)?
-```
-
-*`@native`*
-
 <a id="stat"></a>
 
 ### `stat`
@@ -594,6 +726,8 @@ func _stat(p Path | str, follow_links bool) (int, float64, int, int)?
 ```kl
 pub func stat(p Path | str, follow_links = true) Stat?
 ```
+
+*`@native`*
 
 Return the metadata (size, modification time, mode) of `p`.
 
@@ -610,6 +744,29 @@ Example:
     }
 
 See: `Stat`, `size`, `is_symlink`.
+
+<a id="real_path"></a>
+
+### `real_path`
+
+```kl
+pub func real_path(p Path | str) Path?
+```
+
+*`@native`*
+
+Return the absolute path of `p` with every symbolic link, `.` and `..`
+resolved against the disk.
+
+Unlike `Path.absolute` and `Path.normalize`, which only rewrite the
+string, this follows links, so `a/link/..` ends up in the link target's
+parent. Return nil if `p` (or a directory on the way) does not exist or
+cannot be read; `os.errno()` tells why.
+
+Example:
+    let here = fs.real_path(".")!   // the working directory, links resolved
+
+See: `Path.absolute`, `Path.normalize`.
 
 <a id="size"></a>
 
@@ -678,6 +835,71 @@ pub func rmdir(p Path | str) bool
 
 Remove an empty directory. Returns false if the directory is not empty.
 
+<a id="remove_all"></a>
+
+### `remove_all`
+
+```kl
+pub func remove_all(p Path | str) bool
+```
+
+Remove `p` and, if it is a directory, everything below it (rm -r).
+
+Symbolic links are never followed: a link, also one to a directory, is
+removed itself and its target is left alone.
+
+Stop at the first entry that cannot be removed and return false; the
+entries removed before it stay removed. Return false if `p` does not
+exist; `os.errno()` tells why. Return true when `p` is gone.
+
+See: `remove`, `rmdir`.
+
+<a id="copy"></a>
+
+### `copy`
+
+```kl
+pub func copy(src Path | str, dst Path | str) bool
+```
+
+*`@native`*
+
+Copy the content and the permission bits of the file `src` to `dst`,
+creating or truncating `dst` (like `cp src dst`).
+
+A symbolic link `src` is followed and its target is copied. `dst` is the
+new file's path, not a directory to copy into.
+
+Return true on success, false on failure: `src` is missing, unreadable or
+a directory, `dst` cannot be written, or both name the same file;
+`os.errno()` tells why. On a failure while writing, `dst` may be left
+partly written.
+
+See: `rename`, `walk`.
+
+<a id="walk"></a>
+
+### `walk`
+
+```kl
+pub func walk(top Path | str) Walker
+```
+
+Walk the directory tree below `top`, yielding `(dir, dirs, files)` for
+`top` and every directory below it.
+
+See `Walker` for the order, pruning and symbolic links. A `top` that is
+not a readable directory yields nothing.
+
+Example:
+    for (dir, dirs, files) in fs.walk("src") {
+        for f in files {
+            if f.ext() == "kl" { print(f) }
+        }
+    }
+
+See: `Walker`, `list_dir`.
+
 <a id="list_dir"></a>
 
 ### `list_dir`
@@ -686,11 +908,14 @@ Remove an empty directory. Returns false if the directory is not empty.
 pub func list_dir(p Path | str) list[Path]
 ```
 
+*`@native`*
+
 Read the directory contents and return a list of strongly-typed `path.Path` objects.
 
-Each entry is joined with the directory path (e.g. `list_dir("/tmp")`
-yields `Path("/tmp/a.txt")`), so the returned paths can be used
-directly; the base name is still available via `Path.name`.
+Each entry is joined with the directory path as `dir + "/" + name`
+(e.g. `list_dir("/tmp")` yields `Path("/tmp/a.txt")`; no extra `/` when
+`p` ends with one, and `p` is not normalized), so the returned paths can
+be used directly; the base name is still available via `Path.name`.
 The special entries `.` and `..` are skipped and the result is
 sorted in ascending order. Panics if the directory cannot be opened.
 

@@ -26,6 +26,11 @@ Object *kl_new_dict(void);
  * materialize constant dict literals, mirroring how lists are built. */
 void kl_dict_add(Object *dict, TValue *key, TValue *value);
 
+/* Call `visit(key, value, arg)` for each mapping, in insertion order.
+ * `visit` must not change the dict. */
+typedef void (*DictVisitFunc)(TValue *key, TValue *value, void *arg);
+void kl_dict_foreach(Object *dict, DictVisitFunc visit, void *arg);
+
 extern TypeObject dict_keys_iter_type;
 extern TypeObject dict_values_iter_type;
 extern TypeObject dict_view_iter_type;

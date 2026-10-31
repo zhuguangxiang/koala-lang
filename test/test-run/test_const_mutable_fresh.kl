@@ -1,0 +1,108 @@
+// RUN: koala %s | filecheck %s
+
+// A constant list or map literal (or a tuple holding one) is built afresh on
+// each evaluation: it is not shared from the const pool, so changing the
+// value one evaluation returned does not change the next one.
+
+func make_list() list[int] { return [1, 2, 3] }
+
+func make_list_call() list[int] { return list[int](1, 2, 3) }
+
+func make_nested() list[list[int]] { return [[1], [2]] }
+
+func make_map() dict[str, int] { return {"a": 1} }
+
+func make_pair() (int, list[int]) { return (1, [2]) }
+
+func make_list_empty() list[int] { return list[int]() }
+
+func make_map_empty() dict[int, int] { return {:} }
+
+func make_map_of_list() dict[int, list[int]] { return {1: [2]} }
+
+// a tuple nested in a tuple, holding a list: neither tuple is a constant
+func make_nested_pair() ((int, list[int]), int) { return ((1, [2]), 3) }
+
+// field initializers run in each __init__
+class Box {
+    var items = [1]
+    var tags = {"a": 1}
+}
+
+func take(l list[int]) list[int] {
+    l.append(9)
+    return l
+}
+
+func main() {
+    let a = make_list()
+    a.append(4)
+    print(make_list())
+    // CHECK: [1, 2, 3]
+
+    let c = make_list_call()
+    c.append(4)
+    print(make_list_call())
+    // CHECK-NEXT: [1, 2, 3]
+
+    let n = make_nested()
+    n[0].append(5)
+    n.append([6])
+    print(make_nested())
+    // CHECK-NEXT: {{\[\[1\], \[2\]\]}}
+
+    let m = make_map()
+    m["b"] = 2
+    print(make_map())
+    // CHECK-NEXT: {a: 1}
+
+    let (_, l) = make_pair()
+    l.append(3)
+    let (_, l2) = make_pair()
+    print(l2)
+    // CHECK-NEXT: [2]
+
+    // as a call argument and inside a loop
+    print(take([1]))
+    print(take([1]))
+    // CHECK-NEXT: [1, 9]
+    // CHECK-NEXT: [1, 9]
+    var i = 0
+    while i < 2 {
+        let x = [0]
+        x.append(i)
+        print(x)
+        i = i + 1
+    }
+    // CHECK-NEXT: [0, 0]
+    // CHECK-NEXT: [0, 1]
+
+    let e = make_list_empty()
+    e.append(1)
+    print(make_list_empty())
+    // CHECK-NEXT: []
+
+    let em = make_map_empty()
+    em[1] = 1
+    print(make_map_empty())
+    // CHECK-NEXT: {}
+
+    let ml = make_map_of_list()
+    ml[1].append(3)
+    ml[2] = [4]
+    print(make_map_of_list())
+    // CHECK-NEXT: {1: [2]}
+
+    let (inner, _) = make_nested_pair()
+    let (_, il) = inner
+    il.append(5)
+    print(make_nested_pair())
+    // CHECK-NEXT: ((1, [2]), 3)
+
+    let b1 = Box()
+    b1.items.append(9)
+    b1.tags["b"] = 2
+    let b2 = Box()
+    print(b2.items, b2.tags)
+    // CHECK-NEXT: [1] {a: 1}
+}

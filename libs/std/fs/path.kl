@@ -109,18 +109,18 @@ pub class Path : ToString {
         let segments = path.replace("\\", "/").split("/")
         let stack = list[str]()
 
+        // Segments are kept as they are: spaces are valid in file names.
         for seg in segments {
-            let s = seg.strip()
-            if s.empty() || s == "." { continue }
+            if seg.empty() || seg == "." { continue }
 
-            if s == ".." {
+            if seg == ".." {
                 if stack.len() > 0 && stack[stack.len() - 1] != ".." {
                     stack.pop(stack.len() - 1)
                 } else if !is_abs {
                     stack.append("..")
                 }
             } else {
-                stack.append(s)
+                stack.append(seg)
             }
         }
 
@@ -145,6 +145,106 @@ pub class Path : ToString {
         // Resolve against the real process working directory (getcwd), not the
         // possibly-unset or stale PWD environment variable.
         return Path(os.getcwd()).cat(path).normalize()
+    }
+
+    /// Return the components of the path, without empty and `.` components.
+    ///
+    /// An absolute path starts with its root (`"/"`, or a drive like `"C:/"`).
+    /// `..` is kept: this is lexical, use `normalize` first to fold it.
+    ///
+    /// Example:
+    ///     fs.Path("/usr//lib/./x.so").parts()   // ["/", "usr", "lib", "x.so"]
+    ///     fs.Path("a/../b").parts()             // ["a", "..", "b"]
+    pub func parts() list[str] {
+        let res = list[str]()
+        var rest = path.replace("\\", "/")
+        if is_absolute() {
+            if rest.starts_with("/") {
+                res.append("/")
+                rest = rest.view(1, rest.len())
+            } else {
+                // drive root such as "C:/"
+                res.append(rest.view(0, 3))
+                rest = rest.view(3, rest.len())
+            }
+        }
+        for seg in rest.split("/") {
+            if seg.empty() || seg == "." { continue }
+            res.append(seg)
+        }
+        return res
+    }
+
+    /// Return a new path with the final component replaced by `new_name`.
+    ///
+    /// Panic if the path has no final component (empty, `"."`, `".."` or a
+    /// root), or if `new_name` is empty or contains a separator.
+    ///
+    /// Example:
+    ///     fs.Path("src/main.kl").with_name("util.kl")   // Path("src/util.kl")
+    pub func with_name(new_name str) Path {
+        let n = name()
+        if n.empty() || n == "." || n == ".." { panic("Path.with_name: '" + path + "' has no name") }
+        // `in` binds looser than `||` in Koala, hence the parentheses
+        if new_name.empty() || ("/" in new_name) || ("\\" in new_name) {
+            panic("Path.with_name: invalid name '" + new_name + "'")
+        }
+        let p = parent()
+        if p.to_str() == "." { return Path(new_name) }
+        return p.cat(new_name)
+    }
+
+    /// Return a new path with the extension replaced by `new_ext`, given
+    /// without the leading dot (as `ext` returns it); an empty `new_ext`
+    /// removes the extension.
+    ///
+    /// Panic as `with_name` does, or if `new_ext` starts with a dot.
+    ///
+    /// Example:
+    ///     fs.Path("src/main.kl").with_ext("klc")   // Path("src/main.klc")
+    ///     fs.Path("a.tar.gz").with_ext("")         // Path("a.tar")
+    pub func with_ext(new_ext str) Path {
+        if new_ext.starts_with(".") { panic("Path.with_ext: give '" + new_ext + "' without the leading dot") }
+        if new_ext.empty() { return with_name(stem()) }
+        return with_name(stem() + "." + new_ext)
+    }
+
+    /// Return this path relative to `base`, or nil if it is not below `base`.
+    ///
+    /// Purely lexical: both paths are normalized first, symbolic links are
+    /// not resolved, and an absolute path is never below a relative one (or
+    /// the other way round). The same path gives `Path(".")`.
+    ///
+    /// Example:
+    ///     fs.Path("/a/b/c.kl").relative_to("/a")   // Path("b/c.kl")
+    ///     fs.Path("/a/b").relative_to("/x")        // nil
+    pub func relative_to(base Path | str) Path? {
+        var b = Path(".")
+        if base is str {
+            b = Path(base)
+        } else if base is Path {
+            b = base
+        } else {
+            unreachable()
+        }
+        if is_absolute() != b.is_absolute() { return nil }
+
+        let mine = normalize().parts()
+        let theirs = b.normalize().parts()
+        if theirs.len() > mine.len() { return nil }
+        var i = 0
+        while i < theirs.len() {
+            if mine[i] != theirs[i] { return nil }
+            i = i + 1
+        }
+
+        let rest = list[str]()
+        while i < mine.len() {
+            rest.append(mine[i])
+            i = i + 1
+        }
+        if rest.empty() { return Path(".") }
+        return Path("/".join(rest))
     }
 
     /// Convert the path to its string form.

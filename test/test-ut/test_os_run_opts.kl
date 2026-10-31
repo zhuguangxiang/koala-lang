@@ -1,0 +1,54 @@
+// RUN: koala --test %s
+//
+// os.run cwd / env options, os.output, and the system information functions.
+
+import "std/os"
+import "std/ut"
+
+@test
+func test_run_cwd() {
+    let (code, out, _) = os.output("sh", ["-c", "pwd -P"], cwd = "/")!
+    ut.assert_eq(code, 0)
+    ut.assert_eq(out, "/\n")
+
+    // A missing working directory fails the spawn.
+    ut.assert(os.run("true", nil, "/tmp/kl_os_run_missing_dir") == nil)
+}
+
+@test
+func test_run_env() {
+    let env = dict[str, str]()
+    env["KL_FOO"] = "bar"
+    let (_, out, _) = os.output("sh", ["-c", "echo \"$KL_FOO\"; echo \"$HOME\""], env = env)!
+    ut.assert_eq(out, "bar\n\n") // the dict is the whole environment: no HOME
+
+    // nil inherits this process's environment.
+    os.setenv("KL_OS_RUN_INHERIT", "yes")
+    let (_, out2, _) = os.output("sh", ["-c", "echo \"$KL_OS_RUN_INHERIT\""])!
+    ut.assert_eq(out2, "yes\n")
+    os.unsetenv("KL_OS_RUN_INHERIT")
+
+    // An empty dict gives an empty environment.
+    let (_, out3, _) = os.output("sh", ["-c", "echo \"$KL_FOO$HOME\""], env = dict[str, str]())!
+    ut.assert_eq(out3, "\n")
+}
+
+@test
+func test_output() {
+    let (code, out, err) = os.output("sh", ["-c", "echo o; echo e 1>&2; exit 3"])!
+    ut.assert_eq(code, 3)
+    ut.assert_eq(out, "o\n")
+    ut.assert_eq(err, "e\n")
+
+    ut.assert(os.output("kl_os_run_no_such_program") == nil)
+}
+
+@test
+func test_system_info() {
+    // the shell's parent is this process
+    let (_, out, _) = os.output("sh", ["-c", "echo $PPID"])!
+    ut.assert_eq(out, os.getpid().to_str() + "\n")
+
+    ut.assert(os.cpu_count() >= 1)
+    ut.assert_eq(os.platform(), "linux")
+}

@@ -235,3 +235,24 @@ func test_fs_symlink() {
     ut.assert(fs.remove(lnk))
     ut.assert_false(fs.is_symlink("/tmp/kl_fs_meta_missing"))
 }
+
+@test
+func test_fs_real_path() {
+    let dir = "/tmp/kl_fs_meta_real"
+    fs.remove_all(dir)
+    ut.assert(fs.mkdir(dir + "/sub"))
+    ut.assert(fs.write_str(dir + "/sub/f.txt", "x"))
+    ut.assert_eq(os.system("ln -s " + dir + "/sub " + dir + "/lnk"), 0)
+
+    // the link is resolved, "." and ".." folded
+    let real_dir = fs.real_path(dir)!.to_str() // /tmp may itself be a link
+    ut.assert_eq(fs.real_path(dir + "/lnk/f.txt")!.to_str(), real_dir + "/sub/f.txt")
+    ut.assert_eq(fs.real_path(fs.Path(dir + "/sub/./../sub"))!.to_str(), real_dir + "/sub")
+    ut.assert(fs.real_path(dir + "/missing") == nil)
+
+    // a relative path is resolved against the working directory
+    ut.assert_eq(fs.real_path(".")!.to_str(), fs.real_path(os.getcwd())!.to_str())
+
+    ut.assert(fs.remove_all(dir))
+}
+

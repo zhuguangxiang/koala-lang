@@ -25,8 +25,9 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @new_list(%x int64) std/builtin.list<j>
 // CHECK-LABEL: %bb0(entry):
+// CHECK: %0 = build_intern @list, 100 int64, 200 int64
 // CHECK: %l = local [immutable] std/builtin.list<j>
-// CHECK: move %l std/builtin.list<j>, list[100, 200] std/builtin.list<j>
+// CHECK: move %l std/builtin.list<j>, %0 std/builtin.list<j>
 // CHECK: call @list:append [path = 'std/builtin'], %l std/builtin.list<j>, %x int64
 // CHECK: ret %l std/builtin.list<j>
 

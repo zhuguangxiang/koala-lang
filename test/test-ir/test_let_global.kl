@@ -28,8 +28,16 @@ let list_str = list("a", "b", "c")
 // CHECK-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@__init__] ---
 // CHECK-LABEL: func @__init__()
 // CHECK: global_set @j int64, 11 int64
-// CHECK: %2 = global_get @v2 int64
-// CHECK: global_set @list_str std/builtin.list<u>, list['a', 'b', 'c'] std/builtin.list
+// a list is mutable: built afresh, never a constant
+// CHECK: %2 = build_intern @list, 1 int64, 2 int64, 3 int64
+// CHECK: global_set @l std/builtin.list<j>, %2 std/builtin.list<j>
+// CHECK: %3 = build_intern @list, 1 int64, 2 int64, 30 int64
+// CHECK: global_set @l2 std/builtin.list<j>, %3 std/builtin.list<j>
+// an immutable tuple stays a constant
+// CHECK: global_set @t2 std/builtin.tuple<jjj>, tuple(10, 20, 30) std/builtin.tuple<jjj>
+// CHECK: %4 = global_get @v2 int64
+// CHECK: %6 = build_intern @list, 'a' str, 'b' str, 'c' str
+// CHECK: global_set @list_str std/builtin.list<u>, %6 std/builtin.list<u>
 
 func bar() int {
     var a = j

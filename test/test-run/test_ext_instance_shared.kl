@@ -1,0 +1,27 @@
+// RUN: koala %s | filecheck %s
+
+// An instance type such as Iterable[bytes] has one interned type spec, but
+// find_or_add_instance() creates an instance per symbol table: one in
+// test_pkg/pkg4's while its klc is loaded (as a base of list[bytes]), one in
+// this module's. The shared type spec's sym_id names the last one, so the
+// instance irgen finds for the `for` loop below may not be the one the parser
+// instantiated `iter` on; irgen's get_iter_func() gets the method through
+// get_instance_method(), which instantiates it on demand, instead of failing
+// (irgen.c "Why goes here?").
+
+import "test_pkg/pkg4" as p4
+
+func join_all(obj Iterable[bytes]) str {
+    var res = ""
+    for b in obj {
+        res = res + b.to_str()
+    }
+    return res
+}
+
+func main() {
+    let c = p4.Chunks()
+    print(join_all(c.all()))
+}
+
+// CHECK: xy

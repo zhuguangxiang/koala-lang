@@ -11,7 +11,6 @@
 #include "bytesobj.h"
 #include "excobj.h"
 #include "listobj.h"
-#include "tupleobj.h"
 #include "vector.h"
 
 #ifdef __cplusplus
@@ -32,9 +31,38 @@ typedef struct _PathObject {
 
 static TypeObject path_type = {
     ._type = &type_type,
+    ._nfields = 1,
     .name = "Path",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(PathObject),
+};
+
+/* Create a `Path` holding the string `path` */
+static Object *_new_path(TValue path)
+{
+    Object *obj = kl_new_instance(&path_type);
+    ((PathObject *)obj)->path = path;
+    return obj;
+}
+
+/* A `Stat` instance (see `libs/std/fs/stat.kl`): the C layout mirrors its
+   four fields in declaration order, and the type is registered under the
+   name "Stat" so the Koala class binds to it (as `Path` does), which lets
+   `stat` build one directly. The methods are pure Koala. */
+typedef struct _StatObject {
+    OBJECT_HEAD
+    TValue size;
+    TValue mtime;
+    TValue mtime_ns;
+    TValue mode;
+} StatObject;
+
+static TypeObject stat_type = {
+    ._type = &type_type,
+    ._nfields = 4,
+    .name = "Stat",
+    .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(StatObject),
 };
 
 /* Extract the raw C string from a `Path | str` argument: a `str` is used
@@ -224,8 +252,10 @@ static TValue file_truncate(TValue *self, TValue *args, int nargs)
 
 static TypeObject file_type = {
     ._type = &type_type,
+    ._nfields = 5,
     .name = "File",
     .flags = TP_FLAGS_CLASS,
+    .objsize = sizeof(FileObject),
     .methdefs =
         (MethodDef[]){
             { "read", file_read },
@@ -439,11 +469,10 @@ static TValue fs_is_symlink(TValue *self, TValue *args, int nargs)
 }
 
 /*
- * func _stat(p Path | str, follow_links bool) (int, float64, int, int)?
+ * pub func stat(p Path | str, follow_links = true) Stat?
  *
- * Return (size, mtime in seconds, mtime in nanoseconds, st_mode) of `p`,
- * using stat when `follow_links` is true and lstat otherwise.
- * Return nil on failure; os.errno() tells why.
+ * Return the metadata of `p`, using stat when `follow_links` is true and
+ * lstat otherwise. Return nil on failure; os.errno() tells why.
  */
 static TValue fs_stat(TValue *self, TValue *args, int nargs)
 {
@@ -460,15 +489,30 @@ static TValue fs_stat(TValue *self, TValue *args, int nargs)
 #else
     struct timespec mt = sb.st_mtim;
 #endif
-    int64_t mtime_ns = (int64_t)mt.tv_sec * 1000000000 + mt.tv_nsec;
 
-    TValue items[4] = {
-        int64_value(sb.st_size),
-        float64_value((double)mt.tv_sec + (double)mt.tv_nsec / 1e9),
-        int64_value(mtime_ns),
-        int64_value(sb.st_mode),
-    };
-    return obj_value(kl_new_tuple(items, 4));
+    Object *obj = kl_new_instance(&stat_type);
+    StatObject *st = (StatObject *)obj;
+    st->size = int64_value(sb.st_size);
+    st->mtime = float64_value((double)mt.tv_sec + (double)mt.tv_nsec / 1e9);
+    st->mtime_ns = int64_value((int64_t)mt.tv_sec * 1000000000 + mt.tv_nsec);
+    st->mode = int64_value(sb.st_mode);
+    return obj_value(obj);
+}
+
+/*
+ * pub func real_path(p Path | str) Path?
+ *
+ * Return the absolute path of `p` with every symbolic link, `.` and `..`
+ * resolved (realpath(3)), or nil if it does not exist or cannot be resolved.
+ */
+static TValue fs_real_path(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = _arg_path_str(args, nargs, 0);
+
+    char buf[PATH_MAX];
+    if (realpath(path, buf) == NULL) return nil_value;
+    return obj_value(_new_path(kl_val_str(buf)));
 }
 
 /// Return the number of bytes of the file `path`, raise an error on failure.
@@ -534,40 +578,148 @@ static TValue fs_rmdir(TValue *self, TValue *args, int nargs)
 
 static int _name_cmp(const void *a, const void *b) { return strcmp(*(char **)a, *(char **)b); }
 
-/// Read the directory `path` and return the entry names as a sorted list
-/// of `str`, the special entries `.` and `..` are skipped.
-/// Raise an error if the directory cannot be opened.
-static TValue fs_list_dir(TValue *self, TValue *args, int nargs)
+/* Read the entries of the directory `dir` into a new list of `Path`, each
+   joined with `dir` ("dir/name"; no extra '/' if `dir` ends with one),
+   sorted by name, without the special entries `.` and `..`.
+   Return NULL (errno set) if the directory cannot be opened. */
+static Object *_read_dir_paths(char *dir)
 {
-    ASSERT(nargs == 1);
-    char *path = kl_arg_str(0);
-
-    DIR *dir = opendir(path);
-    if (dir == NULL) {
-        raise_exc_fmt("open directory '%s' failed: %s", path, strerror(errno));
-        return error_value;
-    }
+    DIR *d = opendir(dir);
+    if (d == NULL) return NULL;
 
     Vector names = VECTOR_INIT_PTR;
     struct dirent *dent;
-    while ((dent = readdir(dir))) {
+    while ((dent = readdir(d))) {
         if (strcmp(dent->d_name, ".") == 0 || strcmp(dent->d_name, "..") == 0) continue;
         char *name = str_dup(dent->d_name);
         vector_push_back(&names, &name);
     }
-    closedir(dir);
+    closedir(d);
 
     vector_sort(&names, _name_cmp);
+
+    size_t dlen = strlen(dir);
+    int need_sep = dlen > 0 && dir[dlen - 1] != '/';
 
     Object *list = kl_new_list();
     char *name;
     vector_foreach(name, &names) {
-        kl_list_append(list, kl_val_str(name));
+        BUF(buf);
+        buf_write_nstr(&buf, dir, dlen);
+        if (need_sep) buf_write_char(&buf, '/');
+        buf_write_str(&buf, name);
+        kl_list_append(list, obj_value(_new_path(kl_val_nstr(BUF_STR(buf), BUF_LEN(buf)))));
+        FINI_BUF(buf);
         mm_free(name);
     }
     vector_fini(&names);
 
+    return list;
+}
+
+/*
+ * pub func list_dir(p Path | str) list[Path]
+ *
+ * Read the directory `p` and return its entries as sorted `Path`s joined
+ * with `p`. Raise an error if the directory cannot be opened.
+ */
+static TValue fs_list_dir(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = _arg_path_str(args, nargs, 0);
+
+    Object *list = _read_dir_paths(path);
+    if (list == NULL) {
+        raise_exc_fmt("open directory '%s' failed: %s", path, strerror(errno));
+        return error_value;
+    }
     return obj_value(list);
+}
+
+/*
+ * func _try_list_dir(p Path | str) list[Path]?
+ *
+ * Same as `list_dir`, but return nil instead of raising an error if the
+ * directory cannot be opened (used by `walk` and `remove_all`).
+ */
+static TValue fs_try_list_dir(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = _arg_path_str(args, nargs, 0);
+
+    Object *list = _read_dir_paths(path);
+    if (list == NULL) return nil_value;
+    return obj_value(list);
+}
+
+/* Write all `n` bytes of `buf` to `fd`. Return 0 on success, -1 on error. */
+static int _write_full(int fd, char *buf, ssize_t n)
+{
+    while (n > 0) {
+        ssize_t w = write(fd, buf, n);
+        if (w < 0) {
+            if (errno == EINTR) continue;
+            return -1;
+        }
+        buf += w;
+        n -= w;
+    }
+    return 0;
+}
+
+/// Copy the content and the permission bits of the file `src` to `dst`,
+/// creating or truncating `dst`. A symbolic link `src` is followed.
+/// Return true on success, false on failure (missing or unreadable `src`,
+/// `src` is a directory, `dst` cannot be written, or both name the same file);
+/// `os.errno()` tells why.
+static TValue fs_copy(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *src = _arg_path_str(args, nargs, 0);
+    char *dst = _arg_path_str(args, nargs, 1);
+
+    int in = open(src, O_RDONLY | O_CLOEXEC);
+    if (in < 0) return bool_value(0);
+
+    struct stat sb;
+    if (fstat(in, &sb) != 0) goto fail_in;
+    if (S_ISDIR(sb.st_mode)) {
+        errno = EISDIR;
+        goto fail_in;
+    }
+
+    /* copying a file onto itself would truncate it first */
+    struct stat db;
+    if (stat(dst, &db) == 0 && db.st_dev == sb.st_dev && db.st_ino == sb.st_ino) {
+        errno = EINVAL;
+        goto fail_in;
+    }
+
+    int out = open(dst, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if (out < 0) goto fail_in;
+
+    char buf[65536];
+    for (;;) {
+        ssize_t r = read(in, buf, sizeof(buf));
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            goto fail_out;
+        }
+        if (r == 0) break;
+        if (_write_full(out, buf, r) != 0) goto fail_out;
+    }
+
+    /* the permission bits of `src`, not limited by the umask */
+    if (fchmod(out, sb.st_mode & 07777) != 0) goto fail_out;
+
+    close(in);
+    return bool_value(close(out) == 0);
+
+fail_out:
+    close(out);
+fail_in:
+    close(in);
+    return bool_value(0);
 }
 
 void fs_native_lib_init(NativeLib *lib)
@@ -583,21 +735,24 @@ void fs_native_lib_init(NativeLib *lib)
     kl_reg_func(lib, "is_file", fs_is_file);
     kl_reg_func(lib, "is_dir", fs_is_dir);
     kl_reg_func(lib, "is_symlink", fs_is_symlink);
-    kl_reg_func(lib, "_stat", fs_stat);
+    kl_reg_func(lib, "stat", fs_stat);
+    kl_reg_func(lib, "real_path", fs_real_path);
     kl_reg_func(lib, "size", fs_size);
     kl_reg_func(lib, "remove", fs_remove);
     kl_reg_func(lib, "rename", fs_rename);
     kl_reg_func(lib, "mkdir", fs_mkdir);
     kl_reg_func(lib, "rmdir", fs_rmdir);
+    kl_reg_func(lib, "copy", fs_copy);
 
-    /* `list_dir` stays a `.kl` wrapper over the raw `_list_dir` primitive,
-       which still takes a plain `str` and returns `list[str]`. */
-    kl_reg_func(lib, "_list_dir", fs_list_dir);
+    kl_reg_func(lib, "list_dir", fs_list_dir);
+    kl_reg_func(lib, "_try_list_dir", fs_try_list_dir);
 
     kl_reg_type(lib, &file_type);
     /* Bind the Koala `Path` class to the C `path_type` so natives can read a
        `Path | str` argument directly. No methdefs: `Path` is pure Koala. */
     kl_reg_type(lib, &path_type);
+    /* Bind the Koala `Stat` class to `stat_type`, so `stat` can build one */
+    kl_reg_type(lib, &stat_type);
 }
 
 #ifdef __cplusplus

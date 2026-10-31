@@ -113,6 +113,11 @@ func test_path_normalize() {
     // Relative underflow boundaries
     ut.assert_eq(fs.Path("a/../../b").normalize().to_str(), "../b")
     ut.assert_eq(fs.Path("").normalize().to_str(), ".")
+
+    // Spaces belong to the names and are kept.
+    ut.assert_eq(fs.Path("a/ x /b").normalize().to_str(), "a/ x /b")
+    ut.assert_eq(fs.Path(" /a").normalize().to_str(), " /a")
+    ut.assert_eq(fs.Path("dir").cat(" x").to_str(), "dir/ x")
 }
 
 @test
@@ -213,3 +218,57 @@ func test_path_absolute() {
     ut.assert(abs.starts_with(cwd))
     ut.assert(abs.ends_with("sub/file.kl"))
 }
+
+@test
+func test_path_parts() {
+    // list == compares identity, so the parts are joined for the checks
+    ut.assert_eq("|".join(fs.Path("/usr//lib/./x.so").parts()), "/|usr|lib|x.so")
+    ut.assert_eq("|".join(fs.Path("a/../b").parts()), "a|..|b")
+    ut.assert_eq("|".join(fs.Path("a/b/").parts()), "a|b")
+    ut.assert_eq("|".join(fs.Path("/").parts()), "/")
+    ut.assert_eq("|".join(fs.Path("C:\\x\\y").parts()), "C:/|x|y")
+    ut.assert_eq(fs.Path("").parts().len(), 0)
+    ut.assert_eq(fs.Path(".").parts().len(), 0)
+}
+
+@test
+func test_path_with_name_ext() {
+    ut.assert_eq(fs.Path("src/main.kl").with_name("util.kl").to_str(), "src/util.kl")
+    ut.assert_eq(fs.Path("main.kl").with_name("x").to_str(), "x")
+    ut.assert_eq(fs.Path("/main.kl").with_name("x").to_str(), "/x")
+
+    ut.assert_eq(fs.Path("src/main.kl").with_ext("klc").to_str(), "src/main.klc")
+    ut.assert_eq(fs.Path("a.tar.gz").with_ext("").to_str(), "a.tar")
+    ut.assert_eq(fs.Path("Makefile").with_ext("bak").to_str(), "Makefile.bak")
+    ut.assert_eq(fs.Path(".bashrc").with_ext("old").to_str(), ".bashrc.old")
+}
+
+@should_panic
+func test_path_with_name_root_panics() {
+    fs.Path("/").with_name("x")
+}
+
+@should_panic
+func test_path_with_name_separator_panics() {
+    fs.Path("a/b").with_name("c/d")
+}
+
+@should_panic
+func test_path_with_ext_dot_panics() {
+    fs.Path("a.kl").with_ext(".klc")
+}
+
+@test
+func test_path_relative_to() {
+    ut.assert_eq(fs.Path("/a/b/c.kl").relative_to("/a")!.to_str(), "b/c.kl")
+    ut.assert_eq(fs.Path("/a/b").relative_to(fs.Path("/a/b/"))!.to_str(), ".")
+    ut.assert_eq(fs.Path("src/x/y.kl").relative_to("./src")!.to_str(), "x/y.kl")
+    ut.assert_eq(fs.Path("a/b").relative_to(".")!.to_str(), "a/b")
+    ut.assert_eq(fs.Path("/a/x/../b").relative_to("/a")!.to_str(), "b") // normalized first
+
+    ut.assert(fs.Path("/a/b").relative_to("/x") == nil)
+    ut.assert(fs.Path("/ab").relative_to("/a") == nil) // whole components only
+    ut.assert(fs.Path("/a").relative_to("/a/b") == nil)
+    ut.assert(fs.Path("a/b").relative_to("/a") == nil) // relative vs absolute
+}
+

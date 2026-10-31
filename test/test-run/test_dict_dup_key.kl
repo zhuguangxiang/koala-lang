@@ -1,11 +1,12 @@
 // RUN: koala %s ++ --dump=no-opt-ir,code | filecheck %s
 //
-// A duplicated key in an all-constant map literal is merged when the key can be
-// compared at compile time: int/uint/bool/str/float and the read-only compounds
-// tuple/range. The first occurrence keeps its position and the value of the
-// last occurrence wins, the same way the runtime dict overwrites an existing
-// entry. Floats follow the runtime rule in _dict_entry_eq_() (`==`), so 0.0 and
-// -0.0 are the same key while NaN never equals itself and is never merged.
+// A duplicated key in a map literal is merged at run time: a dict is mutable,
+// so a map literal is always `build_intern @map` (never a const-pool entry)
+// and keeps every key/value pair of the source, duplicates included. The
+// runtime dict inserts them in order: the first occurrence keeps its position
+// and the value of the last occurrence wins. Keys compare with the runtime
+// rule in _dict_entry_eq_(): floats with `==`, so 0.0 and -0.0 are the same
+// key while NaN never equals itself; tuples and ranges by their items.
 func main() {
     let d = {1: "a", 2: "b", 1: "c"}
     print(d)
@@ -31,35 +32,32 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
-// CHECK: move %d std/builtin.dict<ju>, dict[1: 'c', 2: 'b'] std/builtin.dict<ju>
-// CHECK: move %e std/builtin.dict<uj>, dict['x': 3, 'y': 2] std/builtin.dict<uj>
-// CHECK: move %f std/builtin.dict<ou>, dict[1: 'c', 1.500000: 'f', 2: 'b'] std/builtin.dict<ou>
-// CHECK: move %g std/builtin.dict<du>, dict[1.500000: 'c', 2.500000: 'b'] std/builtin.dict<du>
-// CHECK: move %h std/builtin.dict<du>, dict[0.000000: 'b'] std/builtin.dict<du>
-// CHECK: move %t std/builtin.dict<Lstd/builtin.tuple<jj>;u>, dict[tuple(1, 2): 'c', tuple(3, 4): 'b'] std/builtin.dict<Lstd/builtin.tuple<jj>;u>
-// CHECK: move %r std/builtin.dict<Lstd/builtin.range;u>, dict[range(0, 3, 1): 'c', range(0, 5, 1): 'b'] std/builtin.dict<Lstd/builtin.range;u>
+// CHECK: %0 = build_intern @map, 1 int64, 'a' str, 2 int64, 'b' str, 1 int64, 'c' str
+// CHECK: %2 = build_intern @map, 'x' str, 1 int64, 'y' str, 2 int64, 'x' str, 3 int64
+// CHECK: %4 = build_intern @map, 1 int64, 'a' str, 1.500000 float64, 'f' str, 2 int64, 'b' str, 1 int64, 'c' str
+// CHECK: %6 = build_intern @map, 1.500000 float64, 'a' str, 2.500000 float64, 'b' str, 1.500000 float64, 'c' str
+// CHECK: %8 = build_intern @map, 0.000000 float64, 'a' str, -0.000000 float64, 'b' str
+// CHECK: %10 = build_intern @map, tuple(1, 2) std/builtin.tuple<jj>, 'a' str, tuple(3, 4) std/builtin.tuple<jj>, 'b' str, tuple(1, 2) std/builtin.tuple<jj>, 'c' str
+// CHECK: %12 = build_intern @map, range(0, 3, 1) std/builtin.range, 'a' str, range(0, 5, 1) std/builtin.range, 'b' str, range(0, 3, 1) std/builtin.range, 'c' str
+// CHECK-NOT: dict[
 // CHECK: ret void
 
-// Seven const entries of 2, 2, 3, 2, 1, 2 and 2 entries: the duplicated keys are
-// gone. 0.0 and -0.0 are one key, so `%h` keeps the first key and the last value.
-// CHECK-LABEL: @main[0,42]:
-// CHECK: loadk r0, #4
-// CHECK: loadk r0, #10
-// CHECK: loadk r0, #13
-// CHECK: loadk r0, #15
-// CHECK: loadk r0, #17
-// CHECK: loadk r0, #21
-// CHECK: loadk r0, #26
+// Seven build_intern of 3, 3, 4, 3, 2, 3 and 3 entries (6, 6, 8, 6, 4, 6 and
+// 6 operands): no key is merged at compile time.
+// CHECK-LABEL: @main[0,91]:
+// CHECK: build_intern r0, @map, #6
+// CHECK: build_intern r0, @map, #6
+// CHECK: build_intern r0, @map, #8
+// CHECK: build_intern r0, @map, #6
+// CHECK: build_intern r0, @map, #4
+// CHECK: build_intern r0, @map, #6
+// CHECK: build_intern r0, @map, #6
 
 // CHECK-LABEL: Constant Pool:
-// CHECK: [004] dict(2):
-// CHECK: [010] dict(2):
-// CHECK: [013] dict(3):
-// CHECK: [015] dict(2):
-// CHECK: [017] dict(1):
-// CHECK: [021] dict(2):
-// CHECK: [026] dict(2):
+// CHECK-NOT: dict(
+// CHECK-LABEL: Import Table:
 
+// the runtime merges the duplicated keys
 // CHECK:{1: c, 2: b}
 // CHECK:{x: 3, y: 2}
 // CHECK:{1: c, 1.5: f, 2: b}

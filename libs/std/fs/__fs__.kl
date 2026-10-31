@@ -34,8 +34,8 @@ pub func open(path str, mode = "r") File? {}
 
 /// Convert a `Path | str` argument to the raw `str` path.
 ///
-/// Now only used by `list_dir` (which stays a `.kl` wrapper); every other
-/// `Path | str` function is a direct `@native` that reads its argument in C.
+/// Used by the `.kl` functions (`walk`, `read_all`); every `@native` function
+/// reads a `Path | str` argument directly in C.
 func _path_str(p Path | str) str {
     if p is str {
         return p
@@ -46,13 +46,9 @@ func _path_str(p Path | str) str {
     }
 }
 
-// --- Native primitive (list_dir only) ---
-// `list_dir` returns strongly-typed `list[Path]`, so it stays a `.kl` wrapper
-// over this raw primitive that reads a `str` directory and returns `list[str]`.
-// Every other `Path | str` function is a direct `@native` (C reads the arg).
-
+// Same as `list_dir`, but nil if the directory cannot be opened.
 @native
-func _list_dir(p str) list[str] {}
+func _try_list_dir(p Path | str) list[Path]? {}
 
 /// Read the file `path` into `out` and return the count read.
 ///
@@ -111,9 +107,6 @@ pub func is_dir(p Path | str) bool {}
 @native
 pub func is_symlink(p Path | str) bool {}
 
-@native
-func _stat(p Path | str, follow_links bool) (int, float64, int, int)? {}
-
 /// Return the metadata (size, modification time, mode) of `p`.
 ///
 /// By default symbolic links are followed and the target is described; pass
@@ -129,10 +122,23 @@ func _stat(p Path | str, follow_links bool) (int, float64, int, int)? {}
 ///     }
 ///
 /// See: `Stat`, `size`, `is_symlink`.
-pub func stat(p Path | str, follow_links = true) Stat? {
-    let (sz, mt, mt_ns, md) = _stat(p, follow_links) else { return nil }
-    return Stat(sz, mt, mt_ns, md)
-}
+@native
+pub func stat(p Path | str, follow_links = true) Stat? {}
+
+/// Return the absolute path of `p` with every symbolic link, `.` and `..`
+/// resolved against the disk.
+///
+/// Unlike `Path.absolute` and `Path.normalize`, which only rewrite the
+/// string, this follows links, so `a/link/..` ends up in the link target's
+/// parent. Return nil if `p` (or a directory on the way) does not exist or
+/// cannot be read; `os.errno()` tells why.
+///
+/// Example:
+///     let here = fs.real_path(".")!   // the working directory, links resolved
+///
+/// See: `Path.absolute`, `Path.normalize`.
+@native
+pub func real_path(p Path | str) Path? {}
 
 /// Return the size of the file in bytes. Panics if the file does not exist.
 @native
@@ -163,22 +169,70 @@ pub func mkdir(p Path | str) bool {}
 @native
 pub func rmdir(p Path | str) bool {}
 
+/// Remove `p` and, if it is a directory, everything below it (rm -r).
+///
+/// Symbolic links are never followed: a link, also one to a directory, is
+/// removed itself and its target is left alone.
+///
+/// Stop at the first entry that cannot be removed and return false; the
+/// entries removed before it stay removed. Return false if `p` does not
+/// exist; `os.errno()` tells why. Return true when `p` is gone.
+///
+/// See: `remove`, `rmdir`.
+pub func remove_all(p Path | str) bool {
+    let st = stat(p, false) else { return false }
+    if !st.is_dir() { return remove(p) }
+
+    let entries = _try_list_dir(p) else { return false }
+    for e in entries {
+        if !remove_all(e) { return false }
+    }
+    return rmdir(p)
+}
+
+/// Copy the content and the permission bits of the file `src` to `dst`,
+/// creating or truncating `dst` (like `cp src dst`).
+///
+/// A symbolic link `src` is followed and its target is copied. `dst` is the
+/// new file's path, not a directory to copy into.
+///
+/// Return true on success, false on failure: `src` is missing, unreadable or
+/// a directory, `dst` cannot be written, or both name the same file;
+/// `os.errno()` tells why. On a failure while writing, `dst` may be left
+/// partly written.
+///
+/// See: `rename`, `walk`.
+@native
+pub func copy(src Path | str, dst Path | str) bool {}
+
+/// Walk the directory tree below `top`, yielding `(dir, dirs, files)` for
+/// `top` and every directory below it.
+///
+/// See `Walker` for the order, pruning and symbolic links. A `top` that is
+/// not a readable directory yields nothing.
+///
+/// Example:
+///     for (dir, dirs, files) in fs.walk("src") {
+///         for f in files {
+///             if f.ext() == "kl" { print(f) }
+///         }
+///     }
+///
+/// See: `Walker`, `list_dir`.
+pub func walk(top Path | str) Walker {
+    return Walker(Path(_path_str(top)))
+}
+
 /// Read the directory contents and return a list of strongly-typed `path.Path` objects.
 ///
-/// Each entry is joined with the directory path (e.g. `list_dir("/tmp")`
-/// yields `Path("/tmp/a.txt")`), so the returned paths can be used
-/// directly; the base name is still available via `Path.name`.
+/// Each entry is joined with the directory path as `dir + "/" + name`
+/// (e.g. `list_dir("/tmp")` yields `Path("/tmp/a.txt")`; no extra `/` when
+/// `p` ends with one, and `p` is not normalized), so the returned paths can
+/// be used directly; the base name is still available via `Path.name`.
 /// The special entries `.` and `..` are skipped and the result is
 /// sorted in ascending order. Panics if the directory cannot be opened.
-pub func list_dir(p Path | str) list[Path] {
-    let dir = Path(_path_str(p))
-    let names = _list_dir(dir.to_str())
-    let paths = list[Path]()
-    for name in names {
-        paths.append(dir.cat(name))
-    }
-    return paths
-}
+@native
+pub func list_dir(p Path | str) list[Path] {}
 
 // --- Whole-file convenience ---
 

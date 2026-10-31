@@ -1,14 +1,13 @@
 // RUN: koala %s ++ --dump=no-opt-ir,ir,lir,code | filecheck %s
 //
-// An all-constant `build_intern @map/@list` is folded into a const-pool `loadk`
-// by isel. The window only opens after opt: ir-gen still sees a variable operand
-// here (`{1: x}` with `let x = 2`), and the pass that copies the constant into
-// the operand rewrites the operand but not the opcode, so the node reaches isel
-// as a `build_intern`. Folding late also lets klr_const_map() merge a duplicated
-// key that ir-gen never saw. dict/list get one const entry per literal because
-// they are mutable; a duplicated map key is merged, whereas a list is stored in
-// order. `@tuple` is not folded yet (TODO in isel), so `(1, 2)` still goes
-// through `build_intern` at runtime.
+// An all-constant `build_intern @map/@list` is NOT folded into the const pool:
+// a dict or list is mutable, so it must be built afresh on every evaluation.
+// ir-gen sees a variable operand here (`{1: x}` with `let x = 2`), and opt
+// copies the constant into the operand, so the node reaches isel as a
+// `build_intern` whose operands are all constants; isel lowers it the normal
+// way (each operand loaded, then the object built), and no dict or list ends
+// up in the const pool. A duplicated map key is merged by the runtime dict.
+// `@tuple` is not folded either, so `(1, 2)` goes through `build_intern` too.
 func main() {
     let x = 2
     let d = {1: x, 3: 4, 1: 5}
@@ -40,43 +39,36 @@ func main() {
 // CHECK: %4 = build_intern @list, 1 int64, 2 int64
 // CHECK: %6 = build_intern @list, 1 int64, 2 int64, 1 int64
 
-// isel folds the map and both lists into a `loadk` of a const-pool template.
-// The duplicated map key `1` is merged onto the last occurrence, like the
-// runtime dict overwrite. Tuples are not folded yet, so `(1, 2)` is still packed
-// at runtime: its two constants are materialised and handed to
-// `build_intern @tuple`.
+// isel keeps every build_intern: the constants are loaded into the argument
+// slots and the map / tuple / lists are built at run time; the duplicated map
+// key `1` is still in the operands.
 // CHECK-LABEL: --- IR Dump After isel [@main] ---
-// CHECK: loadk %0 std/builtin.dict<jj>, dict[1: 5, 3: 4] std/builtin.dict<jj>
+// CHECK: load_int_imm %0 int64, 1 int64
 // CHECK: load_int_imm %4 int64, 1 int64
-// CHECK: load_int_imm %5 int64, 2 int64
-// CHECK: %6 = build_intern @tuple, nargs=2
-// CHECK: loadk %10 std/builtin.list<j>, list[1, 2] std/builtin.list<j>
-// CHECK: loadk %14 std/builtin.list<j>, list[1, 2, 1] std/builtin.list<j>
-// The remaining build_interns are print's varargs packing.
-// CHECK-NOT: build_intern @map
-// CHECK-NOT: build_intern @list
-// CHECK: build_intern @tuple, nargs=1
+// CHECK: load_int_imm %5 int64, 5 int64
+// CHECK: %6 = build_intern @map, nargs=6
+// CHECK: %12 = build_intern @tuple, nargs=2
+// CHECK: %18 = build_intern @list, nargs=2
+// CHECK: %25 = build_intern @list, nargs=3
+// CHECK-NOT: loadk %{{[0-9]+}} std/builtin.list
+// CHECK-NOT: loadk %{{[0-9]+}} std/builtin.dict
 // CHECK: ret void
 
-// No map/list literal reaches the bytecode as build_intern any more.
-// CHECK-LABEL: @main[0,29]:
-// Both lists are one `loadk` each: #8 is `[1, 2]`, #9 is `[1, 2, 1]`.
-// CHECK: loadk r0, #8
-// CHECK: loadk r0, #9
-// CHECK-NOT: build_intern r{{[0-9]+}}, @map
-// CHECK-NOT: build_intern r{{[0-9]+}}, @list
+// The bytecode builds each literal with build_intern.
+// CHECK-LABEL: @main[0,40]:
+// CHECK: build_intern r0, @map, #6
+// CHECK: build_intern r1, @tuple, #2
+// CHECK: build_intern r0, @list, #2
+// CHECK: build_intern r0, @list, #3
 // CHECK: ret_void
 
-// Each folded literal owns one const-pool entry; tuples have none. The two lists
-// get separate slots even though `[1, 2]` is a prefix of `[1, 2, 1]`: a literal
-// never shares a template with another one.
+// No dict or list in the const pool: only print's separators.
 // CHECK-LABEL: Constant Pool:
-// CHECK: [004] dict(2):
-// CHECK: [008] list(2):
-// CHECK: [009] list(3):
-// CHECK: [0] int64   = 1
-// CHECK: [1] int64   = 2
-// CHECK: [2] int64   = 1
+// CHECK-NEXT: [000] str     = " "
+// CHECK-NEXT: [001] str     = "\n"
+// CHECK-NOT: dict(
+// CHECK-NOT: list(
+// CHECK-LABEL: Import Table:
 
 // CHECK:{1: 5, 3: 4}
 // CHECK:(1, 2)

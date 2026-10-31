@@ -1,0 +1,138 @@
+// RUN: koalac %s --irgen --dump=no-opt-ir | filecheck %s
+// RUN: koalac %s --opt --dump=ir | filecheck %s --check-prefix=OPT
+// RUN: koala %s ++ --dump=lir | filecheck %s --check-prefix=LIR
+//
+// A list or map is mutable, so a literal is never a const-pool entry, even
+// when all its items are constants: irgen emits `build_intern @list` /
+// `build_intern @map`, no pass folds it back into a constant, and isel lowers
+// it as a normal build_intern (each item loaded, then the object built), so
+// every evaluation creates a fresh object; that also holds for a field
+// initializer and for a list inside a map or a nested tuple. A tuple is a
+// constant only when all its items are immutable constants (test-run/test_const_mutable_fresh.kl
+// checks the runtime behaviour).
+
+// CHECK-LABEL: func @list_lit() std/builtin.list<j>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = build_intern @list, 1 int64, 2 int64, 3 int64
+// CHECK-NEXT: ret %0 std/builtin.list<j>
+// OPT-LABEL: dead-code-elimination (Iter 1) [@list_lit]
+// OPT: %0 = build_intern @list, 1 int64, 2 int64, 3 int64
+// OPT-NEXT: ret %0 std/builtin.list<j>
+// LIR-LABEL: IR Dump After isel [@list_lit]
+// LIR: %3 = build_intern @list, nargs=3
+// LIR-NEXT: ret %3 std/builtin.list<j>
+func list_lit() list[int] { return [1, 2, 3] }
+
+// list[T](...) with constant arguments: the variadic tuple is a constant,
+// the list built from it is not
+// CHECK-LABEL: func @list_call() std/builtin.list<j>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = build_intern @list, 1 int64, 2 int64, 3 int64
+// CHECK-NEXT: ret %0 std/builtin.list<j>
+// OPT-LABEL: dead-code-elimination (Iter 1) [@list_call]
+// OPT: %0 = build_intern @list, 1 int64, 2 int64, 3 int64
+// OPT-NEXT: ret %0 std/builtin.list<j>
+// LIR-LABEL: IR Dump After isel [@list_call]
+// LIR: %3 = build_intern @list, nargs=3
+// LIR-NEXT: ret %3 std/builtin.list<j>
+func list_call() list[int] { return list[int](1, 2, 3) }
+
+// CHECK-LABEL: func @list_call_empty() std/builtin.list<j>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = build_intern @list
+// CHECK-NEXT: ret %0 std/builtin.list<j>
+// LIR-LABEL: IR Dump After isel [@list_call_empty]
+// LIR-NEXT: func @list_call_empty()
+// LIR-NEXT: %bb0(entry):
+// LIR-NEXT: %0 = build_intern @list
+// LIR-NEXT: ret %0 std/builtin.list<j>
+func list_call_empty() list[int] { return list[int]() }
+
+// CHECK-LABEL: func @nested() std/builtin.list<Lstd/builtin.list<j>;>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = build_intern @list, 1 int64
+// CHECK-NEXT: %1 = build_intern @list, 2 int64
+// CHECK-NEXT: %2 = build_intern @list, %0 std/builtin.list<j>, %1 std/builtin.list<j>
+// CHECK-NEXT: ret %2 std/builtin.list<Lstd/builtin.list<j>;>
+// OPT-LABEL: dead-code-elimination (Iter 1) [@nested]
+// OPT: %2 = build_intern @list, %0 std/builtin.list<j>, %1 std/builtin.list<j>
+// LIR-LABEL: IR Dump After isel [@nested]
+// LIR: %5 = build_intern @list, nargs=2
+func nested() list[list[int]] { return [[1], [2]] }
+
+// CHECK-LABEL: func @map_lit() std/builtin.dict<uj>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = build_intern @map, 'a' str, 1 int64
+// CHECK-NEXT: ret %0 std/builtin.dict<uj>
+// OPT-LABEL: dead-code-elimination (Iter 1) [@map_lit]
+// OPT: %0 = build_intern @map, 'a' str, 1 int64
+// LIR-LABEL: IR Dump After isel [@map_lit]
+// LIR: %2 = build_intern @map, nargs=2
+// LIR-NEXT: ret %2 std/builtin.dict<uj>
+func map_lit() dict[str, int] { return {"a": 1} }
+
+// all items immutable: the tuple stays a constant (ret_const in LIR)
+// CHECK-LABEL: func @tuple_imm() std/builtin.tuple<jLstd/builtin.tuple<ju>;>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: ret tuple(1, tuple(2, 'a'))
+// LIR-LABEL: IR Dump After isel [@tuple_imm]
+// LIR: ret_const tuple(1, tuple(2, 'a'))
+func tuple_imm() (int, (int, str)) { return (1, (2, "a")) }
+
+// a list item: the tuple is built, not a constant
+// CHECK-LABEL: func @tuple_mut() std/builtin.tuple<jLstd/builtin.list<j>;>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = build_intern @list, 2 int64
+// CHECK-NEXT: %1 = build_intern @tuple, 1 int64, %0 std/builtin.list<j>
+// CHECK-NEXT: ret %1 std/builtin.tuple<jLstd/builtin.list<j>;>
+// LIR-LABEL: IR Dump After isel [@tuple_mut]
+// LIR: %1 = build_intern @list, nargs=1
+// LIR: %3 = build_intern @tuple, nargs=2
+func tuple_mut() (int, list[int]) { return (1, [2]) }
+
+// CHECK-LABEL: func @map_empty() std/builtin.dict<jj>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = build_intern @map
+// CHECK-NEXT: ret %0 std/builtin.dict<jj>
+// LIR-LABEL: IR Dump After isel [@map_empty]
+// LIR: %0 = build_intern @map
+// LIR-NEXT: ret %0 std/builtin.dict<jj>
+func map_empty() dict[int, int] { return {:} }
+
+// a list as a map value: the list is built first, then the map
+// CHECK-LABEL: func @map_of_list() std/builtin.dict<jLstd/builtin.list<j>;>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = build_intern @list, 2 int64
+// CHECK-NEXT: %1 = build_intern @map, 1 int64, %0 std/builtin.list<j>
+// CHECK-NEXT: ret %1 std/builtin.dict<jLstd/builtin.list<j>;>
+// LIR-LABEL: IR Dump After isel [@map_of_list]
+// LIR: %1 = build_intern @list, nargs=1
+// LIR: %3 = build_intern @map, nargs=2
+func map_of_list() dict[int, list[int]] { return {1: [2]} }
+
+// a tuple nested in a tuple, holding a list: neither tuple is a constant
+// CHECK-LABEL: func @nested_pair() std/builtin.tuple<Lstd/builtin.tuple<jLstd/builtin.list<j>;>;j>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = build_intern @list, 2 int64
+// CHECK-NEXT: %1 = build_intern @tuple, 1 int64, %0 std/builtin.list<j>
+// CHECK-NEXT: %2 = build_intern @tuple, %1 std/builtin.tuple<jLstd/builtin.list<j>;>, 3 int64
+// CHECK-NEXT: ret %2
+// LIR-LABEL: IR Dump After isel [@nested_pair]
+// LIR: %1 = build_intern @list, nargs=1
+// LIR: %3 = build_intern @tuple, nargs=2
+// LIR: %5 = build_intern @tuple, nargs=2
+func nested_pair() ((int, list[int]), int) { return ((1, [2]), 3) }
+
+// a field initializer is evaluated in each __init__
+// CHECK-LABEL: func @Box:__init__(%self test_const_mutable_ir.Box) <NO-TYPE>
+// CHECK-NEXT: %bb0(entry):
+// CHECK-NEXT: %0 = build_intern @list, 1 int64
+// CHECK-NEXT: set_field %self test_const_mutable_ir.Box, items(index=0), %0 std/builtin.list<j>
+// CHECK-NEXT: %2 = build_intern @map, 'a' str, 1 int64
+// CHECK-NEXT: set_field %self test_const_mutable_ir.Box, tags(index=1), %2 std/builtin.dict<uj>
+class Box {
+    var items = [1]
+    var tags = {"a": 1}
+}
+
+func main() {}

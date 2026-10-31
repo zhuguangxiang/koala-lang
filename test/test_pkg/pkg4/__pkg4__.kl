@@ -1,0 +1,13 @@
+// Used by test-run/test_ext_instance_shared.kl: loading this klc creates the
+// instance list[bytes] (and its bases, e.g. Iterable[bytes]) in this
+// package's symbol table.
+pub class Chunks {
+    pub func __init__() {}
+
+    pub func all() list[bytes] {
+        let res = list[bytes]()
+        res.append("x".to_bytes())
+        res.append("y".to_bytes())
+        return res
+    }
+}

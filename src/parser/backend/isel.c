@@ -992,67 +992,8 @@ static void isel_lower_jmp_cond(KlrInsn *insn)
     }
 }
 
-/* A `build_intern` literal can be folded into a constant-pool entry when every
- * operand is a constant. The KLR_INSN_FLAGS_CONST flag cannot be trusted here:
- * it is computed only once in klr_build_intern(), while the optimizers may turn
- * the operands into constants afterwards (e.g. const-copy-prop), leaving the
- * opcode and the flag untouched. So re-check the operands at isel time. */
-static int operands_are_all_const(KlrInsn *insn)
-{
-    /* an empty literal has nothing to put into the constant pool */
-    if (insn->num_opers <= 0) return 0;
-
-    KlrValue *arg;
-    insn_oper_value_foreach(arg, insn) {
-        if (!klr_is_const(arg)) return 0;
-    }
-
-    return 1;
-}
-
 static void isel_lower_build_intern(KlrInsn *insn)
 {
-    // check operands ara all const
-    int all_const = operands_are_all_const(insn);
-    if (all_const) {
-        KlrFunc *fn = insn->bb->func;
-        int nargs = insn->num_opers;
-
-        KlrValue *items[nargs];
-        KlrValue *arg;
-        int i = 0;
-        insn_oper_value_foreach(arg, insn) {
-            items[i++] = arg;
-        }
-
-        KlrValue *lit = NULL;
-
-        switch (insn->intern_tag) {
-            case INTERN_MAP:
-                lit = klr_const_map(items, nargs, insn->ts, fn->module);
-                break;
-            case INTERN_LIST:
-                lit = klr_const_list(items, nargs, insn->ts, fn->module);
-                break;
-            // TODO: tuple is special-cased, don't fold it into the constant pool for now
-            // case INTERN_TUPLE:
-            //     lit = klr_const_tuple(items, nargs, insn->ts, fn->module);
-            //     break;
-            default:
-                /* @range / @slice: keep the normal lowering path */
-                break;
-        }
-
-        if (lit) {
-            KlrValue *_val = lower_const(insn, (KlrConst *)lit);
-            replace_all_uses_with(_val, (KlrValue *)insn);
-            klr_erase_insn(insn);
-            return;
-        }
-    }
-
-    // normal case:
-
     int nargs = insn->num_opers;
     for (int i = 0; i < nargs; i++) {
         KlrValue *arg = insn_oper_value(insn, i);

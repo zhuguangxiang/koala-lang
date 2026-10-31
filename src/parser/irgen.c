@@ -708,17 +708,11 @@ static KlrValue *emit_list_call(ParserState *ps, KlrBuilder *bldr, KlrValue *cal
         KlrConst *kc = (KlrConst *)arg;
         ASSERT(kc->which == CONST_TUPLE);
         // list[tuple(...)]
+        // a list is mutable: always built afresh, never a const-pool entry
+        // (also list[T]() with zero variadic arguments, an empty tuple here)
         Vector *vec = kc->list;
-        int _nargs = vector_size(vec);
-        if (_nargs == 0) {
-            // list[T]() with zero variadic arguments is normalized to an empty
-            // tuple by the parser; keep the build_intern path so that every
-            // evaluation creates a fresh mutable list (same as nargs == 0).
-            return klr_build_intern(bldr, NULL, 0, ret_ts, INTERN_LIST, "");
-        }
-
         KlrValue **_args = VECTOR_ITEMS(vec, KlrValue *);
-        return klr_const_list(_args, _nargs, ret_ts, MOD);
+        return klr_build_intern(bldr, _args, vector_size(vec), ret_ts, INTERN_LIST, "");
     } else {
         // build_intern @tuple(...) → build_intern @list(...)
         ASSERT(arg->kind == KLR_VALUE_INSN);
@@ -1091,8 +1085,8 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                         KlrBuilder bldr;
                         klr_builder_end(&bldr, ps->scope->bb);
                         ret = klr_build_len(&bldr, ir_args[0], "");
-                    } else if (str_equal(lhs_sym->name, "hash") && size == 1 &&
-                               lhs_sym->path && !strcmp(lhs_sym->path, "std/builtin")) {
+                    } else if (str_equal(lhs_sym->name, "hash") && size == 1 && lhs_sym->path &&
+                               !strcmp(lhs_sym->path, "std/builtin")) {
                         // the builtin hash(): OP_HASH calls the value's own hash slot
                         KlrBuilder bldr;
                         klr_builder_end(&bldr, ps->scope->bb);
@@ -1886,7 +1880,6 @@ static void emit_ir_list(ParserState *ps, Expr *exp)
 
     int size = vector_size(list->vec);
     KlrValue *items[size];
-    int konst = 1;
 
     Expr *e;
     vector_foreach(e, list->vec) {
@@ -1894,19 +1887,42 @@ static void emit_ir_list(ParserState *ps, Expr *exp)
         emit_ir_visit_expr(ps, e);
         if (!e->ir_val) return;
         items[i__] = e->ir_val;
-        if (!klr_is_const(e->ir_val)) konst = 0;
     }
 
     emit_ir_type(ps, exp);
 
-    if (konst) {
-        KlrValue *lit = klr_const_list(items, size, exp->ts, MOD);
-        exp->ir_val = lit;
-    } else {
-        KlrBuilder bldr;
-        klr_builder_end(&bldr, ps->scope->bb);
-        KlrValue *ret = klr_build_intern(&bldr, items, size, exp->ts, INTERN_LIST, "");
-        exp->ir_val = ret;
+    // a list is mutable: always built afresh, even from constant items
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    exp->ir_val = klr_build_intern(&bldr, items, size, exp->ts, INTERN_LIST, "");
+}
+
+/* A constant that may be shared from the const pool: an immutable value. A
+ * tuple, range or slice is immutable only if all its items are, whoever
+ * built it (emit_ir_tuple, const-copy-prop, ...). */
+static int is_immutable_const(KlrValue *v)
+{
+    if (!klr_is_const(v)) return 0;
+    KlrConst *c = (KlrConst *)v;
+    switch (c->which) {
+        case CONST_NONE:
+        case CONST_INT:
+        case CONST_UINT:
+        case CONST_FLT:
+        case CONST_BOOL:
+        case CONST_STR:
+            return 1;
+        case CONST_TUPLE:
+        case CONST_RANGE:
+        case CONST_SLICE: {
+            KlrValue *item;
+            vector_foreach(item, c->list) {
+                if (item && !is_immutable_const(item)) return 0;
+            }
+            return 1;
+        }
+        default:
+            return 0;
     }
 }
 
@@ -1924,7 +1940,8 @@ static void emit_ir_tuple(ParserState *ps, Expr *exp)
         emit_ir_visit_expr(ps, e);
         if (!e->ir_val) return;
         items[i__] = e->ir_val;
-        if (!klr_is_const(e->ir_val)) konst = 0;
+        // a const tuple holds only immutable items
+        if (!is_immutable_const(e->ir_val)) konst = 0;
     }
 
     emit_ir_type(ps, exp);
@@ -1956,7 +1973,6 @@ static void emit_ir_map(ParserState *ps, Expr *exp)
     int size = vector_size(map->vec);
     int nargs = size * 2;
     KlrValue *items[nargs > 0 ? nargs : 1];
-    int konst = 1;
 
     Expr *e;
     vector_foreach(e, map->vec) {
@@ -1967,23 +1983,18 @@ static void emit_ir_map(ParserState *ps, Expr *exp)
         emit_ir_visit_expr(ps, key);
         if (!key->ir_val) return;
         items[i__ * 2] = key->ir_val;
-        if (!klr_is_const(key->ir_val)) konst = 0;
 
         Expr *val = entry->val;
         val->ctx = EXPR_CTX_LOAD;
         emit_ir_visit_expr(ps, val);
         if (!val->ir_val) return;
         items[i__ * 2 + 1] = val->ir_val;
-        if (!klr_is_const(val->ir_val)) konst = 0;
     }
 
-    if (konst) {
-        exp->ir_val = klr_const_map(items, nargs, exp->ts, MOD);
-    } else {
-        KlrBuilder bldr;
-        klr_builder_end(&bldr, ps->scope->bb);
-        exp->ir_val = klr_build_intern(&bldr, items, nargs, exp->ts, INTERN_MAP, "");
-    }
+    // a map is mutable: always built afresh, even from constant items
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    exp->ir_val = klr_build_intern(&bldr, items, nargs, exp->ts, INTERN_MAP, "");
 }
 
 static void emit_ir_kw(ParserState *ps, Expr *exp) { UNREACHABLE(); }
@@ -2799,11 +2810,15 @@ static int is_new_range(KlrInsn *insn, struct RangeInfo *out, ParserState *ps)
     return 1;
 }
 
-static Symbol *get_iter_func(KlrValue *val, char *name)
+static Symbol *get_iter_func(KlrValue *val, char *name, ParserState *ps)
 {
     Symbol *owner = get_symbol_by_id(val->ts->sym_id);
     ASSERT(owner);
-    Symbol *method = stbl_get(owner->stbl, name);
+    /* an instance gets its methods on demand: the parser resolved this one on
+       the instance the type named then, which may be another one now */
+    Symbol *method = owner->kind == SYM_INSTANCE
+                         ? get_instance_method((InstanceSymbol *)owner, name, ps)
+                         : stbl_get(owner->stbl, name);
     if (method) {
         ASSERT(method->kind == SYM_FUNC);
         return method;
@@ -2909,14 +2924,14 @@ static void get_iter_info(KlrValue *val, KlrBuilder *bldr, ParserState *ps, stru
     if (type_is_iterator(val->ts)) {
         obj = val;
     } else if (type_is_iterable(val->ts)) {
-        Symbol *iter = get_iter_func(val, "iter");
+        Symbol *iter = get_iter_func(val, "iter", ps);
         obj = build_iter_call(bldr, iter, val, ps);
     } else {
         UNREACHABLE();
     }
 
-    out->has_next = get_iter_func(obj, "has_next");
-    out->next_strict = get_iter_func(obj, "next_strict");
+    out->has_next = get_iter_func(obj, "has_next", ps);
+    out->next_strict = get_iter_func(obj, "next_strict", ps);
     out->it_obj = obj;
 }
 

@@ -23,8 +23,12 @@
 | [`pipe`](#pipe) | Create an anonymous pipe for inter-process or inter-task communication. |
 | [`system`](#system) | Execute a system command line string in a subshell and return its raw wait status. |
 | [`run`](#run) | Execute a program with specific arguments, capturing its execution state. |
+| [`output`](#output) | Run a program like `run`, wait for it, and return its exit status with its stdout and stderr decoded as UTF-8. |
 | [`errno`](#errno) | Return the last error code from the operating system. |
 | [`strerror`](#strerror) | Return the system message for the error number `code`. |
+| [`getpid`](#getpid) | Return the process ID of this process. |
+| [`cpu_count`](#cpu_count) | Return the number of CPUs available to run on, or 1 if it is unknown. |
+| [`platform`](#platform) | Return the operating system this runtime was built for: `"linux"`, `"darwin"`, `"freebsd"`, `"windows"` or `"unknown"`. |
 
 ## Classes
 
@@ -423,7 +427,7 @@ SIGPIPE; the same holds for `run`.
 ### `run`
 
 ```kl
-pub func run(executable str, args list[str]? = nil) Process?
+pub func run(executable str, args list[str]? = nil, cwd str? = nil, env dict[str, str]? = nil) Process?
 ```
 
 *`@native`*
@@ -431,7 +435,41 @@ pub func run(executable str, args list[str]? = nil) Process?
 Execute a program with specific arguments, capturing its execution state.
 
 Unlike `system`, this bypasses the shell for safer argument passing.
-Returns a `Process` handle on success, or `nil` if spawning fails.
+`executable` is searched in `PATH` when it has no `/`.
+
+`cwd` is the child's working directory (nil: this process's). `env` is the
+child's whole environment (nil: a copy of this process's); to add one
+variable, copy `environ()` and set it there.
+
+Returns a `Process` handle on success, or `nil` if spawning fails (e.g.
+the program or `cwd` does not exist).
+
+Example:
+    let env = os.environ()
+    env["LANG"] = "C"
+    let p = os.run("make", ["-j4"], cwd = "build", env = env)!
+
+See: `output`, `system`, `Process`.
+
+<a id="output"></a>
+
+### `output`
+
+```kl
+pub func output(executable str, args list[str]? = nil, cwd str? = nil, env dict[str, str]? = nil) (int, str, str)?
+```
+
+Run a program like `run`, wait for it, and return its exit status with
+its stdout and stderr decoded as UTF-8.
+
+The status is the one `Process.wait` returns (negative: killed by that
+signal). Nothing is sent to its stdin. Return nil if it cannot be started.
+
+Example:
+    let (code, out, _) = os.output("git", ["rev-parse", "HEAD"])!
+    if code == 0 { print(out.strip()) }
+
+See: `run`, `Process.communicate`.
 
 <a id="errno"></a>
 
@@ -466,3 +504,42 @@ Example:
     if !fs.mkdir("/root/x") {
         print("mkdir failed: ", os.strerror(os.errno()))
     }
+
+<a id="getpid"></a>
+
+### `getpid`
+
+```kl
+pub func getpid() int
+```
+
+*`@native`*
+
+Return the process ID of this process.
+
+<a id="cpu_count"></a>
+
+### `cpu_count`
+
+```kl
+pub func cpu_count() int
+```
+
+*`@native`*
+
+Return the number of CPUs available to run on, or 1 if it is unknown.
+
+Useful as the default number of parallel jobs.
+
+<a id="platform"></a>
+
+### `platform`
+
+```kl
+pub func platform() str
+```
+
+*`@native`*
+
+Return the operating system this runtime was built for: `"linux"`,
+`"darwin"`, `"freebsd"`, `"windows"` or `"unknown"`.

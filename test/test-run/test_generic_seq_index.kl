@@ -67,9 +67,11 @@ func main() {
 
 // call site: concrete list boxed into the MutableSequence interface
 // IR-LABEL: func @main() <NO-TYPE> {
+// IR: %0 = build_intern @list, 10 int64, 20 int64, 30 int64
 // IR: make_intf %a std/builtin.list<j> [intf-table-index = 7] to std/builtin.MutableSequence
-// IR: call @first, %0 std/builtin.MutableSequence
-// IR: call @set_first, %3 std/builtin.MutableSequence, 99 int64
+// IR: call @first, %1 std/builtin.MutableSequence
+// IR: call @set_first, %4 std/builtin.MutableSequence, 99 int64
+// IR: %7 = build_intern @list, 'x' str, 'y' str, 'z' str
 // IR: make_intf %b std/builtin.list<u> [intf-table-index = 7] to std/builtin.MutableSequence
-// IR: call @swap_first_two, %6 std/builtin.MutableSequence
+// IR: call @swap_first_two, %8 std/builtin.MutableSequence
 // IR: ret void

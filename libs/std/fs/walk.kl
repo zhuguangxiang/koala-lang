@@ -1,0 +1,90 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An iterator over a directory tree, returned by `fs.walk`.
+///
+/// Each step yields `(dir, dirs, files)` for one directory: `dir` is the
+/// directory itself, `dirs` its subdirectories and `files` every other entry,
+/// all as full paths (as `list_dir` returns them), sorted by name.
+///
+/// Directories are visited top-down and depth-first: a directory comes before
+/// its subdirectories, which follow in the order of `dirs`. The subdirectories
+/// are read only when the next step is taken, so removing entries from `dirs`
+/// before that skips them (pruning).
+///
+/// Symbolic links are never followed: a link, also one to a directory, is
+/// listed in `files`. A directory that cannot be read (permission denied, or
+/// removed meanwhile) is skipped without an error.
+///
+/// See: `fs.walk`.
+pub class Walker : Iterator[(Path, list[Path], list[Path])] {
+    /// Directories still to visit; the last one is visited next.
+    let stack list[Path]
+
+    /// The `dirs` list of the step returned last, pushed on the next step.
+    var pending list[Path]? = nil
+
+    /// The step found by `has_next` and not yet returned.
+    var ready (Path, list[Path], list[Path])? = nil
+
+    /// Create a `Walker` starting at `top`; `fs.walk` is the normal way to get one.
+    pub func __init__(top Path) {
+        stack = list[Path]()
+        stack.append(top)
+    }
+
+    /// Return true if another directory is available, reading it if necessary.
+    pub func has_next() bool {
+        if ready != nil { return true }
+
+        // Push the subdirectories of the last step, reversed so that the
+        // first one is visited first.
+        if let dirs = pending {
+            var i = dirs.len() - 1
+            while i >= 0 {
+                stack.append(dirs[i])
+                i = i - 1
+            }
+            pending = nil
+        }
+
+        while stack.len() > 0 {
+            let dir = stack.pop(stack.len() - 1)
+            let entries = _try_list_dir(dir) else { continue }
+
+            let dirs = list[Path]()
+            let files = list[Path]()
+            for p in entries {
+                // lstat: a link to a directory is not a directory here
+                if let st = stat(p, false) {
+                    if st.is_dir() {
+                        dirs.append(p)
+                        continue
+                    }
+                }
+                files.append(p)
+            }
+            ready = (dir, dirs, files)
+            return true
+        }
+        return false
+    }
+
+    /// Return the next `(dir, dirs, files)` and advance. Panic if exhausted.
+    pub func next_strict() (Path, list[Path], list[Path]) {
+        if !has_next() { panic("No more elements in Walker") }
+        let step = ready!
+        ready = nil
+        let (_, dirs, _) = step
+        pending = dirs
+        return step
+    }
+
+    /// Return the next `(dir, dirs, files)`, or nil when the whole tree is visited.
+    pub func next() (Path, list[Path], list[Path])? {
+        if !has_next() { return nil }
+        return next_strict()
+    }
+}

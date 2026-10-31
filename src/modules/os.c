@@ -864,11 +864,52 @@ static Object *kl_new_process(pid_t pid, Object *stdin_f, Object *stdout_f, Obje
     return (Object *)proc;
 }
 
-// pub func run(executable str, args list[str]? = nil) Process? {}
+/* Append "KEY=VALUE" for one mapping of the `env` dict of os.run */
+static void env_entry_visit(TValue *key, TValue *value, void *arg)
+{
+    Vector *envs = arg;
+    Object *k = to_obj(key);
+    Object *v = to_obj(value);
+    BUF(buf);
+    buf_write_nstr(&buf, STR_BUF(k), STR_LEN(k));
+    buf_write_char(&buf, '=');
+    buf_write_nstr(&buf, STR_BUF(v), STR_LEN(v));
+    char *entry = str_ndup(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    vector_push_back(envs, &entry);
+}
+
+/* Free the "KEY=VALUE" strings of `envs` (the NULL terminator included) */
+static void free_env_entries(Vector *envs)
+{
+    char *entry;
+    vector_foreach(entry, envs) {
+        mm_free(entry);
+    }
+    vector_fini(envs);
+}
+
+/*
+ * pub func run(executable str, args list[str]? = nil, cwd str? = nil,
+ *              env dict[str, str]? = nil) Process?
+ *
+ * `cwd` is the child's working directory (nil: this process's), `env` its
+ * whole environment (nil: a copy of this process's).
+ */
 static TValue os_run(TValue *self, TValue *args, int nargs)
 {
-    ASSERT(nargs == 2);
+    ASSERT(nargs == 4);
     char *executable = kl_arg_str(0);
+    char *cwd = is_nil(&args[2]) ? NULL : kl_arg_str(2);
+
+    /* the child's environment: "KEY=VALUE" strings, NULL-terminated */
+    Vector envs;
+    vector_init_ptr(&envs);
+    if (!is_nil(&args[3])) {
+        kl_dict_foreach(kl_arg_obj(3), env_entry_visit, &envs);
+        char *end = NULL;
+        vector_push_back(&envs, &end);
+    }
     int arg_count;
 
     Object *arg_list = NULL;
@@ -939,6 +980,9 @@ static TValue os_run(TValue *self, TValue *args, int nargs)
     posix_spawn_file_actions_addclose(&actions, stdout_pipe[0]);
     posix_spawn_file_actions_addclose(&actions, stderr_pipe[0]);
 
+    /* In the subprocess: enter `cwd`; a missing directory fails the spawn */
+    if (cwd) posix_spawn_file_actions_addchdir_np(&actions, cwd);
+
     // 7. launch subprocess
     /* External: Environment variables (required by posix_spawn) */
     extern char **environ;
@@ -947,13 +991,16 @@ static TValue os_run(TValue *self, TValue *args, int nargs)
     posix_spawnattr_t attr;
     init_spawn_attr(&attr);
 
+    /* an `env` dict replaces the environment; nil inherits this process's */
+    char **envp = vector_empty(&envs) ? environ : VECTOR_ITEMS(&envs, char *);
+
     pid_t pid;
     int spawn_status = posix_spawnp(&pid,       /* Output: Child process PID */
                                     executable, /* Executable (searched in PATH) */
                                     &actions,   /* File actions */
                                     &attr,      /* Attributes */
                                     argv,       /* Argument list */
-                                    environ     /* Environment variables */
+                                    envp        /* Environment variables */
     );
 
     // 8. Clean up temporary resources
@@ -986,10 +1033,12 @@ static TValue os_run(TValue *self, TValue *args, int nargs)
     Object *proc = kl_new_process(pid, _stdin, _stdout, _stderr);
 
     vector_fini(&vec);
+    free_env_entries(&envs);
     return obj_value(proc);
 
 error:
     vector_fini(&vec);
+    free_env_entries(&envs);
     return nil_value;
 }
 
@@ -1008,6 +1057,46 @@ static TValue os_strerror(TValue *self, TValue *args, int nargs)
     return kl_val_str(strerror(code));
 }
 
+/* pub func getpid() int */
+static TValue os_getpid(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    return int64_value(getpid());
+}
+
+/*
+ * pub func cpu_count() int
+ *
+ * Return the number of online CPUs, or 1 if it cannot be determined.
+ */
+static TValue os_cpu_count(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    return int64_value(n > 0 ? n : 1);
+}
+
+/*
+ * pub func platform() str
+ *
+ * Return the operating system this runtime was built for.
+ */
+static TValue os_platform(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+#if defined(__linux__)
+    return kl_val_str("linux");
+#elif defined(__APPLE__)
+    return kl_val_str("darwin");
+#elif defined(__FreeBSD__)
+    return kl_val_str("freebsd");
+#elif defined(_WIN32)
+    return kl_val_str("windows");
+#else
+    return kl_val_str("unknown");
+#endif
+}
+
 void os_native_lib_init(NativeLib *lib)
 {
     /* a write to a pipe whose reader exited fails with EPIPE instead of killing us */
@@ -1024,6 +1113,9 @@ void os_native_lib_init(NativeLib *lib)
     kl_reg_func(lib, "run", os_run);
     kl_reg_func(lib, "errno", os_errno);
     kl_reg_func(lib, "strerror", os_strerror);
+    kl_reg_func(lib, "getpid", os_getpid);
+    kl_reg_func(lib, "cpu_count", os_cpu_count);
+    kl_reg_func(lib, "platform", os_platform);
     kl_reg_type(lib, &raw_reader_type);
     kl_reg_type(lib, &raw_writer_type);
     kl_reg_type(lib, &process_type);

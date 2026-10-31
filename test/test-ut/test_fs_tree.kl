@@ -1,0 +1,178 @@
+// RUN: koala --test %s
+//
+// fs.walk / fs.copy / fs.remove_all over small trees under /tmp.
+
+import "std/fs"
+import "std/os"
+import "std/ut"
+
+// Build:
+//   root/a.txt
+//   root/b/c.txt
+//   root/b/d/
+//   root/e/f.txt
+//   root/link -> root/b   (symbolic link to a directory)
+func make_tree(root str) {
+    fs.remove_all(root)
+    ut.assert(fs.mkdir(root + "/b/d"))
+    ut.assert(fs.mkdir(root + "/e"))
+    ut.assert(fs.write_str(root + "/a.txt", "a"))
+    ut.assert(fs.write_str(root + "/b/c.txt", "c"))
+    ut.assert(fs.write_str(root + "/e/f.txt", "f"))
+    ut.assert_eq(os.system("ln -s " + root + "/b " + root + "/link"), 0)
+}
+
+@test
+func test_walk_order_and_links() {
+    let root = "/tmp/kl_fs_tree_walk"
+    make_tree(root)
+
+    let seen = list[str]()
+    for (dir, dirs, files) in fs.walk(root) {
+        var line = dir.to_str() + ":"
+        for d in dirs { line = line + " d=" + d.name() }
+        for f in files { line = line + " f=" + f.name() }
+        seen.append(line)
+    }
+
+    // top-down, depth-first, sorted; the link is a file and is not followed
+    ut.assert_eq(seen.len(), 4)
+    ut.assert_eq(seen[0], root + ": d=b d=e f=a.txt f=link")
+    ut.assert_eq(seen[1], root + "/b: d=d f=c.txt")
+    ut.assert_eq(seen[2], root + "/b/d:")
+    ut.assert_eq(seen[3], root + "/e: f=f.txt")
+
+    ut.assert(fs.remove_all(root))
+}
+
+// Removing an entry from `dirs` before the next step skips that subtree.
+@test
+func test_walk_prune() {
+    let root = "/tmp/kl_fs_tree_prune"
+    make_tree(root)
+
+    let seen = list[str]()
+    for (dir, dirs, _) in fs.walk(fs.Path(root)) {
+        seen.append(dir.to_str())
+        if dir.to_str() == root {
+            dirs.pop(0) // drop "b"
+        }
+    }
+    ut.assert_eq(seen.len(), 2)
+    ut.assert_eq(seen[0], root)
+    ut.assert_eq(seen[1], root + "/e")
+
+    ut.assert(fs.remove_all(root))
+}
+
+// A missing top or a regular file yields nothing.
+@test
+func test_walk_not_a_dir() {
+    var n = 0
+    for _ in fs.walk("/tmp/kl_fs_tree_missing") { n = n + 1 }
+    ut.assert_eq(n, 0)
+
+    ut.assert(fs.write_str("/tmp/kl_fs_tree_file.txt", "x"))
+    for _ in fs.walk("/tmp/kl_fs_tree_file.txt") { n = n + 1 }
+    ut.assert_eq(n, 0)
+    ut.assert(fs.remove("/tmp/kl_fs_tree_file.txt"))
+}
+
+@test
+func test_copy() {
+    let src = "/tmp/kl_fs_tree_copy_src.sh"
+    let dst = "/tmp/kl_fs_tree_copy_dst.sh"
+    fs.remove(dst)
+
+    ut.assert(fs.write_str(src, "#!/bin/sh\necho hi\n"))
+    ut.assert_eq(os.system("chmod 755 " + src), 0)
+
+    ut.assert(fs.copy(src, dst))
+    ut.assert_eq(fs.read_str(dst), "#!/bin/sh\necho hi\n")
+    ut.assert_eq(fs.stat(dst)!.mode & 0o777, 0o755) // permission bits kept
+
+    // An existing dst is truncated and overwritten.
+    ut.assert(fs.write_str(src, "x"))
+    ut.assert(fs.copy(fs.Path(src), fs.Path(dst)))
+    ut.assert_eq(fs.read_str(dst), "x")
+
+    // A file larger than the 64 KiB copy buffer.
+    let big = bytes(200_000)
+    big[0] = 1
+    big[199_999] = 2
+    ut.assert(fs.write_bytes(src, big))
+    ut.assert(fs.copy(src, dst))
+    let back = fs.read_all(dst, -1)
+    ut.assert_eq(back.len(), 200_000)
+    ut.assert(back[0] == 1)
+    ut.assert(back[199_999] == 2)
+
+    ut.assert(fs.remove(src))
+    ut.assert(fs.remove(dst))
+}
+
+@test
+func test_copy_failures() {
+    let f = "/tmp/kl_fs_tree_copy_self.txt"
+    ut.assert(fs.write_str(f, "keep"))
+
+    ut.assert_false(fs.copy("/tmp/kl_fs_tree_missing", "/tmp/kl_fs_tree_x"))
+    ut.assert_false(fs.copy("/tmp", "/tmp/kl_fs_tree_x")) // src is a directory
+    ut.assert_false(fs.exists("/tmp/kl_fs_tree_x"))
+
+    // Copying a file onto itself fails and leaves it intact.
+    ut.assert_false(fs.copy(f, f))
+    ut.assert_eq(fs.read_str(f), "keep")
+
+    ut.assert(fs.remove(f))
+}
+
+// remove_all removes a link itself, never the tree it points to.
+@test
+func test_remove_all_keeps_link_target() {
+    let root = "/tmp/kl_fs_tree_rm"
+    let outside = "/tmp/kl_fs_tree_rm_outside"
+    fs.remove_all(root)
+    fs.remove_all(outside)
+
+    ut.assert(fs.mkdir(outside))
+    ut.assert(fs.write_str(outside + "/keep.txt", "keep"))
+    make_tree(root)
+    ut.assert_eq(os.system("ln -s " + outside + " " + root + "/b/out"), 0)
+
+    ut.assert(fs.remove_all(root))
+    ut.assert_false(fs.exists(root))
+    ut.assert(fs.is_file(outside + "/keep.txt"))
+
+    // A single file, a dangling link, and a missing path.
+    ut.assert(fs.write_str(root, "x"))
+    ut.assert(fs.remove_all(root))
+    ut.assert_eq(os.system("ln -s /tmp/kl_fs_tree_nowhere " + root), 0)
+    ut.assert(fs.remove_all(root))
+    ut.assert_false(fs.is_symlink(root))
+    ut.assert_false(fs.remove_all(root))
+
+    ut.assert(fs.remove_all(outside))
+}
+
+// Names with leading / trailing spaces survive walk and remove_all.
+@test
+func test_tree_names_with_spaces() {
+    let root = "/tmp/kl_fs_tree_spaces"
+    fs.remove_all(root)
+    ut.assert(fs.mkdir(root + "/ d "))
+    ut.assert(fs.write_str(root + "/ d / f", "x"))
+
+    let seen = list[str]()
+    for (dir, _, files) in fs.walk(root) {
+        for f in files { seen.append(f.to_str()) }
+        seen.append(dir.to_str())
+    }
+    ut.assert_eq(seen.len(), 3)
+    ut.assert_eq(seen[0], root)
+    ut.assert_eq(seen[1], root + "/ d / f")
+    ut.assert_eq(seen[2], root + "/ d ")
+
+    ut.assert(fs.remove_all(root))
+    ut.assert_false(fs.exists(root))
+}

@@ -25,101 +25,108 @@ func main() {
 
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @main()
+// CHECK: %bb0(entry):
+// CHECK: %0 = build_intern @list
 // CHECK: %l0 = local [immutable] std/builtin.list<o>
-// CHECK: move %l0 std/builtin.list<o>, list[] std/builtin.list<o>
-// CHECK: %0 = build_intern @tuple, %l0 std/builtin.list<o>
-// CHECK: call @print [path = 'std/prelude'], %0 std/builtin.tuple<Lstd/builtin.list<o>;>, ' ' str, '\n' str
+// CHECK: move %l0 std/builtin.list<o>, %0 std/builtin.list<o>
+// CHECK: %1 = build_intern @tuple, %l0 std/builtin.list<o>
+// CHECK: call @print [path = 'std/prelude'], %1 std/builtin.tuple<Lstd/builtin.list<o>;>, ' ' str, '\n' str
+// CHECK: %2 = build_intern @list, 1 int64, 2 int64, 3 int64
 // CHECK: %l = local [immutable] std/builtin.list<j>
-// CHECK: move %l std/builtin.list<j>, list[1, 2, 3] std/builtin.list<j>
-// CHECK: %1 = call @list:len [path = 'std/builtin'], %l std/builtin.list<j>
-// CHECK: %2 = build_intern @tuple, 'length of l:' str, %1 int64
-// CHECK: call @print [path = 'std/prelude'], %2 std/builtin.tuple<uj>, ' ' str, '\n' str
+// CHECK: move %l std/builtin.list<j>, %2 std/builtin.list<j>
+// CHECK: %3 = call @list:len [path = 'std/builtin'], %l std/builtin.list<j>
+// CHECK: %4 = build_intern @tuple, 'length of l:' str, %3 int64
+// CHECK: call @print [path = 'std/prelude'], %4 std/builtin.tuple<uj>, ' ' str, '\n' str
 // CHECK: call @list:append [path = 'std/builtin'], %l std/builtin.list<j>, 4 int64
-// CHECK: %3 = build_intern @tuple, %l std/builtin.list<j>
-// CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
-// CHECK: %4 = call @list:len [path = 'std/builtin'], %l std/builtin.list<j>
-// CHECK: %5 = build_intern @tuple, 'length of l:' str, %4 int64
-// CHECK: call @print [path = 'std/prelude'], %5 std/builtin.tuple<uj>, ' ' str, '\n' str
+// CHECK: %5 = build_intern @tuple, %l std/builtin.list<j>
+// CHECK: call @print [path = 'std/prelude'], %5 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
+// CHECK: %6 = call @list:len [path = 'std/builtin'], %l std/builtin.list<j>
+// CHECK: %7 = build_intern @tuple, 'length of l:' str, %6 int64
+// CHECK: call @print [path = 'std/prelude'], %7 std/builtin.tuple<uj>, ' ' str, '\n' str
 // CHECK: %t = local [immutable] std/builtin.tuple<jj_?>
 // CHECK: move %t std/builtin.tuple<jj_?>, tuple(1, 2, nil) std/builtin.tuple<jj_?>
-// CHECK: %6 = build_intern @tuple, %t std/builtin.tuple<jj_?>
-// CHECK: call @print [path = 'std/prelude'], %6 std/builtin.tuple<Lstd/builtin.tuple<jj_?>;>, ' ' str, '\n' str
-// CHECK: %7 = call @new_list [const], 300 int64
+// CHECK: %8 = build_intern @tuple, %t std/builtin.tuple<jj_?>
+// CHECK: call @print [path = 'std/prelude'], %8 std/builtin.tuple<Lstd/builtin.tuple<jj_?>;>, ' ' str, '\n' str
+// CHECK: %9 = call @new_list [const], 300 int64
 // CHECK: %l2 = local [immutable] std/builtin.list<j>
-// CHECK: move %l2 std/builtin.list<j>, %7 std/builtin.list<j>
-// CHECK: %8 = build_intern @tuple, %l2 std/builtin.list<j>
-// CHECK: call @print [path = 'std/prelude'], %8 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
+// CHECK: move %l2 std/builtin.list<j>, %9 std/builtin.list<j>
+// CHECK: %10 = build_intern @tuple, %l2 std/builtin.list<j>
+// CHECK: call @print [path = 'std/prelude'], %10 std/builtin.tuple<Lstd/builtin.list<j>;>, ' ' str, '\n' str
 // CHECK: ret void
 
-// CHECK-LABEL: @main[6,56]:
-// CHECK: loadk r1, #3
-// CHECK: build_intern r1, @tuple, #1
-// CHECK: loadk r2, #4
-// CHECK: loadk r3, #5
+// CHECK-LABEL: @main[9,64]:
+// CHECK: build_intern r0, @list, #0
+// CHECK: move r2, r0
+// CHECK: build_intern r2, @tuple, #1
+// CHECK: loadk r3, #0
+// CHECK: loadk r4, #1
 // CHECK: call flg=0, #3
 // CHECK: data (func_index=3(imported))
-// CHECK: loadk r0, #9
+// CHECK: load_int_imm r2, ti=0xb, #1
+// CHECK: load_int_imm r3, ti=0xb, #2
+// CHECK: load_int_imm r4, ti=0xb, #3
+// CHECK: build_intern r0, @list, #3
 // CHECK: move r1, r0
-// CHECK: call flg=0, r2, #1
+// CHECK: move r2, r1
+// CHECK: call flg=0, r3, #1
 // CHECK: data (func_index=4(imported))
-// CHECK: loadk r1, #10
-// CHECK: build_intern r1, @tuple, #2
-// CHECK: loadk r2, #4
-// CHECK: loadk r3, #5
+// CHECK: loadk r2, #2
+// CHECK: build_intern r2, @tuple, #2
+// CHECK: loadk r3, #0
+// CHECK: loadk r4, #1
 // CHECK: call flg=0, #3
 // CHECK: data (func_index=3(imported))
-// CHECK: move r1, r0
-// CHECK: load_int_imm r2, ti=0xb, #4
+// CHECK: move r2, r1
+// CHECK: load_int_imm r3, ti=0xb, #4
 // CHECK: call flg=0, #2
 // CHECK: data (func_index=2(imported))
-// CHECK: move r1, r0
-// CHECK: build_intern r1, @tuple, #1
-// CHECK: loadk r2, #4
-// CHECK: loadk r3, #5
+// CHECK: move r2, r1
+// CHECK: build_intern r2, @tuple, #1
+// CHECK: loadk r3, #0
+// CHECK: loadk r4, #1
 // CHECK: call flg=0, #3
 // CHECK: data (func_index=3(imported))
-// CHECK: move r1, r0
-// CHECK: call flg=0, r2, #1
+// CHECK: move r2, r1
+// CHECK: call flg=0, r3, #1
 // CHECK: data (func_index=4(imported))
-// CHECK: loadk r1, #10
-// CHECK: build_intern r1, @tuple, #2
-// CHECK: loadk r2, #4
-// CHECK: loadk r3, #5
+// CHECK: loadk r2, #2
+// CHECK: build_intern r2, @tuple, #2
+// CHECK: loadk r3, #0
+// CHECK: loadk r4, #1
 // CHECK: call flg=0, #3
 // CHECK: data (func_index=3(imported))
-// CHECK: loadk r1, #12
-// CHECK: build_intern r1, @tuple, #1
-// CHECK: loadk r2, #4
-// CHECK: loadk r3, #5
+// CHECK: loadk r2, #6
+// CHECK: build_intern r2, @tuple, #1
+// CHECK: loadk r3, #0
+// CHECK: loadk r4, #1
 // CHECK: call flg=0, #3
 // CHECK: data (func_index=3(imported))
+// CHECK: load_int_imm r2, ti=0xb, #300
+// CHECK: call flg=0, r0, #1
+// CHECK: data (func_index=0(local))
+// CHECK: move r2, r0
+// CHECK: build_intern r2, @tuple, #1
+// CHECK: loadk r3, #0
+// CHECK: loadk r4, #1
+// CHECK: call flg=0, #3
+// CHECK: data (func_index=3(imported))
+// CHECK: ret_void
 
 // CHECK-LABEL: Constant Pool:
-// CHECK: [000] int64   = 100
-// CHECK: [001] int64   = 200
-// CHECK: [002] list(2):
-// CHECK:     [0] int64   = 100
-// CHECK:     [1] int64   = 200
-// CHECK: [003] list(0):
-// CHECK: [004] str     = " "
-// CHECK: [005] str     = "\n"
-// CHECK: [006] int64   = 1
-// CHECK: [007] int64   = 2
-// CHECK: [008] int64   = 3
-// CHECK: [009] list(3):
-// CHECK:     [0] int64   = 1
-// CHECK:     [1] int64   = 2
-// CHECK:     [2] int64   = 3
-// CHECK: [010] str     = "length of l:"
-// CHECK: [011] nil
-// CHECK: [012] tuple(3):
+// CHECK: [000] str     = " "
+// CHECK: [001] str     = "\n"
+// CHECK: [002] str     = "length of l:"
+// CHECK: [003] int64   = 1
+// CHECK: [004] int64   = 2
+// CHECK: [005] nil
+// CHECK: [006] tuple(3):
 // CHECK:     [0] int64   = 1
 // CHECK:     [1] int64   = 2
 // CHECK:     [2] nil
 
 // CHECK-LABEL: Import Table:
-// CHECK: [000] method std/builtin::list::append
-// CHECK: [001] func   std/prelude::print
+// CHECK: [000] method std/builtin::list::append, slot_index: 2
+// CHECK: [001] func   std/prelude::print, slot_index: 3
 // CHECK: [002] method std/builtin::list::len, slot_index: 4
 
 // CHECK:[]

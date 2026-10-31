@@ -661,6 +661,17 @@ void kl_dict_add(Object *dict, TValue *key, TValue *value)
     _dict_insert((DictObject *)dict, key, value);
 }
 
+void kl_dict_foreach(Object *dict, DictVisitFunc visit, void *arg)
+{
+    ASSERT(IS_DICT(dict));
+    HashMapIter it;
+    hashmap_iter_init(&((DictObject *)dict)->map, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        DictEntry *entry = hashmap_iter_entry(&it);
+        visit(&entry->key, &entry->value, arg);
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif
