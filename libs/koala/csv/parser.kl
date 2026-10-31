@@ -1,0 +1,174 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// CSV delimiters, as ASCII byte values.
+pub const COMMA     = 44
+pub const TAB       = 9
+pub const SEMICOLON = 59
+pub const PIPE      = 124
+
+/// Parse status codes.
+pub const CSV_OK             = 0
+pub const CSV_UNCLOSED_QUOTE = 1
+
+/// Result of parsing a CSV document.
+pub class CsvResult {
+    let _status int
+    let _records list[list[str]]
+    let _error_row int
+
+    pub func __init__(status int, records list[list[str]], error_row int) {
+        _status = status
+        _records = records
+        _error_row = error_row
+    }
+
+    /// `CSV_OK` or `CSV_UNCLOSED_QUOTE`.
+    pub func status() int { return _status }
+
+    /// True when parsing succeeded.
+    pub func ok() bool { return _status == CSV_OK }
+
+    /// Parsed records. Empty when `ok()` is false.
+    pub func records() list[list[str]] { return _records }
+
+    /// One-based row number of the unclosed quote, or 0 when `ok()`.
+    pub func error_row() int { return _error_row }
+
+    pub static func succeed(records list[list[str]]) CsvResult {
+        return CsvResult(CSV_OK, records, 0)
+    }
+
+    pub static func fail(row int) CsvResult {
+        return CsvResult(CSV_UNCLOSED_QUOTE, list[list[str]](), row)
+    }
+}
+
+// True when `c` is a byte that forces a field to be quoted: a quote,
+// the delimiter itself, or a line terminator.
+func _is_special(c int, delimiter int) bool {
+    if c == 34 { return true }
+    if c == delimiter { return true }
+    if c == 10 { return true }
+    if c == 13 { return true }
+    return false
+}
+
+/// Parse a CSV document into records.
+///
+/// Follows RFC 4180 with a few lenient extensions that match the common
+/// Python csv module:
+///
+/// - `\n`, `\r\n` and a lone `\r` (old Mac files) end a record.
+/// - A leading UTF-8 BOM (`EF BB BF`, as written by Excel's "CSV UTF-8"
+///   export) is skipped; a BOM anywhere else is kept as field content.
+/// - A quote that is not at the start of a field is kept as a literal
+///   character rather than treated as the start of a quoted field.
+///
+/// A quoted field may contain the delimiter, newlines, and doubled
+/// quotes (`""` becomes a single `"`). An empty record is skipped; a
+/// record whose fields are all empty (`""` or `a,`) is kept. Spaces
+/// around a field are part of it and are not trimmed.
+pub func parse(text str, delimiter int = COMMA) CsvResult {
+    // Byte view for the character-code checks. `text[i]` is a
+    // one-character str, and `int(...)` on it parses the character as
+    // a number rather than yielding its code; `b[i]` is a uint8, so
+    // `int(b[i])` is the ASCII code. Slicing still uses `text` so the
+    // pieces keep their original encoding.
+    let b = text.to_bytes()
+    let n = b.len()
+    let records = list[list[str]]()
+    var cur_row = list[str]()
+    var row_has_content = false
+    var i = 0
+
+    // Skip one leading UTF-8 BOM, so the first header field is "name",
+    // not "\ufeffname".
+    if n >= 3 && int(b[0]) == 0xEF && int(b[1]) == 0xBB && int(b[2]) == 0xBF {
+        i = 3
+    }
+
+    while i < n {
+        let c = int(b[i])
+        if c == 10 || c == 13 {
+            // A line terminator reached at the start of a record, or
+            // after a field that was not followed by a delimiter.
+            if row_has_content {
+                records.append(cur_row)
+                cur_row = list[str]()
+                row_has_content = false
+            }
+            if c == 13 && i + 1 < n && int(b[i + 1]) == 10 {
+                i += 2
+            } else {
+                i += 1
+            }
+        } else {
+            var field = ""
+            if c == 34 {
+                // Quoted field: read to the closing quote, collapsing
+                // doubled quotes to one.
+                var j = i + 1
+                var seg = j
+                var closed = false
+                while j < n {
+                    let cj = int(b[j])
+                    if cj == 34 {
+                        let nx = j + 1
+                        if nx < n && int(b[nx]) == 34 {
+                            field = field + text[seg:j] + "\""
+                            j += 2
+                            seg = j
+                        } else {
+                            field = field + text[seg:j]
+                            j += 1
+                            closed = true
+                            break
+                        }
+                    } else {
+                        j += 1
+                    }
+                }
+                if !closed {
+                    return CsvResult.fail(records.len() + 1)
+                }
+                i = j
+            } else {
+                // Unquoted field: read to the next delimiter or
+                // line terminator.
+                var j = i
+                while j < n {
+                    let cj = int(b[j])
+                    if cj == delimiter || cj == 10 || cj == 13 {
+                        break
+                    }
+                    j += 1
+                }
+                field = text[i:j]
+                i = j
+            }
+
+            cur_row.append(field)
+            row_has_content = true
+
+            if i < n && int(b[i]) == delimiter {
+                i += 1
+                // A trailing delimiter produces one last empty field:
+                // "a," has two, "a,b,\n" has three. The field is empty
+                // both when the delimiter ends the input and when it is
+                // followed directly by a line terminator.
+                if i >= n || int(b[i]) == 10 || int(b[i]) == 13 {
+                    cur_row.append("")
+                }
+            }
+        }
+    }
+
+    if row_has_content {
+        records.append(cur_row)
+    }
+
+    return CsvResult.succeed(records)
+}

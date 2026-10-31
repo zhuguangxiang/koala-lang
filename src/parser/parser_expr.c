@@ -1555,6 +1555,9 @@ static int handle_valist_and_dfl_args(Vector *params, CallExpr *call)
             Literal *dfl_val = kwarg->dfl_val;
             ASSERT(dfl_val);
             Expr *dfl_exp = expr_from_literal(dfl_val);
+            /* the literal takes the parameter's type (checked at the declaration),
+               e.g. 44 for 'v uint8 = 44' is a uint8, not the literal's int64/uint64 */
+            dfl_exp->expected = kwarg->ts;
             vector_push_back(real_args, &dfl_exp);
             changed = 1;
         }

@@ -22,8 +22,6 @@ func get_list() list[int] = [40, 2]
 
 func get_pair() (int, str) = (42, "hello")
 
-// func get_radix_value() int = int("2A", base = 16)
-
 func is_integer() bool = 42 is int
 
 func cast_integer(value any) int? = value as int

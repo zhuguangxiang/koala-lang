@@ -74,6 +74,10 @@ pub class IcmpSocket {
                 if pkt.type_() == ICMP_ECHO_REPLY {
                     return PingOutcome(PING_SUCCESS, time.now().diff(t0))
                 }
+                // A non-Echo ICMP message (Destination Unreachable,
+                // Time Exceeded, ...): keep its type and code so the
+                // caller can report why the probe failed.
+                return PingOutcome(PING_FAILURE, nil, pkt.type_(), pkt.code())
             }
         }
         return PingOutcome(PING_TIMEOUT, nil)

@@ -1,0 +1,34 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// A const value must be a literal; a const tuple is an error, not a compiler abort.
+
+const A0 = 1
+func foo() int = 1
+
+const A = 1 + 2
+// CHECK: const value must be a literal.
+const B = foo()
+// CHECK-NEXT: const value must be a literal.
+const C = A0
+// CHECK-NEXT: const value must be a literal.
+const D = [1]
+// CHECK-NEXT: const value must be a literal.
+const E = "a" + "b"
+// CHECK-NEXT: const value must be a literal.
+const F = nil
+// CHECK-NEXT: const value must be a literal.
+const G uint8 = foo()
+// CHECK-NEXT: const value must be a literal.
+const H uint8 = 1 << 3
+// CHECK-NEXT: const value must be a literal.
+const T = (1, 2)
+// CHECK-NEXT: a const tuple is not supported yet.
+
+func main() {
+    const L = A0 + 1
+    // CHECK-NEXT: const value must be a literal.
+}
+
+// OK
+const N = -5
+const S = "s"
+const X uint8 = 255

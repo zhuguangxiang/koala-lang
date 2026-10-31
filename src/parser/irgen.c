@@ -567,16 +567,11 @@ static KlrValue *emit_int_call(KlrBuilder *bldr, KlrValue *callee, KlrValue **ar
     TypeSpec *ts = callee->ts;
     if (arg->ts == ts) return arg;
 
+    /* the constructors take a number only, a str is parsed with s.to_int() */
     ASSERT(type_is_int(ts) || type_is_uint(ts));
-    ASSERT(((int_type_width(ts) < 8) && (nargs == 1)) ||
-           ((int_type_width(ts) == 8) && (nargs == 2)));
-
-    if (!type_is_str(arg->ts)) {
-        KlrValue *ret = klr_build_cast(bldr, arg, ts, "");
-        return ret;
-    }
-
-    NYI();
+    ASSERT(nargs == 1);
+    ASSERT(!type_is_str(arg->ts));
+    return klr_build_cast(bldr, arg, ts, "");
 }
 
 // Parse a string literal as a float constant for `float64("...")` style

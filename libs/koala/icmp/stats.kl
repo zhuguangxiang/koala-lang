@@ -13,13 +13,21 @@ pub const PING_TIMEOUT = 2
 
 /// Outcome of one Echo round-trip: success with an RTT, failure with
 /// an RTT (a non-Echo error came back), or timeout with no RTT.
+///
+/// `PING_FAILURE` also carries the ICMP type and code of the error
+/// message that caused it, when one was received. A socket-level
+/// failure leaves both at 0; `has_icmp_error()` tells the two apart.
 pub class PingOutcome {
     let _kind int
     let _rtt Duration?
+    let _icmp_type int
+    let _icmp_code int
 
-    pub func __init__(kind int, rtt Duration?) {
+    pub func __init__(kind int, rtt Duration?, icmp_type = 0, icmp_code = 0) {
         _kind = kind
         _rtt = rtt
+        _icmp_type = icmp_type
+        _icmp_code = icmp_code
     }
 
     /// One of `PING_SUCCESS`, `PING_FAILURE`, `PING_TIMEOUT`.
@@ -28,6 +36,21 @@ pub class PingOutcome {
     /// RTT for `PING_SUCCESS`; nil for `PING_FAILURE` and
     /// `PING_TIMEOUT`.
     pub func rtt() Duration? { return _rtt }
+
+    /// ICMP type of the error that caused `PING_FAILURE`; 0 when the
+    /// failure was a socket-level error.
+    pub func icmp_type() int { return _icmp_type }
+
+    /// ICMP code of the error that caused `PING_FAILURE`; 0 when the
+    /// failure was a socket-level error.
+    pub func icmp_code() int { return _icmp_code }
+
+    /// True when this failure carried an ICMP error message, i.e. the
+    /// network told us why the probe failed rather than the socket
+    /// itself erroring out.
+    pub func has_icmp_error() bool {
+        return _icmp_type != 0 || _icmp_code != 0
+    }
 }
 
 /// One recorded probe: the sequence number and its outcome.

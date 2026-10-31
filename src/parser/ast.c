@@ -198,7 +198,8 @@ Expr *expr_from_literal(Literal *lit)
         exp->sign = lit->sign;
         exp->len = lit->len;
         exp->ival = 0;
-        exp->ival_128 = lit->ival;
+        /* sign-extend a signed value, e.g. -3 must not become 2^64 - 3 */
+        exp->ival_128 = lit->sign ? (__int128)(int64_t)lit->ival : (__int128)lit->ival;
         exp->ts = lit->sign ? int64_type_spec() : uint64_type_spec();
     } else if (lit->which == LIT_FLT) {
         exp->which = LIT_EXPR_FLT;
@@ -490,6 +491,17 @@ static void tuple_expr_free(Expr *exp)
     vector_destroy(tuple->vec);
     mm_free(exp);
 }
+static void const_tuple_expr_free(Expr *exp)
+{
+    ConstTupleExpr *tuple = (ConstTupleExpr *)exp;
+    Expr *e;
+    vector_foreach(e, tuple->vec) {
+        if (!e) continue;
+        expr_free(e);
+    }
+    vector_destroy(tuple->vec);
+    mm_free(exp);
+}
 static void anony_expr_free(Expr *exp) { mm_free(exp); }
 static void type_expr_free(Expr *exp) { mm_free(exp); }
 
@@ -605,6 +617,7 @@ void expr_free(Expr *exp)
         [EXPR_MAP_KIND] = map_expr_free,
         [EXPR_MAP_ENTRY_KIND] = map_entry_expr_free,
         [EXPR_TUPLE_KIND] = tuple_expr_free,
+        [EXPR_CONST_TUPLE_KIND] = const_tuple_expr_free,
         [EXPR_ANONY_KIND] = anony_expr_free,
         [EXPR_TYPE_KIND] = type_expr_free,
         [EXPR_CALL_KIND] = call_expr_free,

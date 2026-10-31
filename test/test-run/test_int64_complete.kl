@@ -156,9 +156,6 @@ func main() {
 
     // print(int64(42))
     // print(int64(uint64(9)))
-    // print(int64("255"))
-    // print(int64("ff", base=16))
-    // print(int64("101", base=2))
     // print(int64(7.9))
 
     // print((3).pow(4))

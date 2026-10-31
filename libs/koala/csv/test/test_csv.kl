@@ -1,0 +1,227 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/csv"
+
+@test
+func test_parse_simple() {
+    let r = csv.parse("a,b,c\n1,2,3\n")
+    ut.assert_true(r.ok())
+    let rs = r.records()
+    ut.assert_eq(rs.len(), 2)
+    ut.assert_eq(rs[0].len(), 3)
+    ut.assert_eq(rs[0][0], "a")
+    ut.assert_eq(rs[0][2], "c")
+    ut.assert_eq(rs[1][1], "2")
+}
+
+@test
+func test_parse_no_trailing_newline() {
+    let r = csv.parse("a,b")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records().len(), 1)
+    ut.assert_eq(r.records()[0][1], "b")
+}
+
+@test
+func test_parse_empty_fields() {
+    let r = csv.parse("a,,c\n")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records()[0].len(), 3)
+    ut.assert_eq(r.records()[0][1], "")
+}
+
+@test
+func test_parse_trailing_delimiter() {
+    let r = csv.parse("a,b,\n")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records()[0].len(), 3)
+    ut.assert_eq(r.records()[0][2], "")
+}
+
+@test
+func test_parse_quoted_comma() {
+    let r = csv.parse("name,note\n\"Smith, John\",x\n")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records()[1][0], "Smith, John")
+}
+
+@test
+func test_parse_quoted_quotes() {
+    let r = csv.parse("a,\"he said \"\"hi\"\"\"\n")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records()[0][1], "he said \"hi\"")
+}
+
+@test
+func test_parse_quoted_newline() {
+    let r = csv.parse("a,\"line1\nline2\"\n")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records().len(), 1)
+    ut.assert_eq(r.records()[0][1], "line1\nline2")
+}
+
+@test
+func test_parse_crlf() {
+    let r = csv.parse("a,b\r\n1,2\r\n")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records().len(), 2)
+    ut.assert_eq(r.records()[0][1], "b")
+}
+
+@test
+func test_parse_empty_lines_skipped() {
+    let r = csv.parse("a\n\nb\n")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records().len(), 2)
+}
+
+@test
+func test_parse_unclosed_quote() {
+    let r = csv.parse("a,\"b\n")
+    ut.assert_true(!r.ok())
+    ut.assert_eq(r.status(), csv.CSV_UNCLOSED_QUOTE)
+    ut.assert_eq(r.error_row(), 1)
+}
+
+@test
+func test_parse_tsv() {
+    let r = csv.parse("a\tb\n1\t2\n", csv.TAB)
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records()[0][1], "b")
+}
+
+@test
+func test_write_simple() {
+    let rows = list[list[str]]()
+    let r1 = list[str]()
+    r1.append("a")
+    r1.append("b")
+    rows.append(r1)
+    ut.assert_eq(csv.write(rows), "a,b\n")
+}
+
+@test
+func test_write_quotes() {
+    let rows = list[list[str]]()
+    let r1 = list[str]()
+    r1.append("Smith, John")
+    r1.append("he said \"hi\"")
+    rows.append(r1)
+    ut.assert_eq(csv.write(rows), "\"Smith, John\",\"he said \"\"hi\"\"\"\n")
+}
+
+@test
+func test_writer_class() {
+    let w = csv.CsvWriter()
+    let r1 = list[str]()
+    r1.append("x")
+    r1.append("y")
+    w.row(r1)
+    ut.assert_eq(w.to_str(), "x,y\n")
+}
+
+@test
+func test_reader_class() {
+    let rd = csv.CsvReader("a,b\n1,2\n")
+    ut.assert_eq(rd.remaining(), 2)
+    let r0 = rd.next()!
+    ut.assert_eq(r0[0], "a")
+    let r1 = rd.next()!
+    ut.assert_eq(r1[1], "2")
+    ut.assert_true(rd.next() == nil)
+}
+
+@test
+func test_roundtrip() {
+    let text = "name,age,city\nAlice,30,\"New York, NY\"\nBob,25,LA\n"
+    let r = csv.parse(text)
+    ut.assert_true(r.ok())
+    let out = csv.write(r.records())
+    let r2 = csv.parse(out)
+    ut.assert_true(r2.ok())
+    ut.assert_eq(r2.records().len(), 3)
+    ut.assert_eq(r2.records()[1][2], "New York, NY")
+}
+
+@test
+func test_parse_leading_bom() {
+    // Excel's "CSV UTF-8" export starts the file with a UTF-8 BOM
+    let r = csv.parse("\xef\xbb\xbfname,age\nbob,3\n")
+    ut.assert_true(r.ok())
+    let rs = r.records()
+    ut.assert_eq(rs.len(), 2)
+    ut.assert_eq(rs[0][0], "name")
+    ut.assert_eq(rs[0][1], "age")
+    ut.assert_eq(rs[1][0], "bob")
+}
+
+@test
+func test_parse_bom_only() {
+    let r = csv.parse("\xef\xbb\xbf")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records().len(), 0)
+}
+
+@test
+func test_parse_bom_before_quoted_field() {
+    let r = csv.parse("\xef\xbb\xbf\"a,b\",c\n")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records()[0][0], "a,b")
+    ut.assert_eq(r.records()[0][1], "c")
+}
+
+@test
+func test_parse_bom_not_at_start_is_kept() {
+    // only one leading BOM is skipped: a second one is field content
+    let r = csv.parse("\xef\xbb\xbf\xef\xbb\xbfa\n")
+    ut.assert_true(r.ok())
+    ut.assert_eq(r.records()[0][0], "\xef\xbb\xbfa")
+    let r2 = csv.parse("x,\xef\xbb\xbfy\n")
+    ut.assert_true(r2.ok())
+    ut.assert_eq(r2.records()[0][1], "\xef\xbb\xbfy")
+}
+
+@test
+func test_parse_lone_cr_line_ending() {
+    // old Mac files end lines with a lone '\r'
+    let r = csv.parse("a,b\rc,d\r")
+    ut.assert_true(r.ok())
+    let rs = r.records()
+    ut.assert_eq(rs.len(), 2)
+    ut.assert_eq(rs[0][1], "b")
+    ut.assert_eq(rs[1][0], "c")
+    ut.assert_eq(rs[1][1], "d")
+}
+
+@test
+func test_parse_mixed_line_endings() {
+    let r = csv.parse("a\rb\r\nc\nd")
+    ut.assert_true(r.ok())
+    let rs = r.records()
+    ut.assert_eq(rs.len(), 4)
+    // each record is one field: no '\r' or '\n' is left in it
+    ut.assert_eq(rs[0].len(), 1)
+    ut.assert_eq(rs[0][0], "a")
+    ut.assert_eq(rs[1].len(), 1)
+    ut.assert_eq(rs[1][0], "b")
+    ut.assert_eq(rs[2].len(), 1)
+    ut.assert_eq(rs[2][0], "c")
+    ut.assert_eq(rs[3].len(), 1)
+    ut.assert_eq(rs[3][0], "d")
+}
+
+@test
+func test_parse_spaces_are_kept() {
+    // RFC 4180: spaces are part of a field, nothing is trimmed
+    let r = csv.parse(" a , b ,c \n")
+    ut.assert_true(r.ok())
+    let row = r.records()[0]
+    ut.assert_eq(row.len(), 3)
+    ut.assert_eq(row[0], " a ")
+    ut.assert_eq(row[1], " b ")
+    ut.assert_eq(row[2], "c ")
+}

@@ -1,0 +1,43 @@
+// RUN: koala %s | filecheck %s
+// A parameter default may be a literal or a const: a local const, an imported
+// `pkg.NAME` or `from ... import NAME` const. The const's literal is the default.
+
+import "std/io"
+from "std/io" import SEEK_END
+
+const COMMA = 44
+const SEP = ", "
+const RATE = 1.5
+
+func split(text str, delimiter int = COMMA) int = delimiter
+func join(a str, b str, sep = SEP) str = a + sep + b
+func scale(x float, k float = RATE) float = x * k
+func narrow(v uint8 = COMMA) uint8 = v
+func whence(w int = io.SEEK_CUR) int = w
+func whence2(w = SEEK_END) int = w
+
+// a literal or const default takes the parameter's own type, also when negative
+const NEG = -5
+func typed(a int8 = NEG, b int8 = -3, c uint16 = 7, d float32 = 1.5) {
+    print(a, typeof(a), b, typeof(b), c, typeof(c), d, typeof(d))
+}
+
+class Csv {
+    func __init__() {}
+    func delim(d int = COMMA) int = d
+}
+
+func main() {
+    print(split("a,b"), split("a;b", 59))
+    // CHECK: {{^}}44 59{{$}}
+    print(join("a", "b"), join("a", "b", "-"))
+    // CHECK-NEXT: {{^}}a, b a-b{{$}}
+    print(scale(3.0), scale(1.0, 2.5))
+    // CHECK-NEXT: {{^}}4.5 2.5{{$}}
+    print(narrow(), typeof(narrow()))
+    // CHECK-NEXT: {{^}}44 <class 'uint8'>{{$}}
+    typed()
+    // CHECK-NEXT: {{^}}-5 <class 'int8'> -3 <class 'int8'> 7 <class 'uint16'> 1.5 <class 'float32'>{{$}}
+    print(whence(), whence2(), Csv().delim())
+    // CHECK-NEXT: {{^}}1 2 44{{$}}
+}

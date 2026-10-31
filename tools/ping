@@ -2,20 +2,16 @@
 /*
  * ping — a classic ping front end built on koala/icmp.
  *
- * Output mirrors the system ping: a header naming the resolved
- * address, one line per reply, and a summary at the end. Two
- * differences from the system ping are deliberate:
- *
- *   - No ttl. An ICMP datagram socket receives the ICMP message
- *     without the IP header that carries the TTL.
- *   - seq starts at 1 here even though PingStats numbers probes from
- *     0, so the output matches the system ping's 1-based sequence.
+ * Drives IcmpSocket directly so each reply prints as it arrives and
+ * probes are spaced one second apart, the way the system ping works.
+ * The library's ping_ip collects everything first; this front end
+ * keeps the loop local for streaming output.
  */
 
 import "std/socket" as so
 import "std/sys"
 import "std/time"
-from "koala/icmp" import ping_ip, PING_SUCCESS, PING_TIMEOUT
+import "koala/icmp"
 
 func main() {
     let args = sys.args()
@@ -25,8 +21,6 @@ func main() {
     }
     let host = args[0]
 
-    // Resolve once. The header and the probes share this address, the
-    // way the system ping does it.
     let rr = so.resolve(host)
     if rr.status() != so.DNS_OK || rr.addrs().len() == 0 {
         print("ping: cannot resolve " + host)
@@ -35,29 +29,50 @@ func main() {
     let ip = rr.addrs()[0]
     let ip_str = ip.to_str()
 
-    // 8-byte ICMP header + 10-byte "koala ping" payload = 18 bytes of
-    // ICMP data; 20-byte IPv4 header makes 38 on the wire. The system
-    // ping prints the same pair as 56(84) for its default payload.
     print("PING " + host + " (" + ip_str + ") 18(38) bytes of data.")
 
-    let stats = ping_ip(ip)
-    if stats.sent() == 0 {
+    let sock = icmp.IcmpSocket.open() else {
         print("ping: cannot open ICMP socket")
         return
     }
 
-    for r in stats.records() {
-        let o = r.outcome()
-        let n = r.seq() + 1
-        if o.kind() == PING_SUCCESS {
+    let count = 4
+    let timeout = time.Duration.from_secs(1)
+    let interval_ns = int(time.Duration.from_secs(1).to_ns())
+    let stats = icmp.PingStats.new()
+
+    var seq = 0
+    while seq < count {
+        let t_start = time.now()
+        let outcome = sock.echo(ip, seq, timeout)
+        stats.record(seq, outcome)
+
+        let n = seq + 1
+        if outcome.kind() == icmp.PING_SUCCESS {
             print("18 bytes from " + ip_str + ": icmp_seq=" + str(n) +
-                  " time=" + format("{}", o.rtt()!))
-        } else if o.kind() == PING_TIMEOUT {
+                  " time=" + format("{}", outcome.rtt()!))
+        } else if outcome.kind() == icmp.PING_TIMEOUT {
             print("Request timeout for icmp_seq=" + str(n))
+        } else if outcome.has_icmp_error() {
+            print("ICMP failure for icmp_seq=" + str(n) + " (" +
+                  icmp.icmp_type_name(outcome.icmp_type()) +
+                  ", code " + str(outcome.icmp_code()) + ")")
         } else {
-            print("ICMP failure for icmp_seq=" + str(n))
+            print("ICMP failure for icmp_seq=" + str(n) + " (socket error)")
+        }
+
+        seq += 1
+        if seq < count {
+            let elapsed_ns = int(time.now().diff(t_start).to_ns())
+            if elapsed_ns < interval_ns {
+                let wait_ns = interval_ns - elapsed_ns
+                // print("  [sleep " + str(wait_ns / 1000000) + "ms]")
+                time.sleep(time.Duration.from_nanos(wait_ns))
+            }
         }
     }
+
+    sock.close()
 
     print("")
     print("--- " + host + " ping statistics ---")

@@ -641,6 +641,14 @@ float → int **不 trap，而是饱和**——这是 `do_cast.h` mode 1 分支�
 > 2026-09-12 建立。设计定案（见 `Koala_Design_Overview.md` §5.2 / §6），**实现未开始**。
 > 2026-10-24 补充见 §22：ctor 收 `str` 的语义待作者裁定；`int64("100")` 的失败形态已从
 > `not_impl` 变为编译期 `irgen.c:442: Not Yet Implemented`（abort），原记录已过时。
+>
+> **Update (2026-10-31)**: `str` and `base` are removed from the `int64` / `uint64` constructors
+> (`number.kl`); `int("12")` / `int64("ff", base = 16)` are now a type error at the call site
+> instead of the `emit_int_call()` NYI abort, and `emit_int_call()` only casts a number.
+> `float64.__init__` keeps `str`, because `float64("inf")` / `"nan"` / `"3.14"` string literals
+> are folded at compile time (the only way to write inf / nan today, see §20 / §22); a runtime str
+> already errors with "use 'to_float()'". Still open: `from_str_or` / `try_from_str` (no base-aware
+> parsing exists now: `str.to_int()` is base 10 only).
 
 ### 14.1 现状（源码核实）
 
@@ -672,7 +680,7 @@ pub static func try_from_str(s str, base = 10) int64? {}
 
 ### 14.3 实现清单
 
-- [ ] `number.kl`：int64/uint64/float64 的 `__init__` 去掉 `str`（和 base）；加 `from_str_or` / `try_from_str` static 声明 + doc comment
+- [ ] `number.kl`：int64/uint64/float64 的 `__init__` 去掉 `str`（和 base）（int64 / uint64 done 2026-10-31; float64 kept for the literal fold）；加 `from_str_or` / `try_from_str` static 声明 + doc comment
 - [ ] `intobj.c` / `floatobj.c`（uint64 如有独立文件）：实现 `_int64_from_str_or` / `_int64_try_from_str` 等 native（复用 `strobj.c` 的 `str_to_int` / `str_to_float` helper，或抽到公共位置）
 - [ ] MethodDef 表注册新 static 方法
 - [ ] `intobj.c`：删除注释掉的 `int_init` / `str_to_int` 死代码

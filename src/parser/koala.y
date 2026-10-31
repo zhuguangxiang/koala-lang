@@ -1595,14 +1595,44 @@ const_decl
     : CONST ID '=' const_expr
     {
         Ident id = {$2, loc(@2)};
-        $$ = stmt_from_var_decl(id, NULL, 2, $4);
-        stmt_set_loc($$, lloc(@1, @4));
+        /* NULL: an error was reported (a const tuple) */
+        $$ = $4 ? stmt_from_var_decl(id, NULL, 2, $4) : NULL;
+        if ($$) stmt_set_loc($$, lloc(@1, @4));
     }
     | CONST ID const_type '=' const_expr
     {
         Ident id = {$2, loc(@2)};
-        $$ = stmt_from_var_decl(id, $3, 2, $5);
-        stmt_set_loc($$, lloc(@1, @5));
+        $$ = $5 ? stmt_from_var_decl(id, $3, 2, $5) : NULL;
+        if ($$) stmt_set_loc($$, lloc(@1, @5));
+    }
+    | CONST ID '=' const_expr error
+    {
+        /* a literal followed by more, e.g. 'const A = 1 + 2' */
+        kl_error(loc(@4), "const value must be a literal.");
+        expr_free($4);
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | CONST ID const_type '=' const_expr error
+    {
+        kl_error(loc(@5), "const value must be a literal.");
+        type_spec_free($3);
+        expr_free($5);
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | CONST ID '=' error
+    {
+        kl_error(loc(@4), "const value must be a literal.");
+        yy_clear_ok;
+        $$ = NULL;
+    }
+    | CONST ID const_type '=' error
+    {
+        kl_error(loc(@5), "const value must be a literal.");
+        type_spec_free($3);
+        yy_clear_ok;
+        $$ = NULL;
     }
     ;
 
@@ -1650,8 +1680,9 @@ const_expr
     }
     | const_tuple_expr
     {
-        $$ = $1;
-        NYI();
+        kl_error(loc(@1), "a const tuple is not supported yet.");
+        expr_free($1);
+        $$ = NULL;
     }
     ;
 

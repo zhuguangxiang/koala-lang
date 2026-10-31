@@ -103,13 +103,11 @@ pub class int32 : ToString {
 ///
 /// The primary signed integer type.
 pub class int64 : Comparable & Arithmetic & Bitwise & ToString {
-    /// Creates an `int64`.
+    /// Creates an `int64` from an integer or a floating-point value.
     ///
-    /// The argument `x` can be an integer, a floating-point value, or a string.
-    /// When `x` is a string, `base` specifies the numeric base used for parsing
-    /// (default `10`).
+    /// A string is parsed with a method instead, e.g. `s.to_int()` / `s.to_int_or(0)`.
     @native
-    pub func __init__(x int64 | uint64 | float64 | str, base = 10) {}
+    pub func __init__(x int64 | uint64 | float64) {}
 
     /// Returns the sum of `self` and `rhs` (`self + rhs`).
     @intrinsic
@@ -284,13 +282,11 @@ pub class uint32 : ToString {
 ///
 /// The primary unsigned integer type.
 pub class uint64 : Comparable & Arithmetic & Bitwise & ToString {
-    /// Creates a `uint64`.
+    /// Creates a `uint64` from an integer or a floating-point value.
     ///
-    /// The argument `x` can be an integer, a floating-point value, or a string.
-    /// When `x` is a string, `base` specifies the numeric base used for parsing
-    /// (default `10`).
+    /// A string is parsed with a method instead, e.g. `s.to_int()` / `s.to_int_or(0)`.
     @native
-    pub func __init__(x int64 | uint64 | float64 | str, base = 10) {}
+    pub func __init__(x int64 | uint64 | float64) {}
 
     /// Returns the sum of `self` and `rhs` (`self + rhs`).
     @intrinsic

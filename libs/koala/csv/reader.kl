@@ -1,0 +1,38 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Iterates over the records of a CSV document.
+///
+/// The whole document is parsed up front; `next` walks the resulting
+/// records. This keeps the iterator free of I/O concerns, which is the
+/// right split while `std/io` has no stream API of its own.
+pub class CsvReader {
+    let _records list[list[str]]
+    var _pos int
+
+    pub func __init__(text str, delimiter int = COMMA) {
+        let r = parse(text, delimiter)
+        _records = r.records()
+        _pos = 0
+    }
+
+    /// Next record, or nil at end of input.
+    pub func next() list[str]? {
+        if _pos >= _records.len() { return nil }
+        let row = _records[_pos]
+        _pos += 1
+        return row
+    }
+
+    /// Number of records not yet returned.
+    pub func remaining() int {
+        return _records.len() - _pos
+    }
+
+    /// Rewind to the first record.
+    pub func reset() {
+        _pos = 0
+    }
+}

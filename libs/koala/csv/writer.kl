@@ -1,0 +1,95 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// The delimiter as a one-character string. Only the four predefined
+// delimiters are supported; anything else falls back to a comma so
+// that `write` cannot emit a delimiter `parse` would not recognise.
+func _delim_str(d int) str {
+    if d == COMMA { return "," }
+    if d == TAB { return "\t" }
+    if d == SEMICOLON { return ";" }
+    if d == PIPE { return "|" }
+    return ","
+}
+
+// Quote `s` when it contains a quote, the delimiter, or a line
+// terminator. Inside the quotes, every `"` is doubled.
+func _quote_field(s str, delimiter int) str {
+    // Byte view for the same reason as `parse`: `int(s[i])` would
+    // parse the one-character str as a number, not read its code.
+    let b = s.to_bytes()
+    let n = b.len()
+    var need = false
+    var i = 0
+    while i < n {
+        if _is_special(int(b[i]), delimiter) {
+            need = true
+            i = n
+        } else {
+            i += 1
+        }
+    }
+    if !need {
+        return s
+    }
+    var out = "\""
+    var seg = 0
+    var j = 0
+    while j < n {
+        if int(b[j]) == 34 {
+            out = out + s[seg:j] + "\"\""
+            j += 1
+            seg = j
+        } else {
+            j += 1
+        }
+    }
+    return out + s[seg:n] + "\""
+}
+
+/// Serialize records to a CSV document.
+///
+/// Fields are quoted only when they contain a quote, the delimiter,
+/// or a line terminator. Records end with `\n`.
+pub func write(records list[list[str]], delimiter int = COMMA) str {
+    let dstr = _delim_str(delimiter)
+    var out = ""
+    var r = 0
+    while r < records.len() {
+        let row = records[r]
+        var c = 0
+        while c < row.len() {
+            if c > 0 {
+                out = out + dstr
+            }
+            out = out + _quote_field(row[c], delimiter)
+            c += 1
+        }
+        out = out + "\n"
+        r += 1
+    }
+    return out
+}
+
+/// Accumulates rows and serializes them on demand.
+pub class CsvWriter {
+    let _rows list[list[str]]
+    let _delimiter int
+
+    pub func __init__(delimiter int = COMMA) {
+        _rows = list[list[str]]()
+        _delimiter = delimiter
+    }
+
+    /// Append one row.
+    pub func row(fields list[str]) {
+        _rows.append(fields)
+    }
+
+    /// Serialize every appended row.
+    pub func to_str() str {
+        return write(_rows, _delimiter)
+    }
+}

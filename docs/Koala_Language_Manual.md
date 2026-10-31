@@ -747,6 +747,15 @@ foo(5, "hi")     // positional
 foo(5)           // msg defaults to "hello"
 ```
 
+A default value is a literal or a `const` (also an imported one, `io.SEEK_CUR`); it is a
+compile-time value, so a `let` / `var`, a call or an expression is an error. A type may still be
+given, and the default then takes that type:
+
+```kl
+const COMMA = 44
+func parse(text str, delimiter uint8 = COMMA) { ... }   // delimiter is uint8, defaults to 44
+```
+
 Arguments may also be passed by name:
 
 ```kl

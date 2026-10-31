@@ -1,0 +1,20 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// A parameter default must be a literal or a const. On an error the parameter is
+// still declared, so its uses in the body report nothing more.
+
+const NAME = "x"
+let DFL = 10
+var CNT = 0
+func one() int = 1
+
+func a(n int = DFL) int = n + 1
+// CHECK: parameter 'n' needs a literal or const default value
+func b(n int = one()) int = n + 1
+// CHECK-NEXT: parameter 'n' needs a literal or const default value
+func c(n int = 1 + 2) int = n + 1
+// CHECK-NEXT: parameter 'n' needs a literal or const default value
+func d(n = CNT) int = n
+// CHECK-NEXT: parameter 'n' needs a literal or const default value
+func e(n int = NAME) int = n + 1
+// CHECK-NEXT: default value of parameter 'n' does not match its type.
+// CHECK-NOT: is not found

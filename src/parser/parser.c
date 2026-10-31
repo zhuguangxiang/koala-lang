@@ -3794,6 +3794,45 @@ static void parse_klass_meta(ParserState *ps, KlassDeclStmt *kls)
     sym->status = SYM_RESOLVED;
 }
 
+/* The default value of a parameter: a literal, or a const (also `pkg.NAME`), whose
+   literal is stored. 'ts' is the declared type, NULL to take the value's type. */
+static Literal *param_default_value(ParserState *ps, ParamDecl *param, TypeSpec *ts)
+{
+    Expr *e = param->value;
+    if (e->kind != EXPR_LITERAL_KIND && e->kind != EXPR_ID_KIND && e->kind != EXPR_DOT_KIND) {
+        kl_error(param->id.loc, "parameter '%s' needs a literal or const default value",
+                 param->id.name);
+        return NULL;
+    }
+
+    e->ctx = EXPR_CTX_LOAD;
+    e->expected = ts;
+    parser_visit_expr(ps, e);
+    if (!e->ts) return NULL;
+
+    if (e->kind == EXPR_LITERAL_KIND) return expr_to_literal(e);
+
+    Symbol *sym = e->sym;
+    if (!sym || sym->kind != SYM_VAR || !(sym->flags & SYM_FLAGS_CONST)) {
+        kl_error(param->id.loc, "parameter '%s' needs a literal or const default value",
+                 param->id.name);
+        return NULL;
+    }
+
+    if (ts && !type_spec_compatible(ts, e->ts)) {
+        kl_error(e->loc, "default value of parameter '%s' does not match its type.",
+                 param->id.name);
+        return NULL;
+    }
+
+    /* a copy: the parameter symbol frees its literal, the const keeps its own */
+    Literal *lit = ((VarSymbol *)sym)->lit;
+    ASSERT(lit);
+    Literal *copy = mm_alloc_obj(copy);
+    *copy = *lit;
+    return copy;
+}
+
 static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
 {
     FuncSymbol *sym = (FuncSymbol *)fn->sym;
@@ -3849,38 +3888,18 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
         arg->name = param->id.name;
         arg->has_dfl_val = 0;
 
-        TypeSpec *ts;
-        if (param->type) {
-            ts = param->type;
-            Expr *e = param->value;
-            if (e) {
-                if (e->kind != EXPR_LITERAL_KIND) {
-                    kl_error(param->id.loc, "parameter '%s' needs a literal default value",
-                             param->id.name);
-                    return;
-                }
-                e->ctx = EXPR_CTX_LOAD;
-                e->expected = ts;
-                parser_visit_expr(ps, e);
-                if (!e->ts) return;
-            }
-        } else {
-            Expr *e = param->value;
-            if (!e) {
-                kl_error(param->id.loc, "parameter '%s' must have a valid type", param->id.name);
-                continue;
-            }
+        TypeSpec *ts = param->type;
+        Literal *dfl_val = NULL;
+        Expr *e = param->value;
+        if (!ts && !e) {
+            kl_error(param->id.loc, "parameter '%s' must have a valid type", param->id.name);
+            continue;
+        }
 
-            if (e->kind != EXPR_LITERAL_KIND) {
-                kl_error(param->id.loc, "parameter '%s' needs a literal default value",
-                         param->id.name);
-                continue;
-            }
-
-            e->ctx = EXPR_CTX_LOAD;
-            parser_visit_expr(ps, e);
-            if (!e->ts) return;
-            ts = e->ts;
+        if (e) {
+            /* an error here still declares the parameter, so its uses in the body are found */
+            dfl_val = param_default_value(ps, param, ts);
+            if (!ts) ts = e->ts;
         }
 
         if (ts) {
@@ -3897,13 +3916,10 @@ static void parse_func_meta(ParserState *ps, FuncDeclStmt *fn, int toplevel)
         }
 
         ((VarSymbol *)s)->scope = VAR_SCOPE_PARAM;
-        Expr *e = param->value;
-        if (e) {
-            ASSERT(e->kind == EXPR_LITERAL_KIND);
-            Literal *lit = expr_to_literal(e);
-            ((VarSymbol *)s)->lit = lit;
+        if (dfl_val) {
+            ((VarSymbol *)s)->lit = dfl_val;
             arg->has_dfl_val = 1;
-            arg->dfl_val = lit;
+            arg->dfl_val = dfl_val;
         }
 
         arg->sym = s;

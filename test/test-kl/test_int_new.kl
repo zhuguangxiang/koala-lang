@@ -1,4 +1,6 @@
 // RUN: ! koalac %s 2>&1 | filecheck %s
+// The integer constructors take a number only: no str and no base.
+// A str is parsed with a method, s.to_int() / s.to_int_or(0).
 
 var v1 = int(100)
 
@@ -8,6 +10,17 @@ var v3 = int("1A", 16)
 
 var v4 = int("1A", base = 16, 10)
 
+var v5 = uint("7")
+
+func parse(s str) int64 = int64(s)
+
+// the syntax error is reported first
 // CHECK: expected expr, expr-list or ')'.
+// CHECK-NEXT: Incompatible type: expected 'int64 | uint64 | float64', but got 'str'.
+// CHECK-NEXT: too many arguments in function call.
+// CHECK-NEXT: Incompatible type: expected 'int64 | uint64 | float64', but got 'str'.
+// CHECK-NEXT: too many arguments in function call.
+// CHECK-NEXT: Incompatible type: expected 'int64 | uint64 | float64', but got 'str'.
+// CHECK-NEXT: Incompatible type: expected 'int64 | uint64 | float64', but got 'str'.
 
 // CHECK-NOT: {{.}}

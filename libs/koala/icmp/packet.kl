@@ -75,3 +75,12 @@ pub class IcmpPacket {
         return out
     }
 }
+
+/// Human-readable name for an ICMP type, for diagnostics.
+pub func icmp_type_name(t int) str {
+    if t == ICMP_ECHO_REPLY { return "Echo Reply" }
+    if t == ICMP_DEST_UNREACH { return "Destination Unreachable" }
+    if t == ICMP_ECHO_REQUEST { return "Echo Request" }
+    if t == ICMP_TIME_EXCEEDED { return "Time Exceeded" }
+    return "ICMP type " + str(t)
+}
