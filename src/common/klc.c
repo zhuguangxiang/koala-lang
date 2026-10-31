@@ -1624,11 +1624,12 @@ static int check_header(KlcFile *klc)
         return -1;
     }
 
-    if (klc->version != KOALA_VERSION) {
-        fprintf(stderr, "klc version %u is not supported by this Koala version %u\n", klc->version,
-                KOALA_VERSION);
-        return -1;
-    }
+    // TODO:
+    // if (klc->version != KOALA_VERSION) {
+    //     fprintf(stderr, "klc version %u is not supported by this Koala version %u\n",
+    //     klc->version, KOALA_VERSION);
+    //     return -1;
+    // }
 
     return 0;
 }
