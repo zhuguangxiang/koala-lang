@@ -49,10 +49,18 @@ pub class Process {
     /// Wait for the process to terminate and return its exit status code.
     /// A process terminated by a signal returns the negative signal number.
     ///
+    /// `timeout` is in seconds; the default (any negative value) waits forever,
+    /// and then the result is never nil. With a `timeout` >= 0, return nil if
+    /// the process is still running when it ends.
+    ///
     /// This will synchronously block the current execution thread/fiber until
-    /// the child process exits.
+    /// the child process exits or the timeout ends.
+    ///
+    /// Example:
+    ///     let code = p.wait()!                  // no timeout: never nil
+    ///     if p.wait(5.0) == nil { p.kill() }    // still running after 5s
     @native
-    pub func wait() int {}
+    pub func wait(timeout = -1.0) int? {}
 
     /// Send `input` to stdin and read stdout and stderr until EOF, then wait for the
     /// process to exit.
@@ -62,10 +70,17 @@ pub class Process {
     /// of stdin first and then calling `stdout().read_all()` does once the data
     /// exceeds the pipe capacity). stdin is closed after `input` is sent (at once
     /// when `input` is nil or empty), the stdout and stderr ends are closed at
-    /// EOF, and the child is reaped, so nothing is leaked.
+    /// EOF, and the child is reaped, so nothing is leaked. A stream that is not
+    /// a pipe (see `os.run`) gives empty bytes.
     ///
     /// Returns the `(stdout, stderr)` bytes. The exit status is then returned by
     /// `wait()` or `poll()` without blocking.
+    ///
+    /// `timeout` is in seconds; the default (any negative value) waits forever,
+    /// and then the result is never nil. With a `timeout` >= 0, return nil if
+    /// the child has not closed its output and exited when it ends: the child
+    /// keeps running and the pipes stay open, and the output read so far is
+    /// dropped (usually `kill()` and `wait()` it next).
     ///
     /// Panic if `input` is non-empty but stdin is already closed, or if polling
     /// or reading the pipes fails. If the child exits without reading all of
@@ -73,11 +88,11 @@ pub class Process {
     ///
     /// Example:
     ///     let p = os.run("sort")!
-    ///     let (out, err) = p.communicate("b\na\n".to_bytes())
+    ///     let (out, err) = p.communicate("b\na\n".to_bytes())!
     ///     print(out.to_str())   // "a\nb\n"
-    ///     print(p.wait())       // 0
+    ///     print(p.wait()!)      // 0
     @native
-    pub func communicate(input bytes? = nil) (bytes, bytes) {}
+    pub func communicate(input bytes? = nil, timeout = -1.0) (bytes, bytes)? {}
 
     /// Request termination of the child process (SIGTERM).
     @native

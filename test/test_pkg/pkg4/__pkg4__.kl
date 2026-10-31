@@ -1,6 +1,7 @@
-// Used by test-run/test_ext_instance_shared.kl: loading this klc creates the
-// instance list[bytes] (and its bases, e.g. Iterable[bytes]) in this
-// package's symbol table.
+// Used by test-run/test_ext_instance_shared.kl and test-run/test_ext_trait_shared_itable.kl:
+// loading this klc creates the instances list[bytes] and tuple(int, int) and
+// their bases (e.g. Iterable[bytes], Sequence[int]) in this package's symbol
+// table, besides the ones the importing module creates in its own.
 pub class Chunks {
     pub func __init__() {}
 
@@ -11,3 +12,7 @@ pub class Chunks {
         return res
     }
 }
+
+// a tuple(int, int) return: its bases include Sequence[int]
+pub func pair() (int, int) { return (10, 20) }
+

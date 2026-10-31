@@ -1,0 +1,46 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s --check-prefix=IR
+//
+// Calls through an external generic trait instance (Sequence[int]) when two
+// instance symbols of that type exist. Loading test_pkg/pkg4's klc adds one to
+// pkg4's symbol table (a base of the tuple(int, int) that `pkg4.pair()`
+// returns); `print(s.len(), s[1])` packs a tuple(int, int) too, whose bases
+// add another Sequence[int] to this module's table. The module looks the
+// KlrExtTrait up by name, so both share it: the first instance lowered fills
+// the interface slots, and the second must only fill the still empty ones it
+// uses (irgen.c `_add_instance_used_intf_to_trait`), not rebuild them; the old
+// code asserted that the slots were empty.
+//
+// The slot indices must follow Sequence's lro, the order of its itable:
+//   iter (Iterable) = 0, len (Sized) = 1, __contains__ = 2, __getitem__ = 3,
+//   index = 4, count = 5.
+// `s[i]` and `x in s` lower to `seq.get` / `contains`, not to slot calls.
+
+import "test_pkg/pkg4" as p4
+
+// list[int] boxed with its Sequence itable, then called by slot index
+// IR-LABEL: func @main()
+// IR: make_intf %l std/builtin.list<j> [intf-table-index = 6] to std/builtin.Sequence
+// IR: call @std/builtin.Sequence<j>:len [intf-index = 1], %s std/builtin.Sequence<j>
+// IR: seq.get %s std/builtin.Sequence<j>, 1 int64
+// IR: call @std/builtin.Sequence<j>:iter [intf-index = 0], %s std/builtin.Sequence<j>, 1 int64
+// IR: call @std/builtin.Sequence<j>:index [intf-index = 4], %s std/builtin.Sequence<j>, 30 int64, 0 int64, -1 int64
+// IR: call @std/builtin.Sequence<j>:count [intf-index = 5], %s std/builtin.Sequence<j>, 10 int64, 0 int64, -1 int64
+func main() {
+    let l = [10, 20, 30]
+    let s Sequence[int] = l
+    print(s.len(), s[1])
+    // CHECK: 3 20
+
+    var sum = 0
+    for x in s.iter() {
+        sum += x
+    }
+    print(sum, 20 in s, s.index(30), s.count(10))
+    // CHECK-NEXT: 60 true 2 1
+
+    // last: a call before the code above changes the order the instances are
+    // lowered in, and the old code then happened not to assert
+    print(p4.pair())
+    // CHECK-NEXT: (10, 20)
+}

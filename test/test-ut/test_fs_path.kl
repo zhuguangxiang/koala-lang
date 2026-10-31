@@ -272,3 +272,49 @@ func test_path_relative_to() {
     ut.assert(fs.Path("a/b").relative_to("/a") == nil) // relative vs absolute
 }
 
+
+@test
+func test_path_relative_to_walk_up() {
+    ut.assert_eq(fs.Path("/a/b").relative_to("/a/x/y", true)!.to_str(), "../../b")
+    ut.assert_eq(fs.Path("/a").relative_to("/a/b", true)!.to_str(), "..")
+    ut.assert_eq(fs.Path("a/b").relative_to("c", true)!.to_str(), "../a/b")
+    ut.assert_eq(fs.Path("/a/b/c").relative_to("/a", true)!.to_str(), "b/c") // below: no ..
+    ut.assert(fs.Path("/a/b").relative_to("/a/x") == nil) // walk_up is off by default
+    ut.assert(fs.Path("x").relative_to("../y", true) == nil) // cannot step out of ..
+    ut.assert(fs.Path("a").relative_to("/a", true) == nil) // relative vs absolute
+}
+
+@test
+func test_path_parents() {
+    let ps = fs.Path("/a/b/c").parents()
+    ut.assert_eq(ps.len(), 3)
+    ut.assert_eq(ps[0].to_str(), "/a/b")
+    ut.assert_eq(ps[1].to_str(), "/a")
+    ut.assert_eq(ps[2].to_str(), "/")
+
+    let rs = fs.Path("a/b").parents()
+    ut.assert_eq(rs.len(), 2)
+    ut.assert_eq(rs[0].to_str(), "a")
+    ut.assert_eq(rs[1].to_str(), ".")
+
+    ut.assert_eq(fs.Path("/").parents().len(), 0)
+}
+
+@test
+func test_path_with_stem_suffixes() {
+    ut.assert_eq(fs.Path("src/main.kl").with_stem("util").to_str(), "src/util.kl")
+    ut.assert_eq(fs.Path("a.tar.gz").with_stem("b").to_str(), "b.gz")
+    ut.assert_eq(fs.Path("Makefile").with_stem("GNUmakefile").to_str(), "GNUmakefile")
+
+    ut.assert_eq("|".join(fs.Path("x/a.tar.gz").suffixes()), "tar|gz")
+    ut.assert_eq(fs.Path("a.kl").suffixes().len(), 1)
+    ut.assert_eq(fs.Path(".bashrc").suffixes().len(), 0)
+    ut.assert_eq("|".join(fs.Path(".config.json").suffixes()), "json")
+    ut.assert_eq(fs.Path("Makefile").suffixes().len(), 0)
+}
+
+@test
+func test_path_cwd_home() {
+    ut.assert_eq(fs.Path.cwd().to_str(), os.getcwd())
+    ut.assert_eq(fs.Path.home()!.to_str(), os.home_dir()!)
+}

@@ -1117,6 +1117,19 @@ KlrValue *klr_add_ext_trait(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *
     return (KlrValue *)trait;
 }
 
+KlrValue *klr_set_ext_intf(KlrExtTrait *trait, int index, TypeSpec *ret, char *name)
+{
+    ASSERT(index < vector_size(&trait->intfs) && !vector_get(&trait->intfs, index));
+
+    KlrExtIntf *intf = mm_alloc_obj(intf);
+    INIT_KLR_VALUE(intf, KLR_VALUE_EXT_INTF, ret, name);
+    intf->intf_index = index;
+    vector_set(&trait->intfs, index, &intf);
+    intf->module = trait->module;
+    intf->trait = trait;
+    return (KlrValue *)intf;
+}
+
 KlrValue *klr_add_ext_intf(KlrExtTrait *trait, TypeSpec *ret, char *name)
 {
     KlrValue *sym = klr_get_ext_intf(trait, name);

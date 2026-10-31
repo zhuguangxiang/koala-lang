@@ -77,6 +77,13 @@ pub class File : io.Reader & io.Writer & io.Seeker & io.Closable {
     @native
     pub func truncate(size = -1) bool {}
 
+    /// Flush the file's data and metadata from the OS cache to the storage
+    /// device, so they survive a crash or power loss.
+    ///
+    /// Return true on success, false on failure. Panic when syncing a closed file.
+    @native
+    pub func sync() bool {}
+
     /// Close the file and release the underlying file descriptor.
     ///
     /// Subsequent I/O operations on this file will panic.

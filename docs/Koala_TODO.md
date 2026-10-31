@@ -14,7 +14,9 @@
 > os.run 子进程管道大 payload「先写后读」死锁 + Process/Raw* 无 finalizer 致 fd 泄漏与 zombie（§28，待修）、
 > `is` / `as` 运算符语义评估与遗留项（§29，2026-10-26 评估）、let-else and `panic()`-as-terminal leftovers (§30, closed)、
 > 泛型 bound 实参未转接口：泛型自由函数与泛型类 `__init__`（§34，待修，用例已留档为
-> `test/test-run/test_intf_generic_bounds.kl.disabled`）。
+> `test/test-run/test_intf_generic_bounds.kl.disabled`）、
+> mutable literals and the const pool: leftovers (§37, open), compiler issues found while adding
+> fs/os APIs (§38, open), signal handlers in std/os (§39, waits for the concurrency API).
 > 已打通部分见 `Koala_Design_Overview.md` 第 3 节：十六件二元运算符的 IR 下降链路
 > （IR 协议指令 → KLR `num.*` → 字节码 `OP_NUM_*`）已实测完整。
 >
@@ -1341,6 +1343,10 @@ json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可
 
 ## 27. 全常量 dict 字面量直接作实参时报 `modobj.c: Not Yet Implemented`
 
+**Status (2026-11-01)**: resolved. A map literal is now always `build_intern @map` (§37), never a
+const-pool dict, so `print({1: 2})` and `print(format("{}", {"a": [1]}))` work. The "bind with `let`
+first" note in `test/test-ut/test_ut_dict_literal.kl` is no longer needed.
+
 **现象**（2026-10-25 实测，Debug 构建，flag `++`）：
 
 | 写法 | 结果 |
@@ -1381,6 +1387,14 @@ json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可
   (`test_communicate_*`; `test_communicate_large` sends 300000 bytes; `test_*_sigpipe_default`, `test_system_exit_code`). `test_run_read_all_large` still uses
   write-all-then-`read_all()` and stays `@skip`: its "zombie" note does not match the 17000-byte payload
   (below the deadlock limit); find out why before removing the skip.
+  **Found (2026-11-01)**: the limit is not always 2 x 64 KiB. Once a user's pipes use more than
+  `/proc/sys/fs/pipe-user-pages-soft` (16384 pages), Linux gives new pipes only 8 KiB (measured with
+  `F_GETPIPE_SZ` while 40 tests ran in parallel), so the two pipes hold 16384 bytes and 17000 bytes
+  written before reading deadlock: 1 hang in 40 parallel runs of `test_write_chain.kl`, which was
+  `// SKIP` for this. It now sends its 17000 bytes with `communicate()` and runs again (120 parallel
+  runs, no hang). `test_run_read_all_large` had the same pattern and the same cause; it now has the
+  child make its 17000 bytes (`yes ... | head -n 1000`) and only reads them with `read_all()`, and
+  runs again (no `@skip`; 120 parallel runs of `test_run_pipe.kl`, no hang).
 - Item 2 is wired but cannot run yet: RawReader / RawWriter have `_free = raw_free` (closes the fd if
   `close()` was never called) and Process has `_free = process_free` (`waitpid(WNOHANG)`: reaps a child that
   has already exited, never blocks on a running one). `kl_free_instance()` calls `tp->_free` before `mm_free`,
@@ -2018,3 +2032,112 @@ function bodies (Manual "Branching and Loops"; `test/test-run/test_if_expr.kl`).
    (decided 2026-10-31, also for call arguments: bind the value with `let` first); revisit only
    with a concrete need.
 6. **`match` as an expression** in the same positions.
+
+---
+
+## 37. Mutable literals and the const pool: leftovers (2026-11-01)
+
+**Status**: list and map literals are no longer shared through the const pool. Before, an
+all-constant `[1, 2, 3]`, `{"a": 1}` or `list[int](1, 2, 3)` was a const-pool object that
+`OP_LOADK` / `OP_RET_CONST` hand out as is, so every evaluation returned the same object and a
+change made through one result was seen by the next. Now:
+
+- `emit_ir_list`, `emit_ir_map` and the constant branch of `emit_list_call` (`irgen.c`) always emit
+  `build_intern @list` / `@map`;
+- `isel_lower_build_intern` (`isel.c`) no longer folds an all-constant `build_intern` into a const;
+- `emit_ir_tuple` makes a constant tuple only when every item is an immutable constant
+  (`is_immutable_const`: none, int, uint, float, bool, str, or a tuple / range / slice of those,
+  checked recursively); otherwise it emits `build_intern @tuple`.
+
+Tests: `test/test-run/test_const_mutable_fresh.kl` (runtime, fails on the old compiler) and
+`test/test-ir/test_const_mutable_ir.kl` (no-opt IR, optimized IR, LIR).
+
+**Open**:
+
+1. **bytes literals are still shared.** `b"ab"` is a const-pool bytes object loaded with `OP_LOADK`;
+   `bytes` is writable, so `mk_bytes()[0] = 120` changes what the next `mk_bytes()` returns
+   (`b"xb"`). A tuple holding bytes is now built at run time, but the bytes item inside is still the
+   shared one. To decide: make `bytes` immutable, as in Python (with a mutable counterpart for
+   writes), or build a bytes literal afresh (e.g. an `INTERN_BYTES` that copies the pool data).
+2. **`const_copy_prop.c` (OP_IR_CALL fold).** A constant call to the `list` class is still folded
+   with `klr_const_list`, and a `tuple(...)` call with `klr_const_tuple` without the immutability
+   check. No known input reaches it (irgen lowers `list[T](...)` itself, without a call); decide
+   whether to emit `build_intern` there or assert the path is unreachable.
+3. **Now unused paths.** `klr_const_list` / `klr_const_map` are only used by item 2;
+   `is_mergeable_key()` (compile-time merge of duplicated constant map keys, `klr/ir.c`) is no
+   longer used (duplicated keys are merged by the runtime dict); the loader's const list / dict
+   cases (`modobj.c`, `load_module.c`) and the `KL_MACH_CONST_LIST` / `_DICT` writer cases are no
+   longer reached for literals. Kept on purpose for now; remove once item 2 is decided.
+4. **Empty list literal and the declared type.** `let l list[int] = []` fails ("Types of two sides
+   are not matched. lhs: list<j> =/= rhs: list<o>"): `[]` does not take its element type from the
+   declaration. `list[int]()` works. Older than this change.
+
+**Related, fixed the same day**: an instance type such as `Iterable[str]` has one interned type
+spec, but `find_or_add_instance()` creates an instance per symbol table (e.g. one while a package's
+klc is loaded, one in the module being compiled), and `stbl_add_instance()` points the shared
+type spec's `sym_id` at the last one. A `for` loop over an `Iterable[str]` then crashed in irgen
+("Why goes here?"): the parser had instantiated `iter` on the other instance. `get_iter_func()`
+(`irgen.c`) now gets the method through `get_instance_method()`, which instantiates it on demand;
+regression test `test/test-run/test_ext_instance_shared.kl` (with `test/test_pkg/pkg4`). Still
+open: other places that look a method up on an instance with a plain `stbl_get(inst->stbl, ...)`
+can meet the same mismatch; audit them (e.g. `irgen.c` around `stbl_get(inst_sym->stbl, fn->name)`).
+A second case was hit the same day: once `std/os` / `std/fs` had `(int, int)?` returns, their klc
+loads created a `Sequence[int]` instance too, and `_add_instance_used_intf_to_trait()` asserted on
+the module's own `Sequence[int]` (`test-run/test_intf_ext_generic_inherit.kl`): the `KlrExtTrait` is
+found by name, so both instances share it. It now fills only the still empty slots when the trait
+already has them (`klr_set_ext_intf()`). Both are symptoms of one interned type spec with several
+instance symbols; a fix at the root (one instance per type spec) is still to be decided.
+
+---
+
+## 38. Compiler and tooling issues found while adding fs / os APIs (2026-11-01, to discuss)
+
+1. **`in` binds looser than `||` / `&&`.** In `koala.y`, `in_expr` is `or_expr IN or_expr` at the
+   top of `expr`, so `a || "/" in s` parses as `(a || "/") in s` and fails type checking. Python
+   puts `in` at the comparison level, above `and` / `or`. `std/fs/path.kl` (`Path.with_name`) uses
+   parentheses for now.
+2. **A compile error without a diagnostic.** `if new_name.empty() || "/" in new_name || "\\" in new_name { ... }`
+   in a method only prints "koala: compilation failed"; the shorter
+   `x.empty() || "/" in s` reports "argument type mismatch for operator '||'". Some error path
+   fails without calling `kl_error`.
+3. **A keyword used as a name.** `let link = "..."` reports only "expected an identifier." (plus
+   cascading errors); it should say that `link` is a keyword.
+4. **`tools/kl-doc.py` anchors collide.** The `Stat` class and the `stat` function both get the
+   anchor `#stat` in `docs/std_fs_api.md`, so in-page links clash (anchors are lowercased names).
+5. **SIGPIPE is ignored in two places.** `os_native_lib_init` and `socket_native_lib_init` both call
+   `signal(SIGPIPE, SIG_IGN)`; harmless, but it could be one call at runtime start-up. Children of
+   `os.run` / `os.system` get the default action back (`init_spawn_attr`, §28).
+6. **§25.4 is out of date**: it says the network area is empty, but `std/socket` exists.
+
+7. **`list.sort()` is declared but not implemented**: calling it panics with "func 'list::sort' is
+   not implemented!" (found 2026-11-01 in `fs.glob`). `glob` with `**` therefore returns its
+   paths in `walk` order instead of sorted.
+
+---
+
+## 39. Signal handlers in `std/os` (2026-11-01, waits for the concurrency API)
+
+`std/os` can send signals (`os.kill(pid, sig)`, `Process.terminate` / `kill`, the `SIGHUP` ..
+`SIGTERM` constants) but a program cannot handle one: there is no `signal.signal` counterpart, so
+SIGINT / SIGTERM end the process with the default action, and the only signal setting the runtime
+makes is ignoring SIGPIPE (§28, §38.5).
+
+**Why it waits**: a C signal handler runs asynchronously, on whichever thread the kernel picks, in
+the middle of any VM instruction; it can only do async-signal-safe work, so it cannot run Koala
+code. The handler must therefore only record the signal (e.g. a self-pipe or `signalfd`), and a
+Koala-level handler has to run later on a normal thread of execution. Where and when that is (a
+dedicated task, the scheduler's event loop, a channel the program reads) depends on the
+concurrency API, which the runtime's green threads have but std does not expose yet (§25.3).
+
+**To decide when it is designed**:
+
+1. The API shape: a callback (`os.on_signal(sig, func)`, like Python), a channel / iterator of
+   received signals (like Go's `signal.Notify`), or both.
+2. Which signals may be handled: not SIGKILL / SIGSTOP; SIGSEGV / SIGBUS / SIGFPE are better left to
+   the runtime (panic, traceback).
+3. Restoring the default action and ignoring a signal (`SIG_DFL` / `SIG_IGN`), and that children of
+   `os.run` / `os.system` get the default actions back (`init_spawn_attr`, §28).
+4. How a handled SIGINT interacts with blocking calls (`Process.wait`, `communicate`, socket reads):
+   EINTR is retried today, so a handler must still get to run.
+5. Platform names and numbers beyond the five portable constants (e.g. SIGUSR1 is 10 on Linux and
+   30 on macOS).

@@ -1,0 +1,343 @@
+// RUN: koala --test %s
+//
+// fs.chmod / access / symlink / read_link / glob / move, Path.match,
+// Path.expand_user and File.sync.
+
+import "std/fs"
+import "std/os"
+import "std/ut"
+
+@test
+func test_chmod_access() {
+    let f = "/tmp/kl_fs_more_mode.sh"
+    ut.assert(fs.write_str(f, "#!/bin/sh\n"))
+
+    ut.assert(fs.chmod(f, 0o700))
+    ut.assert_eq(fs.stat(f)!.mode & 0o777, 0o700)
+    ut.assert(fs.access(f, fs.F_OK))
+    ut.assert(fs.access(f, fs.R_OK | fs.W_OK | fs.X_OK))
+
+    ut.assert(fs.chmod(fs.Path(f), 0o644))
+    ut.assert_eq(fs.stat(f)!.mode & 0o777, 0o644)
+    ut.assert_false(fs.access(f, fs.X_OK))
+
+    ut.assert_false(fs.chmod("/tmp/kl_fs_more_missing", 0o644))
+    ut.assert_false(fs.access("/tmp/kl_fs_more_missing", fs.F_OK))
+    ut.assert(fs.remove(f))
+}
+
+@test
+func test_symlink_read_link() {
+    let lnk = "/tmp/kl_fs_more_link"
+    fs.remove(lnk)
+
+    // the target is stored as given: relative, and it need not exist
+    ut.assert(fs.symlink("some/where", lnk))
+    ut.assert(fs.is_symlink(lnk))
+    ut.assert_eq(fs.read_link(lnk)!.to_str(), "some/where")
+    ut.assert_false(fs.symlink("other", lnk)) // already exists
+
+    ut.assert(fs.read_link("/tmp") == nil || fs.is_symlink("/tmp")) // not a link
+    ut.assert(fs.read_link("/tmp/kl_fs_more_missing") == nil)
+    ut.assert(fs.remove(lnk))
+}
+
+@test
+func test_glob() {
+    let d = "/tmp/kl_fs_more_glob"
+    fs.remove_all(d)
+    ut.assert(fs.mkdir(d + "/sub"))
+    ut.assert(fs.write_str(d + "/a.kl", ""))
+    ut.assert(fs.write_str(d + "/b.kl", ""))
+    ut.assert(fs.write_str(d + "/c.txt", ""))
+    ut.assert(fs.write_str(d + "/.h.kl", ""))
+    ut.assert(fs.write_str(d + "/sub/d.kl", ""))
+
+    // sorted, `*` does not cross '/', a leading '.' is not matched by `*`
+    let ks = fs.glob(d + "/*.kl")
+    ut.assert_eq(ks.len(), 2)
+    ut.assert_eq(ks[0].to_str(), d + "/a.kl")
+    ut.assert_eq(ks[1].to_str(), d + "/b.kl")
+
+    ut.assert_eq(fs.glob(d + "/*/*.kl").len(), 1)
+    ut.assert_eq(fs.glob(d + "/?.txt").len(), 1)
+    ut.assert_eq(fs.glob(d + "/[ab].kl").len(), 2)
+    ut.assert_eq(fs.glob(d + "/.*.kl").len(), 1)
+    ut.assert_eq(fs.glob(fs.Path(d + "/*.none")).len(), 0)
+
+    ut.assert(fs.remove_all(d))
+}
+
+@test
+func test_path_match() {
+    let p = fs.Path("/a/b/c.kl")
+    ut.assert(p.match("*.kl"))
+    ut.assert(p.match("b/*.kl"))
+    ut.assert(p.match("/a/*/c.kl"))
+    ut.assert(p.match("c.k?"))
+    ut.assert_false(p.match("*.txt"))
+    ut.assert_false(p.match("/*.kl")) // absolute: the whole path
+    ut.assert_false(p.match("x/b/c.kl"))
+    ut.assert_false(p.match("z/a/b/c.kl")) // more parts than the path
+    ut.assert_false(fs.Path("a/.hidden").match("*")) // a leading '.' is explicit
+    ut.assert(fs.Path("a/.hidden").match(".*"))
+}
+
+@should_panic
+func test_path_match_empty_panics() {
+    fs.Path("a").match("")
+}
+
+@test
+func test_expand_user() {
+    let home = os.home_dir()!
+    ut.assert_eq(fs.Path("~").expand_user().to_str(), home)
+    ut.assert_eq(fs.Path("~/x/y").expand_user(), fs.Path(home).cat("x/y"))
+    ut.assert_eq(fs.Path("~user/x").expand_user().to_str(), "~user/x")
+    ut.assert_eq(fs.Path("a/~").expand_user().to_str(), "a/~")
+}
+
+@test
+func test_move() {
+    let src = "/tmp/kl_fs_more_mv_src"
+    let dst = "/tmp/kl_fs_more_mv_dst"
+    fs.remove_all(src)
+    fs.remove_all(dst)
+
+    // a file, on the same file system: a rename
+    ut.assert(fs.write_str(src, "x"))
+    ut.assert(fs.move(src, dst))
+    ut.assert_false(fs.exists(src))
+    ut.assert_eq(fs.read_str(dst), "x")
+    ut.assert(fs.remove(dst))
+
+    // a directory
+    ut.assert(fs.mkdir(src + "/sub"))
+    ut.assert(fs.write_str(src + "/sub/f", "y"))
+    ut.assert(fs.move(fs.Path(src), fs.Path(dst)))
+    ut.assert_eq(fs.read_str(dst + "/sub/f"), "y")
+    ut.assert_false(fs.exists(src))
+    ut.assert(fs.remove_all(dst))
+
+    ut.assert_false(fs.move("/tmp/kl_fs_more_missing", dst))
+}
+
+// Across file systems (/dev/shm is a tmpfs, usually not the same device as
+// /tmp): copied, then removed; links are kept as links.
+@test
+func test_move_cross_device() {
+    if !fs.is_dir("/dev/shm") { return }
+    let (_, dev_tmp, _) = os.output("stat", ["-c", "%d", "/tmp"])!
+    let (_, dev_shm, _) = os.output("stat", ["-c", "%d", "/dev/shm"])!
+    if dev_tmp == dev_shm { return }
+
+    let src = "/tmp/kl_fs_more_xdev"
+    let dst = "/dev/shm/kl_fs_more_xdev"
+    fs.remove_all(src)
+    fs.remove_all(dst)
+    ut.assert(fs.mkdir(src + "/sub"))
+    ut.assert(fs.write_str(src + "/sub/f", "z"))
+    ut.assert(fs.chmod(src + "/sub/f", 0o600))
+    ut.assert(fs.symlink("sub/f", src + "/lnk"))
+
+    ut.assert(fs.move(src, dst))
+    ut.assert_false(fs.exists(src))
+    ut.assert_eq(fs.read_str(dst + "/sub/f"), "z")
+    ut.assert_eq(fs.stat(dst + "/sub/f")!.mode & 0o777, 0o600)
+    ut.assert(fs.is_symlink(dst + "/lnk"))
+    ut.assert_eq(fs.read_link(dst + "/lnk")!.to_str(), "sub/f")
+    ut.assert(fs.remove_all(dst))
+}
+
+@test
+func test_file_sync() {
+    let f = fs.open("/tmp/kl_fs_more_sync.txt", "w")!
+    f.write_str("data")
+    ut.assert(f.sync())
+    f.close()
+    ut.assert_eq(fs.read_str("/tmp/kl_fs_more_sync.txt"), "data")
+    ut.assert(fs.remove("/tmp/kl_fs_more_sync.txt"))
+}
+
+@should_panic
+func test_file_sync_closed_panics() {
+    let f = fs.open("/tmp/kl_fs_more_sync2.txt", "w")!
+    f.close()
+    fs.remove("/tmp/kl_fs_more_sync2.txt")
+    f.sync()
+}
+
+@test
+func test_temp_dir() {
+    let saved = os.getenv("TMPDIR")
+    os.setenv("TMPDIR", "/var/tmp")
+    ut.assert_eq(fs.temp_dir().to_str(), "/var/tmp")
+    os.setenv("TMPDIR", "")
+    ut.assert_eq(fs.temp_dir().to_str(), "/tmp")
+    if let t = saved { os.setenv("TMPDIR", t) } else { os.unsetenv("TMPDIR") }
+}
+
+@test
+func test_make_temp_file_dir() {
+    let d = fs.make_temp_dir("kl-test-")!
+    ut.assert(fs.is_dir(d))
+    ut.assert(d.name().starts_with("kl-test-"))
+    ut.assert_eq(fs.stat(d)!.mode & 0o777, 0o700)
+
+    let f = fs.make_temp_file("a-", ".txt", d)!
+    let f2 = fs.make_temp_file("a-", ".txt", d.to_str())!
+    ut.assert(f != f2) // unique names
+    ut.assert_eq(f.parent(), d)
+    ut.assert(f.name().starts_with("a-"))
+    ut.assert_eq(f.ext(), "txt")
+    ut.assert_eq(fs.size(f), 0)
+    ut.assert_eq(fs.stat(f)!.mode & 0o777, 0o600)
+
+    let dflt = fs.make_temp_file()!
+    ut.assert_eq(dflt.parent(), fs.temp_dir())
+    ut.assert(fs.remove(dflt))
+
+    // a '/' in the prefix, or a missing dir
+    ut.assert(fs.make_temp_file("a/b") == nil)
+    ut.assert(fs.make_temp_dir("x", "/tmp/kl_fs_more_missing") == nil)
+    ut.assert(fs.remove_all(d))
+}
+
+@test
+func test_stat_fields() {
+    let f = fs.make_temp_file()!
+    let st = fs.stat(f)!
+    ut.assert(st.atime_ns > 0)
+    ut.assert(st.ctime_ns > 0)
+    ut.assert_eq(st.nlink, 1)
+    ut.assert(st.ino > 0)
+
+    let (_, ids, _) = os.output("id", ["-u"])!
+    ut.assert_eq(st.uid.to_str() + "\n", ids)
+    let (_, gids, _) = os.output("id", ["-g"])!
+    ut.assert_eq(st.gid.to_str() + "\n", gids)
+
+    // the same file system: the same dev; a link to it: the same ino
+    let lnk = f.to_str() + ".lnk"
+    ut.assert(fs.symlink(f, lnk))
+    let ts = fs.stat(lnk)!
+    ut.assert_eq(ts.dev, st.dev)
+    ut.assert_eq(ts.ino, st.ino)
+    ut.assert(fs.stat(lnk, false)!.ino != st.ino)
+    ut.assert(fs.remove(lnk))
+    ut.assert(fs.remove(f))
+}
+
+@test
+func test_glob_recursive() {
+    let d = "/tmp/kl_fs_more_rglob"
+    fs.remove_all(d)
+    ut.assert(fs.mkdir(d + "/a/b"))
+    ut.assert(fs.mkdir(d + "/.h"))
+    ut.assert(fs.write_str(d + "/x.kl", ""))
+    ut.assert(fs.write_str(d + "/a/y.kl", ""))
+    ut.assert(fs.write_str(d + "/a/b/z.kl", ""))
+    ut.assert(fs.write_str(d + "/a/b/w.txt", ""))
+    ut.assert(fs.write_str(d + "/.h/hidden.kl", ""))
+
+    // `**` is zero or more directories, hidden ones excluded; in walk order
+    let ks = fs.glob(d + "/**/*.kl")
+    ut.assert_eq(ks.len(), 3)
+    ut.assert_eq(ks[0].to_str(), d + "/x.kl")
+    ut.assert_eq(ks[1].to_str(), d + "/a/y.kl")
+    ut.assert_eq(ks[2].to_str(), d + "/a/b/z.kl")
+
+    ut.assert_eq(fs.glob(d + "/a/**/*.txt").len(), 1)
+    ut.assert_eq(fs.glob(fs.Path(d + "/**/b")).len(), 1)
+    // `dir/**` is the dir and everything below it (not hidden)
+    ut.assert_eq(fs.glob(d + "/a/**").len(), 5) // a, a/b, a/y.kl, a/b/z.kl, a/b/w.txt
+
+    // a relative pattern gives relative paths
+    let cwd = os.getcwd()
+    ut.assert(os.chdir(d))
+    let rel = fs.glob("**/*.txt")
+    ut.assert_eq(rel.len(), 1)
+    ut.assert_eq(rel[0].to_str(), "a/b/w.txt")
+    ut.assert(os.chdir(cwd))
+
+    ut.assert_eq(fs.glob("/tmp/kl_fs_more_missing/**/*.kl").len(), 0)
+    ut.assert(fs.remove_all(d))
+}
+
+@test
+func test_copy_tree() {
+    let src = "/tmp/kl_fs_more_ct_src"
+    let dst = "/tmp/kl_fs_more_ct_dst"
+    fs.remove_all(src)
+    fs.remove_all(dst)
+    ut.assert(fs.mkdir(src + "/sub"))
+    ut.assert(fs.write_str(src + "/sub/f", "x"))
+    ut.assert(fs.chmod(src + "/sub/f", 0o640))
+    ut.assert(fs.symlink("sub/f", src + "/lnk"))
+
+    ut.assert(fs.copy_tree(src, dst))
+    ut.assert_eq(fs.read_str(dst + "/sub/f"), "x")
+    ut.assert_eq(fs.stat(dst + "/sub/f")!.mode & 0o777, 0o640)
+    ut.assert_eq(fs.read_link(dst + "/lnk")!.to_str(), "sub/f")
+    ut.assert(fs.exists(src + "/sub/f")) // the source stays
+
+    // a single file, and a missing source
+    ut.assert(fs.copy_tree(fs.Path(src + "/sub/f"), fs.Path(dst + "/g")))
+    ut.assert_eq(fs.read_str(dst + "/g"), "x")
+    ut.assert_false(fs.copy_tree("/tmp/kl_fs_more_missing", dst + "/m"))
+
+    ut.assert(fs.remove_all(src))
+    ut.assert(fs.remove_all(dst))
+}
+
+@test
+func test_touch_set_times() {
+    let f = "/tmp/kl_fs_more_touch"
+    fs.remove(f)
+    ut.assert(fs.touch(f)) // created, empty
+    ut.assert_eq(fs.size(f), 0)
+
+    // set exact times, then touch moves them to now
+    let t = 1_000_000_000_123_456_789
+    ut.assert(fs.set_times(f, t, t + 1))
+    let st = fs.stat(f)!
+    ut.assert_eq(st.atime_ns, t)
+    ut.assert_eq(st.mtime_ns, t + 1)
+    ut.assert(fs.touch(fs.Path(f)))
+    ut.assert(fs.stat(f)!.mtime_ns > t + 1)
+
+    // touch keeps the content
+    ut.assert(fs.write_str(f, "keep"))
+    ut.assert(fs.touch(f))
+    ut.assert_eq(fs.read_str(f), "keep")
+
+    ut.assert_false(fs.set_times("/tmp/kl_fs_more_missing", t, t))
+    ut.assert_false(fs.touch("/tmp/kl_fs_more_missing_dir/x"))
+    ut.assert(fs.remove(f))
+}
+
+@test
+func test_samefile_hard_link() {
+    let f = "/tmp/kl_fs_more_hl"
+    let h = "/tmp/kl_fs_more_hl.h"
+    let s = "/tmp/kl_fs_more_hl.s"
+    fs.remove(h)
+    fs.remove(s)
+    ut.assert(fs.write_str(f, "x"))
+
+    ut.assert(fs.hard_link(f, h))
+    ut.assert(fs.symlink(f, s))
+    ut.assert(fs.samefile(f, h))
+    ut.assert(fs.samefile(fs.Path(f), s)) // a symlink is followed
+    ut.assert_eq(fs.stat(f)!.nlink, 2)
+    ut.assert_false(fs.hard_link(f, h)) // already exists
+
+    ut.assert(fs.write_str(h, "y")) // one file, two names
+    ut.assert_eq(fs.read_str(f), "y")
+
+    ut.assert_false(fs.samefile(f, "/tmp"))
+    ut.assert_false(fs.samefile(f, "/tmp/kl_fs_more_missing"))
+    ut.assert(fs.remove(s))
+    ut.assert(fs.remove(h))
+    ut.assert(fs.remove(f))
+}

@@ -52,3 +52,63 @@ func test_system_info() {
     ut.assert(os.cpu_count() >= 1)
     ut.assert_eq(os.platform(), "linux")
 }
+
+// stdio modes: PIPE (default), INHERIT, DEVNULL, and stderr = STDOUT
+@test
+func test_run_stdio_modes() {
+    // stderr into the stdout pipe (2>&1)
+    let p = os.run("sh", ["-c", "echo out; echo err 1>&2"], stderr = os.STDOUT)!
+    let (out, err) = p.communicate()!
+    ut.assert_eq(out.to_str(), "out\nerr\n")
+    ut.assert_eq(err.len(), 0) // not a pipe: empty
+    ut.assert_eq(p.wait()!, 0)
+
+    // DEVNULL: no input (EOF at once), output dropped
+    let q = os.run("sh", ["-c", "cat; echo dropped"], stdin = os.DEVNULL, stdout = os.DEVNULL)!
+    let (qout, _) = q.communicate()!
+    ut.assert_eq(qout.len(), 0)
+    ut.assert_eq(q.wait()!, 0)
+
+    // INHERIT: the child writes to this process's stdout; nothing to read here
+    let r = os.run("true", stdin = os.INHERIT, stdout = os.INHERIT, stderr = os.INHERIT)!
+    ut.assert_eq(r.wait()!, 0)
+}
+
+@should_panic
+func test_run_stdio_not_a_pipe_panics() {
+    let p = os.run("true", stdout = os.DEVNULL)!
+    p.wait()!
+    p.stdout().read_all()
+}
+
+@should_panic
+func test_run_stdio_invalid_mode_panics() {
+    os.run("true", stdin = os.STDOUT) // STDOUT is for stderr only
+}
+
+@test
+func test_wait_timeout() {
+    let p = os.run("sleep", ["10"], stdin = os.DEVNULL)!
+    ut.assert(p.wait(0.1) == nil) // still running
+    p.kill()
+    ut.assert_eq(p.wait(5.0)!, -os.SIGKILL)
+
+    let q = os.run("true")!
+    ut.assert_eq(q.wait(5.0)!, 0)
+}
+
+@test
+func test_communicate_timeout() {
+    // finishes in time: like communicate
+    let p = os.run("cat")!
+    let (out, _) = p.communicate("hi".to_bytes(), 5.0)!
+    ut.assert_eq(out.to_str(), "hi")
+    ut.assert_eq(p.wait()!, 0)
+
+    // does not finish in time: nil, the child still runs
+    let q = os.run("sleep", ["10"])!
+    ut.assert(q.communicate(nil, 0.1) == nil)
+    ut.assert(q.poll() == nil)
+    q.kill()
+    ut.assert_eq(q.wait()!, -os.SIGKILL)
+}

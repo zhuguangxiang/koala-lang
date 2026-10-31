@@ -1,0 +1,155 @@
+// RUN: koala --test %s
+//
+// os.which / home_dir / hostname / uname / urandom / kill.
+
+import "std/fs"
+import "std/os"
+import "std/ut"
+
+@test
+func test_which() {
+    let sh = os.which("sh")!
+    ut.assert(sh.ends_with("/sh"))
+    ut.assert_eq(os.which(sh)!, sh) // a name with '/' is checked as is
+    ut.assert(os.which("kl_os_sys_no_such_program") == nil)
+    ut.assert(os.which("/tmp") == nil) // not a regular file
+    ut.assert(os.which("") == nil)
+}
+
+@test
+func test_home_dir() {
+    let saved = os.getenv("HOME")
+    os.setenv("HOME", "/tmp/kl_home")
+    ut.assert_eq(os.home_dir()!, "/tmp/kl_home")
+    // an empty HOME falls back to the user database
+    os.setenv("HOME", "")
+    ut.assert(os.home_dir() != nil)
+    if let h = saved { os.setenv("HOME", h) } else { os.unsetenv("HOME") }
+}
+
+@test
+func test_hostname_uname() {
+    let (_, out, _) = os.output("hostname")!
+    ut.assert_eq(os.hostname() + "\n", out)
+
+    let (sysname, nodename, release, _, machine) = os.uname()
+    ut.assert_eq(sysname, "Linux")
+    ut.assert_eq(nodename, os.hostname())
+    ut.assert(release.len() > 0)
+    ut.assert(machine.len() > 0)
+}
+
+@test
+func test_urandom() {
+    ut.assert_eq(os.urandom(0).len(), 0)
+    let a = os.urandom(32)
+    let b = os.urandom(32)
+    ut.assert_eq(a.len(), 32)
+    ut.assert_false(a == b) // 2^-256 chance of a false failure
+}
+
+@should_panic
+func test_urandom_negative_panics() {
+    os.urandom(-1)
+}
+
+@test
+func test_kill() {
+    ut.assert(os.kill(os.getpid(), 0)) // this process exists
+    let p = os.run("sleep", ["10"])!
+    ut.assert(os.kill(p.pid(), os.SIGTERM))
+    ut.assert_eq(p.wait()!, -os.SIGTERM)
+    ut.assert_false(os.kill(p.pid(), 0)) // reaped: gone
+}
+
+@test
+func test_ids() {
+    let (_, ppid, _) = os.output("ps", ["-o", "ppid=", "-p", os.getpid().to_str()])!
+    ut.assert_eq(ppid.strip(), os.getppid().to_str())
+
+    let (_, uid, _) = os.output("id", ["-u"])!
+    ut.assert_eq(uid, os.getuid().to_str() + "\n")
+    ut.assert_eq(os.geteuid(), os.getuid()) // not a set-user-ID program
+    let (_, gid, _) = os.output("id", ["-g"])!
+    ut.assert_eq(gid, os.getgid().to_str() + "\n")
+
+    let (_, name, _) = os.output("id", ["-un"])!
+    ut.assert_eq(os.getlogin()! + "\n", name)
+}
+
+@test
+func test_isatty_terminal_size() {
+    let f = fs.open("/tmp/kl_os_sys_tty.txt", "w")!
+    ut.assert_false(os.isatty(f.fd)) // a regular file
+    ut.assert_eq(os.isatty(f.fd), f.is_tty)
+    ut.assert(os.terminal_size(f.fd) == nil)
+    f.close()
+    ut.assert(fs.remove("/tmp/kl_os_sys_tty.txt"))
+
+    ut.assert_false(os.isatty(-1))
+    ut.assert(os.terminal_size(-1) == nil)
+    // stdout: a terminal or not, the two agree
+    ut.assert_eq(os.terminal_size() != nil, os.isatty(1))
+}
+
+@test
+func test_umask() {
+    let old = os.umask(0o077)
+    let f = fs.make_temp_dir()!.cat("f")
+    ut.assert(fs.touch(f)) // created with 0644, masked to 0600
+    ut.assert_eq(fs.stat(f)!.mode & 0o777, 0o600)
+    ut.assert_eq(os.umask(old), 0o077)
+    ut.assert(fs.remove_all(f.parent()))
+}
+
+@test
+func test_disk_usage() {
+    let (total, used, free) = fs.disk_usage("/tmp")!
+    ut.assert(total > 0)
+    ut.assert(used >= 0 && used <= total)
+    ut.assert(free >= 0 && free <= total)
+    ut.assert(fs.disk_usage(fs.Path("/")) != nil)
+    ut.assert(fs.disk_usage("/tmp/kl_os_sys_missing") == nil)
+}
+
+@test
+func test_expand_vars() {
+    os.setenv("KL_EV_A", "alpha")
+    os.setenv("KL_EV_B", "")
+    os.unsetenv("KL_EV_NONE")
+
+    ut.assert_eq(os.expand_vars("$KL_EV_A/x"), "alpha/x")
+    ut.assert_eq(os.expand_vars("${KL_EV_A}x"), "alphax")
+    ut.assert_eq(os.expand_vars("[$KL_EV_B]"), "[]") // set, empty
+    // not set: kept as written
+    ut.assert_eq(os.expand_vars("$KL_EV_NONE/${KL_EV_NONE}"), "$KL_EV_NONE/${KL_EV_NONE}")
+    // a '$' without a name, a bad or unclosed ${
+    ut.assert_eq(os.expand_vars("cost: 5$ $1 $"), "cost: 5$ $1 $")
+    ut.assert_eq(os.expand_vars("${1x} ${KL_EV_A"), "${1x} ${KL_EV_A")
+    ut.assert_eq(os.expand_vars("$KL_EV_A$KL_EV_A"), "alphaalpha")
+    ut.assert_eq(os.expand_vars("no vars"), "no vars")
+    os.unsetenv("KL_EV_A")
+    os.unsetenv("KL_EV_B")
+}
+
+@test
+func test_nice_loadavg() {
+    let (_, cur, _) = os.output("sh", ["-c", "nice"])! // the child inherits it
+    ut.assert_eq(os.nice(0)!.to_str() + "\n", cur)
+    let (one, five, fifteen) = os.getloadavg()!
+    ut.assert(one >= 0.0 && five >= 0.0 && fifteen >= 0.0)
+}
+
+@test
+func test_chown() {
+    let f = fs.make_temp_file()!
+    // giving it to its own owner and group always works
+    ut.assert(fs.chown(f, os.getuid(), os.getgid()))
+    ut.assert(fs.chown(f, -1, -1)) // keep both
+    ut.assert_eq(fs.stat(f)!.uid, os.getuid())
+    if os.geteuid() != 0 {
+        ut.assert_false(fs.chown(f, 0, -1)) // not root: cannot give it away
+    }
+    ut.assert_false(fs.chown("/tmp/kl_os_sys_missing", -1, -1))
+    ut.assert(fs.remove(f))
+}

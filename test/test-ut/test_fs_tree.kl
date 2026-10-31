@@ -19,7 +19,7 @@ func make_tree(root str) {
     ut.assert(fs.write_str(root + "/a.txt", "a"))
     ut.assert(fs.write_str(root + "/b/c.txt", "c"))
     ut.assert(fs.write_str(root + "/e/f.txt", "f"))
-    ut.assert_eq(os.system("ln -s " + root + "/b " + root + "/link"), 0)
+    ut.assert(fs.symlink(root + "/b", root + "/link"))
 }
 
 @test
@@ -85,7 +85,7 @@ func test_copy() {
     fs.remove(dst)
 
     ut.assert(fs.write_str(src, "#!/bin/sh\necho hi\n"))
-    ut.assert_eq(os.system("chmod 755 " + src), 0)
+    ut.assert(fs.chmod(src, 0o755))
 
     ut.assert(fs.copy(src, dst))
     ut.assert_eq(fs.read_str(dst), "#!/bin/sh\necho hi\n")
@@ -138,7 +138,7 @@ func test_remove_all_keeps_link_target() {
     ut.assert(fs.mkdir(outside))
     ut.assert(fs.write_str(outside + "/keep.txt", "keep"))
     make_tree(root)
-    ut.assert_eq(os.system("ln -s " + outside + " " + root + "/b/out"), 0)
+    ut.assert(fs.symlink(outside, root + "/b/out"))
 
     ut.assert(fs.remove_all(root))
     ut.assert_false(fs.exists(root))
@@ -147,7 +147,7 @@ func test_remove_all_keeps_link_target() {
     // A single file, a dangling link, and a missing path.
     ut.assert(fs.write_str(root, "x"))
     ut.assert(fs.remove_all(root))
-    ut.assert_eq(os.system("ln -s /tmp/kl_fs_tree_nowhere " + root), 0)
+    ut.assert(fs.symlink("/tmp/kl_fs_tree_nowhere", root))
     ut.assert(fs.remove_all(root))
     ut.assert_false(fs.is_symlink(root))
     ut.assert_false(fs.remove_all(root))
@@ -176,3 +176,35 @@ func test_tree_names_with_spaces() {
     ut.assert(fs.remove_all(root))
     ut.assert_false(fs.exists(root))
 }
+
+// bottom-up: a directory comes after everything below it
+@test
+func test_walk_bottom_up() {
+    let root = "/tmp/kl_fs_tree_bottom_up"
+    make_tree(root)
+
+    let seen = list[str]()
+    for (dir, dirs, files) in fs.walk(root, false) {
+        var line = dir.to_str() + ":"
+        for d in dirs { line = line + " d=" + d.name() }
+        for f in files { line = line + " f=" + f.name() }
+        seen.append(line)
+    }
+    ut.assert_eq(seen.len(), 4)
+    ut.assert_eq(seen[0], root + "/b/d:")
+    ut.assert_eq(seen[1], root + "/b: d=d f=c.txt")
+    ut.assert_eq(seen[2], root + "/e: f=f.txt")
+    ut.assert_eq(seen[3], root + ": d=b d=e f=a.txt f=link")
+
+    // e.g. remove the tree from the leaves up: each directory is empty by then
+    for (dir, _, files) in fs.walk(fs.Path(root), false) {
+        for f in files { ut.assert(fs.remove(f)) }
+        ut.assert(fs.rmdir(dir))
+    }
+    ut.assert_false(fs.exists(root))
+
+    var n = 0
+    for _ in fs.walk("/tmp/kl_fs_tree_missing", false) { n = n + 1 }
+    ut.assert_eq(n, 0)
+}
+

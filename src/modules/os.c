@@ -3,11 +3,18 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+#include <ctype.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <poll.h>
+#include <pwd.h>
 #include <signal.h>
 #include <spawn.h>
+#include <sys/ioctl.h>
+#include <sys/random.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include "atom.h"
@@ -636,19 +643,6 @@ static void wait_process(Process *proc)
     }
 }
 
-/*
- * pub func wait() int
- *
- * Blocking wait for the child process to exit.
- */
-static TValue process_wait(TValue *self, TValue *args, int nargs)
-{
-    ASSERT(nargs == 0);
-    Process *proc = SELF_AS(process_type);
-    wait_process(proc);
-    return int64_value(proc->exit_status);
-}
-
 /* A growable byte buffer collecting one output stream in communicate() */
 typedef struct _OutBuf {
     uint8_t *data;
@@ -687,30 +681,72 @@ static int drain_once(RawObject *raw, OutBuf *buf)
     return 0;
 }
 
-/*
- * pub func communicate(input bytes? = nil) (bytes, bytes)
- *
- * Write `input` to stdin, then close it, while reading stdout and stderr
- * until EOF; then wait for the child to exit. One poll() loop serves all
- * three pipes, so a large `input` cannot deadlock against a child that
- * blocks on writing its output. All three parent-side ends are closed and
- * the child is reaped on return.
- * Return the (stdout, stderr) bytes; the exit status is then available from
- * wait() or poll(). Panic if `input` is non-empty but stdin is already
- * closed, or if poll()/read() fails.
- */
-static TValue process_communicate(TValue *self, TValue *args, int nargs)
+/* The monotonic clock in milliseconds, for timeouts */
+static int64_t now_ms(void)
 {
-    ASSERT(nargs == 1);
-    Process *proc = SELF_AS(process_type);
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+/* A deadline `seconds` from now on the now_ms() clock; a negative `seconds`
+   is "no deadline" (-1) */
+static int64_t deadline_after(double seconds)
+{
+    if (seconds < 0) return -1;
+    return now_ms() + (int64_t)(seconds * 1000.0);
+}
+
+/* Milliseconds left until `deadline`, as poll() takes them: -1 for none */
+static int ms_left(int64_t deadline)
+{
+    if (deadline < 0) return -1;
+    int64_t left = deadline - now_ms();
+    if (left <= 0) return 0;
+    return left > INT32_MAX ? INT32_MAX : (int)left;
+}
+
+/* Wait for the child until `deadline` (-1: forever). Return 1 once it has
+   exited, 0 if the deadline passed first. */
+static int wait_until(Process *proc, int64_t deadline)
+{
+    if (deadline < 0) {
+        wait_process(proc);
+        return 1;
+    }
+
+    /* no blocking waitpid with a timeout: poll it, sleeping 1ms .. 50ms */
+    long step_us = 1000;
+    for (;;) {
+        update_process_status(proc);
+        if (proc->exited) return 1;
+
+        int left = ms_left(deadline);
+        if (left == 0) return 0;
+        long us = (long)left * 1000 < step_us ? (long)left * 1000 : step_us;
+        struct timespec ts = { us / 1000000, (us % 1000000) * 1000 };
+        nanosleep(&ts, NULL);
+        if (step_us < 50000) step_us *= 2;
+    }
+}
+
+/*
+ * The body of communicate(): send `input` (nil or bytes) to stdin, read
+ * stdout and stderr until EOF, then wait for the child, all before `deadline`
+ * (-1: none). Return the (stdout, stderr) tuple, nil
+ * if the deadline passed first (the pipes stay open and the child running),
+ * or an error.
+ */
+static TValue do_communicate(Process *proc, TValue *input, int64_t deadline)
+{
     RawObject *in = (RawObject *)proc->_stdin;
     RawObject *out = (RawObject *)proc->_stdout;
     RawObject *err = (RawObject *)proc->_stderr;
 
     uint8_t *data = NULL;
     int size = 0;
-    if (!is_nil(&args[0])) {
-        BytesObject *bs = kl_arg_obj_as(0, bytes_type);
+    if (!is_nil(input)) {
+        BytesObject *bs = (BytesObject *)to_obj(input);
         data = bs->data + bs->offset;
         size = bs->size;
     }
@@ -750,11 +786,13 @@ static TValue process_communicate(TValue *self, TValue *args, int nargs)
         }
         if (n == 0) break;
 
-        if (poll(fds, n, -1) < 0) {
+        int r = poll(fds, n, ms_left(deadline));
+        if (r < 0) {
             if (errno == EINTR) continue;
             raise_exc_fmt("communicate: poll failed: %s", strerror(errno));
             goto fail;
         }
+        if (r == 0) goto timeout;
 
         for (int i = 0; i < n; i++) {
             if (!fds[i].revents) continue;
@@ -773,7 +811,7 @@ static TValue process_communicate(TValue *self, TValue *args, int nargs)
         }
     }
 
-    wait_process(proc);
+    if (!wait_until(proc, deadline)) goto timeout;
 
     TValue items[2] = {
         obj_value(kl_bytes_from_data(obuf.data, (uint32_t)obuf.len)),
@@ -783,10 +821,61 @@ static TValue process_communicate(TValue *self, TValue *args, int nargs)
     mm_free(ebuf.data);
     return obj_value(kl_new_tuple(items, 2));
 
+timeout:
+    mm_free(obuf.data);
+    mm_free(ebuf.data);
+    return nil_value;
+
 fail:
     mm_free(obuf.data);
     mm_free(ebuf.data);
     return error_value;
+}
+
+/* The deadline for the `timeout` argument at `index` (seconds; negative: no
+   timeout, -1) */
+static int64_t arg_deadline(TValue *args, int nargs, int index)
+{
+    ASSERT(index < nargs);
+    return deadline_after(to_float64(args + index));
+}
+
+/*
+ * pub func wait(timeout = -1.0) int?
+ *
+ * Wait for the child process to exit and return its exit status (negative:
+ * killed by that signal). With `timeout` >= 0, give up after that many
+ * seconds and return nil if it is still running.
+ */
+static TValue process_wait(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Process *proc = SELF_AS(process_type);
+    if (!wait_until(proc, arg_deadline(args, nargs, 0))) return nil_value;
+    return int64_value(proc->exit_status);
+}
+
+/*
+ * pub func communicate(input bytes? = nil, timeout = -1.0) (bytes, bytes)?
+ *
+ * Write `input` to stdin, then close it, while reading stdout and stderr
+ * until EOF; then wait for the child to exit. One poll() loop serves all
+ * three pipes, so a large `input` cannot deadlock against a child that
+ * blocks on writing its output. All three parent-side ends are closed and
+ * the child is reaped on return. A stream that is not a pipe (see os.run)
+ * gives empty bytes.
+ * Return the (stdout, stderr) bytes; the exit status is then available from
+ * wait() or poll(). With `timeout` >= 0, give up after that many seconds and
+ * return nil: the child keeps running, the pipes stay open, and the output
+ * read so far is dropped.
+ * Panic if `input` is non-empty but stdin is already closed, or if
+ * poll()/read() fails.
+ */
+static TValue process_communicate(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    Process *proc = SELF_AS(process_type);
+    return do_communicate(proc, &args[0], arg_deadline(args, nargs, 1));
 }
 
 /*
@@ -889,18 +978,56 @@ static void free_env_entries(Vector *envs)
     vector_fini(envs);
 }
 
+/* Modes of a child's standard stream in os.run (PIPE ... in __os__.kl) */
+#define STDIO_PIPE    0
+#define STDIO_INHERIT 1
+#define STDIO_DEVNULL 2
+#define STDIO_STDOUT  3 /* stderr only: the same as stdout, 2>&1 */
+
+/* Close the pipe ends of os.run that are open (-1: none) */
+static void close_pipes(int fds[3][2])
+{
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 2; j++) {
+            if (fds[i][j] >= 0) close(fds[i][j]);
+        }
+    }
+}
+
+/* The parent-side end of a stream that is not a pipe: closed, so that using
+   it panics ("file descriptor -1 is closed") */
+static Object *kl_new_closed_raw(TypeObject *tp)
+{
+    RawObject *raw = (RawObject *)kl_new_raw_object(tp, -1);
+    raw->closed = 1;
+    return (Object *)raw;
+}
+
 /*
  * pub func run(executable str, args list[str]? = nil, cwd str? = nil,
- *              env dict[str, str]? = nil) Process?
+ *              env dict[str, str]? = nil, stdin = PIPE, stdout = PIPE,
+ *              stderr = PIPE) Process?
  *
  * `cwd` is the child's working directory (nil: this process's), `env` its
- * whole environment (nil: a copy of this process's).
+ * whole environment (nil: a copy of this process's). `stdin` / `stdout` /
+ * `stderr` choose each stream: a pipe to this process, this process's own
+ * stream, /dev/null, or (stderr only) the same as stdout.
  */
 static TValue os_run(TValue *self, TValue *args, int nargs)
 {
-    ASSERT(nargs == 4);
+    ASSERT(nargs == 7);
     char *executable = kl_arg_str(0);
     char *cwd = is_nil(&args[2]) ? NULL : kl_arg_str(2);
+
+    int modes[3] = { (int)kl_arg_int64(4), (int)kl_arg_int64(5), (int)kl_arg_int64(6) };
+    static const char *names[3] = { "stdin", "stdout", "stderr" };
+    for (int i = 0; i < 3; i++) {
+        int max = i == 2 ? STDIO_STDOUT : STDIO_DEVNULL;
+        if (modes[i] < STDIO_PIPE || modes[i] > max) {
+            raise_exc_fmt("run: invalid mode %d for %s", modes[i], names[i]);
+            return error_value;
+        }
+    }
 
     /* the child's environment: "KEY=VALUE" strings, NULL-terminated */
     Vector envs;
@@ -940,50 +1067,37 @@ static TValue os_run(TValue *self, TValue *args, int nargs)
 
     char **argv = VECTOR_ITEMS(&vec, char *);
 
-    // 2. Create three close-on-exec pipes (Parent <-> Child)
-    int stdin_pipe[2], stdout_pipe[2], stderr_pipe[2];
-
-    if (kl_pipe_cloexec(stdin_pipe) < 0) {
-        goto error;
+    // 2. A close-on-exec pipe for each PIPE stream; [0] is the read end
+    int fds[3][2] = { { -1, -1 }, { -1, -1 }, { -1, -1 } };
+    for (int i = 0; i < 3; i++) {
+        if (modes[i] == STDIO_PIPE && kl_pipe_cloexec(fds[i]) < 0) {
+            close_pipes(fds);
+            goto error;
+        }
     }
 
-    if (kl_pipe_cloexec(stdout_pipe) < 0) {
-        close(stdin_pipe[0]);
-        close(stdin_pipe[1]);
-        goto error;
-    }
-
-    if (kl_pipe_cloexec(stderr_pipe) < 0) {
-        close(stdin_pipe[0]);
-        close(stdin_pipe[1]);
-        close(stdout_pipe[0]);
-        close(stdout_pipe[1]);
-        goto error;
-    }
-
-    // 3. Configure posix_spawn file actions
+    // 3. In the subprocess: set up fd 0, 1 and 2 for each mode. The pipe
+    //    ends are close-on-exec, so only the dup2'ed copies stay open.
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
-
-    // 4. In the subprocess: redirect the pipe ends to standard input/output/error
-    posix_spawn_file_actions_adddup2(&actions, stdin_pipe[0], STDIN_FILENO);
-    posix_spawn_file_actions_adddup2(&actions, stdout_pipe[1], STDOUT_FILENO);
-    posix_spawn_file_actions_adddup2(&actions, stderr_pipe[1], STDERR_FILENO);
-
-    /* 5. In the subprocess: close the original pipe ends (already duplicated to 0/1/2) */
-    posix_spawn_file_actions_addclose(&actions, stdin_pipe[0]);
-    posix_spawn_file_actions_addclose(&actions, stdout_pipe[1]);
-    posix_spawn_file_actions_addclose(&actions, stderr_pipe[1]);
-
-    /* 6. In the subprocess: close the pipe ends used by the parent process */
-    posix_spawn_file_actions_addclose(&actions, stdin_pipe[1]);
-    posix_spawn_file_actions_addclose(&actions, stdout_pipe[0]);
-    posix_spawn_file_actions_addclose(&actions, stderr_pipe[0]);
+    for (int i = 0; i < 3; i++) {
+        if (modes[i] == STDIO_PIPE) {
+            /* the child's end: read for stdin, write for stdout/stderr */
+            posix_spawn_file_actions_adddup2(&actions, fds[i][i == 0 ? 0 : 1], i);
+        } else if (modes[i] == STDIO_DEVNULL) {
+            int flags = i == 0 ? O_RDONLY : O_WRONLY;
+            posix_spawn_file_actions_addopen(&actions, i, "/dev/null", flags, 0);
+        } else if (modes[i] == STDIO_STDOUT) {
+            /* stderr after stdout is set up: 2>&1 */
+            posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO);
+        }
+        /* STDIO_INHERIT: the child keeps this process's stream */
+    }
 
     /* In the subprocess: enter `cwd`; a missing directory fails the spawn */
     if (cwd) posix_spawn_file_actions_addchdir_np(&actions, cwd);
 
-    // 7. launch subprocess
+    // 4. launch subprocess
     /* External: Environment variables (required by posix_spawn) */
     extern char **environ;
 
@@ -1003,31 +1117,28 @@ static TValue os_run(TValue *self, TValue *args, int nargs)
                                     envp        /* Environment variables */
     );
 
-    // 8. Clean up temporary resources
+    // 5. Clean up temporary resources
     posix_spawn_file_actions_destroy(&actions);
     posix_spawnattr_destroy(&attr);
 
     if (spawn_status != 0) {
         /* posix_spawn failed */
-        close(stdin_pipe[0]);
-        close(stdin_pipe[1]);
-        close(stdout_pipe[0]);
-        close(stdout_pipe[1]);
-        close(stderr_pipe[0]);
-        close(stderr_pipe[1]);
+        close_pipes(fds);
         goto error;
     }
 
-    // 9. Parent: Close unneeded pipe ends
-    close(stdin_pipe[0]);  /* Close stdin read end (used by child) */
-    close(stdout_pipe[1]); /* Close stdout write end (used by child) */
-    close(stderr_pipe[1]); /* Close stderr write end (used by child) */
+    // 6. Parent: close the child's pipe ends, wrap the parent's ones; a
+    //    stream that is not a pipe gets a closed end, so using it panics
+    for (int i = 0; i < 3; i++) {
+        if (modes[i] == STDIO_PIPE) close(fds[i][i == 0 ? 0 : 1]);
+    }
 
-    // 10. Wrap the parent-side pipe ends as raw stream objects
-
-    Object *_stdin = kl_new_raw_object(&raw_writer_type, stdin_pipe[1]);
-    Object *_stdout = kl_new_raw_object(&raw_reader_type, stdout_pipe[0]);
-    Object *_stderr = kl_new_raw_object(&raw_reader_type, stderr_pipe[0]);
+    Object *_stdin = modes[0] == STDIO_PIPE ? kl_new_raw_object(&raw_writer_type, fds[0][1])
+                                            : kl_new_closed_raw(&raw_writer_type);
+    Object *_stdout = modes[1] == STDIO_PIPE ? kl_new_raw_object(&raw_reader_type, fds[1][0])
+                                             : kl_new_closed_raw(&raw_reader_type);
+    Object *_stderr = modes[2] == STDIO_PIPE ? kl_new_raw_object(&raw_reader_type, fds[2][0])
+                                             : kl_new_closed_raw(&raw_reader_type);
 
     // 11. Construct and return the Process object
     Object *proc = kl_new_process(pid, _stdin, _stdout, _stderr);
@@ -1055,6 +1166,182 @@ static TValue os_strerror(TValue *self, TValue *args, int nargs)
     ASSERT(nargs == 1);
     int code = (int)kl_arg_int64(0);
     return kl_val_str(strerror(code));
+}
+
+/*
+ * pub func expand_vars(s str) str
+ *
+ * Return `s` with each `$NAME` and `${NAME}` replaced by the value of the
+ * environment variable NAME (letters, digits and '_', not starting with a
+ * digit). A variable that is not set, a '$' not followed by a name, and an
+ * unclosed `${` are left as they are.
+ */
+static TValue os_expand_vars(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Object *so = kl_arg_obj_as(0, str_type);
+    char *str = STR_BUF(so);
+    size_t len = STR_LEN(so);
+
+    BUF(buf);
+    size_t i = 0;
+    while (i < len) {
+        if (str[i] != '$') {
+            buf_write_char(&buf, str[i++]);
+            continue;
+        }
+
+        /* the name: after "${" up to '}', or the longest run after '$' */
+        int braced = i + 1 < len && str[i + 1] == '{';
+        size_t start = i + (braced ? 2 : 1);
+        size_t end = start;
+        if (start < len && (isalpha((unsigned char)str[start]) || str[start] == '_')) {
+            while (end < len && (isalnum((unsigned char)str[end]) || str[end] == '_')) end++;
+        }
+        size_t next = end;
+        if (braced) {
+            if (end == start || end >= len || str[end] != '}') end = start; /* not ${NAME} */
+            else next = end + 1;
+        }
+        if (end == start) {
+            buf_write_char(&buf, str[i++]); /* a plain '$' */
+            continue;
+        }
+
+        char name[256];
+        size_t nlen = end - start;
+        char *value = NULL;
+        if (nlen < sizeof(name)) {
+            memcpy(name, str + start, nlen);
+            name[nlen] = '\0';
+            value = getenv(name);
+        }
+        if (value) {
+            buf_write_str(&buf, value);
+        } else {
+            buf_write_nstr(&buf, str + i, (int)(next - i)); /* not set: kept */
+        }
+        i = next;
+    }
+
+    TValue res = kl_val_nstr(BUF_STR(buf), BUF_LEN(buf));
+    FINI_BUF(buf);
+    return res;
+}
+
+/*
+ * pub func nice(inc int) int?
+ *
+ * Add `inc` to this process's nice value (a higher value is a lower CPU
+ * priority; only a privileged process may lower it) and return the new value,
+ * or nil on failure.
+ */
+static TValue os_nice(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    int inc = (int)kl_arg_int64(0);
+    errno = 0;
+    int r = nice(inc);
+    if (r == -1 && errno != 0) return nil_value; /* -1 is also a valid value */
+    return int64_value(r);
+}
+
+/*
+ * pub func getloadavg() (float64, float64, float64)?
+ *
+ * Return the system load averages over the last 1, 5 and 15 minutes, or nil
+ * if they are not available.
+ */
+static TValue os_getloadavg(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    double la[3];
+    if (getloadavg(la, 3) != 3) return nil_value;
+    TValue items[3] = { float64_value(la[0]), float64_value(la[1]), float64_value(la[2]) };
+    return obj_value(kl_new_tuple(items, 3));
+}
+
+/* pub func getppid() int */
+static TValue os_getppid(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    return int64_value(getppid());
+}
+
+/* pub func getuid() int */
+static TValue os_getuid(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    return int64_value(getuid());
+}
+
+/* pub func geteuid() int */
+static TValue os_geteuid(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    return int64_value(geteuid());
+}
+
+/* pub func getgid() int */
+static TValue os_getgid(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    return int64_value(getgid());
+}
+
+/*
+ * pub func getlogin() str?
+ *
+ * Return the name of the user logged in on this process's controlling
+ * terminal (getlogin(3)), else the user name of the real user ID; nil if
+ * neither is known.
+ */
+static TValue os_getlogin(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    char *name = getlogin();
+    if (name && name[0]) return kl_val_str(name);
+
+    struct passwd *pw = getpwuid(getuid());
+    if (pw && pw->pw_name && pw->pw_name[0]) return kl_val_str(pw->pw_name);
+    return nil_value;
+}
+
+/* pub func isatty(fd int) bool */
+static TValue os_isatty(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    return bool_value(isatty((int)kl_arg_int64(0)) == 1);
+}
+
+/*
+ * pub func terminal_size(fd = 1) (int, int)?
+ *
+ * Return the (columns, lines) of the terminal on `fd`, or nil if `fd` is not
+ * a terminal or its size is unknown.
+ */
+static TValue os_terminal_size(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    int fd = (int)kl_arg_int64(0);
+
+    struct winsize ws;
+    if (ioctl(fd, TIOCGWINSZ, &ws) != 0 || ws.ws_col == 0) return nil_value;
+    TValue items[2] = { int64_value(ws.ws_col), int64_value(ws.ws_row) };
+    return obj_value(kl_new_tuple(items, 2));
+}
+
+/*
+ * pub func umask(mask int) int
+ *
+ * Set this process's file mode creation mask to `mask` and return the
+ * previous one.
+ */
+static TValue os_umask(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    mode_t old = umask((mode_t)kl_arg_int64(0) & 0777);
+    return int64_value(old);
 }
 
 /* pub func getpid() int */
@@ -1097,6 +1384,159 @@ static TValue os_platform(TValue *self, TValue *args, int nargs)
 #endif
 }
 
+/* Return 1 if `path` is a regular file this process may execute */
+static int is_executable_file(char *path)
+{
+    struct stat sb;
+    return stat(path, &sb) == 0 && S_ISREG(sb.st_mode) && access(path, X_OK) == 0;
+}
+
+/*
+ * pub func which(name str) str?
+ *
+ * Return the path of the program `name` as a shell would find it: `name`
+ * itself if it has a '/', else the first `dir/name` in PATH that is an
+ * executable regular file (an empty PATH entry is the working directory).
+ * Return nil if there is none.
+ */
+static TValue os_which(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *name = kl_arg_str(0);
+    if (name[0] == '\0') return nil_value;
+
+    if (strchr(name, '/')) {
+        return is_executable_file(name) ? kl_val_str(name) : nil_value;
+    }
+
+    char *path = getenv("PATH");
+    if (!path) path = "/usr/local/bin:/usr/bin:/bin";
+
+    for (char *p = path;; ++p) {
+        char *end = strchr(p, ':');
+        size_t len = end ? (size_t)(end - p) : strlen(p);
+
+        BUF(buf);
+        if (len == 0) {
+            buf_write_str(&buf, name);
+        } else {
+            buf_write_nstr(&buf, p, (int)len);
+            if (p[len - 1] != '/') buf_write_char(&buf, '/');
+            buf_write_str(&buf, name);
+        }
+        int found = is_executable_file(BUF_STR(buf));
+        TValue res = found ? kl_val_nstr(BUF_STR(buf), BUF_LEN(buf)) : nil_value;
+        FINI_BUF(buf);
+        if (found) return res;
+
+        if (!end) break;
+        p = end;
+    }
+    return nil_value;
+}
+
+/*
+ * pub func home_dir() str?
+ *
+ * Return the home directory of this process's user: $HOME when set and not
+ * empty, else the user database entry. Return nil if neither is known.
+ */
+static TValue os_home_dir(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    char *home = getenv("HOME");
+    if (home && home[0]) return kl_val_str(home);
+
+    struct passwd *pw = getpwuid(getuid());
+    if (pw && pw->pw_dir && pw->pw_dir[0]) return kl_val_str(pw->pw_dir);
+    return nil_value;
+}
+
+/*
+ * pub func hostname() str
+ *
+ * Return the host name of this machine. Panic if it cannot be read.
+ */
+static TValue os_hostname(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    char buf[256];
+    if (gethostname(buf, sizeof(buf)) != 0) {
+        raise_exc_fmt("gethostname failed: %s", strerror(errno));
+        return error_value;
+    }
+    buf[sizeof(buf) - 1] = '\0';
+    return kl_val_str(buf);
+}
+
+/*
+ * pub func uname() (str, str, str, str, str)
+ *
+ * Return (sysname, nodename, release, version, machine) of the running
+ * kernel, e.g. ("Linux", "myhost", "6.8.0", "#1 SMP ...", "x86_64").
+ */
+static TValue os_uname(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    struct utsname u;
+    if (uname(&u) != 0) {
+        raise_exc_fmt("uname failed: %s", strerror(errno));
+        return error_value;
+    }
+    TValue items[5] = {
+        kl_val_str(u.sysname), kl_val_str(u.nodename), kl_val_str(u.release),
+        kl_val_str(u.version), kl_val_str(u.machine),
+    };
+    return obj_value(kl_new_tuple(items, 5));
+}
+
+/*
+ * pub func urandom(n int) bytes
+ *
+ * Return `n` random bytes from the OS (getrandom(2)), suitable for keys and
+ * tokens. Panic if `n` is negative or the OS source fails.
+ */
+static TValue os_urandom(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    int64_t n = kl_arg_int64(0);
+    if (n < 0 || n > INT32_MAX) {
+        raise_exc_fmt("urandom: invalid size %" PRId64, n);
+        return error_value;
+    }
+
+    uint8_t *data = mm_alloc(n > 0 ? (int)n : 1);
+    int64_t got = 0;
+    while (got < n) {
+        ssize_t r = getrandom(data + got, (size_t)(n - got), 0);
+        if (r < 0) {
+            if (errno == EINTR) continue;
+            raise_exc_fmt("urandom failed: %s", strerror(errno));
+            mm_free(data);
+            return error_value;
+        }
+        got += r;
+    }
+
+    Object *bs = kl_bytes_from_data(data, (uint32_t)n);
+    mm_free(data);
+    return obj_value(bs);
+}
+
+/*
+ * pub func kill(pid int, sig int) bool
+ *
+ * Send the signal `sig` to the process `pid` (kill(2)); `sig` 0 only checks
+ * that the process exists and may be signalled. Return true on success.
+ */
+static TValue os_kill(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    pid_t pid = (pid_t)kl_arg_int64(0);
+    int sig = (int)kl_arg_int64(1);
+    return bool_value(kill(pid, sig) == 0);
+}
+
 void os_native_lib_init(NativeLib *lib)
 {
     /* a write to a pipe whose reader exited fails with EPIPE instead of killing us */
@@ -1114,8 +1554,25 @@ void os_native_lib_init(NativeLib *lib)
     kl_reg_func(lib, "errno", os_errno);
     kl_reg_func(lib, "strerror", os_strerror);
     kl_reg_func(lib, "getpid", os_getpid);
+    kl_reg_func(lib, "getppid", os_getppid);
+    kl_reg_func(lib, "expand_vars", os_expand_vars);
+    kl_reg_func(lib, "nice", os_nice);
+    kl_reg_func(lib, "getloadavg", os_getloadavg);
+    kl_reg_func(lib, "getuid", os_getuid);
+    kl_reg_func(lib, "geteuid", os_geteuid);
+    kl_reg_func(lib, "getgid", os_getgid);
+    kl_reg_func(lib, "getlogin", os_getlogin);
+    kl_reg_func(lib, "isatty", os_isatty);
+    kl_reg_func(lib, "terminal_size", os_terminal_size);
+    kl_reg_func(lib, "umask", os_umask);
     kl_reg_func(lib, "cpu_count", os_cpu_count);
     kl_reg_func(lib, "platform", os_platform);
+    kl_reg_func(lib, "which", os_which);
+    kl_reg_func(lib, "home_dir", os_home_dir);
+    kl_reg_func(lib, "hostname", os_hostname);
+    kl_reg_func(lib, "uname", os_uname);
+    kl_reg_func(lib, "urandom", os_urandom);
+    kl_reg_func(lib, "kill", os_kill);
     kl_reg_type(lib, &raw_reader_type);
     kl_reg_type(lib, &raw_writer_type);
     kl_reg_type(lib, &process_type);

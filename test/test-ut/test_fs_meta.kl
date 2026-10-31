@@ -209,7 +209,7 @@ func test_fs_symlink() {
     fs.remove(target)
 
     ut.assert(fs.write_str(target, "hello"))
-    ut.assert_eq(os.system("ln -s " + target + " " + lnk), 0)
+    ut.assert(fs.symlink(target, lnk))
 
     ut.assert(fs.is_symlink(lnk))
     ut.assert_false(fs.is_symlink(target))
@@ -242,7 +242,7 @@ func test_fs_real_path() {
     fs.remove_all(dir)
     ut.assert(fs.mkdir(dir + "/sub"))
     ut.assert(fs.write_str(dir + "/sub/f.txt", "x"))
-    ut.assert_eq(os.system("ln -s " + dir + "/sub " + dir + "/lnk"), 0)
+    ut.assert(fs.symlink(dir + "/sub", dir + "/lnk"))
 
     // the link is resolved, "." and ".." folded
     let real_dir = fs.real_path(dir)!.to_str() // /tmp may itself be a link

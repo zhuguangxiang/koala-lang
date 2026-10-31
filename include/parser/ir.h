@@ -682,6 +682,8 @@ KlrValue *klr_add_ext_field(KlrExtKlass *kls, TypeSpec *ts, char *name);
 KlrValue *klr_add_ext_method(KlrExtKlass *kls, TypeSpec *ret, char *name);
 KlrValue *klr_add_ext_trait(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name);
 KlrValue *klr_add_ext_intf(KlrExtTrait *trait, TypeSpec *ret, char *name);
+/* Fill the empty interface slot `index` of `trait` (a reserved, unused one) */
+KlrValue *klr_set_ext_intf(KlrExtTrait *trait, int index, TypeSpec *ret, char *name);
 KlrValue *klr_get_ext_intf(KlrExtTrait *trait, char *name);
 
 #define local_foreach(local, func) vector_foreach_ptr(local, &(func)->locals)

@@ -33,12 +33,44 @@ pub class Stat {
     /// (`mode & 0o777`).
     pub let mode int
 
-    /// Create a `Stat`; `fs.stat` is the normal way to get one.
-    pub func __init__(sz int, mt float64, mt_ns int, md int) {
+    /// The last access time, in nanoseconds since the Unix epoch (may not be
+    /// updated on every read, depending on the mount options).
+    pub let atime_ns int
+
+    /// The last status change time (content, permissions, owner, links), in
+    /// nanoseconds since the Unix epoch.
+    pub let ctime_ns int
+
+    /// The owner's user ID.
+    pub let uid int
+
+    /// The owner's group ID.
+    pub let gid int
+
+    /// The number of hard links.
+    pub let nlink int
+
+    /// The inode number; with `dev` it identifies the file.
+    pub let ino int
+
+    /// The ID of the device (file system) the file is on; two paths are on
+    /// the same file system when their `dev` is equal.
+    pub let dev int
+
+    // Private: `fs.stat` builds a `Stat` natively.
+    func __init__(sz int, mt float64, mt_ns int, md int, at_ns int, ct_ns int, _uid int,
+                  _gid int, _nlink int, _ino int, _dev int) {
         size = sz
         mtime = mt
         mtime_ns = mt_ns
         mode = md
+        atime_ns = at_ns
+        ctime_ns = ct_ns
+        uid = _uid
+        gid = _gid
+        nlink = _nlink
+        ino = _ino
+        dev = _dev
     }
 
     /// Return true if this is a regular file.

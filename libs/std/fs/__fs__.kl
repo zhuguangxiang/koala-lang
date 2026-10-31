@@ -5,6 +5,8 @@
 
 link "koala"
 
+import "std/os"
+
 /// Open the file at `path` and return a `File` object.
 ///
 /// `mode` selects the access:
@@ -205,8 +207,313 @@ pub func remove_all(p Path | str) bool {
 @native
 pub func copy(src Path | str, dst Path | str) bool {}
 
+// --- Permissions ---
+
+/// `access` mode: the path exists.
+pub let F_OK = 0
+/// `access` mode: the path can be read.
+pub let R_OK = 4
+/// `access` mode: the path can be written.
+pub let W_OK = 2
+/// `access` mode: the path can be executed (a directory: entered).
+pub let X_OK = 1
+
+/// Set the permission bits of `p` to `mode` (e.g. `0o755`); a symbolic link
+/// is followed. Return true on success, false on failure (missing path,
+/// not the owner); `os.errno()` tells why.
+///
+/// See: `Stat.mode`, `access`.
+@native
+pub func chmod(p Path | str, mode int) bool {}
+
+/// Set the owner `uid` and group `gid` of `p`; -1 keeps that one. A symbolic
+/// link is followed. Only a privileged process may give a file away; the
+/// owner may change its group to one it belongs to. Return true on success,
+/// false on failure; `os.errno()` tells why.
+///
+/// See: `Stat.uid`, `Stat.gid`, `os.getuid`.
+@native
+pub func chown(p Path | str, uid int, gid int) bool {}
+
+/// Return true if this process may access `p` as `mode` asks: `F_OK`
+/// (exists), or an OR of `R_OK`, `W_OK` and `X_OK`, checked with the real
+/// user and group IDs. A symbolic link is followed.
+///
+/// Example:
+///     if fs.access("run.sh", fs.R_OK | fs.X_OK) { os.run("./run.sh") }
+///
+/// See: `chmod`, `exists`.
+@native
+pub func access(p Path | str, mode int) bool {}
+
+// --- Timestamps ---
+
+/// Set the access and modification times of `p` to now, creating `p` as an
+/// empty file if it does not exist (like `touch`). A symbolic link is
+/// followed. Return true on success, false on failure; `os.errno()` tells why.
+///
+/// See: `set_times`, `Stat.mtime_ns`.
+@native
+pub func touch(p Path | str) bool {}
+
+/// Set the access and modification times of `p`, in nanoseconds since the
+/// Unix epoch (the unit of `Stat.atime_ns` / `Stat.mtime_ns`). A symbolic link
+/// is followed. Return true on success, false on failure (e.g. `p` missing).
+///
+/// Example:
+///     let st = fs.stat("src.kl")!
+///     fs.set_times("out.klc", st.atime_ns, st.mtime_ns)   // same times as src
+///
+/// See: `touch`, `stat`.
+@native
+pub func set_times(p Path | str, atime_ns int, mtime_ns int) bool {}
+
+/// Return `(total, used, free)` bytes of the file system holding `p`, the
+/// numbers `df` shows: `free` is what an unprivileged user may still use (it
+/// can be less than `total - used`, as some blocks may be reserved for root).
+/// Return nil if `p` cannot be read.
+///
+/// Example:
+///     let (total, _, free) = fs.disk_usage("/")!
+///     print(free * 100 / total, "% free")
+@native
+pub func disk_usage(p Path | str) (int, int, int)? {}
+
+// --- Links ---
+
+/// Return true if `a` and `b` name the same file: the same device and inode,
+/// symbolic links followed (e.g. a path and a hard or symbolic link to it).
+/// Return false if either does not exist.
+///
+/// See: `Stat.dev`, `Stat.ino`, `real_path`.
+@native
+pub func samefile(a Path | str, b Path | str) bool {}
+
+/// Create the hard link `dst` to the existing file `src` (like `ln src dst`):
+/// both names then refer to the same file, and the data stays until the
+/// last name is removed. Both must be on the same file system, and `src`
+/// cannot be a directory. Return true on success, false on failure.
+///
+/// See: `symlink`, `samefile`, `Stat.nlink`.
+@native
+pub func hard_link(src Path | str, dst Path | str) bool {}
+
+// --- Symbolic Links ---
+
+/// Create the symbolic link `path` pointing to `target` (like `ln -s target path`).
+///
+/// `target` is stored as given: it may be relative (to the directory of
+/// `path`) and need not exist. Return false if `path` already exists or
+/// cannot be created.
+///
+/// See: `read_link`, `is_symlink`.
+@native
+pub func symlink(target Path | str, path Path | str) bool {}
+
+/// Return the target stored in the symbolic link `p`, as given when the link
+/// was made: it is not resolved, may be relative and need not exist.
+///
+/// Return nil if `p` is not a symbolic link or cannot be read.
+///
+/// See: `symlink`, `real_path`.
+@native
+pub func read_link(p Path | str) Path? {}
+
+// --- Patterns ---
+
+/// Return the paths matching the shell `pattern`.
+///
+/// `*` matches any characters but `/`, `?` one character but `/`, and
+/// `[abc]` / `[a-z]` / `[!a]` one character of a set; a name starting with
+/// `.` is matched only by a pattern part starting with `.`. A `**` part
+/// matches zero or more directories (not hidden ones, and symbolic links to
+/// directories are not followed), e.g. `src/**/*.kl` is every `.kl` file
+/// below `src`; `src/**` alone is `src` and every path below it. A relative
+/// pattern is matched against the working directory. Return an empty list if
+/// nothing matches.
+///
+/// Without `**` the result is sorted; with `**` it is in `walk` order: top
+/// down, names sorted in each directory, a directory before what is below it.
+///
+/// Example:
+///     for p in fs.glob("src/**/*.kl") { print(p) }
+///
+/// See: `Path.match`, `walk`.
+pub func glob(pattern Path | str) list[Path] {
+    let pat = _path_str(pattern)
+    if !("**" in pat) { return _glob(pat) }
+    return _glob_recursive(pat)
+}
+
+@native
+func _glob(pattern Path | str) list[Path] {}
+
+// A pattern part with a shell wildcard
+func _has_magic(part str) bool {
+    return ("*" in part) || ("?" in part) || ("[" in part)
+}
+
+// Match the path components `names[j..]` against the pattern parts `pat[i..]`;
+// `**` matches zero or more components that do not start with '.'.
+func _match_parts(pat list[str], i int, names list[str], j int) bool {
+    if i == pat.len() { return j == names.len() }
+    if pat[i] == "**" {
+        if _match_parts(pat, i + 1, names, j) { return true }
+        if j < names.len() && !names[j].starts_with(".") {
+            return _match_parts(pat, i, names, j + 1)
+        }
+        return false
+    }
+    if j == names.len() { return false }
+    if !_fnmatch(pat[i], names[j]) { return false }
+    return _match_parts(pat, i + 1, names, j + 1)
+}
+
+// glob() for a pattern with `**`: walk the tree below the leading parts
+// without wildcards and match every path in it.
+func _glob_recursive(pattern str) list[Path] {
+    let pp = Path(pattern).parts()
+    var n = 0
+    while n < pp.len() && !_has_magic(pp[n]) && pp[n] != "**" { n = n + 1 }
+
+    let base_parts = list[str]()
+    let rest = list[str]()
+    var i = 0
+    while i < pp.len() {
+        if i < n { base_parts.append(pp[i]) } else { rest.append(pp[i]) }
+        i = i + 1
+    }
+
+    var base = ""
+    for p in base_parts {
+        if base.empty() || base.ends_with("/") { base = base + p } else { base = base + "/" + p }
+    }
+
+    let found = list[Path]()
+    var root = base
+    if root.empty() { root = "." }
+    if !is_dir(root) { return list[Path]() }
+
+    for (dir, _, files) in walk(root) {
+        let cands = list[Path]()
+        cands.append(dir)
+        for f in files { cands.append(f) }
+        for c in cands {
+            let rel = c.relative_to(root)!
+            let names = rel.parts()
+            if _match_parts(rest, 0, names, 0) {
+                if base.empty() {
+                    var r = "."
+                    if !names.empty() { r = "/".join(names) }
+                    found.append(Path(r))
+                } else {
+                    found.append(Path(base).cat(rel))
+                }
+            }
+        }
+    }
+
+    return found
+}
+
+@native
+func _fnmatch(pattern str, name str) bool {}
+
+// --- Temporary Files ---
+
+/// Return the directory for temporary files: `$TMPDIR` when set and not
+/// empty, else `/tmp`.
+///
+/// See: `make_temp_file`, `make_temp_dir`.
+@native
+pub func temp_dir() Path {}
+
+/// Create a new empty file `<dir>/<prefix>XXXXXX<suffix>`, where `XXXXXX`
+/// makes the name unique and unpredictable, readable and writable only by
+/// this user (0600), and return its path. `dir` "" is `temp_dir()`.
+///
+/// The file is created atomically, so no other process can take the name.
+/// It is not removed automatically: `remove` it when done.
+///
+/// Return nil on failure (`dir` missing or not writable, or `prefix` /
+/// `suffix` containing a `/`); `os.errno()` tells why.
+///
+/// Example:
+///     let p = fs.make_temp_file("report-", ".csv")!
+///     fs.write_str(p, "a,b\n")
+///
+/// See: `make_temp_dir`, `temp_dir`.
+@native
+pub func make_temp_file(prefix = "tmp", suffix = "", dir Path | str = "") Path? {}
+
+/// Create a new empty directory `<dir>/<prefix>XXXXXX`, unique and
+/// unpredictable, usable only by this user (0700), and return its path.
+/// `dir` "" is `temp_dir()`. It is not removed automatically: `remove_all`
+/// it when done.
+///
+/// Return nil on failure (`dir` missing or not writable, or `prefix`
+/// containing a `/`); `os.errno()` tells why.
+///
+/// See: `make_temp_file`, `temp_dir`.
+@native
+pub func make_temp_dir(prefix = "tmp", dir Path | str = "") Path? {}
+
+// --- Moving ---
+
+// errno of a rename across file systems
+let EXDEV = 18
+
+/// Move the file, directory or symbolic link `src` to `dst` (like `mv src dst`).
+///
+/// `dst` is the new path, not a directory to move into. On the same file
+/// system this is `rename`; across file systems `src` is copied to `dst` (a
+/// directory with everything below it, symbolic links recreated, not
+/// followed), then removed.
+///
+/// Return true on success. Return false on failure (missing `src`, `dst`
+/// cannot be written, or an existing `dst` that rename cannot replace);
+/// after a failed copy across file systems `src` is left in place and `dst`
+/// may be partly written.
+///
+/// See: `rename`, `copy`, `remove_all`.
+pub func move(src Path | str, dst Path | str) bool {
+    if rename(src, dst) { return true }
+    if os.errno() != EXDEV { return false }
+    if !copy_tree(src, dst) { return false }
+    return remove_all(src)
+}
+
+/// Copy `src` to `dst` (like `cp -a src dst`): a file with `copy`, a
+/// directory with everything below it, keeping the permission bits;
+/// symbolic links are recreated as links, not followed.
+///
+/// `dst` is the new path, not a directory to copy into; an existing `dst`
+/// directory is merged into, and existing files in it are overwritten.
+/// Return true on success; stop at the first entry that fails and return
+/// false, with `dst` partly written.
+///
+/// See: `copy`, `move`, `remove_all`.
+pub func copy_tree(src Path | str, dst Path | str) bool {
+    let st = stat(src, false) else { return false }
+    if st.is_symlink() {
+        let target = read_link(src) else { return false }
+        return symlink(target, dst)
+    }
+    if !st.is_dir() { return copy(src, dst) }
+
+    if !mkdir(dst) { return false }
+    let entries = _try_list_dir(src) else { return false }
+    let to = Path(_path_str(dst))
+    for e in entries {
+        if !copy_tree(e, to.cat(e.name())) { return false }
+    }
+    return chmod(dst, st.mode & 0o7777)
+}
+
 /// Walk the directory tree below `top`, yielding `(dir, dirs, files)` for
-/// `top` and every directory below it.
+/// `top` and every directory below it: top-down by default, each directory
+/// before its subdirectories, or bottom-up with `topdown = false`, each after
+/// them.
 ///
 /// See `Walker` for the order, pruning and symbolic links. A `top` that is
 /// not a readable directory yields nothing.
@@ -219,8 +526,8 @@ pub func copy(src Path | str, dst Path | str) bool {}
 ///     }
 ///
 /// See: `Walker`, `list_dir`.
-pub func walk(top Path | str) Walker {
-    return Walker(Path(_path_str(top)))
+pub func walk(top Path | str, topdown = true) Walker {
+    return Walker(Path(_path_str(top)), topdown)
 }
 
 /// Read the directory contents and return a list of strongly-typed `path.Path` objects.

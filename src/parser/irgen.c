@@ -56,7 +56,12 @@ static void _add_all_intf_to_trait(KlrExtTrait *trait, KlassSymbol *kls_sym)
 // symbol.
 static void _add_instance_used_intf_to_trait(KlrExtTrait *trait, InstanceSymbol *inst_sym)
 {
-    ASSERT(vector_size(&trait->intfs) == 0);
+    /* The trait value is found by name, so all instance symbols of the same type
+       share it, and there can be several (one per symbol table, e.g. one added
+       while a package's klc is loaded): then the slots exist already, and only
+       the empty ones this instance uses are filled. */
+    int filled = vector_size(&trait->intfs) > 0;
+    int index = 0;
 
     KlassSymbol *kls_sym = (KlassSymbol *)inst_sym->origin;
 
@@ -80,7 +85,12 @@ static void _add_instance_used_intf_to_trait(KlrExtTrait *trait, InstanceSymbol 
                 continue;
             }
             Symbol *_fn_inst_sym = stbl_get(inst_sym->stbl, fn->name);
-            if (_fn_inst_sym) {
+            if (filled) {
+                if (_fn_inst_sym && !vector_get(&trait->intfs, index)) {
+                    ASSERT(_fn_inst_sym->kind == SYM_FUNC);
+                    klr_set_ext_intf(trait, index, ((FuncSymbol *)_fn_inst_sym)->ret, fn->name);
+                }
+            } else if (_fn_inst_sym) {
                 ASSERT(_fn_inst_sym->kind == SYM_FUNC);
                 klr_add_ext_intf(trait, ((FuncSymbol *)_fn_inst_sym)->ret, fn->name);
             } else {
@@ -89,6 +99,7 @@ static void _add_instance_used_intf_to_trait(KlrExtTrait *trait, InstanceSymbol 
                 void *empty = NULL;
                 vector_push_back(&trait->intfs, &empty);
             }
+            index++;
         }
     }
 }

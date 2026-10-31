@@ -1,9 +1,19 @@
-// SKIP: koala --test %s // pipe maybe zombie
+// RUN: koala --test %s
 
+import "std/io"
 import "std/os"
 import "std/ut"
 
-// Control: bound 100 (imm8). Writes 1700 B < 64 KiB pipe -> drains, passes.
+// Writing all of a child's stdin before reading its stdout only works while
+// the data fits in the two pipes. A pipe holds 64 KiB, but Linux gives new
+// pipes only 8 KiB once the user's pipes use more than pipe-user-pages-soft
+// (e.g. many tests running in parallel): then the stdin and stdout pipes hold
+// 16384 bytes together, and a larger payload deadlocks, the parent blocked
+// writing stdin and `cat` blocked writing stdout. So more than 16 KiB goes
+// through `communicate`, which writes and reads in one poll loop.
+
+// Control: bound 100 (imm8). Writes 1700 B, less than two 8 KiB pipes, then
+// reads: always fits.
 @test
 func test_bound_100() {
     let p = os.run("cat")!
@@ -16,23 +26,24 @@ func test_bound_100() {
     p.stdin().close()
     let all = p.stdout().read_all()
     ut.assert_eq(all.len(), 1700)
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
-// Experiment: bound 1000 (materialized), body identical. Exact mirror of the
-// disabled test_run_read_all_large. If the loop runs away this deadlocks and
-// `timeout` kills it; the IR dump is printed at compile time, before the run.
+// Bound 1000 (materialized, not an imm8), the same loop body; the 17000 B
+// may not fit the pipes (see above), so they are sent with `communicate`.
 @test
 func test_bound_1000() {
     let p = os.run("cat")!
     let line = "0123456789abcdef\n".to_bytes()
+    let buf = io.BytesIO(17000)
     var i = 0
     while i < 1000 {
-        p.stdin().write(line)
+        buf.write(line)
         i = i + 1
     }
-    p.stdin().close()
-    let all = p.stdout().read_all()
+    let (all, _) = p.communicate(buf.getvalue())!
     ut.assert_eq(all.len(), 17000)
-    ut.assert_eq(p.wait(), 0)
+    ut.assert(all[0] == 48) // '0'
+    ut.assert(all[16999] == 10) // '\n'
+    ut.assert_eq(p.wait()!, 0)
 }

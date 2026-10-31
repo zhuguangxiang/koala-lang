@@ -209,16 +209,73 @@ pub class Path : ToString {
         return with_name(stem() + "." + new_ext)
     }
 
-    /// Return this path relative to `base`, or nil if it is not below `base`.
+    /// Return true if the path matches the shell `pattern`, compared from the right.
     ///
-    /// Purely lexical: both paths are normalized first, symbolic links are
-    /// not resolved, and an absolute path is never below a relative one (or
-    /// the other way round). The same path gives `Path(".")`.
+    /// A relative pattern matches the last components of the path, one
+    /// pattern part per component; an absolute pattern must match the whole
+    /// path. Each part is a shell pattern: `*` (any characters), `?` (one
+    /// character) and `[...]` (one character of a set); a component starting
+    /// with `.` is matched only by a part starting with `.`. Purely lexical.
+    ///
+    /// Panic if `pattern` is empty.
     ///
     /// Example:
-    ///     fs.Path("/a/b/c.kl").relative_to("/a")   // Path("b/c.kl")
-    ///     fs.Path("/a/b").relative_to("/x")        // nil
-    pub func relative_to(base Path | str) Path? {
+    ///     fs.Path("/a/b/c.kl").match("*.kl")    // true
+    ///     fs.Path("/a/b/c.kl").match("b/*.kl")  // true
+    ///     fs.Path("/a/b/c.kl").match("/*.kl")   // false
+    ///
+    /// See: `fs.glob`.
+    pub func match(pattern str) bool {
+        let pp = Path(pattern)
+        let pat = pp.parts()
+        if pat.len() == 0 { panic("Path.match: empty pattern") }
+        let mine = parts()
+        if pp.is_absolute() {
+            if pat.len() != mine.len() { return false }
+        } else if pat.len() > mine.len() {
+            return false
+        }
+
+        let off = mine.len() - pat.len()
+        var i = 0
+        while i < pat.len() {
+            if !_fnmatch(pat[i], mine[off + i]) { return false }
+            i = i + 1
+        }
+        return true
+    }
+
+    /// Return the path with a leading `~` replaced by the home directory:
+    /// `~` alone or `~/...`. Any other path (also `~user/...`) is returned as
+    /// is, and so is a `~` path when the home directory is unknown.
+    ///
+    /// Example:
+    ///     fs.Path("~/.config/koala").expand_user()   // Path("/home/me/.config/koala")
+    ///
+    /// See: `os.home_dir`.
+    pub func expand_user() Path {
+        if path != "~" && !path.starts_with("~/") { return self }
+        let home = os.home_dir() else { return self }
+        if path == "~" { return Path(home) }
+        return Path(home).cat(path.view(2, path.len()))
+    }
+
+    /// Return this path relative to `base`.
+    ///
+    /// Purely lexical: both paths are normalized first and symbolic links are
+    /// not resolved; the same path gives `Path(".")`. An absolute path is never
+    /// relative to a relative one, or the other way round: that gives nil.
+    ///
+    /// When the path is not below `base`, return nil, or with `walk_up` the
+    /// path through their common prefix with `..` steps (like Python's
+    /// `os.path.relpath`). `walk_up` cannot step out of a `..` left in `base`
+    /// after normalizing (e.g. base `../x`): that gives nil too.
+    ///
+    /// Example:
+    ///     fs.Path("/a/b/c.kl").relative_to("/a")              // Path("b/c.kl")
+    ///     fs.Path("/a/b").relative_to("/x")                   // nil
+    ///     fs.Path("/a/b").relative_to("/a/x/y", true)         // Path("../../b")
+    pub func relative_to(base Path | str, walk_up = false) Path? {
         var b = Path(".")
         if base is str {
             b = Path(base)
@@ -231,20 +288,92 @@ pub class Path : ToString {
 
         let mine = normalize().parts()
         let theirs = b.normalize().parts()
-        if theirs.len() > mine.len() { return nil }
+
+        // the common prefix
         var i = 0
-        while i < theirs.len() {
-            if mine[i] != theirs[i] { return nil }
+        while i < mine.len() && i < theirs.len() && mine[i] == theirs[i] {
             i = i + 1
         }
+        if i < theirs.len() && !walk_up { return nil }
 
         let rest = list[str]()
+        var k = i
+        while k < theirs.len() {
+            if theirs[k] == ".." { return nil } // cannot walk out of an unknown name
+            rest.append("..")
+            k = k + 1
+        }
         while i < mine.len() {
             rest.append(mine[i])
             i = i + 1
         }
         if rest.empty() { return Path(".") }
         return Path("/".join(rest))
+    }
+
+    /// Return the ancestors of the path, nearest first: for `/a/b/c` that is
+    /// `/a/b`, `/a`, `/`; for `a/b/c` it is `a/b`, `a`, `.`. Purely lexical,
+    /// on the normalized path.
+    ///
+    /// Example:
+    ///     for p in fs.Path("src/fs/path.kl").parents() { print(p) }
+    pub func parents() list[Path] {
+        let res = list[Path]()
+        var p = normalize()
+        var up = p.parent()
+        while up != p {
+            res.append(up)
+            p = up
+            up = p.parent()
+        }
+        return res
+    }
+
+    /// Return a new path with the stem (the name without its extension)
+    /// replaced by `new_stem`; the extension is kept.
+    ///
+    /// Panic as `with_name` does.
+    ///
+    /// Example:
+    ///     fs.Path("src/main.kl").with_stem("util")   // Path("src/util.kl")
+    ///     fs.Path("a.tar.gz").with_stem("b")         // Path("b.gz")
+    pub func with_stem(new_stem str) Path {
+        let e = ext()
+        if e.empty() { return with_name(new_stem) }
+        return with_name(new_stem + "." + e)
+    }
+
+    /// Return every extension of the final component, without the dots, in
+    /// order (e.g. `["tar", "gz"]` for `a.tar.gz`). A leading dot is not an
+    /// extension, so `.bashrc` has none.
+    ///
+    /// See: `ext`, `stem`.
+    pub func suffixes() list[str] {
+        let res = list[str]()
+        var n = name()
+        while n.starts_with(".") { n = n.view(1, n.len()) }
+        let pieces = n.split(".")
+        var i = 1
+        while i < pieces.len() {
+            if !pieces[i].empty() { res.append(pieces[i]) }
+            i = i + 1
+        }
+        return res
+    }
+
+    /// Return the current working directory as a `Path`.
+    ///
+    /// See: `os.getcwd`.
+    pub static func cwd() Path {
+        return Path(os.getcwd())
+    }
+
+    /// Return the home directory as a `Path`, or nil if it is unknown.
+    ///
+    /// See: `os.home_dir`, `expand_user`.
+    pub static func home() Path? {
+        let h = os.home_dir() else { return nil }
+        return Path(h)
     }
 
     /// Convert the path to its string form.

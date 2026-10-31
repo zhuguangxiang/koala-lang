@@ -95,6 +95,19 @@ pub func pipe() (RawReader, RawWriter)? {}
 @native
 pub func system(cmd str) int {}
 
+// --- Standard streams of a child process (the `stdin` / `stdout` / `stderr` of `run`) ---
+
+/// A pipe to this process: write it with `Process.stdin()`, read it with
+/// `Process.stdout()` / `Process.stderr()` or `Process.communicate()`.
+pub let PIPE = 0
+/// This process's own stream: the child reads the same stdin and prints to the
+/// same terminal or file.
+pub let INHERIT = 1
+/// `/dev/null`: no input, and the output is dropped.
+pub let DEVNULL = 2
+/// `stderr` only: the same as the child's stdout (`2>&1`), e.g. one pipe for both.
+pub let STDOUT = 3
+
 /// Execute a program with specific arguments, capturing its execution state.
 ///
 /// Unlike `system`, this bypasses the shell for safer argument passing.
@@ -104,17 +117,26 @@ pub func system(cmd str) int {}
 /// child's whole environment (nil: a copy of this process's); to add one
 /// variable, copy `environ()` and set it there.
 ///
+/// `stdin`, `stdout` and `stderr` choose each standard stream of the child:
+/// `PIPE` (the default), `INHERIT`, `DEVNULL`, or for `stderr` also `STDOUT`.
+/// The `Process` end of a stream that is not a `PIPE` is closed: reading or
+/// writing it panics, and `communicate` returns empty bytes for it.
+///
 /// Returns a `Process` handle on success, or `nil` if spawning fails (e.g.
-/// the program or `cwd` does not exist).
+/// the program or `cwd` does not exist). Panic on an invalid stream mode.
 ///
 /// Example:
 ///     let env = os.environ()
 ///     env["LANG"] = "C"
-///     let p = os.run("make", ["-j4"], cwd = "build", env = env)!
+///     // the build prints to this terminal; nothing to read back
+///     let p = os.run("make", ["-j4"], cwd = "build", env = env,
+///                    stdin = os.DEVNULL, stdout = os.INHERIT, stderr = os.INHERIT)!
+///     print(p.wait()!)
 ///
 /// See: `output`, `system`, `Process`.
 @native
-pub func run(executable str, args list[str]? = nil, cwd str? = nil, env dict[str, str]? = nil) Process? {}
+pub func run(executable str, args list[str]? = nil, cwd str? = nil, env dict[str, str]? = nil,
+             stdin = 0, stdout = 0, stderr = 0) Process? {}
 
 /// Run a program like `run`, wait for it, and return its exit status with
 /// its stdout and stderr decoded as UTF-8.
@@ -129,8 +151,8 @@ pub func run(executable str, args list[str]? = nil, cwd str? = nil, env dict[str
 /// See: `run`, `Process.communicate`.
 pub func output(executable str, args list[str]? = nil, cwd str? = nil, env dict[str, str]? = nil) (int, str, str)? {
     let p = run(executable, args, cwd, env) else { return nil }
-    let (out, err) = p.communicate()
-    return (p.wait(), out.to_str(), err.to_str())
+    let (out, err) = p.communicate()!
+    return (p.wait()!, out.to_str(), err.to_str())
 }
 
 // --- Error Handling ---
@@ -159,6 +181,84 @@ pub func strerror(code int) str {}
 @native
 pub func getpid() int {}
 
+/// Return the process ID of this process's parent.
+@native
+pub func getppid() int {}
+
+/// Return the real user ID of this process.
+@native
+pub func getuid() int {}
+
+/// Return the effective user ID of this process (the one used for
+/// permission checks; it differs from `getuid` in a set-user-ID program).
+@native
+pub func geteuid() int {}
+
+/// Return the real group ID of this process.
+@native
+pub func getgid() int {}
+
+/// Return `s` with each `$NAME` and `${NAME}` replaced by the value of the
+/// environment variable NAME (letters, digits and `_`, not starting with a
+/// digit). As with Python's `os.path.expandvars`, a variable that is not set
+/// is left as it is, and so is a `$` not followed by a name.
+///
+/// Example:
+///     os.expand_vars("$HOME/.cache/${APP}")   // "/home/me/.cache/koala" if APP=koala
+///
+/// See: `getenv`, `environ`.
+@native
+pub func expand_vars(s str) str {}
+
+/// Add `inc` to this process's nice value and return the new value, or nil
+/// on failure. A higher value is a lower CPU priority; only a privileged
+/// process may lower it (a negative `inc`).
+@native
+pub func nice(inc int) int? {}
+
+/// Return the system load averages over the last 1, 5 and 15 minutes (the
+/// numbers `uptime` shows), or nil if they are not available.
+@native
+pub func getloadavg() (float64, float64, float64)? {}
+
+/// Return the name of the user logged in on this process's controlling
+/// terminal, else the user name of the real user ID (e.g. under cron or in a
+/// container); nil if neither is known.
+///
+/// See: `getuid`, `home_dir`.
+@native
+pub func getlogin() str? {}
+
+// --- Terminal ---
+
+/// Return true if the file descriptor `fd` is a terminal, e.g.
+/// `os.isatty(1)` when stdout is not redirected to a file or a pipe.
+///
+/// See: `terminal_size`.
+@native
+pub func isatty(fd int) bool {}
+
+/// Return the `(columns, lines)` of the terminal on the file descriptor `fd`
+/// (stdout by default), or nil if `fd` is not a terminal or its size is
+/// unknown, e.g. when the output is piped.
+///
+/// Example:
+///     var width = 80
+///     if let size = os.terminal_size() {
+///         let (cols, _) = size
+///         width = cols
+///     }
+///
+/// See: `isatty`.
+@native
+pub func terminal_size(fd = 1) (int, int)? {}
+
+/// Set this process's file mode creation mask to `mask` (e.g. `0o022`) and
+/// return the previous one. Files and directories created afterwards do not
+/// get the permission bits set in the mask.
+@native
+pub func umask(mask int) int {}
+
 /// Return the number of CPUs available to run on, or 1 if it is unknown.
 ///
 /// Useful as the default number of parallel jobs.
@@ -169,3 +269,60 @@ pub func cpu_count() int {}
 /// `"darwin"`, `"freebsd"`, `"windows"` or `"unknown"`.
 @native
 pub func platform() str {}
+
+/// Return the host name of this machine. Panic if it cannot be read.
+@native
+pub func hostname() str {}
+
+/// Return `(sysname, nodename, release, version, machine)` of the running
+/// kernel, e.g. `("Linux", "myhost", "6.8.0", "#1 SMP ...", "x86_64")`.
+///
+/// See: `platform`, `hostname`.
+@native
+pub func uname() (str, str, str, str, str) {}
+
+/// Return the home directory of this process's user: `$HOME` when it is set
+/// and not empty, else the user database entry. Return nil if neither is known.
+///
+/// See: `Path.expand_user` in `std/fs`.
+@native
+pub func home_dir() str? {}
+
+/// Return the path of the program `name` as a shell would find it, like the
+/// `which` command: `name` itself if it contains a `/`, else the first
+/// `dir/name` in `PATH` that is an executable regular file (an empty `PATH`
+/// entry is the working directory). Return nil if there is none.
+///
+/// Example:
+///     if let git = os.which("git") { os.run(git, ["status"]) }
+///
+/// See: `run`.
+@native
+pub func which(name str) str? {}
+
+/// Return `n` random bytes from the operating system, suitable for keys,
+/// tokens and seeds. Panic if `n` is negative or the source fails.
+@native
+pub func urandom(n int) bytes {}
+
+// --- Signals ---
+
+/// Hangup.
+pub let SIGHUP = 1
+/// Interrupt (Ctrl-C).
+pub let SIGINT = 2
+/// Quit.
+pub let SIGQUIT = 3
+/// Kill: cannot be caught or ignored.
+pub let SIGKILL = 9
+/// Termination request.
+pub let SIGTERM = 15
+
+/// Send the signal `sig` (e.g. `SIGTERM`) to the process `pid`; `sig` 0 only
+/// checks that the process exists and may be signalled. Return true on
+/// success, false on failure (no such process, not permitted); `os.errno()`
+/// tells why.
+///
+/// See: `Process.terminate`, `Process.kill`, `getpid`.
+@native
+pub func kill(pid int, sig int) bool {}

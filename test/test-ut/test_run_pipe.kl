@@ -21,7 +21,7 @@ func test_run_stdin_to_stdout() {
     let n = p.stdout().read(bs)
     ut.assert_eq(n, 18)
     ut.assert_eq(bs.view(0, n).to_str(), "line1\nline2\nline3\n")
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // Closing stdin without writing anything: stdout reaches EOF immediately
@@ -33,7 +33,7 @@ func test_run_empty_stdin() {
 
     let bs = bytes(16)
     ut.assert_eq(p.stdout().read(bs), 0)
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // Bulk flow: 100 writes of 17 bytes, then read until EOF. The total must be
@@ -57,7 +57,7 @@ func test_run_bulk_echo() {
         n = p.stdout().read(bs)
     }
     ut.assert_eq(total, 1700)
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // Interactive ping-pong: every write is answered immediately without
@@ -78,7 +78,7 @@ func test_run_ping_pong() {
         i = i + 1
     }
     p.stdin().close()
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // stdout and stderr are separate pipes: stdout stays empty, stderr carries
@@ -96,7 +96,7 @@ func test_run_stderr_and_exit_code() {
     ut.assert_eq(en, 4)
     ut.assert_eq(eb.view(0, en).to_str(), "err\n")
 
-    ut.assert_eq(p.wait(), 7)
+    ut.assert_eq(p.wait()!, 7)
 }
 
 // read_all(): drains the pipe until EOF and returns one bytes object.
@@ -109,7 +109,7 @@ func test_run_read_all() {
     let all = p.stdout().read_all()
     ut.assert_eq(all.len(), 18)
     ut.assert_eq(all.to_str(), "line1\nline2\nline3\n")
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // read_all() on an empty stream: EOF immediately -> zero-length bytes.
@@ -121,22 +121,18 @@ func test_run_read_all_empty() {
     let all = p.stdout().read_all()
     ut.assert_eq(all.len(), 0)
     ut.assert_eq(all.to_str(), "")
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
-// TODO: cause zombie process
 // read_all() across internal buffer growth: 1000 x 17 = 17000 bytes,
-// which exceeds the initial 8192-byte accumulation capacity.
-@skip
+// which exceeds the initial 8192-byte accumulation capacity. The child makes
+// the data itself and this process only reads: writing 17000 bytes to `cat`
+// first and reading after deadlocks when the pipes are small (new pipes get
+// only 8 KiB under pipe-user-pages-soft pressure, e.g. tests in parallel;
+// see test_write_chain.kl).
+@test
 func test_run_read_all_large() {
-    let p = os.run("cat")!
-    let line = "0123456789abcdef\n".to_bytes()
-    var i = 0
-    while i < 1000 {
-        p.stdin().write(line)
-        i = i + 1
-    }
-    p.stdin().close()
+    let p = os.run("sh", ["-c", "yes 0123456789abcdef | head -n 1000"], stdin = os.DEVNULL)!
 
     let all = p.stdout().read_all()
     ut.assert_eq(all.len(), 17000)
@@ -144,7 +140,7 @@ func test_run_read_all_large() {
     ut.assert(all[16999] == 10) // '\n' at the very end: const index beyond imm8
     let last = all.len() - 1
     ut.assert(all[last] == 10) // same byte reached with a runtime index
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // ---------------------------------------------------------------------------
@@ -155,17 +151,17 @@ func test_run_read_all_large() {
 @test
 func test_communicate_echo() {
     let p = os.run("cat")!
-    let (out, err) = p.communicate("line1\nline2\n".to_bytes())
+    let (out, err) = p.communicate("line1\nline2\n".to_bytes())!
     ut.assert_eq(out.to_str(), "line1\nline2\n")
     ut.assert_eq(err.len(), 0)
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // No input: stdin is closed at once, so `cat` sees EOF and exits.
 @test
 func test_communicate_no_input() {
     let p = os.run("cat")!
-    let (out, err) = p.communicate()
+    let (out, err) = p.communicate()!
     ut.assert_eq(out.len(), 0)
     ut.assert_eq(err.len(), 0)
     ut.assert_eq(p.poll()!, 0) // already reaped by communicate()
@@ -175,10 +171,10 @@ func test_communicate_no_input() {
 @test
 func test_communicate_stderr_and_exit_code() {
     let p = os.run("sh", ["-c", "echo out; echo err 1>&2; exit 7"])!
-    let (out, err) = p.communicate()
+    let (out, err) = p.communicate()!
     ut.assert_eq(out.to_str(), "out\n")
     ut.assert_eq(err.to_str(), "err\n")
-    ut.assert_eq(p.wait(), 7)
+    ut.assert_eq(p.wait()!, 7)
 }
 
 // 300000 bytes is above the ~128KB (2 x 64KB pipe) limit where writing all of
@@ -191,12 +187,12 @@ func test_communicate_large() {
     input[n - 1] = 10 // '\n'
 
     let p = os.run("cat")!
-    let (out, err) = p.communicate(input)
+    let (out, err) = p.communicate(input)!
     ut.assert_eq(out.len(), n)
     ut.assert(out[0] == 48)
     ut.assert(out[n - 1] == 10)
     ut.assert_eq(err.len(), 0)
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // The child exits without reading stdin: the rest of the input is dropped
@@ -204,9 +200,9 @@ func test_communicate_large() {
 @test
 func test_communicate_child_ignores_input() {
     let p = os.run("true")!
-    let (out, _) = p.communicate(bytes(300_000))
+    let (out, _) = p.communicate(bytes(300_000))!
     ut.assert_eq(out.len(), 0)
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // ---------------------------------------------------------------------------
@@ -218,8 +214,8 @@ func test_communicate_child_ignores_input() {
 @test
 func test_run_child_sigpipe_default() {
     let p = os.run("sh", ["-c", "kill -PIPE $$"])!
-    p.communicate()
-    ut.assert_eq(p.wait(), -13) // killed by SIGPIPE
+    p.communicate()!
+    ut.assert_eq(p.wait()!, -13) // killed by SIGPIPE
 }
 
 // os.system returns the raw wait status: the low 7 bits are the signal.
@@ -262,7 +258,7 @@ func test_run_buffered_roundtrip() {
     ut.assert_eq(br.read(bs), 4)
     ut.assert_eq(bs.view(0, 4), b"ne2\n")
     ut.assert_eq(br.read(bs), 0) // EOF
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // Line-oriented buffered reading: read_line() appends each line (without
@@ -289,7 +285,7 @@ func test_run_bufreader_read_line() {
     ut.assert_eq(br.read_line(bb), -1) // EOF, buffer unchanged
     ut.assert_eq(bb.to_str(), "firstsecond")
 
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // io.Lines over the pipe: yields str lines with the '\n' consumed.
@@ -314,7 +310,7 @@ func test_run_bufreader_lines() {
     ut.assert_eq(got[1], "beta")
     ut.assert_eq(got[2], "gamma")
 
-    ut.assert_eq(p.wait(), 0)
+    ut.assert_eq(p.wait()!, 0)
 }
 
 // ---------------------------------------------------------------------------

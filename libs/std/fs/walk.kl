@@ -3,16 +3,55 @@
  * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
  */
 
+// One directory read by `_read_step`; for the bottom-up order also the index
+// of the next subdirectory to visit.
+class _WalkFrame {
+    let dir Path
+    let dirs list[Path]
+    let files list[Path]
+    var next = 0
+
+    func __init__(_dir Path, _dirs list[Path], _files list[Path]) {
+        dir = _dir
+        dirs = _dirs
+        files = _files
+    }
+}
+
+// Read `dir` into a frame: its subdirectories and every other entry, or nil
+// if it cannot be read.
+func _read_step(dir Path) _WalkFrame? {
+    let entries = _try_list_dir(dir) else { return nil }
+
+    let dirs = list[Path]()
+    let files = list[Path]()
+    for p in entries {
+        // lstat: a link to a directory is not a directory here
+        if let st = stat(p, false) {
+            if st.is_dir() {
+                dirs.append(p)
+                continue
+            }
+        }
+        files.append(p)
+    }
+    return _WalkFrame(dir, dirs, files)
+}
+
 /// An iterator over a directory tree, returned by `fs.walk`.
 ///
 /// Each step yields `(dir, dirs, files)` for one directory: `dir` is the
 /// directory itself, `dirs` its subdirectories and `files` every other entry,
 /// all as full paths (as `list_dir` returns them), sorted by name.
 ///
-/// Directories are visited top-down and depth-first: a directory comes before
-/// its subdirectories, which follow in the order of `dirs`. The subdirectories
-/// are read only when the next step is taken, so removing entries from `dirs`
-/// before that skips them (pruning).
+/// Top-down (the default), directories are visited depth-first, a directory
+/// before its subdirectories, which follow in the order of `dirs`. The
+/// subdirectories are read only when the next step is taken, so removing
+/// entries from `dirs` before that skips them (pruning).
+///
+/// Bottom-up (`topdown = false`), a directory comes after all of its
+/// subdirectories, e.g. to remove a tree or to sum sizes from the leaves up;
+/// `dirs` is then already walked, so changing it has no effect.
 ///
 /// Symbolic links are never followed: a link, also one to a directory, is
 /// listed in `files`. A directory that cannot be read (permission denied, or
@@ -20,24 +59,36 @@
 ///
 /// See: `fs.walk`.
 pub class Walker : Iterator[(Path, list[Path], list[Path])] {
-    /// Directories still to visit; the last one is visited next.
+    /// Whether a directory comes before (true) or after its subdirectories.
+    let topdown bool
+
+    /// Top-down: directories still to visit; the last one is visited next.
     let stack list[Path]
 
-    /// The `dirs` list of the step returned last, pushed on the next step.
+    /// Top-down: the `dirs` list of the step returned last, pushed on the next step.
     var pending list[Path]? = nil
+
+    /// Bottom-up: the directories being walked, from `top` down to the deepest.
+    let frames list[_WalkFrame]
+
+    /// Bottom-up: whether `top` has been read.
+    var started = false
 
     /// The step found by `has_next` and not yet returned.
     var ready (Path, list[Path], list[Path])? = nil
 
     /// Create a `Walker` starting at `top`; `fs.walk` is the normal way to get one.
-    pub func __init__(top Path) {
+    pub func __init__(top Path, _topdown = true) {
+        topdown = _topdown
         stack = list[Path]()
         stack.append(top)
+        frames = list[_WalkFrame]()
     }
 
     /// Return true if another directory is available, reading it if necessary.
     pub func has_next() bool {
         if ready != nil { return true }
+        if !topdown { return _next_bottom_up() }
 
         // Push the subdirectories of the last step, reversed so that the
         // first one is visited first.
@@ -52,21 +103,32 @@ pub class Walker : Iterator[(Path, list[Path], list[Path])] {
 
         while stack.len() > 0 {
             let dir = stack.pop(stack.len() - 1)
-            let entries = _try_list_dir(dir) else { continue }
+            let f = _read_step(dir) else { continue }
+            ready = (f.dir, f.dirs, f.files)
+            return true
+        }
+        return false
+    }
 
-            let dirs = list[Path]()
-            let files = list[Path]()
-            for p in entries {
-                // lstat: a link to a directory is not a directory here
-                if let st = stat(p, false) {
-                    if st.is_dir() {
-                        dirs.append(p)
-                        continue
-                    }
-                }
-                files.append(p)
+    // Bottom-up: go down to the first subdirectory not walked yet; a frame
+    // whose subdirectories are all walked is the next step.
+    func _next_bottom_up() bool {
+        if !started {
+            started = true
+            let top = stack.pop(0)
+            if let f = _read_step(top) { frames.append(f) }
+        }
+
+        while frames.len() > 0 {
+            let f = frames[frames.len() - 1]
+            if f.next < f.dirs.len() {
+                let sub = f.dirs[f.next]
+                f.next = f.next + 1
+                if let sf = _read_step(sub) { frames.append(sf) }
+                continue
             }
-            ready = (dir, dirs, files)
+            frames.pop(frames.len() - 1)
+            ready = (f.dir, f.dirs, f.files)
             return true
         }
         return false
@@ -77,8 +139,10 @@ pub class Walker : Iterator[(Path, list[Path], list[Path])] {
         if !has_next() { panic("No more elements in Walker") }
         let step = ready!
         ready = nil
-        let (_, dirs, _) = step
-        pending = dirs
+        if topdown {
+            let (_, dirs, _) = step
+            pending = dirs
+        }
         return step
     }
 

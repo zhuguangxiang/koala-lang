@@ -5,12 +5,16 @@
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <fnmatch.h>
+#include <glob.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 #include "bytesobj.h"
 #include "excobj.h"
 #include "listobj.h"
+#include "tupleobj.h"
 #include "vector.h"
 
 #ifdef __cplusplus
@@ -46,7 +50,7 @@ static Object *_new_path(TValue path)
 }
 
 /* A `Stat` instance (see `libs/std/fs/stat.kl`): the C layout mirrors its
-   four fields in declaration order, and the type is registered under the
+   fields in declaration order, and the type is registered under the
    name "Stat" so the Koala class binds to it (as `Path` does), which lets
    `stat` build one directly. The methods are pure Koala. */
 typedef struct _StatObject {
@@ -55,11 +59,18 @@ typedef struct _StatObject {
     TValue mtime;
     TValue mtime_ns;
     TValue mode;
+    TValue atime_ns;
+    TValue ctime_ns;
+    TValue uid;
+    TValue gid;
+    TValue nlink;
+    TValue ino;
+    TValue dev;
 } StatObject;
 
 static TypeObject stat_type = {
     ._type = &type_type,
-    ._nfields = 4,
+    ._nfields = 11,
     .name = "Stat",
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(StatObject),
@@ -250,6 +261,27 @@ static TValue file_truncate(TValue *self, TValue *args, int nargs)
     return bool_value(1);
 }
 
+/// Flush the file's data and metadata to the storage device (fsync(2)).
+/// Return true on success, false on failure; raise an error if it is closed.
+static TValue file_sync(TValue *self, TValue *args, int nargs)
+{
+    FileObject *fobj = SELF_AS(file_type);
+    int fd = to_int64(&fobj->fd);
+    ASSERT(nargs == 0);
+
+    if (to_bool(&fobj->closed) == 1) {
+        raise_exc_fmt("file descriptor %d is closed", fd);
+        return error_value;
+    }
+
+    int r;
+    do {
+        r = fsync(fd);
+    } while (r < 0 && errno == EINTR);
+
+    return bool_value(r == 0);
+}
+
 static TypeObject file_type = {
     ._type = &type_type,
     ._nfields = 5,
@@ -265,6 +297,7 @@ static TypeObject file_type = {
             { "seek", file_seek },
             { "tell", file_tell },
             { "truncate", file_truncate },
+            { "sync", file_sync },
             { NULL, NULL },
         },
 };
@@ -486,12 +519,23 @@ static TValue fs_stat(TValue *self, TValue *args, int nargs)
 
 #ifdef __APPLE__
     struct timespec mt = sb.st_mtimespec;
+    struct timespec at = sb.st_atimespec;
+    struct timespec ct = sb.st_ctimespec;
 #else
     struct timespec mt = sb.st_mtim;
+    struct timespec at = sb.st_atim;
+    struct timespec ct = sb.st_ctim;
 #endif
 
     Object *obj = kl_new_instance(&stat_type);
     StatObject *st = (StatObject *)obj;
+    st->atime_ns = int64_value((int64_t)at.tv_sec * 1000000000 + at.tv_nsec);
+    st->ctime_ns = int64_value((int64_t)ct.tv_sec * 1000000000 + ct.tv_nsec);
+    st->uid = int64_value(sb.st_uid);
+    st->gid = int64_value(sb.st_gid);
+    st->nlink = int64_value(sb.st_nlink);
+    st->ino = int64_value(sb.st_ino);
+    st->dev = int64_value(sb.st_dev);
     st->size = int64_value(sb.st_size);
     st->mtime = float64_value((double)mt.tv_sec + (double)mt.tv_nsec / 1e9);
     st->mtime_ns = int64_value((int64_t)mt.tv_sec * 1000000000 + mt.tv_nsec);
@@ -513,6 +557,267 @@ static TValue fs_real_path(TValue *self, TValue *args, int nargs)
     char buf[PATH_MAX];
     if (realpath(path, buf) == NULL) return nil_value;
     return obj_value(_new_path(kl_val_str(buf)));
+}
+
+/// Set the permission bits of `path` to `mode` (chmod(2)); a symbolic link is
+/// followed. Return true on success, false on failure.
+static TValue fs_chmod(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *path = _arg_path_str(args, nargs, 0);
+    mode_t mode = (mode_t)kl_arg_int64(1);
+    return bool_value(chmod(path, mode & 07777) == 0);
+}
+
+/// Set the owner and group of `path` (chown(2)); -1 keeps that one. A symbolic
+/// link is followed. Return true on success.
+static TValue fs_chown(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 3);
+    char *path = _arg_path_str(args, nargs, 0);
+    uid_t uid = (uid_t)kl_arg_int64(1);
+    gid_t gid = (gid_t)kl_arg_int64(2);
+    return bool_value(chown(path, uid, gid) == 0);
+}
+
+/// Return true if this process may access `path` as `mode` asks (access(2)):
+/// F_OK (exists), or an OR of R_OK, W_OK and X_OK.
+static TValue fs_access(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *path = _arg_path_str(args, nargs, 0);
+    int mode = (int)kl_arg_int64(1);
+    return bool_value(access(path, mode) == 0);
+}
+
+/// Create the symbolic link `link` pointing to `target` (symlink(2)).
+/// `target` is stored as given, it need not exist. Return true on success.
+static TValue fs_symlink(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *target = _arg_path_str(args, nargs, 0);
+    char *link = _arg_path_str(args, nargs, 1);
+    return bool_value(symlink(target, link) == 0);
+}
+
+/*
+ * pub func read_link(p Path | str) Path?
+ *
+ * Return the target stored in the symbolic link `p` (readlink(2)), as given
+ * when the link was made: it may be relative, or not exist. Return nil if `p`
+ * is not a symbolic link or cannot be read.
+ */
+static TValue fs_read_link(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = _arg_path_str(args, nargs, 0);
+
+    char buf[PATH_MAX];
+    ssize_t n = readlink(path, buf, sizeof(buf));
+    if (n < 0 || n >= (ssize_t)sizeof(buf)) return nil_value;
+    return obj_value(_new_path(kl_val_nstr(buf, n)));
+}
+
+/*
+ * func _glob(pattern Path | str) list[Path]
+ *
+ * Return the paths matching the shell `pattern` (glob(3)), sorted. Return an
+ * empty list if nothing matches. glob() handles a `**` pattern itself.
+ */
+static TValue fs_glob(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *pattern = _arg_path_str(args, nargs, 0);
+
+    Object *list = kl_new_list();
+    glob_t g;
+    if (glob(pattern, 0, NULL, &g) == 0) {
+        for (size_t i = 0; i < g.gl_pathc; i++) {
+            kl_list_append(list, obj_value(_new_path(kl_val_str(g.gl_pathv[i]))));
+        }
+    }
+    globfree(&g);
+    return obj_value(list);
+}
+
+/*
+ * func _fnmatch(pattern str, name str) bool
+ *
+ * Match `name` against the shell `pattern` (fnmatch(3)); `*` and `?` do not
+ * match a '/', and a leading '.' must be matched explicitly.
+ */
+static TValue fs_fnmatch(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *pattern = kl_arg_str(0);
+    char *name = kl_arg_str(1);
+    return bool_value(fnmatch(pattern, name, FNM_PATHNAME | FNM_PERIOD) == 0);
+}
+
+/* The temporary directory: $TMPDIR when set and not empty, else /tmp */
+static char *_temp_dir(void)
+{
+    char *dir = getenv("TMPDIR");
+    return dir && dir[0] ? dir : "/tmp";
+}
+
+/*
+ * pub func temp_dir() Path
+ *
+ * Return the directory for temporary files: $TMPDIR, or /tmp.
+ */
+static TValue fs_temp_dir(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    return obj_value(_new_path(kl_val_str(_temp_dir())));
+}
+
+/* Build "<dir>/<prefix>XXXXXX<suffix>" into `buf` for mkstemps / mkdtemp.
+   Return -1 (errno EINVAL) if prefix or suffix has a '/', or it is too long. */
+static int _temp_template(char *buf, size_t size, TValue *args, int nargs, int dir_index,
+                          char *prefix, char *suffix)
+{
+    if (strchr(prefix, '/') || strchr(suffix, '/')) {
+        errno = EINVAL;
+        return -1;
+    }
+    char *dir = _arg_path_str(args, nargs, dir_index);
+    if (!dir[0]) dir = _temp_dir();
+    int n = snprintf(buf, size, "%s%s%sXXXXXX%s", dir, dir[strlen(dir) - 1] == '/' ? "" : "/",
+                     prefix, suffix);
+    if (n < 0 || (size_t)n >= size) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ * pub func make_temp_file(prefix = "tmp", suffix = "", dir Path | str = "") Path?
+ *
+ * Create a new empty file `<dir>/<prefix>XXXXXX<suffix>` with a unique,
+ * unpredictable name, readable and writable only by this user (0600), and
+ * return its path. `dir` "" is temp_dir(). Return nil on failure.
+ */
+static TValue fs_make_temp_file(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 3);
+    char *prefix = kl_arg_str(0);
+    char *suffix = kl_arg_str(1);
+
+    char buf[PATH_MAX];
+    if (_temp_template(buf, sizeof(buf), args, nargs, 2, prefix, suffix) < 0) return nil_value;
+
+    int fd = mkstemps(buf, (int)strlen(suffix));
+    if (fd < 0) return nil_value;
+    close(fd);
+    return obj_value(_new_path(kl_val_str(buf)));
+}
+
+/*
+ * pub func make_temp_dir(prefix = "tmp", dir Path | str = "") Path?
+ *
+ * Create a new empty directory `<dir>/<prefix>XXXXXX` with a unique,
+ * unpredictable name, usable only by this user (0700), and return its path.
+ * `dir` "" is temp_dir(). Return nil on failure.
+ */
+static TValue fs_make_temp_dir(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *prefix = kl_arg_str(0);
+
+    char buf[PATH_MAX];
+    if (_temp_template(buf, sizeof(buf), args, nargs, 1, prefix, "") < 0) return nil_value;
+    if (mkdtemp(buf) == NULL) return nil_value;
+    return obj_value(_new_path(kl_val_str(buf)));
+}
+
+/// Set the access and modification times of `path` to now, creating it
+/// (empty, 0644 before the umask) if it does not exist, like `touch`.
+/// A symbolic link is followed. Return true on success.
+static TValue fs_touch(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = _arg_path_str(args, nargs, 0);
+
+    int fd = open(path, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+    if (fd < 0) return bool_value(0);
+    int r = futimens(fd, NULL);
+    close(fd);
+    return bool_value(r == 0);
+}
+
+/* `ns` nanoseconds since the Unix epoch as a timespec */
+static struct timespec _ns_to_timespec(int64_t ns)
+{
+    struct timespec ts;
+    ts.tv_sec = ns / 1000000000;
+    ts.tv_nsec = ns % 1000000000;
+    if (ts.tv_nsec < 0) {
+        ts.tv_sec -= 1;
+        ts.tv_nsec += 1000000000;
+    }
+    return ts;
+}
+
+/// Set the access and modification times of `path`, in nanoseconds since
+/// the Unix epoch (utimensat(2)); a symbolic link is followed. Return true
+/// on success.
+static TValue fs_set_times(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 3);
+    char *path = _arg_path_str(args, nargs, 0);
+    struct timespec times[2] = {
+        _ns_to_timespec(kl_arg_int64(1)),
+        _ns_to_timespec(kl_arg_int64(2)),
+    };
+    return bool_value(utimensat(AT_FDCWD, path, times, 0) == 0);
+}
+
+/// Return true if `a` and `b` are the same file (the same device and inode,
+/// symbolic links followed); false if either does not exist.
+static TValue fs_samefile(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *a = _arg_path_str(args, nargs, 0);
+    char *b = _arg_path_str(args, nargs, 1);
+
+    struct stat sa, sb;
+    if (stat(a, &sa) != 0 || stat(b, &sb) != 0) return bool_value(0);
+    return bool_value(sa.st_dev == sb.st_dev && sa.st_ino == sb.st_ino);
+}
+
+/// Create the hard link `dst` to the existing file `src` (link(2)): both
+/// names then refer to the same file. Return true on success.
+static TValue fs_hard_link(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *src = _arg_path_str(args, nargs, 0);
+    char *dst = _arg_path_str(args, nargs, 1);
+    return bool_value(link(src, dst) == 0);
+}
+
+/*
+ * pub func disk_usage(p Path | str) (int, int, int)?
+ *
+ * Return (total, used, free) bytes of the file system holding `p`
+ * (statvfs(3)), the same numbers as `df`: `free` is what an unprivileged
+ * user may still use. Return nil if `p` cannot be read.
+ */
+static TValue fs_disk_usage(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = _arg_path_str(args, nargs, 0);
+
+    struct statvfs vs;
+    if (statvfs(path, &vs) != 0) return nil_value;
+    int64_t unit = (int64_t)vs.f_frsize;
+    TValue items[3] = {
+        int64_value((int64_t)vs.f_blocks * unit),
+        int64_value((int64_t)(vs.f_blocks - vs.f_bfree) * unit),
+        int64_value((int64_t)vs.f_bavail * unit),
+    };
+    return obj_value(kl_new_tuple(items, 3));
 }
 
 /// Return the number of bytes of the file `path`, raise an error on failure.
@@ -743,6 +1048,21 @@ void fs_native_lib_init(NativeLib *lib)
     kl_reg_func(lib, "mkdir", fs_mkdir);
     kl_reg_func(lib, "rmdir", fs_rmdir);
     kl_reg_func(lib, "copy", fs_copy);
+    kl_reg_func(lib, "chmod", fs_chmod);
+    kl_reg_func(lib, "chown", fs_chown);
+    kl_reg_func(lib, "touch", fs_touch);
+    kl_reg_func(lib, "set_times", fs_set_times);
+    kl_reg_func(lib, "samefile", fs_samefile);
+    kl_reg_func(lib, "hard_link", fs_hard_link);
+    kl_reg_func(lib, "disk_usage", fs_disk_usage);
+    kl_reg_func(lib, "access", fs_access);
+    kl_reg_func(lib, "symlink", fs_symlink);
+    kl_reg_func(lib, "read_link", fs_read_link);
+    kl_reg_func(lib, "_glob", fs_glob);
+    kl_reg_func(lib, "temp_dir", fs_temp_dir);
+    kl_reg_func(lib, "make_temp_file", fs_make_temp_file);
+    kl_reg_func(lib, "make_temp_dir", fs_make_temp_dir);
+    kl_reg_func(lib, "_fnmatch", fs_fnmatch);
 
     kl_reg_func(lib, "list_dir", fs_list_dir);
     kl_reg_func(lib, "_try_list_dir", fs_try_list_dir);
