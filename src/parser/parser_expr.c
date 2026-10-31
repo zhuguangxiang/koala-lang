@@ -3880,6 +3880,86 @@ static void parse_const_placeholder(ParserState *ps, Expr *exp)
     exp->sym = get_symbol_by_id(exp->ts->sym_id);
 }
 
+// The type of `if c { a } else { b }` without an expected type: the same type; with a 'nil'
+// branch, the other one as optional; otherwise the branch type the other one fits into
+// (T -> T?, class -> trait). NULL when the branches do not fit together.
+static TypeSpec *if_expr_result_type(TypeSpec *a, TypeSpec *b)
+{
+    // type specs are interned
+    if (a == b) return a;
+
+    int a_nil = type_is_optional(a) && !a->opt.src;
+    int b_nil = type_is_optional(b) && !b->opt.src;
+    if (a_nil && b_nil) return a;
+    if (a_nil) return type_is_optional(b) ? b : optional_type_spec_intern(b);
+    if (b_nil) return type_is_optional(a) ? a : optional_type_spec_intern(a);
+
+    if (type_spec_compatible(a, b)) return a;
+    if (type_spec_compatible(b, a)) return b;
+    return NULL;
+}
+
+// if c { a } else { b } as a value: only the grammar's value positions reach here
+static void parse_if_expr(ParserState *ps, Expr *exp)
+{
+    IfExpr *ie = (IfExpr *)exp;
+
+    // 'else' is missing, the grammar has reported it
+    if (!ie->else_exp) return;
+
+    // 1. the condition is a bool
+    Expr *cond = ie->cond;
+    cond->ctx = EXPR_CTX_LOAD;
+    parser_visit_expr(ps, cond);
+    if (!cond->ts) return;
+    if (cond->ts->kind != TYPE_BOOL) {
+        kl_error(cond->loc, "if condition must be boolean type.");
+        return;
+    }
+
+    // 2. both branches get the expected type, e.g. `let x Fly = if c { Bird() } else { Fish() }`
+    Expr *then_exp = ie->then_exp;
+    Expr *else_exp = ie->else_exp;
+    then_exp->ctx = EXPR_CTX_LOAD;
+    then_exp->expected = exp->expected;
+    parser_visit_expr(ps, then_exp);
+    else_exp->ctx = EXPR_CTX_LOAD;
+    else_exp->expected = exp->expected;
+    parser_visit_expr(ps, else_exp);
+    if (!then_exp->ts || !else_exp->ts) return;
+
+    // 3. the result type: the expected type, or the one both branches fit into
+    TypeSpec *ts = exp->expected;
+    if (ts) {
+        if (!type_spec_compatible(ts, then_exp->ts)) {
+            kl_error_incompatible_type(then_exp->loc, ts, then_exp->ts);
+            return;
+        }
+        if (!type_spec_compatible(ts, else_exp->ts)) {
+            kl_error_incompatible_type(else_exp->loc, ts, else_exp->ts);
+            return;
+        }
+    } else {
+        ts = if_expr_result_type(then_exp->ts, else_exp->ts);
+        if (!ts) {
+            BUF(buf1);
+            type_spec_print(then_exp->ts, &buf1);
+            BUF(buf2);
+            type_spec_print(else_exp->ts, &buf2);
+            kl_error(exp->loc, "branches of 'if' expression have incompatible types '%s' and '%s'.",
+                     BUF_STR(buf1), BUF_STR(buf2));
+            FINI_BUF(buf1);
+            FINI_BUF(buf2);
+            return;
+        }
+    }
+
+    exp->ts = ts;
+    exp->sym = get_symbol_by_id(ts->sym_id);
+    log_info("'if' expression resolved:");
+    log_type_spec(exp->ts);
+}
+
 static void parse_coalesce(ParserState *ps, Expr *exp)
 {
     CoalesceExpr *co = (CoalesceExpr *)exp;
@@ -4018,6 +4098,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_IN_KIND]      = parse_in,
         [EXPR_BANG_KIND]    = parse_bang,
         [EXPR_COALESCE_KIND] = parse_coalesce,
+        [EXPR_IF_KIND] = parse_if_expr,
         [EXPR_CONST_PLACEHOLDER] = parse_const_placeholder,
     };
     /* clang-format on */

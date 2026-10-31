@@ -1,0 +1,132 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// 'if' as a value: let/var initializer, '=' assignment, return and a `= expr` function body.
+// 'else' is required, 'else if' is the same as 'else { if ... }', only the taken branch runs.
+
+trait Fly {
+    func fly() str
+}
+class Bird : Fly {
+    func fly() str = "bird"
+}
+class Plane : Fly {
+    func fly() str = "plane"
+}
+
+var calls = 0
+func count(v int) int {
+    calls += 1
+    return v
+}
+
+// let / typed let / var
+func decls(c bool) {
+    let a = if c { 1 } else { 2 }
+    let b int8 = if c { 10 } else { 20 }
+    var s = if c { "yes" } else { "no" }
+    s = s + "!"
+    print("decl:", a, b, s)
+}
+
+// '=' assignment
+func assign(c bool) int {
+    var x = 0
+    x = if c { 100 } else { 200 }
+    return x
+}
+
+// return
+func ret(n int) str {
+    return if n > 0 { "pos" } else if n < 0 { "neg" } else { "zero" }
+}
+
+// `= expr` function body
+func body(c bool) int = if c { 7 } else { 8 }
+
+// else-if chain with four cases, and the same written as nested branches
+func grade(n int) str = if n >= 90 { "A" } else if n >= 80 { "B" } else if n >= 70 { "C" } else { "D" }
+func grade2(n int) str = if n >= 90 { "A" } else { if n >= 80 { "B" } else { "C" } }
+
+// nested 'if' in the then branch, and a multi-line form
+func nested(a bool, b bool) int {
+    let v = if a {
+        if b { 1 } else { 2 }
+    } else {
+        3
+    }
+    return v
+}
+
+// T and nil -> T?
+func maybe(c bool) int? {
+    let v = if c { 5 } else { nil }
+    return v
+}
+
+// class -> trait: with the declared type, and with a trait return type
+func pick(c bool) str {
+    let f Fly = if c { Bird() } else { Plane() }
+    return f.fly()
+}
+func pick_ret(c bool) Fly = if c { Bird() } else { Plane() }
+
+// only the taken branch is evaluated
+func lazy(c bool) int {
+    let v = if c { count(1) } else { count(2) + count(3) }
+    return v
+}
+
+// in a loop
+func sum_abs(n int) int {
+    var total = 0
+    for i in range(-n, n + 1) {
+        let d = if i < 0 { -i } else { i }
+        total += d
+    }
+    return total
+}
+
+func main() {
+    decls(true)
+    decls(false)
+    print("assign:", assign(true), assign(false))
+    print("ret:", ret(3), ret(-3), ret(0))
+    print("body:", body(true), body(false))
+    print("grade:", grade(95), grade(85), grade(75), grade(10), grade2(95), grade2(85), grade2(1))
+    print("nested:", nested(true, true), nested(true, false), nested(false, true))
+    print("maybe:", maybe(true), maybe(false))
+    print("trait:", pick(true), pick(false), pick_ret(true).fly(), pick_ret(false).fly())
+    print("lazy:", lazy(true), calls, lazy(false), calls)
+    print("loop:", sum_abs(3))
+}
+
+// CHECK-LABEL: func @assign(%c bool) int64 {
+// CHECK: %if = local int64
+// CHECK-NEXT: branch %c bool, label %bb1, label %bb2
+// CHECK: %bb1(if-expr-then):
+// CHECK-NEXT: move %if int64, 100 int64
+// CHECK-NEXT: jmp label %bb3
+// CHECK: %bb2(if-expr-else):
+// CHECK-NEXT: move %if int64, 200 int64
+// CHECK-NEXT: jmp label %bb3
+// CHECK: %bb3(if-expr-end):
+// CHECK-NEXT: move %x int64, %if int64
+
+// class -> trait: each branch is made a 'Fly' before the move
+// CHECK-LABEL: func @pick(%c bool) str {
+// CHECK: %if = local test_if_expr.Fly
+// CHECK: make_intf %{{[0-9]+}} test_if_expr.Bird [intf-table-index = {{[0-9]+}}] to test_if_expr.Fly
+// CHECK-NEXT: move %if test_if_expr.Fly, %{{[0-9]+}} test_if_expr.Fly
+// CHECK: make_intf %{{[0-9]+}} test_if_expr.Plane [intf-table-index = {{[0-9]+}}] to test_if_expr.Fly
+// CHECK-NEXT: move %if test_if_expr.Fly, %{{[0-9]+}} test_if_expr.Fly
+
+// CHECK: {{^}}decl: 1 10 yes!{{$}}
+// CHECK-NEXT: {{^}}decl: 2 20 no!{{$}}
+// CHECK-NEXT: {{^}}assign: 100 200{{$}}
+// CHECK-NEXT: {{^}}ret: pos neg zero{{$}}
+// CHECK-NEXT: {{^}}body: 7 8{{$}}
+// CHECK-NEXT: {{^}}grade: A B C D A B C{{$}}
+// CHECK-NEXT: {{^}}nested: 1 2 3{{$}}
+// CHECK-NEXT: {{^}}maybe: 5 nil{{$}}
+// CHECK-NEXT: {{^}}trait: bird plane bird plane{{$}}
+// CHECK-NEXT: {{^}}lazy: 1 1 5 3{{$}}
+// CHECK-NEXT: {{^}}loop: 12{{$}}

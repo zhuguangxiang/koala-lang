@@ -1,0 +1,73 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s --check-prefix=IR
+// RUN: koala %s ++ --dump=ir | filecheck %s --check-prefix=OPT
+// An 'if' expression whose condition is always true or always false: irgen emits the
+// usual branch, the optimizer (constant if folding) keeps only the taken branch.
+
+// literal condition
+func lit_true() int {
+    let v = if true { 1 } else { 2 }
+    return v
+}
+func lit_false() int = if false { 1 } else { 2 }
+
+// a constant through a let
+func let_cond() str {
+    let c = 3 > 5
+    return if c { "big" } else { "small" }
+}
+
+// constant conditions with a non-constant value, nested
+func nested_const(n int) int = if true { if false { n } else { n + 1 } } else { 0 }
+
+// a constant condition in an else-if chain
+func chain(n int) str = if false { "a" } else if true { "b" } else { "c" }
+
+func main() {
+    print(lit_true(), lit_false(), let_cond(), nested_const(10), chain(0))
+}
+
+// CHECK: {{^}}1 2 small 11 b{{$}}
+
+// irgen does not fold, the condition is a constant operand of the branch
+// IR-LABEL: func @lit_true() int64 {
+// IR-NEXT: %bb0(entry):
+// IR-NEXT: %if = local int64
+// IR-NEXT: branch true bool, label %bb1, label %bb2
+// IR: %bb1(if-expr-then):
+// IR-NEXT: move %if int64, 1 int64
+// IR: %bb2(if-expr-else):
+// IR-NEXT: move %if int64, 2 int64
+
+// after optimization only the value of the taken branch is left
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 3) [@lit_true] ---
+// OPT-NEXT: func @lit_true() int64 {
+// OPT-NEXT: %bb0(entry):
+// OPT-NEXT: ret 1 int64
+// OPT-NEXT: }
+
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 3) [@lit_false] ---
+// OPT-NEXT: func @lit_false() int64 {
+// OPT-NEXT: %bb0(entry):
+// OPT-NEXT: ret 2 int64
+// OPT-NEXT: }
+
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 3) [@let_cond] ---
+// OPT-NEXT: func @let_cond() str {
+// OPT-NEXT: %bb0(entry):
+// OPT-NEXT: ret 'small' str
+// OPT-NEXT: }
+
+// no branch and no copy between the inner and the outer 'if' result is left
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 4) [@nested_const] ---
+// OPT-NEXT: func @nested_const(%n int64) int64 {
+// OPT-NEXT: %bb0(entry):
+// OPT-NEXT: %0 = add %n int64, 1 int64
+// OPT-NEXT: ret %0 int64
+// OPT-NEXT: }
+
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 3) [@chain] ---
+// OPT-NEXT: func @chain(%n int64) str {
+// OPT-NEXT: %bb0(entry):
+// OPT-NEXT: ret 'b' str
+// OPT-NEXT: }

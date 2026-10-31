@@ -1,0 +1,35 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Type errors of an 'if' expression.
+
+trait Fly {
+    func fly() str
+}
+class Bird : Fly {
+    func fly() str = "bird"
+}
+class Car {
+}
+
+func f(c bool, n int) {
+    let a = if n { 1 } else { 2 }
+    // CHECK: if condition must be boolean type.
+    let b = if c { 1 } else { "x" }
+    // CHECK-NEXT: branches of 'if' expression have incompatible types 'int64' and 'str'.
+    let d str = if c { "a" } else { 2 }
+    // CHECK-NEXT: Incompatible type: expected 'str', but got 'int64'.
+    let e Fly = if c { Bird() } else { Car() }
+    // CHECK-NEXT: Incompatible type: expected 'test_if_expr_errors.Fly', but got 'test_if_expr_errors.Car'.
+    var g = 0
+    g = if c { "s" } else { "t" }
+    // CHECK-NEXT: Types of two sides are not matched.
+}
+
+func r(c bool) int {
+    return if c { 1 } else { "x" }
+    // CHECK: Incompatible type: expected 'int64', but got 'str'.
+}
+
+func body(c bool) int = if c { 1 } else { 2.5 }
+// CHECK-NEXT: Incompatible type: expected 'int64', but got 'float64'.
+
+// CHECK-NOT: error:

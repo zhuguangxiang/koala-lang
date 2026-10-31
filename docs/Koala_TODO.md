@@ -1962,3 +1962,23 @@ Where it fails / what is needed:
 3. Tests: unbounded `T`, `T: Shape`, `T` instantiated with `int` / `str` / a class with and
    without its own `fmt` / `hash` / `__eq__`; `f.write(t)`, `let h Hashable = t`, `list[Printable]`
    element.
+
+## 36. `if` expression: later extensions (2026-10-31, to discuss)
+
+`if c { a } else { b }` is a value in `let` / `var` initializers, `=`, `return` and `= expr`
+function bodies (Manual "Branching and Loops"; `test/test-run/test_if_expr.kl`). Left for later:
+
+1. **Narrowing in the branches.** `parse_if()` narrows for `x != nil` / `x is T` in the then/else
+   blocks; `parse_if_expr()` does not, so `let n = if x != nil { x! } else { 0 }` needs `!`
+   (or `x ?? 0`). Needs the shadow-variable scopes of `parse_if()` around each branch and the
+   matching irgen side.
+2. **`if let` form**: `let n = if let v = x { v } else { 0 }`.
+3. **Expected type for `x = if ...`**: `parse_assign()` visits the right side before the left,
+   so the branches get no expected type and must agree by themselves
+   (`f = if c { Bird() } else { Plane() }` with `f Fly` fails; a typed `let` works).
+4. **A `panic()` / `unreachable()` branch**: its type is no-type, so it does not fit the other
+   branch; it could be allowed as "never returns".
+5. **Other positions**: arguments, operands, `x += if ...`. Kept out on purpose, following Swift
+   (decided 2026-10-31, also for call arguments: bind the value with `let` first); revisit only
+   with a concrete need.
+6. **`match` as an expression** in the same positions.

@@ -881,6 +881,34 @@ static int is_type_param_fmt(KlrValue *self, Symbol *fn)
     return is_type_param_auto_func(self, fn, "Printable", "fmt");
 }
 
+// `b.to_int()`: the @intrinsic to_int() of std/builtin's bool
+static int is_bool_to_int(KlrValue *self, Symbol *fn)
+{
+    if (!self->ts || self->ts->kind != TYPE_BOOL) return 0;
+    if (!fn || !str_equal(fn->name, "to_int")) return 0;
+    Symbol *kls = fn->parent;
+    if (!kls || !str_equal(kls->name, "bool")) return 0;
+    Symbol *pkg = kls->parent;
+    return pkg && pkg->kind == SYM_PACKAGE && !strcmp(pkg->name, "std/builtin");
+}
+
+// b.to_int() is `select %b, 1, 0`, const-copy-prop folds it once %b is a constant;
+// a literal is folded here (a select needs a non-constant condition, see isel)
+static KlrValue *emit_bool_to_int(ParserState *ps, KlrValue *self)
+{
+    TypeSpec *ts = int64_type_spec();
+    if (klr_is_const(self)) {
+        KlrConst *c = (KlrConst *)self;
+        ASSERT(c->which == CONST_BOOL);
+        return klr_const_int(c->bval ? 1 : 0, ts, MOD);
+    }
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    KlrValue *one = klr_const_int(1, ts, MOD);
+    KlrValue *zero = klr_const_int(0, ts, MOD);
+    return klr_build_select(&bldr, self, one, zero, "");
+}
+
 static void emit_ir_call(ParserState *ps, Expr *exp)
 {
     CallExpr *call = (CallExpr *)exp;
@@ -1021,6 +1049,8 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
                 KlrBuilder bldr;
                 klr_builder_end(&bldr, ps->scope->bb);
                 ret = klr_build_hash(&bldr, self, "");
+            } else if (size == 0 && is_bool_to_int(self, lhs->sym)) {
+                ret = emit_bool_to_int(ps, self);
             } else if (size == 1 && is_type_param_fmt(self, lhs->sym)) {
                 // t.fmt(f) on a value of a type parameter: OP_FMT calls the fmt slot of
                 // its own type, the same as t.hash() above
@@ -2270,6 +2300,64 @@ static void emit_ir_coalesce(ParserState *ps, Expr *exp)
     SET_IR_LOC(result, exp);
 }
 
+// One branch of an 'if' expression: evaluate it in its block, convert it to the result type
+// (class -> trait) and move it into the result local, then jump to the end.
+static void emit_ir_if_expr_branch(ParserState *ps, Expr *e, KlrBasicBlock *bb, KlrValue *result,
+                                   KlrBasicBlock *end_bb)
+{
+    ps->scope->bb = bb;
+    e->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, e);
+    if (!e->ir_val) return;
+
+    // the branch may have created blocks itself ('??', '&&', a nested 'if'), so the move
+    // goes to the current block
+    KlrValue *val = _build_obj_intf_upcast(ps, e->ir_val, result->ts, "");
+    if (!val) val = e->ir_val;
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    klr_build_move(&bldr, result, val);
+    klr_build_jmp(&bldr, end_bb);
+}
+
+/*
+ * if c { a } else { b } as a value, no new op:
+ *
+ *   entry: %if = local T            (mutable: two defs, SSA makes the phi at the end)
+ *          branch %c, label %then, label %else
+ *   then:  <a>; move %if, a; jmp %end
+ *   else:  <b>; move %if, b; jmp %end   (else-if: b is the nested 'if' expression)
+ *   end:   %if
+ */
+static void emit_ir_if_expr(ParserState *ps, Expr *exp)
+{
+    IfExpr *ie = (IfExpr *)exp;
+    if (!exp->ts) return;
+
+    KlrValue *fn = CURRENT_FUNC;
+
+    Expr *cond = ie->cond;
+    cond->ctx = EXPR_CTX_LOAD;
+    emit_ir_visit_expr(ps, cond);
+    if (!cond->ir_val) return;
+
+    KlrBasicBlock *then_bb = klr_append_block(fn, "if-expr-then");
+    KlrBasicBlock *else_bb = klr_append_block(fn, "if-expr-else");
+    KlrBasicBlock *end_bb = klr_append_block(fn, "if-expr-end");
+
+    KlrBuilder bldr;
+    klr_builder_end(&bldr, ps->scope->bb);
+    KlrValue *result = klr_build_local_var(&bldr, exp->ts, "if");
+    klr_build_jmp_cond(&bldr, cond->ir_val, then_bb, else_bb);
+
+    emit_ir_if_expr_branch(ps, ie->then_exp, then_bb, result, end_bb);
+    emit_ir_if_expr_branch(ps, ie->else_exp, else_bb, result, end_bb);
+
+    ps->scope->bb = end_bb;
+    exp->ir_val = result;
+    SET_IR_LOC(result, exp);
+}
+
 static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
 {
     if (!exp) return;
@@ -2298,6 +2386,7 @@ static void emit_ir_visit_expr(ParserState *ps, Expr *exp)
         [EXPR_IN_KIND]      = emit_ir_contains,
         [EXPR_BANG_KIND]    = emit_ir_bang,
         [EXPR_COALESCE_KIND] = emit_ir_coalesce,
+        [EXPR_IF_KIND]      = emit_ir_if_expr,
         [EXPR_CONST_PLACEHOLDER] = emit_ir_const_placeholder,
     };
     /* clang-format on */

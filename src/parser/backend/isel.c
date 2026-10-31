@@ -1102,10 +1102,22 @@ static void isel_lower_select(KlrInsn *insn)
     ASSERT(klr_is_insn(true_val) || klr_is_param(true_val) || klr_is_const(true_val));
     ASSERT(klr_is_insn(false_val) || klr_is_param(false_val) || klr_is_const(false_val));
 
+    // the move and move_true below take registers: a const value is loaded first,
+    // e.g. `select %b, 1, 0` of b.to_int()
+    if (klr_is_const(true_val)) true_val = lower_const(insn, (KlrConst *)true_val);
+    if (klr_is_const(false_val)) false_val = lower_const(insn, (KlrConst *)false_val);
+
     KlrBuilder bldr;
     klr_builder_before(&bldr, insn);
     KlrValue *local = klr_build_local(&bldr, insn->ts, "");
     klr_build_move(&bldr, local, false_val);
+
+    // the local holds the value now: a call slot pinned on the select (the calls are
+    // lowered first, e.g. `f(b.to_int())`) moves to it, move_true has no value
+    KlrInsn *local_insn = (KlrInsn *)local;
+    local_insn->fixedslot = insn->fixedslot;
+    local_insn->slotindex = insn->slotindex;
+    insn->fixedslot = 0;
 
     insn->code = OP_MOVE_TRUE;
     insn->ts = NULL;

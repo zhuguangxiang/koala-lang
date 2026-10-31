@@ -327,6 +327,9 @@ static Stmt *tuple_let_else_stmt(ParserState *ps, Vector *ids, int which, Expr *
 %type<expr> const_expr
 %type<expr> const_tuple_expr
 %type<expr> expr
+%type<expr> value_expr
+%type<expr> if_expr
+%type<expr> if_branch
 %type<expr> coalesce_expr
 %type<expr> or_expr
 %type<expr> in_expr
@@ -1513,13 +1516,13 @@ const_type
     ;
 
 let_decl
-    : LET ID '=' expr
+    : LET ID '=' value_expr
     {
         Ident id = {$2, loc(@2)};
         $$ = stmt_from_var_decl(id, NULL, 1, $4);
         stmt_set_loc($$, lloc(@1, @4));
     }
-    | LET ID optional_type '=' expr
+    | LET ID optional_type '=' value_expr
     {
         Ident id = {$2, loc(@2)};
         $$ = stmt_from_var_decl(id, $3, 1, $5);
@@ -1687,13 +1690,13 @@ var_decl
         $$ = stmt_from_var_decl(id, $3, 0, NULL);
         stmt_set_loc($$, lloc(@1, @3));
     }
-    | VAR ID optional_type '=' expr
+    | VAR ID optional_type '=' value_expr
     {
         IDENT(id, $2, loc(@2));
         $$ = stmt_from_var_decl(id, $3, 0, $5);
         stmt_set_loc($$, lloc(@1, @5));
     }
-    | VAR ID '=' expr
+    | VAR ID '=' value_expr
     {
         IDENT(id, $2, loc(@2));
         $$ = stmt_from_var_decl(id, NULL, 0, $4);
@@ -1848,7 +1851,7 @@ func_decl
         $$ = $1;
         ((FuncDeclStmt *)$$)->body = $2;
     }
-    | func_proto_decl '=' expr semi
+    | func_proto_decl '=' value_expr semi
     {
         $$ = $1;
         Vector *block = vector_create_ptr();
@@ -2678,10 +2681,13 @@ local
     ;
 
 assignment
-    : assign_left_expr assign_operator expr
+    : assign_left_expr assign_operator value_expr
     {
         $$ = stmt_from_assignment($2, $1, $3);
         stmt_set_loc($$, lloc(@1, @3));
+        if ($2 != OP_ASSIGN && $3->kind == EXPR_IF_KIND) {
+            kl_error(loc(@3), "an 'if' expression can only be assigned with '='.");
+        }
     }
     | assign_left_expr assign_operator error
     {
@@ -2779,10 +2785,61 @@ return_stmt
         $$ = stmt_from_return(NULL);
         stmt_set_loc($$, loc(@1));
     }
-    | RETURN expr
+    | RETURN value_expr
     {
         $$ = stmt_from_return($2);
         stmt_set_loc($$, lloc(@1, @2));
+    }
+    ;
+
+/*
+ * A value: an expr, or an 'if' expression, which is only allowed where a single
+ * value is expected (let/var initializer, '=', return, `= expr` function body).
+ */
+value_expr
+    : expr
+    {
+        $$ = $1;
+    }
+    | if_expr
+    {
+        $$ = $1;
+    }
+    ;
+
+/*
+ * if c { a } else { b }: 'else' is required. A branch may hold a nested 'if'
+ * expression, so 'else if' is the same as 'else { if ... }'.
+ */
+if_expr
+    : IF expr if_branch ELSE if_branch
+    {
+        $$ = expr_from_if($2, $3, $5);
+        expr_set_loc($$, lloc(@1, @5));
+    }
+    | IF expr if_branch ELSE if_expr
+    {
+        $$ = expr_from_if($2, $3, $5);
+        expr_set_loc($$, lloc(@1, @5));
+    }
+    | IF expr if_branch
+    {
+        // keep the node (else_exp is NULL) so the statement is not reported again
+        kl_error(loc(@1), "'if' expression requires an 'else' branch.");
+        $$ = expr_from_if($2, $3, NULL);
+        expr_set_loc($$, lloc(@1, @3));
+    }
+    ;
+
+/* one value in braces; a newline before '}' inserts ';' */
+if_branch
+    : '{' value_expr '}'
+    {
+        $$ = $2;
+    }
+    | '{' value_expr ';' '}'
+    {
+        $$ = $2;
     }
     ;
 

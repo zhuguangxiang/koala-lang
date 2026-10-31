@@ -1,0 +1,15 @@
+// RUN: ! koalac %s 2>&1 | filecheck %s
+// Syntax errors of an 'if' expression: 'else' is required (also at the end of an
+// 'else if' chain), and a compound assignment cannot take one.
+
+func f(c bool, n int) {
+    let a = if c { 1 }
+    // CHECK: 'if' expression requires an 'else' branch.
+    let b = if c { 1 } else if n > 0 { 2 }
+    // CHECK-NEXT: 'if' expression requires an 'else' branch.
+    var g = 0
+    g += if c { 1 } else { 2 }
+    // CHECK-NEXT: an 'if' expression can only be assigned with '='.
+}
+
+// CHECK-NOT: error:

@@ -274,6 +274,10 @@ let flag = !ok || c == 0
 
 A `bool` value is also what `if` and `while` conditions expect.
 
+There is no implicit conversion between `bool` and integers, and the integer constructors do not
+take a `bool`. `b.to_int()` gives `1` or `0` (an `int`), e.g. for a C flag argument; other widths
+convert from it, `uint8(b.to_int())`.
+
 ### Tuples and Variadic Types
 
 Tuples are written with parentheses and may mix element types:
@@ -622,6 +626,29 @@ if a > b {
     print(b)
 }
 ```
+
+**`if` as a value.** Koala has no `?:` operator. Instead, `if ... else ...` gives a value where a
+single value is expected: a `let` / `var` initializer, the right side of `=`, after `return`, and
+as a `= expr` function body:
+
+```kl
+let sign = if n < 0 { -1 } else if n == 0 { 0 } else { 1 }
+var label str = if ok { "yes" } else { "no" }
+label = if done { "done" } else { label }
+func abs(n int) int = if n < 0 { -n } else { n }
+func name(n int) str {
+    return if n == 1 { "one" } else { "many" }
+}
+```
+
+- `else` is required, so every path has a value. Each branch holds one expression, which may be
+  another `if` expression; `else if` is the same as `else { if ... }`.
+- With a declared type (a typed `let` / `var`, `return`, a function body) each branch must fit
+  it: `let f Fly = if c { Bird() } else { Plane() }`. Without one, the branches must have the same
+  type, or `T` and `nil` (giving `T?`), or one must fit the other (`T` and `T?` give `T?`).
+- Only the taken branch is evaluated.
+- It is not allowed inside other expressions (`print(if ...)`, `1 + if ...`), nor with a compound
+  assignment (`x += if ...`): bind it with `let` first. `else` stays on the line of the `}`.
 
 Loops come in two forms. `while` repeats on a condition, and `while let` repeats on a `T?` value:
 

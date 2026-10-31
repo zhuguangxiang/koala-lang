@@ -86,6 +86,7 @@ typedef enum _ExprKind {
     EXPR_BANG_KIND,
     EXPR_CONST_PLACEHOLDER,
     EXPR_COALESCE_KIND,
+    EXPR_IF_KIND,
     EXPR_MAX_KIND,
 } ExprKind;
 
@@ -379,6 +380,17 @@ typedef struct _CoalesceExpr {
 } CoalesceExpr;
 
 Expr *expr_from_coalesce(Expr *lhs, Expr *rhs);
+
+// `if cond { then_exp } else { else_exp }` as a value (let/var initializer, '=', return,
+// `= expr` function body). In an `else if` chain, else_exp is the nested IfExpr.
+typedef struct _IfExpr {
+    EXPR_HEAD
+    Expr *cond;
+    Expr *then_exp;
+    Expr *else_exp;
+} IfExpr;
+
+Expr *expr_from_if(Expr *cond, Expr *then_exp, Expr *else_exp);
 
 static inline int expr_is_literal_null(Expr *e)
 {

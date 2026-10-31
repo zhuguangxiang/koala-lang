@@ -33,4 +33,8 @@ pub class bool : ToString {
     /// Convert the boolean value to its string ("true" or "false").
     @native
     pub func to_str() str {}
+
+    /// Return 1 for `true` and 0 for `false`, e.g. for a C flag argument.
+    @intrinsic
+    pub func to_int() int {}
 }

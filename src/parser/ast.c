@@ -417,6 +417,16 @@ Expr *expr_from_bang(Expr *exp)
     return (Expr *)e;
 }
 
+Expr *expr_from_if(Expr *cond, Expr *then_exp, Expr *else_exp)
+{
+    IfExpr *e = mm_alloc_obj(e);
+    e->kind = EXPR_IF_KIND;
+    e->cond = cond;
+    e->then_exp = then_exp;
+    e->else_exp = else_exp;
+    return (Expr *)e;
+}
+
 Expr *expr_from_coalesce(Expr *lhs, Expr *rhs)
 {
     CoalesceExpr *e = mm_alloc_obj(e);
@@ -568,6 +578,15 @@ static void coalesce_expr_free(Expr *exp)
     mm_free(exp);
 }
 
+static void if_expr_free(Expr *exp)
+{
+    IfExpr *e = (IfExpr *)exp;
+    expr_free(e->cond);
+    expr_free(e->then_exp);
+    expr_free(e->else_exp);
+    mm_free(exp);
+}
+
 static void panic_expr_free(Expr *exp) { mm_free(exp); }
 
 static void const_placeholder_expr_free(Expr *exp) { mm_free(exp); }
@@ -600,6 +619,7 @@ void expr_free(Expr *exp)
         [EXPR_IN_KIND] = in_expr_free,
         [EXPR_BANG_KIND] = bang_expr_free,
         [EXPR_COALESCE_KIND] = coalesce_expr_free,
+        [EXPR_IF_KIND] = if_expr_free,
         [EXPR_CONST_PLACEHOLDER] = const_placeholder_expr_free,
     };
 

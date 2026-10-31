@@ -24,6 +24,28 @@ func copy_then_add(a int) int {
     y = y + 100
     return t * 1000 + y
 }
+// the var is written with a computed value after the copy
+func var_copy_computed(a int) int {
+    var y = a
+    var t = y
+    y = a * 7
+    return t * 100 + y
+}
+// the var is written with a list constant (not propagated as a value) after the copy
+func var_copy_list() int {
+    var l = [1]
+    var t = l
+    l = [2, 3]
+    return len(t) * 10 + len(l)
+}
+// a chain of copies of a var that is then changed
+func copy_chain(a int) int {
+    var y = a
+    var t = y
+    var u = t
+    y = 9
+    return u
+}
 // swap through a tuple literal
 func swap(a int, b int) int {
     var x = a
@@ -70,6 +92,7 @@ func main() {
     print(let_copy(1), var_copy(1), copy_then_add(1))
     print(swap(1, 2), rotate(1, 2, 3), swap_twice(1, 2))
     print(swap_loop(3), swap_loop(4), shadow(1, 2))
+    print(var_copy_computed(2), var_copy_list(), copy_chain(4))
 }
 
 // after optimization the copy of 'y' is still returned, not 'y'
@@ -79,3 +102,4 @@ func main() {
 // CHECK: {{^}}1 1 1101{{$}}
 // CHECK-NEXT: {{^}}21 231 12{{$}}
 // CHECK-NEXT: {{^}}21 12 21{{$}}
+// CHECK-NEXT: {{^}}214 12 4{{$}}

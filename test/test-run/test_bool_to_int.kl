@@ -1,0 +1,77 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s --check-prefix=IR
+// RUN: koala %s ++ --dump=ir | filecheck %s --check-prefix=OPT
+// RUN: koala %s ++ --dump=lir | filecheck %s --check-prefix=LIR
+// bool.to_int(): 1 for true, 0 for false; other integer widths convert from the int.
+// It is @intrinsic: a literal is folded by irgen, otherwise it is `select %b, 1, 0`,
+// which const-copy-prop folds once %b is a constant. No call is left.
+
+func flag(on bool) uint8 {
+    return uint8(on.to_int())
+}
+
+// the select is a call argument: its value must land in the call slot
+func arg(b bool) {
+    print(b.to_int(), typeof(b.to_int()))
+}
+
+func main() {
+    let t = true
+    let f = false
+    print(t.to_int(), f.to_int(), (1 < 2).to_int(), typeof(t.to_int()))
+    print(flag(true), flag(false), t.to_int() + t.to_int(), true.to_int(), false.to_int())
+    arg(true)
+    arg(false)
+}
+
+// CHECK: {{^}}1 0 1 <class 'int64'>{{$}}
+// CHECK-NEXT: {{^}}1 0 2 1 0{{$}}
+// CHECK-NEXT: {{^}}1 <class 'int64'>{{$}}
+// CHECK-NEXT: {{^}}0 <class 'int64'>{{$}}
+
+// IR-LABEL: func @flag(%on bool) uint8 {
+// IR-NEXT: %bb0(entry):
+// IR-NEXT: %0 = select %on bool, 1 int64, 0 int64
+// IR-NEXT: %1 = cast %0 int64 to uint8
+// IR-LABEL: func @main() <NO-TYPE> {
+// IR: %0 = select %t bool, 1 int64, 0 int64
+// IR-NEXT: %1 = select %f bool, 1 int64, 0 int64
+// a literal receiver is folded by irgen
+// IR: %12 = build_intern @tuple, %7 uint8, %8 uint8, %11 int64, 1 int64, 0 int64
+// IR-NOT: to_int
+
+// after optimization a non-constant bool keeps its select
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@flag] ---
+// OPT-NEXT: func @flag(%on bool) uint8 {
+// OPT-NEXT: %bb0(entry):
+// OPT-NEXT: %0 = select %on bool, 1 int64, 0 int64
+// OPT-NEXT: %1 = cast %0 int64 to uint8
+// OPT-NEXT: ret %1 uint8
+
+// after optimization every to_int() of a constant bool is folded, no select and no call is left
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 2) [@main] ---
+// OPT-NEXT: func @main() <NO-TYPE> {
+// OPT-NEXT: %bb0(entry):
+// OPT-NEXT: %0 = call @typeof [path = 'std/builtin'], 1 int64
+// OPT-NEXT: %1 = build_intern @tuple, 1 int64, 0 int64, 1 int64, %0 std/builtin.type
+// OPT-NEXT: call @print
+// OPT-NEXT: %2 = call @flag [const], true bool
+// OPT-NEXT: %3 = call @flag [const], false bool
+// OPT-NEXT: %4 = build_intern @tuple, %2 uint8, %3 uint8, 2 int64, 1 int64, 0 int64
+// OPT-NOT: select
+// OPT: ret void
+
+// after optimization the constants are loaded directly, the select becomes move_true
+// LIR-LABEL: func @flag(%on bool) uint8 {
+// LIR: load_int_imm %0 int64, 1 int64
+// LIR: load_int_imm %1 int64, 0 int64
+// LIR: move_true %2 int64, %on bool, %0 int64
+// LIR-NOT: call
+// LIR: ret
+
+// the call slot of typeof() is on the local holding the value, not on move_true
+// LIR-LABEL: func @arg(%b bool) <NO-TYPE> {
+// LIR: %6 = local [immutable] int64 [fixedslot = 0(next)]
+// LIR-NEXT: move %6 int64, %5 int64
+// LIR-NEXT: move_true %6 int64, %b bool, %4 int64{{$}}
+// LIR-NEXT: %8 = call @typeof

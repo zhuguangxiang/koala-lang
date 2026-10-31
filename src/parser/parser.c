@@ -1850,6 +1850,8 @@ static void parse_single_expr_stmt(ParserState *ps, Stmt *stmt, FuncSymbol *fn)
     ASSERT(exp);
 
     exp->ctx = EXPR_CTX_LOAD;
+    // the branches of an 'if' expression are checked against the return type, as for 'return'
+    if (exp->kind == EXPR_IF_KIND && !type_is_no_type(ret_ts)) exp->expected = ret_ts;
     parser_visit_expr(ps, exp);
 
     TypeSpec *ts = exp->ts;

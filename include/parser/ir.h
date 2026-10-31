@@ -712,6 +712,9 @@ int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val, KlrIn
 /* clear local variable */
 int klr_clear_local_var(KlrBasicBlock *bb, KlrInsn *local);
 
+/* `local` is written: forget the vars recorded as a copy of it */
+int klr_kill_local_var_copies(KlrBasicBlock *bb, KlrInsn *local);
+
 /* get local variable */
 KlrValue *klr_get_local_var(KlrBasicBlock *bb, KlrInsn *local);
 

@@ -153,10 +153,7 @@ pub class TcpConn : Conn {
 
     /// Enable or disable TCP_NODELAY.
     pub func set_nodelay(on bool) bool {
-        // TODO: x ? 1 : 0
-        var _on = 0
-        if on { _on = 1 }
-        return sys_setsockopt_int(_fd, IP_PROTO_TCP, TCP_NODELAY, _on) == 0
+        return sys_setsockopt_int(_fd, IP_PROTO_TCP, TCP_NODELAY, on.to_int()) == 0
     }
 
     /// Query the current TCP_NODELAY setting.
@@ -168,10 +165,7 @@ pub class TcpConn : Conn {
 
     /// Enable or disable TCP keepalive.
     pub func set_keepalive(on bool) bool {
-        // TODO: x ? 1 : 0
-        var _on = 0
-        if on { _on = 1 }
-        return sys_setsockopt_int(_fd, SOL_SOCKET, SO_KEEPALIVE, _on) == 0
+        return sys_setsockopt_int(_fd, SOL_SOCKET, SO_KEEPALIVE, on.to_int()) == 0
     }
 
     /// Set the keepalive idle interval in seconds.
@@ -324,10 +318,7 @@ pub class UdpConn : Conn {
 
     /// Enable or disable sending to broadcast addresses.
     pub func set_broadcast(on bool) bool {
-        // TODO:
-        var _on = 0
-        if on { _on = 1 }
-        return sys_setsockopt_int(_fd, SOL_SOCKET, SO_BROADCAST, _on) == 0
+        return sys_setsockopt_int(_fd, SOL_SOCKET, SO_BROADCAST, on.to_int()) == 0
     }
 
     /// Set the IP time-to-live of outgoing packets.

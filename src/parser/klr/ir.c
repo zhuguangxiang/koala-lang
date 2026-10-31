@@ -398,6 +398,23 @@ static int __local_var_eq__(void *a, void *b)
     return e1->local == e2->local;
 }
 
+// `local` is written: every var recorded as a copy of it (`move %t, %local`) no longer
+// holds its value, forget those entries (the moves into them stay, they are needed)
+int klr_kill_local_var_copies(KlrBasicBlock *bb, KlrInsn *local)
+{
+    HashMap *map = &bb->local_var_map;
+    HashMapIter it;
+    hashmap_iter_init(map, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        LocalVarMapEntry *e = (LocalVarMapEntry *)hashmap_iter_entry(&it);
+        if (e->val == (KlrValue *)local) {
+            e->val = NULL;
+            e->move = NULL;
+        }
+    }
+    return 0;
+}
+
 int klr_update_local_var(KlrBasicBlock *bb, KlrInsn *local, KlrValue *val, KlrInsn *move)
 {
     ASSERT(klr_is_local((KlrValue *)local));
