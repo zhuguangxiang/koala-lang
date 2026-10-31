@@ -257,7 +257,8 @@ typedef struct _TypeObject {
     uint16_t tag;
     /* alloc function */
     AllocFunc _alloc;
-    /* free function */
+    /* finalizer: releases native resources (fds, child processes) held by
+       the object; it does not free the object memory itself */
     FreeFunc _free;
     /* gc mark function */
     MarkFunc _mark;

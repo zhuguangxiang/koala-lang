@@ -9,3 +9,17 @@ name = "demo/extra"
 version = "0.1.0"
 dependencies = ["demo/math"]
 natives = []
+
+[[package]]
+file = "simple_algo.kl"
+name = "simple_algo"
+version = "0.1.0"
+dependencies = []
+natives = []
+
+[[package]]
+file = "csv2lines.kl"
+name = "csv2lines"
+version = "0.1.0"
+dependencies = []
+natives = []

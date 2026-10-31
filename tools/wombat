@@ -146,9 +146,15 @@ func print_command_help(name str) {
     }
 
     if name == "clean" {
-        print("Usage: wombat clean [dir]")
+        print("Usage: wombat clean [dir] [-y|--yes]")
         print("")
-        print("Removes the output directory (default: ./dist).")
+        print("Removes <workspace>/dist. Must be run inside a workspace")
+        print("(a directory containing __ws__.toml).")
+        print("")
+        print("Without -y, you must type the full word `yes` to confirm.")
+        print("")
+        print("Options:")
+        print("  -y, --yes               Skip the confirmation prompt")
         return
     }
 
@@ -286,7 +292,27 @@ func cmd_doc(argv list[str]) int {
     return 1
 }
 
+/// `wombat clean [dir] [-y|--yes]`
+///
+/// Removes `<workspace>/dist`. Must be run inside a workspace (a
+/// directory containing `__ws__.toml`). Without `-y`, the user must
+/// type `yes` (any case) to confirm.
 func cmd_clean(argv list[str]) int {
-    print("wombat clean: not implemented yet")
-    return 1
+    var dir = "."
+    var yes = false
+
+    var i = 1
+    while i < argv.len() {
+        let a = argv[i]
+        if a == "-y" || a == "--yes" {
+            yes = true
+        } else if a.starts_with("-") && a.len() > 1 {
+            printf("wombat clean: unknown option '{}'\n", a)
+            return 2
+        } else {
+            dir = a
+        }
+        i += 1
+    }
+    return wb.clean_all(dir, yes)
 }

@@ -1368,6 +1368,34 @@ json 侧原先「刻意未写」的 DBL_MIN / DBL_MAX 文本级往返现在**可
 
 ## 28. os.run 子进程管道：大 payload「先写后读」死锁 + 无 finalizer 致 fd 泄漏与 zombie
 
+**Status (2026-10-31)**: partly fixed; the `communicate()` and SIGPIPE-restore tests pass.
+
+- Item 1 is done: `Process.communicate(input bytes? = nil) (bytes, bytes)` (`src/modules/os.c`) runs one
+  `poll()` loop over stdin / stdout / stderr, closes all three parent-side ends and reaps the child.
+  `os_native_lib_init` now ignores SIGPIPE (as `socket` already did), so a child that stops reading makes
+  the write fail with EPIPE instead of killing the process. An ignored signal stays ignored across exec,
+  so `os.run` (`posix_spawnp`) and `os.system` (now `posix_spawn` of `/bin/sh -c` instead of system(3),
+  still returning the raw wait status) pass `POSIX_SPAWN_SETSIGDEF` for SIGPIPE (`init_spawn_attr`), as
+  Python's `restore_signals` does. Unlike system(3), `os.system` does not ignore SIGINT / SIGQUIT in the
+  parent while the shell runs. New tests are in `test/test-ut/test_run_pipe.kl`
+  (`test_communicate_*`; `test_communicate_large` sends 300000 bytes; `test_*_sigpipe_default`, `test_system_exit_code`). `test_run_read_all_large` still uses
+  write-all-then-`read_all()` and stays `@skip`: its "zombie" note does not match the 17000-byte payload
+  (below the deadlock limit); find out why before removing the skip.
+- Item 2 is wired but cannot run yet: RawReader / RawWriter have `_free = raw_free` (closes the fd if
+  `close()` was never called) and Process has `_free = process_free` (`waitpid(WNOHANG)`: reaps a child that
+  has already exited, never blocks on a running one). `kl_free_instance()` calls `tp->_free` before `mm_free`,
+  and `TypeObject._free` is documented as a finalizer that does not free the memory. But nothing frees
+  objects at run time today (no explicit `free`, no compiler-inserted free, the CMS GC is off; §12 of the
+  Design Overview), so these finalizers never fire. Until a free path exists, leaks ① / ② remain for code
+  that does not call `close()` / `wait()`; `communicate()` is the leak-free path.
+- Left: `Process` holds its three pipe objects as raw `Object *` with `_nfields = 0` and no `_mark`, so a
+  tracing GC would not see them; add a `_mark` when the GC is turned on. A still-running child whose
+  Process is freed is not reaped (it needs SIGCHLD handling or a reaper, still to be decided).
+- Same for `fs.File` (`src/modules/fs.c`, `file_type`): no `_free`, so a File that is never `close()`d
+  leaks its fd. Add a `_free` that closes the fd, together with the free path above.
+- All memory / finalizer items of this section wait for a run-time free path (explicit `free`,
+  compiler-inserted free, or the GC); they are tracked here only, not in work plans.
+
 **现象一（死锁）**：对 `os.run` 返回的 Process，若「先把 stdin 全部写完，再 `read_all()` 读 stdout」，
 当 payload 超过管道容量时死锁——父进程阻塞在 `write(stdin)`、子进程阻塞在 `write(stdout)`，两侧永久睡眠
 （`ps` TIME=00:00:00，wchan 分别为 `anon_pipe_write` / `pipe_wait_writable`）。

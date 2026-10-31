@@ -5,6 +5,8 @@
 
 #include <fcntl.h>
 #include <limits.h>
+#include <poll.h>
+#include <signal.h>
 #include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -73,12 +75,60 @@ static TValue os_environ(TValue *self, TValue *args, int nargs)
     return dict;
 }
 
+/*
+ * Spawn attributes shared by os.run and os.system: give the child the default
+ * SIGPIPE action back. This process ignores SIGPIPE (see os_native_lib_init),
+ * and an ignored signal stays ignored across exec, so without this a child
+ * like `yes` in `yes | head -1` would get EPIPE errors instead of exiting.
+ */
+static void init_spawn_attr(posix_spawnattr_t *attr)
+{
+    sigset_t sigdef;
+    sigemptyset(&sigdef);
+    sigaddset(&sigdef, SIGPIPE);
+
+    posix_spawnattr_init(attr);
+    posix_spawnattr_setsigdefault(attr, &sigdef);
+    posix_spawnattr_setflags(attr, POSIX_SPAWN_SETSIGDEF);
+}
+
+/*
+ * pub func system(cmd str) int
+ *
+ * Run `cmd` with `/bin/sh -c` and wait for it. Like system(3), return the raw
+ * wait status (the exit code is `(status >> 8) & 0xFF`), or -1 if the shell
+ * cannot be started. Spawned directly instead of via system(3), so the shell
+ * gets the default SIGPIPE action (see init_spawn_attr).
+ */
 static TValue os_system(TValue *self, TValue *args, int nargs)
 {
     ASSERT(nargs == 1);
     char *cmd = kl_arg_str(0);
-    int ret = system(cmd);
-    return int64_value(ret);
+
+    /* External: Environment variables (required by posix_spawn) */
+    extern char **environ;
+
+    char *argv[] = { "sh", "-c", cmd, NULL };
+
+    posix_spawnattr_t attr;
+    init_spawn_attr(&attr);
+
+    pid_t pid;
+    int spawn_status = posix_spawn(&pid, "/bin/sh", NULL, &attr, argv, environ);
+    posix_spawnattr_destroy(&attr);
+
+    if (spawn_status != 0) return int64_value(-1);
+
+    int status;
+    pid_t res;
+
+    /* retry when interrupted by a signal */
+    do {
+        res = waitpid(pid, &status, 0);
+    } while (res < 0 && errno == EINTR);
+
+    if (res < 0) return int64_value(-1);
+    return int64_value(status);
 }
 
 // --- Working Directory ---
@@ -145,6 +195,18 @@ static int fd_check_access(int fd, int want)
     if (mode == O_RDWR) return 0;
     return mode == want ? 0 : -1;
 }
+
+/* Close the fd once; later calls are no-ops */
+static void raw_close(RawObject *raw)
+{
+    if (!raw->closed) {
+        close(raw->fd);
+        raw->closed = 1;
+    }
+}
+
+/* Finalizer of RawReader/RawWriter: close the fd if close() was never called */
+static void raw_free(Object *self) { raw_close((RawObject *)self); }
 
 /*
  * pub func __init__(fd int)
@@ -276,6 +338,7 @@ static TypeObject raw_reader_type = {
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(RawObject),
     .methdefs = raw_reader_methods,
+    ._free = raw_free,
 };
 
 /*
@@ -403,6 +466,7 @@ static TypeObject raw_writer_type = {
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(RawObject),
     .methdefs = raw_writer_methods,
+    ._free = raw_free,
 };
 
 /* Wrap a raw file descriptor, taking ownership of it */
@@ -543,16 +607,9 @@ static TValue process_poll(TValue *self, TValue *args, int nargs)
     return nil_value;
 }
 
-/*
- * pub func wait() int
- *
- * Blocking wait for the child process to exit.
- */
-static TValue process_wait(TValue *self, TValue *args, int nargs)
+/* Blocking wait for the child process to exit, shared by wait() and communicate() */
+static void wait_process(Process *proc)
 {
-    ASSERT(nargs == 0);
-    Process *proc = SELF_AS(process_type);
-
     if (!proc->exited) {
         int status;
         pid_t res;
@@ -577,7 +634,159 @@ static TValue process_wait(TValue *self, TValue *args, int nargs)
             proc->exit_status = -1;
         }
     }
+}
+
+/*
+ * pub func wait() int
+ *
+ * Blocking wait for the child process to exit.
+ */
+static TValue process_wait(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 0);
+    Process *proc = SELF_AS(process_type);
+    wait_process(proc);
     return int64_value(proc->exit_status);
+}
+
+/* A growable byte buffer collecting one output stream in communicate() */
+typedef struct _OutBuf {
+    uint8_t *data;
+    int len;
+    int cap;
+} OutBuf;
+
+/*
+ * Read what is available on `fd` into `buf`.
+ * Return the read(2) result: > 0 bytes read, 0 at EOF, < 0 on error.
+ */
+static ssize_t outbuf_read(OutBuf *buf, int fd)
+{
+    if (buf->len == buf->cap) {
+        buf->cap *= 2;
+        buf->data = mm_realloc(buf->data, buf->cap);
+    }
+
+    ssize_t r = read(fd, buf->data + buf->len, buf->cap - buf->len);
+    if (r > 0) buf->len += (int)r;
+    return r;
+}
+
+/*
+ * Drain `raw` once after poll() reported it ready; close it at EOF.
+ * Return -1 on a read error, 0 otherwise.
+ */
+static int drain_once(RawObject *raw, OutBuf *buf)
+{
+    ssize_t r = outbuf_read(buf, raw->fd);
+    if (r == 0) {
+        raw_close(raw); /* EOF: the child closed its end */
+    } else if (r < 0 && errno != EINTR && errno != EAGAIN) {
+        return -1;
+    }
+    return 0;
+}
+
+/*
+ * pub func communicate(input bytes? = nil) (bytes, bytes)
+ *
+ * Write `input` to stdin, then close it, while reading stdout and stderr
+ * until EOF; then wait for the child to exit. One poll() loop serves all
+ * three pipes, so a large `input` cannot deadlock against a child that
+ * blocks on writing its output. All three parent-side ends are closed and
+ * the child is reaped on return.
+ * Return the (stdout, stderr) bytes; the exit status is then available from
+ * wait() or poll(). Panic if `input` is non-empty but stdin is already
+ * closed, or if poll()/read() fails.
+ */
+static TValue process_communicate(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    Process *proc = SELF_AS(process_type);
+    RawObject *in = (RawObject *)proc->_stdin;
+    RawObject *out = (RawObject *)proc->_stdout;
+    RawObject *err = (RawObject *)proc->_stderr;
+
+    uint8_t *data = NULL;
+    int size = 0;
+    if (!is_nil(&args[0])) {
+        BytesObject *bs = kl_arg_obj_as(0, bytes_type);
+        data = bs->data + bs->offset;
+        size = bs->size;
+    }
+
+    if (size > 0 && in->closed) {
+        raise_exc("communicate: stdin is closed");
+        return error_value;
+    }
+
+    if (size == 0) {
+        raw_close(in); /* nothing to send: let the child see EOF now */
+    } else {
+        /* never block on a full pipe: poll() decides when to write again */
+        fcntl(in->fd, F_SETFL, fcntl(in->fd, F_GETFL) | O_NONBLOCK);
+    }
+
+    OutBuf obuf = { mm_alloc(8192), 0, 8192 };
+    OutBuf ebuf = { mm_alloc(8192), 0, 8192 };
+    int written = 0;
+
+    for (;;) {
+        struct pollfd fds[3];
+        RawObject *raws[3];
+        int n = 0;
+
+        if (!in->closed) {
+            fds[n] = (struct pollfd){ in->fd, POLLOUT, 0 };
+            raws[n++] = in;
+        }
+        if (!out->closed) {
+            fds[n] = (struct pollfd){ out->fd, POLLIN, 0 };
+            raws[n++] = out;
+        }
+        if (!err->closed) {
+            fds[n] = (struct pollfd){ err->fd, POLLIN, 0 };
+            raws[n++] = err;
+        }
+        if (n == 0) break;
+
+        if (poll(fds, n, -1) < 0) {
+            if (errno == EINTR) continue;
+            raise_exc_fmt("communicate: poll failed: %s", strerror(errno));
+            goto fail;
+        }
+
+        for (int i = 0; i < n; i++) {
+            if (!fds[i].revents) continue;
+
+            if (raws[i] == in) {
+                ssize_t w = write(in->fd, data + written, size - written);
+                if (w > 0) written += (int)w;
+                /* all sent, or EPIPE: the child stopped reading its stdin */
+                if (written == size || (w < 0 && errno != EINTR && errno != EAGAIN)) {
+                    raw_close(in);
+                }
+            } else if (drain_once(raws[i], raws[i] == out ? &obuf : &ebuf) < 0) {
+                raise_exc_fmt("communicate: read failed: %s", strerror(errno));
+                goto fail;
+            }
+        }
+    }
+
+    wait_process(proc);
+
+    TValue items[2] = {
+        obj_value(kl_bytes_from_data(obuf.data, (uint32_t)obuf.len)),
+        obj_value(kl_bytes_from_data(ebuf.data, (uint32_t)ebuf.len)),
+    };
+    mm_free(obuf.data);
+    mm_free(ebuf.data);
+    return obj_value(kl_new_tuple(items, 2));
+
+fail:
+    mm_free(obuf.data);
+    mm_free(ebuf.data);
+    return error_value;
 }
 
 /*
@@ -611,6 +820,13 @@ static TValue process_kill(TValue *self, TValue *args, int nargs)
     return no_value;
 }
 
+/*
+ * Finalizer of Process: reap the child if it has already exited, so it does
+ * not stay a zombie. A running child is left alone: blocking here would stall
+ * the runtime. The pipe ends are separate objects with their own finalizer.
+ */
+static void process_free(Object *self) { update_process_status((Process *)self); }
+
 static MethodDef process_methods[] = {
     { "stdin", process_stdin },
     { "stdout", process_stdout },
@@ -618,6 +834,7 @@ static MethodDef process_methods[] = {
     { "pid", process_pid },
     { "poll", process_poll },
     { "wait", process_wait },
+    { "communicate", process_communicate },
     { "terminate", process_terminate },
     { "kill", process_kill },
     { NULL, NULL },
@@ -629,6 +846,7 @@ static TypeObject process_type = {
     .flags = TP_FLAGS_CLASS,
     .objsize = sizeof(Process),
     .methdefs = process_methods,
+    ._free = process_free,
 };
 
 static Object *kl_new_process(pid_t pid, Object *stdin_f, Object *stdout_f, Object *stderr_f)
@@ -725,17 +943,22 @@ static TValue os_run(TValue *self, TValue *args, int nargs)
     /* External: Environment variables (required by posix_spawn) */
     extern char **environ;
 
+    /* the child gets the default SIGPIPE action back */
+    posix_spawnattr_t attr;
+    init_spawn_attr(&attr);
+
     pid_t pid;
     int spawn_status = posix_spawnp(&pid,       /* Output: Child process PID */
                                     executable, /* Executable (searched in PATH) */
                                     &actions,   /* File actions */
-                                    NULL,       /* Default attributes */
+                                    &attr,      /* Attributes */
                                     argv,       /* Argument list */
                                     environ     /* Environment variables */
     );
 
     // 8. Clean up temporary resources
     posix_spawn_file_actions_destroy(&actions);
+    posix_spawnattr_destroy(&attr);
 
     if (spawn_status != 0) {
         /* posix_spawn failed */
@@ -772,8 +995,24 @@ error:
 
 static TValue os_errno(TValue *self, TValue *args, int nargs) { return int64_value(errno); }
 
+/*
+ * pub func strerror(code int) str
+ *
+ * Return the system message for the error number `code`, e.g. "No such file
+ * or directory" for ENOENT; an unknown number gives "Unknown error N".
+ */
+static TValue os_strerror(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    int code = (int)kl_arg_int64(0);
+    return kl_val_str(strerror(code));
+}
+
 void os_native_lib_init(NativeLib *lib)
 {
+    /* a write to a pipe whose reader exited fails with EPIPE instead of killing us */
+    signal(SIGPIPE, SIG_IGN);
+
     kl_reg_func(lib, "getenv", os_getenv);
     kl_reg_func(lib, "setenv", os_setenv);
     kl_reg_func(lib, "unsetenv", os_unsetenv);
@@ -784,6 +1023,7 @@ void os_native_lib_init(NativeLib *lib)
     kl_reg_func(lib, "system", os_system);
     kl_reg_func(lib, "run", os_run);
     kl_reg_func(lib, "errno", os_errno);
+    kl_reg_func(lib, "strerror", os_strerror);
     kl_reg_type(lib, &raw_reader_type);
     kl_reg_type(lib, &raw_writer_type);
     kl_reg_type(lib, &process_type);

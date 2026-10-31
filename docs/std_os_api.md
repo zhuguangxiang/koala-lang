@@ -21,8 +21,10 @@
 | [`getcwd`](#getcwd) | Return the absolute pathname of the current working directory. |
 | [`chdir`](#chdir) | Change the current working directory to `path`. |
 | [`pipe`](#pipe) | Create an anonymous pipe for inter-process or inter-task communication. |
-| [`system`](#system) | Execute a system command line string in a subshell and return its exit status code. |
+| [`system`](#system) | Execute a system command line string in a subshell and return its raw wait status. |
 | [`run`](#run) | Execute a program with specific arguments, capturing its execution state. |
+| [`errno`](#errno) | Return the last error code from the operating system. |
+| [`strerror`](#strerror) | Return the system message for the error number `code`. |
 
 ## Classes
 
@@ -38,6 +40,7 @@ pub class Process {
     pub func pid() int
     pub func poll() int?
     pub func wait() int
+    pub func communicate(input bytes? = nil) (bytes, bytes)
     pub func terminate()
     pub func kill()
 }
@@ -106,6 +109,33 @@ A process terminated by a signal returns the negative signal number.
 
 This will synchronously block the current execution thread/fiber until
 the child process exits.
+
+<a id="process.communicate"></a>
+
+**`communicate(input bytes? = nil) (bytes, bytes)`** — *`@native`*
+
+Send `input` to stdin and read stdout and stderr until EOF, then wait for the
+process to exit.
+
+Writing and reading run in one `poll` loop, so a large `input` cannot
+deadlock against a child that blocks on writing its output (as writing all
+of stdin first and then calling `stdout().read_all()` does once the data
+exceeds the pipe capacity). stdin is closed after `input` is sent (at once
+when `input` is nil or empty), the stdout and stderr ends are closed at
+EOF, and the child is reaped, so nothing is leaked.
+
+Returns the `(stdout, stderr)` bytes. The exit status is then returned by
+`wait()` or `poll()` without blocking.
+
+Panic if `input` is non-empty but stdin is already closed, or if polling
+or reading the pipes fails. If the child exits without reading all of
+`input`, the rest is dropped.
+
+Example:
+    let p = os.run("sort")!
+    let (out, err) = p.communicate("b\na\n".to_bytes())
+    print(out.to_str())   // "a\nb\n"
+    print(p.wait())       // 0
 
 <a id="process.terminate"></a>
 
@@ -377,10 +407,16 @@ pub func system(cmd str) int
 
 *`@native`*
 
-Execute a system command line string in a subshell and return its exit status code.
+Execute a system command line string in a subshell and return its raw wait status.
 
 This is a synchronous, blocking operation. It passes `cmd` directly to the host OS shell
-(e.g., `cmd.exe` on Windows or `/bin/sh` on Unix).
+(`/bin/sh -c` on Unix). As with C `system()`, the result is the raw wait status, not
+the exit code: the exit code is `(status >> 8) & 0xFF`, and `status & 0x7F` is the
+signal number if the shell was killed by a signal. Return -1 if the shell cannot be
+started.
+
+The shell starts with the default SIGPIPE action, although this process ignores
+SIGPIPE; the same holds for `run`.
 
 <a id="run"></a>
 
@@ -396,3 +432,37 @@ Execute a program with specific arguments, capturing its execution state.
 
 Unlike `system`, this bypasses the shell for safer argument passing.
 Returns a `Process` handle on success, or `nil` if spawning fails.
+
+<a id="errno"></a>
+
+### `errno`
+
+```kl
+pub func errno() int
+```
+
+*`@native`*
+
+Return the last error code from the operating system.
+
+This is typically used after a failed system call to determine the reason for the failure.
+
+<a id="strerror"></a>
+
+### `strerror`
+
+```kl
+pub func strerror(code int) str
+```
+
+*`@native`*
+
+Return the system message for the error number `code`.
+
+For example "No such file or directory" for ENOENT (2); an unknown
+number gives "Unknown error N".
+
+Example:
+    if !fs.mkdir("/root/x") {
+        print("mkdir failed: ", os.strerror(os.errno()))
+    }

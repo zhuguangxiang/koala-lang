@@ -54,6 +54,31 @@ pub class Process {
     @native
     pub func wait() int {}
 
+    /// Send `input` to stdin and read stdout and stderr until EOF, then wait for the
+    /// process to exit.
+    ///
+    /// Writing and reading run in one `poll` loop, so a large `input` cannot
+    /// deadlock against a child that blocks on writing its output (as writing all
+    /// of stdin first and then calling `stdout().read_all()` does once the data
+    /// exceeds the pipe capacity). stdin is closed after `input` is sent (at once
+    /// when `input` is nil or empty), the stdout and stderr ends are closed at
+    /// EOF, and the child is reaped, so nothing is leaked.
+    ///
+    /// Returns the `(stdout, stderr)` bytes. The exit status is then returned by
+    /// `wait()` or `poll()` without blocking.
+    ///
+    /// Panic if `input` is non-empty but stdin is already closed, or if polling
+    /// or reading the pipes fails. If the child exits without reading all of
+    /// `input`, the rest is dropped.
+    ///
+    /// Example:
+    ///     let p = os.run("sort")!
+    ///     let (out, err) = p.communicate("b\na\n".to_bytes())
+    ///     print(out.to_str())   // "a\nb\n"
+    ///     print(p.wait())       // 0
+    @native
+    pub func communicate(input bytes? = nil) (bytes, bytes) {}
+
     /// Request termination of the child process (SIGTERM).
     @native
     pub func terminate() {}

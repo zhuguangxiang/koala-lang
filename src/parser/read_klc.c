@@ -305,7 +305,9 @@ static void load_type_params(Vector *tps, Vector *result, Symbol *owner, LoadCon
     }
 }
 
-static Literal *klc_const_to_literal(KlcConst *k)
+/* `ts` is the declared type: a bool is stored as an int in klc, so a bool-typed
+   constant (e.g. the default of `flag = true`) is turned back into LIT_BOOL */
+static Literal *klc_const_to_literal(KlcConst *k, TypeSpec *ts)
 {
     Literal *lit = mm_alloc_obj(lit);
 
@@ -315,6 +317,11 @@ static Literal *klc_const_to_literal(KlcConst *k)
             break;
         }
         case KLC_CONST_INT: {
+            if (type_is_bool(ts)) {
+                lit->which = LIT_BOOL;
+                lit->bval = k->ival ? 1 : 0;
+                break;
+            }
             lit->which = LIT_INT;
             lit->sign = k->sign;
             lit->len = k->len;
@@ -370,7 +377,7 @@ static void load_func(KlcFunc *fn, KlassSymbol *kls_sym, LoadContext *ctx)
         arg_info->name = name->sval;
         arg_info->ts = ts;
         arg_info->has_dfl_val = def_val ? 1 : 0;
-        arg_info->dfl_val = def_val ? klc_const_to_literal(def_val) : NULL;
+        arg_info->dfl_val = def_val ? klc_const_to_literal(def_val, ts) : NULL;
         vector_push_back(params, &arg_info);
         if (ts_need_fixup(ts)) {
             FixupEntry entry = {
@@ -648,7 +655,7 @@ static void load_globals(LoadContext *ctx)
         Symbol *sym = stbl_add_var(ctx->stbl, k->sval, ts, flags);
         sym->parent = ctx->pkg_sym;
         sym->path = ctx->path;
-        ((VarSymbol *)sym)->lit = klc_const_to_literal(konst_val);
+        ((VarSymbol *)sym)->lit = klc_const_to_literal(konst_val, ts);
         sym->status = SYM_RESOLVED;
         add_var_fixup_entry(sym, ts, ctx);
     }

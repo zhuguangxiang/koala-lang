@@ -1,0 +1,55 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// File type bits of `st_mode` (S_IFMT and its values, same on Linux and macOS).
+let S_IFMT = 0o170000
+let S_IFREG = 0o100000
+let S_IFDIR = 0o040000
+let S_IFLNK = 0o120000
+
+/// Metadata of a file, directory or symbolic link, as returned by `fs.stat`.
+///
+/// A snapshot taken when `fs.stat` was called; it does not change when the
+/// file changes afterwards.
+///
+/// See: `fs.stat`.
+pub class Stat {
+    /// The size in bytes (for a symbolic link from `fs.stat(p, false)`, the
+    /// length of the target path).
+    pub let size int
+
+    /// The last modification time, in seconds since the Unix epoch.
+    pub let mtime float64
+
+    /// The last modification time, in nanoseconds since the Unix epoch.
+    ///
+    /// Use it rather than `mtime` to compare times exactly (e.g. "is the
+    /// output older than its source").
+    pub let mtime_ns int
+
+    /// The raw `st_mode`: the file type bits and the permission bits
+    /// (`mode & 0o777`).
+    pub let mode int
+
+    /// Create a `Stat`; `fs.stat` is the normal way to get one.
+    pub func __init__(sz int, mt float64, mt_ns int, md int) {
+        size = sz
+        mtime = mt
+        mtime_ns = mt_ns
+        mode = md
+    }
+
+    /// Return true if this is a regular file.
+    pub func is_file() bool { return (mode & S_IFMT) == S_IFREG }
+
+    /// Return true if this is a directory.
+    pub func is_dir() bool { return (mode & S_IFMT) == S_IFDIR }
+
+    /// Return true if this is a symbolic link.
+    ///
+    /// Only a `Stat` from `fs.stat(p, false)` can be a link: by default
+    /// `fs.stat` follows links and describes the target.
+    pub func is_symlink() bool { return (mode & S_IFMT) == S_IFLNK }
+}

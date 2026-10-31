@@ -8,6 +8,7 @@
 |------|---------|
 | [`File`](#file) | An opened file providing byte-level read, write and seek access. |
 | [`Path`](#path) | The `Path` class represents a structural filesystem path. |
+| [`Stat`](#stat) | Metadata of a file, directory or symbolic link, as returned by `fs.stat`. |
 
 **Functions**
 
@@ -22,6 +23,9 @@
 | [`exists`](#exists) | Return true if the file or directory exists on the physical disk. |
 | [`is_file`](#is_file) | Return true if the path points to a regular file. |
 | [`is_dir`](#is_dir) | Return true if the path points to a directory. |
+| [`is_symlink`](#is_symlink) | Return true if the path itself is a symbolic link. |
+| [`_stat`](#_stat) |  |
+| [`stat`](#stat) | Return the metadata (size, modification time, mode) of `p`. |
 | [`size`](#size) | Return the size of the file in bytes. Panics if the file does not exist. |
 | [`remove`](#remove) | Permanently delete a file from the disk. Returns true on success. |
 | [`rename`](#rename) | Rename or move the file/directory `src` to `dst`. |
@@ -318,6 +322,90 @@ Example:
 
 Return the hash code of the current path.
 
+<a id="stat"></a>
+
+### `Stat`
+
+```kl
+pub class Stat {
+    pub let size int
+    pub let mtime float64
+    pub let mtime_ns int
+    pub let mode int
+    pub func __init__(sz int, mt float64, mt_ns int, md int)
+    pub func is_file() bool
+    pub func is_dir() bool
+    pub func is_symlink() bool
+}
+```
+
+Metadata of a file, directory or symbolic link, as returned by `fs.stat`.
+
+A snapshot taken when `fs.stat` was called; it does not change when the
+file changes afterwards.
+
+See: `fs.stat`.
+
+---
+
+**Fields**
+
+<a id="stat.size"></a>
+
+**`pub let size int`**
+
+The size in bytes (for a symbolic link from `fs.stat(p, false)`, the
+length of the target path).
+
+<a id="stat.mtime"></a>
+
+**`pub let mtime float64`**
+
+The last modification time, in seconds since the Unix epoch.
+
+<a id="stat.mtime_ns"></a>
+
+**`pub let mtime_ns int`**
+
+The last modification time, in nanoseconds since the Unix epoch.
+
+Use it rather than `mtime` to compare times exactly (e.g. "is the
+output older than its source").
+
+<a id="stat.mode"></a>
+
+**`pub let mode int`**
+
+The raw `st_mode`: the file type bits and the permission bits
+(`mode & 0o777`).
+
+<a id="stat.__init__"></a>
+
+**`__init__(sz int, mt float64, mt_ns int, md int)`**
+
+Create a `Stat`; `fs.stat` is the normal way to get one.
+
+<a id="stat.is_file"></a>
+
+**`is_file() bool`**
+
+Return true if this is a regular file.
+
+<a id="stat.is_dir"></a>
+
+**`is_dir() bool`**
+
+Return true if this is a directory.
+
+<a id="stat.is_symlink"></a>
+
+**`is_symlink() bool`**
+
+Return true if this is a symbolic link.
+
+Only a `Stat` from `fs.stat(p, false)` can be a link: by default
+`fs.stat` follows links and describes the target.
+
 ## Functions
 
 <a id="open"></a>
@@ -348,9 +436,10 @@ Files created by `"w"`, `"x"`, `"a"` and their `"+"` variants get
 permission 0644.
 
 Example:
-    let f = fs.open("hello.txt", "w")
-    f?.write("hello".to_bytes())
-    f?.close()
+    if let f = fs.open("hello.txt", "w") {
+        f.write("hello".to_bytes())
+        f.close()
+    }
 
 See: `File`.
 
@@ -472,6 +561,55 @@ pub func is_dir(p Path | str) bool
 *`@native`*
 
 Return true if the path points to a directory.
+
+<a id="is_symlink"></a>
+
+### `is_symlink`
+
+```kl
+pub func is_symlink(p Path | str) bool
+```
+
+*`@native`*
+
+Return true if the path itself is a symbolic link.
+
+The link is not followed, so a dangling link (whose target is missing)
+is still a link, while `exists` and `is_file` follow it and return false.
+
+<a id="_stat"></a>
+
+### `_stat`
+
+```kl
+func _stat(p Path | str, follow_links bool) (int, float64, int, int)?
+```
+
+*`@native`*
+
+<a id="stat"></a>
+
+### `stat`
+
+```kl
+pub func stat(p Path | str, follow_links = true) Stat?
+```
+
+Return the metadata (size, modification time, mode) of `p`.
+
+By default symbolic links are followed and the target is described; pass
+`follow_links = false` to describe the link itself (lstat), which is the
+only way to get a `Stat` whose `is_symlink()` is true.
+
+Return nil if `p` cannot be stat'ed (missing path, permission denied);
+`os.errno()` / `os.strerror()` tell why.
+
+Example:
+    if let st = fs.stat("main.kl") {
+        print(st.size, st.mtime_ns, st.is_file())
+    }
+
+See: `Stat`, `size`, `is_symlink`.
 
 <a id="size"></a>
 

@@ -148,6 +148,95 @@ func test_run_read_all_large() {
 }
 
 // ---------------------------------------------------------------------------
+// communicate(): one poll loop over stdin / stdout / stderr
+// ---------------------------------------------------------------------------
+
+// Small round trip: input goes to `cat`, comes back on stdout; stderr empty.
+@test
+func test_communicate_echo() {
+    let p = os.run("cat")!
+    let (out, err) = p.communicate("line1\nline2\n".to_bytes())
+    ut.assert_eq(out.to_str(), "line1\nline2\n")
+    ut.assert_eq(err.len(), 0)
+    ut.assert_eq(p.wait(), 0)
+}
+
+// No input: stdin is closed at once, so `cat` sees EOF and exits.
+@test
+func test_communicate_no_input() {
+    let p = os.run("cat")!
+    let (out, err) = p.communicate()
+    ut.assert_eq(out.len(), 0)
+    ut.assert_eq(err.len(), 0)
+    ut.assert_eq(p.poll()!, 0) // already reaped by communicate()
+}
+
+// stdout and stderr are collected separately, and the exit status is kept.
+@test
+func test_communicate_stderr_and_exit_code() {
+    let p = os.run("sh", ["-c", "echo out; echo err 1>&2; exit 7"])!
+    let (out, err) = p.communicate()
+    ut.assert_eq(out.to_str(), "out\n")
+    ut.assert_eq(err.to_str(), "err\n")
+    ut.assert_eq(p.wait(), 7)
+}
+
+// 300000 bytes is above the ~128KB (2 x 64KB pipe) limit where writing all of
+// stdin before reading stdout deadlocks; communicate() must not.
+@test
+func test_communicate_large() {
+    let n = 300_000
+    let input = bytes(n)
+    input[0] = 48 // '0'
+    input[n - 1] = 10 // '\n'
+
+    let p = os.run("cat")!
+    let (out, err) = p.communicate(input)
+    ut.assert_eq(out.len(), n)
+    ut.assert(out[0] == 48)
+    ut.assert(out[n - 1] == 10)
+    ut.assert_eq(err.len(), 0)
+    ut.assert_eq(p.wait(), 0)
+}
+
+// The child exits without reading stdin: the rest of the input is dropped
+// (EPIPE), not a crash or a hang.
+@test
+func test_communicate_child_ignores_input() {
+    let p = os.run("true")!
+    let (out, _) = p.communicate(bytes(300_000))
+    ut.assert_eq(out.len(), 0)
+    ut.assert_eq(p.wait(), 0)
+}
+
+// ---------------------------------------------------------------------------
+// SIGPIPE in children: this process ignores it, children get the default back
+// ---------------------------------------------------------------------------
+
+// A non-interactive shell cannot undo a signal that was ignored when it
+// started, so `kill -PIPE $$` ends the shell only if SIGPIPE is at default.
+@test
+func test_run_child_sigpipe_default() {
+    let p = os.run("sh", ["-c", "kill -PIPE $$"])!
+    p.communicate()
+    ut.assert_eq(p.wait(), -13) // killed by SIGPIPE
+}
+
+// os.system returns the raw wait status: the low 7 bits are the signal.
+@test
+func test_system_child_sigpipe_default() {
+    let rc = os.system("kill -PIPE $$")
+    ut.assert_eq(rc & 0x7F, 13)
+}
+
+// os.system exit code: `(status >> 8) & 0xFF`.
+@test
+func test_system_exit_code() {
+    let rc = os.system("exit 7")
+    ut.assert_eq((rc >> 8) & 0xFF, 7)
+}
+
+// ---------------------------------------------------------------------------
 // Buffered wrappers over the pipe ends
 // ---------------------------------------------------------------------------
 

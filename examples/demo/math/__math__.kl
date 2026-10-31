@@ -2,6 +2,12 @@
  * demo/math — arithmetic helpers.
  */
 
+link "demo_math"
+
+/// Return `x * 3`, implemented in `native/math_native.c`.
+@native
+func triple(x int) int {}
+
 /// Return a + b.
 pub func add(a int, b int) int {
     return a + b
@@ -11,3 +17,5 @@ pub func add(a int, b int) int {
 pub func sub(a int, b int) int {
     return a - b
 }
+
+print(triple(5))  // 15

@@ -3,3 +3,11 @@ name = "demo/math"
 version = "0.1.0"
 dependencies = []
 natives = []
+
+[native]
+name = "demo_math"
+sources = ["native/math_native.c"]
+includes = [
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]

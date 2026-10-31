@@ -1,0 +1,21 @@
+// RUN: koala --test %s
+//
+// os.errno() / os.strerror(): the reason behind a failed system call.
+
+import "std/os"
+import "std/ut"
+
+// strerror maps an error number to the system message.
+@test
+func test_os_strerror() {
+    ut.assert_eq(os.strerror(2), "No such file or directory") // ENOENT
+    ut.assert_eq(os.strerror(13), "Permission denied") // EACCES
+    ut.assert(os.strerror(99999).starts_with("Unknown error"))
+}
+
+// errno right after a failed call tells why it failed.
+@test
+func test_os_errno_after_failure() {
+    ut.assert_false(os.chdir("/tmp/kl_os_error_missing_dir"))
+    ut.assert_eq(os.errno(), 2) // ENOENT
+}

@@ -1,0 +1,93 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/os"
+import "std/fs"
+
+/// Recursively remove `path`.
+///
+/// Files are removed with `fs.remove`, directories are emptied and
+/// then removed with `fs.rmdir`. Returns true when the path no longer
+/// exists (or never did).
+func remove_tree(path str) bool {
+    if !fs.exists(path) { return true }
+    if fs.is_dir(path) {
+        let entries = fs.list_dir(path)
+        for e in entries {
+            if !remove_tree(e.to_str()) { return false }
+        }
+        return fs.rmdir(path)
+    }
+    return fs.remove(path)
+}
+
+/// Quote `s` for use as a single shell word.
+func shell_quote(s str) str {
+    let buf = Buffer()
+    buf.write_byte('\'')
+    let bs = s.to_bytes()
+    var i = 0
+    while i < bs.len() {
+        let b = bs[i]
+        if b == '\'' {
+            buf.write_str("'\\''")
+        } else {
+            buf.write_byte(b)
+        }
+        i += 1
+    }
+    buf.write_byte('\'')
+    return buf.to_str()
+}
+
+/// Remove `<workspace>/dist/`.
+///
+/// Only runs in a workspace root; `__ws__.toml` must exist in `dir`.
+/// Single-package directories are rejected — `dist/` is a workspace
+/// concept, and a package's artifacts live under the workspace `dist/`.
+///
+/// `yes` skips the confirmation prompt. Without it, the absolute path
+/// is printed and the user must type the full word `yes` (any case)
+/// to proceed. `y`, a bare newline, and EOF all abort.
+pub func clean_all(dir str, yes bool) int {
+    let src_abs = fs.Path(dir).absolute().to_str()
+
+    let ws_path = fs.Path(src_abs).cat("__ws__.toml").to_str()
+    if !fs.exists(ws_path) {
+        print("wombat clean: not a workspace")
+        printf("  expected: {}\n", ws_path)
+        return 1
+    }
+
+    let dist_abs = fs.Path(src_abs).cat("dist").to_str()
+
+    if !fs.exists(dist_abs) {
+        printf("wombat clean: nothing to clean ({})\n", dist_abs)
+        return 0
+    }
+
+    if !fs.is_dir(dist_abs) {
+        printf("wombat clean: '{}' is not a directory\n", dist_abs)
+        return 1
+    }
+
+    if !yes {
+        let prompt = "printf 'Remove %s? Type yes to confirm: ' " +
+                     shell_quote(dist_abs) +
+                     " >&2; read ans; " +
+                     "case \"$ans\" in [yY][eE][sS]) exit 0;; *) exit 1;; esac"
+        if os.system(prompt) != 0 {
+            print("wombat clean: aborted")
+            return 0
+        }
+    }
+
+    if !remove_tree(dist_abs) {
+        printf("wombat clean: failed to remove {}\n", dist_abs)
+        return 1
+    }
+    printf("wombat clean: removed {}\n", dist_abs)
+    return 0
+}

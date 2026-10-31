@@ -53,9 +53,17 @@ func resolve_ws_package(ws_root str, name str) str {
 ///    built artifact `<ws>/dist/<ws>/<target>.klc`.
 /// 3. `<target>.klc`, then `<target>.kl` in the current directory.
 ///
-/// The workspace's `dist/` directory is prepended to `KOALA_PATH` for
-/// the child process, so the program can `import` packages built by
-/// `wombat build` without the caller setting `KOALA_PATH` by hand.
+/// Extra arguments are forwarded to the program unchanged and end up
+/// in the program's `sys.args()`.
+///
+/// For a workspace target, `KOALA_PATH` and `LD_LIBRARY_PATH` are
+/// prepended for the child process:
+///
+///   KOALA_PATH      = <ws>/dist/:<old>
+///   LD_LIBRARY_PATH = <ws>/dist/<ws_name>:<old>
+///
+/// so the program can import `.klc` files and load native `.so` files
+/// built by `wombat build` without the caller setting either by hand.
 pub func run(target str, args list[str]) int {
     var file = target
 
@@ -95,6 +103,23 @@ pub func run(target str, args list[str]) int {
         }
         buf.write_str("KOALA_PATH=")
         quote_arg(buf, kp)
+        buf.write_byte(' ')
+    }
+
+    let ws_root = find_ws_root(fs.Path(file).parent().to_str())
+    if ws_root.len() > 0 {
+        let ws_name = fs.Path(ws_root).name()
+        let lib_dir = fs.Path(ws_root).cat("dist").cat(ws_name).to_str()
+
+        let old = os.getenv("LD_LIBRARY_PATH")
+        var lp = lib_dir
+        if old != nil {
+            if old.len() > 0 {
+                lp = lp + ":" + old
+            }
+        }
+        buf.write_str("LD_LIBRARY_PATH=")
+        quote_arg(buf, lp)
         buf.write_byte(' ')
     }
 

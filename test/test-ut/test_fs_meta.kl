@@ -1,6 +1,7 @@
 // RUN: koala --test %s
 
 import "std/fs"
+import "std/os"
 import "std/ut"
 
 /// Best-effort cleanup so every run starts from a known state.
@@ -167,3 +168,70 @@ func test_fs_list_dir() {
 // func test_fs_list_dir_missing_panics() {
 //     fs.list_dir("/tmp/kl_fs_meta_missing_dir")
 // }
+
+@test
+func test_fs_stat() {
+    let f = "/tmp/kl_fs_meta_stat.txt"
+    let d = "/tmp/kl_fs_meta_stat_dir"
+    fs.remove(f)
+    fs.rmdir(d)
+
+    // A missing path gives nil.
+    ut.assert(fs.stat("/tmp/kl_fs_meta_missing") == nil)
+
+    ut.assert(fs.write_str(f, "hello"))
+    let st = fs.stat(f)!
+    ut.assert_eq(st.size, 5)
+    ut.assert(st.is_file())
+    ut.assert_false(st.is_dir())
+    ut.assert_false(st.is_symlink())
+    ut.assert(st.mtime_ns > 0)
+    ut.assert(st.mtime > 0.0)
+    ut.assert_eq(st.mode & 0o600, 0o600) // owner read/write (0644 minus the umask)
+
+    // A `Path` argument is accepted as well.
+    ut.assert_eq(fs.stat(fs.Path(f))!.size, 5)
+
+    ut.assert(fs.mkdir(d))
+    let ds = fs.stat(d)!
+    ut.assert(ds.is_dir())
+    ut.assert_false(ds.is_file())
+
+    ut.assert(fs.remove(f))
+    ut.assert(fs.rmdir(d))
+}
+
+@test
+func test_fs_symlink() {
+    let target = "/tmp/kl_fs_meta_link_target.txt"
+    let lnk = "/tmp/kl_fs_meta_link"
+    fs.remove(lnk)
+    fs.remove(target)
+
+    ut.assert(fs.write_str(target, "hello"))
+    ut.assert_eq(os.system("ln -s " + target + " " + lnk), 0)
+
+    ut.assert(fs.is_symlink(lnk))
+    ut.assert_false(fs.is_symlink(target))
+    ut.assert(fs.is_file(lnk)) // is_file follows the link
+
+    // stat follows the link by default; follow_links = false describes the link.
+    let st = fs.stat(lnk)!
+    ut.assert(st.is_file())
+    ut.assert_false(st.is_symlink())
+    ut.assert_eq(st.size, 5)
+    let ls = fs.stat(lnk, false)!
+    ut.assert(ls.is_symlink())
+    ut.assert_false(ls.is_file())
+    ut.assert_eq(ls.size, target.len()) // a link's size is its target path length
+
+    // A dangling link: the target is gone, the link itself is still there.
+    ut.assert(fs.remove(target))
+    ut.assert(fs.is_symlink(lnk))
+    ut.assert_false(fs.exists(lnk))
+    ut.assert(fs.stat(lnk) == nil)
+    ut.assert(fs.stat(lnk, false)!.is_symlink())
+
+    ut.assert(fs.remove(lnk))
+    ut.assert_false(fs.is_symlink("/tmp/kl_fs_meta_missing"))
+}

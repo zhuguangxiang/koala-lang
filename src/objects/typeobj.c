@@ -115,7 +115,13 @@ Object *kl_new_instance(struct _TypeObject *tp)
     return obj;
 }
 
-void kl_free_instance(Object *obj) { mm_free(obj); }
+void kl_free_instance(Object *obj)
+{
+    /* run the finalizer first: it releases native resources (fds, child processes) */
+    FreeFunc fini = OB_TYPE(obj)->_free;
+    if (fini) fini(obj);
+    mm_free(obj);
+}
 
 int kl_tp_add_field(TypeObject *tp, char *name, Object *field)
 {

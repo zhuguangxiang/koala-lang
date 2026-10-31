@@ -11,6 +11,7 @@
 #include "bytesobj.h"
 #include "excobj.h"
 #include "listobj.h"
+#include "tupleobj.h"
 #include "vector.h"
 
 #ifdef __cplusplus
@@ -426,6 +427,50 @@ static TValue fs_is_dir(TValue *self, TValue *args, int nargs)
     return bool_value(stat(path, &sb) == 0 && S_ISDIR(sb.st_mode));
 }
 
+/// Return true if `path` itself is a symbolic link (checked with lstat, so
+/// the link is not followed; a dangling link is still a link).
+static TValue fs_is_symlink(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 1);
+    char *path = _arg_path_str(args, nargs, 0);
+
+    struct stat sb;
+    return bool_value(lstat(path, &sb) == 0 && S_ISLNK(sb.st_mode));
+}
+
+/*
+ * func _stat(p Path | str, follow_links bool) (int, float64, int, int)?
+ *
+ * Return (size, mtime in seconds, mtime in nanoseconds, st_mode) of `p`,
+ * using stat when `follow_links` is true and lstat otherwise.
+ * Return nil on failure; os.errno() tells why.
+ */
+static TValue fs_stat(TValue *self, TValue *args, int nargs)
+{
+    ASSERT(nargs == 2);
+    char *path = _arg_path_str(args, nargs, 0);
+    int follow = kl_arg_bool(1);
+
+    struct stat sb;
+    int r = follow ? stat(path, &sb) : lstat(path, &sb);
+    if (r != 0) return nil_value;
+
+#ifdef __APPLE__
+    struct timespec mt = sb.st_mtimespec;
+#else
+    struct timespec mt = sb.st_mtim;
+#endif
+    int64_t mtime_ns = (int64_t)mt.tv_sec * 1000000000 + mt.tv_nsec;
+
+    TValue items[4] = {
+        int64_value(sb.st_size),
+        float64_value((double)mt.tv_sec + (double)mt.tv_nsec / 1e9),
+        int64_value(mtime_ns),
+        int64_value(sb.st_mode),
+    };
+    return obj_value(kl_new_tuple(items, 4));
+}
+
 /// Return the number of bytes of the file `path`, raise an error on failure.
 static TValue fs_size(TValue *self, TValue *args, int nargs)
 {
@@ -537,6 +582,8 @@ void fs_native_lib_init(NativeLib *lib)
     kl_reg_func(lib, "exists", fs_exists);
     kl_reg_func(lib, "is_file", fs_is_file);
     kl_reg_func(lib, "is_dir", fs_is_dir);
+    kl_reg_func(lib, "is_symlink", fs_is_symlink);
+    kl_reg_func(lib, "_stat", fs_stat);
     kl_reg_func(lib, "size", fs_size);
     kl_reg_func(lib, "remove", fs_remove);
     kl_reg_func(lib, "rename", fs_rename);

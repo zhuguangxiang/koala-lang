@@ -1,0 +1,41 @@
+#!/usr/bin/env koala
+/*
+ * csv2lines.kl — read a CSV file and print one "k=v" line per row.
+ */
+
+import "std/fs"
+import "std/sys"
+import "koala/csv"
+
+func main() {
+    let args = sys.args()
+    if args.len() < 1 {
+        print("usage: csv2lines <file.csv>")
+        return
+    }
+
+    let text = fs.read_str(args[0])
+    let r = csv.parse(text)
+    if !r.ok() {
+        print("bad CSV at row " + str(r.error_row()))
+        return
+    }
+
+    let rows = r.records()
+    if rows.len() < 1 { return }
+
+    let header = rows[0]
+    var i = 1
+    while i < rows.len() {
+        let row = rows[i]
+        var line = ""
+        var c = 0
+        while c < header.len() && c < row.len() {
+            if c > 0 { line = line + " " }
+            line = line + header[c] + "=" + row[c]
+            c += 1
+        }
+        print(line)
+        i += 1
+    }
+}

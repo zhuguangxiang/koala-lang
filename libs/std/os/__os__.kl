@@ -82,10 +82,16 @@ pub func pipe() (RawReader, RawWriter)? {}
 
 // --- Process Management ---
 
-/// Execute a system command line string in a subshell and return its exit status code.
+/// Execute a system command line string in a subshell and return its raw wait status.
 ///
 /// This is a synchronous, blocking operation. It passes `cmd` directly to the host OS shell
-/// (e.g., `cmd.exe` on Windows or `/bin/sh` on Unix).
+/// (`/bin/sh -c` on Unix). As with C `system()`, the result is the raw wait status, not
+/// the exit code: the exit code is `(status >> 8) & 0xFF`, and `status & 0x7F` is the
+/// signal number if the shell was killed by a signal. Return -1 if the shell cannot be
+/// started.
+///
+/// The shell starts with the default SIGPIPE action, although this process ignores
+/// SIGPIPE; the same holds for `run`.
 @native
 pub func system(cmd str) int {}
 
@@ -103,3 +109,15 @@ pub func run(executable str, args list[str]? = nil) Process? {}
 /// This is typically used after a failed system call to determine the reason for the failure.
 @native
 pub func errno() int {}
+
+/// Return the system message for the error number `code`.
+///
+/// For example "No such file or directory" for ENOENT (2); an unknown
+/// number gives "Unknown error N".
+///
+/// Example:
+///     if !fs.mkdir("/root/x") {
+///         print("mkdir failed: ", os.strerror(os.errno()))
+///     }
+@native
+pub func strerror(code int) str {}

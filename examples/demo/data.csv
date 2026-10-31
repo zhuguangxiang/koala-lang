@@ -1,0 +1,6 @@
+id,name,note,score
+1,Alice,"likes ""quotes"" and, commas",95
+2,Bob,plain,88
+3,Carol,"line1
+line2",72
+4,,"empty name, trailing empty score",

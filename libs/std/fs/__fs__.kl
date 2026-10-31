@@ -104,6 +104,36 @@ pub func is_file(p Path | str) bool {}
 @native
 pub func is_dir(p Path | str) bool {}
 
+/// Return true if the path itself is a symbolic link.
+///
+/// The link is not followed, so a dangling link (whose target is missing)
+/// is still a link, while `exists` and `is_file` follow it and return false.
+@native
+pub func is_symlink(p Path | str) bool {}
+
+@native
+func _stat(p Path | str, follow_links bool) (int, float64, int, int)? {}
+
+/// Return the metadata (size, modification time, mode) of `p`.
+///
+/// By default symbolic links are followed and the target is described; pass
+/// `follow_links = false` to describe the link itself (lstat), which is the
+/// only way to get a `Stat` whose `is_symlink()` is true.
+///
+/// Return nil if `p` cannot be stat'ed (missing path, permission denied);
+/// `os.errno()` / `os.strerror()` tell why.
+///
+/// Example:
+///     if let st = fs.stat("main.kl") {
+///         print(st.size, st.mtime_ns, st.is_file())
+///     }
+///
+/// See: `Stat`, `size`, `is_symlink`.
+pub func stat(p Path | str, follow_links = true) Stat? {
+    let (sz, mt, mt_ns, md) = _stat(p, follow_links) else { return nil }
+    return Stat(sz, mt, mt_ns, md)
+}
+
 /// Return the size of the file in bytes. Panics if the file does not exist.
 @native
 pub func size(p Path | str) int64 {}

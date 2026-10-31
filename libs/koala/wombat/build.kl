@@ -14,6 +14,11 @@ import "koala/toml"
 /// `is_file = true`, `file` set to the `.kl` path, and `dir_name`
 /// derived from `name` (the part after `<ws_name>/`), so
 /// `artifact_rel` keeps the same layout for both forms.
+///
+/// `native_*` fields describe an optional C library built from
+/// `[native]` in `__pkg__.toml`. `native_name` is also appended to
+/// `natives` (deduplicated), so `check_natives` verifies the built
+/// `.so` even when the user listed only external libraries.
 class Package {
     var name = ""
     var dir_name = ""
@@ -27,6 +32,13 @@ class Package {
     var natives = list[str]()
     var compiler = ""
     var options = list[str]()
+    var native_name = ""
+    var native_compiler = ""
+    var native_sources = list[str]()
+    var native_link = list[str]()
+    var native_includes = list[str]()
+    var native_cflags = list[str]()
+    var native_ldflags = list[str]()
 }
 
 /// The workspace being built.
@@ -38,11 +50,6 @@ class Workspace {
 }
 
 /// Load a workspace or a single package and build it.
-///
-/// `src_dir` may contain `__ws__.toml` (workspace mode) or
-/// `__pkg__.toml` (single-package mode). A relative `output_dir` is
-/// resolved against the workspace root in workspace mode, and against
-/// the package directory in single-package mode.
 pub func build_all(src_dir str, output_dir str) int {
     let src_abs = fs.Path(src_dir).absolute().to_str()
 
@@ -89,15 +96,6 @@ func load_workspace_or_package(root str) Workspace {
 }
 
 /// Build a workspace-like structure from a single package directory.
-///
-/// `ws.root` is the package's parent, so `src_rel` yields
-/// `<parent>/<pkg>` and `artifact_rel` yields `<parent>/<pkg>.klc`,
-/// the same layout workspace mode would produce.
-///
-/// Dependencies are cleared: a single-package build does not resolve
-/// or order them. Packages the target imports must already be on
-/// `KOALA_PATH`, produced by a prior workspace or single-package
-/// build.
 func load_single_package(pkg_dir str) Workspace {
     let ws = Workspace()
     ws.root = fs.Path(pkg_dir).parent().to_str()
@@ -230,19 +228,34 @@ func load_package(root str, dir_name str) Package {
     pkg.natives = toml_str_list(sec, "natives")
     pkg.options = toml_str_list(sec, "options")
 
+    if "native" in root_tbl {
+        let nsec = (root_tbl.get("native") as toml.Table)!
+        pkg.native_name = toml_str(nsec, "name")
+        pkg.native_compiler = toml_str(nsec, "compiler")
+        pkg.native_sources = toml_str_list(nsec, "sources")
+        pkg.native_link = toml_str_list(nsec, "link")
+        pkg.native_includes = toml_str_list(nsec, "includes")
+        pkg.native_cflags = toml_str_list(nsec, "cflags")
+        pkg.native_ldflags = toml_str_list(nsec, "ldflags")
+
+        if !pkg.native_name.empty() {
+            var found = false
+            for n in pkg.natives {
+                if n == pkg.native_name {
+                    found = true
+                    break
+                }
+            }
+            if !found {
+                pkg.natives.append(pkg.native_name)
+            }
+        }
+    }
+
     return pkg
 }
 
 /// Build a `Package` from one `[[package]]` entry in `__ws__.toml`.
-///
-/// `file` and `name` are required. `file` must be relative and must
-/// not contain `..`. The file's existence is not checked here;
-/// `koala -c` reports a missing input at build time.
-///
-/// `dir_name` is `name` with the `<ws_name>/` prefix removed, so
-/// `artifact_rel` produces `<ws_name>/<rest>.klc` exactly as it does
-/// for a directory package. That keeps the import path and the
-/// artifact path aligned no matter where the source file sits.
 func load_inline_package(entry toml.Table, ws_name str) Package {
     let pkg = Package()
     pkg.is_file = true
@@ -348,18 +361,24 @@ func print_order(ws Workspace, order list[str]) {
     print("")
 }
 
-func check_natives(pkg Package, ws Workspace) int {
+func check_natives(pkg Package, ws Workspace, output_dir str) int {
     if pkg.natives.len() == 0 { return 0 }
 
+    let ws_name = fs.Path(ws.root).name()
+
     let search = list[str]()
-    search.append("/usr/lib")
-    search.append("/usr/local/lib")
-    search.append("/lib")
+    // Build output: `<output_dir>/<ws_name>/`, same level as `.klc`.
+    search.append(fs.Path(output_dir).cat(ws_name).to_str())
+    // Source-adjacent prebuilt libraries, if any.
     if pkg.is_file {
         search.append(fs.Path(ws.root).cat(fs.Path(pkg.file).parent()).cat("native").to_str())
     } else {
         search.append(fs.Path(ws.root).cat(pkg.dir_name).cat("native").to_str())
     }
+    // System paths.
+    search.append("/usr/lib")
+    search.append("/usr/local/lib")
+    search.append("/lib")
 
     let ld = os.getenv("LD_LIBRARY_PATH")
     if ld != nil {
@@ -371,6 +390,10 @@ func check_natives(pkg Package, ws Workspace) int {
     }
 
     for native in pkg.natives {
+        // The package's own `[native]` library is verified by
+        // `build_native`; skip it here to avoid double counting.
+        if native == pkg.native_name { continue }
+
         let filename = "lib" + native + ".so"
         var found = false
         for dir in search {
@@ -390,11 +413,105 @@ func check_natives(pkg Package, ws Workspace) int {
     return 0
 }
 
-/// Artifact path: `<ws>/<dir>.klc`.
+/// Build `<output_dir>/<ws_name>/lib<native_name>.so` from
+/// `[native].sources`.
 ///
-/// For a single-file package `dir_name` is derived from `name`, so the
-/// artifact path matches the import path regardless of where the
-/// source file sits on disk.
+/// The `.so` sits next to the package's `.klc`, so
+/// `dist/demo/math.klc` and `dist/demo/libdemo_math.so` share the same
+/// directory.
+///
+/// Compiler precedence: `CC` environment variable > `[native].compiler`
+/// > `cc`. Does nothing when `[native].name` is empty.
+func build_native(pkg Package, ws Workspace, output_dir str) int {
+    if pkg.native_name.empty() { return 0 }
+
+    var pkg_dir = ""
+    if pkg.is_file {
+        pkg_dir = fs.Path(ws.root).cat(fs.Path(pkg.file).parent()).to_str()
+    } else {
+        pkg_dir = fs.Path(ws.root).cat(pkg.dir_name).to_str()
+    }
+    let native_dir = fs.Path(pkg_dir).cat("native").to_str()
+
+    let ws_name = fs.Path(ws.root).name()
+    let out_dir = fs.Path(output_dir).cat(ws_name).to_str()
+    let out = fs.Path(out_dir).cat("lib" + pkg.native_name + ".so").to_str()
+
+    for src in pkg.native_sources {
+        var full = src
+        if !full.starts_with("/") {
+            full = fs.Path(pkg_dir).cat(src).to_str()
+        }
+        if !fs.exists(full) {
+            printf("wombat build: native source not found: {}\n", full)
+            return 1
+        }
+    }
+
+    var compiler = pkg.native_compiler
+    if compiler.empty() { compiler = "cc" }
+    let cc = os.getenv("CC")
+    if cc != nil {
+        if !cc.empty() { compiler = cc }
+    }
+
+    let buf = Buffer()
+    buf.write_str(compiler)
+    buf.write_str(" -shared -fPIC")
+
+    for f in pkg.native_cflags {
+        buf.write_str(" ")
+        buf.write_str(f)
+    }
+
+    buf.write_str(" -I ")
+    buf.write_str(native_dir)
+
+    for inc in pkg.native_includes {
+        var full = inc
+        if !full.starts_with("/") {
+            full = fs.Path(pkg_dir).cat(inc).to_str()
+        }
+        buf.write_str(" -I ")
+        buf.write_str(full)
+    }
+
+    buf.write_str(" -o ")
+    buf.write_str(out)
+
+    for src in pkg.native_sources {
+        var full = src
+        if !full.starts_with("/") {
+            full = fs.Path(pkg_dir).cat(src).to_str()
+        }
+        buf.write_str(" ")
+        buf.write_str(full)
+    }
+
+    for f in pkg.native_ldflags {
+        buf.write_str(" ")
+        buf.write_str(f)
+    }
+
+    for lib in pkg.native_link {
+        buf.write_str(" -l")
+        buf.write_str(lib)
+    }
+
+    let cmd = buf.to_str()
+    printf("🚀 Running: {}\n", cmd)
+
+    let full = "mkdir -p " + out_dir + " && " + cmd
+    let rc = os.system(full)
+    if rc != 0 {
+        printf("❌️ Failed artifact: {}\n\n", out)
+        return 1
+    }
+    printf("✅ Generated artifact: {}\n\n", out)
+    return 0
+}
+
+/// Artifact path: `<ws>/<dir>.klc`.
 func artifact_rel(ws Workspace, pkg Package) str {
     let ws_name = fs.Path(ws.root).name()
     return ws_name + "/" + pkg.dir_name + ".klc"
@@ -438,6 +555,15 @@ func build_cmd(pkg Package, ws Workspace, output_dir str) str {
 }
 
 /// Compile every package in dependency order.
+///
+/// Per package, compile order is:
+///   1. koala: `koala -c` produces `<pkg>.klc`
+///   2. native: `build_native` then `check_natives`
+///
+/// Both stages run for every package. A failure in one stage is
+/// recorded but does not skip the other stage, and does not stop the
+/// packages after it. Every failure is printed at the end; the
+/// function returns 1 if anything failed.
 func build_workspace(ws Workspace, output_dir str) int {
     let order = topo_sort(ws.packages)
     if order.len() != ws.packages.len() {
@@ -461,12 +587,13 @@ func build_workspace(ws Workspace, output_dir str) int {
 
     let ws_parent = fs.Path(ws.root).parent().to_str()
 
+    let failed_pkgs = list[str]()
+    let failed_stages = list[str]()
+
     for name in order {
         let pkg = find_package(ws, name)
 
-        let rc = check_natives(pkg, ws)
-        if rc != 0 { return rc }
-
+        // 1. koala: build `<pkg>.klc`.
         let sub = build_cmd(pkg, ws, output_dir)
         let out = fs.Path(output_dir).cat(artifact_rel(ws, pkg)).to_str()
         let parent = fs.Path(out).parent().to_str()
@@ -479,11 +606,43 @@ func build_workspace(ws Workspace, output_dir str) int {
         let rc2 = os.system(full)
         if rc2 != 0 {
             printf("❌️ Failed artifact: {}\n\n", out)
-            return 1
+            failed_pkgs.append(pkg.name)
+            failed_stages.append("koala")
+        } else {
+            printf("✅ Generated artifact: {}\n\n", out)
         }
-        printf("✅ Generated artifact: {}\n\n", out)
+
+        // 2. native: build and check the package's own C library.
+        var native_failed = false
+        if !pkg.native_name.empty() {
+            if build_native(pkg, ws, output_dir) != 0 {
+                native_failed = true
+            }
+        }
+        if !native_failed && pkg.natives.len() > 0 {
+            if check_natives(pkg, ws, output_dir) != 0 {
+                native_failed = true
+            }
+        }
+        if native_failed {
+            failed_pkgs.append(pkg.name)
+            failed_stages.append("native")
+        }
     }
 
-    printf("wombat build: {} package(s) built\n", order.len().to_str())
-    return 0
+    let total_failed = failed_pkgs.len()
+    if total_failed == 0 {
+        printf("wombat build: {} package(s) built\n", order.len().to_str())
+        return 0
+    }
+
+    printf("wombat build: {} package(s), {} failure(s)\n",
+           order.len().to_str(), total_failed.to_str())
+
+    var i = 0
+    while i < total_failed {
+        printf("  ❌️ {}: {}\n", failed_pkgs[i], failed_stages[i])
+        i += 1
+    }
+    return 1
 }
