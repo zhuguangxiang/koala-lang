@@ -1,0 +1,13 @@
+// RUN: koala %s --test
+import "std/ut"
+import "demo/math"
+
+@test
+func test_extra_add() {
+    ut.assert_eq(math.add(1, 2), 3)
+}
+
+@test
+func test_extra_mul() {
+    ut.assert_eq(math.add(10, 20), 30)
+}

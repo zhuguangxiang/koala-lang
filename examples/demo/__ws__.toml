@@ -2,3 +2,10 @@
 name = "demo"
 version = "0.1.0"
 packages = ["math", "text", "app"]
+
+[[package]]
+file = "extra.kl"
+name = "demo/extra"
+version = "0.1.0"
+dependencies = ["demo/math"]
+natives = []

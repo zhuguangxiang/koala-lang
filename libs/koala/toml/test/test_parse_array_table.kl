@@ -1,0 +1,62 @@
+// RUN: koala %s --test
+
+import "koala/toml"
+import "std/fs"
+import "std/ut"
+
+@test
+func test_parse_single_array_table() {
+    let path = "/tmp/kl_toml_array_table.toml"
+    let content = "[[package]]\nname = \"demo/math\"\nversion = \"0.1.0\"\n"
+    fs.write_str(path, content)
+
+    let root = toml.parse_file(path)
+    let packages = (root.get("package") as toml.Array)!
+    ut.assert_eq(packages.value.len(), 1)
+
+    let first = (packages.value[0] as toml.Table)!
+    ut.assert_eq((first.get("name") as toml.String)!.value, "demo/math")
+    ut.assert_eq((first.get("version") as toml.String)!.value, "0.1.0")
+
+    fs.remove(path)
+}
+
+@test
+func test_parse_multiple_array_tables() {
+    let path = "/tmp/kl_toml_array_table2.toml"
+    let content = "[[package]]\nname = \"demo/math\"\n\n[[package]]\nname = \"demo/app\"\ndependencies = [\"demo/math\"]\n"
+    fs.write_str(path, content)
+
+    let root = toml.parse_file(path)
+    let packages = (root.get("package") as toml.Array)!
+    ut.assert_eq(packages.value.len(), 2)
+
+    let first = (packages.value[0] as toml.Table)!
+    ut.assert_eq((first.get("name") as toml.String)!.value, "demo/math")
+
+    let second = (packages.value[1] as toml.Table)!
+    ut.assert_eq((second.get("name") as toml.String)!.value, "demo/app")
+    let deps = (second.get("dependencies") as toml.Array)!
+    ut.assert_eq(deps.value.len(), 1)
+    ut.assert_eq((deps.value[0] as toml.String)!.value, "demo/math")
+
+    fs.remove(path)
+}
+
+@test
+func test_array_table_and_workspace_coexist() {
+    let path = "/tmp/kl_toml_array_table3.toml"
+    let content = "[workspace]\nname = \"demo\"\npackages = [\"math\"]\n\n[[package]]\nfile = \"xxx.kl\"\nname = \"demo/json\"\n"
+    fs.write_str(path, content)
+
+    let root = toml.parse_file(path)
+    let ws = (root.get("workspace") as toml.Table)!
+    ut.assert_eq((ws.get("name") as toml.String)!.value, "demo")
+
+    let packages = (root.get("package") as toml.Array)!
+    ut.assert_eq(packages.value.len(), 1)
+    let pkg = (packages.value[0] as toml.Table)!
+    ut.assert_eq((pkg.get("file") as toml.String)!.value, "xxx.kl")
+
+    fs.remove(path)
+}

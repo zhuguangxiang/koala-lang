@@ -1,0 +1,8 @@
+// RUN: koala %s --test
+import "std/ut"
+import "demo/text"
+
+@test
+func test_ws_shared() {
+    ut.assert_eq(text.length("hello"), 5)
+}

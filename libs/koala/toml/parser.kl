@@ -130,14 +130,36 @@ pub class Parser {
         }
     }
 
-    /// Parse a `[name]` header and switch the active table to it.
+    /// Parse a `[name]` or `[[name]]` header and switch the active table.
+    ///
+    /// `[[name]]` appends a new `Table` to the `Array` stored under
+    /// `name`; every key that follows lands in that new table. Repeated
+    /// `[[name]]` headers accumulate into the same array.
+    ///
+    /// `[name]` reuses the existing `Table` or creates one.
+    ///
+    /// `substr(start, end)` is half-open, so:
+    ///   `[workspace]`  -> `substr(1, len - 1)` -> `workspace`
+    ///   `[[package]]`  -> `substr(2, len - 2)` -> `package`
     func parse_table_header(line str) {
-        let name = line.substr(1, line.len() - 1).strip()
+        if line.starts_with("[[") {
+            // Strip the leading "[[" and the trailing "]]".
+            let name = line.substr(2, line.len() - 2).strip()
+            if !(name in root) {
+                root.add(name, Array())
+            }
+            let arr = (root.get(name) as Array)!
+            let tbl = Table()
+            arr.add(tbl)
+            current = tbl
+            return
+        }
 
+        // Strip the leading "[" and the trailing "]".
+        let name = line.substr(1, line.len() - 1).strip()
         if !(name in root) {
             root.add(name, Table())
         }
-
         current = (root.get(name) as Table)!
     }
 

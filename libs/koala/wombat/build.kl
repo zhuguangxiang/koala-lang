@@ -8,9 +8,17 @@ import "std/fs"
 import "koala/toml"
 
 /// A package in the workspace.
+///
+/// A directory package has `is_file = false` and `dir_name` set to the
+/// directory relative to the workspace root. A single-file package has
+/// `is_file = true`, `file` set to the `.kl` path, and `dir_name`
+/// derived from `name` (the part after `<ws_name>/`), so
+/// `artifact_rel` keeps the same layout for both forms.
 class Package {
     var name = ""
     var dir_name = ""
+    var file = ""
+    var is_file = false
     var test = "test"
     var version = "0.1.0"
     var files = list[str]()
@@ -143,7 +151,8 @@ func join_or_none(xs list[str], sep str) str {
     return buf.to_str()
 }
 
-/// Load `<root>/__ws__.toml` and each package's `__pkg__.toml`.
+/// Load `<root>/__ws__.toml`, every directory package listed in
+/// `packages`, and every single-file package listed in `[[package]]`.
 func load_workspace(root str) Workspace {
     let ws = Workspace()
     ws.root = root
@@ -176,6 +185,16 @@ func load_workspace(root str) Workspace {
         ws.packages.append(pkg)
     }
 
+    if "package" in root_tbl {
+        let files_arr = (root_tbl.get("package") as toml.Array)!
+        for entry in files_arr.value {
+            if !(entry is toml.Table) { continue }
+            let pkg = load_inline_package(entry, ws.name)
+            if pkg.name.empty() { return ws }
+            ws.packages.append(pkg)
+        }
+    }
+
     return ws
 }
 
@@ -183,6 +202,7 @@ func load_workspace(root str) Workspace {
 func load_package(root str, dir_name str) Package {
     let pkg = Package()
     pkg.dir_name = dir_name
+    pkg.is_file = false
 
     let pkg_path = fs.Path(root).cat(dir_name).cat("__pkg__.toml").to_str()
     if !fs.exists(pkg_path) {
@@ -209,6 +229,56 @@ func load_package(root str, dir_name str) Package {
     pkg.deps = toml_str_list(sec, "dependencies")
     pkg.natives = toml_str_list(sec, "natives")
     pkg.options = toml_str_list(sec, "options")
+
+    return pkg
+}
+
+/// Build a `Package` from one `[[package]]` entry in `__ws__.toml`.
+///
+/// `file` and `name` are required. `file` must be relative and must
+/// not contain `..`. The file's existence is not checked here;
+/// `koala -c` reports a missing input at build time.
+///
+/// `dir_name` is `name` with the `<ws_name>/` prefix removed, so
+/// `artifact_rel` produces `<ws_name>/<rest>.klc` exactly as it does
+/// for a directory package. That keeps the import path and the
+/// artifact path aligned no matter where the source file sits.
+func load_inline_package(entry toml.Table, ws_name str) Package {
+    let pkg = Package()
+    pkg.is_file = true
+
+    pkg.file = toml_str(entry, "file")
+    if pkg.file.empty() {
+        print("wombat build: [[package]] entry missing 'file'")
+        return pkg
+    }
+    if pkg.file.starts_with("/") || pkg.file.index("..") != -1 {
+        printf("wombat build: [[package]] file '{}' must be relative and stay inside the workspace\n",
+               pkg.file)
+        return pkg
+    }
+
+    pkg.name = toml_str(entry, "name")
+    if pkg.name.empty() {
+        printf("wombat build: [[package]] entry for file '{}' is missing 'name'\n",
+               pkg.file)
+        return pkg
+    }
+
+    let prefix = ws_name + "/"
+    if pkg.name.starts_with(prefix) {
+        pkg.dir_name = pkg.name.substr(prefix.len(), pkg.name.len())
+    } else {
+        pkg.dir_name = pkg.name
+    }
+
+    let ver = toml_str(entry, "version")
+    if !ver.empty() { pkg.version = ver }
+    pkg.compiler = toml_str(entry, "compiler")
+
+    pkg.deps = toml_str_list(entry, "dependencies")
+    pkg.natives = toml_str_list(entry, "natives")
+    pkg.options = toml_str_list(entry, "options")
 
     return pkg
 }
@@ -267,7 +337,11 @@ func print_order(ws Workspace, order list[str]) {
     for name in order {
         let pkg = find_package(ws, name)
         if !first { buf.write_str(" -> ") }
-        buf.write_str(pkg.dir_name)
+        if pkg.is_file {
+            buf.write_str(pkg.file)
+        } else {
+            buf.write_str(pkg.dir_name)
+        }
         first = false
     }
     printf("  {}\n", buf.to_str())
@@ -281,7 +355,11 @@ func check_natives(pkg Package, ws Workspace) int {
     search.append("/usr/lib")
     search.append("/usr/local/lib")
     search.append("/lib")
-    search.append(fs.Path(ws.root).cat(pkg.dir_name).cat("native").to_str())
+    if pkg.is_file {
+        search.append(fs.Path(ws.root).cat(fs.Path(pkg.file).parent()).cat("native").to_str())
+    } else {
+        search.append(fs.Path(ws.root).cat(pkg.dir_name).cat("native").to_str())
+    }
 
     let ld = os.getenv("LD_LIBRARY_PATH")
     if ld != nil {
@@ -313,14 +391,22 @@ func check_natives(pkg Package, ws Workspace) int {
 }
 
 /// Artifact path: `<ws>/<dir>.klc`.
+///
+/// For a single-file package `dir_name` is derived from `name`, so the
+/// artifact path matches the import path regardless of where the
+/// source file sits on disk.
 func artifact_rel(ws Workspace, pkg Package) str {
     let ws_name = fs.Path(ws.root).name()
     return ws_name + "/" + pkg.dir_name + ".klc"
 }
 
-/// Source path: `<ws>/<dir>`, relative to the workspace's parent.
+/// Source path: `<ws>/<dir>` for a directory package, `<ws>/<file>`
+/// for a single-file package.
 func src_rel(ws Workspace, pkg Package) str {
     let ws_name = fs.Path(ws.root).name()
+    if pkg.is_file {
+        return ws_name + "/" + pkg.file
+    }
     return ws_name + "/" + pkg.dir_name
 }
 
@@ -392,7 +478,7 @@ func build_workspace(ws Workspace, output_dir str) int {
         printf("🚀 Running: {}\n", sub)
         let rc2 = os.system(full)
         if rc2 != 0 {
-            printf("❌️ Failed artifact: {}\n", out)
+            printf("❌️ Failed artifact: {}\n\n", out)
             return 1
         }
         printf("✅ Generated artifact: {}\n\n", out)

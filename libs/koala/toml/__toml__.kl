@@ -42,41 +42,81 @@ pub func parse_str(s str) Table {
 ///
 /// Scalar keys are emitted first, then nested tables as `[name]`
 /// sections. Dotted headers are used for nested tables. Arrays of
-/// tables (`[[name]]`) are not supported.
+/// tables are emitted as repeated `[[name]]` blocks.
+///
+/// The leading newline produced before the first section header is
+/// stripped so the output starts directly with the header.
 pub func dump(root Table) str {
     let buf = Buffer()
     dump_table(buf, root, "")
-    return buf.to_str()
+    let s = buf.to_str()
+    if s.starts_with("\n") {
+        return s.substr(1, s.len())
+    }
+    return s
 }
 
-/// Write `tbl` into `buf`. `prefix` is the dotted path of the
-/// enclosing table, used to build nested `[a.b]` headers.
+/// Write `tbl` into `buf`.
+///
+/// Emit order:
+/// 1. Scalar values and non-table arrays, under the current section.
+/// 2. Nested tables as `[a.b]`.
+/// 3. Arrays of tables as repeated `[[a.b]]` blocks.
 func dump_table(buf Buffer, tbl Table, prefix str) {
     let keys = tbl.keys()
 
-    // Scalar keys first, so they land under the current section.
+    // Scalar values and plain arrays first, so they land under the
+    // current section.
     for k in keys {
         let v = tbl.get(k)
         if v is Table { continue }
+        if v is Array {
+            if is_array_of_tables(v) { continue }
+        }
         buf.write_str(k)
         buf.write_str(" = ")
         buf.write_str(v.to_toml())
         buf.write_str("\n")
     }
 
-    // Nested tables as separate `[path]` sections.
+    // Nested tables and arrays of tables as separate sections.
     for k in keys {
         let v = tbl.get(k)
-        if !(v is Table) { continue }
 
         var full = k
-        if len(prefix) > 0 {
+        if prefix.len() > 0 {
             full = prefix + "." + k
         }
 
-        buf.write_str("\n[")
-        buf.write_str(full)
-        buf.write_str("]\n")
-        dump_table(buf, v, full)
+        if v is Table {
+            buf.write_str("\n[")
+            buf.write_str(full)
+            buf.write_str("]\n")
+            dump_table(buf, v, full)
+            continue
+        }
+
+        if v is Array {
+            if !is_array_of_tables(v) { continue }
+            for elem in v.value {
+                if elem is Table {
+                    buf.write_str("\n[[")
+                    buf.write_str(full)
+                    buf.write_str("]]\n")
+                    dump_table(buf, elem, full)
+                }
+            }
+        }
     }
+}
+
+/// Return true when `arr` is non-empty and every element is a
+/// `Table`. An empty array is treated as a plain array, not an
+/// array of tables, so `packages = []` round-trips as `packages = []`.
+func is_array_of_tables(arr Array) bool {
+    if arr.value.len() == 0 { return false }
+    for elem in arr.value {
+        if !(elem is Table) { return false }
+    }
+    return true
 }

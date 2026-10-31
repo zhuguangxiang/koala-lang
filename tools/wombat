@@ -93,11 +93,15 @@ func print_command_help(name str) {
     }
 
     if name == "test" {
-        print("Usage: wombat test [dir]")
+        print("Usage: wombat test [target]")
         print("")
-        print("When <dir> contains __ws__.toml every package is tested;")
-        print("when it contains __pkg__.toml only that package is tested.")
-        print("<dir> defaults to the current directory.")
+        print("  (no target)   Test every directory package and ws/test/")
+        print("  @             Test only ws/test/, no package tests")
+        print("  <dir>         Test a workspace or a single package")
+        print("  <file.kl>     Not supported yet")
+        print("")
+        print("ws/test/ holds tests that do not belong to a specific")
+        print("package; it is only run from a workspace root.")
         return
     }
 
@@ -212,15 +216,24 @@ func cmd_build(argv list[str]) int {
     return wb.build_all(opts.path, opts.output)
 }
 
-/// `wombat test [dir]`
+/// `wombat test [target]`
+///
+/// `target` may be `@` (only `ws/test/*.kl`), a directory (workspace
+/// or single package), or a `.kl` / `.klc` file (not supported yet).
 func cmd_test(argv list[str]) int {
-    let opts = BuildOptions()
-    let err = parse_build_options(argv, opts, false)
-    if !err.empty() {
-        printf("wombat test: {}\n", err)
+    var target = "."
+    if argv.len() >= 2 {
+        target = argv[1]
+    }
+    if argv.len() > 2 {
+        if target == "@" {
+            print("wombat test: '@' does not take arguments")
+            return 2
+        }
+        printf("wombat test: unexpected argument '{}'\n", argv[2])
         return 2
     }
-    return wb.test_all(opts.path)
+    return wb.test_all(target)
 }
 
 /// `wombat new <name>`

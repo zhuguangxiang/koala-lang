@@ -1,0 +1,4 @@
+import "demo/math"
+
+print("hello from demo/extra")
+print("math.add(1, 2) = " + math.add(1, 2).to_str())

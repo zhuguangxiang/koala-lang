@@ -6,24 +6,130 @@
 import "std/os"
 import "std/fs"
 
-/// Run tests for every package in a workspace or a single package.
+/// Walk up from `start` until a directory containing `__ws__.toml`
+/// is found. Returns "" when none.
+func test_find_ws_root(start str) str {
+    var dir = fs.Path(start).absolute()
+    while true {
+        if fs.exists(dir.cat("__ws__.toml").to_str()) {
+            return dir.to_str()
+        }
+        let parent = dir.parent()
+        if parent.to_str() == dir.to_str() { return "" }
+        dir = parent
+    }
+    return ""
+}
+
+/// Run only `<ws_root>/test/*.kl`.
+///
+/// A missing `test/` or an empty `test/` returns 0. Each `.kl` file is
+/// passed to `koala --test` with `<ws_root>/dist/` prepended to
+/// `KOALA_PATH`, so the tests can import packages built by
+/// `wombat build`.
+///
+/// Test paths are `<ws_name>/test/<file>.kl`, relative to the
+/// workspace's parent, matching the base that `build_workspace` uses.
+func run_ws_dir_tests(ws_root str) int {
+    let test_dir = fs.Path(ws_root).cat("test").to_str()
+    if !fs.exists(test_dir) {
+        print("wombat test: no test directory in ws/test/")
+        return 0
+    }
+
+    let ws_parent = fs.Path(ws_root).parent().to_str()
+    let ws_name = fs.Path(ws_root).name()
+    let dist_entry = fs.Path(ws_root).cat("dist").to_str() + "/"
+    let old_path = os.getenv("KOALA_PATH")
+    var koala_path = dist_entry
+    if old_path != nil {
+        if !old_path.empty() {
+            koala_path = dist_entry + ":" + old_path
+        }
+    }
+
+    let entries = fs.list_dir(test_dir)
+    var total = 0
+    var failed = 0
+
+    for e in entries {
+        let name = e.name()
+        if !name.ends_with(".kl") { continue }
+        let rel = ws_name + "/test/" + name
+        print("")
+        printf("🚀 Running: koala --test {}\n", rel)
+        let full = "cd " + ws_parent +
+                   " && KOALA_PATH=" + koala_path +
+                   " koala --test " + rel
+        let rc = os.system(full)
+        print("")
+        total += 1
+        if rc != 0 {
+            failed += 1
+            printf("❌️ FAIL: {}\n", rel)
+        } else {
+            printf("✅ PASS: {}\n", rel)
+        }
+    }
+
+    if total == 0 {
+        print("wombat test: no test files in ws/test/")
+        return 0
+    }
+    printf("wombat test: {} passed, {} failed, {} total\n",
+           (total - failed).to_str(), failed.to_str(), total.to_str())
+    if failed > 0 { return 1 }
+    return 0
+}
+
+/// Run tests.
+///
+/// `target` may be:
+/// - `@`: only `ws/test/*.kl`, no package tests.
+/// - a directory: workspace (all directory packages + `ws/test/`) or
+///   a single package (only that package's tests).
+/// - a `.kl` / `.klc` file: not supported yet.
 ///
 /// Does not build. The output directory is prepended to `KOALA_PATH`
 /// for each test process, so tests can import the `.klc` artifacts
-/// produced by a prior `wombat build`. The parent shell's environment
-/// is not touched.
+/// produced by a prior `wombat build`.
 ///
-/// A package has tests when `<dir>/<pkg.test>` exists. An empty test
-/// directory is reported and skipped.
-pub func test_all(src_dir str) int {
+/// A directory package has tests when `<dir>/<pkg.test>` exists. A
+/// single-file package has no `<dir>/test/`; its tests live in
+/// `ws/test/` and are handled by the workspace-level pass.
+pub func test_all(target str) int {
+    // `@`: only ws/test/*.kl. Independent branch, does not touch the
+    // directory-package logic below.
+    if target == "@" {
+        let ws_root = test_find_ws_root(".")
+        if ws_root.empty() {
+            print("wombat test: '@' requires a workspace")
+            return 1
+        }
+        return run_ws_dir_tests(ws_root)
+    }
+
+    // Single-file targets are not supported yet. Independent branch,
+    // returns before the directory logic.
+    if target.ends_with(".kl") || target.ends_with(".klc") {
+        print("wombat test: running a single test file is not supported yet")
+        print("  run `wombat test` for the whole workspace, or `wombat test @` for ws/test/")
+        return 2
+    }
+
     print("🧪 Wombat Test Started...")
 
-    let src_abs = fs.Path(src_dir).absolute().to_str()
+    let src_abs = fs.Path(target).absolute().to_str()
     let ws = load_workspace_or_package(src_abs)
     if ws.packages.len() == 0 {
         print("wombat test: no packages to test")
         return 1
     }
+
+    // `target` points at a package directory when it contains
+    // `__pkg__.toml`. In that case only that package's tests run;
+    // `ws/test/` is not touched.
+    let is_single_pkg = fs.exists(fs.Path(src_abs).cat("__pkg__.toml").to_str())
 
     // Same dist resolution as build_all: `./dist` is resolved against
     // the workspace root, or against the package directory when the
@@ -50,6 +156,10 @@ pub func test_all(src_dir str) int {
     var skipped_pkgs = 0
 
     for pkg in ws.packages {
+        // Single-file packages have no `<dir>/test/`; their tests live
+        // in `ws/test/` and are handled by the workspace-level pass.
+        if pkg.is_file { continue }
+
         // 1. Tests live in `<dir_name>/<test>/`, where `test` defaults
         // to "test" and can be overridden in `__pkg__.toml`. A
         // missing directory means the package has no tests; skip
@@ -57,10 +167,7 @@ pub func test_all(src_dir str) int {
         let test_dir_abs = fs.Path(ws.root).cat(pkg.dir_name).cat(pkg.test).to_str()
         if !fs.exists(test_dir_abs) { continue }
 
-        // 2. Collect `.kl` files in the test directory. `list_dir`
-        //    returns full Paths; only the file name is kept so the
-        //    command uses a path relative to `ws_parent`, matching
-        //    the base that `wombat build` uses.
+        // 2. Collect `.kl` files in the test directory.
         let entries = fs.list_dir(test_dir_abs)
         let test_files = list[str]()
         for e in entries {
@@ -93,8 +200,6 @@ pub func test_all(src_dir str) int {
 
             let rc = os.system(full)
 
-            // Blank line separates koala's test output ("All tests
-            // passed.") from wombat's own PASS/FAIL line.
             print("")
             total += 1
             if rc != 0 {
@@ -102,6 +207,34 @@ pub func test_all(src_dir str) int {
                 printf("❌️ FAIL: {}\n", rel)
             } else {
                 printf("✅ PASS: {}\n", rel)
+            }
+        }
+    }
+
+    // In workspace mode, also run ws/test/*.kl. A single-package
+    // target does not touch ws/test/.
+    if !is_single_pkg {
+        let test_dir = fs.Path(ws.root).cat("test").to_str()
+        if fs.exists(test_dir) {
+            let entries = fs.list_dir(test_dir)
+            for e in entries {
+                let name = e.name()
+                if !name.ends_with(".kl") { continue }
+                let rel = ws_name + "/test/" + name
+                print("")
+                printf("🚀 Running: koala --test {}\n", rel)
+                let full = "cd " + ws_parent +
+                           " && KOALA_PATH=" + koala_path +
+                           " koala --test " + rel
+                let rc = os.system(full)
+                print("")
+                total += 1
+                if rc != 0 {
+                    failed += 1
+                    printf("❌️ FAIL: {}\n", rel)
+                } else {
+                    printf("✅ PASS: {}\n", rel)
+                }
             }
         }
     }
