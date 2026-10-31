@@ -2887,10 +2887,57 @@ static void build_unpack_vars(KlrBuilder *bldr, Vector *sym_ids, KlrValue *elem,
     }
 }
 
+// let (a, b) = (x, y): with a tuple literal on the right no tuple is built. All elements are
+// evaluated first, then each one is moved into its new variable ('_' binds nothing).
+static void emit_ir_tuple_decl_literal(ParserState *ps, TupleDeclStmt *s)
+{
+    Vector *elems = ((TupleExpr *)s->exp)->vec;
+    int size = vector_size(elems);
+    ASSERT(size == vector_size(&s->sym_ids));
+
+    // 1. evaluate the elements
+    KlrValue *vals[size];
+    for (int i = 0; i < size; i++) {
+        Expr *e = vector_get(elems, i);
+        e->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, e);
+        if (!e->ir_val) return;
+        vals[i] = e->ir_val;
+    }
+
+    // 2. create the variables and move the elements into them
+    for (int i = 0; i < size; i++) {
+        int *sym_id = vector_get_ptr(&s->sym_ids, i);
+        if (*sym_id < 0) continue;
+        Symbol *sym = get_symbol_by_id(*sym_id);
+        ASSERT(sym->kind == SYM_VAR);
+
+        KlrBuilder bldr;
+        klr_builder_end(&bldr, ps->scope->bb);
+        if (sym->flags & SYM_FLAGS_MUTABLE) {
+            sym->ir_val = klr_build_local_var(&bldr, sym->ts, sym->name);
+        } else {
+            sym->ir_val = klr_build_local(&bldr, sym->ts, sym->name);
+        }
+
+        // the var may be a trait or optional, e.g. let (a Fly, b int?) = (bird, 1)
+        KlrValue *val = _build_obj_intf_upcast(ps, vals[i], sym->ts, "");
+        if (!val) val = vals[i];
+        klr_builder_end(&bldr, ps->scope->bb);
+        klr_build_move(&bldr, sym->ir_val, val);
+    }
+}
+
 static void emit_ir_tuple_decl(ParserState *ps, Stmt *stmt)
 {
     TupleDeclStmt *s = (TupleDeclStmt *)stmt;
     Expr *exp = s->exp;
+
+    // a tuple literal is unpacked without building the tuple
+    if (exp->kind == EXPR_TUPLE_KIND && !s->else_block) {
+        emit_ir_tuple_decl_literal(ps, s);
+        return;
+    }
 
     exp->ctx = EXPR_CTX_LOAD;
     emit_ir_visit_expr(ps, exp);
@@ -3367,11 +3414,58 @@ static void build_tuple_target_store(ParserState *ps, Expr *target, KlrValue *va
     }
 }
 
+// (a, b) = (x, y): with a tuple literal on the right no tuple is built. All elements are
+// evaluated before any target is stored, and an element that reads a local variable is
+// copied into a temp first, so (a, b) = (b, a) swaps instead of storing 'b' twice.
+static void emit_ir_tuple_assign_literal(ParserState *ps, TupleAssignStmt *s)
+{
+    Vector *elems = ((TupleExpr *)s->rhs)->vec;
+    Vector *targets = ((TupleExpr *)s->lhs)->vec;
+    int size = vector_size(elems);
+    ASSERT(size == vector_size(targets));
+
+    // 1. evaluate the elements, a local is copied as a later store may overwrite it
+    KlrValue *vals[size];
+    for (int i = 0; i < size; i++) {
+        Expr *e = vector_get(elems, i);
+        e->ctx = EXPR_CTX_LOAD;
+        emit_ir_visit_expr(ps, e);
+        if (!e->ir_val) return;
+        KlrValue *val = e->ir_val;
+        if (klr_is_local(val)) {
+            KlrBuilder bldr;
+            klr_builder_end(&bldr, ps->scope->bb);
+            KlrValue *tmp = klr_build_local(&bldr, val->ts, "");
+            klr_build_move(&bldr, tmp, val);
+            val = tmp;
+        }
+        vals[i] = val;
+    }
+
+    // 2. store each element into its target, the target may be a trait or optional
+    for (int i = 0; i < size; i++) {
+        Expr *target = vector_get(targets, i);
+        KlrValue *val = _build_obj_intf_upcast(ps, vals[i], target->ts, "");
+        if (!val) val = vals[i];
+
+        target->ctx = EXPR_CTX_STORE;
+        emit_ir_visit_expr(ps, target);
+        if (!target->ir_val) return;
+        build_tuple_target_store(ps, target, val);
+    }
+}
+
 // (a, b) = t: read each element of the tuple and store it into its target
 static void emit_ir_tuple_assign(ParserState *ps, Stmt *stmt)
 {
     TupleAssignStmt *s = (TupleAssignStmt *)stmt;
     Expr *rhs = s->rhs;
+
+    // a tuple literal is unpacked without building the tuple
+    if (rhs->kind == EXPR_TUPLE_KIND) {
+        emit_ir_tuple_assign_literal(ps, s);
+        return;
+    }
 
     rhs->ctx = EXPR_CTX_LOAD;
     emit_ir_visit_expr(ps, rhs);

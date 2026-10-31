@@ -926,6 +926,16 @@ static int do_propagate(KlrInsn *insn, KlrFunc *fn)
             ASSERT(klr_is_local(_dst));
             KlrInsn *dst = (KlrInsn *)_dst;
 
+            // A `var` source may be assigned again after this move, so dst is not a copy
+            // of it any more: `var y = a; let t = y; y = 5; return t` must return a, and
+            // the same with `var t`. dst keeps its own value, nothing is propagated.
+            if (klr_is_local(src) && !(((KlrInsn *)src)->flags & KLR_INSN_FLAGS_CONST)) {
+                log_info("no propagation from a mutable local:");
+                log_insn(insn);
+                if (!(dst->flags & KLR_INSN_FLAGS_CONST)) klr_clear_local_var(insn->bb, dst);
+                break;
+            }
+
             if (dst->flags & KLR_INSN_FLAGS_CONST) {
                 // dst is let variable.
                 if (type_allowed_to_prop(src->ts)) {

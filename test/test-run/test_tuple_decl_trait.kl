@@ -104,7 +104,7 @@ nested()
 
 // trait -> base trait: upcast to Named's slot table
 // CHECK-LABEL: func @base_trait()
-// CHECK: upcast_intf %{{[0-9]+}} test_tuple_decl_trait.Fly [intf-table-index = 1] to test_tuple_decl_trait.Named
+// CHECK: upcast_intf %fly test_tuple_decl_trait.Fly [intf-table-index = 1] to test_tuple_decl_trait.Named
 // CHECK-NEXT: move %nm test_tuple_decl_trait.Named, %{{[0-9]+}} test_tuple_decl_trait.Named
 
 // class -> optional trait: made a 'Fly', stored in the 'Fly?' local

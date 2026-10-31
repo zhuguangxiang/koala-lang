@@ -63,13 +63,11 @@ in_loop()
 // CHECK-LABEL: func @mutable() <NO-TYPE> {
 // CHECK-NEXT: %bb0(entry):
 // CHECK-NEXT: %a = local int64
-// CHECK-NEXT: %0 = seq.get tuple(1, 'x') std/builtin.tuple<ju>, 0 int64
-// CHECK-NEXT: move %a int64, %0 int64
+// CHECK-NEXT: move %a int64, 1 int64
 // CHECK-NEXT: %b = local str
-// CHECK-NEXT: %1 = seq.get tuple(1, 'x') std/builtin.tuple<ju>, 1 int64
-// CHECK-NEXT: move %b str, %1 str
-// CHECK-NEXT: %2 = add %a int64, 10 int64
-// CHECK-NEXT: move %a int64, %2 int64
+// CHECK-NEXT: move %b str, 'x' str
+// CHECK-NEXT: %0 = add %a int64, 10 int64
+// CHECK-NEXT: move %a int64, %0 int64
 // CHECK-NEXT: move %b str, 'y' str
 
 // '_': the skipped fields are never read
@@ -79,9 +77,8 @@ in_loop()
 // CHECK-NEXT: move %q int64, %1 int64
 // CHECK-NEXT: %2 = build_intern @tuple, %q int64
 // CHECK: %s = local [immutable] str
-// CHECK-NEXT: %3 = seq.get tuple(1, 'mid', true) std/builtin.tuple<juz>, 1 int64
-// CHECK-NEXT: move %s str, %3 str
-// CHECK-NEXT: %4 = build_intern @tuple, %s str
+// CHECK-NEXT: move %s str, 'mid' str
+// CHECK-NEXT: %3 = build_intern @tuple, %s str
 
 // nested: the inner tuple is bound first, then destructured
 // CHECK-LABEL: func @nested() <NO-TYPE> {

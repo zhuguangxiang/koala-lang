@@ -1,0 +1,81 @@
+// RUN: koala %s ++ --dump=ir | filecheck %s
+// const-copy-prop must not treat a copy of a `var` as that var: the var may be assigned
+// again after the copy, and the copy keeps the old value. This also keeps a tuple swap
+// (lowered to temps and moves, no tuple) correct after optimization.
+
+// let copy of a var
+func let_copy(a int) int {
+    var y = a
+    let t = y
+    y = 5
+    return t
+}
+// var copy of a var
+func var_copy(a int) int {
+    var y = a
+    var t = y
+    y = 5
+    return t
+}
+// the copy is used after the var is changed by an expression
+func copy_then_add(a int) int {
+    var y = a
+    let t = y
+    y = y + 100
+    return t * 1000 + y
+}
+// swap through a tuple literal
+func swap(a int, b int) int {
+    var x = a
+    var y = b
+    (x, y) = (y, x)
+    return x * 10 + y
+}
+// three-way rotate, and a swap twice
+func rotate(a int, b int, c int) int {
+    var x = a
+    var y = b
+    var z = c
+    (x, y, z) = (y, z, x)
+    return x * 100 + y * 10 + z
+}
+func swap_twice(a int, b int) int {
+    var x = a
+    var y = b
+    (x, y) = (y, x)
+    (x, y) = (y, x)
+    return x * 10 + y
+}
+// swap in a loop
+func swap_loop(n int) int {
+    var x = 1
+    var y = 2
+    for i in range(0, n) {
+        (x, y) = (y, x)
+    }
+    return x * 10 + y
+}
+// let with a tuple literal reading vars of the same names
+func shadow(a int, b int) int {
+    let x = a
+    let y = b
+    if true {
+        let (x, y) = (y, x)
+        return x * 10 + y
+    }
+    return 0
+}
+
+func main() {
+    print(let_copy(1), var_copy(1), copy_then_add(1))
+    print(swap(1, 2), rotate(1, 2, 3), swap_twice(1, 2))
+    print(swap_loop(3), swap_loop(4), shadow(1, 2))
+}
+
+// after optimization the copy of 'y' is still returned, not 'y'
+// CHECK-LABEL: IR Dump After dead-code-elimination (Iter 1) [@let_copy]
+// CHECK: ret %t int64
+
+// CHECK: {{^}}1 1 1101{{$}}
+// CHECK-NEXT: {{^}}21 231 12{{$}}
+// CHECK-NEXT: {{^}}21 12 21{{$}}

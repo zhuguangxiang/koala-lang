@@ -86,15 +86,19 @@ let p = Point(1, 2)
 p.flip()
 print(p.x, p.y)
 
-// the tuple is built first, then each target is set from one of its elements
+// a tuple literal is not built: each local element is copied into a temp first, then
+// each target is set from its temp, so the swap does not see the stored 'a'
 // CHECK-LABEL: func @swap()
 // CHECK: %a = local int64
 // CHECK: %b = local int64
-// CHECK: %0 = build_intern @tuple, %b int64, %a int64
-// CHECK-NEXT: %1 = seq.get %0 std/builtin.tuple<jj>, 0 int64
-// CHECK-NEXT: move %a int64, %1 int64
-// CHECK-NEXT: %2 = seq.get %0 std/builtin.tuple<jj>, 1 int64
-// CHECK-NEXT: move %b int64, %2 int64
+// CHECK: %0 = local [immutable] int64
+// CHECK-NEXT: move %0 int64, %b int64
+// CHECK-NEXT: %1 = local [immutable] int64
+// CHECK-NEXT: move %1 int64, %a int64
+// CHECK-NEXT: move %a int64, %0 int64
+// CHECK-NEXT: move %b int64, %1 int64
+// CHECK-NOT: seq.get
+// CHECK: ret void
 
 // CHECK: {{^}}2 1{{$}}
 // CHECK-NEXT: {{^}}3 2{{$}}
