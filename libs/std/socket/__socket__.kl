@@ -54,16 +54,16 @@ func _dial_one(addr SocketAddr, spec SocketTypeSpec, opts DialOptions) Conn? {
 
     var sock_type = SOCK_STREAM
     if spec.kind() == SOCKTYPE_UDP { sock_type = SOCK_DGRAM }
+    if spec.kind() == SOCKTYPE_DGRAM { sock_type = SOCK_DGRAM }
     if spec.kind() == SOCKTYPE_RAW { sock_type = SOCK_RAW }
 
     var proto = 0
-    if spec.kind() == SOCKTYPE_RAW { proto = spec.protocol()! }
+    if let p = spec.protocol() { proto = p }
 
     let fd = sys_socket(domain, sock_type, proto)
     if fd < 0 { return nil }
 
-    let local = opts.local_addr()
-    if local != nil {
+    if let local = opts.local_addr() {
         if sys_bind(fd, local) != 0 {
             sys_close(fd)
             return nil
@@ -74,9 +74,14 @@ func _dial_one(addr SocketAddr, spec SocketTypeSpec, opts DialOptions) Conn? {
         sys_setsockopt_timeout(fd, SO_SNDTIMEO, opts.timeout_ms())
     }
 
-    if sys_connect(fd, addr) != 0 {
-        sys_close(fd)
-        return nil
+    // Port 0 means "no default peer": send_to / recv_from carry the
+    // address explicitly. That is how an unconnected datagram socket
+    // (including an ICMP datagram socket) is opened.
+    if addr.port() != 0 {
+        if sys_connect(fd, addr) != 0 {
+            sys_close(fd)
+            return nil
+        }
     }
 
     if spec.kind() == SOCKTYPE_TCP {
@@ -89,10 +94,9 @@ func _dial_one(addr SocketAddr, spec SocketTypeSpec, opts DialOptions) Conn? {
         return c
     }
 
-    if spec.kind() == SOCKTYPE_UDP {
+    if spec.kind() == SOCKTYPE_UDP || spec.kind() == SOCKTYPE_DGRAM {
         let c = UdpConn(fd)
-        // Cache the peer so remote_addr() does not require a syscall.
-        c._remote = addr
+        if addr.port() != 0 { c._remote = addr }
         return c
     }
 

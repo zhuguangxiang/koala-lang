@@ -6,35 +6,46 @@
 /// Transport type descriptors for the socket package.
 ///
 /// `SocketType` is represented with integer constants until enums
-/// land. The protocol for raw sockets is one of the `IP_PROTO_*`
-/// constants from const.kl; the kernel accepts those values directly,
-/// so a raw spec's protocol can be passed straight to `sys_socket`
-/// without translation.
+/// land. The protocol for raw and datagram sockets is one of the
+/// `IP_PROTO_*` constants from const.kl; the kernel accepts those
+/// values directly, so a spec's protocol can be passed straight to
+/// `sys_socket` without translation.
 
 // Transport type tags. Values are arbitrary; they only need to be
 // distinct from one another, and from the `SOCK_*` values in const.kl,
 // so that passing a `SOCKTYPE_*` where a `SOCK_*` is expected stands
 // out as a bug.
-pub const SOCKTYPE_TCP = 0
-pub const SOCKTYPE_UDP = 1
-pub const SOCKTYPE_RAW = 2
+//
+// SOCKTYPE_TCP and SOCKTYPE_UDP describe sockets whose protocol
+// argument is 0. SOCKTYPE_RAW and SOCKTYPE_DGRAM both carry an
+// explicit protocol: RAW maps to SOCK_RAW, DGRAM maps to SOCK_DGRAM.
+// The split matters because Linux lets an unprivileged process open
+// SOCK_DGRAM + IPPROTO_ICMP (the ping case) when its group is in
+// net.ipv4.ping_group_range, but requires CAP_NET_RAW for SOCK_RAW.
+pub const SOCKTYPE_TCP   = 0
+pub const SOCKTYPE_UDP   = 1
+pub const SOCKTYPE_RAW   = 2
+pub const SOCKTYPE_DGRAM = 3
 
 /// Type descriptor passed to `dial`.
 ///
-/// Carries the protocol for raw sockets. Construct instances via the
-/// static helpers rather than the fields directly, so that the
-/// invariant "protocol is set iff kind is raw" is respected.
+/// Carries the protocol for raw and datagram sockets. Construct
+/// instances via the static helpers rather than the fields directly,
+/// so that the invariant "protocol is set iff kind is Raw or Dgram" is
+/// respected.
 pub class SocketTypeSpec {
     /// Transport kind; one of the `SOCKTYPE_*` constants.
     let _kind int
 
-    /// Protocol number; only meaningful when `_kind` is `SOCKTYPE_RAW`.
-    /// This is one of the `IP_PROTO_*` constants from const.kl.
+    /// Protocol number; only meaningful when `_kind` is `SOCKTYPE_RAW`
+    /// or `SOCKTYPE_DGRAM`. This is one of the `IP_PROTO_*` constants
+    /// from const.kl.
     let _protocol int?
 
     /// Construct a spec from its parts.
     ///
-    /// Prefer `tcp()` / `udp()` / `raw()` over calling this directly.
+    /// Prefer `tcp()` / `udp()` / `raw()` / `dgram()` over calling
+    /// this directly.
     func __init__(kind int, protocol int?) {
         _kind = kind
         _protocol = protocol
@@ -58,18 +69,31 @@ pub class SocketTypeSpec {
         return SocketTypeSpec(SOCKTYPE_RAW, p)
     }
 
+    /// Create a spec for a datagram socket with an explicit protocol.
+    ///
+    /// On Linux this is how an unprivileged process opens an ICMP echo
+    /// socket: `SOCK_DGRAM` + `IPPROTO_ICMP`, allowed when the caller's
+    /// group is in `net.ipv4.ping_group_range`. The returned `Conn` is
+    /// a `UdpConn`; `send_to` / `recv_from` work as usual, and
+    /// `socket_type()` reports `SOCKTYPE_UDP` because the underlying
+    /// socket type is the same — only the protocol differs.
+    pub static func dgram(p int) SocketTypeSpec {
+        return SocketTypeSpec(SOCKTYPE_DGRAM, p)
+    }
+
     /// Transport kind; one of the `SOCKTYPE_*` constants.
     pub func kind() int { return _kind }
 
-    /// Protocol number, non-nil only when `kind()` is `SOCKTYPE_RAW`.
+    /// Protocol number, non-nil only when `kind()` is `SOCKTYPE_RAW`
+    /// or `SOCKTYPE_DGRAM`.
     pub func protocol() int? { return _protocol }
 
     /// True when both specs have the same kind and the same protocol.
     pub func __eq__(rhs SocketTypeSpec) bool {
         if _kind != rhs._kind { return false }
-        // Non-raw specs always carry a nil protocol, so equal kind is
-        // enough here.
-        if _kind != SOCKTYPE_RAW { return true }
+        // TCP and UDP always carry a nil protocol, so equal kind is
+        // enough for them.
+        if _kind == SOCKTYPE_TCP || _kind == SOCKTYPE_UDP { return true }
         return _protocol! == rhs._protocol!
     }
 
@@ -80,15 +104,15 @@ pub class SocketTypeSpec {
 
     /// Hash the spec by combining kind and protocol.
     pub func hash() int {
-        if _kind != SOCKTYPE_RAW { return _kind }
+        if _kind == SOCKTYPE_TCP || _kind == SOCKTYPE_UDP { return _kind }
         return _kind * 31 + _protocol!
     }
 
     /// Write the spec to a Formatter.
     ///
     /// Used by `print` / `format` for debugging. The output is a short
-    /// tag naming the transport: `tcp`, `udp`, or `raw(proto)`, where
-    /// `proto` is the numeric IP protocol.
+    /// tag naming the transport: `tcp`, `udp`, `raw(proto)` or
+    /// `dgram(proto)`, where `proto` is the numeric IP protocol.
     pub func fmt(f Formatter) {
         if _kind == SOCKTYPE_TCP {
             f.write_str("tcp")
@@ -96,6 +120,8 @@ pub class SocketTypeSpec {
             f.write_str("udp")
         } else if _kind == SOCKTYPE_RAW {
             f.write_fmt("raw({})", _protocol!)
+        } else if _kind == SOCKTYPE_DGRAM {
+            f.write_fmt("dgram({})", _protocol!)
         } else {
             f.write_fmt("unknown({})", _kind)
         }

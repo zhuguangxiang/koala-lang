@@ -40,7 +40,9 @@
  *       field reads OP_GET_FIELD(_EXT) go into the loads table (see "memory-
  *       dependent reads" below);
  *       OP_MOVE's dst is a local slot (a storage definition, not an SSA copy),
- *       so it is excluded;
+ *       so it is excluded; but an operand that is a local reads the slot's
+ *       current value, so a MOVE into a local retires every entry (in both
+ *       tables) that reads it, e.g. `i + 1` before and after `move %i, ...`;
  *       OP_IR_LOCAL/PHI/CALL/CAST/SELECT, the loadk family and terminators are
  *       all opaque;
  *     - identity rules and constant folding are left to existing passes; this
@@ -69,13 +71,8 @@
  *     (SET_FIELD(_EXT)/SEQ_SET(_IMM)/MAP_SET) or any call (OP_IR_CALL, listed
  *     together with OP_PRINT, since printing an object may trigger a formatting
  *     path), the entire loads table is cleared. The exprs table is unaffected --
- *     pure value ops do not depend on memory. When the same object is read again
- *     after being routed through a local, the obj operand in the key is the local
- *     value itself (not the MOVE-inflow value), which does not conflict with the
- *     MOVE that writes it: a MOVE changes the slot's inflow, not the memory
- *     contents the local value represents -- a slot read in the IR is precisely
- *     that local value relayed through the MOVE's def-use chain, so correctness
- *     is guaranteed by the IR structure rather than by this table.
+ *     pure value ops do not depend on memory. When the obj operand is a local,
+ *     a MOVE into that local retires the entry like any other read of the local.
  */
 
 #include "log.h"
@@ -89,7 +86,7 @@ extern "C" {
 /* Expression table node: key (code, op1, op2) -> leader instruction */
 typedef struct {
     HashMapEntry entry;
-    KlrInsn *leader;
+    KlrInsn *leader; /* NULL: retired, an operand local was written after it */
     OpCode code;
     KlrValue *op1;
     KlrValue *op2; /* NULL for unary instructions */
@@ -228,6 +225,11 @@ static int lvn_number_insn(LVNContext *ctx, KlrInsn *insn, HashMap *map)
     probe.op2 = op2;
 
     LvnExpr *hit = (LvnExpr *)hashmap_get(map, &probe);
+    if (hit && !hit->leader) {
+        /* the old leader read a local that was written since: this insn is the new leader */
+        hit->leader = insn;
+        return 0;
+    }
     if (hit) {
         /* Redundant: leader is earlier in the same block => RAUW is safe function-wide (see the
          * file-header argument). The same holds when a div/mod divisor is the constant 0: if leader
@@ -257,6 +259,18 @@ static void lvn_clear_loads(LVNContext *ctx)
     hashmap_init(&ctx->loads, lvn_expr_equal);
 }
 
+/* A MOVE writes a local slot: an expression that reads the local as an operand
+   computes a different value after it, so its entry can no longer be a leader. */
+static void lvn_retire_local(HashMap *map, KlrValue *local)
+{
+    HashMapIter it;
+    hashmap_iter_init(map, &it, 0, 1);
+    while (hashmap_iter_next(&it)) {
+        LvnExpr *e = (LvnExpr *)hashmap_iter_entry(&it);
+        if (e->op1 == local || e->op2 == local) e->leader = NULL;
+    }
+}
+
 static void lvn_bb(LVNContext *ctx, KlrBasicBlock *bb)
 {
     hashmap_init(&ctx->exprs, lvn_expr_equal);
@@ -267,6 +281,12 @@ static void lvn_bb(LVNContext *ctx, KlrBasicBlock *bb)
         if (insn_is_terminator(insn)) continue;
         if (lvn_invalidates_loads(insn)) {
             lvn_clear_loads(ctx);
+            continue;
+        }
+        if (insn->code == OP_MOVE) {
+            KlrValue *dst = insn_oper_value(insn, 0);
+            lvn_retire_local(&ctx->exprs, dst);
+            lvn_retire_local(&ctx->loads, dst);
             continue;
         }
         if (lvn_is_numberable(insn->code)) {

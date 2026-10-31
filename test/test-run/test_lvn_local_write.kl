@@ -1,0 +1,64 @@
+// RUN: koala %s | filecheck %s
+// RUN: koala %s ++ --dump=ir | filecheck %s --check-prefix=OPT
+// lvn: an expression that reads a local is not reused after the local is written
+// in the same block, e.g. `i + 1` in a loop body and again in the loop condition.
+
+class P {
+    var x int
+    func __init__(_x int) { x = _x }
+}
+
+// the checksum loop that failed with 'bytes index out of range'
+func checksum(data bytes) int {
+    var sum = 0
+    var i = 0
+    while i + 1 < data.len() {
+        sum += (int(data[i]) << 8) | int(data[i + 1])
+        i += 2
+    }
+    if i < data.len() {
+        sum += int(data[i]) << 8
+    }
+    return sum
+}
+
+// the same expression around a write in straight-line code
+func straight(n int) int {
+    var i = n
+    let a = i + 1
+    i = 10
+    let b = i + 1
+    return a * 100 + b
+}
+
+// a field read through a local that is rebound
+func field(p P, q P) int {
+    var o = p
+    let a = o.x
+    o = q
+    let b = o.x
+    return a * 100 + b
+}
+
+// no write in between: still reused
+func reuse(i int) int {
+    let a = i + 1
+    let b = i + 1
+    return a + b
+}
+
+func main() {
+    let data = bytes(5)
+    var i = 0
+    while i < 5 {
+        data[i] = uint8(i + 1)
+        i += 1
+    }
+    print(checksum(data), straight(1), field(P(3), P(4)), reuse(1))
+}
+
+// CHECK: {{^}}2310 211 304 4{{$}}
+
+// OPT-LABEL: --- IR Dump After dead-code-elimination (Iter 1) [@reuse] ---
+// OPT: %0 = add %i int64, 1 int64
+// OPT-NEXT: %1 = add %0 int64, %0 int64

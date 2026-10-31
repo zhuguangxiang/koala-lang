@@ -469,7 +469,7 @@ pub class SocketAddr {
     let _port int
 
     /// Construct an address from an IP and a port.
-    func __init__(ip IpAddr, port int) {
+    pub func __init__(ip IpAddr, port int) {
         _ip = ip
         _port = port
     }
