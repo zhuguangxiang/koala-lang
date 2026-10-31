@@ -1,0 +1,36 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// One's-complement checksum used by ICMP (and by TCP and UDP, which
+/// share the same algorithm).
+///
+/// The input is the full message with any checksum field already
+/// zeroed. On an ICMP datagram socket the kernel recomputes the
+/// checksum on send, so the value produced here is overwritten; it is
+/// kept so that the same packet builder also works over a raw socket.
+///
+/// Named `checksum_of` rather than `checksum` so that it does not
+/// collide with the `IcmpPacket.checksum()` accessor: inside a
+/// method body, an unqualified `checksum(...)` resolves to the
+/// member first.
+pub func checksum_of(data bytes) int {
+    let n = data.len()
+    var sum = 0
+    var i = 0
+    while i < n {
+        let hi = int(data[i])
+        var word = hi * 256
+        let next = i + 1
+        if next < n {
+            word = word + int(data[next])
+        }
+        sum = sum + word
+        i = i + 2
+    }
+    while sum > 0xFFFF {
+        sum = (sum & 0xFFFF) + (sum >> 16)
+    }
+    return (~sum) & 0xFFFF
+}

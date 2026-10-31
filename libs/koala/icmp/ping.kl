@@ -1,0 +1,43 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/socket" as so
+from "std/time" import Duration
+
+/// Probe one concrete address with `count` ICMP Echo Requests.
+///
+/// This is the layer under `ping(host)`: the caller has already
+/// resolved the name, so the address it printed in the header and the
+/// address the probes actually target are the same. `PingStats` is
+/// empty when the ICMP datagram socket cannot be opened.
+pub func ping_ip(ip so.IpAddr, count = 4, timeout Duration? = nil) PingStats {
+    let per_probe = timeout ?? Duration.from_secs(1)
+    let stats = PingStats.new()
+
+    if let sock = IcmpSocket.open() {
+        var seq = 0
+        while seq < count {
+            let outcome = sock.echo(ip, seq, per_probe)
+            stats.record(seq, outcome)
+            seq += 1
+        }
+        sock.close()
+    }
+
+    return stats
+}
+
+/// Probe `host` with `count` ICMP Echo Requests.
+///
+/// Resolves `host` once and delegates to `ping_ip`. The returned
+/// `PingStats` is empty when the name cannot be resolved or the ICMP
+/// datagram socket cannot be opened.
+pub func ping(host str, count = 4, timeout Duration? = nil) PingStats {
+    let rr = so.resolve(host)
+    if rr.status() != so.DNS_OK { return PingStats.new() }
+    let addrs = rr.addrs()
+    if addrs.len() == 0 { return PingStats.new() }
+    return ping_ip(addrs[0], count, timeout)
+}

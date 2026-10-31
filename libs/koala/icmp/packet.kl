@@ -1,0 +1,77 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// ICMP message types this package understands. Values are the
+/// on-wire type numbers.
+pub const ICMP_ECHO_REPLY    = 0
+pub const ICMP_DEST_UNREACH  = 3
+pub const ICMP_ECHO_REQUEST  = 8
+pub const ICMP_TIME_EXCEEDED = 11
+
+/// A parsed ICMP message: the four-byte header plus the body.
+///
+/// The header layout is `type(1) code(1) checksum(2)`, and the
+/// checksum covers the whole message including the header. An ICMP
+/// datagram socket delivers messages without an IP header in front,
+/// so `parse` takes the datagram as-is.
+pub class IcmpPacket {
+    let _type int
+    let _code int
+    let _checksum int
+    let _body bytes
+
+    pub func __init__(type_ int, code int, checksum int, body bytes) {
+        _type = type_
+        _code = code
+        _checksum = checksum
+        _body = body
+    }
+
+    /// ICMP message type, one of the `ICMP_*` constants.
+    pub func type_() int { return _type }
+
+    /// ICMP code field.
+    pub func code() int { return _code }
+
+    /// Checksum field as received; not verified by `parse`.
+    pub func checksum() int { return _checksum }
+
+    /// Body after the four-byte header.
+    pub func body() bytes { return _body }
+
+    /// Parse a raw ICMP message. The caller must have already
+    /// stripped the IP header; an ICMP datagram socket delivers
+    /// messages without one.
+    pub static func parse(data bytes) IcmpPacket? {
+        if data.len() < 4 { return nil }
+        let t = int(data[0])
+        let c = int(data[1])
+        let cs = (int(data[2]) << 8) | int(data[3])
+        return IcmpPacket(t, c, cs, data[4:data.len()])
+    }
+
+    /// Serialize this packet, computing the checksum over the whole
+    /// message. On an ICMP datagram socket the kernel recomputes the
+    /// checksum on send, so the value written here is overwritten.
+    pub func to_bytes() bytes {
+        let body = _body
+        let body_len = body.len()
+        let total = 4 + body_len
+        let out = bytes(total)
+        out[0] = uint8(_type)
+        out[1] = uint8(_code)
+        out[2] = uint8(0)
+        out[3] = uint8(0)
+        var i = 0
+        while i < body_len {
+            out[4 + i] = body[i]
+            i += 1
+        }
+        let cs = checksum_of(out)
+        out[2] = uint8((cs >> 8) & 0xFF)
+        out[3] = uint8(cs & 0xFF)
+        return out
+    }
+}

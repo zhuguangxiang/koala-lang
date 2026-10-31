@@ -1,0 +1,37 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// ICMP tests on loopback.
+//
+// ICMP datagram sockets need no special privilege when the caller's
+// group is in net.ipv4.ping_group_range, which is the common default
+// on Linux. If the open path fails the stats are empty and the tests
+// verify that failure is clean.
+
+import "std/ut"
+from "std/time" import Duration
+from "koala/icmp" import ping
+
+@test
+func test_ping_loopback() {
+    let stats = ping("127.0.0.1", 2, Duration.from_secs(1))
+    if stats.sent() == 0 {
+        // The ICMP datagram socket could not be opened.
+        return
+    }
+    ut.assert_eq(stats.sent(), 2)
+    if stats.succeeded() > 0 {
+        ut.assert_true(stats.min_rtt() != nil)
+        ut.assert_true(stats.avg_rtt() != nil)
+        ut.assert_true(stats.max_rtt() != nil)
+        ut.assert_true(stats.loss() < 100.0)
+    }
+}
+
+@test
+func test_ping_bad_host() {
+    let stats = ping("this-domain-should-not-exist-koala-test.invalid", 1)
+    ut.assert_eq(stats.sent(), 0)
+}

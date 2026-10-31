@@ -1,0 +1,162 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/time"
+from "std/time" import Duration
+
+/// Outcome of one Echo round-trip.
+pub const PING_SUCCESS = 0
+pub const PING_FAILURE = 1
+pub const PING_TIMEOUT = 2
+
+/// Outcome of one Echo round-trip: success with an RTT, failure with
+/// an RTT (a non-Echo error came back), or timeout with no RTT.
+pub class PingOutcome {
+    let _kind int
+    let _rtt Duration?
+
+    pub func __init__(kind int, rtt Duration?) {
+        _kind = kind
+        _rtt = rtt
+    }
+
+    /// One of `PING_SUCCESS`, `PING_FAILURE`, `PING_TIMEOUT`.
+    pub func kind() int { return _kind }
+
+    /// RTT for `PING_SUCCESS`; nil for `PING_FAILURE` and
+    /// `PING_TIMEOUT`.
+    pub func rtt() Duration? { return _rtt }
+}
+
+/// One recorded probe: the sequence number and its outcome.
+pub class PingRecord {
+    let _seq int
+    let _outcome PingOutcome
+
+    pub func __init__(seq int, outcome PingOutcome) {
+        _seq = seq
+        _outcome = outcome
+    }
+
+    pub func seq() int { return _seq }
+    pub func outcome() PingOutcome { return _outcome }
+}
+
+/// Aggregate of every probe a `ping` call made.
+pub class PingStats {
+    let _records list[PingRecord]
+
+    pub func __init__(records list[PingRecord]) {
+        _records = records
+    }
+
+    /// Create an empty record set.
+    pub static func new() PingStats {
+        return PingStats(list[PingRecord]())
+    }
+
+    /// Append one probe result.
+    pub func record(seq int, outcome PingOutcome) {
+        _records.append(PingRecord(seq, outcome))
+    }
+
+    /// Every probe record, in probe order.
+    pub func records() list[PingRecord] { return _records }
+
+    /// Number of probes sent.
+    pub func sent() int { return _records.len() }
+
+    /// Number of probes that received an Echo Reply.
+    pub func succeeded() int {
+        var n = 0
+        for r in _records {
+            if r.outcome().kind() == PING_SUCCESS { n += 1 }
+        }
+        return n
+    }
+
+    /// Number of probes that received a non-Echo ICMP error.
+    pub func failed() int {
+        var n = 0
+        for r in _records {
+            if r.outcome().kind() == PING_FAILURE { n += 1 }
+        }
+        return n
+    }
+
+    /// Number of probes that saw no reply at all.
+    pub func timed_out() int {
+        var n = 0
+        for r in _records {
+            if r.outcome().kind() == PING_TIMEOUT { n += 1 }
+        }
+        return n
+    }
+
+    /// Packet loss as a percentage (0.0 to 100.0).
+    pub func loss() float64 {
+        let s = sent()
+        if s == 0 { return 0.0 }
+        return float64(s - succeeded()) * 100.0 / float64(s)
+    }
+
+    /// Successful RTTs as durations, in probe order.
+    pub func rtts() list[Duration] {
+        let out = list[Duration]()
+        for r in _records {
+            let o = r.outcome()
+            if o.kind() == PING_SUCCESS {
+                out.append(o.rtt()!)
+            }
+        }
+        return out
+    }
+
+    /// Minimum RTT among successful probes, or nil if none succeeded.
+    pub func min_rtt() Duration? {
+        let ns = _rtts_ns()
+        if ns.len() == 0 { return nil }
+        var min = ns[0]
+        for v in ns {
+            if v < min { min = v }
+        }
+        return Duration.from_nanos(min)
+    }
+
+    /// Average RTT among successful probes, or nil if none succeeded.
+    pub func avg_rtt() Duration? {
+        let ns = _rtts_ns()
+        if ns.len() == 0 { return nil }
+        var sum = 0
+        for v in ns {
+            sum += v
+        }
+        return Duration.from_nanos(sum / ns.len())
+    }
+
+    /// Maximum RTT among successful probes, or nil if none succeeded.
+    pub func max_rtt() Duration? {
+        let ns = _rtts_ns()
+        if ns.len() == 0 { return nil }
+        var max = ns[0]
+        for v in ns {
+            if v > max { max = v }
+        }
+        return Duration.from_nanos(max)
+    }
+
+    // Duration has no `<` / `>`, so the aggregate is computed on
+    // integers and reformatted by the callers above.
+    func _rtts_ns() list[int] {
+        let out = list[int]()
+        for r in _records {
+            let o = r.outcome()
+            if o.kind() == PING_SUCCESS {
+                out.append(int(o.rtt()!.to_ns()))
+            }
+        }
+        return out
+    }
+}

@@ -1,0 +1,85 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/socket" as so
+import "std/time"
+
+/// An ICMP socket that sends Echo Requests and waits for matching
+/// Echo Replies.
+///
+/// The socket is opened as `SOCK_DGRAM` + `IPPROTO_ICMP`, which Linux
+/// allows without `CAP_NET_RAW` when the caller's group is in
+/// `net.ipv4.ping_group_range`. The kernel replaces the Echo
+/// identifier with the socket's own id and recomputes the checksum
+/// on send, and it only delivers replies that belong to this socket.
+/// A received packet starts at the ICMP header; there is no IP
+/// header to strip.
+pub class IcmpSocket {
+    let _sock so.UdpConn
+
+    pub func __init__(sock so.UdpConn) {
+        _sock = sock
+    }
+
+    /// Open an ICMP datagram socket.
+    ///
+    /// Returns nil when the kernel refuses `SOCK_DGRAM` +
+    /// `IPPROTO_ICMP`, typically because the caller's group is
+    /// outside `net.ipv4.ping_group_range`.
+    pub static func open() IcmpSocket? {
+        let c = so.dial("0.0.0.0:0", so.SocketTypeSpec.dgram(so.IP_PROTO_ICMP), nil)
+        if c == nil { return nil }
+        let udp = (c as so.UdpConn)!
+        return IcmpSocket(udp)
+    }
+
+    /// Send one Echo Request to `ip` and wait for the matching Echo
+    /// Reply.
+    ///
+    /// Returns `PING_SUCCESS` with the round-trip time when the reply
+    /// arrives, `PING_TIMEOUT` when the deadline passes, and
+    /// `PING_FAILURE` when the socket itself errors out.
+    pub func echo(ip so.IpAddr, seq int, timeout time.Duration) PingOutcome {
+        // The kernel replaces the identifier, so the id here is a
+        // placeholder; sequence and payload are preserved.
+        let echo = IcmpEcho(0, seq, "koala ping".to_bytes())
+        let packet = echo.request().to_bytes()
+
+        let t0 = time.now()
+        let target = so.SocketAddr(ip, 0)
+        let sr = _sock.send_to(packet, target)
+        if sr.status() != so.IO_OK {
+            return PingOutcome(PING_FAILURE, nil)
+        }
+
+        let deadline = t0 + timeout
+        let buf = bytes(65535)
+        while time.now() < deadline {
+            let ms = int(deadline.diff(time.now()).to_ms())
+            if ms < 1 { break }
+            _sock.set_read_timeout(ms)
+
+            let r = _sock.recv_from(buf)
+            if r.status() != so.IO_OK {
+                if r.status() == so.IO_TIMEDOUT { break }
+                return PingOutcome(PING_FAILURE, nil)
+            }
+
+            // The datagram starts at the ICMP header. The kernel only
+            // delivers replies that belong to this socket, so any
+            // Echo Reply here is ours.
+            if let pkt = IcmpPacket.parse(buf[0:r.n()]) {
+                if pkt.type_() == ICMP_ECHO_REPLY {
+                    return PingOutcome(PING_SUCCESS, time.now().diff(t0))
+                }
+            }
+        }
+        return PingOutcome(PING_TIMEOUT, nil)
+    }
+
+    pub func close() {
+        _sock.close()
+    }
+}

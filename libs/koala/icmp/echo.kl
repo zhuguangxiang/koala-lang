@@ -1,0 +1,57 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// An ICMP Echo message: identifier, sequence, and payload.
+///
+/// Echo Request (type 8) and Echo Reply (type 0) share the same body
+/// layout. On an ICMP datagram socket the kernel replaces the
+/// identifier with the socket's own id, so the `id` passed to
+/// `__init__` is only a placeholder; the payload and sequence are
+/// preserved.
+pub class IcmpEcho {
+    let _id int
+    let _seq int
+    let _payload bytes
+
+    pub func __init__(id int, seq int, payload bytes) {
+        _id = id
+        _seq = seq
+        _payload = payload
+    }
+
+    pub func id() int { return _id }
+    pub func seq() int { return _seq }
+    pub func payload() bytes { return _payload }
+
+    /// Build an Echo Request packet from this echo.
+    pub func request() IcmpPacket {
+        let payload = _payload
+        let n = payload.len()
+        let body = bytes(4 + n)
+        body[0] = uint8((_id >> 8) & 0xFF)
+        body[1] = uint8(_id & 0xFF)
+        body[2] = uint8((_seq >> 8) & 0xFF)
+        body[3] = uint8(_seq & 0xFF)
+        var i = 0
+        while i < n {
+            body[4 + i] = payload[i]
+            i += 1
+        }
+        return IcmpPacket(ICMP_ECHO_REQUEST, 0, 0, body)
+    }
+
+    /// True when `pkt` is an Echo Reply whose identifier and
+    /// sequence match. Used on the raw-socket path, where the caller
+    /// must filter replies itself; the ICMP datagram path relies on
+    /// the kernel and only checks the message type.
+    pub static func is_reply(pkt IcmpPacket, id int, seq int) bool {
+        if pkt.type_() != ICMP_ECHO_REPLY { return false }
+        let body = pkt.body()
+        if body.len() < 4 { return false }
+        let rid = (int(body[0]) << 8) | int(body[1])
+        let rseq = (int(body[2]) << 8) | int(body[3])
+        return rid == id && rseq == seq
+    }
+}

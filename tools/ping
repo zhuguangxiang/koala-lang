@@ -1,0 +1,72 @@
+#!/usr/bin/env koala
+/*
+ * ping — a classic ping front end built on koala/icmp.
+ *
+ * Output mirrors the system ping: a header naming the resolved
+ * address, one line per reply, and a summary at the end. Two
+ * differences from the system ping are deliberate:
+ *
+ *   - No ttl. An ICMP datagram socket receives the ICMP message
+ *     without the IP header that carries the TTL.
+ *   - seq starts at 1 here even though PingStats numbers probes from
+ *     0, so the output matches the system ping's 1-based sequence.
+ */
+
+import "std/socket" as so
+import "std/sys"
+import "std/time"
+from "koala/icmp" import ping_ip, PING_SUCCESS, PING_TIMEOUT
+
+func main() {
+    let args = sys.args()
+    if args.len() < 1 {
+        print("usage: ping <host>")
+        return
+    }
+    let host = args[0]
+
+    // Resolve once. The header and the probes share this address, the
+    // way the system ping does it.
+    let rr = so.resolve(host)
+    if rr.status() != so.DNS_OK || rr.addrs().len() == 0 {
+        print("ping: cannot resolve " + host)
+        return
+    }
+    let ip = rr.addrs()[0]
+    let ip_str = ip.to_str()
+
+    // 8-byte ICMP header + 10-byte "koala ping" payload = 18 bytes of
+    // ICMP data; 20-byte IPv4 header makes 38 on the wire. The system
+    // ping prints the same pair as 56(84) for its default payload.
+    print("PING " + host + " (" + ip_str + ") 18(38) bytes of data.")
+
+    let stats = ping_ip(ip)
+    if stats.sent() == 0 {
+        print("ping: cannot open ICMP socket")
+        return
+    }
+
+    for r in stats.records() {
+        let o = r.outcome()
+        let n = r.seq() + 1
+        if o.kind() == PING_SUCCESS {
+            print("18 bytes from " + ip_str + ": icmp_seq=" + str(n) +
+                  " time=" + format("{}", o.rtt()!))
+        } else if o.kind() == PING_TIMEOUT {
+            print("Request timeout for icmp_seq=" + str(n))
+        } else {
+            print("ICMP failure for icmp_seq=" + str(n))
+        }
+    }
+
+    print("")
+    print("--- " + host + " ping statistics ---")
+    print(str(stats.sent()) + " packets transmitted, " + str(stats.succeeded()) +
+          " received, " + str(int(stats.loss())) + "% packet loss")
+    if stats.min_rtt() != nil {
+        print("rtt min/avg/max = " +
+              format("{}", stats.min_rtt()!) + "/" +
+              format("{}", stats.avg_rtt()!) + "/" +
+              format("{}", stats.max_rtt()!))
+    }
+}
