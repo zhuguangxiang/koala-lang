@@ -21,9 +21,9 @@
  +---------------------------------------------------------------------------*/
 
 /* Returned by hex_decode in place of a length. */
-#define HEX_OK             0
-#define HEX_ERR_DIGIT    (-1)   /* byte outside 0-9, a-f, A-F */
-#define HEX_ERR_ODD      (-2)   /* odd number of characters */
+#define HEX_OK        0
+#define HEX_ERR_DIGIT (-1) /* byte outside 0-9, a-f, A-F */
+#define HEX_ERR_ODD   (-2) /* odd number of characters */
 
 /*---------------------------------------------------------------------------+
  |   Encode                                                                  |

@@ -19,7 +19,7 @@ link "koala_hex"
 /// must be normalized by the caller first.
 ///
 /// The byte loops live in `native/hex_core.c`; this module only declares
-/// them, the way `koala/encoding/base64` does.
+/// them, the way `koala/base64` does.
 
 /// Encode `b` as a lowercase hexadecimal string.
 ///

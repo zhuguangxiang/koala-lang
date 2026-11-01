@@ -1,4 +1,4 @@
-# Koala `koala/encoding/hex` API Reference
+# Koala `koala/hex` API Reference
 
 ## Contents
 

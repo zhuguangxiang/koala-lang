@@ -7,7 +7,7 @@ import "std/ut"
 import "koala/crypto" as cr
 
 // Local hex encoder, only for comparing digests against known
-// vectors. When koala/encoding grows a hex, switch to it and delete
+// vectors. When koala grows a hex, switch to it and delete
 // this.
 func hex(data bytes) str {
     let digits = "0123456789abcdef"

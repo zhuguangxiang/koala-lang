@@ -1,0 +1,95 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+link "koala_base64"
+
+/// Base64 codecs (RFC 4648).
+///
+/// The functions mirror CPython's `base64` module, with the redundant `b64`
+/// prefix dropped because the package name already says base64, and every
+/// name respelled in the snake_case the rest of the library uses:
+///
+///     Koala                        CPython
+///     encode(s, altchars, padded)  b64encode(s, altchars)
+///     decode(s, altchars,          b64decode(s, altchars, validate)
+///            validate, padded)
+///     standard_encode(s)           standard_b64encode(s)
+///     standard_decode(s)           standard_b64decode(s)
+///     url_safe_encode(s)           urlsafe_b64encode(s)
+///     url_safe_decode(s)           urlsafe_b64decode(s)
+///     encode_mime(s)               encodebytes(s)
+///     decode_mime(s)               decodebytes(s)
+///
+/// `None` is spelled `nil` in Koala, and the parameters CPython reads with
+/// `_bytes_from_decode_data` (so that they accept both bytes and str) are
+/// typed `bytes | str` here. Keyword arguments work the same way:
+///
+///     base64.decode(s, validate = true)
+///
+/// Decoding is lax by default: bytes outside the alphabet are skipped, so
+/// wrapped or whitespace-padded input decodes without preprocessing, but
+/// the padding still has to add up unless `padded` is false.
+
+/// The URL- and filename-safe alphabet, built once at module load.
+let URL_SAFE_ALT = "-_".to_bytes()
+
+/// Encode `s` with '=' padding, mapping '+' and '/' to `altchars[0]` and
+/// `altchars[1]` when `altchars` is given (it must then be two bytes).
+///
+/// `padded = false` omits the trailing '=', producing the "raw" form that
+/// JWT segments and URL parameters use; CPython spells it `padded=False`.
+@native
+pub func encode(s bytes, altchars (bytes | str)? = nil, padded = true) bytes {}
+
+/// Decode base64 text. Bytes outside the alphabet are skipped, so wrapped
+/// and whitespace-padded input is accepted; `altchars` replaces '+' and '/'.
+/// `validate = true` instead rejects anything outside the alphabet. Panic if
+/// the padding does not add up.
+///
+/// `padded = false` expects input carrying no '=': the character is then
+/// one outside the alphabet, so it is skipped when `validate` is false and
+/// rejected when it is true.
+@native
+pub func decode(s bytes | str, altchars (bytes | str)? = nil, validate = false,
+                padded = true) bytes {}
+
+/// Encode `s` with the standard alphabet (RFC 4648 section 4).
+pub func standard_encode(s bytes, padded = true) bytes {
+    return encode(s, nil, padded)
+}
+
+/// Decode base64 text in the standard alphabet.
+pub func standard_decode(s bytes | str, padded = true) bytes {
+    return decode(s, nil, false, padded)
+}
+
+/// Encode `s` with the URL- and filename-safe alphabet (RFC 4648 section 5),
+/// keeping the '=' padding unless `padded` is false.
+pub func url_safe_encode(s bytes, padded = true) bytes {
+    return encode(s, URL_SAFE_ALT, padded)
+}
+
+/// Decode URL- and filename-safe base64 text.
+pub func url_safe_decode(s bytes | str, padded = true) bytes {
+    return decode(s, URL_SAFE_ALT, false, padded)
+}
+
+/// Encode `s` as 76-column base64 with a newline after every line
+/// (RFC 2045), the body format of a MIME part; CPython calls it
+/// `encodebytes`.
+///
+/// The name says what the output is for, because "bytes" in the CPython
+/// name only records that Python 2's `encodestring` had to be renamed once
+/// str and bytes were split. Go has no equivalent at all:
+/// `encoding/base64.NewEncoder` hands back a writer and leaves the line
+/// breaking to the caller.
+@native
+pub func encode_mime(s bytes) bytes {}
+
+/// Decode text written by `encode_mime`, or any base64 with embedded
+/// whitespace: the lax decoder skips it. CPython calls it `decodebytes`.
+pub func decode_mime(s bytes | str) bytes {
+    return decode(s)
+}

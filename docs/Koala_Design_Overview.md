@@ -526,7 +526,7 @@ pub func max[T: Comparable](x T, y T) T { ... }
 
 ## 8. 标准库设计（libs/std）
 
-**包地图（libs/std/__ws__.toml）**：8 个 package——`builtin`（零依赖根包）、`fs`（依赖 io/os）、`io`（唯一纯 Koala 包，零 `@native`）、`os`（依赖 builtin/io）、`sys`（依赖 builtin/os/io/fs）、`time`（依赖 builtin）、`ut`（依赖 builtin）、`prelude`（依赖 builtin/io/fs/sys；向用户 top-level 贡献 `print` / `open`，§8.12）。官方发布库（encoding/bin、encoding/base64、encoding/hex、pretty）在 libs/koala，见 §9。
+**包地图（libs/std/__ws__.toml）**：8 个 package——`builtin`（零依赖根包）、`fs`（依赖 io/os）、`io`（唯一纯 Koala 包，零 `@native`）、`os`（依赖 builtin/io）、`sys`（依赖 builtin/os/io/fs）、`time`（依赖 builtin）、`ut`（依赖 builtin）、`prelude`（依赖 builtin/io/fs/sys；向用户 top-level 贡献 `print` / `open`，§8.12）。官方发布库（encoding/bin、base64、hex、pretty）在 libs/koala，见 §9。
 
 ### 8.1 透明核心
 
@@ -1018,11 +1018,11 @@ let n = items.len()   // 长度只有方法形态，无顶层 len
 | 模块 | 内容 |
 |------|------|
 | `encoding/bin` | 52 个函数：be/le 全展开的 u16/u32/u64/i16/i32/i64/f32/f64 读写三族（read_* / write_* / buf_write_*）+ LEB128（read_leb_u64 等，i64 用 zigzag） |
-| `encoding/base64` | RFC 4648 标准与 URL 变体，encode / decode / encode_url / decode_url |
-| `encoding/hex` | RFC 4648 §8 十六进制编解码，纯 Koala 实现：encode / encode_upper / encode_byte / decode（decode 严格：不接受空白、`0x` 前缀或分隔符） |
+| `base64` | RFC 4648 标准与 URL 变体，encode / decode / encode_url / decode_url |
+| `hex` | RFC 4648 §8 十六进制编解码，纯 Koala 实现：encode / encode_upper / encode_byte / decode（decode 严格：不接受空白、`0x` 前缀或分隔符） |
 | `pretty` | 美化输出 |
 
-设计取舍：学 Go 的 encoding 分包布局，但拒绝 Go 的格式串 DSL（静态类型下正确取舍）；拒绝 base32/ascii85/pem/asn1/gob（用得少）；hex 已落地为 `encoding/hex`。
+设计取舍：学 Go 的 encoding 分包布局，但拒绝 Go 的格式串 DSL（静态类型下正确取舍）；拒绝 base32/ascii85/pem/asn1/gob（用得少）；hex 已落地为 `hex`。
 
 ---
 

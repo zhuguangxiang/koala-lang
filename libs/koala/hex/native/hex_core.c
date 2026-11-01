@@ -15,15 +15,9 @@
 static const char DIGITS_LOWER[17] = "0123456789abcdef";
 static const char DIGITS_UPPER[17] = "0123456789ABCDEF";
 
-const char *hex_digits(int upper)
-{
-    return upper ? DIGITS_UPPER : DIGITS_LOWER;
-}
+const char *hex_digits(int upper) { return upper ? DIGITS_UPPER : DIGITS_LOWER; }
 
-size_t hex_encoded_len(size_t n)
-{
-    return n * 2;
-}
+size_t hex_encoded_len(size_t n) { return n * 2; }
 
 void hex_encode(const uint8_t *in, size_t n, uint8_t *out, const char *digits)
 {

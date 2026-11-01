@@ -8,9 +8,9 @@
  * failure behaviour mirror CPython's `base64` module, with the redundant
  * `b64` prefix dropped because the package name already says base64:
  *
- *     encode(s, altchars=None)
- *     decode(s, altchars=None, validate=False)
- *     encodebytes(s)
+ *     encode(s, altchars = nil, padded = true)
+ *     decode(s, altchars = nil, validate = false, padded = true)
+ *     encode_mime(s)                  (CPython: encodebytes)
  *
  * `None` maps to Koala's `nil`, and the `bytes | str` parameters accept
  * both types the way CPython's `_bytes_from_decode_data` does. The codec
@@ -20,9 +20,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-
 #include "base64_core.h"
-
 #include "bytesobj.h"
 #include "excobj.h"
 
@@ -95,24 +93,25 @@ static TValue _take_bytes(uint8_t *buf, size_t n)
 static void _raise_decode_error(ptrdiff_t err)
 {
     switch ((int)err) {
-    case B64_ERR_INVALID:
-        raise_exc_str("base64: number of data characters cannot be 1 more than a multiple of 4");
-        break;
-    case B64_ERR_EXCESS:
-        raise_exc_str("base64: excess padding not allowed");
-        break;
-    case B64_ERR_CHAR:
-        raise_exc_str("base64: only base64 data is allowed");
-        break;
-    default:
-        raise_exc_str("base64: incorrect padding");
-        break;
+        case B64_ERR_INVALID:
+            raise_exc_str(
+                "base64: number of data characters cannot be 1 more than a multiple of 4");
+            break;
+        case B64_ERR_EXCESS:
+            raise_exc_str("base64: excess padding not allowed");
+            break;
+        case B64_ERR_CHAR:
+            raise_exc_str("base64: only base64 data is allowed");
+            break;
+        default:
+            raise_exc_str("base64: incorrect padding");
+            break;
     }
 }
 
-static TValue _encode_with(const uint8_t *in, size_t n, const uint8_t *alt)
+static TValue _encode_with(const uint8_t *in, size_t n, const uint8_t *alt, int padded)
 {
-    size_t olen = b64_encoded_len(n);
+    size_t olen = b64_encoded_len(n, padded);
     uint8_t *buf = malloc(olen ? olen : 1);
 
     if (!buf) {
@@ -120,11 +119,11 @@ static TValue _encode_with(const uint8_t *in, size_t n, const uint8_t *alt)
         return error_value;
     }
 
-    b64_encode(in, n, buf, alt);
+    b64_encode(in, n, buf, alt, padded);
     return _take_bytes(buf, olen);
 }
 
-static TValue _decode_with(const uint8_t *in, size_t n, const uint8_t *alt, int strict)
+static TValue _decode_with(const uint8_t *in, size_t n, const uint8_t *alt, int strict, int padded)
 {
     size_t max = b64_decoded_max_len(n);
     uint8_t *buf = malloc(max ? max : 1);
@@ -135,7 +134,7 @@ static TValue _decode_with(const uint8_t *in, size_t n, const uint8_t *alt, int 
         return error_value;
     }
 
-    r = b64_decode(in, n, buf, alt, strict);
+    r = b64_decode(in, n, buf, alt, strict, padded);
     if (r < 0) {
         free(buf);
         _raise_decode_error(r);
@@ -145,25 +144,8 @@ static TValue _decode_with(const uint8_t *in, size_t n, const uint8_t *alt, int 
     return _take_bytes(buf, r);
 }
 
-// func encode(s bytes | str, altchars (bytes | str)? = nil) bytes {}
+// func encode(s bytes, altchars (bytes | str)? = nil, padded = true) bytes {}
 static TValue _encode(TValue *self, TValue *args, int nargs)
-{
-    const uint8_t *in;
-    size_t n;
-    uint8_t alt[2];
-    int r;
-
-    ASSERT(nargs == 2);
-    if (_bytes_or_str(args + 0, &in, &n) <= 0) return error_value;
-
-    r = _alt_of(args + 1, alt);
-    if (r < 0) return error_value;
-
-    return _encode_with(in, n, r ? alt : NULL);
-}
-
-// func decode(s bytes | str, altchars (bytes | str)? = nil, validate = false) bytes {}
-static TValue _decode(TValue *self, TValue *args, int nargs)
 {
     const uint8_t *in;
     size_t n;
@@ -176,11 +158,29 @@ static TValue _decode(TValue *self, TValue *args, int nargs)
     r = _alt_of(args + 1, alt);
     if (r < 0) return error_value;
 
-    return _decode_with(in, n, r ? alt : NULL, kl_arg_bool(2));
+    return _encode_with(in, n, r ? alt : NULL, kl_arg_bool(2));
 }
 
-// func encodebytes(s bytes | str) bytes {}
-static TValue _encodebytes(TValue *self, TValue *args, int nargs)
+// func decode(s bytes | str, altchars (bytes | str)? = nil, validate = false,
+//             padded = true) bytes {}
+static TValue _decode(TValue *self, TValue *args, int nargs)
+{
+    const uint8_t *in;
+    size_t n;
+    uint8_t alt[2];
+    int r;
+
+    ASSERT(nargs == 4);
+    if (_bytes_or_str(args + 0, &in, &n) <= 0) return error_value;
+
+    r = _alt_of(args + 1, alt);
+    if (r < 0) return error_value;
+
+    return _decode_with(in, n, r ? alt : NULL, kl_arg_bool(2), kl_arg_bool(3));
+}
+
+// func encode_mime(s bytes) bytes {}
+static TValue _encode_mime(TValue *self, TValue *args, int nargs)
 {
     const uint8_t *in;
     size_t n, olen;
@@ -204,12 +204,12 @@ static TValue _encodebytes(TValue *self, TValue *args, int nargs)
 /// Entry point called by the runtime after `dlopen("libkoala_base64.so")`.
 ///
 /// The name must be `<last segment of the package path>_native_lib_init`,
-/// so `koala/encoding/base64` becomes `base64_native_lib_init`.
+/// so `koala/base64` becomes `base64_native_lib_init`.
 void base64_native_lib_init(NativeLib *lib)
 {
     b64_core_init();
 
     kl_reg_func(lib, "encode", _encode);
     kl_reg_func(lib, "decode", _decode);
-    kl_reg_func(lib, "encodebytes", _encodebytes);
+    kl_reg_func(lib, "encode_mime", _encode_mime);
 }

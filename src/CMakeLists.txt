@@ -29,6 +29,7 @@ set(PARSER_SRC
     parser/irgen.c
     parser/klr/opcode.c
     parser/klr/ir.c
+    parser/klr/specialize.c
     parser/klr/insn.c
     parser/klr/printer.c
     parser/klr/ssa.c

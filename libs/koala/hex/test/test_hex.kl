@@ -1,6 +1,6 @@
 // RUN: koala %s --test
 
-import "koala/encoding/hex"
+import "koala/hex"
 import "std/ut"
 
 // ---------------------------------------------------------------------------

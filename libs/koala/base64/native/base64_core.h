@@ -19,11 +19,11 @@
  +---------------------------------------------------------------------------*/
 
 /* Returned by b64_decode / b64_encodebytes in place of a length. */
-#define B64_OK             0
-#define B64_ERR_INVALID   (-1)   /* data char count is 1 more than a multiple of 4 */
-#define B64_ERR_PADDING   (-2)   /* missing or misplaced padding */
-#define B64_ERR_EXCESS    (-3)   /* more padding than the data needs (strict) */
-#define B64_ERR_CHAR      (-4)   /* non-alphabet byte (strict) */
+#define B64_OK          0
+#define B64_ERR_INVALID (-1) /* data char count is 1 more than a multiple of 4 */
+#define B64_ERR_PADDING (-2) /* missing or misplaced padding */
+#define B64_ERR_EXCESS  (-3) /* more padding than the data needs (strict) */
+#define B64_ERR_CHAR    (-4) /* non-alphabet byte (strict) */
 
 /*---------------------------------------------------------------------------+
  |   Life cycle                                                              |
@@ -37,8 +37,9 @@ void b64_core_init(void);
  |   Output length                                                           |
  +---------------------------------------------------------------------------*/
 
-/* Chars written by b64_encode for n input bytes, padding included. */
-size_t b64_encoded_len(size_t n);
+/* Chars written by b64_encode for n input bytes: the trailing '=' included
+ * when `padded` is non-zero, only the significant chars otherwise. */
+size_t b64_encoded_len(size_t n, int padded);
 
 /* Upper bound on the bytes written by b64_decode for n input chars: every
  * complete 4-char group yields 3 bytes, the trailing partial one at most 3,
@@ -52,15 +53,19 @@ size_t b64_encodebytes_len(size_t n);
  |   Encode and decode                                                       |
  +---------------------------------------------------------------------------*/
 
-/* alt: NULL, or two bytes replacing '+' and '/'. */
-void b64_encode(const uint8_t *in, size_t n, uint8_t *out, const uint8_t *alt);
+/* alt: NULL, or two bytes replacing '+' and '/'.
+ * padded: non-zero writes the trailing '=', zero omits it (the "raw"
+ * form, the one JWT segments and URL parameters use). */
+void b64_encode(const uint8_t *in, size_t n, uint8_t *out, const uint8_t *alt, int padded);
 
-/* strict != 0 rejects bytes outside the alphabet and excess padding. */
-ptrdiff_t b64_decode(const uint8_t *in, size_t n, uint8_t *out,
-                     const uint8_t *alt, int strict);
+/* strict != 0 rejects bytes outside the alphabet and excess padding.
+ * padded == 0 means the input is expected to carry no '='; '=' is then a
+ * byte outside the alphabet, skipped when lax and rejected when strict,
+ * which is what CPython documents for padded=False. */
+ptrdiff_t b64_decode(const uint8_t *in, size_t n, uint8_t *out, const uint8_t *alt, int strict,
+                     int padded);
 
 /* RFC 2045 style: 76 columns, trailing newline after the last line. */
-ptrdiff_t b64_encodebytes(const uint8_t *in, size_t n, uint8_t *out,
-                          const uint8_t *alt);
+ptrdiff_t b64_encodebytes(const uint8_t *in, size_t n, uint8_t *out, const uint8_t *alt);
 
 #endif /* _KOALA_BASE64_CORE_H_ */

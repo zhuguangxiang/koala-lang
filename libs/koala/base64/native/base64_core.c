@@ -9,7 +9,6 @@
  */
 
 #include "base64_core.h"
-
 #include <string.h>
 
 /* The 64 alphabet bytes, indexed by 6-bit value. */
@@ -33,26 +32,30 @@ void b64_core_init(void)
     rev_ready = 1;
 }
 
-size_t b64_encoded_len(size_t n)
+size_t b64_encoded_len(size_t n, int padded)
 {
-    return ((n + 2) / 3) * 4;
+    size_t rem = n % 3;
+    size_t len = (n / 3) * 4;
+
+    /* The trailing group holds 2 or 3 significant chars. */
+    if (rem) len += rem + 1;
+    /* Then '=' fills it up to a multiple of four. */
+    if (padded && rem) len += 3 - rem;
+    return len;
 }
 
-size_t b64_decoded_max_len(size_t n)
-{
-    return (n / 4) * 3 + 3;
-}
+size_t b64_decoded_max_len(size_t n) { return (n / 4) * 3 + 3; }
 
 size_t b64_encodebytes_len(size_t n)
 {
     size_t enc, lines;
     if (n == 0) return 0;
-    enc = b64_encoded_len(n);
+    enc = b64_encoded_len(n, 1);
     lines = (enc + 75) / 76;
     return enc + lines;
 }
 
-void b64_encode(const uint8_t *in, size_t n, uint8_t *out, const uint8_t *alt)
+void b64_encode(const uint8_t *in, size_t n, uint8_t *out, const uint8_t *alt, int padded)
 {
     uint8_t tbl[64];
     size_t i = 0, o = 0;
@@ -73,7 +76,7 @@ void b64_encode(const uint8_t *in, size_t n, uint8_t *out, const uint8_t *alt)
         out[o++] = tbl[v & 63];
     }
 
-    /* Trailing 1 or 2 bytes, padded with '=' up to a full four chars. */
+    /* Trailing 1 or 2 bytes; '=' fills the group when padding is wanted. */
     if (i < n) {
         size_t rem = n - i;
         uint32_t v = (uint32_t)in[i] << 16;
@@ -84,8 +87,8 @@ void b64_encode(const uint8_t *in, size_t n, uint8_t *out, const uint8_t *alt)
         out[o++] = tbl[(v >> 12) & 63];
         if (rem == 2) {
             out[o++] = tbl[(v >> 6) & 63];
-            out[o++] = '=';
-        } else {
+            if (padded) out[o++] = '=';
+        } else if (padded) {
             out[o++] = '=';
             out[o++] = '=';
         }
@@ -115,8 +118,8 @@ static size_t _trailing_padding(const uint8_t *in, size_t n, const int8_t *looku
     return tail_eq;
 }
 
-ptrdiff_t b64_decode(const uint8_t *in, size_t n, uint8_t *out,
-                     const uint8_t *alt, int strict)
+ptrdiff_t b64_decode(const uint8_t *in, size_t n, uint8_t *out, const uint8_t *alt, int strict,
+                     int padded)
 {
     int8_t rev[256];
     size_t data = 0, eq_total = 0, need, tail_eq;
@@ -166,25 +169,31 @@ ptrdiff_t b64_decode(const uint8_t *in, size_t n, uint8_t *out,
 
     if (data % 4 == 1) return B64_ERR_INVALID;
 
-    /* %4==2 needs two '=', %4==3 needs one, %4==0 needs none. */
-    need = (4 - data % 4) % 4;
-    if (need == 3) need = 1;
+    if (padded) {
+        /* %4==2 needs two '=', %4==3 needs one, %4==0 needs none. */
+        need = (4 - data % 4) % 4;
+        if (need == 3) need = 1;
 
-    tail_eq = _trailing_padding(in, n, lookup);
-    if (tail_eq < need) return B64_ERR_PADDING;
+        tail_eq = _trailing_padding(in, n, lookup);
+        if (tail_eq < need) return B64_ERR_PADDING;
 
-    /* Strict mode wants the padding to sit at the very end and to be
-     * exactly as long as the data demands. */
-    if (strict) {
-        if (eq_total != tail_eq) return B64_ERR_EXCESS;
-        if (tail_eq > need) return B64_ERR_EXCESS;
+        /* Strict mode wants the padding to sit at the very end and to be
+         * exactly as long as the data demands. */
+        if (strict) {
+            if (eq_total != tail_eq) return B64_ERR_EXCESS;
+            if (tail_eq > need) return B64_ERR_EXCESS;
+        }
+    } else if (strict && eq_total > 0) {
+        /* Unpadded input: '=' is not padding but a byte outside the
+         * alphabet, so strict mode rejects it (lax mode already skipped
+         * it above, which is the behaviour CPython documents). */
+        return B64_ERR_CHAR;
     }
 
     return (ptrdiff_t)(o - out);
 }
 
-ptrdiff_t b64_encodebytes(const uint8_t *in, size_t n, uint8_t *out,
-                          const uint8_t *alt)
+ptrdiff_t b64_encodebytes(const uint8_t *in, size_t n, uint8_t *out, const uint8_t *alt)
 {
     uint8_t line[76];
     size_t i = 0, o = 0;
@@ -193,9 +202,9 @@ ptrdiff_t b64_encodebytes(const uint8_t *in, size_t n, uint8_t *out,
      * A trailing newline follows every line, including the last. */
     while (i < n) {
         size_t chunk = (n - i < 57) ? (n - i) : 57;
-        size_t clen = b64_encoded_len(chunk);
+        size_t clen = b64_encoded_len(chunk, 1);
 
-        b64_encode(in + i, chunk, line, alt);
+        b64_encode(in + i, chunk, line, alt, 1);
         memcpy(out + o, line, clen);
         o += clen;
         out[o++] = '\n';

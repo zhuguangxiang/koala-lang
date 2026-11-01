@@ -1,5 +1,5 @@
 [package]
-name = "koala/encoding/base64"
+name = "koala/base64"
 version = "0.1.0"
 description = "Base64 codecs (RFC 4648) over a native C core"
 dependencies = []

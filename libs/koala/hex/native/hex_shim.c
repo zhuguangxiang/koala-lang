@@ -12,11 +12,9 @@
  */
 
 #include <stdlib.h>
-
-#include "hex_core.h"
-
 #include "bytesobj.h"
 #include "excobj.h"
+#include "hex_core.h"
 
 /* Turn a HEX_ERR_* code into the message the Koala side panics with. */
 static void _raise_decode_error(ptrdiff_t err)
@@ -90,7 +88,7 @@ static TValue _hex_decode(TValue *self, TValue *args, int nargs)
 /// Entry point called by the runtime after `dlopen("libkoala_hex.so")`.
 ///
 /// The name must be `<last segment of the package path>_native_lib_init`,
-/// so `koala/encoding/hex` becomes `hex_native_lib_init`.
+/// so `koala/hex` becomes `hex_native_lib_init`.
 void hex_native_lib_init(NativeLib *lib)
 {
     kl_reg_func(lib, "encode", _hex_encode);

@@ -11,6 +11,6 @@ packages = [
     "icmp",
     "csv",
     "crypto",
-    "encoding/hex",
-    "encoding/base64",
+    "hex",
+    "base64",
 ]
