@@ -524,7 +524,7 @@ static void load_pip_lro_scm(KlcKlass *kls, KlassSymbol *sym, LoadContext *ctx)
 #endif
 }
 
-static void load_field(KlcVar *field, KlassSymbol *kls_sym, LoadContext *ctx)
+static void load_field(KlcVar *field, int index, KlassSymbol *kls_sym, LoadContext *ctx)
 {
     KlcConst *name = klc_get_const(ctx->klc, field->name_index);
     KlcConst *ty_k = klc_get_const(ctx->klc, field->type_index);
@@ -533,6 +533,7 @@ static void load_field(KlcVar *field, KlassSymbol *kls_sym, LoadContext *ctx)
     Symbol *sym = stbl_add_var(kls_sym->stbl, name->sval, ts, flags);
     sym->parent = kls_sym;
     sym->status = SYM_RESOLVED;
+    ((VarSymbol *)sym)->index = index;
     vector_push_back(kls_sym->fields, &sym);
     add_var_fixup_entry(sym, ts, ctx);
 }
@@ -571,7 +572,8 @@ static void load_klass(KlcKlass *kls, LoadContext *ctx)
         if (!(field->flags & KLC_FLAGS_PUB)) {
             continue;
         }
-        load_field(field, cls_sym, ctx);
+        // slot 0 is an empty placeholder, same index as the runtime loader
+        load_field(field, i__ - 1, cls_sym, ctx);
     }
 
     // add methods

@@ -1159,7 +1159,7 @@ static int do_const_range_fold(KlrInsn *insn, KlrFunc *fn)
     }
 
     OpCode op = insn->code;
-    if (op != OP_GET_FIELD_EXT) {
+    if (op != OP_GET_FIELD) {
         return 0;
     }
 
@@ -1176,7 +1176,7 @@ static int do_const_range_fold(KlrInsn *insn, KlrFunc *fn)
     Vector *list = kc->list;
 
     switch (op) {
-        case OP_GET_FIELD_EXT: {
+        case OP_GET_FIELD: {
             KlrValue *fld = insn_oper_value(insn, 1);
             if (str_equal(fld->name, "start")) {
                 KlrValue *start = vector_at(list, 0);
@@ -1242,7 +1242,7 @@ int klr_const_copy_prop_pass(KlrFunc *fn, void *data)
         KlrInsn *insn, *next;
         insn_foreach_safe(insn, next, bb) {
             if (insn_is_dead(insn)) {
-                ASSERT(insn->code == OP_MOVE || insn->code == OP_GET_FIELD_EXT ||
+                ASSERT(insn->code == OP_MOVE || insn->code == OP_GET_FIELD ||
                        insn->code == OP_IR_PHI);
                 klr_erase_insn(insn);
             }

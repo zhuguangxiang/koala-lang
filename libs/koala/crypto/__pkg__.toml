@@ -1,0 +1,15 @@
+[package]
+name = "koala/crypto"
+version = "0.1.0"
+description = "Cryptographic primitives over OpenSSL's libcrypto"
+dependencies = []
+natives = []
+
+[native]
+name = "koala_crypto"
+sources = ["native/crypto_shim.c"]
+includes = [
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]
+link = ["crypto"]

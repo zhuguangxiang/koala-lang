@@ -1,0 +1,90 @@
+// RUN: koala %s --test
+
+import "koala/encoding/hex"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// encode
+// ---------------------------------------------------------------------------
+
+@test
+func test_encode_empty() {
+    ut.assert_eq(hex.encode(b""), "")
+}
+
+@test
+func test_encode_lowercase() {
+    // Every byte is two digits, including 0x00 (it is not a terminator).
+    ut.assert_eq(hex.encode(b"\x00\x0f\x10\xff"), "000f10ff")
+    ut.assert_eq(hex.encode(b"koala"), "6b6f616c61")
+}
+
+@test
+func test_encode_view() {
+    // A view encodes only the bytes it covers.
+    let b = b"xxhelloxx".view(2, 7)
+    ut.assert_eq(hex.encode(b), "68656c6c6f")
+}
+
+// ---------------------------------------------------------------------------
+// decode
+// ---------------------------------------------------------------------------
+
+@test
+func test_decode_lowercase() {
+    ut.assert_eq(hex.decode("000f10ff"), b"\x00\x0f\x10\xff")
+    ut.assert_eq(hex.decode("6b6f616c61"), b"koala")
+}
+
+@test
+func test_decode_mixed_case() {
+    ut.assert_eq(hex.decode("00AbCdEf"), b"\x00\xab\xcd\xef")
+}
+
+@test
+func test_decode_empty() {
+    let b = hex.decode("")
+    ut.assert_eq(b.len(), 0)
+    ut.assert_eq(b, bytes(0))
+}
+
+// ---------------------------------------------------------------------------
+// round trip
+// ---------------------------------------------------------------------------
+
+@test
+func test_roundtrip() {
+    let b = bytes(4)
+    b[0] = 0
+    b[1] = 127
+    b[2] = 128
+    b[3] = 255
+
+    ut.assert_eq(hex.decode(hex.encode(b)), b)
+    ut.assert_eq(hex.encode(hex.decode("00ff")), "00ff")
+}
+
+// ---------------------------------------------------------------------------
+// errors
+// ---------------------------------------------------------------------------
+
+@should_panic("invalid hex string: odd number of digits")
+func test_decode_odd_length() {
+    hex.decode("abc")
+}
+
+@should_panic("invalid hex string: not a hexadecimal digit")
+func test_decode_bad_digit() {
+    hex.decode("zz")
+}
+
+@should_panic("invalid hex string: not a hexadecimal digit")
+func test_decode_separator() {
+    hex.decode("aa:bb")
+}
+
+@should_panic("invalid hex string: not a hexadecimal digit")
+func test_decode_non_ascii() {
+    // Two CJK characters are six UTF-8 bytes: even length, bad digits.
+    hex.decode("你好")
+}

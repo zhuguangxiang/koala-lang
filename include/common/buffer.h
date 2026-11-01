@@ -75,6 +75,11 @@ void buf_write_int64_str(Buffer *self, int64_t val);
 /* Write a double str(not double self) into buffer. */
 void buf_write_double_str(Buffer *self, double val);
 
+/* Escape s[0..len) for display inside a quoted literal: control bytes and
+ * non-ASCII become \xNN, quote and backslash are escaped. Unlike escape_str
+ * this walks a length, so embedded NUL bytes are kept. */
+void escape_nstr(const char *s, int len, Buffer *buf);
+
 /* Escape a string and write it into the buffer. */
 void escape_str(const char *s, Buffer *buf);
 

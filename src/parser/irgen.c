@@ -1118,73 +1118,15 @@ static void emit_ir_call(ParserState *ps, Expr *exp)
     exp->ir_val = ret;
 }
 
-static Symbol *_get_field(Vector *fields, const char *name)
+/* field of an external class: accessed by its index like a local one */
+static KlrValue *get_ext_field_ir_value(Symbol *fld_sym)
 {
-    Symbol *sym;
-    vector_foreach(sym, fields) {
-        if (str_equal(sym->name, name)) {
-            return sym;
-        }
+    if (!fld_sym->ir_val) {
+        ASSERT(fld_sym->flags & SYM_FLAGS_EXT);
+        VarSymbol *var = (VarSymbol *)fld_sym;
+        fld_sym->ir_val = klr_new_ext_field(fld_sym->ts, fld_sym->name, var->index);
     }
-
-    UNREACHABLE();
-}
-
-static KlrValue *build_get_field(TypeSpec *ts, char *name, KlrBuilder *bldr, KlrValue *val,
-                                 TypeSpec *field_ts, ParserState *ps)
-{
-    Symbol *sym = get_symbol_by_id(ts->sym_id);
-    int field_index = -1;
-
-    if (sym->kind == SYM_CLASS) {
-        KlassSymbol *kls_sym = (KlassSymbol *)sym;
-        Symbol *fld_sym = stbl_get(kls_sym->stbl, name);
-        ASSERT(fld_sym && fld_sym->kind == SYM_VAR);
-
-        if (kls_sym->flags & SYM_FLAGS_EXT) {
-            KlrValue *kls_ir_val = kls_sym->ir_val;
-            if (!kls_ir_val) {
-                Symbol *parent = sym->parent;
-                ASSERT(parent && parent->kind == SYM_PACKAGE);
-                kls_ir_val = klr_add_ext_klass(MOD, parent->name, kls_sym->instance_ts, sym->name);
-                kls_sym->ir_val = kls_ir_val;
-            }
-            ASSERT(kls_ir_val->kind == KLR_VALUE_EXT_KLASS);
-            KlrValue *fld_ir_val = fld_sym->ir_val;
-            if (!fld_ir_val) {
-                ASSERT(fld_sym->flags & SYM_FLAGS_EXT);
-                FuncSymbol *func_sym = (FuncSymbol *)fld_sym;
-                fld_ir_val = klr_add_ext_field((KlrExtKlass *)kls_ir_val, fld_sym->ts, name);
-                fld_sym->ir_val = fld_ir_val;
-            }
-            ASSERT(fld_ir_val->kind == KLR_VALUE_EXT_FIELD);
-            return klr_build_get_field_ext(bldr, val, fld_ir_val, "");
-        } else {
-            ASSERT(fld_sym->ir_val);
-            return klr_build_get_field(bldr, val, fld_sym->ir_val, field_ts, "");
-        }
-    } else if (sym->kind == SYM_INSTANCE) {
-        InstanceSymbol *inst_sym = (InstanceSymbol *)sym;
-        Symbol *origin = inst_sym->origin;
-        ASSERT(origin->kind == SYM_CLASS);
-
-        Symbol *fld_sym = stbl_get(origin->stbl, name);
-        ASSERT(fld_sym && fld_sym->kind == SYM_VAR);
-
-        if (origin->flags & SYM_FLAGS_EXT) {
-            NYI();
-        } else {
-            ASSERT(fld_sym->ir_val);
-            return klr_build_get_field(bldr, val, fld_sym->ir_val, field_ts, "");
-        }
-    } else {
-        UNREACHABLE();
-    }
-
-    // fi->index = field_index;
-    // fi->name = name;
-
-    return NULL;
+    return fld_sym->ir_val;
 }
 
 static KlrValue *get_field_ir_value(TypeSpec *ts, char *name)
@@ -1197,8 +1139,18 @@ static KlrValue *get_field_ir_value(TypeSpec *ts, char *name)
 
     Symbol *field = stbl_get(((KlassSymbol *)sym)->stbl, name);
     ASSERT(field && field->kind == SYM_VAR);
+    if (sym->flags & SYM_FLAGS_EXT) {
+        return get_ext_field_ir_value(field);
+    }
     ASSERT(field->ir_val);
     return field->ir_val;
+}
+
+static KlrValue *build_get_field(TypeSpec *ts, char *name, KlrBuilder *bldr, KlrValue *val,
+                                 TypeSpec *field_ts, ParserState *ps)
+{
+    KlrValue *field = get_field_ir_value(ts, name);
+    return klr_build_get_field(bldr, val, field, field_ts, "");
 }
 
 static KlrValue *get_ext_global_value(char *name, Symbol *sym, ParserState *ps)
@@ -3456,20 +3408,12 @@ static void emit_ir_inplace_assignment(ParserState *ps, AssignStmt *s)
         DotExpr *dot = (DotExpr *)lhs;
         KlrValue *obj = lhs->arg;
         KlrValue *field = get_field_ir_value(dot->lhs->ts, dot->id.name);
-        if (field->kind == KLR_VALUE_EXT_FIELD) {
-            klr_build_set_field_ext(&bldr, obj, field, val);
-        } else {
-            klr_build_set_field(&bldr, obj, field, val);
-        }
+        klr_build_set_field(&bldr, obj, field, val);
     } else if (lhs->sym && lhs->sym->kind == SYM_VAR) {
         VarSymbol *var_sym = (VarSymbol *)lhs->sym;
         if (var_sym->scope == VAR_SCOPE_FIELD) {
             KlrValue *obj = lhs->arg;
-            if (var_sym->ir_val->kind == KLR_VALUE_EXT_FIELD) {
-                klr_build_set_field_ext(&bldr, obj, var_sym->ir_val, val);
-            } else {
-                klr_build_set_field(&bldr, obj, var_sym->ir_val, val);
-            }
+            klr_build_set_field(&bldr, obj, var_sym->ir_val, val);
         } else if (var_sym->scope == VAR_SCOPE_GLOBAL) {
             klr_build_set_global(&bldr, lhs->arg, val);
         } else {

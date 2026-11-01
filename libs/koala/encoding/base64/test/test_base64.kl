@@ -1,0 +1,186 @@
+// RUN: koala %s --test
+
+import "koala/encoding/base64"
+import "std/ut"
+
+// ---------------------------------------------------------------------------
+// encode
+// ---------------------------------------------------------------------------
+
+@test
+func test_encode_rfc4648_vectors() {
+    // The test vectors from RFC 4648 section 10.
+    ut.assert_eq(base64.encode(b""), b"")
+    ut.assert_eq(base64.encode(b"f"), b"Zg==")
+    ut.assert_eq(base64.encode(b"fo"), b"Zm8=")
+    ut.assert_eq(base64.encode(b"foo"), b"Zm9v")
+    ut.assert_eq(base64.encode(b"foob"), b"Zm9vYg==")
+    ut.assert_eq(base64.encode(b"fooba"), b"Zm9vYmE=")
+    ut.assert_eq(base64.encode(b"foobar"), b"Zm9vYmFy")
+}
+
+@test
+func test_encode_binary() {
+    // 0x00 and 0xff are data, not terminators.
+    ut.assert_eq(base64.encode(b"\x00\x00\x00"), b"AAAA")
+    ut.assert_eq(base64.encode(b"\xff\xff\xff"), b"////")
+    ut.assert_eq(base64.encode(b"\xfb\xff"), b"+/8=")
+}
+
+@test
+func test_encode_altchars() {
+    ut.assert_eq(base64.encode(b"\xfb\xff", altchars = b"-_"), b"-_8=")
+    ut.assert_eq(base64.encode(b"\xfb\xff", b"@!"), b"@!8=")
+    // nil means "no altchars", i.e. the standard alphabet.
+    ut.assert_eq(base64.encode(b"\xfb\xff", nil), b"+/8=")
+}
+
+@test
+func test_encode_standard_and_urlsafe() {
+    ut.assert_eq(base64.standard_encode(b"\xfb\xff"), b"+/8=")
+    ut.assert_eq(base64.urlsafe_encode(b"\xfb\xff"), b"-_8=")
+    ut.assert_eq(base64.standard_encode(b"foobar"), b"Zm9vYmFy")
+    ut.assert_eq(base64.urlsafe_encode(b"foobar"), b"Zm9vYmFy")
+}
+
+@test
+func test_encode_returns_bytes() {
+    // Like CPython's b64encode: the result is bytes, not str.
+    ut.assert_eq(base64.encode(b"foobar"), b"Zm9vYmFy")
+    ut.assert_eq(base64.encode(b""), b"")
+}
+
+// ---------------------------------------------------------------------------
+// decode
+// ---------------------------------------------------------------------------
+
+@test
+func test_decode_rfc4648_vectors() {
+    ut.assert_eq(base64.decode(b""), b"")
+    ut.assert_eq(base64.decode(b"Zg=="), b"f")
+    ut.assert_eq(base64.decode(b"Zm8="), b"fo")
+    ut.assert_eq(base64.decode(b"Zm9v"), b"foo")
+    ut.assert_eq(base64.decode(b"Zm9vYg=="), b"foob")
+    ut.assert_eq(base64.decode(b"Zm9vYmE="), b"fooba")
+    ut.assert_eq(base64.decode(b"Zm9vYmFy"), b"foobar")
+}
+
+@test
+func test_decode_roundtrip_binary() {
+    let raw = b"\x00\xff\x10\x20"
+    ut.assert_eq(base64.decode(base64.encode(raw)), raw)
+    let url = b"\xfb\xff\x01"
+    ut.assert_eq(base64.urlsafe_decode(base64.urlsafe_encode(url)), url)
+}
+
+@test
+func test_decode_accepts_str() {
+    // CPython reads a str argument as ASCII, so text works without to_bytes().
+    ut.assert_eq(base64.decode("Zm9vYmFy"), b"foobar")
+    ut.assert_eq(base64.standard_decode("Zm9vYmFy"), b"foobar")
+    ut.assert_eq(base64.decode(""), b"")
+}
+
+@test
+func test_decode_skips_bytes_outside_alphabet() {
+    // Lax by default: whitespace and junk are skipped, padding still checked.
+    ut.assert_eq(base64.decode(b"Zm9v YmFy"), b"foobar")
+    ut.assert_eq(base64.decode(b"Zm9v\tYmFy\n"), b"foobar")
+    ut.assert_eq(base64.decode(b"@@@"), b"")
+    ut.assert_eq(base64.decode(b"===="), b"")
+    ut.assert_eq(base64.decode(b"AA=="), b"\x00")
+    ut.assert_eq(base64.decode(b"AAAA===="), b"\x00\x00\x00")
+    ut.assert_eq(base64.decode(b"AA==="), b"\x00")
+}
+
+@test
+func test_decode_altchars() {
+    ut.assert_eq(base64.decode(b"-_8=", altchars = b"-_"), b"\xfb\xff")
+    ut.assert_eq(base64.decode(b"@!8=", b"@!"), b"\xfb\xff")
+    ut.assert_eq(base64.urlsafe_decode(b"-_8="), b"\xfb\xff")
+    ut.assert_eq(base64.urlsafe_decode("-_8="), b"\xfb\xff")
+    ut.assert_eq(base64.urlsafe_decode("-_8="), b"\xfb\xff")
+}
+
+@test
+func test_decode_validate_clean_input() {
+    ut.assert_eq(base64.decode(b"Zm9vYmFy", validate = true), b"foobar")
+    ut.assert_eq(base64.decode(b"Zg==", validate = true), b"f")
+    ut.assert_eq(base64.decode(b"", validate = true), b"")
+}
+
+// ---------------------------------------------------------------------------
+// encodebytes / decodebytes: the 76-column layout of RFC 2045
+// ---------------------------------------------------------------------------
+
+@test
+func test_encodebytes_empty() {
+    ut.assert_eq(base64.encodebytes(b""), b"")
+}
+
+@test
+func test_encodebytes_short() {
+    ut.assert_eq(base64.encodebytes(b"f"), b"Zg==\n")
+    ut.assert_eq(base64.encodebytes(b"foobar"), b"Zm9vYmFy\n")
+}
+
+@test
+func test_encodebytes_wraps_at_76_columns() {
+    // 57 raw bytes -> exactly 76 columns -> one line plus '\n'.
+    ut.assert_eq(base64.encodebytes(bytes(57)).len(), 77)
+    // 58 raw bytes -> 80 columns -> wrapped into 76 + 4, so two lines.
+    ut.assert_eq(base64.encodebytes(bytes(58)).len(), 82)
+    // 114 raw bytes -> 152 columns -> exactly two full lines.
+    ut.assert_eq(base64.encodebytes(bytes(114)).len(), 154)
+}
+
+@test
+func test_decodebytes() {
+    ut.assert_eq(base64.decodebytes(b"Zg==\n"), b"f")
+    ut.assert_eq(base64.decodebytes(b"Zm9v\nYmFy\n"), b"foobar")
+    ut.assert_eq(base64.decodebytes("Zm9v\nYmFy\n"), b"foobar")
+}
+
+// ---------------------------------------------------------------------------
+// errors, in the spirit of CPython's binascii messages
+// ---------------------------------------------------------------------------
+
+@should_panic("base64: incorrect padding")
+func test_decode_missing_padding_two() {
+    base64.decode(b"Zg")
+}
+
+@should_panic("base64: incorrect padding")
+func test_decode_missing_padding_three() {
+    base64.decode(b"Zm8")
+}
+
+@should_panic("base64: number of data characters cannot be 1 more than a multiple of 4")
+func test_decode_one_extra_char() {
+    base64.decode(b"Zm9vYmFyY")
+}
+
+@should_panic("base64: only base64 data is allowed")
+func test_validate_rejects_whitespace() {
+    base64.decode(b"Zm9v YmFy", validate = true)
+}
+
+@should_panic("base64: excess padding not allowed")
+func test_validate_rejects_excess_padding() {
+    base64.decode(b"Zg===", validate = true)
+}
+
+@should_panic("base64: excess padding not allowed")
+func test_validate_rejects_data_after_padding() {
+    base64.decode(b"aGVsbG8=A", validate = true)
+}
+
+@should_panic("base64: altchars must be exactly 2 bytes")
+func test_encode_altchars_wrong_length() {
+    base64.encode(b"x", altchars = b"-")
+}
+
+@should_panic("base64: string argument should contain only ASCII characters")
+func test_decode_non_ascii_str() {
+    base64.decode("é")
+}

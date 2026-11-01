@@ -1,0 +1,41 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+link "koala_hex"
+
+/// Hexadecimal codecs (RFC 4648 §8).
+///
+/// `encode` renders bytes as lowercase hexadecimal text; `decode` goes the
+/// other way, accepting digits of either case and rejecting everything else.
+///
+/// There is no uppercase encoder, matching Go's `encoding/hex` and
+/// CPython's `binascii`, neither of which offers one: callers that need
+/// uppercase write `encode(b).upper()`.
+///
+/// The codecs are strict. `decode` does not skip whitespace and does not
+/// accept a `0x` prefix or any separator, so text such as `"aa:bb:cc"`
+/// must be normalized by the caller first.
+///
+/// The byte loops live in `native/hex_core.c`; this module only declares
+/// them, the way `koala/encoding/base64` does.
+
+/// Encode `b` as a lowercase hexadecimal string.
+///
+/// An empty byte sequence encodes to the empty string. Every byte,
+/// including `0x00`, becomes exactly two digits.
+@native
+pub func encode(b bytes) str {}
+
+/// Decode the hexadecimal string `s` into bytes.
+///
+/// Lowercase and uppercase digits may be mixed freely. The empty string
+/// decodes to empty bytes.
+///
+/// Errors
+///
+/// Panic if `s` has an odd number of characters, or if any character is
+/// not a hexadecimal digit.
+@native
+pub func decode(s str) bytes {}

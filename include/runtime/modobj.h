@@ -68,8 +68,7 @@ typedef enum {
     IMPORT_KIND_FUNC,   /* free function */
     IMPORT_KIND_GLOBAL, /* global variable */
     IMPORT_KIND_TYPE,   /* type object */
-    IMPORT_KIND_METHOD, /* method of a type (slot-based) */
-    IMPORT_KIND_FIELD   /* field of a type (offset-based) */
+    IMPORT_KIND_METHOD  /* method of a type (slot-based) */
 } ImportKind;
 
 typedef struct _ImportEntry {

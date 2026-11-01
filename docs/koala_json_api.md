@@ -46,7 +46,6 @@
 | [`is_digit`](#is_digit) | Return true if `ch` is a decimal digit. |
 | [`expect_word`](#expect_word) | Consume the literal `word` at the current position. |
 | [`quote`](#quote) | Return `s` as a quoted JSON string, including the surrounding double quotes. |
-| [`hex_byte`](#hex_byte) | Return the two-digit lowercase hexadecimal representation of the byte `b`. |
 
 **Constants**
 
@@ -888,17 +887,6 @@ The escape sequences follow the JSON grammar: `"`, `\`, `\b`, `\f`,
 `\n`, `\r` and `\t` have a short form and the remaining control
 characters are written as `\u00XX`. Every other byte, including
 multi-byte UTF-8 sequences, is copied unchanged.
-
-<a id="hex_byte"></a>
-
-### `hex_byte`
-
-```kl
-func hex_byte(b uint8) str
-```
-
-Return the two-digit lowercase hexadecimal representation of the byte
-`b`.
 
 ## Constants
 

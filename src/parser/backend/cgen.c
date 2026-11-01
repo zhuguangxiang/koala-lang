@@ -183,9 +183,6 @@ static void dump_import_table(KlMachModule *m)
         } else if (imp->kind == IMPORT_METHOD) {
             printf("  [%03d] method %s::%s::%s, slot_index: %d\n", i__, imp->path, imp->klass,
                    imp->name, imp->slot_index);
-        } else if (imp->kind == IMPORT_FIELD) {
-            printf("  [%03d] field  %s::%s::%s, slot_index: %d\n", i__, imp->path, imp->klass,
-                   imp->name, imp->slot_index);
         } else {
             UNREACHABLE();
         }
@@ -656,7 +653,7 @@ static int __mach_import_eq__(void *a, void *b)
     if (ia->kind != ib->kind) return 0;
     if (ia->kind == IMPORT_FUNC || ia->kind == IMPORT_GLOBAL || ia->kind == IMPORT_TYPE) {
         return str_equal(ia->path, ib->path) && str_equal(ia->name, ib->name);
-    } else if (ia->kind == IMPORT_FIELD || ia->kind == IMPORT_METHOD) {
+    } else if (ia->kind == IMPORT_METHOD) {
         return str_equal(ia->path, ib->path) && str_equal(ia->klass, ib->klass) &&
                str_equal(ia->name, ib->name);
     } else {
@@ -698,32 +695,6 @@ static int mach_import_add_func(KlMachModule *m, char *path, char *name)
     log_info("Added new import ext-func entry for %s.%s (index: %d, slot_index: %d)", path, name,
              import_index, slot_index);
     return slot_index;
-}
-
-int mach_import_add_field(KlMachModule *m, char *path, char *klass, char *name)
-{
-    KlMachImport key = { .kind = IMPORT_FIELD, .path = path, .klass = klass, .name = name };
-    hashmap_entry_init(&key, mach_import_hash(&key));
-
-    KlMachImport *entry = hashmap_get(&m->import_map, &key);
-    if (entry) {
-        log_info("Found existing import ext-field entry for %s.%s (index: %d)", path, name,
-                 entry->index);
-        return entry->index;
-    }
-
-    KlMachImport *new_entry = mm_alloc_obj(new_entry);
-    new_entry->kind = IMPORT_FIELD;
-    new_entry->path = path;
-    new_entry->klass = klass;
-    new_entry->name = name;
-    hashmap_entry_init(new_entry, mach_import_hash(new_entry));
-    hashmap_put(&m->import_map, new_entry);
-    vector_push_back(&m->import_table, &new_entry);
-    int import_index = vector_size(&m->import_table) - 1;
-    new_entry->index = import_index;
-    log_info("Added new import ext-field entry for %s.%s (index: %d)", path, name, import_index);
-    return import_index;
 }
 
 static int mach_import_add_method(KlMachModule *m, char *path, char *klass, char *name)

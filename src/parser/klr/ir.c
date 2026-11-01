@@ -893,6 +893,14 @@ KlrValue *klr_add_field(KlrValue *klass_val, char *name, TypeSpec *ts)
     return (KlrValue *)field;
 }
 
+/* field of a class in another module: not owned by any local klass, index from its .klc */
+KlrValue *klr_new_ext_field(TypeSpec *ts, char *name, int index)
+{
+    KlrField *field = new_field(ts, name);
+    field->index = index;
+    return (KlrValue *)field;
+}
+
 KlrValue *klr_add_intf(KlrTrait *trait, TypeSpec *ret, char *name)
 {
     KlrIntf *intf = mm_alloc_obj(intf);
@@ -981,17 +989,6 @@ static KlrValue *_get_ext_klass(KlrExtModule *m, char *name)
     return NULL;
 }
 
-static KlrValue *_get_ext_field(KlrExtKlass *kls, char *name)
-{
-    KlrValue *sym;
-    vector_foreach(sym, &kls->fields) {
-        if (str_equal(sym->name, name)) {
-            return sym;
-        }
-    }
-    return NULL;
-}
-
 KlrExtModule *klr_add_ext_module(KlrModule *m, char *path)
 {
     KlrExtModule *sym = _get_ext_mod(m, path);
@@ -1042,23 +1039,9 @@ KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *
     INIT_KLR_VALUE(klass, KLR_VALUE_EXT_KLASS, ts, name);
     vector_push_back(&ext_m->symbols, &klass);
     klass->module = ext_m;
-    vector_init_ptr(&klass->fields);
     vector_init_ptr(&klass->methods);
     ASSERT(check_name(name));
     return (KlrValue *)klass;
-}
-
-KlrValue *klr_add_ext_field(KlrExtKlass *kls, TypeSpec *ts, char *name)
-{
-    KlrValue *sym = _get_ext_field(kls, name);
-    if (sym) return sym;
-
-    KlrExtField *field = mm_alloc_obj(field);
-    INIT_KLR_VALUE(field, KLR_VALUE_EXT_FIELD, ts, name);
-    vector_push_back(&kls->fields, &field);
-    field->module = kls->module;
-    field->klass = kls;
-    return (KlrValue *)field;
 }
 
 KlrValue *klr_add_ext_method(KlrExtKlass *kls, TypeSpec *ret, char *name)

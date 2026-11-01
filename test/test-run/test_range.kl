@@ -13,9 +13,9 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @foo(%r std/builtin.range) <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = get_field_ext %r std/builtin.range, start
-// CHECK: %1 = get_field_ext %r std/builtin.range, end
-// CHECK: %2 = get_field_ext %r std/builtin.range, step
+// CHECK: %0 = get_field %r std/builtin.range, start(index=0)
+// CHECK: %1 = get_field %r std/builtin.range, end(index=1)
+// CHECK: %2 = get_field %r std/builtin.range, step(index=2)
 // CHECK: %3 = build_intern @tuple, %0 int64, %1 int64, %2 int64
 // CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple<jjj>, ' ' str, '\n' str
 // CHECK: ret void
@@ -25,9 +25,9 @@ func main() {
 // CHECK: %bb0(entry):
 // CHECK: %r = local [immutable] std/builtin.range
 // CHECK: move %r std/builtin.range, range(1, 10, 2) std/builtin.range
-// CHECK: %0 = get_field_ext %r std/builtin.range, start
-// CHECK: %1 = get_field_ext %r std/builtin.range, end
-// CHECK: %2 = get_field_ext %r std/builtin.range, step
+// CHECK: %0 = get_field %r std/builtin.range, start(index=0)
+// CHECK: %1 = get_field %r std/builtin.range, end(index=1)
+// CHECK: %2 = get_field %r std/builtin.range, step(index=2)
 // CHECK: %3 = build_intern @tuple, %0 int64, %1 int64, %2 int64
 // CHECK: call @print [path = 'std/prelude'], %3 std/builtin.tuple<jjj>, ' ' str, '\n' str
 // CHECK: ret void
@@ -35,9 +35,9 @@ func main() {
 // CHECK-LABEL: --- IR Dump After isel [@foo] ---
 // CHECK-LABEL: func @foo(%r std/builtin.range) <NO-TYPE> {
 // CHECK: %bb0(entry):
-// CHECK: %0 = get_field_ext %r std/builtin.range, start
-// CHECK: %1 = get_field_ext %r std/builtin.range, end
-// CHECK: %2 = get_field_ext %r std/builtin.range, step
+// CHECK: %0 = get_field %r std/builtin.range, start(index=0)
+// CHECK: %1 = get_field %r std/builtin.range, end(index=1)
+// CHECK: %2 = get_field %r std/builtin.range, step(index=2)
 // CHECK: %3 = build_intern @tuple, nargs=3
 // CHECK: %4 = local str        [fixedslot = 1(next)]
 // CHECK: loadk %4 str, ' ' str

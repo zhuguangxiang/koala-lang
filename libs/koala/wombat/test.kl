@@ -24,9 +24,13 @@ func test_find_ws_root(start str) str {
 /// Run only `<ws_root>/test/*.kl`.
 ///
 /// A missing `test/` or an empty `test/` returns 0. Each `.kl` file is
-/// passed to `koala --test` with `<ws_root>/dist/` prepended to
-/// `KOALA_PATH`, so the tests can import packages built by
-/// `wombat build`.
+/// passed to `koala --test` with:
+///
+///   KOALA_PATH      = <ws_root>/dist/:<old>
+///   LD_LIBRARY_PATH = <ws_root>/dist/<ws_name>:<old>
+///
+/// so the tests can import packages and load native `.so` files built
+/// by `wombat build`.
 ///
 /// Test paths are `<ws_name>/test/<file>.kl`, relative to the
 /// workspace's parent, matching the base that `build_workspace` uses.
@@ -39,12 +43,23 @@ func run_ws_dir_tests(ws_root str) int {
 
     let ws_parent = fs.Path(ws_root).parent().to_str()
     let ws_name = fs.Path(ws_root).name()
-    let dist_entry = fs.Path(ws_root).cat("dist").to_str() + "/"
+    let dist = fs.Path(ws_root).cat("dist").to_str()
+    let dist_entry = dist + "/"
+
     let old_path = os.getenv("KOALA_PATH")
     var koala_path = dist_entry
     if old_path != nil {
         if !old_path.empty() {
             koala_path = dist_entry + ":" + old_path
+        }
+    }
+
+    let lib_dir = fs.Path(dist).cat(ws_name).to_str()
+    let old_lp = os.getenv("LD_LIBRARY_PATH")
+    var ld_path = lib_dir
+    if old_lp != nil {
+        if !old_lp.empty() {
+            ld_path = lib_dir + ":" + old_lp
         }
     }
 
@@ -60,6 +75,7 @@ func run_ws_dir_tests(ws_root str) int {
         printf("🚀 Running: koala --test {}\n", rel)
         let full = "cd " + ws_parent +
                    " && KOALA_PATH=" + koala_path +
+                   " LD_LIBRARY_PATH=" + ld_path +
                    " koala --test " + rel
         let rc = os.system(full)
         print("")
@@ -90,9 +106,9 @@ func run_ws_dir_tests(ws_root str) int {
 ///   a single package (only that package's tests).
 /// - a `.kl` / `.klc` file: not supported yet.
 ///
-/// Does not build. The output directory is prepended to `KOALA_PATH`
-/// for each test process, so tests can import the `.klc` artifacts
-/// produced by a prior `wombat build`.
+/// Does not build. Both `KOALA_PATH` and `LD_LIBRARY_PATH` are
+/// prepended for each test process, so tests can import `.klc` files
+/// and load native `.so` files produced by `wombat build`.
 ///
 /// A directory package has tests when `<dir>/<pkg.test>` exists. A
 /// single-file package has no `<dir>/test/`; its tests live in
@@ -148,8 +164,21 @@ pub func test_all(target str) int {
         }
     }
 
-    let ws_parent = fs.Path(ws.root).parent().to_str()
+    // Native libraries built by `wombat build` live in
+    // `<dist>/<ws_name>/`, next to the `.klc` files. Add that
+    // directory to `LD_LIBRARY_PATH` so `link "<name>"` in a test can
+    // `dlopen` the package's own `.so`.
     let ws_name = fs.Path(ws.root).name()
+    let lib_dir = fs.Path(dist).cat(ws_name).to_str()
+    let old_lp = os.getenv("LD_LIBRARY_PATH")
+    var ld_path = lib_dir
+    if old_lp != nil {
+        if !old_lp.empty() {
+            ld_path = lib_dir + ":" + old_lp
+        }
+    }
+
+    let ws_parent = fs.Path(ws.root).parent().to_str()
     var total = 0
     var failed = 0
     var tested_pkgs = 0
@@ -196,6 +225,7 @@ pub func test_all(target str) int {
 
             let full = "cd " + ws_parent +
                        " && KOALA_PATH=" + koala_path +
+                       " LD_LIBRARY_PATH=" + ld_path +
                        " koala --test " + rel
 
             let rc = os.system(full)
@@ -225,6 +255,7 @@ pub func test_all(target str) int {
                 printf("🚀 Running: koala --test {}\n", rel)
                 let full = "cd " + ws_parent +
                            " && KOALA_PATH=" + koala_path +
+                           " LD_LIBRARY_PATH=" + ld_path +
                            " koala --test " + rel
                 let rc = os.system(full)
                 print("")

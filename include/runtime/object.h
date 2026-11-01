@@ -305,29 +305,16 @@ static inline Object *to_obj(TValue *v)
  |  Field Object                                                             |
  +---------------------------------------------------------------------------*/
 
-typedef enum {
-    FIELD_OFFSET, // C struct offset
-    FIELD_INDEX   // Koala class field index
-} FieldKind;
-
 typedef struct _FieldObject {
     OBJECT_HEAD
     char *name;
     Object *owner;
-    FieldKind kind;
     int type;
-    int index;
+    int index; // index in the instance's fields[]
 } FieldObject;
 
 extern TypeObject field_type;
-Object *kl_new_field(char *name, int type, int offset, Object *owner);
-
-static inline Object *kl_new_index_field(char *name, int type, int index, Object *owner)
-{
-    Object *obj = kl_new_field(name, type, index, owner);
-    ((FieldObject *)obj)->kind = FIELD_INDEX;
-    return obj;
-}
+Object *kl_new_field(char *name, int type, int index, Object *owner);
 
 extern TypeObject global_type;
 #define IS_GLOBAL(ob) IS_TYPE((ob), &global_type)

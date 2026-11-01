@@ -46,8 +46,8 @@ func main() {
 // CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
 // CHECK-LABEL: func @foo(%r std/builtin.range) int64 {
 // CHECK: %bb0(entry):
-// CHECK: %0 = get_field_ext %r std/builtin.range, start
-// CHECK: %1 = get_field_ext %r std/builtin.range, end
+// CHECK: %0 = get_field %r std/builtin.range, start(index=0)
+// CHECK: %1 = get_field %r std/builtin.range, end(index=1)
 // CHECK: %2 = add %0 int64, %1 int64
 // CHECK: ret %2 int64
 

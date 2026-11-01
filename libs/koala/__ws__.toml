@@ -1,4 +1,16 @@
 [workspace]
 name = "koala.koala"
 version = "0.1.0"
-packages = ["toml", "json", "math", "random", "wombat", "datetime", "icmp", "csv"]
+packages = [
+    "toml",
+    "json",
+    "math",
+    "random",
+    "wombat",
+    "datetime",
+    "icmp",
+    "csv",
+    "crypto",
+    "encoding/hex",
+    "encoding/base64",
+]

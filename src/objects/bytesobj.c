@@ -21,21 +21,32 @@ static TValue _bytes_len(TValue *self, TValue *args, int nargs)
     return int64_value(bytes->size);
 }
 
+/* Bytes printed in full before the output is shortened with "...". */
+#define BYTES_FMT_MAX 64
+
 static TValue _bytes_fmt(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = SELF_AS(bytes_type);
+    const char *base = (const char *)bytes->data + bytes->offset;
     int64_t size = bytes->size;
 
     ASSERT(nargs == 1);
     Formatter *fmt = kl_arg_obj_as(0, fmt_type);
 
+    /* Every byte is shown, embedded NULs included, until the output gets long
+     * enough to drown the terminal. Past that point the head is printed, then
+     * "...", and the real size is appended, so a shortened value can never be
+     * mistaken for a short one. Escaping keeps it valid single-line text. */
     buf_write_str(&fmt->buf, "b\"");
-    for (int i = 0; i < size; ++i) {
-        uint8_t ch = bytes->data[bytes->offset + i];
-        if (ch == 0) break;
-        buf_write_char(&fmt->buf, ch);
+    if (size > BYTES_FMT_MAX) {
+        escape_nstr(base, BYTES_FMT_MAX, &fmt->buf);
+        buf_write_str(&fmt->buf, "...\" (");
+        buf_write_int64_str(&fmt->buf, size);
+        buf_write_str(&fmt->buf, " bytes)");
+    } else {
+        escape_nstr(base, (int)size, &fmt->buf);
+        buf_write_str(&fmt->buf, "\"");
     }
-    buf_write_str(&fmt->buf, "\"");
 
     return no_value;
 }
@@ -236,18 +247,18 @@ static TValue _bytes_view(TValue *self, TValue *args, int nargs)
 static TValue _bytes_tostr(TValue *self, TValue *args, int nargs)
 {
     BytesObject *bytes = SELF_AS(bytes_type);
-    int64_t size = bytes->size;
+    const char *base = (const char *)bytes->data + bytes->offset;
+    size_t size = bytes->size;
 
-    BUF(buf);
-    for (int i = 0; i < size; ++i) {
-        uint8_t ch = bytes->data[bytes->offset + i];
-        if (ch == 0) break;
-        buf_write_char(&buf, ch);
-    }
-    Object *sobj = kl_new_nstr(BUF_STR(buf), BUF_LEN(buf));
-    FINI_BUF(buf);
+    /* Conversion, not display: a bytes object doubles as an I/O buffer, so the
+     * result stops at the first NUL exactly like a C string. Printing goes
+     * through fmt instead, which escapes and shows every byte. Callers that
+     * need the whole filled-in region of a buffer slice it first:
+     * buf.view(0, n).to_str(). */
+    const char *nul = memchr(base, '\0', size);
+    if (nul) size = (size_t)(nul - base);
 
-    return obj_value(sobj);
+    return obj_value(kl_new_nstr((char *)base, size));
 }
 
 static TValue _bytes_getitem(TValue *self, TValue *args, int nargs)

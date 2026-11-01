@@ -1328,8 +1328,7 @@ static void do_isel(KlrFunc *fn)
                     break;
                 }
 
-                case OP_SET_FIELD:
-                case OP_SET_FIELD_EXT: {
+                case OP_SET_FIELD: {
                     isel_lower_set_field(insn);
                     break;
                 }

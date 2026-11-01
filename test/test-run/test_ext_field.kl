@@ -1,0 +1,42 @@
+// RUN: koala %s ++ --dump=no-opt-ir | filecheck %s
+// Fields of a class from another package are accessed with the plain
+// get_field/set_field and the field's index in its class, private fields
+// included (Rec: hidden=0 a=1 hidden2=2 b=3; Cell: count=0 value=1).
+
+import "test_pkg/pkg_field" as pkg
+
+func main() {
+    let r = pkg.Rec()
+    print(r.a, r.b)
+    r.a = 42
+    r.b = "changed"
+    print(r.a, r.b)
+    r.show()
+
+    let c = pkg.Cell[int](5)
+    print(c.value)
+    c.value = 9
+    print(c.value)
+    c.show()
+}
+
+// CHECK-LABEL: --- IR Dump After ir-gen(no-opt) ---
+// CHECK-LABEL: func @main()
+// CHECK: get_field %r test_pkg/pkg_field.Rec, a(index=1)
+// CHECK: get_field %r test_pkg/pkg_field.Rec, b(index=3)
+// CHECK: set_field %r test_pkg/pkg_field.Rec, a(index=1), 42 int64
+// CHECK: set_field %r test_pkg/pkg_field.Rec, b(index=3), 'changed' str
+// CHECK: get_field %r test_pkg/pkg_field.Rec, a(index=1)
+// CHECK: get_field %r test_pkg/pkg_field.Rec, b(index=3)
+// CHECK: get_field %c test_pkg/pkg_field.Cell<j>, value(index=1)
+// CHECK: set_field %c test_pkg/pkg_field.Cell<j>, value(index=1), 9 int64
+// CHECK: get_field %c test_pkg/pkg_field.Cell<j>, value(index=1)
+// CHECK-NOT: get_field_ext
+// CHECK-NOT: set_field_ext
+
+// CHECK: 1 x
+// CHECK-NEXT: 42 changed
+// CHECK-NEXT: hidden: 100 a: 42 hidden2: secret b: changed
+// CHECK-NEXT: 5
+// CHECK-NEXT: 9
+// CHECK-NEXT: count: 7 value: 9

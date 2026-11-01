@@ -53,7 +53,7 @@ static void resolve_import(Object *_m)
                 return;
             }
         } else {
-            ASSERT(e->kind == IMPORT_KIND_METHOD || e->kind == IMPORT_KIND_FIELD);
+            ASSERT(e->kind == IMPORT_KIND_METHOD);
 
             Object *cls = kl_mo_find(mod, e->kls);
             if (!cls || !IS_TYPE(cls, &type_type)) {
@@ -327,7 +327,7 @@ static Object *_load_module(char *path)
         vector_foreach(var, &cls->fields) {
             if (!var) continue;
             kc = klc_get_const(klc, var->name_index);
-            Object *field = kl_new_index_field(kc->sval, 0, i__ - 1, (Object *)tp);
+            Object *field = kl_new_field(kc->sval, 0, i__ - 1, (Object *)tp);
             kl_tp_add_field(tp, kc->sval, field);
         }
 

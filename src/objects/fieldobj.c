@@ -32,14 +32,14 @@ TypeObject field_type = {
     .methdefs = field_methods,
 };
 
-Object *kl_new_field(char *name, int type, int offset, Object *owner)
+Object *kl_new_field(char *name, int type, int index, Object *owner)
 {
     FieldObject *field = mm_alloc_obj(field);
     INIT_OBJECT_HEAD(field, &field_type, 0);
     field->name = name;
     field->owner = owner;
     field->type = type;
-    field->index = offset;
+    field->index = index;
     return (Object *)field;
 }
 

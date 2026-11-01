@@ -8,17 +8,6 @@ import "std/fs"
 import "koala/toml"
 
 /// A package in the workspace.
-///
-/// A directory package has `is_file = false` and `dir_name` set to the
-/// directory relative to the workspace root. A single-file package has
-/// `is_file = true`, `file` set to the `.kl` path, and `dir_name`
-/// derived from `name` (the part after `<ws_name>/`), so
-/// `artifact_rel` keeps the same layout for both forms.
-///
-/// `native_*` fields describe an optional C library built from
-/// `[native]` in `__pkg__.toml`. `native_name` is also appended to
-/// `natives` (deduplicated), so `check_natives` verifies the built
-/// `.so` even when the user listed only external libraries.
 class Package {
     var name = ""
     var dir_name = ""
@@ -41,12 +30,46 @@ class Package {
     var native_ldflags = list[str]()
 }
 
+/// One workspace-level native library from a `[[native]]` entry in
+/// `__ws__.toml`.
+///
+/// `packages` lists the packages that share this `.so`. After loading,
+/// `name` is appended to each listed package's `natives`
+/// (deduplicated), so the package build checks the shared library
+/// without the user listing it again in `__pkg__.toml`.
+class WorkspaceNative {
+    var name = ""
+    var compiler = ""
+    var packages = list[str]()
+    var sources = list[str]()
+    var includes = list[str]()
+    var cflags = list[str]()
+    var ldflags = list[str]()
+    var linkage = list[str]()
+}
+
 /// The workspace being built.
 class Workspace {
     var name = ""
     var version = "0.1.0"
     var root = "."
     var packages = list[Package]()
+    var natives = list[WorkspaceNative]()
+}
+
+/// Everything needed to compile one native library. Shared by
+/// `build_native` (package) and `build_workspace_native` (workspace)
+/// so `build_one_native` takes a single argument.
+class NativeSpec {
+    var name = ""
+    var compiler = ""
+    var base_dir = ""
+    var out_dir = ""
+    var sources = list[str]()
+    var includes = list[str]()
+    var cflags = list[str]()
+    var ldflags = list[str]()
+    var linkage = list[str]()
 }
 
 /// Load a workspace or a single package and build it.
@@ -106,8 +129,6 @@ func load_single_package(pkg_dir str) Workspace {
         return ws
     }
 
-    // Single-package mode ignores `dependencies`: there is no graph to
-    // sort, and a missing dependency would otherwise look like a cycle.
     pkg.deps = list[str]()
 
     ws.name = pkg.name
@@ -149,8 +170,27 @@ func join_or_none(xs list[str], sep str) str {
     return buf.to_str()
 }
 
-/// Load `<root>/__ws__.toml`, every directory package listed in
-/// `packages`, and every single-file package listed in `[[package]]`.
+/// Parse one `[[native]]` entry into a `WorkspaceNative`.
+func load_workspace_native(entry toml.Table) WorkspaceNative {
+    let wn = WorkspaceNative()
+    wn.name = toml_str(entry, "name")
+    wn.compiler = toml_str(entry, "compiler")
+    wn.packages = toml_str_list(entry, "packages")
+    wn.sources = toml_str_list(entry, "sources")
+    wn.includes = toml_str_list(entry, "includes")
+    wn.cflags = toml_str_list(entry, "cflags")
+    wn.ldflags = toml_str_list(entry, "ldflags")
+    wn.linkage = toml_str_list(entry, "link")
+    return wn
+}
+
+/// Load `<root>/__ws__.toml`, every workspace-level `[[native]]`,
+/// every directory package listed in `packages`, and every
+/// single-file package listed in `[[package]]`.
+///
+/// `[[native]].packages` lists the packages that share each `.so`;
+/// after loading, every listed package gets the `.so` name appended
+/// to its `natives` (deduplicated).
 func load_workspace(root str) Workspace {
     let ws = Workspace()
     ws.root = root
@@ -190,6 +230,33 @@ func load_workspace(root str) Workspace {
             let pkg = load_inline_package(entry, ws.name)
             if pkg.name.empty() { return ws }
             ws.packages.append(pkg)
+        }
+    }
+
+    // `[[native]]`: multiple workspace-level native libraries.
+    // A single `[native]` table is also accepted for compatibility.
+    if "native" in root_tbl {
+        let native_val = root_tbl.get("native")
+        if native_val is toml.Array {
+            for entry in native_val.value {
+                if entry is toml.Table {
+                    ws.natives.append(load_workspace_native(entry))
+                }
+            }
+        } else if native_val is toml.Table {
+            ws.natives.append(load_workspace_native(native_val))
+        }
+    }
+
+    // Link every workspace native to the packages that share it.
+    for wn in ws.natives {
+        if wn.name.empty() { continue }
+        for pkg_name in wn.packages {
+            let pkg = find_package(ws, pkg_name)
+            if pkg.name.empty() { continue }
+            if !(wn.name in pkg.natives) {
+                pkg.natives.append(wn.name)
+            }
         }
     }
 
@@ -367,15 +434,12 @@ func check_natives(pkg Package, ws Workspace, output_dir str) int {
     let ws_name = fs.Path(ws.root).name()
 
     let search = list[str]()
-    // Build output: `<output_dir>/<ws_name>/`, same level as `.klc`.
     search.append(fs.Path(output_dir).cat(ws_name).to_str())
-    // Source-adjacent prebuilt libraries, if any.
     if pkg.is_file {
         search.append(fs.Path(ws.root).cat(fs.Path(pkg.file).parent()).cat("native").to_str())
     } else {
         search.append(fs.Path(ws.root).cat(pkg.dir_name).cat("native").to_str())
     }
-    // System paths.
     search.append("/usr/lib")
     search.append("/usr/local/lib")
     search.append("/lib")
@@ -390,8 +454,6 @@ func check_natives(pkg Package, ws Workspace, output_dir str) int {
     }
 
     for native in pkg.natives {
-        // The package's own `[native]` library is verified by
-        // `build_native`; skip it here to avoid double counting.
         if native == pkg.native_name { continue }
 
         let filename = "lib" + native + ".so"
@@ -413,42 +475,27 @@ func check_natives(pkg Package, ws Workspace, output_dir str) int {
     return 0
 }
 
-/// Build `<output_dir>/<ws_name>/lib<native_name>.so` from
-/// `[native].sources`.
+/// Build one native library.
 ///
-/// The `.so` sits next to the package's `.klc`, so
-/// `dist/demo/math.klc` and `dist/demo/libdemo_math.so` share the same
-/// directory.
-///
-/// Compiler precedence: `CC` environment variable > `[native].compiler`
-/// > `cc`. Does nothing when `[native].name` is empty.
-func build_native(pkg Package, ws Workspace, output_dir str) int {
-    if pkg.native_name.empty() { return 0 }
+/// Relative `sources` / `includes` are resolved against
+/// `spec.base_dir`. `lib<spec.name>.so` lands in `spec.out_dir`.
+/// Compiler precedence: `CC` environment variable > `spec.compiler`
+/// > `cc`.
+func build_one_native(spec NativeSpec) int {
+    let out = fs.Path(spec.out_dir).cat("lib" + spec.name + ".so").to_str()
 
-    var pkg_dir = ""
-    if pkg.is_file {
-        pkg_dir = fs.Path(ws.root).cat(fs.Path(pkg.file).parent()).to_str()
-    } else {
-        pkg_dir = fs.Path(ws.root).cat(pkg.dir_name).to_str()
-    }
-    let native_dir = fs.Path(pkg_dir).cat("native").to_str()
-
-    let ws_name = fs.Path(ws.root).name()
-    let out_dir = fs.Path(output_dir).cat(ws_name).to_str()
-    let out = fs.Path(out_dir).cat("lib" + pkg.native_name + ".so").to_str()
-
-    for src in pkg.native_sources {
+    for src in spec.sources {
         var full = src
         if !full.starts_with("/") {
-            full = fs.Path(pkg_dir).cat(src).to_str()
+            full = fs.Path(spec.base_dir).cat(src).to_str()
         }
         if !fs.exists(full) {
-            printf("wombat build: native source not found: {}\n", full)
+            printf("❌️ wombat build: native source not found: {}\n\n", full)
             return 1
         }
     }
 
-    var compiler = pkg.native_compiler
+    var compiler = spec.compiler
     if compiler.empty() { compiler = "cc" }
     let cc = os.getenv("CC")
     if cc != nil {
@@ -459,18 +506,18 @@ func build_native(pkg Package, ws Workspace, output_dir str) int {
     buf.write_str(compiler)
     buf.write_str(" -shared -fPIC")
 
-    for f in pkg.native_cflags {
+    for f in spec.cflags {
         buf.write_str(" ")
         buf.write_str(f)
     }
 
     buf.write_str(" -I ")
-    buf.write_str(native_dir)
+    buf.write_str(fs.Path(spec.base_dir).cat("native").to_str())
 
-    for inc in pkg.native_includes {
+    for inc in spec.includes {
         var full = inc
         if !full.starts_with("/") {
-            full = fs.Path(pkg_dir).cat(inc).to_str()
+            full = fs.Path(spec.base_dir).cat(inc).to_str()
         }
         buf.write_str(" -I ")
         buf.write_str(full)
@@ -479,21 +526,21 @@ func build_native(pkg Package, ws Workspace, output_dir str) int {
     buf.write_str(" -o ")
     buf.write_str(out)
 
-    for src in pkg.native_sources {
+    for src in spec.sources {
         var full = src
         if !full.starts_with("/") {
-            full = fs.Path(pkg_dir).cat(src).to_str()
+            full = fs.Path(spec.base_dir).cat(src).to_str()
         }
         buf.write_str(" ")
         buf.write_str(full)
     }
 
-    for f in pkg.native_ldflags {
+    for f in spec.ldflags {
         buf.write_str(" ")
         buf.write_str(f)
     }
 
-    for lib in pkg.native_link {
+    for lib in spec.linkage {
         buf.write_str(" -l")
         buf.write_str(lib)
     }
@@ -501,7 +548,7 @@ func build_native(pkg Package, ws Workspace, output_dir str) int {
     let cmd = buf.to_str()
     printf("🚀 Running: {}\n", cmd)
 
-    let full = "mkdir -p " + out_dir + " && " + cmd
+    let full = "mkdir -p " + spec.out_dir + " && " + cmd
     let rc = os.system(full)
     if rc != 0 {
         printf("❌️ Failed artifact: {}\n\n", out)
@@ -511,10 +558,70 @@ func build_native(pkg Package, ws Workspace, output_dir str) int {
     return 0
 }
 
-/// Artifact path: `<ws>/<dir>.klc`.
-func artifact_rel(ws Workspace, pkg Package) str {
+/// Build `<output_dir>/<ws_name>/lib<native_name>.so` for a package.
+func build_native(pkg Package, ws Workspace, output_dir str) int {
+    if pkg.native_name.empty() { return 0 }
+
+    var pkg_dir = ""
+    if pkg.is_file {
+        pkg_dir = fs.Path(ws.root).cat(fs.Path(pkg.file).parent()).to_str()
+    } else {
+        pkg_dir = fs.Path(ws.root).cat(pkg.dir_name).to_str()
+    }
+
     let ws_name = fs.Path(ws.root).name()
-    return ws_name + "/" + pkg.dir_name + ".klc"
+
+    let spec = NativeSpec()
+    spec.name = pkg.native_name
+    spec.compiler = pkg.native_compiler
+    spec.base_dir = pkg_dir
+    spec.out_dir = fs.Path(output_dir).cat(ws_name).to_str()
+    spec.sources = pkg.native_sources
+    spec.includes = pkg.native_includes
+    spec.cflags = pkg.native_cflags
+    spec.ldflags = pkg.native_ldflags
+    spec.linkage = pkg.native_link
+
+    return build_one_native(spec)
+}
+
+/// Build every workspace-level `[[native]]`.
+///
+/// `sources` / `includes` are resolved against the workspace root.
+/// Returns 1 if any library fails; individual errors are printed by
+/// `build_one_native`.
+func build_workspace_native(ws Workspace, output_dir str) int {
+    if ws.natives.len() == 0 { return 0 }
+
+    let ws_name = fs.Path(ws.root).name()
+    let out_dir = fs.Path(output_dir).cat(ws_name).to_str()
+
+    var any_failed = false
+    for wn in ws.natives {
+        if wn.name.empty() { continue }
+
+        let spec = NativeSpec()
+        spec.name = wn.name
+        spec.compiler = wn.compiler
+        spec.base_dir = ws.root
+        spec.out_dir = out_dir
+        spec.sources = wn.sources
+        spec.includes = wn.includes
+        spec.cflags = wn.cflags
+        spec.ldflags = wn.ldflags
+        spec.linkage = wn.linkage
+
+        if build_one_native(spec) != 0 {
+            any_failed = true
+        }
+    }
+    if any_failed { return 1 }
+    return 0
+}
+
+/// Artifact path: `<pkg.name>.klc`.
+func artifact_rel(ws Workspace, pkg Package) str {
+    return pkg.name + ".klc"
 }
 
 /// Source path: `<ws>/<dir>` for a directory package, `<ws>/<file>`
@@ -556,13 +663,14 @@ func build_cmd(pkg Package, ws Workspace, output_dir str) str {
 
 /// Compile every package in dependency order.
 ///
-/// Per package, compile order is:
-///   1. koala: `koala -c` produces `<pkg>.klc`
-///   2. native: `build_native` then `check_natives`
+/// Order:
+///   1. every workspace-level `[[native]]`
+///   2. per package:
+///      a. koala: `koala -c` produces `<pkg>.klc`
+///      b. native: package `[native]` then `check_natives`
 ///
-/// Both stages run for every package. A failure in one stage is
-/// recorded but does not skip the other stage, and does not stop the
-/// packages after it. Every failure is printed at the end; the
+/// A failure in one stage is recorded but does not skip the other
+/// stages or later packages. Every failure is printed at the end; the
 /// function returns 1 if anything failed.
 func build_workspace(ws Workspace, output_dir str) int {
     let order = topo_sort(ws.packages)
@@ -589,6 +697,12 @@ func build_workspace(ws Workspace, output_dir str) int {
 
     let failed_pkgs = list[str]()
     let failed_stages = list[str]()
+
+    // All workspace-level natives first.
+    if build_workspace_native(ws, output_dir) != 0 {
+        failed_pkgs.append(ws.name)
+        failed_stages.append("ws-native")
+    }
 
     for name in order {
         let pkg = find_package(ws, name)

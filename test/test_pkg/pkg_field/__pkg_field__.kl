@@ -1,0 +1,34 @@
+// Classes whose pub fields are interleaved with private ones: an importer only
+// sees the pub fields, but must still access them by their real index.
+
+pub class Rec {
+    var hidden int
+    pub var a int
+    var hidden2 str
+    pub var b str
+
+    pub func __init__() {
+        hidden = 100
+        a = 1
+        hidden2 = "secret"
+        b = "x"
+    }
+
+    pub func show() {
+        print("hidden:", hidden, "a:", a, "hidden2:", hidden2, "b:", b)
+    }
+}
+
+pub class Cell[T] {
+    var count int
+    pub var value T
+
+    pub func __init__(_value T) {
+        count = 7
+        value = _value
+    }
+
+    pub func show() {
+        print("count:", count, "value:", value)
+    }
+}

@@ -652,8 +652,6 @@ static const char *import_kind_name(ImportKind kind)
             return "type";
         case IMPORT_KIND_METHOD:
             return "method";
-        case IMPORT_KIND_FIELD:
-            return "field";
         default:
             return "unknown";
     }

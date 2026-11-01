@@ -503,30 +503,6 @@ TARGET(OP_GET_FIELD) {
     DISPATCH();
 }
 
-TARGET(OP_GET_FIELD_EXT) {
-    rd = I_VAL(inst, 16, 8);
-    rs = I_VAL(inst, 8, 8);
-    off = I_VAL(inst, 0, 8);
-
-    CHECK_REG_ID(rd);
-    CHECK_REG_ID(rs);
-
-    ImportEntry *e = IMPORT_ENTRY(off);
-    ASSERT(e->kind == IMPORT_KIND_FIELD);
-    FieldObject *fld = e->address;
-    ASSERT(fld);
-    int offset = fld->index;
-    Object *obj = to_obj(regs + rs);
-    if (fld->kind == FIELD_OFFSET) {
-        regs[rd] = *(TValue *)((char *)obj + offset);
-    } else {
-        ASSERT(fld->kind == FIELD_INDEX);
-        InstObject *inst_obj = (InstObject *)obj;
-        regs[rd] = inst_obj->fields[offset];
-    }
-    DISPATCH();
-}
-
 TARGET(OP_NEW) {
     rd = I_VAL(inst, 16, 8);
     idx = I_VAL(inst, 0, 16);

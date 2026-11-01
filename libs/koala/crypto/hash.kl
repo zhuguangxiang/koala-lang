@@ -1,0 +1,49 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+// One-shot hash functions, the equivalent of Python's
+// hashlib.sha256(data).digest() without the intermediate object.
+// Output is raw binary; a printable form is the caller's choice.
+
+/// SHA-1 digest of `data`. 20 bytes. Legacy; prefer SHA-256.
+@native
+pub func sha1(data bytes) bytes {}
+
+/// SHA-224 digest of `data`. 28 bytes.
+@native
+pub func sha224(data bytes) bytes {}
+
+/// SHA-256 digest of `data`. 32 bytes.
+@native
+pub func sha256(data bytes) bytes {}
+
+/// SHA-384 digest of `data`. 48 bytes.
+@native
+pub func sha384(data bytes) bytes {}
+
+/// SHA-512 digest of `data`. 64 bytes.
+@native
+pub func sha512(data bytes) bytes {}
+
+/// SHA3-224 digest of `data`. 28 bytes.
+@native
+pub func sha3_224(data bytes) bytes {}
+
+/// SHA3-256 digest of `data`. 32 bytes.
+@native
+pub func sha3_256(data bytes) bytes {}
+
+/// SHA3-384 digest of `data`. 48 bytes.
+@native
+pub func sha3_384(data bytes) bytes {}
+
+/// SHA3-512 digest of `data`. 64 bytes.
+@native
+pub func sha3_512(data bytes) bytes {}
+
+/// MD5 digest of `data`. 16 bytes. NOT suitable for security; only
+/// for non-adversarial checksums and legacy protocol compatibility.
+@native
+pub func md5(data bytes) bytes {}

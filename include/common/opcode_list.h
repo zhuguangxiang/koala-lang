@@ -1723,58 +1723,33 @@ X(OP_GLOBAL_SET, FORMAT_RxIdx12, "global.set")
  +---------------------------------------------------------------*/
 
 /**
- * OP_GET_FIELD — load field from object (same module)
+ * OP_GET_FIELD — load field from object
  *
  * FORMAT_ABC:
- *     | op:8 | dst:8 | src:8 | imm(field-offset):8 |
+ *     | op:8 | dst:8 | src:8 | imm(field-index):8 |
  *
  * Details:
  *     Loads a field from an object using a compile-time constant
- *     field offset. Used only for fields defined in the same module.
- *     R[dst] = *(R[src] + field-offset).
+ *     field index. Used for fields of classes in any module; the index
+ *     of an external class's field is read from its .klc.
+ *     R[dst] = R[src].fields[field-index].
  */
 X(OP_GET_FIELD, FORMAT_RRImm, "get_field")
 
 /**
- * OP_SET_FIELD — store field into object (same module)
+ * OP_SET_FIELD — store field into object
  *
  * FORMAT_ABC:
- *     | op:8 | dst:8 | src:8 | imm(field-offset):8 |
+ *     | op:8 | dst:8 | src:8 | imm(field-index):8 |
  *
  * Details:
  *     Stores a value into a field using a compile-time constant
- *     field offset. Used only for fields defined in the same module.
+ *     field index. Used for fields of classes in any module; the index
+ *     of an external class's field is read from its .klc.
  *     Writes may trigger GC barriers depending on the value type.
- *     *(R[dst] + field-offset) = R[src].
+ *     R[dst].fields[field-index] = R[src].
  */
 X(OP_SET_FIELD, FORMAT_RRImm, "set_field")
-
-/**
- * OP_GET_FIELD_EXT — load field from external class
- *
- * FORMAT_ABC:
- *     | op:8 | dst:8 | src:8 | imm(import-index):8 |
- *
- * Details:
- *     Loads a field defined in another module. The import-index
- *     refers to an ImportEntry of kind IMPORT_FIELD. The loader
- *     resolves the field offset and fills ImportEntry.resolved.field_offset.
- */
-X(OP_GET_FIELD_EXT, FORMAT_RRImm, "get_field_ext")
-
-/**
- * OP_SET_FIELD_EXT — store field into external class
- *
- * FORMAT_ABC:
- *     | op:8 | dst:8 | src:8 | imm(import-index):8 |
- *
- * Details:
- *     Stores a value into a field defined in another module. The
- *     import-index refers to an ImportEntry of kind IMPORT_FIELD.
- *     The loader resolves the field offset and fills
- *     ImportEntry.resolved.field_offset.
- */
-X(OP_SET_FIELD_EXT, FORMAT_RRImm, "set_field_ext")
 
 /*---------------------------------------------------------------+
  |  Conditional Move Instruction                                 |

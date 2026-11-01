@@ -1,0 +1,6 @@
+link "demo_ws_native"
+
+@native
+func ws_double(x int) int {}
+
+print("ws_double(21) = " + ws_double(21).to_str())

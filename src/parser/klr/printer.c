@@ -530,9 +530,6 @@ static void print_get_field(KlrInsn *insn, char *name, FILE *fp)
     if (val->kind == KLR_VALUE_FIELD) {
         KlrField *fld = (KlrField *)val;
         fprintf(fp, ", %s(index=%d)", fld->name, fld->index);
-    } else if (val->kind == KLR_VALUE_EXT_FIELD) {
-        KlrExtField *fld = (KlrExtField *)val;
-        fprintf(fp, ", %s", fld->name);
     } else {
         UNREACHABLE();
     }
@@ -548,9 +545,6 @@ static void print_set_field(KlrInsn *insn, char *name, FILE *fp)
     if (val->kind == KLR_VALUE_FIELD) {
         KlrField *fld = (KlrField *)val;
         fprintf(fp, ", %s(index=%d)", fld->name, fld->index);
-    } else if (val->kind == KLR_VALUE_EXT_FIELD) {
-        KlrExtField *fld = (KlrExtField *)val;
-        fprintf(fp, ", %s", fld->name);
     } else {
         UNREACHABLE();
     }
@@ -1194,15 +1188,7 @@ void klr_print_insn(KlrInsn *insn, FILE *fp)
             print_get_field(insn, name, fp);
             break;
 
-        case OP_GET_FIELD_EXT:
-            print_get_field(insn, name, fp);
-            break;
-
         case OP_SET_FIELD:
-            print_set_field(insn, name, fp);
-            break;
-
-        case OP_SET_FIELD_EXT:
             print_set_field(insn, name, fp);
             break;
 

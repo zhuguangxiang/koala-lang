@@ -1,0 +1,80 @@
+// RUN: koala %s | filecheck %s
+//
+// bytes has two deliberately different renderings:
+//
+//   fmt     -- what `print` uses -- is a display form. It escapes every byte
+//              and never stops early, so embedded NULs stay visible.
+//   to_str  is a conversion. It behaves like a C string and stops at the
+//              first NUL, because a bytes object doubles as an I/O buffer.
+//
+// Do not "unify" them: making to_str skip NULs silently changes every
+// buffer-to-string call site (socket recv_from, fs.read_bytes, ...).
+
+func main() {
+    // ---------------------------------------------------------------
+    // fmt: display form, all bytes, escaped
+    // ---------------------------------------------------------------
+
+    // printable bytes are shown as-is
+    print(b"hello")
+
+    // an embedded NUL is escaped, not treated as a terminator
+    print(b"AB\x00CD")
+
+    // a leading NUL survives too
+    print(b"\x00\x01\x02")
+
+    // a zero-filled buffer shows every byte it owns
+    print(bytes(3))
+
+    // quote and backslash are escaped, so the dump can be read back
+    print(b"a\"b\\c")
+
+    // newline and tab use short escapes: a dump never spans several lines
+    print(b"a\nb\tc")
+
+    // non-ASCII bytes use the uppercase \xNN convention
+    print(b"\xff\xfe")
+
+    // past 64 bytes only the head is printed and the real size is appended,
+    // so a shortened value can never be mistaken for a short one
+    print(bytes(65))
+
+    // ---------------------------------------------------------------
+    // to_str: conversion, stops at the first NUL
+    // ---------------------------------------------------------------
+
+    // no NUL inside: every byte is converted
+    print("s=" + b"hello".to_str())
+
+    // NUL in the middle: the tail is dropped
+    print("s=" + b"AB\x00CD".to_str())
+    print("n=" + str(b"AB\x00CD".to_str().len()))
+
+    // leading NUL: the result is empty
+    print("n=" + str(b"\x00\x01\x02".to_str().len()))
+
+    // a fresh bytes(64) read buffer converts to the empty string
+    print("n=" + str(bytes(64).to_str().len()))
+
+    // slicing first does not help: to_str still stops at a NUL
+    print("n=" + str(b"AB\x00CD".view(0, 5).to_str().len()))
+}
+
+// fmt: every byte, escaped, single line
+// CHECK: b"hello"
+// CHECK: b"AB\x00CD"
+// CHECK: b"\x00\x01\x02"
+// CHECK: b"\x00\x00\x00"
+// CHECK: b"a\"b\\c"
+// CHECK: b"a\nb\tc"
+// CHECK: b"\xFF\xFE"
+// CHECK: (65 bytes)
+
+// to_str: stops at the first NUL
+// CHECK: s=hello
+// CHECK: s=AB
+// CHECK: n=2
+// CHECK: n=0
+// CHECK: n=0
+// CHECK: n=2

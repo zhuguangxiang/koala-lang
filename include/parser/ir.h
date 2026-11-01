@@ -39,7 +39,6 @@ typedef enum _KlrValueKind {
     KLR_VALUE_EXT_GLOBAL,
     KLR_VALUE_EXT_FUNC,
     KLR_VALUE_EXT_KLASS,
-    KLR_VALUE_EXT_FIELD,
     KLR_VALUE_EXT_TRAIT,
     KLR_VALUE_EXT_INTF,
     KLR_VALUE_INDEX,
@@ -372,7 +371,6 @@ typedef struct _KlrExtModule {
 typedef struct _KlrExtKlass {
     KLR_VALUE_HEAD
     KlrExtModule *module;
-    Vector fields;
     Vector methods;
 } KlrExtKlass;
 
@@ -386,7 +384,7 @@ typedef struct {
     KLR_VALUE_HEAD
     KlrExtModule *module;
     KlrExtKlass *klass;
-} KlrExtGlobal, KlrExtField;
+} KlrExtGlobal;
 
 typedef struct _KlrExtFunc {
     KLR_VALUE_HEAD
@@ -667,6 +665,7 @@ void klr_delete_func(KlrModule *m, KlrFunc *fn);
 KlrValue *klr_add_global(KlrModule *m, TypeSpec *ts, char *name, int mut, int konst);
 KlrValue *klr_add_klass(KlrModule *m, TypeSpec *ts, char *name);
 KlrValue *klr_add_field(KlrValue *klass, char *name, TypeSpec *ts);
+KlrValue *klr_new_ext_field(TypeSpec *ts, char *name, int index);
 KlrValue *klr_add_method(KlrKlass *kls, TypeSpec *ret, char *name);
 
 KlrValue *klr_add_intf(KlrTrait *trait, TypeSpec *ret, char *name);
@@ -678,7 +677,6 @@ KlrExtModule *klr_add_ext_module(KlrModule *m, char *path);
 KlrValue *klr_add_ext_func(KlrModule *m, char *ext_m_path, TypeSpec *ret, char *name);
 KlrValue *klr_add_ext_global(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name);
 KlrValue *klr_add_ext_klass(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name);
-KlrValue *klr_add_ext_field(KlrExtKlass *kls, TypeSpec *ts, char *name);
 KlrValue *klr_add_ext_method(KlrExtKlass *kls, TypeSpec *ret, char *name);
 KlrValue *klr_add_ext_trait(KlrModule *m, char *ext_m_path, TypeSpec *ts, char *name);
 KlrValue *klr_add_ext_intf(KlrExtTrait *trait, TypeSpec *ret, char *name);
@@ -1141,8 +1139,6 @@ KlrValue *klr_build_get_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, 
                               char *name);
 KlrValue *klr_build_set_field(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, KlrValue *val);
 
-KlrValue *klr_build_get_field_ext(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, char *name);
-KlrValue *klr_build_set_field_ext(KlrBuilder *bldr, KlrValue *obj, KlrValue *field, KlrValue *val);
 
 KlrValue *klr_build_seq_get(KlrBuilder *bldr, KlrValue *obj, KlrValue *index, TypeSpec *ts,
                             char *name);

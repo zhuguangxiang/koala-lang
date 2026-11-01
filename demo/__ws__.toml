@@ -1,0 +1,43 @@
+[workspace]
+name = "demo"
+version = "0.1.0"
+packages = ["math", "text", "app"]
+
+[[package]]
+file = "extra.kl"
+name = "demo/extra"
+version = "0.1.0"
+dependencies = ["demo/math"]
+natives = []
+
+[[package]]
+file = "simple_algo.kl"
+name = "simple_algo"
+version = "0.1.0"
+dependencies = []
+natives = []
+
+[[package]]
+file = "csv2lines.kl"
+name = "csv2lines"
+version = "0.1.0"
+dependencies = []
+natives = []
+
+[[native]]
+name = "demo_ws_native"
+sources = ["native/ws_native.c"]
+includes = [
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]
+cflags = ["-O2"]
+
+[[native]]
+name = "demo_ws_native2"
+sources = ["native/ws_native2.c"]
+includes = [
+    "/home/james/Codes/koala-lang/include/common",
+    "/home/james/Codes/koala-lang/include/runtime",
+]
+cflags = ["-O2"]

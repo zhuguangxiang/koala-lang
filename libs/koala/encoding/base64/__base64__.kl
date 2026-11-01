@@ -1,28 +1,73 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
 
-
-link "koala_ext_native"
+link "koala_base64"
 
 /// Base64 codecs (RFC 4648).
 ///
-/// `encode`/`decode` use the standard alphabet with padding,
-/// `encode_url`/`decode_url` use the URL- and filename-safe alphabet.
+/// The functions mirror CPython's `base64` module, with the redundant `b64`
+/// prefix dropped because the package name already says base64:
+///
+///     encode(s, altchars=None)    decode(s, altchars=None, validate=False)
+///     standard_encode(s)          standard_decode(s)
+///     urlsafe_encode(s)           urlsafe_decode(s)
+///     encodebytes(s)              decodebytes(s)
+///
+/// `None` is spelled `nil` in Koala, and the parameters CPython reads with
+/// `_bytes_from_decode_data` (so that they accept both bytes and str) are
+/// typed `bytes | str` here. Keyword arguments work the same way:
+///
+///     base64.decode(s, validate = true)
+///
+/// Decoding is lax by default: bytes outside the alphabet are skipped, so
+/// wrapped or whitespace-padded input decodes without preprocessing, but
+/// the padding still has to add up.
 
-/// Encode the bytes to a base64 string using the standard alphabet,
-/// with '=' padding.
-@native
-pub func encode(b bytes) str {}
+/// The URL- and filename-safe alphabet, built once at module load.
+let URL_SAFE_ALT = "-_".to_bytes()
 
-/// Decode a base64 string in the standard alphabet.
-/// Panic if the input is not valid base64.
+/// Encode `s` with '=' padding, mapping '+' and '/' to `altchars[0]` and
+/// `altchars[1]` when `altchars` is given (it must then be two bytes).
 @native
-pub func decode(s str) bytes {}
+pub func encode(s bytes, altchars (bytes | str)? = nil) bytes {}
 
-/// Encode the bytes to a base64 string using the URL- and filename-safe
-/// alphabet, with '=' padding.
+/// Decode base64 text. Bytes outside the alphabet are skipped, so wrapped
+/// and whitespace-padded input is accepted; `altchars` replaces '+' and '/'.
+/// `validate = true` instead rejects anything outside the alphabet. Panic if
+/// the padding does not add up.
 @native
-pub func encode_url(b bytes) str {}
+pub func decode(s bytes | str, altchars (bytes | str)? = nil, validate = false) bytes {}
 
-/// Decode a base64 string in the URL- and filename-safe alphabet.
-/// Panic if the input is not valid base64.
+/// Encode `s` with the standard alphabet (RFC 4648 section 4).
+pub func standard_encode(s bytes) bytes {
+    return encode(s)
+}
+
+/// Decode base64 text in the standard alphabet.
+pub func standard_decode(s bytes | str) bytes {
+    return decode(s)
+}
+
+/// Encode `s` with the URL- and filename-safe alphabet (RFC 4648 section 5),
+/// keeping the '=' padding.
+pub func urlsafe_encode(s bytes) bytes {
+    return encode(s, URL_SAFE_ALT)
+}
+
+/// Decode URL- and filename-safe base64 text.
+pub func urlsafe_decode(s bytes | str) bytes {
+    return decode(s, URL_SAFE_ALT)
+}
+
+/// Encode `s` as 76-column base64 with a newline after every line
+/// (RFC 2045), the body format of a MIME part.
 @native
-pub func decode_url(s str) bytes {}
+pub func encodebytes(s bytes) bytes {}
+
+/// Decode text written by `encodebytes`, or any base64 with embedded
+/// whitespace: the lax decoder skips it.
+pub func decodebytes(s bytes | str) bytes {
+    return decode(s)
+}

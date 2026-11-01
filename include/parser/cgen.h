@@ -232,8 +232,7 @@ typedef enum {
     IMPORT_FUNC,   /* free function */
     IMPORT_GLOBAL, /* global variable */
     IMPORT_TYPE,   /* type object */
-    IMPORT_METHOD, /* method of a type (slot-based) */
-    IMPORT_FIELD   /* field of a type (offset-based) */
+    IMPORT_METHOD  /* method of a type (slot-based) */
 } ImportKind;
 
 typedef struct KlMachImport {
@@ -256,7 +255,6 @@ void kl_lower_operands(KlrFunc *fn, KlMachModule *ctx);
 void kl_do_codegen(KlrModule *module);
 
 KlMachConst *kl_mach_add_const(KlrConst *kc, KlMachModule *m);
-int mach_import_add_field(KlMachModule *m, char *path, char *klass, char *name);
 int mach_import_add_klass(KlMachModule *m, char *path, char *name);
 int mach_import_add_global(KlMachModule *m, char *path, char *name);
 

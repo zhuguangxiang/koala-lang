@@ -138,10 +138,10 @@ void buf_write_double_str(Buffer *self, double val)
     buf_write_nstr(self, buf, sz);
 }
 
-void escape_str(const char *s, Buffer *buf)
+void escape_nstr(const char *s, int len, Buffer *buf)
 {
-    for (const char *p = s; *p; p++) {
-        unsigned char c = *p;
+    for (int i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
         switch (c) {
             case '\n':
                 buf_write_str(buf, "\\n");
@@ -172,6 +172,11 @@ void escape_str(const char *s, Buffer *buf)
                 }
         }
     }
+}
+
+void escape_str(const char *s, Buffer *buf)
+{
+    escape_nstr(s, (int)strlen(s), buf);
 }
 
 /* Stack buffer size for fast path: avoids heap allocation for short formats */

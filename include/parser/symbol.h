@@ -84,6 +84,8 @@ typedef struct _VarSymbol {
 #define VAR_SCOPE_FIELD  4
     // default value for parameters
     Literal *lit;
+    // field index in its class (fields loaded from .klc)
+    int index;
     // for instance field, point to the origin field symbol
     // void *origin;
 } VarSymbol;

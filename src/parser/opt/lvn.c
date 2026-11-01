@@ -172,7 +172,6 @@ static int lvn_is_load_numberable(OpCode code)
 {
     switch (code) {
         case OP_GET_FIELD:
-        case OP_GET_FIELD_EXT:
             return 1;
         default:
             return 0;
@@ -186,7 +185,6 @@ static int lvn_invalidates_loads(KlrInsn *insn)
 {
     switch (insn->code) {
         case OP_SET_FIELD:
-        case OP_SET_FIELD_EXT:
         case OP_SEQ_SET:
         case OP_SEQ_SET_IMM:
         case OP_SEQ_SET_SLICE:

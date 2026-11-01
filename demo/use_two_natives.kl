@@ -1,0 +1,11 @@
+link "demo_ws_native"
+link "demo_ws_native2"
+
+@native
+func ws_double(x int) int {}
+
+@native
+func ws_square(x int) int {}
+
+print("ws_double(21) = " + ws_double(21).to_str())
+print("ws_square(7) = " + ws_square(7).to_str())
