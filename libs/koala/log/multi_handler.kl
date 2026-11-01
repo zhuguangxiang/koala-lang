@@ -1,0 +1,42 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// MultiHandler fans a record out to several handlers. Each child
+/// decides independently whether to emit the record, so one logger
+/// can write INFO to one sink and ERROR to another.
+///
+/// `Logger.log` constructs the `Record` once and calls
+/// `MultiHandler.handle`; the record is then passed to every child
+/// whose own level gate accepts it. Per-record cost is one
+/// construction and N level checks, independent of how many bytes
+/// the children write.
+pub class MultiHandler : Handler {
+    let handlers list[Handler]
+
+    pub func __init__(_handlers list[Handler]) {
+        handlers = _handlers
+    }
+
+    /// True when at least one child enables `level`. An empty
+    /// MultiHandler enables nothing.
+    pub func enabled(level int) bool {
+        for h in handlers {
+            if h.enabled(level) { return true }
+        }
+        return false
+    }
+
+    /// Pass `r` to every child whose own level gate accepts it.
+    pub func handle(r Record) {
+        for h in handlers {
+            if h.enabled(r.level) { h.handle(r) }
+        }
+    }
+}
+
+/// Build a MultiHandler from the given handlers.
+pub func multi_handler(handlers list[Handler]) MultiHandler {
+    return MultiHandler(handlers)
+}

@@ -1,0 +1,63 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/log"
+
+class CountingHandler : log.Handler {
+    pub var calls int
+    let min_level int
+
+    pub func __init__(_min_level int) {
+        min_level = _min_level
+        calls = 0
+    }
+
+    pub func enabled(level int) bool { return level >= min_level }
+    pub func handle(r log.Record)    { calls = calls + 1 }
+}
+
+@test
+func test_fanout_by_level() {
+    let low  = CountingHandler(log.INFO)
+    let high = CountingHandler(log.ERROR)
+
+    let hs = list[log.Handler]()
+    hs.append(low)
+    hs.append(high)
+    let mh = log.multi_handler(hs)
+    let l = log.new_logger(mh)
+
+    l.info("a")             // low 收，high 不收
+    ut.assert_eq(low.calls, 1)
+    ut.assert_eq(high.calls, 0)
+
+    l.error("b")            // 两个都收
+    ut.assert_eq(low.calls, 2)
+    ut.assert_eq(high.calls, 1)
+}
+
+@test
+func test_empty_multi_handler_disabled() {
+    let hs = list[log.Handler]()
+    let mh = log.multi_handler(hs)
+    ut.assert_false(mh.enabled(log.INFO))
+}
+
+@test
+func test_all_below_threshold() {
+    let h1 = CountingHandler(log.ERROR)
+    let h2 = CountingHandler(log.FATAL)
+
+    let hs = list[log.Handler]()
+    hs.append(h1)
+    hs.append(h2)
+    let mh = log.multi_handler(hs)
+    let l = log.new_logger(mh)
+
+    l.info("x")             // 两个都不收，外层快速路径直接返回
+    ut.assert_eq(h1.calls, 0)
+    ut.assert_eq(h2.calls, 0)
+}

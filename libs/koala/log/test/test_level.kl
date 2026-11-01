@@ -1,0 +1,24 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/log"
+
+@test
+func test_level_str_known() {
+    ut.assert_eq(log.level_str(log.TRACE), "TRACE")
+    ut.assert_eq(log.level_str(log.DEBUG), "DEBUG")
+    ut.assert_eq(log.level_str(log.INFO),  "INFO")
+    ut.assert_eq(log.level_str(log.WARN),  "WARN")
+    ut.assert_eq(log.level_str(log.ERROR), "ERROR")
+    ut.assert_eq(log.level_str(log.FATAL), "FATAL")
+    ut.assert_eq(log.level_str(log.OFF),   "OFF")
+}
+
+@test
+func test_level_str_unknown() {
+    ut.assert_eq(log.level_str(99), "LEVEL(99)")
+    ut.assert_eq(log.level_str(-1), "LEVEL(-1)")
+}

@@ -1,0 +1,32 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/log"
+
+@test
+func test_attr_fields() {
+    let a = log.attr("user", "alice")
+    ut.assert_eq(a.key, "user")
+    ut.assert_eq(a.value, "alice")
+}
+
+@test
+func test_attr_constructor_direct() {
+    let a = log.Attr("k", "v")
+    ut.assert_eq(a.key, "k")
+    ut.assert_eq(a.value, "v")
+}
+
+@test
+func test_attr_order_preserved_in_list() {
+    let xs = list[log.Attr]()
+    xs.append(log.attr("a", "1"))
+    xs.append(log.attr("b", "2"))
+    xs.append(log.attr("c", "3"))
+    ut.assert_eq(xs[0].key, "a")
+    ut.assert_eq(xs[1].key, "b")
+    ut.assert_eq(xs[2].key, "c")
+}

@@ -1,0 +1,17 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Handler is the backend contract: it decides whether a record at a
+/// given level should be emitted, and if so, formats and writes it.
+///
+/// `Logger` calls `enabled` before constructing a `Record`, so a
+/// disabled level costs nothing beyond the integer comparison.
+pub trait Handler {
+    /// Return true if a record at `level` should be emitted.
+    func enabled(level int) bool
+
+    /// Format and write `r` to the handler's sink.
+    func handle(r Record)
+}

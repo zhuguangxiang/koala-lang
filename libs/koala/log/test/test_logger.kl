@@ -1,0 +1,80 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/log"
+
+/// A Handler that records everything it is asked to handle, so the
+/// test can assert on what reached the backend.
+class MockHandler : log.Handler {
+    pub let records list[log.Record]
+    let min_level int
+
+    pub func __init__(_min_level int) {
+        min_level = _min_level
+        records = list[log.Record]()
+    }
+
+    pub func enabled(level int) bool {
+        return level >= min_level
+    }
+
+    pub func handle(r log.Record) {
+        records.append(r)
+    }
+}
+
+@test
+func test_fast_path_disabled() {
+    let h = MockHandler(log.WARN)
+    let l = log.new_logger(h)
+    l.info("x")          // INFO < WARN
+    ut.assert_eq(h.records.len(), 0)
+}
+
+@test
+func test_handle_called_when_enabled() {
+    let h = MockHandler(log.INFO)
+    let l = log.new_logger(h)
+    l.info("hello")
+    ut.assert_eq(h.records.len(), 1)
+    ut.assert_eq(h.records[0].msg, "hello")
+    ut.assert_eq(h.records[0].level, log.INFO)
+}
+
+@test
+func test_with_derives_new_logger() {
+    let h = MockHandler(log.TRACE)
+    let l = log.new_logger(h)
+
+    let xs = list[log.Attr]()
+    xs.append(log.attr("req", "42"))
+    let l2 = l.with(xs)
+
+    l2.info("x")
+    ut.assert_eq(h.records[0].attrs.len(), 1)
+    ut.assert_eq(h.records[0].attrs[0].key, "req")
+
+    l.info("y")
+    ut.assert_eq(h.records[1].attrs.len(), 0)
+}
+
+@test
+func test_with_merges_caller_attrs() {
+    let h = MockHandler(log.TRACE)
+    let l = log.new_logger(h)
+
+    let base = list[log.Attr]()
+    base.append(log.attr("service", "api"))
+    let l2 = l.with(base)
+
+    let xs = list[log.Attr]()
+    xs.append(log.attr("req", "42"))
+    l2.log(log.INFO, "x", xs)
+
+    ut.assert_eq(h.records[0].attrs.len(), 2)
+    ut.assert_eq(h.records[0].attrs[0].key, "service")
+    ut.assert_eq(h.records[0].attrs[1].key, "req")
+}

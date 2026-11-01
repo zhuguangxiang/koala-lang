@@ -1,0 +1,38 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/time"
+
+/// One log event: when it happened, its severity, the message, and
+/// any structured fields attached by the caller or by `Logger.with`.
+///
+/// A Record is constructed by `Logger.log` only after `Handler.enabled`
+/// returns true, so the timestamp reflects the moment the record is
+/// actually emitted, not the moment the call was made.
+pub class Record {
+    /// The instant the record was created.
+    pub let timestamp time.Instant
+
+    /// The severity level.
+    pub let level int
+
+    /// The human-readable message.
+    pub let msg str
+
+    /// Structured fields, in insertion order.
+    pub let attrs list[Attr]
+
+    pub func __init__(_level int, _msg str, _attrs list[Attr]) {
+        timestamp = time.now()
+        level = _level
+        msg = _msg
+        attrs = _attrs
+    }
+}
+
+/// Convenience constructor for `Record`.
+pub func record(level int, msg str, attrs list[Attr]) Record {
+    return Record(level, msg, attrs)
+}

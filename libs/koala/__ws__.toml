@@ -13,4 +13,5 @@ packages = [
     "crypto",
     "hex",
     "base64",
+    "log",
 ]

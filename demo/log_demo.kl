@@ -1,0 +1,42 @@
+/*
+ * demo.kl — koala/log 用法示例。
+ */
+
+import "std/sys"
+import "koala/log"
+
+func main() {
+    // 1. 默认 logger：stderr，INFO 门槛
+    log.info("demo started")
+
+    // 2. 低于门槛，快速路径直接返回，不构造 Record
+    log.debug("not shown at INFO level")
+
+    // 3. 换全局默认：TRACE 门槛
+    log.set_default(log.new_logger(log.new_stderr_handler(log.TRACE)))
+    log.debug("shown after lowering the level")
+
+    // 4. with 派生上下文，常驻字段自动附加
+    let base = list[log.Attr]()
+    base.append(log.attr("service", "demo"))
+    base.append(log.attr("pid", "1234"))
+    let ctx = log.default_logger().with(base)
+    ctx.info("request received")
+
+    // 5. 调用点临时字段，和 with 字段合并（with 在前）
+    let xs = list[log.Attr]()
+    xs.append(log.attr("user", "alice"))
+    xs.append(log.attr("path", "/api/orders"))
+    ctx.log(log.WARN, "slow query", xs)
+
+    // 6. MultiHandler：stderr 收 INFO 及以上，另一路只收 ERROR
+    let low  = log.new_text_handler(sys.stderr, log.INFO)
+    let high = log.new_text_handler(sys.stderr, log.ERROR)
+    let hs = list[log.Handler]()
+    hs.append(low)
+    hs.append(high)
+    let multi = log.new_logger(log.multi_handler(hs))
+
+    multi.info("info: low only")
+    multi.error("error: low and high (appears twice)")
+}

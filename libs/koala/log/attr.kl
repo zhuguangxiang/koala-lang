@@ -1,0 +1,28 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// A single structured logging field: a string key and a string value.
+///
+/// Attributes are carried in a `list[Attr]` to preserve insertion
+/// order, matching the order in which the caller supplied them. The
+/// value type is `str` in the first version; widening it to a union
+/// later does not change this class's shape.
+pub class Attr {
+    /// The field name.
+    pub let key str
+
+    /// The field value, as a string.
+    pub let value str
+
+    pub func __init__(_key str, _value str) {
+        key = _key
+        value = _value
+    }
+}
+
+/// Convenience constructor for `Attr`.
+pub func attr(key str, value str) Attr {
+    return Attr(key, value)
+}

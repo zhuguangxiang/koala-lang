@@ -1,0 +1,32 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Severity levels, ordered from most to least verbose.
+///
+/// The integer values are stable: they may be compared and stored.
+/// A handler's minimum level is compared with `>=`, so a larger
+/// value means a more severe record. OFF is a sentinel that
+/// disables all output; no record is ever emitted at that level.
+
+pub const TRACE = 0
+pub const DEBUG = 1
+pub const INFO  = 2
+pub const WARN  = 3
+pub const ERROR = 4
+pub const FATAL = 5
+pub const OFF   = 6
+
+/// Return the upper-case name of `level`, or "LEVEL(n)" for an
+/// unknown value.
+pub func level_str(level int) str {
+    if level == TRACE { return "TRACE" }
+    if level == DEBUG { return "DEBUG" }
+    if level == INFO  { return "INFO" }
+    if level == WARN  { return "WARN" }
+    if level == ERROR { return "ERROR" }
+    if level == FATAL { return "FATAL" }
+    if level == OFF   { return "OFF" }
+    return "LEVEL(" + str(level) + ")"
+}

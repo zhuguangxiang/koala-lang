@@ -5,37 +5,22 @@
 
 import "std/ut"
 import "koala/crypto" as cr
-
-// Local hex encoder, only for comparing digests against known
-// vectors. When koala grows a hex, switch to it and delete
-// this.
-func hex(data bytes) str {
-    let digits = "0123456789abcdef"
-    let n = data.len()
-    var out = ""
-    var i = 0
-    while i < n {
-        let b = int(data[i])
-        out = out + digits[(b >> 4) & 0xF] + digits[b & 0xF]
-        i += 1
-    }
-    return out
-}
+import "koala/hex"
 
 @test
 func test_sha256_empty() {
-    ut.assert_eq(hex(cr.sha256(bytes(0))),
+    ut.assert_eq(hex.encode(cr.sha256(bytes(0))),
         "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 }
 
 @test
 func test_sha256_abc() {
-    ut.assert_eq(hex(cr.sha256("abc".to_bytes())),
+    ut.assert_eq(hex.encode(cr.sha256("abc".to_bytes())),
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
 }
 
 @test
 func test_sha256_56_bytes() {
-    ut.assert_eq(hex(cr.sha256("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".to_bytes())),
+    ut.assert_eq(hex.encode(cr.sha256("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".to_bytes())),
         "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1")
 }

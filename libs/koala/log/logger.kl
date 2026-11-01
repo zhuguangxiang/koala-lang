@@ -1,0 +1,53 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// Logger is the front end: it holds a `Handler` and any attributes
+/// attached via `with`, and turns level+message calls into `Record`s
+/// for the handler.
+///
+/// The level check happens before the `Record` is built, so a
+/// disabled call allocates nothing.
+pub class Logger {
+    let handler Handler
+    let attrs list[Attr]
+
+    pub func __init__(_handler Handler, _attrs list[Attr]) {
+        handler = _handler
+        attrs = _attrs
+    }
+
+    /// Return a new Logger that carries `_attrs` in addition to the
+    /// receiver's attributes. The receiver is not modified.
+    pub func with(_attrs list[Attr]) Logger {
+        let merged = list[Attr]()
+        for a in attrs { merged.append(a) }
+        for a in _attrs { merged.append(a) }
+        return Logger(handler, merged)
+    }
+
+    /// Emit a record at `lv` with `msg` and `_attrs`, if the handler
+    /// enables `lv`. Attributes from `with` come first, then `_attrs`.
+    pub func log(lv int, msg str, _attrs list[Attr]) {
+        if !handler.enabled(lv) {
+            return
+        }
+        let all = list[Attr]()
+        for a in attrs { all.append(a) }
+        for a in _attrs { all.append(a) }
+        handler.handle(Record(lv, msg, all))
+    }
+
+    pub func trace(msg str) { log(TRACE, msg, list[Attr]()) }
+    pub func debug(msg str) { log(DEBUG, msg, list[Attr]()) }
+    pub func info(msg str)  { log(INFO,  msg, list[Attr]()) }
+    pub func warn(msg str)  { log(WARN,  msg, list[Attr]()) }
+    pub func error(msg str) { log(ERROR, msg, list[Attr]()) }
+    pub func fatal(msg str) { log(FATAL, msg, list[Attr]()) }
+}
+
+/// Convenience constructor: a Logger with no attached attributes.
+pub func new_logger(handler Handler) Logger {
+    return Logger(handler, list[Attr]())
+}

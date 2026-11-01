@@ -1,0 +1,39 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/log"
+
+@test
+func test_record_fields() {
+    let xs = list[log.Attr]()
+    xs.append(log.attr("k", "v"))
+    let r = log.record(log.INFO, "hello", xs)
+    ut.assert_eq(r.level, log.INFO)
+    ut.assert_eq(r.msg, "hello")
+    ut.assert_eq(r.attrs.len(), 1)
+    ut.assert_eq(r.attrs[0].key, "k")
+    ut.assert_eq(r.attrs[0].value, "v")
+}
+
+@test
+func test_record_empty_attrs() {
+    let r = log.record(log.WARN, "w", list[log.Attr]())
+    ut.assert_eq(r.attrs.len(), 0)
+    ut.assert_eq(r.level, log.WARN)
+    ut.assert_eq(r.msg, "w")
+}
+
+@test
+func test_record_attrs_order_preserved() {
+    let xs = list[log.Attr]()
+    xs.append(log.attr("a", "1"))
+    xs.append(log.attr("b", "2"))
+    xs.append(log.attr("c", "3"))
+    let r = log.record(log.ERROR, "e", xs)
+    ut.assert_eq(r.attrs[0].key, "a")
+    ut.assert_eq(r.attrs[1].key, "b")
+    ut.assert_eq(r.attrs[2].key, "c")
+}

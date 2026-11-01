@@ -1,0 +1,53 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/ut"
+import "koala/log"
+
+class CountingHandler : log.Handler {
+    pub var calls int
+    let min_level int
+
+    pub func __init__(_min_level int) {
+        min_level = _min_level
+        calls = 0
+    }
+
+    pub func enabled(level int) bool { return level >= min_level }
+    pub func handle(r log.Record)    { calls = calls + 1 }
+}
+
+@test
+func test_default_logger_is_created() {
+    log.default_logger()
+    ut.assert_true(true)
+}
+
+@test
+func test_set_default_routes_package_calls() {
+    let h = CountingHandler(log.TRACE)
+    let l = log.new_logger(h)
+    log.set_default(l)
+
+    log.info("a")
+    log.warn("b")
+    ut.assert_eq(h.calls, 2)
+
+    // 恢复默认，避免影响其他测试
+    log.set_default(log.new_logger(log.new_stderr_handler(log.INFO)))
+}
+
+@test
+func test_package_level_fast_path() {
+    let h = CountingHandler(log.ERROR)
+    let l = log.new_logger(h)
+    log.set_default(l)
+
+    log.info("a")   // 被 enabled 拦下
+    log.error("b")  // 通过
+    ut.assert_eq(h.calls, 1)
+
+    log.set_default(log.new_logger(log.new_stderr_handler(log.INFO)))
+}

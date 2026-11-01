@@ -1,0 +1,31 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+/// The process-wide default logger. Lazily created on first use,
+/// writing to `sys.stderr` at INFO. Replace it with `set_default`
+/// if a different handler or level is needed.
+var _default Logger?
+
+/// Return the process-wide default logger, creating it on first use.
+pub func default_logger() Logger {
+    if _default == nil {
+        _default = new_logger(new_stderr_handler(INFO))
+    }
+    return _default!
+}
+
+/// Replace the process-wide default logger. Call before the first
+/// logging call, or anytime to redirect subsequent package-level
+/// calls.
+pub func set_default(l Logger) {
+    _default = l
+}
+
+pub func trace(msg str) { default_logger().trace(msg) }
+pub func debug(msg str) { default_logger().debug(msg) }
+pub func info(msg str)  { default_logger().info(msg) }
+pub func warn(msg str)  { default_logger().warn(msg) }
+pub func error(msg str) { default_logger().error(msg) }
+pub func fatal(msg str) { default_logger().fatal(msg) }

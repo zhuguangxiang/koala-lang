@@ -1,0 +1,78 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+import "std/sys"
+import "std/time"
+import "koala/datetime"
+
+/// Format Unix nanoseconds as "YYYY-MM-DD HH:MM:SS.mmm" in UTC.
+///
+/// The calendar conversion is delegated to `koala/datetime`; this
+/// function only picks the fields and pads them. UTC is used because
+/// `Instant` carries no timezone; a local-time form is a separate
+/// concern that a future version can add.
+pub func format_time(epoch_ns int) str {
+    let dt = datetime.DateTime.from_instant(time.Instant.from_unix_ns(epoch_ns))
+    let ms = dt.nanosecond / 1000000
+    var out = str(dt.year).zfill(4)
+    out = out + "-" + str(dt.month).zfill(2)
+    out = out + "-" + str(dt.day).zfill(2)
+    out = out + " " + str(dt.hour).zfill(2)
+    out = out + ":" + str(dt.minute).zfill(2)
+    out = out + ":" + str(dt.second).zfill(2)
+    out = out + "." + str(ms).zfill(3)
+    return out
+}
+
+/// TextHandler writes one line per record:
+///
+///     2026-11-01 07:01:08.429 INFO  message key=value\n
+///
+/// The timestamp is UTC, formatted to millisecond precision. The
+/// level name is left-justified to 5 columns, so message text starts
+/// at the same column for every level (TRACE/DEBUG/ERROR/FATAL are
+/// 5 chars; INFO and WARN are padded with one space).
+///
+/// `handle` flushes the writer after every record. Log entries are
+/// meant to be durable: if `out` is a `BufWriter` (such as
+/// `sys.stderr`), unflushed data would be lost on a crash.
+pub class TextHandler : Handler {
+    let out io.Writer
+    let min_level int
+
+    pub func __init__(_out io.Writer, _min_level int) {
+        out = _out
+        min_level = _min_level
+    }
+
+    pub func enabled(level int) bool {
+        return level >= min_level
+    }
+
+    pub func handle(r Record) {
+        var line = format_time(r.timestamp.to_unix_ns())
+        line = line + " " + level_str(r.level).ljust(5)
+        line = line + " " + r.msg
+        for a in r.attrs {
+            line = line + " " + a.key + "=" + a.value
+        }
+        line = line + "\n"
+        out.write_str(line)
+        out.flush()
+    }
+}
+
+/// A TextHandler writing to `out`.
+pub func new_text_handler(out io.Writer, min_level int) TextHandler {
+    return TextHandler(out, min_level)
+}
+
+/// A TextHandler writing to `sys.stderr`. `sys.stderr` is a shared
+/// `BufWriter`; the handler flushes after each record, so records
+/// from multiple loggers interleave at line boundaries.
+pub func new_stderr_handler(min_level int) TextHandler {
+    return TextHandler(sys.stderr, min_level)
+}

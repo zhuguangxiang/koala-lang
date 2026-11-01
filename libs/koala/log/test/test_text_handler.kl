@@ -1,0 +1,71 @@
+/*
+ * This file is part of the koala project with MIT License.
+ * Copyright (c) zhuguangxiang <zhuguangxiang@gmail.com>.
+ */
+
+import "std/io"
+import "std/ut"
+import "koala/log"
+
+/// A Writer that accumulates everything written to it, so the test
+/// can assert on the exact bytes the handler produced.
+class CaptureWriter : io.Writer {
+    pub var buf str
+
+    pub func __init__() {
+        buf = ""
+    }
+
+    pub func write(bs bytes) int {
+        buf = buf + bs.to_str()
+        return bs.len()
+    }
+
+    pub func write_str(s str) int {
+        buf = buf + s
+        return s.len()
+    }
+
+    pub func flush() {}
+}
+
+@test
+func test_text_handler_writes_line() {
+    let w = CaptureWriter()
+    let h = log.new_text_handler(w, log.TRACE)
+    let l = log.new_logger(h)
+    l.info("hello")
+    ut.assert_true(w.buf.len() > 0)
+    ut.assert_true(w.buf.ends_with("\n"))
+}
+
+@test
+func test_text_handler_level_filter() {
+    let w = CaptureWriter()
+    let h = log.new_text_handler(w, log.WARN)
+    let l = log.new_logger(h)
+    l.info("x")
+    ut.assert_eq(w.buf, "")
+    l.warn("y")
+    ut.assert_true(w.buf.len() > 0)
+}
+
+@test
+func test_text_handler_attrs_appended() {
+    let w = CaptureWriter()
+    let h = log.new_text_handler(w, log.TRACE)
+    let l = log.new_logger(h)
+    let xs = list[log.Attr]()
+    xs.append(log.attr("k", "v"))
+    l.log(log.INFO, "m", xs)
+    ut.assert_true(w.buf.len() > 0)
+    // 含 k=v 子串
+    ut.assert_true(w.buf.index("k=v") >= 0)
+}
+
+@test
+func test_stderr_handler_constructs() {
+    let h = log.new_stderr_handler(log.INFO)
+    ut.assert_true(h.enabled(log.INFO))
+    ut.assert_false(h.enabled(log.DEBUG))
+}
